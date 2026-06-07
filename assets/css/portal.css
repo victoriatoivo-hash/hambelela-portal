@@ -5310,3 +5310,12 @@ textarea {
     padding: 24px;
   }
 }
+
+/* Keep bookkeeping transaction type labels readable after generic board label rules. */
+.bookkeeping-table .board-label.cash-label,
+.cash-detail-panel .board-label.cash-label {
+  color: #047857 !important;
+  background: #ecfdf5 !important;
+  border: 1px solid rgba(4, 120, 87, 0.24) !important;
+  text-shadow: none;
+}
