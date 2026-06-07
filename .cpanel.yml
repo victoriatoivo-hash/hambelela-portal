@@ -1,0 +1,12 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/hambele1/portal.hambelelaorganic.com/
+    - /bin/cp -R apps $DEPLOYPATH
+    - /bin/cp -R assets $DEPLOYPATH
+    - /bin/cp -R shared $DEPLOYPATH
+    - /bin/cp .htaccess $DEPLOYPATH
+    - /bin/cp *.php $DEPLOYPATH
+    - /bin/cp *.sql $DEPLOYPATH
+    - /bin/cp *.md $DEPLOYPATH
+    - /bin/cp *.html $DEPLOYPATH
