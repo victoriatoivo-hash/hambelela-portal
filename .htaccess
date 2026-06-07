@@ -1,0 +1,4 @@
+<FilesMatch "^(config|config\.local|config\.local\.example)\.php$">
+  Require all denied
+</FilesMatch>
+

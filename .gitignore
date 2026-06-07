@@ -1,0 +1,6 @@
+config.local.php
+uploads/
+default-login-accounts.txt
+
+.DS_Store
+Thumbs.db
