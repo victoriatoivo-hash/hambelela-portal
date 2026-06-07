@@ -617,6 +617,7 @@
     const undo = event.target.closest('[data-packing-undo]');
     const refreshButton = event.target.closest('[data-packing-refresh]');
     const importPrevious = event.target.closest('[data-import-previous-packing]');
+    const syncMonday = event.target.closest('[data-sync-monday-packing]');
     const extractInvoice = event.target.closest('[data-extract-invoice]');
     const addDraftRow = event.target.closest('[data-add-draft-row]');
     const removeDraftRow = event.target.closest('[data-remove-draft-row]');
@@ -658,6 +659,17 @@
           await refresh();
         } finally {
           importPrevious.classList.remove('is-loading');
+        }
+        return;
+      }
+      if (syncMonday) {
+        try {
+          syncMonday.classList.add('is-loading');
+          const result = await post('sync_monday');
+          setCount(result.message || 'Monday packing list synced.');
+          await refresh();
+        } finally {
+          syncMonday.classList.remove('is-loading');
         }
         return;
       }

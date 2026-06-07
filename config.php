@@ -26,3 +26,5 @@ define('OPENAI_MODEL', getenv('OPENAI_MODEL') ?: ($localSecrets['openai_model'] 
 define('WC_STORE_URL', rtrim(getenv('WC_STORE_URL') ?: ($localSecrets['wc_store_url'] ?? ''), '/'));
 define('WC_CONSUMER_KEY', getenv('WC_CONSUMER_KEY') ?: ($localSecrets['wc_consumer_key'] ?? ''));
 define('WC_CONSUMER_SECRET', getenv('WC_CONSUMER_SECRET') ?: ($localSecrets['wc_consumer_secret'] ?? ''));
+define('MONDAY_API_TOKEN', getenv('MONDAY_API_TOKEN') ?: ($localSecrets['monday_api_token'] ?? ''));
+define('MONDAY_PACKING_BOARD_ID', getenv('MONDAY_PACKING_BOARD_ID') ?: ($localSecrets['monday_packing_board_id'] ?? ''));

@@ -15,4 +15,7 @@ return [
     'wc_store_url' => 'https://www.hambelelaorganic.com',
     'wc_consumer_key' => 'paste-new-read-only-consumer-key-here',
     'wc_consumer_secret' => 'paste-new-read-only-consumer-secret-here',
+
+    'monday_api_token' => 'paste-your-monday-api-token-here',
+    'monday_packing_board_id' => '1590283675',
 ];

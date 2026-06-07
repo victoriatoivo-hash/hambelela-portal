@@ -16,7 +16,7 @@ $migrationReady = $ready
 $canManage = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
 $canEditHeaders = user_has_role('owner_admin');
 $assetVersion = is_file(BASE_PATH . '/assets/js/packing-list.js')
-    ? (string) filemtime(BASE_PATH . '/assets/js/packing-list.js') . '-bulk-actions-clean2'
+    ? (string) filemtime(BASE_PATH . '/assets/js/packing-list.js') . '-monday-sync1'
     : (string) time();
 
 include BASE_PATH . '/shared/header.php';
@@ -107,6 +107,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 <?php if ($canManage): ?>
                     <button type="button" data-open-packing-create><i data-lucide="plus"></i> New item</button>
                     <button type="button" data-open-invoice><i data-lucide="upload"></i> Upload invoice</button>
+                    <button type="button" data-sync-monday-packing><i data-lucide="download-cloud"></i> Sync Monday</button>
                     <button type="button" data-import-previous-packing><i data-lucide="copy-plus"></i> Import previous list</button>
                 <?php endif; ?>
                 <button type="button" data-packing-refresh><i data-lucide="refresh-cw"></i> Refresh</button>

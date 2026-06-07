@@ -62,6 +62,232 @@ function packing_extract_lines_from_text(string $text): array
     return array_slice($rows, 0, 80);
 }
 
+function packing_monday_configured(): bool
+{
+    return defined('MONDAY_API_TOKEN')
+        && defined('MONDAY_PACKING_BOARD_ID')
+        && MONDAY_API_TOKEN !== ''
+        && MONDAY_PACKING_BOARD_ID !== '';
+}
+
+function packing_monday_normalize(string $value): string
+{
+    return preg_replace('/[^a-z0-9]+/', '', strtolower($value)) ?: '';
+}
+
+function packing_monday_api(string $query, array $variables = []): array
+{
+    if (!packing_monday_configured()) {
+        throw new RuntimeException('Monday.com is not configured. Add monday_api_token and monday_packing_board_id to config.local.php.');
+    }
+    if (!function_exists('curl_init')) {
+        throw new RuntimeException('The PHP cURL extension is required for Monday.com sync.');
+    }
+
+    $ch = curl_init('https://api.monday.com/v2');
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            'Authorization: ' . MONDAY_API_TOKEN,
+            'Content-Type: application/json',
+        ],
+        CURLOPT_POSTFIELDS => json_encode(['query' => $query, 'variables' => $variables]),
+        CURLOPT_TIMEOUT => 45,
+    ]);
+
+    $raw = curl_exec($ch);
+    $curlError = curl_error($ch);
+    $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($raw === false || $curlError !== '') {
+        throw new RuntimeException('Monday.com connection failed: ' . $curlError);
+    }
+
+    $payload = json_decode((string) $raw, true);
+    if (!is_array($payload)) {
+        throw new RuntimeException('Monday.com returned an invalid response.');
+    }
+    if ($status >= 400 || !empty($payload['errors'])) {
+        $message = $payload['errors'][0]['message'] ?? 'Monday.com API request failed.';
+        throw new RuntimeException($message);
+    }
+
+    return $payload['data'] ?? [];
+}
+
+function packing_monday_items(): array
+{
+    $query = <<<'GRAPHQL'
+query PackingBoardItems($boardIds: [ID!], $cursor: String) {
+  boards(ids: $boardIds) {
+    items_page(limit: 100, cursor: $cursor) {
+      cursor
+      items {
+        id
+        name
+        updated_at
+        group { title }
+        column_values {
+          id
+          text
+          value
+          type
+          column { title }
+        }
+      }
+    }
+  }
+}
+GRAPHQL;
+
+    $items = [];
+    $cursor = null;
+    do {
+        $data = packing_monday_api($query, [
+            'boardIds' => [(string) MONDAY_PACKING_BOARD_ID],
+            'cursor' => $cursor,
+        ]);
+        $page = $data['boards'][0]['items_page'] ?? null;
+        if (!is_array($page)) {
+            break;
+        }
+        $items = array_merge($items, $page['items'] ?? []);
+        $cursor = $page['cursor'] ?? null;
+    } while ($cursor && count($items) < 1000);
+
+    return $items;
+}
+
+function packing_monday_column_map(array $item): array
+{
+    $map = [];
+    foreach (($item['column_values'] ?? []) as $column) {
+        $title = (string) ($column['column']['title'] ?? $column['id'] ?? '');
+        if ($title === '') {
+            continue;
+        }
+        $map[packing_monday_normalize($title)] = (string) ($column['text'] ?? '');
+    }
+
+    return $map;
+}
+
+function packing_monday_first(array $columns, array $names): string
+{
+    foreach ($names as $name) {
+        $key = packing_monday_normalize($name);
+        if (isset($columns[$key]) && trim($columns[$key]) !== '') {
+            return trim($columns[$key]);
+        }
+    }
+
+    return '';
+}
+
+function packing_monday_priority(string $value): string
+{
+    $key = packing_monday_normalize($value);
+    if (str_contains($key, 'topcritical') || str_contains($key, 'critical')) return 'top_critical';
+    if (str_contains($key, 'medium')) return 'medium';
+    if (str_contains($key, 'low')) return 'low';
+
+    return 'high';
+}
+
+function packing_monday_status(string $value): string
+{
+    $key = packing_monday_normalize($value);
+    if (str_contains($key, 'label') || str_contains($key, 'needlabel')) return 'packed_label_needed';
+    if (str_contains($key, 'website')) return 'website';
+    if (str_contains($key, 'done') || str_contains($key, 'complete')) return 'done';
+    if (str_contains($key, 'packing') || str_contains($key, 'progress')) return 'packing';
+    if (str_contains($key, 'correction')) return 'correction_needed';
+
+    return 'not_started';
+}
+
+function packing_monday_bool(string $value): int
+{
+    $key = packing_monday_normalize($value);
+
+    return in_array($key, ['1', 'yes', 'y', 'true', 'done', 'checked', 'complete', 'completed'], true) || str_contains($value, '✓') ? 1 : 0;
+}
+
+function packing_monday_datetime(string $value): string
+{
+    $timestamp = strtotime($value);
+
+    return $timestamp ? date('Y-m-d H:i:s', $timestamp) : date('Y-m-d H:i:s');
+}
+
+function packing_monday_employee_id(string $name): ?int
+{
+    $name = trim($name);
+    if ($name === '') {
+        return null;
+    }
+
+    $rows = ops_rows(
+        "SELECT id
+         FROM ops_employees
+         WHERE LOWER(full_name) = LOWER(?)
+            OR LOWER(SUBSTRING_INDEX(full_name, ' ', 1)) = LOWER(?)
+         LIMIT 1",
+        [$name, $name]
+    );
+
+    return $rows ? (int) $rows[0]['id'] : null;
+}
+
+function packing_monday_row_from_item(array $item): array
+{
+    $columns = packing_monday_column_map($item);
+    $received = packing_monday_first($columns, [
+        'Weight on invoice / received weight',
+        'Weight on invoice',
+        'Received weight',
+        'Received',
+        'Weight',
+    ]);
+    $quantityPlan = packing_monday_first($columns, [
+        'Quantity to pack',
+        'Quantity',
+        'Quantity Planned',
+        'Pack quantity',
+    ]);
+    $priority = packing_monday_priority(packing_monday_first($columns, ['Priority']));
+    $status = packing_monday_status(packing_monday_first($columns, ['Packing Status', 'Status']));
+    $person = packing_monday_first($columns, ['Person Responsible', 'Person', 'Assigned', 'Packer']);
+    $dateLoaded = packing_monday_datetime(packing_monday_first($columns, ['Date Loaded', 'Date']) ?: (string) ($item['updated_at'] ?? ''));
+    $dateCompletedRaw = packing_monday_first($columns, ['Date Completed', 'Completed Date']);
+    $quantityPacked = packing_monday_first($columns, ['Quantity Packed', 'Actual Packed', 'Packed']);
+    $website = packing_monday_bool(packing_monday_first($columns, ['Website Quantity Updated', 'Website Updated', 'Website']));
+    $notes = packing_monday_first($columns, ['Notes', 'Text', 'Update']);
+    $workload = packing_workload_score($received, $quantityPlan, $priority);
+    $assignedId = packing_monday_employee_id($person);
+    if (!$assignedId && $person === '') {
+        $assignedId = (int) (ops_best_packer_for_packing($workload) ?? 0) ?: null;
+    }
+
+    return [
+        'monday_item_id' => (string) ($item['id'] ?? ''),
+        'item_name' => (string) ($item['name'] ?? 'Monday item'),
+        'received_weight' => $received,
+        'priority' => $priority,
+        'date_loaded' => $dateLoaded,
+        'quantity_planned' => $quantityPlan,
+        'assigned_employee_id' => $assignedId,
+        'quantity_packed' => $quantityPacked,
+        'date_completed' => $dateCompletedRaw !== '' ? packing_monday_datetime($dateCompletedRaw) : null,
+        'website_uploaded' => $website,
+        'packing_status' => $status,
+        'workload_points' => $workload,
+        'notes' => trim($notes . "\nMonday item #" . (string) ($item['id'] ?? '')),
+    ];
+}
+
 try {
     if (!ops_database_ready() || !ops_table_exists('ops_packing_tasks')) {
         throw new RuntimeException('Packing database is not ready.');
@@ -294,6 +520,169 @@ try {
         }
 
         echo json_encode(['ok' => true, 'message' => 'Previous packing rows imported.', 'imported' => $imported]);
+        exit;
+    }
+
+    if ($action === 'sync_monday') {
+        if (!$canManage) {
+            throw new RuntimeException('Only admin/front desk can sync Monday.com packing rows.');
+        }
+
+        if (!packing_monday_configured()) {
+            throw new RuntimeException('Monday.com is not configured. Add monday_api_token and monday_packing_board_id to config.local.php.');
+        }
+
+        if (
+            !ops_column_exists('ops_packing_tasks', 'received_weight')
+            || !ops_column_exists('ops_packing_tasks', 'packing_website_confirmed')
+            || !ops_column_exists('ops_packing_tasks', 'date_started')
+        ) {
+            throw new RuntimeException('Import operations-packing-list-migration.sql first.');
+        }
+
+        $hasMondayId = ops_column_exists('ops_packing_tasks', 'monday_item_id');
+        $hasMondaySyncedAt = ops_column_exists('ops_packing_tasks', 'monday_synced_at');
+        $items = packing_monday_items();
+        $imported = 0;
+        $updated = 0;
+        $skipped = 0;
+
+        foreach ($items as $item) {
+            $row = packing_monday_row_from_item($item);
+            if ($row['monday_item_id'] === '' || trim($row['item_name']) === '') {
+                $skipped++;
+                continue;
+            }
+
+            if ($hasMondayId) {
+                $existing = ops_rows('SELECT id FROM ops_packing_tasks WHERE monday_item_id = ? LIMIT 1', [$row['monday_item_id']]);
+            } else {
+                $existing = ops_rows('SELECT id FROM ops_packing_tasks WHERE notes LIKE ? LIMIT 1', ['%Monday item #' . $row['monday_item_id'] . '%']);
+            }
+
+            if ($existing) {
+                $set = [
+                    'item_name = ?',
+                    'received_weight = ?',
+                    'priority = ?',
+                    'date_loaded = ?',
+                    'quantity_planned = ?',
+                    'assigned_employee_id = ?',
+                    'quantity_packed = ?',
+                    'date_completed = ?',
+                    'website_uploaded = ?',
+                    'packing_status = ?',
+                    'workload_points = ?',
+                    'notes = ?',
+                ];
+                $params = [
+                    $row['item_name'],
+                    $row['received_weight'],
+                    $row['priority'],
+                    $row['date_loaded'],
+                    $row['quantity_planned'],
+                    $row['assigned_employee_id'],
+                    $row['quantity_packed'] !== '' ? $row['quantity_packed'] : null,
+                    $row['date_completed'],
+                    $row['website_uploaded'],
+                    $row['packing_status'],
+                    $row['workload_points'],
+                    $row['notes'],
+                ];
+                if ($hasMondaySyncedAt) {
+                    $set[] = 'monday_synced_at = NOW()';
+                }
+                $params[] = (int) $existing[0]['id'];
+                $stmt = db()->prepare('UPDATE ops_packing_tasks SET ' . implode(', ', $set) . ', updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+                $stmt->execute($params);
+                $updated++;
+                continue;
+            }
+
+            if ($hasMondayId && $hasMondaySyncedAt) {
+                $stmt = db()->prepare(
+                    "INSERT INTO ops_packing_tasks
+                     (monday_item_id, monday_synced_at, item_name, received_weight, priority, date_loaded, quantity_planned,
+                      assigned_employee_id, quantity_packed, date_completed, website_uploaded, packing_status, workload_points, notes, created_by)
+                     VALUES (?, NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                );
+                $stmt->execute([
+                    $row['monday_item_id'],
+                    $row['item_name'],
+                    $row['received_weight'],
+                    $row['priority'],
+                    $row['date_loaded'],
+                    $row['quantity_planned'],
+                    $row['assigned_employee_id'],
+                    $row['quantity_packed'] !== '' ? $row['quantity_packed'] : null,
+                    $row['date_completed'],
+                    $row['website_uploaded'],
+                    $row['packing_status'],
+                    $row['workload_points'],
+                    $row['notes'],
+                    $currentEmployeeId,
+                ]);
+            } elseif ($hasMondayId) {
+                $stmt = db()->prepare(
+                    "INSERT INTO ops_packing_tasks
+                     (monday_item_id, item_name, received_weight, priority, date_loaded, quantity_planned,
+                      assigned_employee_id, quantity_packed, date_completed, website_uploaded, packing_status, workload_points, notes, created_by)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                );
+                $stmt->execute([
+                    $row['monday_item_id'],
+                    $row['item_name'],
+                    $row['received_weight'],
+                    $row['priority'],
+                    $row['date_loaded'],
+                    $row['quantity_planned'],
+                    $row['assigned_employee_id'],
+                    $row['quantity_packed'] !== '' ? $row['quantity_packed'] : null,
+                    $row['date_completed'],
+                    $row['website_uploaded'],
+                    $row['packing_status'],
+                    $row['workload_points'],
+                    $row['notes'],
+                    $currentEmployeeId,
+                ]);
+            } else {
+                $stmt = db()->prepare(
+                    "INSERT INTO ops_packing_tasks
+                     (item_name, received_weight, priority, date_loaded, quantity_planned, assigned_employee_id,
+                      quantity_packed, date_completed, website_uploaded, packing_status, workload_points, notes, created_by)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                );
+                $stmt->execute([
+                    $row['item_name'],
+                    $row['received_weight'],
+                    $row['priority'],
+                    $row['date_loaded'],
+                    $row['quantity_planned'],
+                    $row['assigned_employee_id'],
+                    $row['quantity_packed'] !== '' ? $row['quantity_packed'] : null,
+                    $row['date_completed'],
+                    $row['website_uploaded'],
+                    $row['packing_status'],
+                    $row['workload_points'],
+                    $row['notes'],
+                    $currentEmployeeId,
+                ]);
+            }
+            $newId = (int) db()->lastInsertId();
+            ops_activity_log('packing_monday_synced', 'packing_task', $newId, [
+                'monday_item_id' => $row['monday_item_id'],
+                'changed_by' => current_user()['name'] ?? 'Unknown',
+            ]);
+            $imported++;
+        }
+
+        echo json_encode([
+            'ok' => true,
+            'message' => "Monday sync complete. Imported {$imported}, updated {$updated}, skipped {$skipped}.",
+            'imported' => $imported,
+            'updated' => $updated,
+            'skipped' => $skipped,
+        ]);
         exit;
     }
 
