@@ -75,6 +75,11 @@ function packing_monday_normalize(string $value): string
     return preg_replace('/[^a-z0-9]+/', '', strtolower($value)) ?: '';
 }
 
+function packing_string_contains(string $haystack, string $needle): bool
+{
+    return $needle === '' || strpos($haystack, $needle) !== false;
+}
+
 function packing_monday_api(string $query, array $variables = []): array
 {
     if (!packing_monday_configured()) {
@@ -117,11 +122,17 @@ function packing_monday_api(string $query, array $variables = []): array
     return $payload['data'] ?? [];
 }
 
-function packing_monday_items(): array
+function packing_monday_board_payload(): array
 {
     $query = <<<'GRAPHQL'
 query PackingBoardItems($boardIds: [ID!], $cursor: String) {
   boards(ids: $boardIds) {
+    id
+    name
+    columns {
+      id
+      title
+    }
     items_page(limit: 100, cursor: $cursor) {
       cursor
       items {
@@ -134,7 +145,6 @@ query PackingBoardItems($boardIds: [ID!], $cursor: String) {
           text
           value
           type
-          column { title }
         }
       }
     }
@@ -142,14 +152,29 @@ query PackingBoardItems($boardIds: [ID!], $cursor: String) {
 }
 GRAPHQL;
 
+    $columns = [];
     $items = [];
+    $boardName = '';
     $cursor = null;
     do {
         $data = packing_monday_api($query, [
             'boardIds' => [(string) MONDAY_PACKING_BOARD_ID],
             'cursor' => $cursor,
         ]);
-        $page = $data['boards'][0]['items_page'] ?? null;
+        $board = $data['boards'][0] ?? null;
+        if (!is_array($board)) {
+            break;
+        }
+        $boardName = $boardName ?: (string) ($board['name'] ?? '');
+        if (!$columns) {
+            foreach (($board['columns'] ?? []) as $column) {
+                $id = (string) ($column['id'] ?? '');
+                if ($id !== '') {
+                    $columns[$id] = (string) ($column['title'] ?? $id);
+                }
+            }
+        }
+        $page = $board['items_page'] ?? null;
         if (!is_array($page)) {
             break;
         }
@@ -157,14 +182,15 @@ GRAPHQL;
         $cursor = $page['cursor'] ?? null;
     } while ($cursor && count($items) < 1000);
 
-    return $items;
+    return ['board_name' => $boardName, 'columns' => $columns, 'items' => $items];
 }
 
-function packing_monday_column_map(array $item): array
+function packing_monday_column_map(array $item, array $columnTitles): array
 {
     $map = [];
     foreach (($item['column_values'] ?? []) as $column) {
-        $title = (string) ($column['column']['title'] ?? $column['id'] ?? '');
+        $id = (string) ($column['id'] ?? '');
+        $title = (string) ($columnTitles[$id] ?? $id);
         if ($title === '') {
             continue;
         }
@@ -189,9 +215,9 @@ function packing_monday_first(array $columns, array $names): string
 function packing_monday_priority(string $value): string
 {
     $key = packing_monday_normalize($value);
-    if (str_contains($key, 'topcritical') || str_contains($key, 'critical')) return 'top_critical';
-    if (str_contains($key, 'medium')) return 'medium';
-    if (str_contains($key, 'low')) return 'low';
+    if (packing_string_contains($key, 'topcritical') || packing_string_contains($key, 'critical')) return 'top_critical';
+    if (packing_string_contains($key, 'medium')) return 'medium';
+    if (packing_string_contains($key, 'low')) return 'low';
 
     return 'high';
 }
@@ -199,11 +225,11 @@ function packing_monday_priority(string $value): string
 function packing_monday_status(string $value): string
 {
     $key = packing_monday_normalize($value);
-    if (str_contains($key, 'label') || str_contains($key, 'needlabel')) return 'packed_label_needed';
-    if (str_contains($key, 'website')) return 'website';
-    if (str_contains($key, 'done') || str_contains($key, 'complete')) return 'done';
-    if (str_contains($key, 'packing') || str_contains($key, 'progress')) return 'packing';
-    if (str_contains($key, 'correction')) return 'correction_needed';
+    if (packing_string_contains($key, 'label') || packing_string_contains($key, 'needlabel')) return 'packed_label_needed';
+    if (packing_string_contains($key, 'website')) return 'website';
+    if (packing_string_contains($key, 'done') || packing_string_contains($key, 'complete')) return 'done';
+    if (packing_string_contains($key, 'packing') || packing_string_contains($key, 'progress')) return 'packing';
+    if (packing_string_contains($key, 'correction')) return 'correction_needed';
 
     return 'not_started';
 }
@@ -212,7 +238,7 @@ function packing_monday_bool(string $value): int
 {
     $key = packing_monday_normalize($value);
 
-    return in_array($key, ['1', 'yes', 'y', 'true', 'done', 'checked', 'complete', 'completed'], true) || str_contains($value, '✓') ? 1 : 0;
+    return in_array($key, ['1', 'yes', 'y', 'true', 'done', 'checked', 'complete', 'completed'], true) || packing_string_contains($value, '✓') ? 1 : 0;
 }
 
 function packing_monday_datetime(string $value): string
@@ -241,9 +267,9 @@ function packing_monday_employee_id(string $name): ?int
     return $rows ? (int) $rows[0]['id'] : null;
 }
 
-function packing_monday_row_from_item(array $item): array
+function packing_monday_row_from_item(array $item, array $columnTitles): array
 {
-    $columns = packing_monday_column_map($item);
+    $columns = packing_monday_column_map($item, $columnTitles);
     $received = packing_monday_first($columns, [
         'Weight on invoice / received weight',
         'Weight on invoice',
@@ -542,13 +568,26 @@ try {
 
         $hasMondayId = ops_column_exists('ops_packing_tasks', 'monday_item_id');
         $hasMondaySyncedAt = ops_column_exists('ops_packing_tasks', 'monday_synced_at');
-        $items = packing_monday_items();
+        $mondayPayload = packing_monday_board_payload();
+        $items = $mondayPayload['items'] ?? [];
+        $columnTitles = $mondayPayload['columns'] ?? [];
+        if (!$items) {
+            echo json_encode([
+                'ok' => true,
+                'message' => 'Monday sync connected, but no board items were returned. Check the board ID and token access.',
+                'found' => 0,
+                'imported' => 0,
+                'updated' => 0,
+                'skipped' => 0,
+            ]);
+            exit;
+        }
         $imported = 0;
         $updated = 0;
         $skipped = 0;
 
         foreach ($items as $item) {
-            $row = packing_monday_row_from_item($item);
+            $row = packing_monday_row_from_item($item, $columnTitles);
             if ($row['monday_item_id'] === '' || trim($row['item_name']) === '') {
                 $skipped++;
                 continue;
@@ -678,7 +717,8 @@ try {
 
         echo json_encode([
             'ok' => true,
-            'message' => "Monday sync complete. Imported {$imported}, updated {$updated}, skipped {$skipped}.",
+            'message' => 'Monday sync complete. Found ' . count($items) . " board items. Imported {$imported}, updated {$updated}, skipped {$skipped}.",
+            'found' => count($items),
             'imported' => $imported,
             'updated' => $updated,
             'skipped' => $skipped,

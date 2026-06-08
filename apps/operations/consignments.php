@@ -16,7 +16,7 @@ $migrationReady = $ready
 $canManage = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
 $canEditHeaders = user_has_role('owner_admin');
 $assetVersion = is_file(BASE_PATH . '/assets/js/packing-list.js')
-    ? (string) filemtime(BASE_PATH . '/assets/js/packing-list.js') . '-monday-sync1'
+    ? (string) filemtime(BASE_PATH . '/assets/js/packing-list.js') . '-monday-sync2'
     : (string) time();
 
 include BASE_PATH . '/shared/header.php';

@@ -666,8 +666,8 @@
         try {
           syncMonday.classList.add('is-loading');
           const result = await post('sync_monday');
-          setCount(result.message || 'Monday packing list synced.');
           await refresh();
+          setCount(result.message || 'Monday packing list synced.');
         } finally {
           syncMonday.classList.remove('is-loading');
         }
