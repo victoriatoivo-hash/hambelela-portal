@@ -28,6 +28,10 @@ if ($roleKey === 'owner_admin') {
     $navItems[] = ['id' => 'operations-checklists', 'label' => 'Tasks', 'icon' => 'list-checks', 'href' => BASE_URL . '/apps/operations/checklists.php'];
     $navItems[] = ['id' => 'operations-barcode', 'label' => 'Barcode Soon', 'icon' => 'scan-barcode', 'href' => BASE_URL . '/apps/operations/barcode.php'];
 }
+
+if ($roleKey !== 'owner_admin') {
+    $navItems[] = ['id' => 'hr-portal', 'label' => 'HR Portal', 'icon' => 'shield-check', 'href' => BASE_URL . '/apps/hr-portal/index.php'];
+}
 ?>
 <aside class="sidebar" id="portal-sidebar" aria-label="Portal navigation">
     <nav>

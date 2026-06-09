@@ -37,6 +37,10 @@ if ($roleKey === 'owner_admin') {
     $apps = [];
 }
 
+if ($roleKey !== 'owner_admin') {
+    $apps[] = ['name' => 'HR Portal', 'desc' => 'leave, payslips, documents and employee self-service', 'icon' => 'shield-check', 'href' => BASE_URL . '/apps/hr-portal/index.php', 'active' => true, 'tone' => 'green'];
+}
+
 include __DIR__ . '/shared/header.php';
 include __DIR__ . '/shared/sidebar.php';
 ?>
