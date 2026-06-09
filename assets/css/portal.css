@@ -6905,11 +6905,72 @@ textarea {
 }
 
 .workbook-profit-page .work-metric-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
   min-height: 132px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: var(--shadow);
+}
+
+.workbook-profit-page .work-metric-card > div {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.workbook-profit-page .work-metric-card .metric-title,
+.workbook-profit-page .work-metric-card strong,
+.workbook-profit-page .work-metric-card small {
+  display: block;
+}
+
+.workbook-profit-page .work-metric-card strong {
+  margin: 0;
+  font-size: 27px;
+  line-height: 1.08;
+  overflow-wrap: anywhere;
+}
+
+.workbook-profit-page .work-metric-card small {
+  color: var(--muted);
+  line-height: 1.35;
 }
 
 .workbook-kpi-grid {
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 14px;
   margin-bottom: 22px;
+}
+
+.workbook-state {
+  margin-bottom: 18px;
+}
+
+.workbook-state strong {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--ink);
+  font-size: 18px;
+}
+
+.workbook-state p {
+  margin: 0 0 6px;
+  color: var(--muted);
+}
+
+.workbook-state small {
+  display: block;
+  color: #9a3412;
+}
+
+.empty-state-cell {
+  padding: 28px !important;
+  color: var(--muted);
+  text-align: center;
 }
 
 .workbook-filters {

@@ -96,26 +96,143 @@ function cw_conversion_samples(float $totalCost, float $quantity, string $unit):
 function cw_table_exists(PDO $pdo, string $table): bool
 {
     try {
-        $stmt = $pdo->prepare('SHOW TABLES LIKE ?');
+        $stmt = $pdo->prepare('SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?');
         $stmt->execute([$table]);
-        return (bool) $stmt->fetchColumn();
+        return (int) $stmt->fetchColumn() > 0;
     } catch (Throwable $e) {
         return false;
     }
 }
 
+function cw_column_exists(PDO $pdo, string $table, string $column): bool
+{
+    try {
+        $stmt = $pdo->prepare('SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?');
+        $stmt->execute([$table, $column]);
+        return (int) $stmt->fetchColumn() > 0;
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+function cw_sum(PDO $pdo, string $table, string $column, string $where = '1=1'): float
+{
+    if (!cw_table_exists($pdo, $table) || !cw_column_exists($pdo, $table, $column)) {
+        return 0.0;
+    }
+
+    try {
+        $stmt = $pdo->query("SELECT COALESCE(SUM({$column}), 0) FROM {$table} WHERE {$where}");
+        return (float) $stmt->fetchColumn();
+    } catch (Throwable $e) {
+        return 0.0;
+    }
+}
+
+function cw_fetch_all(PDO $pdo, string $sql, array $params = []): array
+{
+    try {
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll();
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
+function cw_make_master_row(array $row): array
+{
+    $sourceType = (string) ($row['source_type'] ?? 'raw_material');
+    $rawCost = (float) ($row['raw_total_cost'] ?? 0);
+    $transportCost = (float) ($row['transport_allocated'] ?? 0);
+    $landedCost = (float) ($row['landed_total_cost'] ?? 0);
+    $quantity = max(0.001, (float) ($row['quantity'] ?? 1));
+    $unit = (string) ($row['unit'] ?? 'unit');
+    $baseQuantity = max(0.0, (float) ($row['base_quantity'] ?? 0));
+    $baseUnit = (string) ($row['base_unit'] ?? $unit);
+    $costPerBase = (float) ($row['landed_cost_per_base_unit'] ?? 0);
+    if ($costPerBase <= 0 && $baseQuantity > 0) {
+        $costPerBase = $landedCost / $baseQuantity;
+    }
+
+    $conversion = cw_conversion_samples($landedCost, $quantity, $unit);
+    if ($baseQuantity > 0) {
+        $conversion['summary'] = number_format($quantity, 3) . ' ' . $unit . ' = ' . number_format($baseQuantity, 0) . $baseUnit;
+        $conversion['per_base'] = $costPerBase;
+        $conversion['base_unit'] = $baseUnit;
+    }
+
+    return [
+        'id' => (int) ($row['component_id'] ?? 0),
+        'product' => (string) ($row['product'] ?? ''),
+        'sku' => '',
+        'category' => $sourceType === 'packaging' ? 'Packaging' : 'Raw material',
+        'supplier' => (string) ($row['supplier_name'] ?? 'Unknown supplier'),
+        'supplier_cost' => $sourceType === 'packaging' ? 0.0 : $rawCost,
+        'transport_cost' => $transportCost,
+        'packaging_cost' => $sourceType === 'packaging' ? $rawCost : 0.0,
+        'landed_cost' => $landedCost,
+        'total_cost' => $landedCost,
+        'cost_per_unit' => $costPerBase > 0 ? $costPerBase : $landedCost,
+        'selling_price_incl_vat' => 0.0,
+        'selling_price_ex_vat' => 0.0,
+        'vat' => 0.0,
+        'profit' => 0.0,
+        'margin' => 0.0,
+        'status_label' => 'Needs Website Price',
+        'status_key' => 'unknown',
+        'suggested_40' => pricing_engine_add_vat(pricing_engine_price_for_margin($landedCost, 40), 15.0),
+        'suggested_50' => pricing_engine_add_vat(pricing_engine_price_for_margin($landedCost, 50), 15.0),
+        'suggested_60' => pricing_engine_add_vat(pricing_engine_price_for_margin($landedCost, 60), 15.0),
+        'conversion' => $conversion,
+        'warnings' => 'landed cost ready, link to WooCommerce product or finished product for margin',
+        'breakdown' => [
+            'lines' => [[
+                'component' => (string) ($row['product'] ?? ''),
+                'entered_qty' => $quantity,
+                'entered_unit' => $unit,
+                'line_cost' => $landedCost,
+            ]],
+        ],
+        'website_linked' => false,
+    ];
+}
+
 try {
     $pdo = db();
-    $products = $pdo->query(
-        "SELECT fp.*,
-                COALESCE(fp.sku, '') AS sku,
-                COALESCE(fp.costing_type, 'recipe') AS costing_type,
-                pr.id AS recipe_id,
-                pr.version AS recipe_version
-         FROM finished_products fp
-         LEFT JOIN product_recipes pr ON pr.product_id = fp.id AND pr.is_active = 1
-         ORDER BY fp.name"
-    )->fetchAll();
+
+    $sourceStats = [
+        'supplier_cost' => cw_sum($pdo, 'raw_materials', 'total_cost'),
+        'transport_cost' => cw_sum($pdo, 'transport_invoices', 'total_cost'),
+        'packaging_cost' => cw_sum($pdo, 'packaging', 'total_cost'),
+        'ingredient_landed' => cw_sum($pdo, 'ingredient_costs_master', 'landed_total_cost'),
+        'packaging_landed' => cw_sum($pdo, 'packaging_costs_master', 'landed_total_cost'),
+        'ingredient_transport' => cw_sum($pdo, 'ingredient_costs_master', 'transport_allocated'),
+        'packaging_transport' => cw_sum($pdo, 'packaging_costs_master', 'transport_allocated'),
+    ];
+    $sourceStats['landed_cost'] = $sourceStats['ingredient_landed'] + $sourceStats['packaging_landed'];
+    if ($sourceStats['supplier_cost'] <= 0) {
+        $sourceStats['supplier_cost'] = cw_sum($pdo, 'ingredient_costs_master', 'raw_total_cost');
+    }
+    if ($sourceStats['packaging_cost'] <= 0) {
+        $sourceStats['packaging_cost'] = cw_sum($pdo, 'packaging_costs_master', 'raw_total_cost');
+    }
+    if ($sourceStats['transport_cost'] <= 0) {
+        $sourceStats['transport_cost'] = $sourceStats['ingredient_transport'] + $sourceStats['packaging_transport'];
+    }
+
+    $products = [];
+    if (cw_table_exists($pdo, 'finished_products')) {
+        $products = cw_table_exists($pdo, 'product_recipes')
+            ? cw_fetch_all(
+                $pdo,
+                "SELECT fp.*, pr.id AS recipe_id, pr.version AS recipe_version
+                 FROM finished_products fp
+                 LEFT JOIN product_recipes pr ON pr.product_id = fp.id AND pr.is_active = 1
+                 ORDER BY fp.name"
+            )
+            : cw_fetch_all($pdo, 'SELECT fp.* FROM finished_products fp ORDER BY fp.name');
+    }
 
     $wooPriceRows = cw_table_exists($pdo, 'woo_sales') ? $pdo->query(
         "SELECT woo_product_id, MAX(unit_price) AS website_price, SUM(quantity) AS sold_qty, SUM(line_total) AS revenue
@@ -128,6 +245,7 @@ try {
     }
 
     foreach ($products as $product) {
+        $costingType = (string) ($product['costing_type'] ?? 'recipe');
         $breakdown = cost_engine_product_breakdown($pdo, $product);
         $wooRow = $wooByProduct[(string) ($product['woo_product_id'] ?? '')] ?? null;
         $sellingPriceInclVat = (float) ($product['selling_price'] ?? 0);
@@ -137,7 +255,7 @@ try {
         $sellingPriceExVat = $sellingPriceInclVat > 0 ? $sellingPriceInclVat / (1 + ($vatRate / 100)) : 0.0;
         $vat = max(0, $sellingPriceInclVat - $sellingPriceExVat);
         $totalCost = (float) $breakdown['total_cogs'];
-        $profit = $sellingPriceExVat - $totalCost;
+        $profit = $totalCost > 0 && $sellingPriceExVat > 0 ? $sellingPriceExVat - $totalCost : 0.0;
         $margin = pricing_engine_margin($sellingPriceExVat, $totalCost);
         [$statusLabel, $statusKey] = cw_status($margin, $sellingPriceExVat, $totalCost, $targetMargin);
         $primaryLine = $breakdown['lines'][0] ?? [];
@@ -173,7 +291,7 @@ try {
             'id' => (int) $product['id'],
             'product' => (string) $product['name'],
             'sku' => (string) ($product['sku'] ?? ''),
-            'category' => (string) ($product['costing_type'] === 'raw_resale' ? 'Raw resale' : 'Formulated'),
+            'category' => $costingType === 'raw_resale' ? 'Raw resale' : 'Formulated',
             'supplier' => $supplierName,
             'supplier_cost' => (float) $breakdown['raw_ingredient_cost'],
             'transport_cost' => (float) $breakdown['transport_allocation'],
@@ -230,6 +348,61 @@ try {
         $stats['below_target'] += in_array($row['status_key'], ['loss', 'low_margin'], true) ? 1 : 0;
     }
 
+    if (!$rows) {
+        $masterRows = [];
+        if (cw_table_exists($pdo, 'ingredient_costs_master')) {
+            $masterRows = array_merge($masterRows, cw_fetch_all(
+                $pdo,
+                "SELECT 'raw_material' AS source_type, component_id, ingredient_name AS product, supplier_name, quantity, unit, base_quantity, base_unit,
+                        raw_total_cost, transport_allocated, landed_total_cost, landed_cost_per_base_unit
+                 FROM ingredient_costs_master
+                 ORDER BY ingredient_name
+                 LIMIT 250"
+            ));
+        }
+        if (cw_table_exists($pdo, 'packaging_costs_master')) {
+            $masterRows = array_merge($masterRows, cw_fetch_all(
+                $pdo,
+                "SELECT 'packaging' AS source_type, component_id, packaging_name AS product, supplier_name, quantity, unit, base_quantity, base_unit,
+                        raw_total_cost, transport_allocated, landed_total_cost, landed_cost_per_base_unit
+                 FROM packaging_costs_master
+                 ORDER BY packaging_name
+                 LIMIT 250"
+            ));
+        }
+
+        foreach ($masterRows as $masterRow) {
+            $row = cw_make_master_row($masterRow);
+            $suppliers[$row['supplier']] = $row['supplier'];
+            $categories[$row['category']] = $row['category'];
+            if ($filters['supplier'] !== '' && $row['supplier'] !== $filters['supplier']) {
+                continue;
+            }
+            if ($filters['category'] !== '' && $row['category'] !== $filters['category']) {
+                continue;
+            }
+            if ($filters['status'] !== '' && $row['status_key'] !== $filters['status']) {
+                continue;
+            }
+            if ($filters['low_margin'] && !in_array($row['status_key'], ['loss', 'low_margin'], true)) {
+                continue;
+            }
+            if ($filters['margin'] !== '' && $row['margin'] > (float) $filters['margin']) {
+                continue;
+            }
+            if ($filters['product'] !== '' && !str_contains(strtolower($row['product']), strtolower($filters['product']))) {
+                continue;
+            }
+
+            $rows[] = $row;
+        }
+    }
+
+    $stats['supplier_cost'] = $sourceStats['supplier_cost'];
+    $stats['transport_cost'] = $sourceStats['transport_cost'];
+    $stats['packaging_cost'] = $sourceStats['packaging_cost'];
+    $stats['landed_cost'] = $sourceStats['landed_cost'];
+    $stats['inventory_value'] = $sourceStats['landed_cost'] > 0 ? $sourceStats['landed_cost'] : $stats['inventory_value'];
     $stats['average_margin'] = count($rows) > 0 ? array_sum(array_column($rows, 'margin')) / count($rows) : 0.0;
 
     $profitSorted = $rows;
@@ -276,7 +449,11 @@ include BASE_PATH . '/shared/sidebar.php';
     </section>
 
     <?php if ($error): ?>
-        <section class="panel"><p><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></p></section>
+        <section class="panel workbook-state workbook-state-error">
+            <strong>Cost workbook data could not be loaded.</strong>
+            <p>Please check API/database connection.</p>
+            <small><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></small>
+        </section>
     <?php endif; ?>
 
     <nav class="cost-section-tabs" aria-label="Cost Workbook sections">
@@ -288,7 +465,9 @@ include BASE_PATH . '/shared/sidebar.php';
         <a href="profit-calculator.php"><i data-lucide="calculator"></i> Profit Calculator</a>
     </nav>
 
-    <section class="business-card-grid workbook-kpi-grid" aria-label="Profitability summary">
+    <section class="panel workbook-state workbook-loading-state" hidden>Loading cost workbook...</section>
+
+    <section class="work-metric-grid workbook-kpi-grid" aria-label="Profitability summary">
         <?php foreach ([
             ['Total Inventory Value', cw_money($stats['inventory_value']), 'Current calculated COGS value', 'boxes', 'metric-purple'],
             ['Total Supplier Cost', cw_money($stats['supplier_cost']), 'Raw supplier ingredient cost', 'file-text', 'metric-blue'],
@@ -375,7 +554,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         <td><span class="cost-status cost-status-<?= htmlspecialchars($row['status_key'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($row['status_label'], ENT_QUOTES, 'UTF-8') ?></span></td>
                     </tr>
                 <?php endforeach; ?>
-                <?php if (!$rows): ?><tr><td colspan="18">No products match these filters yet. Upload invoices, link products, then add selling prices.</td></tr><?php endif; ?>
+                <?php if (!$rows): ?><tr><td colspan="18" class="empty-state-cell">No cost workbook data available yet. Upload supplier invoices and allocate transport to begin.</td></tr><?php endif; ?>
                 </tbody>
             </table>
         </div>
