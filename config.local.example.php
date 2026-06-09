@@ -19,10 +19,13 @@ return [
     'monday_api_token' => 'paste-your-monday-api-token-here',
     'monday_packing_board_id' => '1590283675',
 
-    // Duplicate/test HR Portal database used by apps/hr-portal.
-    // Keep this separate from the live hr.hambelelaorganic.com database until final approval.
-    'hr_db_host' => 'localhost',
-    'hr_db_name' => 'hambele1_hambelela_hr_test',
-    'hr_db_user' => 'your_hr_test_database_user',
-    'hr_db_pass' => 'your_hr_test_database_password',
+    // Embedded HR Portal database.
+    // By default, apps/hr-portal reads the live HR config from:
+    // /home/hambele1/hr.hambelelaorganic.com/config.php
+    // Set these only if you want the Business Portal test copy to use a separate HR database.
+    'hr_live_config_path' => '/home/hambele1/hr.hambelelaorganic.com/config.php',
+    'hr_db_host' => '',
+    'hr_db_name' => '',
+    'hr_db_user' => '',
+    'hr_db_pass' => '',
 ];
