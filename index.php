@@ -35,7 +35,7 @@ function portal_sum(string $sql, array $params = []): float
     }
 }
 
-function portal_scalar(string $sql, array $params = [], mixed $default = 0): mixed
+function portal_scalar(string $sql, array $params = [], $default = 0)
 {
     try {
         $stmt = db()->prepare($sql);
