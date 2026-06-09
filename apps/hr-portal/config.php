@@ -5,13 +5,6 @@
 // ============================================================
 
 $businessPortalRoot = dirname(__DIR__, 2);
-require_once $businessPortalRoot . '/shared/hr-portal-gate.php';
-
-if (!hr_portal_is_unlocked()) {
-    header('Location: /apps/hr-gate.php');
-    exit;
-}
-
 $businessLocalConfig = $businessPortalRoot . '/config.local.php';
 $businessLocalSecrets = [];
 if (is_file($businessLocalConfig)) {
