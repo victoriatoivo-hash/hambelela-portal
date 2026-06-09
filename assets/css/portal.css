@@ -6505,6 +6505,87 @@ textarea {
   color: #1f5ea8;
 }
 
+.workbook-profit-page .work-metric-card {
+  min-height: 132px;
+}
+
+.workbook-kpi-grid {
+  margin-bottom: 22px;
+}
+
+.workbook-filters {
+  align-items: end;
+}
+
+.profit-workbook-table th,
+.profit-workbook-table td {
+  white-space: nowrap;
+}
+
+.profit-workbook-table td:first-child {
+  min-width: 260px;
+  white-space: normal;
+}
+
+.cost-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.cost-status-healthy {
+  background: rgba(0, 163, 108, 0.12);
+  color: #08744f;
+}
+
+.cost-status-low_margin {
+  background: rgba(245, 158, 11, 0.14);
+  color: #9a5f00;
+}
+
+.cost-status-loss {
+  background: rgba(226, 68, 92, 0.13);
+  color: #a51f38;
+}
+
+.cost-status-unknown {
+  background: rgba(108, 117, 125, 0.12);
+  color: #4b5563;
+}
+
+.product-detail-panel summary {
+  cursor: pointer;
+  color: var(--ink);
+  font-weight: 900;
+}
+
+.product-detail-panel div {
+  margin-top: 12px;
+  padding: 14px;
+  min-width: 420px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 247, 238, 0.86);
+  box-shadow: var(--shadow);
+}
+
+.product-detail-panel p,
+.product-detail-panel ul {
+  margin: 8px 0;
+}
+
+.product-detail-panel ul {
+  padding-left: 18px;
+}
+
+.workbook-chart-grid {
+  margin-top: 22px;
+}
+
 .wa-faq-cloud {
   display: flex;
   flex-wrap: wrap;

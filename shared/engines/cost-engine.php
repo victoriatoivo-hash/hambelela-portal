@@ -8,7 +8,7 @@ function cost_engine_component_cost(PDO $pdo, string $type, int $componentId): a
 {
     if ($type === 'packaging') {
         $stmt = $pdo->prepare(
-            'SELECT component_id, packaging_name AS name, unit, base_unit, base_quantity,
+            'SELECT component_id, packaging_name AS name, supplier_name, unit, base_unit, base_quantity,
                     raw_unit_cost, transport_allocated, landed_unit_cost,
                     landed_cost_per_base_unit, landed_total_cost
              FROM packaging_costs_master
@@ -16,7 +16,7 @@ function cost_engine_component_cost(PDO $pdo, string $type, int $componentId): a
         );
     } else {
         $stmt = $pdo->prepare(
-            'SELECT component_id, ingredient_name AS name, unit, base_unit, base_quantity,
+            'SELECT component_id, ingredient_name AS name, supplier_name, unit, base_unit, base_quantity,
                     raw_unit_cost, transport_allocated, landed_unit_cost,
                     landed_cost_per_base_unit, landed_total_cost
              FROM ingredient_costs_master
@@ -31,6 +31,7 @@ function cost_engine_component_cost(PDO $pdo, string $type, int $componentId): a
         'component_id' => $componentId,
         'type' => $type === 'packaging' ? 'packaging' : 'raw_material',
         'name' => (string) ($row['name'] ?? ''),
+        'supplier_name' => (string) ($row['supplier_name'] ?? ''),
         'unit' => (string) ($row['unit'] ?? 'unit'),
         'base_unit' => (string) ($row['base_unit'] ?? 'unit'),
         'base_quantity' => (float) ($row['base_quantity'] ?? 0),
@@ -54,6 +55,7 @@ function cost_engine_line_cost(PDO $pdo, string $type, int $componentId, float $
         'type' => $cost['type'],
         'component_id' => $componentId,
         'component' => $cost['name'],
+        'supplier_name' => $cost['supplier_name'],
         'entered_qty' => $quantity,
         'entered_unit' => $unit,
         'cost_qty' => (float) $conversion['quantity'],
