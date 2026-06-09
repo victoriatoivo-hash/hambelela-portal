@@ -12,7 +12,7 @@ $ready = ops_database_ready();
 $message = null;
 $messageType = 'success';
 $currentEmployeeId = ops_current_employee_id();
-$canManage = user_has_role('owner_admin');
+$canBulkManage = user_has_role('owner_admin', 'front_desk_admin');
 
 $transactionTypes = [
     'opening_balance' => 'Opening Balance',
@@ -135,6 +135,13 @@ function cash_is_cash_method(string $method): bool
     return strpos($method, 'cash') !== false;
 }
 
+function cash_selected_ids(): array
+{
+    $raw = (string) ($_POST['entry_ids'] ?? '');
+    $ids = array_filter(array_map(static fn (string $id): int => max(0, (int) trim($id)), explode(',', $raw)));
+    return array_values(array_unique($ids));
+}
+
 if ($ready) {
     cash_bootstrap_schema();
 }
@@ -214,6 +221,32 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             ops_activity_log('cash_entry_created', 'cash_book', $entryId, ['transaction_type' => $type, 'cash_in' => $cashIn, 'cash_out' => $cashOut]);
             $message = 'Cash entry recorded.';
+        } elseif (in_array($action, ['bulk_archive', 'bulk_delete', 'bulk_duplicate'], true)) {
+            if (!$canBulkManage) throw new RuntimeException('You do not have permission to update selected cash entries.');
+            $ids = cash_selected_ids();
+            if (!$ids) throw new RuntimeException('Select at least one cash entry first.');
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+            if ($action === 'bulk_archive') {
+                $stmt = db()->prepare("UPDATE ops_cash_book_entries SET archived_at = NOW(), edited_by = ? WHERE id IN ({$placeholders}) AND archived_at IS NULL");
+                $stmt->execute(array_merge([$currentEmployeeId], $ids));
+                foreach ($ids as $id) ops_activity_log('cash_entry_archived', 'cash_book', $id, ['bulk' => true]);
+                $message = count($ids) . ' cash entr' . (count($ids) === 1 ? 'y archived.' : 'ies archived.');
+            } elseif ($action === 'bulk_delete') {
+                $stmt = db()->prepare("DELETE FROM ops_cash_book_entries WHERE id IN ({$placeholders})");
+                $stmt->execute($ids);
+                foreach ($ids as $id) ops_activity_log('cash_entry_deleted', 'cash_book', $id, ['bulk' => true]);
+                $message = count($ids) . ' cash entr' . (count($ids) === 1 ? 'y deleted.' : 'ies deleted.');
+            } else {
+                $stmt = db()->prepare(
+                    "INSERT INTO ops_cash_book_entries
+                     (transaction_date, transaction_type, description, related_order_id, related_order_number, customer_name, order_total, cash_in, cash_out, actual_count, source, notes, attachment_path, recorded_by)
+                     SELECT transaction_date, transaction_type, CONCAT(description, ' copy'), related_order_id, related_order_number, customer_name, order_total, cash_in, cash_out, actual_count, source, notes, attachment_path, ?
+                     FROM ops_cash_book_entries
+                     WHERE id IN ({$placeholders}) AND archived_at IS NULL"
+                );
+                $stmt->execute(array_merge([$currentEmployeeId], $ids));
+                $message = count($ids) . ' cash entr' . (count($ids) === 1 ? 'y duplicated.' : 'ies duplicated.');
+            }
         }
     } catch (Throwable $e) {
         $message = $e->getMessage();
@@ -426,6 +459,7 @@ include BASE_PATH . '/shared/sidebar.php';
             <table class="ops-board-table bookkeeping-table" data-cash-table>
                 <thead>
                     <tr>
+                        <th class="check-cell"><input type="checkbox" data-cash-select-all aria-label="Select all visible cash entries"></th>
                         <th>DATE</th>
                         <th>DESCRIPTION</th>
                         <th>TRANSACTION TYPE</th>
@@ -444,10 +478,11 @@ include BASE_PATH . '/shared/sidebar.php';
                         $dayIn = array_sum(array_map(static fn (array $row): float => (float) $row['cash_in'], $dateEntries));
                         $dayOut = array_sum(array_map(static fn (array $row): float => (float) $row['cash_out'], $dateEntries));
                         ?>
-                        <tr class="group-row"><td colspan="10"><i data-lucide="chevron-down"></i> <?= htmlspecialchars((new DateTimeImmutable($date))->format('F j, Y'), ENT_QUOTES, 'UTF-8') ?> <span><?= count($dateEntries) ?> entries</span></td></tr>
+                        <tr class="group-row"><td colspan="11"><i data-lucide="chevron-down"></i> <?= htmlspecialchars((new DateTimeImmutable($date))->format('F j, Y'), ENT_QUOTES, 'UTF-8') ?> <span><?= count($dateEntries) ?> entries</span></td></tr>
                         <?php foreach ($dateEntries as $entry): ?>
                             <?php $type = (string) $entry['transaction_type']; ?>
                             <tr class="cash-transaction-row" data-cash-detail-open="<?= (int) $entry['id'] ?>">
+                                <td class="check-cell"><input type="checkbox" data-cash-row-select="<?= (int) $entry['id'] ?>" aria-label="Select cash entry"></td>
                                 <td><?= htmlspecialchars((new DateTimeImmutable((string) $entry['transaction_date']))->format('M j, H:i'), ENT_QUOTES, 'UTF-8') ?></td>
                                 <td class="task-cell"><strong><?= htmlspecialchars((string) $entry['description'], ENT_QUOTES, 'UTF-8') ?></strong><small><?= htmlspecialchars($sources[(string) $entry['source']] ?? (string) $entry['source'], ENT_QUOTES, 'UTF-8') ?></small></td>
                                 <td><span class="board-label cash-label <?= cash_type_class($type) ?>"><?= htmlspecialchars($transactionTypes[$type] ?? $type, ENT_QUOTES, 'UTF-8') ?></span></td>
@@ -460,9 +495,9 @@ include BASE_PATH . '/shared/sidebar.php';
                                 <td><?= htmlspecialchars((string) ($entry['recorded_by_name'] ?? 'System'), ENT_QUOTES, 'UTF-8') ?></td>
                             </tr>
                         <?php endforeach; ?>
-                        <tr class="summary-row"><td><?= htmlspecialchars((new DateTimeImmutable($date))->format('M j'), ENT_QUOTES, 'UTF-8') ?></td><td colspan="4"><?= count($dateEntries) ?> transactions</td><td><strong><?= cash_money($dayIn) ?></strong><small>in</small></td><td><strong><?= cash_money($dayOut) ?></strong><small>out</small></td><td colspan="3"></td></tr>
+                        <tr class="summary-row"><td></td><td><?= htmlspecialchars((new DateTimeImmutable($date))->format('M j'), ENT_QUOTES, 'UTF-8') ?></td><td colspan="4"><?= count($dateEntries) ?> transactions</td><td><strong><?= cash_money($dayIn) ?></strong><small>in</small></td><td><strong><?= cash_money($dayOut) ?></strong><small>out</small></td><td colspan="3"></td></tr>
                     <?php endforeach; ?>
-                    <?php if (!$entries): ?><tr><td colspan="10" class="board-empty-state">No cash entries found. Use New Entry to record opening balance, cash received, driver cash or closing count.</td></tr><?php endif; ?>
+                    <?php if (!$entries): ?><tr><td colspan="11" class="board-empty-state">No cash entries found. Use New Entry to record opening balance, cash received, driver cash or closing count.</td></tr><?php endif; ?>
                 </tbody>
             </table>
         </div>
@@ -536,7 +571,94 @@ include BASE_PATH . '/shared/sidebar.php';
 </main>
 <script>
 window.HambelelaCashOrders = <?= json_encode($orderLookup, JSON_UNESCAPED_SLASHES) ?>;
+window.HambelelaCashBulk = <?= json_encode(['canManage' => $canBulkManage], JSON_UNESCAPED_SLASHES) ?>;
+const cashSelected = new Set();
+
+function cashVisibleIds() {
+  return Array.from(document.querySelectorAll('[data-cash-row-select]')).map((input) => String(input.dataset.cashRowSelect));
+}
+
+function ensureCashBulkActionBar() {
+  let bar = document.getElementById('cash-bulk-action-bar');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'cash-bulk-action-bar';
+    bar.className = 'monday-bulk-action-bar';
+    bar.hidden = true;
+    document.querySelector('.bookkeeping-page')?.appendChild(bar);
+  }
+  bar.innerHTML = `
+    <div class="bulk-selected-count"><span data-bulk-count>0</span><strong data-bulk-label>items selected</strong></div>
+    <button type="button" data-cash-bulk-action="duplicate" data-needs-manage><i data-lucide="copy"></i><span>Duplicate</span></button>
+    <button type="button" data-cash-bulk-action="export"><i data-lucide="upload"></i><span>Export</span></button>
+    <button type="button" data-cash-bulk-action="archive" data-needs-manage><i data-lucide="archive"></i><span>Archive</span></button>
+    <button type="button" data-cash-bulk-action="delete" data-needs-manage><i data-lucide="trash-2"></i><span>Delete</span></button>
+    <button type="button" class="bulk-close" data-cash-bulk-action="close" aria-label="Close selected bar"><i data-lucide="x"></i></button>
+  `;
+  return bar;
+}
+
+function updateCashSelection() {
+  const visibleIds = cashVisibleIds();
+  const selectedVisible = visibleIds.filter((id) => cashSelected.has(id)).length;
+  document.querySelectorAll('[data-cash-row-select]').forEach((input) => {
+    input.checked = cashSelected.has(String(input.dataset.cashRowSelect));
+    input.closest('tr')?.classList.toggle('is-selected', input.checked);
+  });
+  const selectAll = document.querySelector('[data-cash-select-all]');
+  if (selectAll) {
+    selectAll.checked = visibleIds.length > 0 && selectedVisible === visibleIds.length;
+    selectAll.indeterminate = selectedVisible > 0 && selectedVisible < visibleIds.length;
+    selectAll.disabled = visibleIds.length === 0;
+  }
+  const bar = ensureCashBulkActionBar();
+  const count = cashSelected.size;
+  bar.hidden = count === 0;
+  bar.classList.toggle('is-visible', count > 0);
+  bar.querySelector('[data-bulk-count]').textContent = String(count);
+  bar.querySelector('[data-bulk-label]').textContent = count === 1 ? 'item selected' : 'items selected';
+  bar.querySelectorAll('[data-needs-manage]').forEach((button) => { button.hidden = !window.HambelelaCashBulk?.canManage; });
+  if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+}
+
+function clearCashSelection() {
+  cashSelected.clear();
+  updateCashSelection();
+}
+
+function submitCashBulkAction(action) {
+  const form = document.createElement('form');
+  form.method = 'post';
+  form.hidden = true;
+  form.innerHTML = `
+    <input type="hidden" name="action" value="bulk_${action}">
+    <input type="hidden" name="entry_ids" value="${Array.from(cashSelected).join(',')}">
+  `;
+  document.body.appendChild(form);
+  form.submit();
+}
+
+function exportSelectedCash() {
+  const rows = [['Date & Time', 'Description', 'Transaction Type', 'Driver / Customer', 'Related Order', 'Cash In', 'Cash Out', 'Balance', 'Notes', 'Recorded By']];
+  document.querySelectorAll('[data-cash-row-select]').forEach((input) => {
+    if (!cashSelected.has(String(input.dataset.cashRowSelect))) return;
+    const row = input.closest('tr');
+    if (!row) return;
+    rows.push(Array.from(row.cells || []).slice(1).map((cell) => cell.innerText.trim()));
+  });
+  const csv = rows.map((row) => row.map((cell) => `"${String(cell ?? '').replaceAll('"', '""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `hambelela-selected-cash-book-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
 document.addEventListener('click', (event) => {
+  const rowSelect = event.target.closest('[data-cash-row-select]');
+  const selectAll = event.target.closest('[data-cash-select-all]');
+  const bulkAction = event.target.closest('[data-cash-bulk-action]');
   const open = event.target.closest('[data-cash-entry-open]');
   const close = event.target.closest('[data-cash-entry-close]');
   const fill = event.target.closest('[data-fill-cash-order]');
@@ -549,6 +671,29 @@ document.addEventListener('click', (event) => {
     if (backdrop) backdrop.hidden = false;
     document.body.classList.add('task-panel-open');
   };
+  if (bulkAction) {
+    const action = bulkAction.dataset.cashBulkAction;
+    if (action === 'close') clearCashSelection();
+    if (action === 'export') exportSelectedCash();
+    if (action === 'archive' && cashSelected.size && window.confirm(`Archive ${cashSelected.size} selected cash entr${cashSelected.size === 1 ? 'y' : 'ies'}?`)) submitCashBulkAction('archive');
+    if (action === 'delete' && cashSelected.size && window.confirm(`Delete ${cashSelected.size} selected cash entr${cashSelected.size === 1 ? 'y' : 'ies'} permanently?`)) submitCashBulkAction('delete');
+    if (action === 'duplicate' && cashSelected.size) submitCashBulkAction('duplicate');
+    return;
+  }
+  if (rowSelect) {
+    const id = String(rowSelect.dataset.cashRowSelect);
+    if (rowSelect.checked) cashSelected.add(id);
+    else cashSelected.delete(id);
+    updateCashSelection();
+    return;
+  }
+  if (selectAll) {
+    const ids = cashVisibleIds();
+    if (selectAll.checked) ids.forEach((id) => cashSelected.add(id));
+    else ids.forEach((id) => cashSelected.delete(id));
+    updateCashSelection();
+    return;
+  }
   if (open) showPanel();
   if (fill) {
     showPanel();
@@ -577,9 +722,11 @@ document.addEventListener('click', (event) => {
   }
 });
 
+updateCashSelection();
+
 document.querySelector('[data-export-cash]')?.addEventListener('click', () => {
   const rows = Array.from(document.querySelectorAll('[data-cash-table] tr'))
-    .map((row) => Array.from(row.cells || []).map((cell) => `"${cell.innerText.replaceAll('"', '""').trim()}"`).join(','))
+    .map((row) => Array.from(row.cells || []).slice(1).map((cell) => `"${cell.innerText.replaceAll('"', '""').trim()}"`).join(','))
     .filter(Boolean);
   const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8' });
   const link = document.createElement('a');
