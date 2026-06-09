@@ -27,7 +27,7 @@ INSERT IGNORE INTO `settings` (`setting_key`, `setting_val`) VALUES
   ('letter_company_legal_name', 'Neaco Trading CC'),
   ('letter_company_trading_name', 'Hambelela Organic'),
   ('letter_company_reg', 'cc/2023/03878'),
-  ('letter_physical_address', 'Office 3, floor one, Lazarette house, Erf 7173, corner of Juluis Nyerere street and John Muundjua street, Ausspannplatz, Windhoek, Namibia'),
+  ('letter_physical_address', 'Office 3, floor one, Lazarette house, Erf 7173, corner of Julius Nyerere Street and John Muundjua Street, Ausspannplatz, Windhoek, Namibia'),
   ('letter_email', 'info@hambelelaorganic.com'),
   ('letter_phone', '0856628598'),
   ('letter_website', 'www.hambelelaorganic.com'),

@@ -38,7 +38,7 @@ function employmentLetterDefaults(): array {
         'letter_company_legal_name' => 'Neaco Trading CC',
         'letter_company_trading_name' => 'Hambelela Organic',
         'letter_company_reg' => 'cc/2023/03878',
-        'letter_physical_address' => 'Office 3, floor one, Lazarette house, Erf 7173, corner of Juluis Nyerere street and John Muundjua street, Ausspannplatz, Windhoek, Namibia',
+        'letter_physical_address' => 'Office 3, floor one, Lazarette house, Erf 7173, corner of Julius Nyerere Street and John Muundjua Street, Ausspannplatz, Windhoek, Namibia',
         'letter_email' => 'info@hambelelaorganic.com',
         'letter_phone' => '0856628598',
         'letter_website' => 'www.hambelelaorganic.com',
@@ -64,6 +64,12 @@ function employmentLetterSettings(?PDO $db = null): array {
     } catch (Throwable $e) {
         return $settings;
     }
+
+    $settings['letter_physical_address'] = str_replace(
+        ['Juluis Nyerere street', 'John Muundjua street'],
+        ['Julius Nyerere Street', 'John Muundjua Street'],
+        $settings['letter_physical_address']
+    );
 
     return $settings;
 }
@@ -112,11 +118,6 @@ function buildEmploymentLetterBody(array $employee, string $issuedDate, string $
       <div class="letter-brand">
         <img src="assets/letter/hambelela-logo.jpg" alt="Hambelela Organic">
       </div>
-      <div class="letter-company">
-        <div>' . employmentLetterEsc($settings['letter_company_legal_name']) . ' | Registration no: ' . employmentLetterEsc($settings['letter_company_reg']) . '</div>
-        <div>Physical Address: ' . employmentLetterEsc($settings['letter_physical_address']) . '</div>
-        <div>Email: ' . employmentLetterEsc($settings['letter_email']) . ' |Tel: ' . employmentLetterEsc($settings['letter_phone']) . ' |' . employmentLetterEsc($settings['letter_website']) . '</div>
-      </div>
 
       <p class="letter-date">' . employmentLetterDate($issuedDate) . '</p>
       <p>To whom it may concern,</p>
@@ -128,6 +129,11 @@ function buildEmploymentLetterBody(array $employee, string $issuedDate, string $
       <div class="letter-signature">
         <img src="assets/letter/victoria-signature.jpg" alt="Signature">
         <div>' . employmentLetterEsc($settings['letter_signatory_name']) . '</div>
+      </div>
+      <div class="letter-footer">
+        <div>' . employmentLetterEsc($settings['letter_company_legal_name']) . ' | Registration no: ' . employmentLetterEsc($settings['letter_company_reg']) . '</div>
+        <div>Physical Address: ' . employmentLetterEsc($settings['letter_physical_address']) . '</div>
+        <div>Email: ' . employmentLetterEsc($settings['letter_email']) . ' | Tel: ' . employmentLetterEsc($settings['letter_phone']) . ' | ' . employmentLetterEsc($settings['letter_website']) . '</div>
       </div>';
 }
 
@@ -143,15 +149,15 @@ function renderEmploymentLetterHtml(PDO $db, array $letter): string {
 <title>' . $title . '</title>
 <style>
   body{font-family:Arial,sans-serif;background:#f4f6f2;margin:0;padding:32px;color:#111827}
-  .page{max-width:760px;margin:0 auto;background:#fff;padding:42px 58px 56px;border:1px solid #d9e2d0;box-shadow:0 8px 24px rgba(0,0,0,.08)}
-  .letter-brand{text-align:center;margin:0 0 8px}
+  .page{width:210mm;min-height:297mm;box-sizing:border-box;position:relative;margin:0 auto;background:#fff;padding:42px 58px 136px;border:1px solid #d9e2d0;box-shadow:0 8px 24px rgba(0,0,0,.08)}
+  .letter-brand{text-align:center;margin:0 0 52px}
   .letter-brand img{width:310px;max-width:70%;height:auto}
-  .letter-company{text-align:center;font-size:12px;line-height:1.45;margin:0 0 54px}
   p{font-size:14px;line-height:1.55;margin:0 0 15px}
   .letter-date{margin-bottom:32px}
   .letter-signature{margin-top:22px}
   .letter-signature img{display:block;width:110px;height:auto;margin:0 0 4px}
   .letter-signature div{font-size:14px}
+  .letter-footer{position:absolute;left:40px;right:40px;bottom:22px;border-top:1px solid #777;text-align:center;font-size:11px;line-height:1.25;padding-top:8px;color:#111827}
   @media print{body{background:#fff;padding:0}.page{box-shadow:none;border:0}}
 </style>
 </head>
@@ -232,14 +238,6 @@ function renderEmploymentLetterPdf(PDO $db, array $letter): string {
     if ($logo) {
         $content .= "q 305 0 0 112 145 703 cm /Im1 Do Q\n";
     }
-    $content .= employmentLetterPdfCenteredLine($settings['letter_company_legal_name'] . ' | Registration no: ' . $settings['letter_company_reg'], 686, 9);
-    $addressLines = employmentLetterWrap('Physical Address: ' . $settings['letter_physical_address'], 105);
-    $cy = 672;
-    foreach ($addressLines as $line) {
-        $content .= employmentLetterPdfCenteredLine($line, $cy, 9);
-        $cy -= 12;
-    }
-    $content .= employmentLetterPdfCenteredLine('Email: ' . $settings['letter_email'] . ' |Tel: ' . $settings['letter_phone'] . ' |' . $settings['letter_website'], $cy, 9);
 
     $x = 72;
     $y = 585;
@@ -256,6 +254,15 @@ function renderEmploymentLetterPdf(PDO $db, array $letter): string {
         $content .= "q 95 0 0 38 72 " . round($y - 20, 2) . " cm /Im2 Do Q\n";
     }
     $content .= employmentLetterPdfLine($settings['letter_signatory_name'], $x, $y - 34, 11);
+    $content .= "0.6 w 40 106 m 555 106 l S\n";
+    $content .= employmentLetterPdfCenteredLine($settings['letter_company_legal_name'] . ' | Registration no: ' . $settings['letter_company_reg'], 91, 9);
+    $addressLines = employmentLetterWrap('Physical Address: ' . $settings['letter_physical_address'], 103);
+    $footerY = 78;
+    foreach ($addressLines as $line) {
+        $content .= employmentLetterPdfCenteredLine($line, $footerY, 9);
+        $footerY -= 11;
+    }
+    $content .= employmentLetterPdfCenteredLine('Email: ' . $settings['letter_email'] . ' | Tel: ' . $settings['letter_phone'] . ' | ' . $settings['letter_website'], $footerY, 9);
 
     $objects = [];
     $objects[] = "<< /Type /Catalog /Pages 2 0 R >>";
