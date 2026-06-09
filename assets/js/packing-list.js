@@ -246,7 +246,7 @@
     if (!invoiceDraftBody) return;
     assignDraftRows();
     if (!invoiceDraftRows.length) {
-      invoiceDraftBody.innerHTML = '<tr><td colspan="7">Extract an invoice or add a row to review before saving.</td></tr>';
+      invoiceDraftBody.innerHTML = '<tr><td colspan="8">Extract an invoice or add a row to review before saving.</td></tr>';
       return;
     }
     const personOptions = '<option value="">Auto</option>' + packers.map((packer) => `<option value="${esc(packer.id)}">${esc(packer.full_name)}</option>`).join('');
@@ -258,6 +258,7 @@
         <td><input data-draft-field="quantity_planned" value="${esc(row.quantity_planned || '')}" placeholder="100g(20), 250g(8)"></td>
         <td><select data-draft-field="assigned_employee_id">${personOptions}</select></td>
         <td>${esc(row.workload || draftWorkload(row))}</td>
+        <td><span class="sync-pill sync-pending">Will sync</span></td>
         <td><button type="button" data-remove-draft-row="${index}"><i data-lucide="trash-2"></i></button></td>
       </tr>
     `).join('');
@@ -460,6 +461,9 @@
         <div><span>Date completed</span><strong>${esc(formatDate(currentTask.date_completed) || 'Not complete')}</strong></div>
         <div><span>Time taken</span><strong>${esc(duration(currentTask.date_started || currentTask.date_loaded, currentTask.date_completed) || 'Not complete')}</strong></div>
         <div><span>Workload</span><strong>${esc(currentTask.workload_points || '')}</strong></div>
+        <div><span>Monday sync</span><strong>${esc(String(currentTask.monday_sync_status || 'not_synced').replace(/_/g, ' '))}</strong></div>
+        <div><span>Monday item</span><strong>${esc(currentTask.monday_item_id || 'Not synced')}</strong></div>
+        ${currentTask.monday_sync_error ? `<div class="packing-detail-wide"><span>Sync error</span><strong>${esc(currentTask.monday_sync_error)}</strong></div>` : ''}
       </div>
     `;
     panel.classList.add('open');
@@ -582,21 +586,25 @@
       renderInvoiceDraft();
     }
     if (!invoiceDraftRows.length) throw new Error('No invoice rows to create.');
-    for (const row of invoiceDraftRows) {
-      if (!row.item_name) continue;
-      await post('create', {
-        item_name: row.item_name,
-        received_weight: row.received_weight || '',
-        quantity_planned: row.quantity_planned || '',
-        priority: 'high',
-        date_loaded: new Date().toISOString().slice(0, 19).replace('T', ' '),
-        assigned_employee_id: row.assigned_employee_id || '',
-        notes: `Created from invoice review${row.unit ? `\nUnit: ${row.unit}` : ''}${row.quantity_purchased ? `\nInvoice quantity: ${row.quantity_purchased}` : ''}`
+    const submit = form.querySelector('[type="submit"]');
+    submit?.classList.add('is-loading');
+    try {
+      setInvoiceStatus('Creating portal rows and syncing to Monday...');
+      const formData = new FormData(form);
+      const result = await post('create_invoice_rows', {
+        rows_json: JSON.stringify(invoiceDraftRows),
+        invoice_number: formData.get('invoice_number') || '',
+        invoice_date: formData.get('invoice_date') || '',
+        supplier_name: formData.get('supplier_name') || '',
+        sync_to_monday: '1'
       });
+      invoiceDraftRows = [];
+      invoiceModal.hidden = true;
+      await refresh();
+      setCount(result.message || 'Packing rows created and synced.');
+    } finally {
+      submit?.classList.remove('is-loading');
     }
-    invoiceDraftRows = [];
-    invoiceModal.hidden = true;
-    await refresh();
   }
 
   document.addEventListener('click', async (event) => {

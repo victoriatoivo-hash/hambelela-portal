@@ -4273,6 +4273,10 @@ textarea {
   background: #f8f9fc;
 }
 
+.packing-detail-grid .packing-detail-wide {
+  grid-column: 1 / -1;
+}
+
 .packing-detail-grid span {
   color: #676879;
   font-size: 12px;
@@ -4284,6 +4288,23 @@ textarea {
   font-size: 14px;
   line-height: 1.35;
   white-space: normal;
+}
+
+.sync-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 82px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.sync-pending {
+  color: #4f2fd6;
+  background: #f0ebff;
+  border: 1px solid #d7cbff;
 }
 
 .ops-board-page[data-board-theme="light"] {

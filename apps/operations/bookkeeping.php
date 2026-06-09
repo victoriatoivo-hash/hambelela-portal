@@ -132,7 +132,7 @@ function cash_order_amount_expr(): string
 function cash_is_cash_method(string $method): bool
 {
     $method = strtolower($method);
-    return str_contains($method, 'cash');
+    return strpos($method, 'cash') !== false;
 }
 
 if ($ready) {
