@@ -107,6 +107,320 @@ video {
   text-align: right;
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.notification-center {
+  position: relative;
+}
+
+.notification-bell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgba(48, 45, 49, 0.12);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--ink);
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.notification-bell:hover {
+  transform: translateY(-1px);
+  border-color: rgba(0, 117, 255, 0.28);
+  box-shadow: 0 12px 26px rgba(28, 41, 64, 0.12);
+}
+
+.notification-bell svg {
+  width: 19px;
+  height: 19px;
+}
+
+.notification-count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  background: #ef2d56;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 16px;
+  text-align: center;
+}
+
+.notification-count.is-hidden {
+  display: none;
+}
+
+.notification-menu {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  z-index: 80;
+  width: min(380px, calc(100vw - 24px));
+  overflow: hidden;
+  border: 1px solid rgba(48, 45, 49, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 26px 60px rgba(28, 32, 45, 0.2);
+  animation: notificationDrop 0.18s ease;
+}
+
+.notification-menu[hidden] {
+  display: none;
+}
+
+@keyframes notificationDrop {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.notification-menu-head,
+.notification-menu-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #fff;
+}
+
+.notification-menu-head {
+  border-bottom: 1px solid rgba(48, 45, 49, 0.08);
+}
+
+.notification-menu-head strong {
+  display: block;
+  font-size: 15px;
+}
+
+.notification-menu-head small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.notification-menu button,
+.notification-menu-foot a {
+  border: 0;
+  background: transparent;
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.notification-list {
+  max-height: min(420px, 60vh);
+  overflow: auto;
+  padding: 6px;
+}
+
+.notification-item {
+  display: grid;
+  grid-template-columns: 10px 1fr;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 10px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.18s ease, transform 0.18s ease;
+}
+
+.notification-item:hover {
+  transform: translateY(-1px);
+  background: #f4f8ff;
+}
+
+.notification-item.is-unread {
+  background: #f7fbff;
+}
+
+.notification-item strong,
+.notification-item small,
+.notification-item em {
+  display: block;
+}
+
+.notification-item strong {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.notification-item small {
+  margin-top: 4px;
+  color: #5b6272;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.notification-item em {
+  margin-top: 7px;
+  color: #8a90a0;
+  font-size: 11px;
+  font-style: normal;
+  text-transform: uppercase;
+}
+
+.notification-priority {
+  width: 9px;
+  height: 9px;
+  margin-top: 4px;
+  border-radius: 999px;
+  background: #60a5fa;
+}
+
+.notification-priority.info {
+  background: #38bdf8;
+}
+
+.notification-priority.normal {
+  background: #60a5fa;
+}
+
+.notification-priority.important {
+  background: #f59e0b;
+}
+
+.notification-priority.urgent {
+  background: #ef4444;
+}
+
+.notification-empty {
+  padding: 22px 14px;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.notification-menu-foot {
+  border-top: 1px solid rgba(48, 45, 49, 0.08);
+}
+
+.notification-page-list {
+  display: grid;
+  gap: 8px;
+}
+
+.notification-page-item {
+  display: grid;
+  grid-template-columns: 10px 1fr;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid rgba(48, 45, 49, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.notification-page-item:hover {
+  transform: translateY(-1px);
+  background: #fff;
+  box-shadow: 0 16px 32px rgba(28, 32, 45, 0.08);
+}
+
+.notification-page-item.is-unread {
+  border-color: rgba(37, 99, 235, 0.18);
+  background: #f7fbff;
+}
+
+.notification-page-item strong,
+.notification-page-item small,
+.notification-page-item em {
+  display: block;
+}
+
+.notification-page-item small {
+  margin-top: 4px;
+  color: #5b6272;
+}
+
+.notification-page-item em {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.notification-settings-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.notification-module-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.notification-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid rgba(48, 45, 49, 0.09);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+@media (prefers-color-scheme: dark) {
+  .notification-bell,
+  .notification-menu,
+  .notification-menu-head,
+  .notification-menu-foot {
+    background: #161820;
+    color: #f5f7fb;
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .notification-count {
+    border-color: #161820;
+  }
+
+  .notification-item {
+    color: #f5f7fb;
+  }
+
+  .notification-item small,
+  .notification-item em,
+  .notification-menu-head small {
+    color: #a8adbb;
+  }
+
+  .notification-item:hover,
+  .notification-item.is-unread {
+    background: rgba(80, 143, 255, 0.16);
+  }
+
+  .notification-check {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+}
+
 .account strong,
 .account small {
   display: block;
@@ -5514,8 +5828,24 @@ textarea {
     padding: 14px 18px;
   }
 
+  .topbar-actions {
+    gap: 8px;
+  }
+
   .account div {
     display: none;
+  }
+
+  .account {
+    gap: 8px;
+  }
+
+  .notification-menu {
+    position: fixed;
+    top: 72px;
+    right: 12px;
+    left: 12px;
+    width: auto;
   }
 
   .shell {

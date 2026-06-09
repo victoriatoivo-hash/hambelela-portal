@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__, 2) . '/config.php';
 require_once BASE_PATH . '/shared/auth.php';
 require_once BASE_PATH . '/shared/database.php';
+require_once BASE_PATH . '/shared/notifications.php';
 
 const OPS_ORDER_STATUSES = [
     'new_order' => 'New Order',
@@ -324,7 +325,10 @@ function ops_assign_unassigned_orders(): int
         }
 
         $stmt->execute([$packerId, (int) $order['id']]);
-        $assigned += $stmt->rowCount() > 0 ? 1 : 0;
+        if ($stmt->rowCount() > 0) {
+            $assigned++;
+            notifications_notify_order_assigned((int) $order['id'], $packerId);
+        }
     }
 
     return $assigned;

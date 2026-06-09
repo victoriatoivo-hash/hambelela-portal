@@ -1188,6 +1188,21 @@ try {
                 'value' => $value,
                 'changed_by' => current_user()['name'] ?? 'Unknown',
             ]);
+            if ($field === 'assigned_employee_id') {
+                notifications_notify_packing_assigned($id, $value === null ? null : (int) $value);
+            } elseif ($field === 'packing_status' && in_array($value, ['packed_label_needed', 'label_created', 'website'], true)) {
+                $task = notifications_packing_summary($id);
+                $title = $value === 'packed_label_needed' ? 'Packing label needed' : 'Packing item updated';
+                notifications_create_for_roles([
+                    'title' => $title,
+                    'message' => ((string) ($task['item_name'] ?? 'A packing item')) . ' needs attention.',
+                    'module' => 'packing',
+                    'priority' => $value === 'packed_label_needed' ? 'important' : 'normal',
+                    'related_type' => 'packing_task',
+                    'related_id' => $id,
+                    'action_link' => BASE_URL . '/apps/operations/consignments.php?task_id=' . $id,
+                ], ['owner_admin', 'front_desk_admin', 'supervisor_manager']);
+            }
         }
 
         echo json_encode(['ok' => true, 'message' => 'Packing row updated.', 'updated' => $stmt->rowCount()]);

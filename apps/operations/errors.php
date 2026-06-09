@@ -186,6 +186,15 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([json_encode($paths, JSON_UNESCAPED_SLASHES), $errorId]);
             }
             ops_activity_log('error_logged', 'error_log', $errorId, ['severity' => $severity, 'category' => $category, 'people_involved' => $people]);
+            notifications_create_for_roles([
+                'title' => $severity === 'critical' ? 'Critical error logged' : 'New error logged',
+                'message' => $title,
+                'module' => 'errors',
+                'priority' => $severity === 'critical' ? 'urgent' : ($severity === 'high' ? 'important' : 'normal'),
+                'related_type' => 'error_log',
+                'related_id' => $errorId,
+                'action_link' => BASE_URL . '/apps/operations/errors.php?error_id=' . $errorId,
+            ], ['owner_admin', 'front_desk_admin', 'supervisor_manager']);
             $message = 'Error logged and added to KPI tracking.';
         }
 

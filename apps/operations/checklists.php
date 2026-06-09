@@ -218,7 +218,9 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 checklist_items_from_text((string) ($_POST['checklist_items_text'] ?? '')),
                 $currentEmployeeId,
             ]);
-            ops_activity_log('task_created', 'checklist_task', (int) db()->lastInsertId(), ['assigned_employee_id' => $assignedId]);
+            $createdTaskId = (int) db()->lastInsertId();
+            ops_activity_log('task_created', 'checklist_task', $createdTaskId, ['assigned_employee_id' => $assignedId]);
+            notifications_notify_task_assigned($createdTaskId, $assignedId > 0 ? $assignedId : null, $taskName);
             $message = 'Task created and assigned.';
         }
 
@@ -230,6 +232,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = db()->prepare("UPDATE ops_checklist_tasks SET assigned_employee_id = ?, deadline = ?, priority = ?, status = ? WHERE id = ?");
             $stmt->execute([$assignedId > 0 ? $assignedId : null, $deadline ?: null, ops_post_string('priority', 30) ?: 'medium', $status, $taskId]);
             ops_activity_log('task_admin_updated', 'checklist_task', $taskId, ['status' => $status, 'assigned_employee_id' => $assignedId]);
+            notifications_notify_task_assigned($taskId, $assignedId > 0 ? $assignedId : null, 'Checklist task');
             $message = 'Task updated.';
         }
 
@@ -271,6 +274,15 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = db()->prepare("UPDATE ops_checklist_tasks SET {$set} WHERE {$scope}");
             $stmt->execute([...$params, ...$scopeParams]);
             ops_activity_log('task_completed', 'checklist_task', $taskId, ['checked_items' => $checked, 'note' => $note]);
+            notifications_create_for_roles([
+                'title' => 'Task completed',
+                'message' => 'A checklist task was completed with a note.',
+                'module' => 'tasks',
+                'priority' => 'info',
+                'related_type' => 'checklist_task',
+                'related_id' => $taskId,
+                'action_link' => BASE_URL . '/apps/operations/checklists.php?task_id=' . $taskId,
+            ], ['owner_admin', 'front_desk_admin', 'supervisor_manager']);
             $message = 'Task completed with note saved.';
         }
     } catch (Throwable $e) {

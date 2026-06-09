@@ -464,6 +464,17 @@ try {
     if ($action === 'sync') {
         $date = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_POST['date'] ?? '')) ? (string) $_POST['date'] : null;
         $result = ops_board_sync_website_orders($date);
+        if ((int) ($result['imported'] ?? 0) > 0) {
+            notifications_create_for_roles([
+                'title' => 'New website orders synced',
+                'message' => (int) $result['imported'] . ' new order(s) were imported from the website.',
+                'module' => 'operations',
+                'priority' => 'normal',
+                'related_type' => 'order_sync',
+                'related_id' => null,
+                'action_link' => BASE_URL . '/apps/operations/orders-board.php',
+            ], ['owner_admin', 'front_desk_admin', 'supervisor_manager']);
+        }
         echo json_encode([
             'ok' => true,
             'message' => 'Website orders synced.',
@@ -493,6 +504,29 @@ try {
 
         $stmt = db()->prepare('UPDATE ops_orders SET ' . $set . ' WHERE id = ?');
         $stmt->execute([$status, $orderId]);
+        if ($status === 'completed') {
+            $order = notifications_order_summary($orderId);
+            notifications_create_for_roles([
+                'title' => 'Order completed',
+                'message' => ((string) ($order['order_number'] ?? ('Order #' . $orderId))) . ' was marked complete.',
+                'module' => 'operations',
+                'priority' => 'info',
+                'related_type' => 'order',
+                'related_id' => $orderId,
+                'action_link' => BASE_URL . '/apps/operations/orders-board.php?order_id=' . $orderId,
+            ], ['owner_admin', 'front_desk_admin', 'supervisor_manager']);
+        } elseif ($status === 'correction_required') {
+            $order = notifications_order_summary($orderId);
+            notifications_create([
+                'title' => 'Order needs correction',
+                'message' => ((string) ($order['order_number'] ?? ('Order #' . $orderId))) . ' needs correction.',
+                'module' => 'operations',
+                'priority' => 'important',
+                'related_type' => 'order',
+                'related_id' => $orderId,
+                'action_link' => BASE_URL . '/apps/operations/orders-board.php?order_id=' . $orderId,
+            ], [(int) ($order['assigned_packer_id'] ?? 0)]);
+        }
 
         echo json_encode(['ok' => true, 'message' => 'Order status updated.']);
         exit;
@@ -538,6 +572,7 @@ try {
             } else {
                 $stmt->execute([$packerId, $orderId]);
             }
+            notifications_notify_order_assigned($orderId, $packerId);
         } elseif ($field === 'status') {
             $set = 'status = ?, updated_at = CURRENT_TIMESTAMP';
             if ($value === 'in_progress' && ops_column_exists('ops_orders', 'packing_started_at')) {
@@ -551,6 +586,18 @@ try {
             }
             $stmt = db()->prepare('UPDATE ops_orders SET ' . $set . ' WHERE id = ?');
             $stmt->execute([$value, $orderId]);
+            if ($value === 'completed') {
+                $order = notifications_order_summary($orderId);
+                notifications_create_for_roles([
+                    'title' => 'Order completed',
+                    'message' => ((string) ($order['order_number'] ?? ('Order #' . $orderId))) . ' was marked complete.',
+                    'module' => 'operations',
+                    'priority' => 'info',
+                    'related_type' => 'order',
+                    'related_id' => $orderId,
+                    'action_link' => BASE_URL . '/apps/operations/orders-board.php?order_id=' . $orderId,
+                ], ['owner_admin', 'front_desk_admin', 'supervisor_manager']);
+            }
         } elseif ($field === 'payment_status') {
             $stmt = db()->prepare('UPDATE ops_orders SET payment_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
             $stmt->execute([$value, $orderId]);

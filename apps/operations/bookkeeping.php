@@ -220,6 +220,15 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([$entryId, $currentEmployeeId, 'created', json_encode($_POST, JSON_UNESCAPED_SLASHES)]);
             }
             ops_activity_log('cash_entry_created', 'cash_book', $entryId, ['transaction_type' => $type, 'cash_in' => $cashIn, 'cash_out' => $cashOut]);
+            notifications_create_for_roles([
+                'title' => 'Bookkeeping entry logged',
+                'message' => $description . ' was recorded in cash tracking.',
+                'module' => 'bookkeeping',
+                'priority' => $type === 'closing_count' ? 'important' : 'normal',
+                'related_type' => 'cash_entry',
+                'related_id' => $entryId,
+                'action_link' => BASE_URL . '/apps/operations/bookkeeping.php?entry_id=' . $entryId,
+            ], ['owner_admin', 'supervisor_manager']);
             $message = 'Cash entry recorded.';
         } elseif (in_array($action, ['bulk_archive', 'bulk_delete', 'bulk_duplicate'], true)) {
             if (!$canBulkManage) throw new RuntimeException('You do not have permission to update selected cash entries.');
