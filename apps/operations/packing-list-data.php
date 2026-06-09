@@ -40,10 +40,6 @@ $currentEmployeeId = ops_current_employee_id();
 $canManage = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
 $whereParts = [];
 $params = [];
-if (!$canManage) {
-    $whereParts[] = 'pt.assigned_employee_id = ?';
-    $params[] = $currentEmployeeId ?: 0;
-}
 if ($hasArchivedAt) {
     $whereParts[] = 'pt.archived_at IS NULL';
 }
@@ -65,9 +61,7 @@ $tasks = ops_rows(
 );
 
 $archiveWhere = $hasArchivedAt ? 'archived_at IS NULL' : '1=1';
-$totalRows = $canManage
-    ? (int) ops_count('ops_packing_tasks', $archiveWhere)
-    : (int) ops_count('ops_packing_tasks', $archiveWhere . ' AND assigned_employee_id = ' . (int) ($currentEmployeeId ?: 0));
+$totalRows = (int) ops_count('ops_packing_tasks', $archiveWhere);
 
 $packers = ops_rows(
     "SELECT e.id, e.full_name

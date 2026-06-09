@@ -29,6 +29,7 @@
   let currentTask = null;
   let lastUndo = null;
   let invoiceDraftRows = [];
+  let defaultPersonFilterApplied = false;
   const selected = new Set();
   const state = { search: '', priority: '', status: '', person: '', groupBy: 'month', date: '' };
 
@@ -186,6 +187,15 @@
 
   function renderLabel(task, field, value, options) {
     return `<button type="button" class="board-label" style="--label-color:${esc(labelColor(options, value))}" data-packing-label="${esc(field)}" data-task-id="${esc(task.id)}">${esc(labelText(options, value))}</button>`;
+  }
+
+  function renderStaticLabel(value, options) {
+    return `<span class="board-label is-static" style="--label-color:${esc(labelColor(options, value))}">${esc(labelText(options, value))}</span>`;
+  }
+
+  function canEditTask(task) {
+    if (currentUser.can_manage) return true;
+    return String(task?.assigned_employee_id || '') === String(currentUser.id || '');
   }
 
   function renderPerson(task) {
@@ -370,7 +380,9 @@
       if (state.date && monthKey(task.date_loaded) !== state.date) return false;
       if (state.priority && normalize(task.priority) !== normalize(state.priority)) return false;
       if (state.status && normalize(task.packing_status) !== normalize(state.status)) return false;
-      if (state.person && String(task.assigned_employee_id || '') !== String(state.person)) return false;
+      if (state.person === '__mine' && String(task.assigned_employee_id || '') !== String(currentUser.id || '')) return false;
+      if (state.person === '__unassigned' && Number(task.assigned_employee_id || 0) !== 0) return false;
+      if (state.person && !['__mine', '__unassigned'].includes(state.person) && String(task.assigned_employee_id || '') !== String(state.person)) return false;
       const haystack = [task.item_name, task.received_weight, task.quantity_planned, task.quantity_packed, task.assigned_name, task.notes].join(' ').toLowerCase();
       return !search || haystack.includes(search);
     });
@@ -398,23 +410,34 @@
 
   function renderGroup(key, rows) {
     const groupSummary = summary(rows);
-    const bodyRows = rows.map((task) => `
-      <tr data-task-id="${esc(task.id)}" class="${selected.has(String(task.id)) ? 'is-selected' : ''}">
-        <td class="check-cell"><input type="checkbox" data-packing-row-select="${esc(task.id)}" ${selected.has(String(task.id)) ? 'checked' : ''}></td>
-        <td class="task-cell">${esc(task.item_name)}</td>
-        <td class="comment-cell"><button type="button" title="Open full details" data-packing-open-panel="${esc(task.id)}"><i data-lucide="panel-right-open"></i></button></td>
-        <td><input class="board-inline-input" data-packing-text="received_weight" data-task-id="${esc(task.id)}" value="${esc(task.received_weight || '')}"></td>
-        <td>${renderLabel(task, 'priority', task.priority || 'medium', priorities)}</td>
-        <td>${esc(formatDate(task.date_loaded))}</td>
-        <td><input class="board-inline-input" data-packing-text="quantity_planned" data-task-id="${esc(task.id)}" value="${esc(task.quantity_planned || '')}"></td>
-        <td>${renderPerson(task)}</td>
-        <td><input class="board-inline-input" data-packing-text="quantity_packed" data-task-id="${esc(task.id)}" value="${esc(task.quantity_packed || '')}" placeholder="Actual"></td>
-        <td>${renderLabel(task, 'packing_status', task.packing_status || 'not_started', statuses)}</td>
-        <td class="paid-cell">${renderCheck(task, 'website_uploaded', currentUser.can_edit_front_website)}</td>
-        <td class="notes-cell"><button type="button" title="Open notes" data-packing-open-panel="${esc(task.id)}"><i data-lucide="sticky-note"></i></button></td>
-        <td></td>
-      </tr>
-    `).join('');
+    const bodyRows = rows.map((task) => {
+      const canEditOwn = canEditTask(task);
+      const manageOnly = currentUser.can_manage ? '' : 'disabled';
+      const ownOnly = canEditOwn ? '' : 'disabled';
+      const priorityCell = currentUser.can_manage
+        ? renderLabel(task, 'priority', task.priority || 'medium', priorities)
+        : renderStaticLabel(task.priority || 'medium', priorities);
+      const statusCell = canEditOwn
+        ? renderLabel(task, 'packing_status', task.packing_status || 'not_started', statuses)
+        : renderStaticLabel(task.packing_status || 'not_started', statuses);
+      return `
+        <tr data-task-id="${esc(task.id)}" class="${selected.has(String(task.id)) ? 'is-selected' : ''}">
+          <td class="check-cell"><input type="checkbox" data-packing-row-select="${esc(task.id)}" ${selected.has(String(task.id)) ? 'checked' : ''}></td>
+          <td class="task-cell">${esc(task.item_name)}</td>
+          <td class="comment-cell"><button type="button" title="Open full details" data-packing-open-panel="${esc(task.id)}"><i data-lucide="panel-right-open"></i></button></td>
+          <td><input class="board-inline-input" data-packing-text="received_weight" data-task-id="${esc(task.id)}" value="${esc(task.received_weight || '')}" ${manageOnly}></td>
+          <td>${priorityCell}</td>
+          <td>${esc(formatDate(task.date_loaded))}</td>
+          <td><input class="board-inline-input" data-packing-text="quantity_planned" data-task-id="${esc(task.id)}" value="${esc(task.quantity_planned || '')}" ${manageOnly}></td>
+          <td>${renderPerson(task)}</td>
+          <td><input class="board-inline-input" data-packing-text="quantity_packed" data-task-id="${esc(task.id)}" value="${esc(task.quantity_packed || '')}" placeholder="Actual" ${ownOnly}></td>
+          <td>${statusCell}</td>
+          <td class="paid-cell">${renderCheck(task, 'website_uploaded', currentUser.can_edit_front_website)}</td>
+          <td class="notes-cell"><button type="button" title="Open notes" data-packing-open-panel="${esc(task.id)}"><i data-lucide="sticky-note"></i></button></td>
+          <td></td>
+        </tr>
+      `;
+    }).join('');
 
     const addRow = currentUser.can_manage
       ? '<tr class="add-task-row"><td></td><td colspan="12"><button type="button" data-open-packing-create>+ Add item</button></td></tr>'
@@ -493,9 +516,13 @@
       totalRows = Number(data.totalRows || tasks.length || 0);
       packers = data.packers || [];
       currentUser = data.currentUser || {};
+      if (!defaultPersonFilterApplied && !currentUser.can_manage && currentUser.id) {
+        state.person = '__mine';
+        defaultPersonFilterApplied = true;
+      }
       fillPackerSelects();
       if (!data.migrationReady) {
-      body.innerHTML = '<tr><td colspan="13">Import operations-packing-list-migration.sql first.</td></tr>';
+        body.innerHTML = '<tr><td colspan="13">Import operations-packing-list-migration.sql first.</td></tr>';
         setCount('Packing migration required');
         updateMetrics([]);
         return;
@@ -510,8 +537,9 @@
     const options = '<option value="">Auto assign</option>' + packers.map((packer) => `<option value="${esc(packer.id)}">${esc(packer.full_name)}</option>`).join('');
     document.querySelectorAll('[data-create-person]').forEach((select) => { select.innerHTML = options; });
     document.querySelectorAll('[data-packing-filter="person"]').forEach((select) => {
-      const current = select.value;
-      select.innerHTML = '<option value="">All</option>' + packers.map((packer) => `<option value="${esc(packer.id)}">${esc(packer.full_name)}</option>`).join('');
+      const current = state.person || select.value;
+      const mineOption = (!currentUser.can_manage && currentUser.id) ? '<option value="__mine">My Items</option>' : '';
+      select.innerHTML = `${mineOption}<option value="">All Items</option>` + packers.map((packer) => `<option value="${esc(packer.id)}">${esc(packer.full_name)}</option>`).join('') + '<option value="__unassigned">Unassigned</option>';
       select.value = current;
     });
   }
@@ -542,6 +570,9 @@
     if (!currentTask) return;
     panelTitle.textContent = currentTask.item_name;
     panelNotes.value = currentTask.notes || '';
+    const canEditOwn = canEditTask(currentTask);
+    panelNotes.disabled = !canEditOwn;
+    document.querySelectorAll('[data-packing-save-notes]').forEach((button) => { button.disabled = !canEditOwn; });
     panelActivity.innerHTML = `
       <div class="packing-detail-grid">
         <div><span>Item</span><strong>${esc(currentTask.item_name || '')}</strong></div>
