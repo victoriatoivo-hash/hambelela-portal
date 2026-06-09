@@ -4,10 +4,13 @@ startSession();
 session_destroy();
 
 $scriptName = (string)($_SERVER['SCRIPT_NAME'] ?? '');
-$portalRoot = '';
-if (strpos($scriptName, '/apps/hr-portal/') !== false) {
-    $portalRoot = substr($scriptName, 0, strpos($scriptName, '/apps/hr-portal/'));
+$embeddedOffset = strpos($scriptName, '/apps/hr-portal/');
+
+if ($embeddedOffset !== false) {
+    $portalRoot = substr($scriptName, 0, $embeddedOffset);
+    header('Location: ' . ($portalRoot === '' ? '' : $portalRoot) . '/index.php');
+    exit;
 }
 
-header('Location: ' . ($portalRoot !== '' ? $portalRoot : SITE_URL) . '/index.php');
+header('Location: ' . SITE_URL . '/index.php');
 exit;
