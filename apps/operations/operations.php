@@ -49,6 +49,7 @@ function ops_nav(string $active): void
             'account' => ['My Account', 'key-round', 'my-account.php'],
             'board' => ['Orders Board', 'table-2', 'orders-board.php'],
             'orders' => ['Orders', 'shopping-bag', 'orders.php'],
+            'whatsapp' => ['WhatsApp KPI', 'messages-square', 'whatsapp.php'],
             'bookkeeping' => ['Bookkeeping', 'wallet-cards', 'bookkeeping.php'],
             'checklists' => ['Task Management', 'list-checks', 'checklists.php'],
             'errors' => ['Errors', 'triangle-alert', 'errors.php'],
@@ -59,6 +60,7 @@ function ops_nav(string $active): void
         $items = [
             'account' => ['My Account', 'key-round', 'my-account.php'],
             'board' => ['Orders Board', 'table-2', 'orders-board.php'],
+            'whatsapp' => ['WhatsApp KPI', 'messages-square', 'whatsapp.php'],
             'bookkeeping' => ['Bookkeeping', 'wallet-cards', 'bookkeeping.php'],
             'checklists' => ['Task Management', 'list-checks', 'checklists.php'],
             'errors' => ['Errors', 'triangle-alert', 'errors.php'],

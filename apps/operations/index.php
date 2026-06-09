@@ -50,6 +50,7 @@ include BASE_PATH . '/shared/sidebar.php';
         <div class="actions">
             <a class="button" href="../../index.php"><i data-lucide="arrow-left"></i> Portal</a>
             <a class="button primary" href="orders-board.php"><i data-lucide="table-2"></i> Orders board</a>
+            <a class="button" href="whatsapp.php"><i data-lucide="messages-square"></i> WhatsApp KPI</a>
         </div>
     </section>
 
