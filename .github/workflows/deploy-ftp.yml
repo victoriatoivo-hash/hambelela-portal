@@ -19,6 +19,7 @@ jobs:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./
           server-dir: ./
           timeout: 120000
           log-level: standard
@@ -26,5 +27,7 @@ jobs:
             **/.git*
             **/.git*/**
             **/uploads/**
+            **/leave_attachments/**
+            **/error_log
             **/config.local.php
             **/default-login-accounts.txt

@@ -1,5 +1,8 @@
 config.local.php
 uploads/
+**/uploads/
+**/leave_attachments/
+**/error_log
 default-login-accounts.txt
 
 .DS_Store
