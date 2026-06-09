@@ -24,6 +24,15 @@ function wa_sources(): array
     return ['manual', 'whatsapp_business', 'meta_import', 'csv_import'];
 }
 
+function wa_platforms(): array
+{
+    return [
+        'whatsapp' => 'WhatsApp',
+        'instagram' => 'Instagram',
+        'facebook' => 'Facebook',
+    ];
+}
+
 function wa_datetime(?string $value): ?string
 {
     $value = trim((string) $value);
@@ -127,6 +136,8 @@ function wa_ensure_tables(): bool
         db()->exec(
             "CREATE TABLE IF NOT EXISTS ops_whatsapp_contacts (
                 id INT AUTO_INCREMENT PRIMARY KEY,
+                platform ENUM('whatsapp', 'instagram', 'facebook') NOT NULL DEFAULT 'whatsapp',
+                external_id VARCHAR(120) NULL,
                 wa_id VARCHAR(80) NOT NULL UNIQUE,
                 display_name VARCHAR(190),
                 phone_number VARCHAR(80),
@@ -136,10 +147,17 @@ function wa_ensure_tables(): bool
                 updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
             )"
         );
+        foreach ([
+            'platform' => "ENUM('whatsapp', 'instagram', 'facebook') NOT NULL DEFAULT 'whatsapp' AFTER id",
+            'external_id' => 'VARCHAR(120) NULL AFTER platform',
+        ] as $column => $definition) {
+            wa_add_column('ops_whatsapp_contacts', $column, $definition);
+        }
         db()->exec(
             "CREATE TABLE IF NOT EXISTS ops_whatsapp_conversations (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 contact_id INT NULL,
+                platform ENUM('whatsapp', 'instagram', 'facebook') NOT NULL DEFAULT 'whatsapp',
                 customer_name VARCHAR(190) NOT NULL,
                 customer_phone VARCHAR(80),
                 source ENUM('manual', 'whatsapp_business', 'meta_import', 'csv_import') NOT NULL DEFAULT 'manual',
@@ -176,6 +194,7 @@ function wa_ensure_tables(): bool
         );
         foreach ([
             'contact_id' => 'INT NULL AFTER id',
+            'platform' => "ENUM('whatsapp', 'instagram', 'facebook') NOT NULL DEFAULT 'whatsapp' AFTER contact_id",
             'last_message_at' => 'DATETIME NULL AFTER last_staff_response_at',
             'phone_number_id' => 'VARCHAR(80) NULL AFTER faq_topic',
             'wa_business_account_id' => 'VARCHAR(80) NULL AFTER phone_number_id',
@@ -188,6 +207,7 @@ function wa_ensure_tables(): bool
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 conversation_id INT NOT NULL,
                 contact_id INT NULL,
+                platform ENUM('whatsapp', 'instagram', 'facebook') NOT NULL DEFAULT 'whatsapp',
                 wa_message_id VARCHAR(120) NULL UNIQUE,
                 direction ENUM('inbound', 'outbound') NOT NULL,
                 message_type VARCHAR(40) NOT NULL DEFAULT 'text',
@@ -208,6 +228,7 @@ function wa_ensure_tables(): bool
         );
         foreach ([
             'contact_id' => 'INT NULL AFTER conversation_id',
+            'platform' => "ENUM('whatsapp', 'instagram', 'facebook') NOT NULL DEFAULT 'whatsapp' AFTER contact_id",
             'wa_message_id' => 'VARCHAR(120) NULL UNIQUE AFTER contact_id',
             'message_type' => "VARCHAR(40) NOT NULL DEFAULT 'text' AFTER direction",
             'status' => 'VARCHAR(40) NULL AFTER message_at',
@@ -265,6 +286,7 @@ function wa_ensure_tables(): bool
         db()->exec(
             "CREATE TABLE IF NOT EXISTS ops_whatsapp_webhook_logs (
                 id INT AUTO_INCREMENT PRIMARY KEY,
+                platform ENUM('whatsapp', 'instagram', 'facebook', 'meta') NOT NULL DEFAULT 'whatsapp',
                 event_type VARCHAR(80) NOT NULL,
                 phone_number_id VARCHAR(80),
                 wa_message_id VARCHAR(120),
@@ -274,6 +296,7 @@ function wa_ensure_tables(): bool
                 received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )"
         );
+        wa_add_column('ops_whatsapp_webhook_logs', 'platform', "ENUM('whatsapp', 'instagram', 'facebook', 'meta') NOT NULL DEFAULT 'whatsapp' AFTER id");
 
         $seed = db()->prepare(
             "INSERT INTO ops_whatsapp_tags (tag_key, name, color)
@@ -335,42 +358,51 @@ function wa_webhook_url(): string
     return BASE_URL . '/apps/operations/whatsapp-webhook.php';
 }
 
-function wa_log_webhook(string $type, array $payload, string $status = 'received', ?string $error = null, ?string $phoneNumberId = null, ?string $messageId = null): void
+function wa_log_webhook(string $type, array $payload, string $status = 'received', ?string $error = null, ?string $phoneNumberId = null, ?string $messageId = null, string $platform = 'whatsapp'): void
 {
     if (!ops_table_exists('ops_whatsapp_webhook_logs')) {
         return;
     }
 
     $stmt = db()->prepare(
-        "INSERT INTO ops_whatsapp_webhook_logs (event_type, phone_number_id, wa_message_id, payload, processed_status, error_message)
-         VALUES (?, ?, ?, ?, ?, ?)"
+        "INSERT INTO ops_whatsapp_webhook_logs (platform, event_type, phone_number_id, wa_message_id, payload, processed_status, error_message)
+         VALUES (?, ?, ?, ?, ?, ?, ?)"
     );
-    $stmt->execute([$type, $phoneNumberId, $messageId, json_encode($payload, JSON_UNESCAPED_SLASHES), $status, $error]);
+    $stmt->execute([$platform, $type, $phoneNumberId, $messageId, json_encode($payload, JSON_UNESCAPED_SLASHES), $status, $error]);
 }
 
-function wa_upsert_contact(string $waId, string $name = '', string $phone = ''): int
+function wa_upsert_contact(string $waId, string $name = '', string $phone = '', string $platform = 'whatsapp'): int
 {
+    if (!array_key_exists($platform, wa_platforms())) {
+        $platform = 'whatsapp';
+    }
+    $externalId = $waId;
+    $storedId = $platform === 'whatsapp' ? $waId : $platform . ':' . $waId;
     $stmt = db()->prepare(
-        "INSERT INTO ops_whatsapp_contacts (wa_id, display_name, phone_number, last_seen_at)
-         VALUES (?, ?, ?, NOW())
-         ON DUPLICATE KEY UPDATE display_name = COALESCE(NULLIF(VALUES(display_name), ''), display_name), phone_number = COALESCE(NULLIF(VALUES(phone_number), ''), phone_number), last_seen_at = NOW()"
+        "INSERT INTO ops_whatsapp_contacts (platform, external_id, wa_id, display_name, phone_number, last_seen_at)
+         VALUES (?, ?, ?, ?, ?, NOW())
+         ON DUPLICATE KEY UPDATE platform = VALUES(platform), external_id = VALUES(external_id), display_name = COALESCE(NULLIF(VALUES(display_name), ''), display_name), phone_number = COALESCE(NULLIF(VALUES(phone_number), ''), phone_number), last_seen_at = NOW()"
     );
-    $stmt->execute([$waId, $name ?: null, $phone ?: $waId]);
+    $stmt->execute([$platform, $externalId, $storedId, $name ?: null, $phone ?: $waId]);
 
-    $rows = ops_rows('SELECT id FROM ops_whatsapp_contacts WHERE wa_id = ? LIMIT 1', [$waId]);
+    $rows = ops_rows('SELECT id FROM ops_whatsapp_contacts WHERE wa_id = ? LIMIT 1', [$storedId]);
 
     return (int) ($rows[0]['id'] ?? 0);
 }
 
-function wa_find_or_create_conversation(int $contactId, string $customerName, string $phone, ?string $phoneNumberId, ?string $wabaId, ?string $messageAt): int
+function wa_find_or_create_conversation(int $contactId, string $customerName, string $phone, ?string $phoneNumberId, ?string $wabaId, ?string $messageAt, string $platform = 'whatsapp'): int
 {
+    if (!array_key_exists($platform, wa_platforms())) {
+        $platform = 'whatsapp';
+    }
     $rows = ops_rows(
         "SELECT id FROM ops_whatsapp_conversations
-         WHERE (contact_id = ? OR customer_phone = ?)
+         WHERE platform = ?
+           AND (contact_id = ? OR customer_phone = ?)
            AND status NOT IN ('resolved', 'abandoned')
          ORDER BY updated_at DESC, id DESC
          LIMIT 1",
-        [$contactId, $phone]
+        [$platform, $contactId, $phone]
     );
     if ($rows) {
         return (int) $rows[0]['id'];
@@ -378,15 +410,17 @@ function wa_find_or_create_conversation(int $contactId, string $customerName, st
 
     $stmt = db()->prepare(
         "INSERT INTO ops_whatsapp_conversations (
-            contact_id, customer_name, customer_phone, source, status,
+            contact_id, platform, customer_name, customer_phone, source, status,
             assigned_employee_id, first_customer_message_at, last_customer_message_at,
             last_message_at, phone_number_id, wa_business_account_id
-         ) VALUES (?, ?, ?, 'whatsapp_business', 'awaiting_response', ?, ?, ?, ?, ?, ?)"
+         ) VALUES (?, ?, ?, ?, ?, 'awaiting_response', ?, ?, ?, ?, ?, ?)"
     );
     $stmt->execute([
         $contactId ?: null,
+        $platform,
         $customerName ?: 'WhatsApp Customer',
         $phone,
+        $platform === 'whatsapp' ? 'whatsapp_business' : 'meta_import',
         wa_default_frontdesk_employee_id(),
         $messageAt,
         $messageAt,
@@ -463,13 +497,13 @@ function wa_store_inbound_message(array $message, array $contact, ?string $phone
         $text = '[' . $type . ']';
     }
 
-    $contactId = wa_upsert_contact($waId, $name, $waId);
-    $conversationId = wa_find_or_create_conversation($contactId, $name, $waId, $phoneNumberId, $wabaId, $messageAt);
+    $contactId = wa_upsert_contact($waId, $name, $waId, 'whatsapp');
+    $conversationId = wa_find_or_create_conversation($contactId, $name, $waId, $phoneNumberId, $wabaId, $messageAt, 'whatsapp');
     $messageId = (string) ($message['id'] ?? '');
 
     $stmt = db()->prepare(
-        "INSERT IGNORE INTO ops_whatsapp_messages (conversation_id, contact_id, wa_message_id, direction, message_type, message_text, message_at, raw_payload, external_message_id)
-         VALUES (?, ?, ?, 'inbound', ?, ?, ?, ?, ?)"
+        "INSERT IGNORE INTO ops_whatsapp_messages (conversation_id, contact_id, platform, wa_message_id, direction, message_type, message_text, message_at, raw_payload, external_message_id)
+         VALUES (?, ?, 'whatsapp', ?, 'inbound', ?, ?, ?, ?, ?)"
     );
     $stmt->execute([
         $conversationId,
@@ -490,6 +524,61 @@ function wa_store_inbound_message(array $message, array $contact, ?string $phone
     )->execute([$messageAt, $messageAt, $conversationId]);
 
     wa_apply_flagging_rules($conversationId, $insertedId > 0 ? $insertedId : null, $text);
+}
+
+function wa_store_meta_messaging_event(array $event, string $platform, ?string $accountId = null): void
+{
+    if (!array_key_exists($platform, wa_platforms())) {
+        return;
+    }
+    $message = $event['message'] ?? [];
+    if (!is_array($message)) {
+        return;
+    }
+    $isEcho = !empty($message['is_echo']);
+    $senderId = (string) (($event['sender']['id'] ?? '') ?: '');
+    $recipientId = (string) (($event['recipient']['id'] ?? '') ?: '');
+    $customerId = $isEcho ? $recipientId : $senderId;
+    if ($customerId === '') {
+        return;
+    }
+    $messageId = (string) ($message['mid'] ?? '');
+    $storedMessageId = $messageId !== '' ? $platform . ':' . $messageId : null;
+    $messageAt = isset($event['timestamp']) ? date('Y-m-d H:i:s', (int) floor(((int) $event['timestamp']) / 1000)) : date('Y-m-d H:i:s');
+    $text = (string) ($message['text'] ?? '');
+    if ($text === '' && !empty($message['attachments'])) {
+        $text = '[attachment]';
+    }
+    $contactName = $platform === 'instagram' ? 'Instagram Customer' : 'Facebook Customer';
+    $contactId = wa_upsert_contact($customerId, $contactName, $customerId, $platform);
+    $conversationId = wa_find_or_create_conversation($contactId, $contactName, $customerId, $accountId, null, $messageAt, $platform);
+    $direction = $isEcho ? 'outbound' : 'inbound';
+
+    $stmt = db()->prepare(
+        "INSERT IGNORE INTO ops_whatsapp_messages (conversation_id, contact_id, platform, wa_message_id, direction, message_type, message_text, message_at, raw_payload, external_message_id)
+         VALUES (?, ?, ?, ?, ?, 'text', ?, ?, ?, ?)"
+    );
+    $stmt->execute([
+        $conversationId,
+        $contactId ?: null,
+        $platform,
+        $storedMessageId,
+        $direction,
+        $text,
+        $messageAt,
+        json_encode($event, JSON_UNESCAPED_SLASHES),
+        $messageId ?: null,
+    ]);
+    $insertedId = (int) db()->lastInsertId();
+    $field = $direction === 'outbound' ? 'last_staff_response_at' : 'last_customer_message_at';
+    db()->prepare(
+        "UPDATE ops_whatsapp_conversations
+         SET {$field} = ?, last_message_at = ?, status = IF(status IN ('resolved', 'abandoned'), status, ?), updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?"
+    )->execute([$messageAt, $messageAt, $direction === 'outbound' ? 'waiting_customer' : 'awaiting_response', $conversationId]);
+    if ($direction === 'inbound') {
+        wa_apply_flagging_rules($conversationId, $insertedId > 0 ? $insertedId : null, $text);
+    }
 }
 
 function wa_store_status(array $status, ?string $phoneNumberId): void
@@ -513,13 +602,33 @@ function wa_store_status(array $status, ?string $phoneNumberId): void
         $messageId,
     ]);
 
-    wa_log_webhook('message_status', $status, 'processed', null, $phoneNumberId, $messageId);
+    wa_log_webhook('message_status', $status, 'processed', null, $phoneNumberId, $messageId, 'whatsapp');
 }
 
 function wa_process_webhook_payload(array $payload): array
 {
     $messages = 0;
     $statuses = 0;
+    $object = (string) ($payload['object'] ?? '');
+
+    if (in_array($object, ['page', 'instagram'], true)) {
+        $platform = $object === 'instagram' ? 'instagram' : 'facebook';
+        foreach (($payload['entry'] ?? []) as $entry) {
+            $accountId = isset($entry['id']) ? (string) $entry['id'] : null;
+            foreach (($entry['messaging'] ?? []) as $event) {
+                if (!is_array($event)) {
+                    continue;
+                }
+                wa_store_meta_messaging_event($event, $platform, $accountId);
+                wa_log_webhook('message', $event, 'processed', null, $accountId, (string) ($event['message']['mid'] ?? ''), $platform);
+                $messages++;
+            }
+        }
+        wa_save_setting('last_webhook_received_at', date('Y-m-d H:i:s'));
+        wa_save_setting('last_' . $platform . '_webhook_received_at', date('Y-m-d H:i:s'));
+
+        return ['messages' => $messages, 'statuses' => $statuses];
+    }
 
     foreach (($payload['entry'] ?? []) as $entry) {
         $wabaId = isset($entry['id']) ? (string) $entry['id'] : null;
@@ -542,7 +651,7 @@ function wa_process_webhook_payload(array $payload): array
                 }
                 $from = (string) ($message['from'] ?? '');
                 wa_store_inbound_message($message, $contacts[$from] ?? [], $phoneNumberId ?: null, $wabaId);
-                wa_log_webhook('message', $message, 'processed', null, $phoneNumberId ?: null, (string) ($message['id'] ?? ''));
+                wa_log_webhook('message', $message, 'processed', null, $phoneNumberId ?: null, (string) ($message['id'] ?? ''), 'whatsapp');
                 $messages++;
             }
             foreach (($value['statuses'] ?? []) as $status) {

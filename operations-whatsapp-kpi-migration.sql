@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS ops_whatsapp_settings (
 
 CREATE TABLE IF NOT EXISTS ops_whatsapp_contacts (
   id INT AUTO_INCREMENT PRIMARY KEY,
+  platform ENUM('whatsapp', 'instagram', 'facebook') NOT NULL DEFAULT 'whatsapp',
+  external_id VARCHAR(120) NULL,
   wa_id VARCHAR(80) NOT NULL UNIQUE,
   display_name VARCHAR(190),
   phone_number VARCHAR(80),
@@ -21,6 +23,7 @@ CREATE TABLE IF NOT EXISTS ops_whatsapp_contacts (
 CREATE TABLE IF NOT EXISTS ops_whatsapp_conversations (
   id INT AUTO_INCREMENT PRIMARY KEY,
   contact_id INT NULL,
+  platform ENUM('whatsapp', 'instagram', 'facebook') NOT NULL DEFAULT 'whatsapp',
   customer_name VARCHAR(190) NOT NULL,
   customer_phone VARCHAR(80),
   source ENUM('manual', 'whatsapp_business', 'meta_import', 'csv_import') NOT NULL DEFAULT 'manual',
@@ -59,6 +62,7 @@ CREATE TABLE IF NOT EXISTS ops_whatsapp_messages (
   id INT AUTO_INCREMENT PRIMARY KEY,
   conversation_id INT NOT NULL,
   contact_id INT NULL,
+  platform ENUM('whatsapp', 'instagram', 'facebook') NOT NULL DEFAULT 'whatsapp',
   wa_message_id VARCHAR(120) NULL UNIQUE,
   direction ENUM('inbound', 'outbound') NOT NULL,
   message_type VARCHAR(40) NOT NULL DEFAULT 'text',
@@ -121,6 +125,7 @@ CREATE TABLE IF NOT EXISTS ops_whatsapp_flagged_messages (
 
 CREATE TABLE IF NOT EXISTS ops_whatsapp_webhook_logs (
   id INT AUTO_INCREMENT PRIMARY KEY,
+  platform ENUM('whatsapp', 'instagram', 'facebook', 'meta') NOT NULL DEFAULT 'whatsapp',
   event_type VARCHAR(80) NOT NULL,
   phone_number_id VARCHAR(80),
   wa_message_id VARCHAR(120),

@@ -6110,7 +6110,7 @@ textarea {
 
 .whatsapp-api-strip {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 14px;
   margin-bottom: 22px;
   background: rgba(255, 255, 255, 0.76);
@@ -6159,6 +6159,21 @@ textarea {
 .whatsapp-module .metric-teal .metric-icon { color: #00a699; }
 .whatsapp-module .metric-purple .metric-icon { color: #7c3aed; }
 .whatsapp-module .metric-pink .metric-icon { color: #f4539d; }
+
+.wa-platform-whatsapp {
+  background: rgba(37, 211, 102, 0.12);
+  color: #187944;
+}
+
+.wa-platform-instagram {
+  background: rgba(244, 83, 157, 0.12);
+  color: #b52b72;
+}
+
+.wa-platform-facebook {
+  background: rgba(47, 128, 237, 0.12);
+  color: #1f5ea8;
+}
 
 .wa-faq-cloud {
   display: flex;

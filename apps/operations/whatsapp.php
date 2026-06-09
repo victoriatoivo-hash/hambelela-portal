@@ -6,12 +6,13 @@ require_once __DIR__ . '/whatsapp-service.php';
 
 require_role('owner_admin', 'front_desk_admin');
 
-$pageTitle = 'WhatsApp Communication KPI | ' . APP_NAME;
+$pageTitle = 'Meta Communications | ' . APP_NAME;
 $activeApp = 'operations-whatsapp';
 $ready = ops_database_ready();
 $message = null;
 $messageType = 'success';
 $statuses = wa_statuses();
+$platforms = wa_platforms();
 
 if ($ready) {
     $ready = wa_ensure_tables();
@@ -32,12 +33,17 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!in_array($source, wa_sources(), true)) {
                 $source = 'manual';
             }
+            $platform = ops_post_string('platform', 20) ?: 'whatsapp';
+            if (!array_key_exists($platform, $platforms)) {
+                $platform = 'whatsapp';
+            }
             $status = ops_post_string('status', 40);
             if (!array_key_exists($status, $statuses)) {
                 $status = 'awaiting_response';
             }
             $complaint = isset($_POST['complaint_flag']) || str_contains(strtolower($flagReason), 'complaint') ? 1 : 0;
             $values = [
+                $platform,
                 ops_post_string('customer_name', 190) ?: 'WhatsApp Customer',
                 ops_post_string('customer_phone', 80),
                 $source,
@@ -61,7 +67,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($id > 0) {
                 $stmt = db()->prepare(
                     "UPDATE ops_whatsapp_conversations
-                     SET customer_name = ?, customer_phone = ?, source = ?, status = ?, assigned_employee_id = ?,
+                     SET platform = ?, customer_name = ?, customer_phone = ?, source = ?, status = ?, assigned_employee_id = ?,
                          first_customer_message_at = ?, first_response_at = ?, last_customer_message_at = ?,
                          last_staff_response_at = ?, last_message_at = ?, follow_up_at = ?, order_id = ?,
                          converted_to_sale = ?, sale_amount = ?, complaint_flag = ?, flagged_reason = ?,
@@ -72,7 +78,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $stmt = db()->prepare(
                     "INSERT INTO ops_whatsapp_conversations (
-                        customer_name, customer_phone, source, status, assigned_employee_id,
+                        platform, customer_name, customer_phone, source, status, assigned_employee_id,
                         first_customer_message_at, first_response_at, last_customer_message_at,
                         last_staff_response_at, last_message_at, follow_up_at, order_id,
                         converted_to_sale, sale_amount, complaint_flag, flagged_reason, faq_topic, notes, created_by
@@ -103,7 +109,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             ops_activity_log('save_whatsapp_conversation', 'ops_whatsapp_conversation', $id);
-            $message = 'WhatsApp conversation saved.';
+            $message = 'Communication conversation saved.';
         } elseif ($action === 'add_message') {
             $conversationId = (int) ($_POST['conversation_id'] ?? 0);
             $direction = ops_post_string('direction', 20) === 'outbound' ? 'outbound' : 'inbound';
@@ -113,10 +119,10 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('Select a conversation and enter a message.');
             }
             $stmt = db()->prepare(
-                "INSERT INTO ops_whatsapp_messages (conversation_id, direction, message_type, message_text, message_at, employee_id)
-                 VALUES (?, ?, 'manual', ?, ?, ?)"
+                "INSERT INTO ops_whatsapp_messages (conversation_id, platform, direction, message_type, message_text, message_at, employee_id)
+                 SELECT ?, platform, ?, 'manual', ?, ?, ? FROM ops_whatsapp_conversations WHERE id = ?"
             );
-            $stmt->execute([$conversationId, $direction, $text, $messageAt, $direction === 'outbound' ? ops_current_employee_id() : null]);
+            $stmt->execute([$conversationId, $direction, $text, $messageAt, $direction === 'outbound' ? ops_current_employee_id() : null, $conversationId]);
 
             $field = $direction === 'outbound' ? 'last_staff_response_at' : 'last_customer_message_at';
             $firstResponse = $direction === 'outbound' ? ', first_response_at = COALESCE(first_response_at, ?)' : '';
@@ -141,6 +147,7 @@ $filters = [
     'date_from' => trim((string) ($_GET['date_from'] ?? '')),
     'date_to' => trim((string) ($_GET['date_to'] ?? '')),
     'status' => trim((string) ($_GET['status'] ?? '')),
+    'platform' => trim((string) ($_GET['platform'] ?? '')),
     'tag_id' => trim((string) ($_GET['tag_id'] ?? '')),
     'search' => trim((string) ($_GET['search'] ?? '')),
 ];
@@ -155,6 +162,10 @@ $params = [$dateFrom, $dateTo];
 if ($filters['status'] !== '' && array_key_exists($filters['status'], $statuses)) {
     $where[] = 'c.status = ?';
     $params[] = $filters['status'];
+}
+if ($filters['platform'] !== '' && array_key_exists($filters['platform'], $platforms)) {
+    $where[] = 'c.platform = ?';
+    $params[] = $filters['platform'];
 }
 if ($filters['search'] !== '') {
     $where[] = '(c.customer_name LIKE ? OR c.customer_phone LIKE ? OR c.faq_topic LIKE ? OR c.notes LIKE ?)';
@@ -233,9 +244,15 @@ $conversionRate = (int) $metrics['total_chats'] > 0 ? ((int) $metrics['converted
 $healthScore = max(0, min(100, 100 - ((int) $metrics['missed_followups'] * 8) - ((int) $metrics['awaiting'] * 3) - ((int) $metrics['complaints'] * 6)));
 $lastWebhook = wa_setting('last_webhook_received_at', 'Never');
 $connectionStatus = wa_setting('last_connection_test_status', 'Not tested');
+$lastInstagramWebhook = wa_setting('last_instagram_webhook_received_at', 'Never');
+$lastFacebookWebhook = wa_setting('last_facebook_webhook_received_at', 'Never');
 
 $statusRows = $ready ? ops_rows(
     "SELECT c.status, COUNT(*) AS total FROM ops_whatsapp_conversations c WHERE {$whereSql} GROUP BY c.status ORDER BY total DESC",
+    $params
+) : [];
+$platformRows = $ready ? ops_rows(
+    "SELECT c.platform, COUNT(*) AS total FROM ops_whatsapp_conversations c WHERE {$whereSql} GROUP BY c.platform ORDER BY total DESC",
     $params
 ) : [];
 $faqRows = $ready ? ops_rows(
@@ -270,12 +287,12 @@ include BASE_PATH . '/shared/sidebar.php';
     <section class="module-header cost-system-header whatsapp-hero">
         <div>
             <p class="eyebrow">Customer Communication</p>
-            <h1>WhatsApp KPI Dashboard</h1>
-            <p>Real WhatsApp Business webhook data, response speed, unresolved chats, follow-ups, FAQs and chat-to-sale conversion.</p>
+            <h1>Meta Communications Hub</h1>
+            <p>Business Manager connected messaging for WhatsApp, Instagram and Facebook, with response speed, unresolved chats, follow-ups, FAQs and chat-to-sale conversion.</p>
         </div>
         <div class="actions">
             <a class="button" href="index.php"><i data-lucide="arrow-left"></i> Operations</a>
-            <?php if (user_has_role('owner_admin')): ?><a class="button" href="whatsapp-settings.php"><i data-lucide="settings"></i> WhatsApp settings</a><?php endif; ?>
+            <?php if (user_has_role('owner_admin')): ?><a class="button" href="whatsapp-settings.php"><i data-lucide="settings"></i> Meta settings</a><?php endif; ?>
             <a class="button primary" href="#new-conversation"><i data-lucide="message-circle-plus"></i> Manual fallback</a>
         </div>
     </section>
@@ -288,9 +305,10 @@ include BASE_PATH . '/shared/sidebar.php';
 
     <section class="panel whatsapp-api-strip">
         <div><span>Webhook URL</span><strong><?= htmlspecialchars(wa_webhook_url(), ENT_QUOTES, 'UTF-8') ?></strong></div>
-        <div><span>Connection</span><strong><?= htmlspecialchars($connectionStatus, ENT_QUOTES, 'UTF-8') ?></strong></div>
-        <div><span>Last webhook</span><strong><?= htmlspecialchars($lastWebhook, ENT_QUOTES, 'UTF-8') ?></strong></div>
-        <div><span>Mode</span><strong>API-first, manual fallback</strong></div>
+        <div><span>WhatsApp</span><strong><?= htmlspecialchars($connectionStatus . ' / ' . $lastWebhook, ENT_QUOTES, 'UTF-8') ?></strong></div>
+        <div><span>Instagram</span><strong><?= htmlspecialchars($lastInstagramWebhook, ENT_QUOTES, 'UTF-8') ?></strong></div>
+        <div><span>Facebook</span><strong><?= htmlspecialchars($lastFacebookWebhook, ENT_QUOTES, 'UTF-8') ?></strong></div>
+        <div><span>Mode</span><strong>Meta API-first, manual fallback</strong></div>
     </section>
 
     <form class="panel report-filter-panel" method="get">
@@ -298,6 +316,7 @@ include BASE_PATH . '/shared/sidebar.php';
         <label>From <input type="date" name="date_from" value="<?= htmlspecialchars($dateFrom, ENT_QUOTES, 'UTF-8') ?>"></label>
         <label>To <input type="date" name="date_to" value="<?= htmlspecialchars($dateTo, ENT_QUOTES, 'UTF-8') ?>"></label>
         <label>Status<select name="status"><option value="">All statuses</option><?php ops_select_options($statuses, $filters['status']); ?></select></label>
+        <label>Platform<select name="platform"><option value="">All platforms</option><?php ops_select_options($platforms, $filters['platform']); ?></select></label>
         <label>Tag<select name="tag_id"><option value="">All tags</option><?php foreach ($tags as $tag): ?><option value="<?= (int) $tag['id'] ?>" <?= (string) $tag['id'] === $filters['tag_id'] ? 'selected' : '' ?>><?= htmlspecialchars((string) $tag['name'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></label>
         <label>Search <input name="search" value="<?= htmlspecialchars($filters['search'], ENT_QUOTES, 'UTF-8') ?>" placeholder="Customer, phone, FAQ, note"></label>
         <button class="button primary" type="submit"><i data-lucide="filter"></i> Apply</button>
@@ -323,6 +342,16 @@ include BASE_PATH . '/shared/sidebar.php';
                     <div class="mini-chart-row"><span><?= htmlspecialchars($statuses[(string) $row['status']] ?? (string) $row['status'], ENT_QUOTES, 'UTF-8') ?></span><strong><?= number_format((int) $row['total']) ?></strong><i style="width: <?= number_format($width, 2, '.', '') ?>%"></i></div>
                 <?php endforeach; ?>
                 <?php if (!$statusRows): ?><p class="empty-state">No conversations recorded for this period.</p><?php endif; ?>
+            </div>
+        </article>
+        <article class="panel">
+            <div class="section-row"><h2>Platform mix</h2><span class="status">Business Manager channels</span></div>
+            <div class="mini-chart-list">
+                <?php foreach ($platformRows as $row): ?>
+                    <?php $width = (int) $metrics['total_chats'] > 0 ? ((int) $row['total'] / (int) $metrics['total_chats']) * 100 : 0; ?>
+                    <div class="mini-chart-row"><span><?= htmlspecialchars($platforms[(string) $row['platform']] ?? (string) $row['platform'], ENT_QUOTES, 'UTF-8') ?></span><strong><?= number_format((int) $row['total']) ?></strong><i style="width: <?= number_format($width, 2, '.', '') ?>%"></i></div>
+                <?php endforeach; ?>
+                <?php if (!$platformRows): ?><p class="empty-state">No Meta platform conversations recorded for this period.</p><?php endif; ?>
             </div>
         </article>
         <article class="panel">
@@ -361,6 +390,7 @@ include BASE_PATH . '/shared/sidebar.php';
             <form class="form-grid" method="post">
                 <input type="hidden" name="action" value="save_conversation">
                 <label>Conversation ID<input name="conversation_id" type="number" min="0" placeholder="Leave blank for new"></label>
+                <label>Platform<select name="platform"><?php ops_select_options($platforms, 'whatsapp'); ?></select></label>
                 <label>Customer name<input name="customer_name" required placeholder="Customer name"></label>
                 <label>Phone<input name="customer_phone" placeholder="+264..."></label>
                 <label>Status<select name="status"><?php ops_select_options($statuses, 'awaiting_response'); ?></select></label>
@@ -389,17 +419,17 @@ include BASE_PATH . '/shared/sidebar.php';
                 <label>Conversation ID<input name="conversation_id" type="number" min="1" required></label>
                 <label>Direction<select name="direction"><option value="inbound">Customer message</option><option value="outbound">Staff response</option></select></label>
                 <label>Time<input name="message_at" type="datetime-local"></label>
-                <label class="wide">Message<textarea name="message_text" rows="5" required placeholder="Paste or summarize the WhatsApp message"></textarea></label>
+                <label class="wide">Message<textarea name="message_text" rows="5" required placeholder="Paste or summarize the customer message"></textarea></label>
                 <button class="button primary" type="submit"><i data-lucide="message-square-plus"></i> Log message</button>
             </form>
         </article>
     </section>
 
     <section class="panel">
-        <div class="section-row"><div><h2>Conversation list</h2><p>Webhook and manual customer communication records.</p></div></div>
+            <div class="section-row"><div><h2>Conversation list</h2><p>Webhook and manual customer communication records across WhatsApp, Instagram and Facebook.</p></div></div>
         <div class="table-scroll">
             <table class="data-table ops-table">
-                <thead><tr><th>ID</th><th>Customer</th><th>Status</th><th>Assigned</th><th>Tags</th><th>FAQ</th><th>Messages</th><th>First response</th><th>Last pending</th><th>Sale</th></tr></thead>
+                <thead><tr><th>ID</th><th>Platform</th><th>Customer</th><th>Status</th><th>Assigned</th><th>Tags</th><th>FAQ</th><th>Messages</th><th>First response</th><th>Last pending</th><th>Sale</th></tr></thead>
                 <tbody>
                 <?php foreach ($conversationRows as $row): ?>
                     <?php
@@ -414,6 +444,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     ?>
                     <tr>
                         <td>#<?= (int) $row['id'] ?></td>
+                        <td><span class="status wa-platform-<?= htmlspecialchars((string) $row['platform'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($platforms[(string) $row['platform']] ?? (string) $row['platform'], ENT_QUOTES, 'UTF-8') ?></span></td>
                         <td><strong><?= htmlspecialchars((string) $row['customer_name'], ENT_QUOTES, 'UTF-8') ?></strong><br><small><?= htmlspecialchars((string) $row['customer_phone'], ENT_QUOTES, 'UTF-8') ?></small></td>
                         <td><span class="status wa-status-<?= htmlspecialchars((string) $row['status'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($statuses[(string) $row['status']] ?? (string) $row['status'], ENT_QUOTES, 'UTF-8') ?></span></td>
                         <td><?= htmlspecialchars((string) ($row['assigned_name'] ?: 'Unassigned'), ENT_QUOTES, 'UTF-8') ?></td>
@@ -425,7 +456,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         <td><?= ((int) $row['converted_to_sale'] === 1 ? 'Yes - ' : 'No - ') . wa_money((float) $row['sale_amount']) ?></td>
                     </tr>
                 <?php endforeach; ?>
-                <?php if (!$conversationRows): ?><tr><td colspan="10">No WhatsApp conversations recorded yet.</td></tr><?php endif; ?>
+                <?php if (!$conversationRows): ?><tr><td colspan="11">No Meta conversations recorded yet.</td></tr><?php endif; ?>
                 </tbody>
             </table>
         </div>
