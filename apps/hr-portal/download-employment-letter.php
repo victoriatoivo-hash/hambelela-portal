@@ -14,7 +14,7 @@ if (!$id) {
     exit('Letter not found.');
 }
 
-$stmt = $db->prepare("SELECT el.*, e.emp_number, CONCAT(e.first_name,' ',e.last_name) AS emp_name FROM employment_letters el JOIN employees e ON e.id=el.employee_id WHERE el.id=? LIMIT 1");
+$stmt = $db->prepare("SELECT el.*, e.emp_number, e.first_name, e.last_name, e.id_number, e.job_title, e.department, e.employment_type, e.start_date, CONCAT(e.first_name,' ',e.last_name) AS emp_name FROM employment_letters el JOIN employees e ON e.id=el.employee_id WHERE el.id=? LIMIT 1");
 $stmt->execute([$id]);
 $letter = $stmt->fetch();
 
@@ -47,14 +47,17 @@ if (!$isAdmin) {
     $letter['download_count'] = (int)$letter['download_count'] + 1;
 }
 
-$html = renderEmploymentLetterHtml($letter);
-$filename = 'employment-confirmation-' . preg_replace('/[^A-Za-z0-9_-]/', '', (string)$letter['emp_number']) . '-' . preg_replace('/[^A-Za-z0-9_-]/', '', (string)$letter['letter_no']) . ($preview ? '.html' : '.doc');
+$filename = 'employment-confirmation-' . preg_replace('/[^A-Za-z0-9_-]/', '', (string)$letter['emp_number']) . '-' . preg_replace('/[^A-Za-z0-9_-]/', '', (string)$letter['letter_no']) . ($preview ? '.html' : '.pdf');
 
 if (!$preview) {
-    header('Content-Type: application/msword; charset=UTF-8');
+    $pdf = renderEmploymentLetterPdf($db, $letter);
+    header('Content-Type: application/pdf');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Content-Length: ' . strlen($pdf));
+    echo $pdf;
 } else {
+    $html = renderEmploymentLetterHtml($db, $letter);
     header('Content-Type: text/html; charset=UTF-8');
     header('Content-Disposition: inline; filename="' . $filename . '"');
+    echo $html;
 }
-echo $html;

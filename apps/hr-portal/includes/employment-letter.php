@@ -8,6 +8,7 @@ function ensureEmploymentLetterTable(PDO $db): void {
       issued_date DATE NOT NULL,
       title VARCHAR(200) NOT NULL DEFAULT 'Employment Confirmation Letter',
       body_html MEDIUMTEXT NOT NULL,
+      responsibilities TEXT NULL,
       status ENUM('draft','published') NOT NULL DEFAULT 'draft',
       download_count TINYINT UNSIGNED NOT NULL DEFAULT 0,
       download_limit TINYINT UNSIGNED NOT NULL DEFAULT 2,
@@ -16,6 +17,55 @@ function ensureEmploymentLetterTable(PDO $db): void {
       published_at TIMESTAMP NULL DEFAULT NULL,
       FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    employmentLetterEnsureColumn($db, 'responsibilities', "ALTER TABLE employment_letters ADD COLUMN responsibilities TEXT NULL AFTER body_html");
+}
+
+function employmentLetterEnsureColumn(PDO $db, string $column, string $ddl): void {
+    try {
+        $stmt = $db->prepare("SHOW COLUMNS FROM employment_letters LIKE ?");
+        $stmt->execute([$column]);
+        if (!$stmt->fetch()) {
+            $db->exec($ddl);
+        }
+    } catch (Throwable $e) {
+        // The base table still works if the host does not allow metadata checks.
+    }
+}
+
+function employmentLetterDefaults(): array {
+    return [
+        'letter_company_legal_name' => 'Neaco Trading CC',
+        'letter_company_trading_name' => 'Hambelela Organic',
+        'letter_company_reg' => 'cc/2023/03878',
+        'letter_physical_address' => 'Office 3, floor one, Lazarette house, Erf 7173, corner of Juluis Nyerere street and John Muundjua street, Ausspannplatz, Windhoek, Namibia',
+        'letter_email' => 'info@hambelelaorganic.com',
+        'letter_phone' => '0856628598',
+        'letter_website' => 'www.hambelelaorganic.com',
+        'letter_signatory_name' => 'Ms. Victoria Toivo',
+        'letter_default_responsibilities' => 'packaging products, packing customer orders, preparing orders for courier, delivery or collection, handling inventory with care, maintaining dispatch records, and ensuring a clean and organised workspace',
+    ];
+}
+
+function employmentLetterSettings(?PDO $db = null): array {
+    $settings = employmentLetterDefaults();
+    if (!$db) return $settings;
+
+    $keys = array_keys($settings);
+    $placeholders = implode(',', array_fill(0, count($keys), '?'));
+    try {
+        $stmt = $db->prepare("SELECT setting_key, setting_val FROM settings WHERE setting_key IN ($placeholders)");
+        $stmt->execute($keys);
+        foreach ($stmt->fetchAll() as $row) {
+            if (array_key_exists($row['setting_key'], $settings) && trim((string)$row['setting_val']) !== '') {
+                $settings[$row['setting_key']] = $row['setting_val'];
+            }
+        }
+    } catch (Throwable $e) {
+        return $settings;
+    }
+
+    return $settings;
 }
 
 function employmentLetterDate($date): string {
@@ -24,50 +74,66 @@ function employmentLetterDate($date): string {
     return $time ? date('d F Y', $time) : 'N/A';
 }
 
-function employmentLetterText($value, string $fallback = 'N/A'): string {
+function employmentLetterPlain($value, string $fallback = 'N/A'): string {
     $value = trim((string)$value);
-    return $value !== '' ? htmlspecialchars($value, ENT_QUOTES, 'UTF-8') : $fallback;
+    return $value !== '' ? $value : $fallback;
 }
 
-function buildEmploymentLetterBody(array $employee, string $issuedDate, string $letterNo, string $notes = ''): string {
-    $fullName = trim(($employee['first_name'] ?? '') . ' ' . ($employee['last_name'] ?? ''));
-    $employmentType = str_replace('_', ' ', (string)($employee['employment_type'] ?? ''));
-    $notesHtml = trim($notes) !== ''
-        ? '<p><strong>Additional note:</strong> ' . nl2br(htmlspecialchars(trim($notes), ENT_QUOTES, 'UTF-8')) . '</p>'
-        : '';
+function employmentLetterEsc($value, string $fallback = 'N/A'): string {
+    return htmlspecialchars(employmentLetterPlain($value, $fallback), ENT_QUOTES, 'UTF-8');
+}
+
+function employmentLetterEmployeeFullName(array $employee): string {
+    if (!empty($employee['emp_name'])) return trim((string)$employee['emp_name']);
+    return trim((string)($employee['first_name'] ?? '') . ' ' . (string)($employee['last_name'] ?? ''));
+}
+
+function employmentLetterResponsibilities(array $letter, array $settings): string {
+    $responsibilities = trim((string)($letter['responsibilities'] ?? ''));
+    if ($responsibilities === '') {
+        $responsibilities = trim((string)($letter['letter_responsibilities'] ?? ''));
+    }
+    if ($responsibilities === '') {
+        $responsibilities = $settings['letter_default_responsibilities'];
+    }
+    return $responsibilities;
+}
+
+function buildEmploymentLetterBody(array $employee, string $issuedDate, string $letterNo, string $responsibilities = '', ?array $settings = null): string {
+    $settings = $settings ?: employmentLetterDefaults();
+    $fullName = employmentLetterEmployeeFullName($employee);
+    $jobTitle = employmentLetterPlain($employee['job_title'] ?? '');
+    $idNumber = employmentLetterPlain($employee['id_number'] ?? '');
+    $startDate = employmentLetterDate($employee['start_date'] ?? '');
+    $responsibilities = trim($responsibilities) !== '' ? trim($responsibilities) : $settings['letter_default_responsibilities'];
+    $company = $settings['letter_company_legal_name'] . ' T/A ' . $settings['letter_company_trading_name'];
 
     return '
-      <div class="letter-head">
-        <h1>Hambelela Organic</h1>
-        <p>Employment Confirmation Letter</p>
+      <div class="letter-brand">
+        <img src="assets/letter/hambelela-logo.jpg" alt="Hambelela Organic">
       </div>
-      <div class="letter-meta">
-        <div><strong>Date:</strong> ' . employmentLetterDate($issuedDate) . '</div>
-        <div><strong>Reference:</strong> ' . htmlspecialchars($letterNo, ENT_QUOTES, 'UTF-8') . '</div>
+      <div class="letter-company">
+        <div>' . employmentLetterEsc($settings['letter_company_legal_name']) . ' | Registration no: ' . employmentLetterEsc($settings['letter_company_reg']) . '</div>
+        <div>Physical Address: ' . employmentLetterEsc($settings['letter_physical_address']) . '</div>
+        <div>Email: ' . employmentLetterEsc($settings['letter_email']) . ' |Tel: ' . employmentLetterEsc($settings['letter_phone']) . ' |' . employmentLetterEsc($settings['letter_website']) . '</div>
       </div>
+
+      <p class="letter-date">' . employmentLetterDate($issuedDate) . '</p>
       <p>To whom it may concern,</p>
-      <p>This letter serves to confirm that <strong>' . employmentLetterText($fullName) . '</strong>, ID number <strong>' . employmentLetterText($employee['id_number'] ?? '') . '</strong>, is employed by <strong>Hambelela Organic</strong>.</p>
-      <table class="details">
-        <tr><th>Employee Name</th><td>' . employmentLetterText($employee['first_name'] ?? '') . '</td></tr>
-        <tr><th>Employee Surname</th><td>' . employmentLetterText($employee['last_name'] ?? '') . '</td></tr>
-        <tr><th>ID Number</th><td>' . employmentLetterText($employee['id_number'] ?? '') . '</td></tr>
-        <tr><th>Employee Number</th><td>' . employmentLetterText($employee['emp_number'] ?? '') . '</td></tr>
-        <tr><th>Position</th><td>' . employmentLetterText($employee['job_title'] ?? '') . '</td></tr>
-        <tr><th>Department</th><td>' . employmentLetterText($employee['department'] ?? '') . '</td></tr>
-        <tr><th>Employment Type</th><td>' . employmentLetterText(ucwords($employmentType)) . '</td></tr>
-        <tr><th>Employed Since</th><td>' . employmentLetterDate($employee['start_date'] ?? '') . '</td></tr>
-      </table>
-      <p>According to our records, the employee remains listed on the Hambelela Organic HR Portal as at the date of issue shown above.</p>
-      ' . $notesHtml . '
-      <p>This confirmation letter is generated from the Hambelela Organic HR Portal and is issued for employment confirmation purposes.</p>
-      <div class="signature">
-        <div class="line"></div>
-        <strong>HR Administration</strong><br>
-        Hambelela Organic
+      <p><strong>RE: EMPLOYMENT CONFIRMATION LETTER</strong></p>
+      <p>This letter serves to confirm that ' . employmentLetterEsc($fullName) . ' (ID: ' . employmentLetterEsc($idNumber) . ') is currently employed at ' . employmentLetterEsc($company) . ' as a ' . employmentLetterEsc($jobTitle) . '. She has been employed with the company since ' . employmentLetterEsc($startDate) . '.</p>
+      <p>Her responsibilities include, ' . nl2br(employmentLetterEsc($responsibilities)) . '.</p>
+      <p>Should you require any further information, please do not hesitate to contact us.</p>
+      <p>Yours Sincerely,</p>
+      <div class="letter-signature">
+        <img src="assets/letter/victoria-signature.jpg" alt="Signature">
+        <div>' . employmentLetterEsc($settings['letter_signatory_name']) . '</div>
       </div>';
 }
 
-function renderEmploymentLetterHtml(array $letter): string {
+function renderEmploymentLetterHtml(PDO $db, array $letter): string {
+    $settings = employmentLetterSettings($db);
+    $body = buildEmploymentLetterBody($letter, $letter['issued_date'] ?? date('Y-m-d'), $letter['letter_no'] ?? '', employmentLetterResponsibilities($letter, $settings), $settings);
     $title = htmlspecialchars($letter['title'] ?? 'Employment Confirmation Letter', ENT_QUOTES, 'UTF-8');
     return '<!DOCTYPE html>
 <html lang="en">
@@ -76,23 +142,155 @@ function renderEmploymentLetterHtml(array $letter): string {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>' . $title . '</title>
 <style>
-  body{font-family:Arial,sans-serif;background:#f4f6f2;margin:0;padding:32px;color:#1f2933}
-  .page{max-width:760px;margin:0 auto;background:#fff;padding:46px 54px;border:1px solid #d9e2d0;box-shadow:0 8px 24px rgba(0,0,0,.08)}
-  .letter-head{text-align:center;border-bottom:3px solid #2d6a4f;padding-bottom:18px;margin-bottom:24px}
-  .letter-head h1{margin:0;color:#2d6a4f;text-transform:uppercase;letter-spacing:.06em;font-size:24px}
-  .letter-head p{margin:6px 0 0;color:#52635a;font-size:13px;text-transform:uppercase;letter-spacing:.08em}
-  .letter-meta{display:flex;justify-content:space-between;gap:20px;margin:0 0 28px;font-size:13px;color:#445}
-  p{font-size:14px;line-height:1.7}
-  .details{width:100%;border-collapse:collapse;margin:22px 0 24px;font-size:13px}
-  .details th{width:34%;text-align:left;background:#f0f7f2;color:#2d6a4f;padding:10px;border:1px solid #d9e2d0}
-  .details td{padding:10px;border:1px solid #d9e2d0}
-  .signature{margin-top:48px;font-size:14px}
-  .line{width:220px;border-top:1px solid #334155;margin-bottom:10px}
+  body{font-family:Arial,sans-serif;background:#f4f6f2;margin:0;padding:32px;color:#111827}
+  .page{max-width:760px;margin:0 auto;background:#fff;padding:42px 58px 56px;border:1px solid #d9e2d0;box-shadow:0 8px 24px rgba(0,0,0,.08)}
+  .letter-brand{text-align:center;margin:0 0 8px}
+  .letter-brand img{width:310px;max-width:70%;height:auto}
+  .letter-company{text-align:center;font-size:12px;line-height:1.45;margin:0 0 54px}
+  p{font-size:14px;line-height:1.55;margin:0 0 15px}
+  .letter-date{margin-bottom:32px}
+  .letter-signature{margin-top:22px}
+  .letter-signature img{display:block;width:110px;height:auto;margin:0 0 4px}
+  .letter-signature div{font-size:14px}
   @media print{body{background:#fff;padding:0}.page{box-shadow:none;border:0}}
 </style>
 </head>
-<body><div class="page">' . ($letter['body_html'] ?? '') . '</div></body>
+<body><div class="page">' . $body . '</div></body>
 </html>';
+}
+
+function employmentLetterPdfText($text): string {
+    $text = str_replace(["\r", "\n"], ' ', (string)$text);
+    if (function_exists('iconv')) {
+        $converted = @iconv('UTF-8', 'ISO-8859-1//TRANSLIT', $text);
+        if ($converted !== false) $text = $converted;
+    }
+    return '(' . str_replace(['\\', '(', ')'], ['\\\\', '\\(', '\\)'], $text) . ')';
+}
+
+function employmentLetterPdfLine(string $text, float $x, float $y, int $size = 11, string $font = 'F1'): string {
+    return "BT /$font $size Tf 1 0 0 1 " . round($x, 2) . ' ' . round($y, 2) . ' Tm ' . employmentLetterPdfText($text) . " Tj ET\n";
+}
+
+function employmentLetterPdfCenteredLine(string $text, float $y, int $size = 10, string $font = 'F1'): string {
+    $estimated = strlen($text) * $size * 0.48;
+    return employmentLetterPdfLine($text, max(40, (595.28 - $estimated) / 2), $y, $size, $font);
+}
+
+function employmentLetterWrap(string $text, int $limit = 92): array {
+    $words = preg_split('/\s+/', trim($text));
+    $lines = [];
+    $line = '';
+    foreach ($words as $word) {
+        $candidate = $line === '' ? $word : $line . ' ' . $word;
+        if (strlen($candidate) > $limit && $line !== '') {
+            $lines[] = $line;
+            $line = $word;
+        } else {
+            $line = $candidate;
+        }
+    }
+    if ($line !== '') $lines[] = $line;
+    return $lines;
+}
+
+function employmentLetterPdfParagraph(string $text, float $x, float &$y, int $size = 11, int $limit = 92): string {
+    $out = '';
+    foreach (employmentLetterWrap($text, $limit) as $line) {
+        $out .= employmentLetterPdfLine($line, $x, $y, $size);
+        $y -= 15;
+    }
+    $y -= 7;
+    return $out;
+}
+
+function employmentLetterJpegObject(string $path): ?array {
+    if (!is_file($path)) return null;
+    $size = @getimagesize($path);
+    if (!$size) return null;
+    return [
+        'width' => (int)$size[0],
+        'height' => (int)$size[1],
+        'data' => file_get_contents($path),
+    ];
+}
+
+function renderEmploymentLetterPdf(PDO $db, array $letter): string {
+    $settings = employmentLetterSettings($db);
+    $fullName = employmentLetterEmployeeFullName($letter);
+    $jobTitle = employmentLetterPlain($letter['job_title'] ?? '');
+    $idNumber = employmentLetterPlain($letter['id_number'] ?? '');
+    $startDate = employmentLetterDate($letter['start_date'] ?? '');
+    $issuedDate = employmentLetterDate($letter['issued_date'] ?? date('Y-m-d'));
+    $responsibilities = employmentLetterResponsibilities($letter, $settings);
+    $company = $settings['letter_company_legal_name'] . ' T/A ' . $settings['letter_company_trading_name'];
+
+    $logo = employmentLetterJpegObject(__DIR__ . '/../assets/letter/hambelela-logo.jpg');
+    $signature = employmentLetterJpegObject(__DIR__ . '/../assets/letter/victoria-signature.jpg');
+
+    $content = '';
+    if ($logo) {
+        $content .= "q 305 0 0 112 145 703 cm /Im1 Do Q\n";
+    }
+    $content .= employmentLetterPdfCenteredLine($settings['letter_company_legal_name'] . ' | Registration no: ' . $settings['letter_company_reg'], 686, 9);
+    $addressLines = employmentLetterWrap('Physical Address: ' . $settings['letter_physical_address'], 105);
+    $cy = 672;
+    foreach ($addressLines as $line) {
+        $content .= employmentLetterPdfCenteredLine($line, $cy, 9);
+        $cy -= 12;
+    }
+    $content .= employmentLetterPdfCenteredLine('Email: ' . $settings['letter_email'] . ' |Tel: ' . $settings['letter_phone'] . ' |' . $settings['letter_website'], $cy, 9);
+
+    $x = 72;
+    $y = 585;
+    $content .= employmentLetterPdfLine($issuedDate, $x, $y, 11);
+    $y -= 42;
+    $content .= employmentLetterPdfParagraph('To whom it may concern,', $x, $y, 11);
+    $content .= employmentLetterPdfLine('RE: EMPLOYMENT CONFIRMATION LETTER', $x, $y, 11, 'F2');
+    $y -= 30;
+    $content .= employmentLetterPdfParagraph('This letter serves to confirm that ' . $fullName . ' (ID: ' . $idNumber . ') is currently employed at ' . $company . ' as a ' . $jobTitle . '. She has been employed with the company since ' . $startDate . '.', $x, $y, 11, 91);
+    $content .= employmentLetterPdfParagraph('Her responsibilities include, ' . rtrim($responsibilities, '.') . '.', $x, $y, 11, 91);
+    $content .= employmentLetterPdfParagraph('Should you require any further information, please do not hesitate to contact us.', $x, $y, 11, 91);
+    $content .= employmentLetterPdfParagraph('Yours Sincerely,', $x, $y, 11, 91);
+    if ($signature) {
+        $content .= "q 95 0 0 38 72 " . round($y - 20, 2) . " cm /Im2 Do Q\n";
+    }
+    $content .= employmentLetterPdfLine($settings['letter_signatory_name'], $x, $y - 34, 11);
+
+    $objects = [];
+    $objects[] = "<< /Type /Catalog /Pages 2 0 R >>";
+    $objects[] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>";
+    $xobjects = [];
+    if ($logo) $xobjects[] = '/Im1 7 0 R';
+    if ($signature) $xobjects[] = '/Im2 8 0 R';
+    $resources = "<< /Font << /F1 5 0 R /F2 6 0 R >>";
+    if ($xobjects) $resources .= ' /XObject << ' . implode(' ', $xobjects) . ' >>';
+    $resources .= ' >>';
+    $objects[] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources $resources /Contents 4 0 R >>";
+    $objects[] = "<< /Length " . strlen($content) . " >>\nstream\n$content\nendstream";
+    $objects[] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>";
+    $objects[] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>";
+    if ($logo) {
+        $objects[] = "<< /Type /XObject /Subtype /Image /Width {$logo['width']} /Height {$logo['height']} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length " . strlen($logo['data']) . " >>\nstream\n{$logo['data']}\nendstream";
+    }
+    if ($signature) {
+        $objects[] = "<< /Type /XObject /Subtype /Image /Width {$signature['width']} /Height {$signature['height']} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length " . strlen($signature['data']) . " >>\nstream\n{$signature['data']}\nendstream";
+    }
+
+    $pdf = "%PDF-1.4\n";
+    $offsets = [0];
+    foreach ($objects as $i => $object) {
+        $offsets[$i + 1] = strlen($pdf);
+        $pdf .= ($i + 1) . " 0 obj\n$object\nendobj\n";
+    }
+    $xref = strlen($pdf);
+    $pdf .= "xref\n0 " . (count($objects) + 1) . "\n";
+    $pdf .= "0000000000 65535 f \n";
+    for ($i = 1; $i <= count($objects); $i++) {
+        $pdf .= sprintf("%010d 00000 n \n", $offsets[$i]);
+    }
+    $pdf .= "trailer\n<< /Size " . (count($objects) + 1) . " /Root 1 0 R >>\nstartxref\n$xref\n%%EOF";
+    return $pdf;
 }
 
 function notifyEmploymentLetterPublished(PDO $db, int $employeeId): void {

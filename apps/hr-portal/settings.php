@@ -4,6 +4,7 @@ requireAdmin();
 $user = currentUser();
 $db   = db();
 require_once __DIR__ . '/includes/leave-reserve.php';
+require_once __DIR__ . '/includes/employment-letter.php';
 ensureLeaveShutdownSchema($db);
 
 function getSetting($key, $default='') {
@@ -51,6 +52,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'save_company') {
         foreach (['company_name','company_reg','company_address','company_city','company_country','company_phone','company_email','company_vat','company_bank'] as $f)
             saveSetting($f, clean($_POST[$f] ?? ''));
+        foreach (array_keys(employmentLetterDefaults()) as $f)
+            saveSetting($f, trim((string)($_POST[$f] ?? '')));
         $msg = 'company_saved';
     }
 
@@ -174,6 +177,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Load settings
 $co = [];
 foreach (['company_name','company_reg','company_address','company_city','company_country','company_phone','company_email','company_vat','company_bank'] as $k) $co[$k]=getSetting($k);
+$letterSettings = employmentLetterSettings($db);
 
 $holidays = $db->query("SELECT * FROM public_holidays ORDER BY hdate ASC")->fetchAll();
 $empUsers = $db->query("SELECT u.id,u.name,u.email,e.job_title FROM users u LEFT JOIN employees e ON e.id=u.employee_id WHERE u.role='employee' ORDER BY u.name")->fetchAll();
@@ -297,6 +301,20 @@ $activeTab    = $_GET['tab'] ?? 'company';
             <div class="form-group"><label class="form-label">Email</label><input class="form-input" name="company_email" value="<?=htmlspecialchars($co['company_email'])?>"></div>
             <div class="form-group"><label class="form-label">VAT Number</label><input class="form-input" name="company_vat" value="<?=htmlspecialchars($co['company_vat'])?>"></div>
             <div class="form-group full"><label class="form-label">Bank Details (shown on payslips)</label><input class="form-input" name="company_bank" value="<?=htmlspecialchars($co['company_bank'])?>" placeholder="e.g. FNB Namibia — Acc: 62xxxxxxx"></div>
+
+            <div class="section-divider">Employment Confirmation Letter</div>
+            <div class="form-group"><label class="form-label">Legal Company Name</label><input class="form-input" name="letter_company_legal_name" value="<?=htmlspecialchars($letterSettings['letter_company_legal_name'])?>"></div>
+            <div class="form-group"><label class="form-label">Trading Name</label><input class="form-input" name="letter_company_trading_name" value="<?=htmlspecialchars($letterSettings['letter_company_trading_name'])?>"></div>
+            <div class="form-group"><label class="form-label">Registration Number</label><input class="form-input" name="letter_company_reg" value="<?=htmlspecialchars($letterSettings['letter_company_reg'])?>"></div>
+            <div class="form-group"><label class="form-label">Telephone Number</label><input class="form-input" name="letter_phone" value="<?=htmlspecialchars($letterSettings['letter_phone'])?>"></div>
+            <div class="form-group"><label class="form-label">Email Address</label><input class="form-input" name="letter_email" value="<?=htmlspecialchars($letterSettings['letter_email'])?>"></div>
+            <div class="form-group"><label class="form-label">Website</label><input class="form-input" name="letter_website" value="<?=htmlspecialchars($letterSettings['letter_website'])?>"></div>
+            <div class="form-group full"><label class="form-label">Physical Address</label><input class="form-input" name="letter_physical_address" value="<?=htmlspecialchars($letterSettings['letter_physical_address'])?>"></div>
+            <div class="form-group"><label class="form-label">Signatory Name</label><input class="form-input" name="letter_signatory_name" value="<?=htmlspecialchars($letterSettings['letter_signatory_name'])?>"></div>
+            <div class="form-group full">
+              <label class="form-label">Default Responsibilities</label>
+              <textarea class="form-input" name="letter_default_responsibilities" rows="3"><?=htmlspecialchars($letterSettings['letter_default_responsibilities'])?></textarea>
+            </div>
           </div>
           <div style="margin-top:18px;text-align:right"><button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Company Information</button></div>
         </div>

@@ -120,7 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'create_employment_letter') {
         $emp_id = (int)($_POST['letter_employee'] ?? 0);
         $issuedDate = $_POST['issued_date'] ?? date('Y-m-d');
-        $notes = trim((string)($_POST['letter_notes'] ?? ''));
+        $responsibilities = trim((string)($_POST['letter_responsibilities'] ?? ''));
         $status = !empty($_POST['publish_now']) ? 'published' : 'draft';
 
         if ($emp_id) {
@@ -140,10 +140,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $letterNo = $baseLetterNo . '-' . $suffix;
                 }
 
-                $bodyHtml = buildEmploymentLetterBody($employee, $issuedDate, $letterNo, $notes);
+                $letterSettings = employmentLetterSettings($db);
+                if ($responsibilities === '') {
+                    $responsibilities = $letterSettings['letter_default_responsibilities'];
+                }
+                $bodyHtml = buildEmploymentLetterBody($employee, $issuedDate, $letterNo, $responsibilities, $letterSettings);
                 $publishedAt = $status === 'published' ? date('Y-m-d H:i:s') : null;
-                $db->prepare("INSERT INTO employment_letters (employee_id,letter_no,issued_date,title,body_html,status,download_limit,created_by,published_at) VALUES (?,?,?,?,?,?,?,?,?)")
-                   ->execute([$emp_id,$letterNo,$issuedDate,'Employment Confirmation Letter',$bodyHtml,$status,2,$user['id'],$publishedAt]);
+                $db->prepare("INSERT INTO employment_letters (employee_id,letter_no,issued_date,title,body_html,responsibilities,status,download_limit,created_by,published_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
+                   ->execute([$emp_id,$letterNo,$issuedDate,'Employment Confirmation Letter',$bodyHtml,$responsibilities,$status,2,$user['id'],$publishedAt]);
 
                 if ($status === 'published') {
                     notifyEmploymentLetterPublished($db, $emp_id);
@@ -454,8 +458,8 @@ $currentPage = 'documents.php';
             <input class="form-input" value="2 downloads allowed" disabled>
           </div>
           <div class="form-group full">
-            <label class="form-label">Additional Note (Optional)</label>
-            <textarea class="form-input" name="letter_notes" rows="3" placeholder="Optional note to include in the letter"></textarea>
+            <label class="form-label">Responsibilities</label>
+            <textarea class="form-input" name="letter_responsibilities" rows="4" placeholder="packaging products, packing customer orders, preparing orders for courier, delivery or collection, handling inventory with care, maintaining dispatch records, and ensuring a clean and organised workspace"></textarea>
           </div>
           <div class="form-group full">
             <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
