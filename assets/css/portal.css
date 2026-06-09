@@ -6985,6 +6985,42 @@ textarea {
   margin-top: 22px;
 }
 
+.cost-section-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 22px;
+}
+
+.cost-section-tabs a {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 850;
+  text-decoration: none;
+  box-shadow: 0 10px 26px rgba(31, 26, 24, 0.04);
+}
+
+.cost-section-tabs a.active,
+.cost-section-tabs a:hover {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+}
+
+.cost-section-tabs svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+}
+
 .wa-faq-cloud {
   display: flex;
   flex-wrap: wrap;
