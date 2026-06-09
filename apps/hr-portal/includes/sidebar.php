@@ -3,6 +3,7 @@
 $pendingLeave = db()->query("SELECT COUNT(*) FROM leave_requests WHERE status='pending'")->fetchColumn();
 $pendingOT    = db()->query("SELECT COUNT(*) FROM overtime WHERE status='pending'")->fetchColumn();
 $currentPage  = basename($_SERVER['PHP_SELF']);
+$showBusinessPortalLink = strpos((string)($_SERVER['SCRIPT_NAME'] ?? ''), '/apps/hr-portal/') !== false;
 function navItem($href, $icon, $label, $badge=0, $current='') {
     $active = (basename($href) === $current) ? ' active' : '';
     $b = $badge > 0 ? "<span class='nav-badge'>$badge</span>" : '';
@@ -25,6 +26,9 @@ function navItem($href, $icon, $label, $badge=0, $current='') {
 
   <div style="flex:1;overflow-y:auto">
     <div class="nav-section">Overview</div>
+    <?php if ($showBusinessPortalLink): ?>
+      <?= navItem('../../index.php','fa-solid fa-arrow-left','Business Portal',0,$currentPage) ?>
+    <?php endif ?>
     <?= navItem('dashboard.php','fa-solid fa-house','Dashboard',0,$currentPage) ?>
     <div class="nav-section">HR Management</div>
     <?= navItem('employees.php','fa-solid fa-users','Employees',0,$currentPage) ?>

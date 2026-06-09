@@ -6,6 +6,7 @@ if (isset($user['id'])) {
     $nr->execute([$user['id']]); $empUnread = (int)$nr->fetchColumn();
 }
 $currentPage = isset($currentPage) ? $currentPage : basename($_SERVER['PHP_SELF']);
+$showBusinessPortalLink = strpos((string)($_SERVER['SCRIPT_NAME'] ?? ''), '/apps/hr-portal/') !== false;
 function empNavItem($href, $icon, $label, $badge=0, $current='') {
     $active = (basename($href) === $current) ? ' active' : '';
     $b = $badge > 0 ? "<span class='nav-badge'>$badge</span>" : '';
@@ -30,6 +31,9 @@ function empNavItem($href, $icon, $label, $badge=0, $current='') {
 
   <div style="flex:1;overflow-y:auto">
     <div class="nav-section">My Portal</div>
+    <?php if ($showBusinessPortalLink): ?>
+      <?= empNavItem('../../index.php','fa-solid fa-arrow-left','Business Portal',0,$currentPage) ?>
+    <?php endif ?>
     <?= empNavItem('self-service.php','fa-solid fa-house','My Dashboard',0,$currentPage) ?>
     <?= empNavItem('my-notifications.php','fa-regular fa-bell','Notifications',$empUnread,$currentPage) ?>
     <div class="nav-section">Requests</div>
