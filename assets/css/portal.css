@@ -35,7 +35,8 @@ body {
 }
 
 body.error-panel-open,
-body.task-panel-open {
+body.task-panel-open,
+body.profit-panel-open {
   overflow: hidden;
   touch-action: none;
 }
@@ -384,6 +385,404 @@ video {
   background: rgba(255, 255, 255, 0.72);
   font-size: 13px;
   font-weight: 700;
+}
+
+.profit-engine {
+  --profit-blue: #3b82f6;
+  --profit-green: #10b981;
+  --profit-violet: #8b5cf6;
+  --profit-amber: #f59e0b;
+  --profit-orange: #f97316;
+  --profit-red: #ef4444;
+}
+
+.profit-metric-grid,
+.profit-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.profit-metric {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 112px;
+  padding: 18px;
+  border: 1px solid rgba(48, 45, 49, 0.1);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 16px 34px rgba(45, 50, 70, 0.06);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.profit-metric:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 22px 46px rgba(45, 50, 70, 0.1);
+}
+
+.profit-metric > span {
+  display: grid;
+  flex: 0 0 44px;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+}
+
+.profit-metric svg {
+  width: 21px;
+  height: 21px;
+}
+
+.profit-metric small,
+.profit-metric em {
+  display: block;
+  color: #667085;
+  font-size: 12px;
+  font-style: normal;
+}
+
+.profit-metric strong {
+  display: block;
+  margin: 5px 0;
+  color: #111827;
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.profit-metric.blue > span { background: #dbeafe; color: var(--profit-blue); }
+.profit-metric.green > span { background: #d1fae5; color: var(--profit-green); }
+.profit-metric.violet > span { background: #ede9fe; color: var(--profit-violet); }
+.profit-metric.amber > span { background: #fef3c7; color: var(--profit-amber); }
+.profit-metric.orange > span { background: #ffedd5; color: var(--profit-orange); }
+.profit-metric.red > span { background: #fee2e2; color: var(--profit-red); }
+
+.profit-controls {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(140px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.profit-controls label {
+  display: grid;
+  gap: 6px;
+  color: #111827;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.profit-controls input,
+.profit-controls select {
+  min-height: 44px;
+  width: 100%;
+  border: 1px solid #cfd7e6;
+  border-radius: 8px;
+  background: #fff;
+  padding: 0 12px;
+  color: #111827;
+  font-weight: 700;
+}
+
+.profit-flow {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.profit-flow div {
+  min-height: 92px;
+  padding: 14px;
+  border: 1px solid rgba(48, 45, 49, 0.08);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(245, 248, 255, 0.88));
+}
+
+.profit-flow span {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-bottom: 8px;
+  border-radius: 999px;
+  background: #0f172a;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.profit-flow strong,
+.profit-flow small {
+  display: block;
+}
+
+.profit-flow small {
+  margin-top: 4px;
+  color: #667085;
+}
+
+.profit-table-panel {
+  overflow: hidden;
+}
+
+.profit-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.profit-table {
+  min-width: 1280px;
+}
+
+.profit-table th {
+  white-space: nowrap;
+}
+
+.profit-table td {
+  vertical-align: top;
+}
+
+.profit-detail-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  color: #0f172a;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.profit-detail-button svg {
+  width: 17px;
+  height: 17px;
+  color: #4f8cff;
+}
+
+.profit-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 118px;
+  min-height: 28px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.profit-status.healthy { background: var(--profit-green); }
+.profit-status.low { background: var(--profit-amber); }
+.profit-status.loss { background: var(--profit-red); }
+.profit-status.unknown { background: #98a2b3; }
+
+.suggestion-stack {
+  display: grid;
+  gap: 4px;
+  min-width: 190px;
+}
+
+.suggestion-stack span {
+  display: inline-flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: #f4f7fb;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.profit-detail-row td {
+  background: #f8fbff;
+}
+
+.profit-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  padding: 14px;
+}
+
+.profit-detail-grid article {
+  padding: 14px;
+  border: 1px solid rgba(48, 45, 49, 0.08);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.profit-detail-grid h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+
+.profit-detail-grid p {
+  margin: 8px 0;
+  color: #475467;
+  font-size: 13px;
+}
+
+.profit-bars {
+  display: grid;
+  gap: 12px;
+}
+
+.profit-bars div {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(100px, 1.8fr) 86px;
+  gap: 10px;
+  align-items: center;
+}
+
+.profit-bars span,
+.profit-bars em {
+  color: #475467;
+  font-size: 12px;
+  font-style: normal;
+}
+
+.profit-bars b {
+  display: block;
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #10b981, #60a5fa);
+}
+
+.profit-bars.danger b {
+  background: linear-gradient(90deg, #ef4444, #f59e0b);
+}
+
+.profit-bars.category b {
+  background: linear-gradient(90deg, #8b5cf6, #ec4899);
+}
+
+.margin-distribution {
+  display: flex;
+  height: 22px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e5e7eb;
+}
+
+.margin-distribution span {
+  min-width: 3%;
+}
+
+.margin-distribution .healthy { background: var(--profit-green); }
+.margin-distribution .low { background: var(--profit-amber); }
+.margin-distribution .loss { background: var(--profit-red); }
+.margin-distribution .unknown { background: #98a2b3; }
+
+.profit-detail-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: rgba(15, 23, 42, 0.28);
+  backdrop-filter: blur(2px);
+}
+
+.profit-detail-overlay[hidden] {
+  display: none;
+}
+
+.profit-side-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 80;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  width: min(760px, 48vw);
+  height: 100vh;
+  border-left: 1px solid rgba(48, 45, 49, 0.12);
+  background: #fff;
+  box-shadow: -24px 0 60px rgba(15, 23, 42, 0.22);
+  transform: translateX(104%);
+  transition: transform 0.24s ease;
+}
+
+.profit-side-panel[aria-hidden="false"] {
+  transform: translateX(0);
+}
+
+.profit-side-panel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 68px;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(48, 45, 49, 0.1);
+}
+
+.profit-side-panel header button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  color: #111827;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.profit-side-panel-body {
+  overflow: auto;
+  padding: 20px;
+}
+
+.profit-side-panel .profit-detail-grid {
+  grid-template-columns: 1fr 1fr;
+}
+
+@media (max-width: 1180px) {
+  .profit-metric-grid,
+  .profit-chart-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .profit-controls {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .profit-flow,
+  .profit-detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .profit-side-panel {
+    width: min(720px, 72vw);
+  }
+}
+
+@media (max-width: 760px) {
+  .profit-metric-grid,
+  .profit-chart-grid,
+  .profit-controls,
+  .profit-flow,
+  .profit-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .profit-bars div {
+    grid-template-columns: 1fr;
+  }
+
+  .profit-table {
+    min-width: 1080px;
+  }
+
+  .profit-side-panel {
+    width: 100vw;
+  }
+
+  .profit-side-panel .profit-detail-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (prefers-color-scheme: dark) {
