@@ -16,7 +16,7 @@ $migrationReady = $ready
 $canManage = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
 $canEditHeaders = user_has_role('owner_admin');
 $assetVersion = is_file(BASE_PATH . '/assets/js/packing-list.js')
-    ? (string) filemtime(BASE_PATH . '/assets/js/packing-list.js') . '-monday-push1'
+    ? (string) filemtime(BASE_PATH . '/assets/js/packing-list.js') . '-invoice-review1'
     : (string) time();
 
 include BASE_PATH . '/shared/header.php';
@@ -203,14 +203,23 @@ include BASE_PATH . '/shared/sidebar.php';
             <div class="ops-form-actions">
                 <button class="button" type="button" data-extract-invoice><i data-lucide="scan-text"></i> Extract invoice</button>
                 <button class="button" type="button" data-add-draft-row><i data-lucide="plus"></i> Add row</button>
+                <button class="button" type="button" data-redistribute-draft><i data-lucide="shuffle"></i> Redistribute Packers</button>
+            </div>
+            <div class="invoice-progress" data-invoice-progress hidden>
+                <span class="invoice-spinner" aria-hidden="true"></span>
+                <div>
+                    <strong data-invoice-progress-title>Extracting invoice items...</strong>
+                    <p data-invoice-progress-text>Please wait while the system reads the invoice and prepares draft rows.</p>
+                </div>
             </div>
             <label>Manual fallback<textarea name="invoice_draft" rows="4" placeholder="Product | received weight | quantity to pack, e.g. Mango Butter | 5kg | 100g(20), 250g(8)"></textarea></label>
             <div class="invoice-draft-wrap">
                 <table class="invoice-draft-table">
-                    <thead><tr><th>Item</th><th>Received</th><th>Unit</th><th>Quantity to pack</th><th>Assigned</th><th>Workload</th><th>Monday</th><th></th></tr></thead>
+                    <thead><tr><th>Item</th><th>Received</th><th>Unit</th><th>Quantity to pack</th><th>Assigned</th><th>Workload</th><th>Monday</th><th>Actions</th></tr></thead>
                     <tbody data-invoice-draft-body><tr><td colspan="8">Extract an invoice or add a row to review before saving.</td></tr></tbody>
                 </table>
             </div>
+            <div class="draft-workload-summary" data-draft-workload-summary hidden></div>
             <p class="muted" data-invoice-extract-status>Step 1: upload invoice or type rows manually.</p>
             <div class="ops-form-actions"><button class="button primary" type="submit">Confirm and Sync to Monday</button></div>
         </form>

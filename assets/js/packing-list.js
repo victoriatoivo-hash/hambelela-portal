@@ -15,6 +15,10 @@
   const invoiceModal = document.getElementById('packing-invoice-modal');
   const invoiceDraftBody = document.querySelector('[data-invoice-draft-body]');
   const invoiceStatus = document.querySelector('[data-invoice-extract-status]');
+  const invoiceProgress = document.querySelector('[data-invoice-progress]');
+  const invoiceProgressTitle = document.querySelector('[data-invoice-progress-title]');
+  const invoiceProgressText = document.querySelector('[data-invoice-progress-text]');
+  const draftWorkloadSummary = document.querySelector('[data-draft-workload-summary]');
 
   if (!body || !config.dataUrl || !config.actionUrl) return;
 
@@ -199,6 +203,16 @@
     if (invoiceStatus) invoiceStatus.textContent = message;
   }
 
+  function setInvoiceProgress(active, title = '', text = '', mode = 'loading') {
+    if (!invoiceProgress) return;
+    invoiceProgress.hidden = !active;
+    invoiceProgress.classList.toggle('is-success', mode === 'success');
+    invoiceProgress.classList.toggle('is-error', mode === 'error');
+    invoiceProgress.classList.toggle('is-loading', mode === 'loading');
+    if (invoiceProgressTitle) invoiceProgressTitle.textContent = title;
+    if (invoiceProgressText) invoiceProgressText.textContent = text;
+  }
+
   function draftWorkload(row) {
     const quantityPlan = String(row.quantity_planned || '');
     const unitMatches = [...quantityPlan.matchAll(/\((\d+)\)|x\s*(\d+)/gi)];
@@ -227,6 +241,61 @@
     });
   }
 
+  function redistributeDraftRows() {
+    invoiceDraftRows.forEach((row) => {
+      row.assigned_employee_id = '';
+      row.assigned_name = '';
+    });
+    assignDraftRows();
+  }
+
+  function draftWorkloadTotals() {
+    const totals = new Map();
+    invoiceDraftRows.forEach((row) => {
+      const id = String(row.assigned_employee_id || '');
+      const name = row.assigned_name || packers.find((packer) => String(packer.id) === id)?.full_name || 'Unassigned';
+      const key = id || 'unassigned';
+      const current = totals.get(key) || { name, workload: 0, rows: 0 };
+      current.name = name;
+      current.workload += Number(row.workload || draftWorkload(row) || 0);
+      current.rows += 1;
+      totals.set(key, current);
+    });
+    return [...totals.values()].sort((a, b) => b.workload - a.workload);
+  }
+
+  function renderDraftWorkloadSummary() {
+    if (!draftWorkloadSummary) return;
+    if (!invoiceDraftRows.length) {
+      draftWorkloadSummary.hidden = true;
+      draftWorkloadSummary.innerHTML = '';
+      return;
+    }
+    const totals = draftWorkloadTotals();
+    const totalWorkload = totals.reduce((sum, item) => sum + item.workload, 0);
+    draftWorkloadSummary.hidden = false;
+    draftWorkloadSummary.innerHTML = `
+      <div class="draft-summary-head">
+        <strong>Assignment review</strong>
+        <span>${invoiceDraftRows.length} rows • ${totalWorkload.toFixed(1)} workload points</span>
+      </div>
+      <div class="draft-summary-grid">
+        ${totals.map((item) => `
+          <div class="draft-summary-card">
+            <span>${esc(item.name)}</span>
+            <strong>${item.workload.toFixed(1)}</strong>
+            <small>${item.rows} row${item.rows === 1 ? '' : 's'} assigned</small>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  function updateDraftWorkloadCell(input, row) {
+    const cell = input.closest('tr')?.querySelector('[data-draft-workload]');
+    if (cell) cell.textContent = String(row.workload || draftWorkload(row));
+  }
+
   function parseManualDraft(text) {
     return String(text || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line) => {
       const [item, received, quantity] = line.split('|').map((part) => (part || '').trim());
@@ -247,6 +316,7 @@
     assignDraftRows();
     if (!invoiceDraftRows.length) {
       invoiceDraftBody.innerHTML = '<tr><td colspan="8">Extract an invoice or add a row to review before saving.</td></tr>';
+      renderDraftWorkloadSummary();
       return;
     }
     const personOptions = '<option value="">Auto</option>' + packers.map((packer) => `<option value="${esc(packer.id)}">${esc(packer.full_name)}</option>`).join('');
@@ -257,16 +327,41 @@
         <td><input data-draft-field="unit" value="${esc(row.unit || '')}"></td>
         <td><input data-draft-field="quantity_planned" value="${esc(row.quantity_planned || '')}" placeholder="100g(20), 250g(8)"></td>
         <td><select data-draft-field="assigned_employee_id">${personOptions}</select></td>
-        <td>${esc(row.workload || draftWorkload(row))}</td>
+        <td data-draft-workload>${esc(row.workload || draftWorkload(row))}</td>
         <td><span class="sync-pill sync-pending">Will sync</span></td>
-        <td><button type="button" data-remove-draft-row="${index}"><i data-lucide="trash-2"></i></button></td>
+        <td class="draft-row-actions">
+          <button type="button" title="Split row" data-split-draft-row="${index}"><i data-lucide="copy-plus"></i></button>
+          <button type="button" title="Remove row" data-remove-draft-row="${index}"><i data-lucide="trash-2"></i></button>
+        </td>
       </tr>
     `).join('');
     invoiceDraftBody.querySelectorAll('[data-draft-field="assigned_employee_id"]').forEach((select) => {
       const row = invoiceDraftRows[Number(select.closest('tr')?.dataset.draftIndex || 0)];
       select.value = String(row.assigned_employee_id || '');
     });
+    renderDraftWorkloadSummary();
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+  }
+
+  function splitDraftRow(index) {
+    const row = invoiceDraftRows[index];
+    if (!row) return;
+    const copiesText = window.prompt('How many rows should this item be split into?', '2');
+    const copies = Math.max(2, Math.min(12, Number(copiesText || 2)));
+    if (!Number.isFinite(copies)) return;
+    const receivedText = window.prompt('Received weight for each split row? Example: 25kg', row.received_weight || '');
+    const received = receivedText === null ? row.received_weight : receivedText.trim();
+    const newRows = Array.from({ length: copies }, () => ({
+      ...row,
+      received_weight: received || row.received_weight || '',
+      assigned_employee_id: '',
+      assigned_name: '',
+      workload: undefined,
+    }));
+    invoiceDraftRows.splice(index, 1, ...newRows);
+    redistributeDraftRows();
+    renderInvoiceDraft();
+    setInvoiceStatus(`Split ${row.item_name || 'item'} into ${copies} rows. Review quantities and assignments before confirming.`);
   }
 
   function visibleTasks() {
@@ -563,7 +658,9 @@
     const button = document.querySelector('[data-extract-invoice]');
     try {
       button?.classList.add('is-loading');
-      setInvoiceStatus('Extracting invoice...');
+      if (button) button.disabled = true;
+      setInvoiceProgress(true, 'Extracting invoice items...', 'Please wait while the system reads the invoice and prepares draft rows.', 'loading');
+      setInvoiceStatus('Extracting invoice items... please wait.');
       const formData = new FormData(form);
       formData.set('action', 'extract_invoice');
       const response = await fetch(config.actionUrl, { method: 'POST', body: formData, credentials: 'same-origin' });
@@ -574,9 +671,14 @@
       if (invoiceNumber) invoiceNumber.value = data.invoice_number || '';
       if (invoiceDate) invoiceDate.value = data.invoice_date || '';
       renderInvoiceDraft();
+      setInvoiceProgress(true, 'Extraction complete', `${invoiceDraftRows.length} draft row${invoiceDraftRows.length === 1 ? '' : 's'} ready for review.`, 'success');
       setInvoiceStatus(`${data.message} Review rows, enter quantity-to-pack breakdown, then confirm.`);
+    } catch (error) {
+      setInvoiceProgress(true, 'Extraction failed', error.message || 'Could not extract this invoice. You can still use the manual fallback.', 'error');
+      setInvoiceStatus(error.message || 'Invoice extraction failed.');
     } finally {
       button?.classList.remove('is-loading');
+      if (button) button.disabled = false;
     }
   }
 
@@ -628,6 +730,8 @@
     const syncMonday = event.target.closest('[data-sync-monday-packing]');
     const extractInvoice = event.target.closest('[data-extract-invoice]');
     const addDraftRow = event.target.closest('[data-add-draft-row]');
+    const redistributeDraft = event.target.closest('[data-redistribute-draft]');
+    const splitDraftRowButton = event.target.closest('[data-split-draft-row]');
     const removeDraftRow = event.target.closest('[data-remove-draft-row]');
     const themeToggle = event.target.closest('[data-theme-toggle]');
     const bulkAction = event.target.closest('[data-packing-bulk-action]');
@@ -651,12 +755,24 @@
       }
       if (addDraftRow) {
         invoiceDraftRows.push({ item_name: '', received_weight: '', unit: '', quantity_purchased: 1, quantity_planned: '', assigned_employee_id: '', assigned_name: '' });
+        redistributeDraftRows();
         renderInvoiceDraft();
         setInvoiceStatus('Review the new row, enter quantity-to-pack, then confirm.');
         return;
       }
+      if (redistributeDraft) {
+        redistributeDraftRows();
+        renderInvoiceDraft();
+        setInvoiceStatus('Assignments redistributed based on the updated draft rows.');
+        return;
+      }
+      if (splitDraftRowButton) {
+        splitDraftRow(Number(splitDraftRowButton.dataset.splitDraftRow));
+        return;
+      }
       if (removeDraftRow) {
         invoiceDraftRows.splice(Number(removeDraftRow.dataset.removeDraftRow), 1);
+        redistributeDraftRows();
         renderInvoiceDraft();
         return;
       }
@@ -770,7 +886,8 @@
           row.assigned_name = packer?.full_name || '';
         }
         row.workload = draftWorkload(row);
-        renderInvoiceDraft();
+        updateDraftWorkloadCell(draftField, row);
+        renderDraftWorkloadSummary();
       }
     }
   });
@@ -792,6 +909,8 @@
       if (row) {
         row[draftField.dataset.draftField] = draftField.value;
         row.workload = draftWorkload(row);
+        updateDraftWorkloadCell(draftField, row);
+        renderDraftWorkloadSummary();
       }
     }
   });

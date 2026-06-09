@@ -4207,6 +4207,59 @@ textarea {
   color: #0073ea;
 }
 
+.invoice-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid #cfe0ff;
+  border-radius: 10px;
+  background: #f4f8ff;
+  color: #1f2533;
+}
+
+.invoice-progress[hidden] {
+  display: none;
+}
+
+.invoice-progress strong {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 14px;
+}
+
+.invoice-progress p {
+  margin: 0;
+  color: #676879;
+  font-size: 13px;
+}
+
+.invoice-progress.is-success {
+  border-color: #b5efd4;
+  background: #effdf6;
+}
+
+.invoice-progress.is-error {
+  border-color: #ffc5c5;
+  background: #fff3f3;
+}
+
+.invoice-spinner {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  border: 3px solid #dbe8ff;
+  border-top-color: #0073ea;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.invoice-progress.is-success .invoice-spinner,
+.invoice-progress.is-error .invoice-spinner {
+  animation: none;
+  border-color: currentColor;
+}
+
 .invoice-draft-wrap {
   max-height: 360px;
   overflow: auto;
@@ -4256,6 +4309,62 @@ textarea {
   border-radius: 5px;
   background: #fff;
   cursor: pointer;
+}
+
+.draft-row-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.draft-workload-summary {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #d7def0;
+  border-radius: 10px;
+  background: #fbfcff;
+}
+
+.draft-workload-summary[hidden] {
+  display: none;
+}
+
+.draft-summary-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #323338;
+}
+
+.draft-summary-head span {
+  color: #676879;
+  font-size: 13px;
+}
+
+.draft-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.draft-summary-card {
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  border: 1px solid #d7def0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.draft-summary-card span,
+.draft-summary-card small {
+  color: #676879;
+  font-size: 12px;
+}
+
+.draft-summary-card strong {
+  color: #0073ea;
+  font-size: 20px;
 }
 
 .packing-detail-grid {
