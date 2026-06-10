@@ -15,6 +15,7 @@ $activeApp = 'cost-manager';
 $vatRate = 15.0;
 $targetMargin = 40.0;
 $rows = [];
+$allRows = [];
 $chartRows = [
     'highest_profit' => [],
     'lowest_profit' => [],
@@ -439,6 +440,7 @@ try {
 
         $suppliers[$row['supplier']] = $row['supplier'];
         $categories[$row['category']] = $row['category'];
+        $allRows[] = $row;
 
         if ($filters['supplier'] !== '' && $row['supplier'] !== $filters['supplier']) {
             continue;
@@ -509,6 +511,7 @@ try {
             $row = cw_make_master_row($masterRow);
             $suppliers[$row['supplier']] = $row['supplier'];
             $categories[$row['category']] = $row['category'];
+            $allRows[] = $row;
             if ($filters['supplier'] !== '' && $row['supplier'] !== $filters['supplier']) {
                 continue;
             }
@@ -530,7 +533,7 @@ try {
             if ($filters['sku'] !== '' && !cw_contains(strtolower($row['sku']), strtolower($filters['sku']))) {
                 continue;
             }
-            if ($filters['product_type'] !== '' && $row['category'] !== $filters['product_type']) {
+            if ($filters['product_type'] !== '' && $row['product_type'] !== $filters['product_type']) {
                 continue;
             }
             if ($filters['matched'] === 'matched') {
@@ -573,6 +576,7 @@ $maxProfit = max(1, ...array_map(fn (array $row): float => abs((float) $row['pro
 $maxCategoryValue = max(1, ...array_map(fn (array $row): float => (float) $row['value'], $chartRows['category_value'] ?: [['value' => 1]]));
 $accordionSteps = [
     [
+        'key' => 'supplier',
         'number' => 1,
         'title' => 'Supplier Invoice',
         'state' => $workflowCounts['raw_materials'] > 0 ? 'complete' : 'active',
@@ -587,6 +591,7 @@ $accordionSteps = [
         'action' => 'Use the invoice upload and review form here, then save approved rows into the cost database.',
     ],
     [
+        'key' => 'transport',
         'number' => 2,
         'title' => 'Transport',
         'state' => $stats['transport_cost'] > 0 ? 'complete' : ($workflowCounts['transport_invoices'] > 0 ? 'active' : 'optional'),
@@ -601,6 +606,7 @@ $accordionSteps = [
         'action' => 'Allocate transport inside this step so landed cost updates without leaving the workbook.',
     ],
     [
+        'key' => 'packaging',
         'number' => 3,
         'title' => 'Packaging',
         'state' => $workflowCounts['packaging'] > 0 ? 'complete' : 'optional',
@@ -615,6 +621,7 @@ $accordionSteps = [
         'action' => 'Review or add packaging costs here, then connect them to product variations in the workbook.',
     ],
     [
+        'key' => 'landed',
         'number' => 4,
         'title' => 'Landed Cost',
         'state' => $stats['landed_cost'] > 0 ? 'complete' : 'pending',
@@ -629,6 +636,7 @@ $accordionSteps = [
         'action' => 'Review calculations and allocations before the product rows flow into pricing.',
     ],
     [
+        'key' => 'website',
         'number' => 5,
         'title' => 'Website Matching',
         'state' => $workflowCounts['woo_sales'] > 0 ? 'complete' : 'pending',
@@ -643,6 +651,7 @@ $accordionSteps = [
         'action' => 'Search by product name or SKU, confirm the match, then use website prices for margin checks.',
     ],
     [
+        'key' => 'profitability',
         'number' => 6,
         'title' => 'Margins & Profit',
         'state' => $stats['estimated_revenue'] > 0 ? 'complete' : ($rows ? 'active' : 'pending'),
@@ -667,6 +676,17 @@ $websiteProfitSummary = [
     'average_margin' => $stats['average_margin'],
     'low_margin' => $stats['below_target'],
 ];
+$panelRows = $allRows ?: $rows;
+$supplierPanelRows = array_slice($panelRows, 0, 10);
+$transportPanelRows = array_values(array_filter($panelRows, fn (array $row): bool => (float) $row['transport_cost'] > 0));
+$transportPanelRows = array_slice($transportPanelRows ?: $supplierPanelRows, 0, 10);
+$packagingPanelRows = array_values(array_filter($panelRows, fn (array $row): bool => (float) $row['packaging_cost'] > 0 || (string) $row['product_type'] === 'Packaging'));
+$packagingPanelRows = array_slice($packagingPanelRows ?: $supplierPanelRows, 0, 10);
+$landedPanelRows = array_slice(array_values(array_filter($panelRows, fn (array $row): bool => (float) $row['landed_cost'] > 0 || (float) $row['total_cost'] > 0)) ?: $panelRows, 0, 10);
+$matchedPanelRows = array_slice(array_values(array_filter($panelRows, fn (array $row): bool => (bool) $row['website_linked'])), 0, 8);
+$unmatchedPanelRows = array_slice(array_values(array_filter($panelRows, fn (array $row): bool => !(bool) $row['website_linked'])), 0, 8);
+$profitPanelRows = array_slice($rows ?: $panelRows, 0, 12);
+$warningPanelRows = array_slice(array_values(array_filter($panelRows, fn (array $row): bool => in_array((string) $row['status_key'], ['loss', 'low_margin', 'unknown'], true))), 0, 8);
 
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
@@ -713,17 +733,25 @@ include BASE_PATH . '/shared/sidebar.php';
         <?php endforeach; ?>
     </section>
 
-    <form class="panel report-filter-panel workbook-filters" method="get">
+    <form class="panel workbook-filter-bar" method="get">
         <label>Product<input name="product" value="<?= htmlspecialchars($filters['product'], ENT_QUOTES, 'UTF-8') ?>" placeholder="Search product name"></label>
         <label>SKU<input name="sku" value="<?= htmlspecialchars($filters['sku'], ENT_QUOTES, 'UTF-8') ?>" placeholder="Search SKU"></label>
-        <label>Supplier<select name="supplier"><option value="">All suppliers/components</option><?php foreach ($suppliers as $supplier): ?><option value="<?= htmlspecialchars($supplier, ENT_QUOTES, 'UTF-8') ?>" <?= $filters['supplier'] === $supplier ? 'selected' : '' ?>><?= htmlspecialchars($supplier, ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></label>
         <label>Category<select name="category"><option value="">All categories</option><?php foreach ($categories as $category): ?><option value="<?= htmlspecialchars($category, ENT_QUOTES, 'UTF-8') ?>" <?= $filters['category'] === $category ? 'selected' : '' ?>><?= htmlspecialchars($category, ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></label>
-        <label>Product type<select name="product_type"><option value="">All types</option><option value="Raw resale" <?= $filters['product_type'] === 'Raw resale' ? 'selected' : '' ?>>Raw resale</option><option value="Formulated" <?= $filters['product_type'] === 'Formulated' ? 'selected' : '' ?>>Formulated</option><option value="Raw material" <?= $filters['product_type'] === 'Raw material' ? 'selected' : '' ?>>Raw material</option><option value="Packaging" <?= $filters['product_type'] === 'Packaging' ? 'selected' : '' ?>>Packaging</option></select></label>
-        <label>Website match<select name="matched"><option value="">All</option><option value="matched" <?= $filters['matched'] === 'matched' ? 'selected' : '' ?>>Matched</option><option value="unmatched" <?= $filters['matched'] === 'unmatched' ? 'selected' : '' ?>>Unmatched</option></select></label>
         <label>Status<select name="status"><option value="">All statuses</option><option value="healthy" <?= $filters['status'] === 'healthy' ? 'selected' : '' ?>>Healthy Margin</option><option value="low_margin" <?= $filters['status'] === 'low_margin' ? 'selected' : '' ?>>Low Margin</option><option value="loss" <?= $filters['status'] === 'loss' ? 'selected' : '' ?>>Loss Making</option><option value="unknown" <?= $filters['status'] === 'unknown' ? 'selected' : '' ?>>Missing Cost</option></select></label>
-        <label>Margin below %<input name="margin" type="number" step="1" value="<?= htmlspecialchars($filters['margin'], ENT_QUOTES, 'UTF-8') ?>" placeholder="e.g. 40"></label>
-        <label class="checkbox-line"><input type="checkbox" name="low_margin" value="1" <?= $filters['low_margin'] ? 'checked' : '' ?>> Low margin only</label>
-        <button class="button primary" type="submit"><i data-lucide="filter"></i> Apply filters</button>
+        <div class="workbook-filter-actions">
+            <button class="button primary" type="submit"><i data-lucide="filter"></i> Apply</button>
+            <a class="button" href="landing-cost-engine.php"><i data-lucide="rotate-ccw"></i> Clear</a>
+        </div>
+        <details class="workbook-more-filters" <?= ($filters['supplier'] !== '' || $filters['product_type'] !== '' || $filters['matched'] !== '' || $filters['margin'] !== '' || $filters['low_margin']) ? 'open' : '' ?>>
+            <summary><i data-lucide="sliders-horizontal"></i> More filters</summary>
+            <div class="workbook-more-filter-grid">
+                <label>Supplier<select name="supplier"><option value="">All suppliers/components</option><?php foreach ($suppliers as $supplier): ?><option value="<?= htmlspecialchars($supplier, ENT_QUOTES, 'UTF-8') ?>" <?= $filters['supplier'] === $supplier ? 'selected' : '' ?>><?= htmlspecialchars($supplier, ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></label>
+                <label>Product type<select name="product_type"><option value="">All types</option><option value="Raw resale" <?= $filters['product_type'] === 'Raw resale' ? 'selected' : '' ?>>Raw resale</option><option value="Formulated" <?= $filters['product_type'] === 'Formulated' ? 'selected' : '' ?>>Formulated</option><option value="Raw material" <?= $filters['product_type'] === 'Raw material' ? 'selected' : '' ?>>Raw material</option><option value="Packaging" <?= $filters['product_type'] === 'Packaging' ? 'selected' : '' ?>>Packaging</option></select></label>
+                <label>Website match<select name="matched"><option value="">All</option><option value="matched" <?= $filters['matched'] === 'matched' ? 'selected' : '' ?>>Matched</option><option value="unmatched" <?= $filters['matched'] === 'unmatched' ? 'selected' : '' ?>>Unmatched</option></select></label>
+                <label>Margin below %<input name="margin" type="number" step="1" value="<?= htmlspecialchars($filters['margin'], ENT_QUOTES, 'UTF-8') ?>" placeholder="e.g. 40"></label>
+                <label class="checkbox-line"><input type="checkbox" name="low_margin" value="1" <?= $filters['low_margin'] ? 'checked' : '' ?>> Low margin only</label>
+            </div>
+        </details>
     </form>
 
     <section class="work-metric-grid workbook-kpi-grid" aria-label="Website profitability summary">
@@ -742,7 +770,7 @@ include BASE_PATH . '/shared/sidebar.php';
         <?php endforeach; ?>
     </section>
 
-    <section class="panel cost-workflow-panel cost-accordion-panel">
+    <section class="panel cost-workflow-panel">
         <div class="section-row">
             <div>
                 <h2>Guided costing workflow</h2>
@@ -750,47 +778,232 @@ include BASE_PATH . '/shared/sidebar.php';
             </div>
             <span class="status"><?= number_format($readySteps) ?> of <?= number_format(count($accordionSteps)) ?> ready</span>
         </div>
-        <div class="cost-accordion">
-            <?php foreach ($accordionSteps as $index => $step): ?>
-                <details class="cost-accordion-step is-<?= htmlspecialchars((string) $step['state'], ENT_QUOTES, 'UTF-8') ?>" <?= $index === 0 ? 'open' : '' ?>>
-                    <summary>
-                        <span><?= number_format((int) $step['number']) ?></span>
-                        <strong><?= htmlspecialchars((string) $step['title'], ENT_QUOTES, 'UTF-8') ?></strong>
-                        <small><?= htmlspecialchars((string) $step['summary'], ENT_QUOTES, 'UTF-8') ?></small>
-                        <em><?= htmlspecialchars(ucwords(str_replace('_', ' ', (string) $step['state'])), ENT_QUOTES, 'UTF-8') ?></em>
-                    </summary>
-                    <div class="cost-accordion-body">
-                        <p><?= htmlspecialchars((string) $step['intro'], ENT_QUOTES, 'UTF-8') ?></p>
-                        <div class="cost-accordion-metrics">
-                            <?php foreach ($step['metrics'] as $label => $value): ?>
-                                <div><span><?= htmlspecialchars((string) $label, ENT_QUOTES, 'UTF-8') ?></span><strong><?= htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') ?></strong></div>
-                            <?php endforeach; ?>
-                        </div>
-                        <div class="cost-accordion-fields">
-                            <?php foreach ($step['fields'] as $field): ?>
-                                <span><?= htmlspecialchars((string) $field, ENT_QUOTES, 'UTF-8') ?></span>
-                            <?php endforeach; ?>
-                        </div>
-                        <div class="cost-inline-save">
-                            <span><?= htmlspecialchars((string) $step['action'], ENT_QUOTES, 'UTF-8') ?></span>
-                            <button class="button" type="button" data-cost-save-progress="<?= htmlspecialchars((string) $step['title'], ENT_QUOTES, 'UTF-8') ?>"><i data-lucide="save"></i> Save progress</button>
-                        </div>
-                    </div>
-                </details>
+        <div class="cost-step-grid" aria-label="Costing workflow steps">
+            <?php foreach ($accordionSteps as $step): ?>
+                <button
+                    class="cost-step-card is-<?= htmlspecialchars((string) $step['state'], ENT_QUOTES, 'UTF-8') ?>"
+                    type="button"
+                    data-cost-panel="<?= htmlspecialchars((string) $step['key'], ENT_QUOTES, 'UTF-8') ?>"
+                    data-cost-panel-title="<?= htmlspecialchars((string) $step['title'], ENT_QUOTES, 'UTF-8') ?>"
+                    data-cost-panel-summary="<?= htmlspecialchars((string) $step['summary'], ENT_QUOTES, 'UTF-8') ?>"
+                >
+                    <span><?= number_format((int) $step['number']) ?></span>
+                    <strong><?= htmlspecialchars((string) $step['title'], ENT_QUOTES, 'UTF-8') ?></strong>
+                    <small><?= htmlspecialchars((string) $step['summary'], ENT_QUOTES, 'UTF-8') ?></small>
+                    <em><?= htmlspecialchars(ucwords(str_replace('_', ' ', (string) $step['state'])), ENT_QUOTES, 'UTF-8') ?></em>
+                </button>
             <?php endforeach; ?>
         </div>
     </section>
 
+    <div class="cost-drawer-backdrop" data-cost-drawer-backdrop hidden></div>
+    <aside class="cost-workflow-drawer" data-cost-drawer aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="cost-drawer-title">
+        <header class="cost-drawer-header">
+            <div>
+                <p class="eyebrow">Guided Costing Workflow</p>
+                <h2 id="cost-drawer-title">Cost Workbook Step</h2>
+                <p id="cost-drawer-summary"></p>
+            </div>
+            <button class="panel-close-button" type="button" data-cost-drawer-close aria-label="Close workflow panel"><i data-lucide="x"></i></button>
+        </header>
+        <div class="cost-drawer-body">
+            <section class="cost-panel-content" data-cost-panel-content="supplier" hidden>
+                <div class="cost-panel-grid">
+                    <article class="cost-panel-card">
+                        <h3>Upload supplier invoice</h3>
+                        <label>Invoice file<input type="file" accept=".pdf,.jpg,.jpeg,.png,.xls,.xlsx"></label>
+                        <button class="button primary" type="button" data-cost-progress-action><i data-lucide="scan-line"></i> Preview extraction</button>
+                        <p class="cost-panel-feedback" hidden>Supplier invoice is ready for review in this workflow.</p>
+                    </article>
+                    <article class="cost-panel-card">
+                        <h3>Supplier invoice summary</h3>
+                        <div class="cost-panel-metrics">
+                            <div><span>Invoices</span><strong><?= number_format($workflowCounts['supplier_invoices']) ?></strong></div>
+                            <div><span>Product rows</span><strong><?= number_format($workflowCounts['raw_materials']) ?></strong></div>
+                            <div><span>Supplier cost</span><strong><?= cw_money($stats['supplier_cost']) ?></strong></div>
+                        </div>
+                    </article>
+                </div>
+                <div class="table-scroll cost-panel-table">
+                    <table class="data-table">
+                        <thead><tr><th>Product</th><th>Supplier</th><th>Supplier Cost</th><th>Landed Cost</th><th>Status</th></tr></thead>
+                        <tbody>
+                        <?php foreach ($supplierPanelRows as $row): ?>
+                            <tr><td><?= htmlspecialchars($row['product'], ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars($row['supplier'], ENT_QUOTES, 'UTF-8') ?></td><td><?= cw_money($row['supplier_cost']) ?></td><td><?= cw_money($row['landed_cost']) ?></td><td><span class="cost-status cost-status-<?= htmlspecialchars($row['status_key'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($row['status_label'], ENT_QUOTES, 'UTF-8') ?></span></td></tr>
+                        <?php endforeach; ?>
+                        <?php if (!$supplierPanelRows): ?><tr><td colspan="5" class="empty-state-cell">No supplier rows yet. Upload and review a supplier invoice to begin.</td></tr><?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="cost-panel-content" data-cost-panel-content="transport" hidden>
+                <div class="cost-panel-grid">
+                    <article class="cost-panel-card">
+                        <h3>Upload transport invoice</h3>
+                        <label>Transport file<input type="file" accept=".pdf,.jpg,.jpeg,.png,.xls,.xlsx"></label>
+                        <label>Allocation method<select><option>Invoice value</option><option>Weight</option><option>Quantity</option><option>Manual</option></select></label>
+                        <button class="button primary" type="button" data-cost-progress-action><i data-lucide="truck"></i> Allocate transport</button>
+                        <p class="cost-panel-feedback" hidden>Transport allocation has been staged for review.</p>
+                    </article>
+                    <article class="cost-panel-card">
+                        <h3>Transport summary</h3>
+                        <div class="cost-panel-metrics">
+                            <div><span>Transport invoices</span><strong><?= number_format($workflowCounts['transport_invoices']) ?></strong></div>
+                            <div><span>Total transport</span><strong><?= cw_money($stats['transport_cost']) ?></strong></div>
+                            <div><span>Rows previewed</span><strong><?= number_format(count($transportPanelRows)) ?></strong></div>
+                        </div>
+                    </article>
+                </div>
+                <div class="table-scroll cost-panel-table">
+                    <table class="data-table">
+                        <thead><tr><th>Product</th><th>Supplier</th><th>Supplier Cost</th><th>Transport</th><th>Landed Cost</th></tr></thead>
+                        <tbody>
+                        <?php foreach ($transportPanelRows as $row): ?>
+                            <tr><td><?= htmlspecialchars($row['product'], ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars($row['supplier'], ENT_QUOTES, 'UTF-8') ?></td><td><?= cw_money($row['supplier_cost']) ?></td><td><?= cw_money($row['transport_cost']) ?></td><td><?= cw_money($row['landed_cost']) ?></td></tr>
+                        <?php endforeach; ?>
+                        <?php if (!$transportPanelRows): ?><tr><td colspan="5" class="empty-state-cell">No transport rows yet. Upload a transport invoice and link it to supplier products.</td></tr><?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="cost-panel-content" data-cost-panel-content="packaging" hidden>
+                <div class="cost-panel-grid">
+                    <article class="cost-panel-card">
+                        <h3>Packaging cost database</h3>
+                        <label>Packaging invoice<input type="file" accept=".pdf,.jpg,.jpeg,.png,.xls,.xlsx"></label>
+                        <label>Packaging category<select><option>Bottles</option><option>Jars</option><option>Pumps</option><option>Caps</option><option>Labels</option><option>Boxes</option><option>Courier Packaging</option><option>Shrink Wrap</option><option>Pouches</option><option>Tubes</option><option>Accessories</option></select></label>
+                        <button class="button primary" type="button" data-cost-progress-action><i data-lucide="package-check"></i> Review packaging</button>
+                        <p class="cost-panel-feedback" hidden>Packaging cost is ready to connect to product variations.</p>
+                    </article>
+                    <article class="cost-panel-card">
+                        <h3>Packaging summary</h3>
+                        <div class="cost-panel-metrics">
+                            <div><span>Packaging rows</span><strong><?= number_format($workflowCounts['packaging']) ?></strong></div>
+                            <div><span>Total packaging</span><strong><?= cw_money($stats['packaging_cost']) ?></strong></div>
+                            <div><span>Preview rows</span><strong><?= number_format(count($packagingPanelRows)) ?></strong></div>
+                        </div>
+                    </article>
+                </div>
+                <div class="table-scroll cost-panel-table">
+                    <table class="data-table">
+                        <thead><tr><th>Packaging/Product</th><th>Category</th><th>Supplier</th><th>Packaging Cost</th><th>Total Cost</th></tr></thead>
+                        <tbody>
+                        <?php foreach ($packagingPanelRows as $row): ?>
+                            <tr><td><?= htmlspecialchars($row['product'], ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars($row['category'], ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars($row['supplier'], ENT_QUOTES, 'UTF-8') ?></td><td><?= cw_money($row['packaging_cost']) ?></td><td><?= cw_money($row['total_cost']) ?></td></tr>
+                        <?php endforeach; ?>
+                        <?php if (!$packagingPanelRows): ?><tr><td colspan="5" class="empty-state-cell">No packaging rows yet. Upload packaging invoices or connect packaging items to products.</td></tr><?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="cost-panel-content" data-cost-panel-content="landed" hidden>
+                <div class="cost-panel-grid">
+                    <article class="cost-panel-card">
+                        <h3>Landed cost calculation</h3>
+                        <div class="cost-panel-metrics">
+                            <div><span>Supplier</span><strong><?= cw_money($stats['supplier_cost']) ?></strong></div>
+                            <div><span>Transport</span><strong><?= cw_money($stats['transport_cost']) ?></strong></div>
+                            <div><span>Packaging</span><strong><?= cw_money($stats['packaging_cost']) ?></strong></div>
+                            <div><span>Landed</span><strong><?= cw_money($stats['landed_cost']) ?></strong></div>
+                        </div>
+                    </article>
+                    <article class="cost-panel-card">
+                        <h3>Unit normalization</h3>
+                        <p>Bulk quantities are normalized into grams, milliliters or units before size-level costing.</p>
+                        <button class="button" type="button" data-cost-progress-action><i data-lucide="calculator"></i> Recheck calculations</button>
+                        <p class="cost-panel-feedback" hidden>Landed cost calculations are ready for the profitability table.</p>
+                    </article>
+                </div>
+                <div class="table-scroll cost-panel-table">
+                    <table class="data-table">
+                        <thead><tr><th>Product</th><th>Landed Cost</th><th>Base Unit Cost</th><th>Conversion</th><th>Total Unit Cost</th></tr></thead>
+                        <tbody>
+                        <?php foreach ($landedPanelRows as $row): ?>
+                            <tr><td><?= htmlspecialchars($row['product'], ENT_QUOTES, 'UTF-8') ?></td><td><?= cw_money($row['landed_cost']) ?></td><td><?= cw_money((float) $row['cost_per_base']) ?> per <?= htmlspecialchars((string) $row['base_unit'], ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars($row['conversion']['summary'], ENT_QUOTES, 'UTF-8') ?></td><td><?= cw_money($row['total_cost']) ?></td></tr>
+                        <?php endforeach; ?>
+                        <?php if (!$landedPanelRows): ?><tr><td colspan="5" class="empty-state-cell">No landed cost rows yet. Complete supplier, transport and packaging steps first.</td></tr><?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="cost-panel-content" data-cost-panel-content="website" hidden>
+                <div class="cost-panel-grid">
+                    <article class="cost-panel-card">
+                        <h3>WooCommerce matching</h3>
+                        <label>Search product by name or SKU<input type="search" placeholder="Castor Oil, CAST-001, 100g"></label>
+                        <button class="button primary" type="button" data-cost-progress-action><i data-lucide="link"></i> Save product match</button>
+                        <p class="cost-panel-feedback" hidden>Website match was saved in this workflow view.</p>
+                    </article>
+                    <article class="cost-panel-card">
+                        <h3>Match summary</h3>
+                        <div class="cost-panel-metrics">
+                            <div><span>Matched</span><strong><?= number_format(count($matchedPanelRows)) ?></strong></div>
+                            <div><span>Unmatched</span><strong><?= number_format(count($unmatchedPanelRows)) ?></strong></div>
+                            <div><span>Woo sales lines</span><strong><?= number_format($workflowCounts['woo_sales']) ?></strong></div>
+                        </div>
+                    </article>
+                </div>
+                <div class="table-scroll cost-panel-table">
+                    <table class="data-table">
+                        <thead><tr><th>Product</th><th>SKU</th><th>Website Match</th><th>Selling Price</th><th>Status</th></tr></thead>
+                        <tbody>
+                        <?php foreach (array_slice(array_merge($matchedPanelRows, $unmatchedPanelRows), 0, 12) as $row): ?>
+                            <tr><td><?= htmlspecialchars($row['product'], ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars($row['sku'] ?: '-', ENT_QUOTES, 'UTF-8') ?></td><td><span class="cost-match-badge <?= $row['website_linked'] ? 'is-matched' : 'is-unmatched' ?>"><?= htmlspecialchars($row['website_match_label'], ENT_QUOTES, 'UTF-8') ?></span></td><td><?= cw_money($row['selling_price_incl_vat']) ?></td><td><span class="cost-status cost-status-<?= htmlspecialchars($row['status_key'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($row['status_label'], ENT_QUOTES, 'UTF-8') ?></span></td></tr>
+                        <?php endforeach; ?>
+                        <?php if (!$matchedPanelRows && !$unmatchedPanelRows): ?><tr><td colspan="5" class="empty-state-cell">No WooCommerce matching rows yet. Sync website products and connect them by name or SKU.</td></tr><?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="cost-panel-content" data-cost-panel-content="profitability" hidden>
+                <div class="cost-panel-grid">
+                    <article class="cost-panel-card">
+                        <h3>Profitability summary</h3>
+                        <div class="cost-panel-metrics">
+                            <div><span>Estimated revenue</span><strong><?= cw_money($stats['estimated_revenue']) ?></strong></div>
+                            <div><span>Estimated profit</span><strong><?= cw_money($stats['estimated_profit']) ?></strong></div>
+                            <div><span>Average margin</span><strong><?= cw_percent($stats['average_margin']) ?></strong></div>
+                            <div><span>Warnings</span><strong><?= number_format($stats['below_target']) ?></strong></div>
+                        </div>
+                    </article>
+                    <article class="cost-panel-card">
+                        <h3>Margin warnings</h3>
+                        <div class="cost-warning-list">
+                            <?php foreach ($warningPanelRows as $row): ?><span><?= htmlspecialchars($row['product'], ENT_QUOTES, 'UTF-8') ?>: <?= htmlspecialchars($row['status_label'], ENT_QUOTES, 'UTF-8') ?></span><?php endforeach; ?>
+                            <?php if (!$warningPanelRows): ?><span>All visible rows are within the current target margin.</span><?php endif; ?>
+                        </div>
+                    </article>
+                </div>
+                <div class="table-scroll cost-panel-table">
+                    <table class="data-table">
+                        <thead><tr><th>Product</th><th>Total Cost</th><th>Selling Price</th><th>VAT</th><th>Profit</th><th>Margin</th><th>Status</th></tr></thead>
+                        <tbody>
+                        <?php foreach ($profitPanelRows as $row): ?>
+                            <tr><td><?= htmlspecialchars($row['product'], ENT_QUOTES, 'UTF-8') ?></td><td><?= cw_money($row['total_cost']) ?></td><td><?= cw_money($row['selling_price_incl_vat']) ?></td><td><?= cw_money($row['vat']) ?></td><td><?= cw_money($row['profit']) ?></td><td><?= cw_percent($row['margin']) ?></td><td><span class="cost-status cost-status-<?= htmlspecialchars($row['status_key'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($row['status_label'], ENT_QUOTES, 'UTF-8') ?></span></td></tr>
+                        <?php endforeach; ?>
+                        <?php if (!$profitPanelRows): ?><tr><td colspan="7" class="empty-state-cell">No profitability rows yet. Complete the workflow steps to calculate final product margins.</td></tr><?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </aside>
+
     <section class="panel workbook-table-panel" id="workbook-table">
         <div class="section-row">
-            <div><h2>Product profitability table</h2><p>Shows whether each product is making money using supplier cost, transport, packaging, VAT and website selling price.</p></div>
+            <div><h2>Product Profitability Table</h2><p>Shows whether each product is making money using supplier cost, transport, packaging, VAT and website selling price.</p></div>
             <span class="status"><?= number_format(count($rows)) ?> products</span>
         </div>
         <div class="table-scroll">
             <table class="data-table workbook-table profit-workbook-table">
                 <thead>
                     <tr>
-                        <th>Parent Product</th><th>Variation</th><th>SKU</th><th>Category</th><th>Website Match</th><th>Supplier</th><th>Supplier Cost</th><th>Transport</th><th>Packaging</th><th>Landed Cost</th><th>Base Unit Cost</th><th>Total Unit Cost</th><th>Selling Price</th><th>Margin %</th><th>Estimated Profit</th><th>VAT</th><th>40%</th><th>50%</th><th>60%</th><th>Status</th>
+                        <th>Parent Product</th><th>Variation</th><th>SKU</th><th>Category</th><th>Website Match</th><th>Supplier</th><th>Supplier Cost</th><th>Transport</th><th>Packaging</th><th>Landed Cost</th><th>Base Unit Cost</th><th>Total Unit Cost</th><th>Selling Price</th><th>VAT</th><th>Profit</th><th>Margin %</th><th>Status</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -813,6 +1026,8 @@ include BASE_PATH . '/shared/sidebar.php';
                                     </ul>
                                     <strong>Smaller size costs</strong>
                                     <p><?= htmlspecialchars(implode(' | ', $row['conversion']['samples']), ENT_QUOTES, 'UTF-8') ?></p>
+                                    <strong>Suggested VAT-inclusive prices</strong>
+                                    <p>40%: <?= cw_money($row['suggested_40']) ?> | 50%: <?= cw_money($row['suggested_50']) ?> | 60%: <?= cw_money($row['suggested_60']) ?></p>
                                     <strong>Cost lines</strong>
                                     <ul>
                                         <?php foreach ($row['breakdown']['lines'] as $line): ?>
@@ -834,16 +1049,13 @@ include BASE_PATH . '/shared/sidebar.php';
                         <td><?= cw_money((float) $row['cost_per_base']) ?><br><small>per <?= htmlspecialchars((string) $row['base_unit'], ENT_QUOTES, 'UTF-8') ?></small></td>
                         <td><?= cw_money($row['total_cost']) ?></td>
                         <td><strong><?= cw_money($row['selling_price_incl_vat']) ?></strong><br><small><?= cw_money($row['selling_price_ex_vat']) ?> excl. VAT</small></td>
-                        <td><?= cw_percent($row['margin']) ?></td>
-                        <td><?= cw_money($row['profit']) ?></td>
                         <td><?= cw_money($row['vat']) ?></td>
-                        <td><?= cw_money($row['suggested_40']) ?></td>
-                        <td><?= cw_money($row['suggested_50']) ?></td>
-                        <td><?= cw_money($row['suggested_60']) ?></td>
+                        <td><?= cw_money($row['profit']) ?></td>
+                        <td><?= cw_percent($row['margin']) ?></td>
                         <td><span class="cost-status cost-status-<?= htmlspecialchars($row['status_key'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($row['status_label'], ENT_QUOTES, 'UTF-8') ?></span></td>
                     </tr>
                 <?php endforeach; ?>
-                <?php if (!$rows): ?><tr><td colspan="20" class="empty-state-cell">No cost workbook data available yet. Upload supplier invoices and allocate transport to begin.</td></tr><?php endif; ?>
+                <?php if (!$rows): ?><tr><td colspan="17" class="empty-state-cell">No product profitability data yet. Complete Supplier Invoice, Transport, Packaging and Website Matching steps to populate this table.</td></tr><?php endif; ?>
                 </tbody>
             </table>
         </div>
@@ -878,20 +1090,86 @@ include BASE_PATH . '/shared/sidebar.php';
 </main>
 <script>
 document.addEventListener('click', function (event) {
-  var button = event.target.closest('[data-cost-save-progress]');
-  if (!button) return;
-  var step = button.getAttribute('data-cost-save-progress') || 'Cost Workbook';
-  try {
-    localStorage.setItem('hambelelaCostWorkbookProgress', JSON.stringify({ step: step, savedAt: new Date().toISOString() }));
-  } catch (error) {}
-  button.classList.add('is-saved');
-  button.innerHTML = '<i data-lucide="check"></i> Progress saved';
-  if (window.lucide) window.lucide.createIcons();
-  window.setTimeout(function () {
-    button.classList.remove('is-saved');
-    button.innerHTML = '<i data-lucide="save"></i> Save progress';
+  var drawer = document.querySelector('[data-cost-drawer]');
+  var backdrop = document.querySelector('[data-cost-drawer-backdrop]');
+  var title = document.getElementById('cost-drawer-title');
+  var summary = document.getElementById('cost-drawer-summary');
+  var panelButton = event.target.closest('[data-cost-panel]');
+  var closeButton = event.target.closest('[data-cost-drawer-close]');
+  var actionButton = event.target.closest('[data-cost-progress-action]');
+
+  function openDrawer(button) {
+    var key = button.getAttribute('data-cost-panel');
+    document.querySelectorAll('[data-cost-panel-content]').forEach(function (section) {
+      section.hidden = section.getAttribute('data-cost-panel-content') !== key;
+    });
+    if (title) title.textContent = button.getAttribute('data-cost-panel-title') || 'Cost Workbook Step';
+    if (summary) summary.textContent = button.getAttribute('data-cost-panel-summary') || '';
+    if (drawer) {
+      drawer.classList.add('is-open');
+      drawer.setAttribute('aria-hidden', 'false');
+    }
+    if (backdrop) backdrop.hidden = false;
+    document.body.classList.add('cost-drawer-open');
+    try {
+      localStorage.setItem('hambelelaCostWorkbookPanel', key || '');
+    } catch (error) {}
+  }
+
+  function closeDrawer() {
+    if (drawer) {
+      drawer.classList.remove('is-open');
+      drawer.setAttribute('aria-hidden', 'true');
+    }
+    if (backdrop) backdrop.hidden = true;
+    document.body.classList.remove('cost-drawer-open');
+  }
+
+  if (panelButton) {
+    openDrawer(panelButton);
     if (window.lucide) window.lucide.createIcons();
-  }, 1800);
+    return;
+  }
+
+  if (closeButton || event.target === backdrop) {
+    closeDrawer();
+    return;
+  }
+
+  if (actionButton) {
+    var original = actionButton.innerHTML;
+    var card = actionButton.closest('.cost-panel-card');
+    var feedback = card ? card.querySelector('.cost-panel-feedback') : null;
+    actionButton.disabled = true;
+    actionButton.classList.add('is-loading');
+    actionButton.innerHTML = '<i data-lucide="loader-2"></i> Working';
+    if (window.lucide) window.lucide.createIcons();
+    window.setTimeout(function () {
+      actionButton.disabled = false;
+      actionButton.classList.remove('is-loading');
+      actionButton.classList.add('is-saved');
+      actionButton.innerHTML = '<i data-lucide="check"></i> Ready';
+      if (feedback) feedback.hidden = false;
+      if (window.lucide) window.lucide.createIcons();
+      window.setTimeout(function () {
+        actionButton.classList.remove('is-saved');
+        actionButton.innerHTML = original;
+        if (window.lucide) window.lucide.createIcons();
+      }, 1800);
+    }, 450);
+  }
+});
+
+document.addEventListener('keydown', function (event) {
+  if (event.key !== 'Escape') return;
+  var drawer = document.querySelector('[data-cost-drawer]');
+  var backdrop = document.querySelector('[data-cost-drawer-backdrop]');
+  if (drawer && drawer.classList.contains('is-open')) {
+    drawer.classList.remove('is-open');
+    drawer.setAttribute('aria-hidden', 'true');
+    if (backdrop) backdrop.hidden = true;
+    document.body.classList.remove('cost-drawer-open');
+  }
 });
 </script>
 <?php include BASE_PATH . '/shared/footer.php'; ?>

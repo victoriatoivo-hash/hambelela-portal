@@ -7018,12 +7018,442 @@ textarea {
   margin-bottom: 22px;
 }
 
+.workbook-profit-page {
+  width: min(100%, 1680px);
+  max-width: calc(100vw - 32px);
+  overflow-x: hidden;
+}
+
+.workbook-profit-page .panel,
+.workbook-profit-page .work-metric-grid,
+.workbook-profit-page .dashboard-grid {
+  max-width: 100%;
+}
+
 .workbook-state {
   margin-bottom: 18px;
 }
 
 .cost-workflow-panel {
   margin-bottom: 22px;
+}
+
+.cost-step-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.cost-step-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 5px 11px;
+  align-items: start;
+  min-height: 132px;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--ink);
+  text-align: left;
+  box-shadow: 0 12px 26px rgba(31, 26, 24, 0.055);
+  cursor: pointer;
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.cost-step-card:hover,
+.cost-step-card:focus-visible {
+  border-color: #68d8d6;
+  box-shadow: 0 16px 34px rgba(31, 26, 24, 0.09);
+  transform: translateY(-2px);
+  outline: none;
+}
+
+.cost-step-card > span {
+  display: grid;
+  place-items: center;
+  grid-row: span 2;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: rgba(104, 216, 214, 0.16);
+  color: #087d7a;
+  font-weight: 950;
+}
+
+.cost-step-card strong {
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.cost-step-card small {
+  grid-column: 2 / -1;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.cost-step-card em {
+  justify-self: end;
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: rgba(108, 117, 125, 0.11);
+  color: #4b5563;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.cost-step-card.is-complete {
+  border-color: rgba(0, 163, 108, 0.24);
+  background: rgba(0, 200, 117, 0.07);
+}
+
+.cost-step-card.is-complete > span,
+.cost-step-card.is-complete em {
+  background: rgba(0, 200, 117, 0.15);
+  color: #08744f;
+}
+
+.cost-step-card.is-active {
+  border-color: rgba(104, 216, 214, 0.58);
+  background: rgba(236, 253, 252, 0.95);
+}
+
+.cost-step-card.is-optional {
+  background: rgba(255, 247, 238, 0.7);
+}
+
+.cost-step-card.is-pending {
+  opacity: 0.82;
+}
+
+.cost-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(31, 26, 24, 0.28);
+  backdrop-filter: blur(3px);
+}
+
+.cost-drawer-backdrop[hidden] {
+  display: none;
+}
+
+.cost-workflow-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 81;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  width: min(760px, calc(100vw - 24px));
+  height: 100vh;
+  background: linear-gradient(180deg, #fff 0%, #fff8f2 100%);
+  border-left: 1px solid var(--line);
+  box-shadow: -28px 0 58px rgba(31, 26, 24, 0.18);
+  transform: translateX(104%);
+  transition: transform 180ms ease;
+}
+
+.cost-workflow-drawer.is-open {
+  transform: translateX(0);
+}
+
+.cost-drawer-open {
+  overflow: hidden;
+}
+
+.cost-drawer-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.cost-drawer-header h2 {
+  margin: 4px 0 6px;
+}
+
+.cost-drawer-header p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.cost-drawer-body {
+  overflow: auto;
+  padding: 22px 24px 30px;
+}
+
+.cost-panel-content {
+  display: grid;
+  gap: 16px;
+}
+
+.cost-panel-content[hidden] {
+  display: none;
+}
+
+.cost-panel-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.cost-panel-card {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 12px 28px rgba(31, 26, 24, 0.055);
+}
+
+.cost-panel-card h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.cost-panel-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.cost-panel-card label,
+.workbook-filter-bar label {
+  display: grid;
+  gap: 7px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.cost-panel-card input,
+.cost-panel-card select,
+.workbook-filter-bar input,
+.workbook-filter-bar select {
+  width: 100%;
+  min-width: 0;
+}
+
+.cost-panel-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+}
+
+.cost-panel-metrics div {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 247, 238, 0.7);
+}
+
+.cost-panel-metrics span,
+.cost-panel-metrics strong {
+  display: block;
+}
+
+.cost-panel-metrics span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.cost-panel-metrics strong {
+  margin-top: 5px;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.cost-panel-table {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.cost-panel-table .data-table {
+  min-width: 680px;
+}
+
+.cost-panel-feedback {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(0, 163, 108, 0.1);
+  color: #08744f !important;
+  font-weight: 850;
+}
+
+.cost-panel-card .button.is-loading svg {
+  animation: spin 0.9s linear infinite;
+}
+
+.cost-panel-card .button.is-saved {
+  background: #08744f;
+  border-color: #08744f;
+  color: #fff;
+}
+
+.cost-warning-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cost-warning-list span {
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.13);
+  color: #8a5700;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.workbook-filter-bar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(140px, 1fr)) auto;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 22px;
+}
+
+.workbook-filter-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.workbook-more-filters {
+  grid-column: 1 / -1;
+}
+
+.workbook-more-filters summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.workbook-more-filters summary::-webkit-details-marker {
+  display: none;
+}
+
+.workbook-more-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(140px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.workbook-table-panel .table-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  overscroll-behavior-x: contain;
+}
+
+.profit-workbook-table {
+  min-width: 1540px;
+}
+
+.product-detail-panel div {
+  max-width: min(640px, calc(100vw - 56px));
+}
+
+@media (max-width: 1180px) {
+  .workbook-filter-bar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .workbook-filter-actions {
+    justify-content: flex-start;
+  }
+
+  .workbook-more-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cost-panel-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .workbook-profit-page {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .cost-system-header .actions,
+  .workbook-filter-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .workbook-kpi-grid,
+  .cost-step-grid,
+  .workbook-filter-bar,
+  .workbook-more-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .workbook-profit-page .work-metric-card {
+    min-height: auto;
+  }
+
+  .workbook-profit-page .work-metric-card strong {
+    font-size: 24px;
+  }
+
+  .cost-step-card {
+    min-height: auto;
+  }
+
+  .cost-workflow-drawer {
+    width: 100vw;
+    max-width: 100vw;
+    border-left: 0;
+  }
+
+  .cost-drawer-header,
+  .cost-drawer-body {
+    padding-inline: 18px;
+  }
+
+  .cost-panel-card,
+  .cost-panel-table {
+    border-radius: 12px;
+  }
+
+  .cost-panel-table .data-table {
+    min-width: 640px;
+  }
+
+  .profit-workbook-table {
+    min-width: 1480px;
+  }
+
+  .product-detail-panel div {
+    min-width: 320px;
+  }
 }
 
 .cost-accordion-panel {
