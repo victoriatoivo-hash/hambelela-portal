@@ -105,6 +105,67 @@ function cw_conversion_samples(float $totalCost, float $quantity, string $unit):
     ];
 }
 
+function cw_sku_prefix(string $productName): string
+{
+    $words = preg_split('/\s+/', strtoupper(preg_replace('/[^A-Za-z0-9\s]+/', ' ', $productName) ?: 'PRODUCT')) ?: [];
+    $prefix = '';
+    foreach ($words as $word) {
+        if ($word === '' || in_array($word, ['ORIGIN', 'ORGANIC', 'REFINED', 'UNREFINED', 'GHANA'], true)) {
+            continue;
+        }
+        $prefix .= substr($word, 0, 1);
+        if (strlen($prefix) >= 3) {
+            break;
+        }
+    }
+
+    return str_pad(substr($prefix ?: 'PRD', 0, 4), 2, 'X');
+}
+
+function cw_variation_label(float $quantity, string $unit): string
+{
+    $base = to_base_quantity($quantity, $unit);
+    $baseQty = (float) $base['quantity'];
+    $baseUnit = (string) $base['unit'];
+    if ($baseUnit === 'g' && $baseQty >= 1000 && fmod($baseQty, 1000.0) === 0.0) {
+        return number_format($baseQty / 1000, 0) . 'kg';
+    }
+    if ($baseUnit === 'ml' && $baseQty >= 1000 && fmod($baseQty, 1000.0) === 0.0) {
+        return number_format($baseQty / 1000, 0) . 'L';
+    }
+    if ($baseUnit !== '') {
+        return rtrim(rtrim(number_format($baseQty, 3, '.', ''), '0'), '.') . $baseUnit;
+    }
+
+    return rtrim(rtrim(number_format($quantity, 3, '.', ''), '0'), '.') . ' ' . $unit;
+}
+
+function cw_suggest_category(string $productName, string $fallback): string
+{
+    $name = strtolower($productName);
+    $map = [
+        'Carrier Oils' => ['oil', 'castor', 'jojoba', 'almond', 'grapeseed', 'avocado'],
+        'Essential Oils' => ['essential', 'fragrance', 'peppermint', 'lavender', 'eucalyptus'],
+        'Plant Butters' => ['butter', 'shea', 'cocoa', 'mango'],
+        'Herbs' => ['hibiscus', 'moringa', 'neem', 'herb', 'powder'],
+        'Clays' => ['clay', 'kaolin', 'bentonite'],
+        'Actives' => ['niacinamide', 'acid', 'vitamin', 'kojic', 'salicylic'],
+        'Preservatives' => ['preservative', 'phenoxyethanol', 'iscaguard'],
+        'Emulsifiers' => ['emulsifier', 'emulsifying', 'olivem', 'btms'],
+        'Surfactants' => ['surfactant', 'cocamidopropyl', 'sles', 'decyl'],
+        'Packaging' => ['bottle', 'jar', 'cap', 'label', 'pouch', 'tube', 'box', 'pump'],
+    ];
+    foreach ($map as $category => $terms) {
+        foreach ($terms as $term) {
+            if (str_contains($name, $term)) {
+                return $category;
+            }
+        }
+    }
+
+    return $fallback;
+}
+
 function cw_table_exists(PDO $pdo, string $table): bool
 {
     try {
@@ -187,12 +248,17 @@ function cw_make_master_row(array $row): array
         $conversion['per_base'] = $costPerBase;
         $conversion['base_unit'] = $baseUnit;
     }
+    $productName = (string) ($row['product'] ?? '');
+    $variation = cw_variation_label($quantity, $unit);
+    $skuPrefix = cw_sku_prefix($productName);
 
     return [
         'id' => (int) ($row['component_id'] ?? 0),
-        'product' => (string) ($row['product'] ?? ''),
-        'sku' => '',
-        'category' => $sourceType === 'packaging' ? 'Packaging' : 'Raw material',
+        'product' => $productName,
+        'parent_product' => $productName,
+        'variation' => $variation,
+        'sku' => $skuPrefix . '-' . strtoupper(str_replace([' ', '.'], '', $variation)),
+        'category' => cw_suggest_category($productName, $sourceType === 'packaging' ? 'Packaging' : 'Raw material'),
         'product_type' => $sourceType === 'packaging' ? 'Packaging' : 'Raw material',
         'supplier' => (string) ($row['supplier_name'] ?? 'Unknown supplier'),
         'supplier_cost' => $sourceType === 'packaging' ? 0.0 : $rawCost,
@@ -212,6 +278,8 @@ function cw_make_master_row(array $row): array
         'suggested_50' => pricing_engine_add_vat(pricing_engine_price_for_margin($landedCost, 50), 15.0),
         'suggested_60' => pricing_engine_add_vat(pricing_engine_price_for_margin($landedCost, 60), 15.0),
         'conversion' => $conversion,
+        'cost_per_base' => (float) $conversion['per_base'],
+        'base_unit' => (string) $conversion['base_unit'],
         'warnings' => 'landed cost ready, link to WooCommerce product or finished product for margin',
         'breakdown' => [
             'lines' => [[
@@ -222,6 +290,7 @@ function cw_make_master_row(array $row): array
             ]],
         ],
         'website_linked' => false,
+        'website_match_label' => 'Needs WooCommerce link',
     ];
 }
 
@@ -304,6 +373,12 @@ try {
             max(0.001, (float) ($product['sales_unit_quantity'] ?? 1)),
             (string) ($product['sales_unit'] ?? 'unit')
         );
+        $parentProduct = (string) $product['name'];
+        $variation = cw_variation_label(max(0.001, (float) ($product['sales_unit_quantity'] ?? 1)), (string) ($product['sales_unit'] ?? 'unit'));
+        $sku = (string) ($product['sku'] ?? '');
+        if ($sku === '') {
+            $sku = cw_sku_prefix($parentProduct) . '-' . strtoupper(str_replace([' ', '.'], '', $variation));
+        }
         $pricing40 = pricing_engine_add_vat(pricing_engine_price_for_margin($totalCost, 40), $vatRate);
         $pricing50 = pricing_engine_add_vat(pricing_engine_price_for_margin($totalCost, 50), $vatRate);
         $pricing60 = pricing_engine_add_vat(pricing_engine_price_for_margin($totalCost, 60), $vatRate);
@@ -325,9 +400,11 @@ try {
 
         $row = [
             'id' => (int) $product['id'],
-            'product' => (string) $product['name'],
-            'sku' => (string) ($product['sku'] ?? ''),
-            'category' => $costingType === 'raw_resale' ? 'Raw resale' : 'Formulated',
+            'product' => $parentProduct,
+            'parent_product' => $parentProduct,
+            'variation' => $variation,
+            'sku' => $sku,
+            'category' => cw_suggest_category($parentProduct, $costingType === 'raw_resale' ? 'Raw resale' : 'Formulated'),
             'product_type' => $costingType === 'raw_resale' ? 'Raw resale' : 'Formulated',
             'supplier' => $supplierName,
             'supplier_cost' => (float) $breakdown['raw_ingredient_cost'],
@@ -347,9 +424,12 @@ try {
             'suggested_50' => $pricing50,
             'suggested_60' => $pricing60,
             'conversion' => $conversion,
+            'cost_per_base' => (float) $conversion['per_base'],
+            'base_unit' => (string) $conversion['base_unit'],
             'warnings' => implode(', ', $warningParts),
             'breakdown' => $breakdown,
             'website_linked' => !empty($product['woo_product_id']),
+            'website_match_label' => !empty($product['woo_product_id']) ? 'Matched to WooCommerce' : 'Needs WooCommerce link',
         ];
 
         $suppliers[$row['supplier']] = $row['supplier'];
@@ -508,6 +588,68 @@ $websiteProfitSummary = [
     'average_margin' => $stats['average_margin'],
     'low_margin' => $stats['below_target'],
 ];
+$workflowPhases = [
+    [
+        'phase' => 'Phase 1',
+        'title' => 'Invoice Intake',
+        'description' => 'Supplier, transport and packaging invoices enter the system and are reviewed before approval.',
+        'items' => [
+            'Supplier invoices: ' . number_format($workflowCounts['supplier_invoices']),
+            'Transport invoices: ' . number_format($workflowCounts['transport_invoices']),
+            'Packaging rows: ' . number_format($workflowCounts['packaging']),
+        ],
+    ],
+    [
+        'phase' => 'Phase 2',
+        'title' => 'Cost Engine',
+        'description' => 'Supplier cost, transport allocation, packaging and base-unit conversion create true landed cost.',
+        'items' => [
+            'Landed rows: ' . number_format($workflowCounts['landed_rows']),
+            'Landed value: ' . cw_money($stats['landed_cost']),
+            'Base units: g, ml, unit',
+        ],
+    ],
+    [
+        'phase' => 'Phase 3',
+        'title' => 'Product Creation',
+        'description' => 'Products are grouped as parent products with size variations and editable SKU suggestions.',
+        'items' => [
+            'Product records: ' . number_format($workflowCounts['finished_products']),
+            'SKU suggestions visible',
+            'Category suggestions visible',
+        ],
+    ],
+    [
+        'phase' => 'Phase 4',
+        'title' => 'Website Matching',
+        'description' => 'WooCommerce products, prices and stock are matched to cost records by SKU/name or manual link.',
+        'items' => [
+            'Woo sales lines: ' . number_format($workflowCounts['woo_sales']),
+            'Matched rows: ' . number_format(count(array_filter($rows, fn (array $row): bool => $row['website_linked']))),
+            'Unmatched rows: ' . number_format(count(array_filter($rows, fn (array $row): bool => !$row['website_linked']))),
+        ],
+    ],
+    [
+        'phase' => 'Phase 5',
+        'title' => 'Profitability Engine',
+        'description' => 'Selling price incl. VAT is split into VAT, ex-VAT revenue, profit, margin and markup.',
+        'items' => [
+            'Estimated profit: ' . cw_money($stats['estimated_profit']),
+            'Average margin: ' . cw_percent($stats['average_margin']),
+            'Below target: ' . number_format($stats['below_target']),
+        ],
+    ],
+    [
+        'phase' => 'Phase 6',
+        'title' => 'Dashboard Reporting',
+        'description' => 'Management sees inventory value, margin warnings, category profit and products needing price changes.',
+        'items' => [
+            'Rows in workbook: ' . number_format(count($rows)),
+            'Charts: profit, margin, inventory',
+            'Filters: supplier, SKU, category',
+        ],
+    ],
+];
 
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
@@ -544,6 +686,21 @@ include BASE_PATH . '/shared/sidebar.php';
         <a class="active" href="landing-cost-engine.php"><i data-lucide="table-2"></i> Cost Workbook / Landing Cost Engine</a>
         <a href="profit-calculator.php"><i data-lucide="calculator"></i> Profit Calculator</a>
     </nav>
+
+    <section class="cost-phase-grid" aria-label="Connected cost workflow phases">
+        <?php foreach ($workflowPhases as $phase): ?>
+            <article class="cost-phase-card">
+                <span><?= htmlspecialchars($phase['phase'], ENT_QUOTES, 'UTF-8') ?></span>
+                <h2><?= htmlspecialchars($phase['title'], ENT_QUOTES, 'UTF-8') ?></h2>
+                <p><?= htmlspecialchars($phase['description'], ENT_QUOTES, 'UTF-8') ?></p>
+                <ul>
+                    <?php foreach ($phase['items'] as $item): ?>
+                        <li><?= htmlspecialchars($item, ENT_QUOTES, 'UTF-8') ?></li>
+                    <?php endforeach; ?>
+                </ul>
+            </article>
+        <?php endforeach; ?>
+    </section>
 
     <section class="panel cost-workflow-panel">
         <div class="section-row">
@@ -623,7 +780,7 @@ include BASE_PATH . '/shared/sidebar.php';
             <table class="data-table workbook-table profit-workbook-table">
                 <thead>
                     <tr>
-                        <th>Product</th><th>SKU</th><th>Category</th><th>Supplier</th><th>Supplier Cost</th><th>Transport</th><th>Packaging</th><th>Landed Cost</th><th>Total Cost</th><th>Cost Per Unit</th><th>Selling Price</th><th>Margin %</th><th>Estimated Profit</th><th>VAT</th><th>40%</th><th>50%</th><th>60%</th><th>Status</th>
+                        <th>Parent Product</th><th>Variation</th><th>SKU</th><th>Category</th><th>Website Match</th><th>Supplier</th><th>Supplier Cost</th><th>Transport</th><th>Packaging</th><th>Landed Cost</th><th>Base Unit Cost</th><th>Total Unit Cost</th><th>Selling Price</th><th>Margin %</th><th>Estimated Profit</th><th>VAT</th><th>40%</th><th>50%</th><th>60%</th><th>Status</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -635,7 +792,9 @@ include BASE_PATH . '/shared/sidebar.php';
                                 <div>
                                     <strong>Landed cost breakdown</strong>
                                     <p><?= htmlspecialchars($row['conversion']['summary'], ENT_QUOTES, 'UTF-8') ?></p>
-                                    <p>Website link: <?= $row['website_linked'] ? 'Linked' : 'Not linked' ?> | Warnings: <?= htmlspecialchars($row['warnings'], ENT_QUOTES, 'UTF-8') ?></p>
+                                    <p>Parent product: <strong><?= htmlspecialchars($row['parent_product'], ENT_QUOTES, 'UTF-8') ?></strong> | Variation: <strong><?= htmlspecialchars($row['variation'], ENT_QUOTES, 'UTF-8') ?></strong></p>
+                                    <p>SKU: <strong><?= htmlspecialchars($row['sku'] ?: 'Needs SKU', ENT_QUOTES, 'UTF-8') ?></strong> | Website: <?= htmlspecialchars($row['website_match_label'], ENT_QUOTES, 'UTF-8') ?></p>
+                                    <p>Warnings: <?= htmlspecialchars($row['warnings'], ENT_QUOTES, 'UTF-8') ?></p>
                                     <ul>
                                         <li>Supplier/raw cost: <?= cw_money($row['supplier_cost']) ?></li>
                                         <li>Transport allocation: <?= cw_money($row['transport_cost']) ?></li>
@@ -653,15 +812,17 @@ include BASE_PATH . '/shared/sidebar.php';
                                 </div>
                             </details>
                         </td>
+                        <td><?= htmlspecialchars($row['variation'], ENT_QUOTES, 'UTF-8') ?></td>
                         <td><?= htmlspecialchars($row['sku'] ?: '-', ENT_QUOTES, 'UTF-8') ?></td>
                         <td><?= htmlspecialchars($row['category'], ENT_QUOTES, 'UTF-8') ?></td>
+                        <td><span class="cost-match-badge <?= $row['website_linked'] ? 'is-matched' : 'is-unmatched' ?>"><?= htmlspecialchars($row['website_match_label'], ENT_QUOTES, 'UTF-8') ?></span></td>
                         <td><?= htmlspecialchars($row['supplier'], ENT_QUOTES, 'UTF-8') ?></td>
                         <td><?= cw_money($row['supplier_cost']) ?></td>
                         <td><?= cw_money($row['transport_cost']) ?></td>
                         <td><?= cw_money($row['packaging_cost']) ?></td>
                         <td><?= cw_money($row['landed_cost']) ?></td>
+                        <td><?= cw_money((float) $row['cost_per_base']) ?><br><small>per <?= htmlspecialchars((string) $row['base_unit'], ENT_QUOTES, 'UTF-8') ?></small></td>
                         <td><?= cw_money($row['total_cost']) ?></td>
-                        <td><?= cw_money($row['cost_per_unit']) ?></td>
                         <td><strong><?= cw_money($row['selling_price_incl_vat']) ?></strong><br><small><?= cw_money($row['selling_price_ex_vat']) ?> excl. VAT</small></td>
                         <td><?= cw_percent($row['margin']) ?></td>
                         <td><?= cw_money($row['profit']) ?></td>
@@ -672,7 +833,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         <td><span class="cost-status cost-status-<?= htmlspecialchars($row['status_key'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($row['status_label'], ENT_QUOTES, 'UTF-8') ?></span></td>
                     </tr>
                 <?php endforeach; ?>
-                <?php if (!$rows): ?><tr><td colspan="18" class="empty-state-cell">No cost workbook data available yet. Upload supplier invoices and allocate transport to begin.</td></tr><?php endif; ?>
+                <?php if (!$rows): ?><tr><td colspan="20" class="empty-state-cell">No cost workbook data available yet. Upload supplier invoices and allocate transport to begin.</td></tr><?php endif; ?>
                 </tbody>
             </table>
         </div>

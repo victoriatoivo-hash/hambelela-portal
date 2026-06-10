@@ -7026,6 +7026,73 @@ textarea {
   margin-bottom: 22px;
 }
 
+.cost-phase-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+  margin: 0 0 22px;
+}
+
+.cost-phase-card {
+  min-height: 220px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: var(--shadow);
+}
+
+.cost-phase-card > span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(104, 216, 214, 0.16);
+  color: #087d7a;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.cost-phase-card h2 {
+  margin: 12px 0 8px;
+  font-size: 20px;
+}
+
+.cost-phase-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.cost-phase-card ul {
+  display: grid;
+  gap: 7px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cost-phase-card li {
+  display: flex;
+  gap: 8px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.cost-phase-card li::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  margin-top: 6px;
+  border-radius: 999px;
+  background: #68d8d6;
+}
+
 .cost-workflow-rail {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
@@ -7165,6 +7232,26 @@ textarea {
 .cost-status-unknown {
   background: rgba(108, 117, 125, 0.12);
   color: #4b5563;
+}
+
+.cost-match-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.cost-match-badge.is-matched {
+  background: rgba(0, 163, 108, 0.12);
+  color: #08744f;
+}
+
+.cost-match-badge.is-unmatched {
+  background: rgba(245, 158, 11, 0.14);
+  color: #9a5f00;
 }
 
 .product-detail-panel summary {
