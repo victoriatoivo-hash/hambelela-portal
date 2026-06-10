@@ -908,6 +908,7 @@
     const refreshButton = event.target.closest('[data-packing-refresh]');
     const importPrevious = event.target.closest('[data-import-previous-packing]');
     const syncMonday = event.target.closest('[data-sync-monday-packing]');
+    const cleanupDuplicates = event.target.closest('[data-cleanup-packing-duplicates]');
     const extractInvoice = event.target.closest('[data-extract-invoice]');
     const addDraftRow = event.target.closest('[data-add-draft-row]');
     const redistributeDraft = event.target.closest('[data-redistribute-draft]');
@@ -1001,6 +1002,18 @@
           setCount(result.message || 'Monday packing list synced.');
         } finally {
           syncMonday.classList.remove('is-loading');
+        }
+        return;
+      }
+      if (cleanupDuplicates) {
+        if (!confirm('Delete duplicate Packing List rows now? One original row will be kept for each duplicate group.')) return;
+        try {
+          cleanupDuplicates.classList.add('is-loading');
+          const result = await post('cleanup_duplicates');
+          await refresh();
+          setCount(result.message || 'Duplicate packing rows cleaned.');
+        } finally {
+          cleanupDuplicates.classList.remove('is-loading');
         }
         return;
       }
