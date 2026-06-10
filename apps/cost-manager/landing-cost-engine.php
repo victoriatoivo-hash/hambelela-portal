@@ -811,8 +811,12 @@ include BASE_PATH . '/shared/sidebar.php';
                 <div class="cost-panel-grid">
                     <article class="cost-panel-card">
                         <h3>Upload supplier invoice</h3>
-                        <label>Invoice file<input type="file" accept=".pdf,.jpg,.jpeg,.png,.xls,.xlsx"></label>
-                        <button class="button primary" type="button" data-cost-progress-action><i data-lucide="scan-line"></i> Preview extraction</button>
+                        <form class="cost-inline-upload" action="invoice-preview.php" method="post" enctype="multipart/form-data" target="cost-workflow-preview-frame" data-cost-upload-form>
+                            <input type="hidden" name="invoice_mode" value="supplier">
+                            <label>Supplier name<input name="supplier_name" placeholder="Supplier"></label>
+                            <label>Invoice PDF<input name="invoice_pdf" type="file" accept="application/pdf" required></label>
+                            <button class="button primary" type="submit"><i data-lucide="scan-line"></i> Preview extraction</button>
+                        </form>
                         <p class="cost-panel-feedback" hidden>Supplier invoice is ready for review in this workflow.</p>
                     </article>
                     <article class="cost-panel-card">
@@ -841,9 +845,14 @@ include BASE_PATH . '/shared/sidebar.php';
                 <div class="cost-panel-grid">
                     <article class="cost-panel-card">
                         <h3>Upload transport invoice</h3>
-                        <label>Transport file<input type="file" accept=".pdf,.jpg,.jpeg,.png,.xls,.xlsx"></label>
-                        <label>Allocation method<select><option>Invoice value</option><option>Weight</option><option>Quantity</option><option>Manual</option></select></label>
-                        <button class="button primary" type="button" data-cost-progress-action><i data-lucide="truck"></i> Allocate transport</button>
+                        <form class="cost-inline-upload" action="transport-preview.php" method="post" enctype="multipart/form-data" target="cost-workflow-preview-frame" data-cost-upload-form>
+                            <label>Supplier name<input name="supplier_name" placeholder="Optional if invoice has one supplier"></label>
+                            <label>Allocation method<select name="allocation_basis"><option value="order_weight">Use extracted consignment weight</option><option value="item_quantity">Item quantity</option><option value="invoice_value">Invoice value</option><option value="manual">Manual split</option></select></label>
+                            <label>Link to<select name="link_type"><option value="supplier_invoice">Supplier invoice</option><option value="purchase_order">Purchase order</option><option value="date_range">Date range</option><option value="product_batch">Product batch</option><option value="woo_order_group">WooCommerce order group</option></select></label>
+                            <label>Link value<input name="link_value" placeholder="Optional invoice number, PO number, batch, or date range"></label>
+                            <label>Transport invoice PDF<input name="transport_pdf" type="file" accept="application/pdf" required></label>
+                            <button class="button primary" type="submit"><i data-lucide="truck"></i> Preview transport extraction</button>
+                        </form>
                         <p class="cost-panel-feedback" hidden>Transport allocation has been staged for review.</p>
                     </article>
                     <article class="cost-panel-card">
@@ -872,9 +881,12 @@ include BASE_PATH . '/shared/sidebar.php';
                 <div class="cost-panel-grid">
                     <article class="cost-panel-card">
                         <h3>Packaging cost database</h3>
-                        <label>Packaging invoice<input type="file" accept=".pdf,.jpg,.jpeg,.png,.xls,.xlsx"></label>
-                        <label>Packaging category<select><option>Bottles</option><option>Jars</option><option>Pumps</option><option>Caps</option><option>Labels</option><option>Boxes</option><option>Courier Packaging</option><option>Shrink Wrap</option><option>Pouches</option><option>Tubes</option><option>Accessories</option></select></label>
-                        <button class="button primary" type="button" data-cost-progress-action><i data-lucide="package-check"></i> Review packaging</button>
+                        <form class="cost-inline-upload" action="invoice-preview.php" method="post" enctype="multipart/form-data" target="cost-workflow-preview-frame" data-cost-upload-form>
+                            <input type="hidden" name="invoice_mode" value="packaging">
+                            <label>Supplier name<input name="supplier_name" placeholder="Packaging supplier"></label>
+                            <label>Invoice PDF<input name="invoice_pdf" type="file" accept="application/pdf" required></label>
+                            <button class="button primary" type="submit"><i data-lucide="package-check"></i> Preview packaging extraction</button>
+                        </form>
                         <p class="cost-panel-feedback" hidden>Packaging cost is ready to connect to product variations.</p>
                     </article>
                     <article class="cost-panel-card">
@@ -991,6 +1003,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     </table>
                 </div>
             </section>
+            <iframe class="cost-workflow-frame" name="cost-workflow-preview-frame" title="Cost workflow preview" data-cost-preview-frame hidden></iframe>
         </div>
     </aside>
 
@@ -1157,6 +1170,32 @@ document.addEventListener('click', function (event) {
         if (window.lucide) window.lucide.createIcons();
       }, 1800);
     }, 450);
+  }
+});
+
+document.addEventListener('submit', function (event) {
+  var form = event.target.closest('[data-cost-upload-form]');
+  if (!form) return;
+  var frame = document.querySelector('[data-cost-preview-frame]');
+  var button = form.querySelector('button[type="submit"]');
+  var card = form.closest('.cost-panel-card');
+  var feedback = card ? card.querySelector('.cost-panel-feedback') : null;
+  if (frame) frame.hidden = false;
+  if (button) {
+    button.classList.add('is-loading');
+    button.innerHTML = '<i data-lucide="loader-2"></i> Opening preview';
+  }
+  if (feedback) {
+    feedback.hidden = false;
+    feedback.textContent = 'Preview is loading below. Review and save the extracted rows there.';
+  }
+  if (window.lucide) window.lucide.createIcons();
+  if (frame && button) {
+    frame.onload = function () {
+      button.classList.remove('is-loading');
+      button.innerHTML = '<i data-lucide="check"></i> Preview loaded';
+      if (window.lucide) window.lucide.createIcons();
+    };
   }
 });
 

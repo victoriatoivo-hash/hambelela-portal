@@ -7214,6 +7214,11 @@ textarea {
   box-shadow: 0 12px 28px rgba(31, 26, 24, 0.055);
 }
 
+.cost-inline-upload {
+  display: grid;
+  gap: 12px;
+}
+
 .cost-panel-card h3 {
   margin: 0;
   font-size: 18px;
@@ -7280,6 +7285,19 @@ textarea {
 
 .cost-panel-table .data-table {
   min-width: 680px;
+}
+
+.cost-workflow-frame {
+  width: 100%;
+  min-height: 720px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(31, 26, 24, 0.07);
+}
+
+.cost-workflow-frame[hidden] {
+  display: none;
 }
 
 .cost-panel-feedback {
@@ -7445,6 +7463,10 @@ textarea {
 
   .cost-panel-table .data-table {
     min-width: 640px;
+  }
+
+  .cost-workflow-frame {
+    min-height: 76vh;
   }
 
   .profit-workbook-table {
