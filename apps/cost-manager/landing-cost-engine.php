@@ -33,6 +33,15 @@ $stats = [
     'average_margin' => 0.0,
     'below_target' => 0,
 ];
+$workflowCounts = [
+    'supplier_invoices' => 0,
+    'raw_materials' => 0,
+    'transport_invoices' => 0,
+    'packaging' => 0,
+    'landed_rows' => 0,
+    'finished_products' => 0,
+    'woo_sales' => 0,
+];
 $filters = [
     'supplier' => trim((string) ($_GET['supplier'] ?? '')),
     'category' => trim((string) ($_GET['category'] ?? '')),
@@ -40,6 +49,9 @@ $filters = [
     'margin' => trim((string) ($_GET['margin'] ?? '')),
     'low_margin' => isset($_GET['low_margin']),
     'product' => trim((string) ($_GET['product'] ?? '')),
+    'sku' => trim((string) ($_GET['sku'] ?? '')),
+    'product_type' => trim((string) ($_GET['product_type'] ?? '')),
+    'matched' => trim((string) ($_GET['matched'] ?? '')),
 ];
 $suppliers = [];
 $categories = [];
@@ -129,6 +141,20 @@ function cw_sum(PDO $pdo, string $table, string $column, string $where = '1=1'):
     }
 }
 
+function cw_count(PDO $pdo, string $table, string $where = '1=1'): int
+{
+    if (!cw_table_exists($pdo, $table)) {
+        return 0;
+    }
+
+    try {
+        $stmt = $pdo->query("SELECT COUNT(*) FROM {$table} WHERE {$where}");
+        return (int) $stmt->fetchColumn();
+    } catch (Throwable $e) {
+        return 0;
+    }
+}
+
 function cw_fetch_all(PDO $pdo, string $sql, array $params = []): array
 {
     try {
@@ -167,6 +193,7 @@ function cw_make_master_row(array $row): array
         'product' => (string) ($row['product'] ?? ''),
         'sku' => '',
         'category' => $sourceType === 'packaging' ? 'Packaging' : 'Raw material',
+        'product_type' => $sourceType === 'packaging' ? 'Packaging' : 'Raw material',
         'supplier' => (string) ($row['supplier_name'] ?? 'Unknown supplier'),
         'supplier_cost' => $sourceType === 'packaging' ? 0.0 : $rawCost,
         'transport_cost' => $transportCost,
@@ -200,6 +227,15 @@ function cw_make_master_row(array $row): array
 
 try {
     $pdo = db();
+    $workflowCounts = [
+        'supplier_invoices' => cw_count($pdo, 'supplier_invoices'),
+        'raw_materials' => cw_count($pdo, 'raw_materials'),
+        'transport_invoices' => cw_count($pdo, 'transport_invoices'),
+        'packaging' => cw_count($pdo, 'packaging'),
+        'landed_rows' => cw_count($pdo, 'ingredient_costs_master') + cw_count($pdo, 'packaging_costs_master'),
+        'finished_products' => cw_count($pdo, 'finished_products'),
+        'woo_sales' => cw_count($pdo, 'woo_sales'),
+    ];
 
     $sourceStats = [
         'supplier_cost' => cw_sum($pdo, 'raw_materials', 'total_cost'),
@@ -292,6 +328,7 @@ try {
             'product' => (string) $product['name'],
             'sku' => (string) ($product['sku'] ?? ''),
             'category' => $costingType === 'raw_resale' ? 'Raw resale' : 'Formulated',
+            'product_type' => $costingType === 'raw_resale' ? 'Raw resale' : 'Formulated',
             'supplier' => $supplierName,
             'supplier_cost' => (float) $breakdown['raw_ingredient_cost'],
             'transport_cost' => (float) $breakdown['transport_allocation'],
@@ -334,6 +371,18 @@ try {
             continue;
         }
         if ($filters['product'] !== '' && !str_contains(strtolower($row['product']), strtolower($filters['product']))) {
+            continue;
+        }
+        if ($filters['sku'] !== '' && !str_contains(strtolower($row['sku']), strtolower($filters['sku']))) {
+            continue;
+        }
+        if ($filters['product_type'] !== '' && $row['product_type'] !== $filters['product_type']) {
+            continue;
+        }
+        if ($filters['matched'] === 'matched' && !$row['website_linked']) {
+            continue;
+        }
+        if ($filters['matched'] === 'unmatched' && $row['website_linked']) {
             continue;
         }
 
@@ -393,6 +442,15 @@ try {
             if ($filters['product'] !== '' && !str_contains(strtolower($row['product']), strtolower($filters['product']))) {
                 continue;
             }
+            if ($filters['sku'] !== '' && !str_contains(strtolower($row['sku']), strtolower($filters['sku']))) {
+                continue;
+            }
+            if ($filters['product_type'] !== '' && $row['category'] !== $filters['product_type']) {
+                continue;
+            }
+            if ($filters['matched'] === 'matched') {
+                continue;
+            }
 
             $rows[] = $row;
         }
@@ -428,6 +486,28 @@ try {
 
 $maxProfit = max(1, ...array_map(fn (array $row): float => abs((float) $row['profit']), $rows ?: [['profit' => 1]]));
 $maxCategoryValue = max(1, ...array_map(fn (array $row): float => (float) $row['value'], $chartRows['category_value'] ?: [['value' => 1]]));
+$workflowSteps = [
+    ['Upload Supplier Invoice', 'Upload the supplier PDF and capture invoice details.', 'upload-invoice.php', $workflowCounts['supplier_invoices'] > 0 ? 'complete' : 'active'],
+    ['Extract Supplier Products', 'AI/OCR extracts products, quantities, units, VAT and totals.', 'upload-invoice.php', $workflowCounts['raw_materials'] > 0 ? 'complete' : ($workflowCounts['supplier_invoices'] > 0 ? 'active' : 'pending')],
+    ['Review Supplier Products', 'Correct extracted rows before saving to the cost database.', 'saved-invoices.php', $workflowCounts['raw_materials'] > 0 ? 'complete' : 'pending'],
+    ['Upload Transport Invoice', 'Capture courier cost, reference, date and shipment weight.', 'upload-transport.php', $workflowCounts['transport_invoices'] > 0 ? 'complete' : 'optional'],
+    ['Allocate Transport', 'Allocate freight to products by weight/value/manual rules.', 'allocate-transport.php', $stats['transport_cost'] > 0 ? 'complete' : ($workflowCounts['transport_invoices'] > 0 ? 'active' : 'pending')],
+    ['Upload/Select Packaging Costs', 'Use bottles, caps, labels, pouches and extras from packaging database.', 'packaging-manager.php', $workflowCounts['packaging'] > 0 ? 'complete' : 'optional'],
+    ['Calculate Landed Cost', 'Combine supplier cost, transport, packaging and other costs.', 'landing-cost-engine.php', $stats['landed_cost'] > 0 ? 'complete' : 'pending'],
+    ['Create Product/SKU Records', 'Group base products and create editable SKU/variation rows.', 'products.php', $workflowCounts['finished_products'] > 0 ? 'complete' : ($stats['landed_cost'] > 0 ? 'active' : 'pending')],
+    ['Pull Website Prices', 'Sync WooCommerce names, SKUs, stock and VAT-inclusive prices.', 'import-sales.php', $workflowCounts['woo_sales'] > 0 ? 'complete' : 'pending'],
+    ['Calculate Margins and Profit', 'Compare landed cost to website price excl. VAT.', 'profit-calculator.php', $stats['estimated_revenue'] > 0 ? 'complete' : ($workflowCounts['woo_sales'] > 0 ? 'active' : 'pending')],
+    ['Populate Final Workbook', 'Review the final cost, VAT, margin, profit and status table.', '#workbook-table', count($rows) > 0 ? 'complete' : 'pending'],
+];
+$websiteProfitSummary = [
+    'stock_value' => $stats['inventory_value'],
+    'estimated_revenue' => $stats['estimated_revenue'],
+    'vat' => array_sum(array_column($rows, 'vat')),
+    'cogs' => array_sum(array_column($rows, 'total_cost')),
+    'profit' => $stats['estimated_profit'],
+    'average_margin' => $stats['average_margin'],
+    'low_margin' => $stats['below_target'],
+];
 
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
@@ -465,6 +545,25 @@ include BASE_PATH . '/shared/sidebar.php';
         <a href="profit-calculator.php"><i data-lucide="calculator"></i> Profit Calculator</a>
     </nav>
 
+    <section class="panel cost-workflow-panel">
+        <div class="section-row">
+            <div>
+                <h2>Guided costing workflow</h2>
+                <p>Follow one connected path from supplier invoice to landed cost, website price, VAT, margin and final profitability.</p>
+            </div>
+            <span class="status"><?= number_format(count(array_filter($workflowSteps, fn (array $step): bool => $step[3] === 'complete'))) ?> of <?= number_format(count($workflowSteps)) ?> ready</span>
+        </div>
+        <div class="cost-workflow-rail">
+            <?php foreach ($workflowSteps as $index => [$title, $description, $href, $state]): ?>
+                <a class="cost-workflow-step is-<?= htmlspecialchars($state, ENT_QUOTES, 'UTF-8') ?>" href="<?= htmlspecialchars($href, ENT_QUOTES, 'UTF-8') ?>">
+                    <span><?= number_format($index + 1) ?></span>
+                    <strong><?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?></strong>
+                    <small><?= htmlspecialchars($description, ENT_QUOTES, 'UTF-8') ?></small>
+                </a>
+            <?php endforeach; ?>
+        </div>
+    </section>
+
     <section class="panel workbook-state workbook-loading-state" hidden>Loading cost workbook...</section>
 
     <section class="work-metric-grid workbook-kpi-grid" aria-label="Profitability summary">
@@ -488,15 +587,34 @@ include BASE_PATH . '/shared/sidebar.php';
 
     <form class="panel report-filter-panel workbook-filters" method="get">
         <label>Product<input name="product" value="<?= htmlspecialchars($filters['product'], ENT_QUOTES, 'UTF-8') ?>" placeholder="Search product name"></label>
+        <label>SKU<input name="sku" value="<?= htmlspecialchars($filters['sku'], ENT_QUOTES, 'UTF-8') ?>" placeholder="Search SKU"></label>
         <label>Supplier<select name="supplier"><option value="">All suppliers/components</option><?php foreach ($suppliers as $supplier): ?><option value="<?= htmlspecialchars($supplier, ENT_QUOTES, 'UTF-8') ?>" <?= $filters['supplier'] === $supplier ? 'selected' : '' ?>><?= htmlspecialchars($supplier, ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></label>
         <label>Category<select name="category"><option value="">All categories</option><?php foreach ($categories as $category): ?><option value="<?= htmlspecialchars($category, ENT_QUOTES, 'UTF-8') ?>" <?= $filters['category'] === $category ? 'selected' : '' ?>><?= htmlspecialchars($category, ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></label>
+        <label>Product type<select name="product_type"><option value="">All types</option><option value="Raw resale" <?= $filters['product_type'] === 'Raw resale' ? 'selected' : '' ?>>Raw resale</option><option value="Formulated" <?= $filters['product_type'] === 'Formulated' ? 'selected' : '' ?>>Formulated</option><option value="Raw material" <?= $filters['product_type'] === 'Raw material' ? 'selected' : '' ?>>Raw material</option><option value="Packaging" <?= $filters['product_type'] === 'Packaging' ? 'selected' : '' ?>>Packaging</option></select></label>
+        <label>Website match<select name="matched"><option value="">All</option><option value="matched" <?= $filters['matched'] === 'matched' ? 'selected' : '' ?>>Matched</option><option value="unmatched" <?= $filters['matched'] === 'unmatched' ? 'selected' : '' ?>>Unmatched</option></select></label>
         <label>Status<select name="status"><option value="">All statuses</option><option value="healthy" <?= $filters['status'] === 'healthy' ? 'selected' : '' ?>>Healthy Margin</option><option value="low_margin" <?= $filters['status'] === 'low_margin' ? 'selected' : '' ?>>Low Margin</option><option value="loss" <?= $filters['status'] === 'loss' ? 'selected' : '' ?>>Loss Making</option><option value="unknown" <?= $filters['status'] === 'unknown' ? 'selected' : '' ?>>Missing Cost</option></select></label>
         <label>Margin below %<input name="margin" type="number" step="1" value="<?= htmlspecialchars($filters['margin'], ENT_QUOTES, 'UTF-8') ?>" placeholder="e.g. 40"></label>
         <label class="checkbox-line"><input type="checkbox" name="low_margin" value="1" <?= $filters['low_margin'] ? 'checked' : '' ?>> Low margin only</label>
         <button class="button primary" type="submit"><i data-lucide="filter"></i> Apply filters</button>
     </form>
 
-    <section class="panel workbook-table-panel">
+    <section class="work-metric-grid workbook-kpi-grid" aria-label="Website profitability summary">
+        <?php foreach ([
+            ['Website Stock Value', cw_money($websiteProfitSummary['stock_value']), 'Current landed cost value', 'warehouse', 'metric-purple'],
+            ['Estimated Revenue', cw_money($websiteProfitSummary['estimated_revenue']), 'Website prices excl. VAT', 'receipt', 'metric-blue'],
+            ['VAT Portion', cw_money($websiteProfitSummary['vat']), 'VAT separated from price', 'percent', 'metric-orange'],
+            ['Total COGS', cw_money($websiteProfitSummary['cogs']), 'Cost of goods in this workbook', 'scale', 'metric-pink'],
+            ['Estimated Profit', cw_money($websiteProfitSummary['profit']), 'Revenue excl. VAT less COGS', 'trending-up', 'metric-green'],
+            ['Average Margin', cw_percent($websiteProfitSummary['average_margin']), 'Current workbook average', 'badge-percent', 'metric-teal'],
+        ] as [$title, $value, $desc, $icon, $class]): ?>
+            <article class="work-metric-card <?= htmlspecialchars($class, ENT_QUOTES, 'UTF-8') ?>">
+                <span class="metric-icon"><i data-lucide="<?= htmlspecialchars($icon, ENT_QUOTES, 'UTF-8') ?>"></i></span>
+                <div><span class="metric-title"><?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?></span><strong><?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?></strong><small><?= htmlspecialchars($desc, ENT_QUOTES, 'UTF-8') ?></small></div>
+            </article>
+        <?php endforeach; ?>
+    </section>
+
+    <section class="panel workbook-table-panel" id="workbook-table">
         <div class="section-row">
             <div><h2>Product profitability table</h2><p>Shows whether each product is making money using supplier cost, transport, packaging, VAT and website selling price.</p></div>
             <span class="status"><?= number_format(count($rows)) ?> products</span>

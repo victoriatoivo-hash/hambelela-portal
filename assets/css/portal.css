@@ -5271,12 +5271,35 @@ textarea {
   color: var(--muted);
   font-size: 12px;
   font-weight: 800;
+  cursor: not-allowed;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
 }
 
 .invoice-flow-steps li.active {
   border-color: #0073ea;
   background: #deecfb;
   color: #0073ea;
+}
+
+.invoice-flow-steps li.complete {
+  border-color: rgba(0, 163, 108, 0.28);
+  background: rgba(0, 200, 117, 0.1);
+  color: #08744f;
+}
+
+.invoice-flow-steps li.is-error {
+  border-color: rgba(225, 43, 75, 0.3);
+  background: rgba(225, 43, 75, 0.08);
+  color: #9f1239;
+}
+
+.invoice-flow-steps li.is-available {
+  cursor: pointer;
+}
+
+.invoice-flow-steps li.is-available:hover {
+  transform: translateY(-1px);
+  border-color: #68d8d6;
 }
 
 .invoice-progress {
@@ -6997,6 +7020,84 @@ textarea {
 
 .workbook-state {
   margin-bottom: 18px;
+}
+
+.cost-workflow-panel {
+  margin-bottom: 22px;
+}
+
+.cost-workflow-rail {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.cost-workflow-step {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 10px;
+  min-height: 128px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--ink);
+  text-decoration: none;
+  box-shadow: 0 10px 24px rgba(31, 26, 24, 0.045);
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.cost-workflow-step:hover {
+  transform: translateY(-2px);
+  border-color: #68d8d6;
+  box-shadow: 0 16px 32px rgba(31, 26, 24, 0.08);
+}
+
+.cost-workflow-step span {
+  display: grid;
+  place-items: center;
+  grid-row: span 2;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: rgba(104, 216, 214, 0.16);
+  color: #087d7a;
+  font-weight: 900;
+}
+
+.cost-workflow-step strong {
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.cost-workflow-step small {
+  grid-column: 2;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.cost-workflow-step.is-complete {
+  border-color: rgba(0, 163, 108, 0.24);
+  background: rgba(0, 200, 117, 0.07);
+}
+
+.cost-workflow-step.is-complete span {
+  background: rgba(0, 200, 117, 0.15);
+  color: #08744f;
+}
+
+.cost-workflow-step.is-active {
+  border-color: rgba(104, 216, 214, 0.58);
+  background: rgba(236, 253, 252, 0.95);
+}
+
+.cost-workflow-step.is-optional {
+  background: rgba(255, 247, 238, 0.7);
+}
+
+.cost-workflow-step.is-pending {
+  opacity: 0.78;
 }
 
 .workbook-state strong {

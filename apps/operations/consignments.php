@@ -190,14 +190,15 @@ include BASE_PATH . '/shared/sidebar.php';
     <div class="modal-backdrop" id="packing-invoice-modal" hidden>
         <form class="panel ops-form packing-modal packing-invoice-flow" data-invoice-draft-form>
             <div class="section-row"><h2>Upload invoice</h2><button type="button" data-close-modal>Close</button></div>
-            <ol class="invoice-flow-steps">
-                <li class="active">Upload</li><li>Extract</li><li>Review</li><li>Assign</li><li>Create</li>
+            <ol class="invoice-flow-steps" data-invoice-stepper>
+                <li class="active" data-invoice-step="upload">Upload</li><li data-invoice-step="extract">Extract</li><li data-invoice-step="review">Review</li><li data-invoice-step="assign">Assign</li><li data-invoice-step="create">Create</li>
             </ol>
             <div class="form-grid compact">
                 <label>Invoice PDF<input type="file" name="invoice_file" accept="application/pdf"></label>
                 <label>Supplier name<input name="supplier_name" placeholder="Optional"></label>
                 <label>Invoice number<input name="invoice_number" data-draft-invoice-number placeholder="Auto extracted"></label>
                 <label>Invoice date<input name="invoice_date" data-draft-invoice-date type="date"></label>
+                <label>Priority before sync<select name="invoice_priority" data-invoice-priority><option value="top_critical">Top Critical</option><option value="high">High</option><option value="medium" selected>Medium</option><option value="low">Low</option></select></label>
             </div>
             <p class="muted">Upload a PDF to extract product lines automatically. If extraction is unavailable, use the manual fallback below.</p>
             <div class="ops-form-actions">
@@ -215,8 +216,8 @@ include BASE_PATH . '/shared/sidebar.php';
             <label>Manual fallback<textarea name="invoice_draft" rows="4" placeholder="Product | received weight | quantity to pack, e.g. Mango Butter | 5kg | 100g(20), 250g(8)"></textarea></label>
             <div class="invoice-draft-wrap">
                 <table class="invoice-draft-table">
-                    <thead><tr><th>Item</th><th>Received</th><th>Unit</th><th>Quantity to pack</th><th>Assigned</th><th>Workload</th><th>Monday</th><th>Actions</th></tr></thead>
-                    <tbody data-invoice-draft-body><tr><td colspan="8">Extract an invoice or add a row to review before saving.</td></tr></tbody>
+                    <thead><tr><th>Item</th><th>Received</th><th>Unit</th><th>Quantity to pack</th><th>Priority</th><th>Assigned</th><th>Workload</th><th>Monday</th><th>Actions</th></tr></thead>
+                    <tbody data-invoice-draft-body><tr><td colspan="9">Extract an invoice or add a row to review before saving.</td></tr></tbody>
                 </table>
             </div>
             <div class="draft-workload-summary" data-draft-workload-summary hidden></div>

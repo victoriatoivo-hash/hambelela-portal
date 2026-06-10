@@ -501,7 +501,10 @@ function packing_monday_set_column(array &$values, array $columnTitles, array $c
     if ($type === 'date') {
         $timestamp = strtotime((string) $value);
         if ($timestamp) {
-            $values[$columnId] = ['date' => date('Y-m-d', $timestamp)];
+            $values[$columnId] = [
+                'date' => date('Y-m-d', $timestamp),
+                'time' => date('H:i:s', $timestamp),
+            ];
         }
         return;
     }

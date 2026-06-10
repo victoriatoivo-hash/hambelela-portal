@@ -19,6 +19,8 @@
   const invoiceProgressTitle = document.querySelector('[data-invoice-progress-title]');
   const invoiceProgressText = document.querySelector('[data-invoice-progress-text]');
   const draftWorkloadSummary = document.querySelector('[data-draft-workload-summary]');
+  const invoiceStepper = document.querySelector('[data-invoice-stepper]');
+  const invoicePriority = document.querySelector('[data-invoice-priority]');
 
   if (!body || !config.dataUrl || !config.actionUrl) return;
 
@@ -233,6 +235,27 @@
     return null;
   }
 
+  function setInvoiceStep(step, stateName = 'active') {
+    if (!invoiceStepper) return;
+    const order = ['upload', 'extract', 'review', 'assign', 'create'];
+    const currentIndex = Math.max(0, order.indexOf(step));
+    invoiceStepper.querySelectorAll('[data-invoice-step]').forEach((item) => {
+      const index = order.indexOf(item.dataset.invoiceStep || '');
+      const isAvailable = index <= currentIndex || (item.dataset.invoiceStep === 'review' && invoiceDraftRows.length > 0) || (item.dataset.invoiceStep === 'assign' && invoiceDraftRows.length > 0);
+      item.classList.toggle('active', index === currentIndex);
+      item.classList.toggle('complete', index >= 0 && index < currentIndex && stateName !== 'error');
+      item.classList.toggle('is-error', index === currentIndex && stateName === 'error');
+      item.classList.toggle('is-available', isAvailable);
+      item.setAttribute('aria-disabled', isAvailable ? 'false' : 'true');
+    });
+  }
+
+  function applyInvoicePriorityToDraftRows(priority) {
+    invoiceDraftRows.forEach((row) => {
+      row.priority = priority || 'medium';
+    });
+  }
+
   function quantityPlanStats(quantityPlan) {
     const stats = { totals: { weight: 0, volume: 0, count: 0 }, totalUnits: 0, sizeCount: 0 };
     const pattern = /(\d+(?:\.\d+)?)\s*(kg|kgs|g|gram|grams|ml|l|lt|liter|litre|liters|litres|pcs?|pieces?|units?)\s*(?:[x*]\s*)?\(?\s*(\d+)?\s*\)?/gi;
@@ -283,7 +306,8 @@
     const baseAmount = received.dimension === 'count' ? received.base : received.base / 1000;
     const sizeComplexity = Math.min(2, Math.max(0, plan.sizeCount - 1) * 0.5);
     const handlingBase = 1.5;
-    const workload = Math.max(1, baseAmount) + handlingBase + sizeComplexity;
+    const priorityBoost = { top_critical: 1.6, high: 1.3, medium: 1, low: 0.8 }[normalize(row.priority || 'medium')] || 1;
+    const workload = (Math.max(1, baseAmount) + handlingBase + sizeComplexity) * priorityBoost;
     return Math.round(workload * 10) / 10;
   }
 
@@ -425,6 +449,7 @@
         unit: '',
         quantity_purchased: 1,
         quantity_planned: quantity || '',
+        priority: invoicePriority?.value || 'medium',
         assigned_employee_id: '',
         assigned_name: '',
       };
@@ -435,17 +460,20 @@
     if (!invoiceDraftBody) return;
     assignDraftRows();
     if (!invoiceDraftRows.length) {
-      invoiceDraftBody.innerHTML = '<tr><td colspan="8">Extract an invoice or add a row to review before saving.</td></tr>';
+      invoiceDraftBody.innerHTML = '<tr><td colspan="9">Extract an invoice or add a row to review before saving.</td></tr>';
+      setInvoiceStep('upload');
       renderDraftWorkloadSummary();
       return;
     }
     const personOptions = '<option value="">Auto</option>' + packers.map((packer) => `<option value="${esc(packer.id)}">${esc(packer.full_name)}</option>`).join('');
+    const priorityOptions = priorities.map(([value, label]) => `<option value="${esc(value)}">${esc(label)}</option>`).join('');
     invoiceDraftBody.innerHTML = invoiceDraftRows.map((row, index) => `
       <tr data-draft-index="${index}">
         <td><input data-draft-field="item_name" value="${esc(row.item_name || '')}"></td>
         <td><input data-draft-field="received_weight" value="${esc(row.received_weight || '')}"></td>
         <td><input data-draft-field="unit" value="${esc(row.unit || '')}"></td>
         <td><input data-draft-field="quantity_planned" value="${esc(row.quantity_planned || '')}" placeholder="100g(20), 250g(8)"></td>
+        <td><select data-draft-field="priority">${priorityOptions}</select></td>
         <td><select data-draft-field="assigned_employee_id">${personOptions}</select></td>
         <td data-draft-workload>${esc(row.workload || draftWorkload(row))}</td>
         <td><span class="sync-pill sync-pending">Will sync</span></td>
@@ -459,6 +487,11 @@
       const row = invoiceDraftRows[Number(select.closest('tr')?.dataset.draftIndex || 0)];
       select.value = String(row.assigned_employee_id || '');
     });
+    invoiceDraftBody.querySelectorAll('[data-draft-field="priority"]').forEach((select) => {
+      const row = invoiceDraftRows[Number(select.closest('tr')?.dataset.draftIndex || 0)];
+      select.value = String(row.priority || invoicePriority?.value || 'medium');
+    });
+    setInvoiceStep('review');
     renderDraftWorkloadSummary();
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
   }
@@ -800,21 +833,24 @@
     try {
       button?.classList.add('is-loading');
       if (button) button.disabled = true;
+      setInvoiceStep('extract');
       setInvoiceProgress(true, 'Extracting invoice items...', 'Please wait while the system reads the invoice and prepares draft rows.', 'loading');
       setInvoiceStatus('Extracting invoice items... please wait.');
       const formData = new FormData(form);
       formData.set('action', 'extract_invoice');
       const response = await fetch(config.actionUrl, { method: 'POST', body: formData, credentials: 'same-origin' });
       const data = await readJson(response);
-      invoiceDraftRows = (data.rows || []).map((row) => ({ ...row, assigned_employee_id: '', assigned_name: '' }));
+      invoiceDraftRows = (data.rows || []).map((row) => ({ ...row, priority: invoicePriority?.value || 'medium', assigned_employee_id: '', assigned_name: '' }));
       const invoiceNumber = document.querySelector('[data-draft-invoice-number]');
       const invoiceDate = document.querySelector('[data-draft-invoice-date]');
       if (invoiceNumber) invoiceNumber.value = data.invoice_number || '';
       if (invoiceDate) invoiceDate.value = data.invoice_date || '';
       renderInvoiceDraft();
+      setInvoiceStep('review');
       setInvoiceProgress(true, 'Extraction complete', `${invoiceDraftRows.length} draft row${invoiceDraftRows.length === 1 ? '' : 's'} ready for review.`, 'success');
       setInvoiceStatus(`${data.message} Review rows, enter quantity-to-pack breakdown, then confirm.`);
     } catch (error) {
+      setInvoiceStep('extract', 'error');
       setInvoiceProgress(true, 'Extraction failed', error.message || 'Could not extract this invoice. You can still use the manual fallback.', 'error');
       setInvoiceStatus(error.message || 'Invoice extraction failed.');
     } finally {
@@ -831,6 +867,7 @@
     if (!invoiceDraftRows.length) throw new Error('No invoice rows to create.');
     const submit = form.querySelector('[type="submit"]');
     submit?.classList.add('is-loading');
+    setInvoiceStep('create');
     try {
       setInvoiceStatus('Creating portal rows and syncing to Monday...');
       const formData = new FormData(form);
@@ -843,6 +880,7 @@
       });
       invoiceDraftRows = [];
       invoiceModal.hidden = true;
+      setInvoiceStep('upload');
       await refresh();
       setCount(result.message || 'Packing rows created and synced.');
     } finally {
@@ -883,8 +921,24 @@
         return;
       }
 
+      const step = event.target.closest('[data-invoice-step]');
+      if (step && step.getAttribute('aria-disabled') !== 'true') {
+        const target = step.dataset.invoiceStep;
+        setInvoiceStep(target || 'upload');
+        const focusMap = {
+          upload: '[name="invoice_file"]',
+          extract: '[data-extract-invoice]',
+          review: '[data-invoice-draft-body] input',
+          assign: '[data-redistribute-draft]',
+          create: '[data-invoice-draft-form] [type="submit"]'
+        };
+        const focusTarget = invoiceModal?.querySelector(focusMap[target] || '');
+        focusTarget?.focus?.();
+        return;
+      }
+
       if (openCreate) { createModal.hidden = false; return; }
-      if (openInvoice) { invoiceModal.hidden = false; return; }
+      if (openInvoice) { invoiceModal.hidden = false; setInvoiceStep(invoiceDraftRows.length ? 'review' : 'upload'); return; }
       if (closeModal) { createModal.hidden = true; invoiceModal.hidden = true; return; }
       if (exportButton) { exportCsv(); return; }
       if (undo) { await undoLast(); return; }
@@ -895,7 +949,7 @@
         return;
       }
       if (addDraftRow) {
-        invoiceDraftRows.push({ item_name: '', received_weight: '', unit: '', quantity_purchased: 1, quantity_planned: '', assigned_employee_id: '', assigned_name: '' });
+        invoiceDraftRows.push({ item_name: '', received_weight: '', unit: '', quantity_purchased: 1, quantity_planned: '', priority: invoicePriority?.value || 'medium', assigned_employee_id: '', assigned_name: '' });
         const result = redistributeDraftRows();
         renderInvoiceDraft();
         setInvoiceStatus(result.message || 'Review the new row, enter quantity-to-pack, then confirm. Use Redistribute Packers after edits.');
@@ -905,6 +959,7 @@
         redistributeDraft.classList.add('is-loading');
         redistributeDraft.disabled = true;
         try {
+          setInvoiceStep('assign');
           setInvoiceStatus('Redistributing packers...');
           await new Promise((resolve) => setTimeout(resolve, 80));
           const result = redistributeDraftRows();
@@ -1005,6 +1060,7 @@
           row.hidden = !row.hidden;
           row = row.nextElementSibling;
         }
+        return;
       }
     } catch (error) {
       body.innerHTML = `<tr><td colspan="13">${esc(error.message)}</td></tr>`;
@@ -1027,6 +1083,11 @@
       state.date = event.target.value || '';
       render();
     }
+    if (event.target.closest('[data-invoice-priority]')) {
+      applyInvoicePriorityToDraftRows(event.target.value || 'medium');
+      renderInvoiceDraft();
+      setInvoiceStatus('Priority updated for draft rows before Monday sync.');
+    }
     const draftField = event.target.closest('[data-draft-field]');
     if (draftField) {
       const row = invoiceDraftRows[Number(draftField.closest('tr')?.dataset.draftIndex || 0)];
@@ -1038,7 +1099,7 @@
           row.assigned_name = packer?.full_name || '';
         }
         row.workload = draftWorkload(row);
-        if (['received_weight', 'quantity_planned', 'unit'].includes(fieldName)) {
+        if (['received_weight', 'quantity_planned', 'unit', 'priority'].includes(fieldName)) {
           const result = redistributeDraftRows();
           renderInvoiceDraft();
           setInvoiceStatus(result.message || 'Assignments refreshed after the draft row changed.');
