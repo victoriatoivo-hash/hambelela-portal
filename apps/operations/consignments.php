@@ -199,6 +199,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 <label>Invoice number<input name="invoice_number" data-draft-invoice-number placeholder="Auto extracted"></label>
                 <label>Invoice date<input name="invoice_date" data-draft-invoice-date type="date"></label>
                 <label>Priority before sync<select name="invoice_priority" data-invoice-priority><option value="top_critical">Top Critical</option><option value="high">High</option><option value="medium" selected>Medium</option><option value="low">Low</option></select></label>
+                <label>Sync mode<select name="sync_mode"><option value="update_existing" selected>Update existing / skip duplicates</option><option value="skip_duplicates">Skip duplicates only</option><option value="create_only">Create new rows only</option></select></label>
             </div>
             <p class="muted">Upload a PDF to extract product lines automatically. If extraction is unavailable, use the manual fallback below.</p>
             <div class="ops-form-actions">

@@ -876,6 +876,7 @@
         invoice_number: formData.get('invoice_number') || '',
         invoice_date: formData.get('invoice_date') || '',
         supplier_name: formData.get('supplier_name') || '',
+        sync_mode: formData.get('sync_mode') || 'update_existing',
         sync_to_monday: '1'
       });
       invoiceDraftRows = [];
