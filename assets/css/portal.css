@@ -5439,6 +5439,55 @@ textarea {
   font-size: 20px;
 }
 
+.draft-balance-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(0, 163, 108, 0.24);
+  border-radius: 8px;
+  background: rgba(0, 200, 117, 0.08);
+  color: #0f6f4c;
+}
+
+.draft-balance-note.needs-review {
+  border-color: rgba(245, 158, 11, 0.32);
+  background: rgba(245, 158, 11, 0.1);
+  color: #8a5a00;
+}
+
+.draft-balance-note strong,
+.draft-balance-note span {
+  font-size: 12px;
+}
+
+.draft-warning-list {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid rgba(225, 43, 75, 0.24);
+  border-radius: 8px;
+  background: rgba(225, 43, 75, 0.08);
+  color: #9f1239;
+}
+
+.draft-warning-list p {
+  margin: 0;
+  font-size: 12px;
+}
+
+.ops-form-actions .button.is-loading,
+.ops-form-actions .button:disabled {
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+.ops-form-actions .button.is-loading svg {
+  animation: spin 900ms linear infinite;
+}
+
 .packing-detail-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

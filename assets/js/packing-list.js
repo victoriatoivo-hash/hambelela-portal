@@ -223,40 +223,138 @@
     if (invoiceProgressText) invoiceProgressText.textContent = text;
   }
 
-  function draftWorkload(row) {
-    const quantityPlan = String(row.quantity_planned || '');
-    const unitMatches = [...quantityPlan.matchAll(/\((\d+)\)|x\s*(\d+)/gi)];
-    const units = unitMatches.reduce((sum, match) => sum + Number(match[1] || match[2] || 0), 0);
-    const sizes = (quantityPlan.match(/\d+(?:\.\d+)?\s*(?:g|kg|ml|l|lt|liter|litre)/gi) || []).length;
-    const weight = Number(String(row.received_weight || '').match(/\d+(?:\.\d+)?/)?.[0] || 0);
-    return Math.max(1, Math.round((weight + units * 0.2 + sizes * 0.8 + 1.5) * 10) / 10);
+  function parsePackUnit(unit) {
+    const clean = normalize(unit || '');
+    if (['kg', 'kgs', 'kilogram', 'kilograms'].includes(clean)) return { dimension: 'weight', factor: 1000, assumedLabel: 'kg' };
+    if (['g', 'gram', 'grams'].includes(clean)) return { dimension: 'weight', factor: 1, assumedLabel: 'g' };
+    if (['l', 'lt', 'liter', 'litre', 'liters', 'litres'].includes(clean)) return { dimension: 'volume', factor: 1000, assumedLabel: 'L' };
+    if (['ml', 'milliliter', 'millilitre', 'milliliters', 'millilitres'].includes(clean)) return { dimension: 'volume', factor: 1, assumedLabel: 'ml' };
+    if (['pc', 'pcs', 'piece', 'pieces', 'unit', 'units'].includes(clean)) return { dimension: 'count', factor: 1, assumedLabel: 'unit' };
+    return null;
   }
 
-  function assignDraftRows() {
-    const loads = new Map();
-    packers.forEach((packer) => loads.set(String(packer.id), 0));
-    tasks.forEach((task) => {
-      if (task.assigned_employee_id && !['done', 'website'].includes(normalize(task.packing_status))) {
-        loads.set(String(task.assigned_employee_id), (loads.get(String(task.assigned_employee_id)) || 0) + Number(task.workload_points || 1));
-      }
-    });
+  function quantityPlanStats(quantityPlan) {
+    const stats = { totals: { weight: 0, volume: 0, count: 0 }, totalUnits: 0, sizeCount: 0 };
+    const pattern = /(\d+(?:\.\d+)?)\s*(kg|kgs|g|gram|grams|ml|l|lt|liter|litre|liters|litres|pcs?|pieces?|units?)\s*(?:[x*]\s*)?\(?\s*(\d+)?\s*\)?/gi;
+    let match;
+    while ((match = pattern.exec(String(quantityPlan || ''))) !== null) {
+      const amount = Number(match[1] || 0);
+      const unit = parsePackUnit(match[2] || '');
+      const count = Math.max(1, Number(match[3] || 1));
+      if (!Number.isFinite(amount) || !unit) continue;
+      stats.totals[unit.dimension] += amount * unit.factor * count;
+      stats.totalUnits += count;
+      stats.sizeCount += 1;
+    }
+    return stats;
+  }
+
+  function parseReceivedStock(row, planStats = quantityPlanStats(row.quantity_planned || '')) {
+    const text = String(row.received_weight || '');
+    const amount = Number(text.match(/\d+(?:\.\d+)?/)?.[0] || 0);
+    const explicitUnit = text.match(/kg|kgs|g|gram|grams|ml|l|lt|liter|litre|liters|litres|pcs?|pieces?|units?/i)?.[0] || row.unit || '';
+    let unit = parsePackUnit(explicitUnit);
+    if (!unit) {
+      if (planStats.totals.volume > 0 && planStats.totals.weight <= 0) unit = parsePackUnit('l');
+      else if (planStats.totals.weight > 0) unit = parsePackUnit('kg');
+      else unit = parsePackUnit('unit');
+    }
+    return {
+      amount: Number.isFinite(amount) ? amount : 0,
+      dimension: unit.dimension,
+      base: (Number.isFinite(amount) ? amount : 0) * unit.factor,
+      assumedLabel: unit.assumedLabel
+    };
+  }
+
+  function draftValidation(row) {
+    const plan = quantityPlanStats(row.quantity_planned || '');
+    const received = parseReceivedStock(row, plan);
+    const plannedBase = plan.totals[received.dimension] || 0;
+    if (received.base > 0 && plannedBase > received.base * 1.05) {
+      return 'Quantity-to-pack exceeds received weight. Please review.';
+    }
+    return '';
+  }
+
+  function draftWorkload(row) {
+    const plan = quantityPlanStats(row.quantity_planned || '');
+    const received = parseReceivedStock(row, plan);
+    const baseAmount = received.dimension === 'count' ? received.base : received.base / 1000;
+    const sizeComplexity = Math.min(2, Math.max(0, plan.sizeCount - 1) * 0.5);
+    const handlingBase = 1.5;
+    const workload = Math.max(1, baseAmount) + handlingBase + sizeComplexity;
+    return Math.round(workload * 10) / 10;
+  }
+
+  function draftBalanceInfo(totals = draftWorkloadTotals()) {
+    if (totals.length < 2) return { difference: 0, balanced: true, message: 'Only one packer assigned.' };
+    const workloads = totals.map((item) => Number(item.workload || 0));
+    const high = Math.max(...workloads);
+    const low = Math.min(...workloads);
+    const total = workloads.reduce((sum, value) => sum + value, 0);
+    const tolerance = Math.max(3, (total / totals.length) * 0.2);
+    const difference = Math.round((high - low) * 10) / 10;
+    return {
+      difference,
+      balanced: difference <= tolerance,
+      message: difference <= tolerance
+        ? 'Assignment is reasonably balanced.'
+        : 'Best possible balance reached based on whole product rows.'
+    };
+  }
+
+  function assignDraftRows(options = {}) {
+    if (!packers.length) {
+      invoiceDraftRows.forEach((row) => {
+        row.workload = draftWorkload(row);
+        row.assigned_employee_id = '';
+        row.assigned_name = '';
+      });
+      return { changed: false, message: 'No active packers are available for assignment.' };
+    }
+
+    const force = Boolean(options.force);
+    const before = invoiceDraftRows.map((row) => String(row.assigned_employee_id || ''));
     invoiceDraftRows.forEach((row) => {
       row.workload = draftWorkload(row);
-      if (!row.assigned_employee_id && packers.length) {
+      if (force) {
+        row.assigned_employee_id = '';
+        row.assigned_name = '';
+      }
+    });
+
+    const loads = new Map(packers.map((packer) => [String(packer.id), 0]));
+    if (!force) {
+      invoiceDraftRows.forEach((row) => {
+        const id = String(row.assigned_employee_id || '');
+        if (id && loads.has(id)) {
+          const packer = packers.find((item) => String(item.id) === id);
+          row.assigned_name = packer?.full_name || row.assigned_name || '';
+          loads.set(id, (loads.get(id) || 0) + Number(row.workload || 0));
+        }
+      });
+    }
+
+    invoiceDraftRows
+      .map((row, index) => ({ row, index, workload: Number(row.workload || 0) }))
+      .filter((item) => force || !item.row.assigned_employee_id)
+      .sort((a, b) => b.workload - a.workload || a.index - b.index)
+      .forEach(({ row }) => {
         const best = [...packers].sort((a, b) => (loads.get(String(a.id)) || 0) - (loads.get(String(b.id)) || 0))[0];
         row.assigned_employee_id = String(best.id);
         row.assigned_name = best.full_name;
-        loads.set(String(best.id), (loads.get(String(best.id)) || 0) + row.workload);
-      }
-    });
+        loads.set(String(best.id), (loads.get(String(best.id)) || 0) + Number(row.workload || 0));
+      });
+
+    const after = invoiceDraftRows.map((row) => String(row.assigned_employee_id || ''));
+    const changed = before.some((value, index) => value !== after[index]);
+    const balance = draftBalanceInfo();
+    return { changed, ...balance };
   }
 
   function redistributeDraftRows() {
-    invoiceDraftRows.forEach((row) => {
-      row.assigned_employee_id = '';
-      row.assigned_name = '';
-    });
-    assignDraftRows();
+    return assignDraftRows({ force: true });
   }
 
   function draftWorkloadTotals() {
@@ -283,6 +381,13 @@
     }
     const totals = draftWorkloadTotals();
     const totalWorkload = totals.reduce((sum, item) => sum + item.workload, 0);
+    const balance = draftBalanceInfo(totals);
+    const warnings = invoiceDraftRows
+      .map((row) => ({ item: row.item_name || 'Item', warning: draftValidation(row) }))
+      .filter((item) => item.warning);
+    const warningHtml = warnings.length
+      ? `<div class="draft-warning-list">${warnings.map((item) => `<p><strong>${esc(item.item)}:</strong> ${esc(item.warning)}</p>`).join('')}</div>`
+      : '';
     draftWorkloadSummary.hidden = false;
     draftWorkloadSummary.innerHTML = `
       <div class="draft-summary-head">
@@ -298,6 +403,11 @@
           </div>
         `).join('')}
       </div>
+      <div class="draft-balance-note ${balance.balanced ? 'is-balanced' : 'needs-review'}">
+        <strong>Difference: ${balance.difference.toFixed(1)} workload points</strong>
+        <span>${esc(balance.message)}</span>
+      </div>
+      ${warningHtml}
     `;
   }
 
@@ -369,9 +479,9 @@
       workload: undefined,
     }));
     invoiceDraftRows.splice(index, 1, ...newRows);
-    redistributeDraftRows();
+    const result = redistributeDraftRows();
     renderInvoiceDraft();
-    setInvoiceStatus(`Split ${row.item_name || 'item'} into ${copies} rows. Review quantities and assignments before confirming.`);
+    setInvoiceStatus(`Split ${row.item_name || 'item'} into ${copies} rows. ${result.message || 'Packers were redistributed; use Redistribute Packers again after further edits.'}`);
   }
 
   function visibleTasks() {
@@ -786,15 +896,24 @@
       }
       if (addDraftRow) {
         invoiceDraftRows.push({ item_name: '', received_weight: '', unit: '', quantity_purchased: 1, quantity_planned: '', assigned_employee_id: '', assigned_name: '' });
-        redistributeDraftRows();
+        const result = redistributeDraftRows();
         renderInvoiceDraft();
-        setInvoiceStatus('Review the new row, enter quantity-to-pack, then confirm.');
+        setInvoiceStatus(result.message || 'Review the new row, enter quantity-to-pack, then confirm. Use Redistribute Packers after edits.');
         return;
       }
       if (redistributeDraft) {
-        redistributeDraftRows();
-        renderInvoiceDraft();
-        setInvoiceStatus('Assignments redistributed based on the updated draft rows.');
+        redistributeDraft.classList.add('is-loading');
+        redistributeDraft.disabled = true;
+        try {
+          setInvoiceStatus('Redistributing packers...');
+          await new Promise((resolve) => setTimeout(resolve, 80));
+          const result = redistributeDraftRows();
+          renderInvoiceDraft();
+          setInvoiceStatus(result.message || (result.changed ? 'Assignments redistributed based on the updated draft rows.' : 'Best possible balance reached based on whole product rows.'));
+        } finally {
+          redistributeDraft.classList.remove('is-loading');
+          redistributeDraft.disabled = false;
+        }
         return;
       }
       if (splitDraftRowButton) {
@@ -803,8 +922,9 @@
       }
       if (removeDraftRow) {
         invoiceDraftRows.splice(Number(removeDraftRow.dataset.removeDraftRow), 1);
-        redistributeDraftRows();
+        const result = redistributeDraftRows();
         renderInvoiceDraft();
+        setInvoiceStatus(result.message || 'Draft row removed and packers redistributed.');
         return;
       }
       if (importPrevious) {
@@ -911,12 +1031,19 @@
     if (draftField) {
       const row = invoiceDraftRows[Number(draftField.closest('tr')?.dataset.draftIndex || 0)];
       if (row) {
-        row[draftField.dataset.draftField] = draftField.value;
-        if (draftField.dataset.draftField === 'assigned_employee_id') {
+        const fieldName = draftField.dataset.draftField;
+        row[fieldName] = draftField.value;
+        if (fieldName === 'assigned_employee_id') {
           const packer = packers.find((item) => String(item.id) === String(draftField.value));
           row.assigned_name = packer?.full_name || '';
         }
         row.workload = draftWorkload(row);
+        if (['received_weight', 'quantity_planned', 'unit'].includes(fieldName)) {
+          const result = redistributeDraftRows();
+          renderInvoiceDraft();
+          setInvoiceStatus(result.message || 'Assignments refreshed after the draft row changed.');
+          return;
+        }
         updateDraftWorkloadCell(draftField, row);
         renderDraftWorkloadSummary();
       }

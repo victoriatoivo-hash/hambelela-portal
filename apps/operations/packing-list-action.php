@@ -21,15 +21,86 @@ function packing_json_fail(Throwable $e): void
     exit;
 }
 
+function packing_unit_meta(string $unit): ?array
+{
+    $clean = strtolower(trim($unit));
+    $clean = preg_replace('/[^a-z0-9]+/', '', $clean) ?: '';
+    if (in_array($clean, ['kg', 'kgs', 'kilogram', 'kilograms'], true)) {
+        return ['dimension' => 'weight', 'factor' => 1000.0];
+    }
+    if (in_array($clean, ['g', 'gram', 'grams'], true)) {
+        return ['dimension' => 'weight', 'factor' => 1.0];
+    }
+    if (in_array($clean, ['l', 'lt', 'liter', 'litre', 'liters', 'litres'], true)) {
+        return ['dimension' => 'volume', 'factor' => 1000.0];
+    }
+    if (in_array($clean, ['ml', 'milliliter', 'millilitre', 'milliliters', 'millilitres'], true)) {
+        return ['dimension' => 'volume', 'factor' => 1.0];
+    }
+    if (in_array($clean, ['pc', 'pcs', 'piece', 'pieces', 'unit', 'units'], true)) {
+        return ['dimension' => 'count', 'factor' => 1.0];
+    }
+
+    return null;
+}
+
+function packing_quantity_plan_stats(string $quantityPlan): array
+{
+    $stats = [
+        'totals' => ['weight' => 0.0, 'volume' => 0.0, 'count' => 0.0],
+        'size_count' => 0,
+    ];
+    preg_match_all(
+        '/(\d+(?:\.\d+)?)\s*(kg|kgs|g|gram|grams|ml|l|lt|liter|litre|liters|litres|pcs?|pieces?|units?)\s*(?:[x*]\s*)?\(?\s*(\d+)?\s*\)?/i',
+        $quantityPlan,
+        $matches,
+        PREG_SET_ORDER
+    );
+    foreach ($matches as $match) {
+        $meta = packing_unit_meta((string) ($match[2] ?? ''));
+        if (!$meta) {
+            continue;
+        }
+        $amount = (float) ($match[1] ?? 0);
+        $count = max(1, (int) ($match[3] ?? 1));
+        $stats['totals'][$meta['dimension']] += $amount * (float) $meta['factor'] * $count;
+        $stats['size_count']++;
+    }
+
+    return $stats;
+}
+
+function packing_received_stock_base(string $receivedWeight, array $planStats): array
+{
+    preg_match('/(\d+(?:\.\d+)?)/', $receivedWeight, $amountMatch);
+    $amount = isset($amountMatch[1]) ? (float) $amountMatch[1] : 0.0;
+    preg_match('/kg|kgs|g|gram|grams|ml|l|lt|liter|litre|liters|litres|pcs?|pieces?|units?/i', $receivedWeight, $unitMatch);
+    $meta = isset($unitMatch[0]) ? packing_unit_meta((string) $unitMatch[0]) : null;
+    if (!$meta) {
+        if (($planStats['totals']['volume'] ?? 0) > 0 && ($planStats['totals']['weight'] ?? 0) <= 0) {
+            $meta = packing_unit_meta('l');
+        } elseif (($planStats['totals']['weight'] ?? 0) > 0) {
+            $meta = packing_unit_meta('kg');
+        } else {
+            $meta = packing_unit_meta('unit');
+        }
+    }
+
+    return [
+        'dimension' => (string) $meta['dimension'],
+        'base' => $amount * (float) $meta['factor'],
+    ];
+}
+
 function packing_workload_score(string $receivedWeight, string $quantityPlan, string $priority): float
 {
-    preg_match_all('/\((\d+)\)/', $quantityPlan, $matches);
-    $units = array_sum(array_map('intval', $matches[1] ?? []));
-    preg_match('/(\d+(?:\.\d+)?)/', $receivedWeight, $weightMatch);
-    $weight = isset($weightMatch[1]) ? (float) $weightMatch[1] : 0.0;
+    $planStats = packing_quantity_plan_stats($quantityPlan);
+    $received = packing_received_stock_base($receivedWeight, $planStats);
+    $baseAmount = $received['dimension'] === 'count' ? (float) $received['base'] : (float) $received['base'] / 1000;
+    $sizeComplexity = min(2.0, max(0, (int) $planStats['size_count'] - 1) * 0.5);
     $priorityBoost = ['top_critical' => 1.6, 'high' => 1.3, 'medium' => 1.0, 'low' => 0.8][$priority] ?? 1.0;
 
-    return round(max(1, $weight) + ($units * 0.18) * $priorityBoost, 2);
+    return round((max(1.0, $baseAmount) + 1.5 + $sizeComplexity) * $priorityBoost, 2);
 }
 
 function packing_extract_lines_from_text(string $text): array
