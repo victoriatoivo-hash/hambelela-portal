@@ -1475,6 +1475,70 @@ try {
         exit;
     }
 
+    if ($action === 'cleanup_duplicates') {
+        if (!user_has_role('owner_admin', 'supervisor_manager')) {
+            throw new RuntimeException('Only owner/admin or supervisor can clean duplicate packing rows.');
+        }
+        $hasArchivedAt = ops_column_exists('ops_packing_tasks', 'archived_at');
+
+        $duplicateRows = ops_rows(
+            "SELECT id, item_name, received_weight, quantity_planned, monday_item_id, created_at
+             FROM ops_packing_tasks
+             " . ($hasArchivedAt ? 'WHERE archived_at IS NULL' : '') . "
+             ORDER BY item_name ASC, received_weight ASC, quantity_planned ASC,
+                      CASE WHEN monday_item_id IS NOT NULL AND monday_item_id <> '' THEN 0 ELSE 1 END,
+                      id ASC"
+        );
+
+        $seen = [];
+        $archiveIds = [];
+        $kept = [];
+        foreach ($duplicateRows as $row) {
+            $key = strtolower(trim((string) ($row['item_name'] ?? '')))
+                . '|' . strtolower(trim((string) ($row['received_weight'] ?? '')))
+                . '|' . strtolower(trim((string) ($row['quantity_planned'] ?? '')));
+            if ($key === '||') {
+                continue;
+            }
+            if (!isset($seen[$key])) {
+                $seen[$key] = (int) $row['id'];
+                $kept[$key] = [
+                    'id' => (int) $row['id'],
+                    'item_name' => (string) ($row['item_name'] ?? ''),
+                ];
+                continue;
+            }
+            $archiveIds[] = (int) $row['id'];
+        }
+
+        if (!$archiveIds) {
+            echo json_encode([
+                'ok' => true,
+                'message' => 'No duplicate packing rows were found.',
+                'deleted' => 0,
+            ]);
+            exit;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($archiveIds), '?'));
+        foreach ($archiveIds as $id) {
+            ops_activity_log('packing_duplicate_deleted', 'packing_task', $id, [
+                'changed_by' => current_user()['name'] ?? 'Unknown',
+                'reason' => 'Automatic duplicate cleanup kept one matching packing row',
+            ]);
+        }
+        $stmt = db()->prepare("DELETE FROM ops_packing_tasks WHERE id IN ({$placeholders})");
+        $stmt->execute($archiveIds);
+
+        echo json_encode([
+            'ok' => true,
+            'message' => 'Deleted ' . $stmt->rowCount() . ' duplicate packing rows. One original row was kept for each duplicate group.',
+            'deleted' => $stmt->rowCount(),
+            'deleted_ids' => $archiveIds,
+        ]);
+        exit;
+    }
+
     if (in_array($action, ['bulk_archive', 'bulk_delete', 'bulk_duplicate'], true)) {
         $ids = array_values(array_filter(array_map('intval', explode(',', (string) ($_POST['task_ids'] ?? '')))));
         if (!$ids) {
