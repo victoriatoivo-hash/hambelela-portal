@@ -67,6 +67,11 @@ function cw_percent(float $value): string
     return number_format($value, 1) . '%';
 }
 
+function cw_contains(string $haystack, string $needle): bool
+{
+    return $needle === '' || strpos($haystack, $needle) !== false;
+}
+
 function cw_status(float $margin, float $sellingPrice, float $totalCost, float $targetMargin): array
 {
     if ($totalCost <= 0) {
@@ -157,7 +162,7 @@ function cw_suggest_category(string $productName, string $fallback): string
     ];
     foreach ($map as $category => $terms) {
         foreach ($terms as $term) {
-            if (str_contains($name, $term)) {
+            if (cw_contains($name, $term)) {
                 return $category;
             }
         }
@@ -450,10 +455,10 @@ try {
         if ($filters['margin'] !== '' && $row['margin'] > (float) $filters['margin']) {
             continue;
         }
-        if ($filters['product'] !== '' && !str_contains(strtolower($row['product']), strtolower($filters['product']))) {
+        if ($filters['product'] !== '' && !cw_contains(strtolower($row['product']), strtolower($filters['product']))) {
             continue;
         }
-        if ($filters['sku'] !== '' && !str_contains(strtolower($row['sku']), strtolower($filters['sku']))) {
+        if ($filters['sku'] !== '' && !cw_contains(strtolower($row['sku']), strtolower($filters['sku']))) {
             continue;
         }
         if ($filters['product_type'] !== '' && $row['product_type'] !== $filters['product_type']) {
@@ -519,10 +524,10 @@ try {
             if ($filters['margin'] !== '' && $row['margin'] > (float) $filters['margin']) {
                 continue;
             }
-            if ($filters['product'] !== '' && !str_contains(strtolower($row['product']), strtolower($filters['product']))) {
+            if ($filters['product'] !== '' && !cw_contains(strtolower($row['product']), strtolower($filters['product']))) {
                 continue;
             }
-            if ($filters['sku'] !== '' && !str_contains(strtolower($row['sku']), strtolower($filters['sku']))) {
+            if ($filters['sku'] !== '' && !cw_contains(strtolower($row['sku']), strtolower($filters['sku']))) {
                 continue;
             }
             if ($filters['product_type'] !== '' && $row['category'] !== $filters['product_type']) {
@@ -566,19 +571,93 @@ try {
 
 $maxProfit = max(1, ...array_map(fn (array $row): float => abs((float) $row['profit']), $rows ?: [['profit' => 1]]));
 $maxCategoryValue = max(1, ...array_map(fn (array $row): float => (float) $row['value'], $chartRows['category_value'] ?: [['value' => 1]]));
-$workflowSteps = [
-    ['Upload Supplier Invoice', 'Upload the supplier PDF and capture invoice details.', 'upload-invoice.php', $workflowCounts['supplier_invoices'] > 0 ? 'complete' : 'active'],
-    ['Extract Supplier Products', 'AI/OCR extracts products, quantities, units, VAT and totals.', 'upload-invoice.php', $workflowCounts['raw_materials'] > 0 ? 'complete' : ($workflowCounts['supplier_invoices'] > 0 ? 'active' : 'pending')],
-    ['Review Supplier Products', 'Correct extracted rows before saving to the cost database.', 'saved-invoices.php', $workflowCounts['raw_materials'] > 0 ? 'complete' : 'pending'],
-    ['Upload Transport Invoice', 'Capture courier cost, reference, date and shipment weight.', 'upload-transport.php', $workflowCounts['transport_invoices'] > 0 ? 'complete' : 'optional'],
-    ['Allocate Transport', 'Allocate freight to products by weight/value/manual rules.', 'allocate-transport.php', $stats['transport_cost'] > 0 ? 'complete' : ($workflowCounts['transport_invoices'] > 0 ? 'active' : 'pending')],
-    ['Upload/Select Packaging Costs', 'Use bottles, caps, labels, pouches and extras from packaging database.', 'packaging-manager.php', $workflowCounts['packaging'] > 0 ? 'complete' : 'optional'],
-    ['Calculate Landed Cost', 'Combine supplier cost, transport, packaging and other costs.', 'landing-cost-engine.php', $stats['landed_cost'] > 0 ? 'complete' : 'pending'],
-    ['Create Product/SKU Records', 'Group base products and create editable SKU/variation rows.', 'products.php', $workflowCounts['finished_products'] > 0 ? 'complete' : ($stats['landed_cost'] > 0 ? 'active' : 'pending')],
-    ['Pull Website Prices', 'Sync WooCommerce names, SKUs, stock and VAT-inclusive prices.', 'import-sales.php', $workflowCounts['woo_sales'] > 0 ? 'complete' : 'pending'],
-    ['Calculate Margins and Profit', 'Compare landed cost to website price excl. VAT.', 'profit-calculator.php', $stats['estimated_revenue'] > 0 ? 'complete' : ($workflowCounts['woo_sales'] > 0 ? 'active' : 'pending')],
-    ['Populate Final Workbook', 'Review the final cost, VAT, margin, profit and status table.', '#workbook-table', count($rows) > 0 ? 'complete' : 'pending'],
+$accordionSteps = [
+    [
+        'number' => 1,
+        'title' => 'Supplier Invoice',
+        'state' => $workflowCounts['raw_materials'] > 0 ? 'complete' : 'active',
+        'summary' => number_format($workflowCounts['supplier_invoices']) . ' invoices, ' . number_format($workflowCounts['raw_materials']) . ' product rows',
+        'intro' => 'Upload supplier invoices, review extracted product rows, correct quantities, units, unit costs, totals and VAT before saving.',
+        'metrics' => [
+            'Supplier invoices' => number_format($workflowCounts['supplier_invoices']),
+            'Extracted products' => number_format($workflowCounts['raw_materials']),
+            'Supplier cost' => cw_money($stats['supplier_cost']),
+        ],
+        'fields' => ['Supplier', 'Invoice number', 'Invoice date', 'Product name', 'Quantity', 'Unit', 'Unit cost', 'Total cost', 'VAT'],
+        'action' => 'Use the invoice upload and review form here, then save approved rows into the cost database.',
+    ],
+    [
+        'number' => 2,
+        'title' => 'Transport',
+        'state' => $stats['transport_cost'] > 0 ? 'complete' : ($workflowCounts['transport_invoices'] > 0 ? 'active' : 'optional'),
+        'summary' => number_format($workflowCounts['transport_invoices']) . ' invoices, ' . cw_money($stats['transport_cost']) . ' allocated/available',
+        'intro' => 'Capture courier invoices, shipment weight where available, and allocate transport to the supplier invoice/product rows.',
+        'metrics' => [
+            'Transport invoices' => number_format($workflowCounts['transport_invoices']),
+            'Transport cost' => cw_money($stats['transport_cost']),
+            'Allocation method' => 'Invoice value / weight / manual',
+        ],
+        'fields' => ['Transport supplier', 'Invoice number', 'Date', 'Total transport cost', 'Shipment weight', 'Linked supplier invoice'],
+        'action' => 'Allocate transport inside this step so landed cost updates without leaving the workbook.',
+    ],
+    [
+        'number' => 3,
+        'title' => 'Packaging',
+        'state' => $workflowCounts['packaging'] > 0 ? 'complete' : 'optional',
+        'summary' => number_format($workflowCounts['packaging']) . ' packaging rows, ' . cw_money($stats['packaging_cost']),
+        'intro' => 'Track bottles, caps, labels, pouches, boxes, shrink wrap and other packaging used in final product cost.',
+        'metrics' => [
+            'Packaging rows' => number_format($workflowCounts['packaging']),
+            'Packaging cost' => cw_money($stats['packaging_cost']),
+            'Used in products' => 'Pulled into costing rows',
+        ],
+        'fields' => ['Packaging item', 'Category', 'Supplier', 'Quantity bought', 'Unit type', 'Total cost', 'Cost per unit', 'Stock left'],
+        'action' => 'Review or add packaging costs here, then connect them to product variations in the workbook.',
+    ],
+    [
+        'number' => 4,
+        'title' => 'Landed Cost',
+        'state' => $stats['landed_cost'] > 0 ? 'complete' : 'pending',
+        'summary' => cw_money($stats['landed_cost']) . ' landed cost value',
+        'intro' => 'Combine supplier cost, transport, packaging and additional costs, then normalize to grams, ml or units.',
+        'metrics' => [
+            'Landed rows' => number_format($workflowCounts['landed_rows']),
+            'Total landed cost' => cw_money($stats['landed_cost']),
+            'Base units' => 'g, ml, unit',
+        ],
+        'fields' => ['Supplier cost', 'Transport allocation', 'Packaging allocation', 'Additional costs', 'Cost per g/ml/unit'],
+        'action' => 'Review calculations and allocations before the product rows flow into pricing.',
+    ],
+    [
+        'number' => 5,
+        'title' => 'Website Matching',
+        'state' => $workflowCounts['woo_sales'] > 0 ? 'complete' : 'pending',
+        'summary' => number_format(count(array_filter($rows, fn (array $row): bool => $row['website_linked']))) . ' matched, ' . number_format(count(array_filter($rows, fn (array $row): bool => !$row['website_linked']))) . ' unmatched',
+        'intro' => 'Match cost records to WooCommerce products by name, SKU, category and variation so website price and stock can be compared.',
+        'metrics' => [
+            'Woo sales lines' => number_format($workflowCounts['woo_sales']),
+            'Matched rows' => number_format(count(array_filter($rows, fn (array $row): bool => $row['website_linked']))),
+            'Unmatched rows' => number_format(count(array_filter($rows, fn (array $row): bool => !$row['website_linked']))),
+        ],
+        'fields' => ['Product name', 'SKU', 'Variation', 'Website product', 'Current website price', 'Stock quantity'],
+        'action' => 'Search by product name or SKU, confirm the match, then use website prices for margin checks.',
+    ],
+    [
+        'number' => 6,
+        'title' => 'Margins & Profit',
+        'state' => $stats['estimated_revenue'] > 0 ? 'complete' : ($rows ? 'active' : 'pending'),
+        'summary' => cw_money($stats['estimated_profit']) . ' estimated profit, ' . cw_percent($stats['average_margin']) . ' average margin',
+        'intro' => 'Calculate VAT-exclusive revenue, VAT amount, profit per unit, margin, markup and pricing warnings.',
+        'metrics' => [
+            'Estimated revenue' => cw_money($stats['estimated_revenue']),
+            'Estimated profit' => cw_money($stats['estimated_profit']),
+            'Margin warnings' => number_format($stats['below_target']),
+        ],
+        'fields' => ['Cost', 'Selling price incl. VAT', 'Selling price excl. VAT', 'VAT amount', 'Profit', 'Margin %', 'Suggested price'],
+        'action' => 'Use the final profitability table at the bottom as the output of this workflow.',
+    ],
 ];
+$readySteps = count(array_filter($accordionSteps, fn (array $step): bool => $step['state'] === 'complete'));
 $websiteProfitSummary = [
     'stock_value' => $stats['inventory_value'],
     'estimated_revenue' => $stats['estimated_revenue'],
@@ -588,68 +667,6 @@ $websiteProfitSummary = [
     'average_margin' => $stats['average_margin'],
     'low_margin' => $stats['below_target'],
 ];
-$workflowPhases = [
-    [
-        'phase' => 'Phase 1',
-        'title' => 'Invoice Intake',
-        'description' => 'Supplier, transport and packaging invoices enter the system and are reviewed before approval.',
-        'items' => [
-            'Supplier invoices: ' . number_format($workflowCounts['supplier_invoices']),
-            'Transport invoices: ' . number_format($workflowCounts['transport_invoices']),
-            'Packaging rows: ' . number_format($workflowCounts['packaging']),
-        ],
-    ],
-    [
-        'phase' => 'Phase 2',
-        'title' => 'Cost Engine',
-        'description' => 'Supplier cost, transport allocation, packaging and base-unit conversion create true landed cost.',
-        'items' => [
-            'Landed rows: ' . number_format($workflowCounts['landed_rows']),
-            'Landed value: ' . cw_money($stats['landed_cost']),
-            'Base units: g, ml, unit',
-        ],
-    ],
-    [
-        'phase' => 'Phase 3',
-        'title' => 'Product Creation',
-        'description' => 'Products are grouped as parent products with size variations and editable SKU suggestions.',
-        'items' => [
-            'Product records: ' . number_format($workflowCounts['finished_products']),
-            'SKU suggestions visible',
-            'Category suggestions visible',
-        ],
-    ],
-    [
-        'phase' => 'Phase 4',
-        'title' => 'Website Matching',
-        'description' => 'WooCommerce products, prices and stock are matched to cost records by SKU/name or manual link.',
-        'items' => [
-            'Woo sales lines: ' . number_format($workflowCounts['woo_sales']),
-            'Matched rows: ' . number_format(count(array_filter($rows, fn (array $row): bool => $row['website_linked']))),
-            'Unmatched rows: ' . number_format(count(array_filter($rows, fn (array $row): bool => !$row['website_linked']))),
-        ],
-    ],
-    [
-        'phase' => 'Phase 5',
-        'title' => 'Profitability Engine',
-        'description' => 'Selling price incl. VAT is split into VAT, ex-VAT revenue, profit, margin and markup.',
-        'items' => [
-            'Estimated profit: ' . cw_money($stats['estimated_profit']),
-            'Average margin: ' . cw_percent($stats['average_margin']),
-            'Below target: ' . number_format($stats['below_target']),
-        ],
-    ],
-    [
-        'phase' => 'Phase 6',
-        'title' => 'Dashboard Reporting',
-        'description' => 'Management sees inventory value, margin warnings, category profit and products needing price changes.',
-        'items' => [
-            'Rows in workbook: ' . number_format(count($rows)),
-            'Charts: profit, margin, inventory',
-            'Filters: supplier, SKU, category',
-        ],
-    ],
-];
 
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
@@ -658,15 +675,12 @@ include BASE_PATH . '/shared/sidebar.php';
     <section class="module-header cost-system-header">
         <div>
             <p class="eyebrow">Cost Workbook / Landing Cost Engine</p>
-            <h1>Product Costing & Profitability</h1>
-            <p>The working cost table for supplier cost, transport allocation, packaging, landed cost, cost per unit, VAT, margin, profit and pricing warnings.</p>
+            <h1>Cost Workbook</h1>
+            <p>One guided costing workflow from supplier invoice to landed cost, website matching, VAT, margin and final profitability.</p>
         </div>
         <div class="actions">
-            <a class="button" href="workbook.php"><i data-lucide="arrow-left"></i> Cost Workbook app</a>
-            <a class="button" href="upload-invoice.php"><i data-lucide="file-up"></i> Supplier invoice</a>
-            <a class="button" href="transport.php"><i data-lucide="truck"></i> Transport</a>
-            <a class="button" href="packaging-manager.php"><i data-lucide="package-check"></i> Packaging</a>
-            <a class="button primary" href="allocate-transport.php"><i data-lucide="git-branch"></i> Allocate costs</a>
+            <span class="status"><?= number_format($readySteps) ?> of <?= number_format(count($accordionSteps)) ?> workflow steps ready</span>
+            <span class="status">Single-page workflow</span>
         </div>
     </section>
 
@@ -677,49 +691,6 @@ include BASE_PATH . '/shared/sidebar.php';
             <small><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></small>
         </section>
     <?php endif; ?>
-
-    <nav class="cost-section-tabs" aria-label="Cost Workbook sections">
-        <a href="system-dashboard.php"><i data-lucide="layout-dashboard"></i> Dashboard</a>
-        <a href="upload-invoice.php"><i data-lucide="file-scan"></i> Supplier Invoice Manager</a>
-        <a href="transport.php"><i data-lucide="truck"></i> Transport Invoice Manager</a>
-        <a href="packaging-manager.php"><i data-lucide="package-check"></i> Packaging Cost Database</a>
-        <a class="active" href="landing-cost-engine.php"><i data-lucide="table-2"></i> Cost Workbook / Landing Cost Engine</a>
-        <a href="profit-calculator.php"><i data-lucide="calculator"></i> Profit Calculator</a>
-    </nav>
-
-    <section class="cost-phase-grid" aria-label="Connected cost workflow phases">
-        <?php foreach ($workflowPhases as $phase): ?>
-            <article class="cost-phase-card">
-                <span><?= htmlspecialchars($phase['phase'], ENT_QUOTES, 'UTF-8') ?></span>
-                <h2><?= htmlspecialchars($phase['title'], ENT_QUOTES, 'UTF-8') ?></h2>
-                <p><?= htmlspecialchars($phase['description'], ENT_QUOTES, 'UTF-8') ?></p>
-                <ul>
-                    <?php foreach ($phase['items'] as $item): ?>
-                        <li><?= htmlspecialchars($item, ENT_QUOTES, 'UTF-8') ?></li>
-                    <?php endforeach; ?>
-                </ul>
-            </article>
-        <?php endforeach; ?>
-    </section>
-
-    <section class="panel cost-workflow-panel">
-        <div class="section-row">
-            <div>
-                <h2>Guided costing workflow</h2>
-                <p>Follow one connected path from supplier invoice to landed cost, website price, VAT, margin and final profitability.</p>
-            </div>
-            <span class="status"><?= number_format(count(array_filter($workflowSteps, fn (array $step): bool => $step[3] === 'complete'))) ?> of <?= number_format(count($workflowSteps)) ?> ready</span>
-        </div>
-        <div class="cost-workflow-rail">
-            <?php foreach ($workflowSteps as $index => [$title, $description, $href, $state]): ?>
-                <a class="cost-workflow-step is-<?= htmlspecialchars($state, ENT_QUOTES, 'UTF-8') ?>" href="<?= htmlspecialchars($href, ENT_QUOTES, 'UTF-8') ?>">
-                    <span><?= number_format($index + 1) ?></span>
-                    <strong><?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?></strong>
-                    <small><?= htmlspecialchars($description, ENT_QUOTES, 'UTF-8') ?></small>
-                </a>
-            <?php endforeach; ?>
-        </div>
-    </section>
 
     <section class="panel workbook-state workbook-loading-state" hidden>Loading cost workbook...</section>
 
@@ -769,6 +740,45 @@ include BASE_PATH . '/shared/sidebar.php';
                 <div><span class="metric-title"><?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?></span><strong><?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?></strong><small><?= htmlspecialchars($desc, ENT_QUOTES, 'UTF-8') ?></small></div>
             </article>
         <?php endforeach; ?>
+    </section>
+
+    <section class="panel cost-workflow-panel cost-accordion-panel">
+        <div class="section-row">
+            <div>
+                <h2>Guided costing workflow</h2>
+                <p>Open each step inside this page. Nothing in this workflow opens a separate Cost Workbook screen.</p>
+            </div>
+            <span class="status"><?= number_format($readySteps) ?> of <?= number_format(count($accordionSteps)) ?> ready</span>
+        </div>
+        <div class="cost-accordion">
+            <?php foreach ($accordionSteps as $index => $step): ?>
+                <details class="cost-accordion-step is-<?= htmlspecialchars((string) $step['state'], ENT_QUOTES, 'UTF-8') ?>" <?= $index === 0 ? 'open' : '' ?>>
+                    <summary>
+                        <span><?= number_format((int) $step['number']) ?></span>
+                        <strong><?= htmlspecialchars((string) $step['title'], ENT_QUOTES, 'UTF-8') ?></strong>
+                        <small><?= htmlspecialchars((string) $step['summary'], ENT_QUOTES, 'UTF-8') ?></small>
+                        <em><?= htmlspecialchars(ucwords(str_replace('_', ' ', (string) $step['state'])), ENT_QUOTES, 'UTF-8') ?></em>
+                    </summary>
+                    <div class="cost-accordion-body">
+                        <p><?= htmlspecialchars((string) $step['intro'], ENT_QUOTES, 'UTF-8') ?></p>
+                        <div class="cost-accordion-metrics">
+                            <?php foreach ($step['metrics'] as $label => $value): ?>
+                                <div><span><?= htmlspecialchars((string) $label, ENT_QUOTES, 'UTF-8') ?></span><strong><?= htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') ?></strong></div>
+                            <?php endforeach; ?>
+                        </div>
+                        <div class="cost-accordion-fields">
+                            <?php foreach ($step['fields'] as $field): ?>
+                                <span><?= htmlspecialchars((string) $field, ENT_QUOTES, 'UTF-8') ?></span>
+                            <?php endforeach; ?>
+                        </div>
+                        <div class="cost-inline-save">
+                            <span><?= htmlspecialchars((string) $step['action'], ENT_QUOTES, 'UTF-8') ?></span>
+                            <button class="button" type="button" data-cost-save-progress="<?= htmlspecialchars((string) $step['title'], ENT_QUOTES, 'UTF-8') ?>"><i data-lucide="save"></i> Save progress</button>
+                        </div>
+                    </div>
+                </details>
+            <?php endforeach; ?>
+        </div>
     </section>
 
     <section class="panel workbook-table-panel" id="workbook-table">
@@ -866,4 +876,22 @@ include BASE_PATH . '/shared/sidebar.php';
         </article>
     </section>
 </main>
+<script>
+document.addEventListener('click', function (event) {
+  var button = event.target.closest('[data-cost-save-progress]');
+  if (!button) return;
+  var step = button.getAttribute('data-cost-save-progress') || 'Cost Workbook';
+  try {
+    localStorage.setItem('hambelelaCostWorkbookProgress', JSON.stringify({ step: step, savedAt: new Date().toISOString() }));
+  } catch (error) {}
+  button.classList.add('is-saved');
+  button.innerHTML = '<i data-lucide="check"></i> Progress saved';
+  if (window.lucide) window.lucide.createIcons();
+  window.setTimeout(function () {
+    button.classList.remove('is-saved');
+    button.innerHTML = '<i data-lucide="save"></i> Save progress';
+    if (window.lucide) window.lucide.createIcons();
+  }, 1800);
+});
+</script>
 <?php include BASE_PATH . '/shared/footer.php'; ?>

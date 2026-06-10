@@ -41,7 +41,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!array_key_exists($status, $statuses)) {
                 $status = 'awaiting_response';
             }
-            $complaint = isset($_POST['complaint_flag']) || str_contains(strtolower($flagReason), 'complaint') ? 1 : 0;
+            $complaint = isset($_POST['complaint_flag']) || strpos(strtolower($flagReason), 'complaint') !== false ? 1 : 0;
             $values = [
                 $platform,
                 ops_post_string('customer_name', 190) ?: 'WhatsApp Customer',

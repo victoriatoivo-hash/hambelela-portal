@@ -100,7 +100,7 @@ function wa_detect_flag(string $text): ?string
     ];
     $haystack = strtolower($text);
     foreach ($patterns as $pattern) {
-        if (str_contains($haystack, $pattern)) {
+        if (strpos($haystack, $pattern) !== false) {
             return 'Flagged phrase: ' . $pattern;
         }
     }
@@ -690,7 +690,7 @@ function wa_test_cloud_api(): array
     $body = @file_get_contents($url, false, $context);
     $headers = $http_response_header ?? [];
     $statusLine = $headers[0] ?? '';
-    $ok = str_contains($statusLine, '200');
+    $ok = strpos($statusLine, '200') !== false;
 
     wa_save_setting('last_connection_test_at', date('Y-m-d H:i:s'));
     wa_save_setting('last_connection_test_status', $ok ? 'Connected' : 'Failed');

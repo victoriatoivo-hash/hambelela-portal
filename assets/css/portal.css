@@ -7026,6 +7026,161 @@ textarea {
   margin-bottom: 22px;
 }
 
+.cost-accordion-panel {
+  margin-bottom: 22px;
+}
+
+.cost-accordion {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.cost-accordion-step {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 10px 24px rgba(31, 26, 24, 0.045);
+  overflow: hidden;
+}
+
+.cost-accordion-step summary {
+  display: grid;
+  grid-template-columns: auto minmax(180px, 1fr) minmax(180px, 1.2fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 16px;
+  cursor: pointer;
+}
+
+.cost-accordion-step summary::-webkit-details-marker {
+  display: none;
+}
+
+.cost-accordion-step summary > span {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: rgba(104, 216, 214, 0.16);
+  color: #087d7a;
+  font-weight: 900;
+}
+
+.cost-accordion-step summary strong {
+  font-size: 16px;
+}
+
+.cost-accordion-step summary small {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.cost-accordion-step summary em {
+  justify-self: end;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: rgba(108, 117, 125, 0.11);
+  color: #4b5563;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.cost-accordion-step.is-complete summary em {
+  background: rgba(0, 163, 108, 0.12);
+  color: #08744f;
+}
+
+.cost-accordion-step.is-active summary em {
+  background: rgba(104, 216, 214, 0.18);
+  color: #087d7a;
+}
+
+.cost-accordion-step.is-optional summary em {
+  background: rgba(245, 158, 11, 0.14);
+  color: #9a5f00;
+}
+
+.cost-accordion-body {
+  display: grid;
+  gap: 14px;
+  padding: 0 16px 16px 62px;
+}
+
+.cost-accordion-body p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.cost-accordion-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.cost-accordion-metrics div {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 247, 238, 0.62);
+}
+
+.cost-accordion-metrics span,
+.cost-accordion-metrics strong {
+  display: block;
+}
+
+.cost-accordion-metrics span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.cost-accordion-metrics strong {
+  margin-top: 5px;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.cost-accordion-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cost-accordion-fields span {
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: rgba(104, 216, 214, 0.12);
+  color: #087d7a;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.cost-inline-save {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.cost-inline-save > span {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
+.cost-inline-save .button.is-saved {
+  background: #08744f;
+  border-color: #08744f;
+  color: #fff;
+}
+
 .cost-phase-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));

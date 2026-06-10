@@ -613,7 +613,7 @@ function packing_sync_status_value(string $status): string
                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'ops_packing_tasks' AND COLUMN_NAME = 'monday_sync_status'
                  LIMIT 1"
             );
-            $allowsDuplicate = str_contains((string) ($rows[0]['COLUMN_TYPE'] ?? ''), 'duplicate_detected');
+            $allowsDuplicate = strpos((string) ($rows[0]['COLUMN_TYPE'] ?? ''), 'duplicate_detected') !== false;
         } catch (Throwable $e) {
             $allowsDuplicate = false;
         }
