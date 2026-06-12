@@ -156,6 +156,28 @@ function ops_activity_log(string $action, string $entityType, int $entityId, arr
     }
 }
 
+function ops_log_order_stage_event(int $orderId, string $stageKey, array $metadata = [], ?int $employeeId = null): void
+{
+    if ($orderId <= 0 || $stageKey === '' || !ops_table_exists('ops_order_stage_events')) {
+        return;
+    }
+
+    try {
+        $stmt = db()->prepare(
+            "INSERT INTO ops_order_stage_events (order_id, stage_key, employee_id, metadata)
+             VALUES (?, ?, ?, ?)"
+        );
+        $stmt->execute([
+            $orderId,
+            $stageKey,
+            $employeeId ?? ops_current_employee_id(),
+            $metadata ? json_encode($metadata, JSON_UNESCAPED_SLASHES) : null,
+        ]);
+    } catch (Throwable $e) {
+        // Stage tracking should support KPI reporting without blocking order work.
+    }
+}
+
 function ops_is_valid_revenue_status(string $status, string $paymentStatus = ''): bool
 {
     $status = strtolower($status);
@@ -327,6 +349,10 @@ function ops_assign_unassigned_orders(): int
         $stmt->execute([$packerId, (int) $order['id']]);
         if ($stmt->rowCount() > 0) {
             $assigned++;
+            ops_log_order_stage_event((int) $order['id'], 'assigned', [
+                'assigned_packer_id' => $packerId,
+                'source' => 'auto_assignment',
+            ]);
             notifications_notify_order_assigned((int) $order['id'], $packerId);
         }
     }

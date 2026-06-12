@@ -204,6 +204,16 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute($values);
 
         $orderId = (int) db()->lastInsertId();
+        ops_log_order_stage_event($orderId, 'order_received', [
+            'source' => 'manual_order',
+            'status' => $status,
+        ]);
+        if ($packerId) {
+            ops_log_order_stage_event($orderId, 'assigned', [
+                'source' => 'manual_order',
+                'assigned_packer_id' => $packerId,
+            ]);
+        }
         $itemName = ops_post_string('item_name', 190);
         if ($itemName !== '') {
             $itemStmt = db()->prepare("INSERT INTO ops_order_items (order_id, product_name, barcode, quantity) VALUES (?, ?, ?, ?)");

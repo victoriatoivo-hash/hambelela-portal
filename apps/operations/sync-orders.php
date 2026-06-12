@@ -270,6 +270,14 @@ if ($ready && $hasWooColumns && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $orderId = (int) $orderIdStmt->fetchColumn();
             $orderIdStmt->closeCursor();
 
+            if ($affected === 1) {
+                ops_log_order_stage_event($orderId, 'order_received', [
+                    'source' => 'woocommerce_sync',
+                    'woo_order_id' => $wooOrderId,
+                    'order_number' => $orderNumber,
+                ]);
+            }
+
             foreach ($items as $line) {
                 $sku = (string) ($line['sku'] ?? '');
                 $itemStmt->execute([

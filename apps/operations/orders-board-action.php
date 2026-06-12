@@ -326,6 +326,14 @@ function ops_board_sync_website_orders(?string $date = null): array
             $orderId = (int) $orderIdStmt->fetchColumn();
             $orderIdStmt->closeCursor();
 
+            if ($affected === 1) {
+                ops_log_order_stage_event($orderId, 'order_received', [
+                    'source' => 'orders_board_woocommerce_sync',
+                    'woo_order_id' => $wooOrderId,
+                    'order_number' => $orderNumber,
+                ]);
+            }
+
             foreach ($items as $line) {
                 $sku = (string) ($line['sku'] ?? '');
                 $itemStmt->execute([
@@ -504,6 +512,10 @@ try {
 
         $stmt = db()->prepare('UPDATE ops_orders SET ' . $set . ' WHERE id = ?');
         $stmt->execute([$status, $orderId]);
+        ops_log_order_stage_event($orderId, $status, [
+            'source' => 'orders_board_status',
+            'status' => $status,
+        ]);
         if ($status === 'completed') {
             $order = notifications_order_summary($orderId);
             notifications_create_for_roles([
@@ -572,6 +584,12 @@ try {
             } else {
                 $stmt->execute([$packerId, $orderId]);
             }
+            if ($packerId) {
+                ops_log_order_stage_event($orderId, 'assigned', [
+                    'source' => 'orders_board_field',
+                    'assigned_packer_id' => $packerId,
+                ]);
+            }
             notifications_notify_order_assigned($orderId, $packerId);
         } elseif ($field === 'status') {
             $set = 'status = ?, updated_at = CURRENT_TIMESTAMP';
@@ -586,6 +604,10 @@ try {
             }
             $stmt = db()->prepare('UPDATE ops_orders SET ' . $set . ' WHERE id = ?');
             $stmt->execute([$value, $orderId]);
+            ops_log_order_stage_event($orderId, $value, [
+                'source' => 'orders_board_field',
+                'status' => $value,
+            ]);
             if ($value === 'completed') {
                 $order = notifications_order_summary($orderId);
                 notifications_create_for_roles([
@@ -669,6 +691,17 @@ try {
         $changed = $stmt->rowCount();
 
         foreach ($ids as $id) {
+            if ($field === 'status') {
+                ops_log_order_stage_event($id, (string) $value, [
+                    'source' => 'orders_board_bulk',
+                    'status' => $value,
+                ]);
+            } elseif ($field === 'assigned_packer_id' && $value) {
+                ops_log_order_stage_event($id, 'assigned', [
+                    'source' => 'orders_board_bulk',
+                    'assigned_packer_id' => $value,
+                ]);
+            }
             ops_activity_log('bulk_' . $field . '_updated', 'order', $id, [
                 'field' => $field,
                 'value' => $value,
