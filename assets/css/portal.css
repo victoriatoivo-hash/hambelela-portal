@@ -7559,20 +7559,30 @@ textarea {
   margin-bottom: 22px;
 }
 
+.cost-workbook-stepper {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+}
+
 .cost-step-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: 12px;
+  display: flex;
+  gap: 10px;
   margin-top: 16px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  overscroll-behavior-x: contain;
 }
 
 .cost-step-card {
+  position: relative;
   display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 5px 11px;
-  align-items: start;
-  min-height: 132px;
-  padding: 15px;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 9px;
+  align-items: center;
+  flex: 0 0 220px;
+  min-height: 86px;
+  padding: 12px;
   border: 1px solid var(--line);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.88);
@@ -7595,8 +7605,8 @@ textarea {
   display: grid;
   place-items: center;
   grid-row: span 2;
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   border-radius: 999px;
   background: rgba(104, 216, 214, 0.16);
   color: #087d7a;
@@ -7604,25 +7614,43 @@ textarea {
 }
 
 .cost-step-card strong {
-  font-size: 15px;
+  font-size: 13px;
   line-height: 1.25;
 }
 
 .cost-step-card small {
-  grid-column: 2 / -1;
+  grid-column: 1 / -1;
   color: var(--muted);
+  font-size: 11px;
   line-height: 1.35;
 }
 
 .cost-step-card em {
-  justify-self: end;
-  padding: 6px 9px;
+  justify-self: start;
+  padding: 4px 7px;
   border-radius: 999px;
   background: rgba(108, 117, 125, 0.11);
   color: #4b5563;
   font-size: 11px;
   font-style: normal;
   font-weight: 900;
+}
+
+.cost-step-card[disabled] {
+  cursor: not-allowed;
+  filter: grayscale(0.15);
+  opacity: 0.48;
+}
+
+.cost-step-card.is-current {
+  border-color: #0073ea;
+  box-shadow: 0 0 0 3px rgba(0, 115, 234, 0.12), 0 16px 34px rgba(31, 26, 24, 0.08);
+}
+
+.cost-step-card.is-user-complete > span,
+.cost-step-card.is-user-complete em {
+  background: rgba(0, 200, 117, 0.15);
+  color: #08744f;
 }
 
 .cost-step-card.is-complete {
@@ -7683,6 +7711,27 @@ textarea {
 
 .cost-drawer-open {
   overflow: hidden;
+}
+
+.cost-workflow-content {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  width: 100%;
+  min-height: 0;
+  margin-bottom: 22px;
+  overflow: visible;
+  background: rgba(255, 255, 255, 0.9);
+  transform: none;
+  transition: none;
+}
+
+.cost-step-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .cost-drawer-header {

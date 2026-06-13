@@ -637,7 +637,7 @@ $accordionSteps = [
     ],
     [
         'key' => 'website',
-        'number' => 5,
+        'number' => 6,
         'title' => 'Website Matching',
         'state' => $workflowCounts['woo_sales'] > 0 ? 'complete' : 'pending',
         'summary' => number_format(count(array_filter($rows, fn (array $row): bool => $row['website_linked']))) . ' matched, ' . number_format(count(array_filter($rows, fn (array $row): bool => !$row['website_linked']))) . ' unmatched',
@@ -651,8 +651,23 @@ $accordionSteps = [
         'action' => 'Search by product name or SKU, confirm the match, then use website prices for margin checks.',
     ],
     [
+        'key' => 'product_sku',
+        'number' => 5,
+        'title' => 'Product & SKU',
+        'state' => $rows ? 'active' : 'pending',
+        'summary' => number_format(count(array_filter($rows, fn (array $row): bool => trim((string) $row['sku']) !== ''))) . ' SKU suggestions',
+        'intro' => 'Create parent products, variations, categories and SKU suggestions before website matching.',
+        'metrics' => [
+            'Product rows' => number_format(count($rows)),
+            'Categories' => number_format(count($categories)),
+            'Rows with SKU' => number_format(count(array_filter($rows, fn (array $row): bool => trim((string) $row['sku']) !== ''))),
+        ],
+        'fields' => ['Parent product', 'Variation', 'Category', 'SKU suggestion', 'Product type'],
+        'action' => 'Review parent products and SKU suggestions before matching to WooCommerce.',
+    ],
+    [
         'key' => 'profitability',
-        'number' => 6,
+        'number' => 7,
         'title' => 'Margins & Profit',
         'state' => $stats['estimated_revenue'] > 0 ? 'complete' : ($rows ? 'active' : 'pending'),
         'summary' => cw_money($stats['estimated_profit']) . ' estimated profit, ' . cw_percent($stats['average_margin']) . ' average margin',
@@ -665,7 +680,23 @@ $accordionSteps = [
         'fields' => ['Cost', 'Selling price incl. VAT', 'Selling price excl. VAT', 'VAT amount', 'Profit', 'Margin %', 'Suggested price'],
         'action' => 'Use the final profitability table at the bottom as the output of this workflow.',
     ],
+    [
+        'key' => 'final',
+        'number' => 8,
+        'title' => 'Final Workbook',
+        'state' => $rows ? 'active' : 'pending',
+        'summary' => number_format(count($rows)) . ' product profitability rows',
+        'intro' => 'Final review table with landed cost, VAT, selling price, profit and margin warnings.',
+        'metrics' => [
+            'Final rows' => number_format(count($rows)),
+            'Estimated profit' => cw_money($stats['estimated_profit']),
+            'Warnings' => number_format($stats['below_target']),
+        ],
+        'fields' => ['Parent product', 'Variation', 'SKU', 'Landed cost', 'Website price', 'VAT', 'Profit', 'Margin', 'Status'],
+        'action' => 'Use the Product Profitability Table below as the final workbook output.',
+    ],
 ];
+usort($accordionSteps, fn (array $a, array $b): int => (int) $a['number'] <=> (int) $b['number']);
 $readySteps = count(array_filter($accordionSteps, fn (array $step): bool => $step['state'] === 'complete'));
 $websiteProfitSummary = [
     'stock_value' => $stats['inventory_value'],
@@ -770,11 +801,11 @@ include BASE_PATH . '/shared/sidebar.php';
         <?php endforeach; ?>
     </section>
 
-    <section class="panel cost-workflow-panel">
+    <section class="panel cost-workflow-panel cost-workbook-stepper" data-cost-workbook-stepper>
         <div class="section-row">
             <div>
-                <h2>Guided costing workflow</h2>
-                <p>Open each step inside this page. Nothing in this workflow opens a separate Cost Workbook screen.</p>
+                <h2>Cost Workbook Workflow</h2>
+                <p>Move step by step from invoice upload to final profitability without leaving this page.</p>
             </div>
             <span class="status"><?= number_format($readySteps) ?> of <?= number_format(count($accordionSteps)) ?> ready</span>
         </div>
@@ -790,21 +821,23 @@ include BASE_PATH . '/shared/sidebar.php';
                     <span><?= number_format((int) $step['number']) ?></span>
                     <strong><?= htmlspecialchars((string) $step['title'], ENT_QUOTES, 'UTF-8') ?></strong>
                     <small><?= htmlspecialchars((string) $step['summary'], ENT_QUOTES, 'UTF-8') ?></small>
-                    <em><?= htmlspecialchars(ucwords(str_replace('_', ' ', (string) $step['state'])), ENT_QUOTES, 'UTF-8') ?></em>
+                    <em><?= $step['state'] === 'complete' ? '<i data-lucide="check"></i> ' : '' ?><?= htmlspecialchars(ucwords(str_replace('_', ' ', (string) $step['state'])), ENT_QUOTES, 'UTF-8') ?></em>
                 </button>
             <?php endforeach; ?>
         </div>
     </section>
 
-    <div class="cost-drawer-backdrop" data-cost-drawer-backdrop hidden></div>
-    <aside class="cost-workflow-drawer" data-cost-drawer aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="cost-drawer-title">
+    <section class="panel cost-workflow-content is-open" data-cost-drawer aria-hidden="false" aria-labelledby="cost-drawer-title">
         <header class="cost-drawer-header">
             <div>
                 <p class="eyebrow">Guided Costing Workflow</p>
                 <h2 id="cost-drawer-title">Cost Workbook Step</h2>
                 <p id="cost-drawer-summary"></p>
             </div>
-            <button class="panel-close-button" type="button" data-cost-drawer-close aria-label="Close workflow panel"><i data-lucide="x"></i></button>
+            <div class="cost-step-nav">
+                <button class="button" type="button" data-cost-step-back><i data-lucide="arrow-left"></i> Back</button>
+                <button class="button primary" type="button" data-cost-step-next>Save & Next <i data-lucide="arrow-right"></i></button>
+            </div>
         </header>
         <div class="cost-drawer-body">
             <section class="cost-panel-content" data-cost-panel-content="supplier" hidden>
@@ -942,6 +975,39 @@ include BASE_PATH . '/shared/sidebar.php';
                 </div>
             </section>
 
+            <section class="cost-panel-content" data-cost-panel-content="product_sku" hidden>
+                <div class="cost-panel-grid">
+                    <article class="cost-panel-card">
+                        <h3>Product and SKU setup</h3>
+                        <p>Create the product structure before matching to the website: parent product, variation, category and SKU suggestion.</p>
+                        <div class="cost-panel-metrics">
+                            <div><span>Product rows</span><strong><?= number_format(count($rows)) ?></strong></div>
+                            <div><span>Categories</span><strong><?= number_format(count($categories)) ?></strong></div>
+                            <div><span>SKU suggestions</span><strong><?= number_format(count(array_filter($rows, fn (array $row): bool => trim((string) $row['sku']) !== ''))) ?></strong></div>
+                        </div>
+                    </article>
+                    <article class="cost-panel-card">
+                        <h3>SKU suggestion pattern</h3>
+                        <label>Parent product<input value="<?= htmlspecialchars((string) ($rows[0]['parent_product'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" placeholder="e.g. Shea Butter"></label>
+                        <label>Variation<input value="<?= htmlspecialchars((string) ($rows[0]['variation'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" placeholder="e.g. 250g"></label>
+                        <label>Category<input value="<?= htmlspecialchars((string) ($rows[0]['category'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" placeholder="e.g. Butters"></label>
+                        <button class="button primary" type="button" data-cost-progress-action><i data-lucide="badge-plus"></i> Save product setup</button>
+                        <p class="cost-panel-feedback" hidden>Product and SKU setup saved for this workbook session.</p>
+                    </article>
+                </div>
+                <div class="table-scroll cost-panel-table">
+                    <table class="data-table">
+                        <thead><tr><th>Parent Product</th><th>Variation</th><th>SKU</th><th>Category</th><th>Product Type</th></tr></thead>
+                        <tbody>
+                        <?php foreach (array_slice($rows ?: $panelRows, 0, 12) as $row): ?>
+                            <tr><td><?= htmlspecialchars($row['parent_product'], ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars($row['variation'], ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars($row['sku'] ?: 'Needs SKU', ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars($row['category'], ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars($row['product_type'], ENT_QUOTES, 'UTF-8') ?></td></tr>
+                        <?php endforeach; ?>
+                        <?php if (!$rows && !$panelRows): ?><tr><td colspan="5" class="empty-state-cell">No product rows yet. Complete landed cost setup to create product and SKU suggestions.</td></tr><?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
             <section class="cost-panel-content" data-cost-panel-content="website" hidden>
                 <div class="cost-panel-grid">
                     <article class="cost-panel-card">
@@ -1003,9 +1069,46 @@ include BASE_PATH . '/shared/sidebar.php';
                     </table>
                 </div>
             </section>
+            <section class="cost-panel-content" data-cost-panel-content="final" hidden>
+                <div class="cost-panel-grid">
+                    <article class="cost-panel-card">
+                        <h3>Final workbook output</h3>
+                        <p>The Product Profitability Table below is the final result of this same-page workflow.</p>
+                        <div class="cost-panel-metrics">
+                            <div><span>Rows</span><strong><?= number_format(count($rows)) ?></strong></div>
+                            <div><span>Profit</span><strong><?= cw_money($stats['estimated_profit']) ?></strong></div>
+                            <div><span>Average margin</span><strong><?= cw_percent($stats['average_margin']) ?></strong></div>
+                            <div><span>Warnings</span><strong><?= number_format($stats['below_target']) ?></strong></div>
+                        </div>
+                    </article>
+                    <article class="cost-panel-card">
+                        <h3>Review checklist</h3>
+                        <div class="cost-warning-list">
+                            <span>Supplier invoice reviewed</span>
+                            <span>Transport allocated</span>
+                            <span>Packaging selected</span>
+                            <span>Landed cost calculated</span>
+                            <span>Website prices matched</span>
+                            <span>Profitability checked</span>
+                        </div>
+                        <a class="button primary" href="#workbook-table"><i data-lucide="table"></i> View final table</a>
+                    </article>
+                </div>
+                <div class="table-scroll cost-panel-table">
+                    <table class="data-table">
+                        <thead><tr><th>Parent Product</th><th>Variation</th><th>SKU</th><th>Landed Cost</th><th>Website Price</th><th>Profit</th><th>Margin</th><th>Status</th></tr></thead>
+                        <tbody>
+                        <?php foreach (array_slice($rows, 0, 12) as $row): ?>
+                            <tr><td><?= htmlspecialchars($row['parent_product'], ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars($row['variation'], ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars($row['sku'] ?: '-', ENT_QUOTES, 'UTF-8') ?></td><td><?= cw_money($row['landed_cost']) ?></td><td><?= cw_money($row['selling_price_incl_vat']) ?></td><td><?= cw_money($row['profit']) ?></td><td><?= cw_percent($row['margin']) ?></td><td><span class="cost-status cost-status-<?= htmlspecialchars($row['status_key'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($row['status_label'], ENT_QUOTES, 'UTF-8') ?></span></td></tr>
+                        <?php endforeach; ?>
+                        <?php if (!$rows): ?><tr><td colspan="8" class="empty-state-cell">No final workbook rows yet. Complete the previous steps to populate this output.</td></tr><?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
             <iframe class="cost-workflow-frame" name="cost-workflow-preview-frame" title="Cost workflow preview" data-cost-preview-frame hidden></iframe>
         </div>
-    </aside>
+    </section>
 
     <section class="panel workbook-table-panel" id="workbook-table">
         <div class="section-row">
@@ -1016,7 +1119,7 @@ include BASE_PATH . '/shared/sidebar.php';
             <table class="data-table workbook-table profit-workbook-table">
                 <thead>
                     <tr>
-                        <th>Parent Product</th><th>Variation</th><th>SKU</th><th>Category</th><th>Website Match</th><th>Supplier</th><th>Supplier Cost</th><th>Transport</th><th>Packaging</th><th>Landed Cost</th><th>Base Unit Cost</th><th>Total Unit Cost</th><th>Selling Price</th><th>VAT</th><th>Profit</th><th>Margin %</th><th>Status</th>
+                        <th>Parent Product</th><th>Variation</th><th>SKU</th><th>Category</th><th>Supplier Cost</th><th>Transport</th><th>Packaging</th><th>Landed Cost</th><th>Unit Cost</th><th>Website Price Incl VAT</th><th>Price Excl VAT</th><th>VAT</th><th>Profit</th><th>Margin %</th><th>Status</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1053,22 +1156,20 @@ include BASE_PATH . '/shared/sidebar.php';
                         <td><?= htmlspecialchars($row['variation'], ENT_QUOTES, 'UTF-8') ?></td>
                         <td><?= htmlspecialchars($row['sku'] ?: '-', ENT_QUOTES, 'UTF-8') ?></td>
                         <td><?= htmlspecialchars($row['category'], ENT_QUOTES, 'UTF-8') ?></td>
-                        <td><span class="cost-match-badge <?= $row['website_linked'] ? 'is-matched' : 'is-unmatched' ?>"><?= htmlspecialchars($row['website_match_label'], ENT_QUOTES, 'UTF-8') ?></span></td>
-                        <td><?= htmlspecialchars($row['supplier'], ENT_QUOTES, 'UTF-8') ?></td>
                         <td><?= cw_money($row['supplier_cost']) ?></td>
                         <td><?= cw_money($row['transport_cost']) ?></td>
                         <td><?= cw_money($row['packaging_cost']) ?></td>
                         <td><?= cw_money($row['landed_cost']) ?></td>
-                        <td><?= cw_money((float) $row['cost_per_base']) ?><br><small>per <?= htmlspecialchars((string) $row['base_unit'], ENT_QUOTES, 'UTF-8') ?></small></td>
                         <td><?= cw_money($row['total_cost']) ?></td>
-                        <td><strong><?= cw_money($row['selling_price_incl_vat']) ?></strong><br><small><?= cw_money($row['selling_price_ex_vat']) ?> excl. VAT</small></td>
+                        <td><strong><?= cw_money($row['selling_price_incl_vat']) ?></strong></td>
+                        <td><?= cw_money($row['selling_price_ex_vat']) ?></td>
                         <td><?= cw_money($row['vat']) ?></td>
                         <td><?= cw_money($row['profit']) ?></td>
                         <td><?= cw_percent($row['margin']) ?></td>
                         <td><span class="cost-status cost-status-<?= htmlspecialchars($row['status_key'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($row['status_label'], ENT_QUOTES, 'UTF-8') ?></span></td>
                     </tr>
                 <?php endforeach; ?>
-                <?php if (!$rows): ?><tr><td colspan="17" class="empty-state-cell">No product profitability data yet. Complete Supplier Invoice, Transport, Packaging and Website Matching steps to populate this table.</td></tr><?php endif; ?>
+                <?php if (!$rows): ?><tr><td colspan="15" class="empty-state-cell">No product profitability data yet. Complete Supplier Invoice, Transport, Packaging and Website Matching steps to populate this table.</td></tr><?php endif; ?>
                 </tbody>
             </table>
         </div>
@@ -1102,50 +1203,84 @@ include BASE_PATH . '/shared/sidebar.php';
     </section>
 </main>
 <script>
-document.addEventListener('click', function (event) {
-  var drawer = document.querySelector('[data-cost-drawer]');
-  var backdrop = document.querySelector('[data-cost-drawer-backdrop]');
+var costWorkbookSteps = <?= json_encode(array_map(fn (array $step): array => ['key' => $step['key'], 'title' => $step['title'], 'summary' => $step['summary'], 'state' => $step['state']], $accordionSteps), JSON_UNESCAPED_SLASHES) ?>;
+function setCostWorkbookStep(key, markPreviousComplete) {
+  var activeIndex = Math.max(0, costWorkbookSteps.findIndex(function (step) { return step.key === key; }));
+  var active = costWorkbookSteps[activeIndex] || costWorkbookSteps[0];
+  if (!active) return;
+
   var title = document.getElementById('cost-drawer-title');
   var summary = document.getElementById('cost-drawer-summary');
-  var panelButton = event.target.closest('[data-cost-panel]');
-  var closeButton = event.target.closest('[data-cost-drawer-close]');
-  var actionButton = event.target.closest('[data-cost-progress-action]');
-
-  function openDrawer(button) {
-    var key = button.getAttribute('data-cost-panel');
-    document.querySelectorAll('[data-cost-panel-content]').forEach(function (section) {
-      section.hidden = section.getAttribute('data-cost-panel-content') !== key;
+  var completed = [];
+  try {
+    completed = JSON.parse(localStorage.getItem('hambelelaCostWorkbookCompleted') || '[]');
+  } catch (error) {
+    completed = [];
+  }
+  if (markPreviousComplete) {
+    costWorkbookSteps.slice(0, activeIndex).forEach(function (step) {
+      if (completed.indexOf(step.key) === -1) completed.push(step.key);
     });
-    if (title) title.textContent = button.getAttribute('data-cost-panel-title') || 'Cost Workbook Step';
-    if (summary) summary.textContent = button.getAttribute('data-cost-panel-summary') || '';
-    if (drawer) {
-      drawer.classList.add('is-open');
-      drawer.setAttribute('aria-hidden', 'false');
-    }
-    if (backdrop) backdrop.hidden = false;
-    document.body.classList.add('cost-drawer-open');
     try {
-      localStorage.setItem('hambelelaCostWorkbookPanel', key || '');
+      localStorage.setItem('hambelelaCostWorkbookCompleted', JSON.stringify(completed));
     } catch (error) {}
   }
 
-  function closeDrawer() {
-    if (drawer) {
-      drawer.classList.remove('is-open');
-      drawer.setAttribute('aria-hidden', 'true');
-    }
-    if (backdrop) backdrop.hidden = true;
-    document.body.classList.remove('cost-drawer-open');
-  }
+  document.querySelectorAll('[data-cost-panel-content]').forEach(function (section) {
+    section.hidden = section.getAttribute('data-cost-panel-content') !== active.key;
+  });
+  document.querySelectorAll('[data-cost-panel]').forEach(function (button, index) {
+    var isActive = button.getAttribute('data-cost-panel') === active.key;
+    var stepKey = button.getAttribute('data-cost-panel');
+    button.classList.toggle('is-current', isActive);
+    button.classList.toggle('is-user-complete', completed.indexOf(stepKey) !== -1 || button.classList.contains('is-complete'));
+    button.setAttribute('aria-current', isActive ? 'step' : 'false');
+    button.disabled = index > activeIndex + 1 && completed.indexOf(stepKey) === -1 && !button.classList.contains('is-complete');
+  });
+  if (title) title.textContent = active.title || 'Cost Workbook Step';
+  if (summary) summary.textContent = active.summary || '';
+  var back = document.querySelector('[data-cost-step-back]');
+  var next = document.querySelector('[data-cost-step-next]');
+  if (back) back.disabled = activeIndex <= 0;
+  if (next) next.innerHTML = activeIndex >= costWorkbookSteps.length - 1 ? 'Save Step <i data-lucide="check"></i>' : 'Save & Next <i data-lucide="arrow-right"></i>';
+  try {
+    localStorage.setItem('hambelelaCostWorkbookStep', active.key);
+  } catch (error) {}
+  if (window.lucide) window.lucide.createIcons();
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  var saved = '';
+  try {
+    saved = localStorage.getItem('hambelelaCostWorkbookStep') || '';
+  } catch (error) {}
+  setCostWorkbookStep(saved || (costWorkbookSteps[0] ? costWorkbookSteps[0].key : ''), false);
+});
+
+document.addEventListener('click', function (event) {
+  var title = document.getElementById('cost-drawer-title');
+  var summary = document.getElementById('cost-drawer-summary');
+  var panelButton = event.target.closest('[data-cost-panel]');
+  var actionButton = event.target.closest('[data-cost-progress-action]');
+  var backButton = event.target.closest('[data-cost-step-back]');
+  var nextButton = event.target.closest('[data-cost-step-next]');
 
   if (panelButton) {
-    openDrawer(panelButton);
-    if (window.lucide) window.lucide.createIcons();
+    if (!panelButton.disabled) {
+      setCostWorkbookStep(panelButton.getAttribute('data-cost-panel'), false);
+      document.querySelector('[data-cost-drawer]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
     return;
   }
 
-  if (closeButton || event.target === backdrop) {
-    closeDrawer();
+  if (backButton || nextButton) {
+    var currentKey = '';
+    document.querySelectorAll('[data-cost-panel]').forEach(function (button) {
+      if (button.classList.contains('is-current')) currentKey = button.getAttribute('data-cost-panel') || '';
+    });
+    var currentIndex = Math.max(0, costWorkbookSteps.findIndex(function (step) { return step.key === currentKey; }));
+    var nextIndex = nextButton ? Math.min(costWorkbookSteps.length - 1, currentIndex + 1) : Math.max(0, currentIndex - 1);
+    setCostWorkbookStep(costWorkbookSteps[nextIndex].key, !!nextButton);
     return;
   }
 
@@ -1200,14 +1335,11 @@ document.addEventListener('submit', function (event) {
 });
 
 document.addEventListener('keydown', function (event) {
-  if (event.key !== 'Escape') return;
-  var drawer = document.querySelector('[data-cost-drawer]');
-  var backdrop = document.querySelector('[data-cost-drawer-backdrop]');
-  if (drawer && drawer.classList.contains('is-open')) {
-    drawer.classList.remove('is-open');
-    drawer.setAttribute('aria-hidden', 'true');
-    if (backdrop) backdrop.hidden = true;
-    document.body.classList.remove('cost-drawer-open');
+  if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+  if (event.target && ['INPUT', 'SELECT', 'TEXTAREA'].indexOf(event.target.tagName) !== -1) return;
+  var button = document.querySelector(event.key === 'ArrowRight' ? '[data-cost-step-next]' : '[data-cost-step-back]');
+  if (button && !button.disabled) {
+    button.click();
   }
 });
 </script>
