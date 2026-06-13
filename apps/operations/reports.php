@@ -598,13 +598,22 @@ function kpi_default_input(): array
 
 function kpi_build_scores(string $period, string $start, string $end, array $settings): array
 {
+    $currentUserId = (int) (current_user()['id'] ?? 0);
     $employees = ops_rows(
         "SELECT e.id, e.full_name, e.email, r.role_key, r.name AS role_name
          FROM ops_employees e
          JOIN ops_roles r ON r.id = e.role_id
          WHERE e.status = 'active'
-           AND r.role_key <> 'owner_admin'
-         ORDER BY FIELD(r.role_key, 'packer', 'front_desk_admin', 'supervisor_manager'), e.full_name"
+           AND NOT (
+                r.role_key = 'owner_admin'
+                AND (
+                    e.id = ?
+                    OR LOWER(e.full_name) LIKE '%victoria%'
+                    OR LOWER(e.email) LIKE '%victoria%'
+                )
+           )
+         ORDER BY FIELD(r.role_key, 'front_desk_admin', 'packer', 'supervisor_manager', 'owner_admin'), e.full_name",
+        [$currentUserId]
     );
 
     $employeeLinks = kpi_employee_links();
@@ -673,6 +682,26 @@ function kpi_build_scores(string $period, string $start, string $end, array $set
         $itemsByEmployee[(int) $row['employee_id']] = (float) $row['items_packed'];
     }
 
+    $canReadPackingTaskTiming = ops_table_exists('ops_packing_tasks')
+        && ops_column_exists('ops_packing_tasks', 'date_loaded')
+        && ops_column_exists('ops_packing_tasks', 'date_completed');
+    $packingTaskRows = $canReadPackingTaskTiming ? ops_rows(
+        "SELECT assigned_employee_id,
+                COUNT(*) AS packing_rows,
+                SUM(CASE WHEN packing_status IN ('done', 'done_needs_label', 'label_created', 'website') THEN 1 ELSE 0 END) AS packing_done_rows,
+                COALESCE(SUM(workload_points), 0) AS packing_workload,
+                AVG(CASE WHEN date_completed IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, date_loaded, date_completed) END) AS avg_packing_task_minutes
+         FROM ops_packing_tasks
+         WHERE assigned_employee_id IS NOT NULL
+           AND date_loaded >= ? AND date_loaded < ?
+         GROUP BY assigned_employee_id",
+        [$start, $end]
+    ) : [];
+    $packingTasksByEmployee = [];
+    foreach ($packingTaskRows as $row) {
+        $packingTasksByEmployee[(int) $row['assigned_employee_id']] = $row;
+    }
+
     $frontRows = ops_table_exists('ops_orders') ? ops_rows(
         "SELECT created_by,
                 COUNT(*) AS orders_loaded,
@@ -716,16 +745,28 @@ function kpi_build_scores(string $period, string $start, string $end, array $set
         $roleWeights = kpi_role_weights();
         if ($roleGroup === 'packer') {
             $pack = $packerByEmployee[$employeeId] ?? [];
+            $packingTask = $packingTasksByEmployee[$employeeId] ?? [];
             $completedOrders = (int) ($pack['completed_orders'] ?? 0);
-            $handledOrders = (int) ($pack['handled_orders'] ?? 0);
+            $packingRows = (int) ($packingTask['packing_rows'] ?? 0);
+            $packingDoneRows = (int) ($packingTask['packing_done_rows'] ?? 0);
+            $handledOrders = (int) ($pack['handled_orders'] ?? 0) + $packingRows;
             $itemsPacked = (float) ($itemsByEmployee[$employeeId] ?? 0);
-            $productivity = kpi_score((kpi_ratio_score((float) $completedOrders, kpi_float_setting($settings, 'target_orders_month')) * 0.65) + (kpi_ratio_score($itemsPacked, kpi_float_setting($settings, 'target_items_month')) * 0.35));
-            $speed = kpi_score((kpi_speed_score(isset($pack['avg_start_minutes']) ? (float) $pack['avg_start_minutes'] : null, kpi_float_setting($settings, 'target_start_minutes')) * 0.45) + (kpi_speed_score(isset($pack['avg_pack_minutes']) ? (float) $pack['avg_pack_minutes'] : null, kpi_float_setting($settings, 'target_packing_minutes')) * 0.55));
+            $packingWorkload = (float) ($packingTask['packing_workload'] ?? 0);
+            $workVolume = max($itemsPacked, $packingWorkload, (float) $packingDoneRows);
+            $itemsPacked = $workVolume;
+            $productivity = kpi_score((kpi_ratio_score((float) ($completedOrders + $packingDoneRows), kpi_float_setting($settings, 'target_orders_month')) * 0.45) + (kpi_ratio_score($workVolume, kpi_float_setting($settings, 'target_items_month')) * 0.55));
+            $startSpeed = isset($pack['avg_start_minutes']) && $pack['avg_start_minutes'] !== null ? kpi_speed_score((float) $pack['avg_start_minutes'], kpi_float_setting($settings, 'target_start_minutes')) : null;
+            $packSpeed = isset($pack['avg_pack_minutes']) && $pack['avg_pack_minutes'] !== null ? kpi_speed_score((float) $pack['avg_pack_minutes'], kpi_float_setting($settings, 'target_packing_minutes')) : null;
+            if ($packSpeed === null && isset($packingTask['avg_packing_task_minutes']) && $packingTask['avg_packing_task_minutes'] !== null) {
+                $packSpeed = kpi_speed_score((float) $packingTask['avg_packing_task_minutes'], kpi_float_setting($settings, 'target_packing_minutes'));
+            }
+            $speedParts = array_values(array_filter([$startSpeed, $packSpeed], static fn ($value): bool => $value !== null));
+            $speed = $speedParts ? kpi_score(array_sum($speedParts) / count($speedParts)) : 75.0;
             $compliance = kpi_score(($checkRate * 0.75) + ((float) $input['compliance_score'] * 0.25));
             $team = kpi_score((float) $input['team_contribution_score']);
             $rawComponents = [
-                'order_speed' => ['score' => $speed, 'raw' => kpi_duration(isset($pack['avg_pack_minutes']) ? (float) $pack['avg_pack_minutes'] : null)],
-                'packing_productivity' => ['score' => $productivity, 'raw' => number_format($itemsPacked, 1) . ' items'],
+                'order_speed' => ['score' => $speed, 'raw' => $speedParts ? kpi_duration(isset($pack['avg_pack_minutes']) ? (float) $pack['avg_pack_minutes'] : ((isset($packingTask['avg_packing_task_minutes']) && $packingTask['avg_packing_task_minutes'] !== null) ? (float) $packingTask['avg_packing_task_minutes'] : null)) : 'Timing data incomplete'],
+                'packing_productivity' => ['score' => $productivity, 'raw' => number_format($workVolume, 1) . ' work pts / items'],
                 'packing_accuracy' => ['score' => $accuracyScore, 'raw' => number_format((int) ($errors['error_count'] ?? 0)) . ' errors'],
                 'tasks' => ['score' => $compliance, 'raw' => number_format($checkDone) . '/' . number_format($checkTotal) . ' tasks'],
                 'errors' => ['score' => $accuracyScore, 'raw' => number_format($errorPoints, 1) . ' penalty pts'],
@@ -733,7 +774,7 @@ function kpi_build_scores(string $period, string $start, string $end, array $set
             ];
             $scorecard = 'Packer KPI Scorecard';
             $ordersHandled = $handledOrders;
-            $avgCompletion = isset($pack['avg_completion_minutes']) ? (float) $pack['avg_completion_minutes'] : null;
+            $avgCompletion = isset($pack['avg_completion_minutes']) && $pack['avg_completion_minutes'] !== null ? (float) $pack['avg_completion_minutes'] : ((isset($packingTask['avg_packing_task_minutes']) && $packingTask['avg_packing_task_minutes'] !== null) ? (float) $packingTask['avg_packing_task_minutes'] : null);
         } else {
             $front = $frontByEmployee[$employeeId] ?? [];
             $ordersLoaded = (int) ($front['orders_loaded'] ?? 0);
@@ -1227,6 +1268,21 @@ if ($ready && ops_table_exists('ops_orders')) {
         $productivityDayMinutes[$day] += $minutes;
     }
 }
+if ($ready && ops_table_exists('ops_packing_tasks') && ops_column_exists('ops_packing_tasks', 'date_loaded') && ops_column_exists('ops_packing_tasks', 'date_completed')) {
+    $productivityPackingRows = ops_rows(
+        "SELECT assigned_employee_id, date_loaded, date_completed
+         FROM ops_packing_tasks
+         WHERE date_completed IS NOT NULL
+           AND date_completed >= ? AND date_completed < ?",
+        [$periodStart, $periodEnd]
+    );
+    foreach ($productivityPackingRows as $row) {
+        $completedAt = (string) ($row['date_completed'] ?? '');
+        $day = $completedAt ? (int) (new DateTimeImmutable($completedAt))->format('N') : 0;
+        if ($day < 1 || $day > 7) continue;
+        $productivityDayMinutes[$day] += kpi_business_minutes((string) ($row['date_loaded'] ?? ''), $completedAt) ?? 0.0;
+    }
+}
 $productivityHours = array_map(static fn (float $minutes): float => round($minutes / 60, 1), $productivityDayMinutes);
 $totalProductivityHours = array_sum($productivityHours);
 $maxProductivityHours = max(1.0, max($productivityHours));
@@ -1244,7 +1300,32 @@ $employeeHours = [];
 foreach ($employeeHourRows as $row) {
     $employeeHours[(int) ($row['employee_id'] ?? 0)] = round(((float) ($row['real_minutes'] ?? 0)) / 60, 1);
 }
-$topEmployeeRows = array_slice($employeeScores, 0, 4);
+if ($ready && ops_table_exists('ops_packing_tasks') && ops_column_exists('ops_packing_tasks', 'date_loaded') && ops_column_exists('ops_packing_tasks', 'date_completed')) {
+    $packingHourRows = ops_rows(
+        "SELECT assigned_employee_id, date_loaded, date_completed
+         FROM ops_packing_tasks
+         WHERE assigned_employee_id IS NOT NULL
+           AND date_completed IS NOT NULL
+           AND date_completed >= ? AND date_completed < ?",
+        [$periodStart, $periodEnd]
+    );
+    foreach ($packingHourRows as $row) {
+        $id = (int) ($row['assigned_employee_id'] ?? 0);
+        if ($id <= 0) continue;
+        $minutes = kpi_business_minutes((string) ($row['date_loaded'] ?? ''), (string) ($row['date_completed'] ?? '')) ?? 0.0;
+        $employeeHours[$id] = round(($employeeHours[$id] ?? 0.0) + ($minutes / 60), 1);
+    }
+}
+$employeeImpactRows = $employeeScores;
+$maxEmployeeWork = max(1.0, max(array_map(static fn (array $row): float => (float) ($row['orders_handled'] ?? 0) + (float) ($row['items_packed'] ?? 0), $employeeImpactRows ?: [['orders_handled' => 0, 'items_packed' => 0]])));
+usort($employeeImpactRows, static function (array $a, array $b) use ($maxEmployeeWork): int {
+    $aWork = (float) ($a['orders_handled'] ?? 0) + (float) ($a['items_packed'] ?? 0);
+    $bWork = (float) ($b['orders_handled'] ?? 0) + (float) ($b['items_packed'] ?? 0);
+    $aImpact = ((float) ($a['score'] ?? 0) * 0.55) + (($aWork / $maxEmployeeWork) * 45) - ((int) ($a['error_count'] ?? 0) * 2);
+    $bImpact = ((float) ($b['score'] ?? 0) * 0.55) + (($bWork / $maxEmployeeWork) * 45) - ((int) ($b['error_count'] ?? 0) * 2);
+    return $bImpact <=> $aImpact;
+});
+$topEmployeeRows = array_slice($employeeImpactRows, 0, 4);
 $hasErrorRepeatIssue = $ready && ops_table_exists('ops_error_logs') && ops_column_exists('ops_error_logs', 'repeat_issue');
 $hasErrorStatus = $ready && ops_table_exists('ops_error_logs') && ops_column_exists('ops_error_logs', 'status');
 $errorSummaryRow = $ready && ops_table_exists('ops_error_logs') ? (ops_rows(
@@ -1789,7 +1870,7 @@ include BASE_PATH . '/shared/sidebar.php';
         </article>
     </section>
 
-    <section class="panel kpi-system-panel">
+    <section class="panel kpi-system-panel kpi-panel-orders">
         <div class="section-row">
             <div>
                 <h2>Orders Matrix</h2>
@@ -1806,7 +1887,7 @@ include BASE_PATH . '/shared/sidebar.php';
         </div>
     </section>
 
-    <section class="panel kpi-system-panel">
+    <section class="panel kpi-system-panel kpi-panel-packing">
         <div class="section-row">
             <div>
                 <h2>Packing Matrix</h2>
@@ -1823,7 +1904,7 @@ include BASE_PATH . '/shared/sidebar.php';
         </div>
     </section>
 
-    <section class="panel kpi-system-panel">
+    <section class="panel kpi-system-panel kpi-panel-bookkeeping">
         <div class="section-row">
             <div>
                 <h2>Bookkeeping Matrix</h2>
@@ -1840,7 +1921,7 @@ include BASE_PATH . '/shared/sidebar.php';
         </div>
     </section>
 
-    <section class="panel kpi-system-panel">
+    <section class="panel kpi-system-panel kpi-panel-frontdesk">
         <div class="section-row">
             <div>
                 <h2>Front Desk Website & Orders Matrix</h2>
@@ -1857,7 +1938,7 @@ include BASE_PATH . '/shared/sidebar.php';
         </div>
     </section>
 
-    <section class="panel kpi-system-panel">
+    <section class="panel kpi-system-panel kpi-panel-availability">
         <div class="section-row">
             <div>
                 <h2>Login & Availability Matrix</h2>

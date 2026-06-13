@@ -7261,6 +7261,59 @@ textarea {
   margin-bottom: 16px;
 }
 
+.kpi-system-panel,
+.kpi-owner-snapshot-panel,
+.kpi-error-owner-panel {
+  position: relative;
+  overflow: hidden;
+}
+
+.kpi-system-panel::before,
+.kpi-owner-snapshot-panel::before,
+.kpi-error-owner-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 7px;
+  background: var(--kpi-panel-color, #89b746);
+}
+
+.kpi-system-panel .section-row h2,
+.kpi-owner-snapshot-panel .section-row h2,
+.kpi-error-owner-panel .section-row h2 {
+  color: var(--kpi-panel-title, var(--ink));
+}
+
+.kpi-panel-orders {
+  --kpi-panel-color: #89b746;
+  --kpi-panel-title: #4c7a24;
+  background: linear-gradient(135deg, rgba(137, 183, 70, 0.18), rgba(255, 255, 255, 0.88));
+}
+
+.kpi-panel-packing {
+  --kpi-panel-color: #f0a13a;
+  --kpi-panel-title: #9a620a;
+  background: linear-gradient(135deg, rgba(240, 161, 58, 0.2), rgba(255, 255, 255, 0.88));
+}
+
+.kpi-panel-bookkeeping {
+  --kpi-panel-color: #bbc647;
+  --kpi-panel-title: #727b1d;
+  background: linear-gradient(135deg, rgba(187, 198, 71, 0.22), rgba(255, 255, 255, 0.88));
+}
+
+.kpi-panel-frontdesk {
+  --kpi-panel-color: #9b35e4;
+  --kpi-panel-title: #7430aa;
+  background: linear-gradient(135deg, rgba(155, 53, 228, 0.14), rgba(255, 255, 255, 0.88));
+}
+
+.kpi-panel-availability {
+  --kpi-panel-color: #2f80ed;
+  --kpi-panel-title: #1f5ea8;
+  background: linear-gradient(135deg, rgba(47, 128, 237, 0.13), rgba(255, 255, 255, 0.88));
+}
+
 .kpi-system-metric-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -7896,6 +7949,18 @@ textarea {
 .kpi-owner-snapshot-panel,
 .kpi-error-owner-panel {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(255, 250, 240, 0.78));
+}
+
+.kpi-owner-snapshot-panel {
+  --kpi-panel-color: #0f8f2f;
+  --kpi-panel-title: #0f6a2a;
+  background: linear-gradient(135deg, rgba(15, 143, 47, 0.13), rgba(255, 255, 255, 0.9));
+}
+
+.kpi-error-owner-panel {
+  --kpi-panel-color: #b41919;
+  --kpi-panel-title: #8d1515;
+  background: linear-gradient(135deg, rgba(180, 25, 25, 0.12), rgba(255, 255, 255, 0.9));
 }
 
 .kpi-owner-bars {
