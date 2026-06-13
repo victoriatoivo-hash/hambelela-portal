@@ -7982,6 +7982,10 @@ textarea {
   .cost-panel-grid {
     grid-template-columns: 1fr;
   }
+
+  .cost-step-card {
+    flex-basis: 190px;
+  }
 }
 
 @media (max-width: 760px) {
@@ -8013,17 +8017,28 @@ textarea {
 
   .cost-step-card {
     min-height: auto;
+    flex-basis: 78vw;
   }
 
-  .cost-workflow-drawer {
-    width: 100vw;
-    max-width: 100vw;
-    border-left: 0;
+  .cost-workbook-stepper {
+    position: static;
+  }
+
+  .cost-workflow-content {
+    margin-inline: 0;
   }
 
   .cost-drawer-header,
   .cost-drawer-body {
     padding-inline: 18px;
+  }
+
+  .cost-drawer-header {
+    display: grid;
+  }
+
+  .cost-step-nav {
+    justify-content: flex-start;
   }
 
   .cost-panel-card,
