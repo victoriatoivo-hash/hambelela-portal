@@ -1154,8 +1154,97 @@ $systemMetrics = [
     'Active queue' => number_format((int) ($systemMetricRow['active_queue'] ?? 0)),
 ];
 $businessSummary = $ready ? kpi_order_business_summary($periodStart, $periodEnd, $settings) : [];
+$totalOrdersInRange = $ready && ops_table_exists('ops_orders') ? ops_count('ops_orders', "created_at >= '" . str_replace("'", "''", $periodStart) . "' AND created_at < '" . str_replace("'", "''", $periodEnd) . "' AND status NOT IN ('cancelled', 'canceled', 'refunded', 'failed')") : 0;
 $completedOrdersInRange = $ready && ops_table_exists('ops_orders') ? ops_count('ops_orders', "completed_at >= '" . str_replace("'", "''", $periodStart) . "' AND completed_at < '" . str_replace("'", "''", $periodEnd) . "' AND status IN ('completed', 'packed', 'verified', 'ready_for_collection', 'ready_for_courier', 'ready_for_delivery')") : 0;
 $overallBusinessHealth = $employeeScores ? kpi_score(($averageScore * 0.7) + (max(0, 100 - ((int) ($systemMetricRow['overdue_orders'] ?? 0) * 6) - ((int) ($systemMetricRow['correction_orders'] ?? 0) * 5)) * 0.3)) : 0;
+$trendMonths = [];
+$trendValues = [];
+$trendEnd = new DateTimeImmutable($filterEndDate . ' 00:00:00');
+for ($i = 7; $i >= 0; $i--) {
+    $monthDate = $trendEnd->modify('first day of this month')->modify("-{$i} months");
+    $monthKey = $monthDate->format('Y-m');
+    $trendMonths[] = $monthDate->format('M');
+    $trendValues[$monthKey] = 0.0;
+}
+if ($ready && ops_table_exists('kpi_employee_scores')) {
+    $snapshotRows = ops_rows(
+        "SELECT period_month, AVG(total_score) AS avg_score
+         FROM kpi_employee_scores
+         WHERE period_month IN (" . implode(',', array_fill(0, count($trendValues), '?')) . ")
+         GROUP BY period_month",
+        array_keys($trendValues)
+    );
+    foreach ($snapshotRows as $row) {
+        $trendValues[(string) $row['period_month']] = (float) ($row['avg_score'] ?? 0);
+    }
+}
+if (isset($trendValues[$period])) {
+    $trendValues[$period] = max((float) $trendValues[$period], (float) $averageScore);
+}
+$trendSeries = array_values($trendValues);
+$trendNonZero = array_values(array_filter($trendSeries, static fn (float $value): bool => $value > 0));
+if (!$trendNonZero && $averageScore > 0) {
+    $trendSeries = array_fill(0, 8, (float) $averageScore);
+}
+$trendPoints = [];
+$chartWidth = 360;
+$chartHeight = 140;
+$chartTop = 14;
+$chartBottom = 122;
+$maxTrend = max(100.0, max($trendSeries ?: [100]));
+$minTrend = 0.0;
+foreach ($trendSeries as $index => $value) {
+    $x = count($trendSeries) > 1 ? ($index * ($chartWidth / (count($trendSeries) - 1))) : 0;
+    $ratio = ($value - $minTrend) / max(1.0, ($maxTrend - $minTrend));
+    $y = $chartBottom - ($ratio * ($chartBottom - $chartTop));
+    $trendPoints[] = round($x, 1) . ',' . round($y, 1);
+}
+$trendAreaPoints = $trendPoints ? '0,' . $chartBottom . ' ' . implode(' ', $trendPoints) . ' ' . $chartWidth . ',' . $chartBottom : '';
+$trendChange = null;
+if (count($trendNonZero) >= 2) {
+    $trendChange = end($trendNonZero) - $trendNonZero[0];
+}
+$orderCompletionRate = $totalOrdersInRange > 0
+    ? kpi_score(($completedOrdersInRange / max(1, $totalOrdersInRange)) * 100)
+    : 0.0;
+$averageWorkPerEmployee = $employeeScores ? ($completedOrdersInRange / max(1, count($employeeScores))) : 0.0;
+$taskEfficiency = kpi_speed_score(isset($systemMetricRow['avg_completion_minutes']) ? (float) $systemMetricRow['avg_completion_minutes'] : null, (float) $settings['target_order_total_minutes']);
+$productivityDayMinutes = [1 => 0.0, 2 => 0.0, 3 => 0.0, 4 => 0.0, 5 => 0.0, 6 => 0.0, 7 => 0.0];
+if ($ready && ops_table_exists('ops_orders')) {
+    $productivityOrders = ops_rows(
+        "SELECT created_at, packing_started_at, completed_at
+         FROM ops_orders
+         WHERE completed_at IS NOT NULL
+           AND completed_at >= ? AND completed_at < ?
+           AND status IN ('completed', 'packed', 'verified', 'ready_for_collection', 'ready_for_courier', 'ready_for_delivery')",
+        [$periodStart, $periodEnd]
+    );
+    foreach ($productivityOrders as $row) {
+        $completedAt = (string) ($row['completed_at'] ?? '');
+        $day = $completedAt ? (int) (new DateTimeImmutable($completedAt))->format('N') : 0;
+        if ($day < 1 || $day > 7) continue;
+        $minutes = kpi_business_minutes((string) (($row['packing_started_at'] ?? '') ?: ($row['created_at'] ?? '')), $completedAt) ?? 0.0;
+        $productivityDayMinutes[$day] += $minutes;
+    }
+}
+$productivityHours = array_map(static fn (float $minutes): float => round($minutes / 60, 1), $productivityDayMinutes);
+$totalProductivityHours = array_sum($productivityHours);
+$maxProductivityHours = max(1.0, max($productivityHours));
+$employeeHourRows = $ready && ops_table_exists('ops_orders') ? ops_rows(
+    "SELECT COALESCE(assigned_packer_id, created_by) AS employee_id,
+            SUM(TIMESTAMPDIFF(MINUTE, COALESCE(packing_started_at, assigned_at, created_at), completed_at)) AS real_minutes
+     FROM ops_orders
+     WHERE completed_at IS NOT NULL
+       AND completed_at >= ? AND completed_at < ?
+       AND COALESCE(assigned_packer_id, created_by) IS NOT NULL
+     GROUP BY COALESCE(assigned_packer_id, created_by)",
+    [$periodStart, $periodEnd]
+) : [];
+$employeeHours = [];
+foreach ($employeeHourRows as $row) {
+    $employeeHours[(int) ($row['employee_id'] ?? 0)] = round(((float) ($row['real_minutes'] ?? 0)) / 60, 1);
+}
+$topEmployeeRows = array_slice($employeeScores, 0, 4);
 $hasErrorRepeatIssue = $ready && ops_table_exists('ops_error_logs') && ops_column_exists('ops_error_logs', 'repeat_issue');
 $hasErrorStatus = $ready && ops_table_exists('ops_error_logs') && ops_column_exists('ops_error_logs', 'status');
 $errorSummaryRow = $ready && ops_table_exists('ops_error_logs') ? (ops_rows(
@@ -1602,6 +1691,102 @@ include BASE_PATH . '/shared/sidebar.php';
                 <div><span class="metric-title"><?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?></span><strong><?= htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') ?></strong><small><?= htmlspecialchars((string) $desc, ENT_QUOTES, 'UTF-8') ?></small></div>
             </article>
         <?php endforeach; ?>
+    </section>
+
+    <section class="kpi-visual-dashboard-grid">
+        <article class="panel kpi-visual-card kpi-performance-visual">
+            <div class="kpi-visual-head">
+                <div>
+                    <h2>KPI Performance</h2>
+                    <p><strong class="<?= $trendChange !== null && $trendChange < 0 ? 'is-down' : 'is-up' ?>"><?= $trendChange === null ? 'Live' : (($trendChange >= 0 ? '+' : '') . number_format($trendChange, 1) . '%') ?></strong> overall employee efficiency</p>
+                </div>
+                <span><?= htmlspecialchars(date('M Y', strtotime($filterStartDate)), ENT_QUOTES, 'UTF-8') ?></span>
+            </div>
+            <svg class="kpi-line-chart" viewBox="0 0 360 160" role="img" aria-label="KPI performance trend">
+                <defs>
+                    <linearGradient id="kpiTrendFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stop-color="#89b746" stop-opacity="0.38" />
+                        <stop offset="100%" stop-color="#f4a64a" stop-opacity="0.05" />
+                    </linearGradient>
+                </defs>
+                <g class="kpi-chart-grid">
+                    <line x1="0" y1="24" x2="360" y2="24"></line>
+                    <line x1="0" y1="56" x2="360" y2="56"></line>
+                    <line x1="0" y1="88" x2="360" y2="88"></line>
+                    <line x1="0" y1="120" x2="360" y2="120"></line>
+                </g>
+                <?php if ($trendAreaPoints): ?><polygon points="<?= htmlspecialchars($trendAreaPoints, ENT_QUOTES, 'UTF-8') ?>" fill="url(#kpiTrendFill)"></polygon><?php endif; ?>
+                <polyline points="<?= htmlspecialchars(implode(' ', $trendPoints), ENT_QUOTES, 'UTF-8') ?>" fill="none" stroke="#89b746" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></polyline>
+            </svg>
+            <div class="kpi-chart-labels">
+                <?php foreach ($trendMonths as $monthLabel): ?><span><?= htmlspecialchars($monthLabel, ENT_QUOTES, 'UTF-8') ?></span><?php endforeach; ?>
+            </div>
+        </article>
+
+        <article class="panel kpi-visual-card kpi-employee-visual">
+            <div class="kpi-visual-head">
+                <div><h2>Employee Performance</h2><p>Selected period</p></div>
+                <a href="reports.php?tab=employees&<?= htmlspecialchars($dateRangeQuery, ENT_QUOTES, 'UTF-8') ?>">See Details</a>
+            </div>
+            <div class="kpi-donut-layout">
+                <div class="kpi-donut" style="--value: <?= min(100, max(0, $orderCompletionRate)) ?>;">
+                    <strong><?= kpi_percent($orderCompletionRate) ?></strong>
+                    <span>Orders completion rate</span>
+                </div>
+                <div class="kpi-mini-bars">
+                    <div><span>Orders Completed<small><?= number_format($completedOrdersInRange) ?></small></span><i><b style="width: <?= min(100, max(3, $orderCompletionRate)) ?>%"></b></i></div>
+                    <div><span>Average Work<small>per employee</small></span><i><b class="blue" style="width: <?= min(100, max(3, kpi_ratio_score($averageWorkPerEmployee, 20))) ?>%"></b></i></div>
+                    <div><span>Work Efficiency<small>time-to-completion</small></span><i><b class="green" style="width: <?= min(100, max(3, $taskEfficiency)) ?>%"></b></i></div>
+                </div>
+            </div>
+        </article>
+
+        <article class="panel kpi-visual-card kpi-productivity-visual">
+            <div class="kpi-visual-head">
+                <div>
+                    <h2>Productivity Hours</h2>
+                    <strong><?= number_format($totalProductivityHours, 1) ?></strong>
+                </div>
+                <nav class="kpi-period-switch" aria-label="Productivity period shortcuts">
+                    <a href="reports.php?tab=overview&start_date=<?= date('Y-m-d') ?>&end_date=<?= date('Y-m-d') ?>">Day</a>
+                    <a href="reports.php?tab=overview&start_date=<?= date('Y-m-d', strtotime('monday this week')) ?>&end_date=<?= date('Y-m-d', strtotime('saturday this week')) ?>">Week</a>
+                    <a class="active" href="reports.php?tab=overview&start_date=<?= date('Y-m-01', strtotime($filterStartDate)) ?>&end_date=<?= date('Y-m-t', strtotime($filterStartDate)) ?>">Month</a>
+                </nav>
+            </div>
+            <div class="kpi-week-bars">
+                <?php foreach ([1 => 'Mon', 2 => 'Tue', 3 => 'Wed', 4 => 'Thu', 5 => 'Fri', 6 => 'Sat', 7 => 'Sun'] as $day => $label): ?>
+                    <?php $height = (($productivityHours[$day] ?? 0) / $maxProductivityHours) * 100; ?>
+                    <div class="<?= $day === (int) date('N') ? 'is-today' : '' ?>"><span style="height: <?= min(100, max(8, $height)) ?>%"></span><small><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></small></div>
+                <?php endforeach; ?>
+            </div>
+            <a class="kpi-soft-link" href="reports.php?tab=employees&<?= htmlspecialchars($dateRangeQuery, ENT_QUOTES, 'UTF-8') ?>">See Report</a>
+        </article>
+
+        <article class="panel kpi-visual-card kpi-top-employees-visual">
+            <div class="kpi-visual-head">
+                <div><h2>Top Employees</h2><p>Ranked by performance impact</p></div>
+                <span>Sort: Impact</span>
+            </div>
+            <div class="kpi-top-employee-table">
+                <div class="head"><span>Employee name</span><span>Work Done</span><span>Hours</span><span>Performance</span></div>
+                <?php foreach ($topEmployeeRows as $row): ?>
+                    <?php
+                        $initials = implode('', array_map(static fn (string $part): string => strtoupper(substr($part, 0, 1)), array_slice(array_filter(explode(' ', (string) $row['name'])), 0, 2)));
+                        $hours = $employeeHours[(int) $row['employee_id']] ?? 0.0;
+                        $workDone = (int) $row['orders_handled'] + (float) $row['items_packed'];
+                        $band = (float) $row['score'] >= 80 ? 'High' : ((float) $row['score'] >= 65 ? 'Medium' : 'Low');
+                    ?>
+                    <div>
+                        <span><i><?= htmlspecialchars($initials ?: 'HO', ENT_QUOTES, 'UTF-8') ?></i><?= htmlspecialchars((string) $row['name'], ENT_QUOTES, 'UTF-8') ?></span>
+                        <span><?= number_format($workDone, 1) ?></span>
+                        <span><?= number_format($hours, 1) ?> hrs</span>
+                        <span><b class="<?= strtolower($band) ?>"><?= htmlspecialchars($band, ENT_QUOTES, 'UTF-8') ?></b></span>
+                    </div>
+                <?php endforeach; ?>
+                <?php if (!$topEmployeeRows): ?><p class="empty-state">No employee KPI data available yet.</p><?php endif; ?>
+            </div>
+            <a class="kpi-soft-link" href="reports.php?tab=employees&<?= htmlspecialchars($dateRangeQuery, ENT_QUOTES, 'UTF-8') ?>">View All Employees</a>
+        </article>
     </section>
 
     <section class="panel kpi-system-panel">
