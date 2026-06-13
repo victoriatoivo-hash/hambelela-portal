@@ -1335,6 +1335,125 @@ $availabilityMatrix = [
     'Average planned lunch time' => kpi_duration(isset($lunchRow['avg_lunch_minutes']) ? (float) $lunchRow['avg_lunch_minutes'] : null),
     'Unavailable employees now' => number_format(count($availabilityRows)),
 ];
+$employeeSummarySignals = [];
+foreach ($employeeScores as $row) {
+    $employeeSummarySignals[(int) $row['employee_id']] = [
+        'completed' => (int) ($row['orders_handled'] ?? 0),
+        'active' => 0,
+        'pending_admin' => 0,
+        'errors' => (int) ($row['error_count'] ?? 0),
+    ];
+}
+if ($ready && ops_table_exists('ops_orders')) {
+    $packerWorkRows = ops_rows(
+        "SELECT assigned_packer_id AS employee_id,
+                SUM(CASE WHEN status IN ('completed', 'packed', 'verified', 'ready_for_collection', 'ready_for_courier', 'ready_for_delivery') THEN 1 ELSE 0 END) AS completed_orders,
+                SUM(CASE WHEN status NOT IN ('completed', 'packed', 'verified', 'ready_for_collection', 'ready_for_courier', 'ready_for_delivery', 'cancelled', 'canceled', 'refunded', 'failed') THEN 1 ELSE 0 END) AS active_orders
+         FROM ops_orders
+         WHERE assigned_packer_id IS NOT NULL
+           AND created_at >= ? AND created_at < ?
+         GROUP BY assigned_packer_id",
+        [$periodStart, $periodEnd]
+    );
+    foreach ($packerWorkRows as $row) {
+        $id = (int) ($row['employee_id'] ?? 0);
+        if (!isset($employeeSummarySignals[$id])) continue;
+        $employeeSummarySignals[$id]['completed'] = max($employeeSummarySignals[$id]['completed'], (int) ($row['completed_orders'] ?? 0));
+        $employeeSummarySignals[$id]['active'] += (int) ($row['active_orders'] ?? 0);
+    }
+
+    $frontWorkRows = ops_rows(
+        "SELECT created_by AS employee_id,
+                SUM(CASE WHEN status IN ('completed', 'packed', 'verified', 'ready_for_collection', 'ready_for_courier', 'ready_for_delivery') THEN 1 ELSE 0 END) AS completed_orders,
+                SUM(CASE WHEN status NOT IN ('completed', 'packed', 'verified', 'ready_for_collection', 'ready_for_courier', 'ready_for_delivery', 'cancelled', 'canceled', 'refunded', 'failed') THEN 1 ELSE 0 END) AS active_orders
+         FROM ops_orders
+         WHERE created_by IS NOT NULL
+           AND created_at >= ? AND created_at < ?
+         GROUP BY created_by",
+        [$periodStart, $periodEnd]
+    );
+    foreach ($frontWorkRows as $row) {
+        $id = (int) ($row['employee_id'] ?? 0);
+        if (!isset($employeeSummarySignals[$id])) continue;
+        $employeeSummarySignals[$id]['completed'] = max($employeeSummarySignals[$id]['completed'], (int) ($row['completed_orders'] ?? 0));
+        $employeeSummarySignals[$id]['active'] += (int) ($row['active_orders'] ?? 0);
+    }
+}
+$frontDeskPendingAdmin = (int) ($bookkeepingRow['completed_unlogged_cash_orders'] ?? 0) + (int) ($websiteUploadRow['website_pending_rows'] ?? 0) + (int) ($orderListRow['unpaid_orders'] ?? 0);
+foreach ($employeeScores as $row) {
+    $id = (int) $row['employee_id'];
+    if (($row['role_group'] ?? '') === 'front_desk' && isset($employeeSummarySignals[$id])) {
+        $employeeSummarySignals[$id]['pending_admin'] += $frontDeskPendingAdmin;
+    }
+}
+$employeeOwnerRows = [];
+foreach ($employeeScores as $row) {
+    $id = (int) $row['employee_id'];
+    $signals = $employeeSummarySignals[$id] ?? ['completed' => 0, 'active' => 0, 'pending_admin' => 0, 'errors' => 0];
+    $completed = max(0, (int) $signals['completed']);
+    $active = max(0, (int) $signals['active']);
+    $pendingAdmin = max(0, (int) $signals['pending_admin']);
+    $errors = max(0, (int) $signals['errors']);
+    $totalSignals = max(1, $completed + $active + $pendingAdmin + $errors);
+    $employeeOwnerRows[] = [
+        'name' => (string) $row['name'],
+        'role' => (string) $row['role_name'],
+        'score' => (float) $row['score'],
+        'on_leave' => !empty($row['on_leave']),
+        'completed' => $completed,
+        'active' => $active,
+        'pending_admin' => $pendingAdmin,
+        'errors' => $errors,
+        'completed_pct' => ($completed / $totalSignals) * 100,
+        'active_pct' => ($active / $totalSignals) * 100,
+        'pending_pct' => ($pendingAdmin / $totalSignals) * 100,
+        'error_pct' => ($errors / $totalSignals) * 100,
+    ];
+}
+$errorCategoryRows = ($ready && ops_table_exists('ops_error_logs')) ? ops_rows(
+    "SELECT category, COUNT(*) AS total
+     FROM ops_error_logs
+     WHERE logged_at >= ? AND logged_at < ?
+     GROUP BY category
+     ORDER BY total DESC
+     LIMIT 6",
+    [$periodStart, $periodEnd]
+) : [];
+$topErrorEmployeeRows = ($ready && ops_table_exists('ops_error_logs')) ? ops_rows(
+    "SELECT e.full_name, COUNT(*) AS total
+     FROM ops_error_logs el
+     LEFT JOIN ops_employees e ON e.id = el.employee_id
+     WHERE el.logged_at >= ? AND el.logged_at < ?
+       AND el.employee_id IS NOT NULL
+     GROUP BY el.employee_id, e.full_name
+     ORDER BY total DESC
+     LIMIT 3",
+    [$periodStart, $periodEnd]
+) : [];
+$resolvedErrors = $ready && ops_table_exists('ops_error_logs') && $hasErrorStatus ? (int) (ops_rows(
+    "SELECT COUNT(*) AS total
+     FROM ops_error_logs
+     WHERE status = 'resolved'
+       AND logged_at >= ? AND logged_at < ?",
+    [$periodStart, $periodEnd]
+)[0]['total'] ?? 0) : 0;
+$highRiskErrors = $ready && ops_table_exists('ops_error_logs') ? (int) (ops_rows(
+    "SELECT COUNT(*) AS total
+     FROM ops_error_logs
+     WHERE severity IN ('high', 'critical')
+       AND logged_at >= ? AND logged_at < ?",
+    [$periodStart, $periodEnd]
+)[0]['total'] ?? 0) : 0;
+$totalErrorsForBars = max(1, array_sum(array_map(static fn (array $row): int => (int) ($row['total'] ?? 0), $errorCategoryRows)));
+$topErrorEmployee = $topErrorEmployeeRows[0] ?? null;
+$errorOwnerSummary = [
+    'Total errors logged' => number_format((int) ($errorSummaryRow['total_errors'] ?? 0)),
+    'Resolved errors' => number_format($resolvedErrors),
+    'Open errors' => number_format((int) ($errorSummaryRow['open_errors'] ?? 0)),
+    'Repeat errors' => number_format((int) ($errorSummaryRow['repeat_errors'] ?? 0)),
+    'High/Critical errors' => number_format($highRiskErrors),
+    'Most error-linked person' => $topErrorEmployee ? (string) ($topErrorEmployee['full_name'] ?: 'Unassigned') . ' (' . number_format((int) $topErrorEmployee['total']) . ')' : '-',
+];
 $tabs = [
     'overview' => 'Overview Dashboard',
     'front-desk' => 'Front Desk Performance',
@@ -1567,6 +1686,98 @@ include BASE_PATH . '/shared/sidebar.php';
                     <strong><?= htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') ?></strong>
                 </article>
             <?php endforeach; ?>
+        </div>
+    </section>
+
+    <section class="panel kpi-owner-snapshot-panel">
+        <div class="section-row">
+            <div>
+                <h2>Employee Daily Snapshot</h2>
+                <p>Owner view of each active employee: completed work, active queue, front-desk follow-ups, errors and HR leave status for the selected period.</p>
+            </div>
+        </div>
+        <div class="kpi-owner-bars">
+            <?php foreach ($employeeOwnerRows as $row): ?>
+                <?php
+                    $completedWidth = max(((int) $row['completed'] > 0 ? 4 : 0), (float) $row['completed_pct']);
+                    $activeWidth = max(((int) $row['active'] > 0 ? 4 : 0), (float) $row['active_pct']);
+                    $pendingWidth = max(((int) $row['pending_admin'] > 0 ? 4 : 0), (float) $row['pending_pct']);
+                    $errorWidth = max(((int) $row['errors'] > 0 ? 4 : 0), (float) $row['error_pct']);
+                ?>
+                <article class="kpi-owner-bar-row <?= !empty($row['on_leave']) ? 'is-on-leave' : '' ?>">
+                    <div class="kpi-owner-person">
+                        <strong><?= htmlspecialchars((string) $row['name'], ENT_QUOTES, 'UTF-8') ?></strong>
+                        <span><?= htmlspecialchars((string) $row['role'], ENT_QUOTES, 'UTF-8') ?><?= !empty($row['on_leave']) ? ' | On approved leave' : '' ?></span>
+                    </div>
+                    <div class="kpi-owner-bar" aria-label="Employee work mix">
+                        <span class="done" style="width: <?= min(100, $completedWidth) ?>%"></span>
+                        <span class="active" style="width: <?= min(100, $activeWidth) ?>%"></span>
+                        <span class="pending" style="width: <?= min(100, $pendingWidth) ?>%"></span>
+                        <span class="error" style="width: <?= min(100, $errorWidth) ?>%"></span>
+                    </div>
+                    <div class="kpi-owner-stats">
+                        <span><b><?= number_format((int) $row['completed']) ?></b> completed</span>
+                        <span><b><?= number_format((int) $row['active']) ?></b> active</span>
+                        <span><b><?= number_format((int) $row['pending_admin']) ?></b> admin follow-up</span>
+                        <span><b><?= number_format((int) $row['errors']) ?></b> errors</span>
+                        <span><b><?= kpi_percent((float) $row['score']) ?></b> score</span>
+                    </div>
+                </article>
+            <?php endforeach; ?>
+        </div>
+        <div class="kpi-owner-legend">
+            <span><i class="done"></i> Completed</span>
+            <span><i class="active"></i> Active queue</span>
+            <span><i class="pending"></i> Admin follow-up</span>
+            <span><i class="error"></i> Errors</span>
+        </div>
+    </section>
+
+    <section class="panel kpi-error-owner-panel">
+        <div class="section-row">
+            <div>
+                <h2>Error Log Summary</h2>
+                <p>Management view of error volume, unresolved issues, repeat mistakes and the most common error categories.</p>
+            </div>
+        </div>
+        <div class="kpi-error-summary-grid">
+            <?php foreach ($errorOwnerSummary as $label => $value): ?>
+                <article>
+                    <span><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></span>
+                    <strong><?= htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') ?></strong>
+                </article>
+            <?php endforeach; ?>
+        </div>
+        <div class="kpi-error-insight-grid">
+            <div>
+                <h3>Most logged error types</h3>
+                <div class="kpi-error-bars">
+                    <?php if ($errorCategoryRows): ?>
+                        <?php foreach ($errorCategoryRows as $row): ?>
+                            <?php $width = ((int) ($row['total'] ?? 0) / $totalErrorsForBars) * 100; ?>
+                            <div class="kpi-error-bar-row">
+                                <span><?= htmlspecialchars(OPS_ERROR_CATEGORIES[(string) ($row['category'] ?? '')] ?? (string) ($row['category'] ?? 'Uncategorised'), ENT_QUOTES, 'UTF-8') ?></span>
+                                <div><i style="width: <?= min(100, max(4, $width)) ?>%"></i></div>
+                                <strong><?= number_format((int) ($row['total'] ?? 0)) ?></strong>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <p class="empty-state">No errors logged for this period.</p>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <div>
+                <h3>People linked to errors</h3>
+                <div class="kpi-error-people">
+                    <?php if ($topErrorEmployeeRows): ?>
+                        <?php foreach ($topErrorEmployeeRows as $row): ?>
+                            <span><strong><?= htmlspecialchars((string) ($row['full_name'] ?: 'Unassigned'), ENT_QUOTES, 'UTF-8') ?></strong><small><?= number_format((int) ($row['total'] ?? 0)) ?> logged error<?= (int) ($row['total'] ?? 0) === 1 ? '' : 's' ?></small></span>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <p class="empty-state">No employee-linked errors for this period.</p>
+                    <?php endif; ?>
+                </div>
+            </div>
         </div>
     </section>
     <?php endif; ?>
