@@ -108,7 +108,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     <button type="button" data-open-packing-create><i data-lucide="plus"></i> New item</button>
                     <button type="button" data-open-invoice><i data-lucide="upload"></i> Upload invoice</button>
                     <button type="button" data-sync-monday-packing><i data-lucide="download-cloud"></i> Sync Monday</button>
-                    <button type="button" data-cleanup-packing-duplicates><i data-lucide="eraser"></i> Delete duplicates</button>
+                    <button type="button" data-find-packing-duplicates><i data-lucide="scan-search"></i> Find Duplicates</button>
                     <button type="button" data-import-previous-packing><i data-lucide="copy-plus"></i> Import previous list</button>
                 <?php endif; ?>
                 <button type="button" data-packing-refresh><i data-lucide="refresh-cw"></i> Refresh</button>
@@ -138,11 +138,12 @@ include BASE_PATH . '/shared/sidebar.php';
                         <th data-packing-column="quantity_packed" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>QUANTITY PACKED</th>
                         <th data-packing-column="status" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>STATUS</th>
                         <th data-packing-column="website_uploaded" title="Website quantity updated" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>WEBSITE</th>
+                        <th data-packing-column="sync_status" title="Monday sync status" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>SYNC</th>
                         <th data-packing-column="notes" title="Open notes and full details" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>NOTES</th>
                         <th class="add-column-cell"><button type="button">+</button></th>
                     </tr>
                 </thead>
-                <tbody id="packing-list-body"><tr><td colspan="13">Loading packing list...</td></tr></tbody>
+                <tbody id="packing-list-body"><tr><td colspan="14">Loading packing list...</td></tr></tbody>
             </table>
         </div>
     </section>

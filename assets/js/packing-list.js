@@ -211,6 +211,18 @@
     return `<label class="paid-toggle"><input type="checkbox" data-packing-check="${esc(field)}" data-task-id="${esc(task.id)}" ${checked} ${disabled}><span>&check;</span></label>`;
   }
 
+  function renderSyncStatus(task) {
+    const status = normalize(task.monday_sync_status || 'not_synced');
+    const labels = {
+      not_synced: 'Not synced',
+      synced: 'Synced',
+      updated: 'Updated',
+      failed: 'Review'
+    };
+    const title = task.monday_sync_error ? ` title="${esc(task.monday_sync_error)}"` : '';
+    return `<span class="sync-status-pill sync-${esc(status)}"${title}>${esc(labels[status] || String(status).replace(/_/g, ' '))}</span>`;
+  }
+
   function setInvoiceStatus(message) {
     if (invoiceStatus) invoiceStatus.textContent = message;
   }
@@ -381,6 +393,23 @@
     return assignDraftRows({ force: true });
   }
 
+  async function runRedistributeDraft(button) {
+    if (!invoiceDraftRows.length) {
+      setInvoiceStatus('Add or extract invoice rows before redistributing.');
+      setInvoiceProgress(true, 'Nothing to redistribute', 'No draft rows are available yet.', 'error');
+      return;
+    }
+    button?.classList.add('is-loading');
+    if (button) button.disabled = true;
+    setInvoiceProgress(true, 'Redistributing packers...', 'Balancing draft rows by received-weight workload.', 'loading');
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    redistributeDraftRows();
+    renderInvoiceDraft();
+    setInvoiceProgress(true, 'Assignments redistributed', 'Assigned column and assignment review have been updated.', 'success');
+    setInvoiceStatus('Assignments redistributed. Review warnings before syncing to Monday.');
+    setTimeout(() => setInvoiceProgress(false), 1800);
+  }
+
   function draftWorkloadTotals() {
     const totals = new Map();
     invoiceDraftRows.forEach((row) => {
@@ -416,7 +445,8 @@
     draftWorkloadSummary.innerHTML = `
       <div class="draft-summary-head">
         <strong>Assignment review</strong>
-        <span>${invoiceDraftRows.length} rows • ${totalWorkload.toFixed(1)} workload points</span>
+        <button class="button small" type="button" data-redistribute-draft>Redistribute again</button>
+        <span>${invoiceDraftRows.length} rows &middot; ${totalWorkload.toFixed(1)} workload points</span>
       </div>
       <div class="draft-summary-grid">
         ${totals.map((item) => `
@@ -437,7 +467,11 @@
 
   function updateDraftWorkloadCell(input, row) {
     const cell = input.closest('tr')?.querySelector('[data-draft-workload]');
-    if (cell) cell.textContent = String(row.workload || draftWorkload(row));
+    if (cell) {
+      const warning = draftValidation(row);
+      input.closest('tr')?.classList.toggle('has-draft-warning', !!warning);
+      cell.innerHTML = `${esc(row.workload || draftWorkload(row))}${warning ? `<small class="draft-warning-inline">${esc(warning)}</small>` : ''}`;
+    }
   }
 
   function parseManualDraft(text) {
@@ -467,22 +501,25 @@
     }
     const personOptions = '<option value="">Auto</option>' + packers.map((packer) => `<option value="${esc(packer.id)}">${esc(packer.full_name)}</option>`).join('');
     const priorityOptions = priorities.map(([value, label]) => `<option value="${esc(value)}">${esc(label)}</option>`).join('');
-    invoiceDraftBody.innerHTML = invoiceDraftRows.map((row, index) => `
-      <tr data-draft-index="${index}">
+    invoiceDraftBody.innerHTML = invoiceDraftRows.map((row, index) => {
+      const warning = draftValidation(row);
+      return `
+      <tr data-draft-index="${index}" class="${warning ? 'has-draft-warning' : ''}">
         <td><input data-draft-field="item_name" value="${esc(row.item_name || '')}"></td>
         <td><input data-draft-field="received_weight" value="${esc(row.received_weight || '')}"></td>
         <td><input data-draft-field="unit" value="${esc(row.unit || '')}"></td>
         <td><input data-draft-field="quantity_planned" value="${esc(row.quantity_planned || '')}" placeholder="100g(20), 250g(8)"></td>
         <td><select data-draft-field="priority">${priorityOptions}</select></td>
         <td><select data-draft-field="assigned_employee_id">${personOptions}</select></td>
-        <td data-draft-workload>${esc(row.workload || draftWorkload(row))}</td>
+        <td data-draft-workload>${esc(row.workload || draftWorkload(row))}${warning ? `<small class="draft-warning-inline">${esc(warning)}</small>` : ''}</td>
         <td><span class="sync-pill sync-pending">Will sync</span></td>
         <td class="draft-row-actions">
           <button type="button" title="Split row" data-split-draft-row="${index}"><i data-lucide="copy-plus"></i></button>
           <button type="button" title="Remove row" data-remove-draft-row="${index}"><i data-lucide="trash-2"></i></button>
         </td>
       </tr>
-    `).join('');
+    `;
+    }).join('');
     invoiceDraftBody.querySelectorAll('[data-draft-field="assigned_employee_id"]').forEach((select) => {
       const row = invoiceDraftRows[Number(select.closest('tr')?.dataset.draftIndex || 0)];
       select.value = String(row.assigned_employee_id || '');
@@ -576,6 +613,7 @@
           <td><input class="board-inline-input" data-packing-text="quantity_packed" data-task-id="${esc(task.id)}" value="${esc(task.quantity_packed || '')}" placeholder="Actual" ${ownOnly}></td>
           <td>${statusCell}</td>
           <td class="paid-cell">${renderCheck(task, 'website_uploaded', currentUser.can_edit_front_website)}</td>
+          <td>${renderSyncStatus(task)}</td>
           <td class="notes-cell"><button type="button" title="Open notes" data-packing-open-panel="${esc(task.id)}"><i data-lucide="sticky-note"></i></button></td>
           <td></td>
         </tr>
@@ -583,17 +621,17 @@
     }).join('');
 
     const addRow = currentUser.can_manage
-      ? '<tr class="add-task-row"><td></td><td colspan="12"><button type="button" data-open-packing-create>+ Add item</button></td></tr>'
+      ? '<tr class="add-task-row"><td></td><td colspan="13"><button type="button" data-open-packing-create>+ Add item</button></td></tr>'
       : '';
 
     return `
-      <tr class="group-row"><td colspan="13"><button type="button" data-packing-collapse><i data-lucide="chevron-down"></i>${esc(groupLabel(key))}</button></td></tr>
+      <tr class="group-row"><td colspan="14"><button type="button" data-packing-collapse><i data-lucide="chevron-down"></i>${esc(groupLabel(key))}</button></td></tr>
       ${bodyRows}
       ${addRow}
       <tr class="summary-row">
         <td></td><td><span class="summary-pill">${esc(groupLabel(key))}</span></td><td></td><td>${rows.length} items</td>
         <td colspan="2">Done: ${groupSummary.done}</td><td>Not started: ${groupSummary.notStarted}</td><td>Packing: ${groupSummary.packing}</td>
-        <td colspan="2">Website: ${groupSummary.website}/${rows.length}</td><td colspan="3">${esc(groupSummary.split)}</td>
+        <td colspan="2">Website: ${groupSummary.website}/${rows.length}</td><td colspan="4">${esc(groupSummary.split)}</td>
       </tr>
     `;
   }
@@ -613,7 +651,7 @@
           <button type="button" data-open-invoice><i data-lucide="upload"></i> Upload invoice</button>
           <button type="button" data-import-previous-packing><i data-lucide="copy-plus"></i> Import from previous list</button>
         </div>` : '';
-      body.innerHTML = `<tr><td colspan="13"><div class="board-empty-state"><strong>${esc(message)}${hasFilters ? ' Clear filters to see all rows.' : ''}</strong>${actions}</div></td></tr>`;
+      body.innerHTML = `<tr><td colspan="14"><div class="board-empty-state"><strong>${esc(message)}${hasFilters ? ' Clear filters to see all rows.' : ''}</strong>${actions}</div></td></tr>`;
       setCount(tasks.length ? `${tasks.length} total item${tasks.length === 1 ? '' : 's'} loaded` : `${totalRows} packing rows in database`);
       updateMetrics(visible);
       updateSelection();
@@ -665,7 +703,7 @@
       }
       fillPackerSelects();
       if (!data.migrationReady) {
-        body.innerHTML = '<tr><td colspan="13">Import operations-packing-list-migration.sql first.</td></tr>';
+        body.innerHTML = '<tr><td colspan="14">Import operations-packing-list-migration.sql first.</td></tr>';
         setCount('Packing migration required');
         updateMetrics([]);
         return;
@@ -889,6 +927,39 @@
     }
   }
 
+  async function findPackingDuplicates(button) {
+    button?.classList.add('is-loading');
+    if (button) button.disabled = true;
+    try {
+      const result = await post('find_duplicates');
+      const groups = Array.isArray(result.groups) ? result.groups : [];
+      if (!groups.length) {
+        setCount(result.message || 'No duplicate packing rows found.');
+        return;
+      }
+
+      const duplicateIds = groups.flatMap((group) => (group.duplicates || []).map((row) => row.id)).filter(Boolean);
+      const preview = groups.slice(0, 8).map((group) => {
+        const keep = group.keep || {};
+        const duplicates = (group.duplicates || []).map((row) => `#${row.id} ${row.item_name || ''}`).join(', ');
+        return `Keep #${keep.id} ${keep.item_name || ''}; archive ${duplicates}`;
+      }).join('\n');
+      const suffix = groups.length > 8 ? `\n...and ${groups.length - 8} more duplicate group(s).` : '';
+      const ok = window.confirm(`${result.message}\n\n${preview}${suffix}\n\nArchive the duplicate rows now? This will not delete them permanently.`);
+      if (!ok) {
+        setCount('Duplicate preview cancelled. No rows were changed.');
+        return;
+      }
+
+      const archiveResult = await post('archive_duplicates', { task_ids: duplicateIds.join(',') });
+      await refresh();
+      setCount(archiveResult.message || 'Duplicate rows archived.');
+    } finally {
+      button?.classList.remove('is-loading');
+      if (button) button.disabled = false;
+    }
+  }
+
   document.addEventListener('click', async (event) => {
     const openCreate = event.target.closest('[data-open-packing-create]');
     const openInvoice = event.target.closest('[data-open-invoice]');
@@ -908,7 +979,7 @@
     const refreshButton = event.target.closest('[data-packing-refresh]');
     const importPrevious = event.target.closest('[data-import-previous-packing]');
     const syncMonday = event.target.closest('[data-sync-monday-packing]');
-    const cleanupDuplicates = event.target.closest('[data-cleanup-packing-duplicates]');
+    const findDuplicates = event.target.closest('[data-find-packing-duplicates]');
     const extractInvoice = event.target.closest('[data-extract-invoice]');
     const addDraftRow = event.target.closest('[data-add-draft-row]');
     const redistributeDraft = event.target.closest('[data-redistribute-draft]');
@@ -958,19 +1029,9 @@
         return;
       }
       if (redistributeDraft) {
-        redistributeDraft.classList.add('is-loading');
-        redistributeDraft.disabled = true;
-        try {
-          setInvoiceStep('assign');
-          setInvoiceStatus('Redistributing packers...');
-          await new Promise((resolve) => setTimeout(resolve, 80));
-          const result = redistributeDraftRows();
-          renderInvoiceDraft();
-          setInvoiceStatus(result.message || (result.changed ? 'Assignments redistributed based on the updated draft rows.' : 'Best possible balance reached based on whole product rows.'));
-        } finally {
-          redistributeDraft.classList.remove('is-loading');
-          redistributeDraft.disabled = false;
-        }
+        await runRedistributeDraft(redistributeDraft);
+        redistributeDraft.classList.remove('is-loading');
+        redistributeDraft.disabled = false;
         return;
       }
       if (splitDraftRowButton) {
@@ -1005,16 +1066,8 @@
         }
         return;
       }
-      if (cleanupDuplicates) {
-        if (!confirm('Delete duplicate Packing List rows now? One original row will be kept for each duplicate group.')) return;
-        try {
-          cleanupDuplicates.classList.add('is-loading');
-          const result = await post('cleanup_duplicates');
-          await refresh();
-          setCount(result.message || 'Duplicate packing rows cleaned.');
-        } finally {
-          cleanupDuplicates.classList.remove('is-loading');
-        }
+      if (findDuplicates) {
+        await findPackingDuplicates(findDuplicates);
         return;
       }
       if (themeToggle) {
@@ -1077,7 +1130,7 @@
         return;
       }
     } catch (error) {
-      body.innerHTML = `<tr><td colspan="13">${esc(error.message)}</td></tr>`;
+        body.innerHTML = `<tr><td colspan="14">${esc(error.message)}</td></tr>`;
     }
   });
 
@@ -1158,7 +1211,7 @@
           await updateTasksField(selectedIdsFor(text.dataset.taskId), text.dataset.packingText, text.value);
           render();
         } catch (error) {
-          body.innerHTML = `<tr><td colspan="13">${esc(error.message)}</td></tr>`;
+          body.innerHTML = `<tr><td colspan="14">${esc(error.message)}</td></tr>`;
         }
       }
     }
@@ -1180,7 +1233,7 @@
       if (createForm) await createFromForm(createForm);
       if (invoiceForm) await createInvoiceDraft(invoiceForm);
     } catch (error) {
-      body.innerHTML = `<tr><td colspan="13">${esc(error.message)}</td></tr>`;
+      body.innerHTML = `<tr><td colspan="14">${esc(error.message)}</td></tr>`;
     }
   });
 
@@ -1197,7 +1250,7 @@
     });
   } catch (error) {}
   refresh().catch((error) => {
-    body.innerHTML = `<tr><td colspan="13">${esc(error.message)}</td></tr>`;
+    body.innerHTML = `<tr><td colspan="14">${esc(error.message)}</td></tr>`;
     setCount('Could not load packing list');
     updateMetrics([]);
   });

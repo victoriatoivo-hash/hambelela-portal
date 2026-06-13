@@ -24,8 +24,10 @@ $hasInvoicePath = ops_column_exists('ops_packing_tasks', 'invoice_file_path');
 $hasLabelPath = ops_column_exists('ops_packing_tasks', 'label_file_path');
 $hasArchivedAt = ops_column_exists('ops_packing_tasks', 'archived_at');
 $hasMondayId = ops_column_exists('ops_packing_tasks', 'monday_item_id');
+$hasMondayBoardId = ops_column_exists('ops_packing_tasks', 'monday_board_id');
 $hasMondayStatus = ops_column_exists('ops_packing_tasks', 'monday_sync_status');
 $hasMondayError = ops_column_exists('ops_packing_tasks', 'monday_sync_error');
+$hasPackingRowKey = ops_column_exists('ops_packing_tasks', 'packing_row_key');
 
 $receivedSelect = $hasReceivedWeight ? 'pt.received_weight' : "NULL AS received_weight";
 $confirmedSelect = $hasPackingConfirmed ? 'pt.packing_website_confirmed' : '0 AS packing_website_confirmed';
@@ -33,8 +35,10 @@ $startedSelect = $hasDateStarted ? 'pt.date_started' : 'NULL AS date_started';
 $invoiceSelect = $hasInvoicePath ? 'pt.invoice_file_path' : 'NULL AS invoice_file_path';
 $labelSelect = $hasLabelPath ? 'pt.label_file_path' : 'NULL AS label_file_path';
 $mondayIdSelect = $hasMondayId ? 'pt.monday_item_id' : 'NULL AS monday_item_id';
+$mondayBoardIdSelect = $hasMondayBoardId ? 'pt.monday_board_id' : 'NULL AS monday_board_id';
 $mondayStatusSelect = $hasMondayStatus ? 'pt.monday_sync_status' : "'not_synced' AS monday_sync_status";
 $mondayErrorSelect = $hasMondayError ? 'pt.monday_sync_error' : 'NULL AS monday_sync_error';
+$packingRowKeySelect = $hasPackingRowKey ? 'pt.packing_row_key' : 'NULL AS packing_row_key';
 
 $currentEmployeeId = ops_current_employee_id();
 $canManage = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
@@ -51,7 +55,7 @@ $tasks = ops_rows(
         pt.quantity_planned, pt.assigned_employee_id, e.full_name AS assigned_name,
         pt.quantity_packed, pt.date_completed, pt.website_uploaded, {$confirmedSelect},
         pt.packing_status, pt.notes, pt.workload_points, {$invoiceSelect}, {$labelSelect},
-        {$mondayIdSelect}, {$mondayStatusSelect}, {$mondayErrorSelect}
+        {$mondayIdSelect}, {$mondayBoardIdSelect}, {$mondayStatusSelect}, {$mondayErrorSelect}, {$packingRowKeySelect}
      FROM ops_packing_tasks pt
      LEFT JOIN ops_employees e ON e.id = pt.assigned_employee_id
      {$where}
