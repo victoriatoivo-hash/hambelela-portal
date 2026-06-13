@@ -28,16 +28,24 @@ if ($activeApp === 'kpi') {
         }));
         if (!$frontDeskRows) {
             $frontDeskRows = array_values(array_filter($employeeScores, static function (array $row): bool {
-                return stripos((string) ($row['name'] ?? ''), 'cecil') !== false;
+                $name = (string) ($row['name'] ?? '');
+                $email = (string) ($row['email'] ?? '');
+                return stripos($name, 'cecil') !== false
+                    || stripos($name, 'secil') !== false
+                    || strtolower($email) === 'shiwedasecilia3@gmail.com';
             }));
         }
         if ($frontDeskRows) {
             $frontDeskPreferred = $frontDeskRows[0];
             foreach ($frontDeskRows as $row) {
                 $name = strtolower((string) ($row['name'] ?? ''));
-                if (stripos($name, 'cecil') !== false || !empty($row['hr_linked'])) {
+                $email = strtolower((string) ($row['email'] ?? ''));
+                $isFrontDeskPerson = stripos($name, 'cecil') !== false
+                    || stripos($name, 'secil') !== false
+                    || $email === 'shiwedasecilia3@gmail.com';
+                if ($isFrontDeskPerson || !empty($row['hr_linked'])) {
                     $frontDeskPreferred = $row;
-                    if (stripos($name, 'cecil') !== false) {
+                    if ($isFrontDeskPerson) {
                         break;
                     }
                 }

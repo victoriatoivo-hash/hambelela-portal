@@ -603,7 +603,12 @@ function kpi_build_scores(string $period, string $start, string $end, array $set
         "SELECT e.id, e.full_name, e.email, r.role_key, r.name AS role_name
          FROM ops_employees e
          JOIN ops_roles r ON r.id = e.role_id
-         WHERE e.status = 'active'
+         WHERE (
+                LOWER(TRIM(e.status)) = 'active'
+                OR LOWER(e.email) = 'shiwedasecilia3@gmail.com'
+                OR LOWER(e.full_name) LIKE '%secilia%'
+                OR LOWER(e.full_name) LIKE '%cecilia%'
+           )
            AND NOT (
                 r.role_key = 'owner_admin'
                 AND (
@@ -1697,7 +1702,11 @@ include BASE_PATH . '/shared/sidebar.php';
             }));
             if (!$roleRows) {
                 $roleRows = array_values(array_filter($employeeScores, static function (array $row): bool {
-                    return stripos((string) ($row['name'] ?? ''), 'cecil') !== false;
+                    $name = (string) ($row['name'] ?? '');
+                    $email = (string) ($row['email'] ?? '');
+                    return stripos($name, 'cecil') !== false
+                        || stripos($name, 'secil') !== false
+                        || strtolower($email) === 'shiwedasecilia3@gmail.com';
                 }));
             }
         } else {
