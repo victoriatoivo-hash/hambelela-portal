@@ -8418,7 +8418,7 @@ textarea {
 
 .duplicate-review-panel {
   position: relative;
-  width: min(760px, 94vw);
+  width: min(1180px, 96vw);
   height: 100%;
   overflow: hidden;
   background: #fff;
@@ -8434,8 +8434,8 @@ textarea {
 .duplicate-review-head {
   display: flex;
   justify-content: space-between;
-  gap: 16px;
-  padding: 22px 24px;
+  gap: 12px;
+  padding: 16px 18px;
   border-bottom: 1px solid var(--line);
 }
 
@@ -8449,18 +8449,19 @@ textarea {
 }
 
 .duplicate-review-head h2 {
-  margin: 4px 0;
-  font-size: 24px;
+  margin: 2px 0;
+  font-size: 20px;
 }
 
 .duplicate-review-head p {
   margin: 0;
+  font-size: 13px;
   color: var(--muted);
 }
 
 .duplicate-review-head button {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border: 0;
   border-radius: 10px;
   background: #f5f6fb;
@@ -8469,12 +8470,36 @@ textarea {
   cursor: pointer;
 }
 
+.duplicate-review-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 9px;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--line);
+  background: #fbfcff;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.duplicate-review-summary strong {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  min-height: 24px;
+  border-radius: 999px;
+  background: #eaf3ff;
+  color: #0073ea;
+  font-size: 12px;
+}
+
 .duplicate-review-body {
   display: grid;
-  gap: 16px;
-  max-height: calc(100vh - 172px);
+  gap: 10px;
+  max-height: calc(100vh - 154px);
   overflow: auto;
-  padding: 18px 24px 108px;
+  padding: 12px 18px 88px;
 }
 
 .duplicate-review-group {
@@ -8488,8 +8513,8 @@ textarea {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
+  gap: 8px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--line);
   background: #f7f9ff;
 }
@@ -8500,7 +8525,7 @@ textarea {
 }
 
 .duplicate-review-group header em {
-  padding: 5px 9px;
+  padding: 4px 8px;
   border-radius: 999px;
   background: #eaf3ff;
   color: #0073ea;
@@ -8509,13 +8534,24 @@ textarea {
   font-weight: 850;
 }
 
+.duplicate-review-table-head,
 .duplicate-review-row {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) 120px 130px 150px 150px 100px auto;
-  gap: 14px;
+  grid-template-columns: minmax(170px, 1.2fr) 92px 98px 92px 110px 110px 132px 130px 210px;
+  gap: 8px;
   align-items: center;
-  padding: 14px 16px;
+  padding: 8px 12px;
   border-bottom: 1px solid #edf0f7;
+  font-size: 12px;
+}
+
+.duplicate-review-table-head {
+  background: #fbfcff;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .duplicate-review-row:last-child {
@@ -8530,12 +8566,15 @@ textarea {
   white-space: nowrap;
 }
 
+.duplicate-review-row strong {
+  font-size: 12px;
+}
+
 .duplicate-review-row.original {
   background: #f7fbff;
 }
 
 .duplicate-review-row.duplicate {
-  grid-template-columns: 24px minmax(180px, 1fr) 120px 130px 150px 150px 100px;
   cursor: pointer;
 }
 
@@ -8544,12 +8583,35 @@ textarea {
 }
 
 .duplicate-keep-pill {
-  padding: 6px 10px;
+  padding: 5px 8px;
   border-radius: 999px;
   background: #e3fff2;
   color: #007f4e;
   font-size: 12px;
   font-weight: 850;
+}
+
+.duplicate-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.duplicate-row-actions label {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 6px;
+  border: 1px solid #d9deec;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.duplicate-row-actions input {
+  width: 12px;
+  height: 12px;
 }
 
 .duplicate-review-actions {
@@ -8559,16 +8621,16 @@ textarea {
   left: 0;
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
-  padding: 16px 24px;
+  gap: 8px;
+  padding: 12px 18px;
   border-top: 1px solid var(--line);
   background: #fff;
   box-shadow: 0 -12px 28px rgba(16, 24, 40, 0.08);
 }
 
 .duplicate-review-actions button {
-  min-height: 38px;
-  padding: 0 14px;
+  min-height: 34px;
+  padding: 0 12px;
   border: 1px solid #cfd4e6;
   border-radius: 8px;
   background: #fff;
@@ -8580,6 +8642,12 @@ textarea {
 .duplicate-review-actions .primary {
   border-color: #0073ea;
   background: #0073ea;
+  color: #fff;
+}
+
+.duplicate-review-actions .danger {
+  border-color: #d83a52;
+  background: #d83a52;
   color: #fff;
 }
 
@@ -8635,12 +8703,22 @@ textarea {
     width: 100vw;
   }
 
+  .duplicate-review-table-head,
   .duplicate-review-row,
   .duplicate-review-row.duplicate {
     grid-template-columns: 1fr;
   }
 
-  .duplicate-review-row.duplicate input {
-    align-self: start;
+  .duplicate-review-table-head {
+    display: none;
+  }
+
+  .duplicate-row-actions,
+  .duplicate-review-actions {
+    justify-content: flex-start;
+  }
+
+  .duplicate-review-actions {
+    flex-wrap: wrap;
   }
 }

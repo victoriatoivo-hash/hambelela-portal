@@ -1431,6 +1431,44 @@ try {
         exit;
     }
 
+    if ($action === 'delete_duplicates') {
+        if (!$canManage) {
+            throw new RuntimeException('Only admin/front desk can delete duplicate packing rows.');
+        }
+        $ids = array_values(array_filter(array_map('intval', explode(',', (string) ($_POST['task_ids'] ?? '')))));
+        if (!$ids) {
+            throw new RuntimeException('No duplicate rows selected.');
+        }
+        if (count($ids) > 100) {
+            throw new RuntimeException('Please delete 100 duplicate rows or fewer at once.');
+        }
+
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $rows = ops_rows(
+            "SELECT id, item_name, received_weight, quantity_planned, date_loaded FROM ops_packing_tasks WHERE id IN ({$placeholders})",
+            $ids
+        );
+        if (!$rows) {
+            throw new RuntimeException('Selected duplicate rows could not be found.');
+        }
+
+        foreach ($rows as $row) {
+            ops_activity_log('packing_duplicate_deleted', 'packing_task', (int) $row['id'], [
+                'item_name' => (string) ($row['item_name'] ?? ''),
+                'received_weight' => (string) ($row['received_weight'] ?? ''),
+                'quantity_planned' => (string) ($row['quantity_planned'] ?? ''),
+                'date_loaded' => (string) ($row['date_loaded'] ?? ''),
+                'changed_by' => current_user()['name'] ?? 'Unknown',
+            ]);
+        }
+
+        $stmt = db()->prepare("DELETE FROM ops_packing_tasks WHERE id IN ({$placeholders})");
+        $stmt->execute($ids);
+
+        echo json_encode(['ok' => true, 'message' => 'Deleted ' . $stmt->rowCount() . ' duplicate packing rows.']);
+        exit;
+    }
+
     if ($action === 'create_invoice_rows') {
         if (!$canManage) {
             throw new RuntimeException('Only admin/front desk can create invoice packing rows.');

@@ -931,6 +931,7 @@
     return new Promise((resolve) => {
       const overlay = document.createElement('div');
       overlay.className = 'duplicate-review-overlay';
+      const duplicateCount = groups.reduce((sum, group) => sum + ((group.duplicates || []).length), 0);
       const groupHtml = groups.map((group, index) => {
         const keep = group.keep || {};
         const duplicates = group.duplicates || [];
@@ -941,63 +942,44 @@
               <strong>${esc(keep.item_name || 'Packing item')}</strong>
               <em>${esc(group.match_type || 'Possible duplicate')}</em>
             </header>
+            <div class="duplicate-review-table-head">
+              <span>Product / ID</span>
+              <span>Source</span>
+              <span>Date</span>
+              <span>Received</span>
+              <span>Qty</span>
+              <span>Person</span>
+              <span>Monday</span>
+              <span>Reason</span>
+              <span>Action</span>
+            </div>
             <div class="duplicate-review-row original">
-              <div>
-                <small>Original to keep</small>
-                <strong>#${esc(keep.id || '')} ${esc(keep.item_name || '')}</strong>
-                <span>${esc(keep.created_source || 'Packing list')}</span>
-              </div>
-              <div>
-                <small>Loaded</small>
-                <span>${esc(formatDate(keep.date_loaded || ''))}</span>
-              </div>
-              <div>
-                <small>Packer</small>
-                <span>${esc(keep.assigned_name || 'Unassigned')}</span>
-              </div>
-              <div>
-                <small>Received / Qty</small>
-                <span>${esc(keep.received_weight || '-')} / ${esc(keep.quantity_planned || '-')}</span>
-              </div>
-              <div>
-                <small>Monday</small>
-                <span>${esc(keep.monday_sync_status || 'not synced')} ${keep.monday_item_id ? `#${esc(keep.monday_item_id)}` : ''}</span>
-              </div>
-              <div>
-                <small>Status</small>
-                <span>${esc(keep.packing_status || '-')}</span>
-              </div>
-              <span class="duplicate-keep-pill">Keep Original</span>
+              <strong title="${esc(keep.item_name || '')}">#${esc(keep.id || '')} ${esc(keep.item_name || '')}</strong>
+              <span>${esc(keep.created_source || 'Packing list')}</span>
+              <span>${esc(formatDate(keep.date_loaded || ''))}</span>
+              <span>${esc(keep.received_weight || '-')}</span>
+              <span>${esc(keep.quantity_planned || '-')}</span>
+              <span>${esc(keep.assigned_name || 'Unassigned')}</span>
+              <span>${esc(keep.monday_sync_status || 'not synced')} ${keep.monday_item_id ? `#${esc(keep.monday_item_id)}` : ''}</span>
+              <span>${esc(group.match_type || 'Original suggested')}</span>
+              <span class="duplicate-keep-pill">Keep</span>
             </div>
             ${duplicates.map((row) => `
-              <label class="duplicate-review-row duplicate">
-                <input type="checkbox" value="${esc(row.id)}" checked>
-                <div>
-                  <small>Duplicate to archive</small>
-                  <strong>#${esc(row.id)} ${esc(row.item_name || '')}</strong>
-                  <span>${esc(row.created_source || 'Packing list')}</span>
-                </div>
-                <div>
-                  <small>Loaded</small>
-                  <span>${esc(formatDate(row.date_loaded || ''))}</span>
-                </div>
-                <div>
-                  <small>Packer</small>
-                  <span>${esc(row.assigned_name || 'Unassigned')}</span>
-                </div>
-                <div>
-                  <small>Received / Qty</small>
-                  <span>${esc(row.received_weight || '-')} / ${esc(row.quantity_planned || '-')}</span>
-                </div>
-                <div>
-                  <small>Monday</small>
-                  <span>${esc(row.monday_sync_status || 'not synced')} ${row.monday_item_id ? `#${esc(row.monday_item_id)}` : ''}</span>
-                </div>
-                <div>
-                  <small>Status</small>
-                  <span>${esc(row.packing_status || '-')}</span>
-                </div>
-              </label>
+              <div class="duplicate-review-row duplicate" data-duplicate-row data-row-id="${esc(row.id)}" data-row-label="#${esc(row.id)} ${esc(row.item_name || '')}">
+                <strong title="${esc(row.item_name || '')}">#${esc(row.id)} ${esc(row.item_name || '')}</strong>
+                <span>${esc(row.created_source || 'Packing list')}</span>
+                <span>${esc(formatDate(row.date_loaded || ''))}</span>
+                <span>${esc(row.received_weight || '-')}</span>
+                <span>${esc(row.quantity_planned || '-')}</span>
+                <span>${esc(row.assigned_name || 'Unassigned')}</span>
+                <span>${esc(row.monday_sync_status || 'not synced')} ${row.monday_item_id ? `#${esc(row.monday_item_id)}` : ''}</span>
+                <span>${esc(group.match_type || 'Possible duplicate')}</span>
+                <span class="duplicate-row-actions">
+                  <label><input type="radio" name="dup-action-${esc(row.id)}" value="keep"> Keep</label>
+                  <label><input type="radio" name="dup-action-${esc(row.id)}" value="archive" checked> Archive</label>
+                  <label><input type="radio" name="dup-action-${esc(row.id)}" value="delete"> Delete</label>
+                </span>
+              </div>
             `).join('')}
           </section>
         `;
@@ -1008,24 +990,56 @@
             <div>
               <span>PACKING LIST</span>
               <h2>Duplicate Review</h2>
-              <p>Review each group before archiving duplicates. Nothing is permanently deleted.</p>
+              <p>Archive is selected by default. Delete requires a second confirmation.</p>
             </div>
             <button type="button" data-duplicate-close aria-label="Close">&times;</button>
+          </div>
+          <div class="duplicate-review-summary">
+            <strong>${groups.length}</strong><span>groups</span>
+            <strong>${groups.length}</strong><span>rows to keep</span>
+            <strong data-archive-count>${duplicateCount}</strong><span>to archive</span>
+            <strong data-delete-count>0</strong><span>to delete</span>
           </div>
           <div class="duplicate-review-body">${groupHtml}</div>
           <div class="duplicate-review-actions">
             <button type="button" data-duplicate-cancel>Cancel</button>
             <button class="button primary" type="button" data-duplicate-archive>Archive Selected Duplicates</button>
+            <button class="button danger" type="button" data-duplicate-delete>Delete Selected Duplicates</button>
           </div>
         </div>
       `;
       document.body.appendChild(overlay);
       requestAnimationFrame(() => overlay.classList.add('is-open'));
 
-      const close = (ids = null) => {
+      const selectedByAction = () => {
+        const archive = [];
+        const deleteIds = [];
+        const deleteLabels = [];
+        overlay.querySelectorAll('[data-duplicate-row]').forEach((row) => {
+          const id = row.getAttribute('data-row-id');
+          const checked = row.querySelector('input[type="radio"]:checked');
+          if (!id || !checked) return;
+          if (checked.value === 'archive') archive.push(id);
+          if (checked.value === 'delete') {
+            deleteIds.push(id);
+            deleteLabels.push(row.getAttribute('data-row-label') || `#${id}`);
+          }
+        });
+        return { archive, deleteIds, deleteLabels };
+      };
+
+      const updateSummary = () => {
+        const selected = selectedByAction();
+        const archiveCount = overlay.querySelector('[data-archive-count]');
+        const deleteCount = overlay.querySelector('[data-delete-count]');
+        if (archiveCount) archiveCount.textContent = String(selected.archive.length);
+        if (deleteCount) deleteCount.textContent = String(selected.deleteIds.length);
+      };
+
+      const close = (payload = null) => {
         overlay.classList.remove('is-open');
         setTimeout(() => overlay.remove(), 180);
-        resolve(ids);
+        resolve(payload);
       };
 
       overlay.addEventListener('click', (event) => {
@@ -1034,12 +1048,23 @@
           return;
         }
         if (event.target.closest('[data-duplicate-archive]')) {
-          const ids = [...overlay.querySelectorAll('.duplicate-review-row.duplicate input:checked')]
-            .map((input) => input.value)
-            .filter(Boolean);
-          close(ids);
+          const selected = selectedByAction();
+          close({ action: 'archive', ids: selected.archive });
+          return;
+        }
+        if (event.target.closest('[data-duplicate-delete]')) {
+          const selected = selectedByAction();
+          if (!selected.deleteIds.length) {
+            setCount('No duplicate rows are marked for delete.');
+            return;
+          }
+          const preview = selected.deleteLabels.slice(0, 12).join('\n');
+          const suffix = selected.deleteLabels.length > 12 ? `\n...and ${selected.deleteLabels.length - 12} more` : '';
+          const ok = window.confirm(`You are about to delete ${selected.deleteIds.length} duplicate rows. Please review the selected items below.\n\n${preview}${suffix}\n\nThis is permanent. Continue?`);
+          if (ok) close({ action: 'delete', ids: selected.deleteIds });
         }
       });
+      overlay.addEventListener('change', updateSummary);
     });
   }
 
@@ -1054,17 +1079,17 @@
         return;
       }
 
-      const duplicateIds = await showDuplicateReview(groups);
-      if (!duplicateIds) {
+      const selection = await showDuplicateReview(groups);
+      if (!selection) {
         setCount('Duplicate preview cancelled. No rows were changed.');
         return;
       }
-      if (!duplicateIds.length) {
-        setCount('No duplicate rows were selected for archive.');
+      if (!selection.ids.length) {
+        setCount(selection.action === 'delete' ? 'No duplicate rows were selected for delete.' : 'No duplicate rows were selected for archive.');
         return;
       }
 
-      const archiveResult = await post('archive_duplicates', { task_ids: duplicateIds.join(',') });
+      const archiveResult = await post(selection.action === 'delete' ? 'delete_duplicates' : 'archive_duplicates', { task_ids: selection.ids.join(',') });
       await refresh();
       setCount(archiveResult.message || 'Duplicate rows archived.');
     } finally {
