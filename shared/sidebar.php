@@ -8,6 +8,16 @@ $navItems = [];
 
 if ($activeApp === 'kpi') {
     $kpiTab = preg_replace('/[^a-z0-9_-]/', '', (string) ($_GET['tab'] ?? 'overview')) ?: 'overview';
+    $kpiRangeParams = [];
+    $kpiStartDate = (string) ($filterStartDate ?? ($_GET['start_date'] ?? ''));
+    $kpiEndDate = (string) ($filterEndDate ?? ($_GET['end_date'] ?? ''));
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $kpiStartDate)) {
+        $kpiRangeParams['start_date'] = $kpiStartDate;
+    }
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $kpiEndDate)) {
+        $kpiRangeParams['end_date'] = $kpiEndDate;
+    }
+    $kpiRangeSuffix = $kpiRangeParams ? '&' . http_build_query($kpiRangeParams) : '';
     $kpiFrontDeskLabel = 'Front Desk Performance';
     $kpiPackerOneLabel = 'Packer 1 -- Not assigned';
     $kpiPackerTwoLabel = 'Packer 2 -- Not assigned';
@@ -16,8 +26,23 @@ if ($activeApp === 'kpi') {
         $frontDeskRows = array_values(array_filter($employeeScores, static function (array $row): bool {
             return ($row['role_group'] ?? '') === 'front_desk';
         }));
-        if (count($frontDeskRows) === 1) {
-            $kpiFrontDeskLabel = 'Front Desk -- ' . (string) $frontDeskRows[0]['name'];
+        if (!$frontDeskRows) {
+            $frontDeskRows = array_values(array_filter($employeeScores, static function (array $row): bool {
+                return stripos((string) ($row['name'] ?? ''), 'cecil') !== false;
+            }));
+        }
+        if ($frontDeskRows) {
+            $frontDeskPreferred = $frontDeskRows[0];
+            foreach ($frontDeskRows as $row) {
+                $name = strtolower((string) ($row['name'] ?? ''));
+                if (stripos($name, 'cecil') !== false || !empty($row['hr_linked'])) {
+                    $frontDeskPreferred = $row;
+                    if (stripos($name, 'cecil') !== false) {
+                        break;
+                    }
+                }
+            }
+            $kpiFrontDeskLabel = 'Front Desk -- ' . (string) $frontDeskPreferred['name'];
         }
     }
 
@@ -31,11 +56,11 @@ if ($activeApp === 'kpi') {
     }
 
     $navItems = [
-        ['id' => 'kpi-overview', 'tab' => 'overview', 'label' => 'Dashboard', 'icon' => 'layout-dashboard', 'href' => BASE_URL . '/apps/operations/reports.php?tab=overview'],
-        ['id' => 'kpi-front-desk', 'tab' => 'front-desk', 'label' => $kpiFrontDeskLabel, 'icon' => 'headset', 'href' => BASE_URL . '/apps/operations/reports.php?tab=front-desk'],
-        ['id' => 'kpi-picker-1', 'tab' => 'picker-1', 'label' => $kpiPackerOneLabel, 'icon' => 'user-check', 'href' => BASE_URL . '/apps/operations/reports.php?tab=picker-1'],
-        ['id' => 'kpi-picker-2', 'tab' => 'picker-2', 'label' => $kpiPackerTwoLabel, 'icon' => 'user-round-check', 'href' => BASE_URL . '/apps/operations/reports.php?tab=picker-2'],
-        ['id' => 'kpi-bonus', 'tab' => 'bonus', 'label' => 'Bonus Incentive Score', 'icon' => 'badge-dollar-sign', 'href' => BASE_URL . '/apps/operations/reports.php?tab=bonus'],
+        ['id' => 'kpi-overview', 'tab' => 'overview', 'label' => 'Dashboard', 'icon' => 'layout-dashboard', 'href' => BASE_URL . '/apps/operations/reports.php?tab=overview' . $kpiRangeSuffix],
+        ['id' => 'kpi-front-desk', 'tab' => 'front-desk', 'label' => $kpiFrontDeskLabel, 'icon' => 'headset', 'href' => BASE_URL . '/apps/operations/reports.php?tab=front-desk' . $kpiRangeSuffix],
+        ['id' => 'kpi-picker-1', 'tab' => 'picker-1', 'label' => $kpiPackerOneLabel, 'icon' => 'user-check', 'href' => BASE_URL . '/apps/operations/reports.php?tab=picker-1' . $kpiRangeSuffix],
+        ['id' => 'kpi-picker-2', 'tab' => 'picker-2', 'label' => $kpiPackerTwoLabel, 'icon' => 'user-round-check', 'href' => BASE_URL . '/apps/operations/reports.php?tab=picker-2' . $kpiRangeSuffix],
+        ['id' => 'kpi-bonus', 'tab' => 'bonus', 'label' => 'Bonus Incentive Score', 'icon' => 'badge-dollar-sign', 'href' => BASE_URL . '/apps/operations/reports.php?tab=bonus' . $kpiRangeSuffix],
         ['id' => 'operations', 'tab' => '', 'label' => 'Back to Operations', 'icon' => 'arrow-left', 'href' => BASE_URL . '/apps/operations/index.php'],
     ];
 } else {

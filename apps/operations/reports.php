@@ -12,11 +12,19 @@ $ready = ops_database_ready();
 $message = null;
 $messageType = 'success';
 $period = preg_match('/^\d{4}-\d{2}$/', (string) ($_GET['period'] ?? '')) ? (string) $_GET['period'] : date('Y-m');
-$periodStart = $period . '-01 00:00:00';
-$periodEnd = (new DateTimeImmutable($periodStart))->modify('+1 month')->format('Y-m-d H:i:s');
+$defaultStartDate = date('Y-m-01');
+$defaultEndDate = date('Y-m-t');
+$filterStartDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_GET['start_date'] ?? '')) ? (string) $_GET['start_date'] : $defaultStartDate;
+$filterEndDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_GET['end_date'] ?? '')) ? (string) $_GET['end_date'] : $defaultEndDate;
+if ($filterEndDate < $filterStartDate) {
+    $filterEndDate = $filterStartDate;
+}
+$period = substr($filterStartDate, 0, 7);
+$periodStart = $filterStartDate . ' 00:00:00';
+$periodEnd = (new DateTimeImmutable($filterEndDate . ' 00:00:00'))->modify('+1 day')->format('Y-m-d H:i:s');
 $previousPeriod = (new DateTimeImmutable($periodStart))->modify('-1 month')->format('Y-m');
 $previousStart = $previousPeriod . '-01 00:00:00';
-$previousEnd = $periodStart;
+$previousEnd = (new DateTimeImmutable($previousStart))->modify('+1 month')->format('Y-m-d H:i:s');
 $activeTab = preg_replace('/[^a-z0-9_-]/', '', (string) ($_GET['tab'] ?? 'overview')) ?: 'overview';
 $selectedEmployeeId = max(0, (int) ($_GET['employee_id'] ?? 0));
 
@@ -1118,6 +1126,72 @@ $systemMetrics = [
     'Active queue' => number_format((int) ($systemMetricRow['active_queue'] ?? 0)),
 ];
 $businessSummary = $ready ? kpi_order_business_summary($periodStart, $periodEnd, $settings) : [];
+$completedOrdersInRange = $ready && ops_table_exists('ops_orders') ? ops_count('ops_orders', "completed_at >= '" . str_replace("'", "''", $periodStart) . "' AND completed_at < '" . str_replace("'", "''", $periodEnd) . "' AND status IN ('completed', 'packed', 'verified', 'ready_for_collection', 'ready_for_courier', 'ready_for_delivery')") : 0;
+$overallBusinessHealth = $employeeScores ? kpi_score(($averageScore * 0.7) + (max(0, 100 - ((int) ($systemMetricRow['overdue_orders'] ?? 0) * 6) - ((int) ($systemMetricRow['correction_orders'] ?? 0) * 5)) * 0.3)) : 0;
+$hasErrorRepeatIssue = $ready && ops_table_exists('ops_error_logs') && ops_column_exists('ops_error_logs', 'repeat_issue');
+$hasErrorStatus = $ready && ops_table_exists('ops_error_logs') && ops_column_exists('ops_error_logs', 'status');
+$errorSummaryRow = $ready && ops_table_exists('ops_error_logs') ? (ops_rows(
+    "SELECT
+        COUNT(*) AS total_errors,
+        SUM(CASE WHEN " . ($hasErrorRepeatIssue ? 'repeat_issue = 1' : '0') . " THEN 1 ELSE 0 END) AS repeat_errors,
+        SUM(CASE WHEN " . ($hasErrorStatus ? "status <> 'resolved'" : '0') . " THEN 1 ELSE 0 END) AS open_errors
+     FROM ops_error_logs
+     WHERE logged_at >= ? AND logged_at < ?",
+    [$periodStart, $periodEnd]
+)[0] ?? []) : [];
+$activeQueueCount = (int) ($systemMetricRow['active_queue'] ?? 0);
+$ordersMatrix = [
+    'Average time to assign' => kpi_duration(isset($systemMetricRow['avg_assignment_minutes']) ? (float) $systemMetricRow['avg_assignment_minutes'] : null),
+    'Average time to start packing' => kpi_duration(isset($systemMetricRow['avg_start_minutes']) ? (float) $systemMetricRow['avg_start_minutes'] : null),
+    'Average packing duration' => kpi_duration(isset($systemMetricRow['avg_packing_minutes']) ? (float) $systemMetricRow['avg_packing_minutes'] : null),
+    'Average time to complete order' => kpi_duration(isset($systemMetricRow['avg_completion_minutes']) ? (float) $systemMetricRow['avg_completion_minutes'] : null),
+    'Overdue orders' => number_format((int) ($systemMetricRow['overdue_orders'] ?? 0)),
+    'Orders with errors' => number_format((int) ($errorSummaryRow['total_errors'] ?? 0)),
+    'Recurring errors' => number_format((int) ($errorSummaryRow['repeat_errors'] ?? 0)),
+    'Active queue' => number_format($activeQueueCount),
+];
+$canReadPackingVariance = $ready
+    && ops_table_exists('ops_order_items')
+    && ops_table_exists('ops_orders')
+    && ops_column_exists('ops_order_items', 'packed_quantity')
+    && ops_column_exists('ops_order_items', 'quantity')
+    && ops_column_exists('ops_order_items', 'packed_by');
+$packingVarianceRows = $canReadPackingVariance ? ops_rows(
+    "SELECT COALESCE(oi.packed_by, o.assigned_packer_id) AS employee_id,
+            e.full_name,
+            AVG(CASE WHEN oi.packed_quantity IS NOT NULL THEN oi.packed_quantity - oi.quantity END) AS avg_variance,
+            SUM(CASE WHEN oi.packed_quantity < oi.quantity THEN 1 ELSE 0 END) AS packed_less_rows,
+            SUM(CASE WHEN oi.packed_quantity > oi.quantity THEN 1 ELSE 0 END) AS packed_more_rows,
+            COUNT(*) AS packed_rows
+     FROM ops_order_items oi
+     JOIN ops_orders o ON o.id = oi.order_id
+     LEFT JOIN ops_employees e ON e.id = COALESCE(oi.packed_by, o.assigned_packer_id)
+     WHERE COALESCE(oi.packed_by, o.assigned_packer_id) IS NOT NULL
+       AND o.created_at >= ? AND o.created_at < ?
+     GROUP BY COALESCE(oi.packed_by, o.assigned_packer_id), e.full_name
+     ORDER BY ABS(COALESCE(AVG(CASE WHEN oi.packed_quantity IS NOT NULL THEN oi.packed_quantity - oi.quantity END), 0)) DESC",
+    [$periodStart, $periodEnd]
+) : [];
+$topPackedLess = '-';
+$topPackedMore = '-';
+foreach ($packingVarianceRows as $row) {
+    if ($topPackedLess === '-' && (float) ($row['avg_variance'] ?? 0) < 0) {
+        $topPackedLess = (string) ($row['full_name'] ?: 'Unassigned') . ' (' . number_format(abs((float) $row['avg_variance']), 1) . ' avg less)';
+    }
+    if ($topPackedMore === '-' && (float) ($row['avg_variance'] ?? 0) > 0) {
+        $topPackedMore = (string) ($row['full_name'] ?: 'Unassigned') . ' (' . number_format((float) $row['avg_variance'], 1) . ' avg more)';
+    }
+}
+$packingMatrix = [
+    'Average picked/order start time' => kpi_duration($businessSummary['avg_start'] ?? null),
+    'Average time under New Order' => kpi_duration($businessSummary['avg_assignment'] ?? null),
+    'Average time before In Progress' => kpi_duration($businessSummary['avg_start'] ?? null),
+    'Average order completion time' => kpi_duration($businessSummary['avg_completion'] ?? null),
+    'Packing notes created' => $ready && ops_table_exists('ops_orders') ? number_format(ops_count('ops_orders', "notes IS NOT NULL AND notes <> '' AND created_at >= '" . str_replace("'", "''", $periodStart) . "' AND created_at < '" . str_replace("'", "''", $periodEnd) . "'")) : '0',
+    'Packer who packed less' => $topPackedLess,
+    'Packer who packed more' => $topPackedMore,
+    'Rows checked for variance' => number_format(array_sum(array_map(static fn (array $row): int => (int) ($row['packed_rows'] ?? 0), $packingVarianceRows))),
+];
 $tabs = [
     'overview' => 'Overview Dashboard',
     'front-desk' => 'Front Desk Performance',
@@ -1138,6 +1212,7 @@ $pickerEmployees = array_values(array_filter($employeeScores, static function (a
 $unlinkedEmployees = array_values(array_filter($employeeScores, static function (array $row): bool {
     return empty($row['hr_linked']);
 }));
+$dateRangeQuery = http_build_query(['start_date' => $filterStartDate, 'end_date' => $filterEndDate]);
 
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
@@ -1145,13 +1220,12 @@ include BASE_PATH . '/shared/sidebar.php';
 <main class="workspace module kpi-performance-page">
     <section class="module-header">
         <div>
-            <p class="eyebrow">KPI Performance & Bonus Framework</p>
             <h1>Performance Dashboard</h1>
-            <p>Objective employee scoring, graduated bonus calculations, reward eligibility, training signals and operational KPI tracking.</p>
         </div>
         <form class="kpi-period-form" method="get">
             <input type="hidden" name="tab" value="<?= htmlspecialchars($activeTab, ENT_QUOTES, 'UTF-8') ?>">
-            <label>Month<input type="month" name="period" value="<?= htmlspecialchars($period, ENT_QUOTES, 'UTF-8') ?>"></label>
+            <label>From<input type="date" name="start_date" value="<?= htmlspecialchars($filterStartDate, ENT_QUOTES, 'UTF-8') ?>"></label>
+            <label>To<input type="date" name="end_date" value="<?= htmlspecialchars($filterEndDate, ENT_QUOTES, 'UTF-8') ?>"></label>
             <button class="button primary" type="submit"><i data-lucide="calendar-range"></i> View</button>
         </form>
     </section>
@@ -1162,37 +1236,6 @@ include BASE_PATH . '/shared/sidebar.php';
             <strong>HR employee links needed.</strong>
             <?= count($unlinkedEmployees) ?> active portal user<?= count($unlinkedEmployees) === 1 ? '' : 's' ?> are not linked to HR employee profiles. KPI salary, leave and availability tracking may be inaccurate.
             <a class="button small" href="employees.php">Link employees</a>
-        </section>
-    <?php endif; ?>
-
-    <?php if ($activeTab === 'overview'): ?>
-        <section class="panel kpi-picker-settings">
-            <div class="section-row">
-                <div>
-                    <h2>Packer performance slots</h2>
-                    <p>Choose which packer appears under Packer 1 and Packer 2 in the KPI sidebar.</p>
-                </div>
-            </div>
-            <form class="kpi-picker-slot-form" method="post">
-                <input type="hidden" name="kpi_action" value="save_picker_slots">
-                <label>Packer 1
-                    <select name="picker_1_employee_id">
-                        <option value="0">Not assigned</option>
-                        <?php foreach ($pickerEmployees as $row): ?>
-                            <option value="<?= (int) $row['employee_id'] ?>" <?= (int) $row['employee_id'] === $pickerOneId ? 'selected' : '' ?>><?= htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8') ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </label>
-                <label>Packer 2
-                    <select name="picker_2_employee_id">
-                        <option value="0">Not assigned</option>
-                        <?php foreach ($pickerEmployees as $row): ?>
-                            <option value="<?= (int) $row['employee_id'] ?>" <?= (int) $row['employee_id'] === $pickerTwoId ? 'selected' : '' ?>><?= htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8') ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </label>
-                <button class="button primary" type="submit"><i data-lucide="save"></i> Save packer slots</button>
-            </form>
         </section>
     <?php endif; ?>
 
@@ -1220,6 +1263,11 @@ include BASE_PATH . '/shared/sidebar.php';
             $roleRows = array_values(array_filter($employeeScores, static function (array $row): bool {
                 return ($row['role_group'] ?? '') === 'front_desk';
             }));
+            if (!$roleRows) {
+                $roleRows = array_values(array_filter($employeeScores, static function (array $row): bool {
+                    return stripos((string) ($row['name'] ?? ''), 'cecil') !== false;
+                }));
+            }
         } else {
             $slotId = $activeTab === 'picker-1' ? $pickerOneId : $pickerTwoId;
             if ($slotId > 0 && isset($scoresById[$slotId])) {
@@ -1247,7 +1295,7 @@ include BASE_PATH . '/shared/sidebar.php';
             <div class="section-row"><div><h2>Individual Employee Profiles</h2><p>Open one employee at a time inside KPI Reports.</p></div></div>
             <div class="kpi-employee-tabs">
                 <?php foreach ($employeeScores as $row): ?>
-                    <a class="<?= $selectedEmployee && (int) $selectedEmployee['employee_id'] === (int) $row['employee_id'] ? 'active' : '' ?>" href="reports.php?period=<?= urlencode($period) ?>&tab=employees&employee_id=<?= (int) $row['employee_id'] ?>"><?= htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8') ?></a>
+                    <a class="<?= $selectedEmployee && (int) $selectedEmployee['employee_id'] === (int) $row['employee_id'] ? 'active' : '' ?>" href="reports.php?tab=employees&employee_id=<?= (int) $row['employee_id'] ?>&<?= htmlspecialchars($dateRangeQuery, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8') ?></a>
                 <?php endforeach; ?>
             </div>
         </section>
@@ -1283,11 +1331,9 @@ include BASE_PATH . '/shared/sidebar.php';
     <section class="work-metric-grid kpi-overview-grid">
         <?php foreach ([
             ['Average Performance', kpi_percent($averageScore), 'All active employees', 'gauge', 'metric-blue'],
-            ['Top Performer', $topPerformer ? $topPerformer['name'] : '-', $topPerformer ? kpi_percent((float) $topPerformer['score']) : 'No score yet', 'trophy', 'metric-green'],
-            ['Bottom Performer', $bottomPerformer ? $bottomPerformer['name'] : '-', $bottomPerformer ? kpi_percent((float) $bottomPerformer['score']) : 'No score yet', 'badge-alert', 'metric-orange'],
-            ['Bonus Forecast', kpi_money((float) $bonusForecast), 'Estimated payout for ' . htmlspecialchars($period, ENT_QUOTES, 'UTF-8'), 'banknote', 'metric-purple'],
+            ['Overall Business Health', kpi_percent($overallBusinessHealth), 'Performance, overdue work and correction signals', 'activity', 'metric-green'],
+            ['Orders Completed', number_format($completedOrdersInRange), $filterStartDate === $defaultStartDate && $filterEndDate === $defaultEndDate ? 'Completed this month' : 'Completed in selected period', 'package-check', 'metric-blue'],
             ['Reward Candidates', number_format(count($rewardCandidates)), '90% and above', 'gift', 'metric-pink'],
-            ['Training Needed', number_format(count($trainingCandidates)), 'Below 60%', 'graduation-cap', 'metric-red'],
         ] as [$title, $value, $desc, $icon, $class]): ?>
             <article class="work-metric-card <?= htmlspecialchars($class, ENT_QUOTES, 'UTF-8') ?>">
                 <span class="metric-icon"><i data-lucide="<?= htmlspecialchars($icon, ENT_QUOTES, 'UTF-8') ?>"></i></span>
@@ -1299,12 +1345,29 @@ include BASE_PATH . '/shared/sidebar.php';
     <section class="panel kpi-system-panel">
         <div class="section-row">
             <div>
-                <h2>Operational timing metrics</h2>
-                <p>System-calculated order flow, packing speed, overdue work and correction signals for the selected month.</p>
+                <h2>Orders Matrix</h2>
+                <p>Order flow, completion timing, overdue work, active queue and error signals for the selected period.</p>
             </div>
         </div>
         <div class="kpi-system-metric-grid">
-            <?php foreach ($systemMetrics as $label => $value): ?>
+            <?php foreach ($ordersMatrix as $label => $value): ?>
+                <article>
+                    <span><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></span>
+                    <strong><?= htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') ?></strong>
+                </article>
+            <?php endforeach; ?>
+        </div>
+    </section>
+
+    <section class="panel kpi-system-panel">
+        <div class="section-row">
+            <div>
+                <h2>Packing Matrix</h2>
+                <p>Packing speed, status movement, notes and over/under packing signals from order and item history.</p>
+            </div>
+        </div>
+        <div class="kpi-system-metric-grid">
+            <?php foreach ($packingMatrix as $label => $value): ?>
                 <article>
                     <span><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></span>
                     <strong><?= htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') ?></strong>
