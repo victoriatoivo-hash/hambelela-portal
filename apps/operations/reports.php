@@ -967,6 +967,341 @@ function kpi_employee_module_rows(array $scores, string $module): array
     return $rows;
 }
 
+function kpi_empty_detail_bucket(): array
+{
+    return [
+        'orders' => ['title' => 'Order Board / My Work', 'icon' => 'package-check', 'accent' => 'blue', 'metrics' => []],
+        'tasks' => ['title' => 'Task Management', 'icon' => 'list-checks', 'accent' => 'teal', 'metrics' => []],
+        'packing' => ['title' => 'Packing List / Consignments', 'icon' => 'package-open', 'accent' => 'purple', 'metrics' => []],
+        'bookkeeping' => ['title' => 'Bookkeeping', 'icon' => 'wallet-cards', 'accent' => 'green', 'metrics' => []],
+        'courier' => ['title' => 'Courier Waybills', 'icon' => 'truck', 'accent' => 'orange', 'metrics' => []],
+        'errors' => ['title' => 'Errors & Corrections', 'icon' => 'triangle-alert', 'accent' => 'red', 'metrics' => []],
+        'hr' => ['title' => 'HR / Leave', 'icon' => 'calendar-days', 'accent' => 'pink', 'metrics' => []],
+    ];
+}
+
+function kpi_add_detail_metric(array &$details, int $employeeId, string $bucket, string $label, $value, ?string $hint = null): void
+{
+    if ($employeeId <= 0 || !isset($details[$employeeId][$bucket])) {
+        return;
+    }
+    $details[$employeeId][$bucket]['metrics'][] = [
+        'label' => $label,
+        'value' => (string) $value,
+        'hint' => $hint,
+    ];
+}
+
+function kpi_done_status_sql(string $alias = ''): string
+{
+    $prefix = $alias !== '' ? $alias . '.' : '';
+    return $prefix . "status IN ('completed', 'packed', 'verified', 'ready_for_collection', 'ready_for_courier', 'ready_for_delivery')";
+}
+
+function kpi_active_status_sql(string $alias = ''): string
+{
+    $prefix = $alias !== '' ? $alias . '.' : '';
+    return $prefix . "status NOT IN ('completed', 'packed', 'verified', 'ready_for_collection', 'ready_for_courier', 'ready_for_delivery', 'cancelled', 'canceled', 'refunded', 'failed')";
+}
+
+function kpi_employee_performance_details(array $scores, string $start, string $end, array $settings): array
+{
+    $details = [];
+    $hrToEmployee = [];
+    foreach ($scores as $score) {
+        $employeeId = (int) ($score['employee_id'] ?? 0);
+        if ($employeeId <= 0) {
+            continue;
+        }
+        $details[$employeeId] = kpi_empty_detail_bucket();
+        if (!empty($score['hr_employee_id'])) {
+            $hrToEmployee[(int) $score['hr_employee_id']] = $employeeId;
+        }
+    }
+
+    if (!$details) {
+        return [];
+    }
+
+    $targetOrderMinutes = (int) ($settings['target_order_total_minutes'] ?? 360);
+
+    if (ops_table_exists('ops_orders')) {
+        $doneSql = kpi_done_status_sql();
+        $activeSql = kpi_active_status_sql();
+        foreach (ops_rows(
+            "SELECT assigned_packer_id AS employee_id,
+                    COUNT(*) AS total_orders,
+                    SUM(CASE WHEN status IN ('new_order', 'assigned') THEN 1 ELSE 0 END) AS waiting_orders,
+                    SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) AS in_progress_orders,
+                    SUM(CASE WHEN {$doneSql} THEN 1 ELSE 0 END) AS completed_orders,
+                    SUM(CASE WHEN {$activeSql} THEN 1 ELSE 0 END) AS active_orders,
+                    SUM(CASE WHEN {$activeSql} AND TIMESTAMPDIFF(MINUTE, created_at, NOW()) > ? THEN 1 ELSE 0 END) AS overdue_orders,
+                    SUM(CASE WHEN order_type = 'delivery' THEN 1 ELSE 0 END) AS delivery_orders,
+                    SUM(CASE WHEN order_type = 'collection' THEN 1 ELSE 0 END) AS collection_orders,
+                    SUM(CASE WHEN order_type = 'courier' THEN 1 ELSE 0 END) AS courier_orders,
+                    COALESCE(SUM(workload_score), 0) AS workload_points,
+                    AVG(CASE WHEN packing_started_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, COALESCE(assigned_at, created_at), packing_started_at) END) AS avg_wait_to_start,
+                    AVG(CASE WHEN COALESCE(packed_at, completed_at) IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, COALESCE(packing_started_at, assigned_at, created_at), COALESCE(packed_at, completed_at)) END) AS avg_pack_time,
+                    AVG(CASE WHEN completed_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, created_at, completed_at) END) AS avg_total_time
+             FROM ops_orders
+             WHERE assigned_packer_id IS NOT NULL AND created_at >= ? AND created_at < ?
+             GROUP BY assigned_packer_id",
+            [$targetOrderMinutes, $start, $end]
+        ) as $row) {
+            $employeeId = (int) ($row['employee_id'] ?? 0);
+            kpi_add_detail_metric($details, $employeeId, 'orders', 'Assigned orders', number_format((int) ($row['total_orders'] ?? 0)), 'Orders assigned to this picker.');
+            kpi_add_detail_metric($details, $employeeId, 'orders', 'Waiting / New Order', number_format((int) ($row['waiting_orders'] ?? 0)), 'Work waiting to be picked.');
+            kpi_add_detail_metric($details, $employeeId, 'orders', 'In Progress', number_format((int) ($row['in_progress_orders'] ?? 0)), 'Orders currently being packed.');
+            kpi_add_detail_metric($details, $employeeId, 'orders', 'Completed', number_format((int) ($row['completed_orders'] ?? 0)), 'Orders finished in this period.');
+            kpi_add_detail_metric($details, $employeeId, 'orders', 'Overdue', number_format((int) ($row['overdue_orders'] ?? 0)), 'Active orders beyond the target time.');
+            kpi_add_detail_metric($details, $employeeId, 'orders', 'Delivery / Collection / Courier', number_format((int) ($row['delivery_orders'] ?? 0)) . ' / ' . number_format((int) ($row['collection_orders'] ?? 0)) . ' / ' . number_format((int) ($row['courier_orders'] ?? 0)), 'Mode split for assigned work.');
+            kpi_add_detail_metric($details, $employeeId, 'orders', 'Avg wait to start', kpi_duration(isset($row['avg_wait_to_start']) ? (float) $row['avg_wait_to_start'] : null), 'Assigned/New Order to In Progress.');
+            kpi_add_detail_metric($details, $employeeId, 'orders', 'Avg packing time', kpi_duration(isset($row['avg_pack_time']) ? (float) $row['avg_pack_time'] : null), 'In Progress to packed/completed.');
+            kpi_add_detail_metric($details, $employeeId, 'orders', 'Avg total order time', kpi_duration(isset($row['avg_total_time']) ? (float) $row['avg_total_time'] : null), 'Order loaded to completed.');
+            kpi_add_detail_metric($details, $employeeId, 'orders', 'Workload points', number_format((float) ($row['workload_points'] ?? 0), 1), 'Fairness signal based on order complexity.');
+        }
+
+        foreach (ops_rows(
+            "SELECT created_by AS employee_id,
+                    COUNT(*) AS orders_loaded,
+                    SUM(CASE WHEN LOWER(COALESCE(customer_contact, '')) LIKE '%walk%' OR LOWER(COALESCE(customer_name, '')) LIKE '%walk%' THEN 1 ELSE 0 END) AS walk_in_orders,
+                    SUM(CASE WHEN {$doneSql} THEN 1 ELSE 0 END) AS completed_orders,
+                    SUM(CASE WHEN payment_status = 'paid' THEN 1 ELSE 0 END) AS paid_orders,
+                    SUM(CASE WHEN payment_status <> 'paid' OR payment_status IS NULL THEN 1 ELSE 0 END) AS unpaid_orders,
+                    SUM(CASE WHEN assigned_packer_id IS NULL AND {$activeSql} THEN 1 ELSE 0 END) AS unassigned_orders,
+                    AVG(CASE WHEN completed_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, created_at, completed_at) END) AS avg_complete_minutes
+             FROM ops_orders
+             WHERE created_by IS NOT NULL AND created_at >= ? AND created_at < ?
+             GROUP BY created_by",
+            [$start, $end]
+        ) as $row) {
+            $employeeId = (int) ($row['employee_id'] ?? 0);
+            kpi_add_detail_metric($details, $employeeId, 'orders', 'Orders loaded', number_format((int) ($row['orders_loaded'] ?? 0)), 'Orders created or imported by this front-office user.');
+            kpi_add_detail_metric($details, $employeeId, 'orders', 'Walk-in customers assisted', number_format((int) ($row['walk_in_orders'] ?? 0)), 'Walk-in customer records usually handled at front desk.');
+            kpi_add_detail_metric($details, $employeeId, 'orders', 'Completed orders', number_format((int) ($row['completed_orders'] ?? 0)), 'Front desk completion flow.');
+            kpi_add_detail_metric($details, $employeeId, 'orders', 'Paid / unpaid', number_format((int) ($row['paid_orders'] ?? 0)) . ' / ' . number_format((int) ($row['unpaid_orders'] ?? 0)), 'Payment follow-up signal.');
+            kpi_add_detail_metric($details, $employeeId, 'orders', 'Unassigned follow-up', number_format((int) ($row['unassigned_orders'] ?? 0)), 'Orders still needing assignment.');
+            kpi_add_detail_metric($details, $employeeId, 'orders', 'Avg completion follow-up', kpi_duration(isset($row['avg_complete_minutes']) ? (float) $row['avg_complete_minutes'] : null), 'Loaded to completed.');
+        }
+    }
+
+    if (ops_table_exists('ops_checklist_tasks')) {
+        foreach (ops_rows(
+            "SELECT assigned_employee_id AS employee_id,
+                    COUNT(*) AS total_tasks,
+                    SUM(CASE WHEN status IN ('done', 'completed', 'approved') THEN 1 ELSE 0 END) AS done_tasks,
+                    SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) AS in_progress_tasks,
+                    SUM(CASE WHEN status IN ('not_started', 'pending', 'todo') THEN 1 ELSE 0 END) AS pending_tasks,
+                    SUM(CASE WHEN status = 'needs_review' THEN 1 ELSE 0 END) AS review_tasks,
+                    SUM(CASE WHEN status NOT IN ('done', 'completed', 'approved') AND deadline IS NOT NULL AND deadline < NOW() THEN 1 ELSE 0 END) AS overdue_tasks,
+                    SUM(CASE WHEN checklist_type IN ('cleaning', 'saturday', 'stock_refill') OR recurrence_key IS NOT NULL THEN 1 ELSE 0 END) AS recurring_tasks,
+                    AVG(CASE WHEN COALESCE(date_completed, completed_at) IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, COALESCE(date_assigned, created_at), COALESCE(date_completed, completed_at)) END) AS avg_complete_minutes
+             FROM ops_checklist_tasks
+             WHERE assigned_employee_id IS NOT NULL AND created_at >= ? AND created_at < ?
+             GROUP BY assigned_employee_id",
+            [$start, $end]
+        ) as $row) {
+            $employeeId = (int) ($row['employee_id'] ?? 0);
+            kpi_add_detail_metric($details, $employeeId, 'tasks', 'Total tasks', number_format((int) ($row['total_tasks'] ?? 0)), 'All assigned checklist/task items.');
+            kpi_add_detail_metric($details, $employeeId, 'tasks', 'Done / Pending', number_format((int) ($row['done_tasks'] ?? 0)) . ' / ' . number_format((int) ($row['pending_tasks'] ?? 0)), 'Completion accountability.');
+            kpi_add_detail_metric($details, $employeeId, 'tasks', 'In progress', number_format((int) ($row['in_progress_tasks'] ?? 0)), 'Currently active tasks.');
+            kpi_add_detail_metric($details, $employeeId, 'tasks', 'Needs review', number_format((int) ($row['review_tasks'] ?? 0)), 'Tasks waiting for approval/review.');
+            kpi_add_detail_metric($details, $employeeId, 'tasks', 'Overdue tasks', number_format((int) ($row['overdue_tasks'] ?? 0)), 'Deadline missed or currently late.');
+            kpi_add_detail_metric($details, $employeeId, 'tasks', 'Recurring / cleaning tasks', number_format((int) ($row['recurring_tasks'] ?? 0)), 'Shelf stocking, cleaning and recurring duties.');
+            kpi_add_detail_metric($details, $employeeId, 'tasks', 'Avg task completion', kpi_duration(isset($row['avg_complete_minutes']) ? (float) $row['avg_complete_minutes'] : null), 'Assigned to completed.');
+        }
+    }
+
+    if (ops_table_exists('ops_packing_tasks')) {
+        $websiteTimeSql = ops_column_exists('ops_packing_tasks', 'updated_at')
+            ? 'AVG(CASE WHEN website_uploaded = 1 AND updated_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, date_loaded, updated_at) END) AS avg_website_minutes,'
+            : 'NULL AS avg_website_minutes,';
+        $receivedSql = ops_column_exists('ops_packing_tasks', 'received_weight')
+            ? 'COALESCE(SUM(CAST(received_weight AS DECIMAL(12,2))), 0) AS received_weight_total,'
+            : '0 AS received_weight_total,';
+        foreach (ops_rows(
+            "SELECT assigned_employee_id AS employee_id,
+                    COUNT(*) AS total_rows,
+                    SUM(CASE WHEN packing_status = 'not_started' THEN 1 ELSE 0 END) AS not_started_rows,
+                    SUM(CASE WHEN packing_status = 'packing' THEN 1 ELSE 0 END) AS packing_rows,
+                    SUM(CASE WHEN packing_status IN ('done', 'website', 'label_created') THEN 1 ELSE 0 END) AS done_rows,
+                    SUM(CASE WHEN packing_status IN ('done_needs_label', 'packed_label_needed') THEN 1 ELSE 0 END) AS label_wait_rows,
+                    SUM(CASE WHEN website_uploaded = 1 THEN 1 ELSE 0 END) AS website_uploaded_rows,
+                    SUM(CASE WHEN website_uploaded = 0 THEN 1 ELSE 0 END) AS website_pending_rows,
+                    COALESCE(SUM(workload_points), 0) AS workload_points,
+                    {$receivedSql}
+                    {$websiteTimeSql}
+                    AVG(CASE WHEN date_completed IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, date_loaded, date_completed) END) AS avg_pack_minutes,
+                    MAX(CASE WHEN packing_status IN ('packing', 'done_needs_label', 'packed_label_needed') THEN TIMESTAMPDIFF(MINUTE, date_loaded, NOW()) END) AS oldest_active_minutes
+             FROM ops_packing_tasks
+             WHERE assigned_employee_id IS NOT NULL AND date_loaded >= ? AND date_loaded < ?
+             GROUP BY assigned_employee_id",
+            [$start, $end]
+        ) as $row) {
+            $employeeId = (int) ($row['employee_id'] ?? 0);
+            kpi_add_detail_metric($details, $employeeId, 'packing', 'Packing rows assigned', number_format((int) ($row['total_rows'] ?? 0)), 'Product lines assigned on the packing list.');
+            kpi_add_detail_metric($details, $employeeId, 'packing', 'Not started / Packing / Done', number_format((int) ($row['not_started_rows'] ?? 0)) . ' / ' . number_format((int) ($row['packing_rows'] ?? 0)) . ' / ' . number_format((int) ($row['done_rows'] ?? 0)), 'Status progress per person.');
+            kpi_add_detail_metric($details, $employeeId, 'packing', 'Waiting for label', number_format((int) ($row['label_wait_rows'] ?? 0)), 'Rows done but blocked by labels.');
+            kpi_add_detail_metric($details, $employeeId, 'packing', 'Website uploaded / pending', number_format((int) ($row['website_uploaded_rows'] ?? 0)) . ' / ' . number_format((int) ($row['website_pending_rows'] ?? 0)), 'Website quantity update responsibility.');
+            kpi_add_detail_metric($details, $employeeId, 'packing', 'Workload points', number_format((float) ($row['workload_points'] ?? 0), 1), 'Fairness signal across packers.');
+            kpi_add_detail_metric($details, $employeeId, 'packing', 'Recorded received weight', number_format((float) ($row['received_weight_total'] ?? 0), 1), 'Parsed numeric weight from received-weight field where available.');
+            kpi_add_detail_metric($details, $employeeId, 'packing', 'Avg packing completion', kpi_duration(isset($row['avg_pack_minutes']) ? (float) $row['avg_pack_minutes'] : null), 'Loaded to completed.');
+            kpi_add_detail_metric($details, $employeeId, 'packing', 'Oldest active wait', kpi_duration(isset($row['oldest_active_minutes']) ? (float) $row['oldest_active_minutes'] : null), 'Longest item still packing or waiting label.');
+            kpi_add_detail_metric($details, $employeeId, 'packing', 'Avg website update time', kpi_duration(isset($row['avg_website_minutes']) ? (float) $row['avg_website_minutes'] : null), 'Loaded to website checkbox updated.');
+        }
+    }
+
+    if (ops_table_exists('ops_error_logs')) {
+        $repeatSql = ops_column_exists('ops_error_logs', 'repeat_issue') ? 'repeat_issue = 1' : '0';
+        $statusSql = ops_column_exists('ops_error_logs', 'status') ? "status <> 'resolved'" : '0';
+        foreach (ops_rows(
+            "SELECT employee_id,
+                    COUNT(*) AS total_errors,
+                    SUM(CASE WHEN severity = 'critical' THEN 1 ELSE 0 END) AS critical_errors,
+                    SUM(CASE WHEN severity = 'high' THEN 1 ELSE 0 END) AS high_errors,
+                    SUM(CASE WHEN {$repeatSql} THEN 1 ELSE 0 END) AS repeat_errors,
+                    SUM(CASE WHEN {$statusSql} THEN 1 ELSE 0 END) AS unresolved_errors,
+                    COALESCE(SUM(financial_impact), 0) AS financial_impact
+             FROM ops_error_logs
+             WHERE employee_id IS NOT NULL AND logged_at >= ? AND logged_at < ?
+             GROUP BY employee_id",
+            [$start, $end]
+        ) as $row) {
+            $employeeId = (int) ($row['employee_id'] ?? 0);
+            kpi_add_detail_metric($details, $employeeId, 'errors', 'Errors assigned', number_format((int) ($row['total_errors'] ?? 0)), 'Errors linked to this employee.');
+            kpi_add_detail_metric($details, $employeeId, 'errors', 'Critical / High', number_format((int) ($row['critical_errors'] ?? 0)) . ' / ' . number_format((int) ($row['high_errors'] ?? 0)), 'Serious error severity count.');
+            kpi_add_detail_metric($details, $employeeId, 'errors', 'Repeat errors', number_format((int) ($row['repeat_errors'] ?? 0)), 'Repeat issue signal.');
+            kpi_add_detail_metric($details, $employeeId, 'errors', 'Unresolved', number_format((int) ($row['unresolved_errors'] ?? 0)), 'Still open or in review.');
+            kpi_add_detail_metric($details, $employeeId, 'errors', 'Financial impact', kpi_money((float) ($row['financial_impact'] ?? 0)), 'Recorded error cost.');
+        }
+        foreach (ops_rows(
+            "SELECT logged_by AS employee_id, COUNT(*) AS errors_logged
+             FROM ops_error_logs
+             WHERE logged_by IS NOT NULL AND logged_at >= ? AND logged_at < ?
+             GROUP BY logged_by",
+            [$start, $end]
+        ) as $row) {
+            kpi_add_detail_metric($details, (int) ($row['employee_id'] ?? 0), 'errors', 'Errors logged by employee', number_format((int) ($row['errors_logged'] ?? 0)), 'Front desk/admin logging consistency.');
+        }
+    }
+
+    if (ops_table_exists('ops_cash_book_entries')) {
+        $cashArchiveWhere = ops_column_exists('ops_cash_book_entries', 'archived_at')
+            ? "AND (archived_at IS NULL OR archived_at = '0000-00-00 00:00:00')"
+            : '';
+        foreach (ops_rows(
+            "SELECT recorded_by AS employee_id,
+                    COUNT(*) AS entries_logged,
+                    COALESCE(SUM(cash_in), 0) AS total_cash_in,
+                    COALESCE(SUM(cash_out), 0) AS total_cash_out,
+                    SUM(CASE WHEN related_order_id IS NULL AND cash_in > 0 THEN 1 ELSE 0 END) AS unlinked_cash_entries,
+                    AVG(CASE WHEN related_order_id IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, transaction_date, created_at) END) AS avg_record_minutes
+             FROM ops_cash_book_entries
+             WHERE recorded_by IS NOT NULL
+               AND transaction_date >= ? AND transaction_date < ?
+               {$cashArchiveWhere}
+             GROUP BY recorded_by",
+            [$start, $end]
+        ) as $row) {
+            $employeeId = (int) ($row['employee_id'] ?? 0);
+            kpi_add_detail_metric($details, $employeeId, 'bookkeeping', 'Cash entries logged', number_format((int) ($row['entries_logged'] ?? 0)), 'Bookkeeping transactions created.');
+            kpi_add_detail_metric($details, $employeeId, 'bookkeeping', 'Cash in / out', kpi_money((float) ($row['total_cash_in'] ?? 0)) . ' / ' . kpi_money((float) ($row['total_cash_out'] ?? 0)), 'Money movement captured.');
+            kpi_add_detail_metric($details, $employeeId, 'bookkeeping', 'Unlinked cash entries', number_format((int) ($row['unlinked_cash_entries'] ?? 0)), 'Cash entries not tied to a specific order.');
+            kpi_add_detail_metric($details, $employeeId, 'bookkeeping', 'Avg recording delay', kpi_duration(isset($row['avg_record_minutes']) ? (float) $row['avg_record_minutes'] : null), 'Transaction date to record creation.');
+        }
+    }
+
+    if (ops_table_exists('ops_courier_waybills')) {
+        foreach (ops_rows(
+            "SELECT uploaded_by AS employee_id,
+                    COUNT(*) AS uploaded_count,
+                    SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) AS uploaded_and_sent,
+                    AVG(CASE WHEN sent_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, uploaded_at, sent_at) END) AS avg_sent_minutes
+             FROM ops_courier_waybills
+             WHERE uploaded_by IS NOT NULL AND uploaded_at >= ? AND uploaded_at < ?
+             GROUP BY uploaded_by",
+            [$start, $end]
+        ) as $row) {
+            $employeeId = (int) ($row['employee_id'] ?? 0);
+            kpi_add_detail_metric($details, $employeeId, 'courier', 'Waybills uploaded', number_format((int) ($row['uploaded_count'] ?? 0)), 'Courier labels scanned/uploaded.');
+            kpi_add_detail_metric($details, $employeeId, 'courier', 'Uploaded then sent', number_format((int) ($row['uploaded_and_sent'] ?? 0)), 'Uploaded labels later sent to customers.');
+            kpi_add_detail_metric($details, $employeeId, 'courier', 'Avg sent-to-customer time', kpi_duration(isset($row['avg_sent_minutes']) ? (float) $row['avg_sent_minutes'] : null), 'Upload to sent status.');
+        }
+        foreach (ops_rows(
+            "SELECT sent_by AS employee_id,
+                    COUNT(*) AS sent_count,
+                    AVG(TIMESTAMPDIFF(MINUTE, uploaded_at, sent_at)) AS avg_sent_minutes
+             FROM ops_courier_waybills
+             WHERE sent_by IS NOT NULL AND sent_at >= ? AND sent_at < ?
+             GROUP BY sent_by",
+            [$start, $end]
+        ) as $row) {
+            $employeeId = (int) ($row['employee_id'] ?? 0);
+            kpi_add_detail_metric($details, $employeeId, 'courier', 'Waybills sent to customer', number_format((int) ($row['sent_count'] ?? 0)), 'Front desk completion of courier communication.');
+            kpi_add_detail_metric($details, $employeeId, 'courier', 'Avg customer-send delay', kpi_duration(isset($row['avg_sent_minutes']) ? (float) $row['avg_sent_minutes'] : null), 'Uploaded to sent by this employee.');
+        }
+    }
+
+    if ($hrToEmployee) {
+        $placeholders = implode(',', array_fill(0, count($hrToEmployee), '?'));
+        foreach (ops_hr_rows(
+            "SELECT employee_id,
+                    COUNT(*) AS leave_requests,
+                    COALESCE(SUM(days), 0) AS leave_days,
+                    GROUP_CONCAT(DISTINCT leave_type ORDER BY leave_type SEPARATOR ', ') AS leave_types,
+                    GROUP_CONCAT(DISTINCT DATE_FORMAT(start_date, '%a') ORDER BY DATE_FORMAT(start_date, '%w') SEPARATOR ', ') AS usual_days
+             FROM leave_requests
+             WHERE employee_id IN ({$placeholders})
+               AND start_date < ?
+               AND end_date >= ?
+               AND status IN ('approved', 'pending')
+             GROUP BY employee_id",
+            array_merge(array_keys($hrToEmployee), [$end, substr($start, 0, 10)])
+        ) as $row) {
+            $employeeId = $hrToEmployee[(int) ($row['employee_id'] ?? 0)] ?? 0;
+            kpi_add_detail_metric($details, $employeeId, 'hr', 'Leave requests in range', number_format((int) ($row['leave_requests'] ?? 0)), 'Approved or pending leave overlapping this period.');
+            kpi_add_detail_metric($details, $employeeId, 'hr', 'Leave days', number_format((float) ($row['leave_days'] ?? 0), 1), 'Days requested/taken.');
+            kpi_add_detail_metric($details, $employeeId, 'hr', 'Leave types', (string) ($row['leave_types'] ?: '-'), 'Annual, sick, unpaid, etc.');
+            kpi_add_detail_metric($details, $employeeId, 'hr', 'Usual leave days', (string) ($row['usual_days'] ?: '-'), 'Weekdays leave starts on in this period.');
+        }
+    }
+
+    foreach ($scores as $score) {
+        $employeeId = (int) ($score['employee_id'] ?? 0);
+        if ($employeeId <= 0 || !isset($details[$employeeId])) {
+            continue;
+        }
+        kpi_add_detail_metric($details, $employeeId, 'hr', 'Attendance score', kpi_percent((float) ($score['attendance_score'] ?? 0)), 'Manual/HR attendance input.');
+        kpi_add_detail_metric($details, $employeeId, 'hr', 'Reliability score', kpi_percent((float) ($score['reliability_score'] ?? 0)), 'Manual/HR reliability input.');
+        kpi_add_detail_metric($details, $employeeId, 'hr', 'Current leave flag', !empty($score['on_leave']) ? 'On leave' : 'Working / no leave flag', 'Approved leave is considered in KPI scoring.');
+    }
+
+    return $details;
+}
+
+function kpi_render_employee_detail_grid(array $detail): void
+{
+    echo '<div class="kpi-evidence-grid">';
+    foreach ($detail as $bucket) {
+        $metrics = $bucket['metrics'] ?? [];
+        if (!$metrics) {
+            continue;
+        }
+        echo '<article class="kpi-evidence-card kpi-evidence-' . htmlspecialchars((string) ($bucket['accent'] ?? 'blue'), ENT_QUOTES, 'UTF-8') . '">';
+        echo '<div class="kpi-evidence-head"><span><i data-lucide="' . htmlspecialchars((string) ($bucket['icon'] ?? 'activity'), ENT_QUOTES, 'UTF-8') . '"></i></span><h3>' . htmlspecialchars((string) ($bucket['title'] ?? 'Module'), ENT_QUOTES, 'UTF-8') . '</h3></div>';
+        echo '<div class="kpi-evidence-metrics">';
+        foreach ($metrics as $metric) {
+            echo '<div><small>' . htmlspecialchars((string) ($metric['label'] ?? ''), ENT_QUOTES, 'UTF-8') . '</small><strong>' . htmlspecialchars((string) ($metric['value'] ?? '-'), ENT_QUOTES, 'UTF-8') . '</strong>';
+            if (!empty($metric['hint'])) {
+                echo '<em>' . htmlspecialchars((string) $metric['hint'], ENT_QUOTES, 'UTF-8') . '</em>';
+            }
+            echo '</div>';
+        }
+        echo '</div></article>';
+    }
+    echo '</div>';
+}
+
 function kpi_metric_text($value, bool $duration = false): string
 {
     if ($duration) {
@@ -1688,15 +2023,23 @@ $errorOwnerSummary = [
 ];
 $tabs = [
     'overview' => 'Overview Dashboard',
+    'employees' => 'Employee Profiles',
     'front-desk' => 'Front Desk Performance',
     'picker-1' => 'Packer Performance 1',
     'picker-2' => 'Packer Performance 2',
+    'orders' => 'Order Board',
+    'packing' => 'Packing List',
+    'tasks' => 'Task Management',
+    'bookkeeping' => 'Bookkeeping',
+    'courier' => 'Courier',
+    'errors' => 'Errors',
     'bonus' => 'Bonus Incentive Score',
 ];
 $scoresById = [];
 foreach ($employeeScores as $row) {
     $scoresById[(int) $row['employee_id']] = $row;
 }
+$employeeKpiDetails = $ready ? kpi_employee_performance_details($employeeScores, $periodStart, $periodEnd, $settings) : [];
 $selectedEmployee = $selectedEmployeeId && isset($scoresById[$selectedEmployeeId]) ? $scoresById[$selectedEmployeeId] : ($employeeScores[0] ?? null);
 $pickerOneId = (int) kpi_setting('kpi_picker_1_employee_id', '0');
 $pickerTwoId = (int) kpi_setting('kpi_picker_2_employee_id', '0');
@@ -1732,6 +2075,11 @@ include BASE_PATH . '/shared/sidebar.php';
             <a class="button small" href="employees.php">Link employees</a>
         </section>
     <?php endif; ?>
+    <nav class="kpi-report-tabs" aria-label="KPI report sections">
+        <?php foreach ($tabs as $tabKey => $tabLabel): ?>
+            <a class="<?= $activeTab === $tabKey ? 'active' : '' ?>" href="reports.php?tab=<?= htmlspecialchars($tabKey, ENT_QUOTES, 'UTF-8') ?>&<?= htmlspecialchars($dateRangeQuery, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($tabLabel, ENT_QUOTES, 'UTF-8') ?></a>
+        <?php endforeach; ?>
+    </nav>
 
     <?php if ($activeTab === 'orders'): ?>
         <section class="panel kpi-system-panel">
@@ -1788,6 +2136,20 @@ include BASE_PATH . '/shared/sidebar.php';
             <?php endforeach; ?>
             <?php if (!$roleRows): ?><section class="panel"><p><?= $activeTab === 'front-desk' ? 'No front desk employees found.' : 'No picker assigned to this slot yet. Open Dashboard and choose a picker for this performance slot.' ?></p></section><?php endif; ?>
         </section>
+        <?php foreach ($roleRows as $row): ?>
+            <?php $detail = $employeeKpiDetails[(int) $row['employee_id']] ?? []; ?>
+            <?php if ($detail): ?>
+                <section class="panel kpi-evidence-panel">
+                    <div class="section-row">
+                        <div>
+                            <h2><?= htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8') ?> Performance Evidence</h2>
+                            <p>Detailed signals from Orders, Task Management, Packing List, Courier, Bookkeeping, Error Log and HR for <?= htmlspecialchars($filterStartDate, ENT_QUOTES, 'UTF-8') ?> to <?= htmlspecialchars($filterEndDate, ENT_QUOTES, 'UTF-8') ?>.</p>
+                        </div>
+                    </div>
+                    <?php kpi_render_employee_detail_grid($detail); ?>
+                </section>
+            <?php endif; ?>
+        <?php endforeach; ?>
     <?php elseif ($activeTab === 'employees'): ?>
         <section class="panel kpi-employee-picker">
             <div class="section-row"><div><h2>Individual Employee Profiles</h2><p>Open one employee at a time inside KPI Reports.</p></div></div>
@@ -1807,8 +2169,20 @@ include BASE_PATH . '/shared/sidebar.php';
                     <article><h3>Bonus / increment</h3><p><span>Suggested bonus</span><strong><?= kpi_money((float) $selectedEmployee['bonus_amount']) ?></strong></p><p><span>Status</span><strong><?= htmlspecialchars((string) $selectedEmployee['tier']['label'], ENT_QUOTES, 'UTF-8') ?></strong></p><p><span>Recommendation</span><strong><?= htmlspecialchars((string) $selectedEmployee['tier']['recommendation'], ENT_QUOTES, 'UTF-8') ?></strong></p></article>
                 </div>
             </section>
+            <?php $selectedDetail = $employeeKpiDetails[(int) $selectedEmployee['employee_id']] ?? []; ?>
+            <?php if ($selectedDetail): ?>
+                <section class="panel kpi-evidence-panel">
+                    <div class="section-row">
+                        <div>
+                            <h2>Detailed Performance Tracking</h2>
+                            <p>Operational evidence for bonus, coaching and salary increment decisions.</p>
+                        </div>
+                    </div>
+                    <?php kpi_render_employee_detail_grid($selectedDetail); ?>
+                </section>
+            <?php endif; ?>
         <?php endif; ?>
-    <?php elseif (in_array($activeTab, ['packing', 'bookkeeping', 'tasks', 'errors'], true)): ?>
+    <?php elseif (in_array($activeTab, ['packing', 'bookkeeping', 'tasks', 'courier', 'errors'], true)): ?>
         <section class="panel">
             <div class="section-row"><div><h2><?= htmlspecialchars($tabs[$activeTab], ENT_QUOTES, 'UTF-8') ?></h2><p>Module view for management review. Values are pulled from the connected operations tables where fields exist.</p></div></div>
             <div class="table-scroll">
