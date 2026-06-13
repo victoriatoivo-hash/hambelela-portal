@@ -1510,6 +1510,63 @@ $availabilityMatrix = [
     'Average planned lunch time' => kpi_duration(isset($lunchRow['avg_lunch_minutes']) ? (float) $lunchRow['avg_lunch_minutes'] : null),
     'Unavailable employees now' => number_format(count($availabilityRows)),
 ];
+$taskDashboardRow = $ready && ops_table_exists('ops_checklist_tasks') ? (ops_rows(
+    "SELECT
+        COUNT(*) AS total_tasks,
+        SUM(CASE WHEN status IN ('done', 'completed', 'approved') THEN 1 ELSE 0 END) AS completed_tasks,
+        SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) AS in_progress_tasks,
+        SUM(CASE WHEN status IN ('not_started', 'todo') THEN 1 ELSE 0 END) AS not_started_tasks,
+        SUM(CASE WHEN status = 'needs_review' THEN 1 ELSE 0 END) AS needs_review_tasks,
+        SUM(CASE WHEN status NOT IN ('done', 'completed', 'approved') THEN 1 ELSE 0 END) AS active_tasks,
+        AVG(CASE WHEN COALESCE(date_completed, completed_at) IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, COALESCE(date_assigned, created_at), COALESCE(date_completed, completed_at)) END) AS avg_complete_minutes,
+        AVG(CASE WHEN status = 'in_progress' THEN TIMESTAMPDIFF(MINUTE, COALESCE(date_assigned, created_at), NOW()) END) AS avg_in_progress_minutes,
+        AVG(CASE WHEN status = 'needs_review' THEN TIMESTAMPDIFF(MINUTE, COALESCE(date_assigned, created_at), COALESCE(date_completed, completed_at, NOW())) END) AS avg_review_minutes
+     FROM ops_checklist_tasks
+     WHERE created_at >= ? AND created_at < ?",
+    [$periodStart, $periodEnd]
+)[0] ?? []) : [];
+$taskDailyRows = $ready && ops_table_exists('ops_checklist_tasks') ? ops_rows(
+    "SELECT DATE(COALESCE(date_completed, completed_at)) AS task_day, COUNT(*) AS total
+     FROM ops_checklist_tasks
+     WHERE COALESCE(date_completed, completed_at) IS NOT NULL
+       AND COALESCE(date_completed, completed_at) >= ? AND COALESCE(date_completed, completed_at) < ?
+       AND status IN ('done', 'completed', 'approved')
+     GROUP BY DATE(COALESCE(date_completed, completed_at))
+     ORDER BY task_day ASC",
+    [$periodStart, $periodEnd]
+) : [];
+$taskCompletedByDay = [];
+foreach ($taskDailyRows as $row) {
+    $taskCompletedByDay[(string) ($row['task_day'] ?? '')] = (int) ($row['total'] ?? 0);
+}
+$taskEmployeeRows = $ready && ops_table_exists('ops_checklist_tasks') ? ops_rows(
+    "SELECT COALESCE(t.assigned_employee_id, t.completed_by) AS employee_id,
+            e.full_name,
+            COUNT(*) AS total_tasks,
+            SUM(CASE WHEN t.status IN ('done', 'completed', 'approved') THEN 1 ELSE 0 END) AS completed_tasks,
+            SUM(CASE WHEN t.status = 'in_progress' THEN 1 ELSE 0 END) AS in_progress_tasks,
+            SUM(CASE WHEN t.status IN ('not_started', 'todo') THEN 1 ELSE 0 END) AS not_started_tasks,
+            SUM(CASE WHEN t.status = 'needs_review' THEN 1 ELSE 0 END) AS needs_review_tasks,
+            SUM(CASE WHEN t.status NOT IN ('done', 'completed', 'approved') THEN 1 ELSE 0 END) AS active_tasks,
+            AVG(CASE WHEN COALESCE(t.date_completed, t.completed_at) IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, COALESCE(t.date_assigned, t.created_at), COALESCE(t.date_completed, t.completed_at)) END) AS avg_complete_minutes
+     FROM ops_checklist_tasks t
+     LEFT JOIN ops_employees e ON e.id = COALESCE(t.assigned_employee_id, t.completed_by)
+     WHERE COALESCE(t.assigned_employee_id, t.completed_by) IS NOT NULL
+       AND t.created_at >= ? AND t.created_at < ?
+     GROUP BY COALESCE(t.assigned_employee_id, t.completed_by), e.full_name
+     ORDER BY completed_tasks DESC, active_tasks DESC, e.full_name",
+    [$periodStart, $periodEnd]
+) : [];
+$taskMatrix = [
+    'Total active tasks' => number_format((int) ($taskDashboardRow['active_tasks'] ?? 0)),
+    'Completed tasks' => number_format((int) ($taskDashboardRow['completed_tasks'] ?? 0)),
+    'In progress' => number_format((int) ($taskDashboardRow['in_progress_tasks'] ?? 0)),
+    'Need review' => number_format((int) ($taskDashboardRow['needs_review_tasks'] ?? 0)),
+    'Not yet started' => number_format((int) ($taskDashboardRow['not_started_tasks'] ?? 0)),
+    'Average completion time' => kpi_duration(isset($taskDashboardRow['avg_complete_minutes']) ? (float) $taskDashboardRow['avg_complete_minutes'] : null),
+    'Average in-progress age' => kpi_duration(isset($taskDashboardRow['avg_in_progress_minutes']) ? (float) $taskDashboardRow['avg_in_progress_minutes'] : null),
+    'Average review wait' => kpi_duration(isset($taskDashboardRow['avg_review_minutes']) ? (float) $taskDashboardRow['avg_review_minutes'] : null),
+];
 $employeeSummarySignals = [];
 foreach ($employeeScores as $row) {
     $employeeSummarySignals[(int) $row['employee_id']] = [
@@ -1961,6 +2018,64 @@ include BASE_PATH . '/shared/sidebar.php';
                     <strong><?= htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') ?></strong>
                 </article>
             <?php endforeach; ?>
+        </div>
+    </section>
+
+    <section class="panel kpi-system-panel kpi-panel-tasks">
+        <div class="section-row">
+            <div>
+                <h2>Task Management Matrix</h2>
+                <p>Digital task board performance: active tasks, completed tasks, review queue and completion timing by employee.</p>
+            </div>
+            <a class="kpi-soft-link" href="checklists.php">Open Task Board</a>
+        </div>
+        <div class="kpi-system-metric-grid">
+            <?php foreach ($taskMatrix as $label => $value): ?>
+                <article>
+                    <span><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></span>
+                    <strong><?= htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') ?></strong>
+                </article>
+            <?php endforeach; ?>
+        </div>
+        <div class="kpi-task-dashboard-grid">
+            <div>
+                <h3>Employee task load</h3>
+                <div class="kpi-task-employee-bars">
+                    <?php foreach ($taskEmployeeRows as $row): ?>
+                        <?php
+                            $completed = (int) ($row['completed_tasks'] ?? 0);
+                            $inProgress = (int) ($row['in_progress_tasks'] ?? 0);
+                            $review = (int) ($row['needs_review_tasks'] ?? 0);
+                            $notStarted = (int) ($row['not_started_tasks'] ?? 0);
+                            $total = max(1, $completed + $inProgress + $review + $notStarted);
+                        ?>
+                        <article>
+                            <div><strong><?= htmlspecialchars((string) ($row['full_name'] ?: 'Unassigned'), ENT_QUOTES, 'UTF-8') ?></strong><span><?= number_format((int) ($row['total_tasks'] ?? 0)) ?> tasks | avg <?= kpi_duration(isset($row['avg_complete_minutes']) ? (float) $row['avg_complete_minutes'] : null) ?></span></div>
+                            <div class="kpi-task-stack">
+                                <i class="done" style="width: <?= max($completed > 0 ? 5 : 0, ($completed / $total) * 100) ?>%"></i>
+                                <i class="progress" style="width: <?= max($inProgress > 0 ? 5 : 0, ($inProgress / $total) * 100) ?>%"></i>
+                                <i class="review" style="width: <?= max($review > 0 ? 5 : 0, ($review / $total) * 100) ?>%"></i>
+                                <i class="todo" style="width: <?= max($notStarted > 0 ? 5 : 0, ($notStarted / $total) * 100) ?>%"></i>
+                            </div>
+                            <small><?= number_format($completed) ?> done | <?= number_format($inProgress) ?> in progress | <?= number_format($review) ?> review | <?= number_format($notStarted) ?> not started</small>
+                        </article>
+                    <?php endforeach; ?>
+                    <?php if (!$taskEmployeeRows): ?><p class="empty-state">No task board data for this period.</p><?php endif; ?>
+                </div>
+            </div>
+            <div>
+                <h3>Daily completed tasks</h3>
+                <div class="kpi-task-day-bars">
+                    <?php for ($cursor = new DateTimeImmutable($filterStartDate); $cursor <= new DateTimeImmutable($filterEndDate); $cursor = $cursor->modify('+1 day')): ?>
+                        <?php
+                            $dayKey = $cursor->format('Y-m-d');
+                            $count = (int) ($taskCompletedByDay[$dayKey] ?? 0);
+                            $maxDaily = max(1, max($taskCompletedByDay ?: [0]));
+                        ?>
+                        <span title="<?= htmlspecialchars($dayKey . ': ' . $count . ' tasks', ENT_QUOTES, 'UTF-8') ?>"><i style="height: <?= max($count > 0 ? 8 : 2, ($count / $maxDaily) * 100) ?>%"></i><small><?= htmlspecialchars($cursor->format('D'), ENT_QUOTES, 'UTF-8') ?></small></span>
+                    <?php endfor; ?>
+                </div>
+            </div>
         </div>
     </section>
 

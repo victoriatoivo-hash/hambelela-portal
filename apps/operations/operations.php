@@ -52,6 +52,7 @@ function ops_nav(string $active): void
             'orders' => ['Orders', 'shopping-bag', 'orders.php'],
             'whatsapp' => ['Meta Comms', 'messages-square', 'whatsapp.php'],
             'bookkeeping' => ['Bookkeeping', 'wallet-cards', 'bookkeeping.php'],
+            'courier' => ['Courier', 'truck', 'courier.php'],
             'checklists' => ['Task Management', 'list-checks', 'checklists.php'],
             'errors' => ['Errors', 'triangle-alert', 'errors.php'],
             'barcode' => ['Barcode', 'scan-barcode', 'barcode.php'],
@@ -63,6 +64,7 @@ function ops_nav(string $active): void
             'board' => ['Orders Board', 'table-2', 'orders-board.php'],
             'whatsapp' => ['Meta Comms', 'messages-square', 'whatsapp.php'],
             'bookkeeping' => ['Bookkeeping', 'wallet-cards', 'bookkeeping.php'],
+            'courier' => ['Courier', 'truck', 'courier.php'],
             'checklists' => ['Task Management', 'list-checks', 'checklists.php'],
             'errors' => ['Errors', 'triangle-alert', 'errors.php'],
         ];
@@ -70,6 +72,7 @@ function ops_nav(string $active): void
         $items = [
             'account' => ['My Account', 'key-round', 'my-account.php'],
             'checklists' => ['Task Management', 'list-checks', 'checklists.php'],
+            'courier' => ['Courier', 'truck', 'courier.php'],
             'barcode' => ['Barcode', 'scan-barcode', 'barcode.php'],
         ];
     }

@@ -7314,6 +7314,12 @@ textarea {
   background: linear-gradient(135deg, rgba(47, 128, 237, 0.13), rgba(255, 255, 255, 0.88));
 }
 
+.kpi-panel-tasks {
+  --kpi-panel-color: #e63219;
+  --kpi-panel-title: #b02515;
+  background: linear-gradient(135deg, rgba(230, 50, 25, 0.12), rgba(255, 255, 255, 0.88));
+}
+
 .kpi-system-metric-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -8177,6 +8183,206 @@ textarea {
   font-weight: 800;
 }
 
+.kpi-task-dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(260px, 0.75fr);
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.kpi-task-dashboard-grid h3 {
+  margin: 0 0 12px;
+  font-size: 14px;
+}
+
+.kpi-task-employee-bars {
+  display: grid;
+  gap: 10px;
+}
+
+.kpi-task-employee-bars article {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(48, 45, 49, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.kpi-task-employee-bars article > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.kpi-task-employee-bars strong,
+.kpi-task-employee-bars span,
+.kpi-task-employee-bars small {
+  display: block;
+}
+
+.kpi-task-employee-bars span,
+.kpi-task-employee-bars small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.kpi-task-stack {
+  display: flex;
+  overflow: hidden;
+  height: 14px;
+  border-radius: 999px;
+  background: rgba(48, 45, 49, 0.08);
+}
+
+.kpi-task-stack i {
+  display: block;
+  min-width: 0;
+}
+
+.kpi-task-stack .done { background: #0f8f2f; }
+.kpi-task-stack .progress { background: #f0a13a; }
+.kpi-task-stack .review { background: #9b35e4; }
+.kpi-task-stack .todo { background: #bbc647; }
+
+.kpi-task-day-bars {
+  display: flex;
+  align-items: end;
+  gap: 7px;
+  min-height: 160px;
+  overflow-x: auto;
+  padding: 12px;
+  border: 1px solid rgba(48, 45, 49, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.kpi-task-day-bars span {
+  display: grid;
+  align-items: end;
+  justify-items: center;
+  gap: 6px;
+  flex: 0 0 22px;
+  height: 130px;
+}
+
+.kpi-task-day-bars i {
+  display: block;
+  width: 100%;
+  border-radius: 8px 8px 3px 3px;
+  background: linear-gradient(180deg, #e63219, #f0a13a);
+}
+
+.kpi-task-day-bars small {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.courier-page .work-metric-grid {
+  margin-bottom: 18px;
+}
+
+.courier-upload-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr)) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.courier-upload-form label,
+.courier-week-form label {
+  display: grid;
+  gap: 7px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.courier-upload-form input,
+.courier-week-form input {
+  width: 100%;
+  min-width: 0;
+}
+
+.courier-upload-form .span-2 {
+  grid-column: span 2;
+}
+
+.courier-week-form {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+}
+
+.courier-week-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(180px, 1fr));
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.courier-week-grid > article {
+  min-width: 180px;
+  padding: 12px;
+  border: 1px solid rgba(48, 45, 49, 0.08);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(137, 183, 70, 0.12), rgba(255, 255, 255, 0.88));
+}
+
+.courier-week-grid h3 {
+  margin: 0 0 10px;
+  color: #4c7a24;
+  font-size: 14px;
+}
+
+.courier-waybill-card {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 10px;
+  border: 1px solid rgba(48, 45, 49, 0.08);
+  border-left: 5px solid #f0a13a;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.courier-waybill-card.is-sent {
+  border-left-color: #0f8f2f;
+  background: rgba(243, 252, 244, 0.92);
+}
+
+.courier-waybill-card strong,
+.courier-waybill-card span,
+.courier-waybill-card p {
+  display: block;
+}
+
+.courier-waybill-card strong {
+  font-size: 13px;
+}
+
+.courier-waybill-card span,
+.courier-waybill-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.courier-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-items: center;
+}
+
+.courier-card-actions form {
+  margin: 0;
+}
+
 @media (max-width: 1180px) {
   .kpi-management-grid,
   .kpi-input-grid,
@@ -8191,7 +8397,8 @@ textarea {
 
   .kpi-owner-bar-row,
   .kpi-error-insight-grid,
-  .kpi-visual-dashboard-grid {
+  .kpi-visual-dashboard-grid,
+  .kpi-task-dashboard-grid {
     grid-template-columns: 1fr;
   }
 

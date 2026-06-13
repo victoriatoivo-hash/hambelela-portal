@@ -22,6 +22,7 @@ $sections = [
     ['My Account', 'View your login profile and update your access code.', 'key-round', 'my-account.php', 'Core'],
     ['Orders Board', 'Monday-style shared order table with packer assignment and lunch availability.', 'table-2', 'orders-board.php', 'Core'],
     ['Orders', 'Sales operations reporting, payment insights, order timing and management intelligence.', 'shopping-bag', 'orders.php', 'Core'],
+    ['Courier', 'Upload waybill labels, notify front desk and track when labels are sent to customers.', 'truck', 'courier.php', 'Core'],
     ['Task Management', 'Assigned work, automatic cleaning tasks, daily shelf stocking and completion notes.', 'list-checks', 'checklists.php', 'Core'],
     ['Errors', 'Record errors by category, severity, impact, resolution and repeat issue.', 'triangle-alert', 'errors.php', 'Core'],
     ['Barcode', 'Keyboard-input scanner screen with match/mismatch logging.', 'scan-barcode', 'barcode.php', 'Phase 3'],
