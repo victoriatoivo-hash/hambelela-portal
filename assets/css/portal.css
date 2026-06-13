@@ -8329,6 +8329,178 @@ textarea {
   color: var(--ink);
 }
 
+.duplicate-review-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(12, 18, 34, 0.42);
+  opacity: 0;
+  backdrop-filter: blur(3px);
+  transition: opacity 0.18s ease;
+}
+
+.duplicate-review-overlay.is-open {
+  opacity: 1;
+}
+
+.duplicate-review-panel {
+  position: relative;
+  width: min(760px, 94vw);
+  height: 100%;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: -18px 0 45px rgba(0, 0, 0, 0.18);
+  transform: translateX(24px);
+  transition: transform 0.18s ease;
+}
+
+.duplicate-review-overlay.is-open .duplicate-review-panel {
+  transform: translateX(0);
+}
+
+.duplicate-review-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.duplicate-review-head span,
+.duplicate-review-row small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.duplicate-review-head h2 {
+  margin: 4px 0;
+  font-size: 24px;
+}
+
+.duplicate-review-head p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.duplicate-review-head button {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 10px;
+  background: #f5f6fb;
+  color: var(--ink);
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.duplicate-review-body {
+  display: grid;
+  gap: 16px;
+  max-height: calc(100vh - 172px);
+  overflow: auto;
+  padding: 18px 24px 108px;
+}
+
+.duplicate-review-group {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.duplicate-review-group header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+  background: #f7f9ff;
+}
+
+.duplicate-review-group header span {
+  color: #579bfc;
+  font-weight: 850;
+}
+
+.duplicate-review-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 130px 140px auto;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 16px;
+  border-bottom: 1px solid #edf0f7;
+}
+
+.duplicate-review-row:last-child {
+  border-bottom: 0;
+}
+
+.duplicate-review-row strong,
+.duplicate-review-row span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.duplicate-review-row.original {
+  background: #f7fbff;
+}
+
+.duplicate-review-row.duplicate {
+  grid-template-columns: 24px minmax(0, 1fr) 130px 140px;
+  cursor: pointer;
+}
+
+.duplicate-review-row.duplicate:hover {
+  background: #f8fbff;
+}
+
+.duplicate-keep-pill {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #e3fff2;
+  color: #007f4e;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.duplicate-review-actions {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--line);
+  background: #fff;
+  box-shadow: 0 -12px 28px rgba(16, 24, 40, 0.08);
+}
+
+.duplicate-review-actions button {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid #cfd4e6;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.duplicate-review-actions .primary {
+  border-color: #0073ea;
+  background: #0073ea;
+  color: #fff;
+}
+
 @media (prefers-color-scheme: dark) {
   .whatsapp-module .panel,
   .whatsapp-module .work-metric-card,
@@ -8352,6 +8524,14 @@ textarea {
   .whatsapp-module .report-filter-panel label {
     color: var(--ink);
   }
+
+  .duplicate-review-panel,
+  .duplicate-review-group,
+  .duplicate-review-actions,
+  .duplicate-review-actions button {
+    background: #fff;
+    color: var(--ink);
+  }
 }
 
 @media (max-width: 1100px) {
@@ -8367,5 +8547,18 @@ textarea {
 
   .whatsapp-hero::after {
     display: none;
+  }
+
+  .duplicate-review-panel {
+    width: 100vw;
+  }
+
+  .duplicate-review-row,
+  .duplicate-review-row.duplicate {
+    grid-template-columns: 1fr;
+  }
+
+  .duplicate-review-row.duplicate input {
+    align-self: start;
   }
 }

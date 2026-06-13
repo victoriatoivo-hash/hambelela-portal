@@ -927,6 +927,97 @@
     }
   }
 
+  function showDuplicateReview(groups) {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'duplicate-review-overlay';
+      const groupHtml = groups.map((group, index) => {
+        const keep = group.keep || {};
+        const duplicates = group.duplicates || [];
+        return `
+          <section class="duplicate-review-group">
+            <header>
+              <span>Duplicate Group #${index + 1}</span>
+              <strong>${esc(keep.item_name || 'Packing item')}</strong>
+            </header>
+            <div class="duplicate-review-row original">
+              <div>
+                <small>Original to keep</small>
+                <strong>#${esc(keep.id || '')} ${esc(keep.item_name || '')}</strong>
+                <span>${esc(keep.received_weight || '')} ${esc(keep.quantity_planned || '')}</span>
+              </div>
+              <div>
+                <small>Loaded</small>
+                <span>${esc(formatDate(keep.date_loaded || ''))}</span>
+              </div>
+              <div>
+                <small>Packer</small>
+                <span>${esc(keep.assigned_name || 'Unassigned')}</span>
+              </div>
+              <span class="duplicate-keep-pill">Keep Original</span>
+            </div>
+            ${duplicates.map((row) => `
+              <label class="duplicate-review-row duplicate">
+                <input type="checkbox" value="${esc(row.id)}" checked>
+                <div>
+                  <small>Duplicate to archive</small>
+                  <strong>#${esc(row.id)} ${esc(row.item_name || '')}</strong>
+                  <span>${esc(row.received_weight || '')} ${esc(row.quantity_planned || '')}</span>
+                </div>
+                <div>
+                  <small>Loaded</small>
+                  <span>${esc(formatDate(row.date_loaded || ''))}</span>
+                </div>
+                <div>
+                  <small>Packer</small>
+                  <span>${esc(row.assigned_name || 'Unassigned')}</span>
+                </div>
+              </label>
+            `).join('')}
+          </section>
+        `;
+      }).join('');
+      overlay.innerHTML = `
+        <div class="duplicate-review-panel" role="dialog" aria-modal="true" aria-label="Duplicate packing rows">
+          <div class="duplicate-review-head">
+            <div>
+              <span>PACKING LIST</span>
+              <h2>Duplicate Review</h2>
+              <p>Review each group before archiving duplicates. Nothing is permanently deleted.</p>
+            </div>
+            <button type="button" data-duplicate-close aria-label="Close">&times;</button>
+          </div>
+          <div class="duplicate-review-body">${groupHtml}</div>
+          <div class="duplicate-review-actions">
+            <button type="button" data-duplicate-cancel>Cancel</button>
+            <button class="button primary" type="button" data-duplicate-archive>Archive Selected Duplicates</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+      requestAnimationFrame(() => overlay.classList.add('is-open'));
+
+      const close = (ids = null) => {
+        overlay.classList.remove('is-open');
+        setTimeout(() => overlay.remove(), 180);
+        resolve(ids);
+      };
+
+      overlay.addEventListener('click', (event) => {
+        if (event.target === overlay || event.target.closest('[data-duplicate-close]') || event.target.closest('[data-duplicate-cancel]')) {
+          close(null);
+          return;
+        }
+        if (event.target.closest('[data-duplicate-archive]')) {
+          const ids = [...overlay.querySelectorAll('.duplicate-review-row.duplicate input:checked')]
+            .map((input) => input.value)
+            .filter(Boolean);
+          close(ids);
+        }
+      });
+    });
+  }
+
   async function findPackingDuplicates(button) {
     button?.classList.add('is-loading');
     if (button) button.disabled = true;
@@ -938,16 +1029,13 @@
         return;
       }
 
-      const duplicateIds = groups.flatMap((group) => (group.duplicates || []).map((row) => row.id)).filter(Boolean);
-      const preview = groups.slice(0, 8).map((group) => {
-        const keep = group.keep || {};
-        const duplicates = (group.duplicates || []).map((row) => `#${row.id} ${row.item_name || ''}`).join(', ');
-        return `Keep #${keep.id} ${keep.item_name || ''}; archive ${duplicates}`;
-      }).join('\n');
-      const suffix = groups.length > 8 ? `\n...and ${groups.length - 8} more duplicate group(s).` : '';
-      const ok = window.confirm(`${result.message}\n\n${preview}${suffix}\n\nArchive the duplicate rows now? This will not delete them permanently.`);
-      if (!ok) {
+      const duplicateIds = await showDuplicateReview(groups);
+      if (!duplicateIds) {
         setCount('Duplicate preview cancelled. No rows were changed.');
+        return;
+      }
+      if (!duplicateIds.length) {
+        setCount('No duplicate rows were selected for archive.');
         return;
       }
 

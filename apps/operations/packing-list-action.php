@@ -794,6 +794,57 @@ function packing_sync_state(int $id, array $values): void
     db()->prepare('UPDATE ops_packing_tasks SET ' . implode(', ', $set) . ', updated_at = CURRENT_TIMESTAMP WHERE id = ?')->execute($params);
 }
 
+function packing_ensure_monday_sync_schema(): void
+{
+    $statements = [];
+    if (!ops_column_exists('ops_packing_tasks', 'monday_item_id')) {
+        $statements[] = "ALTER TABLE ops_packing_tasks ADD COLUMN monday_item_id VARCHAR(80) NULL AFTER consignment_id";
+    }
+    if (!ops_column_exists('ops_packing_tasks', 'monday_board_id')) {
+        $after = ops_column_exists('ops_packing_tasks', 'monday_item_id') ? 'monday_item_id' : 'consignment_id';
+        $statements[] = "ALTER TABLE ops_packing_tasks ADD COLUMN monday_board_id VARCHAR(80) NULL AFTER {$after}";
+    }
+    if (!ops_column_exists('ops_packing_tasks', 'monday_synced_at')) {
+        $after = ops_column_exists('ops_packing_tasks', 'monday_board_id') ? 'monday_board_id' : 'monday_item_id';
+        $statements[] = "ALTER TABLE ops_packing_tasks ADD COLUMN monday_synced_at DATETIME NULL AFTER {$after}";
+    }
+    if (!ops_column_exists('ops_packing_tasks', 'monday_sync_status')) {
+        $after = ops_column_exists('ops_packing_tasks', 'monday_synced_at') ? 'monday_synced_at' : 'monday_item_id';
+        $statements[] = "ALTER TABLE ops_packing_tasks ADD COLUMN monday_sync_status ENUM('not_synced', 'synced', 'failed', 'updated', 'duplicate_detected') NOT NULL DEFAULT 'not_synced' AFTER {$after}";
+    }
+    if (!ops_column_exists('ops_packing_tasks', 'monday_sync_error')) {
+        $after = ops_column_exists('ops_packing_tasks', 'monday_sync_status') ? 'monday_sync_status' : 'monday_synced_at';
+        $statements[] = "ALTER TABLE ops_packing_tasks ADD COLUMN monday_sync_error TEXT NULL AFTER {$after}";
+    }
+    if (!ops_column_exists('ops_packing_tasks', 'packing_row_key')) {
+        $after = ops_column_exists('ops_packing_tasks', 'monday_sync_error') ? 'monday_sync_error' : 'monday_sync_status';
+        $statements[] = "ALTER TABLE ops_packing_tasks ADD COLUMN packing_row_key VARCHAR(64) NULL AFTER {$after}";
+    }
+    if (!ops_column_exists('ops_packing_tasks', 'duplicate_removed_at')) {
+        $after = ops_column_exists('ops_packing_tasks', 'packing_row_key') ? 'packing_row_key' : 'updated_at';
+        $statements[] = "ALTER TABLE ops_packing_tasks ADD COLUMN duplicate_removed_at DATETIME NULL AFTER {$after}";
+    }
+    if (!ops_column_exists('ops_packing_tasks', 'duplicate_of_id')) {
+        $after = ops_column_exists('ops_packing_tasks', 'duplicate_removed_at') ? 'duplicate_removed_at' : 'updated_at';
+        $statements[] = "ALTER TABLE ops_packing_tasks ADD COLUMN duplicate_of_id INT NULL AFTER {$after}";
+    }
+
+    foreach ($statements as $sql) {
+        db()->exec($sql);
+    }
+
+    if (
+        !ops_column_exists('ops_packing_tasks', 'monday_item_id')
+        || !ops_column_exists('ops_packing_tasks', 'monday_board_id')
+        || !ops_column_exists('ops_packing_tasks', 'monday_synced_at')
+        || !ops_column_exists('ops_packing_tasks', 'monday_sync_status')
+        || !ops_column_exists('ops_packing_tasks', 'monday_sync_error')
+        || !ops_column_exists('ops_packing_tasks', 'packing_row_key')
+    ) {
+        throw new RuntimeException('Monday sync metadata is not installed. Import operations-monday-packing-idempotent-sync-migration.sql, then sync again.');
+    }
+}
+
 function packing_active_where(string $alias = ''): string
 {
     $prefix = $alias !== '' ? $alias . '.' : '';
@@ -1077,6 +1128,8 @@ try {
             throw new RuntimeException('Import operations-packing-list-migration.sql first.');
         }
 
+        packing_ensure_monday_sync_schema();
+
         $hasMondaySyncedAt = ops_column_exists('ops_packing_tasks', 'monday_synced_at');
         $hasPackingRowKey = ops_column_exists('ops_packing_tasks', 'packing_row_key');
         $mondayPayload = packing_monday_board_payload();
@@ -1150,6 +1203,11 @@ try {
                     'monday_sync_status' => packing_sync_status_value('duplicate_detected'),
                     'monday_sync_error' => 'Possible duplicate of packing row #' . $duplicateIds[$id] . '. Use Find Duplicates before syncing.',
                 ]);
+                ops_activity_log('packing_monday_duplicate_prevented', 'packing_task', $id, [
+                    'duplicate_of_id' => $duplicateIds[$id],
+                    'packing_row_key' => $key,
+                    'changed_by' => current_user()['name'] ?? 'Unknown',
+                ]);
                 continue;
             }
 
@@ -1212,6 +1270,7 @@ try {
         if (!$canManage) {
             throw new RuntimeException('Only admin/front desk can review packing duplicates.');
         }
+        packing_ensure_monday_sync_schema();
 
         $activeWhere = packing_active_where('pt');
         $rows = ops_rows(
@@ -1280,6 +1339,7 @@ try {
         if (!$canManage) {
             throw new RuntimeException('Only admin/front desk can archive duplicate packing rows.');
         }
+        packing_ensure_monday_sync_schema();
         if (!ops_column_exists('ops_packing_tasks', 'archived_at')) {
             throw new RuntimeException('Import operations-bulk-actions-migration.sql first.');
         }
@@ -1335,6 +1395,9 @@ try {
         $invoiceDate = ops_post_string('invoice_date', 40);
         $supplierName = ops_post_string('supplier_name', 190);
         $syncToMonday = (string) ($_POST['sync_to_monday'] ?? '1') !== '0';
+        if ($syncToMonday) {
+            packing_ensure_monday_sync_schema();
+        }
         $syncMode = ops_post_string('sync_mode', 40) ?: 'update_existing';
         if (!in_array($syncMode, ['update_existing', 'skip_duplicates', 'create_only'], true)) {
             $syncMode = 'update_existing';
@@ -1414,6 +1477,13 @@ try {
                 );
                 if ($duplicate) {
                     $duplicates++;
+                    ops_activity_log('packing_invoice_duplicate_prevented', 'packing_task', (int) $duplicate[0]['id'], [
+                        'item_name' => $itemName,
+                        'invoice_number' => $invoiceNumber,
+                        'packing_row_key' => $rowKey,
+                        'changed_by' => current_user()['name'] ?? 'Unknown',
+                    ]);
+                    $audit[] = "Duplicate prevented: {$itemName}";
                     continue;
                 }
             }
