@@ -1150,18 +1150,17 @@ $ordersMatrix = [
     'Recurring errors' => number_format((int) ($errorSummaryRow['repeat_errors'] ?? 0)),
     'Active queue' => number_format($activeQueueCount),
 ];
-$canReadPackingVariance = $ready
+$canReadPackingTotals = $ready
     && ops_table_exists('ops_order_items')
     && ops_table_exists('ops_orders')
     && ops_column_exists('ops_order_items', 'packed_quantity')
     && ops_column_exists('ops_order_items', 'quantity')
     && ops_column_exists('ops_order_items', 'packed_by');
-$packingVarianceRows = $canReadPackingVariance ? ops_rows(
+$packingTotalsRows = $canReadPackingTotals ? ops_rows(
     "SELECT COALESCE(oi.packed_by, o.assigned_packer_id) AS employee_id,
             e.full_name,
-            AVG(CASE WHEN oi.packed_quantity IS NOT NULL THEN oi.packed_quantity - oi.quantity END) AS avg_variance,
-            SUM(CASE WHEN oi.packed_quantity < oi.quantity THEN 1 ELSE 0 END) AS packed_less_rows,
-            SUM(CASE WHEN oi.packed_quantity > oi.quantity THEN 1 ELSE 0 END) AS packed_more_rows,
+            SUM(CASE WHEN oi.packed_quantity > 0 THEN oi.packed_quantity ELSE oi.quantity END) AS total_items_packed,
+            COUNT(DISTINCT o.id) AS orders_packed,
             COUNT(*) AS packed_rows
      FROM ops_order_items oi
      JOIN ops_orders o ON o.id = oi.order_id
@@ -1169,28 +1168,21 @@ $packingVarianceRows = $canReadPackingVariance ? ops_rows(
      WHERE COALESCE(oi.packed_by, o.assigned_packer_id) IS NOT NULL
        AND o.created_at >= ? AND o.created_at < ?
      GROUP BY COALESCE(oi.packed_by, o.assigned_packer_id), e.full_name
-     ORDER BY ABS(COALESCE(AVG(CASE WHEN oi.packed_quantity IS NOT NULL THEN oi.packed_quantity - oi.quantity END), 0)) DESC",
+     ORDER BY total_items_packed DESC",
     [$periodStart, $periodEnd]
 ) : [];
-$topPackedLess = '-';
-$topPackedMore = '-';
-foreach ($packingVarianceRows as $row) {
-    if ($topPackedLess === '-' && (float) ($row['avg_variance'] ?? 0) < 0) {
-        $topPackedLess = (string) ($row['full_name'] ?: 'Unassigned') . ' (' . number_format(abs((float) $row['avg_variance']), 1) . ' avg less)';
-    }
-    if ($topPackedMore === '-' && (float) ($row['avg_variance'] ?? 0) > 0) {
-        $topPackedMore = (string) ($row['full_name'] ?: 'Unassigned') . ' (' . number_format((float) $row['avg_variance'], 1) . ' avg more)';
-    }
-}
+$mostItemsPacked = $packingTotalsRows[0] ?? null;
+$secondMostItemsPacked = $packingTotalsRows[1] ?? null;
+$totalPackedItems = array_sum(array_map(static fn (array $row): float => (float) ($row['total_items_packed'] ?? 0), $packingTotalsRows));
 $packingMatrix = [
     'Average picked/order start time' => kpi_duration($businessSummary['avg_start'] ?? null),
     'Average time under New Order' => kpi_duration($businessSummary['avg_assignment'] ?? null),
     'Average time before In Progress' => kpi_duration($businessSummary['avg_start'] ?? null),
     'Average order completion time' => kpi_duration($businessSummary['avg_completion'] ?? null),
     'Packing notes created' => $ready && ops_table_exists('ops_orders') ? number_format(ops_count('ops_orders', "notes IS NOT NULL AND notes <> '' AND created_at >= '" . str_replace("'", "''", $periodStart) . "' AND created_at < '" . str_replace("'", "''", $periodEnd) . "'")) : '0',
-    'Packer who packed less' => $topPackedLess,
-    'Packer who packed more' => $topPackedMore,
-    'Rows checked for variance' => number_format(array_sum(array_map(static fn (array $row): int => (int) ($row['packed_rows'] ?? 0), $packingVarianceRows))),
+    'Most items packed' => $mostItemsPacked ? (string) ($mostItemsPacked['full_name'] ?: 'Unassigned') . ' (' . number_format((float) $mostItemsPacked['total_items_packed'], 1) . ' items)' : '-',
+    'Second most items packed' => $secondMostItemsPacked ? (string) ($secondMostItemsPacked['full_name'] ?: 'Unassigned') . ' (' . number_format((float) $secondMostItemsPacked['total_items_packed'], 1) . ' items)' : '-',
+    'Total packed items' => number_format($totalPackedItems, 1),
 ];
 $tabs = [
     'overview' => 'Overview Dashboard',
