@@ -893,11 +893,35 @@ video {
   padding: 42px 20px;
   background: rgba(255, 255, 255, 0.58);
   border-right: 1px solid var(--line);
+  transition: width 180ms ease, padding 180ms ease, background 180ms ease;
 }
 
 .sidebar nav {
   display: grid;
   gap: 14px;
+}
+
+.sidebar-collapse-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 38px;
+  margin: 0 0 18px;
+  padding: 8px 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.76);
+  color: #48454b;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.sidebar-collapse-toggle svg {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
 }
 
 .sidebar a {
@@ -909,15 +933,40 @@ video {
   color: #48454b;
   font-size: 14px;
   font-weight: 600;
+  border-radius: 10px;
+  transition: background 160ms ease, color 160ms ease, justify-content 160ms ease;
 }
 
 .sidebar a.active {
   color: #242225;
+  background: rgba(255, 155, 174, 0.12);
 }
 
 .sidebar svg {
+  flex: 0 0 auto;
   width: 19px;
   height: 19px;
+}
+
+body.sidebar-collapsed .sidebar {
+  width: 78px;
+  padding: 42px 14px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+body.sidebar-collapsed .sidebar a,
+body.sidebar-collapsed .sidebar-collapse-toggle {
+  justify-content: center;
+  padding-inline: 10px;
+}
+
+body.sidebar-collapsed .sidebar a span,
+body.sidebar-collapsed .sidebar-collapse-toggle span {
+  display: none;
+}
+
+body.sidebar-collapsed .workspace {
+  margin-left: 78px;
 }
 
 .workspace {
@@ -926,6 +975,7 @@ video {
   max-width: 100%;
   min-width: 0;
   padding: clamp(24px, 3vw, 50px) clamp(16px, 5vw, 92px);
+  transition: margin-left 180ms ease;
 }
 
 .launcher {
@@ -6416,6 +6466,10 @@ textarea {
     padding: 30px 18px;
   }
 
+  body.sidebar-collapsed .workspace {
+    margin-left: 0;
+  }
+
   .shell {
     display: block;
   }
@@ -6586,6 +6640,15 @@ textarea {
     visibility: hidden;
   }
 
+  .sidebar-collapse-toggle {
+    display: none;
+  }
+
+  body.sidebar-collapsed .sidebar {
+    width: auto;
+    padding: 12px;
+  }
+
   .sidebar.open {
     opacity: 1;
     pointer-events: auto;
@@ -6603,6 +6666,10 @@ textarea {
     min-width: 0;
     padding: 10px 12px;
     border-radius: 10px;
+  }
+
+  body.sidebar-collapsed .sidebar a span {
+    display: inline;
   }
 
   .sidebar a.active {

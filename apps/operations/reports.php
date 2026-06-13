@@ -997,7 +997,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($action === 'save_picker_slots') {
             kpi_save_setting('kpi_picker_1_employee_id', (string) max(0, (int) ($_POST['picker_1_employee_id'] ?? 0)));
             kpi_save_setting('kpi_picker_2_employee_id', (string) max(0, (int) ($_POST['picker_2_employee_id'] ?? 0)));
-            $message = 'Picker performance slots saved.';
+            $message = 'Packer performance slots saved.';
         } elseif ($action === 'save_employee_input') {
             $employeeId = max(0, (int) ($_POST['employee_id'] ?? 0));
             $inputPeriod = preg_match('/^\d{4}-\d{2}$/', (string) ($_POST['period_month'] ?? '')) ? (string) $_POST['period_month'] : $period;
@@ -1121,8 +1121,8 @@ $businessSummary = $ready ? kpi_order_business_summary($periodStart, $periodEnd,
 $tabs = [
     'overview' => 'Overview Dashboard',
     'front-desk' => 'Front Desk Performance',
-    'picker-1' => 'Picker Performance 1',
-    'picker-2' => 'Picker Performance 2',
+    'picker-1' => 'Packer Performance 1',
+    'picker-2' => 'Packer Performance 2',
     'bonus' => 'Bonus Incentive Score',
 ];
 $scoresById = [];
@@ -1169,13 +1169,13 @@ include BASE_PATH . '/shared/sidebar.php';
         <section class="panel kpi-picker-settings">
             <div class="section-row">
                 <div>
-                    <h2>Picker performance slots</h2>
-                    <p>Choose which packer appears under Picker Performance 1 and Picker Performance 2 in the KPI sidebar.</p>
+                    <h2>Packer performance slots</h2>
+                    <p>Choose which packer appears under Packer 1 and Packer 2 in the KPI sidebar.</p>
                 </div>
             </div>
             <form class="kpi-picker-slot-form" method="post">
                 <input type="hidden" name="kpi_action" value="save_picker_slots">
-                <label>Picker Performance 1
+                <label>Packer 1
                     <select name="picker_1_employee_id">
                         <option value="0">Not assigned</option>
                         <?php foreach ($pickerEmployees as $row): ?>
@@ -1183,7 +1183,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         <?php endforeach; ?>
                     </select>
                 </label>
-                <label>Picker Performance 2
+                <label>Packer 2
                     <select name="picker_2_employee_id">
                         <option value="0">Not assigned</option>
                         <?php foreach ($pickerEmployees as $row): ?>
@@ -1191,7 +1191,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         <?php endforeach; ?>
                     </select>
                 </label>
-                <button class="button primary" type="submit"><i data-lucide="save"></i> Save picker slots</button>
+                <button class="button primary" type="submit"><i data-lucide="save"></i> Save packer slots</button>
             </form>
         </section>
     <?php endif; ?>

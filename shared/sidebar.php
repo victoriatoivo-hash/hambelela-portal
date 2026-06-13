@@ -8,11 +8,33 @@ $navItems = [];
 
 if ($activeApp === 'kpi') {
     $kpiTab = preg_replace('/[^a-z0-9_-]/', '', (string) ($_GET['tab'] ?? 'overview')) ?: 'overview';
+    $kpiFrontDeskLabel = 'Front Desk Performance';
+    $kpiPackerOneLabel = 'Packer 1 -- Not assigned';
+    $kpiPackerTwoLabel = 'Packer 2 -- Not assigned';
+
+    if (!empty($employeeScores) && is_array($employeeScores)) {
+        $frontDeskRows = array_values(array_filter($employeeScores, static function (array $row): bool {
+            return ($row['role_group'] ?? '') === 'front_desk';
+        }));
+        if (count($frontDeskRows) === 1) {
+            $kpiFrontDeskLabel = 'Front Desk -- ' . (string) $frontDeskRows[0]['name'];
+        }
+    }
+
+    if (!empty($scoresById) && is_array($scoresById)) {
+        if (!empty($pickerOneId) && isset($scoresById[(int) $pickerOneId])) {
+            $kpiPackerOneLabel = 'Packer 1 -- ' . (string) $scoresById[(int) $pickerOneId]['name'];
+        }
+        if (!empty($pickerTwoId) && isset($scoresById[(int) $pickerTwoId])) {
+            $kpiPackerTwoLabel = 'Packer 2 -- ' . (string) $scoresById[(int) $pickerTwoId]['name'];
+        }
+    }
+
     $navItems = [
         ['id' => 'kpi-overview', 'tab' => 'overview', 'label' => 'Dashboard', 'icon' => 'layout-dashboard', 'href' => BASE_URL . '/apps/operations/reports.php?tab=overview'],
-        ['id' => 'kpi-front-desk', 'tab' => 'front-desk', 'label' => 'Front Desk Performance', 'icon' => 'headset', 'href' => BASE_URL . '/apps/operations/reports.php?tab=front-desk'],
-        ['id' => 'kpi-picker-1', 'tab' => 'picker-1', 'label' => 'Picker Performance 1', 'icon' => 'user-check', 'href' => BASE_URL . '/apps/operations/reports.php?tab=picker-1'],
-        ['id' => 'kpi-picker-2', 'tab' => 'picker-2', 'label' => 'Picker Performance 2', 'icon' => 'user-round-check', 'href' => BASE_URL . '/apps/operations/reports.php?tab=picker-2'],
+        ['id' => 'kpi-front-desk', 'tab' => 'front-desk', 'label' => $kpiFrontDeskLabel, 'icon' => 'headset', 'href' => BASE_URL . '/apps/operations/reports.php?tab=front-desk'],
+        ['id' => 'kpi-picker-1', 'tab' => 'picker-1', 'label' => $kpiPackerOneLabel, 'icon' => 'user-check', 'href' => BASE_URL . '/apps/operations/reports.php?tab=picker-1'],
+        ['id' => 'kpi-picker-2', 'tab' => 'picker-2', 'label' => $kpiPackerTwoLabel, 'icon' => 'user-round-check', 'href' => BASE_URL . '/apps/operations/reports.php?tab=picker-2'],
         ['id' => 'kpi-bonus', 'tab' => 'bonus', 'label' => 'Bonus Incentive Score', 'icon' => 'badge-dollar-sign', 'href' => BASE_URL . '/apps/operations/reports.php?tab=bonus'],
         ['id' => 'operations', 'tab' => '', 'label' => 'Back to Operations', 'icon' => 'arrow-left', 'href' => BASE_URL . '/apps/operations/index.php'],
     ];
@@ -51,10 +73,14 @@ if ($activeApp === 'kpi') {
 }
 ?>
 <aside class="sidebar" id="portal-sidebar" aria-label="Portal navigation">
+    <button class="sidebar-collapse-toggle" type="button" aria-label="Collapse sidebar" aria-pressed="false" data-sidebar-collapse>
+        <i data-lucide="panel-left-close"></i>
+        <span>Collapse</span>
+    </button>
     <nav>
         <?php foreach ($navItems as $item): ?>
             <?php $isActive = $activeApp === 'kpi' ? (($item['tab'] ?? null) === $kpiTab) : ($activeApp === $item['id']); ?>
-            <a class="<?= $isActive ? 'active' : '' ?>" href="<?= htmlspecialchars($item['href'], ENT_QUOTES, 'UTF-8') ?>">
+            <a class="<?= $isActive ? 'active' : '' ?>" href="<?= htmlspecialchars($item['href'], ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars($item['label'], ENT_QUOTES, 'UTF-8') ?>">
                 <i data-lucide="<?= htmlspecialchars($item['icon'], ENT_QUOTES, 'UTF-8') ?>"></i>
                 <span><?= htmlspecialchars($item['label'], ENT_QUOTES, 'UTF-8') ?></span>
             </a>

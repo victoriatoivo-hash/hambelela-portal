@@ -5,6 +5,34 @@ window.addEventListener('DOMContentLoaded', () => {
 
   const navToggle = document.querySelector('.mobile-nav-toggle');
   const sidebar = document.querySelector('#portal-sidebar');
+  const sidebarCollapse = document.querySelector('[data-sidebar-collapse]');
+  const applySidebarCollapsed = (collapsed) => {
+    document.body.classList.toggle('sidebar-collapsed', collapsed);
+    if (sidebarCollapse) {
+      sidebarCollapse.setAttribute('aria-pressed', collapsed ? 'true' : 'false');
+      sidebarCollapse.setAttribute('aria-label', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
+      const label = sidebarCollapse.querySelector('span');
+      if (label) label.textContent = collapsed ? 'Expand' : 'Collapse';
+      const icon = sidebarCollapse.querySelector('i');
+      if (icon) icon.setAttribute('data-lucide', collapsed ? 'panel-left-open' : 'panel-left-close');
+      if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+    }
+  };
+
+  if (sidebarCollapse && sidebar) {
+    const saved = window.localStorage?.getItem('hambelelaSidebarCollapsed') === '1';
+    applySidebarCollapsed(saved);
+    sidebarCollapse.addEventListener('click', () => {
+      const collapsed = !document.body.classList.contains('sidebar-collapsed');
+      applySidebarCollapsed(collapsed);
+      try {
+        window.localStorage?.setItem('hambelelaSidebarCollapsed', collapsed ? '1' : '0');
+      } catch (error) {
+        // Storage can be unavailable in private browsing; the UI should still work.
+      }
+    });
+  }
+
   if (navToggle && sidebar) {
     navToggle.addEventListener('click', () => {
       const isOpen = sidebar.classList.toggle('open');
