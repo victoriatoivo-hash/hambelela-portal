@@ -796,6 +796,146 @@ function packing_duplicate_review_row(array $row): array
     ];
 }
 
+function packing_loose_match_key(array $row): string
+{
+    $parts = [
+        packing_normalized_item_name($row),
+        preg_replace('/\s+/', ' ', strtolower(trim((string) ($row['received_weight'] ?? '')))) ?: '',
+        preg_replace('/\s+/', ' ', strtolower(trim((string) ($row['quantity_planned'] ?? '')))) ?: '',
+    ];
+
+    return implode('|', $parts);
+}
+
+function packing_monday_lookup_maps(array $items, array $columnTitles): array
+{
+    $rows = [];
+    $byId = [];
+    $byKey = [];
+    $byKeyWithoutPerson = [];
+    $byLoose = [];
+    $byName = [];
+
+    foreach ($items as $item) {
+        $row = packing_monday_row_from_item($item, $columnTitles);
+        if ($row['monday_item_id'] === '' || trim((string) $row['item_name']) === '') {
+            continue;
+        }
+        $id = (string) $row['monday_item_id'];
+        $rows[$id] = $row;
+        $byId[$id] = $row;
+        $byKey[packing_row_key($row)] = $row;
+        $byKeyWithoutPerson[packing_row_key_without_person($row)] = $row;
+        $byLoose[packing_loose_match_key($row)][] = $row;
+        $byName[packing_normalized_item_name($row)][] = $row;
+    }
+
+    return [
+        'rows' => $rows,
+        'by_id' => $byId,
+        'by_key' => $byKey,
+        'by_key_without_person' => $byKeyWithoutPerson,
+        'by_loose' => $byLoose,
+        'by_name' => $byName,
+    ];
+}
+
+function packing_find_monday_match(array $row, array $maps): ?array
+{
+    $mondayId = trim((string) ($row['monday_item_id'] ?? ''));
+    if ($mondayId !== '' && isset($maps['by_id'][$mondayId])) {
+        return $maps['by_id'][$mondayId];
+    }
+
+    $key = packing_row_key($row);
+    if (isset($maps['by_key'][$key])) {
+        return $maps['by_key'][$key];
+    }
+
+    $personlessKey = packing_row_key_without_person($row);
+    if (isset($maps['by_key_without_person'][$personlessKey])) {
+        return $maps['by_key_without_person'][$personlessKey];
+    }
+
+    $looseKey = packing_loose_match_key($row);
+    if (!empty($maps['by_loose'][$looseKey]) && count($maps['by_loose'][$looseKey]) === 1) {
+        return $maps['by_loose'][$looseKey][0];
+    }
+
+    $nameKey = packing_normalized_item_name($row);
+    if ($nameKey !== '' && !empty($maps['by_name'][$nameKey]) && count($maps['by_name'][$nameKey]) === 1) {
+        return $maps['by_name'][$nameKey][0];
+    }
+
+    return null;
+}
+
+function packing_find_portal_match(array $mondayRow, array $portalRows, array $mondayMaps = []): ?array
+{
+    $mondayId = trim((string) ($mondayRow['monday_item_id'] ?? ''));
+    $key = packing_row_key($mondayRow);
+    $personlessKey = packing_row_key_without_person($mondayRow);
+    $looseKey = packing_loose_match_key($mondayRow);
+    $nameKey = packing_normalized_item_name($mondayRow);
+    $nameMatches = [];
+
+    foreach ($portalRows as $row) {
+        if ($mondayId !== '' && trim((string) ($row['monday_item_id'] ?? '')) === $mondayId) {
+            return $row;
+        }
+        if (packing_row_key($row) === $key || packing_row_key_without_person($row) === $personlessKey || packing_loose_match_key($row) === $looseKey) {
+            return $row;
+        }
+        if ($nameKey !== '' && packing_normalized_item_name($row) === $nameKey) {
+            $nameMatches[] = $row;
+        }
+    }
+
+    $mondayNameCount = isset($mondayMaps['by_name'][$nameKey]) ? count($mondayMaps['by_name'][$nameKey]) : 1;
+    return $mondayNameCount === 1 && count($nameMatches) === 1 ? $nameMatches[0] : null;
+}
+
+function packing_import_monday_row(array $row, int $employeeId): int
+{
+    $columns = ['item_name', 'received_weight', 'priority', 'date_loaded', 'quantity_planned', 'assigned_employee_id', 'quantity_packed', 'date_completed', 'website_uploaded', 'packing_status', 'workload_points', 'notes', 'created_by'];
+    $placeholders = array_fill(0, count($columns), '?');
+    $params = [
+        (string) ($row['item_name'] ?? 'Monday item'),
+        (string) ($row['received_weight'] ?? ''),
+        (string) ($row['priority'] ?? 'high'),
+        (string) ($row['date_loaded'] ?? date('Y-m-d H:i:s')),
+        (string) ($row['quantity_planned'] ?? ''),
+        !empty($row['assigned_employee_id']) ? (int) $row['assigned_employee_id'] : null,
+        (string) ($row['quantity_packed'] ?? ''),
+        !empty($row['date_completed']) ? (string) $row['date_completed'] : null,
+        (int) ($row['website_uploaded'] ?? 0),
+        (string) ($row['packing_status'] ?? 'not_started'),
+        (float) ($row['workload_points'] ?? 0),
+        trim((string) ($row['notes'] ?? '') . "\nCreated source: Monday sync"),
+        $employeeId,
+    ];
+
+    $optional = [
+        'monday_item_id' => (string) ($row['monday_item_id'] ?? ''),
+        'monday_board_id' => (string) MONDAY_PACKING_BOARD_ID,
+        'monday_synced_at' => date('Y-m-d H:i:s'),
+        'monday_sync_status' => 'synced',
+        'monday_sync_error' => null,
+        'packing_row_key' => packing_row_key($row),
+    ];
+    foreach ($optional as $column => $value) {
+        if (ops_column_exists('ops_packing_tasks', $column)) {
+            $columns[] = $column;
+            $placeholders[] = '?';
+            $params[] = $value;
+        }
+    }
+
+    db()->prepare('INSERT INTO ops_packing_tasks (' . implode(', ', $columns) . ') VALUES (' . implode(', ', $placeholders) . ')')->execute($params);
+
+    return (int) db()->lastInsertId();
+}
+
 function packing_best_duplicate_row(array $rows): array
 {
     usort($rows, static function (array $a, array $b): int {
@@ -923,6 +1063,9 @@ try {
             $assignedId = (int) (ops_best_packer_for_packing($workload) ?? 0);
         }
         $notes = trim(ops_post_string('notes', 1000) . ($quantityWarning !== '' ? "\nWarning: {$quantityWarning}" : ''));
+        if (packing_monday_configured()) {
+            packing_ensure_monday_sync_schema();
+        }
         $rowKey = packing_row_key([
             'item_name' => ops_post_string('item_name', 190),
             'received_weight' => $receivedWeight,
@@ -931,6 +1074,36 @@ try {
             'assigned_employee_id' => $assignedId > 0 ? $assignedId : null,
             'notes' => $notes,
         ]);
+        if (ops_column_exists('ops_packing_tasks', 'packing_row_key')) {
+            $existing = ops_rows(
+                'SELECT id FROM ops_packing_tasks WHERE packing_row_key = ? AND ' . packing_active_where() . ' LIMIT 1',
+                [$rowKey]
+            );
+            if ($existing) {
+                echo json_encode(['ok' => true, 'message' => 'Matching packing item already exists. No duplicate row was created.', 'existing_id' => (int) $existing[0]['id']]);
+                exit;
+            }
+        }
+
+        $mondayPayload = null;
+        $mondayMatch = null;
+        if (packing_monday_configured()) {
+            try {
+                $mondayPayload = packing_monday_board_payload();
+                $mondayMaps = packing_monday_lookup_maps($mondayPayload['items'] ?? [], $mondayPayload['columns'] ?? []);
+                $mondayMatch = packing_find_monday_match([
+                    'item_name' => ops_post_string('item_name', 190),
+                    'received_weight' => $receivedWeight,
+                    'quantity_planned' => $quantityPlan,
+                    'date_loaded' => $dateLoaded,
+                    'assigned_employee_id' => $assignedId > 0 ? $assignedId : null,
+                    'notes' => $notes,
+                ], $mondayMaps);
+            } catch (Throwable $e) {
+                $mondayPayload = null;
+                $mondayMatch = null;
+            }
+        }
 
         $columns = ['item_name', 'received_weight', 'priority', 'date_loaded', 'quantity_planned', 'assigned_employee_id', 'workload_points', 'notes', 'created_by'];
         $placeholders = ['?', '?', '?', '?', '?', '?', '?', '?', '?'];
@@ -950,11 +1123,61 @@ try {
             $placeholders[] = '?';
             $params[] = $rowKey;
         }
+        if ($mondayMatch && ops_column_exists('ops_packing_tasks', 'monday_item_id')) {
+            $columns[] = 'monday_item_id';
+            $placeholders[] = '?';
+            $params[] = (string) $mondayMatch['monday_item_id'];
+        }
+        if ($mondayMatch && ops_column_exists('ops_packing_tasks', 'monday_board_id')) {
+            $columns[] = 'monday_board_id';
+            $placeholders[] = '?';
+            $params[] = (string) MONDAY_PACKING_BOARD_ID;
+        }
+        if (ops_column_exists('ops_packing_tasks', 'monday_sync_status')) {
+            $columns[] = 'monday_sync_status';
+            $placeholders[] = '?';
+            $params[] = $mondayMatch ? 'updated' : 'not_synced';
+        }
 
         $stmt = db()->prepare(
             'INSERT INTO ops_packing_tasks (' . implode(', ', $columns) . ') VALUES (' . implode(', ', $placeholders) . ')'
         );
         $stmt->execute($params);
+        $newId = (int) db()->lastInsertId();
+
+        if (packing_monday_configured() && $mondayPayload) {
+            try {
+                $syncRow = [
+                    'id' => $newId,
+                    'item_name' => ops_post_string('item_name', 190),
+                    'received_weight' => $receivedWeight,
+                    'priority' => $priority,
+                    'date_loaded' => $dateLoaded,
+                    'quantity_planned' => $quantityPlan,
+                    'assigned_employee_id' => $assignedId > 0 ? $assignedId : null,
+                    'workload_points' => $workload,
+                    'notes' => $notes,
+                    'monday_item_id' => $mondayMatch['monday_item_id'] ?? '',
+                ];
+                $result = packing_monday_create_or_update_row($syncRow, $mondayPayload);
+                $state = [
+                    'monday_item_id' => $result['id'],
+                    'monday_board_id' => (string) MONDAY_PACKING_BOARD_ID,
+                    'monday_sync_status' => $result['status'] === 'updated' ? 'updated' : 'synced',
+                    'monday_sync_error' => null,
+                    'packing_row_key' => $rowKey,
+                ];
+                if (ops_column_exists('ops_packing_tasks', 'monday_synced_at')) {
+                    $state['monday_synced_at'] = date('Y-m-d H:i:s');
+                }
+                packing_sync_state($newId, $state);
+            } catch (Throwable $e) {
+                packing_sync_state($newId, [
+                    'monday_sync_status' => 'failed',
+                    'monday_sync_error' => substr($e->getMessage(), 0, 1000),
+                ]);
+            }
+        }
 
         echo json_encode(['ok' => true, 'message' => $quantityWarning !== '' ? 'Packing item created. Quantity-to-pack warning added.' : 'Packing item created.', 'warning' => $quantityWarning]);
         exit;
@@ -1166,16 +1389,7 @@ try {
         $mondayPayload = packing_monday_board_payload();
         $items = $mondayPayload['items'] ?? [];
         $columnTitles = $mondayPayload['columns'] ?? [];
-        $mondayByKey = [];
-        $mondayByKeyWithoutPerson = [];
-        foreach ($items as $item) {
-            $mondayRow = packing_monday_row_from_item($item, $columnTitles);
-            if ($mondayRow['monday_item_id'] === '' || trim((string) $mondayRow['item_name']) === '') {
-                continue;
-            }
-            $mondayByKey[packing_row_key($mondayRow)] = $mondayRow['monday_item_id'];
-            $mondayByKeyWithoutPerson[packing_row_key_without_person($mondayRow)] = $mondayRow['monday_item_id'];
-        }
+        $mondayMaps = packing_monday_lookup_maps($items, $columnTitles);
 
         $activeWhere = packing_active_where('pt');
         $portalRows = ops_rows(
@@ -1186,18 +1400,65 @@ try {
              ORDER BY pt.date_loaded ASC, pt.id ASC"
         );
 
-        if (!$portalRows) {
-            echo json_encode([
-                'ok' => true,
-                'message' => 'No active portal packing rows to sync. Monday was checked and no portal rows were created.',
-                'found' => count($items),
-                'created' => 0,
-                'updated' => 0,
-                'skipped_duplicates' => 0,
-                'failed' => 0,
+        $importedFromMonday = 0;
+        $linkedFromMonday = 0;
+        $skippedMondayDuplicates = 0;
+        foreach (($mondayMaps['rows'] ?? []) as $mondayRow) {
+            $match = packing_find_portal_match($mondayRow, $portalRows, $mondayMaps);
+            if ($match) {
+                $matchId = (int) $match['id'];
+                $matchState = [
+                    'monday_item_id' => (string) $mondayRow['monday_item_id'],
+                    'monday_board_id' => (string) MONDAY_PACKING_BOARD_ID,
+                    'monday_sync_status' => 'updated',
+                    'monday_sync_error' => null,
+                    'packing_row_key' => packing_row_key($match),
+                ];
+                if ($hasMondaySyncedAt) {
+                    $matchState['monday_synced_at'] = date('Y-m-d H:i:s');
+                }
+                packing_sync_state($matchId, $matchState);
+                ops_activity_log('packing_monday_linked', 'packing_task', $matchId, [
+                    'monday_item_id' => (string) $mondayRow['monday_item_id'],
+                    'changed_by' => current_user()['name'] ?? 'Unknown',
+                ]);
+                $linkedFromMonday++;
+                continue;
+            }
+
+            $nameKey = packing_normalized_item_name($mondayRow);
+            $sameNameCount = 0;
+            foreach ($portalRows as $portalRow) {
+                if ($nameKey !== '' && packing_normalized_item_name($portalRow) === $nameKey) {
+                    $sameNameCount++;
+                }
+            }
+            $mondayNameCount = isset($mondayMaps['by_name'][$nameKey]) ? count($mondayMaps['by_name'][$nameKey]) : 1;
+            if ($sameNameCount > 1 || ($sameNameCount > 0 && $mondayNameCount > 1)) {
+                $skippedMondayDuplicates++;
+                continue;
+            }
+
+            $newId = packing_import_monday_row($mondayRow, $currentEmployeeId);
+            ops_activity_log('packing_monday_imported', 'packing_task', $newId, [
+                'monday_item_id' => (string) $mondayRow['monday_item_id'],
+                'changed_by' => current_user()['name'] ?? 'Unknown',
             ]);
-            exit;
+            $importedFromMonday++;
+            $portalRows[] = array_merge($mondayRow, [
+                'id' => $newId,
+                'assigned_name' => '',
+                'monday_board_id' => (string) MONDAY_PACKING_BOARD_ID,
+            ]);
         }
+
+        $portalRows = ops_rows(
+            "SELECT pt.*, e.full_name AS assigned_name
+             FROM ops_packing_tasks pt
+             LEFT JOIN ops_employees e ON e.id = pt.assigned_employee_id
+             WHERE {$activeWhere}
+             ORDER BY pt.date_loaded ASC, pt.id ASC"
+        );
 
         $groups = [];
         foreach ($portalRows as $row) {
@@ -1242,12 +1503,10 @@ try {
                 continue;
             }
 
-            if (empty($row['monday_item_id']) && isset($mondayByKey[$key])) {
-                $row['monday_item_id'] = $mondayByKey[$key];
-            } elseif (empty($row['monday_item_id'])) {
-                $personlessKey = packing_row_key_without_person($row);
-                if (isset($mondayByKeyWithoutPerson[$personlessKey])) {
-                    $row['monday_item_id'] = $mondayByKeyWithoutPerson[$personlessKey];
+            if (empty($row['monday_item_id'])) {
+                $mondayMatch = packing_find_monday_match($row, $mondayMaps);
+                if ($mondayMatch) {
+                    $row['monday_item_id'] = (string) $mondayMatch['monday_item_id'];
                 }
             }
 
@@ -1284,15 +1543,19 @@ try {
             }
         }
 
+        $totalSkippedDuplicates = $skippedDuplicates + $skippedMondayDuplicates;
         echo json_encode([
             'ok' => true,
-            'message' => "Monday mirror sync complete. Created {$created}, updated {$updated}, skipped duplicates {$skippedDuplicates}, failed {$failed}. Checked " . count($items) . ' existing Monday items.',
+            'message' => "Monday sync complete. Imported {$importedFromMonday} from Monday, linked {$linkedFromMonday}, created {$created}, updated {$updated}, skipped duplicates {$totalSkippedDuplicates}, failed {$failed}. Checked " . count($items) . ' Monday items.',
             'found' => count($items),
             'created' => $created,
             'updated' => $updated,
-            'skipped_duplicates' => $skippedDuplicates,
+            'imported_from_monday' => $importedFromMonday,
+            'linked_from_monday' => $linkedFromMonday,
+            'skipped_duplicates' => $totalSkippedDuplicates,
+            'skipped_monday_duplicates' => $skippedMondayDuplicates,
             'failed' => $failed,
-            'source' => 'portal',
+            'source' => 'bidirectional',
         ]);
         exit;
     }
