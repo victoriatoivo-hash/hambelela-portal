@@ -994,6 +994,10 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
             $message = 'Role-based KPI weights saved.';
+        } elseif ($action === 'save_picker_slots') {
+            kpi_save_setting('kpi_picker_1_employee_id', (string) max(0, (int) ($_POST['picker_1_employee_id'] ?? 0)));
+            kpi_save_setting('kpi_picker_2_employee_id', (string) max(0, (int) ($_POST['picker_2_employee_id'] ?? 0)));
+            $message = 'Picker performance slots saved.';
         } elseif ($action === 'save_employee_input') {
             $employeeId = max(0, (int) ($_POST['employee_id'] ?? 0));
             $inputPeriod = preg_match('/^\d{4}-\d{2}$/', (string) ($_POST['period_month'] ?? '')) ? (string) $_POST['period_month'] : $period;
@@ -1117,20 +1121,20 @@ $businessSummary = $ready ? kpi_order_business_summary($periodStart, $periodEnd,
 $tabs = [
     'overview' => 'Overview Dashboard',
     'front-desk' => 'Front Desk Performance',
-    'packers' => 'Packer Performance',
-    'employees' => 'Individual Profiles',
-    'orders' => 'Orders KPI',
-    'packing' => 'Packing KPI',
-    'bookkeeping' => 'Bookkeeping KPI',
-    'tasks' => 'Task KPI',
-    'errors' => 'Error KPI',
-    'bonus' => 'Bonus / Increment Score',
+    'picker-1' => 'Picker Performance 1',
+    'picker-2' => 'Picker Performance 2',
+    'bonus' => 'Bonus Incentive Score',
 ];
 $scoresById = [];
 foreach ($employeeScores as $row) {
     $scoresById[(int) $row['employee_id']] = $row;
 }
 $selectedEmployee = $selectedEmployeeId && isset($scoresById[$selectedEmployeeId]) ? $scoresById[$selectedEmployeeId] : ($employeeScores[0] ?? null);
+$pickerOneId = (int) kpi_setting('kpi_picker_1_employee_id', '0');
+$pickerTwoId = (int) kpi_setting('kpi_picker_2_employee_id', '0');
+$pickerEmployees = array_values(array_filter($employeeScores, static function (array $row): bool {
+    return ($row['role_group'] ?? '') === 'packer';
+}));
 $unlinkedEmployees = array_values(array_filter($employeeScores, static function (array $row): bool {
     return empty($row['hr_linked']);
 }));
@@ -1146,6 +1150,7 @@ include BASE_PATH . '/shared/sidebar.php';
             <p>Objective employee scoring, graduated bonus calculations, reward eligibility, training signals and operational KPI tracking.</p>
         </div>
         <form class="kpi-period-form" method="get">
+            <input type="hidden" name="tab" value="<?= htmlspecialchars($activeTab, ENT_QUOTES, 'UTF-8') ?>">
             <label>Month<input type="month" name="period" value="<?= htmlspecialchars($period, ENT_QUOTES, 'UTF-8') ?>"></label>
             <button class="button primary" type="submit"><i data-lucide="calendar-range"></i> View</button>
         </form>
@@ -1160,11 +1165,36 @@ include BASE_PATH . '/shared/sidebar.php';
         </section>
     <?php endif; ?>
 
-    <nav class="kpi-tab-nav" aria-label="KPI report sections">
-        <?php foreach ($tabs as $key => $label): ?>
-            <a class="<?= $activeTab === $key ? 'active' : '' ?>" href="reports.php?period=<?= urlencode($period) ?>&tab=<?= urlencode($key) ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></a>
-        <?php endforeach; ?>
-    </nav>
+    <?php if ($activeTab === 'overview'): ?>
+        <section class="panel kpi-picker-settings">
+            <div class="section-row">
+                <div>
+                    <h2>Picker performance slots</h2>
+                    <p>Choose which packer appears under Picker Performance 1 and Picker Performance 2 in the KPI sidebar.</p>
+                </div>
+            </div>
+            <form class="kpi-picker-slot-form" method="post">
+                <input type="hidden" name="kpi_action" value="save_picker_slots">
+                <label>Picker Performance 1
+                    <select name="picker_1_employee_id">
+                        <option value="0">Not assigned</option>
+                        <?php foreach ($pickerEmployees as $row): ?>
+                            <option value="<?= (int) $row['employee_id'] ?>" <?= (int) $row['employee_id'] === $pickerOneId ? 'selected' : '' ?>><?= htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8') ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+                <label>Picker Performance 2
+                    <select name="picker_2_employee_id">
+                        <option value="0">Not assigned</option>
+                        <?php foreach ($pickerEmployees as $row): ?>
+                            <option value="<?= (int) $row['employee_id'] ?>" <?= (int) $row['employee_id'] === $pickerTwoId ? 'selected' : '' ?>><?= htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8') ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+                <button class="button primary" type="submit"><i data-lucide="save"></i> Save picker slots</button>
+            </form>
+        </section>
+    <?php endif; ?>
 
     <?php if ($activeTab === 'orders'): ?>
         <section class="panel kpi-system-panel">
@@ -1183,8 +1213,20 @@ include BASE_PATH . '/shared/sidebar.php';
                 ] as $label => $value): ?><article><span><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></span><strong><?= htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') ?></strong></article><?php endforeach; ?>
             </div>
         </section>
-    <?php elseif ($activeTab === 'front-desk' || $activeTab === 'packers'): ?>
-        <?php $roleRows = array_values(array_filter($employeeScores, function (array $row) use ($activeTab): bool { return $activeTab === 'packers' ? ($row['role_group'] ?? '') === 'packer' : ($row['role_group'] ?? '') === 'front_desk'; })); ?>
+    <?php elseif ($activeTab === 'front-desk' || $activeTab === 'picker-1' || $activeTab === 'picker-2'): ?>
+        <?php
+        $roleRows = [];
+        if ($activeTab === 'front-desk') {
+            $roleRows = array_values(array_filter($employeeScores, static function (array $row): bool {
+                return ($row['role_group'] ?? '') === 'front_desk';
+            }));
+        } else {
+            $slotId = $activeTab === 'picker-1' ? $pickerOneId : $pickerTwoId;
+            if ($slotId > 0 && isset($scoresById[$slotId])) {
+                $roleRows = [$scoresById[$slotId]];
+            }
+        }
+        ?>
         <section class="dashboard-grid kpi-scorecard-grid">
             <?php foreach ($roleRows as $row): ?>
                 <article class="panel kpi-scorecard">
@@ -1198,7 +1240,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     <?php endforeach; ?>
                 </article>
             <?php endforeach; ?>
-            <?php if (!$roleRows): ?><section class="panel"><p>No employees found for this role group.</p></section><?php endif; ?>
+            <?php if (!$roleRows): ?><section class="panel"><p><?= $activeTab === 'front-desk' ? 'No front desk employees found.' : 'No picker assigned to this slot yet. Open Dashboard and choose a picker for this performance slot.' ?></p></section><?php endif; ?>
         </section>
     <?php elseif ($activeTab === 'employees'): ?>
         <section class="panel kpi-employee-picker">
@@ -1237,6 +1279,7 @@ include BASE_PATH . '/shared/sidebar.php';
         </section>
     <?php endif; ?>
 
+    <?php if ($activeTab === 'overview'): ?>
     <section class="work-metric-grid kpi-overview-grid">
         <?php foreach ([
             ['Average Performance', kpi_percent($averageScore), 'All active employees', 'gauge', 'metric-blue'],
@@ -1269,7 +1312,9 @@ include BASE_PATH . '/shared/sidebar.php';
             <?php endforeach; ?>
         </div>
     </section>
+    <?php endif; ?>
 
+    <?php if ($activeTab === 'bonus'): ?>
     <section class="dashboard-grid kpi-management-grid">
         <article class="panel">
             <div class="section-row"><div><h2>Bonus settings</h2><p>Management controls the monthly bonus percentage and KPI targets.</p></div></div>
@@ -1427,5 +1472,6 @@ include BASE_PATH . '/shared/sidebar.php';
             </div>
         </article>
     </section>
+    <?php endif; ?>
 </main>
 <?php include BASE_PATH . '/shared/footer.php'; ?>

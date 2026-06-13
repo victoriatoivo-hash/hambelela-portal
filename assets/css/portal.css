@@ -7163,6 +7163,7 @@ textarea {
 }
 
 .kpi-period-form label,
+.kpi-picker-slot-form label,
 .kpi-settings-grid label,
 .kpi-manual-form label,
 .kpi-reward-form label {
@@ -7174,6 +7175,7 @@ textarea {
 }
 
 .kpi-period-form input,
+.kpi-picker-slot-form select,
 .kpi-settings-grid input,
 .kpi-manual-form input,
 .kpi-manual-form select,
@@ -7450,6 +7452,17 @@ textarea {
 .hr-link-form select {
   width: 100%;
   min-width: 0;
+}
+
+.kpi-picker-settings {
+  margin-bottom: 22px;
+}
+
+.kpi-picker-slot-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr)) auto;
+  gap: 12px;
+  align-items: end;
 }
 
 @media (max-width: 1180px) {
