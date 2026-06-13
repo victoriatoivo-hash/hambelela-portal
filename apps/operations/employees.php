@@ -37,6 +37,25 @@ function ops_employee_link_bootstrap(): void
     } catch (Throwable $e) {
         // Linking is helpful but should not block basic employee management.
     }
+
+    try {
+        db()->exec(
+            "CREATE TABLE IF NOT EXISTS ops_login_events (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                employee_id INT NULL,
+                employee_name VARCHAR(160) NULL,
+                role_key VARCHAR(60) NULL,
+                login_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                source VARCHAR(40) NOT NULL DEFAULT 'database',
+                ip_address VARCHAR(80) NULL,
+                user_agent VARCHAR(255) NULL,
+                INDEX idx_login_employee_time (employee_id, login_at),
+                INDEX idx_login_time (login_at)
+            )"
+        );
+    } catch (Throwable $e) {
+        // Login history is informational and should not block employee management.
+    }
 }
 
 function ops_force_delete_employee(int $employeeId): void
@@ -207,6 +226,20 @@ $employees = $ready ? ops_rows(
      ORDER BY e.created_at DESC
      LIMIT 50"
 ) : [];
+$loginRows = $ready && ops_table_exists('ops_login_events') ? ops_rows(
+    "SELECT le.employee_id, COALESCE(e.full_name, le.employee_name, 'Unknown') AS employee_name,
+            COALESCE(r.name, le.role_key, '-') AS role_name,
+            COUNT(*) AS login_count,
+            MAX(le.login_at) AS last_login_at,
+            AVG(TIME_TO_SEC(TIME(le.login_at))) AS avg_login_seconds
+     FROM ops_login_events le
+     LEFT JOIN ops_employees e ON e.id = le.employee_id
+     LEFT JOIN ops_roles r ON r.id = e.role_id
+     WHERE le.login_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+     GROUP BY le.employee_id, COALESCE(e.full_name, le.employee_name, 'Unknown'), COALESCE(r.name, le.role_key, '-')
+     ORDER BY last_login_at DESC
+     LIMIT 20"
+) : [];
 
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
@@ -256,6 +289,32 @@ include BASE_PATH . '/shared/sidebar.php';
             </form>
         </section>
     <?php endif; ?>
+
+    <section class="panel">
+        <div class="section-row">
+            <div>
+                <h2>Login times</h2>
+                <p>Recent portal login activity for the last 30 days. New logins are recorded from this update onward.</p>
+            </div>
+        </div>
+        <div class="table-scroll">
+            <table class="data-table ops-table">
+                <thead><tr><th>Employee</th><th>Role</th><th>Logins</th><th>Average Login Time</th><th>Last Login</th></tr></thead>
+                <tbody>
+                    <?php foreach ($loginRows as $row): ?>
+                        <tr>
+                            <td><?= htmlspecialchars((string) $row['employee_name'], ENT_QUOTES, 'UTF-8') ?></td>
+                            <td><?= htmlspecialchars((string) $row['role_name'], ENT_QUOTES, 'UTF-8') ?></td>
+                            <td><?= number_format((int) $row['login_count']) ?></td>
+                            <td><?= $row['avg_login_seconds'] !== null ? htmlspecialchars(gmdate('H:i', (int) $row['avg_login_seconds']), ENT_QUOTES, 'UTF-8') : '-' ?></td>
+                            <td><?= !empty($row['last_login_at']) ? htmlspecialchars(date('Y-m-d H:i', strtotime((string) $row['last_login_at'])), ENT_QUOTES, 'UTF-8') : '-' ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    <?php if (!$loginRows): ?><tr><td colspan="5">No login activity recorded yet. Logins will appear here after staff sign in again.</td></tr><?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </section>
 
     <section class="ops-split">
         <form class="panel ops-form" method="post">

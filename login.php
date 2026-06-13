@@ -87,6 +87,41 @@ function ensure_auth_tables(): void
           CONSTRAINT fk_ops_employees_role_id FOREIGN KEY (role_id) REFERENCES ops_roles(id)
         )"
     );
+
+    db()->exec(
+        "CREATE TABLE IF NOT EXISTS ops_login_events (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          employee_id INT NULL,
+          employee_name VARCHAR(160) NULL,
+          role_key VARCHAR(60) NULL,
+          login_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          source VARCHAR(40) NOT NULL DEFAULT 'database',
+          ip_address VARCHAR(80) NULL,
+          user_agent VARCHAR(255) NULL,
+          INDEX idx_login_employee_time (employee_id, login_at),
+          INDEX idx_login_time (login_at)
+        )"
+    );
+}
+
+function record_login_event(array $user, string $source): void
+{
+    try {
+        $stmt = db()->prepare(
+            "INSERT INTO ops_login_events (employee_id, employee_name, role_key, source, ip_address, user_agent)
+             VALUES (?, ?, ?, ?, ?, ?)"
+        );
+        $stmt->execute([
+            !empty($user['id']) ? (int) $user['id'] : null,
+            (string) ($user['name'] ?? ''),
+            (string) ($user['role_key'] ?? ''),
+            $source,
+            substr((string) ($_SERVER['REMOTE_ADDR'] ?? ''), 0, 80),
+            substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255),
+        ]);
+    } catch (Throwable $e) {
+        // Login tracking should never block staff from accessing the portal.
+    }
 }
 
 function ensure_default_ops_accounts(): void
@@ -177,12 +212,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'role_key' => $employee['role_key'],
                 'source' => 'database',
             ];
+            record_login_event($_SESSION['user'], 'database');
             header('Location: index.php');
             exit;
         }
     }
 
     if (try_local_login($identity, $code)) {
+        record_login_event($_SESSION['user'], 'local_fallback');
         header('Location: index.php');
         exit;
     }

@@ -407,6 +407,23 @@ try {
             throw new RuntimeException('Availability table is missing. Import operations-live-board-migration.sql first.');
         }
 
+        try {
+            db()->exec(
+                "CREATE TABLE IF NOT EXISTS ops_employee_availability_history (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    employee_id INT NOT NULL,
+                    availability_status VARCHAR(40) NOT NULL,
+                    unavailable_until DATETIME NULL,
+                    note VARCHAR(255) NULL,
+                    changed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_availability_history_employee (employee_id, changed_at),
+                    INDEX idx_availability_history_status (availability_status, changed_at)
+                )"
+            );
+        } catch (Throwable $e) {
+            // History is useful for KPI reports but should not block live availability.
+        }
+
         $employeeId = ops_current_employee_id();
         if (!$employeeId) {
             $employeeId = (int) ($_POST['employee_id'] ?? 0);
@@ -438,6 +455,14 @@ try {
                 updated_at = CURRENT_TIMESTAMP"
         );
         $stmt->execute([$employeeId, $status, $until, ops_post_string('note', 255)]);
+
+        if (ops_table_exists('ops_employee_availability_history')) {
+            $stmt = db()->prepare(
+                "INSERT INTO ops_employee_availability_history (employee_id, availability_status, unavailable_until, note)
+                 VALUES (?, ?, ?, ?)"
+            );
+            $stmt->execute([$employeeId, $status, $until, ops_post_string('note', 255)]);
+        }
 
         $assigned = ops_assign_unassigned_orders();
         echo json_encode(['ok' => true, 'message' => 'Availability updated.', 'assigned' => $assigned]);

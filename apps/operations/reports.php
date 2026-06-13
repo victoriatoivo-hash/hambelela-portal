@@ -254,6 +254,34 @@ function kpi_bootstrap(): void
         )"
     );
 
+    kpi_try_sql(
+        "CREATE TABLE IF NOT EXISTS ops_login_events (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            employee_id INT NULL,
+            employee_name VARCHAR(160) NULL,
+            role_key VARCHAR(60) NULL,
+            login_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            source VARCHAR(40) NOT NULL DEFAULT 'database',
+            ip_address VARCHAR(80) NULL,
+            user_agent VARCHAR(255) NULL,
+            INDEX idx_login_employee_time (employee_id, login_at),
+            INDEX idx_login_time (login_at)
+        )"
+    );
+
+    kpi_try_sql(
+        "CREATE TABLE IF NOT EXISTS ops_employee_availability_history (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            employee_id INT NOT NULL,
+            availability_status VARCHAR(40) NOT NULL,
+            unavailable_until DATETIME NULL,
+            note VARCHAR(255) NULL,
+            changed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_availability_history_employee (employee_id, changed_at),
+            INDEX idx_availability_history_status (availability_status, changed_at)
+        )"
+    );
+
     foreach ([
         ['Driving lesson sponsorship', 800.00, 'development'],
         ['Employee of the Month', 0.00, 'recognition'],
@@ -1184,6 +1212,129 @@ $packingMatrix = [
     'Second most items packed' => $secondMostItemsPacked ? (string) ($secondMostItemsPacked['full_name'] ?: 'Unassigned') . ' (' . number_format((float) $secondMostItemsPacked['total_items_packed'], 1) . ' items)' : '-',
     'Total packed items' => number_format($totalPackedItems, 1),
 ];
+$hasCashBook = $ready
+    && ops_table_exists('ops_cash_book_entries')
+    && ops_column_exists('ops_cash_book_entries', 'related_order_id')
+    && ops_column_exists('ops_cash_book_entries', 'cash_in')
+    && ops_column_exists('ops_cash_book_entries', 'created_at');
+$cashBookArchiveWhere = ($hasCashBook && ops_column_exists('ops_cash_book_entries', 'archived_at')) ? 'AND c.archived_at IS NULL' : '';
+$cashOrderAmountExpr = ($ready && ops_table_exists('ops_orders') && ops_column_exists('ops_orders', 'total_amount')) ? 'COALESCE(o.total_amount, 0)' : '0';
+$cashOrderBaseWhere = "LOWER(COALESCE(o.payment_method, '')) LIKE '%cash%' AND o.status NOT IN ('cancelled', 'canceled', 'refunded', 'failed')";
+$cashBookJoin = $hasCashBook
+    ? "LEFT JOIN ops_cash_book_entries c ON c.related_order_id = o.id AND c.cash_in > 0 {$cashBookArchiveWhere}"
+    : "LEFT JOIN (SELECT NULL AS related_order_id, NULL AS created_at) c ON 1 = 0";
+$bookkeepingRow = $ready && ops_table_exists('ops_orders') ? (ops_rows(
+    "SELECT
+        COUNT(*) AS cash_orders,
+        SUM(CASE WHEN o.status IN ('completed', 'packed', 'verified', 'ready_for_collection', 'ready_for_courier', 'ready_for_delivery') THEN 1 ELSE 0 END) AS completed_cash_orders,
+        SUM(CASE WHEN c.related_order_id IS NOT NULL THEN 1 ELSE 0 END) AS logged_cash_orders,
+        SUM(CASE WHEN o.status IN ('completed', 'packed', 'verified', 'ready_for_collection', 'ready_for_courier', 'ready_for_delivery') AND c.related_order_id IS NULL THEN 1 ELSE 0 END) AS completed_unlogged_cash_orders,
+        AVG(CASE WHEN c.related_order_id IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, o.created_at, c.created_at) END) AS avg_cash_log_minutes,
+        MAX(CASE WHEN c.related_order_id IS NULL THEN TIMESTAMPDIFF(MINUTE, o.created_at, NOW()) END) AS oldest_unlogged_minutes,
+        COALESCE(SUM(CASE WHEN c.related_order_id IS NULL THEN {$cashOrderAmountExpr} ELSE 0 END), 0) AS unlogged_cash_value
+     FROM ops_orders o
+     {$cashBookJoin}
+     WHERE {$cashOrderBaseWhere}
+       AND o.created_at >= ? AND o.created_at < ?",
+    [$periodStart, $periodEnd]
+)[0] ?? []) : [];
+$bookkeepingMatrix = [
+    'Cash orders in order list' => number_format((int) ($bookkeepingRow['cash_orders'] ?? 0)),
+    'Completed cash orders' => number_format((int) ($bookkeepingRow['completed_cash_orders'] ?? 0)),
+    'Cash orders logged' => number_format((int) ($bookkeepingRow['logged_cash_orders'] ?? 0)),
+    'Completed cash orders not logged' => number_format((int) ($bookkeepingRow['completed_unlogged_cash_orders'] ?? 0)),
+    'Average time to log cash order' => kpi_duration(isset($bookkeepingRow['avg_cash_log_minutes']) ? (float) $bookkeepingRow['avg_cash_log_minutes'] : null),
+    'Oldest unlogged cash order wait' => kpi_duration(isset($bookkeepingRow['oldest_unlogged_minutes']) ? (float) $bookkeepingRow['oldest_unlogged_minutes'] : null),
+    'Unlogged cash value' => kpi_money((float) ($bookkeepingRow['unlogged_cash_value'] ?? 0)),
+    'Bookkeeping source' => $hasCashBook ? 'Cash book linked to orders' : 'Cash book not active',
+];
+$hasPackingWebsiteFields = $ready
+    && ops_table_exists('ops_packing_tasks')
+    && ops_column_exists('ops_packing_tasks', 'website_uploaded')
+    && ops_column_exists('ops_packing_tasks', 'date_loaded');
+$packingArchiveWhere = ($ready && ops_table_exists('ops_packing_tasks') && ops_column_exists('ops_packing_tasks', 'archived_at'))
+    ? "AND (archived_at IS NULL OR archived_at = '0000-00-00 00:00:00')"
+    : '';
+$websiteUploadRow = $hasPackingWebsiteFields ? (ops_rows(
+    "SELECT
+        COUNT(*) AS packing_rows,
+        SUM(CASE WHEN website_uploaded = 1 THEN 1 ELSE 0 END) AS website_uploaded_rows,
+        SUM(CASE WHEN website_uploaded = 0 THEN 1 ELSE 0 END) AS website_pending_rows,
+        AVG(CASE WHEN website_uploaded = 1 AND updated_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, date_loaded, updated_at) END) AS avg_website_minutes,
+        MAX(CASE WHEN website_uploaded = 0 THEN TIMESTAMPDIFF(MINUTE, date_loaded, NOW()) END) AS oldest_pending_minutes
+     FROM ops_packing_tasks
+     WHERE date_loaded >= ? AND date_loaded < ?
+       {$packingArchiveWhere}",
+    [$periodStart, $periodEnd]
+)[0] ?? []) : [];
+$orderListRow = $ready && ops_table_exists('ops_orders') ? (ops_rows(
+    "SELECT
+        COUNT(*) AS total_orders,
+        SUM(CASE WHEN status IN ('completed', 'packed', 'verified', 'ready_for_collection', 'ready_for_courier', 'ready_for_delivery') THEN 1 ELSE 0 END) AS completed_orders,
+        SUM(CASE WHEN status NOT IN ('completed', 'packed', 'verified', 'ready_for_collection', 'ready_for_courier', 'ready_for_delivery', 'cancelled', 'canceled', 'refunded', 'failed') THEN 1 ELSE 0 END) AS incomplete_orders,
+        SUM(CASE WHEN payment_status = 'paid' THEN 1 ELSE 0 END) AS paid_orders,
+        SUM(CASE WHEN payment_status <> 'paid' OR payment_status IS NULL THEN 1 ELSE 0 END) AS unpaid_orders,
+        AVG(CASE WHEN completed_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, created_at, completed_at) END) AS avg_order_complete_minutes
+     FROM ops_orders
+     WHERE created_at >= ? AND created_at < ?",
+    [$periodStart, $periodEnd]
+)[0] ?? []) : [];
+$frontDeskMatrix = [
+    'Website quantities uploaded' => number_format((int) ($websiteUploadRow['website_uploaded_rows'] ?? 0)),
+    'Website quantities still pending' => number_format((int) ($websiteUploadRow['website_pending_rows'] ?? 0)),
+    'Average website upload time' => kpi_duration(isset($websiteUploadRow['avg_website_minutes']) ? (float) $websiteUploadRow['avg_website_minutes'] : null),
+    'Oldest pending website update' => kpi_duration(isset($websiteUploadRow['oldest_pending_minutes']) ? (float) $websiteUploadRow['oldest_pending_minutes'] : null),
+    'Orders completed' => number_format((int) ($orderListRow['completed_orders'] ?? 0)),
+    'Orders still incomplete' => number_format((int) ($orderListRow['incomplete_orders'] ?? 0)),
+    'Average order completion time' => kpi_duration(isset($orderListRow['avg_order_complete_minutes']) ? (float) $orderListRow['avg_order_complete_minutes'] : null),
+    'Orders marked paid' => number_format((int) ($orderListRow['paid_orders'] ?? 0)),
+];
+$loginRow = $ready && ops_table_exists('ops_login_events') ? (ops_rows(
+    "SELECT
+        COUNT(*) AS login_count,
+        AVG(TIME_TO_SEC(TIME(login_at))) AS avg_login_seconds,
+        MIN(TIME(login_at)) AS earliest_login_time,
+        MAX(login_at) AS last_login_at
+     FROM ops_login_events
+     WHERE login_at >= ? AND login_at < ?",
+    [$periodStart, $periodEnd]
+)[0] ?? []) : [];
+$availabilityRows = $ready && ops_table_exists('ops_employee_availability') ? ops_rows(
+    "SELECT e.full_name, ea.availability_status, ea.unavailable_until, ea.updated_at
+     FROM ops_employee_availability ea
+     JOIN ops_employees e ON e.id = ea.employee_id
+     WHERE ea.availability_status IN ('on_lunch', 'offline')
+     ORDER BY FIELD(ea.availability_status, 'on_lunch', 'offline'), e.full_name"
+) : [];
+$currentLunchNames = [];
+foreach ($availabilityRows as $row) {
+    if ((string) ($row['availability_status'] ?? '') === 'on_lunch') {
+        $until = !empty($row['unavailable_until']) ? ' until ' . date('H:i', strtotime((string) $row['unavailable_until'])) : '';
+        $currentLunchNames[] = (string) $row['full_name'] . $until;
+    }
+}
+$lunchRow = $ready && ops_table_exists('ops_employee_availability_history') ? (ops_rows(
+    "SELECT
+        COUNT(*) AS lunch_events,
+        AVG(CASE WHEN unavailable_until IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, changed_at, unavailable_until) END) AS avg_lunch_minutes
+     FROM ops_employee_availability_history
+     WHERE availability_status = 'on_lunch'
+       AND changed_at >= ? AND changed_at < ?",
+    [$periodStart, $periodEnd]
+)[0] ?? []) : [];
+$averageLoginTime = isset($loginRow['avg_login_seconds']) && $loginRow['avg_login_seconds'] !== null
+    ? gmdate('H:i', (int) $loginRow['avg_login_seconds'])
+    : '-';
+$availabilityMatrix = [
+    'Portal logins recorded' => number_format((int) ($loginRow['login_count'] ?? 0)),
+    'Average login time' => $averageLoginTime,
+    'Earliest login time' => !empty($loginRow['earliest_login_time']) ? substr((string) $loginRow['earliest_login_time'], 0, 5) : '-',
+    'Last login recorded' => !empty($loginRow['last_login_at']) ? date('Y-m-d H:i', strtotime((string) $loginRow['last_login_at'])) : '-',
+    'Currently on lunch' => $currentLunchNames ? implode(', ', $currentLunchNames) : 'No one',
+    'Lunch events recorded' => number_format((int) ($lunchRow['lunch_events'] ?? 0)),
+    'Average planned lunch time' => kpi_duration(isset($lunchRow['avg_lunch_minutes']) ? (float) $lunchRow['avg_lunch_minutes'] : null),
+    'Unavailable employees now' => number_format(count($availabilityRows)),
+];
 $tabs = [
     'overview' => 'Overview Dashboard',
     'front-desk' => 'Front Desk Performance',
@@ -1355,11 +1506,62 @@ include BASE_PATH . '/shared/sidebar.php';
         <div class="section-row">
             <div>
                 <h2>Packing Matrix</h2>
-                <p>Packing speed, status movement, notes and over/under packing signals from order and item history.</p>
+                <p>Packing speed, status movement, notes and item volume signals from order and item history.</p>
             </div>
         </div>
         <div class="kpi-system-metric-grid">
             <?php foreach ($packingMatrix as $label => $value): ?>
+                <article>
+                    <span><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></span>
+                    <strong><?= htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') ?></strong>
+                </article>
+            <?php endforeach; ?>
+        </div>
+    </section>
+
+    <section class="panel kpi-system-panel">
+        <div class="section-row">
+            <div>
+                <h2>Bookkeeping Matrix</h2>
+                <p>Cash order reconciliation between completed orders and the cash-in/cash-out bookkeeping list.</p>
+            </div>
+        </div>
+        <div class="kpi-system-metric-grid">
+            <?php foreach ($bookkeepingMatrix as $label => $value): ?>
+                <article>
+                    <span><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></span>
+                    <strong><?= htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') ?></strong>
+                </article>
+            <?php endforeach; ?>
+        </div>
+    </section>
+
+    <section class="panel kpi-system-panel">
+        <div class="section-row">
+            <div>
+                <h2>Front Desk Website & Orders Matrix</h2>
+                <p>Website quantity upload follow-up, order completion timing and paid-order status from the operations list.</p>
+            </div>
+        </div>
+        <div class="kpi-system-metric-grid">
+            <?php foreach ($frontDeskMatrix as $label => $value): ?>
+                <article>
+                    <span><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></span>
+                    <strong><?= htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') ?></strong>
+                </article>
+            <?php endforeach; ?>
+        </div>
+    </section>
+
+    <section class="panel kpi-system-panel">
+        <div class="section-row">
+            <div>
+                <h2>Login & Availability Matrix</h2>
+                <p>Portal login timing plus current lunch/offline status from the Operations board availability controls.</p>
+            </div>
+        </div>
+        <div class="kpi-system-metric-grid">
+            <?php foreach ($availabilityMatrix as $label => $value): ?>
                 <article>
                     <span><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></span>
                     <strong><?= htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') ?></strong>
