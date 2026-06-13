@@ -17,6 +17,8 @@ $periodEnd = (new DateTimeImmutable($periodStart))->modify('+1 month')->format('
 $previousPeriod = (new DateTimeImmutable($periodStart))->modify('-1 month')->format('Y-m');
 $previousStart = $previousPeriod . '-01 00:00:00';
 $previousEnd = $periodStart;
+$activeTab = preg_replace('/[^a-z0-9_-]/', '', (string) ($_GET['tab'] ?? 'overview')) ?: 'overview';
+$selectedEmployeeId = max(0, (int) ($_GET['employee_id'] ?? 0));
 
 function kpi_try_sql(string $sql): void
 {
@@ -29,6 +31,8 @@ function kpi_try_sql(string $sql): void
 
 function kpi_bootstrap(): void
 {
+    kpi_try_sql("ALTER TABLE ops_employees ADD COLUMN monthly_salary DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER status");
+
     kpi_try_sql(
         "CREATE TABLE IF NOT EXISTS ops_report_settings (
             setting_key VARCHAR(80) PRIMARY KEY,
@@ -56,6 +60,39 @@ function kpi_bootstrap(): void
             UNIQUE KEY uniq_kpi_employee_period (employee_id, period_month),
             FOREIGN KEY (employee_id) REFERENCES ops_employees(id) ON DELETE CASCADE,
             FOREIGN KEY (updated_by) REFERENCES ops_employees(id)
+        )"
+    );
+    kpi_try_sql("ALTER TABLE ops_kpi_employee_inputs ADD COLUMN communication_score DECIMAL(5,2) NOT NULL DEFAULT 85 AFTER team_contribution_score");
+
+    kpi_try_sql(
+        "CREATE TABLE IF NOT EXISTS ops_kpi_status_history (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            module_key VARCHAR(80) NOT NULL,
+            record_id BIGINT NOT NULL,
+            old_status VARCHAR(120) NULL,
+            new_status VARCHAR(120) NULL,
+            changed_by INT NULL,
+            assigned_employee_id INT NULL,
+            metadata JSON NULL,
+            occurred_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_kpi_history_module_record (module_key, record_id, occurred_at),
+            INDEX idx_kpi_history_employee (assigned_employee_id, occurred_at),
+            INDEX idx_kpi_history_changed_by (changed_by, occurred_at),
+            FOREIGN KEY (changed_by) REFERENCES ops_employees(id),
+            FOREIGN KEY (assigned_employee_id) REFERENCES ops_employees(id)
+        )"
+    );
+
+    kpi_try_sql(
+        "CREATE TABLE IF NOT EXISTS ops_kpi_role_weights (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            role_group VARCHAR(40) NOT NULL,
+            component_key VARCHAR(80) NOT NULL,
+            component_label VARCHAR(160) NOT NULL,
+            weight_percent DECIMAL(5,2) NOT NULL DEFAULT 0,
+            active TINYINT(1) NOT NULL DEFAULT 1,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uniq_kpi_role_component (role_group, component_key)
         )"
     );
 
@@ -99,6 +136,64 @@ function kpi_bootstrap(): void
             // Defaults are helpful but not critical.
         }
     }
+
+    foreach (kpi_default_weights() as $group => $weights) {
+        foreach ($weights as $key => $row) {
+            try {
+                $stmt = db()->prepare(
+                    "INSERT INTO ops_kpi_role_weights (role_group, component_key, component_label, weight_percent)
+                     SELECT ?, ?, ?, ?
+                     WHERE NOT EXISTS (SELECT 1 FROM ops_kpi_role_weights WHERE role_group = ? AND component_key = ?)"
+                );
+                $stmt->execute([$group, $key, $row['label'], $row['weight'], $group, $key]);
+            } catch (Throwable $e) {
+                // Defaults are helpful but not critical.
+            }
+        }
+    }
+}
+
+function kpi_default_weights(): array
+{
+    return [
+        'front_desk' => [
+            'orders' => ['label' => 'Order / walk-in completion', 'weight' => 20],
+            'bookkeeping' => ['label' => 'Bookkeeping accuracy', 'weight' => 20],
+            'website_stock' => ['label' => 'Website stock upload', 'weight' => 15],
+            'tasks' => ['label' => 'Task completion', 'weight' => 15],
+            'errors' => ['label' => 'Error score', 'weight' => 15],
+            'communication' => ['label' => 'Communication / manual assessment', 'weight' => 10],
+            'reliability' => ['label' => 'Reliability / attendance', 'weight' => 5],
+        ],
+        'packer' => [
+            'order_speed' => ['label' => 'Order packing speed', 'weight' => 20],
+            'packing_productivity' => ['label' => 'Packing list productivity', 'weight' => 25],
+            'packing_accuracy' => ['label' => 'Packing accuracy', 'weight' => 20],
+            'tasks' => ['label' => 'Task / cleaning compliance', 'weight' => 15],
+            'errors' => ['label' => 'Error score', 'weight' => 15],
+            'team' => ['label' => 'Team contribution / manual', 'weight' => 5],
+        ],
+    ];
+}
+
+function kpi_role_group(string $roleKey): string
+{
+    return in_array($roleKey, ['packer', 'supervisor_manager'], true) ? 'packer' : 'front_desk';
+}
+
+function kpi_role_weights(): array
+{
+    $weights = kpi_default_weights();
+    if (!ops_table_exists('ops_kpi_role_weights')) {
+        return $weights;
+    }
+    foreach (ops_rows('SELECT role_group, component_key, component_label, weight_percent FROM ops_kpi_role_weights WHERE active = 1') as $row) {
+        $weights[(string) $row['role_group']][(string) $row['component_key']] = [
+            'label' => (string) $row['component_label'],
+            'weight' => (float) $row['weight_percent'],
+        ];
+    }
+    return $weights;
 }
 
 function kpi_setting(string $key, string $default): string
@@ -175,25 +270,82 @@ function kpi_duration(?float $minutes): string
     return $hours > 0 ? $hours . 'h ' . $remaining . 'm' : $remaining . 'm';
 }
 
+function kpi_business_window(DateTimeImmutable $date): ?array
+{
+    $day = (int) $date->format('N');
+    if ($day >= 1 && $day <= 5) {
+        return [$date->setTime(8, 0), $date->setTime(17, 0)];
+    }
+    if ($day === 6) {
+        return [$date->setTime(9, 0), $date->setTime(13, 0)];
+    }
+    return null;
+}
+
+function kpi_next_business_open(DateTimeImmutable $date): DateTimeImmutable
+{
+    for ($i = 0; $i < 10; $i++) {
+        $window = kpi_business_window($date);
+        if ($window) {
+            [$open, $close] = $window;
+            if ($date < $open) {
+                return $open;
+            }
+            if ($date >= $open && $date < $close) {
+                return $date;
+            }
+        }
+        $date = $date->modify('+1 day')->setTime(8, 0);
+    }
+    return $date;
+}
+
+function kpi_business_minutes(?string $from, ?string $to): ?float
+{
+    if (!$from || !$to) {
+        return null;
+    }
+    try {
+        $start = kpi_next_business_open(new DateTimeImmutable($from));
+        $end = new DateTimeImmutable($to);
+    } catch (Throwable $e) {
+        return null;
+    }
+    if ($end <= $start) {
+        return 0.0;
+    }
+    $minutes = 0.0;
+    $cursor = $start;
+    for ($i = 0; $i < 370 && $cursor < $end; $i++) {
+        $window = kpi_business_window($cursor);
+        if (!$window) {
+            $cursor = $cursor->modify('+1 day')->setTime(8, 0);
+            continue;
+        }
+        [$open, $close] = $window;
+        $segmentStart = $cursor < $open ? $open : $cursor;
+        $segmentEnd = $end < $close ? $end : $close;
+        if ($segmentEnd > $segmentStart) {
+            $minutes += ($segmentEnd->getTimestamp() - $segmentStart->getTimestamp()) / 60;
+        }
+        $cursor = $cursor->modify('+1 day')->setTime(8, 0);
+    }
+    return round($minutes, 1);
+}
+
 function kpi_tier(float $score): array
 {
-    if ($score < 50) {
-        return ['tier' => 'Tier 1', 'label' => 'Needs Improvement', 'bonus_multiplier' => 0.0, 'bonus_label' => 'No bonus', 'reward' => false, 'class' => 'loss'];
+    if ($score >= 90) {
+        return ['tier' => 'Excellent', 'label' => 'Excellent', 'bonus_multiplier' => 1.0, 'bonus_label' => 'Bonus and increment candidate', 'recommendation' => 'Strong bonus / increment consideration', 'reward' => true, 'class' => 'exceptional'];
     }
-    if ($score < 60) {
-        return ['tier' => 'Tier 2', 'label' => 'Developing', 'bonus_multiplier' => 0.25, 'bonus_label' => '25% bonus', 'reward' => false, 'class' => 'developing'];
+    if ($score >= 80) {
+        return ['tier' => 'Good', 'label' => 'Good', 'bonus_multiplier' => 0.75, 'bonus_label' => 'Good bonus candidate', 'recommendation' => 'Bonus eligible', 'reward' => false, 'class' => 'high'];
     }
-    if ($score < 70) {
-        return ['tier' => 'Tier 3', 'label' => 'Satisfactory', 'bonus_multiplier' => 0.50, 'bonus_label' => '50% bonus', 'reward' => false, 'class' => 'satisfactory'];
-    }
-    if ($score < 75) {
-        return ['tier' => 'Tier 4', 'label' => 'Good Performer', 'bonus_multiplier' => 0.75, 'bonus_label' => '75% bonus', 'reward' => false, 'class' => 'good'];
-    }
-    if ($score < 90) {
-        return ['tier' => 'Tier 5', 'label' => 'High Performer', 'bonus_multiplier' => 1.0, 'bonus_label' => '100% bonus', 'reward' => false, 'class' => 'high'];
+    if ($score >= 70) {
+        return ['tier' => 'Needs Improvement', 'label' => 'Needs Improvement', 'bonus_multiplier' => 0.35, 'bonus_label' => 'Small/conditional bonus', 'recommendation' => 'Coach and monitor', 'reward' => false, 'class' => 'satisfactory'];
     }
 
-    return ['tier' => 'Tier 6', 'label' => 'Exceptional Performer', 'bonus_multiplier' => 1.0, 'bonus_label' => '100% bonus + reward eligible', 'reward' => true, 'class' => 'exceptional'];
+    return ['tier' => 'Performance Concern', 'label' => 'Performance Concern', 'bonus_multiplier' => 0.0, 'bonus_label' => 'No bonus', 'recommendation' => 'Performance conversation required', 'reward' => false, 'class' => 'loss'];
 }
 
 function kpi_float_setting(array $settings, string $key): float
@@ -224,6 +376,7 @@ function kpi_default_input(): array
         'reliability_score' => 85,
         'compliance_score' => 85,
         'team_contribution_score' => 85,
+        'communication_score' => 85,
         'admin_accuracy_score' => 85,
         'dispatch_score' => 85,
         'operational_accuracy_score' => 85,
@@ -335,7 +488,9 @@ function kpi_build_scores(string $period, string $start, string $end, array $set
         $errorPoints = (float) ($errors['error_points'] ?? 0);
         $accuracyScore = kpi_penalty_score($errorPoints, kpi_float_setting($settings, 'error_penalty_points'));
 
-        if (in_array($roleKey, ['packer', 'supervisor_manager'], true)) {
+        $roleGroup = kpi_role_group($roleKey);
+        $roleWeights = kpi_role_weights();
+        if ($roleGroup === 'packer') {
             $pack = $packerByEmployee[$employeeId] ?? [];
             $completedOrders = (int) ($pack['completed_orders'] ?? 0);
             $handledOrders = (int) ($pack['handled_orders'] ?? 0);
@@ -344,13 +499,13 @@ function kpi_build_scores(string $period, string $start, string $end, array $set
             $speed = kpi_score((kpi_speed_score(isset($pack['avg_start_minutes']) ? (float) $pack['avg_start_minutes'] : null, kpi_float_setting($settings, 'target_start_minutes')) * 0.45) + (kpi_speed_score(isset($pack['avg_pack_minutes']) ? (float) $pack['avg_pack_minutes'] : null, kpi_float_setting($settings, 'target_packing_minutes')) * 0.55));
             $compliance = kpi_score(($checkRate * 0.75) + ((float) $input['compliance_score'] * 0.25));
             $team = kpi_score((float) $input['team_contribution_score']);
-            $components = [
-                'Productivity' => ['weight' => 30, 'score' => $productivity],
-                'Packing Accuracy' => ['weight' => 25, 'score' => $accuracyScore],
-                'Packing Speed' => ['weight' => 15, 'score' => $speed],
-                'Attendance & Reliability' => ['weight' => 10, 'score' => $attendanceReliability],
-                'Compliance' => ['weight' => 10, 'score' => $compliance],
-                'Team Contribution' => ['weight' => 10, 'score' => $team],
+            $rawComponents = [
+                'order_speed' => ['score' => $speed, 'raw' => kpi_duration(isset($pack['avg_pack_minutes']) ? (float) $pack['avg_pack_minutes'] : null)],
+                'packing_productivity' => ['score' => $productivity, 'raw' => number_format($itemsPacked, 1) . ' items'],
+                'packing_accuracy' => ['score' => $accuracyScore, 'raw' => number_format((int) ($errors['error_count'] ?? 0)) . ' errors'],
+                'tasks' => ['score' => $compliance, 'raw' => number_format($checkDone) . '/' . number_format($checkTotal) . ' tasks'],
+                'errors' => ['score' => $accuracyScore, 'raw' => number_format($errorPoints, 1) . ' penalty pts'],
+                'team' => ['score' => $team, 'raw' => 'Manual score'],
             ];
             $scorecard = 'Packer KPI Scorecard';
             $ordersHandled = $handledOrders;
@@ -366,13 +521,17 @@ function kpi_build_scores(string $period, string $start, string $end, array $set
             $adminAccuracy = kpi_score(((float) $input['admin_accuracy_score'] * 0.6) + ($accuracyScore * 0.4));
             $dispatch = kpi_score((float) $input['dispatch_score']);
             $operational = kpi_score(((float) $input['operational_accuracy_score'] * 0.6) + ($accuracyScore * 0.4));
-            $components = [
-                'Order Processing Speed' => ['weight' => 25, 'score' => $processingSpeed],
-                'Order Flow Management' => ['weight' => 20, 'score' => $flow],
-                'Customer Admin Accuracy' => ['weight' => 15, 'score' => $adminAccuracy],
-                'Dispatch Management' => ['weight' => 15, 'score' => $dispatch],
-                'Operational Accuracy' => ['weight' => 15, 'score' => $operational],
-                'Attendance & Reliability' => ['weight' => 10, 'score' => $attendanceReliability],
+            $bookkeepingScore = kpi_score(((float) $input['operational_accuracy_score'] * 0.5) + ($adminAccuracy * 0.5));
+            $websiteStockScore = kpi_score(((float) $input['dispatch_score'] * 0.45) + ($flow * 0.35) + ($adminAccuracy * 0.20));
+            $communicationScore = kpi_score((float) ($input['communication_score'] ?? 85));
+            $rawComponents = [
+                'orders' => ['score' => kpi_score(($processingSpeed * 0.55) + ($flow * 0.45)), 'raw' => number_format($ordersLoaded) . ' orders'],
+                'bookkeeping' => ['score' => $bookkeepingScore, 'raw' => 'Admin/manual + error score'],
+                'website_stock' => ['score' => $websiteStockScore, 'raw' => 'Dispatch/manual + flow score'],
+                'tasks' => ['score' => $checkRate, 'raw' => number_format($checkDone) . '/' . number_format($checkTotal) . ' tasks'],
+                'errors' => ['score' => $accuracyScore, 'raw' => number_format($errorPoints, 1) . ' penalty pts'],
+                'communication' => ['score' => $communicationScore, 'raw' => 'Manual score'],
+                'reliability' => ['score' => $attendanceReliability, 'raw' => 'Attendance + reliability'],
             ];
             $scorecard = 'Front Desk KPI Scorecard';
             $ordersHandled = $ordersLoaded;
@@ -381,8 +540,21 @@ function kpi_build_scores(string $period, string $start, string $end, array $set
         }
 
         $overall = 0.0;
-        foreach ($components as $component) {
-            $overall += ((float) $component['score']) * ((float) $component['weight'] / 100);
+        $components = [];
+        $totalWeight = 0.0;
+        foreach (($roleWeights[$roleGroup] ?? []) as $key => $weightRow) {
+            $score = (float) ($rawComponents[$key]['score'] ?? 0);
+            $weight = (float) $weightRow['weight'];
+            $components[(string) $weightRow['label']] = [
+                'weight' => $weight,
+                'score' => kpi_score($score),
+                'raw' => (string) ($rawComponents[$key]['raw'] ?? ''),
+            ];
+            $overall += $score * ($weight / 100);
+            $totalWeight += $weight;
+        }
+        if ($totalWeight > 0 && abs($totalWeight - 100) > 0.01) {
+            $overall = ($overall / $totalWeight) * 100;
         }
         $overall = kpi_score($overall);
         $tier = kpi_tier($overall);
@@ -395,6 +567,7 @@ function kpi_build_scores(string $period, string $start, string $end, array $set
             'name' => (string) $employee['full_name'],
             'email' => (string) ($employee['email'] ?? ''),
             'role_key' => $roleKey,
+            'role_group' => $roleGroup,
             'role_name' => (string) $employee['role_name'],
             'scorecard' => $scorecard,
             'components' => $components,
@@ -425,6 +598,103 @@ function kpi_build_scores(string $period, string $start, string $end, array $set
     return $scores;
 }
 
+function kpi_order_business_summary(string $start, string $end, array $settings): array
+{
+    $summary = [
+        'avg_assignment' => null,
+        'avg_start' => null,
+        'avg_packing' => null,
+        'avg_completion' => null,
+        'overdue' => 0,
+        'unassigned' => 0,
+        'stuck_new' => 0,
+        'stuck_progress' => 0,
+        'courier_late' => 0,
+    ];
+    if (!ops_table_exists('ops_orders')) {
+        return $summary;
+    }
+    $assign = [];
+    $startTimes = [];
+    $packing = [];
+    $completion = [];
+    foreach (ops_rows('SELECT * FROM ops_orders WHERE created_at >= ? AND created_at < ?', [$start, $end]) as $order) {
+        $status = (string) ($order['status'] ?? '');
+        $created = (string) ($order['created_at'] ?? '');
+        $assignedAt = (string) ($order['assigned_at'] ?? '');
+        $startedAt = (string) ($order['packing_started_at'] ?? '');
+        $packedAt = (string) (($order['packed_at'] ?? '') ?: ($order['completed_at'] ?? ''));
+        $completedAt = (string) ($order['completed_at'] ?? '');
+        $assign[] = kpi_business_minutes($created, $assignedAt ?: null);
+        $startTimes[] = kpi_business_minutes($assignedAt ?: $created, $startedAt ?: null);
+        $packing[] = kpi_business_minutes($startedAt ?: $assignedAt, $packedAt ?: null);
+        $completion[] = kpi_business_minutes($created, $completedAt ?: null);
+        $isDone = in_array($status, ['completed', 'packed', 'verified', 'ready_for_collection', 'ready_for_courier', 'ready_for_delivery'], true);
+        if (!$isDone && (kpi_business_minutes($created, date('Y-m-d H:i:s')) ?? 0) > (float) ($settings['target_order_total_minutes'] ?? 360)) {
+            $summary['overdue']++;
+        }
+        if (empty($order['assigned_packer_id']) && !$isDone) {
+            $summary['unassigned']++;
+        }
+        if ($status === 'new_order') {
+            $summary['stuck_new']++;
+        }
+        if ($status === 'in_progress') {
+            $summary['stuck_progress']++;
+        }
+        if ((string) ($order['order_type'] ?? '') === 'courier' && (!$isDone || ($completedAt && substr($completedAt, 11, 8) > '14:00:00'))) {
+            $summary['courier_late']++;
+        }
+    }
+    $summary['avg_assignment'] = kpi_avg_values($assign);
+    $summary['avg_start'] = kpi_avg_values($startTimes);
+    $summary['avg_packing'] = kpi_avg_values($packing);
+    $summary['avg_completion'] = kpi_avg_values($completion);
+    return $summary;
+}
+
+function kpi_avg_values(array $values): ?float
+{
+    $values = array_values(array_filter($values, static function ($value): bool {
+        return $value !== null;
+    }));
+    return $values ? array_sum($values) / count($values) : null;
+}
+
+function kpi_employee_module_rows(array $scores, string $module): array
+{
+    $rows = [];
+    foreach ($scores as $score) {
+        $components = $score['components'];
+        $rows[] = [
+            'employee' => (string) $score['name'],
+            'role' => (string) $score['role_name'],
+            'score' => (float) $score['score'],
+            'orders' => (int) $score['orders_handled'],
+            'items' => (float) $score['items_packed'],
+            'avg_time' => $score['avg_completion_minutes'],
+            'errors' => (int) $score['error_count'],
+            'components' => $components,
+            'module' => $module,
+        ];
+    }
+    return $rows;
+}
+
+function kpi_metric_text($value, bool $duration = false): string
+{
+    if ($duration) {
+        return kpi_duration($value !== null ? (float) $value : null);
+    }
+    if (is_float($value)) {
+        return number_format($value, 1);
+    }
+    if (is_int($value)) {
+        return number_format($value);
+    }
+    return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+}
+
 if ($ready) {
     kpi_bootstrap();
 }
@@ -436,6 +706,7 @@ $settings = [
     'target_start_minutes' => (float) kpi_setting('kpi_target_start_minutes', '60'),
     'target_packing_minutes' => (float) kpi_setting('kpi_target_packing_minutes', '120'),
     'target_assignment_minutes' => (float) kpi_setting('kpi_target_assignment_minutes', '45'),
+    'target_order_total_minutes' => (float) kpi_setting('kpi_target_order_total_minutes', '360'),
     'error_penalty_points' => (float) kpi_setting('kpi_error_penalty_points', '8'),
 ];
 
@@ -450,12 +721,26 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 'kpi_target_start_minutes',
                 'kpi_target_packing_minutes',
                 'kpi_target_assignment_minutes',
+                'kpi_target_order_total_minutes',
                 'kpi_error_penalty_points',
             ];
             foreach ($keys as $key) {
                 kpi_save_setting($key, number_format(max(0, (float) ($_POST[$key] ?? 0)), 2, '.', ''));
             }
             $message = 'KPI bonus and target settings saved.';
+        } elseif ($action === 'save_weights') {
+            foreach (kpi_default_weights() as $group => $weights) {
+                foreach ($weights as $key => $row) {
+                    $value = max(0, (float) ($_POST['weight_' . $group . '_' . $key] ?? $row['weight']));
+                    $stmt = db()->prepare(
+                        "INSERT INTO ops_kpi_role_weights (role_group, component_key, component_label, weight_percent)
+                         VALUES (?, ?, ?, ?)
+                         ON DUPLICATE KEY UPDATE component_label = VALUES(component_label), weight_percent = VALUES(weight_percent), active = 1"
+                    );
+                    $stmt->execute([$group, $key, $row['label'], $value]);
+                }
+            }
+            $message = 'Role-based KPI weights saved.';
         } elseif ($action === 'save_employee_input') {
             $employeeId = max(0, (int) ($_POST['employee_id'] ?? 0));
             $inputPeriod = preg_match('/^\d{4}-\d{2}$/', (string) ($_POST['period_month'] ?? '')) ? (string) $_POST['period_month'] : $period;
@@ -464,14 +749,15 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $stmt = db()->prepare(
                 "INSERT INTO ops_kpi_employee_inputs
-                    (employee_id, period_month, monthly_salary, attendance_score, reliability_score, compliance_score, team_contribution_score, admin_accuracy_score, dispatch_score, operational_accuracy_score, notes, updated_by)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (employee_id, period_month, monthly_salary, attendance_score, reliability_score, compliance_score, team_contribution_score, communication_score, admin_accuracy_score, dispatch_score, operational_accuracy_score, notes, updated_by)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                  ON DUPLICATE KEY UPDATE
                     monthly_salary = VALUES(monthly_salary),
                     attendance_score = VALUES(attendance_score),
                     reliability_score = VALUES(reliability_score),
                     compliance_score = VALUES(compliance_score),
                     team_contribution_score = VALUES(team_contribution_score),
+                    communication_score = VALUES(communication_score),
                     admin_accuracy_score = VALUES(admin_accuracy_score),
                     dispatch_score = VALUES(dispatch_score),
                     operational_accuracy_score = VALUES(operational_accuracy_score),
@@ -486,12 +772,16 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 kpi_score((float) ($_POST['reliability_score'] ?? 85)),
                 kpi_score((float) ($_POST['compliance_score'] ?? 85)),
                 kpi_score((float) ($_POST['team_contribution_score'] ?? 85)),
+                kpi_score((float) ($_POST['communication_score'] ?? 85)),
                 kpi_score((float) ($_POST['admin_accuracy_score'] ?? 85)),
                 kpi_score((float) ($_POST['dispatch_score'] ?? 85)),
                 kpi_score((float) ($_POST['operational_accuracy_score'] ?? 85)),
                 ops_post_string('notes', 1000),
                 ops_current_employee_id(),
             ]);
+            if (ops_column_exists('ops_employees', 'monthly_salary')) {
+                db()->prepare('UPDATE ops_employees SET monthly_salary = ? WHERE id = ?')->execute([max(0, (float) ($_POST['monthly_salary'] ?? 0)), $employeeId]);
+            }
             $message = 'Employee KPI salary and manual scores saved.';
         } elseif ($action === 'add_reward') {
             $rewardName = ops_post_string('reward_name', 160);
@@ -515,6 +805,7 @@ $settings = [
     'target_start_minutes' => (float) kpi_setting('kpi_target_start_minutes', '60'),
     'target_packing_minutes' => (float) kpi_setting('kpi_target_packing_minutes', '120'),
     'target_assignment_minutes' => (float) kpi_setting('kpi_target_assignment_minutes', '45'),
+    'target_order_total_minutes' => (float) kpi_setting('kpi_target_order_total_minutes', '360'),
     'error_penalty_points' => (float) kpi_setting('kpi_error_penalty_points', '8'),
 ];
 
@@ -566,6 +857,24 @@ $systemMetrics = [
     'Manager intervention signals' => number_format((int) ($systemMetricRow['intervention_orders'] ?? 0)),
     'Active queue' => number_format((int) ($systemMetricRow['active_queue'] ?? 0)),
 ];
+$businessSummary = $ready ? kpi_order_business_summary($periodStart, $periodEnd, $settings) : [];
+$tabs = [
+    'overview' => 'Overview Dashboard',
+    'front-desk' => 'Front Desk Performance',
+    'packers' => 'Packer Performance',
+    'employees' => 'Individual Profiles',
+    'orders' => 'Orders KPI',
+    'packing' => 'Packing KPI',
+    'bookkeeping' => 'Bookkeeping KPI',
+    'tasks' => 'Task KPI',
+    'errors' => 'Error KPI',
+    'bonus' => 'Bonus / Increment Score',
+];
+$scoresById = [];
+foreach ($employeeScores as $row) {
+    $scoresById[(int) $row['employee_id']] = $row;
+}
+$selectedEmployee = $selectedEmployeeId && isset($scoresById[$selectedEmployeeId]) ? $scoresById[$selectedEmployeeId] : ($employeeScores[0] ?? null);
 
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
@@ -584,6 +893,83 @@ include BASE_PATH . '/shared/sidebar.php';
     </section>
     <?php if (!$ready) { ops_setup_notice(); } ?>
     <?php ops_flash($message, $messageType); ?>
+
+    <nav class="kpi-tab-nav" aria-label="KPI report sections">
+        <?php foreach ($tabs as $key => $label): ?>
+            <a class="<?= $activeTab === $key ? 'active' : '' ?>" href="reports.php?period=<?= urlencode($period) ?>&tab=<?= urlencode($key) ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></a>
+        <?php endforeach; ?>
+    </nav>
+
+    <?php if ($activeTab === 'orders'): ?>
+        <section class="panel kpi-system-panel">
+            <div class="section-row"><div><h2>Orders KPI</h2><p>Business-hour timing ignores nights and Sundays. After-hours orders start counting at the next opening time.</p></div></div>
+            <div class="kpi-system-metric-grid">
+                <?php foreach ([
+                    'New Order to In Progress / assignment' => kpi_duration($businessSummary['avg_assignment'] ?? null),
+                    'Packing start time' => kpi_duration($businessSummary['avg_start'] ?? null),
+                    'Packing to complete' => kpi_duration($businessSummary['avg_packing'] ?? null),
+                    'Total order processing time' => kpi_duration($businessSummary['avg_completion'] ?? null),
+                    'Overdue orders' => number_format((int) ($businessSummary['overdue'] ?? 0)),
+                    'Unassigned orders' => number_format((int) ($businessSummary['unassigned'] ?? 0)),
+                    'Stuck on New Order' => number_format((int) ($businessSummary['stuck_new'] ?? 0)),
+                    'Stuck In Progress' => number_format((int) ($businessSummary['stuck_progress'] ?? 0)),
+                    'Courier late after 14:00' => number_format((int) ($businessSummary['courier_late'] ?? 0)),
+                ] as $label => $value): ?><article><span><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></span><strong><?= htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') ?></strong></article><?php endforeach; ?>
+            </div>
+        </section>
+    <?php elseif ($activeTab === 'front-desk' || $activeTab === 'packers'): ?>
+        <?php $roleRows = array_values(array_filter($employeeScores, function (array $row) use ($activeTab): bool { return $activeTab === 'packers' ? ($row['role_group'] ?? '') === 'packer' : ($row['role_group'] ?? '') === 'front_desk'; })); ?>
+        <section class="dashboard-grid kpi-scorecard-grid">
+            <?php foreach ($roleRows as $row): ?>
+                <article class="panel kpi-scorecard">
+                    <div class="section-row"><div><h2><?= htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8') ?></h2><p><?= htmlspecialchars($row['scorecard'], ENT_QUOTES, 'UTF-8') ?></p></div><span class="kpi-score"><?= kpi_percent((float) $row['score']) ?></span></div>
+                    <?php foreach ($row['components'] as $label => $component): ?>
+                        <div class="kpi-component-row">
+                            <div><strong><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></strong><small><?= number_format((float) $component['weight']) ?>% weight<?= !empty($component['raw']) ? ' | ' . htmlspecialchars((string) $component['raw'], ENT_QUOTES, 'UTF-8') : '' ?></small></div>
+                            <span><?= kpi_percent((float) $component['score']) ?></span>
+                            <div class="kpi-bar"><span><i style="width: <?= min(100, (float) $component['score']) ?>%"></i></span></div>
+                        </div>
+                    <?php endforeach; ?>
+                </article>
+            <?php endforeach; ?>
+            <?php if (!$roleRows): ?><section class="panel"><p>No employees found for this role group.</p></section><?php endif; ?>
+        </section>
+    <?php elseif ($activeTab === 'employees'): ?>
+        <section class="panel kpi-employee-picker">
+            <div class="section-row"><div><h2>Individual Employee Profiles</h2><p>Open one employee at a time inside KPI Reports.</p></div></div>
+            <div class="kpi-employee-tabs">
+                <?php foreach ($employeeScores as $row): ?>
+                    <a class="<?= $selectedEmployee && (int) $selectedEmployee['employee_id'] === (int) $row['employee_id'] ? 'active' : '' ?>" href="reports.php?period=<?= urlencode($period) ?>&tab=employees&employee_id=<?= (int) $row['employee_id'] ?>"><?= htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8') ?></a>
+                <?php endforeach; ?>
+            </div>
+        </section>
+        <?php if ($selectedEmployee): ?>
+            <section class="panel kpi-profile">
+                <div class="section-row"><div><h2><?= htmlspecialchars($selectedEmployee['name'], ENT_QUOTES, 'UTF-8') ?></h2><p><?= htmlspecialchars($selectedEmployee['role_name'], ENT_QUOTES, 'UTF-8') ?> | Salary <?= kpi_money((float) $selectedEmployee['salary']) ?> | <?= htmlspecialchars((string) $selectedEmployee['tier']['recommendation'], ENT_QUOTES, 'UTF-8') ?></p></div><span class="kpi-score"><?= kpi_percent((float) $selectedEmployee['score']) ?></span></div>
+                <div class="kpi-profile-grid">
+                    <?php foreach ($selectedEmployee['components'] as $label => $component): ?>
+                        <article><h3><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></h3><p><span>Score</span><strong><?= kpi_percent((float) $component['score']) ?></strong></p><p><span>Weight</span><strong><?= number_format((float) $component['weight']) ?>%</strong></p><?php if (!empty($component['raw'])): ?><p><span>Signal</span><strong><?= htmlspecialchars((string) $component['raw'], ENT_QUOTES, 'UTF-8') ?></strong></p><?php endif; ?></article>
+                    <?php endforeach; ?>
+                    <article><h3>Bonus / increment</h3><p><span>Suggested bonus</span><strong><?= kpi_money((float) $selectedEmployee['bonus_amount']) ?></strong></p><p><span>Status</span><strong><?= htmlspecialchars((string) $selectedEmployee['tier']['label'], ENT_QUOTES, 'UTF-8') ?></strong></p><p><span>Recommendation</span><strong><?= htmlspecialchars((string) $selectedEmployee['tier']['recommendation'], ENT_QUOTES, 'UTF-8') ?></strong></p></article>
+                </div>
+            </section>
+        <?php endif; ?>
+    <?php elseif (in_array($activeTab, ['packing', 'bookkeeping', 'tasks', 'errors'], true)): ?>
+        <section class="panel">
+            <div class="section-row"><div><h2><?= htmlspecialchars($tabs[$activeTab], ENT_QUOTES, 'UTF-8') ?></h2><p>Module view for management review. Values are pulled from the connected operations tables where fields exist.</p></div></div>
+            <div class="table-scroll">
+                <table class="data-table ops-table">
+                    <thead><tr><th>Employee</th><th>Role</th><th>Score</th><th>Orders</th><th>Items Packed</th><th>Avg Time</th><th>Errors</th><th>Related Scorecard Signals</th></tr></thead>
+                    <tbody>
+                    <?php foreach ($employeeScores as $row): ?>
+                        <tr><td><strong><?= htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8') ?></strong></td><td><?= htmlspecialchars($row['role_name'], ENT_QUOTES, 'UTF-8') ?></td><td><?= kpi_percent((float) $row['score']) ?></td><td><?= number_format((int) $row['orders_handled']) ?></td><td><?= number_format((float) $row['items_packed'], 1) ?></td><td><?= kpi_duration($row['avg_completion_minutes'] !== null ? (float) $row['avg_completion_minutes'] : null) ?></td><td><?= number_format((int) $row['error_count']) ?></td><td><?php foreach ($row['components'] as $label => $component): ?><span class="kpi-signal-pill"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?>: <?= kpi_percent((float) $component['score']) ?></span><?php endforeach; ?></td></tr>
+                    <?php endforeach; ?>
+                    <?php if (!$employeeScores): ?><tr><td colspan="8">No KPI data available yet.</td></tr><?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    <?php endif; ?>
 
     <section class="work-metric-grid kpi-overview-grid">
         <?php foreach ([
@@ -629,6 +1015,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 <label>Assign target minutes<input name="kpi_target_assignment_minutes" type="number" min="0" step="1" value="<?= htmlspecialchars((string) $settings['target_assignment_minutes'], ENT_QUOTES, 'UTF-8') ?>"></label>
                 <label>Packing start target<input name="kpi_target_start_minutes" type="number" min="0" step="1" value="<?= htmlspecialchars((string) $settings['target_start_minutes'], ENT_QUOTES, 'UTF-8') ?>"></label>
                 <label>Packing duration target<input name="kpi_target_packing_minutes" type="number" min="0" step="1" value="<?= htmlspecialchars((string) $settings['target_packing_minutes'], ENT_QUOTES, 'UTF-8') ?>"></label>
+                <label>Total order target<input name="kpi_target_order_total_minutes" type="number" min="0" step="1" value="<?= htmlspecialchars((string) $settings['target_order_total_minutes'], ENT_QUOTES, 'UTF-8') ?>"></label>
                 <label>Error penalty<input name="kpi_error_penalty_points" type="number" min="0" step="0.5" value="<?= htmlspecialchars((string) $settings['error_penalty_points'], ENT_QUOTES, 'UTF-8') ?>"></label>
                 <div><button class="button primary" type="submit"><i data-lucide="save"></i> Save settings</button></div>
             </form>
@@ -648,18 +1035,30 @@ include BASE_PATH . '/shared/sidebar.php';
                 <?php if (!$departmentScores): ?><p>No department KPI data yet.</p><?php endif; ?>
             </div>
         </article>
+
+        <article class="panel">
+            <div class="section-row"><div><h2>Role score weights</h2><p>Owner/Admin can adjust the KPI weights without changing code.</p></div></div>
+            <form class="kpi-settings-grid" method="post">
+                <input type="hidden" name="kpi_action" value="save_weights">
+                <?php foreach (kpi_role_weights() as $group => $weights): ?>
+                    <h3 class="span-2"><?= htmlspecialchars(ucwords(str_replace('_', ' ', $group)), ENT_QUOTES, 'UTF-8') ?></h3>
+                    <?php foreach ($weights as $key => $row): ?>
+                        <label><?= htmlspecialchars((string) $row['label'], ENT_QUOTES, 'UTF-8') ?><input name="weight_<?= htmlspecialchars($group . '_' . $key, ENT_QUOTES, 'UTF-8') ?>" type="number" min="0" step="0.5" value="<?= htmlspecialchars((string) $row['weight'], ENT_QUOTES, 'UTF-8') ?>"></label>
+                    <?php endforeach; ?>
+                <?php endforeach; ?>
+                <div><button class="button primary" type="submit"><i data-lucide="sliders-horizontal"></i> Save weights</button></div>
+            </form>
+        </article>
     </section>
 
     <section class="panel">
         <div class="section-row"><div><h2>Graduated bonus framework</h2><p>Bonus payouts are calculated from performance score, salary and the monthly bonus percentage.</p></div></div>
         <div class="kpi-tier-grid">
             <?php foreach ([
-                ['0-49%', 'Needs Improvement', 'No bonus'],
-                ['50-59%', 'Developing', '25% of entitlement'],
-                ['60-69%', 'Satisfactory', '50% of entitlement'],
-                ['70-74%', 'Good Performer', '75% of entitlement'],
-                ['75-89%', 'High Performer', '100% of entitlement'],
-                ['90-100%', 'Exceptional Performer', '100% + reward eligible'],
+                ['90-100%', 'Excellent', 'Strong bonus / increment consideration'],
+                ['80-89%', 'Good', 'Bonus eligible'],
+                ['70-79%', 'Needs Improvement', 'Coach and monitor'],
+                ['Below 70%', 'Performance Concern', 'No bonus; performance conversation required'],
             ] as [$range, $label, $bonus]): ?>
                 <article><strong><?= htmlspecialchars($range, ENT_QUOTES, 'UTF-8') ?></strong><span><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></span><small><?= htmlspecialchars($bonus, ENT_QUOTES, 'UTF-8') ?></small></article>
             <?php endforeach; ?>
@@ -736,6 +1135,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 <label>Reliability %<input name="reliability_score" type="number" min="0" max="100" step="1" value="85"></label>
                 <label>Compliance %<input name="compliance_score" type="number" min="0" max="100" step="1" value="85"></label>
                 <label>Team contribution %<input name="team_contribution_score" type="number" min="0" max="100" step="1" value="85"></label>
+                <label>Communication %<input name="communication_score" type="number" min="0" max="100" step="1" value="85"></label>
                 <label>Admin accuracy %<input name="admin_accuracy_score" type="number" min="0" max="100" step="1" value="85"></label>
                 <label>Dispatch %<input name="dispatch_score" type="number" min="0" max="100" step="1" value="85"></label>
                 <label>Operational accuracy %<input name="operational_accuracy_score" type="number" min="0" max="100" step="1" value="85"></label>
