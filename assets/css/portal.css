@@ -7049,7 +7049,39 @@ textarea {
 
 /* KPI performance and bonus framework */
 .kpi-performance-page {
-  max-width: 1680px;
+  width: min(100%, 1680px);
+  max-width: calc(100vw - 32px);
+  overflow-x: hidden;
+}
+
+.kpi-performance-page .module-header,
+.kpi-performance-page .panel,
+.kpi-performance-page .dashboard-grid,
+.kpi-performance-page .work-metric-grid,
+.kpi-performance-page .ops-alert {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.kpi-performance-page .table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.kpi-performance-page .section-row {
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.kpi-performance-page .section-row > div {
+  min-width: 0;
+}
+
+.kpi-performance-page .section-row h2,
+.kpi-performance-page .section-row p {
+  overflow-wrap: anywhere;
 }
 
 .kpi-tab-nav,
@@ -7162,7 +7194,7 @@ textarea {
 
 .kpi-system-metric-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
 }
 
@@ -7195,7 +7227,7 @@ textarea {
 
 .kpi-management-grid,
 .kpi-input-grid {
-  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+  grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
   gap: 18px;
   margin-bottom: 22px;
 }
@@ -7209,7 +7241,7 @@ textarea {
 .kpi-settings-grid,
 .kpi-manual-form {
   display: grid;
-  grid-template-columns: repeat(4, minmax(130px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 12px;
   align-items: end;
 }
@@ -7260,11 +7292,12 @@ textarea {
 
 .kpi-tier-grid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(130px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
   gap: 10px;
 }
 
 .kpi-tier-grid article {
+  min-width: 0;
   padding: 14px;
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -7295,7 +7328,7 @@ textarea {
 }
 
 .kpi-employee-table {
-  min-width: 1560px;
+  min-width: 1680px;
 }
 
 .kpi-employee-table td {
@@ -7367,17 +7400,68 @@ textarea {
   color: var(--ink);
 }
 
+.kpi-link-alert {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+
+.kpi-warning-text,
+.kpi-hr-context {
+  margin-top: 8px !important;
+  font-size: 13px;
+  line-height: 1.35 !important;
+}
+
+.kpi-warning-text {
+  color: #b42318 !important;
+}
+
+.kpi-hr-context {
+  color: #08744f !important;
+}
+
+.kpi-status-warning {
+  background: rgba(245, 158, 11, 0.14);
+  color: #965b00;
+}
+
+.hr-link-panel {
+  max-width: 1480px;
+}
+
+.hr-link-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(220px, 1.2fr) minmax(160px, 0.8fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.hr-link-form label {
+  display: grid;
+  gap: 7px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.hr-link-form input,
+.hr-link-form select {
+  width: 100%;
+  min-width: 0;
+}
+
 @media (max-width: 1180px) {
   .kpi-management-grid,
   .kpi-input-grid,
-  .kpi-settings-grid,
   .kpi-reward-form,
-  .kpi-system-metric-grid {
+  .hr-link-form {
     grid-template-columns: 1fr 1fr;
   }
 
-  .kpi-tier-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .hr-link-form .button {
+    width: fit-content;
   }
 }
 
@@ -7390,7 +7474,8 @@ textarea {
   .kpi-manual-form,
   .kpi-reward-form,
   .kpi-system-metric-grid,
-  .kpi-tier-grid {
+  .kpi-tier-grid,
+  .hr-link-form {
     grid-template-columns: 1fr;
   }
 

@@ -12,6 +12,33 @@ $ready = ops_database_ready();
 $message = null;
 $messageType = 'success';
 
+function ops_employee_link_bootstrap(): void
+{
+    if (!ops_database_ready()) {
+        return;
+    }
+
+    try {
+        db()->exec(
+            "CREATE TABLE IF NOT EXISTS employee_user_links (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                portal_user_id INT NOT NULL,
+                hr_employee_id INT NOT NULL,
+                role VARCHAR(120) NULL,
+                linked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                linked_by INT NULL,
+                active TINYINT(1) NOT NULL DEFAULT 1,
+                UNIQUE KEY uniq_employee_user_link (portal_user_id),
+                INDEX idx_hr_employee_link (hr_employee_id),
+                FOREIGN KEY (portal_user_id) REFERENCES ops_employees(id) ON DELETE CASCADE,
+                FOREIGN KEY (linked_by) REFERENCES ops_employees(id) ON DELETE SET NULL
+            )"
+        );
+    } catch (Throwable $e) {
+        // Linking is helpful but should not block basic employee management.
+    }
+}
+
 function ops_force_delete_employee(int $employeeId): void
 {
     $nullableReferences = [
@@ -52,12 +79,21 @@ function ops_force_delete_employee(int $employeeId): void
         $stmt->execute([$employeeId]);
     }
 
+    if (ops_table_exists('employee_user_links') && ops_column_exists('employee_user_links', 'portal_user_id')) {
+        $stmt = db()->prepare('DELETE FROM employee_user_links WHERE portal_user_id = ?');
+        $stmt->execute([$employeeId]);
+    }
+
     $stmt = db()->prepare('DELETE FROM ops_employees WHERE id = ?');
     $stmt->execute([$employeeId]);
 
     if ($stmt->rowCount() < 1) {
         throw new RuntimeException('Employee account was not found.');
     }
+}
+
+if ($ready) {
+    ops_employee_link_bootstrap();
 }
 
 if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -94,6 +130,30 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
             ops_force_delete_employee($employeeId);
             $message = $employeeName . ' permanently deleted. Historical records were kept, but employee links were cleared.';
+        } elseif ($action === 'save_hr_link') {
+            $employeeId = (int) ($_POST['employee_id'] ?? 0);
+            $hrEmployeeId = (int) ($_POST['hr_employee_id'] ?? 0);
+            if ($employeeId <= 0 || $hrEmployeeId <= 0) {
+                throw new RuntimeException('Choose both a portal user and an HR employee profile.');
+            }
+
+            $stmt = db()->prepare(
+                "INSERT INTO employee_user_links (portal_user_id, hr_employee_id, role, linked_by, active)
+                 VALUES (?, ?, ?, ?, 1)
+                 ON DUPLICATE KEY UPDATE
+                    hr_employee_id = VALUES(hr_employee_id),
+                    role = VALUES(role),
+                    linked_by = VALUES(linked_by),
+                    active = 1,
+                    linked_at = CURRENT_TIMESTAMP"
+            );
+            $stmt->execute([
+                $employeeId,
+                $hrEmployeeId,
+                ops_post_string('link_role', 120),
+                ops_current_employee_id(),
+            ]);
+            $message = 'Portal user linked to HR employee profile.';
         } else {
             $code = trim((string) ($_POST['login_code'] ?? ''));
             if (!preg_match('/^\d{4}$/', $code)) {
@@ -133,6 +193,13 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $roles = $ready ? ops_rows('SELECT id, name FROM ops_roles ORDER BY id') : [];
+$hrEmployees = $ready ? ops_hr_employee_options() : [];
+$employeeLinks = [];
+if ($ready && ops_table_exists('employee_user_links')) {
+    foreach (ops_rows('SELECT * FROM employee_user_links WHERE active = 1') as $linkRow) {
+        $employeeLinks[(int) $linkRow['portal_user_id']] = $linkRow;
+    }
+}
 $employees = $ready ? ops_rows(
     "SELECT e.*, r.name AS role_name
      FROM ops_employees e
@@ -155,6 +222,40 @@ include BASE_PATH . '/shared/sidebar.php';
     <?php ops_nav('employees'); ?>
     <?php if (!$ready) { ops_setup_notice(); } ?>
     <?php ops_flash($message, $messageType); ?>
+    <?php if ($ready): ?>
+        <section class="panel hr-link-panel">
+            <div class="section-row">
+                <div>
+                    <h2>Link portal users to HR employee profiles</h2>
+                    <p>HR is the employee source of truth for salary, department and approved leave. Link each operations login so KPI scoring uses the correct HR record.</p>
+                </div>
+            </div>
+            <?php if (!$hrEmployees): ?>
+                <p class="ops-muted">No HR employees could be loaded. Check the HR database connection in <code>config.local.php</code>.</p>
+            <?php endif; ?>
+            <form class="hr-link-form" method="post">
+                <input type="hidden" name="action" value="save_hr_link">
+                <label>Portal user
+                    <select name="employee_id" required>
+                        <option value="">Choose portal user</option>
+                        <?php foreach ($employees as $employee): ?>
+                            <option value="<?= (int) $employee['id'] ?>"><?= htmlspecialchars($employee['full_name'] . ' - ' . $employee['role_name'], ENT_QUOTES, 'UTF-8') ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+                <label>HR employee
+                    <select name="hr_employee_id" required>
+                        <option value="">Choose HR profile</option>
+                        <?php foreach ($hrEmployees as $hr): ?>
+                            <option value="<?= (int) $hr['id'] ?>"><?= htmlspecialchars(($hr['full_name'] ?: 'Employee #' . $hr['id']) . ' - ' . (($hr['job_title'] ?? '') ?: 'No job title'), ENT_QUOTES, 'UTF-8') ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+                <label>KPI role note<input name="link_role" placeholder="Packer, Front Desk/Admin, Owner/Admin"></label>
+                <button class="button primary" type="submit">Save HR link</button>
+            </form>
+        </section>
+    <?php endif; ?>
 
     <section class="ops-split">
         <form class="panel ops-form" method="post">
@@ -179,13 +280,24 @@ include BASE_PATH . '/shared/sidebar.php';
             <div class="section-row"><h2>Employee accounts</h2></div>
             <div class="table-scroll">
                 <table class="data-table ops-table">
-                    <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Reset code</th><th>Created</th><th>Delete</th></tr></thead>
+                    <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>HR Link</th><th>Status</th><th>Reset code</th><th>Created</th><th>Delete</th></tr></thead>
                     <tbody>
                     <?php foreach ($employees as $employee): ?>
+                        <?php
+                        $link = $employeeLinks[(int) $employee['id']] ?? null;
+                        $hr = $link && isset($hrEmployees[(int) $link['hr_employee_id']]) ? $hrEmployees[(int) $link['hr_employee_id']] : null;
+                        ?>
                         <tr>
                             <td><?= htmlspecialchars($employee['full_name'], ENT_QUOTES, 'UTF-8') ?></td>
                             <td><?= htmlspecialchars((string) $employee['email'], ENT_QUOTES, 'UTF-8') ?></td>
                             <td><?= htmlspecialchars($employee['role_name'], ENT_QUOTES, 'UTF-8') ?></td>
+                            <td>
+                                <?php if ($hr): ?>
+                                    <span class="status">linked</span><br><small><?= htmlspecialchars($hr['full_name'], ENT_QUOTES, 'UTF-8') ?></small>
+                                <?php else: ?>
+                                    <span class="status kpi-status-warning">missing HR link</span><br><small>KPI and leave tracking may be inaccurate.</small>
+                                <?php endif; ?>
+                            </td>
                             <td><span class="status"><?= htmlspecialchars($employee['status'], ENT_QUOTES, 'UTF-8') ?></span></td>
                             <td>
                                 <form class="inline-code-reset" method="post">
@@ -209,7 +321,7 @@ include BASE_PATH . '/shared/sidebar.php';
                             </td>
                         </tr>
                     <?php endforeach; ?>
-                    <?php if (!$employees): ?><tr><td colspan="7">No employee accounts recorded yet.</td></tr><?php endif; ?>
+                    <?php if (!$employees): ?><tr><td colspan="8">No employee accounts recorded yet.</td></tr><?php endif; ?>
                     </tbody>
                 </table>
             </div>

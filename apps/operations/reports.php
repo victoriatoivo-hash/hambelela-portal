@@ -34,6 +34,130 @@ function kpi_bootstrap(): void
     kpi_try_sql("ALTER TABLE ops_employees ADD COLUMN monthly_salary DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER status");
 
     kpi_try_sql(
+        "CREATE TABLE IF NOT EXISTS employee_user_links (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            portal_user_id INT NOT NULL,
+            hr_employee_id INT NOT NULL,
+            role VARCHAR(120) NULL,
+            linked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            linked_by INT NULL,
+            active TINYINT(1) NOT NULL DEFAULT 1,
+            UNIQUE KEY uniq_employee_user_link (portal_user_id),
+            INDEX idx_hr_employee_link (hr_employee_id),
+            FOREIGN KEY (portal_user_id) REFERENCES ops_employees(id) ON DELETE CASCADE,
+            FOREIGN KEY (linked_by) REFERENCES ops_employees(id) ON DELETE SET NULL
+        )"
+    );
+
+    kpi_try_sql(
+        "CREATE TABLE IF NOT EXISTS kpi_status_history (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            module_key VARCHAR(80) NOT NULL,
+            record_id BIGINT NOT NULL,
+            old_status VARCHAR(120) NULL,
+            new_status VARCHAR(120) NULL,
+            changed_by_user_id INT NULL,
+            linked_hr_employee_id INT NULL,
+            assigned_employee_id INT NULL,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            business_time_elapsed DECIMAL(10,2) NULL,
+            notes TEXT NULL,
+            INDEX idx_kpi_status_module_record (module_key, record_id, timestamp),
+            INDEX idx_kpi_status_user (changed_by_user_id, timestamp),
+            INDEX idx_kpi_status_assigned (assigned_employee_id, timestamp),
+            FOREIGN KEY (changed_by_user_id) REFERENCES ops_employees(id) ON DELETE SET NULL,
+            FOREIGN KEY (assigned_employee_id) REFERENCES ops_employees(id) ON DELETE SET NULL
+        )"
+    );
+
+    kpi_try_sql(
+        "CREATE TABLE IF NOT EXISTS kpi_business_time_logs (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            module_key VARCHAR(80) NOT NULL,
+            record_id BIGINT NOT NULL,
+            from_status VARCHAR(120) NULL,
+            to_status VARCHAR(120) NULL,
+            started_at DATETIME NOT NULL,
+            ended_at DATETIME NULL,
+            real_minutes DECIMAL(10,2) NULL,
+            business_minutes DECIMAL(10,2) NULL,
+            employee_id INT NULL,
+            hr_employee_id INT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_business_time_module_record (module_key, record_id),
+            INDEX idx_business_time_employee (employee_id, started_at)
+        )"
+    );
+
+    kpi_try_sql(
+        "CREATE TABLE IF NOT EXISTS kpi_employee_scores (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            period_month CHAR(7) NOT NULL,
+            portal_user_id INT NOT NULL,
+            hr_employee_id INT NULL,
+            role_group VARCHAR(40) NOT NULL,
+            total_score DECIMAL(5,2) NOT NULL DEFAULT 0,
+            score_band VARCHAR(80) NULL,
+            score_payload JSON NULL,
+            calculated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uniq_kpi_employee_score (period_month, portal_user_id),
+            INDEX idx_kpi_employee_score_hr (hr_employee_id, period_month),
+            FOREIGN KEY (portal_user_id) REFERENCES ops_employees(id) ON DELETE CASCADE
+        )"
+    );
+
+    kpi_try_sql(
+        "CREATE TABLE IF NOT EXISTS kpi_score_weights (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            role_group VARCHAR(40) NOT NULL,
+            component_key VARCHAR(80) NOT NULL,
+            component_label VARCHAR(160) NOT NULL,
+            weight_percent DECIMAL(5,2) NOT NULL DEFAULT 0,
+            active TINYINT(1) NOT NULL DEFAULT 1,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uniq_kpi_score_weight (role_group, component_key)
+        )"
+    );
+
+    kpi_try_sql(
+        "CREATE TABLE IF NOT EXISTS kpi_module_metrics (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            period_month CHAR(7) NOT NULL,
+            module_key VARCHAR(80) NOT NULL,
+            portal_user_id INT NULL,
+            hr_employee_id INT NULL,
+            metric_key VARCHAR(120) NOT NULL,
+            metric_value DECIMAL(12,2) NOT NULL DEFAULT 0,
+            metric_payload JSON NULL,
+            calculated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_kpi_module_metric (period_month, module_key, metric_key),
+            INDEX idx_kpi_module_employee (portal_user_id, period_month)
+        )"
+    );
+
+    kpi_try_sql(
+        "CREATE TABLE IF NOT EXISTS kpi_bonus_reviews (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            period_month CHAR(7) NOT NULL,
+            portal_user_id INT NOT NULL,
+            hr_employee_id INT NULL,
+            salary DECIMAL(12,2) NOT NULL DEFAULT 0,
+            monthly_score DECIMAL(5,2) NOT NULL DEFAULT 0,
+            quarterly_score DECIMAL(5,2) NOT NULL DEFAULT 0,
+            bonus_eligibility VARCHAR(80) NULL,
+            increment_recommendation VARCHAR(160) NULL,
+            owner_decision VARCHAR(80) NULL,
+            notes TEXT NULL,
+            reviewed_by INT NULL,
+            reviewed_at TIMESTAMP NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uniq_kpi_bonus_review (period_month, portal_user_id),
+            FOREIGN KEY (portal_user_id) REFERENCES ops_employees(id) ON DELETE CASCADE,
+            FOREIGN KEY (reviewed_by) REFERENCES ops_employees(id) ON DELETE SET NULL
+        )"
+    );
+
+    kpi_try_sql(
         "CREATE TABLE IF NOT EXISTS ops_report_settings (
             setting_key VARCHAR(80) PRIMARY KEY,
             setting_value VARCHAR(255) NOT NULL,
@@ -149,6 +273,16 @@ function kpi_bootstrap(): void
             } catch (Throwable $e) {
                 // Defaults are helpful but not critical.
             }
+            try {
+                $stmt = db()->prepare(
+                    "INSERT INTO kpi_score_weights (role_group, component_key, component_label, weight_percent)
+                     SELECT ?, ?, ?, ?
+                     WHERE NOT EXISTS (SELECT 1 FROM kpi_score_weights WHERE role_group = ? AND component_key = ?)"
+                );
+                $stmt->execute([$group, $key, $row['label'], $row['weight'], $group, $key]);
+            } catch (Throwable $e) {
+                // Defaults are helpful but not critical.
+            }
         }
     }
 }
@@ -184,6 +318,15 @@ function kpi_role_group(string $roleKey): string
 function kpi_role_weights(): array
 {
     $weights = kpi_default_weights();
+    if (ops_table_exists('kpi_score_weights')) {
+        foreach (ops_rows('SELECT role_group, component_key, component_label, weight_percent FROM kpi_score_weights WHERE active = 1') as $row) {
+            $weights[(string) $row['role_group']][(string) $row['component_key']] = [
+                'label' => (string) $row['component_label'],
+                'weight' => (float) $row['weight_percent'],
+            ];
+        }
+        return $weights;
+    }
     if (!ops_table_exists('ops_kpi_role_weights')) {
         return $weights;
     }
@@ -194,6 +337,39 @@ function kpi_role_weights(): array
         ];
     }
     return $weights;
+}
+
+function kpi_employee_links(): array
+{
+    if (!ops_table_exists('employee_user_links')) {
+        return [];
+    }
+
+    $links = [];
+    foreach (ops_rows('SELECT * FROM employee_user_links WHERE active = 1') as $row) {
+        $links[(int) $row['portal_user_id']] = $row;
+    }
+
+    return $links;
+}
+
+function kpi_hr_leave_map(string $periodStart, string $periodEnd): array
+{
+    $rows = ops_hr_rows(
+        "SELECT employee_id, leave_type, start_date, end_date, status
+         FROM leave_requests
+         WHERE status = 'approved'
+           AND start_date <= DATE(?)
+           AND end_date >= DATE(?)",
+        [$periodEnd, $periodStart]
+    );
+
+    $map = [];
+    foreach ($rows as $row) {
+        $map[(int) $row['employee_id']][] = $row;
+    }
+
+    return $map;
 }
 
 function kpi_setting(string $key, string $default): string
@@ -394,6 +570,9 @@ function kpi_build_scores(string $period, string $start, string $end, array $set
          ORDER BY FIELD(r.role_key, 'packer', 'front_desk_admin', 'supervisor_manager', 'owner_admin'), e.full_name"
     );
 
+    $employeeLinks = kpi_employee_links();
+    $hrEmployees = ops_hr_employee_options();
+    $hrLeave = kpi_hr_leave_map($start, $end);
     $inputs = kpi_employee_inputs($period);
     $errorRows = ops_table_exists('ops_error_logs') ? ops_rows(
         "SELECT employee_id,
@@ -478,6 +657,10 @@ function kpi_build_scores(string $period, string $start, string $end, array $set
     foreach ($employees as $employee) {
         $employeeId = (int) $employee['id'];
         $roleKey = (string) $employee['role_key'];
+        $link = $employeeLinks[$employeeId] ?? null;
+        $hrEmployeeId = $link ? (int) ($link['hr_employee_id'] ?? 0) : 0;
+        $hrEmployee = $hrEmployeeId && isset($hrEmployees[$hrEmployeeId]) ? $hrEmployees[$hrEmployeeId] : null;
+        $onLeave = $hrEmployeeId && !empty($hrLeave[$hrEmployeeId]);
         $input = array_merge(kpi_default_input(), $inputs[$employeeId] ?? []);
         $errors = $errorsByEmployee[$employeeId] ?? ['error_count' => 0, 'error_points' => 0];
         $check = $checkByEmployee[$employeeId] ?? ['checklist_total' => 0, 'checklist_done' => 0, 'missed_tasks' => 0];
@@ -487,6 +670,10 @@ function kpi_build_scores(string $period, string $start, string $end, array $set
         $attendanceReliability = kpi_score(((float) $input['attendance_score'] + (float) $input['reliability_score']) / 2);
         $errorPoints = (float) ($errors['error_points'] ?? 0);
         $accuracyScore = kpi_penalty_score($errorPoints, kpi_float_setting($settings, 'error_penalty_points'));
+
+        if ($hrEmployee && (float) ($hrEmployee['basic_salary'] ?? 0) > 0 && empty($inputs[$employeeId]['monthly_salary'])) {
+            $input['monthly_salary'] = (float) $hrEmployee['basic_salary'];
+        }
 
         $roleGroup = kpi_role_group($roleKey);
         $roleWeights = kpi_role_weights();
@@ -539,6 +726,15 @@ function kpi_build_scores(string $period, string $start, string $end, array $set
             $avgCompletion = isset($front['avg_assignment_minutes']) ? (float) $front['avg_assignment_minutes'] : null;
         }
 
+        if ($onLeave) {
+            foreach ($rawComponents as $key => $component) {
+                if ((float) ($component['score'] ?? 0) < 80) {
+                    $rawComponents[$key]['score'] = 80.0;
+                    $rawComponents[$key]['raw'] = trim((string) ($component['raw'] ?? '') . ' | approved leave considered', ' |');
+                }
+            }
+        }
+
         $overall = 0.0;
         $components = [];
         $totalWeight = 0.0;
@@ -564,6 +760,12 @@ function kpi_build_scores(string $period, string $start, string $end, array $set
 
         $scores[] = [
             'employee_id' => $employeeId,
+            'hr_employee_id' => $hrEmployeeId ?: null,
+            'hr_linked' => (bool) $hrEmployee,
+            'hr_status' => $hrEmployee ? (string) ($hrEmployee['status'] ?? '') : '',
+            'hr_department' => $hrEmployee ? (string) ($hrEmployee['department'] ?? '') : '',
+            'hr_job_title' => $hrEmployee ? (string) ($hrEmployee['job_title'] ?? '') : '',
+            'on_leave' => (bool) $onLeave,
             'name' => (string) $employee['full_name'],
             'email' => (string) ($employee['email'] ?? ''),
             'role_key' => $roleKey,
@@ -695,6 +897,47 @@ function kpi_metric_text($value, bool $duration = false): string
     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
 }
 
+function kpi_store_score_snapshots(string $period, array $scores): void
+{
+    if (!ops_table_exists('kpi_employee_scores')) {
+        return;
+    }
+
+    foreach ($scores as $row) {
+        try {
+            $stmt = db()->prepare(
+                "INSERT INTO kpi_employee_scores
+                    (period_month, portal_user_id, hr_employee_id, role_group, total_score, score_band, score_payload)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE
+                    hr_employee_id = VALUES(hr_employee_id),
+                    role_group = VALUES(role_group),
+                    total_score = VALUES(total_score),
+                    score_band = VALUES(score_band),
+                    score_payload = VALUES(score_payload),
+                    calculated_at = CURRENT_TIMESTAMP"
+            );
+            $stmt->execute([
+                $period,
+                (int) $row['employee_id'],
+                $row['hr_employee_id'] ?? null,
+                (string) $row['role_group'],
+                (float) $row['score'],
+                (string) $row['tier']['label'],
+                json_encode([
+                    'components' => $row['components'],
+                    'orders_handled' => $row['orders_handled'],
+                    'items_packed' => $row['items_packed'],
+                    'error_count' => $row['error_count'],
+                    'on_leave' => $row['on_leave'] ?? false,
+                ], JSON_UNESCAPED_SLASHES),
+            ]);
+        } catch (Throwable $e) {
+            // Snapshots are useful for audit trails but should not block the report.
+        }
+    }
+}
+
 if ($ready) {
     kpi_bootstrap();
 }
@@ -738,6 +981,14 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                          ON DUPLICATE KEY UPDATE component_label = VALUES(component_label), weight_percent = VALUES(weight_percent), active = 1"
                     );
                     $stmt->execute([$group, $key, $row['label'], $value]);
+                    if (ops_table_exists('kpi_score_weights')) {
+                        $stmt = db()->prepare(
+                            "INSERT INTO kpi_score_weights (role_group, component_key, component_label, weight_percent)
+                             VALUES (?, ?, ?, ?)
+                             ON DUPLICATE KEY UPDATE component_label = VALUES(component_label), weight_percent = VALUES(weight_percent), active = 1"
+                        );
+                        $stmt->execute([$group, $key, $row['label'], $value]);
+                    }
                 }
             }
             $message = 'Role-based KPI weights saved.';
@@ -810,6 +1061,9 @@ $settings = [
 ];
 
 $employeeScores = $ready ? kpi_build_scores($period, $periodStart, $periodEnd, $settings) : [];
+if ($ready) {
+    kpi_store_score_snapshots($period, $employeeScores);
+}
 $previousScores = $ready ? kpi_build_scores($previousPeriod, $previousStart, $previousEnd, $settings) : [];
 $previousByEmployee = [];
 foreach ($previousScores as $row) {
@@ -875,6 +1129,9 @@ foreach ($employeeScores as $row) {
     $scoresById[(int) $row['employee_id']] = $row;
 }
 $selectedEmployee = $selectedEmployeeId && isset($scoresById[$selectedEmployeeId]) ? $scoresById[$selectedEmployeeId] : ($employeeScores[0] ?? null);
+$unlinkedEmployees = array_values(array_filter($employeeScores, static function (array $row): bool {
+    return empty($row['hr_linked']);
+}));
 
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
@@ -893,6 +1150,13 @@ include BASE_PATH . '/shared/sidebar.php';
     </section>
     <?php if (!$ready) { ops_setup_notice(); } ?>
     <?php ops_flash($message, $messageType); ?>
+    <?php if ($ready && $unlinkedEmployees): ?>
+        <section class="ops-alert kpi-link-alert">
+            <strong>HR employee links needed.</strong>
+            <?= count($unlinkedEmployees) ?> active portal user<?= count($unlinkedEmployees) === 1 ? '' : 's' ?> are not linked to HR employee profiles. KPI salary, leave and availability tracking may be inaccurate.
+            <a class="button small" href="employees.php">Link employees</a>
+        </section>
+    <?php endif; ?>
 
     <nav class="kpi-tab-nav" aria-label="KPI report sections">
         <?php foreach ($tabs as $key => $label): ?>
@@ -945,7 +1209,7 @@ include BASE_PATH . '/shared/sidebar.php';
         </section>
         <?php if ($selectedEmployee): ?>
             <section class="panel kpi-profile">
-                <div class="section-row"><div><h2><?= htmlspecialchars($selectedEmployee['name'], ENT_QUOTES, 'UTF-8') ?></h2><p><?= htmlspecialchars($selectedEmployee['role_name'], ENT_QUOTES, 'UTF-8') ?> | Salary <?= kpi_money((float) $selectedEmployee['salary']) ?> | <?= htmlspecialchars((string) $selectedEmployee['tier']['recommendation'], ENT_QUOTES, 'UTF-8') ?></p></div><span class="kpi-score"><?= kpi_percent((float) $selectedEmployee['score']) ?></span></div>
+                <div class="section-row"><div><h2><?= htmlspecialchars($selectedEmployee['name'], ENT_QUOTES, 'UTF-8') ?></h2><p><?= htmlspecialchars($selectedEmployee['role_name'], ENT_QUOTES, 'UTF-8') ?> | Salary <?= kpi_money((float) $selectedEmployee['salary']) ?> | <?= htmlspecialchars((string) $selectedEmployee['tier']['recommendation'], ENT_QUOTES, 'UTF-8') ?></p><?php if (empty($selectedEmployee['hr_linked'])): ?><p class="kpi-warning-text">This user is not linked to an HR employee profile. KPI and leave tracking may be inaccurate.</p><?php else: ?><p class="kpi-hr-context">HR: <?= htmlspecialchars((string) ($selectedEmployee['hr_job_title'] ?: 'Employee'), ENT_QUOTES, 'UTF-8') ?><?= !empty($selectedEmployee['hr_department']) ? ' | ' . htmlspecialchars((string) $selectedEmployee['hr_department'], ENT_QUOTES, 'UTF-8') : '' ?><?= !empty($selectedEmployee['on_leave']) ? ' | Approved leave considered' : '' ?></p><?php endif; ?></div><span class="kpi-score"><?= kpi_percent((float) $selectedEmployee['score']) ?></span></div>
                 <div class="kpi-profile-grid">
                     <?php foreach ($selectedEmployee['components'] as $label => $component): ?>
                         <article><h3><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></h3><p><span>Score</span><strong><?= kpi_percent((float) $component['score']) ?></strong></p><p><span>Weight</span><strong><?= number_format((float) $component['weight']) ?>%</strong></p><?php if (!empty($component['raw'])): ?><p><span>Signal</span><strong><?= htmlspecialchars((string) $component['raw'], ENT_QUOTES, 'UTF-8') ?></strong></p><?php endif; ?></article>
@@ -1071,7 +1335,7 @@ include BASE_PATH . '/shared/sidebar.php';
             <table class="data-table ops-table kpi-employee-table">
                 <thead>
                     <tr>
-                        <th>Rank</th><th>Employee</th><th>Role</th><th>Performance</th><th>Tier</th><th>Bonus %</th><th>Bonus Amount</th><th>Orders</th><th>Items Packed</th><th>Avg Completion</th><th>Errors</th><th>Attendance</th><th>Reliability</th><th>Monthly Trend</th><th>Reward</th><th>Bonus</th>
+                        <th>Rank</th><th>Employee</th><th>HR Link</th><th>Role</th><th>Performance</th><th>Tier</th><th>Bonus %</th><th>Bonus Amount</th><th>Orders</th><th>Items Packed</th><th>Avg Completion</th><th>Errors</th><th>Attendance</th><th>Reliability</th><th>Monthly Trend</th><th>Reward</th><th>Bonus</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1083,6 +1347,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     <tr>
                         <td>#<?= number_format((int) $row['rank']) ?></td>
                         <td><strong><?= htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8') ?></strong><br><small><?= htmlspecialchars($row['scorecard'], ENT_QUOTES, 'UTF-8') ?></small></td>
+                        <td><?= !empty($row['hr_linked']) ? '<span class="status">linked</span>' : '<span class="status kpi-status-warning">missing</span>' ?><?= !empty($row['on_leave']) ? '<br><small>On approved leave</small>' : '' ?></td>
                         <td><?= htmlspecialchars($row['role_name'], ENT_QUOTES, 'UTF-8') ?></td>
                         <td><strong><?= kpi_percent((float) $row['score']) ?></strong><div class="kpi-bar"><span><i style="width: <?= min(100, (float) $row['score']) ?>%"></i></span></div></td>
                         <td><span class="kpi-tier-badge kpi-tier-<?= htmlspecialchars((string) $row['tier']['class'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars((string) $row['tier']['label'], ENT_QUOTES, 'UTF-8') ?></span></td>
@@ -1099,7 +1364,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         <td><?= htmlspecialchars((string) $row['tier']['bonus_label'], ENT_QUOTES, 'UTF-8') ?></td>
                     </tr>
                 <?php endforeach; ?>
-                <?php if (!$employeeScores): ?><tr><td colspan="16">No KPI data recorded yet.</td></tr><?php endif; ?>
+                <?php if (!$employeeScores): ?><tr><td colspan="17">No KPI data recorded yet.</td></tr><?php endif; ?>
                 </tbody>
             </table>
         </div>

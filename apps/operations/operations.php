@@ -127,6 +127,226 @@ function ops_rows(string $sql, array $params = []): array
     }
 }
 
+function ops_read_define_config(string $path): array
+{
+    if (!is_file($path) || !is_readable($path)) {
+        return [];
+    }
+
+    $source = file_get_contents($path);
+    if ($source === false) {
+        return [];
+    }
+
+    $values = [];
+    if (preg_match_all("/define\\(\\s*['\"]([A-Z_]+)['\"]\\s*,\\s*(['\"])(.*?)\\2\\s*\\)/", $source, $matches, PREG_SET_ORDER)) {
+        foreach ($matches as $match) {
+            $values[$match[1]] = stripcslashes($match[3]);
+        }
+    }
+
+    return $values;
+}
+
+function ops_secret_value($value): string
+{
+    $value = trim((string) $value);
+    if ($value === '' || strpos($value, 'your_') === 0 || strpos($value, 'paste-') === 0) {
+        return '';
+    }
+
+    return $value;
+}
+
+function ops_hr_db(): ?PDO
+{
+    static $pdo = false;
+    if ($pdo instanceof PDO) {
+        return $pdo;
+    }
+    if ($pdo === null) {
+        return null;
+    }
+
+    $pdo = null;
+    try {
+        $localConfigPath = BASE_PATH . '/config.local.php';
+        $local = [];
+        if (is_file($localConfigPath)) {
+            $loaded = require $localConfigPath;
+            if (is_array($loaded)) {
+                $local = $loaded;
+            }
+        }
+
+        $livePath = ops_secret_value(getenv('HAMBELELA_HR_LIVE_CONFIG') ?: ($local['hr_live_config_path'] ?? ''));
+        if ($livePath === '') {
+            $livePath = dirname(BASE_PATH) . '/hr.hambelelaorganic.com/config.php';
+        }
+        $live = ops_read_define_config($livePath);
+
+        $host = ops_secret_value(getenv('HAMBELELA_HR_DB_HOST') ?: ($local['hr_db_host'] ?? '')) ?: ($live['DB_HOST'] ?? '');
+        $name = ops_secret_value(getenv('HAMBELELA_HR_DB_NAME') ?: ($local['hr_db_name'] ?? '')) ?: ($live['DB_NAME'] ?? '');
+        $user = ops_secret_value(getenv('HAMBELELA_HR_DB_USER') ?: ($local['hr_db_user'] ?? '')) ?: ($live['DB_USER'] ?? '');
+        $pass = ops_secret_value(getenv('HAMBELELA_HR_DB_PASS') ?: ($local['hr_db_pass'] ?? '')) ?: ($live['DB_PASS'] ?? '');
+
+        if ($host === '' || $name === '' || $user === '') {
+            return null;
+        }
+
+        $pdo = new PDO('mysql:host=' . $host . ';dbname=' . $name . ';charset=utf8mb4', $user, $pass, [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES => false,
+        ]);
+
+        return $pdo;
+    } catch (Throwable $e) {
+        $pdo = null;
+        return null;
+    }
+}
+
+function ops_hr_rows(string $sql, array $params = []): array
+{
+    $pdo = ops_hr_db();
+    if (!$pdo instanceof PDO) {
+        return [];
+    }
+
+    try {
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll();
+        $stmt->closeCursor();
+
+        return $rows;
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
+function ops_hr_employee_options(): array
+{
+    $rows = ops_hr_rows(
+        "SELECT id, emp_number, first_name, last_name, email, job_title, department, basic_salary, status
+         FROM employees
+         ORDER BY status = 'active' DESC, first_name, last_name"
+    );
+
+    $map = [];
+    foreach ($rows as $row) {
+        $row['full_name'] = trim((string) ($row['first_name'] ?? '') . ' ' . (string) ($row['last_name'] ?? ''));
+        $map[(int) $row['id']] = $row;
+    }
+
+    return $map;
+}
+
+function ops_business_window(DateTimeImmutable $date): ?array
+{
+    $day = (int) $date->format('N');
+    if ($day >= 1 && $day <= 5) {
+        return [$date->setTime(8, 0), $date->setTime(17, 0)];
+    }
+    if ($day === 6) {
+        return [$date->setTime(9, 0), $date->setTime(13, 0)];
+    }
+
+    return null;
+}
+
+function ops_next_business_open(DateTimeImmutable $date): DateTimeImmutable
+{
+    for ($i = 0; $i < 10; $i++) {
+        $window = ops_business_window($date);
+        if ($window) {
+            [$open, $close] = $window;
+            if ($date < $open) {
+                return $open;
+            }
+            if ($date >= $open && $date < $close) {
+                return $date;
+            }
+        }
+        $date = $date->modify('+1 day')->setTime(8, 0);
+    }
+
+    return $date;
+}
+
+function ops_business_minutes_between(?string $from, ?string $to): ?float
+{
+    if (!$from || !$to) {
+        return null;
+    }
+
+    try {
+        $start = ops_next_business_open(new DateTimeImmutable($from));
+        $end = new DateTimeImmutable($to);
+    } catch (Throwable $e) {
+        return null;
+    }
+
+    if ($end <= $start) {
+        return 0.0;
+    }
+
+    $minutes = 0.0;
+    $cursor = $start;
+    for ($i = 0; $i < 370 && $cursor < $end; $i++) {
+        $window = ops_business_window($cursor);
+        if (!$window) {
+            $cursor = $cursor->modify('+1 day')->setTime(8, 0);
+            continue;
+        }
+        [$open, $close] = $window;
+        $segmentStart = $cursor < $open ? $open : $cursor;
+        $segmentEnd = $end < $close ? $end : $close;
+        if ($segmentEnd > $segmentStart) {
+            $minutes += ($segmentEnd->getTimestamp() - $segmentStart->getTimestamp()) / 60;
+        }
+        $cursor = $cursor->modify('+1 day')->setTime(8, 0);
+    }
+
+    return round($minutes, 1);
+}
+
+function ops_log_kpi_status_change(string $module, int $recordId, ?string $oldStatus, ?string $newStatus, ?int $assignedEmployeeId = null, array $metadata = []): void
+{
+    if ($module === '' || $recordId <= 0 || !ops_table_exists('kpi_status_history')) {
+        return;
+    }
+
+    $changedBy = ops_current_employee_id();
+    $linkedHrEmployeeId = null;
+    if (ops_table_exists('employee_user_links')) {
+        $rows = ops_rows('SELECT hr_employee_id FROM employee_user_links WHERE portal_user_id = ? LIMIT 1', [$changedBy]);
+        $linkedHrEmployeeId = $rows ? (int) $rows[0]['hr_employee_id'] : null;
+    }
+
+    try {
+        $stmt = db()->prepare(
+            "INSERT INTO kpi_status_history
+                (module_key, record_id, old_status, new_status, changed_by_user_id, linked_hr_employee_id, assigned_employee_id, business_time_elapsed, notes)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        $stmt->execute([
+            $module,
+            $recordId,
+            $oldStatus,
+            $newStatus,
+            $changedBy,
+            $linkedHrEmployeeId,
+            $assignedEmployeeId,
+            null,
+            $metadata ? json_encode($metadata, JSON_UNESCAPED_SLASHES) : null,
+        ]);
+    } catch (Throwable $e) {
+        // KPI history should support reporting without breaking daily work.
+    }
+}
+
 function ops_post_string(string $key, int $max = 255): string
 {
     return substr(trim((string) ($_POST[$key] ?? '')), 0, $max);
