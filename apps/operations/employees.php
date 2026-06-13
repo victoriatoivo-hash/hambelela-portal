@@ -201,7 +201,7 @@ if ($ready && ops_table_exists('employee_user_links')) {
     }
 }
 $employees = $ready ? ops_rows(
-    "SELECT e.*, r.name AS role_name
+    "SELECT e.*, r.name AS role_name, r.role_key
      FROM ops_employees e
      JOIN ops_roles r ON r.id = e.role_id
      ORDER BY e.created_at DESC
@@ -292,7 +292,9 @@ include BASE_PATH . '/shared/sidebar.php';
                             <td><?= htmlspecialchars((string) $employee['email'], ENT_QUOTES, 'UTF-8') ?></td>
                             <td><?= htmlspecialchars($employee['role_name'], ENT_QUOTES, 'UTF-8') ?></td>
                             <td>
-                                <?php if ($hr): ?>
+                                <?php if ((string) ($employee['role_key'] ?? '') === 'owner_admin'): ?>
+                                    <span class="status">not tracked</span><br><small>Owner/Admin is excluded from KPI scoring.</small>
+                                <?php elseif ($hr): ?>
                                     <span class="status">linked</span><br><small><?= htmlspecialchars($hr['full_name'], ENT_QUOTES, 'UTF-8') ?></small>
                                 <?php else: ?>
                                     <span class="status kpi-status-warning">missing HR link</span><br><small>KPI and leave tracking may be inaccurate.</small>

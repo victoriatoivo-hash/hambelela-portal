@@ -567,7 +567,8 @@ function kpi_build_scores(string $period, string $start, string $end, array $set
          FROM ops_employees e
          JOIN ops_roles r ON r.id = e.role_id
          WHERE e.status = 'active'
-         ORDER BY FIELD(r.role_key, 'packer', 'front_desk_admin', 'supervisor_manager', 'owner_admin'), e.full_name"
+           AND r.role_key <> 'owner_admin'
+         ORDER BY FIELD(r.role_key, 'packer', 'front_desk_admin', 'supervisor_manager'), e.full_name"
     );
 
     $employeeLinks = kpi_employee_links();
@@ -766,7 +767,8 @@ function kpi_build_scores(string $period, string $start, string $end, array $set
             'hr_department' => $hrEmployee ? (string) ($hrEmployee['department'] ?? '') : '',
             'hr_job_title' => $hrEmployee ? (string) ($hrEmployee['job_title'] ?? '') : '',
             'on_leave' => (bool) $onLeave,
-            'name' => (string) $employee['full_name'],
+            'name' => $hrEmployee ? (string) ($hrEmployee['full_name'] ?: $employee['full_name']) : (string) $employee['full_name'],
+            'portal_name' => (string) $employee['full_name'],
             'email' => (string) ($employee['email'] ?? ''),
             'role_key' => $roleKey,
             'role_group' => $roleGroup,
