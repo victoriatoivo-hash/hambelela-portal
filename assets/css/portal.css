@@ -8487,6 +8487,7 @@ textarea {
 .duplicate-review-group header {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 12px;
   padding: 14px 16px;
   border-bottom: 1px solid var(--line);
@@ -8498,9 +8499,19 @@ textarea {
   font-weight: 850;
 }
 
+.duplicate-review-group header em {
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #eaf3ff;
+  color: #0073ea;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 850;
+}
+
 .duplicate-review-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 130px 140px auto;
+  grid-template-columns: minmax(180px, 1fr) 120px 130px 150px 150px 100px auto;
   gap: 14px;
   align-items: center;
   padding: 14px 16px;
@@ -8524,7 +8535,7 @@ textarea {
 }
 
 .duplicate-review-row.duplicate {
-  grid-template-columns: 24px minmax(0, 1fr) 130px 140px;
+  grid-template-columns: 24px minmax(180px, 1fr) 120px 130px 150px 150px 100px;
   cursor: pointer;
 }
 

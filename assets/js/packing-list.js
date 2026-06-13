@@ -939,12 +939,13 @@
             <header>
               <span>Duplicate Group #${index + 1}</span>
               <strong>${esc(keep.item_name || 'Packing item')}</strong>
+              <em>${esc(group.match_type || 'Possible duplicate')}</em>
             </header>
             <div class="duplicate-review-row original">
               <div>
                 <small>Original to keep</small>
                 <strong>#${esc(keep.id || '')} ${esc(keep.item_name || '')}</strong>
-                <span>${esc(keep.received_weight || '')} ${esc(keep.quantity_planned || '')}</span>
+                <span>${esc(keep.created_source || 'Packing list')}</span>
               </div>
               <div>
                 <small>Loaded</small>
@@ -954,6 +955,18 @@
                 <small>Packer</small>
                 <span>${esc(keep.assigned_name || 'Unassigned')}</span>
               </div>
+              <div>
+                <small>Received / Qty</small>
+                <span>${esc(keep.received_weight || '-')} / ${esc(keep.quantity_planned || '-')}</span>
+              </div>
+              <div>
+                <small>Monday</small>
+                <span>${esc(keep.monday_sync_status || 'not synced')} ${keep.monday_item_id ? `#${esc(keep.monday_item_id)}` : ''}</span>
+              </div>
+              <div>
+                <small>Status</small>
+                <span>${esc(keep.packing_status || '-')}</span>
+              </div>
               <span class="duplicate-keep-pill">Keep Original</span>
             </div>
             ${duplicates.map((row) => `
@@ -962,7 +975,7 @@
                 <div>
                   <small>Duplicate to archive</small>
                   <strong>#${esc(row.id)} ${esc(row.item_name || '')}</strong>
-                  <span>${esc(row.received_weight || '')} ${esc(row.quantity_planned || '')}</span>
+                  <span>${esc(row.created_source || 'Packing list')}</span>
                 </div>
                 <div>
                   <small>Loaded</small>
@@ -971,6 +984,18 @@
                 <div>
                   <small>Packer</small>
                   <span>${esc(row.assigned_name || 'Unassigned')}</span>
+                </div>
+                <div>
+                  <small>Received / Qty</small>
+                  <span>${esc(row.received_weight || '-')} / ${esc(row.quantity_planned || '-')}</span>
+                </div>
+                <div>
+                  <small>Monday</small>
+                  <span>${esc(row.monday_sync_status || 'not synced')} ${row.monday_item_id ? `#${esc(row.monday_item_id)}` : ''}</span>
+                </div>
+                <div>
+                  <small>Status</small>
+                  <span>${esc(row.packing_status || '-')}</span>
                 </div>
               </label>
             `).join('')}

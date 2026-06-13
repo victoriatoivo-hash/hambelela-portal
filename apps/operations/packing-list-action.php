@@ -717,6 +717,13 @@ function packing_note_value(string $notes, string $label): string
     return '';
 }
 
+function packing_normalized_item_name(array $row): string
+{
+    $name = strtolower(trim((string) ($row['item_name'] ?? '')));
+    $name = preg_replace('/[^\p{L}\p{N}]+/u', ' ', $name) ?: '';
+    return preg_replace('/\s+/', ' ', trim($name)) ?: '';
+}
+
 function packing_row_key(array $row): string
 {
     $notes = (string) ($row['notes'] ?? '');
@@ -762,7 +769,31 @@ function packing_duplicate_score(array $row): int
     if (!empty($row['notes'])) {
         $score += 10;
     }
+    if (!empty($row['received_weight'])) {
+        $score += 8;
+    }
+    if (!empty($row['quantity_planned'])) {
+        $score += 8;
+    }
     return $score;
+}
+
+function packing_duplicate_review_row(array $row): array
+{
+    return [
+        'id' => (int) $row['id'],
+        'item_name' => (string) ($row['item_name'] ?? ''),
+        'received_weight' => (string) ($row['received_weight'] ?? ''),
+        'quantity_planned' => (string) ($row['quantity_planned'] ?? ''),
+        'assigned_name' => (string) ($row['assigned_name'] ?? 'Unassigned'),
+        'monday_item_id' => (string) ($row['monday_item_id'] ?? ''),
+        'monday_sync_status' => (string) ($row['monday_sync_status'] ?? ''),
+        'packing_status' => (string) ($row['packing_status'] ?? ''),
+        'date_loaded' => (string) ($row['date_loaded'] ?? ''),
+        'created_at' => (string) ($row['created_at'] ?? ''),
+        'created_source' => trim((string) packing_note_value((string) ($row['notes'] ?? ''), 'Created source'))
+            ?: (strpos((string) ($row['notes'] ?? ''), 'Created from invoice') !== false ? 'Invoice review' : 'Packing list'),
+    ];
 }
 
 function packing_best_duplicate_row(array $rows): array
@@ -1281,15 +1312,21 @@ try {
              ORDER BY pt.date_loaded ASC, pt.id ASC"
         );
         $groups = [];
+        $nameGroups = [];
         foreach ($rows as $row) {
             $key = packing_row_key($row);
             $groups[$key][] = $row;
+            $nameKey = packing_normalized_item_name($row);
+            if ($nameKey !== '') {
+                $nameGroups[$nameKey][] = $row;
+            }
             if (ops_column_exists('ops_packing_tasks', 'packing_row_key') && empty($row['packing_row_key'])) {
                 packing_sync_state((int) $row['id'], ['packing_row_key' => $key]);
             }
         }
 
         $duplicates = [];
+        $seenDuplicateIds = [];
         foreach ($groups as $key => $groupRows) {
             if (count($groupRows) < 2) {
                 continue;
@@ -1300,29 +1337,50 @@ try {
                 if ((int) $groupRow['id'] === (int) $keeper['id']) {
                     continue;
                 }
-                $duplicateRows[] = [
-                    'id' => (int) $groupRow['id'],
-                    'item_name' => (string) ($groupRow['item_name'] ?? ''),
-                    'received_weight' => (string) ($groupRow['received_weight'] ?? ''),
-                    'quantity_planned' => (string) ($groupRow['quantity_planned'] ?? ''),
-                    'assigned_name' => (string) ($groupRow['assigned_name'] ?? 'Unassigned'),
-                    'monday_item_id' => (string) ($groupRow['monday_item_id'] ?? ''),
-                    'packing_status' => (string) ($groupRow['packing_status'] ?? ''),
-                    'date_loaded' => (string) ($groupRow['date_loaded'] ?? ''),
-                ];
+                $seenDuplicateIds[(int) $groupRow['id']] = true;
+                $duplicateRows[] = packing_duplicate_review_row($groupRow);
             }
             $duplicates[] = [
                 'key' => $key,
-                'keep' => [
-                    'id' => (int) $keeper['id'],
-                    'item_name' => (string) ($keeper['item_name'] ?? ''),
-                    'received_weight' => (string) ($keeper['received_weight'] ?? ''),
-                    'quantity_planned' => (string) ($keeper['quantity_planned'] ?? ''),
-                    'assigned_name' => (string) ($keeper['assigned_name'] ?? 'Unassigned'),
-                    'monday_item_id' => (string) ($keeper['monday_item_id'] ?? ''),
-                    'packing_status' => (string) ($keeper['packing_status'] ?? ''),
-                    'date_loaded' => (string) ($keeper['date_loaded'] ?? ''),
-                ],
+                'match_type' => 'Exact row match',
+                'keep' => packing_duplicate_review_row($keeper),
+                'duplicates' => $duplicateRows,
+            ];
+        }
+
+        foreach ($nameGroups as $nameKey => $groupRows) {
+            if (count($groupRows) < 2) {
+                continue;
+            }
+
+            $candidateRows = [];
+            foreach ($groupRows as $groupRow) {
+                if (isset($seenDuplicateIds[(int) $groupRow['id']])) {
+                    continue;
+                }
+                $candidateRows[] = $groupRow;
+            }
+            if (count($candidateRows) < 2) {
+                continue;
+            }
+
+            $keeper = packing_best_duplicate_row($candidateRows);
+            $duplicateRows = [];
+            foreach ($candidateRows as $groupRow) {
+                if ((int) $groupRow['id'] === (int) $keeper['id']) {
+                    continue;
+                }
+                $seenDuplicateIds[(int) $groupRow['id']] = true;
+                $duplicateRows[] = packing_duplicate_review_row($groupRow);
+            }
+            if (!$duplicateRows) {
+                continue;
+            }
+
+            $duplicates[] = [
+                'key' => 'name:' . $nameKey,
+                'match_type' => 'Possible duplicate by product name',
+                'keep' => packing_duplicate_review_row($keeper),
                 'duplicates' => $duplicateRows,
             ];
         }
