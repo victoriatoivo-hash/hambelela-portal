@@ -718,262 +718,547 @@ $matchedPanelRows = array_slice(array_values(array_filter($panelRows, fn (array 
 $unmatchedPanelRows = array_slice(array_values(array_filter($panelRows, fn (array $row): bool => !(bool) $row['website_linked'])), 0, 8);
 $profitPanelRows = array_slice($rows ?: $panelRows, 0, 12);
 $warningPanelRows = array_slice(array_values(array_filter($panelRows, fn (array $row): bool => in_array((string) $row['status_key'], ['loss', 'low_margin', 'unknown'], true))), 0, 8);
+$workbookProducts = array_map(static function (array $row): array {
+    $conversion = $row['conversion'] ?? ['base_unit' => 'unit'];
+    $baseUnit = (string) ($conversion['base_unit'] ?? 'unit');
+    $unitSize = (float) ($row['base_quantity'] ?? 1);
+    if ($unitSize <= 0) {
+        $unitSize = 1.0;
+    }
+
+    return [
+        'parent' => (string) ($row['parent_product'] ?? $row['product'] ?? 'Product'),
+        'variation' => (string) ($row['variation'] ?? ''),
+        'sku' => (string) ($row['sku'] ?? ''),
+        'category' => (string) ($row['category'] ?? 'Uncategorised'),
+        'supplier' => (string) ($row['supplier'] ?? 'Supplier'),
+        'supplierCost' => round((float) ($row['supplier_cost'] ?? 0), 2),
+        'transport' => round((float) ($row['transport_cost'] ?? 0), 2),
+        'packaging' => round((float) ($row['packaging_cost'] ?? 0), 2),
+        'unitSize' => round($unitSize, 4),
+        'totalSize' => round($unitSize, 4),
+        'unitLabel' => $baseUnit !== '' ? $baseUnit : 'unit',
+        'priceIncl' => round((float) ($row['selling_price_incl_vat'] ?? 0), 2),
+        'websiteMatch' => (string) ($row['website_match_label'] ?? 'Unmatched'),
+        'warnings' => (string) ($row['warnings'] ?? ''),
+    ];
+}, $rows);
+$workbookStepData = array_map(static fn (array $step): array => [
+    'num' => (int) $step['number'],
+    'title' => (string) $step['title'],
+    'meta' => (string) $step['summary'],
+    'status' => $step['state'] === 'complete' ? 'complete' : ($step['state'] === 'optional' ? 'optional' : ($step['state'] === 'active' ? 'active-step' : 'todo')),
+], $accordionSteps);
 
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
-<main class="workspace module cost-system workbook-profit-page">
-    <section class="module-header cost-system-header">
+<main class="workspace module cost-workbook-exact">
+    <section class="module-header cost-workbook-hero">
         <div>
             <p class="eyebrow">Cost Workbook / Landing Cost Engine</p>
             <h1>Cost Workbook</h1>
             <p>One guided costing workflow from supplier invoice to landed cost, website matching, VAT, margin and final profitability.</p>
         </div>
-        <div class="actions">
-            <span class="status"><?= number_format($readySteps) ?> of <?= number_format(count($accordionSteps)) ?> workflow steps ready</span>
-            <span class="status">Single-page workflow</span>
+        <div class="cost-workbook-badges">
+            <button class="cost-workbook-badge is-active" type="button" id="navEngine" onclick="showWorkbookPage('engine')"><i data-lucide="settings"></i> Cost Engine - <?= number_format($readySteps) ?> of <?= number_format(count($accordionSteps)) ?> workflow steps ready</button>
+            <button class="cost-workbook-badge" type="button" id="navTable" onclick="showWorkbookPage('table')"><i data-lucide="table-2"></i> Product Profitability Table</button>
+            <span class="cost-save-indicator" id="saveIndicator">All changes saved</span>
         </div>
     </section>
 
     <?php if ($error): ?>
-        <section class="panel workbook-state workbook-state-error">
+        <section class="workbook-state workbook-state-error">
             <strong>Cost workbook data could not be loaded.</strong>
             <p>Please check API/database connection.</p>
             <small><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></small>
         </section>
     <?php endif; ?>
 
-    <section class="panel workbook-state workbook-loading-state" hidden>Loading cost workbook...</section>
+    <section id="page-engine" class="cost-workbook-page is-visible">
+        <div class="engine-intro">
+            <h2>Cost Engine - Guided Workflow</h2>
+            <p>Move step by step from supplier invoice to final profitability. <strong id="engineReadyCount"><?= number_format($readySteps) ?> of <?= number_format(count($accordionSteps)) ?></strong> steps ready. Switch to the <a href="#workbook-table" onclick="showWorkbookPage('table'); return false;">Product Profitability Table</a> at any time to see results.</p>
+        </div>
 
-    <section class="work-metric-grid workbook-kpi-grid" aria-label="Profitability summary">
-        <?php foreach ([
-            ['Total Inventory Value', cw_money($stats['inventory_value']), 'Current calculated COGS value', 'boxes', 'metric-purple'],
-            ['Total Supplier Cost', cw_money($stats['supplier_cost']), 'Raw supplier ingredient cost', 'file-text', 'metric-blue'],
-            ['Total Transport Cost', cw_money($stats['transport_cost']), 'Allocated freight in products', 'truck', 'metric-orange'],
-            ['Total Packaging Cost', cw_money($stats['packaging_cost']), 'Bottles, labels, caps and other packaging', 'package-check', 'metric-pink'],
-            ['Total Landed Cost', cw_money($stats['landed_cost']), 'Ingredient cost after transport', 'scale', 'metric-green'],
-            ['Estimated Revenue', cw_money($stats['estimated_revenue']), 'Website/product prices excl. VAT', 'badge-dollar-sign', 'metric-blue'],
-            ['Estimated Profit', cw_money($stats['estimated_profit']), 'Revenue excl. VAT less COGS', 'trending-up', 'metric-green'],
-            ['Average Margin %', cw_percent($stats['average_margin']), 'Average product margin', 'percent', 'metric-purple'],
-            ['Below Target Margin', number_format($stats['below_target']), 'Target margin: ' . cw_percent($targetMargin), 'triangle-alert', 'metric-orange'],
-        ] as [$title, $value, $desc, $icon, $class]): ?>
-            <article class="work-metric-card <?= htmlspecialchars($class, ENT_QUOTES, 'UTF-8') ?>">
-                <span class="metric-icon"><i data-lucide="<?= htmlspecialchars($icon, ENT_QUOTES, 'UTF-8') ?>"></i></span>
-                <div><span class="metric-title"><?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?></span><strong><?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?></strong><small><?= htmlspecialchars($desc, ENT_QUOTES, 'UTF-8') ?></small></div>
-            </article>
+        <div class="cost-workbook-stepper" id="stepper"></div>
+
+        <?php foreach ($accordionSteps as $step): ?>
+            <?php
+            if ($step['key'] === 'supplier') {
+                $stepRows = $supplierPanelRows;
+            } elseif ($step['key'] === 'transport') {
+                $stepRows = $transportPanelRows;
+            } elseif ($step['key'] === 'packaging') {
+                $stepRows = $packagingPanelRows;
+            } elseif ($step['key'] === 'landed') {
+                $stepRows = $landedPanelRows;
+            } elseif ($step['key'] === 'website') {
+                $stepRows = array_slice(array_merge($matchedPanelRows, $unmatchedPanelRows), 0, 10);
+            } else {
+                $stepRows = $profitPanelRows;
+            }
+            ?>
+            <section class="workbook-step-section <?= (int) $step['number'] === 1 ? 'is-visible' : '' ?>" data-step="<?= (int) $step['number'] ?>">
+                <div class="workbook-step-header">
+                    <div>
+                        <div class="step-tag">Step <?= (int) $step['number'] ?> of <?= count($accordionSteps) ?><?= $step['state'] === 'optional' ? ' - Optional' : '' ?></div>
+                        <h2><?= htmlspecialchars((string) $step['title'], ENT_QUOTES, 'UTF-8') ?></h2>
+                        <p><?= htmlspecialchars((string) $step['intro'], ENT_QUOTES, 'UTF-8') ?></p>
+                    </div>
+                    <div class="step-nav-btns">
+                        <button class="btn btn-back" type="button" onclick="goToWorkbookStep(<?= max(1, (int) $step['number'] - 1) ?>)" <?= (int) $step['number'] === 1 ? 'disabled' : '' ?>>Back</button>
+                        <button class="btn btn-next" type="button" onclick="<?= (int) $step['number'] >= count($accordionSteps) ? "showWorkbookPage('table')" : 'goToWorkbookStep(' . ((int) $step['number'] + 1) . ')' ?>"><?= (int) $step['number'] >= count($accordionSteps) ? 'View in Profitability Table' : 'Save & Next' ?></button>
+                    </div>
+                </div>
+                <div class="flow-note-eng"><strong>What happens here:</strong> <?= htmlspecialchars((string) $step['action'], ENT_QUOTES, 'UTF-8') ?></div>
+                <div class="workbook-step-grid">
+                    <article class="sub-card-eng">
+                        <h3><?= htmlspecialchars((string) $step['title'], ENT_QUOTES, 'UTF-8') ?> workspace</h3>
+                        <div class="dropzone-eng"><i data-lucide="<?= $step['key'] === 'transport' ? 'truck' : ($step['key'] === 'packaging' ? 'package' : 'file-up') ?>"></i><span><?= htmlspecialchars((string) $step['summary'], ENT_QUOTES, 'UTF-8') ?></span></div>
+                        <div class="step-fields-list">
+                            <?php foreach ($step['fields'] as $field): ?><span><?= htmlspecialchars((string) $field, ENT_QUOTES, 'UTF-8') ?></span><?php endforeach; ?>
+                        </div>
+                    </article>
+                    <article class="sub-card-eng">
+                        <h3><?= htmlspecialchars((string) $step['title'], ENT_QUOTES, 'UTF-8') ?> summary</h3>
+                        <div class="stat-row-eng">
+                            <?php foreach ($step['metrics'] as $label => $value): ?>
+                                <div class="stat-mini"><div class="label"><?= htmlspecialchars((string) $label, ENT_QUOTES, 'UTF-8') ?></div><div class="value"><?= htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') ?></div></div>
+                            <?php endforeach; ?>
+                        </div>
+                    </article>
+                </div>
+                <div class="table-wrap workbook-step-table">
+                    <table>
+                        <thead><tr><th>Product</th><th>Supplier</th><th>Supplier Cost</th><th>Transport</th><th>Packaging</th><th>Total Cost</th><th>Status</th></tr></thead>
+                        <tbody>
+                            <?php foreach ($stepRows as $row): ?>
+                                <tr>
+                                    <td><strong><?= htmlspecialchars((string) $row['product'], ENT_QUOTES, 'UTF-8') ?></strong><small><?= htmlspecialchars((string) ($row['variation'] ?? ''), ENT_QUOTES, 'UTF-8') ?></small></td>
+                                    <td><?= htmlspecialchars((string) $row['supplier'], ENT_QUOTES, 'UTF-8') ?></td>
+                                    <td><?= cw_money((float) $row['supplier_cost']) ?></td>
+                                    <td><?= cw_money((float) $row['transport_cost']) ?></td>
+                                    <td><?= cw_money((float) $row['packaging_cost']) ?></td>
+                                    <td><?= cw_money((float) $row['total_cost']) ?></td>
+                                    <td><span class="pill <?= $row['status_key'] === 'healthy' ? 'good' : ($row['status_key'] === 'low_margin' ? 'warn' : ($row['status_key'] === 'loss' ? 'bad' : 'muted')) ?>"><?= htmlspecialchars((string) $row['status_label'], ENT_QUOTES, 'UTF-8') ?></span></td>
+                                </tr>
+                            <?php endforeach; ?>
+                            <?php if (!$stepRows): ?><tr><td colspan="7" class="empty-state-cell">No rows available yet for this step.</td></tr><?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
         <?php endforeach; ?>
     </section>
 
-    <form class="panel workbook-filter-bar" method="get">
-        <label>Product<input name="product" value="<?= htmlspecialchars($filters['product'], ENT_QUOTES, 'UTF-8') ?>" placeholder="Search product name"></label>
-        <label>SKU<input name="sku" value="<?= htmlspecialchars($filters['sku'], ENT_QUOTES, 'UTF-8') ?>" placeholder="Search SKU"></label>
-        <label>Category<select name="category"><option value="">All categories</option><?php foreach ($categories as $category): ?><option value="<?= htmlspecialchars($category, ENT_QUOTES, 'UTF-8') ?>" <?= $filters['category'] === $category ? 'selected' : '' ?>><?= htmlspecialchars($category, ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></label>
-        <label>Status<select name="status"><option value="">All statuses</option><option value="healthy" <?= $filters['status'] === 'healthy' ? 'selected' : '' ?>>Healthy Margin</option><option value="low_margin" <?= $filters['status'] === 'low_margin' ? 'selected' : '' ?>>Low Margin</option><option value="loss" <?= $filters['status'] === 'loss' ? 'selected' : '' ?>>Loss Making</option><option value="unknown" <?= $filters['status'] === 'unknown' ? 'selected' : '' ?>>Missing Cost</option></select></label>
-        <div class="workbook-filter-actions">
-            <button class="button primary" type="submit"><i data-lucide="filter"></i> Apply</button>
-            <a class="button" href="landing-cost-engine.php"><i data-lucide="rotate-ccw"></i> Clear</a>
-        </div>
-        <details class="workbook-more-filters" <?= ($filters['supplier'] !== '' || $filters['product_type'] !== '' || $filters['matched'] !== '' || $filters['margin'] !== '' || $filters['low_margin']) ? 'open' : '' ?>>
-            <summary><i data-lucide="sliders-horizontal"></i> More filters</summary>
-            <div class="workbook-more-filter-grid">
-                <label>Supplier<select name="supplier"><option value="">All suppliers/components</option><?php foreach ($suppliers as $supplier): ?><option value="<?= htmlspecialchars($supplier, ENT_QUOTES, 'UTF-8') ?>" <?= $filters['supplier'] === $supplier ? 'selected' : '' ?>><?= htmlspecialchars($supplier, ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></label>
-                <label>Product type<select name="product_type"><option value="">All types</option><option value="Raw resale" <?= $filters['product_type'] === 'Raw resale' ? 'selected' : '' ?>>Raw resale</option><option value="Formulated" <?= $filters['product_type'] === 'Formulated' ? 'selected' : '' ?>>Formulated</option><option value="Raw material" <?= $filters['product_type'] === 'Raw material' ? 'selected' : '' ?>>Raw material</option><option value="Packaging" <?= $filters['product_type'] === 'Packaging' ? 'selected' : '' ?>>Packaging</option></select></label>
-                <label>Website match<select name="matched"><option value="">All</option><option value="matched" <?= $filters['matched'] === 'matched' ? 'selected' : '' ?>>Matched</option><option value="unmatched" <?= $filters['matched'] === 'unmatched' ? 'selected' : '' ?>>Unmatched</option></select></label>
-                <label>Margin below %<input name="margin" type="number" step="1" value="<?= htmlspecialchars($filters['margin'], ENT_QUOTES, 'UTF-8') ?>" placeholder="e.g. 40"></label>
-                <label class="checkbox-line"><input type="checkbox" name="low_margin" value="1" <?= $filters['low_margin'] ? 'checked' : '' ?>> Low margin only</label>
-            </div>
-        </details>
-    </form>
-
-    <section class="work-metric-grid workbook-kpi-grid" aria-label="Website profitability summary">
-        <?php foreach ([
-            ['Website Stock Value', cw_money($websiteProfitSummary['stock_value']), 'Current landed cost value', 'warehouse', 'metric-purple'],
-            ['Estimated Revenue', cw_money($websiteProfitSummary['estimated_revenue']), 'Website prices excl. VAT', 'receipt', 'metric-blue'],
-            ['VAT Portion', cw_money($websiteProfitSummary['vat']), 'VAT separated from price', 'percent', 'metric-orange'],
-            ['Total COGS', cw_money($websiteProfitSummary['cogs']), 'Cost of goods in this workbook', 'scale', 'metric-pink'],
-            ['Estimated Profit', cw_money($websiteProfitSummary['profit']), 'Revenue excl. VAT less COGS', 'trending-up', 'metric-green'],
-            ['Average Margin', cw_percent($websiteProfitSummary['average_margin']), 'Current workbook average', 'badge-percent', 'metric-teal'],
-        ] as [$title, $value, $desc, $icon, $class]): ?>
-            <article class="work-metric-card <?= htmlspecialchars($class, ENT_QUOTES, 'UTF-8') ?>">
-                <span class="metric-icon"><i data-lucide="<?= htmlspecialchars($icon, ENT_QUOTES, 'UTF-8') ?>"></i></span>
-                <div><span class="metric-title"><?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?></span><strong><?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?></strong><small><?= htmlspecialchars($desc, ENT_QUOTES, 'UTF-8') ?></small></div>
-            </article>
-        <?php endforeach; ?>
-    </section>
-
-    <section class="panel cost-workflow-panel cost-workbook-stepper" data-cost-workbook-stepper>
-        <div class="section-row">
-            <div>
-                <h2>Cost Workbook Workflow</h2>
-                <p>Move step by step from invoice upload to final profitability without leaving this page.</p>
-            </div>
-            <span class="status"><?= number_format($readySteps) ?> of <?= number_format(count($accordionSteps)) ?> ready</span>
-        </div>
-        <div class="cost-step-grid" aria-label="Costing workflow steps">
-            <?php foreach ($accordionSteps as $step): ?>
-                <button
-                    class="cost-step-card is-<?= htmlspecialchars((string) $step['state'], ENT_QUOTES, 'UTF-8') ?>"
-                    type="button"
-                    data-cost-panel="<?= htmlspecialchars((string) $step['key'], ENT_QUOTES, 'UTF-8') ?>"
-                    data-cost-panel-title="<?= htmlspecialchars((string) $step['title'], ENT_QUOTES, 'UTF-8') ?>"
-                    data-cost-panel-summary="<?= htmlspecialchars((string) $step['summary'], ENT_QUOTES, 'UTF-8') ?>"
-                >
-                    <span><?= number_format((int) $step['number']) ?></span>
-                    <strong><?= htmlspecialchars((string) $step['title'], ENT_QUOTES, 'UTF-8') ?></strong>
-                    <small><?= htmlspecialchars((string) $step['summary'], ENT_QUOTES, 'UTF-8') ?></small>
-                    <em><?= $step['state'] === 'complete' ? '<i data-lucide="check"></i> ' : '' ?><?= htmlspecialchars(ucwords(str_replace('_', ' ', (string) $step['state'])), ENT_QUOTES, 'UTF-8') ?></em>
-                </button>
+    <section id="page-table" class="cost-workbook-page" aria-live="polite">
+        <section class="cost-workbook-stats">
+            <?php foreach ([
+                ['Total Inventory Value', cw_money($stats['inventory_value']), 'Current calculated COGS value', 'package', 'purple', 'statInventory'],
+                ['Total Supplier Cost', cw_money($stats['supplier_cost']), 'Raw supplier ingredient cost', 'file-text', 'blue', 'statSupplier'],
+                ['Total Transport Cost', cw_money($stats['transport_cost']), 'Allocated freight in products', 'truck', 'orange', 'statTransport'],
+                ['Total Landed Cost', cw_money($stats['landed_cost']), 'Ingredient cost after transport', 'scale', 'pink', 'statLanded'],
+            ] as [$title, $value, $desc, $icon, $tone, $id]): ?>
+                <article class="stat-card">
+                    <div class="icon <?= htmlspecialchars($tone, ENT_QUOTES, 'UTF-8') ?>"><i data-lucide="<?= htmlspecialchars($icon, ENT_QUOTES, 'UTF-8') ?>"></i></div>
+                    <div><div class="label"><?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?></div><div class="value" id="<?= htmlspecialchars($id, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?></div><div class="sub"><?= htmlspecialchars($desc, ENT_QUOTES, 'UTF-8') ?></div></div>
+                </article>
             <?php endforeach; ?>
-        </div>
+        </section>
+
+        <section class="cost-workbook-stats cost-workbook-stats-small">
+            <article class="stat-card"><div class="icon green"><i data-lucide="percent"></i></div><div><div class="label">Average Margin %</div><div class="value" id="avgMarginDisplay"><?= cw_percent($stats['average_margin']) ?></div><div class="sub">Average product margin, target <?= cw_percent($targetMargin) ?></div></div></article>
+            <article class="stat-card"><div class="icon amber"><i data-lucide="triangle-alert"></i></div><div><div class="label">Below Target Margin</div><div class="value" id="belowTargetDisplay"><?= number_format($stats['below_target']) ?></div><div class="sub">Products flagged for review</div></div></article>
+        </section>
+
+        <section class="filters">
+            <div class="filters-row">
+                <div class="field"><label>Product</label><input type="text" id="searchProduct" placeholder="Search product name or SKU" oninput="applyFilters()"></div>
+                <div class="field"><label>Category</label><select id="filterCategory" onchange="applyFilters()"><option value="">All categories</option><?php foreach ($categories as $category): ?><option><?= htmlspecialchars($category, ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></div>
+                <div class="field"><label>Supplier</label><select id="filterSupplier" onchange="applyFilters()"><option value="">All suppliers</option><?php foreach ($suppliers as $supplier): ?><option><?= htmlspecialchars($supplier, ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></div>
+                <div class="field"><label>Status</label><select id="filterStatus" onchange="applyFilters()"><option value="">All statuses</option><option value="good">Healthy Margin</option><option value="warn">Low Margin</option><option value="bad">Loss Making</option><option value="muted">Missing Cost</option></select></div>
+                <button class="filters-btn" type="button" onclick="clearFilters()">Clear</button>
+            </div>
+        </section>
+
+        <section class="workbook-panel" id="workbook-table">
+            <div class="panel-head">
+                <div>
+                    <h2>Product Profitability Table</h2>
+                    <div class="desc">Click any highlighted cell to edit. Landed cost, unit cost, VAT, profit and margin recalculate automatically.</div>
+                </div>
+                <div class="actions">
+                    <button class="action-btn" type="button" onclick="exportCSV()"><i data-lucide="download"></i> Export CSV</button>
+                    <button class="action-btn primary" type="button" onclick="recalcAll()"><i data-lucide="refresh-cw"></i> Recalculate All</button>
+                </div>
+            </div>
+            <div class="table-scroll">
+                <table class="exact-workbook-table">
+                    <thead>
+                        <tr class="grp-row">
+                            <th class="grp-product sticky-col">Product</th>
+                            <th class="grp-supplier" colspan="3">Supplier & Transport</th>
+                            <th class="grp-landed" colspan="3">Landed Cost</th>
+                            <th class="grp-pricing" colspan="3">Website Pricing</th>
+                            <th class="grp-margin" colspan="3">Profit & Margin</th>
+                            <th class="grp-product">&nbsp;</th>
+                        </tr>
+                        <tr class="col-row">
+                            <th class="sticky-col">Parent / Variation / SKU</th>
+                            <th class="num grp-supplier-bg">Supplier Cost</th>
+                            <th class="num grp-supplier-bg">Transport</th>
+                            <th class="num grp-supplier-bg">Packaging</th>
+                            <th class="num grp-landed-bg">Landed Cost</th>
+                            <th class="num grp-landed-bg">Unit / Total Size</th>
+                            <th class="num grp-landed-bg">Unit Cost</th>
+                            <th class="num grp-pricing-bg">Price incl. VAT</th>
+                            <th class="num grp-pricing-bg">VAT</th>
+                            <th class="num grp-pricing-bg">Price excl. VAT</th>
+                            <th class="num grp-margin-bg">Profit</th>
+                            <th class="num grp-margin-bg">Margin %</th>
+                            <th class="grp-margin-bg">Status</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                    <tfoot>
+                        <tr class="total-row">
+                            <td class="sticky-col">Totals (filtered)</td>
+                            <td class="num" id="totSupplier">-</td>
+                            <td class="num" id="totTransport">-</td>
+                            <td class="num" id="totPackaging">-</td>
+                            <td class="num" id="totLanded">-</td>
+                            <td class="num">-</td>
+                            <td class="num">-</td>
+                            <td class="num">-</td>
+                            <td class="num">-</td>
+                            <td class="num" id="totRevenue">-</td>
+                            <td class="num" id="totProfit">-</td>
+                            <td class="num" id="totMargin">-</td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            <button class="add-row-btn" type="button" onclick="addRow()"><i data-lucide="plus"></i> Add product row</button>
+            <div class="legend">
+                <div class="item"><span class="dot supplier"></span> Supplier & Transport - editable</div>
+                <div class="item"><span class="dot landed"></span> Landed Cost - auto-calculated</div>
+                <div class="item"><span class="dot pricing"></span> Website Pricing - editable</div>
+                <div class="item"><span class="dot margin"></span> Profit & Margin - auto-calculated</div>
+            </div>
+        </section>
     </section>
 
-    <section class="panel cost-workflow-content is-open" data-cost-drawer aria-hidden="false" aria-labelledby="cost-drawer-title">
-        <header class="cost-drawer-header">
-            <div>
-                <p class="eyebrow">Guided Costing Workflow</p>
-                <h2 id="cost-drawer-title">Cost Workbook Step</h2>
-                <p id="cost-drawer-summary"></p>
-            </div>
-            <div class="cost-step-nav">
-                <button class="button" type="button" data-cost-step-back><i data-lucide="arrow-left"></i> Back</button>
-                <button class="button primary" type="button" data-cost-step-next>Save & Next <i data-lucide="arrow-right"></i></button>
-            </div>
-        </header>
-        <div class="cost-drawer-body">
-            <section class="cost-panel-content" data-cost-panel-content="supplier" hidden>
-                <div class="cost-panel-grid">
-                    <article class="cost-panel-card">
-                        <h3>Upload supplier invoice</h3>
-                        <form class="cost-inline-upload" action="invoice-preview.php" method="post" enctype="multipart/form-data" target="cost-workflow-preview-frame" data-cost-upload-form>
-                            <input type="hidden" name="invoice_mode" value="supplier">
-                            <label>Supplier name<input name="supplier_name" placeholder="Supplier"></label>
-                            <label>Invoice PDF<input name="invoice_pdf" type="file" accept="application/pdf" required></label>
-                            <button class="button primary" type="submit"><i data-lucide="scan-line"></i> Preview extraction</button>
-                        </form>
-                        <p class="cost-panel-feedback" hidden>Supplier invoice is ready for review in this workflow.</p>
-                    </article>
-                    <article class="cost-panel-card">
-                        <h3>Supplier invoice summary</h3>
-                        <div class="cost-panel-metrics">
-                            <div><span>Invoices</span><strong><?= number_format($workflowCounts['supplier_invoices']) ?></strong></div>
-                            <div><span>Product rows</span><strong><?= number_format($workflowCounts['raw_materials']) ?></strong></div>
-                            <div><span>Supplier cost</span><strong><?= cw_money($stats['supplier_cost']) ?></strong></div>
-                        </div>
-                    </article>
-                </div>
-                <div class="table-scroll cost-panel-table">
-                    <table class="data-table">
-                        <thead><tr><th>Product</th><th>Supplier</th><th>Supplier Cost</th><th>Landed Cost</th><th>Status</th></tr></thead>
-                        <tbody>
-                        <?php foreach ($supplierPanelRows as $row): ?>
-                            <tr><td><?= htmlspecialchars($row['product'], ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars($row['supplier'], ENT_QUOTES, 'UTF-8') ?></td><td><?= cw_money($row['supplier_cost']) ?></td><td><?= cw_money($row['landed_cost']) ?></td><td><span class="cost-status cost-status-<?= htmlspecialchars($row['status_key'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($row['status_label'], ENT_QUOTES, 'UTF-8') ?></span></td></tr>
-                        <?php endforeach; ?>
-                        <?php if (!$supplierPanelRows): ?><tr><td colspan="5" class="empty-state-cell">No supplier rows yet. Upload and review a supplier invoice to begin.</td></tr><?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
+    </section>
+</main>
 
-            <section class="cost-panel-content" data-cost-panel-content="transport" hidden>
-                <div class="cost-panel-grid">
-                    <article class="cost-panel-card">
-                        <h3>Upload transport invoice</h3>
-                        <form class="cost-inline-upload" action="transport-preview.php" method="post" enctype="multipart/form-data" target="cost-workflow-preview-frame" data-cost-upload-form>
-                            <label>Supplier name<input name="supplier_name" placeholder="Optional if invoice has one supplier"></label>
-                            <label>Allocation method<select name="allocation_basis"><option value="order_weight">Use extracted consignment weight</option><option value="item_quantity">Item quantity</option><option value="invoice_value">Invoice value</option><option value="manual">Manual split</option></select></label>
-                            <label>Link to<select name="link_type"><option value="supplier_invoice">Supplier invoice</option><option value="purchase_order">Purchase order</option><option value="date_range">Date range</option><option value="product_batch">Product batch</option><option value="woo_order_group">WooCommerce order group</option></select></label>
-                            <label>Link value<input name="link_value" placeholder="Optional invoice number, PO number, batch, or date range"></label>
-                            <label>Transport invoice PDF<input name="transport_pdf" type="file" accept="application/pdf" required></label>
-                            <button class="button primary" type="submit"><i data-lucide="truck"></i> Preview transport extraction</button>
-                        </form>
-                        <p class="cost-panel-feedback" hidden>Transport allocation has been staged for review.</p>
-                    </article>
-                    <article class="cost-panel-card">
-                        <h3>Transport summary</h3>
-                        <div class="cost-panel-metrics">
-                            <div><span>Transport invoices</span><strong><?= number_format($workflowCounts['transport_invoices']) ?></strong></div>
-                            <div><span>Total transport</span><strong><?= cw_money($stats['transport_cost']) ?></strong></div>
-                            <div><span>Rows previewed</span><strong><?= number_format(count($transportPanelRows)) ?></strong></div>
-                        </div>
-                    </article>
-                </div>
-                <div class="table-scroll cost-panel-table">
-                    <table class="data-table">
-                        <thead><tr><th>Product</th><th>Supplier</th><th>Supplier Cost</th><th>Transport</th><th>Landed Cost</th></tr></thead>
-                        <tbody>
-                        <?php foreach ($transportPanelRows as $row): ?>
-                            <tr><td><?= htmlspecialchars($row['product'], ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars($row['supplier'], ENT_QUOTES, 'UTF-8') ?></td><td><?= cw_money($row['supplier_cost']) ?></td><td><?= cw_money($row['transport_cost']) ?></td><td><?= cw_money($row['landed_cost']) ?></td></tr>
-                        <?php endforeach; ?>
-                        <?php if (!$transportPanelRows): ?><tr><td colspan="5" class="empty-state-cell">No transport rows yet. Upload a transport invoice and link it to supplier products.</td></tr><?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
+<style>
+.cost-workbook-exact { --cw-pink:#ff6b9d; --cw-pink-light:#ffe3ed; --cw-text:#2d2a26; --cw-muted:#7d7680; --cw-border:rgba(0,0,0,.08); --cw-card:#fff; --cw-green:#1a9c5b; --cw-green-bg:#e3f9ec; --cw-amber:#a8740a; --cw-amber-bg:#fff3cd; --cw-red:#c0392b; --cw-red-bg:#fdecea; --cw-blue:#3b6fd6; --cw-blue-bg:#eaf1ff; --cw-purple:#8b5cf6; --cw-purple-bg:#f1ecfe; color:var(--cw-text); max-width:1500px; }
+.cost-workbook-hero { align-items:flex-start; }
+.cost-workbook-hero h1 { font-size:32px; line-height:1.1; }
+.cost-workbook-badges { display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:flex-end; max-width:720px; }
+.cost-workbook-badge { display:inline-flex; align-items:center; gap:7px; border:1.5px solid var(--cw-border); border-radius:10px; background:#f7f4f2; color:#555; padding:7px 12px; font-weight:800; font-size:12px; cursor:pointer; }
+.cost-workbook-badge.is-active { background:var(--cw-pink-light); color:#d63b7a; border-color:var(--cw-pink); box-shadow:0 0 0 2px rgba(255,107,157,.12); }
+.cost-save-indicator { opacity:0; color:var(--cw-green); font-size:12px; font-weight:800; transition:.2s ease; }
+.cost-save-indicator.show { opacity:1; }
+.cost-workbook-page { display:none; }
+.cost-workbook-page.is-visible { display:block; animation:cwFade .18s ease; }
+@keyframes cwFade { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+.engine-intro { margin:8px 0 18px; }
+.engine-intro h2 { font-size:19px; margin:0 0 6px; }
+.engine-intro p { color:var(--cw-muted); font-size:13.5px; max-width:840px; }
+.engine-intro a { color:var(--cw-pink); font-weight:800; text-decoration:none; }
+.cost-workbook-stepper { display:flex; gap:7px; margin-bottom:22px; overflow-x:auto; padding-bottom:6px; }
+.step-pill { flex:1; min-width:128px; background:#fff; border:1.5px solid var(--cw-border); border-radius:12px; padding:11px 12px; cursor:pointer; transition:.15s ease; text-align:left; }
+.step-pill:hover { transform:translateY(-1px); border-color:var(--cw-pink); }
+.step-pill .num { display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:50%; background:#eee; color:#777; font-size:11px; font-weight:900; margin-bottom:7px; }
+.step-pill .title { font-size:12px; font-weight:900; margin-bottom:3px; }
+.step-pill .meta { font-size:10.5px; color:var(--cw-muted); line-height:1.25; min-height:25px; }
+.step-pill .status { display:inline-block; margin-top:7px; padding:3px 8px; border-radius:7px; font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.35px; background:#f1f1f1; color:#888; }
+.step-pill.complete .num { background:var(--cw-green); color:#fff; }
+.step-pill.complete .status { background:var(--cw-green-bg); color:var(--cw-green); }
+.step-pill.active-step, .step-pill.is-selected { border-color:var(--cw-pink); box-shadow:0 0 0 3px rgba(255,107,157,.12); }
+.step-pill.active-step .num, .step-pill.is-selected .num { background:var(--cw-pink); color:#fff; }
+.step-pill.active-step .status, .step-pill.is-selected .status { background:var(--cw-pink-light); color:#d63b7a; }
+.workbook-step-section { display:none; background:#fff; border:1.5px solid var(--cw-border); border-radius:18px; padding:24px; margin-bottom:20px; }
+.workbook-step-section.is-visible { display:block; animation:cwFade .18s ease; }
+.workbook-step-header { display:flex; justify-content:space-between; align-items:flex-start; gap:14px; flex-wrap:wrap; margin-bottom:18px; }
+.workbook-step-header h2 { font-size:22px; margin:0; }
+.workbook-step-header p { margin:6px 0 0; color:var(--cw-muted); font-size:13.5px; max-width:650px; }
+.step-tag { font-size:11px; font-weight:900; color:var(--cw-pink); text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px; }
+.step-nav-btns { display:flex; gap:8px; }
+.btn { border-radius:10px; padding:10px 18px; font-size:13px; font-weight:900; cursor:pointer; border:0; transition:.15s ease; }
+.btn-back { background:#fff; border:1.5px solid var(--cw-border); color:var(--cw-text); }
+.btn-back:disabled { opacity:.4; cursor:not-allowed; }
+.btn-next { color:#fff; background:linear-gradient(135deg,var(--cw-pink),#ff9a8a); }
+.flow-note-eng { background:var(--cw-pink-light); border-left:4px solid var(--cw-pink); border-radius:10px; padding:12px 16px; color:#9a3963; font-size:13px; margin-bottom:16px; }
+.workbook-step-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+.sub-card-eng { background:#faf7f5; border:1px solid var(--cw-border); border-radius:14px; padding:16px; }
+.sub-card-eng h3 { margin:0 0 12px; font-size:14.5px; }
+.dropzone-eng { display:flex; align-items:center; justify-content:center; flex-direction:column; gap:7px; min-height:100px; border:2px dashed var(--cw-pink); border-radius:12px; background:var(--cw-pink-light); color:#b1487a; font-size:13px; font-weight:800; text-align:center; padding:16px; }
+.dropzone-eng svg { width:28px; height:28px; }
+.step-fields-list { display:flex; flex-wrap:wrap; gap:7px; margin-top:12px; }
+.step-fields-list span { background:#fff; border:1px solid var(--cw-border); border-radius:999px; padding:6px 9px; font-size:11.5px; font-weight:700; color:#655f65; }
+.stat-row-eng { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+.stat-mini { background:#fff; border:1.5px solid var(--cw-border); border-radius:12px; padding:12px; }
+.stat-mini .label { font-size:10.5px; color:var(--cw-muted); font-weight:900; text-transform:uppercase; margin-bottom:5px; }
+.stat-mini .value { font-size:17px; font-weight:900; word-break:break-word; }
+.workbook-step-table { margin-top:18px; }
+.table-wrap, .table-scroll { overflow:auto; }
+.table-wrap table { width:100%; border-collapse:collapse; min-width:760px; font-size:12.5px; }
+.table-wrap th, .table-wrap td { padding:10px; border-bottom:1px solid var(--cw-border); text-align:left; vertical-align:top; }
+.table-wrap small { display:block; color:var(--cw-muted); margin-top:2px; }
+.pill { display:inline-flex; align-items:center; padding:5px 9px; border-radius:999px; font-size:11px; font-weight:900; white-space:nowrap; }
+.pill.good { background:var(--cw-green-bg); color:var(--cw-green); }
+.pill.warn { background:var(--cw-amber-bg); color:var(--cw-amber); }
+.pill.bad { background:var(--cw-red-bg); color:var(--cw-red); }
+.pill.muted { background:#f0f0f0; color:#777; }
+.cost-workbook-stats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin-bottom:16px; }
+.cost-workbook-stats-small { grid-template-columns:repeat(2,minmax(0,1fr)); margin-bottom:22px; }
+.stat-card { background:#fff; border:1.5px solid var(--cw-border); border-radius:16px; padding:16px; display:flex; gap:12px; align-items:flex-start; min-width:0; }
+.stat-card .icon { width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex:0 0 42px; }
+.stat-card .icon.purple { background:var(--cw-purple-bg); color:var(--cw-purple); }
+.stat-card .icon.blue { background:var(--cw-blue-bg); color:var(--cw-blue); }
+.stat-card .icon.orange { background:#ffe9da; color:#e07b39; }
+.stat-card .icon.pink { background:var(--cw-pink-light); color:#d63b7a; }
+.stat-card .icon.green { background:var(--cw-green-bg); color:var(--cw-green); }
+.stat-card .icon.amber { background:var(--cw-amber-bg); color:var(--cw-amber); }
+.stat-card .label { font-size:12px; font-weight:900; color:#555; margin-bottom:4px; }
+.stat-card .value { font-size:21px; font-weight:900; margin-bottom:2px; line-height:1.15; }
+.stat-card .sub { font-size:11.5px; color:var(--cw-muted); }
+.filters { background:#fff; border:1.5px solid var(--cw-border); border-radius:16px; padding:18px 20px; margin-bottom:22px; }
+.filters-row { display:grid; grid-template-columns:1.4fr 1fr 1fr 1fr auto; gap:14px; align-items:end; }
+.field label { display:block; font-size:12px; font-weight:900; color:#555; margin-bottom:6px; }
+.field input, .field select { width:100%; padding:10px 12px; border:1.5px solid var(--cw-border); border-radius:9px; background:#fff; font-size:13px; }
+.filters-btn { padding:10px 18px; border-radius:9px; border:1.5px solid var(--cw-border); background:#fff; font-weight:900; cursor:pointer; }
+.workbook-panel { background:#fff; border:1.5px solid var(--cw-border); border-radius:18px; overflow:hidden; margin-bottom:24px; }
+.panel-head { padding:20px 22px; border-bottom:1px solid var(--cw-border); display:flex; justify-content:space-between; gap:12px; align-items:center; flex-wrap:wrap; }
+.panel-head h2 { font-size:19px; margin:0 0 4px; }
+.panel-head .desc { color:var(--cw-muted); font-size:13px; }
+.actions { display:flex; gap:8px; flex-wrap:wrap; }
+.action-btn { display:inline-flex; align-items:center; gap:7px; padding:9px 14px; border-radius:8px; border:1.5px solid var(--cw-border); background:#fff; font-size:12.5px; font-weight:900; cursor:pointer; }
+.action-btn.primary { background:linear-gradient(135deg,var(--cw-pink),#ff9a8a); color:#fff; border:0; }
+.exact-workbook-table { width:100%; min-width:1450px; border-collapse:collapse; font-size:12.5px; }
+.exact-workbook-table th, .exact-workbook-table td { padding:10px; border-bottom:1px solid var(--cw-border); vertical-align:middle; }
+.exact-workbook-table .num { text-align:right; font-variant-numeric:tabular-nums; }
+.grp-row th { position:sticky; top:0; z-index:5; font-size:10.5px; text-transform:uppercase; letter-spacing:.6px; text-align:center; font-weight:900; }
+.grp-product { background:#f6f6f6; color:#777; }
+.grp-supplier, .grp-supplier-bg { background:var(--cw-blue-bg); color:var(--cw-blue); }
+.grp-landed, .grp-landed-bg { background:var(--cw-purple-bg); color:var(--cw-purple); }
+.grp-pricing, .grp-pricing-bg { background:var(--cw-pink-light); color:#d63b7a; }
+.grp-margin, .grp-margin-bg { background:var(--cw-green-bg); color:var(--cw-green); }
+.col-row th { position:sticky; top:34px; z-index:4; font-size:11px; white-space:nowrap; text-align:left; }
+.sticky-col { position:sticky; left:0; z-index:6; background:#fff; box-shadow:1px 0 0 var(--cw-border); min-width:260px; }
+.prod-name { font-weight:900; }
+.prod-sub { color:var(--cw-muted); font-size:11px; margin-top:2px; }
+.editable { display:inline-block; min-width:54px; padding:5px 7px; border:1.5px solid transparent; border-radius:6px; cursor:text; }
+.editable:hover, .editable:focus { border-color:var(--cw-pink); background:#fff; outline:0; }
+.editable.computed { cursor:default; color:#555; }
+.row-actions { display:flex; gap:5px; }
+.icon-btn { width:30px; height:30px; border:1px solid var(--cw-border); background:#fff; border-radius:8px; cursor:pointer; font-weight:900; }
+.icon-btn.danger { color:var(--cw-red); }
+.total-row td { background:#faf7f5; font-weight:900; position:sticky; bottom:0; }
+.add-row-btn { margin:14px 22px; display:inline-flex; gap:7px; align-items:center; border:1.5px dashed var(--cw-pink); background:var(--cw-pink-light); color:#d63b7a; border-radius:10px; padding:10px 14px; font-weight:900; cursor:pointer; }
+.legend { display:flex; flex-wrap:wrap; gap:14px; padding:0 22px 18px; color:var(--cw-muted); font-size:12px; }
+.legend .item { display:flex; gap:7px; align-items:center; }
+.dot { width:12px; height:12px; border-radius:50%; display:inline-block; }
+.dot.supplier { background:var(--cw-blue-bg); border:1px solid var(--cw-blue); }
+.dot.landed { background:var(--cw-purple-bg); border:1px solid var(--cw-purple); }
+.dot.pricing { background:var(--cw-pink-light); border:1px solid var(--cw-pink); }
+.dot.margin { background:var(--cw-green-bg); border:1px solid var(--cw-green); }
+@media (max-width:1100px) { .cost-workbook-stats { grid-template-columns:repeat(2,minmax(0,1fr)); } .filters-row { grid-template-columns:1fr 1fr; } .workbook-step-grid { grid-template-columns:1fr; } }
+@media (max-width:700px) { .cost-workbook-exact { padding-left:16px; padding-right:16px; } .cost-workbook-stats, .cost-workbook-stats-small, .filters-row { grid-template-columns:1fr; } .workbook-step-header, .panel-head { align-items:stretch; } .step-nav-btns, .actions, .cost-workbook-badges { justify-content:flex-start; } .stat-row-eng { grid-template-columns:1fr; } }
+</style>
 
-            <section class="cost-panel-content" data-cost-panel-content="packaging" hidden>
-                <div class="cost-panel-grid">
-                    <article class="cost-panel-card">
-                        <h3>Packaging cost database</h3>
-                        <form class="cost-inline-upload" action="invoice-preview.php" method="post" enctype="multipart/form-data" target="cost-workflow-preview-frame" data-cost-upload-form>
-                            <input type="hidden" name="invoice_mode" value="packaging">
-                            <label>Supplier name<input name="supplier_name" placeholder="Packaging supplier"></label>
-                            <label>Invoice PDF<input name="invoice_pdf" type="file" accept="application/pdf" required></label>
-                            <button class="button primary" type="submit"><i data-lucide="package-check"></i> Preview packaging extraction</button>
-                        </form>
-                        <p class="cost-panel-feedback" hidden>Packaging cost is ready to connect to product variations.</p>
-                    </article>
-                    <article class="cost-panel-card">
-                        <h3>Packaging summary</h3>
-                        <div class="cost-panel-metrics">
-                            <div><span>Packaging rows</span><strong><?= number_format($workflowCounts['packaging']) ?></strong></div>
-                            <div><span>Total packaging</span><strong><?= cw_money($stats['packaging_cost']) ?></strong></div>
-                            <div><span>Preview rows</span><strong><?= number_format(count($packagingPanelRows)) ?></strong></div>
-                        </div>
-                    </article>
-                </div>
-                <div class="table-scroll cost-panel-table">
-                    <table class="data-table">
-                        <thead><tr><th>Packaging/Product</th><th>Category</th><th>Supplier</th><th>Packaging Cost</th><th>Total Cost</th></tr></thead>
-                        <tbody>
-                        <?php foreach ($packagingPanelRows as $row): ?>
-                            <tr><td><?= htmlspecialchars($row['product'], ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars($row['category'], ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars($row['supplier'], ENT_QUOTES, 'UTF-8') ?></td><td><?= cw_money($row['packaging_cost']) ?></td><td><?= cw_money($row['total_cost']) ?></td></tr>
-                        <?php endforeach; ?>
-                        <?php if (!$packagingPanelRows): ?><tr><td colspan="5" class="empty-state-cell">No packaging rows yet. Upload packaging invoices or connect packaging items to products.</td></tr><?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-
-            <section class="cost-panel-content" data-cost-panel-content="landed" hidden>
-                <div class="cost-panel-grid">
-                    <article class="cost-panel-card">
-                        <h3>Landed cost calculation</h3>
-                        <div class="cost-panel-metrics">
-                            <div><span>Supplier</span><strong><?= cw_money($stats['supplier_cost']) ?></strong></div>
-                            <div><span>Transport</span><strong><?= cw_money($stats['transport_cost']) ?></strong></div>
-                            <div><span>Packaging</span><strong><?= cw_money($stats['packaging_cost']) ?></strong></div>
-                            <div><span>Landed</span><strong><?= cw_money($stats['landed_cost']) ?></strong></div>
-                        </div>
-                    </article>
-                    <article class="cost-panel-card">
-                        <h3>Unit normalization</h3>
-                        <p>Bulk quantities are normalized into grams, milliliters or units before size-level costing.</p>
-                        <button class="button" type="button" data-cost-progress-action><i data-lucide="calculator"></i> Recheck calculations</button>
-                        <p class="cost-panel-feedback" hidden>Landed cost calculations are ready for the profitability table.</p>
-                    </article>
-                </div>
-                <div class="table-scroll cost-panel-table">
-                    <table class="data-table">
-                        <thead><tr><th>Product</th><th>Landed Cost</th><th>Base Unit Cost</th><th>Conversion</th><th>Total Unit Cost</th></tr></thead>
-                        <tbody>
-                        <?php foreach ($landedPanelRows as $row): ?>
-                            <tr><td><?= htmlspecialchars($row['product'], ENT_QUOTES, 'UTF-8') ?></td><td><?= cw_money($row['landed_cost']) ?></td><td><?= cw_money((float) $row['cost_per_base']) ?> per <?= htmlspecialchars((string) $row['base_unit'], ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars($row['conversion']['summary'], ENT_QUOTES, 'UTF-8') ?></td><td><?= cw_money($row['total_cost']) ?></td></tr>
-                        <?php endforeach; ?>
-                        <?php if (!$landedPanelRows): ?><tr><td colspan="5" class="empty-state-cell">No landed cost rows yet. Complete supplier, transport and packaging steps first.</td></tr><?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
+<script>
+var engineSteps = <?= json_encode($workbookStepData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
+var products = <?= json_encode($workbookProducts, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
+var VAT_RATE = <?= json_encode($vatRate / 100) ?>;
+var TARGET_MARGIN = <?= json_encode($targetMargin) ?>;
+function showWorkbookPage(page) {
+  document.getElementById('page-engine')?.classList.toggle('is-visible', page === 'engine');
+  document.getElementById('page-table')?.classList.toggle('is-visible', page === 'table');
+  document.getElementById('navEngine')?.classList.toggle('is-active', page === 'engine');
+  document.getElementById('navTable')?.classList.toggle('is-active', page === 'table');
+}
+function buildEngineStepper() {
+  var wrap = document.getElementById('stepper');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  var readyCount = 0;
+  engineSteps.forEach(function (step) {
+    if (step.status === 'complete') readyCount++;
+    var div = document.createElement('button');
+    div.type = 'button';
+    div.className = 'step-pill ' + step.status;
+    div.dataset.step = step.num;
+    div.onclick = function () { goToWorkbookStep(step.num); };
+    var label = step.status === 'complete' ? 'Complete' : step.status === 'optional' ? 'Optional' : step.status === 'active-step' ? 'In progress' : 'To do';
+    div.innerHTML = '<div class="num">' + step.num + '</div><div class="title">' + esc(step.title) + '</div><div class="meta">' + esc(step.meta) + '</div><div class="status">' + label + '</div>';
+    wrap.appendChild(div);
+  });
+  var ready = document.getElementById('engineReadyCount');
+  if (ready) ready.textContent = readyCount + ' of ' + engineSteps.length;
+}
+function goToWorkbookStep(n) {
+  document.querySelectorAll('.workbook-step-section').forEach(function (el) { el.classList.remove('is-visible'); });
+  var section = document.querySelector('.workbook-step-section[data-step="' + n + '"]');
+  if (section) section.classList.add('is-visible');
+  document.querySelectorAll('.step-pill').forEach(function (el) { el.classList.toggle('is-selected', Number(el.dataset.step) === Number(n)); });
+}
+function fmt(n) {
+  if (n === null || n === undefined || isNaN(n)) return '-';
+  return 'N$ ' + Number(n).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+function computeRow(p) {
+  var landed = Number(p.supplierCost || 0) + Number(p.transport || 0) + Number(p.packaging || 0);
+  var totalSize = Number(p.totalSize || p.unitSize || 1);
+  var unitSize = Number(p.unitSize || 1);
+  var baseUnitCost = totalSize > 0 ? landed / totalSize : 0;
+  var unitCost = baseUnitCost * unitSize;
+  var priceIncl = Number(p.priceIncl || 0);
+  var priceExcl = priceIncl > 0 ? priceIncl / (1 + VAT_RATE) : 0;
+  var vatAmount = priceIncl > 0 ? priceIncl - priceExcl : 0;
+  var profit = priceIncl > 0 ? priceExcl - unitCost : 0;
+  var margin = priceIncl > 0 && priceExcl > 0 ? (profit / priceExcl) * 100 : null;
+  var status = 'good';
+  var statusLabel = 'Healthy';
+  if (priceIncl <= 0) { status = 'muted'; statusLabel = 'Missing Price'; }
+  else if (margin < 0) { status = 'bad'; statusLabel = 'Loss Making'; }
+  else if (margin < TARGET_MARGIN) { status = 'warn'; statusLabel = 'Low Margin'; }
+  return { landed: landed, unitCost: unitCost, priceExcl: priceExcl, vatAmount: vatAmount, profit: profit, margin: margin, status: status, statusLabel: statusLabel };
+}
+function renderTable() {
+  var tbody = document.getElementById('tableBody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  var search = (document.getElementById('searchProduct')?.value || '').toLowerCase();
+  var catFilter = document.getElementById('filterCategory')?.value || '';
+  var supFilter = document.getElementById('filterSupplier')?.value || '';
+  var statusFilter = document.getElementById('filterStatus')?.value || '';
+  var totSupplier = 0, totTransport = 0, totPackaging = 0, totLanded = 0, totRevenue = 0, totProfit = 0, marginSum = 0, marginCount = 0;
+  var grandSupplier = 0, grandTransport = 0, grandLanded = 0;
+  products.forEach(function (p, idx) {
+    var c = computeRow(p);
+    grandSupplier += Number(p.supplierCost || 0);
+    grandTransport += Number(p.transport || 0);
+    grandLanded += c.landed;
+    var haystack = ((p.parent || '') + ' ' + (p.variation || '') + ' ' + (p.sku || '')).toLowerCase();
+    if (search && haystack.indexOf(search) === -1) return;
+    if (catFilter && p.category !== catFilter) return;
+    if (supFilter && p.supplier !== supFilter) return;
+    if (statusFilter && c.status !== statusFilter) return;
+    totSupplier += Number(p.supplierCost || 0);
+    totTransport += Number(p.transport || 0);
+    totPackaging += Number(p.packaging || 0);
+    totLanded += c.landed;
+    if (Number(p.priceIncl || 0) > 0) {
+      totRevenue += c.priceExcl;
+      totProfit += c.profit;
+      marginSum += c.margin || 0;
+      marginCount++;
+    }
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td class="sticky-col"><div class="prod-name">' + esc(p.parent || 'Product') + ' <span style="color:var(--cw-muted);font-weight:500;">- ' + esc(p.variation || '') + '</span></div><div class="prod-sub">' + esc(p.sku || 'Needs SKU') + ' - ' + esc(p.category || 'Uncategorised') + ' - ' + esc(p.supplier || 'Supplier') + '</div></td>' +
+      cell(idx, 'supplierCost', p.supplierCost, 'col-supplier-bg') +
+      cell(idx, 'transport', p.transport, 'col-supplier-bg') +
+      cell(idx, 'packaging', p.packaging, 'col-supplier-bg') +
+      '<td class="num grp-landed-bg"><span class="editable computed">' + fmt(c.landed) + '</span></td>' +
+      '<td class="num grp-landed-bg"><span class="editable" contenteditable="true" data-idx="' + idx + '" data-field="unitSize" onblur="onEdit(this)">' + numStr(p.unitSize) + '</span><span style="color:var(--cw-muted);font-size:11px;"> / </span><span class="editable" contenteditable="true" data-idx="' + idx + '" data-field="totalSize" onblur="onEdit(this)">' + numStr(p.totalSize) + '</span><span style="color:var(--cw-muted);font-size:11px;"> ' + esc(p.unitLabel || 'unit') + '</span></td>' +
+      '<td class="num grp-landed-bg"><span class="editable computed">' + fmt(c.unitCost) + '</span></td>' +
+      cell(idx, 'priceIncl', p.priceIncl, 'grp-pricing-bg') +
+      '<td class="num grp-pricing-bg"><span class="editable computed">' + fmt(c.vatAmount) + '</span></td>' +
+      '<td class="num grp-pricing-bg"><span class="editable computed">' + fmt(c.priceExcl) + '</span></td>' +
+      '<td class="num grp-margin-bg"><span class="editable computed">' + fmt(c.profit) + '</span></td>' +
+      '<td class="num grp-margin-bg"><span class="editable computed">' + (c.margin === null ? '-' : c.margin.toFixed(1) + '%') + '</span></td>' +
+      '<td class="grp-margin-bg"><span class="pill ' + c.status + '">' + c.statusLabel + '</span></td>' +
+      '<td><div class="row-actions"><button class="icon-btn" type="button" title="Duplicate row" onclick="duplicateRow(' + idx + ')">+</button><button class="icon-btn danger" type="button" title="Delete row" onclick="deleteRow(' + idx + ')">x</button></div></td>';
+    tbody.appendChild(tr);
+  });
+  if (!tbody.children.length) {
+    tbody.innerHTML = '<tr><td colspan="14" class="empty-state-cell">No product profitability data yet. Complete Supplier Invoice, Transport, Packaging and Website Matching steps to populate this table.</td></tr>';
+  }
+  setText('totSupplier', fmt(totSupplier)); setText('totTransport', fmt(totTransport)); setText('totPackaging', fmt(totPackaging)); setText('totLanded', fmt(totLanded));
+  setText('totRevenue', fmt(totRevenue)); setText('totProfit', fmt(totProfit)); setText('totMargin', marginCount ? (marginSum / marginCount).toFixed(1) + '%' : '-');
+  var belowTarget = products.filter(function (p) { var c = computeRow(p); return c.margin !== null && c.margin < TARGET_MARGIN; }).length;
+  setText('avgMarginDisplay', marginCount ? (marginSum / marginCount).toFixed(1) + '%' : '0.0%');
+  setText('belowTargetDisplay', belowTarget);
+  setText('statSupplier', fmt(grandSupplier)); setText('statTransport', fmt(grandTransport)); setText('statLanded', fmt(grandLanded)); setText('statInventory', fmt(grandLanded));
+  if (window.lucide) window.lucide.createIcons();
+}
+function cell(idx, field, value, cls) {
+  return '<td class="num ' + cls + '"><span class="editable" contenteditable="true" data-idx="' + idx + '" data-field="' + field + '" onblur="onEdit(this)">' + numStr(value) + '</span></td>';
+}
+function setText(id, value) { var el = document.getElementById(id); if (el) el.textContent = value; }
+function esc(s) { var d = document.createElement('div'); d.textContent = String(s || ''); return d.innerHTML; }
+function numStr(n) { n = Number(n || 0); return n % 1 === 0 ? String(n) : n.toFixed(2); }
+function onEdit(el) {
+  var idx = parseInt(el.dataset.idx, 10);
+  var field = el.dataset.field;
+  var val = parseFloat(el.textContent.replace(/[^0-9.\-]/g, ''));
+  if (isNaN(val)) val = 0;
+  if (products[idx]) products[idx][field] = val;
+  renderTable();
+  flashSaved();
+}
+var saveTimeout;
+function flashSaved() {
+  var ind = document.getElementById('saveIndicator');
+  if (!ind) return;
+  ind.classList.add('show');
+  clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(function () { ind.classList.remove('show'); }, 1500);
+}
+function applyFilters() { renderTable(); }
+function clearFilters() {
+  ['searchProduct', 'filterCategory', 'filterSupplier', 'filterStatus'].forEach(function (id) { var el = document.getElementById(id); if (el) el.value = ''; });
+  renderTable();
+}
+function addRow() {
+  products.push({ parent:'New Product', variation:'-', sku:'NEW-SKU-' + (products.length + 1), category:'Uncategorised', supplier:'Supplier', supplierCost:0, transport:0, packaging:0, unitSize:1, totalSize:1, unitLabel:'unit', priceIncl:0, websiteMatch:'Unmatched', warnings:'' });
+  renderTable();
+  flashSaved();
+}
+function duplicateRow(idx) {
+  if (!products[idx]) return;
+  var copy = JSON.parse(JSON.stringify(products[idx]));
+  copy.sku = (copy.sku || 'SKU') + '-COPY';
+  products.splice(idx + 1, 0, copy);
+  renderTable();
+  flashSaved();
+}
+function deleteRow(idx) {
+  if (!products[idx]) return;
+  if (confirm('Remove "' + products[idx].parent + ' - ' + products[idx].variation + '" from the workbook?')) {
+    products.splice(idx, 1);
+    renderTable();
+    flashSaved();
+  }
+}
+function recalcAll() { renderTable(); flashSaved(); }
+function exportCSV() {
+  var csv = 'Parent,Variation,SKU,Category,Supplier,Supplier Cost,Transport,Packaging,Landed Cost,Unit Cost,Price Incl VAT,Price Excl VAT,Profit,Margin %,Status\n';
+  products.forEach(function (p) {
+    var c = computeRow(p);
+    csv += [p.parent,p.variation,p.sku,p.category,p.supplier,p.supplierCost,p.transport,p.packaging,c.landed.toFixed(2),c.unitCost.toFixed(2),p.priceIncl,c.priceExcl.toFixed(2),c.profit.toFixed(2),c.margin === null ? '' : c.margin.toFixed(1),c.statusLabel].map(function (v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(',') + '\n';
+  });
+  var blob = new Blob([csv], {type:'text/csv'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = 'cost_workbook_export.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+document.addEventListener('DOMContentLoaded', function () {
+  buildEngineStepper();
+  goToWorkbookStep(1);
+  renderTable();
+  if (window.lucide) window.lucide.createIcons();
+});
+</script>
+<?php include BASE_PATH . '/shared/footer.php'; return; ?>
 
             <section class="cost-panel-content" data-cost-panel-content="product_sku" hidden>
                 <div class="cost-panel-grid">
