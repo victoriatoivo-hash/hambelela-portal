@@ -57,6 +57,8 @@ $filters = [
 $suppliers = [];
 $categories = [];
 $error = null;
+$supplierInvoiceCards = [];
+$supplierInvoiceLines = [];
 
 function cw_money(float $amount): string
 {
@@ -742,6 +744,7 @@ $workbookProducts = array_map(static function (array $row): array {
         'websiteMatch' => (string) ($row['website_match_label'] ?? 'Unmatched'),
         'warnings' => (string) ($row['warnings'] ?? ''),
     ];
+
 }, $rows);
 $workbookStepData = array_map(static fn (array $step): array => [
     'num' => (int) $step['number'],
@@ -749,6 +752,49 @@ $workbookStepData = array_map(static fn (array $step): array => [
     'meta' => (string) $step['summary'],
     'status' => $step['state'] === 'complete' ? 'complete' : ($step['state'] === 'optional' ? 'optional' : ($step['state'] === 'active' ? 'active-step' : 'todo')),
 ], $accordionSteps);
+
+if (isset($pdo) && cw_table_exists($pdo, 'supplier_invoices')) {
+    $supplierInvoiceCards = cw_fetch_all(
+        $pdo,
+        "SELECT si.id, si.invoice_number, si.invoice_date, si.pdf_path, si.subtotal, si.vat_amount, si.total_amount, si.created_at,
+                s.name AS supplier_name,
+                (SELECT COUNT(*) FROM raw_materials rm WHERE rm.invoice_id = si.id) AS raw_count,
+                (SELECT COUNT(*) FROM packaging p WHERE p.invoice_id = si.id) AS packaging_count
+         FROM supplier_invoices si
+         LEFT JOIN suppliers s ON s.id = si.supplier_id
+         ORDER BY si.created_at DESC, si.id DESC
+         LIMIT 12"
+    );
+
+    $invoiceIds = array_map(static fn (array $invoice): int => (int) $invoice['id'], $supplierInvoiceCards);
+    if ($invoiceIds) {
+        $placeholders = implode(',', array_fill(0, count($invoiceIds), '?'));
+        $lineRows = [];
+        if (cw_table_exists($pdo, 'raw_materials')) {
+            $lineRows = array_merge($lineRows, cw_fetch_all(
+                $pdo,
+                "SELECT invoice_id, 'Raw material' AS line_type, name, quantity, unit, unit_cost, total_cost
+                 FROM raw_materials
+                 WHERE invoice_id IN ({$placeholders})
+                 ORDER BY name",
+                $invoiceIds
+            ));
+        }
+        if (cw_table_exists($pdo, 'packaging')) {
+            $lineRows = array_merge($lineRows, cw_fetch_all(
+                $pdo,
+                "SELECT invoice_id, 'Packaging' AS line_type, name, quantity, unit, unit_cost, total_cost
+                 FROM packaging
+                 WHERE invoice_id IN ({$placeholders})
+                 ORDER BY name",
+                $invoiceIds
+            ));
+        }
+        foreach ($lineRows as $line) {
+            $supplierInvoiceLines[(int) $line['invoice_id']][] = $line;
+        }
+    }
+}
 
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
@@ -815,10 +861,65 @@ include BASE_PATH . '/shared/sidebar.php';
                 <div class="workbook-step-grid">
                     <article class="sub-card-eng">
                         <h3><?= htmlspecialchars((string) $step['title'], ENT_QUOTES, 'UTF-8') ?> workspace</h3>
-                        <div class="dropzone-eng"><i data-lucide="<?= $step['key'] === 'transport' ? 'truck' : ($step['key'] === 'packaging' ? 'package' : 'file-up') ?>"></i><span><?= htmlspecialchars((string) $step['summary'], ENT_QUOTES, 'UTF-8') ?></span></div>
-                        <div class="step-fields-list">
-                            <?php foreach ($step['fields'] as $field): ?><span><?= htmlspecialchars((string) $field, ENT_QUOTES, 'UTF-8') ?></span><?php endforeach; ?>
-                        </div>
+                        <?php if ($step['key'] === 'supplier'): ?>
+                            <form class="invoice-upload-box" action="invoice-preview.php" method="post" enctype="multipart/form-data" target="supplier-invoice-preview-frame">
+                                <label>Supplier name<input name="supplier_name" placeholder="Supplier name, e.g. Chempack"></label>
+                                <label>Invoice PDF<input name="invoice_pdf" type="file" accept="application/pdf" required></label>
+                                <button class="btn btn-next" type="submit"><i data-lucide="scan-line"></i> Extract invoice data</button>
+                            </form>
+                            <iframe class="invoice-preview-frame" name="supplier-invoice-preview-frame" title="Supplier invoice extraction preview"></iframe>
+                            <div class="saved-invoice-list">
+                                <div class="saved-invoice-list-head">
+                                    <strong>Saved supplier invoices</strong>
+                                    <span><?= number_format(count($supplierInvoiceCards)) ?> shown</span>
+                                </div>
+                                <?php foreach ($supplierInvoiceCards as $invoice): ?>
+                                    <?php
+                                    $invoiceId = (int) $invoice['id'];
+                                    $lineCount = (int) ($invoice['raw_count'] ?? 0) + (int) ($invoice['packaging_count'] ?? 0);
+                                    ?>
+                                    <details class="saved-invoice-card">
+                                        <summary>
+                                            <span>
+                                                <strong><?= htmlspecialchars((string) ($invoice['invoice_number'] ?: 'Invoice #' . $invoiceId), ENT_QUOTES, 'UTF-8') ?></strong>
+                                                <small><?= htmlspecialchars((string) ($invoice['supplier_name'] ?: 'Unknown supplier'), ENT_QUOTES, 'UTF-8') ?> - <?= htmlspecialchars((string) ($invoice['invoice_date'] ?: substr((string) $invoice['created_at'], 0, 10)), ENT_QUOTES, 'UTF-8') ?></small>
+                                            </span>
+                                            <em><?= number_format($lineCount) ?> rows · <?= cw_money((float) ($invoice['total_amount'] ?? 0)) ?></em>
+                                        </summary>
+                                        <div class="saved-invoice-detail">
+                                            <div class="invoice-mini-metrics">
+                                                <span>Subtotal <strong><?= cw_money((float) ($invoice['subtotal'] ?? 0)) ?></strong></span>
+                                                <span>VAT <strong><?= cw_money((float) ($invoice['vat_amount'] ?? 0)) ?></strong></span>
+                                                <span>Total <strong><?= cw_money((float) ($invoice['total_amount'] ?? 0)) ?></strong></span>
+                                            </div>
+                                            <div class="table-wrap invoice-lines-table">
+                                                <table>
+                                                    <thead><tr><th>Type</th><th>Item</th><th>Qty</th><th>Unit cost</th><th>Total</th></tr></thead>
+                                                    <tbody>
+                                                        <?php foreach (($supplierInvoiceLines[$invoiceId] ?? []) as $line): ?>
+                                                            <tr>
+                                                                <td><?= htmlspecialchars((string) $line['line_type'], ENT_QUOTES, 'UTF-8') ?></td>
+                                                                <td><?= htmlspecialchars((string) $line['name'], ENT_QUOTES, 'UTF-8') ?></td>
+                                                                <td><?= number_format((float) $line['quantity'], 3) ?> <?= htmlspecialchars((string) $line['unit'], ENT_QUOTES, 'UTF-8') ?></td>
+                                                                <td><?= cw_money((float) $line['unit_cost']) ?></td>
+                                                                <td><?= cw_money((float) $line['total_cost']) ?></td>
+                                                            </tr>
+                                                        <?php endforeach; ?>
+                                                        <?php if (empty($supplierInvoiceLines[$invoiceId])): ?><tr><td colspan="5" class="empty-state-cell">No extracted rows saved for this invoice yet.</td></tr><?php endif; ?>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </details>
+                                <?php endforeach; ?>
+                                <?php if (!$supplierInvoiceCards): ?><p class="empty-state">No supplier invoices saved yet. Upload an invoice above to begin.</p><?php endif; ?>
+                            </div>
+                        <?php else: ?>
+                            <div class="dropzone-eng"><i data-lucide="<?= $step['key'] === 'transport' ? 'truck' : ($step['key'] === 'packaging' ? 'package' : 'file-up') ?>"></i><span><?= htmlspecialchars((string) $step['summary'], ENT_QUOTES, 'UTF-8') ?></span></div>
+                            <div class="step-fields-list">
+                                <?php foreach ($step['fields'] as $field): ?><span><?= htmlspecialchars((string) $field, ENT_QUOTES, 'UTF-8') ?></span><?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
                     </article>
                     <article class="sub-card-eng">
                         <h3><?= htmlspecialchars((string) $step['title'], ENT_QUOTES, 'UTF-8') ?> summary</h3>
@@ -1000,6 +1101,26 @@ include BASE_PATH . '/shared/sidebar.php';
 .sub-card-eng h3 { margin:0 0 12px; font-size:14.5px; }
 .dropzone-eng { display:flex; align-items:center; justify-content:center; flex-direction:column; gap:7px; min-height:100px; border:2px dashed var(--cw-pink); border-radius:12px; background:var(--cw-pink-light); color:#b1487a; font-size:13px; font-weight:800; text-align:center; padding:16px; }
 .dropzone-eng svg { width:28px; height:28px; }
+.invoice-upload-box { display:grid; gap:12px; border:2px dashed var(--cw-pink); border-radius:14px; background:var(--cw-pink-light); padding:16px; color:#9a3963; }
+.invoice-upload-box label { display:grid; gap:6px; font-size:12px; font-weight:900; color:#8f3b63; }
+.invoice-upload-box input { width:100%; border:1.5px solid rgba(214,59,122,.2); border-radius:10px; background:#fff; padding:10px 12px; font-size:13px; color:var(--cw-text); }
+.invoice-upload-box button { justify-content:center; display:inline-flex; align-items:center; gap:8px; width:100%; }
+.invoice-preview-frame { display:none; width:100%; height:360px; border:1px solid var(--cw-border); border-radius:12px; margin-top:12px; background:#fff; }
+.invoice-preview-frame.is-visible { display:block; }
+.saved-invoice-list { margin-top:16px; display:grid; gap:10px; }
+.saved-invoice-list-head { display:flex; justify-content:space-between; gap:12px; align-items:center; font-size:13px; }
+.saved-invoice-list-head span { color:var(--cw-muted); font-weight:800; font-size:11.5px; }
+.saved-invoice-card { background:#fff; border:1px solid var(--cw-border); border-radius:12px; overflow:hidden; }
+.saved-invoice-card summary { display:flex; justify-content:space-between; gap:12px; align-items:center; padding:12px; cursor:pointer; list-style:none; }
+.saved-invoice-card summary::-webkit-details-marker { display:none; }
+.saved-invoice-card summary strong { display:block; font-size:13px; }
+.saved-invoice-card summary small { display:block; color:var(--cw-muted); margin-top:2px; font-size:11.5px; }
+.saved-invoice-card summary em { color:#d63b7a; background:var(--cw-pink-light); border-radius:999px; padding:5px 8px; font-size:11px; font-style:normal; font-weight:900; white-space:nowrap; }
+.saved-invoice-detail { border-top:1px solid var(--cw-border); padding:12px; background:#fffaf7; }
+.invoice-mini-metrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-bottom:10px; }
+.invoice-mini-metrics span { background:#fff; border:1px solid var(--cw-border); border-radius:10px; padding:8px; color:var(--cw-muted); font-size:11px; font-weight:800; }
+.invoice-mini-metrics strong { display:block; color:var(--cw-text); font-size:13px; margin-top:2px; }
+.invoice-lines-table table { min-width:620px; font-size:12px; background:#fff; }
 .step-fields-list { display:flex; flex-wrap:wrap; gap:7px; margin-top:12px; }
 .step-fields-list span { background:#fff; border:1px solid var(--cw-border); border-radius:999px; padding:6px 9px; font-size:11.5px; font-weight:700; color:#655f65; }
 .stat-row-eng { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
@@ -1256,6 +1377,12 @@ document.addEventListener('DOMContentLoaded', function () {
   goToWorkbookStep(1);
   renderTable();
   if (window.lucide) window.lucide.createIcons();
+});
+document.addEventListener('submit', function (event) {
+  var form = event.target.closest('.invoice-upload-box');
+  if (!form) return;
+  var frame = form.parentElement ? form.parentElement.querySelector('.invoice-preview-frame') : null;
+  if (frame) frame.classList.add('is-visible');
 });
 </script>
 <?php include BASE_PATH . '/shared/footer.php'; return; ?>
