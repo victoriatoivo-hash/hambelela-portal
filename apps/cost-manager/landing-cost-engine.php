@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__, 2) . '/config.php';
 require_once BASE_PATH . '/shared/auth.php';
 require_once BASE_PATH . '/shared/database.php';
+require_once BASE_PATH . '/shared/woocommerce.php';
 require_once BASE_PATH . '/shared/engines/cost-engine.php';
 require_once BASE_PATH . '/shared/engines/pricing-engine.php';
 
@@ -240,6 +241,34 @@ function cw_fetch_all(PDO $pdo, string $sql, array $params = []): array
     }
 }
 
+function cw_fetch_current_woo_prices(array $wooIds): array
+{
+    $wooIds = array_values(array_unique(array_filter(array_map('intval', $wooIds))));
+    if (!$wooIds || !wc_configured()) {
+        return [];
+    }
+
+    $prices = [];
+    foreach (array_chunk($wooIds, 100) as $chunk) {
+        try {
+            foreach (wc_get('products', [
+                'include' => implode(',', $chunk),
+                'per_page' => count($chunk),
+            ]) as $product) {
+                $id = (int) ($product['id'] ?? 0);
+                $price = (float) ($product['price'] ?? 0);
+                if ($id > 0 && $price > 0) {
+                    $prices[(string) $id] = $price;
+                }
+            }
+        } catch (Throwable $e) {
+            continue;
+        }
+    }
+
+    return $prices;
+}
+
 function cw_make_master_row(array $row): array
 {
     $sourceType = (string) ($row['source_type'] ?? 'raw_material');
@@ -351,6 +380,7 @@ try {
             )
             : cw_fetch_all($pdo, 'SELECT fp.* FROM finished_products fp ORDER BY fp.name');
     }
+    $currentWooPrices = cw_fetch_current_woo_prices(array_map(static fn (array $row): int => (int) ($row['woo_product_id'] ?? 0), $products));
 
     $wooPriceRows = cw_table_exists($pdo, 'woo_sales') ? $pdo->query(
         "SELECT woo_product_id, MAX(unit_price) AS website_price, SUM(quantity) AS sold_qty, SUM(line_total) AS revenue
@@ -365,9 +395,12 @@ try {
     foreach ($products as $product) {
         $costingType = (string) ($product['costing_type'] ?? 'recipe');
         $breakdown = cost_engine_product_breakdown($pdo, $product);
-        $wooRow = $wooByProduct[(string) ($product['woo_product_id'] ?? '')] ?? null;
+        $wooProductId = (string) ($product['woo_product_id'] ?? '');
+        $wooRow = $wooByProduct[$wooProductId] ?? null;
         $sellingPriceInclVat = (float) ($product['selling_price'] ?? 0);
-        if ($sellingPriceInclVat <= 0 && $wooRow) {
+        if (($currentWooPrices[$wooProductId] ?? 0) > 0) {
+            $sellingPriceInclVat = (float) $currentWooPrices[$wooProductId];
+        } elseif ($sellingPriceInclVat <= 0 && $wooRow) {
             $sellingPriceInclVat = (float) ($wooRow['website_price'] ?? 0);
         }
         $sellingPriceExVat = cw_price_ex_vat($sellingPriceInclVat, $vatRate);
@@ -1046,7 +1079,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 </div>
                 <div class="actions">
                     <button class="action-btn" type="button" onclick="exportCSV()"><i data-lucide="download"></i> Export CSV</button>
-                    <button class="action-btn primary" type="button" onclick="recalcAll()"><i data-lucide="refresh-cw"></i> Recalculate All</button>
+                    <button class="action-btn primary recalc-btn" type="button" onclick="recalcAll(this)"><i data-lucide="refresh-cw"></i> Recalculate All</button>
                 </div>
             </div>
             <div class="table-scroll">
@@ -1220,6 +1253,9 @@ include BASE_PATH . '/shared/sidebar.php';
 .actions { display:flex; gap:8px; flex-wrap:wrap; }
 .action-btn { display:inline-flex; align-items:center; gap:7px; padding:9px 14px; border-radius:8px; border:1.5px solid var(--cw-border); background:#fff; font-size:12.5px; font-weight:900; cursor:pointer; }
 .action-btn.primary { background:linear-gradient(135deg,var(--cw-pink),#ff9a8a); color:#fff; border:0; }
+.recalc-btn svg { transition:transform .25s ease; }
+.recalc-btn.is-spinning svg { animation:cwSpin .65s linear; }
+@keyframes cwSpin { to { transform:rotate(360deg); } }
 .exact-workbook-table { width:100%; min-width:1450px; border-collapse:collapse; font-size:12.5px; }
 .exact-workbook-table th, .exact-workbook-table td { padding:10px; border-bottom:1px solid var(--cw-border); vertical-align:middle; }
 .exact-workbook-table .num { text-align:right; font-variant-numeric:tabular-nums; }
@@ -1417,7 +1453,16 @@ function deleteRow(idx) {
     flashSaved();
   }
 }
-function recalcAll() { renderTable(); flashSaved(); }
+function recalcAll(button) {
+  renderTable();
+  flashSaved();
+  if (button) {
+    button.classList.remove('is-spinning');
+    void button.offsetWidth;
+    button.classList.add('is-spinning');
+    window.setTimeout(function () { button.classList.remove('is-spinning'); }, 700);
+  }
+}
 function exportCSV() {
   var csv = 'Parent,Variation,SKU,Category,Supplier,Supplier Cost,Transport,Packaging,Landed Cost,Unit Cost,Website Price Incl VAT,Price Excl VAT,VAT,Profit,Margin %,Status\n';
   products.forEach(function (p) {
