@@ -90,6 +90,11 @@ function cw_status(float $margin, float $sellingPrice, float $totalCost, float $
     return ['Healthy Margin', 'healthy'];
 }
 
+function cw_price_ex_vat(float $priceInclVat, float $vatRate): float
+{
+    return $priceInclVat > 0 ? $priceInclVat / (1 + ($vatRate / 100)) : 0.0;
+}
+
 function cw_conversion_samples(float $totalCost, float $quantity, string $unit): array
 {
     $base = to_base_quantity($quantity, $unit);
@@ -361,11 +366,11 @@ try {
         $costingType = (string) ($product['costing_type'] ?? 'recipe');
         $breakdown = cost_engine_product_breakdown($pdo, $product);
         $wooRow = $wooByProduct[(string) ($product['woo_product_id'] ?? '')] ?? null;
-        $sellingPriceExVat = (float) ($product['selling_price'] ?? 0);
-        if ($sellingPriceExVat <= 0 && $wooRow) {
-            $sellingPriceExVat = (float) ($wooRow['website_price'] ?? 0);
+        $sellingPriceInclVat = (float) ($product['selling_price'] ?? 0);
+        if ($sellingPriceInclVat <= 0 && $wooRow) {
+            $sellingPriceInclVat = (float) ($wooRow['website_price'] ?? 0);
         }
-        $sellingPriceInclVat = $sellingPriceExVat > 0 ? pricing_engine_add_vat($sellingPriceExVat, $vatRate) : 0.0;
+        $sellingPriceExVat = cw_price_ex_vat($sellingPriceInclVat, $vatRate);
         $vat = max(0, $sellingPriceInclVat - $sellingPriceExVat);
         $totalCost = (float) $breakdown['total_cogs'];
         $profit = $totalCost > 0 && $sellingPriceExVat > 0 ? $sellingPriceExVat - $totalCost : 0.0;
@@ -740,7 +745,7 @@ $workbookProducts = array_map(static function (array $row): array {
         'unitSize' => round($unitSize, 4),
         'totalSize' => round($unitSize, 4),
         'unitLabel' => $baseUnit !== '' ? $baseUnit : 'unit',
-        'priceExcl' => round((float) ($row['selling_price_ex_vat'] ?? 0), 2),
+        'priceIncl' => round((float) ($row['selling_price_incl_vat'] ?? 0), 2),
         'websiteMatch' => (string) ($row['website_match_label'] ?? 'Unmatched'),
         'warnings' => (string) ($row['warnings'] ?? ''),
     ];
@@ -1013,9 +1018,9 @@ include BASE_PATH . '/shared/sidebar.php';
                             <th class="num grp-landed-bg">Landed Cost</th>
                             <th class="num grp-landed-bg">Unit / Total Size</th>
                             <th class="num grp-landed-bg">Unit Cost</th>
-                            <th class="num grp-pricing-bg">Website Price excl. VAT</th>
-                            <th class="num grp-pricing-bg">VAT</th>
                             <th class="num grp-pricing-bg">Price incl. VAT</th>
+                            <th class="num grp-pricing-bg">Price excl. VAT</th>
+                            <th class="num grp-pricing-bg">VAT</th>
                             <th class="num grp-margin-bg">Profit</th>
                             <th class="num grp-margin-bg">Margin %</th>
                             <th class="grp-margin-bg">Status</th>
@@ -1240,9 +1245,9 @@ function computeRow(p) {
   var unitSize = Number(p.unitSize || 1);
   var baseUnitCost = totalSize > 0 ? landed / totalSize : 0;
   var unitCost = baseUnitCost * unitSize;
-  var priceExcl = Number(p.priceExcl || 0);
-  var priceIncl = priceExcl > 0 ? priceExcl * (1 + VAT_RATE) : 0;
-  var vatAmount = priceExcl > 0 ? priceIncl - priceExcl : 0;
+  var priceIncl = Number(p.priceIncl || p.priceExcl || 0);
+  var priceExcl = priceIncl > 0 ? priceIncl / (1 + VAT_RATE) : 0;
+  var vatAmount = priceIncl > 0 ? priceIncl - priceExcl : 0;
   var profit = priceExcl > 0 ? priceExcl - unitCost : 0;
   var margin = priceIncl > 0 && priceExcl > 0 ? (profit / priceExcl) * 100 : null;
   var status = 'good';
@@ -1276,7 +1281,7 @@ function renderTable() {
     totTransport += Number(p.transport || 0);
     totPackaging += Number(p.packaging || 0);
     totLanded += c.landed;
-    if (Number(p.priceExcl || 0) > 0) {
+    if (Number(p.priceIncl || p.priceExcl || 0) > 0) {
       totRevenue += c.priceExcl;
       totProfit += c.profit;
       marginSum += c.margin || 0;
@@ -1290,9 +1295,9 @@ function renderTable() {
       '<td class="num grp-landed-bg"><span class="editable computed">' + fmt(c.landed) + '</span></td>' +
       '<td class="num grp-landed-bg"><span class="editable" contenteditable="true" data-idx="' + idx + '" data-field="unitSize" onblur="onEdit(this)">' + numStr(p.unitSize) + '</span><span style="color:var(--cw-muted);font-size:11px;"> / </span><span class="editable" contenteditable="true" data-idx="' + idx + '" data-field="totalSize" onblur="onEdit(this)">' + numStr(p.totalSize) + '</span><span style="color:var(--cw-muted);font-size:11px;"> ' + esc(p.unitLabel || 'unit') + '</span></td>' +
       '<td class="num grp-landed-bg"><span class="editable computed">' + fmt(c.unitCost) + '</span></td>' +
-      cell(idx, 'priceExcl', p.priceExcl, 'grp-pricing-bg') +
+      cell(idx, 'priceIncl', c.priceIncl, 'grp-pricing-bg') +
+      '<td class="num grp-pricing-bg"><span class="editable computed">' + fmt(c.priceExcl) + '</span></td>' +
       '<td class="num grp-pricing-bg"><span class="editable computed">' + fmt(c.vatAmount) + '</span></td>' +
-      '<td class="num grp-pricing-bg"><span class="editable computed">' + fmt(c.priceIncl) + '</span></td>' +
       '<td class="num grp-margin-bg"><span class="editable computed">' + fmt(c.profit) + '</span></td>' +
       '<td class="num grp-margin-bg"><span class="editable computed">' + (c.margin === null ? '-' : c.margin.toFixed(1) + '%') + '</span></td>' +
       '<td class="grp-margin-bg"><span class="pill ' + c.status + '">' + c.statusLabel + '</span></td>' +
@@ -1339,7 +1344,7 @@ function clearFilters() {
   renderTable();
 }
 function addRow() {
-  products.push({ parent:'New Product', variation:'-', sku:'NEW-SKU-' + (products.length + 1), category:'Uncategorised', supplier:'Supplier', supplierCost:0, transport:0, packaging:0, unitSize:1, totalSize:1, unitLabel:'unit', priceExcl:0, websiteMatch:'Unmatched', warnings:'' });
+  products.push({ parent:'New Product', variation:'-', sku:'NEW-SKU-' + (products.length + 1), category:'Uncategorised', supplier:'Supplier', supplierCost:0, transport:0, packaging:0, unitSize:1, totalSize:1, unitLabel:'unit', priceIncl:0, websiteMatch:'Unmatched', warnings:'' });
   renderTable();
   flashSaved();
 }
@@ -1361,10 +1366,10 @@ function deleteRow(idx) {
 }
 function recalcAll() { renderTable(); flashSaved(); }
 function exportCSV() {
-  var csv = 'Parent,Variation,SKU,Category,Supplier,Supplier Cost,Transport,Packaging,Landed Cost,Unit Cost,Website Price Excl VAT,VAT,Price Incl VAT,Profit,Margin %,Status\n';
+  var csv = 'Parent,Variation,SKU,Category,Supplier,Supplier Cost,Transport,Packaging,Landed Cost,Unit Cost,Website Price Incl VAT,Price Excl VAT,VAT,Profit,Margin %,Status\n';
   products.forEach(function (p) {
     var c = computeRow(p);
-    csv += [p.parent,p.variation,p.sku,p.category,p.supplier,p.supplierCost,p.transport,p.packaging,c.landed.toFixed(2),c.unitCost.toFixed(2),p.priceExcl,c.vatAmount.toFixed(2),c.priceIncl.toFixed(2),c.profit.toFixed(2),c.margin === null ? '' : c.margin.toFixed(1),c.statusLabel].map(function (v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(',') + '\n';
+    csv += [p.parent,p.variation,p.sku,p.category,p.supplier,p.supplierCost,p.transport,p.packaging,c.landed.toFixed(2),c.unitCost.toFixed(2),c.priceIncl.toFixed(2),c.priceExcl.toFixed(2),c.vatAmount.toFixed(2),c.profit.toFixed(2),c.margin === null ? '' : c.margin.toFixed(1),c.statusLabel].map(function (v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(',') + '\n';
   });
   var blob = new Blob([csv], {type:'text/csv'});
   var url = URL.createObjectURL(blob);

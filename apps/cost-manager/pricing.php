@@ -35,14 +35,16 @@ try {
 
     foreach ($stmt->fetchAll() as $row) {
         $unitCogs = product_unit_cogs($pdo, $row);
-        $currentPrice = (float) ($row['selling_price'] ?? 0);
-        $currentMargin = $currentPrice > 0 ? (($currentPrice - $unitCogs) / $currentPrice) * 100 : 0;
+        $currentPriceInclVat = (float) ($row['selling_price'] ?? 0);
+        $currentPriceExVat = $currentPriceInclVat > 0 ? $currentPriceInclVat / (1 + ($vatRate / 100)) : 0.0;
+        $currentMargin = $currentPriceExVat > 0 ? (($currentPriceExVat - $unitCogs) / $currentPriceExVat) * 100 : 0;
         $products[] = [
             'id' => (int) $row['product_id'],
             'name' => (string) $row['name'],
             'sku' => (string) ($row['sku'] ?? ''),
             'type' => (string) $row['costing_type'],
-            'current_price' => $currentPrice,
+            'current_price_incl_vat' => $currentPriceInclVat,
+            'current_price_ex_vat' => $currentPriceExVat,
             'current_margin' => $currentMargin,
             'unit_cogs' => $unitCogs,
         ];
@@ -105,7 +107,10 @@ include BASE_PATH . '/shared/sidebar.php';
                         </td>
                         <td><span class="status"><?= htmlspecialchars($product['type'], ENT_QUOTES, 'UTF-8') ?></span></td>
                         <td>N$ <?= number_format((float) $product['unit_cogs'], 2) ?></td>
-                        <td>N$ <?= number_format((float) $product['current_price'], 2) ?></td>
+                        <td>
+                            <strong>N$ <?= number_format((float) $product['current_price_incl_vat'], 2) ?></strong>
+                            <br><small>N$ <?= number_format((float) $product['current_price_ex_vat'], 2) ?> excl.</small>
+                        </td>
                         <td><?= number_format((float) $product['current_margin'], 1) ?>%</td>
                         <?php foreach ($channels as $channel): ?>
                             <?php
