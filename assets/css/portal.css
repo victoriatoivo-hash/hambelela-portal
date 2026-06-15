@@ -7137,6 +7137,38 @@ textarea {
   -webkit-overflow-scrolling: touch;
 }
 
+.kpi-performance-page .data-table,
+.kpi-performance-page .ops-table {
+  min-width: 920px;
+  table-layout: auto;
+}
+
+.kpi-performance-page .data-table th,
+.kpi-performance-page .ops-table th {
+  white-space: nowrap;
+  min-width: 112px;
+}
+
+.kpi-performance-page .data-table td,
+.kpi-performance-page .ops-table td {
+  vertical-align: top;
+}
+
+.kpi-performance-page .data-table th:first-child,
+.kpi-performance-page .ops-table th:first-child {
+  min-width: 180px;
+}
+
+.kpi-module-table th,
+.kpi-module-table td {
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+.kpi-module-table td {
+  white-space: nowrap;
+}
+
 .kpi-performance-page .section-row {
   align-items: flex-start;
   gap: 16px;

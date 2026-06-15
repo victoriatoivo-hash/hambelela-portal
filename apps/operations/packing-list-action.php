@@ -1029,10 +1029,35 @@ function packing_active_where(string $alias = ''): string
     return implode(' AND ', $parts);
 }
 
+function packing_ensure_kpi_audit_schema(): void
+{
+    if (!ops_table_exists('ops_packing_tasks')) {
+        return;
+    }
+    if (!ops_column_exists('ops_packing_tasks', 'website_uploaded_at')) {
+        db()->exec("ALTER TABLE ops_packing_tasks ADD COLUMN website_uploaded_at DATETIME NULL AFTER website_uploaded");
+    }
+    db()->exec(
+        "CREATE TABLE IF NOT EXISTS ops_packing_assignment_log (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            packing_task_id INT NOT NULL,
+            old_employee_id INT NULL,
+            new_employee_id INT NULL,
+            changed_by INT NULL,
+            changed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_packing_assignment_task (packing_task_id),
+            INDEX idx_packing_assignment_employee (new_employee_id),
+            INDEX idx_packing_assignment_changed (changed_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+    );
+}
+
 try {
     if (!ops_database_ready() || !ops_table_exists('ops_packing_tasks')) {
         throw new RuntimeException('Packing database is not ready.');
     }
+
+    packing_ensure_kpi_audit_schema();
 
     $action = ops_post_string('action', 40);
     $canManage = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
@@ -2082,7 +2107,17 @@ try {
             $value = $value === '' ? null : (string) ((int) $value);
         }
 
+        $previousAssignmentRows = [];
+        if ($field === 'assigned_employee_id' && ops_table_exists('ops_packing_assignment_log')) {
+            foreach (ops_rows('SELECT id, assigned_employee_id FROM ops_packing_tasks WHERE id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')', $ids) as $row) {
+                $previousAssignmentRows[(int) $row['id']] = $row['assigned_employee_id'] !== null ? (int) $row['assigned_employee_id'] : null;
+            }
+        }
+
         $set = $allowed[$field] . ' = ?';
+        if ($field === 'website_uploaded' && ops_column_exists('ops_packing_tasks', 'website_uploaded_at')) {
+            $set .= ", website_uploaded_at = CASE WHEN ? = '1' AND website_uploaded_at IS NULL THEN NOW() ELSE website_uploaded_at END";
+        }
         if ($field === 'packing_status') {
             if ($value === 'packing' && ops_column_exists('ops_packing_tasks', 'date_started')) {
                 $set .= ', date_started = COALESCE(date_started, NOW())';
@@ -2098,7 +2133,9 @@ try {
         }
 
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
-        $params = array_merge([$value], $ids);
+        $params = $field === 'website_uploaded' && ops_column_exists('ops_packing_tasks', 'website_uploaded_at')
+            ? array_merge([$value, $value], $ids)
+            : array_merge([$value], $ids);
         $scope = '';
         if (!$canManage && !in_array($field, ['quantity_packed', 'packing_website_confirmed', 'packing_status', 'notes'], true)) {
             throw new RuntimeException('Packers cannot update this field.');
@@ -2110,6 +2147,17 @@ try {
 
         $stmt = db()->prepare("UPDATE ops_packing_tasks SET {$set}, updated_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders}){$scope}");
         $stmt->execute($params);
+
+        if ($field === 'assigned_employee_id' && $previousAssignmentRows && ops_table_exists('ops_packing_assignment_log')) {
+            $logStmt = db()->prepare('INSERT INTO ops_packing_assignment_log (packing_task_id, old_employee_id, new_employee_id, changed_by) VALUES (?, ?, ?, ?)');
+            foreach ($ids as $id) {
+                $oldEmployeeId = $previousAssignmentRows[(int) $id] ?? null;
+                $newEmployeeId = $value === null ? null : (int) $value;
+                if ($oldEmployeeId !== $newEmployeeId) {
+                    $logStmt->execute([(int) $id, $oldEmployeeId, $newEmployeeId, $currentEmployeeId ?: null]);
+                }
+            }
+        }
 
         if (in_array($field, ['received_weight', 'quantity_planned', 'priority'], true)) {
             $rowsForWorkload = ops_rows(

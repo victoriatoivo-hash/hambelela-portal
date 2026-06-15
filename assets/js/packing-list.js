@@ -208,7 +208,9 @@
   function renderCheck(task, field, allowed) {
     const checked = Number(task[field] || 0) === 1 ? 'checked' : '';
     const disabled = allowed ? '' : 'disabled';
-    return `<label class="paid-toggle"><input type="checkbox" data-packing-check="${esc(field)}" data-task-id="${esc(task.id)}" ${checked} ${disabled}><span>&check;</span></label>`;
+    const uploadedAt = field === 'website_uploaded' && task.website_uploaded_at ? formatDate(task.website_uploaded_at) : '';
+    const title = uploadedAt ? ` title="Website uploaded ${esc(uploadedAt)}"` : '';
+    return `<label class="paid-toggle"${title}><input type="checkbox" data-packing-check="${esc(field)}" data-task-id="${esc(task.id)}" ${checked} ${disabled}><span>&check;</span></label>`;
   }
 
   function renderSyncStatus(task) {
@@ -763,6 +765,7 @@
         <div><span>Assigned</span><strong>${esc(currentTask.assigned_name || 'Unassigned')}</strong></div>
         <div><span>Status</span><strong>${esc(labelText(statuses, currentTask.packing_status || 'not_started'))}</strong></div>
         <div><span>Website updated</span><strong>${Number(currentTask.website_uploaded || 0) === 1 ? 'Yes' : 'No'}</strong></div>
+        <div><span>Website upload time</span><strong>${currentTask.website_uploaded_at ? esc(formatDate(currentTask.website_uploaded_at)) : '-'}</strong></div>
         <div><span>Packing website confirmed</span><strong>${Number(currentTask.packing_website_confirmed || 0) === 1 ? 'Yes' : 'No'}</strong></div>
         <div><span>Date loaded</span><strong>${esc(formatDate(currentTask.date_loaded))}</strong></div>
         <div><span>Date completed</span><strong>${esc(formatDate(currentTask.date_completed) || 'Not complete')}</strong></div>

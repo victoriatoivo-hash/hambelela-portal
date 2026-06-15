@@ -906,29 +906,33 @@ function kpi_order_business_summary(string $start, string $end, array $settings)
     $completion = [];
     foreach (ops_rows('SELECT * FROM ops_orders WHERE created_at >= ? AND created_at < ?', [$start, $end]) as $order) {
         $status = (string) ($order['status'] ?? '');
+        $statusKey = kpi_status_key($status);
         $created = (string) ($order['created_at'] ?? '');
         $assignedAt = (string) ($order['assigned_at'] ?? '');
         $startedAt = (string) ($order['packing_started_at'] ?? '');
         $packedAt = (string) (($order['packed_at'] ?? '') ?: ($order['completed_at'] ?? ''));
         $completedAt = (string) ($order['completed_at'] ?? '');
-        $assign[] = kpi_business_minutes($created, $assignedAt ?: null);
-        $startTimes[] = kpi_business_minutes($assignedAt ?: $created, $startedAt ?: null);
+        $assignmentEnd = $assignedAt ?: ($startedAt ?: ($completedAt ?: null));
+        $assign[] = kpi_business_minutes($created, $assignmentEnd);
+        $startTimes[] = kpi_business_minutes($assignedAt ?: $created, $startedAt ?: ($completedAt ?: null));
         $packing[] = kpi_business_minutes($startedAt ?: $assignedAt, $packedAt ?: null);
         $completion[] = kpi_business_minutes($created, $completedAt ?: null);
-        $isDone = in_array($status, ['completed', 'packed', 'verified', 'ready_for_collection', 'ready_for_courier', 'ready_for_delivery'], true);
-        if (!$isDone && (kpi_business_minutes($created, date('Y-m-d H:i:s')) ?? 0) > (float) ($settings['target_order_total_minutes'] ?? 360)) {
+        $isDone = kpi_is_done_status($status);
+        $activeAge = kpi_business_minutes($created, date('Y-m-d H:i:s')) ?? 0;
+        $isOverTarget = $activeAge > (float) ($settings['target_order_total_minutes'] ?? 360);
+        if (!$isDone && kpi_is_active_status($status) && $isOverTarget) {
             $summary['overdue']++;
         }
         if (empty($order['assigned_packer_id']) && !$isDone) {
             $summary['unassigned']++;
         }
-        if ($status === 'new_order') {
+        if (in_array($statusKey, ['new_order', 'new', 'assigned'], true) && $isOverTarget) {
             $summary['stuck_new']++;
         }
-        if ($status === 'in_progress') {
+        if (in_array($statusKey, ['in_progress', 'progress', 'packing'], true) && $isOverTarget) {
             $summary['stuck_progress']++;
         }
-        if ((string) ($order['order_type'] ?? '') === 'courier' && (!$isDone || ($completedAt && substr($completedAt, 11, 8) > '14:00:00'))) {
+        if (kpi_status_key((string) ($order['order_type'] ?? '')) === 'courier' && (!$isDone || ($completedAt && substr($completedAt, 11, 8) > '14:00:00'))) {
             $summary['courier_late']++;
         }
     }
@@ -1002,6 +1006,21 @@ function kpi_active_status_sql(string $alias = ''): string
 {
     $prefix = $alias !== '' ? $alias . '.' : '';
     return $prefix . "status NOT IN ('completed', 'packed', 'verified', 'ready_for_collection', 'ready_for_courier', 'ready_for_delivery', 'cancelled', 'canceled', 'refunded', 'failed')";
+}
+
+function kpi_status_key(?string $status): string
+{
+    return strtolower(trim(preg_replace('/[^a-z0-9]+/', '_', (string) $status), '_'));
+}
+
+function kpi_is_done_status(?string $status): bool
+{
+    return in_array(kpi_status_key($status), ['completed', 'complete', 'packed', 'verified', 'ready_for_collection', 'ready_for_courier', 'ready_for_delivery'], true);
+}
+
+function kpi_is_active_status(?string $status): bool
+{
+    return !in_array(kpi_status_key($status), ['completed', 'complete', 'packed', 'verified', 'ready_for_collection', 'ready_for_courier', 'ready_for_delivery', 'cancelled', 'canceled', 'refunded', 'failed'], true);
 }
 
 function kpi_employee_performance_details(array $scores, string $start, string $end, array $settings): array
@@ -1113,8 +1132,9 @@ function kpi_employee_performance_details(array $scores, string $start, string $
     }
 
     if (ops_table_exists('ops_packing_tasks')) {
-        $websiteTimeSql = ops_column_exists('ops_packing_tasks', 'updated_at')
-            ? 'AVG(CASE WHEN website_uploaded = 1 AND updated_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, date_loaded, updated_at) END) AS avg_website_minutes,'
+        $websiteTimeColumn = ops_column_exists('ops_packing_tasks', 'website_uploaded_at') ? 'website_uploaded_at' : (ops_column_exists('ops_packing_tasks', 'updated_at') ? 'updated_at' : '');
+        $websiteTimeSql = $websiteTimeColumn !== ''
+            ? "AVG(CASE WHEN website_uploaded = 1 AND {$websiteTimeColumn} IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, date_loaded, {$websiteTimeColumn}) END) AS avg_website_minutes,"
             : 'NULL AS avg_website_minutes,';
         $receivedSql = ops_column_exists('ops_packing_tasks', 'received_weight')
             ? 'COALESCE(SUM(CAST(received_weight AS DECIMAL(12,2))), 0) AS received_weight_total,'
@@ -1300,6 +1320,112 @@ function kpi_render_employee_detail_grid(array $detail): void
         echo '</div></article>';
     }
     echo '</div>';
+}
+
+function kpi_detail_metric_value(array $details, int $employeeId, string $bucket, string $label, string $default = '-'): string
+{
+    foreach (($details[$employeeId][$bucket]['metrics'] ?? []) as $metric) {
+        if ((string) ($metric['label'] ?? '') === $label) {
+            return (string) ($metric['value'] ?? $default);
+        }
+    }
+
+    return $default;
+}
+
+function kpi_module_report_config(string $module): array
+{
+    $configs = [
+        'packing' => [
+            'title' => 'Packing List KPI',
+            'description' => 'Packing-list productivity, completion timing, website upload follow-up and workload fairness by employee.',
+            'columns' => ['Employee', 'Role', 'Rows Assigned', 'Status Split', 'Website Uploaded / Pending', 'Workload Points', 'Received Weight', 'Avg Packing Time', 'Oldest Active Wait'],
+            'bucket' => 'packing',
+            'metrics' => ['Packing rows assigned', 'Not started / Packing / Done', 'Website uploaded / pending', 'Workload points', 'Recorded received weight', 'Avg packing completion', 'Oldest active wait'],
+        ],
+        'bookkeeping' => [
+            'title' => 'Bookkeeping KPI',
+            'description' => 'Cash entry logging, cash-in/out capture and front-office recording delay for physical cash tracking.',
+            'columns' => ['Employee', 'Role', 'Entries Logged', 'Cash In / Out', 'Unlinked Cash', 'Avg Recording Delay', 'Scorecard Signals'],
+            'bucket' => 'bookkeeping',
+            'metrics' => ['Cash entries logged', 'Cash in / out', 'Unlinked cash entries', 'Avg recording delay'],
+        ],
+        'tasks' => [
+            'title' => 'Task Management KPI',
+            'description' => 'Checklist, cleaning, recurring task and deadline performance grouped by assigned employee.',
+            'columns' => ['Employee', 'Role', 'Total Tasks', 'Done / Pending', 'In Progress', 'Needs Review', 'Overdue', 'Recurring / Cleaning', 'Avg Completion'],
+            'bucket' => 'tasks',
+            'metrics' => ['Total tasks', 'Done / Pending', 'In progress', 'Needs review', 'Overdue tasks', 'Recurring / cleaning tasks', 'Avg task completion'],
+        ],
+        'errors' => [
+            'title' => 'Error Log KPI',
+            'description' => 'Errors assigned, logged, severity, repeat issues, unresolved work and financial impact.',
+            'columns' => ['Employee', 'Role', 'Errors Assigned', 'Critical / High', 'Repeat Errors', 'Unresolved', 'Financial Impact', 'Errors Logged By Employee'],
+            'bucket' => 'errors',
+            'metrics' => ['Errors assigned', 'Critical / High', 'Repeat errors', 'Unresolved', 'Financial impact', 'Errors logged by employee'],
+        ],
+        'courier' => [
+            'title' => 'Courier KPI',
+            'description' => 'Courier waybill upload and customer-send timing, including front-office courier communication follow-up.',
+            'columns' => ['Employee', 'Role', 'Waybills Uploaded', 'Uploaded Then Sent', 'Avg Sent Time', 'Waybills Sent To Customer', 'Avg Customer-Send Delay'],
+            'bucket' => 'courier',
+            'metrics' => ['Waybills uploaded', 'Uploaded then sent', 'Avg sent-to-customer time', 'Waybills sent to customer', 'Avg customer-send delay'],
+        ],
+    ];
+
+    return $configs[$module] ?? $configs['packing'];
+}
+
+function kpi_module_report_rows(array $scores, array $details, string $module): array
+{
+    $config = kpi_module_report_config($module);
+    $rows = [];
+    foreach ($scores as $score) {
+        $employeeId = (int) ($score['employee_id'] ?? 0);
+        $row = [
+            htmlspecialchars((string) ($score['name'] ?? ''), ENT_QUOTES, 'UTF-8'),
+            htmlspecialchars((string) ($score['role_name'] ?? ''), ENT_QUOTES, 'UTF-8'),
+        ];
+        foreach ($config['metrics'] as $metricLabel) {
+            $row[] = htmlspecialchars(kpi_detail_metric_value($details, $employeeId, (string) $config['bucket'], $metricLabel), ENT_QUOTES, 'UTF-8');
+        }
+        if ($module === 'bookkeeping') {
+            $signals = [];
+            foreach (($score['components'] ?? []) as $label => $component) {
+                if (stripos((string) $label, 'bookkeeping') !== false || stripos((string) $label, 'order') !== false || stripos((string) $label, 'website') !== false) {
+                    $signals[] = htmlspecialchars((string) $label . ': ' . kpi_percent((float) ($component['score'] ?? 0)), ENT_QUOTES, 'UTF-8');
+                }
+            }
+            $row[] = $signals ? implode('<br>', $signals) : '-';
+        }
+        $rows[] = $row;
+    }
+
+    return $rows;
+}
+
+function kpi_render_module_report(string $module, array $scores, array $details): void
+{
+    $config = kpi_module_report_config($module);
+    $rows = kpi_module_report_rows($scores, $details, $module);
+    echo '<section class="panel kpi-module-report-panel">';
+    echo '<div class="section-row"><div><h2>' . htmlspecialchars((string) $config['title'], ENT_QUOTES, 'UTF-8') . '</h2><p>' . htmlspecialchars((string) $config['description'], ENT_QUOTES, 'UTF-8') . '</p></div></div>';
+    echo '<div class="table-scroll kpi-table-scroll"><table class="data-table ops-table kpi-module-table"><thead><tr>';
+    foreach ($config['columns'] as $column) {
+        echo '<th>' . htmlspecialchars((string) $column, ENT_QUOTES, 'UTF-8') . '</th>';
+    }
+    echo '</tr></thead><tbody>';
+    foreach ($rows as $row) {
+        echo '<tr>';
+        foreach ($row as $index => $value) {
+            echo '<td>' . ($index === 0 ? '<strong>' . $value . '</strong>' : $value) . '</td>';
+        }
+        echo '</tr>';
+    }
+    if (!$rows) {
+        echo '<tr><td colspan="' . count($config['columns']) . '">No KPI data available yet.</td></tr>';
+    }
+    echo '</tbody></table></div></section>';
 }
 
 function kpi_metric_text($value, bool $duration = false): string
@@ -1762,6 +1888,9 @@ $hasPackingWebsiteFields = $ready
     && ops_table_exists('ops_packing_tasks')
     && ops_column_exists('ops_packing_tasks', 'website_uploaded')
     && ops_column_exists('ops_packing_tasks', 'date_loaded');
+$websiteUploadTimeColumn = $hasPackingWebsiteFields && ops_column_exists('ops_packing_tasks', 'website_uploaded_at')
+    ? 'website_uploaded_at'
+    : (($hasPackingWebsiteFields && ops_column_exists('ops_packing_tasks', 'updated_at')) ? 'updated_at' : 'NULL');
 $packingArchiveWhere = ($ready && ops_table_exists('ops_packing_tasks') && ops_column_exists('ops_packing_tasks', 'archived_at'))
     ? "AND (archived_at IS NULL OR archived_at = '0000-00-00 00:00:00')"
     : '';
@@ -1770,7 +1899,7 @@ $websiteUploadRow = $hasPackingWebsiteFields ? (ops_rows(
         COUNT(*) AS packing_rows,
         SUM(CASE WHEN website_uploaded = 1 THEN 1 ELSE 0 END) AS website_uploaded_rows,
         SUM(CASE WHEN website_uploaded = 0 THEN 1 ELSE 0 END) AS website_pending_rows,
-        AVG(CASE WHEN website_uploaded = 1 AND updated_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, date_loaded, updated_at) END) AS avg_website_minutes,
+        AVG(CASE WHEN website_uploaded = 1 AND {$websiteUploadTimeColumn} IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, date_loaded, {$websiteUploadTimeColumn}) END) AS avg_website_minutes,
         MAX(CASE WHEN website_uploaded = 0 THEN TIMESTAMPDIFF(MINUTE, date_loaded, NOW()) END) AS oldest_pending_minutes
      FROM ops_packing_tasks
      WHERE date_loaded >= ? AND date_loaded < ?
@@ -2083,7 +2212,7 @@ include BASE_PATH . '/shared/sidebar.php';
 
     <?php if ($activeTab === 'orders'): ?>
         <section class="panel kpi-system-panel">
-            <div class="section-row"><div><h2>Orders KPI</h2><p>Business-hour timing ignores nights and Sundays. After-hours orders start counting at the next opening time.</p></div></div>
+            <div class="section-row"><div><h2>Orders KPI</h2><p>Business-hour timing uses Mon-Fri 08:00-17:00, Saturday 09:00-13:00, and excludes Sundays. After-hours orders start counting at the next opening time.</p></div></div>
             <div class="kpi-system-metric-grid">
                 <?php foreach ([
                     'New Order to In Progress / assignment' => kpi_duration($businessSummary['avg_assignment'] ?? null),
@@ -2183,20 +2312,7 @@ include BASE_PATH . '/shared/sidebar.php';
             <?php endif; ?>
         <?php endif; ?>
     <?php elseif (in_array($activeTab, ['packing', 'bookkeeping', 'tasks', 'courier', 'errors'], true)): ?>
-        <section class="panel">
-            <div class="section-row"><div><h2><?= htmlspecialchars($tabs[$activeTab], ENT_QUOTES, 'UTF-8') ?></h2><p>Module view for management review. Values are pulled from the connected operations tables where fields exist.</p></div></div>
-            <div class="table-scroll">
-                <table class="data-table ops-table">
-                    <thead><tr><th>Employee</th><th>Role</th><th>Score</th><th>Orders</th><th>Items Packed</th><th>Avg Time</th><th>Errors</th><th>Related Scorecard Signals</th></tr></thead>
-                    <tbody>
-                    <?php foreach ($employeeScores as $row): ?>
-                        <tr><td><strong><?= htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8') ?></strong></td><td><?= htmlspecialchars($row['role_name'], ENT_QUOTES, 'UTF-8') ?></td><td><?= kpi_percent((float) $row['score']) ?></td><td><?= number_format((int) $row['orders_handled']) ?></td><td><?= number_format((float) $row['items_packed'], 1) ?></td><td><?= kpi_duration($row['avg_completion_minutes'] !== null ? (float) $row['avg_completion_minutes'] : null) ?></td><td><?= number_format((int) $row['error_count']) ?></td><td><?php foreach ($row['components'] as $label => $component): ?><span class="kpi-signal-pill"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?>: <?= kpi_percent((float) $component['score']) ?></span><?php endforeach; ?></td></tr>
-                    <?php endforeach; ?>
-                    <?php if (!$employeeScores): ?><tr><td colspan="8">No KPI data available yet.</td></tr><?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-        </section>
+        <?php kpi_render_module_report($activeTab, $employeeScores, $employeeKpiDetails); ?>
     <?php endif; ?>
 
     <?php if ($activeTab === 'overview'): ?>

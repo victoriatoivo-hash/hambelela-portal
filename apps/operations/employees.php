@@ -219,6 +219,28 @@ if ($ready && ops_table_exists('employee_user_links')) {
         $employeeLinks[(int) $linkRow['portal_user_id']] = $linkRow;
     }
 }
+$hrLeaveByEmployee = [];
+if ($ready && $employeeLinks) {
+    $linkedHrIds = array_values(array_unique(array_map(static fn (array $row): int => (int) ($row['hr_employee_id'] ?? 0), $employeeLinks)));
+    $linkedHrIds = array_values(array_filter($linkedHrIds));
+    if ($linkedHrIds) {
+        $placeholders = implode(',', array_fill(0, count($linkedHrIds), '?'));
+        foreach (ops_hr_rows(
+            "SELECT employee_id, leave_type, start_date, end_date, status
+             FROM leave_requests
+             WHERE employee_id IN ({$placeholders})
+               AND end_date >= CURDATE()
+               AND status IN ('approved', 'pending')
+             ORDER BY FIELD(status, 'approved', 'pending'), start_date ASC",
+            $linkedHrIds
+        ) as $leaveRow) {
+            $hrId = (int) ($leaveRow['employee_id'] ?? 0);
+            if ($hrId > 0 && !isset($hrLeaveByEmployee[$hrId])) {
+                $hrLeaveByEmployee[$hrId] = $leaveRow;
+            }
+        }
+    }
+}
 $employees = $ready ? ops_rows(
     "SELECT e.*, r.name AS role_name, r.role_key
      FROM ops_employees e
@@ -339,12 +361,13 @@ include BASE_PATH . '/shared/sidebar.php';
             <div class="section-row"><h2>Employee accounts</h2></div>
             <div class="table-scroll">
                 <table class="data-table ops-table">
-                    <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>HR Link</th><th>Status</th><th>Reset code</th><th>Created</th><th>Delete</th></tr></thead>
+                    <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>HR Link</th><th>Leave</th><th>Status</th><th>Reset code</th><th>Created</th><th>Delete</th></tr></thead>
                     <tbody>
                     <?php foreach ($employees as $employee): ?>
                         <?php
                         $link = $employeeLinks[(int) $employee['id']] ?? null;
                         $hr = $link && isset($hrEmployees[(int) $link['hr_employee_id']]) ? $hrEmployees[(int) $link['hr_employee_id']] : null;
+                        $leave = $hr ? ($hrLeaveByEmployee[(int) $link['hr_employee_id']] ?? null) : null;
                         ?>
                         <tr>
                             <td><?= htmlspecialchars($employee['full_name'], ENT_QUOTES, 'UTF-8') ?></td>
@@ -354,9 +377,19 @@ include BASE_PATH . '/shared/sidebar.php';
                                 <?php if ((string) ($employee['role_key'] ?? '') === 'owner_admin'): ?>
                                     <span class="status">not tracked</span><br><small>Owner/Admin is excluded from KPI scoring.</small>
                                 <?php elseif ($hr): ?>
-                                    <span class="status">linked</span><br><small><?= htmlspecialchars($hr['full_name'], ENT_QUOTES, 'UTF-8') ?></small>
+                                    <span class="status">linked</span><br><small><a href="<?= htmlspecialchars(BASE_URL . '/apps/hr-portal/employees.php?view=' . (int) $link['hr_employee_id'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($hr['full_name'], ENT_QUOTES, 'UTF-8') ?></a></small>
                                 <?php else: ?>
                                     <span class="status kpi-status-warning">missing HR link</span><br><small>KPI and leave tracking may be inaccurate.</small>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <?php if ($leave): ?>
+                                    <span class="status <?= (string) ($leave['status'] ?? '') === 'pending' ? 'kpi-status-warning' : '' ?>"><?= htmlspecialchars((string) $leave['status'], ENT_QUOTES, 'UTF-8') ?></span><br>
+                                    <small><?= htmlspecialchars((string) ($leave['leave_type'] ?? 'Leave'), ENT_QUOTES, 'UTF-8') ?>: <?= htmlspecialchars(date('d M', strtotime((string) $leave['start_date'])), ENT_QUOTES, 'UTF-8') ?>-<?= htmlspecialchars(date('d M', strtotime((string) $leave['end_date'])), ENT_QUOTES, 'UTF-8') ?></small>
+                                <?php elseif ($hr): ?>
+                                    <span class="status">none</span><br><small>No pending/approved leave.</small>
+                                <?php else: ?>
+                                    <span class="status kpi-status-warning">unknown</span>
                                 <?php endif; ?>
                             </td>
                             <td><span class="status"><?= htmlspecialchars($employee['status'], ENT_QUOTES, 'UTF-8') ?></span></td>
@@ -382,7 +415,7 @@ include BASE_PATH . '/shared/sidebar.php';
                             </td>
                         </tr>
                     <?php endforeach; ?>
-                    <?php if (!$employees): ?><tr><td colspan="8">No employee accounts recorded yet.</td></tr><?php endif; ?>
+                    <?php if (!$employees): ?><tr><td colspan="9">No employee accounts recorded yet.</td></tr><?php endif; ?>
                     </tbody>
                 </table>
             </div>
