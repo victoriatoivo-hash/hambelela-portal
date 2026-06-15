@@ -873,7 +873,7 @@ include BASE_PATH . '/shared/sidebar.php';
                                 <button class="btn btn-next" type="submit"><i data-lucide="scan-line"></i> Extract invoice data</button>
                             </form>
                             <iframe class="invoice-preview-frame" name="supplier-invoice-preview-frame" title="Supplier invoice extraction preview"></iframe>
-                            <div class="saved-invoice-list">
+                            <div class="saved-invoice-list saved-invoice-list-inline" hidden>
                                 <div class="saved-invoice-list-head">
                                     <strong>Saved supplier invoices</strong>
                                     <span><?= number_format(count($supplierInvoiceCards)) ?> shown</span>
@@ -935,6 +935,56 @@ include BASE_PATH . '/shared/sidebar.php';
                         </div>
                     </article>
                 </div>
+                <?php if ($step['key'] === 'supplier'): ?>
+                    <section class="saved-invoice-section">
+                        <div class="saved-invoice-list-head">
+                            <strong>Saved supplier invoices</strong>
+                            <span><?= number_format(count($supplierInvoiceCards)) ?> shown</span>
+                        </div>
+                        <div class="saved-invoice-list">
+                            <?php foreach ($supplierInvoiceCards as $invoice): ?>
+                                <?php
+                                $invoiceId = (int) $invoice['id'];
+                                $lineCount = (int) ($invoice['raw_count'] ?? 0) + (int) ($invoice['packaging_count'] ?? 0);
+                                ?>
+                                <details class="saved-invoice-card">
+                                    <summary>
+                                        <span>
+                                            <strong><?= htmlspecialchars((string) ($invoice['invoice_number'] ?: 'Invoice #' . $invoiceId), ENT_QUOTES, 'UTF-8') ?></strong>
+                                            <small><?= htmlspecialchars((string) ($invoice['supplier_name'] ?: 'Unknown supplier'), ENT_QUOTES, 'UTF-8') ?> - <?= htmlspecialchars((string) ($invoice['invoice_date'] ?: substr((string) $invoice['created_at'], 0, 10)), ENT_QUOTES, 'UTF-8') ?></small>
+                                        </span>
+                                        <em><?= number_format($lineCount) ?> rows - <?= cw_money((float) ($invoice['total_amount'] ?? 0)) ?></em>
+                                    </summary>
+                                    <div class="saved-invoice-detail">
+                                        <div class="invoice-mini-metrics">
+                                            <span>Subtotal <strong><?= cw_money((float) ($invoice['subtotal'] ?? 0)) ?></strong></span>
+                                            <span>VAT <strong><?= cw_money((float) ($invoice['vat_amount'] ?? 0)) ?></strong></span>
+                                            <span>Total <strong><?= cw_money((float) ($invoice['total_amount'] ?? 0)) ?></strong></span>
+                                        </div>
+                                        <div class="table-wrap invoice-lines-table">
+                                            <table>
+                                                <thead><tr><th>Type</th><th>Item</th><th>Qty</th><th>Unit cost</th><th>Total</th></tr></thead>
+                                                <tbody>
+                                                    <?php foreach (($supplierInvoiceLines[$invoiceId] ?? []) as $line): ?>
+                                                        <tr>
+                                                            <td><?= htmlspecialchars((string) $line['line_type'], ENT_QUOTES, 'UTF-8') ?></td>
+                                                            <td><?= htmlspecialchars((string) $line['name'], ENT_QUOTES, 'UTF-8') ?></td>
+                                                            <td><?= number_format((float) $line['quantity'], 3) ?> <?= htmlspecialchars((string) $line['unit'], ENT_QUOTES, 'UTF-8') ?></td>
+                                                            <td><?= cw_money((float) $line['unit_cost']) ?></td>
+                                                            <td><?= cw_money((float) $line['total_cost']) ?></td>
+                                                        </tr>
+                                                    <?php endforeach; ?>
+                                                    <?php if (empty($supplierInvoiceLines[$invoiceId])): ?><tr><td colspan="5" class="empty-state-cell">No extracted rows saved for this invoice yet.</td></tr><?php endif; ?>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </details>
+                            <?php endforeach; ?>
+                            <?php if (!$supplierInvoiceCards): ?><p class="empty-state">No supplier invoices saved yet. Upload an invoice above to begin.</p><?php endif; ?>
+                        </div>
+                    </section>
+                <?php endif; ?>
                 <div class="table-wrap workbook-step-table">
                     <table>
                         <thead><tr><th>Product</th><th>Supplier</th><th>Supplier Cost</th><th>Transport</th><th>Packaging</th><th>Total Cost</th><th>Status</th></tr></thead>
@@ -1112,7 +1162,10 @@ include BASE_PATH . '/shared/sidebar.php';
 .invoice-upload-box button { justify-content:center; display:inline-flex; align-items:center; gap:8px; width:100%; }
 .invoice-preview-frame { display:none; width:100%; height:360px; border:1px solid var(--cw-border); border-radius:12px; margin-top:12px; background:#fff; }
 .invoice-preview-frame.is-visible { display:block; }
-.saved-invoice-list { margin-top:16px; display:grid; gap:10px; }
+.saved-invoice-section { margin-top:18px; background:#faf7f5; border:1px solid var(--cw-border); border-radius:14px; padding:16px; }
+.saved-invoice-section .saved-invoice-list-head { margin-bottom:10px; }
+.saved-invoice-list { display:grid; gap:10px; }
+.saved-invoice-list-inline { margin-top:16px; }
 .saved-invoice-list-head { display:flex; justify-content:space-between; gap:12px; align-items:center; font-size:13px; }
 .saved-invoice-list-head span { color:var(--cw-muted); font-weight:800; font-size:11.5px; }
 .saved-invoice-card { background:#fff; border:1px solid var(--cw-border); border-radius:12px; overflow:hidden; }
