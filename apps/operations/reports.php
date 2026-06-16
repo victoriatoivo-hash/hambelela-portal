@@ -1920,157 +1920,219 @@ function kpi_render_packer_live_dashboard(array $employee, array $detail, string
         [$employeeId, $start, $end]
     )[0] ?? []) : [];
 
-    $cardMetrics = [
-        ['Orders packed', number_format((int) ($orderSummary['total_orders'] ?? 0)), 'Assigned order board rows'],
-        ['New / In progress', number_format((int) ($orderSummary['new_orders'] ?? 0)) . ' / ' . number_format((int) ($orderSummary['in_progress_orders'] ?? 0)), 'Waiting vs active'],
-        ['Completed orders', number_format((int) ($orderSummary['completed_orders'] ?? 0)), 'Completed in period'],
-        ['Avg start time', kpi_duration(isset($orderSummary['avg_start_minutes']) ? (float) $orderSummary['avg_start_minutes'] : null), 'Assigned to in progress'],
-        ['Avg pack time', kpi_duration(isset($orderSummary['avg_pack_minutes']) ? (float) $orderSummary['avg_pack_minutes'] : null), 'In progress to complete'],
-        ['Packing weight', $weightDisplay, 'Received weight total'],
-        ['Packing done', number_format($packingDone), 'Rows complete'],
-        ['Courier late uploads', number_format($lateCourier), 'After 14:00 cutoff'],
-        ['Errors logged against', number_format(count($errorRows)), 'Tagged employee errors'],
-        ['Attendance days', number_format((int) ($loginSummary['present_days'] ?? 0)), 'Portal login days'],
-    ];
-
     $employeeName = (string) ($employee['name'] ?? 'Packer');
     $employeeRole = (string) ($employee['role_name'] ?? 'Packing Operative');
     $averageLogin = isset($loginSummary['avg_login_seconds']) && $loginSummary['avg_login_seconds'] !== null ? gmdate('H:i', (int) $loginSummary['avg_login_seconds']) : '-';
     $score = isset($employee['score']) ? kpi_percent((float) $employee['score']) : '-';
-
-    echo '<section class="hr-performance-shell hr-packer-performance">';
-    echo '<div class="hr-profile-strip"><div class="hr-avatar hr-avatar-purple">' . htmlspecialchars(kpi_hr_initials($employeeName), ENT_QUOTES, 'UTF-8') . '</div><div class="hr-profile-info"><div class="hr-profile-name">' . htmlspecialchars($employeeName, ENT_QUOTES, 'UTF-8') . '</div><div class="hr-profile-role">' . htmlspecialchars($employeeRole, ENT_QUOTES, 'UTF-8') . '</div><div class="hr-profile-meta"><div><strong>Period</strong> ' . htmlspecialchars(date('d M', strtotime($start)) . ' - ' . date('d M Y', strtotime($end . ' -1 second')), ENT_QUOTES, 'UTF-8') . '</div><div><strong>Score</strong> ' . htmlspecialchars($score, ENT_QUOTES, 'UTF-8') . '</div><div><strong>Packing weight</strong> ' . htmlspecialchars($weightDisplay, ENT_QUOTES, 'UTF-8') . '</div><div><strong>Avg login</strong> ' . htmlspecialchars($averageLogin, ENT_QUOTES, 'UTF-8') . '</div></div></div></div>';
-    echo '<div class="hr-section-tabs"><span class="hr-section-tab active hr-purple-tab">Orders</span><span class="hr-section-tab">Courier</span><span class="hr-section-tab">Tasks</span><span class="hr-section-tab">Errors</span><span class="hr-section-tab">Packing List</span><span class="hr-section-tab">Attendance</span></div>';
-    echo '<div class="hr-section-heading"><h2>Packer Performance</h2><p>Live performance evidence for assigned orders, courier uploads, checklist tasks, errors, packing-list workload and attendance.</p></div>';
-    echo '<div class="hr-stat-grid hr-packer-stat-grid">';
-    foreach ($cardMetrics as [$label, $value, $hint]) {
-        echo '<article class="hr-stat-card"><div class="hr-stat-label">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '</div><div class="hr-stat-value">' . htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') . '</div><div class="hr-stat-sub">' . htmlspecialchars($hint, ENT_QUOTES, 'UTF-8') . '</div></article>';
+    $periodLabel = date('d M', strtotime($start)) . ' - ' . date('d M Y', strtotime($end . ' -1 second'));
+    $componentRows = [];
+    foreach (($employee['components'] ?? []) as $label => $component) {
+        $componentRows[] = [
+            'label' => (string) $label,
+            'score' => (float) ($component['score'] ?? 0),
+            'raw' => (string) ($component['raw'] ?? ''),
+        ];
     }
-    echo '</div>';
-
-    if ($lateCourier >= 3) {
-        echo '<section class="hr-alert-card"><strong>Courier pattern alert.</strong> ' . htmlspecialchars((string) ($employee['name'] ?? 'This packer'), ENT_QUOTES, 'UTF-8') . ' has ' . number_format($lateCourier) . ' courier uploads after the 14:00 cutoff in this period.</section>';
-    }
-    foreach ($errorTypes as $category => $count) {
-        if ($count >= 2 && strpos($category, 'wrong product') !== false) {
-            echo '<section class="hr-alert-card"><strong>Recurring error alert.</strong> Wrong product packed appears ' . number_format($count) . ' times for this packer.</section>';
+    $accuracyScore = 100.0;
+    foreach ($componentRows as $component) {
+        if (stripos($component['label'], 'accuracy') !== false || stripos($component['label'], 'error') !== false) {
+            $accuracyScore = (float) $component['score'];
             break;
         }
     }
-
-    $tables = [
-        'Order Board' => [
-            ['Order', 'Customer', 'Mode', 'Status', 'Loaded', 'Started', 'Completed'],
-            array_map(static function (array $row): array {
-                return [
-                    (string) ($row['order_number'] ?: '-'),
-                    (string) ($row['customer_name'] ?: $row['customer_contact'] ?: '-'),
-                    ucwords((string) ($row['order_type'] ?: '-')),
-                    ucwords(str_replace('_', ' ', (string) ($row['status'] ?: '-'))),
-                    kpi_front_date_label((string) ($row['created_at'] ?? '')),
-                    kpi_front_date_label((string) ($row['packing_started_at'] ?? '')),
-                    kpi_front_date_label((string) ($row['completed_at'] ?? '')),
-                ];
-            }, $orderRows),
-        ],
-        'Courier Uploads' => [
-            ['Waybill', 'Customer', 'Uploaded', 'Cutoff', 'Sent', 'Status'],
-            array_map(static function (array $row): array {
-                return [
-                    (string) ($row['waybill_reference'] ?: '-'),
-                    (string) ($row['customer_name'] ?: '-'),
-                    kpi_front_date_label((string) ($row['uploaded_at'] ?? '')),
-                    !empty($row['late_upload']) ? 'Late' : 'On time',
-                    kpi_front_date_label((string) ($row['sent_at'] ?? '')),
-                    ucwords((string) ($row['status'] ?: '-')),
-                ];
-            }, $courierRows),
-        ],
-        'Task Management' => [
-            ['Task', 'Type', 'Priority', 'Due', 'Completed', 'Status'],
-            array_map(static function (array $row): array {
-                return [
-                    (string) ($row['task_name'] ?: '-'),
-                    ucwords(str_replace('_', ' ', (string) ($row['checklist_type'] ?: '-'))),
-                    (string) ($row['priority'] ?: '-'),
-                    kpi_front_date_label((string) ($row['deadline'] ?? '')),
-                    kpi_front_date_label((string) ($row['completed_at'] ?? '')),
-                    ucwords(str_replace('_', ' ', (string) ($row['status'] ?: '-'))),
-                ];
-            }, $taskRows),
-        ],
-        'Error Log' => [
-            ['Date', 'Order', 'Category', 'Severity', 'Resolution'],
-            array_map(static function (array $row): array {
-                return [
-                    kpi_front_date_label((string) ($row['logged_at'] ?? '')),
-                    (string) ($row['order_number'] ?: '-'),
-                    (string) ($row['category'] ?: '-'),
-                    ucwords((string) ($row['severity'] ?: '-')),
-                    (string) ($row['resolution'] ?: 'Open'),
-                ];
-            }, $errorRows),
-        ],
-        'Packing List' => [
-            ['Item', 'Weight', 'Qty plan', 'Qty packed', 'Loaded', 'Status', 'Website'],
-            array_map(static function (array $row): array {
-                return [
-                    (string) ($row['item_name'] ?: '-'),
-                    (string) ($row['received_weight'] ?: '-'),
-                    (string) ($row['quantity_planned'] ?: '-'),
-                    (string) ($row['quantity_packed'] ?: '-'),
-                    kpi_front_date_label((string) ($row['date_loaded'] ?? '')),
-                    ucwords(str_replace('_', ' ', (string) ($row['packing_status'] ?: '-'))),
-                    !empty($row['website_uploaded']) ? 'Complete' : 'Pending',
-                ];
-            }, $packingRows),
-        ],
-        'Attendance' => [
-            ['Login', 'Role'],
-            array_map(static function (array $row): array {
-                return [
-                    kpi_front_date_label((string) ($row['login_at'] ?? '')),
-                    (string) ($row['role_key'] ?: '-'),
-                ];
-            }, $loginRows),
-        ],
-    ];
-
-    echo '<div class="hr-card-grid">';
-    foreach ($tables as $title => [$columns, $rows]) {
-        echo '<article class="hr-perf-card"><div class="hr-card-header"><h3 class="hr-card-title">' . htmlspecialchars((string) $title, ENT_QUOTES, 'UTF-8') . '</h3><span class="hr-card-action">Live data</span></div><div class="hr-table-scroll"><table class="hr-data-table"><thead><tr>';
-        foreach ($columns as $column) {
-            echo '<th>' . htmlspecialchars((string) $column, ENT_QUOTES, 'UTF-8') . '</th>';
+    $taskTotal = count($taskRows);
+    $taskDone = 0;
+    $taskProgress = 0;
+    $taskOverdue = 0;
+    foreach ($taskRows as $row) {
+        $status = strtolower((string) ($row['status'] ?? ''));
+        if (in_array($status, ['done', 'completed', 'approved'], true)) {
+            $taskDone++;
+        } elseif (in_array($status, ['in_progress', 'progress', 'review', 'needs_review'], true)) {
+            $taskProgress++;
         }
-        echo '</tr></thead><tbody>';
-        foreach ($rows as $row) {
-            echo '<tr>';
-            foreach ($row as $value) {
-                echo '<td>' . htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') . '</td>';
-            }
-            echo '</tr>';
+        if (!empty($row['deadline']) && !in_array($status, ['done', 'completed', 'approved'], true) && strtotime((string) $row['deadline']) < time()) {
+            $taskOverdue++;
         }
-        if (!$rows) {
-            echo '<tr><td class="hr-empty-state" colspan="' . count($columns) . '">No records found for this period.</td></tr>';
-        }
-        echo '</tbody></table></div></article>';
     }
-    echo '</div>';
+    $orderTableRows = array_map(static function (array $row): array {
+        $status = (string) ($row['status'] ?: '-');
+        return [
+            (string) ($row['order_number'] ?: '-'),
+            (string) ($row['customer_name'] ?: $row['customer_contact'] ?: '-'),
+            ucwords((string) ($row['order_type'] ?: '-')),
+            kpi_packer_tag(ucwords(str_replace('_', ' ', $status)), kpi_packer_status_tone($status)),
+            kpi_front_date_label((string) ($row['created_at'] ?? '')),
+            kpi_front_date_label((string) ($row['packing_started_at'] ?? '')),
+            kpi_front_date_label((string) ($row['completed_at'] ?? '')),
+        ];
+    }, $orderRows);
+    $courierTableRows = array_map(static function (array $row): array {
+        return [
+            (string) ($row['waybill_reference'] ?: '-'),
+            (string) ($row['customer_name'] ?: '-'),
+            kpi_front_date_label((string) ($row['uploaded_at'] ?? '')),
+            !empty($row['late_upload']) ? kpi_packer_tag('Late', 'tr') : kpi_packer_tag('On time', 'tg'),
+            kpi_front_date_label((string) ($row['sent_at'] ?? '')),
+            kpi_packer_tag(ucwords((string) ($row['status'] ?: 'Pending')), kpi_packer_status_tone((string) ($row['status'] ?? ''))),
+        ];
+    }, $courierRows);
+    $taskTableRows = array_map(static function (array $row): array {
+        $status = (string) ($row['status'] ?: '-');
+        return [
+            (string) ($row['task_name'] ?: '-'),
+            ucwords(str_replace('_', ' ', (string) ($row['checklist_type'] ?: '-'))),
+            kpi_packer_tag((string) ($row['priority'] ?: 'Normal'), strtolower((string) ($row['priority'] ?? '')) === 'high' ? 'tr' : 'tw'),
+            kpi_front_date_label((string) ($row['deadline'] ?? '')),
+            kpi_front_date_label((string) ($row['completed_at'] ?? '')),
+            kpi_packer_tag(ucwords(str_replace('_', ' ', $status)), kpi_packer_status_tone($status)),
+        ];
+    }, $taskRows);
+    $errorTableRows = array_map(static function (array $row): array {
+        $severity = strtolower((string) ($row['severity'] ?: ''));
+        return [
+            kpi_front_date_label((string) ($row['logged_at'] ?? '')),
+            (string) ($row['order_number'] ?: '-'),
+            kpi_packer_tag((string) ($row['category'] ?: '-'), $severity === 'critical' || $severity === 'high' ? 'tr' : 'tw'),
+            ucwords((string) ($row['severity'] ?: '-')),
+            (string) ($row['resolution'] ?: 'Open'),
+        ];
+    }, $errorRows);
+    $packingTableRows = array_map(static function (array $row): array {
+        $status = (string) ($row['packing_status'] ?: '-');
+        return [
+            (string) ($row['item_name'] ?: '-'),
+            (string) ($row['received_weight'] ?: '-'),
+            (string) ($row['quantity_planned'] ?: '-'),
+            (string) ($row['quantity_packed'] ?: '-'),
+            kpi_front_date_label((string) ($row['date_loaded'] ?? '')),
+            kpi_packer_tag(ucwords(str_replace('_', ' ', $status)), kpi_packer_status_tone($status)),
+            !empty($row['website_uploaded']) ? kpi_packer_tag('Complete', 'tg') : kpi_packer_tag('Pending', 'tw'),
+        ];
+    }, $packingRows);
+    $attendanceTableRows = array_map(static function (array $row): array {
+        return [
+            kpi_front_date_label((string) ($row['login_at'] ?? '')),
+            (string) ($row['role_key'] ?: '-'),
+        ];
+    }, $loginRows);
+    $sectionId = 'packerDash' . $employeeId;
+    ?>
+    <section class="hr-performance-shell hr-packer-performance hr-packer-exact" id="<?= htmlspecialchars($sectionId, ENT_QUOTES, 'UTF-8') ?>">
+        <div class="hr-profile-strip">
+            <div class="hr-avatar hr-avatar-purple"><?= htmlspecialchars(kpi_hr_initials($employeeName), ENT_QUOTES, 'UTF-8') ?></div>
+            <div class="hr-profile-info">
+                <div class="hr-profile-name"><?= htmlspecialchars($employeeName, ENT_QUOTES, 'UTF-8') ?></div>
+                <div class="hr-profile-role"><?= htmlspecialchars($employeeRole ?: 'Packing Operative', ENT_QUOTES, 'UTF-8') ?></div>
+                <div class="hr-profile-meta">
+                    <div><strong>Salary</strong> <?= kpi_money((float) ($employee['salary'] ?? 0)) ?>/mo</div>
+                    <div><strong>Portal logins</strong> <?= number_format((int) ($loginSummary['present_days'] ?? 0)) ?> days</div>
+                    <div><strong>Avg login time</strong> <?= htmlspecialchars($averageLogin, ENT_QUOTES, 'UTF-8') ?></div>
+                    <div><strong>Period</strong> <?= htmlspecialchars($periodLabel, ENT_QUOTES, 'UTF-8') ?></div>
+                    <div><strong>Status</strong> <?= !empty($employee['on_leave']) ? kpi_packer_tag('On leave', 'tw') : kpi_packer_tag('Active', 'tg') ?></div>
+                </div>
+            </div>
+            <div class="hr-profile-actions">
+                <a class="button small" href="reports.php?tab=employees&employee_id=<?= (int) $employeeId ?>">View Profile</a>
+                <a class="button small primary" href="employees.php">Employee Link</a>
+            </div>
+        </div>
 
-    echo '<div class="hr-split-metrics">';
-    foreach ([
-        'Delivery orders' => number_format((int) ($orderSummary['delivery_orders'] ?? 0)),
-        'Collection orders' => number_format((int) ($orderSummary['collection_orders'] ?? 0)),
-        'Courier orders' => number_format((int) ($orderSummary['courier_orders'] ?? 0)),
-        'Packing active' => number_format($packingActive),
-        'Packing not started' => number_format($packingNotStarted),
-        'Website pending' => number_format($websitePending),
-        'Late logins' => number_format((int) ($loginSummary['late_logins'] ?? 0)),
-        'Average login time' => isset($loginSummary['avg_login_seconds']) && $loginSummary['avg_login_seconds'] !== null ? gmdate('H:i', (int) $loginSummary['avg_login_seconds']) : '-',
-    ] as $label => $value) {
-        echo '<article><span>' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '</span><strong>' . htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') . '</strong></article>';
-    }
-    echo '</div></section>';
+        <div class="hr-section-tabs hr-packer-tabs" data-packer-tabs="<?= htmlspecialchars($sectionId, ENT_QUOTES, 'UTF-8') ?>">
+            <button class="hr-section-tab active" type="button" data-packer-section="orders">Orders</button>
+            <button class="hr-section-tab" type="button" data-packer-section="courier">Courier</button>
+            <button class="hr-section-tab" type="button" data-packer-section="tasks">Tasks</button>
+            <button class="hr-section-tab" type="button" data-packer-section="errors">Errors</button>
+            <button class="hr-section-tab" type="button" data-packer-section="packing">Packing</button>
+            <button class="hr-section-tab" type="button" data-packer-section="attendance">Attendance</button>
+        </div>
+
+        <div class="hr-packer-section active" data-packer-panel="orders">
+            <div class="hr-section-heading"><h2>Order Board</h2><p>Orders packed by <?= htmlspecialchars($employeeName, ENT_QUOTES, 'UTF-8') ?>, timing, customer modes and completion movement.</p></div>
+            <div class="hr-month-nav"><span><?= htmlspecialchars(date('F Y', strtotime($start)), ENT_QUOTES, 'UTF-8') ?></span><em><?= htmlspecialchars($periodLabel, ENT_QUOTES, 'UTF-8') ?></em></div>
+            <div class="hr-stat-grid cols-5">
+                <article class="hr-stat-card"><div class="hr-stat-label">Orders Packed</div><div class="hr-stat-value"><?= number_format((int) ($orderSummary['total_orders'] ?? 0)) ?></div><div class="hr-stat-sub">assigned order rows</div></article>
+                <article class="hr-stat-card"><div class="hr-stat-label">Avg New To Progress</div><div class="hr-stat-value"><?= htmlspecialchars(kpi_duration(isset($orderSummary['avg_start_minutes']) ? (float) $orderSummary['avg_start_minutes'] : null), ENT_QUOTES, 'UTF-8') ?></div><div class="hr-stat-sub">assigned to started</div></article>
+                <article class="hr-stat-card"><div class="hr-stat-label">Completed</div><div class="hr-stat-value"><?= number_format((int) ($orderSummary['completed_orders'] ?? 0)) ?></div><div class="hr-stat-sub">completed/packed/verified</div></article>
+                <article class="hr-stat-card"><div class="hr-stat-label">Avg Pack Time</div><div class="hr-stat-value"><?= htmlspecialchars(kpi_duration(isset($orderSummary['avg_pack_minutes']) ? (float) $orderSummary['avg_pack_minutes'] : null), ENT_QUOTES, 'UTF-8') ?></div><div class="hr-stat-sub">started to completed</div></article>
+                <article class="hr-stat-card"><div class="hr-stat-label">Performance Score</div><div class="hr-stat-value"><?= htmlspecialchars($score, ENT_QUOTES, 'UTF-8') ?></div><div class="hr-stat-sub">weighted KPI score</div></article>
+            </div>
+            <div class="hr-three-col">
+                <article class="hr-perf-card"><div class="hr-card-header"><h3 class="hr-card-title">Order Board - Status & Time</h3><span class="hr-card-action">Live data</span></div><?= kpi_packer_table(['Order', 'Customer', 'Mode', 'Status', 'Loaded', 'Started', 'Completed'], $orderTableRows) ?></article>
+                <article class="hr-perf-card"><div class="hr-card-header"><h3 class="hr-card-title">KPI Components</h3></div><div class="hr-kpi-list"><?php foreach ($componentRows as $component): ?><div><div class="hr-kpi-row"><span><?= htmlspecialchars($component['label'], ENT_QUOTES, 'UTF-8') ?></span><b><?= kpi_percent($component['score']) ?></b></div><i><em style="width:<?= min(100, max(0, $component['score'])) ?>%"></em></i><small><?= htmlspecialchars($component['raw'], ENT_QUOTES, 'UTF-8') ?></small></div><?php endforeach; ?></div></article>
+                <article class="hr-perf-card"><div class="hr-card-header"><h3 class="hr-card-title">Mode Breakdown</h3></div><div class="hr-split-metrics compact"><article><span>Delivery</span><strong><?= number_format((int) ($orderSummary['delivery_orders'] ?? 0)) ?></strong></article><article><span>Collection</span><strong><?= number_format((int) ($orderSummary['collection_orders'] ?? 0)) ?></strong></article><article><span>Courier</span><strong><?= number_format((int) ($orderSummary['courier_orders'] ?? 0)) ?></strong></article></div></article>
+            </div>
+        </div>
+
+        <div class="hr-packer-section" data-packer-panel="courier">
+            <div class="hr-section-heading"><h2>Courier</h2><p>Waybill upload and customer-send timing. Late uploads after the 14:00 cutoff are flagged.</p></div>
+            <div class="hr-stat-grid cols-4">
+                <article class="hr-stat-card"><div class="hr-stat-label">Waybills Uploaded</div><div class="hr-stat-value"><?= number_format(count($courierRows)) ?></div><div class="hr-stat-sub">in selected period</div></article>
+                <article class="hr-stat-card"><div class="hr-stat-label">Late Uploads</div><div class="hr-stat-value"><?= number_format($lateCourier) ?></div><div class="<?= $lateCourier > 0 ? 'badge bg-danger' : 'badge bg-good' ?>"><?= $lateCourier > 0 ? 'Cutoff issue' : 'On track' ?></div></article>
+                <article class="hr-stat-card"><div class="hr-stat-label">Sent To Customer</div><div class="hr-stat-value"><?= number_format(count(array_filter($courierRows, static fn(array $row): bool => !empty($row['sent_at'])))) ?></div><div class="hr-stat-sub">sent status captured</div></article>
+                <article class="hr-stat-card"><div class="hr-stat-label">Pending Sends</div><div class="hr-stat-value"><?= number_format(count(array_filter($courierRows, static fn(array $row): bool => empty($row['sent_at'])))) ?></div><div class="hr-stat-sub">needs follow-up</div></article>
+            </div>
+            <?php if ($lateCourier >= 3): ?><section class="hr-alert-card"><strong>Courier pattern alert.</strong> <?= htmlspecialchars($employeeName, ENT_QUOTES, 'UTF-8') ?> has <?= number_format($lateCourier) ?> courier uploads after the 14:00 cutoff.</section><?php endif; ?>
+            <article class="hr-perf-card"><div class="hr-card-header"><h3 class="hr-card-title">Courier Uploads</h3><span class="hr-card-action">View all</span></div><?= kpi_packer_table(['Waybill', 'Customer', 'Uploaded', 'Cutoff', 'Sent', 'Status'], $courierTableRows) ?></article>
+        </div>
+
+        <div class="hr-packer-section" data-packer-panel="tasks">
+            <div class="hr-section-heading"><h2>Task Management</h2><p>Recurring, cleaning and assigned digital task board work.</p></div>
+            <div class="hr-stat-grid cols-4">
+                <article class="hr-stat-card"><div class="hr-stat-label">Total Tasks</div><div class="hr-stat-value"><?= number_format($taskTotal) ?></div><div class="hr-stat-sub">assigned tasks</div></article>
+                <article class="hr-stat-card"><div class="hr-stat-label">Completed</div><div class="hr-stat-value"><?= number_format($taskDone) ?></div><div class="badge bg-good">Done</div></article>
+                <article class="hr-stat-card"><div class="hr-stat-label">In Progress</div><div class="hr-stat-value"><?= number_format($taskProgress) ?></div><div class="badge bg-warn">Active</div></article>
+                <article class="hr-stat-card"><div class="hr-stat-label">Overdue</div><div class="hr-stat-value"><?= number_format($taskOverdue) ?></div><div class="badge bg-danger">Past due</div></article>
+            </div>
+            <div class="task-pills"><span class="task-pill pill-done">Done: <?= number_format($taskDone) ?></span><span class="task-pill pill-progress">In Progress: <?= number_format($taskProgress) ?></span><span class="task-pill pill-pending">Pending: <?= number_format(max(0, $taskTotal - $taskDone - $taskProgress)) ?></span><span class="task-pill pill-overdue">Overdue: <?= number_format($taskOverdue) ?></span></div>
+            <article class="hr-perf-card"><div class="hr-card-header"><h3 class="hr-card-title">Assigned Tasks</h3><span class="hr-card-action">Digital task board</span></div><?= kpi_packer_table(['Task', 'Type', 'Priority', 'Due', 'Completed', 'Status'], $taskTableRows) ?></article>
+        </div>
+
+        <div class="hr-packer-section" data-packer-panel="errors">
+            <div class="hr-section-heading"><h2>Error Log</h2><p>Errors logged against <?= htmlspecialchars($employeeName, ENT_QUOTES, 'UTF-8') ?>, frequency and recurring patterns.</p></div>
+            <div class="hr-stat-grid cols-4">
+                <article class="hr-stat-card"><div class="hr-stat-label">Total Errors</div><div class="hr-stat-value"><?= number_format(count($errorRows)) ?></div><div class="<?= count($errorRows) > 0 ? 'badge bg-danger' : 'badge bg-good' ?>"><?= count($errorRows) > 0 ? 'Review needed' : 'Clean period' ?></div></article>
+                <article class="hr-stat-card"><div class="hr-stat-label">Accuracy Score</div><div class="hr-stat-value"><?= kpi_percent($accuracyScore) ?></div><div class="hr-stat-sub">error-weighted</div></article>
+                <article class="hr-stat-card"><div class="hr-stat-label">Recurring Types</div><div class="hr-stat-value"><?= number_format(count(array_filter($errorTypes, static fn(int $count): bool => $count >= 2))) ?></div><div class="hr-stat-sub">same category repeated</div></article>
+                <article class="hr-stat-card"><div class="hr-stat-label">Open Resolutions</div><div class="hr-stat-value"><?= number_format(count(array_filter($errorRows, static fn(array $row): bool => trim((string) ($row['resolution'] ?? '')) === ''))) ?></div><div class="hr-stat-sub">still open</div></article>
+            </div>
+            <?php foreach ($errorTypes as $category => $count): ?><?php if ($count >= 2): ?><section class="hr-alert-card"><strong>Recurring error pattern.</strong> <?= htmlspecialchars(ucwords($category), ENT_QUOTES, 'UTF-8') ?> appears <?= number_format($count) ?> times in this period.</section><?php break; ?><?php endif; ?><?php endforeach; ?>
+            <article class="hr-perf-card"><div class="hr-card-header"><h3 class="hr-card-title">Error Log</h3><span class="hr-card-action">Live data</span></div><?= kpi_packer_table(['Date', 'Order', 'Category', 'Severity', 'Resolution'], $errorTableRows) ?></article>
+        </div>
+
+        <div class="hr-packer-section" data-packer-panel="packing">
+            <div class="hr-section-heading"><h2>Packing Performance</h2><p>Weight-based performance tracking, quantity packed, website update status and packing-list timing.</p></div>
+            <div class="hr-stat-grid cols-5">
+                <article class="hr-stat-card"><div class="hr-stat-label">Total Weight Packed</div><div class="hr-stat-value"><?= htmlspecialchars($weightDisplay, ENT_QUOTES, 'UTF-8') ?></div><div class="hr-stat-sub">received weight total</div></article>
+                <article class="hr-stat-card"><div class="hr-stat-label">Items Complete</div><div class="hr-stat-value"><?= number_format($packingDone) ?></div><div class="hr-stat-sub">packing rows done</div></article>
+                <article class="hr-stat-card"><div class="hr-stat-label">Items In Progress</div><div class="hr-stat-value"><?= number_format($packingActive) ?></div><div class="badge bg-warn">Ongoing</div></article>
+                <article class="hr-stat-card"><div class="hr-stat-label">Not Yet Started</div><div class="hr-stat-value"><?= number_format($packingNotStarted) ?></div><div class="badge bg-danger">On list</div></article>
+                <article class="hr-stat-card"><div class="hr-stat-label">Website Pending</div><div class="hr-stat-value"><?= number_format($websitePending) ?></div><div class="hr-stat-sub">needs inventory update</div></article>
+            </div>
+            <div class="unit-grid">
+                <div class="unit-card"><div class="unit-icon">kg</div><div class="unit-label">Kilograms</div><div class="unit-val"><?= number_format($weightGrams / 1000, 1) ?> kg</div></div>
+                <div class="unit-card"><div class="unit-icon">g</div><div class="unit-label">Grams</div><div class="unit-val"><?= number_format($weightGrams, 0) ?> g</div></div>
+                <div class="unit-card"><div class="unit-icon">rows</div><div class="unit-label">Rows</div><div class="unit-val"><?= number_format(count($packingRows)) ?></div></div>
+                <div class="unit-card"><div class="unit-icon">web</div><div class="unit-label">Website</div><div class="unit-val"><?= number_format(max(0, count($packingRows) - $websitePending)) ?></div></div>
+            </div>
+            <div class="hr-two-col">
+                <article class="hr-perf-card"><div class="hr-card-header"><h3 class="hr-card-title">Packing List - Status & Time</h3><span class="hr-card-action">View all</span></div><?= kpi_packer_table(['Item', 'Weight', 'Qty plan', 'Qty packed', 'Loaded', 'Status', 'Website'], $packingTableRows) ?></article>
+                <article class="hr-perf-card"><div class="hr-card-header"><h3 class="hr-card-title">Accuracy & Weight Performance</h3></div><div class="hr-kpi-list"><div><div class="hr-kpi-row"><span>Packing accuracy</span><b><?= kpi_percent($accuracyScore) ?></b></div><i><em style="width:<?= min(100, max(0, $accuracyScore)) ?>%"></em></i><small>Error score and quantity signals</small></div><div><div class="hr-kpi-row"><span>Website updates completed</span><b><?= count($packingRows) ? kpi_percent(((count($packingRows) - $websitePending) / max(1, count($packingRows))) * 100) : '-' ?></b></div><i><em style="width:<?= count($packingRows) ? min(100, max(0, ((count($packingRows) - $websitePending) / max(1, count($packingRows))) * 100)) : 0 ?>%"></em></i><small><?= number_format($websitePending) ?> pending website updates</small></div></div></article>
+            </div>
+        </div>
+
+        <div class="hr-packer-section" data-packer-panel="attendance">
+            <div class="hr-section-heading"><h2>Attendance & Punctuality</h2><p>Portal login times and current availability evidence.</p></div>
+            <div class="hr-stat-grid cols-4">
+                <article class="hr-stat-card"><div class="hr-stat-label">Days Present</div><div class="hr-stat-value"><?= number_format((int) ($loginSummary['present_days'] ?? 0)) ?></div><div class="hr-stat-sub">login days</div></article>
+                <article class="hr-stat-card"><div class="hr-stat-label">Late Arrivals</div><div class="hr-stat-value"><?= number_format((int) ($loginSummary['late_logins'] ?? 0)) ?></div><div class="badge bg-warn">After 08:00</div></article>
+                <article class="hr-stat-card"><div class="hr-stat-label">Avg Login Time</div><div class="hr-stat-value"><?= htmlspecialchars($averageLogin, ENT_QUOTES, 'UTF-8') ?></div><div class="hr-stat-sub">selected period</div></article>
+                <article class="hr-stat-card"><div class="hr-stat-label">Reliability Score</div><div class="hr-stat-value"><?= kpi_percent((float) ($employee['reliability_score'] ?? 0)) ?></div><div class="hr-stat-sub">manual + portal signals</div></article>
+            </div>
+            <article class="hr-perf-card"><div class="hr-card-header"><h3 class="hr-card-title">Login Log</h3><span class="hr-card-action">Full backlog</span></div><?= kpi_packer_table(['Login', 'Role'], $attendanceTableRows) ?></article>
+        </div>
+    </section>
+    <?php
 }
 
 function kpi_detail_metric_value(array $details, int $employeeId, string $bucket, string $label, string $default = '-'): string

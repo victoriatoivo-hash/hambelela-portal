@@ -213,5 +213,17 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 
   requestDesktopPermission();
-  window.setInterval(() => fetchNotifications(true), 45000);
+window.setInterval(() => fetchNotifications(true), 45000);
+});
+
+document.addEventListener('click', (event) => {
+  const tab = event.target.closest('[data-packer-section]');
+  if (!tab) return;
+  const shell = tab.closest('.hr-packer-exact');
+  if (!shell) return;
+  const section = tab.dataset.packerSection;
+  shell.querySelectorAll('[data-packer-section]').forEach((item) => item.classList.toggle('active', item === tab));
+  shell.querySelectorAll('[data-packer-panel]').forEach((panel) => {
+    panel.classList.toggle('active', panel.dataset.packerPanel === section);
+  });
 });
