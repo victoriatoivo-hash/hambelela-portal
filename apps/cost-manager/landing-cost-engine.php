@@ -60,6 +60,10 @@ $categories = [];
 $error = null;
 $supplierInvoiceCards = [];
 $supplierInvoiceLines = [];
+$transportInvoiceCards = [];
+$transportInvoiceLinesByInvoice = [];
+$packagingCostCards = [];
+$packagingCategoryTotals = [];
 
 function cw_money(float $amount): string
 {
@@ -834,6 +838,78 @@ if (isset($pdo) && cw_table_exists($pdo, 'supplier_invoices')) {
     }
 }
 
+if (isset($pdo) && cw_table_exists($pdo, 'transport_invoices')) {
+    $transportInvoiceCards = cw_fetch_all(
+        $pdo,
+        "SELECT ti.id, ti.invoice_number, ti.reference, ti.invoice_date, ti.total_cost, ti.vat_amount,
+                ti.chargeable_weight_kg, ti.actual_weight_kg, ti.status, ti.created_at,
+                COALESCE(s.name, 'Unknown supplier') AS supplier_name,
+                COALESCE(tp.name, 'Transport provider') AS provider_name,
+                COALESCE(SUM(ta.allocated_cost), 0) AS allocated_cost
+         FROM transport_invoices ti
+         LEFT JOIN suppliers s ON s.id = ti.supplier_id
+         LEFT JOIN transport_providers tp ON tp.id = ti.provider_id
+         LEFT JOIN transport_allocations ta ON ta.transport_invoice_id = ti.id
+         GROUP BY ti.id, ti.invoice_number, ti.reference, ti.invoice_date, ti.total_cost, ti.vat_amount,
+                  ti.chargeable_weight_kg, ti.actual_weight_kg, ti.status, ti.created_at, s.name, tp.name
+         ORDER BY ti.created_at DESC, ti.id DESC
+         LIMIT 12"
+    );
+
+    if ($transportInvoiceCards && cw_table_exists($pdo, 'transport_invoice_lines')) {
+        $transportIds = array_map(static fn (array $invoice): int => (int) $invoice['id'], $transportInvoiceCards);
+        $placeholders = implode(',', array_fill(0, count($transportIds), '?'));
+        $lineRows = cw_fetch_all(
+            $pdo,
+            "SELECT til.id, til.transport_invoice_id, til.supplier_name, til.waybill_number, til.description,
+                    til.route, til.chargeable_weight_kg, til.line_amount,
+                    COALESCE(SUM(ta.allocated_cost), 0) AS allocated_cost
+             FROM transport_invoice_lines til
+             LEFT JOIN transport_allocations ta ON ta.transport_invoice_line_id = til.id
+             WHERE til.transport_invoice_id IN ({$placeholders})
+             GROUP BY til.id, til.transport_invoice_id, til.supplier_name, til.waybill_number, til.description,
+                      til.route, til.chargeable_weight_kg, til.line_amount
+             ORDER BY til.id DESC",
+            $transportIds
+        );
+        foreach ($lineRows as $line) {
+            $transportInvoiceLinesByInvoice[(int) $line['transport_invoice_id']][] = $line;
+        }
+    }
+}
+
+if (isset($pdo) && cw_table_exists($pdo, 'packaging')) {
+    $hasPackagingCategory = cw_column_exists($pdo, 'packaging', 'category');
+    $hasPackagingStockLeft = cw_column_exists($pdo, 'packaging', 'stock_left');
+    $hasPackagingNotes = cw_column_exists($pdo, 'packaging', 'notes');
+    $packagingCategorySelect = $hasPackagingCategory ? 'p.category' : "'Accessories' AS category";
+    $packagingStockSelect = $hasPackagingStockLeft ? 'p.stock_left' : 'p.quantity AS stock_left';
+    $packagingNotesSelect = $hasPackagingNotes ? 'p.notes' : "'' AS notes";
+
+    $packagingCostCards = cw_fetch_all(
+        $pdo,
+        "SELECT p.id, p.name, {$packagingCategorySelect}, p.quantity, {$packagingStockSelect},
+                p.unit, p.unit_cost, p.total_cost, {$packagingNotesSelect}, p.created_at,
+                COALESCE(s.name, 'Unknown supplier') AS supplier_name,
+                si.invoice_number, si.invoice_date
+         FROM packaging p
+         LEFT JOIN suppliers s ON s.id = p.supplier_id
+         LEFT JOIN supplier_invoices si ON si.id = p.invoice_id
+         ORDER BY COALESCE(si.invoice_date, DATE(p.created_at)) DESC, p.created_at DESC
+         LIMIT 80"
+    );
+
+    foreach ($packagingCostCards as $item) {
+        $category = trim((string) ($item['category'] ?? 'Accessories')) ?: 'Accessories';
+        if (!isset($packagingCategoryTotals[$category])) {
+            $packagingCategoryTotals[$category] = ['rows' => 0, 'cost' => 0.0];
+        }
+        $packagingCategoryTotals[$category]['rows']++;
+        $packagingCategoryTotals[$category]['cost'] += (float) ($item['total_cost'] ?? 0);
+    }
+    uasort($packagingCategoryTotals, static fn (array $a, array $b): int => $b['cost'] <=> $a['cost']);
+}
+
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
@@ -951,6 +1027,117 @@ include BASE_PATH . '/shared/sidebar.php';
                                     </details>
                                 <?php endforeach; ?>
                                 <?php if (!$supplierInvoiceCards): ?><p class="empty-state">No supplier invoices saved yet. Upload an invoice above to begin.</p><?php endif; ?>
+                            </div>
+                        <?php elseif ($step['key'] === 'transport'): ?>
+                            <form class="invoice-upload-box" action="transport-preview.php" method="post" enctype="multipart/form-data" target="transport-invoice-preview-frame">
+                                <label>Supplier / transport context<input name="supplier_name" placeholder="Optional supplier or provider, e.g. Jet.X / Chempack"></label>
+                                <label>Transport invoice PDF<input name="transport_pdf" type="file" accept="application/pdf" required></label>
+                                <label>Allocation method
+                                    <select name="allocation_basis">
+                                        <option value="invoice_value">Invoice value</option>
+                                        <option value="order_weight">Use extracted consignment weight</option>
+                                        <option value="item_quantity">Item quantity</option>
+                                        <option value="manual">Manual split</option>
+                                    </select>
+                                </label>
+                                <button class="btn btn-next" type="submit"><i data-lucide="scan-line"></i> Extract transport invoice</button>
+                            </form>
+                            <iframe class="invoice-preview-frame" name="transport-invoice-preview-frame" title="Transport invoice extraction preview"></iframe>
+                            <div class="saved-invoice-list saved-invoice-list-inline">
+                                <div class="saved-invoice-list-head">
+                                    <strong>Saved transport invoices</strong>
+                                    <span><?= number_format(count($transportInvoiceCards)) ?> shown</span>
+                                </div>
+                                <?php foreach ($transportInvoiceCards as $invoice): ?>
+                                    <?php
+                                    $invoiceId = (int) $invoice['id'];
+                                    $allocated = (float) ($invoice['allocated_cost'] ?? 0);
+                                    $total = (float) ($invoice['total_cost'] ?? 0);
+                                    $pending = max(0, $total - $allocated);
+                                    $weight = (float) ($invoice['chargeable_weight_kg'] ?: $invoice['actual_weight_kg']);
+                                    ?>
+                                    <details class="saved-invoice-card">
+                                        <summary>
+                                            <span>
+                                                <strong><?= htmlspecialchars((string) ($invoice['invoice_number'] ?: $invoice['reference'] ?: 'Transport #' . $invoiceId), ENT_QUOTES, 'UTF-8') ?></strong>
+                                                <small><?= htmlspecialchars((string) $invoice['provider_name'], ENT_QUOTES, 'UTF-8') ?> - <?= htmlspecialchars((string) $invoice['supplier_name'], ENT_QUOTES, 'UTF-8') ?> - <?= htmlspecialchars((string) ($invoice['invoice_date'] ?: substr((string) $invoice['created_at'], 0, 10)), ENT_QUOTES, 'UTF-8') ?></small>
+                                            </span>
+                                            <em><?= cw_money($pending) ?> pending</em>
+                                        </summary>
+                                        <div class="saved-invoice-detail">
+                                            <div class="invoice-mini-metrics">
+                                                <span>Total <strong><?= cw_money($total) ?></strong></span>
+                                                <span>Allocated <strong><?= cw_money($allocated) ?></strong></span>
+                                                <span>Weight <strong><?= number_format($weight, 3) ?>kg</strong></span>
+                                            </div>
+                                            <div class="transport-allocation-actions">
+                                                <button class="btn btn-next" type="button" data-open-transport-allocation data-transport-id="<?= $invoiceId ?>"><i data-lucide="git-branch"></i> Allocate invoice</button>
+                                                <button class="btn btn-back" type="button" data-open-transport-allocation data-transport-id="<?= $invoiceId ?>" data-split-allocation="1"><i data-lucide="split"></i> Split allocation</button>
+                                            </div>
+                                            <div class="table-wrap invoice-lines-table">
+                                                <table>
+                                                    <thead><tr><th>Waybill</th><th>Supplier</th><th>Description</th><th>Weight</th><th>Amount</th><th>Allocated</th></tr></thead>
+                                                    <tbody>
+                                                        <?php foreach (($transportInvoiceLinesByInvoice[$invoiceId] ?? []) as $line): ?>
+                                                            <tr>
+                                                                <td><?= htmlspecialchars((string) $line['waybill_number'], ENT_QUOTES, 'UTF-8') ?></td>
+                                                                <td><?= htmlspecialchars((string) $line['supplier_name'], ENT_QUOTES, 'UTF-8') ?></td>
+                                                                <td><?= htmlspecialchars((string) ($line['description'] ?: $line['route']), ENT_QUOTES, 'UTF-8') ?></td>
+                                                                <td><?= number_format((float) $line['chargeable_weight_kg'], 3) ?>kg</td>
+                                                                <td><?= cw_money((float) $line['line_amount']) ?></td>
+                                                                <td><?= cw_money((float) $line['allocated_cost']) ?></td>
+                                                            </tr>
+                                                        <?php endforeach; ?>
+                                                        <?php if (empty($transportInvoiceLinesByInvoice[$invoiceId])): ?><tr><td colspan="6" class="empty-state-cell">No separate waybill lines saved for this transport invoice yet.</td></tr><?php endif; ?>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </details>
+                                <?php endforeach; ?>
+                                <?php if (!$transportInvoiceCards): ?><p class="empty-state">No transport invoices saved yet. Upload a transport invoice above to begin.</p><?php endif; ?>
+                            </div>
+                        <?php elseif ($step['key'] === 'packaging'): ?>
+                            <form class="invoice-upload-box" action="invoice-preview.php" method="post" enctype="multipart/form-data" target="packaging-invoice-preview-frame">
+                                <input type="hidden" name="invoice_mode" value="packaging">
+                                <label>Packaging supplier<input name="supplier_name" placeholder="Packaging supplier, e.g. Label supplier"></label>
+                                <label>Packaging invoice PDF<input name="invoice_pdf" type="file" accept="application/pdf" required></label>
+                                <button class="btn btn-next" type="submit"><i data-lucide="scan-line"></i> Extract packaging invoice</button>
+                            </form>
+                            <iframe class="invoice-preview-frame" name="packaging-invoice-preview-frame" title="Packaging invoice extraction preview"></iframe>
+                            <div class="saved-invoice-list saved-invoice-list-inline">
+                                <div class="saved-invoice-list-head">
+                                    <strong>Packaging cost database</strong>
+                                    <span><?= number_format(count($packagingCostCards)) ?> items shown</span>
+                                </div>
+                                <div class="packaging-category-grid">
+                                    <?php foreach (array_slice($packagingCategoryTotals, 0, 8, true) as $category => $categoryData): ?>
+                                        <div class="packaging-category-card">
+                                            <strong><?= htmlspecialchars((string) $category, ENT_QUOTES, 'UTF-8') ?></strong>
+                                            <span><?= number_format((int) $categoryData['rows']) ?> rows</span>
+                                            <em><?= cw_money((float) $categoryData['cost']) ?></em>
+                                        </div>
+                                    <?php endforeach; ?>
+                                    <?php if (!$packagingCategoryTotals): ?><p class="empty-state">No packaging categories saved yet.</p><?php endif; ?>
+                                </div>
+                                <div class="packaging-item-list">
+                                    <?php foreach ($packagingCostCards as $item): ?>
+                                        <?php
+                                        $itemName = (string) $item['name'];
+                                        $isLabel = stripos($itemName, 'label') !== false || stripos($itemName, 'sticker') !== false;
+                                        ?>
+                                        <div class="packaging-item-card <?= $isLabel ? 'is-label-cost' : '' ?>">
+                                            <div>
+                                                <strong><?= htmlspecialchars($itemName, ENT_QUOTES, 'UTF-8') ?></strong>
+                                                <small><?= htmlspecialchars((string) ($item['category'] ?: ($isLabel ? 'Labels' : 'Packaging')), ENT_QUOTES, 'UTF-8') ?> - <?= htmlspecialchars((string) $item['supplier_name'], ENT_QUOTES, 'UTF-8') ?></small>
+                                            </div>
+                                            <span><?= number_format((float) $item['quantity'], 3) ?> <?= htmlspecialchars((string) $item['unit'], ENT_QUOTES, 'UTF-8') ?></span>
+                                            <em><?= cw_money((float) $item['unit_cost']) ?> / unit</em>
+                                            <b><?= cw_money((float) $item['total_cost']) ?></b>
+                                        </div>
+                                    <?php endforeach; ?>
+                                    <?php if (!$packagingCostCards): ?><p class="empty-state">No packaging costs saved yet. Upload packaging, label or sticker invoices above.</p><?php endif; ?>
+                                </div>
                             </div>
                         <?php else: ?>
                             <div class="dropzone-eng"><i data-lucide="<?= $step['key'] === 'transport' ? 'truck' : ($step['key'] === 'packaging' ? 'package' : 'file-up') ?>"></i><span><?= htmlspecialchars((string) $step['summary'], ENT_QUOTES, 'UTF-8') ?></span></div>
@@ -1141,6 +1328,21 @@ include BASE_PATH . '/shared/sidebar.php';
         </section>
     </section>
 
+    <div class="cost-allocation-modal" id="transportAllocationModal" hidden>
+        <div class="cost-allocation-backdrop" data-close-transport-allocation></div>
+        <section class="cost-allocation-dialog" role="dialog" aria-modal="true" aria-label="Allocate transport invoice">
+            <header>
+                <div>
+                    <p class="eyebrow">Transport Allocation</p>
+                    <h2 id="transportAllocationTitle">Allocate invoice</h2>
+                    <p id="transportAllocationHint">Allocate this transport invoice to supplier products, packaging rows, or split it manually.</p>
+                </div>
+                <button class="icon-btn" type="button" data-close-transport-allocation aria-label="Close allocation popup">x</button>
+            </header>
+            <iframe id="transportAllocationFrame" title="Transport allocation workspace"></iframe>
+        </section>
+    </div>
+
     </section>
 </main>
 
@@ -1212,6 +1414,21 @@ include BASE_PATH . '/shared/sidebar.php';
 .invoice-mini-metrics span { background:#fff; border:1px solid var(--cw-border); border-radius:10px; padding:8px; color:var(--cw-muted); font-size:11px; font-weight:800; }
 .invoice-mini-metrics strong { display:block; color:var(--cw-text); font-size:13px; margin-top:2px; }
 .invoice-lines-table table { min-width:620px; font-size:12px; background:#fff; }
+.transport-allocation-actions { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 12px; }
+.transport-allocation-actions .btn { display:inline-flex; align-items:center; gap:7px; padding:8px 12px; font-size:12px; }
+.packaging-category-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; margin-bottom:12px; }
+.packaging-category-card { background:#fff; border:1px solid var(--cw-border); border-radius:12px; padding:10px; display:grid; gap:3px; }
+.packaging-category-card strong { font-size:13px; }
+.packaging-category-card span { color:var(--cw-muted); font-size:11px; font-weight:800; }
+.packaging-category-card em { color:#d63b7a; font-size:12px; font-style:normal; font-weight:900; }
+.packaging-item-list { display:grid; gap:8px; max-height:430px; overflow:auto; padding-right:4px; }
+.packaging-item-card { display:grid; grid-template-columns:minmax(170px,1fr) auto auto auto; gap:10px; align-items:center; background:#fff; border:1px solid var(--cw-border); border-radius:12px; padding:10px; font-size:12px; }
+.packaging-item-card.is-label-cost { border-color:rgba(255,107,157,.45); background:#fff8fb; }
+.packaging-item-card strong { display:block; font-size:13px; }
+.packaging-item-card small { display:block; color:var(--cw-muted); margin-top:2px; }
+.packaging-item-card span { color:#655f65; font-weight:800; }
+.packaging-item-card em { color:#d63b7a; background:var(--cw-pink-light); border-radius:999px; padding:5px 8px; font-style:normal; font-weight:900; white-space:nowrap; }
+.packaging-item-card b { font-size:12px; text-align:right; }
 .step-fields-list { display:flex; flex-wrap:wrap; gap:7px; margin-top:12px; }
 .step-fields-list span { background:#fff; border:1px solid var(--cw-border); border-radius:999px; padding:6px 9px; font-size:11.5px; font-weight:700; color:#655f65; }
 .stat-row-eng { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
@@ -1284,8 +1501,16 @@ include BASE_PATH . '/shared/sidebar.php';
 .dot.landed { background:var(--cw-purple-bg); border:1px solid var(--cw-purple); }
 .dot.pricing { background:var(--cw-pink-light); border:1px solid var(--cw-pink); }
 .dot.margin { background:var(--cw-green-bg); border:1px solid var(--cw-green); }
-@media (max-width:1100px) { .cost-workbook-stats { grid-template-columns:repeat(2,minmax(0,1fr)); } .filters-row { grid-template-columns:1fr 1fr; } .workbook-step-grid { grid-template-columns:1fr; } }
-@media (max-width:700px) { .cost-workbook-exact { padding-left:16px; padding-right:16px; } .cost-workbook-stats, .cost-workbook-stats-small, .filters-row { grid-template-columns:1fr; } .workbook-step-header, .panel-head { align-items:stretch; } .step-nav-btns, .actions, .cost-workbook-badges { justify-content:flex-start; } .stat-row-eng { grid-template-columns:1fr; } }
+.cost-allocation-modal[hidden] { display:none; }
+.cost-allocation-modal { position:fixed; inset:0; z-index:1200; display:grid; place-items:center; padding:24px; }
+.cost-allocation-backdrop { position:absolute; inset:0; background:rgba(28,24,28,.42); backdrop-filter:blur(3px); }
+.cost-allocation-dialog { position:relative; z-index:1; width:min(1180px,96vw); max-height:92vh; display:grid; grid-template-rows:auto minmax(360px,1fr); background:#fffaf7; border:1px solid var(--cw-border); border-radius:18px; box-shadow:0 30px 80px rgba(35,24,29,.22); overflow:hidden; }
+.cost-allocation-dialog header { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; padding:18px 20px; background:#fff; border-bottom:1px solid var(--cw-border); }
+.cost-allocation-dialog h2 { margin:2px 0 4px; font-size:19px; }
+.cost-allocation-dialog p { margin:0; color:var(--cw-muted); font-size:13px; }
+.cost-allocation-dialog iframe { width:100%; height:72vh; border:0; background:#fff; }
+@media (max-width:1100px) { .cost-workbook-stats { grid-template-columns:repeat(2,minmax(0,1fr)); } .filters-row { grid-template-columns:1fr 1fr; } .workbook-step-grid { grid-template-columns:1fr; } .packaging-item-card { grid-template-columns:1fr 1fr; } }
+@media (max-width:700px) { .cost-workbook-exact { padding-left:16px; padding-right:16px; } .cost-workbook-stats, .cost-workbook-stats-small, .filters-row, .packaging-category-grid { grid-template-columns:1fr; } .workbook-step-header, .panel-head { align-items:stretch; } .step-nav-btns, .actions, .cost-workbook-badges { justify-content:flex-start; } .stat-row-eng { grid-template-columns:1fr; } .packaging-item-card { grid-template-columns:1fr; } .cost-allocation-modal { padding:0; } .cost-allocation-dialog { width:100vw; height:100vh; max-height:none; border-radius:0; } .cost-allocation-dialog iframe { height:calc(100vh - 112px); } }
 </style>
 
 <script>
@@ -1475,6 +1700,35 @@ function exportCSV() {
   a.href = url; a.download = 'cost_workbook_export.csv'; a.click();
   URL.revokeObjectURL(url);
 }
+function openTransportAllocation(button) {
+  var modal = document.getElementById('transportAllocationModal');
+  var frame = document.getElementById('transportAllocationFrame');
+  var title = document.getElementById('transportAllocationTitle');
+  var hint = document.getElementById('transportAllocationHint');
+  if (!modal || !frame) return;
+  var invoiceId = button && button.dataset ? (button.dataset.transportId || '') : '';
+  var split = Boolean(button && button.dataset && button.dataset.splitAllocation === '1');
+  var url = 'allocate-transport.php';
+  var params = [];
+  if (invoiceId) params.push('transport_invoice_id=' + encodeURIComponent(invoiceId));
+  if (split) params.push('mode=split');
+  if (params.length) url += '?' + params.join('&');
+  frame.src = url;
+  if (title) title.textContent = split ? 'Split allocation' : 'Allocate invoice';
+  if (hint) hint.textContent = split
+    ? 'Split one transport invoice across different supplier invoice rows, packaging rows or waybill lines.'
+    : 'Allocate the selected transport invoice to the products or packaging that travelled in that shipment.';
+  modal.hidden = false;
+  document.body.style.overflow = 'hidden';
+}
+function closeTransportAllocation() {
+  var modal = document.getElementById('transportAllocationModal');
+  var frame = document.getElementById('transportAllocationFrame');
+  if (!modal) return;
+  modal.hidden = true;
+  if (frame) frame.src = 'about:blank';
+  document.body.style.overflow = '';
+}
 document.addEventListener('DOMContentLoaded', function () {
   buildEngineStepper();
   goToWorkbookStep(1);
@@ -1486,6 +1740,19 @@ document.addEventListener('submit', function (event) {
   if (!form) return;
   var frame = form.parentElement ? form.parentElement.querySelector('.invoice-preview-frame') : null;
   if (frame) frame.classList.add('is-visible');
+});
+document.addEventListener('click', function (event) {
+  var allocationButton = event.target.closest('[data-open-transport-allocation]');
+  if (allocationButton) {
+    openTransportAllocation(allocationButton);
+    return;
+  }
+  if (event.target.closest('[data-close-transport-allocation]')) {
+    closeTransportAllocation();
+  }
+});
+document.addEventListener('keydown', function (event) {
+  if (event.key === 'Escape') closeTransportAllocation();
 });
 </script>
 <?php include BASE_PATH . '/shared/footer.php'; return; ?>

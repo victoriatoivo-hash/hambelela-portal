@@ -15,6 +15,8 @@ $transportInvoices = [];
 $transportLines = [];
 $rawMaterials = [];
 $packagingItems = [];
+$selectedTransportInvoiceId = max(0, (int) ($_GET['transport_invoice_id'] ?? 0));
+$splitMode = (string) ($_GET['mode'] ?? '') === 'split';
 
 try {
     $pdo = db();
@@ -79,7 +81,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     <select name="transport_invoice_id" id="transport_invoice_id" required>
                         <?php foreach ($transportInvoices as $invoice): ?>
                             <?php $weight = $invoice['chargeable_weight_kg'] ?: $invoice['actual_weight_kg']; ?>
-                            <option value="<?= (int) $invoice['id'] ?>" data-total="<?= htmlspecialchars((string) $invoice['total_cost'], ENT_QUOTES, 'UTF-8') ?>">
+                            <option value="<?= (int) $invoice['id'] ?>" data-total="<?= htmlspecialchars((string) $invoice['total_cost'], ENT_QUOTES, 'UTF-8') ?>" <?= $selectedTransportInvoiceId === (int) $invoice['id'] ? 'selected' : '' ?>>
                                 #<?= (int) $invoice['id'] ?> <?= htmlspecialchars($invoice['provider_name'], ENT_QUOTES, 'UTF-8') ?> - <?= htmlspecialchars($invoice['supplier_name'], ENT_QUOTES, 'UTF-8') ?> - N$ <?= number_format((float) $invoice['total_cost'], 2) ?> - <?= number_format((float) $weight, 3) ?>kg
                             </option>
                         <?php endforeach; ?>
@@ -115,7 +117,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     <label>Find item from any supplier invoice
                         <input id="allocation_search" type="search" placeholder="Search item, supplier, invoice number, or date">
                     </label>
-                    <p>Items from different supplier invoices can be ticked together if they travelled on the same transport waybill. If an item is not listed, upload and save that supplier invoice first.</p>
+                    <p><?= $splitMode ? 'Split allocation mode: tick only the rows that belong to this portion of the transport invoice, then calculate and save. Repeat for the next supplier/waybill split if needed.' : 'Items from different supplier invoices can be ticked together if they travelled on the same transport waybill. If an item is not listed, upload and save that supplier invoice first.' ?></p>
                 </div>
                 <table class="data-table editable-table">
                     <thead><tr><th>Include</th><th>Type</th><th>Item</th><th>Supplier invoice</th><th>Qty/value</th><th>Allocation value</th><th>Share</th><th>Allocated cost</th></tr></thead>
