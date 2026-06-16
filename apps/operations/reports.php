@@ -1331,6 +1331,23 @@ function kpi_front_date_label(?string $value): string
     return $time ? date('d M H:i', $time) : '-';
 }
 
+function kpi_hr_initials(string $name): string
+{
+    $parts = preg_split('/\s+/', trim($name));
+    $initials = '';
+    foreach ($parts ?: [] as $part) {
+        if ($part === '') {
+            continue;
+        }
+        $initials .= strtoupper(substr($part, 0, 1));
+        if (strlen($initials) >= 2) {
+            break;
+        }
+    }
+
+    return $initials !== '' ? $initials : 'H';
+}
+
 function kpi_render_front_person_live_dashboard(array $employee, array $detail, string $start, string $end): void
 {
     $employeeId = (int) ($employee['employee_id'] ?? 0);
@@ -1416,15 +1433,23 @@ function kpi_render_front_person_live_dashboard(array $employee, array $detail, 
         ['Website upload time', kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'packing', 'Avg website update time'), 'Packing list stock updates'],
     ];
 
-    echo '<section class="panel kpi-front-person-dashboard">';
-    echo '<div class="section-row"><div><h2>' . htmlspecialchars((string) ($employee['name'] ?? 'Front Person'), ENT_QUOTES, 'UTF-8') . ' Front Person Live Dashboard</h2><p>Live operational evidence for orders, bookkeeping, courier waybills, tasks, errors, picking-list website updates and attendance for the selected KPI date range.</p></div><a class="button small" href="' . htmlspecialchars(BASE_URL . '/apps/hr-portal/cecilia_performance.php', ENT_QUOTES, 'UTF-8') . '">Open full HR view</a></div>';
-    echo '<div class="dashboard-grid kpi-summary-grid">';
+    $employeeName = (string) ($employee['name'] ?? 'Front Person');
+    $employeeRole = (string) ($employee['role_name'] ?? 'Customer Service & Operations');
+    $averageLogin = kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'hr', 'Average login time');
+    $portalLogins = kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'hr', 'Portal logins');
+    $score = isset($employee['score']) ? kpi_percent((float) $employee['score']) : '-';
+
+    echo '<section class="hr-performance-shell hr-front-performance">';
+    echo '<div class="hr-profile-strip"><div class="hr-avatar">' . htmlspecialchars(kpi_hr_initials($employeeName), ENT_QUOTES, 'UTF-8') . '</div><div class="hr-profile-info"><div class="hr-profile-name">' . htmlspecialchars($employeeName, ENT_QUOTES, 'UTF-8') . '</div><div class="hr-profile-role">' . htmlspecialchars($employeeRole, ENT_QUOTES, 'UTF-8') . '</div><div class="hr-profile-meta"><div><strong>Period</strong> ' . htmlspecialchars(date('d M', strtotime($start)) . ' - ' . date('d M Y', strtotime($end . ' -1 second')), ENT_QUOTES, 'UTF-8') . '</div><div><strong>Score</strong> ' . htmlspecialchars($score, ENT_QUOTES, 'UTF-8') . '</div><div><strong>Portal logins</strong> ' . htmlspecialchars($portalLogins, ENT_QUOTES, 'UTF-8') . '</div><div><strong>Avg login</strong> ' . htmlspecialchars($averageLogin, ENT_QUOTES, 'UTF-8') . '</div></div></div><div class="hr-profile-actions"><a class="button small" href="' . htmlspecialchars(BASE_URL . '/apps/hr-portal/cecilia_performance.php', ENT_QUOTES, 'UTF-8') . '">Open full HR view</a></div></div>';
+    echo '<div class="hr-section-tabs"><span class="hr-section-tab active">Order Board</span><span class="hr-section-tab">Bookkeeping</span><span class="hr-section-tab">Courier Waybills</span><span class="hr-section-tab">Task Management</span><span class="hr-section-tab">Error Log</span><span class="hr-section-tab">Picking List</span><span class="hr-section-tab">Attendance</span></div>';
+    echo '<div class="hr-section-heading"><h2>Cecilia Front Desk Performance</h2><p>Live operational evidence for orders, cash handling, courier follow-up, tasks, errors, website updates and attendance.</p></div>';
+    echo '<div class="hr-stat-grid">';
     foreach ($cardMetrics as [$label, $value, $hint]) {
-        echo '<article class="work-metric-card"><span class="metric-title">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '</span><strong>' . htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') . '</strong><small>' . htmlspecialchars($hint, ENT_QUOTES, 'UTF-8') . '</small></article>';
+        echo '<article class="hr-stat-card"><div class="hr-stat-label">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '</div><div class="hr-stat-value">' . htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') . '</div><div class="hr-stat-sub">' . htmlspecialchars($hint, ENT_QUOTES, 'UTF-8') . '</div></article>';
     }
     echo '</div>';
 
-    echo '<div class="dashboard-grid kpi-front-person-grids">';
+    echo '<div class="hr-card-grid">';
     $tables = [
         'Order Board' => [
             ['Order', 'Customer', 'Paid', 'Status', 'Loaded', 'Completed'],
@@ -1512,7 +1537,7 @@ function kpi_render_front_person_live_dashboard(array $employee, array $detail, 
     ];
 
     foreach ($tables as $title => [$columns, $rows]) {
-        echo '<article class="panel kpi-mini-table-panel"><h3>' . htmlspecialchars((string) $title, ENT_QUOTES, 'UTF-8') . '</h3><div class="table-scroll"><table class="data-table ops-table"><thead><tr>';
+        echo '<article class="hr-perf-card"><div class="hr-card-header"><h3 class="hr-card-title">' . htmlspecialchars((string) $title, ENT_QUOTES, 'UTF-8') . '</h3><span class="hr-card-action">Live data</span></div><div class="hr-table-scroll"><table class="hr-data-table"><thead><tr>';
         foreach ($columns as $column) {
             echo '<th>' . htmlspecialchars((string) $column, ENT_QUOTES, 'UTF-8') . '</th>';
         }
@@ -1525,7 +1550,7 @@ function kpi_render_front_person_live_dashboard(array $employee, array $detail, 
             echo '</tr>';
         }
         if (!$rows) {
-            echo '<tr><td colspan="' . count($columns) . '">No records found for this period.</td></tr>';
+            echo '<tr><td class="hr-empty-state" colspan="' . count($columns) . '">No records found for this period.</td></tr>';
         }
         echo '</tbody></table></div></article>';
     }
@@ -1688,20 +1713,27 @@ function kpi_render_packer_live_dashboard(array $employee, array $detail, string
         ['Attendance days', number_format((int) ($loginSummary['present_days'] ?? 0)), 'Portal login days'],
     ];
 
-    echo '<section class="panel kpi-front-person-dashboard kpi-packer-live-dashboard">';
-    echo '<div class="section-row"><div><h2>' . htmlspecialchars((string) ($employee['name'] ?? 'Packer'), ENT_QUOTES, 'UTF-8') . ' Packer Live Dashboard</h2><p>Live performance evidence for assigned orders, courier uploads, checklist tasks, errors, packing-list workload and attendance for the selected KPI date range.</p></div></div>';
-    echo '<div class="dashboard-grid kpi-summary-grid">';
+    $employeeName = (string) ($employee['name'] ?? 'Packer');
+    $employeeRole = (string) ($employee['role_name'] ?? 'Packing Operative');
+    $averageLogin = isset($loginSummary['avg_login_seconds']) && $loginSummary['avg_login_seconds'] !== null ? gmdate('H:i', (int) $loginSummary['avg_login_seconds']) : '-';
+    $score = isset($employee['score']) ? kpi_percent((float) $employee['score']) : '-';
+
+    echo '<section class="hr-performance-shell hr-packer-performance">';
+    echo '<div class="hr-profile-strip"><div class="hr-avatar hr-avatar-purple">' . htmlspecialchars(kpi_hr_initials($employeeName), ENT_QUOTES, 'UTF-8') . '</div><div class="hr-profile-info"><div class="hr-profile-name">' . htmlspecialchars($employeeName, ENT_QUOTES, 'UTF-8') . '</div><div class="hr-profile-role">' . htmlspecialchars($employeeRole, ENT_QUOTES, 'UTF-8') . '</div><div class="hr-profile-meta"><div><strong>Period</strong> ' . htmlspecialchars(date('d M', strtotime($start)) . ' - ' . date('d M Y', strtotime($end . ' -1 second')), ENT_QUOTES, 'UTF-8') . '</div><div><strong>Score</strong> ' . htmlspecialchars($score, ENT_QUOTES, 'UTF-8') . '</div><div><strong>Packing weight</strong> ' . htmlspecialchars($weightDisplay, ENT_QUOTES, 'UTF-8') . '</div><div><strong>Avg login</strong> ' . htmlspecialchars($averageLogin, ENT_QUOTES, 'UTF-8') . '</div></div></div></div>';
+    echo '<div class="hr-section-tabs"><span class="hr-section-tab active hr-purple-tab">Orders</span><span class="hr-section-tab">Courier</span><span class="hr-section-tab">Tasks</span><span class="hr-section-tab">Errors</span><span class="hr-section-tab">Packing List</span><span class="hr-section-tab">Attendance</span></div>';
+    echo '<div class="hr-section-heading"><h2>Packer Performance</h2><p>Live performance evidence for assigned orders, courier uploads, checklist tasks, errors, packing-list workload and attendance.</p></div>';
+    echo '<div class="hr-stat-grid hr-packer-stat-grid">';
     foreach ($cardMetrics as [$label, $value, $hint]) {
-        echo '<article class="work-metric-card"><span class="metric-title">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '</span><strong>' . htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') . '</strong><small>' . htmlspecialchars($hint, ENT_QUOTES, 'UTF-8') . '</small></article>';
+        echo '<article class="hr-stat-card"><div class="hr-stat-label">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '</div><div class="hr-stat-value">' . htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') . '</div><div class="hr-stat-sub">' . htmlspecialchars($hint, ENT_QUOTES, 'UTF-8') . '</div></article>';
     }
     echo '</div>';
 
     if ($lateCourier >= 3) {
-        echo '<section class="ops-alert error"><strong>Courier pattern alert.</strong> ' . htmlspecialchars((string) ($employee['name'] ?? 'This packer'), ENT_QUOTES, 'UTF-8') . ' has ' . number_format($lateCourier) . ' courier uploads after the 14:00 cutoff in this period.</section>';
+        echo '<section class="hr-alert-card"><strong>Courier pattern alert.</strong> ' . htmlspecialchars((string) ($employee['name'] ?? 'This packer'), ENT_QUOTES, 'UTF-8') . ' has ' . number_format($lateCourier) . ' courier uploads after the 14:00 cutoff in this period.</section>';
     }
     foreach ($errorTypes as $category => $count) {
         if ($count >= 2 && strpos($category, 'wrong product') !== false) {
-            echo '<section class="ops-alert error"><strong>Recurring error alert.</strong> Wrong product packed appears ' . number_format($count) . ' times for this packer.</section>';
+            echo '<section class="hr-alert-card"><strong>Recurring error alert.</strong> Wrong product packed appears ' . number_format($count) . ' times for this packer.</section>';
             break;
         }
     }
@@ -1784,9 +1816,9 @@ function kpi_render_packer_live_dashboard(array $employee, array $detail, string
         ],
     ];
 
-    echo '<div class="dashboard-grid kpi-front-person-grids">';
+    echo '<div class="hr-card-grid">';
     foreach ($tables as $title => [$columns, $rows]) {
-        echo '<article class="panel kpi-mini-table-panel"><h3>' . htmlspecialchars((string) $title, ENT_QUOTES, 'UTF-8') . '</h3><div class="table-scroll"><table class="data-table ops-table"><thead><tr>';
+        echo '<article class="hr-perf-card"><div class="hr-card-header"><h3 class="hr-card-title">' . htmlspecialchars((string) $title, ENT_QUOTES, 'UTF-8') . '</h3><span class="hr-card-action">Live data</span></div><div class="hr-table-scroll"><table class="hr-data-table"><thead><tr>';
         foreach ($columns as $column) {
             echo '<th>' . htmlspecialchars((string) $column, ENT_QUOTES, 'UTF-8') . '</th>';
         }
@@ -1799,13 +1831,13 @@ function kpi_render_packer_live_dashboard(array $employee, array $detail, string
             echo '</tr>';
         }
         if (!$rows) {
-            echo '<tr><td colspan="' . count($columns) . '">No records found for this period.</td></tr>';
+            echo '<tr><td class="hr-empty-state" colspan="' . count($columns) . '">No records found for this period.</td></tr>';
         }
         echo '</tbody></table></div></article>';
     }
     echo '</div>';
 
-    echo '<div class="kpi-system-metric-grid">';
+    echo '<div class="hr-split-metrics">';
     foreach ([
         'Delivery orders' => number_format((int) ($orderSummary['delivery_orders'] ?? 0)),
         'Collection orders' => number_format((int) ($orderSummary['collection_orders'] ?? 0)),
@@ -2749,39 +2781,17 @@ include BASE_PATH . '/shared/sidebar.php';
             }
         }
         ?>
-        <section class="dashboard-grid kpi-scorecard-grid">
-            <?php foreach ($roleRows as $row): ?>
-                <article class="panel kpi-scorecard">
-                    <div class="section-row"><div><h2><?= htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8') ?></h2><p><?= htmlspecialchars($row['scorecard'], ENT_QUOTES, 'UTF-8') ?></p></div><span class="kpi-score"><?= kpi_percent((float) $row['score']) ?></span></div>
-                    <?php foreach ($row['components'] as $label => $component): ?>
-                        <div class="kpi-component-row">
-                            <div><strong><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></strong><small><?= number_format((float) $component['weight']) ?>% weight<?= !empty($component['raw']) ? ' | ' . htmlspecialchars((string) $component['raw'], ENT_QUOTES, 'UTF-8') : '' ?></small></div>
-                            <span><?= kpi_percent((float) $component['score']) ?></span>
-                            <div class="kpi-bar"><span><i style="width: <?= min(100, (float) $component['score']) ?>%"></i></span></div>
-                        </div>
-                    <?php endforeach; ?>
-                </article>
-            <?php endforeach; ?>
-            <?php if (!$roleRows): ?><section class="panel"><p><?= $activeTab === 'front-desk' ? 'No front desk employees found.' : 'No picker assigned to this slot yet. Open Dashboard and choose a picker for this performance slot.' ?></p></section><?php endif; ?>
-        </section>
+        <?php if (!$roleRows): ?>
+            <section class="panel">
+                <p><?= $activeTab === 'front-desk' ? 'No front desk employees found.' : 'No picker assigned to this slot yet. Open Dashboard and choose a picker for this performance slot.' ?></p>
+            </section>
+        <?php endif; ?>
         <?php foreach ($roleRows as $row): ?>
             <?php $detail = $employeeKpiDetails[(int) $row['employee_id']] ?? []; ?>
             <?php if ($activeTab === 'front-desk'): ?>
                 <?php kpi_render_front_person_live_dashboard($row, $detail, $periodStart, $periodEnd); ?>
-            <?php endif; ?>
-            <?php if ($activeTab === 'picker-1' || $activeTab === 'picker-2'): ?>
+            <?php else: ?>
                 <?php kpi_render_packer_live_dashboard($row, $detail, $periodStart, $periodEnd); ?>
-            <?php endif; ?>
-            <?php if ($detail): ?>
-                <section class="panel kpi-evidence-panel">
-                    <div class="section-row">
-                        <div>
-                            <h2><?= htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8') ?> Performance Evidence</h2>
-                            <p>Detailed signals from Orders, Task Management, Packing List, Courier, Bookkeeping, Error Log and HR for <?= htmlspecialchars($filterStartDate, ENT_QUOTES, 'UTF-8') ?> to <?= htmlspecialchars($filterEndDate, ENT_QUOTES, 'UTF-8') ?>.</p>
-                        </div>
-                    </div>
-                    <?php kpi_render_employee_detail_grid($detail); ?>
-                </section>
             <?php endif; ?>
         <?php endforeach; ?>
     <?php elseif ($activeTab === 'employees'): ?>
