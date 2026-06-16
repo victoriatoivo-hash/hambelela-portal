@@ -158,6 +158,51 @@ function cw_variation_label(float $quantity, string $unit): string
     return rtrim(rtrim(number_format($quantity, 3, '.', ''), '0'), '.') . ' ' . $unit;
 }
 
+function cw_size_from_name(string $name): array
+{
+    if (preg_match('/(\d+(?:\.\d+)?)\s*(kg|kgs|g|gram|grams|ml|l|litre|litres|liter|liters|unit|units)\b/i', $name, $match)) {
+        return [
+            'quantity' => (float) $match[1],
+            'unit' => normalize_unit((string) $match[2]),
+            'label' => rtrim(rtrim(number_format((float) $match[1], 3, '.', ''), '0'), '.') . normalize_unit((string) $match[2]),
+        ];
+    }
+
+    return ['quantity' => 0.0, 'unit' => '', 'label' => ''];
+}
+
+function cw_product_match_key(string $name): string
+{
+    $clean = strtolower($name);
+    $clean = preg_replace('/\b\d+(?:\.\d+)?\s*(kg|kgs|g|gram|grams|ml|l|litre|litres|liter|liters|unit|units)\b/i', ' ', $clean) ?? $clean;
+    $clean = preg_replace('/\b(origin|organic|refined|unrefined|ghana|namibia|raw|pure)\b/i', ' ', $clean) ?? $clean;
+    $clean = preg_replace('/[^a-z0-9]+/', ' ', $clean) ?? $clean;
+    $words = array_values(array_filter(explode(' ', trim($clean))));
+
+    return implode(' ', $words);
+}
+
+function cw_product_sku_status(array $row): array
+{
+    $supplier = (float) ($row['supplier_cost'] ?? 0);
+    $transport = (float) ($row['transport_cost'] ?? 0);
+    $packaging = (float) ($row['packaging_cost'] ?? 0);
+    $total = (float) ($row['total_cost'] ?? 0);
+    $sku = trim((string) ($row['sku'] ?? ''));
+
+    if ($supplier <= 0 || $total <= 0) {
+        return ['Missing Cost', 'unknown'];
+    }
+    if ($sku === '') {
+        return ['No SKU', 'low_margin'];
+    }
+    if ($transport <= 0 || $packaging <= 0) {
+        return ['Ready - Review Optional Costs', 'low_margin'];
+    }
+
+    return ['Ready', 'healthy'];
+}
+
 function cw_suggest_category(string $productName, string $fallback): string
 {
     $name = strtolower($productName);
@@ -298,7 +343,7 @@ function cw_make_master_row(array $row): array
     $variation = cw_variation_label($quantity, $unit);
     $skuPrefix = cw_sku_prefix($productName);
 
-    return [
+    $result = [
         'id' => (int) ($row['component_id'] ?? 0),
         'product' => $productName,
         'parent_product' => $productName,
@@ -338,6 +383,9 @@ function cw_make_master_row(array $row): array
         'website_linked' => false,
         'website_match_label' => 'Needs WooCommerce link',
     ];
+    [$result['product_sku_status_label'], $result['product_sku_status_key']] = cw_product_sku_status($result);
+
+    return $result;
 }
 
 try {
@@ -372,6 +420,39 @@ try {
         $sourceStats['transport_cost'] = $sourceStats['ingredient_transport'] + $sourceStats['packaging_transport'];
     }
 
+    $masterRows = [];
+    if (cw_table_exists($pdo, 'ingredient_costs_master')) {
+        $masterRows = array_merge($masterRows, cw_fetch_all(
+            $pdo,
+            "SELECT 'raw_material' AS source_type, component_id, ingredient_name AS product, supplier_name, quantity, unit, base_quantity, base_unit,
+                    raw_total_cost, transport_allocated, landed_total_cost, landed_cost_per_base_unit
+             FROM ingredient_costs_master
+             ORDER BY ingredient_name
+             LIMIT 250"
+        ));
+    }
+    if (cw_table_exists($pdo, 'packaging_costs_master')) {
+        $masterRows = array_merge($masterRows, cw_fetch_all(
+            $pdo,
+            "SELECT 'packaging' AS source_type, component_id, packaging_name AS product, supplier_name, quantity, unit, base_quantity, base_unit,
+                    raw_total_cost, transport_allocated, landed_total_cost, landed_cost_per_base_unit
+             FROM packaging_costs_master
+             ORDER BY packaging_name
+             LIMIT 250"
+        ));
+    }
+
+    $masterCostRows = [];
+    $masterCostByKey = [];
+    foreach ($masterRows as $masterRow) {
+        $masterCostRow = cw_make_master_row($masterRow);
+        $masterCostRows[] = $masterCostRow;
+        $key = cw_product_match_key((string) $masterCostRow['product']);
+        if ($key !== '' && !isset($masterCostByKey[$key])) {
+            $masterCostByKey[$key] = $masterCostRow;
+        }
+    }
+
     $products = [];
     if (cw_table_exists($pdo, 'finished_products')) {
         $products = cw_table_exists($pdo, 'product_recipes')
@@ -396,9 +477,30 @@ try {
         $wooByProduct[(string) $wooRow['woo_product_id']] = $wooRow;
     }
 
+    $productOutputKeys = [];
     foreach ($products as $product) {
         $costingType = (string) ($product['costing_type'] ?? 'recipe');
         $breakdown = cost_engine_product_breakdown($pdo, $product);
+        $parentProduct = (string) $product['name'];
+        $nameSize = cw_size_from_name($parentProduct);
+        $displayQuantity = (float) ($product['sales_unit_quantity'] ?? 1);
+        $displayUnit = (string) ($product['sales_unit'] ?? 'unit');
+        if (($nameSize['quantity'] ?? 0) > 0 && ($nameSize['unit'] ?? '') !== '') {
+            $displayQuantity = (float) $nameSize['quantity'];
+            $displayUnit = (string) $nameSize['unit'];
+        }
+        $masterMatch = null;
+        $productKey = cw_product_match_key($parentProduct);
+        if ($productKey !== '' && isset($masterCostByKey[$productKey])) {
+            $masterMatch = $masterCostByKey[$productKey];
+        } elseif ((float) ($breakdown['total_cogs'] ?? 0) <= 0) {
+            foreach ($masterCostByKey as $masterKey => $candidate) {
+                if ($masterKey !== '' && ($productKey === $masterKey || cw_contains($productKey, $masterKey) || cw_contains($masterKey, $productKey))) {
+                    $masterMatch = $candidate;
+                    break;
+                }
+            }
+        }
         $wooProductId = (string) ($product['woo_product_id'] ?? '');
         $wooRow = $wooByProduct[$wooProductId] ?? null;
         $sellingPriceInclVat = (float) ($product['selling_price'] ?? 0);
@@ -410,6 +512,20 @@ try {
         $sellingPriceExVat = cw_price_ex_vat($sellingPriceInclVat, $vatRate);
         $vat = max(0, $sellingPriceInclVat - $sellingPriceExVat);
         $totalCost = (float) $breakdown['total_cogs'];
+        if ($totalCost <= 0 && $masterMatch) {
+            $breakdown = [
+                'lines' => $masterMatch['breakdown']['lines'] ?? [],
+                'raw_ingredient_cost' => (float) ($masterMatch['supplier_cost'] ?? 0),
+                'landed_ingredient_cost' => (float) ($masterMatch['landed_cost'] ?? 0),
+                'packaging_cost' => (float) ($masterMatch['packaging_cost'] ?? 0),
+                'transport_allocation' => (float) ($masterMatch['transport_cost'] ?? 0),
+                'labor_allocation' => 0.0,
+                'overhead_allocation' => 0.0,
+                'vat_allocation' => 0.0,
+                'total_cogs' => (float) ($masterMatch['total_cost'] ?? 0),
+            ];
+            $totalCost = (float) $breakdown['total_cogs'];
+        }
         $profit = $totalCost > 0 && $sellingPriceExVat > 0 ? $sellingPriceExVat - $totalCost : 0.0;
         $margin = pricing_engine_margin($sellingPriceExVat, $totalCost);
         [$statusLabel, $statusKey] = cw_status($margin, $sellingPriceExVat, $totalCost, $targetMargin);
@@ -420,11 +536,10 @@ try {
         }
         $conversion = cw_conversion_samples(
             max(0, (float) ($breakdown['landed_ingredient_cost'] ?: $totalCost)),
-            max(0.001, (float) ($product['sales_unit_quantity'] ?? 1)),
-            (string) ($product['sales_unit'] ?? 'unit')
+            max(0.001, $displayQuantity),
+            $displayUnit
         );
-        $parentProduct = (string) $product['name'];
-        $variation = cw_variation_label(max(0.001, (float) ($product['sales_unit_quantity'] ?? 1)), (string) ($product['sales_unit'] ?? 'unit'));
+        $variation = ($nameSize['label'] ?? '') !== '' ? (string) $nameSize['label'] : cw_variation_label(max(0.001, $displayQuantity), $displayUnit);
         $sku = (string) ($product['sku'] ?? '');
         if ($sku === '') {
             $sku = cw_sku_prefix($parentProduct) . '-' . strtoupper(str_replace([' ', '.'], '', $variation));
@@ -480,11 +595,18 @@ try {
             'breakdown' => $breakdown,
             'website_linked' => !empty($product['woo_product_id']),
             'website_match_label' => !empty($product['woo_product_id']) ? 'Matched to WooCommerce' : 'Needs WooCommerce link',
+            'product_sku_status_label' => '',
+            'product_sku_status_key' => '',
         ];
+        [$row['product_sku_status_label'], $row['product_sku_status_key']] = cw_product_sku_status($row);
 
         $suppliers[$row['supplier']] = $row['supplier'];
         $categories[$row['category']] = $row['category'];
         $allRows[] = $row;
+        $outputKey = cw_product_match_key((string) $row['product']);
+        if ($outputKey !== '') {
+            $productOutputKeys[$outputKey] = true;
+        }
 
         if ($filters['supplier'] !== '' && $row['supplier'] !== $filters['supplier']) {
             continue;
@@ -528,31 +650,18 @@ try {
         $stats['below_target'] += in_array($row['status_key'], ['loss', 'low_margin'], true) ? 1 : 0;
     }
 
-    if (!$rows) {
-        $masterRows = [];
-        if (cw_table_exists($pdo, 'ingredient_costs_master')) {
-            $masterRows = array_merge($masterRows, cw_fetch_all(
-                $pdo,
-                "SELECT 'raw_material' AS source_type, component_id, ingredient_name AS product, supplier_name, quantity, unit, base_quantity, base_unit,
-                        raw_total_cost, transport_allocated, landed_total_cost, landed_cost_per_base_unit
-                 FROM ingredient_costs_master
-                 ORDER BY ingredient_name
-                 LIMIT 250"
-            ));
-        }
-        if (cw_table_exists($pdo, 'packaging_costs_master')) {
-            $masterRows = array_merge($masterRows, cw_fetch_all(
-                $pdo,
-                "SELECT 'packaging' AS source_type, component_id, packaging_name AS product, supplier_name, quantity, unit, base_quantity, base_unit,
-                        raw_total_cost, transport_allocated, landed_total_cost, landed_cost_per_base_unit
-                 FROM packaging_costs_master
-                 ORDER BY packaging_name
-                 LIMIT 250"
-            ));
-        }
-
-        foreach ($masterRows as $masterRow) {
-            $row = cw_make_master_row($masterRow);
+    foreach ($masterCostRows as $row) {
+            $masterKey = cw_product_match_key((string) $row['product']);
+            $alreadyRepresented = false;
+            foreach (array_keys($productOutputKeys) as $outputKey) {
+                if ($masterKey !== '' && $outputKey !== '' && ($masterKey === $outputKey || cw_contains($masterKey, $outputKey) || cw_contains($outputKey, $masterKey))) {
+                    $alreadyRepresented = true;
+                    break;
+                }
+            }
+            if ($alreadyRepresented) {
+                continue;
+            }
             $suppliers[$row['supplier']] = $row['supplier'];
             $categories[$row['category']] = $row['category'];
             $allRows[] = $row;
@@ -585,7 +694,6 @@ try {
             }
 
             $rows[] = $row;
-        }
     }
 
     $stats['supplier_cost'] = $sourceStats['supplier_cost'];
@@ -953,6 +1061,8 @@ include BASE_PATH . '/shared/sidebar.php';
                 $stepRows = $packagingPanelRows;
             } elseif ($step['key'] === 'landed') {
                 $stepRows = $landedPanelRows;
+            } elseif ($step['key'] === 'product_sku') {
+                $stepRows = array_slice($panelRows, 0, 12);
             } elseif ($step['key'] === 'website') {
                 $stepRows = array_slice(array_merge($matchedPanelRows, $unmatchedPanelRows), 0, 10);
             } else {
@@ -1139,6 +1249,40 @@ include BASE_PATH . '/shared/sidebar.php';
                                     <?php if (!$packagingCostCards): ?><p class="empty-state">No packaging costs saved yet. Upload packaging, label or sticker invoices above.</p><?php endif; ?>
                                 </div>
                             </div>
+                        <?php elseif ($step['key'] === 'product_sku'): ?>
+                            <button class="dropzone-eng cost-sku-suggestion-card" type="button" data-focus-product-sku>
+                                <i data-lucide="file-up"></i><span><?= htmlspecialchars((string) $step['summary'], ENT_QUOTES, 'UTF-8') ?></span>
+                                <small>Click to edit parent products, variations, categories, SKU suggestions and product type below.</small>
+                            </button>
+                            <div class="step-fields-list">
+                                <?php foreach ($step['fields'] as $field): ?><span><?= htmlspecialchars((string) $field, ENT_QUOTES, 'UTF-8') ?></span><?php endforeach; ?>
+                            </div>
+                            <div class="table-wrap cost-product-sku-editor">
+                                <table>
+                                    <thead><tr><th>Source product</th><th>Parent product</th><th>Variation</th><th>Category</th><th>SKU suggestion</th><th>Product type</th><th>Status</th></tr></thead>
+                                    <tbody>
+                                        <?php foreach ($stepRows as $row): ?>
+                                            <?php [$skuStatusLabel, $skuStatusKey] = cw_product_sku_status($row); ?>
+                                            <tr>
+                                                <td><strong><?= htmlspecialchars((string) $row['product'], ENT_QUOTES, 'UTF-8') ?></strong><small><?= htmlspecialchars((string) $row['supplier'], ENT_QUOTES, 'UTF-8') ?></small></td>
+                                                <td><input value="<?= htmlspecialchars((string) $row['parent_product'], ENT_QUOTES, 'UTF-8') ?>" data-product-sku-field="parent_product"></td>
+                                                <td><input value="<?= htmlspecialchars((string) $row['variation'], ENT_QUOTES, 'UTF-8') ?>" data-product-sku-field="variation"></td>
+                                                <td><input value="<?= htmlspecialchars((string) $row['category'], ENT_QUOTES, 'UTF-8') ?>" data-product-sku-field="category"></td>
+                                                <td><input value="<?= htmlspecialchars((string) $row['sku'], ENT_QUOTES, 'UTF-8') ?>" data-product-sku-field="sku"></td>
+                                                <td>
+                                                    <select data-product-sku-field="product_type">
+                                                        <?php foreach (['Raw material', 'Raw resale', 'Formulated', 'Packaging'] as $typeOption): ?>
+                                                            <option value="<?= htmlspecialchars($typeOption, ENT_QUOTES, 'UTF-8') ?>" <?= (string) $row['product_type'] === $typeOption ? 'selected' : '' ?>><?= htmlspecialchars($typeOption, ENT_QUOTES, 'UTF-8') ?></option>
+                                                        <?php endforeach; ?>
+                                                    </select>
+                                                </td>
+                                                <td><span class="pill <?= $skuStatusKey === 'healthy' ? 'good' : ($skuStatusKey === 'low_margin' ? 'warn' : 'muted') ?>"><?= htmlspecialchars($skuStatusLabel, ENT_QUOTES, 'UTF-8') ?></span></td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                        <?php if (!$stepRows): ?><tr><td colspan="7" class="empty-state-cell">No product rows yet. Complete supplier invoice and landed cost setup first.</td></tr><?php endif; ?>
+                                    </tbody>
+                                </table>
+                            </div>
                         <?php else: ?>
                             <div class="dropzone-eng"><i data-lucide="<?= $step['key'] === 'transport' ? 'truck' : ($step['key'] === 'packaging' ? 'package' : 'file-up') ?>"></i><span><?= htmlspecialchars((string) $step['summary'], ENT_QUOTES, 'UTF-8') ?></span></div>
                             <div class="step-fields-list">
@@ -1210,6 +1354,13 @@ include BASE_PATH . '/shared/sidebar.php';
                         <thead><tr><th>Product</th><th>Supplier</th><th>Supplier Cost</th><th>Transport</th><th>Packaging</th><th>Total Cost</th><th>Status</th></tr></thead>
                         <tbody>
                             <?php foreach ($stepRows as $row): ?>
+                                <?php
+                                $displayStatusLabel = (string) $row['status_label'];
+                                $displayStatusKey = (string) $row['status_key'];
+                                if ($step['key'] === 'product_sku') {
+                                    [$displayStatusLabel, $displayStatusKey] = cw_product_sku_status($row);
+                                }
+                                ?>
                                 <tr>
                                     <td><strong><?= htmlspecialchars((string) $row['product'], ENT_QUOTES, 'UTF-8') ?></strong><small><?= htmlspecialchars((string) ($row['variation'] ?? ''), ENT_QUOTES, 'UTF-8') ?></small></td>
                                     <td><?= htmlspecialchars((string) $row['supplier'], ENT_QUOTES, 'UTF-8') ?></td>
@@ -1217,7 +1368,7 @@ include BASE_PATH . '/shared/sidebar.php';
                                     <td><?= cw_money((float) $row['transport_cost']) ?></td>
                                     <td><?= cw_money((float) $row['packaging_cost']) ?></td>
                                     <td><?= cw_money((float) $row['total_cost']) ?></td>
-                                    <td><span class="pill <?= $row['status_key'] === 'healthy' ? 'good' : ($row['status_key'] === 'low_margin' ? 'warn' : ($row['status_key'] === 'loss' ? 'bad' : 'muted')) ?>"><?= htmlspecialchars((string) $row['status_label'], ENT_QUOTES, 'UTF-8') ?></span></td>
+                                    <td><span class="pill <?= $displayStatusKey === 'healthy' ? 'good' : ($displayStatusKey === 'low_margin' ? 'warn' : ($displayStatusKey === 'loss' ? 'bad' : 'muted')) ?>"><?= htmlspecialchars($displayStatusLabel, ENT_QUOTES, 'UTF-8') ?></span></td>
                                 </tr>
                             <?php endforeach; ?>
                             <?php if (!$stepRows): ?><tr><td colspan="7" class="empty-state-cell">No rows available yet for this step.</td></tr><?php endif; ?>
@@ -1397,6 +1548,13 @@ include BASE_PATH . '/shared/sidebar.php';
 .invoice-upload-box button { justify-content:center; display:inline-flex; align-items:center; gap:8px; width:100%; }
 .invoice-preview-frame { display:none; width:100%; height:360px; border:1px solid var(--cw-border); border-radius:12px; margin-top:12px; background:#fff; }
 .invoice-preview-frame.is-visible { display:block; }
+.cost-sku-suggestion-card { width:100%; cursor:pointer; }
+.cost-sku-suggestion-card small { display:block; max-width:420px; color:#8b4a68; font-weight:700; line-height:1.35; }
+.cost-product-sku-editor { margin-top:14px; max-height:330px; overflow:auto; }
+.cost-product-sku-editor table { min-width:920px; }
+.cost-product-sku-editor input,
+.cost-product-sku-editor select { width:100%; border:1px solid #ffd0df; border-radius:9px; padding:9px 10px; background:#fff; font:inherit; }
+.cost-product-sku-editor td small { display:block; margin-top:3px; color:var(--cw-muted); font-size:11px; }
 .saved-invoice-section { margin-top:18px; background:#faf7f5; border:1px solid var(--cw-border); border-radius:14px; padding:16px; }
 .saved-invoice-section .saved-invoice-list-head { margin-bottom:10px; }
 .saved-invoice-list { display:grid; gap:10px; }
@@ -1544,6 +1702,20 @@ function buildEngineStepper() {
   if (ready) ready.textContent = readyCount + ' of ' + engineSteps.length;
 }
 function goToWorkbookStep(n) {
+  var current = document.querySelector('.workbook-step-section.is-visible');
+  if (current && current.getAttribute('data-step') === '5' && Number(n) === 6) {
+    var missingSku = Array.prototype.some.call(current.querySelectorAll('[data-product-sku-field="sku"]'), function (input) {
+      return !String(input.value || '').trim();
+    });
+    if (missingSku) {
+      alert('Please assign a SKU to every product row before moving to Website Matching.');
+      return;
+    }
+    var missingCost = current.querySelector('.cost-product-sku-editor .pill.muted');
+    if (missingCost && !confirm('Some product rows still have missing cost information. Continue to Website Matching anyway?')) {
+      return;
+    }
+  }
   document.querySelectorAll('.workbook-step-section').forEach(function (el) { el.classList.remove('is-visible'); });
   var section = document.querySelector('.workbook-step-section[data-step="' + n + '"]');
   if (section) section.classList.add('is-visible');
@@ -1657,6 +1829,15 @@ function clearFilters() {
   ['searchProduct', 'filterCategory', 'filterSupplier', 'filterStatus'].forEach(function (id) { var el = document.getElementById(id); if (el) el.value = ''; });
   renderTable();
 }
+document.addEventListener('click', function (event) {
+  var focusSku = event.target.closest('[data-focus-product-sku]');
+  if (!focusSku) return;
+  var firstInput = document.querySelector('.workbook-step-section[data-step="5"] [data-product-sku-field]');
+  if (firstInput) {
+    firstInput.focus();
+    firstInput.scrollIntoView({behavior:'smooth', block:'center'});
+  }
+});
 function addRow() {
   products.push({ parent:'New Product', variation:'-', sku:'NEW-SKU-' + (products.length + 1), category:'Uncategorised', supplier:'Supplier', supplierCost:0, transport:0, packaging:0, unitSize:1, totalSize:1, unitLabel:'unit', priceIncl:0, websiteMatch:'Unmatched', warnings:'' });
   renderTable();
