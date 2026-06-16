@@ -1532,6 +1532,295 @@ function kpi_render_front_person_live_dashboard(array $employee, array $detail, 
     echo '</div></section>';
 }
 
+function kpi_weight_to_grams(string $value): float
+{
+    $value = strtolower(trim($value));
+    if ($value === '') {
+        return 0.0;
+    }
+    if (!preg_match('/([\d]+(?:[.,]\d+)?)\s*(kg|g|ml|l|litre|liter|litres|liters)?/', $value, $match)) {
+        return 0.0;
+    }
+    $amount = (float) str_replace(',', '.', $match[1]);
+    $unit = $match[2] ?? 'g';
+    if (in_array($unit, ['kg'], true)) {
+        return $amount * 1000;
+    }
+    if (in_array($unit, ['l', 'litre', 'liter', 'litres', 'liters'], true)) {
+        return $amount * 1000;
+    }
+    return $amount;
+}
+
+function kpi_render_packer_live_dashboard(array $employee, array $detail, string $start, string $end): void
+{
+    $employeeId = (int) ($employee['employee_id'] ?? 0);
+    if ($employeeId <= 0) {
+        return;
+    }
+
+    $orderRows = ops_table_exists('ops_orders') ? ops_rows(
+        "SELECT order_number, customer_name, customer_contact, order_type, payment_status, status, created_at, assigned_at, packing_started_at, completed_at
+         FROM ops_orders
+         WHERE assigned_packer_id = ? AND created_at >= ? AND created_at < ?
+         ORDER BY created_at DESC
+         LIMIT 10",
+        [$employeeId, $start, $end]
+    ) : [];
+
+    $orderSummary = ops_table_exists('ops_orders') ? (ops_rows(
+        "SELECT
+            COUNT(*) AS total_orders,
+            SUM(CASE WHEN status = 'new_order' THEN 1 ELSE 0 END) AS new_orders,
+            SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) AS in_progress_orders,
+            SUM(CASE WHEN status IN ('completed', 'packed', 'verified', 'ready_for_collection', 'ready_for_courier', 'ready_for_delivery') THEN 1 ELSE 0 END) AS completed_orders,
+            SUM(CASE WHEN order_type = 'delivery' THEN 1 ELSE 0 END) AS delivery_orders,
+            SUM(CASE WHEN order_type = 'collection' THEN 1 ELSE 0 END) AS collection_orders,
+            SUM(CASE WHEN order_type = 'courier' THEN 1 ELSE 0 END) AS courier_orders,
+            AVG(CASE WHEN packing_started_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, COALESCE(assigned_at, created_at), packing_started_at) END) AS avg_start_minutes,
+            AVG(CASE WHEN completed_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, COALESCE(packing_started_at, assigned_at, created_at), completed_at) END) AS avg_pack_minutes
+         FROM ops_orders
+         WHERE assigned_packer_id = ? AND created_at >= ? AND created_at < ?",
+        [$employeeId, $start, $end]
+    )[0] ?? []) : [];
+
+    $courierRows = ops_table_exists('ops_courier_waybills') ? ops_rows(
+        "SELECT waybill_reference, customer_name, uploaded_at, sent_at, status,
+                CASE WHEN TIME(uploaded_at) > '14:00:00' THEN 1 ELSE 0 END AS late_upload
+         FROM ops_courier_waybills
+         WHERE uploaded_by = ? AND uploaded_at >= ? AND uploaded_at < ?
+         ORDER BY uploaded_at DESC
+         LIMIT 8",
+        [$employeeId, $start, $end]
+    ) : [];
+    $lateCourier = 0;
+    foreach ($courierRows as $row) {
+        $lateCourier += (int) ($row['late_upload'] ?? 0);
+    }
+
+    $taskRows = ops_table_exists('ops_checklist_tasks') ? ops_rows(
+        "SELECT task_name, checklist_type, priority, status, deadline, date_assigned, COALESCE(date_completed, completed_at) AS completed_at
+         FROM ops_checklist_tasks
+         WHERE assigned_employee_id = ? AND COALESCE(date_assigned, created_at, deadline) >= ? AND COALESCE(date_assigned, created_at, deadline) < ?
+         ORDER BY COALESCE(deadline, created_at) DESC
+         LIMIT 8",
+        [$employeeId, $start, $end]
+    ) : [];
+
+    $errorRows = ops_table_exists('ops_error_logs') ? ops_rows(
+        "SELECT el.logged_at, o.order_number, el.category, el.severity, el.description, el.resolution
+         FROM ops_error_logs el
+         LEFT JOIN ops_orders o ON o.id = el.order_id
+         WHERE el.employee_id = ? AND el.logged_at >= ? AND el.logged_at < ?
+         ORDER BY el.logged_at DESC
+         LIMIT 8",
+        [$employeeId, $start, $end]
+    ) : [];
+    $errorTypes = [];
+    foreach ($errorRows as $row) {
+        $category = strtolower(trim((string) ($row['category'] ?? 'other'))) ?: 'other';
+        $errorTypes[$category] = ($errorTypes[$category] ?? 0) + 1;
+    }
+
+    $packingArchiveSql = ops_table_exists('ops_packing_tasks') && ops_column_exists('ops_packing_tasks', 'archived_at')
+        ? "AND (archived_at IS NULL OR archived_at = '0000-00-00 00:00:00')"
+        : '';
+    $receivedWeightSql = ops_table_exists('ops_packing_tasks') && ops_column_exists('ops_packing_tasks', 'received_weight')
+        ? 'received_weight'
+        : "'' AS received_weight";
+    $packingRows = ops_table_exists('ops_packing_tasks') ? ops_rows(
+        "SELECT item_name, {$receivedWeightSql}, priority, date_loaded, quantity_planned, quantity_packed, date_completed, website_uploaded, packing_status, workload_points, notes
+         FROM ops_packing_tasks
+         WHERE assigned_employee_id = ? AND COALESCE(date_loaded, created_at) >= ? AND COALESCE(date_loaded, created_at) < ?
+           {$packingArchiveSql}
+         ORDER BY COALESCE(date_loaded, created_at) DESC
+         LIMIT 10",
+        [$employeeId, $start, $end]
+    ) : [];
+    $weightGrams = 0.0;
+    $packingDone = 0;
+    $packingActive = 0;
+    $packingNotStarted = 0;
+    $websitePending = 0;
+    foreach ($packingRows as $row) {
+        $weightGrams += kpi_weight_to_grams((string) ($row['received_weight'] ?? ''));
+        $status = (string) ($row['packing_status'] ?? '');
+        if (in_array($status, ['done', 'website', 'label_created', 'done_needs_label', 'packed_label_needed'], true)) {
+            $packingDone++;
+        } elseif ($status === 'packing') {
+            $packingActive++;
+        } else {
+            $packingNotStarted++;
+        }
+        if (empty($row['website_uploaded'])) {
+            $websitePending++;
+        }
+    }
+    $weightDisplay = $weightGrams >= 1000 ? number_format($weightGrams / 1000, 1) . ' kg' : number_format($weightGrams, 0) . ' g';
+
+    $loginRows = ops_table_exists('ops_login_events') ? ops_rows(
+        "SELECT login_at, role_key
+         FROM ops_login_events
+         WHERE employee_id = ? AND login_at >= ? AND login_at < ?
+         ORDER BY login_at DESC
+         LIMIT 8",
+        [$employeeId, $start, $end]
+    ) : [];
+    $loginSummary = ops_table_exists('ops_login_events') ? (ops_rows(
+        "SELECT COUNT(DISTINCT DATE(login_at)) AS present_days,
+                SUM(CASE WHEN TIME(login_at) > '08:00:00' THEN 1 ELSE 0 END) AS late_logins,
+                AVG(TIME_TO_SEC(TIME(login_at))) AS avg_login_seconds
+         FROM ops_login_events
+         WHERE employee_id = ? AND login_at >= ? AND login_at < ?",
+        [$employeeId, $start, $end]
+    )[0] ?? []) : [];
+
+    $cardMetrics = [
+        ['Orders packed', number_format((int) ($orderSummary['total_orders'] ?? 0)), 'Assigned order board rows'],
+        ['New / In progress', number_format((int) ($orderSummary['new_orders'] ?? 0)) . ' / ' . number_format((int) ($orderSummary['in_progress_orders'] ?? 0)), 'Waiting vs active'],
+        ['Completed orders', number_format((int) ($orderSummary['completed_orders'] ?? 0)), 'Completed in period'],
+        ['Avg start time', kpi_duration(isset($orderSummary['avg_start_minutes']) ? (float) $orderSummary['avg_start_minutes'] : null), 'Assigned to in progress'],
+        ['Avg pack time', kpi_duration(isset($orderSummary['avg_pack_minutes']) ? (float) $orderSummary['avg_pack_minutes'] : null), 'In progress to complete'],
+        ['Packing weight', $weightDisplay, 'Received weight total'],
+        ['Packing done', number_format($packingDone), 'Rows complete'],
+        ['Courier late uploads', number_format($lateCourier), 'After 14:00 cutoff'],
+        ['Errors logged against', number_format(count($errorRows)), 'Tagged employee errors'],
+        ['Attendance days', number_format((int) ($loginSummary['present_days'] ?? 0)), 'Portal login days'],
+    ];
+
+    echo '<section class="panel kpi-front-person-dashboard kpi-packer-live-dashboard">';
+    echo '<div class="section-row"><div><h2>' . htmlspecialchars((string) ($employee['name'] ?? 'Packer'), ENT_QUOTES, 'UTF-8') . ' Packer Live Dashboard</h2><p>Live performance evidence for assigned orders, courier uploads, checklist tasks, errors, packing-list workload and attendance for the selected KPI date range.</p></div></div>';
+    echo '<div class="dashboard-grid kpi-summary-grid">';
+    foreach ($cardMetrics as [$label, $value, $hint]) {
+        echo '<article class="work-metric-card"><span class="metric-title">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '</span><strong>' . htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') . '</strong><small>' . htmlspecialchars($hint, ENT_QUOTES, 'UTF-8') . '</small></article>';
+    }
+    echo '</div>';
+
+    if ($lateCourier >= 3) {
+        echo '<section class="ops-alert error"><strong>Courier pattern alert.</strong> ' . htmlspecialchars((string) ($employee['name'] ?? 'This packer'), ENT_QUOTES, 'UTF-8') . ' has ' . number_format($lateCourier) . ' courier uploads after the 14:00 cutoff in this period.</section>';
+    }
+    foreach ($errorTypes as $category => $count) {
+        if ($count >= 2 && strpos($category, 'wrong product') !== false) {
+            echo '<section class="ops-alert error"><strong>Recurring error alert.</strong> Wrong product packed appears ' . number_format($count) . ' times for this packer.</section>';
+            break;
+        }
+    }
+
+    $tables = [
+        'Order Board' => [
+            ['Order', 'Customer', 'Mode', 'Status', 'Loaded', 'Started', 'Completed'],
+            array_map(static function (array $row): array {
+                return [
+                    (string) ($row['order_number'] ?: '-'),
+                    (string) ($row['customer_name'] ?: $row['customer_contact'] ?: '-'),
+                    ucwords((string) ($row['order_type'] ?: '-')),
+                    ucwords(str_replace('_', ' ', (string) ($row['status'] ?: '-'))),
+                    kpi_front_date_label((string) ($row['created_at'] ?? '')),
+                    kpi_front_date_label((string) ($row['packing_started_at'] ?? '')),
+                    kpi_front_date_label((string) ($row['completed_at'] ?? '')),
+                ];
+            }, $orderRows),
+        ],
+        'Courier Uploads' => [
+            ['Waybill', 'Customer', 'Uploaded', 'Cutoff', 'Sent', 'Status'],
+            array_map(static function (array $row): array {
+                return [
+                    (string) ($row['waybill_reference'] ?: '-'),
+                    (string) ($row['customer_name'] ?: '-'),
+                    kpi_front_date_label((string) ($row['uploaded_at'] ?? '')),
+                    !empty($row['late_upload']) ? 'Late' : 'On time',
+                    kpi_front_date_label((string) ($row['sent_at'] ?? '')),
+                    ucwords((string) ($row['status'] ?: '-')),
+                ];
+            }, $courierRows),
+        ],
+        'Task Management' => [
+            ['Task', 'Type', 'Priority', 'Due', 'Completed', 'Status'],
+            array_map(static function (array $row): array {
+                return [
+                    (string) ($row['task_name'] ?: '-'),
+                    ucwords(str_replace('_', ' ', (string) ($row['checklist_type'] ?: '-'))),
+                    (string) ($row['priority'] ?: '-'),
+                    kpi_front_date_label((string) ($row['deadline'] ?? '')),
+                    kpi_front_date_label((string) ($row['completed_at'] ?? '')),
+                    ucwords(str_replace('_', ' ', (string) ($row['status'] ?: '-'))),
+                ];
+            }, $taskRows),
+        ],
+        'Error Log' => [
+            ['Date', 'Order', 'Category', 'Severity', 'Resolution'],
+            array_map(static function (array $row): array {
+                return [
+                    kpi_front_date_label((string) ($row['logged_at'] ?? '')),
+                    (string) ($row['order_number'] ?: '-'),
+                    (string) ($row['category'] ?: '-'),
+                    ucwords((string) ($row['severity'] ?: '-')),
+                    (string) ($row['resolution'] ?: 'Open'),
+                ];
+            }, $errorRows),
+        ],
+        'Packing List' => [
+            ['Item', 'Weight', 'Qty plan', 'Qty packed', 'Loaded', 'Status', 'Website'],
+            array_map(static function (array $row): array {
+                return [
+                    (string) ($row['item_name'] ?: '-'),
+                    (string) ($row['received_weight'] ?: '-'),
+                    (string) ($row['quantity_planned'] ?: '-'),
+                    (string) ($row['quantity_packed'] ?: '-'),
+                    kpi_front_date_label((string) ($row['date_loaded'] ?? '')),
+                    ucwords(str_replace('_', ' ', (string) ($row['packing_status'] ?: '-'))),
+                    !empty($row['website_uploaded']) ? 'Complete' : 'Pending',
+                ];
+            }, $packingRows),
+        ],
+        'Attendance' => [
+            ['Login', 'Role'],
+            array_map(static function (array $row): array {
+                return [
+                    kpi_front_date_label((string) ($row['login_at'] ?? '')),
+                    (string) ($row['role_key'] ?: '-'),
+                ];
+            }, $loginRows),
+        ],
+    ];
+
+    echo '<div class="dashboard-grid kpi-front-person-grids">';
+    foreach ($tables as $title => [$columns, $rows]) {
+        echo '<article class="panel kpi-mini-table-panel"><h3>' . htmlspecialchars((string) $title, ENT_QUOTES, 'UTF-8') . '</h3><div class="table-scroll"><table class="data-table ops-table"><thead><tr>';
+        foreach ($columns as $column) {
+            echo '<th>' . htmlspecialchars((string) $column, ENT_QUOTES, 'UTF-8') . '</th>';
+        }
+        echo '</tr></thead><tbody>';
+        foreach ($rows as $row) {
+            echo '<tr>';
+            foreach ($row as $value) {
+                echo '<td>' . htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') . '</td>';
+            }
+            echo '</tr>';
+        }
+        if (!$rows) {
+            echo '<tr><td colspan="' . count($columns) . '">No records found for this period.</td></tr>';
+        }
+        echo '</tbody></table></div></article>';
+    }
+    echo '</div>';
+
+    echo '<div class="kpi-system-metric-grid">';
+    foreach ([
+        'Delivery orders' => number_format((int) ($orderSummary['delivery_orders'] ?? 0)),
+        'Collection orders' => number_format((int) ($orderSummary['collection_orders'] ?? 0)),
+        'Courier orders' => number_format((int) ($orderSummary['courier_orders'] ?? 0)),
+        'Packing active' => number_format($packingActive),
+        'Packing not started' => number_format($packingNotStarted),
+        'Website pending' => number_format($websitePending),
+        'Late logins' => number_format((int) ($loginSummary['late_logins'] ?? 0)),
+        'Average login time' => isset($loginSummary['avg_login_seconds']) && $loginSummary['avg_login_seconds'] !== null ? gmdate('H:i', (int) $loginSummary['avg_login_seconds']) : '-',
+    ] as $label => $value) {
+        echo '<article><span>' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '</span><strong>' . htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') . '</strong></article>';
+    }
+    echo '</div></section>';
+}
+
 function kpi_detail_metric_value(array $details, int $employeeId, string $bucket, string $label, string $default = '-'): string
 {
     foreach (($details[$employeeId][$bucket]['metrics'] ?? []) as $metric) {
@@ -2479,6 +2768,9 @@ include BASE_PATH . '/shared/sidebar.php';
             <?php $detail = $employeeKpiDetails[(int) $row['employee_id']] ?? []; ?>
             <?php if ($activeTab === 'front-desk'): ?>
                 <?php kpi_render_front_person_live_dashboard($row, $detail, $periodStart, $periodEnd); ?>
+            <?php endif; ?>
+            <?php if ($activeTab === 'picker-1' || $activeTab === 'picker-2'): ?>
+                <?php kpi_render_packer_live_dashboard($row, $detail, $periodStart, $periodEnd); ?>
             <?php endif; ?>
             <?php if ($detail): ?>
                 <section class="panel kpi-evidence-panel">
