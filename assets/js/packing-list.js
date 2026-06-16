@@ -219,10 +219,32 @@
       not_synced: 'Not synced',
       synced: 'Synced',
       updated: 'Updated',
-      failed: 'Review'
+      failed: 'Review',
+      duplicate_detected: 'Duplicate'
     };
     const title = task.monday_sync_error ? ` title="${esc(task.monday_sync_error)}"` : '';
     return `<span class="sync-status-pill sync-${esc(status)}"${title}>${esc(labels[status] || String(status).replace(/_/g, ' '))}</span>`;
+  }
+
+  function renderSyncCell(task) {
+    const status = normalize(task.monday_sync_status || 'not_synced');
+    const isSynced = Boolean(task.monday_item_id);
+    const label = isSynced ? 'Update row' : 'Sync row';
+    const title = isSynced
+      ? 'Update this product on Monday without syncing the whole list'
+      : 'Sync only this product to Monday';
+    const canSync = currentUser.can_manage;
+    return `
+      <div class="packing-sync-cell">
+        ${renderSyncStatus(task)}
+        ${canSync ? `
+          <button type="button" class="packing-row-sync-button ${status === 'failed' ? 'needs-review' : ''}" data-sync-packing-row="${esc(task.id)}" title="${esc(title)}">
+            <i data-lucide="${isSynced ? 'refresh-cw' : 'upload-cloud'}"></i>
+            <span>${esc(label)}</span>
+          </button>
+        ` : ''}
+      </div>
+    `;
   }
 
   function setInvoiceStatus(message) {
@@ -615,7 +637,7 @@
           <td><input class="board-inline-input" data-packing-text="quantity_packed" data-task-id="${esc(task.id)}" value="${esc(task.quantity_packed || '')}" placeholder="Actual" ${ownOnly}></td>
           <td>${statusCell}</td>
           <td class="paid-cell">${renderCheck(task, 'website_uploaded', currentUser.can_edit_front_website)}</td>
-          <td>${renderSyncStatus(task)}</td>
+          <td>${renderSyncCell(task)}</td>
           <td class="notes-cell"><button type="button" title="Open notes" data-packing-open-panel="${esc(task.id)}"><i data-lucide="sticky-note"></i></button></td>
           <td></td>
         </tr>
@@ -1120,6 +1142,7 @@
     const refreshButton = event.target.closest('[data-packing-refresh]');
     const importPrevious = event.target.closest('[data-import-previous-packing]');
     const syncMonday = event.target.closest('[data-sync-monday-packing]');
+    const syncPackingRow = event.target.closest('[data-sync-packing-row]');
     const findDuplicates = event.target.closest('[data-find-packing-duplicates]');
     const extractInvoice = event.target.closest('[data-extract-invoice]');
     const addDraftRow = event.target.closest('[data-add-draft-row]');
@@ -1204,6 +1227,19 @@
           setCount(result.message || 'Monday packing list synced.');
         } finally {
           syncMonday.classList.remove('is-loading');
+        }
+        return;
+      }
+      if (syncPackingRow) {
+        try {
+          syncPackingRow.classList.add('is-loading');
+          syncPackingRow.disabled = true;
+          const result = await post('sync_monday_row', { task_id: syncPackingRow.dataset.syncPackingRow });
+          await refresh();
+          setCount(result.message || 'Packing item synced to Monday.');
+        } finally {
+          syncPackingRow.classList.remove('is-loading');
+          syncPackingRow.disabled = false;
         }
         return;
       }

@@ -5681,6 +5681,58 @@ textarea {
   border-color: #ffc0cc;
 }
 
+.sync-status-pill.sync-duplicate_detected {
+  color: #8a5a00;
+  background: #fff3cd;
+  border-color: #f7d36b;
+}
+
+.packing-sync-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 176px;
+}
+
+.packing-row-sync-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid #d8e2ff;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #2d3954;
+  min-height: 26px;
+  padding: 4px 9px;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.packing-row-sync-button:hover {
+  border-color: #579bfc;
+  color: #1f5edb;
+  background: #f4f8ff;
+}
+
+.packing-row-sync-button.needs-review {
+  border-color: #ffc0cc;
+  color: #9b1c32;
+  background: #fff7f9;
+}
+
+.packing-row-sync-button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.packing-row-sync-button.is-loading svg {
+  animation: spin 0.9s linear infinite;
+}
+
 .ops-board-page[data-board-theme="light"] {
   --board-bg: #ffffff;
   --board-text: #1f2533;

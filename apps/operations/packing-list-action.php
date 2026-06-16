@@ -1390,6 +1390,115 @@ try {
         exit;
     }
 
+    if ($action === 'sync_monday_row') {
+        if (!$canManage) {
+            throw new RuntimeException('Only admin/front desk can sync Monday.com packing rows.');
+        }
+
+        if (!packing_monday_configured()) {
+            throw new RuntimeException('Monday.com is not configured. Add monday_api_token and monday_packing_board_id to config.local.php.');
+        }
+
+        if (
+            !ops_column_exists('ops_packing_tasks', 'received_weight')
+            || !ops_column_exists('ops_packing_tasks', 'packing_website_confirmed')
+            || !ops_column_exists('ops_packing_tasks', 'date_started')
+        ) {
+            throw new RuntimeException('Import operations-packing-list-migration.sql first.');
+        }
+
+        packing_ensure_monday_sync_schema();
+
+        $taskId = (int) ($_POST['task_id'] ?? 0);
+        if ($taskId <= 0) {
+            throw new RuntimeException('Select a packing item to sync.');
+        }
+
+        $activeWhere = packing_active_where('pt');
+        $rows = ops_rows(
+            "SELECT pt.*, e.full_name AS assigned_name
+             FROM ops_packing_tasks pt
+             LEFT JOIN ops_employees e ON e.id = pt.assigned_employee_id
+             WHERE pt.id = ? AND {$activeWhere}
+             LIMIT 1",
+            [$taskId]
+        );
+        $row = $rows[0] ?? null;
+        if (!$row) {
+            throw new RuntimeException('Packing item was not found or is archived.');
+        }
+
+        $payload = packing_monday_board_payload();
+        $mondayMaps = packing_monday_lookup_maps($payload['items'] ?? [], $payload['columns'] ?? []);
+        $rowKey = packing_row_key($row);
+
+        if (empty($row['monday_item_id'])) {
+            $mondayMatch = packing_find_monday_match($row, $mondayMaps);
+            if ($mondayMatch) {
+                $matchedMondayId = (string) $mondayMatch['monday_item_id'];
+                $linkedRows = ops_rows(
+                    'SELECT id FROM ops_packing_tasks WHERE monday_item_id = ? AND id <> ? AND ' . packing_active_where() . ' LIMIT 1',
+                    [$matchedMondayId, $taskId]
+                );
+                if ($linkedRows) {
+                    packing_sync_state($taskId, [
+                        'packing_row_key' => $rowKey,
+                        'monday_sync_status' => packing_sync_status_value('duplicate_detected'),
+                        'monday_sync_error' => 'Monday item #' . $matchedMondayId . ' is already linked to packing row #' . (int) $linkedRows[0]['id'] . '.',
+                    ]);
+                    ops_activity_log('packing_single_monday_duplicate_prevented', 'packing_task', $taskId, [
+                        'monday_item_id' => $matchedMondayId,
+                        'duplicate_of_id' => (int) $linkedRows[0]['id'],
+                        'changed_by' => current_user()['name'] ?? 'Unknown',
+                    ]);
+                    echo json_encode([
+                        'ok' => true,
+                        'message' => 'This product already has a matching Monday item linked to another packing row. No duplicate was created.',
+                        'status' => packing_sync_status_value('duplicate_detected'),
+                    ]);
+                    exit;
+                }
+                $row['monday_item_id'] = $matchedMondayId;
+            }
+        }
+
+        try {
+            $result = packing_monday_create_or_update_row($row, $payload);
+            $state = [
+                'packing_row_key' => $rowKey,
+                'monday_item_id' => $result['id'],
+                'monday_board_id' => (string) MONDAY_PACKING_BOARD_ID,
+                'monday_sync_status' => $result['status'] === 'updated' ? 'updated' : 'synced',
+                'monday_sync_error' => null,
+            ];
+            if (ops_column_exists('ops_packing_tasks', 'monday_synced_at')) {
+                $state['monday_synced_at'] = date('Y-m-d H:i:s');
+            }
+            packing_sync_state($taskId, $state);
+            ops_activity_log('packing_single_monday_synced', 'packing_task', $taskId, [
+                'monday_item_id' => $result['id'],
+                'sync_status' => $result['status'],
+                'changed_by' => current_user()['name'] ?? 'Unknown',
+            ]);
+            echo json_encode([
+                'ok' => true,
+                'message' => ($result['status'] === 'updated')
+                    ? 'Packing item updated on Monday.'
+                    : 'Packing item synced to Monday.',
+                'monday_item_id' => $result['id'],
+                'status' => $result['status'],
+            ]);
+            exit;
+        } catch (Throwable $e) {
+            packing_sync_state($taskId, [
+                'packing_row_key' => $rowKey,
+                'monday_sync_status' => 'failed',
+                'monday_sync_error' => substr($e->getMessage(), 0, 1000),
+            ]);
+            throw $e;
+        }
+    }
+
     if ($action === 'sync_monday') {
         if (!$canManage) {
             throw new RuntimeException('Only admin/front desk can sync Monday.com packing rows.');
