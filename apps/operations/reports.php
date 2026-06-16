@@ -1322,6 +1322,216 @@ function kpi_render_employee_detail_grid(array $detail): void
     echo '</div>';
 }
 
+function kpi_front_date_label(?string $value): string
+{
+    if (!$value) {
+        return '-';
+    }
+    $time = strtotime($value);
+    return $time ? date('d M H:i', $time) : '-';
+}
+
+function kpi_render_front_person_live_dashboard(array $employee, array $detail, string $start, string $end): void
+{
+    $employeeId = (int) ($employee['employee_id'] ?? 0);
+    if ($employeeId <= 0) {
+        return;
+    }
+
+    $orderRows = ops_table_exists('ops_orders') ? ops_rows(
+        "SELECT order_number, customer_name, customer_contact, order_type, payment_method, payment_status, status, total_amount, created_at, completed_at, updated_at
+         FROM ops_orders
+         WHERE created_by = ? AND created_at >= ? AND created_at < ?
+         ORDER BY created_at DESC
+         LIMIT 8",
+        [$employeeId, $start, $end]
+    ) : [];
+
+    $cashRows = ops_table_exists('ops_cash_book_entries') ? ops_rows(
+        "SELECT transaction_date, transaction_type, description, customer_name, related_order_number, cash_in, cash_out
+         FROM ops_cash_book_entries
+         WHERE recorded_by = ? AND transaction_date >= ? AND transaction_date < ?
+         ORDER BY transaction_date DESC
+         LIMIT 8",
+        [$employeeId, $start, $end]
+    ) : [];
+
+    $courierRows = ops_table_exists('ops_courier_waybills') ? ops_rows(
+        "SELECT waybill_reference, customer_name, uploaded_at, sent_at, status
+         FROM ops_courier_waybills
+         WHERE (sent_by = ? OR uploaded_by = ?) AND uploaded_at >= ? AND uploaded_at < ?
+         ORDER BY uploaded_at DESC
+         LIMIT 8",
+        [$employeeId, $employeeId, $start, $end]
+    ) : [];
+
+    $taskRows = ops_table_exists('ops_checklist_tasks') ? ops_rows(
+        "SELECT task_name, priority, status, deadline, completed_at, created_at
+         FROM ops_checklist_tasks
+         WHERE assigned_employee_id = ? AND COALESCE(created_at, deadline) >= ? AND COALESCE(created_at, deadline) < ?
+         ORDER BY COALESCE(deadline, created_at) DESC
+         LIMIT 8",
+        [$employeeId, $start, $end]
+    ) : [];
+
+    $errorRows = ops_table_exists('ops_error_logs') ? ops_rows(
+        "SELECT logged_at, category, severity, description, resolution, employee_id, logged_by
+         FROM ops_error_logs
+         WHERE (logged_by = ? OR employee_id = ?) AND logged_at >= ? AND logged_at < ?
+         ORDER BY logged_at DESC
+         LIMIT 8",
+        [$employeeId, $employeeId, $start, $end]
+    ) : [];
+
+    $websiteUploadedByClause = ops_table_exists('ops_packing_tasks') && ops_column_exists('ops_packing_tasks', 'website_uploaded_by')
+        ? '(website_uploaded_by = ? OR website_uploaded_by IS NULL) AND '
+        : '';
+    $packingParams = $websiteUploadedByClause !== '' ? [$employeeId, $start, $end] : [$start, $end];
+    $packingRows = ops_table_exists('ops_packing_tasks') ? ops_rows(
+        "SELECT item_name, quantity_planned, packing_status, website_uploaded, date_loaded, date_completed, updated_at
+         FROM ops_packing_tasks
+         WHERE {$websiteUploadedByClause} COALESCE(date_loaded, created_at) >= ? AND COALESCE(date_loaded, created_at) < ?
+         ORDER BY COALESCE(date_loaded, created_at) DESC
+         LIMIT 8",
+        $packingParams
+    ) : [];
+
+    $loginRows = ops_table_exists('ops_login_events') ? ops_rows(
+        "SELECT login_at, role_key
+         FROM ops_login_events
+         WHERE employee_id = ? AND login_at >= ? AND login_at < ?
+         ORDER BY login_at DESC
+         LIMIT 8",
+        [$employeeId, $start, $end]
+    ) : [];
+
+    $cardMetrics = [
+        ['Orders loaded', kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'orders', 'Orders loaded'), 'Front desk order capture'],
+        ['Walk-in assisted', kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'orders', 'Walk-in customers assisted'), 'Walk-in customer orders'],
+        ['Paid / unpaid', kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'orders', 'Paid / unpaid'), 'Payment follow-up'],
+        ['Cash entries', kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'bookkeeping', 'Cash entries logged'), 'Bookkeeping activity'],
+        ['Waybills sent', kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'courier', 'Waybills sent to customer'), 'Courier customer updates'],
+        ['Errors logged', kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'errors', 'Errors logged by employee'), 'Error logging consistency'],
+        ['Tasks overdue', kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'tasks', 'Overdue tasks'), 'Task accountability'],
+        ['Website upload time', kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'packing', 'Avg website update time'), 'Packing list stock updates'],
+    ];
+
+    echo '<section class="panel kpi-front-person-dashboard">';
+    echo '<div class="section-row"><div><h2>' . htmlspecialchars((string) ($employee['name'] ?? 'Front Person'), ENT_QUOTES, 'UTF-8') . ' Front Person Live Dashboard</h2><p>Live operational evidence for orders, bookkeeping, courier waybills, tasks, errors, picking-list website updates and attendance for the selected KPI date range.</p></div><a class="button small" href="' . htmlspecialchars(BASE_URL . '/apps/hr-portal/cecilia_performance.php', ENT_QUOTES, 'UTF-8') . '">Open full HR view</a></div>';
+    echo '<div class="dashboard-grid kpi-summary-grid">';
+    foreach ($cardMetrics as [$label, $value, $hint]) {
+        echo '<article class="work-metric-card"><span class="metric-title">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '</span><strong>' . htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') . '</strong><small>' . htmlspecialchars($hint, ENT_QUOTES, 'UTF-8') . '</small></article>';
+    }
+    echo '</div>';
+
+    echo '<div class="dashboard-grid kpi-front-person-grids">';
+    $tables = [
+        'Order Board' => [
+            ['Order', 'Customer', 'Paid', 'Status', 'Loaded', 'Completed'],
+            array_map(static function (array $row): array {
+                return [
+                    (string) ($row['order_number'] ?: '-'),
+                    (string) ($row['customer_name'] ?: $row['customer_contact'] ?: '-'),
+                    (string) ($row['payment_status'] ?: '-'),
+                    ucwords(str_replace('_', ' ', (string) ($row['status'] ?: '-'))),
+                    kpi_front_date_label((string) ($row['created_at'] ?? '')),
+                    kpi_front_date_label((string) ($row['completed_at'] ?? '')),
+                ];
+            }, $orderRows),
+        ],
+        'Bookkeeping' => [
+            ['Date', 'Type', 'Description', 'Order', 'In', 'Out'],
+            array_map(static function (array $row): array {
+                return [
+                    kpi_front_date_label((string) ($row['transaction_date'] ?? '')),
+                    (string) ($row['transaction_type'] ?: '-'),
+                    (string) ($row['description'] ?: $row['customer_name'] ?: '-'),
+                    (string) ($row['related_order_number'] ?: '-'),
+                    kpi_money((float) ($row['cash_in'] ?? 0)),
+                    kpi_money((float) ($row['cash_out'] ?? 0)),
+                ];
+            }, $cashRows),
+        ],
+        'Courier Waybills' => [
+            ['Waybill', 'Customer', 'Uploaded', 'Sent', 'Status'],
+            array_map(static function (array $row): array {
+                return [
+                    (string) ($row['waybill_reference'] ?: '-'),
+                    (string) ($row['customer_name'] ?: '-'),
+                    kpi_front_date_label((string) ($row['uploaded_at'] ?? '')),
+                    kpi_front_date_label((string) ($row['sent_at'] ?? '')),
+                    ucwords((string) ($row['status'] ?: '-')),
+                ];
+            }, $courierRows),
+        ],
+        'Task Management' => [
+            ['Task', 'Priority', 'Due', 'Completed', 'Status'],
+            array_map(static function (array $row): array {
+                return [
+                    (string) ($row['task_name'] ?: '-'),
+                    (string) ($row['priority'] ?: '-'),
+                    kpi_front_date_label((string) ($row['deadline'] ?? '')),
+                    kpi_front_date_label((string) ($row['completed_at'] ?? '')),
+                    ucwords(str_replace('_', ' ', (string) ($row['status'] ?: '-'))),
+                ];
+            }, $taskRows),
+        ],
+        'Error Log' => [
+            ['Date', 'Category', 'Severity', 'Type', 'Resolution'],
+            array_map(static function (array $row) use ($employeeId): array {
+                return [
+                    kpi_front_date_label((string) ($row['logged_at'] ?? '')),
+                    (string) ($row['category'] ?: '-'),
+                    ucwords((string) ($row['severity'] ?: '-')),
+                    (int) ($row['employee_id'] ?? 0) === $employeeId ? 'Against Secilia' : 'Logged by Secilia',
+                    (string) ($row['resolution'] ?: 'Open'),
+                ];
+            }, $errorRows),
+        ],
+        'Picking List Website Updates' => [
+            ['Item', 'Quantity', 'Loaded', 'Status', 'Website'],
+            array_map(static function (array $row): array {
+                return [
+                    (string) ($row['item_name'] ?: '-'),
+                    (string) ($row['quantity_planned'] ?: '-'),
+                    kpi_front_date_label((string) ($row['date_loaded'] ?? '')),
+                    ucwords(str_replace('_', ' ', (string) ($row['packing_status'] ?: '-'))),
+                    !empty($row['website_uploaded']) ? 'Complete' : 'Not complete',
+                ];
+            }, $packingRows),
+        ],
+        'Attendance' => [
+            ['Login', 'Role'],
+            array_map(static function (array $row): array {
+                return [
+                    kpi_front_date_label((string) ($row['login_at'] ?? '')),
+                    (string) ($row['role_key'] ?: '-'),
+                ];
+            }, $loginRows),
+        ],
+    ];
+
+    foreach ($tables as $title => [$columns, $rows]) {
+        echo '<article class="panel kpi-mini-table-panel"><h3>' . htmlspecialchars((string) $title, ENT_QUOTES, 'UTF-8') . '</h3><div class="table-scroll"><table class="data-table ops-table"><thead><tr>';
+        foreach ($columns as $column) {
+            echo '<th>' . htmlspecialchars((string) $column, ENT_QUOTES, 'UTF-8') . '</th>';
+        }
+        echo '</tr></thead><tbody>';
+        foreach ($rows as $row) {
+            echo '<tr>';
+            foreach ($row as $value) {
+                echo '<td>' . htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') . '</td>';
+            }
+            echo '</tr>';
+        }
+        if (!$rows) {
+            echo '<tr><td colspan="' . count($columns) . '">No records found for this period.</td></tr>';
+        }
+        echo '</tbody></table></div></article>';
+    }
+    echo '</div></section>';
+}
+
 function kpi_detail_metric_value(array $details, int $employeeId, string $bucket, string $label, string $default = '-'): string
 {
     foreach (($details[$employeeId][$bucket]['metrics'] ?? []) as $metric) {
@@ -2267,6 +2477,9 @@ include BASE_PATH . '/shared/sidebar.php';
         </section>
         <?php foreach ($roleRows as $row): ?>
             <?php $detail = $employeeKpiDetails[(int) $row['employee_id']] ?? []; ?>
+            <?php if ($activeTab === 'front-desk'): ?>
+                <?php kpi_render_front_person_live_dashboard($row, $detail, $periodStart, $periodEnd); ?>
+            <?php endif; ?>
             <?php if ($detail): ?>
                 <section class="panel kpi-evidence-panel">
                     <div class="section-row">
