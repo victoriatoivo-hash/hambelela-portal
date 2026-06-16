@@ -371,7 +371,7 @@ function packing_monday_row_from_item(array $item, array $columnTitles): array
         'Pack quantity',
     ]);
     $priority = packing_monday_priority(packing_monday_first($columns, ['Priority']));
-    $status = packing_monday_status(packing_monday_first($columns, ['Packing Status', 'Status']));
+    $status = packing_monday_status(packing_monday_first($columns, ['Packing Status']));
     $person = packing_monday_first($columns, ['Person Responsible', 'Person', 'Assigned', 'Packer']);
     $dateLoaded = packing_monday_datetime(packing_monday_first($columns, ['Date Loaded', 'Date']) ?: (string) ($item['updated_at'] ?? ''));
     $dateCompletedRaw = packing_monday_first($columns, ['Date Completed', 'Completed Date']);
@@ -560,7 +560,7 @@ function packing_monday_column_values_for_row(array $row, array $columnTitles, a
     packing_monday_set_column($values, $columnTitles, $columnTypes, ['Date Completed', 'Completed Date'], 'date', (string) ($row['date_completed'] ?? ''));
     packing_monday_set_column($values, $columnTitles, $columnTypes, ['Website Quantity Updated', 'Website Updated', 'Website'], 'checkbox', (int) ($row['website_uploaded'] ?? 0));
     packing_monday_set_column($values, $columnTitles, $columnTypes, ['Packing Website Update Confirmed', 'Packing Website Confirmed'], 'checkbox', (int) ($row['packing_website_confirmed'] ?? 0));
-    packing_monday_set_column($values, $columnTitles, $columnTypes, ['Packing Status', 'Status'], 'status', packing_monday_label('status', (string) ($row['packing_status'] ?? 'not_started')));
+    packing_monday_set_column($values, $columnTitles, $columnTypes, ['Packing Status'], 'status', packing_monday_label('status', (string) ($row['packing_status'] ?? 'not_started')));
     packing_monday_set_column($values, $columnTitles, $columnTypes, ['Notes', 'Text'], 'text', (string) ($row['notes'] ?? ''));
 
     return $values;
@@ -1429,38 +1429,7 @@ try {
         }
 
         $payload = packing_monday_board_payload();
-        $mondayMaps = packing_monday_lookup_maps($payload['items'] ?? [], $payload['columns'] ?? []);
         $rowKey = packing_row_key($row);
-
-        if (empty($row['monday_item_id'])) {
-            $mondayMatch = packing_find_monday_match($row, $mondayMaps);
-            if ($mondayMatch) {
-                $matchedMondayId = (string) $mondayMatch['monday_item_id'];
-                $linkedRows = ops_rows(
-                    'SELECT id FROM ops_packing_tasks WHERE monday_item_id = ? AND id <> ? AND ' . packing_active_where() . ' LIMIT 1',
-                    [$matchedMondayId, $taskId]
-                );
-                if ($linkedRows) {
-                    packing_sync_state($taskId, [
-                        'packing_row_key' => $rowKey,
-                        'monday_sync_status' => packing_sync_status_value('duplicate_detected'),
-                        'monday_sync_error' => 'Monday item #' . $matchedMondayId . ' is already linked to packing row #' . (int) $linkedRows[0]['id'] . '.',
-                    ]);
-                    ops_activity_log('packing_single_monday_duplicate_prevented', 'packing_task', $taskId, [
-                        'monday_item_id' => $matchedMondayId,
-                        'duplicate_of_id' => (int) $linkedRows[0]['id'],
-                        'changed_by' => current_user()['name'] ?? 'Unknown',
-                    ]);
-                    echo json_encode([
-                        'ok' => true,
-                        'message' => 'This product already has a matching Monday item linked to another packing row. No duplicate was created.',
-                        'status' => packing_sync_status_value('duplicate_detected'),
-                    ]);
-                    exit;
-                }
-                $row['monday_item_id'] = $matchedMondayId;
-            }
-        }
 
         try {
             $result = packing_monday_create_or_update_row($row, $payload);

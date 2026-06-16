@@ -1222,11 +1222,15 @@
       if (syncMonday) {
         try {
           syncMonday.classList.add('is-loading');
+          syncMonday.disabled = true;
           const result = await post('sync_monday');
           await refresh();
           setCount(result.message || 'Monday packing list synced.');
+        } catch (error) {
+          setCount(`Monday sync issue: ${error.message}`);
         } finally {
           syncMonday.classList.remove('is-loading');
+          syncMonday.disabled = false;
         }
         return;
       }
@@ -1237,6 +1241,8 @@
           const result = await post('sync_monday_row', { task_id: syncPackingRow.dataset.syncPackingRow });
           await refresh();
           setCount(result.message || 'Packing item synced to Monday.');
+        } catch (error) {
+          setCount(`Row sync issue: ${error.message}`);
         } finally {
           syncPackingRow.classList.remove('is-loading');
           syncPackingRow.disabled = false;
@@ -1307,7 +1313,7 @@
         return;
       }
     } catch (error) {
-        body.innerHTML = `<tr><td colspan="14">${esc(error.message)}</td></tr>`;
+        setCount(error.message || 'Packing list action failed.');
     }
   });
 
