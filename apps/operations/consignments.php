@@ -52,7 +52,7 @@ include BASE_PATH . '/shared/sidebar.php';
             </article>
             <article class="work-metric-card metric-purple">
                 <span class="metric-icon"><i data-lucide="globe-2"></i></span>
-                <div><span class="metric-title">Website Updated</span><strong data-packing-metric="website">0</strong><small>Quantity confirmed</small></div>
+                <div><span class="metric-title">Website Inventory</span><strong data-packing-metric="website">0</strong><small>Completed updates</small></div>
             </article>
             <article class="work-metric-card metric-red">
                 <span class="metric-icon"><i data-lucide="hourglass"></i></span>
@@ -137,7 +137,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         <th data-packing-column="person" title="Person responsible" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>PERSON</th>
                         <th data-packing-column="quantity_packed" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>QUANTITY PACKED</th>
                         <th data-packing-column="status" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>STATUS</th>
-                        <th data-packing-column="website_uploaded" title="Website quantity updated" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>WEBSITE</th>
+                        <th data-packing-column="website_uploaded" title="Front desk confirms quantity-to-pack has been updated on the website" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>WEBSITE INVENTORY</th>
                         <th data-packing-column="sync_status" title="Monday sync status" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>SYNC</th>
                         <th data-packing-column="notes" title="Open notes and full details" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>NOTES</th>
                         <th class="add-column-cell"><button type="button">+</button></th>

@@ -209,7 +209,14 @@
     const checked = Number(task[field] || 0) === 1 ? 'checked' : '';
     const disabled = allowed ? '' : 'disabled';
     const uploadedAt = field === 'website_uploaded' && task.website_uploaded_at ? formatDate(task.website_uploaded_at) : '';
-    const title = uploadedAt ? ` title="Website uploaded ${esc(uploadedAt)}"` : '';
+    const isWebsiteInventory = field === 'website_uploaded';
+    const titleText = uploadedAt ? `Website inventory completed ${uploadedAt}` : 'Website inventory pending';
+    const title = ` title="${esc(titleText)}"`;
+    if (isWebsiteInventory) {
+      const label = checked ? 'Complete' : 'Pending';
+      const modifier = checked ? 'is-complete' : 'is-pending';
+      return `<label class="website-inventory-toggle ${modifier}"${title}><input type="checkbox" data-packing-check="${esc(field)}" data-task-id="${esc(task.id)}" ${checked} ${disabled}><span>${esc(label)}</span></label>`;
+    }
     return `<label class="paid-toggle"${title}><input type="checkbox" data-packing-check="${esc(field)}" data-task-id="${esc(task.id)}" ${checked} ${disabled}><span>&check;</span></label>`;
   }
 
@@ -786,8 +793,8 @@
         <div><span>Quantity packed</span><strong>${esc(currentTask.quantity_packed || 'Not entered')}</strong></div>
         <div><span>Assigned</span><strong>${esc(currentTask.assigned_name || 'Unassigned')}</strong></div>
         <div><span>Status</span><strong>${esc(labelText(statuses, currentTask.packing_status || 'not_started'))}</strong></div>
-        <div><span>Website updated</span><strong>${Number(currentTask.website_uploaded || 0) === 1 ? 'Yes' : 'No'}</strong></div>
-        <div><span>Website upload time</span><strong>${currentTask.website_uploaded_at ? esc(formatDate(currentTask.website_uploaded_at)) : '-'}</strong></div>
+        <div><span>Website inventory</span><strong>${Number(currentTask.website_uploaded || 0) === 1 ? 'Complete' : 'Pending'}</strong></div>
+        <div><span>Website inventory time</span><strong>${currentTask.website_uploaded_at ? esc(formatDate(currentTask.website_uploaded_at)) : '-'}</strong></div>
         <div><span>Packing website confirmed</span><strong>${Number(currentTask.packing_website_confirmed || 0) === 1 ? 'Yes' : 'No'}</strong></div>
         <div><span>Date loaded</span><strong>${esc(formatDate(currentTask.date_loaded))}</strong></div>
         <div><span>Date completed</span><strong>${esc(formatDate(currentTask.date_completed) || 'Not complete')}</strong></div>
@@ -814,10 +821,10 @@
   }
 
   function exportPackingRows(rows, filename) {
-    const headers = ['Item', 'Received Weight', 'Priority', 'Date Loaded', 'Quantity To Pack', 'Person Responsible', 'Quantity Packed', 'Date Completed', 'Website Updated', 'Packing Website Confirmed', 'Status', 'Notes'];
+    const headers = ['Item', 'Received Weight', 'Priority', 'Date Loaded', 'Quantity To Pack', 'Person Responsible', 'Quantity Packed', 'Date Completed', 'Website Inventory', 'Packing Website Confirmed', 'Status', 'Notes'];
     const csvRows = [headers, ...rows.map((task) => [
       task.item_name, task.received_weight, labelText(priorities, task.priority), formatDate(task.date_loaded), task.quantity_planned,
-      task.assigned_name, task.quantity_packed, formatDate(task.date_completed), task.website_uploaded, task.packing_website_confirmed,
+      task.assigned_name, task.quantity_packed, formatDate(task.date_completed), Number(task.website_uploaded || 0) === 1 ? 'Complete' : 'Pending', task.packing_website_confirmed,
       labelText(statuses, task.packing_status), task.notes
     ])];
     const csv = csvRows.map((row) => row.map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
