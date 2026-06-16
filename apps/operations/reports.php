@@ -1348,6 +1348,68 @@ function kpi_hr_initials(string $name): string
     return $initials !== '' ? $initials : 'H';
 }
 
+function kpi_hr_duration_between(?string $start, ?string $end): string
+{
+    if (!$start || !$end) {
+        return 'Ongoing';
+    }
+    $startTime = strtotime($start);
+    $endTime = strtotime($end);
+    if (!$startTime || !$endTime || $endTime < $startTime) {
+        return '-';
+    }
+    $minutes = (int) floor(($endTime - $startTime) / 60);
+    return kpi_duration((float) $minutes);
+}
+
+function kpi_hr_tag(string $text, string $tone = 'neutral'): string
+{
+    $class = [
+        'good' => 'tg',
+        'warn' => 'tw',
+        'danger' => 'tr',
+    ][$tone] ?? '';
+
+    return '<span class="hr-tag ' . $class . '">' . htmlspecialchars($text, ENT_QUOTES, 'UTF-8') . '</span>';
+}
+
+function kpi_hr_render_stats(array $cards, int $columns = 5): void
+{
+    echo '<div class="hr-stats-row hr-cols-' . max(3, min(6, $columns)) . '">';
+    foreach ($cards as $card) {
+        echo '<article class="hr-stat-card"><div class="hr-stat-label">' . htmlspecialchars((string) ($card['label'] ?? ''), ENT_QUOTES, 'UTF-8') . '</div><div class="hr-stat-value">' . htmlspecialchars((string) ($card['value'] ?? '-'), ENT_QUOTES, 'UTF-8') . '</div>';
+        if (!empty($card['badge'])) {
+            echo kpi_hr_tag((string) $card['badge'], (string) ($card['tone'] ?? 'neutral'));
+        } elseif (!empty($card['sub'])) {
+            echo '<div class="hr-stat-sub">' . htmlspecialchars((string) $card['sub'], ENT_QUOTES, 'UTF-8') . '</div>';
+        }
+        echo '</article>';
+    }
+    echo '</div>';
+}
+
+function kpi_hr_render_table_card(string $title, array $columns, array $rows, string $action = 'View all', bool $alert = false): void
+{
+    echo '<article class="hr-card' . ($alert ? ' hr-alert-outline' : '') . '">';
+    echo '<div class="hr-card-header' . ($alert ? ' hr-alert-header' : '') . '"><h3 class="hr-card-title">' . htmlspecialchars($title, ENT_QUOTES, 'UTF-8') . '</h3><span class="hr-card-action">' . htmlspecialchars($action, ENT_QUOTES, 'UTF-8') . '</span></div>';
+    echo '<div class="hr-card-body hr-card-table-body"><table class="hr-data-table"><thead><tr>';
+    foreach ($columns as $column) {
+        echo '<th>' . htmlspecialchars((string) $column, ENT_QUOTES, 'UTF-8') . '</th>';
+    }
+    echo '</tr></thead><tbody>';
+    foreach ($rows as $row) {
+        echo '<tr>';
+        foreach ($row as $value) {
+            echo '<td>' . (string) $value . '</td>';
+        }
+        echo '</tr>';
+    }
+    if (!$rows) {
+        echo '<tr><td class="hr-empty-state" colspan="' . count($columns) . '">No records found for this period.</td></tr>';
+    }
+    echo '</tbody></table></div></article>';
+}
+
 function kpi_render_front_person_live_dashboard(array $employee, array $detail, string $start, string $end): void
 {
     $employeeId = (int) ($employee['employee_id'] ?? 0);
@@ -1422,139 +1484,251 @@ function kpi_render_front_person_live_dashboard(array $employee, array $detail, 
         [$employeeId, $start, $end]
     ) : [];
 
-    $cardMetrics = [
-        ['Orders loaded', kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'orders', 'Orders loaded'), 'Front desk order capture'],
-        ['Walk-in assisted', kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'orders', 'Walk-in customers assisted'), 'Walk-in customer orders'],
-        ['Paid / unpaid', kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'orders', 'Paid / unpaid'), 'Payment follow-up'],
-        ['Cash entries', kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'bookkeeping', 'Cash entries logged'), 'Bookkeeping activity'],
-        ['Waybills sent', kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'courier', 'Waybills sent to customer'), 'Courier customer updates'],
-        ['Errors logged', kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'errors', 'Errors logged by employee'), 'Error logging consistency'],
-        ['Tasks overdue', kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'tasks', 'Overdue tasks'), 'Task accountability'],
-        ['Website upload time', kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'packing', 'Avg website update time'), 'Packing list stock updates'],
-    ];
-
     $employeeName = (string) ($employee['name'] ?? 'Front Person');
     $employeeRole = (string) ($employee['role_name'] ?? 'Customer Service & Operations');
     $averageLogin = kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'hr', 'Average login time');
     $portalLogins = kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'hr', 'Portal logins');
     $score = isset($employee['score']) ? kpi_percent((float) $employee['score']) : '-';
+    $monthLabel = date('F Y', strtotime($start));
+
+    $completedOrderCount = 0;
+    $inProgressOrderCount = 0;
+    $unpaidOrderCount = 0;
+    $walkInRows = [];
+    $paymentRows = [];
+    $progressRows = [];
+    foreach ($orderRows as $row) {
+        $status = strtolower((string) ($row['status'] ?? ''));
+        $paymentStatus = strtolower((string) ($row['payment_status'] ?? ''));
+        $contact = strtolower((string) ($row['customer_contact'] ?? ''));
+        $isPaid = $paymentStatus === 'paid' || $paymentStatus === 'complete' || $paymentStatus === 'completed';
+        if (in_array($status, ['completed', 'complete', 'packed', 'verified', 'ready_for_collection', 'ready_for_courier', 'ready_for_delivery'], true)) {
+            $completedOrderCount++;
+        } elseif ($status === 'in_progress' || $status === 'new_order' || $status === 'assigned') {
+            $inProgressOrderCount++;
+        }
+        if (!$isPaid) {
+            $unpaidOrderCount++;
+        }
+        if (strpos($contact, 'walk') !== false || strpos($contact, 'customer') !== false || strtolower((string) ($row['order_type'] ?? '')) === 'collection') {
+            $walkInRows[] = [
+                '<div class="hr-tname">' . htmlspecialchars((string) ($row['order_number'] ?: 'Walk-in order'), ENT_QUOTES, 'UTF-8') . '</div>',
+                '<span class="hr-tmono">' . htmlspecialchars(kpi_front_date_label((string) ($row['created_at'] ?? '')), ENT_QUOTES, 'UTF-8') . '</span>',
+                '<span class="hr-tmono">' . htmlspecialchars(kpi_front_date_label((string) ($row['completed_at'] ?? '')), ENT_QUOTES, 'UTF-8') . '</span>',
+                '<span class="hr-tmono">' . htmlspecialchars(kpi_hr_duration_between((string) ($row['created_at'] ?? ''), (string) ($row['completed_at'] ?? '')), ENT_QUOTES, 'UTF-8') . '</span>',
+                kpi_hr_tag($status === 'completed' || $status === 'complete' ? 'Complete' : ucwords(str_replace('_', ' ', $status ?: 'Open')), $status === 'completed' || $status === 'complete' ? 'good' : 'warn'),
+            ];
+        }
+        $paymentRows[] = [
+            '<div class="hr-tname">' . htmlspecialchars((string) ($row['order_number'] ?: '-'), ENT_QUOTES, 'UTF-8') . '</div>',
+            '<span class="hr-tmono">' . htmlspecialchars(kpi_front_date_label((string) ($row['created_at'] ?? '')), ENT_QUOTES, 'UTF-8') . '</span>',
+            '<span class="hr-tmono">' . htmlspecialchars($isPaid ? kpi_front_date_label((string) ($row['updated_at'] ?? $row['completed_at'] ?? '')) : '-', ENT_QUOTES, 'UTF-8') . '</span>',
+            '<span class="hr-tmono">' . htmlspecialchars($isPaid ? kpi_hr_duration_between((string) ($row['created_at'] ?? ''), (string) ($row['updated_at'] ?? $row['completed_at'] ?? '')) : 'Pending', ENT_QUOTES, 'UTF-8') . '</span>',
+            kpi_hr_tag($isPaid ? 'Paid' : 'Unpaid', $isPaid ? 'good' : 'danger'),
+        ];
+        if (!in_array($status, ['completed', 'complete', 'cancelled', 'canceled', 'refunded', 'failed'], true)) {
+            $progressRows[] = [
+                '<div class="hr-tname">' . htmlspecialchars((string) ($row['order_number'] ?: '-'), ENT_QUOTES, 'UTF-8') . '</div>',
+                kpi_hr_tag(ucwords((string) ($row['order_type'] ?: 'Order'))),
+                '<span class="hr-tmono">' . htmlspecialchars(kpi_front_date_label((string) ($row['created_at'] ?? '')), ENT_QUOTES, 'UTF-8') . '</span>',
+                '<span class="hr-tmono">' . htmlspecialchars(kpi_hr_duration_between((string) ($row['created_at'] ?? ''), date('Y-m-d H:i:s')), ENT_QUOTES, 'UTF-8') . '</span>',
+                kpi_hr_tag($isPaid ? 'Yes' : 'No', $isPaid ? 'good' : 'danger'),
+                '<button class="hr-btn hr-btn-outline" type="button">Review</button>',
+            ];
+        }
+    }
+
+    $taskDone = 0;
+    $taskProgress = 0;
+    $taskPending = 0;
+    $taskOverdue = 0;
+    foreach ($taskRows as $row) {
+        $status = strtolower((string) ($row['status'] ?? ''));
+        $deadline = strtotime((string) ($row['deadline'] ?? ''));
+        if (in_array($status, ['done', 'completed', 'approved'], true)) {
+            $taskDone++;
+        } elseif ($status === 'in_progress') {
+            $taskProgress++;
+        } else {
+            $taskPending++;
+            if ($deadline && $deadline < time()) {
+                $taskOverdue++;
+            }
+        }
+    }
+
+    $websiteDone = 0;
+    $websitePending = 0;
+    foreach ($packingRows as $row) {
+        !empty($row['website_uploaded']) ? $websiteDone++ : $websitePending++;
+    }
+
+    $sentWaybills = 0;
+    $unsentWaybills = 0;
+    foreach ($courierRows as $row) {
+        !empty($row['sent_at']) ? $sentWaybills++ : $unsentWaybills++;
+    }
 
     echo '<section class="hr-performance-shell hr-front-performance">';
-    echo '<div class="hr-profile-strip"><div class="hr-avatar">' . htmlspecialchars(kpi_hr_initials($employeeName), ENT_QUOTES, 'UTF-8') . '</div><div class="hr-profile-info"><div class="hr-profile-name">' . htmlspecialchars($employeeName, ENT_QUOTES, 'UTF-8') . '</div><div class="hr-profile-role">' . htmlspecialchars($employeeRole, ENT_QUOTES, 'UTF-8') . '</div><div class="hr-profile-meta"><div><strong>Period</strong> ' . htmlspecialchars(date('d M', strtotime($start)) . ' - ' . date('d M Y', strtotime($end . ' -1 second')), ENT_QUOTES, 'UTF-8') . '</div><div><strong>Score</strong> ' . htmlspecialchars($score, ENT_QUOTES, 'UTF-8') . '</div><div><strong>Portal logins</strong> ' . htmlspecialchars($portalLogins, ENT_QUOTES, 'UTF-8') . '</div><div><strong>Avg login</strong> ' . htmlspecialchars($averageLogin, ENT_QUOTES, 'UTF-8') . '</div></div></div><div class="hr-profile-actions"><a class="button small" href="' . htmlspecialchars(BASE_URL . '/apps/hr-portal/cecilia_performance.php', ENT_QUOTES, 'UTF-8') . '">Open full HR view</a></div></div>';
-    echo '<div class="hr-section-tabs"><span class="hr-section-tab active">Order Board</span><span class="hr-section-tab">Bookkeeping</span><span class="hr-section-tab">Courier Waybills</span><span class="hr-section-tab">Task Management</span><span class="hr-section-tab">Error Log</span><span class="hr-section-tab">Picking List</span><span class="hr-section-tab">Attendance</span></div>';
-    echo '<div class="hr-section-heading"><h2>Cecilia Front Desk Performance</h2><p>Live operational evidence for orders, cash handling, courier follow-up, tasks, errors, website updates and attendance.</p></div>';
-    echo '<div class="hr-stat-grid">';
-    foreach ($cardMetrics as [$label, $value, $hint]) {
-        echo '<article class="hr-stat-card"><div class="hr-stat-label">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '</div><div class="hr-stat-value">' . htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') . '</div><div class="hr-stat-sub">' . htmlspecialchars($hint, ENT_QUOTES, 'UTF-8') . '</div></article>';
-    }
+    echo '<div class="hr-profile-strip"><div class="hr-avatar">' . htmlspecialchars(kpi_hr_initials($employeeName), ENT_QUOTES, 'UTF-8') . '</div><div class="hr-profile-info"><div class="hr-profile-name">' . htmlspecialchars($employeeName, ENT_QUOTES, 'UTF-8') . '</div><div class="hr-profile-role">' . htmlspecialchars($employeeRole, ENT_QUOTES, 'UTF-8') . '</div><div class="hr-profile-meta"><div><strong>Period</strong> ' . htmlspecialchars($monthLabel, ENT_QUOTES, 'UTF-8') . '</div><div><strong>Score</strong> ' . htmlspecialchars($score, ENT_QUOTES, 'UTF-8') . '</div><div><strong>Portal logins this month</strong> ' . htmlspecialchars($portalLogins, ENT_QUOTES, 'UTF-8') . '</div><div><strong>Avg login time</strong> ' . htmlspecialchars($averageLogin, ENT_QUOTES, 'UTF-8') . '</div></div></div><div class="hr-profile-actions"><a class="hr-btn hr-btn-outline" href="' . htmlspecialchars(BASE_URL . '/apps/hr-portal/cecilia_performance.php', ENT_QUOTES, 'UTF-8') . '">View Contract</a><button class="hr-btn hr-btn-primary" type="button">Issue Notice</button></div></div>';
+    echo '<div class="hr-section-tabs" data-hr-tabs><button class="hr-section-tab active" type="button" data-hr-target="orders">Orders</button><button class="hr-section-tab" type="button" data-hr-target="bookkeeping">Bookkeeping</button><button class="hr-section-tab" type="button" data-hr-target="courier">Courier</button><button class="hr-section-tab" type="button" data-hr-target="tasks">Tasks</button><button class="hr-section-tab" type="button" data-hr-target="errors">Errors</button><button class="hr-section-tab" type="button" data-hr-target="picking">Picking List</button><button class="hr-section-tab" type="button" data-hr-target="attendance">Attendance</button></div>';
+
+    echo '<div class="hr-section active" id="hr-sec-orders"><div class="hr-section-heading"><h2>Order Board</h2><p>Tracking order completion time, walk-in fulfilment, payment status, and processing speed.</p></div><div class="hr-month-nav"><button type="button">&lsaquo;</button><strong>' . htmlspecialchars($monthLabel, ENT_QUOTES, 'UTF-8') . '</strong><button type="button">&rsaquo;</button></div>';
+    kpi_hr_render_stats([
+        ['label' => 'Total Orders', 'value' => number_format(count($orderRows)), 'sub' => 'this period'],
+        ['label' => 'Completed', 'value' => number_format($completedOrderCount), 'badge' => $orderRows ? number_format(($completedOrderCount / max(1, count($orderRows))) * 100, 0) . '% completion' : 'No orders', 'tone' => 'good'],
+        ['label' => 'Still In Progress', 'value' => number_format($inProgressOrderCount), 'badge' => 'Not yet marked done', 'tone' => $inProgressOrderCount ? 'warn' : 'good'],
+        ['label' => 'Avg Order to Complete', 'value' => kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'orders', 'Avg completion time'), 'sub' => 'front desk orders'],
+        ['label' => 'Unpaid Orders', 'value' => number_format($unpaidOrderCount), 'badge' => 'Payment not ticked', 'tone' => $unpaidOrderCount ? 'warn' : 'good'],
+    ]);
+    echo '<div class="hr-two-col">';
+    kpi_hr_render_table_card('Walk-in Orders - Completion Time', ['Order', 'Loaded', 'Completed', 'Duration', 'Status'], $walkInRows);
+    kpi_hr_render_table_card('Payment Status Tracking', ['Order', 'Loaded', 'Paid Ticked', 'Delay', 'Status'], $paymentRows);
+    echo '</div>';
+    kpi_hr_render_table_card('Orders Still In Progress (Not Marked Complete)', ['Order ID', 'Type', 'Date Loaded', 'Time Open', 'Paid', 'Action'], $progressRows, 'Flag all', $progressRows !== []);
     echo '</div>';
 
-    echo '<div class="hr-card-grid">';
-    $tables = [
-        'Order Board' => [
-            ['Order', 'Customer', 'Paid', 'Status', 'Loaded', 'Completed'],
-            array_map(static function (array $row): array {
-                return [
-                    (string) ($row['order_number'] ?: '-'),
-                    (string) ($row['customer_name'] ?: $row['customer_contact'] ?: '-'),
-                    (string) ($row['payment_status'] ?: '-'),
-                    ucwords(str_replace('_', ' ', (string) ($row['status'] ?: '-'))),
-                    kpi_front_date_label((string) ($row['created_at'] ?? '')),
-                    kpi_front_date_label((string) ($row['completed_at'] ?? '')),
-                ];
-            }, $orderRows),
-        ],
-        'Bookkeeping' => [
-            ['Date', 'Type', 'Description', 'Order', 'In', 'Out'],
-            array_map(static function (array $row): array {
-                return [
-                    kpi_front_date_label((string) ($row['transaction_date'] ?? '')),
-                    (string) ($row['transaction_type'] ?: '-'),
-                    (string) ($row['description'] ?: $row['customer_name'] ?: '-'),
-                    (string) ($row['related_order_number'] ?: '-'),
-                    kpi_money((float) ($row['cash_in'] ?? 0)),
-                    kpi_money((float) ($row['cash_out'] ?? 0)),
-                ];
-            }, $cashRows),
-        ],
-        'Courier Waybills' => [
-            ['Waybill', 'Customer', 'Uploaded', 'Sent', 'Status'],
-            array_map(static function (array $row): array {
-                return [
-                    (string) ($row['waybill_reference'] ?: '-'),
-                    (string) ($row['customer_name'] ?: '-'),
-                    kpi_front_date_label((string) ($row['uploaded_at'] ?? '')),
-                    kpi_front_date_label((string) ($row['sent_at'] ?? '')),
-                    ucwords((string) ($row['status'] ?: '-')),
-                ];
-            }, $courierRows),
-        ],
-        'Task Management' => [
-            ['Task', 'Priority', 'Due', 'Completed', 'Status'],
-            array_map(static function (array $row): array {
-                return [
-                    (string) ($row['task_name'] ?: '-'),
-                    (string) ($row['priority'] ?: '-'),
-                    kpi_front_date_label((string) ($row['deadline'] ?? '')),
-                    kpi_front_date_label((string) ($row['completed_at'] ?? '')),
-                    ucwords(str_replace('_', ' ', (string) ($row['status'] ?: '-'))),
-                ];
-            }, $taskRows),
-        ],
-        'Error Log' => [
-            ['Date', 'Category', 'Severity', 'Type', 'Resolution'],
-            array_map(static function (array $row) use ($employeeId): array {
-                return [
-                    kpi_front_date_label((string) ($row['logged_at'] ?? '')),
-                    (string) ($row['category'] ?: '-'),
-                    ucwords((string) ($row['severity'] ?: '-')),
-                    (int) ($row['employee_id'] ?? 0) === $employeeId ? 'Against Secilia' : 'Logged by Secilia',
-                    (string) ($row['resolution'] ?: 'Open'),
-                ];
-            }, $errorRows),
-        ],
-        'Picking List Website Updates' => [
-            ['Item', 'Quantity', 'Loaded', 'Status', 'Website'],
-            array_map(static function (array $row): array {
-                return [
-                    (string) ($row['item_name'] ?: '-'),
-                    (string) ($row['quantity_planned'] ?: '-'),
-                    kpi_front_date_label((string) ($row['date_loaded'] ?? '')),
-                    ucwords(str_replace('_', ' ', (string) ($row['packing_status'] ?: '-'))),
-                    !empty($row['website_uploaded']) ? 'Complete' : 'Not complete',
-                ];
-            }, $packingRows),
-        ],
-        'Attendance' => [
-            ['Login', 'Role'],
-            array_map(static function (array $row): array {
-                return [
-                    kpi_front_date_label((string) ($row['login_at'] ?? '')),
-                    (string) ($row['role_key'] ?: '-'),
-                ];
-            }, $loginRows),
-        ],
-    ];
+    echo '<div class="hr-section" id="hr-sec-bookkeeping"><div class="hr-section-heading"><h2>Bookkeeping</h2><p>Tracking how quickly delivery orders and cash transactions are logged onto the bookkeeping sheet.</p></div><div class="hr-month-nav"><button type="button">&lsaquo;</button><strong>' . htmlspecialchars($monthLabel, ENT_QUOTES, 'UTF-8') . '</strong><button type="button">&rsaquo;</button></div>';
+    $cashInTotal = array_sum(array_map(static fn(array $row): float => (float) ($row['cash_in'] ?? 0), $cashRows));
+    $cashOutTotal = array_sum(array_map(static fn(array $row): float => (float) ($row['cash_out'] ?? 0), $cashRows));
+    kpi_hr_render_stats([
+        ['label' => 'Cash Entries', 'value' => number_format(count($cashRows)), 'sub' => 'recorded by front desk'],
+        ['label' => 'Cash In', 'value' => kpi_money((float) $cashInTotal), 'badge' => 'Logged', 'tone' => 'good'],
+        ['label' => 'Cash Out', 'value' => kpi_money((float) $cashOutTotal), 'sub' => 'expenses / payouts'],
+        ['label' => 'Missing Cash Orders', 'value' => kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'bookkeeping', 'Unlogged cash orders'), 'badge' => 'Needs checking', 'tone' => 'danger'],
+        ['label' => 'Avg Log Delay', 'value' => kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'bookkeeping', 'Avg recording delay'), 'sub' => 'order placed to logged'],
+    ]);
+    $cashTableRows = array_map(static function (array $row): array {
+        return [
+            '<span class="hr-tmono">' . htmlspecialchars(kpi_front_date_label((string) ($row['transaction_date'] ?? '')), ENT_QUOTES, 'UTF-8') . '</span>',
+            kpi_hr_tag(ucwords(str_replace('_', ' ', (string) ($row['transaction_type'] ?: '-')))),
+            '<div class="hr-tname">' . htmlspecialchars((string) ($row['description'] ?: $row['customer_name'] ?: '-'), ENT_QUOTES, 'UTF-8') . '</div>',
+            '<span class="hr-tmono">' . htmlspecialchars((string) ($row['related_order_number'] ?: '-'), ENT_QUOTES, 'UTF-8') . '</span>',
+            '<span class="hr-tmono">' . htmlspecialchars(kpi_money((float) ($row['cash_in'] ?? 0)), ENT_QUOTES, 'UTF-8') . '</span>',
+            '<span class="hr-tmono">' . htmlspecialchars(kpi_money((float) ($row['cash_out'] ?? 0)), ENT_QUOTES, 'UTF-8') . '</span>',
+        ];
+    }, $cashRows);
+    kpi_hr_render_table_card('Delivery Orders to Bookkeeping Log Time', ['Date', 'Type', 'Description', 'Order', 'In', 'Out'], $cashTableRows);
+    echo '</div>';
 
-    foreach ($tables as $title => [$columns, $rows]) {
-        echo '<article class="hr-perf-card"><div class="hr-card-header"><h3 class="hr-card-title">' . htmlspecialchars((string) $title, ENT_QUOTES, 'UTF-8') . '</h3><span class="hr-card-action">Live data</span></div><div class="hr-table-scroll"><table class="hr-data-table"><thead><tr>';
-        foreach ($columns as $column) {
-            echo '<th>' . htmlspecialchars((string) $column, ENT_QUOTES, 'UTF-8') . '</th>';
-        }
-        echo '</tr></thead><tbody>';
-        foreach ($rows as $row) {
-            echo '<tr>';
-            foreach ($row as $value) {
-                echo '<td>' . htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') . '</td>';
-            }
-            echo '</tr>';
-        }
-        if (!$rows) {
-            echo '<tr><td class="hr-empty-state" colspan="' . count($columns) . '">No records found for this period.</td></tr>';
-        }
-        echo '</tbody></table></div></article>';
+    echo '<div class="hr-section" id="hr-sec-courier"><div class="hr-section-heading"><h2>Courier Waybills</h2><p>Tracking time from waybill upload to customer notification. SLA: same day before 5pm, or next day before 9am.</p></div><div class="hr-month-nav"><button type="button">&lsaquo;</button><strong>' . htmlspecialchars($monthLabel, ENT_QUOTES, 'UTF-8') . '</strong><button type="button">&rsaquo;</button></div>';
+    kpi_hr_render_stats([
+        ['label' => 'Waybills Uploaded', 'value' => number_format(count($courierRows)), 'sub' => 'in this period'],
+        ['label' => 'Sent to Customer', 'value' => number_format($sentWaybills), 'badge' => 'Complete', 'tone' => 'good'],
+        ['label' => 'SLA Breaches', 'value' => kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'courier', 'SLA breaches'), 'badge' => 'After deadline', 'tone' => 'danger'],
+        ['label' => 'Not Yet Sent', 'value' => number_format($unsentWaybills), 'badge' => 'Needs action', 'tone' => $unsentWaybills ? 'danger' : 'good'],
+        ['label' => 'Avg Send Time', 'value' => kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'courier', 'Avg customer-send delay'), 'sub' => 'upload to sent'],
+    ]);
+    $courierTableRows = array_map(static function (array $row): array {
+        $sent = !empty($row['sent_at']);
+        return [
+            '<div class="hr-tname">' . htmlspecialchars((string) ($row['waybill_reference'] ?: '-'), ENT_QUOTES, 'UTF-8') . '</div>',
+            '<span class="hr-tmono">' . htmlspecialchars(kpi_front_date_label((string) ($row['uploaded_at'] ?? '')), ENT_QUOTES, 'UTF-8') . '</span>',
+            '<span class="hr-tmono">' . htmlspecialchars(kpi_front_date_label((string) ($row['sent_at'] ?? '')), ENT_QUOTES, 'UTF-8') . '</span>',
+            '<span class="hr-tmono">' . htmlspecialchars(kpi_hr_duration_between((string) ($row['uploaded_at'] ?? ''), (string) ($row['sent_at'] ?? '')), ENT_QUOTES, 'UTF-8') . '</span>',
+            kpi_hr_tag($sent ? 'Sent' : 'Overdue', $sent ? 'good' : 'danger'),
+            kpi_hr_tag(ucwords((string) ($row['status'] ?: ($sent ? 'Complete' : 'Not Sent'))), $sent ? 'good' : 'danger'),
+        ];
+    }, $courierRows);
+    kpi_hr_render_table_card('Waybill Log - Upload to Customer Sent', ['Waybill', 'Uploaded', 'Sent to Customer', 'Duration', 'SLA', 'Status'], $courierTableRows);
+    echo '</div>';
+
+    echo '<div class="hr-section" id="hr-sec-tasks"><div class="hr-section-heading"><h2>Task Management</h2><p>Tracking task completion rate, speed, and overdue items assigned to Cecilia.</p></div><div class="hr-month-nav"><button type="button">&lsaquo;</button><strong>' . htmlspecialchars($monthLabel, ENT_QUOTES, 'UTF-8') . '</strong><button type="button">&rsaquo;</button></div>';
+    kpi_hr_render_stats([
+        ['label' => 'Total Tasks', 'value' => number_format(count($taskRows)), 'sub' => 'this period'],
+        ['label' => 'Completed', 'value' => number_format($taskDone), 'badge' => 'Done', 'tone' => 'good'],
+        ['label' => 'In Progress', 'value' => number_format($taskProgress), 'badge' => 'Ongoing', 'tone' => 'warn'],
+        ['label' => 'Not Started', 'value' => number_format($taskPending), 'badge' => 'Pending', 'tone' => 'warn'],
+        ['label' => 'Overdue', 'value' => number_format($taskOverdue), 'badge' => 'Past due date', 'tone' => $taskOverdue ? 'danger' : 'good'],
+    ]);
+    echo '<div class="hr-task-pills"><span class="hr-task-pill done">Completed: ' . number_format($taskDone) . '</span><span class="hr-task-pill progress">In Progress: ' . number_format($taskProgress) . '</span><span class="hr-task-pill pending">Not Started: ' . number_format($taskPending) . '</span><span class="hr-task-pill overdue">Overdue: ' . number_format($taskOverdue) . '</span></div>';
+    $taskTableRows = array_map(static function (array $row): array {
+        $status = strtolower((string) ($row['status'] ?? ''));
+        $tone = in_array($status, ['done', 'completed', 'approved'], true) ? 'good' : ($status === 'in_progress' ? 'warn' : 'danger');
+        return [
+            '<div class="hr-tname">' . htmlspecialchars((string) ($row['task_name'] ?: '-'), ENT_QUOTES, 'UTF-8') . '</div>',
+            '<span class="hr-tmono">' . htmlspecialchars(kpi_front_date_label((string) ($row['created_at'] ?? '')), ENT_QUOTES, 'UTF-8') . '</span>',
+            '<span class="hr-tmono">' . htmlspecialchars(kpi_front_date_label((string) ($row['deadline'] ?? '')), ENT_QUOTES, 'UTF-8') . '</span>',
+            '<span class="hr-tmono">' . htmlspecialchars(kpi_front_date_label((string) ($row['completed_at'] ?? '')), ENT_QUOTES, 'UTF-8') . '</span>',
+            '<span class="hr-tmono">' . htmlspecialchars(kpi_hr_duration_between((string) ($row['created_at'] ?? ''), (string) ($row['completed_at'] ?? '')), ENT_QUOTES, 'UTF-8') . '</span>',
+            kpi_hr_tag(ucwords(str_replace('_', ' ', $status ?: 'Open')), $tone),
+        ];
+    }, $taskRows);
+    kpi_hr_render_table_card('Task Log', ['Task', 'Assigned', 'Due Date', 'Completed', 'Duration', 'Status'], $taskTableRows);
+    echo '</div>';
+
+    echo '<div class="hr-section" id="hr-sec-errors"><div class="hr-section-heading"><h2>Error Log</h2><p>Errors Cecilia has logged with notes and tagging vs errors logged against her.</p></div><div class="hr-month-nav"><button type="button">&lsaquo;</button><strong>' . htmlspecialchars($monthLabel, ENT_QUOTES, 'UTF-8') . '</strong><button type="button">&rsaquo;</button></div>';
+    $loggedByEmployee = 0;
+    $againstEmployee = 0;
+    foreach ($errorRows as $row) {
+        (int) ($row['employee_id'] ?? 0) === $employeeId ? $againstEmployee++ : $loggedByEmployee++;
     }
-    echo '</div></section>';
+    kpi_hr_render_stats([
+        ['label' => 'Errors She Logged', 'value' => number_format($loggedByEmployee), 'badge' => 'This period', 'tone' => 'good'],
+        ['label' => 'Properly Completed', 'value' => kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'errors', 'Errors logged with notes'), 'sub' => 'notes + responsible person'],
+        ['label' => 'Incomplete Logs', 'value' => kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'errors', 'Incomplete error logs'), 'badge' => 'Missing info', 'tone' => 'warn'],
+        ['label' => 'Errors Against Her', 'value' => number_format($againstEmployee), 'badge' => 'Logged by others', 'tone' => $againstEmployee ? 'danger' : 'good'],
+    ], 4);
+    $errorTableRows = array_map(static function (array $row) use ($employeeId): array {
+        $against = (int) ($row['employee_id'] ?? 0) === $employeeId;
+        return [
+            '<span class="hr-tmono">' . htmlspecialchars(kpi_front_date_label((string) ($row['logged_at'] ?? '')), ENT_QUOTES, 'UTF-8') . '</span>',
+            '<div class="hr-tname">' . htmlspecialchars((string) ($row['category'] ?: '-'), ENT_QUOTES, 'UTF-8') . '</div>',
+            kpi_hr_tag(ucwords((string) ($row['severity'] ?: '-')), strtolower((string) ($row['severity'] ?? '')) === 'critical' ? 'danger' : 'warn'),
+            kpi_hr_tag($against ? 'Against Cecilia' : 'Logged by Cecilia', $against ? 'danger' : 'good'),
+            '<span class="hr-tmono">' . htmlspecialchars((string) ($row['resolution'] ?: 'Open'), ENT_QUOTES, 'UTF-8') . '</span>',
+        ];
+    }, $errorRows);
+    kpi_hr_render_table_card('Error Log Records', ['Date', 'Error', 'Severity', 'Type', 'Status'], $errorTableRows);
+    echo '</div>';
+
+    echo '<div class="hr-section" id="hr-sec-picking"><div class="hr-section-heading"><h2>Picking List</h2><p>Products loaded onto the system. Cecilia must update stock quantities on the website within 24 hours of loading.</p></div><div class="hr-month-nav"><button type="button">&lsaquo;</button><strong>' . htmlspecialchars($monthLabel, ENT_QUOTES, 'UTF-8') . '</strong><button type="button">&rsaquo;</button></div>';
+    kpi_hr_render_stats([
+        ['label' => 'Products Loaded', 'value' => number_format(count($packingRows)), 'sub' => 'this period'],
+        ['label' => 'Website Updated', 'value' => number_format($websiteDone), 'badge' => 'Complete', 'tone' => 'good'],
+        ['label' => 'Updated Late', 'value' => kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'packing', 'Website updates late'), 'badge' => 'After 24h', 'tone' => 'warn'],
+        ['label' => 'Not Updated', 'value' => number_format($websitePending), 'badge' => 'Still outstanding', 'tone' => $websitePending ? 'danger' : 'good'],
+        ['label' => 'Avg Update Time', 'value' => kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'packing', 'Avg website update time'), 'sub' => 'loaded to website updated'],
+    ]);
+    $packingTableRows = array_map(static function (array $row): array {
+        $done = !empty($row['website_uploaded']);
+        return [
+            '<div class="hr-tname">' . htmlspecialchars((string) ($row['item_name'] ?: '-'), ENT_QUOTES, 'UTF-8') . '</div>',
+            '<span class="hr-tmono">' . htmlspecialchars((string) ($row['quantity_planned'] ?: '-'), ENT_QUOTES, 'UTF-8') . '</span>',
+            '<span class="hr-tmono">' . htmlspecialchars(kpi_front_date_label((string) ($row['date_loaded'] ?? '')), ENT_QUOTES, 'UTF-8') . '</span>',
+            '<span class="hr-tmono">' . htmlspecialchars(kpi_front_date_label((string) ($row['updated_at'] ?? '')), ENT_QUOTES, 'UTF-8') . '</span>',
+            '<span class="hr-tmono">' . htmlspecialchars(kpi_hr_duration_between((string) ($row['date_loaded'] ?? ''), $done ? (string) ($row['updated_at'] ?? '') : date('Y-m-d H:i:s')), ENT_QUOTES, 'UTF-8') . '</span>',
+            kpi_hr_tag($done ? 'Yes' : 'No - Overdue', $done ? 'good' : 'danger'),
+            kpi_hr_tag($done ? 'Complete' : 'Not Done', $done ? 'good' : 'danger'),
+        ];
+    }, $packingRows);
+    kpi_hr_render_table_card('Picking List - Website Inventory Update Tracker', ['Product', 'Qty Loaded', 'Date Loaded', 'Website Updated', 'Time Taken', 'Within 24h', 'Inventory Update'], $packingTableRows, 'Export', $websitePending > 0);
+    echo '</div>';
+
+    echo '<div class="hr-section" id="hr-sec-attendance"><div class="hr-section-heading"><h2>Attendance & Punctuality</h2><p>Portal login times, physical attendance, punctuality patterns, and overtime averages.</p></div><div class="hr-month-nav"><button type="button">&lsaquo;</button><strong>' . htmlspecialchars($monthLabel, ENT_QUOTES, 'UTF-8') . '</strong><button type="button">&rsaquo;</button></div>';
+    kpi_hr_render_stats([
+        ['label' => 'Days Present', 'value' => $portalLogins, 'badge' => 'Portal logins', 'tone' => 'good'],
+        ['label' => 'Late Arrivals', 'value' => kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'hr', 'Late logins'), 'badge' => 'This period', 'tone' => 'warn'],
+        ['label' => 'Portal Logins', 'value' => $portalLogins, 'sub' => 'working days'],
+        ['label' => 'Avg Login Time', 'value' => $averageLogin, 'badge' => 'Punctuality record', 'tone' => 'good'],
+        ['label' => 'Early Logins', 'value' => kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'hr', 'Early logins'), 'sub' => 'before opening'],
+        ['label' => 'Avg Overtime', 'value' => kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'hr', 'Average overtime'), 'sub' => 'per day average'],
+    ], 6);
+    $loginTableRows = array_map(static function (array $row): array {
+        $login = (string) ($row['login_at'] ?? '');
+        $late = $login && strtotime($login) && date('H:i:s', strtotime($login)) > '08:30:00';
+        return [
+            '<span class="hr-tmono">' . htmlspecialchars($login ? date('d M (D)', strtotime($login)) : '-', ENT_QUOTES, 'UTF-8') . '</span>',
+            '<span class="hr-tmono">' . htmlspecialchars($login ? date('H:i', strtotime($login)) : '-', ENT_QUOTES, 'UTF-8') . '</span>',
+            kpi_hr_tag($late ? 'Late' : 'On time', $late ? 'warn' : 'good'),
+            htmlspecialchars((string) ($row['role_key'] ?: '-'), ENT_QUOTES, 'UTF-8'),
+        ];
+    }, $loginRows);
+    kpi_hr_render_table_card('Portal Login Time Log', ['Date', 'Login Time', 'On Time', 'Role'], $loginTableRows, 'Full backlog');
+    echo '</div>';
+
+    echo '<script>document.addEventListener("click",function(event){var tab=event.target.closest(".hr-front-performance [data-hr-target]");if(!tab){return;}var shell=tab.closest(".hr-front-performance");var name=tab.getAttribute("data-hr-target");shell.querySelectorAll(".hr-section-tab").forEach(function(item){item.classList.remove("active");});tab.classList.add("active");shell.querySelectorAll(".hr-section").forEach(function(item){item.classList.remove("active");});var section=shell.querySelector("#hr-sec-"+name);if(section){section.classList.add("active");section.scrollIntoView({behavior:"smooth",block:"start"});}});</script>';
+    echo '</section>';
 }
 
 function kpi_weight_to_grams(string $value): float
@@ -1575,6 +1749,52 @@ function kpi_weight_to_grams(string $value): float
         return $amount * 1000;
     }
     return $amount;
+}
+
+function kpi_packer_tag(string $label, string $tone = ''): string
+{
+    $class = 'hr-tag';
+    if ($tone !== '') {
+        $class .= ' ' . $tone;
+    }
+
+    return '<span class="' . htmlspecialchars($class, ENT_QUOTES, 'UTF-8') . '">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '</span>';
+}
+
+function kpi_packer_table(array $columns, array $rows, string $empty = 'No records found for this period.'): string
+{
+    ob_start();
+    ?>
+    <div class="hr-table-scroll">
+        <table class="hr-data-table">
+            <thead><tr><?php foreach ($columns as $column): ?><th><?= htmlspecialchars((string) $column, ENT_QUOTES, 'UTF-8') ?></th><?php endforeach; ?></tr></thead>
+            <tbody>
+            <?php foreach ($rows as $row): ?>
+                <tr>
+                    <?php foreach ($row as $value): ?><td><?= is_string($value) && strpos($value, '<span class="hr-tag') !== false ? $value : htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') ?></td><?php endforeach; ?>
+                </tr>
+            <?php endforeach; ?>
+            <?php if (!$rows): ?><tr><td class="hr-empty-state" colspan="<?= count($columns) ?>"><?= htmlspecialchars($empty, ENT_QUOTES, 'UTF-8') ?></td></tr><?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+    <?php
+    return (string) ob_get_clean();
+}
+
+function kpi_packer_status_tone(string $status): string
+{
+    $status = strtolower($status);
+    if (in_array($status, ['completed', 'packed', 'verified', 'done', 'website', 'label_created', 'ready_for_collection', 'ready_for_courier', 'ready_for_delivery'], true)) {
+        return 'tg';
+    }
+    if (in_array($status, ['in_progress', 'packing', 'pending', 'assigned', 'new_order', 'done_needs_label', 'packed_label_needed'], true)) {
+        return 'tw';
+    }
+    if (in_array($status, ['cancelled', 'failed', 'correction_required', 'overdue'], true)) {
+        return 'tr';
+    }
+    return '';
 }
 
 function kpi_render_packer_live_dashboard(array $employee, array $detail, string $start, string $end): void
