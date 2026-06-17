@@ -494,6 +494,60 @@ try {
         exit;
     }
 
+    if ($action === 'set_in_progress') {
+        if (!user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager', 'packer')) {
+            throw new RuntimeException('You do not have permission to start this order.');
+        }
+
+        $orderId = (int) ($_POST['order_id'] ?? 0);
+        $packerName = trim(ops_post_string('packer_name', 160));
+        if ($orderId <= 0 || $packerName === '') {
+            throw new RuntimeException('Choose an order and a packer.');
+        }
+
+        $nameLike = '%' . strtolower($packerName) . '%';
+        $employeeRows = ops_rows(
+            "SELECT id, full_name
+             FROM ops_employees
+             WHERE status = 'active'
+               AND (LOWER(full_name) = LOWER(?) OR LOWER(full_name) LIKE ?)
+             ORDER BY CASE WHEN LOWER(full_name) = LOWER(?) THEN 0 ELSE 1 END, id
+             LIMIT 1",
+            [$packerName, $nameLike, $packerName]
+        );
+        $packer = $employeeRows[0] ?? null;
+        if (!$packer) {
+            throw new RuntimeException('Could not find that employee profile.');
+        }
+
+        $packerId = (int) $packer['id'];
+        $set = 'assigned_packer_id = ?, status = ?, updated_at = CURRENT_TIMESTAMP';
+        if (ops_column_exists('ops_orders', 'assigned_at')) {
+            $set .= ', assigned_at = COALESCE(assigned_at, NOW())';
+        }
+        if (ops_column_exists('ops_orders', 'packing_started_at')) {
+            $set .= ', packing_started_at = COALESCE(packing_started_at, NOW())';
+        }
+        $stmt = db()->prepare('UPDATE ops_orders SET ' . $set . ' WHERE id = ?');
+        $stmt->execute([$packerId, 'in_progress', $orderId]);
+
+        ops_log_order_stage_event($orderId, 'in_progress', [
+            'source' => 'packer_kpi_modal',
+            'assigned_packer_id' => $packerId,
+            'assigned_packer_name' => (string) ($packer['full_name'] ?? $packerName),
+        ], $packerId);
+
+        notifications_notify_order_assigned($orderId, $packerId);
+
+        echo json_encode([
+            'ok' => true,
+            'message' => 'Order moved to In Progress.',
+            'order_id' => $orderId,
+            'assigned_packer_id' => $packerId,
+        ]);
+        exit;
+    }
+
     if ($action === 'sync') {
         $date = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_POST['date'] ?? '')) ? (string) $_POST['date'] : null;
         $result = ops_board_sync_website_orders($date);

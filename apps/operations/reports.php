@@ -1993,6 +1993,35 @@ function kpi_weight_to_grams(string $value): float
     return $amount;
 }
 
+function kpi_weight_unit_breakdown(string $value): array
+{
+    $breakdown = ['kg' => 0.0, 'g' => 0.0, 'ml' => 0.0, 'l' => 0.0];
+    $value = strtolower(trim($value));
+    if ($value === '') {
+        return $breakdown;
+    }
+
+    if (!preg_match_all('/([\d]+(?:[.,]\d+)?)\s*(kg|g|ml|l|litre|liter|litres|liters)?/', $value, $matches, PREG_SET_ORDER)) {
+        return $breakdown;
+    }
+
+    foreach ($matches as $match) {
+        $amount = (float) str_replace(',', '.', $match[1]);
+        $unit = $match[2] ?? 'g';
+        if ($unit === 'kg') {
+            $breakdown['kg'] += $amount;
+        } elseif (in_array($unit, ['l', 'litre', 'liter', 'litres', 'liters'], true)) {
+            $breakdown['l'] += $amount;
+        } elseif ($unit === 'ml') {
+            $breakdown['ml'] += $amount;
+        } else {
+            $breakdown['g'] += $amount;
+        }
+    }
+
+    return $breakdown;
+}
+
 function kpi_packer_tag(string $label, string $tone = ''): string
 {
     $class = 'hr-tag';
@@ -2013,7 +2042,7 @@ function kpi_packer_table(array $columns, array $rows, string $empty = 'No recor
             <tbody>
             <?php foreach ($rows as $row): ?>
                 <tr>
-                    <?php foreach ($row as $value): ?><td><?= is_string($value) && strpos($value, '<span class="hr-tag') !== false ? $value : htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') ?></td><?php endforeach; ?>
+                    <?php foreach ($row as $value): ?><td><?= is_string($value) && (strpos($value, '<span class="hr-tag') !== false || strpos($value, '<button ') !== false || strpos($value, '<div class="hr-action-inline') !== false) ? $value : htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') ?></td><?php endforeach; ?>
                 </tr>
             <?php endforeach; ?>
             <?php if (!$rows): ?><tr><td class="hr-empty-state" colspan="<?= count($columns) ?>"><?= htmlspecialchars($empty, ENT_QUOTES, 'UTF-8') ?></td></tr><?php endif; ?>
@@ -2047,11 +2076,11 @@ function kpi_render_packer_live_dashboard(array $employee, array $detail, string
     }
 
     $orderRows = ops_table_exists('ops_orders') ? ops_rows(
-        "SELECT order_number, customer_name, customer_contact, order_type, payment_status, status, created_at, assigned_at, packing_started_at, completed_at
+        "SELECT id, order_number, customer_name, customer_contact, order_type, payment_status, status, created_at, assigned_at, packing_started_at, completed_at
          FROM ops_orders
          WHERE assigned_packer_id = ? AND created_at >= ? AND created_at < ?
          ORDER BY created_at DESC
-         LIMIT 10",
+         LIMIT 18",
         [$employeeId, $start, $end]
     ) : [];
 
@@ -2064,7 +2093,8 @@ function kpi_render_packer_live_dashboard(array $employee, array $detail, string
             SUM(CASE WHEN order_type = 'delivery' THEN 1 ELSE 0 END) AS delivery_orders,
             SUM(CASE WHEN order_type = 'collection' THEN 1 ELSE 0 END) AS collection_orders,
             SUM(CASE WHEN order_type = 'courier' THEN 1 ELSE 0 END) AS courier_orders,
-            AVG(CASE WHEN packing_started_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, COALESCE(assigned_at, created_at), packing_started_at) END) AS avg_start_minutes,
+            SUM(CASE WHEN LOWER(customer_contact) LIKE '%walk-in%' OR LOWER(customer_contact) LIKE '%walk in%' THEN 1 ELSE 0 END) AS walkin_orders,
+            AVG(CASE WHEN packing_started_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, created_at, packing_started_at) END) AS avg_start_minutes,
             AVG(CASE WHEN completed_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, COALESCE(packing_started_at, assigned_at, created_at), completed_at) END) AS avg_pack_minutes
          FROM ops_orders
          WHERE assigned_packer_id = ? AND created_at >= ? AND created_at < ?",
@@ -2086,12 +2116,22 @@ function kpi_render_packer_live_dashboard(array $employee, array $detail, string
     }
 
     $taskRows = ops_table_exists('ops_checklist_tasks') ? ops_rows(
-        "SELECT task_name, checklist_type, priority, status, deadline, date_assigned, COALESCE(date_completed, completed_at) AS completed_at
+        "SELECT task_name, checklist_type, priority, status, deadline, date_assigned, COALESCE(date_completed, completed_at) AS completed_at, completed_by, recurrence_key, checked_items
          FROM ops_checklist_tasks
          WHERE assigned_employee_id = ? AND COALESCE(date_assigned, created_at, deadline) >= ? AND COALESCE(date_assigned, created_at, deadline) < ?
          ORDER BY COALESCE(deadline, created_at) DESC
-         LIMIT 8",
+         LIMIT 18",
         [$employeeId, $start, $end]
+    ) : [];
+    $recurringTaskRows = ops_table_exists('ops_checklist_tasks') ? ops_rows(
+        "SELECT task_name, checklist_type, status, deadline, COALESCE(date_completed, completed_at) AS completed_at, completed_by, recurrence_key
+         FROM ops_checklist_tasks
+         WHERE (assigned_employee_id = ? OR completed_by = ?)
+           AND recurrence_key IS NOT NULL AND recurrence_key <> ''
+           AND COALESCE(date_assigned, created_at, deadline) >= ? AND COALESCE(date_assigned, created_at, deadline) < ?
+         ORDER BY COALESCE(deadline, created_at) DESC
+         LIMIT 12",
+        [$employeeId, $employeeId, $start, $end]
     ) : [];
 
     $errorRows = ops_table_exists('ops_error_logs') ? ops_rows(
@@ -2115,22 +2155,41 @@ function kpi_render_packer_live_dashboard(array $employee, array $detail, string
     $receivedWeightSql = ops_table_exists('ops_packing_tasks') && ops_column_exists('ops_packing_tasks', 'received_weight')
         ? 'received_weight'
         : "'' AS received_weight";
+    $dateStartedSql = ops_table_exists('ops_packing_tasks') && ops_column_exists('ops_packing_tasks', 'date_started')
+        ? 'date_started'
+        : 'NULL AS date_started';
+    $websiteUploadedAtSql = ops_table_exists('ops_packing_tasks') && ops_column_exists('ops_packing_tasks', 'website_uploaded_at')
+        ? 'website_uploaded_at'
+        : 'NULL AS website_uploaded_at';
+    $packingWebsiteConfirmedSql = ops_table_exists('ops_packing_tasks') && ops_column_exists('ops_packing_tasks', 'packing_website_confirmed')
+        ? 'packing_website_confirmed'
+        : '0 AS packing_website_confirmed';
     $packingRows = ops_table_exists('ops_packing_tasks') ? ops_rows(
-        "SELECT item_name, {$receivedWeightSql}, priority, date_loaded, quantity_planned, quantity_packed, date_completed, website_uploaded, packing_status, workload_points, notes
+        "SELECT item_name, {$receivedWeightSql}, priority, date_loaded, {$dateStartedSql}, quantity_planned, quantity_packed, date_completed, website_uploaded, {$websiteUploadedAtSql}, {$packingWebsiteConfirmedSql}, packing_status, workload_points, notes
          FROM ops_packing_tasks
          WHERE assigned_employee_id = ? AND COALESCE(date_loaded, created_at) >= ? AND COALESCE(date_loaded, created_at) < ?
            {$packingArchiveSql}
          ORDER BY COALESCE(date_loaded, created_at) DESC
-         LIMIT 10",
+         LIMIT 18",
         [$employeeId, $start, $end]
     ) : [];
     $weightGrams = 0.0;
+    $weightUnits = ['kg' => 0.0, 'g' => 0.0, 'ml' => 0.0, 'l' => 0.0];
     $packingDone = 0;
     $packingActive = 0;
     $packingNotStarted = 0;
     $websitePending = 0;
+    $websiteNeeded = 0;
+    $highPriorityStale = 0;
+    $startDurations = [];
+    $completeDurations = [];
     foreach ($packingRows as $row) {
-        $weightGrams += kpi_weight_to_grams((string) ($row['received_weight'] ?? ''));
+        $weightValue = (string) ($row['received_weight'] ?? '');
+        $weightGrams += kpi_weight_to_grams($weightValue);
+        $unitRows = kpi_weight_unit_breakdown($weightValue);
+        foreach ($unitRows as $unit => $amount) {
+            $weightUnits[$unit] += $amount;
+        }
         $status = (string) ($row['packing_status'] ?? '');
         if (in_array($status, ['done', 'website', 'label_created', 'done_needs_label', 'packed_label_needed'], true)) {
             $packingDone++;
@@ -2141,6 +2200,30 @@ function kpi_render_packer_live_dashboard(array $employee, array $detail, string
         }
         if (empty($row['website_uploaded'])) {
             $websitePending++;
+        }
+        $planned = trim((string) ($row['quantity_planned'] ?? ''));
+        $packed = trim((string) ($row['quantity_packed'] ?? ''));
+        if ($planned !== '' && $packed !== '' && strcasecmp(preg_replace('/\s+/', '', $planned), preg_replace('/\s+/', '', $packed)) !== 0) {
+            $websiteNeeded++;
+        }
+        $loadedAt = (string) ($row['date_loaded'] ?? '');
+        $startedAt = (string) ($row['date_started'] ?? '');
+        $completedAt = (string) ($row['date_completed'] ?? '');
+        if ($loadedAt !== '' && $startedAt !== '') {
+            $minutes = kpi_hr_minutes_between($loadedAt, $startedAt);
+            if ($minutes !== null) {
+                $startDurations[] = $minutes;
+            }
+        }
+        if ($loadedAt !== '' && $completedAt !== '') {
+            $minutes = kpi_hr_minutes_between($loadedAt, $completedAt);
+            if ($minutes !== null) {
+                $completeDurations[] = $minutes;
+            }
+        }
+        $priority = strtolower((string) ($row['priority'] ?? ''));
+        if (($priority === 'high' || $priority === 'top_critical' || $priority === 'top critical') && in_array($status, ['', 'not_started'], true) && $loadedAt !== '' && strtotime($loadedAt) < strtotime('-2 days')) {
+            $highPriorityStale++;
         }
     }
     $weightDisplay = $weightGrams >= 1000 ? number_format($weightGrams / 1000, 1) . ' kg' : number_format($weightGrams, 0) . ' g';
@@ -2161,6 +2244,32 @@ function kpi_render_packer_live_dashboard(array $employee, array $detail, string
          WHERE employee_id = ? AND login_at >= ? AND login_at < ?",
         [$employeeId, $start, $end]
     )[0] ?? []) : [];
+    $availabilityRows = ops_table_exists('ops_employee_availability_history') ? ops_rows(
+        "SELECT availability_status, changed_at
+         FROM ops_employee_availability_history
+         WHERE employee_id = ? AND changed_at >= ? AND changed_at < ?
+         ORDER BY changed_at DESC
+         LIMIT 20",
+        [$employeeId, $start, $end]
+    ) : [];
+    $lunchOutCount = 0;
+    $lunchDurations = [];
+    $lastLunchOut = null;
+    foreach (array_reverse($availabilityRows) as $row) {
+        $status = strtolower((string) ($row['availability_status'] ?? ''));
+        $changedAt = (string) ($row['changed_at'] ?? '');
+        if ($status === 'on_lunch') {
+            $lunchOutCount++;
+            $lastLunchOut = $changedAt;
+        } elseif ($lastLunchOut && in_array($status, ['available', 'online'], true)) {
+            $minutes = kpi_hr_minutes_between($lastLunchOut, $changedAt);
+            if ($minutes !== null) {
+                $lunchDurations[] = $minutes;
+            }
+            $lastLunchOut = null;
+        }
+    }
+    $avgLunchDuration = $lunchDurations ? array_sum($lunchDurations) / count($lunchDurations) : null;
 
     $employeeName = (string) ($employee['name'] ?? 'Packer');
     $employeeRole = (string) ($employee['role_name'] ?? 'Packing Operative');
@@ -2186,6 +2295,7 @@ function kpi_render_packer_live_dashboard(array $employee, array $detail, string
     $taskDone = 0;
     $taskProgress = 0;
     $taskOverdue = 0;
+    $taskCompletionDurations = [];
     foreach ($taskRows as $row) {
         $status = strtolower((string) ($row['status'] ?? ''));
         if (in_array($status, ['done', 'completed', 'approved'], true)) {
@@ -2196,9 +2306,32 @@ function kpi_render_packer_live_dashboard(array $employee, array $detail, string
         if (!empty($row['deadline']) && !in_array($status, ['done', 'completed', 'approved'], true) && strtotime((string) $row['deadline']) < time()) {
             $taskOverdue++;
         }
+        $assignedAt = (string) ($row['date_assigned'] ?? '');
+        $completedAt = (string) ($row['completed_at'] ?? '');
+        if ($assignedAt !== '' && $completedAt !== '') {
+            $minutes = kpi_hr_minutes_between($assignedAt, $completedAt);
+            if ($minutes !== null) {
+                $taskCompletionDurations[] = $minutes;
+            }
+        }
+    }
+    $recurringClaimed = 0;
+    $recurringMissed = 0;
+    foreach ($recurringTaskRows as $row) {
+        $status = strtolower((string) ($row['status'] ?? ''));
+        if (!empty($row['completed_by']) || in_array($status, ['done', 'completed', 'needs_review'], true)) {
+            $recurringClaimed++;
+        } elseif (!empty($row['deadline']) && strtotime((string) $row['deadline']) < time()) {
+            $recurringMissed++;
+        }
     }
     $orderTableRows = array_map(static function (array $row): array {
         $status = (string) ($row['status'] ?: '-');
+        $statusKey = strtolower($status);
+        $doneStatuses = ['completed', 'packed', 'verified', 'ready_for_collection', 'ready_for_courier', 'ready_for_delivery'];
+        $action = in_array($statusKey, ['in_progress'], true) || in_array($statusKey, $doneStatuses, true)
+            ? kpi_packer_tag('Tracked', 'tg')
+            : '<button type="button" class="hr-action-btn hr-packer-set-progress" data-order-id="' . (int) ($row['id'] ?? 0) . '" data-order-title="' . htmlspecialchars((string) ($row['order_number'] ?: 'Order'), ENT_QUOTES, 'UTF-8') . '">Set In Progress</button>';
         return [
             (string) ($row['order_number'] ?: '-'),
             (string) ($row['customer_name'] ?: $row['customer_contact'] ?: '-'),
@@ -2207,6 +2340,7 @@ function kpi_render_packer_live_dashboard(array $employee, array $detail, string
             kpi_front_date_label((string) ($row['created_at'] ?? '')),
             kpi_front_date_label((string) ($row['packing_started_at'] ?? '')),
             kpi_front_date_label((string) ($row['completed_at'] ?? '')),
+            $action,
         ];
     }, $orderRows);
     $courierTableRows = array_map(static function (array $row): array {
@@ -2221,12 +2355,14 @@ function kpi_render_packer_live_dashboard(array $employee, array $detail, string
     }, $courierRows);
     $taskTableRows = array_map(static function (array $row): array {
         $status = (string) ($row['status'] ?: '-');
+        $checked = trim((string) ($row['checked_items'] ?? ''));
         return [
             (string) ($row['task_name'] ?: '-'),
             ucwords(str_replace('_', ' ', (string) ($row['checklist_type'] ?: '-'))),
             kpi_packer_tag((string) ($row['priority'] ?: 'Normal'), strtolower((string) ($row['priority'] ?? '')) === 'high' ? 'tr' : 'tw'),
             kpi_front_date_label((string) ($row['deadline'] ?? '')),
             kpi_front_date_label((string) ($row['completed_at'] ?? '')),
+            $checked !== '' ? kpi_packer_tag('Checklist ticked', 'tg') : kpi_packer_tag('Checklist open', 'tw'),
             kpi_packer_tag(ucwords(str_replace('_', ' ', $status)), kpi_packer_status_tone($status)),
         ];
     }, $taskRows);
@@ -2242,13 +2378,19 @@ function kpi_render_packer_live_dashboard(array $employee, array $detail, string
     }, $errorRows);
     $packingTableRows = array_map(static function (array $row): array {
         $status = (string) ($row['packing_status'] ?: '-');
+        $planned = trim((string) ($row['quantity_planned'] ?? ''));
+        $packed = trim((string) ($row['quantity_packed'] ?? ''));
+        $updateNeeded = $planned !== '' && $packed !== '' && strcasecmp(preg_replace('/\s+/', '', $planned), preg_replace('/\s+/', '', $packed)) !== 0;
         return [
             (string) ($row['item_name'] ?: '-'),
             (string) ($row['received_weight'] ?: '-'),
             (string) ($row['quantity_planned'] ?: '-'),
             (string) ($row['quantity_packed'] ?: '-'),
             kpi_front_date_label((string) ($row['date_loaded'] ?? '')),
+            kpi_front_date_label((string) ($row['date_started'] ?? '')),
+            kpi_front_date_label((string) ($row['date_completed'] ?? '')),
             kpi_packer_tag(ucwords(str_replace('_', ' ', $status)), kpi_packer_status_tone($status)),
+            $updateNeeded ? kpi_packer_tag('Website update needed', 'tr') : kpi_packer_tag('Not needed', 'tg'),
             !empty($row['website_uploaded']) ? kpi_packer_tag('Complete', 'tg') : kpi_packer_tag('Pending', 'tw'),
         ];
     }, $packingRows);
@@ -2258,6 +2400,12 @@ function kpi_render_packer_live_dashboard(array $employee, array $detail, string
             (string) ($row['role_key'] ?: '-'),
         ];
     }, $loginRows);
+    $availabilityTableRows = array_map(static function (array $row): array {
+        return [
+            kpi_front_date_label((string) ($row['changed_at'] ?? '')),
+            ucwords(str_replace('_', ' ', (string) ($row['availability_status'] ?? '-'))),
+        ];
+    }, $availabilityRows);
     $sectionId = 'packerDash' . $employeeId;
     ?>
     <section class="hr-performance-shell hr-packer-performance hr-packer-exact" id="<?= htmlspecialchars($sectionId, ENT_QUOTES, 'UTF-8') ?>">
@@ -2289,6 +2437,28 @@ function kpi_render_packer_live_dashboard(array $employee, array $detail, string
             <button class="hr-section-tab" type="button" data-packer-section="attendance">Attendance</button>
         </div>
 
+        <div class="hr-modal-backdrop" data-packer-modal>
+            <form class="hr-packer-modal" data-packer-progress-form>
+                <button type="button" class="hr-modal-close" data-packer-modal-close aria-label="Close">&times;</button>
+                <p class="hr-modal-eyebrow">Order Board</p>
+                <h3>Set In Progress</h3>
+                <p class="hr-modal-copy">Choose who is starting this order. The system will assign the order, move it to In Progress and record the timestamp for KPI tracking.</p>
+                <input type="hidden" name="action" value="set_in_progress">
+                <input type="hidden" name="order_id" value="">
+                <label>Order<input type="text" data-packer-order-title readonly></label>
+                <label>Packer
+                    <select name="packer_name" required>
+                        <option value="Klaudia">Klaudia</option>
+                        <option value="Ndinelao">Ndinelao</option>
+                        <option value="Cecilia">Cecilia</option>
+                        <option value="Victoria">Victoria</option>
+                    </select>
+                </label>
+                <div class="hr-modal-error" data-packer-progress-error hidden></div>
+                <div class="hr-modal-actions"><button type="button" class="button small" data-packer-modal-close>Cancel</button><button type="submit" class="button small primary">Confirm start</button></div>
+            </form>
+        </div>
+
         <div class="hr-packer-section active" data-packer-panel="orders">
             <div class="hr-section-heading"><h2>Order Board</h2><p>Orders packed by <?= htmlspecialchars($employeeName, ENT_QUOTES, 'UTF-8') ?>, timing, customer modes and completion movement.</p></div>
             <div class="hr-month-nav"><span><?= htmlspecialchars(date('F Y', strtotime($start)), ENT_QUOTES, 'UTF-8') ?></span><em><?= htmlspecialchars($periodLabel, ENT_QUOTES, 'UTF-8') ?></em></div>
@@ -2300,9 +2470,9 @@ function kpi_render_packer_live_dashboard(array $employee, array $detail, string
                 <article class="hr-stat-card"><div class="hr-stat-label">Performance Score</div><div class="hr-stat-value"><?= htmlspecialchars($score, ENT_QUOTES, 'UTF-8') ?></div><div class="hr-stat-sub">weighted KPI score</div></article>
             </div>
             <div class="hr-three-col">
-                <article class="hr-perf-card"><div class="hr-card-header"><h3 class="hr-card-title">Order Board - Status & Time</h3><span class="hr-card-action">Live data</span></div><?= kpi_packer_table(['Order', 'Customer', 'Mode', 'Status', 'Loaded', 'Started', 'Completed'], $orderTableRows) ?></article>
+                <article class="hr-perf-card"><div class="hr-card-header"><h3 class="hr-card-title">Order Board - Status & Time</h3><span class="hr-card-action">Live data</span></div><?= kpi_packer_table(['Order', 'Customer', 'Mode', 'Status', 'Loaded', 'Started', 'Completed', 'Action'], $orderTableRows) ?></article>
                 <article class="hr-perf-card"><div class="hr-card-header"><h3 class="hr-card-title">KPI Components</h3></div><div class="hr-kpi-list"><?php foreach ($componentRows as $component): ?><div><div class="hr-kpi-row"><span><?= htmlspecialchars($component['label'], ENT_QUOTES, 'UTF-8') ?></span><b><?= kpi_percent($component['score']) ?></b></div><i><em style="width:<?= min(100, max(0, $component['score'])) ?>%"></em></i><small><?= htmlspecialchars($component['raw'], ENT_QUOTES, 'UTF-8') ?></small></div><?php endforeach; ?></div></article>
-                <article class="hr-perf-card"><div class="hr-card-header"><h3 class="hr-card-title">Mode Breakdown</h3></div><div class="hr-split-metrics compact"><article><span>Delivery</span><strong><?= number_format((int) ($orderSummary['delivery_orders'] ?? 0)) ?></strong></article><article><span>Collection</span><strong><?= number_format((int) ($orderSummary['collection_orders'] ?? 0)) ?></strong></article><article><span>Courier</span><strong><?= number_format((int) ($orderSummary['courier_orders'] ?? 0)) ?></strong></article></div></article>
+                <article class="hr-perf-card"><div class="hr-card-header"><h3 class="hr-card-title">Mode Breakdown</h3></div><div class="hr-split-metrics compact"><article><span>Delivery</span><strong><?= number_format((int) ($orderSummary['delivery_orders'] ?? 0)) ?></strong></article><article><span>Collection</span><strong><?= number_format((int) ($orderSummary['collection_orders'] ?? 0)) ?></strong></article><article><span>Courier</span><strong><?= number_format((int) ($orderSummary['courier_orders'] ?? 0)) ?></strong></article><article><span>Walk-in</span><strong><?= number_format((int) ($orderSummary['walkin_orders'] ?? 0)) ?></strong></article></div></article>
             </div>
         </div>
 
@@ -2326,8 +2496,8 @@ function kpi_render_packer_live_dashboard(array $employee, array $detail, string
                 <article class="hr-stat-card"><div class="hr-stat-label">In Progress</div><div class="hr-stat-value"><?= number_format($taskProgress) ?></div><div class="badge bg-warn">Active</div></article>
                 <article class="hr-stat-card"><div class="hr-stat-label">Overdue</div><div class="hr-stat-value"><?= number_format($taskOverdue) ?></div><div class="badge bg-danger">Past due</div></article>
             </div>
-            <div class="task-pills"><span class="task-pill pill-done">Done: <?= number_format($taskDone) ?></span><span class="task-pill pill-progress">In Progress: <?= number_format($taskProgress) ?></span><span class="task-pill pill-pending">Pending: <?= number_format(max(0, $taskTotal - $taskDone - $taskProgress)) ?></span><span class="task-pill pill-overdue">Overdue: <?= number_format($taskOverdue) ?></span></div>
-            <article class="hr-perf-card"><div class="hr-card-header"><h3 class="hr-card-title">Assigned Tasks</h3><span class="hr-card-action">Digital task board</span></div><?= kpi_packer_table(['Task', 'Type', 'Priority', 'Due', 'Completed', 'Status'], $taskTableRows) ?></article>
+            <div class="task-pills"><span class="task-pill pill-done">Done: <?= number_format($taskDone) ?></span><span class="task-pill pill-progress">In Progress: <?= number_format($taskProgress) ?></span><span class="task-pill pill-pending">Pending: <?= number_format(max(0, $taskTotal - $taskDone - $taskProgress)) ?></span><span class="task-pill pill-overdue">Overdue: <?= number_format($taskOverdue) ?></span><span class="task-pill pill-done">Recurring claimed: <?= number_format($recurringClaimed) ?></span><span class="task-pill pill-overdue">Missed recurring: <?= number_format($recurringMissed) ?></span><span class="task-pill pill-progress">Avg complete: <?= htmlspecialchars(kpi_duration($taskCompletionDurations ? array_sum($taskCompletionDurations) / count($taskCompletionDurations) : null), ENT_QUOTES, 'UTF-8') ?></span></div>
+            <article class="hr-perf-card"><div class="hr-card-header"><h3 class="hr-card-title">Assigned Tasks</h3><span class="hr-card-action">Digital task board</span></div><?= kpi_packer_table(['Task', 'Type', 'Priority', 'Due', 'Completed', 'Checklist', 'Status'], $taskTableRows) ?></article>
         </div>
 
         <div class="hr-packer-section" data-packer-panel="errors">
@@ -2351,15 +2521,16 @@ function kpi_render_packer_live_dashboard(array $employee, array $detail, string
                 <article class="hr-stat-card"><div class="hr-stat-label">Not Yet Started</div><div class="hr-stat-value"><?= number_format($packingNotStarted) ?></div><div class="badge bg-danger">On list</div></article>
                 <article class="hr-stat-card"><div class="hr-stat-label">Website Pending</div><div class="hr-stat-value"><?= number_format($websitePending) ?></div><div class="hr-stat-sub">needs inventory update</div></article>
             </div>
+            <?php if ($highPriorityStale > 0): ?><section class="hr-alert-card"><strong>High-priority delay.</strong> <?= number_format($highPriorityStale) ?> high-priority packing item(s) have not started within 2 days.</section><?php endif; ?>
             <div class="unit-grid">
-                <div class="unit-card"><div class="unit-icon">kg</div><div class="unit-label">Kilograms</div><div class="unit-val"><?= number_format($weightGrams / 1000, 1) ?> kg</div></div>
-                <div class="unit-card"><div class="unit-icon">g</div><div class="unit-label">Grams</div><div class="unit-val"><?= number_format($weightGrams, 0) ?> g</div></div>
-                <div class="unit-card"><div class="unit-icon">rows</div><div class="unit-label">Rows</div><div class="unit-val"><?= number_format(count($packingRows)) ?></div></div>
-                <div class="unit-card"><div class="unit-icon">web</div><div class="unit-label">Website</div><div class="unit-val"><?= number_format(max(0, count($packingRows) - $websitePending)) ?></div></div>
+                <div class="unit-card"><div class="unit-icon">kg</div><div class="unit-label">Kilograms</div><div class="unit-val"><?= number_format($weightUnits['kg'], 1) ?> kg</div></div>
+                <div class="unit-card"><div class="unit-icon">g</div><div class="unit-label">Grams</div><div class="unit-val"><?= number_format($weightUnits['g'], 0) ?> g</div></div>
+                <div class="unit-card"><div class="unit-icon">ml</div><div class="unit-label">Millilitres</div><div class="unit-val"><?= number_format($weightUnits['ml'], 0) ?> ml</div></div>
+                <div class="unit-card"><div class="unit-icon">L</div><div class="unit-label">Litres</div><div class="unit-val"><?= number_format($weightUnits['l'], 1) ?> L</div></div>
             </div>
             <div class="hr-two-col">
-                <article class="hr-perf-card"><div class="hr-card-header"><h3 class="hr-card-title">Packing List - Status & Time</h3><span class="hr-card-action">View all</span></div><?= kpi_packer_table(['Item', 'Weight', 'Qty plan', 'Qty packed', 'Loaded', 'Status', 'Website'], $packingTableRows) ?></article>
-                <article class="hr-perf-card"><div class="hr-card-header"><h3 class="hr-card-title">Accuracy & Weight Performance</h3></div><div class="hr-kpi-list"><div><div class="hr-kpi-row"><span>Packing accuracy</span><b><?= kpi_percent($accuracyScore) ?></b></div><i><em style="width:<?= min(100, max(0, $accuracyScore)) ?>%"></em></i><small>Error score and quantity signals</small></div><div><div class="hr-kpi-row"><span>Website updates completed</span><b><?= count($packingRows) ? kpi_percent(((count($packingRows) - $websitePending) / max(1, count($packingRows))) * 100) : '-' ?></b></div><i><em style="width:<?= count($packingRows) ? min(100, max(0, ((count($packingRows) - $websitePending) / max(1, count($packingRows))) * 100)) : 0 ?>%"></em></i><small><?= number_format($websitePending) ?> pending website updates</small></div></div></article>
+                <article class="hr-perf-card"><div class="hr-card-header"><h3 class="hr-card-title">Packing List - Status & Time</h3><span class="hr-card-action">View all</span></div><?= kpi_packer_table(['Item', 'Weight', 'Qty plan', 'Qty packed', 'Loaded', 'Started', 'Completed', 'Status', 'Website Need', 'Website Done'], $packingTableRows) ?></article>
+                <article class="hr-perf-card"><div class="hr-card-header"><h3 class="hr-card-title">Accuracy & Weight Performance</h3></div><div class="hr-kpi-list"><div><div class="hr-kpi-row"><span>Packing accuracy</span><b><?= kpi_percent($accuracyScore) ?></b></div><i><em style="width:<?= min(100, max(0, $accuracyScore)) ?>%"></em></i><small>Error score and quantity signals</small></div><div><div class="hr-kpi-row"><span>Website updates completed</span><b><?= count($packingRows) ? kpi_percent(((count($packingRows) - $websitePending) / max(1, count($packingRows))) * 100) : '-' ?></b></div><i><em style="width:<?= count($packingRows) ? min(100, max(0, ((count($packingRows) - $websitePending) / max(1, count($packingRows))) * 100)) : 0 ?>%"></em></i><small><?= number_format($websitePending) ?> pending, <?= number_format($websiteNeeded) ?> needed because quantity differs</small></div><div><div class="hr-kpi-row"><span>Avg loaded to start</span><b><?= htmlspecialchars(kpi_duration($startDurations ? array_sum($startDurations) / count($startDurations) : null), ENT_QUOTES, 'UTF-8') ?></b></div><i><em style="width:<?= $startDurations ? 80 : 0 ?>%"></em></i><small>time before packing begins</small></div><div><div class="hr-kpi-row"><span>Avg loaded to done</span><b><?= htmlspecialchars(kpi_duration($completeDurations ? array_sum($completeDurations) / count($completeDurations) : null), ENT_QUOTES, 'UTF-8') ?></b></div><i><em style="width:<?= $completeDurations ? 80 : 0 ?>%"></em></i><small>time from list load to completion</small></div></div></article>
             </div>
         </div>
 
@@ -2369,11 +2540,59 @@ function kpi_render_packer_live_dashboard(array $employee, array $detail, string
                 <article class="hr-stat-card"><div class="hr-stat-label">Days Present</div><div class="hr-stat-value"><?= number_format((int) ($loginSummary['present_days'] ?? 0)) ?></div><div class="hr-stat-sub">login days</div></article>
                 <article class="hr-stat-card"><div class="hr-stat-label">Late Arrivals</div><div class="hr-stat-value"><?= number_format((int) ($loginSummary['late_logins'] ?? 0)) ?></div><div class="badge bg-warn">After 08:00</div></article>
                 <article class="hr-stat-card"><div class="hr-stat-label">Avg Login Time</div><div class="hr-stat-value"><?= htmlspecialchars($averageLogin, ENT_QUOTES, 'UTF-8') ?></div><div class="hr-stat-sub">selected period</div></article>
-                <article class="hr-stat-card"><div class="hr-stat-label">Reliability Score</div><div class="hr-stat-value"><?= kpi_percent((float) ($employee['reliability_score'] ?? 0)) ?></div><div class="hr-stat-sub">manual + portal signals</div></article>
+                <article class="hr-stat-card"><div class="hr-stat-label">Lunch Toggles</div><div class="hr-stat-value"><?= number_format($lunchOutCount) ?></div><div class="hr-stat-sub">avg <?= htmlspecialchars(kpi_duration($avgLunchDuration), ENT_QUOTES, 'UTF-8') ?></div></article>
             </div>
-            <article class="hr-perf-card"><div class="hr-card-header"><h3 class="hr-card-title">Login Log</h3><span class="hr-card-action">Full backlog</span></div><?= kpi_packer_table(['Login', 'Role'], $attendanceTableRows) ?></article>
+            <div class="hr-two-col">
+                <article class="hr-perf-card"><div class="hr-card-header"><h3 class="hr-card-title">Login Log</h3><span class="hr-card-action">Full backlog</span></div><?= kpi_packer_table(['Login', 'Role'], $attendanceTableRows) ?></article>
+                <article class="hr-perf-card"><div class="hr-card-header"><h3 class="hr-card-title">Lunch & Availability</h3><span class="hr-card-action">Status toggles</span></div><?= kpi_packer_table(['Changed', 'Status'], $availabilityTableRows) ?></article>
+            </div>
         </div>
     </section>
+    <script>
+    (function(){
+      var shell=document.getElementById(<?= json_encode($sectionId) ?>);
+      if(!shell||shell.dataset.packerBound==="1"){return;}
+      shell.dataset.packerBound="1";
+      shell.addEventListener("click",function(event){
+        var tab=event.target.closest("[data-packer-section]");
+        if(tab){
+          var name=tab.getAttribute("data-packer-section");
+          shell.querySelectorAll("[data-packer-section]").forEach(function(item){item.classList.toggle("active",item===tab);});
+          shell.querySelectorAll("[data-packer-panel]").forEach(function(item){item.classList.toggle("active",item.getAttribute("data-packer-panel")===name);});
+          return;
+        }
+        var open=event.target.closest(".hr-packer-set-progress");
+        if(open){
+          var modal=shell.querySelector("[data-packer-modal]");
+          modal.querySelector("[name=order_id]").value=open.getAttribute("data-order-id")||"";
+          modal.querySelector("[data-packer-order-title]").value=open.getAttribute("data-order-title")||"Order";
+          modal.classList.add("open");
+          return;
+        }
+        if(event.target.closest("[data-packer-modal-close]")){
+          shell.querySelector("[data-packer-modal]").classList.remove("open");
+        }
+      });
+      var form=shell.querySelector("[data-packer-progress-form]");
+      if(form){
+        form.addEventListener("submit",function(event){
+          event.preventDefault();
+          var error=form.querySelector("[data-packer-progress-error]");
+          var submit=form.querySelector("[type=submit]");
+          error.hidden=true;
+          submit.disabled=true;
+          fetch("orders-board-action.php",{method:"POST",body:new FormData(form),credentials:"same-origin"})
+            .then(function(response){return response.json();})
+            .then(function(data){
+              if(!data.ok){throw new Error(data.message||"Could not update order.");}
+              window.location.reload();
+            })
+            .catch(function(err){error.textContent=err.message;error.hidden=false;})
+            .finally(function(){submit.disabled=false;});
+        });
+      }
+    })();
+    </script>
     <?php
 }
 
