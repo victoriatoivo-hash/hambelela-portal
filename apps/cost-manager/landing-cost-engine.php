@@ -64,6 +64,7 @@ $transportInvoiceCards = [];
 $transportInvoiceLinesByInvoice = [];
 $packagingCostCards = [];
 $packagingCategoryTotals = [];
+$wooSuggestions = [];
 
 function cw_money(float $amount): string
 {
@@ -476,6 +477,23 @@ try {
     foreach ($wooPriceRows as $wooRow) {
         $wooByProduct[(string) $wooRow['woo_product_id']] = $wooRow;
     }
+    if (cw_table_exists($pdo, 'woo_sales')) {
+        $wooSuggestions = cw_fetch_all(
+            $pdo,
+            "SELECT
+                woo_product_id,
+                woo_variation_id,
+                product_name,
+                MAX(unit_price) AS price_ex_vat,
+                SUM(quantity) AS sold_qty,
+                MAX(sold_at) AS last_sold_at
+             FROM woo_sales
+             WHERE product_name IS NOT NULL AND TRIM(product_name) <> ''
+             GROUP BY woo_product_id, woo_variation_id, product_name
+             ORDER BY product_name
+             LIMIT 600"
+        );
+    }
 
     $productOutputKeys = [];
     foreach ($products as $product) {
@@ -503,13 +521,14 @@ try {
         }
         $wooProductId = (string) ($product['woo_product_id'] ?? '');
         $wooRow = $wooByProduct[$wooProductId] ?? null;
-        $sellingPriceInclVat = (float) ($product['selling_price'] ?? 0);
+        $websitePriceExVat = (float) ($product['selling_price'] ?? 0);
         if (($currentWooPrices[$wooProductId] ?? 0) > 0) {
-            $sellingPriceInclVat = (float) $currentWooPrices[$wooProductId];
-        } elseif ($sellingPriceInclVat <= 0 && $wooRow) {
-            $sellingPriceInclVat = (float) ($wooRow['website_price'] ?? 0);
+            $websitePriceExVat = (float) $currentWooPrices[$wooProductId];
+        } elseif ($websitePriceExVat <= 0 && $wooRow) {
+            $websitePriceExVat = (float) ($wooRow['website_price'] ?? 0);
         }
-        $sellingPriceExVat = cw_price_ex_vat($sellingPriceInclVat, $vatRate);
+        $sellingPriceExVat = $websitePriceExVat;
+        $sellingPriceInclVat = pricing_engine_add_vat($sellingPriceExVat, $vatRate);
         $vat = max(0, $sellingPriceInclVat - $sellingPriceExVat);
         $totalCost = (float) $breakdown['total_cogs'];
         if ($totalCost <= 0 && $masterMatch) {
@@ -870,6 +889,19 @@ $matchedPanelRows = array_slice(array_values(array_filter($panelRows, fn (array 
 $unmatchedPanelRows = array_slice(array_values(array_filter($panelRows, fn (array $row): bool => !(bool) $row['website_linked'])), 0, 8);
 $profitPanelRows = array_slice($rows ?: $panelRows, 0, 12);
 $warningPanelRows = array_slice(array_values(array_filter($panelRows, fn (array $row): bool => in_array((string) $row['status_key'], ['loss', 'low_margin', 'unknown'], true))), 0, 8);
+$wooSuggestionProducts = array_values(array_map(static function (array $row): array {
+    return [
+        'name' => (string) ($row['product_name'] ?? 'WooCommerce product'),
+        'sku' => '',
+        'wooProductId' => (string) ($row['woo_product_id'] ?? ''),
+        'wooVariationId' => (string) ($row['woo_variation_id'] ?? ''),
+        'variation' => (string) ($row['woo_variation_id'] ?? '') !== '' ? 'Variation #' . (string) $row['woo_variation_id'] : '',
+        'priceExcl' => round((float) ($row['price_ex_vat'] ?? 0), 2),
+        'stockQty' => 0,
+        'soldQty' => round((float) ($row['sold_qty'] ?? 0), 3),
+        'lastSoldAt' => (string) ($row['last_sold_at'] ?? ''),
+    ];
+}, $wooSuggestions));
 $workbookProducts = array_map(static function (array $row): array {
     $conversion = $row['conversion'] ?? ['base_unit' => 'unit'];
     $baseUnit = (string) ($conversion['base_unit'] ?? 'unit');
@@ -887,10 +919,20 @@ $workbookProducts = array_map(static function (array $row): array {
         'supplierCost' => round((float) ($row['supplier_cost'] ?? 0), 2),
         'transport' => round((float) ($row['transport_cost'] ?? 0), 2),
         'packaging' => round((float) ($row['packaging_cost'] ?? 0), 2),
+        'landedCost' => round((float) ($row['total_cost'] ?? $row['landed_cost'] ?? 0), 2),
         'unitSize' => round($unitSize, 4),
         'totalSize' => round($unitSize, 4),
         'unitLabel' => $baseUnit !== '' ? $baseUnit : 'unit',
+        'priceExcl' => round((float) ($row['selling_price_ex_vat'] ?? 0), 2),
         'priceIncl' => round((float) ($row['selling_price_incl_vat'] ?? 0), 2),
+        'stockQty' => 0,
+        'wooProductId' => '',
+        'wooVariationId' => '',
+        'matchedWooName' => '',
+        'matchedWooSku' => '',
+        'noWebsite' => false,
+        'reviewFlag' => false,
+        'reviewNote' => '',
         'websiteMatch' => (string) ($row['website_match_label'] ?? 'Unmatched'),
         'warnings' => (string) ($row['warnings'] ?? ''),
     ];
@@ -1108,7 +1150,7 @@ include BASE_PATH . '/shared/sidebar.php';
                                                 <strong><?= htmlspecialchars((string) ($invoice['invoice_number'] ?: 'Invoice #' . $invoiceId), ENT_QUOTES, 'UTF-8') ?></strong>
                                                 <small><?= htmlspecialchars((string) ($invoice['supplier_name'] ?: 'Unknown supplier'), ENT_QUOTES, 'UTF-8') ?> - <?= htmlspecialchars((string) ($invoice['invoice_date'] ?: substr((string) $invoice['created_at'], 0, 10)), ENT_QUOTES, 'UTF-8') ?></small>
                                             </span>
-                                            <em><?= number_format($lineCount) ?> rows · <?= cw_money((float) ($invoice['total_amount'] ?? 0)) ?></em>
+                                            <em><?= number_format($lineCount) ?> rows - <?= cw_money((float) ($invoice['total_amount'] ?? 0)) ?></em>
                                         </summary>
                                         <div class="saved-invoice-detail">
                                             <div class="invoice-mini-metrics">
@@ -1283,6 +1325,84 @@ include BASE_PATH . '/shared/sidebar.php';
                                     </tbody>
                                 </table>
                             </div>
+                        <?php elseif ($step['key'] === 'website'): ?>
+                            <div class="website-match-workspace">
+                                <div class="website-match-toolbar">
+                                    <div>
+                                        <strong>Row-level WooCommerce matching</strong>
+                                        <span>Search by product name or SKU, choose a website product, or enter a manual price if it is not listed online.</span>
+                                    </div>
+                                    <div class="website-match-counts">
+                                        <b id="websiteMatchedCount">0 matched</b>
+                                        <b id="websiteUnmatchedCount">0 unmatched</b>
+                                    </div>
+                                </div>
+                                <div class="table-wrap website-match-table">
+                                    <table>
+                                        <thead><tr><th>Cost row</th><th>Costs</th><th>Website product search</th><th>Website price excl. VAT</th><th>Stock qty</th><th>Status</th></tr></thead>
+                                        <tbody id="websiteMatchBody"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        <?php elseif ($step['key'] === 'profitability'): ?>
+                            <div class="profit-step-workspace">
+                                <div class="profit-summary-grid" id="profitSummary"></div>
+                                <div class="profit-controls">
+                                    <input id="profitSearch" type="search" placeholder="Search product..." oninput="renderProfitStep()">
+                                    <select id="profitStatusFilter" onchange="renderProfitStep()">
+                                        <option value="">All statuses</option>
+                                        <option value="profitable">Profitable</option>
+                                        <option value="low">Low Margin</option>
+                                        <option value="break_even">Break Even</option>
+                                        <option value="loss">Loss Making</option>
+                                        <option value="unmatched">Unmatched</option>
+                                    </select>
+                                    <select id="profitSort" onchange="renderProfitStep()">
+                                        <option value="margin_desc">Margin high to low</option>
+                                        <option value="margin_asc">Margin low to high</option>
+                                        <option value="profit_desc">Profit high to low</option>
+                                        <option value="profit_asc">Profit low to high</option>
+                                        <option value="name">Product name</option>
+                                    </select>
+                                </div>
+                                <div class="table-wrap profit-step-table">
+                                    <table>
+                                        <thead><tr><th>Product</th><th>Total landed</th><th>Website price</th><th>Gross profit</th><th>Margin</th><th>Stock value</th><th>Status</th><th>Action</th></tr></thead>
+                                        <tbody id="profitBody"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        <?php elseif ($step['key'] === 'final'): ?>
+                            <div class="final-workbook-workspace">
+                                <div class="final-workbook-header" id="finalSummary"></div>
+                                <div class="flagged-products-panel" id="flaggedProducts"></div>
+                                <div class="profit-controls">
+                                    <input id="finalSearch" type="search" placeholder="Search final workbook..." oninput="renderFinalWorkbook()">
+                                    <select id="finalStatusFilter" onchange="renderFinalWorkbook()">
+                                        <option value="">All statuses</option>
+                                        <option value="profitable">Profitable</option>
+                                        <option value="low">Low Margin</option>
+                                        <option value="break_even">Break Even</option>
+                                        <option value="loss">Loss Making</option>
+                                        <option value="unmatched">Unmatched</option>
+                                    </select>
+                                    <select id="finalSort" onchange="renderFinalWorkbook()">
+                                        <option value="name">Product name</option>
+                                        <option value="margin_desc">Margin high to low</option>
+                                        <option value="margin_asc">Margin low to high</option>
+                                        <option value="potential_desc">Potential profit high to low</option>
+                                        <option value="landed_desc">Landed cost high to low</option>
+                                    </select>
+                                    <button class="action-btn" type="button" onclick="exportFinalCSV()"><i data-lucide="download"></i> Export CSV</button>
+                                    <button class="action-btn" type="button" onclick="window.print()"><i data-lucide="printer"></i> Print / PDF</button>
+                                </div>
+                                <div class="table-wrap final-workbook-table">
+                                    <table>
+                                        <thead><tr><th>Product / Variation</th><th>Supplier</th><th>Costs</th><th>Website price</th><th>Profit</th><th>Stock value</th><th>Status</th><th>Flags / notes</th></tr></thead>
+                                        <tbody id="finalBody"></tbody>
+                                    </table>
+                                </div>
+                            </div>
                         <?php else: ?>
                             <div class="dropzone-eng"><i data-lucide="<?= $step['key'] === 'transport' ? 'truck' : ($step['key'] === 'packaging' ? 'package' : 'file-up') ?>"></i><span><?= htmlspecialchars((string) $step['summary'], ENT_QUOTES, 'UTF-8') ?></span></div>
                             <div class="step-fields-list">
@@ -1439,9 +1559,9 @@ include BASE_PATH . '/shared/sidebar.php';
                             <th class="num grp-landed-bg">Landed Cost</th>
                             <th class="num grp-landed-bg">Unit / Total Size</th>
                             <th class="num grp-landed-bg">Unit Cost</th>
-                            <th class="num grp-pricing-bg">Price incl. VAT</th>
-                            <th class="num grp-pricing-bg">Price excl. VAT</th>
+                            <th class="num grp-pricing-bg">Website Price Excl. VAT</th>
                             <th class="num grp-pricing-bg">VAT</th>
+                            <th class="num grp-pricing-bg">Price Incl. VAT</th>
                             <th class="num grp-margin-bg">Profit</th>
                             <th class="num grp-margin-bg">Margin %</th>
                             <th class="grp-margin-bg">Status</th>
@@ -1458,9 +1578,9 @@ include BASE_PATH . '/shared/sidebar.php';
                             <td class="num" id="totLanded">-</td>
                             <td class="num">-</td>
                             <td class="num">-</td>
-                            <td class="num">-</td>
-                            <td class="num">-</td>
                             <td class="num" id="totRevenue">-</td>
+                            <td class="num">-</td>
+                            <td class="num">-</td>
                             <td class="num" id="totProfit">-</td>
                             <td class="num" id="totMargin">-</td>
                             <td></td>
@@ -1659,6 +1779,62 @@ include BASE_PATH . '/shared/sidebar.php';
 .dot.landed { background:var(--cw-purple-bg); border:1px solid var(--cw-purple); }
 .dot.pricing { background:var(--cw-pink-light); border:1px solid var(--cw-pink); }
 .dot.margin { background:var(--cw-green-bg); border:1px solid var(--cw-green); }
+.website-match-workspace,
+.profit-step-workspace,
+.final-workbook-workspace { display:grid; gap:14px; }
+.website-match-toolbar { display:flex; justify-content:space-between; gap:12px; align-items:center; flex-wrap:wrap; background:#fff; border:1px solid var(--cw-border); border-radius:14px; padding:14px; }
+.website-match-toolbar strong { display:block; font-size:14px; }
+.website-match-toolbar span { display:block; margin-top:3px; color:var(--cw-muted); font-size:12px; }
+.website-match-counts { display:flex; gap:8px; flex-wrap:wrap; }
+.website-match-counts b { background:var(--cw-pink-light); color:#d63b7a; border-radius:999px; padding:6px 10px; font-size:11px; }
+.website-match-table table,
+.profit-step-table table,
+.final-workbook-table table { min-width:1050px; background:#fff; }
+.website-search-cell { position:relative; min-width:260px; }
+.website-search-cell input,
+.website-search-cell select,
+.profit-controls input,
+.profit-controls select,
+.manual-price-input,
+.stock-input,
+.review-note { width:100%; border:1px solid var(--cw-border); border-radius:9px; background:#fff; padding:9px 10px; font:inherit; font-size:12px; }
+.website-suggestions { position:absolute; left:0; right:0; top:42px; z-index:20; display:none; max-height:220px; overflow:auto; background:#fff; border:1px solid var(--cw-border); border-radius:12px; box-shadow:0 16px 36px rgba(34,24,29,.14); padding:6px; }
+.website-suggestions.is-open { display:grid; gap:5px; }
+.website-suggestion-btn { width:100%; border:0; background:#fff; border-radius:9px; padding:9px; text-align:left; cursor:pointer; }
+.website-suggestion-btn:hover { background:var(--cw-pink-light); }
+.website-suggestion-btn strong { display:block; font-size:12px; }
+.website-suggestion-btn small { display:block; color:var(--cw-muted); margin-top:2px; }
+.website-row-actions { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+.mini-action { border:1px solid var(--cw-border); background:#fff; border-radius:999px; padding:6px 9px; font-size:11px; font-weight:900; cursor:pointer; }
+.mini-action.pink { border-color:rgba(255,107,157,.35); color:#d63b7a; background:var(--cw-pink-light); }
+.profit-summary-grid,
+.final-workbook-header { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+.profit-summary-card,
+.final-summary-card { background:#fff; border:1px solid var(--cw-border); border-radius:13px; padding:12px; }
+.profit-summary-card span,
+.final-summary-card span { display:block; color:var(--cw-muted); font-size:10.5px; font-weight:900; text-transform:uppercase; margin-bottom:5px; }
+.profit-summary-card strong,
+.final-summary-card strong { display:block; font-size:18px; line-height:1.15; }
+.profit-summary-card small,
+.final-summary-card small { display:block; color:var(--cw-muted); margin-top:4px; font-size:11px; }
+.profit-controls { display:grid; grid-template-columns:minmax(180px,1.4fr) minmax(150px,.8fr) minmax(150px,.8fr) auto auto; gap:10px; align-items:center; }
+.status-pill { display:inline-flex; border-radius:999px; padding:5px 9px; font-size:11px; font-weight:900; white-space:nowrap; }
+.status-pill.profitable { background:var(--cw-green-bg); color:var(--cw-green); }
+.status-pill.low { background:#fff4cc; color:#9a6a00; }
+.status-pill.break_even { background:#fff0dc; color:#b66c00; }
+.status-pill.loss { background:var(--cw-red-bg); color:var(--cw-red); }
+.status-pill.unmatched { background:#efefef; color:#666; }
+.flag-toggle { display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:900; color:#d63b7a; }
+.flagged-products-panel { display:none; background:#fff2f7; border:1px solid rgba(255,107,157,.35); border-radius:14px; padding:14px; }
+.flagged-products-panel.is-visible { display:block; }
+.flagged-products-panel h3 { margin:0 0 8px; font-size:14px; }
+.flagged-products-list { display:grid; gap:8px; }
+.flagged-products-list div { background:#fff; border:1px solid var(--cw-border); border-radius:10px; padding:10px; font-size:12px; }
+.flagged-products-list strong { display:block; margin-bottom:3px; }
+.flagged-products-list small { color:var(--cw-muted); }
+.cell-stack { display:grid; gap:3px; font-size:12px; }
+.cell-stack strong { font-size:13px; }
+.cell-stack small { color:var(--cw-muted); }
 .cost-allocation-modal[hidden] { display:none; }
 .cost-allocation-modal { position:fixed; inset:0; z-index:1200; display:grid; place-items:center; padding:24px; }
 .cost-allocation-backdrop { position:absolute; inset:0; background:rgba(28,24,28,.42); backdrop-filter:blur(3px); }
@@ -1667,13 +1843,14 @@ include BASE_PATH . '/shared/sidebar.php';
 .cost-allocation-dialog h2 { margin:2px 0 4px; font-size:19px; }
 .cost-allocation-dialog p { margin:0; color:var(--cw-muted); font-size:13px; }
 .cost-allocation-dialog iframe { width:100%; height:72vh; border:0; background:#fff; }
-@media (max-width:1100px) { .cost-workbook-stats { grid-template-columns:repeat(2,minmax(0,1fr)); } .filters-row { grid-template-columns:1fr 1fr; } .workbook-step-grid { grid-template-columns:1fr; } .packaging-item-card { grid-template-columns:1fr 1fr; } }
-@media (max-width:700px) { .cost-workbook-exact { padding-left:16px; padding-right:16px; } .cost-workbook-stats, .cost-workbook-stats-small, .filters-row, .packaging-category-grid { grid-template-columns:1fr; } .workbook-step-header, .panel-head { align-items:stretch; } .step-nav-btns, .actions, .cost-workbook-badges { justify-content:flex-start; } .stat-row-eng { grid-template-columns:1fr; } .packaging-item-card { grid-template-columns:1fr; } .cost-allocation-modal { padding:0; } .cost-allocation-dialog { width:100vw; height:100vh; max-height:none; border-radius:0; } .cost-allocation-dialog iframe { height:calc(100vh - 112px); } }
+@media (max-width:1100px) { .cost-workbook-stats { grid-template-columns:repeat(2,minmax(0,1fr)); } .filters-row { grid-template-columns:1fr 1fr; } .workbook-step-grid { grid-template-columns:1fr; } .packaging-item-card { grid-template-columns:1fr 1fr; } .profit-summary-grid, .final-workbook-header { grid-template-columns:repeat(2,minmax(0,1fr)); } .profit-controls { grid-template-columns:1fr 1fr; } }
+@media (max-width:700px) { .cost-workbook-exact { padding-left:16px; padding-right:16px; } .cost-workbook-stats, .cost-workbook-stats-small, .filters-row, .packaging-category-grid, .profit-summary-grid, .final-workbook-header, .profit-controls { grid-template-columns:1fr; } .workbook-step-header, .panel-head { align-items:stretch; } .step-nav-btns, .actions, .cost-workbook-badges { justify-content:flex-start; } .stat-row-eng { grid-template-columns:1fr; } .packaging-item-card { grid-template-columns:1fr; } .cost-allocation-modal { padding:0; } .cost-allocation-dialog { width:100vw; height:100vh; max-height:none; border-radius:0; } .cost-allocation-dialog iframe { height:calc(100vh - 112px); } }
 </style>
 
 <script>
 var engineSteps = <?= json_encode($workbookStepData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
 var products = <?= json_encode($workbookProducts, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
+var wooSuggestions = <?= json_encode($wooSuggestionProducts, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
 var VAT_RATE = <?= json_encode($vatRate / 100) ?>;
 var TARGET_MARGIN = <?= json_encode($targetMargin) ?>;
 function showWorkbookPage(page) {
@@ -1731,17 +1908,249 @@ function computeRow(p) {
   var unitSize = Number(p.unitSize || 1);
   var baseUnitCost = totalSize > 0 ? landed / totalSize : 0;
   var unitCost = baseUnitCost * unitSize;
-  var priceIncl = Number(p.priceIncl || p.priceExcl || 0);
-  var priceExcl = priceIncl > 0 ? priceIncl / (1 + VAT_RATE) : 0;
-  var vatAmount = priceIncl > 0 ? priceIncl - priceExcl : 0;
+  var priceExcl = Number(p.priceExcl || 0);
+  if (priceExcl <= 0 && Number(p.priceIncl || 0) > 0) {
+    priceExcl = Number(p.priceIncl || 0) / (1 + VAT_RATE);
+  }
+  var priceIncl = priceExcl > 0 ? priceExcl * (1 + VAT_RATE) : 0;
+  var vatAmount = priceIncl - priceExcl;
   var profit = priceExcl > 0 ? priceExcl - unitCost : 0;
-  var margin = priceIncl > 0 && priceExcl > 0 ? (profit / priceExcl) * 100 : null;
-  var status = 'good';
-  var statusLabel = 'Healthy';
-  if (priceExcl <= 0) { status = 'muted'; statusLabel = 'Missing Price'; }
-  else if (margin < 0) { status = 'bad'; statusLabel = 'Loss Making'; }
-  else if (margin < TARGET_MARGIN) { status = 'warn'; statusLabel = 'Low Margin'; }
-  return { landed: landed, unitCost: unitCost, priceExcl: priceExcl, priceIncl: priceIncl, vatAmount: vatAmount, profit: profit, margin: margin, status: status, statusLabel: statusLabel };
+  var margin = priceExcl > 0 ? (profit / priceExcl) * 100 : null;
+  var stockQty = Math.max(0, Number(p.stockQty || 0));
+  var stockValueCost = unitCost * stockQty;
+  var stockValueRetail = priceExcl * stockQty;
+  var potentialProfit = stockValueRetail - stockValueCost;
+  var status = 'profitable';
+  var statusLabel = 'Profitable';
+  if (priceExcl <= 0 || p.noWebsite) { status = 'unmatched'; statusLabel = p.noWebsite ? 'No Website Listing' : 'Unmatched'; }
+  else if (margin < 0) { status = 'loss'; statusLabel = 'Loss Making'; }
+  else if (Math.abs(margin) < 0.0001) { status = 'break_even'; statusLabel = 'Break Even'; }
+  else if (margin <= 30) { status = 'low'; statusLabel = 'Low Margin'; }
+  return { landed: landed, unitCost: unitCost, priceExcl: priceExcl, priceIncl: priceIncl, vatAmount: vatAmount, profit: profit, margin: margin, stockQty: stockQty, stockValueCost: stockValueCost, stockValueRetail: stockValueRetail, potentialProfit: potentialProfit, status: status, statusLabel: statusLabel };
+}
+function legacyStatusMatches(filterValue, status) {
+  var map = { good:'profitable', warn:'low', bad:'loss', muted:'unmatched' };
+  return (map[filterValue] || filterValue) === status;
+}
+function productSearchText(p) {
+  return String([p.parent, p.variation, p.sku, p.category, p.supplier, p.matchedWooName, p.matchedWooSku].join(' ')).toLowerCase();
+}
+function findWooSuggestions(query) {
+  var q = String(query || '').toLowerCase().trim();
+  if (!q) return [];
+  return wooSuggestions.filter(function (woo) {
+    return String([woo.name, woo.sku, woo.wooProductId, woo.wooVariationId].join(' ')).toLowerCase().indexOf(q) !== -1;
+  }).slice(0, 8);
+}
+function renderWebsiteMatching() {
+  var tbody = document.getElementById('websiteMatchBody');
+  if (!tbody) return;
+  var matched = 0;
+  var unmatched = 0;
+  tbody.innerHTML = '';
+  products.forEach(function (p, idx) {
+    var c = computeRow(p);
+    if (c.status === 'unmatched') unmatched++; else matched++;
+    var matchLabel = p.noWebsite ? 'No Website Listing' : (p.matchedWooName || p.websiteMatch || 'Unmatched');
+    var searchValue = p.matchSearch || p.matchedWooName || '';
+    var suggestions = findWooSuggestions(searchValue);
+    var suggestionHtml = suggestions.map(function (woo, wooIndex) {
+      return '<button class="website-suggestion-btn" type="button" onclick="selectWooSuggestion(' + idx + ',' + wooSuggestions.indexOf(woo) + ')"><strong>' + esc(woo.name) + '</strong><small>Price excl. VAT ' + fmt(woo.priceExcl) + (woo.soldQty ? ' - sold ' + numStr(woo.soldQty) : '') + '</small></button>';
+    }).join('');
+    var tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td><div class="cell-stack"><strong>' + esc(p.parent || 'Product') + '</strong><small>' + esc((p.variation || '-') + ' - ' + (p.supplier || 'Supplier')) + '</small></div></td>' +
+      '<td><div class="cell-stack"><small>Supplier ' + fmt(p.supplierCost || 0) + '</small><small>Transport ' + fmt(p.transport || 0) + '</small><strong>Landed ' + fmt(c.landed) + '</strong></div></td>' +
+      '<td class="website-search-cell"><input type="search" value="' + esc(searchValue) + '" placeholder="Search Woo product or SKU..." oninput="updateWebsiteSearch(' + idx + ', this.value)"><div class="website-suggestions ' + (suggestions.length ? 'is-open' : '') + '">' + suggestionHtml + '</div><div class="website-row-actions"><button class="mini-action pink" type="button" onclick="markNoWebsite(' + idx + ')">No Website Listing</button><button class="mini-action" type="button" onclick="clearWebsiteMatch(' + idx + ')">Clear</button></div></td>' +
+      '<td><input class="manual-price-input" value="' + numStr(c.priceExcl) + '" inputmode="decimal" onblur="setManualWebsitePrice(' + idx + ', this.value)"></td>' +
+      '<td><input class="stock-input" value="' + numStr(c.stockQty) + '" inputmode="decimal" onblur="setStockQty(' + idx + ', this.value)"></td>' +
+      '<td><span class="status-pill ' + c.status + '">' + c.statusLabel + '</span><small style="display:block;color:var(--cw-muted);margin-top:4px;">' + esc(matchLabel) + '</small></td>';
+    tbody.appendChild(tr);
+  });
+  if (!products.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-state-cell">No costing rows available yet. Complete Supplier Invoice and Landed Cost first.</td></tr>';
+  }
+  setText('websiteMatchedCount', matched + ' matched');
+  setText('websiteUnmatchedCount', unmatched + ' unmatched');
+}
+function updateWebsiteSearch(idx, value) {
+  if (!products[idx]) return;
+  products[idx].matchSearch = value;
+  renderWebsiteMatching();
+}
+function selectWooSuggestion(idx, wooIdx) {
+  var p = products[idx], woo = wooSuggestions[wooIdx];
+  if (!p || !woo) return;
+  p.matchedWooName = woo.name || '';
+  p.matchedWooSku = woo.sku || '';
+  p.wooProductId = woo.wooProductId || '';
+  p.wooVariationId = woo.wooVariationId || '';
+  p.websiteMatch = 'Matched to WooCommerce';
+  p.priceExcl = Number(woo.priceExcl || 0);
+  p.stockQty = Number(woo.stockQty || p.stockQty || 0);
+  p.variation = p.variation || woo.variation || '';
+  p.noWebsite = false;
+  p.matchSearch = woo.name || '';
+  renderTable();
+  flashSaved();
+}
+function markNoWebsite(idx) {
+  if (!products[idx]) return;
+  products[idx].noWebsite = true;
+  products[idx].websiteMatch = 'No Website Listing';
+  renderTable();
+  flashSaved();
+}
+function clearWebsiteMatch(idx) {
+  if (!products[idx]) return;
+  products[idx].matchedWooName = '';
+  products[idx].matchedWooSku = '';
+  products[idx].wooProductId = '';
+  products[idx].wooVariationId = '';
+  products[idx].websiteMatch = 'Unmatched';
+  products[idx].priceExcl = 0;
+  products[idx].noWebsite = false;
+  products[idx].matchSearch = '';
+  renderTable();
+  flashSaved();
+}
+function setManualWebsitePrice(idx, value) {
+  if (!products[idx]) return;
+  var price = parseFloat(String(value).replace(/[^0-9.\-]/g, ''));
+  products[idx].priceExcl = isNaN(price) ? 0 : price;
+  if (products[idx].priceExcl > 0 && !products[idx].matchedWooName) {
+    products[idx].websiteMatch = 'Manual website price';
+    products[idx].noWebsite = false;
+  }
+  renderTable();
+  flashSaved();
+}
+function setStockQty(idx, value) {
+  if (!products[idx]) return;
+  var qty = parseFloat(String(value).replace(/[^0-9.\-]/g, ''));
+  products[idx].stockQty = isNaN(qty) ? 0 : qty;
+  renderTable();
+  flashSaved();
+}
+function rowsForReview(searchId, statusId, sortId) {
+  var search = String(document.getElementById(searchId)?.value || '').toLowerCase();
+  var status = document.getElementById(statusId)?.value || '';
+  var rows = products.map(function (p, idx) { return { p:p, idx:idx, c:computeRow(p) }; }).filter(function (row) {
+    if (search && productSearchText(row.p).indexOf(search) === -1) return false;
+    if (status && row.c.status !== status) return false;
+    return true;
+  });
+  var sort = document.getElementById(sortId)?.value || 'name';
+  rows.sort(function (a, b) {
+    if (sort === 'margin_desc') return (b.c.margin === null ? -9999 : b.c.margin) - (a.c.margin === null ? -9999 : a.c.margin);
+    if (sort === 'margin_asc') return (a.c.margin === null ? 9999 : a.c.margin) - (b.c.margin === null ? 9999 : b.c.margin);
+    if (sort === 'profit_desc') return b.c.profit - a.c.profit;
+    if (sort === 'profit_asc') return a.c.profit - b.c.profit;
+    if (sort === 'potential_desc') return b.c.potentialProfit - a.c.potentialProfit;
+    if (sort === 'landed_desc') return b.c.landed - a.c.landed;
+    return String(a.p.parent || '').localeCompare(String(b.p.parent || ''));
+  });
+  return rows;
+}
+function workbookSummary() {
+  var summary = { landed:0, retail:0, profit:0, marginTotal:0, marginCount:0, profitable:0, low:0, break_even:0, loss:0, unmatched:0 };
+  products.forEach(function (p) {
+    var c = computeRow(p);
+    summary.landed += c.unitCost;
+    if (c.status === 'unmatched') {
+      summary.unmatched++;
+      return;
+    }
+    summary.retail += c.priceExcl;
+    summary.profit += c.profit;
+    summary.marginTotal += c.margin || 0;
+    summary.marginCount++;
+    summary[c.status] = (summary[c.status] || 0) + 1;
+  });
+  summary.averageMargin = summary.marginCount ? summary.marginTotal / summary.marginCount : 0;
+  return summary;
+}
+function renderProfitStep() {
+  var summaryEl = document.getElementById('profitSummary');
+  var tbody = document.getElementById('profitBody');
+  if (!summaryEl || !tbody) return;
+  var s = workbookSummary();
+  summaryEl.innerHTML =
+    summaryCard('Total landed cost', fmt(s.landed), 'Cost across visible workbook rows') +
+    summaryCard('Total retail value', fmt(s.retail), 'Matched/manual website prices only') +
+    summaryCard('Gross profit', fmt(s.profit), 'Retail excl. VAT minus landed cost') +
+    summaryCard('Average margin', s.averageMargin.toFixed(1) + '%', s.unmatched + ' unmatched excluded') +
+    summaryCard('Profitable', s.profitable || 0, 'Above 30% margin') +
+    summaryCard('Low margin', s.low || 0, '1% to 30% margin') +
+    summaryCard('Break even', s.break_even || 0, '0% margin') +
+    summaryCard('Loss making', s.loss || 0, 'Negative margin');
+  var rows = rowsForReview('profitSearch', 'profitStatusFilter', 'profitSort');
+  tbody.innerHTML = '';
+  rows.forEach(function (row) {
+    var p = row.p, c = row.c, idx = row.idx;
+    var tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td><div class="cell-stack"><strong>' + esc(p.parent || 'Product') + '</strong><small>' + esc((p.variation || '-') + ' - ' + (p.sku || 'Needs SKU')) + '</small></div></td>' +
+      '<td>' + fmt(c.unitCost) + '</td><td>' + (c.priceExcl > 0 ? fmt(c.priceExcl) : '-') + '</td><td>' + fmt(c.profit) + '</td><td>' + (c.margin === null ? '-' : c.margin.toFixed(1) + '%') + '</td>' +
+      '<td><div class="cell-stack"><small>Cost ' + fmt(c.stockValueCost) + '</small><small>Retail ' + fmt(c.stockValueRetail) + '</small><strong>Potential ' + fmt(c.potentialProfit) + '</strong></div></td>' +
+      '<td><span class="status-pill ' + c.status + '">' + c.statusLabel + '</span></td>' +
+      '<td><label class="flag-toggle"><input type="checkbox" ' + (p.reviewFlag ? 'checked' : '') + ' onchange="toggleReviewFlag(' + idx + ', this.checked)"> Price review</label><textarea class="review-note" rows="2" placeholder="Note..." onblur="updateReviewNote(' + idx + ', this.value)">' + esc(p.reviewNote || '') + '</textarea></td>';
+    tbody.appendChild(tr);
+  });
+  if (!rows.length) tbody.innerHTML = '<tr><td colspan="8" class="empty-state-cell">No margin rows match the current filters.</td></tr>';
+}
+function renderFinalWorkbook() {
+  var summaryEl = document.getElementById('finalSummary');
+  var tbody = document.getElementById('finalBody');
+  var flaggedEl = document.getElementById('flaggedProducts');
+  if (!summaryEl || !tbody || !flaggedEl) return;
+  var s = workbookSummary();
+  summaryEl.innerHTML =
+    summaryCard('Products', products.length, 'Final workbook rows') +
+    summaryCard('Total landed cost', fmt(s.landed), 'Supplier + transport + packaging') +
+    summaryCard('Retail value', fmt(s.retail), 'Website/manual price excl. VAT') +
+    summaryCard('Gross profit', fmt(s.profit), 'Estimated potential profit') +
+    summaryCard('Average margin', s.averageMargin.toFixed(1) + '%', 'Matched products only') +
+    summaryCard('Unmatched', s.unmatched, 'Excluded from margin averages') +
+    summaryCard('Low / loss', (s.low || 0) + ' / ' + (s.loss || 0), 'Needs review') +
+    summaryCard('Shipment date', new Date().toISOString().slice(0, 10), 'Workbook generated');
+  var flagged = products.map(function (p, idx) { return { p:p, idx:idx, c:computeRow(p) }; }).filter(function (row) { return row.p.reviewFlag || row.p.reviewNote; });
+  flaggedEl.classList.toggle('is-visible', flagged.length > 0);
+  flaggedEl.innerHTML = flagged.length ? '<h3>Flagged products for price review</h3><div class="flagged-products-list">' + flagged.map(function (row) {
+    return '<div><strong>' + esc(row.p.parent || 'Product') + '</strong><small>' + esc(row.p.reviewNote || 'Price review required') + ' - ' + row.c.statusLabel + '</small></div>';
+  }).join('') + '</div>' : '';
+  var rows = rowsForReview('finalSearch', 'finalStatusFilter', 'finalSort');
+  tbody.innerHTML = '';
+  rows.forEach(function (row) {
+    var p = row.p, c = row.c;
+    var tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td><div class="cell-stack"><strong>' + esc(p.parent || 'Product') + '</strong><small>' + esc((p.variation || '-') + ' - ' + (p.sku || 'Needs SKU') + ' - ' + (p.category || 'Uncategorised')) + '</small></div></td>' +
+      '<td>' + esc(p.supplier || 'Supplier') + '</td>' +
+      '<td><div class="cell-stack"><small>Supplier ' + fmt(p.supplierCost || 0) + '</small><small>Transport ' + fmt(p.transport || 0) + '</small><small>Packaging ' + fmt(p.packaging || 0) + '</small><strong>Landed ' + fmt(c.unitCost) + '</strong></div></td>' +
+      '<td><div class="cell-stack"><strong>' + (c.priceExcl > 0 ? fmt(c.priceExcl) : '-') + '</strong><small>VAT ' + fmt(c.vatAmount) + '</small><small>Incl. VAT ' + fmt(c.priceIncl) + '</small></div></td>' +
+      '<td><div class="cell-stack"><strong>' + fmt(c.profit) + '</strong><small>' + (c.margin === null ? '-' : c.margin.toFixed(1) + '% margin') + '</small></div></td>' +
+      '<td><div class="cell-stack"><small>Qty ' + numStr(c.stockQty) + '</small><small>Cost ' + fmt(c.stockValueCost) + '</small><strong>Potential ' + fmt(c.potentialProfit) + '</strong></div></td>' +
+      '<td><span class="status-pill ' + c.status + '">' + c.statusLabel + '</span></td>' +
+      '<td>' + (p.reviewFlag ? '<strong>Flagged</strong>' : '<small>No flag</small>') + '<small style="display:block;color:var(--cw-muted);">' + esc(p.reviewNote || '') + '</small></td>';
+    tbody.appendChild(tr);
+  });
+  if (!rows.length) tbody.innerHTML = '<tr><td colspan="8" class="empty-state-cell">No final workbook rows match the current filters.</td></tr>';
+}
+function summaryCard(label, value, hint) {
+  return '<div class="profit-summary-card"><span>' + esc(label) + '</span><strong>' + esc(value) + '</strong><small>' + esc(hint || '') + '</small></div>';
+}
+function toggleReviewFlag(idx, checked) {
+  if (!products[idx]) return;
+  products[idx].reviewFlag = Boolean(checked);
+  renderTable();
+  flashSaved();
+}
+function updateReviewNote(idx, value) {
+  if (!products[idx]) return;
+  products[idx].reviewNote = value;
+  renderTable();
+  flashSaved();
 }
 function renderTable() {
   var tbody = document.getElementById('tableBody');
@@ -1762,12 +2171,12 @@ function renderTable() {
     if (search && haystack.indexOf(search) === -1) return;
     if (catFilter && p.category !== catFilter) return;
     if (supFilter && p.supplier !== supFilter) return;
-    if (statusFilter && c.status !== statusFilter) return;
+    if (statusFilter && !legacyStatusMatches(statusFilter, c.status)) return;
     totSupplier += Number(p.supplierCost || 0);
     totTransport += Number(p.transport || 0);
     totPackaging += Number(p.packaging || 0);
     totLanded += c.landed;
-    if (Number(p.priceIncl || p.priceExcl || 0) > 0) {
+    if (c.priceExcl > 0 && c.status !== 'unmatched') {
       totRevenue += c.priceExcl;
       totProfit += c.profit;
       marginSum += c.margin || 0;
@@ -1781,12 +2190,12 @@ function renderTable() {
       '<td class="num grp-landed-bg"><span class="editable computed">' + fmt(c.landed) + '</span></td>' +
       '<td class="num grp-landed-bg"><span class="editable" contenteditable="true" data-idx="' + idx + '" data-field="unitSize" onblur="onEdit(this)">' + numStr(p.unitSize) + '</span><span style="color:var(--cw-muted);font-size:11px;"> / </span><span class="editable" contenteditable="true" data-idx="' + idx + '" data-field="totalSize" onblur="onEdit(this)">' + numStr(p.totalSize) + '</span><span style="color:var(--cw-muted);font-size:11px;"> ' + esc(p.unitLabel || 'unit') + '</span></td>' +
       '<td class="num grp-landed-bg"><span class="editable computed">' + fmt(c.unitCost) + '</span></td>' +
-      cell(idx, 'priceIncl', c.priceIncl, 'grp-pricing-bg') +
-      '<td class="num grp-pricing-bg"><span class="editable computed">' + fmt(c.priceExcl) + '</span></td>' +
+      cell(idx, 'priceExcl', c.priceExcl, 'grp-pricing-bg') +
       '<td class="num grp-pricing-bg"><span class="editable computed">' + fmt(c.vatAmount) + '</span></td>' +
+      '<td class="num grp-pricing-bg"><span class="editable computed">' + fmt(c.priceIncl) + '</span></td>' +
       '<td class="num grp-margin-bg"><span class="editable computed">' + fmt(c.profit) + '</span></td>' +
       '<td class="num grp-margin-bg"><span class="editable computed">' + (c.margin === null ? '-' : c.margin.toFixed(1) + '%') + '</span></td>' +
-      '<td class="grp-margin-bg"><span class="pill ' + c.status + '">' + c.statusLabel + '</span></td>' +
+      '<td class="grp-margin-bg"><span class="status-pill ' + c.status + '">' + c.statusLabel + '</span></td>' +
       '<td><div class="row-actions"><button class="icon-btn" type="button" title="Duplicate row" onclick="duplicateRow(' + idx + ')">+</button><button class="icon-btn danger" type="button" title="Delete row" onclick="deleteRow(' + idx + ')">x</button></div></td>';
     tbody.appendChild(tr);
   });
@@ -1799,6 +2208,9 @@ function renderTable() {
   setText('avgMarginDisplay', marginCount ? (marginSum / marginCount).toFixed(1) + '%' : '0.0%');
   setText('belowTargetDisplay', belowTarget);
   setText('statSupplier', fmt(grandSupplier)); setText('statTransport', fmt(grandTransport)); setText('statLanded', fmt(grandLanded)); setText('statInventory', fmt(grandLanded));
+  renderWebsiteMatching();
+  renderProfitStep();
+  renderFinalWorkbook();
   if (window.lucide) window.lucide.createIcons();
 }
 function cell(idx, field, value, cls) {
@@ -1839,7 +2251,7 @@ document.addEventListener('click', function (event) {
   }
 });
 function addRow() {
-  products.push({ parent:'New Product', variation:'-', sku:'NEW-SKU-' + (products.length + 1), category:'Uncategorised', supplier:'Supplier', supplierCost:0, transport:0, packaging:0, unitSize:1, totalSize:1, unitLabel:'unit', priceIncl:0, websiteMatch:'Unmatched', warnings:'' });
+  products.push({ parent:'New Product', variation:'-', sku:'NEW-SKU-' + (products.length + 1), category:'Uncategorised', supplier:'Supplier', supplierCost:0, transport:0, packaging:0, unitSize:1, totalSize:1, unitLabel:'unit', priceExcl:0, priceIncl:0, stockQty:0, websiteMatch:'Unmatched', warnings:'', reviewFlag:false, reviewNote:'' });
   renderTable();
   flashSaved();
 }
@@ -1870,15 +2282,29 @@ function recalcAll(button) {
   }
 }
 function exportCSV() {
-  var csv = 'Parent,Variation,SKU,Category,Supplier,Supplier Cost,Transport,Packaging,Landed Cost,Unit Cost,Website Price Incl VAT,Price Excl VAT,VAT,Profit,Margin %,Status\n';
+  var csv = 'Parent,Variation,SKU,Category,Supplier,Supplier Cost,Transport,Packaging,Landed Cost,Unit Cost,Website Price Excl VAT,VAT,Price Incl VAT,Profit,Margin %,Status\n';
   products.forEach(function (p) {
     var c = computeRow(p);
-    csv += [p.parent,p.variation,p.sku,p.category,p.supplier,p.supplierCost,p.transport,p.packaging,c.landed.toFixed(2),c.unitCost.toFixed(2),c.priceIncl.toFixed(2),c.priceExcl.toFixed(2),c.vatAmount.toFixed(2),c.profit.toFixed(2),c.margin === null ? '' : c.margin.toFixed(1),c.statusLabel].map(function (v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(',') + '\n';
+    csv += [p.parent,p.variation,p.sku,p.category,p.supplier,p.supplierCost,p.transport,p.packaging,c.landed.toFixed(2),c.unitCost.toFixed(2),c.priceExcl.toFixed(2),c.vatAmount.toFixed(2),c.priceIncl.toFixed(2),c.profit.toFixed(2),c.margin === null ? '' : c.margin.toFixed(1),c.statusLabel].map(csvCell).join(',') + '\n';
   });
+  downloadCSV(csv, 'cost_workbook_export.csv');
+}
+function exportFinalCSV() {
+  var csv = 'Product,Variation,SKU,Category,Supplier,Supplier Cost,Transport,Packaging,Total Landed Cost,Website Price Excl VAT,VAT,Price Incl VAT,Gross Profit,Margin %,Stock Qty,Stock Value Cost,Stock Value Retail,Potential Profit,Status,Flagged,Note\n';
+  products.forEach(function (p) {
+    var c = computeRow(p);
+    csv += [p.parent,p.variation,p.sku,p.category,p.supplier,p.supplierCost,p.transport,p.packaging,c.unitCost.toFixed(2),c.priceExcl.toFixed(2),c.vatAmount.toFixed(2),c.priceIncl.toFixed(2),c.profit.toFixed(2),c.margin === null ? '' : c.margin.toFixed(1),c.stockQty,c.stockValueCost.toFixed(2),c.stockValueRetail.toFixed(2),c.potentialProfit.toFixed(2),c.statusLabel,p.reviewFlag ? 'Yes' : 'No',p.reviewNote || ''].map(csvCell).join(',') + '\n';
+  });
+  downloadCSV(csv, 'hambelela_final_cost_workbook.csv');
+}
+function csvCell(v) {
+  return '"' + String(v === null || v === undefined ? '' : v).replace(/"/g, '""') + '"';
+}
+function downloadCSV(csv, filename) {
   var blob = new Blob([csv], {type:'text/csv'});
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
-  a.href = url; a.download = 'cost_workbook_export.csv'; a.click();
+  a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
 }
 function openTransportAllocation(button) {
