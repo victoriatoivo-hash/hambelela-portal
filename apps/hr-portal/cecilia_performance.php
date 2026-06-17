@@ -497,7 +497,7 @@ $monthNav = '<div class="month-nav"><a class="month-btn" href="' . hp_e(hp_month
       <div class="nav-item" onclick="showSection('courier')"><span class="nav-icon">🚚</span> Courier Waybills</div>
       <div class="nav-item" onclick="showSection('tasks')"><span class="nav-icon">✅</span> Task Management</div>
       <div class="nav-item" onclick="showSection('errors')"><span class="nav-icon">⚠</span> Error Log</div>
-      <div class="nav-item" onclick="showSection('picking')"><span class="nav-icon">📋</span> Picking List</div>
+      <div class="nav-item" onclick="showSection('picking')"><span class="nav-icon">📋</span> Packing List</div>
       <div class="nav-item" onclick="showSection('attendance')"><span class="nav-icon">🕐</span> Attendance</div>
     </div>
   </aside>
@@ -526,7 +526,7 @@ $monthNav = '<div class="month-nav"><a class="month-btn" href="' . hp_e(hp_month
       <div class="sec-tab" onclick="showSection('courier')">🚚 Courier</div>
       <div class="sec-tab" onclick="showSection('tasks')">✅ Tasks</div>
       <div class="sec-tab" onclick="showSection('errors')">⚠ Errors</div>
-      <div class="sec-tab" onclick="showSection('picking')">📋 Picking List</div>
+      <div class="sec-tab" onclick="showSection('picking')">📋 Packing List</div>
       <div class="sec-tab" onclick="showSection('attendance')">🕐 Attendance</div>
     </div>
 
@@ -653,7 +653,7 @@ $monthNav = '<div class="month-nav"><a class="month-btn" href="' . hp_e(hp_month
     </div>
 
     <div class="section" id="sec-picking">
-      <div class="section-heading">Picking List</div>
+      <div class="section-heading">Packing List</div>
       <div class="section-sub">Products loaded onto the system. Cecilia must update stock quantities on the website within 24 hours of loading.</div>
       <?= $monthNav ?>
       <div class="stats-row cols-5">
@@ -663,7 +663,7 @@ $monthNav = '<div class="month-nav"><a class="month-btn" href="' . hp_e(hp_month
         <div class="stat-card"><div class="stat-label">Not Updated</div><div class="stat-value"><?= number_format($websitePending) ?></div><div class="badge bg-danger">Still outstanding</div></div>
         <div class="stat-card"><div class="stat-label">Avg Update Time</div><div class="stat-value"><?= hp_e(hp_duration(hp_avg($websiteDurations))) ?></div><div class="stat-sub">loaded to website updated</div></div>
       </div>
-      <div class="card"><div class="card-header"><div class="card-title">Picking List - Website Inventory Update Tracker</div></div><div class="card-body table-wrap" style="padding:0"><table class="data-table"><thead><tr><th>Product</th><th>Qty Loaded</th><th>Date Loaded</th><th>Website Updated</th><th>Time Taken</th><th>Within 24h</th><th>Inventory Update</th></tr></thead><tbody>
+      <div class="card"><div class="card-header"><div class="card-title">Packing List - Website Inventory Update Tracker</div></div><div class="card-body table-wrap" style="padding:0"><table class="data-table"><thead><tr><th>Product</th><th>Qty Loaded</th><th>Date Loaded</th><th>Website Updated</th><th>Time Taken</th><th>Within 24h</th><th>Inventory Update</th></tr></thead><tbody>
         <?php if (!$packingRows): ?><?= hp_empty(7) ?><?php endif; ?>
         <?php foreach ($packingRows as $row): $loaded = $row['date_loaded'] ?? $row['created_at'] ?? null; $uploadedAt = $row['website_uploaded_at'] ?? ((int) ($row['website_uploaded'] ?? 0) === 1 ? $row['updated_at'] ?? null : null); $mins = hp_minutes_between($loaded, $uploadedAt ?: date('Y-m-d H:i:s')); $done = (int) ($row['website_uploaded'] ?? 0) === 1; $late = $mins !== null && $mins > 1440; ?>
         <tr><td><div class="tname"><?= hp_e($row['item_name'] ?? 'Packing item') ?></div></td><td class="tmono"><?= hp_e($row['quantity_planned'] ?? '-') ?></td><td class="tmono"><?= hp_dt($loaded) ?></td><td class="tmono"><?= hp_dt($uploadedAt) ?></td><td class="tmono"><?= hp_duration($mins) ?><?= !$done ? ' (ongoing)' : '' ?></td><td><?= hp_tag($done && !$late ? 'Yes' : ($done ? 'No - Late' : ($late ? 'No - Overdue' : 'Open')), $done && !$late ? 'good' : ($late ? 'danger' : 'warn')) ?></td><td><form class="update-form" method="post"><input type="hidden" name="action" value="toggle_website_update"><input type="hidden" name="packing_task_id" value="<?= (int) $row['id'] ?>"><input type="checkbox" name="website_uploaded" value="1" <?= $done ? 'checked' : '' ?> onchange="this.form.submit()"><span><?= $done ? 'Complete' : 'Not Done' ?></span></form></td></tr>

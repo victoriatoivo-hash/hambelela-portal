@@ -1788,7 +1788,7 @@ function kpi_render_front_person_live_dashboard(array $employee, array $detail, 
 
     echo '<section class="hr-performance-shell hr-front-performance">';
     echo '<div class="hr-profile-strip"><div class="hr-avatar">' . htmlspecialchars(kpi_hr_initials($employeeName), ENT_QUOTES, 'UTF-8') . '</div><div class="hr-profile-info"><div class="hr-profile-name">' . htmlspecialchars($employeeName, ENT_QUOTES, 'UTF-8') . '</div><div class="hr-profile-role">' . htmlspecialchars($employeeRole, ENT_QUOTES, 'UTF-8') . '</div><div class="hr-profile-meta"><div><strong>Period</strong> ' . htmlspecialchars($monthLabel, ENT_QUOTES, 'UTF-8') . '</div><div><strong>Score</strong> ' . htmlspecialchars($score, ENT_QUOTES, 'UTF-8') . '</div><div><strong>Portal logins this month</strong> ' . htmlspecialchars($portalLogins, ENT_QUOTES, 'UTF-8') . '</div><div><strong>Avg login time</strong> ' . htmlspecialchars($averageLogin, ENT_QUOTES, 'UTF-8') . '</div></div></div><div class="hr-profile-actions"><a class="hr-btn hr-btn-outline" href="' . htmlspecialchars(BASE_URL . '/apps/hr-portal/cecilia_performance.php', ENT_QUOTES, 'UTF-8') . '">View Contract</a><button class="hr-btn hr-btn-primary" type="button">Issue Notice</button></div></div>';
-    echo '<div class="hr-section-tabs" data-hr-tabs><button class="hr-section-tab active" type="button" data-hr-target="orders">Orders</button><button class="hr-section-tab" type="button" data-hr-target="bookkeeping">Bookkeeping</button><button class="hr-section-tab" type="button" data-hr-target="courier">Courier</button><button class="hr-section-tab" type="button" data-hr-target="tasks">Tasks</button><button class="hr-section-tab" type="button" data-hr-target="errors">Errors</button><button class="hr-section-tab" type="button" data-hr-target="picking">Picking List</button><button class="hr-section-tab" type="button" data-hr-target="attendance">Attendance</button></div>';
+    echo '<div class="hr-section-tabs" data-hr-tabs><button class="hr-section-tab active" type="button" data-hr-target="orders">Orders</button><button class="hr-section-tab" type="button" data-hr-target="bookkeeping">Bookkeeping</button><button class="hr-section-tab" type="button" data-hr-target="courier">Courier</button><button class="hr-section-tab" type="button" data-hr-target="tasks">Tasks</button><button class="hr-section-tab" type="button" data-hr-target="errors">Errors</button><button class="hr-section-tab" type="button" data-hr-target="picking">Packing List</button><button class="hr-section-tab" type="button" data-hr-target="attendance">Attendance</button></div>';
 
     echo '<div class="hr-section active" id="hr-sec-orders"><div class="hr-section-heading"><h2>Order Board</h2><p>Tracking order completion time, walk-in fulfilment, payment status, and processing speed.</p></div>' . $monthNav;
     kpi_hr_render_stats([
@@ -1922,7 +1922,7 @@ function kpi_render_front_person_live_dashboard(array $employee, array $detail, 
     kpi_hr_render_table_card('Error Log Records', ['Date', 'Error', 'Severity', 'Type', 'Status'], $errorTableRows);
     echo '</div>';
 
-    echo '<div class="hr-section" id="hr-sec-picking"><div class="hr-section-heading"><h2>Picking List</h2><p>Products loaded onto the system. Cecilia must update stock quantities on the website within 24 hours of loading.</p></div>' . $monthNav;
+    echo '<div class="hr-section" id="hr-sec-picking"><div class="hr-section-heading"><h2>Packing List</h2><p>Products loaded onto the system. Cecilia must update stock quantities on the website within 24 hours of loading.</p></div>' . $monthNav;
     kpi_hr_render_stats([
         ['label' => 'Products Loaded', 'value' => number_format(count($packingRows)), 'sub' => 'this period'],
         ['label' => 'Website Updated', 'value' => number_format($websiteOnTime), 'badge' => 'Within 24h', 'tone' => 'good'],
@@ -1946,7 +1946,7 @@ function kpi_render_front_person_live_dashboard(array $employee, array $detail, 
             kpi_hr_tag($done ? 'Complete' : 'Not Done', $done ? 'good' : 'danger'),
         ];
     }, $packingRows);
-    kpi_hr_render_table_card('Picking List - Website Inventory Update Tracker', ['Product', 'Qty Loaded', 'Date Loaded', 'Website Updated', 'Time Taken', 'Within 24h', 'Inventory Update'], $packingTableRows, 'Export', $websitePending > 0);
+    kpi_hr_render_table_card('Packing List - Website Inventory Update Tracker', ['Product', 'Qty Loaded', 'Date Loaded', 'Website Updated', 'Time Taken', 'Within 24h', 'Inventory Update'], $packingTableRows, 'Export', $websitePending > 0);
     echo '</div>';
 
     echo '<div class="hr-section" id="hr-sec-attendance"><div class="hr-section-heading"><h2>Attendance & Punctuality</h2><p>Portal login times, physical attendance, punctuality patterns, and overtime averages.</p></div>' . $monthNav;
@@ -3514,6 +3514,20 @@ include BASE_PATH . '/shared/sidebar.php';
                         </div>
                     </div>
                     <div class="owner-board-grid" data-owner-boards></div>
+                    <div class="owner-mode-panel">
+                        <div class="owner-section-title owner-section-title-compact">
+                            <div>
+                                <h3>Mode</h3>
+                                <p>Courier, delivery and collection work handled by each employee.</p>
+                            </div>
+                        </div>
+                        <div class="owner-table-wrap">
+                            <table class="owner-mode-table">
+                                <thead><tr><th>Employee</th><th>Courier / Delivery</th><th>Collections</th><th>Total handled</th></tr></thead>
+                                <tbody data-owner-mode></tbody>
+                            </table>
+                        </div>
+                    </div>
                 </section>
 
                 <section class="owner-panel">
@@ -4330,22 +4344,50 @@ include BASE_PATH . '/shared/sidebar.php';
 }
 .owner-board-grid {
     display: grid;
-    gap: 10px;
-    grid-template-columns: repeat(4, minmax(150px, 1fr));
+    gap: 12px;
+    grid-template-columns: repeat(2, minmax(280px, 1fr));
 }
 .owner-board-card {
     border: 1px solid var(--owner-line);
     border-radius: 12px;
-    padding: 12px;
+    display: grid;
+    gap: 10px;
+    padding: 14px;
 }
 .owner-board-card h4 {
-    font-size: 13px;
-    margin: 0 0 10px;
+    font-size: 14px;
+    margin: 0;
+}
+.owner-board-summary {
+    color: var(--owner-muted);
+    font-size: 12px;
+    margin: -6px 0 0;
+}
+.owner-board-row {
+    align-items: center;
+    border-top: 1px solid var(--owner-line);
+    display: grid;
+    gap: 10px;
+    grid-template-columns: minmax(105px, 1fr) minmax(0, 2fr);
+    padding-top: 9px;
+}
+.owner-board-person {
+    display: grid;
+    gap: 2px;
+}
+.owner-board-person strong {
+    font-size: 12px;
+}
+.owner-board-person small,
+.owner-no-activity {
+    color: var(--owner-muted);
+    font-size: 11px;
 }
 .owner-badge-row {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
+    justify-content: flex-end;
 }
 .owner-badge {
     border-radius: 999px;
@@ -4357,22 +4399,38 @@ include BASE_PATH . '/shared/sidebar.php';
 .owner-badge-progress { background: #FAEEDA; color: #854F0B; }
 .owner-badge-done { background: #EAF3DE; color: #3B6D11; }
 .owner-badge-hold { background: #FBEAF0; color: #993556; }
+.owner-badge-neutral { background: #f3f4f8; color: #5f6575; }
+.owner-mode-panel {
+    border-top: 1px solid var(--owner-line);
+    margin-top: 16px;
+    padding-top: 14px;
+}
+.owner-section-title-compact {
+    margin-bottom: 10px;
+}
 .owner-table-wrap {
     overflow-x: auto;
 }
-.owner-staff-table {
+.owner-staff-table,
+.owner-mode-table {
     border-collapse: collapse;
     min-width: 900px;
     width: 100%;
 }
+.owner-mode-table {
+    min-width: 560px;
+}
 .owner-staff-table th,
-.owner-staff-table td {
+.owner-staff-table td,
+.owner-mode-table th,
+.owner-mode-table td {
     border-bottom: 1px solid var(--owner-line);
     font-size: 12px;
     padding: 11px 10px;
     text-align: left;
 }
-.owner-staff-table th {
+.owner-staff-table th,
+.owner-mode-table th {
     color: var(--owner-muted);
     font-size: 11px;
     text-transform: uppercase;
@@ -4491,6 +4549,7 @@ window.HambelelaOwnerDashboard = <?= json_encode($ownerDashboardData, JSON_UNESC
     const updatedLabel = root.querySelector('[data-owner-updated]');
     const healthNode = root.querySelector('[data-owner-health]');
     const boardsNode = root.querySelector('[data-owner-boards]');
+    const modeNode = root.querySelector('[data-owner-mode]');
     const staffNode = root.querySelector('[data-owner-staff]');
     const errorsNode = root.querySelector('[data-owner-errors]');
 
@@ -4506,6 +4565,64 @@ window.HambelelaOwnerDashboard = <?= json_encode($ownerDashboardData, JSON_UNESC
         avg_pack_speed: 'package-check',
         revenue_today: 'banknote'
     }[key] || 'activity');
+
+    const boardColumns = {
+        orders: [
+            ['new', 'New', 'owner-badge-new'],
+            ['in_progress', 'In Progress', 'owner-badge-progress'],
+            ['done', 'Done', 'owner-badge-done'],
+            ['hold', 'Hold', 'owner-badge-hold'],
+            ['walk_ins', 'Walk-ins', 'owner-badge-new'],
+            ['avg_time', 'Avg', 'owner-badge-neutral']
+        ],
+        packing_board: [
+            ['new', 'New', 'owner-badge-new'],
+            ['in_progress', 'In Progress', 'owner-badge-progress'],
+            ['done', 'Done', 'owner-badge-done'],
+            ['stale', 'Stale', 'owner-badge-hold'],
+            ['avg_time', 'Avg', 'owner-badge-neutral']
+        ],
+        packing_list: [
+            ['total_items', 'Total', 'owner-badge-new'],
+            ['done', 'Done', 'owner-badge-done'],
+            ['in_progress', 'In Progress', 'owner-badge-progress'],
+            ['not_started', 'Not Started', 'owner-badge-neutral'],
+            ['inventory_updated', 'Inventory Updated', 'owner-badge-done'],
+            ['avg_time', 'Avg', 'owner-badge-neutral']
+        ],
+        checklist: [
+            ['new', 'New', 'owner-badge-new'],
+            ['in_progress', 'In Progress', 'owner-badge-progress'],
+            ['done', 'Done', 'owner-badge-done'],
+            ['hold', 'Overdue', 'owner-badge-hold']
+        ]
+    };
+
+    function rowHasActivity(row, columns) {
+        return columns.some(([key]) => key === 'avg_time' ? row[key] && row[key] !== '-' : Number(row[key] || 0) > 0);
+    }
+
+    function renderBoardRow(board, row) {
+        const columns = boardColumns[board.key] || [];
+        const active = rowHasActivity(row, columns);
+        const badges = active
+            ? columns.map(([key, label, className]) => {
+                const value = key === 'avg_time' ? (row[key] || '-') : Number(row[key] || 0);
+                if (key !== 'avg_time' && Number(value) <= 0) return '';
+                if (key === 'avg_time' && (!value || value === '-')) return '';
+                return `<span class="owner-badge ${className}">${escapeHtml(label)} ${escapeHtml(value)}</span>`;
+            }).join('')
+            : '<span class="owner-no-activity">No activity today</span>';
+        return `
+            <div class="owner-board-row">
+                <span class="owner-board-person">
+                    <strong>${escapeHtml(row.name || 'Employee')}</strong>
+                    <small>${escapeHtml(row.role_key || 'team')}</small>
+                </span>
+                <span class="owner-badge-row">${badges}</span>
+            </div>
+        `;
+    }
 
     function render(data) {
         const metrics = data?.metrics || [];
@@ -4525,14 +4642,28 @@ window.HambelelaOwnerDashboard = <?= json_encode($ownerDashboardData, JSON_UNESC
         boardsNode.innerHTML = boards.length ? boards.map((board) => `
             <article class="owner-board-card">
                 <h4>${escapeHtml(board.label)}</h4>
-                <div class="owner-badge-row">
-                    <span class="owner-badge owner-badge-new">New ${escapeHtml(board.new ?? 0)}</span>
-                    <span class="owner-badge owner-badge-progress">In progress ${escapeHtml(board.in_progress ?? 0)}</span>
-                    <span class="owner-badge owner-badge-done">Done ${escapeHtml(board.done ?? 0)}</span>
-                    <span class="owner-badge owner-badge-hold">Hold ${escapeHtml(board.hold ?? 0)}</span>
-                </div>
+                <p class="owner-board-summary">${escapeHtml(board.summary || '')}</p>
+                ${(board.rows || []).map((row) => renderBoardRow(board, row)).join('') || '<span class="owner-no-activity">No staff activity today</span>'}
             </article>
         `).join('') : '<p class="owner-empty">No board data available for this date range.</p>';
+
+        const modeRows = data?.mode?.rows || [];
+        const modeSummary = data?.mode?.summary || {};
+        modeNode.innerHTML = modeRows.length ? modeRows.map((row) => `
+            <tr>
+                <td><strong>${escapeHtml(row.name || 'Employee')}</strong></td>
+                <td><span class="owner-badge owner-badge-progress">${escapeHtml(row.courier ?? 0)}</span></td>
+                <td><span class="owner-badge owner-badge-new">${escapeHtml(row.collection ?? 0)}</span></td>
+                <td><span class="owner-badge owner-badge-done">${escapeHtml(row.total ?? 0)}</span></td>
+            </tr>
+        `).join('') + `
+            <tr>
+                <td><strong>Total</strong></td>
+                <td><strong>${escapeHtml(modeSummary.courier ?? 0)}</strong></td>
+                <td><strong>${escapeHtml(modeSummary.collection ?? 0)}</strong></td>
+                <td><strong>${escapeHtml(modeSummary.total ?? 0)}</strong></td>
+            </tr>
+        ` : '<tr><td colspan="4">No order fulfilment activity for this date range.</td></tr>';
 
         const staff = data?.staff || [];
         staffNode.innerHTML = staff.length ? staff.map((person) => `
@@ -4607,6 +4738,7 @@ window.HambelelaOwnerDashboard = <?= json_encode($ownerDashboardData, JSON_UNESC
     fromInput?.addEventListener('change', loadDashboard);
     toInput?.addEventListener('change', loadDashboard);
     render(window.HambelelaOwnerDashboard || {});
+    window.setInterval(loadDashboard, 300000);
 })();
 </script>
 <?php endif; ?>

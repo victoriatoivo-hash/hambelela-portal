@@ -999,6 +999,17 @@ function packing_ensure_monday_sync_schema(): void
         $after = ops_column_exists('ops_packing_tasks', 'duplicate_removed_at') ? 'duplicate_removed_at' : 'updated_at';
         $statements[] = "ALTER TABLE ops_packing_tasks ADD COLUMN duplicate_of_id INT NULL AFTER {$after}";
     }
+    if (!ops_column_exists('ops_packing_tasks', 'website_uploaded_at')) {
+        $statements[] = "ALTER TABLE ops_packing_tasks ADD COLUMN website_uploaded_at DATETIME NULL AFTER website_uploaded";
+    }
+    if (!ops_column_exists('ops_packing_tasks', 'inventory_updated_by')) {
+        $after = ops_column_exists('ops_packing_tasks', 'website_uploaded_at') ? 'website_uploaded_at' : 'website_uploaded';
+        $statements[] = "ALTER TABLE ops_packing_tasks ADD COLUMN inventory_updated_by INT NULL AFTER {$after}";
+    }
+    if (!ops_column_exists('ops_packing_tasks', 'inventory_updated_at')) {
+        $after = ops_column_exists('ops_packing_tasks', 'inventory_updated_by') ? 'inventory_updated_by' : 'website_uploaded';
+        $statements[] = "ALTER TABLE ops_packing_tasks ADD COLUMN inventory_updated_at DATETIME NULL AFTER {$after}";
+    }
 
     foreach ($statements as $sql) {
         db()->exec($sql);
@@ -2193,8 +2204,19 @@ try {
         }
 
         $set = $allowed[$field] . ' = ?';
+        $setParams = [$value];
         if ($field === 'website_uploaded' && ops_column_exists('ops_packing_tasks', 'website_uploaded_at')) {
             $set .= ", website_uploaded_at = CASE WHEN ? = '1' AND website_uploaded_at IS NULL THEN NOW() ELSE website_uploaded_at END";
+            $setParams[] = $value;
+        }
+        if ($field === 'website_uploaded' && ops_column_exists('ops_packing_tasks', 'inventory_updated_by')) {
+            $set .= ", inventory_updated_by = CASE WHEN ? = '1' THEN ? ELSE NULL END";
+            $setParams[] = $value;
+            $setParams[] = $currentEmployeeId ?: null;
+        }
+        if ($field === 'website_uploaded' && ops_column_exists('ops_packing_tasks', 'inventory_updated_at')) {
+            $set .= ", inventory_updated_at = CASE WHEN ? = '1' THEN COALESCE(inventory_updated_at, NOW()) ELSE NULL END";
+            $setParams[] = $value;
         }
         if ($field === 'packing_status') {
             if ($value === 'packing' && ops_column_exists('ops_packing_tasks', 'date_started')) {
@@ -2211,9 +2233,7 @@ try {
         }
 
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
-        $params = $field === 'website_uploaded' && ops_column_exists('ops_packing_tasks', 'website_uploaded_at')
-            ? array_merge([$value, $value], $ids)
-            : array_merge([$value], $ids);
+        $params = array_merge($setParams, $ids);
         $scope = '';
         if (!$canManage && !in_array($field, ['quantity_packed', 'packing_website_confirmed', 'packing_status', 'notes'], true)) {
             throw new RuntimeException('Packers cannot update this field.');
