@@ -10265,7 +10265,8 @@ button.hr-section-tab {
   font-weight: 700;
 }
 
-.hr-month-nav button {
+.hr-month-nav button,
+.hr-month-nav a {
   display: grid;
   place-items: center;
   width: 26px;
@@ -10275,6 +10276,7 @@ button.hr-section-tab {
   background: var(--hr-surface);
   color: var(--hr-muted);
   cursor: pointer;
+  text-decoration: none;
 }
 
 .hr-section-heading h2 {

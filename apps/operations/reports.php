@@ -1362,6 +1362,97 @@ function kpi_hr_duration_between(?string $start, ?string $end): string
     return kpi_duration((float) $minutes);
 }
 
+function kpi_hr_minutes_between(?string $start, ?string $end): ?float
+{
+    if (!$start || !$end) {
+        return null;
+    }
+    $startTime = strtotime($start);
+    $endTime = strtotime($end);
+    if (!$startTime || !$endTime || $endTime < $startTime) {
+        return null;
+    }
+
+    return ($endTime - $startTime) / 60;
+}
+
+function kpi_hr_avg(array $values): ?float
+{
+    $values = array_values(array_filter($values, static fn($value): bool => $value !== null && is_numeric($value)));
+    if (!$values) {
+        return null;
+    }
+
+    return array_sum($values) / count($values);
+}
+
+function kpi_hr_duration_value(?float $minutes): string
+{
+    return $minutes === null ? '-' : kpi_duration($minutes);
+}
+
+function kpi_front_is_completed_status(string $status): bool
+{
+    return in_array(strtolower($status), ['completed', 'complete', 'packed', 'verified', 'ready_for_collection', 'ready_for_courier', 'ready_for_delivery'], true);
+}
+
+function kpi_front_is_closed_status(string $status): bool
+{
+    return in_array(strtolower($status), ['completed', 'complete', 'packed', 'verified', 'ready_for_collection', 'ready_for_courier', 'ready_for_delivery', 'cancelled', 'canceled', 'refunded', 'failed'], true);
+}
+
+function kpi_front_is_paid(array $row): bool
+{
+    $paymentStatus = strtolower((string) ($row['payment_status'] ?? ''));
+    return in_array($paymentStatus, ['paid', 'complete', 'completed'], true);
+}
+
+function kpi_front_is_walk_in(array $row): bool
+{
+    $contact = strtolower((string) ($row['customer_contact'] ?? ''));
+    return str_contains($contact, 'walk-in') || str_contains($contact, 'walk in') || str_contains($contact, 'walkin');
+}
+
+function kpi_front_sla_due(?string $uploadedAt): ?int
+{
+    if (!$uploadedAt) {
+        return null;
+    }
+    $uploaded = strtotime($uploadedAt);
+    if (!$uploaded) {
+        return null;
+    }
+    $sameDayDeadline = strtotime(date('Y-m-d 17:00:00', $uploaded));
+    if ($uploaded <= $sameDayDeadline) {
+        return $sameDayDeadline;
+    }
+    $next = strtotime('+1 day', strtotime(date('Y-m-d 09:00:00', $uploaded)));
+    while ((int) date('N', $next) >= 7) {
+        $next = strtotime('+1 day', $next);
+    }
+
+    return $next;
+}
+
+function kpi_front_workdays(string $start, string $end): array
+{
+    $days = [];
+    try {
+        $cursor = new DateTimeImmutable(substr($start, 0, 10) . ' 00:00:00');
+        $limit = new DateTimeImmutable(substr($end, 0, 10) . ' 00:00:00');
+        $today = new DateTimeImmutable('today 23:59:59');
+    } catch (Throwable $e) {
+        return [];
+    }
+    for ($day = $cursor; $day < $limit && $day <= $today; $day = $day->modify('+1 day')) {
+        if ((int) $day->format('N') <= 6) {
+            $days[] = $day->format('Y-m-d');
+        }
+    }
+
+    return $days;
+}
+
 function kpi_hr_tag(string $text, string $tone = 'neutral'): string
 {
     $class = [
@@ -1417,79 +1508,186 @@ function kpi_render_front_person_live_dashboard(array $employee, array $detail, 
         return;
     }
 
-    $orderRows = ops_table_exists('ops_orders') ? ops_rows(
-        "SELECT order_number, customer_name, customer_contact, order_type, payment_method, payment_status, status, total_amount, created_at, completed_at, updated_at
-         FROM ops_orders
-         WHERE created_by = ? AND created_at >= ? AND created_at < ?
-         ORDER BY created_at DESC
-         LIMIT 8",
-        [$employeeId, $start, $end]
+    $employeeName = (string) ($employee['name'] ?? 'Front Person');
+    $employeeRole = (string) ($employee['role_name'] ?? 'Customer Service & Operations');
+    $score = isset($employee['score']) ? kpi_percent((float) $employee['score']) : '-';
+    $monthLabel = date('F Y', strtotime($start));
+    $monthStart = new DateTimeImmutable(substr($start, 0, 10) . ' 00:00:00');
+    $previousMonth = $monthStart->modify('first day of previous month');
+    $nextMonth = $monthStart->modify('first day of next month');
+    $monthLink = static function (DateTimeImmutable $month): string {
+        $first = $month->format('Y-m-01');
+        $last = $month->format('Y-m-t');
+        return BASE_URL . '/apps/operations/reports.php?tab=front-desk&start_date=' . rawurlencode($first) . '&end_date=' . rawurlencode($last);
+    };
+    $monthNav = '<div class="hr-month-nav"><a href="' . htmlspecialchars($monthLink($previousMonth), ENT_QUOTES, 'UTF-8') . '">&lsaquo;</a><strong>' . htmlspecialchars($monthLabel, ENT_QUOTES, 'UTF-8') . '</strong><a href="' . htmlspecialchars($monthLink($nextMonth), ENT_QUOTES, 'UTF-8') . '">&rsaquo;</a></div>';
+
+    $paidAtExpr = ops_table_exists('ops_orders') && ops_column_exists('ops_orders', 'paid_at')
+        ? 'o.paid_at'
+        : "CASE WHEN o.payment_status = 'paid' THEN COALESCE(o.updated_at, o.completed_at) ELSE NULL END";
+    $orderScope = ['o.created_at >= ? AND o.created_at < ?'];
+    $orderParams = [$start, $end];
+    if (ops_table_exists('ops_orders') && ops_column_exists('ops_orders', 'created_by')) {
+        $orderScope[] = "(o.created_by = ? OR LOWER(COALESCE(o.customer_contact, '')) LIKE '%walk-in%' OR LOWER(COALESCE(o.customer_contact, '')) LIKE '%walk in%' OR LOWER(COALESCE(o.customer_contact, '')) LIKE '%walkin%')";
+        $orderParams[] = $employeeId;
+    }
+    $orders = ops_table_exists('ops_orders') ? ops_rows(
+        "SELECT o.*, {$paidAtExpr} AS paid_at_value
+         FROM ops_orders o
+         WHERE " . implode(' AND ', $orderScope) . "
+         ORDER BY o.created_at DESC, o.id DESC
+         LIMIT 500",
+        $orderParams
     ) : [];
 
+    $walkInOrders = array_values(array_filter($orders, static fn(array $row): bool => kpi_front_is_walk_in($row)));
+    $completedOrders = array_values(array_filter($orders, static fn(array $row): bool => kpi_front_is_completed_status((string) ($row['status'] ?? ''))));
+    $activeOrders = array_values(array_filter($orders, static fn(array $row): bool => !kpi_front_is_closed_status((string) ($row['status'] ?? ''))));
+    $unpaidOrders = array_values(array_filter($orders, static fn(array $row): bool => !kpi_front_is_paid($row)));
+    $walkDurations = [];
+    foreach ($walkInOrders as $row) {
+        $doneAt = $row['completed_at'] ?: (kpi_front_is_completed_status((string) ($row['status'] ?? '')) ? ($row['updated_at'] ?? null) : null);
+        $walkDurations[] = kpi_hr_minutes_between((string) ($row['created_at'] ?? ''), $doneAt ? (string) $doneAt : null);
+    }
+
+    $cashArchiveClause = ops_table_exists('ops_cash_book_entries') && ops_column_exists('ops_cash_book_entries', 'archived_at') ? 'AND c.archived_at IS NULL' : '';
     $cashRows = ops_table_exists('ops_cash_book_entries') ? ops_rows(
-        "SELECT transaction_date, transaction_type, description, customer_name, related_order_number, cash_in, cash_out
-         FROM ops_cash_book_entries
-         WHERE recorded_by = ? AND transaction_date >= ? AND transaction_date < ?
-         ORDER BY transaction_date DESC
-         LIMIT 8",
-        [$employeeId, $start, $end]
+        "SELECT c.*, e.full_name AS recorded_by_name
+         FROM ops_cash_book_entries c
+         LEFT JOIN ops_employees e ON e.id = c.recorded_by
+         WHERE c.transaction_date >= ? AND c.transaction_date < ? {$cashArchiveClause}
+         ORDER BY c.transaction_date DESC, c.id DESC
+         LIMIT 500",
+        [$start, $end]
+    ) : [];
+    $bookkeepingJoined = (ops_table_exists('ops_cash_book_entries') && ops_table_exists('ops_orders')) ? ops_rows(
+        "SELECT o.order_number, o.customer_name, o.order_type, o.payment_method, o.total_amount, o.created_at, c.transaction_date,
+                TIMESTAMPDIFF(MINUTE, o.created_at, c.transaction_date) AS delay_minutes
+         FROM ops_orders o
+         LEFT JOIN ops_cash_book_entries c ON (c.related_order_id = o.id OR c.related_order_number = o.order_number) {$cashArchiveClause}
+         WHERE o.created_at >= ? AND o.created_at < ? AND o.order_type IN ('delivery', 'courier')
+         ORDER BY o.created_at DESC
+         LIMIT 500",
+        [$start, $end]
+    ) : [];
+    $missingCashOrders = (ops_table_exists('ops_cash_book_entries') && ops_table_exists('ops_orders')) ? ops_rows(
+        "SELECT o.*
+         FROM ops_orders o
+         LEFT JOIN ops_cash_book_entries c ON (c.related_order_id = o.id OR c.related_order_number = o.order_number) {$cashArchiveClause}
+         WHERE o.created_at >= ? AND o.created_at < ?
+           AND LOWER(COALESCE(o.payment_method, '')) LIKE '%cash%'
+           AND o.payment_status = 'paid'
+           AND c.id IS NULL
+         ORDER BY o.created_at DESC
+         LIMIT 100",
+        [$start, $end]
     ) : [];
 
     $courierRows = ops_table_exists('ops_courier_waybills') ? ops_rows(
-        "SELECT waybill_reference, customer_name, uploaded_at, sent_at, status
-         FROM ops_courier_waybills
-         WHERE (sent_by = ? OR uploaded_by = ?) AND uploaded_at >= ? AND uploaded_at < ?
-         ORDER BY uploaded_at DESC
-         LIMIT 8",
-        [$employeeId, $employeeId, $start, $end]
+        "SELECT w.*, up.full_name AS uploaded_by_name, sp.full_name AS sent_by_name
+         FROM ops_courier_waybills w
+         LEFT JOIN ops_employees up ON up.id = w.uploaded_by
+         LEFT JOIN ops_employees sp ON sp.id = w.sent_by
+         WHERE w.uploaded_at >= ? AND w.uploaded_at < ?
+         ORDER BY w.uploaded_at DESC, w.id DESC
+         LIMIT 500",
+        [$start, $end]
     ) : [];
+    $waybillSent = 0;
+    $waybillBreaches = 0;
+    $waybillPending = 0;
+    $waybillDurations = [];
+    foreach ($courierRows as $row) {
+        $due = kpi_front_sla_due((string) ($row['uploaded_at'] ?? ''));
+        $sentAt = $row['sent_at'] ?? null;
+        if ($sentAt) {
+            $waybillSent++;
+            $waybillDurations[] = kpi_hr_minutes_between((string) ($row['uploaded_at'] ?? ''), (string) $sentAt);
+            if ($due && strtotime((string) $sentAt) > $due) {
+                $waybillBreaches++;
+            }
+        } else {
+            $waybillPending++;
+            if ($due && time() > $due) {
+                $waybillBreaches++;
+            }
+        }
+    }
 
+    $taskAssignedExpr = ops_table_exists('ops_checklist_tasks') && ops_column_exists('ops_checklist_tasks', 'date_assigned') ? 't.date_assigned' : 't.created_at';
+    $taskCompletedBySelect = ops_table_exists('ops_checklist_tasks') && ops_column_exists('ops_checklist_tasks', 'completed_by') ? ', c.full_name AS completed_by_name' : ", NULL AS completed_by_name";
+    $taskCompletedByJoin = ops_table_exists('ops_checklist_tasks') && ops_column_exists('ops_checklist_tasks', 'completed_by') ? 'LEFT JOIN ops_employees c ON c.id = t.completed_by' : '';
     $taskRows = ops_table_exists('ops_checklist_tasks') ? ops_rows(
-        "SELECT task_name, priority, status, deadline, completed_at, created_at
-         FROM ops_checklist_tasks
-         WHERE assigned_employee_id = ? AND COALESCE(created_at, deadline) >= ? AND COALESCE(created_at, deadline) < ?
-         ORDER BY COALESCE(deadline, created_at) DESC
-         LIMIT 8",
+        "SELECT t.*, e.full_name AS assigned_name {$taskCompletedBySelect}
+         FROM ops_checklist_tasks t
+         LEFT JOIN ops_employees e ON e.id = t.assigned_employee_id
+         {$taskCompletedByJoin}
+         WHERE t.assigned_employee_id = ?
+           AND COALESCE({$taskAssignedExpr}, t.created_at, t.deadline) >= ?
+           AND COALESCE({$taskAssignedExpr}, t.created_at, t.deadline) < ?
+         ORDER BY COALESCE(t.deadline, t.created_at) DESC, t.id DESC
+         LIMIT 500",
         [$employeeId, $start, $end]
     ) : [];
 
     $errorRows = ops_table_exists('ops_error_logs') ? ops_rows(
-        "SELECT logged_at, category, severity, description, resolution, employee_id, logged_by
-         FROM ops_error_logs
-         WHERE (logged_by = ? OR employee_id = ?) AND logged_at >= ? AND logged_at < ?
-         ORDER BY logged_at DESC
-         LIMIT 8",
-        [$employeeId, $employeeId, $start, $end]
+        "SELECT l.*, r.full_name AS responsible_name, by_emp.full_name AS logged_by_name
+         FROM ops_error_logs l
+         LEFT JOIN ops_employees r ON r.id = l.employee_id
+         LEFT JOIN ops_employees by_emp ON by_emp.id = l.logged_by
+         WHERE l.logged_at >= ? AND l.logged_at < ? AND (l.logged_by = ? OR l.employee_id = ?)
+         ORDER BY l.logged_at DESC, l.id DESC
+         LIMIT 500",
+        [$start, $end, $employeeId, $employeeId]
     ) : [];
 
-    $websiteUploadedByClause = ops_table_exists('ops_packing_tasks') && ops_column_exists('ops_packing_tasks', 'website_uploaded_by')
-        ? '(website_uploaded_by = ? OR website_uploaded_by IS NULL) AND '
-        : '';
-    $packingParams = $websiteUploadedByClause !== '' ? [$employeeId, $start, $end] : [$start, $end];
     $packingRows = ops_table_exists('ops_packing_tasks') ? ops_rows(
-        "SELECT item_name, quantity_planned, packing_status, website_uploaded, date_loaded, date_completed, updated_at
-         FROM ops_packing_tasks
-         WHERE {$websiteUploadedByClause} COALESCE(date_loaded, created_at) >= ? AND COALESCE(date_loaded, created_at) < ?
-         ORDER BY COALESCE(date_loaded, created_at) DESC
-         LIMIT 8",
-        $packingParams
+        "SELECT p.*, e.full_name AS assigned_name
+         FROM ops_packing_tasks p
+         LEFT JOIN ops_employees e ON e.id = p.assigned_employee_id
+         WHERE COALESCE(p.date_loaded, p.created_at) >= ? AND COALESCE(p.date_loaded, p.created_at) < ?
+         ORDER BY COALESCE(p.date_loaded, p.created_at) DESC, p.id DESC
+         LIMIT 500",
+        [$start, $end]
     ) : [];
 
     $loginRows = ops_table_exists('ops_login_events') ? ops_rows(
-        "SELECT login_at, role_key
+        "SELECT *
          FROM ops_login_events
          WHERE employee_id = ? AND login_at >= ? AND login_at < ?
-         ORDER BY login_at DESC
-         LIMIT 8",
+         ORDER BY login_at DESC",
         [$employeeId, $start, $end]
     ) : [];
 
-    $employeeName = (string) ($employee['name'] ?? 'Front Person');
-    $employeeRole = (string) ($employee['role_name'] ?? 'Customer Service & Operations');
-    $averageLogin = kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'hr', 'Average login time');
-    $portalLogins = kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'hr', 'Portal logins');
-    $score = isset($employee['score']) ? kpi_percent((float) $employee['score']) : '-';
-    $monthLabel = date('F Y', strtotime($start));
+    $firstLoginByDay = [];
+    foreach ($loginRows as $row) {
+        $day = substr((string) ($row['login_at'] ?? ''), 0, 10);
+        if ($day !== '' && (!isset($firstLoginByDay[$day]) || strtotime((string) $row['login_at']) < strtotime((string) $firstLoginByDay[$day]['login_at']))) {
+            $firstLoginByDay[$day] = $row;
+        }
+    }
+    $workdays = kpi_front_workdays($start, $end);
+    $lateLogins = 0;
+    $earlyLogins = 0;
+    $loginMinutes = [];
+    foreach ($firstLoginByDay as $row) {
+        $time = substr((string) ($row['login_at'] ?? ''), 11, 5);
+        if ($time !== '') {
+            [$hour, $minute] = array_map('intval', explode(':', $time));
+            $loginMinutes[] = ($hour * 60) + $minute;
+            if ($time <= '08:00') {
+                $earlyLogins++;
+            }
+            if ($time > '08:15') {
+                $lateLogins++;
+            }
+        }
+    }
+    $avgLoginMins = kpi_hr_avg($loginMinutes);
+    $averageLogin = $avgLoginMins === null ? '-' : sprintf('%02d:%02d', (int) floor($avgLoginMins / 60), (int) $avgLoginMins % 60);
+    $daysPresent = count($firstLoginByDay);
+    $absentDays = max(0, count($workdays) - $daysPresent);
+    $portalLogins = number_format($daysPresent) . '/' . number_format(count($workdays));
 
     $completedOrderCount = 0;
     $inProgressOrderCount = 0;
@@ -1497,36 +1695,36 @@ function kpi_render_front_person_live_dashboard(array $employee, array $detail, 
     $walkInRows = [];
     $paymentRows = [];
     $progressRows = [];
-    foreach ($orderRows as $row) {
+    foreach ($orders as $row) {
         $status = strtolower((string) ($row['status'] ?? ''));
-        $paymentStatus = strtolower((string) ($row['payment_status'] ?? ''));
-        $contact = strtolower((string) ($row['customer_contact'] ?? ''));
-        $isPaid = $paymentStatus === 'paid' || $paymentStatus === 'complete' || $paymentStatus === 'completed';
-        if (in_array($status, ['completed', 'complete', 'packed', 'verified', 'ready_for_collection', 'ready_for_courier', 'ready_for_delivery'], true)) {
+        $isPaid = kpi_front_is_paid($row);
+        if (kpi_front_is_completed_status($status)) {
             $completedOrderCount++;
-        } elseif ($status === 'in_progress' || $status === 'new_order' || $status === 'assigned') {
+        } elseif (!kpi_front_is_closed_status($status)) {
             $inProgressOrderCount++;
         }
         if (!$isPaid) {
             $unpaidOrderCount++;
         }
-        if (strpos($contact, 'walk') !== false || strpos($contact, 'customer') !== false || strtolower((string) ($row['order_type'] ?? '')) === 'collection') {
+        if (kpi_front_is_walk_in($row)) {
+            $doneAt = $row['completed_at'] ?: (kpi_front_is_completed_status($status) ? ($row['updated_at'] ?? null) : null);
             $walkInRows[] = [
                 '<div class="hr-tname">' . htmlspecialchars((string) ($row['order_number'] ?: 'Walk-in order'), ENT_QUOTES, 'UTF-8') . '</div>',
                 '<span class="hr-tmono">' . htmlspecialchars(kpi_front_date_label((string) ($row['created_at'] ?? '')), ENT_QUOTES, 'UTF-8') . '</span>',
-                '<span class="hr-tmono">' . htmlspecialchars(kpi_front_date_label((string) ($row['completed_at'] ?? '')), ENT_QUOTES, 'UTF-8') . '</span>',
-                '<span class="hr-tmono">' . htmlspecialchars(kpi_hr_duration_between((string) ($row['created_at'] ?? ''), (string) ($row['completed_at'] ?? '')), ENT_QUOTES, 'UTF-8') . '</span>',
-                kpi_hr_tag($status === 'completed' || $status === 'complete' ? 'Complete' : ucwords(str_replace('_', ' ', $status ?: 'Open')), $status === 'completed' || $status === 'complete' ? 'good' : 'warn'),
+                '<span class="hr-tmono">' . htmlspecialchars(kpi_front_date_label($doneAt ? (string) $doneAt : ''), ENT_QUOTES, 'UTF-8') . '</span>',
+                '<span class="hr-tmono">' . htmlspecialchars($doneAt ? kpi_hr_duration_between((string) ($row['created_at'] ?? ''), (string) $doneAt) : 'Ongoing', ENT_QUOTES, 'UTF-8') . '</span>',
+                kpi_hr_tag(kpi_front_is_completed_status($status) ? 'Complete' : ucwords(str_replace('_', ' ', $status ?: 'Open')), kpi_front_is_completed_status($status) ? 'good' : 'warn'),
             ];
         }
+        $paidAt = $row['paid_at_value'] ?? null;
         $paymentRows[] = [
             '<div class="hr-tname">' . htmlspecialchars((string) ($row['order_number'] ?: '-'), ENT_QUOTES, 'UTF-8') . '</div>',
             '<span class="hr-tmono">' . htmlspecialchars(kpi_front_date_label((string) ($row['created_at'] ?? '')), ENT_QUOTES, 'UTF-8') . '</span>',
-            '<span class="hr-tmono">' . htmlspecialchars($isPaid ? kpi_front_date_label((string) ($row['updated_at'] ?? $row['completed_at'] ?? '')) : '-', ENT_QUOTES, 'UTF-8') . '</span>',
-            '<span class="hr-tmono">' . htmlspecialchars($isPaid ? kpi_hr_duration_between((string) ($row['created_at'] ?? ''), (string) ($row['updated_at'] ?? $row['completed_at'] ?? '')) : 'Pending', ENT_QUOTES, 'UTF-8') . '</span>',
+            '<span class="hr-tmono">' . htmlspecialchars($isPaid ? kpi_front_date_label((string) $paidAt) : '-', ENT_QUOTES, 'UTF-8') . '</span>',
+            '<span class="hr-tmono">' . htmlspecialchars($isPaid ? kpi_hr_duration_value(kpi_hr_minutes_between((string) ($row['created_at'] ?? ''), (string) $paidAt)) : 'Pending', ENT_QUOTES, 'UTF-8') . '</span>',
             kpi_hr_tag($isPaid ? 'Paid' : 'Unpaid', $isPaid ? 'good' : 'danger'),
         ];
-        if (!in_array($status, ['completed', 'complete', 'cancelled', 'canceled', 'refunded', 'failed'], true)) {
+        if (!kpi_front_is_closed_status($status)) {
             $progressRows[] = [
                 '<div class="hr-tname">' . htmlspecialchars((string) ($row['order_number'] ?: '-'), ENT_QUOTES, 'UTF-8') . '</div>',
                 kpi_hr_tag(ucwords((string) ($row['order_type'] ?: 'Order'))),
@@ -1542,11 +1740,18 @@ function kpi_render_front_person_live_dashboard(array $employee, array $detail, 
     $taskProgress = 0;
     $taskPending = 0;
     $taskOverdue = 0;
+    $taskDurations = [];
     foreach ($taskRows as $row) {
-        $status = strtolower((string) ($row['status'] ?? ''));
+        $status = strtolower(str_replace(' ', '_', (string) ($row['status'] ?? '')));
         $deadline = strtotime((string) ($row['deadline'] ?? ''));
         if (in_array($status, ['done', 'completed', 'approved'], true)) {
             $taskDone++;
+            $assignedAt = (string) ($row['date_assigned'] ?? $row['created_at'] ?? '');
+            $doneAt = (string) ($row['date_completed'] ?? $row['completed_at'] ?? '');
+            $minutes = kpi_hr_minutes_between($assignedAt, $doneAt);
+            if ($minutes !== null) {
+                $taskDurations[] = $minutes / 1440;
+            }
         } elseif ($status === 'in_progress') {
             $taskProgress++;
         } else {
@@ -1559,26 +1764,36 @@ function kpi_render_front_person_live_dashboard(array $employee, array $detail, 
 
     $websiteDone = 0;
     $websitePending = 0;
+    $websiteLate = 0;
+    $websiteOnTime = 0;
+    $websiteDurations = [];
     foreach ($packingRows as $row) {
-        !empty($row['website_uploaded']) ? $websiteDone++ : $websitePending++;
-    }
-
-    $sentWaybills = 0;
-    $unsentWaybills = 0;
-    foreach ($courierRows as $row) {
-        !empty($row['sent_at']) ? $sentWaybills++ : $unsentWaybills++;
+        $loadedAt = (string) ($row['date_loaded'] ?? $row['created_at'] ?? '');
+        $uploadedAt = (string) ($row['website_uploaded_at'] ?? (!empty($row['website_uploaded']) ? ($row['updated_at'] ?? '') : ''));
+        if (!empty($row['website_uploaded'])) {
+            $websiteDone++;
+            $minutes = kpi_hr_minutes_between($loadedAt, $uploadedAt);
+            $websiteDurations[] = $minutes;
+            if ($minutes !== null && $minutes <= 1440) {
+                $websiteOnTime++;
+            } else {
+                $websiteLate++;
+            }
+        } else {
+            $websitePending++;
+        }
     }
 
     echo '<section class="hr-performance-shell hr-front-performance">';
     echo '<div class="hr-profile-strip"><div class="hr-avatar">' . htmlspecialchars(kpi_hr_initials($employeeName), ENT_QUOTES, 'UTF-8') . '</div><div class="hr-profile-info"><div class="hr-profile-name">' . htmlspecialchars($employeeName, ENT_QUOTES, 'UTF-8') . '</div><div class="hr-profile-role">' . htmlspecialchars($employeeRole, ENT_QUOTES, 'UTF-8') . '</div><div class="hr-profile-meta"><div><strong>Period</strong> ' . htmlspecialchars($monthLabel, ENT_QUOTES, 'UTF-8') . '</div><div><strong>Score</strong> ' . htmlspecialchars($score, ENT_QUOTES, 'UTF-8') . '</div><div><strong>Portal logins this month</strong> ' . htmlspecialchars($portalLogins, ENT_QUOTES, 'UTF-8') . '</div><div><strong>Avg login time</strong> ' . htmlspecialchars($averageLogin, ENT_QUOTES, 'UTF-8') . '</div></div></div><div class="hr-profile-actions"><a class="hr-btn hr-btn-outline" href="' . htmlspecialchars(BASE_URL . '/apps/hr-portal/cecilia_performance.php', ENT_QUOTES, 'UTF-8') . '">View Contract</a><button class="hr-btn hr-btn-primary" type="button">Issue Notice</button></div></div>';
     echo '<div class="hr-section-tabs" data-hr-tabs><button class="hr-section-tab active" type="button" data-hr-target="orders">Orders</button><button class="hr-section-tab" type="button" data-hr-target="bookkeeping">Bookkeeping</button><button class="hr-section-tab" type="button" data-hr-target="courier">Courier</button><button class="hr-section-tab" type="button" data-hr-target="tasks">Tasks</button><button class="hr-section-tab" type="button" data-hr-target="errors">Errors</button><button class="hr-section-tab" type="button" data-hr-target="picking">Picking List</button><button class="hr-section-tab" type="button" data-hr-target="attendance">Attendance</button></div>';
 
-    echo '<div class="hr-section active" id="hr-sec-orders"><div class="hr-section-heading"><h2>Order Board</h2><p>Tracking order completion time, walk-in fulfilment, payment status, and processing speed.</p></div><div class="hr-month-nav"><button type="button">&lsaquo;</button><strong>' . htmlspecialchars($monthLabel, ENT_QUOTES, 'UTF-8') . '</strong><button type="button">&rsaquo;</button></div>';
+    echo '<div class="hr-section active" id="hr-sec-orders"><div class="hr-section-heading"><h2>Order Board</h2><p>Tracking order completion time, walk-in fulfilment, payment status, and processing speed.</p></div>' . $monthNav;
     kpi_hr_render_stats([
-        ['label' => 'Total Orders', 'value' => number_format(count($orderRows)), 'sub' => 'this period'],
-        ['label' => 'Completed', 'value' => number_format($completedOrderCount), 'badge' => $orderRows ? number_format(($completedOrderCount / max(1, count($orderRows))) * 100, 0) . '% completion' : 'No orders', 'tone' => 'good'],
+        ['label' => 'Total Orders', 'value' => number_format(count($orders)), 'sub' => 'this period'],
+        ['label' => 'Completed', 'value' => number_format($completedOrderCount), 'badge' => $orders ? number_format(($completedOrderCount / max(1, count($orders))) * 100, 0) . '% completion' : 'No orders', 'tone' => 'good'],
         ['label' => 'Still In Progress', 'value' => number_format($inProgressOrderCount), 'badge' => 'Not yet marked done', 'tone' => $inProgressOrderCount ? 'warn' : 'good'],
-        ['label' => 'Avg Order to Complete', 'value' => kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'orders', 'Avg completion time'), 'sub' => 'front desk orders'],
+        ['label' => 'Avg Order to Complete', 'value' => kpi_hr_duration_value(kpi_hr_avg($walkDurations)), 'sub' => 'walk-in orders'],
         ['label' => 'Unpaid Orders', 'value' => number_format($unpaidOrderCount), 'badge' => 'Payment not ticked', 'tone' => $unpaidOrderCount ? 'warn' : 'good'],
     ]);
     echo '<div class="hr-two-col">';
@@ -1588,15 +1803,15 @@ function kpi_render_front_person_live_dashboard(array $employee, array $detail, 
     kpi_hr_render_table_card('Orders Still In Progress (Not Marked Complete)', ['Order ID', 'Type', 'Date Loaded', 'Time Open', 'Paid', 'Action'], $progressRows, 'Flag all', $progressRows !== []);
     echo '</div>';
 
-    echo '<div class="hr-section" id="hr-sec-bookkeeping"><div class="hr-section-heading"><h2>Bookkeeping</h2><p>Tracking how quickly delivery orders and cash transactions are logged onto the bookkeeping sheet.</p></div><div class="hr-month-nav"><button type="button">&lsaquo;</button><strong>' . htmlspecialchars($monthLabel, ENT_QUOTES, 'UTF-8') . '</strong><button type="button">&rsaquo;</button></div>';
+    echo '<div class="hr-section" id="hr-sec-bookkeeping"><div class="hr-section-heading"><h2>Bookkeeping</h2><p>Tracking how quickly delivery orders and cash transactions are logged onto the bookkeeping sheet.</p></div>' . $monthNav;
     $cashInTotal = array_sum(array_map(static fn(array $row): float => (float) ($row['cash_in'] ?? 0), $cashRows));
     $cashOutTotal = array_sum(array_map(static fn(array $row): float => (float) ($row['cash_out'] ?? 0), $cashRows));
     kpi_hr_render_stats([
-        ['label' => 'Cash Entries', 'value' => number_format(count($cashRows)), 'sub' => 'recorded by front desk'],
+        ['label' => 'Delivery Orders', 'value' => number_format(count($bookkeepingJoined)), 'sub' => 'delivery/courier to log'],
         ['label' => 'Cash In', 'value' => kpi_money((float) $cashInTotal), 'badge' => 'Logged', 'tone' => 'good'],
         ['label' => 'Cash Out', 'value' => kpi_money((float) $cashOutTotal), 'sub' => 'expenses / payouts'],
-        ['label' => 'Missing Cash Orders', 'value' => kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'bookkeeping', 'Unlogged cash orders'), 'badge' => 'Needs checking', 'tone' => 'danger'],
-        ['label' => 'Avg Log Delay', 'value' => kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'bookkeeping', 'Avg recording delay'), 'sub' => 'order placed to logged'],
+        ['label' => 'Missing Cash Orders', 'value' => number_format(count($missingCashOrders)), 'badge' => 'Needs checking', 'tone' => count($missingCashOrders) ? 'danger' : 'good'],
+        ['label' => 'Avg Log Delay', 'value' => kpi_hr_duration_value(kpi_hr_avg(array_column(array_filter($bookkeepingJoined, static fn(array $row): bool => !empty($row['transaction_date'])), 'delay_minutes'))), 'sub' => 'order placed to logged'],
     ]);
     $cashTableRows = array_map(static function (array $row): array {
         return [
@@ -1609,31 +1824,43 @@ function kpi_render_front_person_live_dashboard(array $employee, array $detail, 
         ];
     }, $cashRows);
     kpi_hr_render_table_card('Delivery Orders to Bookkeeping Log Time', ['Date', 'Type', 'Description', 'Order', 'In', 'Out'], $cashTableRows);
+    $missingRows = array_map(static function (array $row): array {
+        return [
+            '<div class="hr-tname">' . htmlspecialchars((string) ($row['order_number'] ?: '-'), ENT_QUOTES, 'UTF-8') . '</div>',
+            '<span class="hr-tmono">' . htmlspecialchars(kpi_front_date_label((string) ($row['created_at'] ?? '')), ENT_QUOTES, 'UTF-8') . '</span>',
+            htmlspecialchars((string) ($row['customer_name'] ?? '-'), ENT_QUOTES, 'UTF-8'),
+            '<span class="hr-tmono">' . htmlspecialchars(kpi_money((float) ($row['total_amount'] ?? 0)), ENT_QUOTES, 'UTF-8') . '</span>',
+            kpi_hr_tag('Never logged', 'danger'),
+        ];
+    }, array_slice($missingCashOrders, 0, 10));
+    kpi_hr_render_table_card('Cash Orders Not Uploaded', ['Order', 'Date', 'Customer', 'Amount', 'Status'], $missingRows, 'Missing cash total: ' . kpi_money((float) array_sum(array_map('floatval', array_column($missingCashOrders, 'total_amount')))), $missingRows !== []);
     echo '</div>';
 
-    echo '<div class="hr-section" id="hr-sec-courier"><div class="hr-section-heading"><h2>Courier Waybills</h2><p>Tracking time from waybill upload to customer notification. SLA: same day before 5pm, or next day before 9am.</p></div><div class="hr-month-nav"><button type="button">&lsaquo;</button><strong>' . htmlspecialchars($monthLabel, ENT_QUOTES, 'UTF-8') . '</strong><button type="button">&rsaquo;</button></div>';
+    echo '<div class="hr-section" id="hr-sec-courier"><div class="hr-section-heading"><h2>Courier Waybills</h2><p>Tracking time from waybill upload to customer notification. SLA: same day before 5pm, or next day before 9am.</p></div>' . $monthNav;
     kpi_hr_render_stats([
         ['label' => 'Waybills Uploaded', 'value' => number_format(count($courierRows)), 'sub' => 'in this period'],
-        ['label' => 'Sent to Customer', 'value' => number_format($sentWaybills), 'badge' => 'Complete', 'tone' => 'good'],
-        ['label' => 'SLA Breaches', 'value' => kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'courier', 'SLA breaches'), 'badge' => 'After deadline', 'tone' => 'danger'],
-        ['label' => 'Not Yet Sent', 'value' => number_format($unsentWaybills), 'badge' => 'Needs action', 'tone' => $unsentWaybills ? 'danger' : 'good'],
-        ['label' => 'Avg Send Time', 'value' => kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'courier', 'Avg customer-send delay'), 'sub' => 'upload to sent'],
+        ['label' => 'Sent to Customer', 'value' => number_format($waybillSent), 'badge' => 'Complete', 'tone' => 'good'],
+        ['label' => 'SLA Breaches', 'value' => number_format($waybillBreaches), 'badge' => 'After deadline', 'tone' => $waybillBreaches ? 'danger' : 'good'],
+        ['label' => 'Not Yet Sent', 'value' => number_format($waybillPending), 'badge' => 'Needs action', 'tone' => $waybillPending ? 'danger' : 'good'],
+        ['label' => 'Avg Send Time', 'value' => kpi_hr_duration_value(kpi_hr_avg($waybillDurations)), 'sub' => 'upload to sent'],
     ]);
     $courierTableRows = array_map(static function (array $row): array {
         $sent = !empty($row['sent_at']);
+        $due = kpi_front_sla_due((string) ($row['uploaded_at'] ?? ''));
+        $breach = $due && (($sent && strtotime((string) ($row['sent_at'] ?? '')) > $due) || (!$sent && time() > $due));
         return [
             '<div class="hr-tname">' . htmlspecialchars((string) ($row['waybill_reference'] ?: '-'), ENT_QUOTES, 'UTF-8') . '</div>',
             '<span class="hr-tmono">' . htmlspecialchars(kpi_front_date_label((string) ($row['uploaded_at'] ?? '')), ENT_QUOTES, 'UTF-8') . '</span>',
             '<span class="hr-tmono">' . htmlspecialchars(kpi_front_date_label((string) ($row['sent_at'] ?? '')), ENT_QUOTES, 'UTF-8') . '</span>',
             '<span class="hr-tmono">' . htmlspecialchars(kpi_hr_duration_between((string) ($row['uploaded_at'] ?? ''), (string) ($row['sent_at'] ?? '')), ENT_QUOTES, 'UTF-8') . '</span>',
-            kpi_hr_tag($sent ? 'Sent' : 'Overdue', $sent ? 'good' : 'danger'),
+            kpi_hr_tag($breach ? 'SLA breach' : ($sent ? 'On time' : 'Open'), $breach ? 'danger' : ($sent ? 'good' : 'warn')),
             kpi_hr_tag(ucwords((string) ($row['status'] ?: ($sent ? 'Complete' : 'Not Sent'))), $sent ? 'good' : 'danger'),
         ];
     }, $courierRows);
     kpi_hr_render_table_card('Waybill Log - Upload to Customer Sent', ['Waybill', 'Uploaded', 'Sent to Customer', 'Duration', 'SLA', 'Status'], $courierTableRows);
     echo '</div>';
 
-    echo '<div class="hr-section" id="hr-sec-tasks"><div class="hr-section-heading"><h2>Task Management</h2><p>Tracking task completion rate, speed, and overdue items assigned to Cecilia.</p></div><div class="hr-month-nav"><button type="button">&lsaquo;</button><strong>' . htmlspecialchars($monthLabel, ENT_QUOTES, 'UTF-8') . '</strong><button type="button">&rsaquo;</button></div>';
+    echo '<div class="hr-section" id="hr-sec-tasks"><div class="hr-section-heading"><h2>Task Management</h2><p>Tracking task completion rate, speed, and overdue items assigned to Cecilia.</p></div>' . $monthNav;
     kpi_hr_render_stats([
         ['label' => 'Total Tasks', 'value' => number_format(count($taskRows)), 'sub' => 'this period'],
         ['label' => 'Completed', 'value' => number_format($taskDone), 'badge' => 'Done', 'tone' => 'good'],
@@ -1645,28 +1872,39 @@ function kpi_render_front_person_live_dashboard(array $employee, array $detail, 
     $taskTableRows = array_map(static function (array $row): array {
         $status = strtolower((string) ($row['status'] ?? ''));
         $tone = in_array($status, ['done', 'completed', 'approved'], true) ? 'good' : ($status === 'in_progress' ? 'warn' : 'danger');
+        $assignedAt = (string) ($row['date_assigned'] ?? $row['created_at'] ?? '');
+        $doneAt = (string) ($row['date_completed'] ?? $row['completed_at'] ?? '');
         return [
             '<div class="hr-tname">' . htmlspecialchars((string) ($row['task_name'] ?: '-'), ENT_QUOTES, 'UTF-8') . '</div>',
-            '<span class="hr-tmono">' . htmlspecialchars(kpi_front_date_label((string) ($row['created_at'] ?? '')), ENT_QUOTES, 'UTF-8') . '</span>',
+            '<span class="hr-tmono">' . htmlspecialchars(kpi_front_date_label($assignedAt), ENT_QUOTES, 'UTF-8') . '</span>',
             '<span class="hr-tmono">' . htmlspecialchars(kpi_front_date_label((string) ($row['deadline'] ?? '')), ENT_QUOTES, 'UTF-8') . '</span>',
-            '<span class="hr-tmono">' . htmlspecialchars(kpi_front_date_label((string) ($row['completed_at'] ?? '')), ENT_QUOTES, 'UTF-8') . '</span>',
-            '<span class="hr-tmono">' . htmlspecialchars(kpi_hr_duration_between((string) ($row['created_at'] ?? ''), (string) ($row['completed_at'] ?? '')), ENT_QUOTES, 'UTF-8') . '</span>',
+            '<span class="hr-tmono">' . htmlspecialchars(kpi_front_date_label($doneAt), ENT_QUOTES, 'UTF-8') . '</span>',
+            '<span class="hr-tmono">' . htmlspecialchars($doneAt ? kpi_hr_duration_between($assignedAt, $doneAt) : 'Ongoing', ENT_QUOTES, 'UTF-8') . '</span>',
             kpi_hr_tag(ucwords(str_replace('_', ' ', $status ?: 'Open')), $tone),
         ];
     }, $taskRows);
     kpi_hr_render_table_card('Task Log', ['Task', 'Assigned', 'Due Date', 'Completed', 'Duration', 'Status'], $taskTableRows);
     echo '</div>';
 
-    echo '<div class="hr-section" id="hr-sec-errors"><div class="hr-section-heading"><h2>Error Log</h2><p>Errors Cecilia has logged with notes and tagging vs errors logged against her.</p></div><div class="hr-month-nav"><button type="button">&lsaquo;</button><strong>' . htmlspecialchars($monthLabel, ENT_QUOTES, 'UTF-8') . '</strong><button type="button">&rsaquo;</button></div>';
+    echo '<div class="hr-section" id="hr-sec-errors"><div class="hr-section-heading"><h2>Error Log</h2><p>Errors Cecilia has logged with notes and tagging vs errors logged against her.</p></div>' . $monthNav;
     $loggedByEmployee = 0;
     $againstEmployee = 0;
+    $completeErrorLogs = 0;
     foreach ($errorRows as $row) {
-        (int) ($row['employee_id'] ?? 0) === $employeeId ? $againstEmployee++ : $loggedByEmployee++;
+        if ((int) ($row['logged_by'] ?? 0) === $employeeId) {
+            $loggedByEmployee++;
+            if (trim((string) ($row['description'] ?? '')) !== '' && (int) ($row['employee_id'] ?? 0) > 0) {
+                $completeErrorLogs++;
+            }
+        }
+        if ((int) ($row['employee_id'] ?? 0) === $employeeId) {
+            $againstEmployee++;
+        }
     }
     kpi_hr_render_stats([
         ['label' => 'Errors She Logged', 'value' => number_format($loggedByEmployee), 'badge' => 'This period', 'tone' => 'good'],
-        ['label' => 'Properly Completed', 'value' => kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'errors', 'Errors logged with notes'), 'sub' => 'notes + responsible person'],
-        ['label' => 'Incomplete Logs', 'value' => kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'errors', 'Incomplete error logs'), 'badge' => 'Missing info', 'tone' => 'warn'],
+        ['label' => 'Properly Completed', 'value' => number_format($completeErrorLogs), 'sub' => 'notes + responsible person'],
+        ['label' => 'Incomplete Logs', 'value' => number_format(max(0, $loggedByEmployee - $completeErrorLogs)), 'badge' => 'Missing info', 'tone' => $loggedByEmployee > $completeErrorLogs ? 'warn' : 'good'],
         ['label' => 'Errors Against Her', 'value' => number_format($againstEmployee), 'badge' => 'Logged by others', 'tone' => $againstEmployee ? 'danger' : 'good'],
     ], 4);
     $errorTableRows = array_map(static function (array $row) use ($employeeId): array {
@@ -1682,37 +1920,41 @@ function kpi_render_front_person_live_dashboard(array $employee, array $detail, 
     kpi_hr_render_table_card('Error Log Records', ['Date', 'Error', 'Severity', 'Type', 'Status'], $errorTableRows);
     echo '</div>';
 
-    echo '<div class="hr-section" id="hr-sec-picking"><div class="hr-section-heading"><h2>Picking List</h2><p>Products loaded onto the system. Cecilia must update stock quantities on the website within 24 hours of loading.</p></div><div class="hr-month-nav"><button type="button">&lsaquo;</button><strong>' . htmlspecialchars($monthLabel, ENT_QUOTES, 'UTF-8') . '</strong><button type="button">&rsaquo;</button></div>';
+    echo '<div class="hr-section" id="hr-sec-picking"><div class="hr-section-heading"><h2>Picking List</h2><p>Products loaded onto the system. Cecilia must update stock quantities on the website within 24 hours of loading.</p></div>' . $monthNav;
     kpi_hr_render_stats([
         ['label' => 'Products Loaded', 'value' => number_format(count($packingRows)), 'sub' => 'this period'],
-        ['label' => 'Website Updated', 'value' => number_format($websiteDone), 'badge' => 'Complete', 'tone' => 'good'],
-        ['label' => 'Updated Late', 'value' => kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'packing', 'Website updates late'), 'badge' => 'After 24h', 'tone' => 'warn'],
+        ['label' => 'Website Updated', 'value' => number_format($websiteOnTime), 'badge' => 'Within 24h', 'tone' => 'good'],
+        ['label' => 'Updated Late', 'value' => number_format($websiteLate), 'badge' => 'After 24h', 'tone' => $websiteLate ? 'warn' : 'good'],
         ['label' => 'Not Updated', 'value' => number_format($websitePending), 'badge' => 'Still outstanding', 'tone' => $websitePending ? 'danger' : 'good'],
-        ['label' => 'Avg Update Time', 'value' => kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'packing', 'Avg website update time'), 'sub' => 'loaded to website updated'],
+        ['label' => 'Avg Update Time', 'value' => kpi_hr_duration_value(kpi_hr_avg($websiteDurations)), 'sub' => 'loaded to website updated'],
     ]);
     $packingTableRows = array_map(static function (array $row): array {
         $done = !empty($row['website_uploaded']);
+        $loadedAt = (string) ($row['date_loaded'] ?? $row['created_at'] ?? '');
+        $uploadedAt = (string) ($row['website_uploaded_at'] ?? ($done ? ($row['updated_at'] ?? '') : ''));
+        $minutes = kpi_hr_minutes_between($loadedAt, $uploadedAt ?: date('Y-m-d H:i:s'));
+        $late = $minutes !== null && $minutes > 1440;
         return [
             '<div class="hr-tname">' . htmlspecialchars((string) ($row['item_name'] ?: '-'), ENT_QUOTES, 'UTF-8') . '</div>',
             '<span class="hr-tmono">' . htmlspecialchars((string) ($row['quantity_planned'] ?: '-'), ENT_QUOTES, 'UTF-8') . '</span>',
-            '<span class="hr-tmono">' . htmlspecialchars(kpi_front_date_label((string) ($row['date_loaded'] ?? '')), ENT_QUOTES, 'UTF-8') . '</span>',
-            '<span class="hr-tmono">' . htmlspecialchars(kpi_front_date_label((string) ($row['updated_at'] ?? '')), ENT_QUOTES, 'UTF-8') . '</span>',
-            '<span class="hr-tmono">' . htmlspecialchars(kpi_hr_duration_between((string) ($row['date_loaded'] ?? ''), $done ? (string) ($row['updated_at'] ?? '') : date('Y-m-d H:i:s')), ENT_QUOTES, 'UTF-8') . '</span>',
-            kpi_hr_tag($done ? 'Yes' : 'No - Overdue', $done ? 'good' : 'danger'),
+            '<span class="hr-tmono">' . htmlspecialchars(kpi_front_date_label($loadedAt), ENT_QUOTES, 'UTF-8') . '</span>',
+            '<span class="hr-tmono">' . htmlspecialchars(kpi_front_date_label($uploadedAt), ENT_QUOTES, 'UTF-8') . '</span>',
+            '<span class="hr-tmono">' . htmlspecialchars(kpi_hr_duration_value($minutes) . (!$done && $minutes !== null ? ' ongoing' : ''), ENT_QUOTES, 'UTF-8') . '</span>',
+            kpi_hr_tag($done && !$late ? 'Yes' : ($done ? 'No - Late' : ($late ? 'No - Overdue' : 'Open')), $done && !$late ? 'good' : ($late ? 'danger' : 'warn')),
             kpi_hr_tag($done ? 'Complete' : 'Not Done', $done ? 'good' : 'danger'),
         ];
     }, $packingRows);
     kpi_hr_render_table_card('Picking List - Website Inventory Update Tracker', ['Product', 'Qty Loaded', 'Date Loaded', 'Website Updated', 'Time Taken', 'Within 24h', 'Inventory Update'], $packingTableRows, 'Export', $websitePending > 0);
     echo '</div>';
 
-    echo '<div class="hr-section" id="hr-sec-attendance"><div class="hr-section-heading"><h2>Attendance & Punctuality</h2><p>Portal login times, physical attendance, punctuality patterns, and overtime averages.</p></div><div class="hr-month-nav"><button type="button">&lsaquo;</button><strong>' . htmlspecialchars($monthLabel, ENT_QUOTES, 'UTF-8') . '</strong><button type="button">&rsaquo;</button></div>';
+    echo '<div class="hr-section" id="hr-sec-attendance"><div class="hr-section-heading"><h2>Attendance & Punctuality</h2><p>Portal login times, physical attendance, punctuality patterns, and overtime averages.</p></div>' . $monthNav;
     kpi_hr_render_stats([
         ['label' => 'Days Present', 'value' => $portalLogins, 'badge' => 'Portal logins', 'tone' => 'good'],
-        ['label' => 'Late Arrivals', 'value' => kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'hr', 'Late logins'), 'badge' => 'This period', 'tone' => 'warn'],
-        ['label' => 'Portal Logins', 'value' => $portalLogins, 'sub' => 'working days'],
+        ['label' => 'Late Arrivals', 'value' => number_format($lateLogins), 'badge' => 'This period', 'tone' => $lateLogins ? 'warn' : 'good'],
+        ['label' => 'Portal Logins', 'value' => number_format(count($loginRows)), 'sub' => 'login events'],
         ['label' => 'Avg Login Time', 'value' => $averageLogin, 'badge' => 'Punctuality record', 'tone' => 'good'],
-        ['label' => 'Early Logins', 'value' => kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'hr', 'Early logins'), 'sub' => 'before opening'],
-        ['label' => 'Avg Overtime', 'value' => kpi_detail_metric_value([$employeeId => $detail], $employeeId, 'hr', 'Average overtime'), 'sub' => 'per day average'],
+        ['label' => 'Early Logins', 'value' => number_format($earlyLogins), 'sub' => 'before opening'],
+        ['label' => 'Unplanned Absences', 'value' => number_format($absentDays), 'sub' => 'based on login record'],
     ], 6);
     $loginTableRows = array_map(static function (array $row): array {
         $login = (string) ($row['login_at'] ?? '');

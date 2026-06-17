@@ -207,13 +207,13 @@ $cashBookRows = $ready && ops_table_exists('ops_cash_book_entries') ? ops_rows(
     "SELECT c.*, e.full_name AS recorded_by_name
      FROM ops_cash_book_entries c
      LEFT JOIN ops_employees e ON e.id = c.recorded_by
-     WHERE c.entry_date >= ? AND c.entry_date < ? AND c.archived_at IS NULL
-     ORDER BY c.entry_date DESC, c.id DESC",
+     WHERE c.transaction_date >= ? AND c.transaction_date < ? AND c.archived_at IS NULL
+     ORDER BY c.transaction_date DESC, c.id DESC",
     [$periodStart, $periodEnd]
 ) : [];
 $bookkeepingJoined = $ready && ops_table_exists('ops_cash_book_entries') && ops_table_exists('ops_orders') ? ops_rows(
-    "SELECT o.order_number, o.customer_name, o.order_type, o.payment_method, o.total_amount, o.created_at, c.entry_date, c.transaction_type,
-            TIMESTAMPDIFF(MINUTE, o.created_at, c.entry_date) AS delay_minutes
+    "SELECT o.order_number, o.customer_name, o.order_type, o.payment_method, o.total_amount, o.created_at, c.transaction_date, c.transaction_type,
+            TIMESTAMPDIFF(MINUTE, o.created_at, c.transaction_date) AS delay_minutes
      FROM ops_orders o
      LEFT JOIN ops_cash_book_entries c ON c.archived_at IS NULL AND (c.related_order_id = o.id OR c.related_order_number = o.order_number)
      WHERE o.created_at >= ? AND o.created_at < ? AND o.order_type IN ('delivery', 'courier')
@@ -567,7 +567,7 @@ $monthNav = '<div class="month-nav"><a class="month-btn" href="' . hp_e(hp_month
       <div class="section-heading">Bookkeeping</div>
       <div class="section-sub">Tracking how quickly delivery orders and cash transactions are logged onto the bookkeeping sheet.</div>
       <?= $monthNav ?>
-      <?php $loggedDelivery = array_values(array_filter($bookkeepingJoined, static fn($r) => !empty($r['entry_date']))); $lateDelivery = array_values(array_filter($loggedDelivery, static fn($r) => (int) ($r['delay_minutes'] ?? 0) > 1440)); ?>
+      <?php $loggedDelivery = array_values(array_filter($bookkeepingJoined, static fn($r) => !empty($r['transaction_date']))); $lateDelivery = array_values(array_filter($loggedDelivery, static fn($r) => (int) ($r['delay_minutes'] ?? 0) > 1440)); ?>
       <div class="stats-row cols-5">
         <div class="stat-card"><div class="stat-label">Delivery Orders</div><div class="stat-value"><?= number_format(count($bookkeepingJoined)) ?></div><div class="stat-sub">to be logged</div></div>
         <div class="stat-card"><div class="stat-label">Logged on Time</div><div class="stat-value"><?= number_format(max(0, count($loggedDelivery) - count($lateDelivery))) ?></div><div class="badge bg-good">Within same day</div></div>
@@ -578,8 +578,8 @@ $monthNav = '<div class="month-nav"><a class="month-btn" href="' . hp_e(hp_month
       <div class="two-col">
         <div class="card"><div class="card-header"><div class="card-title">Delivery Orders to Bookkeeping Log Time</div></div><div class="card-body table-wrap" style="padding:0"><table class="data-table"><thead><tr><th>Order</th><th>Order Date</th><th>Logged</th><th>Delay</th><th>Status</th></tr></thead><tbody>
           <?php if (!$bookkeepingJoined): ?><?= hp_empty(5) ?><?php endif; ?>
-          <?php foreach (array_slice($bookkeepingJoined, 0, 10) as $row): $logged = !empty($row['entry_date']); $delay = $logged ? (float) $row['delay_minutes'] : null; ?>
-          <tr><td><div class="tname"><?= hp_e($row['order_number']) ?></div></td><td class="tmono"><?= hp_dt($row['created_at']) ?></td><td class="tmono"><?= hp_dt($row['entry_date'] ?? null) ?></td><td class="tmono"><?= $logged ? hp_duration($delay) : '-' ?></td><td><?= hp_tag(!$logged ? 'Missing' : ($delay > 1440 ? 'Late' : 'On time'), !$logged ? 'danger' : ($delay > 1440 ? 'warn' : 'good')) ?></td></tr>
+          <?php foreach (array_slice($bookkeepingJoined, 0, 10) as $row): $logged = !empty($row['transaction_date']); $delay = $logged ? (float) $row['delay_minutes'] : null; ?>
+          <tr><td><div class="tname"><?= hp_e($row['order_number']) ?></div></td><td class="tmono"><?= hp_dt($row['created_at']) ?></td><td class="tmono"><?= hp_dt($row['transaction_date'] ?? null) ?></td><td class="tmono"><?= $logged ? hp_duration($delay) : '-' ?></td><td><?= hp_tag(!$logged ? 'Missing' : ($delay > 1440 ? 'Late' : 'On time'), !$logged ? 'danger' : ($delay > 1440 ? 'warn' : 'good')) ?></td></tr>
           <?php endforeach; ?>
         </tbody></table></div></div>
         <div class="card alert-card"><div class="card-header alert-header"><div class="alert-title">Cash Orders Not Uploaded</div></div><div class="card-body table-wrap" style="padding:0"><table class="data-table"><thead><tr><th>Order</th><th>Date</th><th>Amount</th><th>Status</th></tr></thead><tbody>
