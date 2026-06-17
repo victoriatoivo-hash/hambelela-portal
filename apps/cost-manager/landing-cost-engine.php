@@ -495,6 +495,29 @@ try {
              LIMIT 600"
         );
     }
+    if (wc_configured()) {
+        try {
+            foreach (wc_get('products', [
+                'status' => 'publish',
+                'per_page' => 100,
+                'orderby' => 'title',
+                'order' => 'asc',
+            ]) as $wooProduct) {
+                $wooSuggestions[] = [
+                    'woo_product_id' => (int) ($wooProduct['id'] ?? 0),
+                    'woo_variation_id' => 0,
+                    'product_name' => (string) ($wooProduct['name'] ?? ''),
+                    'sku' => (string) ($wooProduct['sku'] ?? ''),
+                    'price_ex_vat' => (float) ($wooProduct['price'] ?? 0),
+                    'stock_qty' => isset($wooProduct['stock_quantity']) ? (float) $wooProduct['stock_quantity'] : 0.0,
+                    'sold_qty' => 0.0,
+                    'last_sold_at' => '',
+                ];
+            }
+        } catch (Throwable $e) {
+            // Stored Woo sales remain available when the live catalogue cannot be reached.
+        }
+    }
 
     $productOutputKeys = [];
     foreach ($products as $product) {
@@ -890,19 +913,30 @@ $matchedPanelRows = array_slice(array_values(array_filter($panelRows, fn (array 
 $unmatchedPanelRows = array_slice(array_values(array_filter($panelRows, fn (array $row): bool => !(bool) $row['website_linked'])), 0, 8);
 $profitPanelRows = array_slice($rows ?: $panelRows, 0, 12);
 $warningPanelRows = array_slice(array_values(array_filter($panelRows, fn (array $row): bool => in_array((string) $row['status_key'], ['loss', 'low_margin', 'unknown'], true))), 0, 8);
-$wooSuggestionProducts = array_values(array_map(static function (array $row): array {
-    return [
+$seenWooSuggestions = [];
+$wooSuggestionProducts = [];
+foreach ($wooSuggestions as $row) {
+    $wooKey = implode('|', [
+        (string) ($row['woo_product_id'] ?? ''),
+        (string) ($row['woo_variation_id'] ?? ''),
+        strtolower(trim((string) ($row['product_name'] ?? ''))),
+    ]);
+    if ($wooKey === '||' || isset($seenWooSuggestions[$wooKey])) {
+        continue;
+    }
+    $seenWooSuggestions[$wooKey] = true;
+    $wooSuggestionProducts[] = [
         'name' => (string) ($row['product_name'] ?? 'WooCommerce product'),
-        'sku' => '',
+        'sku' => (string) ($row['sku'] ?? ''),
         'wooProductId' => (string) ($row['woo_product_id'] ?? ''),
         'wooVariationId' => (string) ($row['woo_variation_id'] ?? ''),
         'variation' => (string) ($row['woo_variation_id'] ?? '') !== '' ? 'Variation #' . (string) $row['woo_variation_id'] : '',
         'priceExcl' => round((float) ($row['price_ex_vat'] ?? 0), 2),
-        'stockQty' => 0,
+        'stockQty' => round((float) ($row['stock_qty'] ?? 0), 3),
         'soldQty' => round((float) ($row['sold_qty'] ?? 0), 3),
         'lastSoldAt' => (string) ($row['last_sold_at'] ?? ''),
     ];
-}, $wooSuggestions));
+}
 $workbookProducts = array_map(static function (array $row): array {
     $conversion = $row['conversion'] ?? ['base_unit' => 'unit'];
     $baseUnit = (string) ($conversion['base_unit'] ?? 'unit');
@@ -2173,6 +2207,7 @@ function renderWebsiteMatching() {
     var c = computeRow(p);
     if (c.status === 'unmatched') unmatched++; else matched++;
     var matchLabel = p.noWebsite ? 'No Website Listing' : (p.matchedWooName || p.websiteMatch || 'Unmatched');
+    var matchStatus = websiteMatchStatus(p, c);
     var searchValue = p.matchSearch || p.matchedWooName || '';
     var suggestions = findWooSuggestions(searchValue);
     var suggestionHtml = suggestions.map(function (woo, wooIndex) {
@@ -2185,7 +2220,7 @@ function renderWebsiteMatching() {
       '<td class="website-search-cell"><input type="search" value="' + esc(searchValue) + '" placeholder="Search Woo product or SKU..." oninput="updateWebsiteSearch(' + idx + ', this.value)"><div class="website-suggestions ' + (suggestions.length ? 'is-open' : '') + '">' + suggestionHtml + '</div><div class="website-row-actions"><button class="mini-action pink" type="button" onclick="markNoWebsite(' + idx + ')">No Website Listing</button><button class="mini-action" type="button" onclick="clearWebsiteMatch(' + idx + ')">Clear</button></div></td>' +
       '<td><input class="manual-price-input" value="' + numStr(c.priceExcl) + '" inputmode="decimal" onblur="setManualWebsitePrice(' + idx + ', this.value)"></td>' +
       '<td><input class="stock-input" value="' + numStr(c.stockQty) + '" inputmode="decimal" onblur="setStockQty(' + idx + ', this.value)"></td>' +
-      '<td><span class="status-pill ' + c.status + '">' + c.statusLabel + '</span><small style="display:block;color:var(--cw-muted);margin-top:4px;">' + esc(matchLabel) + '</small></td>';
+      '<td><span class="status-pill ' + matchStatus.key + '">' + matchStatus.label + '</span><small style="display:block;color:var(--cw-muted);margin-top:4px;">' + esc(matchLabel) + '</small></td>';
     tbody.appendChild(tr);
   });
   if (!products.length) {
@@ -2193,6 +2228,12 @@ function renderWebsiteMatching() {
   }
   setText('websiteMatchedCount', matched + ' matched');
   setText('websiteUnmatchedCount', unmatched + ' unmatched');
+}
+function websiteMatchStatus(p, c) {
+  if (p.noWebsite) return { key:'unmatched', label:'No Website Listing' };
+  if (c.priceExcl <= 0) return { key:'unmatched', label:'Unmatched' };
+  if (c.status === 'loss') return { key:'loss', label:'Loss Making' };
+  return { key:'profitable', label:'Matched' };
 }
 function updateWebsiteSearch(idx, value) {
   if (!products[idx]) return;
