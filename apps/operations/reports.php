@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/operations.php';
+require_once __DIR__ . '/owner-dashboard-data.php';
 
 require_role('owner_admin', 'supervisor_manager');
 
@@ -11,9 +12,10 @@ $activeApp = 'kpi';
 $ready = ops_database_ready();
 $message = null;
 $messageType = 'success';
+$requestedTab = preg_replace('/[^a-z0-9_-]/', '', (string) ($_GET['tab'] ?? 'overview')) ?: 'overview';
 $period = preg_match('/^\d{4}-\d{2}$/', (string) ($_GET['period'] ?? '')) ? (string) $_GET['period'] : date('Y-m');
-$defaultStartDate = date('Y-m-01');
-$defaultEndDate = date('Y-m-t');
+$defaultStartDate = $requestedTab === 'overview' ? date('Y-m-d') : date('Y-m-01');
+$defaultEndDate = $requestedTab === 'overview' ? date('Y-m-d') : date('Y-m-t');
 $filterStartDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_GET['start_date'] ?? '')) ? (string) $_GET['start_date'] : $defaultStartDate;
 $filterEndDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_GET['end_date'] ?? '')) ? (string) $_GET['end_date'] : $defaultEndDate;
 if ($filterEndDate < $filterStartDate) {
@@ -25,7 +27,7 @@ $periodEnd = (new DateTimeImmutable($filterEndDate . ' 00:00:00'))->modify('+1 d
 $previousPeriod = (new DateTimeImmutable($periodStart))->modify('-1 month')->format('Y-m');
 $previousStart = $previousPeriod . '-01 00:00:00';
 $previousEnd = (new DateTimeImmutable($previousStart))->modify('+1 month')->format('Y-m-d H:i:s');
-$activeTab = preg_replace('/[^a-z0-9_-]/', '', (string) ($_GET['tab'] ?? 'overview')) ?: 'overview';
+$activeTab = $requestedTab;
 $selectedEmployeeId = max(0, (int) ($_GET['employee_id'] ?? 0));
 
 function kpi_try_sql(string $sql): void
@@ -3453,6 +3455,7 @@ $unlinkedEmployees = array_values(array_filter($employeeScores, static function 
     return empty($row['hr_linked']);
 }));
 $dateRangeQuery = http_build_query(['start_date' => $filterStartDate, 'end_date' => $filterEndDate]);
+$ownerDashboardData = $ready ? owner_dashboard_build($filterStartDate, $filterEndDate) : owner_dashboard_build(date('Y-m-d'), date('Y-m-d'));
 
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
@@ -3484,7 +3487,73 @@ include BASE_PATH . '/shared/sidebar.php';
         <?php endforeach; ?>
     </nav>
 
-    <?php if ($activeTab === 'orders'): ?>
+    <?php if ($activeTab === 'overview'): ?>
+        <section class="owner-performance-dashboard" data-owner-dashboard data-dashboard-endpoint="<?= htmlspecialchars(BASE_URL . '/apps/operations/api-dashboard.php', ENT_QUOTES, 'UTF-8') ?>">
+            <div class="owner-dashboard-head">
+                <div>
+                    <span class="owner-eyebrow"><span class="owner-live-dot"></span> Hambelela Organic</span>
+                    <h2>Owner Performance Dashboard</h2>
+                    <p>Live operations view for orders, packing, checklists, staff and owner action items.</p>
+                </div>
+                <div class="owner-dashboard-controls">
+                    <label>From<input type="date" data-owner-from value="<?= htmlspecialchars($filterStartDate, ENT_QUOTES, 'UTF-8') ?>"></label>
+                    <label>To<input type="date" data-owner-to value="<?= htmlspecialchars($filterEndDate, ENT_QUOTES, 'UTF-8') ?>"></label>
+                    <button class="owner-refresh" type="button" data-owner-refresh><i data-lucide="refresh-cw"></i> Refresh</button>
+                    <small data-owner-updated>Updated <?= htmlspecialchars(date('H:i:s'), ENT_QUOTES, 'UTF-8') ?></small>
+                </div>
+            </div>
+
+            <div class="owner-card-grid owner-health-grid" data-owner-health></div>
+
+            <div class="owner-section-grid">
+                <section class="owner-panel owner-span-2">
+                    <div class="owner-section-title">
+                        <div>
+                            <h3>Board Status</h3>
+                            <p>Current state across the operational boards.</p>
+                        </div>
+                    </div>
+                    <div class="owner-board-grid" data-owner-boards></div>
+                </section>
+
+                <section class="owner-panel">
+                    <div class="owner-section-title">
+                        <div>
+                            <h3>Owner Error Log</h3>
+                            <p>Unresolved issues assigned to the owner.</p>
+                        </div>
+                    </div>
+                    <div class="owner-error-list" data-owner-errors></div>
+                </section>
+            </div>
+
+            <section class="owner-panel">
+                <div class="owner-section-title">
+                    <div>
+                        <h3>Staff Overview</h3>
+                        <p>One row per employee with workload, speed, stale work and availability.</p>
+                    </div>
+                </div>
+                <div class="owner-table-wrap">
+                    <table class="owner-staff-table">
+                        <thead>
+                            <tr>
+                                <th>Employee</th>
+                                <th>Role</th>
+                                <th>Orders</th>
+                                <th>Packing</th>
+                                <th>Tasks</th>
+                                <th>Avg Time</th>
+                                <th>Stale</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody data-owner-staff></tbody>
+                    </table>
+                </div>
+            </section>
+        </section>
+    <?php elseif ($activeTab === 'orders'): ?>
         <section class="panel kpi-system-panel">
             <div class="section-row"><div><h2>Orders KPI</h2><p>Business-hour timing uses Mon-Fri 08:00-17:00, Saturday 09:00-13:00, and excludes Sundays. After-hours orders start counting at the next opening time.</p></div></div>
             <div class="kpi-system-metric-grid">
@@ -3573,7 +3642,7 @@ include BASE_PATH . '/shared/sidebar.php';
         <?php kpi_render_module_report($activeTab, $employeeScores, $employeeKpiDetails); ?>
     <?php endif; ?>
 
-    <?php if ($activeTab === 'overview'): ?>
+    <?php if (false && $activeTab === 'overview'): ?>
     <section class="work-metric-grid kpi-overview-grid">
         <?php foreach ([
             ['Average Performance', kpi_percent($averageScore), 'All active employees', 'gauge', 'metric-blue'],
@@ -4080,4 +4149,465 @@ include BASE_PATH . '/shared/sidebar.php';
     </section>
     <?php endif; ?>
 </main>
+<?php if ($activeTab === 'overview'): ?>
+<style>
+.owner-performance-dashboard {
+    --owner-pink: #D4537E;
+    --owner-ink: #1f1f29;
+    --owner-muted: #6f7282;
+    --owner-line: #e6e8ef;
+    --owner-soft: #faf7f8;
+    color: var(--owner-ink);
+    display: grid;
+    gap: 16px;
+}
+.owner-dashboard-head,
+.owner-panel,
+.owner-metric-card {
+    background: #fff;
+    border: 1px solid var(--owner-line);
+    border-radius: 14px;
+}
+.owner-dashboard-head {
+    align-items: center;
+    display: flex;
+    gap: 18px;
+    justify-content: space-between;
+    padding: 18px 20px;
+}
+.owner-eyebrow {
+    align-items: center;
+    color: var(--owner-pink);
+    display: inline-flex;
+    font-size: 11px;
+    font-weight: 800;
+    gap: 8px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+.owner-live-dot {
+    animation: ownerPulse 1.7s ease-in-out infinite;
+    background: #19bf6b;
+    border-radius: 999px;
+    display: inline-block;
+    height: 9px;
+    width: 9px;
+}
+.owner-dashboard-head h2 {
+    font-size: 22px;
+    line-height: 1.1;
+    margin: 7px 0 5px;
+}
+.owner-dashboard-head p,
+.owner-section-title p {
+    color: var(--owner-muted);
+    font-size: 13px;
+    margin: 0;
+}
+.owner-dashboard-controls {
+    align-items: end;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: flex-end;
+}
+.owner-dashboard-controls label {
+    color: var(--owner-muted);
+    display: grid;
+    font-size: 11px;
+    font-weight: 800;
+    gap: 4px;
+    text-transform: uppercase;
+}
+.owner-dashboard-controls input {
+    border: 1px solid #cfd4e4;
+    border-radius: 9px;
+    color: var(--owner-ink);
+    font: inherit;
+    min-height: 38px;
+    padding: 7px 10px;
+}
+.owner-refresh {
+    align-items: center;
+    background: var(--owner-pink);
+    border: 0;
+    border-radius: 9px;
+    color: #fff;
+    cursor: pointer;
+    display: inline-flex;
+    font-size: 13px;
+    font-weight: 800;
+    gap: 7px;
+    min-height: 38px;
+    padding: 8px 13px;
+}
+.owner-refresh.is-refreshing svg {
+    animation: ownerSpin .8s linear infinite;
+}
+.owner-dashboard-controls small {
+    color: var(--owner-muted);
+    font-size: 11px;
+    padding-bottom: 11px;
+}
+.owner-card-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(6, minmax(145px, 1fr));
+}
+.owner-metric-card {
+    min-height: 118px;
+    padding: 14px;
+    transition: transform .18s ease, border-color .18s ease;
+}
+.owner-metric-card:hover {
+    border-color: rgba(212, 83, 126, .38);
+    transform: translateY(-2px);
+}
+.owner-card-top {
+    align-items: center;
+    display: flex;
+    gap: 10px;
+}
+.owner-card-icon {
+    align-items: center;
+    background: rgba(212, 83, 126, .12);
+    border-radius: 50%;
+    color: var(--owner-pink);
+    display: inline-flex;
+    height: 34px;
+    justify-content: center;
+    width: 34px;
+}
+.owner-metric-card h3 {
+    font-size: 11px;
+    margin: 0;
+    text-transform: uppercase;
+}
+.owner-metric-card strong {
+    display: block;
+    font-size: 22px;
+    line-height: 1.1;
+    margin-top: 14px;
+}
+.owner-metric-card small {
+    color: var(--owner-muted);
+    display: block;
+    font-size: 12px;
+    margin-top: 3px;
+}
+.owner-progress {
+    background: #f0eef2;
+    border-radius: 999px;
+    height: 6px;
+    margin-top: 12px;
+    overflow: hidden;
+}
+.owner-progress span {
+    background: var(--owner-pink);
+    border-radius: inherit;
+    display: block;
+    height: 100%;
+    transition: width .25s ease;
+}
+.owner-section-grid {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr);
+}
+.owner-panel {
+    overflow: hidden;
+    padding: 16px;
+}
+.owner-section-title {
+    align-items: start;
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+.owner-section-title h3 {
+    font-size: 15px;
+    margin: 0 0 4px;
+}
+.owner-board-grid {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(4, minmax(150px, 1fr));
+}
+.owner-board-card {
+    border: 1px solid var(--owner-line);
+    border-radius: 12px;
+    padding: 12px;
+}
+.owner-board-card h4 {
+    font-size: 13px;
+    margin: 0 0 10px;
+}
+.owner-badge-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.owner-badge {
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 5px 8px;
+}
+.owner-badge-new { background: #E6F1FB; color: #185FA5; }
+.owner-badge-progress { background: #FAEEDA; color: #854F0B; }
+.owner-badge-done { background: #EAF3DE; color: #3B6D11; }
+.owner-badge-hold { background: #FBEAF0; color: #993556; }
+.owner-table-wrap {
+    overflow-x: auto;
+}
+.owner-staff-table {
+    border-collapse: collapse;
+    min-width: 900px;
+    width: 100%;
+}
+.owner-staff-table th,
+.owner-staff-table td {
+    border-bottom: 1px solid var(--owner-line);
+    font-size: 12px;
+    padding: 11px 10px;
+    text-align: left;
+}
+.owner-staff-table th {
+    color: var(--owner-muted);
+    font-size: 11px;
+    text-transform: uppercase;
+}
+.owner-person {
+    align-items: center;
+    display: flex;
+    gap: 10px;
+    min-width: 190px;
+}
+.owner-avatar {
+    align-items: center;
+    border-radius: 50%;
+    color: #fff;
+    display: inline-flex;
+    font-size: 12px;
+    font-weight: 900;
+    height: 34px;
+    justify-content: center;
+    width: 34px;
+}
+.owner-avatar.cecilia { background: #D4537E; }
+.owner-avatar.klaudia { background: #5287E8; }
+.owner-avatar.ndinelao { background: #1EB980; }
+.owner-avatar.default { background: #777a88; }
+.owner-error-list {
+    display: grid;
+    gap: 8px;
+    max-height: 310px;
+    overflow: auto;
+}
+.owner-error-item {
+    border: 1px solid var(--owner-line);
+    border-radius: 10px;
+    padding: 10px;
+}
+.owner-error-item strong {
+    display: block;
+    font-size: 12px;
+    margin-bottom: 4px;
+}
+.owner-error-item small {
+    color: var(--owner-muted);
+    display: block;
+    font-size: 11px;
+}
+.owner-error-item button {
+    background: transparent;
+    border: 1px solid #d7dce8;
+    border-radius: 8px;
+    color: var(--owner-pink);
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 800;
+    margin-top: 8px;
+    padding: 6px 8px;
+}
+.owner-empty {
+    color: var(--owner-muted);
+    font-size: 13px;
+    margin: 0;
+}
+@keyframes ownerSpin { to { transform: rotate(360deg); } }
+@keyframes ownerPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(25, 191, 107, .35); }
+    50% { box-shadow: 0 0 0 7px rgba(25, 191, 107, 0); }
+}
+@media (max-width: 1260px) {
+    .owner-card-grid { grid-template-columns: repeat(3, minmax(180px, 1fr)); }
+    .owner-section-grid { grid-template-columns: 1fr; }
+    .owner-board-grid { grid-template-columns: repeat(2, minmax(180px, 1fr)); }
+}
+@media (max-width: 760px) {
+    .owner-dashboard-head { align-items: stretch; flex-direction: column; }
+    .owner-dashboard-controls { justify-content: stretch; }
+    .owner-dashboard-controls label,
+    .owner-dashboard-controls input,
+    .owner-refresh { width: 100%; }
+    .owner-card-grid,
+    .owner-board-grid { grid-template-columns: 1fr; }
+}
+body.dark-mode .owner-dashboard-head,
+body.dark-mode .owner-panel,
+body.dark-mode .owner-metric-card,
+body.dark-mode .owner-board-card,
+body.dark-mode .owner-error-item {
+    background: #171821;
+    border-color: #2a2c38;
+    color: #f6f7fb;
+}
+body.dark-mode .owner-dashboard-head p,
+body.dark-mode .owner-section-title p,
+body.dark-mode .owner-metric-card small,
+body.dark-mode .owner-dashboard-controls small,
+body.dark-mode .owner-empty,
+body.dark-mode .owner-error-item small,
+body.dark-mode .owner-staff-table th {
+    color: #a9adbc;
+}
+body.dark-mode .owner-dashboard-controls input {
+    background: #11131b;
+    border-color: #343746;
+    color: #f6f7fb;
+}
+</style>
+<script>
+window.HambelelaOwnerDashboard = <?= json_encode($ownerDashboardData, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+(function () {
+    const root = document.querySelector('[data-owner-dashboard]');
+    if (!root) return;
+
+    const endpoint = root.dataset.dashboardEndpoint;
+    const fromInput = root.querySelector('[data-owner-from]');
+    const toInput = root.querySelector('[data-owner-to]');
+    const refreshButton = root.querySelector('[data-owner-refresh]');
+    const updatedLabel = root.querySelector('[data-owner-updated]');
+    const healthNode = root.querySelector('[data-owner-health]');
+    const boardsNode = root.querySelector('[data-owner-boards]');
+    const staffNode = root.querySelector('[data-owner-staff]');
+    const errorsNode = root.querySelector('[data-owner-errors]');
+
+    const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+    }[char]));
+
+    const iconFor = (key) => ({
+        orders_today: 'shopping-bag',
+        avg_fulfillment_time: 'timer',
+        on_time_dispatch: 'send',
+        walk_ins_today: 'users',
+        avg_pack_speed: 'package-check',
+        revenue_today: 'banknote'
+    }[key] || 'activity');
+
+    function render(data) {
+        const metrics = data?.metrics || [];
+        healthNode.innerHTML = metrics.map((metric) => `
+            <article class="owner-metric-card">
+                <div class="owner-card-top">
+                    <span class="owner-card-icon"><i data-lucide="${escapeHtml(iconFor(metric.key))}"></i></span>
+                    <h3>${escapeHtml(metric.label)}</h3>
+                </div>
+                <strong>${escapeHtml(metric.value)}</strong>
+                <small>${escapeHtml(metric.subtitle)}</small>
+                <div class="owner-progress"><span style="width:${Number(metric.progress || 0)}%"></span></div>
+            </article>
+        `).join('');
+
+        const boards = data?.boards || [];
+        boardsNode.innerHTML = boards.length ? boards.map((board) => `
+            <article class="owner-board-card">
+                <h4>${escapeHtml(board.label)}</h4>
+                <div class="owner-badge-row">
+                    <span class="owner-badge owner-badge-new">New ${escapeHtml(board.new ?? 0)}</span>
+                    <span class="owner-badge owner-badge-progress">In progress ${escapeHtml(board.in_progress ?? 0)}</span>
+                    <span class="owner-badge owner-badge-done">Done ${escapeHtml(board.done ?? 0)}</span>
+                    <span class="owner-badge owner-badge-hold">Hold ${escapeHtml(board.hold ?? 0)}</span>
+                </div>
+            </article>
+        `).join('') : '<p class="owner-empty">No board data available for this date range.</p>';
+
+        const staff = data?.staff || [];
+        staffNode.innerHTML = staff.length ? staff.map((person) => `
+            <tr>
+                <td><span class="owner-person"><span class="owner-avatar ${escapeHtml(person.avatar || 'default')}">${escapeHtml(person.initials || 'HO')}</span><strong>${escapeHtml(person.name)}</strong></span></td>
+                <td>${escapeHtml(person.role)}</td>
+                <td><span class="owner-badge owner-badge-new">${escapeHtml(person.orders ?? 0)}</span></td>
+                <td><span class="owner-badge owner-badge-progress">${escapeHtml(person.packing ?? 0)}</span></td>
+                <td><span class="owner-badge owner-badge-done">${escapeHtml(person.tasks ?? 0)}</span></td>
+                <td>${escapeHtml(person.avg_time || '-')}</td>
+                <td><span class="owner-badge owner-badge-hold">${escapeHtml(person.stale_items ?? 0)}</span></td>
+                <td>${escapeHtml(person.status || 'Available')}</td>
+            </tr>
+        `).join('') : '<tr><td colspan="8">No staff records available.</td></tr>';
+
+        const errors = data?.owner_errors || [];
+        errorsNode.innerHTML = errors.length ? errors.map((error) => `
+            <article class="owner-error-item">
+                <strong>${escapeHtml(error.description)}</strong>
+                <small>${escapeHtml(error.logged_at || '')}${error.reference_type ? ' | ' + escapeHtml(error.reference_type) : ''}${error.reference_id ? ' #' + escapeHtml(error.reference_id) : ''}</small>
+                <button type="button" data-resolve-owner-error="${escapeHtml(error.id)}">Mark resolved</button>
+            </article>
+        `).join('') : '<p class="owner-empty">No unresolved owner errors.</p>';
+
+        if (updatedLabel) {
+            updatedLabel.textContent = `Updated ${new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', second: '2-digit'})}`;
+        }
+        if (window.lucide) {
+            window.lucide.createIcons();
+        }
+    }
+
+    async function loadDashboard() {
+        if (!endpoint) return;
+        refreshButton?.classList.add('is-refreshing');
+        refreshButton && (refreshButton.disabled = true);
+        try {
+            const url = new URL(endpoint, window.location.origin);
+            url.searchParams.set('from', fromInput?.value || '');
+            url.searchParams.set('to', toInput?.value || '');
+            const response = await fetch(url.toString(), {headers: {'Accept': 'application/json'}});
+            const payload = await response.json();
+            if (!payload.ok) throw new Error(payload.error || 'Dashboard refresh failed');
+            render(payload.data);
+        } catch (error) {
+            if (updatedLabel) updatedLabel.textContent = `Refresh issue: ${error.message}`;
+        } finally {
+            refreshButton?.classList.remove('is-refreshing');
+            refreshButton && (refreshButton.disabled = false);
+        }
+    }
+
+    root.addEventListener('click', async (event) => {
+        const resolveButton = event.target.closest('[data-resolve-owner-error]');
+        if (!resolveButton) return;
+        resolveButton.disabled = true;
+        try {
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {'Accept': 'application/json', 'Content-Type': 'application/json'},
+                body: JSON.stringify({action: 'resolve_owner_error', id: resolveButton.dataset.resolveOwnerError})
+            });
+            const payload = await response.json();
+            if (!payload.ok) throw new Error(payload.error || 'Could not resolve error');
+            await loadDashboard();
+        } catch (error) {
+            resolveButton.textContent = error.message;
+        }
+    });
+
+    refreshButton?.addEventListener('click', loadDashboard);
+    fromInput?.addEventListener('change', loadDashboard);
+    toInput?.addEventListener('change', loadDashboard);
+    render(window.HambelelaOwnerDashboard || {});
+})();
+</script>
+<?php endif; ?>
 <?php include BASE_PATH . '/shared/footer.php'; ?>
