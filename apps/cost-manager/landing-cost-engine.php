@@ -64,6 +64,7 @@ $transportInvoiceCards = [];
 $transportInvoiceLinesByInvoice = [];
 $packagingCostCards = [];
 $packagingCategoryTotals = [];
+$packagingLibrary = [];
 $wooSuggestions = [];
 
 function cw_money(float $amount): string
@@ -919,6 +920,8 @@ $workbookProducts = array_map(static function (array $row): array {
         'supplierCost' => round((float) ($row['supplier_cost'] ?? 0), 2),
         'transport' => round((float) ($row['transport_cost'] ?? 0), 2),
         'packaging' => round((float) ($row['packaging_cost'] ?? 0), 2),
+        'packagingId' => '',
+        'packagingName' => '',
         'landedCost' => round((float) ($row['total_cost'] ?? $row['landed_cost'] ?? 0), 2),
         'unitSize' => round($unitSize, 4),
         'totalSize' => round($unitSize, 4),
@@ -933,6 +936,8 @@ $workbookProducts = array_map(static function (array $row): array {
         'noWebsite' => false,
         'reviewFlag' => false,
         'reviewNote' => '',
+        'productType' => (string) ($row['product_type'] ?? 'Raw material'),
+        'skuLocked' => trim((string) ($row['sku'] ?? '')) !== '',
         'websiteMatch' => (string) ($row['website_match_label'] ?? 'Unmatched'),
         'warnings' => (string) ($row['warnings'] ?? ''),
     ];
@@ -1032,14 +1037,16 @@ if (isset($pdo) && cw_table_exists($pdo, 'packaging')) {
     $hasPackagingCategory = cw_column_exists($pdo, 'packaging', 'category');
     $hasPackagingStockLeft = cw_column_exists($pdo, 'packaging', 'stock_left');
     $hasPackagingNotes = cw_column_exists($pdo, 'packaging', 'notes');
+    $hasPackagingStatus = cw_column_exists($pdo, 'packaging', 'status');
     $packagingCategorySelect = $hasPackagingCategory ? 'p.category' : "'Accessories' AS category";
     $packagingStockSelect = $hasPackagingStockLeft ? 'p.stock_left' : 'p.quantity AS stock_left';
     $packagingNotesSelect = $hasPackagingNotes ? 'p.notes' : "'' AS notes";
+    $packagingStatusSelect = $hasPackagingStatus ? 'p.status' : "'active' AS status";
 
     $packagingCostCards = cw_fetch_all(
         $pdo,
         "SELECT p.id, p.name, {$packagingCategorySelect}, p.quantity, {$packagingStockSelect},
-                p.unit, p.unit_cost, p.total_cost, {$packagingNotesSelect}, p.created_at,
+                p.unit, p.unit_cost, p.total_cost, {$packagingNotesSelect}, {$packagingStatusSelect}, p.created_at,
                 COALESCE(s.name, 'Unknown supplier') AS supplier_name,
                 si.invoice_number, si.invoice_date
          FROM packaging p
@@ -1051,6 +1058,19 @@ if (isset($pdo) && cw_table_exists($pdo, 'packaging')) {
 
     foreach ($packagingCostCards as $item) {
         $category = trim((string) ($item['category'] ?? 'Accessories')) ?: 'Accessories';
+        $status = strtolower(trim((string) ($item['status'] ?? 'active'))) ?: 'active';
+        if ($status !== 'inactive') {
+            $packagingLibrary[] = [
+                'id' => (string) ($item['id'] ?? ''),
+                'name' => (string) ($item['name'] ?? 'Packaging'),
+                'type' => $category,
+                'size' => (string) ($item['unit'] ?? ''),
+                'unitCost' => round((float) ($item['unit_cost'] ?? 0), 4),
+                'supplier' => (string) ($item['supplier_name'] ?? 'Unknown supplier'),
+                'notes' => (string) ($item['notes'] ?? ''),
+                'status' => 'active',
+            ];
+        }
         if (!isset($packagingCategoryTotals[$category])) {
             $packagingCategoryTotals[$category] = ['rows' => 0, 'cost' => 0.0];
         }
@@ -1073,6 +1093,7 @@ include BASE_PATH . '/shared/sidebar.php';
         <div class="cost-workbook-badges">
             <button class="cost-workbook-badge is-active" type="button" id="navEngine" onclick="showWorkbookPage('engine')"><i data-lucide="settings"></i> Cost Engine - <?= number_format($readySteps) ?> of <?= number_format(count($accordionSteps)) ?> workflow steps ready</button>
             <button class="cost-workbook-badge" type="button" id="navTable" onclick="showWorkbookPage('table')"><i data-lucide="table-2"></i> Product Profitability Table</button>
+            <a class="cost-workbook-badge" href="packaging-manager.php"><i data-lucide="package-plus"></i> Packaging Library</a>
             <span class="cost-save-indicator" id="saveIndicator">All changes saved</span>
         </div>
     </section>
@@ -1124,6 +1145,22 @@ include BASE_PATH . '/shared/sidebar.php';
                     </div>
                 </div>
                 <div class="flow-note-eng"><strong>What happens here:</strong> <?= htmlspecialchars((string) $step['action'], ENT_QUOTES, 'UTF-8') ?></div>
+                <?php if ($step['key'] === 'landed'): ?>
+                    <div class="stat-row-eng workbook-step-summary-row">
+                        <?php foreach ($step['metrics'] as $label => $value): ?>
+                            <div class="stat-mini"><div class="label"><?= htmlspecialchars((string) $label, ENT_QUOTES, 'UTF-8') ?></div><div class="value"><?= htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') ?></div></div>
+                        <?php endforeach; ?>
+                    </div>
+                    <div class="step-fields-list step-column-toggles">
+                        <?php foreach ($step['fields'] as $field): ?><button type="button" data-cost-column-toggle><?= htmlspecialchars((string) $field, ENT_QUOTES, 'UTF-8') ?></button><?php endforeach; ?>
+                    </div>
+                <?php elseif ($step['key'] === 'product_sku'): ?>
+                    <div class="stat-row-eng workbook-step-summary-row">
+                        <?php foreach ($step['metrics'] as $label => $value): ?>
+                            <div class="stat-mini"><div class="label"><?= htmlspecialchars((string) $label, ENT_QUOTES, 'UTF-8') ?></div><div class="value"><?= htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') ?></div></div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php else: ?>
                 <div class="workbook-step-grid">
                     <article class="sub-card-eng">
                         <h3><?= htmlspecialchars((string) $step['title'], ENT_QUOTES, 'UTF-8') ?> workspace</h3>
@@ -1419,6 +1456,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         </div>
                     </article>
                 </div>
+                <?php endif; ?>
                 <?php if ($step['key'] === 'supplier'): ?>
                     <section class="saved-invoice-section">
                         <div class="saved-invoice-list-head">
@@ -1469,6 +1507,21 @@ include BASE_PATH . '/shared/sidebar.php';
                         </div>
                     </section>
                 <?php endif; ?>
+                <?php if ($step['key'] === 'product_sku'): ?>
+                    <div class="product-sku-tree-toolbar">
+                        <div>
+                            <strong>Parent products and variations</strong>
+                            <span>Each parent row can hold multiple independent variations with locked SKU, packaging and calculated unit cost.</span>
+                        </div>
+                        <a class="action-btn" href="packaging-manager.php"><i data-lucide="package-plus"></i> Packaging Library</a>
+                    </div>
+                    <div class="table-wrap workbook-step-table product-sku-tree-wrap">
+                        <table class="product-sku-tree-table">
+                            <thead><tr><th>Product / Variation</th><th>Supplier</th><th>Category</th><th>Product Type</th><th>SKU</th><th>Packaging</th><th>Cost Price</th><th>Actions</th></tr></thead>
+                            <tbody id="productSkuTreeBody"></tbody>
+                        </table>
+                    </div>
+                <?php else: ?>
                 <div class="table-wrap workbook-step-table">
                     <table>
                         <thead><tr><th>Product</th><th>Supplier</th><th>Supplier Cost</th><th>Transport</th><th>Packaging</th><th>Total Cost</th><th>Status</th></tr></thead>
@@ -1495,6 +1548,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         </tbody>
                     </table>
                 </div>
+                <?php endif; ?>
             </section>
         <?php endforeach; ?>
     </section>
@@ -1623,6 +1677,7 @@ include BASE_PATH . '/shared/sidebar.php';
 .cost-workbook-hero h1 { font-size:32px; line-height:1.1; }
 .cost-workbook-badges { display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:flex-end; max-width:720px; }
 .cost-workbook-badge { display:inline-flex; align-items:center; gap:7px; border:1.5px solid var(--cw-border); border-radius:10px; background:#f7f4f2; color:#555; padding:7px 12px; font-weight:800; font-size:12px; cursor:pointer; }
+a.cost-workbook-badge { text-decoration:none; }
 .cost-workbook-badge.is-active { background:var(--cw-pink-light); color:#d63b7a; border-color:var(--cw-pink); box-shadow:0 0 0 2px rgba(255,107,157,.12); }
 .cost-save-indicator { opacity:0; color:var(--cw-green); font-size:12px; font-weight:800; transition:.2s ease; }
 .cost-save-indicator.show { opacity:1; }
@@ -1710,10 +1765,35 @@ include BASE_PATH . '/shared/sidebar.php';
 .step-fields-list { display:flex; flex-wrap:wrap; gap:7px; margin-top:12px; }
 .step-fields-list span { background:#fff; border:1px solid var(--cw-border); border-radius:999px; padding:6px 9px; font-size:11.5px; font-weight:700; color:#655f65; }
 .stat-row-eng { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+.workbook-step-summary-row { margin:0 0 14px; }
 .stat-mini { background:#fff; border:1.5px solid var(--cw-border); border-radius:12px; padding:12px; }
 .stat-mini .label { font-size:10.5px; color:var(--cw-muted); font-weight:900; text-transform:uppercase; margin-bottom:5px; }
 .stat-mini .value { font-size:17px; font-weight:900; word-break:break-word; }
+.step-column-toggles { margin:2px 0 14px; }
+.step-column-toggles button { border:1px solid var(--cw-border); border-radius:999px; padding:7px 10px; background:#fff; color:#655f65; font-size:11.5px; font-weight:800; cursor:pointer; transition:.15s ease; }
+.step-column-toggles button:hover { border-color:var(--cw-pink); color:#d63b7a; background:var(--cw-pink-light); transform:translateY(-1px); }
+.step-column-toggles button.is-active { border-color:var(--cw-pink); background:var(--cw-pink-light); color:#d63b7a; }
 .workbook-step-table { margin-top:18px; }
+.product-sku-tree-toolbar { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin:18px 0 10px; padding:12px 14px; border:1px solid var(--cw-border); border-radius:14px; background:#fffaf7; }
+.product-sku-tree-toolbar strong { display:block; font-size:14px; }
+.product-sku-tree-toolbar span { display:block; margin-top:3px; color:var(--cw-muted); font-size:12px; font-weight:700; }
+.product-sku-tree-wrap { border:1px solid var(--cw-border); border-radius:14px; background:#fff; }
+.product-sku-tree-table { min-width:1120px; }
+.product-sku-tree-table th { background:#fff7fb; }
+.product-sku-tree-table input,
+.product-sku-tree-table select { width:100%; border:1px solid #d8dce8; border-radius:8px; background:#fff; padding:7px 8px; font:inherit; font-size:12px; }
+.product-sku-tree-table td small { display:block; margin-top:4px; color:var(--cw-muted); font-size:10.5px; font-weight:800; }
+.sku-parent-row { background:#f7faff; }
+.sku-parent-row td { border-top:2px solid #dbeafe; font-weight:800; }
+.sku-parent-row input,
+.sku-parent-row select { font-weight:800; background:#fff; }
+.sku-variation-row { background:#fff; }
+.sku-variation-row:hover { background:#f9fbff; }
+.sku-collapse-btn { width:26px; height:26px; border-radius:8px; border:1px solid #bfdbfe; background:#eff6ff; color:#2563eb; font-weight:900; margin-right:8px; cursor:pointer; }
+.sku-parent-meta { display:inline-flex; align-items:center; border-radius:999px; padding:5px 9px; background:#eaf1ff; color:#3b6fd6; font-size:11px; font-weight:900; }
+.variation-indent { display:grid; grid-template-columns:28px minmax(160px,1fr); gap:8px; align-items:center; }
+.variation-indent span { width:22px; height:18px; border-left:2px solid #bfdbfe; border-bottom:2px solid #bfdbfe; border-radius:0 0 0 8px; justify-self:end; }
+.sku-input { font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight:800; color:#4f46e5; }
 .table-wrap, .table-scroll { overflow:auto; }
 .table-wrap table { width:100%; border-collapse:collapse; min-width:760px; font-size:12.5px; }
 .table-wrap th, .table-wrap td { padding:10px; border-bottom:1px solid var(--cw-border); text-align:left; vertical-align:top; }
@@ -1851,6 +1931,7 @@ include BASE_PATH . '/shared/sidebar.php';
 var engineSteps = <?= json_encode($workbookStepData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
 var products = <?= json_encode($workbookProducts, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
 var wooSuggestions = <?= json_encode($wooSuggestionProducts, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
+var packagingLibrary = <?= json_encode($packagingLibrary, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
 var VAT_RATE = <?= json_encode($vatRate / 100) ?>;
 var TARGET_MARGIN = <?= json_encode($targetMargin) ?>;
 function showWorkbookPage(page) {
@@ -1881,7 +1962,7 @@ function buildEngineStepper() {
 function goToWorkbookStep(n) {
   var current = document.querySelector('.workbook-step-section.is-visible');
   if (current && current.getAttribute('data-step') === '5' && Number(n) === 6) {
-    var missingSku = Array.prototype.some.call(current.querySelectorAll('[data-product-sku-field="sku"]'), function (input) {
+    var missingSku = Array.prototype.some.call(current.querySelectorAll('.sku-input, [data-product-sku-field="sku"]'), function (input) {
       return !String(input.value || '').trim();
     });
     if (missingSku) {
@@ -1934,6 +2015,146 @@ function legacyStatusMatches(filterValue, status) {
 }
 function productSearchText(p) {
   return String([p.parent, p.variation, p.sku, p.category, p.supplier, p.matchedWooName, p.matchedWooSku].join(' ')).toLowerCase();
+}
+var collapsedProductParents = {};
+function productAbbreviation(name) {
+  var skip = {ORGANIC:1, RAW:1, PURE:1, REFINED:1, UNREFINED:1, ORIGIN:1, GHANA:1, NAMIBIA:1};
+  var words = String(name || 'Product').toUpperCase().replace(/[^A-Z0-9 ]+/g, ' ').split(/\s+/).filter(function(word){ return word && !skip[word]; });
+  var prefix = words.map(function(word){ return word.charAt(0); }).join('').slice(0, 4);
+  return prefix || 'PRD';
+}
+function variationSkuPart(value) {
+  return String(value || 'VAR').toUpperCase().replace(/\s+/g, '').replace(/[^A-Z0-9]+/g, '');
+}
+function autoSkuForProduct(p) {
+  return productAbbreviation(p.parent) + '-' + variationSkuPart(p.variation);
+}
+function ensureSku(p) {
+  if (!p.skuLocked) {
+    p.sku = autoSkuForProduct(p);
+  }
+}
+function packagingOptions(selectedId) {
+  var html = '<option value="">No packaging - N$0.00</option>';
+  packagingLibrary.forEach(function(item) {
+    var selected = String(selectedId || '') === String(item.id || '') ? ' selected' : '';
+    html += '<option value="' + esc(item.id) + '"' + selected + '>' + esc(item.name) + ' - ' + fmt(item.unitCost || 0) + '</option>';
+  });
+  return html;
+}
+function updateParentField(groupKey, field, value) {
+  products.forEach(function(p) {
+    if (String(p.parent || '') === groupKey) {
+      if (field === 'productType') p.productType = value;
+      if (field === 'category') p.category = value;
+      if (field === 'parent') p.parent = value;
+      ensureSku(p);
+    }
+  });
+  renderTable();
+  flashSaved();
+}
+function updateVariationField(idx, field, value) {
+  if (!products[idx]) return;
+  if (field === 'variation') {
+    products[idx].variation = value;
+    ensureSku(products[idx]);
+  } else if (field === 'sku') {
+    products[idx].sku = value;
+    products[idx].skuLocked = String(value || '').trim() !== '';
+  } else if (field === 'packagingId') {
+    var item = packagingLibrary.find(function(row){ return String(row.id || '') === String(value || ''); });
+    products[idx].packagingId = value || '';
+    products[idx].packagingName = item ? item.name : '';
+    products[idx].packaging = item ? Number(item.unitCost || 0) : 0;
+  } else if (field === 'productType') {
+    products[idx].productType = value;
+  }
+  renderTable();
+  flashSaved();
+}
+function toggleProductParent(key) {
+  collapsedProductParents[key] = !collapsedProductParents[key];
+  renderProductSkuTree();
+}
+function addVariation(parentName) {
+  var base = products.find(function(p){ return String(p.parent || '') === String(parentName || ''); }) || {};
+  var copy = JSON.parse(JSON.stringify(base));
+  copy.parent = parentName || 'New Product';
+  copy.variation = '';
+  copy.sku = '';
+  copy.skuLocked = false;
+  copy.packagingId = '';
+  copy.packagingName = '';
+  copy.packaging = 0;
+  copy.priceExcl = 0;
+  copy.priceIncl = 0;
+  ensureSku(copy);
+  products.push(copy);
+  collapsedProductParents[copy.parent] = false;
+  renderTable();
+  flashSaved();
+}
+function deleteParentProduct(parentName) {
+  var count = products.filter(function(p){ return String(p.parent || '') === String(parentName || ''); }).length;
+  if (!confirm('Delete "' + parentName + '" and all ' + count + ' variation(s)?')) return;
+  products = products.filter(function(p){ return String(p.parent || '') !== String(parentName || ''); });
+  renderTable();
+  flashSaved();
+}
+function deleteVariation(idx) {
+  if (!products[idx]) return;
+  if (!confirm('Remove variation "' + (products[idx].variation || products[idx].sku || 'Variation') + '"?')) return;
+  products.splice(idx, 1);
+  renderTable();
+  flashSaved();
+}
+function renderProductSkuTree() {
+  var tbody = document.getElementById('productSkuTreeBody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  var groups = {};
+  products.forEach(function(p, idx) {
+    ensureSku(p);
+    var key = String(p.parent || 'Product');
+    if (!groups[key]) groups[key] = [];
+    groups[key].push({p:p, idx:idx});
+  });
+  Object.keys(groups).sort().forEach(function(key) {
+    var rows = groups[key];
+    var first = rows[0].p;
+    var collapsed = !!collapsedProductParents[key];
+    var tr = document.createElement('tr');
+    tr.className = 'sku-parent-row';
+    tr.innerHTML =
+      '<td><button type="button" class="sku-collapse-btn" onclick=\'toggleProductParent(' + JSON.stringify(key) + ')\'>' + (collapsed ? '+' : '-') + '</button><input value="' + esc(key) + '" onblur=\'updateParentField(' + JSON.stringify(key) + ',"parent",this.value)\'></td>' +
+      '<td>' + esc(first.supplier || 'Supplier') + '</td>' +
+      '<td><input value="' + esc(first.category || 'Uncategorised') + '" onblur=\'updateParentField(' + JSON.stringify(key) + ',"category",this.value)\'></td>' +
+      '<td><select onchange=\'updateParentField(' + JSON.stringify(key) + ',"productType",this.value)\'><option' + ((first.productType || '') === 'Raw' || (first.productType || '') === 'Raw material' ? ' selected' : '') + '>Raw</option><option' + ((first.productType || '') === 'Finished' || (first.productType || '') === 'Formulated' ? ' selected' : '') + '>Finished</option><option' + ((first.productType || '') === 'Resale' || (first.productType || '') === 'Raw resale' ? ' selected' : '') + '>Resale</option></select></td>' +
+      '<td colspan="3"><span class="sku-parent-meta">' + rows.length + ' variation(s)</span></td>' +
+      '<td><button type="button" class="mini-action pink" onclick=\'addVariation(' + JSON.stringify(key) + ')\'>Add Variation</button><button type="button" class="mini-action" onclick=\'deleteParentProduct(' + JSON.stringify(key) + ')\'>Delete Parent</button></td>';
+    tbody.appendChild(tr);
+    if (collapsed) return;
+    rows.forEach(function(row) {
+      var p = row.p;
+      var c = computeRow(p);
+      var child = document.createElement('tr');
+      child.className = 'sku-variation-row';
+      child.innerHTML =
+        '<td><div class="variation-indent"><span></span><input value="' + esc(p.variation || '') + '" placeholder="500ml, 1kg, 2unit" oninput=\'updateVariationField(' + row.idx + ',"variation",this.value)\'></div></td>' +
+        '<td>' + esc(p.supplier || '-') + '</td>' +
+        '<td>' + esc(p.category || '-') + '</td>' +
+        '<td><select onchange=\'updateVariationField(' + row.idx + ',"productType",this.value)\'><option' + ((p.productType || '') === 'Raw' || (p.productType || '') === 'Raw material' ? ' selected' : '') + '>Raw</option><option' + ((p.productType || '') === 'Finished' || (p.productType || '') === 'Formulated' ? ' selected' : '') + '>Finished</option><option' + ((p.productType || '') === 'Resale' || (p.productType || '') === 'Raw resale' ? ' selected' : '') + '>Resale</option></select></td>' +
+        '<td><input class="sku-input" value="' + esc(p.sku || '') + '" onblur=\'updateVariationField(' + row.idx + ',"sku",this.value)\'><small>' + (p.skuLocked ? 'Locked SKU' : 'Auto-generated') + '</small></td>' +
+        '<td><select onchange=\'updateVariationField(' + row.idx + ',"packagingId",this.value)\'>' + packagingOptions(p.packagingId) + '</select><small>' + esc(p.packagingName || 'No packaging') + '</small></td>' +
+        '<td><strong>' + fmt(c.unitCost) + '</strong><small>Supplier ' + fmt(p.supplierCost || 0) + ' + transport ' + fmt(p.transport || 0) + ' + packaging ' + fmt(p.packaging || 0) + '</small></td>' +
+        '<td><button type="button" class="mini-action" onclick="deleteVariation(' + row.idx + ')">Remove</button></td>';
+      tbody.appendChild(child);
+    });
+  });
+  if (!Object.keys(groups).length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-state-cell">No product rows yet. Complete landed cost setup to create parent products and variations.</td></tr>';
+  }
 }
 function findWooSuggestions(query) {
   var q = String(query || '').toLowerCase().trim();
@@ -2208,6 +2429,7 @@ function renderTable() {
   setText('avgMarginDisplay', marginCount ? (marginSum / marginCount).toFixed(1) + '%' : '0.0%');
   setText('belowTargetDisplay', belowTarget);
   setText('statSupplier', fmt(grandSupplier)); setText('statTransport', fmt(grandTransport)); setText('statLanded', fmt(grandLanded)); setText('statInventory', fmt(grandLanded));
+  renderProductSkuTree();
   renderWebsiteMatching();
   renderProfitStep();
   renderFinalWorkbook();
@@ -2242,16 +2464,23 @@ function clearFilters() {
   renderTable();
 }
 document.addEventListener('click', function (event) {
+  var columnToggle = event.target.closest('[data-cost-column-toggle]');
+  if (columnToggle) {
+    columnToggle.classList.toggle('is-active');
+    return;
+  }
   var focusSku = event.target.closest('[data-focus-product-sku]');
   if (!focusSku) return;
-  var firstInput = document.querySelector('.workbook-step-section[data-step="5"] [data-product-sku-field]');
+  var firstInput = document.querySelector('.workbook-step-section[data-step="5"] .product-sku-tree-table input, .workbook-step-section[data-step="5"] [data-product-sku-field]');
   if (firstInput) {
     firstInput.focus();
     firstInput.scrollIntoView({behavior:'smooth', block:'center'});
   }
 });
 function addRow() {
-  products.push({ parent:'New Product', variation:'-', sku:'NEW-SKU-' + (products.length + 1), category:'Uncategorised', supplier:'Supplier', supplierCost:0, transport:0, packaging:0, unitSize:1, totalSize:1, unitLabel:'unit', priceExcl:0, priceIncl:0, stockQty:0, websiteMatch:'Unmatched', warnings:'', reviewFlag:false, reviewNote:'' });
+  var row = { parent:'New Product', variation:'1unit', sku:'', skuLocked:false, category:'Uncategorised', supplier:'Supplier', supplierCost:0, transport:0, packaging:0, packagingId:'', packagingName:'', productType:'Raw', unitSize:1, totalSize:1, unitLabel:'unit', priceExcl:0, priceIncl:0, stockQty:0, websiteMatch:'Unmatched', warnings:'', reviewFlag:false, reviewNote:'' };
+  ensureSku(row);
+  products.push(row);
   renderTable();
   flashSaved();
 }
