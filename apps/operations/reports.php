@@ -1410,7 +1410,7 @@ function kpi_front_is_paid(array $row): bool
 function kpi_front_is_walk_in(array $row): bool
 {
     $contact = strtolower((string) ($row['customer_contact'] ?? ''));
-    return str_contains($contact, 'walk-in') || str_contains($contact, 'walk in') || str_contains($contact, 'walkin');
+    return strpos($contact, 'walk-in') !== false || strpos($contact, 'walk in') !== false || strpos($contact, 'walkin') !== false;
 }
 
 function kpi_front_sla_due(?string $uploadedAt): ?int

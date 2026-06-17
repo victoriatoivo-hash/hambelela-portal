@@ -191,7 +191,7 @@ $orders = $ready && ops_table_exists('ops_orders') ? ops_rows(
 
 $walkInOrders = array_values(array_filter($orders, static function ($row): bool {
     $contact = strtolower((string) ($row['customer_contact'] ?? ''));
-    return str_contains($contact, 'walk-in') || str_contains($contact, 'walk in');
+    return strpos($contact, 'walk-in') !== false || strpos($contact, 'walk in') !== false || strpos($contact, 'walkin') !== false;
 }));
 $completedStatuses = ['completed', 'packed', 'verified', 'ready_for_collection', 'ready_for_courier', 'ready_for_delivery'];
 $completedOrders = array_values(array_filter($orders, static fn($row) => in_array((string) ($row['status'] ?? ''), $completedStatuses, true)));
