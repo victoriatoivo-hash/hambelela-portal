@@ -95,7 +95,9 @@ if ($activeApp === 'kpi') {
         $navItems[] = ['id' => 'operations-courier', 'label' => 'Courier', 'icon' => 'truck', 'href' => BASE_URL . '/apps/operations/courier.php'];
         $navItems[] = ['id' => 'operations-consignments', 'label' => 'Packing List', 'icon' => 'package-open', 'href' => BASE_URL . '/apps/operations/consignments.php'];
         $navItems[] = ['id' => 'operations-checklists', 'label' => 'Tasks', 'icon' => 'list-checks', 'href' => BASE_URL . '/apps/operations/checklists.php'];
-        $navItems[] = ['id' => 'operations-errors', 'label' => 'Error Log', 'icon' => 'triangle-alert', 'href' => BASE_URL . '/apps/operations/errors.php'];
+        if ($roleKey === 'front_desk_admin') {
+            $navItems[] = ['id' => 'operations-errors', 'label' => 'Error Log', 'icon' => 'triangle-alert', 'href' => BASE_URL . '/apps/operations/errors.php'];
+        }
     } elseif ($roleKey === 'packer') {
         $navItems[] = ['id' => 'operations', 'label' => 'Live Orders', 'icon' => 'table-2', 'href' => BASE_URL . '/apps/operations/orders-board.php'];
         $navItems[] = ['id' => 'operations-consignments', 'label' => 'Packing List', 'icon' => 'package-open', 'href' => BASE_URL . '/apps/operations/consignments.php'];

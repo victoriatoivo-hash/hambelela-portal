@@ -12,7 +12,11 @@ $ready = ops_database_ready();
 $message = null;
 $messageType = 'success';
 $currentEmployeeId = ops_current_employee_id();
-$canManageStatus = user_has_role('owner_admin');
+$currentRoleKey = current_role_key();
+$isOwnerErrorUser = user_has_role('owner_admin');
+$isFrontDeskErrorUser = user_has_role('front_desk_admin');
+$canManageStatus = $isOwnerErrorUser;
+$showFullErrorLog = $isOwnerErrorUser;
 
 $severityLabels = ['critical' => 'Critical', 'high' => 'High', 'medium' => 'Medium', 'low' => 'Low'];
 $statusLabels = ['open' => 'Open', 'in_review' => 'In Review', 'resolved' => 'Resolved'];
@@ -127,6 +131,14 @@ function error_people_names(array $ids, array $employeeMap, ?string $fallback = 
     return $names ? implode(', ', array_unique($names)) : 'Unassigned';
 }
 
+function error_person_filter_sql(string $alias, int $personId): array
+{
+    return [
+        "({$alias}.employee_id = ? OR {$alias}.people_involved LIKE ? OR {$alias}.people_involved LIKE ? OR {$alias}.people_involved LIKE ? OR {$alias}.people_involved LIKE ?)",
+        [$personId, '[' . $personId . ']', '[' . $personId . ',%', '%,' . $personId . ',%', '%,' . $personId . ']'],
+    ];
+}
+
 if ($ready) {
     error_bootstrap_schema();
 }
@@ -198,10 +210,15 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = 'Error logged and added to KPI tracking.';
         }
 
-        if ($action === 'update_status' && $canManageStatus) {
+        if ($action === 'update_status') {
             $errorId = (int) ($_POST['error_id'] ?? 0);
             $status = ops_post_string('status', 30);
             if (!array_key_exists($status, $statusLabels)) throw new RuntimeException('Choose a valid status.');
+            $permissionRows = ops_rows('SELECT logged_by FROM ops_error_logs WHERE id = ? LIMIT 1', [$errorId]);
+            $loggedBy = (int) ($permissionRows[0]['logged_by'] ?? 0);
+            if (!$isOwnerErrorUser && !($isFrontDeskErrorUser && $loggedBy === (int) $currentEmployeeId)) {
+                throw new RuntimeException('You can only update errors you logged yourself.');
+            }
             $stmt = db()->prepare('UPDATE ops_error_logs SET status = ? WHERE id = ?');
             $stmt->execute([$status, $errorId]);
             ops_activity_log('error_status_updated', 'error_log', $errorId, ['status' => $status]);
@@ -251,12 +268,14 @@ if (array_key_exists($filters['category'], $errorCategories)) {
 }
 if ((int) $filters['employee_id'] > 0) {
     $personId = (int) $filters['employee_id'];
-    $where[] = '(el.employee_id = ? OR el.people_involved LIKE ? OR el.people_involved LIKE ? OR el.people_involved LIKE ? OR el.people_involved LIKE ?)';
-    $params[] = $personId;
-    $params[] = '[' . $personId . ']';
-    $params[] = '[' . $personId . ',%';
-    $params[] = '%,' . $personId . ',%';
-    $params[] = '%,' . $personId . ']';
+    [$personSql, $personParams] = error_person_filter_sql('el', $personId);
+    $where[] = $personSql;
+    array_push($params, ...$personParams);
+}
+if ($isFrontDeskErrorUser && !$isOwnerErrorUser) {
+    [$frontPersonSql, $frontPersonParams] = error_person_filter_sql('el', (int) $currentEmployeeId);
+    $where[] = $frontPersonSql;
+    array_push($params, ...$frontPersonParams);
 }
 if (in_array($filters['repeat_issue'], ['0', '1'], true)) {
     $where[] = 'el.repeat_issue = ?';
@@ -287,12 +306,19 @@ $errors = $ready ? ops_rows(
     $params
 ) : [];
 
+$monthWhere = ["DATE_FORMAT(el.logged_at, '%Y-%m') = ?"];
+$monthParams = [$filters['month'] ?: date('Y-m')];
+if ($isFrontDeskErrorUser && !$isOwnerErrorUser) {
+    [$frontMonthSql, $frontMonthParams] = error_person_filter_sql('el', (int) $currentEmployeeId);
+    $monthWhere[] = $frontMonthSql;
+    array_push($monthParams, ...$frontMonthParams);
+}
 $monthRows = $ready ? ops_rows(
     "SELECT el.*, e.full_name AS primary_employee_name
      FROM ops_error_logs el
      LEFT JOIN ops_employees e ON e.id = el.employee_id
-     WHERE DATE_FORMAT(el.logged_at, '%Y-%m') = ?",
-    [$filters['month'] ?: date('Y-m')]
+     WHERE " . implode(' AND ', $monthWhere),
+    $monthParams
 ) : [];
 
 $metrics = [
@@ -364,18 +390,20 @@ include BASE_PATH . '/shared/sidebar.php';
     <?php if (!$ready) { ops_setup_notice(); } ?>
     <?php ops_flash($message, $messageType); ?>
 
-    <section class="error-metric-grid">
-        <article class="error-metric red"><i data-lucide="calendar-days"></i><span>Total Errors This Month</span><strong><?= number_format($metrics['month_total']) ?></strong></article>
-        <article class="error-metric red"><i data-lucide="siren"></i><span>Critical Errors</span><strong><?= number_format($metrics['critical']) ?></strong></article>
-        <article class="error-metric orange"><i data-lucide="triangle-alert"></i><span>High Severity</span><strong><?= number_format($metrics['high']) ?></strong></article>
-        <article class="error-metric blue"><i data-lucide="info"></i><span>Medium Severity</span><strong><?= number_format($metrics['medium']) ?></strong></article>
-        <article class="error-metric green"><i data-lucide="badge-check"></i><span>Low Severity</span><strong><?= number_format($metrics['low']) ?></strong></article>
-        <article class="error-metric purple"><i data-lucide="repeat-2"></i><span>Repeat Errors</span><strong><?= number_format($metrics['repeat']) ?></strong></article>
-        <article class="error-metric orange"><i data-lucide="message-circle-warning"></i><span>Customer Impacting</span><strong><?= number_format($metrics['customer']) ?></strong></article>
-        <article class="error-metric teal"><i data-lucide="check-circle-2"></i><span>Errors Resolved</span><strong><?= number_format($metrics['resolved']) ?></strong></article>
-        <article class="error-metric blue wide"><i data-lucide="layers"></i><span>Most Common Category</span><strong><?= htmlspecialchars($metrics['common_category'], ENT_QUOTES, 'UTF-8') ?></strong></article>
-        <article class="error-metric purple wide"><i data-lucide="user-round-x"></i><span>Employee With Most Logged Errors</span><strong><?= htmlspecialchars($metrics['top_employee'], ENT_QUOTES, 'UTF-8') ?></strong></article>
-    </section>
+    <?php if ($showFullErrorLog): ?>
+        <section class="error-metric-grid">
+            <article class="error-metric red"><i data-lucide="calendar-days"></i><span>Total Errors This Month</span><strong><?= number_format($metrics['month_total']) ?></strong></article>
+            <article class="error-metric red"><i data-lucide="siren"></i><span>Critical Errors</span><strong><?= number_format($metrics['critical']) ?></strong></article>
+            <article class="error-metric orange"><i data-lucide="triangle-alert"></i><span>High Severity</span><strong><?= number_format($metrics['high']) ?></strong></article>
+            <article class="error-metric blue"><i data-lucide="info"></i><span>Medium Severity</span><strong><?= number_format($metrics['medium']) ?></strong></article>
+            <article class="error-metric green"><i data-lucide="badge-check"></i><span>Low Severity</span><strong><?= number_format($metrics['low']) ?></strong></article>
+            <article class="error-metric purple"><i data-lucide="repeat-2"></i><span>Repeat Errors</span><strong><?= number_format($metrics['repeat']) ?></strong></article>
+            <article class="error-metric orange"><i data-lucide="message-circle-warning"></i><span>Customer Impacting</span><strong><?= number_format($metrics['customer']) ?></strong></article>
+            <article class="error-metric teal"><i data-lucide="check-circle-2"></i><span>Errors Resolved</span><strong><?= number_format($metrics['resolved']) ?></strong></article>
+            <article class="error-metric blue wide"><i data-lucide="layers"></i><span>Most Common Category</span><strong><?= htmlspecialchars($metrics['common_category'], ENT_QUOTES, 'UTF-8') ?></strong></article>
+            <article class="error-metric purple wide"><i data-lucide="user-round-x"></i><span>Employee With Most Logged Errors</span><strong><?= htmlspecialchars($metrics['top_employee'], ENT_QUOTES, 'UTF-8') ?></strong></article>
+        </section>
+    <?php endif; ?>
 
     <details class="panel error-filter-panel" <?= $filtersAreActive ? 'open' : '' ?>>
         <summary><span><i data-lucide="sliders-horizontal"></i> Filters</span><strong><?= $filtersAreActive ? 'Active' : 'Collapsed' ?></strong></summary>
@@ -386,7 +414,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 <label>Date to<input type="date" name="date_to" value="<?= htmlspecialchars($filters['date_to'], ENT_QUOTES, 'UTF-8') ?>"></label>
                 <label>Severity<select name="severity"><option value="">All severity</option><?php ops_select_options($severityLabels, $filters['severity']); ?></select></label>
                 <label>Category<select name="category"><option value="">All categories</option><?php ops_select_options($errorCategories, $filters['category']); ?></select></label>
-                <label>Person involved<select name="employee_id"><option value="">All people</option><?php foreach ($employees as $employee): ?><option value="<?= (int) $employee['id'] ?>" <?= (string) $employee['id'] === $filters['employee_id'] ? 'selected' : '' ?>><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></label>
+                <?php if ($showFullErrorLog): ?><label>Person involved<select name="employee_id"><option value="">All people</option><?php foreach ($employees as $employee): ?><option value="<?= (int) $employee['id'] ?>" <?= (string) $employee['id'] === $filters['employee_id'] ? 'selected' : '' ?>><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></label><?php endif; ?>
                 <label>Repeat error<select name="repeat_issue"><?php ops_select_options(['' => 'All', '1' => 'Yes', '0' => 'No'], $filters['repeat_issue']); ?></select></label>
                 <label>Customer impacted<select name="customer_impacted"><?php ops_select_options(['' => 'All', '1' => 'Yes', '0' => 'No'], $filters['customer_impacted']); ?></select></label>
                 <label>Order ID<input name="order_reference" value="<?= htmlspecialchars($filters['order_reference'], ENT_QUOTES, 'UTF-8') ?>" placeholder="#33863 or WEB-33780"></label>
@@ -398,9 +426,13 @@ include BASE_PATH . '/shared/sidebar.php';
 
     <section class="panel error-list-panel">
         <div class="section-row"><h2>Recent Errors</h2><span class="status"><?= number_format(count($errors)) ?> shown</span></div>
-        <div class="error-table">
+        <div class="error-table <?= $showFullErrorLog ? '' : 'error-table-simple' ?>">
             <div class="error-table-head">
-                <span>Date</span><span>Error Title</span><span>Order ID</span><span>Category</span><span>Severity</span><span>Person Involved</span><span>Customer Impact</span><span>Status</span><span>Repeat</span><span>Logged By</span>
+                <?php if ($showFullErrorLog): ?>
+                    <span>Date</span><span>Error Title</span><span>Order ID</span><span>Category</span><span>Severity</span><span>Person Involved</span><span>Customer Impact</span><span>Status</span><span>Repeat</span><span>Logged By</span>
+                <?php else: ?>
+                    <span>Date</span><span>Error Title</span><span>Order ID</span><span>Severity</span><span>Status</span>
+                <?php endif; ?>
             </div>
             <?php foreach ($errors as $error): ?>
                 <?php
@@ -411,16 +443,24 @@ include BASE_PATH . '/shared/sidebar.php';
                 $status = (string) ($error['status'] ?? 'open');
                 ?>
                 <button class="error-row" type="button" data-error-open="<?= (int) $error['id'] ?>">
-                    <span><?= error_date_label((string) ($error['logged_at'] ?? '')) ?></span>
-                    <strong><?= htmlspecialchars((string) ($error['error_title'] ?: ($errorCategories[(string) $error['category']] ?? $error['category'])), ENT_QUOTES, 'UTF-8') ?></strong>
-                    <span><?= htmlspecialchars((string) ($error['order_reference'] ?: $error['order_id'] ?: '-'), ENT_QUOTES, 'UTF-8') ?></span>
-                    <span><?= htmlspecialchars($errorCategories[(string) $error['category']] ?? (string) $error['category'], ENT_QUOTES, 'UTF-8') ?></span>
-                    <em class="error-severity severity-<?= htmlspecialchars($severity, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($severityLabels[$severity] ?? $severity, ENT_QUOTES, 'UTF-8') ?></em>
-                    <span><?= htmlspecialchars($peopleText, ENT_QUOTES, 'UTF-8') ?></span>
-                    <span><?= trim((string) ($error['customer_impact'] ?? '')) !== '' ? 'Yes' : 'No' ?></span>
-                    <em class="error-status status-<?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($statusLabels[$status] ?? $status, ENT_QUOTES, 'UTF-8') ?></em>
-                    <span><?= (int) ($error['repeat_issue'] ?? 0) === 1 ? 'Yes' : 'No' ?></span>
-                    <span><?= htmlspecialchars((string) ($error['logged_by_name'] ?? 'System'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <?php if ($showFullErrorLog): ?>
+                        <span><?= error_date_label((string) ($error['logged_at'] ?? '')) ?></span>
+                        <strong><?= htmlspecialchars((string) ($error['error_title'] ?: ($errorCategories[(string) $error['category']] ?? $error['category'])), ENT_QUOTES, 'UTF-8') ?></strong>
+                        <span><?= htmlspecialchars((string) ($error['order_reference'] ?: $error['order_id'] ?: '-'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <span><?= htmlspecialchars($errorCategories[(string) $error['category']] ?? (string) $error['category'], ENT_QUOTES, 'UTF-8') ?></span>
+                        <em class="error-severity severity-<?= htmlspecialchars($severity, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($severityLabels[$severity] ?? $severity, ENT_QUOTES, 'UTF-8') ?></em>
+                        <span><?= htmlspecialchars($peopleText, ENT_QUOTES, 'UTF-8') ?></span>
+                        <span><?= trim((string) ($error['customer_impact'] ?? '')) !== '' ? 'Yes' : 'No' ?></span>
+                        <em class="error-status status-<?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($statusLabels[$status] ?? $status, ENT_QUOTES, 'UTF-8') ?></em>
+                        <span><?= (int) ($error['repeat_issue'] ?? 0) === 1 ? 'Yes' : 'No' ?></span>
+                        <span><?= htmlspecialchars((string) ($error['logged_by_name'] ?? 'System'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <?php else: ?>
+                        <span><?= error_date_label((string) ($error['logged_at'] ?? '')) ?></span>
+                        <strong><?= htmlspecialchars((string) ($error['error_title'] ?: ($errorCategories[(string) $error['category']] ?? $error['category'])), ENT_QUOTES, 'UTF-8') ?></strong>
+                        <span><?= htmlspecialchars((string) ($error['order_reference'] ?: $error['order_id'] ?: '-'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <em class="error-severity severity-<?= htmlspecialchars($severity, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($severityLabels[$severity] ?? $severity, ENT_QUOTES, 'UTF-8') ?></em>
+                        <em class="error-status status-<?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($statusLabels[$status] ?? $status, ENT_QUOTES, 'UTF-8') ?></em>
+                    <?php endif; ?>
                 </button>
             <?php endforeach; ?>
             <?php if (!$errors): ?><p class="task-empty">No matching errors found for the selected filters.</p><?php endif; ?>
@@ -506,6 +546,7 @@ include BASE_PATH . '/shared/sidebar.php';
         $attachments = error_json_array((string) ($error['attachment_paths'] ?? ''));
         $severity = (string) ($error['severity'] ?? 'low');
         $status = (string) ($error['status'] ?? 'open');
+        $canUpdateThisError = $isOwnerErrorUser || ($isFrontDeskErrorUser && (int) ($error['logged_by'] ?? 0) === (int) $currentEmployeeId);
         ?>
         <aside class="error-detail-panel" data-error-panel="<?= $errorId ?>" aria-hidden="true">
             <div class="task-detail-head">
@@ -521,7 +562,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 <div><span>Category</span><strong><?= htmlspecialchars($errorCategories[(string) $error['category']] ?? (string) $error['category'], ENT_QUOTES, 'UTF-8') ?></strong></div>
                 <div><span>Repeat error</span><strong><?= (int) ($error['repeat_issue'] ?? 0) === 1 ? 'Yes' : 'No' ?></strong></div>
             </div>
-            <?php if ($canManageStatus): ?>
+            <?php if ($canUpdateThisError): ?>
                 <form method="post" class="task-admin-edit">
                     <input type="hidden" name="action" value="update_status">
                     <input type="hidden" name="error_id" value="<?= $errorId ?>">
