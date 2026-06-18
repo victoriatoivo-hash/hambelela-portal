@@ -101,22 +101,29 @@ function bsp_upload_file(string $field, string $dir, array $extensions): array
 
 function bsp_extract_pdf_text(string $path): array
 {
-    $rawText = '';
     $method = 'none';
-    $documentRoot = rtrim((string) ($_SERVER['DOCUMENT_ROOT'] ?? BASE_PATH), '/\\');
-    $autoload = $documentRoot . '/vendor/autoload.php';
-    if (is_file($autoload)) {
-        require_once $autoload;
-        if (class_exists(\Smalot\PdfParser\Parser::class)) {
-            try {
-                $parser = new \Smalot\PdfParser\Parser();
-                $pdf = $parser->parseFile($path);
-                $rawText = (string) $pdf->getText();
-                $method = 'pdfparser';
-            } catch (Exception $e) {
-                $rawText = '';
-            }
+    $pdf_path = $path;
+    $rawText = '';
+
+    // Load pdfparser from home directory
+    $autoloadPath = '/home/hambele1/vendor/autoload.php';
+    if (file_exists($autoloadPath)) {
+        require_once $autoloadPath;
+        try {
+            $parser  = new \Smalot\PdfParser\Parser();
+            $pdf     = $parser->parseFile($pdf_path);
+            $rawText = $pdf->getText();
+        } catch (Exception $e) {
+            $rawText = '';
         }
+    }
+
+    if (empty(trim($rawText))) {
+        $parseError = 'Could not extract text from PDF.';
+    }
+
+    if (trim($rawText) !== '') {
+        $method = 'pdfparser';
     }
 
     if (trim($rawText) === '') {
@@ -143,8 +150,7 @@ function bsp_extract_pdf_text(string $path): array
 
 function bsp_pdf_debug_info(string $path): array
 {
-    $documentRoot = rtrim((string) ($_SERVER['DOCUMENT_ROOT'] ?? BASE_PATH), '/\\');
-    $autoload = $documentRoot . '/vendor/autoload.php';
+    $autoload = '/home/hambele1/vendor/autoload.php';
     $pdftotextStatus = 'NOT FOUND';
     $rawOutput = '';
     $purePhpOutput = extractTextFromPDF($path);
