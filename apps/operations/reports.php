@@ -3510,10 +3510,27 @@ include BASE_PATH . '/shared/sidebar.php';
                     <div class="owner-section-title">
                         <div>
                             <h3>Board Status</h3>
-                            <p>Current state across the operational boards.</p>
+                            <p>One row per employee summarising live board workload.</p>
                         </div>
                     </div>
-                    <div class="owner-board-grid" data-owner-boards></div>
+                    <div class="owner-table-wrap">
+                        <table class="owner-staff-table owner-board-status-table">
+                            <thead>
+                                <tr>
+                                    <th>Employee</th>
+                                    <th>Role</th>
+                                    <th>Order Board</th>
+                                    <th>Packing List</th>
+                                    <th>Checklist</th>
+                                    <th>Mode</th>
+                                    <th>Avg Time</th>
+                                    <th>Stale</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody data-owner-boards></tbody>
+                        </table>
+                    </div>
                     <div class="owner-mode-panel">
                         <div class="owner-section-title owner-section-title-compact">
                             <div>
@@ -4358,6 +4375,18 @@ include BASE_PATH . '/shared/sidebar.php';
     font-size: 14px;
     margin: 0;
 }
+.owner-board-status-table {
+    min-width: 980px;
+}
+.owner-person-stack {
+    display: grid;
+    gap: 2px;
+}
+.owner-person-stack small {
+    color: var(--owner-muted);
+    font-size: 11px;
+    font-weight: 700;
+}
 .owner-board-summary {
     color: var(--owner-muted);
     font-size: 12px;
@@ -4566,63 +4595,10 @@ window.HambelelaOwnerDashboard = <?= json_encode($ownerDashboardData, JSON_UNESC
         revenue_today: 'banknote'
     }[key] || 'activity');
 
-    const boardColumns = {
-        orders: [
-            ['new', 'New', 'owner-badge-new'],
-            ['in_progress', 'In Progress', 'owner-badge-progress'],
-            ['done', 'Done', 'owner-badge-done'],
-            ['hold', 'Hold', 'owner-badge-hold'],
-            ['walk_ins', 'Walk-ins', 'owner-badge-new'],
-            ['avg_time', 'Avg', 'owner-badge-neutral']
-        ],
-        packing_board: [
-            ['new', 'New', 'owner-badge-new'],
-            ['in_progress', 'In Progress', 'owner-badge-progress'],
-            ['done', 'Done', 'owner-badge-done'],
-            ['stale', 'Stale', 'owner-badge-hold'],
-            ['avg_time', 'Avg', 'owner-badge-neutral']
-        ],
-        packing_list: [
-            ['total_items', 'Total', 'owner-badge-new'],
-            ['done', 'Done', 'owner-badge-done'],
-            ['in_progress', 'In Progress', 'owner-badge-progress'],
-            ['not_started', 'Not Started', 'owner-badge-neutral'],
-            ['inventory_updated', 'Inventory Updated', 'owner-badge-done'],
-            ['avg_time', 'Avg', 'owner-badge-neutral']
-        ],
-        checklist: [
-            ['new', 'New', 'owner-badge-new'],
-            ['in_progress', 'In Progress', 'owner-badge-progress'],
-            ['done', 'Done', 'owner-badge-done'],
-            ['hold', 'Overdue', 'owner-badge-hold']
-        ]
+    const metricBadge = (value, activeClass) => {
+        const count = Number(value || 0);
+        return `<span class="owner-badge ${count > 0 ? activeClass : 'owner-badge-neutral'}">${escapeHtml(count)}</span>`;
     };
-
-    function rowHasActivity(row, columns) {
-        return columns.some(([key]) => key === 'avg_time' ? row[key] && row[key] !== '-' : Number(row[key] || 0) > 0);
-    }
-
-    function renderBoardRow(board, row) {
-        const columns = boardColumns[board.key] || [];
-        const active = rowHasActivity(row, columns);
-        const badges = active
-            ? columns.map(([key, label, className]) => {
-                const value = key === 'avg_time' ? (row[key] || '-') : Number(row[key] || 0);
-                if (key !== 'avg_time' && Number(value) <= 0) return '';
-                if (key === 'avg_time' && (!value || value === '-')) return '';
-                return `<span class="owner-badge ${className}">${escapeHtml(label)} ${escapeHtml(value)}</span>`;
-            }).join('')
-            : '<span class="owner-no-activity">No activity today</span>';
-        return `
-            <div class="owner-board-row">
-                <span class="owner-board-person">
-                    <strong>${escapeHtml(row.name || 'Employee')}</strong>
-                    <small>${escapeHtml(row.role_key || 'team')}</small>
-                </span>
-                <span class="owner-badge-row">${badges}</span>
-            </div>
-        `;
-    }
 
     function render(data) {
         const metrics = data?.metrics || [];
@@ -4638,14 +4614,25 @@ window.HambelelaOwnerDashboard = <?= json_encode($ownerDashboardData, JSON_UNESC
             </article>
         `).join('');
 
-        const boards = data?.boards || [];
-        boardsNode.innerHTML = boards.length ? boards.map((board) => `
-            <article class="owner-board-card">
-                <h4>${escapeHtml(board.label)}</h4>
-                <p class="owner-board-summary">${escapeHtml(board.summary || '')}</p>
-                ${(board.rows || []).map((row) => renderBoardRow(board, row)).join('') || '<span class="owner-no-activity">No staff activity today</span>'}
-            </article>
-        `).join('') : '<p class="owner-empty">No board data available for this date range.</p>';
+        const boardRows = data?.board_status || [];
+        boardsNode.innerHTML = boardRows.length ? boardRows.map((person) => `
+            <tr>
+                <td>
+                    <span class="owner-person">
+                        <span class="owner-avatar ${escapeHtml(person.avatar || 'default')}">${escapeHtml(person.initials || 'HO')}</span>
+                        <span class="owner-person-stack"><strong>${escapeHtml(person.name)}</strong><small>${escapeHtml(person.role)}</small></span>
+                    </span>
+                </td>
+                <td>${escapeHtml(person.role)}</td>
+                <td>${metricBadge(person.order_board, 'owner-badge-new')}</td>
+                <td>${metricBadge(person.packing_list, 'owner-badge-progress')}</td>
+                <td>${metricBadge(person.checklist, 'owner-badge-done')}</td>
+                <td>${Number(person.mode || 0) > 0 ? escapeHtml(person.mode) : '-'}</td>
+                <td>${escapeHtml(person.avg_time || '-')}</td>
+                <td>${metricBadge(person.stale, 'owner-badge-hold')}</td>
+                <td>${escapeHtml(person.status || 'Available')}</td>
+            </tr>
+        `).join('') : '<tr><td colspan="9">No board status records available.</td></tr>';
 
         const modeRows = data?.mode?.rows || [];
         const modeSummary = data?.mode?.summary || {};

@@ -156,6 +156,12 @@ function owner_dashboard_average_duration(array $minutes): string
     return $minutes ? owner_dashboard_duration(array_sum($minutes) / count($minutes)) : '-';
 }
 
+function owner_dashboard_is_stale(?string $updatedAt, string $now, int $hours = 24): bool
+{
+    $minutes = owner_dashboard_minutes($updatedAt, $now);
+    return $minutes !== null && $minutes > ($hours * 60);
+}
+
 function owner_dashboard_count_rows(string $table, string $dateColumn, string $start, string $end, string $extra = '', array $params = []): int
 {
     if (!ops_table_exists($table)) {
@@ -255,6 +261,29 @@ function owner_dashboard_build(string $fromDate, string $toDate): array
         }
     }
 
+    $boardStatusRows = [];
+    $boardDurations = [];
+    foreach ($employeeRows as $employee) {
+        $id = (int) $employee['id'];
+        $name = (string) $employee['full_name'];
+        $boardStatusRows[$id] = [
+            'employee_id' => $id,
+            'name' => $name,
+            'initials' => implode('', array_map(static fn (string $part): string => strtoupper(substr($part, 0, 1)), array_slice(preg_split('/\s+/', trim($name)) ?: ['?'], 0, 2))),
+            'avatar' => owner_dashboard_employee_slug($name),
+            'role' => (string) ($employee['role_name'] ?? '-'),
+            'role_key' => (string) ($employee['role_key'] ?? ''),
+            'order_board' => 0,
+            'packing_list' => 0,
+            'checklist' => 0,
+            'mode' => 0,
+            'avg_time' => '-',
+            'stale' => 0,
+            'status' => ((string) ($employee['availability_status'] ?? 'available')) === 'available' ? 'Active' : 'Away',
+        ];
+        $boardDurations[$id] = [];
+    }
+
     $orderBoardRows = [];
     $orderPackDurations = [];
     foreach ($orderEmployees as $id => $employee) {
@@ -285,6 +314,15 @@ function owner_dashboard_build(string $fromDate, string $toDate): array
         } elseif ($statusKey === 'done' && $primaryId && isset($orderBoardRows[$primaryId])) {
             $orderBoardRows[$primaryId]['done']++;
         }
+        $orderBoardEmployeeId = $assignedId ?: $primaryId;
+        if ($orderBoardEmployeeId && isset($boardStatusRows[$orderBoardEmployeeId])) {
+            if ($statusKey === 'progress' || owner_dashboard_is_hold_status($status)) {
+                $boardStatusRows[$orderBoardEmployeeId]['order_board']++;
+            }
+            if ($statusKey !== 'done' && owner_dashboard_is_stale((string) ($order['updated_at'] ?? $order['created_at']), $now)) {
+                $boardStatusRows[$orderBoardEmployeeId]['stale']++;
+            }
+        }
 
         if ($isWalkin) {
             foreach ($frontDeskEmployees as $frontId => $_frontEmployee) {
@@ -294,9 +332,11 @@ function owner_dashboard_build(string $fromDate, string $toDate): array
         if ($doneEmployeeId && isset($orderPackDurations[$doneEmployeeId]) && !empty($lastProgressByOrder[$orderId]['occurred_at']) && !empty($doneByOrder[$orderId]['occurred_at'])) {
             $duration = owner_dashboard_minutes((string) $lastProgressByOrder[$orderId]['occurred_at'], (string) $doneByOrder[$orderId]['occurred_at']);
             if ($duration !== null) $orderPackDurations[$doneEmployeeId][] = $duration;
+            if (isset($boardDurations[$doneEmployeeId])) $boardDurations[$doneEmployeeId][] = $duration;
         } elseif ($primaryId && isset($orderPackDurations[$primaryId]) && !empty($order['packing_started_at']) && !empty($order['completed_at'])) {
             $duration = owner_dashboard_minutes((string) $order['packing_started_at'], (string) $order['completed_at']);
             if ($duration !== null) $orderPackDurations[$primaryId][] = $duration;
+            if ($duration !== null && isset($boardDurations[$primaryId])) $boardDurations[$primaryId][] = $duration;
         }
         if (!empty($order['completed_at'])) {
             $duration = owner_dashboard_minutes((string) $order['created_at'], (string) $order['completed_at']);
@@ -357,6 +397,16 @@ function owner_dashboard_build(string $fromDate, string $toDate): array
             if (!empty($row['date_loaded']) && !empty($row['date_completed'])) {
                 $duration = owner_dashboard_minutes((string) $row['date_loaded'], (string) $row['date_completed']);
                 if ($duration !== null) $packingDurations[$employeeId][] = $duration;
+                if ($duration !== null && isset($boardDurations[$employeeId])) $boardDurations[$employeeId][] = $duration;
+            }
+        }
+        if ($employeeId && isset($boardStatusRows[$employeeId])) {
+            $packingIsStale = $statusKey !== 'done' && owner_dashboard_is_stale((string) ($row['updated_at'] ?? $row['date_loaded']), $now);
+            if ($statusKey === 'progress' || $packingIsStale) {
+                $boardStatusRows[$employeeId]['packing_list']++;
+            }
+            if ($packingIsStale) {
+                $boardStatusRows[$employeeId]['stale']++;
             }
         }
         if (isset($packingListRows[$employeeId])) {
@@ -392,17 +442,20 @@ function owner_dashboard_build(string $fromDate, string $toDate): array
         $status = (string) ($task['status'] ?? '');
         if (!empty($task['deadline']) && empty($task['completed_at']) && strtotime((string) $task['deadline']) < time()) {
             $checklistRows[$employeeId]['hold']++;
+            if (isset($boardStatusRows[$employeeId])) $boardStatusRows[$employeeId]['checklist']++;
         } elseif (owner_dashboard_is_done_status($status)) {
             $checklistRows[$employeeId]['done']++;
         } elseif (owner_dashboard_is_progress_status($status)) {
             $checklistRows[$employeeId]['in_progress']++;
+            if (isset($boardStatusRows[$employeeId])) $boardStatusRows[$employeeId]['checklist']++;
         } else {
             $checklistRows[$employeeId]['new']++;
         }
     }
 
     $modeRows = [];
-    foreach ($orderEmployees as $id => $employee) {
+    foreach ($employeeRows as $employee) {
+        $id = (int) $employee['id'];
         $modeRows[$id] = ['employee_id' => $id, 'name' => (string) $employee['full_name'], 'courier' => 0, 'collection' => 0, 'total' => 0];
     }
     foreach ($orders as $order) {
@@ -414,9 +467,15 @@ function owner_dashboard_build(string $fromDate, string $toDate): array
         if (strpos($mode, 'courier') !== false || strpos($mode, 'delivery') !== false) {
             $modeRows[$handledBy]['courier']++;
             $modeRows[$handledBy]['total']++;
+            if (isset($boardStatusRows[$handledBy])) $boardStatusRows[$handledBy]['mode']++;
         } elseif (strpos($mode, 'collection') !== false || strpos($mode, 'walk') !== false) {
             $modeRows[$handledBy]['collection']++;
             $modeRows[$handledBy]['total']++;
+        }
+    }
+    foreach ($boardDurations as $employeeId => $durations) {
+        if (isset($boardStatusRows[$employeeId])) {
+            $boardStatusRows[$employeeId]['avg_time'] = owner_dashboard_average_duration($durations);
         }
     }
     $modeRows = array_values(array_filter($modeRows, static fn (array $row): bool => (int) $row['total'] > 0));
@@ -475,6 +534,7 @@ function owner_dashboard_build(string $fromDate, string $toDate): array
             'summary' => $modeSummary,
             'rows' => $modeRows,
         ],
+        'board_status' => array_values($boardStatusRows),
         'staff' => array_map(static function (array $employee) use ($orderBoardRows, $packingListRows, $checklistRows): array {
             $id = (int) $employee['id'];
             return [
