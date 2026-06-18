@@ -100,8 +100,12 @@ function bsp_read_csv_headers(string $path): array
         return [];
     }
 
-    $headers = array_map(static fn ($value): string => trim((string) $value), $headers);
-    $headers = array_values(array_filter($headers, static fn (string $value): bool => $value !== ''));
+    $headers = array_map(static function ($value): string {
+        return trim((string) $value);
+    }, $headers);
+    $headers = array_values(array_filter($headers, static function (string $value): bool {
+        return $value !== '';
+    }));
 
     return $headers;
 }
@@ -117,7 +121,7 @@ function bsp_amount_to_float(?string $value): ?float
         return null;
     }
 
-    $negative = str_contains($value, '(') || str_starts_with($value, '-');
+    $negative = strpos($value, '(') !== false || strpos($value, '-') === 0;
     $clean = preg_replace('/[^0-9.]/', '', str_replace(',', '', $value));
     if ($clean === '' || $clean === null) {
         return null;
@@ -197,7 +201,9 @@ function bsp_parse_fnb_transactions(string $text): array
             continue;
         }
 
-        $numeric = array_map(static fn (array $match): ?float => bsp_amount_to_float((string) $match[0]), $lastAmounts);
+        $numeric = array_map(static function (array $match): ?float {
+            return bsp_amount_to_float((string) $match[0]);
+        }, $lastAmounts);
         if (count($numeric) === 2) {
             [$transactionAmount, $balance] = $numeric;
             $debit = null;
@@ -297,15 +303,22 @@ function bsp_default_mapping(array $headers): array
 
 function bsp_source_value(array $row, string $source): string
 {
-    return match ($source) {
-        'date' => (string) $row['date'],
-        'description' => (string) $row['description'],
-        'debit' => bsp_format_amount($row['debit']),
-        'credit' => bsp_format_amount($row['credit']),
-        'amount' => bsp_format_amount($row['amount'], true),
-        'balance' => bsp_format_amount($row['balance'], true),
-        default => '',
-    };
+    switch ($source) {
+        case 'date':
+            return (string) $row['date'];
+        case 'description':
+            return (string) $row['description'];
+        case 'debit':
+            return bsp_format_amount($row['debit']);
+        case 'credit':
+            return bsp_format_amount($row['credit']);
+        case 'amount':
+            return bsp_format_amount($row['amount'], true);
+        case 'balance':
+            return bsp_format_amount($row['balance'], true);
+        default:
+            return '';
+    }
 }
 
 function bsp_mapped_rows(array $headers, array $mapping, array $transactions): array
