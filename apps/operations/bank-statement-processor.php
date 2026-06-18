@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/operations.php';
+require_once __DIR__ . '/lib/pdf-extract.php';
 require_once BASE_PATH . '/shared/pdf-extractor.php';
 
 require_role('owner_admin', 'front_desk_admin');
@@ -119,17 +120,25 @@ function bsp_extract_pdf_text(string $path): array
     }
 
     if (trim($rawText) === '') {
-        $command = 'pdftotext -layout ' . escapeshellarg($path) . ' - 2>&1';
-        $output = function_exists('shell_exec') ? shell_exec($command) : null;
-        $rawText = is_string($output) ? $output : '';
+        $rawText = function_exists('shell_exec')
+            ? (string) @shell_exec('pdftotext -layout ' . escapeshellarg($path) . ' - 2>&1')
+            : '';
+        if (strpos($rawText, 'not found') !== false) {
+            $rawText = '';
+        }
         $method = 'pdftotext';
+    }
+
+    if (trim($rawText) === '') {
+        $rawText = extractTextFromPDF($path);
+        $method = 'pure_php';
     }
 
     if (trim($rawText) !== '') {
         return ['ok' => true, 'text' => trim($rawText), 'method' => $method];
     }
 
-    return ['ok' => false, 'text' => '', 'method' => $method, 'error' => 'Could not extract any text from this PDF. See debug info below.'];
+    return ['ok' => false, 'text' => '', 'method' => $method, 'error' => 'Could not extract text from PDF. The file may be a scanned image. See debug info below.'];
 }
 
 function bsp_pdf_debug_info(string $path): array
@@ -138,6 +147,7 @@ function bsp_pdf_debug_info(string $path): array
     $autoload = $documentRoot . '/vendor/autoload.php';
     $pdftotextStatus = 'NOT FOUND';
     $rawOutput = '';
+    $purePhpOutput = extractTextFromPDF($path);
 
     if (function_exists('shell_exec')) {
         $which = shell_exec('which pdftotext 2>&1');
@@ -154,6 +164,7 @@ function bsp_pdf_debug_info(string $path): array
         'pdfparser_available' => is_file($autoload) ? 'YES' : 'NO - composer not run',
         'pdftotext_available' => $pdftotextStatus,
         'raw_pdftotext_output' => substr($rawOutput, 0, 3000),
+        'pure_php_output' => substr($purePhpOutput, 0, 500),
         'pdf_file_size' => is_file($path) ? filesize($path) . ' bytes' : 'File not found',
         'pdf_mime_type' => function_exists('mime_content_type') && is_file($path) ? (string) mime_content_type($path) : 'Unknown',
     ];
@@ -592,6 +603,8 @@ include BASE_PATH . '/shared/sidebar.php';
                         <dd><?= htmlspecialchars((string) ($state['debug_info']['pdf_mime_type'] ?? ''), ENT_QUOTES, 'UTF-8') ?></dd>
                         <dt>Raw pdftotext output (first 3000 characters)</dt>
                         <dd><pre><?= htmlspecialchars((string) ($state['debug_info']['raw_pdftotext_output'] ?? ''), ENT_QUOTES, 'UTF-8') ?></pre></dd>
+                        <dt>Pure PHP extractor</dt>
+                        <dd><pre><?= htmlspecialchars((string) ($state['debug_info']['pure_php_output'] ?? ''), ENT_QUOTES, 'UTF-8') ?></pre></dd>
                     </dl>
                 </details>
             <?php endif; ?>
