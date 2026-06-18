@@ -219,58 +219,71 @@ function bsp_is_ignored_line(string $line): bool
 
 function bsp_parse_fnb_transactions(string $text): array
 {
-    $lines = preg_split('/\R+/', $text) ?: [];
     $transactions = [];
+    $rawText = $text;
+    $lines = explode("\n", $rawText);
+
     foreach ($lines as $line) {
-        $line = trim(preg_replace('/\s+/', ' ', $line) ?? '');
-        if ($line === '' || bsp_is_ignored_line($line)) {
+        $line = trim($line);
+
+        // Must start with DD Mon pattern
+        if (!preg_match('/^(\d{2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(.+)/i', $line, $m)) {
             continue;
         }
 
-        if (!preg_match('/^(\d{2}\s+[A-Za-z]{3}\s+\d{4})\s+(.+)$/', $line, $matches)) {
-            continue;
+        $day   = $m[1];
+        $month = $m[2];
+        $rest  = trim($m[3]);
+
+        // Extract all numbers from the rest of the line
+        // Numbers look like: 442.00 or 14,500.00 or 442.00Cr
+        preg_match_all('/([\d,]+\.\d{2})(Cr)?/i', $rest, $nums, PREG_SET_ORDER);
+
+        if (count($nums) < 2) continue; // need at least amount + balance
+
+        // Last match = balance, second to last = amount
+        $balanceMatch = array_pop($nums);
+        $amountMatch  = array_pop($nums);
+
+        $balance = str_replace(',', '', $balanceMatch[1]);
+        $amount  = str_replace(',', '', $amountMatch[1]);
+        $isCr    = !empty($amountMatch[2]); // has "Cr" suffix
+
+        // Remove all numbers and "Cr" from rest to get description
+        $description = preg_replace('/([\d,]+\.\d{2})(Cr)?/i', '', $rest);
+        $description = preg_replace('/\s+/', ' ', $description);
+        $description = trim($description);
+
+        // Build date - year is current year, but handle Jan in
+        // December context: if month is Jan-Mar use 2025, else 2025
+        // Use the year from the statement header if possible,
+        // otherwise default to 2025
+        $year = 2025; // will be overridden below
+
+        // Try to extract year from statement header text
+        if (preg_match('/20\d{2}/', $rawText, $yearMatch)) {
+            $year = $yearMatch[0];
         }
 
-        $date = $matches[1];
-        $rest = trim($matches[2]);
-        preg_match_all('/-?\d{1,3}(?:,\d{3})*(?:\.\d{2})|-?\d+\.\d{2}|\d{5,}/', $rest, $amountMatches, PREG_OFFSET_CAPTURE);
-        $amounts = $amountMatches[0] ?? [];
-        if (count($amounts) < 2) {
-            continue;
-        }
+        $dateStr  = $day . ' ' . $month . ' ' . $year;
+        $dateObj  = DateTime::createFromFormat('d M Y', $dateStr);
+        $date     = $dateObj ? $dateObj->format('d/m/Y') : $day . '/' . $month . '/' . $year;
 
-        $balanceToken = $amounts[count($amounts) - 1];
-        $amountToken = $amounts[count($amounts) - 2];
-        $reference = '';
-        $descriptionEnd = (int) $amountToken[1];
+        $debit  = $isCr ? '' : number_format((float)$amount, 2, '.', '');
+        $credit = $isCr ? number_format((float)$amount, 2, '.', '') : '';
 
-        if (count($amounts) >= 3) {
-            $referenceToken = $amounts[count($amounts) - 3];
-            $referenceCandidate = (string) $referenceToken[0];
-            if (preg_match('/^\d{5,}$/', str_replace(',', '', $referenceCandidate)) === 1) {
-                $reference = str_replace(',', '', $referenceCandidate);
-                $descriptionEnd = (int) $referenceToken[1];
-            }
-        }
-
-        $description = trim(substr($rest, 0, $descriptionEnd));
-        if ($description === '') {
-            continue;
-        }
-
-        $amount = bsp_amount_to_float((string) $amountToken[0]);
-        $balance = bsp_amount_to_float((string) $balanceToken[0]);
-        if ($amount === null) {
-            continue;
-        }
+        // Skip opening/closing balance lines
+        if (stripos($description, 'opening balance') !== false) continue;
+        if (stripos($description, 'closing balance') !== false) continue;
+        if (stripos($description, 'balance brought') !== false) continue;
 
         $transactions[] = [
-            'date' => bsp_parse_date($date),
+            'date'        => $date,
             'description' => $description,
-            'reference' => $reference,
-            'debit' => $amount < 0 ? abs($amount) : null,
-            'credit' => $amount >= 0 ? $amount : null,
-            'balance' => $balance,
+            'reference'   => '',
+            'debit'       => $debit,
+            'credit'      => $credit,
+            'balance'     => (float) $balance,
         ];
     }
 
@@ -290,8 +303,8 @@ function bsp_sage_rows(array $transactions): array
             (string) ($transaction['date'] ?? ''),
             (string) ($transaction['description'] ?? ''),
             (string) ($transaction['reference'] ?? ''),
-            bsp_format_amount($transaction['debit'] ?? null),
-            bsp_format_amount($transaction['credit'] ?? null),
+            (string) ($transaction['debit'] ?? ''),
+            (string) ($transaction['credit'] ?? ''),
         ];
     }
 
