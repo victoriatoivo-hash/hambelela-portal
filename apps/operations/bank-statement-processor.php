@@ -12,6 +12,7 @@ $activeApp = 'operations-bank-processor';
 $message = null;
 $messageType = 'success';
 $processorDir = BASE_PATH . '/uploads/bank-processor';
+$processorExportDir = $processorDir . '/exports';
 $processorTtl = 3600;
 
 if (!isset($_SESSION['bank_statement_processor']) || !is_array($_SESSION['bank_statement_processor'])) {
@@ -33,6 +34,42 @@ function bsp_cleanup_uploads(string $dir, int $ttl): void
         if (is_file($file) && filemtime($file) !== false && filemtime($file) < time() - $ttl) {
             @unlink($file);
         }
+    }
+}
+
+function bsp_bootstrap_history_table(): void
+{
+    db()->exec(
+        "CREATE TABLE IF NOT EXISTS bank_statement_history (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            filename VARCHAR(255),
+            upload_date DATE,
+            period_label VARCHAR(100),
+            transaction_count INT,
+            csv_filename VARCHAR(255),
+            csv_path VARCHAR(500),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )"
+    );
+}
+
+function bsp_history_rows(): array
+{
+    try {
+        $stmt = db()->query(
+            'SELECT id, filename, upload_date, period_label, transaction_count, csv_filename, created_at
+             FROM bank_statement_history
+             ORDER BY created_at DESC
+             LIMIT 10'
+        );
+        $rows = $stmt ? $stmt->fetchAll() : [];
+        if ($stmt) {
+            $stmt->closeCursor();
+        }
+
+        return is_array($rows) ? $rows : [];
+    } catch (Throwable $e) {
+        return [];
     }
 }
 
@@ -336,10 +373,11 @@ function bsp_mapped_rows(array $headers, array $mapping, array $transactions): a
     return $rows;
 }
 
-function bsp_csv_download(array $headers, array $mapping, array $transactions): void
+function bsp_csv_download(array $headers, array $mapping, array $transactions, ?string $filename = null): void
 {
+    $filename = $filename ?: 'sage_import_' . date('Y-m-d') . '.csv';
     header('Content-Type: text/csv; charset=utf-8');
-    header('Content-Disposition: attachment; filename="sage_import_' . date('Y-m-d') . '.csv"');
+    header('Content-Disposition: attachment; filename="' . str_replace('"', '', $filename) . '"');
     $out = fopen('php://output', 'wb');
     fwrite($out, "\xEF\xBB\xBF");
     fputcsv($out, $headers);
@@ -350,7 +388,93 @@ function bsp_csv_download(array $headers, array $mapping, array $transactions): 
     exit;
 }
 
+function bsp_write_csv(string $path, array $headers, array $mapping, array $transactions): void
+{
+    $out = fopen($path, 'wb');
+    if (!$out) {
+        throw new RuntimeException('The export CSV could not be saved on the server.');
+    }
+
+    fwrite($out, "\xEF\xBB\xBF");
+    fputcsv($out, $headers);
+    foreach (bsp_mapped_rows($headers, $mapping, $transactions) as $row) {
+        fputcsv($out, $row);
+    }
+    fclose($out);
+}
+
+function bsp_period_label(array $transactions): string
+{
+    $dates = [];
+    foreach ($transactions as $transaction) {
+        $date = DateTimeImmutable::createFromFormat('d/m/Y', (string) ($transaction['date'] ?? ''));
+        if ($date instanceof DateTimeImmutable) {
+            $dates[] = $date;
+        }
+    }
+
+    if (!$dates) {
+        return '';
+    }
+
+    usort($dates, static function (DateTimeImmutable $a, DateTimeImmutable $b): int {
+        return $a->getTimestamp() <=> $b->getTimestamp();
+    });
+
+    $first = $dates[0];
+    $last = $dates[count($dates) - 1];
+    if ($first->format('M Y') === $last->format('M Y')) {
+        return $first->format('M Y');
+    }
+
+    return $first->format('M Y') . ' - ' . $last->format('M Y');
+}
+
+function bsp_history_insert(string $filename, string $periodLabel, int $transactionCount, string $csvFilename, string $csvPath): void
+{
+    $stmt = db()->prepare(
+        'INSERT INTO bank_statement_history (filename, upload_date, period_label, transaction_count, csv_filename, csv_path)
+         VALUES (?, CURDATE(), ?, ?, ?, ?)'
+    );
+    $stmt->execute([$filename, $periodLabel, $transactionCount, $csvFilename, $csvPath]);
+}
+
+function bsp_download_history_csv(int $id, string $exportDir): void
+{
+    $stmt = db()->prepare('SELECT csv_filename, csv_path FROM bank_statement_history WHERE id = ? LIMIT 1');
+    $stmt->execute([$id]);
+    $row = $stmt->fetch();
+    $stmt->closeCursor();
+    if (!$row) {
+        http_response_code(404);
+        exit('CSV export not found.');
+    }
+
+    $path = (string) ($row['csv_path'] ?? '');
+    $realPath = realpath($path);
+    $realExportDir = realpath($exportDir);
+    if (!$realPath || !$realExportDir || strpos($realPath, $realExportDir) !== 0 || !is_file($realPath)) {
+        http_response_code(404);
+        exit('CSV export file is no longer available.');
+    }
+
+    $filename = basename((string) ($row['csv_filename'] ?: 'statement-export.csv'));
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . str_replace('"', '', $filename) . '"');
+    header('Content-Length: ' . filesize($realPath));
+    readfile($realPath);
+    exit;
+}
+
 bsp_cleanup_uploads($processorDir, $processorTtl);
+if (!is_dir($processorExportDir)) {
+    mkdir($processorExportDir, 0755, true);
+}
+bsp_bootstrap_history_table();
+
+if (isset($_GET['download'])) {
+    bsp_download_history_csv(max(0, (int) $_GET['download']), $processorExportDir);
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
@@ -410,7 +534,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['bank_statement_processor']['mapping'] = $mapping;
 
             if ($action === 'export_csv') {
-                bsp_csv_download($headers, $mapping, $state['transactions']);
+                $csvFilename = 'fnb_sage_' . date('Y-m-d_His') . '.csv';
+                $csvPath = $processorExportDir . '/' . $csvFilename;
+                bsp_write_csv($csvPath, $headers, $mapping, $state['transactions']);
+                bsp_history_insert(
+                    (string) ($state['pdf_name'] ?? 'FNB statement.pdf'),
+                    bsp_period_label($state['transactions']),
+                    count($state['transactions']),
+                    $csvFilename,
+                    $csvPath
+                );
+                bsp_csv_download($headers, $mapping, $state['transactions'], $csvFilename);
             }
 
             $message = 'Mapping updated.';
@@ -429,6 +563,7 @@ $headers = array_map('strval', $state['headers'] ?? []);
 $transactions = is_array($state['transactions'] ?? null) ? $state['transactions'] : [];
 $mapping = is_array($state['mapping'] ?? null) ? $state['mapping'] : bsp_default_mapping($headers);
 $previewRows = $headers && $transactions ? array_slice(bsp_mapped_rows($headers, $mapping, $transactions), 0, 10) : [];
+$historyRows = bsp_history_rows();
 $sourceLabels = [
     'date' => 'Date',
     'description' => 'Description / Reference',
@@ -467,32 +602,36 @@ include BASE_PATH . '/shared/sidebar.php';
     <section class="panel bank-upload-panel">
         <div class="section-row">
             <div>
+                <p class="bank-section-label">Step 1 of 3</p>
                 <h2>Upload files</h2>
                 <p>Temporary uploads are stored in <code>uploads/bank-processor</code> and cleared after one hour.</p>
             </div>
-            <span class="status"><?= $transactions ? number_format(count($transactions)) . ' rows detected' : 'Waiting for files' ?></span>
+            <span class="bank-status-badge <?= $transactions ? 'complete' : 'progress' ?>"><?= $transactions ? number_format(count($transactions)) . ' rows detected' : 'Waiting for files' ?></span>
         </div>
         <form class="ops-form bank-upload-form" method="post" enctype="multipart/form-data">
             <input type="hidden" name="action" value="process_upload">
+            <input id="pdf_input" type="file" name="bank_statement_pdf" accept="application/pdf,.pdf" hidden>
+            <input id="template_input" type="file" name="sage_template_csv" accept=".csv,text/csv" hidden>
             <div class="form-grid">
-                <label class="bank-file-zone">
-                    <input type="file" name="bank_statement_pdf" accept="application/pdf,.pdf" required>
-                    <span><i data-lucide="file-text"></i></span>
+                <div class="bank-file-zone" data-upload-zone data-input-id="pdf_input" onclick="document.getElementById('pdf_input').click()" ondragover="bankDragOver(event)" ondragleave="bankDragLeave(event)" ondrop="bankDrop(event, 'pdf_input')">
+                    <span data-upload-icon><i data-lucide="file-text"></i></span>
                     <strong>FNB Namibia statement PDF</strong>
-                    <small><?= htmlspecialchars((string) ($state['pdf_name'] ?? 'PDF statement file'), ENT_QUOTES, 'UTF-8') ?></small>
-                </label>
-                <label class="bank-file-zone">
-                    <input type="file" name="sage_template_csv" accept=".csv,text/csv" required>
-                    <span><i data-lucide="table"></i></span>
+                    <small data-upload-filename><?= htmlspecialchars((string) ($state['pdf_name'] ?? 'PDF statement file'), ENT_QUOTES, 'UTF-8') ?></small>
+                </div>
+                <div class="bank-file-zone" data-upload-zone data-input-id="template_input" onclick="document.getElementById('template_input').click()" ondragover="bankDragOver(event)" ondragleave="bankDragLeave(event)" ondrop="bankDrop(event, 'template_input')">
+                    <span data-upload-icon><i data-lucide="table"></i></span>
                     <strong>Sage import template CSV</strong>
-                    <small><?= htmlspecialchars((string) ($state['csv_name'] ?? 'CSV with Sage headers in row 1'), ENT_QUOTES, 'UTF-8') ?></small>
-                </label>
+                    <small data-upload-filename><?= htmlspecialchars((string) ($state['csv_name'] ?? 'CSV with Sage headers in row 1'), ENT_QUOTES, 'UTF-8') ?></small>
+                </div>
             </div>
             <div class="bank-upload-progress" data-bank-upload-progress hidden>
                 <span></span>
             </div>
             <div class="ops-form-actions">
-                <button class="button primary" type="submit"><i data-lucide="upload-cloud"></i> Upload and parse</button>
+                <button class="button primary bank-submit-btn" type="submit" data-bank-submit>
+                    <i data-lucide="upload-cloud" data-submit-icon></i>
+                    <span data-submit-label>Upload and parse</span>
+                </button>
             </div>
         </form>
     </section>
@@ -502,10 +641,11 @@ include BASE_PATH . '/shared/sidebar.php';
             <input type="hidden" name="action" value="update_mapping">
             <div class="section-row">
                 <div>
-                    <h2>Column mapping</h2>
-                    <p>Choose which Sage template column receives each FNB value. Leave a row unmapped if the Sage template does not need it.</p>
+                    <p class="bank-section-label">Step 2 of 3</p>
+                    <h2>Column mapping and preview</h2>
+                    <p>Choose which Sage template column receives each FNB value, then check the first 10 mapped rows before export.</p>
                 </div>
-                <span class="status success"><?= htmlspecialchars((string) ($state['method'] ?? 'parsed'), ENT_QUOTES, 'UTF-8') ?></span>
+                <span class="bank-status-badge complete"><?= htmlspecialchars((string) ($state['method'] ?? 'parsed'), ENT_QUOTES, 'UTF-8') ?></span>
             </div>
             <div class="table-scroll">
                 <table class="data-table bank-mapping-table">
@@ -527,49 +667,71 @@ include BASE_PATH . '/shared/sidebar.php';
                     </tbody>
                 </table>
             </div>
+            <?php if ($transactions): ?>
+                <div class="bank-preview-head">
+                    <div>
+                        <h3>Preview</h3>
+                        <p>First 10 rows in the mapped Sage format. Total rows detected: <strong><?= number_format(count($transactions)) ?></strong>.</p>
+                    </div>
+                    <button class="button small bank-outline-button" type="submit" name="action" value="clear_processor"><i data-lucide="refresh-cw"></i> Looks wrong? Re-parse</button>
+                </div>
+                <div class="table-scroll">
+                    <table class="data-table bank-preview-table">
+                        <thead>
+                            <tr>
+                                <?php foreach ($headers as $header): ?>
+                                    <th><?= htmlspecialchars($header, ENT_QUOTES, 'UTF-8') ?></th>
+                                <?php endforeach; ?>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($previewRows as $row): ?>
+                                <tr>
+                                    <?php foreach ($row as $cell): ?>
+                                        <td><?= htmlspecialchars((string) $cell, ENT_QUOTES, 'UTF-8') ?></td>
+                                    <?php endforeach; ?>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
             <div class="ops-form-actions">
-                <button class="button" type="submit"><i data-lucide="check"></i> Update preview</button>
+                <button class="button bank-outline-button" type="submit"><i data-lucide="check"></i> Update preview</button>
                 <?php if ($transactions): ?>
-                    <button class="button primary" type="submit" name="action" value="export_csv"><i data-lucide="download"></i> Export Sage CSV</button>
+                    <button class="button primary bank-submit-btn" type="submit" name="action" value="export_csv"><i data-lucide="download"></i> Export Sage CSV</button>
                 <?php endif; ?>
             </div>
         </form>
     <?php endif; ?>
 
-    <?php if ($headers && $transactions): ?>
-        <section class="panel bank-preview-panel">
-            <div class="section-row">
-                <div>
-                    <h2>Preview</h2>
-                    <p>First 10 rows in the mapped Sage format. Total rows detected: <strong><?= number_format(count($transactions)) ?></strong>.</p>
+    <section class="panel bank-history-panel">
+        <div class="section-row">
+            <div>
+                <p class="bank-section-label">Step 3 of 3</p>
+                <h2>Past Statements</h2>
+                <p>Recent processed FNB statements and saved Sage CSV exports.</p>
+            </div>
+            <span class="bank-status-badge progress"><?= number_format(count($historyRows)) ?> shown</span>
+        </div>
+        <div class="bank-history-list">
+            <?php foreach ($historyRows as $history): ?>
+                <div class="bank-history-row">
+                    <div>
+                        <strong><?= htmlspecialchars((string) ($history['filename'] ?: 'FNB statement.pdf'), ENT_QUOTES, 'UTF-8') ?></strong>
+                        <small><?= htmlspecialchars((string) ($history['upload_date'] ?: substr((string) $history['created_at'], 0, 10)), ENT_QUOTES, 'UTF-8') ?><?= !empty($history['period_label']) ? ' - ' . htmlspecialchars((string) $history['period_label'], ENT_QUOTES, 'UTF-8') : '' ?></small>
+                    </div>
+                    <div class="bank-history-actions">
+                        <span><?= number_format((int) $history['transaction_count']) ?> transactions</span>
+                        <a class="bank-download-btn" href="?download=<?= (int) $history['id'] ?>" aria-label="Download saved CSV for <?= htmlspecialchars((string) ($history['filename'] ?: 'statement'), ENT_QUOTES, 'UTF-8') ?>"><i data-lucide="download"></i></a>
+                    </div>
                 </div>
-                <form method="post">
-                    <input type="hidden" name="action" value="clear_processor">
-                    <button class="button small" type="submit"><i data-lucide="refresh-cw"></i> Looks wrong? Re-parse</button>
-                </form>
-            </div>
-            <div class="table-scroll">
-                <table class="data-table bank-preview-table">
-                    <thead>
-                        <tr>
-                            <?php foreach ($headers as $header): ?>
-                                <th><?= htmlspecialchars($header, ENT_QUOTES, 'UTF-8') ?></th>
-                            <?php endforeach; ?>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($previewRows as $row): ?>
-                            <tr>
-                                <?php foreach ($row as $cell): ?>
-                                    <td><?= htmlspecialchars((string) $cell, ENT_QUOTES, 'UTF-8') ?></td>
-                                <?php endforeach; ?>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-        </section>
-    <?php endif; ?>
+            <?php endforeach; ?>
+            <?php if (!$historyRows): ?>
+                <p class="bank-empty-state">No statements processed yet</p>
+            <?php endif; ?>
+        </div>
+    </section>
 
     <?php if ($headers && !$transactions): ?>
         <section class="panel">
@@ -584,11 +746,63 @@ include BASE_PATH . '/shared/sidebar.php';
     <?php endif; ?>
 </main>
 <script>
-document.querySelector('.bank-upload-form')?.addEventListener('submit', () => {
-  const progress = document.querySelector('[data-bank-upload-progress]');
-  if (!progress) return;
-  progress.hidden = false;
-  requestAnimationFrame(() => progress.classList.add('active'));
+function bankSetZoneFile(input) {
+  if (!input || !input.files || !input.files.length) return;
+  var zone = document.querySelector('[data-input-id="' + input.id + '"]');
+  if (!zone) return;
+  var icon = zone.querySelector('[data-upload-icon]');
+  var filename = zone.querySelector('[data-upload-filename]');
+  zone.classList.add('has-file');
+  zone.classList.remove('is-dragging');
+  if (icon) icon.innerHTML = '<i data-lucide="check"></i>';
+  if (filename) filename.textContent = input.files[0].name;
+  if (window.lucide) window.lucide.createIcons();
+}
+
+function bankDragOver(event) {
+  event.preventDefault();
+  event.currentTarget.classList.add('is-dragging');
+}
+
+function bankDragLeave(event) {
+  event.preventDefault();
+  event.currentTarget.classList.remove('is-dragging');
+}
+
+function bankDrop(event, inputId) {
+  event.preventDefault();
+  var zone = event.currentTarget;
+  zone.classList.remove('is-dragging');
+  var input = document.getElementById(inputId);
+  if (!input || !event.dataTransfer || !event.dataTransfer.files.length) return;
+  input.files = event.dataTransfer.files;
+  bankSetZoneFile(input);
+}
+
+['pdf_input', 'template_input'].forEach(function (id) {
+  var input = document.getElementById(id);
+  if (input) input.addEventListener('change', function () { bankSetZoneFile(input); });
 });
+
+var uploadForm = document.querySelector('.bank-upload-form');
+if (uploadForm) {
+  uploadForm.addEventListener('submit', function () {
+    var progress = document.querySelector('[data-bank-upload-progress]');
+    var button = document.querySelector('[data-bank-submit]');
+    var icon = button ? button.querySelector('[data-submit-icon]') : null;
+    var label = button ? button.querySelector('[data-submit-label]') : null;
+    if (progress) {
+      progress.hidden = false;
+      requestAnimationFrame(function () { progress.classList.add('active'); });
+    }
+    if (button) {
+      button.disabled = true;
+      button.classList.add('is-processing');
+    }
+    if (icon) icon.setAttribute('data-lucide', 'loader-circle');
+    if (label) label.textContent = 'Processing...';
+    if (window.lucide) window.lucide.createIcons();
+  });
+}
 </script>
 <?php include BASE_PATH . '/shared/footer.php'; ?>
