@@ -594,20 +594,26 @@ function ops_staff_display_name(array $employee): string
         return 'Victoria Toivo';
     }
     if (strpos($text, 'klaudia') !== false) {
-        return 'Klaudia';
+        return 'Klaudia Averinus';
     }
     if (strpos($text, 'ndinelao') !== false || strpos($text, 'ndine') !== false) {
-        return 'Ndinelao';
+        return 'Ndinelao Kalola';
     }
 
     return trim((string) ($employee['full_name'] ?? $employee['name'] ?? $employee['employee_name'] ?? ''));
+}
+
+function ops_is_owner_employee(array $employee): bool
+{
+    return (string) ($employee['role_key'] ?? '') === 'owner_admin'
+        || strpos(ops_staff_text_key($employee), 'victoria') !== false;
 }
 
 function ops_staff_role_label(array $employee): string
 {
     $roleKey = (string) ($employee['role_key'] ?? '');
     if ($roleKey === 'owner_admin') return 'Owner/Admin';
-    if ($roleKey === 'front_desk_admin') return 'Front Desk';
+    if ($roleKey === 'front_desk_admin') return 'Front Desk/Admin Employee';
     if ($roleKey === 'packer') return 'Packer/Production Staff';
     if ($roleKey === 'supervisor_manager') return 'Supervisor/Manager';
 
@@ -643,7 +649,7 @@ function ops_employee_alias_map(array $employees): array
     return $map;
 }
 
-function ops_canonical_employee_rows(array $employees): array
+function ops_canonical_employee_rows(array $employees, bool $includeOwner = false): array
 {
     $aliasMap = ops_employee_alias_map($employees);
     $rows = [];
@@ -659,6 +665,9 @@ function ops_canonical_employee_rows(array $employees): array
         $employee['employee_id'] = $canonicalId;
         $employee['full_name'] = ops_staff_display_name($employee);
         $employee['role_name'] = ops_staff_role_label($employee);
+        if (!$includeOwner && ops_is_owner_employee($employee)) {
+            continue;
+        }
 
         if (!isset($rows[$canonicalId]) || ($isGeneric === false && ops_is_generic_front_desk_employee($rows[$canonicalId]))) {
             $rows[$canonicalId] = $employee;
@@ -748,6 +757,107 @@ function ops_reconcile_front_desk_employee(): void
         $stmt->closeCursor();
     } catch (Throwable $e) {
         error_log('Front desk employee reconciliation failed: ' . $e->getMessage());
+    }
+}
+
+function ops_reconcile_core_staff(): void
+{
+    if (!ops_table_exists('ops_employees') || !ops_table_exists('ops_roles')) {
+        return;
+    }
+
+    ops_reconcile_front_desk_employee();
+
+    $targets = [
+        [
+            'email' => 'shiwedasecilia3@gmail.com',
+            'name' => 'Cecilia Shiweda',
+            'first' => 'Cecilia',
+            'last' => 'Shiweda',
+            'role' => 'front_desk_admin',
+            'match' => ['cecil', 'secil', 'shiweda'],
+        ],
+        [
+            'email' => null,
+            'name' => 'Klaudia Averinus',
+            'first' => 'Klaudia',
+            'last' => 'Averinus',
+            'role' => 'packer',
+            'match' => ['klaudia'],
+        ],
+        [
+            'email' => null,
+            'name' => 'Ndinelao Kalola',
+            'first' => 'Ndinelao',
+            'last' => 'Kalola',
+            'role' => 'packer',
+            'match' => ['ndinelao', 'ndine'],
+        ],
+    ];
+
+    try {
+        foreach ($targets as $target) {
+            $conditions = [];
+            $params = [];
+            if (!empty($target['email']) && ops_column_exists('ops_employees', 'email')) {
+                $conditions[] = 'LOWER(e.email) = LOWER(?)';
+                $params[] = $target['email'];
+            }
+            foreach ($target['match'] as $needle) {
+                $conditions[] = 'LOWER(e.full_name) LIKE ?';
+                $params[] = '%' . $needle . '%';
+            }
+            if (!$conditions) {
+                continue;
+            }
+
+            $rows = ops_rows(
+                "SELECT e.id, r.role_key
+                 FROM ops_employees e
+                 JOIN ops_roles r ON r.id = e.role_id
+                 WHERE " . implode(' OR ', $conditions) . "
+                 ORDER BY e.id ASC
+                 LIMIT 1",
+                $params
+            );
+            if (!$rows) {
+                continue;
+            }
+
+            $employeeId = (int) $rows[0]['id'];
+            $roleRows = ops_rows('SELECT id FROM ops_roles WHERE role_key = ? LIMIT 1', [$target['role']]);
+            $roleId = $roleRows ? (int) $roleRows[0]['id'] : 0;
+            $sets = ["full_name = ?", "status = 'active'"];
+            $values = [$target['name']];
+            if ($roleId > 0) {
+                $sets[] = 'role_id = ?';
+                $values[] = $roleId;
+            }
+            if (!empty($target['email']) && ops_column_exists('ops_employees', 'email')) {
+                $sets[] = 'email = ?';
+                $values[] = $target['email'];
+            }
+            if (ops_column_exists('ops_employees', 'first_name')) {
+                $sets[] = 'first_name = ?';
+                $values[] = $target['first'];
+            }
+            if (ops_column_exists('ops_employees', 'last_name')) {
+                $sets[] = 'last_name = ?';
+                $values[] = $target['last'];
+            }
+            $values[] = $employeeId;
+            $stmt = db()->prepare('UPDATE ops_employees SET ' . implode(', ', $sets) . ' WHERE id = ?');
+            $stmt->execute($values);
+            $stmt->closeCursor();
+        }
+
+        if (ops_column_exists('ops_employees', 'email')) {
+            $stmt = db()->prepare("UPDATE ops_employees SET status = 'active' WHERE LOWER(email) = LOWER(?)");
+            $stmt->execute(['shiwedasecilia3@gmail.com']);
+            $stmt->closeCursor();
+        }
+    } catch (Throwable $e) {
+        error_log('Core staff reconciliation failed: ' . $e->getMessage());
     }
 }
 

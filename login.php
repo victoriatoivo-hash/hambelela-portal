@@ -18,9 +18,9 @@ function local_login_accounts(): array
 {
     return [
         'victoria' => ['Victoria Toivo', 'victoria@hambelelaorganic.com', 'Owner/Admin', 'owner_admin', '2026'],
-        'frontdesk' => ['Front Desk Admin', 'frontdesk@hambelelaorganic.com', 'Front Desk/Admin Employee', 'front_desk_admin', '1001'],
-        'klaudia' => ['Klaudia', 'klaudia@hambelelaorganic.com', 'Packer/Production Staff', 'packer', '1002'],
-        'ndinelao' => ['Ndinelao', 'ndinelao@hambelelaorganic.com', 'Packer/Production Staff', 'packer', '1003'],
+        'frontdesk' => ['Cecilia Shiweda', 'shiwedasecilia3@gmail.com', 'Front Desk/Admin Employee', 'front_desk_admin', '1001'],
+        'klaudia' => ['Klaudia Averinus', 'klaudia@hambelelaorganic.com', 'Packer/Production Staff', 'packer', '1002'],
+        'ndinelao' => ['Ndinelao Kalola', 'ndinelao@hambelelaorganic.com', 'Packer/Production Staff', 'packer', '1003'],
     ];
 }
 
@@ -175,6 +175,17 @@ function ensure_default_ops_accounts(): void
             $insertEmployee->execute([$roleId, $name, strtolower($email), $hash]);
         }
     }
+
+    db()->exec(
+        "UPDATE ops_employees e
+         JOIN ops_roles r ON r.id = e.role_id
+         SET e.status = 'inactive'
+         WHERE r.role_key = 'front_desk_admin'
+           AND (
+             LOWER(e.email) = 'frontdesk@hambelelaorganic.com'
+             OR LOWER(e.full_name) IN ('front desk admin', 'front_desk_admin', 'frontdesk')
+           )"
+    );
 }
 
 try {

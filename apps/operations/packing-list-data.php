@@ -71,12 +71,24 @@ $archiveWhere = $hasArchivedAt ? 'archived_at IS NULL' : '1=1';
 $totalRows = (int) ops_count('ops_packing_tasks', $archiveWhere);
 
 $packers = ops_rows(
-    "SELECT e.id, e.full_name
+    "SELECT e.id, e.full_name, r.role_key
      FROM ops_employees e
      JOIN ops_roles r ON r.id = e.role_id
      WHERE e.status = 'active' AND r.role_key IN ('packer', 'supervisor_manager')
      ORDER BY e.full_name"
 );
+$packers = ops_canonical_employee_rows($packers);
+$packerNameMap = [];
+foreach ($packers as $packer) {
+    $packerNameMap[(int) $packer['id']] = ops_staff_display_name($packer);
+}
+foreach ($tasks as &$task) {
+    $assignedId = (int) ($task['assigned_employee_id'] ?? 0);
+    if ($assignedId && isset($packerNameMap[$assignedId])) {
+        $task['assigned_name'] = $packerNameMap[$assignedId];
+    }
+}
+unset($task);
 
 echo json_encode([
     'ok' => true,

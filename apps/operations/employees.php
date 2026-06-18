@@ -113,6 +113,7 @@ function ops_force_delete_employee(int $employeeId): void
 
 if ($ready) {
     ops_employee_link_bootstrap();
+    ops_reconcile_core_staff();
 }
 
 if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -211,7 +212,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$roles = $ready ? ops_rows('SELECT id, name FROM ops_roles ORDER BY id') : [];
+$roles = $ready ? ops_rows("SELECT id, name FROM ops_roles WHERE role_key <> 'owner_admin' ORDER BY FIELD(role_key, 'front_desk_admin', 'packer', 'supervisor_manager'), name") : [];
 $hrEmployees = $ready ? ops_hr_employee_options() : [];
 $employeeLinks = [];
 if ($ready && ops_table_exists('employee_user_links')) {
@@ -245,9 +246,11 @@ $employees = $ready ? ops_rows(
     "SELECT e.*, r.name AS role_name, r.role_key
      FROM ops_employees e
      JOIN ops_roles r ON r.id = e.role_id
+     WHERE e.status = 'active' AND r.role_key <> 'owner_admin'
      ORDER BY e.created_at DESC
      LIMIT 50"
 ) : [];
+$employees = ops_canonical_employee_rows($employees);
 $loginRows = $ready && ops_table_exists('ops_login_events') ? ops_rows(
     "SELECT le.employee_id, COALESCE(e.full_name, le.employee_name, 'Unknown') AS employee_name,
             COALESCE(r.name, le.role_key, '-') AS role_name,
@@ -258,10 +261,18 @@ $loginRows = $ready && ops_table_exists('ops_login_events') ? ops_rows(
      LEFT JOIN ops_employees e ON e.id = le.employee_id
      LEFT JOIN ops_roles r ON r.id = e.role_id
      WHERE le.login_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+       AND COALESCE(r.role_key, le.role_key, '') <> 'owner_admin'
      GROUP BY le.employee_id, COALESCE(e.full_name, le.employee_name, 'Unknown'), COALESCE(r.name, le.role_key, '-')
      ORDER BY last_login_at DESC
      LIMIT 20"
 ) : [];
+foreach ($loginRows as &$loginRow) {
+    $loginRow['employee_name'] = ops_staff_display_name([
+        'id' => (int) ($loginRow['employee_id'] ?? 0),
+        'full_name' => (string) ($loginRow['employee_name'] ?? ''),
+    ]);
+}
+unset($loginRow);
 
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';

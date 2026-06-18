@@ -324,7 +324,7 @@ function kpi_bootstrap(): void
         }
     }
 
-    ops_reconcile_front_desk_employee();
+    ops_reconcile_core_staff();
 }
 
 function kpi_default_weights(): array

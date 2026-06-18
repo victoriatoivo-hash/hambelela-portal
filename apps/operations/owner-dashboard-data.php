@@ -41,7 +41,7 @@ function owner_dashboard_bootstrap(): void
             owner_dashboard_try_sql("ALTER TABLE ops_packing_tasks ADD COLUMN inventory_updated_at DATETIME NULL AFTER inventory_updated_by");
         }
     }
-    ops_reconcile_front_desk_employee();
+    ops_reconcile_core_staff();
 }
 
 function owner_dashboard_minutes(?string $from, ?string $to): ?float

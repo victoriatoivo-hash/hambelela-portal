@@ -80,14 +80,26 @@ if ($hasTotalAmount) {
 }
 
 $packers = ops_rows(
-    "SELECT e.id, e.full_name, COALESCE(ea.availability_status, 'available') AS availability_status,
+    "SELECT e.id, e.full_name, r.role_key, COALESCE(ea.availability_status, 'available') AS availability_status,
         ea.unavailable_until, ea.note
      FROM ops_employees e
      JOIN ops_roles r ON r.id = e.role_id
      LEFT JOIN ops_employee_availability ea ON ea.employee_id = e.id
-     WHERE e.status = 'active' AND r.role_key IN ('packer', 'supervisor_manager')
-     ORDER BY e.full_name"
+     WHERE e.status = 'active' AND r.role_key IN ('front_desk_admin', 'packer', 'owner_admin')
+     ORDER BY FIELD(r.role_key, 'front_desk_admin', 'packer', 'owner_admin'), e.full_name"
 );
+$packers = ops_canonical_employee_rows($packers, true);
+$packerNameMap = [];
+foreach ($packers as $packer) {
+    $packerNameMap[(int) $packer['id']] = ops_staff_display_name($packer);
+}
+foreach ($orders as &$order) {
+    $assignedId = (int) ($order['assigned_packer_id'] ?? 0);
+    if ($assignedId && isset($packerNameMap[$assignedId])) {
+        $order['packer_name'] = $packerNameMap[$assignedId];
+    }
+}
+unset($order);
 
 $viewers = ops_table_exists('ops_board_presence') ? ops_rows(
     "SELECT e.full_name, r.name AS role_name, bp.last_seen_at

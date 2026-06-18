@@ -369,12 +369,13 @@ if ($ready && ($_GET['export'] ?? '') === 'csv') {
 }
 
 $packers = $ready ? ops_rows(
-    "SELECT e.id, e.full_name
+    "SELECT e.id, e.full_name, r.role_key
      FROM ops_employees e
      JOIN ops_roles r ON r.id = e.role_id
-     WHERE e.status = 'active' AND r.role_key IN ('packer', 'supervisor_manager', 'owner_admin')
+     WHERE e.status = 'active' AND r.role_key IN ('packer', 'supervisor_manager')
      ORDER BY e.full_name"
 ) : [];
+$packers = ops_canonical_employee_rows($packers);
 
 $modeOptions = ['collection' => 'Collection', 'delivery' => 'Delivery', 'courier' => 'Courier'];
 if ($ready) {

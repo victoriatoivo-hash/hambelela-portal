@@ -13,8 +13,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'offbo
     header('Location: employees.php?msg=offboarded'); exit;
 }
 
-$employees    = $db->query("SELECT * FROM employees ORDER BY status ASC, first_name ASC")->fetchAll();
-$totalActive  = $db->query("SELECT COUNT(*) FROM employees WHERE status='active'")->fetchColumn();
+$employees    = $db->query("SELECT * FROM employees WHERE LOWER(CONCAT_WS(' ', first_name, last_name, email)) NOT LIKE '%victoria%' ORDER BY status ASC, first_name ASC")->fetchAll();
+$totalActive  = $db->query("SELECT COUNT(*) FROM employees WHERE status='active' AND LOWER(CONCAT_WS(' ', first_name, last_name, email)) NOT LIKE '%victoria%'")->fetchColumn();
 $pendingLeave = $db->query("SELECT COUNT(*) FROM leave_requests WHERE status='pending'")->fetchColumn();
 $pendingOT    = $db->query("SELECT COUNT(*) FROM overtime WHERE status='pending'")->fetchColumn();
 $msg = $_GET['msg'] ?? '';
