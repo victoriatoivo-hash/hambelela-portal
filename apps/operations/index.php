@@ -35,6 +35,12 @@ if (user_has_role('owner_admin', 'front_desk_admin')) {
         'wallet-cards',
         'bookkeeping.php',
         'Core',
+    ], [
+        'Bank Statement Processor',
+        'Convert FNB Namibia PDF statements into Sage Accounting CSV imports using the uploaded Sage template headers.',
+        'file-spreadsheet',
+        'bank-statement-processor.php',
+        'Finance',
     ]]);
 }
 

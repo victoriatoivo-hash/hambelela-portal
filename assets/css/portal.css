@@ -6924,6 +6924,99 @@ textarea {
   text-shadow: none;
 }
 
+/* Bank statement processor */
+.bank-processor-page {
+  max-width: 1480px;
+}
+
+.bank-upload-form {
+  display: grid;
+  gap: 16px;
+}
+
+.bank-file-zone {
+  min-height: 178px;
+  align-content: center;
+  justify-items: center;
+  padding: 24px;
+  border: 1px dashed rgba(223, 129, 147, 0.42);
+  border-radius: 14px;
+  background: rgba(255, 246, 248, 0.7);
+  text-align: center;
+  cursor: pointer;
+}
+
+.bank-file-zone input {
+  display: none;
+}
+
+.bank-file-zone span {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: #302f31;
+  color: #fff;
+}
+
+.bank-file-zone svg {
+  width: 24px;
+  height: 24px;
+}
+
+.bank-file-zone strong {
+  margin-top: 4px;
+  font-size: 15px;
+}
+
+.bank-file-zone small {
+  max-width: 280px;
+  color: var(--muted);
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.bank-upload-progress {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(49, 45, 48, 0.08);
+}
+
+.bank-upload-progress span {
+  display: block;
+  width: 42%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #ff9bae, #73d2de);
+  transform: translateX(-100%);
+}
+
+.bank-upload-progress.active span {
+  animation: bankUploadProgress 920ms ease-in-out infinite;
+}
+
+.bank-mapping-table select {
+  max-width: 420px;
+}
+
+.bank-preview-table {
+  min-width: 760px;
+}
+
+.bank-preview-table td,
+.bank-preview-table th {
+  padding-right: 18px;
+  white-space: nowrap;
+}
+
+@keyframes bankUploadProgress {
+  to {
+    transform: translateX(240%);
+  }
+}
+
 /* WhatsApp communication KPI module */
 .whatsapp-module .report-filter-panel {
   display: grid;

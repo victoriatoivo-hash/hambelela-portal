@@ -84,6 +84,7 @@ if ($activeApp === 'kpi') {
         $navItems[] = ['id' => 'hr-portal', 'label' => 'HR Portal', 'icon' => 'shield-check', 'href' => BASE_URL . '/apps/hr-portal/index.php'];
         $navItems[] = ['id' => 'kpi', 'label' => 'KPI Reports', 'icon' => 'chart-no-axes-combined', 'href' => BASE_URL . '/apps/operations/reports.php'];
         $navItems[] = ['id' => 'operations-bookkeeping', 'label' => 'Bookkeeping', 'icon' => 'wallet-cards', 'href' => BASE_URL . '/apps/operations/bookkeeping.php'];
+        $navItems[] = ['id' => 'operations-bank-processor', 'label' => 'Bank Processor', 'icon' => 'file-spreadsheet', 'href' => BASE_URL . '/apps/operations/bank-statement-processor.php'];
         $navItems[] = ['id' => 'operations-courier', 'label' => 'Courier', 'icon' => 'truck', 'href' => BASE_URL . '/apps/operations/courier.php'];
         $navItems[] = ['id' => 'operations-consignments', 'label' => 'Packing List', 'icon' => 'package-open', 'href' => BASE_URL . '/apps/operations/consignments.php'];
     } elseif (in_array($roleKey, ['front_desk_admin', 'supervisor_manager'], true)) {
@@ -91,6 +92,7 @@ if ($activeApp === 'kpi') {
         if ($roleKey === 'front_desk_admin') {
             $navItems[] = ['id' => 'operations-whatsapp', 'label' => 'Meta Comms', 'icon' => 'messages-square', 'href' => BASE_URL . '/apps/operations/whatsapp.php'];
             $navItems[] = ['id' => 'operations-bookkeeping', 'label' => 'Bookkeeping', 'icon' => 'wallet-cards', 'href' => BASE_URL . '/apps/operations/bookkeeping.php'];
+            $navItems[] = ['id' => 'operations-bank-processor', 'label' => 'Bank Processor', 'icon' => 'file-spreadsheet', 'href' => BASE_URL . '/apps/operations/bank-statement-processor.php'];
         }
         $navItems[] = ['id' => 'operations-courier', 'label' => 'Courier', 'icon' => 'truck', 'href' => BASE_URL . '/apps/operations/courier.php'];
         $navItems[] = ['id' => 'operations-consignments', 'label' => 'Packing List', 'icon' => 'package-open', 'href' => BASE_URL . '/apps/operations/consignments.php'];
