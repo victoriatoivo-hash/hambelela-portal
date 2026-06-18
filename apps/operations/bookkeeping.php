@@ -378,12 +378,13 @@ foreach ($loggedOrderIds as $row) $loggedMap[(int) $row['related_order_id']] = t
 $unloggedCashOrders = array_values(array_filter($cashOrders, static fn (array $row): bool => empty($loggedMap[(int) $row['id']])));
 
 $employees = $ready ? ops_rows(
-    "SELECT e.id, e.full_name
+    "SELECT e.id, e.full_name, r.role_key
      FROM ops_employees e
      JOIN ops_roles r ON r.id = e.role_id
      WHERE e.status = 'active' AND r.role_key IN ('owner_admin', 'front_desk_admin', 'supervisor_manager')
      ORDER BY e.full_name"
 ) : [];
+$employees = ops_canonical_employee_rows($employees);
 
 $orderLookup = array_map(static fn (array $row): array => [
     'id' => (int) $row['id'],

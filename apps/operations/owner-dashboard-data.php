@@ -41,6 +41,7 @@ function owner_dashboard_bootstrap(): void
             owner_dashboard_try_sql("ALTER TABLE ops_packing_tasks ADD COLUMN inventory_updated_at DATETIME NULL AFTER inventory_updated_by");
         }
     }
+    ops_reconcile_front_desk_employee();
 }
 
 function owner_dashboard_minutes(?string $from, ?string $to): ?float
@@ -192,7 +193,7 @@ function owner_dashboard_build(string $fromDate, string $toDate): array
     $now = date('Y-m-d H:i:s');
     $today = date('Y-m-d');
 
-    $employeeRows = ops_table_exists('ops_employees') ? ops_rows(
+    $rawEmployeeRows = ops_table_exists('ops_employees') ? ops_rows(
         "SELECT e.id, e.full_name, COALESCE(r.name, r.role_key) AS role_name, r.role_key,
                 COALESCE(ea.availability_status, 'available') AS availability_status
          FROM ops_employees e
@@ -201,6 +202,8 @@ function owner_dashboard_build(string $fromDate, string $toDate): array
          WHERE e.status = 'active'
          ORDER BY FIELD(r.role_key, 'front_desk_admin', 'packer', 'supervisor_manager', 'owner_admin'), e.full_name"
     ) : [];
+    $employeeAliasMap = ops_employee_alias_map($rawEmployeeRows);
+    $employeeRows = ops_canonical_employee_rows($rawEmployeeRows);
     $employeesById = [];
     $orderEmployees = [];
     $packerEmployees = [];
@@ -250,6 +253,9 @@ function owner_dashboard_build(string $fromDate, string $toDate): array
     $progressByOrder = [];
     foreach ($eventsByOrder as $orderId => $orderEvents) {
         foreach ($orderEvents as $event) {
+            if (!empty($event['employee_id'])) {
+                $event['employee_id'] = ops_canonical_employee_id((int) $event['employee_id'], $employeeAliasMap);
+            }
             $stage = (string) ($event['stage_key'] ?? '');
             if ($stage === 'in_progress') {
                 $progressByOrder[$orderId] = $event;
@@ -298,7 +304,7 @@ function owner_dashboard_build(string $fromDate, string $toDate): array
         $orderId = (int) $order['id'];
         $status = (string) ($order['status'] ?? '');
         $statusKey = owner_dashboard_status_key($status);
-        $assignedId = (int) ($order['assigned_packer_id'] ?? 0);
+        $assignedId = ops_canonical_employee_id((int) ($order['assigned_packer_id'] ?? 0), $employeeAliasMap);
         $progressEmployeeId = (int) ($progressByOrder[$orderId]['employee_id'] ?? 0);
         $doneEmployeeId = (int) ($doneByOrder[$orderId]['employee_id'] ?? 0);
         $primaryId = $doneEmployeeId ?: ($progressEmployeeId ?: $assignedId);
@@ -383,7 +389,7 @@ function owner_dashboard_build(string $fromDate, string $toDate): array
         $packingListRows[$id] = owner_dashboard_board_row($employee);
     }
     foreach ($packingRows as $row) {
-        $employeeId = (int) ($row['assigned_employee_id'] ?? 0);
+        $employeeId = ops_canonical_employee_id((int) ($row['assigned_employee_id'] ?? 0), $employeeAliasMap);
         $status = (string) ($row['packing_status'] ?? '');
         $statusKey = owner_dashboard_status_key($status);
         if (isset($packingBoardRows[$employeeId])) {
@@ -415,7 +421,7 @@ function owner_dashboard_build(string $fromDate, string $toDate): array
             elseif ($statusKey === 'progress') $packingListRows[$employeeId]['in_progress']++;
             else $packingListRows[$employeeId]['not_started']++;
         }
-        $inventoryBy = (int) ($row['inventory_updated_by'] ?? 0);
+        $inventoryBy = ops_canonical_employee_id((int) ($row['inventory_updated_by'] ?? 0), $employeeAliasMap);
         if (!$inventoryBy && !empty($row['website_uploaded']) && !empty($frontDeskEmployees)) {
             $inventoryBy = (int) array_key_first($frontDeskEmployees);
         }
@@ -436,7 +442,7 @@ function owner_dashboard_build(string $fromDate, string $toDate): array
     ) : [];
     $checklistRows = [];
     foreach ($taskRows as $task) {
-        $employeeId = (int) ($task['assigned_employee_id'] ?? 0);
+        $employeeId = ops_canonical_employee_id((int) ($task['assigned_employee_id'] ?? 0), $employeeAliasMap);
         if (!$employeeId || !isset($employeesById[$employeeId])) continue;
         if (!isset($checklistRows[$employeeId])) $checklistRows[$employeeId] = owner_dashboard_board_row($employeesById[$employeeId]);
         $status = (string) ($task['status'] ?? '');
@@ -461,7 +467,7 @@ function owner_dashboard_build(string $fromDate, string $toDate): array
     foreach ($orders as $order) {
         $orderId = (int) $order['id'];
         $doneEmployeeId = (int) ($doneByOrder[$orderId]['employee_id'] ?? 0);
-        $handledBy = $doneEmployeeId ?: (int) ($order['assigned_packer_id'] ?? 0);
+        $handledBy = $doneEmployeeId ?: ops_canonical_employee_id((int) ($order['assigned_packer_id'] ?? 0), $employeeAliasMap);
         if (!$handledBy || !isset($modeRows[$handledBy])) continue;
         $mode = strtolower((string) ($order['fulfilment_mode'] ?? $order['order_type'] ?? ''));
         if (strpos($mode, 'courier') !== false || strpos($mode, 'delivery') !== false) {

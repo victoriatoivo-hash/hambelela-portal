@@ -548,6 +548,209 @@ function ops_current_employee_id(): ?int
     }
 }
 
+function ops_staff_text_key(array $employee): string
+{
+    return strtolower(trim(implode(' ', [
+        (string) ($employee['full_name'] ?? ''),
+        (string) ($employee['name'] ?? ''),
+        (string) ($employee['employee_name'] ?? ''),
+        (string) ($employee['email'] ?? ''),
+        (string) ($employee['username'] ?? ''),
+    ])));
+}
+
+function ops_is_cecilia_employee(array $employee): bool
+{
+    $text = ops_staff_text_key($employee);
+
+    return strpos($text, 'cecil') !== false
+        || strpos($text, 'secil') !== false
+        || strpos($text, 'shiweda') !== false;
+}
+
+function ops_is_generic_front_desk_employee(array $employee): bool
+{
+    $roleKey = strtolower(trim((string) ($employee['role_key'] ?? '')));
+    if ($roleKey !== 'front_desk_admin') {
+        return false;
+    }
+
+    $text = preg_replace('/[^a-z0-9]+/', '', ops_staff_text_key($employee));
+
+    return $text === ''
+        || strpos($text, 'frontdeskadmin') !== false
+        || strpos($text, 'frontdesk') !== false
+        || strpos($text, 'frontperson') !== false
+        || strpos($text, 'adminemployee') !== false;
+}
+
+function ops_staff_display_name(array $employee): string
+{
+    $text = ops_staff_text_key($employee);
+    if (ops_is_cecilia_employee($employee) || ops_is_generic_front_desk_employee($employee)) {
+        return 'Cecilia Shiweda';
+    }
+    if (strpos($text, 'victoria') !== false) {
+        return 'Victoria Toivo';
+    }
+    if (strpos($text, 'klaudia') !== false) {
+        return 'Klaudia';
+    }
+    if (strpos($text, 'ndinelao') !== false || strpos($text, 'ndine') !== false) {
+        return 'Ndinelao';
+    }
+
+    return trim((string) ($employee['full_name'] ?? $employee['name'] ?? $employee['employee_name'] ?? ''));
+}
+
+function ops_staff_role_label(array $employee): string
+{
+    $roleKey = (string) ($employee['role_key'] ?? '');
+    if ($roleKey === 'owner_admin') return 'Owner/Admin';
+    if ($roleKey === 'front_desk_admin') return 'Front Desk';
+    if ($roleKey === 'packer') return 'Packer/Production Staff';
+    if ($roleKey === 'supervisor_manager') return 'Supervisor/Manager';
+
+    return (string) ($employee['role_name'] ?? $employee['role'] ?? $roleKey);
+}
+
+function ops_employee_alias_map(array $employees): array
+{
+    $map = [];
+    $ceciliaId = 0;
+    $genericFrontDeskIds = [];
+
+    foreach ($employees as $employee) {
+        $id = (int) ($employee['id'] ?? $employee['employee_id'] ?? 0);
+        if ($id <= 0) {
+            continue;
+        }
+        $map[$id] = $id;
+        if (ops_is_cecilia_employee($employee) && !ops_is_generic_front_desk_employee($employee)) {
+            $ceciliaId = $id;
+        } elseif (ops_is_generic_front_desk_employee($employee)) {
+            $genericFrontDeskIds[] = $id;
+            if (!$ceciliaId) {
+                $ceciliaId = $id;
+            }
+        }
+    }
+
+    foreach ($genericFrontDeskIds as $genericId) {
+        $map[$genericId] = $ceciliaId ?: $genericId;
+    }
+
+    return $map;
+}
+
+function ops_canonical_employee_rows(array $employees): array
+{
+    $aliasMap = ops_employee_alias_map($employees);
+    $rows = [];
+
+    foreach ($employees as $employee) {
+        $id = (int) ($employee['id'] ?? $employee['employee_id'] ?? 0);
+        if ($id <= 0) {
+            continue;
+        }
+        $canonicalId = (int) ($aliasMap[$id] ?? $id);
+        $isGeneric = ops_is_generic_front_desk_employee($employee);
+        $employee['id'] = $canonicalId;
+        $employee['employee_id'] = $canonicalId;
+        $employee['full_name'] = ops_staff_display_name($employee);
+        $employee['role_name'] = ops_staff_role_label($employee);
+
+        if (!isset($rows[$canonicalId]) || ($isGeneric === false && ops_is_generic_front_desk_employee($rows[$canonicalId]))) {
+            $rows[$canonicalId] = $employee;
+        }
+    }
+
+    return array_values($rows);
+}
+
+function ops_canonical_employee_id(int $employeeId, array $aliasMap): int
+{
+    return (int) ($aliasMap[$employeeId] ?? $employeeId);
+}
+
+function ops_reconcile_front_desk_employee(): void
+{
+    if (!ops_table_exists('ops_employees') || !ops_table_exists('ops_roles')) {
+        return;
+    }
+
+    try {
+        $rows = ops_rows(
+            "SELECT e.id, e.full_name, e.email, e.status, r.role_key
+             FROM ops_employees e
+             JOIN ops_roles r ON r.id = e.role_id
+             WHERE r.role_key = 'front_desk_admin'"
+        );
+        if (!$rows) {
+            return;
+        }
+
+        $ceciliaId = 0;
+        $genericIds = [];
+        foreach ($rows as $row) {
+            $id = (int) $row['id'];
+            if (ops_is_cecilia_employee($row) && !ops_is_generic_front_desk_employee($row)) {
+                $ceciliaId = $id;
+            } elseif (ops_is_generic_front_desk_employee($row)) {
+                $genericIds[] = $id;
+            }
+        }
+
+        if (!$ceciliaId && $genericIds) {
+            $stmt = db()->prepare("UPDATE ops_employees SET full_name = 'Cecilia Shiweda', status = 'active' WHERE id = ?");
+            $stmt->execute([(int) $genericIds[0]]);
+            $stmt->closeCursor();
+            return;
+        }
+
+        if (!$ceciliaId || !$genericIds) {
+            return;
+        }
+
+        $referenceColumns = [
+            'ops_orders' => ['assigned_packer_id', 'assigned_verifier_id', 'created_by'],
+            'ops_order_items' => ['packed_by'],
+            'ops_order_stage_events' => ['employee_id'],
+            'ops_checklist_tasks' => ['assigned_employee_id', 'completed_by', 'created_by'],
+            'ops_packing_tasks' => ['assigned_employee_id', 'inventory_updated_by', 'created_by'],
+            'ops_error_logs' => ['employee_id', 'logged_by'],
+            'ops_cash_transactions' => ['recorded_by'],
+            'ops_courier_waybills' => ['uploaded_by', 'sent_by'],
+            'ops_employee_availability' => ['employee_id'],
+            'ops_employee_availability_history' => ['employee_id'],
+        ];
+        $placeholders = implode(',', array_fill(0, count($genericIds), '?'));
+        foreach ($referenceColumns as $table => $columns) {
+            if (!ops_table_exists($table)) {
+                continue;
+            }
+            foreach ($columns as $column) {
+                if (!ops_column_exists($table, $column)) {
+                    continue;
+                }
+                try {
+                    $stmt = db()->prepare("UPDATE {$table} SET {$column} = ? WHERE {$column} IN ({$placeholders})");
+                    $stmt->execute(array_merge([$ceciliaId], $genericIds));
+                    $stmt->closeCursor();
+                } catch (Throwable $e) {
+                    error_log("Front desk reference merge skipped for {$table}.{$column}: " . $e->getMessage());
+                }
+            }
+        }
+
+        $stmt = db()->prepare("UPDATE ops_employees SET status = 'inactive' WHERE id IN ({$placeholders})");
+        $stmt->execute($genericIds);
+        $stmt->closeCursor();
+    } catch (Throwable $e) {
+        error_log('Front desk employee reconciliation failed: ' . $e->getMessage());
+    }
+}
+
 function ops_assign_unassigned_orders(): int
 {
     $orders = ops_rows(
@@ -617,9 +820,9 @@ function ops_employee_options(?int $selected = null, bool $includeBlank = true):
          ORDER BY FIELD(r.role_key, 'packer', 'supervisor_manager', 'front_desk_admin', 'owner_admin'), e.full_name"
     );
 
-    foreach ($employees as $employee) {
+    foreach (ops_canonical_employee_rows($employees) as $employee) {
         $id = (int) $employee['id'];
-        $label = (string) $employee['full_name'];
+        $label = ops_staff_display_name($employee);
         $isSelected = $selected !== null && $selected === $id ? ' selected' : '';
         echo '<option value="' . $id . '"' . $isSelected . '>' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '</option>';
     }

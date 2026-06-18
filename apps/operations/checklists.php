@@ -297,6 +297,7 @@ $employees = $ready ? ops_rows(
      WHERE e.status = 'active'
      ORDER BY FIELD(r.role_key, 'packer', 'front_desk_admin', 'supervisor_manager', 'owner_admin'), e.full_name"
 ) : [];
+$employees = ops_canonical_employee_rows($employees);
 
 $filters = [
     'date_from' => trim((string) ($_GET['date_from'] ?? '')),

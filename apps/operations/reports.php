@@ -323,6 +323,8 @@ function kpi_bootstrap(): void
             }
         }
     }
+
+    ops_reconcile_front_desk_employee();
 }
 
 function kpi_default_weights(): array
@@ -622,6 +624,8 @@ function kpi_build_scores(string $period, string $start, string $end, array $set
          ORDER BY FIELD(r.role_key, 'front_desk_admin', 'packer', 'supervisor_manager', 'owner_admin'), e.full_name",
         [$currentUserId]
     );
+    $employeeAliasMap = ops_employee_alias_map($employees);
+    $employees = ops_canonical_employee_rows($employees);
 
     $employeeLinks = kpi_employee_links();
     $hrEmployees = ops_hr_employee_options();
@@ -638,7 +642,12 @@ function kpi_build_scores(string $period, string $start, string $end, array $set
     ) : [];
     $errorsByEmployee = [];
     foreach ($errorRows as $row) {
-        $errorsByEmployee[(int) $row['employee_id']] = $row;
+        $employeeId = ops_canonical_employee_id((int) $row['employee_id'], $employeeAliasMap);
+        if (!isset($errorsByEmployee[$employeeId])) {
+            $errorsByEmployee[$employeeId] = ['error_count' => 0, 'error_points' => 0];
+        }
+        $errorsByEmployee[$employeeId]['error_count'] += (int) ($row['error_count'] ?? 0);
+        $errorsByEmployee[$employeeId]['error_points'] += (float) ($row['error_points'] ?? 0);
     }
 
     $checkRows = ops_table_exists('ops_checklist_tasks') ? ops_rows(
@@ -653,7 +662,13 @@ function kpi_build_scores(string $period, string $start, string $end, array $set
     ) : [];
     $checkByEmployee = [];
     foreach ($checkRows as $row) {
-        $checkByEmployee[(int) $row['assigned_employee_id']] = $row;
+        $employeeId = ops_canonical_employee_id((int) $row['assigned_employee_id'], $employeeAliasMap);
+        if (!isset($checkByEmployee[$employeeId])) {
+            $checkByEmployee[$employeeId] = ['checklist_total' => 0, 'checklist_done' => 0, 'missed_tasks' => 0];
+        }
+        $checkByEmployee[$employeeId]['checklist_total'] += (int) ($row['checklist_total'] ?? 0);
+        $checkByEmployee[$employeeId]['checklist_done'] += (int) ($row['checklist_done'] ?? 0);
+        $checkByEmployee[$employeeId]['missed_tasks'] += (int) ($row['missed_tasks'] ?? 0);
     }
 
     $packerRows = ops_table_exists('ops_orders') ? ops_rows(
@@ -671,7 +686,18 @@ function kpi_build_scores(string $period, string $start, string $end, array $set
     ) : [];
     $packerByEmployee = [];
     foreach ($packerRows as $row) {
-        $packerByEmployee[(int) $row['assigned_packer_id']] = $row;
+        $employeeId = ops_canonical_employee_id((int) $row['assigned_packer_id'], $employeeAliasMap);
+        if (!isset($packerByEmployee[$employeeId])) {
+            $packerByEmployee[$employeeId] = ['handled_orders' => 0, 'completed_orders' => 0, 'workload_points' => 0, 'avg_start_minutes' => null, 'avg_pack_minutes' => null, 'avg_completion_minutes' => null];
+        }
+        $packerByEmployee[$employeeId]['handled_orders'] += (int) ($row['handled_orders'] ?? 0);
+        $packerByEmployee[$employeeId]['completed_orders'] += (int) ($row['completed_orders'] ?? 0);
+        $packerByEmployee[$employeeId]['workload_points'] += (float) ($row['workload_points'] ?? 0);
+        foreach (['avg_start_minutes', 'avg_pack_minutes', 'avg_completion_minutes'] as $avgKey) {
+            if ($packerByEmployee[$employeeId][$avgKey] === null && $row[$avgKey] !== null) {
+                $packerByEmployee[$employeeId][$avgKey] = $row[$avgKey];
+            }
+        }
     }
 
     $itemRows = (ops_table_exists('ops_order_items') && ops_table_exists('ops_orders')) ? ops_rows(
@@ -686,7 +712,8 @@ function kpi_build_scores(string $period, string $start, string $end, array $set
     ) : [];
     $itemsByEmployee = [];
     foreach ($itemRows as $row) {
-        $itemsByEmployee[(int) $row['employee_id']] = (float) $row['items_packed'];
+        $employeeId = ops_canonical_employee_id((int) $row['employee_id'], $employeeAliasMap);
+        $itemsByEmployee[$employeeId] = (float) ($itemsByEmployee[$employeeId] ?? 0) + (float) $row['items_packed'];
     }
 
     $canReadPackingTaskTiming = ops_table_exists('ops_packing_tasks')
@@ -706,7 +733,16 @@ function kpi_build_scores(string $period, string $start, string $end, array $set
     ) : [];
     $packingTasksByEmployee = [];
     foreach ($packingTaskRows as $row) {
-        $packingTasksByEmployee[(int) $row['assigned_employee_id']] = $row;
+        $employeeId = ops_canonical_employee_id((int) $row['assigned_employee_id'], $employeeAliasMap);
+        if (!isset($packingTasksByEmployee[$employeeId])) {
+            $packingTasksByEmployee[$employeeId] = ['packing_rows' => 0, 'packing_done_rows' => 0, 'packing_workload' => 0, 'avg_packing_task_minutes' => null];
+        }
+        $packingTasksByEmployee[$employeeId]['packing_rows'] += (int) ($row['packing_rows'] ?? 0);
+        $packingTasksByEmployee[$employeeId]['packing_done_rows'] += (int) ($row['packing_done_rows'] ?? 0);
+        $packingTasksByEmployee[$employeeId]['packing_workload'] += (float) ($row['packing_workload'] ?? 0);
+        if ($packingTasksByEmployee[$employeeId]['avg_packing_task_minutes'] === null && $row['avg_packing_task_minutes'] !== null) {
+            $packingTasksByEmployee[$employeeId]['avg_packing_task_minutes'] = $row['avg_packing_task_minutes'];
+        }
     }
 
     $frontRows = ops_table_exists('ops_orders') ? ops_rows(
@@ -723,7 +759,17 @@ function kpi_build_scores(string $period, string $start, string $end, array $set
     ) : [];
     $frontByEmployee = [];
     foreach ($frontRows as $row) {
-        $frontByEmployee[(int) $row['created_by']] = $row;
+        $employeeId = ops_canonical_employee_id((int) $row['created_by'], $employeeAliasMap);
+        if (!isset($frontByEmployee[$employeeId])) {
+            $frontByEmployee[$employeeId] = ['orders_loaded' => 0, 'unassigned_orders' => 0, 'delayed_orders' => 0, 'correction_orders' => 0, 'avg_assignment_minutes' => null];
+        }
+        $frontByEmployee[$employeeId]['orders_loaded'] += (int) ($row['orders_loaded'] ?? 0);
+        $frontByEmployee[$employeeId]['unassigned_orders'] += (int) ($row['unassigned_orders'] ?? 0);
+        $frontByEmployee[$employeeId]['delayed_orders'] += (int) ($row['delayed_orders'] ?? 0);
+        $frontByEmployee[$employeeId]['correction_orders'] += (int) ($row['correction_orders'] ?? 0);
+        if ($frontByEmployee[$employeeId]['avg_assignment_minutes'] === null && $row['avg_assignment_minutes'] !== null) {
+            $frontByEmployee[$employeeId]['avg_assignment_minutes'] = $row['avg_assignment_minutes'];
+        }
     }
 
     $scores = [];

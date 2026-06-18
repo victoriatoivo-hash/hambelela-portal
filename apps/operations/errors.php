@@ -150,8 +150,9 @@ $employees = $ready ? ops_rows(
      WHERE e.status = 'active'
      ORDER BY FIELD(r.role_key, 'owner_admin', 'front_desk_admin', 'supervisor_manager', 'packer'), e.full_name"
 ) : [];
+$employees = ops_canonical_employee_rows($employees);
 $employeeMap = [];
-foreach ($employees as $employee) $employeeMap[(int) $employee['id']] = (string) $employee['full_name'];
+foreach ($employees as $employee) $employeeMap[(int) $employee['id']] = ops_staff_display_name($employee);
 
 if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
