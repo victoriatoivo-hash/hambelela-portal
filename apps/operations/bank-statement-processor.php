@@ -100,29 +100,63 @@ function bsp_upload_file(string $field, string $dir, array $extensions): array
 
 function bsp_extract_pdf_text(string $path): array
 {
-    $autoload = BASE_PATH . '/vendor/autoload.php';
+    $rawText = '';
+    $method = 'none';
+    $documentRoot = rtrim((string) ($_SERVER['DOCUMENT_ROOT'] ?? BASE_PATH), '/\\');
+    $autoload = $documentRoot . '/vendor/autoload.php';
     if (is_file($autoload)) {
         require_once $autoload;
         if (class_exists(\Smalot\PdfParser\Parser::class)) {
             try {
                 $parser = new \Smalot\PdfParser\Parser();
-                $text = trim($parser->parseFile($path)->getText());
-                if ($text !== '') {
-                    return ['ok' => true, 'text' => $text, 'method' => 'pdfparser'];
-                }
-            } catch (Throwable $e) {
-                // Fall through to pdftotext below.
+                $pdf = $parser->parseFile($path);
+                $rawText = (string) $pdf->getText();
+                $method = 'pdfparser';
+            } catch (Exception $e) {
+                $rawText = '';
             }
         }
     }
 
-    $command = 'pdftotext -layout ' . escapeshellarg($path) . ' - 2>&1';
-    $output = function_exists('shell_exec') ? shell_exec($command) : null;
-    if (is_string($output) && trim($output) !== '' && stripos($output, 'not recognized') === false && stripos($output, 'not found') === false) {
-        return ['ok' => true, 'text' => trim($output), 'method' => 'pdftotext'];
+    if (trim($rawText) === '') {
+        $command = 'pdftotext -layout ' . escapeshellarg($path) . ' - 2>&1';
+        $output = function_exists('shell_exec') ? shell_exec($command) : null;
+        $rawText = is_string($output) ? $output : '';
+        $method = 'pdftotext';
     }
 
-    return ['ok' => false, 'text' => '', 'method' => 'none', 'error' => 'Could not parse PDF - is this an FNB Namibia statement?'];
+    if (trim($rawText) !== '') {
+        return ['ok' => true, 'text' => trim($rawText), 'method' => $method];
+    }
+
+    return ['ok' => false, 'text' => '', 'method' => $method, 'error' => 'Could not extract any text from this PDF. See debug info below.'];
+}
+
+function bsp_pdf_debug_info(string $path): array
+{
+    $documentRoot = rtrim((string) ($_SERVER['DOCUMENT_ROOT'] ?? BASE_PATH), '/\\');
+    $autoload = $documentRoot . '/vendor/autoload.php';
+    $pdftotextStatus = 'NOT FOUND';
+    $rawOutput = '';
+
+    if (function_exists('shell_exec')) {
+        $which = shell_exec('which pdftotext 2>&1');
+        $version = shell_exec('pdftotext -v 2>&1');
+        $pdftotextStatus = trim((string) ($which ?: $version));
+        if ($pdftotextStatus === '') {
+            $pdftotextStatus = 'NOT FOUND';
+        }
+        $rawOutput = (string) shell_exec('pdftotext -layout ' . escapeshellarg($path) . ' - 2>&1');
+    }
+
+    return [
+        'php_version' => phpversion(),
+        'pdfparser_available' => is_file($autoload) ? 'YES' : 'NO - composer not run',
+        'pdftotext_available' => $pdftotextStatus,
+        'raw_pdftotext_output' => substr($rawOutput, 0, 3000),
+        'pdf_file_size' => is_file($path) ? filesize($path) . ' bytes' : 'File not found',
+        'pdf_mime_type' => function_exists('mime_content_type') && is_file($path) ? (string) mime_content_type($path) : 'Unknown',
+    ];
 }
 
 function bsp_amount_to_float(?string $value): ?float
@@ -371,7 +405,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $textResult = bsp_extract_pdf_text((string) $pdf['path']);
             if (!($textResult['ok'] ?? false)) {
-                throw new RuntimeException((string) ($textResult['error'] ?? 'Could not parse PDF - is this an FNB Namibia statement?'));
+                $_SESSION['bank_statement_processor'] = [
+                    'pdf_name' => $pdf['name'],
+                    'transactions' => [],
+                    'raw_text' => (string) ($textResult['text'] ?? ''),
+                    'method' => (string) ($textResult['method'] ?? 'none'),
+                    'debug_info' => bsp_pdf_debug_info((string) $pdf['path']),
+                    'created_at' => time(),
+                ];
+                throw new RuntimeException((string) ($textResult['error'] ?? 'Could not extract any text from this PDF. See debug info below.'));
             }
 
             $transactions = bsp_parse_fnb_transactions((string) $textResult['text']);
@@ -380,6 +422,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'transactions' => $transactions,
                 'raw_text' => (string) $textResult['text'],
                 'method' => (string) $textResult['method'],
+                'debug_info' => $transactions ? [] : bsp_pdf_debug_info((string) $pdf['path']),
                 'created_at' => time(),
             ];
 
@@ -522,6 +565,39 @@ include BASE_PATH . '/shared/sidebar.php';
         </section>
     <?php endif; ?>
 
+    <?php if (!$transactions && (!empty($state['raw_text']) || !empty($state['debug_info']))): ?>
+        <section class="panel bank-raw-panel">
+            <div class="section-row">
+                <div>
+                    <h2>No transactions found. See raw text below.</h2>
+                </div>
+            </div>
+            <details>
+                <summary>Raw extracted PDF text</summary>
+                <pre class="text-preview"><?= htmlspecialchars(substr((string) ($state['raw_text'] ?? ''), 0, 12000), ENT_QUOTES, 'UTF-8') ?></pre>
+            </details>
+            <?php if (!empty($state['debug_info']) && is_array($state['debug_info'])): ?>
+                <details class="bank-debug-info">
+                    <summary>Debug Info</summary>
+                    <dl>
+                        <dt>PHP version</dt>
+                        <dd><?= htmlspecialchars((string) ($state['debug_info']['php_version'] ?? ''), ENT_QUOTES, 'UTF-8') ?></dd>
+                        <dt>pdfparser available</dt>
+                        <dd><?= htmlspecialchars((string) ($state['debug_info']['pdfparser_available'] ?? ''), ENT_QUOTES, 'UTF-8') ?></dd>
+                        <dt>pdftotext available</dt>
+                        <dd><pre><?= htmlspecialchars((string) ($state['debug_info']['pdftotext_available'] ?? 'NOT FOUND'), ENT_QUOTES, 'UTF-8') ?></pre></dd>
+                        <dt>PDF file size</dt>
+                        <dd><?= htmlspecialchars((string) ($state['debug_info']['pdf_file_size'] ?? ''), ENT_QUOTES, 'UTF-8') ?></dd>
+                        <dt>PDF file mime type</dt>
+                        <dd><?= htmlspecialchars((string) ($state['debug_info']['pdf_mime_type'] ?? ''), ENT_QUOTES, 'UTF-8') ?></dd>
+                        <dt>Raw pdftotext output (first 3000 characters)</dt>
+                        <dd><pre><?= htmlspecialchars((string) ($state['debug_info']['raw_pdftotext_output'] ?? ''), ENT_QUOTES, 'UTF-8') ?></pre></dd>
+                    </dl>
+                </details>
+            <?php endif; ?>
+        </section>
+    <?php endif; ?>
+
     <section class="panel bank-history-panel">
         <div class="section-row">
             <div>
@@ -550,19 +626,6 @@ include BASE_PATH . '/shared/sidebar.php';
         </div>
     </section>
 
-    <?php if (!empty($state['raw_text']) && !$transactions): ?>
-        <section class="panel bank-raw-panel">
-            <div class="section-row">
-                <div>
-                    <h2>No transactions found. See raw text below.</h2>
-                </div>
-            </div>
-            <details>
-                <summary>Raw extracted PDF text</summary>
-                <pre class="text-preview"><?= htmlspecialchars(substr((string) ($state['raw_text'] ?? ''), 0, 12000), ENT_QUOTES, 'UTF-8') ?></pre>
-            </details>
-        </section>
-    <?php endif; ?>
 </main>
 <script>
 function bankSetZoneFile(input) {
