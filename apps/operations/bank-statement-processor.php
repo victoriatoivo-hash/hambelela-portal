@@ -176,6 +176,53 @@ function bsp_pdf_debug_info(string $path): array
     ];
 }
 
+function bsp_join_fnb_transaction_lines(string $rawText): array
+{
+    $rawLines = explode("\n", $rawText);
+    $joinedLines = [];
+    $buffer = '';
+
+    foreach ($rawLines as $line) {
+        $line = trim($line);
+        if ($line === '') {
+            continue;
+        }
+
+        if (preg_match('/^\d{2}\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+/i', $line)) {
+            if ($buffer !== '') {
+                $joinedLines[] = $buffer;
+            }
+            $buffer = $line;
+        } elseif ($buffer !== '') {
+            $buffer .= ' ' . $line;
+        }
+    }
+
+    if ($buffer !== '') {
+        $joinedLines[] = $buffer;
+    }
+
+    return $joinedLines;
+}
+
+function bsp_fnb_line_diagnostics(string $rawText): array
+{
+    $rawLines = explode("\n", $rawText);
+    $matchingLines = 0;
+
+    foreach ($rawLines as $line) {
+        if (preg_match('/^\s*\d{2}\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+/i', $line)) {
+            $matchingLines++;
+        }
+    }
+
+    return [
+        'raw_line_count' => count($rawLines),
+        'dd_mon_line_count' => $matchingLines,
+        'joined_line_count' => count(bsp_join_fnb_transaction_lines($rawText)),
+    ];
+}
+
 function bsp_amount_to_float(?string $value): ?float
 {
     if ($value === null) {
@@ -221,7 +268,7 @@ function bsp_parse_fnb_transactions(string $text): array
 {
     $transactions = [];
     $rawText = $text;
-    $lines = explode("\n", $rawText);
+    $lines = bsp_join_fnb_transaction_lines($rawText);
 
     foreach ($lines as $line) {
         $line = trim($line);
@@ -235,24 +282,27 @@ function bsp_parse_fnb_transactions(string $text): array
         $month = $m[2];
         $rest  = trim($m[3]);
 
-        // Extract all numbers from the rest of the line
-        // Numbers look like: 442.00 or 14,500.00 or 442.00Cr
-        preg_match_all('/([\d,]+\.\d{2})(Cr)?/i', $rest, $nums, PREG_SET_ORDER);
+        // Match only the final amount and balance, keeping references inside the description.
+        if (preg_match('/^(.*?)\s+([\d,]+\.\d{2})(Cr)?\s+([\d,]+\.\d{2})\s*$/i', $rest, $amountParts)) {
+            $description = trim((string) $amountParts[1]);
+            $amount = str_replace(',', '', (string) $amountParts[2]);
+            $isCr = !empty($amountParts[3]);
+            $balance = str_replace(',', '', (string) $amountParts[4]);
+        } else {
+            preg_match_all('/([\d,]+\.\d{2})(Cr)?/i', $rest, $nums, PREG_SET_ORDER);
+            if (count($nums) < 2) continue;
 
-        if (count($nums) < 2) continue; // need at least amount + balance
+            $balanceMatch = array_pop($nums);
+            $amountMatch = array_pop($nums);
+            $amount = str_replace(',', '', $amountMatch[1]);
+            $isCr = !empty($amountMatch[2]);
+            $balance = str_replace(',', '', $balanceMatch[1]);
+            $description = preg_replace('/([\d,]+\.\d{2}(Cr)?\s*){1,2}\s*$/i', '', $rest);
+            $description = trim((string) $description);
+        }
 
-        // Last match = balance, second to last = amount
-        $balanceMatch = array_pop($nums);
-        $amountMatch  = array_pop($nums);
-
-        $balance = str_replace(',', '', $balanceMatch[1]);
-        $amount  = str_replace(',', '', $amountMatch[1]);
-        $isCr    = !empty($amountMatch[2]); // has "Cr" suffix
-
-        // Remove all numbers and "Cr" from rest to get description
-        $description = preg_replace('/([\d,]+\.\d{2})(Cr)?/i', '', $rest);
         $description = preg_replace('/\s+/', ' ', $description);
-        $description = trim($description);
+        $description = trim((string) $description);
 
         // Build date - year is current year, but handle Jan in
         // December context: if month is Jan-Mar use 2025, else 2025
@@ -452,7 +502,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'transactions' => $transactions,
                 'raw_text' => (string) $textResult['text'],
                 'method' => (string) $textResult['method'],
-                'debug_info' => $transactions ? [] : bsp_pdf_debug_info((string) $pdf['path']),
+                'debug_info' => $transactions ? [] : array_merge(
+                    bsp_pdf_debug_info((string) $pdf['path']),
+                    bsp_fnb_line_diagnostics((string) $textResult['text'])
+                ),
                 'created_at' => time(),
             ];
 
@@ -620,6 +673,12 @@ include BASE_PATH . '/shared/sidebar.php';
                         <dd><?= htmlspecialchars((string) ($state['debug_info']['pdf_file_size'] ?? ''), ENT_QUOTES, 'UTF-8') ?></dd>
                         <dt>PDF file mime type</dt>
                         <dd><?= htmlspecialchars((string) ($state['debug_info']['pdf_mime_type'] ?? ''), ENT_QUOTES, 'UTF-8') ?></dd>
+                        <dt>Total raw lines extracted</dt>
+                        <dd><?= htmlspecialchars((string) ($state['debug_info']['raw_line_count'] ?? ''), ENT_QUOTES, 'UTF-8') ?></dd>
+                        <dt>Lines starting with DD Mon pattern</dt>
+                        <dd><?= htmlspecialchars((string) ($state['debug_info']['dd_mon_line_count'] ?? ''), ENT_QUOTES, 'UTF-8') ?></dd>
+                        <dt>Joined lines after pre-processing</dt>
+                        <dd><?= htmlspecialchars((string) ($state['debug_info']['joined_line_count'] ?? ''), ENT_QUOTES, 'UTF-8') ?></dd>
                         <dt>Raw pdftotext output (first 3000 characters)</dt>
                         <dd><pre><?= htmlspecialchars((string) ($state['debug_info']['raw_pdftotext_output'] ?? ''), ENT_QUOTES, 'UTF-8') ?></pre></dd>
                         <dt>Pure PHP extractor</dt>
