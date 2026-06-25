@@ -1908,7 +1908,7 @@ function kpi_render_front_person_live_dashboard(array $employee, array $detail, 
     kpi_hr_render_table_card('Waybill Log - Upload to Customer Sent', ['Waybill', 'Uploaded', 'Sent to Customer', 'Duration', 'SLA', 'Status'], $courierTableRows);
     echo '</div>';
 
-    echo '<div class="hr-section" id="hr-sec-tasks"><div class="hr-section-heading"><h2>Task Management</h2><p>Tracking task completion rate, speed, and overdue items assigned to Cecilia.</p></div>' . $monthNav;
+    echo '<div class="hr-section" id="hr-sec-tasks"><div class="hr-section-heading"><h2>Task Management</h2><p>Tracking task completion rate, speed, and overdue items assigned to Secilia.</p></div>' . $monthNav;
     kpi_hr_render_stats([
         ['label' => 'Total Tasks', 'value' => number_format(count($taskRows)), 'sub' => 'this period'],
         ['label' => 'Completed', 'value' => number_format($taskDone), 'badge' => 'Done', 'tone' => 'good'],
@@ -1934,7 +1934,7 @@ function kpi_render_front_person_live_dashboard(array $employee, array $detail, 
     kpi_hr_render_table_card('Task Log', ['Task', 'Assigned', 'Due Date', 'Completed', 'Duration', 'Status'], $taskTableRows);
     echo '</div>';
 
-    echo '<div class="hr-section" id="hr-sec-errors"><div class="hr-section-heading"><h2>Error Log</h2><p>Errors Cecilia has logged with notes and tagging vs errors logged against her.</p></div>' . $monthNav;
+    echo '<div class="hr-section" id="hr-sec-errors"><div class="hr-section-heading"><h2>Error Log</h2><p>Errors Secilia has logged with notes and tagging vs errors logged against her.</p></div>' . $monthNav;
     $loggedByEmployee = 0;
     $againstEmployee = 0;
     $completeErrorLogs = 0;
@@ -1961,14 +1961,14 @@ function kpi_render_front_person_live_dashboard(array $employee, array $detail, 
             '<span class="hr-tmono">' . htmlspecialchars(kpi_front_date_label((string) ($row['logged_at'] ?? '')), ENT_QUOTES, 'UTF-8') . '</span>',
             '<div class="hr-tname">' . htmlspecialchars((string) ($row['category'] ?: '-'), ENT_QUOTES, 'UTF-8') . '</div>',
             kpi_hr_tag(ucwords((string) ($row['severity'] ?: '-')), strtolower((string) ($row['severity'] ?? '')) === 'critical' ? 'danger' : 'warn'),
-            kpi_hr_tag($against ? 'Against Cecilia' : 'Logged by Cecilia', $against ? 'danger' : 'good'),
+            kpi_hr_tag($against ? 'Against Secilia' : 'Logged by Secilia', $against ? 'danger' : 'good'),
             '<span class="hr-tmono">' . htmlspecialchars((string) ($row['resolution'] ?: 'Open'), ENT_QUOTES, 'UTF-8') . '</span>',
         ];
     }, $errorRows);
     kpi_hr_render_table_card('Error Log Records', ['Date', 'Error', 'Severity', 'Type', 'Status'], $errorTableRows);
     echo '</div>';
 
-    echo '<div class="hr-section" id="hr-sec-picking"><div class="hr-section-heading"><h2>Packing List</h2><p>Products loaded onto the system. Cecilia must update stock quantities on the website within 24 hours of loading.</p></div>' . $monthNav;
+    echo '<div class="hr-section" id="hr-sec-picking"><div class="hr-section-heading"><h2>Packing List</h2><p>Products loaded onto the system. Secilia must update stock quantities on the website within 24 hours of loading.</p></div>' . $monthNav;
     kpi_hr_render_stats([
         ['label' => 'Products Loaded', 'value' => number_format(count($packingRows)), 'sub' => 'this period'],
         ['label' => 'Website Updated', 'value' => number_format($websiteOnTime), 'badge' => 'Within 24h', 'tone' => 'good'],
@@ -2498,7 +2498,7 @@ function kpi_render_packer_live_dashboard(array $employee, array $detail, string
                     <select name="packer_name" required>
                         <option value="Klaudia">Klaudia</option>
                         <option value="Ndinelao">Ndinelao</option>
-                        <option value="Cecilia">Cecilia</option>
+                        <option value="Secilia">Secilia</option>
                         <option value="Victoria">Victoria</option>
                     </select>
                 </label>

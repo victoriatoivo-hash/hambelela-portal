@@ -664,7 +664,7 @@ function wb_queue_html(array $rows, bool $canSend): string
 {
     ob_start();
     if (!$rows) {
-        echo '<div class="waybill-empty">No pending waybills. Cecilia is clear for now.</div>';
+        echo '<div class="waybill-empty">No pending waybills. Secilia is clear for now.</div>';
     } else {
         foreach ($rows as $row) {
             $batchId = (string) $row['batch_id'];
@@ -1487,7 +1487,7 @@ include BASE_PATH . '/shared/sidebar.php';
             </article>
             <article class="waybill-stat-card is-pending">
                 <span class="stat-icon"><i data-lucide="clock-3"></i></span>
-                <div><strong class="stat-number" data-stat="pending"><?= number_format($payload['stats']['pending']) ?></strong><div class="stat-label">Pending Send - Cecilia action required</div></div>
+                <div><strong class="stat-number" data-stat="pending"><?= number_format($payload['stats']['pending']) ?></strong><div class="stat-label">Pending Send - Secilia action required</div></div>
             </article>
             <article class="waybill-stat-card is-overdue">
                 <span class="stat-icon"><i data-lucide="triangle-alert"></i></span>
@@ -1532,7 +1532,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         <div data-file-chips></div>
                     </div>
                     <label class="waybill-field waybill-span-2">Notes for Front Desk
-                        <textarea name="notes" placeholder="Optional note for Cecilia"></textarea>
+                        <textarea name="notes" placeholder="Optional note for Secilia"></textarea>
                     </label>
                     <div class="waybill-span-2" style="display:flex; justify-content:flex-end;">
                         <button class="waybill-button" type="submit" data-upload-submit><i data-lucide="upload"></i> Upload Waybills</button>
@@ -1545,7 +1545,7 @@ include BASE_PATH . '/shared/sidebar.php';
             <div class="waybill-section-heading">
                 <div>
                     <h2>Waybill Queue</h2>
-                    <p>Pending and overdue batches Cecilia must send to customers.</p>
+                    <p>Pending and overdue batches Secilia must send to customers.</p>
                 </div>
                 <button class="waybill-button is-light" type="button" data-refresh-waybills><i data-lucide="refresh-cw"></i> Refresh</button>
             </div>

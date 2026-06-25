@@ -6,7 +6,7 @@ require_once dirname(__DIR__, 2) . '/apps/operations/operations.php';
 
 require_login();
 
-$pageTitle = 'Cecilia - Performance Dashboard | ' . APP_NAME;
+$pageTitle = 'Secilia - Performance Dashboard | ' . APP_NAME;
 
 function hp_e($value): string
 {
@@ -97,7 +97,7 @@ function hp_bootstrap_schema(): void
 
 function hp_cecilia_employee(): array
 {
-    if (!ops_table_exists('ops_employees')) return ['id' => 0, 'full_name' => 'Cecilia', 'email' => '', 'role_name' => 'Front Desk/Admin'];
+    if (!ops_table_exists('ops_employees')) return ['id' => 0, 'full_name' => 'Secilia', 'email' => '', 'role_name' => 'Front Desk/Admin'];
     $rows = ops_rows(
         "SELECT e.*, r.name AS role_name, r.role_key
          FROM ops_employees e
@@ -115,7 +115,7 @@ function hp_cecilia_employee(): array
             e.id ASC
          LIMIT 1"
     );
-    return $rows[0] ?? ['id' => 0, 'full_name' => 'Cecilia', 'email' => '', 'role_name' => 'Front Desk/Admin'];
+    return $rows[0] ?? ['id' => 0, 'full_name' => 'Secilia', 'email' => '', 'role_name' => 'Front Desk/Admin'];
 }
 
 function hp_month_link(DateTimeImmutable $month, string $delta): string
@@ -158,10 +158,10 @@ $periodStart = $monthStart->format('Y-m-d H:i:s');
 $periodEnd = $monthEnd->format('Y-m-d H:i:s');
 $monthLabel = $monthStart->format('F Y');
 
-$cecilia = $ready ? hp_cecilia_employee() : ['id' => 0, 'full_name' => 'Cecilia', 'email' => '', 'role_name' => 'Front Desk/Admin'];
+$cecilia = $ready ? hp_cecilia_employee() : ['id' => 0, 'full_name' => 'Secilia', 'email' => '', 'role_name' => 'Front Desk/Admin'];
 $ceciliaId = (int) ($cecilia['id'] ?? 0);
-$ceciliaName = (string) ($cecilia['full_name'] ?? 'Cecilia');
-$initial = strtoupper(substr($ceciliaName !== '' ? $ceciliaName : 'Cecilia', 0, 1));
+$ceciliaName = (string) ($cecilia['full_name'] ?? 'Secilia');
+$initial = strtoupper(substr($ceciliaName !== '' ? $ceciliaName : 'Secilia', 0, 1));
 
 if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'toggle_website_update') {
     $rowId = (int) ($_POST['packing_task_id'] ?? 0);
@@ -610,7 +610,7 @@ $monthNav = '<div class="month-nav"><a class="month-btn" href="' . hp_e(hp_month
 
     <div class="section" id="sec-tasks">
       <div class="section-heading">Task Management</div>
-      <div class="section-sub">Tracking task completion rate, speed, and overdue items assigned to Cecilia.</div>
+      <div class="section-sub">Tracking task completion rate, speed, and overdue items assigned to Secilia.</div>
       <?= $monthNav ?>
       <div class="stats-row cols-5">
         <div class="stat-card"><div class="stat-label">Total Tasks</div><div class="stat-value"><?= number_format(count($tasks)) ?></div><div class="stat-sub">this month</div></div>
@@ -630,7 +630,7 @@ $monthNav = '<div class="month-nav"><a class="month-btn" href="' . hp_e(hp_month
 
     <div class="section" id="sec-errors">
       <div class="section-heading">Error Log</div>
-      <div class="section-sub">Errors Cecilia has logged (with notes and tagging) vs errors logged against her.</div>
+      <div class="section-sub">Errors Secilia has logged (with notes and tagging) vs errors logged against her.</div>
       <?= $monthNav ?>
       <div class="stats-row cols-4">
         <div class="stat-card"><div class="stat-label">Errors She Logged</div><div class="stat-value"><?= number_format(count($errorsLogged)) ?></div><div class="badge bg-good">This month</div></div>
@@ -639,13 +639,13 @@ $monthNav = '<div class="month-nav"><a class="month-btn" href="' . hp_e(hp_month
         <div class="stat-card"><div class="stat-label">Errors Against Her</div><div class="stat-value"><?= number_format(count($errorsAgainst)) ?></div><div class="badge bg-danger">Logged by others</div></div>
       </div>
       <div class="two-col">
-        <div class="card"><div class="card-header"><div class="card-title">Errors Logged by Cecilia</div></div><div class="card-body table-wrap" style="padding:0"><table class="data-table"><thead><tr><th>Date</th><th>Description</th><th>Employee Tagged</th><th>Notes</th><th>Quality</th></tr></thead><tbody>
+        <div class="card"><div class="card-header"><div class="card-title">Errors Logged by Secilia</div></div><div class="card-body table-wrap" style="padding:0"><table class="data-table"><thead><tr><th>Date</th><th>Description</th><th>Employee Tagged</th><th>Notes</th><th>Quality</th></tr></thead><tbody>
           <?php if (!$errorsLogged): ?><?= hp_empty(5) ?><?php endif; ?>
           <?php foreach ($errorsLogged as $err): $hasNote = trim((string) ($err['description'] ?? '')) !== ''; $tagged = (int) ($err['employee_id'] ?? 0) > 0; ?>
           <tr><td class="tmono"><?= hp_day($err['logged_at'] ?? null) ?></td><td><div class="tname"><?= hp_e($err['category'] ?: $err['description']) ?></div></td><td><?= hp_tag($tagged ? (string) ($err['responsible_name'] ?? 'Tagged') : 'Not tagged', $tagged ? '' : 'warn') ?></td><td><?= hp_tag($hasNote ? 'Yes' : 'No', $hasNote ? 'good' : 'danger') ?></td><td><?= hp_tag($hasNote && $tagged ? 'Complete' : 'Incomplete', $hasNote && $tagged ? 'good' : 'warn') ?></td></tr>
           <?php endforeach; ?>
         </tbody></table></div></div>
-        <div class="card"><div class="card-header"><div class="card-title">Errors Logged Against Cecilia</div></div><div class="card-body table-wrap" style="padding:0"><table class="data-table"><thead><tr><th>Date</th><th>Error</th><th>Logged By</th><th>Status</th></tr></thead><tbody>
+        <div class="card"><div class="card-header"><div class="card-title">Errors Logged Against Secilia</div></div><div class="card-body table-wrap" style="padding:0"><table class="data-table"><thead><tr><th>Date</th><th>Error</th><th>Logged By</th><th>Status</th></tr></thead><tbody>
           <?php if (!$errorsAgainst): ?><?= hp_empty(4) ?><?php endif; ?>
           <?php foreach ($errorsAgainst as $err): ?><tr><td class="tmono"><?= hp_day($err['logged_at'] ?? null) ?></td><td><div class="tname"><?= hp_e($err['category'] ?: $err['description']) ?></div></td><td><?= hp_tag($err['logged_by_name'] ?? 'System') ?></td><td><?= hp_tag((string) ($err['resolution'] ?? '') !== '' ? 'Resolved' : 'Unresolved', (string) ($err['resolution'] ?? '') !== '' ? 'good' : 'danger') ?></td></tr><?php endforeach; ?>
         </tbody></table></div></div>
@@ -654,7 +654,7 @@ $monthNav = '<div class="month-nav"><a class="month-btn" href="' . hp_e(hp_month
 
     <div class="section" id="sec-picking">
       <div class="section-heading">Packing List</div>
-      <div class="section-sub">Products loaded onto the system. Cecilia must update stock quantities on the website within 24 hours of loading.</div>
+      <div class="section-sub">Products loaded onto the system. Secilia must update stock quantities on the website within 24 hours of loading.</div>
       <?= $monthNav ?>
       <div class="stats-row cols-5">
         <div class="stat-card"><div class="stat-label">Products Loaded</div><div class="stat-value"><?= number_format(count($packingRows)) ?></div><div class="stat-sub">this month</div></div>

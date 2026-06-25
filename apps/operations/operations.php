@@ -588,7 +588,7 @@ function ops_staff_display_name(array $employee): string
 {
     $text = ops_staff_text_key($employee);
     if (ops_is_cecilia_employee($employee) || ops_is_generic_front_desk_employee($employee)) {
-        return 'Cecilia Shiweda';
+        return 'Secilia Shiweda';
     }
     if (strpos($text, 'victoria') !== false) {
         return 'Victoria Toivo';
@@ -711,7 +711,7 @@ function ops_reconcile_front_desk_employee(): void
         }
 
         if (!$ceciliaId && $genericIds) {
-            $stmt = db()->prepare("UPDATE ops_employees SET full_name = 'Cecilia Shiweda', status = 'active' WHERE id = ?");
+            $stmt = db()->prepare("UPDATE ops_employees SET full_name = 'Secilia Shiweda', status = 'active' WHERE id = ?");
             $stmt->execute([(int) $genericIds[0]]);
             $stmt->closeCursor();
             return;
@@ -771,8 +771,8 @@ function ops_reconcile_core_staff(): void
     $targets = [
         [
             'email' => 'shiwedasecilia3@gmail.com',
-            'name' => 'Cecilia Shiweda',
-            'first' => 'Cecilia',
+            'name' => 'Secilia Shiweda',
+            'first' => 'Secilia',
             'last' => 'Shiweda',
             'role' => 'front_desk_admin',
             'match' => ['cecil', 'secil', 'shiweda'],
