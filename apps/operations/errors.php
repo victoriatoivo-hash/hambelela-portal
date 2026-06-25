@@ -150,7 +150,7 @@ $employees = $ready ? ops_rows(
      WHERE e.status = 'active'
      ORDER BY FIELD(r.role_key, 'owner_admin', 'front_desk_admin', 'supervisor_manager', 'packer'), e.full_name"
 ) : [];
-$employees = ops_canonical_employee_rows($employees);
+$employees = ops_canonical_employee_rows($employees, true);
 $employeeMap = [];
 foreach ($employees as $employee) $employeeMap[(int) $employee['id']] = ops_staff_display_name($employee);
 
@@ -189,7 +189,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 (float) ($_POST['financial_impact'] ?? 0),
                 ops_post_string('resolution', 1500),
                 (int) ($_POST['repeat_issue'] ?? 0) === 1 ? 1 : 0,
-                ops_post_string('repeat_note', 1000),
+                '',
                 $currentEmployeeId,
             ]);
             $errorId = (int) db()->lastInsertId();
@@ -511,7 +511,6 @@ include BASE_PATH . '/shared/sidebar.php';
                         <label><input type="radio" name="repeat_issue" value="0" checked><span>No</span></label>
                         <label><input type="radio" name="repeat_issue" value="1"><span>Yes</span></label>
                     </fieldset>
-                    <label>Repeat note if applicable<textarea name="repeat_note" placeholder="Briefly explain the previous occurrence."></textarea></label>
                 </section>
 
                 <section class="error-form-section">

@@ -4785,6 +4785,59 @@ textarea {
   font-weight: 600 !important;
 }
 
+.error-log-page .repeat-choice {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin-top: 10px !important;
+}
+
+.error-log-page .repeat-choice legend {
+  flex: 0 0 100% !important;
+  margin: 0 !important;
+  color: var(--el-text-mid) !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+}
+
+.error-log-page .repeat-choice label {
+  width: 60px !important;
+  min-width: 60px !important;
+  height: 30px !important;
+  min-height: 30px !important;
+  padding: 0 !important;
+  border: 1px solid var(--el-border) !important;
+  border-radius: 6px !important;
+  background: var(--el-cream) !important;
+  color: var(--el-text-mid) !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  box-shadow: none !important;
+}
+
+.error-log-page .repeat-choice label:hover {
+  border-color: var(--el-orange-red) !important;
+  background: #fff3ee !important;
+}
+
+.error-log-page .repeat-choice label:has(input[value="0"]:checked) {
+  border-color: var(--el-olive) !important;
+  background: var(--el-olive) !important;
+  color: #2C1810 !important;
+}
+
+.error-log-page .repeat-choice label:has(input[value="1"]:checked) {
+  border-color: var(--el-red) !important;
+  background: var(--el-red) !important;
+  color: #fff !important;
+}
+
 .error-log-page .error-log-panel,
 .error-log-page .error-detail-panel {
   background: var(--el-surface) !important;
@@ -4838,38 +4891,59 @@ textarea {
 .error-log-page .people-chip-grid {
   border: 1px solid var(--el-border) !important;
   border-radius: 10px !important;
+  padding: 10px !important;
+  background: var(--el-surface) !important;
 }
 
 .error-log-page .people-chip-grid span {
-  min-height: 28px !important;
-  padding: 0 10px !important;
+  min-height: 26px !important;
+  padding: 0 12px !important;
   border: 1px solid var(--el-border) !important;
-  background: #f5ece8 !important;
+  border-radius: 6px !important;
+  background: var(--el-cream) !important;
   color: var(--el-text-mid) !important;
-  font-size: 12px !important;
+  font-size: 11px !important;
   font-weight: 600 !important;
+  letter-spacing: 0.03em !important;
+  text-transform: uppercase !important;
+}
+
+.error-log-page .people-chip-grid label:hover span {
+  border-color: var(--el-orange-red) !important;
+  background: #fff3ee !important;
 }
 
 .error-log-page .people-chip-grid input:checked + span {
   border-color: var(--el-orange-red) !important;
-  background: #fdf0eb !important;
-  color: var(--el-orange-red) !important;
+  background: var(--el-orange-red) !important;
+  color: #fff !important;
   box-shadow: 0 8px 18px rgba(171, 54, 25, 0.12) !important;
 }
 
 .error-log-page .error-upload-zone {
-  border-color: var(--el-orange-red) !important;
+  border: 2px dashed var(--el-olive) !important;
   border-radius: 10px !important;
-  background: #fff3f0 !important;
+  background: #f7fbea !important;
+}
+
+.error-log-page .error-upload-zone:hover,
+.error-log-page .error-upload-zone.is-dragover {
+  border-color: var(--el-burgundy) !important;
+  border-style: solid !important;
+  background: #eef7c8 !important;
 }
 
 .error-log-page .error-upload-zone > span {
-  background: #fdf0eb !important;
-  color: var(--el-orange-red) !important;
+  background: #f3fae0 !important;
+  color: var(--el-olive) !important;
+}
+
+.error-log-page .error-upload-zone svg {
+  color: var(--el-olive) !important;
 }
 
 .error-log-page .error-upload-zone strong {
-  color: var(--el-text) !important;
+  color: var(--el-burgundy) !important;
   font-size: 13px !important;
 }
 
