@@ -218,6 +218,7 @@ query PackingBoardItems($boardIds: [ID!], $cursor: String) {
       id
       title
       type
+      settings_str
     }
     items_page(limit: 100, cursor: $cursor) {
       cursor
@@ -240,6 +241,7 @@ GRAPHQL;
 
     $columns = [];
     $columnTypes = [];
+    $columnLabels = [];
     $items = [];
     $boardName = '';
     $cursor = null;
@@ -259,6 +261,7 @@ GRAPHQL;
                 if ($id !== '') {
                     $columns[$id] = (string) ($column['title'] ?? $id);
                     $columnTypes[$id] = (string) ($column['type'] ?? '');
+                    $columnLabels[$id] = packing_monday_status_labels((string) ($column['settings_str'] ?? ''));
                 }
             }
         }
@@ -270,7 +273,29 @@ GRAPHQL;
         $cursor = $page['cursor'] ?? null;
     } while ($cursor && count($items) < 1000);
 
-    return ['board_name' => $boardName, 'columns' => $columns, 'column_types' => $columnTypes, 'items' => $items];
+    return ['board_name' => $boardName, 'columns' => $columns, 'column_types' => $columnTypes, 'column_labels' => $columnLabels, 'items' => $items];
+}
+
+function packing_monday_status_labels(string $settings): array
+{
+    if ($settings === '') {
+        return [];
+    }
+
+    $decoded = json_decode($settings, true);
+    if (!is_array($decoded) || !isset($decoded['labels']) || !is_array($decoded['labels'])) {
+        return [];
+    }
+
+    $labels = [];
+    foreach ($decoded['labels'] as $label) {
+        $label = trim((string) $label);
+        if ($label !== '') {
+            $labels[] = $label;
+        }
+    }
+
+    return array_values(array_unique($labels));
 }
 
 function packing_monday_column_map(array $item, array $columnTitles): array
@@ -500,7 +525,47 @@ function packing_monday_person_value(string $name): ?array
     return ['personsAndTeams' => [['id' => (int) $id, 'kind' => 'person']]];
 }
 
-function packing_monday_set_column(array &$values, array $columnTitles, array $columnTypes, array $names, string $type, $value): void
+function packing_monday_existing_label(string $value, array $labels): ?string
+{
+    $value = trim($value);
+    if ($value === '') {
+        return null;
+    }
+
+    if (!$labels) {
+        return $value;
+    }
+
+    $wanted = packing_monday_normalize($value);
+    foreach ($labels as $label) {
+        if (packing_monday_normalize((string) $label) === $wanted) {
+            return (string) $label;
+        }
+    }
+
+    $aliases = [
+        'topcritical' => ['topcritical', 'critical'],
+        'top_critical' => ['topcritical', 'critical'],
+        'packedlabelneeded' => ['doneneedslabel', 'needslabel', 'label'],
+        'done_needs_label' => ['doneneedslabel', 'needslabel', 'label'],
+        'correctionneeded' => ['correctionneeded', 'correction'],
+        'notstarted' => ['notstarted'],
+        'not_started' => ['notstarted'],
+    ];
+
+    foreach (($aliases[$wanted] ?? []) as $alias) {
+        foreach ($labels as $label) {
+            $normalized = packing_monday_normalize((string) $label);
+            if ($normalized === $alias || packing_string_contains($normalized, $alias)) {
+                return (string) $label;
+            }
+        }
+    }
+
+    return null;
+}
+
+function packing_monday_set_column(array &$values, array $columnTitles, array $columnTypes, array $columnLabels, array $names, string $type, $value): void
 {
     $columnId = packing_monday_column_id($columnTitles, $names);
     if (!$columnId) {
@@ -509,7 +574,10 @@ function packing_monday_set_column(array &$values, array $columnTitles, array $c
 
     $columnType = (string) ($columnTypes[$columnId] ?? '');
     if ($type === 'status') {
-        $values[$columnId] = ['label' => (string) $value];
+        $label = packing_monday_existing_label((string) $value, $columnLabels[$columnId] ?? []);
+        if ($label !== null) {
+            $values[$columnId] = ['label' => $label];
+        }
         return;
     }
     if ($type === 'date') {
@@ -543,7 +611,7 @@ function packing_monday_set_column(array &$values, array $columnTitles, array $c
     $values[$columnId] = (string) $value;
 }
 
-function packing_monday_column_values_for_row(array $row, array $columnTitles, array $columnTypes): array
+function packing_monday_column_values_for_row(array $row, array $columnTitles, array $columnTypes, array $columnLabels = []): array
 {
     $values = [];
     $assignedName = trim((string) ($row['assigned_name'] ?? ''));
@@ -552,17 +620,17 @@ function packing_monday_column_values_for_row(array $row, array $columnTitles, a
         $assignedName = (string) ($employee[0]['full_name'] ?? '');
     }
 
-    packing_monday_set_column($values, $columnTitles, $columnTypes, ['Weight on Invoice / Received Weight', 'Received Weight', 'Received'], 'text', (string) ($row['received_weight'] ?? ''));
-    packing_monday_set_column($values, $columnTitles, $columnTypes, ['Priority'], 'status', packing_monday_label('priority', (string) ($row['priority'] ?? 'medium')));
-    packing_monday_set_column($values, $columnTitles, $columnTypes, ['Date Loaded', 'Date'], 'date', (string) ($row['date_loaded'] ?? date('Y-m-d H:i:s')));
-    packing_monday_set_column($values, $columnTitles, $columnTypes, ['Quantity to Pack', 'Quantity', 'Quantity Planned'], 'text', (string) ($row['quantity_planned'] ?? ''));
-    packing_monday_set_column($values, $columnTitles, $columnTypes, ['Person Responsible', 'Person', 'Assigned', 'Packer'], 'people', $assignedName);
-    packing_monday_set_column($values, $columnTitles, $columnTypes, ['Quantity Packed', 'Actual Packed', 'Packed'], 'text', (string) ($row['quantity_packed'] ?? ''));
-    packing_monday_set_column($values, $columnTitles, $columnTypes, ['Date Completed', 'Completed Date'], 'date', (string) ($row['date_completed'] ?? ''));
-    packing_monday_set_column($values, $columnTitles, $columnTypes, ['Website Quantity Updated', 'Website Updated', 'Website'], 'checkbox', (int) ($row['website_uploaded'] ?? 0));
-    packing_monday_set_column($values, $columnTitles, $columnTypes, ['Packing Website Update Confirmed', 'Packing Website Confirmed'], 'checkbox', (int) ($row['packing_website_confirmed'] ?? 0));
-    packing_monday_set_column($values, $columnTitles, $columnTypes, ['Packing Status'], 'status', packing_monday_label('status', (string) ($row['packing_status'] ?? 'not_started')));
-    packing_monday_set_column($values, $columnTitles, $columnTypes, ['Notes', 'Text'], 'text', (string) ($row['notes'] ?? ''));
+    packing_monday_set_column($values, $columnTitles, $columnTypes, $columnLabels, ['Weight on Invoice / Received Weight', 'Received Weight', 'Received'], 'text', (string) ($row['received_weight'] ?? ''));
+    packing_monday_set_column($values, $columnTitles, $columnTypes, $columnLabels, ['Priority'], 'status', packing_monday_label('priority', (string) ($row['priority'] ?? 'medium')));
+    packing_monday_set_column($values, $columnTitles, $columnTypes, $columnLabels, ['Date Loaded', 'Date'], 'date', (string) ($row['date_loaded'] ?? date('Y-m-d H:i:s')));
+    packing_monday_set_column($values, $columnTitles, $columnTypes, $columnLabels, ['Quantity to Pack', 'Quantity', 'Quantity Planned'], 'text', (string) ($row['quantity_planned'] ?? ''));
+    packing_monday_set_column($values, $columnTitles, $columnTypes, $columnLabels, ['Person Responsible', 'Person', 'Assigned', 'Packer'], 'people', $assignedName);
+    packing_monday_set_column($values, $columnTitles, $columnTypes, $columnLabels, ['Quantity Packed', 'Actual Packed', 'Packed'], 'text', (string) ($row['quantity_packed'] ?? ''));
+    packing_monday_set_column($values, $columnTitles, $columnTypes, $columnLabels, ['Date Completed', 'Completed Date'], 'date', (string) ($row['date_completed'] ?? ''));
+    packing_monday_set_column($values, $columnTitles, $columnTypes, $columnLabels, ['Website Quantity Updated', 'Website Updated', 'Website'], 'checkbox', (int) ($row['website_uploaded'] ?? 0));
+    packing_monday_set_column($values, $columnTitles, $columnTypes, $columnLabels, ['Packing Website Update Confirmed', 'Packing Website Confirmed'], 'checkbox', (int) ($row['packing_website_confirmed'] ?? 0));
+    packing_monday_set_column($values, $columnTitles, $columnTypes, $columnLabels, ['Packing Status'], 'status', packing_monday_label('status', (string) ($row['packing_status'] ?? 'not_started')));
+    packing_monday_set_column($values, $columnTitles, $columnTypes, $columnLabels, ['Notes', 'Text'], 'text', (string) ($row['notes'] ?? ''));
 
     return $values;
 }
@@ -574,7 +642,8 @@ function packing_monday_create_or_update_row(array $row, array $payload = []): a
     }
     $columnTitles = $payload['columns'] ?? [];
     $columnTypes = $payload['column_types'] ?? [];
-    $columnValues = packing_monday_column_values_for_row($row, $columnTitles, $columnTypes);
+    $columnLabels = $payload['column_labels'] ?? [];
+    $columnValues = packing_monday_column_values_for_row($row, $columnTitles, $columnTypes, $columnLabels);
     $encodedColumnValues = json_encode($columnValues, JSON_UNESCAPED_SLASHES);
     if ($encodedColumnValues === false) {
         throw new RuntimeException('Could not prepare Monday column values.');
