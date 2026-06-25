@@ -459,7 +459,7 @@ if ($ready && ($tasks || $historyTasks) && ops_table_exists('ops_activity_logs')
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
-<main class="workspace module">
+<main class="workspace module task-wrap">
     <section class="module-header">
         <div>
             <p class="eyebrow">Task Management</p>
@@ -467,7 +467,7 @@ include BASE_PATH . '/shared/sidebar.php';
             <p><?= $canManage ? 'Grouped task status, recurring responsibilities, history and completion proof.' : 'Your assigned work with checklist ticks and completion notes.' ?></p>
         </div>
         <?php if ($canManage): ?>
-            <button class="button primary" type="button" data-task-create-open><i data-lucide="plus"></i> New Task</button>
+            <button class="button primary btn-new-task" type="button" data-task-create-open><i data-lucide="plus"></i> New Task</button>
         <?php endif; ?>
     </section>
     <?php ops_nav('checklists'); ?>
@@ -543,7 +543,7 @@ include BASE_PATH . '/shared/sidebar.php';
             </div>
             <label>Task instructions<textarea name="instructions"></textarea></label>
             <label>Required checklist items<textarea name="checklist_items_text" placeholder="One item per line"></textarea></label>
-            <div class="ops-form-actions"><button class="button primary" type="submit">Assign task</button></div>
+            <div class="ops-form-actions"><button class="button primary btn-assign-task" type="submit">Assign task</button></div>
         </form>
         <section class="task-template-card">
             <h3>Reusable cleaning template</h3>
@@ -575,7 +575,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         <summary class="task-board-row">
                             <strong><span class="task-chevron">&gt;</span><?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?></strong>
                             <span><?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?></span>
-                            <span><?= htmlspecialchars($priorities[(string) ($task['priority'] ?? 'medium')] ?? 'Medium', ENT_QUOTES, 'UTF-8') ?></span>
+                            <span class="priority-<?= htmlspecialchars((string) ($task['priority'] ?? 'medium'), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($priorities[(string) ($task['priority'] ?? 'medium')] ?? 'Medium', ENT_QUOTES, 'UTF-8') ?></span>
                             <span><?= checklist_date_label((string) ($task['deadline'] ?? '')) ?></span>
                             <span><?= htmlspecialchars(checklist_days_remaining((string) ($task['deadline'] ?? ''), $effective), ENT_QUOTES, 'UTF-8') ?></span>
                             <em class="status task-status-<?= htmlspecialchars($effective, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($groups[$effective] ?? ($statuses[$effective] ?? $effective), ENT_QUOTES, 'UTF-8') ?></em>
