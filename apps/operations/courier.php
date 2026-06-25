@@ -1093,28 +1093,29 @@ include BASE_PATH . '/shared/sidebar.php';
 
         .waybill-courier-options {
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 8px;
+            grid-template-columns: repeat(6, minmax(118px, 1fr));
+            gap: 6px;
         }
 
         .waybill-courier-options label {
             border: 1px solid var(--w-border);
-            border-radius: 9px;
-            padding: 10px 11px;
+            border-radius: 8px;
+            min-height: 38px;
+            padding: 7px 8px;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
             color: var(--w-text);
             background: #fff;
-            font-size: var(--w-size-base);
+            font-size: var(--w-size-sm);
             font-weight: var(--w-weight-medium);
             text-transform: none;
             letter-spacing: 0;
         }
 
         .waybill-courier-options input {
-            width: 15px;
-            height: 15px;
+            width: 13px;
+            height: 13px;
             accent-color: var(--w-orange-red);
         }
 
@@ -1368,7 +1369,6 @@ include BASE_PATH . '/shared/sidebar.php';
         @media (max-width: 980px) {
             .waybill-stat-grid,
             .waybill-upload-form,
-            .waybill-courier-options,
             .waybill-row-meta {
                 grid-template-columns: 1fr;
             }
@@ -1379,6 +1379,10 @@ include BASE_PATH . '/shared/sidebar.php';
 
             .waybill-history-row {
                 grid-template-columns: 1fr;
+            }
+
+            .waybill-courier-options {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
             }
         }
 
@@ -1397,6 +1401,16 @@ include BASE_PATH . '/shared/sidebar.php';
 
             .waybill-button {
                 width: 100%;
+            }
+
+            .waybill-courier-options {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 420px) {
+            .waybill-courier-options {
+                grid-template-columns: 1fr;
             }
         }
     </style>
