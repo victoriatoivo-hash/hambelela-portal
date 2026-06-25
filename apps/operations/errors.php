@@ -516,17 +516,17 @@ include BASE_PATH . '/shared/sidebar.php';
 .error-log-page .error-metric {
     min-height: 82px !important;
     height: 82px !important;
-    padding: 14px 16px !important;
+    padding: 12px 14px 10px 56px !important;
     align-content: start !important;
 }
 
 .error-log-page .error-metric::before {
-    top: 14px !important;
+    top: 13px !important;
     left: 16px !important;
 }
 
 .error-log-page .error-metric > svg {
-    top: 24px !important;
+    top: 21px !important;
     left: 26px !important;
 }
 
