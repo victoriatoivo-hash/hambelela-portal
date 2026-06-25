@@ -451,6 +451,9 @@ include BASE_PATH . '/shared/sidebar.php';
 }
 
 #logErrorForm .repeat-choice label {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
     width: 60px !important;
     min-width: 60px !important;
     height: 30px !important;
@@ -463,6 +466,7 @@ include BASE_PATH . '/shared/sidebar.php';
     font-size: 11px !important;
     font-weight: 700 !important;
     letter-spacing: 0.04em !important;
+    line-height: 30px !important;
     text-transform: uppercase !important;
 }
 
