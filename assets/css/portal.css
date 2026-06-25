@@ -9324,7 +9324,7 @@ textarea {
 .employees-wrap {
   background: #FDF6EE;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-size: 12px;
+  font-size: 13px;
   color: #2C1810;
   max-width: 100%;
 
@@ -9346,7 +9346,7 @@ textarea {
 }
 
 .employees-wrap .page-eyebrow {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -9362,7 +9362,7 @@ textarea {
 
 .employees-wrap .page-subtitle,
 .employees-wrap .module-header p {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--ep-text-mid);
   margin-top: 6px;
 }
@@ -9402,7 +9402,7 @@ textarea {
 
 .employees-wrap .section-card p,
 .employees-wrap .section-card .section-sub {
-  font-size: 11px !important;
+  font-size: 13px !important;
   color: var(--ep-text-mid) !important;
   margin-bottom: 14px !important;
 }
@@ -9418,7 +9418,7 @@ textarea {
 
 .employees-wrap .accounts-table th,
 .employees-wrap .login-times-table th {
-  font-size: 10px !important;
+  font-size: 12px !important;
   font-weight: 600 !important;
   text-transform: uppercase !important;
   letter-spacing: 0.05em !important;
@@ -9431,8 +9431,8 @@ textarea {
 
 .employees-wrap .accounts-table td,
 .employees-wrap .login-times-table td {
-  font-size: 12px !important;
-  height: 38px !important;
+  font-size: 13px !important;
+  height: 40px !important;
   padding: 0 10px !important;
   border-bottom: 1px solid var(--ep-border) !important;
   color: var(--ep-text) !important;
@@ -9444,7 +9444,7 @@ textarea {
 }
 
 .employees-wrap .login-times-table td {
-  height: 36px !important;
+  height: 40px !important;
 }
 
 .employees-wrap .accounts-table tr:hover td,
@@ -9481,7 +9481,7 @@ textarea {
 .employees-wrap [class*="badge-"] {
   height: 20px !important;
   padding: 0 8px !important;
-  font-size: 10px !important;
+  font-size: 12px !important;
   font-weight: 600 !important;
   border-radius: 20px !important;
   display: inline-flex !important;
@@ -9491,7 +9491,7 @@ textarea {
 
 .employees-wrap .new-employee-form label,
 .employees-wrap .hr-link-form label {
-  font-size: 11px !important;
+  font-size: 12px !important;
   font-weight: 600 !important;
   text-transform: uppercase !important;
   letter-spacing: 0.04em !important;
@@ -9510,7 +9510,7 @@ textarea {
 .employees-wrap .inline-code-reset input {
   height: 32px !important;
   min-height: 32px !important;
-  font-size: 12px !important;
+  font-size: 13px !important;
   border: 1px solid var(--ep-border) !important;
   border-radius: 6px !important;
   padding: 0 10px !important;
@@ -9544,7 +9544,7 @@ textarea {
   min-height: 34px !important;
   height: 34px !important;
   padding: 0 18px !important;
-  font-size: 12px !important;
+  font-size: 13px !important;
   font-weight: 600 !important;
   cursor: pointer;
   transition: background 150ms ease;
@@ -9560,7 +9560,7 @@ textarea {
   height: 30px !important;
   border-radius: 7px !important;
   padding: 0 10px !important;
-  font-size: 11px !important;
+  font-size: 12px !important;
 }
 
 .employees-wrap .ops-nav {
@@ -9573,7 +9573,7 @@ textarea {
   height: 30px !important;
   min-height: 30px !important;
   padding: 0 12px !important;
-  font-size: 11px !important;
+  font-size: 12px !important;
   border-radius: 6px !important;
   border: 1px solid var(--ep-border) !important;
   background: var(--ep-surface) !important;
@@ -9600,7 +9600,7 @@ textarea {
 }
 
 .employees-wrap .empty-state-text {
-  font-size: 12px !important;
+  font-size: 13px !important;
   color: var(--ep-text-mid) !important;
   padding: 16px 0 !important;
 }
