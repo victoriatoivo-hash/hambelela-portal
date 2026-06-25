@@ -14646,8 +14646,8 @@ body.is-resizing-column .packing-list-page .col-resizer:hover {
   align-items: center !important;
   justify-content: center !important;
   color: #fff !important;
-  font-size: 12px !important;
-  font-weight: 600 !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
   letter-spacing: 0.04em !important;
   line-height: 30px !important;
   text-transform: uppercase !important;
