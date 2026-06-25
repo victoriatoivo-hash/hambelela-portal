@@ -383,7 +383,6 @@ include BASE_PATH . '/shared/sidebar.php';
         <div>
             <p class="eyebrow">Operations</p>
             <h1>Error Log</h1>
-            <p>Track mistakes, customer impact, repeat issues, resolution and employee accountability.</p>
         </div>
         <button class="button primary" type="button" data-error-modal-open><i data-lucide="plus"></i> Log Error</button>
     </section>
