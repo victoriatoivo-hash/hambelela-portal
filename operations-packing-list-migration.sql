@@ -6,13 +6,4 @@ ALTER TABLE ops_packing_tasks
   ADD COLUMN label_file_path VARCHAR(255) NULL AFTER invoice_file_path;
 
 ALTER TABLE ops_packing_tasks
-  MODIFY packing_status ENUM(
-    'not_started',
-    'packing',
-    'done',
-    'packed_label_needed',
-    'label_created',
-    'website',
-    'correction_needed',
-    'done_needs_label'
-  ) NOT NULL DEFAULT 'not_started';
+  MODIFY packing_status VARCHAR(80) NOT NULL DEFAULT 'not_started';

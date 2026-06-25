@@ -319,7 +319,7 @@ function packing_monday_status(string $value): string
     if (packing_string_contains($key, 'packing') || packing_string_contains($key, 'progress')) return 'packing';
     if (packing_string_contains($key, 'correction')) return 'correction_needed';
 
-    return 'not_started';
+    return trim($value) !== '' ? strtolower(preg_replace('/[^a-z0-9]+/i', '_', trim($value))) : 'not_started';
 }
 
 function packing_monday_bool(string $value): int
@@ -420,7 +420,7 @@ function packing_monday_label(string $field, string $value): string
     if ($key === 'website') return 'Website';
     if ($key === 'correctionneeded') return 'Correction Needed';
 
-    return 'Not Started';
+    return trim((string) $value) !== '' ? ucwords(str_replace('_', ' ', (string) $value)) : 'Not Started';
 }
 
 function packing_monday_column_id(array $columnTitles, array $names): ?string

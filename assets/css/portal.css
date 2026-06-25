@@ -12289,3 +12289,150 @@ button.hr-section-tab {
 .packing-list-page .packing-table .website-inventory-toggle.is-pending::after {
   content: "";
 }
+
+.packing-list-page .label-menu {
+  min-width: 202px;
+  padding: 14px 24px 10px;
+  border-radius: 8px;
+}
+
+.packing-list-page .label-menu.is-editor {
+  width: 382px;
+  padding: 18px 22px 0;
+}
+
+.packing-list-page .packing-label-menu-grid {
+  gap: 8px;
+  padding: 0;
+}
+
+.packing-list-page .packing-label-menu-grid button {
+  min-height: 32px;
+  border-radius: 0;
+  background: var(--label-color);
+  color: #fff;
+  font-weight: 700;
+  text-align: center;
+}
+
+.packing-list-page .packing-label-menu-grid button:hover {
+  filter: brightness(0.96);
+  transform: translateY(-1px);
+}
+
+.packing-list-page .packing-edit-labels {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 10px;
+  border: 0;
+  background: transparent;
+  color: #4b4f5c;
+  font-size: 14px;
+}
+
+.packing-list-page .packing-edit-labels svg {
+  width: 18px;
+  height: 18px;
+}
+
+.packing-label-editor {
+  display: grid;
+  gap: 16px;
+}
+
+.packing-label-editor-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 152px;
+  gap: 40px;
+  align-items: start;
+}
+
+.packing-label-editor-list {
+  display: grid;
+  gap: 7px;
+}
+
+.packing-label-editor-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 18px;
+  gap: 6px;
+  align-items: center;
+}
+
+.packing-label-editor-row input[type="color"] {
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 3px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+}
+
+.packing-label-editor-row input[type="text"] {
+  height: 28px;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid #d6dbe9;
+  border-radius: 4px;
+  color: #323338;
+  font-size: 14px;
+}
+
+.packing-label-editor-row input[type="text"]:focus {
+  border-color: #0073ea;
+  outline: 0;
+  box-shadow: 0 0 0 2px rgba(0, 115, 234, 0.12);
+}
+
+.packing-label-editor-row button {
+  width: 18px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #9297a3;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.packing-new-label-button {
+  display: inline-flex;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 16px;
+  border: 1px solid #e0e5f0;
+  border-radius: 4px;
+  background: #fff;
+  color: #323338;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.packing-new-label-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.packing-label-apply {
+  justify-self: center;
+  min-height: 32px;
+  padding: 0 24px;
+  border: 0;
+  background: transparent;
+  color: #4b4f5c;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.packing-label-editor .packing-edit-labels {
+  margin: 0 -22px;
+  padding: 14px 22px;
+  border-top: 1px solid #dfe3ec;
+}

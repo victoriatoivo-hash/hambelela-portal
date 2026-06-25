@@ -202,7 +202,7 @@ CREATE TABLE IF NOT EXISTS ops_packing_tasks (
   quantity_packed VARCHAR(190),
   date_completed DATETIME NULL,
   website_uploaded TINYINT(1) NOT NULL DEFAULT 0,
-  packing_status ENUM('not_started', 'packing', 'website', 'done', 'done_needs_label') NOT NULL DEFAULT 'not_started',
+  packing_status VARCHAR(80) NOT NULL DEFAULT 'not_started',
   notes TEXT,
   workload_points DECIMAL(10,2) NOT NULL DEFAULT 0,
   created_by INT NULL,

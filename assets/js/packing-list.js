@@ -45,13 +45,13 @@
     ['low', 'Low', '#579bfc']
   ];
 
-  const statuses = [
+  let statuses = [
     ['not_started', 'Not Started', '#bfbfbf'],
     ['packing', 'Packing', '#ffad3b'],
+    ['website', 'Website', '#e12b4b'],
     ['done', 'Done', '#00c875'],
     ['packed_label_needed', 'Packed Label Needed', '#a64ddf'],
     ['label_created', 'Label Created', '#579bfc'],
-    ['website', 'Website', '#e12b4b'],
     ['correction_needed', 'Correction Needed', '#d94848'],
     ['done_needs_label', 'Packed Label Needed', '#a64ddf']
   ];
@@ -66,6 +66,41 @@
   const findOption = (options, value) => options.find((item) => normalize(item[0]) === normalize(value) || normalize(itemText(item)) === normalize(value));
   const labelText = (options, value) => itemText(findOption(options, value) || [value, String(value || '').replace(/_/g, ' ')]);
   const labelColor = (options, value) => itemColor(findOption(options, value) || ['', '', '#8c92a6']);
+  const packingLabelStorageKey = (field) => `hambelelaPackingLabels:${field}`;
+
+  function loadStoredPackingLabels() {
+    try {
+      const storedStatuses = JSON.parse(localStorage.getItem(packingLabelStorageKey('packing_status')) || 'null');
+      if (Array.isArray(storedStatuses) && storedStatuses.length) {
+        statuses = storedStatuses
+          .filter((item) => Array.isArray(item) && item.length >= 3)
+          .map((item) => [String(item[0] || normalize(item[1])), String(item[1] || item[0]), String(item[2] || '#8c92a6')]);
+      }
+    } catch (error) {
+      localStorage.removeItem(packingLabelStorageKey('packing_status'));
+    }
+  }
+
+  function labelOptionsFor(field) {
+    return field === 'priority'
+      ? priorities
+      : field === 'assigned_employee_id'
+        ? [['', 'Unassigned', '#bdbdbd'], ...packers.map((packer) => [String(packer.id), packer.full_name, '#579bfc'])]
+        : statuses;
+  }
+
+  function savePackingLabels(field, options) {
+    const normalizedOptions = options
+      .filter((item) => String(item[1] || '').trim() !== '')
+      .map((item) => [String(item[0] || normalize(item[1])), String(item[1] || item[0]), String(item[2] || '#8c92a6')]);
+    if (field === 'packing_status') {
+      statuses = normalizedOptions;
+      localStorage.setItem(packingLabelStorageKey(field), JSON.stringify(statuses));
+      render();
+    }
+  }
+
+  loadStoredPackingLabels();
 
   async function post(action, fields = {}) {
     const form = new FormData();
@@ -939,24 +974,107 @@
   }
 
   function openLabel(anchor, taskId, field) {
-    const options = field === 'priority'
-      ? priorities
-      : field === 'assigned_employee_id'
-        ? [['', 'Unassigned', '#bdbdbd'], ...packers.map((packer) => [String(packer.id), packer.full_name, '#579bfc'])]
-        : statuses;
+    const options = labelOptionsFor(field);
     const rect = anchor.getBoundingClientRect();
     labelMenu.classList.remove('is-open');
+    labelMenu.classList.remove('is-editor');
     labelMenu.hidden = false;
-    const estimatedHeight = 240;
+    const estimatedHeight = field === 'packing_status' ? 390 : 260;
     const shouldFlip = rect.bottom + estimatedHeight > window.innerHeight;
-    labelMenu.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - 220))}px`;
+    labelMenu.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - 260))}px`;
     labelMenu.style.top = `${shouldFlip ? Math.max(8, rect.top - estimatedHeight - 8) : rect.bottom + 8}px`;
     labelMenu.innerHTML = `
-      <div class="label-menu-grid">
+      <div class="label-menu-grid packing-label-menu-grid">
         ${options.map((item) => `<button type="button" style="--label-color:${esc(itemColor(item))}" data-packing-label-value="${esc(item[0])}" data-packing-label-field="${esc(field)}" data-packing-label-task="${esc(taskId)}">${esc(itemText(item))}</button>`).join('')}
       </div>
+      ${field === 'packing_status' ? `
+        <button class="edit-labels packing-edit-labels" type="button" data-packing-edit-labels="${esc(field)}" data-packing-edit-task="${esc(taskId)}">
+          <i data-lucide="pencil"></i>
+          <span>Edit Labels</span>
+        </button>
+      ` : ''}
+      ${field === 'packing_status' ? `
+        <button class="edit-labels packing-edit-labels" type="button" data-packing-auto-labels>
+          <i data-lucide="sparkles"></i>
+          <span>Auto-assign labels</span>
+        </button>
+      ` : ''}
     `;
     requestAnimationFrame(() => labelMenu.classList.add('is-open'));
+    if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+  }
+
+  function openPackingLabelEditor(field, taskId = '') {
+    if (!labelMenu) return;
+    const options = labelOptionsFor(field).filter((item) => field === 'packing_status' || item[0] !== '');
+    labelMenu.classList.add('is-editor');
+    labelMenu.innerHTML = `
+      <div class="packing-label-editor" data-packing-label-editor="${esc(field)}" data-packing-label-task="${esc(taskId)}">
+        <div class="packing-label-editor-main">
+          <div class="packing-label-editor-list">
+            ${options.map((item, index) => `
+              <label class="packing-label-editor-row" data-packing-label-editor-row>
+                <input type="color" value="${esc(itemColor(item))}" data-packing-label-color="${index}" aria-label="${esc(itemText(item))} color">
+                <input type="text" value="${esc(itemText(item))}" data-packing-label-name="${index}" data-packing-label-key="${esc(item[0])}" aria-label="Label name">
+                <button type="button" data-remove-packing-label-row aria-label="Remove label">&times;</button>
+              </label>
+            `).join('')}
+          </div>
+          <button type="button" class="packing-new-label-button" data-add-packing-label-row="${esc(field)}">
+            <i data-lucide="plus"></i>
+            <span>New label</span>
+          </button>
+        </div>
+        <button type="button" class="packing-label-apply" data-save-packing-labels="${esc(field)}">Apply</button>
+        <button class="edit-labels packing-edit-labels" type="button" data-packing-auto-labels>
+          <i data-lucide="sparkles"></i>
+          <span>Auto-assign labels</span>
+        </button>
+      </div>
+    `;
+    if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+  }
+
+  function addPackingLabelRow(field) {
+    const editor = labelMenu?.querySelector(`[data-packing-label-editor="${field}"]`);
+    const list = editor?.querySelector('.packing-label-editor-list');
+    if (!list) return;
+    const index = list.querySelectorAll('[data-packing-label-editor-row]').length;
+    const row = document.createElement('label');
+    row.className = 'packing-label-editor-row';
+    row.dataset.packingLabelEditorRow = '';
+    row.innerHTML = `
+      <input type="color" value="#0086c0" data-packing-label-color="${index}" aria-label="New label color">
+      <input type="text" value="Add Label" data-packing-label-name="${index}" data-packing-label-key="" aria-label="Label name">
+      <button type="button" data-remove-packing-label-row aria-label="Remove label">&times;</button>
+    `;
+    list.appendChild(row);
+    row.querySelector('input[type="text"]')?.select();
+  }
+
+  function savePackingLabelEditor(field) {
+    const editor = labelMenu?.querySelector(`[data-packing-label-editor="${field}"]`);
+    if (!editor) return;
+    const options = [...editor.querySelectorAll('[data-packing-label-editor-row]')].map((row) => {
+      const nameInput = row.querySelector('[data-packing-label-name]');
+      const colorInput = row.querySelector('[data-packing-label-color]');
+      const name = String(nameInput?.value || '').trim() || 'New Label';
+      const key = String(nameInput?.dataset.packingLabelKey || '').trim() || normalize(name);
+      return [key, name, colorInput?.value || '#0086c0'];
+    });
+    savePackingLabels(field, options);
+    setCount('Packing status labels updated.');
+    openLabelMenuAfterEditor(field, editor.dataset.packingLabelTask || '');
+  }
+
+  function openLabelMenuAfterEditor(field, taskId) {
+    const activeButton = [...document.querySelectorAll(`[data-packing-label="${field}"][data-task-id]`)]
+      .find((button) => String(button.dataset.taskId || '') === String(taskId || ''));
+    if (activeButton) {
+      openLabel(activeButton, taskId, field);
+      return;
+    }
+    closeLabel();
   }
 
   function closeLabel() {
@@ -1354,8 +1472,39 @@
     const colType = event.target.closest('[data-packing-col-type]');
     const colBack = event.target.closest('[data-packing-col-back]');
     const colCreate = event.target.closest('[data-packing-col-create]');
+    const editPackingLabels = event.target.closest('[data-packing-edit-labels]');
+    const addPackingLabel = event.target.closest('[data-add-packing-label-row]');
+    const savePackingLabel = event.target.closest('[data-save-packing-labels]');
+    const removePackingLabel = event.target.closest('[data-remove-packing-label-row]');
+    const autoPackingLabels = event.target.closest('[data-packing-auto-labels]');
 
     try {
+      if (editPackingLabels) {
+        openPackingLabelEditor(editPackingLabels.dataset.packingEditLabels, editPackingLabels.dataset.packingEditTask || '');
+        return;
+      }
+
+      if (addPackingLabel) {
+        addPackingLabelRow(addPackingLabel.dataset.addPackingLabelRow);
+        return;
+      }
+
+      if (removePackingLabel) {
+        const rows = labelMenu?.querySelectorAll('[data-packing-label-editor-row]');
+        if (rows && rows.length > 1) removePackingLabel.closest('[data-packing-label-editor-row]')?.remove();
+        return;
+      }
+
+      if (savePackingLabel) {
+        savePackingLabelEditor(savePackingLabel.dataset.savePackingLabels);
+        return;
+      }
+
+      if (autoPackingLabels) {
+        setCount('Auto-assign labels uses the current packing rules. Choose a row label to update items.');
+        return;
+      }
+
       if (bulkAction) {
         await runPackingBulkAction(bulkAction.dataset.packingBulkAction);
         return;
