@@ -32,6 +32,8 @@
   let lastUndo = null;
   let invoiceDraftRows = [];
   let defaultPersonFilterApplied = false;
+  let hasRenderedOnce = false;
+  let previousTaskIds = new Set();
   const selected = new Set();
   const state = { search: '', priority: '', status: '', person: '', groupBy: 'month', date: '' };
 
@@ -252,6 +254,75 @@
         ` : ''}
       </div>
     `;
+  }
+
+  function showSkeletonRows() {
+    body.innerHTML = Array.from({ length: 8 }).map(() => `
+      <tr class="skeleton-row">
+        ${Array.from({ length: 14 }).map(() => '<td><span class="board-skeleton-cell"></span></td>').join('')}
+      </tr>
+    `).join('');
+  }
+
+  function animateBoardRows() {
+    [...body.querySelectorAll('tr[data-task-id]')].slice(0, 80).forEach((row, index) => {
+      row.style.opacity = '0';
+      row.style.transform = 'translateY(8px)';
+      row.style.transition = 'opacity 200ms ease, transform 200ms ease';
+      window.setTimeout(() => {
+        row.style.opacity = '1';
+        row.style.transform = 'translateY(0)';
+      }, index * 18);
+    });
+  }
+
+  function animateMetricCards() {
+    document.querySelectorAll('.packing-list-page .work-metric-card').forEach((card, index) => {
+      card.style.opacity = '0';
+      card.style.transform = 'translateY(12px)';
+      window.setTimeout(() => {
+        card.style.opacity = '1';
+        card.style.transform = 'translateY(0)';
+      }, index * 60);
+    });
+  }
+
+  function updateFilterBadge() {
+    const bar = document.querySelector('.packing-filter-bar');
+    if (!bar) return;
+    const count = [state.date, state.priority, state.status, state.person, state.search].filter((value) => String(value || '') !== '').length;
+    bar.classList.toggle('has-active-filters', count > 0);
+    bar.dataset.filterCount = String(count);
+  }
+
+  function ensureMobileList() {
+    let list = document.getElementById('packing-board-cards');
+    if (!list) {
+      list = document.createElement('div');
+      list.id = 'packing-board-cards';
+      list.className = 'board-card-list';
+      document.querySelector('.packing-board-shell')?.appendChild(list);
+    }
+    return list;
+  }
+
+  function renderMobileCards(rows) {
+    const list = ensureMobileList();
+    list.innerHTML = rows.map((task) => `
+      <article class="board-mobile-card" data-mobile-task-id="${esc(task.id)}">
+        <header>
+          <strong>${esc(task.item_name)}</strong>
+          ${renderStaticLabel(task.packing_status || 'not_started', statuses)}
+        </header>
+        <div class="board-card-meta">
+          <span>${esc(formatDate(task.date_loaded))}</span>
+          <span>${esc(task.received_weight || 'No weight')}</span>
+          <span>${esc(task.quantity_planned || 'No plan')}</span>
+          <span>Person: ${esc(task.assigned_name || 'Unassigned')}</span>
+          <span>Website: ${Number(task.website_uploaded || 0) === 1 ? 'Complete' : 'Pending'}</span>
+        </div>
+      </article>
+    `).join('');
   }
 
   function setInvoiceStatus(message) {
@@ -632,7 +703,7 @@
         ? renderLabel(task, 'packing_status', task.packing_status || 'not_started', statuses)
         : renderStaticLabel(task.packing_status || 'not_started', statuses);
       return `
-        <tr data-task-id="${esc(task.id)}" class="${selected.has(String(task.id)) ? 'is-selected' : ''}">
+        <tr data-task-id="${esc(task.id)}" class="board-row ${!previousTaskIds.has(String(task.id)) && hasRenderedOnce ? 'row-new' : ''} ${selected.has(String(task.id)) ? 'is-selected' : ''}">
           <td class="check-cell"><input type="checkbox" data-packing-row-select="${esc(task.id)}" ${selected.has(String(task.id)) ? 'checked' : ''}></td>
           <td class="task-cell">${esc(task.item_name)}</td>
           <td class="comment-cell"><button type="button" title="Open full details" data-packing-open-panel="${esc(task.id)}"><i data-lucide="panel-right-open"></i></button></td>
@@ -683,8 +754,10 @@
           <button type="button" data-import-previous-packing><i data-lucide="copy-plus"></i> Import from previous list</button>
         </div>` : '';
       body.innerHTML = `<tr><td colspan="14"><div class="board-empty-state"><strong>${esc(message)}${hasFilters ? ' Clear filters to see all rows.' : ''}</strong>${actions}</div></td></tr>`;
+      renderMobileCards([]);
       setCount(tasks.length ? `${tasks.length} total item${tasks.length === 1 ? '' : 's'} loaded` : `${totalRows} packing rows in database`);
       updateMetrics(visible);
+      updateFilterBadge();
       updateSelection();
       if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
       return;
@@ -696,10 +769,15 @@
       return memo;
     }, {});
     body.innerHTML = Object.keys(groups).sort((a, b) => b.localeCompare(a)).map((key) => renderGroup(key, groups[key])).join('');
+    renderMobileCards(visible);
     setCount(`${visible.length} showing of ${tasks.length} packing item${tasks.length === 1 ? '' : 's'}`);
     updateMetrics(visible);
+    updateFilterBadge();
     updateSelection();
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+    animateBoardRows();
+    previousTaskIds = new Set(tasks.map((task) => String(task.id)));
+    hasRenderedOnce = true;
   }
 
   function updateSelection() {
@@ -720,6 +798,7 @@
   async function refresh() {
     const refreshButton = document.querySelector('[data-packing-refresh]');
     refreshButton?.classList.add('is-loading');
+    if (!hasRenderedOnce) showSkeletonRows();
     setCount('Refreshing packing list...');
     try {
       const response = await fetch(`${config.dataUrl}?t=${Date.now()}`, { credentials: 'same-origin' });
@@ -763,18 +842,26 @@
         ? [['', 'Unassigned', '#bdbdbd'], ...packers.map((packer) => [String(packer.id), packer.full_name, '#579bfc'])]
         : statuses;
     const rect = anchor.getBoundingClientRect();
+    labelMenu.classList.remove('is-open');
     labelMenu.hidden = false;
-    labelMenu.style.left = `${Math.min(rect.left, window.innerWidth - 520)}px`;
-    labelMenu.style.top = `${rect.bottom + 8}px`;
+    const estimatedHeight = 240;
+    const shouldFlip = rect.bottom + estimatedHeight > window.innerHeight;
+    labelMenu.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - 220))}px`;
+    labelMenu.style.top = `${shouldFlip ? Math.max(8, rect.top - estimatedHeight - 8) : rect.bottom + 8}px`;
     labelMenu.innerHTML = `
       <div class="label-menu-grid">
         ${options.map((item) => `<button type="button" style="--label-color:${esc(itemColor(item))}" data-packing-label-value="${esc(item[0])}" data-packing-label-field="${esc(field)}" data-packing-label-task="${esc(taskId)}">${esc(itemText(item))}</button>`).join('')}
       </div>
     `;
+    requestAnimationFrame(() => labelMenu.classList.add('is-open'));
   }
 
   function closeLabel() {
-    if (labelMenu) labelMenu.hidden = true;
+    if (!labelMenu || labelMenu.hidden) return;
+    labelMenu.classList.remove('is-open');
+    window.setTimeout(() => {
+      if (!labelMenu.classList.contains('is-open')) labelMenu.hidden = true;
+    }, 160);
   }
 
   function openPanel(taskId) {
@@ -1431,8 +1518,14 @@
     if (!event.target.closest('#packing-label-menu') && !event.target.closest('[data-packing-label]')) closeLabel();
   });
 
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeLabel();
+  });
+
   const storedTheme = localStorage.getItem('hambelelaPackingTheme');
   if (storedTheme) page.dataset.boardTheme = storedTheme;
+  updateFilterBadge();
+  animateMetricCards();
   try {
     const labels = JSON.parse(localStorage.getItem('hambelelaPackingHeaders') || '{}') || {};
     document.querySelectorAll('[data-packing-column]').forEach((header) => {

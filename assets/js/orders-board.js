@@ -29,6 +29,8 @@
   let syncInFlight = false;
   let lastSyncMessage = '';
   let lastUndo = null;
+  let hasRenderedOnce = false;
+  let previousOrderIds = new Set();
   const selectedOrders = new Set();
   const boardState = {
     search: '',
@@ -363,6 +365,81 @@
     return `<button class="board-label ${cssClass}" style="--label-color:${esc(color)}" data-label-field="${field}" data-order-id="${esc(order.id)}">${esc(text)}</button>`;
   }
 
+  function showSkeletonRows() {
+    if (!body) return;
+    body.innerHTML = Array.from({ length: 8 }).map(() => `
+      <tr class="skeleton-row">
+        ${Array.from({ length: 13 }).map(() => '<td><span class="board-skeleton-cell"></span></td>').join('')}
+      </tr>
+    `).join('');
+  }
+
+  function animateBoardRows() {
+    const rows = [...body.querySelectorAll('tr[data-order-id], tr[data-packing-id]')].slice(0, 80);
+    rows.forEach((row, index) => {
+      row.style.opacity = '0';
+      row.style.transform = 'translateY(8px)';
+      row.style.transition = 'opacity 200ms ease, transform 200ms ease';
+      window.setTimeout(() => {
+        row.style.opacity = '1';
+        row.style.transform = 'translateY(0)';
+      }, index * 18);
+    });
+  }
+
+  function animateMetricCards() {
+    document.querySelectorAll('.ops-board-page .work-metric-card').forEach((card, index) => {
+      card.style.opacity = '0';
+      card.style.transform = 'translateY(12px)';
+      window.setTimeout(() => {
+        card.style.opacity = '1';
+        card.style.transform = 'translateY(0)';
+      }, index * 60);
+    });
+  }
+
+  function updateFilterBadge() {
+    const bar = document.querySelector('.work-filter-bar');
+    if (!bar) return;
+    const count = [boardState.search, boardState.person, boardState.mode, boardState.payment, boardState.status]
+      .filter((value) => String(value || '') !== '').length;
+    bar.classList.toggle('has-active-filters', count > 0);
+    bar.dataset.filterCount = String(count);
+    const clear = document.querySelector('[data-clear-board-filters]');
+    if (clear) clear.hidden = count === 0;
+  }
+
+  function ensureMobileList() {
+    let list = document.getElementById('orders-board-cards');
+    if (!list) {
+      list = document.createElement('div');
+      list.id = 'orders-board-cards';
+      list.className = 'board-card-list';
+      document.querySelector('.ops-board-shell')?.appendChild(list);
+    }
+    return list;
+  }
+
+  function renderMobileCards(orders) {
+    const list = ensureMobileList();
+    list.innerHTML = orders.map((order) => `
+      <article class="board-mobile-card" data-mobile-order-id="${esc(order.id)}">
+        <header>
+          <strong>${esc(order.order_number.replace(/^WEB-/, ''))} ${esc(order.customer_name)}</strong>
+          ${renderLabelCell(order, 'status', order.status || 'new_order', statusLabels, 'status-label')}
+        </header>
+        <div class="board-card-meta">
+          <span>${prettyDate(order.created_at)}</span>
+          <span>${esc(findText(modeLabels, order.order_type || 'collection'))}</span>
+          <span>${esc(money(order.total_amount))}</span>
+          <span>${esc(order.payment_method || 'Cash')}</span>
+          <span>${order.payment_status === 'paid' ? 'Paid' : 'Unpaid'}</span>
+          <span>Packed by: ${esc(order.packer_name || 'Unassigned')}</span>
+        </div>
+      </article>
+    `).join('');
+  }
+
   function exportVisibleOrders() {
     const rows = visibleOrders();
     exportOrders(rows, `hambelela-orders-${dateFilter?.value || 'all-dates'}.csv`);
@@ -513,7 +590,7 @@
     const rows = orders.map((order) => {
       const paidMark = order.payment_status === 'paid' ? '&check;' : '';
       return `
-        <tr data-order-id="${esc(order.id)}" class="${selectedOrders.has(String(order.id)) ? 'is-selected' : ''}">
+        <tr data-order-id="${esc(order.id)}" class="board-row ${!previousOrderIds.has(String(order.id)) && hasRenderedOnce ? 'row-new' : ''} ${selectedOrders.has(String(order.id)) ? 'is-selected' : ''}">
           <td class="check-cell"><input type="checkbox" data-row-select="${esc(order.id)}" ${selectedOrders.has(String(order.id)) ? 'checked' : ''} aria-label="Select order"></td>
           <td class="task-cell">${esc(order.order_number.replace(/^WEB-/, ''))} ${esc(order.customer_name)}</td>
           <td class="comment-cell"><button type="button" data-open-panel="${esc(order.id)}"><i data-lucide="message-circle-plus"></i></button></td>
@@ -563,18 +640,24 @@
     });
     const visible = visibleOrders();
     updateWorkMetrics(visible);
+    updateFilterBadge();
     if (!visible.length) {
-      body.innerHTML = '<tr><td colspan="13">No orders loaded yet.</td></tr>';
+      body.innerHTML = '<tr><td colspan="13"><div class="board-empty-state"><p>Try adjusting your filters or date range.</p><div class="board-empty-actions"><button type="button" data-clear-board-filters>Clear Filters</button></div></div></td></tr>';
+      renderMobileCards([]);
       updateSelectionBar();
       return;
     }
 
     const groups = groupedOrders(visible);
     body.innerHTML = Object.keys(groups).sort((a, b) => b.localeCompare(a)).map((key) => renderGroup(key, groups[key])).join('');
+    renderMobileCards(visible);
     if (groupLabelNode) groupLabelNode.textContent = `Grouped by ${boardState.groupBy}`;
     applyHiddenColumns();
     updateSelectionBar();
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+    animateBoardRows();
+    previousOrderIds = new Set(ordersCache.map((order) => String(order.id)));
+    hasRenderedOnce = true;
   }
 
   function updateSelectionBar() {
@@ -603,9 +686,12 @@
           ? [['', 'Unassigned', '#bdbdbd'], ...packersCache.map((packer) => [String(packer.id), packer.full_name, '#579bfc'])]
           : statusLabels;
     const rect = anchor.getBoundingClientRect();
+    labelMenu.classList.remove('is-open');
     labelMenu.hidden = false;
-    labelMenu.style.left = `${Math.min(rect.left, window.innerWidth - 720)}px`;
-    labelMenu.style.top = `${rect.bottom + 8}px`;
+    const estimatedHeight = field === 'status' ? 210 : 320;
+    const shouldFlip = rect.bottom + estimatedHeight > window.innerHeight;
+    labelMenu.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - 220))}px`;
+    labelMenu.style.top = `${shouldFlip ? Math.max(8, rect.top - estimatedHeight - 8) : rect.bottom + 8}px`;
     labelMenu.innerHTML = `
       <div class="label-menu-grid">
         ${options.map((item) => `
@@ -615,11 +701,16 @@
       ${field === 'assigned_packer_id' ? '' : `<button class="edit-labels" type="button" data-edit-labels="${esc(field)}"><i data-lucide="pencil"></i> Edit Labels</button>`}
       <button class="edit-labels" type="button">Auto-assign labels</button>
     `;
+    requestAnimationFrame(() => labelMenu.classList.add('is-open'));
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
   }
 
   function closeLabelMenu() {
-    if (labelMenu) labelMenu.hidden = true;
+    if (!labelMenu || labelMenu.hidden) return;
+    labelMenu.classList.remove('is-open');
+    window.setTimeout(() => {
+      if (!labelMenu.classList.contains('is-open')) labelMenu.hidden = true;
+    }, 160);
   }
 
   function uniqueValues(field, fallback = 'Unassigned') {
@@ -803,6 +894,7 @@
 
   async function refresh() {
     const selectedDate = dateFilter?.value || '';
+    if (!hasRenderedOnce) showSkeletonRows();
     const response = await fetch(`${config.dataUrl}?date=${encodeURIComponent(selectedDate)}&t=${Date.now()}`, { credentials: 'same-origin' });
     const text = await response.text();
     let data;
@@ -1065,6 +1157,13 @@
     if (!event.target.closest('#toolbar-popover') && !event.target.closest('[data-toolbar]')) closeToolbar();
   });
 
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      closeLabelMenu();
+      closeToolbar();
+    }
+  });
+
   document.addEventListener('input', (event) => {
     const search = event.target.closest('[data-toolbar-search]');
     if (search) {
@@ -1121,6 +1220,8 @@
   if (storedTheme) page.dataset.boardTheme = storedTheme;
   loadCustomLabels();
   applyStoredHeaders();
+  updateFilterBadge();
+  animateMetricCards();
 
   function heartbeat() {
     post('presence').catch(() => {});
