@@ -3885,7 +3885,13 @@ textarea {
 }
 
 .error-log-page .module-header {
+  align-items: center !important;
+  gap: 16px !important;
   max-width: 1480px;
+}
+
+.error-log-page .module-header > div {
+  min-width: 0;
 }
 
 .error-log-page .eyebrow,
@@ -3914,6 +3920,7 @@ textarea {
 
 .error-log-page [data-error-modal-open],
 .error-log-page .btn-log-error {
+  align-self: center !important;
   display: inline-flex !important;
   height: 34px !important;
   min-height: 34px !important;
@@ -3927,6 +3934,7 @@ textarea {
   cursor: pointer;
   font-size: 12px !important;
   font-weight: 600 !important;
+  margin-top: 0 !important;
   transition: background 150ms ease, transform 150ms ease;
 }
 
@@ -4003,11 +4011,15 @@ textarea {
   height: 14px;
 }
 
+.error-log-page .error-metric-grid {
+  gap: 12px !important;
+}
+
 .error-log-page .error-metric,
 .error-log-page .stat-card {
-  min-height: 96px !important;
+  min-height: 74px !important;
   overflow: visible !important;
-  padding: 14px 16px 14px 66px !important;
+  padding: 10px 14px 10px 56px !important;
   border: 1px solid var(--el-border) !important;
   border-radius: 10px !important;
   background: var(--el-surface) !important;
@@ -4026,7 +4038,7 @@ textarea {
   position: relative;
   z-index: 2;
   display: block !important;
-  margin-top: 8px !important;
+  margin-top: 4px !important;
   color: var(--el-text) !important;
   font-size: 24px !important;
   font-weight: 600 !important;
@@ -4047,18 +4059,18 @@ textarea {
 }
 
 .error-log-page .error-metric::before {
-  left: 18px !important;
-  top: 22px !important;
-  width: 34px !important;
-  height: 34px !important;
+  left: 16px !important;
+  top: 15px !important;
+  width: 30px !important;
+  height: 30px !important;
   background: #f5ece8 !important;
 }
 
 .error-log-page .error-metric > svg {
-  left: 26px !important;
-  top: 30px !important;
-  width: 18px !important;
-  height: 18px !important;
+  left: 23px !important;
+  top: 22px !important;
+  width: 16px !important;
+  height: 16px !important;
 }
 
 .error-log-page .error-metric.red::before { background: #fde8e8 !important; }

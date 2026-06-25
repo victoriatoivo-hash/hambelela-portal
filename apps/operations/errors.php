@@ -387,7 +387,6 @@ include BASE_PATH . '/shared/sidebar.php';
         </div>
         <button class="button primary" type="button" data-error-modal-open><i data-lucide="plus"></i> Log Error</button>
     </section>
-    <?php ops_nav('errors'); ?>
     <?php if (!$ready) { ops_setup_notice(); } ?>
     <?php ops_flash($message, $messageType); ?>
 
