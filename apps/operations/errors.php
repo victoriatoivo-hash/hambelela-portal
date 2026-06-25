@@ -533,6 +533,17 @@ include BASE_PATH . '/shared/sidebar.php';
 .error-log-page .error-metric span {
     margin-bottom: 4px !important;
 }
+
+.error-log-page .error-filter-panel:not([open]) {
+    min-height: 0 !important;
+    padding: 0 !important;
+}
+
+.error-log-page .error-filter-panel:not([open]) > summary {
+    min-height: 44px !important;
+    padding: 12px 16px !important;
+    align-items: center !important;
+}
 </style>
 <main class="workspace module error-log-page">
     <a class="button back-link" href="<?= BASE_URL ?>/apps/operations/index.php"><i data-lucide="arrow-left"></i> Back to Operations</a>
