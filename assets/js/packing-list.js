@@ -50,10 +50,10 @@
     ['packing', 'Packing', '#ffad3b'],
     ['website', 'Website', '#e12b4b'],
     ['done', 'Done', '#00c875'],
-    ['packed_label_needed', 'Packed Label Needed', '#a64ddf'],
+    ['packed_label_needed', 'Done, needs label', '#a64ddf'],
     ['label_created', 'Label Created', '#579bfc'],
     ['correction_needed', 'Correction Needed', '#d94848'],
-    ['done_needs_label', 'Packed Label Needed', '#a64ddf']
+    ['done_needs_label', 'Done, needs label', '#a64ddf']
   ];
 
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -67,7 +67,7 @@
   const labelText = (options, value) => itemText(findOption(options, value) || [value, String(value || '').replace(/_/g, ' ')]);
   const labelColor = (options, value) => itemColor(findOption(options, value) || ['', '', '#8c92a6']);
   const packingLabelStorageKey = (field) => `hambelelaPackingLabels:${field}`;
-  const baseColumnCount = 12;
+  const baseColumnCount = 13;
   const totalColumnCount = () => baseColumnCount + customColumns.length;
 
   function loadStoredPackingLabels() {
@@ -941,16 +941,17 @@
       return `
         <tr data-task-id="${esc(task.id)}" class="board-row ${!previousTaskIds.has(String(task.id)) && hasRenderedOnce ? 'row-new' : ''} ${selected.has(String(task.id)) ? 'is-selected' : ''}">
           <td class="check-cell col-checkbox"><input type="checkbox" data-packing-row-select="${esc(task.id)}" ${selected.has(String(task.id)) ? 'checked' : ''}></td>
-          <td class="col-dateloaded">${esc(formatDate(task.date_loaded))}</td>
           <td class="task-cell col-item">${esc(task.item_name)}</td>
           <td class="notes-cell col-notes"><button type="button" title="Open notes" data-packing-open-panel="${esc(task.id)}"><i data-lucide="message-circle-plus"></i></button></td>
-          <td class="col-received"><input class="board-inline-input" data-packing-text="received_weight" data-task-id="${esc(task.id)}" value="${esc(task.received_weight || '')}" ${manageOnly}></td>
+          <td class="col-dateloaded">${esc(formatDate(task.date_loaded))}</td>
           <td class="col-priority">${priorityCell}</td>
           <td class="col-qty"><input class="board-inline-input" data-packing-text="quantity_planned" data-task-id="${esc(task.id)}" value="${esc(task.quantity_planned || '')}" ${manageOnly}></td>
           <td class="col-person">${renderPerson(task)}</td>
           <td class="col-qtypacked"><input class="board-inline-input" data-packing-text="quantity_packed" data-task-id="${esc(task.id)}" value="${esc(task.quantity_packed || '')}" placeholder="Actual" ${ownOnly}></td>
-          <td class="col-packstatus">${statusCell}</td>
+          <td class="col-datecompleted">${esc(task.date_completed ? formatDate(task.date_completed) : '')}</td>
           <td class="paid-cell col-webinv">${renderCheck(task, 'website_uploaded', currentUser.can_edit_front_website)}</td>
+          <td class="col-packstatus">${statusCell}</td>
+          <td class="col-text" title="${esc(task.notes || '')}">${esc(task.notes || '')}</td>
           ${renderCustomCells()}
           <td class="col-add-btn"></td>
         </tr>
@@ -958,29 +959,30 @@
     }).join('');
 
     const addRow = currentUser.can_manage
-      ? `<tr class="add-task-row"><td></td><td colspan="${11 + customColumns.length}"><button type="button" data-open-packing-create>+ Add item</button></td></tr>`
+      ? `<tr class="add-task-row"><td></td><td colspan="${totalColumnCount() - 1}"><button type="button" data-open-packing-create>+ Add item</button></td></tr>`
       : '';
 
     return `
       <tr class="group-row group-header group-header-row" data-critical="${pCounts.critical}" data-high="${pCounts.high}" data-medium="${pCounts.medium}" data-low="${pCounts.low}">
         <td class="check-cell col-checkbox"><button type="button" class="group-collapse-button" data-packing-collapse aria-label="Collapse group"><i class="group-chevron chevron" data-lucide="chevron-down"></i></button></td>
-        <td class="col-dateloaded group-date"><span class="group-label">${esc(groupLabel(key))}</span><span class="group-count">${rows.length} Items</span></td>
-        <td class="col-item"></td>
+        <td class="col-item group-date"><span class="group-label">${esc(groupLabel(key))}</span><span class="group-count">${rows.length} Items</span></td>
         <td class="col-notes"></td>
-        <td class="col-received"></td>
+        <td class="col-dateloaded"></td>
         <td class="col-priority">${prioritySummaryBar(pCounts)}</td>
         <td class="col-qty"></td>
         <td class="col-person"></td>
         <td class="col-qtypacked"></td>
-        <td class="col-packstatus">${packingProgressBar(statusCounts, rows.length)}</td>
+        <td class="col-datecompleted"></td>
         <td class="col-webinv"><span class="packing-fraction website-fraction">${groupSummary.website}/${rows.length}</span></td>
+        <td class="col-packstatus">${packingProgressBar(statusCounts, rows.length)}</td>
+        <td class="col-text"></td>
         ${customEmptyCells}
         <td class="col-add-btn"></td>
       </tr>
       ${bodyRows}
       ${addRow}
       <tr class="summary-row">
-        <td></td><td colspan="${11 + customColumns.length}"><span class="summary-pill">${esc(groupLabel(key))}</span> ${rows.length} items · Done: ${groupSummary.done} · Not started: ${groupSummary.notStarted} · Packing: ${groupSummary.packing} · Website: ${groupSummary.website}/${rows.length} · ${esc(groupSummary.split)}</td>
+        <td></td><td colspan="${totalColumnCount() - 1}"><span class="summary-pill">${esc(groupLabel(key))}</span> ${rows.length} items · Done: ${groupSummary.done} · Not started: ${groupSummary.notStarted} · Packing: ${groupSummary.packing} · Website: ${groupSummary.website}/${rows.length} · ${esc(groupSummary.split)}</td>
       </tr>
     `;
   }

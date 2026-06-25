@@ -128,20 +128,21 @@ include BASE_PATH . '/shared/sidebar.php';
                 <thead>
                     <tr>
                         <th class="check-cell col-checkbox"><input type="checkbox" data-packing-select-all></th>
-                        <th class="col-dateloaded" data-packing-column="date_loaded" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>DATE LOADED</th>
                         <th class="col-item" data-packing-column="item" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>ITEM</th>
                         <th class="col-notes comment-cell" data-packing-column="notes" title="Open notes and full details" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>NOTES</th>
-                        <th class="col-received" data-packing-column="received" title="Weight on invoice / received weight" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>RECEIVED</th>
+                        <th class="col-dateloaded" data-packing-column="date_loaded" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>DATE LOADED</th>
                         <th class="col-priority" data-packing-column="priority" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>PRIORITY</th>
                         <th class="col-qty" data-packing-column="quantity_to_pack" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>QUANTITY</th>
                         <th class="col-person" data-packing-column="person" title="Person responsible" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>PERSON RESPO...</th>
                         <th class="col-qtypacked" data-packing-column="quantity_packed" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>QUANTITY PACKED</th>
-                        <th class="col-packstatus" data-packing-column="status" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>PACKING STATUS</th>
+                        <th class="col-datecompleted" data-packing-column="date_completed" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>DATE COMPLETED</th>
                         <th class="col-webinv" data-packing-column="website_uploaded" title="Front desk confirms quantity-to-pack has been updated on the website" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>WE...</th>
+                        <th class="col-packstatus" data-packing-column="status" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>PACKING STATUS</th>
+                        <th class="col-text" data-packing-column="text" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>TEXT</th>
                         <th class="add-column-cell col-add-btn"><button type="button" data-add-packing-column>+</button></th>
                     </tr>
                 </thead>
-                <tbody id="packing-list-body"><tr><td colspan="12">Loading packing list...</td></tr></tbody>
+                <tbody id="packing-list-body"><tr><td colspan="13">Loading packing list...</td></tr></tbody>
             </table>
         </div>
     </section>
