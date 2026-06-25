@@ -185,7 +185,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $category,
                 $severity,
                 $description,
-                ops_post_string('customer_impact', 1500),
+                '',
                 (float) ($_POST['financial_impact'] ?? 0),
                 ops_post_string('resolution', 1500),
                 (int) ($_POST['repeat_issue'] ?? 0) === 1 ? 1 : 0,
@@ -476,7 +476,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 </div>
                 <button class="panel-close-button" type="button" data-error-modal-close aria-label="Close log error"><i data-lucide="x"></i></button>
             </div>
-            <form class="ops-form error-incident-form" method="post" enctype="multipart/form-data">
+            <form id="logErrorForm" class="ops-form error-incident-form log-error-modal" method="post" enctype="multipart/form-data">
                 <input type="hidden" name="action" value="create_error">
                 <section class="error-form-section">
                     <h3><i data-lucide="file-warning"></i> Error Information</h3>
@@ -485,18 +485,18 @@ include BASE_PATH . '/shared/sidebar.php';
                         <label>Order ID if applicable<input name="order_reference" placeholder="#33863 or WEB-33780"></label>
                         <label>Category<select name="category" required><option value="">Choose category</option><?php ops_select_options($errorCategories); ?></select></label>
                     </div>
-                    <fieldset class="severity-choice">
-                        <legend>Severity</legend>
+                    <fieldset class="severity-choice severity-group" id="severity-group">
+                        <legend class="severity-label">Severity</legend>
+                        <input type="hidden" name="severity" id="severityValue" required>
                         <?php foreach ($severityLabels as $value => $label): ?>
-                            <label class="severity-<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?>"><input type="radio" name="severity" value="<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?>" <?= $value === 'medium' ? 'checked' : '' ?>><span><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></span></label>
+                            <button class="severity-btn severity-<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?>" type="button" data-severity="<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></button>
                         <?php endforeach; ?>
                     </fieldset>
                 </section>
 
                 <section class="error-form-section">
                     <h3><i data-lucide="message-square-warning"></i> What Happened</h3>
-                    <label>Description<textarea name="description" required placeholder="Explain exactly what happened, what caused the issue, and what impact it had."></textarea></label>
-                    <label>Customer Impact<textarea name="customer_impact" placeholder="customer received wrong item, order delayed, no customer impact"></textarea></label>
+                    <label for="description">Description<textarea id="description" name="description" required placeholder="Explain exactly what happened, what caused the issue, and what impact it had."></textarea></label>
                 </section>
 
                 <section class="error-form-section">
@@ -589,10 +589,22 @@ include BASE_PATH . '/shared/sidebar.php';
 </main>
 <script>
 document.addEventListener('click', (event) => {
+  const severityButton = event.target.closest('#logErrorForm .severity-btn');
   const modalOpen = event.target.closest('[data-error-modal-open]');
   const modalClose = event.target.closest('[data-error-modal-close]');
   const detailOpen = event.target.closest('[data-error-open]');
   const detailClose = event.target.closest('[data-error-close]');
+  if (severityButton) {
+    document.querySelectorAll('#logErrorForm .severity-btn').forEach((button) => button.classList.remove('active'));
+    severityButton.classList.add('active');
+    const severityValue = document.getElementById('severityValue');
+    if (severityValue) {
+      severityValue.value = severityButton.dataset.severity || '';
+      severityValue.setCustomValidity('');
+    }
+    const error = document.getElementById('severity-group-error');
+    if (error) error.remove();
+  }
   if (modalOpen) {
     const panel = document.querySelector('[data-error-modal-panel]');
     if (panel) panel.classList.add('open');
@@ -628,6 +640,50 @@ document.addEventListener('click', (event) => {
     }
   }
 });
+
+document.getElementById('logErrorForm')?.addEventListener('submit', function(event) {
+  const severityValue = document.getElementById('severityValue');
+  const description = this.querySelector('[name="description"]');
+  const severity = String(severityValue?.value || '').trim();
+  const descriptionText = String(description?.value || '').trim();
+
+  document.getElementById('severity-group-error')?.remove();
+  document.getElementById('description-error')?.remove();
+
+  let hasError = false;
+  if (!severity) {
+    hasError = true;
+    severityValue?.setCustomValidity('Please select a severity level.');
+    showFieldError('severity-group', 'Please select a severity level.');
+  }
+  if (!descriptionText) {
+    hasError = true;
+    showFieldError('description', 'Description is required.');
+  }
+
+  if (hasError) {
+    event.preventDefault();
+    if (!severity) {
+      this.querySelector('.severity-btn')?.focus();
+    } else {
+      description?.focus();
+    }
+  }
+});
+
+function showFieldError(fieldId, message) {
+  const existing = document.getElementById(fieldId + '-error');
+  if (existing) existing.remove();
+
+  const el = document.getElementById(fieldId) || document.querySelector('.' + fieldId);
+  if (!el || !el.parentNode) return;
+
+  const err = document.createElement('p');
+  err.id = fieldId + '-error';
+  err.style.cssText = 'color:#BB1B21; font-size:11px; margin:4px 0 0; font-weight:500;';
+  err.textContent = message;
+  el.parentNode.appendChild(err);
+}
 
 document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;

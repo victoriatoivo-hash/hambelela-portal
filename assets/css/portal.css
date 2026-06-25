@@ -14536,3 +14536,89 @@ body.is-resizing-column .packing-list-page .col-resizer:hover {
 .packing-list-page .summary-row {
   display: none;
 }
+
+/* Log Error modal refinements. */
+.error-log-page .severity-choice.severity-group,
+.error-log-wrap .severity-group,
+#logErrorForm .severity-group,
+.log-error-modal .severity-group {
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 8px !important;
+  align-items: center !important;
+  flex-wrap: nowrap !important;
+}
+
+.error-log-page .severity-choice.severity-group legend,
+#logErrorForm .severity-label,
+.log-error-modal .severity-label {
+  flex: 0 0 auto;
+  margin-right: 4px;
+}
+
+.error-log-wrap .severity-btn,
+#logErrorForm .severity-btn,
+.log-error-modal .severity-btn,
+.error-log-page .severity-choice .severity-btn {
+  width: 80px !important;
+  min-width: 80px !important;
+  height: 30px !important;
+  min-height: 30px !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 6px !important;
+  cursor: pointer;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: #fff !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.04em !important;
+  line-height: 30px !important;
+  text-transform: uppercase !important;
+  transition: filter 150ms ease, outline 150ms ease;
+}
+
+.severity-btn[data-severity="Critical"],
+.severity-btn[data-severity="critical"] {
+  background: #BB1B21 !important;
+  color: #fff !important;
+}
+
+.severity-btn[data-severity="High"],
+.severity-btn[data-severity="high"] {
+  background: #F07420 !important;
+  color: #fff !important;
+}
+
+.severity-btn[data-severity="Medium"],
+.severity-btn[data-severity="medium"] {
+  background: #AB3619 !important;
+  color: #fff !important;
+}
+
+.severity-btn[data-severity="Low"],
+.severity-btn[data-severity="low"] {
+  background: #A8CA19 !important;
+  color: #2C1810 !important;
+}
+
+#logErrorForm .severity-btn:hover,
+.log-error-modal .severity-btn:hover {
+  filter: brightness(0.88);
+}
+
+#logErrorForm .severity-btn.active,
+.log-error-modal .severity-btn.active {
+  outline: 3px solid #721B1A !important;
+  outline-offset: 2px !important;
+  filter: brightness(0.92);
+}
+
+.log-error-modal label[for="description"]::after,
+.log-error-modal .severity-label::after {
+  content: ' *';
+  color: #BB1B21;
+  font-weight: 600;
+}
