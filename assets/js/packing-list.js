@@ -397,23 +397,38 @@
   }
 
   function applyGroupColorBars() {
-    const groupColors = ['#6c49bb', '#0073ea', '#fdab3d', '#e2445c', '#00c875', '#ff7575', '#a25ddc', '#037f4c'];
+    const groupPalette = [
+      { bg: '#f0f4ff', text: '#3b4fc7', border: '#c5cee0' },
+      { bg: '#fff3e0', text: '#b85c00', border: '#f5c07a' },
+      { bg: '#f3fae0', text: '#5a7a00', border: '#c8e066' },
+      { bg: '#fdf0eb', text: '#ab3619', border: '#f0c4b0' },
+      { bg: '#f8f0ff', text: '#6c3db0', border: '#d4b8f5' },
+      { bg: '#e8f8f0', text: '#1a7a4a', border: '#90dbb5' },
+    ];
     body.querySelectorAll('tr').forEach((row) => {
       row.style.borderLeft = '';
       row.style.setProperty('--group-color', 'transparent');
+      row.style.backgroundColor = '';
+      row.style.borderTop = '';
+      row.style.borderBottom = '';
     });
     body.querySelectorAll('tr.group-header').forEach((header, index) => {
-      const color = groupColors[index % groupColors.length];
-      header.style.borderLeft = `4px solid ${color}`;
-      header.style.setProperty('--group-color', color);
-      header.querySelector('td')?.style.setProperty('border-left', `4px solid ${color}`, 'important');
+      const palette = groupPalette[index % groupPalette.length];
+      header.style.backgroundColor = palette.bg;
+      header.style.borderTop = `1px solid ${palette.border}`;
+      header.style.borderBottom = `1px solid ${palette.border}`;
+      header.style.setProperty('--group-header-bg', palette.bg);
+      header.style.setProperty('--group-header-text', palette.text);
+      header.style.setProperty('--group-header-border', palette.border);
 
-      let row = header.nextElementSibling;
-      while (row && !row.classList.contains('group-header')) {
-        row.style.borderLeft = `3px solid ${color}`;
-        row.style.setProperty('--group-color', color);
-        row = row.nextElementSibling;
+      const label = header.querySelector('.group-label, .group-date, td');
+      if (label) {
+        label.style.color = palette.text;
+        label.style.fontWeight = '600';
       }
+
+      const chevron = header.querySelector('.chevron, .group-chevron, [data-packing-collapse] svg');
+      if (chevron) chevron.style.color = palette.text;
     });
   }
 
@@ -855,8 +870,64 @@
     return { done, notStarted, packing, website, split };
   }
 
+  function priorityCounts(tasksInGroup) {
+    return tasksInGroup.reduce((memo, task) => {
+      const priority = normalize(task.priority || 'medium');
+      if (priority === 'top_critical' || priority === 'critical') memo.critical += 1;
+      else if (priority === 'high') memo.high += 1;
+      else if (priority === 'low') memo.low += 1;
+      else memo.medium += 1;
+      return memo;
+    }, { critical: 0, high: 0, medium: 0, low: 0 });
+  }
+
+  function packingStatusCounts(tasksInGroup) {
+    return tasksInGroup.reduce((memo, task) => {
+      const status = normalize(task.packing_status || 'not_started');
+      if (['done', 'website', 'label_created'].includes(status)) memo.done += 1;
+      else if (['packing', 'in_progress', 'packed_label_needed', 'done_needs_label', 'correction_needed'].includes(status)) memo.inprogress += 1;
+      else memo.notstarted += 1;
+      return memo;
+    }, { done: 0, inprogress: 0, notstarted: 0 });
+  }
+
+  function prioritySummaryBar(counts) {
+    const total = counts.critical + counts.high + counts.medium + counts.low || 1;
+    const segments = [
+      ['critical', counts.critical],
+      ['high', counts.high],
+      ['medium', counts.medium],
+      ['low', counts.low],
+    ].filter(([, count]) => count > 0);
+    return `
+      <div class="priority-summary-cell">
+        <span>Priority</span>
+        <div class="priority-summary-bar" aria-label="Priority summary">
+          ${segments.map(([cls, count]) => `<i class="bar-segment ${cls}" style="flex:${count / total}"></i>`).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  function packingProgressBar(counts, total) {
+    const safeTotal = total || 1;
+    return `
+      <div class="packing-progress-wrap">
+        <span class="packing-fraction">${counts.done}/${total}</span>
+        <div class="packing-progress-bar" aria-label="Packing status progress">
+          <i class="seg-done" style="flex:${counts.done / safeTotal}"></i>
+          <i class="seg-inprogress" style="flex:${counts.inprogress / safeTotal}"></i>
+          <i class="seg-notstarted" style="flex:${counts.notstarted / safeTotal}"></i>
+        </div>
+      </div>
+    `;
+  }
+
   function renderGroup(key, rows) {
     const groupSummary = summary(rows);
+    const pCounts = priorityCounts(rows);
+    const statusCounts = packingStatusCounts(rows);
+    const customEmptyCells = customColumns.map(() => '<td data-custom-col-summary></td>').join('');
     const bodyRows = rows.map((task) => {
       const canEditOwn = canEditTask(task);
       const manageOnly = currentUser.can_manage ? '' : 'disabled';
@@ -891,7 +962,21 @@
       : '';
 
     return `
-      <tr class="group-row group-header"><td colspan="${12 + customColumns.length}"><button type="button" data-packing-collapse><i data-lucide="chevron-down"></i>${esc(groupLabel(key))}</button></td></tr>
+      <tr class="group-row group-header group-header-row" data-critical="${pCounts.critical}" data-high="${pCounts.high}" data-medium="${pCounts.medium}" data-low="${pCounts.low}">
+        <td class="check-cell col-checkbox"><button type="button" class="group-collapse-button" data-packing-collapse aria-label="Collapse group"><i class="group-chevron chevron" data-lucide="chevron-down"></i></button></td>
+        <td class="col-dateloaded group-date"><span class="group-label">${esc(groupLabel(key))}</span><span class="group-count">${rows.length} Items</span></td>
+        <td class="col-item"></td>
+        <td class="col-notes"></td>
+        <td class="col-received"></td>
+        <td class="col-priority">${prioritySummaryBar(pCounts)}</td>
+        <td class="col-qty"></td>
+        <td class="col-person"></td>
+        <td class="col-qtypacked"></td>
+        <td class="col-packstatus">${packingProgressBar(statusCounts, rows.length)}</td>
+        <td class="col-webinv"><span class="packing-fraction website-fraction">${groupSummary.website}/${rows.length}</span></td>
+        ${customEmptyCells}
+        <td class="col-add-btn"></td>
+      </tr>
       ${bodyRows}
       ${addRow}
       <tr class="summary-row">
