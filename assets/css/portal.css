@@ -12111,3 +12111,181 @@ button.hr-section-tab {
   color: #676879;
   font-size: 11px;
 }
+
+/* Packing board spacing: match the Monday reference layout more closely. */
+.packing-list-page .ops-board-scroll {
+  overflow-x: auto;
+}
+
+.packing-list-page .packing-table {
+  min-width: 1460px;
+}
+
+.packing-list-page .packing-table th,
+.packing-list-page .packing-table td {
+  text-align: center;
+}
+
+.packing-list-page .packing-table th:nth-child(1),
+.packing-list-page .packing-table td:nth-child(1) {
+  width: 38px !important;
+  min-width: 38px !important;
+  max-width: 38px !important;
+  padding-inline: 6px !important;
+}
+
+.packing-list-page .packing-table th:nth-child(2),
+.packing-list-page .packing-table td:nth-child(2) {
+  width: 226px !important;
+  min-width: 226px !important;
+  max-width: 226px !important;
+  text-align: left;
+}
+
+.packing-list-page .packing-table th:nth-child(3),
+.packing-list-page .packing-table td:nth-child(3) {
+  width: 64px !important;
+  min-width: 64px !important;
+  max-width: 64px !important;
+  padding-inline: 6px !important;
+}
+
+.packing-list-page .packing-table th:nth-child(4),
+.packing-list-page .packing-table td:nth-child(4) {
+  width: 92px !important;
+  min-width: 92px !important;
+  max-width: 92px !important;
+}
+
+.packing-list-page .packing-table th:nth-child(5),
+.packing-list-page .packing-table td:nth-child(5) {
+  width: 140px !important;
+  min-width: 140px !important;
+  max-width: 140px !important;
+  padding-inline: 0 !important;
+}
+
+.packing-list-page .packing-table th:nth-child(6),
+.packing-list-page .packing-table td:nth-child(6) {
+  width: 128px !important;
+  min-width: 128px !important;
+  max-width: 128px !important;
+}
+
+.packing-list-page .packing-table th:nth-child(7),
+.packing-list-page .packing-table td:nth-child(7) {
+  width: 200px !important;
+  min-width: 200px !important;
+  max-width: 200px !important;
+}
+
+.packing-list-page .packing-table th:nth-child(8),
+.packing-list-page .packing-table td:nth-child(8) {
+  width: 118px !important;
+  min-width: 118px !important;
+  max-width: 118px !important;
+}
+
+.packing-list-page .packing-table th:nth-child(9),
+.packing-list-page .packing-table td:nth-child(9) {
+  width: 140px !important;
+  min-width: 140px !important;
+  max-width: 140px !important;
+}
+
+.packing-list-page .packing-table th:nth-child(10),
+.packing-list-page .packing-table td:nth-child(10) {
+  width: 140px !important;
+  min-width: 140px !important;
+  max-width: 140px !important;
+  padding-inline: 0 !important;
+}
+
+.packing-list-page .packing-table th:nth-child(11),
+.packing-list-page .packing-table td:nth-child(11) {
+  width: 78px !important;
+  min-width: 78px !important;
+  max-width: 78px !important;
+}
+
+.packing-list-page .packing-table th:nth-child(12),
+.packing-list-page .packing-table td:nth-child(12) {
+  width: 150px !important;
+  min-width: 150px !important;
+  max-width: 150px !important;
+}
+
+.packing-list-page .packing-table th:nth-child(13),
+.packing-list-page .packing-table td:nth-child(13) {
+  width: 170px !important;
+  min-width: 170px !important;
+  max-width: 170px !important;
+  text-align: left;
+}
+
+.packing-list-page .packing-table th:nth-child(14),
+.packing-list-page .packing-table td:nth-child(14) {
+  width: 40px !important;
+  min-width: 40px !important;
+  max-width: 40px !important;
+}
+
+.packing-list-page .packing-table .task-cell {
+  padding-left: 34px !important;
+}
+
+.packing-list-page .packing-table .comment-cell button {
+  width: 24px !important;
+  height: 24px !important;
+  min-height: 24px !important;
+  padding: 0 !important;
+  border-color: transparent;
+  background: transparent;
+  color: #676879;
+}
+
+.packing-list-page .packing-table .board-inline-input {
+  border-color: transparent !important;
+  background: transparent !important;
+  text-align: inherit;
+  box-shadow: none !important;
+}
+
+.packing-list-page .packing-table .board-inline-input:focus {
+  border-color: #0073ea !important;
+  background: #fff !important;
+}
+
+.packing-list-page .packing-table .board-label[data-packing-label="priority"],
+.packing-list-page .packing-table .board-label[data-packing-label="packing_status"],
+.packing-list-page .packing-table .board-label.is-static {
+  width: 100% !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  max-height: 36px !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}
+
+.packing-list-page .packing-table .website-inventory-toggle {
+  width: 100% !important;
+  background: transparent !important;
+  color: #00c875;
+  font-size: 0 !important;
+}
+
+.packing-list-page .packing-table .website-inventory-toggle span {
+  font-size: 0;
+}
+
+.packing-list-page .packing-table .website-inventory-toggle.is-complete::after {
+  content: "\2713";
+  font-size: 18px;
+  line-height: 1;
+}
+
+.packing-list-page .packing-table .website-inventory-toggle.is-pending::after {
+  content: "";
+}
