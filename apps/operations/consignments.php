@@ -18,6 +18,11 @@ $canEditHeaders = user_has_role('owner_admin');
 $assetVersion = is_file(BASE_PATH . '/assets/js/packing-list.js')
     ? (string) filemtime(BASE_PATH . '/assets/js/packing-list.js') . '-visibility1'
     : (string) time();
+$packingBoardCss = BASE_PATH . '/assets/css/packing-board.css';
+$extraStylesheets = [[
+    'path' => 'assets/css/packing-board.css',
+    'version' => is_file($packingBoardCss) ? (string) filemtime($packingBoardCss) : (string) time(),
+]];
 
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';

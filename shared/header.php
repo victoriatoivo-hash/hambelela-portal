@@ -30,6 +30,17 @@ $assetVersion = defined('BASE_PATH') && is_file(BASE_PATH . '/assets/css/portal.
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal.css?v=<?= htmlspecialchars($assetVersion, ENT_QUOTES, 'UTF-8') ?>">
+    <?php foreach (($extraStylesheets ?? []) as $stylesheet): ?>
+        <?php
+            $stylesheetPath = (string) ($stylesheet['path'] ?? '');
+            $stylesheetVersion = (string) ($stylesheet['version'] ?? $assetVersion);
+            if ($stylesheetPath === '') {
+                continue;
+            }
+            $stylesheetHref = ltrim($stylesheetPath, '/');
+        ?>
+        <link rel="stylesheet" href="<?= BASE_URL ?>/<?= htmlspecialchars($stylesheetHref, ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($stylesheetVersion, ENT_QUOTES, 'UTF-8') ?>">
+    <?php endforeach; ?>
     <script defer src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script defer src="<?= BASE_URL ?>/assets/js/portal.js?v=<?= htmlspecialchars($assetVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
 </head>

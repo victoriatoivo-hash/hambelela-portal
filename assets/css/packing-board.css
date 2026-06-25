@@ -1,0 +1,352 @@
+/* Dedicated Packing List board overrides.
+   Loaded after portal.css so the board keeps the Monday-style density. */
+
+.packing-list-page {
+    --board-grid: #cbd6ea;
+    --board-blue: #4e96ff;
+    --board-row: #ffffff;
+    --board-selected: #cfe5ff;
+    --board-text: #2f3340;
+    --status-green: #00c875;
+    --status-red: #df2f4a;
+    --status-orange: #fdab3d;
+    --status-grey: #c4c4c4;
+    --status-purple: #4b1592;
+    --status-blue: #579bfc;
+}
+
+.packing-list-page .module-head,
+.packing-list-page .ops-board-toolbar,
+.packing-list-page .ops-view-tabs,
+.packing-list-page .board-tabs,
+.packing-list-page .board-view-toolbar,
+.packing-list-page .filter-grid,
+.packing-list-page .stat-grid {
+    max-width: none !important;
+}
+
+.packing-list-page .ops-board,
+.packing-list-page .packing-board-shell,
+.packing-list-page .monday-board {
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+    padding: 0 !important;
+}
+
+.packing-list-page .board-scroll,
+.packing-list-page .table-scroll {
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+    width: 100% !important;
+}
+
+.packing-list-page table.packing-board-table,
+.packing-list-page .packing-board-table {
+    border-collapse: collapse !important;
+    border-spacing: 0 !important;
+    table-layout: fixed !important;
+    min-width: 1480px !important;
+    width: max-content !important;
+    background: var(--board-row) !important;
+    color: var(--board-text) !important;
+    font-size: 13px !important;
+}
+
+.packing-list-page .packing-board-table th,
+.packing-list-page .packing-board-table td {
+    border: 1px solid var(--board-grid) !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    padding: 0 10px !important;
+    vertical-align: middle !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    background: #fff !important;
+    line-height: 1.2 !important;
+}
+
+.packing-list-page .packing-board-table th {
+    color: #333842 !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    letter-spacing: 0 !important;
+    text-transform: none !important;
+    text-align: center !important;
+}
+
+.packing-list-page .packing-board-table td {
+    text-align: center !important;
+}
+
+.packing-list-page .packing-board-table .col-item,
+.packing-list-page .packing-board-table .col-text {
+    text-align: left !important;
+}
+
+.packing-list-page .packing-board-table tr.is-selected td {
+    background: var(--board-selected) !important;
+}
+
+.packing-list-page .packing-board-table .col-checkbox {
+    width: 38px !important;
+    min-width: 38px !important;
+    max-width: 38px !important;
+    padding: 0 !important;
+}
+
+.packing-list-page .packing-board-table .col-item {
+    width: 270px !important;
+    min-width: 270px !important;
+    max-width: 270px !important;
+}
+
+.packing-list-page .packing-board-table .col-notes {
+    width: 64px !important;
+    min-width: 64px !important;
+    max-width: 64px !important;
+    padding: 0 !important;
+}
+
+.packing-list-page .packing-board-table .col-dateloaded,
+.packing-list-page .packing-board-table .col-datecompleted {
+    width: 124px !important;
+    min-width: 124px !important;
+    max-width: 124px !important;
+}
+
+.packing-list-page .packing-board-table .col-priority {
+    width: 140px !important;
+    min-width: 140px !important;
+    max-width: 140px !important;
+    padding: 0 !important;
+}
+
+.packing-list-page .packing-board-table .col-qty {
+    width: 205px !important;
+    min-width: 205px !important;
+    max-width: 205px !important;
+}
+
+.packing-list-page .packing-board-table .col-person,
+.packing-list-page .packing-board-table .col-qtypacked {
+    width: 140px !important;
+    min-width: 140px !important;
+    max-width: 140px !important;
+}
+
+.packing-list-page .packing-board-table .col-webinv {
+    width: 78px !important;
+    min-width: 78px !important;
+    max-width: 78px !important;
+    padding: 0 !important;
+    background: #e6f6ee !important;
+}
+
+.packing-list-page .packing-board-table .col-packstatus {
+    width: 142px !important;
+    min-width: 142px !important;
+    max-width: 142px !important;
+    padding: 0 !important;
+}
+
+.packing-list-page .packing-board-table .col-text {
+    width: 240px !important;
+    min-width: 240px !important;
+    max-width: 240px !important;
+}
+
+.packing-list-page .packing-board-table .col-add-btn {
+    width: 44px !important;
+    min-width: 44px !important;
+    max-width: 44px !important;
+    padding: 0 !important;
+}
+
+.packing-list-page .packing-board-table input,
+.packing-list-page .packing-board-table select {
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    width: 100% !important;
+    padding: 0 8px !important;
+    font-size: 13px !important;
+    text-align: inherit !important;
+}
+
+.packing-list-page .packing-board-table input[type="checkbox"] {
+    width: 16px !important;
+    height: 16px !important;
+    min-height: 16px !important;
+    border: 1px solid #c8d0df !important;
+    border-radius: 2px !important;
+    background: #fff !important;
+}
+
+.packing-list-page .notes-button,
+.packing-list-page .row-notes-button {
+    width: 22px !important;
+    height: 22px !important;
+    border: 1px solid #9aa4b6 !important;
+    border-radius: 50% !important;
+    background: #fff !important;
+    color: #5e6675 !important;
+}
+
+.packing-list-page .priority-chip,
+.packing-list-page .packing-status-chip,
+.packing-list-page .website-inventory-chip,
+.packing-list-page .status-cell-button,
+.packing-list-page .priority-cell-button {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: calc(100% + 20px) !important;
+    min-height: 36px !important;
+    margin: 0 -10px !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    color: #fff !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    line-height: 1 !important;
+    box-shadow: none !important;
+}
+
+.packing-list-page .priority-chip[data-value="Top Critical"],
+.packing-list-page .priority-cell-button[data-value="Top Critical"] {
+    background: #2f3036 !important;
+}
+
+.packing-list-page .priority-chip[data-value="High"],
+.packing-list-page .priority-cell-button[data-value="High"] {
+    background: var(--status-purple) !important;
+}
+
+.packing-list-page .priority-chip[data-value="Medium"],
+.packing-list-page .priority-cell-button[data-value="Medium"] {
+    background: #5559de !important;
+}
+
+.packing-list-page .priority-chip[data-value="Low"],
+.packing-list-page .priority-cell-button[data-value="Low"] {
+    background: var(--status-blue) !important;
+}
+
+.packing-list-page .packing-status-chip[data-value="Done"],
+.packing-list-page .status-cell-button[data-value="Done"] {
+    background: var(--status-green) !important;
+}
+
+.packing-list-page .packing-status-chip[data-value="Website"],
+.packing-list-page .status-cell-button[data-value="Website"] {
+    background: var(--status-red) !important;
+}
+
+.packing-list-page .packing-status-chip[data-value="Packing"],
+.packing-list-page .status-cell-button[data-value="Packing"] {
+    background: var(--status-orange) !important;
+}
+
+.packing-list-page .packing-status-chip[data-value="Not Started"],
+.packing-list-page .status-cell-button[data-value="Not Started"] {
+    background: var(--status-grey) !important;
+}
+
+.packing-list-page .packing-status-chip[data-value="Done, needs label"],
+.packing-list-page .status-cell-button[data-value="Done, needs label"] {
+    background: #9b51e0 !important;
+}
+
+.packing-list-page .website-check,
+.packing-list-page .website-inventory-toggle,
+.packing-list-page .website-inventory-chip {
+    background: transparent !important;
+    color: var(--status-green) !important;
+    font-size: 18px !important;
+    font-weight: 800 !important;
+}
+
+.packing-list-page .packing-group-row td,
+.packing-list-page .group-header-row td {
+    height: 58px !important;
+    padding: 0 10px !important;
+    background: #fff !important;
+    border-color: var(--board-grid) !important;
+}
+
+.packing-list-page .group-title,
+.packing-list-page .group-name {
+    color: var(--board-blue) !important;
+    font-size: 20px !important;
+    font-weight: 700 !important;
+}
+
+.packing-list-page .group-muted .group-title,
+.packing-list-page .group-muted .group-name {
+    color: #7a7a7a !important;
+}
+
+.packing-list-page .group-count,
+.packing-list-page .group-subtitle {
+    display: block !important;
+    color: #6f7787 !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    margin-top: 4px !important;
+}
+
+.packing-list-page .group-progress,
+.packing-list-page .status-summary-bar,
+.packing-list-page .priority-summary-bar {
+    height: 24px !important;
+    border-radius: 0 !important;
+    overflow: hidden !important;
+    background: #f1f4f9 !important;
+    box-shadow: none !important;
+}
+
+.packing-list-page .group-progress span,
+.packing-list-page .status-summary-bar span,
+.packing-list-page .priority-summary-bar span {
+    height: 24px !important;
+    border-radius: 0 !important;
+}
+
+.packing-list-page .packing-board-table tfoot,
+.packing-list-page .summary-row {
+    display: none !important;
+}
+
+.packing-list-page .label-menu,
+.packing-list-page .status-menu,
+.packing-list-page .priority-menu {
+    border: 1px solid #d9e1f2 !important;
+    border-radius: 8px !important;
+    box-shadow: 0 14px 34px rgba(23, 30, 48, 0.18) !important;
+}
+
+.packing-list-page .label-menu button,
+.packing-list-page .status-menu button,
+.packing-list-page .priority-menu button {
+    border-radius: 0 !important;
+    min-height: 32px !important;
+}
+
+@media (max-width: 900px) {
+    .packing-list-page .module-head {
+        padding-inline: 16px !important;
+    }
+
+    .packing-list-page table.packing-board-table,
+    .packing-list-page .packing-board-table {
+        min-width: 1280px !important;
+    }
+}
