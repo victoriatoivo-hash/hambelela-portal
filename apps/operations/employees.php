@@ -282,10 +282,8 @@ include BASE_PATH . '/shared/sidebar.php';
         <div>
             <p class="eyebrow page-eyebrow">Operations</p>
             <h1>Employees & Roles</h1>
-            <p class="page-subtitle">Create individual employee logins and attach each person to the correct operational permission level.</p>
         </div>
     </section>
-    <?php ops_nav('employees'); ?>
     <?php if (!$ready) { ops_setup_notice(); } ?>
     <?php ops_flash($message, $messageType); ?>
     <?php if ($ready): ?>
