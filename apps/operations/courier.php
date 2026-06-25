@@ -6,7 +6,7 @@ require_once __DIR__ . '/operations.php';
 
 require_login();
 
-$pageTitle = 'Waybill Management Hub | ' . APP_NAME;
+$pageTitle = 'Courier Waybills | ' . APP_NAME;
 $activeApp = 'operations-courier';
 $ready = ops_database_ready();
 $currentUser = current_user();
@@ -14,6 +14,8 @@ $currentEmployeeId = ops_current_employee_id();
 $roleKey = current_role_key();
 $canUploadWaybills = in_array($roleKey, ['owner_admin', 'packer', 'supervisor_manager'], true);
 $canSendWaybills = in_array($roleKey, ['owner_admin', 'front_desk_admin', 'supervisor_manager'], true);
+$historyDateFrom = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_GET['date_from'] ?? '')) ? (string) $_GET['date_from'] : date('Y-m-d', strtotime('-7 days'));
+$historyDateTo = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_GET['date_to'] ?? '')) ? (string) $_GET['date_to'] : date('Y-m-d');
 
 function wb_e($value): string
 {
@@ -558,13 +560,15 @@ function wb_normalize_files(array $files): array
     return $normalized;
 }
 
-function wb_fetch_batch_rows(array $statuses, bool $history = false): array
+function wb_fetch_batch_rows(array $statuses, bool $history = false, ?string $dateFrom = null, ?string $dateTo = null): array
 {
     $params = $statuses;
     $placeholders = implode(',', array_fill(0, count($statuses), '?'));
     $where = "w.status IN ({$placeholders})";
     if ($history) {
-        $where .= " AND w.sent_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)";
+        $where .= " AND DATE(COALESCE(w.sent_at, w.uploaded_at)) BETWEEN ? AND ?";
+        $params[] = $dateFrom ?: date('Y-m-d', strtotime('-7 days'));
+        $params[] = $dateTo ?: date('Y-m-d');
     }
 
     $rows = ops_rows(
@@ -720,11 +724,11 @@ function wb_history_html(array $rows): string
     return (string) ob_get_clean();
 }
 
-function wb_dashboard_payload(bool $canSend): array
+function wb_dashboard_payload(bool $canSend, ?string $dateFrom = null, ?string $dateTo = null): array
 {
     wb_update_overdue_and_reminders();
     $queueRows = wb_fetch_batch_rows(['pending', 'overdue']);
-    $historyRows = wb_fetch_batch_rows(['sent'], true);
+    $historyRows = wb_fetch_batch_rows(['sent'], true, $dateFrom, $dateTo);
 
     return [
         'stats' => wb_stats(),
@@ -733,15 +737,18 @@ function wb_dashboard_payload(bool $canSend): array
     ];
 }
 
-function wb_export_csv(): void
+function wb_export_csv(?string $dateFrom = null, ?string $dateTo = null): void
 {
+    $dateFrom = $dateFrom ?: date('Y-m-d', strtotime('-7 days'));
+    $dateTo = $dateTo ?: date('Y-m-d');
     $rows = ops_rows(
         "SELECT w.*, up.full_name AS uploaded_by_name, sp.full_name AS sent_by_name
          FROM hambelela_waybills w
          LEFT JOIN ops_employees up ON up.id = w.uploaded_by
          LEFT JOIN ops_employees sp ON sp.id = w.sent_by
-         WHERE w.sent_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-         ORDER BY w.sent_at DESC, w.id DESC"
+         WHERE DATE(COALESCE(w.sent_at, w.uploaded_at)) BETWEEN ? AND ?
+         ORDER BY w.sent_at DESC, w.id DESC",
+        [$dateFrom, $dateTo]
     );
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="waybill-sent-history-' . date('Ymd') . '.csv"');
@@ -781,11 +788,11 @@ if ($ready && (string) ($_GET['action'] ?? '') === 'waybill_export_csv') {
         http_response_code(403);
         exit('Not allowed.');
     }
-    wb_export_csv();
+    wb_export_csv($historyDateFrom, $historyDateTo);
 }
 
 if ($ready && (string) ($_GET['action'] ?? '') === 'waybill_queue_refresh') {
-    wb_json(['success' => true] + wb_dashboard_payload($canSendWaybills));
+    wb_json(['success' => true] + wb_dashboard_payload($canSendWaybills, $historyDateFrom, $historyDateTo));
 }
 
 if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -871,7 +878,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 wb_current_name() . ' uploaded ' . $numberOfWaybills . ' waybill' . ($numberOfWaybills === 1 ? '' : 's') . ' for ' . $courierNames . ' dated ' . $sentDate . '. Due by ' . wb_due_label($dueBy->format('Y-m-d H:i:s')) . '.',
                 'normal'
             );
-            wb_json(['success' => true, 'message' => $created . ' waybill' . ($created === 1 ? '' : 's') . ' uploaded.', 'due_by' => wb_due_label($dueBy->format('Y-m-d H:i:s'))] + wb_dashboard_payload($canSendWaybills));
+            wb_json(['success' => true, 'message' => $created . ' waybill' . ($created === 1 ? '' : 's') . ' uploaded.', 'due_by' => wb_due_label($dueBy->format('Y-m-d H:i:s'))] + wb_dashboard_payload($canSendWaybills, $historyDateFrom, $historyDateTo));
         }
 
         if ($action === 'waybill_mark_sent') {
@@ -901,7 +908,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $legacyStmt->execute([$currentEmployeeId, $sentAt, (string) $row['file_path']]);
             }
             ops_activity_log('courier_waybill_sent', 'courier_waybill_batch', 0, ['batch_id' => $batchId, 'count' => count($rows)]);
-            wb_json(['success' => true, 'message' => count($rows) . ' waybill' . (count($rows) === 1 ? '' : 's') . ' marked as sent.'] + wb_dashboard_payload($canSendWaybills));
+            wb_json(['success' => true, 'message' => count($rows) . ' waybill' . (count($rows) === 1 ? '' : 's') . ' marked as sent.'] + wb_dashboard_payload($canSendWaybills, $historyDateFrom, $historyDateTo));
         }
 
         throw new RuntimeException('Unknown waybill action.');
@@ -910,7 +917,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$payload = $ready ? wb_dashboard_payload($canSendWaybills) : ['stats' => ['uploaded_today' => 0, 'pending' => 0, 'overdue' => 0], 'queue_html' => '', 'history_html' => ''];
+$payload = $ready ? wb_dashboard_payload($canSendWaybills, $historyDateFrom, $historyDateTo) : ['stats' => ['uploaded_today' => 0, 'pending' => 0, 'overdue' => 0], 'queue_html' => '', 'history_html' => ''];
 $duePreview = wb_due_for_upload(wb_now())->format('Y-m-d H:i:s');
 
 include BASE_PATH . '/shared/header.php';
@@ -971,6 +978,38 @@ include BASE_PATH . '/shared/sidebar.php';
         .waybill-hub {
             display: grid;
             gap: 16px;
+        }
+
+        .waybill-filter-strip {
+            background: var(--w-surface);
+            border: 1px solid var(--w-border);
+            border-radius: 10px;
+            padding: 8px 10px;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(150px, 190px)) auto;
+            gap: 8px;
+            align-items: end;
+            width: fit-content;
+            max-width: 100%;
+        }
+
+        .waybill-filter-strip label {
+            display: grid;
+            gap: 4px;
+            color: var(--w-burgundy);
+            font-size: var(--w-size-xs);
+            font-weight: var(--w-weight-semi);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .waybill-filter-strip input {
+            height: 34px;
+            border: 1px solid var(--w-border);
+            border-radius: 8px;
+            padding: 6px 9px;
+            font: var(--w-weight-medium) var(--w-size-sm) var(--w-font);
+            color: var(--w-text);
         }
 
         .waybill-stat-grid {
@@ -1406,6 +1445,11 @@ include BASE_PATH . '/shared/sidebar.php';
             .waybill-courier-options {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
+
+            .waybill-filter-strip {
+                width: 100%;
+                grid-template-columns: 1fr;
+            }
         }
 
         @media (max-width: 420px) {
@@ -1418,16 +1462,24 @@ include BASE_PATH . '/shared/sidebar.php';
     <section class="module-header">
         <div>
             <p class="eyebrow">Operations</p>
-            <h1>Waybill Management Hub</h1>
-            <p>Packers upload waybills, Cecilia sends them to customers, and the portal tracks every deadline against the courier SLA.</p>
+            <h1>Courier Waybills</h1>
         </div>
         <a class="waybill-button is-light" href="index.php"><i data-lucide="arrow-left"></i> Operations</a>
     </section>
 
-    <?php ops_nav('courier'); ?>
     <?php if (!$ready) { ops_setup_notice(); } ?>
 
     <section class="waybill-hub" data-waybill-app>
+        <form class="waybill-filter-strip" method="get" data-waybill-filter>
+            <label>From
+                <input type="date" name="date_from" value="<?= wb_e($historyDateFrom) ?>">
+            </label>
+            <label>To
+                <input type="date" name="date_to" value="<?= wb_e($historyDateTo) ?>">
+            </label>
+            <button class="waybill-button is-light" type="submit"><i data-lucide="search"></i> Search</button>
+        </form>
+
         <div class="waybill-stat-grid">
             <article class="waybill-stat-card is-uploaded">
                 <span class="stat-icon"><i data-lucide="upload-cloud"></i></span>
@@ -1504,10 +1556,10 @@ include BASE_PATH . '/shared/sidebar.php';
             <summary class="waybill-section-heading" style="cursor:pointer;">
                 <div>
                     <h2>Sent History</h2>
-                    <p>Waybills marked sent during the last seven days.</p>
+                    <p>Waybills marked sent from <?= wb_e($historyDateFrom) ?> to <?= wb_e($historyDateTo) ?>.</p>
                 </div>
                 <?php if ($canSendWaybills): ?>
-                    <a class="waybill-button is-light" href="courier.php?action=waybill_export_csv"><i data-lucide="download"></i> Export CSV</a>
+                    <a class="waybill-button is-light" href="courier.php?action=waybill_export_csv&amp;date_from=<?= wb_e($historyDateFrom) ?>&amp;date_to=<?= wb_e($historyDateTo) ?>"><i data-lucide="download"></i> Export CSV</a>
                 <?php endif; ?>
             </summary>
             <div class="waybill-history-head">
@@ -1566,6 +1618,18 @@ include BASE_PATH . '/shared/sidebar.php';
             }
             return data;
         }));
+    }
+
+    function filteredRefreshUrl() {
+        const filter = document.querySelector('[data-waybill-filter]');
+        const params = new URLSearchParams();
+        params.set('action', 'waybill_queue_refresh');
+        if (filter) {
+            const data = new FormData(filter);
+            if (data.get('date_from')) params.set('date_from', data.get('date_from'));
+            if (data.get('date_to')) params.set('date_to', data.get('date_to'));
+        }
+        return 'courier.php?' + params.toString();
     }
 
     const uploadForm = document.querySelector('[data-waybill-upload]');
@@ -1676,7 +1740,7 @@ include BASE_PATH . '/shared/sidebar.php';
         const refreshButton = event.target.closest('[data-refresh-waybills]');
         if (refreshButton) {
             refreshButton.disabled = true;
-            fetchJson('courier.php?action=waybill_queue_refresh')
+            fetchJson(filteredRefreshUrl())
                 .then((data) => {
                     renderPayload(data);
                     showToast('Waybill queue refreshed.');
@@ -1689,7 +1753,7 @@ include BASE_PATH . '/shared/sidebar.php';
     });
 
     setInterval(() => {
-        fetchJson('courier.php?action=waybill_queue_refresh')
+        fetchJson(filteredRefreshUrl())
             .then(renderPayload)
             .catch(() => {});
     }, 60000);
