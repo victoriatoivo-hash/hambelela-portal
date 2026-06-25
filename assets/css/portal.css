@@ -1210,6 +1210,33 @@ body.sidebar-collapsed .workspace {
   font-size: 13px;
 }
 
+/* Shared readable type scale for portal module pages. */
+.workspace.module {
+  font-size: 13px;
+}
+
+.workspace.module p,
+.workspace.module td,
+.workspace.module input,
+.workspace.module select,
+.workspace.module textarea,
+.workspace.module button {
+  font-size: 13px;
+}
+
+.workspace.module th,
+.workspace.module label,
+.workspace.module small,
+.workspace.module .eyebrow,
+.workspace.module .ops-nav a,
+.workspace.module .nav-tab,
+.workspace.module [class*="badge"],
+.workspace.module [class*="pill"],
+.workspace.module [class*="meta"],
+.workspace.module [class*="label"] {
+  font-size: 12px;
+}
+
 .metric-grid,
 .workflow-grid,
 .report-grid {
@@ -3881,7 +3908,7 @@ textarea {
   background: var(--el-cream);
   color: var(--el-text);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .error-log-page .module-header {
@@ -3897,7 +3924,7 @@ textarea {
 .error-log-page .eyebrow,
 .error-log-page .page-eyebrow {
   color: var(--el-orange-red) !important;
-  font-size: 10px !important;
+  font-size: 12px !important;
   font-weight: 600 !important;
   letter-spacing: 0.08em !important;
   text-transform: uppercase !important;
@@ -3989,7 +4016,7 @@ textarea {
   border-radius: 6px !important;
   background: var(--el-surface) !important;
   color: var(--el-text-mid) !important;
-  font-size: 11px !important;
+  font-size: 12px !important;
   font-weight: 500 !important;
 }
 
@@ -4052,7 +4079,7 @@ textarea {
   z-index: 2;
   display: block !important;
   color: var(--el-text-mid) !important;
-  font-size: 11px !important;
+  font-size: 12px !important;
   font-weight: 600 !important;
   line-height: 1.25 !important;
   white-space: normal !important;
@@ -4104,14 +4131,14 @@ textarea {
 .error-log-page .error-filter-panel > summary span,
 .error-log-page .filters-bar .filter-label {
   color: var(--el-burgundy) !important;
-  font-size: 11px !important;
+  font-size: 12px !important;
   font-weight: 600 !important;
 }
 
 .error-log-page .error-filter-panel > summary strong {
   background: #fdf0eb !important;
   color: var(--el-orange-red) !important;
-  font-size: 10px !important;
+  font-size: 12px !important;
   font-weight: 600 !important;
 }
 
@@ -4125,7 +4152,7 @@ textarea {
   display: block !important;
   margin-bottom: 5px !important;
   color: var(--el-text-mid) !important;
-  font-size: 11px !important;
+  font-size: 12px !important;
   font-weight: 600 !important;
   letter-spacing: 0.04em !important;
   text-transform: uppercase !important;
@@ -4178,7 +4205,7 @@ textarea {
   border-bottom: 2px solid var(--el-border) !important;
   background: var(--el-cream) !important;
   color: var(--el-burgundy) !important;
-  font-size: 10px !important;
+  font-size: 12px !important;
   font-weight: 600 !important;
   letter-spacing: 0.05em !important;
 }
@@ -4218,7 +4245,7 @@ textarea {
   height: 20px !important;
   padding: 0 8px !important;
   border-radius: 4px !important;
-  font-size: 10px !important;
+  font-size: 12px !important;
   font-style: normal !important;
   font-weight: 600 !important;
 }
@@ -4245,7 +4272,7 @@ textarea {
   border-radius: 20px !important;
   color: #fff !important;
   cursor: pointer;
-  font-size: 11px !important;
+  font-size: 12px !important;
   font-weight: 600 !important;
   transition: filter 120ms ease, transform 100ms ease, box-shadow 120ms ease;
 }
@@ -4268,7 +4295,7 @@ textarea {
   padding: 0 14px !important;
   border-radius: 20px !important;
   background: var(--el-burgundy) !important;
-  font-size: 11px !important;
+  font-size: 12px !important;
   font-weight: 600 !important;
 }
 
@@ -4276,7 +4303,7 @@ textarea {
 .error-log-page .error-detail-panel {
   background: var(--el-surface) !important;
   color: var(--el-text) !important;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .error-log-page .error-log-panel-head {
@@ -4297,7 +4324,7 @@ textarea {
 
 .error-log-page .error-panel-kicker {
   color: var(--el-orange-red) !important;
-  font-size: 10px !important;
+  font-size: 12px !important;
   font-weight: 600 !important;
 }
 
@@ -4333,7 +4360,7 @@ textarea {
   border: 1px solid var(--el-border) !important;
   background: #f5ece8 !important;
   color: var(--el-text-mid) !important;
-  font-size: 11px !important;
+  font-size: 12px !important;
   font-weight: 600 !important;
 }
 
@@ -4362,7 +4389,7 @@ textarea {
 
 .error-log-page .error-upload-zone small {
   color: var(--el-text-mid) !important;
-  font-size: 11px !important;
+  font-size: 12px !important;
 }
 
 .error-log-page .error-panel-actions {
@@ -4400,13 +4427,13 @@ textarea {
 .error-log-page .stat-label,
 .employees-wrap .stat-label,
 .error-log-page .error-metric span {
-  font-size: 11px !important;
+  font-size: 12px !important;
 }
 
 .error-log-page th,
 .employees-wrap th,
 .error-log-page .error-table-head span {
-  font-size: 11px !important;
+  font-size: 12px !important;
 }
 
 .error-log-page td,
@@ -4418,7 +4445,7 @@ textarea {
 
 .error-log-page label,
 .employees-wrap label {
-  font-size: 11px !important;
+  font-size: 12px !important;
 }
 
 .error-log-page input,
@@ -4441,7 +4468,7 @@ textarea {
 .employees-wrap [class*="badge-"],
 .error-log-page .error-severity,
 .error-log-page .error-status {
-  font-size: 11px !important;
+  font-size: 12px !important;
 }
 
 .error-log-page .page-subtitle,
