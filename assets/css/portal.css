@@ -3535,6 +3535,10 @@ textarea {
 .task-wrap .task-board-group.group-done,
 .task-wrap .task-card-row.group-done { border-left-color: var(--t-olive) !important; }
 
+.task-wrap .task-card-row {
+  border-left: 0 !important;
+}
+
 .task-wrap .task-board-group > summary {
   min-height: 42px !important;
   padding: 10px 16px !important;
