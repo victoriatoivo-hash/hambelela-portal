@@ -377,6 +377,133 @@ if ($ready && $errors && ops_table_exists('ops_activity_logs')) {
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
+<style>
+.error-log-page .severity-choice.severity-group,
+#logErrorForm .severity-group,
+.log-error-modal .severity-group {
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 8px !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important;
+}
+
+#logErrorForm .severity-btn,
+.log-error-modal .severity-btn {
+    width: 80px !important;
+    min-width: 80px !important;
+    height: 30px !important;
+    min-height: 30px !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 6px !important;
+    cursor: pointer;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.04em !important;
+    line-height: 30px !important;
+    text-transform: uppercase !important;
+    transition: filter 150ms ease, outline 150ms ease;
+}
+
+#logErrorForm .severity-btn[data-severity="critical"],
+#logErrorForm .severity-btn[data-severity="Critical"] {
+    background: #BB1B21 !important;
+    color: #fff !important;
+}
+
+#logErrorForm .severity-btn[data-severity="high"],
+#logErrorForm .severity-btn[data-severity="High"] {
+    background: #F07420 !important;
+    color: #fff !important;
+}
+
+#logErrorForm .severity-btn[data-severity="medium"],
+#logErrorForm .severity-btn[data-severity="Medium"] {
+    background: #AB3619 !important;
+    color: #fff !important;
+}
+
+#logErrorForm .severity-btn[data-severity="low"],
+#logErrorForm .severity-btn[data-severity="Low"] {
+    background: #A8CA19 !important;
+    color: #2C1810 !important;
+}
+
+#logErrorForm .severity-btn:hover {
+    filter: brightness(0.88);
+}
+
+#logErrorForm .severity-btn.active {
+    outline: 3px solid #721B1A !important;
+    outline-offset: 2px !important;
+    filter: brightness(0.92);
+}
+
+#logErrorForm label[for="description"]::after,
+#logErrorForm .severity-label::after {
+    content: ' *';
+    color: #BB1B21;
+    font-weight: 700;
+}
+
+#logErrorForm .repeat-choice label {
+    width: 60px !important;
+    min-width: 60px !important;
+    height: 30px !important;
+    min-height: 30px !important;
+    padding: 0 !important;
+    border: 1px solid #EDE3D8 !important;
+    border-radius: 6px !important;
+    background: #FDF6EE !important;
+    color: #6B4C3B !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.04em !important;
+    text-transform: uppercase !important;
+}
+
+#logErrorForm .repeat-choice label:has(input[value="0"]:checked) {
+    border-color: #A8CA19 !important;
+    background: #A8CA19 !important;
+    color: #2C1810 !important;
+}
+
+#logErrorForm .repeat-choice label:has(input[value="1"]:checked) {
+    border-color: #BB1B21 !important;
+    background: #BB1B21 !important;
+    color: #fff !important;
+}
+
+#logErrorForm .error-upload-zone {
+    border: 2px dashed #A8CA19 !important;
+    border-radius: 10px !important;
+    background: #f7fbea !important;
+}
+
+#logErrorForm .error-upload-zone:hover,
+#logErrorForm .error-upload-zone.is-dragover {
+    border-color: #721B1A !important;
+    border-style: solid !important;
+    background: #eef7c8 !important;
+}
+
+#logErrorForm .error-upload-zone > span {
+    background: #f3fae0 !important;
+    color: #A8CA19 !important;
+}
+
+#logErrorForm .error-upload-zone svg {
+    color: #A8CA19 !important;
+}
+
+#logErrorForm .error-upload-zone strong {
+    color: #721B1A !important;
+}
+</style>
 <main class="workspace module error-log-page">
     <a class="button back-link" href="<?= BASE_URL ?>/apps/operations/index.php"><i data-lucide="arrow-left"></i> Back to Operations</a>
     <section class="module-header">
