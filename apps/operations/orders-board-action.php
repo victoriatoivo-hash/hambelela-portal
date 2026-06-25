@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/operations.php';
 require_once BASE_PATH . '/shared/woocommerce.php';
+require_once BASE_PATH . '/shared/board-columns.php';
 
 header('Content-Type: application/json');
 
@@ -401,6 +402,23 @@ try {
     }
 
     $action = ops_post_string('action', 40);
+
+    if ($action === 'list_custom_columns') {
+        echo json_encode(['ok' => true, 'columns' => board_columns_list('orders')]);
+        exit;
+    }
+
+    if ($action === 'save_custom_column') {
+        $column = board_columns_save(
+            'orders',
+            ops_post_string('col_key', 100),
+            ops_post_string('col_name', 100),
+            ops_post_string('col_type', 50),
+            (int) (current_user()['id'] ?? 0)
+        );
+        echo json_encode(['ok' => true, 'column' => $column]);
+        exit;
+    }
 
     if ($action === 'availability') {
         if (!ops_table_exists('ops_employee_availability')) {

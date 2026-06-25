@@ -140,7 +140,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         <th data-packing-column="website_uploaded" title="Front desk confirms quantity-to-pack has been updated on the website" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>WEBSITE INVENTORY</th>
                         <th data-packing-column="sync_status" title="Monday sync status" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>SYNC</th>
                         <th data-packing-column="notes" title="Open notes and full details" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>NOTES</th>
-                        <th class="add-column-cell"><button type="button">+</button></th>
+                        <th class="add-column-cell"><button type="button" data-add-packing-column>+</button></th>
                     </tr>
                 </thead>
                 <tbody id="packing-list-body"><tr><td colspan="14">Loading packing list...</td></tr></tbody>

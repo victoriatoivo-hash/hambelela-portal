@@ -34,6 +34,7 @@
   let defaultPersonFilterApplied = false;
   let hasRenderedOnce = false;
   let previousTaskIds = new Set();
+  let customColumns = [];
   const selected = new Set();
   const state = { search: '', priority: '', status: '', person: '', groupBy: 'month', date: '' };
 
@@ -323,6 +324,106 @@
         </div>
       </article>
     `).join('');
+  }
+
+  function renderCustomCell(column) {
+    if (column.col_type === 'number') return '<input class="board-custom-input" type="number" placeholder="0">';
+    if (column.col_type === 'date') return '<input class="board-custom-input" type="date">';
+    if (column.col_type === 'checkbox') return '<input class="board-custom-check" type="checkbox">';
+    if (column.col_type === 'status') return '<span class="board-custom-status">-</span>';
+    if (column.col_type === 'person') return '<span class="board-custom-muted">Assign</span>';
+    return '<input class="board-custom-input" type="text" placeholder="-">';
+  }
+
+  function renderCustomCells() {
+    return customColumns.map((column) => `<td data-custom-col="${esc(column.col_key)}">${renderCustomCell(column)}</td>`).join('');
+  }
+
+  function renderCustomHeaders() {
+    document.querySelectorAll('.packing-table thead tr').forEach((row) => {
+      row.querySelectorAll('[data-custom-header]').forEach((cell) => cell.remove());
+      const addCell = row.querySelector('.add-column-cell');
+      customColumns.forEach((column) => {
+        const th = document.createElement('th');
+        th.dataset.customHeader = column.col_key;
+        th.dataset.colType = column.col_type;
+        th.textContent = String(column.col_name || '').toUpperCase();
+        row.insertBefore(th, addCell);
+      });
+    });
+  }
+
+  async function loadCustomColumns() {
+    const data = await post('list_custom_columns', {});
+    customColumns = data.columns || [];
+    renderCustomHeaders();
+  }
+
+  async function saveCustomColumn(name, type) {
+    const column = { col_key: `custom_${Date.now()}`, col_name: name, col_type: type };
+    const data = await post('save_custom_column', {
+      col_key: column.col_key,
+      col_name: column.col_name,
+      col_type: column.col_type
+    });
+    customColumns.push(data.column || column);
+    renderCustomHeaders();
+    render();
+  }
+
+  function openColumnModal() {
+    let overlay = document.getElementById('packing-column-overlay');
+    let modal = document.getElementById('packing-column-modal');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'packing-column-overlay';
+      overlay.className = 'col-overlay';
+      document.body.appendChild(overlay);
+    }
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'packing-column-modal';
+      modal.className = 'col-modal';
+      modal.setAttribute('role', 'dialog');
+      modal.setAttribute('aria-label', 'Add column');
+      modal.innerHTML = `
+        <div class="col-modal-inner">
+          <h3 class="col-modal-title">Add a column</h3>
+          <p class="col-modal-sub">Choose a column type to add to the board</p>
+          <div class="col-type-grid">
+            ${[
+              ['text', 'Text'], ['number', 'Number'], ['status', 'Status'],
+              ['date', 'Date'], ['person', 'Person'], ['checkbox', 'Checkbox']
+            ].map(([type, label]) => `<button type="button" class="col-type-card" data-packing-col-type="${type}"><span class="col-type-name">${label}</span></button>`).join('')}
+          </div>
+          <div class="col-name-step" data-packing-col-name-step hidden>
+            <label class="col-label">Column name</label>
+            <input type="text" class="col-input" data-packing-col-name placeholder="e.g. Batch Code" maxlength="40">
+            <div class="col-modal-actions">
+              <button type="button" class="btn-col-back" data-packing-col-back>Back</button>
+              <button type="button" class="btn-col-create" data-packing-col-create>Add column</button>
+            </div>
+          </div>
+          <button class="col-modal-close" type="button" data-packing-col-close aria-label="Close">x</button>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
+    modal.dataset.selectedType = '';
+    modal.querySelectorAll('.col-type-card').forEach((card) => card.classList.remove('selected'));
+    modal.querySelector('[data-packing-col-name-step]').hidden = true;
+    modal.querySelector('[data-packing-col-name]').value = '';
+    overlay.classList.add('open');
+    modal.style.display = 'block';
+    requestAnimationFrame(() => modal.classList.add('open'));
+  }
+
+  function closeColumnModal() {
+    const overlay = document.getElementById('packing-column-overlay');
+    const modal = document.getElementById('packing-column-modal');
+    overlay?.classList.remove('open');
+    modal?.classList.remove('open');
+    window.setTimeout(() => { if (modal) modal.style.display = 'none'; }, 220);
   }
 
   function setInvoiceStatus(message) {
@@ -717,13 +818,14 @@
           <td class="paid-cell">${renderCheck(task, 'website_uploaded', currentUser.can_edit_front_website)}</td>
           <td>${renderSyncCell(task)}</td>
           <td class="notes-cell"><button type="button" title="Open notes" data-packing-open-panel="${esc(task.id)}"><i data-lucide="sticky-note"></i></button></td>
+          ${renderCustomCells()}
           <td></td>
         </tr>
       `;
     }).join('');
 
     const addRow = currentUser.can_manage
-      ? '<tr class="add-task-row"><td></td><td colspan="13"><button type="button" data-open-packing-create>+ Add item</button></td></tr>'
+      ? `<tr class="add-task-row"><td></td><td colspan="${13 + customColumns.length}"><button type="button" data-open-packing-create>+ Add item</button></td></tr>`
       : '';
 
     return `
@@ -733,7 +835,7 @@
       <tr class="summary-row">
         <td></td><td><span class="summary-pill">${esc(groupLabel(key))}</span></td><td></td><td>${rows.length} items</td>
         <td colspan="2">Done: ${groupSummary.done}</td><td>Not started: ${groupSummary.notStarted}</td><td>Packing: ${groupSummary.packing}</td>
-        <td colspan="2">Website: ${groupSummary.website}/${rows.length}</td><td colspan="4">${esc(groupSummary.split)}</td>
+        <td colspan="2">Website: ${groupSummary.website}/${rows.length}</td><td colspan="${4 + customColumns.length}">${esc(groupSummary.split)}</td>
       </tr>
     `;
   }
@@ -768,6 +870,7 @@
       memo[key].push(task);
       return memo;
     }, {});
+    renderCustomHeaders();
     body.innerHTML = Object.keys(groups).sort((a, b) => b.localeCompare(a)).map((key) => renderGroup(key, groups[key])).join('');
     renderMobileCards(visible);
     setCount(`${visible.length} showing of ${tasks.length} packing item${tasks.length === 1 ? '' : 's'}`);
@@ -1245,10 +1348,54 @@
     const removeDraftRow = event.target.closest('[data-remove-draft-row]');
     const themeToggle = event.target.closest('[data-theme-toggle]');
     const bulkAction = event.target.closest('[data-packing-bulk-action]');
+    const addColumn = event.target.closest('[data-add-packing-column]');
+    const colClose = event.target.closest('[data-packing-col-close]');
+    const colOverlay = event.target.closest('#packing-column-overlay');
+    const colType = event.target.closest('[data-packing-col-type]');
+    const colBack = event.target.closest('[data-packing-col-back]');
+    const colCreate = event.target.closest('[data-packing-col-create]');
 
     try {
       if (bulkAction) {
         await runPackingBulkAction(bulkAction.dataset.packingBulkAction);
+        return;
+      }
+
+      if (addColumn) {
+        openColumnModal();
+        return;
+      }
+
+      if (colClose || colOverlay) {
+        closeColumnModal();
+        return;
+      }
+
+      if (colType) {
+        const modal = document.getElementById('packing-column-modal');
+        modal.dataset.selectedType = colType.dataset.packingColType;
+        modal.querySelectorAll('.col-type-card').forEach((card) => card.classList.remove('selected'));
+        colType.classList.add('selected');
+        modal.querySelector('[data-packing-col-name-step]').hidden = false;
+        modal.querySelector('[data-packing-col-name]').focus();
+        return;
+      }
+
+      if (colBack) {
+        const modal = document.getElementById('packing-column-modal');
+        modal.dataset.selectedType = '';
+        modal.querySelector('[data-packing-col-name-step]').hidden = true;
+        modal.querySelectorAll('.col-type-card').forEach((card) => card.classList.remove('selected'));
+        return;
+      }
+
+      if (colCreate) {
+        const modal = document.getElementById('packing-column-modal');
+        const type = modal?.dataset.selectedType || '';
+        const name = modal?.querySelector('[data-packing-col-name]')?.value.trim() || '';
+        if (!type || !name) return;
+        await saveCustomColumn(name, type);
+        closeColumnModal();
         return;
       }
 
@@ -1519,7 +1666,10 @@
   });
 
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') closeLabel();
+    if (event.key === 'Escape') {
+      closeLabel();
+      closeColumnModal();
+    }
   });
 
   const storedTheme = localStorage.getItem('hambelelaPackingTheme');
@@ -1532,9 +1682,13 @@
       if (labels[header.dataset.packingColumn]) header.textContent = labels[header.dataset.packingColumn];
     });
   } catch (error) {}
-  refresh().catch((error) => {
-    body.innerHTML = `<tr><td colspan="14">${esc(error.message)}</td></tr>`;
-    setCount('Could not load packing list');
-    updateMetrics([]);
-  });
+  loadCustomColumns()
+    .catch(() => {})
+    .finally(() => {
+      refresh().catch((error) => {
+        body.innerHTML = `<tr><td colspan="14">${esc(error.message)}</td></tr>`;
+        setCount('Could not load packing list');
+        updateMetrics([]);
+      });
+    });
 })();

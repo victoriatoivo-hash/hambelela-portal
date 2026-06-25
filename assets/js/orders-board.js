@@ -31,6 +31,7 @@
   let lastUndo = null;
   let hasRenderedOnce = false;
   let previousOrderIds = new Set();
+  let customColumns = [];
   const selectedOrders = new Set();
   const boardState = {
     search: '',
@@ -440,6 +441,110 @@
     `).join('');
   }
 
+  function renderCustomCell(column) {
+    if (column.col_type === 'number') return '<input class="board-custom-input" type="number" placeholder="0">';
+    if (column.col_type === 'date') return '<input class="board-custom-input" type="date">';
+    if (column.col_type === 'checkbox') return '<input class="board-custom-check" type="checkbox">';
+    if (column.col_type === 'status') return '<span class="board-custom-status">-</span>';
+    if (column.col_type === 'person') return '<span class="board-custom-muted">Assign</span>';
+    return '<input class="board-custom-input" type="text" placeholder="-">';
+  }
+
+  function renderCustomCells() {
+    return customColumns.map((column) => `<td data-custom-col="${esc(column.col_key)}">${renderCustomCell(column)}</td>`).join('');
+  }
+
+  function renderCustomHeaders() {
+    document.querySelectorAll('.ops-board-table thead tr').forEach((row) => {
+      row.querySelectorAll('[data-custom-header]').forEach((cell) => cell.remove());
+      const addCell = row.querySelector('.add-column-cell');
+      customColumns.forEach((column) => {
+        const th = document.createElement('th');
+        th.dataset.customHeader = column.colKey || column.col_key;
+        th.dataset.colType = column.col_type;
+        th.textContent = String(column.col_name || '').toUpperCase();
+        row.insertBefore(th, addCell);
+      });
+    });
+  }
+
+  async function loadCustomColumns() {
+    const data = await post('list_custom_columns', {});
+    customColumns = data.columns || [];
+    renderCustomHeaders();
+  }
+
+  async function saveCustomColumn(name, type) {
+    const column = {
+      col_key: `custom_${Date.now()}`,
+      col_name: name,
+      col_type: type
+    };
+    const data = await post('save_custom_column', {
+      col_key: column.col_key,
+      col_name: column.col_name,
+      col_type: column.col_type
+    });
+    customColumns.push(data.column || column);
+    renderCustomHeaders();
+    renderOrders(ordersCache);
+  }
+
+  function openColumnModal() {
+    let overlay = document.getElementById('board-column-overlay');
+    let modal = document.getElementById('board-column-modal');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'board-column-overlay';
+      overlay.className = 'col-overlay';
+      document.body.appendChild(overlay);
+    }
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'board-column-modal';
+      modal.className = 'col-modal';
+      modal.setAttribute('role', 'dialog');
+      modal.setAttribute('aria-label', 'Add column');
+      modal.innerHTML = `
+        <div class="col-modal-inner">
+          <h3 class="col-modal-title">Add a column</h3>
+          <p class="col-modal-sub">Choose a column type to add to the board</p>
+          <div class="col-type-grid">
+            ${[
+              ['text', 'Text'], ['number', 'Number'], ['status', 'Status'],
+              ['date', 'Date'], ['person', 'Person'], ['checkbox', 'Checkbox']
+            ].map(([type, label]) => `<button type="button" class="col-type-card" data-col-type="${type}"><span class="col-type-name">${label}</span></button>`).join('')}
+          </div>
+          <div class="col-name-step" data-col-name-step hidden>
+            <label class="col-label">Column name</label>
+            <input type="text" class="col-input" data-col-name placeholder="e.g. Batch Code" maxlength="40">
+            <div class="col-modal-actions">
+              <button type="button" class="btn-col-back" data-col-back>Back</button>
+              <button type="button" class="btn-col-create" data-col-create>Add column</button>
+            </div>
+          </div>
+          <button class="col-modal-close" type="button" data-col-close aria-label="Close">x</button>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
+    modal.dataset.selectedType = '';
+    modal.querySelectorAll('.col-type-card').forEach((card) => card.classList.remove('selected'));
+    modal.querySelector('[data-col-name-step]').hidden = true;
+    modal.querySelector('[data-col-name]').value = '';
+    overlay.classList.add('open');
+    modal.style.display = 'block';
+    requestAnimationFrame(() => modal.classList.add('open'));
+  }
+
+  function closeColumnModal() {
+    const overlay = document.getElementById('board-column-overlay');
+    const modal = document.getElementById('board-column-modal');
+    overlay?.classList.remove('open');
+    modal?.classList.remove('open');
+    window.setTimeout(() => { if (modal) modal.style.display = 'none'; }, 220);
+  }
+
   function exportVisibleOrders() {
     const rows = visibleOrders();
     exportOrders(rows, `hambelela-orders-${dateFilter?.value || 'all-dates'}.csv`);
@@ -603,6 +708,7 @@
           <td>${renderLabelCell(order, 'status', order.status || 'new_order', statusLabels, 'status-label')}</td>
           <td>${renderPackerCell(order)}<small class="pick-duration">${esc(durationText(order.packing_started_at, order.completed_at || order.packed_at))}</small></td>
           <td class="notes-cell"><button type="button" data-expand-note>${esc(order.notes || '')}</button></td>
+          ${renderCustomCells()}
           <td></td>
         </tr>
       `;
@@ -613,7 +719,7 @@
         <td colspan="13"><button type="button" data-collapse-group="${esc(key)}"><i data-lucide="chevron-down"></i>${esc(groupLabel(key))}</button></td>
       </tr>
       ${rows}
-      <tr class="add-task-row"><td></td><td colspan="12"><button type="button" data-add-task="${esc(key)}">+ Add task</button></td></tr>
+      <tr class="add-task-row"><td></td><td colspan="${12 + customColumns.length}"><button type="button" data-add-task="${esc(key)}">+ Add task</button></td></tr>
       <tr class="summary-row">
         <td></td>
         <td></td>
@@ -627,6 +733,7 @@
         <td><span class="summary-swatch">${summaryBars(orders, 'status', statusLabels)}</span></td>
         <td>${complete}/${orders.length}</td>
         <td></td>
+        ${customColumns.map(() => '<td></td>').join('')}
         <td></td>
       </tr>
     `;
@@ -649,6 +756,7 @@
     }
 
     const groups = groupedOrders(visible);
+    renderCustomHeaders();
     body.innerHTML = Object.keys(groups).sort((a, b) => b.localeCompare(a)).map((key) => renderGroup(key, groups[key])).join('');
     renderMobileCards(visible);
     if (groupLabelNode) groupLabelNode.textContent = `Grouped by ${boardState.groupBy}`;
@@ -970,6 +1078,11 @@
     const themeToggle = event.target.closest('[data-theme-toggle]');
     const saveNotes = event.target.closest('[data-save-notes]');
     const addColumn = event.target.closest('[data-add-column]');
+    const colClose = event.target.closest('[data-col-close]');
+    const colOverlay = event.target.closest('#board-column-overlay');
+    const colType = event.target.closest('[data-col-type]');
+    const colBack = event.target.closest('[data-col-back]');
+    const colCreate = event.target.closest('[data-col-create]');
     const addTask = event.target.closest('[data-add-task]');
     const dateAll = event.target.closest('[data-date-all]');
     const clearFilters = event.target.closest('[data-clear-board-filters]');
@@ -983,6 +1096,44 @@
     try {
       if (bulkAction) {
         await runOrderBulkAction(bulkAction.dataset.orderBulkAction);
+        return;
+      }
+
+      if (addColumn) {
+        openColumnModal();
+        return;
+      }
+
+      if (colClose || colOverlay) {
+        closeColumnModal();
+        return;
+      }
+
+      if (colType) {
+        const modal = document.getElementById('board-column-modal');
+        modal.dataset.selectedType = colType.dataset.colType;
+        modal.querySelectorAll('.col-type-card').forEach((card) => card.classList.remove('selected'));
+        colType.classList.add('selected');
+        modal.querySelector('[data-col-name-step]').hidden = false;
+        modal.querySelector('[data-col-name]').focus();
+        return;
+      }
+
+      if (colBack) {
+        const modal = document.getElementById('board-column-modal');
+        modal.dataset.selectedType = '';
+        modal.querySelector('[data-col-name-step]').hidden = true;
+        modal.querySelectorAll('.col-type-card').forEach((card) => card.classList.remove('selected'));
+        return;
+      }
+
+      if (colCreate) {
+        const modal = document.getElementById('board-column-modal');
+        const type = modal?.dataset.selectedType || '';
+        const name = modal?.querySelector('[data-col-name]')?.value.trim() || '';
+        if (!type || !name) return;
+        await saveCustomColumn(name, type);
+        closeColumnModal();
         return;
       }
 
@@ -1145,7 +1296,6 @@
         await refresh();
       }
 
-      if (addColumn) alert('Column builder is ready for the next step: choose a column name and type.');
       if (addTask) window.location.href = `orders.php?date=${encodeURIComponent(addTask.dataset.addTask)}`;
     } catch (error) {
       showError(error);
@@ -1161,6 +1311,7 @@
     if (event.key === 'Escape') {
       closeLabelMenu();
       closeToolbar();
+      closeColumnModal();
     }
   });
 
@@ -1228,13 +1379,17 @@
   }
 
   heartbeat();
-  syncWebsite(false)
-    .catch((error) => {
-      body.innerHTML = `<tr><td colspan="13">Website sync issue: ${esc(error.message)}</td></tr>`;
-    })
-    .finally(() => refresh().catch((error) => {
-      body.innerHTML = `<tr><td colspan="13">${esc(error.message)}</td></tr>`;
-    }));
+  loadCustomColumns()
+    .catch(() => {})
+    .finally(() => {
+      syncWebsite(false)
+        .catch((error) => {
+          body.innerHTML = `<tr><td colspan="13">Website sync issue: ${esc(error.message)}</td></tr>`;
+        })
+        .finally(() => refresh().catch((error) => {
+          body.innerHTML = `<tr><td colspan="13">${esc(error.message)}</td></tr>`;
+        }));
+    });
   window.setInterval(heartbeat, 30000);
   window.setInterval(() => refresh().catch((error) => showError(error)), 5000);
   window.setInterval(() => syncWebsite(true).then(refresh).catch((error) => showError(error)), 15000);

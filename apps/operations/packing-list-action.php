@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/operations.php';
 require_once BASE_PATH . '/shared/pdf-extractor.php';
 require_once BASE_PATH . '/shared/openai-extractor.php';
+require_once BASE_PATH . '/shared/board-columns.php';
 
 header('Content-Type: application/json');
 
@@ -1073,6 +1074,26 @@ try {
     $action = ops_post_string('action', 40);
     $canManage = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
     $currentEmployeeId = ops_current_employee_id();
+
+    if ($action === 'list_custom_columns') {
+        echo json_encode(['ok' => true, 'columns' => board_columns_list('packing')]);
+        exit;
+    }
+
+    if ($action === 'save_custom_column') {
+        if (!$canManage) {
+            throw new RuntimeException('Only admin/front desk can add board columns.');
+        }
+        $column = board_columns_save(
+            'packing',
+            ops_post_string('col_key', 100),
+            ops_post_string('col_name', 100),
+            ops_post_string('col_type', 50),
+            $currentEmployeeId
+        );
+        echo json_encode(['ok' => true, 'column' => $column]);
+        exit;
+    }
 
     if ($action === 'create') {
         if (!$canManage) {
