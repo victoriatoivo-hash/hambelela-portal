@@ -1131,51 +1131,31 @@ include BASE_PATH . '/shared/sidebar.php';
         }
 
         .waybill-courier-options {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            align-items: center;
+            display: grid;
+            grid-template-columns: repeat(6, minmax(118px, 1fr));
+            gap: 6px;
         }
 
         .waybill-courier-options label {
-            display: inline-flex;
+            border: 1px solid var(--w-border);
+            border-radius: 8px;
+            min-height: 38px;
+            padding: 7px 8px;
+            display: flex;
             align-items: center;
-            flex: 0 0 auto !important;
             gap: 6px;
-            width: auto !important;
-            min-width: unset !important;
-            max-width: unset !important;
-            padding: 5px 12px;
-            border: 1px solid #e6e9ef;
-            border-radius: 6px;
-            color: #323338;
+            color: var(--w-text);
             background: #fff;
             font-size: var(--w-size-sm);
-            font-weight: var(--w-weight-normal);
+            font-weight: var(--w-weight-medium);
             text-transform: none;
             letter-spacing: 0;
-            white-space: nowrap;
-            cursor: pointer;
-            transition: border-color 120ms ease, background 120ms ease;
-        }
-
-        .waybill-courier-options label:hover {
-            background: #f0f4ff;
-            border-color: #c5cee0;
-        }
-
-        .waybill-courier-options label.selected {
-            border-color: var(--w-orange-red);
-            background: #fff3f0;
-            font-weight: var(--w-weight-medium);
         }
 
         .waybill-courier-options input {
             width: 13px;
             height: 13px;
-            margin: 0;
             accent-color: var(--w-orange-red);
-            flex-shrink: 0;
         }
 
         .upload-dropzone {
@@ -1440,6 +1420,9 @@ include BASE_PATH . '/shared/sidebar.php';
                 grid-template-columns: 1fr;
             }
 
+            .waybill-courier-options {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
         }
 
         @media (max-width: 640px) {
@@ -1459,8 +1442,18 @@ include BASE_PATH . '/shared/sidebar.php';
                 width: 100%;
             }
 
+            .waybill-courier-options {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
             .waybill-filter-strip {
                 width: 100%;
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 420px) {
+            .waybill-courier-options {
                 grid-template-columns: 1fr;
             }
         }
@@ -1645,19 +1638,7 @@ include BASE_PATH . '/shared/sidebar.php';
         const dropzone = uploadForm.querySelector('[data-dropzone]');
         const chips = uploadForm.querySelector('[data-file-chips]');
         const submit = uploadForm.querySelector('[data-upload-submit]');
-        const courierChecks = uploadForm.querySelectorAll('.waybill-courier-options input[type="checkbox"]');
         let selectedFiles = [];
-
-        function syncCourierLabels() {
-            courierChecks.forEach((checkbox) => {
-                if (checkbox.closest('label')) {
-                    checkbox.closest('label').classList.toggle('selected', checkbox.checked);
-                }
-            });
-        }
-
-        courierChecks.forEach((checkbox) => checkbox.addEventListener('change', syncCourierLabels));
-        syncCourierLabels();
 
         function syncFiles() {
             if (!fileInput || typeof DataTransfer === 'undefined') return;
