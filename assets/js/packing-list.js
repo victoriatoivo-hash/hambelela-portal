@@ -67,6 +67,8 @@
   const labelText = (options, value) => itemText(findOption(options, value) || [value, String(value || '').replace(/_/g, ' ')]);
   const labelColor = (options, value) => itemColor(findOption(options, value) || ['', '', '#8c92a6']);
   const packingLabelStorageKey = (field) => `hambelelaPackingLabels:${field}`;
+  const baseColumnCount = 12;
+  const totalColumnCount = () => baseColumnCount + customColumns.length;
 
   function loadStoredPackingLabels() {
     try {
@@ -258,44 +260,10 @@
     return `<label class="paid-toggle"${title}><input type="checkbox" data-packing-check="${esc(field)}" data-task-id="${esc(task.id)}" ${checked} ${disabled}><span>&check;</span></label>`;
   }
 
-  function renderSyncStatus(task) {
-    const status = normalize(task.monday_sync_status || 'not_synced');
-    const labels = {
-      not_synced: 'Not synced',
-      synced: 'Synced',
-      updated: 'Updated',
-      failed: 'Review',
-      duplicate_detected: 'Duplicate'
-    };
-    const title = task.monday_sync_error ? ` title="${esc(task.monday_sync_error)}"` : '';
-    return `<span class="sync-status-pill sync-${esc(status)}"${title}>${esc(labels[status] || String(status).replace(/_/g, ' '))}</span>`;
-  }
-
-  function renderSyncCell(task) {
-    const status = normalize(task.monday_sync_status || 'not_synced');
-    const isSynced = Boolean(task.monday_item_id);
-    const label = isSynced ? 'Update row' : 'Sync row';
-    const title = isSynced
-      ? 'Update this product on Monday without syncing the whole list'
-      : 'Sync only this product to Monday';
-    const canSync = currentUser.can_manage;
-    return `
-      <div class="packing-sync-cell">
-        ${renderSyncStatus(task)}
-        ${canSync ? `
-          <button type="button" class="packing-row-sync-button ${status === 'failed' ? 'needs-review' : ''}" data-sync-packing-row="${esc(task.id)}" title="${esc(title)}">
-            <i data-lucide="${isSynced ? 'refresh-cw' : 'upload-cloud'}"></i>
-            <span>${esc(label)}</span>
-          </button>
-        ` : ''}
-      </div>
-    `;
-  }
-
   function showSkeletonRows() {
     body.innerHTML = Array.from({ length: 8 }).map(() => `
       <tr class="skeleton-row">
-        ${Array.from({ length: 14 }).map(() => '<td><span class="board-skeleton-cell"></span></td>').join('')}
+        ${Array.from({ length: 12 }).map(() => '<td><span class="board-skeleton-cell"></span></td>').join('')}
       </tr>
     `).join('');
   }
@@ -385,6 +353,67 @@
         th.textContent = String(column.col_name || '').toUpperCase();
         row.insertBefore(th, addCell);
       });
+    });
+    makeColumnsResizable(document.querySelector('.board-wrap table'));
+  }
+
+  function makeColumnsResizable(table) {
+    if (!table) return;
+    table.querySelectorAll('thead th').forEach((th) => {
+      th.querySelector('.col-resizer')?.remove();
+      if (th.classList.contains('col-checkbox') || th.classList.contains('col-add-btn')) return;
+
+      const resizer = document.createElement('div');
+      resizer.className = 'col-resizer';
+      th.style.position = 'relative';
+      th.appendChild(resizer);
+
+      let startX = 0;
+      let startW = 0;
+
+      const onMouseMove = (event) => {
+        const newW = Math.max(50, startW + (event.pageX - startX));
+        th.style.width = `${newW}px`;
+        th.style.minWidth = `${newW}px`;
+        th.style.maxWidth = `${newW}px`;
+      };
+
+      const onMouseUp = () => {
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+        document.body.classList.remove('is-resizing-column');
+      };
+
+      resizer.addEventListener('mousedown', (event) => {
+        startX = event.pageX;
+        startW = th.offsetWidth;
+        document.body.classList.add('is-resizing-column');
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+        event.preventDefault();
+        event.stopPropagation();
+      });
+    });
+  }
+
+  function applyGroupColorBars() {
+    const groupColors = ['#6c49bb', '#0073ea', '#fdab3d', '#e2445c', '#00c875', '#ff7575', '#a25ddc', '#037f4c'];
+    body.querySelectorAll('tr').forEach((row) => {
+      row.style.borderLeft = '';
+      row.style.setProperty('--group-color', 'transparent');
+    });
+    body.querySelectorAll('tr.group-header').forEach((header, index) => {
+      const color = groupColors[index % groupColors.length];
+      header.style.borderLeft = `4px solid ${color}`;
+      header.style.setProperty('--group-color', color);
+      header.querySelector('td')?.style.setProperty('border-left', `4px solid ${color}`, 'important');
+
+      let row = header.nextElementSibling;
+      while (row && !row.classList.contains('group-header')) {
+        row.style.borderLeft = `3px solid ${color}`;
+        row.style.setProperty('--group-color', color);
+        row = row.nextElementSibling;
+      }
     });
   }
 
@@ -840,37 +869,33 @@
         : renderStaticLabel(task.packing_status || 'not_started', statuses);
       return `
         <tr data-task-id="${esc(task.id)}" class="board-row ${!previousTaskIds.has(String(task.id)) && hasRenderedOnce ? 'row-new' : ''} ${selected.has(String(task.id)) ? 'is-selected' : ''}">
-          <td class="check-cell"><input type="checkbox" data-packing-row-select="${esc(task.id)}" ${selected.has(String(task.id)) ? 'checked' : ''}></td>
-          <td class="task-cell">${esc(task.item_name)}</td>
-          <td class="comment-cell"><button type="button" title="Open full details" data-packing-open-panel="${esc(task.id)}"><i data-lucide="panel-right-open"></i></button></td>
-          <td><input class="board-inline-input" data-packing-text="received_weight" data-task-id="${esc(task.id)}" value="${esc(task.received_weight || '')}" ${manageOnly}></td>
-          <td>${priorityCell}</td>
-          <td>${esc(formatDate(task.date_loaded))}</td>
-          <td><input class="board-inline-input" data-packing-text="quantity_planned" data-task-id="${esc(task.id)}" value="${esc(task.quantity_planned || '')}" ${manageOnly}></td>
-          <td>${renderPerson(task)}</td>
-          <td><input class="board-inline-input" data-packing-text="quantity_packed" data-task-id="${esc(task.id)}" value="${esc(task.quantity_packed || '')}" placeholder="Actual" ${ownOnly}></td>
-          <td>${statusCell}</td>
-          <td class="paid-cell">${renderCheck(task, 'website_uploaded', currentUser.can_edit_front_website)}</td>
-          <td>${renderSyncCell(task)}</td>
-          <td class="notes-cell"><button type="button" title="Open notes" data-packing-open-panel="${esc(task.id)}"><i data-lucide="sticky-note"></i></button></td>
+          <td class="check-cell col-checkbox"><input type="checkbox" data-packing-row-select="${esc(task.id)}" ${selected.has(String(task.id)) ? 'checked' : ''}></td>
+          <td class="col-dateloaded">${esc(formatDate(task.date_loaded))}</td>
+          <td class="task-cell col-item">${esc(task.item_name)}</td>
+          <td class="notes-cell col-notes"><button type="button" title="Open notes" data-packing-open-panel="${esc(task.id)}"><i data-lucide="message-circle-plus"></i></button></td>
+          <td class="col-received"><input class="board-inline-input" data-packing-text="received_weight" data-task-id="${esc(task.id)}" value="${esc(task.received_weight || '')}" ${manageOnly}></td>
+          <td class="col-priority">${priorityCell}</td>
+          <td class="col-qty"><input class="board-inline-input" data-packing-text="quantity_planned" data-task-id="${esc(task.id)}" value="${esc(task.quantity_planned || '')}" ${manageOnly}></td>
+          <td class="col-person">${renderPerson(task)}</td>
+          <td class="col-qtypacked"><input class="board-inline-input" data-packing-text="quantity_packed" data-task-id="${esc(task.id)}" value="${esc(task.quantity_packed || '')}" placeholder="Actual" ${ownOnly}></td>
+          <td class="col-packstatus">${statusCell}</td>
+          <td class="paid-cell col-webinv">${renderCheck(task, 'website_uploaded', currentUser.can_edit_front_website)}</td>
           ${renderCustomCells()}
-          <td></td>
+          <td class="col-add-btn"></td>
         </tr>
       `;
     }).join('');
 
     const addRow = currentUser.can_manage
-      ? `<tr class="add-task-row"><td></td><td colspan="${13 + customColumns.length}"><button type="button" data-open-packing-create>+ Add item</button></td></tr>`
+      ? `<tr class="add-task-row"><td></td><td colspan="${11 + customColumns.length}"><button type="button" data-open-packing-create>+ Add item</button></td></tr>`
       : '';
 
     return `
-      <tr class="group-row"><td colspan="14"><button type="button" data-packing-collapse><i data-lucide="chevron-down"></i>${esc(groupLabel(key))}</button></td></tr>
+      <tr class="group-row group-header"><td colspan="${12 + customColumns.length}"><button type="button" data-packing-collapse><i data-lucide="chevron-down"></i>${esc(groupLabel(key))}</button></td></tr>
       ${bodyRows}
       ${addRow}
       <tr class="summary-row">
-        <td></td><td><span class="summary-pill">${esc(groupLabel(key))}</span></td><td></td><td>${rows.length} items</td>
-        <td colspan="2">Done: ${groupSummary.done}</td><td>Not started: ${groupSummary.notStarted}</td><td>Packing: ${groupSummary.packing}</td>
-        <td colspan="2">Website: ${groupSummary.website}/${rows.length}</td><td colspan="${4 + customColumns.length}">${esc(groupSummary.split)}</td>
+        <td></td><td colspan="${11 + customColumns.length}"><span class="summary-pill">${esc(groupLabel(key))}</span> ${rows.length} items · Done: ${groupSummary.done} · Not started: ${groupSummary.notStarted} · Packing: ${groupSummary.packing} · Website: ${groupSummary.website}/${rows.length} · ${esc(groupSummary.split)}</td>
       </tr>
     `;
   }
@@ -890,13 +915,14 @@
           <button type="button" data-open-invoice><i data-lucide="upload"></i> Upload invoice</button>
           <button type="button" data-import-previous-packing><i data-lucide="copy-plus"></i> Import from previous list</button>
         </div>` : '';
-      body.innerHTML = `<tr><td colspan="14"><div class="board-empty-state"><strong>${esc(message)}${hasFilters ? ' Clear filters to see all rows.' : ''}</strong>${actions}</div></td></tr>`;
+      body.innerHTML = `<tr><td colspan="${totalColumnCount()}"><div class="board-empty-state"><strong>${esc(message)}${hasFilters ? ' Clear filters to see all rows.' : ''}</strong>${actions}</div></td></tr>`;
       renderMobileCards([]);
       setCount(tasks.length ? `${tasks.length} total item${tasks.length === 1 ? '' : 's'} loaded` : `${totalRows} packing rows in database`);
       updateMetrics(visible);
       updateFilterBadge();
       updateSelection();
       if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+      makeColumnsResizable(document.querySelector('.board-wrap table'));
       return;
     }
     const groups = visible.reduce((memo, task) => {
@@ -913,6 +939,8 @@
     updateFilterBadge();
     updateSelection();
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+    makeColumnsResizable(document.querySelector('.board-wrap table'));
+    applyGroupColorBars();
     animateBoardRows();
     previousTaskIds = new Set(tasks.map((task) => String(task.id)));
     hasRenderedOnce = true;
@@ -951,7 +979,7 @@
       }
       fillPackerSelects();
       if (!data.migrationReady) {
-        body.innerHTML = '<tr><td colspan="14">Import operations-packing-list-migration.sql first.</td></tr>';
+        body.innerHTML = `<tr><td colspan="${totalColumnCount()}">Import operations-packing-list-migration.sql first.</td></tr>`;
         setCount('Packing migration required');
         updateMetrics([]);
         return;
@@ -1457,7 +1485,6 @@
     const refreshButton = event.target.closest('[data-packing-refresh]');
     const importPrevious = event.target.closest('[data-import-previous-packing]');
     const syncMonday = event.target.closest('[data-sync-monday-packing]');
-    const syncPackingRow = event.target.closest('[data-sync-packing-row]');
     const findDuplicates = event.target.closest('[data-find-packing-duplicates]');
     const extractInvoice = event.target.closest('[data-extract-invoice]');
     const addDraftRow = event.target.closest('[data-add-draft-row]');
@@ -1624,21 +1651,6 @@
         }
         return;
       }
-      if (syncPackingRow) {
-        try {
-          syncPackingRow.classList.add('is-loading');
-          syncPackingRow.disabled = true;
-          const result = await post('sync_monday_row', { task_id: syncPackingRow.dataset.syncPackingRow });
-          await refresh();
-          setCount(result.message || 'Packing item synced to Monday.');
-        } catch (error) {
-          setCount(`Row sync issue: ${error.message}`);
-        } finally {
-          syncPackingRow.classList.remove('is-loading');
-          syncPackingRow.disabled = false;
-        }
-        return;
-      }
       if (findDuplicates) {
         await findPackingDuplicates(findDuplicates);
         return;
@@ -1784,7 +1796,7 @@
           await updateTasksField(selectedIdsFor(text.dataset.taskId), text.dataset.packingText, text.value);
           render();
         } catch (error) {
-          body.innerHTML = `<tr><td colspan="14">${esc(error.message)}</td></tr>`;
+          body.innerHTML = `<tr><td colspan="${totalColumnCount()}">${esc(error.message)}</td></tr>`;
         }
       }
     }
@@ -1806,7 +1818,7 @@
       if (createForm) await createFromForm(createForm);
       if (invoiceForm) await createInvoiceDraft(invoiceForm);
     } catch (error) {
-      body.innerHTML = `<tr><td colspan="14">${esc(error.message)}</td></tr>`;
+      body.innerHTML = `<tr><td colspan="${totalColumnCount()}">${esc(error.message)}</td></tr>`;
     }
   });
 
@@ -1835,7 +1847,7 @@
     .catch(() => {})
     .finally(() => {
       refresh().catch((error) => {
-        body.innerHTML = `<tr><td colspan="14">${esc(error.message)}</td></tr>`;
+        body.innerHTML = `<tr><td colspan="${totalColumnCount()}">${esc(error.message)}</td></tr>`;
         setCount('Could not load packing list');
         updateMetrics([]);
       });

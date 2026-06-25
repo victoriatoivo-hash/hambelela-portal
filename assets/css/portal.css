@@ -12436,3 +12436,187 @@ button.hr-section-tab {
   padding: 14px 22px;
   border-top: 1px solid #dfe3ec;
 }
+
+/* Packing board density and Monday-style column controls. */
+.packing-list-page .board-wrap .packing-table {
+  width: max-content !important;
+  min-width: 1105px !important;
+  table-layout: fixed;
+}
+
+.packing-list-page .board-wrap tbody tr,
+.packing-list-page .board-wrap tbody td,
+.packing-list-page .board-wrap tbody td * {
+  max-height: 36px !important;
+  line-height: 36px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+.packing-list-page .board-wrap tbody td {
+  height: 36px !important;
+  padding: 0 10px !important;
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+.packing-list-page .board-wrap thead th {
+  height: 36px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  white-space: nowrap;
+}
+
+.packing-list-page .board-wrap tbody td:first-child,
+.packing-list-page .board-wrap thead th:first-child,
+.packing-list-page .board-wrap .col-checkbox {
+  display: table-cell !important;
+  width: 36px !important;
+  min-width: 36px !important;
+  max-width: 36px !important;
+  padding: 0 !important;
+  text-align: center !important;
+}
+
+.packing-list-page .board-wrap tbody td:first-child input[type="checkbox"],
+.packing-list-page .board-wrap thead th:first-child input[type="checkbox"] {
+  width: 14px !important;
+  height: 14px !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  accent-color: #6c49bb;
+  cursor: pointer;
+}
+
+.packing-list-page .board-wrap .col-item {
+  width: 180px !important;
+  min-width: 140px !important;
+  max-width: 180px !important;
+  text-align: left !important;
+}
+
+.packing-list-page .board-wrap .col-received {
+  width: 70px !important;
+  min-width: 60px !important;
+  max-width: 70px !important;
+}
+
+.packing-list-page .board-wrap .col-priority {
+  width: 95px !important;
+  min-width: 85px !important;
+  max-width: 95px !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+.packing-list-page .board-wrap .col-dateloaded {
+  width: 120px !important;
+  min-width: 110px !important;
+  max-width: 120px !important;
+}
+
+.packing-list-page .board-wrap .col-qty {
+  width: 130px !important;
+  min-width: 110px !important;
+  max-width: 130px !important;
+}
+
+.packing-list-page .board-wrap .col-person {
+  width: 110px !important;
+  min-width: 90px !important;
+  max-width: 110px !important;
+}
+
+.packing-list-page .board-wrap .col-qtypacked {
+  width: 100px !important;
+  min-width: 80px !important;
+  max-width: 100px !important;
+}
+
+.packing-list-page .board-wrap .col-packstatus {
+  width: 100px !important;
+  min-width: 90px !important;
+  max-width: 100px !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+.packing-list-page .board-wrap .col-webinv {
+  width: 80px !important;
+  min-width: 70px !important;
+  max-width: 80px !important;
+}
+
+.packing-list-page .board-wrap .col-notes {
+  width: 44px !important;
+  min-width: 44px !important;
+  max-width: 44px !important;
+  padding-left: 4px !important;
+  padding-right: 4px !important;
+  text-align: center !important;
+}
+
+.packing-list-page .board-wrap .col-add-btn {
+  width: 40px !important;
+  min-width: 40px !important;
+  max-width: 40px !important;
+}
+
+.packing-list-page .board-wrap tbody tr {
+  border-left: none;
+}
+
+.packing-list-page .board-wrap tr.group-header td:first-child {
+  border-left: none;
+}
+
+.packing-list-page .board-wrap tbody tr:not(.group-header) td:first-child {
+  border-left: 3px solid var(--group-color, transparent) !important;
+}
+
+.packing-list-page .board-wrap tr.group-header td:first-child {
+  border-left: 4px solid var(--group-color, transparent) !important;
+}
+
+.packing-list-page .board-wrap .board-inline-input,
+.packing-list-page .board-wrap .packer-cell-button,
+.packing-list-page .board-wrap .website-inventory-toggle,
+.packing-list-page .board-wrap .notes-cell button,
+.packing-list-page .board-wrap .comment-cell button {
+  height: 36px !important;
+  min-height: 36px !important;
+  max-height: 36px !important;
+}
+
+.packing-list-page .board-wrap .board-inline-input {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.packing-list-page .board-wrap .board-label[data-packing-label="priority"],
+.packing-list-page .board-wrap .board-label[data-packing-label="packing_status"],
+.packing-list-page .board-wrap .board-label.is-static {
+  height: 36px !important;
+  min-height: 36px !important;
+  max-height: 36px !important;
+  line-height: 36px !important;
+}
+
+.packing-list-page .col-resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+  width: 5px;
+  height: 100%;
+  cursor: col-resize;
+  user-select: none;
+}
+
+.packing-list-page .col-resizer:hover,
+.packing-list-page .col-resizer:active,
+body.is-resizing-column .packing-list-page .col-resizer:hover {
+  background: #0073ea;
+  opacity: 0.5;
+}

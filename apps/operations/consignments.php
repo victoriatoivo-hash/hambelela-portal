@@ -122,28 +122,26 @@ include BASE_PATH . '/shared/sidebar.php';
         <section class="ops-alert">Import <code>operations-packing-list-migration.sql</code> in phpMyAdmin to activate received weight, website confirmation and time tracking fields.</section>
     <?php endif; ?>
 
-    <section class="ops-board-shell packing-board-shell">
+    <section class="ops-board-shell packing-board-shell board-wrap">
         <div class="ops-board-scroll">
             <table class="ops-board-table packing-table">
                 <thead>
                     <tr>
-                        <th class="check-cell"><input type="checkbox" data-packing-select-all></th>
-                        <th data-packing-column="item" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>ITEM</th>
-                        <th class="comment-cell" title="Open full item details"></th>
-                        <th data-packing-column="received" title="Weight on invoice / received weight" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>RECEIVED</th>
-                        <th data-packing-column="priority" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>PRIORITY</th>
-                        <th data-packing-column="date_loaded" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>DATE LOADED</th>
-                        <th data-packing-column="quantity_to_pack" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>QUANTITY TO PACK</th>
-                        <th data-packing-column="person" title="Person responsible" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>PERSON</th>
-                        <th data-packing-column="quantity_packed" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>QUANTITY PACKED</th>
-                        <th data-packing-column="status" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>STATUS</th>
-                        <th data-packing-column="website_uploaded" title="Front desk confirms quantity-to-pack has been updated on the website" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>WEBSITE INVENTORY</th>
-                        <th data-packing-column="sync_status" title="Monday sync status" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>SYNC</th>
-                        <th data-packing-column="notes" title="Open notes and full details" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>NOTES</th>
-                        <th class="add-column-cell"><button type="button" data-add-packing-column>+</button></th>
+                        <th class="check-cell col-checkbox"><input type="checkbox" data-packing-select-all></th>
+                        <th class="col-dateloaded" data-packing-column="date_loaded" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>DATE LOADED</th>
+                        <th class="col-item" data-packing-column="item" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>ITEM</th>
+                        <th class="col-notes comment-cell" data-packing-column="notes" title="Open notes and full details" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>NOTES</th>
+                        <th class="col-received" data-packing-column="received" title="Weight on invoice / received weight" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>RECEIVED</th>
+                        <th class="col-priority" data-packing-column="priority" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>PRIORITY</th>
+                        <th class="col-qty" data-packing-column="quantity_to_pack" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>QUANTITY</th>
+                        <th class="col-person" data-packing-column="person" title="Person responsible" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>PERSON RESPO...</th>
+                        <th class="col-qtypacked" data-packing-column="quantity_packed" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>QUANTITY PACKED</th>
+                        <th class="col-packstatus" data-packing-column="status" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>PACKING STATUS</th>
+                        <th class="col-webinv" data-packing-column="website_uploaded" title="Front desk confirms quantity-to-pack has been updated on the website" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>WE...</th>
+                        <th class="add-column-cell col-add-btn"><button type="button" data-add-packing-column>+</button></th>
                     </tr>
                 </thead>
-                <tbody id="packing-list-body"><tr><td colspan="14">Loading packing list...</td></tr></tbody>
+                <tbody id="packing-list-body"><tr><td colspan="12">Loading packing list...</td></tr></tbody>
             </table>
         </div>
     </section>
