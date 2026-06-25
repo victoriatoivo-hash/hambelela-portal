@@ -6463,6 +6463,16 @@ textarea {
   background: #2e2e2e;
 }
 
+.task-wrap .task-board-row .priority-top_critical,
+.task-wrap .task-board-row .priority-critical {
+  min-width: 84px !important;
+  max-width: none !important;
+  background: #2C1810 !important;
+  color: #ffffff !important;
+  text-indent: 0 !important;
+  font-size: 11px !important;
+}
+
 .priority-high {
   background: #4b189b;
 }
