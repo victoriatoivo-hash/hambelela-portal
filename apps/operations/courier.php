@@ -52,6 +52,9 @@ function wb_bootstrap_schema(): void
             customer_name VARCHAR(255) NULL,
             waybill_reference VARCHAR(100) NULL,
             order_id VARCHAR(50) NULL,
+            sent_date DATE NULL,
+            courier_names TEXT NULL,
+            number_of_waybills INT NOT NULL DEFAULT 1,
             file_path VARCHAR(500) NOT NULL,
             original_filename VARCHAR(190) NULL,
             notes TEXT NULL,
@@ -72,6 +75,9 @@ function wb_bootstrap_schema(): void
 
     $columns = [
         'original_filename' => "ALTER TABLE hambelela_waybills ADD COLUMN original_filename VARCHAR(190) NULL AFTER file_path",
+        'sent_date' => "ALTER TABLE hambelela_waybills ADD COLUMN sent_date DATE NULL AFTER order_id",
+        'courier_names' => "ALTER TABLE hambelela_waybills ADD COLUMN courier_names TEXT NULL AFTER sent_date",
+        'number_of_waybills' => "ALTER TABLE hambelela_waybills ADD COLUMN number_of_waybills INT NOT NULL DEFAULT 1 AFTER courier_names",
         'waybill_reminder_sent' => "ALTER TABLE hambelela_waybills ADD COLUMN waybill_reminder_sent TINYINT(1) NOT NULL DEFAULT 0 AFTER status",
         'updated_at' => "ALTER TABLE hambelela_waybills ADD COLUMN updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at",
     ];
@@ -101,6 +107,9 @@ function wb_bootstrap_schema(): void
             id INT AUTO_INCREMENT PRIMARY KEY,
             waybill_reference VARCHAR(120) NULL,
             customer_name VARCHAR(190) NULL,
+            sent_date DATE NULL,
+            courier_names TEXT NULL,
+            number_of_waybills INT NOT NULL DEFAULT 1,
             notes TEXT NULL,
             label_path VARCHAR(255) NOT NULL,
             original_filename VARCHAR(190) NULL,
@@ -119,6 +128,9 @@ function wb_bootstrap_schema(): void
     $legacyColumns = [
         'waybill_reference' => "ALTER TABLE ops_courier_waybills ADD COLUMN waybill_reference VARCHAR(120) NULL AFTER id",
         'customer_name' => "ALTER TABLE ops_courier_waybills ADD COLUMN customer_name VARCHAR(190) NULL AFTER waybill_reference",
+        'sent_date' => "ALTER TABLE ops_courier_waybills ADD COLUMN sent_date DATE NULL AFTER customer_name",
+        'courier_names' => "ALTER TABLE ops_courier_waybills ADD COLUMN courier_names TEXT NULL AFTER sent_date",
+        'number_of_waybills' => "ALTER TABLE ops_courier_waybills ADD COLUMN number_of_waybills INT NOT NULL DEFAULT 1 AFTER courier_names",
         'notes' => "ALTER TABLE ops_courier_waybills ADD COLUMN notes TEXT NULL AFTER customer_name",
         'original_filename' => "ALTER TABLE ops_courier_waybills ADD COLUMN original_filename VARCHAR(190) NULL AFTER label_path",
         'uploaded_by' => "ALTER TABLE ops_courier_waybills ADD COLUMN uploaded_by INT NULL AFTER original_filename",
@@ -214,6 +226,30 @@ function wb_current_name(): string
     return 'Current user';
 }
 
+function wb_allowed_couriers(): array
+{
+    return ['Jet-X', 'Nampost', 'Coastal Courier', 'Hardap freight', 'formula Courier', 'Others'];
+}
+
+function wb_post_couriers(): array
+{
+    $posted = $_POST['couriers'] ?? [];
+    if (!is_array($posted)) {
+        $posted = [$posted];
+    }
+
+    $allowed = wb_allowed_couriers();
+    $selected = [];
+    foreach ($posted as $courier) {
+        $courier = trim((string) $courier);
+        if ($courier !== '' && in_array($courier, $allowed, true)) {
+            $selected[] = $courier;
+        }
+    }
+
+    return array_values(array_unique($selected));
+}
+
 function wb_cecilia_employee_id(): ?int
 {
     $rows = ops_rows(
@@ -292,8 +328,8 @@ function wb_import_legacy_waybills(): void
 
     $stmt = db()->prepare(
         "INSERT INTO hambelela_waybills
-            (batch_id, uploaded_by, uploaded_at, customer_name, waybill_reference, order_id, file_path, original_filename, notes, due_by, sent_by, sent_at, status, created_at)
-         VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)"
+            (batch_id, uploaded_by, uploaded_at, customer_name, waybill_reference, order_id, sent_date, courier_names, number_of_waybills, file_path, original_filename, notes, due_by, sent_by, sent_at, status, created_at)
+         VALUES (?, ?, ?, ?, ?, NULL, ?, NULL, 1, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
     foreach ($rows as $row) {
         $uploadedAt = (string) ($row['uploaded_at'] ?? date('Y-m-d H:i:s'));
@@ -310,6 +346,7 @@ function wb_import_legacy_waybills(): void
             $uploadedAt,
             $row['customer_name'] ?? null,
             $row['waybill_reference'] ?? null,
+            substr($uploadedAt, 0, 10),
             $row['label_path'],
             $row['original_filename'] ?? basename((string) $row['label_path']),
             $row['notes'] ?? null,
@@ -374,17 +411,19 @@ function wb_update_overdue_and_reminders(): void
     }
 
     $reminders = ops_rows(
-        "SELECT batch_id, customer_name, due_by, COUNT(*) AS file_count
+        "SELECT batch_id, sent_date, courier_names, number_of_waybills, due_by, COUNT(*) AS file_count
          FROM hambelela_waybills
          WHERE status = 'pending'
            AND waybill_reminder_sent = 0
            AND due_by BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 30 MINUTE)
-         GROUP BY batch_id, customer_name, due_by
+         GROUP BY batch_id, sent_date, courier_names, number_of_waybills, due_by
          LIMIT 30"
     );
     foreach ($reminders as $row) {
-        $message = (int) $row['file_count'] . ' waybill' . ((int) $row['file_count'] === 1 ? '' : 's') .
-            ' for ' . ((string) ($row['customer_name'] ?: 'a customer')) .
+        $count = (int) ($row['number_of_waybills'] ?? $row['file_count'] ?? 0);
+        $message = $count . ' waybill' . ($count === 1 ? '' : 's') .
+            ' for ' . ((string) ($row['courier_names'] ?: 'selected courier')) .
+            ' dated ' . ((string) ($row['sent_date'] ?: 'today')) .
             ' are due by ' . wb_due_label((string) $row['due_by']) . '.';
         wb_notify_cecilia('Waybill due soon', $message, 'important');
         $stmt = db()->prepare('UPDATE hambelela_waybills SET waybill_reminder_sent = 1 WHERE batch_id = ?');
@@ -538,6 +577,9 @@ function wb_fetch_batch_rows(array $statuses, bool $history = false): array
             MIN(w.customer_name) AS customer_name,
             MIN(w.waybill_reference) AS waybill_reference,
             MIN(w.order_id) AS order_id,
+            MIN(w.sent_date) AS sent_date,
+            MIN(w.courier_names) AS courier_names,
+            MAX(w.number_of_waybills) AS number_of_waybills,
             MIN(w.notes) AS notes,
             MIN(w.uploaded_by) AS uploaded_by,
             MIN(w.sent_by) AS sent_by,
@@ -625,10 +667,10 @@ function wb_queue_html(array $rows, bool $canSend): string
             ?>
             <article class="waybill-row-card" data-batch-id="<?= wb_e($batchId) ?>">
                 <div class="waybill-row-main">
-                    <div class="waybill-file-count"><?= number_format((int) $row['file_count']) ?></div>
+                    <div class="waybill-file-count"><?= number_format((int) ($row['number_of_waybills'] ?: $row['file_count'])) ?></div>
                     <div>
-                        <strong><?= wb_e($row['customer_name'] ?: 'Customer not set') ?></strong>
-                        <span><?= wb_e($row['waybill_reference'] ?: 'No reference') ?><?= $row['order_id'] ? ' - Order ' . wb_e($row['order_id']) : '' ?></span>
+                        <strong><?= wb_e($row['courier_names'] ?: 'Courier not selected') ?></strong>
+                        <span>Sent date: <?= wb_e($row['sent_date'] ?: 'Not set') ?> - <?= number_format((int) $row['file_count']) ?> uploaded file<?= (int) $row['file_count'] === 1 ? '' : 's' ?></span>
                     </div>
                 </div>
                 <div class="waybill-row-meta">
@@ -663,8 +705,8 @@ function wb_history_html(array $rows): string
             ?>
             <article class="waybill-history-row">
                 <div>
-                    <strong><?= wb_e($row['customer_name'] ?: 'Customer not set') ?></strong>
-                    <span><?= wb_e($row['waybill_reference'] ?: 'No reference') ?> - <?= number_format((int) $row['file_count']) ?> file<?= (int) $row['file_count'] === 1 ? '' : 's' ?></span>
+                    <strong><?= wb_e($row['courier_names'] ?: 'Courier not selected') ?></strong>
+                    <span><?= wb_e($row['sent_date'] ?: 'No sent date') ?> - <?= number_format((int) ($row['number_of_waybills'] ?: $row['file_count'])) ?> waybill<?= (int) ($row['number_of_waybills'] ?: $row['file_count']) === 1 ? '' : 's' ?></span>
                 </div>
                 <div><?= wb_e($row['uploaded_by_display']) ?></div>
                 <div><?= wb_e(wb_dt((string) $row['sent_at'])) ?></div>
@@ -704,13 +746,13 @@ function wb_export_csv(): void
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="waybill-sent-history-' . date('Ymd') . '.csv"');
     $out = fopen('php://output', 'w');
-    fputcsv($out, ['Batch ID', 'Customer', 'Reference', 'Order ID', 'File', 'Uploaded By', 'Uploaded At', 'Due By', 'Sent By', 'Sent At', 'Status', 'Notes']);
+    fputcsv($out, ['Batch ID', 'Sent Date', 'Courier', 'Number of Waybills', 'File', 'Uploaded By', 'Uploaded At', 'Due By', 'Sent By', 'Sent At', 'Status', 'Notes']);
     foreach ($rows as $row) {
         fputcsv($out, [
             $row['batch_id'],
-            $row['customer_name'],
-            $row['waybill_reference'],
-            $row['order_id'],
+            $row['sent_date'],
+            $row['courier_names'],
+            $row['number_of_waybills'],
             $row['original_filename'] ?: basename((string) $row['file_path']),
             $row['uploaded_by_name'],
             $row['uploaded_at'],
@@ -760,10 +802,16 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('Choose at least one waybill file.');
             }
 
-            $customerName = ops_post_string('customer_name', 255);
-            if ($customerName === '') {
-                throw new RuntimeException('Customer name is required.');
+            $sentDate = ops_post_string('sent_date', 10);
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $sentDate)) {
+                $sentDate = date('Y-m-d');
             }
+            $couriers = wb_post_couriers();
+            if (!$couriers) {
+                throw new RuntimeException('Choose at least one courier.');
+            }
+            $courierNames = implode(', ', $couriers);
+            $numberOfWaybills = max(1, (int) ($_POST['number_of_waybills'] ?? 1));
 
             $batchId = wb_batch_id();
             $uploadedAt = wb_now();
@@ -773,13 +821,13 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $stmt = db()->prepare(
                 "INSERT INTO hambelela_waybills
-                    (batch_id, uploaded_by, uploaded_at, customer_name, waybill_reference, order_id, file_path, original_filename, notes, due_by, status)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')"
+                    (batch_id, uploaded_by, uploaded_at, customer_name, waybill_reference, order_id, sent_date, courier_names, number_of_waybills, file_path, original_filename, notes, due_by, status)
+                 VALUES (?, ?, ?, NULL, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, 'pending')"
             );
             $legacyStmt = db()->prepare(
                 "INSERT INTO ops_courier_waybills
-                    (waybill_reference, customer_name, notes, label_path, original_filename, uploaded_by, uploaded_at, status)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, 'uploaded')"
+                    (waybill_reference, customer_name, sent_date, courier_names, number_of_waybills, notes, label_path, original_filename, uploaded_by, uploaded_at, status)
+                 VALUES (NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, 'uploaded')"
             );
 
             foreach ($files as $index => $file) {
@@ -791,9 +839,9 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     $batchId,
                     $currentEmployeeId,
                     $uploadedAt->format('Y-m-d H:i:s'),
-                    $customerName,
-                    ops_post_string('waybill_reference', 100) ?: null,
-                    ops_post_string('order_id', 50) ?: null,
+                    $sentDate,
+                    $courierNames,
+                    $numberOfWaybills,
                     $stored['path'],
                     $stored['original'],
                     ops_post_string('notes', 1500) ?: null,
@@ -801,8 +849,9 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
                 $newId = (int) db()->lastInsertId();
                 $legacyStmt->execute([
-                    ops_post_string('waybill_reference', 100) ?: null,
-                    $customerName,
+                    $sentDate,
+                    $courierNames,
+                    $numberOfWaybills,
                     ops_post_string('notes', 1500) ?: null,
                     $stored['path'],
                     $stored['original'],
@@ -819,7 +868,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
             wb_notify_cecilia(
                 'New waybill upload',
-                wb_current_name() . ' uploaded ' . $created . ' waybill' . ($created === 1 ? '' : 's') . ' for ' . $customerName . '. Due by ' . wb_due_label($dueBy->format('Y-m-d H:i:s')) . '.',
+                wb_current_name() . ' uploaded ' . $numberOfWaybills . ' waybill' . ($numberOfWaybills === 1 ? '' : 's') . ' for ' . $courierNames . ' dated ' . $sentDate . '. Due by ' . wb_due_label($dueBy->format('Y-m-d H:i:s')) . '.',
                 'normal'
             );
             wb_json(['success' => true, 'message' => $created . ' waybill' . ($created === 1 ? '' : 's') . ' uploaded.', 'due_by' => wb_due_label($dueBy->format('Y-m-d H:i:s'))] + wb_dashboard_payload($canSendWaybills));
@@ -1040,6 +1089,33 @@ include BASE_PATH . '/shared/sidebar.php';
 
         .waybill-span-2 {
             grid-column: 1 / -1;
+        }
+
+        .waybill-courier-options {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .waybill-courier-options label {
+            border: 1px solid var(--w-border);
+            border-radius: 9px;
+            padding: 10px 11px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--w-text);
+            background: #fff;
+            font-size: var(--w-size-base);
+            font-weight: var(--w-weight-medium);
+            text-transform: none;
+            letter-spacing: 0;
+        }
+
+        .waybill-courier-options input {
+            width: 15px;
+            height: 15px;
+            accent-color: var(--w-orange-red);
         }
 
         .upload-dropzone {
@@ -1292,6 +1368,7 @@ include BASE_PATH . '/shared/sidebar.php';
         @media (max-width: 980px) {
             .waybill-stat-grid,
             .waybill-upload-form,
+            .waybill-courier-options,
             .waybill-row-meta {
                 grid-template-columns: 1fr;
             }
@@ -1364,15 +1441,20 @@ include BASE_PATH . '/shared/sidebar.php';
 
                 <form class="waybill-upload-form" data-waybill-upload enctype="multipart/form-data">
                     <input type="hidden" name="action" value="waybill_upload">
-                    <label class="waybill-field">Customer Name *
-                        <input name="customer_name" required placeholder="Customer name">
+                    <label class="waybill-field">Sent Date
+                        <input name="sent_date" type="date" value="<?= wb_e(date('Y-m-d')) ?>" required>
                     </label>
-                    <label class="waybill-field">Waybill Reference
-                        <input name="waybill_reference" placeholder="Courier reference">
+                    <label class="waybill-field">Number of Waybills
+                        <input name="number_of_waybills" type="number" min="1" step="1" value="1" required>
                     </label>
-                    <label class="waybill-field waybill-span-2">Link to Order ID
-                        <input name="order_id" placeholder="Optional WooCommerce order ID">
-                    </label>
+                    <div class="waybill-field waybill-span-2">
+                        <span>Courier</span>
+                        <div class="waybill-courier-options">
+                            <?php foreach (wb_allowed_couriers() as $courier): ?>
+                                <label><input type="checkbox" name="couriers[]" value="<?= wb_e($courier) ?>"> <?= wb_e($courier) ?></label>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
                     <div class="waybill-field waybill-span-2">
                         <span>Waybill files *</span>
                         <label class="upload-dropzone" data-dropzone>
