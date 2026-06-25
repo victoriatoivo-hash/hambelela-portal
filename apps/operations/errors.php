@@ -507,6 +507,32 @@ include BASE_PATH . '/shared/sidebar.php';
 #logErrorForm .error-upload-zone strong {
     color: #721B1A !important;
 }
+
+.error-log-page .error-metric-grid {
+    gap: 12px !important;
+    align-items: start !important;
+}
+
+.error-log-page .error-metric {
+    min-height: 82px !important;
+    height: 82px !important;
+    padding: 14px 16px !important;
+    align-content: start !important;
+}
+
+.error-log-page .error-metric::before {
+    top: 14px !important;
+    left: 16px !important;
+}
+
+.error-log-page .error-metric > svg {
+    top: 24px !important;
+    left: 26px !important;
+}
+
+.error-log-page .error-metric span {
+    margin-bottom: 4px !important;
+}
 </style>
 <main class="workspace module error-log-page">
     <a class="button back-link" href="<?= BASE_URL ?>/apps/operations/index.php"><i data-lucide="arrow-left"></i> Back to Operations</a>
