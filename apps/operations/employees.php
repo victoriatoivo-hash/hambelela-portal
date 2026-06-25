@@ -277,19 +277,19 @@ unset($loginRow);
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
-<main class="workspace module">
+<main class="workspace module employees-wrap">
     <section class="module-header">
         <div>
-            <p class="eyebrow">Operations</p>
+            <p class="eyebrow page-eyebrow">Operations</p>
             <h1>Employees & Roles</h1>
-            <p>Create individual employee logins and attach each person to the correct operational permission level.</p>
+            <p class="page-subtitle">Create individual employee logins and attach each person to the correct operational permission level.</p>
         </div>
     </section>
     <?php ops_nav('employees'); ?>
     <?php if (!$ready) { ops_setup_notice(); } ?>
     <?php ops_flash($message, $messageType); ?>
     <?php if ($ready): ?>
-        <section class="panel hr-link-panel">
+        <section class="panel section-card hr-link-panel">
             <div class="section-row">
                 <div>
                     <h2>Link portal users to HR employee profiles</h2>
@@ -323,15 +323,15 @@ include BASE_PATH . '/shared/sidebar.php';
         </section>
     <?php endif; ?>
 
-    <section class="panel">
+    <section class="panel section-card">
         <div class="section-row">
             <div>
                 <h2>Login times</h2>
                 <p>Recent portal login activity for the last 30 days. New logins are recorded from this update onward.</p>
             </div>
         </div>
-        <div class="table-scroll">
-            <table class="data-table ops-table">
+        <div class="table-scroll accounts-table-wrap">
+            <table class="data-table ops-table login-times-table">
                 <thead><tr><th>Employee</th><th>Role</th><th>Logins</th><th>Average Login Time</th><th>Last Login</th></tr></thead>
                 <tbody>
                     <?php foreach ($loginRows as $row): ?>
@@ -349,29 +349,10 @@ include BASE_PATH . '/shared/sidebar.php';
         </div>
     </section>
 
-    <section class="ops-split">
-        <form class="panel ops-form" method="post">
-            <input type="hidden" name="action" value="save_employee">
-            <div class="section-row"><h2>New employee</h2></div>
-            <label>Full name<input name="full_name" required autocomplete="name"></label>
-            <label>Email<input type="email" name="email" required autocomplete="email"></label>
-            <label>Phone<input name="phone" autocomplete="tel"></label>
-            <label>Role
-                <select name="role_id" required>
-                    <?php foreach ($roles as $role): ?>
-                        <option value="<?= (int) $role['id'] ?>"><?= htmlspecialchars($role['name'], ENT_QUOTES, 'UTF-8') ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </label>
-            <label>Status<select name="status"><?php ops_select_options(['active' => 'Active', 'inactive' => 'Inactive']); ?></select></label>
-            <label>4-digit login code<input type="text" name="login_code" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required placeholder="1234"></label>
-            <div class="ops-form-actions"><button class="button primary" type="submit">Create account</button></div>
-        </form>
-
-        <section class="panel">
+        <section class="panel section-card">
             <div class="section-row"><h2>Employee accounts</h2></div>
-            <div class="table-scroll">
-                <table class="data-table ops-table">
+            <div class="table-scroll accounts-table-wrap">
+                <table class="data-table ops-table accounts-table">
                     <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>HR Link</th><th>Leave</th><th>Status</th><th>Reset code</th><th>Created</th><th>Delete</th></tr></thead>
                     <tbody>
                     <?php foreach ($employees as $employee): ?>
@@ -386,24 +367,24 @@ include BASE_PATH . '/shared/sidebar.php';
                             <td><?= htmlspecialchars($employee['role_name'], ENT_QUOTES, 'UTF-8') ?></td>
                             <td>
                                 <?php if ((string) ($employee['role_key'] ?? '') === 'owner_admin'): ?>
-                                    <span class="status">not tracked</span><br><small>Owner/Admin is excluded from KPI scoring.</small>
+                                    <span class="status badge-none">not tracked</span><br><small>Owner/Admin is excluded from KPI scoring.</small>
                                 <?php elseif ($hr): ?>
-                                    <span class="status">linked</span><br><small><a href="<?= htmlspecialchars(BASE_URL . '/apps/hr-portal/employees.php?view=' . (int) $link['hr_employee_id'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($hr['full_name'], ENT_QUOTES, 'UTF-8') ?></a></small>
+                                    <span class="status badge-linked">linked</span><br><small><a href="<?= htmlspecialchars(BASE_URL . '/apps/hr-portal/employees.php?view=' . (int) $link['hr_employee_id'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($hr['full_name'], ENT_QUOTES, 'UTF-8') ?></a></small>
                                 <?php else: ?>
-                                    <span class="status kpi-status-warning">missing HR link</span><br><small>KPI and leave tracking may be inaccurate.</small>
+                                    <span class="status kpi-status-warning badge-pending">missing HR link</span><br><small>KPI and leave tracking may be inaccurate.</small>
                                 <?php endif; ?>
                             </td>
                             <td>
                                 <?php if ($leave): ?>
-                                    <span class="status <?= (string) ($leave['status'] ?? '') === 'pending' ? 'kpi-status-warning' : '' ?>"><?= htmlspecialchars((string) $leave['status'], ENT_QUOTES, 'UTF-8') ?></span><br>
+                                    <span class="status <?= (string) ($leave['status'] ?? '') === 'pending' ? 'kpi-status-warning badge-pending' : 'badge-approved' ?>"><?= htmlspecialchars((string) $leave['status'], ENT_QUOTES, 'UTF-8') ?></span><br>
                                     <small><?= htmlspecialchars((string) ($leave['leave_type'] ?? 'Leave'), ENT_QUOTES, 'UTF-8') ?>: <?= htmlspecialchars(date('d M', strtotime((string) $leave['start_date'])), ENT_QUOTES, 'UTF-8') ?>-<?= htmlspecialchars(date('d M', strtotime((string) $leave['end_date'])), ENT_QUOTES, 'UTF-8') ?></small>
                                 <?php elseif ($hr): ?>
-                                    <span class="status">none</span><br><small>No pending/approved leave.</small>
+                                    <span class="status badge-none">none</span><br><small>No pending/approved leave.</small>
                                 <?php else: ?>
-                                    <span class="status kpi-status-warning">unknown</span>
+                                    <span class="status kpi-status-warning badge-inactive">unknown</span>
                                 <?php endif; ?>
                             </td>
-                            <td><span class="status"><?= htmlspecialchars($employee['status'], ENT_QUOTES, 'UTF-8') ?></span></td>
+                            <td><span class="status <?= (string) ($employee['status'] ?? '') === 'active' ? 'badge-active' : 'badge-inactive' ?>"><?= htmlspecialchars($employee['status'], ENT_QUOTES, 'UTF-8') ?></span></td>
                             <td>
                                 <form class="inline-code-reset" method="post">
                                     <input type="hidden" name="action" value="reset_code">
@@ -421,7 +402,7 @@ include BASE_PATH . '/shared/sidebar.php';
                                         <button class="button danger small" type="submit">Delete</button>
                                     </form>
                                 <?php else: ?>
-                                    <span class="status">current user</span>
+                                    <span class="status badge-none">current user</span>
                                 <?php endif; ?>
                             </td>
                         </tr>
@@ -431,6 +412,25 @@ include BASE_PATH . '/shared/sidebar.php';
                 </table>
             </div>
         </section>
-    </section>
+
+        <form class="panel section-card ops-form new-employee-form" method="post">
+            <input type="hidden" name="action" value="save_employee">
+            <div class="section-row"><h2>New employee</h2></div>
+            <div class="form-grid">
+                <label>Full name<input name="full_name" required autocomplete="name"></label>
+                <label>Email<input type="email" name="email" required autocomplete="email"></label>
+                <label>Phone<input name="phone" autocomplete="tel"></label>
+                <label>Role
+                    <select name="role_id" required>
+                        <?php foreach ($roles as $role): ?>
+                            <option value="<?= (int) $role['id'] ?>"><?= htmlspecialchars($role['name'], ENT_QUOTES, 'UTF-8') ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+                <label>Status<select name="status"><?php ops_select_options(['active' => 'Active', 'inactive' => 'Inactive']); ?></select></label>
+                <label>4-digit login code<input type="text" name="login_code" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required placeholder="1234"></label>
+            </div>
+            <div class="ops-form-actions"><button class="button primary" type="submit">Create account</button></div>
+        </form>
 </main>
 <?php include BASE_PATH . '/shared/footer.php'; ?>
