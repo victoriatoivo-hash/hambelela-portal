@@ -526,8 +526,8 @@ include BASE_PATH . '/shared/sidebar.php';
 }
 
 .error-log-page .error-metric > svg {
-    top: 21px !important;
-    left: 26px !important;
+    top: 20px !important;
+    left: 23px !important;
 }
 
 .error-log-page .error-metric span {
@@ -543,6 +543,10 @@ include BASE_PATH . '/shared/sidebar.php';
     min-height: 44px !important;
     padding: 12px 16px !important;
     align-items: center !important;
+}
+
+.error-log-page .error-filter-panel:not([open]) > form {
+    display: none !important;
 }
 </style>
 <main class="workspace module error-log-page">
