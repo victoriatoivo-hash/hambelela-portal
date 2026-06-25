@@ -1545,7 +1545,6 @@ include BASE_PATH . '/shared/sidebar.php';
             <div class="waybill-section-heading">
                 <div>
                     <h2>Waybill Queue</h2>
-                    <p>Pending and overdue batches Secilia must send to customers.</p>
                 </div>
                 <button class="waybill-button is-light" type="button" data-refresh-waybills><i data-lucide="refresh-cw"></i> Refresh</button>
             </div>
