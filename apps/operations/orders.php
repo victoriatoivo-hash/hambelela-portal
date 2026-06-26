@@ -292,6 +292,39 @@ function cor_inventory_sum(array $rows, string $key): float
     return $sum;
 }
 
+function cor_inventory_rows_from_products(array $productRows): array
+{
+    $rows = [];
+    foreach ($productRows as $index => $row) {
+        $qty = (float) ($row['qty'] ?? 0);
+        $revenue = (float) ($row['rev'] ?? 0);
+        $price = $qty > 0 ? $revenue / $qty : 0.0;
+        $stockClass = 'in';
+        if ($qty <= 0) {
+            $stockClass = 'out';
+        } elseif ($qty <= 5) {
+            $stockClass = 'low';
+        }
+        $rows[] = [
+            'id' => $index + 1,
+            'name' => (string) ($row['product_name'] ?? 'Product'),
+            'variant' => '',
+            'category' => 'Synced order items',
+            'sku' => trim((string) ($row['sku'] ?? '')) ?: '-',
+            'price' => $price,
+            'cost' => 0.0,
+            'qty' => $qty,
+            'cost_val' => 0.0,
+            'retail_val' => $revenue,
+            'profit' => $price,
+            'stock_class' => $stockClass,
+            'low_threshold' => 5,
+        ];
+    }
+
+    return $rows;
+}
+
 function cor_export(array $filters, string $format): void
 {
     $params = [];
@@ -838,6 +871,7 @@ if ($ready) {
     );
     $productRows = cor_query_rows(
         "SELECT oi.product_name,
+                COALESCE(NULLIF(MAX(oi.sku), ''), '-') AS sku,
                 COALESCE(SUM(oi.quantity), 0) AS qty,
                 COALESCE(SUM(CASE WHEN order_qty.qty > 0 THEN o.total_amount * (oi.quantity / order_qty.qty) ELSE 0 END), 0) AS rev
          FROM ops_order_items oi
@@ -1036,6 +1070,9 @@ if ($ready) {
         } catch (Throwable $e) {
             $inventoryAllRows = [];
         }
+    }
+    if (!$inventoryAllRows && $productRows) {
+        $inventoryAllRows = cor_inventory_rows_from_products($productRows);
     }
     $inventoryCategories = [];
     foreach ($inventoryAllRows as $row) {
