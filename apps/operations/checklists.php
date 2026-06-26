@@ -464,7 +464,6 @@ include BASE_PATH . '/shared/sidebar.php';
         <div>
             <p class="eyebrow">Task Management</p>
             <h1><?= $canManage ? 'Digital Task Board' : 'My Tasks' ?></h1>
-            <p><?= $canManage ? 'Grouped task status, recurring responsibilities, history and completion proof.' : 'Your assigned work with checklist ticks and completion notes.' ?></p>
         </div>
         <?php if ($canManage): ?>
             <button class="button primary btn-new-task" type="button" data-task-create-open><i data-lucide="plus"></i> New Task</button>
