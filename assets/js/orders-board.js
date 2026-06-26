@@ -1394,15 +1394,23 @@
   loadCustomColumns()
     .catch(() => {})
     .finally(() => {
-      syncWebsite(false)
+      refresh()
         .catch((error) => {
-          body.innerHTML = `<tr><td colspan="13">Website sync issue: ${esc(error.message)}</td></tr>`;
-        })
-        .finally(() => refresh().catch((error) => {
           body.innerHTML = `<tr><td colspan="13">${esc(error.message)}</td></tr>`;
-        }));
+        })
+        .finally(() => {
+          if (document.visibilityState !== 'hidden') {
+            syncWebsite(true).then(refresh).catch((error) => {
+              if (syncState) syncState.textContent = `Sync issue: ${error.message}`;
+            });
+          }
+        });
     });
   window.setInterval(heartbeat, 30000);
-  window.setInterval(() => refresh().catch((error) => showError(error)), 5000);
-  window.setInterval(() => syncWebsite(true).then(refresh).catch((error) => showError(error)), 15000);
+  window.setInterval(() => {
+    if (document.visibilityState !== 'hidden') refresh().catch((error) => showError(error));
+  }, 30000);
+  window.setInterval(() => {
+    if (document.visibilityState !== 'hidden') syncWebsite(true).then(refresh).catch((error) => showError(error));
+  }, 300000);
 })();
