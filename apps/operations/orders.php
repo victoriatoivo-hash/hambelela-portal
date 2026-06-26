@@ -43,6 +43,11 @@ function cor_slug($value): string
     return trim($value, '-');
 }
 
+function cor_contains(string $haystack, string $needle): bool
+{
+    return $needle === '' || strpos($haystack, $needle) !== false;
+}
+
 function cor_order_status_label(string $status): string
 {
     return OPS_ORDER_STATUSES[$status] ?? ucwords(str_replace(['_', '-'], ' ', $status));
@@ -315,13 +320,13 @@ function cor_export_vat(array $filters, string $format, string $section): void
 function cor_payment_bucket(string $method): string
 {
     $method = strtolower($method);
-    if (str_contains($method, 'cash') && !str_contains($method, 'wallet') && !str_contains($method, 'blue')) {
+    if (cor_contains($method, 'cash') && !cor_contains($method, 'wallet') && !cor_contains($method, 'blue')) {
         return 'cash';
     }
-    if (str_contains($method, 'card') || str_contains($method, 'swipe')) {
+    if (cor_contains($method, 'card') || cor_contains($method, 'swipe')) {
         return 'card';
     }
-    if ($method === 'eft' || str_contains($method, 'eft')) {
+    if ($method === 'eft' || cor_contains($method, 'eft')) {
         return 'eft';
     }
 
