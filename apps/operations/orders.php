@@ -227,7 +227,7 @@ if (!in_array($filters['status'], $validStatuses, true)) {
 if (!in_array($filters['mode'], ['all', 'collection', 'delivery', 'courier'], true)) {
     $filters['mode'] = 'all';
 }
-$validTabs = ['sales', 'products', 'refunds', 'delivery', 'vat', 'profit', 'monthly', 'inventory', 'trend', 'orders'];
+$validTabs = ['sales', 'products', 'delivery', 'vat', 'profit', 'monthly', 'inventory', 'trend', 'orders'];
 if (!in_array($filters['tab'], $validTabs, true)) {
     $filters['tab'] = 'sales';
 }
@@ -705,7 +705,6 @@ include BASE_PATH . '/shared/sidebar.php';
         $tabs = [
             'sales' => 'Sales Summary',
             'products' => 'Products',
-            'refunds' => 'Refunds',
             'delivery' => 'Delivery',
             'vat' => 'VAT',
             'profit' => 'Profit',
@@ -872,28 +871,6 @@ include BASE_PATH . '/shared/sidebar.php';
                         </tr>
                     <?php endforeach; ?>
                     <?php if (!$productRows): ?><tr><td colspan="5" style="height:auto;padding:24px !important;text-align:center;color:var(--cor-text-light) !important;">No product sales found for this period.</td></tr><?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-        </article>
-    </section>
-
-    <section id="tab-refunds" class="cor-tab-content <?= $filters['tab'] === 'refunds' ? 'active' : '' ?>">
-        <section class="cor-stat-grid" aria-label="Refund summary">
-            <article class="cor-stat-card refunds"><div class="s-title">Total Refunded</div><div class="s-num"><?= cor_money($refundSummary['amount']) ?></div><div class="s-sub">Refunded amount</div></article>
-            <article class="cor-stat-card refunds"><div class="s-title">Refund Count</div><div class="s-num"><?= number_format($refundSummary['count']) ?></div><div class="s-sub">Orders with refunds</div></article>
-            <article class="cor-stat-card refunds"><div class="s-title">% of Revenue</div><div class="s-num"><?= cor_pct($refundSummary['pct']) ?></div><div class="s-sub">Refunds vs revenue</div></article>
-        </section>
-        <article class="cor-report-card">
-            <div class="card-head"><h3>Refunds</h3><span><?= number_format($refundSummary['count']) ?> records</span></div>
-            <div class="cor-table-wrap">
-                <table>
-                    <thead><tr><th>Date</th><th>Order ID</th><th>Customer</th><th>Amount Refunded</th><th>Reason</th><th>Processed By</th></tr></thead>
-                    <tbody>
-                    <?php foreach ($refundRows as $row): ?>
-                        <tr><td><?= cor_e(date('d M H:i', strtotime((string) $row['created_at']))) ?></td><td><?= cor_e($row['order_number']) ?></td><td><?= cor_e($row['customer_name']) ?></td><td class="cor-refund-amount"><?= cor_money($row['refund_total'] ?: $row['total_amount']) ?></td><td><?= cor_e(cor_order_status_label((string) $row['status'])) ?></td><td>Portal sync</td></tr>
-                    <?php endforeach; ?>
-                    <?php if (!$refundRows): ?><tr><td colspan="6">No refund records found for this period.</td></tr><?php endif; ?>
                     </tbody>
                 </table>
             </div>
