@@ -14951,6 +14951,19 @@ body:has(.ob-wrap) .workspace {
   border-radius: 0 !important;
 }
 
+.ob-wrap .ops-board-shell,
+.ob-wrap .ops-board-table,
+.ob-wrap .ops-board-table tbody,
+.ob-wrap .ops-board-table tr,
+.ob-wrap .ops-board-table td,
+.ob-wrap .ops-board-table th,
+.ob-wrap .work-metric-card {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+  transition: none !important;
+}
+
 .ob-wrap h1,
 .ob-wrap .page-title,
 .ob-wrap .monday-board-head h1 {
