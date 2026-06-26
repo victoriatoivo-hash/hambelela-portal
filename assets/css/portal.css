@@ -3658,6 +3658,10 @@ textarea {
   font-weight: 600 !important;
 }
 
+.task-wrap .task-board-row .priority-high {
+  color: #fff !important;
+}
+
 .task-wrap .priority-medium {
   background: var(--t-amber) !important;
   color: #fff !important;
