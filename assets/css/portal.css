@@ -15322,6 +15322,18 @@ body:has(.ob-wrap) .workspace {
   box-shadow: none !important;
 }
 
+.ob-wrap .ops-board-table .group-row:not(.collapsed) td {
+  height: 36px !important;
+  max-height: 36px !important;
+  padding: 0 12px !important;
+}
+
+.ob-wrap .ops-board-table .group-row:not(.collapsed) button {
+  display: inline-flex !important;
+  min-height: 32px !important;
+  gap: 8px !important;
+}
+
 .ob-wrap .ops-board-table .group-row button svg {
   width: 16px !important;
   height: 16px !important;
@@ -15338,6 +15350,12 @@ body:has(.ob-wrap) .workspace {
   min-width: 0 !important;
 }
 
+.ob-wrap .ops-board-table .group-row:not(.collapsed) .board-group-copy {
+  display: inline-flex !important;
+  align-items: baseline !important;
+  gap: 8px !important;
+}
+
 .ob-wrap .board-group-copy strong {
   color: #007eb5 !important;
   font-size: 16px !important;
@@ -15350,6 +15368,7 @@ body:has(.ob-wrap) .workspace {
   font-size: 12px !important;
   font-weight: 500 !important;
   line-height: 1.15 !important;
+  white-space: nowrap !important;
 }
 
 @media (max-width: 767px) {
