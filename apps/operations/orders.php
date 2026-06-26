@@ -335,7 +335,7 @@ if (!in_array($filters['status'], $validStatuses, true)) {
 if (!in_array($filters['mode'], ['all', 'collection', 'delivery', 'courier'], true)) {
     $filters['mode'] = 'all';
 }
-$validTabs = ['sales', 'products', 'delivery', 'vat', 'profit', 'monthly', 'inventory', 'trend', 'orders'];
+$validTabs = ['sales', 'products', 'delivery', 'vat', 'monthly', 'inventory', 'trend', 'orders'];
 if (!in_array($filters['tab'], $validTabs, true)) {
     $filters['tab'] = 'sales';
 }
@@ -378,7 +378,6 @@ $vatRows = [];
 $vatDailyRows = [];
 $vatPaymentRows = [];
 $vatProductRows = [];
-$profitRows = [];
 $monthlyRows = [];
 $inventoryRows = [];
 $dailyRows = [];
@@ -400,7 +399,6 @@ $vatMetrics = [
 $vatDailyTotals = ['orders' => 0, 'total_sales' => 0.0, 'shipping' => 0.0, 'vatable' => 0.0, 'ex_vat' => 0.0, 'vat_amount' => 0.0];
 $vatPaymentTotals = ['orders' => 0, 'total_incl' => 0.0, 'vat_portion' => 0.0];
 $vatProductTotals = ['qty' => 0.0, 'total_incl' => 0.0, 'vat_portion' => 0.0];
-$profitSummary = ['revenue' => 0.0, 'cogs' => 0.0, 'profit' => 0.0, 'margin' => 0.0];
 $deliverySummary = ['fees' => 0.0, 'orders' => 0, 'avg' => 0.0, 'courier' => 0, 'total_cost' => 0.0, 'total_orders' => 0, 'breakdown_avg' => 0.0];
 $deliveryOrdersCount = 0;
 $deliverySearch = trim((string) ($_GET['del_search'] ?? ''));
@@ -629,28 +627,6 @@ if ($ready) {
         'vat_portion' => array_reduce($vatProductRows, static fn(float $carry, array $row): float => $carry + (float) $row['vat_portion'], 0.0),
     ];
 
-    $profitRows = cor_query_rows(
-        "SELECT oi.product_name,
-                COALESCE(SUM(oi.quantity), 0) AS qty,
-                COALESCE(SUM(CASE WHEN order_qty.qty > 0 THEN o.total_amount * (oi.quantity / order_qty.qty) ELSE 0 END), 0) AS revenue
-         FROM ops_order_items oi
-         JOIN ops_orders o ON o.id = oi.order_id
-         LEFT JOIN (
-            SELECT order_id, SUM(quantity) AS qty
-            FROM ops_order_items
-            GROUP BY order_id
-         ) order_qty ON order_qty.order_id = o.id
-         WHERE {$where}
-         GROUP BY oi.product_name
-         ORDER BY revenue DESC
-         LIMIT 50",
-        $params
-    );
-    $profitSummary['revenue'] = array_reduce($profitRows, static fn(float $carry, array $row): float => $carry + (float) $row['revenue'], 0.0);
-    $profitSummary['cogs'] = 0.0;
-    $profitSummary['profit'] = $profitSummary['revenue'] - $profitSummary['cogs'];
-    $profitSummary['margin'] = $profitSummary['revenue'] > 0 ? ($profitSummary['profit'] / $profitSummary['revenue']) * 100 : 0.0;
-
     $monthlyRows = cor_query_rows(
         "SELECT DATE_FORMAT(o.created_at, '%Y-%m') AS month,
                 DATE_FORMAT(o.created_at, '%M %Y') AS month_label,
@@ -797,7 +773,6 @@ include BASE_PATH . '/shared/sidebar.php';
         .cor-stat-card.aov, .cor-stat-card.processing { border-left: 4px solid var(--cor-orange-red); }
         .cor-stat-card.pending-stat, .cor-stat-card.vat { border-left: 4px solid var(--cor-amber); }
         .cor-stat-card.refunds { border-left: 4px solid var(--cor-red); }
-        .cor-stat-card.profit { border-left: 4px solid var(--cor-olive); }
         .cor-stat-card.monthly { border-left: 4px solid var(--cor-burgundy); }
         .cor-stat-card .s-title { margin-bottom: 6px; color: var(--cor-text-mid); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
         .cor-stat-card .s-num { color: var(--cor-text); font-size: 24px; font-weight: 800; line-height: 1; }
@@ -982,7 +957,6 @@ include BASE_PATH . '/shared/sidebar.php';
             'products' => 'Products',
             'delivery' => 'Delivery',
             'vat' => 'VAT',
-            'profit' => 'Profit',
             'monthly' => 'Monthly',
             'inventory' => 'Inventory',
             'trend' => 'Trend',
@@ -1448,28 +1422,6 @@ include BASE_PATH . '/shared/sidebar.php';
                 <a class="cor-btn-export-sm" href="?<?= cor_e(http_build_query(array_merge($queryBase, ['tab' => 'vat', 'section' => 'products', 'export' => 'csv']))) ?>">CSV</a>
                 <a class="cor-btn-export-sm" href="?<?= cor_e(http_build_query(array_merge($queryBase, ['tab' => 'vat', 'section' => 'products', 'export' => 'excel']))) ?>">Excel</a>
                 <button class="cor-btn-export-sm" type="button" onclick="window.print()">PDF</button>
-            </div>
-        </article>
-    </section>
-
-    <section id="tab-profit" class="cor-tab-content <?= $filters['tab'] === 'profit' ? 'active' : '' ?>">
-        <section class="cor-stat-grid" aria-label="Profit summary">
-            <article class="cor-stat-card profit"><div class="s-title">Revenue</div><div class="s-num"><?= cor_money($profitSummary['revenue']) ?></div><div class="s-sub">Synced sales</div></article>
-            <article class="cor-stat-card profit"><div class="s-title">COGS</div><div class="s-num"><?= cor_money($profitSummary['cogs']) ?></div><div class="s-sub">Cost data not synced yet</div></article>
-            <article class="cor-stat-card profit"><div class="s-title">Gross Profit</div><div class="s-num"><?= cor_money($profitSummary['profit']) ?></div><div class="s-sub"><?= cor_pct($profitSummary['margin']) ?> margin</div></article>
-        </section>
-        <article class="cor-report-card">
-            <div class="card-head"><h3>Product Profit View</h3><span>Revenue now, cost integration pending</span></div>
-            <div class="cor-table-wrap">
-                <table>
-                    <thead><tr><th>Product</th><th>Qty</th><th>Revenue</th><th>COGS</th><th>Gross Profit</th><th>Gross Margin</th></tr></thead>
-                    <tbody>
-                    <?php foreach ($profitRows as $row): $profit = (float) $row['revenue']; ?>
-                        <tr><td><?= cor_e($row['product_name']) ?></td><td><?= number_format((float) $row['qty'], 2) ?></td><td><?= cor_money($row['revenue']) ?></td><td><?= cor_money(0) ?></td><td class="cor-profit-positive"><?= cor_money($profit) ?></td><td><?= cor_pct((float) $row['revenue'] > 0 ? 100 : 0) ?></td></tr>
-                    <?php endforeach; ?>
-                    <?php if (!$profitRows): ?><tr><td colspan="6">No profit records found.</td></tr><?php endif; ?>
-                    </tbody>
-                </table>
             </div>
         </article>
     </section>
