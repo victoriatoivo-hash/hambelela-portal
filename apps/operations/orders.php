@@ -437,7 +437,7 @@ if (!in_array($filters['status'], $validStatuses, true)) {
 if (!in_array($filters['mode'], ['all', 'collection', 'delivery', 'courier'], true)) {
     $filters['mode'] = 'all';
 }
-$validTabs = ['sales', 'products', 'delivery', 'vat', 'monthly', 'inventory', 'trend', 'orders'];
+$validTabs = ['sales', 'products', 'delivery', 'vat', 'monthly', 'inventory', 'orders'];
 if (!in_array($filters['tab'], $validTabs, true)) {
     $filters['tab'] = 'sales';
 }
@@ -484,7 +484,6 @@ $vatDailyRows = [];
 $vatPaymentRows = [];
 $vatProductRows = [];
 $inventoryRows = [];
-$dailyRows = [];
 $daily14Rows = [];
 $orderRows = [];
 $refundSummary = ['count' => 0, 'amount' => 0.0, 'pct' => 0.0];
@@ -781,14 +780,6 @@ if ($ready) {
          GROUP BY oi.product_name
          ORDER BY sold_qty DESC
          LIMIT 100",
-        $params
-    );
-    $dailyRows = cor_query_rows(
-        "SELECT DATE(o.created_at) AS d, COUNT(*) AS orders, COALESCE(SUM(o.total_amount), 0) AS rev
-         FROM ops_orders o
-         WHERE {$where}
-         GROUP BY DATE(o.created_at)
-         ORDER BY d ASC",
         $params
     );
     $daily14Rows = cor_query_rows(
@@ -1091,7 +1082,6 @@ include BASE_PATH . '/shared/sidebar.php';
             'vat' => 'VAT',
             'monthly' => 'Monthly',
             'inventory' => 'Inventory',
-            'trend' => 'Trend',
             'orders' => 'All Orders',
         ];
         foreach ($tabs as $key => $label):
@@ -1647,14 +1637,6 @@ include BASE_PATH . '/shared/sidebar.php';
         </article>
     </section>
 
-    <section id="tab-trend" class="cor-tab-content <?= $filters['tab'] === 'trend' ? 'active' : '' ?>">
-        <article class="cor-chart-card">
-            <div class="card-head"><h3>Daily / Weekly Trend</h3><span>Revenue bars and order count line</span></div>
-            <div class="cor-chart-body"><canvas id="corTrendChart"></canvas></div>
-            <?php if (!$dailyRows): ?><div class="cor-empty">No records found.</div><?php endif; ?>
-        </article>
-    </section>
-
     <section id="tab-orders" class="cor-tab-content <?= $filters['tab'] === 'orders' ? 'active' : '' ?>">
         <article class="cor-report-card">
             <div class="card-head"><h3>Full Orders Table</h3><span>50 rows per page</span></div>
@@ -1720,29 +1702,6 @@ document.addEventListener('DOMContentLoaded', function () {
       history.replaceState({}, '', url.toString());
     });
   });
-
-  var chartEl = document.getElementById('corTrendChart');
-  if (chartEl && window.Chart) {
-    new Chart(chartEl.getContext('2d'), {
-      data: {
-        labels: <?= json_encode(array_column($dailyRows, 'd'), JSON_UNESCAPED_SLASHES) ?>,
-        datasets: [
-          { type: 'bar', label: 'Revenue (N$)', data: <?= json_encode(array_map(static fn(array $row): float => round((float) $row['rev'], 2), $dailyRows), JSON_UNESCAPED_SLASHES) ?>, backgroundColor: '#AB3619', borderRadius: 4, yAxisID: 'y' },
-          { type: 'line', label: 'Orders', data: <?= json_encode(array_map(static fn(array $row): int => (int) $row['orders'], $dailyRows), JSON_UNESCAPED_SLASHES) ?>, borderColor: '#A8CA19', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 3, yAxisID: 'y1' }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { labels: { font: { family: 'Inter', size: 11 }, color: '#6B4C3B' } } },
-        scales: {
-          x: { ticks: { font: { family: 'Inter', size: 11 }, color: '#6B4C3B' }, grid: { display: false } },
-          y: { ticks: { font: { family: 'Inter', size: 11 }, color: '#6B4C3B' }, title: { display: true, text: 'Revenue (N$)', font: { size: 11 }, color: '#6B4C3B' } },
-          y1: { position: 'right', ticks: { font: { family: 'Inter', size: 11 }, color: '#A8CA19' }, title: { display: true, text: 'Orders', font: { size: 11 }, color: '#A8CA19' }, grid: { drawOnChartArea: false } }
-        }
-      }
-    });
-  }
 
   var daily14El = document.getElementById('daily14Chart');
   if (daily14El && window.Chart) {
