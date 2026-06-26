@@ -173,7 +173,8 @@ if (!in_array($filters['status'], $validStatuses, true)) {
 if (!in_array($filters['mode'], ['all', 'collection', 'delivery', 'courier'], true)) {
     $filters['mode'] = 'all';
 }
-if (!in_array($filters['tab'], ['sales', 'payment', 'mode', 'staff', 'products', 'trend', 'orders'], true)) {
+$validTabs = ['sales', 'payment', 'mode', 'staff', 'products', 'refunds', 'delivery', 'vat', 'profit', 'monthly', 'inventory', 'trend', 'orders'];
+if (!in_array($filters['tab'], $validTabs, true)) {
     $filters['tab'] = 'sales';
 }
 
@@ -193,14 +194,25 @@ $summary = [
     'completed' => 0,
     'processing' => 0,
     'pending' => 0,
+    'tax_collected' => 0.0,
+    'discounts' => 0.0,
 ];
 $statusRows = [];
 $paymentRows = [];
 $modeRows = [];
 $staffRows = [];
 $productRows = [];
+$refundRows = [];
+$deliveryRows = [];
+$vatRows = [];
+$profitRows = [];
+$monthlyRows = [];
+$inventoryRows = [];
 $dailyRows = [];
 $orderRows = [];
+$refundSummary = ['count' => 0, 'amount' => 0.0, 'pct' => 0.0];
+$vatSummary = ['gross' => 0.0, 'vat' => 0.0, 'net' => 0.0];
+$profitSummary = ['revenue' => 0.0, 'cogs' => 0.0, 'profit' => 0.0, 'margin' => 0.0];
 $totalPages = 1;
 $page = max(1, (int) ($_GET['p'] ?? 1));
 $perPage = 50;
@@ -214,7 +226,9 @@ if ($ready) {
                 COALESCE(SUM(CASE WHEN payment_status <> 'refunded' THEN total_amount ELSE 0 END), 0) AS total_revenue,
                 SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed,
                 SUM(CASE WHEN status IN ('in_progress','packed','verified','ready_for_collection','ready_for_courier','ready_for_delivery') THEN 1 ELSE 0 END) AS processing,
-                SUM(CASE WHEN status IN ('new_order','assigned') THEN 1 ELSE 0 END) AS pending
+                SUM(CASE WHEN status IN ('new_order','assigned') THEN 1 ELSE 0 END) AS pending,
+                COALESCE(SUM(tax_total + shipping_tax_total), 0) AS tax_collected,
+                COALESCE(SUM(discount_total), 0) AS discounts
          FROM ops_orders o
          WHERE {$where}",
         $params
@@ -225,6 +239,8 @@ if ($ready) {
     $summary['completed'] = (int) ($summaryRow['completed'] ?? 0);
     $summary['processing'] = (int) ($summaryRow['processing'] ?? 0);
     $summary['pending'] = (int) ($summaryRow['pending'] ?? 0);
+    $summary['tax_collected'] = (float) ($summaryRow['tax_collected'] ?? 0);
+    $summary['discounts'] = (float) ($summaryRow['discounts'] ?? 0);
 
     $statusRows = cor_query_rows(
         "SELECT status AS label, COUNT(*) AS cnt, COALESCE(SUM(total_amount), 0) AS rev
@@ -276,6 +292,96 @@ if ($ready) {
          LIMIT 50",
         $params
     );
+    $refundRows = cor_query_rows(
+        "SELECT o.order_number, o.created_at, o.customer_name, o.refund_total, o.total_amount, o.payment_status, o.status
+         FROM ops_orders o
+         WHERE {$where} AND (o.payment_status = 'refunded' OR o.refund_total > 0)
+         ORDER BY o.created_at DESC",
+        $params
+    );
+    $refundSummary['count'] = count($refundRows);
+    $refundSummary['amount'] = array_reduce($refundRows, static fn(float $carry, array $row): float => $carry + (float) ($row['refund_total'] ?: $row['total_amount']), 0.0);
+    $refundSummary['pct'] = $summary['total_revenue'] > 0 ? ($refundSummary['amount'] / $summary['total_revenue']) * 100 : 0.0;
+
+    $deliveryRows = cor_query_rows(
+        "SELECT COALESCE(NULLIF(order_type, ''), 'collection') AS label,
+                COUNT(*) AS cnt,
+                COALESCE(SUM(total_amount), 0) AS rev,
+                COALESCE(AVG(total_amount), 0) AS aov,
+                COALESCE(SUM(shipping_total + shipping_tax_total), 0) AS delivery_fees
+         FROM ops_orders o
+         WHERE {$where}
+         GROUP BY COALESCE(NULLIF(order_type, ''), 'collection')
+         ORDER BY cnt DESC",
+        $params
+    );
+
+    $vatRows = cor_query_rows(
+        "SELECT DATE(o.created_at) AS d,
+                COUNT(*) AS orders,
+                COALESCE(SUM(o.total_amount), 0) AS gross,
+                COALESCE(SUM(o.tax_total + o.shipping_tax_total), 0) AS stored_vat
+         FROM ops_orders o
+         WHERE {$where}
+         GROUP BY DATE(o.created_at)
+         ORDER BY d ASC",
+        $params
+    );
+    $vatSummary['gross'] = array_reduce($vatRows, static fn(float $carry, array $row): float => $carry + (float) $row['gross'], 0.0);
+    $storedVat = array_reduce($vatRows, static fn(float $carry, array $row): float => $carry + (float) $row['stored_vat'], 0.0);
+    $vatSummary['vat'] = $storedVat > 0 ? $storedVat : $vatSummary['gross'] * (0.15 / 1.15);
+    $vatSummary['net'] = $vatSummary['gross'] - $vatSummary['vat'];
+
+    $profitRows = cor_query_rows(
+        "SELECT oi.product_name,
+                COALESCE(SUM(oi.quantity), 0) AS qty,
+                COALESCE(SUM(CASE WHEN order_qty.qty > 0 THEN o.total_amount * (oi.quantity / order_qty.qty) ELSE 0 END), 0) AS revenue
+         FROM ops_order_items oi
+         JOIN ops_orders o ON o.id = oi.order_id
+         LEFT JOIN (
+            SELECT order_id, SUM(quantity) AS qty
+            FROM ops_order_items
+            GROUP BY order_id
+         ) order_qty ON order_qty.order_id = o.id
+         WHERE {$where}
+         GROUP BY oi.product_name
+         ORDER BY revenue DESC
+         LIMIT 50",
+        $params
+    );
+    $profitSummary['revenue'] = array_reduce($profitRows, static fn(float $carry, array $row): float => $carry + (float) $row['revenue'], 0.0);
+    $profitSummary['cogs'] = 0.0;
+    $profitSummary['profit'] = $profitSummary['revenue'] - $profitSummary['cogs'];
+    $profitSummary['margin'] = $profitSummary['revenue'] > 0 ? ($profitSummary['profit'] / $profitSummary['revenue']) * 100 : 0.0;
+
+    $monthlyRows = cor_query_rows(
+        "SELECT DATE_FORMAT(o.created_at, '%Y-%m') AS month,
+                DATE_FORMAT(o.created_at, '%M %Y') AS month_label,
+                COUNT(*) AS orders,
+                COALESCE(SUM(o.total_amount), 0) AS revenue,
+                COALESCE(AVG(o.total_amount), 0) AS aov
+         FROM ops_orders o
+         WHERE {$where}
+         GROUP BY DATE_FORMAT(o.created_at, '%Y-%m'), DATE_FORMAT(o.created_at, '%M %Y')
+         ORDER BY month DESC
+         LIMIT 24",
+        $params
+    );
+
+    $inventoryRows = cor_query_rows(
+        "SELECT oi.product_name,
+                COALESCE(NULLIF(MAX(oi.sku), ''), '-') AS sku,
+                COALESCE(SUM(oi.quantity), 0) AS sold_qty,
+                COUNT(DISTINCT oi.order_id) AS order_count,
+                MAX(o.created_at) AS last_sold_at
+         FROM ops_order_items oi
+         JOIN ops_orders o ON o.id = oi.order_id
+         WHERE {$where}
+         GROUP BY oi.product_name
+         ORDER BY sold_qty DESC
+         LIMIT 100",
+        $params
+    );
     $dailyRows = cor_query_rows(
         "SELECT DATE(o.created_at) AS d, COUNT(*) AS orders, COALESCE(SUM(o.total_amount), 0) AS rev
          FROM ops_orders o
@@ -320,6 +426,19 @@ include BASE_PATH . '/shared/sidebar.php';
 ?>
 <main class="workspace module cor-wrap">
     <style>
+        :root {
+            --cor-olive: #A8CA19;
+            --cor-amber: #F07420;
+            --cor-orange-red: #AB3619;
+            --cor-red: #BB1B21;
+            --cor-burgundy: #721B1A;
+            --cor-cream: #FDF6EE;
+            --cor-surface: #FFFFFF;
+            --cor-border: #EDE3D8;
+            --cor-text: #2C1810;
+            --cor-text-mid: #6B4C3B;
+            --cor-text-light: #A08070;
+        }
         .cor-wrap {
             background: #FDF6EE;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -358,14 +477,24 @@ include BASE_PATH . '/shared/sidebar.php';
         .cor-stat-card.total-orders, .cor-stat-card.completed { border-left: 4px solid var(--cor-olive); }
         .cor-stat-card.total-revenue { border-left: 4px solid var(--cor-burgundy); }
         .cor-stat-card.aov, .cor-stat-card.processing { border-left: 4px solid var(--cor-orange-red); }
-        .cor-stat-card.pending-stat { border-left: 4px solid var(--cor-amber); }
+        .cor-stat-card.pending-stat, .cor-stat-card.vat { border-left: 4px solid var(--cor-amber); }
+        .cor-stat-card.refunds { border-left: 4px solid var(--cor-red); }
+        .cor-stat-card.profit { border-left: 4px solid var(--cor-olive); }
+        .cor-stat-card.monthly { border-left: 4px solid var(--cor-burgundy); }
         .cor-stat-card .s-title { margin-bottom: 6px; color: var(--cor-text-mid); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
         .cor-stat-card .s-num { color: var(--cor-text); font-size: 24px; font-weight: 800; line-height: 1; }
         .cor-stat-card .s-sub { margin-top: 4px; color: var(--cor-text-light); font-size: 11px; }
-        .cor-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 16px; border-bottom: 2px solid var(--cor-border); }
-        .cor-tab { height: 36px; margin-bottom: -2px; padding: 0 16px; border: 0; border-bottom: 3px solid transparent; border-radius: 8px 8px 0 0; background: transparent; color: var(--cor-text-mid); font-size: 12px; font-weight: 600; cursor: pointer; }
+        .cor-pay-cards { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+        .cor-pay-card { min-width: 130px; padding: 10px 14px; border: 1px solid var(--cor-border); border-radius: 8px; background: var(--cor-surface); box-shadow: 0 1px 4px rgba(44,24,16,.05); text-decoration: none; transition: border-color 150ms ease, box-shadow 150ms ease; }
+        .cor-pay-card:hover { border-color: var(--cor-orange-red); box-shadow: 0 4px 12px rgba(44,24,16,.10); }
+        .cor-pay-card .pc-method { margin-bottom: 4px; color: var(--cor-text-mid); font-size: 11px; font-weight: 700; }
+        .cor-pay-card .pc-amount { color: var(--cor-text); font-size: 18px; font-weight: 800; line-height: 1; }
+        .cor-pay-card .pc-link { margin-top: 3px; color: var(--cor-orange-red); font-size: 10px; }
+        .cor-tabs-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin-bottom: 16px; border-bottom: 2px solid var(--cor-border); }
+        .cor-tabs { display: flex; gap: 0; min-width: max-content; border-bottom: 0; white-space: nowrap; }
+        .cor-tab { flex: 0 0 auto; height: 38px; margin-bottom: -2px; padding: 0 16px; border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--cor-text-mid); font-size: 12px; font-weight: 600; cursor: pointer; }
         .cor-tab:hover { color: var(--cor-orange-red); }
-        .cor-tab.active { background: var(--cor-cream); border-bottom-color: var(--cor-orange-red); color: var(--cor-burgundy); }
+        .cor-tab.active { border-bottom-color: var(--cor-orange-red); color: var(--cor-burgundy); }
         .cor-tab-content { display: none; }
         .cor-tab-content.active { display: block; }
         .cor-report-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
@@ -398,6 +527,14 @@ include BASE_PATH . '/shared/sidebar.php';
         .mode-delivery { background: #b5a280; color: #fff; }
         .mode-collection { background: #7a8c4f; color: #fff; }
         .mode-courier { background: #5c3a1e; color: #fff; }
+        .mode-walk-in, .mode-walkin { background: var(--cor-border); color: var(--cor-text-mid); }
+        .cor-refund-amount, .cor-profit-negative, .cor-mom-down { color: var(--cor-red); font-weight: 700; }
+        .cor-vat-amount { color: var(--cor-amber); font-weight: 700; }
+        .cor-profit-positive, .cor-mom-up { color: var(--cor-olive); font-weight: 700; }
+        .inv-instock, .inv-lowstock, .inv-outstock { height: 20px; padding: 0 8px; border-radius: 4px; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; }
+        .inv-instock { border: 1px solid var(--cor-olive); background: #f3fae0; color: #6f8c10; }
+        .inv-lowstock { border: 1px solid var(--cor-amber); background: #fef5e7; color: var(--cor-amber); }
+        .inv-outstock { border: 1px solid var(--cor-red); background: #fde8e8; color: var(--cor-red); }
         .cor-rank { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: var(--cor-border); color: var(--cor-text-mid); font-size: 11px; font-weight: 800; }
         .cor-rank-1 { background: var(--cor-amber); color: #fff; }
         .cor-rank-2 { background: var(--cor-orange-red); color: #fff; }
@@ -411,7 +548,7 @@ include BASE_PATH . '/shared/sidebar.php';
         .cor-page-btn.active { border-color: var(--cor-orange-red); background: var(--cor-orange-red); color: #fff; }
         .cor-empty { padding: 16px 18px; color: var(--cor-text-mid); font-size: 13px; }
         @media (max-width: 1100px) { .cor-stat-grid { grid-template-columns: repeat(3, 1fr); } .cor-report-grid { grid-template-columns: 1fr; } }
-        @media (max-width: 767px) { .cor-stat-grid { grid-template-columns: repeat(2, 1fr); } .cor-tabs { flex-wrap: nowrap; overflow-x: auto; } .cor-tab { flex: 0 0 auto; white-space: nowrap; } .cor-filter-bar { align-items: stretch; flex-direction: column; } .cor-filter-selects, .cor-date-inputs, .cor-quick-ranges { align-items: stretch; } .cor-filter-bar select, .cor-filter-bar input[type="date"], .cor-btn-apply, .cor-btn-export { width: 100%; } }
+        @media (max-width: 767px) { .cor-stat-grid { grid-template-columns: repeat(2, 1fr); } .cor-tab { padding: 0 12px; font-size: 11px; } .cor-filter-bar { align-items: stretch; flex-direction: column; } .cor-filter-selects, .cor-date-inputs, .cor-quick-ranges { align-items: stretch; } .cor-filter-bar select, .cor-filter-bar input[type="date"], .cor-btn-apply, .cor-btn-export { width: 100%; } }
     </style>
 
     <section class="module-header">
@@ -462,17 +599,31 @@ include BASE_PATH . '/shared/sidebar.php';
         <button class="cor-btn-apply" type="submit">Apply</button>
         <a class="cor-btn-export" href="?<?= cor_e(http_build_query($queryBase + ['export' => 'csv'])) ?>">CSV</a>
         <a class="cor-btn-export" href="?<?= cor_e(http_build_query($queryBase + ['export' => 'excel'])) ?>">Excel</a>
+        <a class="cor-btn-apply" href="?<?= cor_e(http_build_query($queryBase + ['tab' => 'sales'])) ?>">Daily Sales Summary</a>
     </form>
 
     <section class="cor-stat-grid" aria-label="Order report summary">
         <article class="cor-stat-card total-orders"><div class="s-title">Total Orders</div><div class="s-num"><?= number_format($summary['total_orders']) ?></div><div class="s-sub"><?= cor_e($filters['from']) ?> to <?= cor_e($filters['to']) ?></div></article>
         <article class="cor-stat-card total-revenue"><div class="s-title">Total Revenue</div><div class="s-num"><?= cor_money($summary['total_revenue']) ?></div><div class="s-sub">Refunded orders excluded</div></article>
+        <article class="cor-stat-card vat"><div class="s-title">Tax Collected</div><div class="s-num"><?= cor_money($summary['tax_collected'] > 0 ? $summary['tax_collected'] : ($summary['total_revenue'] * (0.15 / 1.15))) ?></div><div class="s-sub">15% VAT estimate if not stored</div></article>
+        <article class="cor-stat-card refunds"><div class="s-title">Discounts</div><div class="s-num"><?= cor_money($summary['discounts']) ?></div><div class="s-sub">Discount total</div></article>
         <article class="cor-stat-card aov"><div class="s-title">Avg Order Value</div><div class="s-num"><?= cor_money($summary['aov']) ?></div><div class="s-sub">Revenue divided by orders</div></article>
         <article class="cor-stat-card completed"><div class="s-title">Completed</div><div class="s-num"><?= number_format($summary['completed']) ?></div><div class="s-sub">Completed orders</div></article>
         <article class="cor-stat-card processing"><div class="s-title">Processing</div><div class="s-num"><?= number_format($summary['processing']) ?></div><div class="s-sub">In progress or packed</div></article>
         <article class="cor-stat-card pending-stat"><div class="s-title">Pending</div><div class="s-num"><?= number_format($summary['pending']) ?></div><div class="s-sub">New or assigned</div></article>
     </section>
 
+    <section class="cor-pay-cards" aria-label="Payment quick cards">
+        <?php foreach ($paymentRows as $row): ?>
+            <a class="cor-pay-card" href="?<?= cor_e(http_build_query(array_merge($queryBase, ['tab' => 'orders', 'payment' => $row['label']]))) ?>">
+                <div class="pc-method"><?= cor_e($row['label']) ?></div>
+                <div class="pc-amount"><?= cor_money($row['rev']) ?></div>
+                <div class="pc-link">Click to see orders</div>
+            </a>
+        <?php endforeach; ?>
+    </section>
+
+    <div class="cor-tabs-wrap">
     <nav class="cor-tabs" aria-label="Report tabs">
         <?php
         $tabs = [
@@ -481,6 +632,12 @@ include BASE_PATH . '/shared/sidebar.php';
             'mode' => 'By Mode',
             'staff' => 'By Staff',
             'products' => 'Products',
+            'refunds' => 'Refunds',
+            'delivery' => 'Delivery',
+            'vat' => 'VAT',
+            'profit' => 'Profit',
+            'monthly' => 'Monthly',
+            'inventory' => 'Inventory',
             'trend' => 'Trend',
             'orders' => 'All Orders',
         ];
@@ -489,6 +646,7 @@ include BASE_PATH . '/shared/sidebar.php';
             <button class="cor-tab <?= $filters['tab'] === $key ? 'active' : '' ?>" type="button" data-tab="<?= cor_e($key) ?>"><?= cor_e($label) ?></button>
         <?php endforeach; ?>
     </nav>
+    </div>
 
     <section id="tab-sales" class="cor-tab-content <?= $filters['tab'] === 'sales' ? 'active' : '' ?>">
         <div class="cor-report-grid">
@@ -587,6 +745,123 @@ include BASE_PATH . '/shared/sidebar.php';
                         <tr><td><span class="cor-rank cor-rank-<?= $rank <= 3 ? $rank : 'n' ?>"><?= number_format($rank) ?></span></td><td><?= cor_e($row['product_name']) ?></td><td><?= number_format((float) $row['qty'], 2) ?></td><td><?= cor_money($row['rev']) ?></td><td><?= cor_pct($pct) ?></td><td><div class="cor-bar-wrap"><span class="cor-bar-track"><span class="cor-bar-fill" style="width:<?= cor_e(((float) $row['rev'] / $maxProduct) * 100) ?>%"></span></span><span class="cor-pct"><?= cor_pct($pct) ?></span></div></td></tr>
                     <?php endforeach; ?>
                     <?php if (!$productRows): ?><tr><td colspan="6">No records found.</td></tr><?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </article>
+    </section>
+
+    <section id="tab-refunds" class="cor-tab-content <?= $filters['tab'] === 'refunds' ? 'active' : '' ?>">
+        <section class="cor-stat-grid" aria-label="Refund summary">
+            <article class="cor-stat-card refunds"><div class="s-title">Total Refunded</div><div class="s-num"><?= cor_money($refundSummary['amount']) ?></div><div class="s-sub">Refunded amount</div></article>
+            <article class="cor-stat-card refunds"><div class="s-title">Refund Count</div><div class="s-num"><?= number_format($refundSummary['count']) ?></div><div class="s-sub">Orders with refunds</div></article>
+            <article class="cor-stat-card refunds"><div class="s-title">% of Revenue</div><div class="s-num"><?= cor_pct($refundSummary['pct']) ?></div><div class="s-sub">Refunds vs revenue</div></article>
+        </section>
+        <article class="cor-report-card">
+            <div class="card-head"><h3>Refunds</h3><span><?= number_format($refundSummary['count']) ?> records</span></div>
+            <div class="cor-table-wrap">
+                <table>
+                    <thead><tr><th>Date</th><th>Order ID</th><th>Customer</th><th>Amount Refunded</th><th>Reason</th><th>Processed By</th></tr></thead>
+                    <tbody>
+                    <?php foreach ($refundRows as $row): ?>
+                        <tr><td><?= cor_e(date('d M H:i', strtotime((string) $row['created_at']))) ?></td><td><?= cor_e($row['order_number']) ?></td><td><?= cor_e($row['customer_name']) ?></td><td class="cor-refund-amount"><?= cor_money($row['refund_total'] ?: $row['total_amount']) ?></td><td><?= cor_e(cor_order_status_label((string) $row['status'])) ?></td><td>Portal sync</td></tr>
+                    <?php endforeach; ?>
+                    <?php if (!$refundRows): ?><tr><td colspan="6">No refund records found for this period.</td></tr><?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </article>
+    </section>
+
+    <section id="tab-delivery" class="cor-tab-content <?= $filters['tab'] === 'delivery' ? 'active' : '' ?>">
+        <article class="cor-report-card">
+            <div class="card-head"><h3>Delivery / Collection / Courier</h3><span>Operational mode breakdown</span></div>
+            <div class="cor-table-wrap">
+                <table>
+                    <thead><tr><th>Mode</th><th>Order Count</th><th>Revenue</th><th>Avg Order Value</th><th>Delivery Fees</th><th>% of Total</th></tr></thead>
+                    <tbody>
+                    <?php foreach ($deliveryRows as $row): $pct = $summary['total_orders'] > 0 ? ((int) $row['cnt'] / $summary['total_orders']) * 100 : 0; ?>
+                        <tr><td><span class="cor-pill mode-<?= cor_e(cor_slug($row['label'])) ?>"><?= cor_e(ucwords((string) $row['label'])) ?></span></td><td><?= number_format((int) $row['cnt']) ?></td><td><?= cor_money($row['rev']) ?></td><td><?= cor_money($row['aov']) ?></td><td><?= cor_money($row['delivery_fees']) ?></td><td><?= cor_pct($pct) ?></td></tr>
+                    <?php endforeach; ?>
+                    <?php if (!$deliveryRows): ?><tr><td colspan="6">No delivery records found.</td></tr><?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </article>
+    </section>
+
+    <section id="tab-vat" class="cor-tab-content <?= $filters['tab'] === 'vat' ? 'active' : '' ?>">
+        <section class="cor-stat-grid" aria-label="VAT summary">
+            <article class="cor-stat-card vat"><div class="s-title">Gross Revenue</div><div class="s-num"><?= cor_money($vatSummary['gross']) ?></div><div class="s-sub">VAT inclusive</div></article>
+            <article class="cor-stat-card vat"><div class="s-title">VAT Collected</div><div class="s-num"><?= cor_money($vatSummary['vat']) ?></div><div class="s-sub">15% Namibia VAT</div></article>
+            <article class="cor-stat-card vat"><div class="s-title">Net Revenue</div><div class="s-num"><?= cor_money($vatSummary['net']) ?></div><div class="s-sub">Gross less VAT</div></article>
+        </section>
+        <article class="cor-report-card">
+            <div class="card-head"><h3>VAT by Day</h3><span>Uses stored tax where available, otherwise inclusive 15% estimate</span></div>
+            <div class="cor-table-wrap">
+                <table>
+                    <thead><tr><th>Date</th><th>Orders</th><th>Gross</th><th>VAT</th><th>Net</th></tr></thead>
+                    <tbody>
+                    <?php foreach ($vatRows as $row): $vat = (float) $row['stored_vat'] > 0 ? (float) $row['stored_vat'] : ((float) $row['gross'] * (0.15 / 1.15)); ?>
+                        <tr><td><?= cor_e(date('d M Y', strtotime((string) $row['d']))) ?></td><td><?= number_format((int) $row['orders']) ?></td><td><?= cor_money($row['gross']) ?></td><td class="cor-vat-amount"><?= cor_money($vat) ?></td><td><?= cor_money(((float) $row['gross']) - $vat) ?></td></tr>
+                    <?php endforeach; ?>
+                    <?php if (!$vatRows): ?><tr><td colspan="5">No VAT records found.</td></tr><?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </article>
+    </section>
+
+    <section id="tab-profit" class="cor-tab-content <?= $filters['tab'] === 'profit' ? 'active' : '' ?>">
+        <section class="cor-stat-grid" aria-label="Profit summary">
+            <article class="cor-stat-card profit"><div class="s-title">Revenue</div><div class="s-num"><?= cor_money($profitSummary['revenue']) ?></div><div class="s-sub">Synced sales</div></article>
+            <article class="cor-stat-card profit"><div class="s-title">COGS</div><div class="s-num"><?= cor_money($profitSummary['cogs']) ?></div><div class="s-sub">Cost data not synced yet</div></article>
+            <article class="cor-stat-card profit"><div class="s-title">Gross Profit</div><div class="s-num"><?= cor_money($profitSummary['profit']) ?></div><div class="s-sub"><?= cor_pct($profitSummary['margin']) ?> margin</div></article>
+        </section>
+        <article class="cor-report-card">
+            <div class="card-head"><h3>Product Profit View</h3><span>Revenue now, cost integration pending</span></div>
+            <div class="cor-table-wrap">
+                <table>
+                    <thead><tr><th>Product</th><th>Qty</th><th>Revenue</th><th>COGS</th><th>Gross Profit</th><th>Gross Margin</th></tr></thead>
+                    <tbody>
+                    <?php foreach ($profitRows as $row): $profit = (float) $row['revenue']; ?>
+                        <tr><td><?= cor_e($row['product_name']) ?></td><td><?= number_format((float) $row['qty'], 2) ?></td><td><?= cor_money($row['revenue']) ?></td><td><?= cor_money(0) ?></td><td class="cor-profit-positive"><?= cor_money($profit) ?></td><td><?= cor_pct((float) $row['revenue'] > 0 ? 100 : 0) ?></td></tr>
+                    <?php endforeach; ?>
+                    <?php if (!$profitRows): ?><tr><td colspan="6">No profit records found.</td></tr><?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </article>
+    </section>
+
+    <section id="tab-monthly" class="cor-tab-content <?= $filters['tab'] === 'monthly' ? 'active' : '' ?>">
+        <article class="cor-report-card">
+            <div class="card-head"><h3>Monthly Sales</h3><span>Grouped by month</span></div>
+            <div class="cor-table-wrap">
+                <table>
+                    <thead><tr><th>Month</th><th>Orders</th><th>Revenue</th><th>Avg Order</th><th>Vs Previous</th></tr></thead>
+                    <tbody>
+                    <?php foreach ($monthlyRows as $index => $row): $next = $monthlyRows[$index + 1] ?? null; $change = $next && (float) $next['revenue'] > 0 ? (((float) $row['revenue'] - (float) $next['revenue']) / (float) $next['revenue']) * 100 : null; ?>
+                        <tr><td><?= cor_e($row['month_label']) ?></td><td><?= number_format((int) $row['orders']) ?></td><td><?= cor_money($row['revenue']) ?></td><td><?= cor_money($row['aov']) ?></td><td><?php if ($change === null): ?>-<?php else: ?><span class="<?= $change >= 0 ? 'cor-mom-up' : 'cor-mom-down' ?>"><?= $change >= 0 ? '+' : '' ?><?= cor_pct($change) ?></span><?php endif; ?></td></tr>
+                    <?php endforeach; ?>
+                    <?php if (!$monthlyRows): ?><tr><td colspan="5">No monthly records found.</td></tr><?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </article>
+    </section>
+
+    <section id="tab-inventory" class="cor-tab-content <?= $filters['tab'] === 'inventory' ? 'active' : '' ?>">
+        <article class="cor-report-card">
+            <div class="card-head"><h3>Inventory Movement</h3><span>Read-only product movement from synced order items</span></div>
+            <div class="cor-table-wrap">
+                <table>
+                    <thead><tr><th>Product</th><th>SKU</th><th>Qty Sold</th><th>Orders</th><th>Stock Status</th><th>Last Sold</th></tr></thead>
+                    <tbody>
+                    <?php foreach ($inventoryRows as $row): ?>
+                        <tr><td><?= cor_e($row['product_name']) ?></td><td><?= cor_e($row['sku']) ?></td><td><?= number_format((float) $row['sold_qty'], 2) ?></td><td><?= number_format((int) $row['order_count']) ?></td><td><span class="inv-instock">Synced</span></td><td><?= $row['last_sold_at'] ? cor_e(date('d M H:i', strtotime((string) $row['last_sold_at']))) : '-' ?></td></tr>
+                    <?php endforeach; ?>
+                    <?php if (!$inventoryRows): ?><tr><td colspan="6">No inventory movement found from synced order items.</td></tr><?php endif; ?>
                     </tbody>
                 </table>
             </div>
