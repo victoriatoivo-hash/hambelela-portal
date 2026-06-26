@@ -173,7 +173,7 @@ if (!in_array($filters['status'], $validStatuses, true)) {
 if (!in_array($filters['mode'], ['all', 'collection', 'delivery', 'courier'], true)) {
     $filters['mode'] = 'all';
 }
-$validTabs = ['sales', 'payment', 'mode', 'staff', 'products', 'refunds', 'delivery', 'vat', 'profit', 'monthly', 'inventory', 'trend', 'orders'];
+$validTabs = ['sales', 'products', 'refunds', 'delivery', 'vat', 'profit', 'monthly', 'inventory', 'trend', 'orders'];
 if (!in_array($filters['tab'], $validTabs, true)) {
     $filters['tab'] = 'sales';
 }
@@ -498,6 +498,7 @@ include BASE_PATH . '/shared/sidebar.php';
         .cor-tab-content { display: none; }
         .cor-tab-content.active { display: block; }
         .cor-report-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+        .cor-sales-breakdowns { margin-top: 14px; grid-template-columns: 1fr; }
         .cor-report-card, .cor-chart-card { overflow: hidden; margin-bottom: 14px; border: 1px solid var(--cor-border); border-radius: 10px; background: var(--cor-surface); box-shadow: 0 2px 6px rgba(44,24,16,.05); }
         .cor-report-card .card-head, .cor-chart-card .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--cor-border); }
         .cor-report-card h3, .cor-chart-card h3 { margin: 0; color: var(--cor-burgundy); font-size: 13px; font-weight: 700; }
@@ -628,9 +629,6 @@ include BASE_PATH . '/shared/sidebar.php';
         <?php
         $tabs = [
             'sales' => 'Sales Summary',
-            'payment' => 'By Payment',
-            'mode' => 'By Mode',
-            'staff' => 'By Staff',
             'products' => 'Products',
             'refunds' => 'Refunds',
             'delivery' => 'Delivery',
@@ -681,57 +679,50 @@ include BASE_PATH . '/shared/sidebar.php';
                 </div>
             </article>
         </div>
-    </section>
-
-    <section id="tab-payment" class="cor-tab-content <?= $filters['tab'] === 'payment' ? 'active' : '' ?>">
-        <article class="cor-report-card">
-            <div class="card-head"><h3>Orders by Payment Method</h3><span><?= number_format(count($paymentRows)) ?> methods</span></div>
-            <div class="cor-table-wrap">
-                <table>
-                    <thead><tr><th>Method</th><th>Orders</th><th>Revenue</th><th>%</th><th>Bar</th></tr></thead>
-                    <tbody>
-                    <?php foreach ($paymentRows as $row): $pct = $summary['total_revenue'] > 0 ? ((float) $row['rev'] / $summary['total_revenue']) * 100 : 0; ?>
-                        <tr><td><span class="cor-pill pay-<?= cor_e(cor_slug($row['label'])) ?>"><?= cor_e($row['label']) ?></span></td><td><?= number_format((int) $row['cnt']) ?></td><td><?= cor_money($row['rev']) ?></td><td><?= cor_pct($pct) ?></td><td><div class="cor-bar-wrap"><span class="cor-bar-track"><span class="cor-bar-fill" style="width:<?= cor_e(((float) $row['rev'] / $maxPayment) * 100) ?>%"></span></span><span class="cor-pct"><?= cor_pct($pct) ?></span></div></td></tr>
-                    <?php endforeach; ?>
-                    <?php if (!$paymentRows): ?><tr><td colspan="5">No records found.</td></tr><?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-        </article>
-    </section>
-
-    <section id="tab-mode" class="cor-tab-content <?= $filters['tab'] === 'mode' ? 'active' : '' ?>">
-        <article class="cor-report-card">
-            <div class="card-head"><h3>Orders by Mode</h3><span>Delivery, collection and courier</span></div>
-            <div class="cor-table-wrap">
-                <table>
-                    <thead><tr><th>Mode</th><th>Orders</th><th>Revenue</th><th>% of Total</th><th>Bar</th></tr></thead>
-                    <tbody>
-                    <?php foreach ($modeRows as $row): $pct = $summary['total_orders'] > 0 ? ((int) $row['cnt'] / $summary['total_orders']) * 100 : 0; ?>
-                        <tr><td><span class="cor-pill mode-<?= cor_e(cor_slug($row['label'])) ?>"><?= cor_e(ucwords((string) $row['label'])) ?></span></td><td><?= number_format((int) $row['cnt']) ?></td><td><?= cor_money($row['rev']) ?></td><td><?= cor_pct($pct) ?></td><td><div class="cor-bar-wrap"><span class="cor-bar-track"><span class="cor-bar-fill" style="width:<?= cor_e(((float) $row['rev'] / $maxMode) * 100) ?>%"></span></span><span class="cor-pct"><?= cor_pct($pct) ?></span></div></td></tr>
-                    <?php endforeach; ?>
-                    <?php if (!$modeRows): ?><tr><td colspan="5">No records found.</td></tr><?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-        </article>
-    </section>
-
-    <section id="tab-staff" class="cor-tab-content <?= $filters['tab'] === 'staff' ? 'active' : '' ?>">
-        <article class="cor-report-card">
-            <div class="card-head"><h3>Orders by Staff</h3><span>Packed by / assigned packer</span></div>
-            <div class="cor-table-wrap">
-                <table>
-                    <thead><tr><th>Staff Name</th><th>Orders</th><th>Revenue</th><th>Avg Order Value</th><th>% of Orders</th></tr></thead>
-                    <tbody>
-                    <?php foreach ($staffRows as $row): $pct = $summary['total_orders'] > 0 ? ((int) $row['cnt'] / $summary['total_orders']) * 100 : 0; ?>
-                        <tr><td><?= cor_e($row['label']) ?></td><td><?= number_format((int) $row['cnt']) ?></td><td><?= cor_money($row['rev']) ?></td><td><?= cor_money(((float) $row['rev']) / max(1, (int) $row['cnt'])) ?></td><td><div class="cor-bar-wrap"><span class="cor-bar-track"><span class="cor-bar-fill" style="width:<?= cor_e(((float) $row['rev'] / $maxStaff) * 100) ?>%"></span></span><span class="cor-pct"><?= cor_pct($pct) ?></span></div></td></tr>
-                    <?php endforeach; ?>
-                    <?php if (!$staffRows): ?><tr><td colspan="5">No records found.</td></tr><?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-        </article>
+        <div class="cor-report-grid cor-sales-breakdowns">
+            <article class="cor-report-card">
+                <div class="card-head"><h3>By Payment</h3><span><?= number_format(count($paymentRows)) ?> methods</span></div>
+                <div class="cor-table-wrap">
+                    <table>
+                        <thead><tr><th>Method</th><th>Orders</th><th>Revenue</th><th>%</th><th>Bar</th></tr></thead>
+                        <tbody>
+                        <?php foreach ($paymentRows as $row): $pct = $summary['total_revenue'] > 0 ? ((float) $row['rev'] / $summary['total_revenue']) * 100 : 0; ?>
+                            <tr><td><span class="cor-pill pay-<?= cor_e(cor_slug($row['label'])) ?>"><?= cor_e($row['label']) ?></span></td><td><?= number_format((int) $row['cnt']) ?></td><td><?= cor_money($row['rev']) ?></td><td><?= cor_pct($pct) ?></td><td><div class="cor-bar-wrap"><span class="cor-bar-track"><span class="cor-bar-fill" style="width:<?= cor_e(((float) $row['rev'] / $maxPayment) * 100) ?>%"></span></span><span class="cor-pct"><?= cor_pct($pct) ?></span></div></td></tr>
+                        <?php endforeach; ?>
+                        <?php if (!$paymentRows): ?><tr><td colspan="5">No records found.</td></tr><?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </article>
+            <article class="cor-report-card">
+                <div class="card-head"><h3>By Mode</h3><span>Delivery, collection and courier</span></div>
+                <div class="cor-table-wrap">
+                    <table>
+                        <thead><tr><th>Mode</th><th>Orders</th><th>Revenue</th><th>% of Total</th><th>Bar</th></tr></thead>
+                        <tbody>
+                        <?php foreach ($modeRows as $row): $pct = $summary['total_orders'] > 0 ? ((int) $row['cnt'] / $summary['total_orders']) * 100 : 0; ?>
+                            <tr><td><span class="cor-pill mode-<?= cor_e(cor_slug($row['label'])) ?>"><?= cor_e(ucwords((string) $row['label'])) ?></span></td><td><?= number_format((int) $row['cnt']) ?></td><td><?= cor_money($row['rev']) ?></td><td><?= cor_pct($pct) ?></td><td><div class="cor-bar-wrap"><span class="cor-bar-track"><span class="cor-bar-fill" style="width:<?= cor_e(((float) $row['rev'] / $maxMode) * 100) ?>%"></span></span><span class="cor-pct"><?= cor_pct($pct) ?></span></div></td></tr>
+                        <?php endforeach; ?>
+                        <?php if (!$modeRows): ?><tr><td colspan="5">No records found.</td></tr><?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </article>
+            <article class="cor-report-card">
+                <div class="card-head"><h3>By Staff</h3><span>Packed by / assigned packer</span></div>
+                <div class="cor-table-wrap">
+                    <table>
+                        <thead><tr><th>Staff Name</th><th>Orders</th><th>Revenue</th><th>Avg Order Value</th><th>% of Orders</th></tr></thead>
+                        <tbody>
+                        <?php foreach ($staffRows as $row): $pct = $summary['total_orders'] > 0 ? ((int) $row['cnt'] / $summary['total_orders']) * 100 : 0; ?>
+                            <tr><td><?= cor_e($row['label']) ?></td><td><?= number_format((int) $row['cnt']) ?></td><td><?= cor_money($row['rev']) ?></td><td><?= cor_money(((float) $row['rev']) / max(1, (int) $row['cnt'])) ?></td><td><div class="cor-bar-wrap"><span class="cor-bar-track"><span class="cor-bar-fill" style="width:<?= cor_e(((float) $row['rev'] / $maxStaff) * 100) ?>%"></span></span><span class="cor-pct"><?= cor_pct($pct) ?></span></div></td></tr>
+                        <?php endforeach; ?>
+                        <?php if (!$staffRows): ?><tr><td colspan="5">No records found.</td></tr><?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </article>
+        </div>
     </section>
 
     <section id="tab-products" class="cor-tab-content <?= $filters['tab'] === 'products' ? 'active' : '' ?>">
