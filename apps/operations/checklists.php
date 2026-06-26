@@ -470,7 +470,6 @@ include BASE_PATH . '/shared/sidebar.php';
             <button class="button primary btn-new-task" type="button" data-task-create-open><i data-lucide="plus"></i> New Task</button>
         <?php endif; ?>
     </section>
-    <?php ops_nav('checklists'); ?>
     <?php if (!$ready) { ops_setup_notice(); } ?>
     <?php ops_flash($message, $messageType); ?>
 
