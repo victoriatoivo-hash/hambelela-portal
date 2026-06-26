@@ -14922,6 +14922,8 @@ body.is-resizing-column .packing-list-page .col-resizer:hover {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 13px;
   color: #2C1810;
+  padding-top: clamp(18px, 2vw, 30px) !important;
+  gap: 18px;
   --s-olive: #A8CA19;
   --s-amber: #F07420;
   --s-orange-red: #AB3619;
