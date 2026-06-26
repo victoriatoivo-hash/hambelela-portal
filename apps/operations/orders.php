@@ -9,1023 +9,686 @@ require_login();
 $pageTitle = 'Customer Orders Report | ' . APP_NAME;
 $activeApp = 'operations';
 $ready = ops_database_ready();
-$message = null;
-$messageType = 'success';
-$hasTotalAmount = $ready && ops_column_exists('ops_orders', 'total_amount');
-$hasWooOrder = $ready && ops_column_exists('ops_orders', 'woo_order_id');
-$hasCosts = $ready && ops_table_exists('final_product_costs') && ops_column_exists('ops_order_items', 'woo_product_id');
-$hasProductTotal = $ready && ops_column_exists('ops_orders', 'product_total');
-$hasTaxTotal = $ready && ops_column_exists('ops_orders', 'tax_total');
-$hasShippingTotal = $ready && ops_column_exists('ops_orders', 'shipping_total');
-$hasShippingTaxTotal = $ready && ops_column_exists('ops_orders', 'shipping_tax_total');
-$hasDiscountTotal = $ready && ops_column_exists('ops_orders', 'discount_total');
-$hasRefundTotal = $ready && ops_column_exists('ops_orders', 'refund_total');
-$hasTimingColumns = $ready
-    && ops_column_exists('ops_orders', 'packing_started_at')
-    && ops_column_exists('ops_orders', 'completed_at');
 
-if ($ready) {
-    try {
-        db()->exec(
-            "CREATE TABLE IF NOT EXISTS ops_report_settings (
-                setting_key VARCHAR(80) PRIMARY KEY,
-                setting_value VARCHAR(255) NOT NULL,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-            )"
-        );
-    } catch (Throwable $e) {
-        // The report can still run without saved dashboard settings.
-    }
-}
-
-function order_report_money(float $amount): string
+function cor_e($value): string
 {
-    return 'N$ ' . number_format($amount, 2);
+    return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
 }
 
-function order_report_percent(float $value): string
+function cor_money($amount): string
 {
-    return number_format($value, 1) . '%';
+    return 'N$' . number_format((float) $amount, 2);
 }
 
-function order_report_source_case(bool $hasWooOrder): string
+function cor_pct($value): string
 {
-    if (!$hasWooOrder) {
-        return "'manual'";
-    }
-
-    return "CASE WHEN o.woo_order_id IS NULL OR o.woo_order_id = 0 THEN 'manual' ELSE 'website' END";
+    return number_format((float) $value, 1) . '%';
 }
 
-function order_report_setting(string $key, string $default = ''): string
+function cor_slug($value): string
 {
-    if (!ops_table_exists('ops_report_settings')) {
-        return $default;
-    }
+    $value = strtolower(trim((string) $value));
+    $value = preg_replace('/[^a-z0-9]+/', '-', $value) ?: 'other';
 
-    $rows = ops_rows('SELECT setting_value FROM ops_report_settings WHERE setting_key = ? LIMIT 1', [$key]);
-
-    return (string) ($rows[0]['setting_value'] ?? $default);
+    return trim($value, '-');
 }
 
-function order_report_save_setting(string $key, string $value): void
+function cor_order_status_label(string $status): string
 {
-    if (!ops_table_exists('ops_report_settings')) {
-        throw new RuntimeException('Report settings table is not available yet.');
-    }
-
-    $stmt = db()->prepare(
-        "INSERT INTO ops_report_settings (setting_key, setting_value)
-         VALUES (?, ?)
-         ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_at = CURRENT_TIMESTAMP"
-    );
-    $stmt->execute([$key, $value]);
+    return OPS_ORDER_STATUSES[$status] ?? ucwords(str_replace(['_', '-'], ' ', $status));
 }
 
-function order_report_business_start(DateTimeImmutable $time): DateTimeImmutable
+function cor_period_dates(string $range, string $from, string $to): array
 {
-    return $time->setTime(8, 0, 0);
+    $today = new DateTimeImmutable('today');
+    if ($range === 'today') {
+        return [$today->format('Y-m-d'), $today->format('Y-m-d')];
+    }
+    if ($range === 'week') {
+        return [$today->modify('monday this week')->format('Y-m-d'), $today->format('Y-m-d')];
+    }
+    if ($range === 'custom') {
+        $fromDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) ? $from : $today->modify('first day of this month')->format('Y-m-d');
+        $toDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', $to) ? $to : $today->format('Y-m-d');
+        return [$fromDate, $toDate];
+    }
+
+    return [$today->modify('first day of this month')->format('Y-m-d'), $today->format('Y-m-d')];
 }
 
-function order_report_business_end(DateTimeImmutable $time): DateTimeImmutable
+function cor_filtered_where(array $filters, array &$params, string $alias = 'o'): string
 {
-    return $time->setTime(17, 0, 0);
+    $where = ["DATE({$alias}.created_at) BETWEEN ? AND ?"];
+    $params[] = $filters['from'];
+    $params[] = $filters['to'];
+
+    if ($filters['status'] !== 'all') {
+        $where[] = "{$alias}.status = ?";
+        $params[] = $filters['status'];
+    }
+    if ($filters['mode'] !== 'all') {
+        $where[] = "{$alias}.order_type = ?";
+        $params[] = $filters['mode'];
+    }
+    if ($filters['payment'] !== 'all') {
+        $where[] = "{$alias}.payment_method LIKE ?";
+        $params[] = '%' . $filters['payment'] . '%';
+    }
+
+    return implode(' AND ', $where);
 }
 
-function order_report_normalize_business_start(DateTimeImmutable $time): DateTimeImmutable
+function cor_query_rows(string $sql, array $params = []): array
 {
-    $start = order_report_business_start($time);
-    $end = order_report_business_end($time);
-
-    if ($time < $start) {
-        return $start;
-    }
-
-    if ($time >= $end) {
-        return $start->modify('+1 day');
-    }
-
-    return $time;
+    return ops_rows($sql, $params);
 }
 
-function order_report_business_minutes(?string $startValue, ?string $endValue): ?float
+function cor_query_one(string $sql, array $params = []): array
 {
-    if (!$startValue || !$endValue) {
-        return null;
-    }
+    $rows = cor_query_rows($sql, $params);
 
-    try {
-        $start = order_report_normalize_business_start(new DateTimeImmutable($startValue));
-        $end = new DateTimeImmutable($endValue);
-    } catch (Throwable $e) {
-        return null;
-    }
-
-    if ($end <= $start) {
-        return 0.0;
-    }
-
-    $minutes = 0.0;
-    $cursor = $start;
-
-    while ($cursor < $end) {
-        $dayStart = order_report_business_start($cursor);
-        $dayEnd = order_report_business_end($cursor);
-        $segmentStart = $cursor > $dayStart ? $cursor : $dayStart;
-        $segmentEnd = $end < $dayEnd ? $end : $dayEnd;
-
-        if ($segmentEnd > $segmentStart) {
-            $minutes += ($segmentEnd->getTimestamp() - $segmentStart->getTimestamp()) / 60;
-        }
-
-        $cursor = $dayStart->modify('+1 day');
-    }
-
-    return $minutes;
+    return $rows[0] ?? [];
 }
 
-function order_report_duration(?float $minutes): string
+function cor_export(array $filters, string $format): void
 {
-    if ($minutes === null) {
-        return 'Not enough data';
-    }
-
-    $minutes = max(0, (int) round($minutes));
-    $hours = intdiv($minutes, 60);
-    $remaining = $minutes % 60;
-
-    if ($hours <= 0) {
-        return $remaining . ' min';
-    }
-
-    return $hours . 'h ' . $remaining . 'm';
-}
-
-if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    try {
-        $action = ops_post_string('action', 40) ?: 'manual_order';
-
-        if ($action === 'save_monthly_goal') {
-            $goal = max(0, (float) ($_POST['monthly_goal'] ?? 0));
-            order_report_save_setting('monthly_sales_goal', number_format($goal, 2, '.', ''));
-            $message = 'Monthly sales goal saved.';
-        } else {
-        $itemCount = max(1, (int) ($_POST['item_count'] ?? 1));
-        $orderType = ops_post_string('order_type', 30) ?: 'collection';
-        $priority = ops_post_string('priority', 30) ?: 'normal';
-        $complexity = max(1, min(5, (int) ($_POST['complexity'] ?? 1)));
-        $workload = ops_workload_score($itemCount, $orderType, $complexity, $priority);
-        $packerId = ops_best_packer_id($workload);
-        $status = $packerId ? 'assigned' : 'new_order';
-        $totalColumn = $hasTotalAmount ? ', total_amount' : '';
-        $totalPlaceholder = $hasTotalAmount ? ', ?' : '';
-
-        $stmt = db()->prepare(
-            "INSERT INTO ops_orders (order_number, customer_name, customer_contact, payment_method, payment_status, order_type, priority, complexity, assigned_packer_id, status, notes, workload_score{$totalColumn})
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$totalPlaceholder})"
-        );
-        $values = [
-            ops_post_string('order_number', 80),
-            ops_post_string('customer_name', 190),
-            ops_post_string('customer_contact', 80),
-            ops_post_string('payment_method', 80),
-            ops_post_string('payment_status', 30) ?: 'unpaid',
-            $orderType,
-            $priority,
-            $complexity,
-            $packerId,
-            $status,
-            ops_post_string('notes', 1000),
-            $workload,
-        ];
-        if ($hasTotalAmount) {
-            $values[] = (float) ($_POST['total_amount'] ?? 0);
-        }
-        $stmt->execute($values);
-
-        $orderId = (int) db()->lastInsertId();
-        ops_log_order_stage_event($orderId, 'order_received', [
-            'source' => 'manual_order',
-            'status' => $status,
-        ]);
-        if ($packerId) {
-            ops_log_order_stage_event($orderId, 'assigned', [
-                'source' => 'manual_order',
-                'assigned_packer_id' => $packerId,
-            ]);
-        }
-        $itemName = ops_post_string('item_name', 190);
-        if ($itemName !== '') {
-            $itemStmt = db()->prepare("INSERT INTO ops_order_items (order_id, product_name, barcode, quantity) VALUES (?, ?, ?, ?)");
-            $itemStmt->execute([$orderId, $itemName, ops_post_string('barcode', 120), (float) ($_POST['quantity'] ?? 1)]);
-        }
-
-        $message = 'Emergency manual order saved with a workload score of ' . number_format($workload, 2) . '.';
-        }
-    } catch (Throwable $e) {
-        $message = $e->getMessage();
-        $messageType = 'error';
-    }
-}
-
-$filters = [
-    'period' => trim((string) ($_GET['period'] ?? 'this_month')),
-    'date_from' => trim((string) ($_GET['date_from'] ?? '')),
-    'date_to' => trim((string) ($_GET['date_to'] ?? '')),
-    'status' => trim((string) ($_GET['status'] ?? '')),
-    'payment_method' => trim((string) ($_GET['payment_method'] ?? '')),
-    'payment_status' => trim((string) ($_GET['payment_status'] ?? '')),
-    'delivery_mode' => trim((string) ($_GET['delivery_mode'] ?? '')),
-    'customer' => trim((string) ($_GET['customer'] ?? '')),
-    'packer_id' => trim((string) ($_GET['packer_id'] ?? '')),
-    'product' => trim((string) ($_GET['product'] ?? '')),
-    'source' => trim((string) ($_GET['source'] ?? '')),
-];
-
-$validPeriods = ['today', 'yesterday', 'this_week', 'this_month', 'last_month', 'custom'];
-if (!in_array($filters['period'], $validPeriods, true)) {
-    $filters['period'] = 'this_month';
-}
-
-$today = new DateTimeImmutable('today');
-if ($filters['period'] === 'today') {
-    $filters['date_from'] = $today->format('Y-m-d');
-    $filters['date_to'] = $today->format('Y-m-d');
-} elseif ($filters['period'] === 'yesterday') {
-    $filters['date_from'] = $today->modify('-1 day')->format('Y-m-d');
-    $filters['date_to'] = $today->modify('-1 day')->format('Y-m-d');
-} elseif ($filters['period'] === 'this_week') {
-    $filters['date_from'] = $today->modify('monday this week')->format('Y-m-d');
-    $filters['date_to'] = $today->format('Y-m-d');
-} elseif ($filters['period'] === 'this_month') {
-    $filters['date_from'] = $today->modify('first day of this month')->format('Y-m-d');
-    $filters['date_to'] = $today->format('Y-m-d');
-} elseif ($filters['period'] === 'last_month') {
-    $lastMonth = $today->modify('first day of last month');
-    $filters['date_from'] = $lastMonth->format('Y-m-d');
-    $filters['date_to'] = $lastMonth->modify('last day of this month')->format('Y-m-d');
-} elseif ($filters['date_from'] !== '' || $filters['date_to'] !== '') {
-    $filters['period'] = 'custom';
-}
-
-$where = ['1=1'];
-$params = [];
-
-if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['date_from'])) {
-    $where[] = 'DATE(o.created_at) >= ?';
-    $params[] = $filters['date_from'];
-}
-
-if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['date_to'])) {
-    $where[] = 'DATE(o.created_at) <= ?';
-    $params[] = $filters['date_to'];
-}
-
-if (array_key_exists($filters['status'], OPS_ORDER_STATUSES)) {
-    $where[] = 'o.status = ?';
-    $params[] = $filters['status'];
-}
-
-if (in_array($filters['payment_status'], ['paid', 'unpaid', 'partial', 'refunded'], true)) {
-    $where[] = 'o.payment_status = ?';
-    $params[] = $filters['payment_status'];
-}
-
-if ($filters['payment_method'] !== '') {
-    $where[] = 'o.payment_method LIKE ?';
-    $params[] = '%' . $filters['payment_method'] . '%';
-}
-
-if ($filters['delivery_mode'] !== '') {
-    $where[] = 'o.order_type = ?';
-    $params[] = $filters['delivery_mode'];
-}
-
-if ($filters['customer'] !== '') {
-    $where[] = 'o.customer_name LIKE ?';
-    $params[] = '%' . $filters['customer'] . '%';
-}
-
-if ((int) $filters['packer_id'] > 0) {
-    $where[] = 'o.assigned_packer_id = ?';
-    $params[] = (int) $filters['packer_id'];
-}
-
-if ($filters['product'] !== '') {
-    $where[] = 'EXISTS (SELECT 1 FROM ops_order_items oi_filter WHERE oi_filter.order_id = o.id AND oi_filter.product_name LIKE ?)';
-    $params[] = '%' . $filters['product'] . '%';
-}
-
-if ($filters['source'] === 'website' && $hasWooOrder) {
-    $where[] = 'o.woo_order_id IS NOT NULL AND o.woo_order_id <> 0';
-} elseif ($filters['source'] === 'manual' && $hasWooOrder) {
-    $where[] = '(o.woo_order_id IS NULL OR o.woo_order_id = 0)';
-}
-
-$whereSql = implode(' AND ', $where);
-$totalExpr = $hasTotalAmount ? 'o.total_amount' : 'CAST(0 AS DECIMAL(12,2))';
-$productExpr = $hasProductTotal ? 'o.product_total' : $totalExpr;
-$taxExpr = $hasTaxTotal ? 'o.tax_total' : "({$totalExpr} * 15 / 115)";
-$shippingExpr = $hasShippingTotal ? 'o.shipping_total' : "CASE WHEN o.order_type IN ('delivery', 'courier') THEN 0 ELSE 0 END";
-$shippingTaxExpr = $hasShippingTaxTotal ? 'o.shipping_tax_total' : '0';
-$discountExpr = $hasDiscountTotal ? 'o.discount_total' : '0';
-$refundExpr = $hasRefundTotal ? 'o.refund_total' : "CASE WHEN o.payment_status = 'refunded' OR o.status IN ('cancelled', 'canceled', 'refunded', 'failed') THEN {$totalExpr} ELSE 0 END";
-$sourceExpr = order_report_source_case($hasWooOrder);
-$revenueWhere = $whereSql . " AND o.payment_status = 'paid' AND o.status NOT IN ('cancelled', 'canceled', 'refunded', 'failed', 'error_logged')";
-
-if ($ready && ($_GET['export'] ?? '') === 'csv') {
-    $exportRows = ops_rows(
-        "SELECT o.order_number, o.customer_name, o.created_at, {$totalExpr} AS total_amount, o.payment_method, o.payment_status,
-                o.order_type, o.status, COALESCE(e.full_name, 'Unassigned') AS packer_name, o.workload_score, {$sourceExpr} AS source
+    $params = [];
+    $where = cor_filtered_where($filters, $params);
+    $rows = cor_query_rows(
+        "SELECT o.order_number, o.created_at, o.customer_name, o.customer_contact, o.order_type, o.payment_method,
+                o.total_amount, o.payment_status, o.status, COALESCE(e.full_name, 'Unassigned') AS packer_name
          FROM ops_orders o
          LEFT JOIN ops_employees e ON e.id = o.assigned_packer_id
-         WHERE {$whereSql}
-         ORDER BY o.created_at DESC
-         LIMIT 1000",
+         WHERE {$where}
+         ORDER BY o.created_at DESC",
         $params
     );
 
+    $filename = 'customer-orders-' . $filters['from'] . '-to-' . $filters['to'] . ($format === 'excel' ? '.xls' : '.csv');
+    if ($format === 'excel') {
+        header('Content-Type: application/vnd.ms-excel; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        $out = fopen('php://output', 'w');
+        fputcsv($out, ['Order ID', 'Date', 'Customer', 'Mobile', 'Mode', 'Payment', 'Amount', 'Payment Status', 'Order Status', 'Packed By'], "\t");
+        foreach ($rows as $row) {
+            fputcsv($out, [
+                $row['order_number'],
+                $row['created_at'],
+                $row['customer_name'],
+                $row['customer_contact'],
+                ucwords((string) $row['order_type']),
+                $row['payment_method'],
+                number_format((float) $row['total_amount'], 2, '.', ''),
+                $row['payment_status'],
+                cor_order_status_label((string) $row['status']),
+                $row['packer_name'],
+            ], "\t");
+        }
+        fclose($out);
+        exit;
+    }
+
     header('Content-Type: text/csv; charset=utf-8');
-    header('Content-Disposition: attachment; filename="customer-orders-report.csv"');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
     $out = fopen('php://output', 'w');
-    fputcsv($out, ['Order', 'Customer', 'Date', 'Amount', 'Payment Method', 'Payment Status', 'Mode', 'Status', 'Packed By', 'Workload', 'Source']);
-    foreach ($exportRows as $row) {
+    fputcsv($out, ['Order ID', 'Date', 'Customer', 'Mobile', 'Mode', 'Payment', 'Amount', 'Payment Status', 'Order Status', 'Packed By']);
+    foreach ($rows as $row) {
         fputcsv($out, [
             $row['order_number'],
-            $row['customer_name'],
             $row['created_at'],
-            number_format((float) $row['total_amount'], 2, '.', ''),
+            $row['customer_name'],
+            $row['customer_contact'],
+            ucwords((string) $row['order_type']),
             $row['payment_method'],
+            number_format((float) $row['total_amount'], 2, '.', ''),
             $row['payment_status'],
-            $row['order_type'],
-            OPS_ORDER_STATUSES[$row['status']] ?? $row['status'],
+            cor_order_status_label((string) $row['status']),
             $row['packer_name'],
-            number_format((float) $row['workload_score'], 2, '.', ''),
-            $row['source'],
         ]);
     }
     fclose($out);
     exit;
 }
 
-$packers = $ready ? ops_rows(
-    "SELECT e.id, e.full_name, r.role_key
-     FROM ops_employees e
-     JOIN ops_roles r ON r.id = e.role_id
-     WHERE e.status = 'active' AND r.role_key IN ('packer', 'supervisor_manager')
-     ORDER BY e.full_name"
-) : [];
-$packers = ops_canonical_employee_rows($packers);
-
-$modeOptions = ['collection' => 'Collection', 'delivery' => 'Delivery', 'courier' => 'Courier'];
-if ($ready) {
-    foreach (ops_rows("SELECT DISTINCT order_type FROM ops_orders WHERE order_type IS NOT NULL AND order_type <> '' ORDER BY order_type") as $row) {
-        $modeKey = (string) $row['order_type'];
-        $modeOptions[$modeKey] = ucwords(str_replace(['_', '-'], ' ', $modeKey));
-    }
+$range = trim((string) ($_GET['range'] ?? 'month'));
+if (!in_array($range, ['today', 'week', 'month', 'custom'], true)) {
+    $range = 'month';
 }
 
-$summary = $ready ? (ops_rows(
-    "SELECT
-        COUNT(*) AS total_orders,
-        SUM(CASE WHEN o.status IN ('completed', 'verified', 'packed') THEN 1 ELSE 0 END) AS completed_orders,
-        SUM(CASE WHEN o.status IN ('cancelled', 'canceled', 'refunded', 'failed') OR o.payment_status = 'refunded' THEN 1 ELSE 0 END) AS cancelled_orders,
-        SUM(CASE WHEN o.status IN ('new_order', 'assigned', 'in_progress', 'correction_required') THEN 1 ELSE 0 END) AS pending_orders,
-        SUM(CASE WHEN o.payment_status IN ('unpaid', 'partial') THEN 1 ELSE 0 END) AS unpaid_orders,
-        SUM(CASE WHEN o.order_type = 'collection' THEN 1 ELSE 0 END) AS collection_orders,
-        SUM(CASE WHEN o.order_type = 'delivery' THEN 1 ELSE 0 END) AS delivery_orders,
-        SUM(CASE WHEN o.order_type = 'courier' THEN 1 ELSE 0 END) AS courier_orders,
-        COALESCE(SUM({$totalExpr}), 0) AS total_sales,
-        COALESCE(SUM(CASE WHEN o.payment_status = 'paid' THEN {$totalExpr} ELSE 0 END), 0) AS paid_sales,
-        COALESCE(SUM(CASE WHEN o.payment_status IN ('unpaid', 'partial') THEN {$totalExpr} ELSE 0 END), 0) AS unpaid_value,
-        COALESCE(SUM(CASE WHEN o.payment_status = 'paid' THEN {$productExpr} ELSE 0 END), 0) AS product_revenue,
-        COALESCE(SUM(CASE WHEN o.payment_status = 'paid' THEN {$taxExpr} ELSE 0 END), 0) AS vat_collected,
-        COALESCE(SUM(CASE WHEN o.payment_status = 'paid' THEN {$shippingExpr} ELSE 0 END), 0) AS shipping_total,
-        COALESCE(SUM(CASE WHEN o.payment_status = 'paid' THEN {$shippingTaxExpr} ELSE 0 END), 0) AS shipping_tax_total,
-        COALESCE(SUM({$discountExpr}), 0) AS discount_total,
-        COALESCE(SUM({$refundExpr}), 0) AS refund_total,
-        COALESCE(AVG(NULLIF({$totalExpr}, 0)), 0) AS avg_order_value,
-        COALESCE(AVG(o.workload_score), 0) AS avg_workload
-     FROM ops_orders o
-     WHERE {$whereSql}",
-    $params
-)[0] ?? []) : [];
-
-$revenue = $ready ? (ops_rows(
-    "SELECT COALESCE(SUM({$totalExpr}), 0) AS revenue
-     FROM ops_orders o
-     WHERE {$revenueWhere}",
-    $params
-)[0]['revenue'] ?? 0) : 0;
-
-$productRevenue = (float) ($summary['product_revenue'] ?? 0);
-$vatCollected = (float) ($summary['vat_collected'] ?? 0);
-$shippingTotal = (float) ($summary['shipping_total'] ?? 0);
-$shippingTaxTotal = (float) ($summary['shipping_tax_total'] ?? 0);
-$discountTotal = (float) ($summary['discount_total'] ?? 0);
-$refundTotal = (float) ($summary['refund_total'] ?? 0);
-$netSales = max(0, (float) $revenue - $shippingTotal - $refundTotal);
-$vatExclusiveProductSales = max(0, $productRevenue - $vatCollected);
-
-$monthlyGoal = max(0, (float) order_report_setting('monthly_sales_goal', '250000'));
-$monthStart = (new DateTimeImmutable('first day of this month'))->format('Y-m-d');
-$monthEnd = (new DateTimeImmutable('last day of this month'))->format('Y-m-d');
-$monthRevenueParams = [$monthStart, $monthEnd];
-$monthRevenue = $ready ? (float) (ops_rows(
-    "SELECT COALESCE(SUM({$totalExpr}), 0) AS revenue
-     FROM ops_orders o
-     WHERE DATE(o.created_at) >= ? AND DATE(o.created_at) <= ?
-       AND o.payment_status = 'paid'
-       AND o.status NOT IN ('cancelled', 'canceled', 'refunded', 'failed', 'error_logged')",
-    $monthRevenueParams
-)[0]['revenue'] ?? 0) : 0.0;
-$goalProgress = $monthlyGoal > 0 ? min(100, ($monthRevenue / $monthlyGoal) * 100) : 0.0;
-$remainingGoal = max(0, $monthlyGoal - $monthRevenue);
-$now = new DateTimeImmutable('now');
-$daysElapsed = max(1, (int) $now->format('j'));
-$daysLeft = max(0, (int) $now->diff(new DateTimeImmutable('last day of this month'))->format('%a'));
-$averageDailySales = $monthRevenue / $daysElapsed;
-$dailySalesNeeded = $daysLeft > 0 ? $remainingGoal / $daysLeft : $remainingGoal;
-
-$timeRows = ($ready && $hasTimingColumns) ? ops_rows(
-    "SELECT o.created_at, o.packing_started_at, o.completed_at, o.status
-     FROM ops_orders o
-     WHERE {$whereSql}
-       AND o.completed_at IS NOT NULL
-     ORDER BY o.completed_at DESC
-     LIMIT 1000",
-    $params
-) : [];
-
-$timeSummary = [
-    'completed_count' => 0,
-    'avg_received_to_complete' => null,
-    'avg_received_to_started' => null,
-    'avg_started_to_complete' => null,
-    'fastest' => null,
-    'slowest' => null,
-    'overdue' => 0,
-    'within_business_hours' => 0,
-    'carried_over' => 0,
+[$dateFrom, $dateTo] = cor_period_dates($range, (string) ($_GET['from'] ?? ''), (string) ($_GET['to'] ?? ''));
+$filters = [
+    'range' => $range,
+    'from' => $dateFrom,
+    'to' => $dateTo,
+    'status' => trim((string) ($_GET['status'] ?? 'all')) ?: 'all',
+    'mode' => trim((string) ($_GET['mode'] ?? 'all')) ?: 'all',
+    'payment' => trim((string) ($_GET['payment'] ?? 'all')) ?: 'all',
+    'tab' => trim((string) ($_GET['tab'] ?? 'sales')) ?: 'sales',
 ];
-$receivedToComplete = [];
-$receivedToStarted = [];
-$startedToComplete = [];
 
-foreach ($timeRows as $row) {
-    $completeMinutes = order_report_business_minutes((string) $row['created_at'], (string) $row['completed_at']);
-    if ($completeMinutes === null) {
-        continue;
-    }
-
-    $timeSummary['completed_count']++;
-    $receivedToComplete[] = $completeMinutes;
-    $timeSummary['fastest'] = $timeSummary['fastest'] === null ? $completeMinutes : min($timeSummary['fastest'], $completeMinutes);
-    $timeSummary['slowest'] = $timeSummary['slowest'] === null ? $completeMinutes : max($timeSummary['slowest'], $completeMinutes);
-
-    if ($completeMinutes > 540) {
-        $timeSummary['overdue']++;
-    }
-
-    try {
-        $createdAt = new DateTimeImmutable((string) $row['created_at']);
-        $completedAt = new DateTimeImmutable((string) $row['completed_at']);
-        if ($createdAt->format('Y-m-d') !== $completedAt->format('Y-m-d')) {
-            $timeSummary['carried_over']++;
-        }
-        if ($completedAt >= order_report_business_start($completedAt) && $completedAt <= order_report_business_end($completedAt)) {
-            $timeSummary['within_business_hours']++;
-        }
-    } catch (Throwable $e) {
-        // Skip secondary timing labels if a date cannot be parsed.
-    }
-
-    $startMinutes = order_report_business_minutes((string) $row['created_at'], (string) ($row['packing_started_at'] ?? ''));
-    if ($startMinutes !== null) {
-        $receivedToStarted[] = $startMinutes;
-    }
-
-    $packMinutes = order_report_business_minutes((string) ($row['packing_started_at'] ?? ''), (string) $row['completed_at']);
-    if ($packMinutes !== null) {
-        $startedToComplete[] = $packMinutes;
-    }
+$validStatuses = array_merge(['all'], array_keys(OPS_ORDER_STATUSES));
+if (!in_array($filters['status'], $validStatuses, true)) {
+    $filters['status'] = 'all';
+}
+if (!in_array($filters['mode'], ['all', 'collection', 'delivery', 'courier'], true)) {
+    $filters['mode'] = 'all';
+}
+if (!in_array($filters['tab'], ['sales', 'payment', 'mode', 'staff', 'products', 'trend', 'orders'], true)) {
+    $filters['tab'] = 'sales';
 }
 
-$timeSummary['avg_received_to_complete'] = $receivedToComplete ? array_sum($receivedToComplete) / count($receivedToComplete) : null;
-$timeSummary['avg_received_to_started'] = $receivedToStarted ? array_sum($receivedToStarted) / count($receivedToStarted) : null;
-$timeSummary['avg_started_to_complete'] = $startedToComplete ? array_sum($startedToComplete) / count($startedToComplete) : null;
+if ($ready && isset($_GET['export']) && in_array((string) $_GET['export'], ['csv', 'excel'], true)) {
+    cor_export($filters, (string) $_GET['export']);
+}
 
-$profitTotals = ['known_cogs' => 0.0, 'estimated_profit' => 0.0, 'costed_orders' => 0];
-if ($hasCosts) {
-    $profitRows = ops_rows(
-        "SELECT o.id, {$totalExpr} AS total_amount,
-                COALESCE(SUM(oi.quantity * c.total_cogs), 0) AS cogs
+$paymentOptions = $ready ? array_map(
+    static fn(array $row): string => (string) $row['payment_method'],
+    cor_query_rows("SELECT DISTINCT payment_method FROM ops_orders WHERE payment_method IS NOT NULL AND payment_method <> '' ORDER BY payment_method")
+) : [];
+
+$summary = [
+    'total_orders' => 0,
+    'total_revenue' => 0.0,
+    'aov' => 0.0,
+    'completed' => 0,
+    'processing' => 0,
+    'pending' => 0,
+];
+$statusRows = [];
+$paymentRows = [];
+$modeRows = [];
+$staffRows = [];
+$productRows = [];
+$dailyRows = [];
+$orderRows = [];
+$totalPages = 1;
+$page = max(1, (int) ($_GET['p'] ?? 1));
+$perPage = 50;
+$offset = ($page - 1) * $perPage;
+
+if ($ready) {
+    $params = [];
+    $where = cor_filtered_where($filters, $params);
+    $summaryRow = cor_query_one(
+        "SELECT COUNT(*) AS total_orders,
+                COALESCE(SUM(CASE WHEN payment_status <> 'refunded' THEN total_amount ELSE 0 END), 0) AS total_revenue,
+                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed,
+                SUM(CASE WHEN status IN ('in_progress','packed','verified','ready_for_collection','ready_for_courier','ready_for_delivery') THEN 1 ELSE 0 END) AS processing,
+                SUM(CASE WHEN status IN ('new_order','assigned') THEN 1 ELSE 0 END) AS pending
          FROM ops_orders o
-         JOIN ops_order_items oi ON oi.order_id = o.id
+         WHERE {$where}",
+        $params
+    );
+    $summary['total_orders'] = (int) ($summaryRow['total_orders'] ?? 0);
+    $summary['total_revenue'] = (float) ($summaryRow['total_revenue'] ?? 0);
+    $summary['aov'] = $summary['total_orders'] > 0 ? $summary['total_revenue'] / $summary['total_orders'] : 0.0;
+    $summary['completed'] = (int) ($summaryRow['completed'] ?? 0);
+    $summary['processing'] = (int) ($summaryRow['processing'] ?? 0);
+    $summary['pending'] = (int) ($summaryRow['pending'] ?? 0);
+
+    $statusRows = cor_query_rows(
+        "SELECT status AS label, COUNT(*) AS cnt, COALESCE(SUM(total_amount), 0) AS rev
+         FROM ops_orders o
+         WHERE {$where}
+         GROUP BY status
+         ORDER BY cnt DESC",
+        $params
+    );
+    $paymentRows = cor_query_rows(
+        "SELECT COALESCE(NULLIF(payment_method, ''), 'Other') AS label, COUNT(*) AS cnt, COALESCE(SUM(total_amount), 0) AS rev
+         FROM ops_orders o
+         WHERE {$where}
+         GROUP BY COALESCE(NULLIF(payment_method, ''), 'Other')
+         ORDER BY rev DESC",
+        $params
+    );
+    $modeRows = cor_query_rows(
+        "SELECT COALESCE(NULLIF(order_type, ''), 'collection') AS label, COUNT(*) AS cnt, COALESCE(SUM(total_amount), 0) AS rev
+         FROM ops_orders o
+         WHERE {$where}
+         GROUP BY COALESCE(NULLIF(order_type, ''), 'collection')
+         ORDER BY rev DESC",
+        $params
+    );
+    $staffRows = cor_query_rows(
+        "SELECT COALESCE(e.full_name, 'Unassigned') AS label, COUNT(*) AS cnt, COALESCE(SUM(o.total_amount), 0) AS rev
+         FROM ops_orders o
+         LEFT JOIN ops_employees e ON e.id = o.assigned_packer_id
+         WHERE {$where}
+         GROUP BY COALESCE(e.full_name, 'Unassigned')
+         ORDER BY cnt DESC",
+        $params
+    );
+    $productRows = cor_query_rows(
+        "SELECT oi.product_name,
+                COALESCE(SUM(oi.quantity), 0) AS qty,
+                COALESCE(SUM(CASE WHEN order_qty.qty > 0 THEN o.total_amount * (oi.quantity / order_qty.qty) ELSE 0 END), 0) AS rev
+         FROM ops_order_items oi
+         JOIN ops_orders o ON o.id = oi.order_id
          LEFT JOIN (
-            SELECT woo_product_id, MIN(total_cogs) AS total_cogs
-            FROM final_product_costs
-            WHERE woo_product_id IS NOT NULL AND woo_product_id > 0
-            GROUP BY woo_product_id
-         ) c ON c.woo_product_id = oi.woo_product_id
-         WHERE {$revenueWhere}
-         GROUP BY o.id, {$totalExpr}",
+            SELECT order_id, SUM(quantity) AS qty
+            FROM ops_order_items
+            GROUP BY order_id
+         ) order_qty ON order_qty.order_id = o.id
+         WHERE {$where}
+         GROUP BY oi.product_name
+         ORDER BY qty DESC
+         LIMIT 50",
+        $params
+    );
+    $dailyRows = cor_query_rows(
+        "SELECT DATE(o.created_at) AS d, COUNT(*) AS orders, COALESCE(SUM(o.total_amount), 0) AS rev
+         FROM ops_orders o
+         WHERE {$where}
+         GROUP BY DATE(o.created_at)
+         ORDER BY d ASC",
         $params
     );
 
-    foreach ($profitRows as $row) {
-        $cogs = (float) $row['cogs'];
-        if ($cogs <= 0) {
-            continue;
-        }
-        $profitTotals['known_cogs'] += $cogs;
-        $profitTotals['estimated_profit'] += (float) $row['total_amount'] - $cogs;
-        $profitTotals['costed_orders']++;
-    }
-}
+    $countRow = cor_query_one("SELECT COUNT(*) AS cnt FROM ops_orders o WHERE {$where}", $params);
+    $totalPages = max(1, (int) ceil(((int) ($countRow['cnt'] ?? 0)) / $perPage));
+    $page = min($page, $totalPages);
+    $offset = ($page - 1) * $perPage;
 
-$paymentBreakdown = $ready ? ops_rows(
-    "SELECT COALESCE(NULLIF(o.payment_method, ''), 'Not recorded') AS label, COUNT(*) AS order_count, COALESCE(SUM({$totalExpr}), 0) AS amount
-     FROM ops_orders o
-     WHERE {$whereSql}
-     GROUP BY COALESCE(NULLIF(o.payment_method, ''), 'Not recorded')
-     ORDER BY amount DESC, order_count DESC
-     LIMIT 8",
-    $params
-) : [];
-
-$modeBreakdown = $ready ? ops_rows(
-    "SELECT o.order_type AS label, COUNT(*) AS order_count, COALESCE(SUM({$totalExpr}), 0) AS amount
-     FROM ops_orders o
-     WHERE {$whereSql}
-     GROUP BY o.order_type
-     ORDER BY order_count DESC",
-    $params
-) : [];
-
-$dailyTrend = $ready ? ops_rows(
-    "SELECT DATE(o.created_at) AS report_day, COUNT(*) AS order_count, COALESCE(SUM(CASE WHEN o.payment_status = 'paid' THEN {$totalExpr} ELSE 0 END), 0) AS revenue
-     FROM ops_orders o
-     WHERE {$whereSql}
-     GROUP BY DATE(o.created_at)
-     ORDER BY report_day ASC
-     LIMIT 45",
-    $params
-) : [];
-$maxDailyRevenue = max(array_map(static fn (array $row): float => (float) $row['revenue'], $dailyTrend ?: [['revenue' => 0]]));
-$maxDailyOrders = max(array_map(static fn (array $row): float => (float) $row['order_count'], $dailyTrend ?: [['order_count' => 0]]));
-
-$topProducts = $ready ? ops_rows(
-    "SELECT oi.product_name, COUNT(DISTINCT o.id) AS orders_count, COALESCE(SUM(oi.quantity), 0) AS qty,
-            COALESCE(SUM(CASE WHEN o.payment_status = 'paid' THEN {$totalExpr} ELSE 0 END), 0) AS order_value
-     FROM ops_order_items oi
-     JOIN ops_orders o ON o.id = oi.order_id
-     WHERE {$whereSql}
-     GROUP BY oi.product_name
-     ORDER BY qty DESC, orders_count DESC
-     LIMIT 10",
-    $params
-) : [];
-
-$topCustomers = $ready ? ops_rows(
-    "SELECT o.customer_name, COUNT(*) AS orders_count, COALESCE(SUM({$totalExpr}), 0) AS amount,
-            SUM(CASE WHEN o.payment_status IN ('unpaid', 'partial') THEN 1 ELSE 0 END) AS unpaid_count
-     FROM ops_orders o
-     WHERE {$whereSql}
-     GROUP BY o.customer_name
-     ORDER BY amount DESC, orders_count DESC
-     LIMIT 10",
-    $params
-) : [];
-
-$packerRows = $ready ? ops_rows(
-    "SELECT COALESCE(e.full_name, 'Unassigned') AS packer_name, COUNT(*) AS orders_count,
-            COALESCE(SUM(o.workload_score), 0) AS workload,
-            SUM(CASE WHEN o.status IN ('completed', 'verified', 'packed') THEN 1 ELSE 0 END) AS done_count
-     FROM ops_orders o
-     LEFT JOIN ops_employees e ON e.id = o.assigned_packer_id
-     WHERE {$whereSql}
-     GROUP BY COALESCE(e.full_name, 'Unassigned')
-     ORDER BY workload DESC, orders_count DESC
-     LIMIT 10",
-    $params
-) : [];
-
-$recentOrders = $ready ? ops_rows(
-    "SELECT o.*, {$totalExpr} AS total_amount, {$sourceExpr} AS source, e.full_name AS packer_name
-     FROM ops_orders o
-     LEFT JOIN ops_employees e ON e.id = o.assigned_packer_id
-     WHERE {$whereSql}
-     ORDER BY o.created_at DESC
-     LIMIT 80",
-    $params
-) : [];
-
-$recentProfitByOrder = [];
-if ($hasCosts && $recentOrders) {
-    $ids = array_map(static fn (array $row): int => (int) $row['id'], $recentOrders);
-    $placeholders = implode(',', array_fill(0, count($ids), '?'));
-    $rows = ops_rows(
-        "SELECT oi.order_id, COALESCE(SUM(oi.quantity * c.total_cogs), 0) AS cogs
-         FROM ops_order_items oi
-         LEFT JOIN (
-            SELECT woo_product_id, MIN(total_cogs) AS total_cogs
-            FROM final_product_costs
-            WHERE woo_product_id IS NOT NULL AND woo_product_id > 0
-            GROUP BY woo_product_id
-         ) c ON c.woo_product_id = oi.woo_product_id
-         WHERE oi.order_id IN ({$placeholders})
-         GROUP BY oi.order_id",
-        $ids
+    $orderRows = cor_query_rows(
+        "SELECT o.order_number, o.created_at, o.customer_name, o.customer_contact, o.order_type, o.payment_method,
+                o.total_amount, o.payment_status, o.status, COALESCE(e.full_name, 'Unassigned') AS packer_name
+         FROM ops_orders o
+         LEFT JOIN ops_employees e ON e.id = o.assigned_packer_id
+         WHERE {$where}
+         ORDER BY o.created_at DESC
+         LIMIT {$perPage} OFFSET {$offset}",
+        $params
     );
-    foreach ($rows as $row) {
-        $recentProfitByOrder[(int) $row['order_id']] = (float) $row['cogs'];
-    }
 }
 
-$maxPayment = max(array_map(static fn (array $row): float => (float) $row['amount'], $paymentBreakdown ?: [['amount' => 0]]));
-$maxMode = max(array_map(static fn (array $row): float => (float) $row['order_count'], $modeBreakdown ?: [['order_count' => 0]]));
+$maxPayment = max(1.0, ...array_map(static fn(array $row): float => (float) ($row['rev'] ?? 0), $paymentRows ?: [['rev' => 0]]));
+$maxMode = max(1.0, ...array_map(static fn(array $row): float => (float) ($row['rev'] ?? 0), $modeRows ?: [['rev' => 0]]));
+$maxStaff = max(1.0, ...array_map(static fn(array $row): float => (float) ($row['rev'] ?? 0), $staffRows ?: [['rev' => 0]]));
+$maxProduct = max(1.0, ...array_map(static fn(array $row): float => (float) ($row['rev'] ?? 0), $productRows ?: [['rev' => 0]]));
+$queryBase = [
+    'range' => $filters['range'],
+    'from' => $filters['from'],
+    'to' => $filters['to'],
+    'status' => $filters['status'],
+    'mode' => $filters['mode'],
+    'payment' => $filters['payment'],
+];
 
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
-<main class="workspace module">
+<main class="workspace module cor-wrap">
+    <style>
+        .cor-wrap {
+            background: #FDF6EE;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-size: 13px;
+            color: #2C1810;
+            --cor-olive: #A8CA19;
+            --cor-amber: #F07420;
+            --cor-orange-red: #AB3619;
+            --cor-red: #BB1B21;
+            --cor-burgundy: #721B1A;
+            --cor-cream: #FDF6EE;
+            --cor-surface: #FFFFFF;
+            --cor-border: #EDE3D8;
+            --cor-text: #2C1810;
+            --cor-text-mid: #6B4C3B;
+            --cor-text-light: #A08070;
+        }
+        .cor-wrap .module-header { margin-bottom: 14px; }
+        .cor-wrap .page-eyebrow { margin: 0; color: var(--cor-orange-red); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+        .cor-wrap h1 { margin: 2px 0 6px; color: var(--cor-burgundy); font-size: 26px; line-height: 1.05; }
+        .cor-wrap .page-subtitle { margin: 0; color: var(--cor-text-mid); font-size: 13px; }
+        .cor-filter-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 16px; padding: 12px 16px; border: 1px solid var(--cor-border); border-radius: 10px; background: var(--cor-surface); }
+        .cor-quick-ranges, .cor-filter-selects, .cor-date-inputs { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+        .cor-range-btn, .cor-btn-apply, .cor-btn-export { height: 30px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
+        .cor-range-btn { padding: 0 12px; border: 1px solid var(--cor-border); background: var(--cor-surface); color: var(--cor-text-mid); }
+        .cor-range-btn.active, .cor-range-btn:hover { background: var(--cor-orange-red); border-color: var(--cor-orange-red); color: #fff; }
+        .cor-filter-bar select, .cor-filter-bar input[type="date"] { height: 30px; min-width: 135px; padding: 0 8px; border: 1px solid var(--cor-border); border-radius: 6px; background: var(--cor-surface); color: var(--cor-text); font-size: 12px; }
+        .cor-filter-bar select:focus, .cor-filter-bar input:focus { outline: none; border-color: var(--cor-orange-red); box-shadow: 0 0 0 2px rgba(171,54,25,.15); }
+        .cor-btn-apply { border: 0; padding: 0 16px; background: var(--cor-orange-red); color: #fff; }
+        .cor-btn-apply:hover { background: var(--cor-burgundy); }
+        .cor-btn-export { padding: 0 12px; border: 1px solid var(--cor-border); background: var(--cor-surface); color: var(--cor-text-mid); }
+        .cor-btn-export:hover { border-color: var(--cor-orange-red); background: #f5ece8; }
+        .cor-stat-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-bottom: 16px; }
+        .cor-stat-card { border: 1px solid var(--cor-border); border-radius: 10px; padding: 14px 16px; background: var(--cor-surface); box-shadow: 0 2px 8px rgba(44,24,16,.06); transition: transform 180ms ease; }
+        .cor-stat-card:hover { transform: translateY(-2px); }
+        .cor-stat-card.total-orders, .cor-stat-card.completed { border-left: 4px solid var(--cor-olive); }
+        .cor-stat-card.total-revenue { border-left: 4px solid var(--cor-burgundy); }
+        .cor-stat-card.aov, .cor-stat-card.processing { border-left: 4px solid var(--cor-orange-red); }
+        .cor-stat-card.pending-stat { border-left: 4px solid var(--cor-amber); }
+        .cor-stat-card .s-title { margin-bottom: 6px; color: var(--cor-text-mid); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+        .cor-stat-card .s-num { color: var(--cor-text); font-size: 24px; font-weight: 800; line-height: 1; }
+        .cor-stat-card .s-sub { margin-top: 4px; color: var(--cor-text-light); font-size: 11px; }
+        .cor-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 16px; border-bottom: 2px solid var(--cor-border); }
+        .cor-tab { height: 36px; margin-bottom: -2px; padding: 0 16px; border: 0; border-bottom: 3px solid transparent; border-radius: 8px 8px 0 0; background: transparent; color: var(--cor-text-mid); font-size: 12px; font-weight: 600; cursor: pointer; }
+        .cor-tab:hover { color: var(--cor-orange-red); }
+        .cor-tab.active { background: var(--cor-cream); border-bottom-color: var(--cor-orange-red); color: var(--cor-burgundy); }
+        .cor-tab-content { display: none; }
+        .cor-tab-content.active { display: block; }
+        .cor-report-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+        .cor-report-card, .cor-chart-card { overflow: hidden; margin-bottom: 14px; border: 1px solid var(--cor-border); border-radius: 10px; background: var(--cor-surface); box-shadow: 0 2px 6px rgba(44,24,16,.05); }
+        .cor-report-card .card-head, .cor-chart-card .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--cor-border); }
+        .cor-report-card h3, .cor-chart-card h3 { margin: 0; color: var(--cor-burgundy); font-size: 13px; font-weight: 700; }
+        .cor-report-card table { width: 100%; border-collapse: collapse; }
+        .cor-table-wrap { overflow-x: auto; }
+        .cor-report-card th, .cor-orders-table th { height: 34px; padding: 0 14px; border-bottom: 2px solid var(--cor-border); background: var(--cor-cream); color: var(--cor-burgundy); font-size: 11px; font-weight: 700; letter-spacing: .05em; text-align: left; text-transform: uppercase; white-space: nowrap; }
+        .cor-report-card td, .cor-orders-table td { height: 38px; padding: 0 14px; border-bottom: 1px solid var(--cor-border); color: var(--cor-text); font-size: 13px; vertical-align: middle; }
+        .cor-report-card tr:last-child td, .cor-orders-table tr:last-child td { border-bottom: 0; }
+        .cor-report-card tr:hover td, .cor-orders-table tr:hover td { background: #fdf3ea; }
+        .cor-bar-wrap { display: flex; align-items: center; gap: 8px; min-width: 160px; }
+        .cor-bar-track { flex: 1; min-width: 60px; height: 6px; overflow: hidden; border-radius: 3px; background: var(--cor-border); }
+        .cor-bar-fill { display: block; height: 100%; border-radius: 3px; background: var(--cor-orange-red); }
+        .cor-pct { min-width: 36px; color: var(--cor-text-mid); font-size: 11px; text-align: right; }
+        .cor-pill { display: inline-flex; align-items: center; height: 21px; padding: 0 8px; border-radius: 5px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+        .cor-status-completed { background: var(--cor-olive); color: #2C1810; }
+        .cor-status-in-progress, .cor-status-packed, .cor-status-processing { background: var(--cor-amber); color: #fff; }
+        .cor-status-new-order, .cor-status-assigned, .cor-status-pending { background: #c8c1b8; color: #fff; }
+        .cor-status-error-logged, .cor-status-correction-required, .cor-status-refunded { background: var(--cor-red); color: #fff; }
+        .pay-eft { background: #5c4ab0; color: #fff; }
+        .pay-cash { background: #7a7a7a; color: #fff; }
+        .pay-easywallet { background: #7B68EE; color: #fff; }
+        .pay-swipe, .pay-card { background: #2C1810; color: #fff; }
+        .pay-bluewallet { background: #00838F; color: #fff; }
+        .pay-fnb { background: #1B5E20; color: #fff; }
+        .pay-pay2cell { background: var(--cor-red); color: #fff; }
+        .pay-other { background: var(--cor-border); color: var(--cor-text-mid); }
+        .mode-delivery { background: #b5a280; color: #fff; }
+        .mode-collection { background: #7a8c4f; color: #fff; }
+        .mode-courier { background: #5c3a1e; color: #fff; }
+        .cor-rank { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: var(--cor-border); color: var(--cor-text-mid); font-size: 11px; font-weight: 800; }
+        .cor-rank-1 { background: var(--cor-amber); color: #fff; }
+        .cor-rank-2 { background: var(--cor-orange-red); color: #fff; }
+        .cor-rank-3 { background: var(--cor-red); color: #fff; }
+        .cor-chart-body { height: 260px; padding: 16px; }
+        .cor-orders-wrap { max-height: 520px; overflow: auto; }
+        .cor-orders-table { width: 100%; border-collapse: collapse; }
+        .cor-orders-table th { position: sticky; top: 0; z-index: 2; }
+        .cor-pagination { display: flex; align-items: center; justify-content: flex-end; gap: 4px; padding: 12px 16px; border-top: 1px solid var(--cor-border); }
+        .cor-page-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; height: 28px; padding: 0 8px; border: 1px solid var(--cor-border); border-radius: 5px; background: var(--cor-surface); color: var(--cor-text-mid); font-size: 12px; text-decoration: none; }
+        .cor-page-btn.active { border-color: var(--cor-orange-red); background: var(--cor-orange-red); color: #fff; }
+        .cor-empty { padding: 16px 18px; color: var(--cor-text-mid); font-size: 13px; }
+        @media (max-width: 1100px) { .cor-stat-grid { grid-template-columns: repeat(3, 1fr); } .cor-report-grid { grid-template-columns: 1fr; } }
+        @media (max-width: 767px) { .cor-stat-grid { grid-template-columns: repeat(2, 1fr); } .cor-tabs { flex-wrap: nowrap; overflow-x: auto; } .cor-tab { flex: 0 0 auto; white-space: nowrap; } .cor-filter-bar { align-items: stretch; flex-direction: column; } .cor-filter-selects, .cor-date-inputs, .cor-quick-ranges { align-items: stretch; } .cor-filter-bar select, .cor-filter-bar input[type="date"], .cor-btn-apply, .cor-btn-export { width: 100%; } }
+    </style>
+
     <section class="module-header">
         <div>
-            <p class="eyebrow">Sales operations</p>
+            <p class="page-eyebrow">Sales Operations</p>
             <h1>Customer Orders Report</h1>
-            <p>Analyse synced website and POS orders, payment flow, workload, product demand and operational issues.</p>
-        </div>
-        <div class="actions">
-            <a class="button" href="orders-board.php"><i data-lucide="table-2"></i> Orders board</a>
-            <?php if (user_has_role('owner_admin')): ?>
-                <a class="button" href="sync-orders.php"><i data-lucide="refresh-cw"></i> Sync health</a>
-            <?php endif; ?>
+            <p class="page-subtitle">Live POS and website order reporting by sales, payment, mode, staff, products and daily trends.</p>
         </div>
     </section>
-    <?php ops_nav('orders'); ?>
-    <?php if (!$ready) { ops_setup_notice(); } ?>
-    <?php ops_flash($message, $messageType); ?>
 
-    <form class="panel report-filter-panel" method="get" data-report-filter-form>
-        <div class="section-row">
-            <h2>Report filters</h2>
-            <div class="actions">
-                <a class="button" href="orders.php" data-report-clear>Clear</a>
-                <button class="button" type="submit" name="export" value="csv"><i data-lucide="download"></i> Export CSV</button>
-                <button class="button" type="button" onclick="window.print()"><i data-lucide="printer"></i> Print/PDF</button>
-                <button class="button primary" type="submit" data-report-apply>Apply filters</button>
-            </div>
-        </div>
-        <div class="report-loading" data-report-loading hidden><i data-lucide="loader-2"></i> Loading report...</div>
-        <div class="form-grid">
-            <label>View
-                <select name="period" data-report-period>
-                    <?php ops_select_options(['today' => 'Today', 'yesterday' => 'Yesterday', 'this_week' => 'This week', 'this_month' => 'This month', 'last_month' => 'Last month', 'custom' => 'Custom date range'], $filters['period']); ?>
-                </select>
-            </label>
-            <label>Date from<input type="date" name="date_from" value="<?= htmlspecialchars($filters['date_from'], ENT_QUOTES, 'UTF-8') ?>" data-report-date></label>
-            <label>Date to<input type="date" name="date_to" value="<?= htmlspecialchars($filters['date_to'], ENT_QUOTES, 'UTF-8') ?>" data-report-date></label>
-            <label>Status
-                <select name="status">
-                    <option value="">All statuses</option>
-                    <?php ops_select_options(OPS_ORDER_STATUSES, $filters['status']); ?>
-                </select>
-            </label>
-            <label>Payment status
-                <select name="payment_status">
-                    <option value="">All payment statuses</option>
-                    <?php ops_select_options(['paid' => 'Paid', 'unpaid' => 'Unpaid', 'partial' => 'Partial', 'refunded' => 'Refunded'], $filters['payment_status']); ?>
-                </select>
-            </label>
-            <label>Payment method<input name="payment_method" value="<?= htmlspecialchars($filters['payment_method'], ENT_QUOTES, 'UTF-8') ?>" placeholder="EFT, cash, card"></label>
-            <label>Mode
-                <select name="delivery_mode">
-                    <option value="">All modes</option>
-                    <?php ops_select_options($modeOptions, $filters['delivery_mode']); ?>
-                </select>
-            </label>
-            <label>Customer<input name="customer" value="<?= htmlspecialchars($filters['customer'], ENT_QUOTES, 'UTF-8') ?>" placeholder="Customer name"></label>
-            <label>Packer
-                <select name="packer_id">
-                    <option value="">All packers</option>
-                    <?php foreach ($packers as $packer): ?>
-                        <option value="<?= (int) $packer['id'] ?>" <?= (string) $packer['id'] === $filters['packer_id'] ? 'selected' : '' ?>><?= htmlspecialchars($packer['full_name'], ENT_QUOTES, 'UTF-8') ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </label>
-            <label>Product<input name="product" value="<?= htmlspecialchars($filters['product'], ENT_QUOTES, 'UTF-8') ?>" placeholder="Product name"></label>
-            <label>Source
-                <select name="source">
-                    <option value="">All sources</option>
-                    <?php ops_select_options(['website' => 'Website', 'manual' => 'Manual/POS fallback'], $filters['source']); ?>
-                </select>
-            </label>
-        </div>
-        <p class="report-filter-summary">Showing orders from <strong><?= htmlspecialchars($filters['date_from'] ?: 'any start', ENT_QUOTES, 'UTF-8') ?></strong> to <strong><?= htmlspecialchars($filters['date_to'] ?: 'any end', ENT_QUOTES, 'UTF-8') ?></strong>.</p>
-    </form>
-
-    <?php if ($ready && (int) ($summary['total_orders'] ?? 0) === 0): ?>
-        <section class="ops-alert">No matching orders found for selected filters.</section>
+    <?php if (!$ready): ?>
+        <?php ops_setup_notice(); ?>
     <?php endif; ?>
 
-    <section class="metric-grid order-kpi-grid">
-        <article class="metric"><span>Total orders</span><strong><?= number_format((int) ($summary['total_orders'] ?? 0)) ?></strong><small><?= number_format((int) ($summary['pending_orders'] ?? 0)) ?> pending</small></article>
-        <article class="metric"><span>Total revenue</span><strong><?= order_report_money((float) $revenue) ?></strong><small><?= order_report_money((float) ($summary['unpaid_value'] ?? 0)) ?> unpaid/partial</small></article>
-        <article class="metric"><span>Product revenue</span><strong><?= order_report_money($productRevenue) ?></strong><small><?= order_report_money($vatExclusiveProductSales) ?> excl. VAT estimate</small></article>
-        <article class="metric"><span>VAT collected</span><strong><?= order_report_money($vatCollected) ?></strong><small>15% VAT-inclusive estimate unless Woo tax is synced</small></article>
-        <article class="metric"><span>Delivery/transport</span><strong><?= order_report_money($shippingTotal) ?></strong><small><?= number_format((int) ($summary['delivery_orders'] ?? 0) + (int) ($summary['courier_orders'] ?? 0)) ?> delivery/courier orders</small></article>
-        <article class="metric"><span>Discounts</span><strong><?= order_report_money($discountTotal) ?></strong><small>Synced when Woo breakdown fields exist</small></article>
-        <article class="metric"><span>Net sales</span><strong><?= order_report_money($netSales) ?></strong><small>Revenue less delivery and refunds</small></article>
-        <article class="metric"><span>Average order value</span><strong><?= order_report_money((float) ($summary['avg_order_value'] ?? 0)) ?></strong><small><?= order_report_percent((float) (($summary['total_orders'] ?? 0) ? (($summary['completed_orders'] ?? 0) / max(1, (int) $summary['total_orders'])) * 100 : 0)) ?> completed/packed</small></article>
-        <article class="metric"><span>Average completion time</span><strong><?= order_report_duration($timeSummary['avg_received_to_complete']) ?></strong><small>Business hours only, 08:00 to 17:00</small></article>
-        <article class="metric"><span>Orders completed</span><strong><?= number_format((int) ($summary['completed_orders'] ?? 0)) ?></strong><small><?= number_format((int) $timeSummary['within_business_hours']) ?> within business hours</small></article>
-        <article class="metric"><span>Estimated profit</span><strong><?= $profitTotals['costed_orders'] > 0 ? order_report_money($profitTotals['estimated_profit']) : 'Needs cost link' ?></strong><small><?= $profitTotals['costed_orders'] > 0 ? ((int) $profitTotals['costed_orders'] . ' costed orders') : 'Link Woo products to costs' ?></small></article>
-    </section>
-
-    <section class="panel goal-panel">
-        <div class="section-row">
-            <h2>Monthly sales goal</h2>
-            <form method="post" class="inline-fields goal-form">
-                <input type="hidden" name="action" value="save_monthly_goal">
-                <label>Monthly target<input type="number" step="0.01" min="0" name="monthly_goal" value="<?= htmlspecialchars(number_format($monthlyGoal, 2, '.', ''), ENT_QUOTES, 'UTF-8') ?>"></label>
-                <button class="button primary" type="submit">Save goal</button>
-            </form>
+    <form class="cor-filter-bar" method="get" data-cor-filter>
+        <input type="hidden" name="range" value="<?= cor_e($filters['range']) ?>" data-cor-range>
+        <input type="hidden" name="tab" value="<?= cor_e($filters['tab']) ?>" data-cor-tab-input>
+        <div class="cor-quick-ranges">
+            <?php foreach (['today' => 'Today', 'week' => 'This Week', 'month' => 'This Month', 'custom' => 'Custom'] as $key => $label): ?>
+                <button class="cor-range-btn <?= $filters['range'] === $key ? 'active' : '' ?>" type="button" data-range="<?= cor_e($key) ?>"><?= cor_e($label) ?></button>
+            <?php endforeach; ?>
         </div>
-        <div class="goal-layout">
-            <div>
-                <div class="goal-progress"><span style="width: <?= number_format($goalProgress, 2, '.', '') ?>%"></span></div>
-                <p><?= order_report_money($monthRevenue) ?> of <?= order_report_money($monthlyGoal) ?> reached: <strong><?= order_report_percent($goalProgress) ?></strong></p>
-            </div>
-            <div class="goal-stats">
-                <span>Remaining <strong><?= order_report_money($remainingGoal) ?></strong></span>
-                <span>Days left <strong><?= number_format($daysLeft) ?></strong></span>
-                <span>Daily needed <strong><?= order_report_money($dailySalesNeeded) ?></strong></span>
-                <span>Current daily avg <strong><?= order_report_money($averageDailySales) ?></strong></span>
-            </div>
+        <div class="cor-date-inputs" data-custom-dates style="<?= $filters['range'] !== 'custom' ? 'display:none' : '' ?>">
+            <input type="date" name="from" value="<?= cor_e($filters['from']) ?>">
+            <span style="color:var(--cor-text-mid)">to</span>
+            <input type="date" name="to" value="<?= cor_e($filters['to']) ?>">
+        </div>
+        <div class="cor-filter-selects">
+            <select name="status">
+                <option value="all">All Statuses</option>
+                <?php foreach (OPS_ORDER_STATUSES as $key => $label): ?>
+                    <option value="<?= cor_e($key) ?>" <?= $filters['status'] === $key ? 'selected' : '' ?>><?= cor_e($label) ?></option>
+                <?php endforeach; ?>
+            </select>
+            <select name="mode">
+                <option value="all">All Modes</option>
+                <option value="delivery" <?= $filters['mode'] === 'delivery' ? 'selected' : '' ?>>Delivery</option>
+                <option value="collection" <?= $filters['mode'] === 'collection' ? 'selected' : '' ?>>Collection</option>
+                <option value="courier" <?= $filters['mode'] === 'courier' ? 'selected' : '' ?>>Courier</option>
+            </select>
+            <select name="payment">
+                <option value="all">All Payments</option>
+                <?php foreach ($paymentOptions as $payment): ?>
+                    <option value="<?= cor_e($payment) ?>" <?= $filters['payment'] === $payment ? 'selected' : '' ?>><?= cor_e($payment) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <button class="cor-btn-apply" type="submit">Apply</button>
+        <a class="cor-btn-export" href="?<?= cor_e(http_build_query($queryBase + ['export' => 'csv'])) ?>">CSV</a>
+        <a class="cor-btn-export" href="?<?= cor_e(http_build_query($queryBase + ['export' => 'excel'])) ?>">Excel</a>
+    </form>
+
+    <section class="cor-stat-grid" aria-label="Order report summary">
+        <article class="cor-stat-card total-orders"><div class="s-title">Total Orders</div><div class="s-num"><?= number_format($summary['total_orders']) ?></div><div class="s-sub"><?= cor_e($filters['from']) ?> to <?= cor_e($filters['to']) ?></div></article>
+        <article class="cor-stat-card total-revenue"><div class="s-title">Total Revenue</div><div class="s-num"><?= cor_money($summary['total_revenue']) ?></div><div class="s-sub">Refunded orders excluded</div></article>
+        <article class="cor-stat-card aov"><div class="s-title">Avg Order Value</div><div class="s-num"><?= cor_money($summary['aov']) ?></div><div class="s-sub">Revenue divided by orders</div></article>
+        <article class="cor-stat-card completed"><div class="s-title">Completed</div><div class="s-num"><?= number_format($summary['completed']) ?></div><div class="s-sub">Completed orders</div></article>
+        <article class="cor-stat-card processing"><div class="s-title">Processing</div><div class="s-num"><?= number_format($summary['processing']) ?></div><div class="s-sub">In progress or packed</div></article>
+        <article class="cor-stat-card pending-stat"><div class="s-title">Pending</div><div class="s-num"><?= number_format($summary['pending']) ?></div><div class="s-sub">New or assigned</div></article>
+    </section>
+
+    <nav class="cor-tabs" aria-label="Report tabs">
+        <?php
+        $tabs = [
+            'sales' => 'Sales Summary',
+            'payment' => 'By Payment',
+            'mode' => 'By Mode',
+            'staff' => 'By Staff',
+            'products' => 'Products',
+            'trend' => 'Trend',
+            'orders' => 'All Orders',
+        ];
+        foreach ($tabs as $key => $label):
+        ?>
+            <button class="cor-tab <?= $filters['tab'] === $key ? 'active' : '' ?>" type="button" data-tab="<?= cor_e($key) ?>"><?= cor_e($label) ?></button>
+        <?php endforeach; ?>
+    </nav>
+
+    <section id="tab-sales" class="cor-tab-content <?= $filters['tab'] === 'sales' ? 'active' : '' ?>">
+        <div class="cor-report-grid">
+            <article class="cor-report-card">
+                <div class="card-head"><h3>Sales Summary</h3><span><?= cor_money($summary['total_revenue']) ?></span></div>
+                <div class="cor-table-wrap">
+                    <table>
+                        <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+                        <tbody>
+                        <tr><td>Total orders</td><td><?= number_format($summary['total_orders']) ?></td></tr>
+                        <tr><td>Total revenue</td><td><?= cor_money($summary['total_revenue']) ?></td></tr>
+                        <tr><td>Average order value</td><td><?= cor_money($summary['aov']) ?></td></tr>
+                        <tr><td>Completed</td><td><?= number_format($summary['completed']) ?></td></tr>
+                        <tr><td>Processing</td><td><?= number_format($summary['processing']) ?></td></tr>
+                        <tr><td>Pending</td><td><?= number_format($summary['pending']) ?></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </article>
+            <article class="cor-report-card">
+                <div class="card-head"><h3>Status Breakdown</h3><span><?= number_format(count($statusRows)) ?> statuses</span></div>
+                <div class="cor-table-wrap">
+                    <table>
+                        <thead><tr><th>Status</th><th>Orders</th><th>Revenue</th></tr></thead>
+                        <tbody>
+                        <?php foreach ($statusRows as $row): ?>
+                            <tr><td><span class="cor-pill cor-status-<?= cor_e(cor_slug($row['label'])) ?>"><?= cor_e(cor_order_status_label((string) $row['label'])) ?></span></td><td><?= number_format((int) $row['cnt']) ?></td><td><?= cor_money($row['rev']) ?></td></tr>
+                        <?php endforeach; ?>
+                        <?php if (!$statusRows): ?><tr><td colspan="3">No records found.</td></tr><?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </article>
         </div>
     </section>
 
-    <section class="report-grid order-report-grid">
-        <section class="panel">
-            <div class="section-row"><h2>Revenue breakdown</h2><span class="status">Gross, VAT, delivery, discounts and net</span></div>
-            <div class="breakdown-list">
-                <div><span>Gross paid order total</span><strong><?= order_report_money((float) $revenue) ?></strong></div>
-                <div><span>Product revenue</span><strong><?= order_report_money($productRevenue) ?></strong></div>
-                <div><span>VAT collected</span><strong><?= order_report_money($vatCollected) ?></strong></div>
-                <div><span>VAT-exclusive product sales</span><strong><?= order_report_money($vatExclusiveProductSales) ?></strong></div>
-                <div><span>Delivery/transport collected</span><strong><?= order_report_money($shippingTotal) ?></strong></div>
-                <div><span>Shipping VAT</span><strong><?= order_report_money($shippingTaxTotal) ?></strong></div>
-                <div><span>Discounts</span><strong><?= order_report_money($discountTotal) ?></strong></div>
-                <div><span>Refunds/cancellations</span><strong><?= order_report_money($refundTotal) ?></strong></div>
-                <div><span>Net sales after delivery/refunds</span><strong><?= order_report_money($netSales) ?></strong></div>
-            </div>
-            <?php $mixMax = max(1, $productRevenue, $vatCollected, $shippingTotal); ?>
-            <div class="report-bars compact revenue-mix">
-                <?php foreach ([['Product', $productRevenue], ['VAT', $vatCollected], ['Delivery', $shippingTotal]] as [$label, $amount]): ?>
-                    <div class="report-bar-row">
-                        <div><strong><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></strong><span><?= order_report_money((float) $amount) ?></span></div>
-                        <div class="report-bar"><span style="width: <?= number_format(((float) $amount / $mixMax) * 100, 2, '.', '') ?>%"></span></div>
-                        <strong><?= order_report_percent(((float) $amount / max(1, (float) $revenue)) * 100) ?></strong>
-                    </div>
-                <?php endforeach; ?>
-            </div>
-        </section>
-
-        <section class="panel">
-            <div class="section-row"><h2>Order time summary</h2><span class="status">08:00 to 17:00 business time</span></div>
-            <div class="breakdown-list compact">
-                <div><span>Avg received to completed</span><strong><?= order_report_duration($timeSummary['avg_received_to_complete']) ?></strong></div>
-                <div><span>Avg received to packing started</span><strong><?= order_report_duration($timeSummary['avg_received_to_started']) ?></strong></div>
-                <div><span>Avg packing started to completed</span><strong><?= order_report_duration($timeSummary['avg_started_to_complete']) ?></strong></div>
-                <div><span>Fastest completed order</span><strong><?= order_report_duration($timeSummary['fastest']) ?></strong></div>
-                <div><span>Slowest completed order</span><strong><?= order_report_duration($timeSummary['slowest']) ?></strong></div>
-                <div><span>Overdue orders</span><strong><?= number_format((int) $timeSummary['overdue']) ?></strong></div>
-                <div><span>Completed within business hours</span><strong><?= number_format((int) $timeSummary['within_business_hours']) ?></strong></div>
-                <div><span>Carried over to next day</span><strong><?= number_format((int) $timeSummary['carried_over']) ?></strong></div>
-            </div>
-        </section>
-    </section>
-
-    <section class="report-grid order-report-grid">
-        <section class="panel">
-            <div class="section-row"><h2>Revenue by day</h2><span class="status">Paid orders</span></div>
-            <div class="daily-chart">
-                <?php foreach ($dailyTrend as $row): ?>
-                    <?php $height = $maxDailyRevenue > 0 ? max(8, ((float) $row['revenue'] / $maxDailyRevenue) * 120) : 8; ?>
-                    <div class="daily-chart-col">
-                        <span style="height: <?= number_format($height, 2, '.', '') ?>px"></span>
-                        <small><?= htmlspecialchars((string) $row['report_day'], ENT_QUOTES, 'UTF-8') ?></small>
-                        <strong><?= order_report_money((float) $row['revenue']) ?></strong>
-                    </div>
-                <?php endforeach; ?>
-                <?php if (!$dailyTrend): ?><p>No daily revenue data for this filter.</p><?php endif; ?>
-            </div>
-        </section>
-
-        <section class="panel">
-            <div class="section-row"><h2>Order volume by day</h2><span class="status">Order count</span></div>
-            <div class="daily-chart">
-                <?php foreach ($dailyTrend as $row): ?>
-                    <?php $height = $maxDailyOrders > 0 ? max(8, ((float) $row['order_count'] / $maxDailyOrders) * 120) : 8; ?>
-                    <div class="daily-chart-col order-volume">
-                        <span style="height: <?= number_format($height, 2, '.', '') ?>px"></span>
-                        <small><?= htmlspecialchars((string) $row['report_day'], ENT_QUOTES, 'UTF-8') ?></small>
-                        <strong><?= number_format((int) $row['order_count']) ?></strong>
-                    </div>
-                <?php endforeach; ?>
-                <?php if (!$dailyTrend): ?><p>No daily order data for this filter.</p><?php endif; ?>
-            </div>
-        </section>
-    </section>
-
-    <section class="report-grid order-report-grid">
-        <section class="panel">
-            <div class="section-row"><h2>Payment breakdown</h2><span class="status"><?= order_report_money((float) ($summary['total_sales'] ?? 0)) ?> total value</span></div>
-            <div class="report-bars">
-                <?php foreach ($paymentBreakdown as $row): ?>
-                    <?php $width = $maxPayment > 0 ? ((float) $row['amount'] / $maxPayment) * 100 : 0; ?>
-                    <div class="report-bar-row">
-                        <div><strong><?= htmlspecialchars((string) $row['label'], ENT_QUOTES, 'UTF-8') ?></strong><span><?= number_format((int) $row['order_count']) ?> orders</span></div>
-                        <div class="report-bar"><span style="width: <?= number_format($width, 2, '.', '') ?>%"></span></div>
-                        <strong><?= order_report_money((float) $row['amount']) ?></strong>
-                    </div>
-                <?php endforeach; ?>
-                <?php if (!$paymentBreakdown): ?><p>No payment data for this filter.</p><?php endif; ?>
-            </div>
-        </section>
-
-        <section class="panel">
-            <div class="section-row"><h2>Mode breakdown</h2><span class="status">Collection / delivery / courier</span></div>
-            <div class="report-bars compact">
-                <?php foreach ($modeBreakdown as $row): ?>
-                    <?php $width = $maxMode > 0 ? ((float) $row['order_count'] / $maxMode) * 100 : 0; ?>
-                    <div class="report-bar-row">
-                        <div><strong><?= htmlspecialchars(ucfirst((string) $row['label']), ENT_QUOTES, 'UTF-8') ?></strong><span><?= order_report_money((float) $row['amount']) ?></span></div>
-                        <div class="report-bar"><span style="width: <?= number_format($width, 2, '.', '') ?>%"></span></div>
-                        <strong><?= number_format((int) $row['order_count']) ?></strong>
-                    </div>
-                <?php endforeach; ?>
-                <?php if (!$modeBreakdown): ?><p>No mode data for this filter.</p><?php endif; ?>
-            </div>
-        </section>
-    </section>
-
-    <section class="report-grid order-report-grid">
-        <section class="panel">
-            <div class="section-row"><h2>Best performing products</h2><span class="status">By quantity ordered</span></div>
-            <div class="table-scroll">
-                <table class="data-table ops-table">
-                    <thead><tr><th>Product</th><th>Orders</th><th>Qty</th><th>Order value</th></tr></thead>
+    <section id="tab-payment" class="cor-tab-content <?= $filters['tab'] === 'payment' ? 'active' : '' ?>">
+        <article class="cor-report-card">
+            <div class="card-head"><h3>Orders by Payment Method</h3><span><?= number_format(count($paymentRows)) ?> methods</span></div>
+            <div class="cor-table-wrap">
+                <table>
+                    <thead><tr><th>Method</th><th>Orders</th><th>Revenue</th><th>%</th><th>Bar</th></tr></thead>
                     <tbody>
-                    <?php foreach ($topProducts as $row): ?>
-                        <tr>
-                            <td><?= htmlspecialchars((string) $row['product_name'], ENT_QUOTES, 'UTF-8') ?></td>
-                            <td><?= number_format((int) $row['orders_count']) ?></td>
-                            <td><?= number_format((float) $row['qty'], 2) ?></td>
-                            <td><?= order_report_money((float) $row['order_value']) ?></td>
-                        </tr>
+                    <?php foreach ($paymentRows as $row): $pct = $summary['total_revenue'] > 0 ? ((float) $row['rev'] / $summary['total_revenue']) * 100 : 0; ?>
+                        <tr><td><span class="cor-pill pay-<?= cor_e(cor_slug($row['label'])) ?>"><?= cor_e($row['label']) ?></span></td><td><?= number_format((int) $row['cnt']) ?></td><td><?= cor_money($row['rev']) ?></td><td><?= cor_pct($pct) ?></td><td><div class="cor-bar-wrap"><span class="cor-bar-track"><span class="cor-bar-fill" style="width:<?= cor_e(((float) $row['rev'] / $maxPayment) * 100) ?>%"></span></span><span class="cor-pct"><?= cor_pct($pct) ?></span></div></td></tr>
                     <?php endforeach; ?>
-                    <?php if (!$topProducts): ?><tr><td colspan="4">No product lines found for this filter.</td></tr><?php endif; ?>
+                    <?php if (!$paymentRows): ?><tr><td colspan="5">No records found.</td></tr><?php endif; ?>
                     </tbody>
                 </table>
             </div>
-        </section>
+        </article>
+    </section>
 
-        <section class="panel">
-            <div class="section-row"><h2>Top customers</h2><span class="status">Repeat and high value</span></div>
-            <div class="table-scroll">
-                <table class="data-table ops-table">
-                    <thead><tr><th>Customer</th><th>Orders</th><th>Value</th><th>Unpaid</th></tr></thead>
+    <section id="tab-mode" class="cor-tab-content <?= $filters['tab'] === 'mode' ? 'active' : '' ?>">
+        <article class="cor-report-card">
+            <div class="card-head"><h3>Orders by Mode</h3><span>Delivery, collection and courier</span></div>
+            <div class="cor-table-wrap">
+                <table>
+                    <thead><tr><th>Mode</th><th>Orders</th><th>Revenue</th><th>% of Total</th><th>Bar</th></tr></thead>
                     <tbody>
-                    <?php foreach ($topCustomers as $row): ?>
-                        <tr>
-                            <td><?= htmlspecialchars((string) $row['customer_name'], ENT_QUOTES, 'UTF-8') ?></td>
-                            <td><?= number_format((int) $row['orders_count']) ?></td>
-                            <td><?= order_report_money((float) $row['amount']) ?></td>
-                            <td><?= number_format((int) $row['unpaid_count']) ?></td>
-                        </tr>
+                    <?php foreach ($modeRows as $row): $pct = $summary['total_orders'] > 0 ? ((int) $row['cnt'] / $summary['total_orders']) * 100 : 0; ?>
+                        <tr><td><span class="cor-pill mode-<?= cor_e(cor_slug($row['label'])) ?>"><?= cor_e(ucwords((string) $row['label'])) ?></span></td><td><?= number_format((int) $row['cnt']) ?></td><td><?= cor_money($row['rev']) ?></td><td><?= cor_pct($pct) ?></td><td><div class="cor-bar-wrap"><span class="cor-bar-track"><span class="cor-bar-fill" style="width:<?= cor_e(((float) $row['rev'] / $maxMode) * 100) ?>%"></span></span><span class="cor-pct"><?= cor_pct($pct) ?></span></div></td></tr>
                     <?php endforeach; ?>
-                    <?php if (!$topCustomers): ?><tr><td colspan="4">No customer data found for this filter.</td></tr><?php endif; ?>
+                    <?php if (!$modeRows): ?><tr><td colspan="5">No records found.</td></tr><?php endif; ?>
                     </tbody>
                 </table>
             </div>
-        </section>
+        </article>
     </section>
 
-    <section class="panel">
-        <div class="section-row"><h2>Operational performance</h2><span class="status">Packing workload by employee</span></div>
-        <div class="table-scroll">
-            <table class="data-table ops-table">
-                <thead><tr><th>Packer</th><th>Orders</th><th>Completed/Packed</th><th>Total workload</th><th>Average workload</th></tr></thead>
-                <tbody>
-                <?php foreach ($packerRows as $row): ?>
-                    <tr>
-                        <td><?= htmlspecialchars((string) $row['packer_name'], ENT_QUOTES, 'UTF-8') ?></td>
-                        <td><?= number_format((int) $row['orders_count']) ?></td>
-                        <td><?= number_format((int) $row['done_count']) ?></td>
-                        <td><?= number_format((float) $row['workload'], 2) ?></td>
-                        <td><?= number_format(((float) $row['workload']) / max(1, (int) $row['orders_count']), 2) ?></td>
-                    </tr>
-                <?php endforeach; ?>
-                <?php if (!$packerRows): ?><tr><td colspan="5">No packer workload found for this filter.</td></tr><?php endif; ?>
-                </tbody>
-            </table>
-        </div>
-    </section>
-
-    <section class="panel">
-        <div class="section-row">
-            <h2>Recent orders</h2>
-            <span class="status">Improved report table</span>
-        </div>
-        <div class="table-scroll">
-            <table class="data-table ops-table">
-                <thead><tr><th>Order</th><th>Customer</th><th>Date</th><th>Amount</th><th>Payment</th><th>Status</th><th>Mode</th><th>Packed by</th><th>Workload</th><th>Profit</th></tr></thead>
-                <tbody>
-                <?php foreach ($recentOrders as $order): ?>
-                    <?php
-                    $cogs = $recentProfitByOrder[(int) $order['id']] ?? 0.0;
-                    $profitLabel = $cogs > 0 ? order_report_money((float) $order['total_amount'] - $cogs) : 'Needs cost link';
-                    ?>
-                    <tr>
-                        <td><?= htmlspecialchars((string) $order['order_number'], ENT_QUOTES, 'UTF-8') ?></td>
-                        <td><?= htmlspecialchars((string) $order['customer_name'], ENT_QUOTES, 'UTF-8') ?></td>
-                        <td><?= htmlspecialchars((string) $order['created_at'], ENT_QUOTES, 'UTF-8') ?></td>
-                        <td><?= order_report_money((float) $order['total_amount']) ?></td>
-                        <td><?= htmlspecialchars(trim((string) $order['payment_method']) !== '' ? (string) $order['payment_method'] : (string) $order['payment_status'], ENT_QUOTES, 'UTF-8') ?></td>
-                        <td><span class="status"><?= htmlspecialchars(OPS_ORDER_STATUSES[$order['status']] ?? $order['status'], ENT_QUOTES, 'UTF-8') ?></span></td>
-                        <td><?= htmlspecialchars(ucfirst((string) $order['order_type']), ENT_QUOTES, 'UTF-8') ?></td>
-                        <td><?= htmlspecialchars($order['packer_name'] ?? 'Unassigned', ENT_QUOTES, 'UTF-8') ?></td>
-                        <td><?= number_format((float) $order['workload_score'], 2) ?></td>
-                        <td><?= htmlspecialchars($profitLabel, ENT_QUOTES, 'UTF-8') ?></td>
-                    </tr>
-                <?php endforeach; ?>
-                <?php if (!$recentOrders): ?><tr><td colspan="10">No orders match this report filter.</td></tr><?php endif; ?>
-                </tbody>
-            </table>
-        </div>
-    </section>
-
-    <details class="panel emergency-order-panel">
-        <summary><span><i data-lucide="plus-circle"></i> Emergency manual order fallback</span><small>Use only if WooCommerce/POS cannot create the order.</small></summary>
-        <form class="ops-form" method="post">
-            <input type="hidden" name="action" value="manual_order">
-            <div class="form-grid">
-                <label>Order number<input name="order_number" required></label>
-                <label>Customer name<input name="customer_name" required></label>
-                <label>Contact number<input name="customer_contact"></label>
-                <label>Payment method<input name="payment_method"></label>
-                <?php if ($hasTotalAmount): ?><label>Order value<input type="number" step="0.01" min="0" name="total_amount" value="0"></label><?php endif; ?>
-                <label>Payment status<select name="payment_status"><?php ops_select_options(['unpaid' => 'Unpaid', 'partial' => 'Partial', 'paid' => 'Paid', 'refunded' => 'Refunded']); ?></select></label>
-                <label>Order type<select name="order_type"><?php ops_select_options(['collection' => 'Collection', 'courier' => 'Courier', 'delivery' => 'Delivery']); ?></select></label>
-                <label>Priority<select name="priority"><?php ops_select_options(['normal' => 'Normal', 'urgent' => 'Urgent', 'same_day' => 'Same day']); ?></select></label>
-                <label>Complexity<input type="number" name="complexity" min="1" max="5" value="1"></label>
-                <label>Number of line items<input type="number" name="item_count" min="1" value="1"></label>
-                <label>First item quantity<input type="number" step="0.001" name="quantity" min="0" value="1"></label>
-                <label class="span-2">First item name<input name="item_name"></label>
-                <label class="span-2">Expected barcode<input name="barcode"></label>
-                <label class="span-2">Notes<textarea name="notes"></textarea></label>
+    <section id="tab-staff" class="cor-tab-content <?= $filters['tab'] === 'staff' ? 'active' : '' ?>">
+        <article class="cor-report-card">
+            <div class="card-head"><h3>Orders by Staff</h3><span>Packed by / assigned packer</span></div>
+            <div class="cor-table-wrap">
+                <table>
+                    <thead><tr><th>Staff Name</th><th>Orders</th><th>Revenue</th><th>Avg Order Value</th><th>% of Orders</th></tr></thead>
+                    <tbody>
+                    <?php foreach ($staffRows as $row): $pct = $summary['total_orders'] > 0 ? ((int) $row['cnt'] / $summary['total_orders']) * 100 : 0; ?>
+                        <tr><td><?= cor_e($row['label']) ?></td><td><?= number_format((int) $row['cnt']) ?></td><td><?= cor_money($row['rev']) ?></td><td><?= cor_money(((float) $row['rev']) / max(1, (int) $row['cnt'])) ?></td><td><div class="cor-bar-wrap"><span class="cor-bar-track"><span class="cor-bar-fill" style="width:<?= cor_e(((float) $row['rev'] / $maxStaff) * 100) ?>%"></span></span><span class="cor-pct"><?= cor_pct($pct) ?></span></div></td></tr>
+                    <?php endforeach; ?>
+                    <?php if (!$staffRows): ?><tr><td colspan="5">No records found.</td></tr><?php endif; ?>
+                    </tbody>
+                </table>
             </div>
-            <div class="ops-form-actions"><button class="button primary" type="submit">Save emergency order</button></div>
-        </form>
-    </details>
+        </article>
+    </section>
+
+    <section id="tab-products" class="cor-tab-content <?= $filters['tab'] === 'products' ? 'active' : '' ?>">
+        <article class="cor-report-card">
+            <div class="card-head"><h3>Product Sales</h3><span>Top 50 products</span></div>
+            <div class="cor-table-wrap">
+                <table>
+                    <thead><tr><th>Rank</th><th>Product</th><th>Qty Sold</th><th>Revenue</th><th>% of Revenue</th><th>Bar</th></tr></thead>
+                    <tbody>
+                    <?php foreach ($productRows as $index => $row): $rank = $index + 1; $pct = $summary['total_revenue'] > 0 ? ((float) $row['rev'] / $summary['total_revenue']) * 100 : 0; ?>
+                        <tr><td><span class="cor-rank cor-rank-<?= $rank <= 3 ? $rank : 'n' ?>"><?= number_format($rank) ?></span></td><td><?= cor_e($row['product_name']) ?></td><td><?= number_format((float) $row['qty'], 2) ?></td><td><?= cor_money($row['rev']) ?></td><td><?= cor_pct($pct) ?></td><td><div class="cor-bar-wrap"><span class="cor-bar-track"><span class="cor-bar-fill" style="width:<?= cor_e(((float) $row['rev'] / $maxProduct) * 100) ?>%"></span></span><span class="cor-pct"><?= cor_pct($pct) ?></span></div></td></tr>
+                    <?php endforeach; ?>
+                    <?php if (!$productRows): ?><tr><td colspan="6">No records found.</td></tr><?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </article>
+    </section>
+
+    <section id="tab-trend" class="cor-tab-content <?= $filters['tab'] === 'trend' ? 'active' : '' ?>">
+        <article class="cor-chart-card">
+            <div class="card-head"><h3>Daily / Weekly Trend</h3><span>Revenue bars and order count line</span></div>
+            <div class="cor-chart-body"><canvas id="corTrendChart"></canvas></div>
+            <?php if (!$dailyRows): ?><div class="cor-empty">No records found.</div><?php endif; ?>
+        </article>
+    </section>
+
+    <section id="tab-orders" class="cor-tab-content <?= $filters['tab'] === 'orders' ? 'active' : '' ?>">
+        <article class="cor-report-card">
+            <div class="card-head"><h3>Full Orders Table</h3><span>50 rows per page</span></div>
+            <div class="cor-orders-wrap">
+                <table class="cor-orders-table">
+                    <thead><tr><th>Order ID</th><th>Date</th><th>Customer</th><th>Mobile</th><th>Mode</th><th>Payment</th><th>Amount</th><th>Status</th><th>Packed By</th></tr></thead>
+                    <tbody>
+                    <?php foreach ($orderRows as $row): ?>
+                        <tr>
+                            <td><?= cor_e($row['order_number']) ?></td>
+                            <td><?= cor_e(date('d M H:i', strtotime((string) $row['created_at']))) ?></td>
+                            <td><?= cor_e($row['customer_name']) ?></td>
+                            <td><?= cor_e($row['customer_contact']) ?></td>
+                            <td><span class="cor-pill mode-<?= cor_e(cor_slug($row['order_type'])) ?>"><?= cor_e(ucwords((string) $row['order_type'])) ?></span></td>
+                            <td><span class="cor-pill pay-<?= cor_e(cor_slug($row['payment_method'] ?: 'other')) ?>"><?= cor_e($row['payment_method'] ?: 'Other') ?></span></td>
+                            <td><?= cor_money($row['total_amount']) ?></td>
+                            <td><span class="cor-pill cor-status-<?= cor_e(cor_slug($row['status'])) ?>"><?= cor_e(cor_order_status_label((string) $row['status'])) ?></span></td>
+                            <td><?= cor_e($row['packer_name']) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    <?php if (!$orderRows): ?><tr><td colspan="9">No matching orders found for selected filters.</td></tr><?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+            <div class="cor-pagination">
+                <?php for ($i = max(1, $page - 2); $i <= min($totalPages, $page + 2); $i++): ?>
+                    <a class="cor-page-btn <?= $i === $page ? 'active' : '' ?>" href="?<?= cor_e(http_build_query($queryBase + ['tab' => 'orders', 'p' => $i])) ?>"><?= number_format($i) ?></a>
+                <?php endfor; ?>
+            </div>
+        </article>
+    </section>
 </main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-    const form = document.querySelector('[data-report-filter-form]');
-    if (!form) return;
+document.addEventListener('DOMContentLoaded', function () {
+  var form = document.querySelector('[data-cor-filter]');
+  var rangeInput = document.querySelector('[data-cor-range]');
+  var tabInput = document.querySelector('[data-cor-tab-input]');
+  var customDates = document.querySelector('[data-custom-dates]');
 
-    const period = form.querySelector('[data-report-period]');
-    const dateInputs = form.querySelectorAll('[data-report-date]');
-    const loading = form.querySelector('[data-report-loading]');
-    const apply = form.querySelector('[data-report-apply]');
-
-    const updateDateState = () => {
-        const isCustom = period?.value === 'custom';
-        dateInputs.forEach((input) => {
-            input.readOnly = !isCustom;
-            input.classList.toggle('is-readonly', !isCustom);
-        });
-    };
-
-    period?.addEventListener('change', updateDateState);
-    dateInputs.forEach((input) => {
-        input.addEventListener('change', () => {
-            if (period) period.value = 'custom';
-            updateDateState();
-        });
+  document.querySelectorAll('[data-range]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      if (!form || !rangeInput) return;
+      rangeInput.value = button.dataset.range || 'month';
+      if (customDates) customDates.style.display = rangeInput.value === 'custom' ? '' : 'none';
+      if (rangeInput.value !== 'custom') form.submit();
+      document.querySelectorAll('[data-range]').forEach(function (btn) { btn.classList.remove('active'); });
+      button.classList.add('active');
     });
+  });
 
-    form.addEventListener('submit', (event) => {
-        const submitter = event.submitter;
-        if (submitter && submitter.name === 'export') return;
-        loading.hidden = false;
-        apply?.classList.add('is-loading');
-        if (apply) apply.disabled = true;
+  document.querySelectorAll('.cor-tab').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      document.querySelectorAll('.cor-tab').forEach(function (item) { item.classList.remove('active'); });
+      document.querySelectorAll('.cor-tab-content').forEach(function (item) { item.classList.remove('active'); });
+      tab.classList.add('active');
+      var panel = document.getElementById('tab-' + tab.dataset.tab);
+      if (panel) panel.classList.add('active');
+      if (tabInput) tabInput.value = tab.dataset.tab || 'sales';
+      var url = new URL(window.location.href);
+      url.searchParams.set('tab', tab.dataset.tab || 'sales');
+      history.replaceState({}, '', url.toString());
     });
+  });
 
-    updateDateState();
+  var chartEl = document.getElementById('corTrendChart');
+  if (chartEl && window.Chart) {
+    new Chart(chartEl.getContext('2d'), {
+      data: {
+        labels: <?= json_encode(array_column($dailyRows, 'd'), JSON_UNESCAPED_SLASHES) ?>,
+        datasets: [
+          { type: 'bar', label: 'Revenue (N$)', data: <?= json_encode(array_map(static fn(array $row): float => round((float) $row['rev'], 2), $dailyRows), JSON_UNESCAPED_SLASHES) ?>, backgroundColor: '#AB3619', borderRadius: 4, yAxisID: 'y' },
+          { type: 'line', label: 'Orders', data: <?= json_encode(array_map(static fn(array $row): int => (int) $row['orders'], $dailyRows), JSON_UNESCAPED_SLASHES) ?>, borderColor: '#A8CA19', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 3, yAxisID: 'y1' }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { labels: { font: { family: 'Inter', size: 11 }, color: '#6B4C3B' } } },
+        scales: {
+          x: { ticks: { font: { family: 'Inter', size: 11 }, color: '#6B4C3B' }, grid: { display: false } },
+          y: { ticks: { font: { family: 'Inter', size: 11 }, color: '#6B4C3B' }, title: { display: true, text: 'Revenue (N$)', font: { size: 11 }, color: '#6B4C3B' } },
+          y1: { position: 'right', ticks: { font: { family: 'Inter', size: 11 }, color: '#A8CA19' }, title: { display: true, text: 'Orders', font: { size: 11 }, color: '#A8CA19' }, grid: { drawOnChartArea: false } }
+        }
+      }
+    });
+  }
 });
 </script>
 <?php include BASE_PATH . '/shared/footer.php'; ?>
