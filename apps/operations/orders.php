@@ -133,6 +133,118 @@ function cor_inventory_variant_label(array $variation): string
     return implode(' / ', $parts);
 }
 
+function cor_store_catalog_base(): string
+{
+    $base = WC_STORE_URL !== '' ? WC_STORE_URL : 'https://hambelelaorganic.com';
+
+    return rtrim($base, '/');
+}
+
+function cor_store_get(string $path, array $query = []): array
+{
+    if (!function_exists('curl_init')) {
+        return [];
+    }
+
+    $url = cor_store_catalog_base() . '/wp-json/wc/store/v1/' . ltrim($path, '/');
+    if ($query) {
+        $url .= '?' . http_build_query($query);
+    }
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 8,
+        CURLOPT_TIMEOUT => 20,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_HTTPHEADER => ['Accept: application/json'],
+        CURLOPT_USERAGENT => 'Hambelela Portal Customer Orders Report',
+    ]);
+    $body = curl_exec($ch);
+    $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    curl_close($ch);
+
+    if (!is_string($body) || $body === '' || $status >= 400) {
+        return [];
+    }
+
+    $data = json_decode($body, true);
+
+    return is_array($data) ? $data : [];
+}
+
+function cor_store_price(array $item): float
+{
+    $prices = $item['prices'] ?? [];
+    if (!is_array($prices)) {
+        return 0.0;
+    }
+
+    $raw = $prices['price'] ?? $prices['regular_price'] ?? $prices['sale_price'] ?? 0;
+    $minorUnit = (int) ($prices['currency_minor_unit'] ?? 2);
+
+    return (float) $raw / (10 ** max(0, $minorUnit));
+}
+
+function cor_store_stock_qty(array $item): float
+{
+    $lowRemaining = $item['low_stock_remaining'] ?? null;
+    if (is_numeric($lowRemaining)) {
+        return (float) $lowRemaining;
+    }
+
+    if (($item['is_in_stock'] ?? false) || (($item['stock_availability']['class'] ?? '') === 'in-stock')) {
+        return 1.0;
+    }
+
+    return 0.0;
+}
+
+function cor_inventory_row_from_store_product(array $product, ?array $variation = null): array
+{
+    $source = $variation ?: $product;
+    $hasStockState = array_key_exists('is_in_stock', $source) || isset($source['stock_availability']);
+    $stockSource = $hasStockState ? $source : $product;
+    $qty = cor_store_stock_qty($stockSource);
+    $price = cor_store_price($source);
+    if ($price <= 0 && $variation) {
+        $price = cor_store_price($product);
+    }
+    $lowThreshold = 5;
+    $categories = [];
+    foreach (($product['categories'] ?? []) as $category) {
+        $name = trim((string) ($category['name'] ?? ''));
+        if ($name !== '') {
+            $categories[] = $name;
+        }
+    }
+
+    $isInStock = (bool) (($stockSource['is_in_stock'] ?? false) || (($stockSource['stock_availability']['class'] ?? '') === 'in-stock'));
+    if (!$isInStock || $qty <= 0) {
+        $stockClass = 'out';
+    } elseif (($stockSource['low_stock_remaining'] ?? null) !== null && $qty <= $lowThreshold) {
+        $stockClass = 'low';
+    } else {
+        $stockClass = 'in';
+    }
+
+    return [
+        'id' => (int) ($source['id'] ?? $product['id'] ?? 0),
+        'name' => (string) ($product['name'] ?? $source['name'] ?? 'Product'),
+        'variant' => $variation ? cor_inventory_variant_label($variation) : '',
+        'category' => implode(', ', $categories),
+        'sku' => trim((string) ($source['sku'] ?? $product['sku'] ?? '')) ?: '-',
+        'price' => $price,
+        'cost' => 0.0,
+        'qty' => $qty,
+        'cost_val' => 0.0,
+        'retail_val' => $qty * $price,
+        'profit' => $price,
+        'stock_class' => $stockClass,
+        'low_threshold' => $lowThreshold,
+    ];
+}
+
 function cor_inventory_row(array $product, ?array $variation = null): array
 {
     $source = $variation ?: $product;
@@ -178,13 +290,75 @@ function cor_inventory_row(array $product, ?array $variation = null): array
 
 function cor_fetch_inventory_rows(): array
 {
-    if (!wc_configured()) {
-        return [];
+    $rows = [];
+    $sortRows = static function (array $rows): array {
+        usort($rows, static function (array $a, array $b): int {
+            $name = strcmp(strtolower((string) $a['name']), strtolower((string) $b['name']));
+            if ($name !== 0) {
+                return $name;
+            }
+
+            return strcmp(strtolower((string) $a['variant']), strtolower((string) $b['variant']));
+        });
+
+        return $rows;
+    };
+
+    if (wc_configured()) {
+        try {
+            for ($page = 1; $page <= 20; $page++) {
+                $products = wc_get('products', [
+                    'status' => 'publish',
+                    'per_page' => 100,
+                    'page' => $page,
+                ]);
+                if (!$products) {
+                    break;
+                }
+                foreach ($products as $product) {
+                    if (!is_array($product)) {
+                        continue;
+                    }
+                    if (($product['type'] ?? '') === 'variable' && !empty($product['variations'])) {
+                        for ($vPage = 1; $vPage <= 10; $vPage++) {
+                            try {
+                                $variations = wc_get('products/' . (int) $product['id'] . '/variations', [
+                                    'per_page' => 100,
+                                    'page' => $vPage,
+                                ]);
+                            } catch (Throwable $e) {
+                                $variations = [];
+                            }
+                            if (!$variations) {
+                                break;
+                            }
+                            foreach ($variations as $variation) {
+                                if (is_array($variation)) {
+                                    $rows[] = cor_inventory_row($product, $variation);
+                                }
+                            }
+                            if (count($variations) < 100) {
+                                break;
+                            }
+                        }
+                        continue;
+                    }
+                    $rows[] = cor_inventory_row($product);
+                }
+                if (count($products) < 100) {
+                    break;
+                }
+            }
+        } catch (Throwable $e) {
+            $rows = [];
+        }
+        if ($rows) {
+            return $sortRows($rows);
+        }
     }
 
-    $rows = [];
     for ($page = 1; $page <= 20; $page++) {
-        $products = wc_get('products', [
+        $products = cor_store_get('products', [
             'status' => 'publish',
             'per_page' => 100,
             'page' => $page,
@@ -192,50 +366,31 @@ function cor_fetch_inventory_rows(): array
         if (!$products) {
             break;
         }
+
         foreach ($products as $product) {
             if (!is_array($product)) {
                 continue;
             }
-            if (($product['type'] ?? '') === 'variable' && !empty($product['variations'])) {
-                for ($vPage = 1; $vPage <= 10; $vPage++) {
-                    try {
-                        $variations = wc_get('products/' . (int) $product['id'] . '/variations', [
-                            'per_page' => 100,
-                            'page' => $vPage,
-                        ]);
-                    } catch (Throwable $e) {
-                        $variations = [];
-                    }
-                    if (!$variations) {
-                        break;
-                    }
-                    foreach ($variations as $variation) {
-                        if (is_array($variation)) {
-                            $rows[] = cor_inventory_row($product, $variation);
-                        }
-                    }
-                    if (count($variations) < 100) {
-                        break;
+
+            $variations = $product['variations'] ?? [];
+            if (is_array($variations) && $variations) {
+                foreach ($variations as $variation) {
+                    if (is_array($variation)) {
+                        $rows[] = cor_inventory_row_from_store_product($product, $variation);
                     }
                 }
                 continue;
             }
-            $rows[] = cor_inventory_row($product);
+
+            $rows[] = cor_inventory_row_from_store_product($product);
         }
+
         if (count($products) < 100) {
             break;
         }
     }
 
-    usort($rows, static function (array $a, array $b): int {
-        $name = strcmp(strtolower((string) $a['name']), strtolower((string) $b['name']));
-        if ($name !== 0) {
-            return $name;
-        }
-        return strcmp(strtolower((string) $a['variant']), strtolower((string) $b['variant']));
-    });
-
-    return $rows;
+    return $sortRows($rows);
 }
 
 function cor_inventory_filtered_rows(array $rows, string $search, string $category, string $stock, string $sort, string $dir): array
@@ -1064,10 +1219,7 @@ if ($ready) {
          LIMIT 100",
         $params
     );
-    if (in_array($filters['tab'], ['inventory', 'monthly'], true) && $productRows) {
-        $inventoryAllRows = cor_inventory_rows_from_products($productRows);
-    }
-    if (!$inventoryAllRows && in_array($filters['tab'], ['inventory', 'monthly'], true)) {
+    if (in_array($filters['tab'], ['inventory', 'monthly'], true)) {
         try {
             $inventoryAllRows = cor_fetch_inventory_rows();
         } catch (Throwable $e) {
