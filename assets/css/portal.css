@@ -3683,8 +3683,8 @@ textarea {
 }
 
 .task-wrap .task-kind-manual {
-  background: #26335d !important;
-  color: #fff !important;
+  background: var(--t-olive) !important;
+  color: #2C1810 !important;
 }
 
 .task-wrap .task-inline-detail {
