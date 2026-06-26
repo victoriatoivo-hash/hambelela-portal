@@ -414,6 +414,142 @@ function cor_export_monthly(array $filters, string $format): void
     exit;
 }
 
+function cor_inventory_name_parts(string $productName): array
+{
+    $productName = trim($productName);
+    $variant = '';
+
+    if (preg_match('/^(.*?)[\s-]+(\d+(?:\.\d+)?\s*(?:kg|g|mg|l|ml|unit|units|pc|pcs|pack|packs|caps|capsules))$/i', $productName, $matches)) {
+        $productName = trim((string) $matches[1], " \t\n\r\0\x0B-");
+        $variant = strtoupper(str_replace(' ', '', (string) $matches[2]));
+    }
+
+    return [$productName !== '' ? $productName : 'Product', $variant];
+}
+
+function cor_inventory_rows(array $filters): array
+{
+    $params = [];
+    $where = cor_filtered_where($filters, $params);
+    $rows = cor_query_rows(
+        "SELECT oi.product_name,
+                COALESCE(NULLIF(MAX(oi.sku), ''), '-') AS sku,
+                COALESCE(SUM(oi.quantity), 0) AS qty,
+                COUNT(DISTINCT oi.order_id) AS order_count,
+                COALESCE(SUM(CASE WHEN order_qty.qty > 0 THEN o.total_amount * (oi.quantity / order_qty.qty) ELSE 0 END), 0) AS retail_value,
+                MAX(o.created_at) AS last_sold_at
+         FROM ops_order_items oi
+         JOIN ops_orders o ON o.id = oi.order_id
+         LEFT JOIN (
+            SELECT order_id, SUM(quantity) AS qty
+            FROM ops_order_items
+            GROUP BY order_id
+         ) order_qty ON order_qty.order_id = o.id
+         WHERE {$where}
+         GROUP BY oi.product_name, COALESCE(NULLIF(oi.sku, ''), '-')
+         ORDER BY retail_value DESC",
+        $params
+    );
+
+    return array_map(static function (array $row): array {
+        [$name, $variant] = cor_inventory_name_parts((string) $row['product_name']);
+        $qty = (float) $row['qty'];
+        $retailValue = (float) $row['retail_value'];
+        $price = $qty > 0 ? $retailValue / $qty : 0.0;
+        $cost = 0.0;
+        $costValue = $qty * $cost;
+        $stockClass = 'in';
+        if ($qty <= 0) {
+            $stockClass = 'out';
+        } elseif ($qty <= 5) {
+            $stockClass = 'low';
+        }
+
+        return [
+            'name' => $name,
+            'variant' => $variant,
+            'category' => 'Synced orders',
+            'sku' => (string) ($row['sku'] ?: '-'),
+            'price' => $price,
+            'cost' => $cost,
+            'qty' => $qty,
+            'cost_val' => $costValue,
+            'retail_val' => $retailValue,
+            'profit' => $price - $cost,
+            'profit_value' => $retailValue - $costValue,
+            'stock_class' => $stockClass,
+            'order_count' => (int) $row['order_count'],
+            'last_sold_at' => $row['last_sold_at'] ?? null,
+        ];
+    }, $rows);
+}
+
+function cor_inventory_filtered_rows(array $rows, string $search, string $category, string $stock, string $sort, string $dir): array
+{
+    $search = strtolower(trim($search));
+    $filtered = array_values(array_filter($rows, static function (array $row) use ($search, $category, $stock): bool {
+        if ($search !== '') {
+            $haystack = strtolower((string) $row['name'] . ' ' . (string) $row['variant'] . ' ' . (string) $row['sku']);
+            if (!str_contains($haystack, $search)) {
+                return false;
+            }
+        }
+        if ($category !== 'all' && $row['category'] !== $category) {
+            return false;
+        }
+        if ($stock !== 'all' && $row['stock_class'] !== $stock) {
+            return false;
+        }
+
+        return true;
+    }));
+
+    usort($filtered, static function (array $a, array $b) use ($sort, $dir): int {
+        $aValue = $a[$sort] ?? '';
+        $bValue = $b[$sort] ?? '';
+        $comparison = is_numeric($aValue) && is_numeric($bValue)
+            ? ((float) $aValue <=> (float) $bValue)
+            : strnatcasecmp((string) $aValue, (string) $bValue);
+
+        return $dir === 'desc' ? -$comparison : $comparison;
+    });
+
+    return $filtered;
+}
+
+function cor_export_inventory(array $filters, string $format): void
+{
+    $requestedSort = (string) ($_GET['inv_sort'] ?? 'name');
+    $sort = in_array($requestedSort, ['name', 'sku', 'qty', 'price', 'retail_val', 'cost_val', 'profit_value'], true) ? $requestedSort : 'name';
+    $dir = (string) ($_GET['inv_dir'] ?? 'asc') === 'desc' ? 'desc' : 'asc';
+    $requestedStock = (string) ($_GET['inv_stock'] ?? 'all');
+    $stock = in_array($requestedStock, ['all', 'in', 'low', 'out'], true) ? $requestedStock : 'all';
+    $category = trim((string) ($_GET['inv_category'] ?? 'all')) ?: 'all';
+    $rows = cor_inventory_filtered_rows(cor_inventory_rows($filters), (string) ($_GET['inv_search'] ?? ''), $category, $stock, $sort, $dir);
+    $delimiter = $format === 'excel' ? "\t" : ',';
+    $filename = 'inventory-' . $filters['from'] . '-to-' . $filters['to'] . ($format === 'excel' ? '.xls' : '.csv');
+
+    header($format === 'excel' ? 'Content-Type: application/vnd.ms-excel; charset=utf-8' : 'Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    $out = fopen('php://output', 'w');
+    fputcsv($out, ['Product / Category', 'Variant', 'SKU', 'Price', 'Cost', 'Qty', 'Cost Value', 'Retail Value', 'Profit'], $delimiter);
+    foreach ($rows as $row) {
+        fputcsv($out, [
+            $row['name'] . ($row['category'] ? ' / ' . $row['category'] : ''),
+            $row['variant'] ?: '-',
+            $row['sku'],
+            number_format((float) $row['price'], 2, '.', ''),
+            number_format((float) $row['cost'], 2, '.', ''),
+            number_format((float) $row['qty'], 2, '.', ''),
+            number_format((float) $row['cost_val'], 2, '.', ''),
+            number_format((float) $row['retail_val'], 2, '.', ''),
+            number_format((float) $row['profit_value'], 2, '.', ''),
+        ], $delimiter);
+    }
+    fclose($out);
+    exit;
+}
+
 $range = trim((string) ($_GET['range'] ?? 'month'));
 if (!in_array($range, ['today', 'week', 'month', 'year', 'custom'], true)) {
     $range = 'month';
@@ -437,7 +573,7 @@ if (!in_array($filters['status'], $validStatuses, true)) {
 if (!in_array($filters['mode'], ['all', 'collection', 'delivery', 'courier'], true)) {
     $filters['mode'] = 'all';
 }
-$validTabs = ['sales', 'products', 'delivery', 'vat', 'monthly', 'inventory', 'trend', 'orders'];
+$validTabs = ['sales', 'products', 'delivery', 'vat', 'monthly', 'inventory', 'orders'];
 if (!in_array($filters['tab'], $validTabs, true)) {
     $filters['tab'] = 'sales';
 }
@@ -451,6 +587,9 @@ if ($ready && isset($_GET['export']) && in_array((string) $_GET['export'], ['csv
     }
     if ($filters['tab'] === 'monthly') {
         cor_export_monthly($filters, (string) $_GET['export']);
+    }
+    if ($filters['tab'] === 'inventory') {
+        cor_export_inventory($filters, (string) $_GET['export']);
     }
     cor_export($filters, (string) $_GET['export']);
 }
@@ -484,7 +623,25 @@ $vatDailyRows = [];
 $vatPaymentRows = [];
 $vatProductRows = [];
 $inventoryRows = [];
-$dailyRows = [];
+$inventoryShownRows = [];
+$inventoryTopRows = [];
+$inventoryCategories = [];
+$inventorySummary = [
+    'total_skus' => 0,
+    'shown_skus' => 0,
+    'total_units' => 0.0,
+    'cost_value' => 0.0,
+    'retail_value' => 0.0,
+    'gross_profit' => 0.0,
+    'margin_pct' => 0,
+    'low_stock' => 0,
+    'out_stock' => 0,
+    'in_stock' => 0,
+    'shown_qty' => 0.0,
+    'shown_cost' => 0.0,
+    'shown_retail' => 0.0,
+    'shown_profit' => 0.0,
+];
 $daily14Rows = [];
 $orderRows = [];
 $refundSummary = ['count' => 0, 'amount' => 0.0, 'pct' => 0.0];
@@ -527,6 +684,11 @@ $deliverySummary = ['fees' => 0.0, 'orders' => 0, 'avg' => 0.0, 'courier' => 0, 
 $deliveryOrdersCount = 0;
 $deliverySearch = trim((string) ($_GET['del_search'] ?? ''));
 $deliveryStatus = trim((string) ($_GET['del_status'] ?? 'all')) ?: 'all';
+$inventorySearch = trim((string) ($_GET['inv_search'] ?? ''));
+$inventoryCategory = trim((string) ($_GET['inv_category'] ?? 'all')) ?: 'all';
+$inventoryStock = in_array((string) ($_GET['inv_stock'] ?? 'all'), ['all', 'in', 'low', 'out'], true) ? (string) ($_GET['inv_stock'] ?? 'all') : 'all';
+$inventorySort = in_array((string) ($_GET['inv_sort'] ?? 'name'), ['name', 'sku', 'qty', 'price', 'retail_val', 'cost_val', 'profit_value'], true) ? (string) ($_GET['inv_sort'] ?? 'name') : 'name';
+$inventoryDir = (string) ($_GET['inv_dir'] ?? 'asc') === 'desc' ? 'desc' : 'asc';
 $totalPages = 1;
 $page = max(1, (int) ($_GET['p'] ?? 1));
 $perPage = 50;
@@ -769,28 +931,33 @@ if ($ready) {
     $monthlySummary['stock_retail'] = 0.0;
     $monthlySummary['potential_margin'] = $monthlySummary['stock_retail'] - $monthlySummary['stock_cost'];
 
-    $inventoryRows = cor_query_rows(
-        "SELECT oi.product_name,
-                COALESCE(NULLIF(MAX(oi.sku), ''), '-') AS sku,
-                COALESCE(SUM(oi.quantity), 0) AS sold_qty,
-                COUNT(DISTINCT oi.order_id) AS order_count,
-                MAX(o.created_at) AS last_sold_at
-         FROM ops_order_items oi
-         JOIN ops_orders o ON o.id = oi.order_id
-         WHERE {$where}
-         GROUP BY oi.product_name
-         ORDER BY sold_qty DESC
-         LIMIT 100",
-        $params
-    );
-    $dailyRows = cor_query_rows(
-        "SELECT DATE(o.created_at) AS d, COUNT(*) AS orders, COALESCE(SUM(o.total_amount), 0) AS rev
-         FROM ops_orders o
-         WHERE {$where}
-         GROUP BY DATE(o.created_at)
-         ORDER BY d ASC",
-        $params
-    );
+    $inventoryRows = cor_inventory_rows($filters);
+    $inventoryCategories = array_values(array_unique(array_filter(array_map(static fn(array $row): string => (string) $row['category'], $inventoryRows))));
+    sort($inventoryCategories);
+    if ($inventoryCategory !== 'all' && !in_array($inventoryCategory, $inventoryCategories, true)) {
+        $inventoryCategory = 'all';
+    }
+    $inventoryShownRows = cor_inventory_filtered_rows($inventoryRows, $inventorySearch, $inventoryCategory, $inventoryStock, $inventorySort, $inventoryDir);
+    $inventoryTopRows = $inventoryRows;
+    usort($inventoryTopRows, static fn(array $a, array $b): int => (float) $b['retail_val'] <=> (float) $a['retail_val']);
+    $inventoryTopRows = array_slice(array_values(array_filter($inventoryTopRows, static fn(array $row): bool => (float) $row['retail_val'] > 0)), 0, 8);
+    $inventorySummary = [
+        'total_skus' => count($inventoryRows),
+        'shown_skus' => count($inventoryShownRows),
+        'total_units' => array_reduce($inventoryRows, static fn(float $carry, array $row): float => $carry + (float) $row['qty'], 0.0),
+        'cost_value' => array_reduce($inventoryRows, static fn(float $carry, array $row): float => $carry + (float) $row['cost_val'], 0.0),
+        'retail_value' => array_reduce($inventoryRows, static fn(float $carry, array $row): float => $carry + (float) $row['retail_val'], 0.0),
+        'gross_profit' => array_reduce($inventoryRows, static fn(float $carry, array $row): float => $carry + (float) $row['profit_value'], 0.0),
+        'margin_pct' => 0,
+        'low_stock' => count(array_filter($inventoryRows, static fn(array $row): bool => $row['stock_class'] === 'low')),
+        'out_stock' => count(array_filter($inventoryRows, static fn(array $row): bool => $row['stock_class'] === 'out')),
+        'in_stock' => count(array_filter($inventoryRows, static fn(array $row): bool => $row['stock_class'] === 'in')),
+        'shown_qty' => array_reduce($inventoryShownRows, static fn(float $carry, array $row): float => $carry + (float) $row['qty'], 0.0),
+        'shown_cost' => array_reduce($inventoryShownRows, static fn(float $carry, array $row): float => $carry + (float) $row['cost_val'], 0.0),
+        'shown_retail' => array_reduce($inventoryShownRows, static fn(float $carry, array $row): float => $carry + (float) $row['retail_val'], 0.0),
+        'shown_profit' => array_reduce($inventoryShownRows, static fn(float $carry, array $row): float => $carry + (float) $row['profit_value'], 0.0),
+    ];
+    $inventorySummary['margin_pct'] = $inventorySummary['retail_value'] > 0 ? (int) round(($inventorySummary['gross_profit'] / $inventorySummary['retail_value']) * 100) : 0;
     $daily14Rows = cor_query_rows(
         "SELECT DATE(o.created_at) AS d, COUNT(*) AS orders, COALESCE(SUM(o.total_amount), 0) AS rev
          FROM ops_orders o
@@ -970,6 +1137,20 @@ include BASE_PATH . '/shared/sidebar.php';
         .inv-instock { border: 1px solid var(--cor-olive); background: #f3fae0; color: #6f8c10; }
         .inv-lowstock { border: 1px solid var(--cor-amber); background: #fef5e7; color: var(--cor-amber); }
         .inv-outstock { border: 1px solid var(--cor-red); background: #fde8e8; color: var(--cor-red); }
+        .inv-qty-in { color: var(--cor-olive) !important; font-weight: 700 !important; }
+        .inv-qty-low { color: var(--cor-amber) !important; font-weight: 800 !important; }
+        .inv-qty-out { color: var(--cor-red) !important; font-weight: 800 !important; }
+        .cor-products-table tr.inv-row-low td { background: #fff9f0 !important; }
+        .cor-products-table tr.inv-row-out td { background: #fff5f5 !important; }
+        .inv-sku-chip { display: inline-block; padding: 2px 6px; border-radius: 3px; background: var(--cor-border); color: var(--cor-text-mid); font-size: 10px; font-weight: 700; }
+        .inv-cost-box { display: inline-block; min-width: 50px; padding: 2px 6px; border: 1px solid var(--cor-border); border-radius: 4px; font-size: 12px; text-align: center; }
+        .inv-filter-tools { padding: 12px 16px; border-bottom: 1px solid var(--cor-border); }
+        .inv-filter-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+        .inv-filter-row input, .inv-filter-row select, .inv-sort-btn, .inv-refresh-btn { height: 32px; padding: 0 10px; border: 1px solid var(--cor-border); border-radius: 6px; background: var(--cor-surface); color: var(--cor-text); font-size: 12px; }
+        .inv-filter-row input { flex: 1; min-width: 200px; }
+        .inv-sort-btn { cursor: pointer; }
+        .inv-refresh-btn { border: 0; background: var(--cor-orange-red); color: #fff; font-weight: 700; cursor: pointer; }
+        .inv-showing { margin-top: 8px; color: var(--cor-text-mid); font-size: 11px; }
         .cor-rank { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: var(--cor-border); color: var(--cor-text-mid); font-size: 11px; font-weight: 800; }
         .cor-rank-1 { background: var(--cor-amber); color: #fff; }
         .cor-rank-2 { background: var(--cor-orange-red); color: #fff; }
@@ -1022,7 +1203,8 @@ include BASE_PATH . '/shared/sidebar.php';
         .cor-empty { padding: 16px 18px; color: var(--cor-text-mid); font-size: 13px; }
         @media (max-width: 1100px) { .cor-stat-grid { grid-template-columns: repeat(3, 1fr); } .cor-report-grid, .cor-two-col { grid-template-columns: 1fr; } }
         @media (max-width: 900px) { .cor-summary-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-        @media (max-width: 767px) { .cor-stat-grid, .cor-summary-stat-grid { grid-template-columns: repeat(2, 1fr); } .cor-tab { padding: 0 12px; font-size: 11px; } .cor-filter-panel { margin-top: 18px; } .cor-filter-bar { align-items: stretch; flex-direction: column; } .cor-filter-selects, .cor-date-inputs, .cor-quick-ranges { align-items: stretch; } .cor-filter-bar select, .cor-filter-bar input[type="date"], .cor-btn-apply, .cor-btn-export, .cor-btn-daily, .cor-btn-export-sm { width: 100%; } .del-breakdown-top, .vat-breakdown-card { flex-direction: column; align-items: flex-start; } .del-hbar-label { min-width: 80px; font-size: 11px; } .del-table-tools { align-items: stretch; flex-direction: column; } .del-table-tools input, .del-table-tools select { width: 100%; } }
+        @media (max-width: 900px) { .inventory-table th:nth-child(3), .inventory-table td:nth-child(3) { display: none; } }
+        @media (max-width: 767px) { .cor-stat-grid, .cor-summary-stat-grid { grid-template-columns: repeat(2, 1fr); } .cor-tab { padding: 0 12px; font-size: 11px; } .cor-filter-panel { margin-top: 18px; } .cor-filter-bar { align-items: stretch; flex-direction: column; } .cor-filter-selects, .cor-date-inputs, .cor-quick-ranges { align-items: stretch; } .cor-filter-bar select, .cor-filter-bar input[type="date"], .cor-btn-apply, .cor-btn-export, .cor-btn-daily, .cor-btn-export-sm { width: 100%; } .del-breakdown-top, .vat-breakdown-card { flex-direction: column; align-items: flex-start; } .del-hbar-label { min-width: 80px; font-size: 11px; } .del-table-tools, .inv-filter-row { align-items: stretch; flex-direction: column; } .del-table-tools input, .del-table-tools select, .inv-filter-row input, .inv-filter-row select, .inv-sort-btn, .inv-refresh-btn { width: 100%; } }
         @media (max-width: 500px) { .cor-summary-stat-grid, .vat-second-stats { grid-template-columns: 1fr; } }
     </style>
 
@@ -1091,7 +1273,6 @@ include BASE_PATH . '/shared/sidebar.php';
             'vat' => 'VAT',
             'monthly' => 'Monthly',
             'inventory' => 'Inventory',
-            'trend' => 'Trend',
             'orders' => 'All Orders',
         ];
         foreach ($tabs as $key => $label):
@@ -1631,27 +1812,170 @@ include BASE_PATH . '/shared/sidebar.php';
     </section>
 
     <section id="tab-inventory" class="cor-tab-content <?= $filters['tab'] === 'inventory' ? 'active' : '' ?>">
-        <article class="cor-report-card">
-            <div class="card-head"><h3>Inventory Movement</h3><span>Read-only product movement from synced order items</span></div>
-            <div class="cor-table-wrap">
-                <table>
-                    <thead><tr><th>Product</th><th>SKU</th><th>Qty Sold</th><th>Orders</th><th>Stock Status</th><th>Last Sold</th></tr></thead>
-                    <tbody>
-                    <?php foreach ($inventoryRows as $row): ?>
-                        <tr><td><?= cor_e($row['product_name']) ?></td><td><?= cor_e($row['sku']) ?></td><td><?= number_format((float) $row['sold_qty'], 2) ?></td><td><?= number_format((int) $row['order_count']) ?></td><td><span class="inv-instock">Synced</span></td><td><?= $row['last_sold_at'] ? cor_e(date('d M H:i', strtotime((string) $row['last_sold_at']))) : '-' ?></td></tr>
+        <section class="cor-summary-stat-grid" aria-label="Inventory summary">
+            <article class="cor-top-card">
+                <div class="tc-label">SKUs Shown</div>
+                <div class="tc-value"><?= number_format((int) $inventorySummary['shown_skus']) ?></div>
+                <div class="tc-sub">of <?= number_format((int) $inventorySummary['total_skus']) ?> total</div>
+            </article>
+            <article class="cor-top-card">
+                <div class="tc-label">Total Units</div>
+                <div class="tc-value"><?= number_format((float) $inventorySummary['total_units'], 2) ?></div>
+                <div class="tc-sub">synced movement</div>
+            </article>
+            <article class="cor-top-card" style="border-left:4px solid var(--cor-burgundy);">
+                <div class="tc-label">Cost Value</div>
+                <div class="tc-value" style="color:var(--cor-burgundy);"><?= cor_money($inventorySummary['cost_value']) ?></div>
+                <div class="tc-sub">cost sync pending</div>
+            </article>
+            <article class="cor-top-card" style="border-left:4px solid var(--cor-olive);">
+                <div class="tc-label">Retail Value</div>
+                <div class="tc-value" style="color:var(--cor-olive);"><?= cor_money($inventorySummary['retail_value']) ?></div>
+                <div class="tc-sub">at synced sales value</div>
+            </article>
+        </section>
+
+        <section class="vat-second-stats">
+            <article class="cor-top-card" style="border-left:4px solid var(--cor-olive);">
+                <div class="tc-label">Gross Profit</div>
+                <div class="tc-value" style="color:var(--cor-olive);"><?= cor_money($inventorySummary['gross_profit']) ?></div>
+                <div class="tc-sub"><?= number_format((int) $inventorySummary['margin_pct']) ?>% margin</div>
+            </article>
+            <article class="cor-top-card" style="border-left:4px solid var(--cor-amber);">
+                <div class="tc-label">Low Stock</div>
+                <div class="tc-value" style="color:var(--cor-amber);"><?= number_format((int) $inventorySummary['low_stock']) ?></div>
+                <div class="tc-sub">5 units or less</div>
+            </article>
+        </section>
+
+        <section class="cor-two-col">
+            <article class="cor-report-card">
+                <div style="padding:18px;display:flex;gap:20px;align-items:center;flex-wrap:wrap;">
+                    <canvas id="invPieChart" width="140" height="140" style="flex-shrink:0;"></canvas>
+                    <div style="flex:1;min-width:220px;">
+                        <div style="font-size:13px;font-weight:800;color:var(--cor-burgundy);margin-bottom:12px;">Stock Health</div>
+                        <?php
+                        $healthItems = [
+                            ['In Stock', (int) $inventorySummary['in_stock'], '#A8CA19'],
+                            ['Low Stock (≤5)', (int) $inventorySummary['low_stock'], '#F07420'],
+                            ['Out of Stock', (int) $inventorySummary['out_stock'], '#BB1B21'],
+                        ];
+                        $healthTotal = max((int) $inventorySummary['total_skus'], 1);
+                        foreach ($healthItems as $item):
+                            $healthPct = round(($item[1] / $healthTotal) * 100);
+                        ?>
+                            <div class="del-legend-row">
+                                <span class="del-legend-dot" style="background:<?= cor_e($item[2]) ?>"></span>
+                                <span class="del-legend-name"><?= cor_e($item[0]) ?></span>
+                                <span class="del-legend-amt" style="color:<?= cor_e($item[2]) ?>;"><?= number_format($item[1]) ?></span>
+                                <span class="del-legend-pct"><?= number_format($healthPct) ?>%</span>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            </article>
+
+            <article class="cor-report-card">
+                <div class="card-head"><h3>Top Products by Value</h3></div>
+                <div style="padding:14px 18px;">
+                    <?php
+                    $topMaxValue = (float) ($inventoryTopRows[0]['retail_val'] ?? 0);
+                    $topColours = ['#A8CA19', '#0077cc', '#F07420', '#8B44C7', '#e91e8c', '#00b4a0', '#AB3619', '#00c875'];
+                    foreach ($inventoryTopRows as $index => $row):
+                        $barWidth = $topMaxValue > 0 ? ((float) $row['retail_val'] / $topMaxValue) * 100 : 0;
+                        $colour = $topColours[$index % count($topColours)];
+                    ?>
+                        <div class="del-hbar-row">
+                            <div class="del-hbar-label"><?= cor_e(cor_short_text($row['name'], 22)) ?></div>
+                            <div class="del-hbar-track"><div class="del-hbar-fill" style="width:<?= cor_e((string) $barWidth) ?>%;background:<?= cor_e($colour) ?>;"></div></div>
+                            <div class="del-hbar-val"><?= cor_money($row['retail_val']) ?></div>
+                        </div>
                     <?php endforeach; ?>
-                    <?php if (!$inventoryRows): ?><tr><td colspan="6">No inventory movement found from synced order items.</td></tr><?php endif; ?>
+                    <?php if (!$inventoryTopRows): ?><div class="cor-empty" style="padding:0;">No inventory values found.</div><?php endif; ?>
+                </div>
+            </article>
+        </section>
+
+        <article class="cor-report-card">
+            <div class="inv-filter-tools">
+                <div class="inv-filter-row">
+                    <input type="text" id="invSearch" placeholder="Search product or SKU..." value="<?= cor_e($inventorySearch) ?>">
+                    <select id="invCatFilter" onchange="refreshInventory()">
+                        <option value="all">All Categories</option>
+                        <?php foreach ($inventoryCategories as $category): ?>
+                            <option value="<?= cor_e($category) ?>" <?= $inventoryCategory === $category ? 'selected' : '' ?>><?= cor_e($category) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <select id="invSort" onchange="refreshInventory()">
+                        <option value="name" <?= $inventorySort === 'name' ? 'selected' : '' ?>>Sort: Name</option>
+                        <option value="qty" <?= $inventorySort === 'qty' ? 'selected' : '' ?>>Sort: Qty</option>
+                        <option value="retail_val" <?= $inventorySort === 'retail_val' ? 'selected' : '' ?>>Sort: Retail Value</option>
+                        <option value="price" <?= $inventorySort === 'price' ? 'selected' : '' ?>>Sort: Price</option>
+                    </select>
+                    <button class="inv-sort-btn" type="button" onclick="toggleInventorySortDir()"><?= $inventoryDir === 'asc' ? '↑ Asc' : '↓ Desc' ?></button>
+                    <select id="invStockFilter" onchange="refreshInventory()">
+                        <option value="all" <?= $inventoryStock === 'all' ? 'selected' : '' ?>>All Stock</option>
+                        <option value="in" <?= $inventoryStock === 'in' ? 'selected' : '' ?>>In Stock</option>
+                        <option value="low" <?= $inventoryStock === 'low' ? 'selected' : '' ?>>Low Stock</option>
+                        <option value="out" <?= $inventoryStock === 'out' ? 'selected' : '' ?>>Out of Stock</option>
+                    </select>
+                    <button class="inv-refresh-btn" type="button" onclick="refreshInventory()">Refresh</button>
+                </div>
+                <div class="inv-showing">Showing <?= number_format((int) $inventorySummary['shown_skus']) ?> of <?= number_format((int) $inventorySummary['total_skus']) ?> SKUs</div>
+            </div>
+            <div class="cor-summary-actions" style="padding:10px 16px;border-bottom:1px solid var(--cor-border);margin-bottom:0;">
+                <a class="cor-btn-export-sm" href="?<?= cor_e(http_build_query(array_merge($queryBase, ['tab' => 'inventory', 'export' => 'csv', 'inv_search' => $inventorySearch, 'inv_category' => $inventoryCategory, 'inv_stock' => $inventoryStock, 'inv_sort' => $inventorySort, 'inv_dir' => $inventoryDir]))) ?>">CSV</a>
+                <a class="cor-btn-export-sm" href="?<?= cor_e(http_build_query(array_merge($queryBase, ['tab' => 'inventory', 'export' => 'excel', 'inv_search' => $inventorySearch, 'inv_category' => $inventoryCategory, 'inv_stock' => $inventoryStock, 'inv_sort' => $inventorySort, 'inv_dir' => $inventoryDir]))) ?>">Excel</a>
+                <button class="cor-btn-export-sm" type="button" onclick="window.print()">PDF</button>
+            </div>
+            <div class="cor-table-wrap" style="max-height:600px;overflow-y:auto;">
+                <table class="cor-products-table inventory-table">
+                    <thead>
+                        <tr>
+                            <th style="width:260px;">Product / Category</th>
+                            <th style="width:80px;">Variant</th>
+                            <th style="width:100px;">SKU</th>
+                            <th style="width:90px;">Price</th>
+                            <th style="width:90px;">Cost</th>
+                            <th style="width:70px;">QTY</th>
+                            <th style="width:100px;">Cost Value</th>
+                            <th style="width:110px;">Retail Value</th>
+                            <th style="width:90px;">Profit</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($inventoryShownRows as $row):
+                        $rowClass = $row['stock_class'] === 'out' ? 'inv-row-out' : ($row['stock_class'] === 'low' ? 'inv-row-low' : '');
+                        $qtyClass = 'inv-qty-' . $row['stock_class'];
+                    ?>
+                        <tr class="<?= cor_e($rowClass) ?>">
+                            <td>
+                                <div style="font-weight:700;color:var(--cor-text);"><?= cor_e($row['name']) ?></div>
+                                <div style="font-size:10px;color:var(--cor-text-light);margin-top:1px;"><?= cor_e($row['category']) ?></div>
+                            </td>
+                            <td style="color:var(--cor-text-mid);font-size:12px;"><?= $row['variant'] ? cor_e($row['variant']) : '-' ?></td>
+                            <td><?= $row['sku'] && $row['sku'] !== '-' ? '<span class="inv-sku-chip">' . cor_e($row['sku']) . '</span>' : '<span style="color:var(--cor-text-light);">-</span>' ?></td>
+                            <td><?= cor_money($row['price']) ?></td>
+                            <td><span class="inv-cost-box"><?= number_format((float) $row['cost'], 2) ?></span></td>
+                            <td class="<?= cor_e($qtyClass) ?>"><?= number_format((float) $row['qty'], 2) ?></td>
+                            <td><?= cor_money($row['cost_val']) ?></td>
+                            <td><?= cor_money($row['retail_val']) ?></td>
+                            <td style="font-weight:700;color:var(--cor-olive);"><?= cor_money($row['profit_value']) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    <?php if (!$inventoryShownRows): ?><tr><td colspan="9" style="text-align:center;padding:24px;color:var(--cor-text-light);">No products match your search.</td></tr><?php endif; ?>
+                    <?php if ($inventoryShownRows): ?>
+                        <tr style="border-top:3px solid var(--cor-border);background:var(--cor-cream);">
+                            <td colspan="5" style="font-weight:800;">TOTAL</td>
+                            <td style="font-weight:800;"><?= number_format((float) $inventorySummary['shown_qty'], 2) ?></td>
+                            <td style="font-weight:800;"><?= cor_money($inventorySummary['shown_cost']) ?></td>
+                            <td style="font-weight:800;"><?= cor_money($inventorySummary['shown_retail']) ?></td>
+                            <td style="font-weight:800;color:var(--cor-olive);"><?= cor_money($inventorySummary['shown_profit']) ?></td>
+                        </tr>
+                    <?php endif; ?>
                     </tbody>
                 </table>
             </div>
-        </article>
-    </section>
-
-    <section id="tab-trend" class="cor-tab-content <?= $filters['tab'] === 'trend' ? 'active' : '' ?>">
-        <article class="cor-chart-card">
-            <div class="card-head"><h3>Daily / Weekly Trend</h3><span>Revenue bars and order count line</span></div>
-            <div class="cor-chart-body"><canvas id="corTrendChart"></canvas></div>
-            <?php if (!$dailyRows): ?><div class="cor-empty">No records found.</div><?php endif; ?>
         </article>
     </section>
 
@@ -1720,29 +2044,6 @@ document.addEventListener('DOMContentLoaded', function () {
       history.replaceState({}, '', url.toString());
     });
   });
-
-  var chartEl = document.getElementById('corTrendChart');
-  if (chartEl && window.Chart) {
-    new Chart(chartEl.getContext('2d'), {
-      data: {
-        labels: <?= json_encode(array_column($dailyRows, 'd'), JSON_UNESCAPED_SLASHES) ?>,
-        datasets: [
-          { type: 'bar', label: 'Revenue (N$)', data: <?= json_encode(array_map(static fn(array $row): float => round((float) $row['rev'], 2), $dailyRows), JSON_UNESCAPED_SLASHES) ?>, backgroundColor: '#AB3619', borderRadius: 4, yAxisID: 'y' },
-          { type: 'line', label: 'Orders', data: <?= json_encode(array_map(static fn(array $row): int => (int) $row['orders'], $dailyRows), JSON_UNESCAPED_SLASHES) ?>, borderColor: '#A8CA19', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 3, yAxisID: 'y1' }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { labels: { font: { family: 'Inter', size: 11 }, color: '#6B4C3B' } } },
-        scales: {
-          x: { ticks: { font: { family: 'Inter', size: 11 }, color: '#6B4C3B' }, grid: { display: false } },
-          y: { ticks: { font: { family: 'Inter', size: 11 }, color: '#6B4C3B' }, title: { display: true, text: 'Revenue (N$)', font: { size: 11 }, color: '#6B4C3B' } },
-          y1: { position: 'right', ticks: { font: { family: 'Inter', size: 11 }, color: '#A8CA19' }, title: { display: true, text: 'Orders', font: { size: 11 }, color: '#A8CA19' }, grid: { drawOnChartArea: false } }
-        }
-      }
-    });
-  }
 
   var daily14El = document.getElementById('daily14Chart');
   if (daily14El && window.Chart) {
@@ -1846,6 +2147,54 @@ document.addEventListener('DOMContentLoaded', function () {
       }
     });
   }
+
+  var invPieEl = document.getElementById('invPieChart');
+  var invPieData = <?= json_encode([
+      (int) $inventorySummary['in_stock'],
+      (int) $inventorySummary['low_stock'],
+      (int) $inventorySummary['out_stock'],
+  ], JSON_UNESCAPED_SLASHES) ?>;
+  if (invPieEl && window.Chart) {
+    new Chart(invPieEl.getContext('2d'), {
+      type: 'doughnut',
+      data: {
+        labels: ['In Stock', 'Low Stock (≤5)', 'Out of Stock'],
+        datasets: [{
+          data: invPieData,
+          backgroundColor: ['#A8CA19', '#F07420', '#BB1B21'],
+          borderWidth: 2,
+          borderColor: '#FDF6EE'
+        }]
+      },
+      options: {
+        responsive: false,
+        plugins: { legend: { display: false } },
+        cutout: '50%'
+      }
+    });
+  }
 });
+
+function refreshInventory() {
+  var url = new URL(window.location.href);
+  url.searchParams.set('tab', 'inventory');
+  url.searchParams.set('inv_search', document.getElementById('invSearch')?.value || '');
+  url.searchParams.set('inv_category', document.getElementById('invCatFilter')?.value || 'all');
+  url.searchParams.set('inv_sort', document.getElementById('invSort')?.value || 'name');
+  url.searchParams.set('inv_stock', document.getElementById('invStockFilter')?.value || 'all');
+  url.searchParams.set('inv_dir', '<?= cor_e($inventoryDir) ?>');
+  window.location.href = url.toString();
+}
+
+function toggleInventorySortDir() {
+  var url = new URL(window.location.href);
+  url.searchParams.set('tab', 'inventory');
+  url.searchParams.set('inv_search', document.getElementById('invSearch')?.value || '');
+  url.searchParams.set('inv_category', document.getElementById('invCatFilter')?.value || 'all');
+  url.searchParams.set('inv_sort', document.getElementById('invSort')?.value || 'name');
+  url.searchParams.set('inv_stock', document.getElementById('invStockFilter')?.value || 'all');
+  url.searchParams.set('inv_dir', '<?= $inventoryDir === 'asc' ? 'desc' : 'asc' ?>');
+  window.location.href = url.toString();
+}
 </script>
 <?php include BASE_PATH . '/shared/footer.php'; ?>
