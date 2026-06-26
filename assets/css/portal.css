@@ -15818,3 +15818,189 @@ body:has(.ob-wrap) .workspace {
 @media (max-width: 600px) {
   .settings-wrap .form-row { grid-template-columns: 1fr; }
 }
+
+/* Orders Board collapsed group summary headers. */
+.ob-wrap .ops-board-table > thead {
+  display: none !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header {
+  height: 58px !important;
+  cursor: pointer;
+  border-left: 4px solid var(--ob-group-colour, #007eb5) !important;
+  border-bottom: 1px solid var(--board-line, #d0d4e4) !important;
+  transition: background 150ms ease;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header:hover > td {
+  background: #fdf3ea !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header > td {
+  height: 58px !important;
+  padding: 0 10px !important;
+  background: #fff !important;
+  color: var(--board-text, #1f2533) !important;
+  border-left: 0 !important;
+  border-color: var(--board-line, #d0d4e4) !important;
+  box-shadow: none !important;
+  transform: none !important;
+  vertical-align: middle !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header > td:first-child {
+  padding-left: 10px !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header button[data-collapse-group] {
+  display: inline-grid !important;
+  grid-template-columns: 18px minmax(0, 1fr) !important;
+  align-items: start !important;
+  width: 100% !important;
+  min-height: 42px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--ob-group-colour, #007eb5) !important;
+  text-align: left !important;
+}
+
+.ob-wrap .ops-board-table .ob-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 20px;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+  transform: rotate(0deg);
+  transform-origin: center;
+  transition: transform 220ms ease;
+}
+
+.ob-wrap .ops-board-table .ob-group-header.is-open .ob-chevron {
+  transform: rotate(90deg);
+}
+
+.ob-wrap .ops-board-table .ob-group-date-label {
+  display: block !important;
+  color: var(--ob-group-colour, #007eb5) !important;
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  line-height: 1.25 !important;
+}
+
+.ob-wrap .ops-board-table .ob-group-task-count {
+  display: block !important;
+  margin-top: 4px !important;
+  color: var(--board-muted, #676879) !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  line-height: 1.1 !important;
+}
+
+.ob-wrap .ops-board-table .ob-group-column-title {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--board-text, #1f2533);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  text-align: center;
+  text-transform: none;
+}
+
+.ob-wrap .ops-board-table .ob-date-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 112px;
+  height: 22px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--ob-group-colour, #007eb5);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.ob-wrap .ops-board-table .ob-group-date-cell,
+.ob-wrap .ops-board-table .ob-group-amount-cell,
+.ob-wrap .ops-board-table .ob-group-paid-cell,
+.ob-wrap .ops-board-table .ob-group-bar-cell {
+  text-align: center !important;
+}
+
+.ob-wrap .ops-board-table .ob-stacked-bar {
+  display: flex;
+  width: 100%;
+  min-width: 84px;
+  max-width: 128px;
+  height: 20px;
+  margin: 0 auto;
+  gap: 1px;
+  overflow: hidden;
+  border-radius: 0;
+  background: #e6e9ef;
+}
+
+.ob-wrap .ops-board-table .ob-bar-segment {
+  height: 100%;
+  min-width: 2px;
+  transition: flex 300ms ease;
+}
+
+.ob-wrap .ops-board-table .ob-group-sum {
+  color: var(--board-text, #1f2533);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.ob-wrap .ops-board-table .ob-group-sum-label {
+  margin-top: 2px;
+  color: var(--board-muted, #676879);
+  font-size: 10px;
+  line-height: 1;
+}
+
+.ob-wrap .ops-board-table .ob-paid-fraction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  height: 22px;
+  color: var(--board-text, #1f2533);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-col-header-row > td,
+.ob-wrap .ops-board-table tbody tr.ob-col-header-row > td.ob-col-th {
+  height: 34px !important;
+  min-height: 34px !important;
+  padding: 0 10px !important;
+  background: #ffffff !important;
+  color: #34385b !important;
+  border-color: var(--board-line, #d0d4e4) !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+  line-height: 34px !important;
+  text-align: center !important;
+  text-transform: none !important;
+  box-shadow: none !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-data-row {
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-data-row[hidden],
+.ob-wrap .ops-board-table tbody tr.ob-col-header-row[hidden],
+.ob-wrap .ops-board-table tbody tr.add-task-row[hidden] {
+  display: none !important;
+}

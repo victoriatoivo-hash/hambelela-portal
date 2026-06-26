@@ -68,10 +68,14 @@
   let statusLabels = [
     ['new_order', 'NEW ORDER', '#bdbdbd'], ['assigned', 'NEW ORDER', '#bdbdbd'], ['in_progress', 'IN PROGRESS', '#fdab3d'], ['completed', 'COMPLETE', '#e2445c']
   ];
+  const expandedGroups = new Set();
+  const groupColours = ['#3b82f6', '#ec4899', '#10b981', '#8b5cf6', '#f97316', '#14b8a6', '#f59e0b', '#ef4444'];
+  const fallbackBarColour = '#c4c4c4';
 
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
   })[char]);
+  const selectorEsc = (value) => window.CSS && CSS.escape ? CSS.escape(String(value)) : String(value).replace(/["\\]/g, '\\$&');
 
   const money = (value) => `N$${Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
   const normalize = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
@@ -333,7 +337,7 @@
 
   function applyHiddenColumns() {
     const map = {
-      select: 1, task: 2, updates: 3, date: 4, mode: 5, mobile: 6,
+      select: 1, task: 2, updates: 3, date: 4, mobile: 5, mode: 6,
       amount: 7, payment: 8, paid: 9, status: 10, packer: 11, text: 12
     };
 
@@ -358,6 +362,42 @@
       const color = field === 'paid' ? (key === 'paid' ? '#00c875' : '#c4c4c4') : findColor(options, key);
       return `<i style="width:${(count / total) * 100}%;background:${esc(color)}"></i>`;
     }).join('');
+  }
+
+  function groupDatePill(key) {
+    const date = new Date(`${key}T12:00:00`);
+    return Number.isNaN(date.getTime()) ? key : date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  }
+
+  function groupCountText(count) {
+    return `${count} ${count === 1 ? 'Task' : 'Tasks'}`;
+  }
+
+  function countValues(orders, resolver, defaults = {}) {
+    const counts = { ...defaults };
+    orders.forEach((order) => {
+      const value = resolver(order) || 'Other';
+      counts[value] = (counts[value] || 0) + 1;
+    });
+    return counts;
+  }
+
+  function optionColourMap(options) {
+    return options.reduce((map, item) => {
+      map[itemText(item)] = itemColor(item);
+      map[itemText(item).toUpperCase()] = itemColor(item);
+      return map;
+    }, {});
+  }
+
+  function stackedBar(values, colours, cssClass) {
+    const total = Object.values(values).reduce((sum, count) => sum + Number(count || 0), 0);
+    const segments = Object.entries(values).map(([key, count]) => {
+      if (!count || total === 0) return '';
+      const colour = colours[key] || colours[key.toUpperCase()] || fallbackBarColour;
+      return `<div class="ob-bar-segment" style="flex:${Number(count) / total};background:${esc(colour)}" title="${esc(key)}: ${esc(count)}"></div>`;
+    }).join('');
+    return `<div class="ob-stacked-bar ${cssClass}">${segments}</div>`;
   }
 
   function renderLabelCell(order, field, value, options, cssClass) {
@@ -691,15 +731,30 @@
     return `<label class="paid-toggle"><input type="checkbox" data-paid-toggle="${esc(order.id)}" ${checked} aria-label="Mark order paid"><span>&check;</span></label>`;
   }
 
-  function renderGroup(key, orders) {
+  function renderGroup(key, orders, index) {
     const total = orders.reduce((sum, order) => sum + Number(order.total_amount || 0), 0);
     const paid = orders.filter((order) => order.payment_status === 'paid').length;
-    const complete = orders.filter((order) => order.status === 'completed').length;
+    const colour = groupColours[index % groupColours.length];
+    const isOpen = expandedGroups.has(key);
+    const hiddenAttrs = isOpen ? '' : ' hidden';
+    const modeCounts = countValues(orders, (order) => findText(modeLabels, order.order_type || 'Other'), {
+      Delivery: 0, Collection: 0, Courier: 0, 'Walk-in': 0
+    });
+    const paymentCounts = countValues(orders, (order) => findText(paymentLabels, order.payment_method || 'Other'));
+    const statusCounts = countValues(orders, (order) => findText(statusLabels, order.status || 'new_order').toUpperCase(), {
+      COMPLETE: 0, 'IN PROGRESS': 0, 'NEW ORDER': 0
+    });
+    const modeColours = { Delivery: '#b5a280', Collection: '#c98f80', Courier: '#5c3a1e', 'Walk-in': '#c4c4c4', ...optionColourMap(modeLabels) };
+    const paymentColours = {
+      EFT: '#7B68EE', Cash: '#9e9e9e', EasyWallet: '#6a5acd', Ewallet: '#9b95b9', Swipe: '#323338',
+      'Card/Swipe': '#323338', Bluewallet: '#00838F', Nedbank: '#07c66b', 'FNB eWallet': '#1B5E20',
+      Pay2Cell: '#BB1B21', Other: '#c4c4c4', ...optionColourMap(paymentLabels)
+    };
+    const statusColours = { COMPLETE: '#e2445c', 'IN PROGRESS': '#fdab3d', 'NEW ORDER': '#c4c4c4', Assigned: '#a8ca19', ...optionColourMap(statusLabels) };
 
     const rows = orders.map((order) => {
-      const paidMark = order.payment_status === 'paid' ? '&check;' : '';
       return `
-        <tr data-order-id="${esc(order.id)}" class="board-row ${!previousOrderIds.has(String(order.id)) && hasRenderedOnce ? 'row-new' : ''} ${selectedOrders.has(String(order.id)) ? 'is-selected' : ''}">
+        <tr data-order-id="${esc(order.id)}" data-group-row="${esc(key)}" class="board-row ob-data-row ${!previousOrderIds.has(String(order.id)) && hasRenderedOnce ? 'row-new' : ''} ${selectedOrders.has(String(order.id)) ? 'is-selected' : ''}"${hiddenAttrs}>
           <td class="check-cell"><input type="checkbox" data-row-select="${esc(order.id)}" ${selectedOrders.has(String(order.id)) ? 'checked' : ''} aria-label="Select order"></td>
           <td class="task-cell">${esc(order.order_number.replace(/^WEB-/, ''))} ${esc(order.customer_name)}</td>
           <td class="comment-cell"><button type="button" data-open-panel="${esc(order.id)}"><i data-lucide="message-circle-plus"></i></button></td>
@@ -719,35 +774,46 @@
     }).join('');
 
     return `
-      <tr class="group-row" data-group="${esc(key)}">
-        <td colspan="13">
-          <button type="button" data-collapse-group="${esc(key)}">
-            <i data-lucide="chevron-down"></i>
+      <tr class="group-row ob-group-header ${isOpen ? 'is-open' : ''}" data-group="${esc(key)}" data-colour="${esc(colour)}" data-count="${esc(orders.length)}" data-amount="${esc(money(total))}" data-paid="${esc(paid)}" data-total="${esc(orders.length)}" style="--ob-group-colour:${esc(colour)}">
+        <td class="ob-group-name-cell" colspan="3">
+          <button type="button" data-collapse-group="${esc(key)}" aria-expanded="${isOpen ? 'true' : 'false'}">
+            <span class="ob-chevron" aria-hidden="true">&rsaquo;</span>
             <span class="board-group-copy">
-              <strong>${esc(groupLabel(key))}</strong>
-              <small>${orders.length} ${orders.length === 1 ? 'Task' : 'Tasks'}</small>
+              <strong class="ob-group-date-label">${esc(groupLabel(key))}</strong>
+              <small class="ob-group-task-count">${esc(groupCountText(orders.length))}</small>
             </span>
           </button>
         </td>
-      </tr>
-      ${rows}
-      <tr class="add-task-row"><td></td><td colspan="${12 + customColumns.length}"><button type="button" data-add-task="${esc(key)}">+ Add task</button></td></tr>
-      <tr class="summary-row">
+        <td class="ob-group-date-cell"><span class="ob-group-column-title">DATE</span><span class="ob-date-pill">${esc(groupDatePill(key))}</span></td>
         <td></td>
+        <td class="ob-group-bar-cell"><span class="ob-group-column-title">Mode</span>${stackedBar(modeCounts, modeColours, 'ob-mode-bar')}</td>
+        <td class="ob-group-amount-cell"><span class="ob-group-column-title">AMOUNT</span><div class="ob-group-sum">${esc(money(total))}</div><div class="ob-group-sum-label">sum</div></td>
+        <td class="ob-group-bar-cell"><span class="ob-group-column-title">PAYMENT</span>${stackedBar(paymentCounts, paymentColours, 'ob-payment-bar')}</td>
+        <td class="ob-group-paid-cell"><span class="ob-group-column-title">PAID</span><span class="ob-paid-fraction">${paid}/${orders.length}</span></td>
+        <td class="ob-group-bar-cell"><span class="ob-group-column-title">Status</span>${stackedBar(statusCounts, statusColours, 'ob-status-bar')}</td>
         <td></td>
-        <td></td>
-        <td><span class="summary-pill">${esc(groupLabel(key))}</span></td>
-        <td></td>
-        <td><span class="summary-swatch">${summaryBars(orders, 'order_type', modeLabels)}</span></td>
-        <td><strong>${esc(money(total))}</strong><small>sum</small></td>
-        <td><span class="summary-swatch">${summaryBars(orders, 'payment_method', paymentLabels)}</span></td>
-        <td>${paid}/${orders.length}</td>
-        <td><span class="summary-swatch">${summaryBars(orders, 'status', statusLabels)}</span></td>
-        <td>${complete}/${orders.length}</td>
         <td></td>
         ${customColumns.map(() => '<td></td>').join('')}
         <td></td>
       </tr>
+      <tr class="ob-col-header-row" data-group="${esc(key)}"${hiddenAttrs}>
+        <td></td>
+        <td class="ob-col-th">Task</td>
+        <td></td>
+        <td class="ob-col-th">DATE</td>
+        <td class="ob-col-th">Mobile number</td>
+        <td class="ob-col-th">Mode</td>
+        <td class="ob-col-th">AMOUNT</td>
+        <td class="ob-col-th">PAYMENT</td>
+        <td class="ob-col-th">PAID</td>
+        <td class="ob-col-th">Status</td>
+        <td class="ob-col-th">Packed by</td>
+        <td class="ob-col-th">Text</td>
+        ${customColumns.map((column) => `<td class="ob-col-th">${esc(column.col_name || '')}</td>`).join('')}
+        <td></td>
+      </tr>
+      ${rows}
+      <tr class="add-task-row" data-group-row="${esc(key)}"${hiddenAttrs}><td></td><td colspan="${12 + customColumns.length}"><button type="button" data-add-task="${esc(key)}">+ Add task</button></td></tr>
     `;
   }
 
@@ -769,7 +835,7 @@
 
     const groups = groupedOrders(visible);
     renderCustomHeaders();
-    body.innerHTML = Object.keys(groups).sort((a, b) => b.localeCompare(a)).map((key) => renderGroup(key, groups[key])).join('');
+    body.innerHTML = Object.keys(groups).sort((a, b) => b.localeCompare(a)).map((key, index) => renderGroup(key, groups[key], index)).join('');
     renderMobileCards(visible);
     if (groupLabelNode) groupLabelNode.textContent = `Grouped by ${boardState.groupBy}`;
     applyHiddenColumns();
@@ -1077,7 +1143,10 @@
     const panelButton = event.target.closest('[data-open-panel]');
     const closeButton = event.target.closest('[data-panel-close]');
     const tab = event.target.closest('[data-panel-tab]');
-    const collapse = event.target.closest('[data-collapse-group]');
+    const groupHeader = event.target.closest('.ob-group-header');
+    const collapse = event.target.closest('[data-collapse-group]') || (
+      groupHeader && !event.target.closest('input, button, a, select, textarea') ? groupHeader.querySelector('[data-collapse-group]') : null
+    );
     const availabilityToggle = event.target.closest('[data-availability-toggle]');
     const rowSelect = event.target.closest('[data-row-select]');
     const paidToggle = event.target.closest('[data-paid-toggle]');
@@ -1249,12 +1318,32 @@
 
       if (collapse) {
         const key = collapse.dataset.collapseGroup;
-        collapse.closest('tr').classList.toggle('collapsed');
-        let row = collapse.closest('tr').nextElementSibling;
-        while (row && !row.classList.contains('group-row')) {
-          row.hidden = !row.hidden;
-          row = row.nextElementSibling;
+        const header = collapse.closest('tr');
+        const isOpen = header.classList.toggle('is-open');
+        collapse.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        if (isOpen) {
+          expandedGroups.add(key);
+        } else {
+          expandedGroups.delete(key);
         }
+        const safeKey = selectorEsc(key);
+        document.querySelectorAll(`.ob-col-header-row[data-group="${safeKey}"], tr[data-group-row="${safeKey}"]`).forEach((row, index) => {
+          if (!isOpen) {
+            row.hidden = true;
+            row.style.opacity = '';
+            row.style.transform = '';
+            return;
+          }
+          row.hidden = false;
+          row.style.opacity = '0';
+          row.style.transform = 'translateY(6px)';
+          row.style.transition = 'opacity 180ms ease, transform 180ms ease';
+          window.setTimeout(() => {
+            row.style.opacity = '1';
+            row.style.transform = 'translateY(0)';
+          }, Math.min(index * 15, 240));
+        });
+        if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
       }
 
       if (availabilityToggle) {
