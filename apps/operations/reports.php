@@ -2472,7 +2472,7 @@ function kpi_render_packer_live_dashboard(array $employee, array $detail, string
             </div>
             <div class="hr-profile-actions">
                 <a class="button small" href="reports.php?tab=employees&employee_id=<?= (int) $employeeId ?>">View Profile</a>
-                <a class="button small primary" href="employees.php">Employee Link</a>
+                <a class="button small primary" href="my-account.php#section-employees">Employee Link</a>
             </div>
         </div>
 
@@ -3524,7 +3524,7 @@ include BASE_PATH . '/shared/sidebar.php';
         <section class="ops-alert kpi-link-alert">
             <strong>HR employee links needed.</strong>
             <?= count($unlinkedEmployees) ?> active portal user<?= count($unlinkedEmployees) === 1 ? '' : 's' ?> are not linked to HR employee profiles. KPI salary, leave and availability tracking may be inaccurate.
-            <a class="button small" href="employees.php">Link employees</a>
+            <a class="button small" href="my-account.php#section-employees">Link employees</a>
         </section>
     <?php endif; ?>
     <nav class="kpi-report-tabs" aria-label="KPI report sections">

@@ -20,7 +20,7 @@ This module is the operational foundation for Hambelela Organic. It is built int
 1. Import `operations-migration.sql` into the same MySQL database used by the portal.
 2. If Operations was already installed before website sync was added, also import `operations-woocommerce-sync-migration.sql`.
 3. Open `/apps/operations/index.php` from the portal dashboard.
-4. Open Employees & Roles and create real staff accounts.
+4. Open Settings > Employees & Roles and create real staff accounts.
 5. Once the operations tables exist, the login page switches from demo name login to email/password login.
 
 ## Recommended next build steps

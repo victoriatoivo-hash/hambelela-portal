@@ -46,7 +46,6 @@ function ops_nav(string $active): void
     if (user_has_role('owner_admin')) {
         $items = [
             'index' => ['Dashboard', 'layout-dashboard', 'index.php'],
-            'employees' => ['Employees', 'users', 'employees.php'],
             'account' => ['My Account', 'key-round', 'my-account.php'],
             'board' => ['Orders Board', 'table-2', 'orders-board.php'],
             'orders' => ['Orders', 'shopping-bag', 'orders.php'],
