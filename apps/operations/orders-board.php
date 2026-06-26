@@ -21,7 +21,7 @@ $boardAssetVersion = is_file(BASE_PATH . '/assets/js/orders-board.js')
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
-<main class="workspace module ops-board-page" data-board-theme="light">
+<main class="workspace module ops-board-page ob-wrap" data-board-theme="light">
     <section class="monday-board-top">
         <div class="monday-board-head work-board-head">
             <div>
