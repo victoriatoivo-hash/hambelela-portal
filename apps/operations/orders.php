@@ -25,6 +25,16 @@ function cor_pct($value): string
     return number_format((float) $value, 1) . '%';
 }
 
+function cor_short_text($value, int $limit = 30): string
+{
+    $text = trim((string) $value);
+    if (strlen($text) <= $limit) {
+        return $text;
+    }
+
+    return rtrim(substr($text, 0, max(0, $limit - 3))) . '...';
+}
+
 function cor_slug($value): string
 {
     $value = strtolower(trim((string) $value));
@@ -153,6 +163,47 @@ function cor_export(array $filters, string $format): void
     exit;
 }
 
+function cor_export_products(array $filters, string $format): void
+{
+    $params = [];
+    $where = cor_filtered_where($filters, $params);
+    $rows = cor_query_rows(
+        "SELECT oi.product_name,
+                COALESCE(SUM(oi.quantity), 0) AS qty,
+                COALESCE(SUM(CASE WHEN order_qty.qty > 0 THEN o.total_amount * (oi.quantity / order_qty.qty) ELSE 0 END), 0) AS rev
+         FROM ops_order_items oi
+         JOIN ops_orders o ON o.id = oi.order_id
+         LEFT JOIN (
+            SELECT order_id, SUM(quantity) AS qty
+            FROM ops_order_items
+            GROUP BY order_id
+         ) order_qty ON order_qty.order_id = o.id
+         WHERE {$where}
+         GROUP BY oi.product_name
+         ORDER BY rev DESC",
+        $params
+    );
+
+    $total = array_reduce($rows, static fn(float $carry, array $row): float => $carry + (float) $row['rev'], 0.0);
+    $filename = 'product-sales-' . $filters['from'] . '-to-' . $filters['to'] . ($format === 'excel' ? '.xls' : '.csv');
+    header($format === 'excel' ? 'Content-Type: application/vnd.ms-excel; charset=utf-8' : 'Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    $out = fopen('php://output', 'w');
+    fputcsv($out, ['#', 'Product', 'Units Sold', 'Revenue (N$)', '% of Total'], $format === 'excel' ? "\t" : ',');
+    foreach ($rows as $index => $row) {
+        $pct = $total > 0 ? ((float) $row['rev'] / $total) * 100 : 0;
+        fputcsv($out, [
+            $index + 1,
+            $row['product_name'],
+            number_format((float) $row['qty'], 2, '.', ''),
+            number_format((float) $row['rev'], 2, '.', ''),
+            cor_pct($pct),
+        ], $format === 'excel' ? "\t" : ',');
+    }
+    fclose($out);
+    exit;
+}
+
 $range = trim((string) ($_GET['range'] ?? 'month'));
 if (!in_array($range, ['today', 'week', 'month', 'year', 'custom'], true)) {
     $range = 'month';
@@ -182,6 +233,9 @@ if (!in_array($filters['tab'], $validTabs, true)) {
 }
 
 if ($ready && isset($_GET['export']) && in_array((string) $_GET['export'], ['csv', 'excel'], true)) {
+    if ($filters['tab'] === 'products') {
+        cor_export_products($filters, (string) $_GET['export']);
+    }
     cor_export($filters, (string) $_GET['export']);
 }
 
@@ -292,8 +346,7 @@ if ($ready) {
          ) order_qty ON order_qty.order_id = o.id
          WHERE {$where}
          GROUP BY oi.product_name
-         ORDER BY qty DESC
-         LIMIT 50",
+         ORDER BY rev DESC",
         $params
     );
     $refundRows = cor_query_rows(
@@ -425,6 +478,11 @@ $maxPayment = max(1.0, ...array_map(static fn(array $row): float => (float) ($ro
 $maxMode = max(1.0, ...array_map(static fn(array $row): float => (float) ($row['rev'] ?? 0), $modeRows ?: [['rev' => 0]]));
 $maxStaff = max(1.0, ...array_map(static fn(array $row): float => (float) ($row['rev'] ?? 0), $staffRows ?: [['rev' => 0]]));
 $maxProduct = max(1.0, ...array_map(static fn(array $row): float => (float) ($row['rev'] ?? 0), $productRows ?: [['rev' => 0]]));
+$productsSold = count($productRows);
+$totalProductUnits = array_reduce($productRows, static fn(float $carry, array $row): float => $carry + (float) $row['qty'], 0.0);
+$totalProductRevenue = array_reduce($productRows, static fn(float $carry, array $row): float => $carry + (float) $row['rev'], 0.0);
+$avgProductRevenue = $productsSold > 0 ? $totalProductRevenue / $productsSold : 0.0;
+$topProduct = $productRows[0] ?? null;
 $queryBase = [
     'range' => $filters['range'],
     'from' => $filters['from'],
@@ -566,6 +624,19 @@ include BASE_PATH . '/shared/sidebar.php';
         .cor-rank-1 { background: var(--cor-amber); color: #fff; }
         .cor-rank-2 { background: var(--cor-orange-red); color: #fff; }
         .cor-rank-3 { background: var(--cor-red); color: #fff; }
+        .cor-products-table th { height: 36px !important; padding: 0 14px !important; border-bottom: 2px solid var(--cor-border) !important; background: var(--cor-cream) !important; color: var(--cor-burgundy) !important; font-size: 11px !important; font-weight: 800 !important; letter-spacing: .05em !important; text-transform: uppercase !important; white-space: nowrap; }
+        .cor-products-table td { height: 40px !important; padding: 0 14px !important; border-bottom: 1px solid var(--cor-border) !important; color: var(--cor-text) !important; font-size: 13px !important; vertical-align: middle !important; }
+        .cor-products-table tr:last-child td { border-bottom: 0 !important; }
+        .cor-products-table tr:hover td { background: #fdf3ea !important; }
+        .cor-products-table tr.top-rank td:first-child { border-left: 3px solid var(--cor-amber); }
+        .prod-name { font-weight: 400; }
+        .prod-top { color: var(--cor-burgundy) !important; font-weight: 700 !important; }
+        .prod-revenue { color: var(--cor-text) !important; font-weight: 800 !important; }
+        .cor-pct-cell { display: flex; align-items: center; gap: 8px; }
+        .cor-pct-bar-wrap { flex: 1; min-width: 80px; max-width: 200px; height: 8px; overflow: hidden; border-radius: 4px; background: var(--cor-border); }
+        .cor-pct-bar { display: block; height: 100%; min-width: 3px; border-radius: 4px; background: var(--cor-olive); transition: width 600ms ease; }
+        .cor-pct-label { min-width: 36px; color: var(--cor-text-mid); font-size: 11px; font-weight: 700; text-align: right; }
+        .cor-top-card .tc-value { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .cor-chart-body { height: 260px; padding: 16px; }
         .cor-orders-wrap { max-height: 520px; overflow: auto; }
         .cor-orders-table { width: 100%; border-collapse: collapse; }
@@ -751,16 +822,56 @@ include BASE_PATH . '/shared/sidebar.php';
     </section>
 
     <section id="tab-products" class="cor-tab-content <?= $filters['tab'] === 'products' ? 'active' : '' ?>">
+        <section class="cor-summary-stat-grid" aria-label="Product sales summary">
+            <article class="cor-top-card">
+                <div class="tc-label">Products Sold</div>
+                <div class="tc-value"><?= number_format($productsSold) ?></div>
+                <div class="tc-sub">unique SKUs</div>
+            </article>
+            <article class="cor-top-card">
+                <div class="tc-label">Top Product</div>
+                <div class="tc-value" style="font-size:16px;"><?= $topProduct ? cor_e(cor_short_text($topProduct['product_name'], 30)) : '-' ?></div>
+                <div class="tc-sub"><?= $topProduct ? cor_money($topProduct['rev']) : '&nbsp;' ?></div>
+            </article>
+            <article class="cor-top-card">
+                <div class="tc-label">Total Units</div>
+                <div class="tc-value"><?= number_format($totalProductUnits, 2) ?></div>
+                <div class="tc-sub">&nbsp;</div>
+            </article>
+            <article class="cor-top-card">
+                <div class="tc-label">Avg Revenue</div>
+                <div class="tc-value"><?= cor_money($avgProductRevenue) ?></div>
+                <div class="tc-sub">per product</div>
+            </article>
+        </section>
+
+        <section class="cor-summary-actions" aria-label="Product export actions">
+            <a class="cor-btn-export-sm" href="?<?= cor_e(http_build_query(array_merge($queryBase, ['tab' => 'products', 'export' => 'csv']))) ?>">↓CSV</a>
+            <a class="cor-btn-export-sm" href="?<?= cor_e(http_build_query(array_merge($queryBase, ['tab' => 'products', 'export' => 'excel']))) ?>">↓Excel</a>
+            <button class="cor-btn-export-sm" type="button" onclick="window.print()">↓PDF</button>
+        </section>
+
         <article class="cor-report-card">
-            <div class="card-head"><h3>Product Sales</h3><span>Top 50 products</span></div>
+            <div class="card-head"><h3>Revenue per Product</h3><span><?= cor_e($filters['from']) ?> &rarr; <?= cor_e($filters['to']) ?></span></div>
             <div class="cor-table-wrap">
-                <table>
-                    <thead><tr><th>Rank</th><th>Product</th><th>Qty Sold</th><th>Revenue</th><th>% of Revenue</th><th>Bar</th></tr></thead>
+                <table class="cor-products-table">
+                    <thead><tr><th style="width:44px;">#</th><th>Product</th><th style="width:120px;">Units Sold</th><th style="width:140px;">Revenue</th><th style="width:280px;">% of Total</th></tr></thead>
                     <tbody>
-                    <?php foreach ($productRows as $index => $row): $rank = $index + 1; $pct = $summary['total_revenue'] > 0 ? ((float) $row['rev'] / $summary['total_revenue']) * 100 : 0; ?>
-                        <tr><td><span class="cor-rank cor-rank-<?= $rank <= 3 ? $rank : 'n' ?>"><?= number_format($rank) ?></span></td><td><?= cor_e($row['product_name']) ?></td><td><?= number_format((float) $row['qty'], 2) ?></td><td><?= cor_money($row['rev']) ?></td><td><?= cor_pct($pct) ?></td><td><div class="cor-bar-wrap"><span class="cor-bar-track"><span class="cor-bar-fill" style="width:<?= cor_e(((float) $row['rev'] / $maxProduct) * 100) ?>%"></span></span><span class="cor-pct"><?= cor_pct($pct) ?></span></div></td></tr>
+                    <?php foreach ($productRows as $index => $row): $rank = $index + 1; $pct = $totalProductRevenue > 0 ? ((float) $row['rev'] / $totalProductRevenue) * 100 : 0; ?>
+                        <tr class="<?= $rank <= 3 ? 'top-rank' : '' ?>">
+                            <td><span class="cor-rank cor-rank-<?= $rank <= 3 ? $rank : 'n' ?>"><?= number_format($rank) ?></span></td>
+                            <td class="prod-name <?= $rank <= 3 ? 'prod-top' : '' ?>"><?= cor_e($row['product_name']) ?></td>
+                            <td><?= number_format((float) $row['qty'], 2) ?></td>
+                            <td class="prod-revenue"><?= cor_money($row['rev']) ?></td>
+                            <td>
+                                <div class="cor-pct-cell">
+                                    <div class="cor-pct-bar-wrap"><span class="cor-pct-bar" style="width:<?= cor_e($pct) ?>%"></span></div>
+                                    <span class="cor-pct-label"><?= cor_pct($pct) ?></span>
+                                </div>
+                            </td>
+                        </tr>
                     <?php endforeach; ?>
-                    <?php if (!$productRows): ?><tr><td colspan="6">No records found.</td></tr><?php endif; ?>
+                    <?php if (!$productRows): ?><tr><td colspan="5" style="height:auto;padding:24px !important;text-align:center;color:var(--cor-text-light) !important;">No product sales found for this period.</td></tr><?php endif; ?>
                     </tbody>
                 </table>
             </div>
