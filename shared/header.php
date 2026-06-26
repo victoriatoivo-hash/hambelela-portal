@@ -8,14 +8,10 @@ require_once __DIR__ . '/notifications.php';
 $user = current_user();
 $pageTitle = $pageTitle ?? APP_NAME;
 $activeApp = $activeApp ?? 'dashboard';
-$notificationState = notifications_payload_for_current_user(12);
-$notifications = $notificationState['notifications'] ?? [];
-$notificationPreferences = $notificationState['preferences'] ?? ['desktop_enabled' => 1, 'sound_enabled' => 1];
-$notificationUnread = (int) ($notificationState['unread_count'] ?? 0);
+$notifications = [];
+$notificationPreferences = ['desktop_enabled' => 1, 'sound_enabled' => 1];
+$notificationUnread = 0;
 $notificationLastId = 0;
-foreach ($notifications as $notification) {
-    $notificationLastId = max($notificationLastId, (int) ($notification['id'] ?? 0));
-}
 $assetVersion = defined('BASE_PATH') && is_file(BASE_PATH . '/assets/css/portal.css')
     ? (string) filemtime(BASE_PATH . '/assets/css/portal.css')
     : (string) time();

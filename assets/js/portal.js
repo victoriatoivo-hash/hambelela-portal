@@ -213,7 +213,10 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 
   requestDesktopPermission();
-window.setInterval(() => fetchNotifications(true), 45000);
+  fetchNotifications(false);
+  window.setInterval(() => {
+    if (document.visibilityState !== 'hidden') fetchNotifications(true);
+  }, 60000);
 });
 
 document.addEventListener('click', (event) => {
