@@ -15371,6 +15371,38 @@ body:has(.ob-wrap) .workspace {
   white-space: nowrap !important;
 }
 
+/* Keep expanded Orders Board group headers compact like Monday.com. */
+.ob-wrap .ops-board-table tbody tr.group-row:not(.collapsed) > td {
+  height: 34px !important;
+  max-height: 34px !important;
+  padding: 0 12px !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.group-row:not(.collapsed) > td > button[data-collapse-group] {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  min-height: 32px !important;
+  width: max-content !important;
+  max-width: 100% !important;
+  white-space: nowrap !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.group-row:not(.collapsed) > td > button[data-collapse-group] .board-group-copy {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: baseline !important;
+  gap: 8px !important;
+  width: max-content !important;
+  white-space: nowrap !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.group-row:not(.collapsed) > td > button[data-collapse-group] .board-group-copy strong,
+.ob-wrap .ops-board-table tbody tr.group-row:not(.collapsed) > td > button[data-collapse-group] .board-group-copy small {
+  display: inline !important;
+  margin: 0 !important;
+}
+
 @media (max-width: 767px) {
   .ob-wrap .work-metric-grid,
   .ob-wrap .stat-cards-grid {
