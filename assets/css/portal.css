@@ -16004,3 +16004,318 @@ body:has(.ob-wrap) .workspace {
 .ob-wrap .ops-board-table tbody tr.add-task-row[hidden] {
   display: none !important;
 }
+
+/* Orders Board Monday.com reference clone from screen recording. */
+body:has(.ob-wrap) .workspace.ob-wrap {
+  background: #ffffff !important;
+  padding-top: 22px !important;
+}
+
+.ob-wrap .monday-board-top {
+  gap: 10px !important;
+}
+
+.ob-wrap .work-board-head {
+  align-items: center !important;
+  margin: 0 !important;
+}
+
+.ob-wrap .work-board-head h1 {
+  color: #323338 !important;
+  font-size: 22px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+}
+
+.ob-wrap .work-board-head h1 svg {
+  width: 14px !important;
+  height: 14px !important;
+  color: #676879 !important;
+}
+
+.ob-wrap .work-board-subtitle {
+  display: none !important;
+}
+
+.ob-wrap .monday-board-head-actions {
+  gap: 8px !important;
+}
+
+.ob-wrap .monday-board-head-actions .invite-btn,
+.ob-wrap .monday-board-head-actions [data-undo-board],
+.ob-wrap .monday-board-head-actions [data-theme-toggle] {
+  height: 28px !important;
+  min-height: 28px !important;
+  padding: 0 8px !important;
+  border: 1px solid #d0d4e4 !important;
+  border-radius: 4px !important;
+  background: #ffffff !important;
+  color: #323338 !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  box-shadow: none !important;
+}
+
+.ob-wrap .work-metric-grid,
+.ob-wrap .work-filter-bar,
+.ob-wrap .monday-control-strip {
+  display: none !important;
+}
+
+.ob-wrap .ob-video-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  margin-top: 4px;
+  color: #323338;
+}
+
+.ob-wrap .ob-video-toolbar button,
+.ob-wrap .ob-toolbar-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #323338;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1;
+  box-shadow: none;
+  transition: background 120ms ease, color 120ms ease, transform 120ms ease;
+}
+
+.ob-wrap .ob-video-toolbar button:hover,
+.ob-wrap .ob-toolbar-search:focus-within {
+  background: #f5f6f8;
+}
+
+.ob-wrap .ob-video-toolbar svg {
+  width: 15px;
+  height: 15px;
+  color: #676879;
+}
+
+.ob-wrap .ob-video-toolbar .ob-view-selector {
+  min-width: 112px;
+  border: 1px solid #d0d4e4;
+  background: #ffffff;
+}
+
+.ob-wrap .ob-video-toolbar .ob-new-task {
+  padding: 0 12px;
+  background: #0073ea;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.ob-wrap .ob-video-toolbar .ob-new-task:hover {
+  background: #0060c4;
+}
+
+.ob-wrap .ob-video-toolbar .ob-new-task svg {
+  color: #ffffff;
+}
+
+.ob-wrap .ob-toolbar-search {
+  width: 96px;
+}
+
+.ob-wrap .ob-toolbar-search input {
+  width: 68px;
+  min-width: 0;
+  height: 24px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #323338;
+  font: inherit;
+}
+
+.ob-wrap .ob-toolbar-search input::placeholder {
+  color: #323338;
+}
+
+.ob-wrap .ops-board-shell {
+  margin-top: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.ob-wrap .ops-board-scroll {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.ob-wrap .ops-board-table {
+  min-width: 1214px !important;
+  table-layout: fixed !important;
+  border-collapse: collapse !important;
+  color: #323338 !important;
+  font-size: 12px !important;
+}
+
+.ob-wrap .ops-board-table tr > *:nth-child(1) { width: 28px !important; }
+.ob-wrap .ops-board-table tr > *:nth-child(2) { width: 170px !important; }
+.ob-wrap .ops-board-table tr > *:nth-child(3) { width: 32px !important; }
+.ob-wrap .ops-board-table tr > *:nth-child(4) { width: 115px !important; }
+.ob-wrap .ops-board-table tr > *:nth-child(5) { width: 150px !important; }
+.ob-wrap .ops-board-table tr > *:nth-child(6) { width: 86px !important; }
+.ob-wrap .ops-board-table tr > *:nth-child(7) { width: 76px !important; }
+.ob-wrap .ops-board-table tr > *:nth-child(8) { width: 96px !important; }
+.ob-wrap .ops-board-table tr > *:nth-child(9) { width: 54px !important; }
+.ob-wrap .ops-board-table tr > *:nth-child(10) { width: 100px !important; }
+.ob-wrap .ops-board-table tr > *:nth-child(11) { width: 96px !important; }
+.ob-wrap .ops-board-table tr > *:nth-child(12) { width: 110px !important; }
+.ob-wrap .ops-board-table tr > *:last-child { width: 60px !important; }
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header.is-open > td {
+  height: 30px !important;
+  max-height: 30px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  background: #ffffff !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header.is-open > td:not(.ob-group-name-cell) > * {
+  display: none !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header.is-open button[data-collapse-group] {
+  min-height: 28px !important;
+  grid-template-columns: 18px auto auto !important;
+  align-items: center !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header.is-open .board-group-copy {
+  display: inline-flex !important;
+  align-items: baseline !important;
+  gap: 8px !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header.is-open .ob-group-date-label,
+.ob-wrap .ops-board-table tbody tr.ob-group-header.is-open .ob-group-task-count {
+  display: inline !important;
+  margin: 0 !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header:not(.is-open) > td {
+  height: 50px !important;
+  max-height: 50px !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-col-header-row > td,
+.ob-wrap .ops-board-table tbody tr.ob-col-header-row > td.ob-col-th {
+  height: 24px !important;
+  min-height: 24px !important;
+  line-height: 24px !important;
+  padding: 0 8px !important;
+  background: #ffffff !important;
+  color: #323338 !important;
+  font-size: 11px !important;
+  font-weight: 400 !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.board-row > td {
+  height: 24px !important;
+  max-height: 24px !important;
+  padding: 0 8px !important;
+  background: #ffffff !important;
+  border-color: #d0d4e4 !important;
+  color: #323338 !important;
+  font-size: 11px !important;
+  font-weight: 400 !important;
+  line-height: 24px !important;
+  box-shadow: none !important;
+  transform: none !important;
+  transition: background 120ms ease, box-shadow 120ms ease;
+}
+
+.ob-wrap .ops-board-table tbody tr.board-row:hover > td,
+.ob-wrap .ops-board-table tbody tr.board-row.is-selected > td {
+  background: #cce5ff !important;
+}
+
+.ob-wrap .ops-board-table .check-cell,
+.ob-wrap .ops-board-table .comment-cell {
+  width: 28px !important;
+  padding: 0 !important;
+  text-align: center !important;
+}
+
+.ob-wrap .ops-board-table .check-cell input {
+  width: 13px !important;
+  height: 13px !important;
+  opacity: 1 !important;
+}
+
+.ob-wrap .ops-board-table .comment-cell button {
+  width: 20px !important;
+  height: 20px !important;
+  min-height: 20px !important;
+  padding: 0 !important;
+  border: 1px solid #8c92a6 !important;
+  border-radius: 3px !important;
+  background: #ffffff !important;
+  color: #676879 !important;
+  opacity: 1 !important;
+}
+
+.ob-wrap .ops-board-table .comment-cell button svg {
+  width: 13px !important;
+  height: 13px !important;
+}
+
+.ob-wrap .ops-board-table .task-cell {
+  white-space: nowrap !important;
+  text-overflow: ellipsis !important;
+  overflow: hidden !important;
+}
+
+.ob-wrap .ops-board-table .board-label {
+  width: 100% !important;
+  height: 24px !important;
+  min-height: 24px !important;
+  border-radius: 0 !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+}
+
+.ob-wrap .ops-board-table .paid-toggle {
+  justify-content: center !important;
+}
+
+.ob-wrap .ops-board-table .paid-toggle span {
+  color: #00c875 !important;
+  font-size: 16px !important;
+}
+
+.ob-wrap .ops-board-table .packer-cell-button {
+  height: 24px !important;
+  min-height: 24px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: #323338 !important;
+  font-size: 11px !important;
+}
+
+.ob-wrap .ops-board-table .pick-duration {
+  display: none !important;
+}
+
+.ob-wrap .ops-board-table .notes-cell button {
+  height: 24px !important;
+  min-height: 24px !important;
+  padding: 0 !important;
+  color: #676879 !important;
+  font-size: 11px !important;
+}

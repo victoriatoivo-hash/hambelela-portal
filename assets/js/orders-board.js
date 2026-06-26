@@ -834,8 +834,12 @@
     }
 
     const groups = groupedOrders(visible);
+    const groupKeys = Object.keys(groups).sort((a, b) => b.localeCompare(a));
+    if (!hasRenderedOnce && !expandedGroups.size && groupKeys.length) {
+      expandedGroups.add(groupKeys[0]);
+    }
     renderCustomHeaders();
-    body.innerHTML = Object.keys(groups).sort((a, b) => b.localeCompare(a)).map((key, index) => renderGroup(key, groups[key], index)).join('');
+    body.innerHTML = groupKeys.map((key, index) => renderGroup(key, groups[key], index)).join('');
     renderMobileCards(visible);
     if (groupLabelNode) groupLabelNode.textContent = `Grouped by ${boardState.groupBy}`;
     applyHiddenColumns();

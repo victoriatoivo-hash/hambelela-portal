@@ -26,7 +26,7 @@ include BASE_PATH . '/shared/sidebar.php';
         <div class="monday-board-head work-board-head">
             <div>
                 <h1>Hambelela Orders <i data-lucide="chevron-down"></i></h1>
-                <p class="work-board-subtitle">Assigned orders, packing status and live website order flow.</p>
+                <p class="work-board-subtitle">Main table</p>
             </div>
             <div class="monday-board-head-actions">
                 <div class="board-viewers" id="board-viewers" aria-label="Currently viewing"></div>
@@ -52,6 +52,18 @@ include BASE_PATH . '/shared/sidebar.php';
                 <article class="work-metric-card metric-red"><span class="metric-icon"><i data-lucide="hourglass"></i></span><div><span class="metric-title">Pending Orders</span><strong data-work-metric="pending_orders">0</strong><small>Awaiting action</small></div></article>
                 <article class="work-metric-card metric-pink"><span class="metric-icon"><i data-lucide="user-round-x"></i></span><div><span class="metric-title">Unassigned</span><strong data-work-metric="unassigned_orders">0</strong><small>Needs assignment</small></div></article>
             <?php endif; ?>
+        </section>
+
+        <section class="ob-video-toolbar" aria-label="Monday board toolbar">
+            <button type="button" class="ob-view-selector"><i data-lucide="table-2"></i> Main table <i data-lucide="chevron-down"></i></button>
+            <button type="button" class="ob-new-task" data-board-action="sync"><span>New task</span><i data-lucide="chevron-down"></i></button>
+            <label class="ob-toolbar-search"><i data-lucide="search"></i><input data-board-search type="search" placeholder="Search"></label>
+            <button type="button" data-toolbar="person"><i data-lucide="circle-user-round"></i> Person</button>
+            <button type="button" data-toolbar="filter"><i data-lucide="filter"></i> Filter</button>
+            <button type="button" data-toolbar="sort"><i data-lucide="arrow-up-down"></i> Sort</button>
+            <button type="button" data-toolbar="hide"><i data-lucide="eye-off"></i> Hide</button>
+            <button type="button" data-toolbar="group"><i data-lucide="columns-3"></i> Group by</button>
+            <button type="button" data-toolbar="more"><i data-lucide="ellipsis"></i></button>
         </section>
 
         <section class="work-filter-bar" aria-label="Board filters">
