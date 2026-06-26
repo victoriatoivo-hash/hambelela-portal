@@ -14968,9 +14968,13 @@ body:has(.ob-wrap) .workspace {
   gap: 6px !important;
 }
 
-.ob-wrap .availability-switch-wrap.is-available > span:first-child,
-.ob-wrap .availability-switch-wrap.is-lunch > span:last-child {
+.ob-wrap .availability-switch-wrap.is-available > span:first-child {
   color: #00a86b !important;
+  font-weight: 800 !important;
+}
+
+.ob-wrap .availability-switch-wrap.is-lunch > span:last-child {
+  color: var(--ob-red) !important;
   font-weight: 800 !important;
 }
 
@@ -14981,10 +14985,14 @@ body:has(.ob-wrap) .workspace {
 }
 
 .ob-wrap .availability-switch,
-.ob-wrap .availability-switch.is-available,
-.ob-wrap .availability-switch.is-lunch {
+.ob-wrap .availability-switch.is-available {
   background: #00c875 !important;
   box-shadow: 0 0 0 3px rgba(0, 200, 117, 0.18) !important;
+}
+
+.ob-wrap .availability-switch.is-lunch {
+  background: var(--ob-red) !important;
+  box-shadow: 0 0 0 3px rgba(187, 27, 33, 0.18) !important;
 }
 
 .ob-wrap .availability-switch.is-available span {
