@@ -1064,15 +1064,15 @@ if ($ready) {
          LIMIT 100",
         $params
     );
-    if (in_array($filters['tab'], ['inventory', 'monthly'], true)) {
+    if (in_array($filters['tab'], ['inventory', 'monthly'], true) && $productRows) {
+        $inventoryAllRows = cor_inventory_rows_from_products($productRows);
+    }
+    if (!$inventoryAllRows && in_array($filters['tab'], ['inventory', 'monthly'], true)) {
         try {
             $inventoryAllRows = cor_fetch_inventory_rows();
         } catch (Throwable $e) {
             $inventoryAllRows = [];
         }
-    }
-    if (!$inventoryAllRows && $productRows) {
-        $inventoryAllRows = cor_inventory_rows_from_products($productRows);
     }
     $inventoryCategories = [];
     foreach ($inventoryAllRows as $row) {
