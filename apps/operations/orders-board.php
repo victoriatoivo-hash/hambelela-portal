@@ -91,7 +91,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 <select data-board-group-select>
                     <option value="date">Date</option>
                     <option value="status">Status</option>
-                    <option value="packer">Picked by</option>
+                    <option value="packer">Packed by</option>
                     <option value="mode">Mode</option>
                 </select>
             </label>
@@ -137,14 +137,14 @@ include BASE_PATH . '/shared/sidebar.php';
                         <th class="comment-cell"></th>
                         <th data-column-key="task" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>TASK</th>
                         <th data-column-key="date" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>DATE</th>
-                        <th data-column-key="mode" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>MODE</th>
-                        <th data-column-key="mobile" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>MOBILE NUMBER</th>
+                        <th data-column-key="mobile" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>Mobile number</th>
+                        <th data-column-key="mode" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>Mode</th>
                         <th data-column-key="amount" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>AMOUNT</th>
                         <th data-column-key="payment" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>PAYMENT</th>
                         <th data-column-key="paid" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>PAID</th>
                         <th data-column-key="status" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>STATUS</th>
-                        <th data-column-key="packer" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>PICKED BY</th>
-                        <th data-column-key="text" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>TEXT</th>
+                        <th data-column-key="packer" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>Packed by</th>
+                        <th data-column-key="text" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>Text</th>
                         <th class="add-column-cell"><button type="button" data-add-column>+</button></th>
                     </tr>
                 </thead>

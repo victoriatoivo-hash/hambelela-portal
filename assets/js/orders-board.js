@@ -46,8 +46,8 @@
 
   const columns = [
     ['select', 'Select'], ['task', 'Task'], ['updates', 'Updates'], ['date', 'Date'],
-    ['mode', 'Mode'], ['mobile', 'Mobile number'], ['amount', 'Amount'], ['payment', 'Payment'],
-    ['paid', 'Paid'], ['status', 'Status'], ['packer', 'Picked by'], ['text', 'Text']
+    ['mobile', 'Mobile number'], ['mode', 'Mode'], ['amount', 'Amount'], ['payment', 'Payment'],
+    ['paid', 'Paid'], ['status', 'Status'], ['packer', 'Packed by'], ['text', 'Text']
   ];
 
   let paymentLabels = [
@@ -251,7 +251,7 @@
 
   function groupKey(order) {
     if (boardState.groupBy === 'status') return `Status: ${findText(statusLabels, order.status || 'new_order')}`;
-    if (boardState.groupBy === 'packer') return `Picked by: ${order.packer_name || 'Unassigned'}`;
+    if (boardState.groupBy === 'packer') return `Packed by: ${order.packer_name || 'Unassigned'}`;
     if (boardState.groupBy === 'mode') return `Mode: ${findText(modeLabels, order.order_type || 'collection')}`;
     return dateKey(order.created_at);
   }
@@ -551,13 +551,13 @@
   }
 
   function exportOrders(rows, filename) {
-    const headers = ['Order', 'Customer', 'Date', 'Mode', 'Mobile number', 'Amount', 'Payment', 'Paid', 'Status', 'Picked by', 'Text'];
+    const headers = ['Order', 'Customer', 'Date', 'Mobile number', 'Mode', 'Amount', 'Payment', 'Paid', 'Status', 'Packed by', 'Text'];
     const csvRows = [headers, ...rows.map((order) => [
       order.order_number || '',
       order.customer_name || '',
       prettyDate(order.created_at),
-      findText(modeLabels, order.order_type || ''),
       order.customer_contact || '',
+      findText(modeLabels, order.order_type || ''),
       Number(order.total_amount || 0),
       order.payment_method || '',
       order.payment_status || '',
@@ -646,9 +646,13 @@
     } catch (error) {
       labels = {};
     }
+    if (normalize(labels.packer || '') === 'picked_by') {
+      labels.packer = 'Packed by';
+      localStorage.setItem('hambelelaBoardHeaders', JSON.stringify(labels));
+    }
     document.querySelectorAll('[data-column-key]').forEach((header) => {
       const key = header.dataset.columnKey;
-      if (labels[key]) header.textContent = labels[key].toUpperCase();
+      if (labels[key]) header.textContent = labels[key];
     });
   }
 
@@ -661,7 +665,7 @@
       labels = {};
     }
     const key = header.dataset.columnKey;
-    const value = header.textContent.trim().toUpperCase();
+    const value = header.textContent.trim();
     if (!key || !value) return;
     labels[key] = value;
     header.textContent = value;
@@ -700,8 +704,8 @@
           <td class="task-cell">${esc(order.order_number.replace(/^WEB-/, ''))} ${esc(order.customer_name)}</td>
           <td class="comment-cell"><button type="button" data-open-panel="${esc(order.id)}"><i data-lucide="message-circle-plus"></i></button></td>
           <td>${prettyDate(order.created_at)}</td>
-          <td>${renderLabelCell(order, 'order_type', order.order_type, modeLabels, 'mode-label')}</td>
           <td>${esc(order.customer_contact || '')}</td>
+          <td>${renderLabelCell(order, 'order_type', order.order_type, modeLabels, 'mode-label')}</td>
           <td>${esc(money(order.total_amount))}</td>
           <td>${renderLabelCell(order, 'payment_method', order.payment_method || 'Cash', paymentLabels, 'payment-label')}</td>
           <td class="paid-cell">${renderPaidCell(order)}</td>
@@ -733,8 +737,8 @@
         <td></td>
         <td></td>
         <td><span class="summary-pill">${esc(groupLabel(key))}</span></td>
-        <td><span class="summary-swatch">${summaryBars(orders, 'order_type', modeLabels)}</span></td>
         <td></td>
+        <td><span class="summary-swatch">${summaryBars(orders, 'order_type', modeLabels)}</span></td>
         <td><strong>${esc(money(total))}</strong><small>sum</small></td>
         <td><span class="summary-swatch">${summaryBars(orders, 'payment_method', paymentLabels)}</span></td>
         <td>${paid}/${orders.length}</td>
@@ -956,7 +960,7 @@
       return `<div class="toolbar-panel"><strong>Group by</strong>
         ${optionButton('Date', 'group', 'date', boardState.groupBy === 'date')}
         ${optionButton('Status', 'group', 'status', boardState.groupBy === 'status')}
-        ${optionButton('Picked by', 'group', 'packer', boardState.groupBy === 'packer')}
+        ${optionButton('Packed by', 'group', 'packer', boardState.groupBy === 'packer')}
         ${optionButton('Mode', 'group', 'mode', boardState.groupBy === 'mode')}
       </div>`;
     }
@@ -994,7 +998,7 @@
     panelActivity.innerHTML = `
       <div class="activity-line">Created ${esc(prettyDate(currentOrder.created_at))}</div>
       <div class="activity-line">Status: ${esc(findText(statusLabels, currentOrder.status))}</div>
-      <div class="activity-line">Picked by: ${esc(currentOrder.packer_name || 'Unassigned')}</div>
+      <div class="activity-line">Packed by: ${esc(currentOrder.packer_name || 'Unassigned')}</div>
       <div class="activity-line">Picking time: ${esc(durationText(currentOrder.packing_started_at, currentOrder.completed_at || currentOrder.packed_at) || 'Not started')}</div>
     `;
     panel.classList.add('open');
