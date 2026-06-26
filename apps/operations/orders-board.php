@@ -25,7 +25,7 @@ include BASE_PATH . '/shared/sidebar.php';
     <section class="monday-board-top">
         <div class="monday-board-head work-board-head">
             <div>
-                <h1>Hambelela Packing <i data-lucide="chevron-down"></i></h1>
+                <h1>Hambelela Orders <i data-lucide="chevron-down"></i></h1>
                 <p class="work-board-subtitle">Assigned orders, packing status and live website order flow.</p>
             </div>
             <div class="monday-board-head-actions">
