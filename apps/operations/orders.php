@@ -312,6 +312,108 @@ function cor_export_vat(array $filters, string $format, string $section): void
     exit;
 }
 
+function cor_payment_bucket(string $method): string
+{
+    $method = strtolower($method);
+    if (str_contains($method, 'cash') && !str_contains($method, 'wallet') && !str_contains($method, 'blue')) {
+        return 'cash';
+    }
+    if (str_contains($method, 'card') || str_contains($method, 'swipe')) {
+        return 'card';
+    }
+    if ($method === 'eft' || str_contains($method, 'eft')) {
+        return 'eft';
+    }
+
+    return 'wallet';
+}
+
+function cor_export_monthly(array $filters, string $format): void
+{
+    $params = [];
+    $where = cor_filtered_where($filters, $params);
+    $delimiter = $format === 'excel' ? "\t" : ',';
+    $filename = 'monthly-summary-' . $filters['from'] . '-to-' . $filters['to'] . ($format === 'excel' ? '.xls' : '.csv');
+    $summary = cor_query_one(
+        "SELECT COUNT(*) AS orders,
+                COALESCE(SUM(o.total_amount), 0) AS total_sales,
+                COALESCE(SUM(o.shipping_total + o.shipping_tax_total), 0) AS shipping
+         FROM ops_orders o
+         WHERE {$where} AND o.payment_status <> 'refunded' AND o.status NOT IN ('cancelled','failed')",
+        $params
+    );
+    $refundRows = cor_query_rows(
+        "SELECT o.refund_total, o.total_amount
+         FROM ops_orders o
+         WHERE {$where} AND (o.payment_status = 'refunded' OR o.refund_total > 0)",
+        $params
+    );
+    $payRows = cor_query_rows(
+        "SELECT COALESCE(NULLIF(o.payment_method, ''), 'Other') AS method,
+                COALESCE(SUM(o.total_amount), 0) AS total
+         FROM ops_orders o
+         WHERE {$where} AND o.payment_status <> 'refunded' AND o.status NOT IN ('cancelled','failed')
+         GROUP BY COALESCE(NULLIF(o.payment_method, ''), 'Other')",
+        $params
+    );
+    $cash = $card = $eft = $wallet = 0.0;
+    foreach ($payRows as $row) {
+        $bucket = cor_payment_bucket((string) $row['method']);
+        if ($bucket === 'cash') {
+            $cash += (float) $row['total'];
+        } elseif ($bucket === 'card') {
+            $card += (float) $row['total'];
+        } elseif ($bucket === 'eft') {
+            $eft += (float) $row['total'];
+        } else {
+            $wallet += (float) $row['total'];
+        }
+    }
+    $totalSales = (float) ($summary['total_sales'] ?? 0);
+    $orders = (int) ($summary['orders'] ?? 0);
+    $shipping = (float) ($summary['shipping'] ?? 0);
+    $refunds = array_reduce($refundRows, static fn(float $carry, array $row): float => $carry + (float) ($row['refund_total'] ?: $row['total_amount']), 0.0);
+    $netSales = $totalSales - $refunds;
+    $vatable = max(0.0, $totalSales - $shipping);
+    $vat = round($vatable * (15 / 115), 2);
+    $exVat = round($vatable * (100 / 115), 2);
+    $cogs = 0.0;
+    $grossProfit = $netSales - $shipping - $cogs;
+    $margin = $netSales > 0 ? round(($grossProfit / $netSales) * 100) : 0;
+    $stockCost = 0.0;
+    $stockRetail = 0.0;
+    $potentialMargin = $stockRetail - $stockCost;
+
+    header($format === 'excel' ? 'Content-Type: application/vnd.ms-excel; charset=utf-8' : 'Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    $out = fopen('php://output', 'w');
+    fputcsv($out, ['Metric', 'Amount', 'Notes'], $delimiter);
+    fputcsv($out, ['--- SALES ---', '', ''], $delimiter);
+    fputcsv($out, ['Total Invoice Sales', cor_money($totalSales), $orders . ' orders'], $delimiter);
+    fputcsv($out, ['Cash Sales', cor_money($cash), ''], $delimiter);
+    fputcsv($out, ['Card / Swipe Sales', cor_money($card), ''], $delimiter);
+    fputcsv($out, ['EFT Sales', cor_money($eft), ''], $delimiter);
+    fputcsv($out, ['Other / Wallet Sales', cor_money($wallet), ''], $delimiter);
+    fputcsv($out, ['Delivery Fees', cor_money($shipping), ''], $delimiter);
+    fputcsv($out, ['Refunds Issued', '-' . cor_money($refunds), ''], $delimiter);
+    fputcsv($out, ['Net Sales', cor_money($netSales), ''], $delimiter);
+    fputcsv($out, ['--- VAT ---', '', ''], $delimiter);
+    fputcsv($out, ['VATable Sales', cor_money($vatable), ''], $delimiter);
+    fputcsv($out, ['VAT Amount (15%)', cor_money($vat), ''], $delimiter);
+    fputcsv($out, ['Sales Excl. VAT', cor_money($exVat), ''], $delimiter);
+    fputcsv($out, ['--- PROFIT (ESTIMATED) ---', '', ''], $delimiter);
+    fputcsv($out, ['Net Sales', cor_money($netSales), ''], $delimiter);
+    fputcsv($out, ['Shipping Deducted', '-' . cor_money($shipping), ''], $delimiter);
+    fputcsv($out, ['Cost of Goods Sold (est.)', '-' . cor_money($cogs), ''], $delimiter);
+    fputcsv($out, ['Gross Profit (est.)', cor_money($grossProfit), $margin . '% margin'], $delimiter);
+    fputcsv($out, ['--- INVENTORY ---', '', ''], $delimiter);
+    fputcsv($out, ['Stock Cost Value', cor_money($stockCost), ''], $delimiter);
+    fputcsv($out, ['Stock Retail Value', cor_money($stockRetail), ''], $delimiter);
+    fputcsv($out, ['Potential Margin', cor_money($potentialMargin), ''], $delimiter);
+    fclose($out);
+    exit;
+}
+
 $range = trim((string) ($_GET['range'] ?? 'month'));
 if (!in_array($range, ['today', 'week', 'month', 'year', 'custom'], true)) {
     $range = 'month';
@@ -347,6 +449,9 @@ if ($ready && isset($_GET['export']) && in_array((string) $_GET['export'], ['csv
     if ($filters['tab'] === 'vat') {
         cor_export_vat($filters, (string) $_GET['export'], (string) ($_GET['section'] ?? 'summary'));
     }
+    if ($filters['tab'] === 'monthly') {
+        cor_export_monthly($filters, (string) $_GET['export']);
+    }
     cor_export($filters, (string) $_GET['export']);
 }
 
@@ -378,7 +483,6 @@ $vatRows = [];
 $vatDailyRows = [];
 $vatPaymentRows = [];
 $vatProductRows = [];
-$monthlyRows = [];
 $inventoryRows = [];
 $dailyRows = [];
 $daily14Rows = [];
@@ -399,6 +503,26 @@ $vatMetrics = [
 $vatDailyTotals = ['orders' => 0, 'total_sales' => 0.0, 'shipping' => 0.0, 'vatable' => 0.0, 'ex_vat' => 0.0, 'vat_amount' => 0.0];
 $vatPaymentTotals = ['orders' => 0, 'total_incl' => 0.0, 'vat_portion' => 0.0];
 $vatProductTotals = ['qty' => 0.0, 'total_incl' => 0.0, 'vat_portion' => 0.0];
+$monthlySummary = [
+    'total_sales' => 0.0,
+    'order_count' => 0,
+    'cash' => 0.0,
+    'card' => 0.0,
+    'eft' => 0.0,
+    'wallet' => 0.0,
+    'shipping' => 0.0,
+    'refunds' => 0.0,
+    'net_sales' => 0.0,
+    'vatable' => 0.0,
+    'vat' => 0.0,
+    'ex_vat' => 0.0,
+    'cogs' => 0.0,
+    'gross_profit' => 0.0,
+    'margin_pct' => 0,
+    'stock_cost' => 0.0,
+    'stock_retail' => 0.0,
+    'potential_margin' => 0.0,
+];
 $deliverySummary = ['fees' => 0.0, 'orders' => 0, 'avg' => 0.0, 'courier' => 0, 'total_cost' => 0.0, 'total_orders' => 0, 'breakdown_avg' => 0.0];
 $deliveryOrdersCount = 0;
 $deliverySearch = trim((string) ($_GET['del_search'] ?? ''));
@@ -626,20 +750,24 @@ if ($ready) {
         'total_incl' => array_reduce($vatProductRows, static fn(float $carry, array $row): float => $carry + (float) $row['total_incl'], 0.0),
         'vat_portion' => array_reduce($vatProductRows, static fn(float $carry, array $row): float => $carry + (float) $row['vat_portion'], 0.0),
     ];
-
-    $monthlyRows = cor_query_rows(
-        "SELECT DATE_FORMAT(o.created_at, '%Y-%m') AS month,
-                DATE_FORMAT(o.created_at, '%M %Y') AS month_label,
-                COUNT(*) AS orders,
-                COALESCE(SUM(o.total_amount), 0) AS revenue,
-                COALESCE(AVG(o.total_amount), 0) AS aov
-         FROM ops_orders o
-         WHERE {$where}
-         GROUP BY DATE_FORMAT(o.created_at, '%Y-%m'), DATE_FORMAT(o.created_at, '%M %Y')
-         ORDER BY month DESC
-         LIMIT 24",
-        $params
-    );
+    $monthlySummary['total_sales'] = $vatMetrics['total_sales'];
+    $monthlySummary['order_count'] = $vatMetrics['order_count'];
+    $monthlySummary['shipping'] = $vatMetrics['shipping'];
+    $monthlySummary['refunds'] = $refundSummary['amount'];
+    foreach ($paymentRows as $row) {
+        $bucket = cor_payment_bucket((string) $row['label']);
+        $monthlySummary[$bucket] += (float) $row['rev'];
+    }
+    $monthlySummary['net_sales'] = $monthlySummary['total_sales'] - $monthlySummary['refunds'];
+    $monthlySummary['vatable'] = $vatMetrics['vatable_sales'];
+    $monthlySummary['vat'] = $vatMetrics['vat_collected'];
+    $monthlySummary['ex_vat'] = $vatMetrics['sales_ex_vat'];
+    $monthlySummary['cogs'] = 0.0;
+    $monthlySummary['gross_profit'] = $monthlySummary['net_sales'] - $monthlySummary['shipping'] - $monthlySummary['cogs'];
+    $monthlySummary['margin_pct'] = $monthlySummary['net_sales'] > 0 ? (int) round(($monthlySummary['gross_profit'] / $monthlySummary['net_sales']) * 100) : 0;
+    $monthlySummary['stock_cost'] = 0.0;
+    $monthlySummary['stock_retail'] = 0.0;
+    $monthlySummary['potential_margin'] = $monthlySummary['stock_retail'] - $monthlySummary['stock_cost'];
 
     $inventoryRows = cor_query_rows(
         "SELECT oi.product_name,
@@ -880,6 +1008,10 @@ include BASE_PATH . '/shared/sidebar.php';
         .vat-second-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
         .vat-breakdown-card { display: flex; flex-wrap: wrap; align-items: center; gap: 30px; padding: 18px; }
         .vat-net-row td { background: #f3fae0 !important; font-weight: 800; }
+        .mon-group-header td { padding: 8px 14px !important; border-top: 2px solid var(--cor-border) !important; border-bottom: 1px solid var(--cor-border) !important; background: var(--cor-cream) !important; }
+        .mon-group-label { color: var(--cor-orange-red) !important; font-size: 11px !important; font-weight: 800 !important; letter-spacing: .06em !important; text-transform: uppercase !important; }
+        .mon-notes { color: var(--cor-text-light) !important; font-size: 11px !important; text-align: right !important; }
+        .mon-highlight td { padding-top: 10px !important; padding-bottom: 10px !important; background: #f3fae0 !important; }
         .cor-chart-body { height: 260px; padding: 16px; }
         .cor-orders-wrap { max-height: 520px; overflow: auto; }
         .cor-orders-table { width: 100%; border-collapse: collapse; }
@@ -1427,18 +1559,73 @@ include BASE_PATH . '/shared/sidebar.php';
     </section>
 
     <section id="tab-monthly" class="cor-tab-content <?= $filters['tab'] === 'monthly' ? 'active' : '' ?>">
+        <section class="cor-summary-stat-grid" aria-label="Monthly business summary">
+            <article class="cor-top-card">
+                <div class="tc-label">Net Sales</div>
+                <div class="tc-value"><?= cor_money($monthlySummary['net_sales']) ?></div>
+                <div class="tc-sub"><?= number_format((int) $monthlySummary['order_count']) ?> orders</div>
+            </article>
+            <article class="cor-top-card" style="border-left:4px solid var(--cor-amber);">
+                <div class="tc-label">VAT Payable</div>
+                <div class="tc-value" style="color:var(--cor-amber);"><?= cor_money($monthlySummary['vat']) ?></div>
+                <div class="tc-sub">on product sales</div>
+            </article>
+            <article class="cor-top-card" style="border-left:4px solid var(--cor-olive);">
+                <div class="tc-label">Gross Profit (Est.)</div>
+                <div class="tc-value" style="color:var(--cor-olive);"><?= cor_money($monthlySummary['gross_profit']) ?></div>
+                <div class="tc-sub"><?= number_format((int) $monthlySummary['margin_pct']) ?>% margin</div>
+            </article>
+            <article class="cor-top-card" style="border-left:4px solid var(--cor-burgundy);">
+                <div class="tc-label">Stock Value</div>
+                <div class="tc-value" style="color:var(--cor-burgundy);"><?= cor_money($monthlySummary['stock_cost']) ?></div>
+                <div class="tc-sub">at cost price</div>
+            </article>
+        </section>
+
         <article class="cor-report-card">
-            <div class="card-head"><h3>Monthly Sales</h3><span>Grouped by month</span></div>
+            <div style="padding:18px 20px 10px;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                    <span style="font-size:16px;" aria-hidden="true">◷</span>
+                    <h3 style="margin:0;color:var(--cor-burgundy);font-size:14px;font-weight:800;">Monthly Business Summary - <?= cor_e($filters['from']) ?> to <?= cor_e($filters['to']) ?></h3>
+                </div>
+                <p style="margin:0 0 14px;color:var(--cor-text-light);font-size:11px;">Profit figures are estimates based on current inventory cost prices.</p>
+            </div>
             <div class="cor-table-wrap">
-                <table>
-                    <thead><tr><th>Month</th><th>Orders</th><th>Revenue</th><th>Avg Order</th><th>Vs Previous</th></tr></thead>
+                <table class="cor-products-table">
+                    <thead><tr><th style="width:55%;">Metric</th><th>Amount</th><th>Notes</th></tr></thead>
                     <tbody>
-                    <?php foreach ($monthlyRows as $index => $row): $next = $monthlyRows[$index + 1] ?? null; $change = $next && (float) $next['revenue'] > 0 ? (((float) $row['revenue'] - (float) $next['revenue']) / (float) $next['revenue']) * 100 : null; ?>
-                        <tr><td><?= cor_e($row['month_label']) ?></td><td><?= number_format((int) $row['orders']) ?></td><td><?= cor_money($row['revenue']) ?></td><td><?= cor_money($row['aov']) ?></td><td><?php if ($change === null): ?>-<?php else: ?><span class="<?= $change >= 0 ? 'cor-mom-up' : 'cor-mom-down' ?>"><?= $change >= 0 ? '+' : '' ?><?= cor_pct($change) ?></span><?php endif; ?></td></tr>
-                    <?php endforeach; ?>
-                    <?php if (!$monthlyRows): ?><tr><td colspan="5">No monthly records found.</td></tr><?php endif; ?>
+                        <tr class="mon-group-header"><td colspan="3" class="mon-group-label">Sales</td></tr>
+                        <tr><td>Total Invoice Sales</td><td><?= cor_money($monthlySummary['total_sales']) ?></td><td class="mon-notes"><?= number_format((int) $monthlySummary['order_count']) ?> orders</td></tr>
+                        <tr><td>Cash Sales</td><td><?= cor_money($monthlySummary['cash']) ?></td><td class="mon-notes"></td></tr>
+                        <tr><td>Card / Swipe Sales</td><td><?= cor_money($monthlySummary['card']) ?></td><td class="mon-notes"></td></tr>
+                        <tr><td>EFT Sales</td><td><?= cor_money($monthlySummary['eft']) ?></td><td class="mon-notes"></td></tr>
+                        <tr><td>Other / Wallet Sales</td><td><?= cor_money($monthlySummary['wallet']) ?></td><td class="mon-notes"></td></tr>
+                        <tr><td>Delivery Fees</td><td><?= cor_money($monthlySummary['shipping']) ?></td><td class="mon-notes"></td></tr>
+                        <tr><td>Refunds Issued</td><td style="color:var(--cor-red);"><?= $monthlySummary['refunds'] > 0 ? '-' : '' ?><?= cor_money($monthlySummary['refunds']) ?></td><td class="mon-notes"></td></tr>
+                        <tr style="border-top:2px solid var(--cor-border);"><td style="font-weight:800;">Net Sales</td><td style="font-weight:800;"><?= cor_money($monthlySummary['net_sales']) ?></td><td></td></tr>
+
+                        <tr class="mon-group-header"><td colspan="3" class="mon-group-label">VAT</td></tr>
+                        <tr><td>VATable Sales (excl. shipping)</td><td><?= cor_money($monthlySummary['vatable']) ?></td><td class="mon-notes"></td></tr>
+                        <tr><td>VAT Amount (15%)</td><td class="cor-vat-amount"><?= cor_money($monthlySummary['vat']) ?></td><td class="mon-notes"></td></tr>
+                        <tr><td>Sales Excl. VAT</td><td><?= cor_money($monthlySummary['ex_vat']) ?></td><td class="mon-notes"></td></tr>
+
+                        <tr class="mon-group-header"><td colspan="3" class="mon-group-label">Profit (Estimated)</td></tr>
+                        <tr><td>Net Sales</td><td><?= cor_money($monthlySummary['net_sales']) ?></td><td class="mon-notes"></td></tr>
+                        <tr><td>Shipping Deducted</td><td style="color:var(--cor-red);">-<?= cor_money($monthlySummary['shipping']) ?></td><td class="mon-notes"></td></tr>
+                        <tr><td>Cost of Goods Sold (est.)</td><td style="color:var(--cor-red);"><?= $monthlySummary['cogs'] > 0 ? '-' : '' ?><?= cor_money($monthlySummary['cogs']) ?></td><td class="mon-notes">cost sync pending</td></tr>
+                        <tr class="mon-highlight" style="border-top:2px solid var(--cor-border);"><td style="font-weight:800;">Gross Profit (est.)</td><td class="cor-profit-positive" style="font-weight:800;"><?= cor_money($monthlySummary['gross_profit']) ?></td><td class="mon-notes" style="color:var(--cor-olive) !important;"><?= number_format((int) $monthlySummary['margin_pct']) ?>% margin</td></tr>
+
+                        <tr class="mon-group-header"><td colspan="3" class="mon-group-label">Inventory</td></tr>
+                        <tr><td>Stock Cost Value</td><td><?= cor_money($monthlySummary['stock_cost']) ?></td><td class="mon-notes">cost sync pending</td></tr>
+                        <tr><td>Stock Retail Value</td><td><?= cor_money($monthlySummary['stock_retail']) ?></td><td class="mon-notes">stock sync pending</td></tr>
+                        <tr><td>Potential Margin</td><td class="cor-profit-positive" style="font-weight:800;"><?= cor_money($monthlySummary['potential_margin']) ?></td><td class="mon-notes"></td></tr>
                     </tbody>
                 </table>
+            </div>
+            <div class="cor-summary-actions" style="padding:12px 16px;margin-bottom:0;">
+                <a class="cor-btn-export-sm" href="?<?= cor_e(http_build_query(array_merge($queryBase, ['tab' => 'monthly', 'export' => 'csv']))) ?>">CSV</a>
+                <a class="cor-btn-export-sm" href="?<?= cor_e(http_build_query(array_merge($queryBase, ['tab' => 'monthly', 'export' => 'excel']))) ?>">Excel</a>
+                <button class="cor-btn-export-sm" type="button" onclick="window.print()">PDF</button>
             </div>
         </article>
     </section>
