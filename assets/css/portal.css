@@ -14964,6 +14964,37 @@ body:has(.ob-wrap) .workspace {
   transition: none !important;
 }
 
+.ob-wrap .availability-switch-wrap {
+  gap: 6px !important;
+}
+
+.ob-wrap .availability-switch-wrap.is-available > span:first-child,
+.ob-wrap .availability-switch-wrap.is-lunch > span:last-child {
+  color: #00a86b !important;
+  font-weight: 800 !important;
+}
+
+.ob-wrap .availability-switch-wrap.is-available > span:last-child,
+.ob-wrap .availability-switch-wrap.is-lunch > span:first-child {
+  color: var(--ob-text-mid) !important;
+  font-weight: 600 !important;
+}
+
+.ob-wrap .availability-switch,
+.ob-wrap .availability-switch.is-available,
+.ob-wrap .availability-switch.is-lunch {
+  background: #00c875 !important;
+  box-shadow: 0 0 0 3px rgba(0, 200, 117, 0.18) !important;
+}
+
+.ob-wrap .availability-switch.is-available span {
+  transform: translateX(0) !important;
+}
+
+.ob-wrap .availability-switch.is-lunch span {
+  transform: translateX(36px) !important;
+}
+
 .ob-wrap h1,
 .ob-wrap .page-title,
 .ob-wrap .monday-board-head h1 {
