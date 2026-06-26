@@ -10,13 +10,6 @@ $pageTitle = 'Operations | ' . APP_NAME;
 $activeApp = 'operations';
 $ready = ops_database_ready();
 
-$stats = [
-    'open_orders' => $ready ? ops_count('ops_orders', "status NOT IN ('completed')") : 0,
-    'today_completed' => $ready ? ops_count('ops_orders', "DATE(completed_at) = CURDATE()") : 0,
-    'missed_tasks' => $ready ? ops_count('ops_checklist_tasks', "status = 'overdue' OR (status NOT IN ('done', 'needs_review', 'completed', 'approved') AND deadline IS NOT NULL AND deadline < NOW())") : 0,
-    'critical_errors' => $ready ? ops_count('ops_error_logs', "severity IN ('high', 'critical') AND logged_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)") : 0,
-];
-
 $sections = [
     ['Settings', 'View your login profile, update your access code and manage employee settings.', 'key-round', 'my-account.php', 'Core'],
     ['Orders Board', 'Monday-style shared order table with packer assignment and lunch availability.', 'table-2', 'orders-board.php', 'Core'],
@@ -60,15 +53,7 @@ include BASE_PATH . '/shared/sidebar.php';
         </div>
     </section>
 
-    <?php ops_nav('index'); ?>
     <?php if (!$ready) { ops_setup_notice(); } ?>
-
-    <section class="ops-dashboard-grid" aria-label="Operations summary">
-        <article class="metric"><span>Open orders</span><strong><?= number_format($stats['open_orders']) ?></strong></article>
-        <article class="metric"><span>Completed today</span><strong><?= number_format($stats['today_completed']) ?></strong></article>
-        <article class="metric"><span>Overdue tasks</span><strong><?= number_format($stats['missed_tasks']) ?></strong></article>
-        <article class="metric"><span>High/Critical errors</span><strong><?= number_format($stats['critical_errors']) ?></strong></article>
-    </section>
 
     <section class="ops-card-grid" aria-label="Operations modules">
         <?php foreach ($sections as [$title, $desc, $icon, $href, $status]): ?>
