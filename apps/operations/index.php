@@ -70,15 +70,6 @@ include BASE_PATH . '/shared/sidebar.php';
         <article class="metric"><span>High/Critical errors</span><strong><?= number_format($stats['critical_errors']) ?></strong></article>
     </section>
 
-    <section class="system-flow">
-        <div><span>1</span><strong>Order Intake</strong><small>Capture order, items and priority</small></div>
-        <div><span>2</span><strong>Fair Assignment</strong><small>Score workload before assigning</small></div>
-        <div><span>3</span><strong>Packing</strong><small>Employee task ownership</small></div>
-        <div><span>4</span><strong>Barcode Check</strong><small>Block wrong product scans</small></div>
-        <div><span>5</span><strong>Error Log</strong><small>Record root cause and impact</small></div>
-        <div><span>6</span><strong>KPI App</strong><small>Tracked from reports</small></div>
-    </section>
-
     <section class="ops-card-grid" aria-label="Operations modules">
         <?php foreach ($sections as [$title, $desc, $icon, $href, $status]): ?>
             <a class="system-card" href="<?= htmlspecialchars($href, ENT_QUOTES, 'UTF-8') ?>">
