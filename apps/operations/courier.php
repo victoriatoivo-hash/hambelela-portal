@@ -1483,15 +1483,15 @@ include BASE_PATH . '/shared/sidebar.php';
         <div class="waybill-stat-grid">
             <article class="waybill-stat-card is-uploaded">
                 <span class="stat-icon"><i data-lucide="upload-cloud"></i></span>
-                <div><strong class="stat-number" data-stat="uploaded_today"><?= number_format($payload['stats']['uploaded_today']) ?></strong><div class="stat-label">Uploaded Today - across all packers</div></div>
+                <div><strong class="stat-number" data-stat="uploaded_today"><?= number_format($payload['stats']['uploaded_today']) ?></strong><div class="stat-label">Uploaded Today</div></div>
             </article>
             <article class="waybill-stat-card is-pending">
                 <span class="stat-icon"><i data-lucide="clock-3"></i></span>
-                <div><strong class="stat-number" data-stat="pending"><?= number_format($payload['stats']['pending']) ?></strong><div class="stat-label">Pending Send - Secilia action required</div></div>
+                <div><strong class="stat-number" data-stat="pending"><?= number_format($payload['stats']['pending']) ?></strong><div class="stat-label">Pending Send</div></div>
             </article>
             <article class="waybill-stat-card is-overdue">
                 <span class="stat-icon"><i data-lucide="triangle-alert"></i></span>
-                <div><strong class="stat-number" data-stat="overdue"><?= number_format($payload['stats']['overdue']) ?></strong><div class="stat-label">Overdue - tracked against SLA</div></div>
+                <div><strong class="stat-number" data-stat="overdue"><?= number_format($payload['stats']['overdue']) ?></strong><div class="stat-label">Overdue</div></div>
             </article>
         </div>
 
