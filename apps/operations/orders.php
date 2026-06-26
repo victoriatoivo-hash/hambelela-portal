@@ -581,7 +581,14 @@ include BASE_PATH . '/shared/sidebar.php';
         .cor-wrap .page-eyebrow { margin: 0; color: var(--cor-orange-red); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
         .cor-wrap h1 { margin: 2px 0 6px; color: var(--cor-burgundy); font-size: 26px; line-height: 1.05; }
         .cor-wrap .page-subtitle { margin: 0; color: var(--cor-text-mid); font-size: 13px; }
-        .cor-filter-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 16px; padding: 12px 16px; border: 1px solid var(--cor-border); border-radius: 10px; background: var(--cor-surface); }
+        .cor-filter-panel { margin: 24px 0 18px; border: 1px solid var(--cor-border); border-radius: 8px; background: var(--cor-surface); box-shadow: 0 2px 8px rgba(44,24,16,.04); overflow: hidden; }
+        .cor-filter-panel summary { list-style: none; min-height: 36px; padding: 0 14px; display: flex; align-items: center; gap: 9px; color: var(--cor-red); font-size: 13px; font-weight: 800; cursor: pointer; user-select: none; }
+        .cor-filter-panel summary::-webkit-details-marker { display: none; }
+        .cor-filter-panel summary .filter-icon { width: 16px; height: 16px; color: var(--cor-red); flex: 0 0 auto; }
+        .cor-filter-panel summary::after { content: 'Open'; margin-left: auto; color: var(--cor-text-light); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+        .cor-filter-panel[open] summary { border-bottom: 1px solid var(--cor-border); }
+        .cor-filter-panel[open] summary::after { content: 'Close'; }
+        .cor-filter-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 0; padding: 12px 16px; background: #fffaf6; }
         .cor-quick-ranges, .cor-filter-selects, .cor-date-inputs { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
         .cor-range-btn, .cor-btn-apply, .cor-btn-export { height: 30px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
         .cor-range-btn { padding: 0 12px; border: 1px solid var(--cor-border); background: var(--cor-surface); color: var(--cor-text-mid); }
@@ -714,7 +721,7 @@ include BASE_PATH . '/shared/sidebar.php';
         .cor-empty { padding: 16px 18px; color: var(--cor-text-mid); font-size: 13px; }
         @media (max-width: 1100px) { .cor-stat-grid { grid-template-columns: repeat(3, 1fr); } .cor-report-grid, .cor-two-col { grid-template-columns: 1fr; } }
         @media (max-width: 900px) { .cor-summary-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-        @media (max-width: 767px) { .cor-stat-grid, .cor-summary-stat-grid { grid-template-columns: repeat(2, 1fr); } .cor-tab { padding: 0 12px; font-size: 11px; } .cor-filter-bar { align-items: stretch; flex-direction: column; } .cor-filter-selects, .cor-date-inputs, .cor-quick-ranges { align-items: stretch; } .cor-filter-bar select, .cor-filter-bar input[type="date"], .cor-btn-apply, .cor-btn-export, .cor-btn-daily, .cor-btn-export-sm { width: 100%; } .del-breakdown-top { flex-direction: column; } .del-hbar-label { min-width: 80px; font-size: 11px; } .del-table-tools { align-items: stretch; flex-direction: column; } .del-table-tools input, .del-table-tools select { width: 100%; } }
+        @media (max-width: 767px) { .cor-stat-grid, .cor-summary-stat-grid { grid-template-columns: repeat(2, 1fr); } .cor-tab { padding: 0 12px; font-size: 11px; } .cor-filter-panel { margin-top: 18px; } .cor-filter-bar { align-items: stretch; flex-direction: column; } .cor-filter-selects, .cor-date-inputs, .cor-quick-ranges { align-items: stretch; } .cor-filter-bar select, .cor-filter-bar input[type="date"], .cor-btn-apply, .cor-btn-export, .cor-btn-daily, .cor-btn-export-sm { width: 100%; } .del-breakdown-top { flex-direction: column; } .del-hbar-label { min-width: 80px; font-size: 11px; } .del-table-tools { align-items: stretch; flex-direction: column; } .del-table-tools input, .del-table-tools select { width: 100%; } }
         @media (max-width: 500px) { .cor-summary-stat-grid { grid-template-columns: 1fr; } }
     </style>
 
@@ -730,6 +737,12 @@ include BASE_PATH . '/shared/sidebar.php';
         <?php ops_setup_notice(); ?>
     <?php endif; ?>
 
+    <?php $filterPanelOpen = $filters['range'] !== 'month' || $filters['status'] !== 'all' || $filters['mode'] !== 'all' || $filters['payment'] !== 'all'; ?>
+    <details class="cor-filter-panel" <?= $filterPanelOpen ? 'open' : '' ?>>
+        <summary>
+            <i data-lucide="sliders-horizontal" class="filter-icon" aria-hidden="true"></i>
+            <span>Filters</span>
+        </summary>
     <form class="cor-filter-bar" method="get" data-cor-filter>
         <input type="hidden" name="range" value="<?= cor_e($filters['range']) ?>" data-cor-range>
         <input type="hidden" name="tab" value="<?= cor_e($filters['tab']) ?>" data-cor-tab-input>
@@ -765,6 +778,7 @@ include BASE_PATH . '/shared/sidebar.php';
         </div>
         <button class="cor-btn-apply" type="submit">Apply</button>
     </form>
+    </details>
 
     <div class="cor-tabs-wrap">
     <nav class="cor-tabs" aria-label="Report tabs">
