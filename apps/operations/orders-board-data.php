@@ -19,6 +19,8 @@ if (!$ready) {
 }
 
 $date = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_GET['date'] ?? '')) ? (string) $_GET['date'] : '';
+$dateStart = $date !== '' ? $date . ' 00:00:00' : '';
+$dateEnd = $date !== '' ? date('Y-m-d H:i:s', strtotime($dateStart . ' +1 day')) : '';
 $hasTotalAmount = ops_column_exists('ops_orders', 'total_amount');
 $hasAssignedAt = ops_column_exists('ops_orders', 'assigned_at');
 $hasStartedAt = ops_column_exists('ops_orders', 'packing_started_at');
@@ -30,8 +32,9 @@ $startedAtSelect = $hasStartedAt ? 'o.packing_started_at' : 'NULL AS packing_sta
 $whereParts = [];
 $params = [];
 if ($date !== '') {
-    $whereParts[] = 'DATE(o.created_at) = ?';
-    $params[] = $date;
+    $whereParts[] = 'o.created_at >= ? AND o.created_at < ?';
+    $params[] = $dateStart;
+    $params[] = $dateEnd;
 }
 if ($hasArchivedAt) {
     $whereParts[] = 'o.archived_at IS NULL';
@@ -42,21 +45,43 @@ $orders = ops_rows(
     "SELECT
         o.id, o.order_number, o.customer_name, o.customer_contact, o.payment_method, {$amountSelect}, o.payment_status,
         o.order_type, o.status, o.workload_score, o.created_at, {$assignedAtSelect}, {$startedAtSelect}, o.packed_at, o.completed_at, o.notes,
-        o.assigned_packer_id, e.full_name AS packer_name,
-        COUNT(oi.id) AS item_lines, COALESCE(SUM(oi.quantity), 0) AS item_quantity
+        o.assigned_packer_id, e.full_name AS packer_name
      FROM ops_orders o
      LEFT JOIN ops_employees e ON e.id = o.assigned_packer_id
-     LEFT JOIN ops_order_items oi ON oi.order_id = o.id
      {$where}
-     GROUP BY o.id, o.order_number, o.customer_name, o.customer_contact, o.payment_method, o.payment_status,
-        o.order_type, o.status, o.workload_score, o.created_at, o.assigned_packer_id, e.full_name, o.packed_at, o.completed_at, o.notes" . ($hasTotalAmount ? ', o.total_amount' : '') . ($hasAssignedAt ? ', o.assigned_at' : '') . ($hasStartedAt ? ', o.packing_started_at' : '') . "
      ORDER BY o.created_at DESC
      LIMIT 500",
     $params
 );
 
+$orderIds = array_map(static fn (array $order): int => (int) ($order['id'] ?? 0), $orders);
+$orderIds = array_values(array_filter($orderIds));
+if ($orderIds) {
+    $placeholders = implode(',', array_fill(0, count($orderIds), '?'));
+    $itemStats = ops_rows(
+        "SELECT order_id, COUNT(id) AS item_lines, COALESCE(SUM(quantity), 0) AS item_quantity
+         FROM ops_order_items
+         WHERE order_id IN ({$placeholders})
+         GROUP BY order_id",
+        $orderIds
+    );
+    $itemStatsByOrder = [];
+    foreach ($itemStats as $stat) {
+        $itemStatsByOrder[(int) ($stat['order_id'] ?? 0)] = $stat;
+    }
+    foreach ($orders as &$order) {
+        $stat = $itemStatsByOrder[(int) ($order['id'] ?? 0)] ?? null;
+        $order['item_lines'] = $stat ? (int) ($stat['item_lines'] ?? 0) : 0;
+        $order['item_quantity'] = $stat ? (float) ($stat['item_quantity'] ?? 0) : 0;
+    }
+    unset($order);
+}
+
 $archiveMetricWhere = $hasArchivedAt ? ' AND archived_at IS NULL' : '';
-$metricWhere = ($date !== '' ? "DATE(created_at) = '" . str_replace("'", "''", $date) . "'" : '1=1') . $archiveMetricWhere;
+$metricWhere = $date !== ''
+    ? "created_at >= '" . str_replace("'", "''", $dateStart) . "' AND created_at < '" . str_replace("'", "''", $dateEnd) . "'"
+    : '1=1';
+$metricWhere .= $archiveMetricWhere;
 $validRevenueWhere = $metricWhere . " AND payment_status = 'paid' AND status NOT IN ('cancelled', 'canceled', 'refunded', 'failed', 'error_logged') AND payment_status NOT IN ('refunded', 'cancelled', 'canceled', 'failed')";
 $businessOverdueWhere = $metricWhere
     . " AND TIME(created_at) >= '" . OPS_BUSINESS_START . "'"
