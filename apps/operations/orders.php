@@ -204,6 +204,114 @@ function cor_export_products(array $filters, string $format): void
     exit;
 }
 
+function cor_export_vat(array $filters, string $format, string $section): void
+{
+    $params = [];
+    $where = cor_filtered_where($filters, $params);
+    $delimiter = $format === 'excel' ? "\t" : ',';
+    $filename = 'vat-' . ($section ?: 'summary') . '-' . $filters['from'] . '-to-' . $filters['to'] . ($format === 'excel' ? '.xls' : '.csv');
+
+    header($format === 'excel' ? 'Content-Type: application/vnd.ms-excel; charset=utf-8' : 'Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    $out = fopen('php://output', 'w');
+
+    if ($section === 'daily') {
+        $rows = cor_query_rows(
+            "SELECT DATE(o.created_at) AS d,
+                    COUNT(*) AS orders,
+                    COALESCE(SUM(o.total_amount), 0) AS total_sales,
+                    COALESCE(SUM(o.shipping_total + o.shipping_tax_total), 0) AS shipping
+             FROM ops_orders o
+             WHERE {$where} AND o.payment_status <> 'refunded' AND o.status NOT IN ('cancelled','failed')
+             GROUP BY DATE(o.created_at)
+             ORDER BY d ASC",
+            $params
+        );
+        fputcsv($out, ['Date', 'Orders', 'Total Sales', 'Shipping', 'VATable Sales', 'Ex-VAT', 'VAT (15%)'], $delimiter);
+        foreach ($rows as $row) {
+            $vatable = max(0.0, (float) $row['total_sales'] - (float) $row['shipping']);
+            fputcsv($out, [
+                $row['d'],
+                (int) $row['orders'],
+                number_format((float) $row['total_sales'], 2, '.', ''),
+                number_format((float) $row['shipping'], 2, '.', ''),
+                number_format($vatable, 2, '.', ''),
+                number_format($vatable * (100 / 115), 2, '.', ''),
+                number_format($vatable * (15 / 115), 2, '.', ''),
+            ], $delimiter);
+        }
+        fclose($out);
+        exit;
+    }
+
+    if ($section === 'payment') {
+        $rows = cor_query_rows(
+            "SELECT COALESCE(NULLIF(o.payment_method, ''), 'Other') AS method,
+                    COUNT(*) AS orders,
+                    COALESCE(SUM(o.total_amount), 0) AS total_incl,
+                    COALESCE(SUM(o.shipping_total + o.shipping_tax_total), 0) AS shipping
+             FROM ops_orders o
+             WHERE {$where} AND o.payment_status <> 'refunded' AND o.status NOT IN ('cancelled','failed')
+             GROUP BY COALESCE(NULLIF(o.payment_method, ''), 'Other')
+             ORDER BY total_incl DESC",
+            $params
+        );
+        fputcsv($out, ['Payment Method', 'Orders', 'Total Incl VAT', 'VAT Portion'], $delimiter);
+        foreach ($rows as $row) {
+            $vatable = max(0.0, (float) $row['total_incl'] - (float) $row['shipping']);
+            fputcsv($out, [$row['method'], (int) $row['orders'], number_format((float) $row['total_incl'], 2, '.', ''), number_format($vatable * (15 / 115), 2, '.', '')], $delimiter);
+        }
+        fclose($out);
+        exit;
+    }
+
+    if ($section === 'products') {
+        $rows = cor_query_rows(
+            "SELECT oi.product_name,
+                    COALESCE(SUM(oi.quantity), 0) AS qty,
+                    COALESCE(SUM(CASE WHEN order_qty.qty > 0 THEN o.total_amount * (oi.quantity / order_qty.qty) ELSE 0 END), 0) AS total_incl
+             FROM ops_order_items oi
+             JOIN ops_orders o ON o.id = oi.order_id
+             LEFT JOIN (
+                SELECT order_id, SUM(quantity) AS qty
+                FROM ops_order_items
+                GROUP BY order_id
+             ) order_qty ON order_qty.order_id = o.id
+             WHERE {$where} AND o.payment_status <> 'refunded' AND o.status NOT IN ('cancelled','failed')
+             GROUP BY oi.product_name
+             ORDER BY total_incl DESC",
+            $params
+        );
+        fputcsv($out, ['Product', 'Qty Sold', 'Total Sales Incl VAT', 'VAT Portion'], $delimiter);
+        foreach ($rows as $row) {
+            fputcsv($out, [$row['product_name'], number_format((float) $row['qty'], 2, '.', ''), number_format((float) $row['total_incl'], 2, '.', ''), number_format((float) $row['total_incl'] * (15 / 115), 2, '.', '')], $delimiter);
+        }
+        fclose($out);
+        exit;
+    }
+
+    $rows = cor_query_rows(
+        "SELECT COALESCE(SUM(o.total_amount), 0) AS total_sales,
+                COUNT(*) AS orders,
+                COALESCE(SUM(o.shipping_total + o.shipping_tax_total), 0) AS shipping
+         FROM ops_orders o
+         WHERE {$where} AND o.payment_status <> 'refunded' AND o.status NOT IN ('cancelled','failed')",
+        $params
+    );
+    $row = $rows[0] ?? ['total_sales' => 0, 'orders' => 0, 'shipping' => 0];
+    $vatable = max(0.0, (float) $row['total_sales'] - (float) $row['shipping']);
+    fputcsv($out, ['Metric', 'Amount'], $delimiter);
+    fputcsv($out, ['Period', $filters['from'] . ' - ' . $filters['to']], $delimiter);
+    fputcsv($out, ['Total Orders', (int) $row['orders']], $delimiter);
+    fputcsv($out, ['Total Invoice Sales Incl VAT', number_format((float) $row['total_sales'], 2, '.', '')], $delimiter);
+    fputcsv($out, ['Shipping Excluded', number_format((float) $row['shipping'], 2, '.', '')], $delimiter);
+    fputcsv($out, ['VATable Sales', number_format($vatable, 2, '.', '')], $delimiter);
+    fputcsv($out, ['Sales Ex-VAT', number_format($vatable * (100 / 115), 2, '.', '')], $delimiter);
+    fputcsv($out, ['VAT Collected', number_format($vatable * (15 / 115), 2, '.', '')], $delimiter);
+    fclose($out);
+    exit;
+}
+
 $range = trim((string) ($_GET['range'] ?? 'month'));
 if (!in_array($range, ['today', 'week', 'month', 'year', 'custom'], true)) {
     $range = 'month';
@@ -236,6 +344,9 @@ if ($ready && isset($_GET['export']) && in_array((string) $_GET['export'], ['csv
     if ($filters['tab'] === 'products') {
         cor_export_products($filters, (string) $_GET['export']);
     }
+    if ($filters['tab'] === 'vat') {
+        cor_export_vat($filters, (string) $_GET['export'], (string) ($_GET['section'] ?? 'summary'));
+    }
     cor_export($filters, (string) $_GET['export']);
 }
 
@@ -264,6 +375,9 @@ $deliveryRows = [];
 $deliveryDayRows = [];
 $deliveryOrderRows = [];
 $vatRows = [];
+$vatDailyRows = [];
+$vatPaymentRows = [];
+$vatProductRows = [];
 $profitRows = [];
 $monthlyRows = [];
 $inventoryRows = [];
@@ -272,6 +386,20 @@ $daily14Rows = [];
 $orderRows = [];
 $refundSummary = ['count' => 0, 'amount' => 0.0, 'pct' => 0.0];
 $vatSummary = ['gross' => 0.0, 'vat' => 0.0, 'net' => 0.0];
+$vatMetrics = [
+    'total_sales' => 0.0,
+    'order_count' => 0,
+    'shipping' => 0.0,
+    'refunds' => 0.0,
+    'vatable_sales' => 0.0,
+    'vat_collected' => 0.0,
+    'sales_ex_vat' => 0.0,
+    'vat_on_refunds' => 0.0,
+    'net_vat_payable' => 0.0,
+];
+$vatDailyTotals = ['orders' => 0, 'total_sales' => 0.0, 'shipping' => 0.0, 'vatable' => 0.0, 'ex_vat' => 0.0, 'vat_amount' => 0.0];
+$vatPaymentTotals = ['orders' => 0, 'total_incl' => 0.0, 'vat_portion' => 0.0];
+$vatProductTotals = ['qty' => 0.0, 'total_incl' => 0.0, 'vat_portion' => 0.0];
 $profitSummary = ['revenue' => 0.0, 'cogs' => 0.0, 'profit' => 0.0, 'margin' => 0.0];
 $deliverySummary = ['fees' => 0.0, 'orders' => 0, 'avg' => 0.0, 'courier' => 0, 'total_cost' => 0.0, 'total_orders' => 0, 'breakdown_avg' => 0.0];
 $deliveryOrdersCount = 0;
@@ -426,18 +554,80 @@ if ($ready) {
     $vatRows = cor_query_rows(
         "SELECT DATE(o.created_at) AS d,
                 COUNT(*) AS orders,
-                COALESCE(SUM(o.total_amount), 0) AS gross,
-                COALESCE(SUM(o.tax_total + o.shipping_tax_total), 0) AS stored_vat
+                COALESCE(SUM(o.total_amount), 0) AS total_sales,
+                COALESCE(SUM(o.shipping_total + o.shipping_tax_total), 0) AS shipping
          FROM ops_orders o
-         WHERE {$where}
+         WHERE {$where} AND o.payment_status <> 'refunded' AND o.status NOT IN ('cancelled','failed')
          GROUP BY DATE(o.created_at)
          ORDER BY d ASC",
         $params
     );
-    $vatSummary['gross'] = array_reduce($vatRows, static fn(float $carry, array $row): float => $carry + (float) $row['gross'], 0.0);
-    $storedVat = array_reduce($vatRows, static fn(float $carry, array $row): float => $carry + (float) $row['stored_vat'], 0.0);
-    $vatSummary['vat'] = $storedVat > 0 ? $storedVat : $vatSummary['gross'] * (0.15 / 1.15);
-    $vatSummary['net'] = $vatSummary['gross'] - $vatSummary['vat'];
+    foreach ($vatRows as &$vatRow) {
+        $vatRow['orders'] = (int) $vatRow['orders'];
+        $vatRow['total_sales'] = (float) $vatRow['total_sales'];
+        $vatRow['shipping'] = (float) $vatRow['shipping'];
+        $vatRow['vatable'] = max(0.0, $vatRow['total_sales'] - $vatRow['shipping']);
+        $vatRow['ex_vat'] = round($vatRow['vatable'] * (100 / 115), 2);
+        $vatRow['vat_amount'] = round($vatRow['vatable'] * (15 / 115), 2);
+    }
+    unset($vatRow);
+    $vatDailyRows = $vatRows;
+    $vatDailyTotals = [
+        'orders' => array_reduce($vatDailyRows, static fn(int $carry, array $row): int => $carry + (int) $row['orders'], 0),
+        'total_sales' => array_reduce($vatDailyRows, static fn(float $carry, array $row): float => $carry + (float) $row['total_sales'], 0.0),
+        'shipping' => array_reduce($vatDailyRows, static fn(float $carry, array $row): float => $carry + (float) $row['shipping'], 0.0),
+        'vatable' => array_reduce($vatDailyRows, static fn(float $carry, array $row): float => $carry + (float) $row['vatable'], 0.0),
+        'ex_vat' => array_reduce($vatDailyRows, static fn(float $carry, array $row): float => $carry + (float) $row['ex_vat'], 0.0),
+        'vat_amount' => array_reduce($vatDailyRows, static fn(float $carry, array $row): float => $carry + (float) $row['vat_amount'], 0.0),
+    ];
+    $vatMetrics['total_sales'] = $vatDailyTotals['total_sales'];
+    $vatMetrics['order_count'] = $vatDailyTotals['orders'];
+    $vatMetrics['shipping'] = $vatDailyTotals['shipping'];
+    $vatMetrics['refunds'] = $refundSummary['amount'];
+    $vatMetrics['vatable_sales'] = $vatDailyTotals['vatable'];
+    $vatMetrics['vat_collected'] = $vatDailyTotals['vat_amount'];
+    $vatMetrics['sales_ex_vat'] = $vatDailyTotals['ex_vat'];
+    $vatMetrics['vat_on_refunds'] = round($vatMetrics['refunds'] * (15 / 115), 2);
+    $vatMetrics['net_vat_payable'] = $vatMetrics['vat_collected'] - $vatMetrics['vat_on_refunds'];
+    $vatSummary['gross'] = $vatMetrics['total_sales'];
+    $vatSummary['vat'] = $vatMetrics['vat_collected'];
+    $vatSummary['net'] = $vatMetrics['sales_ex_vat'];
+
+    $vatPaymentRows = cor_query_rows(
+        "SELECT COALESCE(NULLIF(o.payment_method, ''), 'Other') AS method,
+                COUNT(*) AS orders,
+                COALESCE(SUM(o.total_amount), 0) AS total_incl,
+                COALESCE(SUM(o.shipping_total + o.shipping_tax_total), 0) AS shipping
+         FROM ops_orders o
+         WHERE {$where} AND o.payment_status <> 'refunded' AND o.status NOT IN ('cancelled','failed')
+         GROUP BY COALESCE(NULLIF(o.payment_method, ''), 'Other')
+         ORDER BY total_incl DESC",
+        $params
+    );
+    foreach ($vatPaymentRows as &$vatPaymentRow) {
+        $vatablePayment = max(0.0, (float) $vatPaymentRow['total_incl'] - (float) $vatPaymentRow['shipping']);
+        $vatPaymentRow['vat_portion'] = round($vatablePayment * (15 / 115), 2);
+    }
+    unset($vatPaymentRow);
+    $vatPaymentTotals = [
+        'orders' => array_reduce($vatPaymentRows, static fn(int $carry, array $row): int => $carry + (int) $row['orders'], 0),
+        'total_incl' => array_reduce($vatPaymentRows, static fn(float $carry, array $row): float => $carry + (float) $row['total_incl'], 0.0),
+        'vat_portion' => array_reduce($vatPaymentRows, static fn(float $carry, array $row): float => $carry + (float) $row['vat_portion'], 0.0),
+    ];
+    $vatProductRows = array_map(static function (array $row): array {
+        $totalIncl = (float) $row['rev'];
+        return [
+            'product' => (string) $row['product_name'],
+            'qty_sold' => (float) $row['qty'],
+            'total_incl' => $totalIncl,
+            'vat_portion' => round($totalIncl * (15 / 115), 2),
+        ];
+    }, $productRows);
+    $vatProductTotals = [
+        'qty' => array_reduce($vatProductRows, static fn(float $carry, array $row): float => $carry + (float) $row['qty_sold'], 0.0),
+        'total_incl' => array_reduce($vatProductRows, static fn(float $carry, array $row): float => $carry + (float) $row['total_incl'], 0.0),
+        'vat_portion' => array_reduce($vatProductRows, static fn(float $carry, array $row): float => $carry + (float) $row['vat_portion'], 0.0),
+    ];
 
     $profitRows = cor_query_rows(
         "SELECT oi.product_name,
@@ -711,6 +901,10 @@ include BASE_PATH . '/shared/sidebar.php';
         .del-table-tools input, .del-table-tools select { height: 32px; padding: 0 10px; border: 1px solid var(--cor-border); border-radius: 6px; background: var(--cor-surface); color: var(--cor-text); font-size: 12px; }
         .del-table-tools input { flex: 1; min-width: 180px; }
         .del-count { color: var(--cor-text-mid); font-size: 12px; white-space: nowrap; }
+        .vat-period-heading { margin: 0 0 14px; color: var(--cor-burgundy); font-size: 15px; font-weight: 800; }
+        .vat-second-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+        .vat-breakdown-card { display: flex; flex-wrap: wrap; align-items: center; gap: 30px; padding: 18px; }
+        .vat-net-row td { background: #f3fae0 !important; font-weight: 800; }
         .cor-chart-body { height: 260px; padding: 16px; }
         .cor-orders-wrap { max-height: 520px; overflow: auto; }
         .cor-orders-table { width: 100%; border-collapse: collapse; }
@@ -721,8 +915,8 @@ include BASE_PATH . '/shared/sidebar.php';
         .cor-empty { padding: 16px 18px; color: var(--cor-text-mid); font-size: 13px; }
         @media (max-width: 1100px) { .cor-stat-grid { grid-template-columns: repeat(3, 1fr); } .cor-report-grid, .cor-two-col { grid-template-columns: 1fr; } }
         @media (max-width: 900px) { .cor-summary-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-        @media (max-width: 767px) { .cor-stat-grid, .cor-summary-stat-grid { grid-template-columns: repeat(2, 1fr); } .cor-tab { padding: 0 12px; font-size: 11px; } .cor-filter-panel { margin-top: 18px; } .cor-filter-bar { align-items: stretch; flex-direction: column; } .cor-filter-selects, .cor-date-inputs, .cor-quick-ranges { align-items: stretch; } .cor-filter-bar select, .cor-filter-bar input[type="date"], .cor-btn-apply, .cor-btn-export, .cor-btn-daily, .cor-btn-export-sm { width: 100%; } .del-breakdown-top { flex-direction: column; } .del-hbar-label { min-width: 80px; font-size: 11px; } .del-table-tools { align-items: stretch; flex-direction: column; } .del-table-tools input, .del-table-tools select { width: 100%; } }
-        @media (max-width: 500px) { .cor-summary-stat-grid { grid-template-columns: 1fr; } }
+        @media (max-width: 767px) { .cor-stat-grid, .cor-summary-stat-grid { grid-template-columns: repeat(2, 1fr); } .cor-tab { padding: 0 12px; font-size: 11px; } .cor-filter-panel { margin-top: 18px; } .cor-filter-bar { align-items: stretch; flex-direction: column; } .cor-filter-selects, .cor-date-inputs, .cor-quick-ranges { align-items: stretch; } .cor-filter-bar select, .cor-filter-bar input[type="date"], .cor-btn-apply, .cor-btn-export, .cor-btn-daily, .cor-btn-export-sm { width: 100%; } .del-breakdown-top, .vat-breakdown-card { flex-direction: column; align-items: flex-start; } .del-hbar-label { min-width: 80px; font-size: 11px; } .del-table-tools { align-items: stretch; flex-direction: column; } .del-table-tools input, .del-table-tools select { width: 100%; } }
+        @media (max-width: 500px) { .cor-summary-stat-grid, .vat-second-stats { grid-template-columns: 1fr; } }
     </style>
 
     <section class="module-header">
@@ -1078,23 +1272,182 @@ include BASE_PATH . '/shared/sidebar.php';
     </section>
 
     <section id="tab-vat" class="cor-tab-content <?= $filters['tab'] === 'vat' ? 'active' : '' ?>">
-        <section class="cor-stat-grid" aria-label="VAT summary">
-            <article class="cor-stat-card vat"><div class="s-title">Gross Revenue</div><div class="s-num"><?= cor_money($vatSummary['gross']) ?></div><div class="s-sub">VAT inclusive</div></article>
-            <article class="cor-stat-card vat"><div class="s-title">VAT Collected</div><div class="s-num"><?= cor_money($vatSummary['vat']) ?></div><div class="s-sub">15% Namibia VAT</div></article>
-            <article class="cor-stat-card vat"><div class="s-title">Net Revenue</div><div class="s-num"><?= cor_money($vatSummary['net']) ?></div><div class="s-sub">Gross less VAT</div></article>
+        <h2 class="vat-period-heading">VAT Period Summary - <?= cor_e($filters['from']) ?> to <?= cor_e($filters['to']) ?></h2>
+
+        <section class="cor-summary-stat-grid" aria-label="VAT period summary">
+            <article class="cor-top-card">
+                <div class="tc-label">Total Invoice Sales</div>
+                <div class="tc-value"><?= cor_money($vatMetrics['total_sales']) ?></div>
+                <div class="tc-sub"><?= number_format((int) $vatMetrics['order_count']) ?> orders</div>
+            </article>
+            <article class="cor-top-card">
+                <div class="tc-label">Shipping Excluded</div>
+                <div class="tc-value"><?= cor_money($vatMetrics['shipping']) ?></div>
+                <div class="tc-sub">not subject to VAT</div>
+            </article>
+            <article class="cor-top-card">
+                <div class="tc-label">VATable Sales</div>
+                <div class="tc-value"><?= cor_money($vatMetrics['vatable_sales']) ?></div>
+                <div class="tc-sub">products only</div>
+            </article>
+            <article class="cor-top-card" style="border-left:4px solid var(--cor-amber);">
+                <div class="tc-label">VAT Collected (15%)</div>
+                <div class="tc-value" style="color:var(--cor-amber);"><?= cor_money($vatMetrics['vat_collected']) ?></div>
+                <div class="tc-sub">on product sales</div>
+            </article>
         </section>
+
+        <section class="vat-second-stats" aria-label="VAT net summary">
+            <article class="cor-top-card">
+                <div class="tc-label">Sales Ex-VAT</div>
+                <div class="tc-value"><?= cor_money($vatMetrics['sales_ex_vat']) ?></div>
+                <div class="tc-sub">ex-VAT revenue</div>
+            </article>
+            <article class="cor-top-card" style="border-left:4px solid var(--cor-olive);">
+                <div class="tc-label">Net VAT Payable</div>
+                <div class="tc-value" style="color:var(--cor-olive);"><?= cor_money($vatMetrics['net_vat_payable']) ?></div>
+                <div class="tc-sub"><?= $vatMetrics['refunds'] > 0 ? 'after refunds' : 'no refunds' ?></div>
+            </article>
+        </section>
+
         <article class="cor-report-card">
-            <div class="card-head"><h3>VAT by Day</h3><span>Uses stored tax where available, otherwise inclusive 15% estimate</span></div>
-            <div class="cor-table-wrap">
-                <table>
-                    <thead><tr><th>Date</th><th>Orders</th><th>Gross</th><th>VAT</th><th>Net</th></tr></thead>
-                    <tbody>
-                    <?php foreach ($vatRows as $row): $vat = (float) $row['stored_vat'] > 0 ? (float) $row['stored_vat'] : ((float) $row['gross'] * (0.15 / 1.15)); ?>
-                        <tr><td><?= cor_e(date('d M Y', strtotime((string) $row['d']))) ?></td><td><?= number_format((int) $row['orders']) ?></td><td><?= cor_money($row['gross']) ?></td><td class="cor-vat-amount"><?= cor_money($vat) ?></td><td><?= cor_money(((float) $row['gross']) - $vat) ?></td></tr>
+            <?php
+            $vatBreakdownItems = [
+                ['label' => 'Ex-VAT Revenue', 'amount' => $vatMetrics['sales_ex_vat'], 'colour' => '#AB3619'],
+                ['label' => 'VAT Collected', 'amount' => $vatMetrics['vat_collected'], 'colour' => '#A8CA19'],
+                ['label' => 'Shipping', 'amount' => $vatMetrics['shipping'], 'colour' => '#F07420'],
+            ];
+            $vatBreakdownTotal = array_reduce($vatBreakdownItems, static fn(float $carry, array $item): float => $carry + (float) $item['amount'], 0.0);
+            ?>
+            <div class="vat-breakdown-card">
+                <canvas id="vatPieChart" width="160" height="160" style="flex:0 0 auto;"></canvas>
+                <div class="del-legend">
+                    <div style="margin-bottom:14px;color:var(--cor-burgundy);font-size:14px;font-weight:800;">VAT Breakdown</div>
+                    <?php foreach ($vatBreakdownItems as $item): $pct = $vatBreakdownTotal > 0 ? ((float) $item['amount'] / $vatBreakdownTotal) * 100 : 0; ?>
+                        <div class="del-legend-row">
+                            <span class="del-legend-dot" style="background:<?= cor_e($item['colour']) ?>"></span>
+                            <span class="del-legend-name"><?= cor_e($item['label']) ?></span>
+                            <span class="del-legend-amt"><?= cor_money($item['amount']) ?></span>
+                            <span class="del-legend-pct"><?= cor_pct($pct) ?></span>
+                        </div>
                     <?php endforeach; ?>
-                    <?php if (!$vatRows): ?><tr><td colspan="5">No VAT records found.</td></tr><?php endif; ?>
+                </div>
+            </div>
+        </article>
+
+        <article class="cor-report-card">
+            <div class="cor-table-wrap">
+                <table class="cor-products-table">
+                    <thead><tr><th>Metric</th><th>Amount</th></tr></thead>
+                    <tbody>
+                        <tr><td>Period</td><td><?= cor_e($filters['from']) ?> - <?= cor_e($filters['to']) ?></td></tr>
+                        <tr><td>Total Orders</td><td><?= number_format((int) $vatMetrics['order_count']) ?></td></tr>
+                        <tr><td>Total Invoice Sales (Incl. VAT)</td><td><?= cor_money($vatMetrics['total_sales']) ?></td></tr>
+                        <tr><td>Shipping / Delivery Amount</td><td><?= cor_money($vatMetrics['shipping']) ?></td></tr>
+                        <tr><td>VATable Sales (Sales - Shipping)</td><td><?= cor_money($vatMetrics['vatable_sales']) ?></td></tr>
+                        <tr><td>VAT Amount (15/115 of VATable)</td><td class="cor-vat-amount"><?= cor_money($vatMetrics['vat_collected']) ?></td></tr>
+                        <tr><td>Sales Excluding VAT</td><td><?= cor_money($vatMetrics['sales_ex_vat']) ?></td></tr>
+                        <tr><td>Refunds Issued</td><td><?= cor_money($vatMetrics['refunds']) ?></td></tr>
+                        <tr><td>VAT on Refunds</td><td><?= cor_money($vatMetrics['vat_on_refunds']) ?></td></tr>
+                        <tr class="vat-net-row"><td>Net VAT Payable</td><td class="cor-profit-positive"><?= cor_money($vatMetrics['net_vat_payable']) ?></td></tr>
                     </tbody>
                 </table>
+            </div>
+            <div class="cor-summary-actions" style="padding:12px 16px;margin-bottom:0;">
+                <a class="cor-btn-export-sm" href="?<?= cor_e(http_build_query(array_merge($queryBase, ['tab' => 'vat', 'export' => 'csv']))) ?>">CSV</a>
+                <a class="cor-btn-export-sm" href="?<?= cor_e(http_build_query(array_merge($queryBase, ['tab' => 'vat', 'export' => 'excel']))) ?>">Excel</a>
+                <button class="cor-btn-export-sm" type="button" onclick="window.print()">PDF</button>
+            </div>
+        </article>
+
+        <article class="cor-report-card">
+            <div class="card-head"><h3>Daily VAT Breakdown</h3><span>VATable sales exclude shipping</span></div>
+            <div style="padding:14px 18px;">
+                <?php $maxDailyVat = max(array_merge([1], array_map(static fn(array $row): float => (float) $row['vat_amount'], $vatDailyRows))); ?>
+                <?php foreach ($vatDailyRows as $row): $barWidth = $maxDailyVat > 0 ? ((float) $row['vat_amount'] / $maxDailyVat) * 100 : 0; ?>
+                    <div class="del-hbar-row" style="margin-bottom:6px;">
+                        <div class="del-hbar-label" style="min-width:100px;font-size:11px;"><?= cor_e(date('d M', strtotime((string) $row['d']))) ?></div>
+                        <div class="del-hbar-track" style="height:22px;"><div class="del-hbar-fill" style="width:<?= cor_e((string) $barWidth) ?>%;background:var(--cor-olive);"></div></div>
+                        <div class="del-hbar-val" style="color:var(--cor-olive);"><?= cor_money($row['vat_amount']) ?></div>
+                    </div>
+                <?php endforeach; ?>
+                <?php if (!$vatDailyRows): ?><div class="cor-empty" style="padding-left:0;">No daily VAT records found.</div><?php endif; ?>
+            </div>
+            <div class="cor-table-wrap">
+                <table class="cor-products-table">
+                    <thead><tr><th>Date</th><th>Orders</th><th>Total Sales</th><th>Shipping</th><th>VATable Sales</th><th>Ex-VAT</th><th>VAT (15%)</th></tr></thead>
+                    <tbody>
+                    <?php foreach ($vatDailyRows as $row): ?>
+                        <tr>
+                            <td><?= cor_e(date('d M Y', strtotime((string) $row['d']))) ?></td>
+                            <td><?= number_format((int) $row['orders']) ?></td>
+                            <td><?= cor_money($row['total_sales']) ?></td>
+                            <td><?= cor_money($row['shipping']) ?></td>
+                            <td><?= cor_money($row['vatable']) ?></td>
+                            <td><?= cor_money($row['ex_vat']) ?></td>
+                            <td class="cor-profit-positive"><?= cor_money($row['vat_amount']) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    <?php if ($vatDailyRows): ?>
+                        <tr style="border-top:2px solid var(--cor-border);font-weight:800;"><td>Total</td><td><?= number_format((int) $vatDailyTotals['orders']) ?></td><td><?= cor_money($vatDailyTotals['total_sales']) ?></td><td><?= cor_money($vatDailyTotals['shipping']) ?></td><td><?= cor_money($vatDailyTotals['vatable']) ?></td><td><?= cor_money($vatDailyTotals['ex_vat']) ?></td><td class="cor-profit-positive"><?= cor_money($vatDailyTotals['vat_amount']) ?></td></tr>
+                    <?php else: ?>
+                        <tr><td colspan="7">No VAT records found.</td></tr>
+                    <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+            <div class="cor-summary-actions" style="padding:12px 16px;margin-bottom:0;">
+                <a class="cor-btn-export-sm" href="?<?= cor_e(http_build_query(array_merge($queryBase, ['tab' => 'vat', 'section' => 'daily', 'export' => 'csv']))) ?>">CSV</a>
+                <a class="cor-btn-export-sm" href="?<?= cor_e(http_build_query(array_merge($queryBase, ['tab' => 'vat', 'section' => 'daily', 'export' => 'excel']))) ?>">Excel</a>
+                <button class="cor-btn-export-sm" type="button" onclick="window.print()">PDF</button>
+            </div>
+        </article>
+
+        <article class="cor-report-card">
+            <div class="card-head"><h3><span style="display:inline-block;width:12px;height:12px;margin-right:6px;border-radius:2px;background:var(--cor-orange-red);vertical-align:middle;"></span>VAT by Payment Method</h3><span><?= number_format(count($vatPaymentRows)) ?> methods</span></div>
+            <div class="cor-table-wrap">
+                <table class="cor-products-table">
+                    <thead><tr><th>Payment Method</th><th>Orders</th><th>Total (Incl. VAT)</th><th>VAT Portion</th></tr></thead>
+                    <tbody>
+                    <?php foreach ($vatPaymentRows as $row): ?>
+                        <tr><td><?= cor_e($row['method']) ?></td><td><?= number_format((int) $row['orders']) ?></td><td><?= cor_money($row['total_incl']) ?></td><td><?= cor_money($row['vat_portion']) ?></td></tr>
+                    <?php endforeach; ?>
+                    <?php if ($vatPaymentRows): ?>
+                        <tr style="border-top:2px solid var(--cor-border);font-weight:800;"><td>Total</td><td><?= number_format((int) $vatPaymentTotals['orders']) ?></td><td><?= cor_money($vatPaymentTotals['total_incl']) ?></td><td class="cor-profit-positive"><?= cor_money($vatPaymentTotals['vat_portion']) ?></td></tr>
+                    <?php else: ?>
+                        <tr><td colspan="4">No VAT payment records found.</td></tr>
+                    <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+            <div class="cor-summary-actions" style="padding:12px 16px;margin-bottom:0;">
+                <a class="cor-btn-export-sm" href="?<?= cor_e(http_build_query(array_merge($queryBase, ['tab' => 'vat', 'section' => 'payment', 'export' => 'csv']))) ?>">CSV</a>
+                <a class="cor-btn-export-sm" href="?<?= cor_e(http_build_query(array_merge($queryBase, ['tab' => 'vat', 'section' => 'payment', 'export' => 'excel']))) ?>">Excel</a>
+                <button class="cor-btn-export-sm" type="button" onclick="window.print()">PDF</button>
+            </div>
+        </article>
+
+        <article class="cor-report-card">
+            <div class="card-head"><h3><span style="display:inline-block;width:12px;height:12px;margin-right:6px;border-radius:2px;background:var(--cor-amber);vertical-align:middle;"></span>Product VAT Report</h3><span><?= number_format(count($vatProductRows)) ?> products</span></div>
+            <div class="cor-table-wrap">
+                <table class="cor-products-table">
+                    <thead><tr><th>Product</th><th>Qty Sold</th><th>Total Sales (Incl.)</th><th>VAT Portion</th></tr></thead>
+                    <tbody>
+                    <?php foreach ($vatProductRows as $row): ?>
+                        <tr><td><?= cor_e($row['product']) ?></td><td><?= number_format((float) $row['qty_sold'], 2) ?></td><td><?= cor_money($row['total_incl']) ?></td><td><?= cor_money($row['vat_portion']) ?></td></tr>
+                    <?php endforeach; ?>
+                    <?php if ($vatProductRows): ?>
+                        <tr style="border-top:2px solid var(--cor-border);font-weight:800;"><td>Total</td><td><?= number_format((float) $vatProductTotals['qty'], 2) ?></td><td><?= cor_money($vatProductTotals['total_incl']) ?></td><td class="cor-profit-positive"><?= cor_money($vatProductTotals['vat_portion']) ?></td></tr>
+                    <?php else: ?>
+                        <tr><td colspan="4">No product VAT records found.</td></tr>
+                    <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+            <div class="cor-summary-actions" style="padding:12px 16px;margin-bottom:0;">
+                <a class="cor-btn-export-sm" href="?<?= cor_e(http_build_query(array_merge($queryBase, ['tab' => 'vat', 'section' => 'products', 'export' => 'csv']))) ?>">CSV</a>
+                <a class="cor-btn-export-sm" href="?<?= cor_e(http_build_query(array_merge($queryBase, ['tab' => 'vat', 'section' => 'products', 'export' => 'excel']))) ?>">Excel</a>
+                <button class="cor-btn-export-sm" type="button" onclick="window.print()">PDF</button>
             </div>
         </article>
     </section>
@@ -1325,6 +1678,32 @@ document.addEventListener('DOMContentLoaded', function () {
           x: { ticks: { font: { family: 'Inter', size: 10 }, color: '#6B4C3B' }, grid: { display: false } },
           y: { ticks: { font: { family: 'Inter', size: 10 }, color: '#6B4C3B', precision: 0 }, grid: { color: '#EDE3D8' } }
         }
+      }
+    });
+  }
+
+  var vatPieEl = document.getElementById('vatPieChart');
+  var vatPieData = <?= json_encode([
+      round((float) $vatMetrics['sales_ex_vat'], 2),
+      round((float) $vatMetrics['vat_collected'], 2),
+      round((float) $vatMetrics['shipping'], 2),
+  ], JSON_UNESCAPED_SLASHES) ?>;
+  if (vatPieEl && window.Chart && vatPieData.some(function (value) { return value > 0; })) {
+    new Chart(vatPieEl.getContext('2d'), {
+      type: 'doughnut',
+      data: {
+        labels: ['Ex-VAT Revenue', 'VAT Collected', 'Shipping'],
+        datasets: [{
+          data: vatPieData,
+          backgroundColor: ['#AB3619', '#A8CA19', '#F07420'],
+          borderWidth: 2,
+          borderColor: '#FDF6EE'
+        }]
+      },
+      options: {
+        responsive: false,
+        plugins: { legend: { display: false } },
+        cutout: '55%'
       }
     });
   }
