@@ -18,7 +18,7 @@ $stats = [
 ];
 
 $sections = [
-    ['My Account', 'View your login profile, update your access code and manage employee settings.', 'key-round', 'my-account.php', 'Core'],
+    ['Settings', 'View your login profile, update your access code and manage employee settings.', 'key-round', 'my-account.php', 'Core'],
     ['Orders Board', 'Monday-style shared order table with packer assignment and lunch availability.', 'table-2', 'orders-board.php', 'Core'],
     ['Orders', 'Sales operations reporting, payment insights, order timing and management intelligence.', 'shopping-bag', 'orders.php', 'Core'],
     ['Courier', 'Upload waybill labels, notify front desk and track when labels are sent to customers.', 'truck', 'courier.php', 'Core'],
