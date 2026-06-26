@@ -1033,7 +1033,7 @@
     if (syncState && !lastSyncMessage) syncState.textContent = `Loaded ${data.orders?.length || 0} orders at ${new Date().toLocaleTimeString()}`;
   }
 
-  async function syncWebsite(quiet = false, trigger = null) {
+  async function syncWebsite(quiet = false, trigger = null, force = false) {
     if (syncInFlight) return null;
     syncInFlight = true;
     if (trigger) {
@@ -1042,10 +1042,11 @@
     }
     try {
       if (!quiet && syncState) syncState.textContent = 'Syncing website orders...';
-      const data = await post('sync', { date: dateFilter?.value || '' });
+      const data = await post('sync', { date: dateFilter?.value || '', force: force ? '1' : '' });
       const result = data.result || {};
       const warnings = Array.isArray(result.warnings) && result.warnings.length ? ` - warning: ${result.warnings[0]}` : '';
-      lastSyncMessage = `Website: ${result.website_orders_seen ?? 0} seen, ${result.imported ?? 0} new, ${result.updated ?? 0} updated${warnings}`;
+      const skipped = result.skipped ? ' (recent sync reused)' : '';
+      lastSyncMessage = `Website: ${result.website_orders_seen ?? 0} seen, ${result.imported ?? 0} new, ${result.updated ?? 0} updated${skipped}${warnings}`;
       if (syncState) {
         syncState.textContent = lastSyncMessage;
       }
@@ -1186,7 +1187,7 @@
 
       if (toolbarAction) {
         const action = toolbarAction.dataset.toolbarAction;
-        if (action === 'sync') await syncWebsite(false, toolbarAction).then(refresh);
+        if (action === 'sync') await syncWebsite(false, toolbarAction, true).then(refresh);
         else if (action === 'assign') await post('assign').then(refresh);
         else if (action === 'theme') {
           const next = page.dataset.boardTheme === 'dark' ? 'light' : 'dark';
@@ -1270,11 +1271,11 @@
 
       if (assign) await post('assign').then(refresh);
       if (sync) {
-        await syncWebsite(false, sync).then(refresh);
+        await syncWebsite(false, sync, true).then(refresh);
       }
       if (refreshButton) {
         lastSyncMessage = '';
-        await syncWebsite(false, refreshButton).then(refresh);
+        await syncWebsite(false, refreshButton, true).then(refresh);
       }
 
       if (dateAll) {
@@ -1351,7 +1352,7 @@
 
     if (event.target === dateFilter) {
       if (syncState) syncState.textContent = 'Loading selected date...';
-      syncWebsite(false).then(refresh).catch((error) => {
+      syncWebsite(false, null, true).then(refresh).catch((error) => {
         showError(error);
         refresh().catch(() => {});
       });
@@ -1409,8 +1410,8 @@
   window.setInterval(heartbeat, 30000);
   window.setInterval(() => {
     if (document.visibilityState !== 'hidden') refresh().catch((error) => showError(error));
-  }, 30000);
+  }, 10000);
   window.setInterval(() => {
     if (document.visibilityState !== 'hidden') syncWebsite(true).then(refresh).catch((error) => showError(error));
-  }, 300000);
+  }, 60000);
 })();

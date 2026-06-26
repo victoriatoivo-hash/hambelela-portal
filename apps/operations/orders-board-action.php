@@ -28,6 +28,79 @@ function ops_board_sync_log(string $message, array $context = []): void
     @file_put_contents($dir . '/operations-sync.log', $line . PHP_EOL, FILE_APPEND);
 }
 
+function ops_board_sync_runtime_dir(): string
+{
+    $dir = BASE_PATH . '/storage/cache';
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0775, true);
+    }
+
+    return is_dir($dir) ? $dir : BASE_PATH . '/storage/logs';
+}
+
+function ops_board_recent_sync_result(?string $date, int $maxAgeSeconds): ?array
+{
+    $key = preg_replace('/[^a-z0-9_-]+/i', '_', $date ?: 'all');
+    $path = ops_board_sync_runtime_dir() . '/orders-board-sync-' . $key . '.json';
+    if (!is_file($path) || (time() - (int) @filemtime($path)) > $maxAgeSeconds) {
+        return null;
+    }
+
+    $data = json_decode((string) @file_get_contents($path), true);
+    return is_array($data) ? $data : null;
+}
+
+function ops_board_run_guarded_sync(?string $date, bool $force = false): array
+{
+    $minAge = $force ? 15 : 45;
+    $recent = ops_board_recent_sync_result($date, $minAge);
+    if ($recent) {
+        $recent['skipped'] = true;
+        $recent['skip_reason'] = 'recent_sync';
+        return $recent;
+    }
+
+    $dir = ops_board_sync_runtime_dir();
+    $key = preg_replace('/[^a-z0-9_-]+/i', '_', $date ?: 'all');
+    $lock = @fopen($dir . '/orders-board-sync-' . $key . '.lock', 'c');
+    if (!$lock) {
+        return ops_board_sync_website_orders($date);
+    }
+
+    if (!flock($lock, LOCK_EX | LOCK_NB)) {
+        $recent = ops_board_recent_sync_result($date, 300);
+        if ($recent) {
+            $recent['skipped'] = true;
+            $recent['skip_reason'] = 'sync_in_progress';
+            fclose($lock);
+            return $recent;
+        }
+
+        fclose($lock);
+        return [
+            'imported' => 0,
+            'updated' => 0,
+            'lines' => 0,
+            'assigned' => 0,
+            'requested_date' => $date,
+            'website_orders_seen' => 0,
+            'warnings' => ['Website sync already running.'],
+            'skipped' => true,
+            'skip_reason' => 'sync_in_progress',
+        ];
+    }
+
+    try {
+        $result = ops_board_sync_website_orders($date);
+        $result['synced_at'] = date('Y-m-d H:i:s');
+        @file_put_contents($dir . '/orders-board-sync-' . $key . '.json', json_encode($result, JSON_UNESCAPED_SLASHES));
+        return $result;
+    } finally {
+        flock($lock, LOCK_UN);
+        fclose($lock);
+    }
+}
+
 function ops_board_payment_status(array $order): string
 {
     if (in_array((string) ($order['status'] ?? ''), ['cancelled', 'refunded', 'failed'], true)) {
@@ -568,7 +641,8 @@ try {
 
     if ($action === 'sync') {
         $date = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_POST['date'] ?? '')) ? (string) $_POST['date'] : null;
-        $result = ops_board_sync_website_orders($date);
+        $force = (string) ($_POST['force'] ?? '') === '1';
+        $result = ops_board_run_guarded_sync($date, $force);
         if ((int) ($result['imported'] ?? 0) > 0) {
             notifications_create_for_roles([
                 'title' => 'New website orders synced',
