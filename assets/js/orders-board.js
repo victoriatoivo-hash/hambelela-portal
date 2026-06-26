@@ -166,7 +166,7 @@
 
   function prettyDay(key) {
     const date = new Date(`${key}T12:00:00`);
-    return Number.isNaN(date.getTime()) ? key : date.toLocaleDateString([], { day: 'numeric', month: 'long' });
+    return Number.isNaN(date.getTime()) ? key : date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' });
   }
 
   function prettyDate(value) {
