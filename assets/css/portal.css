@@ -3684,7 +3684,7 @@ textarea {
 
 .task-wrap .task-kind-manual {
   background: var(--t-olive) !important;
-  color: #2C1810 !important;
+  color: #fff !important;
 }
 
 .task-wrap .task-inline-detail {
