@@ -14946,6 +14946,11 @@ body:has(.ob-wrap) .workspace {
   box-shadow: none !important;
 }
 
+.ob-wrap .ops-board-shell {
+  border-left: 0 !important;
+  border-radius: 0 !important;
+}
+
 .ob-wrap h1,
 .ob-wrap .page-title,
 .ob-wrap .monday-board-head h1 {
