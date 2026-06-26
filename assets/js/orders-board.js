@@ -716,7 +716,15 @@
 
     return `
       <tr class="group-row" data-group="${esc(key)}">
-        <td colspan="13"><button type="button" data-collapse-group="${esc(key)}"><i data-lucide="chevron-down"></i>${esc(groupLabel(key))}</button></td>
+        <td colspan="13">
+          <button type="button" data-collapse-group="${esc(key)}">
+            <i data-lucide="chevron-down"></i>
+            <span class="board-group-copy">
+              <strong>${esc(groupLabel(key))}</strong>
+              <small>${orders.length} ${orders.length === 1 ? 'Task' : 'Tasks'}</small>
+            </span>
+          </button>
+        </td>
       </tr>
       ${rows}
       <tr class="add-task-row"><td></td><td colspan="${12 + customColumns.length}"><button type="button" data-add-task="${esc(key)}">+ Add task</button></td></tr>

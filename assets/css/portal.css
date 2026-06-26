@@ -15298,6 +15298,60 @@ body:has(.ob-wrap) .workspace {
   box-shadow: 0 0 0 2px rgba(171, 54, 25, 0.15) !important;
 }
 
+.ob-wrap .ops-board-table .group-row td {
+  height: 58px !important;
+  background: #fff !important;
+  border-left: 4px solid #007eb5 !important;
+  border-top: 1px solid #d0d4e4 !important;
+  border-bottom: 1px solid #d0d4e4 !important;
+  border-right: 0 !important;
+  padding: 0 14px !important;
+}
+
+.ob-wrap .ops-board-table .group-row button {
+  display: inline-grid !important;
+  grid-template-columns: 18px minmax(0, 1fr) !important;
+  align-items: center !important;
+  column-gap: 10px !important;
+  min-height: 52px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: #007eb5 !important;
+  text-align: left !important;
+  box-shadow: none !important;
+}
+
+.ob-wrap .ops-board-table .group-row button svg {
+  width: 16px !important;
+  height: 16px !important;
+  color: #007eb5 !important;
+}
+
+.ob-wrap .ops-board-table .group-row.collapsed button svg {
+  transform: rotate(-90deg) !important;
+}
+
+.ob-wrap .board-group-copy {
+  display: grid !important;
+  gap: 2px !important;
+  min-width: 0 !important;
+}
+
+.ob-wrap .board-group-copy strong {
+  color: #007eb5 !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  line-height: 1.15 !important;
+}
+
+.ob-wrap .board-group-copy small {
+  color: #6B4C3B !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  line-height: 1.15 !important;
+}
+
 @media (max-width: 767px) {
   .ob-wrap .work-metric-grid,
   .ob-wrap .stat-cards-grid {
