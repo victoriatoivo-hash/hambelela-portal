@@ -15403,6 +15403,50 @@ body:has(.ob-wrap) .workspace {
   margin: 0 !important;
 }
 
+/* Monday-style Orders Board column headers. */
+.ob-wrap .ops-board-table thead {
+  background: #ffffff !important;
+  box-shadow: none !important;
+}
+
+.ob-wrap .ops-board-table thead tr {
+  height: 34px !important;
+  background: #ffffff !important;
+}
+
+.ob-wrap .ops-board-table thead th {
+  height: 34px !important;
+  min-height: 34px !important;
+  padding: 0 10px !important;
+  background: #ffffff !important;
+  border-color: #d0d4e4 !important;
+  color: #323338 !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+  line-height: 34px !important;
+  text-align: center !important;
+  text-transform: none !important;
+  white-space: nowrap !important;
+}
+
+.ob-wrap .ops-board-table thead th:first-child {
+  width: 34px !important;
+  min-width: 34px !important;
+  padding: 0 !important;
+}
+
+.ob-wrap .ops-board-table thead th:nth-child(2) {
+  min-width: 150px !important;
+}
+
+.ob-wrap .ops-board-table thead th:last-child {
+  width: 36px !important;
+  min-width: 36px !important;
+  padding: 0 !important;
+  color: #676879 !important;
+}
+
 @media (max-width: 767px) {
   .ob-wrap .work-metric-grid,
   .ob-wrap .stat-cards-grid {
