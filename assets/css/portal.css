@@ -16219,8 +16219,106 @@ body:has(.ob-wrap) .workspace.ob-wrap {
 }
 
 .ob-wrap .ops-board-table tbody tr.ob-group-header:not(.is-open) > td {
-  height: 50px !important;
-  max-height: 50px !important;
+  height: 58px !important;
+  max-height: 58px !important;
+  background: #ffffff !important;
+  border-right: 1px solid var(--board-line, #d0d4e4) !important;
+  border-bottom: 1px solid var(--board-line, #d0d4e4) !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header:not(.is-open):hover > td {
+  background: #ffffff !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header:not(.is-open) > td:first-child {
+  box-shadow: inset 4px 0 0 var(--ob-group-colour, #c73557) !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header:not(.is-open) > .ob-group-name-cell {
+  width: 300px !important;
+  min-width: 300px !important;
+  max-width: 300px !important;
+  padding-left: 14px !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header:not(.is-open) > .ob-group-date-cell {
+  width: 168px !important;
+  min-width: 168px !important;
+  max-width: 168px !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header:not(.is-open) > .ob-group-bar-cell {
+  width: 142px !important;
+  min-width: 142px !important;
+  max-width: 142px !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header:not(.is-open) > .ob-group-amount-cell {
+  width: 114px !important;
+  min-width: 114px !important;
+  max-width: 114px !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header:not(.is-open) > .ob-group-paid-cell {
+  width: 80px !important;
+  min-width: 80px !important;
+  max-width: 80px !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header:not(.is-open) button[data-collapse-group] {
+  min-height: 48px !important;
+  align-items: start !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header:not(.is-open) .ob-chevron {
+  width: 18px !important;
+  height: 22px !important;
+  color: var(--ob-group-colour, #c73557) !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header:not(.is-open) .ob-group-date-label {
+  color: var(--ob-group-colour, #c73557) !important;
+  font-size: 18px !important;
+  font-weight: 700 !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header:not(.is-open) .ob-group-task-count {
+  margin-top: 6px !important;
+  color: #676879 !important;
+  font-size: 13px !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header:not(.is-open) .ob-group-column-title {
+  margin-bottom: 5px !important;
+  color: #1f2533 !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header:not(.is-open) .ob-date-pill {
+  min-width: 136px !important;
+  height: 22px !important;
+  background: var(--ob-group-colour, #c73557) !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header:not(.is-open) .ob-stacked-bar {
+  height: 24px !important;
+  max-width: 124px !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header:not(.is-open) .ob-group-sum {
+  font-size: 14px !important;
+  line-height: 15px !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header:not(.is-open) .ob-group-sum-label {
+  font-size: 11px !important;
+  line-height: 12px !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header:not(.is-open) .ob-paid-fraction {
+  font-size: 14px !important;
+  font-weight: 500 !important;
 }
 
 .ob-wrap .ops-board-table tbody tr.ob-col-header-row > td,

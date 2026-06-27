@@ -69,7 +69,7 @@
     ['new_order', 'NEW ORDER', '#bdbdbd'], ['assigned', 'NEW ORDER', '#bdbdbd'], ['in_progress', 'IN PROGRESS', '#fdab3d'], ['completed', 'COMPLETE', '#e2445c']
   ];
   const expandedGroups = new Set();
-  const groupColours = ['#3b82f6', '#ec4899', '#10b981', '#8b5cf6', '#f97316', '#14b8a6', '#f59e0b', '#ef4444'];
+  const groupColours = ['#c73557', '#ec4899', '#10b981', '#8b5cf6', '#f97316', '#14b8a6', '#f59e0b', '#ef4444'];
   const fallbackBarColour = '#c4c4c4';
 
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
