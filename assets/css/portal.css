@@ -17389,3 +17389,112 @@ body:has(.ob-wrap) .ob-wrap table.ops-board-table td.col-paid .paid-toggle input
 body:has(.ob-wrap) .ob-wrap table.ops-board-table td.paid-cell .paid-toggle input:checked + .paid-tick {
   color: #00a86b !important;
 }
+
+/* Orders board footer must remain a real table grid row. */
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer {
+  display: table-row !important;
+  height: 34px !important;
+  max-height: 34px !important;
+  margin: 0 !important;
+  transform: none !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > td {
+  display: table-cell !important;
+  box-sizing: border-box !important;
+  height: 34px !important;
+  max-height: 34px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  background: #fafafa !important;
+  border-top: 1px solid var(--board-line, #d0d4e4) !important;
+  border-right: 1px solid var(--board-line, #d0d4e4) !important;
+  border-bottom: 1px solid var(--board-line, #d0d4e4) !important;
+  border-left: 0 !important;
+  color: #323338 !important;
+  line-height: 34px !important;
+  text-align: center !important;
+  text-overflow: clip !important;
+  vertical-align: middle !important;
+  white-space: nowrap !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-strip,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > td.ob-strip-cell {
+  width: 6px !important;
+  min-width: 6px !important;
+  max-width: 6px !important;
+  padding: 0 !important;
+  background: var(--ob-group-colour, #c73557) !important;
+  border: 0 !important;
+  border-radius: 0 0 0 6px !important;
+  line-height: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-checkbox { width: 36px !important; min-width: 36px !important; max-width: 36px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-task { width: 198px !important; min-width: 198px !important; max-width: 198px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-task-icon { width: 30px !important; min-width: 30px !important; max-width: 30px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-date { width: 126px !important; min-width: 126px !important; max-width: 126px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-mobile { width: 56px !important; min-width: 56px !important; max-width: 56px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-mode { width: 78px !important; min-width: 78px !important; max-width: 78px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-amount { width: 74px !important; min-width: 74px !important; max-width: 74px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-payment { width: 94px !important; min-width: 94px !important; max-width: 94px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-paid { width: 46px !important; min-width: 46px !important; max-width: 46px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-status { width: 100px !important; min-width: 100px !important; max-width: 100px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-packedby { width: 82px !important; min-width: 82px !important; max-width: 82px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-text { width: 138px !important; min-width: 138px !important; max-width: 138px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .add-column-cell { width: 32px !important; min-width: 32px !important; max-width: 32px !important; }
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-checkbox {
+  border-left: 1px solid var(--board-line, #d0d4e4) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > td:last-child {
+  border-right: 1px solid var(--board-line, #d0d4e4) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer .ob-date-pill {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: calc(100% - 12px) !important;
+  min-width: 0 !important;
+  max-width: calc(100% - 12px) !important;
+  height: 22px !important;
+  margin: 0 !important;
+  padding: 0 6px !important;
+  vertical-align: middle !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer .ob-stacked-bar {
+  display: inline-flex !important;
+  width: calc(100% - 10px) !important;
+  min-width: 0 !important;
+  max-width: calc(100% - 10px) !important;
+  height: 16px !important;
+  margin: 0 !important;
+  vertical-align: middle !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer .ob-group-amount-cell {
+  line-height: 1 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer .ob-group-sum,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer .ob-group-sum-label,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer .ob-paid-fraction {
+  margin: 0 !important;
+  padding: 0 !important;
+  text-align: center !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer .ob-paid-fraction {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 34px !important;
+  line-height: 1 !important;
+}
