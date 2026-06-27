@@ -17705,3 +17705,31 @@ body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.add-task-row > td.ob-
 body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.add-task-row:hover > td.ob-strip-cell {
   background: #f7b8c8 !important;
 }
+
+/* My Account settings page top alignment */
+body .shell > main.workspace.module.settings-wrap {
+  align-content: start !important;
+  align-items: stretch !important;
+  justify-content: start !important;
+  min-height: calc(100vh - 66px) !important;
+  margin-top: 0 !important;
+  padding-top: 28px !important;
+}
+
+body .shell > main.workspace.module.settings-wrap > .module-header {
+  align-items: flex-end !important;
+  margin-top: 0 !important;
+  margin-bottom: 18px !important;
+  padding-top: 0 !important;
+}
+
+body .shell > main.workspace.module.settings-wrap > .settings-layout {
+  align-items: start !important;
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}
+
+body .shell > main.workspace.module.settings-wrap .settings-nav {
+  top: 18px !important;
+  margin-top: 0 !important;
+}
