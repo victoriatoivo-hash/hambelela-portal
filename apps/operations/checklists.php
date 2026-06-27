@@ -157,13 +157,11 @@ function checklist_effective_status(array $task): string
 function checklist_normalize_status(string $status): string
 {
     $status = strtolower(trim($status));
-    return match ($status) {
-        'not_started', 'pending', 'missed', '' => 'pending',
-        'start', 'started' => 'started',
-        'progress', 'in_progress' => 'in_progress',
-        'done', 'completed', 'approved', 'needs_review', 'complete' => 'complete',
-        default => 'pending',
-    };
+    if (in_array($status, ['not_started', 'pending', 'missed', ''], true)) return 'pending';
+    if (in_array($status, ['start', 'started'], true)) return 'started';
+    if (in_array($status, ['progress', 'in_progress'], true)) return 'in_progress';
+    if (in_array($status, ['done', 'completed', 'approved', 'needs_review', 'complete'], true)) return 'complete';
+    return 'pending';
 }
 
 function checklist_insert_auto_task(int $employeeId, string $key, string $type, string $name, string $deadline, array $items, string $instructions, string $priority, string $rule): void
