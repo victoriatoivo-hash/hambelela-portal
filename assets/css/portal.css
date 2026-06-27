@@ -17648,3 +17648,55 @@ body:has(.ob-wrap) .ob-wrap table.ops-board-table .add-column-cell {
   padding-left: 0 !important;
   padding-right: 0 !important;
 }
+
+/* Keep the visible Orders grid as one continuous white sheet to the scrollbar. */
+body:has(.ob-wrap) .ob-wrap .ops-board-shell,
+body:has(.ob-wrap) .ob-wrap .ops-board-scroll,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table thead,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody {
+  background: #fff !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .ops-board-scroll {
+  width: 100% !important;
+  max-width: 100% !important;
+  border-right: 1px solid var(--board-line, #d0d4e4) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table {
+  border-right: 1px solid var(--board-line, #d0d4e4) !important;
+  border-collapse: collapse !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-col-header-row > td,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.add-task-row > td,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > td,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header > td {
+  border-right: 1px solid var(--board-line, #d0d4e4) !important;
+  border-bottom: 1px solid var(--board-line, #d0d4e4) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-col-header-row > td,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.add-task-row > td,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > td,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header > td {
+  background-color: #fff !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-col-header-row > td:last-child,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td:last-child,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.add-task-row > td:last-child,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > td:last-child,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header > td:last-child {
+  border-right: 1px solid var(--board-line, #d0d4e4) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-col-header-row > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.add-task-row > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header > td.ob-strip-cell {
+  background: var(--ob-group-colour, #c73557) !important;
+}
