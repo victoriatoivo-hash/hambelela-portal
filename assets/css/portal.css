@@ -17986,3 +17986,68 @@ body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > td.
 body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer:hover > td.ob-strip-cell {
   background: #fff !important;
 }
+
+/* Orders Board full-width grid: no horizontal slider, Text absorbs the remaining width. */
+body:has(.ob-wrap) .ob-wrap .ops-board-shell,
+body:has(.ob-wrap) .ob-wrap .ops-board-scroll {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow-x: hidden !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  table-layout: fixed !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-strip { width: 0.6% !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-checkbox { width: 3% !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-task { width: 14% !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-task-icon { width: 2.5% !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-date { width: 9.8% !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-mobile { width: 10.8% !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-mode { width: 7% !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-amount { width: 6.8% !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-payment { width: 8.4% !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-paid { width: 4.4% !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-status { width: 8% !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-packedby { width: 8% !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-text { width: 15.7% !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-add { width: 1% !important; }
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-strip { width: 0.6% !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-checkbox { width: 3% !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-task:not([colspan]) { width: 14% !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-task[colspan="2"] { width: 16.5% !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-task-icon { width: 2.5% !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-date { width: 9.8% !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-mobile { width: 10.8% !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-mode { width: 7% !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-amount { width: 6.8% !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-payment { width: 8.4% !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-paid { width: 4.4% !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-status { width: 8% !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-packedby { width: 8% !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-text { width: 15.7% !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .add-column-cell { width: 1% !important; }
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-strip,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-checkbox,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-task,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-task-icon,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-date,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-mobile,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-mode,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-amount,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-payment,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-paid,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-status,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-packedby,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-text,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .add-column-cell {
+  min-width: 0 !important;
+  max-width: none !important;
+  box-sizing: border-box !important;
+}
