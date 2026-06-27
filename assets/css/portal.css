@@ -17789,3 +17789,82 @@ body .shell > main.workspace.module.settings-wrap .settings-nav {
   top: 18px !important;
   margin-top: 0 !important;
 }
+
+/* Checklist metric widgets: compact number + caption row */
+body .shell > main.workspace.module.task-wrap .task-metric-grid {
+  grid-template-columns: repeat(auto-fit, minmax(142px, 1fr)) !important;
+  gap: 10px !important;
+  max-width: 100% !important;
+}
+
+body .shell > main.workspace.module.task-wrap .task-metric-card {
+  display: grid !important;
+  grid-template-columns: 44px minmax(0, 1fr) !important;
+  grid-template-rows: auto auto !important;
+  column-gap: 8px !important;
+  row-gap: 3px !important;
+  align-items: center !important;
+  min-height: 64px !important;
+  padding: 12px 14px !important;
+}
+
+body .shell > main.workspace.module.task-wrap .task-metric-card::before {
+  left: 14px !important;
+  top: 50% !important;
+  width: 30px !important;
+  height: 30px !important;
+  transform: translateY(-50%) !important;
+}
+
+body .shell > main.workspace.module.task-wrap .task-metric-card > svg {
+  left: 21px !important;
+  top: 50% !important;
+  width: 16px !important;
+  height: 16px !important;
+  transform: translateY(-50%) !important;
+}
+
+body .shell > main.workspace.module.task-wrap .task-metric-card span,
+body .shell > main.workspace.module.task-wrap .task-metric-card strong,
+body .shell > main.workspace.module.task-wrap .task-metric-card small {
+  margin-left: 0 !important;
+  min-width: 0 !important;
+}
+
+body .shell > main.workspace.module.task-wrap .task-metric-card span {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+body .shell > main.workspace.module.task-wrap .task-metric-card strong {
+  grid-column: 2 !important;
+  grid-row: 2 !important;
+  display: inline-flex !important;
+  align-items: baseline !important;
+  gap: 6px !important;
+  margin: 0 !important;
+  line-height: 1 !important;
+}
+
+body .shell > main.workspace.module.task-wrap .task-metric-card small {
+  grid-column: 2 !important;
+  grid-row: 2 !important;
+  align-self: end !important;
+  justify-self: start !important;
+  margin: 0 0 1px 36px !important;
+  overflow: hidden !important;
+  color: var(--t-text-mid) !important;
+  font-size: 10px !important;
+  line-height: 1.1 !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+@media (max-width: 900px) {
+  body .shell > main.workspace.module.task-wrap .task-metric-grid {
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)) !important;
+  }
+}
