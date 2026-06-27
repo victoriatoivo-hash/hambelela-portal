@@ -144,6 +144,7 @@ function checklist_effective_status(array $task): string
 {
     $status = checklist_normalize_status((string) ($task['status'] ?? 'pending'));
     if ($status === 'complete') return $status;
+    if ($status !== 'pending') return $status;
     if (!empty($task['deadline'])) {
         try {
             if (new DateTimeImmutable((string) $task['deadline']) < new DateTimeImmutable('now')) return 'overdue';
@@ -352,7 +353,7 @@ if ($filters['search'] !== '') {
 }
 if ($filters['status'] !== '') {
     if ($filters['status'] === 'overdue') {
-        $where[] = "t.status <> 'complete' AND t.deadline IS NOT NULL AND t.deadline < NOW()";
+        $where[] = "t.status IN ('pending', 'not_started', 'missed') AND t.deadline IS NOT NULL AND t.deadline < NOW()";
     } elseif ($filters['status'] === 'completed') {
         $where[] = "t.status = 'complete'";
     } elseif (array_key_exists($filters['status'], $statuses)) {
