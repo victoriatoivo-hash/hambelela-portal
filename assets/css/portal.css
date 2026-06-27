@@ -17700,3 +17700,8 @@ body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > td.
 body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header > td.ob-strip-cell {
   background: var(--ob-group-colour, #c73557) !important;
 }
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.add-task-row > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.add-task-row:hover > td.ob-strip-cell {
+  background: #f7b8c8 !important;
+}
