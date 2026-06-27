@@ -755,6 +755,7 @@
     const rows = orders.map((order) => {
       return `
         <tr data-order-id="${esc(order.id)}" data-group-row="${esc(key)}" class="board-row ob-data-row ${!previousOrderIds.has(String(order.id)) && hasRenderedOnce ? 'row-new' : ''} ${selectedOrders.has(String(order.id)) ? 'is-selected' : ''}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
+          <td class="ob-strip-cell"></td>
           <td class="check-cell"><input type="checkbox" data-row-select="${esc(order.id)}" ${selectedOrders.has(String(order.id)) ? 'checked' : ''} aria-label="Select order"></td>
           <td class="task-cell">${esc(order.order_number.replace(/^WEB-/, ''))} ${esc(order.customer_name)}</td>
           <td class="comment-cell"><button type="button" data-open-panel="${esc(order.id)}"><i data-lucide="message-circle-plus"></i></button></td>
@@ -775,6 +776,7 @@
 
     return `
       <tr class="group-row ob-group-header ${isOpen ? 'is-open' : ''}" data-group="${esc(key)}" data-colour="${esc(colour)}" data-count="${esc(orders.length)}" data-amount="${esc(money(total))}" data-paid="${esc(paid)}" data-total="${esc(orders.length)}" style="--ob-group-colour:${esc(colour)}">
+        <td class="ob-strip-cell"></td>
         <td class="ob-group-name-cell" colspan="3">
           <button type="button" data-collapse-group="${esc(key)}" aria-expanded="${isOpen ? 'true' : 'false'}">
             <span class="ob-chevron" aria-hidden="true">&rsaquo;</span>
@@ -797,6 +799,7 @@
         <td></td>
       </tr>
       <tr class="ob-col-header-row" data-group="${esc(key)}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
+        <td class="ob-strip-cell"></td>
         <td></td>
         <td class="ob-col-th">Task</td>
         <td></td>
@@ -813,8 +816,9 @@
         <td></td>
       </tr>
       ${rows}
-      <tr class="add-task-row" data-group-row="${esc(key)}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}><td></td><td colspan="${12 + customColumns.length}"><button type="button" data-add-task="${esc(key)}">+ Add task</button></td></tr>
+      <tr class="add-task-row" data-group-row="${esc(key)}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}><td class="ob-strip-cell"></td><td></td><td colspan="${12 + customColumns.length}"><button type="button" data-add-task="${esc(key)}">+ Add task</button></td></tr>
       <tr class="ob-group-footer" data-group-footer="${esc(key)}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
+        <td class="ob-strip-cell"></td>
         <td></td>
         <td></td>
         <td></td>

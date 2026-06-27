@@ -16174,19 +16174,45 @@ body:has(.ob-wrap) .workspace.ob-wrap {
   font-size: 12px !important;
 }
 
-.ob-wrap .ops-board-table tr > *:nth-child(1) { width: 28px !important; }
-.ob-wrap .ops-board-table tr > *:nth-child(2) { width: 220px !important; }
-.ob-wrap .ops-board-table tr > *:nth-child(3) { width: 32px !important; }
-.ob-wrap .ops-board-table tr > *:nth-child(4) { width: 168px !important; }
-.ob-wrap .ops-board-table tr > *:nth-child(5) { width: 140px !important; }
-.ob-wrap .ops-board-table tr > *:nth-child(6) { width: 102px !important; }
-.ob-wrap .ops-board-table tr > *:nth-child(7) { width: 114px !important; }
-.ob-wrap .ops-board-table tr > *:nth-child(8) { width: 140px !important; }
-.ob-wrap .ops-board-table tr > *:nth-child(9) { width: 80px !important; }
-.ob-wrap .ops-board-table tr > *:nth-child(10) { width: 140px !important; }
+.ob-wrap .ops-board-table tr > *:nth-child(1) { width: 4px !important; }
+.ob-wrap .ops-board-table tr > *:nth-child(2) { width: 28px !important; }
+.ob-wrap .ops-board-table tr > *:nth-child(3) { width: 220px !important; }
+.ob-wrap .ops-board-table tr > *:nth-child(4) { width: 32px !important; }
+.ob-wrap .ops-board-table tr > *:nth-child(5) { width: 168px !important; }
+.ob-wrap .ops-board-table tr > *:nth-child(6) { width: 140px !important; }
+.ob-wrap .ops-board-table tr > *:nth-child(7) { width: 102px !important; }
+.ob-wrap .ops-board-table tr > *:nth-child(8) { width: 114px !important; }
+.ob-wrap .ops-board-table tr > *:nth-child(9) { width: 140px !important; }
+.ob-wrap .ops-board-table tr > *:nth-child(10) { width: 80px !important; }
 .ob-wrap .ops-board-table tr > *:nth-child(11) { width: 140px !important; }
-.ob-wrap .ops-board-table tr > *:nth-child(12) { width: 166px !important; }
+.ob-wrap .ops-board-table tr > *:nth-child(12) { width: 140px !important; }
+.ob-wrap .ops-board-table tr > *:nth-child(13) { width: 166px !important; }
 .ob-wrap .ops-board-table tr > *:last-child { width: 60px !important; }
+
+.ob-wrap .ops-board-table .ob-strip-cell {
+  width: 4px !important;
+  min-width: 4px !important;
+  max-width: 4px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-left: 0 !important;
+  background: var(--ob-group-colour, #c73557) !important;
+  line-height: 0 !important;
+  vertical-align: top !important;
+}
+
+.ob-wrap .ops-board-table tr.ob-group-header:not(.is-open) > .ob-strip-cell {
+  border-radius: 999px !important;
+}
+
+.ob-wrap .ops-board-table tr.ob-group-header.is-open > .ob-strip-cell {
+  border-radius: 999px 999px 0 0 !important;
+}
+
+.ob-wrap .ops-board-table tr.ob-group-footer > .ob-strip-cell {
+  border-radius: 0 0 999px 999px !important;
+}
 
 .ob-wrap .ops-board-table tbody tr.ob-group-header.is-open > td {
   height: 34px !important;
@@ -16209,17 +16235,6 @@ body:has(.ob-wrap) .workspace.ob-wrap {
   max-width: 300px !important;
   padding-left: 14px !important;
   border-bottom-color: var(--ob-group-colour, #c73557) !important;
-}
-
-.ob-wrap .ops-board-table tbody tr.ob-group-header.is-open > .ob-group-name-cell::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 4px;
-  border-radius: 999px 999px 0 0;
-  background: var(--ob-group-colour, #c73557);
 }
 
 .ob-wrap .ops-board-table tbody tr.ob-group-header.is-open > td:not(.ob-group-name-cell) > * {
@@ -16274,22 +16289,6 @@ body:has(.ob-wrap) .workspace.ob-wrap {
 
 .ob-wrap .ops-board-table tbody tr.ob-group-header:not(.is-open):hover > td {
   background: #ffffff !important;
-}
-
-.ob-wrap .ops-board-table tbody tr.ob-group-header:not(.is-open) > td:first-child {
-  position: relative !important;
-  box-shadow: none !important;
-}
-
-.ob-wrap .ops-board-table tbody tr.ob-group-header:not(.is-open) > td:first-child::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 4px;
-  border-radius: 999px;
-  background: var(--ob-group-colour, #c73557);
 }
 
 .ob-wrap .ops-board-table tbody tr.ob-group-header:not(.is-open) > .ob-group-name-cell {
@@ -16394,23 +16393,8 @@ body:has(.ob-wrap) .workspace.ob-wrap {
 }
 
 .ob-wrap .ops-board-table tbody tr.ob-group-footer > td:first-child {
-  position: relative !important;
-  padding: 0 !important;
-  border-left: 0 !important;
   border-top-color: var(--ob-group-colour, #c73557) !important;
   border-bottom-color: var(--ob-group-colour, #c73557) !important;
-  background: linear-gradient(to right, var(--ob-group-colour, #c73557) 0 4px, #fafafa 4px) !important;
-}
-
-.ob-wrap .ops-board-table tbody tr.ob-group-footer > td:first-child::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 4px;
-  border-radius: 0 0 999px 999px;
-  background: var(--ob-group-colour, #c73557);
 }
 
 .ob-wrap .ops-board-table tbody tr.ob-group-footer[hidden] {
@@ -16465,12 +16449,8 @@ body:has(.ob-wrap) .workspace.ob-wrap {
 }
 
 .ob-wrap .ops-board-table tbody tr.ob-col-header-row > td:first-child {
-  position: relative !important;
-  padding: 0 !important;
-  border-left: 0 !important;
   border-top-color: var(--ob-group-colour, #c73557) !important;
   border-bottom-color: var(--ob-group-colour, #c73557) !important;
-  background: linear-gradient(to right, var(--ob-group-colour, #c73557) 0 4px, #ffffff 4px) !important;
 }
 
 .ob-wrap .ops-board-table tbody tr.board-row > td {
@@ -16490,12 +16470,8 @@ body:has(.ob-wrap) .workspace.ob-wrap {
 
 .ob-wrap .ops-board-table tbody tr.board-row > td:first-child,
 .ob-wrap .ops-board-table tbody tr.add-task-row > td:first-child {
-  position: relative !important;
-  padding: 0 !important;
-  border-left: 0 !important;
   border-top-color: var(--ob-group-colour, #c73557) !important;
   border-bottom-color: var(--ob-group-colour, #c73557) !important;
-  background: linear-gradient(to right, var(--ob-group-colour, #c73557) 0 4px, #ffffff 4px) !important;
 }
 
 .ob-wrap .ops-board-table tbody tr.board-row:hover > td,
@@ -16505,7 +16481,7 @@ body:has(.ob-wrap) .workspace.ob-wrap {
 
 .ob-wrap .ops-board-table tbody tr.board-row:hover > td:first-child,
 .ob-wrap .ops-board-table tbody tr.board-row.is-selected > td:first-child {
-  background: linear-gradient(to right, var(--ob-group-colour, #c73557) 0 4px, #cce5ff 4px) !important;
+  background: var(--ob-group-colour, #c73557) !important;
 }
 
 .ob-wrap .ops-board-table .check-cell,
