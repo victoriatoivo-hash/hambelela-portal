@@ -17037,6 +17037,14 @@ body:has(.ob-wrap) .workspace.ob-wrap {
   width: 36px !important;
 }
 
+.ob-wrap .ops-board-table col.ob-col-task {
+  width: 200px !important;
+}
+
+.ob-wrap .ops-board-table col.ob-col-task-icon {
+  width: 34px !important;
+}
+
 .ob-wrap .ops-board-table tr > *:nth-child(1),
 .ob-wrap .ops-board-table .col-strip,
 .ob-wrap .ops-board-table td.ob-strip-cell.col-strip {
@@ -17079,4 +17087,27 @@ body:has(.ob-wrap) .workspace.ob-wrap {
   padding: 0 !important;
   opacity: 1 !important;
   visibility: visible !important;
+}
+
+.ob-wrap .ops-board-table tr > *:nth-child(3),
+.ob-wrap .ops-board-table .col-task {
+  width: 200px !important;
+  min-width: 200px !important;
+  max-width: 200px !important;
+}
+
+.ob-wrap .ops-board-table tr > *:nth-child(4),
+.ob-wrap .ops-board-table .col-task-icon,
+.ob-wrap .ops-board-table .comment-cell.col-task-icon {
+  width: 34px !important;
+  min-width: 34px !important;
+  max-width: 34px !important;
+  padding: 0 !important;
+}
+
+.ob-wrap .ops-board-table .col-task[colspan="2"] {
+  width: 234px !important;
+  min-width: 234px !important;
+  max-width: 234px !important;
+  text-align: center !important;
 }

@@ -146,6 +146,8 @@ include BASE_PATH . '/shared/sidebar.php';
                 <colgroup>
                     <col class="ob-col-strip">
                     <col class="ob-col-checkbox">
+                    <col class="ob-col-task">
+                    <col class="ob-col-task-icon">
                 </colgroup>
                 <thead>
                     <tr>
