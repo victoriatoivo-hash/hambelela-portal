@@ -16226,12 +16226,28 @@ body:has(.ob-wrap) .workspace.ob-wrap {
   border-bottom: 1px solid var(--board-line, #d0d4e4) !important;
 }
 
+.ob-wrap .ops-board-table tbody tr.ob-group-header:not(.is-open) {
+  border-left: 0 !important;
+}
+
 .ob-wrap .ops-board-table tbody tr.ob-group-header:not(.is-open):hover > td {
   background: #ffffff !important;
 }
 
 .ob-wrap .ops-board-table tbody tr.ob-group-header:not(.is-open) > td:first-child {
-  box-shadow: inset 4px 0 0 var(--ob-group-colour, #c73557) !important;
+  position: relative !important;
+  box-shadow: none !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header:not(.is-open) > td:first-child::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  border-radius: 4px;
+  background: var(--ob-group-colour, #c73557);
 }
 
 .ob-wrap .ops-board-table tbody tr.ob-group-header:not(.is-open) > .ob-group-name-cell {
