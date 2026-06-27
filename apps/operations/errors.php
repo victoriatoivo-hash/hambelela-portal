@@ -19,7 +19,7 @@ $canManageStatus = $isOwnerErrorUser;
 $showFullErrorLog = $isOwnerErrorUser;
 
 $severityLabels = ['critical' => 'Critical', 'high' => 'High', 'medium' => 'Medium', 'low' => 'Low'];
-$statusLabels = ['open' => 'Open', 'in_review' => 'In Review', 'resolved' => 'Resolved'];
+$statusLabels = ['open' => 'Not Resolved', 'resolved' => 'Resolved'];
 $errorCategories = [
     'wrong_product_packed' => 'Wrong Product Packed',
     'wrong_quantity_packed' => 'Wrong Quantity Packed',
@@ -87,6 +87,7 @@ function error_bootstrap_schema(): void
     }
     error_try_sql("UPDATE ops_error_logs SET error_title = category WHERE error_title IS NULL OR error_title = ''");
     error_try_sql("UPDATE ops_error_logs SET status = 'open' WHERE status IS NULL OR status = ''");
+    error_try_sql("UPDATE ops_error_logs SET status = 'open' WHERE status = 'in_review'");
 }
 
 function error_json_array(?string $value): array
@@ -171,10 +172,12 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $primaryEmployeeId = $people[0] ?? null;
             $orderReference = ops_post_string('order_reference', 60);
+            $status = ops_post_string('status', 30) ?: 'open';
+            if (!array_key_exists($status, $statusLabels)) $status = 'open';
             $stmt = db()->prepare(
                 "INSERT INTO ops_error_logs
                  (error_title, employee_id, people_involved, order_id, order_reference, category, severity, description, customer_impact, financial_impact, resolution, repeat_issue, repeat_note, status, logged_by)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?)"
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             );
             $stmt->execute([
                 $title,
@@ -190,6 +193,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 ops_post_string('resolution', 1500),
                 (int) ($_POST['repeat_issue'] ?? 0) === 1 ? 1 : 0,
                 '',
+                $status,
                 $currentEmployeeId,
             ]);
             $errorId = (int) db()->lastInsertId();
@@ -358,6 +362,12 @@ if ($employeeCounts) {
     $metrics['top_employee'] = ($employeeMap[$topId] ?? 'Employee') . ' (' . number_format((int) current($employeeCounts)) . ')';
 }
 
+$errorsByResolution = ['open' => [], 'resolved' => []];
+foreach ($errors as $error) {
+    $sectionKey = (string) ($error['status'] ?? 'open') === 'resolved' ? 'resolved' : 'open';
+    $errorsByResolution[$sectionKey][] = $error;
+}
+
 $activityByError = [];
 if ($ready && $errors && ops_table_exists('ops_activity_logs')) {
     $ids = array_map(static fn (array $row): int => (int) $row['id'], $errors);
@@ -380,7 +390,10 @@ include BASE_PATH . '/shared/sidebar.php';
 <style>
 .error-log-page .severity-choice.severity-group,
 #logErrorForm .severity-group,
-.log-error-modal .severity-group {
+.log-error-modal .severity-group,
+.error-log-page .status-choice.status-group,
+#logErrorForm .status-group,
+.log-error-modal .status-group {
     display: flex !important;
     flex-direction: row !important;
     gap: 8px !important;
@@ -389,7 +402,9 @@ include BASE_PATH . '/shared/sidebar.php';
 }
 
 #logErrorForm .severity-btn,
-.log-error-modal .severity-btn {
+.log-error-modal .severity-btn,
+#logErrorForm .status-btn,
+.log-error-modal .status-btn {
     width: 80px !important;
     min-width: 80px !important;
     height: 30px !important;
@@ -433,18 +448,36 @@ include BASE_PATH . '/shared/sidebar.php';
     color: #2C1810 !important;
 }
 
-#logErrorForm .severity-btn:hover {
+#logErrorForm .status-btn[data-status="open"] {
+    width: 112px !important;
+    min-width: 112px !important;
+    background: #F5ECE8 !important;
+    color: #721B1A !important;
+    border: 1px solid #EDE3D8 !important;
+}
+
+#logErrorForm .status-btn[data-status="resolved"] {
+    width: 92px !important;
+    min-width: 92px !important;
+    background: #A8CA19 !important;
+    color: #2C1810 !important;
+}
+
+#logErrorForm .severity-btn:hover,
+#logErrorForm .status-btn:hover {
     filter: brightness(0.88);
 }
 
-#logErrorForm .severity-btn.active {
+#logErrorForm .severity-btn.active,
+#logErrorForm .status-btn.active {
     outline: 3px solid #721B1A !important;
     outline-offset: 2px !important;
     filter: brightness(0.92);
 }
 
 #logErrorForm label[for="description"]::after,
-#logErrorForm .severity-label::after {
+#logErrorForm .severity-label::after,
+#logErrorForm .status-label::after {
     content: ' *';
     color: #BB1B21;
     font-weight: 700;
@@ -613,8 +646,10 @@ include BASE_PATH . '/shared/sidebar.php';
         </form>
     </details>
 
-    <section class="panel error-list-panel">
-        <div class="section-row"><h2>Recent Errors</h2><span class="status"><?= number_format(count($errors)) ?> shown</span></div>
+    <?php foreach (['open' => 'Not Resolved Errors', 'resolved' => 'Resolved Errors'] as $sectionStatus => $sectionTitle): ?>
+    <?php $sectionErrors = $errorsByResolution[$sectionStatus] ?? []; ?>
+    <section class="panel error-list-panel error-section-<?= htmlspecialchars($sectionStatus, ENT_QUOTES, 'UTF-8') ?>">
+        <div class="section-row"><h2><?= htmlspecialchars($sectionTitle, ENT_QUOTES, 'UTF-8') ?></h2><span class="status"><?= number_format(count($sectionErrors)) ?> shown</span></div>
         <div class="error-table <?= $showFullErrorLog ? '' : 'error-table-simple' ?>">
             <div class="error-table-head">
                 <?php if ($showFullErrorLog): ?>
@@ -623,7 +658,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     <span>Date</span><span>Error Title</span><span>Order ID</span><span>Severity</span><span>Status</span>
                 <?php endif; ?>
             </div>
-            <?php foreach ($errors as $error): ?>
+            <?php foreach ($sectionErrors as $error): ?>
                 <?php
                 $peopleIds = error_json_array((string) ($error['people_involved'] ?? ''));
                 if (!$peopleIds && !empty($error['employee_id'])) $peopleIds = [(int) $error['employee_id']];
@@ -652,9 +687,10 @@ include BASE_PATH . '/shared/sidebar.php';
                     <?php endif; ?>
                 </button>
             <?php endforeach; ?>
-            <?php if (!$errors): ?><p class="task-empty">No matching errors found for the selected filters.</p><?php endif; ?>
+            <?php if (!$sectionErrors): ?><p class="task-empty">No <?= strtolower(htmlspecialchars($sectionTitle, ENT_QUOTES, 'UTF-8')) ?> found for the selected filters.</p><?php endif; ?>
         </div>
     </section>
+    <?php endforeach; ?>
 
     <aside class="error-log-panel" data-error-modal-panel aria-hidden="true" role="dialog" aria-modal="true" aria-label="Log error">
             <div class="error-log-panel-head">
@@ -680,6 +716,13 @@ include BASE_PATH . '/shared/sidebar.php';
                         <input type="hidden" name="severity" id="severityValue" required>
                         <?php foreach ($severityLabels as $value => $label): ?>
                             <button class="severity-btn severity-<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?>" type="button" data-severity="<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></button>
+                        <?php endforeach; ?>
+                    </fieldset>
+                    <fieldset class="status-choice status-group" id="status-group">
+                        <legend class="status-label">Status</legend>
+                        <input type="hidden" name="status" id="statusValue" value="open" required>
+                        <?php foreach ($statusLabels as $value => $label): ?>
+                            <button class="status-btn status-<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?> <?= $value === 'open' ? 'active' : '' ?>" type="button" data-status="<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></button>
                         <?php endforeach; ?>
                     </fieldset>
                 </section>
@@ -779,6 +822,7 @@ include BASE_PATH . '/shared/sidebar.php';
 <script>
 document.addEventListener('click', (event) => {
   const severityButton = event.target.closest('#logErrorForm .severity-btn');
+  const statusButton = event.target.closest('#logErrorForm .status-btn');
   const modalOpen = event.target.closest('[data-error-modal-open]');
   const modalClose = event.target.closest('[data-error-modal-close]');
   const detailOpen = event.target.closest('[data-error-open]');
@@ -792,6 +836,17 @@ document.addEventListener('click', (event) => {
       severityValue.setCustomValidity('');
     }
     const error = document.getElementById('severity-group-error');
+    if (error) error.remove();
+  }
+  if (statusButton) {
+    document.querySelectorAll('#logErrorForm .status-btn').forEach((button) => button.classList.remove('active'));
+    statusButton.classList.add('active');
+    const statusValue = document.getElementById('statusValue');
+    if (statusValue) {
+      statusValue.value = statusButton.dataset.status || 'open';
+      statusValue.setCustomValidity('');
+    }
+    const error = document.getElementById('status-group-error');
     if (error) error.remove();
   }
   if (modalOpen) {
@@ -832,11 +887,14 @@ document.addEventListener('click', (event) => {
 
 document.getElementById('logErrorForm')?.addEventListener('submit', function(event) {
   const severityValue = document.getElementById('severityValue');
+  const statusValue = document.getElementById('statusValue');
   const description = this.querySelector('[name="description"]');
   const severity = String(severityValue?.value || '').trim();
+  const status = String(statusValue?.value || '').trim();
   const descriptionText = String(description?.value || '').trim();
 
   document.getElementById('severity-group-error')?.remove();
+  document.getElementById('status-group-error')?.remove();
   document.getElementById('description-error')?.remove();
 
   let hasError = false;
@@ -844,6 +902,11 @@ document.getElementById('logErrorForm')?.addEventListener('submit', function(eve
     hasError = true;
     severityValue?.setCustomValidity('Please select a severity level.');
     showFieldError('severity-group', 'Please select a severity level.');
+  }
+  if (!status) {
+    hasError = true;
+    statusValue?.setCustomValidity('Please select a status.');
+    showFieldError('status-group', 'Please select a status.');
   }
   if (!descriptionText) {
     hasError = true;
@@ -854,6 +917,8 @@ document.getElementById('logErrorForm')?.addEventListener('submit', function(eve
     event.preventDefault();
     if (!severity) {
       this.querySelector('.severity-btn')?.focus();
+    } else if (!status) {
+      this.querySelector('.status-btn')?.focus();
     } else {
       description?.focus();
     }
