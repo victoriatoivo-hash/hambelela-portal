@@ -17706,6 +17706,11 @@ body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.add-task-row:hover > 
   background: #f7b8c8 !important;
 }
 
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-col-header-row > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-col-header-row:hover > td.ob-strip-cell {
+  border-top-color: var(--board-line, #d0d4e4) !important;
+}
+
 /* My Account settings page top alignment */
 body .shell > main.workspace.module.settings-wrap {
   align-content: start !important;
