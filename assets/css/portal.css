@@ -2578,33 +2578,37 @@ textarea {
   font-size: 12px;
 }
 
-.task-status-not_started,
+.task-status-pending,
+.task-status-started,
 .task-status-overdue,
 .task-status-in_progress,
-.task-status-done,
-.task-status-needs_review {
+.task-status-complete,
+.task-status-not_started,
+.task-status-done {
   border: 0;
   color: #fff;
 }
 
+.task-status-pending,
 .task-status-not_started {
   background: #bfc3ce;
+}
+
+.task-status-started {
+  background: #7c3aed;
 }
 
 .task-status-in_progress {
   background: #ffad3b;
 }
 
+.task-status-complete,
 .task-status-done {
   background: #00c875;
 }
 
 .task-status-overdue {
   background: #e2445c;
-}
-
-.task-status-needs_review {
-  background: #7c3aed;
 }
 
 .task-card-grid {
@@ -2850,28 +2854,36 @@ textarea {
 .task-board-group.group-overdue,
 .task-card-row.group-overdue { border-left-color: #e2445c; }
 
+.task-board-group.group-pending,
+.task-card-row.group-pending,
 .task-board-group.group-not_started,
 .task-card-row.group-not_started { border-left-color: #ffad3b; }
+
+.task-board-group.group-started,
+.task-card-row.group-started { border-left-color: #7c3aed; }
 
 .task-board-group.group-in_progress,
 .task-card-row.group-in_progress { border-left-color: #2f80ed; }
 
-.task-board-group.group-needs_review,
-.task-card-row.group-needs_review { border-left-color: #7c3aed; }
-
+.task-board-group.group-complete,
+.task-card-row.group-complete,
 .task-board-group.group-done,
 .task-card-row.group-done { border-left-color: #00c875; }
 
 .task-board-group.group-overdue > summary { background: linear-gradient(90deg, rgba(226, 68, 92, 0.12), rgba(255, 255, 255, 0.72)); }
+.task-board-group.group-pending > summary,
 .task-board-group.group-not_started > summary { background: linear-gradient(90deg, rgba(255, 173, 59, 0.14), rgba(255, 255, 255, 0.72)); }
+.task-board-group.group-started > summary { background: linear-gradient(90deg, rgba(124, 58, 237, 0.12), rgba(255, 255, 255, 0.72)); }
 .task-board-group.group-in_progress > summary { background: linear-gradient(90deg, rgba(47, 128, 237, 0.12), rgba(255, 255, 255, 0.72)); }
-.task-board-group.group-needs_review > summary { background: linear-gradient(90deg, rgba(124, 58, 237, 0.12), rgba(255, 255, 255, 0.72)); }
+.task-board-group.group-complete > summary,
 .task-board-group.group-done > summary { background: linear-gradient(90deg, rgba(0, 200, 117, 0.12), rgba(255, 255, 255, 0.72)); }
 
 .task-board-group.group-overdue > summary strong { background: rgba(226, 68, 92, 0.13); color: #c72f45; }
+.task-board-group.group-pending > summary strong,
 .task-board-group.group-not_started > summary strong { background: rgba(255, 173, 59, 0.16); color: #a36300; }
+.task-board-group.group-started > summary strong { background: rgba(124, 58, 237, 0.13); color: #5b21b6; }
 .task-board-group.group-in_progress > summary strong { background: rgba(47, 128, 237, 0.13); color: #1d62b5; }
-.task-board-group.group-needs_review > summary strong { background: rgba(124, 58, 237, 0.13); color: #5b21b6; }
+.task-board-group.group-complete > summary strong,
 .task-board-group.group-done > summary strong { background: rgba(0, 200, 117, 0.13); color: #008c52; }
 
 .task-board-group > summary {
@@ -3526,12 +3538,16 @@ textarea {
 
 .task-wrap .task-board-group.group-overdue,
 .task-wrap .task-card-row.group-overdue { border-left-color: var(--t-red) !important; }
+.task-wrap .task-board-group.group-pending,
+.task-wrap .task-card-row.group-pending,
 .task-wrap .task-board-group.group-not_started,
 .task-wrap .task-card-row.group-not_started { border-left-color: var(--t-amber) !important; }
+.task-wrap .task-board-group.group-started,
+.task-wrap .task-card-row.group-started { border-left-color: var(--t-burgundy) !important; }
 .task-wrap .task-board-group.group-in_progress,
 .task-wrap .task-card-row.group-in_progress { border-left-color: var(--t-orange-red) !important; }
-.task-wrap .task-board-group.group-needs_review,
-.task-wrap .task-card-row.group-needs_review { border-left-color: var(--t-burgundy) !important; }
+.task-wrap .task-board-group.group-complete,
+.task-wrap .task-card-row.group-complete,
 .task-wrap .task-board-group.group-done,
 .task-wrap .task-card-row.group-done { border-left-color: var(--t-olive) !important; }
 
@@ -3548,9 +3564,11 @@ textarea {
 }
 
 .task-wrap .task-board-group.group-overdue > summary { background: #fff5f5 !important; color: var(--t-red) !important; }
+.task-wrap .task-board-group.group-pending > summary,
 .task-wrap .task-board-group.group-not_started > summary { background: #fff9f0 !important; color: var(--t-amber) !important; }
+.task-wrap .task-board-group.group-started > summary { background: #f9f0ee !important; color: var(--t-burgundy) !important; }
 .task-wrap .task-board-group.group-in_progress > summary { background: #fff3ee !important; color: var(--t-orange-red) !important; }
-.task-wrap .task-board-group.group-needs_review > summary { background: #f9f0ee !important; color: var(--t-burgundy) !important; }
+.task-wrap .task-board-group.group-complete > summary,
 .task-wrap .task-board-group.group-done > summary { background: #f5fae8 !important; color: var(--t-olive) !important; }
 
 .task-wrap .task-board-group > summary strong {
@@ -3563,9 +3581,11 @@ textarea {
 }
 
 .task-wrap .task-board-group.group-overdue > summary strong { background: var(--t-red) !important; color: #fff !important; }
+.task-wrap .task-board-group.group-pending > summary strong,
 .task-wrap .task-board-group.group-not_started > summary strong { background: var(--t-amber) !important; color: #fff !important; }
+.task-wrap .task-board-group.group-started > summary strong { background: var(--t-burgundy) !important; color: #fff !important; }
 .task-wrap .task-board-group.group-in_progress > summary strong { background: var(--t-orange-red) !important; color: #fff !important; }
-.task-wrap .task-board-group.group-needs_review > summary strong { background: var(--t-burgundy) !important; color: #fff !important; }
+.task-wrap .task-board-group.group-complete > summary strong,
 .task-wrap .task-board-group.group-done > summary strong { background: var(--t-olive) !important; color: #2C1810 !important; }
 
 .task-wrap .task-board-head {
@@ -3608,9 +3628,11 @@ textarea {
 }
 
 .task-wrap .task-status-overdue { background: var(--t-red) !important; color: #fff !important; }
+.task-wrap .task-status-pending,
 .task-wrap .task-status-not_started { background: var(--t-amber) !important; color: #fff !important; }
+.task-wrap .task-status-started { background: var(--t-burgundy) !important; color: #fff !important; }
 .task-wrap .task-status-in_progress { background: var(--t-orange-red) !important; color: #fff !important; }
-.task-wrap .task-status-needs_review { background: var(--t-burgundy) !important; color: #fff !important; }
+.task-wrap .task-status-complete,
 .task-wrap .task-status-done { background: var(--t-olive) !important; color: #2C1810 !important; }
 
 .task-wrap [class*="task-status-"],
