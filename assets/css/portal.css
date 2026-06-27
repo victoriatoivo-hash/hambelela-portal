@@ -17506,3 +17506,38 @@ body:has(.ob-wrap) .ob-wrap table.ops-board-table {
   max-width: 1096px !important;
   table-layout: fixed !important;
 }
+
+/* Compact the connector row so the footer is attached to the order grid. */
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.add-task-row {
+  height: 22px !important;
+  max-height: 22px !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.add-task-row > td {
+  height: 22px !important;
+  max-height: 22px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  background: #fafafa !important;
+  border-bottom: 0 !important;
+  line-height: 22px !important;
+  vertical-align: middle !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.add-task-row > td.ob-strip-cell {
+  background: var(--ob-group-colour, #c73557) !important;
+  border-radius: 0 !important;
+  line-height: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.add-task-row button {
+  height: 22px !important;
+  min-height: 22px !important;
+  margin: 0 !important;
+  padding: 0 8px !important;
+  line-height: 22px !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > td {
+  border-top: 0 !important;
+}
