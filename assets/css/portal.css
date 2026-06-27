@@ -17779,6 +17779,48 @@ body:has(.ob-wrap) .ob-wrap {
   background: #fff !important;
 }
 
+body:has(.ob-wrap) .ob-group-date-label[data-edit-group-date] {
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+body:has(.ob-wrap) .ob-group-date-label[data-edit-group-date]:focus-visible {
+  outline: 2px solid #4c9aff;
+  outline-offset: 2px;
+}
+
+.ob-group-date-popover {
+  position: absolute;
+  z-index: 10000;
+  display: grid;
+  gap: 6px;
+  min-width: 178px;
+  padding: 8px;
+  background: #fff;
+  border: 1px solid var(--board-line, #d0d4e4);
+  border-radius: 6px;
+  box-shadow: 0 8px 22px rgba(29, 34, 51, 0.16);
+}
+
+.ob-group-date-popover input[type="date"] {
+  height: 32px;
+  padding: 0 8px;
+  color: #323338;
+  font: inherit;
+  font-size: 13px;
+  background: #fff;
+  border: 1px solid var(--board-line, #d0d4e4);
+  border-radius: 4px;
+}
+
+.ob-group-date-error {
+  min-height: 14px;
+  color: #c73557;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
 /* My Account settings page top alignment */
 body .shell > main.workspace.module.settings-wrap {
   align-content: start !important;

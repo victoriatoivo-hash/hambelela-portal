@@ -715,6 +715,50 @@ try {
         exit;
     }
 
+    if ($action === 'update_group_date') {
+        $fromDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_POST['from_date'] ?? '')) ? (string) $_POST['from_date'] : '';
+        $toDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_POST['to_date'] ?? '')) ? (string) $_POST['to_date'] : '';
+        $ids = array_values(array_filter(array_map('intval', explode(',', (string) ($_POST['order_ids'] ?? '')))));
+
+        if ($fromDate === '' || $toDate === '' || !$ids) {
+            throw new RuntimeException('Invalid group date update.');
+        }
+
+        if (count($ids) > 500) {
+            throw new RuntimeException('Please update 500 orders or fewer at once.');
+        }
+
+        if ($fromDate === $toDate) {
+            echo json_encode(['ok' => true, 'message' => 'Group date unchanged.', 'updated' => 0]);
+            exit;
+        }
+
+        if (!user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager')) {
+            throw new RuntimeException('Only admin, front desk or supervisor can change a group date.');
+        }
+
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $params = array_merge([$toDate], $ids, [$fromDate]);
+        $stmt = db()->prepare("UPDATE ops_orders SET created_at = CONCAT(?, ' ', TIME(created_at)), updated_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders}) AND DATE(created_at) = ?");
+        $stmt->execute($params);
+        $changed = $stmt->rowCount();
+
+        if ($changed <= 0) {
+            throw new RuntimeException('No orders were updated. Refresh and try again.');
+        }
+
+        foreach ($ids as $id) {
+            ops_activity_log('group_date_updated', 'order', $id, [
+                'from_date' => $fromDate,
+                'to_date' => $toDate,
+                'changed_by' => current_user()['name'] ?? 'Unknown',
+            ]);
+        }
+
+        echo json_encode(['ok' => true, 'message' => 'Group date updated.', 'updated' => $changed, 'from_date' => $fromDate, 'to_date' => $toDate]);
+        exit;
+    }
+
     if ($action === 'update_field') {
         $orderId = (int) ($_POST['order_id'] ?? 0);
         $field = ops_post_string('field', 40);

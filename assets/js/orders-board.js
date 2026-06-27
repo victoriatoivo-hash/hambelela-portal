@@ -22,6 +22,7 @@
 
   if (!body || !config.dataUrl || !config.actionUrl) return;
 
+  let groupDatePopover = null;
   let ordersCache = [];
   let packersCache = [];
   let currentUser = {};
@@ -82,6 +83,7 @@
   const labelText = (value) => String(value || '').replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
   const dateKey = (value) => String(value || '').slice(0, 10);
   const todayKey = () => new Date().toISOString().slice(0, 10);
+  const isDateGroupKey = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
 
   function setMetric(key, value) {
     const node = [...metricNodes].find((item) => item.dataset.workMetric === key);
@@ -261,7 +263,13 @@
   }
 
   function groupLabel(key) {
-    return /^\d{4}-\d{2}-\d{2}$/.test(key) ? prettyDay(key) : key;
+    return isDateGroupKey(key) ? prettyDay(key) : key;
+  }
+
+  function replaceDatePart(value, key) {
+    const original = String(value || '');
+    const suffix = original.length > 10 ? original.slice(10) : ' 00:00:00';
+    return `${key}${suffix}`;
   }
 
   function isValidRevenueOrder(order) {
@@ -367,6 +375,83 @@
   function groupDatePill(key) {
     const date = new Date(`${key}T12:00:00`);
     return Number.isNaN(date.getTime()) ? key : date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  }
+
+  function closeGroupDatePopover() {
+    groupDatePopover?.remove();
+    groupDatePopover = null;
+  }
+
+  function positionGroupDatePopover(popover, trigger) {
+    const rect = trigger.getBoundingClientRect();
+    popover.style.left = `${Math.round(rect.left + window.scrollX)}px`;
+    popover.style.top = `${Math.round(rect.bottom + window.scrollY + 6)}px`;
+  }
+
+  async function saveGroupDateChange(input, errorNode) {
+    const oldKey = input.dataset.groupDateInput || '';
+    const newKey = input.value || '';
+    const orderIds = (input.dataset.orderIds || '').split(',').filter(Boolean);
+    if (!isDateGroupKey(oldKey) || !isDateGroupKey(newKey) || !orderIds.length) return;
+    if (oldKey === newKey) {
+      closeGroupDatePopover();
+      return;
+    }
+
+    input.disabled = true;
+    if (errorNode) errorNode.textContent = '';
+    try {
+      await post('update_group_date', {
+        from_date: oldKey,
+        to_date: newKey,
+        order_ids: orderIds.join(',')
+      });
+
+      const wasOpen = expandedGroups.has(oldKey);
+      ordersCache.forEach((order) => {
+        if (orderIds.includes(String(order.id))) {
+          order.created_at = replaceDatePart(order.created_at, newKey);
+        }
+      });
+      expandedGroups.delete(oldKey);
+      if (wasOpen) expandedGroups.add(newKey);
+      if (syncState) syncState.textContent = `Group date changed to ${groupLabel(newKey)}.`;
+      closeGroupDatePopover();
+      renderOrders(ordersCache);
+    } catch (error) {
+      input.value = oldKey;
+      input.disabled = false;
+      if (errorNode) errorNode.textContent = String(error?.message || 'Could not save date.');
+    }
+  }
+
+  function openGroupDatePopover(trigger) {
+    const key = trigger.dataset.groupKey || '';
+    const orderIds = trigger.dataset.orderIds || '';
+    if (!isDateGroupKey(key) || !orderIds) return;
+
+    closeGroupDatePopover();
+    const popover = document.createElement('div');
+    popover.className = 'ob-group-date-popover';
+    popover.innerHTML = `
+      <input type="date" value="${esc(key)}" data-group-date-input="${esc(key)}" data-order-ids="${esc(orderIds)}" aria-label="Change group date">
+      <div class="ob-group-date-error" data-group-date-error></div>
+    `;
+    document.body.appendChild(popover);
+    groupDatePopover = popover;
+    positionGroupDatePopover(popover, trigger);
+
+    const input = popover.querySelector('[data-group-date-input]');
+    const errorNode = popover.querySelector('[data-group-date-error]');
+    input?.focus();
+    if (typeof input?.showPicker === 'function') {
+      try {
+        input.showPicker();
+      } catch (error) {
+        // Some browsers only allow showPicker during direct user activation.
+      }
+    }
+    input?.addEventListener('change', () => saveGroupDateChange(input, errorNode));
   }
 
   function groupCountText(count) {
@@ -756,6 +841,10 @@
       Pay2Cell: '#BB1B21', Other: '#c4c4c4', ...optionColourMap(paymentLabels)
     };
     const statusColours = { COMPLETE: '#e2445c', 'IN PROGRESS': '#fdab3d', 'NEW ORDER': '#c4c4c4', Assigned: '#a8ca19', ...optionColourMap(statusLabels) };
+    const groupOrderIds = orders.map((order) => String(order.id)).join(',');
+    const editableDateAttrs = isDateGroupKey(key)
+      ? ` data-edit-group-date data-group-key="${esc(key)}" data-order-ids="${esc(groupOrderIds)}" role="button" tabindex="0" title="Change group date"`
+      : '';
     const headerSummaryCells = isOpen ? `
         <td class="ob-group-date-cell col-date"></td>
         <td class="col-mobile"></td>
@@ -831,7 +920,7 @@
           <button type="button" data-collapse-group="${esc(key)}" aria-expanded="${isOpen ? 'true' : 'false'}">
             <span class="ob-chevron" aria-hidden="true">&rsaquo;</span>
             <span class="board-group-copy">
-              <strong class="ob-group-date-label">${esc(groupLabel(key))}</strong>
+              <strong class="ob-group-date-label"${editableDateAttrs}>${esc(groupLabel(key))}</strong>
               <small class="ob-group-task-count">${esc(groupCountText(orders.length))}</small>
             </span>
           </button>
@@ -1185,6 +1274,7 @@
   }
 
   document.addEventListener('click', async (event) => {
+    const groupDateEdit = event.target.closest('[data-edit-group-date]');
     const labelButton = event.target.closest('[data-label-field][data-order-id]');
     const labelChoice = event.target.closest('[data-label-value]');
     const panelButton = event.target.closest('[data-open-panel]');
@@ -1223,6 +1313,17 @@
     const bulkAction = event.target.closest('[data-order-bulk-action]');
 
     try {
+      if (groupDateEdit) {
+        event.preventDefault();
+        event.stopPropagation();
+        openGroupDatePopover(groupDateEdit);
+        return;
+      }
+
+      if (groupDatePopover && !event.target.closest('.ob-group-date-popover')) {
+        closeGroupDatePopover();
+      }
+
       if (bulkAction) {
         await runOrderBulkAction(bulkAction.dataset.orderBulkAction);
         return;
@@ -1435,13 +1536,23 @@
   document.addEventListener('click', (event) => {
     if (!event.target.closest('#board-label-menu') && !event.target.closest('[data-label-field]')) closeLabelMenu();
     if (!event.target.closest('#toolbar-popover') && !event.target.closest('[data-toolbar]')) closeToolbar();
+    if (groupDatePopover && !event.target.closest('.ob-group-date-popover') && !event.target.closest('[data-edit-group-date]')) {
+      closeGroupDatePopover();
+    }
   });
 
   document.addEventListener('keydown', (event) => {
+    const groupDateEdit = event.target.closest('[data-edit-group-date]');
+    if (groupDateEdit && (event.key === 'Enter' || event.key === ' ')) {
+      event.preventDefault();
+      openGroupDatePopover(groupDateEdit);
+      return;
+    }
     if (event.key === 'Escape') {
       closeLabelMenu();
       closeToolbar();
       closeColumnModal();
+      closeGroupDatePopover();
     }
   });
 
