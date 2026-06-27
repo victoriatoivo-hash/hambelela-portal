@@ -16208,6 +16208,7 @@ body:has(.ob-wrap) .workspace.ob-wrap {
   min-width: 300px !important;
   max-width: 300px !important;
   padding-left: 14px !important;
+  border-bottom-color: var(--ob-group-colour, #c73557) !important;
 }
 
 .ob-wrap .ops-board-table tbody tr.ob-group-header.is-open > .ob-group-name-cell::before {
@@ -16392,6 +16393,26 @@ body:has(.ob-wrap) .workspace.ob-wrap {
   vertical-align: middle !important;
 }
 
+.ob-wrap .ops-board-table tbody tr.ob-group-footer > td:first-child {
+  position: relative !important;
+  padding: 0 !important;
+  border-left: 0 !important;
+  border-top-color: var(--ob-group-colour, #c73557) !important;
+  border-bottom-color: var(--ob-group-colour, #c73557) !important;
+  background: linear-gradient(to right, var(--ob-group-colour, #c73557) 0 4px, #fafafa 4px) !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-footer > td:first-child::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  border-radius: 0 0 999px 999px;
+  background: var(--ob-group-colour, #c73557);
+}
+
 .ob-wrap .ops-board-table tbody tr.ob-group-footer[hidden] {
   display: none !important;
 }
@@ -16445,18 +16466,11 @@ body:has(.ob-wrap) .workspace.ob-wrap {
 
 .ob-wrap .ops-board-table tbody tr.ob-col-header-row > td:first-child {
   position: relative !important;
-}
-
-.ob-wrap .ops-board-table tbody tr.ob-col-header-row > td:first-child::before,
-.ob-wrap .ops-board-table tbody tr.board-row > td:first-child::before,
-.ob-wrap .ops-board-table tbody tr.add-task-row > td:first-child::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: -1px;
-  bottom: -1px;
-  width: 4px;
-  background: var(--ob-group-colour, #c73557);
+  padding: 0 !important;
+  border-left: 0 !important;
+  border-top-color: var(--ob-group-colour, #c73557) !important;
+  border-bottom-color: var(--ob-group-colour, #c73557) !important;
+  background: linear-gradient(to right, var(--ob-group-colour, #c73557) 0 4px, #ffffff 4px) !important;
 }
 
 .ob-wrap .ops-board-table tbody tr.board-row > td {
@@ -16477,11 +16491,21 @@ body:has(.ob-wrap) .workspace.ob-wrap {
 .ob-wrap .ops-board-table tbody tr.board-row > td:first-child,
 .ob-wrap .ops-board-table tbody tr.add-task-row > td:first-child {
   position: relative !important;
+  padding: 0 !important;
+  border-left: 0 !important;
+  border-top-color: var(--ob-group-colour, #c73557) !important;
+  border-bottom-color: var(--ob-group-colour, #c73557) !important;
+  background: linear-gradient(to right, var(--ob-group-colour, #c73557) 0 4px, #ffffff 4px) !important;
 }
 
 .ob-wrap .ops-board-table tbody tr.board-row:hover > td,
 .ob-wrap .ops-board-table tbody tr.board-row.is-selected > td {
   background: #cce5ff !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.board-row:hover > td:first-child,
+.ob-wrap .ops-board-table tbody tr.board-row.is-selected > td:first-child {
+  background: linear-gradient(to right, var(--ob-group-colour, #c73557) 0 4px, #cce5ff 4px) !important;
 }
 
 .ob-wrap .ops-board-table .check-cell,
