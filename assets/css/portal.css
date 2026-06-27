@@ -16217,7 +16217,7 @@ body:has(.ob-wrap) .workspace.ob-wrap {
   top: 0;
   bottom: 0;
   width: 4px;
-  border-radius: 4px 4px 0 0;
+  border-radius: 999px 999px 0 0;
   background: var(--ob-group-colour, #c73557);
 }
 
@@ -16283,7 +16283,7 @@ body:has(.ob-wrap) .workspace.ob-wrap {
   top: 0;
   bottom: 0;
   width: 4px;
-  border-radius: 4px;
+  border-radius: 999px;
   background: var(--ob-group-colour, #c73557);
 }
 
