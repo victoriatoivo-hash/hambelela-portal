@@ -16007,7 +16007,7 @@ body:has(.ob-wrap) .workspace {
 
 /* Orders Board Monday.com reference clone from screen recording. */
 body:has(.ob-wrap) .workspace.ob-wrap {
-  background: #ffffff !important;
+  background: #FDF6EE !important;
   padding-top: 22px !important;
 }
 
@@ -16021,9 +16021,9 @@ body:has(.ob-wrap) .workspace.ob-wrap {
 }
 
 .ob-wrap .work-board-head h1 {
-  color: #323338 !important;
-  font-size: 22px !important;
-  font-weight: 500 !important;
+  color: #7a1f1f !important;
+  font-size: 24px !important;
+  font-weight: 800 !important;
   letter-spacing: 0 !important;
 }
 
@@ -16034,7 +16034,10 @@ body:has(.ob-wrap) .workspace.ob-wrap {
 }
 
 .ob-wrap .work-board-subtitle {
-  display: none !important;
+  display: block !important;
+  margin-top: 8px !important;
+  color: #8b6f5f !important;
+  font-size: 13px !important;
 }
 
 .ob-wrap .monday-board-head-actions {
@@ -16059,11 +16062,19 @@ body:has(.ob-wrap) .workspace.ob-wrap {
 .ob-wrap .work-metric-grid,
 .ob-wrap .work-filter-bar,
 .ob-wrap .monday-control-strip {
+  display: grid !important;
+}
+
+.ob-wrap .monday-control-strip {
+  display: flex !important;
+}
+
+.ob-wrap .ob-video-toolbar {
   display: none !important;
 }
 
 .ob-wrap .ob-video-toolbar {
-  display: flex;
+  display: none !important;
   align-items: center;
   gap: 8px;
   height: 34px;
