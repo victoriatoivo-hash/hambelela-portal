@@ -17176,3 +17176,27 @@ body:has(.ob-wrap) .workspace.ob-wrap {
   background: transparent !important;
   color: transparent !important;
 }
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-mode,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-payment,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-paid,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-status {
+  padding-top: 0 !important;
+  padding-right: 0 !important;
+  padding-bottom: 0 !important;
+  padding-left: 0 !important;
+  line-height: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-mode > .board-label,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-payment > .board-label,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-status > .board-label,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-paid > .paid-toggle,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-paid > .paid-toggle > .paid-tick {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 34px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+}
