@@ -16436,10 +16436,12 @@ body:has(.ob-wrap) .workspace.ob-wrap {
 .ob-wrap .ops-board-table tbody tr.ob-group-footer > td {
   height: 40px !important;
   max-height: 40px !important;
-  padding: 0 10px !important;
+  box-sizing: border-box !important;
+  padding: 0 !important;
   background: #fafafa !important;
   border-top: 2px solid var(--board-line, #d0d4e4) !important;
   border-bottom: 3px solid var(--board-line, #d0d4e4) !important;
+  border-left: 1px solid var(--board-line, #d0d4e4) !important;
   border-right: 1px solid var(--board-line, #d0d4e4) !important;
   color: #323338 !important;
   line-height: 40px !important;
@@ -16448,8 +16450,14 @@ body:has(.ob-wrap) .workspace.ob-wrap {
 }
 
 .ob-wrap .ops-board-table tbody tr.ob-group-footer > td:first-child {
+  border-left-color: var(--ob-group-colour, #c73557) !important;
   border-top-color: var(--ob-group-colour, #c73557) !important;
   border-bottom-color: var(--ob-group-colour, #c73557) !important;
+  border-radius: 0 0 0 6px !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-footer > td:last-child {
+  border-right-color: var(--board-line, #d0d4e4) !important;
 }
 
 .ob-wrap .ops-board-table tbody tr.ob-group-footer[hidden] {
@@ -16457,20 +16465,26 @@ body:has(.ob-wrap) .workspace.ob-wrap {
 }
 
 .ob-wrap .ops-board-table tbody tr.ob-group-footer .ob-date-pill {
-  min-width: 136px !important;
+  width: calc(100% - 16px) !important;
+  min-width: 0 !important;
+  max-width: calc(100% - 16px) !important;
   height: 24px !important;
-  padding: 0 14px !important;
+  padding: 0 8px !important;
   border-radius: 999px !important;
   background: var(--ob-group-colour, #c73557) !important;
   color: #ffffff !important;
   font-size: 12px !important;
   font-weight: 700 !important;
+  vertical-align: middle !important;
 }
 
 .ob-wrap .ops-board-table tbody tr.ob-group-footer .ob-stacked-bar {
+  width: calc(100% - 10px) !important;
+  min-width: 0 !important;
   height: 18px !important;
-  max-width: 124px !important;
+  max-width: calc(100% - 10px) !important;
   margin: 0 auto !important;
+  vertical-align: middle !important;
 }
 
 .ob-wrap .ops-board-table tbody tr.ob-group-footer .ob-group-sum {
@@ -16558,7 +16572,7 @@ body:has(.ob-wrap) .workspace.ob-wrap {
 }
 
 .ob-wrap .ops-board-table tbody tr.ob-group-footer > td.ob-strip-cell {
-  border-radius: 0 0 6px 6px !important;
+  border-radius: 0 0 0 6px !important;
 }
 
 .ob-wrap .ops-board-table .check-cell,
@@ -17077,8 +17091,7 @@ body:has(.ob-wrap) .workspace.ob-wrap {
 }
 
 .ob-wrap .ops-board-table tbody tr.ob-data-row > td.ob-strip-cell,
-.ob-wrap .ops-board-table tbody tr.add-task-row > td.ob-strip-cell,
-.ob-wrap .ops-board-table tbody tr.ob-group-footer > td.ob-strip-cell {
+.ob-wrap .ops-board-table tbody tr.add-task-row > td.ob-strip-cell {
   border-top: 0 !important;
   border-bottom: 0 !important;
 }
