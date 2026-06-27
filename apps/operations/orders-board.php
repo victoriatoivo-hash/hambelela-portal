@@ -143,6 +143,10 @@ include BASE_PATH . '/shared/sidebar.php';
     <section class="ops-board-shell">
         <div class="ops-board-scroll">
             <table class="ops-board-table">
+                <colgroup>
+                    <col class="ob-col-strip">
+                    <col class="ob-col-checkbox">
+                </colgroup>
                 <thead>
                     <tr>
                         <th class="col-strip"></th>

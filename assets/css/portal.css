@@ -17029,6 +17029,14 @@ body:has(.ob-wrap) .workspace.ob-wrap {
 }
 
 /* Orders board compact checkbox column */
+.ob-wrap .ops-board-table col.ob-col-strip {
+  width: 6px !important;
+}
+
+.ob-wrap .ops-board-table col.ob-col-checkbox {
+  width: 36px !important;
+}
+
 .ob-wrap .ops-board-table tr > *:nth-child(1),
 .ob-wrap .ops-board-table .col-strip,
 .ob-wrap .ops-board-table td.ob-strip-cell.col-strip {
