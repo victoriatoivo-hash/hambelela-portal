@@ -17769,6 +17769,16 @@ body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.paid
   transform: rotate(45deg) !important;
 }
 
+/* Orders Board page surface should be white, not the peach portal background. */
+body:has(.ob-wrap) .shell,
+body:has(.ob-wrap) .app-shell,
+body:has(.ob-wrap) .workspace,
+body:has(.ob-wrap) main.workspace.module,
+body:has(.ob-wrap) .workspace.ob-wrap,
+body:has(.ob-wrap) .ob-wrap {
+  background: #fff !important;
+}
+
 /* My Account settings page top alignment */
 body .shell > main.workspace.module.settings-wrap {
   align-content: start !important;
