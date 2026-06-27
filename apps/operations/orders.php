@@ -1556,7 +1556,6 @@ include BASE_PATH . '/shared/sidebar.php';
         <div>
             <p class="page-eyebrow">Sales Operations</p>
             <h1>Customer Orders Report</h1>
-            <p class="page-subtitle">Live POS and website order reporting by sales, payment, mode, staff, products and daily trends.</p>
         </div>
     </section>
 
