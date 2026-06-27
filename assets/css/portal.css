@@ -17111,3 +17111,68 @@ body:has(.ob-wrap) .workspace.ob-wrap {
   max-width: 234px !important;
   text-align: center !important;
 }
+
+/* Orders board full-cell colour fills */
+.ob-wrap .ops-board-table td.col-mode,
+.ob-wrap .ops-board-table td.col-payment,
+.ob-wrap .ops-board-table td.col-paid,
+.ob-wrap .ops-board-table td.col-status {
+  padding: 0 !important;
+  line-height: 0 !important;
+  vertical-align: middle !important;
+}
+
+.ob-wrap .ops-board-table td.col-mode .board-label,
+.ob-wrap .ops-board-table td.col-payment .board-label,
+.ob-wrap .ops-board-table td.col-status .board-label,
+.ob-wrap .ops-board-table td:nth-child(7) .board-label,
+.ob-wrap .ops-board-table td:nth-child(9) .board-label,
+.ob-wrap .ops-board-table td:nth-child(11) .board-label {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 34px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  line-height: 1 !important;
+}
+
+.ob-wrap .ops-board-table td.col-paid .paid-toggle,
+.ob-wrap .ops-board-table td.paid-cell .paid-toggle {
+  display: flex !important;
+  align-items: stretch !important;
+  justify-content: stretch !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 34px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 0 !important;
+}
+
+.ob-wrap .ops-board-table td.col-paid .paid-tick,
+.ob-wrap .ops-board-table td.paid-cell .paid-tick {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 34px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: #e8f9f4 !important;
+  color: #00a86b !important;
+  line-height: 1 !important;
+}
+
+.ob-wrap .ops-board-table td.col-paid.unpaid .paid-tick,
+.ob-wrap .ops-board-table td.paid-cell.unpaid .paid-tick {
+  background: transparent !important;
+  color: transparent !important;
+}
