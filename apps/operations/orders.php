@@ -135,34 +135,47 @@ function cor_inventory_variant_label(array $variation): string
 
 function cor_store_catalog_base(): string
 {
-    $base = WC_STORE_URL !== '' ? WC_STORE_URL : 'https://hambelelaorganic.com';
-
-    return rtrim($base, '/');
+    return 'https://hambelelaorganic.com';
 }
 
 function cor_store_get(string $path, array $query = []): array
 {
-    if (!function_exists('curl_init')) {
-        return [];
-    }
-
     $url = cor_store_catalog_base() . '/wp-json/wc/store/v1/' . ltrim($path, '/');
     if ($query) {
         $url .= '?' . http_build_query($query);
     }
 
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_CONNECTTIMEOUT => 8,
-        CURLOPT_TIMEOUT => 20,
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_HTTPHEADER => ['Accept: application/json'],
-        CURLOPT_USERAGENT => 'Hambelela Portal Customer Orders Report',
-    ]);
-    $body = curl_exec($ch);
-    $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-    curl_close($ch);
+    $body = '';
+    $status = 0;
+    if (function_exists('curl_init')) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CONNECTTIMEOUT => 8,
+            CURLOPT_TIMEOUT => 20,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_HTTPHEADER => ['Accept: application/json'],
+            CURLOPT_USERAGENT => 'Hambelela Portal Customer Orders Report',
+        ]);
+        $body = curl_exec($ch);
+        $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        curl_close($ch);
+    }
+
+    if ((!is_string($body) || $body === '' || $status >= 400) && ini_get('allow_url_fopen')) {
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'GET',
+                'header' => "Accept: application/json\r\nUser-Agent: Hambelela Portal Customer Orders Report\r\n",
+                'timeout' => 20,
+            ],
+        ]);
+        $streamBody = @file_get_contents($url, false, $context);
+        if (is_string($streamBody) && $streamBody !== '') {
+            $body = $streamBody;
+            $status = 200;
+        }
+    }
 
     if (!is_string($body) || $body === '' || $status >= 400) {
         return [];
