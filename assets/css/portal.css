@@ -18136,3 +18136,13 @@ body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.paid
   border-radius: 1px !important;
   transform: rotate(45deg) !important;
 }
+
+/* Keep the header-to-task boundary as the normal grey grid line, not group colour. */
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header.is-open > .ob-group-name-cell {
+  border-bottom-color: var(--board-line, #d0d4e4) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-col-header-row > td,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-col-header-row > td.ob-col-th {
+  border-top-color: var(--board-line, #d0d4e4) !important;
+}
