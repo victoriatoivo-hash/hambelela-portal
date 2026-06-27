@@ -16175,25 +16175,50 @@ body:has(.ob-wrap) .workspace.ob-wrap {
 }
 
 .ob-wrap .ops-board-table tr > *:nth-child(1) { width: 28px !important; }
-.ob-wrap .ops-board-table tr > *:nth-child(2) { width: 170px !important; }
+.ob-wrap .ops-board-table tr > *:nth-child(2) { width: 220px !important; }
 .ob-wrap .ops-board-table tr > *:nth-child(3) { width: 32px !important; }
-.ob-wrap .ops-board-table tr > *:nth-child(4) { width: 115px !important; }
-.ob-wrap .ops-board-table tr > *:nth-child(5) { width: 150px !important; }
-.ob-wrap .ops-board-table tr > *:nth-child(6) { width: 86px !important; }
-.ob-wrap .ops-board-table tr > *:nth-child(7) { width: 76px !important; }
-.ob-wrap .ops-board-table tr > *:nth-child(8) { width: 96px !important; }
-.ob-wrap .ops-board-table tr > *:nth-child(9) { width: 54px !important; }
-.ob-wrap .ops-board-table tr > *:nth-child(10) { width: 100px !important; }
-.ob-wrap .ops-board-table tr > *:nth-child(11) { width: 96px !important; }
-.ob-wrap .ops-board-table tr > *:nth-child(12) { width: 110px !important; }
+.ob-wrap .ops-board-table tr > *:nth-child(4) { width: 168px !important; }
+.ob-wrap .ops-board-table tr > *:nth-child(5) { width: 140px !important; }
+.ob-wrap .ops-board-table tr > *:nth-child(6) { width: 102px !important; }
+.ob-wrap .ops-board-table tr > *:nth-child(7) { width: 114px !important; }
+.ob-wrap .ops-board-table tr > *:nth-child(8) { width: 140px !important; }
+.ob-wrap .ops-board-table tr > *:nth-child(9) { width: 80px !important; }
+.ob-wrap .ops-board-table tr > *:nth-child(10) { width: 140px !important; }
+.ob-wrap .ops-board-table tr > *:nth-child(11) { width: 140px !important; }
+.ob-wrap .ops-board-table tr > *:nth-child(12) { width: 166px !important; }
 .ob-wrap .ops-board-table tr > *:last-child { width: 60px !important; }
 
 .ob-wrap .ops-board-table tbody tr.ob-group-header.is-open > td {
-  height: 30px !important;
-  max-height: 30px !important;
+  height: 34px !important;
+  max-height: 34px !important;
   padding-top: 0 !important;
   padding-bottom: 0 !important;
   background: #ffffff !important;
+  border-bottom: 1px solid var(--board-line, #d0d4e4) !important;
+  border-right: 0 !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header.is-open {
+  border-left: 0 !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header.is-open > .ob-group-name-cell {
+  position: relative !important;
+  width: 300px !important;
+  min-width: 300px !important;
+  max-width: 300px !important;
+  padding-left: 14px !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header.is-open > .ob-group-name-cell::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  border-radius: 4px 4px 0 0;
+  background: var(--ob-group-colour, #c73557);
 }
 
 .ob-wrap .ops-board-table tbody tr.ob-group-header.is-open > td:not(.ob-group-name-cell) > * {
@@ -16201,8 +16226,8 @@ body:has(.ob-wrap) .workspace.ob-wrap {
 }
 
 .ob-wrap .ops-board-table tbody tr.ob-group-header.is-open button[data-collapse-group] {
-  min-height: 28px !important;
-  grid-template-columns: 18px auto auto !important;
+  min-height: 34px !important;
+  grid-template-columns: 18px minmax(0, auto) !important;
   align-items: center !important;
 }
 
@@ -16212,10 +16237,22 @@ body:has(.ob-wrap) .workspace.ob-wrap {
   gap: 8px !important;
 }
 
-.ob-wrap .ops-board-table tbody tr.ob-group-header.is-open .ob-group-date-label,
-.ob-wrap .ops-board-table tbody tr.ob-group-header.is-open .ob-group-task-count {
+.ob-wrap .ops-board-table tbody tr.ob-group-header.is-open .ob-group-date-label {
   display: inline !important;
   margin: 0 !important;
+  color: var(--ob-group-colour, #c73557) !important;
+  font-size: 18px !important;
+  font-weight: 700 !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header.is-open .ob-group-task-count {
+  display: none !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header.is-open .ob-chevron {
+  width: 18px !important;
+  height: 22px !important;
+  color: var(--ob-group-colour, #c73557) !important;
 }
 
 .ob-wrap .ops-board-table tbody tr.ob-group-header:not(.is-open) > td {
@@ -16339,29 +16376,51 @@ body:has(.ob-wrap) .workspace.ob-wrap {
 
 .ob-wrap .ops-board-table tbody tr.ob-col-header-row > td,
 .ob-wrap .ops-board-table tbody tr.ob-col-header-row > td.ob-col-th {
-  height: 24px !important;
-  min-height: 24px !important;
-  line-height: 24px !important;
-  padding: 0 8px !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  line-height: 36px !important;
+  padding: 0 10px !important;
   background: #ffffff !important;
   color: #323338 !important;
-  font-size: 11px !important;
+  border-color: #d0d4e4 !important;
+  font-size: 13px !important;
   font-weight: 400 !important;
 }
 
+.ob-wrap .ops-board-table tbody tr.ob-col-header-row > td:first-child {
+  position: relative !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-col-header-row > td:first-child::before,
+.ob-wrap .ops-board-table tbody tr.board-row > td:first-child::before,
+.ob-wrap .ops-board-table tbody tr.add-task-row > td:first-child::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: -1px;
+  bottom: -1px;
+  width: 4px;
+  background: var(--ob-group-colour, #c73557);
+}
+
 .ob-wrap .ops-board-table tbody tr.board-row > td {
-  height: 24px !important;
-  max-height: 24px !important;
-  padding: 0 8px !important;
+  height: 36px !important;
+  max-height: 36px !important;
+  padding: 0 10px !important;
   background: #ffffff !important;
   border-color: #d0d4e4 !important;
   color: #323338 !important;
-  font-size: 11px !important;
+  font-size: 13px !important;
   font-weight: 400 !important;
-  line-height: 24px !important;
+  line-height: 36px !important;
   box-shadow: none !important;
   transform: none !important;
   transition: background 120ms ease, box-shadow 120ms ease;
+}
+
+.ob-wrap .ops-board-table tbody tr.board-row > td:first-child,
+.ob-wrap .ops-board-table tbody tr.add-task-row > td:first-child {
+  position: relative !important;
 }
 
 .ob-wrap .ops-board-table tbody tr.board-row:hover > td,
@@ -16407,10 +16466,10 @@ body:has(.ob-wrap) .workspace.ob-wrap {
 
 .ob-wrap .ops-board-table .board-label {
   width: 100% !important;
-  height: 24px !important;
-  min-height: 24px !important;
+  height: 36px !important;
+  min-height: 36px !important;
   border-radius: 0 !important;
-  font-size: 11px !important;
+  font-size: 13px !important;
   font-weight: 600 !important;
 }
 
@@ -16424,13 +16483,13 @@ body:has(.ob-wrap) .workspace.ob-wrap {
 }
 
 .ob-wrap .ops-board-table .packer-cell-button {
-  height: 24px !important;
-  min-height: 24px !important;
+  height: 36px !important;
+  min-height: 36px !important;
   padding: 0 !important;
   border: 0 !important;
   background: transparent !important;
   color: #323338 !important;
-  font-size: 11px !important;
+  font-size: 13px !important;
 }
 
 .ob-wrap .ops-board-table .pick-duration {
@@ -16438,9 +16497,9 @@ body:has(.ob-wrap) .workspace.ob-wrap {
 }
 
 .ob-wrap .ops-board-table .notes-cell button {
-  height: 24px !important;
-  min-height: 24px !important;
+  height: 36px !important;
+  min-height: 36px !important;
   padding: 0 !important;
   color: #676879 !important;
-  font-size: 11px !important;
+  font-size: 13px !important;
 }
