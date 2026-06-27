@@ -145,22 +145,23 @@ include BASE_PATH . '/shared/sidebar.php';
             <table class="ops-board-table">
                 <thead>
                     <tr>
-                        <th class="check-cell"><input type="checkbox" data-select-all-orders aria-label="Select all visible orders"></th>
-                        <th class="comment-cell"></th>
-                        <th data-column-key="task" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>TASK</th>
-                        <th data-column-key="date" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>DATE</th>
-                        <th data-column-key="mobile" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>Mobile number</th>
-                        <th data-column-key="mode" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>Mode</th>
-                        <th data-column-key="amount" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>AMOUNT</th>
-                        <th data-column-key="payment" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>PAYMENT</th>
-                        <th data-column-key="paid" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>PAID</th>
-                        <th data-column-key="status" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>STATUS</th>
-                        <th data-column-key="packer" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>Packed by</th>
-                        <th data-column-key="text" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>Text</th>
+                        <th class="col-strip"></th>
+                        <th class="check-cell col-checkbox"><input type="checkbox" data-select-all-orders aria-label="Select all visible orders"></th>
+                        <th class="col-task" data-column-key="task" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>TASK</th>
+                        <th class="comment-cell col-task-icon"></th>
+                        <th class="col-date" data-column-key="date" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>DATE</th>
+                        <th class="col-mobile" data-column-key="mobile" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>Mobile number</th>
+                        <th class="col-mode" data-column-key="mode" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>Mode</th>
+                        <th class="col-amount" data-column-key="amount" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>AMOUNT</th>
+                        <th class="col-payment" data-column-key="payment" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>PAYMENT</th>
+                        <th class="col-paid col-header-paid" data-column-key="paid" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>PAID</th>
+                        <th class="col-status" data-column-key="status" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>STATUS</th>
+                        <th class="col-packedby" data-column-key="packer" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>Packed by</th>
+                        <th class="col-text" data-column-key="text" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>Text</th>
                         <th class="add-column-cell"><button type="button" data-add-column>+</button></th>
                     </tr>
                 </thead>
-                <tbody id="orders-board-body"><tr><td colspan="13">Loading orders...</td></tr></tbody>
+                <tbody id="orders-board-body"><tr><td colspan="14">Loading orders...</td></tr></tbody>
             </table>
         </div>
     </section>

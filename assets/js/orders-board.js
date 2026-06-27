@@ -491,7 +491,7 @@
   }
 
   function renderCustomCells() {
-    return customColumns.map((column) => `<td data-custom-col="${esc(column.col_key)}">${renderCustomCell(column)}</td>`).join('');
+    return customColumns.map((column) => `<td class="col-custom" data-custom-col="${esc(column.col_key)}">${renderCustomCell(column)}</td>`).join('');
   }
 
   function renderCustomHeaders() {
@@ -500,6 +500,7 @@
       const addCell = row.querySelector('.add-column-cell');
       customColumns.forEach((column) => {
         const th = document.createElement('th');
+        th.className = 'col-custom';
         th.dataset.customHeader = column.colKey || column.col_key;
         th.dataset.colType = column.col_type;
         th.textContent = String(column.col_name || '').toUpperCase();
@@ -728,7 +729,7 @@
 
   function renderPaidCell(order) {
     const checked = order.payment_status === 'paid' ? 'checked' : '';
-    return `<label class="paid-toggle"><input type="checkbox" data-paid-toggle="${esc(order.id)}" ${checked} aria-label="Mark order paid"><span>&check;</span></label>`;
+    return `<label class="paid-toggle"><input type="checkbox" data-paid-toggle="${esc(order.id)}" ${checked} aria-label="Mark order paid"><span class="paid-tick">&check;</span></label>`;
   }
 
   function renderGroup(key, orders, index) {
@@ -752,31 +753,32 @@
     };
     const statusColours = { COMPLETE: '#e2445c', 'IN PROGRESS': '#fdab3d', 'NEW ORDER': '#c4c4c4', Assigned: '#a8ca19', ...optionColourMap(statusLabels) };
 
-    const rows = orders.map((order) => {
+    const rows = orders.map((order, rowIndex) => {
+      const stripClass = `${rowIndex === 0 ? 'is-group-first' : ''} ${rowIndex === orders.length - 1 ? 'is-group-last-visible' : ''}`.trim();
       return `
-        <tr data-order-id="${esc(order.id)}" data-group-row="${esc(key)}" class="board-row ob-data-row ${!previousOrderIds.has(String(order.id)) && hasRenderedOnce ? 'row-new' : ''} ${selectedOrders.has(String(order.id)) ? 'is-selected' : ''}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
-          <td class="ob-strip-cell"></td>
-          <td class="check-cell"><input type="checkbox" data-row-select="${esc(order.id)}" ${selectedOrders.has(String(order.id)) ? 'checked' : ''} aria-label="Select order"></td>
-          <td class="task-cell">${esc(order.order_number.replace(/^WEB-/, ''))} ${esc(order.customer_name)}</td>
-          <td class="comment-cell"><button type="button" data-open-panel="${esc(order.id)}"><i data-lucide="message-circle-plus"></i></button></td>
-          <td>${prettyDate(order.created_at)}</td>
-          <td>${esc(order.customer_contact || '')}</td>
-          <td>${renderLabelCell(order, 'order_type', order.order_type, modeLabels, 'mode-label')}</td>
-          <td>${esc(money(order.total_amount))}</td>
-          <td>${renderLabelCell(order, 'payment_method', order.payment_method || 'Cash', paymentLabels, 'payment-label')}</td>
-          <td class="paid-cell">${renderPaidCell(order)}</td>
-          <td>${renderLabelCell(order, 'status', order.status || 'new_order', statusLabels, 'status-label')}</td>
-          <td>${renderPackerCell(order)}<small class="pick-duration">${esc(durationText(order.packing_started_at, order.completed_at || order.packed_at))}</small></td>
-          <td class="notes-cell"><button type="button" data-expand-note>${esc(order.notes || '')}</button></td>
+        <tr data-order-id="${esc(order.id)}" data-group-row="${esc(key)}" class="board-row ob-data-row ${stripClass} ${!previousOrderIds.has(String(order.id)) && hasRenderedOnce ? 'row-new' : ''} ${selectedOrders.has(String(order.id)) ? 'is-selected' : ''}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
+          <td class="ob-strip-cell col-strip"></td>
+          <td class="check-cell col-checkbox"><input type="checkbox" data-row-select="${esc(order.id)}" ${selectedOrders.has(String(order.id)) ? 'checked' : ''} aria-label="Select order"></td>
+          <td class="task-cell col-task"><span class="task-name">${esc(order.order_number.replace(/^WEB-/, ''))} ${esc(order.customer_name)}</span></td>
+          <td class="comment-cell col-task-icon"><button type="button" data-open-panel="${esc(order.id)}"><i data-lucide="message-circle-plus"></i></button></td>
+          <td class="col-date">${prettyDate(order.created_at)}</td>
+          <td class="col-mobile">${esc(order.customer_contact || '')}</td>
+          <td class="col-mode">${renderLabelCell(order, 'order_type', order.order_type, modeLabels, 'mode-label')}</td>
+          <td class="col-amount">${esc(money(order.total_amount))}</td>
+          <td class="col-payment">${renderLabelCell(order, 'payment_method', order.payment_method || 'Cash', paymentLabels, 'payment-label')}</td>
+          <td class="paid-cell col-paid ${order.payment_status === 'paid' ? '' : 'unpaid'}">${renderPaidCell(order)}</td>
+          <td class="col-status">${renderLabelCell(order, 'status', order.status || 'new_order', statusLabels, 'status-label')}</td>
+          <td class="col-packedby">${renderPackerCell(order)}<small class="pick-duration">${esc(durationText(order.packing_started_at, order.completed_at || order.packed_at))}</small></td>
+          <td class="notes-cell col-text"><button type="button" data-expand-note>${esc(order.notes || '')}</button></td>
           ${renderCustomCells()}
-          <td></td>
+          <td class="add-column-cell"></td>
         </tr>
       `;
     }).join('');
 
     return `
       <tr class="group-row ob-group-header ${isOpen ? 'is-open' : ''}" data-group="${esc(key)}" data-colour="${esc(colour)}" data-count="${esc(orders.length)}" data-amount="${esc(money(total))}" data-paid="${esc(paid)}" data-total="${esc(orders.length)}" style="--ob-group-colour:${esc(colour)}">
-        <td class="ob-strip-cell"></td>
+        <td class="ob-strip-cell col-strip"></td>
         <td class="ob-group-name-cell" colspan="3">
           <button type="button" data-collapse-group="${esc(key)}" aria-expanded="${isOpen ? 'true' : 'false'}">
             <span class="ob-chevron" aria-hidden="true">&rsaquo;</span>
@@ -786,53 +788,53 @@
             </span>
           </button>
         </td>
-        <td class="ob-group-date-cell"><span class="ob-group-column-title">DATE</span><span class="ob-date-pill">${esc(groupDatePill(key))}</span></td>
-        <td></td>
-        <td class="ob-group-bar-cell"><span class="ob-group-column-title">Mode</span>${stackedBar(modeCounts, modeColours, 'ob-mode-bar')}</td>
-        <td class="ob-group-amount-cell"><span class="ob-group-column-title">AMOUNT</span><div class="ob-group-sum">${esc(money(total))}</div><div class="ob-group-sum-label">sum</div></td>
-        <td class="ob-group-bar-cell"><span class="ob-group-column-title">PAYMENT</span>${stackedBar(paymentCounts, paymentColours, 'ob-payment-bar')}</td>
-        <td class="ob-group-paid-cell"><span class="ob-group-column-title">PAID</span><span class="ob-paid-fraction">${paid}/${orders.length}</span></td>
-        <td class="ob-group-bar-cell"><span class="ob-group-column-title">Status</span>${stackedBar(statusCounts, statusColours, 'ob-status-bar')}</td>
-        <td></td>
-        <td></td>
-        ${customColumns.map(() => '<td></td>').join('')}
-        <td></td>
+        <td class="ob-group-date-cell col-date"><span class="ob-group-column-title">DATE</span><span class="ob-date-pill">${esc(groupDatePill(key))}</span></td>
+        <td class="col-mobile"></td>
+        <td class="ob-group-bar-cell col-mode"><span class="ob-group-column-title">Mode</span>${stackedBar(modeCounts, modeColours, 'ob-mode-bar')}</td>
+        <td class="ob-group-amount-cell col-amount"><span class="ob-group-column-title">AMOUNT</span><div class="ob-group-sum">${esc(money(total))}</div><div class="ob-group-sum-label">sum</div></td>
+        <td class="ob-group-bar-cell col-payment"><span class="ob-group-column-title">PAYMENT</span>${stackedBar(paymentCounts, paymentColours, 'ob-payment-bar')}</td>
+        <td class="ob-group-paid-cell col-paid"><span class="ob-group-column-title">PAID</span><span class="ob-paid-fraction">${paid}/${orders.length}</span></td>
+        <td class="ob-group-bar-cell col-status"><span class="ob-group-column-title">Status</span>${stackedBar(statusCounts, statusColours, 'ob-status-bar')}</td>
+        <td class="col-packedby"></td>
+        <td class="col-text"></td>
+        ${customColumns.map(() => '<td class="col-custom"></td>').join('')}
+        <td class="add-column-cell"></td>
       </tr>
       <tr class="ob-col-header-row" data-group="${esc(key)}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
-        <td class="ob-strip-cell"></td>
-        <td></td>
-        <td class="ob-col-th">Task</td>
-        <td></td>
-        <td class="ob-col-th">DATE</td>
-        <td class="ob-col-th">Mobile number</td>
-        <td class="ob-col-th">Mode</td>
-        <td class="ob-col-th">AMOUNT</td>
-        <td class="ob-col-th">PAYMENT</td>
-        <td class="ob-col-th">PAID</td>
-        <td class="ob-col-th">Status</td>
-        <td class="ob-col-th">Packed by</td>
-        <td class="ob-col-th">Text</td>
-        ${customColumns.map((column) => `<td class="ob-col-th">${esc(column.col_name || '')}</td>`).join('')}
-        <td></td>
+        <td class="ob-strip-cell col-strip"></td>
+        <td class="col-checkbox"></td>
+        <td class="ob-col-th col-task">Task</td>
+        <td class="col-task-icon"></td>
+        <td class="ob-col-th col-date">DATE</td>
+        <td class="ob-col-th col-mobile">Mobile number</td>
+        <td class="ob-col-th col-mode">Mode</td>
+        <td class="ob-col-th col-amount">AMOUNT</td>
+        <td class="ob-col-th col-payment">PAYMENT</td>
+        <td class="ob-col-th col-paid col-header-paid">PAID</td>
+        <td class="ob-col-th col-status">Status</td>
+        <td class="ob-col-th col-packedby">Packed by</td>
+        <td class="ob-col-th col-text">Text</td>
+        ${customColumns.map((column) => `<td class="ob-col-th col-custom">${esc(column.col_name || '')}</td>`).join('')}
+        <td class="add-column-cell"></td>
       </tr>
       ${rows}
-      <tr class="add-task-row" data-group-row="${esc(key)}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}><td class="ob-strip-cell"></td><td></td><td colspan="${12 + customColumns.length}"><button type="button" data-add-task="${esc(key)}">+ Add task</button></td></tr>
+      <tr class="add-task-row" data-group-row="${esc(key)}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}><td class="ob-strip-cell col-strip"></td><td class="col-checkbox"></td><td class="col-task" colspan="${12 + customColumns.length}"><button type="button" data-add-task="${esc(key)}">+ Add task</button></td></tr>
       <tr class="ob-group-footer" data-group-footer="${esc(key)}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
-        <td class="ob-strip-cell"></td>
-        <td></td>
-        <td></td>
-        <td></td>
-        <td class="ob-group-date-cell"><span class="ob-date-pill">${esc(groupDatePill(key))}</span></td>
-        <td></td>
-        <td class="ob-group-bar-cell">${stackedBar(modeCounts, modeColours, 'ob-mode-bar')}</td>
-        <td class="ob-group-amount-cell"><div class="ob-group-sum">${esc(money(total))}</div><div class="ob-group-sum-label">sum</div></td>
-        <td class="ob-group-bar-cell">${stackedBar(paymentCounts, paymentColours, 'ob-payment-bar')}</td>
-        <td class="ob-group-paid-cell"><span class="ob-paid-fraction">${paid}/${orders.length}</span></td>
-        <td class="ob-group-bar-cell">${stackedBar(statusCounts, statusColours, 'ob-status-bar')}</td>
-        <td></td>
-        <td></td>
-        ${customColumns.map(() => '<td></td>').join('')}
-        <td></td>
+        <td class="ob-strip-cell col-strip"></td>
+        <td class="col-checkbox"></td>
+        <td class="col-task"></td>
+        <td class="col-task-icon"></td>
+        <td class="ob-group-date-cell col-date"><span class="ob-date-pill">${esc(groupDatePill(key))}</span></td>
+        <td class="col-mobile"></td>
+        <td class="ob-group-bar-cell col-mode">${stackedBar(modeCounts, modeColours, 'ob-mode-bar')}</td>
+        <td class="ob-group-amount-cell col-amount"><div class="ob-group-sum">${esc(money(total))}</div><div class="ob-group-sum-label">sum</div></td>
+        <td class="ob-group-bar-cell col-payment">${stackedBar(paymentCounts, paymentColours, 'ob-payment-bar')}</td>
+        <td class="ob-group-paid-cell col-paid"><span class="ob-paid-fraction">${paid}/${orders.length}</span></td>
+        <td class="ob-group-bar-cell col-status">${stackedBar(statusCounts, statusColours, 'ob-status-bar')}</td>
+        <td class="col-packedby"></td>
+        <td class="col-text"></td>
+        ${customColumns.map(() => '<td class="col-custom"></td>').join('')}
+        <td class="add-column-cell"></td>
       </tr>
     `;
   }

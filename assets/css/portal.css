@@ -16484,6 +16484,28 @@ body:has(.ob-wrap) .workspace.ob-wrap {
   background: var(--ob-group-colour, #c73557) !important;
 }
 
+.ob-wrap .ops-board-table tbody tr > td.ob-strip-cell {
+  width: 6px !important;
+  min-width: 6px !important;
+  max-width: 6px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: var(--ob-group-colour, #c73557) !important;
+  line-height: 0 !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header.is-open > td.ob-strip-cell {
+  border-radius: 6px 6px 0 0 !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header:not(.is-open) > td.ob-strip-cell {
+  border-radius: 6px !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-footer > td.ob-strip-cell {
+  border-radius: 0 0 6px 6px !important;
+}
+
 .ob-wrap .ops-board-table .check-cell,
 .ob-wrap .ops-board-table .comment-cell {
   width: 28px !important;
@@ -16558,4 +16580,450 @@ body:has(.ob-wrap) .workspace.ob-wrap {
   padding: 0 !important;
   color: #676879 !important;
   font-size: 13px !important;
+}
+
+.ob-wrap .ops-board-table {
+  table-layout: fixed !important;
+  border-collapse: collapse !important;
+}
+
+.ob-wrap .ops-board-table td,
+.ob-wrap .ops-board-table th {
+  box-sizing: border-box !important;
+  height: 36px !important;
+  max-height: 36px !important;
+  padding: 0 10px !important;
+  overflow: hidden !important;
+  border-right: 1px solid #f0f0f0 !important;
+  border-bottom: 1px solid var(--board-line, #d0d4e4) !important;
+  line-height: 36px !important;
+  text-overflow: ellipsis !important;
+  vertical-align: middle !important;
+  white-space: nowrap !important;
+}
+
+.ob-wrap .ops-board-table td:last-child,
+.ob-wrap .ops-board-table th:last-child {
+  border-right: 0 !important;
+}
+
+.ob-wrap .ops-board-table .col-strip {
+  width: 6px !important;
+  min-width: 6px !important;
+  max-width: 6px !important;
+}
+
+.ob-wrap .ops-board-table td.ob-strip-cell.col-strip {
+  width: 6px !important;
+  min-width: 6px !important;
+  max-width: 6px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: var(--ob-group-colour, #c73557) !important;
+  line-height: 0 !important;
+}
+
+.ob-wrap .ops-board-table .col-checkbox {
+  width: 36px !important;
+  min-width: 36px !important;
+  max-width: 36px !important;
+}
+
+.ob-wrap .ops-board-table .col-task {
+  width: 200px !important;
+  min-width: 200px !important;
+  max-width: 200px !important;
+}
+
+.ob-wrap .ops-board-table .col-task-icon {
+  width: 30px !important;
+  min-width: 30px !important;
+  max-width: 30px !important;
+}
+
+.ob-wrap .ops-board-table .col-date,
+.ob-wrap .ops-board-table .col-mobile {
+  width: 130px !important;
+  min-width: 130px !important;
+  max-width: 130px !important;
+}
+
+.ob-wrap .ops-board-table .col-mode {
+  width: 90px !important;
+  min-width: 90px !important;
+  max-width: 90px !important;
+}
+
+.ob-wrap .ops-board-table .col-amount {
+  width: 80px !important;
+  min-width: 80px !important;
+  max-width: 80px !important;
+}
+
+.ob-wrap .ops-board-table .col-payment {
+  width: 100px !important;
+  min-width: 100px !important;
+  max-width: 100px !important;
+}
+
+.ob-wrap .ops-board-table .col-paid {
+  width: 50px !important;
+  min-width: 50px !important;
+  max-width: 50px !important;
+}
+
+.ob-wrap .ops-board-table .col-status {
+  width: 110px !important;
+  min-width: 110px !important;
+  max-width: 110px !important;
+}
+
+.ob-wrap .ops-board-table .col-packedby {
+  width: 100px !important;
+  min-width: 100px !important;
+  max-width: 100px !important;
+}
+
+.ob-wrap .ops-board-table .col-text {
+  width: 160px !important;
+  min-width: 160px !important;
+  max-width: 160px !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-col-header-row > td,
+.ob-wrap .ops-board-table thead th {
+  height: 34px !important;
+  max-height: 34px !important;
+  padding: 0 10px !important;
+  background: #ffffff !important;
+  color: #676879 !important;
+  border-bottom: 2px solid var(--board-line, #d0d4e4) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  line-height: 34px !important;
+  text-transform: uppercase !important;
+  vertical-align: middle !important;
+}
+
+.ob-wrap .ops-board-table .col-header-paid {
+  background: #e8f9f4 !important;
+  color: #00856f !important;
+}
+
+.ob-wrap .ops-board-table td.col-checkbox,
+.ob-wrap .ops-board-table th.col-checkbox {
+  padding: 0 !important;
+  text-align: center !important;
+}
+
+.ob-wrap .ops-board-table td.col-checkbox input[type="checkbox"],
+.ob-wrap .ops-board-table th.col-checkbox input[type="checkbox"] {
+  display: inline-block !important;
+  width: 14px !important;
+  height: 14px !important;
+  margin: 0 !important;
+  accent-color: var(--ob-orange-red, #ab3619) !important;
+  cursor: pointer !important;
+  opacity: 1 !important;
+  vertical-align: middle !important;
+  visibility: visible !important;
+}
+
+.ob-wrap .ops-board-table td.col-task {
+  padding: 0 10px !important;
+}
+
+.ob-wrap .ops-board-table td.col-task .task-name {
+  display: block !important;
+  overflow: hidden !important;
+  color: #323338 !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  line-height: 36px !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.ob-wrap .ops-board-table td.col-task-icon {
+  padding: 0 4px !important;
+  text-align: center !important;
+}
+
+.ob-wrap .ops-board-table td.col-task-icon button,
+.ob-wrap .ops-board-table td.col-task-icon .add-icon {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 22px !important;
+  height: 22px !important;
+  min-height: 22px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  background: transparent !important;
+  color: #9699a6 !important;
+  cursor: pointer !important;
+}
+
+.ob-wrap .ops-board-table td.col-date {
+  color: #ab3619 !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+}
+
+.ob-wrap .ops-board-table td.col-mobile {
+  color: #323338 !important;
+  font-size: 12px !important;
+}
+
+.ob-wrap .ops-board-table td.col-mobile a {
+  color: #ab3619 !important;
+  text-decoration: none !important;
+}
+
+.ob-wrap .ops-board-table td.col-mobile .walk-in {
+  color: #9699a6 !important;
+  font-style: italic !important;
+}
+
+.ob-wrap .ops-board-table td.col-amount {
+  padding-right: 12px !important;
+  color: #323338 !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  text-align: right !important;
+}
+
+.ob-wrap .ops-board-table td.col-mode,
+.ob-wrap .ops-board-table td.col-payment,
+.ob-wrap .ops-board-table td.col-status {
+  padding: 0 !important;
+}
+
+.ob-wrap .ops-board-table td.col-mode .board-label,
+.ob-wrap .ops-board-table td.col-payment .board-label,
+.ob-wrap .ops-board-table td.col-status .board-label {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--label-color, #c4c4c4) !important;
+  color: #ffffff !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  line-height: 1 !important;
+  text-align: center !important;
+}
+
+.ob-wrap .ops-board-table td.col-paid {
+  padding: 0 !important;
+  text-align: center !important;
+}
+
+.ob-wrap .ops-board-table td.col-paid .paid-toggle {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  height: 36px !important;
+}
+
+.ob-wrap .ops-board-table td.col-paid .paid-tick {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 22px !important;
+  height: 22px !important;
+  font-size: 16px !important;
+}
+
+.ob-wrap .ops-board-table td.col-paid .paid-toggle input:checked + .paid-tick {
+  color: #00a86b !important;
+}
+
+.ob-wrap .ops-board-table td.col-paid.unpaid {
+  background: transparent !important;
+}
+
+/* Orders board compact spreadsheet alignment fallback */
+.ob-wrap .ops-board-table td,
+.ob-wrap .ops-board-table th {
+  height: 34px !important;
+  max-height: 34px !important;
+  padding: 0 6px !important;
+  line-height: 34px !important;
+  vertical-align: middle !important;
+}
+
+.ob-wrap .ops-board-table .board-label {
+  transform: none !important;
+}
+
+.ob-wrap .ops-board-table td.col-mode,
+.ob-wrap .ops-board-table td.col-payment,
+.ob-wrap .ops-board-table td.col-status,
+.ob-wrap .ops-board-table td:nth-child(7),
+.ob-wrap .ops-board-table td:nth-child(9),
+.ob-wrap .ops-board-table td:nth-child(11) {
+  padding: 0 3px !important;
+}
+
+.ob-wrap .ops-board-table td.col-mode .board-label,
+.ob-wrap .ops-board-table td.col-payment .board-label,
+.ob-wrap .ops-board-table td.col-status .board-label,
+.ob-wrap .ops-board-table td:nth-child(7) .board-label,
+.ob-wrap .ops-board-table td:nth-child(9) .board-label,
+.ob-wrap .ops-board-table td:nth-child(11) .board-label {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  height: 30px !important;
+  min-height: 30px !important;
+  margin: 0 !important;
+  padding: 0 4px !important;
+  border-radius: 0 !important;
+  line-height: 1 !important;
+}
+
+.ob-wrap .ops-board-table td.check-cell,
+.ob-wrap .ops-board-table th.check-cell,
+.ob-wrap .ops-board-table td.col-checkbox,
+.ob-wrap .ops-board-table th.col-checkbox,
+.ob-wrap .ops-board-table td.comment-cell,
+.ob-wrap .ops-board-table th.comment-cell,
+.ob-wrap .ops-board-table td.col-task-icon,
+.ob-wrap .ops-board-table th.col-task-icon,
+.ob-wrap .ops-board-table td.paid-cell,
+.ob-wrap .ops-board-table td.col-paid {
+  padding: 0 !important;
+  text-align: center !important;
+}
+
+.ob-wrap .ops-board-table td.check-cell,
+.ob-wrap .ops-board-table td.col-checkbox,
+.ob-wrap .ops-board-table td.comment-cell,
+.ob-wrap .ops-board-table td.col-task-icon,
+.ob-wrap .ops-board-table td.paid-cell,
+.ob-wrap .ops-board-table td.col-paid {
+  line-height: 0 !important;
+}
+
+.ob-wrap .ops-board-table td.check-cell input[type="checkbox"],
+.ob-wrap .ops-board-table td.col-checkbox input[type="checkbox"],
+.ob-wrap .ops-board-table th.check-cell input[type="checkbox"],
+.ob-wrap .ops-board-table th.col-checkbox input[type="checkbox"] {
+  display: inline-block !important;
+  width: 14px !important;
+  height: 14px !important;
+  margin: 0 !important;
+  vertical-align: middle !important;
+}
+
+.ob-wrap .ops-board-table td.comment-cell button,
+.ob-wrap .ops-board-table td.col-task-icon button,
+.ob-wrap .ops-board-table td.comment-cell [data-open-panel],
+.ob-wrap .ops-board-table td.col-task-icon [data-open-panel] {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 22px !important;
+  height: 22px !important;
+  min-height: 22px !important;
+  margin: 0 auto !important;
+  padding: 0 !important;
+  transform: none !important;
+  line-height: 1 !important;
+  vertical-align: middle !important;
+}
+
+.ob-wrap .ops-board-table td.comment-cell button svg,
+.ob-wrap .ops-board-table td.col-task-icon button svg,
+.ob-wrap .ops-board-table td.comment-cell svg,
+.ob-wrap .ops-board-table td.col-task-icon svg {
+  display: block !important;
+  width: 13px !important;
+  height: 13px !important;
+  margin: 0 !important;
+  transform: none !important;
+}
+
+.ob-wrap .ops-board-table td.paid-cell .paid-toggle,
+.ob-wrap .ops-board-table td.col-paid .paid-toggle {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  height: 34px !important;
+  margin: 0 !important;
+  transform: none !important;
+  line-height: 1 !important;
+}
+
+.ob-wrap .ops-board-table td.paid-cell .paid-toggle span,
+.ob-wrap .ops-board-table td.col-paid .paid-toggle span,
+.ob-wrap .ops-board-table td.paid-cell .paid-tick,
+.ob-wrap .ops-board-table td.col-paid .paid-tick {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin: 0 !important;
+  transform: none !important;
+  line-height: 1 !important;
+}
+
+.ob-wrap .ops-board-table td.task-cell,
+.ob-wrap .ops-board-table td.col-task,
+.ob-wrap .ops-board-table td.notes-cell,
+.ob-wrap .ops-board-table td.col-text,
+.ob-wrap .ops-board-table td.col-packedby {
+  padding: 0 6px !important;
+}
+
+.ob-wrap .ops-board-table td.task-cell .task-name,
+.ob-wrap .ops-board-table td.col-task .task-name,
+.ob-wrap .ops-board-table .packer-cell-button,
+.ob-wrap .ops-board-table .notes-cell button {
+  height: 34px !important;
+  min-height: 34px !important;
+  line-height: 34px !important;
+  margin: 0 !important;
+  transform: none !important;
+}
+
+/* Orders board continuous group colour strip */
+.ob-wrap .ops-board-table tbody tr.ob-group-header.is-open > td.ob-strip-cell {
+  background: transparent !important;
+  border-radius: 0 !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-header:not(.is-open) > td.ob-strip-cell {
+  background: var(--ob-group-colour, #c73557) !important;
+  border-radius: 6px 0 0 6px !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-data-row > td.ob-strip-cell {
+  background: var(--ob-group-colour, #c73557) !important;
+  border-radius: 0 !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-data-row.is-group-first > td.ob-strip-cell {
+  border-top-left-radius: 6px !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-data-row.is-group-last-visible > td.ob-strip-cell {
+  border-bottom-left-radius: 6px !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-data-row > td.ob-strip-cell,
+.ob-wrap .ops-board-table tbody tr.add-task-row > td.ob-strip-cell,
+.ob-wrap .ops-board-table tbody tr.ob-group-footer > td.ob-strip-cell {
+  border-top: 0 !important;
+  border-bottom: 0 !important;
 }
