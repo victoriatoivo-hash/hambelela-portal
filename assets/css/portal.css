@@ -17391,7 +17391,7 @@ body:has(.ob-wrap) .ob-wrap table.ops-board-table td.paid-cell .paid-toggle inpu
 }
 
 /* Orders board footer must remain a real table grid row. */
-body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer {
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer:not([hidden]) {
   display: table-row !important;
   height: 34px !important;
   max-height: 34px !important;

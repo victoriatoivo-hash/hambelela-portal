@@ -756,6 +756,50 @@
       Pay2Cell: '#BB1B21', Other: '#c4c4c4', ...optionColourMap(paymentLabels)
     };
     const statusColours = { COMPLETE: '#e2445c', 'IN PROGRESS': '#fdab3d', 'NEW ORDER': '#c4c4c4', Assigned: '#a8ca19', ...optionColourMap(statusLabels) };
+    const headerSummaryCells = isOpen ? `
+        <td class="ob-group-date-cell col-date"></td>
+        <td class="col-mobile"></td>
+        <td class="ob-group-bar-cell col-mode"></td>
+        <td class="ob-group-amount-cell col-amount"></td>
+        <td class="ob-group-bar-cell col-payment"></td>
+        <td class="ob-group-paid-cell col-paid"></td>
+        <td class="ob-group-bar-cell col-status"></td>
+        <td class="col-packedby"></td>
+        <td class="col-text"></td>
+        ${customColumns.map(() => '<td class="col-custom"></td>').join('')}
+        <td class="add-column-cell"></td>
+    ` : `
+        <td class="ob-group-date-cell col-date"><span class="ob-group-column-title">DATE</span><span class="ob-date-pill">${esc(groupDatePill(key))}</span></td>
+        <td class="col-mobile"></td>
+        <td class="ob-group-bar-cell col-mode"><span class="ob-group-column-title">Mode</span>${stackedBar(modeCounts, modeColours, 'ob-mode-bar')}</td>
+        <td class="ob-group-amount-cell col-amount"><span class="ob-group-column-title">AMOUNT</span><div class="ob-group-sum">${esc(money(total))}</div><div class="ob-group-sum-label">sum</div></td>
+        <td class="ob-group-bar-cell col-payment"><span class="ob-group-column-title">PAYMENT</span>${stackedBar(paymentCounts, paymentColours, 'ob-payment-bar')}</td>
+        <td class="ob-group-paid-cell col-paid"><span class="ob-group-column-title">PAID</span><span class="ob-paid-fraction">${paid}/${orders.length}</span></td>
+        <td class="ob-group-bar-cell col-status"><span class="ob-group-column-title">Status</span>${stackedBar(statusCounts, statusColours, 'ob-status-bar')}</td>
+        <td class="col-packedby"></td>
+        <td class="col-text"></td>
+        ${customColumns.map(() => '<td class="col-custom"></td>').join('')}
+        <td class="add-column-cell"></td>
+    `;
+    const footerRow = isOpen ? `
+      <tr class="ob-group-footer" data-group-footer="${esc(key)}" style="--ob-group-colour:${esc(colour)}">
+        <td class="ob-strip-cell col-strip"></td>
+        <td class="col-checkbox"></td>
+        <td class="col-task"></td>
+        <td class="col-task-icon"></td>
+        <td class="ob-group-date-cell col-date"><span class="ob-date-pill">${esc(groupDatePill(key))}</span></td>
+        <td class="col-mobile"></td>
+        <td class="ob-group-bar-cell col-mode">${stackedBar(modeCounts, modeColours, 'ob-mode-bar')}</td>
+        <td class="ob-group-amount-cell col-amount"><div class="ob-group-sum">${esc(money(total))}</div><div class="ob-group-sum-label">sum</div></td>
+        <td class="ob-group-bar-cell col-payment">${stackedBar(paymentCounts, paymentColours, 'ob-payment-bar')}</td>
+        <td class="ob-group-paid-cell col-paid"><span class="ob-paid-fraction">${paid}/${orders.length}</span></td>
+        <td class="ob-group-bar-cell col-status">${stackedBar(statusCounts, statusColours, 'ob-status-bar')}</td>
+        <td class="col-packedby"></td>
+        <td class="col-text"></td>
+        ${customColumns.map(() => '<td class="col-custom"></td>').join('')}
+        <td class="add-column-cell"></td>
+      </tr>
+    ` : '';
 
     const rows = orders.map((order, rowIndex) => {
       const stripClass = `${rowIndex === 0 ? 'is-group-first' : ''} ${rowIndex === orders.length - 1 ? 'is-group-last-visible' : ''}`.trim();
@@ -792,17 +836,7 @@
             </span>
           </button>
         </td>
-        <td class="ob-group-date-cell col-date"><span class="ob-group-column-title">DATE</span><span class="ob-date-pill">${esc(groupDatePill(key))}</span></td>
-        <td class="col-mobile"></td>
-        <td class="ob-group-bar-cell col-mode"><span class="ob-group-column-title">Mode</span>${stackedBar(modeCounts, modeColours, 'ob-mode-bar')}</td>
-        <td class="ob-group-amount-cell col-amount"><span class="ob-group-column-title">AMOUNT</span><div class="ob-group-sum">${esc(money(total))}</div><div class="ob-group-sum-label">sum</div></td>
-        <td class="ob-group-bar-cell col-payment"><span class="ob-group-column-title">PAYMENT</span>${stackedBar(paymentCounts, paymentColours, 'ob-payment-bar')}</td>
-        <td class="ob-group-paid-cell col-paid"><span class="ob-group-column-title">PAID</span><span class="ob-paid-fraction">${paid}/${orders.length}</span></td>
-        <td class="ob-group-bar-cell col-status"><span class="ob-group-column-title">Status</span>${stackedBar(statusCounts, statusColours, 'ob-status-bar')}</td>
-        <td class="col-packedby"></td>
-        <td class="col-text"></td>
-        ${customColumns.map(() => '<td class="col-custom"></td>').join('')}
-        <td class="add-column-cell"></td>
+        ${headerSummaryCells}
       </tr>
       <tr class="ob-col-header-row" data-group="${esc(key)}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
         <td class="ob-strip-cell col-strip"></td>
@@ -822,23 +856,7 @@
       </tr>
       ${rows}
       <tr class="add-task-row" data-group-row="${esc(key)}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}><td class="ob-strip-cell col-strip"></td><td class="col-checkbox"></td><td class="col-task" colspan="${12 + customColumns.length}"><button type="button" data-add-task="${esc(key)}">+ Add task</button></td></tr>
-      <tr class="ob-group-footer" data-group-footer="${esc(key)}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
-        <td class="ob-strip-cell col-strip"></td>
-        <td class="col-checkbox"></td>
-        <td class="col-task"></td>
-        <td class="col-task-icon"></td>
-        <td class="ob-group-date-cell col-date"><span class="ob-date-pill">${esc(groupDatePill(key))}</span></td>
-        <td class="col-mobile"></td>
-        <td class="ob-group-bar-cell col-mode">${stackedBar(modeCounts, modeColours, 'ob-mode-bar')}</td>
-        <td class="ob-group-amount-cell col-amount"><div class="ob-group-sum">${esc(money(total))}</div><div class="ob-group-sum-label">sum</div></td>
-        <td class="ob-group-bar-cell col-payment">${stackedBar(paymentCounts, paymentColours, 'ob-payment-bar')}</td>
-        <td class="ob-group-paid-cell col-paid"><span class="ob-paid-fraction">${paid}/${orders.length}</span></td>
-        <td class="ob-group-bar-cell col-status">${stackedBar(statusCounts, statusColours, 'ob-status-bar')}</td>
-        <td class="col-packedby"></td>
-        <td class="col-text"></td>
-        ${customColumns.map(() => '<td class="col-custom"></td>').join('')}
-        <td class="add-column-cell"></td>
-      </tr>
+      ${footerRow}
     `;
   }
 
@@ -1347,47 +1365,13 @@
 
       if (collapse) {
         const key = collapse.dataset.collapseGroup;
-        const header = collapse.closest('tr');
-        const isOpen = header.classList.toggle('is-open');
-        collapse.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-        if (isOpen) {
-          expandedGroups.add(key);
-        } else {
+        if (expandedGroups.has(key)) {
           expandedGroups.delete(key);
+        } else {
+          expandedGroups.add(key);
         }
-        const safeKey = selectorEsc(key);
-        const footer = document.querySelector(`.ob-group-footer[data-group-footer="${safeKey}"]`);
-        const groupRows = document.querySelectorAll(`.ob-col-header-row[data-group="${safeKey}"], tr[data-group-row="${safeKey}"]`);
-        if (!isOpen && footer) {
-          footer.hidden = true;
-          footer.style.opacity = '';
-          footer.style.transition = '';
-        }
-        groupRows.forEach((row, index) => {
-          if (!isOpen) {
-            row.hidden = true;
-            row.style.opacity = '';
-            row.style.transform = '';
-            return;
-          }
-          row.hidden = false;
-          row.style.opacity = '0';
-          row.style.transform = 'translateY(6px)';
-          row.style.transition = 'opacity 180ms ease, transform 180ms ease';
-          window.setTimeout(() => {
-            row.style.opacity = '1';
-            row.style.transform = 'translateY(0)';
-          }, Math.min(index * 15, 240));
-        });
-        if (isOpen && footer) {
-          footer.hidden = false;
-          footer.style.opacity = '0';
-          footer.style.transition = 'opacity 200ms ease';
-          window.setTimeout(() => {
-            footer.style.opacity = '1';
-          }, Math.min(groupRows.length * 15 + 50, 320));
-        }
-        if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+        renderOrders(ordersCache);
+        return;
       }
 
       if (availabilityToggle) {
