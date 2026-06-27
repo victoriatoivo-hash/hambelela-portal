@@ -18248,3 +18248,67 @@ body:has(.ob-wrap) .ob-wrap table.ops-board-table tr.ob-group-header.is-date-edi
 body:has(.ob-wrap) .ob-group-date-popover {
   display: none !important;
 }
+
+/* Order Board group rail: mirror Task Management's single rounded left border. */
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-col-header-row > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.add-task-row > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > td.ob-strip-cell {
+  position: relative !important;
+  width: 6px !important;
+  min-width: 6px !important;
+  max-width: 6px !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  background: #ffffff !important;
+  border-color: transparent !important;
+  border-right: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header > td.ob-strip-cell::before,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-col-header-row > td.ob-strip-cell::before,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.ob-strip-cell::before,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.add-task-row > td.ob-strip-cell::before,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > td.ob-strip-cell::before {
+  content: "" !important;
+  position: absolute !important;
+  left: 0 !important;
+  top: -1px !important;
+  bottom: -1px !important;
+  width: 4px !important;
+  background: var(--ob-group-colour, #c73557) !important;
+  border-radius: 0 !important;
+  pointer-events: none !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header > td.ob-strip-cell::before {
+  top: 0 !important;
+  border-radius: 999px 999px 0 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) > td.ob-strip-cell::before {
+  bottom: 0 !important;
+  border-radius: 999px !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header.is-open > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header.is-open:hover > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-col-header-row > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-col-header-row:hover > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row:hover > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row.is-selected > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.add-task-row > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.add-task-row:hover > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer:hover > td.ob-strip-cell {
+  background: #ffffff !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > td.ob-strip-cell::before {
+  bottom: 0 !important;
+  border-radius: 0 0 999px 999px !important;
+}
