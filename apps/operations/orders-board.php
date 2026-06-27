@@ -148,6 +148,16 @@ include BASE_PATH . '/shared/sidebar.php';
                     <col class="ob-col-checkbox">
                     <col class="ob-col-task">
                     <col class="ob-col-task-icon">
+                    <col class="ob-col-date">
+                    <col class="ob-col-mobile">
+                    <col class="ob-col-mode">
+                    <col class="ob-col-amount">
+                    <col class="ob-col-payment">
+                    <col class="ob-col-paid">
+                    <col class="ob-col-status">
+                    <col class="ob-col-packedby">
+                    <col class="ob-col-text">
+                    <col class="ob-col-add">
                 </colgroup>
                 <thead>
                     <tr>
