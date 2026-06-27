@@ -18051,3 +18051,54 @@ body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .add-column-cell {
   max-width: none !important;
   box-sizing: border-box !important;
 }
+
+/* Refined PAID checkmark: compact, crisp, and centered with generous white space. */
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-paid .paid-toggle,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.paid-cell .paid-toggle {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  height: 34px !important;
+  margin: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  transform: none !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-paid .paid-tick,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.paid-cell .paid-tick {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px !important;
+  min-height: 18px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  color: transparent !important;
+  font-size: 0 !important;
+  line-height: 1 !important;
+  transform: none !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-paid .paid-tick::before,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.paid-cell .paid-tick::before {
+  content: "" !important;
+  display: none !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-paid .paid-toggle input:checked + .paid-tick::before,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.paid-cell .paid-toggle input:checked + .paid-tick::before {
+  display: block !important;
+  width: 7px !important;
+  height: 13px !important;
+  margin: -2px 0 0 0 !important;
+  border-right: 2px solid #79c143 !important;
+  border-bottom: 2px solid #79c143 !important;
+  border-radius: 1px !important;
+  transform: rotate(45deg) !important;
+}
