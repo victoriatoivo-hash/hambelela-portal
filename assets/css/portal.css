@@ -17711,6 +17711,57 @@ body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-col-header-row:hov
   border-top-color: var(--board-line, #d0d4e4) !important;
 }
 
+/* Paid cells stay white; only the checkmark itself is green. */
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-paid,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.paid-cell {
+  background: #fff !important;
+  border-color: var(--board-line, #d0d4e4) !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-paid > .paid-toggle,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.paid-cell > .paid-toggle {
+  align-items: center !important;
+  justify-content: center !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-paid .paid-tick,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.paid-cell .paid-tick {
+  position: relative !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 34px !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  color: transparent !important;
+  font-size: 0 !important;
+  line-height: 1 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-paid .paid-tick::before,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.paid-cell .paid-tick::before {
+  content: "" !important;
+  display: none !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-paid .paid-toggle input:checked + .paid-tick::before,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.paid-cell .paid-toggle input:checked + .paid-tick::before {
+  display: block !important;
+  width: 12px !important;
+  height: 23px !important;
+  margin: 2px auto 0 !important;
+  border-right: 5px solid #79c143 !important;
+  border-bottom: 5px solid #79c143 !important;
+  border-radius: 3px !important;
+  transform: rotate(45deg) !important;
+}
+
 /* My Account settings page top alignment */
 body .shell > main.workspace.module.settings-wrap {
   align-content: start !important;
