@@ -17027,3 +17027,48 @@ body:has(.ob-wrap) .workspace.ob-wrap {
   border-top: 0 !important;
   border-bottom: 0 !important;
 }
+
+/* Orders board compact checkbox column */
+.ob-wrap .ops-board-table tr > *:nth-child(1),
+.ob-wrap .ops-board-table .col-strip,
+.ob-wrap .ops-board-table td.ob-strip-cell.col-strip {
+  width: 6px !important;
+  min-width: 6px !important;
+  max-width: 6px !important;
+  padding: 0 !important;
+}
+
+.ob-wrap .ops-board-table tr > *:nth-child(2),
+.ob-wrap .ops-board-table .check-cell.col-checkbox,
+.ob-wrap .ops-board-table th.check-cell.col-checkbox,
+.ob-wrap .ops-board-table td.col-checkbox,
+.ob-wrap .ops-board-table th.col-checkbox {
+  width: 36px !important;
+  min-width: 36px !important;
+  max-width: 36px !important;
+  padding: 0 !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+.ob-wrap .ops-board-table td.check-cell.col-checkbox,
+.ob-wrap .ops-board-table th.check-cell.col-checkbox,
+.ob-wrap .ops-board-table td.col-checkbox,
+.ob-wrap .ops-board-table th.col-checkbox {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.ob-wrap .ops-board-table td.check-cell.col-checkbox input[type="checkbox"],
+.ob-wrap .ops-board-table th.check-cell.col-checkbox input[type="checkbox"],
+.ob-wrap .ops-board-table td.col-checkbox input[type="checkbox"],
+.ob-wrap .ops-board-table th.col-checkbox input[type="checkbox"] {
+  flex: 0 0 auto !important;
+  width: 14px !important;
+  height: 14px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
