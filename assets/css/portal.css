@@ -18197,3 +18197,13 @@ body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.board-row > td.check-
   margin-left: 0 !important;
   margin-right: auto !important;
 }
+
+/* Keep the Orders Board top controls from resizing when groups below open/close. */
+html:has(body .ob-wrap),
+body:has(.ob-wrap) {
+  scrollbar-gutter: stable !important;
+}
+
+body:has(.ob-wrap) {
+  overflow-y: scroll !important;
+}
