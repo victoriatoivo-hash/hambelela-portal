@@ -18146,3 +18146,54 @@ body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-col-header-row > t
 body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-col-header-row > td.ob-col-th {
   border-top-color: var(--board-line, #d0d4e4) !important;
 }
+
+/* Restore the normal Orders Board left strip and keep row checkboxes left-aligned. */
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-col-header-row > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.add-task-row > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > td.ob-strip-cell {
+  overflow: hidden !important;
+  background: var(--ob-group-colour, #c73557) !important;
+  border-right: 0 !important;
+  box-shadow: none !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header > td.ob-strip-cell::before,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-col-header-row > td.ob-strip-cell::before,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.ob-strip-cell::before,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.add-task-row > td.ob-strip-cell::before,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > td.ob-strip-cell::before {
+  content: none !important;
+  display: none !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) > td.ob-strip-cell {
+  border-radius: 999px !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header.is-open > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-col-header-row > td.ob-strip-cell {
+  border-radius: 999px 999px 0 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.add-task-row > td.ob-strip-cell {
+  border-radius: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > td.ob-strip-cell {
+  border-radius: 0 0 999px 999px !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-checkbox,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.board-row > td.check-cell.col-checkbox {
+  text-align: left !important;
+  padding-left: 7px !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-checkbox input[type="checkbox"],
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.board-row > td.check-cell.col-checkbox input[type="checkbox"] {
+  margin-left: 0 !important;
+  margin-right: auto !important;
+}
