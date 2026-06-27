@@ -17181,6 +17181,7 @@ body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-
 body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-payment,
 body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-paid,
 body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-status {
+  background: var(--cell-fill-color, transparent) !important;
   padding-top: 0 !important;
   padding-right: 0 !important;
   padding-bottom: 0 !important;
@@ -17199,4 +17200,12 @@ body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-
   margin: 0 !important;
   padding: 0 !important;
   border-radius: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-paid:not(.unpaid) {
+  background: #e8f9f4 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-paid.unpaid {
+  background: transparent !important;
 }

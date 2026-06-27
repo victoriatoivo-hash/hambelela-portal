@@ -406,6 +406,10 @@
     return `<button class="board-label ${cssClass}" style="--label-color:${esc(color)}" data-label-field="${field}" data-order-id="${esc(order.id)}">${esc(text)}</button>`;
   }
 
+  function labelCellStyle(options, value) {
+    return ` style="--cell-fill-color:${esc(findColor(options, value))}"`;
+  }
+
   function showSkeletonRows() {
     if (!body) return;
     body.innerHTML = Array.from({ length: 8 }).map(() => `
@@ -763,11 +767,11 @@
           <td class="comment-cell col-task-icon"><button type="button" data-open-panel="${esc(order.id)}"><i data-lucide="message-circle-plus"></i></button></td>
           <td class="col-date">${prettyDate(order.created_at)}</td>
           <td class="col-mobile">${esc(order.customer_contact || '')}</td>
-          <td class="col-mode">${renderLabelCell(order, 'order_type', order.order_type, modeLabels, 'mode-label')}</td>
+          <td class="col-mode"${labelCellStyle(modeLabels, order.order_type)}>${renderLabelCell(order, 'order_type', order.order_type, modeLabels, 'mode-label')}</td>
           <td class="col-amount">${esc(money(order.total_amount))}</td>
-          <td class="col-payment">${renderLabelCell(order, 'payment_method', order.payment_method || 'Cash', paymentLabels, 'payment-label')}</td>
+          <td class="col-payment"${labelCellStyle(paymentLabels, order.payment_method || 'Cash')}>${renderLabelCell(order, 'payment_method', order.payment_method || 'Cash', paymentLabels, 'payment-label')}</td>
           <td class="paid-cell col-paid ${order.payment_status === 'paid' ? '' : 'unpaid'}">${renderPaidCell(order)}</td>
-          <td class="col-status">${renderLabelCell(order, 'status', order.status || 'new_order', statusLabels, 'status-label')}</td>
+          <td class="col-status"${labelCellStyle(statusLabels, order.status || 'new_order')}>${renderLabelCell(order, 'status', order.status || 'new_order', statusLabels, 'status-label')}</td>
           <td class="col-packedby">${renderPackerCell(order)}<small class="pick-duration">${esc(durationText(order.packing_started_at, order.completed_at || order.packed_at))}</small></td>
           <td class="notes-cell col-text"><button type="button" data-expand-note>${esc(order.notes || '')}</button></td>
           ${renderCustomCells()}
