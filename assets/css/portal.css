@@ -17577,53 +17577,54 @@ body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer:hover
 /* Readable Monday-style proportions: fixed key columns, flexible Text column. */
 body:has(.ob-wrap) .ob-wrap table.ops-board-table {
   width: 100% !important;
-  min-width: 1220px !important;
+  min-width: 1760px !important;
   max-width: none !important;
   table-layout: fixed !important;
 }
 
 body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-strip { width: 6px !important; }
 body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-checkbox { width: 40px !important; }
-body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-task { width: 220px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-task { width: 250px !important; }
 body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-task-icon { width: 42px !important; }
-body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-date { width: 142px !important; }
-body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-mobile { width: 112px !important; }
-body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-mode { width: 86px !important; }
-body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-amount { width: 86px !important; }
-body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-payment { width: 106px !important; }
-body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-paid { width: 64px !important; }
-body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-status { width: 100px !important; }
-body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-packedby { width: 105px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-date { width: 165px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-mobile { width: 170px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-mode { width: 120px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-amount { width: 110px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-payment { width: 150px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-paid { width: 78px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-status { width: 155px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-packedby { width: 170px !important; }
 body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-text { width: auto !important; }
 body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-add { width: 24px !important; }
 
 body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-strip { width: 6px !important; min-width: 6px !important; max-width: 6px !important; }
 body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-checkbox { width: 40px !important; min-width: 40px !important; max-width: 40px !important; }
-body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-task:not([colspan]) { width: 220px !important; min-width: 220px !important; max-width: 220px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-task:not([colspan]) { width: 250px !important; min-width: 250px !important; max-width: 250px !important; }
 body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-task-icon { width: 42px !important; min-width: 42px !important; max-width: 42px !important; }
-body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-date { width: 142px !important; min-width: 142px !important; max-width: 142px !important; }
-body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-mobile { width: 112px !important; min-width: 112px !important; max-width: 112px !important; }
-body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-mode { width: 86px !important; min-width: 86px !important; max-width: 86px !important; }
-body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-amount { width: 86px !important; min-width: 86px !important; max-width: 86px !important; }
-body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-payment { width: 106px !important; min-width: 106px !important; max-width: 106px !important; }
-body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-paid { width: 64px !important; min-width: 64px !important; max-width: 64px !important; }
-body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-status { width: 100px !important; min-width: 100px !important; max-width: 100px !important; }
-body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-packedby { width: 105px !important; min-width: 105px !important; max-width: 105px !important; }
-body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-text { width: auto !important; min-width: 140px !important; max-width: none !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-task[colspan="2"] { width: 292px !important; min-width: 292px !important; max-width: 292px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-date { width: 165px !important; min-width: 165px !important; max-width: 165px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-mobile { width: 170px !important; min-width: 170px !important; max-width: 170px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-mode { width: 120px !important; min-width: 120px !important; max-width: 120px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-amount { width: 110px !important; min-width: 110px !important; max-width: 110px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-payment { width: 150px !important; min-width: 150px !important; max-width: 150px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-paid { width: 78px !important; min-width: 78px !important; max-width: 78px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-status { width: 155px !important; min-width: 155px !important; max-width: 155px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-packedby { width: 170px !important; min-width: 170px !important; max-width: 170px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .col-text { width: auto !important; min-width: 260px !important; max-width: none !important; }
 body:has(.ob-wrap) .ob-wrap table.ops-board-table tr > .add-column-cell { width: 24px !important; min-width: 24px !important; max-width: 24px !important; }
 
 body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-checkbox { width: 40px !important; min-width: 40px !important; max-width: 40px !important; }
-body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-task { width: 220px !important; min-width: 220px !important; max-width: 220px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-task { width: 250px !important; min-width: 250px !important; max-width: 250px !important; }
 body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-task-icon { width: 42px !important; min-width: 42px !important; max-width: 42px !important; }
-body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-date { width: 142px !important; min-width: 142px !important; max-width: 142px !important; }
-body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-mobile { width: 112px !important; min-width: 112px !important; max-width: 112px !important; }
-body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-mode { width: 86px !important; min-width: 86px !important; max-width: 86px !important; }
-body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-amount { width: 86px !important; min-width: 86px !important; max-width: 86px !important; }
-body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-payment { width: 106px !important; min-width: 106px !important; max-width: 106px !important; }
-body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-paid { width: 64px !important; min-width: 64px !important; max-width: 64px !important; }
-body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-status { width: 100px !important; min-width: 100px !important; max-width: 100px !important; }
-body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-packedby { width: 105px !important; min-width: 105px !important; max-width: 105px !important; }
-body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-text { width: auto !important; min-width: 140px !important; max-width: none !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-date { width: 165px !important; min-width: 165px !important; max-width: 165px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-mobile { width: 170px !important; min-width: 170px !important; max-width: 170px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-mode { width: 120px !important; min-width: 120px !important; max-width: 120px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-amount { width: 110px !important; min-width: 110px !important; max-width: 110px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-payment { width: 150px !important; min-width: 150px !important; max-width: 150px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-paid { width: 78px !important; min-width: 78px !important; max-width: 78px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-status { width: 155px !important; min-width: 155px !important; max-width: 155px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-packedby { width: 170px !important; min-width: 170px !important; max-width: 170px !important; }
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .col-text { width: auto !important; min-width: 260px !important; max-width: none !important; }
 body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > .add-column-cell { width: 24px !important; min-width: 24px !important; max-width: 24px !important; }
 
 body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-col-header-row > td,
