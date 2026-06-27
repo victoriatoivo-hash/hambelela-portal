@@ -16246,7 +16246,11 @@ body:has(.ob-wrap) .workspace.ob-wrap {
 }
 
 .ob-wrap .ops-board-table tbody tr.ob-group-header.is-open .ob-group-task-count {
-  display: none !important;
+  display: inline !important;
+  margin: 0 !important;
+  color: #676879 !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
 }
 
 .ob-wrap .ops-board-table tbody tr.ob-group-header.is-open .ob-chevron {
@@ -16372,6 +16376,58 @@ body:has(.ob-wrap) .workspace.ob-wrap {
 .ob-wrap .ops-board-table tbody tr.ob-group-header:not(.is-open) .ob-paid-fraction {
   font-size: 14px !important;
   font-weight: 500 !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-footer > td {
+  height: 40px !important;
+  max-height: 40px !important;
+  padding: 0 10px !important;
+  background: #fafafa !important;
+  border-top: 2px solid var(--board-line, #d0d4e4) !important;
+  border-bottom: 3px solid var(--board-line, #d0d4e4) !important;
+  border-right: 1px solid var(--board-line, #d0d4e4) !important;
+  color: #323338 !important;
+  line-height: 40px !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-footer[hidden] {
+  display: none !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-footer .ob-date-pill {
+  min-width: 136px !important;
+  height: 24px !important;
+  padding: 0 14px !important;
+  border-radius: 999px !important;
+  background: var(--ob-group-colour, #c73557) !important;
+  color: #ffffff !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-footer .ob-stacked-bar {
+  height: 18px !important;
+  max-width: 124px !important;
+  margin: 0 auto !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-footer .ob-group-sum {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  line-height: 14px !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-footer .ob-group-sum-label {
+  font-size: 10px !important;
+  line-height: 11px !important;
+  color: #676879 !important;
+}
+
+.ob-wrap .ops-board-table tbody tr.ob-group-footer .ob-paid-fraction {
+  font-size: 13px !important;
+  font-weight: 600 !important;
 }
 
 .ob-wrap .ops-board-table tbody tr.ob-col-header-row > td,

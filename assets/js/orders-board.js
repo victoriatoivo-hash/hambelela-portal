@@ -814,6 +814,22 @@
       </tr>
       ${rows}
       <tr class="add-task-row" data-group-row="${esc(key)}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}><td></td><td colspan="${12 + customColumns.length}"><button type="button" data-add-task="${esc(key)}">+ Add task</button></td></tr>
+      <tr class="ob-group-footer" data-group-footer="${esc(key)}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td class="ob-group-date-cell"><span class="ob-date-pill">${esc(groupDatePill(key))}</span></td>
+        <td></td>
+        <td class="ob-group-bar-cell">${stackedBar(modeCounts, modeColours, 'ob-mode-bar')}</td>
+        <td class="ob-group-amount-cell"><div class="ob-group-sum">${esc(money(total))}</div><div class="ob-group-sum-label">sum</div></td>
+        <td class="ob-group-bar-cell">${stackedBar(paymentCounts, paymentColours, 'ob-payment-bar')}</td>
+        <td class="ob-group-paid-cell"><span class="ob-paid-fraction">${paid}/${orders.length}</span></td>
+        <td class="ob-group-bar-cell">${stackedBar(statusCounts, statusColours, 'ob-status-bar')}</td>
+        <td></td>
+        <td></td>
+        ${customColumns.map(() => '<td></td>').join('')}
+        <td></td>
+      </tr>
     `;
   }
 
@@ -1331,7 +1347,14 @@
           expandedGroups.delete(key);
         }
         const safeKey = selectorEsc(key);
-        document.querySelectorAll(`.ob-col-header-row[data-group="${safeKey}"], tr[data-group-row="${safeKey}"]`).forEach((row, index) => {
+        const footer = document.querySelector(`.ob-group-footer[data-group-footer="${safeKey}"]`);
+        const groupRows = document.querySelectorAll(`.ob-col-header-row[data-group="${safeKey}"], tr[data-group-row="${safeKey}"]`);
+        if (!isOpen && footer) {
+          footer.hidden = true;
+          footer.style.opacity = '';
+          footer.style.transition = '';
+        }
+        groupRows.forEach((row, index) => {
           if (!isOpen) {
             row.hidden = true;
             row.style.opacity = '';
@@ -1347,6 +1370,14 @@
             row.style.transform = 'translateY(0)';
           }, Math.min(index * 15, 240));
         });
+        if (isOpen && footer) {
+          footer.hidden = false;
+          footer.style.opacity = '0';
+          footer.style.transition = 'opacity 200ms ease';
+          window.setTimeout(() => {
+            footer.style.opacity = '1';
+          }, Math.min(groupRows.length * 15 + 50, 320));
+        }
         if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
       }
 
