@@ -803,8 +803,7 @@
       <tr class="ob-col-header-row" data-group="${esc(key)}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
         <td class="ob-strip-cell col-strip"></td>
         <td class="col-checkbox"></td>
-        <td class="ob-col-th col-task">Task</td>
-        <td class="col-task-icon"></td>
+        <td class="ob-col-th col-task" colspan="2">Task</td>
         <td class="ob-col-th col-date">DATE</td>
         <td class="ob-col-th col-mobile">Mobile number</td>
         <td class="ob-col-th col-mode">Mode</td>

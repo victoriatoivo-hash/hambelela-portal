@@ -151,8 +151,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     <tr>
                         <th class="col-strip"></th>
                         <th class="check-cell col-checkbox"><input type="checkbox" data-select-all-orders aria-label="Select all visible orders"></th>
-                        <th class="col-task" data-column-key="task" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>TASK</th>
-                        <th class="comment-cell col-task-icon"></th>
+                        <th class="col-task" colspan="2" data-column-key="task" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>TASK</th>
                         <th class="col-date" data-column-key="date" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>DATE</th>
                         <th class="col-mobile" data-column-key="mobile" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>Mobile number</th>
                         <th class="col-mode" data-column-key="mode" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>Mode</th>
