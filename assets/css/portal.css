@@ -17541,3 +17541,35 @@ body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.add-task-row button {
 body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > td {
   border-top: 0 !important;
 }
+
+/* Keep the group strip static through row hover states. */
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-col-header-row > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-col-header-row:hover > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row:hover > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row.is-selected > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.add-task-row > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.add-task-row:hover > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer:hover > td.ob-strip-cell {
+  background: var(--ob-group-colour, #c73557) !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-col-header-row > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-col-header-row:hover > td.ob-strip-cell {
+  border-radius: 6px 0 0 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row:hover > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.add-task-row > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.add-task-row:hover > td.ob-strip-cell {
+  border-radius: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > td.ob-strip-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer:hover > td.ob-strip-cell {
+  border-radius: 0 0 0 6px !important;
+}
