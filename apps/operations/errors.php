@@ -534,6 +534,24 @@ include BASE_PATH . '/shared/sidebar.php';
     margin-bottom: 4px !important;
 }
 
+.error-log-page .error-metric.wide {
+    overflow: hidden !important;
+}
+
+.error-log-page .error-metric.wide span {
+    margin-bottom: 2px !important;
+    font-size: 11px !important;
+    line-height: 1.15 !important;
+    overflow-wrap: anywhere !important;
+}
+
+.error-log-page .error-metric.wide strong {
+    margin-top: 2px !important;
+    font-size: 18px !important;
+    line-height: 1.08 !important;
+    overflow-wrap: anywhere !important;
+}
+
 .error-log-page .error-filter-panel:not([open]) {
     min-height: 0 !important;
     padding: 0 !important;

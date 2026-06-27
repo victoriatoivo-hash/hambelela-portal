@@ -4589,6 +4589,27 @@ textarea {
   white-space: normal !important;
 }
 
+.error-log-page .error-metric.wide {
+  align-content: start !important;
+  overflow: hidden !important;
+}
+
+.error-log-page .error-metric.wide span {
+  max-width: 100% !important;
+  margin-bottom: 2px !important;
+  font-size: 11px !important;
+  line-height: 1.15 !important;
+  overflow-wrap: anywhere !important;
+}
+
+.error-log-page .error-metric.wide strong {
+  max-width: 100% !important;
+  margin-top: 2px !important;
+  font-size: 18px !important;
+  line-height: 1.08 !important;
+  overflow-wrap: anywhere !important;
+}
+
 .error-log-page .error-metric span,
 .error-log-page .stat-card .stat-label {
   position: relative;
