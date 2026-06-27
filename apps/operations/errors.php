@@ -573,14 +573,14 @@ include BASE_PATH . '/shared/sidebar.php';
 
 .error-log-page .error-metric.wide span {
     margin-bottom: 2px !important;
-    font-size: 11px !important;
+    font-size: 14px !important;
     line-height: 1.15 !important;
     overflow-wrap: anywhere !important;
 }
 
 .error-log-page .error-metric.wide strong {
     margin-top: 2px !important;
-    font-size: 18px !important;
+    font-size: 14px !important;
     line-height: 1.08 !important;
     overflow-wrap: anywhere !important;
 }
