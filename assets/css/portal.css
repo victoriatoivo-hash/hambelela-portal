@@ -18207,3 +18207,44 @@ body:has(.ob-wrap) {
 body:has(.ob-wrap) {
   overflow-y: scroll !important;
 }
+
+/* Inline group date edit: reveal the colour block before the date, no date-column popover. */
+body:has(.ob-wrap) .ob-wrap table.ops-board-table .ob-group-colour-selector {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 0 !important;
+  height: 18px !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  opacity: 0 !important;
+  transform: translateX(-8px) !important;
+  transition: width 160ms ease, margin 160ms ease, opacity 160ms ease, transform 160ms ease !important;
+  vertical-align: middle !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table .ob-group-colour-selector > span {
+  width: 12px !important;
+  height: 12px !important;
+  background: var(--ob-group-colour, #c73557) !important;
+  border-radius: 4px !important;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.05) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr.ob-group-header.is-date-editing .ob-group-colour-selector {
+  width: 16px !important;
+  margin-right: 6px !important;
+  opacity: 1 !important;
+  transform: translateX(0) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tr.ob-group-header.is-date-editing .ob-group-date-label {
+  outline: 1px solid #0073ea !important;
+  outline-offset: 2px !important;
+  border-radius: 3px !important;
+  background: rgba(0, 115, 234, 0.08) !important;
+}
+
+body:has(.ob-wrap) .ob-group-date-popover {
+  display: none !important;
+}

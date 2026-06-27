@@ -380,6 +380,9 @@
   function closeGroupDatePopover() {
     groupDatePopover?.remove();
     groupDatePopover = null;
+    document.querySelectorAll('.ob-group-header.is-date-editing').forEach((row) => {
+      row.classList.remove('is-date-editing');
+    });
   }
 
   function positionGroupDatePopover(popover, trigger) {
@@ -426,32 +429,14 @@
   }
 
   function openGroupDatePopover(trigger) {
-    const key = trigger.dataset.groupKey || '';
-    const orderIds = trigger.dataset.orderIds || '';
-    if (!isDateGroupKey(key) || !orderIds) return;
-
+    if (!isDateGroupKey(trigger.dataset.groupKey || '')) return;
+    const row = trigger.closest('.ob-group-header');
+    const wasEditing = row?.classList.contains('is-date-editing');
     closeGroupDatePopover();
-    const popover = document.createElement('div');
-    popover.className = 'ob-group-date-popover';
-    popover.innerHTML = `
-      <input type="date" value="${esc(key)}" data-group-date-input="${esc(key)}" data-order-ids="${esc(orderIds)}" aria-label="Change group date">
-      <div class="ob-group-date-error" data-group-date-error></div>
-    `;
-    document.body.appendChild(popover);
-    groupDatePopover = popover;
-    positionGroupDatePopover(popover, trigger);
-
-    const input = popover.querySelector('[data-group-date-input]');
-    const errorNode = popover.querySelector('[data-group-date-error]');
-    input?.focus();
-    if (typeof input?.showPicker === 'function') {
-      try {
-        input.showPicker();
-      } catch (error) {
-        // Some browsers only allow showPicker during direct user activation.
-      }
+    if (row && !wasEditing) {
+      row.classList.add('is-date-editing');
+      trigger.focus({ preventScroll: true });
     }
-    input?.addEventListener('change', () => saveGroupDateChange(input, errorNode));
   }
 
   function groupCountText(count) {
@@ -920,6 +905,7 @@
           <button type="button" data-collapse-group="${esc(key)}" aria-expanded="${isOpen ? 'true' : 'false'}">
             <span class="ob-chevron" aria-hidden="true">&rsaquo;</span>
             <span class="board-group-copy">
+              <span class="ob-group-colour-selector" aria-hidden="true"><span></span></span>
               <strong class="ob-group-date-label"${editableDateAttrs}>${esc(groupLabel(key))}</strong>
               <small class="ob-group-task-count">${esc(groupCountText(orders.length))}</small>
             </span>
@@ -1536,7 +1522,7 @@
   document.addEventListener('click', (event) => {
     if (!event.target.closest('#board-label-menu') && !event.target.closest('[data-label-field]')) closeLabelMenu();
     if (!event.target.closest('#toolbar-popover') && !event.target.closest('[data-toolbar]')) closeToolbar();
-    if (groupDatePopover && !event.target.closest('.ob-group-date-popover') && !event.target.closest('[data-edit-group-date]')) {
+    if (!event.target.closest('.ob-group-header.is-date-editing') && !event.target.closest('[data-edit-group-date]')) {
       closeGroupDatePopover();
     }
   });
