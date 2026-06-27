@@ -258,6 +258,178 @@ function cor_inventory_row_from_store_product(array $product, ?array $variation 
     ];
 }
 
+function cor_wp_config_path(): ?string
+{
+    $candidates = array_unique(array_filter([
+        BASE_PATH . '/../public_html/wp-config.php',
+        dirname(BASE_PATH) . '/public_html/wp-config.php',
+        dirname(BASE_PATH, 2) . '/public_html/wp-config.php',
+        '/home/hambele1/public_html/wp-config.php',
+        ($_SERVER['DOCUMENT_ROOT'] ?? '') . '/wp-config.php',
+    ]));
+
+    foreach ($candidates as $path) {
+        $real = realpath($path);
+        if ($real && is_file($real) && is_readable($real)) {
+            return $real;
+        }
+    }
+
+    return null;
+}
+
+function cor_wp_config_define(string $config, string $name): string
+{
+    if (preg_match("/define\\(\\s*['\"]" . preg_quote($name, '/') . "['\"]\\s*,\\s*['\"]([^'\"]*)['\"]\\s*\\)/", $config, $matches)) {
+        return $matches[1];
+    }
+
+    return '';
+}
+
+function cor_wp_connection(): ?array
+{
+    static $connection = null;
+    static $checked = false;
+    if ($checked) {
+        return $connection;
+    }
+    $checked = true;
+
+    $path = cor_wp_config_path();
+    if (!$path) {
+        return null;
+    }
+
+    $config = (string) @file_get_contents($path);
+    $dbName = cor_wp_config_define($config, 'DB_NAME');
+    $dbUser = cor_wp_config_define($config, 'DB_USER');
+    $dbPass = cor_wp_config_define($config, 'DB_PASSWORD');
+    $dbHost = cor_wp_config_define($config, 'DB_HOST') ?: 'localhost';
+    $charset = cor_wp_config_define($config, 'DB_CHARSET') ?: 'utf8mb4';
+    $prefix = 'wp_';
+    if (preg_match('/\\$table_prefix\\s*=\\s*[\'"]([^\'"]+)[\'"]\\s*;/', $config, $matches)) {
+        $prefix = $matches[1];
+    }
+
+    if ($dbName === '' || $dbUser === '') {
+        return null;
+    }
+
+    try {
+        $pdo = new PDO(
+            "mysql:host={$dbHost};dbname={$dbName};charset={$charset}",
+            $dbUser,
+            $dbPass,
+            [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            ]
+        );
+        $connection = ['pdo' => $pdo, 'prefix' => preg_replace('/[^a-zA-Z0-9_]/', '', $prefix) ?: 'wp_'];
+    } catch (Throwable $e) {
+        $connection = null;
+    }
+
+    return $connection;
+}
+
+function cor_inventory_rows_from_wp_db(): array
+{
+    $connection = cor_wp_connection();
+    if (!$connection) {
+        return [];
+    }
+
+    /** @var PDO $pdo */
+    $pdo = $connection['pdo'];
+    $prefix = $connection['prefix'];
+    $posts = $prefix . 'posts';
+    $postmeta = $prefix . 'postmeta';
+    $termRelationships = $prefix . 'term_relationships';
+    $termTaxonomy = $prefix . 'term_taxonomy';
+    $terms = $prefix . 'terms';
+
+    $sql = "
+        SELECT
+            p.ID,
+            p.post_title AS product_name,
+            p.post_parent,
+            p.post_type,
+            parent.post_title AS parent_name,
+            MAX(CASE WHEN pm.meta_key = '_sku' THEN pm.meta_value END) AS sku,
+            MAX(CASE WHEN pm.meta_key = '_regular_price' THEN pm.meta_value END) AS regular_price,
+            MAX(CASE WHEN pm.meta_key = '_price' THEN pm.meta_value END) AS price,
+            MAX(CASE WHEN pm.meta_key = '_stock' THEN pm.meta_value END) AS qty,
+            MAX(CASE WHEN pm.meta_key = '_stock_status' THEN pm.meta_value END) AS stock_status,
+            MAX(CASE WHEN pm.meta_key = '_wc_cog_cost' THEN pm.meta_value END) AS cost,
+            MAX(CASE WHEN pm.meta_key = '_low_stock_amount' THEN pm.meta_value END) AS low_stock_threshold,
+            GROUP_CONCAT(DISTINCT t.name ORDER BY t.name SEPARATOR ', ') AS categories
+        FROM {$posts} p
+        LEFT JOIN {$posts} parent ON parent.ID = p.post_parent
+        LEFT JOIN {$postmeta} pm ON pm.post_id = p.ID
+        LEFT JOIN {$termRelationships} tr ON tr.object_id = CASE WHEN p.post_parent > 0 THEN p.post_parent ELSE p.ID END
+        LEFT JOIN {$termTaxonomy} tt ON tt.term_taxonomy_id = tr.term_taxonomy_id AND tt.taxonomy = 'product_cat'
+        LEFT JOIN {$terms} t ON t.term_id = tt.term_id
+        WHERE p.post_type IN ('product', 'product_variation')
+          AND p.post_status IN ('publish', 'private')
+        GROUP BY p.ID
+        ORDER BY CASE WHEN p.post_parent > 0 THEN p.post_parent ELSE p.ID END ASC, p.post_type DESC, p.post_title ASC";
+
+    try {
+        $raw = $pdo->query($sql)->fetchAll();
+    } catch (Throwable $e) {
+        return [];
+    }
+
+    $attributeStmt = $pdo->prepare("SELECT meta_value FROM {$postmeta} WHERE post_id = ? AND meta_key LIKE 'attribute_%' ORDER BY meta_id ASC LIMIT 3");
+    $rows = [];
+    foreach ($raw as $item) {
+        $qtyRaw = $item['qty'];
+        $stockStatus = (string) ($item['stock_status'] ?? '');
+        $qty = is_numeric($qtyRaw) ? (float) $qtyRaw : ($stockStatus === 'instock' ? 1.0 : 0.0);
+        $price = is_numeric($item['regular_price']) ? (float) $item['regular_price'] : (is_numeric($item['price']) ? (float) $item['price'] : 0.0);
+        $cost = is_numeric($item['cost']) ? (float) $item['cost'] : 0.0;
+        $lowThreshold = is_numeric($item['low_stock_threshold']) && (int) $item['low_stock_threshold'] > 0 ? (int) $item['low_stock_threshold'] : 5;
+        if ($stockStatus === 'outofstock' || $qty <= 0) {
+            $stockClass = 'out';
+        } elseif ($qty <= $lowThreshold) {
+            $stockClass = 'low';
+        } else {
+            $stockClass = 'in';
+        }
+
+        $variant = '';
+        if ((string) $item['post_type'] === 'product_variation') {
+            try {
+                $attributeStmt->execute([(int) $item['ID']]);
+                $variant = implode(' / ', array_filter(array_map('strval', $attributeStmt->fetchAll(PDO::FETCH_COLUMN) ?: [])));
+                $attributeStmt->closeCursor();
+            } catch (Throwable $e) {
+                $variant = '';
+            }
+        }
+
+        $rows[] = [
+            'id' => (int) $item['ID'],
+            'name' => (string) ($item['parent_name'] ?: $item['product_name'] ?: 'Product'),
+            'variant' => $variant,
+            'category' => (string) ($item['categories'] ?? ''),
+            'sku' => trim((string) ($item['sku'] ?? '')) ?: '-',
+            'price' => $price,
+            'cost' => $cost,
+            'qty' => $qty,
+            'cost_val' => $qty * $cost,
+            'retail_val' => $qty * $price,
+            'profit' => $price - $cost,
+            'stock_class' => $stockClass,
+            'low_threshold' => $lowThreshold,
+        ];
+    }
+
+    return $rows;
+}
+
 function cor_inventory_row(array $product, ?array $variation = null): array
 {
     $source = $variation ?: $product;
@@ -368,6 +540,11 @@ function cor_fetch_inventory_rows(): array
         if ($rows) {
             return $sortRows($rows);
         }
+    }
+
+    $rows = cor_inventory_rows_from_wp_db();
+    if ($rows) {
+        return $sortRows($rows);
     }
 
     for ($page = 1; $page <= 20; $page++) {
@@ -2358,6 +2535,42 @@ document.addEventListener('DOMContentLoaded', function () {
   var rangeInput = document.querySelector('[data-cor-range]');
   var tabInput = document.querySelector('[data-cor-tab-input]');
   var customDates = document.querySelector('[data-custom-dates]');
+  var syncEndpoint = '<?= cor_e(BASE_URL . '/apps/operations/orders-board-action.php') ?>';
+  var syncInFlight = false;
+
+  function shouldAvoidReload() {
+    var active = document.activeElement;
+    return !!(active && active.closest && active.closest('form'));
+  }
+
+  async function syncReportData() {
+    if (syncInFlight || document.visibilityState === 'hidden') return;
+    syncInFlight = true;
+    try {
+      var body = new FormData();
+      body.append('action', 'sync');
+      body.append('force', '0');
+      var response = await fetch(syncEndpoint, {
+        method: 'POST',
+        body: body,
+        credentials: 'same-origin',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      });
+      var data = await response.json().catch(function () { return null; });
+      var result = data && data.ok ? (data.result || {}) : {};
+      var changed = Number(result.imported || 0) + Number(result.updated || 0);
+      if (changed > 0 && !shouldAvoidReload()) {
+        window.location.reload();
+      }
+    } catch (error) {
+      // Keep the report usable if a background sync attempt fails.
+    } finally {
+      syncInFlight = false;
+    }
+  }
+
+  syncReportData();
+  window.setInterval(syncReportData, 60000);
 
   document.querySelectorAll('[data-range]').forEach(function (button) {
     button.addEventListener('click', function () {
