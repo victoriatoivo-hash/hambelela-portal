@@ -17498,3 +17498,11 @@ body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer .ob-p
   height: 34px !important;
   line-height: 1 !important;
 }
+
+/* Keep the rendered table on the same fixed column template used by the colgroup. */
+body:has(.ob-wrap) .ob-wrap table.ops-board-table {
+  width: 1096px !important;
+  min-width: 1096px !important;
+  max-width: 1096px !important;
+  table-layout: fixed !important;
+}
