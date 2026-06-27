@@ -17720,6 +17720,13 @@ body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.paid
   outline: 0 !important;
 }
 
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-paid:not(.unpaid),
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-paid.unpaid,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.paid-cell:not(.unpaid),
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.paid-cell.unpaid {
+  background: #fff !important;
+}
+
 body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-paid > .paid-toggle,
 body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.paid-cell > .paid-toggle {
   align-items: center !important;
