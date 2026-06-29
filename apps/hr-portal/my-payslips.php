@@ -1,11 +1,11 @@
 <?php
 require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/includes/medical-aid.php';
+require_once __DIR__ . '/includes/social-security.php';
 requireLogin();
 $user = currentUser();
 if ($user['role'] !== 'employee') { header('Location: ' . SITE_URL . '/dashboard.php'); exit; }
 $db    = db();
-ensureMedicalAidSchema($db);
+ensureSocialSecuritySchema($db);
 $empId = (int)($user['emp_id'] ?? 0);
 
 $payslips = $db->prepare("SELECT ps.*, r.period_label, r.period_month, r.period_year, r.id as run_id FROM payslips ps JOIN payroll_runs r ON r.id=ps.run_id WHERE ps.employee_id=? ORDER BY r.period_year DESC, r.period_month DESC");

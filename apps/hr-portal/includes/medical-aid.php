@@ -1,7 +1,6 @@
 <?php
 
 function ensureMedicalAidSchema(PDO $db): void {
-    hrAddColumnIfMissing($db, 'employees', 'social_security_number', "VARCHAR(50) NULL");
     hrAddColumnIfMissing($db, 'employees', 'medical_aid_fund', "VARCHAR(120) NOT NULL DEFAULT 'Khomas Loyalty Fund'");
     hrAddColumnIfMissing($db, 'employees', 'medical_aid_active', "TINYINT(1) NOT NULL DEFAULT 0");
     hrAddColumnIfMissing($db, 'employees', 'medical_aid_total', "DECIMAL(10,2) NOT NULL DEFAULT 275.00");

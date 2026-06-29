@@ -36,9 +36,11 @@ require_once __DIR__ . '/config.php';
 requireAdmin();
 require_once __DIR__ . '/includes/email.php';
 require_once __DIR__ . '/includes/medical-aid.php';
+require_once __DIR__ . '/includes/social-security.php';
 $user = currentUser();
 $db   = db();
 ensureMedicalAidSchema($db);
+ensureSocialSecuritySchema($db);
 
 // ── Get company settings ──────────────────────────────────────
 function getSetting($key, $default='') {
