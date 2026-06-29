@@ -526,10 +526,10 @@ function cor_fetch_inventory_result(): array
     }
 
     try {
-        for ($page = 1; $page <= 20; $page++) {
+        for ($page = 1; $page <= 4; $page++) {
             $products = wc_get('products', [
                 'status' => 'publish',
-                'per_page' => 100,
+                'per_page' => 50,
                 'page' => $page,
             ]);
             $logs[] = ['endpoint' => 'products', 'page' => $page, 'count' => count($products)];
@@ -542,10 +542,10 @@ function cor_fetch_inventory_result(): array
                     continue;
                 }
                 if (($product['type'] ?? '') === 'variable' && !empty($product['variations'])) {
-                    for ($vPage = 1; $vPage <= 10; $vPage++) {
+                    for ($vPage = 1; $vPage <= 2; $vPage++) {
                         try {
                             $variations = wc_get('products/' . (int) $product['id'] . '/variations', [
-                                'per_page' => 100,
+                                'per_page' => 50,
                                 'page' => $vPage,
                             ]);
                             $logs[] = [
@@ -570,15 +570,21 @@ function cor_fetch_inventory_result(): array
                                 $rows[] = cor_inventory_row($product, $variation);
                             }
                         }
-                        if (count($variations) < 100) {
+                        if (count($variations) < 50) {
                             break;
+                        }
+                        if (count($rows) >= 300) {
+                            break 2;
                         }
                     }
                     continue;
                 }
                 $rows[] = cor_inventory_row($product);
+                if (count($rows) >= 300) {
+                    break 2;
+                }
             }
-            if (count($products) < 100) {
+            if (count($products) < 50) {
                 break;
             }
         }
