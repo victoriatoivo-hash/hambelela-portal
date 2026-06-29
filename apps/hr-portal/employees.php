@@ -293,6 +293,9 @@ $colors = ['#40916C','#6D28D9','#0F766E','#D97706','#1D4ED8','#DC2626','#0369A1'
           <div class="form-group"><label class="form-label">Phone Number</label><input class="form-input" name="phone" id="f_phone"></div>
           <div class="form-group"><label class="form-label">ID Number</label><input class="form-input" name="id_number" id="f_id_number"></div>
           <div class="form-group"><label class="form-label">Employee Number</label><input class="form-input" name="emp_number" id="f_emp_number" placeholder="Auto-generated if blank"></div>
+          <?php if ($hasSocialSecurity): ?>
+          <div class="form-group"><label class="form-label">Social Security Number</label><input class="form-input" name="social_security_number" id="f_social_security_number"></div>
+          <?php endif ?>
 
           <div class="section-divider">Employment Details</div>
           <div class="form-group"><label class="form-label">Job Title</label><input class="form-input" name="job_title" id="f_job_title"></div>
@@ -316,10 +319,6 @@ $colors = ['#40916C','#6D28D9','#0F766E','#D97706','#1D4ED8','#DC2626','#0369A1'
           <div class="form-group"><label class="form-label">Bank Name</label><input class="form-input" name="bank_name" id="f_bank_name" placeholder="e.g. FNB Namibia"></div>
           <div class="form-group"><label class="form-label">Account Number</label><input class="form-input" name="bank_account" id="f_bank_account"></div>
           <div class="form-group"><label class="form-label">Tax Number</label><input class="form-input" name="tax_number" id="f_tax_number"></div>
-          <?php if ($hasSocialSecurity): ?>
-          <div class="section-divider">Social Security</div>
-          <div class="form-group"><label class="form-label">Social Security Number</label><input class="form-input" name="social_security_number" id="f_social_security_number"></div>
-          <?php endif ?>
 
           <div class="section-divider">Emergency Contact</div>
           <div class="form-group"><label class="form-label">Contact Name</label><input class="form-input" name="emergency_name" id="f_emergency_name"></div>
