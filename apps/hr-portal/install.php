@@ -193,6 +193,20 @@ $tables_sql = [
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
 
+'medical_aid_employee_payments' => "CREATE TABLE IF NOT EXISTS `medical_aid_employee_payments` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `employee_id` INT UNSIGNED NOT NULL,
+  `period_month` TINYINT NOT NULL,
+  `period_year` INT NOT NULL,
+  `paid_status` TINYINT(1) NOT NULL DEFAULT 0,
+  `paid_date` DATE NULL,
+  `payment_reference` VARCHAR(190) NULL,
+  `notes` TEXT NULL,
+  `paid_by` INT UNSIGNED NULL,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `employee_month_year` (`employee_id`,`period_month`,`period_year`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+
 'documents' => "CREATE TABLE IF NOT EXISTS `documents` (
   `id`            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `employee_id`   INT UNSIGNED NULL,

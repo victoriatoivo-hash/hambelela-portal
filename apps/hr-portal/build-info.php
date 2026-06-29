@@ -1,3 +1,3 @@
 <?php
-const HR_PORTAL_BUILD_COMMIT = 'e981abd';
-const HR_PORTAL_BUILD_DATE = '2026-06-29 12:05 Africa/Windhoek';
+const HR_PORTAL_BUILD_COMMIT = 'medaid1';
+const HR_PORTAL_BUILD_DATE = '2026-06-29 12:35 Africa/Windhoek';

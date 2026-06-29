@@ -40,6 +40,7 @@ function navItem($href, $icon, $label, $badge=0, $current='') {
     <?= navItem('leave-calendar.php','fa-solid fa-calendar-days','Leave Calendar',0,$currentPage) ?>
     <?= navItem('overtime.php','fa-regular fa-clock','Overtime',(int)$pendingOT,$currentPage) ?>
     <?= navItem('payroll.php','fa-solid fa-money-bill-wave','Payroll & Payslips',0,$currentPage) ?>
+    <?= navItem('medical-aid.php','fa-solid fa-kit-medical','Medical Aid',0,$currentPage) ?>
     <?= navItem('documents.php','fa-solid fa-folder-open','Documents',0,$currentPage) ?>
     <?= navItem('policies.php','fa-solid fa-file-shield','Company Policies',0,$currentPage) ?>
     <?= navItem('loans.php','fa-solid fa-hand-holding-dollar','Loans',0,$currentPage) ?>

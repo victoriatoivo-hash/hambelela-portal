@@ -578,6 +578,7 @@ if (isset($_GET['payslip'])) {
       <div class="card" style="margin-bottom:20px">
         <div class="card-header">
           <div class="card-title"><i class="fa-solid fa-kit-medical" style="color:var(--green)"></i> Medical Aid Summary</div>
+          <a class="btn btn-secondary btn-sm" href="medical-aid.php?month=<?=$currentRun['period_month']?>&year=<?=$currentRun['period_year']?>"><i class="fa-solid fa-arrow-up-right-from-square"></i> Manage Monthly Payments</a>
         </div>
         <div class="grid-4" style="margin-bottom:16px">
           <div><div style="font-size:11px;text-transform:uppercase;color:var(--text-mid);font-weight:800">Active Employees</div><div style="font-size:22px;font-weight:800"><?=$runTotals['medical_active']?></div></div>

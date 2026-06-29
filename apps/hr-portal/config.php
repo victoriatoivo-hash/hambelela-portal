@@ -218,6 +218,19 @@ function hrEnsureMedicalAidSchemaSafe(PDO $db): bool {
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             UNIQUE KEY month_year (period_month, period_year)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        $db->exec("CREATE TABLE IF NOT EXISTS medical_aid_employee_payments (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            employee_id INT UNSIGNED NOT NULL,
+            period_month TINYINT NOT NULL,
+            period_year INT NOT NULL,
+            paid_status TINYINT(1) NOT NULL DEFAULT 0,
+            paid_date DATE NULL,
+            payment_reference VARCHAR(190) NULL,
+            notes TEXT NULL,
+            paid_by INT UNSIGNED NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY employee_month_year (employee_id, period_month, period_year)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     } catch (Throwable $e) {
         $ok = false;
     }
@@ -278,12 +291,53 @@ function hrMedicalAidMap(PDO $db): array {
     return $map;
 }
 
+function hrMedicalAidPaymentMap(PDO $db, int $month, int $year): array {
+    $map = [];
+    if (!hrTableExists($db, 'medical_aid_employee_payments')) {
+        return $map;
+    }
+    try {
+        $stmt = $db->prepare("SELECT * FROM medical_aid_employee_payments WHERE period_month=? AND period_year=?");
+        $stmt->execute([$month, $year]);
+        foreach ($stmt->fetchAll() as $row) {
+            $map[(int)$row['employee_id']] = $row;
+        }
+    } catch (Throwable $e) {}
+    return $map;
+}
+
+function hrSaveMedicalAidEmployeePayment(PDO $db, int $employeeId, int $month, int $year, array $data, int $userId): bool {
+    if ($employeeId <= 0 || !hrTableExists($db, 'medical_aid_employee_payments')) {
+        return false;
+    }
+    $paid = !empty($data['paid_status']) ? 1 : 0;
+    $paidDate = trim((string)($data['paid_date'] ?? ''));
+    $paidDate = $paidDate !== '' ? $paidDate : null;
+    $reference = clean($data['payment_reference'] ?? '');
+    $notes = clean($data['notes'] ?? '');
+    try {
+        $stmt = $db->prepare("INSERT INTO medical_aid_employee_payments
+            (employee_id,period_month,period_year,paid_status,paid_date,payment_reference,notes,paid_by)
+            VALUES (?,?,?,?,?,?,?,?)
+            ON DUPLICATE KEY UPDATE
+              paid_status=VALUES(paid_status),
+              paid_date=VALUES(paid_date),
+              payment_reference=VALUES(payment_reference),
+              notes=VALUES(notes),
+              paid_by=VALUES(paid_by)");
+        $stmt->execute([$employeeId, $month, $year, $paid, $paidDate, $reference, $notes, $userId ?: null]);
+        return true;
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
 function hrApplyMedicalAidToEmployee(array $employee, array $medicalAidMap = []): array {
     $defaults = hrMedicalAidDefaults();
     $id = (int)($employee['id'] ?? 0);
     $fallback = $medicalAidMap[$id] ?? [];
     foreach (['medical_aid_fund','medical_aid_active','medical_aid_total','medical_aid_company','medical_aid_employee'] as $column) {
-        if (!array_key_exists($column, $employee) && array_key_exists($column, $fallback)) {
+        if (array_key_exists($column, $fallback) && $fallback[$column] !== null && $fallback[$column] !== '') {
             $employee[$column] = $fallback[$column];
         }
     }
