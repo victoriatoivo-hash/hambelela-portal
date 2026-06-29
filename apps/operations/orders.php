@@ -3078,6 +3078,10 @@ document.addEventListener('DOMContentLoaded', function () {
       if (event.target && event.target.matches('[data-inv-cost]')) {
         event.target.classList.remove('is-saved', 'is-error');
         invRecalculateVisibleTotals();
+        clearTimeout(event.target._invCostTimer);
+        event.target._invCostTimer = setTimeout(function () {
+          invSaveCostInput(event.target);
+        }, 900);
       }
     });
 
