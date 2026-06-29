@@ -82,6 +82,11 @@ CREATE TABLE IF NOT EXISTS `employees` (
   `status`            ENUM('active','inactive','terminated') DEFAULT 'active',
   `avatar_initials`   VARCHAR(4),
   `avatar_color`      VARCHAR(12) DEFAULT '#40916C',
+  `medical_aid_fund`     VARCHAR(120) NOT NULL DEFAULT 'Khomas Loyalty Fund',
+  `medical_aid_active`   TINYINT(1) NOT NULL DEFAULT 0,
+  `medical_aid_total`    DECIMAL(10,2) NOT NULL DEFAULT 275.00,
+  `medical_aid_company`  DECIMAL(10,2) NOT NULL DEFAULT 110.00,
+  `medical_aid_employee` DECIMAL(10,2) NOT NULL DEFAULT 165.00,
   `notes`             TEXT,
   `created_at`        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at`        TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -173,6 +178,10 @@ CREATE TABLE IF NOT EXISTS `payslips` (
   `paye`            DECIMAL(10,2) DEFAULT 0.00,
   `ssf`             DECIMAL(10,2) DEFAULT 0.00,
   `other_deductions`DECIMAL(10,2) DEFAULT 0.00,
+  `medical_aid_fund`     VARCHAR(120) NULL,
+  `medical_aid_total`    DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `medical_aid_company`  DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `medical_aid_employee` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   `net_salary`      DECIMAL(10,2) NOT NULL,
   `pdf_path`        VARCHAR(255) NULL,
   `created_at`      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -181,6 +190,22 @@ CREATE TABLE IF NOT EXISTS `payslips` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ── Documents ────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS `medical_aid_payments` (
+  `id`                    INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `period_month`          TINYINT NOT NULL,
+  `period_year`           YEAR NOT NULL,
+  `active_employee_count` INT UNSIGNED NOT NULL DEFAULT 0,
+  `total_payable`         DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `company_contribution`  DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `employee_contribution` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `paid_status`           TINYINT(1) NOT NULL DEFAULT 0,
+  `paid_date`             DATETIME NULL,
+  `paid_by`               INT UNSIGNED NULL,
+  `notes_reference`       TEXT NULL,
+  `updated_at`            TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `month_year` (`period_month`, `period_year`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS `documents` (
   `id`            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `employee_id`   INT UNSIGNED NULL,
