@@ -1250,6 +1250,17 @@ if ($ready) {
          ORDER BY rev DESC",
         $params
     );
+    if ($summary['total_revenue'] <= 0 && $paymentRows) {
+        $summary['total_revenue'] = array_reduce($paymentRows, static fn(float $carry, array $row): float => $carry + (float) $row['rev'], 0.0);
+        $summary['total_orders'] = array_reduce($paymentRows, static fn(int $carry, array $row): int => $carry + (int) $row['cnt'], 0);
+        $summary['aov'] = $summary['total_orders'] > 0 ? $summary['total_revenue'] / $summary['total_orders'] : 0.0;
+        $summary['tax_collected'] = $summary['total_revenue'] * (0.15 / 1.15);
+        cor_report_log('Customer Orders Report summary fell back to payment rows', [
+            'orders_returned' => $summary['total_orders'],
+            'total_revenue' => $summary['total_revenue'],
+            'payment_methods_returned' => count($paymentRows),
+        ]);
+    }
     $modeRows = cor_query_rows(
         "SELECT COALESCE(NULLIF(order_type, ''), 'collection') AS label, COUNT(*) AS cnt, COALESCE(SUM(total_amount), 0) AS rev
          FROM ops_orders o
