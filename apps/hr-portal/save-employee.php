@@ -50,15 +50,19 @@ if ($hasMedicalAidColumns) {
         $medicalAidCompany = $medicalAidCompany > 0 ? $medicalAidCompany : (float)$medicalAidDefaults['company'];
         $medicalAidEmployee = $medicalAidEmployee > 0 ? $medicalAidEmployee : (float)$medicalAidDefaults['employee'];
     }
+    $medicalAidStartDate = clean($_POST['medical_aid_start_date'] ?? $medicalAidDefaults['start_date']);
+    if ($medicalAidStartDate === '') $medicalAidStartDate = $medicalAidDefaults['start_date'];
     $_POST['medical_aid_total'] = (string)$medicalAidTotal;
     $_POST['medical_aid_company'] = (string)$medicalAidCompany;
     $_POST['medical_aid_employee'] = (string)$medicalAidEmployee;
+    $_POST['medical_aid_start_date'] = $medicalAidStartDate;
 
     $fields['medical_aid_active'] = $medicalAidActive;
     $fields['medical_aid_fund'] = clean($_POST['medical_aid_fund'] ?? $medicalAidDefaults['fund']);
     $fields['medical_aid_total'] = $medicalAidTotal;
     $fields['medical_aid_company'] = $medicalAidCompany;
     $fields['medical_aid_employee'] = $medicalAidEmployee;
+    $fields['medical_aid_start_date'] = $medicalAidStartDate;
 }
 
 if (!$fields['first_name'] || !$fields['last_name']) {
@@ -72,7 +76,7 @@ if (!$fields['emp_number']) {
 
 if ($emp_id > 0) {
     $socialSql = $hasSocialSecurity ? "social_security_number=:social_security_number, " : "";
-    $medicalSql = $hasMedicalAidColumns ? "medical_aid_active=:medical_aid_active, medical_aid_fund=:medical_aid_fund, medical_aid_total=:medical_aid_total, medical_aid_company=:medical_aid_company, medical_aid_employee=:medical_aid_employee, " : "";
+    $medicalSql = $hasMedicalAidColumns ? "medical_aid_active=:medical_aid_active, medical_aid_fund=:medical_aid_fund, medical_aid_total=:medical_aid_total, medical_aid_company=:medical_aid_company, medical_aid_employee=:medical_aid_employee, medical_aid_start_date=:medical_aid_start_date, " : "";
     $sql = "UPDATE employees SET
         first_name=:first_name, last_name=:last_name, email=:email, phone=:phone,
         id_number=:id_number, emp_number=:emp_number, job_title=:job_title,

@@ -177,6 +177,7 @@ function hrMedicalAidDefaults(): array {
         'total' => 275.00,
         'company' => 110.00,
         'employee' => 165.00,
+        'start_date' => '2026-06-30',
     ];
 }
 
@@ -187,6 +188,7 @@ function hrEnsureMedicalAidSchemaSafe(PDO $db): bool {
     $ok = hrAddColumnSafe($db, 'employees', 'medical_aid_total', "DECIMAL(10,2) NOT NULL DEFAULT 275.00") && $ok;
     $ok = hrAddColumnSafe($db, 'employees', 'medical_aid_company', "DECIMAL(10,2) NOT NULL DEFAULT 110.00") && $ok;
     $ok = hrAddColumnSafe($db, 'employees', 'medical_aid_employee', "DECIMAL(10,2) NOT NULL DEFAULT 165.00") && $ok;
+    $ok = hrAddColumnSafe($db, 'employees', 'medical_aid_start_date', "DATE NULL") && $ok;
 
     $ok = hrAddColumnSafe($db, 'payslips', 'medical_aid_fund', "VARCHAR(120) NULL") && $ok;
     $ok = hrAddColumnSafe($db, 'payslips', 'medical_aid_total', "DECIMAL(10,2) NOT NULL DEFAULT 0.00") && $ok;
@@ -201,8 +203,10 @@ function hrEnsureMedicalAidSchemaSafe(PDO $db): bool {
             medical_aid_total DECIMAL(10,2) NOT NULL DEFAULT 275.00,
             medical_aid_company DECIMAL(10,2) NOT NULL DEFAULT 110.00,
             medical_aid_employee DECIMAL(10,2) NOT NULL DEFAULT 165.00,
+            medical_aid_start_date DATE NULL,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        hrAddColumnSafe($db, 'medical_aid_memberships', 'medical_aid_start_date', "DATE NULL");
         $db->exec("CREATE TABLE IF NOT EXISTS medical_aid_payments (
             id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
             period_month TINYINT NOT NULL,
@@ -238,7 +242,7 @@ function hrEnsureMedicalAidSchemaSafe(PDO $db): bool {
 }
 
 function hrHasMedicalAidSchema(PDO $db): bool {
-    foreach (['medical_aid_fund','medical_aid_active','medical_aid_total','medical_aid_company','medical_aid_employee'] as $column) {
+    foreach (['medical_aid_fund','medical_aid_active','medical_aid_total','medical_aid_company','medical_aid_employee','medical_aid_start_date'] as $column) {
         if (!hrColumnExists($db, 'employees', $column)) return false;
     }
     foreach (['medical_aid_fund','medical_aid_total','medical_aid_company','medical_aid_employee'] as $column) {
@@ -248,7 +252,7 @@ function hrHasMedicalAidSchema(PDO $db): bool {
 }
 
 function hrHasEmployeeMedicalAidColumns(PDO $db): bool {
-    foreach (['medical_aid_fund','medical_aid_active','medical_aid_total','medical_aid_company','medical_aid_employee'] as $column) {
+    foreach (['medical_aid_fund','medical_aid_active','medical_aid_total','medical_aid_company','medical_aid_employee','medical_aid_start_date'] as $column) {
         if (!hrColumnExists($db, 'employees', $column)) return false;
     }
     return true;
@@ -359,7 +363,27 @@ function hrApplyMedicalAidToEmployee(array $employee, array $medicalAidMap = [])
         }
         $employee[$column] = $value > 0 ? $value : (float)$default;
     }
+    $startDate = trim((string)($employee['medical_aid_start_date'] ?? ''));
+    if ($startDate === '') {
+        $startDate = trim((string)($fallback['medical_aid_start_date'] ?? ''));
+    }
+    $employee['medical_aid_start_date'] = $startDate !== '' ? $startDate : $defaults['start_date'];
     return $employee;
+}
+
+function hrMedicalAidEffectiveForPeriod(array $profile, int $month, int $year): bool {
+    if (empty($profile['medical_aid_active'])) {
+        return false;
+    }
+    $defaults = hrMedicalAidDefaults();
+    $startDate = trim((string)($profile['medical_aid_start_date'] ?? $defaults['start_date']));
+    $startTs = strtotime($startDate !== '' ? $startDate : $defaults['start_date']);
+    if (!$startTs) {
+        $startTs = strtotime($defaults['start_date']);
+    }
+    $startPeriod = ((int)date('Y', $startTs) * 12) + (int)date('n', $startTs);
+    $payrollPeriod = ($year * 12) + $month;
+    return $payrollPeriod >= $startPeriod;
 }
 
 function hrSaveMedicalAidMembership(PDO $db, int $employeeId, array $data): void {
@@ -377,12 +401,14 @@ function hrSaveMedicalAidMembership(PDO $db, int $employeeId, array $data): void
         $company = $company > 0 ? $company : (float)$defaults['company'];
         $employee = $employee > 0 ? $employee : (float)$defaults['employee'];
     }
+    $startDate = trim((string)($data['medical_aid_start_date'] ?? $defaults['start_date']));
+    if ($startDate === '') $startDate = $defaults['start_date'];
     if (hrTableExists($db, 'medical_aid_memberships')) {
         try {
-            $stmt = $db->prepare("INSERT INTO medical_aid_memberships (employee_id,medical_aid_fund,medical_aid_active,medical_aid_total,medical_aid_company,medical_aid_employee)
-                VALUES (?,?,?,?,?,?)
-                ON DUPLICATE KEY UPDATE medical_aid_fund=VALUES(medical_aid_fund), medical_aid_active=VALUES(medical_aid_active), medical_aid_total=VALUES(medical_aid_total), medical_aid_company=VALUES(medical_aid_company), medical_aid_employee=VALUES(medical_aid_employee)");
-            $stmt->execute([$employeeId, $fund, $active, $total, $company, $employee]);
+            $stmt = $db->prepare("INSERT INTO medical_aid_memberships (employee_id,medical_aid_fund,medical_aid_active,medical_aid_total,medical_aid_company,medical_aid_employee,medical_aid_start_date)
+                VALUES (?,?,?,?,?,?,?)
+                ON DUPLICATE KEY UPDATE medical_aid_fund=VALUES(medical_aid_fund), medical_aid_active=VALUES(medical_aid_active), medical_aid_total=VALUES(medical_aid_total), medical_aid_company=VALUES(medical_aid_company), medical_aid_employee=VALUES(medical_aid_employee), medical_aid_start_date=VALUES(medical_aid_start_date)");
+            $stmt->execute([$employeeId, $fund, $active, $total, $company, $employee, $startDate]);
             return;
         } catch (Throwable $e) {}
     }
@@ -394,6 +420,7 @@ function hrSaveMedicalAidMembership(PDO $db, int $employeeId, array $data): void
             'medical_aid_total' => $total,
             'medical_aid_company' => $company,
             'medical_aid_employee' => $employee,
+            'medical_aid_start_date' => $startDate,
         ]);
         $key = 'employee_medical_aid_' . $employeeId;
         $db->prepare("INSERT INTO settings (setting_key,setting_val) VALUES (?,?) ON DUPLICATE KEY UPDATE setting_val=?")

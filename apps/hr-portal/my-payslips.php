@@ -20,15 +20,21 @@ $payslips->execute([$empId]); $payslips = $payslips->fetchAll();
 // View single payslip
 $viewPayslip = null;
 if (isset($_GET['id'])) {
-    $viewPayslip = $db->prepare("SELECT ps.*, $medicalAidSelect, CONCAT(e.first_name,' ',e.last_name) as emp_name, e.emp_number, e.bank_name, e.bank_account, e.tax_number, $socialSecuritySelect, e.job_title, e.department, e.id_number, e.basic_salary as contract_salary FROM payslips ps JOIN employees e ON e.id=ps.employee_id JOIN payroll_runs r ON r.id=ps.run_id WHERE ps.id=? AND ps.employee_id=?");
+    $viewPayslip = $db->prepare("SELECT ps.*, $medicalAidSelect, r.period_month AS ps_period_month, r.period_year AS ps_period_year, CONCAT(e.first_name,' ',e.last_name) as emp_name, e.emp_number, e.bank_name, e.bank_account, e.tax_number, $socialSecuritySelect, e.job_title, e.department, e.id_number, e.basic_salary as contract_salary FROM payslips ps JOIN employees e ON e.id=ps.employee_id JOIN payroll_runs r ON r.id=ps.run_id WHERE ps.id=? AND ps.employee_id=?");
     $viewPayslip->execute([(int)$_GET['id'], $empId]); $viewPayslip = $viewPayslip->fetch();
-    if ($viewPayslip && (float)($viewPayslip['medical_aid_total'] ?? 0) <= 0) {
+    if ($viewPayslip) {
         $medicalProfile = hrApplyMedicalAidToEmployee(['id' => (int)$viewPayslip['employee_id']], $medicalAidProfiles);
-        if (!empty($medicalProfile['medical_aid_active'])) {
+        $medicalApplies = hrMedicalAidEffectiveForPeriod($medicalProfile, (int)$viewPayslip['ps_period_month'], (int)$viewPayslip['ps_period_year']);
+        if ($medicalApplies && (float)($viewPayslip['medical_aid_total'] ?? 0) <= 0) {
             $viewPayslip['medical_aid_fund'] = $medicalProfile['medical_aid_fund'];
             $viewPayslip['medical_aid_total'] = $medicalProfile['medical_aid_total'];
             $viewPayslip['medical_aid_company'] = $medicalProfile['medical_aid_company'];
             $viewPayslip['medical_aid_employee'] = $medicalProfile['medical_aid_employee'];
+        }
+        if (!$medicalApplies) {
+            $viewPayslip['medical_aid_total'] = 0;
+            $viewPayslip['medical_aid_company'] = 0;
+            $viewPayslip['medical_aid_employee'] = 0;
         }
     }
 }

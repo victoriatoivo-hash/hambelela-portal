@@ -30,8 +30,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 
 $hasEmployeeMedicalAidColumns = hrHasEmployeeMedicalAidColumns($db);
 $medicalAidSelect = $hasEmployeeMedicalAidColumns
-    ? "medical_aid_fund, medical_aid_active, medical_aid_total, medical_aid_company, medical_aid_employee"
-    : "NULL AS medical_aid_fund, 0 AS medical_aid_active, 0 AS medical_aid_total, 0 AS medical_aid_company, 0 AS medical_aid_employee";
+    ? "medical_aid_fund, medical_aid_active, medical_aid_total, medical_aid_company, medical_aid_employee, medical_aid_start_date"
+    : "NULL AS medical_aid_fund, 0 AS medical_aid_active, 0 AS medical_aid_total, 0 AS medical_aid_company, 0 AS medical_aid_employee, NULL AS medical_aid_start_date";
 
 $employees = $db->query("SELECT id, emp_number, first_name, last_name, job_title, $medicalAidSelect FROM employees WHERE status='active' ORDER BY first_name, last_name")->fetchAll();
 $medicalAidMap = hrMedicalAidMap($db);
@@ -40,7 +40,7 @@ $medicalEmployees = [];
 
 foreach ($employees as $employee) {
     $employee = hrApplyMedicalAidToEmployee($employee, $medicalAidMap);
-    if (!empty($employee['medical_aid_active'])) {
+    if (hrMedicalAidEffectiveForPeriod($employee, $month, $year)) {
         $medicalEmployees[] = $employee;
     }
 }

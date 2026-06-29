@@ -64,6 +64,7 @@ $tables_sql = [
   `medical_aid_total`    DECIMAL(10,2) NOT NULL DEFAULT 275.00,
   `medical_aid_company`  DECIMAL(10,2) NOT NULL DEFAULT 110.00,
   `medical_aid_employee` DECIMAL(10,2) NOT NULL DEFAULT 165.00,
+  `medical_aid_start_date` DATE NULL,
   `address`           TEXT,
   `emergency_name`    VARCHAR(120),
   `emergency_phone`   VARCHAR(30),
@@ -190,6 +191,7 @@ $tables_sql = [
   `medical_aid_total` DECIMAL(10,2) NOT NULL DEFAULT 275.00,
   `medical_aid_company` DECIMAL(10,2) NOT NULL DEFAULT 110.00,
   `medical_aid_employee` DECIMAL(10,2) NOT NULL DEFAULT 165.00,
+  `medical_aid_start_date` DATE NULL,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
 
