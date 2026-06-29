@@ -5,6 +5,9 @@ requireAdmin();
 $db     = db();
 $emp_id = (int)($_POST['emp_id'] ?? 0);
 $hasSocialSecurity = hrColumnExists($db, 'employees', 'social_security_number');
+hrEnsureMedicalAidSchemaSafe($db);
+$hasMedicalAid = hrHasMedicalAidSchema($db);
+$medicalAidDefaults = hrMedicalAidDefaults();
 
 $fields = [
     'first_name'      => clean($_POST['first_name'] ?? ''),
@@ -34,6 +37,13 @@ $fields = [
 if ($hasSocialSecurity) {
     $fields['social_security_number'] = clean($_POST['social_security_number'] ?? '');
 }
+if ($hasMedicalAid) {
+    $fields['medical_aid_active'] = (int)(($_POST['medical_aid_active'] ?? '0') === '1');
+    $fields['medical_aid_fund'] = clean($_POST['medical_aid_fund'] ?? $medicalAidDefaults['fund']);
+    $fields['medical_aid_total'] = (float)($_POST['medical_aid_total'] ?? $medicalAidDefaults['total']);
+    $fields['medical_aid_company'] = (float)($_POST['medical_aid_company'] ?? $medicalAidDefaults['company']);
+    $fields['medical_aid_employee'] = (float)($_POST['medical_aid_employee'] ?? $medicalAidDefaults['employee']);
+}
 
 if (!$fields['first_name'] || !$fields['last_name']) {
     header('Location: employees.php?msg=error'); exit;
@@ -46,12 +56,13 @@ if (!$fields['emp_number']) {
 
 if ($emp_id > 0) {
     $socialSql = $hasSocialSecurity ? "social_security_number=:social_security_number, " : "";
+    $medicalSql = $hasMedicalAid ? "medical_aid_active=:medical_aid_active, medical_aid_fund=:medical_aid_fund, medical_aid_total=:medical_aid_total, medical_aid_company=:medical_aid_company, medical_aid_employee=:medical_aid_employee, " : "";
     $sql = "UPDATE employees SET
         first_name=:first_name, last_name=:last_name, email=:email, phone=:phone,
         id_number=:id_number, emp_number=:emp_number, job_title=:job_title,
         department=:department, employment_type=:employment_type, start_date=:start_date,
         basic_salary=:basic_salary, hourly_rate=:hourly_rate, bank_name=:bank_name,
-        bank_account=:bank_account, tax_number=:tax_number, {$socialSql}status=:status,
+        bank_account=:bank_account, tax_number=:tax_number, {$socialSql}{$medicalSql}status=:status,
         emergency_name=:emergency_name, emergency_phone=:emergency_phone,
         address=:address, suburb=:suburb, city=:city, notes=:notes
         WHERE id=:id";

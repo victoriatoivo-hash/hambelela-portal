@@ -160,3 +160,57 @@ function hrAddColumnSafe(PDO $db, string $table, string $column, string $definit
         return false;
     }
 }
+
+function hrMedicalAidDefaults(): array {
+    return [
+        'fund' => 'Khomas Loyalty Fund',
+        'total' => 275.00,
+        'company' => 110.00,
+        'employee' => 165.00,
+    ];
+}
+
+function hrEnsureMedicalAidSchemaSafe(PDO $db): bool {
+    $ok = true;
+    $ok = hrAddColumnSafe($db, 'employees', 'medical_aid_fund', "VARCHAR(120) NULL") && $ok;
+    $ok = hrAddColumnSafe($db, 'employees', 'medical_aid_active', "TINYINT(1) NOT NULL DEFAULT 0") && $ok;
+    $ok = hrAddColumnSafe($db, 'employees', 'medical_aid_total', "DECIMAL(10,2) NOT NULL DEFAULT 275.00") && $ok;
+    $ok = hrAddColumnSafe($db, 'employees', 'medical_aid_company', "DECIMAL(10,2) NOT NULL DEFAULT 110.00") && $ok;
+    $ok = hrAddColumnSafe($db, 'employees', 'medical_aid_employee', "DECIMAL(10,2) NOT NULL DEFAULT 165.00") && $ok;
+
+    $ok = hrAddColumnSafe($db, 'payslips', 'medical_aid_fund', "VARCHAR(120) NULL") && $ok;
+    $ok = hrAddColumnSafe($db, 'payslips', 'medical_aid_total', "DECIMAL(10,2) NOT NULL DEFAULT 0.00") && $ok;
+    $ok = hrAddColumnSafe($db, 'payslips', 'medical_aid_company', "DECIMAL(10,2) NOT NULL DEFAULT 0.00") && $ok;
+    $ok = hrAddColumnSafe($db, 'payslips', 'medical_aid_employee', "DECIMAL(10,2) NOT NULL DEFAULT 0.00") && $ok;
+
+    try {
+        $db->exec("CREATE TABLE IF NOT EXISTS medical_aid_payments (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            period_month TINYINT NOT NULL,
+            period_year INT NOT NULL,
+            active_employee_count INT UNSIGNED NOT NULL DEFAULT 0,
+            total_payable DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+            company_contribution DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+            employee_contribution DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+            paid_status TINYINT(1) NOT NULL DEFAULT 0,
+            paid_date DATETIME NULL,
+            paid_by INT UNSIGNED NULL,
+            notes_reference TEXT NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY month_year (period_month, period_year)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    } catch (Throwable $e) {
+        $ok = false;
+    }
+    return $ok;
+}
+
+function hrHasMedicalAidSchema(PDO $db): bool {
+    foreach (['medical_aid_fund','medical_aid_active','medical_aid_total','medical_aid_company','medical_aid_employee'] as $column) {
+        if (!hrColumnExists($db, 'employees', $column)) return false;
+    }
+    foreach (['medical_aid_fund','medical_aid_total','medical_aid_company','medical_aid_employee'] as $column) {
+        if (!hrColumnExists($db, 'payslips', $column)) return false;
+    }
+    return true;
+}

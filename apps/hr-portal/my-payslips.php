@@ -7,6 +7,11 @@ $db    = db();
 $empId = (int)($user['emp_id'] ?? 0);
 $hasSocialSecurity = hrColumnExists($db, 'employees', 'social_security_number');
 $socialSecuritySelect = $hasSocialSecurity ? "e.social_security_number" : "'' AS social_security_number";
+hrEnsureMedicalAidSchemaSafe($db);
+$hasMedicalAid = hrHasMedicalAidSchema($db);
+$medicalAidSelect = $hasMedicalAid
+    ? "ps.medical_aid_fund, ps.medical_aid_total, ps.medical_aid_company, ps.medical_aid_employee"
+    : "'' AS medical_aid_fund, 0 AS medical_aid_total, 0 AS medical_aid_company, 0 AS medical_aid_employee";
 
 $payslips = $db->prepare("SELECT ps.*, r.period_label, r.period_month, r.period_year, r.id as run_id FROM payslips ps JOIN payroll_runs r ON r.id=ps.run_id WHERE ps.employee_id=? ORDER BY r.period_year DESC, r.period_month DESC");
 $payslips->execute([$empId]); $payslips = $payslips->fetchAll();
@@ -14,7 +19,7 @@ $payslips->execute([$empId]); $payslips = $payslips->fetchAll();
 // View single payslip
 $viewPayslip = null;
 if (isset($_GET['id'])) {
-    $viewPayslip = $db->prepare("SELECT ps.*, CONCAT(e.first_name,' ',e.last_name) as emp_name, e.emp_number, e.bank_name, e.bank_account, e.tax_number, $socialSecuritySelect, e.job_title, e.department, e.id_number, e.basic_salary as contract_salary FROM payslips ps JOIN employees e ON e.id=ps.employee_id JOIN payroll_runs r ON r.id=ps.run_id WHERE ps.id=? AND ps.employee_id=?");
+    $viewPayslip = $db->prepare("SELECT ps.*, $medicalAidSelect, CONCAT(e.first_name,' ',e.last_name) as emp_name, e.emp_number, e.bank_name, e.bank_account, e.tax_number, $socialSecuritySelect, e.job_title, e.department, e.id_number, e.basic_salary as contract_salary FROM payslips ps JOIN employees e ON e.id=ps.employee_id JOIN payroll_runs r ON r.id=ps.run_id WHERE ps.id=? AND ps.employee_id=?");
     $viewPayslip->execute([(int)$_GET['id'], $empId]); $viewPayslip = $viewPayslip->fetch();
 }
 
@@ -106,7 +111,10 @@ foreach (['company_name','company_reg','company_address','company_city','company
     $runRow->execute([$viewPayslip['id']]); $runRow = $runRow->fetch();
     $gross = (float)$viewPayslip['basic_salary']+(float)$viewPayslip['ot_pay'];
     $loanDed = isset($viewPayslip['loan_deduction']) ? (float)$viewPayslip['loan_deduction'] : 0;
-    $totalDed = (float)$viewPayslip['paye']+(float)$viewPayslip['ssf']+(float)($viewPayslip['lwop_deduction']??0)+(float)($viewPayslip['other_deductions']??0)+$loanDed;
+    $medicalAidCompany = (float)($viewPayslip['medical_aid_company'] ?? 0);
+    $medicalAidEmployee = (float)($viewPayslip['medical_aid_employee'] ?? 0);
+    $medicalAidFund = trim((string)($viewPayslip['medical_aid_fund'] ?? 'Medical Aid'));
+    $totalDed = (float)$viewPayslip['paye']+(float)$viewPayslip['ssf']+(float)($viewPayslip['lwop_deduction']??0)+(float)($viewPayslip['other_deductions']??0)+$loanDed+$medicalAidEmployee;
     $net = (float)$viewPayslip['net_salary'];
     $netInt = (int)round($net);
     function empPayWords($n){$ones=['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];$tens=['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];if($n==0)return'Zero';if($n<20)return$ones[$n];if($n<100)return$tens[intval($n/10)].($n%10?' '.$ones[$n%10]:'');if($n<1000)return$ones[intval($n/100)].' Hundred'.($n%100?' '.empPayWords($n%100):'');if($n<1000000)return empPayWords(intval($n/1000)).' Thousand'.($n%1000?' '.empPayWords($n%1000):'');return(string)$n;}
@@ -181,6 +189,7 @@ foreach (['company_name','company_reg','company_address','company_city','company
         <table class="ps-col-table">
           <tr><td>Basic Salary</td><td><span class="money">N$ <?=number_format((float)$viewPayslip['basic_salary'],2)?></span></td></tr>
           <?php if($viewPayslip['ot_pay']>0): ?><tr><td>Overtime Pay</td><td><span class="money">N$ <?=number_format((float)$viewPayslip['ot_pay'],2)?></span></td></tr><?php endif ?>
+          <?php if($medicalAidCompany>0): ?><tr><td>Medical Aid Company Contribution</td><td><span class="money">N$ <?=number_format($medicalAidCompany,2)?></span></td></tr><?php endif ?>
           <tr><td><strong>Gross Earnings</strong></td><td><strong class="money">N$ <?=number_format($gross,2)?></strong></td></tr>
         </table>
       </div>
@@ -189,6 +198,7 @@ foreach (['company_name','company_reg','company_address','company_city','company
         <table class="ps-col-table">
           <tr class="deduct"><td>PAYE (Income Tax)</td><td><span class="money">N$ <?=number_format((float)$viewPayslip['paye'],2)?></span></td></tr>
           <tr class="deduct"><td>Social Security (SSF)</td><td><span class="money">N$ <?=number_format((float)$viewPayslip['ssf'],2)?></span></td></tr>
+          <?php if($medicalAidEmployee>0): ?><tr class="deduct"><td>Medical Aid Employee Contribution<?= $medicalAidFund !== '' ? ' - '.htmlspecialchars($medicalAidFund) : '' ?></td><td><span class="money">N$ <?=number_format($medicalAidEmployee,2)?></span></td></tr><?php endif ?>
           <?php if(($viewPayslip['lwop_deduction']??0)>0): ?><tr class="deduct"><td>Leave Without Pay</td><td><span class="money">N$ <?=number_format((float)$viewPayslip['lwop_deduction'],2)?></span></td></tr><?php endif ?>
           <?php if($loanDed>0): ?><tr class="deduct"><td>Loan / Advance Deduction</td><td><span class="money">N$ <?=number_format($loanDed,2)?></span></td></tr><?php endif ?>
           <?php if(($viewPayslip['other_deductions']??0)>0): ?><tr class="deduct"><td>Other Deductions</td><td><span class="money">N$ <?=number_format((float)$viewPayslip['other_deductions'],2)?></span></td></tr><?php endif ?>

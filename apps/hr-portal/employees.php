@@ -10,6 +10,9 @@ if (!$hasSocialSecurity) {
     hrAddColumnSafe($db, 'employees', 'social_security_number', "VARCHAR(50) NULL AFTER tax_number");
     $hasSocialSecurity = hrColumnExists($db, 'employees', 'social_security_number');
 }
+hrEnsureMedicalAidSchemaSafe($db);
+$hasMedicalAid = hrHasMedicalAidSchema($db);
+$medicalAidDefaults = hrMedicalAidDefaults();
 
 // Handle offboard
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'offboard') {
@@ -128,6 +131,14 @@ $colors = ['#40916C','#6D28D9','#0F766E','#D97706','#1D4ED8','#DC2626','#0369A1'
             ];
             if ($hasSocialSecurity) {
               array_splice($rows, 8, 0, [['Social Security No', ($viewEmp['social_security_number'] ?? '') ?: '—']]);
+            }
+            if ($hasMedicalAid) {
+              $medicalActive = !empty($viewEmp['medical_aid_active']);
+              $rows[] = ['Medical Aid Fund', $medicalActive ? (($viewEmp['medical_aid_fund'] ?? '') ?: $medicalAidDefaults['fund']) : 'Not active'];
+              if ($medicalActive) {
+                $rows[] = ['Medical Aid Employee Deduction', 'N$ '.number_format((float)($viewEmp['medical_aid_employee'] ?? $medicalAidDefaults['employee']), 2)];
+                $rows[] = ['Medical Aid Company Contribution', 'N$ '.number_format((float)($viewEmp['medical_aid_company'] ?? $medicalAidDefaults['company']), 2)];
+              }
             }
             foreach ($rows as $r):
             ?>
@@ -315,6 +326,19 @@ $colors = ['#40916C','#6D28D9','#0F766E','#D97706','#1D4ED8','#DC2626','#0369A1'
             </select>
           </div>
 
+          <?php if ($hasMedicalAid): ?>
+          <div class="section-divider">Medical Aid</div>
+          <div class="form-group"><label class="form-label">Medical Aid Active</label>
+            <select class="form-select" name="medical_aid_active" id="f_medical_aid_active">
+              <option value="0">No</option><option value="1">Yes</option>
+            </select>
+          </div>
+          <div class="form-group"><label class="form-label">Medical Aid Fund</label><input class="form-input" name="medical_aid_fund" id="f_medical_aid_fund" value="<?=htmlspecialchars($medicalAidDefaults['fund'])?>"></div>
+          <div class="form-group"><label class="form-label">Total Monthly Fund (N$)</label><input class="form-input" type="number" step="0.01" name="medical_aid_total" id="f_medical_aid_total" value="<?=number_format($medicalAidDefaults['total'],2,'.','')?>"></div>
+          <div class="form-group"><label class="form-label">Company Contribution (N$)</label><input class="form-input" type="number" step="0.01" name="medical_aid_company" id="f_medical_aid_company" value="<?=number_format($medicalAidDefaults['company'],2,'.','')?>"></div>
+          <div class="form-group"><label class="form-label">Employee Contribution / Deduction (N$)</label><input class="form-input" type="number" step="0.01" name="medical_aid_employee" id="f_medical_aid_employee" value="<?=number_format($medicalAidDefaults['employee'],2,'.','')?>"></div>
+          <?php endif ?>
+
           <div class="section-divider">Banking & Tax</div>
           <div class="form-group"><label class="form-label">Bank Name</label><input class="form-input" name="bank_name" id="f_bank_name" placeholder="e.g. FNB Namibia"></div>
           <div class="form-group"><label class="form-label">Account Number</label><input class="form-input" name="bank_account" id="f_bank_account"></div>
@@ -392,6 +416,14 @@ function openAdd() {
   });
   document.getElementById('f_employment_type').value = 'full_time';
   document.getElementById('f_status').value = 'active';
+  const medActive = document.getElementById('f_medical_aid_active');
+  if (medActive) {
+    medActive.value = '0';
+    document.getElementById('f_medical_aid_fund').value = '<?=addslashes($medicalAidDefaults['fund'])?>';
+    document.getElementById('f_medical_aid_total').value = '<?=number_format($medicalAidDefaults['total'],2,'.','')?>';
+    document.getElementById('f_medical_aid_company').value = '<?=number_format($medicalAidDefaults['company'],2,'.','')?>';
+    document.getElementById('f_medical_aid_employee').value = '<?=number_format($medicalAidDefaults['employee'],2,'.','')?>';
+  }
   document.getElementById('empModal').classList.add('open');
 }
 
@@ -409,7 +441,12 @@ function editEmployee(emp) {
     'notes':emp.notes||'',
     'address':emp.address||'',
     'suburb':emp.suburb||'',
-    'city':emp.city||''
+    'city':emp.city||'',
+    'medical_aid_active':String(emp.medical_aid_active||'0'),
+    'medical_aid_fund':emp.medical_aid_fund||'<?=addslashes($medicalAidDefaults['fund'])?>',
+    'medical_aid_total':emp.medical_aid_total||'<?=number_format($medicalAidDefaults['total'],2,'.','')?>',
+    'medical_aid_company':emp.medical_aid_company||'<?=number_format($medicalAidDefaults['company'],2,'.','')?>',
+    'medical_aid_employee':emp.medical_aid_employee||'<?=number_format($medicalAidDefaults['employee'],2,'.','')?>'
   };
   for (const [k,v] of Object.entries(map)) {
     const el = document.getElementById('f_'+k);

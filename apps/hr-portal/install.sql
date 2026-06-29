@@ -77,6 +77,11 @@ CREATE TABLE IF NOT EXISTS `employees` (
   `bank_branch`       VARCHAR(80),
   `tax_number`        VARCHAR(30),
   `social_security_number` VARCHAR(50),
+  `medical_aid_fund`     VARCHAR(120),
+  `medical_aid_active`   TINYINT(1) NOT NULL DEFAULT 0,
+  `medical_aid_total`    DECIMAL(10,2) NOT NULL DEFAULT 275.00,
+  `medical_aid_company`  DECIMAL(10,2) NOT NULL DEFAULT 110.00,
+  `medical_aid_employee` DECIMAL(10,2) NOT NULL DEFAULT 165.00,
   `address`           TEXT,
   `emergency_name`    VARCHAR(120),
   `emergency_phone`   VARCHAR(30),
@@ -173,6 +178,10 @@ CREATE TABLE IF NOT EXISTS `payslips` (
   `lwop_deduction`  DECIMAL(10,2) DEFAULT 0.00,
   `paye`            DECIMAL(10,2) DEFAULT 0.00,
   `ssf`             DECIMAL(10,2) DEFAULT 0.00,
+  `medical_aid_fund`     VARCHAR(120),
+  `medical_aid_total`    DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `medical_aid_company`  DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `medical_aid_employee` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   `other_deductions`DECIMAL(10,2) DEFAULT 0.00,
   `net_salary`      DECIMAL(10,2) NOT NULL,
   `pdf_path`        VARCHAR(255) NULL,
@@ -182,6 +191,22 @@ CREATE TABLE IF NOT EXISTS `payslips` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ── Documents ────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS `medical_aid_payments` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `period_month` TINYINT NOT NULL,
+  `period_year` INT NOT NULL,
+  `active_employee_count` INT UNSIGNED NOT NULL DEFAULT 0,
+  `total_payable` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `company_contribution` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `employee_contribution` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `paid_status` TINYINT(1) NOT NULL DEFAULT 0,
+  `paid_date` DATETIME NULL,
+  `paid_by` INT UNSIGNED NULL,
+  `notes_reference` TEXT NULL,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `month_year` (`period_month`, `period_year`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS `documents` (
   `id`            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `employee_id`   INT UNSIGNED NULL,
