@@ -756,7 +756,7 @@ function cor_inventory_payload(string $search, string $category, string $stock, 
             'retail_val' => (float) ($row['retail_val'] ?? 0),
             'profit' => (float) ($row['profit'] ?? 0),
         ];
-    }, array_slice($filteredRows, 0, 300));
+    }, $filteredRows);
 
     return [
         'ok' => !$fetch['error'],
