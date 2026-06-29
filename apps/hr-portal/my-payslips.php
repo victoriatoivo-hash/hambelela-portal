@@ -148,7 +148,7 @@ foreach (['company_name','company_reg','company_address','company_city','company
   </div>
   <div class="content">
   <?php if ($viewPayslip):
-    $runRow = $db->prepare("SELECT period_label,period_month,period_year,generated_at FROM payroll_runs WHERE id=(SELECT run_id FROM payslips WHERE id=?)");
+    $runRow = $db->prepare("SELECT id, period_label,period_month,period_year,generated_at FROM payroll_runs WHERE id=(SELECT run_id FROM payslips WHERE id=?)");
     $runRow->execute([$viewPayslip['id']]); $runRow = $runRow->fetch();
     $gross = (float)$viewPayslip['basic_salary']+(float)$viewPayslip['ot_pay'];
     $loanDed = isset($viewPayslip['loan_deduction']) ? (float)$viewPayslip['loan_deduction'] : 0;
@@ -196,6 +196,7 @@ foreach (['company_name','company_reg','company_address','company_city','company
         <h4>Payslip Details</h4>
         <div class="ps-meta-grid">
           <span class="lbl">Payslip No</span><span class="val"><?=htmlspecialchars($payslipNo)?></span>
+          <span class="lbl">Payroll Run</span><span class="val">Run #<?=htmlspecialchars((string)$runRow['id'])?> / Payslip #<?=htmlspecialchars((string)$viewPayslip['id'])?></span>
           <span class="lbl">Pay Period</span><span class="val"><?=htmlspecialchars($payPeriodRange)?></span>
           <span class="lbl">Payment Method</span><span class="val"><?=htmlspecialchars($paymentMethod)?></span>
           <span class="lbl">Generated On</span><span class="val"><?=htmlspecialchars($generatedOn)?></span>
