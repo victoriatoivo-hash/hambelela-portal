@@ -539,44 +539,6 @@ function cor_fetch_inventory_result(): array
                 if (!is_array($product)) {
                     continue;
                 }
-                if (($product['type'] ?? '') === 'variable' && !empty($product['variations'])) {
-                    for ($vPage = 1; $vPage <= 2; $vPage++) {
-                        try {
-                            $variations = wc_get('products/' . (int) $product['id'] . '/variations', [
-                                'per_page' => 50,
-                                'page' => $vPage,
-                            ]);
-                            $logs[] = [
-                                'endpoint' => 'products/' . (int) $product['id'] . '/variations',
-                                'page' => $vPage,
-                                'count' => count($variations),
-                            ];
-                            cor_report_log('Inventory WooCommerce variations fetched', end($logs) ?: []);
-                        } catch (Throwable $e) {
-                            cor_report_log('Inventory WooCommerce variations failed', [
-                                'endpoint' => 'products/' . (int) $product['id'] . '/variations',
-                                'page' => $vPage,
-                                'error' => $e->getMessage(),
-                            ]);
-                            $variations = [];
-                        }
-                        if (!$variations) {
-                            break;
-                        }
-                        foreach ($variations as $variation) {
-                            if (is_array($variation)) {
-                                $rows[] = cor_inventory_row($product, $variation);
-                            }
-                        }
-                        if (count($variations) < 50) {
-                            break;
-                        }
-                        if (count($rows) >= 300) {
-                            break 2;
-                        }
-                    }
-                    continue;
-                }
                 $rows[] = cor_inventory_row($product);
                 if (count($rows) >= 300) {
                     break 2;
