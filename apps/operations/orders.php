@@ -3022,18 +3022,12 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   if (inventoryBody) {
-    inventoryBody.addEventListener('input', function (event) {
-      if (event.target && event.target.matches('[data-inv-cost]')) {
-        event.target.classList.remove('is-saved', 'is-error');
-        invRecalculateVisibleTotals();
-      }
-    });
-
-    inventoryBody.addEventListener('change', async function (event) {
-      var input = event.target;
-      if (!input || !input.matches('[data-inv-cost]')) return;
+    async function invSaveCostInput(input) {
+      if (!input || input.dataset.saving === '1') return;
       var productId = Number(input.dataset.id || 0);
       var cost = Number(input.value || 0);
+      var savedCost = input.dataset.savedCost || input.defaultValue || '';
+      if (Number(savedCost || 0).toFixed(2) === cost.toFixed(2)) return;
       if (!productId) {
         input.classList.add('is-error');
         invMessage('error', 'Could not save cost: missing product or variation id.');
@@ -3045,6 +3039,7 @@ document.addEventListener('DOMContentLoaded', function () {
         return;
       }
 
+      input.dataset.saving = '1';
       input.classList.remove('is-saved', 'is-error');
       input.classList.add('is-saving');
       invMessage('loading', 'Saving inventory cost...');
@@ -3064,6 +3059,8 @@ document.addEventListener('DOMContentLoaded', function () {
           throw new Error((data && data.error) || ('Cost save failed with HTTP ' + response.status));
         }
         input.value = Number(data.cost || cost).toFixed(2);
+        input.defaultValue = input.value;
+        input.dataset.savedCost = input.value;
         input.classList.remove('is-saving');
         input.classList.add('is-saved');
         invRecalculateVisibleTotals();
@@ -3072,6 +3069,27 @@ document.addEventListener('DOMContentLoaded', function () {
         input.classList.remove('is-saving');
         input.classList.add('is-error');
         invMessage('error', 'Could not save inventory cost: ' + error.message);
+      } finally {
+        delete input.dataset.saving;
+      }
+    }
+
+    inventoryBody.addEventListener('input', function (event) {
+      if (event.target && event.target.matches('[data-inv-cost]')) {
+        event.target.classList.remove('is-saved', 'is-error');
+        invRecalculateVisibleTotals();
+      }
+    });
+
+    inventoryBody.addEventListener('change', function (event) {
+      if (event.target && event.target.matches('[data-inv-cost]')) {
+        invSaveCostInput(event.target);
+      }
+    });
+
+    inventoryBody.addEventListener('focusout', function (event) {
+      if (event.target && event.target.matches('[data-inv-cost]')) {
+        invSaveCostInput(event.target);
       }
     });
 
