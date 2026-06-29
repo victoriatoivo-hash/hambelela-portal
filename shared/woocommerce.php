@@ -68,6 +68,7 @@ function wc_get(string $path, array $query = []): array
             'status' => $status,
             'count' => 0,
             'error' => $error ?: 'empty response',
+            'body' => is_string($body) ? substr($body, 0, 500) : '',
         ]);
         throw new RuntimeException('WooCommerce request failed: ' . ($error ?: 'empty response'));
     }
@@ -79,6 +80,7 @@ function wc_get(string $path, array $query = []): array
         'status' => $status,
         'count' => $count,
         'error' => $error ?: null,
+        'body' => $status >= 400 ? substr((string) $body, 0, 500) : null,
     ]);
     if ($status >= 400) {
         $message = is_array($data) ? ($data['message'] ?? $body) : $body;
@@ -87,6 +89,7 @@ function wc_get(string $path, array $query = []): array
             'status' => $status,
             'count' => $count,
             'error' => $message,
+            'body' => substr((string) $body, 0, 500),
         ]);
         throw new RuntimeException('WooCommerce request failed: ' . $message);
     }
