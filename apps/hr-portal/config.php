@@ -138,3 +138,25 @@ function jsonResponse(array $data, int $code = 200): void {
 function clean(string $val): string {
     return htmlspecialchars(trim($val), ENT_QUOTES, 'UTF-8');
 }
+
+function hrColumnExists(PDO $db, string $table, string $column): bool {
+    try {
+        $stmt = $db->prepare("SHOW COLUMNS FROM `$table` LIKE ?");
+        $stmt->execute([$column]);
+        return (bool)$stmt->fetch();
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+function hrAddColumnSafe(PDO $db, string $table, string $column, string $definition): bool {
+    try {
+        if (hrColumnExists($db, $table, $column)) {
+            return true;
+        }
+        $db->exec("ALTER TABLE `$table` ADD COLUMN `$column` $definition");
+        return true;
+    } catch (Throwable $e) {
+        return false;
+    }
+}

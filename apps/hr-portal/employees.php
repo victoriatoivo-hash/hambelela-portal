@@ -5,12 +5,18 @@ requireAdmin();
 $user = currentUser();
 $db   = db();
 ensureLeaveShutdownSchema($db);
+$hasSocialSecurity = hrColumnExists($db, 'employees', 'social_security_number');
 
 // Handle offboard
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'offboard') {
     $id = (int)($_POST['emp_id'] ?? 0);
     if ($id) $db->prepare("UPDATE employees SET status='terminated' WHERE id=?")->execute([$id]);
     header('Location: employees.php?msg=offboarded'); exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'enable_social_security') {
+    $ok = hrAddColumnSafe($db, 'employees', 'social_security_number', "VARCHAR(50) NULL AFTER tax_number");
+    header('Location: employees.php?msg=' . ($ok ? 'social_security_enabled' : 'social_security_error')); exit;
 }
 
 $employees    = $db->query("SELECT * FROM employees WHERE LOWER(CONCAT_WS(' ', first_name, last_name, email)) NOT LIKE '%victoria%' ORDER BY status ASC, first_name ASC")->fetchAll();
@@ -59,12 +65,31 @@ $colors = ['#40916C','#6D28D9','#0F766E','#D97706','#1D4ED8','#DC2626','#0369A1'
   <div class="content">
     <?php if ($msg === 'saved'): ?>
       <div class="toast"><i class="fa-solid fa-check"></i> Employee saved successfully.</div>
+    <?php elseif ($msg === 'social_security_enabled'): ?>
+      <div class="toast"><i class="fa-solid fa-check"></i> Social Security field enabled successfully.</div>
+    <?php elseif ($msg === 'social_security_error'): ?>
+      <div class="toast error"><i class="fa-solid fa-triangle-exclamation"></i> Social Security field could not be enabled. Please check database permissions.</div>
     <?php elseif ($msg === 'offboarded'): ?>
       <div class="toast error"><i class="fa-solid fa-user-slash"></i> Employee offboarded and marked as terminated.</div>
     <?php elseif ($msg === 'account_created'): ?>
       <div class="toast"><i class="fa-solid fa-check"></i> Employee login account created successfully.</div>
     <?php elseif ($msg === 'email_taken'): ?>
       <div class="toast error"><i class="fa-solid fa-xmark"></i> That email is already in use. Try a different one.</div>
+    <?php endif ?>
+
+    <?php if (!$hasSocialSecurity): ?>
+      <div class="card" style="margin-bottom:16px;border-color:#F5C84C;background:#fffaf0">
+        <div style="display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+          <div>
+            <div style="font-weight:800;color:var(--text);margin-bottom:4px">Social Security setup required</div>
+            <div style="font-size:13px;color:var(--text-mid)">Enable this once to store employee Social Security numbers and show them on payslips.</div>
+          </div>
+          <form method="POST" style="margin:0">
+            <input type="hidden" name="action" value="enable_social_security">
+            <button class="btn btn-primary" type="submit"><i class="fa-solid fa-shield-halved"></i> Enable Social Security Field</button>
+          </form>
+        </div>
+      </div>
     <?php endif ?>
 
     <?php if ($viewEmp): ?>
@@ -112,6 +137,9 @@ $colors = ['#40916C','#6D28D9','#0F766E','#D97706','#1D4ED8','#DC2626','#0369A1'
               ['Emergency Contact',$viewEmp['emergency_name'] ?: '—'],
               ['Emergency Phone',  $viewEmp['emergency_phone'] ?: '—'],
             ];
+            if ($hasSocialSecurity) {
+              array_splice($rows, 8, 0, [['Social Security No', ($viewEmp['social_security_number'] ?? '') ?: '—']]);
+            }
             foreach ($rows as $r):
             ?>
             <div>
@@ -299,6 +327,10 @@ $colors = ['#40916C','#6D28D9','#0F766E','#D97706','#1D4ED8','#DC2626','#0369A1'
           <div class="form-group"><label class="form-label">Bank Name</label><input class="form-input" name="bank_name" id="f_bank_name" placeholder="e.g. FNB Namibia"></div>
           <div class="form-group"><label class="form-label">Account Number</label><input class="form-input" name="bank_account" id="f_bank_account"></div>
           <div class="form-group"><label class="form-label">Tax Number</label><input class="form-input" name="tax_number" id="f_tax_number"></div>
+          <?php if ($hasSocialSecurity): ?>
+          <div class="section-divider">Social Security</div>
+          <div class="form-group"><label class="form-label">Social Security Number</label><input class="form-input" name="social_security_number" id="f_social_security_number"></div>
+          <?php endif ?>
 
           <div class="section-divider">Emergency Contact</div>
           <div class="form-group"><label class="form-label">Contact Name</label><input class="form-input" name="emergency_name" id="f_emergency_name"></div>
@@ -366,7 +398,7 @@ $colors = ['#40916C','#6D28D9','#0F766E','#D97706','#1D4ED8','#DC2626','#0369A1'
 function openAdd() {
   document.getElementById('modalTitle').textContent = 'Add Employee';
   document.getElementById('empId').value = '';
-  ['first_name','last_name','email','phone','id_number','emp_number','job_title','department','start_date','basic_salary','hourly_rate','bank_name','bank_account','tax_number','emergency_name','emergency_phone','notes'].forEach(f => {
+  ['first_name','last_name','email','phone','id_number','emp_number','job_title','department','start_date','basic_salary','hourly_rate','bank_name','bank_account','tax_number','social_security_number','emergency_name','emergency_phone','notes'].forEach(f => {
     const el = document.getElementById('f_'+f);
     if (el) el.value = '';
   });
@@ -384,7 +416,7 @@ function editEmployee(emp) {
     'job_title':emp.job_title||'','department':emp.department||'',
     'start_date':emp.start_date||'','basic_salary':emp.basic_salary||'',
     'hourly_rate':emp.hourly_rate||'','bank_name':emp.bank_name||'',
-    'bank_account':emp.bank_account||'','tax_number':emp.tax_number||'',
+    'bank_account':emp.bank_account||'','tax_number':emp.tax_number||'','social_security_number':emp.social_security_number||'',
     'emergency_name':emp.emergency_name||'','emergency_phone':emp.emergency_phone||'',
     'notes':emp.notes||'',
     'address':emp.address||'',

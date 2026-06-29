@@ -58,6 +58,7 @@ $tables_sql = [
   `bank_account`      VARCHAR(50),
   `bank_branch`       VARCHAR(80),
   `tax_number`        VARCHAR(30),
+  `social_security_number` VARCHAR(50),
   `address`           TEXT,
   `emergency_name`    VARCHAR(120),
   `emergency_phone`   VARCHAR(30),

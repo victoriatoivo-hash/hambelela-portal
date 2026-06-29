@@ -4,6 +4,7 @@ requireAdmin();
 
 $db     = db();
 $emp_id = (int)($_POST['emp_id'] ?? 0);
+$hasSocialSecurity = hrColumnExists($db, 'employees', 'social_security_number');
 
 $fields = [
     'first_name'      => clean($_POST['first_name'] ?? ''),
@@ -30,6 +31,10 @@ $fields = [
     'notes'           => clean($_POST['notes']           ?? ''),
 ];
 
+if ($hasSocialSecurity) {
+    $fields['social_security_number'] = clean($_POST['social_security_number'] ?? '');
+}
+
 if (!$fields['first_name'] || !$fields['last_name']) {
     header('Location: employees.php?msg=error'); exit;
 }
@@ -40,12 +45,13 @@ if (!$fields['emp_number']) {
 }
 
 if ($emp_id > 0) {
+    $socialSql = $hasSocialSecurity ? "social_security_number=:social_security_number, " : "";
     $sql = "UPDATE employees SET
         first_name=:first_name, last_name=:last_name, email=:email, phone=:phone,
         id_number=:id_number, emp_number=:emp_number, job_title=:job_title,
         department=:department, employment_type=:employment_type, start_date=:start_date,
         basic_salary=:basic_salary, hourly_rate=:hourly_rate, bank_name=:bank_name,
-        bank_account=:bank_account, tax_number=:tax_number, status=:status,
+        bank_account=:bank_account, tax_number=:tax_number, {$socialSql}status=:status,
         emergency_name=:emergency_name, emergency_phone=:emergency_phone,
         address=:address, suburb=:suburb, city=:city, notes=:notes
         WHERE id=:id";

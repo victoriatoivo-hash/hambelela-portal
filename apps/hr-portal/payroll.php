@@ -37,6 +37,8 @@ requireAdmin();
 require_once __DIR__ . '/includes/email.php';
 $user = currentUser();
 $db   = db();
+$hasSocialSecurity = hrColumnExists($db, 'employees', 'social_security_number');
+$socialSecuritySelect = $hasSocialSecurity ? "e.social_security_number" : "'' AS social_security_number";
 
 // ── Get company settings ──────────────────────────────────────
 function getSetting($key, $default='') {
@@ -184,7 +186,7 @@ $runTotals   = ['basic'=>0,'ot'=>0,'paye'=>0,'ssf'=>0,'net'=>0];
 if ($runId) {
     $currentRun = $db->prepare("SELECT * FROM payroll_runs WHERE id=?");
     $currentRun->execute([$runId]); $currentRun = $currentRun->fetch();
-    $payslips = $db->prepare("SELECT ps.*, CONCAT(e.first_name,' ',e.last_name) as emp_name, e.emp_number, e.bank_name, e.bank_account, e.tax_number, e.job_title, e.department, e.id_number FROM payslips ps JOIN employees e ON e.id=ps.employee_id WHERE ps.run_id=? ORDER BY e.first_name");
+    $payslips = $db->prepare("SELECT ps.*, CONCAT(e.first_name,' ',e.last_name) as emp_name, e.emp_number, e.bank_name, e.bank_account, e.tax_number, $socialSecuritySelect, e.job_title, e.department, e.id_number FROM payslips ps JOIN employees e ON e.id=ps.employee_id WHERE ps.run_id=? ORDER BY e.first_name");
     $payslips->execute([$runId]); $payslips = $payslips->fetchAll();
     foreach ($payslips as $p) {
         $runTotals['basic'] += $p['basic_salary'];
@@ -212,7 +214,7 @@ $msg = $_GET['msg'] ?? '';
 // View payslip
 $viewPayslip = null;
 if (isset($_GET['payslip'])) {
-    $viewPayslip = $db->prepare("SELECT ps.*, CONCAT(e.first_name,' ',e.last_name) as emp_name, e.emp_number, e.bank_name, e.bank_account, e.tax_number, e.job_title, e.department, e.id_number, e.address, e.basic_salary as contract_salary FROM payslips ps JOIN employees e ON e.id=ps.employee_id JOIN payroll_runs r ON r.id=ps.run_id WHERE ps.id=?");
+    $viewPayslip = $db->prepare("SELECT ps.*, CONCAT(e.first_name,' ',e.last_name) as emp_name, e.emp_number, e.bank_name, e.bank_account, e.tax_number, $socialSecuritySelect, e.job_title, e.department, e.id_number, e.address, e.basic_salary as contract_salary FROM payslips ps JOIN employees e ON e.id=ps.employee_id JOIN payroll_runs r ON r.id=ps.run_id WHERE ps.id=?");
     $viewPayslip->execute([(int)$_GET['payslip']]); $viewPayslip = $viewPayslip->fetch();
 }
 ?>
@@ -371,6 +373,7 @@ if (isset($_GET['payslip'])) {
         <div class="ps-emp-row"><span class="lbl">Employee ID</span><span class="val"><?=htmlspecialchars($viewPayslip['emp_number'])?></span></div>
         <div class="ps-emp-row"><span class="lbl">ID Number</span><span class="val"><?=htmlspecialchars($viewPayslip['id_number'] ?: '—')?></span></div>
         <div class="ps-emp-row"><span class="lbl">Department</span><span class="val"><?=htmlspecialchars($viewPayslip['department'] ?: '—')?></span></div>
+        <?php if ($hasSocialSecurity): ?><div class="ps-emp-row"><span class="lbl">Social Security No</span><span class="val"><?=htmlspecialchars($viewPayslip['social_security_number'] ?: '—')?></span></div><?php endif ?>
         <div class="ps-emp-row"><span class="lbl">Pay Date</span><span class="val"><?=$periodEnd?></span></div>
         <div class="ps-emp-row"><span class="lbl">Hourly Rate</span><span class="val">N$ <?=number_format((float)$viewPayslip['contract_salary'] > 0 ? (float)$viewPayslip['contract_salary']/160 : 0, 2)?>/hr</span></div>
       </div>
