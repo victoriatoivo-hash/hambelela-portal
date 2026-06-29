@@ -18105,6 +18105,83 @@ body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > td.
   border-radius: 0 0 12px 12px !important;
 }
 
+/* Visual rail drawn from real cells so it cannot collapse or hide checkboxes. */
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header > td.ob-strip-cell::before,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-col-header-row > td.ob-strip-cell::before,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.ob-strip-cell::before,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.add-task-row > td.ob-strip-cell::before,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > td.ob-strip-cell::before {
+  content: none !important;
+  display: none !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header > td.ob-group-name-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-checkbox,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.add-task-row > td.col-checkbox,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > td.col-checkbox {
+  position: relative !important;
+  overflow: visible !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-checkbox::before,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.add-task-row > td.col-checkbox::before,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > td.col-checkbox::before,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) > td.ob-group-name-cell::before {
+  content: "" !important;
+  position: absolute !important;
+  left: -6px !important;
+  top: -1px !important;
+  bottom: -1px !important;
+  width: 6px !important;
+  background: var(--ob-group-colour, #c73557) !important;
+  border-radius: 0 !important;
+  pointer-events: none !important;
+  z-index: 2 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row.is-group-first > td.col-checkbox::before {
+  top: 0 !important;
+  border-radius: 12px 12px 0 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > td.col-checkbox::before {
+  bottom: 0 !important;
+  border-radius: 0 0 12px 12px !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) > td.ob-group-name-cell::before {
+  top: 0 !important;
+  bottom: 0 !important;
+  border-radius: 12px !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header.is-open > td.ob-group-name-cell::before,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-col-header-row > td.col-checkbox::before {
+  content: none !important;
+  display: none !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-checkbox,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.board-row > td.check-cell.col-checkbox,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.add-task-row > td.col-checkbox,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > td.col-checkbox {
+  width: 40px !important;
+  min-width: 40px !important;
+  max-width: 40px !important;
+  padding: 0 !important;
+  text-align: center !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-checkbox input[type="checkbox"],
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.board-row > td.check-cell.col-checkbox input[type="checkbox"] {
+  display: inline-block !important;
+  width: 14px !important;
+  height: 14px !important;
+  margin: 0 auto !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
 /* Monday-style Order Board rail and checkbox column alignment. */
 body:has(.ob-wrap) .ob-wrap table.ops-board-table col.ob-col-strip {
   width: 6px !important;
@@ -18638,4 +18715,81 @@ body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.add-task-row > td.ob-
 body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > td.ob-strip-cell::before {
   bottom: 0 !important;
   border-radius: 0 0 12px 12px !important;
+}
+
+/* Visual rail drawn from real cells so it cannot collapse or hide checkboxes. */
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header > td.ob-strip-cell::before,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-col-header-row > td.ob-strip-cell::before,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.ob-strip-cell::before,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.add-task-row > td.ob-strip-cell::before,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > td.ob-strip-cell::before {
+  content: none !important;
+  display: none !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header > td.ob-group-name-cell,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-checkbox,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.add-task-row > td.col-checkbox,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > td.col-checkbox {
+  position: relative !important;
+  overflow: visible !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-checkbox::before,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.add-task-row > td.col-checkbox::before,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > td.col-checkbox::before,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) > td.ob-group-name-cell::before {
+  content: "" !important;
+  position: absolute !important;
+  left: -6px !important;
+  top: -1px !important;
+  bottom: -1px !important;
+  width: 6px !important;
+  background: var(--ob-group-colour, #c73557) !important;
+  border-radius: 0 !important;
+  pointer-events: none !important;
+  z-index: 2 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row.is-group-first > td.col-checkbox::before {
+  top: 0 !important;
+  border-radius: 12px 12px 0 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > td.col-checkbox::before {
+  bottom: 0 !important;
+  border-radius: 0 0 12px 12px !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) > td.ob-group-name-cell::before {
+  top: 0 !important;
+  bottom: 0 !important;
+  border-radius: 12px !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header.is-open > td.ob-group-name-cell::before,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-col-header-row > td.col-checkbox::before {
+  content: none !important;
+  display: none !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-checkbox,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.board-row > td.check-cell.col-checkbox,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.add-task-row > td.col-checkbox,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > td.col-checkbox {
+  width: 40px !important;
+  min-width: 40px !important;
+  max-width: 40px !important;
+  padding: 0 !important;
+  text-align: center !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-checkbox input[type="checkbox"],
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.board-row > td.check-cell.col-checkbox input[type="checkbox"] {
+  display: inline-block !important;
+  width: 14px !important;
+  height: 14px !important;
+  margin: 0 auto !important;
+  opacity: 1 !important;
+  visibility: visible !important;
 }
