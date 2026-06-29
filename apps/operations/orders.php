@@ -844,7 +844,7 @@ function cor_export_vat(array $filters, string $format, string $section): void
                     COALESCE(SUM(o.total_amount), 0) AS total_sales,
                     COALESCE(SUM(o.shipping_total + o.shipping_tax_total), 0) AS shipping
              FROM ops_orders o
-             WHERE {$where} AND COALESCE(o.payment_status, '') <> 'refunded' AND o.status NOT IN ('cancelled','canceled','failed')
+             WHERE {$where} AND COALESCE(o.payment_status, '') <> 'refunded' AND COALESCE(o.status, '') NOT IN ('cancelled','canceled','failed')
              GROUP BY DATE(o.created_at)
              ORDER BY d ASC",
             $params
@@ -873,7 +873,7 @@ function cor_export_vat(array $filters, string $format, string $section): void
                     COALESCE(SUM(o.total_amount), 0) AS total_incl,
                     COALESCE(SUM(o.shipping_total + o.shipping_tax_total), 0) AS shipping
              FROM ops_orders o
-             WHERE {$where} AND COALESCE(o.payment_status, '') <> 'refunded' AND o.status NOT IN ('cancelled','canceled','failed')
+             WHERE {$where} AND COALESCE(o.payment_status, '') <> 'refunded' AND COALESCE(o.status, '') NOT IN ('cancelled','canceled','failed')
              GROUP BY COALESCE(NULLIF(o.payment_method, ''), 'Other')
              ORDER BY total_incl DESC",
             $params
@@ -899,7 +899,7 @@ function cor_export_vat(array $filters, string $format, string $section): void
                 FROM ops_order_items
                 GROUP BY order_id
              ) order_qty ON order_qty.order_id = o.id
-             WHERE {$where} AND COALESCE(o.payment_status, '') <> 'refunded' AND o.status NOT IN ('cancelled','canceled','failed')
+             WHERE {$where} AND COALESCE(o.payment_status, '') <> 'refunded' AND COALESCE(o.status, '') NOT IN ('cancelled','canceled','failed')
              GROUP BY oi.product_name
              ORDER BY total_incl DESC",
             $params
@@ -917,7 +917,7 @@ function cor_export_vat(array $filters, string $format, string $section): void
                 COUNT(*) AS orders,
                 COALESCE(SUM(o.shipping_total + o.shipping_tax_total), 0) AS shipping
          FROM ops_orders o
-         WHERE {$where} AND COALESCE(o.payment_status, '') <> 'refunded' AND o.status NOT IN ('cancelled','canceled','failed')",
+         WHERE {$where} AND COALESCE(o.payment_status, '') <> 'refunded' AND COALESCE(o.status, '') NOT IN ('cancelled','canceled','failed')",
         $params
     );
     $row = $rows[0] ?? ['total_sales' => 0, 'orders' => 0, 'shipping' => 0];
@@ -961,7 +961,7 @@ function cor_export_monthly(array $filters, string $format): void
                 COALESCE(SUM(o.total_amount), 0) AS total_sales,
                 COALESCE(SUM(o.shipping_total + o.shipping_tax_total), 0) AS shipping
          FROM ops_orders o
-         WHERE {$where} AND COALESCE(o.payment_status, '') <> 'refunded' AND o.status NOT IN ('cancelled','canceled','failed')",
+         WHERE {$where} AND COALESCE(o.payment_status, '') <> 'refunded' AND COALESCE(o.status, '') NOT IN ('cancelled','canceled','failed')",
         $params
     );
     $refundRows = cor_query_rows(
@@ -974,7 +974,7 @@ function cor_export_monthly(array $filters, string $format): void
         "SELECT COALESCE(NULLIF(o.payment_method, ''), 'Other') AS method,
                 COALESCE(SUM(o.total_amount), 0) AS total
          FROM ops_orders o
-         WHERE {$where} AND COALESCE(o.payment_status, '') <> 'refunded' AND o.status NOT IN ('cancelled','canceled','failed')
+         WHERE {$where} AND COALESCE(o.payment_status, '') <> 'refunded' AND COALESCE(o.status, '') NOT IN ('cancelled','canceled','failed')
          GROUP BY COALESCE(NULLIF(o.payment_method, ''), 'Other')",
         $params
     );
@@ -1213,13 +1213,13 @@ if ($ready) {
     $where = cor_filtered_where($filters, $params);
     $summaryRow = cor_query_one(
         "SELECT COUNT(*) AS total_orders,
-                SUM(CASE WHEN COALESCE(payment_status, '') <> 'refunded' AND status NOT IN ('cancelled','canceled','failed') THEN 1 ELSE 0 END) AS revenue_orders,
-                COALESCE(SUM(CASE WHEN COALESCE(payment_status, '') <> 'refunded' AND status NOT IN ('cancelled','canceled','failed') THEN COALESCE(total_amount, 0) ELSE 0 END), 0) AS total_revenue,
+                SUM(CASE WHEN COALESCE(payment_status, '') <> 'refunded' AND COALESCE(status, '') NOT IN ('cancelled','canceled','failed') THEN 1 ELSE 0 END) AS revenue_orders,
+                COALESCE(SUM(CASE WHEN COALESCE(payment_status, '') <> 'refunded' AND COALESCE(status, '') NOT IN ('cancelled','canceled','failed') THEN COALESCE(total_amount, 0) ELSE 0 END), 0) AS total_revenue,
                 SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed,
                 SUM(CASE WHEN status IN ('in_progress','packed','verified','ready_for_collection','ready_for_courier','ready_for_delivery') THEN 1 ELSE 0 END) AS processing,
                 SUM(CASE WHEN status IN ('new_order','assigned') THEN 1 ELSE 0 END) AS pending,
-                COALESCE(SUM(CASE WHEN COALESCE(payment_status, '') <> 'refunded' AND status NOT IN ('cancelled','canceled','failed') THEN COALESCE(tax_total, 0) + COALESCE(shipping_tax_total, 0) ELSE 0 END), 0) AS tax_collected,
-                COALESCE(SUM(CASE WHEN COALESCE(payment_status, '') <> 'refunded' AND status NOT IN ('cancelled','canceled','failed') THEN COALESCE(discount_total, 0) ELSE 0 END), 0) AS discounts
+                COALESCE(SUM(CASE WHEN COALESCE(payment_status, '') <> 'refunded' AND COALESCE(status, '') NOT IN ('cancelled','canceled','failed') THEN COALESCE(tax_total, 0) + COALESCE(shipping_tax_total, 0) ELSE 0 END), 0) AS tax_collected,
+                COALESCE(SUM(CASE WHEN COALESCE(payment_status, '') <> 'refunded' AND COALESCE(status, '') NOT IN ('cancelled','canceled','failed') THEN COALESCE(discount_total, 0) ELSE 0 END), 0) AS discounts
          FROM ops_orders o
          WHERE {$where}",
         $params
@@ -1358,7 +1358,7 @@ if ($ready) {
                 COALESCE(SUM(o.total_amount), 0) AS total_sales,
                 COALESCE(SUM(o.shipping_total + o.shipping_tax_total), 0) AS shipping
          FROM ops_orders o
-         WHERE {$where} AND COALESCE(o.payment_status, '') <> 'refunded' AND o.status NOT IN ('cancelled','canceled','failed')
+         WHERE {$where} AND COALESCE(o.payment_status, '') <> 'refunded' AND COALESCE(o.status, '') NOT IN ('cancelled','canceled','failed')
          GROUP BY DATE(o.created_at)
          ORDER BY d ASC",
         $params
@@ -1400,7 +1400,7 @@ if ($ready) {
                 COALESCE(SUM(o.total_amount), 0) AS total_incl,
                 COALESCE(SUM(o.shipping_total + o.shipping_tax_total), 0) AS shipping
          FROM ops_orders o
-         WHERE {$where} AND COALESCE(o.payment_status, '') <> 'refunded' AND o.status NOT IN ('cancelled','canceled','failed')
+         WHERE {$where} AND COALESCE(o.payment_status, '') <> 'refunded' AND COALESCE(o.status, '') NOT IN ('cancelled','canceled','failed')
          GROUP BY COALESCE(NULLIF(o.payment_method, ''), 'Other')
          ORDER BY total_incl DESC",
         $params
@@ -1534,7 +1534,7 @@ if ($ready) {
          FROM ops_orders o
          WHERE DATE(o.created_at) >= DATE_SUB(CURDATE(), INTERVAL 14 DAY)
            AND COALESCE(o.payment_status, '') <> 'refunded'
-           AND o.status NOT IN ('cancelled','canceled','failed')
+           AND COALESCE(o.status, '') NOT IN ('cancelled','canceled','failed')
          GROUP BY DATE(o.created_at)
          ORDER BY d ASC"
     );
