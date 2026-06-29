@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/operations.php';
 require_once BASE_PATH . '/shared/woocommerce.php';
+define('OPS_BOARD_SYNC_LIBRARY_ONLY', true);
+require_once __DIR__ . '/orders-board-action.php';
 
 require_login();
 
@@ -47,6 +49,21 @@ function cor_slug($value): string
 function cor_contains(string $haystack, string $needle): bool
 {
     return $needle === '' || strpos($haystack, $needle) !== false;
+}
+
+function cor_report_log(string $message, array $context = []): void
+{
+    $dir = BASE_PATH . '/storage/logs';
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0775, true);
+    }
+
+    $line = '[' . date('Y-m-d H:i:s') . '] ' . $message;
+    if ($context) {
+        $line .= ' ' . json_encode($context, JSON_UNESCAPED_SLASHES);
+    }
+
+    @file_put_contents($dir . '/customer-orders-report.log', $line . PHP_EOL, FILE_APPEND);
 }
 
 function cor_order_status_label(string $status): string
@@ -248,6 +265,8 @@ function cor_inventory_row_from_store_product(array $product, ?array $variation 
         'category' => implode(', ', $categories),
         'sku' => trim((string) ($source['sku'] ?? $product['sku'] ?? '')) ?: '-',
         'price' => $price,
+        'regular_price' => $price,
+        'sale_price' => 0.0,
         'cost' => 0.0,
         'qty' => $qty,
         'cost_val' => 0.0,
@@ -417,6 +436,8 @@ function cor_inventory_rows_from_wp_db(): array
             'category' => (string) ($item['categories'] ?? ''),
             'sku' => trim((string) ($item['sku'] ?? '')) ?: '-',
             'price' => $price,
+            'regular_price' => $price,
+            'sale_price' => 0.0,
             'cost' => $cost,
             'qty' => $qty,
             'cost_val' => $qty * $cost,
@@ -437,6 +458,8 @@ function cor_inventory_row(array $product, ?array $variation = null): array
     $cost = (float) cor_woo_meta($source, '_wc_cog_cost', $parentCost);
     $qty = (float) ($source['stock_quantity'] ?? 0);
     $price = (float) (($source['regular_price'] ?? '') !== '' ? $source['regular_price'] : ($source['price'] ?? 0));
+    $regularPrice = (float) (($source['regular_price'] ?? '') !== '' ? $source['regular_price'] : $price);
+    $salePrice = (float) (($source['sale_price'] ?? '') !== '' ? $source['sale_price'] : 0);
     $lowThreshold = (int) cor_woo_meta($source, '_low_stock_amount', cor_woo_meta($product, '_low_stock_amount', 5));
     if ($lowThreshold <= 0) {
         $lowThreshold = 5;
@@ -463,6 +486,8 @@ function cor_inventory_row(array $product, ?array $variation = null): array
         'category' => implode(', ', $categories),
         'sku' => trim((string) ($source['sku'] ?? '')) ?: '-',
         'price' => $price,
+        'regular_price' => $regularPrice,
+        'sale_price' => $salePrice,
         'cost' => $cost,
         'qty' => $qty,
         'cost_val' => $qty * $cost,
@@ -473,9 +498,10 @@ function cor_inventory_row(array $product, ?array $variation = null): array
     ];
 }
 
-function cor_fetch_inventory_rows(): array
+function cor_fetch_inventory_result(): array
 {
     $rows = [];
+    $logs = [];
     $sortRows = static function (array $rows): array {
         usort($rows, static function (array $a, array $b): int {
             $name = strcmp(strtolower((string) $a['name']), strtolower((string) $b['name']));
@@ -489,98 +515,96 @@ function cor_fetch_inventory_rows(): array
         return $rows;
     };
 
-    if (wc_configured()) {
-        try {
-            for ($page = 1; $page <= 20; $page++) {
-                $products = wc_get('products', [
-                    'status' => 'publish',
-                    'per_page' => 100,
-                    'page' => $page,
-                ]);
-                if (!$products) {
-                    break;
+    if (!wc_configured()) {
+        $error = 'WooCommerce API is not configured in config.local.php.';
+        cor_report_log('Inventory WooCommerce fetch skipped', [
+            'endpoint' => 'products',
+            'error' => $error,
+        ]);
+
+        return ['rows' => [], 'source' => 'woocommerce_rest', 'error' => $error, 'logs' => $logs];
+    }
+
+    try {
+        for ($page = 1; $page <= 20; $page++) {
+            $products = wc_get('products', [
+                'status' => 'publish',
+                'per_page' => 100,
+                'page' => $page,
+            ]);
+            $logs[] = ['endpoint' => 'products', 'page' => $page, 'count' => count($products)];
+            cor_report_log('Inventory WooCommerce products fetched', end($logs) ?: []);
+            if (!$products) {
+                break;
+            }
+            foreach ($products as $product) {
+                if (!is_array($product)) {
+                    continue;
                 }
-                foreach ($products as $product) {
-                    if (!is_array($product)) {
-                        continue;
-                    }
-                    if (($product['type'] ?? '') === 'variable' && !empty($product['variations'])) {
-                        for ($vPage = 1; $vPage <= 10; $vPage++) {
-                            try {
-                                $variations = wc_get('products/' . (int) $product['id'] . '/variations', [
-                                    'per_page' => 100,
-                                    'page' => $vPage,
-                                ]);
-                            } catch (Throwable $e) {
-                                $variations = [];
-                            }
-                            if (!$variations) {
-                                break;
-                            }
-                            foreach ($variations as $variation) {
-                                if (is_array($variation)) {
-                                    $rows[] = cor_inventory_row($product, $variation);
-                                }
-                            }
-                            if (count($variations) < 100) {
-                                break;
+                if (($product['type'] ?? '') === 'variable' && !empty($product['variations'])) {
+                    for ($vPage = 1; $vPage <= 10; $vPage++) {
+                        try {
+                            $variations = wc_get('products/' . (int) $product['id'] . '/variations', [
+                                'per_page' => 100,
+                                'page' => $vPage,
+                            ]);
+                            $logs[] = [
+                                'endpoint' => 'products/' . (int) $product['id'] . '/variations',
+                                'page' => $vPage,
+                                'count' => count($variations),
+                            ];
+                            cor_report_log('Inventory WooCommerce variations fetched', end($logs) ?: []);
+                        } catch (Throwable $e) {
+                            cor_report_log('Inventory WooCommerce variations failed', [
+                                'endpoint' => 'products/' . (int) $product['id'] . '/variations',
+                                'page' => $vPage,
+                                'error' => $e->getMessage(),
+                            ]);
+                            $variations = [];
+                        }
+                        if (!$variations) {
+                            break;
+                        }
+                        foreach ($variations as $variation) {
+                            if (is_array($variation)) {
+                                $rows[] = cor_inventory_row($product, $variation);
                             }
                         }
-                        continue;
+                        if (count($variations) < 100) {
+                            break;
+                        }
                     }
-                    $rows[] = cor_inventory_row($product);
+                    continue;
                 }
-                if (count($products) < 100) {
-                    break;
-                }
+                $rows[] = cor_inventory_row($product);
             }
-        } catch (Throwable $e) {
-            $rows = [];
+            if (count($products) < 100) {
+                break;
+            }
         }
-        if ($rows) {
-            return $sortRows($rows);
-        }
-    }
-
-    $rows = cor_inventory_rows_from_wp_db();
-    if ($rows) {
-        return $sortRows($rows);
-    }
-
-    for ($page = 1; $page <= 20; $page++) {
-        $products = cor_store_get('products', [
-            'status' => 'publish',
-            'per_page' => 100,
-            'page' => $page,
+    } catch (Throwable $e) {
+        cor_report_log('Inventory WooCommerce products failed', [
+            'endpoint' => 'products',
+            'error' => $e->getMessage(),
         ]);
-        if (!$products) {
-            break;
-        }
 
-        foreach ($products as $product) {
-            if (!is_array($product)) {
-                continue;
-            }
-
-            $variations = $product['variations'] ?? [];
-            if (is_array($variations) && $variations) {
-                foreach ($variations as $variation) {
-                    if (is_array($variation)) {
-                        $rows[] = cor_inventory_row_from_store_product($product, $variation);
-                    }
-                }
-                continue;
-            }
-
-            $rows[] = cor_inventory_row_from_store_product($product);
-        }
-
-        if (count($products) < 100) {
-            break;
-        }
+        return ['rows' => [], 'source' => 'woocommerce_rest', 'error' => $e->getMessage(), 'logs' => $logs];
     }
 
-    return $sortRows($rows);
+    $rows = $sortRows($rows);
+    $error = $rows ? null : 'WooCommerce returned 0 products. Check REST API permissions and product visibility.';
+    if ($error) {
+        cor_report_log('Inventory WooCommerce returned no products', ['endpoint' => 'products']);
+    }
+
+    return ['rows' => $rows, 'source' => 'woocommerce_rest', 'error' => $error, 'logs' => $logs];
+}
+
+function cor_fetch_inventory_rows(): array
+{
+    $result = cor_fetch_inventory_result();
+
+    return $result['rows'];
 }
 
 function cor_inventory_filtered_rows(array $rows, string $search, string $category, string $stock, string $sort, string $dir): array
@@ -820,7 +844,7 @@ function cor_export_vat(array $filters, string $format, string $section): void
                     COALESCE(SUM(o.total_amount), 0) AS total_sales,
                     COALESCE(SUM(o.shipping_total + o.shipping_tax_total), 0) AS shipping
              FROM ops_orders o
-             WHERE {$where} AND o.payment_status <> 'refunded' AND o.status NOT IN ('cancelled','failed')
+             WHERE {$where} AND COALESCE(o.payment_status, '') <> 'refunded' AND o.status NOT IN ('cancelled','canceled','failed')
              GROUP BY DATE(o.created_at)
              ORDER BY d ASC",
             $params
@@ -849,7 +873,7 @@ function cor_export_vat(array $filters, string $format, string $section): void
                     COALESCE(SUM(o.total_amount), 0) AS total_incl,
                     COALESCE(SUM(o.shipping_total + o.shipping_tax_total), 0) AS shipping
              FROM ops_orders o
-             WHERE {$where} AND o.payment_status <> 'refunded' AND o.status NOT IN ('cancelled','failed')
+             WHERE {$where} AND COALESCE(o.payment_status, '') <> 'refunded' AND o.status NOT IN ('cancelled','canceled','failed')
              GROUP BY COALESCE(NULLIF(o.payment_method, ''), 'Other')
              ORDER BY total_incl DESC",
             $params
@@ -875,7 +899,7 @@ function cor_export_vat(array $filters, string $format, string $section): void
                 FROM ops_order_items
                 GROUP BY order_id
              ) order_qty ON order_qty.order_id = o.id
-             WHERE {$where} AND o.payment_status <> 'refunded' AND o.status NOT IN ('cancelled','failed')
+             WHERE {$where} AND COALESCE(o.payment_status, '') <> 'refunded' AND o.status NOT IN ('cancelled','canceled','failed')
              GROUP BY oi.product_name
              ORDER BY total_incl DESC",
             $params
@@ -893,7 +917,7 @@ function cor_export_vat(array $filters, string $format, string $section): void
                 COUNT(*) AS orders,
                 COALESCE(SUM(o.shipping_total + o.shipping_tax_total), 0) AS shipping
          FROM ops_orders o
-         WHERE {$where} AND o.payment_status <> 'refunded' AND o.status NOT IN ('cancelled','failed')",
+         WHERE {$where} AND COALESCE(o.payment_status, '') <> 'refunded' AND o.status NOT IN ('cancelled','canceled','failed')",
         $params
     );
     $row = $rows[0] ?? ['total_sales' => 0, 'orders' => 0, 'shipping' => 0];
@@ -937,7 +961,7 @@ function cor_export_monthly(array $filters, string $format): void
                 COALESCE(SUM(o.total_amount), 0) AS total_sales,
                 COALESCE(SUM(o.shipping_total + o.shipping_tax_total), 0) AS shipping
          FROM ops_orders o
-         WHERE {$where} AND o.payment_status <> 'refunded' AND o.status NOT IN ('cancelled','failed')",
+         WHERE {$where} AND COALESCE(o.payment_status, '') <> 'refunded' AND o.status NOT IN ('cancelled','canceled','failed')",
         $params
     );
     $refundRows = cor_query_rows(
@@ -950,7 +974,7 @@ function cor_export_monthly(array $filters, string $format): void
         "SELECT COALESCE(NULLIF(o.payment_method, ''), 'Other') AS method,
                 COALESCE(SUM(o.total_amount), 0) AS total
          FROM ops_orders o
-         WHERE {$where} AND o.payment_status <> 'refunded' AND o.status NOT IN ('cancelled','failed')
+         WHERE {$where} AND COALESCE(o.payment_status, '') <> 'refunded' AND o.status NOT IN ('cancelled','canceled','failed')
          GROUP BY COALESCE(NULLIF(o.payment_method, ''), 'Other')",
         $params
     );
@@ -1040,6 +1064,30 @@ if (!in_array($filters['tab'], $validTabs, true)) {
     $filters['tab'] = 'sales';
 }
 
+$reportSyncResult = null;
+$reportSyncError = null;
+if ($ready) {
+    try {
+        $syncDate = $filters['range'] === 'today' ? $filters['from'] : null;
+        $reportSyncResult = ops_board_run_guarded_sync($syncDate, false);
+        cor_report_log('WooCommerce orders sync checked', [
+            'endpoint' => 'orders',
+            'date' => $syncDate ?: 'recent',
+            'imported' => (int) ($reportSyncResult['imported'] ?? 0),
+            'updated' => (int) ($reportSyncResult['updated'] ?? 0),
+            'orders_returned' => (int) ($reportSyncResult['website_orders_seen'] ?? 0),
+            'skipped' => (bool) ($reportSyncResult['skipped'] ?? false),
+            'skip_reason' => $reportSyncResult['skip_reason'] ?? null,
+        ]);
+    } catch (Throwable $e) {
+        $reportSyncError = $e->getMessage();
+        cor_report_log('WooCommerce orders sync failed', [
+            'endpoint' => 'orders',
+            'error' => $reportSyncError,
+        ]);
+    }
+}
+
 if ($ready && isset($_GET['export']) && in_array((string) $_GET['export'], ['csv', 'excel'], true)) {
     if ($filters['tab'] === 'products') {
         cor_export_products($filters, (string) $_GET['export']);
@@ -1089,6 +1137,9 @@ $inventoryAllRows = [];
 $inventoryFilteredRows = [];
 $inventoryTopRows = [];
 $inventoryCategories = [];
+$inventoryFetch = ['rows' => [], 'source' => 'not_loaded', 'error' => null, 'logs' => []];
+$inventoryError = null;
+$inventorySource = 'not_loaded';
 $inventoryStats = [
     'shown' => 0,
     'total' => 0,
@@ -1162,19 +1213,21 @@ if ($ready) {
     $where = cor_filtered_where($filters, $params);
     $summaryRow = cor_query_one(
         "SELECT COUNT(*) AS total_orders,
-                COALESCE(SUM(CASE WHEN payment_status <> 'refunded' THEN total_amount ELSE 0 END), 0) AS total_revenue,
+                SUM(CASE WHEN COALESCE(payment_status, '') <> 'refunded' AND status NOT IN ('cancelled','canceled','failed') THEN 1 ELSE 0 END) AS revenue_orders,
+                COALESCE(SUM(CASE WHEN COALESCE(payment_status, '') <> 'refunded' AND status NOT IN ('cancelled','canceled','failed') THEN COALESCE(total_amount, 0) ELSE 0 END), 0) AS total_revenue,
                 SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed,
                 SUM(CASE WHEN status IN ('in_progress','packed','verified','ready_for_collection','ready_for_courier','ready_for_delivery') THEN 1 ELSE 0 END) AS processing,
                 SUM(CASE WHEN status IN ('new_order','assigned') THEN 1 ELSE 0 END) AS pending,
-                COALESCE(SUM(tax_total + shipping_tax_total), 0) AS tax_collected,
-                COALESCE(SUM(discount_total), 0) AS discounts
+                COALESCE(SUM(CASE WHEN COALESCE(payment_status, '') <> 'refunded' AND status NOT IN ('cancelled','canceled','failed') THEN COALESCE(tax_total, 0) + COALESCE(shipping_tax_total, 0) ELSE 0 END), 0) AS tax_collected,
+                COALESCE(SUM(CASE WHEN COALESCE(payment_status, '') <> 'refunded' AND status NOT IN ('cancelled','canceled','failed') THEN COALESCE(discount_total, 0) ELSE 0 END), 0) AS discounts
          FROM ops_orders o
          WHERE {$where}",
         $params
     );
     $summary['total_orders'] = (int) ($summaryRow['total_orders'] ?? 0);
     $summary['total_revenue'] = (float) ($summaryRow['total_revenue'] ?? 0);
-    $summary['aov'] = $summary['total_orders'] > 0 ? $summary['total_revenue'] / $summary['total_orders'] : 0.0;
+    $revenueOrders = (int) ($summaryRow['revenue_orders'] ?? 0);
+    $summary['aov'] = $revenueOrders > 0 ? $summary['total_revenue'] / $revenueOrders : 0.0;
     $summary['completed'] = (int) ($summaryRow['completed'] ?? 0);
     $summary['processing'] = (int) ($summaryRow['processing'] ?? 0);
     $summary['pending'] = (int) ($summaryRow['pending'] ?? 0);
@@ -1305,7 +1358,7 @@ if ($ready) {
                 COALESCE(SUM(o.total_amount), 0) AS total_sales,
                 COALESCE(SUM(o.shipping_total + o.shipping_tax_total), 0) AS shipping
          FROM ops_orders o
-         WHERE {$where} AND o.payment_status <> 'refunded' AND o.status NOT IN ('cancelled','failed')
+         WHERE {$where} AND COALESCE(o.payment_status, '') <> 'refunded' AND o.status NOT IN ('cancelled','canceled','failed')
          GROUP BY DATE(o.created_at)
          ORDER BY d ASC",
         $params
@@ -1347,7 +1400,7 @@ if ($ready) {
                 COALESCE(SUM(o.total_amount), 0) AS total_incl,
                 COALESCE(SUM(o.shipping_total + o.shipping_tax_total), 0) AS shipping
          FROM ops_orders o
-         WHERE {$where} AND o.payment_status <> 'refunded' AND o.status NOT IN ('cancelled','failed')
+         WHERE {$where} AND COALESCE(o.payment_status, '') <> 'refunded' AND o.status NOT IN ('cancelled','canceled','failed')
          GROUP BY COALESCE(NULLIF(o.payment_method, ''), 'Other')
          ORDER BY total_incl DESC",
         $params
@@ -1410,11 +1463,10 @@ if ($ready) {
         $params
     );
     if (in_array($filters['tab'], ['inventory', 'monthly'], true)) {
-        try {
-            $inventoryAllRows = cor_fetch_inventory_rows();
-        } catch (Throwable $e) {
-            $inventoryAllRows = [];
-        }
+        $inventoryFetch = cor_fetch_inventory_result();
+        $inventoryAllRows = $inventoryFetch['rows'];
+        $inventoryError = $inventoryFetch['error'];
+        $inventorySource = $inventoryFetch['source'];
     }
     $inventoryCategories = [];
     foreach ($inventoryAllRows as $row) {
@@ -1466,12 +1518,23 @@ if ($ready) {
         $monthlySummary['stock_retail'] = $inventoryStats['retail_value'];
         $monthlySummary['potential_margin'] = $inventoryStats['gross_profit'];
     }
+    cor_report_log('Customer Orders Report loaded', [
+        'tab' => $filters['tab'],
+        'range' => $filters['range'],
+        'from' => $filters['from'],
+        'to' => $filters['to'],
+        'orders_returned' => $summary['total_orders'],
+        'payment_methods_returned' => count($paymentRows),
+        'inventory_products_returned' => $inventoryStats['total'],
+        'inventory_source' => $inventorySource,
+        'inventory_error' => $inventoryError,
+    ]);
     $daily14Rows = cor_query_rows(
         "SELECT DATE(o.created_at) AS d, COUNT(*) AS orders, COALESCE(SUM(o.total_amount), 0) AS rev
          FROM ops_orders o
          WHERE DATE(o.created_at) >= DATE_SUB(CURDATE(), INTERVAL 14 DAY)
-           AND o.payment_status <> 'refunded'
-           AND o.status NOT IN ('cancelled','failed')
+           AND COALESCE(o.payment_status, '') <> 'refunded'
+           AND o.status NOT IN ('cancelled','canceled','failed')
          GROUP BY DATE(o.created_at)
          ORDER BY d ASC"
     );
@@ -1710,6 +1773,10 @@ include BASE_PATH . '/shared/sidebar.php';
         .inv-count { margin-top: 8px; color: var(--cor-text-mid); font-size: 11px; }
         .inv-sku-chip { display: inline-block; padding: 2px 6px; border-radius: 3px; background: var(--cor-border); color: var(--cor-text-mid); font-size: 10px; font-weight: 700; }
         .inv-cost-box { display: inline-block; min-width: 58px; padding: 4px 8px; border: 1px solid var(--cor-border); border-radius: 5px; background: #fff; color: var(--cor-text); font-size: 12px; text-align: right; }
+        .cor-data-message { margin: 0 0 14px; padding: 10px 12px; border-radius: 7px; font-size: 12px; font-weight: 700; }
+        .cor-data-error { border: 1px solid #f2b8b8; background: #fff5f5; color: var(--cor-red); }
+        .cor-data-ok { border: 1px solid #dcebb0; background: #f7fbea; color: #6f8c10; }
+        .cor-loading-banner { margin: 0 0 14px; padding: 10px 12px; border: 1px solid #ead8c9; border-radius: 7px; background: #fff7ef; color: var(--cor-burgundy); font-size: 12px; font-weight: 700; }
         .inv-row-low td { background: #fff9f0 !important; }
         .inv-row-out td { background: #fff5f5 !important; }
         .inv-qty-in { color: #6f8c10 !important; font-weight: 800 !important; }
@@ -1741,6 +1808,10 @@ include BASE_PATH . '/shared/sidebar.php';
     <?php endif; ?>
 
     <?php $filterPanelOpen = $filters['range'] !== 'month' || $filters['status'] !== 'all' || $filters['mode'] !== 'all' || $filters['payment'] !== 'all'; ?>
+    <div class="cor-loading-banner" data-cor-loading hidden>Loading website data...</div>
+    <?php if ($reportSyncError): ?>
+        <div class="cor-data-message cor-data-error">Could not connect to WooCommerce: <?= cor_e($reportSyncError) ?></div>
+    <?php endif; ?>
     <details class="cor-filter-panel" <?= $filterPanelOpen ? 'open' : '' ?>>
         <summary>
             <i data-lucide="sliders-horizontal" class="filter-icon" aria-hidden="true"></i>
@@ -2416,6 +2487,11 @@ include BASE_PATH . '/shared/sidebar.php';
         <article class="cor-report-card">
             <div class="card-head"><h3>Inventory</h3><span>Read-only WooCommerce stock and value report</span></div>
             <form class="inv-tools" method="get">
+                <?php if ($inventoryError): ?>
+                    <div class="cor-data-message cor-data-error">Could not connect to WooCommerce: <?= cor_e($inventoryError) ?></div>
+                <?php elseif ($filters['tab'] === 'inventory' || $filters['tab'] === 'monthly'): ?>
+                    <div class="cor-data-message cor-data-ok">WooCommerce REST API loaded <?= number_format((int) $inventoryStats['total']) ?> products/SKUs.</div>
+                <?php endif; ?>
                 <input type="hidden" name="tab" value="inventory">
                 <input type="hidden" name="range" value="<?= cor_e($filters['range']) ?>">
                 <input type="hidden" name="from" value="<?= cor_e($filters['from']) ?>">
@@ -2457,11 +2533,13 @@ include BASE_PATH . '/shared/sidebar.php';
             </div>
             <div style="overflow-x:auto;max-height:620px;overflow-y:auto;">
                 <table class="cor-products-table" style="width:100%;border-collapse:collapse;">
-                    <thead><tr><th>Product / Category</th><th>Variant</th><th>SKU</th><th>Price</th><th>Cost</th><th>QTY</th><th>Cost Value</th><th>Retail Value</th><th>Profit</th></tr></thead>
+                    <thead><tr><th>Product / Category</th><th>Variant</th><th>SKU</th><th>Stock Status</th><th>QTY</th><th>Regular Price</th><th>Sale Price</th><th>Cost</th><th>Cost Value</th><th>Retail Value</th><th>Profit</th></tr></thead>
                     <tbody>
                     <?php foreach ($inventoryFilteredRows as $row):
                         $rowClass = $row['stock_class'] === 'out' ? 'inv-row-out' : ($row['stock_class'] === 'low' ? 'inv-row-low' : '');
                         $qtyClass = 'inv-qty-' . $row['stock_class'];
+                        $stockLabel = $row['stock_class'] === 'out' ? 'Out of Stock' : ($row['stock_class'] === 'low' ? 'Low Stock' : 'In Stock');
+                        $stockBadge = $row['stock_class'] === 'out' ? 'inv-outstock' : ($row['stock_class'] === 'low' ? 'inv-lowstock' : 'inv-instock');
                     ?>
                         <tr class="<?= cor_e($rowClass) ?>">
                             <td>
@@ -2470,20 +2548,25 @@ include BASE_PATH . '/shared/sidebar.php';
                             </td>
                             <td><?= $row['variant'] !== '' ? cor_e($row['variant']) : '-' ?></td>
                             <td><?= $row['sku'] !== '-' ? '<span class="inv-sku-chip">' . cor_e($row['sku']) . '</span>' : '<span style="color:var(--cor-text-light)">-</span>' ?></td>
-                            <td><?= cor_money($row['price']) ?></td>
-                            <td><span class="inv-cost-box"><?= number_format((float) $row['cost'], 2) ?></span></td>
+                            <td><span class="<?= cor_e($stockBadge) ?>"><?= cor_e($stockLabel) ?></span></td>
                             <td class="<?= cor_e($qtyClass) ?>"><?= number_format((float) $row['qty']) ?></td>
+                            <td><?= cor_money($row['regular_price'] ?? $row['price']) ?></td>
+                            <td><?= ((float) ($row['sale_price'] ?? 0) > 0) ? cor_money($row['sale_price']) : '<span style="color:var(--cor-text-light)">-</span>' ?></td>
+                            <td><span class="inv-cost-box"><?= number_format((float) $row['cost'], 2) ?></span></td>
                             <td><?= cor_money($row['cost_val']) ?></td>
                             <td><?= cor_money($row['retail_val']) ?></td>
                             <td class="<?= ((float) $row['profit'] < 0) ? 'cor-profit-negative' : 'cor-profit-positive' ?>"><?= cor_money($row['profit']) ?></td>
                         </tr>
                     <?php endforeach; ?>
                     <?php if (!$inventoryFilteredRows): ?>
-                        <tr><td colspan="9" style="height:auto;padding:24px !important;text-align:center;color:var(--cor-text-light) !important;">No products match this inventory view.</td></tr>
+                        <tr><td colspan="11" style="height:auto;padding:24px !important;text-align:center;color:var(--cor-text-light) !important;"><?= $inventoryError ? 'Could not connect to WooCommerce: ' . cor_e($inventoryError) : 'No products match this inventory view.' ?></td></tr>
                     <?php else: ?>
                         <tr style="border-top:3px solid var(--cor-border);background:var(--cor-cream);">
-                            <td colspan="5" style="font-weight:800;">TOTAL</td>
+                            <td colspan="4" style="font-weight:800;">TOTAL</td>
                             <td style="font-weight:800;"><?= number_format((float) $inventoryStats['shown_qty']) ?></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
                             <td style="font-weight:800;"><?= cor_money($inventoryStats['shown_cost']) ?></td>
                             <td style="font-weight:800;"><?= cor_money($inventoryStats['shown_retail']) ?></td>
                             <td class="cor-profit-positive" style="font-weight:800;"><?= cor_money($inventoryStats['shown_profit']) ?></td>
@@ -2535,49 +2618,25 @@ document.addEventListener('DOMContentLoaded', function () {
   var rangeInput = document.querySelector('[data-cor-range]');
   var tabInput = document.querySelector('[data-cor-tab-input]');
   var customDates = document.querySelector('[data-custom-dates]');
-  var syncEndpoint = '<?= cor_e(BASE_URL . '/apps/operations/orders-board-action.php') ?>';
-  var syncInFlight = false;
+  var loadingBanner = document.querySelector('[data-cor-loading]');
 
-  function shouldAvoidReload() {
-    var active = document.activeElement;
-    return !!(active && active.closest && active.closest('form'));
+  function showLoading() {
+    if (loadingBanner) loadingBanner.hidden = false;
   }
 
-  async function syncReportData() {
-    if (syncInFlight || document.visibilityState === 'hidden') return;
-    syncInFlight = true;
-    try {
-      var body = new FormData();
-      body.append('action', 'sync');
-      body.append('force', '0');
-      var response = await fetch(syncEndpoint, {
-        method: 'POST',
-        body: body,
-        credentials: 'same-origin',
-        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-      });
-      var data = await response.json().catch(function () { return null; });
-      var result = data && data.ok ? (data.result || {}) : {};
-      var changed = Number(result.imported || 0) + Number(result.updated || 0);
-      if (changed > 0 && !shouldAvoidReload()) {
-        window.location.reload();
-      }
-    } catch (error) {
-      // Keep the report usable if a background sync attempt fails.
-    } finally {
-      syncInFlight = false;
-    }
+  if (form) {
+    form.addEventListener('submit', showLoading);
   }
-
-  syncReportData();
-  window.setInterval(syncReportData, 60000);
 
   document.querySelectorAll('[data-range]').forEach(function (button) {
     button.addEventListener('click', function () {
       if (!form || !rangeInput) return;
       rangeInput.value = button.dataset.range || 'month';
       if (customDates) customDates.style.display = rangeInput.value === 'custom' ? '' : 'none';
-      if (rangeInput.value !== 'custom') form.submit();
+      if (rangeInput.value !== 'custom') {
+        showLoading();
+        form.submit();
+      }
       document.querySelectorAll('[data-range]').forEach(function (btn) { btn.classList.remove('active'); });
       button.classList.add('active');
     });
@@ -2585,15 +2644,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
   document.querySelectorAll('.cor-tab').forEach(function (tab) {
     tab.addEventListener('click', function () {
-      document.querySelectorAll('.cor-tab').forEach(function (item) { item.classList.remove('active'); });
-      document.querySelectorAll('.cor-tab-content').forEach(function (item) { item.classList.remove('active'); });
-      tab.classList.add('active');
-      var panel = document.getElementById('tab-' + tab.dataset.tab);
-      if (panel) panel.classList.add('active');
-      if (tabInput) tabInput.value = tab.dataset.tab || 'sales';
+      var nextTab = tab.dataset.tab || 'sales';
+      if (tabInput) tabInput.value = nextTab;
       var url = new URL(window.location.href);
-      url.searchParams.set('tab', tab.dataset.tab || 'sales');
-      history.replaceState({}, '', url.toString());
+      url.searchParams.set('tab', nextTab);
+      url.searchParams.delete('p');
+      showLoading();
+      window.location.href = url.toString();
     });
   });
 
