@@ -874,6 +874,12 @@
         <td class="add-column-cell"></td>
       </tr>
     ` : '';
+    const totalColumnCount = 14 + customColumns.length;
+    const collapsedGapRow = !isOpen && index > 0 ? `
+      <tr class="ob-collapsed-group-gap" aria-hidden="true" data-group-gap="${esc(key)}">
+        <td colspan="${totalColumnCount}"></td>
+      </tr>
+    ` : '';
 
     const rows = orders.map((order, rowIndex) => {
       const stripClass = `${rowIndex === 0 ? 'is-group-first' : ''} ${rowIndex === orders.length - 1 ? 'is-group-last-visible' : ''}`.trim();
@@ -899,6 +905,7 @@
     }).join('');
 
     return `
+      ${collapsedGapRow}
       <tr class="group-row ob-group-header ${isOpen ? 'is-open' : ''}" data-group="${esc(key)}" data-colour="${esc(colour)}" data-count="${esc(orders.length)}" data-amount="${esc(money(total))}" data-paid="${esc(paid)}" data-total="${esc(orders.length)}" style="--ob-group-colour:${esc(colour)}">
         <td class="ob-strip-cell col-strip"></td>
         <td class="ob-group-name-cell" colspan="3">

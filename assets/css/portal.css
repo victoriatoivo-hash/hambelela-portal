@@ -18165,29 +18165,29 @@ body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header > td.
 }
 /* Collapsed Order Board groups should read as separate Monday-style rows. */
 body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) {
-  height: 68px !important;
-  background: transparent !important;
+  height: 58px !important;
+  background: #ffffff !important;
   border-left: 0 !important;
 }
 
 body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) > td {
   height: 58px !important;
   background: #ffffff !important;
-  border-top: 10px solid #ffffff !important;
+  border-top: 1px solid var(--board-line, #d0d4e4) !important;
   border-bottom: 1px solid var(--board-line, #d0d4e4) !important;
-  border-color: #ffffff var(--board-line, #d0d4e4) var(--board-line, #d0d4e4) var(--board-line, #d0d4e4) !important;
-  box-shadow: inset 0 1px 0 var(--board-line, #d0d4e4) !important;
+  border-color: var(--board-line, #d0d4e4) !important;
+  box-shadow: none !important;
   vertical-align: middle !important;
 }
 
 body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) > td.ob-strip-cell {
   background: #ffffff !important;
-  border-color: #ffffff !important;
+  border-color: transparent !important;
   box-shadow: none !important;
 }
 
 body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) > td.ob-strip-cell::before {
-  top: 10px !important;
+  top: 0 !important;
   bottom: 0 !important;
   border-radius: 12px !important;
 }
@@ -18207,31 +18207,76 @@ body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header.is-op
   border-top-width: 0 !important;
 }
 
-/* Collapsed Order Board groups should read as separate Monday-style rows. */
+/* Real collapsed-group separation: use spacer rows, not fake borders. */
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-collapsed-group-gap,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-collapsed-group-gap > td {
+  height: 10px !important;
+  min-height: 10px !important;
+  max-height: 10px !important;
+  padding: 0 !important;
+  background: #ffffff !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  line-height: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-collapsed-group-gap:hover > td {
+  background: #ffffff !important;
+}
+
 body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) {
-  height: 68px !important;
-  background: transparent !important;
+  height: 58px !important;
+  background: #ffffff !important;
   border-left: 0 !important;
 }
 
 body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) > td {
   height: 58px !important;
   background: #ffffff !important;
-  border-top: 10px solid #ffffff !important;
+  border-top: 1px solid var(--board-line, #d0d4e4) !important;
   border-bottom: 1px solid var(--board-line, #d0d4e4) !important;
-  border-color: #ffffff var(--board-line, #d0d4e4) var(--board-line, #d0d4e4) var(--board-line, #d0d4e4) !important;
-  box-shadow: inset 0 1px 0 var(--board-line, #d0d4e4) !important;
+  border-color: var(--board-line, #d0d4e4) !important;
+  box-shadow: none !important;
   vertical-align: middle !important;
 }
 
 body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) > td.ob-strip-cell {
   background: #ffffff !important;
-  border-color: #ffffff !important;
+  border-color: transparent !important;
   box-shadow: none !important;
 }
 
 body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) > td.ob-strip-cell::before {
-  top: 10px !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  border-radius: 12px !important;
+}
+
+/* Collapsed Order Board groups should read as separate Monday-style rows. */
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) {
+  height: 58px !important;
+  background: #ffffff !important;
+  border-left: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) > td {
+  height: 58px !important;
+  background: #ffffff !important;
+  border-top: 1px solid var(--board-line, #d0d4e4) !important;
+  border-bottom: 1px solid var(--board-line, #d0d4e4) !important;
+  border-color: var(--board-line, #d0d4e4) !important;
+  box-shadow: none !important;
+  vertical-align: middle !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) > td.ob-strip-cell {
+  background: #ffffff !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) > td.ob-strip-cell::before {
+  top: 0 !important;
   bottom: 0 !important;
   border-radius: 12px !important;
 }
@@ -18989,29 +19034,29 @@ body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header > td.
 
 /* Collapsed Order Board groups should read as separate Monday-style rows. */
 body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) {
-  height: 68px !important;
-  background: transparent !important;
+  height: 58px !important;
+  background: #ffffff !important;
   border-left: 0 !important;
 }
 
 body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) > td {
   height: 58px !important;
   background: #ffffff !important;
-  border-top: 10px solid #ffffff !important;
+  border-top: 1px solid var(--board-line, #d0d4e4) !important;
   border-bottom: 1px solid var(--board-line, #d0d4e4) !important;
-  border-color: #ffffff var(--board-line, #d0d4e4) var(--board-line, #d0d4e4) var(--board-line, #d0d4e4) !important;
-  box-shadow: inset 0 1px 0 var(--board-line, #d0d4e4) !important;
+  border-color: var(--board-line, #d0d4e4) !important;
+  box-shadow: none !important;
   vertical-align: middle !important;
 }
 
 body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) > td.ob-strip-cell {
   background: #ffffff !important;
-  border-color: #ffffff !important;
+  border-color: transparent !important;
   box-shadow: none !important;
 }
 
 body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) > td.ob-strip-cell::before {
-  top: 10px !important;
+  top: 0 !important;
   bottom: 0 !important;
   border-radius: 12px !important;
 }
