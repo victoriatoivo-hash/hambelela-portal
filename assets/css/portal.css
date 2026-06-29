@@ -18163,6 +18163,93 @@ body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header > td.
   content: none !important;
   display: none !important;
 }
+/* Collapsed Order Board groups should read as separate Monday-style rows. */
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) {
+  height: 68px !important;
+  background: transparent !important;
+  border-left: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) > td {
+  height: 58px !important;
+  background: #ffffff !important;
+  border-top: 10px solid #ffffff !important;
+  border-bottom: 1px solid var(--board-line, #d0d4e4) !important;
+  border-color: #ffffff var(--board-line, #d0d4e4) var(--board-line, #d0d4e4) var(--board-line, #d0d4e4) !important;
+  box-shadow: inset 0 1px 0 var(--board-line, #d0d4e4) !important;
+  vertical-align: middle !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) > td.ob-strip-cell {
+  background: #ffffff !important;
+  border-color: #ffffff !important;
+  box-shadow: none !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) > td.ob-strip-cell::before {
+  top: 10px !important;
+  bottom: 0 !important;
+  border-radius: 12px !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) > td.ob-group-name-cell {
+  padding-left: 14px !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) button[data-collapse-group],
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) .ob-group-header-control {
+  min-height: 58px !important;
+  align-items: center !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header.is-open,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header.is-open > td {
+  border-top-width: 0 !important;
+}
+
+/* Collapsed Order Board groups should read as separate Monday-style rows. */
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) {
+  height: 68px !important;
+  background: transparent !important;
+  border-left: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) > td {
+  height: 58px !important;
+  background: #ffffff !important;
+  border-top: 10px solid #ffffff !important;
+  border-bottom: 1px solid var(--board-line, #d0d4e4) !important;
+  border-color: #ffffff var(--board-line, #d0d4e4) var(--board-line, #d0d4e4) var(--board-line, #d0d4e4) !important;
+  box-shadow: inset 0 1px 0 var(--board-line, #d0d4e4) !important;
+  vertical-align: middle !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) > td.ob-strip-cell {
+  background: #ffffff !important;
+  border-color: #ffffff !important;
+  box-shadow: none !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) > td.ob-strip-cell::before {
+  top: 10px !important;
+  bottom: 0 !important;
+  border-radius: 12px !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) > td.ob-group-name-cell {
+  padding-left: 14px !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) button[data-collapse-group],
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) .ob-group-header-control {
+  min-height: 58px !important;
+  align-items: center !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header.is-open,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header.is-open > td {
+  border-top-width: 0 !important;
+}
 
 body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-data-row > td.col-checkbox,
 body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.board-row > td.check-cell.col-checkbox,
@@ -18898,4 +18985,48 @@ body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-footer > td.
 body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header > td.ob-group-name-cell::before {
   content: none !important;
   display: none !important;
+}
+
+/* Collapsed Order Board groups should read as separate Monday-style rows. */
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) {
+  height: 68px !important;
+  background: transparent !important;
+  border-left: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) > td {
+  height: 58px !important;
+  background: #ffffff !important;
+  border-top: 10px solid #ffffff !important;
+  border-bottom: 1px solid var(--board-line, #d0d4e4) !important;
+  border-color: #ffffff var(--board-line, #d0d4e4) var(--board-line, #d0d4e4) var(--board-line, #d0d4e4) !important;
+  box-shadow: inset 0 1px 0 var(--board-line, #d0d4e4) !important;
+  vertical-align: middle !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) > td.ob-strip-cell {
+  background: #ffffff !important;
+  border-color: #ffffff !important;
+  box-shadow: none !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) > td.ob-strip-cell::before {
+  top: 10px !important;
+  bottom: 0 !important;
+  border-radius: 12px !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) > td.ob-group-name-cell {
+  padding-left: 14px !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) button[data-collapse-group],
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) .ob-group-header-control {
+  min-height: 58px !important;
+  align-items: center !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header.is-open,
+body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header.is-open > td {
+  border-top-width: 0 !important;
 }
