@@ -1,12 +1,10 @@
 <?php
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/medical-aid.php';
-require_once __DIR__ . '/includes/social-security.php';
 requireAdmin();
 
 $db     = db();
 ensureMedicalAidSchema($db);
-ensureSocialSecuritySchema($db);
 $emp_id = (int)($_POST['emp_id'] ?? 0);
 $medicalAidDefaults = medicalAidDefaults();
 
