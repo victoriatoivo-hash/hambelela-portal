@@ -4,6 +4,10 @@ $pendingLeave = db()->query("SELECT COUNT(*) FROM leave_requests WHERE status='p
 $pendingOT    = db()->query("SELECT COUNT(*) FROM overtime WHERE status='pending'")->fetchColumn();
 $currentPage  = basename($_SERVER['PHP_SELF']);
 $showBusinessPortalLink = strpos((string)($_SERVER['SCRIPT_NAME'] ?? ''), '/apps/hr-portal/') !== false;
+$buildInfoPath = __DIR__ . '/../build-info.php';
+if (is_file($buildInfoPath)) {
+    require_once $buildInfoPath;
+}
 function navItem($href, $icon, $label, $badge=0, $current='') {
     $active = (basename($href) === $current) ? ' active' : '';
     $b = $badge > 0 ? "<span class='nav-badge'>$badge</span>" : '';
@@ -44,6 +48,12 @@ function navItem($href, $icon, $label, $badge=0, $current='') {
   </div>
 
   <div class="sidebar-footer">
+    <?php if (defined('HR_PORTAL_BUILD_COMMIT')): ?>
+      <div style="font-size:10px;line-height:1.35;color:rgba(255,255,255,.42);margin-bottom:10px">
+        Build <?=htmlspecialchars(substr(HR_PORTAL_BUILD_COMMIT,0,7))?><br>
+        <?=htmlspecialchars(HR_PORTAL_BUILD_DATE)?>
+      </div>
+    <?php endif ?>
     <form method="POST" action="logout.php">
       <button type="submit" class="logout-btn"><i class="fa-solid fa-arrow-right-from-bracket"></i> Sign Out</button>
     </form>
