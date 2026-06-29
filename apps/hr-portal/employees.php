@@ -6,6 +6,10 @@ $user = currentUser();
 $db   = db();
 ensureLeaveShutdownSchema($db);
 $hasSocialSecurity = hrColumnExists($db, 'employees', 'social_security_number');
+if (!$hasSocialSecurity) {
+    hrAddColumnSafe($db, 'employees', 'social_security_number', "VARCHAR(50) NULL AFTER tax_number");
+    $hasSocialSecurity = hrColumnExists($db, 'employees', 'social_security_number');
+}
 
 // Handle offboard
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'offboard') {
@@ -75,21 +79,6 @@ $colors = ['#40916C','#6D28D9','#0F766E','#D97706','#1D4ED8','#DC2626','#0369A1'
       <div class="toast"><i class="fa-solid fa-check"></i> Employee login account created successfully.</div>
     <?php elseif ($msg === 'email_taken'): ?>
       <div class="toast error"><i class="fa-solid fa-xmark"></i> That email is already in use. Try a different one.</div>
-    <?php endif ?>
-
-    <?php if (!$hasSocialSecurity): ?>
-      <div class="card" style="margin-bottom:16px;border-color:#F5C84C;background:#fffaf0">
-        <div style="display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap">
-          <div>
-            <div style="font-weight:800;color:var(--text);margin-bottom:4px">Social Security setup required</div>
-            <div style="font-size:13px;color:var(--text-mid)">Enable this once to store employee Social Security numbers and show them on payslips.</div>
-          </div>
-          <form method="POST" style="margin:0">
-            <input type="hidden" name="action" value="enable_social_security">
-            <button class="btn btn-primary" type="submit"><i class="fa-solid fa-shield-halved"></i> Enable Social Security Field</button>
-          </form>
-        </div>
-      </div>
     <?php endif ?>
 
     <?php if ($viewEmp): ?>
