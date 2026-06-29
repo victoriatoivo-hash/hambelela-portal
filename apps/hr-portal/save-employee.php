@@ -1,12 +1,9 @@
 <?php
 require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/includes/medical-aid.php';
 requireAdmin();
 
 $db     = db();
-ensureMedicalAidSchema($db);
 $emp_id = (int)($_POST['emp_id'] ?? 0);
-$medicalAidDefaults = medicalAidDefaults();
 
 $fields = [
     'first_name'      => clean($_POST['first_name'] ?? ''),
@@ -30,11 +27,6 @@ $fields = [
     'address'         => clean($_POST['address']         ?? ''),
     'suburb'          => clean($_POST['suburb']          ?? ''),
     'city'            => clean($_POST['city']            ?? ''),
-    'medical_aid_fund'     => clean($_POST['medical_aid_fund'] ?? $medicalAidDefaults['fund']),
-    'medical_aid_active'   => (int)(($_POST['medical_aid_active'] ?? '0') === '1'),
-    'medical_aid_total'    => (float)($_POST['medical_aid_total'] ?? $medicalAidDefaults['total']),
-    'medical_aid_company'  => (float)($_POST['medical_aid_company'] ?? $medicalAidDefaults['company']),
-    'medical_aid_employee' => (float)($_POST['medical_aid_employee'] ?? $medicalAidDefaults['employee']),
     'notes'           => clean($_POST['notes']           ?? ''),
 ];
 
@@ -55,10 +47,7 @@ if ($emp_id > 0) {
         basic_salary=:basic_salary, hourly_rate=:hourly_rate, bank_name=:bank_name,
         bank_account=:bank_account, tax_number=:tax_number, status=:status,
         emergency_name=:emergency_name, emergency_phone=:emergency_phone,
-        address=:address, suburb=:suburb, city=:city,
-        medical_aid_fund=:medical_aid_fund, medical_aid_active=:medical_aid_active,
-        medical_aid_total=:medical_aid_total, medical_aid_company=:medical_aid_company,
-        medical_aid_employee=:medical_aid_employee, notes=:notes
+        address=:address, suburb=:suburb, city=:city, notes=:notes
         WHERE id=:id";
     $params = [];
     foreach ($fields as $k => $v) $params[':'.$k] = $v;

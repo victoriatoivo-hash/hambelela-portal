@@ -104,10 +104,7 @@ foreach (['company_name','company_reg','company_address','company_city','company
     $runRow->execute([$viewPayslip['id']]); $runRow = $runRow->fetch();
     $gross = (float)$viewPayslip['basic_salary']+(float)$viewPayslip['ot_pay'];
     $loanDed = isset($viewPayslip['loan_deduction']) ? (float)$viewPayslip['loan_deduction'] : 0;
-    $medicalAidCompany = (float)($viewPayslip['medical_aid_company'] ?? 0);
-    $medicalAidEmployee = (float)($viewPayslip['medical_aid_employee'] ?? 0);
-    $medicalAidFund = trim((string)($viewPayslip['medical_aid_fund'] ?? 'Medical Aid'));
-    $totalDed = (float)$viewPayslip['paye']+(float)$viewPayslip['ssf']+(float)($viewPayslip['lwop_deduction']??0)+(float)($viewPayslip['other_deductions']??0)+$loanDed+$medicalAidEmployee;
+    $totalDed = (float)$viewPayslip['paye']+(float)$viewPayslip['ssf']+(float)($viewPayslip['lwop_deduction']??0)+(float)($viewPayslip['other_deductions']??0)+$loanDed;
     $net = (float)$viewPayslip['net_salary'];
     $netInt = (int)round($net);
     function empPayWords($n){$ones=['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];$tens=['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];if($n==0)return'Zero';if($n<20)return$ones[$n];if($n<100)return$tens[intval($n/10)].($n%10?' '.$ones[$n%10]:'');if($n<1000)return$ones[intval($n/100)].' Hundred'.($n%100?' '.empPayWords($n%100):'');if($n<1000000)return empPayWords(intval($n/1000)).' Thousand'.($n%1000?' '.empPayWords($n%1000):'');return(string)$n;}
@@ -177,12 +174,11 @@ foreach (['company_name','company_reg','company_address','company_city','company
     </div>
     <div class="ps-cols">
       <div>
-        <div class="ps-col-header">Earnings / Company Benefits</div>
+        <div class="ps-col-header">Earnings</div>
         <table class="ps-col-table">
           <tr><td>Basic Salary</td><td><span class="money">N$ <?=number_format((float)$viewPayslip['basic_salary'],2)?></span></td></tr>
           <?php if($viewPayslip['ot_pay']>0): ?><tr><td>Overtime Pay</td><td><span class="money">N$ <?=number_format((float)$viewPayslip['ot_pay'],2)?></span></td></tr><?php endif ?>
-          <?php if($medicalAidCompany>0): ?><tr><td>Medical Aid Company Contribution</td><td><span class="money">N$ <?=number_format($medicalAidCompany,2)?></span></td></tr><?php endif ?>
-          <tr><td><strong>Gross Earnings (Taxable)</strong></td><td><strong class="money">N$ <?=number_format($gross,2)?></strong></td></tr>
+          <tr><td><strong>Gross Earnings</strong></td><td><strong class="money">N$ <?=number_format($gross,2)?></strong></td></tr>
         </table>
       </div>
       <div>
@@ -192,7 +188,6 @@ foreach (['company_name','company_reg','company_address','company_city','company
           <tr class="deduct"><td>Social Security (SSF)</td><td><span class="money">N$ <?=number_format((float)$viewPayslip['ssf'],2)?></span></td></tr>
           <?php if(($viewPayslip['lwop_deduction']??0)>0): ?><tr class="deduct"><td>Leave Without Pay</td><td><span class="money">N$ <?=number_format((float)$viewPayslip['lwop_deduction'],2)?></span></td></tr><?php endif ?>
           <?php if($loanDed>0): ?><tr class="deduct"><td>Loan / Advance Deduction</td><td><span class="money">N$ <?=number_format($loanDed,2)?></span></td></tr><?php endif ?>
-          <?php if($medicalAidEmployee>0): ?><tr class="deduct"><td>Medical Aid Employee Contribution<?= $medicalAidFund !== '' ? ' - '.htmlspecialchars($medicalAidFund) : '' ?></td><td><span class="money">N$ <?=number_format($medicalAidEmployee,2)?></span></td></tr><?php endif ?>
           <?php if(($viewPayslip['other_deductions']??0)>0): ?><tr class="deduct"><td>Other Deductions</td><td><span class="money">N$ <?=number_format((float)$viewPayslip['other_deductions'],2)?></span></td></tr><?php endif ?>
           <tr><td><strong>Total Deductions</strong></td><td><strong class="money">N$ <?=number_format($totalDed,2)?></strong></td></tr>
         </table>
@@ -227,7 +222,7 @@ foreach (['company_name','company_reg','company_address','company_city','company
         <td style="font-weight:600"><?=htmlspecialchars($p['period_label'])?></td>
         <td style="font-family:monospace">N$ <?=number_format((float)$p['basic_salary'],2)?></td>
         <td style="font-family:monospace;color:var(--green)">+ N$ <?=number_format((float)$p['ot_pay'],2)?></td>
-        <td style="font-family:monospace;color:var(--red)">- N$ <?=number_format((float)$p['paye']+(float)$p['ssf']+(float)($p['lwop_deduction']??0)+(float)($p['other_deductions']??0)+(float)($p['loan_deduction']??0)+(float)($p['medical_aid_employee']??0),2)?></td>
+        <td style="font-family:monospace;color:var(--red)">- N$ <?=number_format((float)$p['paye']+(float)$p['ssf']+(float)($p['lwop_deduction']??0)+(float)($p['other_deductions']??0)+(float)($p['loan_deduction']??0),2)?></td>
         <td style="font-family:monospace;font-weight:800">N$ <?=number_format((float)$p['net_salary'],2)?></td>
         <td><a href="my-payslips.php?id=<?=$p['id']?>" class="btn btn-secondary btn-sm"><i class="fa-solid fa-eye"></i> View</a></td>
       </tr>

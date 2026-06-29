@@ -1,13 +1,10 @@
 <?php
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/leave-reserve.php';
-require_once __DIR__ . '/includes/medical-aid.php';
 requireAdmin();
 $user = currentUser();
 $db   = db();
 ensureLeaveShutdownSchema($db);
-ensureMedicalAidSchema($db);
-$medicalAidDefaults = medicalAidDefaults();
 
 // Handle offboard
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'offboard') {
@@ -34,7 +31,6 @@ if (isset($_GET['view'])) {
         $onboardTasks->execute([$viewEmp['id']]);
         $onboardTasks = $onboardTasks->fetchAll();
         $viewAnnualLeave = annualLeaveMetrics($db, (int)$viewEmp['id']);
-        $viewMedicalAid = employeeMedicalAidAmounts($viewEmp);
     }
 }
 
@@ -139,21 +135,9 @@ $colors = ['#40916C','#6D28D9','#0F766E','#D97706','#1D4ED8','#DC2626','#0369A1'
               <div><div style="color:var(--text-mid);font-size:10px;text-transform:uppercase;font-weight:700">Available Now</div><div style="font-weight:800"><?=number_format($viewAnnualLeave['available_now'],1)?> days</div></div>
             </div>
             <div style="margin-top:10px;font-size:12px;color:var(--text-mid)">Future shutdown reserve: <?=number_format($viewAnnualLeave['projected_reserve'],1)?> day(s). Status: <?=htmlspecialchars($viewAnnualLeave['reserve_status_text'])?>.</div>
-          <?php if ($viewAnnualLeave['shortfall'] > 0): ?>
+            <?php if ($viewAnnualLeave['shortfall'] > 0): ?>
             <div style="margin-top:10px;font-size:12px;color:var(--red)">Shortfall for shutdown reserve: <?=number_format($viewAnnualLeave['shortfall'],1)?> day(s).</div>
             <?php endif ?>
-          </div>
-          <div style="margin-top:16px;padding:14px;border:1px solid var(--border);border-radius:10px;background:#fff">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-              <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-mid)">Medical Aid</div>
-              <span class="badge <?=$viewMedicalAid['active']?'badge-green':'badge-gray'?>"><?=$viewMedicalAid['active']?'Active':'Inactive'?></span>
-            </div>
-            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;font-size:12px">
-              <div><div style="color:var(--text-mid);font-size:10px;text-transform:uppercase;font-weight:700">Fund</div><div style="font-weight:800"><?=htmlspecialchars($viewMedicalAid['fund'])?></div></div>
-              <div><div style="color:var(--text-mid);font-size:10px;text-transform:uppercase;font-weight:700">Total Monthly Fund</div><div style="font-weight:800">N$ <?=number_format($viewMedicalAid['total'],2)?></div></div>
-              <div><div style="color:var(--text-mid);font-size:10px;text-transform:uppercase;font-weight:700">Company Contribution</div><div style="font-weight:800;color:var(--green)">N$ <?=number_format($viewMedicalAid['company'],2)?></div></div>
-              <div><div style="color:var(--text-mid);font-size:10px;text-transform:uppercase;font-weight:700">Employee Deduction</div><div style="font-weight:800;color:var(--red)">N$ <?=number_format($viewMedicalAid['employee'],2)?></div></div>
-            </div>
           </div>
           <?php if ($viewEmp['notes']): ?>
           <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);font-size:13px;color:var(--text-mid)"><?=htmlspecialchars($viewEmp['notes'])?></div>
@@ -311,17 +295,6 @@ $colors = ['#40916C','#6D28D9','#0F766E','#D97706','#1D4ED8','#DC2626','#0369A1'
             </select>
           </div>
 
-          <div class="section-divider">Medical Aid</div>
-          <div class="form-group"><label class="form-label">Medical Aid Active</label>
-            <select class="form-select" name="medical_aid_active" id="f_medical_aid_active">
-              <option value="0">No</option><option value="1">Yes</option>
-            </select>
-          </div>
-          <div class="form-group"><label class="form-label">Medical Aid Fund</label><input class="form-input" name="medical_aid_fund" id="f_medical_aid_fund" value="<?=htmlspecialchars($medicalAidDefaults['fund'])?>"></div>
-          <div class="form-group"><label class="form-label">Total Monthly Fund (N$)</label><input class="form-input" type="number" step="0.01" name="medical_aid_total" id="f_medical_aid_total" value="<?=number_format($medicalAidDefaults['total'],2,'.','')?>"></div>
-          <div class="form-group"><label class="form-label">Company Contribution (N$)</label><input class="form-input" type="number" step="0.01" name="medical_aid_company" id="f_medical_aid_company" value="<?=number_format($medicalAidDefaults['company'],2,'.','')?>"></div>
-          <div class="form-group"><label class="form-label">Employee Contribution / Deduction (N$)</label><input class="form-input" type="number" step="0.01" name="medical_aid_employee" id="f_medical_aid_employee" value="<?=number_format($medicalAidDefaults['employee'],2,'.','')?>"></div>
-
           <div class="section-divider">Banking & Tax</div>
           <div class="form-group"><label class="form-label">Bank Name</label><input class="form-input" name="bank_name" id="f_bank_name" placeholder="e.g. FNB Namibia"></div>
           <div class="form-group"><label class="form-label">Account Number</label><input class="form-input" name="bank_account" id="f_bank_account"></div>
@@ -393,17 +366,12 @@ $colors = ['#40916C','#6D28D9','#0F766E','#D97706','#1D4ED8','#DC2626','#0369A1'
 function openAdd() {
   document.getElementById('modalTitle').textContent = 'Add Employee';
   document.getElementById('empId').value = '';
-  ['first_name','last_name','email','phone','id_number','emp_number','job_title','department','start_date','basic_salary','hourly_rate','bank_name','bank_account','tax_number','emergency_name','emergency_phone','address','suburb','city','notes'].forEach(f => {
+  ['first_name','last_name','email','phone','id_number','emp_number','job_title','department','start_date','basic_salary','hourly_rate','bank_name','bank_account','tax_number','emergency_name','emergency_phone','notes'].forEach(f => {
     const el = document.getElementById('f_'+f);
     if (el) el.value = '';
   });
   document.getElementById('f_employment_type').value = 'full_time';
   document.getElementById('f_status').value = 'active';
-  document.getElementById('f_medical_aid_active').value = '0';
-  document.getElementById('f_medical_aid_fund').value = '<?=addslashes($medicalAidDefaults['fund'])?>';
-  document.getElementById('f_medical_aid_total').value = '<?=number_format($medicalAidDefaults['total'],2,'.','')?>';
-  document.getElementById('f_medical_aid_company').value = '<?=number_format($medicalAidDefaults['company'],2,'.','')?>';
-  document.getElementById('f_medical_aid_employee').value = '<?=number_format($medicalAidDefaults['employee'],2,'.','')?>';
   document.getElementById('empModal').classList.add('open');
 }
 
@@ -421,12 +389,7 @@ function editEmployee(emp) {
     'notes':emp.notes||'',
     'address':emp.address||'',
     'suburb':emp.suburb||'',
-    'city':emp.city||'',
-    'medical_aid_fund':emp.medical_aid_fund||'<?=addslashes($medicalAidDefaults['fund'])?>',
-    'medical_aid_active':String(emp.medical_aid_active||'0'),
-    'medical_aid_total':emp.medical_aid_total||'<?=number_format($medicalAidDefaults['total'],2,'.','')?>',
-    'medical_aid_company':emp.medical_aid_company||'<?=number_format($medicalAidDefaults['company'],2,'.','')?>',
-    'medical_aid_employee':emp.medical_aid_employee||'<?=number_format($medicalAidDefaults['employee'],2,'.','')?>'
+    'city':emp.city||''
   };
   for (const [k,v] of Object.entries(map)) {
     const el = document.getElementById('f_'+k);
