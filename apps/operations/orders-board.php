@@ -142,42 +142,9 @@ include BASE_PATH . '/shared/sidebar.php';
 
     <section class="ops-board-shell">
         <div class="ops-board-scroll">
-            <table class="ops-board-table">
-                <colgroup>
-                    <col class="ob-col-strip">
-                    <col class="ob-col-checkbox">
-                    <col class="ob-col-task">
-                    <col class="ob-col-task-icon">
-                    <col class="ob-col-date">
-                    <col class="ob-col-mobile">
-                    <col class="ob-col-mode">
-                    <col class="ob-col-amount">
-                    <col class="ob-col-payment">
-                    <col class="ob-col-paid">
-                    <col class="ob-col-status">
-                    <col class="ob-col-packedby">
-                    <col class="ob-col-text">
-                    <col class="ob-col-add">
-                </colgroup>
-                <thead>
-                    <tr>
-                        <th class="col-strip"></th>
-                        <th class="check-cell col-checkbox"><input type="checkbox" data-select-all-orders aria-label="Select all visible orders"></th>
-                        <th class="col-task" colspan="2" data-column-key="task" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>TASK</th>
-                        <th class="col-date" data-column-key="date" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>DATE</th>
-                        <th class="col-mobile" data-column-key="mobile" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>Mobile number</th>
-                        <th class="col-mode" data-column-key="mode" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>Mode</th>
-                        <th class="col-amount" data-column-key="amount" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>AMOUNT</th>
-                        <th class="col-payment" data-column-key="payment" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>PAYMENT</th>
-                        <th class="col-paid col-header-paid" data-column-key="paid" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>PAID</th>
-                        <th class="col-status" data-column-key="status" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>STATUS</th>
-                        <th class="col-packedby" data-column-key="packer" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>Packed by</th>
-                        <th class="col-text" data-column-key="text" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>Text</th>
-                        <th class="add-column-cell"><button type="button" data-add-column>+</button></th>
-                    </tr>
-                </thead>
-                <tbody id="orders-board-body"><tr><td colspan="14">Loading orders...</td></tr></tbody>
-            </table>
+            <div class="ops-board-table monday-board" id="orders-board-body">
+                <div class="board-empty-state">Loading orders...</div>
+            </div>
         </div>
     </section>
 

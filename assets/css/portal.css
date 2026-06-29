@@ -18192,6 +18192,257 @@ body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.
   border-radius: 12px !important;
 }
 
+/* Monday-style grouped Orders Board rebuilt as independent group cards. */
+body:has(.ob-wrap) .ob-wrap .ops-board-scroll {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+  background: #ffffff !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-board.ops-board-table {
+  display: block !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  border: 0 !important;
+  border-collapse: separate !important;
+  background: #ffffff !important;
+  padding: 0 0 24px !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group {
+  position: relative !important;
+  margin: 0 0 10px !important;
+  background: transparent !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group-shell {
+  position: relative !important;
+  display: block !important;
+  min-width: 1280px !important;
+  background: #ffffff !important;
+  border: 1px solid var(--board-line, #d0d4e4) !important;
+  border-radius: 8px !important;
+  overflow: hidden !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group-bar {
+  position: absolute !important;
+  left: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  width: 6px !important;
+  background: var(--ob-group-colour, var(--group-color, #c73557)) !important;
+  border-radius: 10px 0 0 10px !important;
+  z-index: 2 !important;
+  pointer-events: none !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-grid {
+  display: grid !important;
+  grid-template-columns:
+    40px
+    minmax(220px, 1.25fr)
+    42px
+    minmax(150px, 0.8fr)
+    minmax(160px, 0.9fr)
+    minmax(110px, 0.65fr)
+    minmax(108px, 0.6fr)
+    minmax(140px, 0.75fr)
+    76px
+    minmax(140px, 0.8fr)
+    minmax(150px, 0.85fr)
+    minmax(240px, 1.45fr)
+    34px !important;
+  grid-auto-columns: minmax(120px, 0.7fr) !important;
+  grid-auto-flow: column !important;
+  align-items: stretch !important;
+  width: 100% !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group-summary {
+  min-height: 68px !important;
+  background: #ffffff !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-cell {
+  min-width: 0 !important;
+  min-height: 68px !important;
+  padding: 6px 10px !important;
+  border-right: 1px solid var(--board-line, #d0d4e4) !important;
+  background: #ffffff !important;
+  color: var(--board-text, #1f2533) !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 3px !important;
+  overflow: hidden !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-cell:last-child {
+  border-right: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-date-cell {
+  grid-column: 1 / span 3 !important;
+  flex-direction: row !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+  gap: 12px !important;
+  padding-left: 28px !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-date-cell + .col-date {
+  grid-column: 4 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-toggle {
+  width: 24px !important;
+  height: 24px !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--ob-group-colour, #c73557) !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-toggle .ob-chevron {
+  color: var(--ob-group-colour, #c73557) !important;
+  font-size: 24px !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group.expanded .monday-toggle .ob-chevron {
+  transform: rotate(90deg) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-date-title,
+body:has(.ob-wrap) .ob-wrap .monday-group .ob-group-date-label {
+  color: var(--ob-group-colour, #c73557) !important;
+  font-size: 20px !important;
+  font-weight: 800 !important;
+  line-height: 1.1 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-task-count,
+body:has(.ob-wrap) .ob-wrap .monday-group .ob-group-task-count {
+  margin-top: 6px !important;
+  color: #5f6b82 !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group-orders {
+  display: none !important;
+  border-top: 1px solid var(--board-line, #d0d4e4) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group.expanded .monday-group-orders {
+  display: block !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-column-header .monday-cell {
+  min-height: 36px !important;
+  height: 36px !important;
+  color: #323338 !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  text-align: center !important;
+  background: #ffffff !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-order-row .monday-cell,
+body:has(.ob-wrap) .ob-wrap .add-task-row .monday-cell,
+body:has(.ob-wrap) .ob-wrap .ob-group-footer .monday-cell {
+  min-height: 36px !important;
+  height: 36px !important;
+  padding: 4px 8px !important;
+  font-size: 13px !important;
+  border-top: 1px solid var(--board-line, #d0d4e4) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-order-row:nth-child(even) .monday-cell {
+  background: #f8fbff !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-order-row.is-selected .monday-cell {
+  background: #e5f3ff !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-cell.col-checkbox {
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  padding: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-cell.col-checkbox input[type="checkbox"] {
+  width: 14px !important;
+  height: 14px !important;
+  margin: 0 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-cell.col-task,
+body:has(.ob-wrap) .ob-wrap .monday-cell.col-mobile,
+body:has(.ob-wrap) .ob-wrap .monday-cell.col-packedby,
+body:has(.ob-wrap) .ob-wrap .monday-cell.col-text {
+  align-items: flex-start !important;
+  text-align: left !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-cell.col-amount,
+body:has(.ob-wrap) .ob-wrap .monday-cell.col-paid {
+  align-items: center !important;
+  text-align: center !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group .ob-date-pill {
+  min-width: 110px !important;
+  height: 22px !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group .ob-stacked-bar {
+  width: 96px !important;
+  height: 24px !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group .board-label,
+body:has(.ob-wrap) .ob-wrap .monday-group .status-label,
+body:has(.ob-wrap) .ob-wrap .monday-group .payment-label,
+body:has(.ob-wrap) .ob-wrap .monday-group .mode-label {
+  width: 100% !important;
+  min-height: 100% !important;
+  border-radius: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group .task-name,
+body:has(.ob-wrap) .ob-wrap .monday-group .notes-cell button,
+body:has(.ob-wrap) .ob-wrap .monday-group .packer-cell-button {
+  max-width: 100% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group.collapsed .monday-group-shell {
+  min-height: 68px !important;
+}
+
+@media (max-width: 1200px) {
+  body:has(.ob-wrap) .ob-wrap .monday-group-shell {
+    min-width: 1280px !important;
+  }
+}
+
 body:has(.ob-wrap) .ob-wrap table.ops-board-table tbody tr.ob-group-header:not(.is-open) > td.ob-group-name-cell {
   padding-left: 14px !important;
 }
