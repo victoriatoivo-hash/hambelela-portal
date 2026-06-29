@@ -161,6 +161,16 @@ function hrAddColumnSafe(PDO $db, string $table, string $column, string $definit
     }
 }
 
+function hrTableExists(PDO $db, string $table): bool {
+    try {
+        $stmt = $db->prepare("SHOW TABLES LIKE ?");
+        $stmt->execute([$table]);
+        return (bool)$stmt->fetchColumn();
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
 function hrMedicalAidDefaults(): array {
     return [
         'fund' => 'Khomas Loyalty Fund',
@@ -184,6 +194,15 @@ function hrEnsureMedicalAidSchemaSafe(PDO $db): bool {
     $ok = hrAddColumnSafe($db, 'payslips', 'medical_aid_employee', "DECIMAL(10,2) NOT NULL DEFAULT 0.00") && $ok;
 
     try {
+        $db->exec("CREATE TABLE IF NOT EXISTS medical_aid_memberships (
+            employee_id INT UNSIGNED NOT NULL PRIMARY KEY,
+            medical_aid_fund VARCHAR(120) NULL,
+            medical_aid_active TINYINT(1) NOT NULL DEFAULT 0,
+            medical_aid_total DECIMAL(10,2) NOT NULL DEFAULT 275.00,
+            medical_aid_company DECIMAL(10,2) NOT NULL DEFAULT 110.00,
+            medical_aid_employee DECIMAL(10,2) NOT NULL DEFAULT 165.00,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
         $db->exec("CREATE TABLE IF NOT EXISTS medical_aid_payments (
             id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
             period_month TINYINT NOT NULL,
@@ -213,4 +232,67 @@ function hrHasMedicalAidSchema(PDO $db): bool {
         if (!hrColumnExists($db, 'payslips', $column)) return false;
     }
     return true;
+}
+
+function hrHasEmployeeMedicalAidColumns(PDO $db): bool {
+    foreach (['medical_aid_fund','medical_aid_active','medical_aid_total','medical_aid_company','medical_aid_employee'] as $column) {
+        if (!hrColumnExists($db, 'employees', $column)) return false;
+    }
+    return true;
+}
+
+function hrHasPayslipMedicalAidColumns(PDO $db): bool {
+    foreach (['medical_aid_fund','medical_aid_total','medical_aid_company','medical_aid_employee'] as $column) {
+        if (!hrColumnExists($db, 'payslips', $column)) return false;
+    }
+    return true;
+}
+
+function hrMedicalAidAvailable(PDO $db): bool {
+    return hrHasEmployeeMedicalAidColumns($db) || hrTableExists($db, 'medical_aid_memberships');
+}
+
+function hrMedicalAidMap(PDO $db): array {
+    if (!hrTableExists($db, 'medical_aid_memberships')) return [];
+    try {
+        $rows = $db->query("SELECT * FROM medical_aid_memberships")->fetchAll();
+        $map = [];
+        foreach ($rows as $row) {
+            $map[(int)$row['employee_id']] = $row;
+        }
+        return $map;
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
+function hrApplyMedicalAidToEmployee(array $employee, array $medicalAidMap = []): array {
+    $defaults = hrMedicalAidDefaults();
+    $id = (int)($employee['id'] ?? 0);
+    $fallback = $medicalAidMap[$id] ?? [];
+    foreach (['medical_aid_fund','medical_aid_active','medical_aid_total','medical_aid_company','medical_aid_employee'] as $column) {
+        if (!array_key_exists($column, $employee) && array_key_exists($column, $fallback)) {
+            $employee[$column] = $fallback[$column];
+        }
+    }
+    $employee['medical_aid_fund'] = trim((string)($employee['medical_aid_fund'] ?? '')) ?: $defaults['fund'];
+    $employee['medical_aid_active'] = (int)($employee['medical_aid_active'] ?? 0);
+    $employee['medical_aid_total'] = (float)($employee['medical_aid_total'] ?? $defaults['total']);
+    $employee['medical_aid_company'] = (float)($employee['medical_aid_company'] ?? $defaults['company']);
+    $employee['medical_aid_employee'] = (float)($employee['medical_aid_employee'] ?? $defaults['employee']);
+    return $employee;
+}
+
+function hrSaveMedicalAidMembership(PDO $db, int $employeeId, array $data): void {
+    if ($employeeId <= 0 || !hrTableExists($db, 'medical_aid_memberships')) return;
+    $defaults = hrMedicalAidDefaults();
+    $active = (int)(($data['medical_aid_active'] ?? '0') === '1');
+    $fund = clean($data['medical_aid_fund'] ?? $defaults['fund']);
+    $total = (float)($data['medical_aid_total'] ?? $defaults['total']);
+    $company = (float)($data['medical_aid_company'] ?? $defaults['company']);
+    $employee = (float)($data['medical_aid_employee'] ?? $defaults['employee']);
+    $stmt = $db->prepare("INSERT INTO medical_aid_memberships (employee_id,medical_aid_fund,medical_aid_active,medical_aid_total,medical_aid_company,medical_aid_employee)
+        VALUES (?,?,?,?,?,?)
+        ON DUPLICATE KEY UPDATE medical_aid_fund=VALUES(medical_aid_fund), medical_aid_active=VALUES(medical_aid_active), medical_aid_total=VALUES(medical_aid_total), medical_aid_company=VALUES(medical_aid_company), medical_aid_employee=VALUES(medical_aid_employee)");
+    $stmt->execute([$employeeId, $fund, $active, $total, $company, $employee]);
 }

@@ -6,7 +6,8 @@ $db     = db();
 $emp_id = (int)($_POST['emp_id'] ?? 0);
 $hasSocialSecurity = hrColumnExists($db, 'employees', 'social_security_number');
 hrEnsureMedicalAidSchemaSafe($db);
-$hasMedicalAid = hrHasMedicalAidSchema($db);
+$hasMedicalAid = hrMedicalAidAvailable($db);
+$hasMedicalAidColumns = hrHasEmployeeMedicalAidColumns($db);
 $medicalAidDefaults = hrMedicalAidDefaults();
 
 $fields = [
@@ -37,7 +38,7 @@ $fields = [
 if ($hasSocialSecurity) {
     $fields['social_security_number'] = clean($_POST['social_security_number'] ?? '');
 }
-if ($hasMedicalAid) {
+if ($hasMedicalAidColumns) {
     $fields['medical_aid_active'] = (int)(($_POST['medical_aid_active'] ?? '0') === '1');
     $fields['medical_aid_fund'] = clean($_POST['medical_aid_fund'] ?? $medicalAidDefaults['fund']);
     $fields['medical_aid_total'] = (float)($_POST['medical_aid_total'] ?? $medicalAidDefaults['total']);
@@ -56,7 +57,7 @@ if (!$fields['emp_number']) {
 
 if ($emp_id > 0) {
     $socialSql = $hasSocialSecurity ? "social_security_number=:social_security_number, " : "";
-    $medicalSql = $hasMedicalAid ? "medical_aid_active=:medical_aid_active, medical_aid_fund=:medical_aid_fund, medical_aid_total=:medical_aid_total, medical_aid_company=:medical_aid_company, medical_aid_employee=:medical_aid_employee, " : "";
+    $medicalSql = $hasMedicalAidColumns ? "medical_aid_active=:medical_aid_active, medical_aid_fund=:medical_aid_fund, medical_aid_total=:medical_aid_total, medical_aid_company=:medical_aid_company, medical_aid_employee=:medical_aid_employee, " : "";
     $sql = "UPDATE employees SET
         first_name=:first_name, last_name=:last_name, email=:email, phone=:phone,
         id_number=:id_number, emp_number=:emp_number, job_title=:job_title,
@@ -70,6 +71,9 @@ if ($emp_id > 0) {
     foreach ($fields as $k => $v) $params[':'.$k] = $v;
     $params[':id'] = $emp_id;
     $db->prepare($sql)->execute($params);
+    if ($hasMedicalAid) {
+        hrSaveMedicalAidMembership($db, $emp_id, $_POST);
+    }
 } else {
     $cols = implode(',', array_keys($fields));
     $phs  = ':'.implode(',:', array_keys($fields));
@@ -77,6 +81,9 @@ if ($emp_id > 0) {
     foreach ($fields as $k => $v) $params[':'.$k] = $v;
     $db->prepare("INSERT INTO employees ($cols) VALUES ($phs)")->execute($params);
     $emp_id = (int)$db->lastInsertId();
+    if ($hasMedicalAid) {
+        hrSaveMedicalAidMembership($db, $emp_id, $_POST);
+    }
 
     // ── Namibia Labour Act leave entitlements ──
     $year = (int)date('Y');

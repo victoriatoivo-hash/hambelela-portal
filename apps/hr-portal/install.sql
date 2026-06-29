@@ -207,6 +207,16 @@ CREATE TABLE IF NOT EXISTS `medical_aid_payments` (
   UNIQUE KEY `month_year` (`period_month`, `period_year`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS `medical_aid_memberships` (
+  `employee_id` INT UNSIGNED NOT NULL PRIMARY KEY,
+  `medical_aid_fund` VARCHAR(120) NULL,
+  `medical_aid_active` TINYINT(1) NOT NULL DEFAULT 0,
+  `medical_aid_total` DECIMAL(10,2) NOT NULL DEFAULT 275.00,
+  `medical_aid_company` DECIMAL(10,2) NOT NULL DEFAULT 110.00,
+  `medical_aid_employee` DECIMAL(10,2) NOT NULL DEFAULT 165.00,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS `documents` (
   `id`            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `employee_id`   INT UNSIGNED NULL,

@@ -40,9 +40,11 @@ $db   = db();
 $hasSocialSecurity = hrColumnExists($db, 'employees', 'social_security_number');
 $socialSecuritySelect = $hasSocialSecurity ? "e.social_security_number" : "'' AS social_security_number";
 hrEnsureMedicalAidSchemaSafe($db);
-$hasMedicalAid = hrHasMedicalAidSchema($db);
+$hasMedicalAid = hrMedicalAidAvailable($db);
+$hasMedicalAidPayslipColumns = hrHasPayslipMedicalAidColumns($db);
 $medicalAidDefaults = hrMedicalAidDefaults();
-$medicalAidSelect = $hasMedicalAid
+$medicalAidProfiles = hrMedicalAidMap($db);
+$medicalAidSelect = $hasMedicalAidPayslipColumns
     ? "ps.medical_aid_fund, ps.medical_aid_total, ps.medical_aid_company, ps.medical_aid_employee"
     : "'' AS medical_aid_fund, 0 AS medical_aid_total, 0 AS medical_aid_company, 0 AS medical_aid_employee";
 
@@ -102,6 +104,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $medicalAidTotal = 0.00;
             $medicalAidCompany = 0.00;
             $medicalAidEmployee = 0.00;
+            if ($hasMedicalAid) {
+                $emp = hrApplyMedicalAidToEmployee($emp, $medicalAidProfiles);
+            }
             if ($hasMedicalAid && !empty($emp['medical_aid_active'])) {
                 $medicalAidFund = trim((string)($emp['medical_aid_fund'] ?? '')) ?: $medicalAidDefaults['fund'];
                 $medicalAidTotal = (float)($emp['medical_aid_total'] ?? $medicalAidDefaults['total']);
@@ -112,7 +117,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $net = round($basic + $ot_pay - $paye - $ssf - $loan_deduction - $medicalAidEmployee, 2);
 
             try {
-                if ($hasMedicalAid) {
+                if ($hasMedicalAidPayslipColumns) {
                     $db->prepare("INSERT INTO payslips (run_id,employee_id,basic_salary,ot_pay,paye,ssf,loan_deduction,medical_aid_fund,medical_aid_total,medical_aid_company,medical_aid_employee,net_salary) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)")
                        ->execute([$run,$emp['id'],$basic,$ot_pay,$paye,$ssf,$loan_deduction,$medicalAidFund,$medicalAidTotal,$medicalAidCompany,$medicalAidEmployee,$net]);
                 } else {
@@ -177,7 +182,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (Exception $e) { $loan_deduction = 0; }
 
         $medicalAidEmployee = 0;
-        if ($hasMedicalAid) {
+        if ($hasMedicalAidPayslipColumns) {
             try {
                 $medStmt = $db->prepare("SELECT COALESCE(medical_aid_employee,0) FROM payslips WHERE id=?");
                 $medStmt->execute([$psId]);
@@ -199,7 +204,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $run = $db->prepare("SELECT period_month, period_year FROM payroll_runs WHERE id=?");
         $run->execute([$runId]);
         $run = $run->fetch();
-        if ($run && $hasMedicalAid) {
+        if ($run && $hasMedicalAidPayslipColumns) {
             $paid = isset($_POST['medical_aid_paid']) ? 1 : 0;
             $notes = clean($_POST['medical_aid_notes'] ?? '');
             $totals = $db->prepare("SELECT COUNT(*) AS active_count, COALESCE(SUM(medical_aid_total),0) AS total_payable, COALESCE(SUM(medical_aid_company),0) AS company_portion, COALESCE(SUM(medical_aid_employee),0) AS employee_portion FROM payslips WHERE run_id=? AND medical_aid_total > 0");
@@ -249,7 +254,7 @@ if ($runId) {
         $runTotals['medical_employee'] += (float)($p['medical_aid_employee'] ?? 0);
         if ((float)($p['medical_aid_total'] ?? 0) > 0) $runTotals['medical_active']++;
     }
-    if ($hasMedicalAid && $currentRun) {
+    if ($hasMedicalAidPayslipColumns && $currentRun) {
         try {
             $mp = $db->prepare("SELECT * FROM medical_aid_payments WHERE period_month=? AND period_year=?");
             $mp->execute([(int)$currentRun['period_month'], (int)$currentRun['period_year']]);

@@ -8,8 +8,8 @@ $empId = (int)($user['emp_id'] ?? 0);
 $hasSocialSecurity = hrColumnExists($db, 'employees', 'social_security_number');
 $socialSecuritySelect = $hasSocialSecurity ? "e.social_security_number" : "'' AS social_security_number";
 hrEnsureMedicalAidSchemaSafe($db);
-$hasMedicalAid = hrHasMedicalAidSchema($db);
-$medicalAidSelect = $hasMedicalAid
+$hasMedicalAidPayslipColumns = hrHasPayslipMedicalAidColumns($db);
+$medicalAidSelect = $hasMedicalAidPayslipColumns
     ? "ps.medical_aid_fund, ps.medical_aid_total, ps.medical_aid_company, ps.medical_aid_employee"
     : "'' AS medical_aid_fund, 0 AS medical_aid_total, 0 AS medical_aid_company, 0 AS medical_aid_employee";
 

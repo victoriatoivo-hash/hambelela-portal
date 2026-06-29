@@ -11,8 +11,9 @@ if (!$hasSocialSecurity) {
     $hasSocialSecurity = hrColumnExists($db, 'employees', 'social_security_number');
 }
 hrEnsureMedicalAidSchemaSafe($db);
-$hasMedicalAid = hrHasMedicalAidSchema($db);
+$hasMedicalAid = hrMedicalAidAvailable($db);
 $medicalAidDefaults = hrMedicalAidDefaults();
+$medicalAidMap = hrMedicalAidMap($db);
 
 // Handle offboard
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'offboard') {
@@ -27,6 +28,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'enabl
 }
 
 $employees    = $db->query("SELECT * FROM employees WHERE LOWER(CONCAT_WS(' ', first_name, last_name, email)) NOT LIKE '%victoria%' ORDER BY status ASC, first_name ASC")->fetchAll();
+if ($hasMedicalAid) {
+    foreach ($employees as $idx => $emp) {
+        $employees[$idx] = hrApplyMedicalAidToEmployee($emp, $medicalAidMap);
+    }
+}
 $totalActive  = $db->query("SELECT COUNT(*) FROM employees WHERE status='active' AND LOWER(CONCAT_WS(' ', first_name, last_name, email)) NOT LIKE '%victoria%'")->fetchColumn();
 $pendingLeave = $db->query("SELECT COUNT(*) FROM leave_requests WHERE status='pending'")->fetchColumn();
 $pendingOT    = $db->query("SELECT COUNT(*) FROM overtime WHERE status='pending'")->fetchColumn();
@@ -40,6 +46,9 @@ if (isset($_GET['view'])) {
     $viewEmp->execute([(int)$_GET['view']]);
     $viewEmp = $viewEmp->fetch();
     if ($viewEmp) {
+        if ($hasMedicalAid) {
+            $viewEmp = hrApplyMedicalAidToEmployee($viewEmp, $medicalAidMap);
+        }
         $onboardTasks = $db->prepare("SELECT * FROM onboarding_tasks WHERE employee_id=? ORDER BY sort_order");
         $onboardTasks->execute([$viewEmp['id']]);
         $onboardTasks = $onboardTasks->fetchAll();
