@@ -2,13 +2,11 @@
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/leave-reserve.php';
 require_once __DIR__ . '/includes/medical-aid.php';
-require_once __DIR__ . '/includes/social-security.php';
 requireAdmin();
 $user = currentUser();
 $db   = db();
 ensureLeaveShutdownSchema($db);
 ensureMedicalAidSchema($db);
-ensureSocialSecuritySchema($db);
 $medicalAidDefaults = medicalAidDefaults();
 
 // Handle offboard
@@ -112,7 +110,6 @@ $colors = ['#40916C','#6D28D9','#0F766E','#D97706','#1D4ED8','#DC2626','#0369A1'
               ['Email',            $viewEmp['email'] ?: '—'],
               ['Phone',            $viewEmp['phone'] ?: '—'],
               ['ID Number',        $viewEmp['id_number'] ?: '—'],
-              ['Social Security No', $viewEmp['social_security_number'] ?: '—'],
               ['Tax Number',       $viewEmp['tax_number'] ?: '—'],
               ['Bank',             $viewEmp['bank_name'] ?: '—'],
               ['Account',          $viewEmp['bank_account'] ?: '—'],
@@ -325,9 +322,6 @@ $colors = ['#40916C','#6D28D9','#0F766E','#D97706','#1D4ED8','#DC2626','#0369A1'
           <div class="form-group"><label class="form-label">Company Contribution (N$)</label><input class="form-input" type="number" step="0.01" name="medical_aid_company" id="f_medical_aid_company" value="<?=number_format($medicalAidDefaults['company'],2,'.','')?>"></div>
           <div class="form-group"><label class="form-label">Employee Contribution / Deduction (N$)</label><input class="form-input" type="number" step="0.01" name="medical_aid_employee" id="f_medical_aid_employee" value="<?=number_format($medicalAidDefaults['employee'],2,'.','')?>"></div>
 
-          <div class="section-divider">Social Security</div>
-          <div class="form-group"><label class="form-label">Social Security Number</label><input class="form-input" name="social_security_number" id="f_social_security_number" placeholder="e.g. employee SSF number"></div>
-
           <div class="section-divider">Banking & Tax</div>
           <div class="form-group"><label class="form-label">Bank Name</label><input class="form-input" name="bank_name" id="f_bank_name" placeholder="e.g. FNB Namibia"></div>
           <div class="form-group"><label class="form-label">Account Number</label><input class="form-input" name="bank_account" id="f_bank_account"></div>
@@ -399,7 +393,7 @@ $colors = ['#40916C','#6D28D9','#0F766E','#D97706','#1D4ED8','#DC2626','#0369A1'
 function openAdd() {
   document.getElementById('modalTitle').textContent = 'Add Employee';
   document.getElementById('empId').value = '';
-  ['first_name','last_name','email','phone','id_number','emp_number','job_title','department','start_date','basic_salary','hourly_rate','social_security_number','bank_name','bank_account','tax_number','emergency_name','emergency_phone','address','suburb','city','notes'].forEach(f => {
+  ['first_name','last_name','email','phone','id_number','emp_number','job_title','department','start_date','basic_salary','hourly_rate','bank_name','bank_account','tax_number','emergency_name','emergency_phone','address','suburb','city','notes'].forEach(f => {
     const el = document.getElementById('f_'+f);
     if (el) el.value = '';
   });
@@ -421,7 +415,7 @@ function editEmployee(emp) {
     'phone':emp.phone||'','id_number':emp.id_number||'','emp_number':emp.emp_number||'',
     'job_title':emp.job_title||'','department':emp.department||'',
     'start_date':emp.start_date||'','basic_salary':emp.basic_salary||'',
-    'hourly_rate':emp.hourly_rate||'','social_security_number':emp.social_security_number||'','bank_name':emp.bank_name||'',
+    'hourly_rate':emp.hourly_rate||'','bank_name':emp.bank_name||'',
     'bank_account':emp.bank_account||'','tax_number':emp.tax_number||'',
     'emergency_name':emp.emergency_name||'','emergency_phone':emp.emergency_phone||'',
     'notes':emp.notes||'',

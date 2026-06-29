@@ -1,11 +1,9 @@
 <?php
 require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/includes/social-security.php';
 requireLogin();
 $user = currentUser();
 if ($user['role'] !== 'employee') { header('Location: ' . SITE_URL . '/dashboard.php'); exit; }
 $db    = db();
-ensureSocialSecuritySchema($db);
 $empId = (int)($user['emp_id'] ?? 0);
 
 $payslips = $db->prepare("SELECT ps.*, r.period_label, r.period_month, r.period_year, r.id as run_id FROM payslips ps JOIN payroll_runs r ON r.id=ps.run_id WHERE ps.employee_id=? ORDER BY r.period_year DESC, r.period_month DESC");
@@ -14,7 +12,7 @@ $payslips->execute([$empId]); $payslips = $payslips->fetchAll();
 // View single payslip
 $viewPayslip = null;
 if (isset($_GET['id'])) {
-    $viewPayslip = $db->prepare("SELECT ps.*, CONCAT(e.first_name,' ',e.last_name) as emp_name, e.emp_number, e.bank_name, e.bank_account, e.tax_number, e.social_security_number, e.job_title, e.department, e.id_number, e.basic_salary as contract_salary FROM payslips ps JOIN employees e ON e.id=ps.employee_id JOIN payroll_runs r ON r.id=ps.run_id WHERE ps.id=? AND ps.employee_id=?");
+    $viewPayslip = $db->prepare("SELECT ps.*, CONCAT(e.first_name,' ',e.last_name) as emp_name, e.emp_number, e.bank_name, e.bank_account, e.tax_number, e.job_title, e.department, e.id_number, e.basic_salary as contract_salary FROM payslips ps JOIN employees e ON e.id=ps.employee_id JOIN payroll_runs r ON r.id=ps.run_id WHERE ps.id=? AND ps.employee_id=?");
     $viewPayslip->execute([(int)$_GET['id'], $empId]); $viewPayslip = $viewPayslip->fetch();
 }
 
@@ -163,7 +161,6 @@ foreach (['company_name','company_reg','company_address','company_city','company
         <div class="ps-emp-row"><span class="lbl">Designation</span><span class="val"><?=htmlspecialchars($viewPayslip['job_title']?:'—')?></span></div>
         <div class="ps-emp-row"><span class="lbl">Employee ID</span><span class="val"><?=htmlspecialchars($viewPayslip['emp_number'])?></span></div>
         <div class="ps-emp-row"><span class="lbl">ID Number</span><span class="val"><?=htmlspecialchars($viewPayslip['id_number']?:'—')?></span></div>
-        <div class="ps-emp-row"><span class="lbl">Social Security No</span><span class="val"><?=htmlspecialchars($viewPayslip['social_security_number']?:'—')?></span></div>
         <div class="ps-emp-row"><span class="lbl">Pay Date</span><span class="val"><?=$periodEnd?></span></div>
       </div>
       <div>

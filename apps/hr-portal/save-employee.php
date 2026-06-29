@@ -1,12 +1,10 @@
 <?php
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/medical-aid.php';
-require_once __DIR__ . '/includes/social-security.php';
 requireAdmin();
 
 $db     = db();
 ensureMedicalAidSchema($db);
-ensureSocialSecuritySchema($db);
 $emp_id = (int)($_POST['emp_id'] ?? 0);
 $medicalAidDefaults = medicalAidDefaults();
 
@@ -25,7 +23,6 @@ $fields = [
     'hourly_rate'     => (float)($_POST['hourly_rate']   ?? 0),
     'bank_name'       => clean($_POST['bank_name']       ?? ''),
     'bank_account'    => clean($_POST['bank_account']    ?? ''),
-    'social_security_number' => clean($_POST['social_security_number'] ?? ''),
     'tax_number'      => clean($_POST['tax_number']      ?? ''),
     'status'          => $_POST['status'] ?? 'active',
     'emergency_name'  => clean($_POST['emergency_name']  ?? ''),
@@ -56,7 +53,7 @@ if ($emp_id > 0) {
         id_number=:id_number, emp_number=:emp_number, job_title=:job_title,
         department=:department, employment_type=:employment_type, start_date=:start_date,
         basic_salary=:basic_salary, hourly_rate=:hourly_rate, bank_name=:bank_name,
-        bank_account=:bank_account, social_security_number=:social_security_number, tax_number=:tax_number, status=:status,
+        bank_account=:bank_account, tax_number=:tax_number, status=:status,
         emergency_name=:emergency_name, emergency_phone=:emergency_phone,
         address=:address, suburb=:suburb, city=:city,
         medical_aid_fund=:medical_aid_fund, medical_aid_active=:medical_aid_active,
