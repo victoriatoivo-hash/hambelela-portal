@@ -1185,6 +1185,7 @@ $inventoryCategory = trim((string) ($_GET['inv_category'] ?? 'all')) ?: 'all';
 $inventoryStock = trim((string) ($_GET['inv_stock'] ?? 'all')) ?: 'all';
 $inventorySort = trim((string) ($_GET['inv_sort'] ?? 'name')) ?: 'name';
 $inventoryDir = strtolower(trim((string) ($_GET['inv_dir'] ?? 'asc'))) === 'desc' ? 'desc' : 'asc';
+$inventoryLiveRequested = (string) ($_GET['inv_live'] ?? '') === '1';
 $totalPages = 1;
 $page = max(1, (int) ($_GET['p'] ?? 1));
 $perPage = 50;
@@ -1455,11 +1456,13 @@ if ($ready) {
          LIMIT 100",
         $params
     );
-    if (in_array($filters['tab'], ['inventory', 'monthly'], true)) {
+    if (in_array($filters['tab'], ['inventory', 'monthly'], true) && $inventoryLiveRequested) {
         $inventoryFetch = cor_fetch_inventory_result();
         $inventoryAllRows = $inventoryFetch['rows'];
         $inventoryError = $inventoryFetch['error'];
         $inventorySource = $inventoryFetch['source'];
+    } elseif ($filters['tab'] === 'inventory') {
+        $inventoryError = 'Live inventory has not been requested yet. Click Refresh to load products from WooCommerce.';
     }
     $inventoryCategories = [];
     foreach ($inventoryAllRows as $row) {
@@ -1573,6 +1576,7 @@ $inventoryQueryBase = array_merge($queryBase, [
     'inv_stock' => $inventoryStock,
     'inv_sort' => $inventorySort,
     'inv_dir' => $inventoryDir,
+    'inv_live' => $inventoryLiveRequested ? '1' : '0',
 ]);
 
 include BASE_PATH . '/shared/header.php';
@@ -2481,8 +2485,8 @@ include BASE_PATH . '/shared/sidebar.php';
             <div class="card-head"><h3>Inventory</h3><span>Read-only WooCommerce stock and value report</span></div>
             <form class="inv-tools" method="get">
                 <?php if ($inventoryError): ?>
-                    <div class="cor-data-message cor-data-error">Could not connect to WooCommerce: <?= cor_e($inventoryError) ?></div>
-                <?php elseif ($filters['tab'] === 'inventory' || $filters['tab'] === 'monthly'): ?>
+                    <div class="cor-data-message cor-data-error"><?= $inventoryLiveRequested ? 'Could not connect to WooCommerce: ' : '' ?><?= cor_e($inventoryError) ?></div>
+                <?php elseif ($inventoryLiveRequested && ($filters['tab'] === 'inventory' || $filters['tab'] === 'monthly')): ?>
                     <div class="cor-data-message cor-data-ok">WooCommerce REST API loaded <?= number_format((int) $inventoryStats['total']) ?> products/SKUs.</div>
                 <?php endif; ?>
                 <input type="hidden" name="tab" value="inventory">
@@ -2493,6 +2497,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 <input type="hidden" name="mode" value="<?= cor_e($filters['mode']) ?>">
                 <input type="hidden" name="payment" value="<?= cor_e($filters['payment']) ?>">
                 <input type="hidden" name="inv_dir" value="<?= cor_e($inventoryDir) ?>">
+                <input type="hidden" name="inv_live" value="1">
                 <div class="inv-tools-row">
                     <input name="inv_search" value="<?= cor_e($inventorySearch) ?>" placeholder="Search product or SKU...">
                     <select name="inv_category">
@@ -2552,7 +2557,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         </tr>
                     <?php endforeach; ?>
                     <?php if (!$inventoryFilteredRows): ?>
-                        <tr><td colspan="11" style="height:auto;padding:24px !important;text-align:center;color:var(--cor-text-light) !important;"><?= $inventoryError ? 'Could not connect to WooCommerce: ' . cor_e($inventoryError) : 'No products match this inventory view.' ?></td></tr>
+                        <tr><td colspan="11" style="height:auto;padding:24px !important;text-align:center;color:var(--cor-text-light) !important;"><?= $inventoryError ? ($inventoryLiveRequested ? 'Could not connect to WooCommerce: ' : '') . cor_e($inventoryError) : 'No products match this inventory view.' ?></td></tr>
                     <?php else: ?>
                         <tr style="border-top:3px solid var(--cor-border);background:var(--cor-cream);">
                             <td colspan="4" style="font-weight:800;">TOTAL</td>
