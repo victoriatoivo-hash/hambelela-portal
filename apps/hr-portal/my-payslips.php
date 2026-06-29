@@ -125,7 +125,7 @@ foreach (['company_name','company_reg','company_address','company_city','company
     $medicalAidEmployee = (float)($viewPayslip['medical_aid_employee'] ?? 0);
     $medicalAidFund = trim((string)($viewPayslip['medical_aid_fund'] ?? 'Medical Aid'));
     $totalDed = (float)$viewPayslip['paye']+(float)$viewPayslip['ssf']+(float)($viewPayslip['lwop_deduction']??0)+(float)($viewPayslip['other_deductions']??0)+$loanDed+$medicalAidEmployee;
-    $net = (float)$viewPayslip['net_salary'];
+    $net = round($gross - $totalDed, 2);
     $netInt = (int)round($net);
     function empPayWords($n){$ones=['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];$tens=['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];if($n==0)return'Zero';if($n<20)return$ones[$n];if($n<100)return$tens[intval($n/10)].($n%10?' '.$ones[$n%10]:'');if($n<1000)return$ones[intval($n/100)].' Hundred'.($n%100?' '.empPayWords($n%100):'');if($n<1000000)return empPayWords(intval($n/1000)).' Thousand'.($n%1000?' '.empPayWords($n%1000):'');return(string)$n;}
     $netWords = empPayWords($netInt).' Namibian Dollars Only';

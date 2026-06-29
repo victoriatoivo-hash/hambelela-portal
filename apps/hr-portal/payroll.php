@@ -80,11 +80,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         foreach ($employees as $emp) {
             // Check if payslip already exists for this run
             $existingMedicalAidSelect = $hasMedicalAidPayslipColumns ? "COALESCE(medical_aid_employee,0)" : "0";
-            $exists = $db->prepare("SELECT id, net_salary, $existingMedicalAidSelect AS existing_medical_aid_employee FROM payslips WHERE run_id=? AND employee_id=?");
+            $exists = $db->prepare("SELECT *, $existingMedicalAidSelect AS existing_medical_aid_employee FROM payslips WHERE run_id=? AND employee_id=?");
             $exists->execute([$run,$emp['id']]); 
             $existingPayslip = $exists->fetch();
             if ($existingPayslip) {
-                if ($hasMedicalAid && $hasMedicalAidPayslipColumns) {
+                if ($hasMedicalAid) {
                     $profile = hrApplyMedicalAidToEmployee($emp, $medicalAidProfiles);
                     $medicalAidFund = $medicalAidDefaults['fund'];
                     $medicalAidTotal = 0.00;
@@ -96,10 +96,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $medicalAidCompany = (float)($profile['medical_aid_company'] ?? $medicalAidDefaults['company']);
                         $medicalAidEmployee = (float)($profile['medical_aid_employee'] ?? $medicalAidDefaults['employee']);
                     }
-                    $oldMedicalAidEmployee = (float)($existingPayslip['existing_medical_aid_employee'] ?? 0);
-                    $updatedNet = round((float)$existingPayslip['net_salary'] + $oldMedicalAidEmployee - $medicalAidEmployee, 2);
-                    $db->prepare("UPDATE payslips SET medical_aid_fund=?, medical_aid_total=?, medical_aid_company=?, medical_aid_employee=?, net_salary=? WHERE id=?")
-                       ->execute([$medicalAidFund, $medicalAidTotal, $medicalAidCompany, $medicalAidEmployee, $updatedNet, (int)$existingPayslip['id']]);
+                    $updatedNet = round(
+                        (float)($existingPayslip['basic_salary'] ?? 0)
+                        + (float)($existingPayslip['ot_pay'] ?? 0)
+                        - (float)($existingPayslip['paye'] ?? 0)
+                        - (float)($existingPayslip['ssf'] ?? 0)
+                        - (float)($existingPayslip['lwop_deduction'] ?? 0)
+                        - (float)($existingPayslip['other_deductions'] ?? 0)
+                        - (float)($existingPayslip['loan_deduction'] ?? 0)
+                        - $medicalAidEmployee,
+                        2
+                    );
+                    if ($hasMedicalAidPayslipColumns) {
+                        $db->prepare("UPDATE payslips SET medical_aid_fund=?, medical_aid_total=?, medical_aid_company=?, medical_aid_employee=?, net_salary=? WHERE id=?")
+                           ->execute([$medicalAidFund, $medicalAidTotal, $medicalAidCompany, $medicalAidEmployee, $updatedNet, (int)$existingPayslip['id']]);
+                    } else {
+                        $db->prepare("UPDATE payslips SET net_salary=? WHERE id=?")
+                           ->execute([$updatedNet, (int)$existingPayslip['id']]);
+                    }
                 }
                 continue;
             }
@@ -264,7 +278,30 @@ if ($runId) {
     $currentRun->execute([$runId]); $currentRun = $currentRun->fetch();
     $payslips = $db->prepare("SELECT ps.*, $medicalAidSelect, CONCAT(e.first_name,' ',e.last_name) as emp_name, e.emp_number, e.bank_name, e.bank_account, e.tax_number, $socialSecuritySelect, e.job_title, e.department, e.id_number FROM payslips ps JOIN employees e ON e.id=ps.employee_id WHERE ps.run_id=? ORDER BY e.first_name");
     $payslips->execute([$runId]); $payslips = $payslips->fetchAll();
-    foreach ($payslips as $p) {
+    foreach ($payslips as $idx => $p) {
+        if ($hasMedicalAid && (float)($p['medical_aid_total'] ?? 0) <= 0) {
+            $medicalProfile = hrApplyMedicalAidToEmployee(['id' => (int)$p['employee_id']], $medicalAidProfiles);
+            if (!empty($medicalProfile['medical_aid_active'])) {
+                $p['medical_aid_fund'] = $medicalProfile['medical_aid_fund'];
+                $p['medical_aid_total'] = $medicalProfile['medical_aid_total'];
+                $p['medical_aid_company'] = $medicalProfile['medical_aid_company'];
+                $p['medical_aid_employee'] = $medicalProfile['medical_aid_employee'];
+            }
+        }
+        if ((float)($p['medical_aid_employee'] ?? 0) > 0) {
+            $p['net_salary'] = round(
+                (float)($p['basic_salary'] ?? 0)
+                + (float)($p['ot_pay'] ?? 0)
+                - (float)($p['paye'] ?? 0)
+                - (float)($p['ssf'] ?? 0)
+                - (float)($p['lwop_deduction'] ?? 0)
+                - (float)($p['other_deductions'] ?? 0)
+                - (float)($p['loan_deduction'] ?? 0)
+                - (float)($p['medical_aid_employee'] ?? 0),
+                2
+            );
+        }
+        $payslips[$idx] = $p;
         $runTotals['basic'] += $p['basic_salary'];
         $runTotals['ot']    += $p['ot_pay'];
         $runTotals['paye']  += $p['paye'];
@@ -405,7 +442,7 @@ if (isset($_GET['payslip'])) {
     $medicalAidEmployee = (float)($viewPayslip['medical_aid_employee'] ?? 0);
     $medicalAidFund = trim((string)($viewPayslip['medical_aid_fund'] ?? 'Medical Aid'));
     $totalDed = (float)$viewPayslip['paye'] + (float)$viewPayslip['ssf'] + (float)$viewPayslip['lwop_deduction'] + (float)$viewPayslip['other_deductions'] + $loanDed + $medicalAidEmployee;
-    $net = (float)$viewPayslip['net_salary'];
+    $net = round($gross - $totalDed, 2);
     $netInt = (int)round($net);
     $periodStart = date('d F Y', mktime(0,0,0,(int)$runRow['period_month'],1,(int)$runRow['period_year']));
     $periodEnd = date('d F Y', mktime(0,0,0,(int)$runRow['period_month']+1,0,(int)$runRow['period_year']));
