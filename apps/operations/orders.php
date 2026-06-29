@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/operations.php';
 require_once BASE_PATH . '/shared/woocommerce.php';
-define('OPS_BOARD_SYNC_LIBRARY_ONLY', true);
-require_once __DIR__ . '/orders-board-action.php';
 
 require_login();
 
@@ -1070,29 +1068,7 @@ if (!in_array($filters['tab'], $validTabs, true)) {
     $filters['tab'] = 'sales';
 }
 
-$reportSyncResult = null;
 $reportSyncError = null;
-if ($ready) {
-    try {
-        $syncDate = $filters['range'] === 'today' ? $filters['from'] : null;
-        $reportSyncResult = ops_board_run_guarded_sync($syncDate, false);
-        cor_report_log('WooCommerce orders sync checked', [
-            'endpoint' => 'orders',
-            'date' => $syncDate ?: 'recent',
-            'imported' => (int) ($reportSyncResult['imported'] ?? 0),
-            'updated' => (int) ($reportSyncResult['updated'] ?? 0),
-            'orders_returned' => (int) ($reportSyncResult['website_orders_seen'] ?? 0),
-            'skipped' => (bool) ($reportSyncResult['skipped'] ?? false),
-            'skip_reason' => $reportSyncResult['skip_reason'] ?? null,
-        ]);
-    } catch (Throwable $e) {
-        $reportSyncError = $e->getMessage();
-        cor_report_log('WooCommerce orders sync failed', [
-            'endpoint' => 'orders',
-            'error' => $reportSyncError,
-        ]);
-    }
-}
 
 if ($ready && isset($_GET['export']) && in_array((string) $_GET['export'], ['csv', 'excel'], true)) {
     if ($filters['tab'] === 'products') {

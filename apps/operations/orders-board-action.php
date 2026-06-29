@@ -6,13 +6,9 @@ require_once __DIR__ . '/operations.php';
 require_once BASE_PATH . '/shared/woocommerce.php';
 require_once BASE_PATH . '/shared/board-columns.php';
 
-$opsBoardSyncLibraryOnly = defined('OPS_BOARD_SYNC_LIBRARY_ONLY') && OPS_BOARD_SYNC_LIBRARY_ONLY;
+header('Content-Type: application/json');
 
-if (!$opsBoardSyncLibraryOnly) {
-    header('Content-Type: application/json');
-}
-
-if (!$opsBoardSyncLibraryOnly && current_role_key() === 'guest') {
+if (current_role_key() === 'guest') {
     http_response_code(401);
     echo json_encode(['ok' => false, 'message' => 'Your session expired. Please log in again.']);
     exit;
@@ -471,10 +467,6 @@ function ops_board_sync_website_orders(?string $date = null): array
         'website_orders_seen' => count($orders),
         'warnings' => array_slice(array_unique($syncWarnings), 0, 3),
     ];
-}
-
-if ($opsBoardSyncLibraryOnly) {
-    return;
 }
 
 try {
