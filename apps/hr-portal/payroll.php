@@ -79,9 +79,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $employees = $db->query("SELECT * FROM employees WHERE status='active'")->fetchAll();
         foreach ($employees as $emp) {
             // Check if payslip already exists for this run
-            $exists = $db->prepare("SELECT id FROM payslips WHERE run_id=? AND employee_id=?");
+            $existingMedicalAidSelect = $hasMedicalAidPayslipColumns ? "COALESCE(medical_aid_employee,0)" : "0";
+            $exists = $db->prepare("SELECT id, net_salary, $existingMedicalAidSelect AS existing_medical_aid_employee FROM payslips WHERE run_id=? AND employee_id=?");
             $exists->execute([$run,$emp['id']]); 
-            if ($exists->fetchColumn()) continue;
+            $existingPayslip = $exists->fetch();
+            if ($existingPayslip) {
+                if ($hasMedicalAid && $hasMedicalAidPayslipColumns) {
+                    $profile = hrApplyMedicalAidToEmployee($emp, $medicalAidProfiles);
+                    $medicalAidFund = $medicalAidDefaults['fund'];
+                    $medicalAidTotal = 0.00;
+                    $medicalAidCompany = 0.00;
+                    $medicalAidEmployee = 0.00;
+                    if (!empty($profile['medical_aid_active'])) {
+                        $medicalAidFund = trim((string)($profile['medical_aid_fund'] ?? '')) ?: $medicalAidDefaults['fund'];
+                        $medicalAidTotal = (float)($profile['medical_aid_total'] ?? $medicalAidDefaults['total']);
+                        $medicalAidCompany = (float)($profile['medical_aid_company'] ?? $medicalAidDefaults['company']);
+                        $medicalAidEmployee = (float)($profile['medical_aid_employee'] ?? $medicalAidDefaults['employee']);
+                    }
+                    $oldMedicalAidEmployee = (float)($existingPayslip['existing_medical_aid_employee'] ?? 0);
+                    $updatedNet = round((float)$existingPayslip['net_salary'] + $oldMedicalAidEmployee - $medicalAidEmployee, 2);
+                    $db->prepare("UPDATE payslips SET medical_aid_fund=?, medical_aid_total=?, medical_aid_company=?, medical_aid_employee=?, net_salary=? WHERE id=?")
+                       ->execute([$medicalAidFund, $medicalAidTotal, $medicalAidCompany, $medicalAidEmployee, $updatedNet, (int)$existingPayslip['id']]);
+                }
+                continue;
+            }
 
             $basic = (float)$emp['basic_salary'];
 

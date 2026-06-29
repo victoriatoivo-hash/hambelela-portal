@@ -39,11 +39,26 @@ if ($hasSocialSecurity) {
     $fields['social_security_number'] = clean($_POST['social_security_number'] ?? '');
 }
 if ($hasMedicalAidColumns) {
-    $fields['medical_aid_active'] = (int)(($_POST['medical_aid_active'] ?? '0') === '1');
+    $medicalAidActive = (int)(($_POST['medical_aid_active'] ?? '0') === '1');
+    $medicalAidTotal = (float)($_POST['medical_aid_total'] ?? $medicalAidDefaults['total']);
+    $medicalAidCompany = (float)($_POST['medical_aid_company'] ?? 0);
+    $medicalAidEmployee = (float)($_POST['medical_aid_employee'] ?? 0);
+    if ($medicalAidTotal <= 0) $medicalAidTotal = (float)$medicalAidDefaults['total'];
+    if ($medicalAidActive && $medicalAidCompany <= 0) $medicalAidCompany = round($medicalAidTotal * 0.40, 2);
+    if ($medicalAidActive && $medicalAidEmployee <= 0) $medicalAidEmployee = round($medicalAidTotal * 0.60, 2);
+    if (!$medicalAidActive) {
+        $medicalAidCompany = $medicalAidCompany > 0 ? $medicalAidCompany : (float)$medicalAidDefaults['company'];
+        $medicalAidEmployee = $medicalAidEmployee > 0 ? $medicalAidEmployee : (float)$medicalAidDefaults['employee'];
+    }
+    $_POST['medical_aid_total'] = (string)$medicalAidTotal;
+    $_POST['medical_aid_company'] = (string)$medicalAidCompany;
+    $_POST['medical_aid_employee'] = (string)$medicalAidEmployee;
+
+    $fields['medical_aid_active'] = $medicalAidActive;
     $fields['medical_aid_fund'] = clean($_POST['medical_aid_fund'] ?? $medicalAidDefaults['fund']);
-    $fields['medical_aid_total'] = (float)($_POST['medical_aid_total'] ?? $medicalAidDefaults['total']);
-    $fields['medical_aid_company'] = (float)($_POST['medical_aid_company'] ?? $medicalAidDefaults['company']);
-    $fields['medical_aid_employee'] = (float)($_POST['medical_aid_employee'] ?? $medicalAidDefaults['employee']);
+    $fields['medical_aid_total'] = $medicalAidTotal;
+    $fields['medical_aid_company'] = $medicalAidCompany;
+    $fields['medical_aid_employee'] = $medicalAidEmployee;
 }
 
 if (!$fields['first_name'] || !$fields['last_name']) {

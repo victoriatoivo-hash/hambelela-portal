@@ -336,16 +336,29 @@ function hrApplyMedicalAidToEmployee(array $employee, array $medicalAidMap = [])
     $defaults = hrMedicalAidDefaults();
     $id = (int)($employee['id'] ?? 0);
     $fallback = $medicalAidMap[$id] ?? [];
-    foreach (['medical_aid_fund','medical_aid_active','medical_aid_total','medical_aid_company','medical_aid_employee'] as $column) {
-        if (array_key_exists($column, $fallback) && $fallback[$column] !== null && $fallback[$column] !== '') {
-            $employee[$column] = $fallback[$column];
-        }
+
+    $employeeActive = (int)($employee['medical_aid_active'] ?? 0);
+    $fallbackActive = (int)($fallback['medical_aid_active'] ?? 0);
+    $employee['medical_aid_active'] = ($employeeActive === 1 || $fallbackActive === 1) ? 1 : 0;
+
+    $fund = trim((string)($employee['medical_aid_fund'] ?? ''));
+    if ($fund === '') {
+        $fund = trim((string)($fallback['medical_aid_fund'] ?? ''));
     }
-    $employee['medical_aid_fund'] = trim((string)($employee['medical_aid_fund'] ?? '')) ?: $defaults['fund'];
-    $employee['medical_aid_active'] = (int)($employee['medical_aid_active'] ?? 0);
-    $employee['medical_aid_total'] = (float)($employee['medical_aid_total'] ?? $defaults['total']);
-    $employee['medical_aid_company'] = (float)($employee['medical_aid_company'] ?? $defaults['company']);
-    $employee['medical_aid_employee'] = (float)($employee['medical_aid_employee'] ?? $defaults['employee']);
+    $employee['medical_aid_fund'] = $fund !== '' ? $fund : $defaults['fund'];
+
+    $amountSources = [
+        'medical_aid_total' => $defaults['total'],
+        'medical_aid_company' => $defaults['company'],
+        'medical_aid_employee' => $defaults['employee'],
+    ];
+    foreach ($amountSources as $column => $default) {
+        $value = (float)($employee[$column] ?? 0);
+        if ($value <= 0 && array_key_exists($column, $fallback)) {
+            $value = (float)$fallback[$column];
+        }
+        $employee[$column] = $value > 0 ? $value : (float)$default;
+    }
     return $employee;
 }
 
@@ -355,8 +368,15 @@ function hrSaveMedicalAidMembership(PDO $db, int $employeeId, array $data): void
     $active = (int)(($data['medical_aid_active'] ?? '0') === '1');
     $fund = clean($data['medical_aid_fund'] ?? $defaults['fund']);
     $total = (float)($data['medical_aid_total'] ?? $defaults['total']);
-    $company = (float)($data['medical_aid_company'] ?? $defaults['company']);
-    $employee = (float)($data['medical_aid_employee'] ?? $defaults['employee']);
+    $company = (float)($data['medical_aid_company'] ?? 0);
+    $employee = (float)($data['medical_aid_employee'] ?? 0);
+    if ($total <= 0) $total = (float)$defaults['total'];
+    if ($active && $company <= 0) $company = round($total * 0.40, 2);
+    if ($active && $employee <= 0) $employee = round($total * 0.60, 2);
+    if (!$active) {
+        $company = $company > 0 ? $company : (float)$defaults['company'];
+        $employee = $employee > 0 ? $employee : (float)$defaults['employee'];
+    }
     if (hrTableExists($db, 'medical_aid_memberships')) {
         try {
             $stmt = $db->prepare("INSERT INTO medical_aid_memberships (employee_id,medical_aid_fund,medical_aid_active,medical_aid_total,medical_aid_company,medical_aid_employee)
