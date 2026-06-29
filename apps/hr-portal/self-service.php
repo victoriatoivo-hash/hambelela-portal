@@ -8,11 +8,15 @@ if ($user['role'] !== 'employee') { header('Location: ' . SITE_URL . '/dashboard
 $db   = db();
 $empId = (int)($user['emp_id'] ?? 0);
 ensureLeaveShutdownSchema($db);
+hrEnsureMedicalAidSchemaSafe($db);
+$medicalAidProfiles = hrMedicalAidMap($db);
 
 // Get employee details
 $emp = $db->prepare("SELECT * FROM employees WHERE id=?");
 $emp->execute([$empId]); $emp = $emp->fetch();
 if (!$emp) { header('Location: ' . SITE_URL . '/logout.php'); exit; }
+$medicalAidProfile = hrApplyMedicalAidToEmployee($emp, $medicalAidProfiles);
+$currentMedicalAidActive = hrMedicalAidEffectiveForPeriod($medicalAidProfile, (int)date('n'), (int)date('Y'));
 
 // Leave balances
 $year = date('Y');
@@ -30,12 +34,30 @@ $shutdownEndYear = substr($shutdownSettings['end_md'], 0, 2) === '01' ? (int)dat
 $shutdownEnd = date('d F', strtotime($shutdownEndYear . '-' . $shutdownSettings['end_md']));
 
 // Latest payslip
-$latestPS = $db->prepare("SELECT ps.*, r.period_label FROM payslips ps JOIN payroll_runs r ON r.id=ps.run_id WHERE ps.employee_id=? ORDER BY r.period_year DESC, r.period_month DESC LIMIT 1");
+$latestPS = $db->prepare("SELECT ps.*, r.period_label, r.period_month, r.period_year FROM payslips ps JOIN payroll_runs r ON r.id=ps.run_id WHERE ps.employee_id=? ORDER BY r.period_year DESC, r.period_month DESC LIMIT 1");
 $latestPS->execute([$empId]); $latestPS = $latestPS->fetch();
 $latestSSF = $latestPS ? (float)$latestPS['ssf'] : 0;
+$latestMedicalAidFund = trim((string)($medicalAidProfile['medical_aid_fund'] ?? 'Medical Aid'));
+$latestMedicalAidTotal = 0;
+$latestMedicalAidCompany = 0;
+$latestMedicalAidEmployee = 0;
+if ($latestPS) {
+  $latestMedicalAidProfile = hrApplyMedicalAidToEmployee(['id' => $empId], $medicalAidProfiles);
+  if (hrMedicalAidEffectiveForPeriod($latestMedicalAidProfile, (int)$latestPS['period_month'], (int)$latestPS['period_year'])) {
+    $latestMedicalAidFund = trim((string)($latestPS['medical_aid_fund'] ?? '')) ?: (string)$latestMedicalAidProfile['medical_aid_fund'];
+    $latestMedicalAidTotal = (float)($latestPS['medical_aid_total'] ?? 0);
+    $latestMedicalAidCompany = (float)($latestPS['medical_aid_company'] ?? 0);
+    $latestMedicalAidEmployee = (float)($latestPS['medical_aid_employee'] ?? 0);
+    if ($latestMedicalAidTotal <= 0) $latestMedicalAidTotal = (float)$latestMedicalAidProfile['medical_aid_total'];
+    if ($latestMedicalAidCompany <= 0) $latestMedicalAidCompany = (float)$latestMedicalAidProfile['medical_aid_company'];
+    if ($latestMedicalAidEmployee <= 0) $latestMedicalAidEmployee = (float)$latestMedicalAidProfile['medical_aid_employee'];
+  }
+}
 $latestTotalDeductions = $latestPS
-  ? (float)$latestPS['paye'] + $latestSSF + (float)($latestPS['lwop_deduction'] ?? 0) + (float)($latestPS['other_deductions'] ?? 0) + (float)($latestPS['loan_deduction'] ?? 0)
+  ? (float)$latestPS['paye'] + $latestSSF + (float)($latestPS['lwop_deduction'] ?? 0) + (float)($latestPS['other_deductions'] ?? 0) + (float)($latestPS['loan_deduction'] ?? 0) + $latestMedicalAidEmployee
   : 0;
+$latestGross = $latestPS ? (float)$latestPS['basic_salary'] + (float)$latestPS['ot_pay'] : 0;
+$latestNetPay = $latestPS ? round($latestGross - $latestTotalDeductions, 2) : 0;
 
 // Unread notifications
 $notifs = $db->prepare("SELECT * FROM notifications WHERE user_id=? ORDER BY created_at DESC LIMIT 10");
@@ -107,8 +129,21 @@ $currentPage = 'self-service.php';
         <div class="stat-value"><?=number_format($sickRemain,1)?></div>
         <div class="stat-label">Sick Leave Remaining</div>
       </div>
-      <div class="stat-card"><div class="stat-icon blue"><i class="fa-solid fa-money-bill-wave"></i></div><div class="stat-value" style="font-size:18px"><?=$latestPS ? 'N$'.number_format((float)$latestPS['net_salary'],0) : '—'?></div><div class="stat-label">Last Net Pay</div></div>
+      <div class="stat-card"><div class="stat-icon blue"><i class="fa-solid fa-money-bill-wave"></i></div><div class="stat-value" style="font-size:18px"><?=$latestPS ? 'N$'.number_format($latestNetPay,0) : '—'?></div><div class="stat-label">Last Net Pay</div></div>
       <div class="stat-card"><div class="stat-icon teal"><i class="fa-solid fa-shield-heart"></i></div><div class="stat-value" style="font-size:18px"><?=$latestPS ? 'N$'.number_format($latestSSF,2) : '—'?></div><div class="stat-label">Social Security Deduction</div></div>
+      <?php if ($currentMedicalAidActive): ?>
+      <div class="stat-card">
+        <div class="stat-icon green"><i class="fa-solid fa-kit-medical"></i></div>
+        <div class="stat-value" style="font-size:16px;line-height:1.2"><?=htmlspecialchars($medicalAidProfile['medical_aid_fund'])?></div>
+        <div class="stat-label">Medical Aid</div>
+        <div style="margin-top:8px;display:grid;gap:4px;font-size:10.5px;color:var(--text-mid);text-align:left">
+          <div style="display:flex;justify-content:space-between;gap:8px"><span>Total Fund</span><strong style="color:var(--text-dark);font-family:monospace">N$<?=number_format((float)$medicalAidProfile['medical_aid_total'],2)?></strong></div>
+          <div style="display:flex;justify-content:space-between;gap:8px"><span>Company Portion</span><strong style="color:var(--green);font-family:monospace">N$<?=number_format((float)$medicalAidProfile['medical_aid_company'],2)?></strong></div>
+          <div style="display:flex;justify-content:space-between;gap:8px"><span>Employee Portion</span><strong style="color:var(--red);font-family:monospace">N$<?=number_format((float)$medicalAidProfile['medical_aid_employee'],2)?></strong></div>
+          <div style="display:flex;justify-content:space-between;gap:8px"><span>Status</span><strong style="color:var(--green)">Active</strong></div>
+        </div>
+      </div>
+      <?php endif ?>
       <div class="stat-card"><div class="stat-icon amber"><i class="fa-solid fa-calendar-days"></i></div><div class="stat-value" style="font-size:18px"><?=number_format($reserveCurrent,0)?> / <?=number_format($reserveTotal,0)?> Days</div><div class="stat-label">December Shutdown Reserve</div><div style="font-size:10px;color:var(--text-mid);margin-top:3px"><?=$reserveStatusText?></div></div>
       <div class="stat-card"><div class="stat-icon <?=$unreadCount>0?'red':'teal'?>"><i class="fa-regular fa-bell"></i></div><div class="stat-value"><?=$unreadCount?></div><div class="stat-label">Unread Notifications</div></div>
     </div>
@@ -238,8 +273,14 @@ $currentPage = 'self-service.php';
         <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-mid);margin-bottom:3px">Basic Salary</div><div style="font-weight:700;font-family:monospace">N$ <?=number_format((float)$latestPS['basic_salary'],2)?></div></div>
         <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-mid);margin-bottom:3px">Overtime</div><div style="font-weight:700;font-family:monospace;color:var(--green)">+ N$ <?=number_format((float)$latestPS['ot_pay'],2)?></div></div>
         <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-mid);margin-bottom:3px">Social Security</div><div style="font-weight:700;font-family:monospace;color:var(--red)">- N$ <?=number_format($latestSSF,2)?></div></div>
+        <?php if ($latestMedicalAidEmployee > 0): ?>
+        <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-mid);margin-bottom:3px">Medical Aid Employee</div><div style="font-weight:700;font-family:monospace;color:var(--red)">- N$ <?=number_format($latestMedicalAidEmployee,2)?></div></div>
+        <?php endif ?>
+        <?php if ($latestMedicalAidCompany > 0): ?>
+        <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-mid);margin-bottom:3px">Medical Aid Employer</div><div style="font-weight:700;font-family:monospace;color:var(--green)">N$ <?=number_format($latestMedicalAidCompany,2)?></div></div>
+        <?php endif ?>
         <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-mid);margin-bottom:3px">Total Deductions</div><div style="font-weight:700;font-family:monospace;color:var(--red)">- N$ <?=number_format($latestTotalDeductions,2)?></div></div>
-        <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-mid);margin-bottom:3px">Net Pay</div><div style="font-weight:800;font-family:monospace;font-size:16px">N$ <?=number_format((float)$latestPS['net_salary'],2)?></div></div>
+        <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-mid);margin-bottom:3px">Net Pay</div><div style="font-weight:800;font-family:monospace;font-size:16px">N$ <?=number_format($latestNetPay,2)?></div></div>
       </div>
     </div>
     <?php endif ?>

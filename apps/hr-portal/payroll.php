@@ -563,7 +563,7 @@ if (isset($_GET['payslip'])) {
           <tr><td>Overtime Pay</td><td><span class="money">N$ <?=number_format((float)$viewPayslip['ot_pay'],2)?></span></td></tr>
           <?php endif ?>
           <?php if($medicalAidCompany > 0): ?>
-          <tr><td>Medical Aid Company Contribution</td><td><span class="money">N$ <?=number_format($medicalAidCompany,2)?></span></td></tr>
+          <tr><td>Medical Aid Employer Contribution</td><td><span class="money">N$ <?=number_format($medicalAidCompany,2)?></span></td></tr>
           <?php endif ?>
           <tr><td><strong>Gross Earnings</strong></td><td><strong class="money">N$ <?=number_format($gross,2)?></strong></td></tr>
         </table>

@@ -16,6 +16,31 @@ $medicalAidSelect = $hasMedicalAidPayslipColumns
 
 $payslips = $db->prepare("SELECT ps.*, r.period_label, r.period_month, r.period_year, r.id as run_id FROM payslips ps JOIN payroll_runs r ON r.id=ps.run_id WHERE ps.employee_id=? ORDER BY r.period_year DESC, r.period_month DESC");
 $payslips->execute([$empId]); $payslips = $payslips->fetchAll();
+foreach ($payslips as $idx => $p) {
+    $medicalProfile = hrApplyMedicalAidToEmployee(['id' => $empId], $medicalAidProfiles);
+    $medicalApplies = hrMedicalAidEffectiveForPeriod($medicalProfile, (int)$p['period_month'], (int)$p['period_year']);
+    if ($medicalApplies) {
+        if ((float)($p['medical_aid_total'] ?? 0) <= 0) {
+            $p['medical_aid_fund'] = $medicalProfile['medical_aid_fund'];
+            $p['medical_aid_total'] = $medicalProfile['medical_aid_total'];
+            $p['medical_aid_company'] = $medicalProfile['medical_aid_company'];
+            $p['medical_aid_employee'] = $medicalProfile['medical_aid_employee'];
+        }
+    } else {
+        $p['medical_aid_total'] = 0;
+        $p['medical_aid_company'] = 0;
+        $p['medical_aid_employee'] = 0;
+    }
+    $displayDeductions = (float)$p['paye']
+        + (float)$p['ssf']
+        + (float)($p['lwop_deduction'] ?? 0)
+        + (float)($p['other_deductions'] ?? 0)
+        + (float)($p['loan_deduction'] ?? 0)
+        + (float)($p['medical_aid_employee'] ?? 0);
+    $p['display_total_deductions'] = $displayDeductions;
+    $p['display_net_salary'] = round((float)$p['basic_salary'] + (float)$p['ot_pay'] - $displayDeductions, 2);
+    $payslips[$idx] = $p;
+}
 
 // View single payslip
 $viewPayslip = null;
@@ -205,7 +230,7 @@ foreach (['company_name','company_reg','company_address','company_city','company
         <table class="ps-col-table">
           <tr><td>Basic Salary</td><td><span class="money">N$ <?=number_format((float)$viewPayslip['basic_salary'],2)?></span></td></tr>
           <?php if($viewPayslip['ot_pay']>0): ?><tr><td>Overtime Pay</td><td><span class="money">N$ <?=number_format((float)$viewPayslip['ot_pay'],2)?></span></td></tr><?php endif ?>
-          <?php if($medicalAidCompany>0): ?><tr><td>Medical Aid Company Contribution</td><td><span class="money">N$ <?=number_format($medicalAidCompany,2)?></span></td></tr><?php endif ?>
+          <?php if($medicalAidCompany>0): ?><tr><td>Medical Aid Employer Contribution</td><td><span class="money">N$ <?=number_format($medicalAidCompany,2)?></span></td></tr><?php endif ?>
           <tr><td><strong>Gross Earnings</strong></td><td><strong class="money">N$ <?=number_format($gross,2)?></strong></td></tr>
         </table>
       </div>
@@ -251,8 +276,8 @@ foreach (['company_name','company_reg','company_address','company_city','company
         <td style="font-weight:600"><?=htmlspecialchars($p['period_label'])?></td>
         <td style="font-family:monospace">N$ <?=number_format((float)$p['basic_salary'],2)?></td>
         <td style="font-family:monospace;color:var(--green)">+ N$ <?=number_format((float)$p['ot_pay'],2)?></td>
-        <td style="font-family:monospace;color:var(--red)">- N$ <?=number_format((float)$p['paye']+(float)$p['ssf']+(float)($p['lwop_deduction']??0)+(float)($p['other_deductions']??0)+(float)($p['loan_deduction']??0),2)?></td>
-        <td style="font-family:monospace;font-weight:800">N$ <?=number_format((float)$p['net_salary'],2)?></td>
+        <td style="font-family:monospace;color:var(--red)">- N$ <?=number_format((float)$p['display_total_deductions'],2)?></td>
+        <td style="font-family:monospace;font-weight:800">N$ <?=number_format((float)$p['display_net_salary'],2)?></td>
         <td><a href="my-payslips.php?id=<?=$p['id']?>" class="btn btn-secondary btn-sm"><i class="fa-solid fa-eye"></i> View</a></td>
       </tr>
       <?php endforeach ?>
