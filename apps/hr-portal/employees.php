@@ -335,7 +335,6 @@ $colors = ['#40916C','#6D28D9','#0F766E','#D97706','#1D4ED8','#DC2626','#0369A1'
             </select>
           </div>
 
-          <?php if ($hasMedicalAid): ?>
           <div class="section-divider">Medical Aid</div>
           <div class="form-group"><label class="form-label">Medical Aid Active</label>
             <select class="form-select" name="medical_aid_active" id="f_medical_aid_active">
@@ -346,7 +345,6 @@ $colors = ['#40916C','#6D28D9','#0F766E','#D97706','#1D4ED8','#DC2626','#0369A1'
           <div class="form-group"><label class="form-label">Total Monthly Fund (N$)</label><input class="form-input" type="number" step="0.01" name="medical_aid_total" id="f_medical_aid_total" value="<?=number_format($medicalAidDefaults['total'],2,'.','')?>"></div>
           <div class="form-group"><label class="form-label">Company Contribution (N$)</label><input class="form-input" type="number" step="0.01" name="medical_aid_company" id="f_medical_aid_company" value="<?=number_format($medicalAidDefaults['company'],2,'.','')?>"></div>
           <div class="form-group"><label class="form-label">Employee Contribution / Deduction (N$)</label><input class="form-input" type="number" step="0.01" name="medical_aid_employee" id="f_medical_aid_employee" value="<?=number_format($medicalAidDefaults['employee'],2,'.','')?>"></div>
-          <?php endif ?>
 
           <div class="section-divider">Banking & Tax</div>
           <div class="form-group"><label class="form-label">Bank Name</label><input class="form-input" name="bank_name" id="f_bank_name" placeholder="e.g. FNB Namibia"></div>

@@ -249,21 +249,33 @@ function hrHasPayslipMedicalAidColumns(PDO $db): bool {
 }
 
 function hrMedicalAidAvailable(PDO $db): bool {
-    return hrHasEmployeeMedicalAidColumns($db) || hrTableExists($db, 'medical_aid_memberships');
+    return true;
 }
 
 function hrMedicalAidMap(PDO $db): array {
-    if (!hrTableExists($db, 'medical_aid_memberships')) return [];
+    $map = [];
     try {
-        $rows = $db->query("SELECT * FROM medical_aid_memberships")->fetchAll();
-        $map = [];
+        $rows = $db->query("SELECT setting_key, setting_val FROM settings WHERE setting_key LIKE 'employee_medical_aid_%'")->fetchAll();
         foreach ($rows as $row) {
-            $map[(int)$row['employee_id']] = $row;
+            $id = (int)substr((string)$row['setting_key'], strlen('employee_medical_aid_'));
+            $data = json_decode((string)$row['setting_val'], true);
+            if ($id > 0 && is_array($data)) {
+                $map[$id] = $data;
+            }
         }
-        return $map;
-    } catch (Throwable $e) {
-        return [];
+    } catch (Throwable $e) {}
+
+    if (hrTableExists($db, 'medical_aid_memberships')) {
+        try {
+            $rows = $db->query("SELECT * FROM medical_aid_memberships")->fetchAll();
+            foreach ($rows as $row) {
+                $map[(int)$row['employee_id']] = $row;
+            }
+        } catch (Throwable $e) {
+            return $map;
+        }
     }
+    return $map;
 }
 
 function hrApplyMedicalAidToEmployee(array $employee, array $medicalAidMap = []): array {
@@ -284,15 +296,33 @@ function hrApplyMedicalAidToEmployee(array $employee, array $medicalAidMap = [])
 }
 
 function hrSaveMedicalAidMembership(PDO $db, int $employeeId, array $data): void {
-    if ($employeeId <= 0 || !hrTableExists($db, 'medical_aid_memberships')) return;
+    if ($employeeId <= 0) return;
     $defaults = hrMedicalAidDefaults();
     $active = (int)(($data['medical_aid_active'] ?? '0') === '1');
     $fund = clean($data['medical_aid_fund'] ?? $defaults['fund']);
     $total = (float)($data['medical_aid_total'] ?? $defaults['total']);
     $company = (float)($data['medical_aid_company'] ?? $defaults['company']);
     $employee = (float)($data['medical_aid_employee'] ?? $defaults['employee']);
-    $stmt = $db->prepare("INSERT INTO medical_aid_memberships (employee_id,medical_aid_fund,medical_aid_active,medical_aid_total,medical_aid_company,medical_aid_employee)
-        VALUES (?,?,?,?,?,?)
-        ON DUPLICATE KEY UPDATE medical_aid_fund=VALUES(medical_aid_fund), medical_aid_active=VALUES(medical_aid_active), medical_aid_total=VALUES(medical_aid_total), medical_aid_company=VALUES(medical_aid_company), medical_aid_employee=VALUES(medical_aid_employee)");
-    $stmt->execute([$employeeId, $fund, $active, $total, $company, $employee]);
+    if (hrTableExists($db, 'medical_aid_memberships')) {
+        try {
+            $stmt = $db->prepare("INSERT INTO medical_aid_memberships (employee_id,medical_aid_fund,medical_aid_active,medical_aid_total,medical_aid_company,medical_aid_employee)
+                VALUES (?,?,?,?,?,?)
+                ON DUPLICATE KEY UPDATE medical_aid_fund=VALUES(medical_aid_fund), medical_aid_active=VALUES(medical_aid_active), medical_aid_total=VALUES(medical_aid_total), medical_aid_company=VALUES(medical_aid_company), medical_aid_employee=VALUES(medical_aid_employee)");
+            $stmt->execute([$employeeId, $fund, $active, $total, $company, $employee]);
+            return;
+        } catch (Throwable $e) {}
+    }
+
+    try {
+        $payload = json_encode([
+            'medical_aid_fund' => $fund,
+            'medical_aid_active' => $active,
+            'medical_aid_total' => $total,
+            'medical_aid_company' => $company,
+            'medical_aid_employee' => $employee,
+        ]);
+        $key = 'employee_medical_aid_' . $employeeId;
+        $db->prepare("INSERT INTO settings (setting_key,setting_val) VALUES (?,?) ON DUPLICATE KEY UPDATE setting_val=?")
+           ->execute([$key, $payload, $payload]);
+    } catch (Throwable $e) {}
 }
