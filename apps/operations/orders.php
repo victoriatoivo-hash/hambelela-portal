@@ -148,6 +148,18 @@ function cor_inventory_variant_label(array $variation): string
     return implode(' / ', $parts);
 }
 
+function cor_inventory_format_variant_value(string $value): string
+{
+    $value = trim($value);
+    if ($value === '') {
+        return '';
+    }
+
+    $value = str_replace(['pa_', '-', '_'], ['', ' ', ' '], $value);
+
+    return ucwords(trim($value));
+}
+
 function cor_store_catalog_base(): string
 {
     return 'https://hambelelaorganic.com';
@@ -269,7 +281,7 @@ function cor_inventory_row_from_store_product(array $product, ?array $variation 
         'qty' => $qty,
         'cost_val' => 0.0,
         'retail_val' => $qty * $price,
-        'profit' => $price,
+        'profit' => $qty * $price,
         'stock_class' => $stockClass,
         'low_threshold' => $lowThreshold,
     ];
@@ -376,6 +388,7 @@ function cor_inventory_rows_from_wp_db(): array
             parent.post_title AS parent_name,
             MAX(CASE WHEN pm.meta_key = '_sku' THEN pm.meta_value END) AS sku,
             MAX(CASE WHEN pm.meta_key = '_regular_price' THEN pm.meta_value END) AS regular_price,
+            MAX(CASE WHEN pm.meta_key = '_sale_price' THEN pm.meta_value END) AS sale_price,
             MAX(CASE WHEN pm.meta_key = '_price' THEN pm.meta_value END) AS price,
             MAX(CASE WHEN pm.meta_key = '_stock' THEN pm.meta_value END) AS qty,
             MAX(CASE WHEN pm.meta_key = '_stock_status' THEN pm.meta_value END) AS stock_status,
@@ -399,13 +412,25 @@ function cor_inventory_rows_from_wp_db(): array
         return [];
     }
 
-    $attributeStmt = $pdo->prepare("SELECT meta_value FROM {$postmeta} WHERE post_id = ? AND meta_key LIKE 'attribute_%' ORDER BY meta_id ASC LIMIT 3");
+    $attributeStmt = $pdo->prepare("SELECT meta_value FROM {$postmeta} WHERE post_id = ? AND meta_key LIKE 'attribute_%' ORDER BY meta_id ASC LIMIT 5");
+    $parentsWithVariations = [];
+    foreach ($raw as $item) {
+        if ((string) ($item['post_type'] ?? '') === 'product_variation' && (int) ($item['post_parent'] ?? 0) > 0) {
+            $parentsWithVariations[(int) $item['post_parent']] = true;
+        }
+    }
+
     $rows = [];
     foreach ($raw as $item) {
+        if ((string) ($item['post_type'] ?? '') === 'product' && isset($parentsWithVariations[(int) $item['ID']])) {
+            continue;
+        }
         $qtyRaw = $item['qty'];
         $stockStatus = (string) ($item['stock_status'] ?? '');
         $qty = is_numeric($qtyRaw) ? (float) $qtyRaw : ($stockStatus === 'instock' ? 1.0 : 0.0);
-        $price = is_numeric($item['regular_price']) ? (float) $item['regular_price'] : (is_numeric($item['price']) ? (float) $item['price'] : 0.0);
+        $regularPrice = is_numeric($item['regular_price']) ? (float) $item['regular_price'] : (is_numeric($item['price']) ? (float) $item['price'] : 0.0);
+        $salePrice = is_numeric($item['sale_price']) ? (float) $item['sale_price'] : 0.0;
+        $price = is_numeric($item['price']) ? (float) $item['price'] : ($salePrice > 0 ? $salePrice : $regularPrice);
         $cost = is_numeric($item['cost']) ? (float) $item['cost'] : 0.0;
         $lowThreshold = is_numeric($item['low_stock_threshold']) && (int) $item['low_stock_threshold'] > 0 ? (int) $item['low_stock_threshold'] : 5;
         if ($stockStatus === 'outofstock' || $qty <= 0) {
@@ -420,7 +445,10 @@ function cor_inventory_rows_from_wp_db(): array
         if ((string) $item['post_type'] === 'product_variation') {
             try {
                 $attributeStmt->execute([(int) $item['ID']]);
-                $variant = implode(' / ', array_filter(array_map('strval', $attributeStmt->fetchAll(PDO::FETCH_COLUMN) ?: [])));
+                $variant = implode(' / ', array_filter(array_map(
+                    static fn($value): string => cor_inventory_format_variant_value((string) $value),
+                    $attributeStmt->fetchAll(PDO::FETCH_COLUMN) ?: []
+                )));
                 $attributeStmt->closeCursor();
             } catch (Throwable $e) {
                 $variant = '';
@@ -434,13 +462,13 @@ function cor_inventory_rows_from_wp_db(): array
             'category' => (string) ($item['categories'] ?? ''),
             'sku' => trim((string) ($item['sku'] ?? '')) ?: '-',
             'price' => $price,
-            'regular_price' => $price,
-            'sale_price' => 0.0,
+            'regular_price' => $regularPrice,
+            'sale_price' => $salePrice,
             'cost' => $cost,
             'qty' => $qty,
             'cost_val' => $qty * $cost,
             'retail_val' => $qty * $price,
-            'profit' => $price - $cost,
+            'profit' => ($qty * $price) - ($qty * $cost),
             'stock_class' => $stockClass,
             'low_threshold' => $lowThreshold,
         ];
@@ -490,7 +518,7 @@ function cor_inventory_row(array $product, ?array $variation = null): array
         'qty' => $qty,
         'cost_val' => $qty * $cost,
         'retail_val' => $qty * $price,
-        'profit' => $price - $cost,
+        'profit' => ($qty * $price) - ($qty * $cost),
         'stock_class' => $stockClass,
         'low_threshold' => $lowThreshold,
     ];
@@ -513,6 +541,18 @@ function cor_fetch_inventory_result(): array
         return $rows;
     };
 
+    $wpRows = cor_inventory_rows_from_wp_db();
+    if ($wpRows) {
+        $logs[] = [
+            'endpoint' => 'wp_posts/wp_postmeta',
+            'status' => 'local',
+            'count' => count($wpRows),
+        ];
+        cor_report_log('Inventory WordPress product rows fetched', end($logs) ?: []);
+
+        return ['rows' => $sortRows($wpRows), 'source' => 'woocommerce_wp_db', 'error' => null, 'logs' => $logs];
+    }
+
     if (!wc_configured()) {
         $error = 'WooCommerce API is not configured in config.local.php.';
         cor_report_log('Inventory WooCommerce fetch skipped', [
@@ -520,7 +560,7 @@ function cor_fetch_inventory_result(): array
             'error' => $error,
         ]);
 
-        return ['rows' => [], 'source' => 'woocommerce_rest', 'error' => $error, 'logs' => $logs];
+        return ['rows' => [], 'source' => 'woocommerce_wp_db', 'error' => 'WordPress product database is unavailable and ' . $error, 'logs' => $logs];
     }
 
     try {
@@ -571,6 +611,51 @@ function cor_fetch_inventory_rows(): array
     $result = cor_fetch_inventory_result();
 
     return $result['rows'];
+}
+
+function cor_save_inventory_cost(int $productId, float $cost): void
+{
+    if ($productId <= 0) {
+        throw new RuntimeException('Missing product or variation id.');
+    }
+    if ($cost < 0) {
+        throw new RuntimeException('Cost cannot be negative.');
+    }
+
+    $connection = cor_wp_connection();
+    if (!$connection) {
+        throw new RuntimeException('WordPress product database is unavailable.');
+    }
+
+    /** @var PDO $pdo */
+    $pdo = $connection['pdo'];
+    $prefix = $connection['prefix'];
+    $posts = $prefix . 'posts';
+    $postmeta = $prefix . 'postmeta';
+
+    $existsStmt = $pdo->prepare("SELECT ID FROM {$posts} WHERE ID = ? AND post_type IN ('product','product_variation') LIMIT 1");
+    $existsStmt->execute([$productId]);
+    if (!$existsStmt->fetchColumn()) {
+        throw new RuntimeException('Product or variation was not found.');
+    }
+
+    $costValue = number_format($cost, 2, '.', '');
+    $metaStmt = $pdo->prepare("SELECT meta_id FROM {$postmeta} WHERE post_id = ? AND meta_key = '_wc_cog_cost' LIMIT 1");
+    $metaStmt->execute([$productId]);
+    $metaId = $metaStmt->fetchColumn();
+    if ($metaId) {
+        $updateStmt = $pdo->prepare("UPDATE {$postmeta} SET meta_value = ? WHERE meta_id = ?");
+        $updateStmt->execute([$costValue, (int) $metaId]);
+    } else {
+        $insertStmt = $pdo->prepare("INSERT INTO {$postmeta} (post_id, meta_key, meta_value) VALUES (?, '_wc_cog_cost', ?)");
+        $insertStmt->execute([$productId, $costValue]);
+    }
+
+    cor_report_log('Inventory product cost saved', [
+        'endpoint' => 'wp_postmeta',
+        'product_id' => $productId,
+        'cost' => $costValue,
+    ]);
 }
 
 function cor_inventory_filtered_rows(array $rows, string $search, string $category, string $stock, string $sort, string $dir): array
@@ -657,6 +742,7 @@ function cor_inventory_payload(string $search, string $category, string $stock, 
 
     $rows = array_map(static function (array $row): array {
         return [
+            'id' => (int) ($row['id'] ?? 0),
             'name' => (string) ($row['name'] ?? ''),
             'variant' => (string) ($row['variant'] ?? ''),
             'category' => (string) ($row['category'] ?? ''),
@@ -706,7 +792,7 @@ function cor_inventory_rows_from_products(array $productRows): array
             'qty' => $qty,
             'cost_val' => 0.0,
             'retail_val' => $revenue,
-            'profit' => $price,
+            'profit' => $revenue,
             'stock_class' => $stockClass,
             'low_threshold' => 5,
         ];
@@ -823,6 +909,13 @@ function cor_export_inventory(string $format): void
     } catch (Throwable $e) {
         $rows = [];
     }
+    $search = trim((string) ($_GET['inv_search'] ?? ''));
+    $category = trim((string) ($_GET['inv_category'] ?? 'all')) ?: 'all';
+    $stock = trim((string) ($_GET['inv_stock'] ?? 'all')) ?: 'all';
+    $sort = trim((string) ($_GET['inv_sort'] ?? 'name')) ?: 'name';
+    $dir = strtolower(trim((string) ($_GET['inv_dir'] ?? 'asc'))) === 'desc' ? 'desc' : 'asc';
+    $rows = cor_inventory_filtered_rows($rows, $search, $category, $stock, $sort, $dir);
+
     $delimiter = $format === 'excel' ? "\t" : ',';
     $filename = 'inventory-' . date('Y-m-d') . ($format === 'excel' ? '.xls' : '.csv');
     header($format === 'excel' ? 'Content-Type: application/vnd.ms-excel; charset=utf-8' : 'Content-Type: text/csv; charset=utf-8');
@@ -1202,11 +1295,37 @@ $inventoryCategory = trim((string) ($_GET['inv_category'] ?? 'all')) ?: 'all';
 $inventoryStock = trim((string) ($_GET['inv_stock'] ?? 'all')) ?: 'all';
 $inventorySort = trim((string) ($_GET['inv_sort'] ?? 'name')) ?: 'name';
 $inventoryDir = strtolower(trim((string) ($_GET['inv_dir'] ?? 'asc'))) === 'desc' ? 'desc' : 'asc';
-$inventoryLiveRequested = (string) ($_GET['inv_live'] ?? '') === '1';
+$inventoryLiveRequested = (string) ($_GET['inv_live'] ?? '') === '1' || (string) ($_GET['tab'] ?? '') === 'inventory';
 $totalPages = 1;
 $page = max(1, (int) ($_GET['p'] ?? 1));
 $perPage = 50;
 $offset = ($page - 1) * $perPage;
+
+if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['inventory_cost_ajax'] ?? '') === '1') {
+    header('Content-Type: application/json');
+    try {
+        $productId = (int) ($_POST['product_id'] ?? 0);
+        $cost = (float) str_replace(',', '.', (string) ($_POST['cost'] ?? '0'));
+        cor_save_inventory_cost($productId, $cost);
+        echo json_encode([
+            'ok' => true,
+            'product_id' => $productId,
+            'cost' => number_format($cost, 2, '.', ''),
+        ], JSON_UNESCAPED_SLASHES);
+    } catch (Throwable $e) {
+        cor_report_log('Inventory product cost save failed', [
+            'endpoint' => 'wp_postmeta',
+            'product_id' => (int) ($_POST['product_id'] ?? 0),
+            'error' => $e->getMessage(),
+        ]);
+        http_response_code(200);
+        echo json_encode([
+            'ok' => false,
+            'error' => $e->getMessage(),
+        ], JSON_UNESCAPED_SLASHES);
+    }
+    exit;
+}
 
 if ($ready && (string) ($_GET['inventory_ajax'] ?? '') === '1') {
     header('Content-Type: application/json');
@@ -1808,15 +1927,24 @@ include BASE_PATH . '/shared/sidebar.php';
         .inv-health-card { display: flex; align-items: center; justify-content: center; gap: 24px; min-height: 250px; padding: 18px; }
         .inv-health-legend { min-width: 190px; }
         .inv-health-label { color: var(--cor-burgundy); font-size: 13px; font-weight: 800; margin-bottom: 12px; }
+        #tab-inventory .cor-report-card { width: 100%; }
+        #tab-inventory .cor-products-table { min-width: 1180px; table-layout: fixed; }
+        #tab-inventory .cor-products-table th, #tab-inventory .cor-products-table td { padding: 8px 10px; vertical-align: middle; }
         .inv-tools { padding: 12px 16px; border-bottom: 1px solid var(--cor-border); }
-        .inv-tools-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .inv-tools-row { display: grid; grid-template-columns: minmax(260px, 1.4fr) minmax(150px, .8fr) minmax(150px, .75fr) auto minmax(140px, .7fr) auto; align-items: center; gap: 8px; }
         .inv-tools input, .inv-tools select { height: 36px; padding: 0 10px; border: 1px solid var(--cor-border); border-radius: 6px; background: var(--cor-surface); color: var(--cor-text); font-size: 12px; }
-        .inv-tools input { flex: 1; min-width: 240px; }
+        .inv-tools input { min-width: 0; }
         .inv-sort-btn { height: 36px; padding: 0 12px; border: 1px solid var(--cor-border); border-radius: 6px; background: var(--cor-surface); color: var(--cor-text-mid); font-size: 12px; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; }
         .inv-refresh-btn { height: 36px; padding: 0 14px; border: 0; border-radius: 6px; background: var(--cor-orange-red); color: #fff; font-size: 12px; font-weight: 800; cursor: pointer; }
         .inv-count { margin-top: 8px; color: var(--cor-text-mid); font-size: 11px; }
         .inv-sku-chip { display: inline-block; padding: 2px 6px; border-radius: 3px; background: var(--cor-border); color: var(--cor-text-mid); font-size: 10px; font-weight: 700; }
         .inv-cost-box { display: inline-block; min-width: 58px; padding: 4px 8px; border: 1px solid var(--cor-border); border-radius: 5px; background: #fff; color: var(--cor-text); font-size: 12px; text-align: right; }
+        .inv-cost-input { width: 78px; height: 28px; padding: 0 8px; border: 1px solid var(--cor-border); border-radius: 5px; background: #fff; color: var(--cor-text); font-size: 12px; text-align: right; }
+        .inv-cost-input:focus { outline: none; border-color: var(--cor-orange-red); box-shadow: 0 0 0 2px rgba(171,54,25,.12); }
+        .inv-cost-input.is-saving { border-color: #d9b08e; background: #fff7ef; }
+        .inv-cost-input.is-saved { border-color: #8bbf38; background: #f7fbea; }
+        .inv-cost-input.is-error { border-color: var(--cor-red); background: #fff5f5; }
+        .inv-table-wrap { overflow-x: auto; max-height: 620px; overflow-y: auto; }
         .cor-data-message { margin: 0 0 14px; padding: 10px 12px; border-radius: 7px; font-size: 12px; font-weight: 700; }
         .cor-data-error { border: 1px solid #f2b8b8; background: #fff5f5; color: var(--cor-red); }
         .cor-data-ok { border: 1px solid #dcebb0; background: #f7fbea; color: #6f8c10; }
@@ -1837,7 +1965,7 @@ include BASE_PATH . '/shared/sidebar.php';
         .cor-empty { padding: 16px 18px; color: var(--cor-text-mid); font-size: 13px; }
         @media (max-width: 1100px) { .cor-stat-grid { grid-template-columns: repeat(3, 1fr); } .cor-report-grid, .cor-two-col, .inv-visual-grid { grid-template-columns: 1fr; } }
         @media (max-width: 900px) { .cor-summary-stat-grid, .inv-stat-row, .inv-stat-row-two { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-        @media (max-width: 767px) { .cor-stat-grid, .cor-summary-stat-grid { grid-template-columns: repeat(2, 1fr); } .cor-tab { padding: 0 12px; font-size: 11px; } .cor-filter-panel { margin-top: 18px; } .cor-filter-bar { align-items: stretch; flex-direction: column; } .cor-filter-selects, .cor-date-inputs, .cor-quick-ranges { align-items: stretch; } .cor-filter-bar select, .cor-filter-bar input[type="date"], .cor-btn-apply, .cor-btn-export, .cor-btn-daily, .cor-btn-export-sm { width: 100%; } .del-breakdown-top, .vat-breakdown-card, .inv-health-card { flex-direction: column; align-items: flex-start; } .del-hbar-label { min-width: 80px; font-size: 11px; } .del-table-tools, .inv-tools-row { align-items: stretch; flex-direction: column; } .del-table-tools input, .del-table-tools select, .inv-tools input, .inv-tools select, .inv-sort-btn, .inv-refresh-btn { width: 100%; } }
+        @media (max-width: 767px) { .cor-stat-grid, .cor-summary-stat-grid { grid-template-columns: repeat(2, 1fr); } .cor-tab { padding: 0 12px; font-size: 11px; } .cor-filter-panel { margin-top: 18px; } .cor-filter-bar { align-items: stretch; flex-direction: column; } .cor-filter-selects, .cor-date-inputs, .cor-quick-ranges { align-items: stretch; } .cor-filter-bar select, .cor-filter-bar input[type="date"], .cor-btn-apply, .cor-btn-export, .cor-btn-daily, .cor-btn-export-sm { width: 100%; } .del-breakdown-top, .vat-breakdown-card, .inv-health-card { flex-direction: column; align-items: flex-start; } .del-hbar-label { min-width: 80px; font-size: 11px; } .del-table-tools, .inv-tools-row { align-items: stretch; flex-direction: column; } .inv-tools-row { display: grid; grid-template-columns: 1fr; } .del-table-tools input, .del-table-tools select, .inv-tools input, .inv-tools select, .inv-sort-btn, .inv-refresh-btn { width: 100%; } }
         @media (max-width: 500px) { .cor-summary-stat-grid, .vat-second-stats, .inv-stat-row, .inv-stat-row-two { grid-template-columns: 1fr; } }
     </style>
 
@@ -2530,13 +2658,13 @@ include BASE_PATH . '/shared/sidebar.php';
         </section>
 
         <article class="cor-report-card">
-            <div class="card-head"><h3>Inventory</h3><span>Read-only WooCommerce stock and value report</span></div>
+            <div class="card-head"><h3>Inventory</h3><span>WooCommerce stock, value, variations and saved cost report</span></div>
             <form class="inv-tools" method="get" data-inventory-form>
                 <div data-inventory-message>
                     <?php if ($inventoryError): ?>
                         <div class="cor-data-message cor-data-error"><?= $inventoryLiveRequested ? 'Could not connect to WooCommerce: ' : '' ?><?= cor_e($inventoryError) ?></div>
                     <?php elseif ($inventoryLiveRequested && ($filters['tab'] === 'inventory' || $filters['tab'] === 'monthly')): ?>
-                        <div class="cor-data-message cor-data-ok">WooCommerce REST API loaded <?= number_format((int) $inventoryStats['total']) ?> products/SKUs.</div>
+                        <div class="cor-data-message cor-data-ok">WooCommerce inventory loaded <?= number_format((int) $inventoryStats['total']) ?> products/SKUs.</div>
                     <?php endif; ?>
                 </div>
                 <input type="hidden" name="tab" value="inventory">
@@ -2579,7 +2707,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 <a class="cor-btn-export-sm" href="?<?= cor_e(http_build_query(array_merge($inventoryQueryBase, ['export' => 'excel']))) ?>">Excel</a>
                 <button class="cor-btn-export-sm" type="button" onclick="window.print()">PDF</button>
             </div>
-            <div style="overflow-x:auto;max-height:620px;overflow-y:auto;">
+            <div class="inv-table-wrap">
                 <table class="cor-products-table" style="width:100%;border-collapse:collapse;">
                     <thead><tr><th>Product / Category</th><th>Variant</th><th>SKU</th><th>Stock Status</th><th>QTY</th><th>Regular Price</th><th>Sale Price</th><th>Cost</th><th>Cost Value</th><th>Retail Value</th><th>Profit</th></tr></thead>
                     <tbody data-inventory-body>
@@ -2589,7 +2717,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         $stockLabel = $row['stock_class'] === 'out' ? 'Out of Stock' : ($row['stock_class'] === 'low' ? 'Low Stock' : 'In Stock');
                         $stockBadge = $row['stock_class'] === 'out' ? 'inv-outstock' : ($row['stock_class'] === 'low' ? 'inv-lowstock' : 'inv-instock');
                     ?>
-                        <tr class="<?= cor_e($rowClass) ?>">
+                        <tr class="<?= cor_e($rowClass) ?>" data-inv-row>
                             <td>
                                 <div style="font-weight:700;"><?= cor_e($row['name']) ?></div>
                                 <?php if ($row['category'] !== ''): ?><div style="margin-top:1px;color:var(--cor-text-light);font-size:10px;"><?= cor_e($row['category']) ?></div><?php endif; ?>
@@ -2600,10 +2728,10 @@ include BASE_PATH . '/shared/sidebar.php';
                             <td class="<?= cor_e($qtyClass) ?>"><?= number_format((float) $row['qty']) ?></td>
                             <td><?= cor_money($row['regular_price'] ?? $row['price']) ?></td>
                             <td><?= ((float) ($row['sale_price'] ?? 0) > 0) ? cor_money($row['sale_price']) : '<span style="color:var(--cor-text-light)">-</span>' ?></td>
-                            <td><span class="inv-cost-box"><?= number_format((float) $row['cost'], 2) ?></span></td>
-                            <td><?= cor_money($row['cost_val']) ?></td>
-                            <td><?= cor_money($row['retail_val']) ?></td>
-                            <td class="<?= ((float) $row['profit'] < 0) ? 'cor-profit-negative' : 'cor-profit-positive' ?>"><?= cor_money($row['profit']) ?></td>
+                            <td><input class="inv-cost-input" type="number" min="0" step="0.01" value="<?= cor_e(number_format((float) $row['cost'], 2, '.', '')) ?>" data-inv-cost data-id="<?= (int) ($row['id'] ?? 0) ?>" data-qty="<?= cor_e((string) (float) $row['qty']) ?>" data-retail="<?= cor_e((string) (float) $row['retail_val']) ?>" aria-label="Cost for <?= cor_e($row['name']) ?>"></td>
+                            <td data-inv-row-cost-value><?= cor_money($row['cost_val']) ?></td>
+                            <td data-inv-row-retail-value><?= cor_money($row['retail_val']) ?></td>
+                            <td data-inv-row-profit class="<?= ((float) $row['profit'] < 0) ? 'cor-profit-negative' : 'cor-profit-positive' ?>"><?= cor_money($row['profit']) ?></td>
                         </tr>
                     <?php endforeach; ?>
                     <?php if (!$inventoryFilteredRows): ?>
@@ -2611,13 +2739,13 @@ include BASE_PATH . '/shared/sidebar.php';
                     <?php else: ?>
                         <tr style="border-top:3px solid var(--cor-border);background:var(--cor-cream);">
                             <td colspan="4" style="font-weight:800;">TOTAL</td>
-                            <td style="font-weight:800;"><?= number_format((float) $inventoryStats['shown_qty']) ?></td>
+                            <td style="font-weight:800;" data-inv-total="qty"><?= number_format((float) $inventoryStats['shown_qty']) ?></td>
                             <td></td>
                             <td></td>
                             <td></td>
-                            <td style="font-weight:800;"><?= cor_money($inventoryStats['shown_cost']) ?></td>
-                            <td style="font-weight:800;"><?= cor_money($inventoryStats['shown_retail']) ?></td>
-                            <td class="cor-profit-positive" style="font-weight:800;"><?= cor_money($inventoryStats['shown_profit']) ?></td>
+                            <td style="font-weight:800;" data-inv-total="cost"><?= cor_money($inventoryStats['shown_cost']) ?></td>
+                            <td style="font-weight:800;" data-inv-total="retail"><?= cor_money($inventoryStats['shown_retail']) ?></td>
+                            <td class="cor-profit-positive" style="font-weight:800;" data-inv-total="profit"><?= cor_money($inventoryStats['shown_profit']) ?></td>
                         </tr>
                     <?php endif; ?>
                     </tbody>
@@ -2770,6 +2898,43 @@ document.addEventListener('DOMContentLoaded', function () {
     return 'In Stock';
   }
 
+  function invUpdateProfitCell(cell, value) {
+    if (!cell) return;
+    cell.textContent = invMoney(value);
+    cell.classList.toggle('cor-profit-negative', Number(value || 0) < 0);
+    cell.classList.toggle('cor-profit-positive', Number(value || 0) >= 0);
+  }
+
+  function invRecalculateVisibleTotals() {
+    if (!inventoryBody) return;
+    var rows = Array.prototype.slice.call(inventoryBody.querySelectorAll('tr[data-inv-row]'));
+    var totals = rows.reduce(function (carry, row) {
+      var input = row.querySelector('[data-inv-cost]');
+      var qty = Number(input && input.dataset.qty || 0);
+      var retail = Number(input && input.dataset.retail || 0);
+      var cost = Number(input && input.value || 0);
+      var costValue = cost * qty;
+      var profit = retail - costValue;
+      var costCell = row.querySelector('[data-inv-row-cost-value]');
+      var profitCell = row.querySelector('[data-inv-row-profit]');
+      if (costCell) costCell.textContent = invMoney(costValue);
+      invUpdateProfitCell(profitCell, profit);
+      carry.qty += qty;
+      carry.cost += costValue;
+      carry.retail += retail;
+      carry.profit += profit;
+      return carry;
+    }, { qty: 0, cost: 0, retail: 0, profit: 0 });
+
+    invSetText('[data-inv-money="cost_value"]', invMoney(totals.cost));
+    invSetText('[data-inv-money="gross_profit"]', invMoney(totals.profit));
+    invSetText('[data-inv-stat="margin_pct"]', totals.retail > 0 ? invNumber(Math.round((totals.profit / totals.retail) * 100)) : '0');
+    invSetText('[data-inv-total="qty"]', invNumber(totals.qty));
+    invSetText('[data-inv-total="cost"]', invMoney(totals.cost));
+    invSetText('[data-inv-total="retail"]', invMoney(totals.retail));
+    invSetText('[data-inv-total="profit"]', invMoney(totals.profit));
+  }
+
   function invRenderRows(rows, stats, error) {
     if (!inventoryBody) return;
     rows = Array.isArray(rows) ? rows : [];
@@ -2784,7 +2949,7 @@ document.addEventListener('DOMContentLoaded', function () {
       var badgeClass = stockClass === 'out' ? 'inv-outstock' : (stockClass === 'low' ? 'inv-lowstock' : 'inv-instock');
       var sale = Number(row.sale_price || 0) > 0 ? invMoney(row.sale_price) : '<span style="color:var(--cor-text-light)">-</span>';
       var sku = row.sku && row.sku !== '-' ? '<span class="inv-sku-chip">' + invEscape(row.sku) + '</span>' : '<span style="color:var(--cor-text-light)">-</span>';
-      return '<tr class="' + trClass + '">' +
+      return '<tr class="' + trClass + '" data-inv-row>' +
         '<td><div style="font-weight:700;">' + invEscape(row.name) + '</div>' + (row.category ? '<div style="margin-top:1px;color:var(--cor-text-light);font-size:10px;">' + invEscape(row.category) + '</div>' : '') + '</td>' +
         '<td>' + (row.variant ? invEscape(row.variant) : '-') + '</td>' +
         '<td>' + sku + '</td>' +
@@ -2792,21 +2957,22 @@ document.addEventListener('DOMContentLoaded', function () {
         '<td class="' + qtyClass + '">' + invNumber(row.qty) + '</td>' +
         '<td>' + invMoney(row.regular_price) + '</td>' +
         '<td>' + sale + '</td>' +
-        '<td><span class="inv-cost-box">' + Number(row.cost || 0).toFixed(2) + '</span></td>' +
-        '<td>' + invMoney(row.cost_val) + '</td>' +
-        '<td>' + invMoney(row.retail_val) + '</td>' +
-        '<td class="' + (Number(row.profit || 0) < 0 ? 'cor-profit-negative' : 'cor-profit-positive') + '">' + invMoney(row.profit) + '</td>' +
+        '<td><input class="inv-cost-input" type="number" min="0" step="0.01" value="' + Number(row.cost || 0).toFixed(2) + '" data-inv-cost data-id="' + invEscape(row.id || 0) + '" data-qty="' + invEscape(row.qty || 0) + '" data-retail="' + invEscape(row.retail_val || 0) + '" aria-label="Cost for ' + invEscape(row.name) + '"></td>' +
+        '<td data-inv-row-cost-value>' + invMoney(row.cost_val) + '</td>' +
+        '<td data-inv-row-retail-value>' + invMoney(row.retail_val) + '</td>' +
+        '<td data-inv-row-profit class="' + (Number(row.profit || 0) < 0 ? 'cor-profit-negative' : 'cor-profit-positive') + '">' + invMoney(row.profit) + '</td>' +
       '</tr>';
     }).join('');
     html += '<tr style="border-top:3px solid var(--cor-border);background:var(--cor-cream);">' +
       '<td colspan="4" style="font-weight:800;">TOTAL</td>' +
-      '<td style="font-weight:800;">' + invNumber(stats && stats.shown_qty) + '</td>' +
+      '<td style="font-weight:800;" data-inv-total="qty">' + invNumber(stats && stats.shown_qty) + '</td>' +
       '<td></td><td></td><td></td>' +
-      '<td style="font-weight:800;">' + invMoney(stats && stats.shown_cost) + '</td>' +
-      '<td style="font-weight:800;">' + invMoney(stats && stats.shown_retail) + '</td>' +
-      '<td class="cor-profit-positive" style="font-weight:800;">' + invMoney(stats && stats.shown_profit) + '</td>' +
+      '<td style="font-weight:800;" data-inv-total="cost">' + invMoney(stats && stats.shown_cost) + '</td>' +
+      '<td style="font-weight:800;" data-inv-total="retail">' + invMoney(stats && stats.shown_retail) + '</td>' +
+      '<td class="cor-profit-positive" style="font-weight:800;" data-inv-total="profit">' + invMoney(stats && stats.shown_profit) + '</td>' +
     '</tr>';
     inventoryBody.innerHTML = html;
+    invRecalculateVisibleTotals();
   }
 
   if (inventoryForm) {
@@ -2839,7 +3005,7 @@ document.addEventListener('DOMContentLoaded', function () {
         invRenderStats(data.stats || {});
         invRenderRows(data.rows || [], data.stats || {}, data.error || null);
         if (data.ok) {
-          invMessage('ok', 'WooCommerce REST API loaded ' + invNumber((data.stats || {}).total) + ' products/SKUs.');
+          invMessage('ok', 'WooCommerce inventory loaded ' + invNumber((data.stats || {}).total) + ' products/SKUs.');
         } else {
           invMessage('error', 'Could not connect to WooCommerce: ' + (data.error || 'Unknown error'));
         }
@@ -2853,6 +3019,63 @@ document.addEventListener('DOMContentLoaded', function () {
         }
       }
     });
+  }
+
+  if (inventoryBody) {
+    inventoryBody.addEventListener('input', function (event) {
+      if (event.target && event.target.matches('[data-inv-cost]')) {
+        event.target.classList.remove('is-saved', 'is-error');
+        invRecalculateVisibleTotals();
+      }
+    });
+
+    inventoryBody.addEventListener('change', async function (event) {
+      var input = event.target;
+      if (!input || !input.matches('[data-inv-cost]')) return;
+      var productId = Number(input.dataset.id || 0);
+      var cost = Number(input.value || 0);
+      if (!productId) {
+        input.classList.add('is-error');
+        invMessage('error', 'Could not save cost: missing product or variation id.');
+        return;
+      }
+      if (cost < 0 || !isFinite(cost)) {
+        input.classList.add('is-error');
+        invMessage('error', 'Could not save cost: enter a valid non-negative number.');
+        return;
+      }
+
+      input.classList.remove('is-saved', 'is-error');
+      input.classList.add('is-saving');
+      invMessage('loading', 'Saving inventory cost...');
+      try {
+        var formData = new FormData();
+        formData.set('inventory_cost_ajax', '1');
+        formData.set('product_id', String(productId));
+        formData.set('cost', cost.toFixed(2));
+        var response = await fetch(window.location.pathname, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+          body: formData
+        });
+        var data = await response.json().catch(function () { return null; });
+        if (!response.ok || !data || !data.ok) {
+          throw new Error((data && data.error) || ('Cost save failed with HTTP ' + response.status));
+        }
+        input.value = Number(data.cost || cost).toFixed(2);
+        input.classList.remove('is-saving');
+        input.classList.add('is-saved');
+        invRecalculateVisibleTotals();
+        invMessage('ok', 'Saved inventory cost.');
+      } catch (error) {
+        input.classList.remove('is-saving');
+        input.classList.add('is-error');
+        invMessage('error', 'Could not save inventory cost: ' + error.message);
+      }
+    });
+
+    invRecalculateVisibleTotals();
   }
 
   var daily14El = document.getElementById('daily14Chart');
