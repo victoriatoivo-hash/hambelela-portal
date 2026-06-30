@@ -188,6 +188,74 @@ function ops_board_order_breakdown(array $order): array
     ];
 }
 
+function ops_board_label_store_path(): string
+{
+    $dir = BASE_PATH . '/storage/cache';
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0775, true);
+    }
+
+    return $dir . '/orders-board-labels.json';
+}
+
+function ops_board_default_mode_labels(): array
+{
+    return [
+        ['collection', 'Collection', '#d49382'],
+        ['delivery', 'Delivery', '#bca98d'],
+        ['courier', 'Courier', '#895749'],
+        ['western_courier', 'western courier', '#008456'],
+        ['coastal_courier', 'coastal courier', '#579bfc'],
+        ['easy_parcel', 'Easy Parcel', '#ff007f'],
+        ['hardap_courier', 'hardap courier', '#cab641'],
+        ['seven_seaters', '7 seaters', '#ffc400'],
+        ['yango', 'Yango', '#0b88b4'],
+        ['jet_x', 'Jet X', '#333333'],
+        ['formula_courier', 'Formula courier', '#a648d9'],
+        ['express_courier', 'express courier', '#c03456'],
+    ];
+}
+
+function ops_board_label_options(): array
+{
+    $labels = ['order_type' => ops_board_default_mode_labels()];
+    $path = ops_board_label_store_path();
+    if (is_file($path)) {
+        $saved = json_decode((string) @file_get_contents($path), true);
+        if (is_array($saved)) {
+            $labels = array_replace($labels, $saved);
+        }
+    }
+
+    return $labels;
+}
+
+function ops_board_normalize_label_options(array $labels): array
+{
+    $clean = [];
+    foreach ($labels as $label) {
+        if (!is_array($label)) {
+            continue;
+        }
+        $id = trim((string) ($label[0] ?? ''));
+        $name = trim((string) ($label[1] ?? ''));
+        $colour = trim((string) ($label[2] ?? '#579bfc'));
+        if ($name === '') {
+            continue;
+        }
+        if ($id === '') {
+            $id = strtolower((string) preg_replace('/[^a-z0-9]+/i', '_', $name));
+            $id = trim($id, '_') ?: 'label_' . count($clean);
+        }
+        if (!preg_match('/^#[0-9a-f]{6}$/i', $colour)) {
+            $colour = '#579bfc';
+        }
+        $clean[] = [$id, $name, $colour];
+    }
+
+    return $clean ?: ops_board_default_mode_labels();
+}
+
 function ops_board_sync_website_orders(?string $date = null): array
 {
     ops_board_sync_log('sync started', ['date' => $date ?: 'all']);
@@ -490,6 +558,28 @@ try {
             (int) (current_user()['id'] ?? 0)
         );
         echo json_encode(['ok' => true, 'column' => $column]);
+        exit;
+    }
+
+    if ($action === 'list_label_options') {
+        echo json_encode(['ok' => true, 'labels' => ops_board_label_options()]);
+        exit;
+    }
+
+    if ($action === 'save_label_options') {
+        $field = ops_post_string('field', 50);
+        if ($field !== 'order_type') {
+            throw new RuntimeException('Unsupported label field.');
+        }
+        $raw = (string) ($_POST['labels'] ?? '[]');
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded)) {
+            throw new RuntimeException('Invalid label data.');
+        }
+        $allLabels = ops_board_label_options();
+        $allLabels[$field] = ops_board_normalize_label_options($decoded);
+        @file_put_contents(ops_board_label_store_path(), json_encode($allLabels, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        echo json_encode(['ok' => true, 'labels' => $allLabels[$field]]);
         exit;
     }
 

@@ -22,6 +22,7 @@
   if (!body || !config.dataUrl || !config.actionUrl) return;
 
   let groupDatePopover = null;
+  let labelMenuCloseTimer = null;
   let ordersCache = [];
   let packersCache = [];
   let currentUser = {};
@@ -403,24 +404,43 @@
     await refresh();
   }
 
-  function loadCustomLabels() {
+  async function loadCustomLabels() {
+    try {
+      const data = await post('list_label_options', {});
+      if (Array.isArray(data.labels?.order_type)) {
+        modeLabels = data.labels.order_type;
+        localStorage.setItem('hambelelaModeLabels', JSON.stringify(modeLabels));
+      }
+    } catch (error) {
+      try {
+        modeLabels = JSON.parse(localStorage.getItem('hambelelaModeLabels') || 'null') || modeLabels;
+      } catch (innerError) {
+        localStorage.removeItem('hambelelaModeLabels');
+      }
+    }
+
     try {
       paymentLabels = JSON.parse(localStorage.getItem('hambelelaPaymentLabels') || 'null') || paymentLabels;
-      modeLabels = JSON.parse(localStorage.getItem('hambelelaModeLabels') || 'null') || modeLabels;
       statusLabels = JSON.parse(localStorage.getItem('hambelelaStatusLabels') || 'null') || statusLabels;
     } catch (error) {
       localStorage.removeItem('hambelelaPaymentLabels');
-      localStorage.removeItem('hambelelaModeLabels');
       localStorage.removeItem('hambelelaStatusLabels');
     }
   }
 
-  function storeLabels(field, options) {
+  async function storeLabels(field, options) {
     const key = field === 'payment_method' ? 'hambelelaPaymentLabels' : field === 'order_type' ? 'hambelelaModeLabels' : 'hambelelaStatusLabels';
     localStorage.setItem(key, JSON.stringify(options));
     if (field === 'payment_method') paymentLabels = options;
     if (field === 'order_type') modeLabels = options;
     if (field === 'status') statusLabels = options;
+    if (field === 'order_type') {
+      const data = await post('save_label_options', { field, labels: JSON.stringify(options) });
+      if (Array.isArray(data.labels)) {
+        modeLabels = data.labels;
+        localStorage.setItem(key, JSON.stringify(modeLabels));
+      }
+    }
   }
 
   function prettyDay(key) {
@@ -896,7 +916,7 @@
   function renderLabelCell(order, field, value, options, cssClass) {
     const color = findColor(options, value);
     const text = findText(options, value);
-    return `<button class="board-label ${cssClass}" style="--label-color:${esc(color)}" data-label-field="${field}" data-order-id="${esc(order.id)}">${esc(text)}</button>`;
+    return `<button class="board-label ${cssClass}" style="--label-color:${esc(color)}" data-label-field="${field}" data-label-value-current="${esc(value || '')}" data-order-id="${esc(order.id)}">${esc(text)}</button>`;
   }
 
   function labelCellStyle(options, value) {
@@ -1424,7 +1444,147 @@
   function renderBulkPackerOptions() {
   }
 
+  function closeModeLabelPopover() {
+    document.querySelectorAll('.mode-cell.is-active').forEach((cell) => cell.classList.remove('is-active'));
+    if (labelMenu) {
+      labelMenu.classList.remove('mode-label-popover', 'is-editing-labels');
+      delete labelMenu.dataset.modeLabelOrder;
+      labelMenu.style.width = '';
+    }
+  }
+
+  function renderModeLabelPicker() {
+    return `
+      <div class="mode-label-grid seven-per-row">
+        ${modeLabels.map((item) => `
+          <button type="button" class="mode-label-option" data-mode-label-value="${esc(item[0])}" style="background:${esc(itemColor(item))}">${esc(itemText(item))}</button>
+        `).join('')}
+      </div>
+      <div class="mode-label-actions">
+        <button type="button" class="mode-edit-labels-button" data-mode-edit-labels><i data-lucide="pencil"></i> Edit Labels</button>
+      </div>
+      <div class="mode-label-footer">Auto-assign labels</div>
+    `;
+  }
+
+  function renderModeLabelEditor() {
+    return `
+      <div class="mode-label-edit-grid">
+        ${modeLabels.map((item, index) => `
+          <div class="mode-label-edit-item" data-mode-label-edit-item="${esc(item[0])}" data-label-index="${index}">
+            <input type="color" class="mode-label-colour-button" data-mode-label-color="${index}" value="${esc(itemColor(item))}" aria-label="Label colour">
+            <input type="text" class="mode-label-name-input" data-mode-label-name="${index}" value="${esc(itemText(item))}" aria-label="Label name">
+          </div>
+        `).join('')}
+        <button type="button" class="mode-new-label-button" data-mode-new-label>+ New label</button>
+      </div>
+      <button type="button" class="mode-label-apply" data-mode-label-back>Apply</button>
+      <div class="mode-label-footer">Auto-assign labels</div>
+    `;
+  }
+
+  function positionModeLabelMenu(anchor) {
+    const rect = anchor.getBoundingClientRect();
+    const width = 760;
+    labelMenu.style.width = `${width}px`;
+    labelMenu.style.left = `${Math.max(8, Math.min(rect.left + rect.width / 2 - width / 2, window.innerWidth - width - 8))}px`;
+    labelMenu.style.top = `${rect.bottom + 10}px`;
+  }
+
+  function bindModeLabelPicker() {
+    labelMenu.querySelectorAll('[data-mode-label-value]').forEach((button) => {
+      button.addEventListener('click', async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const orderId = labelMenu.dataset.modeLabelOrder || '';
+        const orderIds = currentSelectedIdsFor(orderId);
+        await updateOrdersField(orderIds, 'order_type', button.dataset.modeLabelValue);
+        closeLabelMenu();
+        renderOrders(ordersCache);
+      });
+    });
+
+    labelMenu.querySelector('[data-mode-edit-labels]')?.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      labelMenu.classList.add('mode-label-popover', 'is-open', 'is-editing-labels');
+      labelMenu.hidden = false;
+      labelMenu.innerHTML = renderModeLabelEditor();
+      bindModeLabelEditorUI();
+    });
+  }
+
+  function bindModeLabelEditorUI() {
+    labelMenu.querySelector('[data-mode-new-label]')?.addEventListener('click', async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      await addModeLabel();
+    });
+
+    labelMenu.querySelector('[data-mode-label-back]')?.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      labelMenu.classList.add('mode-label-popover', 'is-open');
+      labelMenu.classList.remove('is-editing-labels');
+      labelMenu.hidden = false;
+      labelMenu.innerHTML = renderModeLabelPicker();
+      bindModeLabelPicker();
+      if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+    });
+  }
+
+  function openModeLabelMenu(anchor, orderId) {
+    closeToolbar();
+    closeLabelMenu();
+    if (labelMenuCloseTimer) {
+      window.clearTimeout(labelMenuCloseTimer);
+      labelMenuCloseTimer = null;
+    }
+    anchor.classList.add('is-active', 'mode-cell');
+    labelMenu.hidden = false;
+    labelMenu.className = 'mode-label-popover is-open';
+    labelMenu.dataset.modeLabelOrder = orderId;
+    labelMenu.innerHTML = renderModeLabelPicker();
+    positionModeLabelMenu(anchor);
+    bindModeLabelPicker();
+    if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+  }
+
+  async function saveModeLabels(nextLabels) {
+    await storeLabels('order_type', nextLabels);
+    renderOrders(ordersCache);
+  }
+
+  async function updateModeLabelEdit(index, changes) {
+    const nextLabels = modeLabels.map((item) => item.slice());
+    const current = nextLabels[index];
+    if (!current) return;
+    if (changes.name !== undefined) current[1] = changes.name.trim() || current[1] || 'New Label';
+    if (changes.color !== undefined) current[2] = changes.color || current[2] || '#579bfc';
+    await saveModeLabels(nextLabels);
+  }
+
+  async function addModeLabel() {
+    const nextLabels = modeLabels.map((item) => item.slice());
+    let suffix = nextLabels.length + 1;
+    let key = `new_label_${suffix}`;
+    while (nextLabels.some((item) => item[0] === key)) {
+      suffix += 1;
+      key = `new_label_${suffix}`;
+    }
+    nextLabels.push([key, 'New Label', '#9ca3af']);
+    await saveModeLabels(nextLabels);
+    labelMenu.innerHTML = renderModeLabelEditor();
+    labelMenu.classList.add('is-editing-labels');
+    bindModeLabelEditorUI();
+  }
+
   function openLabelMenu(anchor, orderId, field) {
+    if (field === 'order_type') {
+      openModeLabelMenu(anchor, orderId);
+      return;
+    }
+
     const options = field === 'payment_method'
       ? paymentLabels
       : field === 'order_type'
@@ -1454,9 +1614,12 @@
 
   function closeLabelMenu() {
     if (!labelMenu || labelMenu.hidden) return;
+    closeModeLabelPopover();
     labelMenu.classList.remove('is-open');
-    window.setTimeout(() => {
+    if (labelMenuCloseTimer) window.clearTimeout(labelMenuCloseTimer);
+    labelMenuCloseTimer = window.setTimeout(() => {
       if (!labelMenu.classList.contains('is-open')) labelMenu.hidden = true;
+      labelMenuCloseTimer = null;
     }, 160);
   }
 
@@ -1756,6 +1919,10 @@
     const orderDatePopover = event.target.closest('.order-date-picker-popover');
     const labelButton = event.target.closest('[data-label-field][data-order-id]');
     const labelChoice = event.target.closest('[data-label-value]');
+    const modeLabelChoice = event.target.closest('[data-mode-label-value]');
+    const modeEditLabels = event.target.closest('[data-mode-edit-labels]');
+    const modeNewLabel = event.target.closest('[data-mode-new-label]');
+    const modeLabelBack = event.target.closest('[data-mode-label-back]');
     const panelButton = event.target.closest('[data-open-panel]');
     const closeButton = event.target.closest('[data-panel-close]');
     const tab = event.target.closest('[data-panel-tab]');
@@ -1870,6 +2037,37 @@
 
       if (groupDatePopover && !event.target.closest('.ob-group-date-popover')) {
         closeGroupDatePopover();
+      }
+
+      if (modeLabelChoice) {
+        const orderId = labelMenu.dataset.modeLabelOrder || '';
+        const orderIds = currentSelectedIdsFor(orderId);
+        await updateOrdersField(orderIds, 'order_type', modeLabelChoice.dataset.modeLabelValue);
+        closeLabelMenu();
+        renderOrders(ordersCache);
+        return;
+      }
+
+      if (modeEditLabels) {
+        event.preventDefault();
+        labelMenu.classList.add('mode-label-popover', 'is-open', 'is-editing-labels');
+        labelMenu.innerHTML = renderModeLabelEditor();
+        return;
+      }
+
+      if (modeNewLabel) {
+        event.preventDefault();
+        await addModeLabel();
+        return;
+      }
+
+      if (modeLabelBack) {
+        event.preventDefault();
+        labelMenu.classList.add('mode-label-popover', 'is-open');
+        labelMenu.classList.remove('is-editing-labels');
+        labelMenu.innerHTML = renderModeLabelPicker();
+        if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+        return;
       }
 
       if (bulkAction) {
@@ -2101,6 +2299,13 @@
   });
 
   document.addEventListener('keydown', (event) => {
+    const modeNameInput = event.target.closest('[data-mode-label-name]');
+    if (modeNameInput && event.key === 'Enter') {
+      event.preventDefault();
+      modeNameInput.blur();
+      return;
+    }
+
     const editableCell = event.target.closest('[data-editable-order-field]');
     if (editableCell && !editableCell.classList.contains('is-editing') && (event.key === 'Enter' || event.key === ' ')) {
       event.preventDefault();
@@ -2144,6 +2349,12 @@
   });
 
   document.addEventListener('change', (event) => {
+    const modeColourInput = event.target.closest('[data-mode-label-color]');
+    if (modeColourInput) {
+      updateModeLabelEdit(Number(modeColourInput.dataset.modeLabelColor), { color: modeColourInput.value }).catch(showError);
+      return;
+    }
+
     const hidden = event.target.closest('[data-hide-column]');
     if (hidden) {
       if (hidden.checked) boardState.hidden.add(hidden.dataset.hideColumn);
@@ -2210,13 +2421,18 @@
   });
 
   document.addEventListener('blur', (event) => {
+    const modeNameInput = event.target.closest('[data-mode-label-name]');
+    if (modeNameInput) {
+      updateModeLabelEdit(Number(modeNameInput.dataset.modeLabelName), { name: modeNameInput.value }).catch(showError);
+      return;
+    }
+
     const header = event.target.closest('[data-column-key]');
     if (header) saveHeaderLabel(header);
   }, true);
 
   const storedTheme = localStorage.getItem('hambelelaBoardTheme');
   if (storedTheme) page.dataset.boardTheme = storedTheme;
-  loadCustomLabels();
   applyStoredHeaders();
   updateFilterBadge();
   animateMetricCards();
@@ -2226,7 +2442,9 @@
   }
 
   heartbeat();
-  loadCustomColumns()
+  loadCustomLabels()
+    .catch(() => {})
+    .then(() => loadCustomColumns())
     .catch(() => {})
     .finally(() => {
       refresh()

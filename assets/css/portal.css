@@ -20010,3 +20010,171 @@ body:has(.ob-wrap) .ob-wrap .monday-order-row.is-selected .monday-cell * {
 body:has(.ob-wrap) .ob-wrap .order-date-cell.is-editing {
   font-weight: 500 !important;
 }
+
+body:has(.ob-wrap) .ob-wrap .mode-cell.is-active,
+body:has(.ob-wrap) .ob-wrap .board-label.mode-label:focus {
+  outline: 2px solid #0073ea !important;
+  outline-offset: -2px !important;
+  z-index: 40 !important;
+}
+
+#board-label-menu.mode-label-popover {
+  position: fixed !important;
+  display: block !important;
+  width: 760px !important;
+  max-width: calc(100vw - 16px) !important;
+  padding: 24px 24px 0 !important;
+  border: 1px solid #d8dfec !important;
+  border-radius: 8px !important;
+  background: #ffffff !important;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.22) !important;
+  z-index: 9999 !important;
+  overflow: visible !important;
+}
+
+#board-label-menu.mode-label-popover,
+#board-label-menu.mode-label-popover * {
+  box-sizing: border-box !important;
+}
+
+#board-label-menu.mode-label-popover::before {
+  content: "" !important;
+  position: absolute !important;
+  top: -8px !important;
+  left: 50% !important;
+  width: 14px !important;
+  height: 14px !important;
+  background: #ffffff !important;
+  border-left: 1px solid #d8dfec !important;
+  border-top: 1px solid #d8dfec !important;
+  transform: translateX(-50%) rotate(45deg) !important;
+}
+
+#board-label-menu .mode-label-grid {
+  display: grid !important;
+  grid-template-columns: repeat(7, minmax(82px, 1fr)) !important;
+  gap: 8px 10px !important;
+  width: 100% !important;
+  max-height: none !important;
+  overflow: visible !important;
+  padding: 0 !important;
+}
+
+#board-label-menu .mode-label-option {
+  width: 100% !important;
+  min-height: 32px !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 2px !important;
+  padding: 0 10px !important;
+  color: #ffffff !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  text-align: center !important;
+  cursor: pointer !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+#board-label-menu .mode-label-option:hover {
+  filter: brightness(0.95) !important;
+}
+
+#board-label-menu .mode-label-actions {
+  display: flex !important;
+  justify-content: center !important;
+  padding: 14px 0 !important;
+  width: 100% !important;
+}
+
+#board-label-menu .mode-edit-labels-button,
+#board-label-menu .mode-label-apply {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  width: auto !important;
+  min-height: 32px !important;
+  margin: 0 !important;
+  padding: 0 10px !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: #374151 !important;
+  font-size: 14px !important;
+  cursor: pointer !important;
+}
+
+#board-label-menu .mode-label-footer {
+  margin: 0 -24px !important;
+  padding: 14px 24px !important;
+  border-top: 1px solid #d8dfec !important;
+  text-align: center !important;
+  color: #374151 !important;
+  font-size: 14px !important;
+  background: #ffffff !important;
+  border-radius: 0 0 8px 8px !important;
+}
+
+#board-label-menu .mode-label-edit-grid {
+  display: grid !important;
+  grid-template-columns: repeat(3, 1fr) !important;
+  gap: 8px 16px !important;
+  width: 100% !important;
+  padding: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+#board-label-menu .mode-label-edit-item {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  min-width: 0 !important;
+}
+
+#board-label-menu .mode-label-colour-button {
+  width: 30px !important;
+  height: 30px !important;
+  flex: 0 0 30px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 4px !important;
+  cursor: pointer !important;
+  background: transparent !important;
+}
+
+#board-label-menu .mode-label-name-input {
+  width: 100% !important;
+  height: 32px !important;
+  min-width: 0 !important;
+  border: 1px solid #d8dfec !important;
+  border-radius: 4px !important;
+  padding: 0 8px !important;
+  color: #374151 !important;
+  font-size: 13px !important;
+  box-sizing: border-box !important;
+}
+
+#board-label-menu .mode-label-name-input:focus {
+  outline: 2px solid #0073ea !important;
+  outline-offset: -1px !important;
+}
+
+#board-label-menu .mode-new-label-button {
+  width: 100% !important;
+  height: 32px !important;
+  margin: 0 !important;
+  padding: 0 10px !important;
+  border: 1px solid #d8dfec !important;
+  background: #ffffff !important;
+  border-radius: 4px !important;
+  color: #374151 !important;
+  cursor: pointer !important;
+  font-size: 14px !important;
+}
+
+#board-label-menu .mode-label-apply {
+  display: block !important;
+  margin: 18px auto !important;
+}
