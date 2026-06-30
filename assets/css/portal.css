@@ -20880,3 +20880,89 @@ body:has(.ob-wrap) .ob-wrap .monday-grid > .monday-cell {
 body:has(.ob-wrap) .ob-wrap .monday-column-header .monday-cell {
   font-weight: var(--font-weight-normal) !important;
 }
+
+/* Orders Board summary footer: keep the div-grid footer in normal group flow. */
+body:has(.ob-wrap) .ob-wrap .monday-group-orders {
+  position: relative !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group.expanded .monday-group-orders {
+  display: block !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group.collapsed .monday-group-orders {
+  display: none !important;
+}
+
+body:has(.ob-wrap) .ob-wrap div.ob-group-footer {
+  position: relative !important;
+  inset: auto !important;
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  z-index: auto !important;
+  display: grid !important;
+  grid-template-columns: var(--orders-grid-columns) !important;
+  grid-auto-columns: minmax(120px, 140px) !important;
+  grid-auto-flow: column !important;
+  width: 100% !important;
+  min-width: var(--orders-grid-min-width) !important;
+  height: auto !important;
+  min-height: var(--orders-monday-row-height) !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+}
+
+body:has(.ob-wrap) .ob-wrap div.ob-group-footer > .monday-cell {
+  min-height: var(--orders-monday-row-height) !important;
+  height: var(--orders-monday-row-height) !important;
+}
+
+/* Bottom rows need compact spreadsheet spacing, not the taller body-row padding. */
+body:has(.ob-wrap) .ob-wrap .add-task-row > .monday-cell,
+body:has(.ob-wrap) .ob-wrap div.ob-group-footer > .monday-cell {
+  height: var(--orders-monday-row-height) !important;
+  min-height: var(--orders-monday-row-height) !important;
+  padding: 0 var(--space-12) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  overflow: hidden !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .add-task-row > .col-task {
+  justify-content: flex-start !important;
+}
+
+body:has(.ob-wrap) .ob-wrap div.ob-group-footer .ob-date-pill,
+body:has(.ob-wrap) .ob-wrap div.ob-group-footer .ob-stacked-bar {
+  height: calc(var(--space-16) + var(--space-4)) !important;
+  min-height: calc(var(--space-16) + var(--space-4)) !important;
+  max-height: calc(var(--space-16) + var(--space-4)) !important;
+  margin: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap div.ob-group-footer .ob-group-amount-cell,
+body:has(.ob-wrap) .ob-wrap div.ob-group-footer .ob-group-paid-cell {
+  flex-direction: column !important;
+  gap: 0 !important;
+  line-height: var(--font-line-height-10) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap div.ob-group-footer .ob-group-sum,
+body:has(.ob-wrap) .ob-wrap div.ob-group-footer .ob-paid-fraction {
+  line-height: var(--font-line-height-10) !important;
+  margin: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap div.ob-group-footer .ob-group-sum-label {
+  line-height: 12px !important;
+  margin: 0 !important;
+}
