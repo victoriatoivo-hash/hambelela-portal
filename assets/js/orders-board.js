@@ -183,7 +183,7 @@
   }
 
   function columnWidthTarget() {
-    return page || document.documentElement;
+    return document.documentElement;
   }
 
   function setColumnWidth(column, width) {
