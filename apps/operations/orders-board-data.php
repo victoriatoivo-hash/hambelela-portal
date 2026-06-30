@@ -36,11 +36,13 @@ $hasArchivedAt = ops_column_exists('ops_orders', 'archived_at');
 $amountSelect = $hasTotalAmount ? 'o.total_amount' : '0 AS total_amount';
 $assignedAtSelect = $hasAssignedAt ? 'o.assigned_at' : 'NULL AS assigned_at';
 $startedAtSelect = $hasStartedAt ? 'o.packing_started_at' : 'NULL AS packing_started_at';
+$displayDateTimeExpr = ops_order_display_datetime_expr('o');
+$metricDateTimeExpr = ops_order_display_datetime_expr();
 
 $whereParts = [];
 $params = [];
 if ($dateStart !== '' && $dateEnd !== '') {
-    $whereParts[] = 'o.created_at >= ? AND o.created_at < ?';
+    $whereParts[] = "{$displayDateTimeExpr} >= ? AND {$displayDateTimeExpr} < ?";
     $params[] = $dateStart;
     $params[] = $dateEnd;
 }
@@ -52,12 +54,13 @@ $where = $whereParts ? 'WHERE ' . implode(' AND ', $whereParts) : '';
 $orders = ops_rows(
     "SELECT
         o.id, o.order_number, o.customer_name, o.customer_contact, o.payment_method, {$amountSelect}, o.payment_status,
-        o.order_type, o.status, o.workload_score, o.created_at, {$assignedAtSelect}, {$startedAtSelect}, o.packed_at, o.completed_at, o.notes,
+        o.order_type, o.status, o.workload_score, {$displayDateTimeExpr} AS displayed_order_datetime,
+        {$displayDateTimeExpr} AS created_at, o.created_at AS source_created_at, {$assignedAtSelect}, {$startedAtSelect}, o.packed_at, o.completed_at, o.notes,
         o.assigned_packer_id, e.full_name AS packer_name
      FROM ops_orders o
      LEFT JOIN ops_employees e ON e.id = o.assigned_packer_id
      {$where}
-     ORDER BY o.created_at DESC, o.id DESC
+     ORDER BY {$displayDateTimeExpr} DESC, o.id DESC
      LIMIT 500",
     $params
 );
@@ -87,14 +90,14 @@ if ($orderIds) {
 
 $archiveMetricWhere = $hasArchivedAt ? ' AND archived_at IS NULL' : '';
 $metricWhere = $dateStart !== '' && $dateEnd !== ''
-    ? "created_at >= '" . str_replace("'", "''", $dateStart) . "' AND created_at < '" . str_replace("'", "''", $dateEnd) . "'"
+    ? "{$metricDateTimeExpr} >= '" . str_replace("'", "''", $dateStart) . "' AND {$metricDateTimeExpr} < '" . str_replace("'", "''", $dateEnd) . "'"
     : '1=1';
 $metricWhere .= $archiveMetricWhere;
 $validRevenueWhere = $metricWhere . " AND payment_status = 'paid' AND status NOT IN ('cancelled', 'canceled', 'refunded', 'failed', 'error_logged') AND payment_status NOT IN ('refunded', 'cancelled', 'canceled', 'failed')";
 $businessOverdueWhere = $metricWhere
-    . " AND TIME(created_at) >= '" . OPS_BUSINESS_START . "'"
-    . " AND TIME(created_at) < '" . OPS_BUSINESS_END . "'"
-    . " AND created_at < DATE_SUB(NOW(), INTERVAL 4 HOUR)"
+    . " AND TIME({$metricDateTimeExpr}) >= '" . OPS_BUSINESS_START . "'"
+    . " AND TIME({$metricDateTimeExpr}) < '" . OPS_BUSINESS_END . "'"
+    . " AND {$metricDateTimeExpr} < DATE_SUB(NOW(), INTERVAL 4 HOUR)"
     . " AND status NOT IN ('completed', 'packed', 'verified', 'cancelled', 'canceled', 'refunded', 'failed')";
 
 $metrics = [

@@ -159,6 +159,10 @@ if ($ready && $hasWooColumns && $_SERVER['REQUEST_METHOD'] === 'POST') {
             && ops_column_exists('ops_orders', 'shipping_tax_total')
             && ops_column_exists('ops_orders', 'discount_total')
             && ops_column_exists('ops_orders', 'refund_total');
+        $displayDateTimeColumn = ops_order_display_datetime_update_column();
+        $displayDateTimeInsertColumn = $displayDateTimeColumn !== 'created_at' ? ', ' . $displayDateTimeColumn : '';
+        $displayDateTimeInsertValue = $displayDateTimeColumn !== 'created_at' ? ', ?' : '';
+        $displayDateTimeUpdate = $displayDateTimeColumn . ' = VALUES(' . $displayDateTimeColumn . ')';
         $pdo->beginTransaction();
 
         $amountColumns = $hasTotalAmount ? ', total_amount' : '';
@@ -177,8 +181,8 @@ if ($ready && $hasWooColumns && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $orderStmt = $pdo->prepare(
             "INSERT INTO ops_orders (
                 woo_order_id, order_number, customer_name, customer_contact, payment_method{$amountColumns}{$breakdownColumns}, payment_status,
-                order_type, priority, complexity, assigned_packer_id, status, notes, workload_score, created_at
-             ) VALUES (?, ?, ?, ?, ?{$amountValues}{$breakdownValues}, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                order_type, priority, complexity, assigned_packer_id, status, notes, workload_score, created_at{$displayDateTimeInsertColumn}
+             ) VALUES (?, ?, ?, ?, ?{$amountValues}{$breakdownValues}, ?, ?, ?, ?, ?, ?, ?, ?, ?{$displayDateTimeInsertValue})
              ON DUPLICATE KEY UPDATE
                 customer_name = VALUES(customer_name),
                 customer_contact = VALUES(customer_contact),
@@ -187,6 +191,7 @@ if ($ready && $hasWooColumns && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 order_type = VALUES(order_type),
                 notes = VALUES(notes),
                 workload_score = VALUES(workload_score),
+                {$displayDateTimeUpdate},
                 updated_at = CURRENT_TIMESTAMP"
         );
 
@@ -256,6 +261,9 @@ if ($ready && $hasWooColumns && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $workload,
                 $createdAt,
             ]);
+            if ($displayDateTimeColumn !== 'created_at') {
+                $orderValues[] = $createdAt;
+            }
 
             $orderStmt->execute($orderValues);
 

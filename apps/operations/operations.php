@@ -131,6 +131,33 @@ function ops_rows(string $sql, array $params = []): array
     }
 }
 
+function ops_order_datetime_columns(): array
+{
+    $columns = [];
+    foreach (['displayed_order_datetime', 'order_datetime', 'date_created', 'created_at'] as $column) {
+        if (ops_column_exists('ops_orders', $column)) {
+            $columns[] = $column;
+        }
+    }
+
+    return $columns ?: ['created_at'];
+}
+
+function ops_order_display_datetime_expr(string $alias = ''): string
+{
+    $prefix = $alias !== '' ? $alias . '.' : '';
+    $columns = array_map(static fn (string $column): string => $prefix . $column, ops_order_datetime_columns());
+
+    return count($columns) === 1 ? $columns[0] : 'COALESCE(' . implode(', ', $columns) . ')';
+}
+
+function ops_order_display_datetime_update_column(): string
+{
+    $columns = ops_order_datetime_columns();
+
+    return $columns[0] ?? 'created_at';
+}
+
 function ops_read_define_config(string $path): array
 {
     if (!is_file($path) || !is_readable($path)) {

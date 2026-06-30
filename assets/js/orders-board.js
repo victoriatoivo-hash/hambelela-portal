@@ -114,8 +114,16 @@
   let boardDateScope = dateFilter?.value ? 'date' : 'all';
   let boardMonth = (dateFilter?.value || todayKey()).slice(0, 7);
 
+  function orderDisplayDateTime(order) {
+    return order?.displayed_order_datetime
+      || order?.order_datetime
+      || order?.date_created
+      || order?.created_at
+      || '';
+  }
+
   function orderTimestamp(order) {
-    const value = String(order?.created_at || '').replace(' ', 'T');
+    const value = String(orderDisplayDateTime(order)).replace(' ', 'T');
     const timestamp = Date.parse(value);
     return Number.isNaN(timestamp) ? 0 : timestamp;
   }
@@ -123,7 +131,7 @@
   function compareOrdersNewestFirst(a, b) {
     const timeDiff = orderTimestamp(b) - orderTimestamp(a);
     if (timeDiff !== 0) return timeDiff;
-    return Number(b?.id || 0) - Number(a?.id || 0);
+    return Number(b?.order_id || b?.id || 0) - Number(a?.order_id || a?.id || 0);
   }
 
   function selectedBoardMonth() {
@@ -230,6 +238,9 @@
       order.assigned_packer_id = value === '' ? '' : String(value);
       const packer = packersCache.find((item) => String(item.id) === String(value));
       order.packer_name = packer?.full_name || '';
+    } else if (field === 'created_at') {
+      order.created_at = value;
+      order.displayed_order_datetime = value;
     } else {
       order[field] = value;
     }
@@ -554,7 +565,7 @@
     if (boardState.groupBy === 'status') return `Status: ${findText(statusLabels, order.status || 'new_order')}`;
     if (boardState.groupBy === 'packer') return `Packed by: ${order.packer_name || 'Unassigned'}`;
     if (boardState.groupBy === 'mode') return `Mode: ${findText(modeLabels, order.order_type || 'collection')}`;
-    return dateKey(order.created_at);
+    return dateKey(orderDisplayDateTime(order));
   }
 
   function groupLabel(key) {
@@ -689,9 +700,12 @@
     if (status) status.textContent = 'Saving...';
     const data = await post('update_order_datetime', { order_id: orderId, date_time: dateTime });
     const savedDateTime = data.date_time || dateTime;
-    const previousValue = ordersCache.find((order) => String(order.id) === orderId)?.created_at || '';
+    const previousValue = orderDisplayDateTime(ordersCache.find((order) => String(order.id) === orderId)) || '';
     ordersCache.forEach((order) => {
-      if (String(order.id) === orderId) order.created_at = savedDateTime;
+      if (String(order.id) === orderId) {
+        order.created_at = savedDateTime;
+        order.displayed_order_datetime = savedDateTime;
+      }
     });
     setUndo([{ id: orderId, field: 'created_at', value: previousValue }]);
     if (syncState) syncState.textContent = `Order date changed to ${prettyDate(savedDateTime)}.`;
@@ -750,9 +764,9 @@
       ? metricOrders.filter((order) => String(order.assigned_packer_id || '') === myId).length
       : metricOrders.length;
     const inProgress = metricOrders.filter((order) => normalize(order.status) === 'in_progress').length;
-    const completedToday = metricOrders.filter((order) => normalize(order.status) === 'completed' && dateKey(order.completed_at || order.packed_at || order.created_at) === today).length;
+    const completedToday = metricOrders.filter((order) => normalize(order.status) === 'completed' && dateKey(order.completed_at || order.packed_at || orderDisplayDateTime(order)) === today).length;
     const todayRevenue = metricOrders
-      .filter((order) => dateKey(order.created_at) === today && isValidRevenueOrder(order))
+      .filter((order) => dateKey(orderDisplayDateTime(order)) === today && isValidRevenueOrder(order))
       .reduce((sum, order) => sum + Number(order.total_amount || 0), 0);
     const pendingOrders = metricOrders.filter((order) => !['completed', 'packed', 'verified'].includes(normalize(order.status))).length;
     const unassigned = metricOrders.filter((order) => !order.assigned_packer_id).length;
@@ -868,7 +882,9 @@
       const wasOpen = expandedGroups.has(oldKey);
       ordersCache.forEach((order) => {
         if (orderIds.includes(String(order.id))) {
-          order.created_at = replaceDatePart(order.created_at, newKey);
+          const updatedDateTime = replaceDatePart(orderDisplayDateTime(order), newKey);
+          order.created_at = updatedDateTime;
+          order.displayed_order_datetime = updatedDateTime;
         }
       });
       expandedGroups.delete(oldKey);
@@ -994,7 +1010,7 @@
           ${renderLabelCell(order, 'status', order.status || 'new_order', statusLabels, 'status-label')}
         </header>
         <div class="board-card-meta">
-          <span>${prettyDate(order.created_at)}</span>
+          <span>${prettyDate(orderDisplayDateTime(order))}</span>
           <span>${esc(findText(modeLabels, order.order_type || 'collection'))}</span>
           <span>${esc(money(order.total_amount))}</span>
           <span>${esc(order.payment_method || 'Cash')}</span>
@@ -1120,7 +1136,7 @@
     const csvRows = [headers, ...rows.map((order) => [
       order.order_number || '',
       order.customer_name || '',
-      prettyDate(order.created_at),
+      prettyDate(orderDisplayDateTime(order)),
       order.customer_contact || '',
       findText(modeLabels, order.order_type || ''),
       Number(order.total_amount || 0),
@@ -1337,7 +1353,7 @@
           <div class="monday-cell check-cell col-checkbox"><input type="checkbox" data-row-select="${esc(order.id)}" ${selectedOrders.has(String(order.id)) ? 'checked' : ''} aria-label="Select order"></div>
           <div class="monday-cell task-cell col-task"><span class="task-name">${esc(order.order_number.replace(/^WEB-/, ''))} ${esc(order.customer_name)}</span></div>
           <div class="monday-cell comment-cell col-task-icon"><button type="button" data-open-panel="${esc(order.id)}"><i data-lucide="message-circle-plus"></i></button></div>
-          <div class="monday-cell col-date order-date-cell" data-order-id="${esc(order.id)}" data-datetime="${esc(order.created_at)}" role="button" tabindex="0" title="Edit order date/time">${prettyDate(order.created_at)}</div>
+          <div class="monday-cell col-date order-date-cell" data-order-id="${esc(order.id)}" data-datetime="${esc(orderDisplayDateTime(order))}" role="button" tabindex="0" title="Edit order date/time">${prettyDate(orderDisplayDateTime(order))}</div>
           <div class="monday-cell editable-cell col-mobile" data-editable-order-field="customer_contact" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_contact || '')}" tabindex="0">${esc(order.customer_contact || '')}</div>
           <div class="monday-cell col-mode"${labelCellStyle(modeLabels, order.order_type)}>${renderLabelCell(order, 'order_type', order.order_type, modeLabels, 'mode-label')}</div>
           <div class="monday-cell editable-cell col-amount" data-editable-order-field="total_amount" data-order-id="${esc(order.id)}" data-value="${esc(order.total_amount ?? '')}" tabindex="0">${esc(money(order.total_amount))}</div>
@@ -1859,7 +1875,7 @@
     panelNotes.value = currentOrder.notes || '';
     panelPreview.textContent = currentOrder.notes || 'No updates yet.';
     panelActivity.innerHTML = `
-      <div class="activity-line">Created ${esc(prettyDate(currentOrder.created_at))}</div>
+      <div class="activity-line">Created ${esc(prettyDate(orderDisplayDateTime(currentOrder)))}</div>
       <div class="activity-line">Status: ${esc(findText(statusLabels, currentOrder.status))}</div>
       <div class="activity-line">Packed by: ${esc(currentOrder.packer_name || 'Unassigned')}</div>
       <div class="activity-line">Picking time: ${esc(durationText(currentOrder.packing_started_at, currentOrder.completed_at || currentOrder.packed_at) || 'Not started')}</div>

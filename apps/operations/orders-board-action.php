@@ -394,6 +394,10 @@ function ops_board_sync_website_orders(?string $date = null): array
         && ops_column_exists('ops_orders', 'shipping_tax_total')
         && ops_column_exists('ops_orders', 'discount_total')
         && ops_column_exists('ops_orders', 'refund_total');
+    $displayDateTimeColumn = ops_order_display_datetime_update_column();
+    $displayDateTimeInsertColumn = $displayDateTimeColumn !== 'created_at' ? ', ' . $displayDateTimeColumn : '';
+    $displayDateTimeInsertValue = $displayDateTimeColumn !== 'created_at' ? ', ?' : '';
+    $displayDateTimeUpdate = $displayDateTimeColumn . ' = VALUES(' . $displayDateTimeColumn . ')';
     $imported = 0;
     $updated = 0;
     $lineCount = 0;
@@ -415,8 +419,8 @@ function ops_board_sync_website_orders(?string $date = null): array
             $orderStmt = $pdo->prepare(
                 "INSERT INTO ops_orders (
                     woo_order_id, order_number, customer_name, customer_contact, payment_method, total_amount{$breakdownColumns}, payment_status,
-                    order_type, priority, complexity, assigned_packer_id, status, notes, workload_score, created_at
-                 ) VALUES (?, ?, ?, ?, ?, ?{$breakdownValues}, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    order_type, priority, complexity, assigned_packer_id, status, notes, workload_score, created_at{$displayDateTimeInsertColumn}
+                 ) VALUES (?, ?, ?, ?, ?, ?{$breakdownValues}, ?, ?, ?, ?, ?, ?, ?, ?, ?{$displayDateTimeInsertValue})
                  ON DUPLICATE KEY UPDATE
                     customer_name = VALUES(customer_name),
                     customer_contact = VALUES(customer_contact),
@@ -427,14 +431,15 @@ function ops_board_sync_website_orders(?string $date = null): array
                     order_type = VALUES(order_type),
                     notes = VALUES(notes),
                     workload_score = VALUES(workload_score),
+                    {$displayDateTimeUpdate},
                     updated_at = CURRENT_TIMESTAMP"
             );
         } else {
             $orderStmt = $pdo->prepare(
                 "INSERT INTO ops_orders (
                     woo_order_id, order_number, customer_name, customer_contact, payment_method, payment_status,
-                    order_type, priority, complexity, assigned_packer_id, status, notes, workload_score, created_at
-                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    order_type, priority, complexity, assigned_packer_id, status, notes, workload_score, created_at{$displayDateTimeInsertColumn}
+                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$displayDateTimeInsertValue})
                  ON DUPLICATE KEY UPDATE
                     customer_name = VALUES(customer_name),
                     customer_contact = VALUES(customer_contact),
@@ -443,6 +448,7 @@ function ops_board_sync_website_orders(?string $date = null): array
                     order_type = VALUES(order_type),
                     notes = VALUES(notes),
                     workload_score = VALUES(workload_score),
+                    {$displayDateTimeUpdate},
                     updated_at = CURRENT_TIMESTAMP"
             );
         }
@@ -517,6 +523,9 @@ function ops_board_sync_website_orders(?string $date = null): array
                     $workload,
                     $createdAt,
                 ]);
+            if ($displayDateTimeColumn !== 'created_at') {
+                $orderValues[] = $createdAt;
+            }
 
             $orderStmt->execute($orderValues);
 
@@ -890,9 +899,11 @@ try {
             throw new RuntimeException('Only admin, front desk or supervisor can change a group date.');
         }
 
+        $displayDateTimeColumn = ops_order_display_datetime_update_column();
+        $displayDateTimeExpr = ops_order_display_datetime_expr();
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
         $params = array_merge([$toDate], $ids, [$fromDate]);
-        $stmt = db()->prepare("UPDATE ops_orders SET created_at = CONCAT(?, ' ', TIME(created_at)), updated_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders}) AND DATE(created_at) = ?");
+        $stmt = db()->prepare("UPDATE ops_orders SET {$displayDateTimeColumn} = CONCAT(?, ' ', TIME({$displayDateTimeExpr})), updated_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders}) AND DATE({$displayDateTimeExpr}) = ?");
         $stmt->execute($params);
         $changed = $stmt->rowCount();
 
@@ -935,7 +946,8 @@ try {
             throw new RuntimeException('Order not found. Refresh and try again.');
         }
 
-        $stmt = db()->prepare('UPDATE ops_orders SET created_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+        $displayDateTimeColumn = ops_order_display_datetime_update_column();
+        $stmt = db()->prepare("UPDATE ops_orders SET {$displayDateTimeColumn} = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
         $stmt->execute([$dateTime, $orderId]);
 
         ops_activity_log('order_datetime_updated', 'order', $orderId, [
