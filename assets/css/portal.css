@@ -21100,6 +21100,8 @@ body:has(.ob-wrap) .ob-wrap .monday-order-row > .paid-cell.col-paid {
   align-items: center !important;
   justify-content: center !important;
   cursor: pointer !important;
+  box-shadow: none !important;
+  outline: 0 !important;
 }
 
 body:has(.ob-wrap) .ob-wrap .paid-cell .paid-toggle,
@@ -21123,10 +21125,12 @@ body:has(.ob-wrap) .ob-wrap .paid-cell .paid-icon {
   background: transparent !important;
   box-shadow: none !important;
   outline: 0 !important;
-  color: var(--color-done-green, #00c875) !important;
-  font-size: 18px !important;
-  font-weight: 600 !important;
+  color: #00c875 !important;
+  font-family: Figtree, Roboto, Arial, sans-serif !important;
+  font-size: 17px !important;
+  font-weight: 400 !important;
   line-height: 1 !important;
+  text-shadow: none !important;
 }
 
 body:has(.ob-wrap) .ob-wrap .paid-cell.unpaid .paid-icon,
