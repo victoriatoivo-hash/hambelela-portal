@@ -20738,6 +20738,12 @@ body:has(.ob-wrap) .ob-wrap .monday-cell.col-task-icon svg {
   stroke: var(--icon-color) !important;
 }
 
+body:has(.ob-wrap) .ob-wrap .monday-cell.comment-cell.col-task-icon button[data-open-panel] svg,
+body:has(.ob-wrap) .ob-wrap .monday-cell.col-task-icon button[data-open-panel] svg {
+  color: var(--icon-color) !important;
+  stroke: var(--icon-color) !important;
+}
+
 body:has(.ob-wrap) .ob-wrap .monday-order-row .task-name,
 body:has(.ob-wrap) .ob-wrap .monday-order-row .order-date-cell,
 body:has(.ob-wrap) .ob-wrap .monday-order-row .col-mobile,
