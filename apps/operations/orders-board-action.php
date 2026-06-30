@@ -759,6 +759,41 @@ try {
         exit;
     }
 
+    if ($action === 'update_order_datetime') {
+        if (!user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager')) {
+            throw new RuntimeException('Only admin, front desk or supervisor can change an order date/time.');
+        }
+
+        $orderId = (int) ($_POST['order_id'] ?? 0);
+        $rawDateTime = trim((string) ($_POST['date_time'] ?? ''));
+        if ($orderId <= 0 || !preg_match('/^\d{4}-\d{2}-\d{2} ([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/', $rawDateTime)) {
+            throw new RuntimeException('Invalid order date/time.');
+        }
+
+        $timestamp = strtotime($rawDateTime);
+        if ($timestamp === false) {
+            throw new RuntimeException('Invalid order date/time.');
+        }
+
+        $dateTime = date('Y-m-d H:i:s', $timestamp);
+        $existsStmt = db()->prepare('SELECT id FROM ops_orders WHERE id = ? LIMIT 1');
+        $existsStmt->execute([$orderId]);
+        if (!$existsStmt->fetchColumn()) {
+            throw new RuntimeException('Order not found. Refresh and try again.');
+        }
+
+        $stmt = db()->prepare('UPDATE ops_orders SET created_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+        $stmt->execute([$dateTime, $orderId]);
+
+        ops_activity_log('order_datetime_updated', 'order', $orderId, [
+            'date_time' => $dateTime,
+            'changed_by' => current_user()['name'] ?? 'Unknown',
+        ]);
+
+        echo json_encode(['ok' => true, 'message' => 'Order date/time updated.', 'order_id' => $orderId, 'date_time' => $dateTime]);
+        exit;
+    }
+
     if ($action === 'update_field') {
         $orderId = (int) ($_POST['order_id'] ?? 0);
         $field = ops_post_string('field', 40);

@@ -32,6 +32,7 @@
   let hasRenderedOnce = false;
   let previousOrderIds = new Set();
   let customColumns = [];
+  let orderDatePicker = null;
   const selectedOrders = new Set();
   const boardState = {
     search: '',
@@ -219,11 +220,18 @@
     const changes = lastUndo;
     setUndo(null);
     for (const change of changes) {
-      await post('update_field', {
-        order_id: change.id,
-        field: change.field,
-        value: change.value
-      });
+      if (change.field === 'created_at') {
+        await post('update_order_datetime', {
+          order_id: change.id,
+          date_time: change.value
+        });
+      } else {
+        await post('update_field', {
+          order_id: change.id,
+          field: change.field,
+          value: change.value
+        });
+      }
     }
     await refresh();
   }
@@ -352,6 +360,161 @@
     const original = String(value || '');
     const suffix = original.length > 10 ? original.slice(10) : ' 00:00:00';
     return `${key}${suffix}`;
+  }
+
+  function dateTimeParts(value) {
+    const raw = String(value || '').replace('T', ' ').trim();
+    const match = raw.match(/^(\d{4}-\d{2}-\d{2})(?:\s+(\d{2}):(\d{2})(?::\d{2})?)?/);
+    return {
+      date: match?.[1] || todayKey(),
+      time: `${match?.[2] || '00'}:${match?.[3] || '00'}`
+    };
+  }
+
+  function combineDateTime(date, time) {
+    const safeDate = /^\d{4}-\d{2}-\d{2}$/.test(String(date || '')) ? date : todayKey();
+    const safeTime = /^\d{2}:\d{2}$/.test(String(time || '')) ? time : '00:00';
+    return `${safeDate} ${safeTime}:00`;
+  }
+
+  function displayTime(time) {
+    const [hour, minute] = String(time || '00:00').split(':').map((part) => Number(part));
+    const suffix = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour % 12 || 12;
+    return `${displayHour}:${String(minute || 0).padStart(2, '0')}${suffix}`;
+  }
+
+  function monthSelectOptions(selectedMonth) {
+    return Array.from({ length: 12 }, (_, index) => {
+      const date = new Date(2026, index, 1);
+      const label = date.toLocaleDateString('en-GB', { month: 'short' });
+      return `<option value="${index}" ${index === selectedMonth ? 'selected' : ''}>${esc(label)}</option>`;
+    }).join('');
+  }
+
+  function yearSelectOptions(selectedYear) {
+    const start = selectedYear - 3;
+    return Array.from({ length: 7 }, (_, index) => {
+      const year = start + index;
+      return `<option value="${year}" ${year === selectedYear ? 'selected' : ''}>${year}</option>`;
+    }).join('');
+  }
+
+  function timeOptionsHtml(selectedTime) {
+    const options = [];
+    for (let hour = 6; hour <= 22; hour++) {
+      for (let minute = 0; minute < 60; minute += 15) {
+        const value = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+        options.push(`<button type="button" class="order-time-option ${value === selectedTime ? 'is-selected' : ''}" data-order-time-option="${value}">${displayTime(value)}</button>`);
+      }
+    }
+    return options.join('');
+  }
+
+  function calendarGridHtml(year, month, selectedDate) {
+    const dayNames = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+    const first = new Date(year, month, 1);
+    const offset = (first.getDay() + 6) % 7;
+    const gridStart = new Date(year, month, 1 - offset);
+    const selected = dateTimeParts(selectedDate).date;
+    const cells = dayNames.map((day) => `<span class="order-date-picker-day-name">${day}</span>`);
+    for (let index = 0; index < 42; index++) {
+      const date = new Date(gridStart);
+      date.setDate(gridStart.getDate() + index);
+      const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      cells.push(`
+        <button type="button" class="order-date-picker-day ${date.getMonth() === month ? '' : 'is-muted'} ${value === selected ? 'is-selected' : ''}" data-order-date-day="${value}">
+          ${date.getDate()}
+        </button>
+      `);
+    }
+    return cells.join('');
+  }
+
+  function positionOrderDatePicker() {
+    if (!orderDatePicker?.cell || !orderDatePicker?.popover) return;
+    const rect = orderDatePicker.cell.getBoundingClientRect();
+    const popover = orderDatePicker.popover;
+    const width = 264;
+    const left = Math.min(Math.max(8, rect.left), window.innerWidth - width - 8);
+    popover.style.left = `${left + window.scrollX}px`;
+    popover.style.top = `${rect.bottom + window.scrollY + 4}px`;
+  }
+
+  function closeOrderDatePicker() {
+    if (orderDatePicker?.cell) orderDatePicker.cell.classList.remove('is-editing');
+    if (orderDatePicker?.popover) orderDatePicker.popover.remove();
+    orderDatePicker = null;
+  }
+
+  function renderOrderDatePicker() {
+    if (!orderDatePicker?.popover) return;
+    const selectedParts = dateTimeParts(combineDateTime(orderDatePicker.date, orderDatePicker.time));
+    const view = new Date(`${orderDatePicker.viewYear}-${String(orderDatePicker.viewMonth + 1).padStart(2, '0')}-01T12:00:00`);
+    orderDatePicker.popover.innerHTML = `
+      <div class="order-date-picker-top">
+        <button type="button" class="order-date-picker-today" data-order-date-today>Today</button>
+        <button type="button" class="order-date-picker-clock ${orderDatePicker.showTime ? 'is-active' : ''}" data-order-date-time-toggle aria-label="Show time options"><i data-lucide="clock-3"></i></button>
+      </div>
+      <div class="order-date-picker-inputs">
+        <input type="date" value="${esc(selectedParts.date)}" data-order-date-input>
+        <input type="time" value="${esc(selectedParts.time)}" data-order-time-input>
+      </div>
+      <div class="order-date-picker-nav">
+        <select class="order-date-picker-select" data-order-date-month aria-label="Month">${monthSelectOptions(view.getMonth())}</select>
+        <select class="order-date-picker-select" data-order-date-year aria-label="Year">${yearSelectOptions(view.getFullYear())}</select>
+        <div class="order-date-picker-arrows">
+          <button type="button" data-order-date-prev aria-label="Previous month">&lsaquo;</button>
+          <button type="button" data-order-date-next aria-label="Next month">&rsaquo;</button>
+        </div>
+      </div>
+      <div class="order-date-picker-grid">${calendarGridHtml(view.getFullYear(), view.getMonth(), selectedParts.date)}</div>
+      ${orderDatePicker.showTime ? `<div class="order-time-list">${timeOptionsHtml(selectedParts.time)}</div>` : ''}
+      <div class="order-date-picker-status" data-order-date-status></div>
+    `;
+    if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+    positionOrderDatePicker();
+  }
+
+  async function saveOrderDateTime(newDate, newTime) {
+    if (!orderDatePicker?.orderId) return;
+    const orderId = String(orderDatePicker.orderId);
+    const dateTime = combineDateTime(newDate, newTime);
+    const status = orderDatePicker.popover?.querySelector('[data-order-date-status]');
+    if (status) status.textContent = 'Saving...';
+    const data = await post('update_order_datetime', { order_id: orderId, date_time: dateTime });
+    const savedDateTime = data.date_time || dateTime;
+    const previousValue = ordersCache.find((order) => String(order.id) === orderId)?.created_at || '';
+    ordersCache.forEach((order) => {
+      if (String(order.id) === orderId) order.created_at = savedDateTime;
+    });
+    setUndo([{ id: orderId, field: 'created_at', value: previousValue }]);
+    if (syncState) syncState.textContent = `Order date changed to ${prettyDate(savedDateTime)}.`;
+    closeOrderDatePicker();
+    renderOrders(ordersCache);
+  }
+
+  function openOrderDatePicker(dateCell) {
+    const orderId = dateCell.dataset.orderId;
+    if (!orderId) return;
+    const parts = dateTimeParts(dateCell.dataset.datetime || '');
+    closeOrderDatePicker();
+    const popover = document.createElement('div');
+    popover.className = 'order-date-picker-popover';
+    popover.dataset.orderDatePicker = orderId;
+    document.body.appendChild(popover);
+    dateCell.classList.add('is-editing');
+    orderDatePicker = {
+      cell: dateCell,
+      popover,
+      orderId,
+      date: parts.date,
+      time: parts.time,
+      viewYear: Number(parts.date.slice(0, 4)),
+      viewMonth: Number(parts.date.slice(5, 7)) - 1,
+      showTime: false
+    };
+    renderOrderDatePicker();
   }
 
   function isValidRevenueOrder(order) {
@@ -969,7 +1132,7 @@
           <div class="monday-cell check-cell col-checkbox"><input type="checkbox" data-row-select="${esc(order.id)}" ${selectedOrders.has(String(order.id)) ? 'checked' : ''} aria-label="Select order"></div>
           <div class="monday-cell task-cell col-task"><span class="task-name">${esc(order.order_number.replace(/^WEB-/, ''))} ${esc(order.customer_name)}</span></div>
           <div class="monday-cell comment-cell col-task-icon"><button type="button" data-open-panel="${esc(order.id)}"><i data-lucide="message-circle-plus"></i></button></div>
-          <div class="monday-cell col-date">${prettyDate(order.created_at)}</div>
+          <div class="monday-cell col-date order-date-cell" data-order-id="${esc(order.id)}" data-datetime="${esc(order.created_at)}" role="button" tabindex="0" title="Edit order date/time">${prettyDate(order.created_at)}</div>
           <div class="monday-cell col-mobile">${esc(order.customer_contact || '')}</div>
           <div class="monday-cell col-mode"${labelCellStyle(modeLabels, order.order_type)}>${renderLabelCell(order, 'order_type', order.order_type, modeLabels, 'mode-label')}</div>
           <div class="monday-cell col-amount">${esc(money(order.total_amount))}</div>
@@ -1414,6 +1577,8 @@
     if (event.target.closest('.column-resizer')) return;
 
     const groupDateEdit = event.target.closest('[data-edit-group-date]');
+    const orderDateCell = event.target.closest('.order-date-cell[data-order-id]');
+    const orderDatePopover = event.target.closest('.order-date-picker-popover');
     const labelButton = event.target.closest('[data-label-field][data-order-id]');
     const labelChoice = event.target.closest('[data-label-value]');
     const panelButton = event.target.closest('[data-open-panel]');
@@ -1452,6 +1617,75 @@
     const bulkAction = event.target.closest('[data-order-bulk-action]');
 
     try {
+      if (orderDatePopover) {
+        event.stopPropagation();
+        const status = orderDatePicker?.popover?.querySelector('[data-order-date-status]');
+        try {
+          const day = event.target.closest('[data-order-date-day]');
+          const timeOption = event.target.closest('[data-order-time-option]');
+          if (event.target.closest('[data-order-date-today]')) {
+            event.preventDefault();
+            orderDatePicker.date = todayKey();
+            orderDatePicker.viewYear = Number(orderDatePicker.date.slice(0, 4));
+            orderDatePicker.viewMonth = Number(orderDatePicker.date.slice(5, 7)) - 1;
+            await saveOrderDateTime(orderDatePicker.date, orderDatePicker.time);
+            return;
+          }
+          if (event.target.closest('[data-order-date-time-toggle]')) {
+            event.preventDefault();
+            orderDatePicker.showTime = !orderDatePicker.showTime;
+            renderOrderDatePicker();
+            return;
+          }
+          if (event.target.closest('[data-order-date-prev]')) {
+            event.preventDefault();
+            orderDatePicker.viewMonth -= 1;
+            if (orderDatePicker.viewMonth < 0) {
+              orderDatePicker.viewMonth = 11;
+              orderDatePicker.viewYear -= 1;
+            }
+            renderOrderDatePicker();
+            return;
+          }
+          if (event.target.closest('[data-order-date-next]')) {
+            event.preventDefault();
+            orderDatePicker.viewMonth += 1;
+            if (orderDatePicker.viewMonth > 11) {
+              orderDatePicker.viewMonth = 0;
+              orderDatePicker.viewYear += 1;
+            }
+            renderOrderDatePicker();
+            return;
+          }
+          if (day) {
+            event.preventDefault();
+            orderDatePicker.date = day.dataset.orderDateDay;
+            await saveOrderDateTime(orderDatePicker.date, orderDatePicker.time);
+            return;
+          }
+          if (timeOption) {
+            event.preventDefault();
+            orderDatePicker.time = timeOption.dataset.orderTimeOption;
+            await saveOrderDateTime(orderDatePicker.date, orderDatePicker.time);
+            return;
+          }
+        } catch (error) {
+          if (status) status.textContent = String(error?.message || 'Could not save date/time.');
+        }
+        return;
+      }
+
+      if (orderDateCell) {
+        event.preventDefault();
+        event.stopPropagation();
+        openOrderDatePicker(orderDateCell);
+        return;
+      }
+
+      if (orderDatePicker) {
+        closeOrderDatePicker();
+      }
+
       if (groupDateEdit) {
         event.preventDefault();
         event.stopPropagation();
@@ -1693,12 +1927,19 @@
 
   document.addEventListener('keydown', (event) => {
     const groupDateEdit = event.target.closest('[data-edit-group-date]');
+    const orderDateCell = event.target.closest('.order-date-cell[data-order-id]');
+    if (orderDateCell && (event.key === 'Enter' || event.key === ' ')) {
+      event.preventDefault();
+      openOrderDatePicker(orderDateCell);
+      return;
+    }
     if (groupDateEdit && (event.key === 'Enter' || event.key === ' ')) {
       event.preventDefault();
       openGroupDatePopover(groupDateEdit);
       return;
     }
     if (event.key === 'Escape') {
+      closeOrderDatePicker();
       closeLabelMenu();
       closeToolbar();
       closeColumnModal();
@@ -1736,6 +1977,37 @@
         showError(error);
         refresh().catch(() => {});
       });
+    }
+
+    if (orderDatePicker && event.target.closest('.order-date-picker-popover')) {
+      const monthSelect = event.target.closest('[data-order-date-month]');
+      const yearSelect = event.target.closest('[data-order-date-year]');
+      const dateInput = event.target.closest('[data-order-date-input]');
+      const timeInput = event.target.closest('[data-order-time-input]');
+      const status = orderDatePicker.popover?.querySelector('[data-order-date-status]');
+      try {
+        if (monthSelect) {
+          orderDatePicker.viewMonth = Number(monthSelect.value);
+          renderOrderDatePicker();
+        } else if (yearSelect) {
+          orderDatePicker.viewYear = Number(yearSelect.value);
+          renderOrderDatePicker();
+        } else if (dateInput && /^\d{4}-\d{2}-\d{2}$/.test(dateInput.value)) {
+          orderDatePicker.date = dateInput.value;
+          orderDatePicker.viewYear = Number(orderDatePicker.date.slice(0, 4));
+          orderDatePicker.viewMonth = Number(orderDatePicker.date.slice(5, 7)) - 1;
+          saveOrderDateTime(orderDatePicker.date, orderDatePicker.time).catch((error) => {
+            if (status) status.textContent = String(error?.message || 'Could not save date/time.');
+          });
+        } else if (timeInput && /^\d{2}:\d{2}$/.test(timeInput.value)) {
+          orderDatePicker.time = timeInput.value;
+          saveOrderDateTime(orderDatePicker.date, orderDatePicker.time).catch((error) => {
+            if (status) status.textContent = String(error?.message || 'Could not save date/time.');
+          });
+        }
+      } catch (error) {
+        if (status) status.textContent = String(error?.message || 'Could not save date/time.');
+      }
     }
 
     const directFilter = event.target.closest('[data-board-filter]');
@@ -1794,4 +2066,6 @@
   window.setInterval(() => {
     if (document.visibilityState !== 'hidden') syncWebsite(true).then(refresh).catch((error) => showError(error));
   }, 60000);
+  window.addEventListener('resize', positionOrderDatePicker);
+  window.addEventListener('scroll', positionOrderDatePicker, true);
 })();

@@ -19670,3 +19670,203 @@ body:has(.ob-wrap) .ob-wrap .monday-grid > .monday-cell.comment-cell.col-task-ic
   min-width: 0 !important;
   max-width: none !important;
 }
+
+/* Orders Board row date/time picker. */
+body:has(.ob-wrap) .ob-wrap .order-date-cell {
+  position: relative !important;
+  cursor: pointer !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .order-date-cell.is-editing {
+  outline: 2px solid #0073ea !important;
+  outline-offset: -2px !important;
+  background: #ffffff !important;
+  z-index: 30 !important;
+}
+
+.order-date-picker-popover {
+  position: absolute;
+  width: 264px;
+  padding: 8px;
+  border: 1px solid #d0d7e2;
+  border-radius: 6px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+  color: #374151;
+  font-size: 14px;
+  line-height: 1.2;
+  z-index: 9999;
+}
+
+.order-date-picker-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.order-date-picker-today {
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid #cfd7e6;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #374151;
+  cursor: pointer;
+}
+
+.order-date-picker-clock {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 6px;
+  background: #d8ecff;
+  color: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.order-date-picker-clock svg {
+  width: 16px;
+  height: 16px;
+}
+
+.order-date-picker-inputs {
+  display: grid;
+  grid-template-columns: 1fr 90px;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.order-date-picker-inputs input {
+  height: 30px;
+  min-width: 0;
+  padding: 0 8px;
+  border: 1px solid #cfd7e6;
+  border-radius: 4px;
+  color: #374151;
+  font-size: 14px;
+}
+
+.order-date-picker-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.order-date-picker-select {
+  min-width: 68px;
+  border: 0;
+  background: transparent;
+  color: #374151;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.order-date-picker-arrows {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.order-date-picker-arrows button {
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #374151;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.order-date-picker-arrows button:hover {
+  background: #eaf4ff;
+}
+
+.order-date-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.order-date-picker-day-name,
+.order-date-picker-day {
+  width: 30px;
+  height: 30px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.order-date-picker-day-name {
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.order-date-picker-day {
+  border: 0;
+  background: transparent;
+  color: #374151;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.order-date-picker-day:hover {
+  background: #eaf4ff;
+}
+
+.order-date-picker-day.is-selected {
+  background: #0073ea;
+  color: #ffffff;
+}
+
+.order-date-picker-day.is-muted {
+  color: #b6bdc8;
+}
+
+.order-time-list {
+  position: absolute;
+  right: 8px;
+  top: 72px;
+  width: 96px;
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid #d0d7e2;
+  border-radius: 6px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
+  z-index: 10000;
+}
+
+.order-time-option {
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  color: #374151;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.order-time-option:hover,
+.order-time-option.is-selected {
+  background: #eaf4ff;
+  color: #0073ea;
+}
+
+.order-date-picker-status {
+  min-height: 16px;
+  margin-top: 6px;
+  color: #c73557;
+  font-size: 12px;
+}
