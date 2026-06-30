@@ -20857,3 +20857,26 @@ body:has(.ob-wrap) .ob-wrap .order-date-cell.is-editing {
   font: var(--font-text2-normal) !important;
   color: var(--secondary-text-color) !important;
 }
+
+/* Monday table-grid parity: apply the supplied table cell contract to the div grid renderer. */
+body:has(.ob-wrap) .ob-wrap .monday-board.ops-board-table,
+body:has(.ob-wrap) .ob-wrap table {
+  border-collapse: collapse !important;
+  border-spacing: 0 !important;
+  width: 100% !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table th,
+body:has(.ob-wrap) .ob-wrap table td,
+body:has(.ob-wrap) .ob-wrap .monday-grid > .monday-cell {
+  border-bottom: var(--border-width) var(--border-style) var(--ui-border-color) !important;
+  padding: 15px var(--space-12) !important;
+  vertical-align: middle !important;
+  font-weight: var(--font-weight-normal) !important;
+  box-sizing: border-box !important;
+  align-items: center !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-column-header .monday-cell {
+  font-weight: var(--font-weight-normal) !important;
+}
