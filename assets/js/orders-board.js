@@ -1905,14 +1905,12 @@
     renderOrders(ordersCache);
   }
 
-  function initialsFromName(name) {
-    const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
-    if (!parts.length) return 'SS';
-    return parts.slice(0, 2).map((part) => part[0]).join('').toUpperCase();
+  function panelAuthorName() {
+    return 'Hambelela Operations';
   }
 
-  function panelAuthorName() {
-    return currentUser.name || 'Hambelela Operations';
+  function panelAuthorInitials() {
+    return 'SS';
   }
 
   function orderPanelTitle(order) {
@@ -1940,10 +1938,9 @@
   }
 
   function renderUpdateCard(body, timestamp = 'now') {
-    const initials = initialsFromName(panelAuthorName());
     return `<article class="order-update-card update-card">
       <div class="order-update-card-header">
-        <span class="order-panel-avatar order-update-avatar">${esc(initials)}</span>
+        <span class="order-panel-avatar order-update-avatar">${esc(panelAuthorInitials())}</span>
         <strong>${esc(panelAuthorName())}</strong>
         <small>${esc(timestamp)}</small>
       </div>
@@ -1968,7 +1965,7 @@
     currentOrder = ordersCache.find((order) => String(order.id) === String(orderId));
     if (!currentOrder) return;
     panelTitle.textContent = orderPanelTitle(currentOrder);
-    if (panelAvatar) panelAvatar.textContent = initialsFromName(panelAuthorName());
+    if (panelAvatar) panelAvatar.textContent = panelAuthorInitials();
     document.querySelectorAll('.updates-tabs button').forEach((button) => button.classList.remove('active', 'is-active'));
     document.querySelectorAll('.updates-tab-panel').forEach((section) => section.classList.remove('active'));
     panelUpdatesTab?.classList.add('active', 'is-active');

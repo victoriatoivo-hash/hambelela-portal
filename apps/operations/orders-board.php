@@ -171,9 +171,9 @@ include BASE_PATH . '/shared/sidebar.php';
             <div class="order-updates-content">
                 <div class="order-update-composer update-composer" id="order-update-composer">
                     <div class="order-format-toolbar" aria-hidden="true">
-                        <span>¶</span><span>B</span><span><em>I</em></span><span><u>U</u></span><span><s>S</s></span>
-                        <span>A</span><span>14</span><span>1.</span><span>•</span><span>▦</span><span><i data-lucide="link"></i></span>
-                        <span><i data-lucide="align-left"></i></span><span>—</span><span><i data-lucide="undo-2"></i></span><span><i data-lucide="check"></i></span>
+                        <span>P</span><span>B</span><span><em>I</em></span><span><u>U</u></span><span><s>S</s></span>
+                        <span>A</span><span>14</span><span>1.</span><span>UL</span><span>[]</span><span><i data-lucide="link"></i></span>
+                        <span><i data-lucide="align-left"></i></span><span>HR</span><span><i data-lucide="undo-2"></i></span><span><i data-lucide="check"></i></span>
                     </div>
                     <div class="order-update-editor" id="panel-update-editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Write an update and mention others with @"></div>
                     <div class="order-composer-bottom">
