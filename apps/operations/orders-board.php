@@ -149,29 +149,56 @@ include BASE_PATH . '/shared/sidebar.php';
 
     <div class="label-menu" id="board-label-menu" hidden></div>
     <div class="toolbar-popover" id="toolbar-popover" hidden></div>
-    <aside class="order-updates-panel" id="order-updates-panel" aria-hidden="true">
-        <div class="updates-panel-head">
-            <button type="button" data-panel-close><i data-lucide="x"></i></button>
-            <h2 id="panel-order-title">Order</h2>
-            <span class="avatar-dot">SS</span>
-            <button type="button"><i data-lucide="ellipsis"></i></button>
+    <aside class="order-updates-panel order-side-panel" id="order-updates-panel" aria-hidden="true">
+        <div class="order-panel-header updates-panel-head">
+            <button class="order-panel-close" type="button" data-panel-close aria-label="Close order details"><i data-lucide="x"></i></button>
+            <h2 class="order-panel-title" id="panel-order-title">Order</h2>
+            <button class="order-panel-icon-button" type="button" aria-label="Open order comments"><i data-lucide="message-circle"></i></button>
+            <span class="order-panel-avatar" id="panel-order-avatar">SS</span>
+            <button class="order-panel-menu" type="button" aria-label="More order actions"><i data-lucide="ellipsis"></i></button>
         </div>
-        <nav class="updates-tabs">
-            <button class="active" type="button" data-panel-tab="updates"><i data-lucide="home"></i> Updates / 1</button>
+        <nav class="order-panel-tabs updates-tabs">
+            <button class="order-panel-tab is-active active" type="button" data-panel-tab="updates" id="panel-updates-tab">Updates</button>
             <button type="button" data-panel-tab="files">Files</button>
             <button type="button" data-panel-tab="activity">Activity Log</button>
             <button type="button">+</button>
         </nav>
         <section class="updates-tab-panel active" data-panel-name="updates">
-            <div class="update-composer">
-                <textarea id="panel-notes" placeholder="Write an update and mention others with @"></textarea>
-                <div><span>@</span><span>GIF</span><span>Smile</span><button type="button" data-save-notes>Update</button></div>
+            <div class="order-update-meta-actions">
+                <span><i data-lucide="mail"></i> Update via email</span>
+                <span><i data-lucide="message-square-heart"></i> Give feedback</span>
             </div>
-            <article class="update-card">
-                <div><span class="avatar-dot">SS</span><strong>Hambelela Operations</strong><small>now</small></div>
-                <p id="panel-note-preview">No updates yet.</p>
-                <footer><button type="button"><i data-lucide="thumbs-up"></i> Like</button><button type="button"><i data-lucide="reply"></i> Reply</button></footer>
-            </article>
+            <div class="order-updates-content">
+                <div class="order-update-composer update-composer" id="order-update-composer">
+                    <div class="order-format-toolbar" aria-hidden="true">
+                        <span>¶</span><span>B</span><span><em>I</em></span><span><u>U</u></span><span><s>S</s></span>
+                        <span>A</span><span>14</span><span>1.</span><span>•</span><span>▦</span><span><i data-lucide="link"></i></span>
+                        <span><i data-lucide="align-left"></i></span><span>—</span><span><i data-lucide="undo-2"></i></span><span><i data-lucide="check"></i></span>
+                    </div>
+                    <div class="order-update-editor" id="panel-update-editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Write an update and mention others with @"></div>
+                    <div class="order-composer-bottom">
+                        <div class="order-composer-icons">
+                            <span>@</span><span><i data-lucide="paperclip"></i></span><span>GIF</span><span><i data-lucide="smile"></i></span><span><i data-lucide="sparkles"></i></span>
+                        </div>
+                        <div class="order-update-submit-wrap">
+                            <button class="order-update-button" type="button" data-save-notes>Update</button>
+                            <button class="order-update-dropdown-button" type="button" data-update-schedule-toggle aria-label="Schedule update"><i data-lucide="chevron-down"></i></button>
+                            <div class="order-schedule-popover" id="order-schedule-popover" hidden>
+                                <button class="order-schedule-option" type="button" data-schedule-option>Tomorrow at 09:00 AM</button>
+                                <button class="order-schedule-option" type="button" data-schedule-option>Monday at 09:00 AM</button>
+                                <div class="order-schedule-divider"></div>
+                                <button class="order-schedule-option" type="button" data-schedule-option>Custom time</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="order-empty-updates" id="panel-empty-updates" hidden>
+                    <div class="order-empty-illustration" aria-hidden="true"><i data-lucide="messages-square"></i></div>
+                    <div class="order-empty-title">No updates yet</div>
+                    <p class="order-empty-text">Share progress, mention a teammate, or upload a file to get things moving</p>
+                </div>
+                <div id="panel-updates-list" class="order-updates-list"></div>
+            </div>
         </section>
         <section class="updates-tab-panel" data-panel-name="files">
             <label class="file-drop">Upload file, proof of payment, delivery note or packing photo<input type="file"></label>

@@ -14,8 +14,13 @@
   const panel = document.getElementById('order-updates-panel');
   const backdrop = document.getElementById('panel-backdrop');
   const panelTitle = document.getElementById('panel-order-title');
-  const panelNotes = document.getElementById('panel-notes');
-  const panelPreview = document.getElementById('panel-note-preview');
+  const panelAvatar = document.getElementById('panel-order-avatar');
+  const panelEditor = document.getElementById('panel-update-editor');
+  const panelComposer = document.getElementById('order-update-composer');
+  const panelUpdatesList = document.getElementById('panel-updates-list');
+  const panelEmptyUpdates = document.getElementById('panel-empty-updates');
+  const panelUpdatesTab = document.getElementById('panel-updates-tab');
+  const schedulePopover = document.getElementById('order-schedule-popover');
   const panelActivity = document.getElementById('panel-activity-log');
   const undoButton = document.querySelector('[data-undo-board]');
 
@@ -72,9 +77,20 @@
   const expandedGroups = new Set();
   const groupColours = ['#c73557', '#ec4899', '#10b981', '#8b5cf6', '#f97316', '#14b8a6', '#f59e0b', '#ef4444'];
   const fallbackBarColour = '#c4c4c4';
-  const resizableOrderColumns = [
-    'task', 'comment', 'date', 'mobile', 'mode', 'amount', 'payment', 'paid', 'status', 'packedBy', 'text'
-  ];
+  const COLUMN_STORAGE_KEY = 'ordersBoardColumnWidths';
+  const columnVarMap = {
+    task: '--orders-col-task',
+    comment: '--orders-col-updates',
+    date: '--orders-col-date',
+    mobile: '--orders-col-mobile',
+    mode: '--orders-col-mode',
+    amount: '--orders-col-amount',
+    payment: '--orders-col-payment',
+    paid: '--orders-col-paid',
+    status: '--orders-col-status',
+    packedBy: '--orders-col-packed-by',
+    text: '--orders-col-text'
+  };
   const columnMinWidths = {
     task: 160,
     comment: 38,
@@ -89,6 +105,7 @@
     text: 160
   };
   let resizingColumn = null;
+  let resizingHandle = null;
   let resizeStartX = 0;
   let resizeStartWidth = 0;
   let labelEditorAutosaveTimer = null;
@@ -165,30 +182,50 @@
     return `<div class="monday-cell ob-col-th column-header ${cssClass}" data-column-key="${esc(key)}" data-column="${esc(column)}">${label}<span class="column-resizer" data-column-resizer="${esc(column)}"></span></div>`;
   }
 
+  function columnWidthTarget() {
+    return page || document.documentElement;
+  }
+
+  function setColumnWidth(column, width) {
+    const cssVar = columnVarMap[column];
+    if (!cssVar) return;
+    const minWidth = columnMinWidths[column] || 40;
+    const nextWidth = Math.max(minWidth, Number(width) || minWidth);
+    columnWidthTarget().style.setProperty(cssVar, `${Math.round(nextWidth)}px`);
+  }
+
+  function columnWidth(column, fallbackElement = null) {
+    const cssVar = columnVarMap[column];
+    if (!cssVar) return fallbackElement?.getBoundingClientRect().width || 0;
+    const width = parseFloat(getComputedStyle(columnWidthTarget()).getPropertyValue(cssVar));
+    if (Number.isFinite(width) && width > 0) return width;
+    return fallbackElement?.getBoundingClientRect().width || 0;
+  }
+
   function loadSavedColumnWidths() {
     let saved = {};
     try {
-      saved = JSON.parse(window.localStorage?.getItem('ordersBoardColumnWidths') || '{}') || {};
+      saved = JSON.parse(window.localStorage?.getItem(COLUMN_STORAGE_KEY) || '{}') || {};
     } catch (error) {
       saved = {};
     }
 
     Object.entries(saved).forEach(([column, width]) => {
-      if (!resizableOrderColumns.includes(column)) return;
+      if (!columnVarMap[column]) return;
       if (!/^\d+(\.\d+)?px$/.test(String(width).trim())) return;
-      document.documentElement.style.setProperty(`--orders-col-${column}`, String(width).trim());
+      setColumnWidth(column, parseFloat(width));
     });
   }
 
   function saveColumnWidths() {
-    const styles = getComputedStyle(document.documentElement);
+    const styles = getComputedStyle(columnWidthTarget());
     const widths = {};
-    resizableOrderColumns.forEach((column) => {
-      const width = styles.getPropertyValue(`--orders-col-${column}`).trim();
+    Object.entries(columnVarMap).forEach(([column, cssVar]) => {
+      const width = styles.getPropertyValue(cssVar).trim();
       if (width) widths[column] = width;
     });
     try {
-      window.localStorage?.setItem('ordersBoardColumnWidths', JSON.stringify(widths));
+      window.localStorage?.setItem(COLUMN_STORAGE_KEY, JSON.stringify(widths));
     } catch (error) {
       // Column resizing should still work even if browser storage is unavailable.
     }
@@ -1868,12 +1905,76 @@
     renderOrders(ordersCache);
   }
 
+  function initialsFromName(name) {
+    const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return 'SS';
+    return parts.slice(0, 2).map((part) => part[0]).join('').toUpperCase();
+  }
+
+  function panelAuthorName() {
+    return currentUser.name || 'Hambelela Operations';
+  }
+
+  function orderPanelTitle(order) {
+    const number = String(order?.order_number || '').replace(/^WEB-/, '');
+    const name = String(order?.customer_name || '').trim();
+    return `#${number}${name ? ` ${name}` : ''}`;
+  }
+
+  function savedUpdateBody(order) {
+    const body = String(order?.notes || '').trim();
+    if (!body) return '';
+    if (/^(shipping address|customer note):/i.test(body)) return '';
+    return body;
+  }
+
+  function resetPanelComposer() {
+    if (panelEditor) panelEditor.textContent = '';
+    if (panelComposer) panelComposer.classList.remove('is-focused', 'is-saving');
+    if (schedulePopover) schedulePopover.hidden = true;
+  }
+
+  function updatePanelTabCount(count) {
+    if (!panelUpdatesTab) return;
+    panelUpdatesTab.textContent = count > 0 ? `Updates / ${count}` : 'Updates';
+  }
+
+  function renderUpdateCard(body, timestamp = 'now') {
+    const initials = initialsFromName(panelAuthorName());
+    return `<article class="order-update-card update-card">
+      <div class="order-update-card-header">
+        <span class="order-panel-avatar order-update-avatar">${esc(initials)}</span>
+        <strong>${esc(panelAuthorName())}</strong>
+        <small>${esc(timestamp)}</small>
+      </div>
+      <div class="order-update-card-body">${esc(body).replace(/\n/g, '<br>')}</div>
+      <footer class="order-update-card-actions">
+        <button type="button"><i data-lucide="thumbs-up"></i> Like</button>
+        <button type="button"><i data-lucide="reply"></i> Reply</button>
+      </footer>
+    </article>`;
+  }
+
+  function renderPanelUpdates() {
+    const body = savedUpdateBody(currentOrder);
+    const hasUpdate = body !== '';
+    updatePanelTabCount(hasUpdate ? 1 : 0);
+    if (panelUpdatesList) panelUpdatesList.innerHTML = hasUpdate ? renderUpdateCard(body, 'saved update') : '';
+    if (panelEmptyUpdates) panelEmptyUpdates.hidden = hasUpdate;
+    if (window.lucide) window.lucide.createIcons();
+  }
+
   function openPanel(orderId) {
     currentOrder = ordersCache.find((order) => String(order.id) === String(orderId));
     if (!currentOrder) return;
-    panelTitle.textContent = currentOrder.order_number.replace(/^WEB-/, '') + ' ' + currentOrder.customer_name;
-    panelNotes.value = currentOrder.notes || '';
-    panelPreview.textContent = currentOrder.notes || 'No updates yet.';
+    panelTitle.textContent = orderPanelTitle(currentOrder);
+    if (panelAvatar) panelAvatar.textContent = initialsFromName(panelAuthorName());
+    document.querySelectorAll('.updates-tabs button').forEach((button) => button.classList.remove('active', 'is-active'));
+    document.querySelectorAll('.updates-tab-panel').forEach((section) => section.classList.remove('active'));
+    panelUpdatesTab?.classList.add('active', 'is-active');
+    document.querySelector('[data-panel-name="updates"]')?.classList.add('active');
+    resetPanelComposer();
+    renderPanelUpdates();
     panelActivity.innerHTML = `
       <div class="activity-line">Created ${esc(prettyDate(orderDisplayDateTime(currentOrder)))}</div>
       <div class="activity-line">Status: ${esc(findText(statusLabels, currentOrder.status))}</div>
@@ -1889,6 +1990,7 @@
     panel.classList.remove('open');
     panel.setAttribute('aria-hidden', 'true');
     backdrop.hidden = true;
+    resetPanelComposer();
   }
 
   async function refresh(trigger = null) {
@@ -1966,28 +2068,30 @@
 
     const headerCell = handle.closest('.column-header');
     const column = headerCell?.dataset.column || handle.dataset.columnResizer;
-    if (!headerCell || !resizableOrderColumns.includes(column)) return;
+    if (!headerCell || !columnVarMap[column]) return;
 
     event.preventDefault();
     event.stopPropagation();
     resizingColumn = column;
+    resizingHandle = handle;
     resizeStartX = event.clientX;
-    resizeStartWidth = headerCell.getBoundingClientRect().width;
+    resizeStartWidth = columnWidth(column, headerCell);
     document.body.classList.add('is-resizing-column');
+    resizingHandle.classList.add('is-active');
   });
 
   document.addEventListener('mousemove', (event) => {
     if (!resizingColumn) return;
     event.preventDefault();
-    const minWidth = columnMinWidths[resizingColumn] || 60;
-    const nextWidth = Math.max(minWidth, resizeStartWidth + event.clientX - resizeStartX);
-    document.documentElement.style.setProperty(`--orders-col-${resizingColumn}`, `${Math.round(nextWidth)}px`);
+    setColumnWidth(resizingColumn, resizeStartWidth + event.clientX - resizeStartX);
   });
 
   document.addEventListener('mouseup', () => {
     if (!resizingColumn) return;
     saveColumnWidths();
+    resizingHandle?.classList.remove('is-active');
     resizingColumn = null;
+    resizingHandle = null;
     document.body.classList.remove('is-resizing-column');
   });
 
@@ -2031,6 +2135,8 @@
     const refreshButton = event.target.closest('[data-board-refresh]');
     const themeToggle = event.target.closest('[data-theme-toggle]');
     const saveNotes = event.target.closest('[data-save-notes]');
+    const scheduleToggle = event.target.closest('[data-update-schedule-toggle]');
+    const scheduleOption = event.target.closest('[data-schedule-option]');
     const addColumn = event.target.closest('[data-add-column]');
     const colClose = event.target.closest('[data-col-close]');
     const colOverlay = event.target.closest('#board-column-overlay');
@@ -2296,9 +2402,9 @@
       if (closeButton || event.target === backdrop) closePanel();
 
       if (tab) {
-        document.querySelectorAll('.updates-tabs button').forEach((button) => button.classList.remove('active'));
+        document.querySelectorAll('.updates-tabs button').forEach((button) => button.classList.remove('active', 'is-active'));
         document.querySelectorAll('.updates-tab-panel').forEach((section) => section.classList.remove('active'));
-        tab.classList.add('active');
+        tab.classList.add('active', 'is-active');
         document.querySelector(`[data-panel-name="${tab.dataset.panelTab}"]`)?.classList.add('active');
       }
 
@@ -2369,11 +2475,38 @@
         localStorage.setItem('hambelelaBoardTheme', next);
       }
 
+      if (scheduleToggle) {
+        event.preventDefault();
+        if (schedulePopover) schedulePopover.hidden = !schedulePopover.hidden;
+        return;
+      }
+
+      if (scheduleOption) {
+        event.preventDefault();
+        if (schedulePopover) schedulePopover.hidden = true;
+        if (panelEditor) panelEditor.focus();
+        return;
+      }
+
       if (saveNotes && currentOrder) {
-        await post('update_field', { order_id: currentOrder.id, field: 'notes', value: panelNotes.value });
-        currentOrder.notes = panelNotes.value;
-        panelPreview.textContent = panelNotes.value || 'No updates yet.';
-        await refresh();
+        const body = String(panelEditor?.innerText || '').trim();
+        if (!body) {
+          panelComposer?.classList.add('is-focused');
+          panelEditor?.focus();
+          return;
+        }
+        panelComposer?.classList.add('is-saving');
+        try {
+          await post('update_field', { order_id: currentOrder.id, field: 'notes', value: body });
+          currentOrder.notes = body;
+          const cachedOrder = ordersCache.find((order) => String(order.id) === String(currentOrder.id));
+          if (cachedOrder) cachedOrder.notes = body;
+          resetPanelComposer();
+          renderPanelUpdates();
+          if (syncState) syncState.textContent = 'Update saved.';
+        } finally {
+          panelComposer?.classList.remove('is-saving');
+        }
       }
 
       if (addTask) window.location.href = `orders.php?date=${encodeURIComponent(addTask.dataset.addTask)}`;
@@ -2385,12 +2518,25 @@
   document.addEventListener('click', (event) => {
     if (!event.target.closest('#board-label-menu') && !event.target.closest('[data-label-field]')) closeLabelMenu();
     if (!event.target.closest('#toolbar-popover') && !event.target.closest('[data-toolbar]')) closeToolbar();
+    if (event.target.closest('.order-update-composer')) {
+      panelComposer?.classList.add('is-focused');
+      if (!event.target.closest('button') && panelEditor) panelEditor.focus();
+    } else if (panelComposer && panel?.classList.contains('open')) {
+      panelComposer.classList.remove('is-focused');
+      if (schedulePopover) schedulePopover.hidden = true;
+    }
+    if (!event.target.closest('.order-update-submit-wrap') && schedulePopover) schedulePopover.hidden = true;
     if (!event.target.closest('.ob-group-header.is-date-editing') && !event.target.closest('[data-edit-group-date]')) {
       closeGroupDatePopover();
     }
   });
 
   document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && schedulePopover && !schedulePopover.hidden) {
+      schedulePopover.hidden = true;
+      return;
+    }
+
     const richNameInput = event.target.closest('[data-rich-label-name]');
     if (richNameInput && event.key === 'Enter') {
       event.preventDefault();
