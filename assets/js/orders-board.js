@@ -2108,8 +2108,28 @@
   function runPanelEditorCommand(command, value = null) {
     if (!panelEditor || !command) return;
     restorePanelEditorSelection();
-    if (!panelEditorHasSelection() && ['bold', 'italic', 'underline', 'strikeThrough', 'foreColor', 'fontSize'].includes(command) && panelEditorText()) {
-      selectPanelEditorContents();
+    if (!panelEditorHasSelection() && panelEditorText()) {
+      const wrapperTags = {
+        bold: 'strong',
+        italic: 'em',
+        underline: 'u',
+        strikeThrough: 's'
+      };
+      if (wrapperTags[command]) {
+        const tag = wrapperTags[command];
+        panelEditor.innerHTML = `<${tag}>${panelEditor.innerHTML}</${tag}>`;
+        savePanelEditorSelection();
+        panelComposer?.classList.add('is-focused');
+        panelEditor.focus();
+        return;
+      }
+      if (command === 'foreColor' && value) {
+        panelEditor.innerHTML = `<span style="color:${esc(value)}">${panelEditor.innerHTML}</span>`;
+        savePanelEditorSelection();
+        panelComposer?.classList.add('is-focused');
+        panelEditor.focus();
+        return;
+      }
     }
     if (command === 'createLink') {
       const url = window.prompt('Enter link URL');
