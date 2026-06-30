@@ -1135,11 +1135,16 @@ try {
         }
 
         $allowed = [
+            'customer_name' => 'customer_name',
+            'customer_contact' => 'customer_contact',
+            'total_amount' => 'total_amount',
             'payment_status' => 'payment_status',
             'order_type' => 'order_type',
             'payment_method' => 'payment_method',
             'status' => 'status',
             'assigned_packer_id' => 'assigned_packer_id',
+            'notes' => 'notes',
+            'created_at' => ops_order_display_datetime_update_column(),
         ];
 
         if (!isset($allowed[$field])) {
@@ -1150,12 +1155,35 @@ try {
             throw new RuntimeException('Only admin, front desk or supervisor can bulk assign orders.');
         }
 
+        if ($field === 'created_at' && !user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager')) {
+            throw new RuntimeException('Only admin, front desk or supervisor can bulk change order dates.');
+        }
+
         if ($field === 'payment_status' && !in_array($value, ['paid', 'unpaid', 'partial', 'refunded'], true)) {
             throw new RuntimeException('Invalid payment status.');
         }
 
         if ($field === 'status' && !array_key_exists($value, OPS_ORDER_STATUSES)) {
             throw new RuntimeException('Invalid status.');
+        }
+
+        if ($field === 'created_at') {
+            if (!preg_match('/^\d{4}-\d{2}-\d{2} ([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/', $value)) {
+                throw new RuntimeException('Invalid order date/time.');
+            }
+            $timestamp = strtotime($value);
+            if ($timestamp === false) {
+                throw new RuntimeException('Invalid order date/time.');
+            }
+            $value = date('Y-m-d H:i:s', $timestamp);
+        }
+
+        if ($field === 'total_amount') {
+            $value = preg_replace('/[^\d.]/', '', $value) ?? '';
+            if ($value === '' || !is_numeric($value)) {
+                throw new RuntimeException('Enter a valid amount.');
+            }
+            $value = number_format((float) $value, 2, '.', '');
         }
 
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
@@ -1166,6 +1194,16 @@ try {
             if (ops_column_exists('ops_orders', 'assigned_at')) {
                 $set .= ', assigned_at = CASE WHEN ? IS NULL THEN NULL ELSE COALESCE(assigned_at, NOW()) END';
                 $params[] = $value;
+            }
+        } elseif ($field === 'status') {
+            if ($value === 'in_progress' && ops_column_exists('ops_orders', 'packing_started_at')) {
+                $set .= ', packing_started_at = COALESCE(packing_started_at, NOW())';
+            }
+            if ($value === 'completed') {
+                if (ops_column_exists('ops_orders', 'packing_started_at')) {
+                    $set .= ', packing_started_at = COALESCE(packing_started_at, NOW())';
+                }
+                $set .= ', packed_at = COALESCE(packed_at, NOW()), completed_at = COALESCE(completed_at, NOW())';
             }
         }
 

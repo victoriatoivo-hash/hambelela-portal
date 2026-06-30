@@ -390,8 +390,8 @@
   async function saveEditableOrderField(orderId, field, inputValue) {
     let value = String(inputValue || '').trim();
     if (field === 'total_amount') value = parseBoardAmount(value);
-    await post('update_field', { order_id: orderId, field, value });
-    const order = updateOrderCacheField(orderId, field, value);
+    await updateOrdersField(currentSelectedIdsFor(orderId), field, value);
+    const order = ordersCache.find((item) => String(item.id) === String(orderId)) || null;
     return order;
   }
 
@@ -510,6 +510,7 @@
     if (!order) return '';
     if (field === 'payment_status') return order.payment_status || 'unpaid';
     if (field === 'assigned_packer_id') return order.assigned_packer_id || '';
+    if (field === 'created_at') return orderDisplayDateTime(order) || '';
     return order[field] ?? '';
   }
 
@@ -520,23 +521,75 @@
       return { id, field, value: orderFieldValue(order, field) };
     });
 
-    if (ids.length > 1) {
-      await post('bulk_update', { order_ids: ids.join(','), field, value });
-    } else {
-      await post('update_field', { order_id: ids[0], field, value });
+    const rows = ids
+      .map((id) => document.querySelector(`.monday-order-row[data-order-id="${selectorEsc(id)}"]`))
+      .filter(Boolean);
+    rows.forEach((row) => {
+      row.classList.remove('has-error');
+      row.classList.add('is-saving');
+    });
+
+    const postSingleUpdate = (id) => field === 'created_at'
+      ? post('update_order_datetime', { order_id: id, date_time: value })
+      : post('update_field', { order_id: id, field, value });
+
+    let savedIds = ids;
+    try {
+      if (field === 'created_at') {
+        if (ids.length > 1) {
+          await post('bulk_update', { order_ids: ids.join(','), field, value });
+        } else {
+          await postSingleUpdate(ids[0]);
+        }
+      } else if (ids.length > 1) {
+        await post('bulk_update', { order_ids: ids.join(','), field, value });
+      } else {
+        await postSingleUpdate(ids[0]);
+      }
+    } catch (error) {
+      if (ids.length <= 1) {
+        rows.forEach((row) => row.classList.add('has-error'));
+        throw error;
+      }
+
+      const succeeded = [];
+      const failed = [];
+      for (const id of ids) {
+        try {
+          await postSingleUpdate(id);
+          succeeded.push(id);
+        } catch (innerError) {
+          failed.push(id);
+        }
+      }
+
+      if (!succeeded.length) {
+        rows.forEach((row) => row.classList.add('has-error'));
+        throw error;
+      }
+
+      savedIds = succeeded;
+      failed.forEach((id) => {
+        document.querySelector(`.monday-order-row[data-order-id="${selectorEsc(id)}"]`)?.classList.add('has-error');
+      });
+      if (syncState && failed.length) {
+        syncState.textContent = `Saved ${succeeded.length} selected orders; ${failed.length} failed.`;
+      }
+    } finally {
+      rows.forEach((row) => row.classList.remove('is-saving'));
     }
 
     ordersCache.forEach((order) => {
-      if (ids.includes(String(order.id))) {
-        order[field] = value;
-        if (field === 'assigned_packer_id') {
-          const packer = packersCache.find((item) => String(item.id) === String(value));
-          order.packer_name = packer?.full_name || '';
-        }
+      if (savedIds.includes(String(order.id))) {
+        updateOrderCacheField(order.id, field, value);
       }
     });
-    setUndo(changes);
-    return changes;
+    const savedChanges = changes.filter((change) => savedIds.includes(change.id));
+    setUndo(savedChanges);
+    if (syncState && ids.length > 1 && savedIds.length === ids.length) {
+      syncState.textContent = `Saved ${ids.length} selected orders.`;
+    }
+    return savedChanges;
   }
 
   function isCompleteStatus(value) {
@@ -953,17 +1006,13 @@
     orderDatePicker.time = newTime;
     setOrderDatePickerStatus('Saving...');
     try {
-      const data = await post('update_order_datetime', { order_id: orderId, date_time: dateTime });
-      const savedDateTime = data.date_time || dateTime;
-      const previousValue = orderDisplayDateTime(ordersCache.find((order) => String(order.id) === orderId)) || '';
-      ordersCache.forEach((order) => {
-        if (String(order.id) === orderId) {
-          order.created_at = savedDateTime;
-          order.displayed_order_datetime = savedDateTime;
-        }
-      });
-      setUndo([{ id: orderId, field: 'created_at', value: previousValue }]);
-      if (syncState) syncState.textContent = `Order date changed to ${prettyDate(savedDateTime)}.`;
+      const ids = currentSelectedIdsFor(orderId);
+      await updateOrdersField(ids, 'created_at', dateTime);
+      if (syncState) {
+        syncState.textContent = ids.length > 1
+          ? `Changed date for ${ids.length} selected orders to ${prettyDate(dateTime)}.`
+          : `Order date changed to ${prettyDate(dateTime)}.`;
+      }
       closeOrderDatePicker();
       renderOrders(ordersCache);
     } catch (error) {
@@ -3153,13 +3202,16 @@
         }
         panelComposer?.classList.add('is-saving');
         try {
-          await post('update_field', { order_id: currentOrder.id, field: 'notes', value: bodyHtml });
+          const noteIds = currentSelectedIdsFor(currentOrder.id);
+          await updateOrdersField(noteIds, 'notes', bodyHtml);
           currentOrder.notes = bodyHtml;
-          const cachedOrder = ordersCache.find((order) => String(order.id) === String(currentOrder.id));
-          if (cachedOrder) cachedOrder.notes = bodyHtml;
           resetPanelComposer();
           renderPanelUpdates();
-          if (syncState) syncState.textContent = 'Update saved.';
+          if (syncState) {
+            syncState.textContent = noteIds.length > 1
+              ? `Update saved to ${noteIds.length} selected orders.`
+              : 'Update saved.';
+          }
         } finally {
           panelComposer?.classList.remove('is-saving');
         }
