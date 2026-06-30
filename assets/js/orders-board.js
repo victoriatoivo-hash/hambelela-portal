@@ -773,6 +773,11 @@
     orderDatePicker = null;
   }
 
+  function setOrderDatePickerStatus(message) {
+    const status = orderDatePicker?.popover?.querySelector('[data-order-date-status]');
+    if (status) status.textContent = message || '';
+  }
+
   function renderOrderDatePicker() {
     if (!orderDatePicker?.popover) return;
     const selectedParts = dateTimeParts(combineDateTime(orderDatePicker.date, orderDatePicker.time));
@@ -802,25 +807,42 @@
     positionOrderDatePicker();
   }
 
-  async function saveOrderDateTime(newDate, newTime) {
+  async function commitOrderDatePicker(newDate = orderDatePicker?.date, newTime = orderDatePicker?.time) {
     if (!orderDatePicker?.orderId) return;
+    if (orderDatePicker.saving) return;
     const orderId = String(orderDatePicker.orderId);
+    const dateInput = orderDatePicker.popover?.querySelector('[data-order-date-input]');
+    const timeInput = orderDatePicker.popover?.querySelector('[data-order-time-input]');
+    if (dateInput && /^\d{4}-\d{2}-\d{2}$/.test(dateInput.value)) newDate = dateInput.value;
+    if (timeInput && /^\d{2}:\d{2}$/.test(timeInput.value)) newTime = timeInput.value;
     const dateTime = combineDateTime(newDate, newTime);
-    const status = orderDatePicker.popover?.querySelector('[data-order-date-status]');
-    if (status) status.textContent = 'Saving...';
-    const data = await post('update_order_datetime', { order_id: orderId, date_time: dateTime });
-    const savedDateTime = data.date_time || dateTime;
-    const previousValue = orderDisplayDateTime(ordersCache.find((order) => String(order.id) === orderId)) || '';
-    ordersCache.forEach((order) => {
-      if (String(order.id) === orderId) {
-        order.created_at = savedDateTime;
-        order.displayed_order_datetime = savedDateTime;
-      }
-    });
-    setUndo([{ id: orderId, field: 'created_at', value: previousValue }]);
-    if (syncState) syncState.textContent = `Order date changed to ${prettyDate(savedDateTime)}.`;
-    closeOrderDatePicker();
-    renderOrders(ordersCache);
+    orderDatePicker.saving = true;
+    orderDatePicker.date = newDate;
+    orderDatePicker.time = newTime;
+    setOrderDatePickerStatus('Saving...');
+    try {
+      const data = await post('update_order_datetime', { order_id: orderId, date_time: dateTime });
+      const savedDateTime = data.date_time || dateTime;
+      const previousValue = orderDisplayDateTime(ordersCache.find((order) => String(order.id) === orderId)) || '';
+      ordersCache.forEach((order) => {
+        if (String(order.id) === orderId) {
+          order.created_at = savedDateTime;
+          order.displayed_order_datetime = savedDateTime;
+        }
+      });
+      setUndo([{ id: orderId, field: 'created_at', value: previousValue }]);
+      if (syncState) syncState.textContent = `Order date changed to ${prettyDate(savedDateTime)}.`;
+      closeOrderDatePicker();
+      renderOrders(ordersCache);
+    } catch (error) {
+      orderDatePicker.saving = false;
+      setOrderDatePickerStatus(String(error?.message || 'Could not save date/time.'));
+      throw error;
+    }
+  }
+
+  async function saveOrderDateTime(newDate, newTime) {
+    return commitOrderDatePicker(newDate, newTime);
   }
 
   function openOrderDatePicker(dateCell) {
@@ -2319,12 +2341,17 @@
       if (orderDateCell) {
         event.preventDefault();
         event.stopPropagation();
+        if (orderDatePicker?.cell === orderDateCell) {
+          await commitOrderDatePicker();
+          return;
+        }
         openOrderDatePicker(orderDateCell);
         return;
       }
 
       if (orderDatePicker) {
-        closeOrderDatePicker();
+        await commitOrderDatePicker();
+        return;
       }
 
       if (groupDateEdit) {
@@ -2637,6 +2664,18 @@
   });
 
   document.addEventListener('keydown', (event) => {
+    if (orderDatePicker && (event.key === 'Enter' || event.key === 'Tab')) {
+      event.preventDefault();
+      commitOrderDatePicker().catch(showError);
+      return;
+    }
+
+    if (orderDatePicker && event.key === 'Escape') {
+      event.preventDefault();
+      closeOrderDatePicker();
+      return;
+    }
+
     if (event.key === 'Escape' && schedulePopover && !schedulePopover.hidden) {
       schedulePopover.hidden = true;
       return;
