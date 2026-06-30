@@ -19408,12 +19408,12 @@ body:has(.ob-wrap) .ob-wrap .monday-cell.col-task-icon button[data-open-panel] s
   --orders-col-mode: 110px;
   --orders-col-amount: 110px;
   --orders-col-payment: 140px;
-  --orders-col-paid: 80px;
+  --orders-col-paid: 56px;
   --orders-col-status: 140px;
   --orders-col-packedBy: 140px;
   --orders-col-text: 260px;
   --orders-col-add: 34px;
-  --orders-grid-min-width: 1520px;
+  --orders-grid-min-width: 1496px;
   --orders-grid-columns:
     var(--orders-col-check)
     var(--orders-col-task)
@@ -20923,6 +20923,43 @@ body:has(.ob-wrap) .ob-wrap div.ob-group-footer {
 body:has(.ob-wrap) .ob-wrap div.ob-group-footer > .monday-cell {
   min-height: var(--orders-monday-row-height) !important;
   height: var(--orders-monday-row-height) !important;
+}
+
+/* Orders Board footer distribution bars: prevent inherited float/block segment sizing. */
+body:has(.ob-wrap) .ob-wrap .monday-group .ob-stacked-bar,
+body:has(.ob-wrap) .ob-wrap div.ob-group-footer .ob-stacked-bar {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  gap: 0 !important;
+  width: min(96px, 100%) !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  height: 20px !important;
+  min-height: 20px !important;
+  max-height: 20px !important;
+  margin: 0 auto !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group .ob-stacked-bar > .ob-bar-segment,
+body:has(.ob-wrap) .ob-wrap div.ob-group-footer .ob-stacked-bar > .ob-bar-segment {
+  display: block !important;
+  float: none !important;
+  height: 100% !important;
+  min-height: 100% !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  flex-basis: 0 !important;
+  flex-shrink: 1 !important;
+  box-sizing: border-box !important;
 }
 
 /* Bottom rows need compact spreadsheet spacing, not the taller body-row padding. */
