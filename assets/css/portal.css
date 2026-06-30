@@ -18554,13 +18554,14 @@ body:has(.ob-wrap) .ob-wrap .monday-grid {
 }
 
 body:has(.ob-wrap) .ob-wrap .monday-group-summary {
-  min-height: 68px !important;
+  min-height: 60px !important;
+  height: 60px !important;
+  max-height: 60px !important;
   background: #ffffff !important;
 }
 
 body:has(.ob-wrap) .ob-wrap .monday-cell {
   min-width: 0 !important;
-  min-height: 68px !important;
   padding: 6px 10px !important;
   border-right: 1px solid var(--board-line, #d0d4e4) !important;
   background: #ffffff !important;
@@ -18717,7 +18718,7 @@ body:has(.ob-wrap) .ob-wrap .monday-group .packer-cell-button {
 }
 
 body:has(.ob-wrap) .ob-wrap .monday-group.collapsed .monday-group-shell {
-  min-height: 68px !important;
+  min-height: 60px !important;
 }
 
 @media (max-width: 1200px) {
@@ -19781,7 +19782,9 @@ body:has(.ob-wrap) .ob-wrap .monday-cell > * {
 }
 
 body:has(.ob-wrap) .ob-wrap .monday-group-summary .monday-cell {
-  min-height: 68px !important;
+  min-height: 60px !important;
+  height: 60px !important;
+  max-height: 60px !important;
 }
 
 body:has(.ob-wrap) .ob-wrap .monday-column-header .monday-cell {
@@ -20671,7 +20674,7 @@ body:has(.ob-wrap) {
   --orders-monday-warning: var(--color-working_orange);
   --orders-monday-red: var(--color-stuck-red);
   --orders-monday-row-height: calc(var(--space-32) + var(--space-4));
-  --orders-monday-group-height: var(--space-64);
+  --orders-monday-group-height: 60px;
   --orders-monday-radius: var(--border-radius-medium);
   --orders-monday-shadow: var(--box-shadow-medium);
   --orders-monday-transition: var(--motion-productive-medium) var(--motion-timing-transition);
@@ -20731,7 +20734,9 @@ body:has(.ob-wrap) .ob-wrap .monday-group-bar {
 }
 
 body:has(.ob-wrap) .ob-wrap .monday-group-summary {
-  min-height: var(--orders-monday-group-height) !important;
+  min-height: 60px !important;
+  height: 60px !important;
+  max-height: 60px !important;
   background: var(--orders-monday-surface) !important;
 }
 
@@ -21015,7 +21020,9 @@ body:has(.ob-wrap) .ob-wrap .monday-group-bar {
 }
 
 body:has(.ob-wrap) .ob-wrap .monday-group-summary {
-  min-height: var(--space-64) !important;
+  min-height: 60px !important;
+  height: 60px !important;
+  max-height: 60px !important;
 }
 
 body:has(.ob-wrap) .ob-wrap .monday-cell {
@@ -21063,13 +21070,18 @@ body:has(.ob-wrap) .ob-wrap .monday-date-cell {
 
 body:has(.ob-wrap) .ob-wrap .monday-date-title,
 body:has(.ob-wrap) .ob-wrap .monday-group .ob-group-date-label {
-  font: var(--font-h3-medium) !important;
+  font: var(--font-text1-medium) !important;
+  font-size: 16px !important;
+  line-height: 1.15 !important;
   color: var(--ob-group-colour, var(--color-stuck-red)) !important;
 }
 
 body:has(.ob-wrap) .ob-wrap .monday-task-count,
 body:has(.ob-wrap) .ob-wrap .monday-group .ob-group-task-count {
   font: var(--font-text2-normal) !important;
+  font-size: 13px !important;
+  line-height: 1.15 !important;
+  margin-top: var(--space-2) !important;
   color: var(--secondary-text-color) !important;
 }
 
@@ -21567,6 +21579,62 @@ body:has(.ob-wrap) .ob-wrap .monday-group .paid-check {
 
 body:has(.ob-wrap) .ob-wrap .monday-group-summary {
   border-top: var(--border-width) var(--border-style) var(--ui-border-color) !important;
+  min-height: 60px !important;
+  height: 60px !important;
+  max-height: 60px !important;
+  align-items: stretch !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group.collapsed .monday-group-shell {
+  min-height: 60px !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group.collapsed .monday-group-summary::before {
+  height: 60px !important;
+  min-height: 60px !important;
+  max-height: 60px !important;
+  border-radius: var(--border-radius-medium) 0 0 var(--border-radius-medium) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group.collapsed .monday-group-summary > .monday-cell {
+  height: 60px !important;
+  min-height: 60px !important;
+  max-height: 60px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group.collapsed .monday-date-cell {
+  gap: 10px !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group.collapsed .monday-date-cell > span {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  line-height: 1.15 !important;
+  gap: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group.collapsed .ob-date-pill {
+  height: 22px !important;
+  min-height: 22px !important;
+  max-height: 22px !important;
+  line-height: 22px !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group.collapsed .ob-stacked-bar {
+  height: 18px !important;
+  min-height: 18px !important;
+  max-height: 18px !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group.collapsed .ob-stacked-bar > .ob-bar-segment {
+  max-height: 18px !important;
 }
 
 /* Paid column: Monday-style tick only, no checkbox component. */
