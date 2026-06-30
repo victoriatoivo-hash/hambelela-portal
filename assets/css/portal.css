@@ -20020,16 +20020,35 @@ body:has(.ob-wrap) .ob-wrap .board-label.mode-label:focus {
 
 #board-label-menu.mode-label-popover {
   position: fixed !important;
-  display: block !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0 !important;
   width: 760px !important;
-  max-width: calc(100vw - 16px) !important;
+  max-width: calc(100vw - 24px) !important;
   padding: 24px 24px 0 !important;
   border: 1px solid #d8dfec !important;
   border-radius: 8px !important;
   background: #ffffff !important;
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.22) !important;
+  color: #323338 !important;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18) !important;
   z-index: 9999 !important;
   overflow: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  transform: none !important;
+  animation: modeLabelPop 140ms ease-out !important;
+}
+
+@keyframes modeLabelPop {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 #board-label-menu.mode-label-popover,
@@ -20050,19 +20069,21 @@ body:has(.ob-wrap) .ob-wrap .board-label.mode-label:focus {
   transform: translateX(-50%) rotate(45deg) !important;
 }
 
-#board-label-menu .mode-label-grid {
+#board-label-menu.mode-label-popover .mode-label-grid {
   display: grid !important;
-  grid-template-columns: repeat(7, minmax(82px, 1fr)) !important;
+  grid-template-columns: repeat(7, minmax(86px, 1fr)) !important;
   gap: 8px 10px !important;
   width: 100% !important;
+  margin: 0 !important;
   max-height: none !important;
   overflow: visible !important;
   padding: 0 !important;
 }
 
-#board-label-menu .mode-label-option {
+#board-label-menu.mode-label-popover .mode-label-option {
   width: 100% !important;
   min-height: 32px !important;
+  line-height: 32px !important;
   margin: 0 !important;
   border: 0 !important;
   border-radius: 2px !important;
@@ -20075,21 +20096,27 @@ body:has(.ob-wrap) .ob-wrap .board-label.mode-label:focus {
   overflow: hidden !important;
   text-overflow: ellipsis !important;
   white-space: nowrap !important;
+  box-shadow: none !important;
+  transform: none !important;
 }
 
-#board-label-menu .mode-label-option:hover {
-  filter: brightness(0.95) !important;
+#board-label-menu.mode-label-popover .mode-label-option:hover {
+  opacity: 0.92 !important;
+  filter: none !important;
+  transform: none !important;
 }
 
-#board-label-menu .mode-label-actions {
+#board-label-menu.mode-label-popover .mode-label-actions {
   display: flex !important;
   justify-content: center !important;
-  padding: 14px 0 !important;
-  width: 100% !important;
+  width: auto !important;
+  margin: 12px -24px 0 !important;
+  padding: 10px 24px !important;
+  border-top: 0 !important;
 }
 
-#board-label-menu .mode-edit-labels-button,
-#board-label-menu .mode-label-apply {
+#board-label-menu.mode-label-popover .mode-edit-labels-button,
+#board-label-menu.mode-label-popover .mode-label-apply {
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -20102,10 +20129,11 @@ body:has(.ob-wrap) .ob-wrap .board-label.mode-label:focus {
   background: transparent !important;
   color: #374151 !important;
   font-size: 14px !important;
+  font-weight: 400 !important;
   cursor: pointer !important;
 }
 
-#board-label-menu .mode-label-footer {
+#board-label-menu.mode-label-popover .mode-label-footer {
   margin: 0 -24px !important;
   padding: 14px 24px !important;
   border-top: 1px solid #d8dfec !important;
@@ -20116,24 +20144,25 @@ body:has(.ob-wrap) .ob-wrap .board-label.mode-label:focus {
   border-radius: 0 0 8px 8px !important;
 }
 
-#board-label-menu .mode-label-edit-grid {
+#board-label-menu.mode-label-popover .mode-label-edit-grid {
   display: grid !important;
-  grid-template-columns: repeat(3, 1fr) !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   gap: 8px 16px !important;
   width: 100% !important;
+  margin: 0 !important;
   padding: 0 !important;
   max-height: none !important;
   overflow: visible !important;
 }
 
-#board-label-menu .mode-label-edit-item {
+#board-label-menu.mode-label-popover .mode-label-edit-item {
   display: flex !important;
   align-items: center !important;
   gap: 6px !important;
   min-width: 0 !important;
 }
 
-#board-label-menu .mode-label-colour-button {
+#board-label-menu.mode-label-popover .mode-label-colour-button {
   width: 30px !important;
   height: 30px !important;
   flex: 0 0 30px !important;
@@ -20144,7 +20173,7 @@ body:has(.ob-wrap) .ob-wrap .board-label.mode-label:focus {
   background: transparent !important;
 }
 
-#board-label-menu .mode-label-name-input {
+#board-label-menu.mode-label-popover .mode-label-name-input {
   width: 100% !important;
   height: 32px !important;
   min-width: 0 !important;
@@ -20156,12 +20185,12 @@ body:has(.ob-wrap) .ob-wrap .board-label.mode-label:focus {
   box-sizing: border-box !important;
 }
 
-#board-label-menu .mode-label-name-input:focus {
+#board-label-menu.mode-label-popover .mode-label-name-input:focus {
   outline: 2px solid #0073ea !important;
   outline-offset: -1px !important;
 }
 
-#board-label-menu .mode-new-label-button {
+#board-label-menu.mode-label-popover .mode-new-label-button {
   width: 100% !important;
   height: 32px !important;
   margin: 0 !important;
@@ -20174,7 +20203,7 @@ body:has(.ob-wrap) .ob-wrap .board-label.mode-label:focus {
   font-size: 14px !important;
 }
 
-#board-label-menu .mode-label-apply {
+#board-label-menu.mode-label-popover .mode-label-apply {
   display: block !important;
   margin: 18px auto !important;
 }
