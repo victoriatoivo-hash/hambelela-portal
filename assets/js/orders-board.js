@@ -1046,9 +1046,14 @@
     const segments = Object.entries(values).map(([key, count]) => {
       if (!count || total === 0) return '';
       const colour = colours[key] || colours[key.toUpperCase()] || fallbackBarColour;
-      return `<div class="ob-bar-segment" style="flex:${Number(count) / total};background:${esc(colour)}" title="${esc(key)}: ${esc(count)}"></div>`;
+      const numericCount = Number(count);
+      const percent = total > 0 ? ((numericCount / total) * 100).toFixed(1) : '0.0';
+      const tooltip = `${key} ${numericCount}/${total} ${percent}%`;
+      return `<div class="ob-bar-segment summary-segment" style="flex:${numericCount / total};background:${esc(colour)}" data-label="${esc(key)}" data-count="${esc(numericCount)}" data-total="${esc(total)}" data-percent="${esc(`${percent}%`)}" aria-label="${esc(tooltip)}">
+        <span class="summary-segment-tooltip">${esc(tooltip)}</span>
+      </div>`;
     }).join('');
-    return `<div class="ob-stacked-bar ${cssClass}">${segments}</div>`;
+    return `<div class="ob-stacked-bar summary-bar ${cssClass}">${segments}</div>`;
   }
 
   function renderLabelCell(order, field, value, options, cssClass) {
