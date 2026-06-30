@@ -92,6 +92,7 @@
   let resizingColumn = null;
   let resizeStartX = 0;
   let resizeStartWidth = 0;
+  let labelEditorAutosaveTimer = null;
 
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
@@ -1690,11 +1691,12 @@
       <input data-label-color="${index}" type="color" value="#579bfc">
     `;
     editor.insertBefore(row, saveButton);
+    scheduleLabelEditorAutosave(field);
   }
 
-  function saveLabelEditor(field) {
+  function collectLabelEditorOptions(field) {
     const editor = document.querySelector(`[data-label-editor="${field}"]`);
-    if (!editor) return;
+    if (!editor) return null;
     const base = labelOptionsFor(field).filter((item) => item[0] !== 'assigned');
     const updated = [...editor.querySelectorAll('[data-label-editor-row]')].map((row, index) => {
       const item = base[index] || [];
@@ -1703,9 +1705,28 @@
       return item.length === 3 ? [item[0] || normalize(name), name, color] : [name, color];
     });
     if (field === 'status') updated.splice(1, 0, ['assigned', updated[0]?.[1] || 'NEW ORDER', updated[0]?.[2] || '#bdbdbd']);
+    return updated;
+  }
+
+  function persistLabelEditor(field, close = false) {
+    const updated = collectLabelEditorOptions(field);
+    if (!updated) return;
     storeLabels(field, updated);
-    closeToolbar();
     renderOrders(ordersCache);
+    if (close) closeToolbar();
+  }
+
+  function scheduleLabelEditorAutosave(field) {
+    window.clearTimeout(labelEditorAutosaveTimer);
+    labelEditorAutosaveTimer = window.setTimeout(() => {
+      if (document.querySelector(`[data-label-editor="${field}"]`)) {
+        persistLabelEditor(field, false);
+      }
+    }, 350);
+  }
+
+  function saveLabelEditor(field) {
+    persistLabelEditor(field, true);
   }
 
   function optionButton(label, action, value, active = false) {
@@ -2346,6 +2367,12 @@
       boardState.search = boardSearch.value;
       renderOrders(ordersCache);
     }
+
+    const labelName = event.target.closest('[data-label-editor] [data-label-name]');
+    if (labelName) {
+      const editor = labelName.closest('[data-label-editor]');
+      scheduleLabelEditorAutosave(editor.dataset.labelEditor);
+    }
   });
 
   document.addEventListener('change', (event) => {
@@ -2360,6 +2387,12 @@
       if (hidden.checked) boardState.hidden.add(hidden.dataset.hideColumn);
       else boardState.hidden.delete(hidden.dataset.hideColumn);
       applyHiddenColumns();
+    }
+
+    const labelColour = event.target.closest('[data-label-editor] [data-label-color]');
+    if (labelColour) {
+      const editor = labelColour.closest('[data-label-editor]');
+      scheduleLabelEditorAutosave(editor.dataset.labelEditor);
     }
 
     if (event.target === dateFilter) {

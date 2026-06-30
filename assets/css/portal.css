@@ -20207,3 +20207,333 @@ body:has(.ob-wrap) .ob-wrap .board-label.mode-label:focus {
   display: block !important;
   margin: 18px auto !important;
 }
+
+/* Monday design-token pass for the grouped Orders Board.
+   This final layer intentionally extracts the relevant Monday.com visual rules
+   without importing the upstream token file wholesale. */
+:root {
+  --orders-monday-font: Figtree, Roboto, "Segoe UI", system-ui, sans-serif;
+  --orders-monday-title-font: Poppins, Roboto, "Segoe UI", system-ui, sans-serif;
+  --orders-monday-primary: #0073ea;
+  --orders-monday-primary-hover: #0060b9;
+  --orders-monday-selected: #cce5ff;
+  --orders-monday-hover: rgba(103, 104, 121, 0.1);
+  --orders-monday-text: #323338;
+  --orders-monday-secondary: #676879;
+  --orders-monday-border: #d0d4e4;
+  --orders-monday-border-strong: #c3c6d4;
+  --orders-monday-surface: #ffffff;
+  --orders-monday-positive: #00c875;
+  --orders-monday-warning: #fdab3d;
+  --orders-monday-red: #df2f4a;
+  --orders-monday-row-height: 36px;
+  --orders-monday-group-height: 64px;
+  --orders-monday-radius: 8px;
+}
+
+body:has(.ob-wrap) .ob-wrap,
+body:has(.ob-wrap) .ob-wrap .monday-board,
+body:has(.ob-wrap) .ob-wrap .monday-group,
+body:has(.ob-wrap) .ob-wrap .monday-grid,
+body:has(.ob-wrap) .ob-wrap .monday-cell,
+body:has(.ob-wrap) .ob-wrap .label-menu,
+body:has(.ob-wrap) .ob-wrap .toolbar-panel {
+  font-family: var(--orders-monday-font) !important;
+  color: var(--orders-monday-text) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .ops-board-scroll {
+  padding: 0 0 24px !important;
+  background: var(--orders-monday-surface) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-board.ops-board-table {
+  display: block !important;
+  border: 0 !important;
+  background: var(--orders-monday-surface) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group {
+  margin: 0 0 12px !important;
+  border-radius: var(--orders-monday-radius) !important;
+  background: transparent !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group-shell {
+  position: relative !important;
+  overflow: hidden !important;
+  border: 1px solid var(--orders-monday-border) !important;
+  border-left: 0 !important;
+  border-radius: var(--orders-monday-radius) !important;
+  background: var(--orders-monday-surface) !important;
+  box-shadow: none !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group + .monday-group {
+  margin-top: 10px !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group-bar {
+  left: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  width: 6px !important;
+  border-radius: var(--orders-monday-radius) 0 0 var(--orders-monday-radius) !important;
+  background: var(--ob-group-colour, var(--group-color, var(--orders-monday-red))) !important;
+  z-index: 4 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group-summary {
+  min-height: var(--orders-monday-group-height) !important;
+  background: var(--orders-monday-surface) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group.expanded .monday-group-summary {
+  border-bottom: 1px solid var(--orders-monday-border) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group.collapsed .monday-group-orders {
+  display: none !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-cell {
+  border-right: 1px solid var(--orders-monday-border) !important;
+  border-bottom: 1px solid var(--orders-monday-border) !important;
+  background: var(--orders-monday-surface) !important;
+  color: var(--orders-monday-text) !important;
+  letter-spacing: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-grid > .monday-cell:last-child {
+  border-right: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-column-header .monday-cell {
+  height: var(--orders-monday-row-height) !important;
+  min-height: var(--orders-monday-row-height) !important;
+  padding: 0 10px !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  line-height: 20px !important;
+  color: #4b5563 !important;
+  background: var(--orders-monday-surface) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-order-row .monday-cell,
+body:has(.ob-wrap) .ob-wrap .add-task-row .monday-cell,
+body:has(.ob-wrap) .ob-wrap .ob-group-footer .monday-cell {
+  height: var(--orders-monday-row-height) !important;
+  min-height: var(--orders-monday-row-height) !important;
+  padding: 0 10px !important;
+  font-size: 14px !important;
+  font-weight: 400 !important;
+  line-height: 20px !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-order-row:nth-child(even) .monday-cell {
+  background: var(--orders-monday-surface) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-order-row:hover .monday-cell {
+  background: var(--orders-monday-hover) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-order-row.is-selected .monday-cell {
+  background: var(--orders-monday-selected) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-date-cell {
+  padding-left: 28px !important;
+  gap: 8px !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-date-title,
+body:has(.ob-wrap) .ob-wrap .monday-group .ob-group-date-label {
+  font-family: var(--orders-monday-title-font) !important;
+  font-size: 20px !important;
+  font-weight: 600 !important;
+  line-height: 24px !important;
+  color: var(--ob-group-colour, var(--orders-monday-red)) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-task-count,
+body:has(.ob-wrap) .ob-wrap .monday-group .ob-group-task-count {
+  margin-top: 0 !important;
+  font-size: 14px !important;
+  font-weight: 400 !important;
+  line-height: 20px !important;
+  color: var(--orders-monday-secondary) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-toggle {
+  width: 24px !important;
+  height: 24px !important;
+  color: var(--ob-group-colour, var(--orders-monday-red)) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-toggle .ob-chevron {
+  font-size: 20px !important;
+  font-weight: 600 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-cell.col-checkbox,
+body:has(.ob-wrap) .ob-wrap .monday-cell.comment-cell,
+body:has(.ob-wrap) .ob-wrap .monday-cell.col-task-icon,
+body:has(.ob-wrap) .ob-wrap .monday-cell.col-paid {
+  padding: 0 !important;
+  justify-content: center !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-order-row .task-name,
+body:has(.ob-wrap) .ob-wrap .monday-order-row .order-date-cell,
+body:has(.ob-wrap) .ob-wrap .monday-order-row .col-mobile,
+body:has(.ob-wrap) .ob-wrap .monday-order-row .col-amount,
+body:has(.ob-wrap) .ob-wrap .monday-order-row .col-packedby,
+body:has(.ob-wrap) .ob-wrap .monday-order-row .notes-cell,
+body:has(.ob-wrap) .ob-wrap .monday-order-row .notes-cell button,
+body:has(.ob-wrap) .ob-wrap .monday-order-row .comment-cell button {
+  font-size: 14px !important;
+  font-weight: 400 !important;
+  line-height: 20px !important;
+  color: var(--orders-monday-text) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-order-row .notes-cell,
+body:has(.ob-wrap) .ob-wrap .monday-order-row .notes-cell button,
+body:has(.ob-wrap) .ob-wrap .monday-order-row .col-text {
+  color: var(--orders-monday-secondary) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group .board-label,
+body:has(.ob-wrap) .ob-wrap .monday-group .mode-label,
+body:has(.ob-wrap) .ob-wrap .monday-group .payment-label,
+body:has(.ob-wrap) .ob-wrap .monday-group .status-label {
+  height: 100% !important;
+  min-height: var(--orders-monday-row-height) !important;
+  padding: 0 8px !important;
+  border-radius: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-family: var(--orders-monday-font) !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  line-height: 20px !important;
+  color: #ffffff !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .paid-check {
+  color: var(--orders-monday-positive) !important;
+  border-color: var(--orders-monday-positive) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .ob-group-sum,
+body:has(.ob-wrap) .ob-wrap .ob-paid-fraction {
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  color: var(--orders-monday-text) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .ob-group-column-title,
+body:has(.ob-wrap) .ob-wrap .ob-group-sum-label,
+body:has(.ob-wrap) .ob-wrap .pick-duration,
+body:has(.ob-wrap) .ob-wrap small {
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  line-height: 16px !important;
+  color: var(--orders-monday-secondary) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .editable-cell.is-editing,
+body:has(.ob-wrap) .ob-wrap .order-date-cell.is-editing {
+  outline: 2px solid var(--orders-monday-primary) !important;
+  outline-offset: -2px !important;
+  background: #ffffff !important;
+  font-weight: 500 !important;
+}
+
+.ops-board-page #board-label-menu.label-menu {
+  width: 268px !important;
+  min-width: 268px !important;
+  padding: 8px !important;
+  border: 1px solid var(--orders-monday-border) !important;
+  border-radius: var(--orders-monday-radius) !important;
+  background: #ffffff !important;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18) !important;
+}
+
+.ops-board-page #board-label-menu .label-menu-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 6px !important;
+  padding: 0 !important;
+}
+
+.ops-board-page #board-label-menu .label-menu-grid button {
+  min-height: 32px !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 4px !important;
+  background: var(--label-color, var(--orders-monday-primary)) !important;
+  color: #ffffff !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  line-height: 18px !important;
+}
+
+.ops-board-page #board-label-menu .label-menu-grid button:hover {
+  filter: brightness(0.94) !important;
+}
+
+.ops-board-page #board-label-menu .edit-labels {
+  width: 100% !important;
+  min-height: 34px !important;
+  margin-top: 8px !important;
+  border: 0 !important;
+  border-radius: 4px !important;
+  background: transparent !important;
+  color: var(--orders-monday-secondary) !important;
+  font-size: 14px !important;
+  font-weight: 400 !important;
+}
+
+.ops-board-page #toolbar-popover .label-editor {
+  width: min(420px, calc(100vw - 32px)) !important;
+  padding: 16px !important;
+  border: 1px solid var(--orders-monday-border) !important;
+  border-radius: var(--orders-monday-radius) !important;
+  background: #ffffff !important;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18) !important;
+}
+
+.ops-board-page #toolbar-popover .label-editor strong {
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  color: var(--orders-monday-text) !important;
+}
+
+.ops-board-page #toolbar-popover .label-editor-row {
+  display: grid !important;
+  grid-template-columns: 1fr 42px !important;
+  gap: 8px !important;
+  align-items: center !important;
+  margin-top: 8px !important;
+}
+
+.ops-board-page #toolbar-popover .label-editor-row input[type="text"],
+.ops-board-page #toolbar-popover .label-editor-row input:not([type]) {
+  height: 34px !important;
+  padding: 0 10px !important;
+  border: 1px solid var(--orders-monday-border) !important;
+  border-radius: 4px !important;
+  font-size: 14px !important;
+}
+
+.ops-board-page #toolbar-popover .label-editor-row input[type="color"] {
+  width: 42px !important;
+  height: 34px !important;
+  padding: 2px !important;
+  border: 1px solid var(--orders-monday-border) !important;
+  border-radius: 4px !important;
+  background: #ffffff !important;
+}
