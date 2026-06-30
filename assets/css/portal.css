@@ -19870,3 +19870,49 @@ body:has(.ob-wrap) .ob-wrap .order-date-cell.is-editing {
   color: #c73557;
   font-size: 12px;
 }
+
+body:has(.ob-wrap) .ob-wrap .editable-cell {
+  cursor: text !important;
+  position: relative !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .editable-cell.col-packedby {
+  cursor: pointer !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .editable-cell.is-editing {
+  outline: 2px solid #0073ea !important;
+  outline-offset: -2px !important;
+  background: #ffffff !important;
+  z-index: 20 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .editable-cell input,
+body:has(.ob-wrap) .ob-wrap .editable-cell select {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 30px !important;
+  border: 0 !important;
+  outline: 0 !important;
+  background: #ffffff !important;
+  padding: 0 8px !important;
+  font: inherit !important;
+  color: inherit !important;
+  box-sizing: border-box !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .editable-cell.is-saving::after {
+  content: "Saving..." !important;
+  position: absolute !important;
+  right: 6px !important;
+  bottom: 2px !important;
+  font-size: 10px !important;
+  line-height: 1 !important;
+  color: #64748b !important;
+  pointer-events: none !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .editable-cell.has-error {
+  outline: 2px solid #dc2626 !important;
+  outline-offset: -2px !important;
+}

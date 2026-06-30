@@ -97,7 +97,14 @@
   })[char]);
   const selectorEsc = (value) => window.CSS && CSS.escape ? CSS.escape(String(value)) : String(value).replace(/["\\]/g, '\\$&');
 
-  const money = (value) => `N$${Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  const money = (value) => {
+    const amount = Number(value || 0);
+    const hasCents = Math.round(amount * 100) % 100 !== 0;
+    return `N$${amount.toLocaleString(undefined, {
+      minimumFractionDigits: hasCents ? 2 : 0,
+      maximumFractionDigits: hasCents ? 2 : 0
+    })}`;
+  };
   const normalize = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
   const labelText = (value) => String(value || '').replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
   const dateKey = (value) => String(value || '').slice(0, 10);
@@ -167,6 +174,166 @@
   }
 
   loadSavedColumnWidths();
+
+  function parseBoardAmount(value) {
+    const cleaned = String(value || '').replace(/[^\d.]/g, '');
+    if (!cleaned || !Number.isFinite(Number(cleaned))) {
+      throw new Error('Enter a valid amount.');
+    }
+    return String(Number(cleaned));
+  }
+
+  function editableDisplayValue(order, field) {
+    if (!order) return '';
+    if (field === 'customer_contact') return order.customer_contact || '';
+    if (field === 'total_amount') return money(order.total_amount);
+    if (field === 'assigned_packer_id') return order.packer_name || 'Unassigned';
+    return '';
+  }
+
+  function editableRawValue(order, field) {
+    if (!order) return '';
+    if (field === 'customer_contact') return order.customer_contact || '';
+    if (field === 'total_amount') return String(order.total_amount ?? '');
+    if (field === 'assigned_packer_id') return String(order.assigned_packer_id || '');
+    return '';
+  }
+
+  function renderEditableCell(cell, order, field) {
+    cell.classList.remove('is-editing', 'is-saving', 'has-error');
+    cell.dataset.value = editableRawValue(order, field);
+    cell.textContent = editableDisplayValue(order, field);
+  }
+
+  function updateOrderCacheField(orderId, field, value) {
+    const order = ordersCache.find((item) => String(item.id) === String(orderId));
+    if (!order) return null;
+
+    if (field === 'customer_contact') {
+      order.customer_contact = value;
+    } else if (field === 'total_amount') {
+      order.total_amount = Number(value || 0);
+    } else if (field === 'assigned_packer_id') {
+      order.assigned_packer_id = value === '' ? '' : String(value);
+      const packer = packersCache.find((item) => String(item.id) === String(value));
+      order.packer_name = packer?.full_name || '';
+    } else {
+      order[field] = value;
+    }
+
+    return order;
+  }
+
+  function packerOptions() {
+    return [{ value: '', label: 'Unassigned' }].concat(packersCache.map((packer) => ({
+      value: String(packer.id),
+      label: packer.full_name || `Packer ${packer.id}`
+    })));
+  }
+
+  async function saveEditableOrderField(orderId, field, inputValue) {
+    let value = String(inputValue || '').trim();
+    if (field === 'total_amount') value = parseBoardAmount(value);
+    await post('update_field', { order_id: orderId, field, value });
+    const order = updateOrderCacheField(orderId, field, value);
+    return order;
+  }
+
+  function beginEditableCell(cell) {
+    if (!cell || cell.classList.contains('is-editing')) return;
+    const orderId = cell.dataset.orderId;
+    const field = cell.dataset.editableOrderField;
+    const order = ordersCache.find((item) => String(item.id) === String(orderId));
+    if (!order || !field) return;
+
+    const originalValue = editableRawValue(order, field);
+    const originalDisplay = editableDisplayValue(order, field);
+    const control = field === 'assigned_packer_id' ? document.createElement('select') : document.createElement('input');
+    let finished = false;
+
+    cell.classList.add('is-editing');
+    cell.classList.remove('has-error');
+    cell.dataset.value = originalValue;
+    cell.innerHTML = '';
+
+    if (field === 'assigned_packer_id') {
+      packerOptions().forEach((item) => {
+        const option = document.createElement('option');
+        option.value = item.value;
+        option.textContent = item.label;
+        control.appendChild(option);
+      });
+    } else {
+      control.type = 'text';
+    }
+
+    control.value = field === 'total_amount' ? String(originalValue).replace(/[^\d.]/g, '') : originalValue;
+    cell.appendChild(control);
+    control.focus();
+    if (control.select) control.select();
+
+    const finish = (nextOrder = order) => {
+      renderEditableCell(cell, nextOrder, field);
+      if (field === 'total_amount' || field === 'assigned_packer_id') {
+        renderOrders(ordersCache);
+      }
+    };
+
+    const cancel = () => {
+      if (finished) return;
+      finished = true;
+      cell.classList.remove('is-editing', 'is-saving');
+      cell.classList.remove('has-error');
+      cell.textContent = originalDisplay;
+      cell.dataset.value = originalValue;
+    };
+
+    const commit = async () => {
+      if (finished) return;
+      finished = true;
+      const nextValue = String(control.value || '').trim();
+
+      if (nextValue === originalValue || (field === 'total_amount' && parseFloat(nextValue.replace(/[^\d.]/g, '') || '0') === Number(originalValue || 0))) {
+        finish(order);
+        return;
+      }
+
+      try {
+        cell.classList.add('is-saving');
+        const nextOrder = await saveEditableOrderField(orderId, field, nextValue);
+        finish(nextOrder || order);
+        if (syncState) syncState.textContent = 'Saved order change.';
+      } catch (error) {
+        cell.classList.add('has-error');
+        showError(error);
+        window.setTimeout(() => {
+          updateOrderCacheField(orderId, field, originalValue);
+          finish(order);
+        }, 450);
+      }
+    };
+
+    control.addEventListener('blur', () => {
+      commit().catch(showError);
+    });
+
+    if (field === 'assigned_packer_id') {
+      control.addEventListener('change', () => {
+        commit().catch(showError);
+      });
+    }
+
+    control.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === 'Tab') {
+        if (event.key === 'Enter') event.preventDefault();
+        commit().catch(showError);
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        cancel();
+      }
+    });
+  }
 
   function setMetric(key, value) {
     const node = [...metricNodes].find((item) => item.dataset.workMetric === key);
@@ -1048,8 +1215,7 @@
   }
 
   function renderPackerCell(order) {
-    if (!currentUser.can_edit_packed_by) return esc(order.packer_name || '');
-    return `<button class="packer-cell-button" type="button" data-label-field="assigned_packer_id" data-order-id="${esc(order.id)}">${esc(order.packer_name || 'Unassigned')}</button>`;
+    return esc(order.packer_name || 'Unassigned');
   }
 
   function renderPaidCell(order) {
@@ -1133,13 +1299,13 @@
           <div class="monday-cell task-cell col-task"><span class="task-name">${esc(order.order_number.replace(/^WEB-/, ''))} ${esc(order.customer_name)}</span></div>
           <div class="monday-cell comment-cell col-task-icon"><button type="button" data-open-panel="${esc(order.id)}"><i data-lucide="message-circle-plus"></i></button></div>
           <div class="monday-cell col-date order-date-cell" data-order-id="${esc(order.id)}" data-datetime="${esc(order.created_at)}" role="button" tabindex="0" title="Edit order date/time">${prettyDate(order.created_at)}</div>
-          <div class="monday-cell col-mobile">${esc(order.customer_contact || '')}</div>
+          <div class="monday-cell editable-cell col-mobile" data-editable-order-field="customer_contact" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_contact || '')}" tabindex="0">${esc(order.customer_contact || '')}</div>
           <div class="monday-cell col-mode"${labelCellStyle(modeLabels, order.order_type)}>${renderLabelCell(order, 'order_type', order.order_type, modeLabels, 'mode-label')}</div>
-          <div class="monday-cell col-amount">${esc(money(order.total_amount))}</div>
+          <div class="monday-cell editable-cell col-amount" data-editable-order-field="total_amount" data-order-id="${esc(order.id)}" data-value="${esc(order.total_amount ?? '')}" tabindex="0">${esc(money(order.total_amount))}</div>
           <div class="monday-cell col-payment"${labelCellStyle(paymentLabels, order.payment_method || 'Cash')}>${renderLabelCell(order, 'payment_method', order.payment_method || 'Cash', paymentLabels, 'payment-label')}</div>
           <div class="monday-cell paid-cell col-paid ${order.payment_status === 'paid' ? '' : 'unpaid'}">${renderPaidCell(order)}</div>
           <div class="monday-cell col-status"${labelCellStyle(statusLabels, order.status || 'new_order')}>${renderLabelCell(order, 'status', order.status || 'new_order', statusLabels, 'status-label')}</div>
-          <div class="monday-cell col-packedby">${renderPackerCell(order)}<small class="pick-duration">${esc(durationText(order.packing_started_at, order.completed_at || order.packed_at))}</small></div>
+          <div class="monday-cell editable-cell col-packedby" data-editable-order-field="assigned_packer_id" data-order-id="${esc(order.id)}" data-value="${esc(order.assigned_packer_id || '')}" tabindex="0">${renderPackerCell(order)}<small class="pick-duration">${esc(durationText(order.packing_started_at, order.completed_at || order.packed_at))}</small></div>
           <div class="monday-cell notes-cell col-text"><button type="button" data-expand-note>${esc(order.notes || '')}</button></div>
           ${renderCustomCells()}
           <div class="monday-cell add-column-cell"></div>
@@ -1575,6 +1741,15 @@
 
   document.addEventListener('click', async (event) => {
     if (event.target.closest('.column-resizer')) return;
+    if (event.target.closest('.editable-cell.is-editing')) return;
+
+    const editableCell = event.target.closest('[data-editable-order-field]');
+    if (editableCell) {
+      event.preventDefault();
+      event.stopPropagation();
+      beginEditableCell(editableCell);
+      return;
+    }
 
     const groupDateEdit = event.target.closest('[data-edit-group-date]');
     const orderDateCell = event.target.closest('.order-date-cell[data-order-id]');
@@ -1926,6 +2101,13 @@
   });
 
   document.addEventListener('keydown', (event) => {
+    const editableCell = event.target.closest('[data-editable-order-field]');
+    if (editableCell && !editableCell.classList.contains('is-editing') && (event.key === 'Enter' || event.key === ' ')) {
+      event.preventDefault();
+      beginEditableCell(editableCell);
+      return;
+    }
+
     const groupDateEdit = event.target.closest('[data-edit-group-date]');
     const orderDateCell = event.target.closest('.order-date-cell[data-order-id]');
     if (orderDateCell && (event.key === 'Enter' || event.key === ' ')) {

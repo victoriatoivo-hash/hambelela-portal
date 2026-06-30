@@ -800,8 +800,10 @@ try {
         $value = ops_post_string('value', 1000);
 
         $allowed = [
+            'customer_contact' => 'customer_contact',
             'payment_method' => 'payment_method',
             'order_type' => 'order_type',
+            'total_amount' => 'total_amount',
             'status' => 'status',
             'payment_status' => 'payment_status',
             'notes' => 'notes',
@@ -818,6 +820,14 @@ try {
 
         if ($field === 'payment_status' && !in_array($value, ['paid', 'unpaid', 'partial', 'refunded'], true)) {
             throw new RuntimeException('Invalid payment status.');
+        }
+
+        if ($field === 'total_amount') {
+            $value = preg_replace('/[^\d.]/', '', $value) ?? '';
+            if ($value === '' || !is_numeric($value)) {
+                throw new RuntimeException('Enter a valid amount.');
+            }
+            $value = number_format((float) $value, 2, '.', '');
         }
 
         if ($field === 'assigned_packer_id') {
