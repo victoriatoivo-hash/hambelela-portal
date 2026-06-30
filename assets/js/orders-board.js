@@ -304,6 +304,7 @@
 
   function editableDisplayValue(order, field) {
     if (!order) return '';
+    if (field === 'customer_name') return `${String(order.order_number || '').replace(/^WEB-/, '')} ${order.customer_name || ''}`.trim();
     if (field === 'customer_contact') return order.customer_contact || '';
     if (field === 'total_amount') return money(order.total_amount);
     if (field === 'assigned_packer_id') return order.packer_name || 'Unassigned';
@@ -312,6 +313,7 @@
 
   function editableRawValue(order, field) {
     if (!order) return '';
+    if (field === 'customer_name') return order.customer_name || '';
     if (field === 'customer_contact') return order.customer_contact || '';
     if (field === 'total_amount') return String(order.total_amount ?? '');
     if (field === 'assigned_packer_id') return String(order.assigned_packer_id || '');
@@ -321,6 +323,10 @@
   function renderEditableCell(cell, order, field) {
     cell.classList.remove('is-editing', 'is-saving', 'has-error');
     cell.dataset.value = editableRawValue(order, field);
+    if (field === 'customer_name') {
+      cell.innerHTML = `<span class="task-name">${esc(editableDisplayValue(order, field))}</span>`;
+      return;
+    }
     cell.textContent = editableDisplayValue(order, field);
   }
 
@@ -328,7 +334,9 @@
     const order = ordersCache.find((item) => String(item.id) === String(orderId));
     if (!order) return null;
 
-    if (field === 'customer_contact') {
+    if (field === 'customer_name') {
+      order.customer_name = value;
+    } else if (field === 'customer_contact') {
       order.customer_contact = value;
     } else if (field === 'total_amount') {
       order.total_amount = Number(value || 0);
@@ -396,7 +404,7 @@
 
     const finish = (nextOrder = order) => {
       renderEditableCell(cell, nextOrder, field);
-      if (field === 'total_amount' || field === 'assigned_packer_id') {
+      if (field === 'customer_name' || field === 'total_amount' || field === 'assigned_packer_id') {
         renderOrders(ordersCache);
       }
     };
@@ -1456,7 +1464,7 @@
       return `
         <div data-order-id="${esc(order.id)}" data-group-row="${esc(key)}" class="monday-grid monday-order-row board-row ob-data-row ${stripClass} ${!previousOrderIds.has(String(order.id)) && hasRenderedOnce ? 'row-new' : ''} ${selectedOrders.has(String(order.id)) ? 'is-selected' : ''}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
           <div class="monday-cell check-cell col-checkbox"><input type="checkbox" data-row-select="${esc(order.id)}" ${selectedOrders.has(String(order.id)) ? 'checked' : ''} aria-label="Select order"></div>
-          <div class="monday-cell task-cell col-task"><span class="task-name">${esc(order.order_number.replace(/^WEB-/, ''))} ${esc(order.customer_name)}</span></div>
+          <div class="monday-cell task-cell editable-cell col-task" data-editable-order-field="customer_name" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_name || '')}" tabindex="0"><span class="task-name">${esc(order.order_number.replace(/^WEB-/, ''))} ${esc(order.customer_name)}</span></div>
           <div class="monday-cell comment-cell col-task-icon"><button type="button" data-open-panel="${esc(order.id)}"><i data-lucide="message-circle-plus"></i></button></div>
           <div class="monday-cell col-date order-date-cell" data-order-id="${esc(order.id)}" data-datetime="${esc(orderDisplayDateTime(order))}" role="button" tabindex="0" title="Edit order date/time">${prettyDate(orderDisplayDateTime(order))}</div>
           <div class="monday-cell editable-cell col-mobile" data-editable-order-field="customer_contact" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_contact || '')}" tabindex="0">${esc(order.customer_contact || '')}</div>

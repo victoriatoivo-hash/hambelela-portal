@@ -965,6 +965,7 @@ try {
         $value = ops_post_string('value', 1000);
 
         $allowed = [
+            'customer_name' => 'customer_name',
             'customer_contact' => 'customer_contact',
             'payment_method' => 'payment_method',
             'order_type' => 'order_type',
