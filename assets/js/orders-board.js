@@ -2089,9 +2089,28 @@
     selection.addRange(panelEditorRange);
   }
 
+  function panelEditorHasSelection() {
+    const selection = window.getSelection();
+    return !!(selection && selection.rangeCount > 0 && panelEditor?.contains(selection.getRangeAt(0).commonAncestorContainer) && selection.toString());
+  }
+
+  function selectPanelEditorContents() {
+    if (!panelEditor || !document.createRange) return;
+    panelEditor.focus();
+    const range = document.createRange();
+    range.selectNodeContents(panelEditor);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    panelEditorRange = range.cloneRange();
+  }
+
   function runPanelEditorCommand(command, value = null) {
     if (!panelEditor || !command) return;
     restorePanelEditorSelection();
+    if (!panelEditorHasSelection() && ['bold', 'italic', 'underline', 'strikeThrough', 'foreColor', 'fontSize'].includes(command) && panelEditorText()) {
+      selectPanelEditorContents();
+    }
     if (command === 'createLink') {
       const url = window.prompt('Enter link URL');
       if (!url) return;
