@@ -20273,6 +20273,7 @@ body:has(.ob-wrap) {
   --primary-background-color: #ffffff;
   --primary-background-hover-color: rgba(103, 104, 121, 0.1);
   --secondary-background-color: #ffffff;
+  --secondary-background-color-rgb: 255, 255, 255;
   --allgrey-background-color: #f6f7fb;
   --ui-border-color: #c3c6d4;
   --ui-background-color: #e7e9ef;
@@ -20283,6 +20284,7 @@ body:has(.ob-wrap) {
   --brand-color: #0073ea;
   --brand-hover-color: #0060b9;
   --brand-selected-color: #cce5ff;
+  --pulse-selected-background-color: var(--primary-selected-color);
   --positive-color: #00854d;
   --negative-color: #d83a52;
   --warning-color: #ffcb00;
@@ -20299,6 +20301,14 @@ body:has(.ob-wrap) {
   --box-shadow-small: 0px 4px 8px rgba(0, 0, 0, 0.2);
   --box-shadow-medium: 0px 6px 20px rgba(0, 0, 0, 0.2);
   --box-shadow-large: 0px 15px 50px rgba(0, 0, 0, 0.3);
+  --board-background-color: var(--primary-background-color);
+  --table-cell-highlighted: var(--pulse-selected-background-color);
+  --table-background-color-base-rgb: var(--secondary-background-color-rgb);
+  --table-background-color: rgba(var(--secondary-background-color-rgb), 1);
+  --table-border-color: var(--layout-border-color);
+  --board-elevation: 0 8px 8px -8px rgba(0, 0, 0, 0.1);
+  --board-item-row-indication-top-radius: 0;
+  --board-item-row-indication-bottom-radius: 0;
   --orders-monday-font: var(--font-family);
   --orders-monday-title-font: var(--title-font-family);
   --orders-monday-primary: var(--primary-color);
@@ -20647,12 +20657,27 @@ body:has(.ob-wrap) .ob-wrap .monday-group + .monday-group {
   margin-top: var(--space-12) !important;
 }
 
+body:has(.ob-wrap) .ob-wrap,
+body:has(.ob-wrap) .ob-wrap .table-wrapper,
+body:has(.ob-wrap) .ob-wrap .ops-board-scroll,
+body:has(.ob-wrap) .ob-wrap .monday-board.ops-board-table {
+  --board-background-color: var(--primary-background-color) !important;
+  --table-cell-highlighted: var(--pulse-selected-background-color) !important;
+  --table-background-color-base-rgb: var(--secondary-background-color-rgb) !important;
+  --table-background-color: rgba(var(--secondary-background-color-rgb), 1) !important;
+  --table-border-color: var(--layout-border-color) !important;
+  --board-elevation: 0 8px 8px -8px rgba(0, 0, 0, 0.1) !important;
+  --board-item-row-indication-top-radius: 0 !important;
+  --board-item-row-indication-bottom-radius: 0 !important;
+  background: var(--board-background-color) !important;
+}
+
 body:has(.ob-wrap) .ob-wrap .monday-group-shell {
-  border: var(--border-width) var(--border-style) var(--layout-border-color) !important;
+  border: var(--border-width) var(--border-style) var(--table-border-color) !important;
   border-left: 0 !important;
   border-radius: var(--border-radius-medium) !important;
-  background: var(--primary-background-color) !important;
-  box-shadow: var(--box-shadow-xs) !important;
+  background: var(--table-background-color) !important;
+  box-shadow: var(--board-elevation) !important;
 }
 
 body:has(.ob-wrap) .ob-wrap .monday-group-bar {
@@ -20665,9 +20690,9 @@ body:has(.ob-wrap) .ob-wrap .monday-group-summary {
 }
 
 body:has(.ob-wrap) .ob-wrap .monday-cell {
-  border-right: var(--border-width) var(--border-style) var(--layout-border-color) !important;
-  border-bottom: var(--border-width) var(--border-style) var(--layout-border-color) !important;
-  background: var(--primary-background-color) !important;
+  border-right: var(--border-width) var(--border-style) var(--table-border-color) !important;
+  border-bottom: var(--border-width) var(--border-style) var(--table-border-color) !important;
+  background: var(--table-background-color) !important;
   color: var(--primary-text-color) !important;
   transition:
     background var(--orders-monday-transition),
@@ -20699,7 +20724,7 @@ body:has(.ob-wrap) .ob-wrap .monday-order-row:hover .monday-cell {
 }
 
 body:has(.ob-wrap) .ob-wrap .monday-order-row.is-selected .monday-cell {
-  background: var(--primary-selected-color) !important;
+  background: var(--table-cell-highlighted) !important;
 }
 
 body:has(.ob-wrap) .ob-wrap .monday-date-cell {
