@@ -21052,10 +21052,21 @@ body:has(.ob-wrap) .ob-wrap .monday-grid > .monday-cell:last-child {
 }
 
 body:has(.ob-wrap) .ob-wrap .monday-column-header > .monday-cell,
-body:has(.ob-wrap) .ob-wrap .monday-order-row > .monday-cell {
+body:has(.ob-wrap) .ob-wrap .monday-order-row > .monday-cell:not(.col-mode):not(.col-payment):not(.col-status) {
   min-height: var(--orders-monday-row-height) !important;
   height: var(--orders-monday-row-height) !important;
   padding: 0 var(--space-12) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-order-row > .col-mode,
+body:has(.ob-wrap) .ob-wrap .monday-order-row > .col-payment,
+body:has(.ob-wrap) .ob-wrap .monday-order-row > .col-status {
+  min-height: var(--orders-monday-row-height) !important;
+  height: var(--orders-monday-row-height) !important;
+  padding: 0 !important;
+  align-items: stretch !important;
+  justify-content: stretch !important;
+  overflow: hidden !important;
 }
 
 body:has(.ob-wrap) .ob-wrap .monday-group .board-label,
@@ -21063,7 +21074,17 @@ body:has(.ob-wrap) .ob-wrap .monday-group .mode-label,
 body:has(.ob-wrap) .ob-wrap .monday-group .payment-label,
 body:has(.ob-wrap) .ob-wrap .monday-group .status-label,
 body:has(.ob-wrap) .ob-wrap .monday-group .paid-check {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: var(--orders-monday-row-height) !important;
+  margin: 0 !important;
+  padding: 0 var(--space-8) !important;
   border: 0 !important;
+  border-radius: 0 !important;
   box-shadow: none !important;
   outline: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-sizing: border-box !important;
 }
