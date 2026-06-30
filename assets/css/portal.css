@@ -21088,3 +21088,7 @@ body:has(.ob-wrap) .ob-wrap .monday-group .paid-check {
   justify-content: center !important;
   box-sizing: border-box !important;
 }
+
+body:has(.ob-wrap) .ob-wrap .monday-group-summary {
+  border-top: var(--border-width) var(--border-style) var(--ui-border-color) !important;
+}
