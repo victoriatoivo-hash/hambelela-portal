@@ -20209,26 +20209,116 @@ body:has(.ob-wrap) .ob-wrap .board-label.mode-label:focus {
 }
 
 /* Monday design-token pass for the grouped Orders Board.
-   This final layer intentionally extracts the relevant Monday.com visual rules
-   without importing the upstream token file wholesale. */
-:root {
-  --orders-monday-font: Figtree, Roboto, "Segoe UI", system-ui, sans-serif;
-  --orders-monday-title-font: Poppins, Roboto, "Segoe UI", system-ui, sans-serif;
-  --orders-monday-primary: #0073ea;
-  --orders-monday-primary-hover: #0060b9;
-  --orders-monday-selected: #cce5ff;
-  --orders-monday-hover: rgba(103, 104, 121, 0.1);
-  --orders-monday-text: #323338;
-  --orders-monday-secondary: #676879;
-  --orders-monday-border: #d0d4e4;
-  --orders-monday-border-strong: #c3c6d4;
-  --orders-monday-surface: #ffffff;
-  --orders-monday-positive: #00c875;
-  --orders-monday-warning: #fdab3d;
-  --orders-monday-red: #df2f4a;
-  --orders-monday-row-height: 36px;
-  --orders-monday-group-height: 64px;
-  --orders-monday-radius: 8px;
+   The uploaded Monday.com token values are scoped here and then consumed by
+   the board aliases below, instead of pasting the whole source token file. */
+body:has(.ob-wrap) {
+  --motion-productive-short: 70ms;
+  --motion-productive-medium: 100ms;
+  --motion-productive-long: 150ms;
+  --motion-expressive-short: 250ms;
+  --motion-expressive-long: 400ms;
+  --motion-timing-enter: cubic-bezier(0, 0, 0.35, 1);
+  --motion-timing-exit: cubic-bezier(0.4, 0, 1, 1);
+  --motion-timing-transition: cubic-bezier(0.4, 0, 0.2, 1);
+  --motion-timing-emphasize: cubic-bezier(0, 0, 0.2, 1.4);
+  --expand-animation-timing: var(--motion-timing-enter);
+  --spacing-xs: 4px;
+  --spacing-small: 8px;
+  --spacing-medium: 16px;
+  --spacing-large: 24px;
+  --spacing-xl: 32px;
+  --spacing-xxl: 48px;
+  --spacing-xxxl: 64px;
+  --space-2: 2px;
+  --space-4: 4px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-32: 32px;
+  --space-40: 40px;
+  --space-48: 48px;
+  --space-64: 64px;
+  --space-80: 80px;
+  --border-width: 1px;
+  --border-style: solid;
+  --border-radius-small: 4px;
+  --border-radius-medium: 8px;
+  --border-radius-big: 16px;
+  --disabled-component-opacity: 0.38;
+  --font-family: Figtree, Roboto, "Noto Sans Hebrew", "Noto Kufi Arabic", "Noto Sans JP", sans-serif;
+  --title-font-family: Poppins, Roboto, "Noto Sans Hebrew", "Noto Kufi Arabic", "Noto Sans JP", sans-serif;
+  --font-smoothing-webkit: antialiased;
+  --font-smoothing-moz: grayscale;
+  --font-weight-normal: 400;
+  --font-weight-bold: 500;
+  --font-size-10: 14px;
+  --font-size-20: 14px;
+  --font-size-30: 16px;
+  --font-size-40: 18px;
+  --font-size-50: 24px;
+  --font-size-60: 30px;
+  --font-text2-normal: 400 14px/20px var(--font-family);
+  --font-text3-normal: 400 12px/16px var(--font-family);
+  --font-h3-medium: 600 18px/24px var(--title-font-family);
+  --primary-color: #0073ea;
+  --primary-hover-color: #0060b9;
+  --primary-selected-color: #cce5ff;
+  --primary-selected-hover-color: #aed4fc;
+  --primary-highlighted-color: #f0f7ff;
+  --primary-surface-color: #eceff8;
+  --primary-text-color: #323338;
+  --secondary-text-color: #676879;
+  --primary-background-color: #ffffff;
+  --primary-background-hover-color: rgba(103, 104, 121, 0.1);
+  --secondary-background-color: #ffffff;
+  --allgrey-background-color: #f6f7fb;
+  --ui-border-color: #c3c6d4;
+  --ui-background-color: #e7e9ef;
+  --ui-background-hover-color: #d8d9e0;
+  --layout-border-color: #d0d4e4;
+  --placeholder-color: #676879;
+  --icon-color: #676879;
+  --brand-color: #0073ea;
+  --brand-hover-color: #0060b9;
+  --brand-selected-color: #cce5ff;
+  --positive-color: #00854d;
+  --negative-color: #d83a52;
+  --warning-color: #ffcb00;
+  --color-done-green: #00c875;
+  --color-working_orange: #fdab3d;
+  --color-stuck-red: #df2f4a;
+  --color-dark-red: #bb3354;
+  --color-basic_blue: #0073ea;
+  --color-asphalt: #676879;
+  --color-mud_black: #323338;
+  --color-snow_white: #ffffff;
+  --color-riverstone_gray: #f6f7fb;
+  --box-shadow-xs: 0px 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --box-shadow-small: 0px 4px 8px rgba(0, 0, 0, 0.2);
+  --box-shadow-medium: 0px 6px 20px rgba(0, 0, 0, 0.2);
+  --box-shadow-large: 0px 15px 50px rgba(0, 0, 0, 0.3);
+  --orders-monday-font: var(--font-family);
+  --orders-monday-title-font: var(--title-font-family);
+  --orders-monday-primary: var(--primary-color);
+  --orders-monday-primary-hover: var(--primary-hover-color);
+  --orders-monday-selected: var(--primary-selected-color);
+  --orders-monday-hover: var(--primary-background-hover-color);
+  --orders-monday-text: var(--primary-text-color);
+  --orders-monday-secondary: var(--secondary-text-color);
+  --orders-monday-border: var(--layout-border-color);
+  --orders-monday-border-strong: var(--ui-border-color);
+  --orders-monday-surface: var(--primary-background-color);
+  --orders-monday-positive: var(--color-done-green);
+  --orders-monday-warning: var(--color-working_orange);
+  --orders-monday-red: var(--color-stuck-red);
+  --orders-monday-row-height: calc(var(--space-32) + var(--space-4));
+  --orders-monday-group-height: var(--space-64);
+  --orders-monday-radius: var(--border-radius-medium);
+  --orders-monday-shadow: var(--box-shadow-medium);
+  --orders-monday-transition: var(--motion-productive-medium) var(--motion-timing-transition);
+  --orders-monday-pop-transition: var(--motion-expressive-short) var(--motion-timing-enter);
 }
 
 body:has(.ob-wrap) .ob-wrap,
@@ -20536,4 +20626,203 @@ body:has(.ob-wrap) .ob-wrap .order-date-cell.is-editing {
   border: 1px solid var(--orders-monday-border) !important;
   border-radius: 4px !important;
   background: #ffffff !important;
+}
+
+/* Token-enforced Orders Board refinements. Keep this after legacy board rules. */
+body:has(.ob-wrap) .ob-wrap,
+body:has(.ob-wrap) .ob-wrap * {
+  -webkit-font-smoothing: var(--font-smoothing-webkit) !important;
+  -moz-osx-font-smoothing: var(--font-smoothing-moz) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group {
+  margin: 0 0 var(--space-12) !important;
+  border-radius: var(--border-radius-medium) !important;
+  transition:
+    margin var(--orders-monday-transition),
+    background var(--orders-monday-transition) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group + .monday-group {
+  margin-top: var(--space-12) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group-shell {
+  border: var(--border-width) var(--border-style) var(--layout-border-color) !important;
+  border-left: 0 !important;
+  border-radius: var(--border-radius-medium) !important;
+  background: var(--primary-background-color) !important;
+  box-shadow: var(--box-shadow-xs) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group-bar {
+  width: calc(var(--space-4) + var(--space-2)) !important;
+  border-radius: var(--border-radius-medium) 0 0 var(--border-radius-medium) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group-summary {
+  min-height: var(--space-64) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-cell {
+  border-right: var(--border-width) var(--border-style) var(--layout-border-color) !important;
+  border-bottom: var(--border-width) var(--border-style) var(--layout-border-color) !important;
+  background: var(--primary-background-color) !important;
+  color: var(--primary-text-color) !important;
+  transition:
+    background var(--orders-monday-transition),
+    color var(--orders-monday-transition),
+    outline-color var(--orders-monday-transition) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-column-header .monday-cell {
+  height: calc(var(--space-32) + var(--space-4)) !important;
+  min-height: calc(var(--space-32) + var(--space-4)) !important;
+  padding: 0 var(--space-12) !important;
+  font: var(--font-text2-normal) !important;
+  font-weight: var(--font-weight-bold) !important;
+  color: var(--secondary-text-color) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-order-row .monday-cell,
+body:has(.ob-wrap) .ob-wrap .add-task-row .monday-cell,
+body:has(.ob-wrap) .ob-wrap .ob-group-footer .monday-cell {
+  height: calc(var(--space-32) + var(--space-4)) !important;
+  min-height: calc(var(--space-32) + var(--space-4)) !important;
+  padding: 0 var(--space-12) !important;
+  font: var(--font-text2-normal) !important;
+  font-weight: var(--font-weight-normal) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-order-row:hover .monday-cell {
+  background: var(--primary-background-hover-color) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-order-row.is-selected .monday-cell {
+  background: var(--primary-selected-color) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-date-cell {
+  padding-left: var(--space-32) !important;
+  gap: var(--space-8) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-date-title,
+body:has(.ob-wrap) .ob-wrap .monday-group .ob-group-date-label {
+  font: var(--font-h3-medium) !important;
+  color: var(--ob-group-colour, var(--color-stuck-red)) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-task-count,
+body:has(.ob-wrap) .ob-wrap .monday-group .ob-group-task-count {
+  font: var(--font-text2-normal) !important;
+  color: var(--secondary-text-color) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-toggle {
+  width: var(--space-24) !important;
+  height: var(--space-24) !important;
+  transition:
+    color var(--orders-monday-transition),
+    background var(--orders-monday-transition) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-toggle .ob-chevron {
+  font-size: var(--space-20) !important;
+  font-weight: 600 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .comment-cell svg,
+body:has(.ob-wrap) .ob-wrap .monday-cell.col-task-icon svg {
+  color: var(--icon-color) !important;
+  stroke: var(--icon-color) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-order-row .task-name,
+body:has(.ob-wrap) .ob-wrap .monday-order-row .order-date-cell,
+body:has(.ob-wrap) .ob-wrap .monday-order-row .col-mobile,
+body:has(.ob-wrap) .ob-wrap .monday-order-row .col-amount,
+body:has(.ob-wrap) .ob-wrap .monday-order-row .col-packedby,
+body:has(.ob-wrap) .ob-wrap .monday-order-row .notes-cell,
+body:has(.ob-wrap) .ob-wrap .monday-order-row .notes-cell button,
+body:has(.ob-wrap) .ob-wrap .monday-order-row .comment-cell button {
+  font: var(--font-text2-normal) !important;
+  font-weight: var(--font-weight-normal) !important;
+  color: var(--primary-text-color) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-order-row .notes-cell,
+body:has(.ob-wrap) .ob-wrap .monday-order-row .notes-cell button,
+body:has(.ob-wrap) .ob-wrap .monday-order-row .col-text {
+  color: var(--secondary-text-color) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group .board-label,
+body:has(.ob-wrap) .ob-wrap .monday-group .mode-label,
+body:has(.ob-wrap) .ob-wrap .monday-group .payment-label,
+body:has(.ob-wrap) .ob-wrap .monday-group .status-label {
+  min-height: calc(var(--space-32) + var(--space-4)) !important;
+  padding: 0 var(--space-8) !important;
+  border-radius: 0 !important;
+  font: var(--font-text2-normal) !important;
+  font-weight: var(--font-weight-bold) !important;
+  color: var(--text-color-on-primary, #ffffff) !important;
+  transition:
+    filter var(--orders-monday-transition),
+    background var(--orders-monday-transition) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .ob-group-column-title,
+body:has(.ob-wrap) .ob-wrap .ob-group-sum-label,
+body:has(.ob-wrap) .ob-wrap .pick-duration,
+body:has(.ob-wrap) .ob-wrap small {
+  font: var(--font-text3-normal) !important;
+  color: var(--secondary-text-color) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .paid-check {
+  color: var(--color-done-green) !important;
+  border-color: var(--color-done-green) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .editable-cell.is-editing,
+body:has(.ob-wrap) .ob-wrap .order-date-cell.is-editing {
+  outline: var(--space-2) var(--border-style) var(--primary-color) !important;
+  outline-offset: calc(-1 * var(--space-2)) !important;
+}
+
+#board-label-menu.mode-label-popover,
+.ops-board-page #board-label-menu.label-menu,
+.ops-board-page #toolbar-popover .label-editor,
+.order-date-picker-popover {
+  border: var(--border-width) var(--border-style) var(--layout-border-color) !important;
+  border-radius: var(--border-radius-medium) !important;
+  background: var(--primary-background-color) !important;
+  box-shadow: var(--box-shadow-medium) !important;
+  color: var(--primary-text-color) !important;
+  transition:
+    opacity var(--orders-monday-pop-transition),
+    transform var(--orders-monday-pop-transition) !important;
+}
+
+#board-label-menu.mode-label-popover .mode-label-grid,
+.ops-board-page #board-label-menu .label-menu-grid {
+  gap: var(--space-8) !important;
+}
+
+#board-label-menu.mode-label-popover .mode-label-option,
+.ops-board-page #board-label-menu .label-menu-grid button {
+  min-height: var(--space-32) !important;
+  border-radius: var(--border-radius-small) !important;
+  font: var(--font-text2-normal) !important;
+  font-weight: var(--font-weight-bold) !important;
+  transition: filter var(--orders-monday-transition) !important;
+}
+
+#board-label-menu.mode-label-popover .mode-edit-labels-button,
+#board-label-menu.mode-label-popover .mode-label-footer,
+#board-label-menu.mode-label-popover .mode-new-label-button,
+.ops-board-page #board-label-menu .edit-labels {
+  font: var(--font-text2-normal) !important;
+  color: var(--secondary-text-color) !important;
 }
