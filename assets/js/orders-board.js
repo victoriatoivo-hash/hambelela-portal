@@ -504,26 +504,17 @@
   }
 
   function animateBoardRows() {
-    const rows = [...body.querySelectorAll('[data-order-id], [data-packing-id]')].slice(0, 80);
-    rows.forEach((row, index) => {
-      row.style.opacity = '0';
-      row.style.transform = 'translateY(8px)';
-      row.style.transition = 'opacity 200ms ease, transform 200ms ease';
-      window.setTimeout(() => {
-        row.style.opacity = '1';
-        row.style.transform = 'translateY(0)';
-      }, index * 18);
+    body.querySelectorAll('[data-order-id], [data-packing-id]').forEach((row) => {
+      row.style.opacity = '';
+      row.style.transform = '';
+      row.style.transition = '';
     });
   }
 
   function animateMetricCards() {
-    document.querySelectorAll('.ops-board-page .work-metric-card').forEach((card, index) => {
-      card.style.opacity = '0';
-      card.style.transform = 'translateY(12px)';
-      window.setTimeout(() => {
-        card.style.opacity = '1';
-        card.style.transform = 'translateY(0)';
-      }, index * 60);
+    document.querySelectorAll('.ops-board-page .work-metric-card').forEach((card) => {
+      card.style.opacity = '';
+      card.style.transform = '';
     });
   }
 

@@ -13251,7 +13251,7 @@ button.hr-section-tab {
 
 .ops-board-page .is-loading svg,
 .ops-board-page .is-loading .refresh-icon {
-  animation: boardSpin 700ms linear infinite;
+  animation: none !important;
 }
 
 @keyframes boardSpin {
@@ -13265,7 +13265,7 @@ button.hr-section-tab {
 }
 
 .ops-board-table tr.row-new td {
-  animation: boardRowPulse 2.5s ease forwards;
+  animation: none !important;
 }
 
 .board-skeleton-cell {
@@ -13273,9 +13273,9 @@ button.hr-section-tab {
   width: 100%;
   height: 14px;
   border-radius: 4px;
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-  background-size: 200% 100%;
-  animation: boardShimmer 1.4s infinite;
+  background: #f0f0f0;
+  background-size: auto;
+  animation: none !important;
 }
 
 @keyframes boardShimmer {
