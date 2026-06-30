@@ -17,6 +17,8 @@
   const panelAvatar = document.getElementById('panel-order-avatar');
   const panelEditor = document.getElementById('panel-update-editor');
   const panelComposer = document.getElementById('order-update-composer');
+  const panelFileInput = document.getElementById('order-update-file-input');
+  const panelAttachmentList = document.getElementById('order-selected-attachments');
   const panelUpdatesList = document.getElementById('panel-updates-list');
   const panelEmptyUpdates = document.getElementById('panel-empty-updates');
   const panelUpdatesTab = document.getElementById('panel-updates-tab');
@@ -32,6 +34,8 @@
   let packersCache = [];
   let currentUser = {};
   let currentOrder = null;
+  let panelEditorRange = null;
+  let panelSelectedFiles = [];
   let syncInFlight = false;
   let lastSyncMessage = '';
   let lastUndo = null;
@@ -2066,8 +2070,260 @@
     return body;
   }
 
+  function savePanelEditorSelection() {
+    if (!panelEditor) return;
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+    const range = selection.getRangeAt(0);
+    if (panelEditor.contains(range.commonAncestorContainer)) {
+      panelEditorRange = range.cloneRange();
+    }
+  }
+
+  function restorePanelEditorSelection() {
+    if (!panelEditor) return;
+    panelEditor.focus();
+    if (!panelEditorRange) return;
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(panelEditorRange);
+  }
+
+  function runPanelEditorCommand(command, value = null) {
+    if (!panelEditor || !command) return;
+    restorePanelEditorSelection();
+    if (command === 'createLink') {
+      const url = window.prompt('Enter link URL');
+      if (!url) return;
+      document.execCommand('createLink', false, url);
+    } else {
+      document.execCommand(command, false, value);
+    }
+    savePanelEditorSelection();
+    panelComposer?.classList.add('is-focused');
+    panelEditor.focus();
+  }
+
+  function insertPanelEditorText(text) {
+    if (!text || !panelEditor) return;
+    restorePanelEditorSelection();
+    document.execCommand('insertText', false, text);
+    savePanelEditorSelection();
+  }
+
+  function insertPanelEditorHtml(html) {
+    if (!html || !panelEditor) return;
+    restorePanelEditorSelection();
+    document.execCommand('insertHTML', false, html);
+    savePanelEditorSelection();
+  }
+
+  function closeComposerPopovers() {
+    panelComposer?.querySelectorAll('.order-composer-popover').forEach((popover) => popover.remove());
+  }
+
+  function openComposerPopover(anchor, kind, html) {
+    if (!panelComposer) return null;
+    closeComposerPopovers();
+    const popover = document.createElement('div');
+    popover.className = 'order-composer-popover';
+    popover.dataset.composerPopover = kind;
+    popover.innerHTML = html;
+    panelComposer.appendChild(popover);
+    const anchorRect = anchor?.getBoundingClientRect();
+    const composerRect = panelComposer.getBoundingClientRect();
+    const left = anchorRect ? Math.max(8, Math.min(anchorRect.left - composerRect.left, composerRect.width - 230)) : 12;
+    popover.style.left = `${left}px`;
+    popover.style.bottom = anchor?.closest('.order-format-toolbar') ? 'auto' : '42px';
+    popover.style.top = anchor?.closest('.order-format-toolbar') ? '36px' : 'auto';
+    return popover;
+  }
+
+  function mentionOptions() {
+    const names = new Set();
+    if (currentUser?.name) names.add(currentUser.name);
+    if (currentUser?.full_name) names.add(currentUser.full_name);
+    if (currentOrder?.customer_name) names.add(currentOrder.customer_name);
+    ordersCache.forEach((order) => {
+      if (order.packer_name) names.add(order.packer_name);
+      if (order.packed_by_name) names.add(order.packed_by_name);
+    });
+    names.add('Hambelela Operations');
+    return Array.from(names).filter(Boolean).slice(0, 8);
+  }
+
+  function renderPanelAttachments() {
+    if (!panelAttachmentList) return;
+    panelAttachmentList.hidden = panelSelectedFiles.length === 0;
+    panelAttachmentList.innerHTML = panelSelectedFiles.map((file, index) => `
+      <span class="order-attachment-chip">
+        <i data-lucide="paperclip"></i>
+        <span>${esc(file.name)}</span>
+        <button type="button" data-remove-update-attachment="${index}" aria-label="Remove ${esc(file.name)}">&times;</button>
+      </span>
+    `).join('');
+    if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+  }
+
+  function updateAttachmentHtml() {
+    if (!panelSelectedFiles.length) return '';
+    const items = panelSelectedFiles.map((file) => `<li>${esc(file.name)} (${Math.ceil(file.size / 1024)} KB)</li>`).join('');
+    return `<div class="order-update-attachments"><strong>Attachments</strong><ul>${items}</ul></div>`;
+  }
+
+  function panelEditorHtml() {
+    if (!panelEditor) return '';
+    const clone = panelEditor.cloneNode(true);
+    clone.querySelectorAll('script,style').forEach((node) => node.remove());
+    return clone.innerHTML.trim();
+  }
+
+  function panelEditorText() {
+    return String(panelEditor?.innerText || '').replace(/\u00a0/g, ' ').trim();
+  }
+
+  function sanitizeUpdateHtml(body) {
+    const raw = String(body || '').trim();
+    if (!/<[a-z][\s\S]*>/i.test(raw)) return esc(raw).replace(/\n/g, '<br>');
+    const allowedTags = new Set(['A', 'B', 'BR', 'DIV', 'EM', 'HR', 'I', 'LI', 'OL', 'P', 'SPAN', 'STRONG', 'S', 'STRIKE', 'U', 'UL']);
+    const allowedAttrs = new Set(['href', 'target', 'rel', 'style']);
+    const template = document.createElement('template');
+    template.innerHTML = raw;
+    template.content.querySelectorAll('*').forEach((node) => {
+      if (!allowedTags.has(node.tagName)) {
+        node.replaceWith(document.createTextNode(node.textContent || ''));
+        return;
+      }
+      Array.from(node.attributes).forEach((attr) => {
+        const name = attr.name.toLowerCase();
+        const value = attr.value;
+        if (!allowedAttrs.has(name) || name.startsWith('on')) node.removeAttribute(attr.name);
+        if (name === 'href' && !/^(https?:|mailto:|tel:)/i.test(value)) node.removeAttribute(attr.name);
+        if (name === 'style') {
+          const safeStyle = value
+            .split(';')
+            .map((rule) => rule.trim())
+            .filter((rule) => /^(color|font-size|text-align)\s*:/i.test(rule) && !/url|expression/i.test(rule))
+            .join('; ');
+          if (safeStyle) node.setAttribute('style', safeStyle);
+          else node.removeAttribute('style');
+        }
+      });
+      if (node.tagName === 'A') {
+        node.setAttribute('target', '_blank');
+        node.setAttribute('rel', 'noopener noreferrer');
+      }
+    });
+    return template.innerHTML;
+  }
+
+  function openEmojiPicker(anchor) {
+    const emojis = ['😊', '😂', '🙏', '❤️', '👍', '🔥', '✨', '🎉', '✅', '🌿'];
+    const popover = openComposerPopover(anchor, 'emoji', emojis.map((emoji) => (
+      `<button type="button" class="order-emoji-option" data-insert-emoji="${esc(emoji)}">${esc(emoji)}</button>`
+    )).join(''));
+    popover?.querySelectorAll('[data-insert-emoji]').forEach((button) => {
+      button.addEventListener('click', () => {
+        insertPanelEditorText(button.dataset.insertEmoji);
+        closeComposerPopovers();
+      });
+    });
+  }
+
+  function openMentionPicker(anchor) {
+    const options = mentionOptions();
+    const popover = openComposerPopover(anchor, 'mention', options.map((name) => (
+      `<button type="button" class="order-popover-option" data-insert-mention="${esc(name)}">@${esc(name)}</button>`
+    )).join(''));
+    popover?.querySelectorAll('[data-insert-mention]').forEach((button) => {
+      button.addEventListener('click', () => {
+        insertPanelEditorText(`@${button.dataset.insertMention} `);
+        closeComposerPopovers();
+      });
+    });
+  }
+
+  function openColourPicker(anchor) {
+    const colours = ['#323338', '#0073ea', '#00c875', '#df2f4a', '#fdab3d', '#9d50dd'];
+    const popover = openComposerPopover(anchor, 'colour', colours.map((colour) => (
+      `<button type="button" class="order-colour-option" style="--option-colour:${esc(colour)}" data-editor-colour="${esc(colour)}" aria-label="Text colour ${esc(colour)}"></button>`
+    )).join(''));
+    popover?.querySelectorAll('[data-editor-colour]').forEach((button) => {
+      button.addEventListener('click', () => {
+        runPanelEditorCommand('foreColor', button.dataset.editorColour);
+        closeComposerPopovers();
+      });
+    });
+  }
+
+  function openFontSizePicker(anchor) {
+    const sizes = [
+      ['12px', '12'],
+      ['14px', '14'],
+      ['16px', '16'],
+      ['18px', '18']
+    ];
+    const popover = openComposerPopover(anchor, 'font-size', sizes.map(([size, label]) => (
+      `<button type="button" class="order-popover-option" data-editor-font-size="${esc(size)}">${esc(label)}px</button>`
+    )).join(''));
+    popover?.querySelectorAll('[data-editor-font-size]').forEach((button) => {
+      button.addEventListener('click', () => {
+        insertPanelEditorHtml(`<span style="font-size:${esc(button.dataset.editorFontSize)}">${window.getSelection()?.toString() || 'Text'}</span>`);
+        closeComposerPopovers();
+      });
+    });
+  }
+
+  function openAlignmentPicker(anchor) {
+    const options = [
+      ['justifyLeft', 'Align left'],
+      ['justifyCenter', 'Align center'],
+      ['justifyRight', 'Align right']
+    ];
+    const popover = openComposerPopover(anchor, 'align', options.map(([command, label]) => (
+      `<button type="button" class="order-popover-option" data-editor-align="${esc(command)}">${esc(label)}</button>`
+    )).join(''));
+    popover?.querySelectorAll('[data-editor-align]').forEach((button) => {
+      button.addEventListener('click', () => {
+        runPanelEditorCommand(button.dataset.editorAlign);
+        closeComposerPopovers();
+      });
+    });
+  }
+
+  function openGifPlaceholder(anchor) {
+    const popover = openComposerPopover(anchor, 'gif', `
+      <div class="order-popover-note">GIF search is not connected yet.</div>
+      <button type="button" class="order-popover-option" data-insert-gif-placeholder>Insert GIF placeholder</button>
+    `);
+    popover?.querySelector('[data-insert-gif-placeholder]')?.addEventListener('click', () => {
+      insertPanelEditorHtml('<span class="order-update-gif-placeholder">[GIF]</span>');
+      closeComposerPopovers();
+    });
+  }
+
+  function openMagicPopup(anchor) {
+    const popover = openComposerPopover(anchor, 'magic', `
+      <button type="button" class="order-popover-option" data-magic-prefix="Quick update: ">Make clearer</button>
+      <button type="button" class="order-popover-option" data-magic-prefix="Please note: ">Friendly tone</button>
+      <button type="button" class="order-popover-option" data-magic-prefix="Summary: ">Add summary label</button>
+    `);
+    popover?.querySelectorAll('[data-magic-prefix]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const text = panelEditorText();
+        panelEditor.innerText = `${button.dataset.magicPrefix}${text}`.trim();
+        savePanelEditorSelection();
+        closeComposerPopovers();
+      });
+    });
+  }
+
   function resetPanelComposer() {
-    if (panelEditor) panelEditor.textContent = '';
+    if (panelEditor) panelEditor.innerHTML = '';
+    panelEditorRange = null;
+    panelSelectedFiles = [];
+    renderPanelAttachments();
+    closeComposerPopovers();
     if (panelComposer) panelComposer.classList.remove('is-focused', 'is-saving');
     if (schedulePopover) schedulePopover.hidden = true;
   }
@@ -2078,13 +2334,14 @@
   }
 
   function renderUpdateCard(body, timestamp = 'now') {
+    const safeBody = sanitizeUpdateHtml(body);
     return `<article class="order-update-card update-card">
       <div class="order-update-card-header">
         <span class="order-panel-avatar order-update-avatar">${esc(panelAuthorInitials())}</span>
         <strong>${esc(panelAuthorName())}</strong>
         <small>${esc(timestamp)}</small>
       </div>
-      <div class="order-update-card-body">${esc(body).replace(/\n/g, '<br>')}</div>
+      <div class="order-update-card-body">${safeBody}</div>
       <footer class="order-update-card-actions">
         <button type="button"><i data-lucide="thumbs-up"></i> Like</button>
         <button type="button"><i data-lucide="reply"></i> Reply</button>
@@ -2232,6 +2489,15 @@
     document.body.classList.remove('is-resizing-column');
   });
 
+  document.addEventListener('selectionchange', savePanelEditorSelection);
+
+  document.addEventListener('mousedown', (event) => {
+    if (event.target.closest('[data-editor-command], [data-editor-popup], [data-editor-action], [data-composer-action]')) {
+      savePanelEditorSelection();
+      event.preventDefault();
+    }
+  });
+
   document.addEventListener('click', async (event) => {
     if (event.target.closest('.column-resizer')) return;
     if (event.target.closest('.editable-cell.is-editing')) return;
@@ -2276,6 +2542,11 @@
     const saveNotes = event.target.closest('[data-save-notes]');
     const scheduleToggle = event.target.closest('[data-update-schedule-toggle]');
     const scheduleOption = event.target.closest('[data-schedule-option]');
+    const editorCommand = event.target.closest('[data-editor-command]');
+    const editorPopup = event.target.closest('[data-editor-popup]');
+    const editorAction = event.target.closest('[data-editor-action]');
+    const composerAction = event.target.closest('[data-composer-action]');
+    const removeAttachment = event.target.closest('[data-remove-update-attachment]');
     const addColumn = event.target.closest('[data-add-column]');
     const colClose = event.target.closest('[data-col-close]');
     const colOverlay = event.target.closest('#board-column-overlay');
@@ -2293,6 +2564,55 @@
     const bulkAction = event.target.closest('[data-order-bulk-action]');
 
     try {
+      if (editorCommand) {
+        event.preventDefault();
+        event.stopPropagation();
+        runPanelEditorCommand(editorCommand.dataset.editorCommand, editorCommand.dataset.editorValue || null);
+        return;
+      }
+
+      if (editorPopup) {
+        event.preventDefault();
+        event.stopPropagation();
+        const popup = editorPopup.dataset.editorPopup;
+        if (popup === 'colour') openColourPicker(editorPopup);
+        if (popup === 'font-size') openFontSizePicker(editorPopup);
+        if (popup === 'align') openAlignmentPicker(editorPopup);
+        return;
+      }
+
+      if (editorAction) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (editorAction.dataset.editorAction === 'confirm') {
+          closeComposerPopovers();
+          panelComposer?.classList.remove('is-focused');
+          panelEditor?.blur();
+        }
+        return;
+      }
+
+      if (composerAction) {
+        event.preventDefault();
+        event.stopPropagation();
+        panelComposer?.classList.add('is-focused');
+        const action = composerAction.dataset.composerAction;
+        if (action === 'mention') openMentionPicker(composerAction);
+        if (action === 'attach') panelFileInput?.click();
+        if (action === 'gif') openGifPlaceholder(composerAction);
+        if (action === 'emoji') openEmojiPicker(composerAction);
+        if (action === 'magic') openMagicPopup(composerAction);
+        return;
+      }
+
+      if (removeAttachment) {
+        event.preventDefault();
+        event.stopPropagation();
+        panelSelectedFiles.splice(Number(removeAttachment.dataset.removeUpdateAttachment), 1);
+        renderPanelAttachments();
+        return;
+      }
+
       if (dateSortTrigger) {
         event.preventDefault();
         event.stopPropagation();
@@ -2651,18 +2971,18 @@
       }
 
       if (saveNotes && currentOrder) {
-        const body = String(panelEditor?.innerText || '').trim();
-        if (!body) {
+        const bodyHtml = [panelEditorHtml(), updateAttachmentHtml()].filter(Boolean).join('');
+        if (!panelEditorText() && panelSelectedFiles.length === 0) {
           panelComposer?.classList.add('is-focused');
           panelEditor?.focus();
           return;
         }
         panelComposer?.classList.add('is-saving');
         try {
-          await post('update_field', { order_id: currentOrder.id, field: 'notes', value: body });
-          currentOrder.notes = body;
+          await post('update_field', { order_id: currentOrder.id, field: 'notes', value: bodyHtml });
+          currentOrder.notes = bodyHtml;
           const cachedOrder = ordersCache.find((order) => String(order.id) === String(currentOrder.id));
-          if (cachedOrder) cachedOrder.notes = body;
+          if (cachedOrder) cachedOrder.notes = bodyHtml;
           resetPanelComposer();
           renderPanelUpdates();
           if (syncState) syncState.textContent = 'Update saved.';
@@ -2688,6 +3008,7 @@
       panelComposer.classList.remove('is-focused');
       if (schedulePopover) schedulePopover.hidden = true;
     }
+    if (!event.target.closest('.order-update-composer')) closeComposerPopovers();
     if (!event.target.closest('.order-update-submit-wrap') && schedulePopover) schedulePopover.hidden = true;
     if (!event.target.closest('.ob-group-header.is-date-editing') && !event.target.closest('[data-edit-group-date]')) {
       closeGroupDatePopover();
@@ -2756,6 +3077,11 @@
   });
 
   document.addEventListener('input', (event) => {
+    if (event.target.closest('#panel-update-editor')) {
+      savePanelEditorSelection();
+      return;
+    }
+
     const search = event.target.closest('[data-toolbar-search]');
     if (search) {
       boardState.search = search.value;
@@ -2776,6 +3102,14 @@
   });
 
   document.addEventListener('change', (event) => {
+    if (event.target === panelFileInput) {
+      panelSelectedFiles = Array.from(panelFileInput.files || []);
+      renderPanelAttachments();
+      panelComposer?.classList.add('is-focused');
+      if (panelFileInput) panelFileInput.value = '';
+      return;
+    }
+
     const richColourInput = event.target.closest('[data-rich-label-color]');
     if (richColourInput) {
       const field = labelMenu?.dataset.richLabelField || 'order_type';

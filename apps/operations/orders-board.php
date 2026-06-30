@@ -170,15 +170,32 @@ include BASE_PATH . '/shared/sidebar.php';
             </div>
             <div class="order-updates-content">
                 <div class="order-update-composer update-composer" id="order-update-composer">
-                    <div class="order-format-toolbar" aria-hidden="true">
-                        <span>P</span><span>B</span><span><em>I</em></span><span><u>U</u></span><span><s>S</s></span>
-                        <span>A</span><span>14</span><span>1.</span><span>UL</span><span>[]</span><span><i data-lucide="link"></i></span>
-                        <span><i data-lucide="align-left"></i></span><span>HR</span><span><i data-lucide="undo-2"></i></span><span><i data-lucide="check"></i></span>
+                    <div class="order-format-toolbar" aria-label="Update formatting toolbar">
+                        <button type="button" class="order-editor-button" data-editor-command="formatBlock" data-editor-value="P" title="Paragraph">P</button>
+                        <button type="button" class="order-editor-button" data-editor-command="bold" title="Bold"><strong>B</strong></button>
+                        <button type="button" class="order-editor-button" data-editor-command="italic" title="Italic"><em>I</em></button>
+                        <button type="button" class="order-editor-button" data-editor-command="underline" title="Underline"><u>U</u></button>
+                        <button type="button" class="order-editor-button" data-editor-command="strikeThrough" title="Strikethrough"><s>S</s></button>
+                        <button type="button" class="order-editor-button" data-editor-popup="colour" title="Text colour">A</button>
+                        <button type="button" class="order-editor-button" data-editor-popup="font-size" title="Font size">14</button>
+                        <button type="button" class="order-editor-button" data-editor-command="insertOrderedList" title="Numbered list">1.</button>
+                        <button type="button" class="order-editor-button" data-editor-command="insertUnorderedList" title="Bullet list">UL</button>
+                        <button type="button" class="order-editor-button" data-editor-command="createLink" title="Insert link"><i data-lucide="link"></i></button>
+                        <button type="button" class="order-editor-button" data-editor-popup="align" title="Align text"><i data-lucide="align-left"></i></button>
+                        <button type="button" class="order-editor-button" data-editor-command="insertHorizontalRule" title="Horizontal rule">HR</button>
+                        <button type="button" class="order-editor-button" data-editor-command="undo" title="Undo"><i data-lucide="undo-2"></i></button>
+                        <button type="button" class="order-editor-button" data-editor-action="confirm" title="Confirm"><i data-lucide="check"></i></button>
                     </div>
                     <div class="order-update-editor" id="panel-update-editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Write an update and mention others with @"></div>
+                    <input type="file" class="update-file-input" id="order-update-file-input" hidden multiple>
+                    <div class="order-selected-attachments" id="order-selected-attachments" hidden></div>
                     <div class="order-composer-bottom">
                         <div class="order-composer-icons">
-                            <span>@</span><span><i data-lucide="paperclip"></i></span><span>GIF</span><span><i data-lucide="smile"></i></span><span><i data-lucide="sparkles"></i></span>
+                            <button type="button" class="order-composer-icon-button" data-composer-action="mention" title="Mention someone">@</button>
+                            <button type="button" class="order-composer-icon-button" data-composer-action="attach" title="Attach files"><i data-lucide="paperclip"></i></button>
+                            <button type="button" class="order-composer-icon-button" data-composer-action="gif" title="Add GIF">GIF</button>
+                            <button type="button" class="order-composer-icon-button" data-composer-action="emoji" title="Add emoji"><i data-lucide="smile"></i></button>
+                            <button type="button" class="order-composer-icon-button" data-composer-action="magic" title="Refine text"><i data-lucide="sparkles"></i></button>
                         </div>
                         <div class="order-update-submit-wrap">
                             <button class="order-update-button" type="button" data-save-notes>Update</button>
