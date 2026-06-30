@@ -21450,6 +21450,68 @@ body:has(.ob-wrap) .ob-wrap .monday-order-row > .col-status {
   overflow: hidden !important;
 }
 
+body:has(.ob-wrap) .ob-wrap .monday-order-row > .col-status {
+  position: relative !important;
+  overflow: visible !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .animated-status-confetti-sprite-animation {
+  position: absolute !important;
+  width: 139px !important;
+  height: 35px !important;
+  left: 50% !important;
+  top: 50% !important;
+  transform: translate(-50%, -50%) scale(0.75);
+  pointer-events: none !important;
+  z-index: 20 !important;
+  background-repeat: no-repeat !important;
+  background-size: contain !important;
+  animation: statusConfettiPop 900ms ease-out forwards !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .animated-status-confetti-sprite-animation::before,
+body:has(.ob-wrap) .ob-wrap .animated-status-confetti-sprite-animation::after {
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 !important;
+  background:
+    radial-gradient(circle at 10% 40%, #ffd33d 0 3px, transparent 4px),
+    radial-gradient(circle at 20% 70%, #ffffff 0 3px, transparent 4px),
+    radial-gradient(circle at 35% 25%, #ff6bcb 0 3px, transparent 4px),
+    radial-gradient(circle at 55% 60%, #ffd33d 0 3px, transparent 4px),
+    radial-gradient(circle at 72% 30%, #ffffff 0 3px, transparent 4px),
+    radial-gradient(circle at 88% 55%, #ff6bcb 0 3px, transparent 4px) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .animated-status-confetti-sprite-animation::after {
+  background:
+    linear-gradient(90deg, transparent 47%, #ffd33d 47% 53%, transparent 53%),
+    linear-gradient(45deg, transparent 47%, #ffffff 47% 53%, transparent 53%),
+    linear-gradient(-45deg, transparent 47%, #ff6bcb 47% 53%, transparent 53%) !important;
+  opacity: 0.85 !important;
+}
+
+@keyframes statusConfettiPop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.75);
+  }
+
+  20% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+
+  70% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -65%) scale(1);
+  }
+}
+
 body:has(.ob-wrap) .ob-wrap .monday-group .board-label,
 body:has(.ob-wrap) .ob-wrap .monday-group .mode-label,
 body:has(.ob-wrap) .ob-wrap .monday-group .payment-label,

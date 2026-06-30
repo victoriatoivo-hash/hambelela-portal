@@ -510,6 +510,45 @@
       }
     });
     setUndo(changes);
+    return changes;
+  }
+
+  function isCompleteStatus(value) {
+    if (normalize(value) === 'completed') return true;
+    return findText(statusLabels, value || '').toUpperCase() === 'COMPLETE';
+  }
+
+  function playCompleteConfetti(statusCell) {
+    if (!statusCell) return;
+    statusCell.querySelector('.animated-status-confetti-sprite-animation')?.remove();
+    const confetti = document.createElement('span');
+    confetti.className = 'animated-status-confetti-sprite-animation';
+    confetti.setAttribute('aria-hidden', 'true');
+    statusCell.appendChild(confetti);
+    window.setTimeout(() => {
+      confetti.remove();
+    }, 1000);
+  }
+
+  function statusCellForOrder(orderId) {
+    return [...document.querySelectorAll('.monday-order-row[data-order-id]')]
+      .find((row) => String(row.dataset.orderId) === String(orderId))
+      ?.querySelector('.col-status');
+  }
+
+  function playCompleteConfettiForChanges(changes, nextStatus) {
+    if (!isCompleteStatus(nextStatus)) return;
+    changes
+      .filter((change) => change.field === 'status' && !isCompleteStatus(change.value))
+      .forEach((change) => playCompleteConfetti(statusCellForOrder(change.id)));
+  }
+
+  async function updateRichLabelValue(orderId, field, value) {
+    const orderIds = currentSelectedIdsFor(orderId);
+    const changes = await updateOrdersField(orderIds, field, value);
+    closeLabelMenu();
+    renderOrders(ordersCache);
+    if (field === 'status') playCompleteConfettiForChanges(changes, value);
   }
 
   async function undoLastChange() {
@@ -1690,10 +1729,7 @@
         event.stopPropagation();
         const orderId = labelMenu.dataset.richLabelOrder || '';
         const field = labelMenu.dataset.richLabelField || 'order_type';
-        const orderIds = currentSelectedIdsFor(orderId);
-        await updateOrdersField(orderIds, field, button.dataset.richLabelValue);
-        closeLabelMenu();
-        renderOrders(ordersCache);
+        await updateRichLabelValue(orderId, field, button.dataset.richLabelValue);
       });
     });
 
@@ -2368,10 +2404,7 @@
       if (richLabelChoice) {
         const orderId = labelMenu.dataset.richLabelOrder || '';
         const field = labelMenu.dataset.richLabelField || 'order_type';
-        const orderIds = currentSelectedIdsFor(orderId);
-        await updateOrdersField(orderIds, field, richLabelChoice.dataset.richLabelValue);
-        closeLabelMenu();
-        renderOrders(ordersCache);
+        await updateRichLabelValue(orderId, field, richLabelChoice.dataset.richLabelValue);
         return;
       }
 
@@ -2500,10 +2533,7 @@
       }
 
       if (labelChoice) {
-        const orderIds = currentSelectedIdsFor(labelChoice.dataset.labelOrder);
-        await updateOrdersField(orderIds, labelChoice.dataset.labelField, labelChoice.dataset.labelValue);
-        closeLabelMenu();
-        renderOrders(ordersCache);
+        await updateRichLabelValue(labelChoice.dataset.labelOrder, labelChoice.dataset.labelField, labelChoice.dataset.labelValue);
         return;
       }
 
