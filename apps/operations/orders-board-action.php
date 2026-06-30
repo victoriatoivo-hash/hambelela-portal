@@ -959,6 +959,65 @@ try {
         exit;
     }
 
+    if ($action === 'reorder_orders') {
+        if (!user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager')) {
+            throw new RuntimeException('Only admin, front desk or supervisor can rearrange orders.');
+        }
+
+        $groupDate = trim((string) ($_POST['group_date'] ?? ''));
+        $ids = array_values(array_unique(array_filter(array_map('intval', explode(',', (string) ($_POST['order_ids'] ?? ''))))));
+
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $groupDate) || count($ids) < 2) {
+            throw new RuntimeException('Invalid row order.');
+        }
+
+        if (count($ids) > 500) {
+            throw new RuntimeException('Please rearrange 500 orders or fewer at once.');
+        }
+
+        ops_ensure_order_manual_order_table();
+
+        $displayDateTimeExpr = ops_order_display_datetime_expr();
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $orderRows = ops_rows(
+            "SELECT id FROM ops_orders WHERE id IN ({$placeholders}) AND DATE({$displayDateTimeExpr}) = ?",
+            array_merge($ids, [$groupDate])
+        );
+        $valid = array_fill_keys(array_map(static fn (array $row): int => (int) ($row['id'] ?? 0), $orderRows), true);
+        $validIds = array_values(array_filter($ids, static fn (int $id): bool => isset($valid[$id])));
+
+        if (count($validIds) < 2) {
+            throw new RuntimeException('No matching orders were found for this date group.');
+        }
+
+        $db = db();
+        $db->beginTransaction();
+        try {
+            $deletePlaceholders = implode(',', array_fill(0, count($validIds), '?'));
+            $delete = $db->prepare("DELETE FROM ops_order_manual_order WHERE group_date = ? AND order_id IN ({$deletePlaceholders})");
+            $delete->execute(array_merge([$groupDate], $validIds));
+
+            $insert = $db->prepare(
+                "INSERT INTO ops_order_manual_order (group_date, order_id, sort_index, updated_by)
+                 VALUES (?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE sort_index = VALUES(sort_index), updated_by = VALUES(updated_by), updated_at = CURRENT_TIMESTAMP"
+            );
+            $userId = (int) (current_user()['id'] ?? 0);
+            foreach ($validIds as $index => $id) {
+                $insert->execute([$groupDate, $id, $index + 1, $userId ?: null]);
+            }
+            $db->commit();
+        } catch (Throwable $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            throw $e;
+        }
+
+        echo json_encode(['ok' => true, 'message' => 'Manual row order saved.', 'group_date' => $groupDate, 'order_ids' => $validIds]);
+        exit;
+    }
+
     if ($action === 'update_field') {
         $orderId = (int) ($_POST['order_id'] ?? 0);
         $field = ops_post_string('field', 40);

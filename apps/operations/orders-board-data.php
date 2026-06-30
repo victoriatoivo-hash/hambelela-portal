@@ -38,6 +38,9 @@ $assignedAtSelect = $hasAssignedAt ? 'o.assigned_at' : 'NULL AS assigned_at';
 $startedAtSelect = $hasStartedAt ? 'o.packing_started_at' : 'NULL AS packing_started_at';
 $displayDateTimeExpr = ops_order_display_datetime_expr('o');
 $metricDateTimeExpr = ops_order_display_datetime_expr();
+$hasManualOrder = ops_table_exists('ops_order_manual_order');
+$manualOrderSelect = $hasManualOrder ? 'mo.sort_index AS manual_sort_order' : 'NULL AS manual_sort_order';
+$manualOrderJoin = $hasManualOrder ? "LEFT JOIN ops_order_manual_order mo ON mo.order_id = o.id AND mo.group_date = DATE({$displayDateTimeExpr})" : '';
 
 $whereParts = [];
 $params = [];
@@ -56,9 +59,10 @@ $orders = ops_rows(
         o.id, o.order_number, o.customer_name, o.customer_contact, o.payment_method, {$amountSelect}, o.payment_status,
         o.order_type, o.status, o.workload_score, {$displayDateTimeExpr} AS displayed_order_datetime,
         {$displayDateTimeExpr} AS created_at, o.created_at AS source_created_at, {$assignedAtSelect}, {$startedAtSelect}, o.packed_at, o.completed_at, o.notes,
-        o.assigned_packer_id, e.full_name AS packer_name
+        o.assigned_packer_id, e.full_name AS packer_name, {$manualOrderSelect}
      FROM ops_orders o
      LEFT JOIN ops_employees e ON e.id = o.assigned_packer_id
+     {$manualOrderJoin}
      {$where}
      ORDER BY {$displayDateTimeExpr} DESC, o.id DESC
      LIMIT 500",

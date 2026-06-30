@@ -158,6 +158,29 @@ function ops_order_display_datetime_update_column(): string
     return $columns[0] ?? 'created_at';
 }
 
+function ops_ensure_order_manual_order_table(): void
+{
+    static $ready = false;
+    if ($ready) {
+        return;
+    }
+
+    db()->exec(
+        "CREATE TABLE IF NOT EXISTS ops_order_manual_order (
+            group_date DATE NOT NULL,
+            order_id INT NOT NULL,
+            sort_index INT NOT NULL,
+            updated_by INT NULL,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (group_date, order_id),
+            INDEX idx_order_manual_order_sort (group_date, sort_index),
+            INDEX idx_order_manual_order_order (order_id)
+        )"
+    );
+
+    $ready = true;
+}
+
 function ops_read_define_config(string $path): array
 {
     if (!is_file($path) || !is_readable($path)) {

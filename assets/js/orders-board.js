@@ -43,6 +43,7 @@
   let previousOrderIds = new Set();
   let customColumns = [];
   let orderDatePicker = null;
+  let rowDragState = null;
   const selectedOrders = new Set();
   const boardState = {
     search: '',
@@ -84,6 +85,7 @@
   const COLUMN_STORAGE_KEY = 'ordersBoardColumnWidths';
   const DATE_SORT_STORAGE_KEY = 'ordersBoardDateSorts';
   const dateSortOptions = [
+    ['manual', 'Manual'],
     ['earliest_to_latest', 'Earliest to Latest'],
     ['earliest', 'Earliest'],
     ['latest', 'Latest']
@@ -267,19 +269,39 @@
     }
   }
 
-  function dateGroupSortMode(key) {
-    return dateSortOptions.some(([value]) => value === dateGroupSorts[key]) ? dateGroupSorts[key] : 'latest';
+  function orderManualSortValue(order) {
+    const value = Number(order?.manual_sort_order);
+    return Number.isFinite(value) && value > 0 ? value : null;
+  }
+
+  function groupHasManualOrder(orders) {
+    return (orders || []).some((order) => orderManualSortValue(order) !== null);
+  }
+
+  function dateGroupSortMode(key, orders = []) {
+    if (dateSortOptions.some(([value]) => value === dateGroupSorts[key])) return dateGroupSorts[key];
+    return groupHasManualOrder(orders) ? 'manual' : 'latest';
   }
 
   function sortDateGroupOrders(key, orders) {
-    const mode = dateGroupSortMode(key);
+    const mode = dateGroupSortMode(key, orders);
+    if (mode === 'manual') {
+      return [...orders].sort((a, b) => {
+        const aManual = orderManualSortValue(a);
+        const bManual = orderManualSortValue(b);
+        if (aManual !== null && bManual !== null) return aManual - bManual;
+        if (aManual !== null) return -1;
+        if (bManual !== null) return 1;
+        return compareOrdersNewestFirst(a, b);
+      });
+    }
     const comparator = mode === 'latest' ? compareOrdersNewestFirst : compareOrdersOldestFirst;
     return [...orders].sort(comparator);
   }
 
-  function renderDateSortPopover(key) {
+  function renderDateSortPopover(key, orders = []) {
     if (activeDateSortGroup !== key) return '';
-    const selected = dateGroupSortMode(key);
+    const selected = dateGroupSortMode(key, orders);
     return `<div class="date-sort-popover" role="menu" aria-label="Date sort options">
       ${dateSortOptions.map(([value, label]) => `
         <button type="button" class="date-sort-option ${selected === value ? 'is-selected' : ''}" data-date-sort-option="${esc(value)}" data-date-sort-group="${esc(key)}" role="menuitemradio" aria-checked="${selected === value ? 'true' : 'false'}">
@@ -669,6 +691,72 @@
     }
     if (!response.ok || !data.ok) throw new Error(data.message || 'Action failed');
     return data;
+  }
+
+  function orderedIdsFromDom(groupKeyValue) {
+    return [...body.querySelectorAll(`.monday-order-row[data-group-row="${selectorEsc(groupKeyValue)}"][data-order-id]`)]
+      .map((row) => row.dataset.orderId)
+      .filter(Boolean);
+  }
+
+  function applyManualOrderToCache(groupKeyValue, orderIds) {
+    const positions = new Map(orderIds.map((id, index) => [String(id), index + 1]));
+    ordersCache = ordersCache.map((order) => {
+      if (groupKey(order) !== groupKeyValue) return order;
+      const position = positions.get(String(order.id));
+      return position ? { ...order, manual_sort_order: position } : order;
+    });
+    dateGroupSorts[groupKeyValue] = 'manual';
+    saveDateGroupSorts();
+  }
+
+  function clearRowDragMarkers() {
+    body.querySelectorAll('.monday-order-row.is-dragging, .monday-order-row.drag-over-before, .monday-order-row.drag-over-after')
+      .forEach((row) => row.classList.remove('is-dragging', 'drag-over-before', 'drag-over-after'));
+  }
+
+  function dragTargetRow(event) {
+    const row = event.target.closest('.monday-order-row[data-order-id]');
+    if (!rowDragState || !row || row === rowDragState.row) return null;
+    return row.dataset.groupRow === rowDragState.groupKey ? row : null;
+  }
+
+  function dropPosition(event, row) {
+    const rect = row.getBoundingClientRect();
+    return event.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
+  }
+
+  async function persistRowOrder(groupKeyValue, orderIds) {
+    await post('reorder_orders', {
+      group_date: groupKeyValue,
+      order_ids: orderIds.join(',')
+    });
+  }
+
+  async function finishRowDrop(targetRow, position) {
+    if (!rowDragState || !targetRow || !position) return;
+    const { row, groupKey: groupKeyValue } = rowDragState;
+    const parent = targetRow.parentNode;
+    if (!parent || row === targetRow) return;
+
+    if (position === 'before') {
+      parent.insertBefore(row, targetRow);
+    } else {
+      parent.insertBefore(row, targetRow.nextSibling);
+    }
+
+    const orderIds = orderedIdsFromDom(groupKeyValue);
+    if (!orderIds.length) return;
+    applyManualOrderToCache(groupKeyValue, orderIds);
+    renderOrders(ordersCache);
+
+    try {
+      await persistRowOrder(groupKeyValue, orderIds);
+      if (syncState) syncState.textContent = 'Manual row order saved.';
+    } catch (error) {
+      if (syncState) syncState.textContent = error?.message || 'Could not save manual row order.';
+      await refresh();
+    }
   }
 
   function setAvailabilityVisual(isAvailable) {
@@ -1515,7 +1603,7 @@
         <div class="monday-cell col-task-icon"></div>
         <div class="monday-cell ob-group-date-cell date-sort-cell col-date" data-date-sort-cell="${esc(key)}">
           <button type="button" class="ob-date-pill date-sort-trigger" data-date-sort-trigger="${esc(key)}" aria-haspopup="menu" aria-expanded="${activeDateSortGroup === key ? 'true' : 'false'}">${esc(groupDatePill(key))}</button>
-          ${renderDateSortPopover(key)}
+          ${renderDateSortPopover(key, orders)}
         </div>
         <div class="monday-cell col-mobile"></div>
         <div class="monday-cell ob-group-bar-cell col-mode">${stackedBar(modeCounts, modeColours, 'ob-mode-bar')}</div>
@@ -1533,9 +1621,9 @@
     const rows = orders.map((order, rowIndex) => {
       const stripClass = `${rowIndex === 0 ? 'is-group-first' : ''} ${rowIndex === orders.length - 1 ? 'is-group-last-visible' : ''}`.trim();
       return `
-        <div data-order-id="${esc(order.id)}" data-group-row="${esc(key)}" class="monday-grid monday-order-row board-row ob-data-row ${stripClass} ${!previousOrderIds.has(String(order.id)) && hasRenderedOnce ? 'row-new' : ''} ${selectedOrders.has(String(order.id)) ? 'is-selected' : ''}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
+        <div data-order-id="${esc(order.id)}" data-group-row="${esc(key)}" data-group-date="${esc(key)}" class="monday-grid monday-order-row board-row ob-data-row order-row ${stripClass} ${!previousOrderIds.has(String(order.id)) && hasRenderedOnce ? 'row-new' : ''} ${selectedOrders.has(String(order.id)) ? 'is-selected' : ''}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
           <div class="monday-cell check-cell col-checkbox"><input type="checkbox" data-row-select="${esc(order.id)}" ${selectedOrders.has(String(order.id)) ? 'checked' : ''} aria-label="Select order"></div>
-          <div class="monday-cell task-cell editable-cell col-task" data-editable-order-field="customer_name" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_name || '')}" tabindex="0"><span class="task-name">${esc(order.order_number.replace(/^WEB-/, ''))} ${esc(order.customer_name)}</span></div>
+          <div class="monday-cell task-cell editable-cell col-task" data-editable-order-field="customer_name" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_name || '')}" tabindex="0"><span class="task-drag-handle" data-row-drag-handle="${esc(order.id)}" draggable="true" role="button" tabindex="0" aria-label="Drag order row" title="Drag row">⋮⋮</span><span class="task-name">${esc(order.order_number.replace(/^WEB-/, ''))} ${esc(order.customer_name)}</span></div>
           <div class="monday-cell comment-cell col-task-icon"><button type="button" data-open-panel="${esc(order.id)}"><i data-lucide="message-circle-plus"></i></button></div>
           <div class="monday-cell col-date order-date-cell" data-order-id="${esc(order.id)}" data-datetime="${esc(orderDisplayDateTime(order))}" role="button" tabindex="0" title="Edit order date/time">${prettyDate(orderDisplayDateTime(order))}</div>
           <div class="monday-cell editable-cell col-mobile" data-editable-order-field="customer_contact" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_contact || '')}" tabindex="0">${esc(order.customer_contact || '')}</div>
@@ -2537,8 +2625,55 @@
     }
   });
 
+  document.addEventListener('dragstart', (event) => {
+    const handle = event.target.closest('[data-row-drag-handle]');
+    if (!handle) return;
+    const row = handle.closest('.monday-order-row[data-order-id][data-group-row]');
+    if (!row || !isDateGroupKey(row.dataset.groupRow || '')) {
+      event.preventDefault();
+      return;
+    }
+    rowDragState = {
+      orderId: String(row.dataset.orderId || ''),
+      groupKey: row.dataset.groupRow || '',
+      row
+    };
+    row.classList.add('is-dragging');
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', rowDragState.orderId);
+  });
+
+  document.addEventListener('dragover', (event) => {
+    const targetRow = dragTargetRow(event);
+    if (!targetRow) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    body.querySelectorAll('.monday-order-row.drag-over-before, .monday-order-row.drag-over-after')
+      .forEach((row) => row.classList.remove('drag-over-before', 'drag-over-after'));
+    targetRow.classList.add(dropPosition(event, targetRow) === 'before' ? 'drag-over-before' : 'drag-over-after');
+  });
+
+  document.addEventListener('drop', async (event) => {
+    const targetRow = dragTargetRow(event);
+    if (!targetRow) return;
+    event.preventDefault();
+    const position = dropPosition(event, targetRow);
+    try {
+      await finishRowDrop(targetRow, position);
+    } finally {
+      clearRowDragMarkers();
+      rowDragState = null;
+    }
+  });
+
+  document.addEventListener('dragend', () => {
+    clearRowDragMarkers();
+    rowDragState = null;
+  });
+
   document.addEventListener('click', async (event) => {
     if (event.target.closest('.column-resizer')) return;
+    if (event.target.closest('[data-row-drag-handle]')) return;
     if (event.target.closest('.editable-cell.is-editing')) return;
 
     const editableCell = event.target.closest('[data-editable-order-field]');
