@@ -1251,8 +1251,15 @@
   }
 
   function renderPaidCell(order) {
-    const checked = order.payment_status === 'paid' ? 'checked' : '';
-    return `<label class="paid-toggle"><input type="checkbox" data-paid-toggle="${esc(order.id)}" ${checked} aria-label="Mark order paid"><span class="paid-tick">&check;</span></label>`;
+    return order.payment_status === 'paid' ? '<span class="paid-icon" aria-hidden="true">✓</span>' : '';
+  }
+
+  async function togglePaidCell(paidCell) {
+    const orderId = paidCell.dataset.paidToggle;
+    if (!orderId) return;
+    const value = paidCell.dataset.paidState === 'paid' ? 'unpaid' : 'paid';
+    await updateOrdersField(currentSelectedIdsFor(orderId), 'payment_status', value);
+    renderOrders(ordersCache);
   }
 
   function renderGroup(key, orders, index) {
@@ -1335,7 +1342,7 @@
           <div class="monday-cell col-mode"${labelCellStyle(modeLabels, order.order_type)}>${renderLabelCell(order, 'order_type', order.order_type, modeLabels, 'mode-label')}</div>
           <div class="monday-cell editable-cell col-amount" data-editable-order-field="total_amount" data-order-id="${esc(order.id)}" data-value="${esc(order.total_amount ?? '')}" tabindex="0">${esc(money(order.total_amount))}</div>
           <div class="monday-cell col-payment"${labelCellStyle(paymentLabels, order.payment_method || 'Cash')}>${renderLabelCell(order, 'payment_method', order.payment_method || 'Cash', paymentLabels, 'payment-label')}</div>
-          <div class="monday-cell paid-cell col-paid ${order.payment_status === 'paid' ? '' : 'unpaid'}">${renderPaidCell(order)}</div>
+          <div class="monday-cell paid-cell col-paid ${order.payment_status === 'paid' ? 'is-paid' : 'unpaid'}" data-paid-toggle="${esc(order.id)}" data-paid-state="${order.payment_status === 'paid' ? 'paid' : 'unpaid'}" role="button" tabindex="0" aria-label="${order.payment_status === 'paid' ? 'Mark order unpaid' : 'Mark order paid'}">${renderPaidCell(order)}</div>
           <div class="monday-cell col-status"${labelCellStyle(statusLabels, order.status || 'new_order')}>${renderLabelCell(order, 'status', order.status || 'new_order', statusLabels, 'status-label')}</div>
           <div class="monday-cell editable-cell col-packedby" data-editable-order-field="assigned_packer_id" data-order-id="${esc(order.id)}" data-value="${esc(order.assigned_packer_id || '')}" tabindex="0">${renderPackerCell(order)}<small class="pick-duration">${esc(durationText(order.packing_started_at, order.completed_at || order.packed_at))}</small></div>
           <div class="monday-cell notes-cell col-text"><button type="button" data-expand-note>${esc(order.notes || '')}</button></div>
@@ -2264,10 +2271,8 @@
       }
 
       if (paidToggle) {
-        const orderId = paidToggle.dataset.paidToggle;
-        const value = paidToggle.checked ? 'paid' : 'unpaid';
-        await updateOrdersField(currentSelectedIdsFor(orderId), 'payment_status', value);
-        renderOrders(ordersCache);
+        event.preventDefault();
+        await togglePaidCell(paidToggle);
         return;
       }
 
@@ -2381,6 +2386,13 @@
     if (editableCell && !editableCell.classList.contains('is-editing') && (event.key === 'Enter' || event.key === ' ')) {
       event.preventDefault();
       beginEditableCell(editableCell);
+      return;
+    }
+
+    const paidCell = event.target.closest('[data-paid-toggle]');
+    if (paidCell && (event.key === 'Enter' || event.key === ' ')) {
+      event.preventDefault();
+      togglePaidCell(paidCell).catch(showError);
       return;
     }
 

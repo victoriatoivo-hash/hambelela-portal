@@ -21092,3 +21092,44 @@ body:has(.ob-wrap) .ob-wrap .monday-group .paid-check {
 body:has(.ob-wrap) .ob-wrap .monday-group-summary {
   border-top: var(--border-width) var(--border-style) var(--ui-border-color) !important;
 }
+
+/* Paid column: Monday-style tick only, no checkbox component. */
+body:has(.ob-wrap) .ob-wrap .monday-order-row > .paid-cell.col-paid {
+  padding: 0 !important;
+  background: var(--primary-background-color, #ffffff) !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .paid-cell .paid-toggle,
+body:has(.ob-wrap) .ob-wrap .paid-cell input[type="checkbox"],
+body:has(.ob-wrap) .ob-wrap .paid-cell .paid-tick {
+  display: none !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .paid-cell .paid-icon {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: auto !important;
+  height: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  color: var(--color-done-green, #00c875) !important;
+  font-size: 18px !important;
+  font-weight: 600 !important;
+  line-height: 1 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .paid-cell.unpaid .paid-icon,
+body:has(.ob-wrap) .ob-wrap .paid-cell:not(.is-paid) .paid-icon {
+  display: none !important;
+}
