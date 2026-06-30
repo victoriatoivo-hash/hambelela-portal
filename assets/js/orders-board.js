@@ -41,7 +41,6 @@
     mode: '',
     payment: '',
     status: '',
-    sort: 'newest',
     groupBy: 'date',
     hidden: new Set()
   };
@@ -114,6 +113,18 @@
   const isDateGroupKey = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
   let boardDateScope = dateFilter?.value ? 'date' : 'all';
   let boardMonth = (dateFilter?.value || todayKey()).slice(0, 7);
+
+  function orderTimestamp(order) {
+    const value = String(order?.created_at || '').replace(' ', 'T');
+    const timestamp = Date.parse(value);
+    return Number.isNaN(timestamp) ? 0 : timestamp;
+  }
+
+  function compareOrdersNewestFirst(a, b) {
+    const timeDiff = orderTimestamp(b) - orderTimestamp(a);
+    if (timeDiff !== 0) return timeDiff;
+    return Number(b?.id || 0) - Number(a?.id || 0);
+  }
 
   function selectedBoardMonth() {
     const anchor = dateFilter?.value || `${boardMonth || todayKey().slice(0, 7)}-01`;
@@ -771,13 +782,7 @@
       return true;
     });
 
-    orders = [...orders].sort((a, b) => {
-      if (boardState.sort === 'oldest') return String(a.created_at).localeCompare(String(b.created_at));
-      if (boardState.sort === 'amount_high') return Number(b.total_amount || 0) - Number(a.total_amount || 0);
-      if (boardState.sort === 'amount_low') return Number(a.total_amount || 0) - Number(b.total_amount || 0);
-      if (boardState.sort === 'customer') return String(a.customer_name || '').localeCompare(String(b.customer_name || ''));
-      return String(b.created_at).localeCompare(String(a.created_at));
-    });
+    orders = [...orders].sort(compareOrdersNewestFirst);
 
     return orders;
   }
@@ -1802,16 +1807,6 @@
       </div>`;
     }
 
-    if (type === 'sort') {
-      return `<div class="toolbar-panel"><strong>Sort orders</strong>
-        ${optionButton('Newest first', 'sort', 'newest', boardState.sort === 'newest')}
-        ${optionButton('Oldest first', 'sort', 'oldest', boardState.sort === 'oldest')}
-        ${optionButton('Amount high to low', 'sort', 'amount_high', boardState.sort === 'amount_high')}
-        ${optionButton('Amount low to high', 'sort', 'amount_low', boardState.sort === 'amount_low')}
-        ${optionButton('Customer A-Z', 'sort', 'customer', boardState.sort === 'customer')}
-      </div>`;
-    }
-
     if (type === 'hide') {
       return `<div class="toolbar-panel"><strong>Hide columns</strong>${columns.map(([key, label]) => `
         <label class="toolbar-check"><input type="checkbox" data-hide-column="${esc(key)}" ${boardState.hidden.has(key) ? 'checked' : ''}> ${esc(label)}</label>
@@ -1840,7 +1835,6 @@
     if (action === 'status') boardState.status = value;
     if (action === 'mode') boardState.mode = value;
     if (action === 'payment') boardState.payment = value;
-    if (action === 'sort') boardState.sort = value;
     if (action === 'group') boardState.groupBy = value;
     if (action === 'clear_filters') {
       boardState.person = '';

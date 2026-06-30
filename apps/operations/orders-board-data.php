@@ -57,7 +57,7 @@ $orders = ops_rows(
      FROM ops_orders o
      LEFT JOIN ops_employees e ON e.id = o.assigned_packer_id
      {$where}
-     ORDER BY o.created_at DESC
+     ORDER BY o.created_at DESC, o.id DESC
      LIMIT 500",
     $params
 );
