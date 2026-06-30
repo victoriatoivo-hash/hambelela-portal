@@ -83,6 +83,35 @@
   const dateKey = (value) => String(value || '').slice(0, 10);
   const todayKey = () => new Date().toISOString().slice(0, 10);
   const isDateGroupKey = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
+  let boardDateScope = dateFilter?.value ? 'date' : 'all';
+  let boardMonth = (dateFilter?.value || todayKey()).slice(0, 7);
+
+  function selectedBoardMonth() {
+    const anchor = dateFilter?.value || `${boardMonth || todayKey().slice(0, 7)}-01`;
+    return String(anchor).slice(0, 7);
+  }
+
+  function monthLabel(month) {
+    const date = new Date(`${month}-01T12:00:00`);
+    return Number.isNaN(date.getTime()) ? month : date.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  }
+
+  function boardDataParams() {
+    const params = new URLSearchParams();
+    if (boardDateScope === 'date') {
+      params.set('date', dateFilter?.value || '');
+    } else if (boardDateScope === 'month') {
+      params.set('month', boardMonth || selectedBoardMonth());
+    }
+    params.set('t', String(Date.now()));
+    return params;
+  }
+
+  function setButtonBusy(button, busy) {
+    if (!button) return;
+    button.classList.toggle('is-loading', busy);
+    button.disabled = busy;
+  }
 
   function setMetric(key, value) {
     const node = [...metricNodes].find((item) => item.dataset.workMetric === key);
@@ -1227,25 +1256,35 @@
     backdrop.hidden = true;
   }
 
-  async function refresh() {
-    const selectedDate = dateFilter?.value || '';
-    if (!hasRenderedOnce) showSkeletonRows();
-    const response = await fetch(`${config.dataUrl}?date=${encodeURIComponent(selectedDate)}&t=${Date.now()}`, { credentials: 'same-origin' });
-    const text = await response.text();
-    let data;
+  async function refresh(trigger = null) {
+    setButtonBusy(trigger, true);
     try {
-      data = JSON.parse(text);
-    } catch (error) {
-      const clean = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-      throw new Error(clean ? `Board returned a page instead of JSON: ${clean.slice(0, 180)}` : 'Board returned an empty response.');
+      if (!hasRenderedOnce) showSkeletonRows();
+      const response = await fetch(`${config.dataUrl}?${boardDataParams().toString()}`, { credentials: 'same-origin' });
+      const text = await response.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (error) {
+        const clean = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        throw new Error(clean ? `Board returned a page instead of JSON: ${clean.slice(0, 180)}` : 'Board returned an empty response.');
+      }
+      if (!response.ok || !data.ok) throw new Error(data.message || 'Could not load board');
+      currentUser = data.currentUser || {};
+      window.HambelelaBoardMetrics = data.metrics || null;
+      renderPackers(data.packers || [], data.currentEmployeeId);
+      renderViewers(data.viewers || []);
+      renderOrders(data.orders || []);
+      if (syncState && !lastSyncMessage) {
+        const count = data.orders?.length || 0;
+        const suffix = boardDateScope === 'month'
+          ? ` for ${monthLabel(data.month || boardMonth)}`
+          : boardDateScope === 'all' ? ' across all dates' : '';
+        syncState.textContent = `Loaded ${count} orders${suffix} at ${new Date().toLocaleTimeString()}`;
+      }
+    } finally {
+      setButtonBusy(trigger, false);
     }
-    if (!response.ok || !data.ok) throw new Error(data.message || 'Could not load board');
-    currentUser = data.currentUser || {};
-    window.HambelelaBoardMetrics = data.metrics || null;
-    renderPackers(data.packers || [], data.currentEmployeeId);
-    renderViewers(data.viewers || []);
-    renderOrders(data.orders || []);
-    if (syncState && !lastSyncMessage) syncState.textContent = `Loaded ${data.orders?.length || 0} orders at ${new Date().toLocaleTimeString()}`;
   }
 
   async function syncWebsite(quiet = false, trigger = null, force = false) {
@@ -1257,7 +1296,7 @@
     }
     try {
       if (!quiet && syncState) syncState.textContent = 'Syncing website orders...';
-      const data = await post('sync', { date: dateFilter?.value || '', force: force ? '1' : '' });
+      const data = await post('sync', { date: boardDateScope === 'date' ? (dateFilter?.value || '') : '', force: force ? '1' : '' });
       const result = data.result || {};
       const warnings = Array.isArray(result.warnings) && result.warnings.length ? ` - warning: ${result.warnings[0]}` : '';
       const skipped = result.skipped ? ' (recent sync reused)' : '';
@@ -1506,13 +1545,20 @@
       }
       if (refreshButton) {
         lastSyncMessage = '';
-        await syncWebsite(false, refreshButton, true).then(refresh);
+        setButtonBusy(refreshButton, true);
+        try {
+          await syncWebsite(false, null, true);
+          await refresh();
+        } finally {
+          setButtonBusy(refreshButton, false);
+        }
       }
 
       if (dateAll) {
+        boardDateScope = 'all';
         if (dateFilter) dateFilter.value = '';
         if (syncState) syncState.textContent = 'Loading all dates...';
-        await refresh();
+        await refresh(dateAll);
       }
 
       if (clearFilters) {
@@ -1524,7 +1570,11 @@
         document.querySelectorAll('[data-board-filter]').forEach((select) => { select.value = ''; });
         const searchInput = document.querySelector('[data-board-search]');
         if (searchInput) searchInput.value = '';
-        renderOrders(ordersCache);
+        boardDateScope = 'month';
+        boardMonth = selectedBoardMonth();
+        lastSyncMessage = '';
+        if (syncState) syncState.textContent = `Loading ${monthLabel(boardMonth)}...`;
+        await refresh(clearFilters);
       }
 
       if (themeToggle) {
@@ -1592,6 +1642,8 @@
     }
 
     if (event.target === dateFilter) {
+      boardDateScope = dateFilter?.value ? 'date' : 'all';
+      boardMonth = selectedBoardMonth();
       if (syncState) syncState.textContent = 'Loading selected date...';
       syncWebsite(false, null, true).then(refresh).catch((error) => {
         showError(error);

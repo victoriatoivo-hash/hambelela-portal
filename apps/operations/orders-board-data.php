@@ -19,8 +19,16 @@ if (!$ready) {
 }
 
 $date = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_GET['date'] ?? '')) ? (string) $_GET['date'] : '';
-$dateStart = $date !== '' ? $date . ' 00:00:00' : '';
-$dateEnd = $date !== '' ? date('Y-m-d H:i:s', strtotime($dateStart . ' +1 day')) : '';
+$month = $date === '' && preg_match('/^\d{4}-\d{2}$/', (string) ($_GET['month'] ?? '')) ? (string) $_GET['month'] : '';
+$dateStart = '';
+$dateEnd = '';
+if ($date !== '') {
+    $dateStart = $date . ' 00:00:00';
+    $dateEnd = date('Y-m-d H:i:s', strtotime($dateStart . ' +1 day'));
+} elseif ($month !== '') {
+    $dateStart = $month . '-01 00:00:00';
+    $dateEnd = date('Y-m-d H:i:s', strtotime($dateStart . ' +1 month'));
+}
 $hasTotalAmount = ops_column_exists('ops_orders', 'total_amount');
 $hasAssignedAt = ops_column_exists('ops_orders', 'assigned_at');
 $hasStartedAt = ops_column_exists('ops_orders', 'packing_started_at');
@@ -31,7 +39,7 @@ $startedAtSelect = $hasStartedAt ? 'o.packing_started_at' : 'NULL AS packing_sta
 
 $whereParts = [];
 $params = [];
-if ($date !== '') {
+if ($dateStart !== '' && $dateEnd !== '') {
     $whereParts[] = 'o.created_at >= ? AND o.created_at < ?';
     $params[] = $dateStart;
     $params[] = $dateEnd;
@@ -78,7 +86,7 @@ if ($orderIds) {
 }
 
 $archiveMetricWhere = $hasArchivedAt ? ' AND archived_at IS NULL' : '';
-$metricWhere = $date !== ''
+$metricWhere = $dateStart !== '' && $dateEnd !== ''
     ? "created_at >= '" . str_replace("'", "''", $dateStart) . "' AND created_at < '" . str_replace("'", "''", $dateEnd) . "'"
     : '1=1';
 $metricWhere .= $archiveMetricWhere;
@@ -154,5 +162,6 @@ echo json_encode([
         'can_delete' => in_array($roleKey, ['owner_admin', 'supervisor_manager'], true),
     ],
     'date' => $date,
+    'month' => $month,
     'serverTime' => date('Y-m-d H:i:s'),
 ]);

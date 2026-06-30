@@ -111,7 +111,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 <input data-board-search type="search" placeholder="Search orders...">
             </label>
             <div class="work-filter-actions">
-                <button type="button" data-clear-board-filters><i data-lucide="rotate-ccw"></i> Clear Filters</button>
+                <button type="button" data-clear-board-filters><i data-lucide="refresh-cw"></i> Clear Filters</button>
                 <button type="button" data-board-refresh><i data-lucide="refresh-cw"></i> Refresh</button>
                 <button type="button" data-toolbar="more"><i data-lucide="sliders-horizontal"></i> More Filters</button>
             </div>

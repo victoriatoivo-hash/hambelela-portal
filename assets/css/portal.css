@@ -13254,6 +13254,12 @@ button.hr-section-tab {
   animation: none !important;
 }
 
+.ops-board-page .work-filter-actions button.is-loading svg,
+.ops-board-page .date-filter-row button.is-loading svg,
+.ops-board-page .toolbar-panel button.is-loading svg {
+  animation: spin 900ms linear infinite !important;
+}
+
 @keyframes boardSpin {
   to { transform: rotate(360deg); }
 }
