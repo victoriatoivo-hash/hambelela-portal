@@ -78,6 +78,12 @@
   const groupColours = ['#c73557', '#ec4899', '#10b981', '#8b5cf6', '#f97316', '#14b8a6', '#f59e0b', '#ef4444'];
   const fallbackBarColour = '#c4c4c4';
   const COLUMN_STORAGE_KEY = 'ordersBoardColumnWidths';
+  const DATE_SORT_STORAGE_KEY = 'ordersBoardDateSorts';
+  const dateSortOptions = [
+    ['earliest_to_latest', 'Earliest to Latest'],
+    ['earliest', 'Earliest'],
+    ['latest', 'Latest']
+  ];
   const columnVarMap = {
     task: '--orders-col-task',
     comment: '--orders-col-updates',
@@ -108,6 +114,8 @@
   let resizingHandle = null;
   let resizeStartX = 0;
   let resizeStartWidth = 0;
+  let activeDateSortGroup = null;
+  let dateGroupSorts = {};
   let labelEditorAutosaveTimer = null;
 
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -149,6 +157,12 @@
     const timeDiff = orderTimestamp(b) - orderTimestamp(a);
     if (timeDiff !== 0) return timeDiff;
     return Number(b?.order_id || b?.id || 0) - Number(a?.order_id || a?.id || 0);
+  }
+
+  function compareOrdersOldestFirst(a, b) {
+    const timeDiff = orderTimestamp(a) - orderTimestamp(b);
+    if (timeDiff !== 0) return timeDiff;
+    return Number(a?.order_id || a?.id || 0) - Number(b?.order_id || b?.id || 0);
   }
 
   function selectedBoardMonth() {
@@ -232,6 +246,53 @@
   }
 
   loadSavedColumnWidths();
+
+  function loadDateGroupSorts() {
+    try {
+      dateGroupSorts = JSON.parse(window.localStorage?.getItem(DATE_SORT_STORAGE_KEY) || '{}') || {};
+    } catch (error) {
+      dateGroupSorts = {};
+    }
+  }
+
+  function saveDateGroupSorts() {
+    try {
+      window.localStorage?.setItem(DATE_SORT_STORAGE_KEY, JSON.stringify(dateGroupSorts));
+    } catch (error) {
+      // Sorting still applies for the current page even when storage is unavailable.
+    }
+  }
+
+  function dateGroupSortMode(key) {
+    return dateSortOptions.some(([value]) => value === dateGroupSorts[key]) ? dateGroupSorts[key] : 'latest';
+  }
+
+  function sortDateGroupOrders(key, orders) {
+    const mode = dateGroupSortMode(key);
+    const comparator = mode === 'latest' ? compareOrdersNewestFirst : compareOrdersOldestFirst;
+    return [...orders].sort(comparator);
+  }
+
+  function renderDateSortPopover(key) {
+    if (activeDateSortGroup !== key) return '';
+    const selected = dateGroupSortMode(key);
+    return `<div class="date-sort-popover" role="menu" aria-label="Date sort options">
+      ${dateSortOptions.map(([value, label]) => `
+        <button type="button" class="date-sort-option ${selected === value ? 'is-selected' : ''}" data-date-sort-option="${esc(value)}" data-date-sort-group="${esc(key)}" role="menuitemradio" aria-checked="${selected === value ? 'true' : 'false'}">
+          <span class="date-sort-radio" aria-hidden="true"></span>
+          <span>${esc(label)}</span>
+        </button>
+      `).join('')}
+    </div>`;
+  }
+
+  function closeDateSortPopover() {
+    if (!activeDateSortGroup) return;
+    activeDateSortGroup = null;
+    renderOrders(ordersCache);
+  }
+
+  loadDateGroupSorts();
 
   function parseBoardAmount(value) {
     const cleaned = String(value || '').replace(/[^\d.]/g, '');
@@ -590,12 +651,16 @@
   }
 
   function groupedOrders(orders) {
-    return orders.reduce((groups, order) => {
+    const groups = orders.reduce((memo, order) => {
       const key = groupKey(order);
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(order);
-      return groups;
+      if (!memo[key]) memo[key] = [];
+      memo[key].push(order);
+      return memo;
     }, {});
+    Object.keys(groups).forEach((key) => {
+      if (isDateGroupKey(key)) groups[key] = sortDateGroupOrders(key, groups[key]);
+    });
+    return groups;
   }
 
   function groupKey(order) {
@@ -1369,7 +1434,10 @@
         <div class="monday-cell col-checkbox"></div>
         <div class="monday-cell col-task"></div>
         <div class="monday-cell col-task-icon"></div>
-        <div class="monday-cell ob-group-date-cell col-date"><span class="ob-date-pill">${esc(groupDatePill(key))}</span></div>
+        <div class="monday-cell ob-group-date-cell date-sort-cell col-date" data-date-sort-cell="${esc(key)}">
+          <button type="button" class="ob-date-pill date-sort-trigger" data-date-sort-trigger="${esc(key)}" aria-haspopup="menu" aria-expanded="${activeDateSortGroup === key ? 'true' : 'false'}">${esc(groupDatePill(key))}</button>
+          ${renderDateSortPopover(key)}
+        </div>
         <div class="monday-cell col-mobile"></div>
         <div class="monday-cell ob-group-bar-cell col-mode">${stackedBar(modeCounts, modeColours, 'ob-mode-bar')}</div>
         <div class="monday-cell ob-group-amount-cell col-amount"><div class="ob-group-sum">${esc(money(total))}</div><div class="ob-group-sum-label">sum</div></div>
@@ -2107,6 +2175,8 @@
     const groupDateEdit = event.target.closest('[data-edit-group-date]');
     const orderDateCell = event.target.closest('.order-date-cell[data-order-id]');
     const orderDatePopover = event.target.closest('.order-date-picker-popover');
+    const dateSortTrigger = event.target.closest('[data-date-sort-trigger]');
+    const dateSortOption = event.target.closest('[data-date-sort-option]');
     const labelButton = event.target.closest('[data-label-field][data-order-id]');
     const labelChoice = event.target.closest('[data-label-value]');
     const richLabelChoice = event.target.closest('[data-rich-label-value]');
@@ -2151,6 +2221,30 @@
     const bulkAction = event.target.closest('[data-order-bulk-action]');
 
     try {
+      if (dateSortTrigger) {
+        event.preventDefault();
+        event.stopPropagation();
+        activeDateSortGroup = activeDateSortGroup === dateSortTrigger.dataset.dateSortTrigger
+          ? null
+          : dateSortTrigger.dataset.dateSortTrigger;
+        renderOrders(ordersCache);
+        return;
+      }
+
+      if (dateSortOption) {
+        event.preventDefault();
+        event.stopPropagation();
+        const key = dateSortOption.dataset.dateSortGroup;
+        const value = dateSortOption.dataset.dateSortOption;
+        if (key && dateSortOptions.some(([option]) => option === value)) {
+          dateGroupSorts[key] = value;
+          saveDateGroupSorts();
+          activeDateSortGroup = null;
+          renderOrders(ordersCache);
+        }
+        return;
+      }
+
       if (orderDatePopover) {
         event.stopPropagation();
         const status = orderDatePicker?.popover?.querySelector('[data-order-date-status]');
@@ -2515,6 +2609,7 @@
   document.addEventListener('click', (event) => {
     if (!event.target.closest('#board-label-menu') && !event.target.closest('[data-label-field]')) closeLabelMenu();
     if (!event.target.closest('#toolbar-popover') && !event.target.closest('[data-toolbar]')) closeToolbar();
+    if (activeDateSortGroup && !event.target.closest('[data-date-sort-cell]')) closeDateSortPopover();
     if (event.target.closest('.order-update-composer')) {
       panelComposer?.classList.add('is-focused');
       if (!event.target.closest('button') && panelEditor) panelEditor.focus();
@@ -2573,6 +2668,7 @@
       closeToolbar();
       closeColumnModal();
       closeGroupDatePopover();
+      closeDateSortPopover();
     }
   });
 
