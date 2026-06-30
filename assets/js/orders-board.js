@@ -808,7 +808,8 @@
 
   function closeOrderDatePicker() {
     if (orderDatePicker?.cell) orderDatePicker.cell.classList.remove('is-editing');
-    if (orderDatePicker?.popover) orderDatePicker.popover.remove();
+    document.querySelectorAll('.order-date-cell.is-editing').forEach((cell) => cell.classList.remove('is-editing'));
+    document.querySelectorAll('.order-date-picker-popover').forEach((popover) => popover.remove());
     orderDatePicker = null;
   }
 
@@ -2377,7 +2378,7 @@
       if (orderDateCell) {
         event.preventDefault();
         event.stopPropagation();
-        if (orderDatePicker?.cell === orderDateCell) {
+        if (orderDatePicker?.orderId && String(orderDatePicker.orderId) === String(orderDateCell.dataset.orderId)) {
           await commitOrderDatePicker();
           return;
         }
