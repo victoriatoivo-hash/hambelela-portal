@@ -412,20 +412,24 @@
         modeLabels = data.labels.order_type;
         localStorage.setItem('hambelelaModeLabels', JSON.stringify(modeLabels));
       }
+      if (Array.isArray(data.labels?.payment_method)) {
+        paymentLabels = data.labels.payment_method;
+        localStorage.setItem('hambelelaPaymentLabels', JSON.stringify(paymentLabels));
+      }
+      if (Array.isArray(data.labels?.status)) {
+        statusLabels = data.labels.status;
+        localStorage.setItem('hambelelaStatusLabels', JSON.stringify(statusLabels));
+      }
     } catch (error) {
       try {
         modeLabels = JSON.parse(localStorage.getItem('hambelelaModeLabels') || 'null') || modeLabels;
+        paymentLabels = JSON.parse(localStorage.getItem('hambelelaPaymentLabels') || 'null') || paymentLabels;
+        statusLabels = JSON.parse(localStorage.getItem('hambelelaStatusLabels') || 'null') || statusLabels;
       } catch (innerError) {
         localStorage.removeItem('hambelelaModeLabels');
+        localStorage.removeItem('hambelelaPaymentLabels');
+        localStorage.removeItem('hambelelaStatusLabels');
       }
-    }
-
-    try {
-      paymentLabels = JSON.parse(localStorage.getItem('hambelelaPaymentLabels') || 'null') || paymentLabels;
-      statusLabels = JSON.parse(localStorage.getItem('hambelelaStatusLabels') || 'null') || statusLabels;
-    } catch (error) {
-      localStorage.removeItem('hambelelaPaymentLabels');
-      localStorage.removeItem('hambelelaStatusLabels');
     }
   }
 
@@ -435,11 +439,13 @@
     if (field === 'payment_method') paymentLabels = options;
     if (field === 'order_type') modeLabels = options;
     if (field === 'status') statusLabels = options;
-    if (field === 'order_type') {
+    if (['payment_method', 'order_type', 'status'].includes(field)) {
       const data = await post('save_label_options', { field, labels: JSON.stringify(options) });
       if (Array.isArray(data.labels)) {
-        modeLabels = data.labels;
-        localStorage.setItem(key, JSON.stringify(modeLabels));
+        if (field === 'payment_method') paymentLabels = data.labels;
+        if (field === 'order_type') modeLabels = data.labels;
+        if (field === 'status') statusLabels = data.labels;
+        localStorage.setItem(key, JSON.stringify(data.labels));
       }
     }
   }
@@ -1445,46 +1451,63 @@
   function renderBulkPackerOptions() {
   }
 
-  function closeModeLabelPopover() {
+  function closeRichLabelPopover() {
     document.querySelectorAll('.mode-cell.is-active').forEach((cell) => cell.classList.remove('is-active'));
     if (labelMenu) {
       labelMenu.classList.remove('mode-label-popover', 'is-editing-labels');
-      delete labelMenu.dataset.modeLabelOrder;
+      delete labelMenu.dataset.richLabelOrder;
+      delete labelMenu.dataset.richLabelField;
       labelMenu.style.width = '';
     }
   }
 
-  function renderModeLabelPicker() {
+  function richLabelFieldTitle(field) {
+    if (field === 'payment_method') return 'Payment';
+    if (field === 'status') return 'Status';
+    return 'Mode';
+  }
+
+  function richLabelOptions(field) {
+    return field === 'payment_method' ? paymentLabels : field === 'status' ? statusLabels : modeLabels;
+  }
+
+  function labelCanAddRows(field) {
+    return field !== 'status';
+  }
+
+  function renderRichLabelPicker(field) {
+    const options = richLabelOptions(field);
     return `
       <div class="mode-label-grid seven-per-row">
-        ${modeLabels.map((item) => `
-          <button type="button" class="mode-label-option" data-mode-label-value="${esc(item[0])}" style="background:${esc(itemColor(item))}">${esc(itemText(item))}</button>
+        ${options.map((item) => `
+          <button type="button" class="mode-label-option" data-rich-label-value="${esc(item[0])}" style="background:${esc(itemColor(item))}">${esc(itemText(item))}</button>
         `).join('')}
       </div>
       <div class="mode-label-actions">
-        <button type="button" class="mode-edit-labels-button" data-mode-edit-labels><i data-lucide="pencil"></i> Edit Labels</button>
+        <button type="button" class="mode-edit-labels-button" data-rich-edit-labels><i data-lucide="pencil"></i> Edit Labels</button>
       </div>
       <div class="mode-label-footer">Auto-assign labels</div>
     `;
   }
 
-  function renderModeLabelEditor() {
+  function renderRichLabelEditor(field) {
+    const options = richLabelOptions(field).filter((item) => !(field === 'status' && item[0] === 'assigned'));
     return `
       <div class="mode-label-edit-grid">
-        ${modeLabels.map((item, index) => `
-          <div class="mode-label-edit-item" data-mode-label-edit-item="${esc(item[0])}" data-label-index="${index}">
-            <input type="color" class="mode-label-colour-button" data-mode-label-color="${index}" value="${esc(itemColor(item))}" aria-label="Label colour">
-            <input type="text" class="mode-label-name-input" data-mode-label-name="${index}" value="${esc(itemText(item))}" aria-label="Label name">
+        ${options.map((item, index) => `
+          <div class="mode-label-edit-item" data-rich-label-edit-item="${esc(item[0])}" data-label-index="${index}">
+            <input type="color" class="mode-label-colour-button" data-rich-label-color="${index}" value="${esc(itemColor(item))}" aria-label="${esc(richLabelFieldTitle(field))} label colour">
+            <input type="text" class="mode-label-name-input" data-rich-label-name="${index}" value="${esc(itemText(item))}" aria-label="${esc(richLabelFieldTitle(field))} label name">
           </div>
         `).join('')}
-        <button type="button" class="mode-new-label-button" data-mode-new-label>+ New label</button>
+        ${labelCanAddRows(field) ? '<button type="button" class="mode-new-label-button" data-rich-new-label>+ New label</button>' : ''}
       </div>
-      <button type="button" class="mode-label-apply" data-mode-label-back>Apply</button>
+      <button type="button" class="mode-label-apply" data-rich-label-back>Apply</button>
       <div class="mode-label-footer">Auto-assign labels</div>
     `;
   }
 
-  function positionModeLabelMenu(anchor) {
+  function positionRichLabelMenu(anchor) {
     const rect = anchor.getBoundingClientRect();
     const width = 760;
     labelMenu.style.width = `${width}px`;
@@ -1492,49 +1515,52 @@
     labelMenu.style.top = `${rect.bottom + 10}px`;
   }
 
-  function bindModeLabelPicker() {
-    labelMenu.querySelectorAll('[data-mode-label-value]').forEach((button) => {
+  function bindRichLabelPicker() {
+    labelMenu.querySelectorAll('[data-rich-label-value]').forEach((button) => {
       button.addEventListener('click', async (event) => {
         event.preventDefault();
         event.stopPropagation();
-        const orderId = labelMenu.dataset.modeLabelOrder || '';
+        const orderId = labelMenu.dataset.richLabelOrder || '';
+        const field = labelMenu.dataset.richLabelField || 'order_type';
         const orderIds = currentSelectedIdsFor(orderId);
-        await updateOrdersField(orderIds, 'order_type', button.dataset.modeLabelValue);
+        await updateOrdersField(orderIds, field, button.dataset.richLabelValue);
         closeLabelMenu();
         renderOrders(ordersCache);
       });
     });
 
-    labelMenu.querySelector('[data-mode-edit-labels]')?.addEventListener('click', (event) => {
+    labelMenu.querySelector('[data-rich-edit-labels]')?.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
+      const field = labelMenu.dataset.richLabelField || 'order_type';
       labelMenu.classList.add('mode-label-popover', 'is-open', 'is-editing-labels');
       labelMenu.hidden = false;
-      labelMenu.innerHTML = renderModeLabelEditor();
-      bindModeLabelEditorUI();
+      labelMenu.innerHTML = renderRichLabelEditor(field);
+      bindRichLabelEditorUI();
     });
   }
 
-  function bindModeLabelEditorUI() {
-    labelMenu.querySelector('[data-mode-new-label]')?.addEventListener('click', async (event) => {
+  function bindRichLabelEditorUI() {
+    labelMenu.querySelector('[data-rich-new-label]')?.addEventListener('click', async (event) => {
       event.preventDefault();
       event.stopPropagation();
-      await addModeLabel();
+      await addRichLabel(labelMenu.dataset.richLabelField || 'order_type');
     });
 
-    labelMenu.querySelector('[data-mode-label-back]')?.addEventListener('click', (event) => {
+    labelMenu.querySelector('[data-rich-label-back]')?.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
+      const field = labelMenu.dataset.richLabelField || 'order_type';
       labelMenu.classList.add('mode-label-popover', 'is-open');
       labelMenu.classList.remove('is-editing-labels');
       labelMenu.hidden = false;
-      labelMenu.innerHTML = renderModeLabelPicker();
-      bindModeLabelPicker();
+      labelMenu.innerHTML = renderRichLabelPicker(field);
+      bindRichLabelPicker();
       if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
     });
   }
 
-  function openModeLabelMenu(anchor, orderId) {
+  function openRichLabelMenu(anchor, orderId, field) {
     closeToolbar();
     closeLabelMenu();
     if (labelMenuCloseTimer) {
@@ -1544,45 +1570,70 @@
     anchor.classList.add('is-active', 'mode-cell');
     labelMenu.hidden = false;
     labelMenu.className = 'mode-label-popover is-open';
-    labelMenu.dataset.modeLabelOrder = orderId;
-    labelMenu.innerHTML = renderModeLabelPicker();
-    positionModeLabelMenu(anchor);
-    bindModeLabelPicker();
+    labelMenu.dataset.richLabelOrder = orderId;
+    labelMenu.dataset.richLabelField = field;
+    labelMenu.innerHTML = renderRichLabelPicker(field);
+    positionRichLabelMenu(anchor);
+    bindRichLabelPicker();
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
   }
 
-  async function saveModeLabels(nextLabels) {
-    await storeLabels('order_type', nextLabels);
+  async function saveRichLabels(field, nextLabels) {
+    await storeLabels(field, nextLabels);
     renderOrders(ordersCache);
   }
 
-  async function updateModeLabelEdit(index, changes) {
-    const nextLabels = modeLabels.map((item) => item.slice());
-    const current = nextLabels[index];
+  async function updateRichLabelEdit(field, index, changes) {
+    const editableLabels = richLabelOptions(field).filter((item) => !(field === 'status' && item[0] === 'assigned'));
+    const nextEditable = editableLabels.map((item) => item.slice());
+    const current = nextEditable[index];
     if (!current) return;
-    if (changes.name !== undefined) current[1] = changes.name.trim() || current[1] || 'New Label';
-    if (changes.color !== undefined) current[2] = changes.color || current[2] || '#579bfc';
-    await saveModeLabels(nextLabels);
+    if (changes.name !== undefined) {
+      if (current.length === 3) current[1] = changes.name.trim() || current[1] || 'New Label';
+      else current[0] = changes.name.trim() || current[0] || 'New Label';
+    }
+    if (changes.color !== undefined) {
+      if (current.length === 3) current[2] = changes.color || current[2] || '#579bfc';
+      else current[1] = changes.color || current[1] || '#579bfc';
+    }
+    const nextLabels = field === 'status'
+      ? nextEditable.reduce((acc, item) => {
+          acc.push(item);
+          if (item[0] === 'new_order') acc.push(['assigned', itemText(item), itemColor(item)]);
+          return acc;
+        }, [])
+      : nextEditable;
+    await saveRichLabels(field, nextLabels);
   }
 
-  async function addModeLabel() {
-    const nextLabels = modeLabels.map((item) => item.slice());
+  async function addRichLabel(field) {
+    if (!labelCanAddRows(field)) return;
+    const nextLabels = richLabelOptions(field).map((item) => item.slice());
     let suffix = nextLabels.length + 1;
-    let key = `new_label_${suffix}`;
-    while (nextLabels.some((item) => item[0] === key)) {
-      suffix += 1;
-      key = `new_label_${suffix}`;
+    if (field === 'payment_method') {
+      let name = `New Label ${suffix}`;
+      while (nextLabels.some((item) => normalize(itemText(item)) === normalize(name))) {
+        suffix += 1;
+        name = `New Label ${suffix}`;
+      }
+      nextLabels.push([name, '#9ca3af']);
+    } else {
+      let key = `new_label_${suffix}`;
+      while (nextLabels.some((item) => item[0] === key)) {
+        suffix += 1;
+        key = `new_label_${suffix}`;
+      }
+      nextLabels.push([key, 'New Label', '#9ca3af']);
     }
-    nextLabels.push([key, 'New Label', '#9ca3af']);
-    await saveModeLabels(nextLabels);
-    labelMenu.innerHTML = renderModeLabelEditor();
+    await saveRichLabels(field, nextLabels);
+    labelMenu.innerHTML = renderRichLabelEditor(field);
     labelMenu.classList.add('is-editing-labels');
-    bindModeLabelEditorUI();
+    bindRichLabelEditorUI();
   }
 
   function openLabelMenu(anchor, orderId, field) {
-    if (field === 'order_type') {
-      openModeLabelMenu(anchor, orderId);
+    if (['order_type', 'payment_method', 'status'].includes(field)) {
+      openRichLabelMenu(anchor, orderId, field);
       return;
     }
 
@@ -1615,7 +1666,7 @@
 
   function closeLabelMenu() {
     if (!labelMenu || labelMenu.hidden) return;
-    closeModeLabelPopover();
+    closeRichLabelPopover();
     labelMenu.classList.remove('is-open');
     if (labelMenuCloseTimer) window.clearTimeout(labelMenuCloseTimer);
     labelMenuCloseTimer = window.setTimeout(() => {
@@ -1940,10 +1991,10 @@
     const orderDatePopover = event.target.closest('.order-date-picker-popover');
     const labelButton = event.target.closest('[data-label-field][data-order-id]');
     const labelChoice = event.target.closest('[data-label-value]');
-    const modeLabelChoice = event.target.closest('[data-mode-label-value]');
-    const modeEditLabels = event.target.closest('[data-mode-edit-labels]');
-    const modeNewLabel = event.target.closest('[data-mode-new-label]');
-    const modeLabelBack = event.target.closest('[data-mode-label-back]');
+    const richLabelChoice = event.target.closest('[data-rich-label-value]');
+    const richEditLabels = event.target.closest('[data-rich-edit-labels]');
+    const richNewLabel = event.target.closest('[data-rich-new-label]');
+    const richLabelBack = event.target.closest('[data-rich-label-back]');
     const panelButton = event.target.closest('[data-open-panel]');
     const closeButton = event.target.closest('[data-panel-close]');
     const tab = event.target.closest('[data-panel-tab]');
@@ -2060,33 +2111,38 @@
         closeGroupDatePopover();
       }
 
-      if (modeLabelChoice) {
-        const orderId = labelMenu.dataset.modeLabelOrder || '';
+      if (richLabelChoice) {
+        const orderId = labelMenu.dataset.richLabelOrder || '';
+        const field = labelMenu.dataset.richLabelField || 'order_type';
         const orderIds = currentSelectedIdsFor(orderId);
-        await updateOrdersField(orderIds, 'order_type', modeLabelChoice.dataset.modeLabelValue);
+        await updateOrdersField(orderIds, field, richLabelChoice.dataset.richLabelValue);
         closeLabelMenu();
         renderOrders(ordersCache);
         return;
       }
 
-      if (modeEditLabels) {
+      if (richEditLabels) {
         event.preventDefault();
+        const field = labelMenu.dataset.richLabelField || 'order_type';
         labelMenu.classList.add('mode-label-popover', 'is-open', 'is-editing-labels');
-        labelMenu.innerHTML = renderModeLabelEditor();
+        labelMenu.innerHTML = renderRichLabelEditor(field);
+        bindRichLabelEditorUI();
         return;
       }
 
-      if (modeNewLabel) {
+      if (richNewLabel) {
         event.preventDefault();
-        await addModeLabel();
+        await addRichLabel(labelMenu.dataset.richLabelField || 'order_type');
         return;
       }
 
-      if (modeLabelBack) {
+      if (richLabelBack) {
         event.preventDefault();
+        const field = labelMenu.dataset.richLabelField || 'order_type';
         labelMenu.classList.add('mode-label-popover', 'is-open');
         labelMenu.classList.remove('is-editing-labels');
-        labelMenu.innerHTML = renderModeLabelPicker();
+        labelMenu.innerHTML = renderRichLabelPicker(field);
+        bindRichLabelPicker();
         if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
         return;
       }
@@ -2320,10 +2376,10 @@
   });
 
   document.addEventListener('keydown', (event) => {
-    const modeNameInput = event.target.closest('[data-mode-label-name]');
-    if (modeNameInput && event.key === 'Enter') {
+    const richNameInput = event.target.closest('[data-rich-label-name]');
+    if (richNameInput && event.key === 'Enter') {
       event.preventDefault();
-      modeNameInput.blur();
+      richNameInput.blur();
       return;
     }
 
@@ -2376,9 +2432,10 @@
   });
 
   document.addEventListener('change', (event) => {
-    const modeColourInput = event.target.closest('[data-mode-label-color]');
-    if (modeColourInput) {
-      updateModeLabelEdit(Number(modeColourInput.dataset.modeLabelColor), { color: modeColourInput.value }).catch(showError);
+    const richColourInput = event.target.closest('[data-rich-label-color]');
+    if (richColourInput) {
+      const field = labelMenu?.dataset.richLabelField || 'order_type';
+      updateRichLabelEdit(field, Number(richColourInput.dataset.richLabelColor), { color: richColourInput.value }).catch(showError);
       return;
     }
 
@@ -2454,9 +2511,10 @@
   });
 
   document.addEventListener('blur', (event) => {
-    const modeNameInput = event.target.closest('[data-mode-label-name]');
-    if (modeNameInput) {
-      updateModeLabelEdit(Number(modeNameInput.dataset.modeLabelName), { name: modeNameInput.value }).catch(showError);
+    const richNameInput = event.target.closest('[data-rich-label-name]');
+    if (richNameInput) {
+      const field = labelMenu?.dataset.richLabelField || 'order_type';
+      updateRichLabelEdit(field, Number(richNameInput.dataset.richLabelName), { name: richNameInput.value }).catch(showError);
       return;
     }
 

@@ -216,9 +216,56 @@ function ops_board_default_mode_labels(): array
     ];
 }
 
+function ops_board_default_payment_labels(): array
+{
+    return [
+        ['Cash', '#bdbdbd'],
+        ['EFT', '#7b4bd3'],
+        ['Ewallet', '#9b95b9'],
+        ['Bluewallet', '#00845f'],
+        ['Swipe', '#333333'],
+        ['Pay2Cell', '#c03456'],
+        ['EFT & Cash', '#3d1784'],
+        ['Ewallet & Cash', '#2b5797'],
+        ['Swipe & Ewallet', '#ffc400'],
+        ['Bluewallet & Swipe', '#ed4aa5'],
+        ['Coupon', '#57413d'],
+        ['DPO', '#0876d8'],
+        ['EasyWallet', '#a648d9'],
+        ['Nedbank', '#07c66b'],
+        ['Post Pay', '#4dc3bd'],
+    ];
+}
+
+function ops_board_default_status_labels(): array
+{
+    return [
+        ['new_order', 'NEW ORDER', '#bdbdbd'],
+        ['assigned', 'NEW ORDER', '#bdbdbd'],
+        ['in_progress', 'IN PROGRESS', '#fdab3d'],
+        ['completed', 'COMPLETE', '#e2445c'],
+    ];
+}
+
+function ops_board_default_label_options(string $field): array
+{
+    if ($field === 'payment_method') {
+        return ops_board_default_payment_labels();
+    }
+    if ($field === 'status') {
+        return ops_board_default_status_labels();
+    }
+
+    return ops_board_default_mode_labels();
+}
+
 function ops_board_label_options(): array
 {
-    $labels = ['order_type' => ops_board_default_mode_labels()];
+    $labels = [
+        'order_type' => ops_board_default_mode_labels(),
+        'payment_method' => ops_board_default_payment_labels(),
+        'status' => ops_board_default_status_labels(),
+    ];
     $path = ops_board_label_store_path();
     if (is_file($path)) {
         $saved = json_decode((string) @file_get_contents($path), true);
@@ -230,13 +277,26 @@ function ops_board_label_options(): array
     return $labels;
 }
 
-function ops_board_normalize_label_options(array $labels): array
+function ops_board_normalize_label_options(array $labels, string $field = 'order_type'): array
 {
     $clean = [];
     foreach ($labels as $label) {
         if (!is_array($label)) {
             continue;
         }
+        if ($field === 'payment_method') {
+            $name = trim((string) ($label[0] ?? ''));
+            $colour = trim((string) ($label[1] ?? '#579bfc'));
+            if ($name === '') {
+                continue;
+            }
+            if (!preg_match('/^#[0-9a-f]{6}$/i', $colour)) {
+                $colour = '#579bfc';
+            }
+            $clean[] = [$name, $colour];
+            continue;
+        }
+
         $id = trim((string) ($label[0] ?? ''));
         $name = trim((string) ($label[1] ?? ''));
         $colour = trim((string) ($label[2] ?? '#579bfc'));
@@ -250,10 +310,13 @@ function ops_board_normalize_label_options(array $labels): array
         if (!preg_match('/^#[0-9a-f]{6}$/i', $colour)) {
             $colour = '#579bfc';
         }
+        if ($field === 'status' && !array_key_exists($id, OPS_ORDER_STATUSES)) {
+            continue;
+        }
         $clean[] = [$id, $name, $colour];
     }
 
-    return $clean ?: ops_board_default_mode_labels();
+    return $clean ?: ops_board_default_label_options($field);
 }
 
 function ops_board_sync_website_orders(?string $date = null): array
@@ -568,7 +631,7 @@ try {
 
     if ($action === 'save_label_options') {
         $field = ops_post_string('field', 50);
-        if ($field !== 'order_type') {
+        if (!in_array($field, ['order_type', 'payment_method', 'status'], true)) {
             throw new RuntimeException('Unsupported label field.');
         }
         $raw = (string) ($_POST['labels'] ?? '[]');
@@ -577,7 +640,7 @@ try {
             throw new RuntimeException('Invalid label data.');
         }
         $allLabels = ops_board_label_options();
-        $allLabels[$field] = ops_board_normalize_label_options($decoded);
+        $allLabels[$field] = ops_board_normalize_label_options($decoded, $field);
         @file_put_contents(ops_board_label_store_path(), json_encode($allLabels, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
         echo json_encode(['ok' => true, 'labels' => $allLabels[$field]]);
         exit;
