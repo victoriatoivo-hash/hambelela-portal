@@ -21003,3 +21003,67 @@ body:has(.ob-wrap) .ob-wrap div.ob-group-footer .ob-group-sum-label {
   line-height: 12px !important;
   margin: 0 !important;
 }
+
+/* Order Board grid reset: one Monday-style line system only. */
+body:has(.ob-wrap) .ob-wrap .monday-board.ops-board-table,
+body:has(.ob-wrap) .ob-wrap .monday-board.ops-board-table table,
+body:has(.ob-wrap) .ob-wrap .monday-board.ops-board-table thead,
+body:has(.ob-wrap) .ob-wrap .monday-board.ops-board-table tbody,
+body:has(.ob-wrap) .ob-wrap .monday-board.ops-board-table tr,
+body:has(.ob-wrap) .ob-wrap .monday-board.ops-board-table th,
+body:has(.ob-wrap) .ob-wrap .monday-board.ops-board-table td {
+  border: 0 !important;
+  border-spacing: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group-shell {
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group-summary,
+body:has(.ob-wrap) .ob-wrap .monday-column-header,
+body:has(.ob-wrap) .ob-wrap .monday-order-row,
+body:has(.ob-wrap) .ob-wrap .add-task-row,
+body:has(.ob-wrap) .ob-wrap div.ob-group-footer {
+  border: 0 !important;
+  border-bottom: var(--border-width) var(--border-style) var(--ui-border-color) !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-grid > .monday-cell {
+  border-top: 0 !important;
+  border-left: 0 !important;
+  border-bottom: 0 !important;
+  border-right: var(--border-width) var(--border-style) var(--ui-border-color) !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-grid > .monday-cell:first-child {
+  border-left: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-grid > .monday-cell:last-child {
+  border-right: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-column-header > .monday-cell,
+body:has(.ob-wrap) .ob-wrap .monday-order-row > .monday-cell {
+  min-height: var(--orders-monday-row-height) !important;
+  height: var(--orders-monday-row-height) !important;
+  padding: 0 var(--space-12) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group .board-label,
+body:has(.ob-wrap) .ob-wrap .monday-group .mode-label,
+body:has(.ob-wrap) .ob-wrap .monday-group .payment-label,
+body:has(.ob-wrap) .ob-wrap .monday-group .status-label,
+body:has(.ob-wrap) .ob-wrap .monday-group .paid-check {
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
