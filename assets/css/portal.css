@@ -19969,6 +19969,7 @@ body:has(.ob-wrap) .ob-wrap .monday-group .board-label,
 body:has(.ob-wrap) .ob-wrap .monday-group .mode-label,
 body:has(.ob-wrap) .ob-wrap .monday-group .payment-label,
 body:has(.ob-wrap) .ob-wrap .monday-group .status-label {
+  font-family: Poppins, Inter, Roboto, system-ui, sans-serif !important;
   font-size: 13px !important;
   font-weight: 500 !important;
   color: #ffffff !important;
