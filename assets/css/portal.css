@@ -19397,3 +19397,276 @@ body:has(.ob-wrap) .ob-wrap .monday-cell.col-task-icon button[data-open-panel] s
   color: #6b7280 !important;
   stroke: #6b7280 !important;
 }
+
+/* Authoritative expanded Order Board grid: one shared resizable column contract. */
+:root {
+  --orders-col-check: 38px;
+  --orders-col-task: 220px;
+  --orders-col-comment: 44px;
+  --orders-col-date: 150px;
+  --orders-col-mobile: 150px;
+  --orders-col-mode: 110px;
+  --orders-col-amount: 110px;
+  --orders-col-payment: 140px;
+  --orders-col-paid: 80px;
+  --orders-col-status: 140px;
+  --orders-col-packedBy: 140px;
+  --orders-col-text: 260px;
+  --orders-col-add: 34px;
+  --orders-grid-min-width: 1520px;
+  --orders-grid-columns:
+    var(--orders-col-check)
+    var(--orders-col-task)
+    var(--orders-col-comment)
+    var(--orders-col-date)
+    var(--orders-col-mobile)
+    var(--orders-col-mode)
+    var(--orders-col-amount)
+    var(--orders-col-payment)
+    var(--orders-col-paid)
+    var(--orders-col-status)
+    var(--orders-col-packedBy)
+    minmax(var(--orders-col-text), 1fr)
+    var(--orders-col-add);
+}
+
+body:has(.ob-wrap) .ob-wrap .ops-board-scroll {
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+  background: #ffffff !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-board.ops-board-table {
+  width: 100% !important;
+  max-width: none !important;
+  background: #ffffff !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group-shell {
+  width: max(100%, var(--orders-grid-min-width)) !important;
+  min-width: var(--orders-grid-min-width) !important;
+  background: #ffffff !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-grid,
+body:has(.ob-wrap) .ob-wrap .monday-group-summary,
+body:has(.ob-wrap) .ob-wrap .monday-column-header,
+body:has(.ob-wrap) .ob-wrap .monday-order-row,
+body:has(.ob-wrap) .ob-wrap .add-task-row,
+body:has(.ob-wrap) .ob-wrap .ob-group-footer {
+  display: grid !important;
+  grid-template-columns: var(--orders-grid-columns) !important;
+  grid-auto-columns: minmax(120px, 140px) !important;
+  grid-auto-flow: column !important;
+  align-items: stretch !important;
+  width: 100% !important;
+  min-width: var(--orders-grid-min-width) !important;
+  max-width: none !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-cell {
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  border-right: 1px solid var(--board-line, #d0d4e4) !important;
+  border-bottom: 1px solid var(--board-line, #d0d4e4) !important;
+  border-top: 0 !important;
+  padding: 6px 10px !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  overflow: hidden !important;
+  background: #ffffff !important;
+  color: var(--board-text, #1f2533) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-cell > * {
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group-summary .monday-cell {
+  min-height: 68px !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-column-header .monday-cell {
+  min-height: 36px !important;
+  height: 36px !important;
+  padding: 6px 10px !important;
+  font-size: 13px !important;
+  line-height: 1.2 !important;
+  white-space: nowrap !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-order-row .monday-cell,
+body:has(.ob-wrap) .ob-wrap .add-task-row .monday-cell,
+body:has(.ob-wrap) .ob-wrap .ob-group-footer .monday-cell {
+  min-height: 36px !important;
+  height: 36px !important;
+  padding: 4px 10px !important;
+  font-size: 13px !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-date-cell {
+  grid-column: 1 / span 3 !important;
+  justify-content: flex-start !important;
+  padding-left: 28px !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-date-cell + .col-date {
+  grid-column: 4 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-cell.col-checkbox {
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  padding: 0 !important;
+  justify-content: center !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-cell.col-checkbox input[type="checkbox"] {
+  width: 14px !important;
+  height: 14px !important;
+  margin: 0 !important;
+  display: inline-block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-cell.col-task,
+body:has(.ob-wrap) .ob-wrap .monday-cell.col-mobile,
+body:has(.ob-wrap) .ob-wrap .monday-cell.col-packedby,
+body:has(.ob-wrap) .ob-wrap .monday-cell.col-text {
+  justify-content: flex-start !important;
+  text-align: left !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-cell.col-date,
+body:has(.ob-wrap) .ob-wrap .monday-cell.col-amount,
+body:has(.ob-wrap) .ob-wrap .monday-cell.col-paid {
+  justify-content: center !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .comment-cell,
+body:has(.ob-wrap) .ob-wrap .monday-cell.col-task-icon {
+  justify-content: center !important;
+  align-items: center !important;
+  padding: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .comment-cell button,
+body:has(.ob-wrap) .ob-wrap .monday-cell.col-task-icon button {
+  width: 22px !important;
+  height: 22px !important;
+  min-width: 22px !important;
+  min-height: 22px !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .comment-cell svg,
+body:has(.ob-wrap) .ob-wrap .monday-cell.col-task-icon svg {
+  width: 16px !important;
+  height: 16px !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group .board-label,
+body:has(.ob-wrap) .ob-wrap .monday-group .mode-label,
+body:has(.ob-wrap) .ob-wrap .monday-group .payment-label,
+body:has(.ob-wrap) .ob-wrap .monday-group .status-label,
+body:has(.ob-wrap) .ob-wrap .monday-group .packer-cell-button,
+body:has(.ob-wrap) .ob-wrap .monday-group .notes-cell button,
+body:has(.ob-wrap) .ob-wrap .monday-group .task-name {
+  max-width: 100% !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group .board-label,
+body:has(.ob-wrap) .ob-wrap .monday-group .mode-label,
+body:has(.ob-wrap) .ob-wrap .monday-group .payment-label,
+body:has(.ob-wrap) .ob-wrap .monday-group .status-label {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 24px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 8px !important;
+  border-radius: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .ob-group-footer .monday-cell,
+body:has(.ob-wrap) .ob-wrap .monday-group-summary .ob-group-date-cell,
+body:has(.ob-wrap) .ob-wrap .monday-group-summary .ob-group-bar-cell,
+body:has(.ob-wrap) .ob-wrap .monday-group-summary .ob-group-amount-cell,
+body:has(.ob-wrap) .ob-wrap .monday-group-summary .ob-group-paid-cell {
+  flex-direction: column !important;
+  gap: 2px !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group .ob-stacked-bar {
+  width: min(96px, 100%) !important;
+  max-width: 100% !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group .ob-date-pill {
+  width: min(120px, 100%) !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .column-header {
+  position: relative !important;
+  user-select: none !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .column-resizer {
+  position: absolute !important;
+  top: 0 !important;
+  right: -3px !important;
+  width: 6px !important;
+  height: 100% !important;
+  cursor: col-resize !important;
+  z-index: 20 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .column-resizer:hover,
+body.is-resizing-column .ob-wrap .column-resizer {
+  background: rgba(0, 120, 255, 0.15) !important;
+}
+
+body.is-resizing-column {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+body.is-resizing-column * {
+  cursor: col-resize !important;
+}
+
+/* Final grid-item stretch reset: legacy width rules must not shrink cells inside tracks. */
+body:has(.ob-wrap) .ob-wrap .monday-grid > .monday-cell {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  justify-self: stretch !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-grid > .monday-cell.col-task-icon,
+body:has(.ob-wrap) .ob-wrap .monday-grid > .monday-cell.comment-cell.col-task-icon {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+}

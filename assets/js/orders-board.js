@@ -71,6 +71,25 @@
   const expandedGroups = new Set();
   const groupColours = ['#c73557', '#ec4899', '#10b981', '#8b5cf6', '#f97316', '#14b8a6', '#f59e0b', '#ef4444'];
   const fallbackBarColour = '#c4c4c4';
+  const resizableOrderColumns = [
+    'task', 'comment', 'date', 'mobile', 'mode', 'amount', 'payment', 'paid', 'status', 'packedBy', 'text'
+  ];
+  const columnMinWidths = {
+    task: 160,
+    comment: 38,
+    date: 120,
+    mobile: 120,
+    mode: 90,
+    amount: 90,
+    payment: 110,
+    paid: 64,
+    status: 110,
+    packedBy: 110,
+    text: 160
+  };
+  let resizingColumn = null;
+  let resizeStartX = 0;
+  let resizeStartWidth = 0;
 
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
@@ -112,6 +131,41 @@
     button.classList.toggle('is-loading', busy);
     button.disabled = busy;
   }
+
+  function columnHeader(label, cssClass, column, key = column) {
+    return `<div class="monday-cell ob-col-th column-header ${cssClass}" data-column-key="${esc(key)}" data-column="${esc(column)}">${label}<span class="column-resizer" data-column-resizer="${esc(column)}"></span></div>`;
+  }
+
+  function loadSavedColumnWidths() {
+    let saved = {};
+    try {
+      saved = JSON.parse(window.localStorage?.getItem('ordersBoardColumnWidths') || '{}') || {};
+    } catch (error) {
+      saved = {};
+    }
+
+    Object.entries(saved).forEach(([column, width]) => {
+      if (!resizableOrderColumns.includes(column)) return;
+      if (!/^\d+(\.\d+)?px$/.test(String(width).trim())) return;
+      document.documentElement.style.setProperty(`--orders-col-${column}`, String(width).trim());
+    });
+  }
+
+  function saveColumnWidths() {
+    const styles = getComputedStyle(document.documentElement);
+    const widths = {};
+    resizableOrderColumns.forEach((column) => {
+      const width = styles.getPropertyValue(`--orders-col-${column}`).trim();
+      if (width) widths[column] = width;
+    });
+    try {
+      window.localStorage?.setItem('ordersBoardColumnWidths', JSON.stringify(widths));
+    } catch (error) {
+      // Column resizing should still work even if browser storage is unavailable.
+    }
+  }
+
+  loadSavedColumnWidths();
 
   function setMetric(key, value) {
     const node = [...metricNodes].find((item) => item.dataset.workMetric === key);
@@ -950,17 +1004,17 @@
           <div class="monday-group-orders">
             <div class="monday-grid monday-column-header ob-col-header-row" data-group="${esc(key)}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
               <div class="monday-cell check-cell col-checkbox"><input type="checkbox" data-select-all-orders aria-label="Select all visible orders"></div>
-              <div class="monday-cell ob-col-th col-task" data-column-key="task">Task</div>
-              <div class="monday-cell col-task-icon"></div>
-              <div class="monday-cell ob-col-th col-date" data-column-key="date">DATE</div>
-              <div class="monday-cell ob-col-th col-mobile" data-column-key="mobile">Mobile number</div>
-              <div class="monday-cell ob-col-th col-mode" data-column-key="mode">Mode</div>
-              <div class="monday-cell ob-col-th col-amount" data-column-key="amount">AMOUNT</div>
-              <div class="monday-cell ob-col-th col-payment" data-column-key="payment">PAYMENT</div>
-              <div class="monday-cell ob-col-th col-paid col-header-paid" data-column-key="paid">PAID</div>
-              <div class="monday-cell ob-col-th col-status" data-column-key="status">Status</div>
-              <div class="monday-cell ob-col-th col-packedby" data-column-key="packer">Packed by</div>
-              <div class="monday-cell ob-col-th col-text" data-column-key="text">Text</div>
+              ${columnHeader('Task', 'col-task', 'task')}
+              ${columnHeader('', 'col-task-icon comment-cell', 'comment', 'updates')}
+              ${columnHeader('DATE', 'col-date', 'date')}
+              ${columnHeader('Mobile number', 'col-mobile', 'mobile')}
+              ${columnHeader('Mode', 'col-mode', 'mode')}
+              ${columnHeader('AMOUNT', 'col-amount', 'amount')}
+              ${columnHeader('PAYMENT', 'col-payment', 'payment')}
+              ${columnHeader('PAID', 'col-paid col-header-paid', 'paid')}
+              ${columnHeader('Status', 'col-status', 'status')}
+              ${columnHeader('Packed by', 'col-packedby', 'packedBy', 'packer')}
+              ${columnHeader('Text', 'col-text', 'text')}
               ${customColumns.map((column) => `<div class="monday-cell ob-col-th col-custom">${esc(column.col_name || '')}</div>`).join('')}
               <div class="monday-cell add-column-cell"><button type="button" data-add-column>+</button></div>
             </div>
@@ -1325,7 +1379,40 @@
     }
   }
 
+  document.addEventListener('mousedown', (event) => {
+    const handle = event.target.closest('.column-resizer');
+    if (!handle) return;
+
+    const headerCell = handle.closest('.column-header');
+    const column = headerCell?.dataset.column || handle.dataset.columnResizer;
+    if (!headerCell || !resizableOrderColumns.includes(column)) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    resizingColumn = column;
+    resizeStartX = event.clientX;
+    resizeStartWidth = headerCell.getBoundingClientRect().width;
+    document.body.classList.add('is-resizing-column');
+  });
+
+  document.addEventListener('mousemove', (event) => {
+    if (!resizingColumn) return;
+    event.preventDefault();
+    const minWidth = columnMinWidths[resizingColumn] || 60;
+    const nextWidth = Math.max(minWidth, resizeStartWidth + event.clientX - resizeStartX);
+    document.documentElement.style.setProperty(`--orders-col-${resizingColumn}`, `${Math.round(nextWidth)}px`);
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!resizingColumn) return;
+    saveColumnWidths();
+    resizingColumn = null;
+    document.body.classList.remove('is-resizing-column');
+  });
+
   document.addEventListener('click', async (event) => {
+    if (event.target.closest('.column-resizer')) return;
+
     const groupDateEdit = event.target.closest('[data-edit-group-date]');
     const labelButton = event.target.closest('[data-label-field][data-order-id]');
     const labelChoice = event.target.closest('[data-label-value]');
