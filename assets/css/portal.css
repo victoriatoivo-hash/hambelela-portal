@@ -19916,3 +19916,96 @@ body:has(.ob-wrap) .ob-wrap .editable-cell.has-error {
   outline: 2px solid #dc2626 !important;
   outline-offset: -2px !important;
 }
+
+/* Monday-style Orders Board typography: light cells, restrained hierarchy. */
+body:has(.ob-wrap) .ob-wrap,
+body:has(.ob-wrap) .ob-wrap .ops-board-table,
+body:has(.ob-wrap) .ob-wrap .monday-board,
+body:has(.ob-wrap) .ob-wrap .monday-grid,
+body:has(.ob-wrap) .ob-wrap .monday-cell {
+  font-family: Poppins, Inter, Roboto, system-ui, sans-serif !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-order-row .monday-cell,
+body:has(.ob-wrap) .ob-wrap .monday-order-row .monday-cell *,
+body:has(.ob-wrap) .ob-wrap .add-task-row .monday-cell,
+body:has(.ob-wrap) .ob-wrap .add-task-row .monday-cell * {
+  font-size: 14px !important;
+  font-weight: 400 !important;
+  line-height: 1.4 !important;
+  color: #323338 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-order-row .task-name,
+body:has(.ob-wrap) .ob-wrap .monday-order-row .task-cell,
+body:has(.ob-wrap) .ob-wrap .monday-order-row .order-date-cell,
+body:has(.ob-wrap) .ob-wrap .monday-order-row .col-mobile,
+body:has(.ob-wrap) .ob-wrap .monday-order-row .col-amount,
+body:has(.ob-wrap) .ob-wrap .monday-order-row .col-packedby,
+body:has(.ob-wrap) .ob-wrap .monday-order-row .packer-cell-button,
+body:has(.ob-wrap) .ob-wrap .monday-order-row .notes-cell,
+body:has(.ob-wrap) .ob-wrap .monday-order-row .notes-cell button,
+body:has(.ob-wrap) .ob-wrap .monday-order-row .comment-cell,
+body:has(.ob-wrap) .ob-wrap .monday-order-row .comment-cell button {
+  font-weight: 400 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-order-row .notes-cell,
+body:has(.ob-wrap) .ob-wrap .monday-order-row .notes-cell button,
+body:has(.ob-wrap) .ob-wrap .monday-order-row .col-text {
+  color: #676879 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-column-header .monday-cell,
+body:has(.ob-wrap) .ob-wrap .monday-column-header .monday-cell *,
+body:has(.ob-wrap) .ob-wrap .ob-col-th {
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  line-height: 1.3 !important;
+  color: #4b5563 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group .board-label,
+body:has(.ob-wrap) .ob-wrap .monday-group .mode-label,
+body:has(.ob-wrap) .ob-wrap .monday-group .payment-label,
+body:has(.ob-wrap) .ob-wrap .monday-group .status-label {
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: #ffffff !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-date-title,
+body:has(.ob-wrap) .ob-wrap .monday-group .ob-group-date-label {
+  font-size: 32px !important;
+  font-weight: 600 !important;
+  line-height: 1.15 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-task-count,
+body:has(.ob-wrap) .ob-wrap .monday-group .ob-group-task-count {
+  font-size: 14px !important;
+  font-weight: 400 !important;
+  color: #676879 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .ob-group-sum,
+body:has(.ob-wrap) .ob-wrap .ob-paid-fraction {
+  font-weight: 600 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .ob-group-sum-label,
+body:has(.ob-wrap) .ob-wrap .pick-duration,
+body:has(.ob-wrap) .ob-wrap small {
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  color: #676879 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-order-row.is-selected .monday-cell,
+body:has(.ob-wrap) .ob-wrap .monday-order-row.is-selected .monday-cell * {
+  font-weight: 500 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .order-date-cell.is-editing {
+  font-weight: 500 !important;
+}
