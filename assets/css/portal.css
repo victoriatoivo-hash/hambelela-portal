@@ -20773,6 +20773,7 @@ body:has(.ob-wrap) {
   --ui-background-color: #e7e9ef;
   --ui-background-hover-color: #d8d9e0;
   --layout-border-color: #d0d4e4;
+  --orders-board-grid-line: #d0d4e4;
   --placeholder-color: #676879;
   --icon-color: #676879;
   --brand-color: #0073ea;
@@ -21566,7 +21567,7 @@ body:has(.ob-wrap) .ob-wrap .monday-order-row,
 body:has(.ob-wrap) .ob-wrap .add-task-row,
 body:has(.ob-wrap) .ob-wrap div.ob-group-footer {
   border: 0 !important;
-  border-bottom: var(--border-width) var(--border-style) var(--ui-border-color) !important;
+  border-bottom: 1px solid var(--orders-board-grid-line, #d0d4e4) !important;
   box-shadow: none !important;
   outline: 0 !important;
 }
@@ -21575,7 +21576,7 @@ body:has(.ob-wrap) .ob-wrap .monday-grid > .monday-cell {
   border-top: 0 !important;
   border-left: 0 !important;
   border-bottom: 0 !important;
-  border-right: var(--border-width) var(--border-style) var(--ui-border-color) !important;
+  border-right: 1px solid var(--orders-board-grid-line, #d0d4e4) !important;
   box-shadow: none !important;
   outline: 0 !important;
 }
@@ -21722,7 +21723,8 @@ body:has(.ob-wrap) .ob-wrap .monday-group .paid-check {
 }
 
 body:has(.ob-wrap) .ob-wrap .monday-group-summary {
-  border-top: var(--border-width) var(--border-style) var(--ui-border-color) !important;
+  border-top: 0 !important;
+  border-bottom: 1px solid var(--orders-board-grid-line, #d0d4e4) !important;
   min-height: 60px !important;
   height: 60px !important;
   max-height: 60px !important;
