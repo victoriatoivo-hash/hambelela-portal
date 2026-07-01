@@ -21735,6 +21735,11 @@ body:has(.ob-wrap) .ob-wrap .monday-group.collapsed .monday-group-shell {
   min-height: 60px !important;
 }
 
+body:has(.ob-wrap) .ob-wrap .monday-group.collapsed .monday-group-summary {
+  border-top: 1px solid var(--orders-board-grid-line, #d0d4e4) !important;
+  border-bottom: 1px solid var(--orders-board-grid-line, #d0d4e4) !important;
+}
+
 body:has(.ob-wrap) .ob-wrap .monday-group.collapsed .monday-group-summary::before {
   height: 60px !important;
   min-height: 60px !important;
