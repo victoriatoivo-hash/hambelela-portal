@@ -124,10 +124,6 @@ include BASE_PATH . '/shared/sidebar.php';
     <?php endif; ?>
 
     <section class="monday-control-strip">
-        <div class="board-day-control">
-            <i data-lucide="calendar-days"></i>
-            <button type="button" id="board-group-label" data-toolbar="group">Grouped by date</button>
-        </div>
         <div class="availability-switch-wrap">
             <span>Available</span>
             <button class="availability-switch is-available" type="button" data-availability-toggle aria-pressed="true">
