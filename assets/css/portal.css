@@ -21874,6 +21874,12 @@ body:has(.ob-wrap) .ob-wrap .monday-group-summary {
   align-items: stretch !important;
 }
 
+body:has(.ob-wrap) .ob-wrap .monday-group.expanded .monday-group-summary {
+  border-top: 1px solid var(--orders-board-grid-line, var(--ui-border-color, #d0d4e4)) !important;
+  border-bottom: 1px solid var(--orders-board-grid-line, var(--ui-border-color, #d0d4e4)) !important;
+  box-sizing: border-box !important;
+}
+
 body:has(.ob-wrap) .ob-wrap .monday-group.collapsed .monday-group-shell {
   min-height: 60px !important;
 }
