@@ -59,6 +59,21 @@
     ['mobile', 'Mobile number'], ['mode', 'Mode'], ['amount', 'Amount'], ['payment', 'Payment'],
     ['paid', 'Paid'], ['status', 'Status'], ['packer', 'Packed by'], ['text', 'Text']
   ];
+  const HEADER_STORAGE_KEY = 'hambelelaBoardHeaders';
+  const defaultColumnLabels = {
+    task: 'Task',
+    updates: '',
+    date: 'DATE',
+    mobile: 'Mobile number',
+    mode: 'Mode',
+    amount: 'AMOUNT',
+    payment: 'PAYMENT',
+    paid: 'PAID',
+    status: 'Status',
+    packer: 'Packed by',
+    text: 'Text'
+  };
+  let columnLabels = { ...defaultColumnLabels };
 
   let paymentLabels = [
     ['Cash', '#bdbdbd'], ['EFT', '#7b4bd3'], ['Ewallet', '#9b95b9'], ['Bluewallet', '#00845f'],
@@ -198,7 +213,12 @@
   }
 
   function columnHeader(label, cssClass, column, key = column) {
-    return `<div class="monday-cell ob-col-th column-header ${cssClass}" data-column-key="${esc(key)}" data-column="${esc(column)}">${label}<span class="column-resizer" data-column-resizer="${esc(column)}"></span></div>`;
+    const currentLabel = columnLabels[key] ?? label;
+    const editableAttrs = config.canEditHeaders && currentLabel !== '' ? ` data-editable-column-header="true" tabindex="0" aria-label="Rename ${esc(currentLabel)} column"` : '';
+    const title = currentLabel !== ''
+      ? `<span class="column-header-title" data-column-header-title>${esc(currentLabel)}</span>`
+      : '<span class="column-header-title is-empty" aria-hidden="true"></span>';
+    return `<div class="monday-cell ob-col-th column-header ${cssClass}" data-column-key="${esc(key)}" data-column="${esc(column)}"${editableAttrs}>${title}<span class="column-resizer" data-column-resizer="${esc(column)}"></span></div>`;
   }
 
   function columnWidthTarget() {
@@ -1540,37 +1560,130 @@
     await refresh();
   }
 
-  function applyStoredHeaders() {
-    let labels = {};
+  function normalizeColumnLabels(labels) {
+    const next = {};
+    Object.keys(defaultColumnLabels).forEach((key) => {
+      if (key === 'updates') {
+        next[key] = '';
+        return;
+      }
+      const value = String(labels?.[key] ?? '').trim();
+      next[key] = value || defaultColumnLabels[key];
+    });
+    return next;
+  }
+
+  function storeColumnLabels(labels) {
+    columnLabels = normalizeColumnLabels(labels);
     try {
-      labels = JSON.parse(localStorage.getItem('hambelelaBoardHeaders') || '{}') || {};
+      localStorage.setItem(HEADER_STORAGE_KEY, JSON.stringify(columnLabels));
     } catch (error) {
-      labels = {};
+      // Header editing should keep working even if browser storage is unavailable.
     }
-    if (normalize(labels.packer || '') === 'picked_by') {
-      labels.packer = 'Packed by';
-      localStorage.setItem('hambelelaBoardHeaders', JSON.stringify(labels));
+  }
+
+  function applyStoredHeaders() {
+    try {
+      const stored = JSON.parse(localStorage.getItem(HEADER_STORAGE_KEY) || '{}') || {};
+      if (normalize(stored.packer || '') === 'picked_by') stored.packer = 'Packed by';
+      storeColumnLabels({ ...columnLabels, ...stored });
+    } catch (error) {
+      storeColumnLabels(columnLabels);
     }
-    document.querySelectorAll('[data-column-key]').forEach((header) => {
-      const key = header.dataset.columnKey;
-      if (labels[key]) header.textContent = labels[key];
+  }
+
+  async function loadColumnLabels() {
+    applyStoredHeaders();
+    try {
+      const data = await post('list_column_labels', {});
+      if (data.labels && typeof data.labels === 'object') {
+        storeColumnLabels({ ...columnLabels, ...data.labels });
+      }
+    } catch (error) {
+      applyStoredHeaders();
+    }
+  }
+
+  function renderColumnHeaderLabel(key) {
+    const value = columnLabels[key] ?? defaultColumnLabels[key] ?? '';
+    document.querySelectorAll(`.column-header[data-column-key="${selectorEsc(key)}"]`).forEach((header) => {
+      const title = header.querySelector('[data-column-header-title]');
+      if (title) title.textContent = value;
+      header.setAttribute('aria-label', `Rename ${value} column`);
     });
   }
 
-  function saveHeaderLabel(header) {
-    if (!config.canEditHeaders) return;
-    let labels = {};
-    try {
-      labels = JSON.parse(localStorage.getItem('hambelelaBoardHeaders') || '{}') || {};
-    } catch (error) {
-      labels = {};
+  function closeColumnHeaderEdit(header, input, title, value) {
+    header.classList.remove('is-editing', 'is-saving', 'has-error');
+    if (title) {
+      title.hidden = false;
+      title.textContent = value;
     }
-    const key = header.dataset.columnKey;
-    const value = header.textContent.trim();
-    if (!key || !value) return;
-    labels[key] = value;
-    header.textContent = value;
-    localStorage.setItem('hambelelaBoardHeaders', JSON.stringify(labels));
+    input?.remove();
+  }
+
+  function beginColumnHeaderEdit(header) {
+    if (!config.canEditHeaders || !header || header.classList.contains('is-editing')) return;
+    const key = header.dataset.columnKey || '';
+    if (!key || key === 'updates' || !defaultColumnLabels[key]) return;
+    const title = header.querySelector('[data-column-header-title]');
+    if (!title) return;
+
+    const previous = columnLabels[key] || defaultColumnLabels[key] || '';
+    const input = document.createElement('input');
+    input.className = 'column-header-title-input';
+    input.value = previous;
+    input.setAttribute('aria-label', `Rename ${previous} column`);
+
+    let settled = false;
+    const cancel = () => {
+      if (settled) return;
+      settled = true;
+      closeColumnHeaderEdit(header, input, title, previous);
+    };
+    const commit = async () => {
+      if (settled) return;
+      const next = input.value.trim() || defaultColumnLabels[key] || previous;
+      if (next === previous) {
+        settled = true;
+        closeColumnHeaderEdit(header, input, title, previous);
+        return;
+      }
+      header.classList.add('is-saving');
+      header.classList.remove('has-error');
+      try {
+        const data = await post('save_column_label', { column_id: key, label: next });
+        storeColumnLabels({ ...columnLabels, ...(data.labels || {}), [key]: next });
+        settled = true;
+        closeColumnHeaderEdit(header, input, title, columnLabels[key]);
+        renderColumnHeaderLabel(key);
+        if (syncState) syncState.textContent = 'Column header saved.';
+      } catch (error) {
+        header.classList.remove('is-saving');
+        header.classList.add('has-error');
+        throw error;
+      }
+    };
+
+    header.classList.add('is-editing');
+    title.hidden = true;
+    header.insertBefore(input, header.querySelector('.column-resizer'));
+    input.focus();
+    input.select();
+
+    input.addEventListener('click', (event) => event.stopPropagation());
+    input.addEventListener('mousedown', (event) => event.stopPropagation());
+    input.addEventListener('blur', () => commit().catch(showError), { once: true });
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === 'Tab') {
+        if (event.key === 'Enter') event.preventDefault();
+        commit().catch(showError);
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        cancel();
+      }
+    });
   }
 
   function durationText(start, end) {
@@ -2778,6 +2891,17 @@
     if (event.target.closest('[data-row-drag-handle]')) return;
     if (event.target.closest('.editable-cell.is-editing')) return;
 
+    const columnHeaderTitle = event.target.closest('[data-column-header-title]');
+    if (columnHeaderTitle) {
+      const header = columnHeaderTitle.closest('.column-header[data-editable-column-header]');
+      if (header) {
+        event.preventDefault();
+        event.stopPropagation();
+        beginColumnHeaderEdit(header);
+        return;
+      }
+    }
+
     const editableCell = event.target.closest('[data-editable-order-field]');
     if (editableCell) {
       event.preventDefault();
@@ -3320,6 +3444,13 @@
       return;
     }
 
+    const columnHeader = event.target.closest('.column-header[data-editable-column-header]');
+    if (columnHeader && !columnHeader.classList.contains('is-editing') && (event.key === 'Enter' || event.key === ' ')) {
+      event.preventDefault();
+      beginColumnHeaderEdit(columnHeader);
+      return;
+    }
+
     const editableCell = event.target.closest('[data-editable-order-field]');
     if (editableCell && !editableCell.classList.contains('is-editing') && (event.key === 'Enter' || event.key === ' ')) {
       event.preventDefault();
@@ -3476,8 +3607,6 @@
       return;
     }
 
-    const header = event.target.closest('[data-column-key]');
-    if (header) saveHeaderLabel(header);
   }, true);
 
   const storedTheme = localStorage.getItem('hambelelaBoardTheme');
@@ -3492,6 +3621,8 @@
 
   heartbeat();
   loadCustomLabels()
+    .catch(() => {})
+    .then(() => loadColumnLabels())
     .catch(() => {})
     .then(() => loadCustomColumns())
     .catch(() => {})

@@ -198,6 +198,55 @@ function ops_board_label_store_path(): string
     return $dir . '/orders-board-labels.json';
 }
 
+function ops_board_column_label_store_path(): string
+{
+    $dir = BASE_PATH . '/storage/cache';
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0775, true);
+    }
+
+    return $dir . '/orders-board-column-labels.json';
+}
+
+function ops_board_default_column_labels(): array
+{
+    return [
+        'task' => 'Task',
+        'updates' => '',
+        'date' => 'DATE',
+        'mobile' => 'Mobile number',
+        'mode' => 'Mode',
+        'amount' => 'AMOUNT',
+        'payment' => 'PAYMENT',
+        'paid' => 'PAID',
+        'status' => 'Status',
+        'packer' => 'Packed by',
+        'text' => 'Text',
+    ];
+}
+
+function ops_board_column_labels(): array
+{
+    $labels = ops_board_default_column_labels();
+    $path = ops_board_column_label_store_path();
+    if (is_file($path)) {
+        $stored = json_decode((string) @file_get_contents($path), true);
+        if (is_array($stored)) {
+            foreach ($labels as $key => $default) {
+                if ($key === 'updates') {
+                    continue;
+                }
+                $value = trim((string) ($stored[$key] ?? ''));
+                if ($value !== '') {
+                    $labels[$key] = substr($value, 0, 80);
+                }
+            }
+        }
+    }
+
+    return $labels;
+}
+
 function ops_board_default_mode_labels(): array
 {
     return [
@@ -615,6 +664,39 @@ try {
     }
 
     $action = ops_post_string('action', 40);
+
+    if ($action === 'list_column_labels') {
+        echo json_encode(['ok' => true, 'labels' => ops_board_column_labels()]);
+        exit;
+    }
+
+    if ($action === 'save_column_label') {
+        if (!user_has_role('owner_admin')) {
+            throw new RuntimeException('Only the owner/admin can rename board columns.');
+        }
+
+        $columnId = ops_post_string('column_id', 40);
+        $label = ops_post_string('label', 80);
+        $labels = ops_board_column_labels();
+
+        if ($columnId === 'updates' || !array_key_exists($columnId, $labels)) {
+            throw new RuntimeException('Unsupported board column.');
+        }
+
+        $label = preg_replace('/\s+/', ' ', strip_tags($label)) ?? '';
+        $label = trim($label);
+        if ($label === '') {
+            $label = ops_board_default_column_labels()[$columnId] ?? '';
+        }
+        if ($label === '') {
+            throw new RuntimeException('Column label cannot be blank.');
+        }
+
+        $labels[$columnId] = substr($label, 0, 80);
+        @file_put_contents(ops_board_column_label_store_path(), json_encode($labels, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        echo json_encode(['ok' => true, 'labels' => $labels]);
+        exit;
+    }
 
     if ($action === 'list_custom_columns') {
         echo json_encode(['ok' => true, 'columns' => board_columns_list('orders')]);

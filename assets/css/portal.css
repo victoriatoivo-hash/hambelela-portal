@@ -20136,6 +20136,50 @@ body:has(.ob-wrap) .ob-wrap .column-header {
   user-select: none !important;
 }
 
+body:has(.ob-wrap) .ob-wrap .column-header[data-editable-column-header] {
+  cursor: text !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .column-header.is-editing {
+  outline: 2px solid #0073ea !important;
+  outline-offset: -2px !important;
+  background: #ffffff !important;
+  z-index: 30 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .column-header.has-error {
+  outline: 2px solid #d83a52 !important;
+  outline-offset: -2px !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .column-header-title {
+  width: 100% !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  cursor: text !important;
+  font-weight: 400 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .column-header-title-input {
+  width: 100% !important;
+  height: 28px !important;
+  min-width: 0 !important;
+  border: 0 !important;
+  outline: 0 !important;
+  background: #ffffff !important;
+  color: #323338 !important;
+  font: inherit !important;
+  font-size: 14px !important;
+  font-weight: 400 !important;
+  line-height: 1.3 !important;
+  text-align: center !important;
+  padding: 0 8px !important;
+  box-sizing: border-box !important;
+  user-select: text !important;
+}
+
 body:has(.ob-wrap) .ob-wrap .column-resizer {
   position: absolute !important;
   top: 0 !important;
@@ -20467,6 +20511,11 @@ body:has(.ob-wrap) .ob-wrap .ob-col-th {
   font-weight: 500 !important;
   line-height: 1.3 !important;
   color: #4b5563 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-column-header .column-header-title,
+body:has(.ob-wrap) .ob-wrap .monday-column-header .column-header-title-input {
+  font-weight: 400 !important;
 }
 
 body:has(.ob-wrap) .ob-wrap .monday-date-title,
