@@ -372,6 +372,9 @@
     } else if (field === 'created_at') {
       order.created_at = value;
       order.displayed_order_datetime = value;
+    } else if (field === 'notes') {
+      order.notes = value;
+      Object.assign(order, activityCountsFromNotes(value));
     } else {
       order[field] = value;
     }
@@ -1672,7 +1675,7 @@
         <div data-order-id="${esc(order.id)}" data-group-row="${esc(key)}" data-group-date="${esc(key)}" class="monday-grid monday-order-row board-row ob-data-row order-row ${stripClass} ${!previousOrderIds.has(String(order.id)) && hasRenderedOnce ? 'row-new' : ''} ${selectedOrders.has(String(order.id)) ? 'is-selected' : ''}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
           <div class="monday-cell check-cell col-checkbox"><input type="checkbox" data-row-select="${esc(order.id)}" ${selectedOrders.has(String(order.id)) ? 'checked' : ''} aria-label="Select order"></div>
           <div class="monday-cell task-cell editable-cell col-task" data-editable-order-field="customer_name" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_name || '')}" tabindex="0"><span class="task-drag-handle" data-row-drag-handle="${esc(order.id)}" draggable="true" role="button" tabindex="0" aria-label="Drag order row" title="Drag row">⋮⋮</span><span class="task-name">${esc(order.order_number.replace(/^WEB-/, ''))} ${esc(order.customer_name)}</span></div>
-          <div class="monday-cell comment-cell col-task-icon"><button type="button" data-open-panel="${esc(order.id)}"><i data-lucide="message-circle-plus"></i></button></div>
+          <div class="monday-cell comment-cell col-task-icon update-icon-cell">${renderUpdateIconCell(order)}</div>
           <div class="monday-cell col-date order-date-cell" data-order-id="${esc(order.id)}" data-datetime="${esc(orderDisplayDateTime(order))}" role="button" tabindex="0" title="Edit order date/time">${prettyDate(orderDisplayDateTime(order))}</div>
           <div class="monday-cell editable-cell col-mobile" data-editable-order-field="customer_contact" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_contact || '')}" tabindex="0">${esc(order.customer_contact || '')}</div>
           <div class="monday-cell col-mode"${labelCellStyle(modeLabels, order.order_type)}>${renderLabelCell(order, 'order_type', order.order_type, modeLabels, 'mode-label')}</div>
@@ -2204,6 +2207,58 @@
     if (!body) return '';
     if (/^(shipping address|customer note):/i.test(body)) return '';
     return body;
+  }
+
+  function activityCountsFromNotes(notes) {
+    const body = savedUpdateBody({ notes });
+    if (!body) return { updates_count: 0, files_count: 0, activity_count: 0 };
+
+    const template = document.createElement('template');
+    if (/<[a-z][\s\S]*>/i.test(body)) {
+      template.innerHTML = body;
+    } else {
+      template.textContent = body;
+    }
+
+    const filesCount = template.content.querySelectorAll('.order-update-attachments li').length;
+    template.content.querySelectorAll('.order-update-attachments').forEach((node) => node.remove());
+    const text = String(template.content.textContent || '').replace(/\u00a0/g, ' ').trim();
+    const updatesCount = text !== '' ? 1 : 0;
+    return {
+      updates_count: updatesCount,
+      files_count: filesCount,
+      activity_count: updatesCount + filesCount
+    };
+  }
+
+  function orderActivityCounts(order) {
+    const computed = activityCountsFromNotes(order?.notes || '');
+    const updatesCount = Number.isFinite(Number(order?.updates_count)) ? Number(order.updates_count) : computed.updates_count;
+    const filesCount = Number.isFinite(Number(order?.files_count)) ? Number(order.files_count) : computed.files_count;
+    const activityCount = Number.isFinite(Number(order?.activity_count)) ? Number(order.activity_count) : updatesCount + filesCount;
+    return {
+      updates_count: Math.max(0, updatesCount),
+      files_count: Math.max(0, filesCount),
+      activity_count: Math.max(0, activityCount)
+    };
+  }
+
+  function renderUpdateIconCell(order) {
+    const counts = orderActivityCounts(order);
+    const hasActivity = counts.activity_count > 0;
+    return `<button type="button" class="update-icon-button${hasActivity ? ' has-activity' : ''}" data-open-panel="${esc(order.id)}" aria-label="${hasActivity ? `Open updates, ${counts.activity_count} saved` : 'Open updates'}">
+      <i data-lucide="message-circle-plus"></i>
+      ${hasActivity ? `<span class="update-icon-badge">${esc(counts.activity_count)}</span>` : ''}
+    </button>`;
+  }
+
+  function refreshUpdateIconCell(orderId) {
+    const order = ordersCache.find((item) => String(item.id) === String(orderId));
+    const cell = document.querySelector(`.monday-order-row[data-order-id="${selectorEsc(orderId)}"] .comment-cell.col-task-icon`);
+    if (!order || !cell) return;
+    cell.classList.add('update-icon-cell');
+    cell.innerHTML = renderUpdateIconCell(order);
+    if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
   }
 
   function savePanelEditorSelection() {
@@ -3202,9 +3257,10 @@
         try {
           const noteIds = currentSelectedIdsFor(currentOrder.id);
           await updateOrdersField(noteIds, 'notes', bodyHtml);
-          currentOrder.notes = bodyHtml;
+          Object.assign(currentOrder, updateOrderCacheField(currentOrder.id, 'notes', bodyHtml) || {});
           resetPanelComposer();
           renderPanelUpdates();
+          noteIds.forEach(refreshUpdateIconCell);
           if (syncState) {
             syncState.textContent = noteIds.length > 1
               ? `Update saved to ${noteIds.length} selected orders.`

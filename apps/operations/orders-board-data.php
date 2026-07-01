@@ -42,6 +42,31 @@ $hasManualOrder = ops_table_exists('ops_order_manual_order');
 $manualOrderSelect = $hasManualOrder ? 'mo.sort_index AS manual_sort_order' : 'NULL AS manual_sort_order';
 $manualOrderJoin = $hasManualOrder ? "LEFT JOIN ops_order_manual_order mo ON mo.order_id = o.id AND mo.group_date = DATE({$displayDateTimeExpr})" : '';
 
+function ops_board_activity_counts(?string $notes): array
+{
+    $body = trim((string) $notes);
+    if ($body === '' || preg_match('/^(shipping address|customer note):/i', $body)) {
+        return ['updates_count' => 0, 'files_count' => 0, 'activity_count' => 0];
+    }
+
+    $filesCount = 0;
+    if (preg_match_all('/<div\b[^>]*class=(["\'])(?=[^"\']*\border-update-attachments\b)[^"\']*\1[^>]*>(.*?)<\/div>/is', $body, $attachmentMatches)) {
+        foreach ($attachmentMatches[2] as $attachmentHtml) {
+            $filesCount += preg_match_all('/<li\b/i', (string) $attachmentHtml);
+        }
+    }
+    $bodyWithoutAttachments = preg_replace('/<div\b[^>]*class=(["\'])(?=[^"\']*\border-update-attachments\b)[^"\']*\1[^>]*>.*?<\/div>/is', '', $body) ?? $body;
+    $text = trim(html_entity_decode(strip_tags($bodyWithoutAttachments), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+    $updatesCount = $text !== '' ? 1 : 0;
+    $filesCount = max(0, (int) $filesCount);
+
+    return [
+        'updates_count' => $updatesCount,
+        'files_count' => $filesCount,
+        'activity_count' => $updatesCount + $filesCount,
+    ];
+}
+
 $whereParts = [];
 $params = [];
 if ($dateStart !== '' && $dateEnd !== '') {
@@ -138,6 +163,7 @@ foreach ($orders as &$order) {
     if ($assignedId && isset($packerNameMap[$assignedId])) {
         $order['packer_name'] = $packerNameMap[$assignedId];
     }
+    $order = array_merge($order, ops_board_activity_counts($order['notes'] ?? ''));
 }
 unset($order);
 
