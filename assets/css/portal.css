@@ -19788,18 +19788,19 @@ body:has(.ob-wrap) .ob-wrap .monday-cell.col-task-icon {
 
 body:has(.ob-wrap) .ob-wrap .monday-cell.comment-cell.col-task-icon button[data-open-panel],
 body:has(.ob-wrap) .ob-wrap .monday-cell.col-task-icon button[data-open-panel] {
-  width: 22px !important;
-  height: 22px !important;
-  min-width: 22px !important;
-  min-height: 22px !important;
+  position: relative !important;
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  min-height: 24px !important;
   margin: 0 !important;
   padding: 0 !important;
   border: 0 !important;
-  border-radius: 50% !important;
+  border-radius: 0 !important;
   background: transparent !important;
   box-shadow: none !important;
   outline: 0 !important;
-  color: #6b7280 !important;
+  color: #676879 !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -19809,15 +19810,15 @@ body:has(.ob-wrap) .ob-wrap .monday-cell.col-task-icon button[data-open-panel] {
 
 body:has(.ob-wrap) .ob-wrap .monday-cell.comment-cell.col-task-icon button[data-open-panel]:hover,
 body:has(.ob-wrap) .ob-wrap .monday-cell.col-task-icon button[data-open-panel]:hover {
-  background: rgba(103, 117, 151, 0.08) !important;
+  background: transparent !important;
 }
 
 body:has(.ob-wrap) .ob-wrap .monday-cell.comment-cell.col-task-icon button[data-open-panel] svg,
 body:has(.ob-wrap) .ob-wrap .monday-cell.col-task-icon button[data-open-panel] svg {
-  width: 16px !important;
-  height: 16px !important;
-  color: #6b7280 !important;
-  stroke: #6b7280 !important;
+  width: 18px !important;
+  height: 18px !important;
+  color: currentColor !important;
+  stroke: currentColor !important;
 }
 
 /* Authoritative expanded Order Board grid: one shared resizable column contract. */
