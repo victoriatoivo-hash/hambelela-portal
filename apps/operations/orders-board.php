@@ -149,8 +149,6 @@ include BASE_PATH . '/shared/sidebar.php';
         <div class="order-panel-header updates-panel-head">
             <button class="order-panel-close" type="button" data-panel-close aria-label="Close order details"><i data-lucide="x"></i></button>
             <h2 class="order-panel-title" id="panel-order-title">Order</h2>
-            <button class="order-panel-icon-button" type="button" aria-label="Open order comments"><i data-lucide="message-circle"></i></button>
-            <span class="order-panel-avatar" id="panel-order-avatar">SS</span>
             <button class="order-panel-menu" type="button" aria-label="More order actions"><i data-lucide="ellipsis"></i></button>
         </div>
         <nav class="order-panel-tabs updates-tabs">

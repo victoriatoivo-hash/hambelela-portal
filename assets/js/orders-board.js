@@ -14,7 +14,6 @@
   const panel = document.getElementById('order-updates-panel');
   const backdrop = document.getElementById('panel-backdrop');
   const panelTitle = document.getElementById('panel-order-title');
-  const panelAvatar = document.getElementById('panel-order-avatar');
   const panelEditor = document.getElementById('panel-update-editor');
   const panelComposer = document.getElementById('order-update-composer');
   const panelFileInput = document.getElementById('order-update-file-input');
@@ -2538,7 +2537,6 @@
     currentOrder = ordersCache.find((order) => String(order.id) === String(orderId));
     if (!currentOrder) return;
     panelTitle.textContent = orderPanelTitle(currentOrder);
-    if (panelAvatar) panelAvatar.textContent = panelAuthorInitials();
     document.querySelectorAll('.updates-tabs button').forEach((button) => button.classList.remove('active', 'is-active'));
     document.querySelectorAll('.updates-tab-panel').forEach((section) => section.classList.remove('active'));
     panelUpdatesTab?.classList.add('active', 'is-active');
