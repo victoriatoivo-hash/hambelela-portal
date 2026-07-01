@@ -214,7 +214,7 @@
 
   function columnHeader(label, cssClass, column, key = column) {
     const currentLabel = columnLabels[key] ?? label;
-    const editableAttrs = config.canEditHeaders && currentLabel !== '' ? ` data-editable-column-header="true" tabindex="0" aria-label="Rename ${esc(currentLabel)} column"` : '';
+    const editableAttrs = currentLabel !== '' ? ` data-editable-column-header="true" tabindex="0" aria-label="Rename ${esc(currentLabel)} column"` : '';
     const title = currentLabel !== ''
       ? `<span class="column-header-title" data-column-header-title>${esc(currentLabel)}</span>`
       : '<span class="column-header-title is-empty" aria-hidden="true"></span>';
@@ -1623,7 +1623,7 @@
   }
 
   function beginColumnHeaderEdit(header) {
-    if (!config.canEditHeaders || !header || header.classList.contains('is-editing')) return;
+    if (!header || header.classList.contains('is-editing')) return;
     const key = header.dataset.columnKey || '';
     if (!key || key === 'updates' || !defaultColumnLabels[key]) return;
     const title = header.querySelector('[data-column-header-title]');
