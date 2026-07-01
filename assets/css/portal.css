@@ -21609,21 +21609,22 @@ body:has(.ob-wrap) .ob-wrap .monday-order-row > .col-status {
 
 body:has(.ob-wrap) .ob-wrap .monday-order-row > .col-status {
   position: relative !important;
-  overflow: visible !important;
+  overflow: hidden !important;
+  isolation: isolate !important;
 }
 
 body:has(.ob-wrap) .ob-wrap .animated-status-confetti-sprite-animation {
   position: absolute !important;
-  width: 139px !important;
-  height: 35px !important;
-  left: 50% !important;
-  top: 50% !important;
-  transform: translate(-50%, -50%) scale(0.75);
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  transform: scale(0.9);
   pointer-events: none !important;
-  z-index: 20 !important;
+  z-index: 1 !important;
   background-repeat: no-repeat !important;
-  background-size: contain !important;
-  animation: statusConfettiPop 900ms ease-out forwards !important;
+  background-position: center !important;
+  background-size: cover !important;
+  animation: statusConfettiPop 1000ms ease-out forwards !important;
 }
 
 body:has(.ob-wrap) .ob-wrap .animated-status-confetti-sprite-animation::before,
@@ -21651,22 +21652,28 @@ body:has(.ob-wrap) .ob-wrap .animated-status-confetti-sprite-animation::after {
 @keyframes statusConfettiPop {
   0% {
     opacity: 0;
-    transform: translate(-50%, -50%) scale(0.75);
+    transform: scale(0.9);
   }
 
   20% {
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1.05);
+    transform: scale(1);
   }
 
-  70% {
+  80% {
     opacity: 1;
   }
 
   100% {
     opacity: 0;
-    transform: translate(-50%, -65%) scale(1);
+    transform: scale(1);
   }
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-order-row > .col-status .status-label {
+  position: relative !important;
+  z-index: 2 !important;
+  background: transparent !important;
 }
 
 body:has(.ob-wrap) .ob-wrap .monday-group .board-label,
