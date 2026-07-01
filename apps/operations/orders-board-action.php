@@ -671,8 +671,8 @@ try {
     }
 
     if ($action === 'save_column_label') {
-        if (!user_has_role('owner_admin')) {
-            throw new RuntimeException('Only the owner/admin can rename board columns.');
+        if (!user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager')) {
+            throw new RuntimeException('Only admin, front desk or supervisor can rename board columns.');
         }
 
         $columnId = ops_post_string('column_id', 40);

@@ -13,7 +13,7 @@ $hasAvailability = $ready && ops_table_exists('ops_employee_availability');
 $defaultBoardDate = date('Y-m-d');
 $isAdminBoard = user_has_role('owner_admin', 'supervisor_manager');
 $canBulkAssign = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
-$canEditHeaders = user_has_role('owner_admin');
+$canEditHeaders = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
 $boardAssetVersion = is_file(BASE_PATH . '/assets/js/orders-board.js')
     ? (string) filemtime(BASE_PATH . '/assets/js/orders-board.js') . '-bulk-actions-clean2'
     : (string) time();
