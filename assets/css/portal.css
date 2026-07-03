@@ -22209,6 +22209,13 @@ body:has(.ob-wrap) .ob-wrap .monday-grid > .monday-cell.column-header {
   position: relative !important;
 }
 
+body:has(.ob-wrap) .ob-wrap .monday-grid > .monday-cell.column-header > .column-resizer {
+  right: 0 !important;
+  width: 10px !important;
+  z-index: 30 !important;
+  pointer-events: auto !important;
+}
+
 body:has(.ob-wrap) .ob-wrap .monday-grid > .monday-cell:last-child {
   border-right: 0 !important;
 }
