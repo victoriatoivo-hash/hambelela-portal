@@ -1809,16 +1809,19 @@
         <div class="monday-group-shell">
           <div class="monday-group-bar" aria-hidden="true"></div>
           <div class="monday-grid monday-group-summary group-row ob-group-header ${isOpen ? 'is-open' : ''}" data-group="${esc(key)}" data-colour="${esc(colour)}" data-count="${esc(orders.length)}" data-amount="${esc(money(total))}" data-paid="${esc(paid)}" data-total="${esc(orders.length)}" style="--ob-group-colour:${esc(colour)}">
-            <div class="monday-cell monday-date-cell ob-group-name-cell">
+            <div class="monday-cell ob-group-toggle-cell col-checkbox">
               <button type="button" class="ob-group-toggle monday-toggle" data-collapse-group="${esc(key)}" aria-expanded="${isOpen ? 'true' : 'false'}">
                 <span class="ob-chevron" aria-hidden="true">&rsaquo;</span>
               </button>
+            </div>
+            <div class="monday-cell ob-group-name-cell col-task">
               <span class="board-group-copy">
                 <span class="ob-group-colour-selector" aria-hidden="true"><span></span></span>
                 <strong class="ob-group-date-label monday-date-title"${editableDateAttrs}>${esc(groupLabel(key))}</strong>
                 <small class="ob-group-task-count monday-task-count">${esc(groupCountText(orders.length))}</small>
               </span>
             </div>
+            <div class="monday-cell col-task-icon"></div>
             ${headerSummaryCells}
           </div>
           <div class="monday-group-orders">

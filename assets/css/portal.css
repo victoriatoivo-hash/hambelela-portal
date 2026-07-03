@@ -21874,7 +21874,8 @@ body:has(.ob-wrap) .ob-wrap .monday-group-summary {
   align-items: stretch !important;
 }
 
-body:has(.ob-wrap) .ob-wrap .monday-group.expanded .monday-group-summary {
+body:has(.ob-wrap) .ob-wrap .monday-group.expanded .monday-group-summary,
+body:has(.ob-wrap) .ob-wrap .monday-group .monday-group-summary.is-open {
   border-top: 1px solid var(--orders-board-grid-line, var(--ui-border-color, #d0d4e4)) !important;
   border-bottom: 1px solid var(--orders-board-grid-line, var(--ui-border-color, #d0d4e4)) !important;
   box-sizing: border-box !important;
@@ -21913,6 +21914,24 @@ body:has(.ob-wrap) .ob-wrap .monday-group.collapsed .monday-group-summary > .mon
   padding-bottom: 0 !important;
   align-items: center !important;
   justify-content: center !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group-summary > .ob-group-toggle-cell {
+  padding: 0 !important;
+  justify-content: center !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group-summary > .ob-group-name-cell {
+  padding: 0 12px !important;
+  justify-content: flex-start !important;
+  min-width: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group-summary > .ob-group-name-cell .board-group-copy {
+  min-width: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
 }
 
 body:has(.ob-wrap) .ob-wrap .monday-group.collapsed .ob-group-date-cell {
