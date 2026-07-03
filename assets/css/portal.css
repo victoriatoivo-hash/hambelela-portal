@@ -22088,3 +22088,142 @@ body:has(.ob-wrap) .ob-wrap .monday-order-row.has-error > .monday-cell {
     box-shadow: inset 0 0 0 1px #d83a52;
     background: #fff4f6 !important;
 }
+
+/* Order Board forced single-grid contract */
+body:has(.ob-wrap) .ob-wrap {
+  --orders-board-grid:
+    34px
+    220px
+    44px
+    170px
+    190px
+    110px
+    110px
+    150px
+    80px
+    140px
+    150px
+    260px
+    48px;
+  --orders-grid-columns: var(--orders-board-grid);
+  --orders-board-grid-min-width: calc(34px + 220px + 44px + 170px + 190px + 110px + 110px + 150px + 80px + 140px + 150px + 260px + 48px);
+  --orders-board-grid-line: var(--ui-border-color, #d0d4e4);
+}
+
+body:has(.ob-wrap) .ob-wrap .ops-board-scroll {
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group-shell {
+  width: max(100%, var(--orders-board-grid-min-width)) !important;
+  min-width: var(--orders-board-grid-min-width) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap table,
+body:has(.ob-wrap) .ob-wrap thead,
+body:has(.ob-wrap) .ob-wrap tbody,
+body:has(.ob-wrap) .ob-wrap tr,
+body:has(.ob-wrap) .ob-wrap th,
+body:has(.ob-wrap) .ob-wrap td,
+body:has(.ob-wrap) .ob-wrap .monday-grid,
+body:has(.ob-wrap) .ob-wrap .monday-cell {
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group-summary,
+body:has(.ob-wrap) .ob-wrap .monday-column-header,
+body:has(.ob-wrap) .ob-wrap .monday-order-row,
+body:has(.ob-wrap) .ob-wrap .add-task-row,
+body:has(.ob-wrap) .ob-wrap div.ob-group-footer {
+  display: grid !important;
+  grid-template-columns: var(--orders-board-grid) !important;
+  grid-auto-flow: row !important;
+  grid-auto-columns: auto !important;
+  align-items: stretch !important;
+  width: 100% !important;
+  min-width: var(--orders-board-grid-min-width) !important;
+  max-width: none !important;
+  box-sizing: border-box !important;
+  border-bottom: 1px solid var(--orders-board-grid-line) !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group.collapsed .monday-group-summary,
+body:has(.ob-wrap) .ob-wrap .monday-group.expanded .monday-group-summary,
+body:has(.ob-wrap) .ob-wrap .monday-group .monday-group-summary.is-open {
+  border-top: 1px solid var(--orders-board-grid-line) !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-grid[hidden],
+body:has(.ob-wrap) .ob-wrap .monday-column-header[hidden],
+body:has(.ob-wrap) .ob-wrap .monday-order-row[hidden],
+body:has(.ob-wrap) .ob-wrap .add-task-row[hidden],
+body:has(.ob-wrap) .ob-wrap div.ob-group-footer[hidden] {
+  display: none !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-grid > .monday-cell {
+  grid-column: auto !important;
+  min-width: 0 !important;
+  min-height: 36px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 12px !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  text-overflow: ellipsis !important;
+  box-sizing: border-box !important;
+  border-right: 1px solid var(--orders-board-grid-line) !important;
+  border-top: 0 !important;
+  border-bottom: 0 !important;
+  border-left: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-grid > .monday-cell:last-child {
+  border-right: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group-summary > .monday-cell {
+  height: 60px !important;
+  min-height: 60px !important;
+  max-height: 60px !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-column-header > .monday-cell,
+body:has(.ob-wrap) .ob-wrap .monday-order-row > .monday-cell,
+body:has(.ob-wrap) .ob-wrap .add-task-row > .monday-cell,
+body:has(.ob-wrap) .ob-wrap div.ob-group-footer > .monday-cell {
+  height: 36px !important;
+  min-height: 36px !important;
+  max-height: 36px !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-order-row > .col-mode,
+body:has(.ob-wrap) .ob-wrap .monday-order-row > .col-payment,
+body:has(.ob-wrap) .ob-wrap .monday-order-row > .col-status {
+  padding: 0 !important;
+  align-items: stretch !important;
+  justify-content: stretch !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group-summary > .ob-group-toggle-cell,
+body:has(.ob-wrap) .ob-wrap .monday-cell.col-checkbox,
+body:has(.ob-wrap) .ob-wrap .monday-cell.col-paid,
+body:has(.ob-wrap) .ob-wrap .monday-cell.col-task-icon {
+  padding: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group-summary > .ob-group-name-cell,
+body:has(.ob-wrap) .ob-wrap .monday-cell.col-task,
+body:has(.ob-wrap) .ob-wrap .monday-cell.col-mobile,
+body:has(.ob-wrap) .ob-wrap .monday-cell.col-packedby,
+body:has(.ob-wrap) .ob-wrap .monday-cell.col-text {
+  justify-content: flex-start !important;
+}
