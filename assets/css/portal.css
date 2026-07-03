@@ -22093,20 +22093,34 @@ body:has(.ob-wrap) .ob-wrap .monday-order-row.has-error > .monday-cell {
 body:has(.ob-wrap) .ob-wrap {
   --orders-board-grid:
     34px
-    220px
-    44px
-    170px
-    190px
-    110px
-    110px
-    150px
-    80px
-    140px
-    150px
-    260px
+    var(--orders-col-task, 220px)
+    var(--orders-col-updates, 44px)
+    var(--orders-col-date, 170px)
+    var(--orders-col-mobile, 190px)
+    var(--orders-col-mode, 110px)
+    var(--orders-col-amount, 110px)
+    var(--orders-col-payment, 150px)
+    var(--orders-col-paid, 80px)
+    var(--orders-col-status, 140px)
+    var(--orders-col-packed-by, 150px)
+    var(--orders-col-text, 260px)
     48px;
   --orders-grid-columns: var(--orders-board-grid);
-  --orders-board-grid-min-width: calc(34px + 220px + 44px + 170px + 190px + 110px + 110px + 150px + 80px + 140px + 150px + 260px + 48px);
+  --orders-board-grid-min-width: calc(
+    34px +
+    var(--orders-col-task, 220px) +
+    var(--orders-col-updates, 44px) +
+    var(--orders-col-date, 170px) +
+    var(--orders-col-mobile, 190px) +
+    var(--orders-col-mode, 110px) +
+    var(--orders-col-amount, 110px) +
+    var(--orders-col-payment, 150px) +
+    var(--orders-col-paid, 80px) +
+    var(--orders-col-status, 140px) +
+    var(--orders-col-packed-by, 150px) +
+    var(--orders-col-text, 260px) +
+    48px
+  );
   --orders-board-grid-line: var(--ui-border-color, #d0d4e4);
 }
 
@@ -22158,6 +22172,11 @@ body:has(.ob-wrap) .ob-wrap .monday-group .monday-group-summary.is-open {
   border-top: 1px solid var(--orders-board-grid-line) !important;
 }
 
+body:has(.ob-wrap) .ob-wrap .monday-group.collapsed .monday-group-summary {
+  border-bottom: 1px solid var(--orders-board-grid-line) !important;
+  background-clip: padding-box !important;
+}
+
 body:has(.ob-wrap) .ob-wrap .monday-grid[hidden],
 body:has(.ob-wrap) .ob-wrap .monday-column-header[hidden],
 body:has(.ob-wrap) .ob-wrap .monday-order-row[hidden],
@@ -22184,6 +22203,10 @@ body:has(.ob-wrap) .ob-wrap .monday-grid > .monday-cell {
   border-left: 0 !important;
   box-shadow: none !important;
   outline: 0 !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-grid > .monday-cell.column-header {
+  position: relative !important;
 }
 
 body:has(.ob-wrap) .ob-wrap .monday-grid > .monday-cell:last-child {
@@ -22236,6 +22259,36 @@ body:has(.ob-wrap) .ob-wrap .monday-group.expanded .monday-group-summary .ob-gro
   font-size: 12px !important;
   font-weight: 400 !important;
   line-height: 18px !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-cell.comment-cell.col-task-icon .update-icon-button svg,
+body:has(.ob-wrap) .ob-wrap .monday-cell.col-task-icon .update-icon-button svg {
+  display: block !important;
+  width: 18px !important;
+  height: 18px !important;
+  fill: none !important;
+  stroke: currentColor !important;
+  stroke-width: 1.8 !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-column-header .column-header-icon {
+  color: #676879 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-column-header .column-header-icon svg {
+  display: block !important;
+  width: 17px !important;
+  height: 17px !important;
+  fill: none !important;
+  stroke: currentColor !important;
+  stroke-width: 1.8 !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
 }
 
 body:has(.ob-wrap) .ob-wrap .monday-column-header > .monday-cell,
