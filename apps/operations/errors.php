@@ -388,6 +388,8 @@ include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
 <style>
+#logErrorForm .pill-selector,
+.log-error-modal .pill-selector,
 .error-log-page .severity-choice.severity-group,
 #logErrorForm .severity-group,
 .log-error-modal .severity-group,
@@ -398,18 +400,42 @@ include BASE_PATH . '/shared/sidebar.php';
     flex-direction: row !important;
     gap: 8px !important;
     align-items: center !important;
-    flex-wrap: nowrap !important;
+    flex-wrap: wrap !important;
+    border: 0 !important;
+    outline: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    margin: 8px 0 0 !important;
+    padding: 0 !important;
+    min-height: 0 !important;
 }
 
+#logErrorForm .pill-selector legend,
+#logErrorForm .severity-label,
+#logErrorForm .status-label,
+.log-error-modal .severity-label,
+.log-error-modal .status-label {
+    flex: 0 0 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    color: #7A2A1E !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.05em !important;
+    line-height: 1.2 !important;
+}
+
+#logErrorForm .pill-option,
+.log-error-modal .pill-option,
 #logErrorForm .severity-btn,
 .log-error-modal .severity-btn,
 #logErrorForm .status-btn,
 .log-error-modal .status-btn {
-    width: 80px !important;
+    width: auto !important;
     min-width: 80px !important;
     height: 30px !important;
     min-height: 30px !important;
-    padding: 0 !important;
+    padding: 0 14px !important;
     border: none !important;
     border-radius: 6px !important;
     cursor: pointer;
@@ -421,7 +447,11 @@ include BASE_PATH . '/shared/sidebar.php';
     letter-spacing: 0.04em !important;
     line-height: 30px !important;
     text-transform: uppercase !important;
-    transition: filter 150ms ease, outline 150ms ease;
+    transition:
+        filter 150ms ease,
+        outline 150ms ease,
+        transform 150ms ease,
+        box-shadow 150ms ease;
 }
 
 #logErrorForm .severity-btn[data-severity="critical"],
@@ -449,15 +479,13 @@ include BASE_PATH . '/shared/sidebar.php';
 }
 
 #logErrorForm .status-btn[data-status="open"] {
-    width: 112px !important;
     min-width: 112px !important;
     background: #F5ECE8 !important;
     color: #721B1A !important;
-    border: 1px solid #EDE3D8 !important;
+    border: 1px solid #721B1A !important;
 }
 
 #logErrorForm .status-btn[data-status="resolved"] {
-    width: 92px !important;
     min-width: 92px !important;
     background: #A8CA19 !important;
     color: #2C1810 !important;
@@ -466,6 +494,7 @@ include BASE_PATH . '/shared/sidebar.php';
 #logErrorForm .severity-btn:hover,
 #logErrorForm .status-btn:hover {
     filter: brightness(0.88);
+    transform: translateY(-1px);
 }
 
 #logErrorForm .severity-btn.active,
@@ -473,6 +502,7 @@ include BASE_PATH . '/shared/sidebar.php';
     outline: 3px solid #721B1A !important;
     outline-offset: 2px !important;
     filter: brightness(0.92);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
 }
 
 #logErrorForm label[for="description"]::after,
@@ -711,18 +741,18 @@ include BASE_PATH . '/shared/sidebar.php';
                         <label>Order ID if applicable<input name="order_reference" placeholder="#33863 or WEB-33780"></label>
                         <label>Category<select name="category" required><option value="">Choose category</option><?php ops_select_options($errorCategories); ?></select></label>
                     </div>
-                    <fieldset class="severity-choice severity-group" id="severity-group">
+                    <fieldset class="pill-selector severity-choice severity-group" id="severity-group">
                         <legend class="severity-label">Severity</legend>
                         <input type="hidden" name="severity" id="severityValue" required>
                         <?php foreach ($severityLabels as $value => $label): ?>
-                            <button class="severity-btn severity-<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?>" type="button" data-severity="<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></button>
+                            <button class="pill-option severity-btn severity-<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?>" type="button" data-severity="<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></button>
                         <?php endforeach; ?>
                     </fieldset>
-                    <fieldset class="status-choice status-group" id="status-group">
+                    <fieldset class="pill-selector status-choice status-group" id="status-group">
                         <legend class="status-label">Status</legend>
                         <input type="hidden" name="status" id="statusValue" value="open" required>
                         <?php foreach ($statusLabels as $value => $label): ?>
-                            <button class="status-btn status-<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?> <?= $value === 'open' ? 'active' : '' ?>" type="button" data-status="<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></button>
+                            <button class="pill-option status-btn status-<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?> <?= $value === 'open' ? 'active' : '' ?>" type="button" data-status="<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></button>
                         <?php endforeach; ?>
                     </fieldset>
                 </section>
