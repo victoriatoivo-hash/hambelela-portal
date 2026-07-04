@@ -21624,6 +21624,38 @@ body:has(.ob-wrap) .ob-wrap .ob-bar-segment:hover .summary-segment-tooltip {
   display: block !important;
 }
 
+body:has(.ob-wrap) .ob-wrap .ob-bar-segment:hover .summary-segment-tooltip:not(.is-floating) {
+  display: none !important;
+}
+
+.summary-segment-tooltip.is-floating {
+  display: block !important;
+  position: fixed !important;
+  z-index: 999999 !important;
+  padding: 8px 12px !important;
+  border-radius: 4px !important;
+  background: #323338 !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18) !important;
+  font-family: Figtree, Roboto, "Noto Sans", sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  line-height: 16px !important;
+  white-space: nowrap !important;
+  pointer-events: none !important;
+}
+
+.summary-segment-tooltip.is-floating::after {
+  content: "" !important;
+  position: absolute !important;
+  top: 100% !important;
+  left: var(--tooltip-arrow-left, 50%) !important;
+  transform: translateX(-50%) !important;
+  border-width: 6px 6px 0 6px !important;
+  border-style: solid !important;
+  border-color: #323338 transparent transparent transparent !important;
+}
+
 /* Bottom rows need compact spreadsheet spacing, not the taller body-row padding. */
 body:has(.ob-wrap) .ob-wrap .add-task-row > .monday-cell,
 body:has(.ob-wrap) .ob-wrap div.ob-group-footer > .monday-cell {

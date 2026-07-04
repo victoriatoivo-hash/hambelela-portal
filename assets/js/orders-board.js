@@ -1280,11 +1280,55 @@
       const numericCount = Number(count);
       const percent = total > 0 ? ((numericCount / total) * 100).toFixed(1) : '0.0';
       const tooltip = `${key} ${numericCount}/${total} ${percent}%`;
-      return `<div class="ob-bar-segment summary-segment" style="flex:${numericCount / total};background:${esc(colour)}" data-label="${esc(key)}" data-count="${esc(numericCount)}" data-total="${esc(total)}" data-percent="${esc(`${percent}%`)}" aria-label="${esc(tooltip)}">
+      return `<div class="ob-bar-segment summary-segment" style="flex:${numericCount / total};background:${esc(colour)}" data-label="${esc(key)}" data-count="${esc(numericCount)}" data-total="${esc(total)}" data-percent="${esc(`${percent}%`)}" data-tooltip="${esc(tooltip)}" aria-label="${esc(tooltip)}">
         <span class="summary-segment-tooltip">${esc(tooltip)}</span>
       </div>`;
     }).join('');
     return `<div class="ob-stacked-bar summary-bar ${cssClass}">${segments}</div>`;
+  }
+
+  let activeSummaryTooltip = null;
+  let activeSummarySegment = null;
+
+  function removeSummaryTooltip() {
+    if (activeSummaryTooltip) {
+      activeSummaryTooltip.remove();
+      activeSummaryTooltip = null;
+    }
+    activeSummarySegment = null;
+  }
+
+  function positionSummaryTooltip() {
+    if (!activeSummaryTooltip || !activeSummarySegment || !document.body.contains(activeSummarySegment)) {
+      removeSummaryTooltip();
+      return;
+    }
+
+    const segmentRect = activeSummarySegment.getBoundingClientRect();
+    const tooltipRect = activeSummaryTooltip.getBoundingClientRect();
+    const viewportPadding = 8;
+    const left = Math.min(
+      Math.max(segmentRect.left + (segmentRect.width / 2) - (tooltipRect.width / 2), viewportPadding),
+      window.innerWidth - tooltipRect.width - viewportPadding
+    );
+    const top = Math.max(segmentRect.top - tooltipRect.height - 10, viewportPadding);
+
+    activeSummaryTooltip.style.left = `${left}px`;
+    activeSummaryTooltip.style.top = `${top}px`;
+    activeSummaryTooltip.style.setProperty('--tooltip-arrow-left', `${segmentRect.left + (segmentRect.width / 2) - left}px`);
+  }
+
+  function showSummaryTooltip(segment) {
+    const text = segment.dataset.tooltip || segment.getAttribute('aria-label') || '';
+    if (!text) return;
+
+    removeSummaryTooltip();
+    activeSummarySegment = segment;
+    activeSummaryTooltip = document.createElement('div');
+    activeSummaryTooltip.className = 'summary-segment-tooltip is-floating';
+    activeSummaryTooltip.textContent = text;
+    document.body.appendChild(activeSummaryTooltip);
+    positionSummaryTooltip();
   }
 
   function renderLabelCell(order, field, value, options, cssClass) {
@@ -2849,6 +2893,35 @@
     resizingHandle = null;
     document.body.classList.remove('is-resizing-column');
   });
+
+  document.addEventListener('mouseover', (event) => {
+    const segment = event.target.closest('.summary-segment');
+    if (!segment || !body.contains(segment)) return;
+    if (activeSummarySegment === segment) return;
+    showSummaryTooltip(segment);
+  });
+
+  document.addEventListener('mouseout', (event) => {
+    const segment = event.target.closest('.summary-segment');
+    if (!segment || !body.contains(segment)) return;
+    if (event.relatedTarget && segment.contains(event.relatedTarget)) return;
+    removeSummaryTooltip();
+  });
+
+  document.addEventListener('focusin', (event) => {
+    const segment = event.target.closest('.summary-segment');
+    if (!segment || !body.contains(segment)) return;
+    showSummaryTooltip(segment);
+  });
+
+  document.addEventListener('focusout', (event) => {
+    const segment = event.target.closest('.summary-segment');
+    if (!segment || !body.contains(segment)) return;
+    removeSummaryTooltip();
+  });
+
+  window.addEventListener('scroll', positionSummaryTooltip, true);
+  window.addEventListener('resize', positionSummaryTooltip);
 
   document.addEventListener('selectionchange', savePanelEditorSelection);
 
