@@ -215,6 +215,64 @@ $netToday = $cashInToday - $cashOutToday;
             background: var(--ledger-white);
             color: var(--ledger-text);
             font-family: Figtree, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 12px;
+        }
+        .ledger-shell {
+            min-height: 100vh;
+            display: grid;
+            grid-template-columns: 220px minmax(0, 1fr);
+            background: var(--ledger-white);
+        }
+        .ledger-side-panel {
+            min-height: 100vh;
+            border-right: 1px solid var(--ledger-border);
+            background: var(--ledger-white);
+            padding: 18px 14px;
+            position: sticky;
+            top: 0;
+            align-self: start;
+        }
+        .ledger-back-button {
+            width: 100%;
+            min-height: 34px;
+            border: 1px solid rgba(171, 54, 25, .24);
+            border-radius: 999px;
+            background: var(--ledger-white);
+            color: var(--ledger-red);
+            cursor: pointer;
+            font: inherit;
+            font-size: 12px;
+            font-weight: 800;
+            text-align: left;
+            padding: 0 12px;
+        }
+        .ledger-side-title {
+            margin: 18px 0 10px;
+            color: var(--ledger-red);
+            font-size: 14px;
+            font-weight: 900;
+        }
+        .ledger-side-nav {
+            display: grid;
+            gap: 7px;
+        }
+        .ledger-side-nav a {
+            min-height: 32px;
+            display: flex;
+            align-items: center;
+            border: 1px solid transparent;
+            border-radius: 12px;
+            color: var(--ledger-rust);
+            text-decoration: none;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 0 10px;
+        }
+        .ledger-side-nav a:hover,
+        .ledger-side-nav a.is-active {
+            border-color: rgba(240, 116, 32, .28);
+            background: rgba(240, 116, 32, .08);
+            color: var(--ledger-red);
         }
         .ledger-page {
             min-height: 100vh;
@@ -231,14 +289,15 @@ $netToday = $cashInToday - $cashOutToday;
         h1 {
             margin: 0;
             color: var(--ledger-red);
-            font-size: clamp(28px, 4vw, 44px);
+            font-size: 14px;
             letter-spacing: 0;
             line-height: 1;
+            font-weight: 900;
         }
         .ledger-subtitle {
             margin: 8px 0 0;
             color: var(--ledger-muted);
-            font-size: 15px;
+            font-size: 12px;
         }
         .ledger-home {
             border: 1px solid rgba(171, 54, 25, .24);
@@ -249,6 +308,7 @@ $netToday = $cashInToday - $cashOutToday;
             padding: 10px 15px;
             font-weight: 700;
             white-space: nowrap;
+            font-size: 12px;
         }
         .stat-grid {
             display: grid;
@@ -284,7 +344,7 @@ $netToday = $cashInToday - $cashOutToday;
             display: block;
             margin-top: 10px;
             color: var(--ledger-red);
-            font-size: 28px;
+            font-size: 14px;
             font-weight: 800;
         }
         .ledger-board {
@@ -329,17 +389,17 @@ $netToday = $cashInToday - $cashOutToday;
             background: var(--ledger-white);
             color: var(--ledger-rust);
             cursor: pointer;
-            font-size: 16px;
+            font-size: 12px;
             line-height: 1;
         }
         .day-name {
             color: var(--ledger-red);
-            font-size: 18px;
+            font-size: 14px;
             font-weight: 800;
         }
         .day-count {
             color: var(--ledger-muted);
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 700;
         }
         .day-sum {
@@ -371,7 +431,7 @@ $netToday = $cashInToday - $cashOutToday;
             overflow: hidden;
             white-space: nowrap;
             text-overflow: ellipsis;
-            font-size: 14px;
+            font-size: 12px;
         }
         .ledger-cell:last-child {
             border-right: 0;
@@ -417,7 +477,7 @@ $netToday = $cashInToday - $cashOutToday;
             background: var(--ledger-white);
             color: var(--ledger-text);
             font: inherit;
-            font-size: 13px;
+            font-size: 12px;
             padding: 0 9px;
             outline: 0;
         }
@@ -477,7 +537,7 @@ $netToday = $cashInToday - $cashOutToday;
         }
         .closing-card strong {
             color: var(--ledger-red);
-            font-size: 34px;
+            font-size: 14px;
             font-weight: 900;
         }
         .toast {
@@ -489,7 +549,7 @@ $netToday = $cashInToday - $cashOutToday;
             color: var(--ledger-white);
             padding: 10px 16px;
             box-shadow: 0 12px 28px rgba(114, 27, 26, .16);
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 800;
             opacity: 0;
             transform: translateY(8px);
@@ -506,6 +566,9 @@ $netToday = $cashInToday - $cashOutToday;
             75% { transform: translateX(4px); }
         }
         @media (max-width: 760px) {
+            .ledger-shell { grid-template-columns: 1fr; }
+            .ledger-side-panel { min-height: 0; position: static; border-right: 0; border-bottom: 1px solid var(--ledger-border); }
+            .ledger-side-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
             .ledger-page { padding: 18px; }
             .ledger-top { flex-direction: column; }
             .stat-grid { grid-template-columns: 1fr; }
@@ -515,6 +578,17 @@ $netToday = $cashInToday - $cashOutToday;
     </style>
 </head>
 <body>
+<div class="ledger-shell">
+<aside class="ledger-side-panel" aria-label="Cash ledger navigation">
+    <button class="ledger-back-button" type="button" data-ledger-back>&larr; Back</button>
+    <div class="ledger-side-title">Operations</div>
+    <nav class="ledger-side-nav">
+        <a href="<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/apps/operations/dashboard.php">Dashboard</a>
+        <a href="<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/apps/operations/orders-board.php">Orders Board</a>
+        <a href="<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/apps/operations/orders.php">Orders</a>
+        <a class="is-active" href="<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/apps/operations/bookkeeping.php">Cash Ledger</a>
+    </nav>
+</aside>
 <main class="ledger-page">
     <header class="ledger-top">
         <div>
@@ -602,6 +676,7 @@ $netToday = $cashInToday - $cashOutToday;
         </section>
     <?php endif; ?>
 </main>
+</div>
 <script>
 const todayKey = <?= json_encode($today, JSON_UNESCAPED_SLASHES) ?>;
 
@@ -846,9 +921,15 @@ function startEdit(cell) {
 }
 
 document.addEventListener('click', (event) => {
+  const back = event.target.closest('[data-ledger-back]');
   const toggle = event.target.closest('[data-toggle-day]');
   const save = event.target.closest('[data-save-add]');
   const editable = event.target.closest('.ledger-data-cell');
+  if (back) {
+    if (window.history.length > 1) window.history.back();
+    else window.location.href = '<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/apps/operations/dashboard.php';
+    return;
+  }
   if (toggle) {
     const group = toggle.closest('[data-day-group]');
     group.classList.toggle('is-collapsed');
