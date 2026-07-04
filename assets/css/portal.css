@@ -23610,6 +23610,29 @@ body:has(.ob-wrap) .ob-wrap .orders-board-v2 .monday-group.collapsed .monday-gro
   color: var(--bk-muted) !important;
 }
 
+.bookkeeping-page .bk-type-cell {
+  gap: 6px;
+  justify-content: center;
+  padding: 0 6px !important;
+}
+
+.bookkeeping-page .bk-type-pill {
+  max-width: 108px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(8, 171, 156, 0.12);
+  color: var(--bk-deep-teal);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 9px;
+  font-size: 11px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .bookkeeping-page .book-update-button.has-activity {
   color: var(--bk-teal) !important;
 }
@@ -23722,10 +23745,12 @@ body:has(.ob-wrap) .ob-wrap .orders-board-v2 .monday-group.collapsed .monday-gro
 
 .bookkeeping-page .bk-inline-add-row {
   background: linear-gradient(90deg, rgba(255, 242, 183, 0.22), rgba(8, 171, 156, 0.06)), #fff !important;
+  box-shadow: inset 0 0 0 1px rgba(8, 171, 156, 0.16);
 }
 
 .bookkeeping-page .bk-inline-add-row .bk-cell {
   overflow: visible;
+  min-height: 44px;
 }
 
 .bookkeeping-page .bk-inline-add-row input:focus,
@@ -23743,8 +23768,8 @@ body:has(.ob-wrap) .ob-wrap .orders-board-v2 .monday-group.collapsed .monday-gro
 }
 
 .bookkeeping-page .bk-inline-save {
-  width: 30px;
-  min-width: 30px;
+  width: 34px;
+  min-width: 34px;
   height: 30px;
   padding: 0;
   display: inline-flex;

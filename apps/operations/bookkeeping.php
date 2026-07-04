@@ -607,7 +607,7 @@ include BASE_PATH . '/shared/sidebar.php';
                             <span class="book-date-title bk-group-title"><?= htmlspecialchars((new DateTimeImmutable($date))->format('d F'), ENT_QUOTES, 'UTF-8') ?></span>
                             <span class="book-count bk-group-count"><?= count($dateEntries) ?> <?= count($dateEntries) === 1 ? 'Entry' : 'Entries' ?></span>
                         </div>
-                        <div class="book-cell bk-cell"></div>
+                        <div class="book-cell bk-cell">Type</div>
                         <div class="book-cell bk-cell"><span class="book-date-pill bk-date-pill"><?= htmlspecialchars((new DateTimeImmutable($date))->format('M j'), ENT_QUOTES, 'UTF-8') ?></span></div>
                         <div class="book-cell bk-cell"></div>
                         <div class="book-cell bk-cell"></div>
@@ -634,7 +634,8 @@ include BASE_PATH . '/shared/sidebar.php';
                         <div class="book-grid-row bk-grid-row book-row" data-entry-id="<?= (int) $entry['id'] ?>" data-cash-in="<?= (float) $entry['cash_in'] ?>" data-cash-out="<?= (float) $entry['cash_out'] ?>">
                             <div class="book-cell bk-cell book-checkbox-cell"><button class="book-checkbox" type="button" data-cash-row-select="<?= (int) $entry['id'] ?>" aria-label="Select cash entry"></button></div>
                             <div class="book-cell bk-cell book-editable" data-cash-field="description" data-cash-value="<?= htmlspecialchars((string) $entry['description'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars((string) $entry['description'], ENT_QUOTES, 'UTF-8') ?></div>
-                            <div class="book-cell bk-cell book-update-cell">
+                            <div class="book-cell bk-cell book-update-cell book-editable bk-type-cell" data-cash-field="transaction_type" data-cash-value="<?= htmlspecialchars((string) $entry['transaction_type'], ENT_QUOTES, 'UTF-8') ?>">
+                                <span class="bk-type-pill"><?= htmlspecialchars($transactionTypes[(string) $entry['transaction_type']] ?? (string) $entry['transaction_type'], ENT_QUOTES, 'UTF-8') ?></span>
                                 <button class="book-update-button <?= $activityCount > 0 ? 'has-activity' : '' ?>" type="button" data-cash-detail-open="<?= (int) $entry['id'] ?>" aria-label="Open notes and files">
                                     <i data-lucide="message-square"></i>
                                     <?php if ($activityCount > 0): ?><span class="book-update-badge"><?= $activityCount ?></span><?php endif; ?>
@@ -650,7 +651,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     <?php endforeach; ?>
                     <div class="book-grid-row bk-grid-row book-add-row bk-add-row bk-inline-add-row" data-inline-add-row data-group-date="<?= htmlspecialchars($date, ENT_QUOTES, 'UTF-8') ?>">
                         <div class="book-cell bk-cell"></div>
-                        <div class="book-cell bk-cell book-add-description bk-add-description"><input id="d-<?= htmlspecialchars($groupUid, ENT_QUOTES, 'UTF-8') ?>" data-inline-add="description" tabindex="<?= $groupTabBase + 1 ?>" placeholder="+ Add description"></div>
+                        <div class="book-cell bk-cell book-add-description bk-add-description"><input id="d-<?= htmlspecialchars($groupUid, ENT_QUOTES, 'UTF-8') ?>" data-inline-add="description" tabindex="<?= $groupTabBase + 1 ?>" placeholder="Type new entry description"></div>
                         <div class="book-cell bk-cell"><select id="c-<?= htmlspecialchars($groupUid, ENT_QUOTES, 'UTF-8') ?>" data-inline-add="transaction_type" tabindex="<?= $groupTabBase + 3 ?>"><?php ops_select_options($transactionTypes, 'cash_received'); ?></select></div>
                         <div class="book-cell bk-cell"><input id="t-<?= htmlspecialchars($groupUid, ENT_QUOTES, 'UTF-8') ?>" data-inline-add="transaction_date" tabindex="<?= $groupTabBase + 2 ?>" type="datetime-local" value="<?= htmlspecialchars($date . 'T' . date('H:i'), ENT_QUOTES, 'UTF-8') ?>"></div>
                         <div class="book-cell bk-cell"><input id="i-<?= htmlspecialchars($groupUid, ENT_QUOTES, 'UTF-8') ?>" data-inline-add="cash_in" tabindex="<?= $groupTabBase + 4 ?>" type="number" min="0" step="0.01" placeholder="0.00"></div>
@@ -741,7 +742,7 @@ include BASE_PATH . '/shared/sidebar.php';
 <script>
 window.HambelelaCashOrders = <?= json_encode($orderLookup, JSON_UNESCAPED_SLASHES) ?>;
 window.HambelelaCashBulk = <?= json_encode(['canManage' => $canBulkManage], JSON_UNESCAPED_SLASHES) ?>;
-window.HambelelaCashTypes = <?= json_encode($transactionTypes, JSON_UNESCAPED_SLASHES) ?>;
+globalThis.HambelelaCashTypes = <?= json_encode($transactionTypes, JSON_UNESCAPED_SLASHES) ?>;
 const cashSelected = new Set();
 
 function cashVisibleIds() {
@@ -833,6 +834,10 @@ function cashActivityButton(entry) {
   `;
 }
 
+function cashTypeLabel(value) {
+  return window.HambelelaCashTypes?.[value] || value || 'Cash Received';
+}
+
 function insertCashRow(addRow, entry) {
   const row = document.createElement('div');
   const total = Number(entry.cash_in || 0) - Number(entry.cash_out || 0);
@@ -843,7 +848,10 @@ function insertCashRow(addRow, entry) {
   row.innerHTML = `
     <div class="book-cell bk-cell book-checkbox-cell"><button class="book-checkbox" type="button" data-cash-row-select="${entry.id}" aria-label="Select cash entry"></button></div>
     <div class="book-cell bk-cell book-editable" data-cash-field="description" data-cash-value=""></div>
-    <div class="book-cell bk-cell book-update-cell">${cashActivityButton(entry)}</div>
+    <div class="book-cell bk-cell book-update-cell book-editable bk-type-cell" data-cash-field="transaction_type" data-cash-value="${entry.transaction_type || 'cash_received'}">
+      <span class="bk-type-pill">${cashTypeLabel(entry.transaction_type || 'cash_received')}</span>
+      ${cashActivityButton(entry)}
+    </div>
     <div class="book-cell bk-cell book-editable" data-cash-field="transaction_date" data-cash-value="${cashInputDate(entry.transaction_date)}">${formatCashDate(entry.transaction_date)}</div>
     <div class="book-cell bk-cell book-money-cell book-editable bk-money-in" data-cash-field="cash_in" data-cash-value="${Number(entry.cash_in || 0)}">${Number(entry.cash_in || 0) > 0 ? money(entry.cash_in) : ''}</div>
     <div class="book-cell bk-cell book-money-cell book-editable bk-money-out" data-cash-field="cash_out" data-cash-value="${Number(entry.cash_out || 0)}">${Number(entry.cash_out || 0) > 0 ? money(entry.cash_out) : ''}</div>
@@ -997,8 +1005,9 @@ function startCashEdit(cell) {
         cell.dataset.cashValue = entry.notes || value;
       }
       if (field === 'transaction_type') {
-        cell.textContent = window.HambelelaCashTypes?.[entry.transaction_type || value] || value;
+        cell.innerHTML = `<span class="bk-type-pill">${cashTypeLabel(entry.transaction_type || value)}</span>${cashActivityButton(entry)}`;
         cell.dataset.cashValue = entry.transaction_type || value;
+        if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
       }
       if (field === 'cash_in') {
         row.dataset.cashIn = String(entry.cash_in ?? parseMoney(value));
@@ -1159,7 +1168,7 @@ document.addEventListener('click', async (event) => {
     await saveInlineAdd(inlineSave.closest('[data-inline-add-row]'));
     return;
   }
-  if (editable) startCashEdit(editable);
+  if (editable && !detailOpen) startCashEdit(editable);
   if (addOrder) {
     addOrder.disabled = true;
     try {
