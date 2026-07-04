@@ -1910,12 +1910,19 @@
       const visibleIds = visibleOrders().map((order) => String(order.id));
       const selectedVisible = visibleIds.filter((id) => selectedOrders.has(id)).length;
       selectAllOrders.forEach((input) => {
-        input.checked = visibleIds.length > 0 && selectedVisible === visibleIds.length;
-        input.indeterminate = selectedVisible > 0 && selectedVisible < visibleIds.length;
+        const isChecked = visibleIds.length > 0 && selectedVisible === visibleIds.length;
+        const isMixed = selectedVisible > 0 && selectedVisible < visibleIds.length;
+        input.checked = isChecked;
+        input.indeterminate = isMixed;
+        input.toggleAttribute('checked', isChecked);
+        input.setAttribute('aria-checked', isMixed ? 'mixed' : (isChecked ? 'true' : 'false'));
       });
     }
     document.querySelectorAll('[data-row-select]').forEach((input) => {
-      input.checked = selectedOrders.has(String(input.dataset.rowSelect));
+      const isChecked = selectedOrders.has(String(input.dataset.rowSelect));
+      input.checked = isChecked;
+      input.toggleAttribute('checked', isChecked);
+      input.setAttribute('aria-checked', isChecked ? 'true' : 'false');
       input.closest('[data-order-id]')?.classList.toggle('is-selected', input.checked);
     });
     updateBulkActionBar();

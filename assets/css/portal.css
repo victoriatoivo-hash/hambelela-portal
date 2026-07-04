@@ -22383,13 +22383,17 @@ body:has(.ob-wrap) .ob-wrap input[data-row-select] {
 }
 
 body:has(.ob-wrap) .ob-wrap input[data-select-all-orders]:checked,
-body:has(.ob-wrap) .ob-wrap input[data-row-select]:checked {
+body:has(.ob-wrap) .ob-wrap input[data-select-all-orders][checked],
+body:has(.ob-wrap) .ob-wrap input[data-row-select]:checked,
+body:has(.ob-wrap) .ob-wrap input[data-row-select][checked],
+body:has(.ob-wrap) .ob-wrap .monday-order-row.is-selected input[data-row-select] {
   border-color: #0073ea !important;
   background-color: #0073ea !important;
   background-image: url("data:image/svg+xml,%3Csvg width='10' height='10' viewBox='0 0 10 10' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2 5.1 4.2 7.2 8.2 2.8' fill='none' stroke='%23fff' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
 }
 
-body:has(.ob-wrap) .ob-wrap input[data-select-all-orders]:indeterminate {
+body:has(.ob-wrap) .ob-wrap input[data-select-all-orders]:indeterminate,
+body:has(.ob-wrap) .ob-wrap input[data-select-all-orders][aria-checked="mixed"] {
   border-color: #0073ea !important;
   background-color: #0073ea !important;
   background-image: url("data:image/svg+xml,%3Csvg width='10' height='10' viewBox='0 0 10 10' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2.2 5h5.6' fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") !important;
