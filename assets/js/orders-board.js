@@ -1280,7 +1280,7 @@
       const numericCount = Number(count);
       const percent = total > 0 ? ((numericCount / total) * 100).toFixed(1) : '0.0';
       const tooltip = `${key} ${numericCount}/${total} ${percent}%`;
-      return `<div class="ob-bar-segment summary-segment" style="flex:${numericCount / total};background:${esc(colour)}" data-label="${esc(key)}" data-count="${esc(numericCount)}" data-total="${esc(total)}" data-percent="${esc(`${percent}%`)}" data-tooltip="${esc(tooltip)}" aria-label="${esc(tooltip)}">
+      return `<div class="ob-bar-segment summary-segment" style="flex:${numericCount / total};background:${esc(colour)}" data-label="${esc(key)}" data-count="${esc(numericCount)}" data-total="${esc(total)}" data-percent="${esc(`${percent}%`)}" data-tooltip="${esc(tooltip)}" aria-label="${esc(tooltip)}" tabindex="0">
         <span class="summary-segment-tooltip">${esc(tooltip)}</span>
       </div>`;
     }).join('');
