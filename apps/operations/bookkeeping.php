@@ -609,7 +609,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         </div>
                         <div class="book-cell bk-cell"></div>
                         <div class="book-cell bk-cell"><span class="book-date-pill bk-date-pill"><?= htmlspecialchars((new DateTimeImmutable($date))->format('M j'), ENT_QUOTES, 'UTF-8') ?></span></div>
-                        <div class="book-cell bk-cell">Type</div>
+                        <div class="book-cell bk-cell"></div>
                         <div class="book-cell bk-cell"></div>
                         <div class="book-cell bk-cell"></div>
                         <div class="book-cell bk-cell"></div>
@@ -618,7 +618,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     <div class="book-grid-row bk-grid-row book-column-header" data-book-group-body>
                         <div class="book-cell bk-cell book-checkbox-cell"></div>
                         <div class="book-cell bk-cell">Description</div>
-                        <div class="book-cell bk-cell"></div>
+                        <div class="book-cell bk-cell">Type</div>
                         <div class="book-cell bk-cell">Date & Time</div>
                         <div class="book-cell bk-cell">Cash on Hand</div>
                         <div class="book-cell bk-cell">Cash Out</div>
