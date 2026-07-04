@@ -22865,3 +22865,51 @@ body:has(.ob-wrap) .ob-wrap .monday-order-row > .monday-cell.col-status > .board
   pointer-events: none !important;
   z-index: 3 !important;
 }
+
+.ob-wrap .orders-board-v2 .monday-order-row > .col-status {
+  padding: 0 !important;
+  align-items: stretch !important;
+  justify-content: stretch !important;
+  overflow: hidden !important;
+}
+
+.ob-wrap .orders-board-v2 .monday-order-row > .col-status > .status-label,
+.ob-wrap .orders-board-v2 .monday-order-row > .col-status > .status-pill,
+.ob-wrap .orders-board-v2 .monday-order-row > .col-status > .board-label {
+  width: 100% !important;
+  height: calc(100% - 1px) !important;
+  min-height: 0 !important;
+  max-height: calc(100% - 1px) !important;
+  margin: 0 0 1px 0 !important;
+  padding: 0 8px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  background: var(--label-color, var(--cell-fill-color, #c4c4c4)) !important;
+  background-color: var(--label-color, var(--cell-fill-color, #c4c4c4)) !important;
+  color: #ffffff !important;
+  font-size: 14px !important;
+  font-weight: 400 !important;
+  line-height: 1 !important;
+}
+
+.ob-wrap .orders-board-v2 .monday-order-row > .col-status > .status-label[data-label-value-current="new_order"],
+.ob-wrap .orders-board-v2 .monday-order-row > .col-status > .status-label[data-label-value-current="assigned"] {
+  background: #c4c4c4 !important;
+  background-color: #c4c4c4 !important;
+}
+
+.ob-wrap .orders-board-v2 .monday-order-row > .col-status > .status-label[data-label-value-current="in_progress"] {
+  background: #fdab3d !important;
+  background-color: #fdab3d !important;
+}
+
+.ob-wrap .orders-board-v2 .monday-order-row > .col-status > .status-label[data-label-value-current="completed"],
+.ob-wrap .orders-board-v2 .monday-order-row > .col-status > .status-label[data-label-value-current="complete"] {
+  background: #e2445c !important;
+  background-color: #e2445c !important;
+}
