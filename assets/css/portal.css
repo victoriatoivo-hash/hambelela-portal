@@ -23219,3 +23219,472 @@ body:has(.ob-wrap) .ob-wrap .orders-board-v2 .monday-group.collapsed .monday-gro
   background: #e2445c !important;
   background-color: #e2445c !important;
 }
+
+/* Bookkeeping soft palette redesign */
+.bookkeeping-page {
+  --bk-salmon: #feb3a8;
+  --bk-pink: #fc6eae;
+  --bk-orange: #f47a34;
+  --bk-deep-teal: #146665;
+  --bk-teal: #08ab9c;
+  --bk-yellow: #ffbd29;
+  --bk-cream: #fff2b7;
+  --bk-bg: #ffffff;
+  --bk-card: #ffffff;
+  --bk-text: #252733;
+  --bk-muted: #6f7282;
+  --bk-border: #eadfe5;
+  --bk-soft-shadow: 0 10px 28px rgba(20, 102, 101, 0.08);
+  --book-grid: 36px 260px 44px 170px 140px 140px 130px minmax(280px, 1fr) 48px;
+  background: #ffffff !important;
+  color: var(--bk-text) !important;
+}
+
+.bookkeeping-page .monday-board-top,
+.bookkeeping-page .ops-nav,
+.bookkeeping-page .bookkeeping-metric-grid,
+.bookkeeping-page .bk-filter-shell,
+.bookkeeping-page .unlogged-panel,
+.bookkeeping-page .bk-board {
+  max-width: 100%;
+}
+
+.bookkeeping-page .monday-board-head h1 {
+  color: var(--bk-deep-teal) !important;
+}
+
+.bookkeeping-page .work-board-subtitle,
+.bookkeeping-page .monday-board-head h1 svg {
+  color: var(--bk-muted) !important;
+}
+
+.bookkeeping-page .monday-board-head-actions button,
+.bookkeeping-page .bk-btn-primary,
+.bookkeeping-page button.bk-btn-primary,
+.bookkeeping-page .button.bk-btn-primary {
+  min-height: 34px !important;
+  height: 34px !important;
+  padding: 0 16px !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: var(--bk-deep-teal) !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 18px rgba(20, 102, 101, 0.16) !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+}
+
+.bookkeeping-page .monday-board-head-actions button:hover,
+.bookkeeping-page .bk-btn-primary:hover,
+.bookkeeping-page button.bk-btn-primary:hover,
+.bookkeeping-page .button.bk-btn-primary:hover {
+  background: var(--bk-teal) !important;
+}
+
+.bookkeeping-page .bk-btn-secondary,
+.bookkeeping-page .button.bk-btn-secondary,
+.bookkeeping-page a.bk-btn-secondary {
+  min-height: 34px !important;
+  height: 34px !important;
+  padding: 0 16px !important;
+  border: 1px solid rgba(255, 189, 41, 0.36) !important;
+  border-radius: 999px !important;
+  background: rgba(255, 189, 41, 0.16) !important;
+  color: var(--bk-deep-teal) !important;
+  box-shadow: none !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+}
+
+.bookkeeping-page .bk-icon-btn {
+  width: 34px !important;
+  min-width: 34px !important;
+  padding: 0 !important;
+  border: 1px solid rgba(254, 179, 168, 0.42) !important;
+  background: rgba(254, 179, 168, 0.16) !important;
+  color: var(--bk-deep-teal) !important;
+  box-shadow: none !important;
+}
+
+.bookkeeping-page .ops-nav a {
+  border-color: rgba(234, 223, 229, 0.95) !important;
+  border-radius: 12px !important;
+  background: #ffffff !important;
+  color: var(--bk-muted) !important;
+}
+
+.bookkeeping-page .ops-nav a.active {
+  border-color: rgba(20, 102, 101, 0.22) !important;
+  background: linear-gradient(135deg, rgba(20, 102, 101, 0.94), rgba(8, 171, 156, 0.88)) !important;
+  color: #ffffff !important;
+}
+
+.bookkeeping-page .bookkeeping-metric-grid {
+  gap: 14px !important;
+  margin: 24px 0 !important;
+}
+
+.bookkeeping-page .bk-widget {
+  position: relative;
+  min-height: 96px !important;
+  padding: 18px 20px !important;
+  border: 1px solid var(--bk-border) !important;
+  border-radius: 18px !important;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--bk-accent) 12%, transparent), rgba(255,255,255,0) 62%),
+    #ffffff !important;
+  box-shadow: var(--bk-soft-shadow) !important;
+  overflow: hidden;
+  transform: none !important;
+}
+
+.bookkeeping-page .bk-widget:hover {
+  border-color: color-mix(in srgb, var(--bk-accent) 34%, var(--bk-border)) !important;
+  box-shadow: 0 14px 34px rgba(20, 102, 101, 0.12) !important;
+  transform: translateY(-1px) !important;
+}
+
+.bookkeeping-page .bk-widget::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 5px;
+  background: var(--bk-accent);
+}
+
+.bookkeeping-page .bk-widget-salmon { --bk-accent: var(--bk-salmon); }
+.bookkeeping-page .bk-widget-teal { --bk-accent: var(--bk-teal); }
+.bookkeeping-page .bk-widget-orange { --bk-accent: var(--bk-orange); }
+.bookkeeping-page .bk-widget-yellow { --bk-accent: var(--bk-yellow); }
+.bookkeeping-page .bk-widget-cream { --bk-accent: var(--bk-cream); }
+.bookkeeping-page .bk-widget-pink { --bk-accent: var(--bk-pink); }
+.bookkeeping-page .bk-widget-deep-teal { --bk-accent: var(--bk-deep-teal); }
+
+.bookkeeping-page .bk-widget-icon {
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 14px !important;
+  background: color-mix(in srgb, var(--bk-accent) 22%, #ffffff) !important;
+  color: var(--bk-accent) !important;
+}
+
+.bookkeeping-page .bk-widget-deep-teal .bk-widget-icon {
+  color: #ffffff !important;
+  background: var(--bk-deep-teal) !important;
+}
+
+.bookkeeping-page .bk-widget .metric-title,
+.bookkeeping-page .bk-widget small {
+  color: var(--bk-muted) !important;
+}
+
+.bookkeeping-page .bk-widget strong {
+  color: var(--bk-text) !important;
+  font-size: 23px !important;
+  font-weight: 650 !important;
+}
+
+.bookkeeping-page .bk-filter-shell {
+  margin: 18px 0 24px !important;
+  padding: 14px 18px !important;
+  border: 1px solid var(--bk-border) !important;
+  border-radius: 18px !important;
+  background: #ffffff !important;
+  box-shadow: var(--bk-soft-shadow) !important;
+}
+
+.bookkeeping-page .bk-filter-shell summary {
+  color: var(--bk-deep-teal) !important;
+}
+
+.bookkeeping-page .bk-filter-shell summary strong {
+  border-radius: 999px !important;
+  background: rgba(255, 189, 41, 0.18) !important;
+  color: var(--bk-deep-teal) !important;
+}
+
+.bookkeeping-page .bk-filter-shell input,
+.bookkeeping-page .bk-filter-shell select {
+  border-color: var(--bk-border) !important;
+  border-radius: 12px !important;
+  background: #fffdfd !important;
+  color: var(--bk-text) !important;
+}
+
+.bookkeeping-page .unlogged-panel {
+  margin: 18px 0 26px !important;
+  border: 1px solid var(--bk-border) !important;
+  border-radius: 18px !important;
+  background: #ffffff !important;
+  box-shadow: var(--bk-soft-shadow) !important;
+}
+
+.bookkeeping-page .unlogged-panel-header {
+  height: 54px !important;
+  padding: 0 20px !important;
+}
+
+.bookkeeping-page .unlogged-title {
+  color: var(--bk-deep-teal) !important;
+  font-size: 16px !important;
+  font-weight: 650 !important;
+}
+
+.bookkeeping-page .unlogged-count {
+  background: rgba(255, 189, 41, 0.22) !important;
+  color: var(--bk-deep-teal) !important;
+}
+
+.bookkeeping-page .unlogged-list {
+  gap: 12px !important;
+  padding: 16px 20px 20px !important;
+}
+
+.bookkeeping-page .bk-unlogged-card,
+.bookkeeping-page .unlogged-card {
+  min-height: 120px;
+  padding: 14px !important;
+  border: 1px solid rgba(252, 110, 174, 0.22) !important;
+  border-radius: 16px !important;
+  background:
+    linear-gradient(135deg, rgba(254,179,168,0.16), rgba(252,110,174,0.10)),
+    #ffffff !important;
+  box-shadow: 0 8px 20px rgba(252,110,174,0.07) !important;
+}
+
+.bookkeeping-page .unlogged-card-title {
+  color: var(--bk-text) !important;
+  font-size: 13px !important;
+  font-weight: 650 !important;
+}
+
+.bookkeeping-page .unlogged-card-meta {
+  color: var(--bk-muted) !important;
+  font-size: 12px !important;
+}
+
+.bookkeeping-page .bk-add-cash-btn,
+.bookkeeping-page .unlogged-add-btn {
+  height: 32px !important;
+  padding: 0 14px !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: var(--bk-deep-teal) !important;
+  color: #ffffff !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  box-shadow: 0 8px 18px rgba(20, 102, 101, 0.14) !important;
+}
+
+.bookkeeping-page .bk-add-cash-btn:hover,
+.bookkeeping-page .unlogged-add-btn:hover {
+  background: var(--bk-teal) !important;
+}
+
+.bookkeeping-page .bk-board,
+.bookkeeping-page .bookkeeping-board {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 18px !important;
+  background: #ffffff !important;
+}
+
+.bookkeeping-page .bk-board-inner,
+.bookkeeping-page .bookkeeping-board-inner {
+  min-width: 1180px;
+}
+
+.bookkeeping-page .bk-group,
+.bookkeeping-page .book-group {
+  position: relative;
+  margin-bottom: 14px !important;
+  border: 1px solid var(--bk-border) !important;
+  border-radius: 16px !important;
+  background: #ffffff !important;
+  box-shadow: 0 8px 22px rgba(20,102,101,0.05) !important;
+  overflow: hidden !important;
+}
+
+.bookkeeping-page .bk-group-bar,
+.bookkeeping-page .book-group-bar {
+  left: 0 !important;
+  width: 6px !important;
+  border-radius: 16px 0 0 16px !important;
+  background: var(--group-color) !important;
+}
+
+.bookkeeping-page .bk-grid-row,
+.bookkeeping-page .book-grid-row {
+  display: grid !important;
+  grid-template-columns: var(--book-grid) !important;
+  border-bottom: 1px solid var(--bk-border) !important;
+  background: #ffffff !important;
+}
+
+.bookkeeping-page .bk-cell,
+.bookkeeping-page .book-cell {
+  min-height: 38px !important;
+  border-right: 1px solid var(--bk-border) !important;
+  color: var(--bk-text) !important;
+  font-size: 14px !important;
+  font-weight: 400 !important;
+}
+
+.bookkeeping-page .bk-cell:last-child,
+.bookkeeping-page .book-cell:last-child {
+  border-right: 0 !important;
+}
+
+.bookkeeping-page .bk-group-header,
+.bookkeeping-page .book-group-header {
+  height: 62px !important;
+  min-height: 62px !important;
+  background:
+    linear-gradient(90deg, rgba(255,255,255,0.96), rgba(255,255,255,0.86)) !important;
+}
+
+.bookkeeping-page .bk-group-header .bk-cell,
+.bookkeeping-page .book-group-header .book-cell {
+  height: 62px !important;
+}
+
+.bookkeeping-page .bk-group-title,
+.bookkeeping-page .book-date-title {
+  color: var(--group-color) !important;
+  font-size: 18px !important;
+  font-weight: 600 !important;
+}
+
+.bookkeeping-page .bk-group-count,
+.bookkeeping-page .book-count {
+  color: var(--bk-muted) !important;
+  font-size: 13px !important;
+  margin-left: 6px !important;
+}
+
+.bookkeeping-page .book-toggle {
+  color: var(--group-color) !important;
+  font-weight: 700 !important;
+}
+
+.bookkeeping-page .bk-date-pill,
+.bookkeeping-page .book-date-pill {
+  min-width: 108px !important;
+  height: 24px !important;
+  border-radius: 999px !important;
+  background: var(--group-color) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(20,102,101,0.10) !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+}
+
+.bookkeeping-page .book-column-header .book-cell {
+  color: var(--bk-muted) !important;
+  background: rgba(255, 242, 183, 0.18) !important;
+}
+
+.bookkeeping-page .book-row {
+  transition: background 140ms ease;
+}
+
+.bookkeeping-page .book-row:hover {
+  background: rgba(8, 171, 156, 0.04) !important;
+}
+
+.bookkeeping-page .book-row.is-selected {
+  background: rgba(8, 171, 156, 0.14) !important;
+}
+
+.bookkeeping-page .book-row.is-selected .book-checkbox {
+  border-color: var(--bk-teal) !important;
+  background: var(--bk-teal) !important;
+}
+
+.bookkeeping-page .book-checkbox {
+  border-color: #d7cbd3 !important;
+  border-radius: 4px !important;
+}
+
+.bookkeeping-page .book-update-button {
+  color: var(--bk-muted) !important;
+}
+
+.bookkeeping-page .book-update-button.has-activity {
+  color: var(--bk-teal) !important;
+}
+
+.bookkeeping-page .book-update-badge {
+  background: var(--bk-pink) !important;
+}
+
+.bookkeeping-page .bk-money-in,
+.bookkeeping-page .book-money-cell[data-cash-field="cash_in"] {
+  color: var(--bk-deep-teal) !important;
+  font-weight: 500 !important;
+}
+
+.bookkeeping-page .bk-money-out,
+.bookkeeping-page .book-money-cell[data-cash-field="cash_out"] {
+  color: var(--bk-orange) !important;
+  font-weight: 500 !important;
+}
+
+.bookkeeping-page .bk-money-total-positive,
+.bookkeeping-page .book-total-positive {
+  color: var(--bk-teal) !important;
+  font-weight: 500 !important;
+}
+
+.bookkeeping-page .bk-money-total-negative,
+.bookkeeping-page .book-total-negative {
+  color: var(--bk-pink) !important;
+  font-weight: 500 !important;
+}
+
+.bookkeeping-page .bk-add-row,
+.bookkeeping-page .book-add-row {
+  color: var(--bk-muted) !important;
+  background: #fffdfd !important;
+}
+
+.bookkeeping-page .bk-add-description,
+.bookkeeping-page .book-add-description {
+  color: var(--bk-muted) !important;
+  cursor: pointer;
+}
+
+.bookkeeping-page .bk-add-description:hover,
+.bookkeeping-page .book-add-description:hover {
+  color: var(--bk-teal) !important;
+}
+
+.bookkeeping-page .book-summary-row {
+  background: rgba(255, 242, 183, 0.18) !important;
+}
+
+.bookkeeping-page .book-summary-small {
+  color: var(--bk-muted) !important;
+}
+
+.bookkeeping-page .book-editable.is-editing {
+  outline-color: var(--bk-teal) !important;
+  background: #ffffff !important;
+}
+
+.bookkeeping-page .cash-entry-panel .button.primary,
+.bookkeeping-page .cash-entry-panel button[type="submit"] {
+  border-radius: 999px !important;
+  background: var(--bk-deep-teal) !important;
+}
+
+@media (max-width: 768px) {
+  .bookkeeping-page .bookkeeping-board-inner,
+  .bookkeeping-page .bk-board-inner {
+    min-width: 980px;
+  }
+
+  .bookkeeping-page .unlogged-list {
+    grid-template-columns: 1fr !important;
+  }
+}

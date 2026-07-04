@@ -512,8 +512,6 @@ $orderLookup = array_map(static fn (array $row): array => [
     'created_at' => (string) ($row['created_at'] ?? ''),
 ], $lookupOrders);
 
-$bookGroupColours = ['#e84393', '#0073ea', '#00c875', '#a25ddc', '#fdab3d', '#00a699', '#e2445c', '#579bfc'];
-
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
@@ -525,9 +523,9 @@ include BASE_PATH . '/shared/sidebar.php';
                 <p class="work-board-subtitle">Physical business cash tracking for walk-ins, drivers, cash orders and daily counts.</p>
             </div>
             <div class="monday-board-head-actions">
-                <button class="invite-btn" type="button" data-cash-entry-open><i data-lucide="plus"></i> New Entry</button>
-                <button type="button" data-export-cash><i data-lucide="download"></i> Export Excel</button>
-                <button type="button" data-theme-toggle><i data-lucide="moon"></i></button>
+                <button class="invite-btn bk-btn-primary" type="button" data-cash-entry-open><i data-lucide="plus"></i> New Entry</button>
+                <button class="bk-btn-secondary" type="button" data-export-cash><i data-lucide="download"></i> Export Excel</button>
+                <button class="bk-icon-btn" type="button" data-theme-toggle><i data-lucide="moon"></i></button>
             </div>
         </div>
     </section>
@@ -537,17 +535,17 @@ include BASE_PATH . '/shared/sidebar.php';
     <?php ops_flash($message, $messageType); ?>
 
     <section class="work-metric-grid bookkeeping-metric-grid" aria-label="Cash summary">
-        <article class="work-metric-card metric-blue"><span class="metric-icon"><i data-lucide="wallet-cards"></i></span><div><span class="metric-title">Opening Balance</span><strong><?= cash_money($opening) ?></strong><small>Today</small></div></article>
-        <article class="work-metric-card metric-green"><span class="metric-icon"><i data-lucide="circle-plus"></i></span><div><span class="metric-title">Cash In Today</span><strong><?= cash_money($cashInToday) ?></strong><small>Received</small></div></article>
-        <article class="work-metric-card metric-red"><span class="metric-icon"><i data-lucide="circle-minus"></i></span><div><span class="metric-title">Cash Out Today</span><strong><?= cash_money($cashOutToday) ?></strong><small>Paid out</small></div></article>
-        <article class="work-metric-card metric-purple"><span class="metric-icon"><i data-lucide="calculator"></i></span><div><span class="metric-title">Expected Cash</span><strong><?= cash_money($expectedCash) ?></strong><small>Opening + in - out</small></div></article>
-        <article class="work-metric-card metric-slate"><span class="metric-icon"><i data-lucide="scale"></i></span><div><span class="metric-title">Actual Counted</span><strong><?= $actualCounted === null ? 'Not set' : cash_money($actualCounted) ?></strong><small>Closing count</small></div></article>
-        <article class="work-metric-card <?= $variance === null || abs($variance) < 0.01 ? 'metric-green' : 'metric-orange' ?>"><span class="metric-icon"><i data-lucide="badge-alert"></i></span><div><span class="metric-title">Difference</span><strong><?= $variance === null ? '-' : cash_money($variance) ?></strong><small><?= $variance === null ? 'No closing count' : (abs($variance) < 0.01 ? 'Balanced' : ($variance > 0 ? 'Over' : 'Short')) ?></small></div></article>
-        <article class="work-metric-card metric-teal"><span class="metric-icon"><i data-lucide="truck"></i></span><div><span class="metric-title">Driver Cash</span><strong><?= cash_money($driverCash) ?></strong><small>Returned today</small></div></article>
-        <article class="work-metric-card metric-pink"><span class="metric-icon"><i data-lucide="receipt-text"></i></span><div><span class="metric-title">Unlogged Cash Orders</span><strong><?= number_format(count($unloggedCashOrders)) ?></strong><small>Needs logging</small></div></article>
+        <article class="work-metric-card bk-widget bk-widget-salmon"><span class="metric-icon bk-widget-icon"><i data-lucide="wallet-cards"></i></span><div><span class="metric-title">Opening Balance</span><strong><?= cash_money($opening) ?></strong><small>Today</small></div></article>
+        <article class="work-metric-card bk-widget bk-widget-teal"><span class="metric-icon bk-widget-icon"><i data-lucide="circle-plus"></i></span><div><span class="metric-title">Cash In Today</span><strong><?= cash_money($cashInToday) ?></strong><small>Received</small></div></article>
+        <article class="work-metric-card bk-widget bk-widget-orange"><span class="metric-icon bk-widget-icon"><i data-lucide="circle-minus"></i></span><div><span class="metric-title">Cash Out Today</span><strong><?= cash_money($cashOutToday) ?></strong><small>Paid out</small></div></article>
+        <article class="work-metric-card bk-widget bk-widget-yellow"><span class="metric-icon bk-widget-icon"><i data-lucide="calculator"></i></span><div><span class="metric-title">Expected Cash</span><strong><?= cash_money($expectedCash) ?></strong><small>Opening + in - out</small></div></article>
+        <article class="work-metric-card bk-widget bk-widget-cream"><span class="metric-icon bk-widget-icon"><i data-lucide="scale"></i></span><div><span class="metric-title">Actual Counted</span><strong><?= $actualCounted === null ? 'Not set' : cash_money($actualCounted) ?></strong><small>Closing count</small></div></article>
+        <article class="work-metric-card bk-widget bk-widget-pink"><span class="metric-icon bk-widget-icon"><i data-lucide="badge-alert"></i></span><div><span class="metric-title">Difference</span><strong><?= $variance === null ? '-' : cash_money($variance) ?></strong><small><?= $variance === null ? 'No closing count' : (abs($variance) < 0.01 ? 'Balanced' : ($variance > 0 ? 'Over' : 'Short')) ?></small></div></article>
+        <article class="work-metric-card bk-widget bk-widget-deep-teal"><span class="metric-icon bk-widget-icon"><i data-lucide="truck"></i></span><div><span class="metric-title">Driver Cash</span><strong><?= cash_money($driverCash) ?></strong><small>Returned today</small></div></article>
+        <article class="work-metric-card bk-widget bk-widget-pink"><span class="metric-icon bk-widget-icon"><i data-lucide="receipt-text"></i></span><div><span class="metric-title">Unlogged Cash Orders</span><strong><?= number_format(count($unloggedCashOrders)) ?></strong><small>Needs logging</small></div></article>
     </section>
 
-    <details class="panel task-filter-panel bookkeeping-filter-panel" <?= $filtersAreActive ? 'open' : '' ?>>
+    <details class="panel task-filter-panel bookkeeping-filter-panel bk-filter-shell" <?= $filtersAreActive ? 'open' : '' ?>>
         <summary><span><i data-lucide="sliders-horizontal"></i> Filters</span><strong><?= $filtersAreActive ? 'Active' : 'Collapsed' ?></strong></summary>
         <form method="get">
             <div class="form-grid compact task-filter-grid">
@@ -560,7 +558,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 <label>Direction<select name="direction"><?php ops_select_options(['' => 'All', 'cash_in' => 'Cash in only', 'cash_out' => 'Cash out only', 'variance' => 'Variance / counts'], $filters['direction']); ?></select></label>
                 <label class="span-2">Related order / customer<input name="order" value="<?= htmlspecialchars($filters['order'], ENT_QUOTES, 'UTF-8') ?>" placeholder="#33863, customer name or notes"></label>
             </div>
-            <div class="ops-form-actions"><a class="button" href="bookkeeping.php">Clear</a><button class="button primary" type="submit">Apply filters</button></div>
+            <div class="ops-form-actions"><a class="button bk-btn-secondary" href="bookkeeping.php">Clear</a><button class="button primary bk-btn-primary" type="submit">Apply filters</button></div>
         </form>
     </details>
 
@@ -571,88 +569,88 @@ include BASE_PATH . '/shared/sidebar.php';
         </div>
         <div class="unlogged-list">
             <?php foreach (array_slice($unloggedCashOrders, 0, 12) as $order): ?>
-                <article class="unlogged-card" data-unlogged-card="<?= (int) $order['id'] ?>">
+                <article class="unlogged-card bk-unlogged-card" data-unlogged-card="<?= (int) $order['id'] ?>">
                     <div class="unlogged-card-title">#<?= htmlspecialchars((string) $order['order_number'], ENT_QUOTES, 'UTF-8') ?> <?= htmlspecialchars((string) $order['customer_name'], ENT_QUOTES, 'UTF-8') ?></div>
                     <div class="unlogged-card-meta"><?= cash_money((float) $order['order_total']) ?> - <?= htmlspecialchars((string) $order['payment_method'], ENT_QUOTES, 'UTF-8') ?></div>
-                    <button class="unlogged-add-btn" type="button" data-add-cash-order="<?= (int) $order['id'] ?>">+ Add to Bookkeeping</button>
+                    <button class="unlogged-add-btn bk-add-cash-btn" type="button" data-add-cash-order="<?= (int) $order['id'] ?>">+ Add to Bookkeeping</button>
                 </article>
             <?php endforeach; ?>
             <?php if (!$unloggedCashOrders): ?><div class="board-empty-state">No unlogged cash orders.</div><?php endif; ?>
         </div>
     </section>
 
-    <section class="bookkeeping-board" data-cash-table>
-        <div class="bookkeeping-board-inner">
+    <section class="bookkeeping-board bk-board" data-cash-table>
+        <div class="bookkeeping-board-inner bk-board-inner">
             <?php $groupIndex = 0; ?>
             <?php foreach ($entriesByDate as $date => $dateEntries): ?>
                 <?php
                 $dayIn = array_sum(array_map(static fn (array $row): float => (float) $row['cash_in'], $dateEntries));
                 $dayOut = array_sum(array_map(static fn (array $row): float => (float) $row['cash_out'], $dateEntries));
                 $dayTotal = $dayIn - $dayOut;
-                $groupColor = ['#e84393', '#579bfc', '#00a699', '#a25ddc', '#fdab3d', '#d83a52'][$groupIndex % 6];
+                $groupColor = ['#fc6eae', '#ffbd29', '#08ab9c', '#f47a34', '#146665', '#feb3a8'][$groupIndex % 6];
                 $groupIndex++;
                 ?>
-                <section class="book-group is-open" data-book-group="<?= htmlspecialchars($date, ENT_QUOTES, 'UTF-8') ?>" style="--group-color:<?= $groupColor ?>;">
-                    <div class="book-group-bar"></div>
-                    <div class="book-grid-row book-group-header">
-                        <div class="book-cell book-checkbox-cell"></div>
-                        <div class="book-cell book-date-title-cell">
+                <section class="book-group bk-group is-open" data-book-group="<?= htmlspecialchars($date, ENT_QUOTES, 'UTF-8') ?>" style="--group-color:<?= $groupColor ?>;">
+                    <div class="book-group-bar bk-group-bar"></div>
+                    <div class="book-grid-row bk-grid-row book-group-header bk-group-header">
+                        <div class="book-cell bk-cell book-checkbox-cell"></div>
+                        <div class="book-cell bk-cell book-date-title-cell">
                             <button class="book-toggle" type="button" data-book-toggle aria-label="Toggle date group">v</button>
-                            <span class="book-date-title"><?= htmlspecialchars((new DateTimeImmutable($date))->format('d F'), ENT_QUOTES, 'UTF-8') ?></span>
-                            <span class="book-count"><?= count($dateEntries) ?> <?= count($dateEntries) === 1 ? 'Entry' : 'Entries' ?></span>
+                            <span class="book-date-title bk-group-title"><?= htmlspecialchars((new DateTimeImmutable($date))->format('d F'), ENT_QUOTES, 'UTF-8') ?></span>
+                            <span class="book-count bk-group-count"><?= count($dateEntries) ?> <?= count($dateEntries) === 1 ? 'Entry' : 'Entries' ?></span>
                         </div>
-                        <div class="book-cell"></div>
-                        <div class="book-cell"><span class="book-date-pill"><?= htmlspecialchars((new DateTimeImmutable($date))->format('M j'), ENT_QUOTES, 'UTF-8') ?></span></div>
-                        <div class="book-cell"></div>
-                        <div class="book-cell"></div>
-                        <div class="book-cell"></div>
-                        <div class="book-cell"></div>
-                        <div class="book-cell"></div>
+                        <div class="book-cell bk-cell"></div>
+                        <div class="book-cell bk-cell"><span class="book-date-pill bk-date-pill"><?= htmlspecialchars((new DateTimeImmutable($date))->format('M j'), ENT_QUOTES, 'UTF-8') ?></span></div>
+                        <div class="book-cell bk-cell"></div>
+                        <div class="book-cell bk-cell"></div>
+                        <div class="book-cell bk-cell"></div>
+                        <div class="book-cell bk-cell"></div>
+                        <div class="book-cell bk-cell"></div>
                     </div>
-                    <div class="book-grid-row book-column-header" data-book-group-body>
-                        <div class="book-cell book-checkbox-cell"></div>
-                        <div class="book-cell">Description</div>
-                        <div class="book-cell"></div>
-                        <div class="book-cell">Date & Time</div>
-                        <div class="book-cell">Cash on Hand</div>
-                        <div class="book-cell">Cash Out</div>
-                        <div class="book-cell">Total</div>
-                        <div class="book-cell">Notes about Items</div>
-                        <div class="book-cell">+</div>
+                    <div class="book-grid-row bk-grid-row book-column-header" data-book-group-body>
+                        <div class="book-cell bk-cell book-checkbox-cell"></div>
+                        <div class="book-cell bk-cell">Description</div>
+                        <div class="book-cell bk-cell"></div>
+                        <div class="book-cell bk-cell">Date & Time</div>
+                        <div class="book-cell bk-cell">Cash on Hand</div>
+                        <div class="book-cell bk-cell">Cash Out</div>
+                        <div class="book-cell bk-cell">Total</div>
+                        <div class="book-cell bk-cell">Notes about Items</div>
+                        <div class="book-cell bk-cell">+</div>
                     </div>
                     <?php foreach ($dateEntries as $entry): ?>
                         <?php
                         $entryTotal = (float) $entry['cash_in'] - (float) $entry['cash_out'];
                         $activityCount = (!empty($entry['notes']) ? 1 : 0) + (!empty($entry['attachment_path']) ? 1 : 0);
                         ?>
-                        <div class="book-grid-row book-row" data-entry-id="<?= (int) $entry['id'] ?>" data-cash-in="<?= (float) $entry['cash_in'] ?>" data-cash-out="<?= (float) $entry['cash_out'] ?>">
-                            <div class="book-cell book-checkbox-cell"><button class="book-checkbox" type="button" data-cash-row-select="<?= (int) $entry['id'] ?>" aria-label="Select cash entry"></button></div>
-                            <div class="book-cell book-editable" data-cash-field="description"><?= htmlspecialchars((string) $entry['description'], ENT_QUOTES, 'UTF-8') ?></div>
-                            <div class="book-cell book-update-cell">
+                        <div class="book-grid-row bk-grid-row book-row" data-entry-id="<?= (int) $entry['id'] ?>" data-cash-in="<?= (float) $entry['cash_in'] ?>" data-cash-out="<?= (float) $entry['cash_out'] ?>">
+                            <div class="book-cell bk-cell book-checkbox-cell"><button class="book-checkbox" type="button" data-cash-row-select="<?= (int) $entry['id'] ?>" aria-label="Select cash entry"></button></div>
+                            <div class="book-cell bk-cell book-editable" data-cash-field="description"><?= htmlspecialchars((string) $entry['description'], ENT_QUOTES, 'UTF-8') ?></div>
+                            <div class="book-cell bk-cell book-update-cell">
                                 <button class="book-update-button <?= $activityCount > 0 ? 'has-activity' : '' ?>" type="button" data-cash-detail-open="<?= (int) $entry['id'] ?>" aria-label="Open notes and files">
                                     <i data-lucide="message-square"></i>
                                     <?php if ($activityCount > 0): ?><span class="book-update-badge"><?= $activityCount ?></span><?php endif; ?>
                                 </button>
                             </div>
-                            <div class="book-cell book-editable" data-cash-field="transaction_date"><?= htmlspecialchars((new DateTimeImmutable((string) $entry['transaction_date']))->format('M j, g:i A'), ENT_QUOTES, 'UTF-8') ?></div>
-                            <div class="book-cell book-money-cell book-editable" data-cash-field="cash_in"><?= (float) $entry['cash_in'] > 0 ? cash_money((float) $entry['cash_in']) : '' ?></div>
-                            <div class="book-cell book-money-cell book-editable" data-cash-field="cash_out"><?= (float) $entry['cash_out'] > 0 ? cash_money((float) $entry['cash_out']) : '' ?></div>
-                            <div class="book-cell book-total-cell <?= $entryTotal < 0 ? 'book-total-negative' : 'book-total-positive' ?>" data-row-total><?= cash_money($entryTotal) ?></div>
-                            <div class="book-cell book-editable" data-cash-field="notes"><?= htmlspecialchars((string) ($entry['notes'] ?? ''), ENT_QUOTES, 'UTF-8') ?></div>
-                            <div class="book-cell"></div>
+                            <div class="book-cell bk-cell book-editable" data-cash-field="transaction_date"><?= htmlspecialchars((new DateTimeImmutable((string) $entry['transaction_date']))->format('M j, g:i A'), ENT_QUOTES, 'UTF-8') ?></div>
+                            <div class="book-cell bk-cell book-money-cell book-editable bk-money-in" data-cash-field="cash_in"><?= (float) $entry['cash_in'] > 0 ? cash_money((float) $entry['cash_in']) : '' ?></div>
+                            <div class="book-cell bk-cell book-money-cell book-editable bk-money-out" data-cash-field="cash_out"><?= (float) $entry['cash_out'] > 0 ? cash_money((float) $entry['cash_out']) : '' ?></div>
+                            <div class="book-cell bk-cell book-total-cell <?= $entryTotal < 0 ? 'book-total-negative bk-money-total-negative' : 'book-total-positive bk-money-total-positive' ?>" data-row-total><?= cash_money($entryTotal) ?></div>
+                            <div class="book-cell bk-cell book-editable" data-cash-field="notes"><?= htmlspecialchars((string) ($entry['notes'] ?? ''), ENT_QUOTES, 'UTF-8') ?></div>
+                            <div class="book-cell bk-cell"></div>
                         </div>
                     <?php endforeach; ?>
-                    <div class="book-grid-row book-add-row">
-                        <div class="book-cell"></div>
-                        <div class="book-cell book-add-description" data-cash-entry-open>+ Add description</div>
-                        <div class="book-cell"></div><div class="book-cell"></div><div class="book-cell"></div><div class="book-cell"></div><div class="book-cell"></div><div class="book-cell"></div><div class="book-cell"></div>
+                    <div class="book-grid-row bk-grid-row book-add-row bk-add-row">
+                        <div class="book-cell bk-cell"></div>
+                        <div class="book-cell bk-cell book-add-description bk-add-description" data-cash-entry-open>+ Add description</div>
+                        <div class="book-cell bk-cell"></div><div class="book-cell bk-cell"></div><div class="book-cell bk-cell"></div><div class="book-cell bk-cell"></div><div class="book-cell bk-cell"></div><div class="book-cell bk-cell"></div><div class="book-cell bk-cell"></div>
                     </div>
-                    <div class="book-grid-row book-summary-row">
-                        <div class="book-cell"></div><div class="book-cell"></div><div class="book-cell"></div><div class="book-cell"></div>
-                        <div class="book-cell" data-group-cash-in><?= cash_money($dayIn) ?><span class="book-summary-small">sum</span></div>
-                        <div class="book-cell" data-group-cash-out><?= cash_money($dayOut) ?><span class="book-summary-small">sum</span></div>
-                        <div class="book-cell" data-group-total><?= cash_money($dayTotal) ?><span class="book-summary-small">sum</span></div>
-                        <div class="book-cell"></div><div class="book-cell"></div>
+                    <div class="book-grid-row bk-grid-row book-summary-row">
+                        <div class="book-cell bk-cell"></div><div class="book-cell bk-cell"></div><div class="book-cell bk-cell"></div><div class="book-cell bk-cell"></div>
+                        <div class="book-cell bk-cell bk-money-in" data-group-cash-in><?= cash_money($dayIn) ?><span class="book-summary-small">sum</span></div>
+                        <div class="book-cell bk-cell bk-money-out" data-group-cash-out><?= cash_money($dayOut) ?><span class="book-summary-small">sum</span></div>
+                        <div class="book-cell bk-cell <?= $dayTotal < 0 ? 'bk-money-total-negative' : 'bk-money-total-positive' ?>" data-group-total><?= cash_money($dayTotal) ?><span class="book-summary-small">sum</span></div>
+                        <div class="book-cell bk-cell"></div><div class="book-cell bk-cell"></div>
                     </div>
                 </section>
             <?php endforeach; ?>
