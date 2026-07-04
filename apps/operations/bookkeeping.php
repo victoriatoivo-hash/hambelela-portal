@@ -607,9 +607,9 @@ include BASE_PATH . '/shared/sidebar.php';
                             <span class="book-date-title bk-group-title"><?= htmlspecialchars((new DateTimeImmutable($date))->format('d F'), ENT_QUOTES, 'UTF-8') ?></span>
                             <span class="book-count bk-group-count"><?= count($dateEntries) ?> <?= count($dateEntries) === 1 ? 'Entry' : 'Entries' ?></span>
                         </div>
-                        <div class="book-cell bk-cell">Type</div>
-                        <div class="book-cell bk-cell"><span class="book-date-pill bk-date-pill"><?= htmlspecialchars((new DateTimeImmutable($date))->format('M j'), ENT_QUOTES, 'UTF-8') ?></span></div>
                         <div class="book-cell bk-cell"></div>
+                        <div class="book-cell bk-cell"><span class="book-date-pill bk-date-pill"><?= htmlspecialchars((new DateTimeImmutable($date))->format('M j'), ENT_QUOTES, 'UTF-8') ?></span></div>
+                        <div class="book-cell bk-cell">Type</div>
                         <div class="book-cell bk-cell"></div>
                         <div class="book-cell bk-cell"></div>
                         <div class="book-cell bk-cell"></div>
