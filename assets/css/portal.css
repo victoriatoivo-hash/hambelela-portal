@@ -22228,12 +22228,26 @@ body:has(.ob-wrap) .ob-wrap .monday-group-summary > .monday-cell {
 
 body:has(.ob-wrap) .ob-wrap .monday-group.expanded .monday-group-summary,
 body:has(.ob-wrap) .ob-wrap .monday-group.expanded .monday-group-summary.is-open {
+  position: relative !important;
   height: 40px !important;
   min-height: 40px !important;
   max-height: 40px !important;
-  border-top: 1px solid var(--orders-board-grid-line) !important;
-  border-bottom: 1px solid var(--orders-board-grid-line) !important;
+  border-top: 1px solid #d0d4e4 !important;
+  border-bottom: 1px solid #d0d4e4 !important;
   background: #ffffff !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .monday-group.expanded .monday-group-summary::after,
+body:has(.ob-wrap) .ob-wrap .monday-group.expanded .monday-group-summary.is-open::after {
+  content: "" !important;
+  position: absolute !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  height: 1px !important;
+  background: #d0d4e4 !important;
+  pointer-events: none !important;
+  z-index: 6 !important;
 }
 
 body:has(.ob-wrap) .ob-wrap .monday-group.expanded .monday-group-summary > .monday-cell {
