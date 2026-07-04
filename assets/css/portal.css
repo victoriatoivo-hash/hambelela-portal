@@ -21567,6 +21567,15 @@ body:has(.ob-wrap) .ob-wrap div.ob-group-footer .ob-stacked-bar > .ob-bar-segmen
   border: 0 !important;
   flex-basis: 0 !important;
   flex-shrink: 1 !important;
+  color: var(--summary-colour, currentColor) !important;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.18) 0%,
+      rgba(255, 255, 255, 0.08) 35%,
+      currentColor 55%,
+      rgba(0, 0, 0, 0.10) 100%
+    ) !important;
   box-sizing: border-box !important;
   cursor: pointer !important;
   position: relative !important;
@@ -22005,6 +22014,20 @@ body:has(.ob-wrap) .ob-wrap .monday-group.collapsed .ob-date-pill {
   line-height: 22px !important;
   margin: 0 !important;
   align-self: center !important;
+}
+
+.ob-wrap .orders-board-v2 .monday-group .ob-date-pill,
+.ob-wrap .orders-board-v2 div.ob-group-footer .ob-date-pill {
+  color: #ffffff !important;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.18) 0%,
+      rgba(255, 255, 255, 0.08) 35%,
+      var(--ob-group-colour, var(--group-color, #c73557)) 55%,
+      rgba(0, 0, 0, 0.10) 100%
+    ) !important;
+  box-shadow: none !important;
 }
 
 body:has(.ob-wrap) .ob-wrap .monday-group.collapsed .ob-stacked-bar {
@@ -22619,7 +22642,15 @@ body:has(.ob-wrap) .ob-wrap .monday-order-row > .monday-cell.col-status > .board
   top: 0 !important;
   bottom: 0 !important;
   width: 6px !important;
-  background: var(--ob-group-colour, var(--group-color, #579bfc)) !important;
+  color: var(--ob-group-colour, var(--group-color, #579bfc)) !important;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.18) 0%,
+      rgba(255, 255, 255, 0.08) 32%,
+      currentColor 58%,
+      rgba(0, 0, 0, 0.12) 100%
+    ) !important;
   border-radius: 8px 0 0 8px !important;
   z-index: 8 !important;
   pointer-events: none !important;
