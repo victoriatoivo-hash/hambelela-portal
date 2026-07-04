@@ -136,7 +136,7 @@ include BASE_PATH . '/shared/sidebar.php';
 
     <section class="ops-board-shell">
         <div class="ops-board-scroll">
-            <div class="ops-board-table monday-board" id="orders-board-body">
+            <div class="ops-board-table monday-board orders-board-v2" id="orders-board-body">
                 <div class="board-empty-state">Loading orders...</div>
             </div>
         </div>

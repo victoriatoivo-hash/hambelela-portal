@@ -22497,3 +22497,303 @@ body:has(.ob-wrap) .ob-wrap .monday-order-row > .monday-cell.col-status > .board
   box-shadow: none !important;
   outline: 0 !important;
 }
+
+/* Orders Board v2: isolated single CSS Grid shell.
+   Keep existing JS hooks/classes, but make this wrapper the only grid/border owner. */
+.ob-wrap .orders-board-v2 {
+  --orders-board-grid:
+    34px
+    var(--orders-col-task, 220px)
+    var(--orders-col-updates, 44px)
+    var(--orders-col-date, 170px)
+    var(--orders-col-mobile, 190px)
+    var(--orders-col-mode, 110px)
+    var(--orders-col-amount, 110px)
+    var(--orders-col-payment, 150px)
+    var(--orders-col-paid, 80px)
+    var(--orders-col-status, 140px)
+    var(--orders-col-packed-by, 150px)
+    var(--orders-col-text, 260px)
+    48px;
+  --orders-board-grid-min-width: calc(
+    34px +
+    var(--orders-col-task, 220px) +
+    var(--orders-col-updates, 44px) +
+    var(--orders-col-date, 170px) +
+    var(--orders-col-mobile, 190px) +
+    var(--orders-col-mode, 110px) +
+    var(--orders-col-amount, 110px) +
+    var(--orders-col-payment, 150px) +
+    var(--orders-col-paid, 80px) +
+    var(--orders-col-status, 140px) +
+    var(--orders-col-packed-by, 150px) +
+    var(--orders-col-text, 260px) +
+    48px
+  );
+  --orders-board-grid-line: #d0d4e4;
+  width: max(100%, var(--orders-board-grid-min-width)) !important;
+  min-width: var(--orders-board-grid-min-width) !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+
+.ob-wrap .orders-board-v2,
+.ob-wrap .orders-board-v2 * {
+  box-sizing: border-box !important;
+}
+
+.ob-wrap .orders-board-v2 table,
+.ob-wrap .orders-board-v2 thead,
+.ob-wrap .orders-board-v2 tbody,
+.ob-wrap .orders-board-v2 tr,
+.ob-wrap .orders-board-v2 th,
+.ob-wrap .orders-board-v2 td,
+.ob-wrap .orders-board-v2 .monday-group,
+.ob-wrap .orders-board-v2 .monday-group-shell,
+.ob-wrap .orders-board-v2 .monday-group-orders,
+.ob-wrap .orders-board-v2 .monday-grid,
+.ob-wrap .orders-board-v2 .monday-cell,
+.ob-wrap .orders-board-v2 .board-label,
+.ob-wrap .orders-board-v2 .mode-label,
+.ob-wrap .orders-board-v2 .payment-label,
+.ob-wrap .orders-board-v2 .status-label {
+  border-top: 0 !important;
+  border-bottom: 0 !important;
+  border-left: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+
+.ob-wrap .orders-board-v2 .monday-group {
+  margin: 0 0 12px 0 !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+.ob-wrap .orders-board-v2 .monday-group-shell {
+  position: relative !important;
+  width: 100% !important;
+  min-width: var(--orders-board-grid-min-width) !important;
+  overflow: visible !important;
+  border-radius: 0 !important;
+  background: #ffffff !important;
+}
+
+.ob-wrap .orders-board-v2 .monday-group-bar {
+  position: absolute !important;
+  left: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  width: 6px !important;
+  background: var(--ob-group-colour, var(--group-color, #579bfc)) !important;
+  border-radius: 8px 0 0 8px !important;
+  z-index: 8 !important;
+  pointer-events: none !important;
+}
+
+.ob-wrap .orders-board-v2 .monday-group.collapsed .monday-group-shell {
+  height: 60px !important;
+  min-height: 60px !important;
+  max-height: 60px !important;
+  overflow: hidden !important;
+}
+
+.ob-wrap .orders-board-v2 .monday-group.collapsed .monday-group-bar {
+  height: 60px !important;
+}
+
+.ob-wrap .orders-board-v2 .monday-group-summary,
+.ob-wrap .orders-board-v2 .monday-column-header,
+.ob-wrap .orders-board-v2 .monday-order-row,
+.ob-wrap .orders-board-v2 .add-task-row,
+.ob-wrap .orders-board-v2 .ob-group-footer {
+  display: grid !important;
+  grid-template-columns: var(--orders-board-grid) !important;
+  grid-auto-flow: row !important;
+  align-items: stretch !important;
+  width: 100% !important;
+  min-width: var(--orders-board-grid-min-width) !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--orders-board-grid-line) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  overflow: hidden !important;
+  background: #ffffff !important;
+}
+
+.ob-wrap .orders-board-v2 .monday-grid[hidden],
+.ob-wrap .orders-board-v2 .monday-column-header[hidden],
+.ob-wrap .orders-board-v2 .monday-order-row[hidden],
+.ob-wrap .orders-board-v2 .add-task-row[hidden],
+.ob-wrap .orders-board-v2 .ob-group-footer[hidden] {
+  display: none !important;
+}
+
+.ob-wrap .orders-board-v2 .monday-group-summary {
+  height: 40px !important;
+  min-height: 40px !important;
+  max-height: 40px !important;
+  border-top: 1px solid var(--orders-board-grid-line) !important;
+}
+
+.ob-wrap .orders-board-v2 .monday-group.collapsed .monday-group-summary {
+  height: 60px !important;
+  min-height: 60px !important;
+  max-height: 60px !important;
+  border-top: 1px solid var(--orders-board-grid-line) !important;
+  border-bottom: 1px solid var(--orders-board-grid-line) !important;
+}
+
+.ob-wrap .orders-board-v2 .monday-column-header,
+.ob-wrap .orders-board-v2 .monday-order-row,
+.ob-wrap .orders-board-v2 .add-task-row,
+.ob-wrap .orders-board-v2 .ob-group-footer {
+  height: 36px !important;
+  min-height: 36px !important;
+  max-height: 36px !important;
+}
+
+.ob-wrap .orders-board-v2 .monday-grid > .monday-cell {
+  grid-column: auto !important;
+  min-width: 0 !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 12px !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  text-overflow: ellipsis !important;
+  border: 0 !important;
+  border-right: 1px solid var(--orders-board-grid-line) !important;
+  border-radius: 0 !important;
+  background-clip: padding-box !important;
+}
+
+.ob-wrap .orders-board-v2 .monday-grid > .monday-cell:last-child {
+  border-right: 0 !important;
+}
+
+.ob-wrap .orders-board-v2 .monday-cell.col-checkbox,
+.ob-wrap .orders-board-v2 .monday-cell.col-task-icon,
+.ob-wrap .orders-board-v2 .monday-cell.col-paid {
+  padding: 0 !important;
+}
+
+.ob-wrap .orders-board-v2 .monday-cell.col-task,
+.ob-wrap .orders-board-v2 .monday-cell.col-mobile,
+.ob-wrap .orders-board-v2 .monday-cell.col-packedby,
+.ob-wrap .orders-board-v2 .monday-cell.col-text,
+.ob-wrap .orders-board-v2 .monday-group-summary > .ob-group-name-cell {
+  justify-content: flex-start !important;
+}
+
+.ob-wrap .orders-board-v2 .monday-order-row > .col-mode,
+.ob-wrap .orders-board-v2 .monday-order-row > .col-payment,
+.ob-wrap .orders-board-v2 .monday-order-row > .col-status {
+  position: relative !important;
+  padding: 0 !important;
+  align-items: stretch !important;
+  justify-content: stretch !important;
+  background: #ffffff !important;
+  border-top: 0 !important;
+  border-bottom: 0 !important;
+}
+
+.ob-wrap .orders-board-v2 .monday-order-row > .col-mode > .board-label,
+.ob-wrap .orders-board-v2 .monday-order-row > .col-payment > .board-label,
+.ob-wrap .orders-board-v2 .monday-order-row > .col-status > .board-label {
+  width: 100% !important;
+  height: calc(100% - 1px) !important;
+  min-height: 0 !important;
+  max-height: calc(100% - 1px) !important;
+  margin: 0 0 1px 0 !important;
+  padding: 0 8px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  background: var(--label-color, #c4c4c4) !important;
+  color: #ffffff !important;
+}
+
+.ob-wrap .orders-board-v2 .monday-grid > .monday-cell.column-header {
+  position: relative !important;
+  color: #4b5563 !important;
+  font-weight: 500 !important;
+}
+
+.ob-wrap .orders-board-v2 .column-resizer {
+  position: absolute !important;
+  top: 0 !important;
+  right: -5px !important;
+  bottom: 0 !important;
+  width: 10px !important;
+  z-index: 40 !important;
+  cursor: col-resize !important;
+  background: transparent !important;
+  pointer-events: auto !important;
+}
+
+.ob-wrap .orders-board-v2 .column-resizer::after {
+  content: "" !important;
+  position: absolute !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  left: 50% !important;
+  width: 2px !important;
+  transform: translateX(-50%) !important;
+  background: transparent !important;
+}
+
+.ob-wrap .orders-board-v2 .column-resizer:hover::after,
+.ob-wrap .orders-board-v2 .column-resizer.is-active::after {
+  background: #0073ea !important;
+}
+
+.ob-wrap .orders-board-v2 input[data-select-all-orders],
+.ob-wrap .orders-board-v2 input[data-row-select] {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  width: 14px !important;
+  height: 14px !important;
+  min-width: 14px !important;
+  min-height: 14px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 1px solid #c3c6d4 !important;
+  border-radius: 2px !important;
+  background-color: #ffffff !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  background-size: 10px 10px !important;
+  cursor: pointer !important;
+}
+
+.ob-wrap .orders-board-v2 input[data-select-all-orders]:checked,
+.ob-wrap .orders-board-v2 input[data-select-all-orders][checked],
+.ob-wrap .orders-board-v2 input[data-row-select]:checked,
+.ob-wrap .orders-board-v2 input[data-row-select][checked],
+.ob-wrap .orders-board-v2 .monday-order-row.is-selected input[data-row-select] {
+  border-color: #0073ea !important;
+  background-color: #0073ea !important;
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='10' viewBox='0 0 10 10' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2 5.1 4.2 7.2 8.2 2.8' fill='none' stroke='%23fff' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+}
+
+.ob-wrap .orders-board-v2 input[data-select-all-orders]:indeterminate,
+.ob-wrap .orders-board-v2 input[data-select-all-orders][aria-checked="mixed"] {
+  border-color: #0073ea !important;
+  background-color: #0073ea !important;
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='10' viewBox='0 0 10 10' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2.2 5h5.6' fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") !important;
+}
