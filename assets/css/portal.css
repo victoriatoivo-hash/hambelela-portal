@@ -22490,8 +22490,9 @@ body:has(.ob-wrap) .ob-wrap .monday-order-row > .monday-cell.col-status > .board
   position: relative !important;
   z-index: 1 !important;
   height: calc(100% - 1px) !important;
-  min-height: calc(100% - 1px) !important;
-  margin-top: 1px !important;
+  min-height: 0 !important;
+  max-height: calc(100% - 1px) !important;
+  margin: 0 0 1px 0 !important;
   border: 0 !important;
   box-shadow: none !important;
   outline: 0 !important;
