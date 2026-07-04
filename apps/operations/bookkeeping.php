@@ -419,6 +419,14 @@ $netToday = $cashInToday - $cashOutToday;
             text-transform: uppercase;
             letter-spacing: .05em;
         }
+        .ledger-header .ledger-cell {
+            color: #1a1a1a;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+            background: #fafafa;
+        }
         .ledger-row {
             border-bottom: 1px solid var(--ledger-border);
         }
