@@ -22822,3 +22822,46 @@ body:has(.ob-wrap) .ob-wrap .monday-order-row > .monday-cell.col-status > .board
   background-color: #0073ea !important;
   border-color: #0073ea !important;
 }
+
+.ob-wrap .orders-board-v2 .monday-cell.col-checkbox {
+  position: relative !important;
+}
+
+.ob-wrap .orders-board-v2 .monday-order-row.is-selected > .monday-cell.col-checkbox input[data-row-select],
+.ob-wrap .orders-board-v2 .monday-order-row > .monday-cell.col-checkbox:has(input[data-row-select]:checked) input[data-row-select],
+.ob-wrap .orders-board-v2 .monday-column-header > .monday-cell.col-checkbox:has(input[data-select-all-orders]:checked) input[data-select-all-orders],
+.ob-wrap .orders-board-v2 .monday-column-header > .monday-cell.col-checkbox:has(input[data-select-all-orders]:indeterminate) input[data-select-all-orders] {
+  opacity: 0 !important;
+}
+
+.ob-wrap .orders-board-v2 .monday-order-row.is-selected > .monday-cell.col-checkbox::after,
+.ob-wrap .orders-board-v2 .monday-order-row > .monday-cell.col-checkbox:has(input[data-row-select]:checked)::after,
+.ob-wrap .orders-board-v2 .monday-column-header > .monday-cell.col-checkbox:has(input[data-select-all-orders]:checked)::after {
+  content: "" !important;
+  position: absolute !important;
+  left: 50% !important;
+  top: 50% !important;
+  width: 14px !important;
+  height: 14px !important;
+  transform: translate(-50%, -50%) !important;
+  border: 1px solid #0073ea !important;
+  border-radius: 2px !important;
+  background: #0073ea url("data:image/svg+xml,%3Csvg width='10' height='10' viewBox='0 0 10 10' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2 5.1 4.2 7.2 8.2 2.8' fill='none' stroke='%23fff' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 10px 10px no-repeat !important;
+  pointer-events: none !important;
+  z-index: 3 !important;
+}
+
+.ob-wrap .orders-board-v2 .monday-column-header > .monday-cell.col-checkbox:has(input[data-select-all-orders]:indeterminate)::after {
+  content: "" !important;
+  position: absolute !important;
+  left: 50% !important;
+  top: 50% !important;
+  width: 14px !important;
+  height: 14px !important;
+  transform: translate(-50%, -50%) !important;
+  border: 1px solid #0073ea !important;
+  border-radius: 2px !important;
+  background: #0073ea url("data:image/svg+xml,%3Csvg width='10' height='10' viewBox='0 0 10 10' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2.2 5h5.6' fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") center / 10px 10px no-repeat !important;
+  pointer-events: none !important;
+  z-index: 3 !important;
+}
