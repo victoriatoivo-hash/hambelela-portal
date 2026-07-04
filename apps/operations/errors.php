@@ -398,7 +398,8 @@ include BASE_PATH . '/shared/sidebar.php';
 .log-error-modal .status-group {
     display: flex !important;
     flex-direction: row !important;
-    gap: 8px !important;
+    column-gap: 8px !important;
+    row-gap: 8px !important;
     align-items: center !important;
     flex-wrap: wrap !important;
     border: 0 !important;
@@ -415,10 +416,14 @@ include BASE_PATH . '/shared/sidebar.php';
 #logErrorForm .status-label,
 .log-error-modal .severity-label,
 .log-error-modal .status-label {
+    display: block !important;
     flex: 0 0 100% !important;
     align-self: stretch !important;
+    float: none !important;
     margin: 0 !important;
     padding: 0 !important;
+    position: static !important;
+    width: 100% !important;
     color: #7A2A1E !important;
     font-size: 11px !important;
     font-weight: 700 !important;
@@ -483,9 +488,9 @@ include BASE_PATH . '/shared/sidebar.php';
 
 #logErrorForm .status-btn[data-status="open"] {
     min-width: 112px !important;
-    background: #F5ECE8 !important;
-    color: #721B1A !important;
-    border: 1px solid #721B1A !important;
+    background: #BB1B21 !important;
+    color: #fff !important;
+    border: none !important;
 }
 
 #logErrorForm .status-btn[data-status="resolved"] {
