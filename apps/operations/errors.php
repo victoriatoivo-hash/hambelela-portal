@@ -416,6 +416,7 @@ include BASE_PATH . '/shared/sidebar.php';
 .log-error-modal .severity-label,
 .log-error-modal .status-label {
     flex: 0 0 100% !important;
+    align-self: stretch !important;
     margin: 0 !important;
     padding: 0 !important;
     color: #7A2A1E !important;
@@ -423,6 +424,8 @@ include BASE_PATH . '/shared/sidebar.php';
     font-weight: 700 !important;
     letter-spacing: 0.05em !important;
     line-height: 1.2 !important;
+    text-align: left !important;
+    text-transform: uppercase !important;
 }
 
 #logErrorForm .pill-option,
@@ -749,7 +752,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         <?php endforeach; ?>
                     </fieldset>
                     <fieldset class="pill-selector status-choice status-group" id="status-group">
-                        <legend class="status-label">Status</legend>
+                        <legend class="status-label">STATUS</legend>
                         <input type="hidden" name="status" id="statusValue" value="open" required>
                         <?php foreach ($statusLabels as $value => $label): ?>
                             <button class="pill-option status-btn status-<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?> <?= $value === 'open' ? 'active' : '' ?>" type="button" data-status="<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></button>
