@@ -420,7 +420,7 @@ include BASE_PATH . '/shared/sidebar.php';
     flex: 0 0 100% !important;
     align-self: stretch !important;
     float: none !important;
-    margin: 0 !important;
+    margin: 0 0 8px !important;
     padding: 0 !important;
     position: static !important;
     width: 100% !important;
