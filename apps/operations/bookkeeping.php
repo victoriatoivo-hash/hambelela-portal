@@ -176,6 +176,7 @@ function cash_entry_payload(int $entryId): array
     return [
         'id' => (int) $row['id'],
         'transaction_date' => (string) $row['transaction_date'],
+        'transaction_type' => (string) $row['transaction_type'],
         'description' => (string) $row['description'],
         'cash_in' => (float) $row['cash_in'],
         'cash_out' => (float) $row['cash_out'],
@@ -199,6 +200,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $allowed = [
                 'description' => 'description',
                 'transaction_date' => 'transaction_date',
+                'transaction_type' => 'transaction_type',
                 'cash_in' => 'cash_in',
                 'cash_out' => 'cash_out',
                 'notes' => 'notes',
@@ -206,6 +208,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($entryId <= 0 || !isset($allowed[$field])) throw new RuntimeException('Invalid bookkeeping update.');
             if ($field === 'description' && $value === '') throw new RuntimeException('Description is required.');
             if ($field === 'transaction_date') $value = cash_normalize_datetime($value);
+            if ($field === 'transaction_type' && !array_key_exists($value, $transactionTypes)) throw new RuntimeException('Choose a valid transaction type.');
             if (in_array($field, ['cash_in', 'cash_out'], true)) $value = (string) max(0, (float) preg_replace('/[^0-9.\-]+/', '', $value));
 
             $previousRows = ops_rows('SELECT ' . $allowed[$field] . ' AS previous_value FROM ops_cash_book_entries WHERE id = ? AND archived_at IS NULL LIMIT 1', [$entryId]);
@@ -341,6 +344,9 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 'related_id' => $entryId,
                 'action_link' => BASE_URL . '/apps/operations/bookkeeping.php?entry_id=' . $entryId,
             ], ['owner_admin', 'supervisor_manager']);
+            if (cash_wants_json()) {
+                cash_json_response(['ok' => true, 'message' => 'Cash entry recorded.', 'entry' => cash_entry_payload($entryId)]);
+            }
             $message = 'Cash entry recorded.';
         } elseif (in_array($action, ['bulk_archive', 'bulk_delete', 'bulk_duplicate'], true)) {
             if (!$canBulkManage) throw new RuntimeException('You do not have permission to update selected cash entries.');
@@ -588,6 +594,8 @@ include BASE_PATH . '/shared/sidebar.php';
                 $dayOut = array_sum(array_map(static fn (array $row): float => (float) $row['cash_out'], $dateEntries));
                 $dayTotal = $dayIn - $dayOut;
                 $groupColor = ['#fc6eae', '#ffbd29', '#08ab9c', '#f47a34', '#146665', '#feb3a8'][$groupIndex % 6];
+                $groupUid = 'cash-add-' . preg_replace('/[^0-9a-z]+/i', '-', $date) . '-' . $groupIndex;
+                $groupTabBase = ($groupIndex + 1) * 100;
                 $groupIndex++;
                 ?>
                 <section class="book-group bk-group is-open" data-book-group="<?= htmlspecialchars($date, ENT_QUOTES, 'UTF-8') ?>" style="--group-color:<?= $groupColor ?>;">
@@ -625,25 +633,31 @@ include BASE_PATH . '/shared/sidebar.php';
                         ?>
                         <div class="book-grid-row bk-grid-row book-row" data-entry-id="<?= (int) $entry['id'] ?>" data-cash-in="<?= (float) $entry['cash_in'] ?>" data-cash-out="<?= (float) $entry['cash_out'] ?>">
                             <div class="book-cell bk-cell book-checkbox-cell"><button class="book-checkbox" type="button" data-cash-row-select="<?= (int) $entry['id'] ?>" aria-label="Select cash entry"></button></div>
-                            <div class="book-cell bk-cell book-editable" data-cash-field="description"><?= htmlspecialchars((string) $entry['description'], ENT_QUOTES, 'UTF-8') ?></div>
+                            <div class="book-cell bk-cell book-editable" data-cash-field="description" data-cash-value="<?= htmlspecialchars((string) $entry['description'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars((string) $entry['description'], ENT_QUOTES, 'UTF-8') ?></div>
                             <div class="book-cell bk-cell book-update-cell">
                                 <button class="book-update-button <?= $activityCount > 0 ? 'has-activity' : '' ?>" type="button" data-cash-detail-open="<?= (int) $entry['id'] ?>" aria-label="Open notes and files">
                                     <i data-lucide="message-square"></i>
                                     <?php if ($activityCount > 0): ?><span class="book-update-badge"><?= $activityCount ?></span><?php endif; ?>
                                 </button>
                             </div>
-                            <div class="book-cell bk-cell book-editable" data-cash-field="transaction_date"><?= htmlspecialchars((new DateTimeImmutable((string) $entry['transaction_date']))->format('M j, g:i A'), ENT_QUOTES, 'UTF-8') ?></div>
-                            <div class="book-cell bk-cell book-money-cell book-editable bk-money-in" data-cash-field="cash_in"><?= (float) $entry['cash_in'] > 0 ? cash_money((float) $entry['cash_in']) : '' ?></div>
-                            <div class="book-cell bk-cell book-money-cell book-editable bk-money-out" data-cash-field="cash_out"><?= (float) $entry['cash_out'] > 0 ? cash_money((float) $entry['cash_out']) : '' ?></div>
+                            <div class="book-cell bk-cell book-editable" data-cash-field="transaction_date" data-cash-value="<?= htmlspecialchars((new DateTimeImmutable((string) $entry['transaction_date']))->format('Y-m-d\TH:i'), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars((new DateTimeImmutable((string) $entry['transaction_date']))->format('M j, g:i A'), ENT_QUOTES, 'UTF-8') ?></div>
+                            <div class="book-cell bk-cell book-money-cell book-editable bk-money-in" data-cash-field="cash_in" data-cash-value="<?= htmlspecialchars((string) (float) $entry['cash_in'], ENT_QUOTES, 'UTF-8') ?>"><?= (float) $entry['cash_in'] > 0 ? cash_money((float) $entry['cash_in']) : '' ?></div>
+                            <div class="book-cell bk-cell book-money-cell book-editable bk-money-out" data-cash-field="cash_out" data-cash-value="<?= htmlspecialchars((string) (float) $entry['cash_out'], ENT_QUOTES, 'UTF-8') ?>"><?= (float) $entry['cash_out'] > 0 ? cash_money((float) $entry['cash_out']) : '' ?></div>
                             <div class="book-cell bk-cell book-total-cell <?= $entryTotal < 0 ? 'book-total-negative bk-money-total-negative' : 'book-total-positive bk-money-total-positive' ?>" data-row-total><?= cash_money($entryTotal) ?></div>
-                            <div class="book-cell bk-cell book-editable" data-cash-field="notes"><?= htmlspecialchars((string) ($entry['notes'] ?? ''), ENT_QUOTES, 'UTF-8') ?></div>
+                            <div class="book-cell bk-cell book-editable" data-cash-field="notes" data-cash-value="<?= htmlspecialchars((string) ($entry['notes'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars((string) ($entry['notes'] ?? ''), ENT_QUOTES, 'UTF-8') ?></div>
                             <div class="book-cell bk-cell"></div>
                         </div>
                     <?php endforeach; ?>
-                    <div class="book-grid-row bk-grid-row book-add-row bk-add-row">
+                    <div class="book-grid-row bk-grid-row book-add-row bk-add-row bk-inline-add-row" data-inline-add-row data-group-date="<?= htmlspecialchars($date, ENT_QUOTES, 'UTF-8') ?>">
                         <div class="book-cell bk-cell"></div>
-                        <div class="book-cell bk-cell book-add-description bk-add-description" data-cash-entry-open>+ Add description</div>
-                        <div class="book-cell bk-cell"></div><div class="book-cell bk-cell"></div><div class="book-cell bk-cell"></div><div class="book-cell bk-cell"></div><div class="book-cell bk-cell"></div><div class="book-cell bk-cell"></div><div class="book-cell bk-cell"></div>
+                        <div class="book-cell bk-cell book-add-description bk-add-description"><input id="d-<?= htmlspecialchars($groupUid, ENT_QUOTES, 'UTF-8') ?>" data-inline-add="description" tabindex="<?= $groupTabBase + 1 ?>" placeholder="+ Add description"></div>
+                        <div class="book-cell bk-cell"><select id="c-<?= htmlspecialchars($groupUid, ENT_QUOTES, 'UTF-8') ?>" data-inline-add="transaction_type" tabindex="<?= $groupTabBase + 3 ?>"><?php ops_select_options($transactionTypes, 'cash_received'); ?></select></div>
+                        <div class="book-cell bk-cell"><input id="t-<?= htmlspecialchars($groupUid, ENT_QUOTES, 'UTF-8') ?>" data-inline-add="transaction_date" tabindex="<?= $groupTabBase + 2 ?>" type="datetime-local" value="<?= htmlspecialchars($date . 'T' . date('H:i'), ENT_QUOTES, 'UTF-8') ?>"></div>
+                        <div class="book-cell bk-cell"><input id="i-<?= htmlspecialchars($groupUid, ENT_QUOTES, 'UTF-8') ?>" data-inline-add="cash_in" tabindex="<?= $groupTabBase + 4 ?>" type="number" min="0" step="0.01" placeholder="0.00"></div>
+                        <div class="book-cell bk-cell"><input id="o-<?= htmlspecialchars($groupUid, ENT_QUOTES, 'UTF-8') ?>" data-inline-add="cash_out" tabindex="<?= $groupTabBase + 5 ?>" type="number" min="0" step="0.01" placeholder="0.00"></div>
+                        <div class="book-cell bk-cell book-total-cell" data-inline-add-total>N$0.00</div>
+                        <div class="book-cell bk-cell"><input id="n-<?= htmlspecialchars($groupUid, ENT_QUOTES, 'UTF-8') ?>" data-inline-add="notes" tabindex="<?= $groupTabBase + 6 ?>" placeholder="Notes"></div>
+                        <div class="book-cell bk-cell"><button class="bk-inline-save bk-btn-primary" type="button" data-inline-add-save tabindex="<?= $groupTabBase + 7 ?>">+</button></div>
                     </div>
                     <div class="book-grid-row bk-grid-row book-summary-row">
                         <div class="book-cell bk-cell"></div><div class="book-cell bk-cell"></div><div class="book-cell bk-cell"></div><div class="book-cell bk-cell"></div>
@@ -727,6 +741,7 @@ include BASE_PATH . '/shared/sidebar.php';
 <script>
 window.HambelelaCashOrders = <?= json_encode($orderLookup, JSON_UNESCAPED_SLASHES) ?>;
 window.HambelelaCashBulk = <?= json_encode(['canManage' => $canBulkManage], JSON_UNESCAPED_SLASHES) ?>;
+window.HambelelaCashTypes = <?= json_encode($transactionTypes, JSON_UNESCAPED_SLASHES) ?>;
 const cashSelected = new Set();
 
 function cashVisibleIds() {
@@ -739,6 +754,30 @@ function money(value) {
 
 function parseMoney(value) {
   return Number(String(value || '').replace(/[^0-9.-]+/g, '')) || 0;
+}
+
+function formatCashDate(value) {
+  const date = new Date(String(value || '').replace(' ', 'T'));
+  if (Number.isNaN(date.getTime())) return value || '';
+  return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+function cashInputDate(value) {
+  if (!value) return '';
+  const normalized = String(value).replace(' ', 'T');
+  return normalized.slice(0, 16);
+}
+
+function showCashToast(message) {
+  const toast = document.createElement('div');
+  toast.className = 'bk-toast';
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add('is-visible'));
+  setTimeout(() => {
+    toast.classList.remove('is-visible');
+    setTimeout(() => toast.remove(), 180);
+  }, 1400);
 }
 
 async function postCash(action, fields = {}) {
@@ -782,6 +821,49 @@ function recalcBookGroup(group) {
   setSummary('[data-group-cash-in]', cashIn);
   setSummary('[data-group-cash-out]', cashOut);
   setSummary('[data-group-total]', groupTotal);
+}
+
+function cashActivityButton(entry) {
+  const activityCount = (entry.notes ? 1 : 0) + (entry.attachment_path ? 1 : 0);
+  return `
+    <button class="book-update-button ${activityCount > 0 ? 'has-activity' : ''}" type="button" data-cash-detail-open="${entry.id}" aria-label="Open notes and files">
+      <i data-lucide="message-square"></i>
+      ${activityCount > 0 ? `<span class="book-update-badge">${activityCount}</span>` : ''}
+    </button>
+  `;
+}
+
+function insertCashRow(addRow, entry) {
+  const row = document.createElement('div');
+  const total = Number(entry.cash_in || 0) - Number(entry.cash_out || 0);
+  row.className = 'book-grid-row bk-grid-row book-row';
+  row.dataset.entryId = entry.id;
+  row.dataset.cashIn = String(entry.cash_in || 0);
+  row.dataset.cashOut = String(entry.cash_out || 0);
+  row.innerHTML = `
+    <div class="book-cell bk-cell book-checkbox-cell"><button class="book-checkbox" type="button" data-cash-row-select="${entry.id}" aria-label="Select cash entry"></button></div>
+    <div class="book-cell bk-cell book-editable" data-cash-field="description" data-cash-value=""></div>
+    <div class="book-cell bk-cell book-update-cell">${cashActivityButton(entry)}</div>
+    <div class="book-cell bk-cell book-editable" data-cash-field="transaction_date" data-cash-value="${cashInputDate(entry.transaction_date)}">${formatCashDate(entry.transaction_date)}</div>
+    <div class="book-cell bk-cell book-money-cell book-editable bk-money-in" data-cash-field="cash_in" data-cash-value="${Number(entry.cash_in || 0)}">${Number(entry.cash_in || 0) > 0 ? money(entry.cash_in) : ''}</div>
+    <div class="book-cell bk-cell book-money-cell book-editable bk-money-out" data-cash-field="cash_out" data-cash-value="${Number(entry.cash_out || 0)}">${Number(entry.cash_out || 0) > 0 ? money(entry.cash_out) : ''}</div>
+    <div class="book-cell bk-cell book-total-cell ${total < 0 ? 'book-total-negative bk-money-total-negative' : 'book-total-positive bk-money-total-positive'}" data-row-total>${money(total)}</div>
+    <div class="book-cell bk-cell book-editable" data-cash-field="notes" data-cash-value=""></div>
+    <div class="book-cell bk-cell"></div>
+  `;
+  row.querySelector('[data-cash-field="description"]').textContent = entry.description || '';
+  row.querySelector('[data-cash-field="description"]').dataset.cashValue = entry.description || '';
+  row.querySelector('[data-cash-field="notes"]').textContent = entry.notes || '';
+  row.querySelector('[data-cash-field="notes"]').dataset.cashValue = entry.notes || '';
+  addRow.before(row);
+  recalcBookGroup(row.closest('.book-group'));
+  const countNode = row.closest('.book-group')?.querySelector('.book-count');
+  if (countNode) {
+    const count = row.closest('.book-group')?.querySelectorAll('.book-row').length || 0;
+    countNode.textContent = `${count} ${count === 1 ? 'Entry' : 'Entries'}`;
+  }
+  updateCashSelection();
+  if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
 }
 
 function ensureCashBulkActionBar() {
@@ -870,39 +952,73 @@ function startCashEdit(cell) {
   const field = cell.dataset.cashField;
   if (!entryId || !field) return;
   const original = cell.innerText.trim();
-  const input = field === 'notes' ? document.createElement('textarea') : document.createElement('input');
-  input.value = original;
-  input.type = 'text';
+  const originalValue = cell.dataset.cashValue ?? original;
+  let input;
+  if (field === 'transaction_type') {
+    input = document.createElement('select');
+    Object.entries(window.HambelelaCashTypes || {}).forEach(([value, label]) => {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = label;
+      option.selected = value === originalValue;
+      input.appendChild(option);
+    });
+  } else {
+    input = field === 'notes' ? document.createElement('textarea') : document.createElement('input');
+    input.type = field === 'transaction_date' ? 'datetime-local' : (['cash_in', 'cash_out'].includes(field) ? 'number' : 'text');
+    if (input.type === 'number') {
+      input.min = '0';
+      input.step = '0.01';
+    }
+    input.value = field === 'transaction_date' ? cashInputDate(originalValue) : originalValue;
+  }
   cell.classList.add('is-editing');
   cell.innerHTML = '';
   cell.appendChild(input);
   input.focus();
-  input.select();
+  if (input.select) input.select();
   let cancelled = false;
   const finish = async (save) => {
     if (!cell.classList.contains('is-editing')) return;
     const value = input.value.trim();
     cell.classList.remove('is-editing');
     cell.textContent = save && !cancelled ? value : original;
-    if (!save || cancelled || value === original) return;
+    if (!save || cancelled || value === String(originalValue)) return;
     try {
       const data = await postCash('update_cash_field', { entry_id: entryId, field, value });
       const entry = data.entry || {};
+      cell.dataset.cashValue = value;
+      if (field === 'description') {
+        cell.textContent = entry.description || value;
+        cell.dataset.cashValue = entry.description || value;
+      }
+      if (field === 'notes') {
+        cell.textContent = entry.notes || value;
+        cell.dataset.cashValue = entry.notes || value;
+      }
+      if (field === 'transaction_type') {
+        cell.textContent = window.HambelelaCashTypes?.[entry.transaction_type || value] || value;
+        cell.dataset.cashValue = entry.transaction_type || value;
+      }
       if (field === 'cash_in') {
         row.dataset.cashIn = String(entry.cash_in ?? parseMoney(value));
         cell.textContent = entry.cash_in > 0 ? money(entry.cash_in) : '';
+        cell.dataset.cashValue = String(entry.cash_in ?? parseMoney(value));
       }
       if (field === 'cash_out') {
         row.dataset.cashOut = String(entry.cash_out ?? parseMoney(value));
         cell.textContent = entry.cash_out > 0 ? money(entry.cash_out) : '';
+        cell.dataset.cashValue = String(entry.cash_out ?? parseMoney(value));
       }
       if (field === 'transaction_date') {
         window.location.reload();
         return;
       }
+      showCashToast('Saved');
       recalcBookGroup(row.closest('.book-group'));
     } catch (error) {
       cell.textContent = original;
+      cell.dataset.cashValue = originalValue;
       alert(error.message);
     }
   };
@@ -920,6 +1036,82 @@ function startCashEdit(cell) {
   });
 }
 
+function inlineAddValue(addRow, name) {
+  return addRow.querySelector(`[data-inline-add="${name}"]`)?.value || '';
+}
+
+function clearInlineAdd(addRow) {
+  ['description', 'cash_in', 'cash_out', 'notes'].forEach((name) => {
+    const input = addRow.querySelector(`[data-inline-add="${name}"]`);
+    if (input) input.value = '';
+  });
+  const total = addRow.querySelector('[data-inline-add-total]');
+  if (total) total.textContent = money(0);
+}
+
+function flashInvalidCashInput(input) {
+  if (!input) return;
+  input.classList.add('is-invalid');
+  input.focus();
+  setTimeout(() => input.classList.remove('is-invalid'), 800);
+}
+
+function recalcInlineAdd(addRow) {
+  const cashIn = parseMoney(inlineAddValue(addRow, 'cash_in'));
+  const cashOut = parseMoney(inlineAddValue(addRow, 'cash_out'));
+  const total = addRow.querySelector('[data-inline-add-total]');
+  if (total) {
+    const value = cashIn - cashOut;
+    total.textContent = money(value);
+    total.classList.toggle('bk-money-total-negative', value < 0);
+    total.classList.toggle('bk-money-total-positive', value >= 0);
+  }
+}
+
+async function saveInlineAdd(addRow) {
+  if (!addRow || addRow.classList.contains('is-saving')) return;
+  const descEl = addRow.querySelector('[data-inline-add="description"]');
+  const inEl = addRow.querySelector('[data-inline-add="cash_in"]');
+  const outEl = addRow.querySelector('[data-inline-add="cash_out"]');
+  const desc = inlineAddValue(addRow, 'description').trim();
+  const cashIn = parseMoney(inlineAddValue(addRow, 'cash_in'));
+  const cashOut = parseMoney(inlineAddValue(addRow, 'cash_out'));
+  if (!desc) {
+    flashInvalidCashInput(descEl);
+    return;
+  }
+  if (!cashIn && !cashOut) {
+    flashInvalidCashInput(inEl);
+    return;
+  }
+  addRow.classList.add('is-saving');
+  try {
+    const data = await postCash('create_cash_entry', {
+      transaction_type: inlineAddValue(addRow, 'transaction_type') || 'cash_received',
+      source: cashOut > 0 ? 'other' : 'walk_in_customer',
+      transaction_date: inlineAddValue(addRow, 'transaction_date') || `${addRow.dataset.groupDate}T${new Date().toTimeString().slice(0, 5)}`,
+      description: desc,
+      cash_in: cashIn,
+      cash_out: cashOut,
+      notes: inlineAddValue(addRow, 'notes').trim()
+    });
+    const entry = data.entry || {};
+    const entryDay = String(entry.transaction_date || '').slice(0, 10);
+    if (entryDay && entryDay !== addRow.dataset.groupDate) {
+      window.location.reload();
+      return;
+    }
+    insertCashRow(addRow, entry);
+    clearInlineAdd(addRow);
+    showCashToast('Entry saved');
+    setTimeout(() => addRow.querySelector('[data-inline-add="description"]')?.focus(), 50);
+  } catch (error) {
+    alert(error.message);
+  } finally {
+    addRow.classList.remove('is-saving');
+  }
+}
+
 document.addEventListener('click', async (event) => {
   const rowSelect = event.target.closest('[data-cash-row-select]');
   const bulkAction = event.target.closest('[data-cash-bulk-action]');
@@ -930,6 +1122,7 @@ document.addEventListener('click', async (event) => {
   const unloggedToggle = event.target.closest('[data-unlogged-toggle]');
   const groupToggle = event.target.closest('[data-book-toggle]');
   const editable = event.target.closest('.book-editable');
+  const inlineSave = event.target.closest('[data-inline-add-save]');
   const detailOpen = event.target.closest('[data-cash-detail-open]');
   const detailClose = event.target.closest('[data-cash-detail-close]');
   const panel = document.querySelector('[data-cash-entry-panel]');
@@ -962,6 +1155,10 @@ document.addEventListener('click', async (event) => {
     return;
   }
   if (unloggedToggle) unloggedToggle.closest('.unlogged-panel')?.classList.toggle('is-collapsed');
+  if (inlineSave) {
+    await saveInlineAdd(inlineSave.closest('[data-inline-add-row]'));
+    return;
+  }
   if (editable) startCashEdit(editable);
   if (addOrder) {
     addOrder.disabled = true;
@@ -1003,6 +1200,19 @@ document.addEventListener('click', async (event) => {
 });
 
 updateCashSelection();
+
+document.addEventListener('input', (event) => {
+  const addRow = event.target.closest?.('[data-inline-add-row]');
+  if (!addRow || !event.target.matches('[data-inline-add="cash_in"], [data-inline-add="cash_out"]')) return;
+  recalcInlineAdd(addRow);
+});
+
+document.addEventListener('keydown', (event) => {
+  const addRow = event.target.closest?.('[data-inline-add-row]');
+  if (!addRow || event.key !== 'Enter') return;
+  event.preventDefault();
+  saveInlineAdd(addRow);
+});
 
 document.querySelector('[data-export-cash]')?.addEventListener('click', () => {
   const rows = [['Description', 'Date & Time', 'Cash on Hand', 'Cash Out', 'Total', 'Notes about Items']];

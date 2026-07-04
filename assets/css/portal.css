@@ -23672,6 +23672,119 @@ body:has(.ob-wrap) .ob-wrap .orders-board-v2 .monday-group.collapsed .monday-gro
   background: #ffffff !important;
 }
 
+.bookkeeping-page .book-editable {
+  cursor: text;
+  transition: background .12s ease, outline-color .12s ease;
+}
+
+.bookkeeping-page .book-editable:hover {
+  background: rgba(255, 242, 183, 0.22) !important;
+  outline: 1px dashed var(--bk-orange);
+  outline-offset: -2px;
+}
+
+.bookkeeping-page .book-editable:hover::after {
+  content: ' edit';
+  margin-left: 6px;
+  font-size: 10px;
+  color: var(--bk-muted);
+  opacity: .75;
+}
+
+.bookkeeping-page .book-editable.is-editing::after {
+  content: none;
+}
+
+.bookkeeping-page .book-editable input,
+.bookkeeping-page .book-editable textarea,
+.bookkeeping-page .book-editable select,
+.bookkeeping-page .bk-inline-add-row input,
+.bookkeeping-page .bk-inline-add-row select {
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  border: 1px solid rgba(20, 102, 101, 0.18);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--bk-text);
+  font: inherit;
+  font-size: 12px;
+  padding: 0 8px;
+  box-sizing: border-box;
+  outline: 0;
+}
+
+.bookkeeping-page .book-editable textarea {
+  height: 34px;
+  padding-top: 7px;
+  resize: none;
+}
+
+.bookkeeping-page .bk-inline-add-row {
+  background: linear-gradient(90deg, rgba(255, 242, 183, 0.22), rgba(8, 171, 156, 0.06)), #fff !important;
+}
+
+.bookkeeping-page .bk-inline-add-row .bk-cell {
+  overflow: visible;
+}
+
+.bookkeeping-page .bk-inline-add-row input:focus,
+.bookkeeping-page .bk-inline-add-row select:focus,
+.bookkeeping-page .book-editable input:focus,
+.bookkeeping-page .book-editable textarea:focus,
+.bookkeeping-page .book-editable select:focus {
+  border-color: var(--bk-teal);
+  box-shadow: 0 0 0 3px rgba(8, 171, 156, 0.12);
+}
+
+.bookkeeping-page .bk-inline-add-row input.is-invalid {
+  border-color: #bb1b21;
+  animation: shake .3s ease;
+}
+
+.bookkeeping-page .bk-inline-save {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bookkeeping-page .bk-inline-add-row.is-saving {
+  opacity: .72;
+  pointer-events: none;
+}
+
+.bk-toast {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 10000;
+  border-radius: 999px;
+  background: #146665;
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(20, 102, 101, 0.18);
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity .16s ease, transform .16s ease;
+}
+
+.bk-toast.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
 .bookkeeping-page .cash-entry-panel .button.primary,
 .bookkeeping-page .cash-entry-panel button[type="submit"] {
   border-radius: 999px !important;
