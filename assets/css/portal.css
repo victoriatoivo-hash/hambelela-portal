@@ -6288,94 +6288,294 @@ textarea {
   margin: 18px 0;
 }
 
-.bookkeeping-board-shell {
-  margin-top: 16px;
-  border-left-color: #0f766e;
-  background: var(--board-row, #fff);
+:root {
+  --book-grid:
+    36px
+    260px
+    44px
+    160px
+    140px
+    140px
+    130px
+    minmax(260px, 1fr)
+    48px;
+
+  --ui-border-color: #d0d4e4;
+  --board-text: #323338;
+  --board-muted: #676879;
+  --board-blue: #0073ea;
+  --board-selected: #cce5ff;
+  --board-bg: #ffffff;
+  --board-row-height: 36px;
+  --board-group-height: 60px;
+  --board-font: Figtree, Roboto, "Noto Sans", system-ui, sans-serif;
 }
 
-.bookkeeping-table {
+.bookkeeping-board {
   width: 100%;
-  min-width: 1080px;
-  table-layout: fixed;
+  max-width: 100%;
+  overflow-x: auto;
+  font-family: var(--board-font);
+  color: var(--board-text);
+  background: var(--board-bg);
+  -webkit-overflow-scrolling: touch;
 }
 
-.bookkeeping-table th,
-.bookkeeping-table td {
-  height: 46px;
-  padding: 8px 10px;
-  white-space: nowrap;
+.bookkeeping-board-inner {
+  min-width: 1180px;
 }
 
-.bookkeeping-table th:nth-child(1),
-.bookkeeping-table td:nth-child(1) { width: 42px; }
-.bookkeeping-table th:nth-child(2),
-.bookkeeping-table td:nth-child(2) { width: 105px; }
-.bookkeeping-table th:nth-child(3),
-.bookkeeping-table td:nth-child(3) { width: 220px; }
-.bookkeeping-table th:nth-child(4),
-.bookkeeping-table td:nth-child(4) { width: 138px; }
-.bookkeeping-table th:nth-child(5),
-.bookkeeping-table td:nth-child(5) { width: 150px; }
-.bookkeeping-table th:nth-child(6),
-.bookkeeping-table td:nth-child(6) { width: 120px; }
-.bookkeeping-table th:nth-child(7),
-.bookkeeping-table td:nth-child(7) { width: 105px; }
-.bookkeeping-table th:nth-child(8),
-.bookkeeping-table td:nth-child(8) { width: 105px; }
-.bookkeeping-table th:nth-child(9),
-.bookkeeping-table td:nth-child(9) { width: 112px; }
-.bookkeeping-table th:nth-child(10),
-.bookkeeping-table td:nth-child(10) { width: 190px; }
-.bookkeeping-table th:nth-child(11),
-.bookkeeping-table td:nth-child(11) { width: 125px; }
-
-.bookkeeping-table .task-cell strong,
-.bookkeeping-table .task-cell small,
-.bookkeeping-table td strong,
-.bookkeeping-table td small {
-  display: block;
+.book-group {
+  position: relative;
+  margin-bottom: 12px;
+  background: #fff;
 }
 
-.bookkeeping-table .task-cell small,
-.bookkeeping-table td small {
-  color: var(--board-muted, #676879);
-  font-size: 11px;
-  font-weight: 650;
+.book-grid-row {
+  display: grid;
+  grid-template-columns: var(--book-grid);
+  width: 100%;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--ui-border-color);
 }
 
-.bookkeeping-table .task-cell,
-.bookkeeping-table .notes-cell {
+.book-group-header {
+  height: var(--board-group-height);
+  min-height: var(--board-group-height);
+  border-top: 1px solid var(--ui-border-color);
+  border-bottom: 1px solid var(--ui-border-color);
+}
+
+.book-column-header,
+.book-row,
+.book-add-row,
+.book-summary-row {
+  min-height: var(--board-row-height);
+}
+
+.book-cell {
+  min-width: 0;
+  min-height: var(--board-row-height);
+  border-right: 1px solid var(--ui-border-color);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
   overflow: hidden;
+  white-space: nowrap;
   text-overflow: ellipsis;
+  font-size: 14px;
+  font-weight: 400;
 }
 
-.bookkeeping-table .notes-cell {
-  color: #4f5366;
+.book-cell:last-child {
+  border-right: 0;
 }
 
-.cash-transaction-row {
+.book-group-header .book-cell {
+  height: var(--board-group-height);
+  justify-content: center;
+}
+
+.book-date-title-cell {
+  justify-content: flex-start !important;
+  gap: 10px;
+  color: var(--group-color, #d12b57);
+}
+
+.book-group-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  background: var(--group-color, #d12b57);
+  border-radius: 10px 0 0 10px;
+  z-index: 2;
+}
+
+.book-toggle {
+  border: 0;
+  background: transparent;
+  color: var(--group-color, #d12b57);
+  font-size: 18px;
   cursor: pointer;
-  transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease;
+  padding: 0;
 }
 
-.cash-transaction-row:hover td {
-  background: #f8fbff;
+.book-date-title {
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.1;
 }
 
-.cash-transaction-row:hover {
-  box-shadow: 0 10px 24px rgba(29, 34, 51, 0.08);
-  transform: translateY(-1px);
+.book-count {
+  font-size: 13px;
+  color: var(--board-muted);
+  margin-left: 4px;
 }
 
-.cash-in-amount {
-  color: #008c52;
-  font-weight: 800;
+.book-date-pill {
+  min-width: 110px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--group-color, #d12b57);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 2px rgba(15,23,42,.06), 0 2px 6px rgba(15,23,42,.05);
 }
 
-.cash-out-amount {
-  color: #c72f45;
-  font-weight: 800;
+.book-column-header .book-cell {
+  justify-content: center;
+  color: #4b5563;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.book-row.is-selected {
+  background: var(--board-selected);
+}
+
+.book-checkbox-cell {
+  justify-content: center;
+  padding: 0;
+}
+
+.book-checkbox {
+  width: 16px;
+  height: 16px;
+  border: 1px solid #c5c7d0;
+  border-radius: 2px;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.book-row.is-selected .book-checkbox {
+  background: var(--board-blue);
+  border-color: var(--board-blue);
+}
+
+.book-row.is-selected .book-checkbox::after {
+  content: "\2713";
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.book-update-cell {
+  justify-content: center;
+  padding: 0;
+}
+
+.book-update-button {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  background: transparent;
+  color: #676879;
+  cursor: pointer;
+}
+
+.book-update-button.has-activity {
+  color: var(--board-blue);
+}
+
+.book-update-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.book-update-badge {
+  position: absolute;
+  right: -3px;
+  bottom: -1px;
+  min-width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--board-blue);
+  color: #fff;
+  font-size: 10px;
+  line-height: 14px;
+  text-align: center;
+}
+
+.book-money-cell,
+.book-total-cell {
+  justify-content: center;
+}
+
+.book-total-negative {
+  color: #d83a52;
+}
+
+.book-total-positive {
+  color: #00854d;
+}
+
+.book-summary-row .book-cell {
+  height: 36px;
+  justify-content: center;
+  font-weight: 500;
+}
+
+.book-summary-small {
+  display: block;
+  font-size: 11px;
+  color: var(--board-muted);
+  font-weight: 400;
+  line-height: 1;
+}
+
+.book-add-row .book-cell {
+  color: var(--board-muted);
+}
+
+.book-add-description {
+  cursor: pointer;
+}
+
+.book-add-description:hover {
+  color: var(--board-blue);
+}
+
+.book-editable {
+  cursor: text;
+}
+
+.book-editable.is-editing {
+  outline: 2px solid var(--board-blue);
+  outline-offset: -2px;
+  background: #fff;
+  z-index: 20;
+}
+
+.book-editable input,
+.book-editable textarea {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  outline: 0;
+  background: #fff;
+  font: inherit;
+  font-weight: 400;
+  color: var(--board-text);
+  padding: 0 8px;
+  box-sizing: border-box;
+}
+
+.book-group:not(.is-open) .book-column-header,
+.book-group:not(.is-open) .book-row,
+.book-group:not(.is-open) .book-add-row,
+.book-group:not(.is-open) .book-summary-row {
+  display: none;
 }
 
 .cash-label {
@@ -6392,40 +6592,93 @@ textarea {
 .cash-type-deposit { background: #7c3aed; }
 .cash-type-closing_count { background: #676879; }
 
-.unlogged-cash-panel {
-  margin-bottom: 16px;
+.unlogged-panel {
+  margin: 18px 0 24px;
+  border: 1px solid #eef0f6;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(15,23,42,.04);
+  overflow: hidden;
 }
 
-.unlogged-cash-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-  gap: 10px;
-}
-
-.unlogged-cash-list button {
-  display: grid;
-  gap: 4px;
-  min-height: 74px;
-  padding: 12px;
-  border: 1px solid rgba(236, 72, 153, 0.22);
-  border-radius: 10px;
-  background: #fff8fb;
-  color: #242225;
-  text-align: left;
+.unlogged-panel-header {
+  height: 48px;
+  padding: 0 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   cursor: pointer;
-  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
 }
 
-.unlogged-cash-list button:hover {
-  border-color: rgba(236, 72, 153, 0.48);
-  box-shadow: 0 12px 28px rgba(236, 72, 153, 0.13);
-  transform: translateY(-2px);
+.unlogged-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--board-text);
 }
 
-.unlogged-cash-list span {
-  color: var(--muted);
+.unlogged-count {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #fff4d6;
+  color: #9a5a00;
   font-size: 12px;
-  font-weight: 750;
+  font-weight: 600;
+}
+
+.unlogged-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+  padding: 14px 18px 18px;
+}
+
+.unlogged-panel.is-collapsed .unlogged-list {
+  display: none;
+}
+
+.unlogged-card {
+  border: 1px solid #ffd1dc;
+  border-radius: 8px;
+  background: #fff7fa;
+  padding: 12px;
+}
+
+.unlogged-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 8px;
+}
+
+.unlogged-card-meta {
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 10px;
+}
+
+.unlogged-add-btn {
+  height: 30px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--board-blue);
+  color: #fff;
+  padding: 0 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  .bookkeeping-board {
+    overflow-x: auto;
+  }
+
+  .bookkeeping-board-inner {
+    min-width: 980px;
+  }
+
+  .unlogged-list {
+    grid-template-columns: 1fr;
+  }
 }
 
 .cash-entry-panel {
@@ -8615,7 +8868,6 @@ textarea {
 }
 
 /* Keep bookkeeping transaction type labels readable after generic board label rules. */
-.bookkeeping-table .board-label.cash-label,
 .cash-detail-panel .board-label.cash-label {
   color: #047857 !important;
   background: #ecfdf5 !important;
