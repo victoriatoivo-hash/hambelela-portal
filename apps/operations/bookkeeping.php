@@ -334,7 +334,7 @@ $netToday = $cashInToday - $cashOutToday;
         }
         .stat-label {
             display: block;
-            color: var(--ledger-muted);
+            color: #6B6B6B;
             font-size: 12px;
             font-weight: 800;
             text-transform: uppercase;
@@ -343,7 +343,7 @@ $netToday = $cashInToday - $cashOutToday;
         .stat-value {
             display: block;
             margin-top: 10px;
-            color: var(--ledger-red);
+            color: #1a1a1a;
             font-size: 14px;
             font-weight: 800;
         }
@@ -363,16 +363,17 @@ $netToday = $cashInToday - $cashOutToday;
             box-shadow: 0 10px 26px rgba(114, 27, 26, .06);
             margin-bottom: 16px;
             overflow: hidden;
+            border-left: 6px solid var(--ledger-rust);
         }
         .day-head,
         .ledger-row {
             display: grid;
-            grid-template-columns: 42px 280px 170px 135px 135px 135px minmax(260px, 1fr);
+            grid-template-columns: 32px 220px 130px 100px 100px 100px minmax(160px, 1fr);
         }
         .day-head {
             min-height: 58px;
             border-bottom: 1px solid var(--ledger-border);
-            background: linear-gradient(90deg, rgba(240, 116, 32, .08), rgba(168, 202, 25, .08)), var(--ledger-white);
+            background: var(--ledger-white);
         }
         .day-title {
             grid-column: 1 / 4;
@@ -393,9 +394,9 @@ $netToday = $cashInToday - $cashOutToday;
             line-height: 1;
         }
         .day-name {
-            color: var(--ledger-red);
+            color: #1a1a1a;
             font-size: 14px;
-            font-weight: 800;
+            font-weight: 600;
         }
         .day-count {
             color: var(--ledger-muted);
@@ -407,16 +408,16 @@ $netToday = $cashInToday - $cashOutToday;
             align-items: center;
             justify-content: center;
             border-left: 1px solid var(--ledger-border);
-            color: var(--ledger-rust);
             font-weight: 800;
+            font-size: 11px;
         }
         .ledger-header {
-            background: var(--ledger-soft);
-            color: var(--ledger-muted);
-            font-size: 12px;
-            font-weight: 800;
+            background: #fafafa;
+            color: #1a1a1a;
+            font-size: 10px;
+            font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: .04em;
+            letter-spacing: .05em;
         }
         .ledger-row {
             border-bottom: 1px solid var(--ledger-border);
@@ -432,6 +433,7 @@ $netToday = $cashInToday - $cashOutToday;
             white-space: nowrap;
             text-overflow: ellipsis;
             font-size: 12px;
+            color: #1a1a1a;
         }
         .ledger-cell:last-child {
             border-right: 0;
@@ -441,9 +443,14 @@ $netToday = $cashInToday - $cashOutToday;
             justify-content: flex-end;
             font-weight: 800;
         }
-        .money-in { color: var(--ledger-rust); }
-        .money-out { color: var(--ledger-orange); }
-        .money-net { color: var(--ledger-red); }
+        .money-in { color: #3d5c00; }
+        .money-out { color: #BB1B21; }
+        .money-net { color: #1a1a1a; }
+        [data-row-total].money-net,
+        [data-add-total].money-net {
+            color: #1a1a1a;
+            font-weight: 600;
+        }
         .check-cell { justify-content: center; padding: 0; }
         .row-dot {
             width: 16px;
@@ -457,7 +464,7 @@ $netToday = $cashInToday - $cashOutToday;
             transition: background .12s ease, outline-color .12s ease;
         }
         .ledger-data-cell:hover {
-            background: rgba(240, 116, 32, .08);
+            background: rgba(171, 54, 25, .05);
             outline: 1px dashed var(--ledger-orange);
             outline-offset: -2px;
         }
@@ -488,7 +495,7 @@ $netToday = $cashInToday - $cashOutToday;
             resize: none;
         }
         .add-row {
-            background: linear-gradient(90deg, rgba(168, 202, 25, .14), rgba(240, 116, 32, .08)), var(--ledger-white);
+            background: var(--ledger-white);
         }
         .add-row .ledger-cell {
             min-height: 50px;
