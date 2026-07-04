@@ -22636,7 +22636,7 @@ body:has(.ob-wrap) .ob-wrap .monday-order-row > .monday-cell.col-status > .board
   background: #ffffff !important;
 }
 
-.ob-wrap .orders-board-v2 .monday-group-bar {
+body:has(.ob-wrap) .ob-wrap .orders-board-v2 .monday-group-bar {
   position: absolute !important;
   left: 0 !important;
   top: 0 !important;
