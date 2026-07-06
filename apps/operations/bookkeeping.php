@@ -137,6 +137,38 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $id = (int) db()->lastInsertId();
             ledger_json(['ok' => true, 'message' => 'Entry saved.', 'entry' => ledger_entry($id)]);
         }
+        if ($action === 'save_opening_balance') {
+            $today = date('Y-m-d');
+            $existing = ops_rows(
+                "SELECT id
+                 FROM ops_cash_book_entries
+                 WHERE archived_at IS NULL
+                   AND DATE(transaction_date) = ?
+                   AND (
+                       source = 'opening_balance'
+                       OR transaction_type = 'opening_balance'
+                       OR description = 'Opening balance'
+                   )
+                 LIMIT 1",
+                [$today]
+            );
+            if ($existing) throw new RuntimeException('Opening balance is already saved for today.');
+            $cashIn = ledger_number($_POST['cash_in'] ?? 0);
+            if ($cashIn <= 0) throw new RuntimeException('Enter the opening cash amount.');
+            $stmt = db()->prepare(
+                "INSERT INTO ops_cash_book_entries
+                 (transaction_date, transaction_type, description, cash_in, cash_out, source, notes, recorded_by)
+                 VALUES (?, 'opening_balance', 'Opening balance', ?, 0, 'opening_balance', ?, ?)"
+            );
+            $stmt->execute([
+                date('Y-m-d H:i:s'),
+                $cashIn,
+                ops_post_string('notes', 1500),
+                $employeeId,
+            ]);
+            $id = (int) db()->lastInsertId();
+            ledger_json(['ok' => true, 'message' => 'Opening balance saved.', 'entry' => ledger_entry($id)]);
+        }
         if ($action === 'update_entry') {
             $id = (int) ($_POST['entry_id'] ?? 0);
             $field = ops_post_string('field', 40);
@@ -202,6 +234,49 @@ $entries = $ready ? ops_rows(
 ) : [];
 
 $today = date('Y-m-d');
+$hasOpening = false;
+$lastRecon = null;
+$lastLedgerClose = 0.0;
+$suggestedAmount = 0.0;
+$suggestedSource = 'Previous ledger closing total';
+if ($ready) {
+    $openingRows = ops_rows(
+        "SELECT COUNT(*) AS opening_count
+         FROM ops_cash_book_entries
+         WHERE archived_at IS NULL
+           AND DATE(transaction_date) = ?
+           AND (
+               source = 'opening_balance'
+               OR transaction_type = 'opening_balance'
+               OR description = 'Opening balance'
+           )",
+        [$today]
+    );
+    $hasOpening = (int) ($openingRows[0]['opening_count'] ?? 0) > 0;
+    $reconRows = ops_rows(
+        "SELECT counted_total, recon_date
+         FROM hambelela_cashbook_recon
+         ORDER BY recon_date DESC, created_at DESC, id DESC
+         LIMIT 1"
+    );
+    $lastRecon = $reconRows[0] ?? null;
+    $lastLedgerCloseRows = ops_rows(
+        "SELECT (
+            COALESCE(SUM(cash_in), 0) - COALESCE(SUM(cash_out), 0)
+         ) AS closing_total
+         FROM ops_cash_book_entries
+         WHERE archived_at IS NULL
+           AND DATE(transaction_date) < ?",
+        [$today]
+    );
+    $lastLedgerClose = (float) ($lastLedgerCloseRows[0]['closing_total'] ?? 0);
+    if ($lastRecon) {
+        $suggestedAmount = (float) ($lastRecon['counted_total'] ?? 0);
+        $suggestedSource = 'Last reconciliation (' . date('d M Y', strtotime((string) $lastRecon['recon_date'])) . ')';
+    } else {
+        $suggestedAmount = $lastLedgerClose;
+    }
+}
 $cashInToday = 0.0;
 $cashOutToday = 0.0;
 $entriesToday = 0;
@@ -381,6 +456,100 @@ $reconHistory = $ready ? ops_rows(
             font-size: 14px;
             font-weight: 800;
         }
+        .bk-wrap .bk-opening-prompt {
+            border: 1px solid #EDE3D8;
+            border-left: 4px solid #A8CA19;
+            border-radius: 0 12px 12px 0;
+            background: #fff;
+            padding: 16px 20px;
+            margin-bottom: 14px;
+            animation: fadeUp .3s ease both;
+        }
+        .bk-wrap .bk-opening-inner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .bk-wrap .bk-opening-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1a1a1a;
+            margin-bottom: 4px;
+        }
+        .bk-wrap .bk-opening-sub {
+            font-size: 12px;
+            color: #6B6B6B;
+        }
+        .bk-wrap .bk-opening-ref {
+            display: block;
+            margin-top: 4px;
+            font-size: 11px;
+            color: #A08070;
+        }
+        .bk-wrap .bk-opening-ref strong {
+            color: #1a1a1a;
+        }
+        .bk-wrap .bk-opening-right {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+        .bk-wrap .bk-opening-input-wrap {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            border: 1px solid #EDE3D8;
+            border-radius: 8px;
+            padding: 0 12px;
+            background: #fff;
+            transition: border-color .15s;
+        }
+        .bk-wrap .bk-opening-input-wrap:focus-within {
+            border-color: #AB3619;
+            box-shadow: 0 0 0 2px rgba(171, 54, 25, .12);
+        }
+        .bk-wrap .bk-opening-input-wrap.is-invalid {
+            border-color: #BB1B21;
+            box-shadow: 0 0 0 2px rgba(187, 27, 33, .12);
+        }
+        .bk-wrap .bk-opening-currency {
+            font-size: 14px;
+            font-weight: 600;
+            color: #6B6B6B;
+        }
+        .bk-wrap .bk-opening-input-wrap input {
+            border: none !important;
+            box-shadow: none !important;
+            width: 120px;
+            font-weight: 700;
+            color: #1a1a1a;
+            padding: 8px 0 !important;
+            background: transparent;
+        }
+        .bk-wrap .bk-opening-variance {
+            font-size: 11px;
+            font-weight: 600;
+            min-height: 16px;
+        }
+        .bk-wrap .bk-opening-btn {
+            background: #AB3619;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            height: 34px;
+            padding: 0 20px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: Figtree, system-ui, -apple-system, sans-serif;
+            transition: background .15s, transform .1s;
+        }
+        .bk-wrap .bk-opening-btn:hover { background: #721B1A; }
+        .bk-wrap .bk-opening-btn:active { transform: scale(.97); }
         .ledger-board {
             width: 100%;
             overflow-x: auto;
@@ -999,6 +1168,10 @@ $reconHistory = $ready ? ops_rows(
             25% { transform: translateX(-4px); }
             75% { transform: translateX(4px); }
         }
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
         @media (max-width: 760px) {
             .ledger-shell { grid-template-columns: 1fr; }
             .ledger-side-panel { min-height: 0; position: static; border-right: 0; border-bottom: 1px solid var(--ledger-border); }
@@ -1009,6 +1182,10 @@ $reconHistory = $ready ? ops_rows(
             .stat-grid { grid-template-columns: 1fr; }
             .ledger-board-inner { min-width: 980px; }
             .closing-card { align-items: flex-start; flex-direction: column; }
+        }
+        @media (max-width: 600px) {
+            .bk-wrap .bk-opening-inner { flex-direction: column; align-items: stretch; }
+            .bk-wrap .bk-opening-right { align-items: stretch; }
         }
         @media (max-width: 900px) {
             .bk-page-layout { grid-template-columns: 1fr; }
@@ -1047,6 +1224,35 @@ $reconHistory = $ready ? ops_rows(
             <article class="stat-card" style="--accent: #721B1A;"><span class="stat-label">Net Balance Today</span><strong class="stat-value" data-stat-net><?= ledger_money($netToday) ?></strong></article>
             <article class="stat-card" style="--accent: #A8CA19;"><span class="stat-label">Entries Today</span><strong class="stat-value" data-stat-count><?= number_format($entriesToday) ?></strong></article>
         </section>
+
+        <?php if (!$hasOpening): ?>
+            <section class="bk-opening-prompt" id="bkOpeningPrompt" aria-label="Opening balance prompt">
+                <div class="bk-opening-inner">
+                    <div class="bk-opening-left">
+                        <div class="bk-opening-title">Good morning - start today's cash ledger</div>
+                        <div class="bk-opening-sub">
+                            Enter the physical cash in the till right now.
+                            <?php if ($suggestedAmount > 0): ?>
+                                <span class="bk-opening-ref">
+                                    <?= htmlspecialchars($suggestedSource, ENT_QUOTES, 'UTF-8') ?>:
+                                    <strong><?= ledger_money($suggestedAmount) ?></strong>
+                                </span>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <div class="bk-opening-right">
+                        <div class="bk-opening-input-wrap">
+                            <span class="bk-opening-currency">N$</span>
+                            <input type="number" id="openingAmount" placeholder="0.00" min="0" step="0.01" value="<?= $suggestedAmount > 0 ? htmlspecialchars(number_format($suggestedAmount, 2, '.', ''), ENT_QUOTES, 'UTF-8') : '' ?>">
+                        </div>
+                        <?php if ($suggestedAmount > 0): ?>
+                            <div class="bk-opening-variance" id="openingVariance"></div>
+                        <?php endif; ?>
+                        <button class="bk-opening-btn" type="button" onclick="saveOpeningBalance()">Open till</button>
+                    </div>
+                </div>
+            </section>
+        <?php endif; ?>
 
         <section class="bk-side-section bk-filter-section" aria-label="Cash ledger filters">
             <div class="bk-side-head"><span>Filters</span></div>
@@ -1188,6 +1394,7 @@ $reconHistory = $ready ? ops_rows(
 <script>
 const todayKey = <?= json_encode($today, JSON_UNESCAPED_SLASHES) ?>;
 let systemBalance = <?= json_encode(round($closingBalance, 2), JSON_UNESCAPED_SLASHES) ?>;
+const suggestedOpeningAmount = <?= json_encode($suggestedAmount > 0 ? round($suggestedAmount, 2) : 0, JSON_UNESCAPED_SLASHES) ?>;
 
 function money(value) {
   return `N$${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -1232,6 +1439,64 @@ function setReconValues() {
   varianceNode.textContent = money(variance);
   varianceNode.classList.toggle('is-negative', variance < 0);
   varianceNode.classList.toggle('is-positive', variance > 0);
+}
+
+function setOpeningVariance() {
+  if (!suggestedOpeningAmount) return;
+  const input = document.getElementById('openingAmount');
+  const varianceNode = document.getElementById('openingVariance');
+  if (!input || !varianceNode) return;
+  const entered = parseMoney(input.value);
+  const difference = entered - suggestedOpeningAmount;
+  if (!entered || Math.abs(difference) < 0.005) {
+    varianceNode.textContent = '';
+    varianceNode.style.color = '';
+    return;
+  }
+  const direction = difference > 0 ? 'over' : 'under';
+  varianceNode.textContent = `${money(Math.abs(difference))} ${direction} suggested`;
+  varianceNode.style.color = difference > 0 ? '#3d5c00' : '#BB1B21';
+}
+
+async function saveOpeningBalance() {
+  const input = document.getElementById('openingAmount');
+  const wrapper = input?.closest('.bk-opening-input-wrap');
+  const amount = parseMoney(input?.value || 0);
+  wrapper?.classList.remove('is-invalid');
+  if (amount <= 0) {
+    wrapper?.classList.add('is-invalid');
+    input?.focus();
+    toast('Enter the opening cash amount.');
+    return;
+  }
+  const button = document.querySelector('.bk-opening-btn');
+  const originalText = button?.textContent || 'Open till';
+  if (button) {
+    button.textContent = 'Saving...';
+    button.disabled = true;
+  }
+  try {
+    const notes = suggestedOpeningAmount > 0 ? `Suggested opening: ${money(suggestedOpeningAmount)}` : '';
+    await postLedger('save_opening_balance', { cash_in: amount, notes });
+    const prompt = document.getElementById('bkOpeningPrompt');
+    if (prompt) {
+      prompt.style.transition = 'opacity .25s ease, transform .25s ease';
+      prompt.style.opacity = '0';
+      prompt.style.transform = 'translateY(-8px)';
+      setTimeout(() => {
+        prompt.remove();
+        location.reload();
+      }, 260);
+    } else {
+      location.reload();
+    }
+  } catch (error) {
+    if (button) {
+      button.textContent = originalText;
+      button.disabled = false;
+    }
+    toast(error.message || 'Could not save the opening balance.');
+  }
 }
 
 function copyCountedTotal() {
@@ -1573,6 +1838,11 @@ document.addEventListener('click', (event) => {
 });
 
 document.addEventListener('input', (event) => {
+  if (event.target.id === 'openingAmount') {
+    event.target.closest('.bk-opening-input-wrap')?.classList.remove('is-invalid');
+    setOpeningVariance();
+    return;
+  }
   const row = event.target.closest('[data-add-row]');
   if (event.target.matches('[data-denom]')) {
     setReconValues();
@@ -1597,6 +1867,7 @@ document.addEventListener('keydown', (event) => {
 });
 
 setReconValues();
+setOpeningVariance();
 </script>
 </body>
 </html>
