@@ -8,14 +8,10 @@ window.addEventListener('DOMContentLoaded', () => {
   const sidebarCollapse = document.querySelector('[data-sidebar-collapse]');
   const applySidebarCollapsed = (collapsed) => {
     document.body.classList.toggle('sidebar-collapsed', collapsed);
+    sidebar?.classList.toggle('collapsed', collapsed);
     if (sidebarCollapse) {
       sidebarCollapse.setAttribute('aria-pressed', collapsed ? 'true' : 'false');
       sidebarCollapse.setAttribute('aria-label', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
-      const label = sidebarCollapse.querySelector('span');
-      if (label) label.textContent = collapsed ? 'Expand' : 'Collapse';
-      const icon = sidebarCollapse.querySelector('i');
-      if (icon) icon.setAttribute('data-lucide', collapsed ? 'panel-left-open' : 'panel-left-close');
-      if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
     }
   };
 
@@ -48,6 +44,43 @@ window.addEventListener('DOMContentLoaded', () => {
       });
     });
   }
+
+  const darkModeToggle = document.querySelector('#darkModeToggle');
+  const applyDarkMode = (enabled) => {
+    document.body.classList.toggle('dark-mode', enabled);
+    darkModeToggle?.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+  };
+
+  try {
+    applyDarkMode(window.localStorage?.getItem('hambelelaDarkMode') === '1');
+  } catch (error) {
+    applyDarkMode(false);
+  }
+
+  darkModeToggle?.addEventListener('click', () => {
+    const enabled = !document.body.classList.contains('dark-mode');
+    applyDarkMode(enabled);
+    try {
+      window.localStorage?.setItem('hambelelaDarkMode', enabled ? '1' : '0');
+    } catch (error) {
+      // The visual toggle still works even if storage is unavailable.
+    }
+  });
+
+  document.querySelectorAll('.portal-nav-link, .portal-dark-toggle').forEach((button) => {
+    button.addEventListener('click', (event) => {
+      const rect = button.getBoundingClientRect();
+      const ripple = document.createElement('span');
+      const size = Math.max(rect.width, rect.height);
+      ripple.className = 'portal-ripple';
+      ripple.style.width = `${size}px`;
+      ripple.style.height = `${size}px`;
+      ripple.style.left = `${event.clientX - rect.left - size / 2}px`;
+      ripple.style.top = `${event.clientY - rect.top - size / 2}px`;
+      button.appendChild(ripple);
+      window.setTimeout(() => ripple.remove(), 420);
+    });
+  });
 
   const center = document.querySelector('[data-notification-center]');
   if (!center) return;

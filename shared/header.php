@@ -49,65 +49,11 @@ $assetVersion = defined('BASE_PATH') && is_file(BASE_PATH . '/assets/css/portal.
         Hambelela <span>Business Portal</span>
     </a>
     <div class="topbar-actions">
-        <div
-            class="notification-center"
-            data-notification-center
-            data-notification-endpoint="<?= BASE_URL ?>/notifications-api.php"
-            data-notification-last-id="<?= (int) $notificationLastId ?>"
-            data-notification-desktop="<?= !empty($notificationPreferences['desktop_enabled']) ? '1' : '0' ?>"
-            data-notification-sound="<?= !empty($notificationPreferences['sound_enabled']) ? '1' : '0' ?>"
-        >
-            <button class="notification-bell" type="button" data-notification-toggle aria-label="Notifications" aria-expanded="false">
-                <i data-lucide="bell"></i>
-                <span class="notification-count<?= $notificationUnread > 0 ? '' : ' is-hidden' ?>" data-notification-count><?= (int) $notificationUnread ?></span>
-            </button>
-            <div class="notification-menu" data-notification-menu hidden>
-                <div class="notification-menu-head">
-                    <div>
-                        <strong>Notifications</strong>
-                        <small data-notification-summary><?= $notificationUnread ?> unread</small>
-                    </div>
-                    <button type="button" data-notification-mark-read>Mark all read</button>
-                </div>
-                <div class="notification-list" data-notification-list>
-                    <?php if (!$notifications): ?>
-                        <div class="notification-empty">No notifications yet.</div>
-                    <?php endif; ?>
-                    <?php foreach ($notifications as $notification): ?>
-                        <?php
-                            $priority = (string) ($notification['priority'] ?? 'normal');
-                            $link = (string) ($notification['action_link'] ?? '');
-                            $isUnread = empty($notification['read_at']);
-                        ?>
-                        <button
-                            class="notification-item<?= $isUnread ? ' is-unread' : '' ?>"
-                            type="button"
-                            data-notification-item
-                            data-notification-id="<?= (int) $notification['id'] ?>"
-                            data-notification-link="<?= htmlspecialchars($link, ENT_QUOTES, 'UTF-8') ?>"
-                        >
-                            <span class="notification-priority <?= htmlspecialchars($priority, ENT_QUOTES, 'UTF-8') ?>"></span>
-                            <span>
-                                <strong><?= htmlspecialchars((string) ($notification['title'] ?? 'Notification'), ENT_QUOTES, 'UTF-8') ?></strong>
-                                <small><?= htmlspecialchars((string) ($notification['message'] ?? ''), ENT_QUOTES, 'UTF-8') ?></small>
-                                <em><?= htmlspecialchars((string) ($notification['module'] ?? 'system'), ENT_QUOTES, 'UTF-8') ?></em>
-                            </span>
-                        </button>
-                    <?php endforeach; ?>
-                </div>
-                <div class="notification-menu-foot">
-                    <a href="<?= BASE_URL ?>/notifications.php">View all</a>
-                    <a href="<?= BASE_URL ?>/apps/operations/my-account.php#notification-preferences">Settings</a>
-                    <button type="button" data-notification-clear>Clear</button>
-                </div>
-            </div>
-        </div>
         <div class="account">
         <div>
             <strong><?= htmlspecialchars($user['name'], ENT_QUOTES, 'UTF-8') ?></strong>
             <small><?= htmlspecialchars($user['role'], ENT_QUOTES, 'UTF-8') ?></small>
         </div>
-        <a class="logout" href="<?= BASE_URL ?>/login.php?action=logout">Logout</a>
         </div>
     </div>
 </header>
