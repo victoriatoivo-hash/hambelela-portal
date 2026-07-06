@@ -588,20 +588,158 @@ $reconHistory = $ready ? ops_rows(
             font-weight: 900;
         }
         .bk-page-layout {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) 340px;
-            gap: 20px;
-            align-items: start;
+            display: block;
         }
         .bk-ledger-col {
             min-width: 0;
         }
         .bk-sidebar-col {
-            position: sticky;
-            top: 20px;
-            display: grid;
-            gap: 12px;
-            align-self: start;
+            display: none;
+        }
+        .bk-drawer-trigger {
+            position: fixed;
+            bottom: 28px;
+            right: 28px;
+            z-index: 200;
+            background: #AB3619;
+            color: #fff;
+            border: none;
+            border-radius: 50px;
+            height: 44px;
+            padding: 0 18px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background .15s, transform .15s, opacity .15s;
+        }
+        .bk-drawer-trigger:hover {
+            background: #721B1A;
+            transform: translateY(-2px);
+        }
+        .bk-drawer-trigger i {
+            font-size: 18px;
+        }
+        .bk-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(44,24,16,.3);
+            z-index: 300;
+            opacity: 0;
+            transition: opacity .25s ease;
+        }
+        .bk-overlay.open {
+            display: block;
+            opacity: 1;
+        }
+        .bk-drawer {
+            position: fixed;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            width: 380px;
+            max-width: 95vw;
+            background: #fff;
+            z-index: 400;
+            display: flex;
+            flex-direction: column;
+            border-left: 1px solid #EDE3D8;
+            transform: translateX(100%);
+            transition: transform .32s cubic-bezier(.4,0,.2,1);
+        }
+        .bk-drawer.open {
+            transform: translateX(0);
+        }
+        .bk-drawer-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 18px;
+            border-bottom: 1px solid #EDE3D8;
+            flex-shrink: 0;
+        }
+        .bk-drawer-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+        .bk-drawer-close {
+            width: 30px;
+            height: 30px;
+            background: none;
+            border: 1px solid #EDE3D8;
+            border-radius: 7px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #6B6B6B;
+            transition: background .15s, color .15s;
+        }
+        .bk-drawer-close:hover {
+            background: #FDF6EE;
+            color: #AB3619;
+        }
+        .bk-drawer-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0;
+        }
+        .bk-drawer-body::-webkit-scrollbar {
+            width: 4px;
+        }
+        .bk-drawer-body::-webkit-scrollbar-thumb {
+            background: #EDE3D8;
+            border-radius: 2px;
+        }
+        .bk-tabs {
+            display: flex;
+            border-bottom: 1px solid #EDE3D8;
+            background: #fafafa;
+        }
+        .bk-tab {
+            flex: 1;
+            height: 40px;
+            border: none;
+            background: transparent;
+            font-size: 11px;
+            font-weight: 500;
+            color: #6B6B6B;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            border-bottom: 2px solid transparent;
+            transition: color .15s, border-color .15s, background .15s;
+        }
+        .bk-tab:hover {
+            color: #AB3619;
+            background: #FDF6EE;
+        }
+        .bk-tab.active {
+            color: #AB3619;
+            border-bottom-color: #AB3619;
+            font-weight: 600;
+            background: #fff;
+        }
+        .bk-tab i {
+            font-size: 14px;
+        }
+        .bk-tab-panel {
+            display: none;
+            padding: 16px;
+            animation: fadeUp .2s ease both;
+        }
+        .bk-tab-panel.active {
+            display: block;
+        }
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
         }
         .bk-side-section {
             border: 1px solid var(--ledger-border);
@@ -775,7 +913,6 @@ $reconHistory = $ready ? ops_rows(
             .ledger-side-panel { min-height: 0; position: static; border-right: 0; border-bottom: 1px solid var(--ledger-border); }
             .ledger-side-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
             .bk-page-layout { grid-template-columns: 1fr; }
-            .bk-sidebar-col { position: static; }
             .ledger-page { padding: 18px; }
             .ledger-top { flex-direction: column; }
             .stat-grid { grid-template-columns: 1fr; }
@@ -784,7 +921,6 @@ $reconHistory = $ready ? ops_rows(
         }
         @media (max-width: 900px) {
             .bk-page-layout { grid-template-columns: 1fr; }
-            .bk-sidebar-col { position: static; }
         }
     </style>
 </head>
@@ -888,58 +1024,79 @@ $reconHistory = $ready ? ops_rows(
             <strong data-closing-balance><?= ledger_money($closingBalance) ?></strong>
         </section>
         </div>
-        <aside class="bk-sidebar-col" aria-label="Cash book tools">
-            <section class="bk-side-section" data-bk-section>
-                <div class="bk-side-head">
-                    <span>Filters</span>
-                    <button class="bk-side-toggle" type="button" data-bk-collapse aria-label="Toggle filters">v</button>
-                </div>
-                <div class="bk-side-body">
-                    <div class="bk-filter-grid">
-                        <label class="bk-field">From<input type="date" data-bk-filter-from></label>
-                        <label class="bk-field">To<input type="date" data-bk-filter-to></label>
-                    </div>
-                    <label class="bk-field">Search<input type="search" data-bk-filter-search placeholder="Description or notes"></label>
-                    <button class="bk-side-button" type="button" data-bk-filter-clear>Clear filters</button>
-                </div>
-            </section>
-
-            <section class="bk-side-section">
-                <div class="bk-side-head"><span>Denomination Counter</span></div>
-                <div class="bk-side-body">
-                    <div class="bk-denom-grid" data-denom-counter>
-                        <?php foreach ([200, 100, 50, 30, 20, 10, 5, 1, 0.5, 0.1] as $denom): ?>
-                            <label class="bk-denom-row"><span>N$<?= rtrim(rtrim(number_format((float) $denom, 2), '0'), '.') ?></span><input type="number" min="0" step="1" value="0" data-denom="<?= htmlspecialchars((string) $denom, ENT_QUOTES, 'UTF-8') ?>"></label>
-                        <?php endforeach; ?>
-                    </div>
-                    <div class="bk-counter-total"><span>Counted total</span><strong data-counted-total>N$0.00</strong></div>
-                </div>
-            </section>
-
-            <section class="bk-side-section">
-                <div class="bk-side-head"><span>Variance Reconciliation</span></div>
-                <div class="bk-side-body">
-                    <div class="bk-recon-line"><span>System balance</span><strong data-recon-system><?= ledger_money($closingBalance) ?></strong></div>
-                    <div class="bk-recon-line"><span>Counted total</span><strong data-recon-counted>N$0.00</strong></div>
-                    <div class="bk-recon-line"><span>Variance</span><strong class="bk-recon-variance" data-recon-variance><?= ledger_money(0 - $closingBalance) ?></strong></div>
-                    <label class="bk-field">Variance note<textarea data-recon-note placeholder="Reason for variance"></textarea></label>
-                    <button class="bk-side-button" type="button" data-save-recon>Save reconciliation</button>
-                    <div class="bk-history-list" data-recon-history>
-                        <?php foreach ($reconHistory as $row): ?>
-                            <div class="bk-history-item">
-                                <strong><?= htmlspecialchars((string) $row['recon_date'], ENT_QUOTES, 'UTF-8') ?> - <?= ledger_money((float) $row['variance']) ?></strong>
-                                <small>Counted <?= ledger_money((float) $row['counted_total']) ?> vs system <?= ledger_money((float) $row['system_balance']) ?></small>
-                            </div>
-                        <?php endforeach; ?>
-                        <?php if (!$reconHistory): ?><div class="bk-history-item">No reconciliations saved yet.</div><?php endif; ?>
-                    </div>
-                </div>
-            </section>
-        </aside>
         </div>
     <?php endif; ?>
 </main>
 </div>
+<?php if ($ready): ?>
+<button class="bk-drawer-trigger" id="bkDrawerBtn" onclick="openDrawer()" aria-label="Open tools panel">
+    <i class="ti ti-layout-sidebar-right" aria-hidden="true"></i>
+    <span class="bk-drawer-trigger-lbl">Tools</span>
+</button>
+<div class="bk-overlay" id="bkOverlay" onclick="closeDrawer()"></div>
+<div class="bk-drawer" id="bkDrawer" role="dialog" aria-label="Cash tools">
+    <div class="bk-drawer-header">
+        <span class="bk-drawer-title">Cash tools</span>
+        <button class="bk-drawer-close" onclick="closeDrawer()" aria-label="Close panel">
+            <i class="ti ti-x" aria-hidden="true"></i>
+        </button>
+    </div>
+    <div class="bk-drawer-body">
+        <div class="bk-tabs">
+            <button class="bk-tab active" data-tab="filters" onclick="switchTab(this,'filters')">
+                <i class="ti ti-adjustments-horizontal" aria-hidden="true"></i> Filters
+            </button>
+            <button class="bk-tab" data-tab="counter" onclick="switchTab(this,'counter')">
+                <i class="ti ti-calculator" aria-hidden="true"></i> Count till
+            </button>
+            <button class="bk-tab" data-tab="recon" onclick="switchTab(this,'recon')">
+                <i class="ti ti-scale" aria-hidden="true"></i> Reconcile
+            </button>
+        </div>
+
+        <div class="bk-tab-panel active" id="tab-filters">
+            <div class="bk-side-body">
+                <div class="bk-filter-grid">
+                    <label class="bk-field">From<input type="date" data-bk-filter-from></label>
+                    <label class="bk-field">To<input type="date" data-bk-filter-to></label>
+                </div>
+                <label class="bk-field">Search<input type="search" data-bk-filter-search placeholder="Description or notes"></label>
+                <button class="bk-side-button" type="button" data-bk-filter-clear>Clear filters</button>
+            </div>
+        </div>
+
+        <div class="bk-tab-panel" id="tab-counter">
+            <div class="bk-side-body">
+                <div class="bk-denom-grid" data-denom-counter>
+                    <?php foreach ([200, 100, 50, 30, 20, 10, 5, 1, 0.5, 0.1] as $denom): ?>
+                        <label class="bk-denom-row"><span>N$<?= rtrim(rtrim(number_format((float) $denom, 2), '0'), '.') ?></span><input type="number" min="0" step="1" value="0" data-denom="<?= htmlspecialchars((string) $denom, ENT_QUOTES, 'UTF-8') ?>"></label>
+                    <?php endforeach; ?>
+                </div>
+                <div class="bk-counter-total"><span>Counted total</span><strong data-counted-total>N$0.00</strong></div>
+            </div>
+        </div>
+
+        <div class="bk-tab-panel" id="tab-recon">
+            <div class="bk-side-body">
+                <div class="bk-recon-line"><span>System balance</span><strong data-recon-system><?= ledger_money($closingBalance) ?></strong></div>
+                <div class="bk-recon-line"><span>Counted total</span><strong data-recon-counted>N$0.00</strong></div>
+                <div class="bk-recon-line"><span>Variance</span><strong class="bk-recon-variance" data-recon-variance><?= ledger_money(0 - $closingBalance) ?></strong></div>
+                <label class="bk-field">Variance note<textarea data-recon-note placeholder="Reason for variance"></textarea></label>
+                <button class="bk-side-button" type="button" data-save-recon>Save reconciliation</button>
+                <div class="bk-history-list" data-recon-history>
+                    <?php foreach ($reconHistory as $row): ?>
+                        <div class="bk-history-item">
+                            <strong><?= htmlspecialchars((string) $row['recon_date'], ENT_QUOTES, 'UTF-8') ?> - <?= ledger_money((float) $row['variance']) ?></strong>
+                            <small>Counted <?= ledger_money((float) $row['counted_total']) ?> vs system <?= ledger_money((float) $row['system_balance']) ?></small>
+                        </div>
+                    <?php endforeach; ?>
+                    <?php if (!$reconHistory): ?><div class="bk-history-item">No reconciliations saved yet.</div><?php endif; ?>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 <script>
 const todayKey = <?= json_encode($today, JSON_UNESCAPED_SLASHES) ?>;
 let systemBalance = <?= json_encode(round($closingBalance, 2), JSON_UNESCAPED_SLASHES) ?>;
@@ -972,6 +1129,42 @@ function toast(message) {
     node.classList.remove('is-visible');
     setTimeout(() => node.remove(), 180);
   }, 1400);
+}
+
+function openDrawer() {
+  document.getElementById('bkDrawer')?.classList.add('open');
+  document.getElementById('bkOverlay')?.classList.add('open');
+  const trigger = document.getElementById('bkDrawerBtn');
+  if (trigger) {
+    trigger.style.opacity = '0';
+    trigger.style.pointerEvents = 'none';
+  }
+  document.body.style.overflow = 'hidden';
+}
+
+function closeDrawer() {
+  document.getElementById('bkDrawer')?.classList.remove('open');
+  document.getElementById('bkOverlay')?.classList.remove('open');
+  setTimeout(() => {
+    const trigger = document.getElementById('bkDrawerBtn');
+    if (trigger) {
+      trigger.style.opacity = '1';
+      trigger.style.pointerEvents = 'auto';
+    }
+  }, 320);
+  document.body.style.overflow = '';
+}
+
+function switchTab(btn, tabId) {
+  document.querySelectorAll('.bk-tab').forEach((tab) => tab.classList.remove('active'));
+  document.querySelectorAll('.bk-tab-panel').forEach((panel) => panel.classList.remove('active'));
+  btn.classList.add('active');
+  const panel = document.getElementById('tab-' + tabId);
+  if (!panel) return;
+  panel.classList.add('active');
+  panel.style.animation = 'none';
+  panel.offsetHeight;
+  panel.style.animation = 'fadeUp .2s ease both';
 }
 
 function setReconValues() {
@@ -1241,18 +1434,11 @@ document.addEventListener('click', (event) => {
   const toggle = event.target.closest('[data-toggle-day]');
   const save = event.target.closest('[data-save-add]');
   const editable = event.target.closest('.ledger-data-cell');
-  const collapse = event.target.closest('[data-bk-collapse]');
   const clearFilters = event.target.closest('[data-bk-filter-clear]');
   const saveRecon = event.target.closest('[data-save-recon]');
   if (back) {
     if (window.history.length > 1) window.history.back();
     else window.location.href = '<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/apps/operations/dashboard.php';
-    return;
-  }
-  if (collapse) {
-    const section = collapse.closest('[data-bk-section]');
-    section.classList.toggle('is-collapsed');
-    collapse.textContent = section.classList.contains('is-collapsed') ? '>' : 'v';
     return;
   }
   if (clearFilters) {
@@ -1304,6 +1490,10 @@ document.addEventListener('input', (event) => {
 });
 
 document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    closeDrawer();
+    return;
+  }
   const row = event.target.closest('[data-add-row]');
   if (!row || event.key !== 'Enter') return;
   event.preventDefault();
