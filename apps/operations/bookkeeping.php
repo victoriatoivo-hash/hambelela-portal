@@ -509,19 +509,6 @@ $netToday = $cashInToday - $cashOutToday;
             min-height: 50px;
             overflow: visible;
         }
-        .save-add {
-            width: 28px;
-            height: 28px;
-            border: 0;
-            border-radius: 999px;
-            background: var(--ledger-orange);
-            color: var(--ledger-white);
-            font-weight: 900;
-            cursor: pointer;
-        }
-        .save-add:hover {
-            background: var(--ledger-rust);
-        }
         .is-invalid {
             border-color: var(--ledger-red) !important;
             animation: shake .3s ease;
@@ -672,7 +659,7 @@ $netToday = $cashInToday - $cashOutToday;
                             </div>
                         <?php endforeach; ?>
                         <div class="ledger-row add-row" data-add-row data-day="<?= htmlspecialchars($day, ENT_QUOTES, 'UTF-8') ?>">
-                            <div class="ledger-cell check-cell"><button class="save-add" type="button" data-save-add aria-label="Save entry">+</button></div>
+                            <div class="ledger-cell check-cell"></div>
                             <div class="ledger-cell"><input data-add-field="description" placeholder="Add cash entry"></div>
                             <div class="ledger-cell"><input data-add-field="transaction_date" type="datetime-local" value="<?= htmlspecialchars($addDate, ENT_QUOTES, 'UTF-8') ?>"></div>
                             <div class="ledger-cell"><input data-add-field="cash_in" type="number" min="0" step="0.01" placeholder="0.00"></div>
