@@ -912,6 +912,19 @@ $reconHistory = $ready ? ops_rows(
             outline: none;
             box-shadow: 0 0 0 3px rgba(239, 107, 98, .18);
         }
+        .bk-copy-total {
+            height: 26px;
+            padding: 0 10px;
+            border: 1px solid #EDE3D8;
+            border-radius: 6px;
+            background: #fff;
+            color: #6B6B6B;
+            cursor: pointer;
+            font-family: Inter, sans-serif;
+            font-size: 11px;
+            font-weight: 600;
+            transition: background .15s, color .15s;
+        }
         .toast {
             position: fixed;
             right: 22px;
@@ -1090,7 +1103,7 @@ $reconHistory = $ready ? ops_rows(
                             <label class="bk-denom-row denomination-row"><span>N$<?= rtrim(rtrim(number_format((float) $denom, 2), '0'), '.') ?></span><input type="number" min="0" step="1" value="0" data-denom="<?= htmlspecialchars((string) $denom, ENT_QUOTES, 'UTF-8') ?>"></label>
                         <?php endforeach; ?>
                     </div>
-                    <div class="bk-counter-total"><span>Counted total</span><strong data-counted-total>N$0.00</strong></div>
+                    <div class="bk-counter-total"><span>Counted total</span><button class="bk-copy-total" id="copyTotalBtn" type="button" onclick="copyCountedTotal()">Copy</button><strong id="denomTotal" data-counted-total>N$0.00</strong></div>
                 </div>
             </section>
         </section>
@@ -1165,6 +1178,26 @@ function setReconValues() {
   varianceNode.textContent = money(variance);
   varianceNode.classList.toggle('is-negative', variance < 0);
   varianceNode.classList.toggle('is-positive', variance > 0);
+}
+
+function copyCountedTotal() {
+  const total = document.getElementById('denomTotal')?.textContent.trim() || money(0);
+  const text = `Bank deposit \u2014 ${total}`;
+  const btn = document.getElementById('copyTotalBtn');
+  const markCopied = () => {
+    if (!btn) return;
+    btn.textContent = 'Copied';
+    btn.style.background = '#A8CA19';
+    btn.style.color = '#3d5c00';
+    setTimeout(() => {
+      btn.textContent = 'Copy';
+      btn.style.background = '';
+      btn.style.color = '';
+    }, 2000);
+  };
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).then(markCopied).catch(() => {});
+  }
 }
 
 function renderReconHistory(rows) {
