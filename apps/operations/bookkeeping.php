@@ -879,16 +879,38 @@ $reconHistory = $ready ? ops_rows(
             text-align: right;
         }
         .bk-denom-reset {
-            height: 24px;
-            border: 1px solid rgba(171, 54, 25, .24);
-            border-radius: 999px;
-            background: var(--ledger-white);
-            color: #1a1a1a;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            height: 34px;
+            padding: 0 14px;
+            background: #ffffff;
+            border: 1px solid #f2c8c1;
+            border-radius: 10px;
+            color: #ef6b62;
+            font-family: Figtree, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 12px;
+            font-weight: 500;
             cursor: pointer;
-            font: inherit;
-            font-size: 10px;
-            font-weight: 800;
-            padding: 0 10px;
+            transition: all .2s ease;
+        }
+        .bk-denom-reset svg {
+            width: 14px;
+            height: 14px;
+            color: inherit;
+        }
+        .bk-denom-reset:hover {
+            background: #fff6f5;
+            border-color: #ef6b62;
+            color: #d84b42;
+        }
+        .bk-denom-reset:active {
+            transform: scale(.98);
+        }
+        .bk-denom-reset:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(239, 107, 98, .18);
         }
         .toast {
             position: fixed;
@@ -1061,7 +1083,7 @@ $reconHistory = $ready ? ops_rows(
     <div class="bk-drawer-body">
         <section class="bk-tab-panel is-active" id="tab-counter">
             <section class="bk-side-section denom-card denomination-counter">
-                <div class="bk-side-head"><span>Denomination Counter</span><button class="bk-denom-reset" type="button" data-reset-denoms>Reset</button></div>
+                <div class="bk-side-head"><span>Denomination Counter</span><button class="bk-denom-reset" type="button" data-reset-denoms><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v6h6"></path></svg><span>Reset</span></button></div>
                 <div class="bk-side-body">
                     <div class="bk-denom-grid denom-grid denomination-counter-body" data-denom-counter>
                         <?php foreach ([200, 100, 60, 50, 30, 20, 10, 5, 1, 0.5, 0.1] as $denom): ?>
