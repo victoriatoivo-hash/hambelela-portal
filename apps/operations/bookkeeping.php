@@ -768,7 +768,7 @@ $reconHistory = $ready ? ops_rows(
             top: 0;
             right: 0;
             z-index: 45;
-            width: min(380px, calc(100vw - 28px));
+            width: min(720px, 96vw);
             height: 100vh;
             background: var(--ledger-white);
             border-left: 1px solid var(--ledger-border);
@@ -851,17 +851,44 @@ $reconHistory = $ready ? ops_rows(
         .bk-drawer-body .denom-grid {
             width: 100%;
             min-width: 0;
-            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            grid-template-columns: none !important;
         }
         .bk-drawer-body .bk-side-body {
             min-width: 0;
         }
         .bk-drawer-body .bk-denom-row {
             min-width: 0;
-            grid-template-columns: 46px minmax(0, 1fr);
+            display: grid;
+            grid-template-columns: 70px 1fr;
+            align-items: center;
+            column-gap: 12px;
+        }
+        .bk-drawer-body .bk-denom-row span {
+            font-family: Figtree, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 12px;
+            white-space: nowrap;
         }
         .bk-drawer-body .bk-denom-row input {
+            width: 100%;
             min-width: 0;
+            height: 22px;
+            box-sizing: border-box;
+            text-align: right;
+        }
+        .bk-denom-reset {
+            height: 24px;
+            border: 1px solid rgba(171, 54, 25, .24);
+            border-radius: 999px;
+            background: var(--ledger-white);
+            color: #1a1a1a;
+            cursor: pointer;
+            font: inherit;
+            font-size: 10px;
+            font-weight: 800;
+            padding: 0 10px;
         }
         .toast {
             position: fixed;
@@ -1022,7 +1049,7 @@ $reconHistory = $ready ? ops_rows(
 <?php if ($ready): ?>
 <button class="bk-drawer-trigger" type="button" id="bkDrawerBtn" onclick="openDrawer()">Cash tools</button>
 <div class="bk-overlay" id="bkOverlay" onclick="closeDrawer()"></div>
-<aside class="bk-drawer" id="bkDrawer" aria-label="Cash ledger tools">
+<aside class="bk-drawer cash-tools-panel" id="bkDrawer" aria-label="Cash ledger tools">
     <div class="bk-drawer-header">
         <div class="bk-drawer-title">Cash tools</div>
         <button class="bk-drawer-close" type="button" onclick="closeDrawer()" aria-label="Close cash tools">&times;</button>
@@ -1033,12 +1060,12 @@ $reconHistory = $ready ? ops_rows(
     </div>
     <div class="bk-drawer-body">
         <section class="bk-tab-panel is-active" id="tab-counter">
-            <section class="bk-side-section denom-card">
-                <div class="bk-side-head"><span>Denomination Counter</span></div>
+            <section class="bk-side-section denom-card denomination-counter">
+                <div class="bk-side-head"><span>Denomination Counter</span><button class="bk-denom-reset" type="button" data-reset-denoms>Reset</button></div>
                 <div class="bk-side-body">
-                    <div class="bk-denom-grid denom-grid" data-denom-counter>
-                        <?php foreach ([200, 100, 50, 30, 20, 10, 5, 1, 0.5, 0.1] as $denom): ?>
-                            <label class="bk-denom-row"><span>N$<?= rtrim(rtrim(number_format((float) $denom, 2), '0'), '.') ?></span><input type="number" min="0" step="1" value="0" data-denom="<?= htmlspecialchars((string) $denom, ENT_QUOTES, 'UTF-8') ?>"></label>
+                    <div class="bk-denom-grid denom-grid denomination-counter-body" data-denom-counter>
+                        <?php foreach ([200, 100, 60, 50, 30, 20, 10, 5, 1, 0.5, 0.1] as $denom): ?>
+                            <label class="bk-denom-row denomination-row"><span>N$<?= rtrim(rtrim(number_format((float) $denom, 2), '0'), '.') ?></span><input type="number" min="0" step="1" value="0" data-denom="<?= htmlspecialchars((string) $denom, ENT_QUOTES, 'UTF-8') ?>"></label>
                         <?php endforeach; ?>
                     </div>
                     <div class="bk-counter-total"><span>Counted total</span><strong data-counted-total>N$0.00</strong></div>
@@ -1387,9 +1414,17 @@ document.addEventListener('click', (event) => {
   const editable = event.target.closest('.ledger-data-cell');
   const clearFilters = event.target.closest('[data-bk-filter-clear]');
   const saveRecon = event.target.closest('[data-save-recon]');
+  const resetDenoms = event.target.closest('[data-reset-denoms]');
   if (back) {
     if (window.history.length > 1) window.history.back();
     else window.location.href = '<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/apps/operations/dashboard.php';
+    return;
+  }
+  if (resetDenoms) {
+    document.querySelectorAll('[data-denom]').forEach((input) => {
+      input.value = '0';
+    });
+    setReconValues();
     return;
   }
   if (clearFilters) {
