@@ -11282,7 +11282,7 @@ textarea {
 .courier-wrap .section-card {
   border: 1px solid #EDE3D8;
   border-radius: 12px;
-  padding: 18px 20px;
+  padding: 14px 16px;
   background: #fff;
   margin-bottom: 12px;
 }
@@ -11664,10 +11664,29 @@ textarea {
 }
 
 .courier-wrap .queue-item-meta > span {
-  border: 1px solid #EDE3D8;
+  border: none;
   border-radius: 9px;
   padding: 8px;
+  background: transparent;
   overflow: hidden;
+}
+
+.courier-wrap .queue-item .wq-meta,
+.courier-wrap .queue-item .wq-cell,
+.courier-wrap .queue-item [class*="meta-"] {
+  border: none !important;
+  background: transparent !important;
+}
+
+.courier-wrap label,
+.courier-wrap .field-label,
+.courier-wrap [class*="-label"],
+.courier-wrap th {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: .05em !important;
+  color: #6B6B6B !important;
 }
 
 .courier-wrap .meta-label {
