@@ -461,7 +461,7 @@ $reconHistory = $ready ? ops_rows(
             border-left: 4px solid #A8CA19;
             border-radius: 0 12px 12px 0;
             background: #fff;
-            padding: 16px 20px;
+            padding: 10px 16px;
             margin-bottom: 14px;
             animation: fadeUp .3s ease both;
         }
@@ -469,17 +469,21 @@ $reconHistory = $ready ? ops_rows(
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 20px;
-            flex-wrap: wrap;
+            gap: 16px;
+            flex-wrap: nowrap;
+        }
+        .bk-wrap .bk-opening-left {
+            flex: 1;
+            min-width: 0;
         }
         .bk-wrap .bk-opening-title {
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
             color: #1a1a1a;
-            margin-bottom: 4px;
+            margin-bottom: 2px;
         }
         .bk-wrap .bk-opening-sub {
-            font-size: 12px;
+            font-size: 11px;
             color: #6B6B6B;
         }
         .bk-wrap .bk-opening-ref {
@@ -493,18 +497,19 @@ $reconHistory = $ready ? ops_rows(
         }
         .bk-wrap .bk-opening-right {
             display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            gap: 6px;
+            align-items: center;
+            gap: 10px;
             flex-shrink: 0;
+            flex-direction: row;
         }
         .bk-wrap .bk-opening-input-wrap {
             display: flex;
             align-items: center;
             gap: 6px;
+            height: 32px;
             border: 1px solid #EDE3D8;
             border-radius: 8px;
-            padding: 0 12px;
+            padding: 0 10px;
             background: #fff;
             transition: border-color .15s;
         }
@@ -529,7 +534,7 @@ $reconHistory = $ready ? ops_rows(
             box-shadow: none !important;
             -webkit-appearance: none;
             appearance: none;
-            width: 120px;
+            width: 100px;
             font-weight: 700;
             color: #1a1a1a;
             padding: 8px 0 !important;
@@ -550,10 +555,11 @@ $reconHistory = $ready ? ops_rows(
             color: #fff;
             border: none;
             border-radius: 8px;
-            height: 34px;
-            padding: 0 20px;
+            height: 32px;
+            padding: 0 16px;
             font-size: 12px;
             font-weight: 700;
+            white-space: nowrap;
             cursor: pointer;
             font-family: Figtree, system-ui, -apple-system, sans-serif;
             transition: background .15s, transform .1s;
