@@ -882,23 +882,28 @@ $reconHistory = $ready ? ops_rows(
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            gap: 6px;
-            height: 34px;
-            padding: 0 14px;
+            gap: 4px;
+            width: auto;
+            height: 28px;
+            padding: 0 8px;
             background: #ffffff;
-            border: 1px solid #f2c8c1;
-            border-radius: 10px;
+            border: 1px solid #f4b8b1;
+            border-radius: 8px;
             color: #ef6b62;
             font-family: Figtree, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             font-size: 12px;
             font-weight: 500;
+            line-height: 1;
             cursor: pointer;
+            white-space: nowrap;
             transition: all .2s ease;
         }
         .bk-denom-reset svg {
-            width: 14px;
-            height: 14px;
+            width: 12px;
+            height: 12px;
+            flex: 0 0 12px;
             color: inherit;
+            stroke-width: 2;
         }
         .bk-denom-reset:hover {
             background: #fff6f5;
@@ -908,9 +913,17 @@ $reconHistory = $ready ? ops_rows(
         .bk-denom-reset:active {
             transform: scale(.98);
         }
+        .bk-denom-reset:active svg,
+        .bk-denom-reset.is-resetting svg {
+            animation: reset-spin .45s ease;
+        }
         .bk-denom-reset:focus-visible {
             outline: none;
             box-shadow: 0 0 0 3px rgba(239, 107, 98, .18);
+        }
+        @keyframes reset-spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(-360deg); }
         }
         .bk-copy-total {
             height: 26px;
@@ -1096,7 +1109,7 @@ $reconHistory = $ready ? ops_rows(
     <div class="bk-drawer-body">
         <section class="bk-tab-panel is-active" id="tab-counter">
             <section class="bk-side-section denom-card denomination-counter">
-                <div class="bk-side-head"><span>Denomination Counter</span><button class="bk-denom-reset" type="button" data-reset-denoms><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v6h6"></path></svg><span>Reset</span></button></div>
+                <div class="bk-side-head"><span>Denomination Counter</span><button class="bk-denom-reset" type="button" data-reset-denoms><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v6h6"></path><path d="M3 13a9 9 0 1 0 3-7.7L3 8"></path></svg><span>Reset</span></button></div>
                 <div class="bk-side-body">
                     <div class="bk-denom-grid denom-grid denomination-counter-body" data-denom-counter>
                         <?php foreach ([200, 100, 60, 50, 30, 20, 10, 5, 1, 0.5, 0.1] as $denom): ?>
@@ -1476,10 +1489,14 @@ document.addEventListener('click', (event) => {
     return;
   }
   if (resetDenoms) {
+    resetDenoms.classList.remove('is-resetting');
+    void resetDenoms.offsetWidth;
+    resetDenoms.classList.add('is-resetting');
     document.querySelectorAll('[data-denom]').forEach((input) => {
       input.value = '0';
     });
     setReconValues();
+    setTimeout(() => resetDenoms.classList.remove('is-resetting'), 500);
     return;
   }
   if (clearFilters) {
