@@ -837,6 +837,7 @@ $reconHistory = $ready ? ops_rows(
         }
         .bk-tab-panel {
             display: none;
+            min-width: 0;
         }
         .bk-tab-panel.is-active {
             display: block;
@@ -848,7 +849,19 @@ $reconHistory = $ready ? ops_rows(
             flex-shrink: 0;
         }
         .bk-drawer-body .denom-grid {
-            grid-template-columns: repeat(2, 1fr) !important;
+            width: 100%;
+            min-width: 0;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+        .bk-drawer-body .bk-side-body {
+            min-width: 0;
+        }
+        .bk-drawer-body .bk-denom-row {
+            min-width: 0;
+            grid-template-columns: 46px minmax(0, 1fr);
+        }
+        .bk-drawer-body .bk-denom-row input {
+            min-width: 0;
         }
         .toast {
             position: fixed;
