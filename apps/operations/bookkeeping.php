@@ -585,12 +585,6 @@ $reconHistory = $ready ? ops_rows(
         .bk-sidebar-col {
             display: none;
         }
-        .bk-bottom-tools {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 16px;
-            margin-bottom: 16px;
-        }
         .bk-filter-section {
             margin-bottom: 16px;
         }
@@ -736,10 +730,130 @@ $reconHistory = $ready ? ops_rows(
             font-size: 10px;
             margin-top: 2px;
         }
-        .toast {
+        .bk-drawer-trigger {
             position: fixed;
             right: 22px;
             bottom: 22px;
+            z-index: 35;
+            height: 38px;
+            border: 0;
+            border-radius: 999px;
+            background: var(--ledger-rust);
+            color: var(--ledger-white);
+            box-shadow: 0 12px 28px rgba(114, 27, 26, .16);
+            cursor: pointer;
+            font: inherit;
+            font-size: 12px;
+            font-weight: 800;
+            padding: 0 18px;
+        }
+        .bk-drawer-trigger:hover {
+            background: var(--ledger-orange);
+        }
+        .bk-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 40;
+            background: rgba(37, 39, 51, .18);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .16s ease;
+        }
+        .bk-overlay.is-open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .bk-drawer {
+            position: fixed;
+            top: 0;
+            right: 0;
+            z-index: 45;
+            width: min(380px, calc(100vw - 28px));
+            height: 100vh;
+            background: var(--ledger-white);
+            border-left: 1px solid var(--ledger-border);
+            box-shadow: -18px 0 36px rgba(114, 27, 26, .12);
+            transform: translateX(100%);
+            transition: transform .18s ease;
+            display: flex;
+            flex-direction: column;
+        }
+        .bk-drawer.is-open {
+            transform: translateX(0);
+        }
+        .bk-drawer-header {
+            min-height: 54px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 0 14px;
+            border-bottom: 1px solid var(--ledger-border);
+        }
+        .bk-drawer-title {
+            color: #1a1a1a;
+            font-size: 14px;
+            font-weight: 900;
+        }
+        .bk-drawer-close {
+            width: 30px;
+            height: 30px;
+            border: 1px solid rgba(171, 54, 25, .24);
+            border-radius: 999px;
+            background: var(--ledger-white);
+            color: #1a1a1a;
+            cursor: pointer;
+            font-size: 18px;
+            line-height: 1;
+        }
+        .bk-tabs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            padding: 12px 14px 0;
+        }
+        .bk-tab {
+            height: 32px;
+            border: 1px solid rgba(171, 54, 25, .24);
+            border-radius: 999px;
+            background: #fff;
+            color: #1a1a1a;
+            cursor: pointer;
+            font: inherit;
+            font-size: 12px;
+            font-weight: 800;
+        }
+        .bk-tab.is-active {
+            background: var(--ledger-rust);
+            border-color: var(--ledger-rust);
+            color: var(--ledger-white);
+        }
+        .bk-drawer-body {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            padding: 14px;
+            overflow-y: auto;
+        }
+        .bk-tab-panel {
+            display: none;
+        }
+        .bk-tab-panel.is-active {
+            display: block;
+        }
+        .bk-drawer-body .denom-card,
+        .bk-drawer-body .recon-card {
+            width: 100% !important;
+            min-width: 0 !important;
+            flex-shrink: 0;
+        }
+        .bk-drawer-body .denom-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+        }
+        .toast {
+            position: fixed;
+            right: 22px;
+            bottom: 74px;
             border-radius: 999px;
             background: var(--ledger-red);
             color: var(--ledger-white);
@@ -769,7 +883,6 @@ $reconHistory = $ready ? ops_rows(
             .ledger-page { padding: 18px; }
             .ledger-top { flex-direction: column; }
             .stat-grid { grid-template-columns: 1fr; }
-            .bk-bottom-tools { grid-template-columns: 1fr; }
             .ledger-board-inner { min-width: 980px; }
             .closing-card { align-items: flex-start; flex-direction: column; }
         }
@@ -818,40 +931,6 @@ $reconHistory = $ready ? ops_rows(
                 <label class="bk-field">Search<input type="search" data-bk-filter-search placeholder="Description or notes"></label>
                 <button class="bk-side-button" type="button" data-bk-filter-clear>Clear filters</button>
             </div>
-        </section>
-
-        <section class="bk-bottom-tools" aria-label="Cash counting and reconciliation">
-            <section class="bk-side-section">
-                <div class="bk-side-head"><span>Denomination Counter</span></div>
-                <div class="bk-side-body">
-                    <div class="bk-denom-grid" data-denom-counter>
-                        <?php foreach ([200, 100, 50, 30, 20, 10, 5, 1, 0.5, 0.1] as $denom): ?>
-                            <label class="bk-denom-row"><span>N$<?= rtrim(rtrim(number_format((float) $denom, 2), '0'), '.') ?></span><input type="number" min="0" step="1" value="0" data-denom="<?= htmlspecialchars((string) $denom, ENT_QUOTES, 'UTF-8') ?>"></label>
-                        <?php endforeach; ?>
-                    </div>
-                    <div class="bk-counter-total"><span>Counted total</span><strong data-counted-total>N$0.00</strong></div>
-                </div>
-            </section>
-
-            <section class="bk-side-section">
-                <div class="bk-side-head"><span>Variance Reconciliation</span></div>
-                <div class="bk-side-body">
-                    <div class="bk-recon-line"><span>System balance</span><strong data-recon-system><?= ledger_money($closingBalance) ?></strong></div>
-                    <div class="bk-recon-line"><span>Counted total</span><strong data-recon-counted>N$0.00</strong></div>
-                    <div class="bk-recon-line"><span>Variance</span><strong class="bk-recon-variance" data-recon-variance><?= ledger_money(0 - $closingBalance) ?></strong></div>
-                    <label class="bk-field">Variance note<textarea data-recon-note placeholder="Reason for variance"></textarea></label>
-                    <button class="bk-side-button" type="button" data-save-recon>Save reconciliation</button>
-                    <div class="bk-history-list" data-recon-history>
-                        <?php foreach ($reconHistory as $row): ?>
-                            <div class="bk-history-item">
-                                <strong><?= htmlspecialchars((string) $row['recon_date'], ENT_QUOTES, 'UTF-8') ?> - <?= ledger_money((float) $row['variance']) ?></strong>
-                                <small>Counted <?= ledger_money((float) $row['counted_total']) ?> vs system <?= ledger_money((float) $row['system_balance']) ?></small>
-                            </div>
-                        <?php endforeach; ?>
-                        <?php if (!$reconHistory): ?><div class="bk-history-item">No reconciliations saved yet.</div><?php endif; ?>
-                    </div>
-                </div>
-            </section>
         </section>
 
         <div class="bk-page-layout">
@@ -927,6 +1006,56 @@ $reconHistory = $ready ? ops_rows(
     <?php endif; ?>
 </main>
 </div>
+<?php if ($ready): ?>
+<button class="bk-drawer-trigger" type="button" id="bkDrawerBtn" onclick="openDrawer()">Cash tools</button>
+<div class="bk-overlay" id="bkOverlay" onclick="closeDrawer()"></div>
+<aside class="bk-drawer" id="bkDrawer" aria-label="Cash ledger tools">
+    <div class="bk-drawer-header">
+        <div class="bk-drawer-title">Cash tools</div>
+        <button class="bk-drawer-close" type="button" onclick="closeDrawer()" aria-label="Close cash tools">&times;</button>
+    </div>
+    <div class="bk-tabs" role="tablist" aria-label="Cash tools tabs">
+        <button class="bk-tab is-active" type="button" data-tab="counter" onclick="switchTab(this, 'counter')">Count till</button>
+        <button class="bk-tab" type="button" data-tab="recon" onclick="switchTab(this, 'recon')">Reconcile</button>
+    </div>
+    <div class="bk-drawer-body">
+        <section class="bk-tab-panel is-active" id="tab-counter">
+            <section class="bk-side-section denom-card">
+                <div class="bk-side-head"><span>Denomination Counter</span></div>
+                <div class="bk-side-body">
+                    <div class="bk-denom-grid denom-grid" data-denom-counter>
+                        <?php foreach ([200, 100, 50, 30, 20, 10, 5, 1, 0.5, 0.1] as $denom): ?>
+                            <label class="bk-denom-row"><span>N$<?= rtrim(rtrim(number_format((float) $denom, 2), '0'), '.') ?></span><input type="number" min="0" step="1" value="0" data-denom="<?= htmlspecialchars((string) $denom, ENT_QUOTES, 'UTF-8') ?>"></label>
+                        <?php endforeach; ?>
+                    </div>
+                    <div class="bk-counter-total"><span>Counted total</span><strong data-counted-total>N$0.00</strong></div>
+                </div>
+            </section>
+        </section>
+        <section class="bk-tab-panel" id="tab-recon">
+            <section class="bk-side-section recon-card">
+                <div class="bk-side-head"><span>Variance Reconciliation</span></div>
+                <div class="bk-side-body">
+                    <div class="bk-recon-line"><span>System balance</span><strong data-recon-system><?= ledger_money($closingBalance) ?></strong></div>
+                    <div class="bk-recon-line"><span>Counted total</span><strong data-recon-counted>N$0.00</strong></div>
+                    <div class="bk-recon-line"><span>Variance</span><strong class="bk-recon-variance" data-recon-variance><?= ledger_money(0 - $closingBalance) ?></strong></div>
+                    <label class="bk-field">Variance note<textarea data-recon-note placeholder="Reason for variance"></textarea></label>
+                    <button class="bk-side-button" type="button" data-save-recon>Save reconciliation</button>
+                    <div class="bk-history-list" data-recon-history>
+                        <?php foreach ($reconHistory as $row): ?>
+                            <div class="bk-history-item">
+                                <strong><?= htmlspecialchars((string) $row['recon_date'], ENT_QUOTES, 'UTF-8') ?> - <?= ledger_money((float) $row['variance']) ?></strong>
+                                <small>Counted <?= ledger_money((float) $row['counted_total']) ?> vs system <?= ledger_money((float) $row['system_balance']) ?></small>
+                            </div>
+                        <?php endforeach; ?>
+                        <?php if (!$reconHistory): ?><div class="bk-history-item">No reconciliations saved yet.</div><?php endif; ?>
+                    </div>
+                </div>
+            </section>
+        </section>
+    </div>
+</aside>
+<?php endif; ?>
 <script>
 const todayKey = <?= json_encode($today, JSON_UNESCAPED_SLASHES) ?>;
 let systemBalance = <?= json_encode(round($closingBalance, 2), JSON_UNESCAPED_SLASHES) ?>;
@@ -989,6 +1118,21 @@ function renderReconHistory(rows) {
       <small>Counted ${money(row.counted_total)} vs system ${money(row.system_balance)}</small>
     </div>
   `).join('');
+}
+
+function openDrawer() {
+  document.getElementById('bkDrawer')?.classList.add('is-open');
+  document.getElementById('bkOverlay')?.classList.add('is-open');
+}
+
+function closeDrawer() {
+  document.getElementById('bkDrawer')?.classList.remove('is-open');
+  document.getElementById('bkOverlay')?.classList.remove('is-open');
+}
+
+function switchTab(button, tab) {
+  document.querySelectorAll('.bk-tab').forEach((node) => node.classList.toggle('is-active', node === button));
+  document.querySelectorAll('.bk-tab-panel').forEach((panel) => panel.classList.toggle('is-active', panel.id === `tab-${tab}`));
 }
 
 function applySidebarFilters() {
@@ -1284,6 +1428,9 @@ document.addEventListener('input', (event) => {
 });
 
 document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    closeDrawer();
+  }
   const row = event.target.closest('[data-add-row]');
   if (!row || event.key !== 'Enter') return;
   event.preventDefault();
