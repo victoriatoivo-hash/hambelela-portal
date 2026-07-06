@@ -522,13 +522,23 @@ $reconHistory = $ready ? ops_rows(
             color: #6B6B6B;
         }
         .bk-wrap .bk-opening-input-wrap input {
+            font-family: Figtree, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 12px;
             border: none !important;
+            outline: none !important;
             box-shadow: none !important;
+            -webkit-appearance: none;
+            appearance: none;
             width: 120px;
             font-weight: 700;
             color: #1a1a1a;
             padding: 8px 0 !important;
             background: transparent;
+        }
+        .bk-wrap .bk-opening-input-wrap input:focus {
+            border: none !important;
+            outline: none !important;
+            box-shadow: none !important;
         }
         .bk-wrap .bk-opening-variance {
             font-size: 11px;
