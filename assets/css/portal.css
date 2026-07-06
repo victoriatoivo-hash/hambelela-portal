@@ -24665,26 +24665,41 @@ body:has(.ob-wrap) .ob-wrap .orders-board-v2 .monday-group.collapsed .monday-gro
   --hb-sidebar-active: #f05a24;
 }
 
-.shell:has(.portal-sidebar) .workspace,
-.shell > .workspace:first-child,
-body.sidebar-collapsed .workspace {
+.shell > .workspace:first-child {
   margin-left: 0 !important;
 }
 
+.shell:has(.portal-sidebar) {
+  padding-left: 246px;
+  transition: padding-left .25s ease;
+}
+
+body.sidebar-collapsed .shell:has(.portal-sidebar) {
+  padding-left: 74px;
+}
+
+.shell:has(.portal-sidebar) .workspace,
+body.sidebar-collapsed .workspace {
+  margin-left: 0 !important;
+  transition: margin-left .25s ease;
+}
+
 .portal-sidebar {
-  position: sticky;
-  top: 66px;
+  position: fixed;
+  top: 0;
+  bottom: 0;
   left: 0;
   z-index: 70;
   width: 246px;
   min-width: 246px;
-  height: calc(100vh - 66px);
+  height: 100vh;
+  min-height: 100vh;
   padding: 16px 12px 14px;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  background: var(--hb-sidebar-bg);
-  border-right: 1px solid var(--hb-sidebar-border);
+  background: #F0742014;
+  border-right: 2px solid #721B1A;
   box-shadow: 8px 0 28px rgba(123, 21, 24, 0.04);
   color: var(--hb-sidebar-text);
   transition:
@@ -24784,6 +24799,7 @@ body.sidebar-collapsed .portal-sidebar .portal-mode-text,
 .portal-sidebar.collapsed .portal-brand-text,
 .portal-sidebar.collapsed .portal-nav-label,
 .portal-sidebar.collapsed .portal-mode-text {
+  display: none;
   opacity: 0;
   transform: translateX(-8px);
   pointer-events: none;
@@ -24860,7 +24876,15 @@ body.sidebar-collapsed .portal-sidebar .portal-dark-toggle,
   padding-inline: 0;
 }
 
+body.sidebar-collapsed .portal-sidebar .portal-nav-link svg,
+.portal-sidebar.collapsed .portal-nav-link svg {
+  display: block;
+  opacity: 1;
+  visibility: visible;
+}
+
 .portal-sidebar-footer {
+  margin-top: auto;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -24993,7 +25017,8 @@ body.dark-mode .workspace {
 }
 
 body.dark-mode .portal-sidebar {
-  border-right-color: rgba(255, 255, 255, 0.10);
+  background: #F0742014;
+  border-right: 2px solid #721B1A;
 }
 
 body.dark-mode .portal-nav-link,
@@ -25002,11 +25027,17 @@ body.dark-mode .portal-dark-toggle {
 }
 
 @media (max-width: 900px) {
+  .shell:has(.portal-sidebar),
+  body.sidebar-collapsed .shell:has(.portal-sidebar) {
+    padding-left: 0;
+  }
+
   .portal-sidebar {
     position: fixed;
-    top: 66px;
+    top: 0;
     bottom: 0;
-    height: calc(100vh - 66px);
+    height: 100vh;
+    min-height: 100vh;
     width: 246px;
     min-width: 246px;
     transform: translateX(-104%);
