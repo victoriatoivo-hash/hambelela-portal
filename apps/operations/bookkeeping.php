@@ -768,7 +768,7 @@ $reconHistory = $ready ? ops_rows(
             top: 0;
             right: 0;
             z-index: 45;
-            width: min(720px, 96vw);
+            width: min(380px, calc(100vw - 28px));
             height: 100vh;
             background: var(--ledger-white);
             border-left: 1px solid var(--ledger-border);
