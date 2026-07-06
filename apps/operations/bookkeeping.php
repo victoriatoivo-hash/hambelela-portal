@@ -79,6 +79,18 @@ function ledger_bootstrap_schema(): void
             updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         )"
     );
+    db()->exec(
+        "CREATE TABLE IF NOT EXISTS hambelela_cashbook_recon (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            recon_date DATE NOT NULL,
+            system_balance DECIMAL(10,2) NOT NULL,
+            counted_total DECIMAL(10,2) NOT NULL,
+            variance DECIMAL(10,2) NOT NULL,
+            variance_note TEXT,
+            logged_by INT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+    );
 }
 
 function ledger_entry(int $id): array
@@ -147,6 +159,33 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             db()->prepare('UPDATE ops_cash_book_entries SET transaction_type = ? WHERE id = ?')->execute([$type, $id]);
             ledger_json(['ok' => true, 'message' => 'Saved.', 'entry' => ledger_entry($id)]);
         }
+        if ($action === 'cashbook_save_recon') {
+            $reconDate = ops_post_string('recon_date', 20);
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $reconDate)) $reconDate = date('Y-m-d');
+            $systemBalance = (float) ($_POST['system_balance'] ?? 0);
+            $countedTotal = (float) ($_POST['counted_total'] ?? 0);
+            $variance = $countedTotal - $systemBalance;
+            $stmt = db()->prepare(
+                "INSERT INTO hambelela_cashbook_recon
+                 (recon_date, system_balance, counted_total, variance, variance_note, logged_by)
+                 VALUES (?, ?, ?, ?, ?, ?)"
+            );
+            $stmt->execute([
+                $reconDate,
+                $systemBalance,
+                $countedTotal,
+                $variance,
+                ops_post_string('variance_note', 1500),
+                $employeeId ?: 0,
+            ]);
+            $history = ops_rows(
+                "SELECT recon_date, system_balance, counted_total, variance, variance_note, created_at
+                 FROM hambelela_cashbook_recon
+                 ORDER BY created_at DESC, id DESC
+                 LIMIT 5"
+            );
+            ledger_json(['ok' => true, 'message' => 'Reconciliation saved.', 'history' => $history]);
+        }
         throw new RuntimeException('Unknown ledger action.');
     } catch (Throwable $e) {
         if (ledger_wants_json()) ledger_json(['ok' => false, 'message' => $e->getMessage()], 400);
@@ -187,6 +226,12 @@ if (!$groups) {
 }
 
 $netToday = $cashInToday - $cashOutToday;
+$reconHistory = $ready ? ops_rows(
+    "SELECT recon_date, system_balance, counted_total, variance, variance_note, created_at
+     FROM hambelela_cashbook_recon
+     ORDER BY created_at DESC, id DESC
+     LIMIT 5"
+) : [];
 ?>
 <!doctype html>
 <html lang="en">
@@ -542,6 +587,164 @@ $netToday = $cashInToday - $cashOutToday;
             font-size: 14px;
             font-weight: 900;
         }
+        .bk-page-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 340px;
+            gap: 20px;
+            align-items: start;
+        }
+        .bk-ledger-col {
+            min-width: 0;
+        }
+        .bk-sidebar-col {
+            position: sticky;
+            top: 20px;
+            display: grid;
+            gap: 12px;
+            align-self: start;
+        }
+        .bk-side-section {
+            border: 1px solid var(--ledger-border);
+            border-radius: 14px;
+            background: var(--ledger-white);
+            box-shadow: 0 8px 18px rgba(114, 27, 26, .04);
+            overflow: hidden;
+        }
+        .bk-side-head {
+            min-height: 38px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 0 12px;
+            border-bottom: 1px solid var(--ledger-border);
+            background: #fafafa;
+            color: #1a1a1a;
+            font-size: 14px;
+            font-weight: 700;
+        }
+        .bk-side-toggle {
+            width: 24px;
+            height: 24px;
+            border: 1px solid rgba(171, 54, 25, .24);
+            border-radius: 999px;
+            background: var(--ledger-white);
+            color: var(--ledger-rust);
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .bk-side-body {
+            display: grid;
+            gap: 10px;
+            padding: 12px;
+        }
+        .bk-side-section.is-collapsed .bk-side-body {
+            display: none;
+        }
+        .bk-field {
+            display: grid;
+            gap: 4px;
+            color: #6B6B6B;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+        }
+        .bk-field input,
+        .bk-field textarea,
+        .bk-filter-grid input {
+            width: 100%;
+            height: 30px;
+            border: 1px solid rgba(171, 54, 25, .24);
+            border-radius: 9px;
+            background: var(--ledger-white);
+            color: #1a1a1a;
+            font: inherit;
+            font-size: 12px;
+            padding: 0 8px;
+            outline: 0;
+        }
+        .bk-field textarea {
+            height: 58px;
+            padding-top: 7px;
+            resize: vertical;
+        }
+        .bk-field input:focus,
+        .bk-field textarea:focus,
+        .bk-filter-grid input:focus {
+            border-color: var(--ledger-rust);
+            box-shadow: 0 0 0 3px rgba(171, 54, 25, .10);
+        }
+        .bk-filter-grid,
+        .bk-denom-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .bk-denom-row {
+            display: grid;
+            grid-template-columns: 52px 1fr;
+            align-items: center;
+            gap: 6px;
+            color: #1a1a1a;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .bk-denom-row input {
+            text-align: right;
+        }
+        .bk-counter-total,
+        .bk-recon-line {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            color: #1a1a1a;
+            font-size: 12px;
+        }
+        .bk-counter-total strong,
+        .bk-recon-line strong {
+            font-size: 14px;
+        }
+        .bk-recon-variance.is-negative {
+            color: #BB1B21;
+        }
+        .bk-recon-variance.is-positive {
+            color: #3d5c00;
+        }
+        .bk-side-button {
+            height: 32px;
+            border: 0;
+            border-radius: 999px;
+            background: var(--ledger-rust);
+            color: var(--ledger-white);
+            cursor: pointer;
+            font: inherit;
+            font-size: 12px;
+            font-weight: 800;
+        }
+        .bk-side-button:hover {
+            background: var(--ledger-orange);
+        }
+        .bk-history-list {
+            display: grid;
+            gap: 7px;
+            margin-top: 2px;
+        }
+        .bk-history-item {
+            border: 1px solid var(--ledger-border);
+            border-radius: 10px;
+            padding: 8px;
+            color: #1a1a1a;
+            font-size: 12px;
+            background: #fff;
+        }
+        .bk-history-item small {
+            display: block;
+            color: #6B6B6B;
+            font-size: 10px;
+            margin-top: 2px;
+        }
         .toast {
             position: fixed;
             right: 22px;
@@ -571,11 +774,17 @@ $netToday = $cashInToday - $cashOutToday;
             .ledger-shell { grid-template-columns: 1fr; }
             .ledger-side-panel { min-height: 0; position: static; border-right: 0; border-bottom: 1px solid var(--ledger-border); }
             .ledger-side-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .bk-page-layout { grid-template-columns: 1fr; }
+            .bk-sidebar-col { position: static; }
             .ledger-page { padding: 18px; }
             .ledger-top { flex-direction: column; }
             .stat-grid { grid-template-columns: 1fr; }
             .ledger-board-inner { min-width: 980px; }
             .closing-card { align-items: flex-start; flex-direction: column; }
+        }
+        @media (max-width: 900px) {
+            .bk-page-layout { grid-template-columns: 1fr; }
+            .bk-sidebar-col { position: static; }
         }
     </style>
 </head>
@@ -610,6 +819,8 @@ $netToday = $cashInToday - $cashOutToday;
             <article class="stat-card" style="--accent: #A8CA19;"><span class="stat-label">Entries Today</span><strong class="stat-value" data-stat-count><?= number_format($entriesToday) ?></strong></article>
         </section>
 
+        <div class="bk-page-layout">
+        <div class="bk-ledger-col">
         <section class="ledger-board" aria-label="Cash ledger board">
             <div class="ledger-board-inner">
                 <?php foreach ($groups as $day => $dayEntries): ?>
@@ -676,11 +887,62 @@ $netToday = $cashInToday - $cashOutToday;
             <span>Closing Balance</span>
             <strong data-closing-balance><?= ledger_money($closingBalance) ?></strong>
         </section>
+        </div>
+        <aside class="bk-sidebar-col" aria-label="Cash book tools">
+            <section class="bk-side-section" data-bk-section>
+                <div class="bk-side-head">
+                    <span>Filters</span>
+                    <button class="bk-side-toggle" type="button" data-bk-collapse aria-label="Toggle filters">v</button>
+                </div>
+                <div class="bk-side-body">
+                    <div class="bk-filter-grid">
+                        <label class="bk-field">From<input type="date" data-bk-filter-from></label>
+                        <label class="bk-field">To<input type="date" data-bk-filter-to></label>
+                    </div>
+                    <label class="bk-field">Search<input type="search" data-bk-filter-search placeholder="Description or notes"></label>
+                    <button class="bk-side-button" type="button" data-bk-filter-clear>Clear filters</button>
+                </div>
+            </section>
+
+            <section class="bk-side-section">
+                <div class="bk-side-head"><span>Denomination Counter</span></div>
+                <div class="bk-side-body">
+                    <div class="bk-denom-grid" data-denom-counter>
+                        <?php foreach ([200, 100, 50, 30, 20, 10, 5, 1, 0.5, 0.1] as $denom): ?>
+                            <label class="bk-denom-row"><span>N$<?= rtrim(rtrim(number_format((float) $denom, 2), '0'), '.') ?></span><input type="number" min="0" step="1" value="0" data-denom="<?= htmlspecialchars((string) $denom, ENT_QUOTES, 'UTF-8') ?>"></label>
+                        <?php endforeach; ?>
+                    </div>
+                    <div class="bk-counter-total"><span>Counted total</span><strong data-counted-total>N$0.00</strong></div>
+                </div>
+            </section>
+
+            <section class="bk-side-section">
+                <div class="bk-side-head"><span>Variance Reconciliation</span></div>
+                <div class="bk-side-body">
+                    <div class="bk-recon-line"><span>System balance</span><strong data-recon-system><?= ledger_money($closingBalance) ?></strong></div>
+                    <div class="bk-recon-line"><span>Counted total</span><strong data-recon-counted>N$0.00</strong></div>
+                    <div class="bk-recon-line"><span>Variance</span><strong class="bk-recon-variance" data-recon-variance><?= ledger_money(0 - $closingBalance) ?></strong></div>
+                    <label class="bk-field">Variance note<textarea data-recon-note placeholder="Reason for variance"></textarea></label>
+                    <button class="bk-side-button" type="button" data-save-recon>Save reconciliation</button>
+                    <div class="bk-history-list" data-recon-history>
+                        <?php foreach ($reconHistory as $row): ?>
+                            <div class="bk-history-item">
+                                <strong><?= htmlspecialchars((string) $row['recon_date'], ENT_QUOTES, 'UTF-8') ?> - <?= ledger_money((float) $row['variance']) ?></strong>
+                                <small>Counted <?= ledger_money((float) $row['counted_total']) ?> vs system <?= ledger_money((float) $row['system_balance']) ?></small>
+                            </div>
+                        <?php endforeach; ?>
+                        <?php if (!$reconHistory): ?><div class="bk-history-item">No reconciliations saved yet.</div><?php endif; ?>
+                    </div>
+                </div>
+            </section>
+        </aside>
+        </div>
     <?php endif; ?>
 </main>
 </div>
 <script>
 const todayKey = <?= json_encode($today, JSON_UNESCAPED_SLASHES) ?>;
+let systemBalance = <?= json_encode(round($closingBalance, 2), JSON_UNESCAPED_SLASHES) ?>;
 
 function money(value) {
   return `N$${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -710,6 +972,56 @@ function toast(message) {
     node.classList.remove('is-visible');
     setTimeout(() => node.remove(), 180);
   }, 1400);
+}
+
+function setReconValues() {
+  if (!document.querySelector('[data-counted-total]')) return;
+  const counted = Array.from(document.querySelectorAll('[data-denom]')).reduce((sum, input) => {
+    return sum + (Number(input.dataset.denom || 0) * (Number(input.value || 0) || 0));
+  }, 0);
+  const variance = counted - systemBalance;
+  document.querySelector('[data-counted-total]').textContent = money(counted);
+  document.querySelector('[data-recon-system]').textContent = money(systemBalance);
+  document.querySelector('[data-recon-counted]').textContent = money(counted);
+  const varianceNode = document.querySelector('[data-recon-variance]');
+  varianceNode.textContent = money(variance);
+  varianceNode.classList.toggle('is-negative', variance < 0);
+  varianceNode.classList.toggle('is-positive', variance > 0);
+}
+
+function renderReconHistory(rows) {
+  const history = document.querySelector('[data-recon-history]');
+  if (!history) return;
+  if (!rows || !rows.length) {
+    history.innerHTML = '<div class="bk-history-item">No reconciliations saved yet.</div>';
+    return;
+  }
+  history.innerHTML = rows.map((row) => `
+    <div class="bk-history-item">
+      <strong>${row.recon_date} - ${money(row.variance)}</strong>
+      <small>Counted ${money(row.counted_total)} vs system ${money(row.system_balance)}</small>
+    </div>
+  `).join('');
+}
+
+function applySidebarFilters() {
+  const from = document.querySelector('[data-bk-filter-from]')?.value || '';
+  const to = document.querySelector('[data-bk-filter-to]')?.value || '';
+  const search = (document.querySelector('[data-bk-filter-search]')?.value || '').toLowerCase().trim();
+  document.querySelectorAll('[data-day-group]').forEach((group) => {
+    const day = group.dataset.dayGroup || '';
+    let visibleRows = 0;
+    group.querySelectorAll('.entry-row').forEach((row) => {
+      const text = row.textContent.toLowerCase();
+      const matchesDate = (!from || day >= from) && (!to || day <= to);
+      const matchesSearch = !search || text.includes(search);
+      const visible = matchesDate && matchesSearch;
+      row.hidden = !visible;
+      if (visible) visibleRows++;
+    });
+    const dateVisible = (!from || day >= from) && (!to || day <= to);
+    group.hidden = !dateVisible || (search && visibleRows === 0);
+  });
 }
 
 async function postLedger(action, fields = {}) {
@@ -773,6 +1085,8 @@ function recalcStats() {
   document.querySelector('[data-stat-net]').textContent = money(todayIn - todayOut);
   document.querySelector('[data-stat-count]').textContent = String(todayCount);
   document.querySelector('[data-closing-balance]').textContent = money(closing);
+  systemBalance = closing;
+  setReconValues();
 }
 
 function renderEntry(entry) {
@@ -927,9 +1241,39 @@ document.addEventListener('click', (event) => {
   const toggle = event.target.closest('[data-toggle-day]');
   const save = event.target.closest('[data-save-add]');
   const editable = event.target.closest('.ledger-data-cell');
+  const collapse = event.target.closest('[data-bk-collapse]');
+  const clearFilters = event.target.closest('[data-bk-filter-clear]');
+  const saveRecon = event.target.closest('[data-save-recon]');
   if (back) {
     if (window.history.length > 1) window.history.back();
     else window.location.href = '<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/apps/operations/dashboard.php';
+    return;
+  }
+  if (collapse) {
+    const section = collapse.closest('[data-bk-section]');
+    section.classList.toggle('is-collapsed');
+    collapse.textContent = section.classList.contains('is-collapsed') ? '>' : 'v';
+    return;
+  }
+  if (clearFilters) {
+    document.querySelector('[data-bk-filter-from]').value = '';
+    document.querySelector('[data-bk-filter-to]').value = '';
+    document.querySelector('[data-bk-filter-search]').value = '';
+    applySidebarFilters();
+    return;
+  }
+  if (saveRecon) {
+    const countedTotal = parseMoney(document.querySelector('[data-counted-total]').textContent);
+    postLedger('cashbook_save_recon', {
+      recon_date: todayKey,
+      system_balance: systemBalance,
+      counted_total: countedTotal,
+      variance_note: document.querySelector('[data-recon-note]')?.value || ''
+    }).then((data) => {
+      renderReconHistory(data.history || []);
+      document.querySelector('[data-recon-note]').value = '';
+      toast('Reconciliation saved');
+    }).catch((error) => alert(error.message));
     return;
   }
   if (toggle) {
@@ -947,6 +1291,14 @@ document.addEventListener('click', (event) => {
 
 document.addEventListener('input', (event) => {
   const row = event.target.closest('[data-add-row]');
+  if (event.target.matches('[data-denom]')) {
+    setReconValues();
+    return;
+  }
+  if (event.target.matches('[data-bk-filter-from], [data-bk-filter-to], [data-bk-filter-search]')) {
+    applySidebarFilters();
+    return;
+  }
   if (!row || !event.target.matches('[data-add-field="cash_in"], [data-add-field="cash_out"]')) return;
   row.querySelector('[data-add-total]').textContent = money(parseMoney(addValue(row, 'cash_in')) - parseMoney(addValue(row, 'cash_out')));
 });
@@ -957,6 +1309,8 @@ document.addEventListener('keydown', (event) => {
   event.preventDefault();
   saveAddRow(row);
 });
+
+setReconValues();
 </script>
 </body>
 </html>
