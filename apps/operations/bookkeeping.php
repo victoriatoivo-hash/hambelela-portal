@@ -916,7 +916,7 @@ $reconHistory = $ready ? ops_rows(
         <a class="is-active" href="<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/apps/operations/bookkeeping.php">Cash Ledger</a>
     </nav>
 </aside>
-<main class="ledger-page">
+<main class="ledger-page bk-wrap">
     <header class="ledger-top">
         <div>
             <h1>Cash Ledger</h1>
