@@ -35,7 +35,7 @@ body {
 }
 
 body:has(.launcher) {
-  background: #FDF6EE;
+  background: #ffffff !important;
 }
 
 body.error-panel-open,
@@ -984,7 +984,7 @@ body.sidebar-collapsed .workspace {
 
 .launcher {
   min-height: calc(100vh - 66px);
-  background: #FDF6EE;
+  background: #ffffff !important;
 }
 
 .launcher-hero {
@@ -1035,22 +1035,23 @@ body.sidebar-collapsed .workspace {
   align-content: center;
   min-height: 212px;
   padding: 24px 22px;
-  border: 1px solid #EDE3D8;
+  border: 1px solid rgba(114, 27, 26, .10);
   border-radius: 12px;
-  background: #ffffff;
-  box-shadow: none;
+  background: #fffaf6;
+  box-shadow: 0 10px 26px rgba(114, 27, 26, .06);
   text-align: center;
-  transition: border-color .18s, transform .18s;
+  animation: cardFadeUp .28s ease both;
+  transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
 }
 
 .app-card.is-active {
-  background: #fff;
+  background: #fffaf6;
 }
 
 .app-card.is-active:hover {
-  border-color: #F07420;
-  transform: translateY(-2px);
-  box-shadow: none;
+  border-color: rgba(240, 90, 36, .22);
+  transform: translateY(-4px);
+  box-shadow: 0 16px 36px rgba(114, 27, 26, .10);
 }
 
 .app-card.is-muted {
@@ -1065,36 +1066,41 @@ body.sidebar-collapsed .workspace {
   height: 64px;
   margin-bottom: 20px;
   border-radius: 10px;
+  transition: transform .22s ease, box-shadow .22s ease;
+}
+
+.app-card:hover .app-icon {
+  transform: scale(1.06) rotate(-2deg);
 }
 
 .app-card:nth-child(1) .app-icon {
-  background: #f3fae0;
-  color: #3d5c00;
+  background: linear-gradient(135deg, #b6c85a, #f0a13a);
+  color: #ffffff;
 }
 
 .app-card:nth-child(2) .app-icon {
-  background: #fff5e6;
-  color: #7a3800;
+  background: linear-gradient(135deg, #f0a13a, #f05a24);
+  color: #ffffff;
 }
 
 .app-card:nth-child(3) .app-icon {
-  background: #fdf0eb;
-  color: #721B1A;
+  background: linear-gradient(135deg, #f05a24, #7b1518);
+  color: #ffffff;
 }
 
 .app-card:nth-child(4) .app-icon {
-  background: #fdeaea;
-  color: #BB1B21;
+  background: linear-gradient(135deg, #d91f26, #7b1518);
+  color: #ffffff;
 }
 
 .app-card:nth-child(5) .app-icon {
-  background: #f5ece8;
-  color: #AB3619;
+  background: linear-gradient(135deg, #f0a13a, #7b1518);
+  color: #ffffff;
 }
 
 .app-card:nth-child(6) .app-icon {
-  background: #f3fae0;
-  color: #3d5c00;
+  background: linear-gradient(135deg, #b6c85a, #7b1518);
+  color: #ffffff;
 }
 
 .app-icon.pink,
@@ -1104,13 +1110,34 @@ body.sidebar-collapsed .workspace {
 .app-icon.rose,
 .app-icon.green,
 .app-icon.grey {
-  background: #f3fae0;
-  color: #3d5c00;
+  background: linear-gradient(135deg, #b6c85a, #f0a13a);
+  color: #ffffff;
 }
 
 .app-icon svg {
   width: 34px;
   height: 34px;
+  color: #ffffff;
+  stroke: #ffffff;
+}
+
+.app-card:nth-child(1) { animation-delay: .03s; }
+.app-card:nth-child(2) { animation-delay: .06s; }
+.app-card:nth-child(3) { animation-delay: .09s; }
+.app-card:nth-child(4) { animation-delay: .12s; }
+.app-card:nth-child(5) { animation-delay: .15s; }
+.app-card:nth-child(6) { animation-delay: .18s; }
+
+@keyframes cardFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .app-card strong {
