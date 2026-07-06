@@ -638,18 +638,19 @@ function wb_stats(): array
 
 function wb_status_badge(string $status, ?string $dueBy = null): string
 {
-    $class = 'is-pending';
+    $class = 'ok';
     $label = 'Pending';
     if ($status === 'sent') {
-        $class = 'is-sent';
+        $class = 'sent';
         $label = 'Sent';
     } elseif ($status === 'overdue') {
-        $class = 'is-overdue';
+        $class = 'overdue';
         $label = 'Overdue';
     } elseif ($dueBy) {
         try {
             $due = new DateTimeImmutable($dueBy);
             if ($due <= wb_now()->modify('+30 minutes')) {
+                $class = 'duesoon';
                 $label = 'Due soon';
             }
         } catch (Throwable $e) {
@@ -657,38 +658,57 @@ function wb_status_badge(string $status, ?string $dueBy = null): string
         }
     }
 
-    return '<span class="waybill-badge ' . $class . '">' . wb_e($label) . '</span>';
+    return '<span class="badge ' . $class . '">' . wb_e($label) . '</span>';
+}
+
+function wb_queue_status_class(array $row): string
+{
+    if ((string) ($row['status'] ?? '') === 'overdue') {
+        return 'status-overdue';
+    }
+
+    try {
+        $due = new DateTimeImmutable((string) ($row['due_by'] ?? ''));
+        if ($due <= wb_now()->modify('+30 minutes')) {
+            return 'status-duesoon';
+        }
+    } catch (Throwable $e) {
+        return 'status-ok';
+    }
+
+    return 'status-ok';
 }
 
 function wb_queue_html(array $rows, bool $canSend): string
 {
     ob_start();
     if (!$rows) {
-        echo '<div class="waybill-empty">No pending waybills. Secilia is clear for now.</div>';
+        echo '<div class="courier-empty">No pending waybills. Secilia is clear for now.</div>';
     } else {
         foreach ($rows as $row) {
             $batchId = (string) $row['batch_id'];
+            $statusClass = wb_queue_status_class($row);
             ?>
-            <article class="waybill-row-card" data-batch-id="<?= wb_e($batchId) ?>">
-                <div class="waybill-row-main">
-                    <div class="waybill-file-count"><?= number_format((int) ($row['number_of_waybills'] ?: $row['file_count'])) ?></div>
+            <article class="queue-item <?= wb_e($statusClass) ?>" data-batch-id="<?= wb_e($batchId) ?>">
+                <div class="queue-item-header">
+                    <div class="file-count"><?= number_format((int) ($row['number_of_waybills'] ?: $row['file_count'])) ?></div>
                     <div>
-                        <strong><?= wb_e($row['courier_names'] ?: 'Courier not selected') ?></strong>
-                        <span>Sent date: <?= wb_e($row['sent_date'] ?: 'Not set') ?> - <?= number_format((int) $row['file_count']) ?> uploaded file<?= (int) $row['file_count'] === 1 ? '' : 's' ?></span>
+                        <strong class="ref"><?= wb_e($row['courier_names'] ?: 'Courier not selected') ?></strong>
+                        <span class="meta-value">Sent date: <?= wb_e($row['sent_date'] ?: 'Not set') ?> - <?= number_format((int) $row['file_count']) ?> uploaded file<?= (int) $row['file_count'] === 1 ? '' : 's' ?></span>
                     </div>
-                </div>
-                <div class="waybill-row-meta">
-                    <span><b>Uploaded</b><?= wb_e(wb_dt((string) $row['uploaded_at'])) ?></span>
-                    <span><b>By</b><?= wb_e($row['uploaded_by_display']) ?></span>
-                    <span><b>Due</b><?= wb_e(wb_due_label((string) $row['due_by'])) ?></span>
-                    <span><b>Files</b><?= wb_e((string) $row['file_names']) ?></span>
-                </div>
-                <div class="waybill-row-notes"><?= wb_e($row['notes'] ?: 'No notes') ?></div>
-                <div class="waybill-row-actions">
                     <?= wb_status_badge((string) $row['status'], (string) $row['due_by']) ?>
-                    <a class="waybill-button is-light" href="courier.php?action=waybill_download_zip&amp;batch_id=<?= wb_e($batchId) ?>"><i data-lucide="download"></i> Download<?= (int) $row['file_count'] > 1 ? ' ZIP' : '' ?></a>
+                </div>
+                <div class="queue-item-meta">
+                    <span><b class="meta-label">Uploaded</b><span class="meta-value"><?= wb_e(wb_dt((string) $row['uploaded_at'])) ?></span></span>
+                    <span><b class="meta-label">By</b><span class="meta-value"><?= wb_e($row['uploaded_by_display']) ?></span></span>
+                    <span><b class="meta-label">Due</b><span class="meta-value"><?= wb_e(wb_due_label((string) $row['due_by'])) ?></span></span>
+                    <span><b class="meta-label">Files</b><span class="meta-value"><?= wb_e((string) $row['file_names']) ?></span></span>
+                </div>
+                <div class="queue-item-notes"><?= wb_e($row['notes'] ?: 'No notes') ?></div>
+                <div class="queue-item-actions">
+                    <a class="btn-secondary" href="courier.php?action=waybill_download_zip&amp;batch_id=<?= wb_e($batchId) ?>"><i data-lucide="download"></i> Download<?= (int) $row['file_count'] > 1 ? ' ZIP' : '' ?></a>
                     <?php if ($canSend): ?>
-                        <button class="waybill-button mark-sent" type="button" data-batch-id="<?= wb_e($batchId) ?>"><i data-lucide="send"></i> Mark Sent</button>
+                        <button class="btn-mark-sent mark-sent" type="button" data-batch-id="<?= wb_e($batchId) ?>"><i data-lucide="send"></i> Mark Sent</button>
                     <?php endif; ?>
                 </div>
             </article>
@@ -703,11 +723,11 @@ function wb_history_html(array $rows): string
 {
     ob_start();
     if (!$rows) {
-        echo '<div class="waybill-empty">No sent waybills this week yet.</div>';
+        echo '<div class="courier-empty">No sent waybills this week yet.</div>';
     } else {
         foreach ($rows as $row) {
             ?>
-            <article class="waybill-history-row">
+            <article class="history-row">
                 <div>
                     <strong><?= wb_e($row['courier_names'] ?: 'Courier not selected') ?></strong>
                     <span><?= wb_e($row['sent_date'] ?: 'No sent date') ?> - <?= number_format((int) ($row['number_of_waybills'] ?: $row['file_count'])) ?> waybill<?= (int) ($row['number_of_waybills'] ?: $row['file_count']) === 1 ? '' : 's' ?></span>
@@ -715,7 +735,7 @@ function wb_history_html(array $rows): string
                 <div><?= wb_e($row['uploaded_by_display']) ?></div>
                 <div><?= wb_e(wb_dt((string) $row['sent_at'])) ?></div>
                 <div><?= wb_e($row['sent_by_display']) ?></div>
-                <a class="waybill-button is-light" href="courier.php?action=waybill_download_zip&amp;batch_id=<?= wb_e((string) $row['batch_id']) ?>"><i data-lucide="download"></i> Download</a>
+                <a class="btn-secondary" href="courier.php?action=waybill_download_zip&amp;batch_id=<?= wb_e((string) $row['batch_id']) ?>"><i data-lucide="download"></i> Download</a>
             </article>
             <?php
         }
@@ -923,651 +943,117 @@ $duePreview = wb_due_for_upload(wb_now())->format('Y-m-d H:i:s');
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
-<main class="workspace module waybill-page">
-    <style>
-        :root {
-            --w-olive: #A8CA19;
-            --w-amber: #F07420;
-            --w-orange-red: #AB3619;
-            --w-red: #BB1B21;
-            --w-burgundy: #721B1A;
-            --w-cream: #FDF6EE;
-            --w-surface: #FFFFFF;
-            --w-border: #EDE3D8;
-            --w-text: #2C1810;
-            --w-text-mid: #6B4C3B;
-            --w-text-light: #A08070;
-            --w-font: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            --w-size-base: 13px;
-            --w-size-sm: 12px;
-            --w-size-xs: 12px;
-            --w-size-heading: 14px;
-            --w-size-section: 16px;
-            --w-weight-normal: 400;
-            --w-weight-medium: 500;
-            --w-weight-semi: 600;
-        }
-
-        .waybill-page {
-            background: var(--w-cream);
-            color: var(--w-text);
-            font-family: var(--w-font);
-            font-size: var(--w-size-base);
-            min-height: calc(100vh - 70px);
-        }
-
-        .waybill-page .module-header {
-            align-items: flex-start;
-            gap: 16px;
-            margin-bottom: 14px;
-        }
-
-        .waybill-page .module-header h1 {
-            color: var(--w-burgundy);
-            font-size: 28px;
-            line-height: 1.1;
-            margin: 0;
-        }
-
-        .waybill-page .module-header p {
-            color: var(--w-text-mid);
-            max-width: 760px;
-            font-size: var(--w-size-base);
-        }
-
-        .waybill-hub {
-            display: grid;
-            gap: 16px;
-        }
-
-        .waybill-filter-strip {
-            background: var(--w-surface);
-            border: 1px solid var(--w-border);
-            border-radius: 10px;
-            padding: 8px 10px;
-            display: grid;
-            grid-template-columns: repeat(2, minmax(150px, 190px)) auto;
-            gap: 8px;
-            align-items: end;
-            width: fit-content;
-            max-width: 100%;
-        }
-
-        .waybill-filter-strip label {
-            display: grid;
-            gap: 4px;
-            color: var(--w-burgundy);
-            font-size: var(--w-size-xs);
-            font-weight: var(--w-weight-semi);
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-        }
-
-        .waybill-filter-strip input {
-            height: 34px;
-            border: 1px solid var(--w-border);
-            border-radius: 8px;
-            padding: 6px 9px;
-            font: var(--w-weight-medium) var(--w-size-sm) var(--w-font);
-            color: var(--w-text);
-        }
-
-        .waybill-stat-grid {
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 12px;
-        }
-
-        .waybill-stat-card {
-            background: var(--w-surface);
-            border: 1px solid var(--w-border);
-            border-radius: 10px;
-            padding: 16px 20px;
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            box-shadow: 0 2px 8px rgba(44, 24, 16, 0.06);
-            transition: transform 180ms ease, box-shadow 180ms ease;
-        }
-
-        .waybill-stat-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 18px rgba(44, 24, 16, 0.10);
-        }
-
-        .waybill-stat-card.is-overdue { border-left: 4px solid var(--w-red); }
-        .waybill-stat-card.is-pending { border-left: 4px solid var(--w-amber); }
-        .waybill-stat-card.is-uploaded { border-left: 4px solid var(--w-olive); }
-
-        .stat-icon {
-            width: 38px;
-            height: 38px;
-            border-radius: 999px;
-            display: inline-grid;
-            place-items: center;
-            background: rgba(168, 202, 25, 0.16);
-            color: var(--w-burgundy);
-        }
-
-        .stat-number {
-            display: block;
-            font-size: 26px;
-            line-height: 1;
-            font-weight: var(--w-weight-semi);
-            color: var(--w-text);
-        }
-
-        .stat-label {
-            font-size: var(--w-size-xs);
-            color: var(--w-text-mid);
-            margin-top: 4px;
-        }
-
-        .waybill-panel {
-            background: var(--w-surface);
-            border: 1px solid var(--w-border);
-            border-radius: 14px;
-            box-shadow: 0 12px 28px rgba(44, 24, 16, 0.06);
-            padding: 18px;
-        }
-
-        .waybill-section-heading {
-            display: flex;
-            justify-content: space-between;
-            gap: 14px;
-            align-items: flex-start;
-            margin-bottom: 14px;
-        }
-
-        .waybill-section-heading h2 {
-            margin: 0 0 3px;
-            color: var(--w-burgundy);
-            font-size: var(--w-size-section);
-        }
-
-        .waybill-section-heading p {
-            margin: 0;
-            color: var(--w-text-mid);
-            font-size: var(--w-size-sm);
-        }
-
-        .waybill-upload-form {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 12px;
-        }
-
-        .waybill-field {
-            display: grid;
-            gap: 5px;
-            color: var(--w-text);
-            font-size: var(--w-size-xs);
-            font-weight: var(--w-weight-semi);
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-        }
-
-        .waybill-field input,
-        .waybill-field textarea {
-            width: 100%;
-            min-height: 40px;
-            border: 1px solid var(--w-border);
-            border-radius: 9px;
-            background: #fff;
-            color: var(--w-text);
-            font: var(--w-weight-normal) var(--w-size-base) var(--w-font);
-            padding: 10px 12px;
-            text-transform: none;
-            letter-spacing: 0;
-        }
-
-        .waybill-field textarea {
-            min-height: 76px;
-            resize: vertical;
-        }
-
-        .waybill-span-2 {
-            grid-column: 1 / -1;
-        }
-
-        .waybill-courier-options {
-            display: grid;
-            grid-template-columns: repeat(6, minmax(118px, 1fr));
-            gap: 6px;
-        }
-
-        .waybill-courier-options label {
-            border: 1px solid var(--w-border);
-            border-radius: 8px;
-            min-height: 38px;
-            padding: 7px 8px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            color: var(--w-text);
-            background: #fff;
-            font-size: var(--w-size-sm);
-            font-weight: var(--w-weight-medium);
-            text-transform: none;
-            letter-spacing: 0;
-        }
-
-        .waybill-courier-options input {
-            width: 13px;
-            height: 13px;
-            accent-color: var(--w-orange-red);
-        }
-
-        .upload-dropzone {
-            border: 2px dashed var(--w-olive);
-            border-radius: 10px;
-            background: #f7fbea;
-            padding: 28px;
-            text-align: center;
-            cursor: pointer;
-            transition: background 150ms ease, border-color 150ms ease, transform 150ms ease;
-            font-size: var(--w-size-sm);
-            color: var(--w-text-mid);
-        }
-
-        .upload-dropzone.is-dragover {
-            background: #eef7c8;
-            border-color: var(--w-burgundy);
-            border-style: solid;
-            transform: scale(1.004);
-        }
-
-        .upload-dropzone .dz-icon {
-            font-size: 28px;
-            margin-bottom: 8px;
-            color: var(--w-burgundy);
-        }
-
-        .file-chip {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            background: var(--w-border);
-            border-radius: 20px;
-            padding: 4px 10px;
-            font-size: var(--w-size-xs);
-            margin: 6px 4px 0 0;
-            color: var(--w-text);
-        }
-
-        .file-chip .remove {
-            cursor: pointer;
-            color: var(--w-red);
-            font-weight: bold;
-            border: 0;
-            background: transparent;
-            padding: 0;
-        }
-
-        .waybill-due-preview {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            color: var(--w-burgundy);
-            background: rgba(240, 116, 32, 0.10);
-            border: 1px solid rgba(240, 116, 32, 0.28);
-            border-radius: 999px;
-            padding: 7px 10px;
-            font-size: var(--w-size-sm);
-        }
-
-        .waybill-button {
-            border: 1px solid var(--w-orange-red);
-            background: var(--w-orange-red);
-            color: #fff;
-            border-radius: 9px;
-            min-height: 38px;
-            padding: 9px 12px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 7px;
-            font: var(--w-weight-semi) var(--w-size-base) var(--w-font);
-            cursor: pointer;
-            text-decoration: none;
-            transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease;
-        }
-
-        .waybill-button:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 8px 16px rgba(171, 54, 25, 0.16);
-        }
-
-        .waybill-button.is-light {
-            background: #fff;
-            color: var(--w-burgundy);
-            border-color: var(--w-border);
-        }
-
-        .waybill-button[disabled] {
-            opacity: 0.62;
-            cursor: wait;
-            transform: none;
-        }
-
-        .waybill-queue-list {
-            display: grid;
-            gap: 10px;
-        }
-
-        .waybill-row-card,
-        .waybill-history-row {
-            border: 1px solid var(--w-border);
-            border-radius: 12px;
-            background: #fff;
-            padding: 12px;
-            display: grid;
-            gap: 10px;
-            transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
-        }
-
-        .waybill-row-card:hover,
-        .waybill-history-row:hover {
-            transform: translateY(-1px);
-            border-color: rgba(114, 27, 26, 0.24);
-            box-shadow: 0 8px 20px rgba(44, 24, 16, 0.07);
-        }
-
-        .waybill-row-main {
-            display: flex;
-            align-items: center;
-            gap: 11px;
-        }
-
-        .waybill-row-main strong {
-            display: block;
-            color: var(--w-text);
-            font-size: var(--w-size-heading);
-        }
-
-        .waybill-row-main span,
-        .waybill-history-row span {
-            color: var(--w-text-mid);
-            font-size: var(--w-size-sm);
-        }
-
-        .waybill-file-count {
-            width: 34px;
-            height: 34px;
-            border-radius: 10px;
-            background: rgba(168, 202, 25, 0.18);
-            color: var(--w-burgundy);
-            display: inline-grid;
-            place-items: center;
-            font-weight: var(--w-weight-semi);
-        }
-
-        .waybill-row-meta {
-            display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: 8px;
-        }
-
-        .waybill-row-meta span {
-            border: 1px solid var(--w-border);
-            border-radius: 9px;
-            padding: 8px;
-            color: var(--w-text-mid);
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        .waybill-row-meta b {
-            display: block;
-            color: var(--w-burgundy);
-            font-size: var(--w-size-xs);
-            text-transform: uppercase;
-            letter-spacing: 0.03em;
-            margin-bottom: 2px;
-        }
-
-        .waybill-row-notes {
-            color: var(--w-text-mid);
-            background: var(--w-cream);
-            border-radius: 9px;
-            padding: 8px 10px;
-            font-size: var(--w-size-sm);
-        }
-
-        .waybill-row-actions {
-            display: flex;
-            justify-content: flex-end;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-
-        .waybill-badge {
-            display: inline-flex;
-            align-items: center;
-            border-radius: 999px;
-            padding: 6px 10px;
-            font-size: var(--w-size-xs);
-            font-weight: var(--w-weight-semi);
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-        }
-
-        .waybill-badge.is-sent { background: rgba(168, 202, 25, 0.18); color: #4b6500; }
-        .waybill-badge.is-pending { background: rgba(240, 116, 32, 0.15); color: var(--w-amber); }
-        .waybill-badge.is-overdue { background: rgba(187, 27, 33, 0.12); color: var(--w-red); }
-
-        .waybill-history-head,
-        .waybill-history-row {
-            grid-template-columns: 1.5fr 1fr 0.8fr 1fr auto;
-            align-items: center;
-        }
-
-        .waybill-history-head {
-            display: grid;
-            gap: 10px;
-            color: var(--w-burgundy);
-            font-weight: var(--w-weight-semi);
-            font-size: var(--w-size-xs);
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-            padding: 0 12px 8px;
-        }
-
-        .waybill-empty {
-            border: 1px dashed var(--w-border);
-            border-radius: 12px;
-            padding: 18px;
-            color: var(--w-text-mid);
-            background: rgba(253, 246, 238, 0.7);
-            text-align: center;
-        }
-
-        .waybill-toast {
-            position: fixed;
-            right: 24px;
-            bottom: 24px;
-            z-index: 60;
-            background: var(--w-burgundy);
-            color: #fff;
-            border-radius: 12px;
-            padding: 12px 14px;
-            box-shadow: 0 18px 36px rgba(44, 24, 16, 0.24);
-            opacity: 0;
-            transform: translateY(12px);
-            pointer-events: none;
-            transition: opacity 180ms ease, transform 180ms ease;
-        }
-
-        .waybill-toast.is-visible {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        @media (max-width: 980px) {
-            .waybill-stat-grid,
-            .waybill-upload-form,
-            .waybill-row-meta {
-                grid-template-columns: 1fr;
-            }
-
-            .waybill-history-head {
-                display: none;
-            }
-
-            .waybill-history-row {
-                grid-template-columns: 1fr;
-            }
-
-            .waybill-courier-options {
-                grid-template-columns: repeat(3, minmax(0, 1fr));
-            }
-        }
-
-        @media (max-width: 640px) {
-            .waybill-page .module-header {
-                flex-direction: column;
-            }
-
-            .waybill-section-heading {
-                flex-direction: column;
-            }
-
-            .waybill-row-actions {
-                justify-content: stretch;
-            }
-
-            .waybill-button {
-                width: 100%;
-            }
-
-            .waybill-courier-options {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-            }
-
-            .waybill-filter-strip {
-                width: 100%;
-                grid-template-columns: 1fr;
-            }
-        }
-
-        @media (max-width: 420px) {
-            .waybill-courier-options {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
-
+<main class="workspace module courier-wrap">
     <section class="module-header">
         <div>
-            <p class="eyebrow">Operations</p>
+            <p class="page-eyebrow">Operations</p>
             <h1>Courier Waybills</h1>
+            <p class="page-subtitle">Upload, track and send courier waybills from one queue.</p>
         </div>
-        <a class="waybill-button is-light" href="index.php"><i data-lucide="arrow-left"></i> Operations</a>
+        <a class="btn-secondary" href="index.php"><i data-lucide="arrow-left"></i> Operations</a>
     </section>
 
     <?php if (!$ready) { ops_setup_notice(); } ?>
 
-    <section class="waybill-hub" data-waybill-app>
-        <form class="waybill-filter-strip" method="get" data-waybill-filter>
-            <label>From
+    <section class="courier-hub" data-waybill-app>
+        <form class="section-card filter-strip" method="get" data-waybill-filter>
+            <label class="field-label">From
                 <input type="date" name="date_from" value="<?= wb_e($historyDateFrom) ?>">
             </label>
-            <label>To
+            <label class="field-label">To
                 <input type="date" name="date_to" value="<?= wb_e($historyDateTo) ?>">
             </label>
-            <button class="waybill-button is-light" type="submit"><i data-lucide="search"></i> Search</button>
+            <button class="btn-secondary" type="submit"><i data-lucide="search"></i> Search</button>
         </form>
 
-        <div class="waybill-stat-grid">
-            <article class="waybill-stat-card is-uploaded">
-                <span class="stat-icon"><i data-lucide="upload-cloud"></i></span>
-                <div><strong class="stat-number" data-stat="uploaded_today"><?= number_format($payload['stats']['uploaded_today']) ?></strong><div class="stat-label">Uploaded Today</div></div>
+        <div class="stat-cards">
+            <article class="stat-card uploaded">
+                <span class="sc-icon"><i data-lucide="upload-cloud"></i></span>
+                <div><strong class="sc-num" data-stat="uploaded_today"><?= number_format($payload['stats']['uploaded_today']) ?></strong><div class="sc-lbl">Uploaded Today</div></div>
             </article>
-            <article class="waybill-stat-card is-pending">
-                <span class="stat-icon"><i data-lucide="clock-3"></i></span>
-                <div><strong class="stat-number" data-stat="pending"><?= number_format($payload['stats']['pending']) ?></strong><div class="stat-label">Pending Send</div></div>
+            <article class="stat-card pending">
+                <span class="sc-icon"><i data-lucide="clock-3"></i></span>
+                <div><strong class="sc-num" data-stat="pending"><?= number_format($payload['stats']['pending']) ?></strong><div class="sc-lbl">Pending Send</div></div>
             </article>
-            <article class="waybill-stat-card is-overdue">
-                <span class="stat-icon"><i data-lucide="triangle-alert"></i></span>
-                <div><strong class="stat-number" data-stat="overdue"><?= number_format($payload['stats']['overdue']) ?></strong><div class="stat-label">Overdue</div></div>
+            <article class="stat-card overdue">
+                <span class="sc-icon"><i data-lucide="triangle-alert"></i></span>
+                <div><strong class="sc-num" data-stat="overdue"><?= number_format($payload['stats']['overdue']) ?></strong><div class="sc-lbl">Overdue</div></div>
             </article>
         </div>
 
         <?php if ($canUploadWaybills): ?>
-            <section class="waybill-panel">
-                <div class="waybill-section-heading">
+            <section class="section-card">
+                <div class="card-head">
                     <div>
-                        <h2>Upload Waybills</h2>
-                        <p>Uploading as: <strong><?= wb_e(wb_current_name()) ?></strong>. Multiple files can be uploaded in one batch.</p>
+                        <h2 class="card-title">Upload Waybills</h2>
+                        <p class="card-sub">Uploading as: <strong><?= wb_e(wb_current_name()) ?></strong>. Multiple files can be uploaded in one batch.</p>
                     </div>
-                    <span class="waybill-due-preview"><i data-lucide="alarm-clock"></i> Due by: <?= wb_e(wb_due_label($duePreview)) ?></span>
+                    <span class="due-badge"><i data-lucide="alarm-clock"></i> Due by: <?= wb_e(wb_due_label($duePreview)) ?></span>
                 </div>
 
-                <form class="waybill-upload-form" data-waybill-upload enctype="multipart/form-data">
+                <form class="upload-form" data-waybill-upload enctype="multipart/form-data">
                     <input type="hidden" name="action" value="waybill_upload">
-                    <label class="waybill-field">Sent Date
+                    <label class="field-label">Sent Date
                         <input name="sent_date" type="date" value="<?= wb_e(date('Y-m-d')) ?>" required>
                     </label>
-                    <label class="waybill-field">Number of Waybills
+                    <label class="field-label">Number of Waybills
                         <input name="number_of_waybills" type="number" min="1" step="1" value="1" required>
                     </label>
-                    <div class="waybill-field waybill-span-2">
+                    <div class="field-label span-2">
                         <span>Courier</span>
-                        <div class="waybill-courier-options">
+                        <div class="courier-chips">
                             <?php foreach (wb_allowed_couriers() as $courier): ?>
-                                <label><input type="checkbox" name="couriers[]" value="<?= wb_e($courier) ?>"> <?= wb_e($courier) ?></label>
+                                <label class="courier-chip"><input type="checkbox" name="couriers[]" value="<?= wb_e($courier) ?>"> <?= wb_e($courier) ?></label>
                             <?php endforeach; ?>
                         </div>
                     </div>
-                    <div class="waybill-field waybill-span-2">
+                    <div class="field-label span-2">
                         <span>Waybill files *</span>
-                        <label class="upload-dropzone" data-dropzone>
+                        <label class="dropzone" data-dropzone>
                             <input name="waybill_files[]" type="file" accept=".pdf,.jpg,.jpeg,.png" multiple required hidden>
                             <div class="dz-icon"><i data-lucide="paperclip"></i></div>
-                            <strong>Drag and drop waybill files here</strong><br>
-                            or click to browse. Supports PDF, JPG and PNG.
+                            <div class="dz-main">Drag and drop waybill files here</div>
+                            <div class="dz-sub">or click to browse. Supports PDF, JPG and PNG.</div>
                         </label>
                         <div data-file-chips></div>
                     </div>
-                    <label class="waybill-field waybill-span-2">Notes for Front Desk
+                    <label class="field-label span-2">Notes for Front Desk
                         <textarea name="notes" placeholder="Optional note for Secilia"></textarea>
                     </label>
-                    <div class="waybill-span-2" style="display:flex; justify-content:flex-end;">
-                        <button class="waybill-button" type="submit" data-upload-submit><i data-lucide="upload"></i> Upload Waybills</button>
+                    <div class="span-2 form-actions">
+                        <button class="btn-primary" type="submit" data-upload-submit><i data-lucide="upload"></i> Upload Waybills</button>
                     </div>
                 </form>
             </section>
         <?php endif; ?>
 
-        <section class="waybill-panel">
-            <div class="waybill-section-heading">
+        <section class="section-card">
+            <div class="card-head">
                 <div>
-                    <h2>Waybill Queue</h2>
+                    <h2 class="card-title">Waybill Queue</h2>
                 </div>
-                <button class="waybill-button is-light" type="button" data-refresh-waybills><i data-lucide="refresh-cw"></i> Refresh</button>
+                <button class="btn-secondary" type="button" data-refresh-waybills><i data-lucide="refresh-cw"></i> Refresh</button>
             </div>
-            <div class="waybill-queue-list" data-waybill-queue><?= $payload['queue_html'] ?></div>
+            <div class="queue-list" data-waybill-queue><?= $payload['queue_html'] ?></div>
         </section>
 
-        <details class="waybill-panel" open>
-            <summary class="waybill-section-heading" style="cursor:pointer;">
+        <details class="section-card" open>
+            <summary class="card-head history-summary">
                 <div>
-                    <h2>Sent History</h2>
-                    <p>Waybills marked sent from <?= wb_e($historyDateFrom) ?> to <?= wb_e($historyDateTo) ?>.</p>
+                    <h2 class="card-title">Sent History</h2>
+                    <p class="card-sub">Waybills marked sent from <?= wb_e($historyDateFrom) ?> to <?= wb_e($historyDateTo) ?>.</p>
                 </div>
                 <?php if ($canSendWaybills): ?>
-                    <a class="waybill-button is-light" href="courier.php?action=waybill_export_csv&amp;date_from=<?= wb_e($historyDateFrom) ?>&amp;date_to=<?= wb_e($historyDateTo) ?>"><i data-lucide="download"></i> Export CSV</a>
+                    <a class="btn-secondary" href="courier.php?action=waybill_export_csv&amp;date_from=<?= wb_e($historyDateFrom) ?>&amp;date_to=<?= wb_e($historyDateTo) ?>"><i data-lucide="download"></i> Export CSV</a>
                 <?php endif; ?>
             </summary>
-            <div class="waybill-history-head">
+            <div class="history-head">
                 <div>Customer</div><div>Uploaded By</div><div>Sent At</div><div>Sent By</div><div></div>
             </div>
-            <div class="waybill-queue-list" data-waybill-history><?= $payload['history_html'] ?></div>
+            <div class="history-list" data-waybill-history><?= $payload['history_html'] ?></div>
         </details>
     </section>
-    <div class="waybill-toast" data-waybill-toast></div>
+    <div class="courier-toast" data-waybill-toast></div>
 </main>
 
 <script>
