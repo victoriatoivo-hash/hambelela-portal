@@ -925,25 +925,29 @@ $reconHistory = $ready ? ops_rows(
             from { transform: rotate(0deg); }
             to { transform: rotate(-360deg); }
         }
-        .bk-copy-total {
-            width: 100%;
-            height: 36px;
-            border: none;
-            border-radius: 8px;
-            background: #AB3619;
-            color: #fff;
-            cursor: pointer;
-            font-family: Inter, sans-serif;
-            font-size: 13px;
-            font-weight: 600;
-            transition: background .2s ease;
+        #copyTotalBtn {
+            font-family: Figtree, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 12px;
+            font-weight: 800;
+            width: 180px;
+            height: 32px;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 6px;
+            margin: 10px auto 0;
+            background: #AB3619;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background .2s ease;
+        }
+        #copyTotalBtn:active,
+        #copyTotalBtn.copied {
+            background: #F07420;
         }
         .bk-copy-total-row {
-            padding: 10px 0 0;
+            padding: 0;
         }
         .toast {
             position: fixed;
