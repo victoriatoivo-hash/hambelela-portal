@@ -34,6 +34,10 @@ body {
   overflow-x: hidden;
 }
 
+body:has(.launcher) {
+  background: #FDF6EE;
+}
+
 body.error-panel-open,
 body.task-panel-open,
 body.profit-panel-open {
@@ -980,6 +984,7 @@ body.sidebar-collapsed .workspace {
 
 .launcher {
   min-height: calc(100vh - 66px);
+  background: #FDF6EE;
 }
 
 .launcher-hero {
@@ -992,25 +997,27 @@ body.sidebar-collapsed .workspace {
   align-items: center;
   gap: 13px;
   margin: 0 0 12px;
-  color: #464447;
-  font-size: clamp(34px, 4vw, 42px);
+  color: #721B1A;
+  font-size: 13px;
+  font-weight: 600;
   line-height: 1;
   letter-spacing: 0;
 }
 
 .launcher-hero .mascot {
   display: inline-block;
-  color: #464447;
+  color: #721B1A;
   font-family: Georgia, "Times New Roman", serif;
-  font-size: 52px;
+  font-size: 18px;
   line-height: 0.78;
   transform: translateY(3px);
 }
 
 .launcher-hero p {
   margin: 0;
-  color: #858189;
-  font-size: 15px;
+  color: #6B4C3B;
+  font-size: 12px;
+  font-weight: 400;
 }
 
 .app-grid {
@@ -1028,12 +1035,12 @@ body.sidebar-collapsed .workspace {
   align-content: center;
   min-height: 212px;
   padding: 24px 22px;
-  border: 1px solid rgba(55, 49, 43, 0.06);
-  border-radius: 22px;
-  background: var(--panel);
+  border: 1px solid #EDE3D8;
+  border-radius: 12px;
+  background: #ffffff;
   box-shadow: none;
   text-align: center;
-  transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease;
+  transition: border-color .18s, transform .18s;
 }
 
 .app-card.is-active {
@@ -1041,8 +1048,9 @@ body.sidebar-collapsed .workspace {
 }
 
 .app-card.is-active:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--shadow);
+  border-color: #F07420;
+  transform: translateY(-2px);
+  box-shadow: none;
 }
 
 .app-card.is-muted {
@@ -1050,47 +1058,54 @@ body.sidebar-collapsed .workspace {
 }
 
 .app-icon {
-  display: grid;
-  place-items: center;
-  width: 80px;
-  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
   margin-bottom: 20px;
-  border-radius: 20px;
+  border-radius: 10px;
 }
 
-.app-icon.pink {
-  background: linear-gradient(135deg, var(--pink), var(--pink-2));
-  color: #fff;
+.app-card:nth-child(1) .app-icon {
+  background: #f3fae0;
+  color: #3d5c00;
 }
 
-.app-icon.peach {
-  background: linear-gradient(135deg, #ffeddc, #ffd9ca);
-  color: #fff;
+.app-card:nth-child(2) .app-icon {
+  background: #fff5e6;
+  color: #7a3800;
 }
 
-.app-icon.blue {
-  background: linear-gradient(135deg, #e5def6, var(--blue));
-  color: #fff;
+.app-card:nth-child(3) .app-icon {
+  background: #fdf0eb;
+  color: #721B1A;
 }
 
-.app-icon.violet {
-  background: linear-gradient(135deg, var(--violet), #dde2fb);
-  color: #fff;
+.app-card:nth-child(4) .app-icon {
+  background: #fdeaea;
+  color: #BB1B21;
 }
 
-.app-icon.rose {
-  background: linear-gradient(135deg, #ffe2f2, #eee8ee);
-  color: #fff;
+.app-card:nth-child(5) .app-icon {
+  background: #f5ece8;
+  color: #AB3619;
 }
 
-.app-icon.green {
-  background: linear-gradient(135deg, #bce8d4, #d8e8c8);
-  color: #fff;
+.app-card:nth-child(6) .app-icon {
+  background: #f3fae0;
+  color: #3d5c00;
 }
 
+.app-icon.pink,
+.app-icon.peach,
+.app-icon.blue,
+.app-icon.violet,
+.app-icon.rose,
+.app-icon.green,
 .app-icon.grey {
-  background: linear-gradient(135deg, #b4b1ad, #9f9c98);
-  color: #fff;
+  background: #f3fae0;
+  color: #3d5c00;
 }
 
 .app-icon svg {
@@ -1100,13 +1115,16 @@ body.sidebar-collapsed .workspace {
 
 .app-card strong {
   margin-bottom: 10px;
-  font-size: 16px;
+  color: #1a1a1a;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .app-card small {
   max-width: 170px;
-  color: var(--muted);
-  font-size: 13px;
+  color: #6B6B6B;
+  font-size: 12px;
+  font-weight: 400;
   line-height: 1.45;
 }
 
