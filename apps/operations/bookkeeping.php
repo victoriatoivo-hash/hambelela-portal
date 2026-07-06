@@ -926,17 +926,24 @@ $reconHistory = $ready ? ops_rows(
             to { transform: rotate(-360deg); }
         }
         .bk-copy-total {
-            height: 26px;
-            padding: 0 10px;
-            border: 1px solid #EDE3D8;
-            border-radius: 6px;
-            background: #fff;
-            color: #6B6B6B;
+            width: 100%;
+            height: 36px;
+            border: none;
+            border-radius: 8px;
+            background: #AB3619;
+            color: #fff;
             cursor: pointer;
             font-family: Inter, sans-serif;
-            font-size: 11px;
+            font-size: 13px;
             font-weight: 600;
-            transition: background .15s, color .15s;
+            transition: background .2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        .bk-copy-total-row {
+            padding: 10px 0 0;
         }
         .toast {
             position: fixed;
@@ -1116,9 +1123,12 @@ $reconHistory = $ready ? ops_rows(
                             <label class="bk-denom-row denomination-row"><span>N$<?= rtrim(rtrim(number_format((float) $denom, 2), '0'), '.') ?></span><input type="number" min="0" step="1" value="0" data-denom="<?= htmlspecialchars((string) $denom, ENT_QUOTES, 'UTF-8') ?>"></label>
                         <?php endforeach; ?>
                     </div>
-                    <div class="bk-counter-total"><span>Counted total</span><button class="bk-copy-total" id="copyTotalBtn" type="button" onclick="copyCountedTotal()">Copy</button><strong id="denomTotal" data-counted-total>N$0.00</strong></div>
+                    <div class="bk-counter-total"><span>Counted total</span><strong id="denomTotal" data-counted-total>N$0.00</strong></div>
                 </div>
             </section>
+            <div class="bk-copy-total-row">
+                <button class="bk-copy-total" id="copyTotalBtn" type="button" onclick="copyCountedTotal()">Copy counted total</button>
+            </div>
         </section>
         <section class="bk-tab-panel" id="tab-recon">
             <section class="bk-side-section recon-card">
@@ -1200,12 +1210,10 @@ function copyCountedTotal() {
   const markCopied = () => {
     if (!btn) return;
     btn.textContent = 'Copied';
-    btn.style.background = '#A8CA19';
-    btn.style.color = '#3d5c00';
+    btn.style.background = '#F07420';
     setTimeout(() => {
-      btn.textContent = 'Copy';
-      btn.style.background = '';
-      btn.style.color = '';
+      btn.textContent = 'Copy counted total';
+      btn.style.background = '#AB3619';
     }, 2000);
   };
   if (navigator.clipboard?.writeText) {
