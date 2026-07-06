@@ -731,24 +731,23 @@ $reconHistory = $ready ? ops_rows(
             margin-top: 2px;
         }
         .bk-drawer-trigger {
-            position: fixed;
-            right: 22px;
-            bottom: 22px;
-            z-index: 35;
-            height: 38px;
-            border: 0;
-            border-radius: 999px;
-            background: var(--ledger-rust);
-            color: var(--ledger-white);
-            box-shadow: 0 12px 28px rgba(114, 27, 26, .16);
-            cursor: pointer;
-            font: inherit;
-            font-size: 12px;
-            font-weight: 800;
+            background: #AB3619;
+            color: #fff;
+            border: none;
+            border-radius: 50px;
+            height: 36px;
             padding: 0 18px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+            transition: background .15s;
         }
         .bk-drawer-trigger:hover {
-            background: var(--ledger-orange);
+            background: #721B1A;
         }
         .bk-overlay {
             position: fixed;
@@ -1032,6 +1031,9 @@ $reconHistory = $ready ? ops_rows(
             <h1>Cash Ledger</h1>
             <p class="ledger-subtitle">Daily cash in, cash out, net movement, and closing balance.</p>
         </div>
+        <?php if ($ready): ?>
+            <button class="bk-drawer-trigger" type="button" id="bkDrawerBtn" onclick="openDrawer()">Cash tools</button>
+        <?php endif; ?>
     </header>
 
     <?php if (!$ready): ?>
@@ -1130,7 +1132,6 @@ $reconHistory = $ready ? ops_rows(
 </main>
 </div>
 <?php if ($ready): ?>
-<button class="bk-drawer-trigger" type="button" id="bkDrawerBtn" onclick="openDrawer()">Cash tools</button>
 <div class="bk-overlay" id="bkOverlay" onclick="closeDrawer()"></div>
 <aside class="bk-drawer cash-tools-panel" id="bkDrawer" aria-label="Cash ledger tools">
     <div class="bk-drawer-header">
