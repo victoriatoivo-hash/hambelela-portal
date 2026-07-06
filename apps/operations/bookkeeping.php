@@ -98,13 +98,6 @@ function ledger_entry(int $id): array
         'cash_out' => $cashOut,
         'total' => $cashIn - $cashOut,
         'notes' => (string) ($row['notes'] ?? ''),
-        'transaction_type' => (string) ($row['transaction_type'] ?? ledger_transaction_type($cashIn, $cashOut)),
-        'source' => (string) ($row['source'] ?? ''),
-        'recorded_by' => (string) ($row['recorded_by'] ?? ''),
-        'related_order_id' => (string) ($row['related_order_id'] ?? ''),
-        'related_order_number' => (string) ($row['related_order_number'] ?? ''),
-        'customer_name' => (string) ($row['customer_name'] ?? ''),
-        'status' => !empty($row['reconciled_at'] ?? null) ? 'reconciled' : ((string) ($row['recorded_by'] ?? '') !== '' ? 'logged' : 'unlogged'),
     ];
 }
 
@@ -175,46 +168,22 @@ $cashOutToday = 0.0;
 $entriesToday = 0;
 $closingBalance = 0.0;
 $groups = [];
-$recordedUsers = [];
 
 foreach ($entries as $entry) {
     $cashIn = (float) ($entry['cash_in'] ?? 0);
     $cashOut = (float) ($entry['cash_out'] ?? 0);
     $day = date('Y-m-d', strtotime((string) $entry['transaction_date']));
-    $recordedBy = (int) ($entry['recorded_by'] ?? 0);
     $closingBalance += $cashIn - $cashOut;
     if ($day === $today) {
         $cashInToday += $cashIn;
         $cashOutToday += $cashOut;
         $entriesToday++;
     }
-    if ($recordedBy > 0) {
-        $recordedUsers[$recordedBy] = 'User ' . $recordedBy;
-    }
     $groups[$day][] = $entry;
 }
 
 if (!$groups) {
     $groups[$today] = [];
-}
-
-if ($recordedUsers) {
-    try {
-        $ids = array_keys($recordedUsers);
-        $placeholders = implode(',', array_fill(0, count($ids), '?'));
-        $userRows = ops_rows(
-            "SELECT id, COALESCE(NULLIF(full_name, ''), NULLIF(name, ''), NULLIF(email, ''), CONCAT('User ', id)) AS label
-             FROM ops_employees
-             WHERE id IN ($placeholders)",
-            $ids
-        );
-        foreach ($userRows as $userRow) {
-            $recordedUsers[(int) $userRow['id']] = (string) $userRow['label'];
-        }
-    } catch (Throwable $e) {
-        // Keep the lightweight fallback labels if staff details are not available.
-    }
-    asort($recordedUsers);
 }
 
 $netToday = $cashInToday - $cashOutToday;
@@ -239,19 +208,6 @@ $netToday = $cashInToday - $cashOutToday;
             --ledger-border: rgba(171, 54, 25, .22);
             --ledger-soft: rgba(240, 116, 32, .06);
             --ledger-white: #fff;
-            --bk-salmon: #feb3a8;
-            --bk-pink: #fc6eae;
-            --bk-orange: #f47a34;
-            --bk-deep-teal: #146665;
-            --bk-teal: #08ab9c;
-            --bk-yellow: #ffbd29;
-            --bk-cream: #fff2b7;
-            --bk-bg: #ffffff;
-            --bk-card: #ffffff;
-            --bk-text: #252733;
-            --bk-muted: #6f7282;
-            --bk-border: #eadfe5;
-            --bk-soft-shadow: 0 10px 28px rgba(20, 102, 101, 0.08);
         }
         * { box-sizing: border-box; }
         body {
@@ -390,127 +346,6 @@ $netToday = $cashInToday - $cashOutToday;
             color: #1a1a1a;
             font-size: 14px;
             font-weight: 800;
-        }
-        .bk-filter-shell {
-            background: var(--bk-card);
-            border: 1px solid var(--bk-border);
-            border-radius: 18px;
-            box-shadow: var(--bk-soft-shadow);
-            padding: 16px 18px;
-            margin: 0 0 22px;
-        }
-        .bk-filter-header {
-            width: 100%;
-            border: 0;
-            background: transparent;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            cursor: pointer;
-            padding: 0;
-            color: var(--bk-text);
-            font: inherit;
-            text-align: left;
-        }
-        .bk-filter-title {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            color: var(--bk-text);
-            font-size: 16px;
-            font-weight: 600;
-        }
-        .bk-filter-icon {
-            width: 28px;
-            height: 28px;
-            border-radius: 10px;
-            background: rgba(8, 171, 156, 0.11);
-            color: var(--bk-deep-teal);
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 15px;
-        }
-        .bk-filter-badge {
-            background: rgba(252, 110, 174, 0.12);
-            color: var(--bk-pink);
-            border-radius: 999px;
-            padding: 4px 10px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-        .bk-filter-state {
-            color: var(--bk-muted);
-            font-size: 12px;
-            font-weight: 700;
-        }
-        .bk-filter-shell.is-collapsed .bk-filter-body {
-            display: none;
-        }
-        .bk-filter-body {
-            margin-top: 16px;
-            display: grid;
-            grid-template-columns: repeat(4, minmax(150px, 1fr)) minmax(220px, 1.4fr) auto;
-            gap: 12px;
-            align-items: end;
-        }
-        .bk-filter-field label {
-            display: block;
-            margin-bottom: 6px;
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: .04em;
-            color: var(--bk-muted);
-            text-transform: uppercase;
-        }
-        .bk-filter-field input,
-        .bk-filter-field select {
-            width: 100%;
-            height: 38px;
-            border: 1px solid var(--bk-border);
-            border-radius: 10px;
-            background: #ffffff;
-            color: var(--bk-text);
-            padding: 0 12px;
-            font: inherit;
-            font-size: 13px;
-            outline: none;
-        }
-        .bk-filter-field input:focus,
-        .bk-filter-field select:focus {
-            border-color: var(--bk-teal);
-            box-shadow: 0 0 0 3px rgba(8, 171, 156, 0.12);
-        }
-        .bk-filter-field.is-hidden {
-            display: none;
-        }
-        .bk-filter-search {
-            grid-column: span 2;
-        }
-        .bk-filter-actions {
-            display: flex;
-            gap: 8px;
-        }
-        .bk-filter-btn {
-            height: 38px;
-            border-radius: 999px;
-            border: 0;
-            padding: 0 14px;
-            font: inherit;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            white-space: nowrap;
-        }
-        .bk-filter-btn.apply {
-            background: var(--bk-deep-teal);
-            color: #ffffff;
-        }
-        .bk-filter-btn.clear {
-            background: rgba(255, 189, 41, 0.18);
-            color: var(--bk-deep-teal);
-            border: 1px solid rgba(255, 189, 41, 0.36);
         }
         .ledger-board {
             width: 100%;
@@ -739,20 +574,8 @@ $netToday = $cashInToday - $cashOutToday;
             .ledger-page { padding: 18px; }
             .ledger-top { flex-direction: column; }
             .stat-grid { grid-template-columns: 1fr; }
-            .bk-filter-body { grid-template-columns: 1fr; }
-            .bk-filter-search { grid-column: auto; }
-            .bk-filter-actions { flex-direction: column; }
-            .bk-filter-btn { width: 100%; }
             .ledger-board-inner { min-width: 980px; }
             .closing-card { align-items: flex-start; flex-direction: column; }
-        }
-        @media (min-width: 761px) and (max-width: 1100px) {
-            .bk-filter-body {
-                grid-template-columns: repeat(2, minmax(160px, 1fr));
-            }
-            .bk-filter-search {
-                grid-column: span 2;
-            }
         }
     </style>
 </head>
@@ -785,83 +608,6 @@ $netToday = $cashInToday - $cashOutToday;
             <article class="stat-card" style="--accent: #F07420;"><span class="stat-label">Cash Out Today</span><strong class="stat-value" data-stat-cash-out><?= ledger_money($cashOutToday) ?></strong></article>
             <article class="stat-card" style="--accent: #721B1A;"><span class="stat-label">Net Balance Today</span><strong class="stat-value" data-stat-net><?= ledger_money($netToday) ?></strong></article>
             <article class="stat-card" style="--accent: #A8CA19;"><span class="stat-label">Entries Today</span><strong class="stat-value" data-stat-count><?= number_format($entriesToday) ?></strong></article>
-        </section>
-
-        <section class="bk-filter-shell" data-bk-filters>
-            <button class="bk-filter-header" type="button" data-bk-filter-toggle aria-expanded="true">
-                <span class="bk-filter-title">
-                    <span class="bk-filter-icon">F</span>
-                    Filters
-                    <span class="bk-filter-badge" data-bk-filter-count>0 active</span>
-                </span>
-                <span class="bk-filter-state" data-bk-filter-state>Expanded</span>
-            </button>
-            <div class="bk-filter-body" data-bk-filter-body>
-                <div class="bk-filter-field">
-                    <label for="bk-filter-range">Date range</label>
-                    <select id="bk-filter-range" data-bk-filter="range">
-                        <option value="all">All dates</option>
-                        <option value="today">Today</option>
-                        <option value="week">This week</option>
-                        <option value="month">This month</option>
-                        <option value="custom">Custom date range</option>
-                    </select>
-                </div>
-                <div class="bk-filter-field is-hidden" data-bk-custom-date>
-                    <label for="bk-filter-from">From</label>
-                    <input id="bk-filter-from" type="date" data-bk-filter="from">
-                </div>
-                <div class="bk-filter-field is-hidden" data-bk-custom-date>
-                    <label for="bk-filter-to">To</label>
-                    <input id="bk-filter-to" type="date" data-bk-filter="to">
-                </div>
-                <div class="bk-filter-field">
-                    <label for="bk-filter-type">Transaction type</label>
-                    <select id="bk-filter-type" data-bk-filter="type">
-                        <option value="all">All</option>
-                        <option value="cash_in">Cash In</option>
-                        <option value="cash_out">Cash Out</option>
-                        <option value="opening_balance">Opening Balance</option>
-                        <option value="driver_cash">Driver Cash</option>
-                        <option value="order_cash">Order Cash</option>
-                    </select>
-                </div>
-                <div class="bk-filter-field">
-                    <label for="bk-filter-amount">Amount type</label>
-                    <select id="bk-filter-amount" data-bk-filter="amount">
-                        <option value="all">All</option>
-                        <option value="positive">Positive</option>
-                        <option value="negative">Negative</option>
-                        <option value="zero">Zero</option>
-                    </select>
-                </div>
-                <div class="bk-filter-field">
-                    <label for="bk-filter-user">Recorded by</label>
-                    <select id="bk-filter-user" data-bk-filter="user">
-                        <option value="all">All users</option>
-                        <?php foreach ($recordedUsers as $userId => $userName): ?>
-                            <option value="<?= (int) $userId ?>"><?= htmlspecialchars($userName, ENT_QUOTES, 'UTF-8') ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="bk-filter-field">
-                    <label for="bk-filter-status">Status</label>
-                    <select id="bk-filter-status" data-bk-filter="status">
-                        <option value="all">All</option>
-                        <option value="logged">Logged</option>
-                        <option value="unlogged">Unlogged</option>
-                        <option value="reconciled">Reconciled</option>
-                    </select>
-                </div>
-                <div class="bk-filter-field bk-filter-search">
-                    <label for="bk-filter-search">Search</label>
-                    <input id="bk-filter-search" type="search" placeholder="Description, notes, order, customer, driver..." data-bk-filter="search">
-                </div>
-                <div class="bk-filter-actions">
-                    <button class="bk-filter-btn apply" type="button" data-bk-filter-apply>Apply</button>
-                    <button class="bk-filter-btn clear" type="button" data-bk-filter-clear>Clear Filters</button>
-                </div>
-            </div>
         </section>
 
         <section class="ledger-board" aria-label="Cash ledger board">
@@ -901,31 +647,8 @@ $netToday = $cashInToday - $cashOutToday;
                             $rowOut = (float) ($entry['cash_out'] ?? 0);
                             $rowTotal = $rowIn - $rowOut;
                             $entryDate = (string) $entry['transaction_date'];
-                            $rowType = (string) ($entry['transaction_type'] ?? ledger_transaction_type($rowIn, $rowOut));
-                            $rowSource = (string) ($entry['source'] ?? '');
-                            $rowRecordedBy = (string) ($entry['recorded_by'] ?? '');
-                            $rowStatus = !empty($entry['reconciled_at'] ?? null) ? 'reconciled' : ($rowRecordedBy !== '' || $rowSource !== '' ? 'logged' : 'unlogged');
-                            $rowFilterText = strtolower(trim(implode(' ', [
-                                (string) ($entry['description'] ?? ''),
-                                (string) ($entry['notes'] ?? ''),
-                                (string) ($entry['related_order_id'] ?? ''),
-                                (string) ($entry['related_order_number'] ?? ''),
-                                (string) ($entry['customer_name'] ?? ''),
-                                $rowSource,
-                                $rowRecordedBy,
-                            ])));
                             ?>
-                            <div class="ledger-row entry-row"
-                                data-entry-id="<?= (int) $entry['id'] ?>"
-                                data-entry-date="<?= htmlspecialchars($day, ENT_QUOTES, 'UTF-8') ?>"
-                                data-cash-in="<?= $rowIn ?>"
-                                data-cash-out="<?= $rowOut ?>"
-                                data-amount-value="<?= htmlspecialchars((string) $rowTotal, ENT_QUOTES, 'UTF-8') ?>"
-                                data-transaction-type="<?= htmlspecialchars($rowType, ENT_QUOTES, 'UTF-8') ?>"
-                                data-source="<?= htmlspecialchars($rowSource, ENT_QUOTES, 'UTF-8') ?>"
-                                data-recorded-by="<?= htmlspecialchars($rowRecordedBy, ENT_QUOTES, 'UTF-8') ?>"
-                                data-status="<?= htmlspecialchars($rowStatus, ENT_QUOTES, 'UTF-8') ?>"
-                                data-filter-text="<?= htmlspecialchars($rowFilterText, ENT_QUOTES, 'UTF-8') ?>">
+                            <div class="ledger-row entry-row" data-entry-id="<?= (int) $entry['id'] ?>" data-cash-in="<?= $rowIn ?>" data-cash-out="<?= $rowOut ?>">
                                 <div class="ledger-cell check-cell"><span class="row-dot"></span></div>
                                 <div class="ledger-cell ledger-data-cell" data-field="description" data-value="<?= htmlspecialchars((string) $entry['description'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars((string) $entry['description'], ENT_QUOTES, 'UTF-8') ?></div>
                                 <div class="ledger-cell ledger-data-cell" data-field="transaction_date" data-value="<?= htmlspecialchars(date('Y-m-d\TH:i', strtotime($entryDate)), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(date('M j, g:i A', strtotime($entryDate)), ENT_QUOTES, 'UTF-8') ?></div>
@@ -1009,59 +732,10 @@ function entryTotal(row) {
   return parseMoney(row.dataset.cashIn) - parseMoney(row.dataset.cashOut);
 }
 
-function visibleEntryRows(group) {
-  return Array.from(group.querySelectorAll('.entry-row')).filter((row) => row.dataset.filterHidden !== 'true');
-}
-
-function normalizeFilterValue(value) {
-  return String(value || '').trim().toLowerCase().replace(/[\s_]+/g, '_');
-}
-
-function transactionTypeForEntry(entry) {
-  const raw = normalizeFilterValue(entry.transaction_type || entry.source || '');
-  if (raw.includes('opening')) return 'opening_balance';
-  if (raw.includes('driver')) return 'driver_cash';
-  if (raw.includes('order') || entry.related_order_id || entry.related_order_number) return 'order_cash';
-  if (Number(entry.cash_out || 0) > 0) return 'cash_out';
-  return 'cash_in';
-}
-
-function rowFilterText(row, entry = null) {
-  const parts = entry ? [
-    entry.description,
-    entry.notes,
-    entry.related_order_id,
-    entry.related_order_number,
-    entry.customer_name,
-    entry.source,
-    entry.recorded_by
-  ] : [
-    row.querySelector('[data-field="description"]')?.dataset.value || row.querySelector('[data-field="description"]')?.textContent,
-    row.querySelector('[data-field="notes"]')?.dataset.value || row.querySelector('[data-field="notes"]')?.textContent,
-    row.dataset.source,
-    row.dataset.recordedBy
-  ];
-  return parts.filter(Boolean).join(' ').toLowerCase();
-}
-
-function decorateEntryRow(row, entry) {
-  const day = entry.day || String(entry.date || '').slice(0, 10);
-  row.dataset.entryDate = day;
-  row.dataset.cashIn = String(entry.cash_in || 0);
-  row.dataset.cashOut = String(entry.cash_out || 0);
-  row.dataset.amountValue = String(Number(entry.total ?? (Number(entry.cash_in || 0) - Number(entry.cash_out || 0))));
-  row.dataset.transactionType = transactionTypeForEntry(entry);
-  row.dataset.source = entry.source || '';
-  row.dataset.recordedBy = entry.recorded_by || '';
-  row.dataset.status = entry.status || (entry.recorded_by || entry.source ? 'logged' : 'unlogged');
-  row.dataset.filterText = rowFilterText(row, entry);
-}
-
 function recalcGroup(group) {
   let cashIn = 0;
   let cashOut = 0;
-  const rows = visibleEntryRows(group);
-  rows.forEach((row) => {
+  group.querySelectorAll('.entry-row').forEach((row) => {
     cashIn += parseMoney(row.dataset.cashIn);
     cashOut += parseMoney(row.dataset.cashOut);
     const total = entryTotal(row);
@@ -1071,7 +745,7 @@ function recalcGroup(group) {
   group.querySelector('[data-day-in]').textContent = money(cashIn);
   group.querySelector('[data-day-out]').textContent = money(cashOut);
   group.querySelector('[data-day-net]').textContent = money(cashIn - cashOut);
-  const count = rows.length;
+  const count = group.querySelectorAll('.entry-row').length;
   group.querySelector('[data-day-count]').textContent = `${count} ${count === 1 ? 'entry' : 'entries'}`;
   recalcStats();
 }
@@ -1082,9 +756,8 @@ function recalcStats() {
   let todayCount = 0;
   let closing = 0;
   document.querySelectorAll('[data-day-group]').forEach((group) => {
-    if (group.hidden) return;
     const isToday = group.dataset.dayGroup === todayKey;
-    visibleEntryRows(group).forEach((row) => {
+    group.querySelectorAll('.entry-row').forEach((row) => {
       const cashIn = parseMoney(row.dataset.cashIn);
       const cashOut = parseMoney(row.dataset.cashOut);
       closing += cashIn - cashOut;
@@ -1106,6 +779,8 @@ function renderEntry(entry) {
   const row = document.createElement('div');
   row.className = 'ledger-row entry-row';
   row.dataset.entryId = entry.id;
+  row.dataset.cashIn = String(entry.cash_in || 0);
+  row.dataset.cashOut = String(entry.cash_out || 0);
   row.innerHTML = `
     <div class="ledger-cell check-cell"><span class="row-dot"></span></div>
     <div class="ledger-cell ledger-data-cell" data-field="description"></div>
@@ -1119,155 +794,7 @@ function renderEntry(entry) {
   row.querySelector('[data-field="description"]').dataset.value = entry.description || '';
   row.querySelector('[data-field="notes"]').textContent = entry.notes || '';
   row.querySelector('[data-field="notes"]').dataset.value = entry.notes || '';
-  decorateEntryRow(row, entry);
   return row;
-}
-
-function filterControls() {
-  const root = document.querySelector('[data-bk-filters]');
-  if (!root) return null;
-  return {
-    root,
-    range: root.querySelector('[data-bk-filter="range"]'),
-    from: root.querySelector('[data-bk-filter="from"]'),
-    to: root.querySelector('[data-bk-filter="to"]'),
-    type: root.querySelector('[data-bk-filter="type"]'),
-    amount: root.querySelector('[data-bk-filter="amount"]'),
-    user: root.querySelector('[data-bk-filter="user"]'),
-    status: root.querySelector('[data-bk-filter="status"]'),
-    search: root.querySelector('[data-bk-filter="search"]'),
-    badge: root.querySelector('[data-bk-filter-count]'),
-    customDates: root.querySelectorAll('[data-bk-custom-date]')
-  };
-}
-
-function dateKeyToDate(key) {
-  const parts = String(key || '').split('-').map(Number);
-  return new Date(parts[0] || 1970, (parts[1] || 1) - 1, parts[2] || 1);
-}
-
-function dateToKey(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-function filterDateBounds(filters) {
-  const todayDate = dateKeyToDate(todayKey);
-  if (filters.range === 'today') return { from: todayKey, to: todayKey };
-  if (filters.range === 'week') {
-    const day = todayDate.getDay() || 7;
-    const start = new Date(todayDate);
-    start.setDate(todayDate.getDate() - day + 1);
-    const end = new Date(start);
-    end.setDate(start.getDate() + 6);
-    return { from: dateToKey(start), to: dateToKey(end) };
-  }
-  if (filters.range === 'month') {
-    const start = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1);
-    const end = new Date(todayDate.getFullYear(), todayDate.getMonth() + 1, 0);
-    return { from: dateToKey(start), to: dateToKey(end) };
-  }
-  if (filters.range === 'custom') return { from: filters.from, to: filters.to };
-  return { from: '', to: '' };
-}
-
-function getLedgerFilters() {
-  const controls = filterControls();
-  if (!controls) return null;
-  return {
-    range: controls.range.value,
-    from: controls.from.value,
-    to: controls.to.value,
-    type: controls.type.value,
-    amount: controls.amount.value,
-    user: controls.user.value,
-    status: controls.status.value,
-    search: controls.search.value.trim().toLowerCase()
-  };
-}
-
-function activeFilterCount(filters) {
-  let count = 0;
-  if (filters.range !== 'all') count++;
-  if (filters.range === 'custom' && filters.from) count++;
-  if (filters.range === 'custom' && filters.to) count++;
-  if (filters.type !== 'all') count++;
-  if (filters.amount !== 'all') count++;
-  if (filters.user !== 'all') count++;
-  if (filters.status !== 'all') count++;
-  if (filters.search) count++;
-  return count;
-}
-
-function rowMatchesFilters(row, filters) {
-  const bounds = filterDateBounds(filters);
-  const entryDate = row.dataset.entryDate || '';
-  if (bounds.from && entryDate < bounds.from) return false;
-  if (bounds.to && entryDate > bounds.to) return false;
-
-  const total = entryTotal(row);
-  if (filters.amount === 'positive' && total <= 0) return false;
-  if (filters.amount === 'negative' && total >= 0) return false;
-  if (filters.amount === 'zero' && total !== 0) return false;
-
-  const type = row.dataset.transactionType || '';
-  const source = normalizeFilterValue(row.dataset.source || '');
-  const text = row.dataset.filterText || '';
-  if (filters.type === 'cash_in' && parseMoney(row.dataset.cashIn) <= 0) return false;
-  if (filters.type === 'cash_out' && parseMoney(row.dataset.cashOut) <= 0) return false;
-  if (filters.type === 'opening_balance' && !type.includes('opening') && !source.includes('opening')) return false;
-  if (filters.type === 'driver_cash' && !type.includes('driver') && !source.includes('driver') && !text.includes('driver')) return false;
-  if (filters.type === 'order_cash' && !type.includes('order') && !source.includes('order') && !text.includes('order') && !text.includes('web-')) return false;
-
-  if (filters.user !== 'all' && row.dataset.recordedBy !== filters.user) return false;
-  if (filters.status !== 'all' && row.dataset.status !== filters.status) return false;
-  if (filters.search && !text.includes(filters.search)) return false;
-  return true;
-}
-
-function refreshFilterUi(filters) {
-  const controls = filterControls();
-  if (!controls) return;
-  const custom = filters.range === 'custom';
-  controls.customDates.forEach((field) => field.classList.toggle('is-hidden', !custom));
-  const count = activeFilterCount(filters);
-  controls.badge.textContent = `${count} active`;
-}
-
-function applyLedgerFilters() {
-  const filters = getLedgerFilters();
-  if (!filters) return;
-  refreshFilterUi(filters);
-  const hasActiveFilters = activeFilterCount(filters) > 0;
-  document.querySelectorAll('[data-day-group]').forEach((group) => {
-    let visibleCount = 0;
-    const rows = group.querySelectorAll('.entry-row');
-    rows.forEach((row) => {
-      const visible = rowMatchesFilters(row, filters);
-      row.dataset.filterHidden = visible ? 'false' : 'true';
-      row.style.display = visible ? '' : 'none';
-      if (visible) visibleCount++;
-    });
-    group.hidden = visibleCount === 0 && (hasActiveFilters || rows.length > 0);
-    if (!group.hidden) recalcGroup(group);
-  });
-  recalcStats();
-}
-
-function clearLedgerFilters() {
-  const controls = filterControls();
-  if (!controls) return;
-  controls.range.value = 'all';
-  controls.from.value = '';
-  controls.to.value = '';
-  controls.type.value = 'all';
-  controls.amount.value = 'all';
-  controls.user.value = 'all';
-  controls.status.value = 'all';
-  controls.search.value = '';
-  applyLedgerFilters();
 }
 
 function addValue(row, field) {
@@ -1309,7 +836,7 @@ async function saveAddRow(row) {
     }
     row.before(renderEntry(entry));
     clearAddRow(row);
-    applyLedgerFilters();
+    recalcGroup(row.closest('[data-day-group]'));
     toast('Entry saved');
     setTimeout(() => row.querySelector('[data-add-field="description"]')?.focus(), 50);
   } catch (error) {
@@ -1373,8 +900,7 @@ function startEdit(cell) {
         cell.textContent = entry.cash_out > 0 ? money(entry.cash_out) : '';
         cell.dataset.value = String(entry.cash_out);
       }
-      decorateEntryRow(row, entry);
-      applyLedgerFilters();
+      recalcGroup(row.closest('[data-day-group]'));
       toast('Saved');
     } catch (error) {
       cell.textContent = originalText;
@@ -1398,30 +924,12 @@ function startEdit(cell) {
 
 document.addEventListener('click', (event) => {
   const back = event.target.closest('[data-ledger-back]');
-  const filterToggle = event.target.closest('[data-bk-filter-toggle]');
-  const filterApply = event.target.closest('[data-bk-filter-apply]');
-  const filterClear = event.target.closest('[data-bk-filter-clear]');
   const toggle = event.target.closest('[data-toggle-day]');
   const save = event.target.closest('[data-save-add]');
   const editable = event.target.closest('.ledger-data-cell');
   if (back) {
     if (window.history.length > 1) window.history.back();
     else window.location.href = '<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/apps/operations/dashboard.php';
-    return;
-  }
-  if (filterToggle) {
-    const shell = filterToggle.closest('[data-bk-filters]');
-    const collapsed = shell.classList.toggle('is-collapsed');
-    filterToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-    shell.querySelector('[data-bk-filter-state]').textContent = collapsed ? 'Collapsed' : 'Expanded';
-    return;
-  }
-  if (filterApply) {
-    applyLedgerFilters();
-    return;
-  }
-  if (filterClear) {
-    clearLedgerFilters();
     return;
   }
   if (toggle) {
@@ -1438,24 +946,9 @@ document.addEventListener('click', (event) => {
 });
 
 document.addEventListener('input', (event) => {
-  if (event.target.closest('[data-bk-filters]')) {
-    const controls = filterControls();
-    if (event.target === controls?.range) {
-      refreshFilterUi(getLedgerFilters());
-    }
-    if (event.target.matches('[data-bk-filter="search"]')) {
-      applyLedgerFilters();
-    }
-  }
   const row = event.target.closest('[data-add-row]');
   if (!row || !event.target.matches('[data-add-field="cash_in"], [data-add-field="cash_out"]')) return;
   row.querySelector('[data-add-total]').textContent = money(parseMoney(addValue(row, 'cash_in')) - parseMoney(addValue(row, 'cash_out')));
-});
-
-document.addEventListener('change', (event) => {
-  if (event.target.closest('[data-bk-filters]')) {
-    applyLedgerFilters();
-  }
 });
 
 document.addEventListener('keydown', (event) => {
@@ -1464,8 +957,6 @@ document.addEventListener('keydown', (event) => {
   event.preventDefault();
   saveAddRow(row);
 });
-
-applyLedgerFilters();
 </script>
 </body>
 </html>
