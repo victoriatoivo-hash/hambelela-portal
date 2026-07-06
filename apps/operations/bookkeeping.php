@@ -873,10 +873,34 @@ $reconHistory = $ready ? ops_rows(
         }
         .bk-drawer-body .bk-denom-row input {
             width: 100%;
-            min-width: 0;
             height: 22px;
+            min-width: 0;
+            padding: 0 8px;
+            border: 1px solid rgba(171, 54, 25, .24);
+            border-radius: 3px;
+            background: #ffffff;
             box-sizing: border-box;
             text-align: right;
+            font-family: Figtree, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 12px;
+            font-weight: 400;
+            color: #252733;
+            outline: none;
+            transition: border-color .15s ease, box-shadow .15s ease;
+            appearance: textfield;
+            -moz-appearance: textfield;
+        }
+        .bk-drawer-body .bk-denom-row input:hover {
+            border-color: rgba(171, 54, 25, .42);
+        }
+        .bk-drawer-body .bk-denom-row input:focus {
+            border-color: #ab3619;
+            box-shadow: 0 0 0 2px rgba(171, 54, 25, .10);
+        }
+        .bk-drawer-body .bk-denom-row input::-webkit-outer-spin-button,
+        .bk-drawer-body .bk-denom-row input::-webkit-inner-spin-button {
+            opacity: .55;
+            margin: 0;
         }
         .bk-denom-reset {
             display: inline-flex;
