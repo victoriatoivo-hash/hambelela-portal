@@ -735,16 +735,18 @@ $reconHistory = $ready ? ops_rows(
             color: #fff;
             border: none;
             border-radius: 50px;
-            height: 36px;
+            height: 32px;
             padding: 0 18px;
-            font-size: 13px;
-            font-weight: 600;
+            font-family: Figtree, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 12px;
+            font-weight: 800;
             cursor: pointer;
             display: inline-flex;
             align-items: center;
+            justify-content: center;
             gap: 6px;
             flex-shrink: 0;
-            transition: background .15s;
+            transition: background .2s ease;
         }
         .bk-drawer-trigger:hover {
             background: #721B1A;
