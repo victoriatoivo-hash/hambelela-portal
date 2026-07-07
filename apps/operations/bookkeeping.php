@@ -1690,8 +1690,8 @@ $canHardDelete = user_has_role('owner_admin');
     <div class="bk-tabs" role="tablist" aria-label="Cash tools tabs">
         <button class="bk-tab is-active" type="button" data-tab="counter" onclick="switchTab(this, 'counter')">Count till</button>
         <button class="bk-tab" type="button" data-tab="recon" onclick="switchTab(this, 'recon')">Reconcile</button>
-        <button class="bk-tab" type="button" data-tab="activity" onclick="switchTab(this, 'activity')">Activity</button>
         <button class="bk-tab" type="button" data-tab="trash" onclick="switchTab(this, 'trash')">Trash</button>
+        <button class="bk-tab" type="button" data-tab="activity" onclick="switchTab(this, 'activity')">Activity</button>
     </div>
     <div class="bk-drawer-body">
         <section class="bk-tab-panel is-active" id="tab-counter">
