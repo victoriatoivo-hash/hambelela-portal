@@ -946,7 +946,6 @@ include BASE_PATH . '/shared/sidebar.php';
 <main class="workspace module courier-wrap">
     <section class="module-header">
         <div>
-            <p class="page-eyebrow">Operations</p>
             <h1>Courier Waybills</h1>
             <p class="page-subtitle">Upload, track and send courier waybills from one queue.</p>
         </div>
