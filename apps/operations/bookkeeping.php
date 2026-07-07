@@ -857,7 +857,8 @@ $canHardDelete = user_has_role('owner_admin');
         .ledger-data-cell:hover,
         .bk-wrap .bk-editable:hover {
             background: #FDF6EE !important;
-            outline: none;
+            outline: 1px dashed var(--ledger-orange);
+            outline-offset: -2px;
             box-shadow: none;
         }
         .ledger-data-cell.is-editing {
