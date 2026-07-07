@@ -1094,6 +1094,8 @@ $canHardDelete = user_has_role('owner_admin');
             position: fixed;
             width: 320px;
             max-width: calc(100vw - 24px);
+            max-height: calc(100vh - 24px);
+            overflow-y: auto;
             border: 1px solid var(--ledger-border);
             border-radius: 14px;
             background: #fff;
@@ -2327,6 +2329,16 @@ function openCustomColumnPopover(button) {
   popover.querySelector('[data-custom-options-list]').innerHTML = '';
 }
 
+function clampCustomColumnPopover() {
+  const popover = document.getElementById('customColumnPopover');
+  if (!popover?.classList.contains('is-open')) return;
+  const rect = popover.getBoundingClientRect();
+  const top = Math.min(Math.max(12, rect.top), Math.max(12, window.innerHeight - rect.height - 12));
+  const left = Math.min(Math.max(12, rect.left), Math.max(12, window.innerWidth - rect.width - 12));
+  popover.style.top = `${top}px`;
+  popover.style.left = `${left}px`;
+}
+
 function closeCustomColumnPopover() {
   const popover = document.getElementById('customColumnPopover');
   if (!popover) return;
@@ -2361,6 +2373,7 @@ function chooseCustomType(type) {
     addCustomOptionRow(type === 'status' ? 'Paid' : 'Option', '#A8CA19');
     addCustomOptionRow(type === 'status' ? 'Pending' : 'Another option', '#F07420');
   }
+  requestAnimationFrame(clampCustomColumnPopover);
 }
 
 async function saveCustomColumn(event) {
