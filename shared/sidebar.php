@@ -13,6 +13,12 @@ if (!empty($hidePortalSidebar) || $isFrontDashboard || $isHrPortal) {
 }
 
 $notificationUnread = (int) ($notificationUnread ?? 0);
+$sidebarUser = isset($user) && is_array($user)
+    ? $user
+    : (function_exists('current_user') ? current_user() : []);
+$sidebarUserName = trim((string) ($sidebarUser['name'] ?? ($_SESSION['user']['name'] ?? ($_SESSION['user_name'] ?? 'User'))));
+$sidebarUserRole = trim((string) ($sidebarUser['role'] ?? ($_SESSION['user']['role'] ?? ($_SESSION['user_role'] ?? ''))));
+$sidebarUserInitial = strtoupper(substr($sidebarUserName !== '' ? $sidebarUserName : 'U', 0, 1));
 
 $portalNavItems = [
     ['id' => 'operations-dashboard', 'label' => 'Dashboard', 'icon' => 'dashboard', 'href' => BASE_URL . '/apps/operations/index.php', 'match' => ['/apps/operations/index.php']],
@@ -113,10 +119,10 @@ $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bo
         </div>
 
         <div class="ps-user">
-            <div class="ps-user-avatar"><?= htmlspecialchars(strtoupper(substr((string) ($_SESSION['user_name'] ?? 'U'), 0, 1)), ENT_QUOTES, 'UTF-8') ?></div>
+            <div class="ps-user-avatar"><?= htmlspecialchars($sidebarUserInitial, ENT_QUOTES, 'UTF-8') ?></div>
             <div class="ps-user-info">
-                <span class="ps-user-name"><?= htmlspecialchars((string) ($_SESSION['user_name'] ?? 'User'), ENT_QUOTES, 'UTF-8') ?></span>
-                <span class="ps-user-role"><?= htmlspecialchars((string) ($_SESSION['user_role'] ?? ''), ENT_QUOTES, 'UTF-8') ?></span>
+                <span class="ps-user-name"><?= htmlspecialchars($sidebarUserName !== '' ? $sidebarUserName : 'User', ENT_QUOTES, 'UTF-8') ?></span>
+                <span class="ps-user-role"><?= htmlspecialchars($sidebarUserRole, ENT_QUOTES, 'UTF-8') ?></span>
             </div>
         </div>
 
