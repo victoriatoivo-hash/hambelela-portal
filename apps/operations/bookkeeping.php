@@ -704,7 +704,7 @@ $canHardDelete = user_has_role('owner_admin');
         .day-head,
         .ledger-row {
             display: grid;
-            grid-template-columns: 32px 220px 130px 100px 100px 100px minmax(160px, 1fr) 44px;
+            grid-template-columns: 32px 220px 130px 100px 100px 100px 380px 44px;
         }
         .day-head {
             min-height: 58px;
