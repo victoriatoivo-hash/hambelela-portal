@@ -50,6 +50,57 @@ function ledger_number($value): float
     return max(0, (float) preg_replace('/[^0-9.\-]+/', '', (string) $value));
 }
 
+function ledger_custom_column_key(): string
+{
+    return 'col_' . bin2hex(random_bytes(5));
+}
+
+function ledger_decode_json($value, array $fallback = []): array
+{
+    $decoded = json_decode((string) ($value ?? ''), true);
+    return is_array($decoded) ? $decoded : $fallback;
+}
+
+function ledger_custom_columns(bool $includeDeleted = false): array
+{
+    if (!ops_database_ready()) return [];
+    $where = $includeDeleted ? '1 = 1' : 'deleted_at IS NULL';
+    $rows = ops_rows(
+        "SELECT *
+         FROM hambelela_cashbook_columns
+         WHERE {$where}
+         ORDER BY sort_order ASC, id ASC"
+    );
+    return array_map(static function (array $row): array {
+        return [
+            'id' => (int) $row['id'],
+            'column_key' => (string) $row['column_key'],
+            'name' => (string) $row['name'],
+            'type' => (string) $row['column_type'],
+            'options' => ledger_decode_json($row['options_json'] ?? '[]'),
+            'sort_order' => (int) ($row['sort_order'] ?? 0),
+        ];
+    }, $rows);
+}
+
+function ledger_normalize_custom_options(array $rawOptions): array
+{
+    $options = [];
+    foreach ($rawOptions as $option) {
+        if (!is_array($option)) continue;
+        $label = trim((string) ($option['label'] ?? ''));
+        if ($label === '') continue;
+        $colour = trim((string) ($option['colour'] ?? '#F07420'));
+        if (!preg_match('/^#[0-9a-fA-F]{6}$/', $colour)) $colour = '#F07420';
+        $options[] = [
+            'value' => substr(preg_replace('/[^a-z0-9]+/', '_', strtolower($label)), 0, 40) ?: ledger_custom_column_key(),
+            'label' => substr($label, 0, 60),
+            'colour' => $colour,
+        ];
+    }
+    return $options;
+}
+
 function ledger_transaction_type(float $cashIn, float $cashOut): string
 {
     if ($cashOut > 0 && $cashOut >= $cashIn) return 'cash_taken_out';
@@ -126,6 +177,23 @@ function ledger_bootstrap_schema(): void
     if (!ops_column_exists('ops_cash_book_entries', 'deleted_at')) {
         db()->exec("ALTER TABLE ops_cash_book_entries ADD COLUMN deleted_at DATETIME NULL");
     }
+    if (!ops_column_exists('ops_cash_book_entries', 'custom_fields_json')) {
+        db()->exec("ALTER TABLE ops_cash_book_entries ADD COLUMN custom_fields_json JSON NULL");
+    }
+    db()->exec(
+        "CREATE TABLE IF NOT EXISTS hambelela_cashbook_columns (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            column_key VARCHAR(40) NOT NULL UNIQUE,
+            name VARCHAR(80) NOT NULL,
+            column_type VARCHAR(20) NOT NULL,
+            options_json JSON NULL,
+            sort_order INT NOT NULL DEFAULT 0,
+            deleted_at DATETIME NULL,
+            created_by INT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+    );
     db()->exec(
         "CREATE TABLE IF NOT EXISTS hambelela_cashbook_recon (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -171,7 +239,29 @@ function ledger_entry(int $id): array
         'cash_out' => $cashOut,
         'total' => $cashIn - $cashOut,
         'notes' => (string) ($row['notes'] ?? ''),
+        'custom_fields' => ledger_decode_json($row['custom_fields_json'] ?? '{}'),
     ];
+}
+
+function ledger_custom_cell_html(array $column, array $customFields): string
+{
+    $key = (string) $column['column_key'];
+    $value = (string) ($customFields[$key] ?? '');
+    if ($value === '') return '';
+    if (in_array($column['type'], ['status', 'dropdown', 'people'], true)) {
+        foreach (($column['options'] ?? []) as $option) {
+            if ((string) ($option['value'] ?? '') === $value) {
+                $label = htmlspecialchars((string) ($option['label'] ?? $value), ENT_QUOTES, 'UTF-8');
+                $colour = htmlspecialchars((string) ($option['colour'] ?? '#AB3619'), ENT_QUOTES, 'UTF-8');
+                if ($column['type'] === 'people') {
+                    $initial = htmlspecialchars(strtoupper(substr((string) ($option['label'] ?? $value), 0, 1)), ENT_QUOTES, 'UTF-8');
+                    return '<span class="custom-person-pill" style="--pill-colour:' . $colour . '"><span>' . $initial . '</span>' . $label . '</span>';
+                }
+                return '<span class="custom-status-pill" style="--pill-colour:' . $colour . '">' . $label . '</span>';
+            }
+        }
+    }
+    return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
 }
 
 if ($ready) {
@@ -277,6 +367,76 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $type = ledger_transaction_type($entry['cash_in'], $entry['cash_out']);
             db()->prepare('UPDATE ops_cash_book_entries SET transaction_type = ? WHERE id = ?')->execute([$type, $id]);
             ledger_json(['ok' => true, 'message' => 'Saved.', 'entry' => ledger_entry($id)]);
+        }
+        if ($action === 'cashbook_add_custom_column') {
+            $type = ops_post_string('column_type', 20);
+            $allowedTypes = ['status', 'dropdown', 'text', 'date', 'people', 'numbers'];
+            if (!in_array($type, $allowedTypes, true)) throw new RuntimeException('Choose a valid column type.');
+            $name = ops_post_string('name', 80);
+            if ($name === '') throw new RuntimeException('Column name is required.');
+            $options = [];
+            if (in_array($type, ['status', 'dropdown'], true)) {
+                $options = ledger_normalize_custom_options(ledger_decode_json($_POST['options_json'] ?? '[]'));
+                if (!$options) throw new RuntimeException('Add at least one option.');
+            }
+            if ($type === 'people') {
+                $options = [
+                    ['value' => 'victoria', 'label' => 'Victoria', 'colour' => '#721B1A'],
+                    ['value' => 'cecilia', 'label' => 'Cecilia', 'colour' => '#F07420'],
+                    ['value' => 'klaudia', 'label' => 'Klaudia', 'colour' => '#A8CA19'],
+                    ['value' => 'ndinelao', 'label' => 'Ndinelao', 'colour' => '#AB3619'],
+                ];
+            }
+            $sortOrder = (int) (ops_rows("SELECT COALESCE(MAX(sort_order), 0) + 1 AS next_order FROM hambelela_cashbook_columns")[0]['next_order'] ?? 1);
+            $key = ledger_custom_column_key();
+            $stmt = db()->prepare(
+                "INSERT INTO hambelela_cashbook_columns
+                 (column_key, name, column_type, options_json, sort_order, created_by)
+                 VALUES (?, ?, ?, ?, ?, ?)"
+            );
+            $stmt->execute([$key, $name, $type, json_encode($options, JSON_UNESCAPED_SLASHES), $sortOrder, $employeeId ?: null]);
+            cashbook_log($ledgerUserId, $ledgerUserName, 'edited', null, 'custom_column', null, $name, 'Added custom column');
+            ledger_json(['ok' => true, 'message' => 'Column added.', 'columns' => ledger_custom_columns()]);
+        }
+        if ($action === 'cashbook_rename_custom_column') {
+            $key = ops_post_string('column_key', 40);
+            $name = ops_post_string('name', 80);
+            if ($key === '' || $name === '') throw new RuntimeException('Column name is required.');
+            $old = ops_rows('SELECT name FROM hambelela_cashbook_columns WHERE column_key = ? AND deleted_at IS NULL LIMIT 1', [$key]);
+            if (!$old) throw new RuntimeException('Custom column not found.');
+            db()->prepare('UPDATE hambelela_cashbook_columns SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE column_key = ? AND deleted_at IS NULL')->execute([$name, $key]);
+            cashbook_log($ledgerUserId, $ledgerUserName, 'edited', null, 'custom_column', (string) $old[0]['name'], $name, 'Renamed custom column');
+            ledger_json(['ok' => true, 'message' => 'Column renamed.', 'columns' => ledger_custom_columns()]);
+        }
+        if ($action === 'cashbook_delete_custom_column') {
+            $key = ops_post_string('column_key', 40);
+            $old = ops_rows('SELECT name FROM hambelela_cashbook_columns WHERE column_key = ? AND deleted_at IS NULL LIMIT 1', [$key]);
+            if (!$old) throw new RuntimeException('Custom column not found.');
+            db()->prepare('UPDATE hambelela_cashbook_columns SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE column_key = ? AND deleted_at IS NULL')->execute([$key]);
+            cashbook_log($ledgerUserId, $ledgerUserName, 'deleted', null, 'custom_column', (string) $old[0]['name'], null, 'Deleted custom column; values retained');
+            ledger_json(['ok' => true, 'message' => 'Column hidden. Data is retained.', 'columns' => ledger_custom_columns()]);
+        }
+        if ($action === 'cashbook_update_custom_value') {
+            $id = (int) ($_POST['entry_id'] ?? 0);
+            $key = ops_post_string('column_key', 40);
+            if ($id <= 0 || $key === '') throw new RuntimeException('Invalid custom value.');
+            $columnRows = ops_rows('SELECT column_type FROM hambelela_cashbook_columns WHERE column_key = ? AND deleted_at IS NULL LIMIT 1', [$key]);
+            if (!$columnRows) throw new RuntimeException('Custom column not found.');
+            $value = trim((string) ($_POST['value'] ?? ''));
+            if ((string) $columnRows[0]['column_type'] === 'numbers') $value = $value === '' ? '' : (string) ((float) preg_replace('/[^0-9.\-]+/', '', $value));
+            $rows = ops_rows('SELECT custom_fields_json FROM ops_cash_book_entries WHERE id = ? AND ' . ledger_active_where() . ' LIMIT 1', [$id]);
+            if (!$rows) throw new RuntimeException('Ledger entry not found.');
+            $custom = ledger_decode_json($rows[0]['custom_fields_json'] ?? '{}');
+            $oldValue = (string) ($custom[$key] ?? '');
+            if ($value === '') unset($custom[$key]);
+            else $custom[$key] = $value;
+            db()->prepare('UPDATE ops_cash_book_entries SET custom_fields_json = ?, edited_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND ' . ledger_active_where())->execute([
+                json_encode($custom, JSON_UNESCAPED_SLASHES),
+                $employeeId,
+                $id,
+            ]);
+            cashbook_log($ledgerUserId, $ledgerUserName, 'edited', $id, $key, $oldValue, $value);
+            ledger_json(['ok' => true, 'message' => 'Saved.', 'custom_fields' => $custom]);
         }
         if ($action === 'cashbook_soft_delete') {
             $ids = ledger_bulk_ids();
@@ -385,6 +545,7 @@ $entries = $ready ? ops_rows(
      WHERE " . ledger_active_where() . "
      ORDER BY transaction_date DESC, id DESC"
 ) : [];
+$customColumns = $ready ? ledger_custom_columns() : [];
 
 $today = date('Y-m-d');
 $hasOpening = false;
@@ -860,6 +1021,174 @@ $canHardDelete = user_has_role('owner_admin');
             border-color: var(--ledger-rust);
             color: var(--ledger-burgundy);
             outline: none;
+        }
+        .ledger-custom-header {
+            gap: 6px;
+        }
+        .ledger-custom-title {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .ledger-custom-delete {
+            width: 18px;
+            height: 18px;
+            border: 1px solid rgba(171, 54, 25, .18);
+            border-radius: 999px;
+            background: #fff;
+            color: var(--ledger-rust);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            font-size: 12px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .ledger-custom-header:hover .ledger-custom-delete {
+            display: inline-flex;
+        }
+        .ledger-custom-cell {
+            cursor: text;
+        }
+        .ledger-custom-cell select,
+        .ledger-custom-cell input {
+            width: 100%;
+            height: 26px;
+            border: 0;
+            outline: none;
+            box-shadow: none;
+            background: transparent;
+            font: inherit;
+            color: #1a1a1a;
+        }
+        .custom-status-pill,
+        .custom-person-pill {
+            max-width: 100%;
+            height: 22px;
+            border-radius: 999px;
+            padding: 0 9px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: color-mix(in srgb, var(--pill-colour, #AB3619) 16%, #fff);
+            color: var(--pill-colour, #AB3619);
+            font-size: 11px;
+            font-weight: 700;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .custom-person-pill span {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--pill-colour, #AB3619);
+            color: #fff;
+            font-size: 9px;
+            flex-shrink: 0;
+        }
+        .custom-column-popover {
+            position: fixed;
+            width: 320px;
+            max-width: calc(100vw - 24px);
+            border: 1px solid var(--ledger-border);
+            border-radius: 14px;
+            background: #fff;
+            box-shadow: 0 18px 42px rgba(114, 27, 26, .18);
+            z-index: 2500;
+            padding: 12px;
+            display: none;
+        }
+        .custom-column-popover.is-open {
+            display: block;
+        }
+        .custom-type-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .custom-type-btn {
+            min-height: 42px;
+            border: 1px solid var(--ledger-border);
+            border-radius: 10px;
+            background: #fff;
+            color: #1a1a1a;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0 10px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .custom-type-btn:hover {
+            border-color: var(--ledger-rust);
+            background: #FDF6EE;
+        }
+        .custom-column-form {
+            display: none;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .custom-column-form.is-open {
+            display: flex;
+        }
+        .custom-column-form label,
+        .custom-option-row label {
+            display: grid;
+            gap: 4px;
+            color: #6B4C3B;
+            font-size: 10px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+        }
+        .custom-column-form input,
+        .custom-option-row input {
+            height: 30px;
+            border: 1px solid var(--ledger-border);
+            border-radius: 8px;
+            padding: 0 9px;
+            font-family: Figtree, system-ui, sans-serif;
+            font-size: 12px;
+        }
+        .custom-option-row {
+            display: grid;
+            grid-template-columns: 1fr 48px 24px;
+            align-items: end;
+            gap: 6px;
+        }
+        .custom-option-remove {
+            height: 30px;
+            border: 0;
+            background: transparent;
+            color: var(--ledger-red);
+            cursor: pointer;
+        }
+        .custom-form-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+        .custom-form-actions button,
+        .custom-add-option {
+            height: 30px;
+            border-radius: 8px;
+            border: 1px solid var(--ledger-border);
+            background: #fff;
+            color: var(--ledger-rust);
+            padding: 0 10px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .custom-form-actions .primary {
+            background: var(--ledger-rust);
+            color: #fff;
+            border-color: var(--ledger-rust);
         }
         .row-dot {
             width: 16px;
@@ -1644,6 +1973,9 @@ $canHardDelete = user_has_role('owner_admin');
                             <div class="day-sum money-out" data-day-out><?= ledger_money($dayOut) ?></div>
                             <div class="day-sum money-net" data-day-net><?= ledger_money($dayNet) ?></div>
                             <div class="day-sum"></div>
+                            <?php foreach ($customColumns as $column): ?>
+                                <div class="day-sum"></div>
+                            <?php endforeach; ?>
                             <div class="day-sum"></div>
                         </div>
                         <div class="ledger-row ledger-header">
@@ -1654,6 +1986,13 @@ $canHardDelete = user_has_role('owner_admin');
                             <div class="ledger-cell" data-ledger-column="cash_out">Cash Out<span class="ledger-column-resize-handle" data-ledger-resize-column="cash_out" aria-hidden="true"></span></div>
                             <div class="ledger-cell" data-ledger-column="total">Total<span class="ledger-column-resize-handle" data-ledger-resize-column="total" aria-hidden="true"></span></div>
                             <div class="ledger-cell" data-ledger-column="notes">Notes<span class="ledger-column-resize-handle" data-ledger-resize-column="notes" aria-hidden="true"></span></div>
+                            <?php foreach ($customColumns as $column): ?>
+                                <div class="ledger-cell ledger-custom-header" data-ledger-column="<?= htmlspecialchars($column['column_key'], ENT_QUOTES, 'UTF-8') ?>" data-custom-column-key="<?= htmlspecialchars($column['column_key'], ENT_QUOTES, 'UTF-8') ?>">
+                                    <span class="ledger-custom-title" data-custom-rename><?= htmlspecialchars($column['name'], ENT_QUOTES, 'UTF-8') ?></span>
+                                    <button class="ledger-custom-delete" type="button" data-delete-custom-column="<?= htmlspecialchars($column['column_key'], ENT_QUOTES, 'UTF-8') ?>" aria-label="Delete custom column">&times;</button>
+                                    <span class="ledger-column-resize-handle" data-ledger-resize-column="<?= htmlspecialchars($column['column_key'], ENT_QUOTES, 'UTF-8') ?>" aria-hidden="true"></span>
+                                </div>
+                            <?php endforeach; ?>
                             <div class="ledger-cell ledger-add-col-cell"><button class="ledger-add-column-btn" type="button" data-add-ledger-column aria-label="Add ledger column">+</button></div>
                         </div>
                         <?php foreach ($dayEntries as $entry): ?>
@@ -1662,6 +2001,7 @@ $canHardDelete = user_has_role('owner_admin');
                             $rowOut = (float) ($entry['cash_out'] ?? 0);
                             $rowTotal = $rowIn - $rowOut;
                             $entryDate = (string) $entry['transaction_date'];
+                            $entryCustomFields = ledger_decode_json($entry['custom_fields_json'] ?? '{}');
                             ?>
                             <div class="ledger-row entry-row" data-entry-id="<?= (int) $entry['id'] ?>" data-cash-in="<?= $rowIn ?>" data-cash-out="<?= $rowOut ?>">
                                 <div class="ledger-cell check-cell"><input class="bk-row-check" type="checkbox" data-id="<?= (int) $entry['id'] ?>" aria-label="Select ledger entry"></div>
@@ -1671,6 +2011,10 @@ $canHardDelete = user_has_role('owner_admin');
                                 <div class="ledger-cell ledger-data-cell bk-editable money-cell money-out" data-field="cash_out" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars((string) $rowOut, ENT_QUOTES, 'UTF-8') ?>"><?= $rowOut > 0 ? ledger_money($rowOut) : '' ?></div>
                                 <div class="ledger-cell ledger-total money-net" data-row-total><?= ledger_money($rowTotal) ?></div>
                                 <div class="ledger-cell ledger-data-cell bk-editable" data-field="notes" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars((string) ($entry['notes'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars((string) ($entry['notes'] ?? ''), ENT_QUOTES, 'UTF-8') ?></div>
+                                <?php foreach ($customColumns as $column): ?>
+                                    <?php $customValue = (string) ($entryCustomFields[$column['column_key']] ?? ''); ?>
+                                    <div class="ledger-cell ledger-custom-cell" data-custom-cell data-custom-column-key="<?= htmlspecialchars($column['column_key'], ENT_QUOTES, 'UTF-8') ?>" data-custom-type="<?= htmlspecialchars($column['type'], ENT_QUOTES, 'UTF-8') ?>" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars($customValue, ENT_QUOTES, 'UTF-8') ?>"><?= ledger_custom_cell_html($column, $entryCustomFields) ?></div>
+                                <?php endforeach; ?>
                                 <div class="ledger-cell ledger-add-col-cell"></div>
                             </div>
                         <?php endforeach; ?>
@@ -1682,6 +2026,9 @@ $canHardDelete = user_has_role('owner_admin');
                             <div class="ledger-cell"><input data-add-field="cash_out" type="number" min="0" step="0.01" placeholder="0.00"></div>
                             <div class="ledger-cell ledger-total money-net" data-add-total>N$0.00</div>
                             <div class="ledger-cell"><input data-add-field="notes" placeholder="Notes"></div>
+                            <?php foreach ($customColumns as $column): ?>
+                                <div class="ledger-cell ledger-custom-cell is-empty" data-custom-placeholder data-custom-column-key="<?= htmlspecialchars($column['column_key'], ENT_QUOTES, 'UTF-8') ?>"></div>
+                            <?php endforeach; ?>
                             <div class="ledger-cell ledger-add-col-cell"></div>
                         </div>
                     </section>
@@ -1812,14 +2159,36 @@ $canHardDelete = user_has_role('owner_admin');
         </div>
     </div>
 </div>
+<div class="custom-column-popover" id="customColumnPopover" aria-hidden="true">
+    <div class="custom-type-grid" data-custom-type-grid>
+        <button class="custom-type-btn" type="button" data-custom-type="status">Status</button>
+        <button class="custom-type-btn" type="button" data-custom-type="dropdown">Dropdown</button>
+        <button class="custom-type-btn" type="button" data-custom-type="text">T Text</button>
+        <button class="custom-type-btn" type="button" data-custom-type="date">Date</button>
+        <button class="custom-type-btn" type="button" data-custom-type="people">People</button>
+        <button class="custom-type-btn" type="button" data-custom-type="numbers"># Numbers</button>
+    </div>
+    <form class="custom-column-form" data-custom-column-form>
+        <label>Column name<input type="text" data-custom-column-name maxlength="80" placeholder="Column name"></label>
+        <div data-custom-options-shell hidden>
+            <div data-custom-options-list></div>
+            <button class="custom-add-option" type="button" data-custom-add-option>+ Add option</button>
+        </div>
+        <div class="custom-form-actions">
+            <button type="button" data-custom-cancel>Cancel</button>
+            <button class="primary" type="submit">Add column</button>
+        </div>
+    </form>
+</div>
 <?php endif; ?>
 <script>
 const todayKey = <?= json_encode($today, JSON_UNESCAPED_SLASHES) ?>;
 let systemBalance = <?= json_encode(round($closingBalance, 2), JSON_UNESCAPED_SLASHES) ?>;
 const suggestedOpeningAmount = <?= json_encode($suggestedAmount > 0 ? round($suggestedAmount, 2) : 0, JSON_UNESCAPED_SLASHES) ?>;
 window.bkActivityLog = <?= json_encode($activityLog, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+window.bkCustomColumns = <?= json_encode($customColumns, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
 const ledgerColumnStorageKey = 'hambelela.cashLedger.columnWidths.v1';
-const ledgerColumnDefaults = [
+const coreLedgerColumns = [
   { key: 'select', width: 32, min: 32, locked: true },
   { key: 'description', width: 220, min: 150 },
   { key: 'transaction_date', width: 130, min: 110 },
@@ -1827,9 +2196,20 @@ const ledgerColumnDefaults = [
   { key: 'cash_out', width: 100, min: 84 },
   { key: 'total', width: 100, min: 84 },
   { key: 'notes', width: 380, min: 180 },
-  { key: 'add', width: 44, min: 44, locked: true },
 ];
+const ledgerAddColumn = { key: 'add', width: 44, min: 44, locked: true };
+let ledgerColumnDefaults = buildLedgerColumnDefaults();
 let ledgerColumnWidths = loadLedgerColumnWidths();
+
+function buildLedgerColumnDefaults() {
+  const custom = (window.bkCustomColumns || []).map((column) => ({
+    key: column.column_key,
+    width: 150,
+    min: 100,
+    custom: true
+  }));
+  return [...coreLedgerColumns, ...custom, ledgerAddColumn];
+}
 
 function loadLedgerColumnWidths() {
   try {
@@ -1907,6 +2287,222 @@ function displayDate(value) {
   const date = new Date(String(value || '').replace(' ', 'T'));
   if (Number.isNaN(date.getTime())) return value || '';
   return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+function customColumnByKey(key) {
+  return (window.bkCustomColumns || []).find((column) => column.column_key === key);
+}
+
+function customOption(column, value) {
+  return (column?.options || []).find((option) => String(option.value) === String(value));
+}
+
+function renderCustomValue(column, value) {
+  if (!value) return '';
+  const option = customOption(column, value);
+  if (option && ['status', 'dropdown', 'people'].includes(column.type)) {
+    if (column.type === 'people') {
+      const initial = escapeHtml(String(option.label || value).slice(0, 1).toUpperCase());
+      return `<span class="custom-person-pill" style="--pill-colour:${escapeHtml(option.colour || '#AB3619')}"><span>${initial}</span>${escapeHtml(option.label || value)}</span>`;
+    }
+    return `<span class="custom-status-pill" style="--pill-colour:${escapeHtml(option.colour || '#AB3619')}">${escapeHtml(option.label || value)}</span>`;
+  }
+  return escapeHtml(value);
+}
+
+function openCustomColumnPopover(button) {
+  const popover = document.getElementById('customColumnPopover');
+  if (!popover || !button) return;
+  const rect = button.getBoundingClientRect();
+  popover.style.left = `${Math.min(window.innerWidth - 332, Math.max(12, rect.right - 320))}px`;
+  popover.style.top = `${Math.min(window.innerHeight - 220, rect.bottom + 8)}px`;
+  popover.classList.add('is-open');
+  popover.setAttribute('aria-hidden', 'false');
+  popover.dataset.selectedType = '';
+  popover.querySelector('[data-custom-type-grid]').hidden = false;
+  const form = popover.querySelector('[data-custom-column-form]');
+  form.classList.remove('is-open');
+  form.reset();
+  popover.querySelector('[data-custom-options-shell]').hidden = true;
+  popover.querySelector('[data-custom-options-list]').innerHTML = '';
+}
+
+function closeCustomColumnPopover() {
+  const popover = document.getElementById('customColumnPopover');
+  if (!popover) return;
+  popover.classList.remove('is-open');
+  popover.setAttribute('aria-hidden', 'true');
+}
+
+function addCustomOptionRow(label = '', colour = '#F07420') {
+  const list = document.querySelector('[data-custom-options-list]');
+  if (!list) return;
+  const row = document.createElement('div');
+  row.className = 'custom-option-row';
+  row.innerHTML = `
+    <label>Label<input type="text" data-option-label maxlength="60" value="${escapeHtml(label)}"></label>
+    <label>Color<input type="color" data-option-colour value="${escapeHtml(colour)}"></label>
+    <button class="custom-option-remove" type="button" data-remove-option aria-label="Remove option">&times;</button>
+  `;
+  list.appendChild(row);
+}
+
+function chooseCustomType(type) {
+  const popover = document.getElementById('customColumnPopover');
+  if (!popover) return;
+  popover.dataset.selectedType = type;
+  popover.querySelector('[data-custom-type-grid]').hidden = true;
+  const form = popover.querySelector('[data-custom-column-form]');
+  form.classList.add('is-open');
+  form.querySelector('[data-custom-column-name]').focus();
+  const needsOptions = ['status', 'dropdown'].includes(type);
+  popover.querySelector('[data-custom-options-shell]').hidden = !needsOptions;
+  if (needsOptions && !popover.querySelector('[data-custom-options-list]').children.length) {
+    addCustomOptionRow(type === 'status' ? 'Paid' : 'Option', '#A8CA19');
+    addCustomOptionRow(type === 'status' ? 'Pending' : 'Another option', '#F07420');
+  }
+}
+
+async function saveCustomColumn(event) {
+  event.preventDefault();
+  const popover = document.getElementById('customColumnPopover');
+  if (!popover) return;
+  const type = popover.dataset.selectedType;
+  const name = popover.querySelector('[data-custom-column-name]').value.trim();
+  const options = Array.from(popover.querySelectorAll('.custom-option-row')).map((row) => ({
+    label: row.querySelector('[data-option-label]')?.value.trim() || '',
+    colour: row.querySelector('[data-option-colour]')?.value || '#F07420'
+  })).filter((option) => option.label);
+  try {
+    await postLedger('cashbook_add_custom_column', {
+      column_type: type,
+      name,
+      options_json: JSON.stringify(options)
+    });
+    toast('Column added');
+    setTimeout(() => location.reload(), 350);
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+function renameCustomColumn(header) {
+  const key = header?.dataset.customColumnKey;
+  const column = customColumnByKey(key);
+  const title = header?.querySelector('[data-custom-rename]');
+  if (!column || !title || header.classList.contains('is-renaming')) return;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.maxLength = 80;
+  input.value = column.name;
+  input.style.width = '100%';
+  input.style.border = '0';
+  input.style.outline = 'none';
+  input.style.background = 'transparent';
+  input.style.font = 'inherit';
+  input.style.color = 'inherit';
+  header.classList.add('is-renaming');
+  title.replaceWith(input);
+  input.focus();
+  input.select();
+  let cancelled = false;
+  const finish = async (save) => {
+    if (!header.classList.contains('is-renaming')) return;
+    const name = input.value.trim();
+    const nextTitle = document.createElement('span');
+    nextTitle.className = 'ledger-custom-title';
+    nextTitle.dataset.customRename = '';
+    nextTitle.textContent = save && !cancelled && name ? name : column.name;
+    input.replaceWith(nextTitle);
+    header.classList.remove('is-renaming');
+    if (!save || cancelled || !name || name === column.name) return;
+    try {
+      await postLedger('cashbook_rename_custom_column', { column_key: key, name });
+      column.name = name;
+      toast('Column renamed');
+    } catch (error) {
+      nextTitle.textContent = column.name;
+      alert(error.message);
+    }
+  };
+  input.addEventListener('blur', () => finish(true), { once: true });
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      cancelled = true;
+      event.preventDefault();
+      finish(false);
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      finish(true);
+    }
+  });
+}
+
+async function deleteCustomColumn(key) {
+  const column = customColumnByKey(key);
+  if (!column) return;
+  if (!confirm(`Delete "${column.name}"? Data will be hidden but not permanently erased.`)) return;
+  try {
+    await postLedger('cashbook_delete_custom_column', { column_key: key });
+    toast('Column hidden');
+    setTimeout(() => location.reload(), 350);
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+function startCustomEdit(cell) {
+  if (!cell || cell.classList.contains('is-editing')) return;
+  const key = cell.dataset.customColumnKey;
+  const column = customColumnByKey(key);
+  const id = cell.dataset.id;
+  if (!column || !id) return;
+  const originalValue = cell.dataset.value || '';
+  let input;
+  if (['status', 'dropdown', 'people'].includes(column.type)) {
+    input = document.createElement('select');
+    input.innerHTML = `<option value=""></option>` + (column.options || []).map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`).join('');
+  } else {
+    input = document.createElement('input');
+    input.type = column.type === 'date' ? 'date' : (column.type === 'numbers' ? 'number' : 'text');
+    if (column.type === 'numbers') input.step = 'any';
+  }
+  input.value = originalValue;
+  cell.classList.add('is-editing');
+  cell.innerHTML = '';
+  cell.appendChild(input);
+  input.focus();
+  let cancelled = false;
+  const finish = async (save) => {
+    if (!cell.classList.contains('is-editing')) return;
+    const value = input.value.trim();
+    cell.classList.remove('is-editing');
+    cell.dataset.value = save && !cancelled ? value : originalValue;
+    cell.innerHTML = renderCustomValue(column, cell.dataset.value);
+    if (!save || cancelled || value === originalValue) return;
+    try {
+      await postLedger('cashbook_update_custom_value', { entry_id: id, column_key: key, value });
+      toast('Saved');
+    } catch (error) {
+      cell.dataset.value = originalValue;
+      cell.innerHTML = renderCustomValue(column, originalValue);
+      alert(error.message);
+    }
+  };
+  input.addEventListener('blur', () => finish(true), { once: true });
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      cancelled = true;
+      event.preventDefault();
+      finish(false);
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      finish(true);
+    }
+  });
+  if (input.tagName === 'SELECT') input.addEventListener('change', () => input.blur(), { once: true });
 }
 
 function toast(message) {
@@ -2270,6 +2866,10 @@ function renderEntry(entry) {
   row.dataset.entryId = entry.id;
   row.dataset.cashIn = String(entry.cash_in || 0);
   row.dataset.cashOut = String(entry.cash_out || 0);
+  const customCells = (window.bkCustomColumns || []).map((column) => {
+    const value = entry.custom_fields?.[column.column_key] || '';
+    return `<div class="ledger-cell ledger-custom-cell" data-custom-cell data-custom-column-key="${escapeHtml(column.column_key)}" data-custom-type="${escapeHtml(column.type)}" data-id="${entry.id}" data-value="${escapeHtml(value)}">${renderCustomValue(column, value)}</div>`;
+  }).join('');
   row.innerHTML = `
     <div class="ledger-cell check-cell"><input class="bk-row-check" type="checkbox" data-id="${entry.id}" aria-label="Select ledger entry"></div>
     <div class="ledger-cell ledger-data-cell bk-editable" data-field="description" data-id="${entry.id}"></div>
@@ -2278,6 +2878,7 @@ function renderEntry(entry) {
     <div class="ledger-cell ledger-data-cell bk-editable money-cell money-out" data-field="cash_out" data-id="${entry.id}" data-value="${Number(entry.cash_out || 0)}">${Number(entry.cash_out || 0) > 0 ? money(entry.cash_out) : ''}</div>
     <div class="ledger-cell ledger-total money-net" data-row-total>${money(Number(entry.total || 0))}</div>
     <div class="ledger-cell ledger-data-cell bk-editable" data-field="notes" data-id="${entry.id}"></div>
+    ${customCells}
     <div class="ledger-cell ledger-add-col-cell"></div>
   `;
   row.querySelector('[data-field="description"]').textContent = entry.description || '';
@@ -2421,6 +3022,13 @@ document.addEventListener('pointerdown', (event) => {
 document.addEventListener('click', (event) => {
   const back = event.target.closest('[data-ledger-back]');
   const addLedgerColumn = event.target.closest('[data-add-ledger-column]');
+  const customType = event.target.closest('[data-custom-type]');
+  const customCancel = event.target.closest('[data-custom-cancel]');
+  const customAddOption = event.target.closest('[data-custom-add-option]');
+  const customRemoveOption = event.target.closest('[data-remove-option]');
+  const customDelete = event.target.closest('[data-delete-custom-column]');
+  const customRename = event.target.closest('[data-custom-rename]');
+  const customCell = event.target.closest('[data-custom-cell]');
   const toggle = event.target.closest('[data-toggle-day]');
   const save = event.target.closest('[data-save-add]');
   const editable = event.target.closest('.ledger-data-cell');
@@ -2431,7 +3039,35 @@ document.addEventListener('click', (event) => {
   const restore = event.target.closest('[data-restore-id]');
   const hardDelete = event.target.closest('[data-delete-id]');
   if (addLedgerColumn) {
-    toast('Custom ledger columns need a column type before saving.');
+    openCustomColumnPopover(addLedgerColumn);
+    return;
+  }
+  if (customType) {
+    chooseCustomType(customType.dataset.customType);
+    return;
+  }
+  if (customCancel) {
+    closeCustomColumnPopover();
+    return;
+  }
+  if (customAddOption) {
+    addCustomOptionRow();
+    return;
+  }
+  if (customRemoveOption) {
+    customRemoveOption.closest('.custom-option-row')?.remove();
+    return;
+  }
+  if (customDelete) {
+    deleteCustomColumn(customDelete.dataset.deleteCustomColumn);
+    return;
+  }
+  if (customRename) {
+    renameCustomColumn(customRename.closest('[data-custom-column-key]'));
+    return;
+  }
+  if (customCell) {
+    startCustomEdit(customCell);
     return;
   }
   if (rowCheck) {
@@ -2498,6 +3134,11 @@ document.addEventListener('click', (event) => {
   if (editable) startEdit(editable);
 });
 
+document.addEventListener('submit', (event) => {
+  if (!event.target.matches('[data-custom-column-form]')) return;
+  saveCustomColumn(event);
+});
+
 document.addEventListener('input', (event) => {
   if (event.target.id === 'openingAmount') {
     event.target.closest('.bk-opening-input-wrap')?.classList.remove('is-invalid');
@@ -2520,6 +3161,7 @@ document.addEventListener('input', (event) => {
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
     closeDrawer();
+    closeCustomColumnPopover();
   }
   const row = event.target.closest('[data-add-row]');
   if (!row || event.key !== 'Enter') return;
