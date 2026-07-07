@@ -10,6 +10,9 @@ $pageTitle = 'Cash Ledger | ' . APP_NAME;
 $activeApp = 'operations-bookkeeping';
 $ready = ops_database_ready();
 $employeeId = ops_current_employee_id();
+$currentUser = current_user();
+$ledgerUserId = (int) ($currentUser['id'] ?? $employeeId ?? 0);
+$ledgerUserName = (string) ($currentUser['name'] ?? 'Unknown user');
 $message = null;
 $messageType = 'success';
 
@@ -71,6 +74,26 @@ function ledger_bulk_placeholders(array $ids): string
     return implode(',', array_fill(0, count($ids), '?'));
 }
 
+function cashbook_log(
+    int $userId,
+    string $userName,
+    string $action,
+    ?int $entryId = null,
+    ?string $field = null,
+    ?string $oldValue = null,
+    ?string $newValue = null,
+    ?string $description = null
+): void {
+    if (!ops_database_ready()) return;
+    $stmt = db()->prepare(
+        "INSERT INTO hambelela_cashbook_log
+         (entry_id, action, field, old_value, new_value, description, user_id, user_name, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)"
+    );
+    $stmt->execute([$entryId, $action, $field, $oldValue, $newValue, $description, $userId, $userName]);
+    $stmt->closeCursor();
+}
+
 function ledger_bootstrap_schema(): void
 {
     if (!ops_database_ready()) return;
@@ -112,6 +135,20 @@ function ledger_bootstrap_schema(): void
             variance DECIMAL(10,2) NOT NULL,
             variance_note TEXT,
             logged_by INT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+    );
+    db()->exec(
+        "CREATE TABLE IF NOT EXISTS hambelela_cashbook_log (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            entry_id INT DEFAULT NULL,
+            action VARCHAR(50) NOT NULL,
+            field VARCHAR(50) DEFAULT NULL,
+            old_value TEXT DEFAULT NULL,
+            new_value TEXT DEFAULT NULL,
+            description VARCHAR(255) DEFAULT NULL,
+            user_id INT NOT NULL,
+            user_name VARCHAR(100) NOT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
     );
@@ -159,6 +196,16 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             );
             $stmt->execute([$date, $type, $description, $cashIn, $cashOut, ops_post_string('notes', 1500), $employeeId]);
             $id = (int) db()->lastInsertId();
+            cashbook_log(
+                $ledgerUserId,
+                $ledgerUserName,
+                'created',
+                $id,
+                null,
+                null,
+                null,
+                $description . ' - ' . ledger_money($cashIn) . ' in / ' . ledger_money($cashOut) . ' out'
+            );
             ledger_json(['ok' => true, 'message' => 'Entry saved.', 'entry' => ledger_entry($id)]);
         }
         if ($action === 'save_opening_balance') {
@@ -166,7 +213,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $existing = ops_rows(
                 "SELECT id
                  FROM ops_cash_book_entries
-                 WHERE archived_at IS NULL
+                 WHERE " . ledger_active_where() . "
                    AND DATE(transaction_date) = ?
                    AND (
                        source = 'opening_balance'
@@ -191,6 +238,16 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $employeeId,
             ]);
             $id = (int) db()->lastInsertId();
+            cashbook_log(
+                $ledgerUserId,
+                $ledgerUserName,
+                'opening_balance',
+                $id,
+                null,
+                null,
+                null,
+                'Opening balance saved - ' . ledger_money($cashIn)
+            );
             ledger_json(['ok' => true, 'message' => 'Opening balance saved.', 'entry' => ledger_entry($id)]);
         }
         if ($action === 'update_entry' || $action === 'cashbook_edit_entry') {
@@ -209,8 +266,13 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($field === 'description' && $value === '') throw new RuntimeException('Description is required.');
             if ($field === 'transaction_date') $value = ledger_normalize_datetime($value);
             if (in_array($field, ['cash_in', 'cash_out'], true)) $value = (string) ledger_number($value);
+            $oldStmt = db()->prepare('SELECT ' . $allowed[$field] . ' FROM ops_cash_book_entries WHERE id = ? AND ' . ledger_active_where() . ' LIMIT 1');
+            $oldStmt->execute([$id]);
+            $oldValue = (string) $oldStmt->fetchColumn();
+            $oldStmt->closeCursor();
             $stmt = db()->prepare('UPDATE ops_cash_book_entries SET ' . $allowed[$field] . ' = ?, edited_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND ' . ledger_active_where());
             $stmt->execute([$value, $employeeId, $id]);
+            cashbook_log($ledgerUserId, $ledgerUserName, 'edited', $id, $field, $oldValue, $value);
             $entry = ledger_entry($id);
             $type = ledger_transaction_type($entry['cash_in'], $entry['cash_out']);
             db()->prepare('UPDATE ops_cash_book_entries SET transaction_type = ? WHERE id = ?')->execute([$type, $id]);
@@ -221,6 +283,9 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $placeholders = ledger_bulk_placeholders($ids);
             $stmt = db()->prepare("UPDATE ops_cash_book_entries SET status = 'deleted', deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders})");
             $stmt->execute($ids);
+            foreach ($ids as $id) {
+                cashbook_log($ledgerUserId, $ledgerUserName, 'deleted', $id, null, null, null, 'Moved to trash');
+            }
             ledger_json(['ok' => true, 'message' => 'Moved to trash.']);
         }
         if ($action === 'cashbook_archive') {
@@ -228,6 +293,9 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $placeholders = ledger_bulk_placeholders($ids);
             $stmt = db()->prepare("UPDATE ops_cash_book_entries SET status = 'archived', deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders})");
             $stmt->execute($ids);
+            foreach ($ids as $id) {
+                cashbook_log($ledgerUserId, $ledgerUserName, 'archived', $id, null, null, null, 'Archived');
+            }
             ledger_json(['ok' => true, 'message' => 'Archived.']);
         }
         if ($action === 'cashbook_move_date') {
@@ -242,7 +310,9 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $select->closeCursor();
                 if ($current === '') continue;
                 $time = date('H:i:s', strtotime($current));
-                $update->execute([$newDate . ' ' . $time, $employeeId, $id]);
+                $newDateTime = $newDate . ' ' . $time;
+                $update->execute([$newDateTime, $employeeId, $id]);
+                cashbook_log($ledgerUserId, $ledgerUserName, 'moved', $id, 'transaction_date', $current, $newDateTime);
             }
             ledger_json(['ok' => true, 'message' => 'Moved to date.']);
         }
@@ -251,6 +321,9 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $placeholders = ledger_bulk_placeholders($ids);
             $stmt = db()->prepare("UPDATE ops_cash_book_entries SET status = 'active', deleted_at = NULL, archived_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders})");
             $stmt->execute($ids);
+            foreach ($ids as $id) {
+                cashbook_log($ledgerUserId, $ledgerUserName, 'restored', $id, null, null, null, 'Restored');
+            }
             ledger_json(['ok' => true, 'message' => 'Restored.']);
         }
         if ($action === 'cashbook_permanent_delete') {
@@ -280,6 +353,16 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 ops_post_string('variance_note', 1500),
                 $employeeId ?: 0,
             ]);
+            cashbook_log(
+                $ledgerUserId,
+                $ledgerUserName,
+                'reconciled',
+                null,
+                null,
+                null,
+                null,
+                'System ' . ledger_money($systemBalance) . ' - Counted ' . ledger_money($countedTotal) . ' - Variance ' . ledger_money($variance)
+            );
             $history = ops_rows(
                 "SELECT recon_date, system_balance, counted_total, variance, variance_note, created_at
                  FROM hambelela_cashbook_recon
@@ -383,6 +466,13 @@ $trashItems = $ready ? ops_rows(
      WHERE COALESCE(status, 'active') IN ('deleted', 'archived')
      ORDER BY COALESCE(deleted_at, archived_at, updated_at, created_at) DESC, id DESC
      LIMIT 50"
+) : [];
+$activityLog = $ready ? ops_rows(
+    "SELECT l.*, e.description AS entry_desc
+     FROM hambelela_cashbook_log l
+     LEFT JOIN ops_cash_book_entries e ON e.id = l.entry_id
+     ORDER BY l.created_at DESC, l.id DESC
+     LIMIT 100"
 ) : [];
 $canHardDelete = user_has_role('owner_admin');
 ?>
@@ -1099,7 +1189,7 @@ $canHardDelete = user_has_role('owner_admin');
         }
         .bk-tabs {
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
+            grid-template-columns: repeat(4, 1fr);
             gap: 8px;
             padding: 12px 14px 0;
         }
@@ -1321,6 +1411,24 @@ $canHardDelete = user_has_role('owner_admin');
         .bk-trash-btn.danger {
             color: #BB1B21;
             border-color: rgba(187, 27, 33, .26);
+        }
+        .bk-log-list {
+            max-height: 400px;
+            overflow-y: auto;
+            padding: 0 2px;
+        }
+        .bk-log-list::-webkit-scrollbar {
+            width: 3px;
+        }
+        .bk-log-list::-webkit-scrollbar-thumb {
+            background: #EDE3D8;
+            border-radius: 2px;
+        }
+        .bk-log-empty {
+            text-align: center;
+            padding: 20px;
+            font-size: 12px;
+            color: #A08070;
         }
         .bk-action-bar {
             position: fixed;
@@ -1582,6 +1690,7 @@ $canHardDelete = user_has_role('owner_admin');
     <div class="bk-tabs" role="tablist" aria-label="Cash tools tabs">
         <button class="bk-tab is-active" type="button" data-tab="counter" onclick="switchTab(this, 'counter')">Count till</button>
         <button class="bk-tab" type="button" data-tab="recon" onclick="switchTab(this, 'recon')">Reconcile</button>
+        <button class="bk-tab" type="button" data-tab="activity" onclick="switchTab(this, 'activity')">Activity</button>
         <button class="bk-tab" type="button" data-tab="trash" onclick="switchTab(this, 'trash')">Trash</button>
     </div>
     <div class="bk-drawer-body">
@@ -1655,6 +1764,14 @@ $canHardDelete = user_has_role('owner_admin');
                 </div>
             </section>
         </section>
+        <section class="bk-tab-panel" id="tab-activity">
+            <section class="bk-side-section">
+                <div class="bk-side-head"><span>Activity Log</span></div>
+                <div class="bk-side-body">
+                    <div class="bk-log-list" id="bkLogList"></div>
+                </div>
+            </section>
+        </section>
     </div>
 </aside>
 <div class="bk-action-bar" id="bkActionBar" aria-live="polite">
@@ -1682,6 +1799,7 @@ $canHardDelete = user_has_role('owner_admin');
 const todayKey = <?= json_encode($today, JSON_UNESCAPED_SLASHES) ?>;
 let systemBalance = <?= json_encode(round($closingBalance, 2), JSON_UNESCAPED_SLASHES) ?>;
 const suggestedOpeningAmount = <?= json_encode($suggestedAmount > 0 ? round($suggestedAmount, 2) : 0, JSON_UNESCAPED_SLASHES) ?>;
+window.bkActivityLog = <?= json_encode($activityLog, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
 
 function money(value) {
   return `N$${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -1819,6 +1937,67 @@ function renderReconHistory(rows) {
   `).join('');
 }
 
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  }[char]));
+}
+
+function renderActivityLog() {
+  const list = document.getElementById('bkLogList');
+  if (!list) return;
+  const rows = Array.isArray(window.bkActivityLog) ? window.bkActivityLog : [];
+  if (!rows.length) {
+    list.innerHTML = '<div class="bk-log-empty">No activity yet.</div>';
+    return;
+  }
+  const actionLabels = {
+    created: { label: 'Created', colour: '#A8CA19' },
+    opening_balance: { label: 'Opening balance', colour: '#A8CA19' },
+    edited: { label: 'Edited', colour: '#F07420' },
+    deleted: { label: 'Deleted', colour: '#BB1B21' },
+    archived: { label: 'Archived', colour: '#6B6B6B' },
+    restored: { label: 'Restored', colour: '#A8CA19' },
+    moved: { label: 'Moved', colour: '#F07420' },
+    reconciled: { label: 'Reconciled', colour: '#AB3619' },
+  };
+  const fieldLabels = {
+    description: 'Description',
+    entry_dt: 'Date and time',
+    transaction_date: 'Date and time',
+    cash_in: 'Cash in',
+    cash_out: 'Cash out',
+    notes: 'Notes',
+  };
+  list.innerHTML = rows.map((row) => {
+    const action = actionLabels[row.action] || { label: row.action || 'Activity', colour: '#6B6B6B' };
+    const parsedDate = new Date(String(row.created_at || '').replace(' ', 'T'));
+    const time = Number.isNaN(parsedDate.getTime())
+      ? escapeHtml(row.created_at || '')
+      : parsedDate.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    const entryDesc = row.entry_desc ? String(row.entry_desc).slice(0, 30) : '';
+    const entryRef = entryDesc ? `<span style="color:#A08070;font-size:10px">${escapeHtml(entryDesc)}</span>` : '';
+    const change = row.field
+      ? `<div style="font-size:10px;color:#A08070;margin-top:2px">${escapeHtml(fieldLabels[row.field] || row.field)}: <span style="color:#BB1B21">${escapeHtml(row.old_value || '-')}</span> -> <span style="color:#3d5c00">${escapeHtml(row.new_value || '-')}</span></div>`
+      : (row.description ? `<div style="font-size:10px;color:#A08070;margin-top:2px">${escapeHtml(row.description)}</div>` : '');
+    return `<div style="padding:10px 0;border-bottom:1px solid #EDE3D8;display:flex;gap:10px;align-items:flex-start">
+      <div style="width:8px;height:8px;border-radius:50%;background:${action.colour};margin-top:4px;flex-shrink:0"></div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+          <div style="font-size:12px;font-weight:600;color:#1a1a1a">${escapeHtml(action.label)} ${entryRef}</div>
+          <div style="font-size:10px;color:#A08070;white-space:nowrap">${time}</div>
+        </div>
+        <div style="font-size:11px;color:#6B6B6B;margin-top:1px">${escapeHtml(row.user_name || 'Unknown user')}</div>
+        ${change}
+      </div>
+    </div>`;
+  }).join('');
+}
+
 function getSelectedIds() {
   return Array.from(document.querySelectorAll('.bk-row-check:checked')).map((cb) => cb.dataset.id).filter(Boolean);
 }
@@ -1907,6 +2086,7 @@ function closeDrawer() {
 function switchTab(button, tab) {
   document.querySelectorAll('.bk-tab').forEach((node) => node.classList.toggle('is-active', node === button));
   document.querySelectorAll('.bk-tab-panel').forEach((panel) => panel.classList.toggle('is-active', panel.id === `tab-${tab}`));
+  if (tab === 'activity') renderActivityLog();
 }
 
 function applySidebarFilters() {
