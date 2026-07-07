@@ -6,7 +6,7 @@ require_once __DIR__ . '/operations.php';
 
 require_role('owner_admin', 'front_desk_admin');
 
-$pageTitle = 'Cash Ledger | ' . APP_NAME;
+$pageTitle = 'Hambelela Bookkeeping | ' . APP_NAME;
 $activeApp = 'operations-bookkeeping';
 $ready = ops_database_ready();
 $employeeId = ops_current_employee_id();
@@ -1488,7 +1488,7 @@ $canHardDelete = user_has_role('owner_admin');
 <main class="ledger-page bk-wrap">
     <header class="ledger-top">
         <div>
-            <h1>Cash Ledger</h1>
+            <h1>Hambelela Bookkeeping</h1>
             <p class="ledger-subtitle">Daily cash in, cash out, net movement, and closing balance.</p>
         </div>
         <?php if ($ready): ?>
