@@ -11288,12 +11288,6 @@ textarea {
   padding: 13px 16px;
   background: #fff;
   box-shadow: 0 2px 8px rgba(44,24,16,0.06);
-  transition: border-color .18s, transform .18s;
-}
-
-.courier-wrap .stat-card:hover {
-  border-color: #F07420;
-  transform: translateY(-2px);
 }
 
 .courier-wrap .stat-card.uploaded { border-left: 4px solid #A8CA19; }
