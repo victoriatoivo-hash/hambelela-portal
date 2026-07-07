@@ -31,7 +31,6 @@ $portalNavItems = [
     ['id' => 'kpi', 'label' => 'KPI Dashboard', 'icon' => 'kpi', 'href' => BASE_URL . '/apps/operations/reports.php', 'match' => ['/apps/operations/reports.php']],
     ['id' => 'operations-checklists', 'label' => 'Task Management', 'icon' => 'tasks', 'href' => BASE_URL . '/apps/operations/checklists.php', 'match' => ['/apps/operations/checklists.php']],
     ['id' => 'operations-errors', 'label' => 'Error Log', 'icon' => 'errors', 'href' => BASE_URL . '/apps/operations/errors.php', 'match' => ['/apps/operations/errors.php']],
-    ['id' => 'notifications', 'label' => 'Notifications', 'icon' => 'notifications', 'href' => BASE_URL . '/notifications.php', 'match' => ['/notifications.php'], 'badge' => $notificationUnread],
     ['id' => 'settings', 'label' => 'Settings', 'icon' => 'settings', 'href' => BASE_URL . '/apps/operations/my-account.php', 'match' => ['/apps/operations/my-account.php']],
 ];
 
