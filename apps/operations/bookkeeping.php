@@ -569,7 +569,7 @@ $canHardDelete = user_has_role('owner_admin');
             display: block;
             margin-top: 10px;
             color: #1a1a1a;
-            font-size: 12px;
+            font-size: 12px !important;
             font-weight: 800;
         }
         .bk-wrap .bk-opening-prompt {

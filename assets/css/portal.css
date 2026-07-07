@@ -24734,6 +24734,10 @@ body.sidebar-collapsed .shell:has(.portal-sidebar) {
   padding-left: 78px;
 }
 
+.shell:has(.portal-sidebar.collapsed) {
+  padding-left: 78px;
+}
+
 .shell:has(.portal-sidebar) .workspace,
 body.sidebar-collapsed .workspace {
   margin-left: 0 !important;
