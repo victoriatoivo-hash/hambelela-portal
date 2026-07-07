@@ -689,8 +689,10 @@ $canHardDelete = user_has_role('owner_admin');
             padding-bottom: 8px;
         }
         .ledger-board-inner {
+            --ledger-grid-template: 32px 220px 130px 100px 100px 100px 380px 44px;
+            --ledger-grid-width: 1106px;
             width: 100%;
-            min-width: 100%;
+            min-width: max(100%, var(--ledger-grid-width));
         }
         .day-group {
             border: 1px solid var(--ledger-border);
@@ -704,7 +706,7 @@ $canHardDelete = user_has_role('owner_admin');
         .day-head,
         .ledger-row {
             display: grid;
-            grid-template-columns: 32px 220px 130px 100px 100px 100px 380px 44px;
+            grid-template-columns: var(--ledger-grid-template);
         }
         .day-head {
             min-height: 58px;
@@ -762,6 +764,38 @@ $canHardDelete = user_has_role('owner_admin');
             text-transform: uppercase;
             letter-spacing: .05em;
             background: #fafafa;
+            position: relative;
+            padding-right: 18px;
+        }
+        .ledger-column-resize-handle {
+            position: absolute;
+            top: 0;
+            right: -4px;
+            bottom: 0;
+            width: 8px;
+            cursor: col-resize;
+            z-index: 5;
+            background: transparent;
+            touch-action: none;
+        }
+        .ledger-column-resize-handle::after {
+            content: "";
+            position: absolute;
+            top: 7px;
+            bottom: 7px;
+            left: 3px;
+            width: 2px;
+            border-radius: 999px;
+            background: transparent;
+            transition: background .12s ease;
+        }
+        .ledger-column-resize-handle:hover::after,
+        .ledger-column-resize-handle.is-active::after {
+            background: var(--ledger-orange);
+        }
+        body.is-ledger-resizing {
+            cursor: col-resize;
+            user-select: none;
         }
         .ledger-row {
             border-bottom: 1px solid var(--ledger-border);
@@ -1614,12 +1648,12 @@ $canHardDelete = user_has_role('owner_admin');
                         </div>
                         <div class="ledger-row ledger-header">
                             <div class="ledger-cell check-cell"></div>
-                            <div class="ledger-cell">Description</div>
-                            <div class="ledger-cell">Date & Time</div>
-                            <div class="ledger-cell">Cash In</div>
-                            <div class="ledger-cell">Cash Out</div>
-                            <div class="ledger-cell">Total</div>
-                            <div class="ledger-cell">Notes</div>
+                            <div class="ledger-cell" data-ledger-column="description">Description<span class="ledger-column-resize-handle" data-ledger-resize-column="description" aria-hidden="true"></span></div>
+                            <div class="ledger-cell" data-ledger-column="transaction_date">Date & Time<span class="ledger-column-resize-handle" data-ledger-resize-column="transaction_date" aria-hidden="true"></span></div>
+                            <div class="ledger-cell" data-ledger-column="cash_in">Cash In<span class="ledger-column-resize-handle" data-ledger-resize-column="cash_in" aria-hidden="true"></span></div>
+                            <div class="ledger-cell" data-ledger-column="cash_out">Cash Out<span class="ledger-column-resize-handle" data-ledger-resize-column="cash_out" aria-hidden="true"></span></div>
+                            <div class="ledger-cell" data-ledger-column="total">Total<span class="ledger-column-resize-handle" data-ledger-resize-column="total" aria-hidden="true"></span></div>
+                            <div class="ledger-cell" data-ledger-column="notes">Notes<span class="ledger-column-resize-handle" data-ledger-resize-column="notes" aria-hidden="true"></span></div>
                             <div class="ledger-cell ledger-add-col-cell"><button class="ledger-add-column-btn" type="button" data-add-ledger-column aria-label="Add ledger column">+</button></div>
                         </div>
                         <?php foreach ($dayEntries as $entry): ?>
@@ -1784,6 +1818,78 @@ const todayKey = <?= json_encode($today, JSON_UNESCAPED_SLASHES) ?>;
 let systemBalance = <?= json_encode(round($closingBalance, 2), JSON_UNESCAPED_SLASHES) ?>;
 const suggestedOpeningAmount = <?= json_encode($suggestedAmount > 0 ? round($suggestedAmount, 2) : 0, JSON_UNESCAPED_SLASHES) ?>;
 window.bkActivityLog = <?= json_encode($activityLog, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+const ledgerColumnStorageKey = 'hambelela.cashLedger.columnWidths.v1';
+const ledgerColumnDefaults = [
+  { key: 'select', width: 32, min: 32, locked: true },
+  { key: 'description', width: 220, min: 150 },
+  { key: 'transaction_date', width: 130, min: 110 },
+  { key: 'cash_in', width: 100, min: 84 },
+  { key: 'cash_out', width: 100, min: 84 },
+  { key: 'total', width: 100, min: 84 },
+  { key: 'notes', width: 380, min: 180 },
+  { key: 'add', width: 44, min: 44, locked: true },
+];
+let ledgerColumnWidths = loadLedgerColumnWidths();
+
+function loadLedgerColumnWidths() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(ledgerColumnStorageKey) || '{}');
+    return Object.fromEntries(ledgerColumnDefaults.map((column) => {
+      const width = Number(saved[column.key]);
+      return [column.key, Number.isFinite(width) ? Math.max(column.min, width) : column.width];
+    }));
+  } catch (error) {
+    return Object.fromEntries(ledgerColumnDefaults.map((column) => [column.key, column.width]));
+  }
+}
+
+function ledgerGridTemplate() {
+  return ledgerColumnDefaults.map((column) => `${Math.round(ledgerColumnWidths[column.key])}px`).join(' ');
+}
+
+function applyLedgerColumnWidths() {
+  const board = document.querySelector('.ledger-board-inner');
+  if (!board) return;
+  const width = ledgerColumnDefaults.reduce((total, column) => total + Number(ledgerColumnWidths[column.key] || column.width), 0);
+  board.style.setProperty('--ledger-grid-template', ledgerGridTemplate());
+  board.style.setProperty('--ledger-grid-width', `${Math.round(width)}px`);
+}
+
+function persistLedgerColumnWidths() {
+  const payload = Object.fromEntries(ledgerColumnDefaults.map((column) => [column.key, Math.round(ledgerColumnWidths[column.key])]));
+  try {
+    localStorage.setItem(ledgerColumnStorageKey, JSON.stringify(payload));
+  } catch (error) {
+    // Column resizing should keep working even if persistence is unavailable.
+  }
+}
+
+function startLedgerColumnResize(handle, event) {
+  const key = handle.dataset.ledgerResizeColumn;
+  const column = ledgerColumnDefaults.find((item) => item.key === key && !item.locked);
+  if (!column) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const startX = event.clientX;
+  const startWidth = Number(ledgerColumnWidths[key] || column.width);
+  handle.classList.add('is-active');
+  document.body.classList.add('is-ledger-resizing');
+  const move = (moveEvent) => {
+    ledgerColumnWidths[key] = Math.max(column.min, startWidth + moveEvent.clientX - startX);
+    applyLedgerColumnWidths();
+  };
+  const stop = () => {
+    handle.classList.remove('is-active');
+    document.body.classList.remove('is-ledger-resizing');
+    persistLedgerColumnWidths();
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', stop);
+    window.removeEventListener('pointercancel', stop);
+  };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', stop);
+  window.addEventListener('pointercancel', stop);
+}
 
 function money(value) {
   return `N$${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -2306,6 +2412,12 @@ function startEdit(cell) {
   });
 }
 
+document.addEventListener('pointerdown', (event) => {
+  const handle = event.target.closest('[data-ledger-resize-column]');
+  if (!handle) return;
+  startLedgerColumnResize(handle, event);
+});
+
 document.addEventListener('click', (event) => {
   const back = event.target.closest('[data-ledger-back]');
   const addLedgerColumn = event.target.closest('[data-add-ledger-column]');
@@ -2415,6 +2527,7 @@ document.addEventListener('keydown', (event) => {
   saveAddRow(row);
 });
 
+applyLedgerColumnWidths();
 setReconValues();
 setOpeningVariance();
 </script>
