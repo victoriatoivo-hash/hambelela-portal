@@ -1481,7 +1481,7 @@ $canHardDelete = user_has_role('owner_admin');
 <body>
 <div class="ledger-shell shell">
 <?php include BASE_PATH . '/shared/sidebar.php'; ?>
-<main class="ledger-page bk-wrap">
+<main class="ledger-page bk-wrap" style="margin-left:220px">
     <header class="ledger-top">
         <div>
             <h1>Cash Ledger</h1>
