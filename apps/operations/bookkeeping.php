@@ -507,60 +507,7 @@ $canHardDelete = user_has_role('owner_admin');
         }
         .ledger-shell {
             min-height: 100vh;
-            display: grid;
-            grid-template-columns: 220px minmax(0, 1fr);
             background: var(--ledger-white);
-        }
-        .ledger-side-panel {
-            min-height: 100vh;
-            border-right: 1px solid var(--ledger-border);
-            background: var(--ledger-white);
-            padding: 18px 14px;
-            position: sticky;
-            top: 0;
-            align-self: start;
-        }
-        .ledger-back-button {
-            width: 100%;
-            min-height: 34px;
-            border: 1px solid rgba(171, 54, 25, .24);
-            border-radius: 999px;
-            background: var(--ledger-white);
-            color: var(--ledger-red);
-            cursor: pointer;
-            font: inherit;
-            font-size: 12px;
-            font-weight: 800;
-            text-align: left;
-            padding: 0 12px;
-        }
-        .ledger-side-title {
-            margin: 18px 0 10px;
-            color: var(--ledger-red);
-            font-size: 14px;
-            font-weight: 900;
-        }
-        .ledger-side-nav {
-            display: grid;
-            gap: 7px;
-        }
-        .ledger-side-nav a {
-            min-height: 32px;
-            display: flex;
-            align-items: center;
-            border: 1px solid transparent;
-            border-radius: 12px;
-            color: var(--ledger-rust);
-            text-decoration: none;
-            font-size: 12px;
-            font-weight: 700;
-            padding: 0 10px;
-        }
-        .ledger-side-nav a:hover,
-        .ledger-side-nav a.is-active {
-            border-color: rgba(240, 116, 32, .28);
-            background: rgba(240, 116, 32, .08);
-            color: var(--ledger-red);
         }
         .ledger-page {
             min-height: 100vh;
@@ -1514,9 +1461,6 @@ $canHardDelete = user_has_role('owner_admin');
             to { opacity: 1; transform: translateY(0); }
         }
         @media (max-width: 760px) {
-            .ledger-shell { grid-template-columns: 1fr; }
-            .ledger-side-panel { min-height: 0; position: static; border-right: 0; border-bottom: 1px solid var(--ledger-border); }
-            .ledger-side-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
             .bk-page-layout { grid-template-columns: 1fr; }
             .ledger-page { padding: 18px; }
             .ledger-top { flex-direction: column; }
@@ -1534,19 +1478,9 @@ $canHardDelete = user_has_role('owner_admin');
     </style>
 </head>
 <body>
-<div class="ledger-shell">
-<aside class="ledger-side-panel" aria-label="Cash ledger navigation">
-    <button class="ledger-back-button" type="button" data-ledger-back>&larr; Back</button>
-    <div class="ledger-side-title">Operations</div>
-    <nav class="ledger-side-nav">
-        <a href="<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/apps/operations/dashboard.php">Dashboard</a>
-        <a href="<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/apps/operations/orders-board.php">Orders Board</a>
-        <a href="<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/apps/operations/orders.php">Orders</a>
-        <a class="is-active" href="<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/apps/operations/bookkeeping.php">Cash Ledger</a>
-    </nav>
-</aside>
+<div class="ledger-shell shell">
 <?php include BASE_PATH . '/shared/sidebar.php'; ?>
-<main class="ledger-page bk-wrap" style="margin-left:220px">
+<main class="ledger-page bk-wrap">
     <header class="ledger-top">
         <div>
             <h1>Cash Ledger</h1>
