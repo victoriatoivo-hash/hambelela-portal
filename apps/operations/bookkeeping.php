@@ -784,7 +784,7 @@ $canHardDelete = user_has_role('owner_admin');
             font-size: 12px;
         }
         .ledger-cell:last-child {
-            border-right: 0;
+            border-right: 1px solid var(--ledger-border);
         }
         .ledger-total,
         .money-cell {
