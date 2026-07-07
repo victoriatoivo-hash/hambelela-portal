@@ -11412,6 +11412,8 @@ textarea {
 
 .courier-wrap textarea {
   height: 52px;
+  min-height: 52px !important;
+  max-height: 52px !important;
   padding: 8px 10px;
   resize: none;
 }
@@ -11433,10 +11435,13 @@ textarea {
 }
 
 .courier-wrap .courier-chip {
-  display: inline-flex;
+  display: inline-flex !important;
+  width: auto !important;
+  flex: 0 0 auto !important;
+  min-width: unset !important;
   align-items: center;
   gap: 5px;
-  padding: 4px 11px;
+  padding: 4px 11px !important;
   border: 1px solid #EDE3D8;
   border-radius: 20px;
   font-size: 12px;

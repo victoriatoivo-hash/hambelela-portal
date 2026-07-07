@@ -223,7 +223,7 @@ function wb_current_name(): string
 
 function wb_allowed_couriers(): array
 {
-    return ['Jet-X', 'Nampost', 'Coastal Courier', 'Hardap freight', 'formula Courier', 'Others'];
+    return ['Jet-X', 'Nampost', 'Coastal Courier', 'Hardap freight', 'formula Courier'];
 }
 
 function wb_post_couriers(): array
@@ -233,11 +233,10 @@ function wb_post_couriers(): array
         $posted = [$posted];
     }
 
-    $allowed = wb_allowed_couriers();
     $selected = [];
     foreach ($posted as $courier) {
         $courier = trim((string) $courier);
-        if ($courier !== '' && in_array($courier, $allowed, true)) {
+        if ($courier !== '') {
             $selected[] = $courier;
         }
     }
@@ -996,6 +995,11 @@ include BASE_PATH . '/shared/sidebar.php';
                             <?php foreach (wb_allowed_couriers() as $courier): ?>
                                 <label class="courier-chip"><input type="checkbox" name="couriers[]" value="<?= wb_e($courier) ?>"> <?= wb_e($courier) ?></label>
                             <?php endforeach; ?>
+                            <button class="btn-add-courier" type="button" data-add-courier>+ Add courier</button>
+                        </div>
+                        <div class="add-courier-inline" data-add-courier-inline>
+                            <input type="text" data-add-courier-name placeholder="Courier name">
+                            <button class="btn-secondary" type="button" data-add-courier-save>Add</button>
                         </div>
                     </div>
                     <div class="field-label span-2">
@@ -1114,6 +1118,11 @@ include BASE_PATH . '/shared/sidebar.php';
         const dropzone = uploadForm.querySelector('[data-dropzone]');
         const chips = uploadForm.querySelector('[data-file-chips]');
         const submit = uploadForm.querySelector('[data-upload-submit]');
+        const courierChips = uploadForm.querySelector('.courier-chips');
+        const addCourierButton = uploadForm.querySelector('[data-add-courier]');
+        const addCourierInline = uploadForm.querySelector('[data-add-courier-inline]');
+        const addCourierName = uploadForm.querySelector('[data-add-courier-name]');
+        const addCourierSave = uploadForm.querySelector('[data-add-courier-save]');
         let selectedFiles = [];
 
         function syncFiles() {
@@ -1148,6 +1157,47 @@ include BASE_PATH . '/shared/sidebar.php';
             selectedFiles = Array.from(fileInput.files || []);
             renderFiles();
         });
+
+        function addCourierChip(name) {
+            if (!courierChips) return;
+            const courierName = String(name || '').trim();
+            if (!courierName) return;
+            const existing = Array.from(courierChips.querySelectorAll('input[name="couriers[]"]'))
+                .some((input) => input.value.toLowerCase() === courierName.toLowerCase());
+            if (existing) return;
+
+            const label = document.createElement('label');
+            label.className = 'courier-chip';
+            const input = document.createElement('input');
+            input.type = 'checkbox';
+            input.name = 'couriers[]';
+            input.value = courierName;
+            input.checked = true;
+            label.appendChild(input);
+            label.appendChild(document.createTextNode(' ' + courierName));
+            courierChips.insertBefore(label, addCourierButton || null);
+        }
+
+        if (addCourierButton && addCourierInline) {
+            addCourierButton.addEventListener('click', () => {
+                addCourierInline.classList.add('visible');
+                if (addCourierName) addCourierName.focus();
+            });
+        }
+        if (addCourierSave && addCourierName) {
+            addCourierSave.addEventListener('click', () => {
+                addCourierChip(addCourierName.value);
+                addCourierName.value = '';
+                if (addCourierInline) addCourierInline.classList.remove('visible');
+            });
+            addCourierName.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    addCourierSave.click();
+                }
+            });
+        }
+
         if (dropzone) {
             ['dragenter', 'dragover'].forEach((eventName) => {
                 dropzone.addEventListener(eventName, (event) => {
