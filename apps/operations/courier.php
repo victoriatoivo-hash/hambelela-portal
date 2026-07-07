@@ -682,22 +682,20 @@ function wb_queue_html(array $rows, bool $canSend): string
             $statusClass = wb_queue_status_class($row);
             ?>
             <article class="queue-item <?= wb_e($statusClass) ?>" data-batch-id="<?= wb_e($batchId) ?>">
-                <div class="queue-item-header">
+                <div class="queue-cell queue-main">
                     <div class="file-count"><?= number_format((int) ($row['number_of_waybills'] ?: $row['file_count'])) ?></div>
                     <div>
                         <strong class="ref"><?= wb_e($row['courier_names'] ?: 'Courier not selected') ?></strong>
-                        <span class="meta-value">Sent date: <?= wb_e($row['sent_date'] ?: 'Not set') ?> - <?= number_format((int) $row['file_count']) ?> uploaded file<?= (int) $row['file_count'] === 1 ? '' : 's' ?></span>
+                        <span class="meta-value">Sent date: <?= wb_e($row['sent_date'] ?: 'Not set') ?></span>
                     </div>
-                    <?= wb_status_badge((string) $row['status'], (string) $row['due_by']) ?>
                 </div>
-                <div class="queue-item-meta">
-                    <span><b class="meta-label">Uploaded</b><span class="meta-value"><?= wb_e(wb_dt((string) $row['uploaded_at'])) ?></span></span>
-                    <span><b class="meta-label">By</b><span class="meta-value"><?= wb_e($row['uploaded_by_display']) ?></span></span>
-                    <span><b class="meta-label">Due</b><span class="meta-value"><?= wb_e(wb_due_label((string) $row['due_by'])) ?></span></span>
-                    <span><b class="meta-label">Files</b><span class="meta-value"><?= wb_e((string) $row['file_names']) ?></span></span>
-                </div>
-                <div class="queue-item-notes"><?= wb_e($row['notes'] ?: 'No notes') ?></div>
-                <div class="queue-item-actions">
+                <div class="queue-cell"><span class="meta-value"><?= wb_e(wb_dt((string) $row['uploaded_at'])) ?></span></div>
+                <div class="queue-cell"><span class="meta-value"><?= wb_e($row['uploaded_by_display']) ?></span></div>
+                <div class="queue-cell"><span class="meta-value"><?= wb_e(wb_due_label((string) $row['due_by'])) ?></span></div>
+                <div class="queue-cell"><span class="meta-value"><?= wb_e((string) $row['file_names']) ?></span></div>
+                <div class="queue-cell"><?= wb_status_badge((string) $row['status'], (string) $row['due_by']) ?></div>
+                <div class="queue-cell queue-notes"><span class="meta-value"><?= wb_e($row['notes'] ?: 'No notes') ?></span></div>
+                <div class="queue-cell queue-item-actions">
                     <a class="btn-secondary" href="courier.php?action=waybill_download_zip&amp;batch_id=<?= wb_e($batchId) ?>"><i data-lucide="download"></i> Download<?= (int) $row['file_count'] > 1 ? ' ZIP' : '' ?></a>
                     <?php if ($canSend): ?>
                         <button class="btn-mark-sent mark-sent" type="button" data-batch-id="<?= wb_e($batchId) ?>"><i data-lucide="send"></i> Mark Sent</button>
@@ -946,16 +944,6 @@ include BASE_PATH . '/shared/sidebar.php';
     <?php if (!$ready) { ops_setup_notice(); } ?>
 
     <section class="courier-hub" data-waybill-app>
-        <form class="section-card filter-strip" method="get" data-waybill-filter>
-            <label class="field-label">From
-                <input type="date" name="date_from" value="<?= wb_e($historyDateFrom) ?>">
-            </label>
-            <label class="field-label">To
-                <input type="date" name="date_to" value="<?= wb_e($historyDateTo) ?>">
-            </label>
-            <button class="btn-secondary" type="submit"><i data-lucide="search"></i> Search</button>
-        </form>
-
         <div class="stat-cards">
             <article class="stat-card uploaded">
                 <span class="sc-icon"><i data-lucide="upload-cloud"></i></span>
@@ -970,6 +958,23 @@ include BASE_PATH . '/shared/sidebar.php';
                 <div><strong class="sc-num" data-stat="overdue"><?= number_format($payload['stats']['overdue']) ?></strong><div class="sc-lbl">Overdue</div></div>
             </article>
         </div>
+
+        <form class="section-card filter-strip" method="get" data-waybill-filter>
+            <div class="filter-date-row">
+                <label class="field-label">From
+                    <input type="date" name="date_from" value="<?= wb_e($historyDateFrom) ?>">
+                </label>
+                <label class="field-label">To
+                    <input type="date" name="date_to" value="<?= wb_e($historyDateTo) ?>">
+                </label>
+            </div>
+            <label class="field-label filter-search-row">Search
+                <input type="search" name="search" placeholder="Search courier waybills">
+            </label>
+            <div class="filter-actions-row">
+                <a class="btn-primary filter-clear-button" href="courier.php">Clear filters</a>
+            </div>
+        </form>
 
         <?php if ($canUploadWaybills): ?>
             <section class="section-card">
@@ -1028,6 +1033,9 @@ include BASE_PATH . '/shared/sidebar.php';
                     <h2 class="card-title">Waybill Queue</h2>
                 </div>
                 <button class="btn-secondary" type="button" data-refresh-waybills><i data-lucide="refresh-cw"></i> Refresh</button>
+            </div>
+            <div class="queue-head">
+                <div>Courier</div><div>Uploaded</div><div>By</div><div>Due</div><div>Files</div><div>Status</div><div>Notes</div><div></div>
             </div>
             <div class="queue-list" data-waybill-queue><?= $payload['queue_html'] ?></div>
         </section>
