@@ -164,12 +164,12 @@ function wb_is_business_day(DateTimeImmutable $date): bool
 
 function wb_next_business_day(DateTimeImmutable $date): DateTimeImmutable
 {
-    $cursor = $date->modify('+1 day')->setTime(9, 0);
+    $cursor = $date->modify('+1 day')->setTime(8, 30);
     for ($i = 0; $i < 10; $i++) {
         if (wb_is_business_day($cursor)) {
             return $cursor;
         }
-        $cursor = $cursor->modify('+1 day')->setTime(9, 0);
+        $cursor = $cursor->modify('+1 day')->setTime(8, 30);
     }
 
     return $cursor;
@@ -177,13 +177,6 @@ function wb_next_business_day(DateTimeImmutable $date): DateTimeImmutable
 
 function wb_due_for_upload(DateTimeImmutable $uploadedAt): DateTimeImmutable
 {
-    if (wb_is_business_day($uploadedAt)) {
-        $cutoff = $uploadedAt->setTime(16, 30);
-        if ($uploadedAt < $cutoff) {
-            return $uploadedAt->setTime(17, 0);
-        }
-    }
-
     return wb_next_business_day($uploadedAt);
 }
 
