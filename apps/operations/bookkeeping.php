@@ -689,7 +689,8 @@ $canHardDelete = user_has_role('owner_admin');
             padding-bottom: 8px;
         }
         .ledger-board-inner {
-            min-width: 1060px;
+            width: 100%;
+            min-width: 100%;
         }
         .day-group {
             border: 1px solid var(--ledger-border);

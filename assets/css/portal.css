@@ -24568,11 +24568,6 @@ body:has(.ob-wrap) .ob-wrap .orders-board-v2 .monday-group.collapsed .monday-gro
   border-radius: 12px;
   background: var(--bk-surface);
   overflow: hidden;
-  transition: border-color .18s, transform .18s;
-}
-.bk-wrap .stat-card:hover {
-  border-color: var(--bk-amber);
-  transform: translateY(-2px);
 }
 
 .bk-wrap .stat-card::before {
@@ -24611,10 +24606,6 @@ body:has(.ob-wrap) .ob-wrap .orders-board-v2 .monday-group.collapsed .monday-gro
   background: var(--bk-surface);
   box-shadow: 0 10px 26px rgba(114, 27, 26, .06);
   overflow: hidden;
-  transition: border-color .15s;
-}
-.bk-wrap .day-group:hover {
-  border-color: var(--bk-amber);
 }
 
 .bk-wrap .day-summary,
@@ -24734,8 +24725,12 @@ body.sidebar-collapsed .shell:has(.portal-sidebar) {
 }
 
 .shell:has(.portal-sidebar) .workspace,
+.shell:has(.portal-sidebar) .ledger-page,
 body.sidebar-collapsed .workspace {
   margin-left: 0 !important;
+  max-width: none !important;
+  width: 100%;
+  box-sizing: border-box;
   transition: margin-left .25s ease;
 }
 
