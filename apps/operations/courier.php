@@ -950,7 +950,6 @@ include BASE_PATH . '/shared/sidebar.php';
             <h1>Courier Waybills</h1>
             <p class="page-subtitle">Upload, track and send courier waybills from one queue.</p>
         </div>
-        <a class="btn-secondary" href="index.php"><i data-lucide="arrow-left"></i> Operations</a>
     </section>
 
     <?php if (!$ready) { ops_setup_notice(); } ?>
