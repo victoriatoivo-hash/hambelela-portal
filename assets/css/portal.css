@@ -24622,16 +24622,11 @@ body:has(.ob-wrap) .ob-wrap .orders-board-v2 .monday-group.collapsed .monday-gro
   border-color: var(--bk-border);
 }
 
-.bk-wrap .ledger-row {
-  display: grid;
-  grid-template-columns: 36px minmax(200px, 1.7fr) 130px 100px 100px 100px minmax(180px, 1.4fr);
-}
-
 .bk-wrap .ledger-cell {
   min-height: 38px;
   border-color: var(--bk-border);
   color: var(--bk-text);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .bk-wrap .ledger-header .ledger-cell {
