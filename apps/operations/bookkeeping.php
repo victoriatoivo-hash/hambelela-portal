@@ -856,11 +856,22 @@ $canHardDelete = user_has_role('owner_admin');
             padding: 0 6px;
             outline: 0;
         }
+        .ledger-data-cell input,
+        .ledger-data-cell textarea,
+        .bk-wrap .bk-editable input,
+        .bk-wrap .bk-editable textarea,
+        .bk-wrap .bk-editable select {
+            border: 0;
+            border-radius: 0;
+            box-shadow: none;
+        }
         .ledger-data-cell input:focus,
         .ledger-data-cell textarea:focus,
         .bk-wrap .bk-editable input:focus,
-        .bk-wrap .bk-editable textarea:focus {
+        .bk-wrap .bk-editable textarea:focus,
+        .bk-wrap .bk-editable select:focus {
             outline: none;
+            border: 0;
             box-shadow: none;
         }
         .ledger-data-cell textarea,
