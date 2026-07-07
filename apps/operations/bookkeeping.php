@@ -825,18 +825,18 @@ $canHardDelete = user_has_role('owner_admin');
         .ledger-data-cell,
         .bk-wrap .bk-editable {
             cursor: text;
-            transition: background .12s ease, outline-color .12s ease;
+            transition: background .12s ease;
         }
         .ledger-data-cell:hover,
         .bk-wrap .bk-editable:hover {
             background: #FDF6EE !important;
-            outline: 1px dashed var(--ledger-orange);
-            outline-offset: -2px;
+            outline: none;
+            box-shadow: none;
         }
         .ledger-data-cell.is-editing {
             background: var(--ledger-white);
-            outline: 2px solid var(--ledger-orange);
-            outline-offset: -2px;
+            outline: none;
+            box-shadow: none;
         }
         .ledger-data-cell input,
         .ledger-data-cell textarea,
@@ -861,7 +861,7 @@ $canHardDelete = user_has_role('owner_admin');
         .bk-wrap .bk-editable input:focus,
         .bk-wrap .bk-editable textarea:focus {
             outline: none;
-            box-shadow: 0 0 0 2px rgba(171,54,25,.15);
+            box-shadow: none;
         }
         .ledger-data-cell textarea,
         .add-row textarea {

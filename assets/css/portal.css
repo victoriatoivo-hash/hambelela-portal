@@ -24639,8 +24639,8 @@ body:has(.ob-wrap) .ob-wrap .orders-board-v2 .monday-group.collapsed .monday-gro
 
 .bk-wrap .add-row input:focus,
 .bk-wrap .add-row textarea:focus {
-  border-color: var(--bk-orange-red);
-  box-shadow: 0 0 0 2px rgba(171,54,25,.12);
+  border-color: var(--bk-border);
+  box-shadow: none;
   outline: none;
 }
 
