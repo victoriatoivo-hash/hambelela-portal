@@ -704,7 +704,7 @@ $canHardDelete = user_has_role('owner_admin');
         .day-head,
         .ledger-row {
             display: grid;
-            grid-template-columns: 32px 220px 130px 100px 100px 100px minmax(160px, 1fr);
+            grid-template-columns: 32px 220px 130px 100px 100px 100px minmax(160px, 1fr) 44px;
         }
         .day-head {
             min-height: 58px;
@@ -800,6 +800,33 @@ $canHardDelete = user_has_role('owner_admin');
             font-weight: 600;
         }
         .check-cell { justify-content: center; padding: 0; }
+        .ledger-add-col-cell {
+            justify-content: center;
+            padding: 0;
+        }
+        .ledger-add-column-btn {
+            width: 26px;
+            height: 26px;
+            border: 1px solid rgba(171, 54, 25, .24);
+            border-radius: 8px;
+            background: var(--ledger-white);
+            color: var(--ledger-rust);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: 700;
+            line-height: 1;
+            cursor: pointer;
+            transition: background .15s, border-color .15s, color .15s;
+        }
+        .ledger-add-column-btn:hover,
+        .ledger-add-column-btn:focus-visible {
+            background: #FDF6EE;
+            border-color: var(--ledger-rust);
+            color: var(--ledger-burgundy);
+            outline: none;
+        }
         .row-dot {
             width: 16px;
             height: 16px;
@@ -1582,6 +1609,7 @@ $canHardDelete = user_has_role('owner_admin');
                             <div class="day-sum money-out" data-day-out><?= ledger_money($dayOut) ?></div>
                             <div class="day-sum money-net" data-day-net><?= ledger_money($dayNet) ?></div>
                             <div class="day-sum"></div>
+                            <div class="day-sum"></div>
                         </div>
                         <div class="ledger-row ledger-header">
                             <div class="ledger-cell check-cell"></div>
@@ -1591,6 +1619,7 @@ $canHardDelete = user_has_role('owner_admin');
                             <div class="ledger-cell">Cash Out</div>
                             <div class="ledger-cell">Total</div>
                             <div class="ledger-cell">Notes</div>
+                            <div class="ledger-cell ledger-add-col-cell"><button class="ledger-add-column-btn" type="button" data-add-ledger-column aria-label="Add ledger column">+</button></div>
                         </div>
                         <?php foreach ($dayEntries as $entry): ?>
                             <?php
@@ -1607,6 +1636,7 @@ $canHardDelete = user_has_role('owner_admin');
                                 <div class="ledger-cell ledger-data-cell bk-editable money-cell money-out" data-field="cash_out" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars((string) $rowOut, ENT_QUOTES, 'UTF-8') ?>"><?= $rowOut > 0 ? ledger_money($rowOut) : '' ?></div>
                                 <div class="ledger-cell ledger-total money-net" data-row-total><?= ledger_money($rowTotal) ?></div>
                                 <div class="ledger-cell ledger-data-cell bk-editable" data-field="notes" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars((string) ($entry['notes'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars((string) ($entry['notes'] ?? ''), ENT_QUOTES, 'UTF-8') ?></div>
+                                <div class="ledger-cell ledger-add-col-cell"></div>
                             </div>
                         <?php endforeach; ?>
                         <div class="ledger-row add-row" data-add-row data-day="<?= htmlspecialchars($day, ENT_QUOTES, 'UTF-8') ?>">
@@ -1617,6 +1647,7 @@ $canHardDelete = user_has_role('owner_admin');
                             <div class="ledger-cell"><input data-add-field="cash_out" type="number" min="0" step="0.01" placeholder="0.00"></div>
                             <div class="ledger-cell ledger-total money-net" data-add-total>N$0.00</div>
                             <div class="ledger-cell"><input data-add-field="notes" placeholder="Notes"></div>
+                            <div class="ledger-cell ledger-add-col-cell"></div>
                         </div>
                     </section>
                 <?php endforeach; ?>
@@ -2140,6 +2171,7 @@ function renderEntry(entry) {
     <div class="ledger-cell ledger-data-cell bk-editable money-cell money-out" data-field="cash_out" data-id="${entry.id}" data-value="${Number(entry.cash_out || 0)}">${Number(entry.cash_out || 0) > 0 ? money(entry.cash_out) : ''}</div>
     <div class="ledger-cell ledger-total money-net" data-row-total>${money(Number(entry.total || 0))}</div>
     <div class="ledger-cell ledger-data-cell bk-editable" data-field="notes" data-id="${entry.id}"></div>
+    <div class="ledger-cell ledger-add-col-cell"></div>
   `;
   row.querySelector('[data-field="description"]').textContent = entry.description || '';
   row.querySelector('[data-field="description"]').dataset.value = entry.description || '';
@@ -2275,6 +2307,7 @@ function startEdit(cell) {
 
 document.addEventListener('click', (event) => {
   const back = event.target.closest('[data-ledger-back]');
+  const addLedgerColumn = event.target.closest('[data-add-ledger-column]');
   const toggle = event.target.closest('[data-toggle-day]');
   const save = event.target.closest('[data-save-add]');
   const editable = event.target.closest('.ledger-data-cell');
@@ -2284,6 +2317,10 @@ document.addEventListener('click', (event) => {
   const rowCheck = event.target.closest('.bk-row-check');
   const restore = event.target.closest('[data-restore-id]');
   const hardDelete = event.target.closest('[data-delete-id]');
+  if (addLedgerColumn) {
+    toast('Custom ledger columns need a column type before saving.');
+    return;
+  }
   if (rowCheck) {
     const row = rowCheck.closest('.entry-row');
     row?.classList.toggle('bk-row-selected', rowCheck.checked);
