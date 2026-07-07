@@ -1545,7 +1545,8 @@ $canHardDelete = user_has_role('owner_admin');
         <a class="is-active" href="<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/apps/operations/bookkeeping.php">Cash Ledger</a>
     </nav>
 </aside>
-<main class="ledger-page bk-wrap">
+<?php include BASE_PATH . '/shared/sidebar.php'; ?>
+<main class="ledger-page bk-wrap" style="margin-left:220px">
     <header class="ledger-top">
         <div>
             <h1>Cash Ledger</h1>
