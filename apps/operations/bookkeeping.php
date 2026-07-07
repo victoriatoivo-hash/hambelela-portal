@@ -2373,7 +2373,9 @@ function chooseCustomType(type) {
     addCustomOptionRow(type === 'status' ? 'Paid' : 'Option', '#A8CA19');
     addCustomOptionRow(type === 'status' ? 'Pending' : 'Another option', '#F07420');
   }
+  clampCustomColumnPopover();
   requestAnimationFrame(clampCustomColumnPopover);
+  setTimeout(clampCustomColumnPopover, 80);
 }
 
 async function saveCustomColumn(event) {
