@@ -24487,12 +24487,7 @@ body:has(.ob-wrap) .ob-wrap .orders-board-v2 .monday-group.collapsed .monday-gro
   font-size: 13px;
   font-weight: 400;
   color: var(--bk-text);
-  background: #ffffff;
-}
-
-.ledger-page {
-  margin-left: 220px;
-  transition: margin-left .25s cubic-bezier(.4,0,.2,1);
+  background: #FDF6EE;
 }
 
 .bk-wrap .ledger-top {
