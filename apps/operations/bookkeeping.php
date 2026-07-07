@@ -53,6 +53,24 @@ function ledger_transaction_type(float $cashIn, float $cashOut): string
     return 'cash_received';
 }
 
+function ledger_active_where(): string
+{
+    return "archived_at IS NULL AND COALESCE(status, 'active') = 'active'";
+}
+
+function ledger_bulk_ids(): array
+{
+    $raw = (string) ($_POST['ids'] ?? '');
+    $ids = array_values(array_unique(array_filter(array_map('intval', explode(',', $raw)), static fn (int $id): bool => $id > 0)));
+    if (!$ids) throw new RuntimeException('Select at least one ledger entry.');
+    return $ids;
+}
+
+function ledger_bulk_placeholders(array $ids): string
+{
+    return implode(',', array_fill(0, count($ids), '?'));
+}
+
 function ledger_bootstrap_schema(): void
 {
     if (!ops_database_ready()) return;
@@ -79,6 +97,12 @@ function ledger_bootstrap_schema(): void
             updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         )"
     );
+    if (!ops_column_exists('ops_cash_book_entries', 'status')) {
+        db()->exec("ALTER TABLE ops_cash_book_entries ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'active'");
+    }
+    if (!ops_column_exists('ops_cash_book_entries', 'deleted_at')) {
+        db()->exec("ALTER TABLE ops_cash_book_entries ADD COLUMN deleted_at DATETIME NULL");
+    }
     db()->exec(
         "CREATE TABLE IF NOT EXISTS hambelela_cashbook_recon (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -95,7 +119,7 @@ function ledger_bootstrap_schema(): void
 
 function ledger_entry(int $id): array
 {
-    $rows = ops_rows('SELECT * FROM ops_cash_book_entries WHERE id = ? AND archived_at IS NULL LIMIT 1', [$id]);
+    $rows = ops_rows('SELECT * FROM ops_cash_book_entries WHERE id = ? AND ' . ledger_active_where() . ' LIMIT 1', [$id]);
     if (!$rows) throw new RuntimeException('Ledger entry not found.');
     $row = $rows[0];
     $cashIn = (float) ($row['cash_in'] ?? 0);
@@ -169,9 +193,10 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $id = (int) db()->lastInsertId();
             ledger_json(['ok' => true, 'message' => 'Opening balance saved.', 'entry' => ledger_entry($id)]);
         }
-        if ($action === 'update_entry') {
+        if ($action === 'update_entry' || $action === 'cashbook_edit_entry') {
             $id = (int) ($_POST['entry_id'] ?? 0);
             $field = ops_post_string('field', 40);
+            if ($field === 'entry_dt') $field = 'transaction_date';
             $allowed = [
                 'description' => 'description',
                 'transaction_date' => 'transaction_date',
@@ -184,12 +209,57 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($field === 'description' && $value === '') throw new RuntimeException('Description is required.');
             if ($field === 'transaction_date') $value = ledger_normalize_datetime($value);
             if (in_array($field, ['cash_in', 'cash_out'], true)) $value = (string) ledger_number($value);
-            $stmt = db()->prepare('UPDATE ops_cash_book_entries SET ' . $allowed[$field] . ' = ?, edited_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND archived_at IS NULL');
+            $stmt = db()->prepare('UPDATE ops_cash_book_entries SET ' . $allowed[$field] . ' = ?, edited_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND ' . ledger_active_where());
             $stmt->execute([$value, $employeeId, $id]);
             $entry = ledger_entry($id);
             $type = ledger_transaction_type($entry['cash_in'], $entry['cash_out']);
             db()->prepare('UPDATE ops_cash_book_entries SET transaction_type = ? WHERE id = ?')->execute([$type, $id]);
             ledger_json(['ok' => true, 'message' => 'Saved.', 'entry' => ledger_entry($id)]);
+        }
+        if ($action === 'cashbook_soft_delete') {
+            $ids = ledger_bulk_ids();
+            $placeholders = ledger_bulk_placeholders($ids);
+            $stmt = db()->prepare("UPDATE ops_cash_book_entries SET status = 'deleted', deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders})");
+            $stmt->execute($ids);
+            ledger_json(['ok' => true, 'message' => 'Moved to trash.']);
+        }
+        if ($action === 'cashbook_archive') {
+            $ids = ledger_bulk_ids();
+            $placeholders = ledger_bulk_placeholders($ids);
+            $stmt = db()->prepare("UPDATE ops_cash_book_entries SET status = 'archived', deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders})");
+            $stmt->execute($ids);
+            ledger_json(['ok' => true, 'message' => 'Archived.']);
+        }
+        if ($action === 'cashbook_move_date') {
+            $ids = ledger_bulk_ids();
+            $newDate = ops_post_string('new_date', 20);
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $newDate)) throw new RuntimeException('Use date format YYYY-MM-DD.');
+            $select = db()->prepare('SELECT transaction_date FROM ops_cash_book_entries WHERE id = ? AND ' . ledger_active_where() . ' LIMIT 1');
+            $update = db()->prepare('UPDATE ops_cash_book_entries SET transaction_date = ?, edited_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND ' . ledger_active_where());
+            foreach ($ids as $id) {
+                $select->execute([$id]);
+                $current = (string) $select->fetchColumn();
+                $select->closeCursor();
+                if ($current === '') continue;
+                $time = date('H:i:s', strtotime($current));
+                $update->execute([$newDate . ' ' . $time, $employeeId, $id]);
+            }
+            ledger_json(['ok' => true, 'message' => 'Moved to date.']);
+        }
+        if ($action === 'cashbook_restore') {
+            $ids = ledger_bulk_ids();
+            $placeholders = ledger_bulk_placeholders($ids);
+            $stmt = db()->prepare("UPDATE ops_cash_book_entries SET status = 'active', deleted_at = NULL, archived_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders})");
+            $stmt->execute($ids);
+            ledger_json(['ok' => true, 'message' => 'Restored.']);
+        }
+        if ($action === 'cashbook_permanent_delete') {
+            if (!user_has_role('owner_admin')) throw new RuntimeException('Only the owner/admin can permanently delete ledger entries.');
+            $ids = ledger_bulk_ids();
+            $placeholders = ledger_bulk_placeholders($ids);
+            $stmt = db()->prepare("DELETE FROM ops_cash_book_entries WHERE id IN ({$placeholders}) AND COALESCE(status, 'active') IN ('deleted', 'archived')");
+            $stmt->execute($ids);
+            ledger_json(['ok' => true, 'message' => 'Permanently deleted.']);
         }
         if ($action === 'cashbook_save_recon') {
             $reconDate = ops_post_string('recon_date', 20);
@@ -229,7 +299,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
 $entries = $ready ? ops_rows(
     "SELECT *
      FROM ops_cash_book_entries
-     WHERE archived_at IS NULL
+     WHERE " . ledger_active_where() . "
      ORDER BY transaction_date DESC, id DESC"
 ) : [];
 
@@ -243,8 +313,8 @@ if ($ready) {
     $openingRows = ops_rows(
         "SELECT COUNT(*) AS opening_count
          FROM ops_cash_book_entries
-         WHERE archived_at IS NULL
-           AND DATE(transaction_date) = ?
+                 WHERE " . ledger_active_where() . "
+                   AND DATE(transaction_date) = ?
            AND (
                source = 'opening_balance'
                OR transaction_type = 'opening_balance'
@@ -265,7 +335,7 @@ if ($ready) {
             COALESCE(SUM(cash_in), 0) - COALESCE(SUM(cash_out), 0)
          ) AS closing_total
          FROM ops_cash_book_entries
-         WHERE archived_at IS NULL
+         WHERE " . ledger_active_where() . "
            AND DATE(transaction_date) < ?",
         [$today]
     );
@@ -307,6 +377,14 @@ $reconHistory = $ready ? ops_rows(
      ORDER BY created_at DESC, id DESC
      LIMIT 5"
 ) : [];
+$trashItems = $ready ? ops_rows(
+    "SELECT *
+     FROM ops_cash_book_entries
+     WHERE COALESCE(status, 'active') IN ('deleted', 'archived')
+     ORDER BY COALESCE(deleted_at, archived_at, updated_at, created_at) DESC, id DESC
+     LIMIT 50"
+) : [];
+$canHardDelete = user_has_role('owner_admin');
 ?>
 <!doctype html>
 <html lang="en">
@@ -686,12 +764,29 @@ $reconHistory = $ready ? ops_rows(
             border: 1px solid rgba(171, 54, 25, .3);
             background: var(--ledger-white);
         }
-        .ledger-data-cell {
+        .bk-row-check {
+            width: 15px;
+            height: 15px;
+            accent-color: var(--ledger-rust);
+            cursor: pointer;
+        }
+        .bk-row-check:checked {
+            accent-color: var(--ledger-rust);
+        }
+        .entry-row.bk-row-selected .ledger-cell {
+            background: #f9f5f4 !important;
+        }
+        .entry-row.bk-row-selected .ledger-data-cell:hover {
+            background: #f9f5f4 !important;
+        }
+        .ledger-data-cell,
+        .bk-wrap .bk-editable {
             cursor: text;
             transition: background .12s ease, outline-color .12s ease;
         }
-        .ledger-data-cell:hover {
-            background: rgba(171, 54, 25, .05);
+        .ledger-data-cell:hover,
+        .bk-wrap .bk-editable:hover {
+            background: #FDF6EE !important;
             outline: 1px dashed var(--ledger-orange);
             outline-offset: -2px;
         }
@@ -702,18 +797,28 @@ $reconHistory = $ready ? ops_rows(
         }
         .ledger-data-cell input,
         .ledger-data-cell textarea,
+        .bk-wrap .bk-editable input,
+        .bk-wrap .bk-editable textarea,
+        .bk-wrap .bk-editable select,
         .add-row input,
         .add-row textarea {
             width: 100%;
-            height: 30px;
-            border: 1px solid rgba(171, 54, 25, .28);
-            border-radius: 10px;
+            height: 26px;
+            border: 1px solid #AB3619;
+            border-radius: 5px;
             background: var(--ledger-white);
-            color: var(--ledger-text);
-            font: inherit;
+            color: #1a1a1a;
+            font-family: Figtree, system-ui, sans-serif;
             font-size: 12px;
-            padding: 0 9px;
+            padding: 0 6px;
             outline: 0;
+        }
+        .ledger-data-cell input:focus,
+        .ledger-data-cell textarea:focus,
+        .bk-wrap .bk-editable input:focus,
+        .bk-wrap .bk-editable textarea:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(171,54,25,.15);
         }
         .ledger-data-cell textarea,
         .add-row textarea {
@@ -994,7 +1099,7 @@ $reconHistory = $ready ? ops_rows(
         }
         .bk-tabs {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 1fr 1fr 1fr;
             gap: 8px;
             padding: 12px 14px 0;
         }
@@ -1159,6 +1264,118 @@ $reconHistory = $ready ? ops_rows(
         .bk-copy-total-row {
             padding: 0;
         }
+        .bk-trash-list {
+            display: grid;
+            gap: 10px;
+        }
+        .bk-trash-item {
+            border: 1px solid var(--ledger-border);
+            border-radius: 12px;
+            background: #fff;
+            padding: 10px;
+            display: grid;
+            gap: 8px;
+        }
+        .bk-trash-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        .bk-trash-title {
+            color: #1a1a1a;
+            font-size: 12px;
+            font-weight: 800;
+            line-height: 1.25;
+        }
+        .bk-trash-meta {
+            color: #6B6B6B;
+            font-size: 11px;
+            margin-top: 3px;
+        }
+        .bk-trash-amount {
+            color: #1a1a1a;
+            font-size: 12px;
+            font-weight: 900;
+            white-space: nowrap;
+        }
+        .bk-trash-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .bk-trash-btn {
+            height: 28px;
+            border-radius: 8px;
+            border: 1px solid rgba(171, 54, 25, .24);
+            background: #fff;
+            color: var(--ledger-rust);
+            cursor: pointer;
+            font: inherit;
+            font-size: 12px;
+            font-weight: 800;
+            padding: 0 10px;
+        }
+        .bk-trash-btn:hover {
+            background: #FDF6EE;
+        }
+        .bk-trash-btn.danger {
+            color: #BB1B21;
+            border-color: rgba(187, 27, 33, .26);
+        }
+        .bk-action-bar {
+            position: fixed;
+            bottom: -90px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 300;
+            transition: bottom .28s cubic-bezier(.34,1.56,.64,1);
+            pointer-events: none;
+        }
+        .bk-action-bar.visible {
+            bottom: 24px;
+            pointer-events: all;
+        }
+        .bk-action-bar-inner {
+            background: #2C1810;
+            color: #fff;
+            border-radius: 12px;
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            box-shadow: 0 8px 24px rgba(44,24,16,.3);
+            white-space: nowrap;
+        }
+        .bk-action-count {
+            font-size: 12px;
+            font-weight: 600;
+            color: #A08070;
+            min-width: 70px;
+        }
+        .bk-action-btns {
+            display: flex;
+            gap: 6px;
+        }
+        .bk-action-btn {
+            background: rgba(255,255,255,.1);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,.15);
+            border-radius: 7px;
+            height: 30px;
+            padding: 0 12px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: background .15s;
+            font-family: Figtree, system-ui, sans-serif;
+        }
+        .bk-action-btn:hover { background: rgba(255,255,255,.2); }
+        .bk-action-btn.danger { color: #f09595; border-color: rgba(240,149,149,.3); }
+        .bk-action-btn.danger:hover { background: rgba(187,27,33,.3); }
+        .bk-action-btn.cancel { color: #A08070; border-color: transparent; }
         .toast {
             position: fixed;
             right: 22px;
@@ -1323,13 +1540,13 @@ $reconHistory = $ready ? ops_rows(
                             $entryDate = (string) $entry['transaction_date'];
                             ?>
                             <div class="ledger-row entry-row" data-entry-id="<?= (int) $entry['id'] ?>" data-cash-in="<?= $rowIn ?>" data-cash-out="<?= $rowOut ?>">
-                                <div class="ledger-cell check-cell"><span class="row-dot"></span></div>
-                                <div class="ledger-cell ledger-data-cell" data-field="description" data-value="<?= htmlspecialchars((string) $entry['description'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars((string) $entry['description'], ENT_QUOTES, 'UTF-8') ?></div>
-                                <div class="ledger-cell ledger-data-cell" data-field="transaction_date" data-value="<?= htmlspecialchars(date('Y-m-d\TH:i', strtotime($entryDate)), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(date('M j, g:i A', strtotime($entryDate)), ENT_QUOTES, 'UTF-8') ?></div>
-                                <div class="ledger-cell ledger-data-cell money-cell money-in" data-field="cash_in" data-value="<?= htmlspecialchars((string) $rowIn, ENT_QUOTES, 'UTF-8') ?>"><?= $rowIn > 0 ? ledger_money($rowIn) : '' ?></div>
-                                <div class="ledger-cell ledger-data-cell money-cell money-out" data-field="cash_out" data-value="<?= htmlspecialchars((string) $rowOut, ENT_QUOTES, 'UTF-8') ?>"><?= $rowOut > 0 ? ledger_money($rowOut) : '' ?></div>
+                                <div class="ledger-cell check-cell"><input class="bk-row-check" type="checkbox" data-id="<?= (int) $entry['id'] ?>" aria-label="Select ledger entry"></div>
+                                <div class="ledger-cell ledger-data-cell bk-editable" data-field="description" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars((string) $entry['description'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars((string) $entry['description'], ENT_QUOTES, 'UTF-8') ?></div>
+                                <div class="ledger-cell ledger-data-cell bk-editable" data-field="transaction_date" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars(date('Y-m-d\TH:i', strtotime($entryDate)), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(date('M j, g:i A', strtotime($entryDate)), ENT_QUOTES, 'UTF-8') ?></div>
+                                <div class="ledger-cell ledger-data-cell bk-editable money-cell money-in" data-field="cash_in" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars((string) $rowIn, ENT_QUOTES, 'UTF-8') ?>"><?= $rowIn > 0 ? ledger_money($rowIn) : '' ?></div>
+                                <div class="ledger-cell ledger-data-cell bk-editable money-cell money-out" data-field="cash_out" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars((string) $rowOut, ENT_QUOTES, 'UTF-8') ?>"><?= $rowOut > 0 ? ledger_money($rowOut) : '' ?></div>
                                 <div class="ledger-cell ledger-total money-net" data-row-total><?= ledger_money($rowTotal) ?></div>
-                                <div class="ledger-cell ledger-data-cell" data-field="notes" data-value="<?= htmlspecialchars((string) ($entry['notes'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars((string) ($entry['notes'] ?? ''), ENT_QUOTES, 'UTF-8') ?></div>
+                                <div class="ledger-cell ledger-data-cell bk-editable" data-field="notes" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars((string) ($entry['notes'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars((string) ($entry['notes'] ?? ''), ENT_QUOTES, 'UTF-8') ?></div>
                             </div>
                         <?php endforeach; ?>
                         <div class="ledger-row add-row" data-add-row data-day="<?= htmlspecialchars($day, ENT_QUOTES, 'UTF-8') ?>">
@@ -1365,6 +1582,7 @@ $reconHistory = $ready ? ops_rows(
     <div class="bk-tabs" role="tablist" aria-label="Cash tools tabs">
         <button class="bk-tab is-active" type="button" data-tab="counter" onclick="switchTab(this, 'counter')">Count till</button>
         <button class="bk-tab" type="button" data-tab="recon" onclick="switchTab(this, 'recon')">Reconcile</button>
+        <button class="bk-tab" type="button" data-tab="trash" onclick="switchTab(this, 'trash')">Trash</button>
     </div>
     <div class="bk-drawer-body">
         <section class="bk-tab-panel is-active" id="tab-counter">
@@ -1404,8 +1622,61 @@ $reconHistory = $ready ? ops_rows(
                 </div>
             </section>
         </section>
+        <section class="bk-tab-panel" id="tab-trash">
+            <section class="bk-side-section">
+                <div class="bk-side-head"><span>Trash</span></div>
+                <div class="bk-side-body">
+                    <div class="bk-trash-list" data-trash-list>
+                        <?php foreach ($trashItems as $item): ?>
+                            <?php
+                            $trashIn = (float) ($item['cash_in'] ?? 0);
+                            $trashOut = (float) ($item['cash_out'] ?? 0);
+                            $trashTotal = $trashIn - $trashOut;
+                            $trashStatus = (string) ($item['status'] ?? 'deleted');
+                            ?>
+                            <div class="bk-trash-item" data-trash-id="<?= (int) $item['id'] ?>">
+                                <div class="bk-trash-top">
+                                    <div>
+                                        <div class="bk-trash-title"><?= htmlspecialchars((string) $item['description'], ENT_QUOTES, 'UTF-8') ?></div>
+                                        <div class="bk-trash-meta"><?= htmlspecialchars(date('M j, g:i A', strtotime((string) $item['transaction_date'])), ENT_QUOTES, 'UTF-8') ?> - <?= htmlspecialchars(ucfirst($trashStatus), ENT_QUOTES, 'UTF-8') ?></div>
+                                    </div>
+                                    <div class="bk-trash-amount"><?= ledger_money($trashTotal) ?></div>
+                                </div>
+                                <div class="bk-trash-actions">
+                                    <button class="bk-trash-btn" type="button" data-restore-id="<?= (int) $item['id'] ?>">Restore</button>
+                                    <?php if ($canHardDelete): ?>
+                                        <button class="bk-trash-btn danger" type="button" data-delete-id="<?= (int) $item['id'] ?>">Permanently delete</button>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                        <?php if (!$trashItems): ?><div class="bk-history-item">Trash is empty.</div><?php endif; ?>
+                    </div>
+                </div>
+            </section>
+        </section>
     </div>
 </aside>
+<div class="bk-action-bar" id="bkActionBar" aria-live="polite">
+    <div class="bk-action-bar-inner">
+        <span class="bk-action-count" id="bkActionCount">0 selected</span>
+        <div class="bk-action-btns">
+            <button class="bk-action-btn" type="button" onclick="moveToDate()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                Move to date
+            </button>
+            <button class="bk-action-btn" type="button" onclick="archiveSelected()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+                Archive
+            </button>
+            <button class="bk-action-btn danger" type="button" onclick="softDeleteSelected()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                Delete
+            </button>
+            <button class="bk-action-btn cancel" type="button" onclick="clearSelection()">Cancel</button>
+        </div>
+    </div>
+</div>
 <?php endif; ?>
 <script>
 const todayKey = <?= json_encode($today, JSON_UNESCAPED_SLASHES) ?>;
@@ -1548,6 +1819,81 @@ function renderReconHistory(rows) {
   `).join('');
 }
 
+function getSelectedIds() {
+  return Array.from(document.querySelectorAll('.bk-row-check:checked')).map((cb) => cb.dataset.id).filter(Boolean);
+}
+
+function updateFloatingBar() {
+  const ids = getSelectedIds();
+  const bar = document.getElementById('bkActionBar');
+  const count = document.getElementById('bkActionCount');
+  if (!bar || !count) return;
+  if (ids.length > 0) {
+    bar.classList.add('visible');
+    count.textContent = `${ids.length} selected`;
+  } else {
+    bar.classList.remove('visible');
+    count.textContent = '0 selected';
+  }
+}
+
+function clearSelection() {
+  document.querySelectorAll('.bk-row-check').forEach((cb) => {
+    cb.checked = false;
+    cb.closest('.entry-row')?.classList.remove('bk-row-selected');
+  });
+  updateFloatingBar();
+}
+
+async function runSelectedAction(action, fields = {}) {
+  const ids = getSelectedIds();
+  if (!ids.length) return;
+  const data = await postLedger(action, { ids: ids.join(','), ...fields });
+  toast(data.message || 'Updated');
+  clearSelection();
+  setTimeout(() => location.reload(), 450);
+}
+
+function softDeleteSelected() {
+  const ids = getSelectedIds();
+  if (!ids.length) return;
+  if (!confirm(`Move ${ids.length} item(s) to trash? You can restore them from Cash tools.`)) return;
+  runSelectedAction('cashbook_soft_delete').catch((error) => alert(error.message));
+}
+
+function archiveSelected() {
+  const ids = getSelectedIds();
+  if (!ids.length) return;
+  runSelectedAction('cashbook_archive').catch((error) => alert(error.message));
+}
+
+function moveToDate() {
+  const ids = getSelectedIds();
+  if (!ids.length) return;
+  const newDate = prompt('Move to date (YYYY-MM-DD):');
+  if (!newDate) return;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate)) {
+    alert('Invalid date format. Use YYYY-MM-DD.');
+    return;
+  }
+  runSelectedAction('cashbook_move_date', { new_date: newDate }).catch((error) => alert(error.message));
+}
+
+async function restoreTrashItem(id) {
+  if (!id) return;
+  const data = await postLedger('cashbook_restore', { ids: String(id) });
+  toast(data.message || 'Restored');
+  setTimeout(() => location.reload(), 450);
+}
+
+async function permanentDeleteTrashItem(id) {
+  if (!id) return;
+  if (!confirm('Permanently delete this ledger entry? This cannot be undone.')) return;
+  const data = await postLedger('cashbook_permanent_delete', { ids: String(id) });
+  toast(data.message || 'Deleted');
+  setTimeout(() => location.reload(), 450);
+}
+
 function openDrawer() {
   document.getElementById('bkDrawer')?.classList.add('is-open');
   document.getElementById('bkOverlay')?.classList.add('is-open');
@@ -1655,13 +2001,13 @@ function renderEntry(entry) {
   row.dataset.cashIn = String(entry.cash_in || 0);
   row.dataset.cashOut = String(entry.cash_out || 0);
   row.innerHTML = `
-    <div class="ledger-cell check-cell"><span class="row-dot"></span></div>
-    <div class="ledger-cell ledger-data-cell" data-field="description"></div>
-    <div class="ledger-cell ledger-data-cell" data-field="transaction_date" data-value="${entry.date_input || inputDate(entry.date)}">${displayDate(entry.date)}</div>
-    <div class="ledger-cell ledger-data-cell money-cell money-in" data-field="cash_in" data-value="${Number(entry.cash_in || 0)}">${Number(entry.cash_in || 0) > 0 ? money(entry.cash_in) : ''}</div>
-    <div class="ledger-cell ledger-data-cell money-cell money-out" data-field="cash_out" data-value="${Number(entry.cash_out || 0)}">${Number(entry.cash_out || 0) > 0 ? money(entry.cash_out) : ''}</div>
+    <div class="ledger-cell check-cell"><input class="bk-row-check" type="checkbox" data-id="${entry.id}" aria-label="Select ledger entry"></div>
+    <div class="ledger-cell ledger-data-cell bk-editable" data-field="description" data-id="${entry.id}"></div>
+    <div class="ledger-cell ledger-data-cell bk-editable" data-field="transaction_date" data-id="${entry.id}" data-value="${entry.date_input || inputDate(entry.date)}">${displayDate(entry.date)}</div>
+    <div class="ledger-cell ledger-data-cell bk-editable money-cell money-in" data-field="cash_in" data-id="${entry.id}" data-value="${Number(entry.cash_in || 0)}">${Number(entry.cash_in || 0) > 0 ? money(entry.cash_in) : ''}</div>
+    <div class="ledger-cell ledger-data-cell bk-editable money-cell money-out" data-field="cash_out" data-id="${entry.id}" data-value="${Number(entry.cash_out || 0)}">${Number(entry.cash_out || 0) > 0 ? money(entry.cash_out) : ''}</div>
     <div class="ledger-cell ledger-total money-net" data-row-total>${money(Number(entry.total || 0))}</div>
-    <div class="ledger-cell ledger-data-cell" data-field="notes"></div>
+    <div class="ledger-cell ledger-data-cell bk-editable" data-field="notes" data-id="${entry.id}"></div>
   `;
   row.querySelector('[data-field="description"]').textContent = entry.description || '';
   row.querySelector('[data-field="description"]').dataset.value = entry.description || '';
@@ -1803,6 +2149,23 @@ document.addEventListener('click', (event) => {
   const clearFilters = event.target.closest('[data-bk-filter-clear]');
   const saveRecon = event.target.closest('[data-save-recon]');
   const resetDenoms = event.target.closest('[data-reset-denoms]');
+  const rowCheck = event.target.closest('.bk-row-check');
+  const restore = event.target.closest('[data-restore-id]');
+  const hardDelete = event.target.closest('[data-delete-id]');
+  if (rowCheck) {
+    const row = rowCheck.closest('.entry-row');
+    row?.classList.toggle('bk-row-selected', rowCheck.checked);
+    updateFloatingBar();
+    return;
+  }
+  if (restore) {
+    restoreTrashItem(restore.dataset.restoreId).catch((error) => alert(error.message));
+    return;
+  }
+  if (hardDelete) {
+    permanentDeleteTrashItem(hardDelete.dataset.deleteId).catch((error) => alert(error.message));
+    return;
+  }
   if (back) {
     if (window.history.length > 1) window.history.back();
     else window.location.href = '<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/apps/operations/dashboard.php';
