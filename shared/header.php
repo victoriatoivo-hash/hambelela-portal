@@ -41,20 +41,4 @@ $assetVersion = defined('BASE_PATH') && is_file(BASE_PATH . '/assets/css/portal.
     <script defer src="<?= BASE_URL ?>/assets/js/portal.js?v=<?= htmlspecialchars($assetVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
 </head>
 <body>
-<header class="topbar">
-    <button class="mobile-nav-toggle" type="button" aria-label="Open navigation" aria-controls="portal-sidebar" aria-expanded="false">
-        <i data-lucide="menu"></i>
-    </button>
-    <a class="brand" href="<?= BASE_URL ?>/index.php" aria-label="Hambelela portal home">
-        Hambelela <span>Business Portal</span>
-    </a>
-    <div class="topbar-actions">
-        <div class="account">
-        <div>
-            <strong><?= htmlspecialchars($user['name'], ENT_QUOTES, 'UTF-8') ?></strong>
-            <small><?= htmlspecialchars($user['role'], ENT_QUOTES, 'UTF-8') ?></small>
-        </div>
-        </div>
-    </div>
-</header>
 <div class="shell">
