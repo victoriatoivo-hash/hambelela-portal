@@ -11898,6 +11898,7 @@ textarea {
 }
 
 .courier-wrap .upload-form > label.field-label,
+.courier-wrap .upload-form .courier-field > span,
 .courier-wrap .upload-form .waybill-files-field > span {
   color: #721b1a !important;
 }

@@ -1007,7 +1007,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     <label class="field-label">Number of Waybills
                         <input name="number_of_waybills" type="number" min="1" step="1" value="1" required>
                     </label>
-                    <div class="field-label span-2">
+                    <div class="field-label span-2 courier-field">
                         <span>Courier</span>
                         <div class="courier-chips">
                             <?php foreach (wb_allowed_couriers() as $courier): ?>
