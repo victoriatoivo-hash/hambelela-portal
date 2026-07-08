@@ -11235,6 +11235,8 @@ textarea {
    ============================================= */
 
 .courier-wrap {
+  --courier-section-padding-x: 24px;
+  --courier-section-padding-y: 20px;
   font-family: Figtree, system-ui, -apple-system,
     BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 13px;
@@ -11347,22 +11349,29 @@ textarea {
   line-height: 1.1;
 }
 
-.courier-wrap .section-card {
+.courier-wrap .section-card,
+.courier-wrap .courier-section {
   border: 1px solid #EDE3D8;
-  border-radius: 12px;
-  padding: 14px 16px;
+  border-radius: 18px;
+  padding: var(--courier-section-padding-y) var(--courier-section-padding-x);
   background: #fff;
   box-shadow: 0 2px 8px rgba(44,24,16,0.06);
-  margin-bottom: 10px;
+  margin-bottom: 18px;
+  box-sizing: border-box;
+  width: 100%;
 }
 
-.courier-wrap .card-head {
+.courier-wrap .card-head,
+.courier-wrap .courier-section-header {
   display: flex;
   justify-content: space-between;
   gap: 14px;
   align-items: flex-start;
-  margin-bottom: 5px;
+  margin: 0 0 16px;
+  padding: 0;
   flex-wrap: wrap;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .courier-wrap .card-title {
@@ -11387,9 +11396,7 @@ textarea {
   gap: 10px;
   align-items: stretch;
   width: 100%;
-  max-width: 520px;
-  padding: 14px 16px;
-  margin-bottom: 16px;
+  max-width: none;
 }
 
 .courier-wrap .filter-date-row {
@@ -11785,6 +11792,9 @@ textarea {
 .courier-wrap .history-list {
   display: grid;
   gap: 0;
+  width: 100%;
+  overflow-x: auto;
+  box-sizing: border-box;
 }
 
 .courier-wrap .queue-head,
@@ -11792,6 +11802,8 @@ textarea {
   display: grid;
   grid-template-columns: minmax(170px, 1.4fr) 128px 128px 120px minmax(150px, 1.2fr) 100px minmax(150px, 1.2fr) minmax(170px, auto);
   align-items: stretch;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .courier-wrap .queue-head {
@@ -11810,6 +11822,7 @@ textarea {
 .courier-wrap .queue-cell {
   min-height: 38px;
   padding: 8px 10px;
+  box-sizing: border-box;
   border-right: 1px solid #EDE3D8;
   display: flex;
   align-items: center;
@@ -11942,6 +11955,11 @@ textarea {
 
 .courier-wrap .history-summary {
   cursor: pointer;
+  list-style: none;
+}
+
+.courier-wrap .history-summary::-webkit-details-marker {
+  display: none;
 }
 
 .courier-wrap .history-head,
@@ -11950,6 +11968,8 @@ textarea {
   grid-template-columns: 1.5fr 1fr 0.8fr 1fr auto;
   align-items: center;
   gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .courier-wrap .history-head {
@@ -11970,6 +11990,7 @@ textarea {
 .courier-wrap .history-row > div {
   min-height: 38px;
   padding: 8px 10px;
+  box-sizing: border-box;
   border-right: 1px solid #EDE3D8;
   display: flex;
   align-items: center;
@@ -12073,6 +12094,11 @@ textarea {
 }
 
 @media (max-width: 640px) {
+  .courier-wrap {
+    --courier-section-padding-x: 16px;
+    --courier-section-padding-y: 16px;
+  }
+
   .courier-wrap .module-header,
   .courier-wrap .card-head {
     flex-direction: column;

@@ -972,7 +972,7 @@ include BASE_PATH . '/shared/sidebar.php';
             </article>
         </div>
 
-        <form class="section-card filter-strip" method="get" data-waybill-filter>
+        <form class="section-card courier-section filter-strip" method="get" data-waybill-filter>
             <div class="filter-date-row">
                 <label class="field-label">From
                     <input type="date" name="date_from" value="<?= wb_e($historyDateFrom) ?>">
@@ -990,8 +990,8 @@ include BASE_PATH . '/shared/sidebar.php';
         </form>
 
         <?php if ($canUploadWaybills): ?>
-            <section class="section-card">
-                <div class="card-head">
+            <section class="section-card courier-section">
+                <div class="card-head courier-section-header">
                     <div>
                         <h2 class="card-title">Upload Waybills</h2>
                         <p class="card-sub">Uploading as: <strong><?= wb_e(wb_current_name()) ?></strong>. Multiple files can be uploaded in one batch.</p>
@@ -1040,8 +1040,8 @@ include BASE_PATH . '/shared/sidebar.php';
             </section>
         <?php endif; ?>
 
-        <section class="section-card">
-            <div class="card-head">
+        <section class="section-card courier-section">
+            <div class="card-head courier-section-header">
                 <div>
                     <h2 class="card-title">Waybill Queue</h2>
                 </div>
@@ -1053,8 +1053,8 @@ include BASE_PATH . '/shared/sidebar.php';
             <div class="queue-list" data-waybill-queue><?= $payload['queue_html'] ?></div>
         </section>
 
-        <details class="section-card" open>
-            <summary class="card-head history-summary">
+        <details class="section-card courier-section" open>
+            <summary class="card-head courier-section-header history-summary">
                 <div>
                     <h2 class="card-title">Sent History</h2>
                     <p class="card-sub">Waybills marked sent from <?= wb_e($historyDateFrom) ?> to <?= wb_e($historyDateTo) ?>.</p>
