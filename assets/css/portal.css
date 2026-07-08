@@ -11374,6 +11374,17 @@ textarea {
   box-sizing: border-box;
 }
 
+.courier-wrap .courier-section-inner {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.courier-wrap .courier-table-wrap {
+  width: 100%;
+  box-sizing: border-box;
+  overflow-x: auto;
+}
+
 .courier-wrap .card-title {
   font-size: 14px;
   font-weight: 600;
@@ -11844,7 +11855,7 @@ textarea {
   display: grid;
   gap: 0;
   width: 100%;
-  overflow-x: auto;
+  overflow-x: visible;
   box-sizing: border-box;
 }
 
@@ -12033,7 +12044,7 @@ textarea {
   display: grid;
   grid-template-columns: 1.5fr 1fr 0.8fr 1fr auto;
   align-items: center;
-  gap: 10px;
+  gap: 0;
   width: 100%;
   box-sizing: border-box;
 }

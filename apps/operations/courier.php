@@ -1041,33 +1041,41 @@ include BASE_PATH . '/shared/sidebar.php';
         <?php endif; ?>
 
         <section class="section-card courier-section">
-            <div class="card-head courier-section-header">
-                <div>
-                    <h2 class="card-title">Waybill Queue</h2>
+            <div class="courier-section-inner">
+                <div class="card-head courier-section-header">
+                    <div>
+                        <h2 class="card-title">Waybill Queue</h2>
+                    </div>
+                    <button class="btn-secondary refresh-btn courier-secondary-btn" type="button" data-refresh-waybills><i data-lucide="refresh-cw"></i> Refresh</button>
                 </div>
-                <button class="btn-secondary refresh-btn courier-secondary-btn" type="button" data-refresh-waybills><i data-lucide="refresh-cw"></i> Refresh</button>
+                <div class="courier-table-wrap">
+                    <div class="queue-head">
+                        <div class="queue-main"><span class="queue-head-count-spacer" aria-hidden="true"></span><span>Courier</span></div><div>Uploaded</div><div>By</div><div>Due</div><div>Files</div><div>Status</div><div>Notes</div><div></div>
+                    </div>
+                    <div class="queue-list" data-waybill-queue><?= $payload['queue_html'] ?></div>
+                </div>
             </div>
-            <div class="queue-head">
-                <div class="queue-main"><span class="queue-head-count-spacer" aria-hidden="true"></span><span>Courier</span></div><div>Uploaded</div><div>By</div><div>Due</div><div>Files</div><div>Status</div><div>Notes</div><div></div>
-            </div>
-            <div class="queue-list" data-waybill-queue><?= $payload['queue_html'] ?></div>
         </section>
 
-        <details class="section-card courier-section" open>
-            <summary class="card-head courier-section-header history-summary">
-                <div>
-                    <h2 class="card-title">Sent History</h2>
-                    <p class="card-sub">Waybills marked sent from <?= wb_e($historyDateFrom) ?> to <?= wb_e($historyDateTo) ?>.</p>
+        <section class="section-card courier-section">
+            <div class="courier-section-inner">
+                <div class="card-head courier-section-header history-summary">
+                    <div>
+                        <h2 class="card-title">Sent History</h2>
+                        <p class="card-sub">Waybills marked sent from <?= wb_e($historyDateFrom) ?> to <?= wb_e($historyDateTo) ?>.</p>
+                    </div>
+                    <?php if ($canSendWaybills): ?>
+                        <a class="btn-secondary export-btn courier-secondary-btn" href="courier.php?action=waybill_export_csv&amp;date_from=<?= wb_e($historyDateFrom) ?>&amp;date_to=<?= wb_e($historyDateTo) ?>"><i data-lucide="download"></i> Export CSV</a>
+                    <?php endif; ?>
                 </div>
-                <?php if ($canSendWaybills): ?>
-                    <a class="btn-secondary export-btn courier-secondary-btn" href="courier.php?action=waybill_export_csv&amp;date_from=<?= wb_e($historyDateFrom) ?>&amp;date_to=<?= wb_e($historyDateTo) ?>"><i data-lucide="download"></i> Export CSV</a>
-                <?php endif; ?>
-            </summary>
-            <div class="history-head">
-                <div>Customer</div><div>Uploaded By</div><div>Sent At</div><div>Sent By</div><div></div>
+                <div class="courier-table-wrap">
+                    <div class="history-head">
+                        <div>Customer</div><div>Uploaded By</div><div>Sent At</div><div>Sent By</div><div></div>
+                    </div>
+                    <div class="history-list" data-waybill-history><?= $payload['history_html'] ?></div>
+                </div>
             </div>
-            <div class="history-list" data-waybill-history><?= $payload['history_html'] ?></div>
-        </details>
+        </section>
     </section>
     <div class="courier-toast" data-waybill-toast></div>
 </main>
