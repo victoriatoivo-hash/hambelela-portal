@@ -11375,7 +11375,7 @@ textarea {
   gap: 7px;
 }
 
-.courier-wrap .card-sub {
+.courier-wrap p.card-sub {
   font-size: 12px;
   color: #A08070;
   margin: 0;
