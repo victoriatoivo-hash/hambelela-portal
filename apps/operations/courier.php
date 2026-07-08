@@ -732,7 +732,9 @@ function wb_history_html(array $rows): string
                 <div><?= wb_e($row['uploaded_by_display']) ?></div>
                 <div><?= wb_e(wb_dt((string) $row['sent_at'])) ?></div>
                 <div><?= wb_e($row['sent_by_display']) ?></div>
-                <a class="btn-secondary" href="courier.php?action=waybill_download_zip&amp;batch_id=<?= wb_e((string) $row['batch_id']) ?>"><i data-lucide="download"></i> Download</a>
+                <div class="history-actions">
+                    <a class="btn-secondary" href="courier.php?action=waybill_download_zip&amp;batch_id=<?= wb_e((string) $row['batch_id']) ?>"><i data-lucide="download"></i> Download</a>
+                </div>
             </article>
             <?php
         }
@@ -1046,7 +1048,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 <button class="btn-secondary" type="button" data-refresh-waybills><i data-lucide="refresh-cw"></i> Refresh</button>
             </div>
             <div class="queue-head">
-                <div>Courier</div><div>Uploaded</div><div>By</div><div>Due</div><div>Files</div><div>Status</div><div>Notes</div><div></div>
+                <div class="queue-main"><span class="queue-head-count-spacer" aria-hidden="true"></span><span>Courier</span></div><div>Uploaded</div><div>By</div><div>Due</div><div>Files</div><div>Status</div><div>Notes</div><div></div>
             </div>
             <div class="queue-list" data-waybill-queue><?= $payload['queue_html'] ?></div>
         </section>

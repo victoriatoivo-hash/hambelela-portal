@@ -11787,7 +11787,6 @@ textarea {
   overflow: hidden;
   margin-bottom: 0;
   box-shadow: none;
-  transition: border-color .15s;
 }
 
 .courier-wrap .queue-item + .queue-item {
@@ -11798,13 +11797,18 @@ textarea {
   border-radius: 0 0 10px 10px;
 }
 
-.courier-wrap .queue-item:hover { border-color: #F07420; }
 .courier-wrap .queue-item.status-overdue { box-shadow: inset 4px 0 0 #BB1B21; }
 .courier-wrap .queue-item.status-duesoon { box-shadow: inset 4px 0 0 #F07420; }
 .courier-wrap .queue-item.status-ok { box-shadow: inset 4px 0 0 #A8CA19; }
 
 .courier-wrap .queue-main {
   gap: 8px;
+}
+
+.courier-wrap .queue-head-count-spacer {
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
 }
 
 .courier-wrap .queue-main .ref {
@@ -11917,8 +11921,7 @@ textarea {
 }
 
 .courier-wrap .history-head > div,
-.courier-wrap .history-row > div,
-.courier-wrap .history-row > a {
+.courier-wrap .history-row > div {
   min-height: 38px;
   padding: 8px 10px;
   border-right: 1px solid #EDE3D8;
@@ -11928,8 +11931,7 @@ textarea {
 }
 
 .courier-wrap .history-head > div:last-child,
-.courier-wrap .history-row > div:last-child,
-.courier-wrap .history-row > a:last-child {
+.courier-wrap .history-row > div:last-child {
   border-right: 0;
 }
 
@@ -11958,6 +11960,10 @@ textarea {
 .courier-wrap .history-row span {
   color: #A08070;
   font-size: 11px;
+}
+
+.courier-wrap .history-actions {
+  justify-content: flex-end;
 }
 
 .courier-wrap .sla-early { color: #3d5c00; font-weight: 600; }
