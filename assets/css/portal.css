@@ -11921,6 +11921,11 @@ textarea {
   margin-bottom: 7px;
 }
 
+.courier-wrap .upload-form .notes-field > textarea {
+  display: block;
+  margin-top: 7px;
+}
+
 .courier-wrap .meta-value {
   display: block;
   font-size: 12px;

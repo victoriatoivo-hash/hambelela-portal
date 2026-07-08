@@ -1030,7 +1030,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         </label>
                         <div data-file-chips></div>
                     </div>
-                    <label class="field-label span-2">Notes for Front Desk
+                    <label class="field-label span-2 notes-field">Notes for Front Desk
                         <textarea name="notes" placeholder="Optional note for Secilia"></textarea>
                     </label>
                     <div class="span-2 form-actions">
