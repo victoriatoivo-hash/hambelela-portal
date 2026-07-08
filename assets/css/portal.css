@@ -11301,8 +11301,8 @@ textarea {
 .courier-wrap .stat-card.uploaded { border-left: 4px solid #A8CA19; }
 .courier-wrap .stat-card.pending { border-left: 4px solid #F07420; }
 .courier-wrap .stat-card.overdue { border-left: 4px solid #BB1B21; }
-.courier-wrap .stat-card.sent-month { border-left: 4px solid #0073EA; }
-.courier-wrap .stat-card.sent-month .sc-icon { background: #edf6ff; color: #0073EA; }
+.courier-wrap .stat-card.sent-month { border-left: 4px solid #721b1a; }
+.courier-wrap .stat-card.sent-month .sc-icon { background: #fdeaea; color: #721b1a; }
 
 .courier-wrap .stat-card .sc-head {
   display: inline-flex;
