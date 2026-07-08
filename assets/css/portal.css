@@ -12088,11 +12088,16 @@ textarea {
 .courier-wrap .history-row strong,
 .courier-wrap .history-row span {
   display: block;
+  font-size: 12px;
 }
 
 .courier-wrap .history-row span {
   color: #A08070;
-  font-size: 11px;
+  font-size: 12px;
+}
+
+.courier-wrap .history-row .courier-cell {
+  font-size: 12px;
 }
 
 .courier-wrap .sla-early { color: #3d5c00; font-weight: 600; }
