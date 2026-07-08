@@ -11277,47 +11277,67 @@ textarea {
 
 .courier-wrap .stat-cards {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, 278.75px);
   gap: 10px;
   margin-bottom: 16px;
 }
 
 .courier-wrap .stat-card {
+  width: 278.75px;
+  height: 68px;
   border: 1px solid #EDE3D8;
   border-radius: 12px;
-  padding: 13px 16px;
+  padding: 11px 16px 10px;
   background: #fff;
   box-shadow: 0 2px 8px rgba(44,24,16,0.06);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
 }
 
 .courier-wrap .stat-card.uploaded { border-left: 4px solid #A8CA19; }
 .courier-wrap .stat-card.pending { border-left: 4px solid #F07420; }
 .courier-wrap .stat-card.overdue { border-left: 4px solid #BB1B21; }
 
+.courier-wrap .stat-card .sc-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
 .courier-wrap .stat-card .sc-icon {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  flex: 0 0 22px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 8px;
   background: #FDF6EE;
   color: #AB3619;
 }
 
+.courier-wrap .stat-card .sc-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
 .courier-wrap .stat-card .sc-num {
   display: block;
-  font-size: 22px;
+  font-size: 12px;
   font-weight: 700;
   color: #1a1a1a;
   line-height: 1;
 }
 
 .courier-wrap .stat-card .sc-lbl {
-  font-size: 11px;
+  font-size: 10px;
   color: #6B6B6B;
-  margin-top: 3px;
+  text-transform: uppercase;
+  line-height: 1.1;
 }
 
 .courier-wrap .section-card {

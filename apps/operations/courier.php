@@ -946,16 +946,16 @@ include BASE_PATH . '/shared/sidebar.php';
     <section class="courier-hub" data-waybill-app>
         <div class="stat-cards">
             <article class="stat-card uploaded">
-                <span class="sc-icon"><i data-lucide="upload-cloud"></i></span>
-                <div><strong class="sc-num" data-stat="uploaded_today"><?= number_format($payload['stats']['uploaded_today']) ?></strong><div class="sc-lbl">Uploaded Today</div></div>
+                <div class="sc-head"><span class="sc-icon"><i data-lucide="upload-cloud"></i></span><span class="sc-lbl">Uploaded Today</span></div>
+                <strong class="sc-num" data-stat="uploaded_today"><?= number_format($payload['stats']['uploaded_today']) ?></strong>
             </article>
             <article class="stat-card pending">
-                <span class="sc-icon"><i data-lucide="clock-3"></i></span>
-                <div><strong class="sc-num" data-stat="pending"><?= number_format($payload['stats']['pending']) ?></strong><div class="sc-lbl">Pending Send</div></div>
+                <div class="sc-head"><span class="sc-icon"><i data-lucide="clock-3"></i></span><span class="sc-lbl">Pending Send</span></div>
+                <strong class="sc-num" data-stat="pending"><?= number_format($payload['stats']['pending']) ?></strong>
             </article>
             <article class="stat-card overdue">
-                <span class="sc-icon"><i data-lucide="triangle-alert"></i></span>
-                <div><strong class="sc-num" data-stat="overdue"><?= number_format($payload['stats']['overdue']) ?></strong><div class="sc-lbl">Overdue</div></div>
+                <div class="sc-head"><span class="sc-icon"><i data-lucide="triangle-alert"></i></span><span class="sc-lbl">Overdue</span></div>
+                <strong class="sc-num" data-stat="overdue"><?= number_format($payload['stats']['overdue']) ?></strong>
             </article>
         </div>
 
