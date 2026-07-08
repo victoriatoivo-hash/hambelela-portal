@@ -11678,6 +11678,12 @@ textarea {
   color: #000;
 }
 
+.workspace.module.courier-wrap [data-refresh-waybills],
+.workspace.module.courier-wrap a.btn-secondary[href*="waybill_export_csv"],
+.workspace.module.courier-wrap a.btn-secondary[href*="waybill_download_zip"] {
+  font-weight: 400;
+}
+
 .courier-wrap [data-refresh-waybills] svg,
 .courier-wrap [data-refresh-waybills] i[data-lucide],
 .courier-wrap a.btn-secondary[href*="waybill_export_csv"] svg,
