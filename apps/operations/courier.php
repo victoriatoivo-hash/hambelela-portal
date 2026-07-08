@@ -688,21 +688,21 @@ function wb_queue_html(array $rows, bool $canSend): string
             $batchId = (string) $row['batch_id'];
             $statusClass = wb_queue_status_class($row);
             ?>
-            <article class="queue-item <?= wb_e($statusClass) ?>" data-batch-id="<?= wb_e($batchId) ?>">
-                <div class="queue-cell queue-main">
+            <article class="courier-grid courier-grid-waybill courier-grid-row queue-item <?= wb_e($statusClass) ?>" data-batch-id="<?= wb_e($batchId) ?>">
+                <div class="courier-cell queue-main">
                     <div class="file-count"><?= number_format((int) ($row['number_of_waybills'] ?: $row['file_count'])) ?></div>
                     <div>
                         <strong class="ref"><?= wb_e($row['courier_names'] ?: 'Courier not selected') ?></strong>
                         <span class="meta-value">Sent date: <?= wb_e($row['sent_date'] ?: 'Not set') ?></span>
                     </div>
                 </div>
-                <div class="queue-cell"><span class="meta-value"><?= wb_e(wb_dt((string) $row['uploaded_at'])) ?></span></div>
-                <div class="queue-cell"><span class="meta-value"><?= wb_e($row['uploaded_by_display']) ?></span></div>
-                <div class="queue-cell"><span class="meta-value"><?= wb_e(wb_due_label((string) $row['due_by'])) ?></span></div>
-                <div class="queue-cell"><span class="meta-value"><?= wb_e((string) $row['file_names']) ?></span></div>
-                <div class="queue-cell"><?= wb_status_badge((string) $row['status'], (string) $row['due_by']) ?></div>
-                <div class="queue-cell queue-notes"><span class="meta-value"><?= wb_e($row['notes'] ?: 'No notes') ?></span></div>
-                <div class="queue-cell queue-item-actions">
+                <div class="courier-cell"><span class="meta-value"><?= wb_e(wb_dt((string) $row['uploaded_at'])) ?></span></div>
+                <div class="courier-cell"><span class="meta-value"><?= wb_e($row['uploaded_by_display']) ?></span></div>
+                <div class="courier-cell"><span class="meta-value"><?= wb_e(wb_due_label((string) $row['due_by'])) ?></span></div>
+                <div class="courier-cell"><span class="meta-value"><?= wb_e((string) $row['file_names']) ?></span></div>
+                <div class="courier-cell"><?= wb_status_badge((string) $row['status'], (string) $row['due_by']) ?></div>
+                <div class="courier-cell queue-notes"><span class="meta-value"><?= wb_e($row['notes'] ?: 'No notes') ?></span></div>
+                <div class="courier-cell courier-actions-cell queue-item-actions">
                     <a class="btn-secondary download-btn courier-secondary-btn" href="courier.php?action=waybill_download_zip&amp;batch_id=<?= wb_e($batchId) ?>"><i data-lucide="download"></i> Download<?= (int) $row['file_count'] > 1 ? ' ZIP' : '' ?></a>
                     <?php if ($canSend): ?>
                         <button class="btn-mark-sent mark-sent mark-sent-btn courier-action-btn" type="button" data-batch-id="<?= wb_e($batchId) ?>"><i data-lucide="send"></i> Mark Sent</button>
@@ -724,15 +724,15 @@ function wb_history_html(array $rows): string
     } else {
         foreach ($rows as $row) {
             ?>
-            <article class="history-row">
-                <div>
+            <article class="courier-grid courier-grid-history courier-grid-row history-row">
+                <div class="courier-cell">
                     <strong><?= wb_e($row['courier_names'] ?: 'Courier not selected') ?></strong>
                     <span><?= wb_e($row['sent_date'] ?: 'No sent date') ?> - <?= number_format((int) ($row['number_of_waybills'] ?: $row['file_count'])) ?> waybill<?= (int) ($row['number_of_waybills'] ?: $row['file_count']) === 1 ? '' : 's' ?></span>
                 </div>
-                <div><?= wb_e($row['uploaded_by_display']) ?></div>
-                <div><?= wb_e(wb_dt((string) $row['sent_at'])) ?></div>
-                <div><?= wb_e($row['sent_by_display']) ?></div>
-                <div class="history-actions">
+                <div class="courier-cell"><?= wb_e($row['uploaded_by_display']) ?></div>
+                <div class="courier-cell"><?= wb_e(wb_dt((string) $row['sent_at'])) ?></div>
+                <div class="courier-cell"><?= wb_e($row['sent_by_display']) ?></div>
+                <div class="courier-cell courier-actions-cell history-actions">
                     <a class="btn-secondary download-btn courier-secondary-btn" href="courier.php?action=waybill_download_zip&amp;batch_id=<?= wb_e((string) $row['batch_id']) ?>"><i data-lucide="download"></i> Download</a>
                 </div>
             </article>
@@ -1048,11 +1048,13 @@ include BASE_PATH . '/shared/sidebar.php';
                     </div>
                     <button class="btn-secondary refresh-btn courier-secondary-btn" type="button" data-refresh-waybills><i data-lucide="refresh-cw"></i> Refresh</button>
                 </div>
-                <div class="courier-table-wrap">
-                    <div class="queue-head">
-                        <div class="queue-main"><span class="queue-head-count-spacer" aria-hidden="true"></span><span>Courier</span></div><div>Uploaded</div><div>By</div><div>Due</div><div>Files</div><div>Status</div><div>Notes</div><div></div>
+                <div class="courier-table-scroll courier-table-wrap">
+                    <div class="courier-table-shell">
+                        <div class="courier-grid courier-grid-waybill courier-grid-header queue-head">
+                            <div class="courier-cell queue-main"><span class="queue-head-count-spacer" aria-hidden="true"></span><span>Courier</span></div><div class="courier-cell">Uploaded</div><div class="courier-cell">By</div><div class="courier-cell">Due</div><div class="courier-cell">Files</div><div class="courier-cell">Status</div><div class="courier-cell">Notes</div><div class="courier-cell">Actions</div>
+                        </div>
+                        <div class="queue-list" data-waybill-queue><?= $payload['queue_html'] ?></div>
                     </div>
-                    <div class="queue-list" data-waybill-queue><?= $payload['queue_html'] ?></div>
                 </div>
             </div>
         </section>
@@ -1068,11 +1070,13 @@ include BASE_PATH . '/shared/sidebar.php';
                         <a class="btn-secondary export-btn courier-secondary-btn" href="courier.php?action=waybill_export_csv&amp;date_from=<?= wb_e($historyDateFrom) ?>&amp;date_to=<?= wb_e($historyDateTo) ?>"><i data-lucide="download"></i> Export CSV</a>
                     <?php endif; ?>
                 </div>
-                <div class="courier-table-wrap">
-                    <div class="history-head">
-                        <div>Customer</div><div>Uploaded By</div><div>Sent At</div><div>Sent By</div><div></div>
+                <div class="courier-table-scroll courier-table-wrap">
+                    <div class="courier-table-shell">
+                        <div class="courier-grid courier-grid-history courier-grid-header history-head">
+                            <div class="courier-cell">Customer</div><div class="courier-cell">Uploaded By</div><div class="courier-cell">Sent At</div><div class="courier-cell">Sent By</div><div class="courier-cell">Actions</div>
+                        </div>
+                        <div class="history-list" data-waybill-history><?= $payload['history_html'] ?></div>
                     </div>
-                    <div class="history-list" data-waybill-history><?= $payload['history_html'] ?></div>
                 </div>
             </div>
         </section>
