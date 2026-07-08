@@ -11876,6 +11876,11 @@ textarea {
   color: #721b1a !important;
 }
 
+.courier-wrap .upload-form .waybill-files-field > span {
+  display: block;
+  margin-bottom: 10px;
+}
+
 .courier-wrap .meta-value {
   display: block;
   font-size: 12px;
