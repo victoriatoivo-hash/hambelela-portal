@@ -11688,6 +11688,13 @@ textarea {
   border-color: rgb(171 54 25 / 22%);
 }
 
+.courier-wrap [data-refresh-waybills]:hover,
+.courier-wrap [data-refresh-waybills]:active,
+.courier-wrap [data-refresh-waybills]:focus {
+  background: rgb(240 116 32 / 8%);
+  border-color: rgb(171 54 25 / 22%);
+}
+
 .courier-wrap [data-refresh-waybills],
 .courier-wrap a.btn-secondary[href*="waybill_export_csv"],
 .courier-wrap a.btn-secondary[href*="waybill_download_zip"] {
