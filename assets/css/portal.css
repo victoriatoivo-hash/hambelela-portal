@@ -24727,8 +24727,11 @@ body:has(.ob-wrap) .ob-wrap .orders-board-v2 .monday-group.collapsed .monday-gro
 
 .shell:has(.portal-sidebar) {
   min-height: 100vh;
+  width: 100%;
+  max-width: none;
   padding-left: 260px;
   background: #ffffff;
+  box-sizing: border-box;
   transition: padding-left .25s ease;
 }
 
@@ -24740,14 +24743,29 @@ body.sidebar-collapsed .shell:has(.portal-sidebar) {
   padding-left: 78px;
 }
 
-.shell:has(.portal-sidebar) .workspace,
-.shell:has(.portal-sidebar) .ledger-page,
-body.sidebar-collapsed .workspace {
+.shell:has(.portal-sidebar) > main.workspace,
+.shell:has(.portal-sidebar) > main.ledger-page,
+.shell:has(.portal-sidebar) > .workspace,
+.shell:has(.portal-sidebar) > .ledger-page,
+body.sidebar-collapsed .shell:has(.portal-sidebar) > main.workspace,
+body.sidebar-collapsed .shell:has(.portal-sidebar) > .workspace {
+  flex: 1 1 auto;
   margin-left: 0 !important;
   max-width: none !important;
+  min-width: 0;
   width: 100%;
+  padding: 28px;
   box-sizing: border-box;
   transition: margin-left .25s ease;
+}
+
+.shell:has(.portal-sidebar) > main.workspace.module {
+  align-content: start;
+}
+
+.shell:has(.portal-sidebar) > main.workspace.module > .module-header {
+  width: 100%;
+  max-width: none;
 }
 
 .portal-sidebar {
@@ -25120,6 +25138,13 @@ body.dark-mode .portal-dark-toggle {
   .shell:has(.portal-sidebar),
   body.sidebar-collapsed .shell:has(.portal-sidebar) {
     padding-left: 0;
+  }
+
+  .shell:has(.portal-sidebar) > main.workspace,
+  .shell:has(.portal-sidebar) > main.ledger-page,
+  .shell:has(.portal-sidebar) > .workspace,
+  .shell:has(.portal-sidebar) > .ledger-page {
+    padding: 18px;
   }
 
   .portal-sidebar {
