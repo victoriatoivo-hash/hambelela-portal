@@ -11681,6 +11681,13 @@ textarea {
   border-color: rgb(171 54 25 / 22%);
 }
 
+.courier-wrap .history-summary a.btn-secondary[href*="waybill_export_csv"]:hover,
+.courier-wrap .history-summary a.btn-secondary[href*="waybill_export_csv"]:active,
+.courier-wrap .history-summary a.btn-secondary[href*="waybill_export_csv"]:focus {
+  background: rgb(240 116 32 / 8%);
+  border-color: rgb(171 54 25 / 22%);
+}
+
 .courier-wrap [data-refresh-waybills],
 .courier-wrap a.btn-secondary[href*="waybill_export_csv"],
 .courier-wrap a.btn-secondary[href*="waybill_download_zip"] {
