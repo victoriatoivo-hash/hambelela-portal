@@ -703,9 +703,9 @@ function wb_queue_html(array $rows, bool $canSend): string
                 <div class="queue-cell"><?= wb_status_badge((string) $row['status'], (string) $row['due_by']) ?></div>
                 <div class="queue-cell queue-notes"><span class="meta-value"><?= wb_e($row['notes'] ?: 'No notes') ?></span></div>
                 <div class="queue-cell queue-item-actions">
-                    <a class="btn-secondary" href="courier.php?action=waybill_download_zip&amp;batch_id=<?= wb_e($batchId) ?>"><i data-lucide="download"></i> Download<?= (int) $row['file_count'] > 1 ? ' ZIP' : '' ?></a>
+                    <a class="btn-secondary download-btn courier-secondary-btn" href="courier.php?action=waybill_download_zip&amp;batch_id=<?= wb_e($batchId) ?>"><i data-lucide="download"></i> Download<?= (int) $row['file_count'] > 1 ? ' ZIP' : '' ?></a>
                     <?php if ($canSend): ?>
-                        <button class="btn-mark-sent mark-sent" type="button" data-batch-id="<?= wb_e($batchId) ?>"><i data-lucide="send"></i> Mark Sent</button>
+                        <button class="btn-mark-sent mark-sent mark-sent-btn courier-action-btn" type="button" data-batch-id="<?= wb_e($batchId) ?>"><i data-lucide="send"></i> Mark Sent</button>
                     <?php endif; ?>
                 </div>
             </article>
@@ -733,7 +733,7 @@ function wb_history_html(array $rows): string
                 <div><?= wb_e(wb_dt((string) $row['sent_at'])) ?></div>
                 <div><?= wb_e($row['sent_by_display']) ?></div>
                 <div class="history-actions">
-                    <a class="btn-secondary" href="courier.php?action=waybill_download_zip&amp;batch_id=<?= wb_e((string) $row['batch_id']) ?>"><i data-lucide="download"></i> Download</a>
+                    <a class="btn-secondary download-btn courier-secondary-btn" href="courier.php?action=waybill_download_zip&amp;batch_id=<?= wb_e((string) $row['batch_id']) ?>"><i data-lucide="download"></i> Download</a>
                 </div>
             </article>
             <?php
@@ -1045,7 +1045,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 <div>
                     <h2 class="card-title">Waybill Queue</h2>
                 </div>
-                <button class="btn-secondary" type="button" data-refresh-waybills><i data-lucide="refresh-cw"></i> Refresh</button>
+                <button class="btn-secondary refresh-btn courier-secondary-btn" type="button" data-refresh-waybills><i data-lucide="refresh-cw"></i> Refresh</button>
             </div>
             <div class="queue-head">
                 <div class="queue-main"><span class="queue-head-count-spacer" aria-hidden="true"></span><span>Courier</span></div><div>Uploaded</div><div>By</div><div>Due</div><div>Files</div><div>Status</div><div>Notes</div><div></div>
@@ -1060,7 +1060,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     <p class="card-sub">Waybills marked sent from <?= wb_e($historyDateFrom) ?> to <?= wb_e($historyDateTo) ?>.</p>
                 </div>
                 <?php if ($canSendWaybills): ?>
-                    <a class="btn-secondary" href="courier.php?action=waybill_export_csv&amp;date_from=<?= wb_e($historyDateFrom) ?>&amp;date_to=<?= wb_e($historyDateTo) ?>"><i data-lucide="download"></i> Export CSV</a>
+                    <a class="btn-secondary export-btn courier-secondary-btn" href="courier.php?action=waybill_export_csv&amp;date_from=<?= wb_e($historyDateFrom) ?>&amp;date_to=<?= wb_e($historyDateTo) ?>"><i data-lucide="download"></i> Export CSV</a>
                 <?php endif; ?>
             </summary>
             <div class="history-head">
@@ -1098,6 +1098,16 @@ include BASE_PATH . '/shared/sidebar.php';
         if (window.lucide && typeof window.lucide.createIcons === 'function') {
             window.lucide.createIcons();
         }
+    }
+
+    function animateCourierButton(button, className = 'is-animating', duration = 500) {
+        if (!button) return;
+        button.classList.remove(className);
+        void button.offsetWidth;
+        button.classList.add(className);
+        window.setTimeout(() => {
+            button.classList.remove(className);
+        }, duration);
     }
 
     function renderPayload(payload) {
@@ -1266,6 +1276,16 @@ include BASE_PATH . '/shared/sidebar.php';
     }
 
     document.addEventListener('click', (event) => {
+        const refreshAnimationButton = event.target.closest('.courier-wrap .refresh-btn');
+        const downloadButton = event.target.closest('.courier-wrap .download-btn');
+        const exportButton = event.target.closest('.courier-wrap .export-btn');
+        const markSentAnimationButton = event.target.closest('.courier-wrap .mark-sent-btn');
+
+        if (refreshAnimationButton) animateCourierButton(refreshAnimationButton, 'is-spinning', 700);
+        if (downloadButton) animateCourierButton(downloadButton, 'is-animating', 450);
+        if (exportButton) animateCourierButton(exportButton, 'is-animating', 450);
+        if (markSentAnimationButton) animateCourierButton(markSentAnimationButton, 'is-animating', 520);
+
         const markButton = event.target.closest('.mark-sent');
         if (markButton) {
             const batchId = markButton.getAttribute('data-batch-id');

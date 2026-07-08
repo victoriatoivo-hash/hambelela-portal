@@ -11685,7 +11685,7 @@ textarea {
   padding: 0 12px;
   cursor: pointer;
   text-decoration: none;
-  transition: background .15s, border-color .15s;
+  transition: background .15s, border-color .15s, color .15s;
 }
 
 .courier-wrap .btn-secondary:hover {
@@ -11697,28 +11697,32 @@ textarea {
 .courier-wrap .queue-item-actions a.btn-secondary[href*="waybill_download_zip"]:active,
 .courier-wrap .queue-item-actions a.btn-secondary[href*="waybill_download_zip"]:focus {
   background: rgb(240 116 32 / 8%);
-  border-color: rgb(171 54 25 / 22%);
+  border-color: rgba(171, 54, 25, 0.35);
+  color: #AB3619;
 }
 
 .courier-wrap .history-actions a.btn-secondary[href*="waybill_download_zip"]:hover,
 .courier-wrap .history-actions a.btn-secondary[href*="waybill_download_zip"]:active,
 .courier-wrap .history-actions a.btn-secondary[href*="waybill_download_zip"]:focus {
   background: rgb(240 116 32 / 8%);
-  border-color: rgb(171 54 25 / 22%);
+  border-color: rgba(171, 54, 25, 0.35);
+  color: #AB3619;
 }
 
 .courier-wrap .history-summary a.btn-secondary[href*="waybill_export_csv"]:hover,
 .courier-wrap .history-summary a.btn-secondary[href*="waybill_export_csv"]:active,
 .courier-wrap .history-summary a.btn-secondary[href*="waybill_export_csv"]:focus {
   background: rgb(240 116 32 / 8%);
-  border-color: rgb(171 54 25 / 22%);
+  border-color: rgba(171, 54, 25, 0.35);
+  color: #AB3619;
 }
 
 .courier-wrap [data-refresh-waybills]:hover,
 .courier-wrap [data-refresh-waybills]:active,
 .courier-wrap [data-refresh-waybills]:focus {
   background: rgb(240 116 32 / 8%);
-  border-color: rgb(171 54 25 / 22%);
+  border-color: rgba(171, 54, 25, 0.35);
+  color: #AB3619;
 }
 
 .courier-wrap [data-refresh-waybills],
@@ -11741,6 +11745,53 @@ textarea {
 .courier-wrap a.btn-secondary[href*="waybill_download_zip"] i[data-lucide] {
   color: #000;
   stroke: #000;
+}
+
+.courier-wrap .refresh-btn:hover svg,
+.courier-wrap .refresh-btn:active svg,
+.courier-wrap .refresh-btn:focus svg,
+.courier-wrap .download-btn:hover svg,
+.courier-wrap .download-btn:active svg,
+.courier-wrap .download-btn:focus svg,
+.courier-wrap .export-btn:hover svg,
+.courier-wrap .export-btn:active svg,
+.courier-wrap .export-btn:focus svg {
+  color: #AB3619;
+  stroke: #AB3619;
+}
+
+.courier-wrap .refresh-btn.is-spinning svg {
+  animation: courierRefreshSpin 650ms ease-in-out;
+}
+
+.courier-wrap .download-btn.is-animating svg,
+.courier-wrap .export-btn.is-animating svg {
+  animation: courierArrowDown 420ms ease;
+}
+
+.courier-wrap .mark-sent-btn.is-animating svg {
+  animation: courierPlaneSend 480ms ease;
+}
+
+.courier-wrap .stat-card svg {
+  animation: none !important;
+}
+
+@keyframes courierRefreshSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes courierArrowDown {
+  0% { transform: translateY(0); }
+  45% { transform: translateY(4px); }
+  100% { transform: translateY(0); }
+}
+
+@keyframes courierPlaneSend {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  45% { transform: translate(5px, -3px) rotate(-8deg); }
+  100% { transform: translate(0, 0) rotate(0deg); }
 }
 
 .courier-wrap .btn-view {
