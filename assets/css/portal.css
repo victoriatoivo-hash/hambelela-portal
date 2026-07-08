@@ -11648,6 +11648,7 @@ textarea {
   border: none;
   border-radius: 8px;
   padding: 0 18px;
+  font-size: 12px;
   cursor: pointer;
   transition: background .15s, transform .1s;
 }
