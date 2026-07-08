@@ -616,7 +616,13 @@ function wb_stats(): array
         "SELECT
             SUM(CASE WHEN DATE(uploaded_at) = CURDATE() THEN 1 ELSE 0 END) AS uploaded_today,
             SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending,
-            SUM(CASE WHEN status = 'overdue' THEN 1 ELSE 0 END) AS overdue
+            SUM(CASE WHEN status = 'overdue' THEN 1 ELSE 0 END) AS overdue,
+            SUM(CASE
+                WHEN status = 'sent'
+                    AND sent_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+                    AND sent_at < DATE_FORMAT(DATE_ADD(CURDATE(), INTERVAL 1 MONTH), '%Y-%m-01')
+                THEN 1 ELSE 0
+            END) AS sent_this_month
          FROM hambelela_waybills"
     );
     $row = $rows[0] ?? [];
@@ -625,6 +631,7 @@ function wb_stats(): array
         'uploaded_today' => (int) ($row['uploaded_today'] ?? 0),
         'pending' => (int) ($row['pending'] ?? 0),
         'overdue' => (int) ($row['overdue'] ?? 0),
+        'sent_this_month' => (int) ($row['sent_this_month'] ?? 0),
     ];
 }
 
@@ -927,7 +934,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$payload = $ready ? wb_dashboard_payload($canSendWaybills, $historyDateFrom, $historyDateTo) : ['stats' => ['uploaded_today' => 0, 'pending' => 0, 'overdue' => 0], 'queue_html' => '', 'history_html' => ''];
+$payload = $ready ? wb_dashboard_payload($canSendWaybills, $historyDateFrom, $historyDateTo) : ['stats' => ['uploaded_today' => 0, 'pending' => 0, 'overdue' => 0, 'sent_this_month' => 0], 'queue_html' => '', 'history_html' => ''];
 $duePreview = wb_due_for_upload(wb_now())->format('Y-m-d H:i:s');
 
 include BASE_PATH . '/shared/header.php';
@@ -956,6 +963,10 @@ include BASE_PATH . '/shared/sidebar.php';
             <article class="stat-card overdue">
                 <div class="sc-head"><span class="sc-icon"><i data-lucide="triangle-alert"></i></span><span class="sc-lbl">Overdue</span></div>
                 <strong class="sc-num" data-stat="overdue"><?= number_format($payload['stats']['overdue']) ?></strong>
+            </article>
+            <article class="stat-card sent-month">
+                <div class="sc-head"><span class="sc-icon"><i data-lucide="send"></i></span><span class="sc-lbl">Sent This Month</span></div>
+                <strong class="sc-num" data-stat="sent_this_month"><?= number_format($payload['stats']['sent_this_month']) ?></strong>
             </article>
         </div>
 
@@ -1070,7 +1081,8 @@ include BASE_PATH . '/shared/sidebar.php';
     const statEls = {
         uploaded_today: document.querySelector('[data-stat="uploaded_today"]'),
         pending: document.querySelector('[data-stat="pending"]'),
-        overdue: document.querySelector('[data-stat="overdue"]')
+        overdue: document.querySelector('[data-stat="overdue"]'),
+        sent_this_month: document.querySelector('[data-stat="sent_this_month"]')
     };
 
     function showToast(message) {
