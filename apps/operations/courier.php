@@ -1018,7 +1018,7 @@ include BASE_PATH . '/shared/sidebar.php';
                             <button class="btn-secondary" type="button" data-add-courier-save>Add</button>
                         </div>
                     </div>
-                    <div class="field-label span-2">
+                    <div class="field-label span-2 waybill-files-field">
                         <span>Waybill files *</span>
                         <label class="dropzone" data-dropzone>
                             <input name="waybill_files[]" type="file" accept=".pdf,.jpg,.jpeg,.png" multiple required hidden>
