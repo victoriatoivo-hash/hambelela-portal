@@ -12050,8 +12050,8 @@ main.workspace.error-log-page {
     minmax(120px, .65fr)
     minmax(250px, 1.4fr)
     minmax(100px, .55fr)
-    minmax(230px, 1.3fr)
-    minmax(170px, .9fr);
+    minmax(160px, 1fr)
+    minmax(240px, 1.2fr);
 }
 
 .courier-wrap .courier-grid-history {
