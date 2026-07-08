@@ -11615,12 +11615,12 @@ textarea {
   line-height: 1;
 }
 
-.courier-wrap button,
-.courier-wrap .btn-primary,
-.courier-wrap .btn-secondary,
-.courier-wrap .btn-view,
-.courier-wrap .btn-mark-sent,
-.courier-wrap .btn-add-courier {
+.workspace.module.courier-wrap button,
+.workspace.module.courier-wrap .btn-primary,
+.workspace.module.courier-wrap .btn-secondary,
+.workspace.module.courier-wrap .btn-view,
+.workspace.module.courier-wrap .btn-mark-sent,
+.workspace.module.courier-wrap .btn-add-courier {
   height: 32px;
   min-height: 32px;
   display: inline-flex;
