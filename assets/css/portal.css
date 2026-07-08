@@ -11334,6 +11334,7 @@ textarea {
 
 .courier-wrap .stat-card .sc-num {
   display: block;
+  margin-left: 29px;
   font-size: 12px;
   font-weight: 700;
   color: #1a1a1a;
