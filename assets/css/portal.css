@@ -11361,7 +11361,7 @@ textarea {
   justify-content: space-between;
   gap: 14px;
   align-items: flex-start;
-  margin-bottom: 14px;
+  margin-bottom: 5px;
   flex-wrap: wrap;
 }
 
