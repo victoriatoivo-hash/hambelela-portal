@@ -11710,6 +11710,13 @@ textarea {
   background: #fafafa;
 }
 
+.courier-wrap .due-badge svg,
+.courier-wrap .due-badge i[data-lucide] {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+}
+
 .courier-wrap .queue-list,
 .courier-wrap .history-list {
   display: grid;
