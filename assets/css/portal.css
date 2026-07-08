@@ -11533,8 +11533,11 @@ textarea {
   transition: border-color .15s, color .15s;
 }
 
-.courier-wrap .btn-add-courier:hover {
-  border-color: #AB3619;
+.courier-wrap .btn-add-courier:hover,
+.courier-wrap .btn-add-courier:active,
+.courier-wrap .btn-add-courier:focus {
+  background: rgb(240 116 32 / 8%);
+  border-color: rgb(171 54 25 / 22%);
   color: #AB3619;
 }
 
@@ -11554,6 +11557,13 @@ textarea {
   height: 28px;
   width: 160px;
   border-radius: 20px;
+}
+
+.courier-wrap .add-courier-inline .btn-secondary:hover,
+.courier-wrap .add-courier-inline .btn-secondary:active,
+.courier-wrap .add-courier-inline .btn-secondary:focus {
+  background: rgb(240 116 32 / 8%);
+  border-color: rgb(171 54 25 / 22%);
 }
 
 .courier-wrap .dropzone {
