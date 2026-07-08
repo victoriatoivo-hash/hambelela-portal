@@ -11690,6 +11690,7 @@ textarea {
   border: none;
   border-radius: 7px;
   padding: 0 12px;
+  font-size: 12px;
   cursor: pointer;
   transition: background .15s, opacity .15s;
 }
