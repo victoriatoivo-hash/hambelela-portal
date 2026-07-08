@@ -11672,6 +11672,22 @@ textarea {
   border-color: #AB3619;
 }
 
+.courier-wrap [data-refresh-waybills],
+.courier-wrap a.btn-secondary[href*="waybill_export_csv"],
+.courier-wrap a.btn-secondary[href*="waybill_download_zip"] {
+  color: #000;
+}
+
+.courier-wrap [data-refresh-waybills] svg,
+.courier-wrap [data-refresh-waybills] i[data-lucide],
+.courier-wrap a.btn-secondary[href*="waybill_export_csv"] svg,
+.courier-wrap a.btn-secondary[href*="waybill_export_csv"] i[data-lucide],
+.courier-wrap a.btn-secondary[href*="waybill_download_zip"] svg,
+.courier-wrap a.btn-secondary[href*="waybill_download_zip"] i[data-lucide] {
+  color: #000;
+  stroke: #000;
+}
+
 .courier-wrap .btn-view {
   background: #fff;
   color: #AB3619;
