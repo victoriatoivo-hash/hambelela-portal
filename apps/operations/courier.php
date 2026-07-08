@@ -1001,10 +1001,10 @@ include BASE_PATH . '/shared/sidebar.php';
 
                 <form class="upload-form" data-waybill-upload enctype="multipart/form-data">
                     <input type="hidden" name="action" value="waybill_upload">
-                    <label class="field-label">Sent Date
+                    <label class="field-label upload-input-field">Sent Date
                         <input name="sent_date" type="date" value="<?= wb_e(date('Y-m-d')) ?>" required>
                     </label>
-                    <label class="field-label">Number of Waybills
+                    <label class="field-label upload-input-field">Number of Waybills
                         <input name="number_of_waybills" type="number" min="1" step="1" value="1" required>
                     </label>
                     <div class="field-label span-2 courier-field">

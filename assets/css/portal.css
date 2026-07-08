@@ -11921,9 +11921,14 @@ textarea {
   margin-bottom: 7px;
 }
 
-.courier-wrap .upload-form > label.field-label > input {
-  display: block;
-  margin-top: 7px;
+.courier-wrap .upload-form > label.upload-input-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.courier-wrap .upload-form > label.upload-input-field > input {
+  margin-top: 0;
 }
 
 .courier-wrap .upload-form .notes-field > textarea {
