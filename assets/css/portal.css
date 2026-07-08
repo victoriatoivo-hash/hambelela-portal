@@ -11240,12 +11240,13 @@ textarea {
   font-size: 13px;
   color: #1a1a1a;
   background: #fff;
+  gap: 0;
 }
 
 .courier-wrap .module-header {
   align-items: flex-start;
   gap: 16px;
-  margin-bottom: 19px;
+  margin-bottom: 0;
 }
 
 .courier-wrap .page-eyebrow {
@@ -11279,6 +11280,7 @@ textarea {
   display: grid;
   grid-template-columns: repeat(4, minmax(278.75px, 1fr));
   gap: 10px;
+  margin-top: 19px;
   margin-bottom: 16px;
   width: 100%;
 }
