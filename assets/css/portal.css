@@ -11758,6 +11758,14 @@ textarea {
   stroke: #000;
 }
 
+.courier-wrap a.btn-secondary[href*="waybill_export_csv"] svg,
+.courier-wrap a.btn-secondary[href*="waybill_export_csv"] i[data-lucide],
+.courier-wrap a.btn-secondary[href*="waybill_download_zip"] svg,
+.courier-wrap a.btn-secondary[href*="waybill_download_zip"] i[data-lucide] {
+  color: #AB3619;
+  stroke: #AB3619;
+}
+
 .courier-wrap .refresh-btn:hover svg,
 .courier-wrap .refresh-btn:active svg,
 .courier-wrap .refresh-btn:focus svg,
