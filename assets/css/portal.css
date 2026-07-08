@@ -12098,13 +12098,30 @@ main.workspace.error-log-page {
 }
 
 .courier-wrap .courier-grid-header .courier-cell {
+  height: 44px;
   min-height: 44px;
+  padding: 0 14px;
+  align-items: center;
+  justify-content: flex-start;
   background: #fbfaf9;
   color: #7a1d12;
   font-size: 11px;
   font-weight: 700;
+  line-height: 1;
   letter-spacing: .04em;
+  text-align: left;
   text-transform: uppercase;
+}
+
+.courier-wrap .courier-grid-header .courier-cell > * {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  line-height: 1;
+}
+
+.courier-wrap .courier-grid-header .queue-head-count-spacer {
+  display: none;
 }
 
 .courier-wrap .queue-item.status-overdue { box-shadow: inset 4px 0 0 #BB1B21; }
