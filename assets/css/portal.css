@@ -11501,10 +11501,12 @@ textarea {
 }
 
 .courier-wrap .courier-chip:hover,
+.courier-wrap .courier-chip:active,
+.courier-wrap .courier-chip:focus-within,
 .courier-wrap .courier-chip.selected,
 .courier-wrap .courier-chip:has(input[type="checkbox"]:checked) {
-  border-color: #AB3619;
-  background: #FDF6EE;
+  border-color: rgb(171 54 25 / 22%);
+  background: rgb(240 116 32 / 8%);
   color: #721B1A;
   font-weight: 600;
 }
