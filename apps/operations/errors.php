@@ -390,10 +390,8 @@ include BASE_PATH . '/shared/sidebar.php';
 <style>
 #logErrorForm .pill-selector,
 .log-error-modal .pill-selector,
-.error-log-page .severity-choice.severity-group,
 #logErrorForm .severity-group,
 .log-error-modal .severity-group,
-.error-log-page .status-choice.status-group,
 #logErrorForm .status-group,
 .log-error-modal .status-group {
     display: flex !important;
@@ -579,67 +577,8 @@ include BASE_PATH . '/shared/sidebar.php';
     color: #721B1A !important;
 }
 
-.error-log-page .error-metric-grid {
-    gap: 12px !important;
-    align-items: start !important;
-}
-
-.error-log-page .error-metric {
-    min-height: 82px !important;
-    height: 82px !important;
-    padding: 12px 14px 10px 56px !important;
-    align-content: start !important;
-}
-
-.error-log-page .error-metric::before {
-    top: 13px !important;
-    left: 16px !important;
-}
-
-.error-log-page .error-metric > svg {
-    top: 20px !important;
-    left: 23px !important;
-}
-
-.error-log-page .error-metric span {
-    margin-bottom: 4px !important;
-}
-
-.error-log-page .error-metric.wide {
-    overflow: hidden !important;
-}
-
-.error-log-page .error-metric.wide span {
-    margin-bottom: 2px !important;
-    font-size: 14px !important;
-    line-height: 1.15 !important;
-    overflow-wrap: anywhere !important;
-}
-
-.error-log-page .error-metric.wide strong {
-    margin-top: 2px !important;
-    font-size: 14px !important;
-    line-height: 1.08 !important;
-    overflow-wrap: anywhere !important;
-}
-
-.error-log-page .error-filter-panel:not([open]) {
-    min-height: 0 !important;
-    padding: 0 !important;
-}
-
-.error-log-page .error-filter-panel:not([open]) > summary {
-    min-height: 44px !important;
-    padding: 12px 16px !important;
-    align-items: center !important;
-}
-
-.error-log-page .error-filter-panel:not([open]) > form {
-    display: none !important;
-}
 </style>
 <main class="workspace module error-log-page">
-    <a class="button back-link" href="<?= BASE_URL ?>/apps/operations/index.php"><i data-lucide="arrow-left"></i> Back to Operations</a>
     <section class="error-log-header">
         <div>
             <p class="error-log-kicker">Operations</p>
