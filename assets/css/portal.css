@@ -4305,6 +4305,10 @@ textarea {
   box-sizing: border-box;
 }
 
+#logErrorForm .incident-resolution-grid .incident-financial-impact-field {
+  margin-top: 14px !important;
+}
+
 #logErrorForm .incident-section:has(.incident-resolution-grid) {
   overflow: visible;
 }

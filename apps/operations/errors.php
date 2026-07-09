@@ -555,7 +555,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     <h3><i data-lucide="check-circle-2"></i> Resolution</h3>
                     <div class="form-grid compact incident-resolution-grid">
                         <label class="incident-field span-2">Resolution<textarea name="resolution" placeholder="customer contacted, stock updated, product replaced"></textarea></label>
-                        <label class="incident-field">Financial impact<input type="number" step="0.01" name="financial_impact" value="0"></label>
+                        <label class="incident-field incident-financial-impact-field">Financial impact<input type="number" step="0.01" name="financial_impact" value="0"></label>
                     </div>
                 </section>
 
