@@ -4792,16 +4792,36 @@ main.error-log-page {
 }
 
 .error-log-page .error-filter-grid input,
-.error-log-page .error-filter-grid select {
+.error-log-page .error-filter-grid select,
+.error-log-page .error-filter-grid textarea {
   width: 100% !important;
-  height: 34px !important;
   margin-top: 6px !important;
   border: 1px solid var(--bk-border) !important;
   border-radius: 8px !important;
   background: #fff !important;
   color: var(--bk-text) !important;
   font-size: 12px !important;
+  line-height: 1.2 !important;
   font-weight: 500 !important;
+  box-sizing: border-box !important;
+}
+
+.error-log-page .error-filter-grid input,
+.error-log-page .error-filter-grid select {
+  height: 38px !important;
+  min-height: 38px !important;
+  padding: 0 14px !important;
+}
+
+.error-log-page .error-filter-grid select {
+  line-height: 38px !important;
+  appearance: auto !important;
+}
+
+.error-log-page .error-filter-grid input::placeholder {
+  color: var(--bk-text-mid) !important;
+  font-size: 12px !important;
+  line-height: 1.2 !important;
 }
 
 .error-log-page .error-filter-actions {
