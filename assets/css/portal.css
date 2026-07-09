@@ -4578,9 +4578,10 @@ textarea {
 
 .incident-form .incident-btn-secondary,
 .incident-form .incident-btn-primary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 7px !important;
   padding: 0 16px;
   font-size: 12px;
   white-space: nowrap;
@@ -4598,12 +4599,17 @@ textarea {
 }
 
 .incident-form .incident-btn-primary {
-  height: 32px;
-  border: none;
-  border-radius: 8px;
-  background: #AB3619;
-  color: #fff;
-  font-weight: 700;
+  height: 34px !important;
+  min-height: 34px !important;
+  padding: 0 16px !important;
+  border: 0 !important;
+  border-radius: 8px !important;
+  background: var(--bk-orange-red) !important;
+  color: #ab3619 !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  white-space: nowrap !important;
+  box-shadow: 0 8px 18px rgba(171, 54, 25, .12) !important;
   transition: background .15s, transform .1s;
 }
 
