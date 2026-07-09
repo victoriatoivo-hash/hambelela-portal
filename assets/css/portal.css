@@ -4167,7 +4167,7 @@ textarea {
   display: grid;
   gap: 14px;
   margin: 16px 24px 0;
-  padding: 18px;
+  padding: 20px;
   border: 1px solid var(--bk-border);
   border-radius: 14px;
   background: var(--bk-surface);
