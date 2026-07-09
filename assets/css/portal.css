@@ -4588,7 +4588,7 @@ main.error-log-page {
   align-items: flex-start !important;
   justify-content: space-between !important;
   gap: 20px !important;
-  margin: 0 0 14px !important;
+  margin: 0 0 -10px !important;
 }
 
 .error-log-page .error-log-kicker {
