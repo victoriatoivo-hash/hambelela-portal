@@ -4266,6 +4266,14 @@ textarea {
   min-height: 52px !important;
 }
 
+#logErrorForm .form-grid.compact > label,
+#logErrorForm label[for="description"],
+#logErrorForm label:has(textarea[name="resolution"]),
+#logErrorForm label:has(input[name="financial_impact"]),
+#logErrorForm .repeat-choice legend {
+  color: #ab3619 !important;
+}
+
 #logErrorForm label:has(textarea[name="resolution"]) {
   height: auto !important;
 }
@@ -4635,7 +4643,7 @@ textarea {
   border: 0 !important;
   border-radius: 8px !important;
   background: var(--bk-orange-red) !important;
-  color: #ab3619 !important;
+  color: #fff !important;
   font-size: 12px !important;
   font-weight: 700 !important;
   white-space: nowrap !important;
