@@ -4234,6 +4234,8 @@ textarea {
 }
 
 #logErrorForm .form-grid.compact > label,
+#logErrorForm label:has(textarea[name="resolution"]),
+#logErrorForm label:has(input[name="financial_impact"]),
 #logErrorForm label[for="description"],
 #logErrorForm .pill-selector legend,
 #logErrorForm .severity-label,
@@ -4255,7 +4257,12 @@ textarea {
 }
 
 #logErrorForm .form-grid.compact > label {
+  height: 52px !important;
   min-height: 52px !important;
+}
+
+#logErrorForm label:has(textarea[name="resolution"]) {
+  height: auto !important;
 }
 
 #logErrorForm .form-grid.compact label.span-2 {
