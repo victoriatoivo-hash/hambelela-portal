@@ -497,7 +497,6 @@ include BASE_PATH . '/shared/sidebar.php';
 
     <aside class="error-log-panel incident-modal" data-error-modal-panel aria-hidden="true" role="dialog" aria-modal="true" aria-label="Log error">
             <div class="error-log-panel-head incident-header">
-                <button class="panel-back-button" type="button" data-error-modal-close><i data-lucide="arrow-left"></i> Back</button>
                 <div>
                     <span class="error-panel-kicker">Incident report</span>
                     <h2>Log Error</h2>
