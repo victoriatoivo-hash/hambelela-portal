@@ -4876,7 +4876,7 @@ main.error-log-page {
 .error-log-page .error-table-row-head {
   min-height: 38px !important;
   border-bottom: 1px solid var(--bk-border) !important;
-  background: #fffaf6 !important;
+  background: #fbfaf9 !important;
 }
 
 .error-log-page .error-table-row-head > span {
