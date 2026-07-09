@@ -4271,6 +4271,8 @@ textarea {
 }
 
 #logErrorForm .severity-group {
+  align-items: flex-start !important;
+  justify-content: flex-start !important;
   gap: 7px !important;
 }
 
@@ -4279,10 +4281,14 @@ textarea {
   flex-direction: row !important;
   align-items: center !important;
   justify-content: flex-start !important;
+  flex: 0 0 auto !important;
+  width: auto !important;
   row-gap: 0 !important;
   column-gap: 0 !important;
   margin: 0 0 7px !important;
+  padding: 0 !important;
   line-height: 1 !important;
+  text-align: left !important;
 }
 
 #logErrorForm .severity-label::after {
@@ -4295,6 +4301,8 @@ textarea {
 }
 
 #logErrorForm .status-group {
+  align-items: flex-start !important;
+  justify-content: flex-start !important;
   gap: 7px !important;
 }
 
@@ -4303,10 +4311,14 @@ textarea {
   flex-direction: row !important;
   align-items: center !important;
   justify-content: flex-start !important;
+  flex: 0 0 auto !important;
+  width: auto !important;
   row-gap: 0 !important;
   column-gap: 0 !important;
   margin: 0 0 7px !important;
+  padding: 0 !important;
   line-height: 1 !important;
+  text-align: left !important;
 }
 
 #logErrorForm .status-label::after {
