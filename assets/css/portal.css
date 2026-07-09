@@ -4174,13 +4174,13 @@ textarea {
 }
 
 .incident-section h3 {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 0;
-  color: var(--bk-text);
-  font-size: 13px;
-  font-weight: 800;
+  gap: 7px;
+  margin: 0 0 4px;
+  color: rgb(26, 26, 26);
+  font-size: 14px;
+  font-weight: 600;
   line-height: 1.2;
 }
 
