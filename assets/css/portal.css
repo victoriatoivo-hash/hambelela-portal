@@ -4079,7 +4079,7 @@ textarea {
   display: flex;
   align-items: flex-start;
   gap: 14px;
-  padding: 22px 28px;
+  padding: 22px 28px 14px;
   border-bottom: 1px solid var(--bk-border);
   background: var(--bk-surface);
 }
@@ -4142,7 +4142,7 @@ textarea {
 }
 
 .incident-header h2 {
-  margin: 2px 0 4px;
+  margin: 2px 0 0;
   color: var(--bk-burgundy);
   font-size: 24px;
   font-weight: 800;
