@@ -541,7 +541,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     <h3><i data-lucide="users-round"></i> Responsibility</h3>
                     <div class="people-chip-grid">
                         <?php foreach ($employees as $employee): ?>
-                            <label><input type="checkbox" name="people_involved[]" value="<?= (int) $employee['id'] ?>"><span><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></span></label>
+                            <label><input type="checkbox" name="people_involved[]" value="<?= (int) $employee['id'] ?>"><span><?= htmlspecialchars(ucwords(strtolower((string) $employee['full_name'])), ENT_QUOTES, 'UTF-8') ?></span></label>
                         <?php endforeach; ?>
                     </div>
                     <fieldset class="repeat-choice">

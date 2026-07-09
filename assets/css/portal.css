@@ -4481,6 +4481,7 @@ textarea {
   color: var(--bk-text-mid);
   font-size: 12px;
   font-weight: 700;
+  text-transform: none;
   transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
 }
 
