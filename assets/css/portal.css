@@ -4270,6 +4270,30 @@ textarea {
   max-width: 100% !important;
 }
 
+#logErrorForm .severity-group {
+  gap: 7px !important;
+}
+
+#logErrorForm .severity-label {
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  row-gap: 0 !important;
+  column-gap: 0 !important;
+  margin: 0 0 7px !important;
+  line-height: 1 !important;
+}
+
+#logErrorForm .severity-label::after {
+  content: "*" !important;
+  display: inline-block !important;
+  margin-left: 3px !important;
+  color: var(--bk-red) !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+}
+
 .incident-form input:focus,
 .incident-form select:focus,
 .incident-form textarea:focus {
