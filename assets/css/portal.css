@@ -4271,7 +4271,10 @@ textarea {
 }
 
 #logErrorForm .incident-pill-field {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
   width: 100%;
   margin-top: 18px;
 }
@@ -4282,7 +4285,7 @@ textarea {
   justify-content: flex-start;
   align-items: center;
   width: 100%;
-  margin: 0 0 7px;
+  margin: 0;
   padding: 0;
   text-align: left;
   font-size: 11px;
