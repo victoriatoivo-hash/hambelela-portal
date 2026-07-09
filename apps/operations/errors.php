@@ -640,35 +640,51 @@ include BASE_PATH . '/shared/sidebar.php';
 </style>
 <main class="workspace module error-log-page">
     <a class="button back-link" href="<?= BASE_URL ?>/apps/operations/index.php"><i data-lucide="arrow-left"></i> Back to Operations</a>
-    <section class="module-header">
+    <section class="error-log-header">
         <div>
-            <p class="eyebrow">Operations</p>
-            <h1>Error Log</h1>
+            <p class="error-log-kicker">Operations</p>
+            <h1 class="error-log-title">Error Log</h1>
+            <p class="error-log-subtitle">Record packing, order, customer and process errors for KPI tracking.</p>
         </div>
-        <button class="button primary" type="button" data-error-modal-open><i data-lucide="plus"></i> Log Error</button>
+        <button class="button primary error-log-btn-primary" type="button" data-error-modal-open><i data-lucide="plus"></i> Log Error</button>
     </section>
     <?php if (!$ready) { ops_setup_notice(); } ?>
     <?php ops_flash($message, $messageType); ?>
 
     <?php if ($showFullErrorLog): ?>
-        <section class="error-metric-grid">
-            <article class="error-metric red"><i data-lucide="calendar-days"></i><span>Total Errors This Month</span><strong><?= number_format($metrics['month_total']) ?></strong></article>
-            <article class="error-metric red"><i data-lucide="siren"></i><span>Critical Errors</span><strong><?= number_format($metrics['critical']) ?></strong></article>
-            <article class="error-metric orange"><i data-lucide="triangle-alert"></i><span>High Severity</span><strong><?= number_format($metrics['high']) ?></strong></article>
-            <article class="error-metric blue"><i data-lucide="info"></i><span>Medium Severity</span><strong><?= number_format($metrics['medium']) ?></strong></article>
-            <article class="error-metric green"><i data-lucide="badge-check"></i><span>Low Severity</span><strong><?= number_format($metrics['low']) ?></strong></article>
-            <article class="error-metric purple"><i data-lucide="repeat-2"></i><span>Repeat Errors</span><strong><?= number_format($metrics['repeat']) ?></strong></article>
-            <article class="error-metric orange"><i data-lucide="message-circle-warning"></i><span>Customer Impacting</span><strong><?= number_format($metrics['customer']) ?></strong></article>
-            <article class="error-metric teal"><i data-lucide="check-circle-2"></i><span>Errors Resolved</span><strong><?= number_format($metrics['resolved']) ?></strong></article>
-            <article class="error-metric blue wide"><i data-lucide="layers"></i><span>Most Common Category</span><strong><?= htmlspecialchars($metrics['common_category'], ENT_QUOTES, 'UTF-8') ?></strong></article>
-            <article class="error-metric purple wide"><i data-lucide="user-round-x"></i><span>Employee With Most Logged Errors</span><strong><?= htmlspecialchars($metrics['top_employee'], ENT_QUOTES, 'UTF-8') ?></strong></article>
+        <?php
+        $errorStats = [
+            ['icon' => 'calendar-days', 'label' => 'Total Errors This Month', 'value' => number_format($metrics['month_total']), 'colour' => 'var(--bk-orange-red)'],
+            ['icon' => 'siren', 'label' => 'Critical Errors', 'value' => number_format($metrics['critical']), 'colour' => 'var(--bk-red)'],
+            ['icon' => 'triangle-alert', 'label' => 'High Severity', 'value' => number_format($metrics['high']), 'colour' => 'var(--bk-amber)'],
+            ['icon' => 'info', 'label' => 'Medium Severity', 'value' => number_format($metrics['medium']), 'colour' => 'var(--bk-orange-red)'],
+            ['icon' => 'badge-check', 'label' => 'Low Severity', 'value' => number_format($metrics['low']), 'colour' => 'var(--bk-olive)'],
+            ['icon' => 'repeat-2', 'label' => 'Repeat Errors', 'value' => number_format($metrics['repeat']), 'colour' => 'var(--bk-burgundy)'],
+            ['icon' => 'message-circle-warning', 'label' => 'Customer Impacting', 'value' => number_format($metrics['customer']), 'colour' => 'var(--bk-amber)'],
+            ['icon' => 'check-circle-2', 'label' => 'Errors Resolved', 'value' => number_format($metrics['resolved']), 'colour' => 'var(--bk-olive)'],
+            ['icon' => 'layers', 'label' => 'Most Common Category', 'value' => (string) $metrics['common_category'], 'colour' => 'var(--bk-orange-red)'],
+            ['icon' => 'user-round-x', 'label' => 'Employee With Most Logged Errors', 'value' => (string) $metrics['top_employee'], 'colour' => 'var(--bk-burgundy)'],
+        ];
+        ?>
+        <section class="error-stats-shell" aria-label="Error log metrics">
+            <div class="error-stats-grid">
+                <?php foreach ($errorStats as $stat): ?>
+                    <article class="error-stat-card" style="--stat-colour: <?= htmlspecialchars($stat['colour'], ENT_QUOTES, 'UTF-8') ?>">
+                        <span class="error-stat-icon"><i data-lucide="<?= htmlspecialchars($stat['icon'], ENT_QUOTES, 'UTF-8') ?>"></i></span>
+                        <div>
+                            <span class="error-stat-label"><?= htmlspecialchars($stat['label'], ENT_QUOTES, 'UTF-8') ?></span>
+                            <strong class="error-stat-value"><?= htmlspecialchars((string) $stat['value'], ENT_QUOTES, 'UTF-8') ?></strong>
+                        </div>
+                    </article>
+                <?php endforeach; ?>
+            </div>
         </section>
     <?php endif; ?>
 
-    <details class="panel error-filter-panel" <?= $filtersAreActive ? 'open' : '' ?>>
-        <summary><span><i data-lucide="sliders-horizontal"></i> Filters</span><strong><?= $filtersAreActive ? 'Active' : 'Collapsed' ?></strong></summary>
-        <form method="get">
-            <div class="form-grid compact">
+    <details class="error-filter-card" <?= $filtersAreActive ? 'open' : '' ?>>
+        <summary class="error-filter-header"><span><i data-lucide="sliders-horizontal"></i> Filters</span><strong><?= $filtersAreActive ? 'Active' : 'Collapsed' ?></strong></summary>
+        <form class="error-filter-body" method="get">
+            <div class="error-filter-grid">
                 <label>Month<input type="month" name="month" value="<?= htmlspecialchars($filters['month'], ENT_QUOTES, 'UTF-8') ?>"></label>
                 <label>Date from<input type="date" name="date_from" value="<?= htmlspecialchars($filters['date_from'], ENT_QUOTES, 'UTF-8') ?>"></label>
                 <label>Date to<input type="date" name="date_to" value="<?= htmlspecialchars($filters['date_to'], ENT_QUOTES, 'UTF-8') ?>"></label>
@@ -680,16 +696,17 @@ include BASE_PATH . '/shared/sidebar.php';
                 <label>Order ID<input name="order_reference" value="<?= htmlspecialchars($filters['order_reference'], ENT_QUOTES, 'UTF-8') ?>" placeholder="#33863 or WEB-33780"></label>
                 <label>Resolution status<select name="status"><option value="">All statuses</option><?php ops_select_options($statusLabels, $filters['status']); ?></select></label>
             </div>
-            <div class="ops-form-actions"><a class="button" href="errors.php">Clear</a><button class="button primary" type="submit">Apply filters</button></div>
+            <div class="ops-form-actions error-filter-actions"><a class="button" href="errors.php">Clear</a><button class="button primary" type="submit">Apply filters</button></div>
         </form>
     </details>
 
     <?php foreach (['open' => 'Not Resolved Errors', 'resolved' => 'Resolved Errors'] as $sectionStatus => $sectionTitle): ?>
     <?php $sectionErrors = $errorsByResolution[$sectionStatus] ?? []; ?>
-    <section class="panel error-list-panel error-section-<?= htmlspecialchars($sectionStatus, ENT_QUOTES, 'UTF-8') ?>">
-        <div class="section-row"><h2><?= htmlspecialchars($sectionTitle, ENT_QUOTES, 'UTF-8') ?></h2><span class="status"><?= number_format(count($sectionErrors)) ?> shown</span></div>
-        <div class="error-table <?= $showFullErrorLog ? '' : 'error-table-simple' ?>">
-            <div class="error-table-head">
+    <section class="error-table-card error-section-<?= htmlspecialchars($sectionStatus, ENT_QUOTES, 'UTF-8') ?>">
+        <div class="error-table-top"><h2 class="error-table-title"><?= htmlspecialchars($sectionTitle, ENT_QUOTES, 'UTF-8') ?></h2><span class="error-count-pill"><?= number_format(count($sectionErrors)) ?> shown</span></div>
+        <div class="error-table-wrap">
+        <div class="error-table <?= $showFullErrorLog ? 'error-table-full' : 'error-table-simple' ?>" role="table">
+            <div class="error-table-row error-table-row-head" role="row">
                 <?php if ($showFullErrorLog): ?>
                     <span>Date</span><span>Error Title</span><span>Order ID</span><span>Category</span><span>Severity</span><span>Person Involved</span><span>Customer Impact</span><span>Status</span><span>Repeat</span><span>Logged By</span>
                 <?php else: ?>
@@ -704,7 +721,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 $severity = (string) ($error['severity'] ?? 'low');
                 $status = (string) ($error['status'] ?? 'open');
                 ?>
-                <button class="error-row" type="button" data-error-open="<?= (int) $error['id'] ?>">
+                <button class="error-table-row error-table-row-data" type="button" data-error-open="<?= (int) $error['id'] ?>" role="row">
                     <?php if ($showFullErrorLog): ?>
                         <span><?= error_date_label((string) ($error['logged_at'] ?? '')) ?></span>
                         <strong><?= htmlspecialchars((string) ($error['error_title'] ?: ($errorCategories[(string) $error['category']] ?? $error['category'])), ENT_QUOTES, 'UTF-8') ?></strong>
@@ -726,6 +743,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 </button>
             <?php endforeach; ?>
             <?php if (!$sectionErrors): ?><p class="task-empty">No <?= strtolower(htmlspecialchars($sectionTitle, ENT_QUOTES, 'UTF-8')) ?> found for the selected filters.</p><?php endif; ?>
+        </div>
         </div>
     </section>
     <?php endforeach; ?>
