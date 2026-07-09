@@ -4490,6 +4490,7 @@ textarea {
 .error-upload-zone small {
   color: var(--bk-text-light);
   font-size: 12px;
+  font-weight: 400;
 }
 
 .error-attachments {
