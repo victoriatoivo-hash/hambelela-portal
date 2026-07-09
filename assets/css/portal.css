@@ -4470,8 +4470,8 @@ textarea {
   background: rgba(255, 255, 255, .94);
 }
 
-.incident-btn-secondary,
-.incident-btn-primary {
+.incident-form .incident-btn-secondary,
+.incident-form .incident-btn-primary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -4484,19 +4484,19 @@ textarea {
   cursor: pointer;
 }
 
-.incident-btn-secondary {
+.incident-form .incident-btn-secondary {
   border: 1px solid var(--bk-border);
   background: var(--bk-surface);
   color: var(--bk-text);
 }
 
-.incident-btn-primary {
+.incident-form .incident-btn-primary {
   border: 0;
   background: var(--bk-orange-red);
   color: #fff;
 }
 
-.incident-btn-primary:hover {
+.incident-form .incident-btn-primary:hover {
   background: var(--bk-burgundy);
 }
 
