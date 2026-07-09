@@ -4233,6 +4233,36 @@ textarea {
   resize: vertical;
 }
 
+#logErrorForm .form-grid.compact > label,
+#logErrorForm label[for="description"],
+#logErrorForm .pill-selector legend,
+#logErrorForm .severity-label,
+#logErrorForm .status-label,
+#logErrorForm .repeat-choice legend {
+  display: flex !important;
+  flex-direction: column !important;
+  row-gap: 7px !important;
+  column-gap: 7px !important;
+  width: 100% !important;
+  margin-bottom: 7px !important;
+  color: rgb(114, 27, 26) !important;
+  cursor: default !important;
+  font-family: Figtree, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.5px !important;
+  text-transform: uppercase !important;
+}
+
+#logErrorForm .form-grid.compact > label {
+  min-height: 52px !important;
+}
+
+#logErrorForm .form-grid.compact label.span-2 {
+  width: 680px !important;
+  max-width: 100% !important;
+}
+
 .incident-form input:focus,
 .incident-form select:focus,
 .incident-form textarea:focus {
