@@ -387,197 +387,6 @@ if ($ready && $errors && ops_table_exists('ops_activity_logs')) {
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
-<style>
-#logErrorForm .pill-selector,
-.log-error-modal .pill-selector,
-#logErrorForm .severity-group,
-.log-error-modal .severity-group,
-#logErrorForm .status-group,
-.log-error-modal .status-group {
-    display: flex !important;
-    flex-direction: row !important;
-    column-gap: 8px !important;
-    row-gap: 8px !important;
-    align-items: center !important;
-    flex-wrap: wrap !important;
-    border: 0 !important;
-    outline: 0 !important;
-    box-shadow: none !important;
-    background: transparent !important;
-    margin: 8px 0 0 !important;
-    padding: 0 !important;
-    min-height: 0 !important;
-}
-
-#logErrorForm .pill-selector legend,
-#logErrorForm .severity-label,
-#logErrorForm .status-label,
-.log-error-modal .severity-label,
-.log-error-modal .status-label {
-    display: block !important;
-    flex: 0 0 100% !important;
-    align-self: stretch !important;
-    float: none !important;
-    margin: 0 0 8px !important;
-    padding: 0 !important;
-    position: static !important;
-    width: 100% !important;
-    color: #7A2A1E !important;
-    font-size: 11px !important;
-    font-weight: 700 !important;
-    letter-spacing: 0.05em !important;
-    line-height: 1.2 !important;
-    text-align: left !important;
-    text-transform: uppercase !important;
-}
-
-#logErrorForm .pill-option,
-.log-error-modal .pill-option,
-#logErrorForm .severity-btn,
-.log-error-modal .severity-btn,
-#logErrorForm .status-btn,
-.log-error-modal .status-btn {
-    width: auto !important;
-    min-width: 80px !important;
-    height: 30px !important;
-    min-height: 30px !important;
-    padding: 0 14px !important;
-    border: none !important;
-    border-radius: 6px !important;
-    cursor: pointer;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    font-size: 11px !important;
-    font-weight: 700 !important;
-    letter-spacing: 0.04em !important;
-    line-height: 30px !important;
-    text-transform: uppercase !important;
-    transition:
-        filter 150ms ease,
-        outline 150ms ease,
-        transform 150ms ease,
-        box-shadow 150ms ease;
-}
-
-#logErrorForm .severity-btn[data-severity="critical"],
-#logErrorForm .severity-btn[data-severity="Critical"] {
-    background: #BB1B21 !important;
-    color: #fff !important;
-}
-
-#logErrorForm .severity-btn[data-severity="high"],
-#logErrorForm .severity-btn[data-severity="High"] {
-    background: #F07420 !important;
-    color: #fff !important;
-}
-
-#logErrorForm .severity-btn[data-severity="medium"],
-#logErrorForm .severity-btn[data-severity="Medium"] {
-    background: #AB3619 !important;
-    color: #fff !important;
-}
-
-#logErrorForm .severity-btn[data-severity="low"],
-#logErrorForm .severity-btn[data-severity="Low"] {
-    background: #A8CA19 !important;
-    color: #2C1810 !important;
-}
-
-#logErrorForm .status-btn[data-status="open"] {
-    min-width: 112px !important;
-    background: #BB1B21 !important;
-    color: #fff !important;
-    border: none !important;
-}
-
-#logErrorForm .status-btn[data-status="resolved"] {
-    min-width: 92px !important;
-    background: #A8CA19 !important;
-    color: #2C1810 !important;
-}
-
-#logErrorForm .severity-btn:hover,
-#logErrorForm .status-btn:hover {
-    filter: brightness(0.88);
-    transform: translateY(-1px);
-}
-
-#logErrorForm .severity-btn.active,
-#logErrorForm .status-btn.active {
-    outline: 3px solid #721B1A !important;
-    outline-offset: 2px !important;
-    filter: brightness(0.92);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
-}
-
-#logErrorForm label[for="description"]::after,
-#logErrorForm .severity-label::after,
-#logErrorForm .status-label::after {
-    content: ' *';
-    color: #BB1B21;
-    font-weight: 700;
-}
-
-#logErrorForm .repeat-choice label {
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    width: 60px !important;
-    min-width: 60px !important;
-    height: 30px !important;
-    min-height: 30px !important;
-    padding: 0 !important;
-    border: 1px solid #EDE3D8 !important;
-    border-radius: 6px !important;
-    background: #FDF6EE !important;
-    color: #6B4C3B !important;
-    font-size: 11px !important;
-    font-weight: 700 !important;
-    letter-spacing: 0.04em !important;
-    line-height: 30px !important;
-    text-transform: uppercase !important;
-}
-
-#logErrorForm .repeat-choice label:has(input[value="0"]:checked) {
-    border-color: #A8CA19 !important;
-    background: #A8CA19 !important;
-    color: #2C1810 !important;
-}
-
-#logErrorForm .repeat-choice label:has(input[value="1"]:checked) {
-    border-color: #BB1B21 !important;
-    background: #BB1B21 !important;
-    color: #fff !important;
-}
-
-#logErrorForm .error-upload-zone {
-    border: 2px dashed #A8CA19 !important;
-    border-radius: 10px !important;
-    background: #f7fbea !important;
-}
-
-#logErrorForm .error-upload-zone:hover,
-#logErrorForm .error-upload-zone.is-dragover {
-    border-color: #721B1A !important;
-    border-style: solid !important;
-    background: #eef7c8 !important;
-}
-
-#logErrorForm .error-upload-zone > span {
-    background: #f3fae0 !important;
-    color: #A8CA19 !important;
-}
-
-#logErrorForm .error-upload-zone svg {
-    color: #A8CA19 !important;
-}
-
-#logErrorForm .error-upload-zone strong {
-    color: #721B1A !important;
-}
-
-</style>
 <main class="workspace module error-log-page">
     <section class="error-log-header">
         <div>
@@ -687,8 +496,8 @@ include BASE_PATH . '/shared/sidebar.php';
     </section>
     <?php endforeach; ?>
 
-    <aside class="error-log-panel" data-error-modal-panel aria-hidden="true" role="dialog" aria-modal="true" aria-label="Log error">
-            <div class="error-log-panel-head">
+    <aside class="error-log-panel incident-modal" data-error-modal-panel aria-hidden="true" role="dialog" aria-modal="true" aria-label="Log error">
+            <div class="error-log-panel-head incident-header">
                 <button class="panel-back-button" type="button" data-error-modal-close><i data-lucide="arrow-left"></i> Back</button>
                 <div>
                     <span class="error-panel-kicker">Incident report</span>
@@ -697,9 +506,9 @@ include BASE_PATH . '/shared/sidebar.php';
                 </div>
                 <button class="panel-close-button" type="button" data-error-modal-close aria-label="Close log error"><i data-lucide="x"></i></button>
             </div>
-            <form id="logErrorForm" class="ops-form error-incident-form log-error-modal" method="post" enctype="multipart/form-data">
+            <form id="logErrorForm" class="ops-form error-incident-form log-error-modal incident-form" method="post" enctype="multipart/form-data">
                 <input type="hidden" name="action" value="create_error">
-                <section class="error-form-section">
+                <section class="error-form-section incident-section">
                     <h3><i data-lucide="file-warning"></i> Error Information</h3>
                     <div class="form-grid compact">
                         <label class="span-2">Error Title<input name="error_title" required placeholder="Wrong product packed"></label>
@@ -722,12 +531,12 @@ include BASE_PATH . '/shared/sidebar.php';
                     </fieldset>
                 </section>
 
-                <section class="error-form-section">
+                <section class="error-form-section incident-section">
                     <h3><i data-lucide="message-square-warning"></i> What Happened</h3>
                     <label for="description">Description<textarea id="description" name="description" required placeholder="Explain exactly what happened, what caused the issue, and what impact it had."></textarea></label>
                 </section>
 
-                <section class="error-form-section">
+                <section class="error-form-section incident-section">
                     <h3><i data-lucide="users-round"></i> Responsibility</h3>
                     <div class="people-chip-grid">
                         <?php foreach ($employees as $employee): ?>
@@ -741,7 +550,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     </fieldset>
                 </section>
 
-                <section class="error-form-section">
+                <section class="error-form-section incident-section">
                     <h3><i data-lucide="check-circle-2"></i> Resolution</h3>
                     <div class="form-grid compact">
                         <label class="span-2">Resolution<textarea name="resolution" placeholder="customer contacted, stock updated, product replaced"></textarea></label>
@@ -749,7 +558,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     </div>
                 </section>
 
-                <section class="error-form-section">
+                <section class="error-form-section incident-section">
                     <h3><i data-lucide="paperclip"></i> Attachments</h3>
                     <label class="error-upload-zone">
                         <input type="file" name="attachments[]" multiple accept="image/*,.pdf,.doc,.docx">
@@ -759,7 +568,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     </label>
                 </section>
 
-                <div class="ops-form-actions error-panel-actions"><button class="button" type="button" data-error-modal-close>Cancel</button><button class="button primary" type="submit">Save Issue</button></div>
+                <div class="ops-form-actions error-panel-actions incident-footer"><button class="button incident-btn-secondary" type="button" data-error-modal-close>Cancel</button><button class="button primary incident-btn-primary" type="submit">Save Issue</button></div>
             </form>
     </aside>
 
