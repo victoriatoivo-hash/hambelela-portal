@@ -4577,25 +4577,30 @@ textarea {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 38px;
   padding: 0 16px;
-  border-radius: 10px;
   font-size: 12px;
-  font-weight: 800;
-  font-family: inherit;
+  white-space: nowrap;
+  font-family: Figtree, system-ui, -apple-system, sans-serif;
   cursor: pointer;
 }
 
 .incident-form .incident-btn-secondary {
+  height: 38px;
   border: 1px solid var(--bk-border);
+  border-radius: 10px;
   background: var(--bk-surface);
   color: var(--bk-text);
+  font-weight: 800;
 }
 
 .incident-form .incident-btn-primary {
-  border: 0;
-  background: var(--bk-orange-red);
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: #AB3619;
   color: #fff;
+  font-weight: 700;
+  transition: background .15s, transform .1s;
 }
 
 .incident-form .incident-btn-primary:hover {
