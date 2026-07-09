@@ -4270,6 +4270,14 @@ textarea {
   max-width: 100% !important;
 }
 
+#logErrorForm .incident-pill-field {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  justify-content: flex-start !important;
+  gap: 0 !important;
+}
+
 #logErrorForm .severity-group {
   align-items: flex-start !important;
   justify-content: flex-start !important;
@@ -4289,15 +4297,11 @@ textarea {
   padding: 0 !important;
   line-height: 1 !important;
   text-align: left !important;
+  white-space: nowrap !important;
 }
 
 #logErrorForm .severity-label::after {
-  content: "*" !important;
-  display: inline-block !important;
-  margin-left: 3px !important;
-  color: var(--bk-red) !important;
-  font-weight: 800 !important;
-  line-height: 1 !important;
+  content: none !important;
 }
 
 #logErrorForm .status-group {
@@ -4319,15 +4323,28 @@ textarea {
   padding: 0 !important;
   line-height: 1 !important;
   text-align: left !important;
+  white-space: nowrap !important;
 }
 
 #logErrorForm .status-label::after {
-  content: "*" !important;
-  display: inline-block !important;
-  margin-left: 3px !important;
+  content: none !important;
+}
+
+#logErrorForm .incident-pill-label .required {
+  display: inline !important;
+  margin: 0 0 0 3px !important;
   color: var(--bk-red) !important;
-  font-weight: 800 !important;
+  font-weight: 700 !important;
   line-height: 1 !important;
+}
+
+#logErrorForm .incident-pill-group {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 8px !important;
+  margin-top: 0 !important;
 }
 
 .incident-form input:focus,

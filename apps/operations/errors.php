@@ -512,19 +512,23 @@ include BASE_PATH . '/shared/sidebar.php';
                         <label>Order ID if applicable<input name="order_reference" placeholder="#33863 or WEB-33780"></label>
                         <label>Category<select name="category" required><option value="">Choose category</option><?php ops_select_options($errorCategories); ?></select></label>
                     </div>
-                    <fieldset class="pill-selector severity-choice severity-group" id="severity-group">
-                        <legend class="severity-label">Severity</legend>
+                    <fieldset class="pill-selector severity-choice severity-group incident-pill-field" id="severity-group">
+                        <legend class="severity-label incident-pill-label">Severity <span class="required">*</span></legend>
                         <input type="hidden" name="severity" id="severityValue" required>
-                        <?php foreach ($severityLabels as $value => $label): ?>
-                            <button class="pill-option severity-btn severity-<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?>" type="button" data-severity="<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></button>
-                        <?php endforeach; ?>
+                        <div class="incident-pill-group">
+                            <?php foreach ($severityLabels as $value => $label): ?>
+                                <button class="pill-option severity-btn severity-<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?>" type="button" data-severity="<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></button>
+                            <?php endforeach; ?>
+                        </div>
                     </fieldset>
-                    <fieldset class="pill-selector status-choice status-group" id="status-group">
-                        <legend class="status-label">STATUS</legend>
+                    <fieldset class="pill-selector status-choice status-group incident-pill-field" id="status-group">
+                        <legend class="status-label incident-pill-label">Status <span class="required">*</span></legend>
                         <input type="hidden" name="status" id="statusValue" value="open" required>
-                        <?php foreach ($statusLabels as $value => $label): ?>
-                            <button class="pill-option status-btn status-<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?> <?= $value === 'open' ? 'active' : '' ?>" type="button" data-status="<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></button>
-                        <?php endforeach; ?>
+                        <div class="incident-pill-group">
+                            <?php foreach ($statusLabels as $value => $label): ?>
+                                <button class="pill-option status-btn status-<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?> <?= $value === 'open' ? 'active' : '' ?>" type="button" data-status="<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></button>
+                            <?php endforeach; ?>
+                        </div>
                     </fieldset>
                 </section>
 
