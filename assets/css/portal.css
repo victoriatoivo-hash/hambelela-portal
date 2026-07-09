@@ -4221,6 +4221,7 @@ textarea {
   color: #1a1a1a;
   font: inherit;
   font-size: 12px;
+  font-weight: 400;
   outline: 0;
   box-sizing: border-box;
 }
