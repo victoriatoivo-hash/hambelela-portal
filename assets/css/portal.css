@@ -4964,6 +4964,19 @@ main.error-log-page {
   line-height: 1 !important;
 }
 
+.error-log-page .error-filter-actions .button.primary {
+  border-color: #ab3619 !important;
+  background: #ab3619 !important;
+  color: #fff !important;
+}
+
+.error-log-page .error-filter-actions .button.primary:hover,
+.error-log-page .error-filter-actions .button.primary:active {
+  border-color: #F07420 !important;
+  background: #F07420 !important;
+  color: #fff !important;
+}
+
 .error-log-page .error-table-top {
   display: flex !important;
   align-items: center !important;
