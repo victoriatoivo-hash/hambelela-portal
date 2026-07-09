@@ -4632,12 +4632,14 @@ textarea {
 }
 
 .incident-form .incident-btn-secondary {
-  height: 38px;
+  height: 34px !important;
+  min-height: 34px !important;
   border: 1px solid var(--bk-border);
   border-radius: 10px;
   background: var(--bk-surface);
   color: var(--bk-text);
-  font-weight: 800;
+  font-size: 12px !important;
+  font-weight: 700 !important;
 }
 
 .incident-form .incident-btn-primary {
