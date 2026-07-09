@@ -4042,6 +4042,10 @@ textarea {
   z-index: 135;
 }
 
+.error-log-panel.incident-modal {
+  background: #ffffff;
+}
+
 .error-detail-panel {
   display: grid;
   align-content: start;
