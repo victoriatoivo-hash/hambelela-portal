@@ -4868,10 +4868,12 @@ main.error-log-page {
 }
 
 .error-log-page .error-filter-grid label {
-  color: var(--bk-text-light) !important;
+  display: grid !important;
+  gap: 4px !important;
+  color: #6B6B6B !important;
   font-size: 10px !important;
   font-weight: 700 !important;
-  letter-spacing: .06em !important;
+  letter-spacing: .05em !important;
   text-transform: uppercase !important;
 }
 
@@ -4879,26 +4881,28 @@ main.error-log-page {
 .error-log-page .error-filter-grid select,
 .error-log-page .error-filter-grid textarea {
   width: 100% !important;
-  margin-top: 6px !important;
-  border: 1px solid var(--bk-border) !important;
-  border-radius: 8px !important;
-  background: #fff !important;
-  color: var(--bk-text) !important;
+  margin-top: 0 !important;
+  border: 1px solid rgba(171, 54, 25, .24) !important;
+  border-radius: 9px !important;
+  background: var(--ledger-white, #ffffff) !important;
+  color: #1a1a1a !important;
+  font: inherit !important;
   font-size: 12px !important;
   line-height: 1.2 !important;
   font-weight: 500 !important;
+  outline: 0 !important;
   box-sizing: border-box !important;
 }
 
 .error-log-page .error-filter-grid input,
 .error-log-page .error-filter-grid select {
-  height: 38px !important;
-  min-height: 38px !important;
-  padding: 0 14px !important;
+  height: 30px !important;
+  min-height: 30px !important;
+  padding: 0 8px !important;
 }
 
 .error-log-page .error-filter-grid select {
-  line-height: 38px !important;
+  line-height: 30px !important;
   appearance: auto !important;
 }
 
