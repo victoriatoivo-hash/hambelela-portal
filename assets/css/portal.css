@@ -4271,7 +4271,7 @@ textarea {
 #logErrorForm label:has(textarea[name="resolution"]),
 #logErrorForm label:has(input[name="financial_impact"]),
 #logErrorForm .repeat-choice legend {
-  color: #ab3619 !important;
+  color: #721b1a !important;
 }
 
 #logErrorForm label:has(textarea[name="resolution"]) {
