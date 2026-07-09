@@ -4275,6 +4275,32 @@ textarea {
   max-width: 100% !important;
 }
 
+#logErrorForm .incident-resolution-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 14px;
+  align-items: start;
+}
+
+#logErrorForm .incident-resolution-grid .incident-field {
+  min-width: 0;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+#logErrorForm .incident-resolution-grid textarea {
+  display: block;
+  width: 100%;
+  min-height: 96px;
+  height: 96px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+#logErrorForm .incident-section:has(.incident-resolution-grid) {
+  overflow: visible;
+}
+
 #logErrorForm .incident-pill-field {
   display: flex;
   flex-direction: column;
@@ -4641,6 +4667,10 @@ textarea {
 
   .incident-section {
     margin-inline: 16px;
+  }
+
+  #logErrorForm .incident-resolution-grid {
+    grid-template-columns: 1fr;
   }
 
   .incident-footer {
