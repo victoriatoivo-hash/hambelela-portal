@@ -392,7 +392,6 @@ include BASE_PATH . '/shared/sidebar.php';
         <div>
             <p class="error-log-kicker">Operations</p>
             <h1 class="error-log-title">Error Log</h1>
-            <p class="error-log-subtitle">Record packing, order, customer and process errors for KPI tracking.</p>
         </div>
         <button class="button primary error-log-btn-primary" type="button" data-error-modal-open><i data-lucide="plus"></i> Log Error</button>
     </section>
