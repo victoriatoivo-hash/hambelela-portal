@@ -4548,10 +4548,30 @@ textarea {
   margin: 0 !important;
   padding: 28px 32px 48px !important;
   box-sizing: border-box !important;
-  background: var(--bk-cream) !important;
+  background: #ffffff !important;
   color: var(--bk-text) !important;
   font-family: Figtree, Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
   font-size: 12px !important;
+}
+
+.error-log-page,
+.error-log-layout,
+.error-log-container,
+.error-log-content,
+.error-log-wrapper,
+.error-log-main,
+body.error-log,
+.error-log-route,
+main.error-log-page {
+  background: #ffffff !important;
+}
+
+.error-log-page::before,
+.error-log-layout::before,
+.error-log-container::before,
+.error-log-content::before {
+  display: none !important;
+  background: none !important;
 }
 
 .error-log-page .error-log-header,
