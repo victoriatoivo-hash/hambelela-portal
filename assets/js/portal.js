@@ -67,6 +67,128 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  const portalNotificationPoller = (() => {
+    const apiUrl = '/api/notifications.php';
+    const pollInterval = 30000;
+    const storageKey = 'portal_last_seen_notification_id';
+    let lastSeenLatestId = 0;
+    let initialized = false;
+
+    try {
+      lastSeenLatestId = Number(window.localStorage?.getItem(storageKey) || 0);
+    } catch (error) {
+      lastSeenLatestId = 0;
+    }
+
+    const escapeHtml = (value) => String(value)
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#039;');
+
+    const ensureToastContainer = () => {
+      let container = document.querySelector('.portal-toast-container');
+      if (!container) {
+        container = document.createElement('div');
+        container.className = 'portal-toast-container';
+        document.body.appendChild(container);
+      }
+      return container;
+    };
+
+    const showPortalToast = (notification) => {
+      const container = ensureToastContainer();
+      const toast = document.createElement('div');
+      toast.className = 'portal-toast';
+      toast.innerHTML = `<button type="button" class="portal-toast-close" aria-label="Close notification">×</button>
+        <p class="portal-toast-title">${escapeHtml(notification.title || 'New notification')}</p>
+        <p class="portal-toast-message">${escapeHtml(notification.message || '')}</p>`;
+
+      const close = () => {
+        toast.classList.add('is-leaving');
+        window.setTimeout(() => toast.remove(), 220);
+      };
+
+      toast.querySelector('.portal-toast-close')?.addEventListener('click', close);
+      container.prepend(toast);
+      window.setTimeout(close, 5000);
+    };
+
+    const updateSidebarNotificationBadges = (unreadCount) => {
+      const countValue = Number(unreadCount || 0);
+      document.querySelectorAll('[data-notification-count]').forEach((badge) => {
+        if (countValue <= 0) {
+          badge.classList.add('is-hidden');
+          badge.textContent = '';
+          return;
+        }
+        badge.classList.remove('is-hidden');
+        badge.textContent = countValue > 99 ? '99+' : String(countValue);
+      });
+    };
+
+    const persistLastSeen = () => {
+      try {
+        window.localStorage?.setItem(storageKey, String(lastSeenLatestId));
+      } catch (error) {
+        // Storage can be unavailable; polling still updates the visible badge.
+      }
+    };
+
+    const fetchNotifications = async () => {
+      try {
+        const response = await fetch(`${apiUrl}?mode=summary`, {
+          credentials: 'same-origin',
+          headers: { Accept: 'application/json' },
+        });
+        if (!response.ok) return;
+
+        const data = await response.json();
+        updateSidebarNotificationBadges(data.unread_count || 0);
+
+        const latest = Array.isArray(data.latest) ? data.latest : [];
+        const latestIds = latest.map((notification) => Number(notification.id || 0)).filter(Boolean);
+        const maxLatestId = latestIds.length ? Math.max(...latestIds) : lastSeenLatestId;
+
+        if (!initialized && lastSeenLatestId <= 0) {
+          lastSeenLatestId = maxLatestId;
+          persistLastSeen();
+          initialized = true;
+          return;
+        }
+
+        latest
+          .slice()
+          .sort((a, b) => Number(a.id || 0) - Number(b.id || 0))
+          .forEach((notification) => {
+            const id = Number(notification.id || 0);
+            if (id > lastSeenLatestId) {
+              showPortalToast(notification);
+              lastSeenLatestId = id;
+            }
+          });
+
+        if (maxLatestId > lastSeenLatestId) {
+          lastSeenLatestId = maxLatestId;
+        }
+        persistLastSeen();
+        initialized = true;
+      } catch (error) {
+        console.warn('Notification polling failed', error);
+      }
+    };
+
+    return {
+      start() {
+        fetchNotifications();
+        window.setInterval(fetchNotifications, pollInterval);
+      },
+    };
+  })();
+
+  portalNotificationPoller.start();
+
   document.querySelectorAll('.portal-nav-link, .portal-dark-toggle').forEach((button) => {
     button.addEventListener('click', (event) => {
       const rect = button.getBoundingClientRect();

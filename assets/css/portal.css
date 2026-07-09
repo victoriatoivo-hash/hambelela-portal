@@ -391,6 +391,112 @@ video {
   font-weight: 700;
 }
 
+.portal-toast-container {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  width: min(360px, calc(100vw - 32px));
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.portal-toast {
+  pointer-events: auto;
+  background: #ffffff;
+  border: 1px solid #EDE3D8;
+  border-left: 4px solid #AB3619;
+  border-radius: 14px;
+  box-shadow: 0 10px 26px rgba(114, 27, 26, .12);
+  padding: 12px 38px 12px 14px;
+  position: relative;
+  overflow: hidden;
+  animation: portalToastIn .26s ease-out both;
+}
+
+.portal-toast::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(240,116,32,.08), rgba(168,202,25,.06));
+  pointer-events: none;
+}
+
+.portal-toast-title,
+.portal-toast-message,
+.portal-toast-close {
+  position: relative;
+  z-index: 1;
+}
+
+.portal-toast-title {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #721B1A;
+}
+
+.portal-toast-message {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #6B4C3B;
+}
+
+.portal-toast-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  border: 0;
+  background: transparent;
+  color: #AB3619;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.portal-toast.is-leaving {
+  animation: portalToastOut .22s ease-in both;
+}
+
+@keyframes portalToastIn {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes portalToastOut {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+}
+
+@media (max-width: 700px) {
+  .portal-toast-container {
+    top: auto;
+    right: 12px;
+    left: 12px;
+    bottom: 14px;
+    width: auto;
+  }
+
+  .portal-toast {
+    border-radius: 12px;
+  }
+}
+
 .profit-engine {
   --profit-blue: #3b82f6;
   --profit-green: #10b981;

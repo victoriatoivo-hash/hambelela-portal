@@ -415,6 +415,38 @@ function notifications_for_current_user(int $limit = 10): array
     }
 }
 
+function notifications_summary_for_current_user(int $limit = 5): array
+{
+    $employeeId = notifications_current_employee_id();
+    if (!$employeeId || !notifications_schema_ready()) {
+        return ['unread_count' => 0, 'latest' => []];
+    }
+
+    try {
+        $countStmt = db()->prepare('SELECT COUNT(*) FROM notification_recipients WHERE employee_id = ? AND read_at IS NULL AND cleared_at IS NULL');
+        $countStmt->execute([$employeeId]);
+        $unread = (int) $countStmt->fetchColumn();
+        $countStmt->closeCursor();
+
+        $limit = max(1, min(20, $limit));
+        $stmt = db()->prepare(
+            "SELECT n.id, n.title, n.message, n.created_at, n.action_link
+             FROM notification_recipients nr
+             JOIN notifications n ON n.id = nr.notification_id
+             WHERE nr.employee_id = ? AND nr.read_at IS NULL AND nr.cleared_at IS NULL
+             ORDER BY n.created_at DESC, n.id DESC
+             LIMIT {$limit}"
+        );
+        $stmt->execute([$employeeId]);
+        $rows = $stmt->fetchAll();
+        $stmt->closeCursor();
+
+        return ['unread_count' => $unread, 'latest' => $rows];
+    } catch (Throwable $e) {
+        return ['unread_count' => 0, 'latest' => []];
+    }
+}
+
 function notifications_mark_read(array $ids = []): void
 {
     $employeeId = notifications_current_employee_id();
