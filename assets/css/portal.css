@@ -4572,7 +4572,7 @@ textarea {
   padding: 0 12px !important;
   border: 1px solid var(--el-border) !important;
   border-radius: 6px !important;
-  background: var(--el-surface) !important;
+  background: #FDF6EE !important;
   color: var(--el-text-mid) !important;
   font-size: 12px !important;
   font-weight: 500 !important;
@@ -4588,7 +4588,7 @@ textarea {
 .error-log-page .ops-nav a:hover:not(.active),
 .error-log-page .nav-tab:hover:not(.active) {
   border-color: var(--el-orange-red) !important;
-  background: #f5ece8 !important;
+  background: #FDF6EE !important;
 }
 
 .error-log-page .ops-nav svg {
@@ -4607,7 +4607,7 @@ textarea {
   padding: 10px 14px 10px 56px !important;
   border: 1px solid var(--el-border) !important;
   border-radius: 10px !important;
-  background: var(--el-surface) !important;
+  background: #FFFFFF !important;
   box-shadow: 0 2px 8px rgba(44,24,16,0.06) !important;
   transition: transform 180ms ease, box-shadow 180ms ease;
 }
@@ -4698,7 +4698,7 @@ textarea {
   max-width: 1480px !important;
   border: 1px solid var(--el-border) !important;
   border-radius: 10px !important;
-  background: var(--el-surface) !important;
+  background: #FFFFFF !important;
   box-shadow: 0 2px 8px rgba(44,24,16,0.06) !important;
 }
 
@@ -4715,7 +4715,7 @@ textarea {
 }
 
 .error-log-page .error-filter-panel > summary strong {
-  background: #fdf0eb !important;
+  background: #FDF6EE !important;
   color: var(--el-orange-red) !important;
   font-size: 12px !important;
   font-weight: 600 !important;
@@ -4745,7 +4745,7 @@ textarea {
 .error-log-page textarea {
   border: 1px solid var(--el-border) !important;
   border-radius: 6px !important;
-  background: var(--el-surface) !important;
+  background: #FFFFFF !important;
   color: var(--el-text) !important;
   font-size: 12px !important;
 }
@@ -4775,14 +4775,14 @@ textarea {
 .error-log-page .error-table {
   border: 1px solid var(--el-border) !important;
   border-radius: 10px !important;
-  background: var(--el-surface) !important;
+  background: #FFFFFF !important;
 }
 
 .error-log-page .error-table-head {
   min-height: 34px !important;
   padding: 0 10px !important;
   border-bottom: 2px solid var(--el-border) !important;
-  background: var(--el-cream) !important;
+  background: #FDF6EE !important;
   color: var(--el-burgundy) !important;
   font-size: 12px !important;
   font-weight: 600 !important;
@@ -4793,12 +4793,12 @@ textarea {
   min-height: 36px !important;
   padding: 0 10px !important;
   border-top: 1px solid var(--el-border) !important;
-  background: var(--el-surface) !important;
+  background: #FFFFFF !important;
   color: var(--el-text) !important;
 }
 
 .error-log-page .error-row:hover {
-  background: #fdf3ea !important;
+  background: #FDF6EE !important;
   transform: translateX(2px);
 }
 
@@ -4905,7 +4905,7 @@ textarea {
   padding: 0 !important;
   border: 1px solid var(--el-border) !important;
   border-radius: 6px !important;
-  background: var(--el-cream) !important;
+  background: #FDF6EE !important;
   color: var(--el-text-mid) !important;
   font-size: 11px !important;
   font-weight: 700 !important;
@@ -4916,7 +4916,7 @@ textarea {
 
 .error-log-page .repeat-choice label:hover {
   border-color: var(--el-orange-red) !important;
-  background: #fff3ee !important;
+  background: #FDF6EE !important;
 }
 
 .error-log-page .repeat-choice label:has(input[value="0"]:checked) {
@@ -4933,14 +4933,14 @@ textarea {
 
 .error-log-page .error-log-panel,
 .error-log-page .error-detail-panel {
-  background: var(--el-surface) !important;
+  background: #FFFFFF !important;
   color: var(--el-text) !important;
   font-size: 13px;
 }
 
 .error-log-page .error-log-panel-head {
   border-bottom: 1px solid var(--el-border) !important;
-  background: var(--el-cream) !important;
+  background: #FDF6EE !important;
 }
 
 .error-log-page .error-log-panel-head h2 {
@@ -4964,7 +4964,7 @@ textarea {
 .error-log-page .form-section-card {
   border: 1px solid var(--el-border) !important;
   border-radius: 10px !important;
-  background: var(--el-surface) !important;
+  background: #FFFFFF !important;
   padding: 18px 20px !important;
 }
 
@@ -4985,7 +4985,7 @@ textarea {
   border: 1px solid var(--el-border) !important;
   border-radius: 10px !important;
   padding: 10px !important;
-  background: var(--el-surface) !important;
+  background: #FFFFFF !important;
 }
 
 .error-log-page .people-chip-grid span {
@@ -4993,7 +4993,7 @@ textarea {
   padding: 0 12px !important;
   border: 1px solid var(--el-border) !important;
   border-radius: 6px !important;
-  background: var(--el-cream) !important;
+  background: #FDF6EE !important;
   color: var(--el-text-mid) !important;
   font-size: 11px !important;
   font-weight: 600 !important;
@@ -5003,7 +5003,7 @@ textarea {
 
 .error-log-page .people-chip-grid label:hover span {
   border-color: var(--el-orange-red) !important;
-  background: #fff3ee !important;
+  background: #FDF6EE !important;
 }
 
 .error-log-page .people-chip-grid input:checked + span {
@@ -5016,18 +5016,18 @@ textarea {
 .error-log-page .error-upload-zone {
   border: 2px dashed var(--el-olive) !important;
   border-radius: 10px !important;
-  background: #f7fbea !important;
+  background: #FDF6EE !important;
 }
 
 .error-log-page .error-upload-zone:hover,
 .error-log-page .error-upload-zone.is-dragover {
   border-color: var(--el-burgundy) !important;
   border-style: solid !important;
-  background: #eef7c8 !important;
+  background: #FDF6EE !important;
 }
 
 .error-log-page .error-upload-zone > span {
-  background: #f3fae0 !important;
+  background: #FDF6EE !important;
   color: var(--el-olive) !important;
 }
 
@@ -5047,7 +5047,7 @@ textarea {
 
 .error-log-page .error-panel-actions {
   border-top: 1px solid var(--el-border) !important;
-  background: rgba(255,255,255,0.96) !important;
+  background: #FFFFFF !important;
 }
 
 /* Font size correction pass for Employees and Error Log pages. */
@@ -5240,7 +5240,7 @@ main.workspace.error-log-page {
   text-transform: uppercase;
   letter-spacing: .05em;
   color: #721B1A;
-  background: #fafafa;
+  background: #FDF6EE;
   border-bottom: 2px solid #EDE3D8;
   padding: 8px 12px !important;
   white-space: nowrap;
@@ -5307,7 +5307,7 @@ main.workspace.error-log-page {
 
 .error-log-page .btn-secondary,
 .error-log-page button[class*="secondary"] {
-  background: #fff !important;
+  background: #FFFFFF !important;
   color: #6B4C3B !important;
   border: 1px solid #EDE3D8 !important;
   border-radius: 8px !important;
