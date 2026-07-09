@@ -632,6 +632,13 @@ document.addEventListener('click', (event) => {
   const modalClose = event.target.closest('[data-error-modal-close]');
   const detailOpen = event.target.closest('[data-error-open]');
   const detailClose = event.target.closest('[data-error-close]');
+  const uploadZone = event.target.closest('.error-upload-zone');
+  if (uploadZone) {
+    uploadZone.classList.remove('is-clicking');
+    void uploadZone.offsetWidth;
+    uploadZone.classList.add('is-clicking');
+    window.setTimeout(() => uploadZone.classList.remove('is-clicking'), 460);
+  }
   if (severityButton) {
     document.querySelectorAll('#logErrorForm .severity-btn').forEach((button) => button.classList.remove('active'));
     severityButton.classList.add('active');

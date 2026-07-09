@@ -4506,6 +4506,16 @@ textarea {
   background: #f7fbea;
 }
 
+.error-upload-zone:hover svg,
+.error-upload-zone.is-dragover svg {
+  animation: errorUploadArrowBob 780ms ease-in-out infinite;
+}
+
+.error-upload-zone:active svg,
+.error-upload-zone.is-clicking svg {
+  animation: errorUploadArrowBob 420ms ease-in-out 1;
+}
+
 .error-upload-zone input {
   display: none;
 }
@@ -4523,6 +4533,12 @@ textarea {
 .error-upload-zone svg {
   width: 22px;
   height: 22px;
+}
+
+@keyframes errorUploadArrowBob {
+  0% { transform: translateY(0); }
+  45% { transform: translateY(-5px); }
+  100% { transform: translateY(0); }
 }
 
 .error-upload-zone strong {
