@@ -4667,20 +4667,20 @@ main.error-log-page {
 
 .error-log-page .error-stat-icon {
   display: inline-flex !important;
-  flex: 0 0 28px !important;
+  flex: 0 0 18px !important;
   align-items: center !important;
   justify-content: center !important;
-  width: 28px !important;
-  height: 28px !important;
-  border-radius: 9px !important;
+  width: 18px !important;
+  height: 18px !important;
+  border-radius: 6px !important;
   background: color-mix(in srgb, var(--stat-colour, var(--bk-orange-red)) 12%, #fff) !important;
   color: var(--stat-colour, var(--bk-orange-red)) !important;
 }
 
 .error-log-page .error-stat-icon svg,
 .error-log-page .error-stat-icon i {
-  width: 18px !important;
-  height: 18px !important;
+  width: 12px !important;
+  height: 12px !important;
 }
 
 .error-log-page .error-stat-label {
