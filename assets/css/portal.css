@@ -4549,12 +4549,14 @@ textarea {
   color: var(--bk-burgundy);
   font-size: 13px;
   font-weight: 800;
+  text-transform: none;
 }
 
 .error-upload-zone small {
   color: var(--bk-text-light);
   font-size: 12px;
   font-weight: 400;
+  text-transform: none;
 }
 
 .error-attachments {
