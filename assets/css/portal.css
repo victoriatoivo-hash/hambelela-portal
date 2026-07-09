@@ -4657,9 +4657,10 @@ textarea {
   color: var(--stat-colour, var(--bk-orange-red)) !important;
 }
 
-.error-log-page .error-stat-icon svg {
-  width: 15px !important;
-  height: 15px !important;
+.error-log-page .error-stat-icon svg,
+.error-log-page .error-stat-icon i {
+  width: 18px !important;
+  height: 18px !important;
 }
 
 .error-log-page .error-stat-label {
@@ -4679,7 +4680,7 @@ textarea {
   margin: 0 !important;
   overflow: hidden !important;
   color: var(--bk-text) !important;
-  font-size: 16px !important;
+  font-size: 12px !important;
   font-weight: 700 !important;
   line-height: 1.08 !important;
   text-overflow: ellipsis !important;
