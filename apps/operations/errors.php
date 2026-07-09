@@ -500,7 +500,6 @@ include BASE_PATH . '/shared/sidebar.php';
                 <div>
                     <span class="error-panel-kicker">Incident report</span>
                     <h2>Log Error</h2>
-                    <p>Document what happened, who was involved, impact, resolution and proof.</p>
                 </div>
                 <button class="panel-close-button" type="button" data-error-modal-close aria-label="Close log error"><i data-lucide="x"></i></button>
             </div>
