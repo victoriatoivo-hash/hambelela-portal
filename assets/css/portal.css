@@ -4616,14 +4616,17 @@ textarea {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 auto;
+  width: auto;
   height: 32px;
-  min-width: 80px;
-  padding: 4px 14px;
+  min-width: unset;
+  max-width: max-content;
+  padding: 0 14px;
   border: 1px solid transparent;
   border-radius: 9px;
   color: #fff;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: .04em;
   line-height: 1;
   text-transform: uppercase;
@@ -4653,12 +4656,10 @@ textarea {
 }
 
 .incident-form .status-btn[data-status="open"] {
-  min-width: 112px;
   background: var(--bk-red);
 }
 
 .incident-form .status-btn[data-status="resolved"] {
-  min-width: 92px;
   background: var(--bk-olive);
   color: var(--bk-text);
 }
@@ -4677,18 +4678,22 @@ textarea {
 
 #logErrorForm .severity-btn,
 #logErrorForm .status-btn {
-  height: 40px;
-  min-height: 40px;
-  padding: 0 18px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 auto;
+  width: auto;
+  min-width: unset;
+  max-width: max-content;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 14px;
   font-size: 11px;
   font-weight: 700;
   line-height: 1;
   text-align: center;
   white-space: nowrap;
-  border-radius: 10px;
+  border-radius: 9px;
   box-sizing: border-box;
 }
 
