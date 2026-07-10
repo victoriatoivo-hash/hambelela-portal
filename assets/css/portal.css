@@ -5135,7 +5135,7 @@ textarea {
   font-weight: 700;
   letter-spacing: .04em;
   text-transform: uppercase;
-  color: var(--incident-burgundy);
+  color: #000000;
 }
 
 .incident-status-controls {
