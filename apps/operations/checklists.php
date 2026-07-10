@@ -602,69 +602,27 @@ include BASE_PATH . '/shared/sidebar.php';
                 <div class="task-status-body">
                 <div class="dtb-table-wrap">
                 <table class="dtb-board-table">
-                    <colgroup><col class="dtb-col-expand"><col class="dtb-col-name"><col class="dtb-col-assigned"><col class="dtb-col-priority"><col class="dtb-col-due"><col class="dtb-col-days"><col class="dtb-col-status"><col class="dtb-col-actions"></colgroup>
-                    <thead><tr><th aria-label="Expand"></th><th>Task</th><th>Assigned</th><th>Priority</th><th>Due</th><th>Days</th><th>Status</th><th>Actions</th></tr></thead>
+                    <colgroup><col class="dtb-col-name"><col class="dtb-col-assigned"><col class="dtb-col-priority"><col class="dtb-col-due"><col class="dtb-col-days"><col class="dtb-col-status"><col class="dtb-col-actions"></colgroup>
+                    <thead><tr><th>Task</th><th>Assigned</th><th>Priority</th><th>Due</th><th>Days</th><th>Status</th><th>Actions</th></tr></thead>
                     <tbody>
                 <?php foreach ($groupTasks as $task): ?>
                     <?php
                     $effective = checklist_effective_status($task);
-                    $inlineItems = checklist_json_items((string) ($task['checklist_items'] ?? ''));
-                    $inlineChecked = checklist_json_items((string) ($task['checked_items'] ?? ''));
-                    $progressTotal = max(1, count($inlineItems));
-                    $progressDone = $inlineItems ? count(array_intersect($inlineItems, $inlineChecked)) : 0;
-                    $progressPercent = $inlineItems ? (int) round(($progressDone / $progressTotal) * 100) : 0;
-                    $priorityKey = str_replace('_', '-', (string) ($task['priority'] ?? 'medium'));
+                    $priorityKey = (string) ($task['priority'] ?? 'medium');
                     $statusKey = str_replace('_', '-', $effective);
                     ?>
                     <?php $taskId = (int) $task['id']; ?>
-                    <tr class="dtb-task-row" data-task-row="<?= $taskId ?>">
-                        <td><button class="dtb-row-toggle" type="button" data-task-row-toggle="<?= $taskId ?>" aria-label="Expand task details" aria-expanded="false" aria-controls="task-details-<?= $taskId ?>"><i data-lucide="chevron-right"></i></button></td>
+                    <tr class="dtb-task-row">
                         <td><span class="dtb-task-name"><?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?></span></td>
                         <td><?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?></td>
-                        <td class="task-priority-cell"><div class="task-priority-fill" data-priority="<?= htmlspecialchars($priorityKey, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($priorities[(string) ($task['priority'] ?? 'medium')] ?? ucwords(str_replace('_', ' ', (string) ($task['priority'] ?? 'medium'))), ENT_QUOTES, 'UTF-8') ?></div></td>
+                        <td class="task-priority-cell"><div class="task-priority-fill" data-priority="<?= htmlspecialchars(str_replace('_', '-', $priorityKey), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($priorities[$priorityKey] ?? 'Medium', ENT_QUOTES, 'UTF-8') ?></div></td>
                         <td><?= checklist_date_label((string) ($task['deadline'] ?? '')) ?></td>
                         <td><?= htmlspecialchars(checklist_days_remaining((string) ($task['deadline'] ?? ''), $effective), ENT_QUOTES, 'UTF-8') ?></td>
-                        <td class="task-status-cell"><div class="task-status-fill" data-status="<?= htmlspecialchars($statusKey, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($statuses[$effective] ?? ucwords(str_replace('_', ' ', $effective)), ENT_QUOTES, 'UTF-8') ?></div></td>
+                        <td class="task-status-cell"><div class="task-status-fill" data-status="<?= htmlspecialchars($statusKey, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($groups[$effective] ?? ($statuses[$effective] ?? $effective), ENT_QUOTES, 'UTF-8') ?></div></td>
                         <td><button class="dtb-btn dtb-btn-secondary" type="button" data-task-open="<?= $taskId ?>">View</button></td>
                     </tr>
-                    <tr class="dtb-details-row" id="task-details-<?= $taskId ?>" data-task-details="<?= $taskId ?>" hidden><td colspan="8"><div class="dtb-details-panel"><div class="task-inline-detail">
-                            <div class="task-inline-main">
-                                <div class="task-kind-line">
-                                    <span class="task-kind-pill task-kind-<?= checklist_task_kind($task) ?>"><i data-lucide="<?= checklist_task_kind($task) === 'recurring' ? 'repeat-2' : 'square-pen' ?>"></i><?= checklist_task_kind($task) === 'recurring' ? 'Recurring' : 'Manual' ?></span>
-                                    <span><?= htmlspecialchars($types[(string) $task['checklist_type']] ?? (string) $task['checklist_type'], ENT_QUOTES, 'UTF-8') ?></span>
-                                </div>
-                                <div class="task-inline-meta">
-                                    <span><i data-lucide="user-round"></i><?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?></span>
-                                    <span><i data-lucide="calendar-clock"></i><?= checklist_date_label((string) ($task['deadline'] ?? '')) ?></span>
-                                    <span><i data-lucide="paperclip"></i><?= !empty($task['photo_path']) ? 'File attached' : 'No files' ?></span>
-                                    <span><i data-lucide="history"></i><?= number_format(count($activityByTask[(int) $task['id']] ?? [])) ?> history events</span>
-                                </div>
-                                <p><?= nl2br(htmlspecialchars((string) ($task['instructions'] ?: $task['notes'] ?: 'No instructions added.'), ENT_QUOTES, 'UTF-8')) ?></p>
-                                <div class="task-progress"><span style="width: <?= $progressPercent ?>%"></span></div>
-                                <small><?= $progressDone ?> of <?= count($inlineItems) ?> checklist items complete</small>
-                            </div>
-                            <form method="post" enctype="multipart/form-data" class="task-inline-form">
-                                <input type="hidden" name="task_id" value="<?= (int) $task['id'] ?>">
-                                <div class="task-checkbox-list">
-                                    <?php foreach ($inlineItems as $item): ?>
-                                        <label><input type="checkbox" name="checked_items[]" value="<?= htmlspecialchars($item, ENT_QUOTES, 'UTF-8') ?>" <?= in_array($item, $inlineChecked, true) ? 'checked' : '' ?>><?= htmlspecialchars($item, ENT_QUOTES, 'UTF-8') ?></label>
-                                    <?php endforeach; ?>
-                                    <?php if (!$inlineItems): ?><p>No checklist items added.</p><?php endif; ?>
-                                </div>
-                                <?php if ($effective !== 'complete'): ?>
-                                    <label>Status<select name="status"><?php ops_select_options($statuses, checklist_normalize_status((string) ($task['status'] ?? 'pending'))); ?></select></label>
-                                    <label>Note<textarea name="completion_note" placeholder="Add a progress or completion note."><?= htmlspecialchars((string) ($task['completion_note'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea></label>
-                                    <?php if (checklist_allows_photo((string) $task['checklist_type'])): ?><label>Photo proof optional<input type="file" name="photo_proof" accept="image/png,image/jpeg,image/webp"></label><?php endif; ?>
-                                    <div class="task-card-actions">
-                                        <button class="button primary" type="submit" name="action" value="update_task_progress">Save</button>
-                                    </div>
-                                <?php else: ?>
-                                    <div class="task-complete-note"><strong>Completion note</strong><p><?= nl2br(htmlspecialchars((string) ($task['completion_note'] ?? ''), ENT_QUOTES, 'UTF-8')) ?></p></div>
-                                <?php endif; ?>
-                            </form>
-                        </div></div></td></tr>
                 <?php endforeach; ?>
-                <?php if (!$groupTasks): ?><tr class="dtb-empty-row"><td colspan="8">No tasks in this section.</td></tr><?php endif; ?>
+                <?php if (!$groupTasks): ?><tr class="dtb-empty-row"><td colspan="7">No tasks in this section.</td></tr><?php endif; ?>
                     </tbody>
                 </table>
                 </div>
@@ -1090,20 +1048,10 @@ document.addEventListener('click', (event) => {
       select.querySelector('.portal-custom-select-trigger')?.setAttribute('aria-expanded', 'false');
     });
   }
-  const rowToggle = event.target.closest('[data-task-row-toggle]');
   const open = event.target.closest('[data-task-open]');
   const close = event.target.closest('[data-task-close]');
   const createOpen = event.target.closest('[data-task-create-open]');
   const createClose = event.target.closest('[data-task-create-close]');
-  if (rowToggle) {
-    const taskId = rowToggle.dataset.taskRowToggle;
-    const row = document.querySelector(`[data-task-row="${taskId}"]`);
-    const details = document.querySelector(`[data-task-details="${taskId}"]`);
-    const expanded = rowToggle.getAttribute('aria-expanded') !== 'true';
-    rowToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-    if (row) row.classList.toggle('is-expanded', expanded);
-    if (details) details.hidden = !expanded;
-  }
   if (open) {
     document.querySelectorAll('.task-detail-panel.open').forEach((panel) => {
       panel.classList.remove('open');

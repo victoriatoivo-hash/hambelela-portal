@@ -4156,13 +4156,12 @@ textarea {
 .task-status-section.is-collapsed .task-status-header { border-bottom: 0; }
 
 .dtb-table-wrap { width: 100%; overflow-x: auto; overflow-y: hidden; }
-.dtb-board-table { width: 100%; min-width: 1280px; border-collapse: collapse; border-spacing: 0; table-layout: fixed; background: #FFFFFF; }
-.dtb-board-table .dtb-col-expand { width: 38px; }
-.dtb-board-table .dtb-col-name { width: 390px; }
-.dtb-board-table .dtb-col-assigned { width: 240px; }
+.dtb-board-table { width: 100%; min-width: 1180px; border-collapse: collapse; border-spacing: 0; table-layout: fixed; background: #FFFFFF; }
+.dtb-board-table .dtb-col-name { width: 330px; }
+.dtb-board-table .dtb-col-assigned { width: 210px; }
 .dtb-board-table .dtb-col-priority { width: 150px; }
-.dtb-board-table .dtb-col-due { width: 180px; }
-.dtb-board-table .dtb-col-days { width: 140px; }
+.dtb-board-table .dtb-col-due { width: 170px; }
+.dtb-board-table .dtb-col-days { width: 150px; }
 .dtb-board-table .dtb-col-status { width: 150px; }
 .dtb-board-table .dtb-col-actions { width: 130px; }
 .digital-task-page .dtb-board-table thead th { height: 36px; padding: 0 11px; background: rgba(253, 246, 238, .48); border-right: 1px solid var(--task-border); border-bottom: 1px solid var(--task-border); text-align: left; vertical-align: middle; color: var(--task-burgundy); font-size: 10px; line-height: 1.1; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; box-sizing: border-box; }
@@ -4187,21 +4186,7 @@ textarea {
 .task-status-fill[data-status="in-progress"] { background: #AB3619; color: #FFFFFF; }
 .task-status-fill[data-status="complete"] { background: #A8CA19; color: #263000; }
 
-.dtb-row-toggle { width: 26px; height: 26px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 7px; background: transparent; color: var(--task-orange-red); cursor: pointer; }
-.dtb-row-toggle:hover { background: rgba(240, 116, 32, .08); }
-.dtb-row-toggle svg { width: 13px; height: 13px; transition: transform .18s ease; }
-.dtb-task-row.is-expanded .dtb-row-toggle svg { transform: rotate(90deg); }
-
 .dtb-empty-row td { height: 48px; padding: 0 16px; color: var(--task-text-light); font-size: 12px; font-weight: 400; }
-.dtb-details-row td { height: auto; padding: 0; background: #FFFDFB; white-space: normal; overflow: visible; }
-.dtb-details-panel { padding: 14px 16px 16px 48px; border-bottom: 1px solid var(--task-border); color: var(--task-text); font-size: 12px; font-weight: 400; }
-.dtb-details-panel .task-inline-detail { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(280px, .65fr); gap: 16px; padding: 0; border: 0; background: transparent; }
-.dtb-details-panel .task-inline-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.dtb-details-panel .task-inline-form { display: grid; gap: 10px; }
-.dtb-details-panel .task-inline-form input,
-.dtb-details-panel .task-inline-form select,
-.dtb-details-panel .task-inline-form textarea { font-size: 12px; font-weight: 400; }
-.dtb-details-panel .task-card-actions .button { height: 32px; min-height: 32px; font-size: 11px; }
 
 .dtb-history-section { width: 100%; background: #FFFFFF; border: 1px solid var(--task-border); border-radius: 13px; box-shadow: var(--task-shadow); overflow: hidden; }
 .dtb-history-count { min-height: 24px; padding: 0 10px; display: inline-flex; align-items: center; border-radius: 999px; background: var(--task-soft); color: var(--task-orange-red); font-size: 10px; font-weight: 700; }
@@ -4233,8 +4218,6 @@ textarea {
   .dtb-tabs { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; }
   .dtb-tab { flex: 0 0 auto; }
   .dtb-page-header .dtb-btn { width: 100%; }
-  .dtb-details-panel { padding-left: 16px; }
-  .dtb-details-panel .task-inline-detail { grid-template-columns: 1fr; }
 }
 
 /* Incident report side panel: recreated to match the Bookkeeping/Error Log theme. */
