@@ -39,34 +39,33 @@ include BASE_PATH . '/shared/sidebar.php';
             <div class="monday-board-head-actions">
                 <button type="button" class="invite-btn packing-btn packing-btn-secondary" data-packing-export><i data-lucide="download"></i> Export Excel</button>
                 <button type="button" class="packing-btn packing-btn-secondary" data-packing-undo disabled><i data-lucide="undo-2"></i> Undo</button>
-                <button type="button" class="packing-icon-btn" data-theme-toggle><i data-lucide="moon"></i></button>
             </div>
         </div>
 
         <section class="work-metric-grid packing-metric-grid packing-stats" aria-label="Packing summary">
             <article class="work-metric-card packing-stat-card pk-total">
                 <span class="metric-icon"><i data-lucide="package-open"></i></span>
-                <div><span class="metric-title">Total Items</span><strong data-packing-metric="total">0</strong><small>In packing list</small></div>
+                <div><span class="metric-title">Total Items</span><strong data-packing-metric="total">0</strong></div>
             </article>
             <article class="work-metric-card packing-stat-card pk-packing">
                 <span class="metric-icon"><i data-lucide="clock-3"></i></span>
-                <div><span class="metric-title">Packing</span><strong data-packing-metric="packing">0</strong><small>Currently active</small></div>
+                <div><span class="metric-title">Packing</span><strong data-packing-metric="packing">0</strong></div>
             </article>
             <article class="work-metric-card packing-stat-card pk-done">
                 <span class="metric-icon"><i data-lucide="check-circle-2"></i></span>
-                <div><span class="metric-title">Done</span><strong data-packing-metric="done">0</strong><small>Completed rows</small></div>
+                <div><span class="metric-title">Done</span><strong data-packing-metric="done">0</strong></div>
             </article>
             <article class="work-metric-card packing-stat-card pk-website">
                 <span class="metric-icon"><i data-lucide="globe-2"></i></span>
-                <div><span class="metric-title">Website Inventory</span><strong data-packing-metric="website">0</strong><small>Completed updates</small></div>
+                <div><span class="metric-title">Website Inventory</span><strong data-packing-metric="website">0</strong></div>
             </article>
             <article class="work-metric-card packing-stat-card pk-pending">
                 <span class="metric-icon"><i data-lucide="hourglass"></i></span>
-                <div><span class="metric-title">Pending</span><strong data-packing-metric="pending">0</strong><small>Awaiting action</small></div>
+                <div><span class="metric-title">Pending</span><strong data-packing-metric="pending">0</strong></div>
             </article>
             <article class="work-metric-card packing-stat-card pk-unassigned">
                 <span class="metric-icon"><i data-lucide="user-round-x"></i></span>
-                <div><span class="metric-title">Unassigned</span><strong data-packing-metric="unassigned">0</strong><small>Needs person</small></div>
+                <div><span class="metric-title">Unassigned</span><strong data-packing-metric="unassigned">0</strong></div>
             </article>
         </section>
 
