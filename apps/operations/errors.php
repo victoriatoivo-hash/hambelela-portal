@@ -783,7 +783,6 @@ include BASE_PATH . '/shared/sidebar.php';
         <aside class="error-detail-panel incident-details-panel" data-error-panel="<?= $errorId ?>" aria-hidden="true">
             <script type="application/json" id="incident-edit-data-<?= $errorId ?>"><?= json_encode($editData, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?></script>
             <div class="incident-details-header">
-                <button class="incident-details-back" type="button" data-error-close aria-label="Back to error list"><i data-lucide="arrow-left"></i></button>
                 <div>
                     <span class="incident-details-severity" data-severity="<?= htmlspecialchars(strtolower($severity), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($severityLabels[$severity] ?? $severity, ENT_QUOTES, 'UTF-8') ?></span>
                     <p class="incident-details-eyebrow">Incident detail</p>

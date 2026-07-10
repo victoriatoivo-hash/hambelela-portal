@@ -4930,7 +4930,7 @@ textarea {
   top: 0;
   z-index: 20;
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) 40px;
+  grid-template-columns: minmax(0, 1fr) 40px;
   align-items: start;
   gap: 14px;
   padding: 20px 22px 18px;
@@ -4939,7 +4939,6 @@ textarea {
   backdrop-filter: blur(10px);
 }
 
-.incident-details-back,
 .incident-details-close {
   width: 38px;
   height: 38px;
@@ -4954,7 +4953,6 @@ textarea {
   transition: border-color .18s ease, background-color .18s ease, color .18s ease, transform .18s ease;
 }
 
-.incident-details-back:hover,
 .incident-details-close:hover {
   border-color: rgba(171, 54, 25, .35);
   background: rgba(240, 116, 32, .08);
@@ -4962,7 +4960,6 @@ textarea {
   transform: translateY(-1px);
 }
 
-.incident-details-back svg,
 .incident-details-close svg {
   width: 18px;
   height: 18px;
@@ -5340,7 +5337,7 @@ textarea {
   }
 
   .incident-details-header {
-    grid-template-columns: 38px minmax(0, 1fr) 38px;
+    grid-template-columns: minmax(0, 1fr) 38px;
     padding: 16px 14px;
   }
 
