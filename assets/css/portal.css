@@ -3341,7 +3341,7 @@ textarea {
   visibility: visible;
 }
 
-.task-panel-backdrop {
+.digital-task-page .task-panel-backdrop {
   z-index: 120;
   background: rgba(26, 26, 26, .28);
   backdrop-filter: blur(1px);
