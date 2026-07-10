@@ -3376,7 +3376,7 @@ textarea {
 .digital-task-page .task-details-panel .task-field select,
 .digital-task-page .task-details-panel .task-field textarea { width: 100%; border: 1px solid var(--task-border); border-radius: 10px; background: #FFFFFF; color: var(--task-text); font-family: inherit; font-size: 12px; font-weight: 400; box-sizing: border-box; }
 .task-details-panel .task-field input,
-.task-details-panel .task-field select { height: 38px; padding: 0 12px; }
+.task-details-panel .task-field select { height: 32px; padding: 0 12px; }
 .task-details-panel .task-field input:focus,
 .task-details-panel .task-field select:focus,
 .task-details-panel .task-field textarea:focus { outline: 0; border-color: var(--task-orange-red); box-shadow: 0 0 0 3px rgba(171,54,25,.10); }
@@ -3412,8 +3412,7 @@ textarea {
 .digital-task-page .task-details-panel .task-history-empty { margin: 0; color: var(--task-text-light); font-size: 12px; font-weight: 400; }
 .task-details-panel .portal-custom-select { margin: 0; }
 .digital-task-page .task-details-panel .task-field .portal-custom-select-native { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
-.digital-task-page .task-details-panel .portal-custom-select-trigger { width: 100%; height: 38px; padding: 0 12px; border: 1px solid var(--task-border); border-radius: 10px; background: #FFFFFF; color: var(--task-text); display: flex; align-items: center; justify-content: space-between; gap: 10px; font-family: inherit; font-size: 12px; font-weight: 400; text-align: left; cursor: pointer; box-sizing: border-box; transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease; }
-.digital-task-page .task-details-panel .task-progress-card .portal-custom-select-trigger { height: 32px; }
+.digital-task-page .task-details-panel .portal-custom-select-trigger { width: 100%; height: 32px; padding: 0 12px; border: 1px solid var(--task-border); border-radius: 10px; background: #FFFFFF; color: var(--task-text); display: flex; align-items: center; justify-content: space-between; gap: 10px; font-family: inherit; font-size: 12px; font-weight: 400; text-align: left; cursor: pointer; box-sizing: border-box; transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease; }
 .digital-task-page .task-details-panel .portal-custom-select-option { font-size: 12px; font-weight: 400; }
 
 @media (max-width: 760px) {
