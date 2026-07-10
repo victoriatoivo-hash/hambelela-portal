@@ -5912,7 +5912,7 @@ main.error-log-page {
   display: flex !important;
   align-items: center !important;
   overflow: hidden !important;
-  color: var(--bk-text) !important;
+  color: #000000 !important;
   font-size: 12px !important;
   font-weight: 500 !important;
   line-height: 1.25 !important;
@@ -5937,7 +5937,7 @@ main.error-log-page {
   border-bottom: 1px solid var(--bk-border) !important;
   border-radius: 0 !important;
   background: #fff !important;
-  font-size: 10px !important;
+  font-size: 12px !important;
   font-weight: 700 !important;
   font-style: normal !important;
   line-height: 1.25 !important;
@@ -5947,7 +5947,7 @@ main.error-log-page {
 .error-log-page .error-table .task-empty {
   margin: 0 !important;
   padding: 20px 16px !important;
-  color: var(--bk-text-mid) !important;
+  color: #000000 !important;
   font-size: 12px !important;
 }
 
