@@ -26448,9 +26448,9 @@ body.dark-mode .portal-dark-toggle {
     padding-left: 0;
   }
 
-  .shell:has(.portal-sidebar) > main.workspace,
+  .shell:has(.portal-sidebar) > main.workspace:not(.digital-task-page),
   .shell:has(.portal-sidebar) > main.ledger-page,
-  .shell:has(.portal-sidebar) > .workspace,
+  .shell:has(.portal-sidebar) > .workspace:not(.digital-task-page),
   .shell:has(.portal-sidebar) > .ledger-page {
     padding: 18px;
   }
