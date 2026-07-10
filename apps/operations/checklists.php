@@ -463,7 +463,6 @@ include BASE_PATH . '/shared/sidebar.php';
         <div>
             <p class="dtb-page-kicker">Task Management</p>
             <h1 class="dtb-page-title"><?= $canManage ? 'Digital Task Board' : 'My Tasks' ?></h1>
-            <p class="dtb-page-description">Create, assign and track recurring and manual staff tasks.</p>
         </div>
         <?php if ($canManage): ?>
             <button class="dtb-btn dtb-btn-primary" type="button" data-task-create-open><i data-lucide="plus"></i> New Task</button>
