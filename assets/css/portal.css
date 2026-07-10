@@ -5245,6 +5245,7 @@ textarea {
   font-size: 10px !important;
   line-height: 1.2;
   font-weight: 700 !important;
+  text-transform: uppercase;
   color: var(--incident-burgundy);
 }
 
