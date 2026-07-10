@@ -4536,18 +4536,18 @@ textarea {
   border: 1px solid #EDE3D8;
   border-radius: 20px;
   background: #FFF8F1;
-  color: #6B6B6B !important;
+  color: #ab3619 !important;
   font-size: 10px !important;
   font-weight: 700 !important;
   letter-spacing: .05em !important;
-  text-transform: uppercase !important;
+  text-transform: none !important;
   transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
 }
 
 .people-chip-grid input:checked + span {
   border-color: rgba(171, 54, 25, .22);
   background: rgb(240 116 32 / 8%);
-  color: var(--bk-burgundy);
+  color: #ab3619 !important;
 }
 
 .people-chip-grid label:hover span,
