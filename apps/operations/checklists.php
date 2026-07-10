@@ -602,8 +602,8 @@ include BASE_PATH . '/shared/sidebar.php';
                 <div class="task-status-body">
                 <div class="dtb-table-wrap">
                 <table class="dtb-board-table">
-                    <colgroup><col class="dtb-col-expand"><col class="dtb-col-name"><col class="dtb-col-assigned"><col class="dtb-col-due"><col class="dtb-col-days"><col class="dtb-col-actions"></colgroup>
-                    <thead><tr><th aria-label="Expand"></th><th>Task</th><th>Assigned</th><th>Due</th><th>Days</th><th>Actions</th></tr></thead>
+                    <colgroup><col class="dtb-col-expand"><col class="dtb-col-name"><col class="dtb-col-assigned"><col class="dtb-col-priority"><col class="dtb-col-due"><col class="dtb-col-days"><col class="dtb-col-status"><col class="dtb-col-actions"></colgroup>
+                    <thead><tr><th aria-label="Expand"></th><th>Task</th><th>Assigned</th><th>Priority</th><th>Due</th><th>Days</th><th>Status</th><th>Actions</th></tr></thead>
                     <tbody>
                 <?php foreach ($groupTasks as $task): ?>
                     <?php
@@ -613,17 +613,21 @@ include BASE_PATH . '/shared/sidebar.php';
                     $progressTotal = max(1, count($inlineItems));
                     $progressDone = $inlineItems ? count(array_intersect($inlineItems, $inlineChecked)) : 0;
                     $progressPercent = $inlineItems ? (int) round(($progressDone / $progressTotal) * 100) : 0;
+                    $priorityKey = str_replace('_', '-', (string) ($task['priority'] ?? 'medium'));
+                    $statusKey = str_replace('_', '-', $effective);
                     ?>
                     <?php $taskId = (int) $task['id']; ?>
                     <tr class="dtb-task-row" data-task-row="<?= $taskId ?>">
                         <td><button class="dtb-row-toggle" type="button" data-task-row-toggle="<?= $taskId ?>" aria-label="Expand task details" aria-expanded="false" aria-controls="task-details-<?= $taskId ?>"><i data-lucide="chevron-right"></i></button></td>
                         <td><span class="dtb-task-name"><?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?></span></td>
                         <td><?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?></td>
+                        <td class="task-priority-cell"><div class="task-priority-fill" data-priority="<?= htmlspecialchars($priorityKey, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($priorities[(string) ($task['priority'] ?? 'medium')] ?? ucwords(str_replace('_', ' ', (string) ($task['priority'] ?? 'medium'))), ENT_QUOTES, 'UTF-8') ?></div></td>
                         <td><?= checklist_date_label((string) ($task['deadline'] ?? '')) ?></td>
                         <td><?= htmlspecialchars(checklist_days_remaining((string) ($task['deadline'] ?? ''), $effective), ENT_QUOTES, 'UTF-8') ?></td>
+                        <td class="task-status-cell"><div class="task-status-fill" data-status="<?= htmlspecialchars($statusKey, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($statuses[$effective] ?? ucwords(str_replace('_', ' ', $effective)), ENT_QUOTES, 'UTF-8') ?></div></td>
                         <td><button class="dtb-btn dtb-btn-secondary" type="button" data-task-open="<?= $taskId ?>">View</button></td>
                     </tr>
-                    <tr class="dtb-details-row" id="task-details-<?= $taskId ?>" data-task-details="<?= $taskId ?>" hidden><td colspan="6"><div class="dtb-details-panel"><div class="task-inline-detail">
+                    <tr class="dtb-details-row" id="task-details-<?= $taskId ?>" data-task-details="<?= $taskId ?>" hidden><td colspan="8"><div class="dtb-details-panel"><div class="task-inline-detail">
                             <div class="task-inline-main">
                                 <div class="task-kind-line">
                                     <span class="task-kind-pill task-kind-<?= checklist_task_kind($task) ?>"><i data-lucide="<?= checklist_task_kind($task) === 'recurring' ? 'repeat-2' : 'square-pen' ?>"></i><?= checklist_task_kind($task) === 'recurring' ? 'Recurring' : 'Manual' ?></span>
@@ -660,7 +664,7 @@ include BASE_PATH . '/shared/sidebar.php';
                             </form>
                         </div></div></td></tr>
                 <?php endforeach; ?>
-                <?php if (!$groupTasks): ?><tr class="dtb-empty-row"><td colspan="6">No tasks in this section.</td></tr><?php endif; ?>
+                <?php if (!$groupTasks): ?><tr class="dtb-empty-row"><td colspan="8">No tasks in this section.</td></tr><?php endif; ?>
                     </tbody>
                 </table>
                 </div>
