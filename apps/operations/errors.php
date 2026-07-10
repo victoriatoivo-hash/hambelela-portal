@@ -652,45 +652,57 @@ include BASE_PATH . '/shared/sidebar.php';
         $status = (string) ($error['status'] ?? 'open');
         $canUpdateThisError = $isOwnerErrorUser || ($isFrontDeskErrorUser && (int) ($error['logged_by'] ?? 0) === (int) $currentEmployeeId);
         ?>
-        <aside class="error-detail-panel" data-error-panel="<?= $errorId ?>" aria-hidden="true">
-            <div class="task-detail-head">
-                <button class="panel-back-button" type="button" data-error-close><i data-lucide="arrow-left"></i> Back</button>
-                <div><span class="error-severity severity-<?= htmlspecialchars($severity, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($severityLabels[$severity] ?? $severity, ENT_QUOTES, 'UTF-8') ?></span><h2><?= htmlspecialchars((string) ($error['error_title'] ?: ($errorCategories[(string) $error['category']] ?? $error['category'])), ENT_QUOTES, 'UTF-8') ?></h2></div>
-                <button class="panel-close-button" type="button" data-error-close aria-label="Close error details"><i data-lucide="x"></i></button>
+        <aside class="error-detail-panel incident-details-panel" data-error-panel="<?= $errorId ?>" aria-hidden="true">
+            <div class="incident-details-header">
+                <button class="incident-details-back" type="button" data-error-close aria-label="Back to error list"><i data-lucide="arrow-left"></i></button>
+                <div>
+                    <span class="incident-details-severity" data-severity="<?= htmlspecialchars(strtolower($severity), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($severityLabels[$severity] ?? $severity, ENT_QUOTES, 'UTF-8') ?></span>
+                    <p class="incident-details-eyebrow">Incident detail</p>
+                    <h2 class="incident-details-title"><?= htmlspecialchars((string) ($error['error_title'] ?: ($errorCategories[(string) $error['category']] ?? $error['category'])), ENT_QUOTES, 'UTF-8') ?></h2>
+                </div>
+                <button class="incident-details-close" type="button" data-error-close aria-label="Close error details"><i data-lucide="x"></i></button>
             </div>
-            <div class="task-detail-grid">
-                <div><span>Date logged</span><strong><?= error_date_label((string) ($error['logged_at'] ?? '')) ?></strong></div>
-                <div><span>Logged by</span><strong><?= htmlspecialchars((string) ($error['logged_by_name'] ?? 'System'), ENT_QUOTES, 'UTF-8') ?></strong></div>
-                <div><span>Order ID</span><strong><?= htmlspecialchars((string) ($error['order_reference'] ?: $error['order_id'] ?: '-'), ENT_QUOTES, 'UTF-8') ?></strong></div>
-                <div><span>People involved</span><strong><?= htmlspecialchars($peopleText, ENT_QUOTES, 'UTF-8') ?></strong></div>
-                <div><span>Category</span><strong><?= htmlspecialchars($errorCategories[(string) $error['category']] ?? (string) $error['category'], ENT_QUOTES, 'UTF-8') ?></strong></div>
-                <div><span>Repeat error</span><strong><?= (int) ($error['repeat_issue'] ?? 0) === 1 ? 'Yes' : 'No' ?></strong></div>
+            <div class="incident-details-body">
+                <section class="incident-details-section">
+                    <div class="incident-meta-grid">
+                        <article class="incident-meta-card"><span class="incident-meta-label">Date logged</span><strong class="incident-meta-value"><?= error_date_label((string) ($error['logged_at'] ?? '')) ?></strong></article>
+                        <article class="incident-meta-card"><span class="incident-meta-label">Logged by</span><strong class="incident-meta-value"><?= htmlspecialchars((string) ($error['logged_by_name'] ?? 'System'), ENT_QUOTES, 'UTF-8') ?></strong></article>
+                        <article class="incident-meta-card"><span class="incident-meta-label">Order ID</span><strong class="incident-meta-value"><?= htmlspecialchars((string) ($error['order_reference'] ?: $error['order_id'] ?: '-'), ENT_QUOTES, 'UTF-8') ?></strong></article>
+                        <article class="incident-meta-card"><span class="incident-meta-label">People involved</span><strong class="incident-meta-value"><?= htmlspecialchars($peopleText, ENT_QUOTES, 'UTF-8') ?></strong></article>
+                        <article class="incident-meta-card"><span class="incident-meta-label">Category</span><strong class="incident-meta-value"><?= htmlspecialchars($errorCategories[(string) $error['category']] ?? (string) $error['category'], ENT_QUOTES, 'UTF-8') ?></strong></article>
+                        <article class="incident-meta-card"><span class="incident-meta-label">Repeat error</span><strong class="incident-meta-value"><?= (int) ($error['repeat_issue'] ?? 0) === 1 ? 'Yes' : 'No' ?></strong></article>
+                    </div>
+                </section>
+                <?php if ($canUpdateThisError): ?>
+                    <form method="post" class="incident-status-card">
+                        <input type="hidden" name="action" value="update_status">
+                        <input type="hidden" name="error_id" value="<?= $errorId ?>">
+                        <label for="detail-status-<?= $errorId ?>">Status</label>
+                        <div class="incident-status-controls">
+                            <select class="incident-status-select" id="detail-status-<?= $errorId ?>" name="status"><?php ops_select_options($statusLabels, $status); ?></select>
+                            <button class="incident-status-update-btn" type="submit">Update status</button>
+                        </div>
+                    </form>
+                <?php endif; ?>
+                <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="align-left"></i> Description</h3><p class="incident-content-text"><?= nl2br(htmlspecialchars((string) ($error['description'] ?? ''), ENT_QUOTES, 'UTF-8')) ?></p></section>
+                <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="user-round-check"></i> Customer impact</h3><p class="incident-content-text<?= empty($error['customer_impact']) ? ' incident-empty-text' : '' ?>"><?= nl2br(htmlspecialchars((string) ($error['customer_impact'] ?: 'No customer impact recorded.'), ENT_QUOTES, 'UTF-8')) ?></p></section>
+                <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="circle-check"></i> Resolution</h3><p class="incident-content-text<?= empty($error['resolution']) ? ' incident-empty-text' : '' ?>"><?= nl2br(htmlspecialchars((string) ($error['resolution'] ?: 'No resolution recorded yet.'), ENT_QUOTES, 'UTF-8')) ?></p></section>
+                <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="banknote"></i> Financial impact</h3><p class="incident-content-text">N$<?= number_format((float) ($error['financial_impact'] ?? 0), 2) ?></p></section>
+                <?php if (!empty($error['repeat_note'])): ?><section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="repeat-2"></i> Repeat note</h3><p class="incident-content-text"><?= nl2br(htmlspecialchars((string) $error['repeat_note'], ENT_QUOTES, 'UTF-8')) ?></p></section><?php endif; ?>
+                <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="paperclip"></i> Attachments</h3><div class="incident-attachments-list">
+                    <?php foreach ($attachments as $path): ?><div class="incident-attachment"><span><?= htmlspecialchars(basename((string) $path), ENT_QUOTES, 'UTF-8') ?></span><a class="incident-attachment-link" href="<?= BASE_URL . '/' . htmlspecialchars((string) $path, ENT_QUOTES, 'UTF-8') ?>" target="_blank">Open</a></div><?php endforeach; ?>
+                    <?php if (!$attachments): ?><p class="incident-content-text incident-empty-text">No attachments uploaded.</p><?php endif; ?>
+                </div></section>
+                <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="history"></i> Edit history</h3><div class="incident-history-list">
+                    <?php foreach (($activityByError[$errorId] ?? []) as $activity): ?>
+                        <article class="incident-history-item"><p class="incident-history-action"><?= htmlspecialchars((string) $activity['action'], ENT_QUOTES, 'UTF-8') ?></p><p class="incident-history-meta"><?= htmlspecialchars((string) ($activity['employee_name'] ?? 'System'), ENT_QUOTES, 'UTF-8') ?> - <?= htmlspecialchars((string) $activity['created_at'], ENT_QUOTES, 'UTF-8') ?></p></article>
+                    <?php endforeach; ?>
+                    <?php if (empty($activityByError[$errorId])): ?><p class="incident-content-text incident-empty-text">No edit history yet.</p><?php endif; ?>
+                </div></section>
             </div>
-            <?php if ($canUpdateThisError): ?>
-                <form method="post" class="task-admin-edit">
-                    <input type="hidden" name="action" value="update_status">
-                    <input type="hidden" name="error_id" value="<?= $errorId ?>">
-                    <label>Status<select name="status"><?php ops_select_options($statusLabels, $status); ?></select></label>
-                    <button class="button small" type="submit">Update status</button>
-                </form>
-            <?php endif; ?>
-            <section><h3>Description</h3><p><?= nl2br(htmlspecialchars((string) ($error['description'] ?? ''), ENT_QUOTES, 'UTF-8')) ?></p></section>
-            <section><h3>Customer impact</h3><p><?= nl2br(htmlspecialchars((string) ($error['customer_impact'] ?: 'No customer impact recorded.'), ENT_QUOTES, 'UTF-8')) ?></p></section>
-            <section><h3>Resolution</h3><p><?= nl2br(htmlspecialchars((string) ($error['resolution'] ?: 'No resolution recorded yet.'), ENT_QUOTES, 'UTF-8')) ?></p></section>
-            <?php if (!empty($error['repeat_note'])): ?><section><h3>Repeat note</h3><p><?= nl2br(htmlspecialchars((string) $error['repeat_note'], ENT_QUOTES, 'UTF-8')) ?></p></section><?php endif; ?>
-            <section><h3>Attachments</h3><div class="error-attachments">
-                <?php foreach ($attachments as $path): ?><a class="button small" href="<?= BASE_URL . '/' . htmlspecialchars((string) $path, ENT_QUOTES, 'UTF-8') ?>" target="_blank">Open attachment</a><?php endforeach; ?>
-                <?php if (!$attachments): ?><p>No attachments uploaded.</p><?php endif; ?>
-            </div></section>
-            <section><h3>Edit history</h3><div class="activity-log">
-                <?php foreach (($activityByError[$errorId] ?? []) as $activity): ?>
-                    <div class="activity-line"><strong><?= htmlspecialchars((string) $activity['action'], ENT_QUOTES, 'UTF-8') ?></strong><span><?= htmlspecialchars((string) ($activity['employee_name'] ?? 'System'), ENT_QUOTES, 'UTF-8') ?> - <?= htmlspecialchars((string) $activity['created_at'], ENT_QUOTES, 'UTF-8') ?></span></div>
-                <?php endforeach; ?>
-                <?php if (empty($activityByError[$errorId])): ?><p>No edit history yet.</p><?php endif; ?>
-            </div></section>
         </aside>
     <?php endforeach; ?>
-    <div class="panel-backdrop error-panel-backdrop" data-error-close data-error-modal-close hidden></div>
+    <div class="panel-backdrop error-panel-backdrop incident-panel-overlay" data-error-close data-error-modal-close hidden></div>
 </main>
 <script>
 document.addEventListener('click', (event) => {
