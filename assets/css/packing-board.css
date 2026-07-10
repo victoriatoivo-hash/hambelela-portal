@@ -496,7 +496,7 @@
     background: var(--pk-surface) !important;
     box-shadow: var(--pk-shadow) !important;
     display: grid;
-    grid-template-columns: 30px 1fr;
+    grid-template-columns: 18px 1fr;
     align-items: center;
     gap: 10px;
     padding: 12px 14px !important;
@@ -510,11 +510,16 @@
 .packing-page-v2 .packing-stat-card.pk-unassigned { border-left-color: var(--pk-burgundy) !important; }
 
 .packing-page-v2 .packing-stat-card .metric-icon {
-    width: 30px !important;
-    height: 30px !important;
-    border-radius: 9px !important;
+    width: 18px !important;
+    height: 18px !important;
+    border-radius: 6px !important;
     background: rgba(171, 54, 25, .08) !important;
     color: var(--pk-orange-red) !important;
+}
+
+.packing-page-v2 .packing-stat-card .metric-icon svg {
+    width: 12px !important;
+    height: 12px !important;
 }
 
 .packing-page-v2 .packing-stat-card .metric-copy {
@@ -523,19 +528,19 @@
 
 .packing-page-v2 .packing-stat-card .metric-label,
 .packing-page-v2 .packing-stat-card .metric-title {
-    margin: 0 0 5px;
-    display: block;
+    display: block !important;
+    margin: 0 0 5px !important;
     color: var(--pk-text-light) !important;
-    font-size: 11px !important;
-    font-weight: 800 !important;
-    letter-spacing: .06em;
-    line-height: 1.1;
-    text-transform: uppercase;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    letter-spacing: .06em !important;
+    line-height: 1.15 !important;
+    text-transform: uppercase !important;
 }
 
 .packing-page-v2 .packing-stat-card strong {
     color: var(--pk-text) !important;
-    font-size: 20px !important;
+    font-size: 12px !important;
     line-height: 1;
     font-weight: 800 !important;
 }
@@ -562,11 +567,16 @@
     display: grid;
     gap: 6px;
     margin: 0;
-    color: var(--pk-text-light) !important;
-    font-size: 11px !important;
-    font-weight: 800 !important;
-    letter-spacing: .05em;
+    vertical-align: middle;
+    color: #721b1a !important;
+    font-size: 10px !important;
+    line-height: 1.15;
+    font-weight: 700;
+    letter-spacing: .04em;
     text-transform: uppercase;
+    white-space: normal;
+    overflow-wrap: break-word;
+    box-sizing: border-box;
 }
 
 .packing-page-v2 .packing-toolbar input,

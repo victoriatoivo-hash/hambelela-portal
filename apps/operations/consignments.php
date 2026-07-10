@@ -34,7 +34,6 @@ include BASE_PATH . '/shared/sidebar.php';
         <div class="monday-board-head work-board-head packing-header">
             <div>
                 <h1>Hambelela Packing <i data-lucide="chevron-down"></i></h1>
-                <p class="work-board-subtitle">Bulk stock, invoice weights, packing allocation and website update tracking.</p>
                 <p class="packing-load-state" data-packing-count>Loading packing list...</p>
             </div>
             <div class="monday-board-head-actions">
