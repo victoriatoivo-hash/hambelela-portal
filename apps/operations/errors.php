@@ -99,6 +99,8 @@ function error_bootstrap_schema(): void
         'repeat_note' => "ALTER TABLE ops_error_logs ADD COLUMN repeat_note TEXT NULL AFTER repeat_issue",
         'attachment_paths' => "ALTER TABLE ops_error_logs ADD COLUMN attachment_paths TEXT NULL AFTER resolution",
         'updated_at' => "ALTER TABLE ops_error_logs ADD COLUMN updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER logged_at",
+        'deleted_at' => "ALTER TABLE ops_error_logs ADD COLUMN deleted_at DATETIME NULL AFTER updated_at",
+        'deleted_by' => "ALTER TABLE ops_error_logs ADD COLUMN deleted_by INT NULL AFTER deleted_at",
     ];
     foreach ($columns as $column => $sql) {
         if (!error_column_exists($column)) error_try_sql($sql);
@@ -148,6 +150,16 @@ function error_people_names(array $ids, array $employeeMap, ?string $fallback = 
     }
     if (!$names && $fallback) $names[] = $fallback;
     return $names ? implode(', ', array_unique($names)) : 'Unassigned';
+}
+
+function error_array_compare_value($value): string
+{
+    if (is_array($value)) {
+        $value = array_values($value);
+        sort($value);
+        return json_encode($value, JSON_UNESCAPED_SLASHES);
+    }
+    return (string) $value;
 }
 
 function error_person_filter_sql(string $alias, int $personId): array
@@ -246,16 +258,115 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             error_log_redirect('Error logged and added to KPI tracking.', 'success', '?saved=1');
         }
 
+        if ($action === 'update_error') {
+            $errorId = (int) ($_POST['incident_id'] ?? 0);
+            if ($errorId <= 0) throw new RuntimeException('Invalid incident.');
+
+            $existingRows = ops_rows('SELECT * FROM ops_error_logs WHERE id = ? AND deleted_at IS NULL LIMIT 1', [$errorId]);
+            if (!$existingRows) throw new RuntimeException('Incident not found.');
+            $existing = $existingRows[0];
+            $loggedBy = (int) ($existing['logged_by'] ?? 0);
+            if (!$isOwnerErrorUser && !($isFrontDeskErrorUser && $loggedBy === (int) $currentEmployeeId)) {
+                throw new RuntimeException('You can only edit errors you logged yourself.');
+            }
+
+            $title = ops_post_string('error_title', 190);
+            $description = ops_post_string('description', 3000);
+            $category = ops_post_string('category', 100);
+            $otherCategory = ops_post_string('other_category', 100);
+            $severity = ops_post_string('severity', 20);
+            $people = array_values(array_filter(array_map('intval', $_POST['people_involved'] ?? [])));
+            if ($title === '') throw new RuntimeException('Error title is required.');
+            if ($description === '') throw new RuntimeException('Description is required.');
+            if ($category === 'other') {
+                if ($otherCategory === '') throw new RuntimeException('Other category is required.');
+                $category = $otherCategory;
+            } elseif (!array_key_exists($category, $errorCategories)) {
+                throw new RuntimeException('Choose an error category.');
+            }
+            if (!array_key_exists($severity, $severityLabels)) throw new RuntimeException('Choose a severity.');
+            if (!$people) throw new RuntimeException('Select at least one person involved.');
+
+            $status = ops_post_string('status', 30) ?: 'open';
+            if (!array_key_exists($status, $statusLabels)) $status = 'open';
+            $newData = [
+                'error_title' => $title,
+                'order_reference' => ops_post_string('order_reference', 60) ?: null,
+                'category' => $category,
+                'severity' => $severity,
+                'people_involved' => $people,
+                'description' => $description,
+                'financial_impact' => (float) ($_POST['financial_impact'] ?? 0),
+                'resolution' => ops_post_string('resolution', 1500),
+                'repeat_issue' => (int) ($_POST['repeat_issue'] ?? 0) === 1 ? 1 : 0,
+                'status' => $status,
+            ];
+            $changes = [];
+            foreach ($newData as $field => $value) {
+                $oldValue = $field === 'people_involved'
+                    ? error_json_array((string) ($existing[$field] ?? ''))
+                    : ($existing[$field] ?? '');
+                if (error_array_compare_value($oldValue) !== error_array_compare_value($value)) {
+                    $changes[$field] = ['from' => $oldValue, 'to' => $value];
+                }
+            }
+
+            $stmt = db()->prepare(
+                "UPDATE ops_error_logs
+                 SET error_title = ?, employee_id = ?, people_involved = ?, order_reference = ?, category = ?, severity = ?, description = ?, financial_impact = ?, resolution = ?, repeat_issue = ?, status = ?
+                 WHERE id = ? AND deleted_at IS NULL"
+            );
+            $stmt->execute([
+                $newData['error_title'],
+                $people[0] ?? null,
+                json_encode($people, JSON_UNESCAPED_SLASHES),
+                $newData['order_reference'],
+                $newData['category'],
+                $newData['severity'],
+                $newData['description'],
+                $newData['financial_impact'],
+                $newData['resolution'],
+                $newData['repeat_issue'],
+                $newData['status'],
+                $errorId,
+            ]);
+
+            $paths = error_upload_files($errorId);
+            if ($paths) {
+                $existingPaths = error_json_array((string) ($existing['attachment_paths'] ?? ''));
+                $mergedPaths = array_values(array_unique(array_merge($existingPaths, $paths)));
+                $stmt = db()->prepare('UPDATE ops_error_logs SET attachment_paths = ? WHERE id = ? AND deleted_at IS NULL');
+                $stmt->execute([json_encode($mergedPaths, JSON_UNESCAPED_SLASHES), $errorId]);
+                $changes['attachments'] = ['added' => $paths];
+            }
+
+            ops_activity_log('error_updated', 'error_log', $errorId, ['fields_changed' => array_keys($changes), 'changes' => $changes]);
+            error_log_redirect('Error updated.', 'success', '?updated=1&error_id=' . $errorId);
+        }
+
+        if ($action === 'delete_error') {
+            $errorId = (int) ($_POST['error_id'] ?? 0);
+            if ($errorId <= 0) throw new RuntimeException('Invalid incident.');
+            if (!in_array($currentRoleKey, ['owner_admin', 'owner', 'admin'], true)) {
+                http_response_code(403);
+                throw new RuntimeException('You do not have permission to delete this incident.');
+            }
+            $stmt = db()->prepare('UPDATE ops_error_logs SET deleted_at = NOW(), deleted_by = ? WHERE id = ? AND deleted_at IS NULL');
+            $stmt->execute([$currentEmployeeId, $errorId]);
+            ops_activity_log('error_deleted', 'error_log', $errorId, ['deleted_by' => $currentEmployeeId]);
+            error_log_redirect('Error deleted.', 'success', '?deleted=1');
+        }
+
         if ($action === 'update_status') {
             $errorId = (int) ($_POST['error_id'] ?? 0);
             $status = ops_post_string('status', 30);
             if (!array_key_exists($status, $statusLabels)) throw new RuntimeException('Choose a valid status.');
-            $permissionRows = ops_rows('SELECT logged_by FROM ops_error_logs WHERE id = ? LIMIT 1', [$errorId]);
+            $permissionRows = ops_rows('SELECT logged_by FROM ops_error_logs WHERE id = ? AND deleted_at IS NULL LIMIT 1', [$errorId]);
             $loggedBy = (int) ($permissionRows[0]['logged_by'] ?? 0);
             if (!$isOwnerErrorUser && !($isFrontDeskErrorUser && $loggedBy === (int) $currentEmployeeId)) {
                 throw new RuntimeException('You can only update errors you logged yourself.');
             }
-            $stmt = db()->prepare('UPDATE ops_error_logs SET status = ? WHERE id = ?');
+            $stmt = db()->prepare('UPDATE ops_error_logs SET status = ? WHERE id = ? AND deleted_at IS NULL');
             $stmt->execute([$status, $errorId]);
             ops_activity_log('error_status_updated', 'error_log', $errorId, ['status' => $status]);
             error_log_redirect('Error status updated.', 'success', '?status_updated=1');
@@ -284,7 +395,7 @@ $filters = [
 ];
 $filtersAreActive = $filters['date_from'] !== '' || $filters['date_to'] !== '' || $filters['severity'] !== '' || $filters['category'] !== '' || $filters['employee_id'] !== '' || $filters['repeat_issue'] !== '' || $filters['customer_impacted'] !== '' || $filters['order_reference'] !== '' || $filters['status'] !== '';
 
-$where = [];
+$where = ['el.deleted_at IS NULL'];
 $params = [];
 if ($filters['date_from'] !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['date_from'])) {
     $where[] = 'DATE(el.logged_at) >= ?';
@@ -346,7 +457,7 @@ $errors = $ready ? ops_rows(
     $params
 ) : [];
 
-$monthWhere = ["DATE_FORMAT(el.logged_at, '%Y-%m') = ?"];
+$monthWhere = ['el.deleted_at IS NULL', "DATE_FORMAT(el.logged_at, '%Y-%m') = ?"];
 $monthParams = [$filters['month'] ?: date('Y-m')];
 if ($isFrontDeskErrorUser && !$isOwnerErrorUser) {
     [$frontMonthSql, $frontMonthParams] = error_person_filter_sql('el', (int) $currentEmployeeId);
@@ -540,6 +651,7 @@ include BASE_PATH . '/shared/sidebar.php';
             </div>
             <form id="logErrorForm" class="ops-form error-incident-form log-error-modal incident-form" method="post" enctype="multipart/form-data">
                 <input type="hidden" name="action" value="create_error">
+                <input type="hidden" name="incident_id" value="">
                 <input type="hidden" name="submission_token" value="<?= htmlspecialchars($incidentSubmissionToken, ENT_QUOTES, 'UTF-8') ?>">
                 <section class="error-form-section incident-section">
                     <h3><i data-lucide="file-warning"></i> Error Information</h3>
@@ -651,8 +763,25 @@ include BASE_PATH . '/shared/sidebar.php';
         $severity = (string) ($error['severity'] ?? 'low');
         $status = (string) ($error['status'] ?? 'open');
         $canUpdateThisError = $isOwnerErrorUser || ($isFrontDeskErrorUser && (int) ($error['logged_by'] ?? 0) === (int) $currentEmployeeId);
+        $canDeleteThisError = in_array($currentRoleKey, ['owner_admin', 'owner', 'admin'], true);
+        $storedCategory = (string) ($error['category'] ?? '');
+        $editData = [
+            'id' => $errorId,
+            'error_title' => (string) ($error['error_title'] ?? ''),
+            'order_reference' => (string) ($error['order_reference'] ?? ''),
+            'category' => array_key_exists($storedCategory, $errorCategories) ? $storedCategory : 'other',
+            'other_category' => array_key_exists($storedCategory, $errorCategories) ? '' : $storedCategory,
+            'severity' => $severity,
+            'status' => $status,
+            'description' => (string) ($error['description'] ?? ''),
+            'people_involved' => $peopleIds,
+            'repeat_issue' => (int) ($error['repeat_issue'] ?? 0),
+            'resolution' => (string) ($error['resolution'] ?? ''),
+            'financial_impact' => (string) ($error['financial_impact'] ?? 0),
+        ];
         ?>
         <aside class="error-detail-panel incident-details-panel" data-error-panel="<?= $errorId ?>" aria-hidden="true">
+            <script type="application/json" id="incident-edit-data-<?= $errorId ?>"><?= json_encode($editData, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?></script>
             <div class="incident-details-header">
                 <button class="incident-details-back" type="button" data-error-close aria-label="Back to error list"><i data-lucide="arrow-left"></i></button>
                 <div>
@@ -663,16 +792,20 @@ include BASE_PATH . '/shared/sidebar.php';
                 <button class="incident-details-close" type="button" data-error-close aria-label="Close error details"><i data-lucide="x"></i></button>
             </div>
             <div class="incident-details-body">
-                <section class="incident-details-section">
-                    <div class="incident-meta-grid">
-                        <article class="incident-meta-card"><span class="incident-meta-label">Date logged</span><strong class="incident-meta-value"><?= error_date_label((string) ($error['logged_at'] ?? '')) ?></strong></article>
-                        <article class="incident-meta-card"><span class="incident-meta-label">Logged by</span><strong class="incident-meta-value"><?= htmlspecialchars((string) ($error['logged_by_name'] ?? 'System'), ENT_QUOTES, 'UTF-8') ?></strong></article>
-                        <article class="incident-meta-card"><span class="incident-meta-label">Order ID</span><strong class="incident-meta-value"><?= htmlspecialchars((string) ($error['order_reference'] ?: $error['order_id'] ?: '-'), ENT_QUOTES, 'UTF-8') ?></strong></article>
-                        <article class="incident-meta-card"><span class="incident-meta-label">People involved</span><strong class="incident-meta-value"><?= htmlspecialchars($peopleText, ENT_QUOTES, 'UTF-8') ?></strong></article>
-                        <article class="incident-meta-card"><span class="incident-meta-label">Category</span><strong class="incident-meta-value"><?= htmlspecialchars($errorCategories[(string) $error['category']] ?? (string) $error['category'], ENT_QUOTES, 'UTF-8') ?></strong></article>
-                        <article class="incident-meta-card"><span class="incident-meta-label">Repeat error</span><strong class="incident-meta-value"><?= (int) ($error['repeat_issue'] ?? 0) === 1 ? 'Yes' : 'No' ?></strong></article>
+                <?php if ($canUpdateThisError || $canDeleteThisError): ?>
+                    <div class="incident-panel-actions">
+                        <?php if ($canUpdateThisError): ?>
+                            <button type="button" class="incident-action-btn incident-action-btn--edit" data-edit-incident="<?= $errorId ?>">Edit error</button>
+                        <?php endif; ?>
+                        <?php if ($canDeleteThisError): ?>
+                            <form method="post" class="incident-delete-form" data-delete-incident-form>
+                                <input type="hidden" name="action" value="delete_error">
+                                <input type="hidden" name="error_id" value="<?= $errorId ?>">
+                                <button type="button" class="incident-action-btn incident-action-btn--delete" data-delete-incident>Delete</button>
+                            </form>
+                        <?php endif; ?>
                     </div>
-                </section>
+                <?php endif; ?>
                 <?php if ($canUpdateThisError): ?>
                     <form method="post" class="incident-status-card">
                         <input type="hidden" name="action" value="update_status">
@@ -703,8 +836,103 @@ include BASE_PATH . '/shared/sidebar.php';
         </aside>
     <?php endforeach; ?>
     <div class="panel-backdrop error-panel-backdrop incident-panel-overlay" data-error-close data-error-modal-close hidden></div>
+    <div class="incident-delete-confirm" data-delete-confirm hidden role="dialog" aria-modal="true" aria-labelledby="incidentDeleteTitle">
+        <div class="incident-delete-confirm-card">
+            <h3 id="incidentDeleteTitle">Delete this error?</h3>
+            <p>This action cannot be undone. The incident and its history will be removed.</p>
+            <div class="incident-delete-confirm-actions">
+                <button type="button" class="incident-action-btn incident-action-btn--edit" data-delete-cancel>Cancel</button>
+                <button type="button" class="incident-action-btn incident-action-btn--delete" data-delete-confirm-submit>Delete error</button>
+            </div>
+        </div>
+    </div>
 </main>
 <script>
+let pendingDeleteForm = null;
+
+function setIncidentPillValue(selector, dataAttr, value) {
+  document.querySelectorAll(`#logErrorForm ${selector}`).forEach((button) => {
+    button.classList.toggle('active', button.dataset[dataAttr] === value);
+  });
+}
+
+function setIncidentCategoryValue(value, otherValue = '') {
+  const hiddenInput = document.getElementById('error-category-value');
+  const valueLabel = document.querySelector('#logErrorForm .custom-select-value');
+  const options = Array.from(document.querySelectorAll('#logErrorForm .custom-select-option'));
+  const option = options.find((item) => item.dataset.value === value);
+  const otherCategoryField = document.getElementById('incident-other-category-field');
+  const otherCategoryInput = document.getElementById('incident-other-category');
+
+  options.forEach((item) => item.setAttribute('aria-selected', item === option ? 'true' : 'false'));
+  if (hiddenInput) hiddenInput.value = value || '';
+  if (valueLabel) valueLabel.textContent = option ? option.textContent.trim() : 'Choose category';
+
+  const isOther = value === 'other';
+  if (otherCategoryField && otherCategoryInput) {
+    otherCategoryField.classList.toggle('is-hidden', !isOther);
+    otherCategoryInput.disabled = !isOther;
+    otherCategoryInput.required = isOther;
+    otherCategoryInput.value = isOther ? otherValue : '';
+    otherCategoryInput.classList.remove('is-invalid');
+    otherCategoryInput.setCustomValidity('');
+  }
+}
+
+function openIncidentForm(mode = 'create', data = {}) {
+  const panel = document.querySelector('[data-error-modal-panel]');
+  const form = document.getElementById('logErrorForm');
+  const actionInput = form?.querySelector('[name="action"]');
+  const incidentIdInput = form?.querySelector('[name="incident_id"]');
+  const headerTitle = document.querySelector('[data-error-modal-panel] .incident-header h2');
+  const submitButton = form?.querySelector('.incident-btn-primary');
+
+  if (!panel || !form || !actionInput || !incidentIdInput) return;
+
+  form.reset();
+  document.querySelectorAll('#logErrorForm .field-error').forEach((error) => error.remove());
+  document.getElementById('severity-group-error')?.remove();
+  document.getElementById('status-group-error')?.remove();
+  document.getElementById('error-category-value-error')?.remove();
+  document.getElementById('description-error')?.remove();
+
+  actionInput.value = mode === 'edit' ? 'update_error' : 'create_error';
+  incidentIdInput.value = mode === 'edit' ? String(data.id || '') : '';
+  if (headerTitle) headerTitle.textContent = mode === 'edit' ? 'Edit Error' : 'Log Error';
+  if (submitButton) {
+    submitButton.disabled = false;
+    submitButton.textContent = mode === 'edit' ? 'Update Error' : 'Save Issue';
+  }
+
+  setIncidentCategoryValue(mode === 'edit' ? (data.category || '') : '', mode === 'edit' ? (data.other_category || '') : '');
+  setIncidentPillValue('.severity-btn', 'severity', mode === 'edit' ? (data.severity || '') : '');
+  setIncidentPillValue('.status-btn', 'status', mode === 'edit' ? (data.status || 'open') : 'open');
+
+  const severityValue = document.getElementById('severityValue');
+  const statusValue = document.getElementById('statusValue');
+  if (severityValue) severityValue.value = mode === 'edit' ? (data.severity || '') : '';
+  if (statusValue) statusValue.value = mode === 'edit' ? (data.status || 'open') : 'open';
+
+  if (mode === 'edit') {
+    form.elements.error_title.value = data.error_title || '';
+    form.elements.order_reference.value = data.order_reference || '';
+    form.elements.description.value = data.description || '';
+    form.elements.resolution.value = data.resolution || '';
+    form.elements.financial_impact.value = data.financial_impact || '0';
+    form.querySelectorAll('[name="people_involved[]"]').forEach((checkbox) => {
+      checkbox.checked = (data.people_involved || []).map(String).includes(String(checkbox.value));
+    });
+    const repeat = form.querySelector(`[name="repeat_issue"][value="${Number(data.repeat_issue || 0)}"]`);
+    if (repeat) repeat.checked = true;
+  }
+
+  document.querySelectorAll('.error-detail-panel.open').forEach((openPanel) => openPanel.classList.remove('open'));
+  panel.classList.add('open');
+  const backdrop = document.querySelector('.error-panel-backdrop');
+  if (backdrop) backdrop.hidden = false;
+  document.body.classList.add('error-panel-open');
+}
+
 document.addEventListener('click', (event) => {
   const severityButton = event.target.closest('#logErrorForm .severity-btn');
   const statusButton = event.target.closest('#logErrorForm .status-btn');
@@ -712,6 +940,10 @@ document.addEventListener('click', (event) => {
   const modalClose = event.target.closest('[data-error-modal-close]');
   const detailOpen = event.target.closest('[data-error-open]');
   const detailClose = event.target.closest('[data-error-close]');
+  const editIncident = event.target.closest('[data-edit-incident]');
+  const deleteIncident = event.target.closest('[data-delete-incident]');
+  const deleteCancel = event.target.closest('[data-delete-cancel]');
+  const deleteConfirmSubmit = event.target.closest('[data-delete-confirm-submit]');
   const uploadZone = event.target.closest('.error-upload-zone');
   if (uploadZone) {
     uploadZone.classList.remove('is-clicking');
@@ -742,11 +974,25 @@ document.addEventListener('click', (event) => {
     if (error) error.remove();
   }
   if (modalOpen) {
-    const panel = document.querySelector('[data-error-modal-panel]');
-    if (panel) panel.classList.add('open');
-    const backdrop = document.querySelector('.error-panel-backdrop');
-    if (backdrop) backdrop.hidden = false;
-    document.body.classList.add('error-panel-open');
+    openIncidentForm('create');
+  }
+  if (editIncident) {
+    const dataElement = document.getElementById(`incident-edit-data-${editIncident.dataset.editIncident}`);
+    const data = dataElement ? JSON.parse(dataElement.textContent || '{}') : {};
+    openIncidentForm('edit', data);
+  }
+  if (deleteIncident) {
+    pendingDeleteForm = deleteIncident.closest('form');
+    const confirm = document.querySelector('[data-delete-confirm]');
+    if (confirm) confirm.hidden = false;
+  }
+  if (deleteCancel) {
+    pendingDeleteForm = null;
+    const confirm = document.querySelector('[data-delete-confirm]');
+    if (confirm) confirm.hidden = true;
+  }
+  if (deleteConfirmSubmit && pendingDeleteForm) {
+    pendingDeleteForm.submit();
   }
   if (modalClose) {
     const panel = document.querySelector('[data-error-modal-panel]');

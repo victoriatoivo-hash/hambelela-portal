@@ -5024,58 +5024,106 @@ textarea {
   background: #FFFFFF;
 }
 
-.incident-details-section {
-  margin-top: 18px;
+.incident-panel-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 14px;
 }
 
-.incident-details-section:first-child {
-  margin-top: 0;
+.incident-delete-form {
+  margin: 0;
 }
 
-.incident-meta-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.incident-meta-card {
-  min-width: 0;
-  min-height: 66px;
-  padding: 12px 14px;
-  background: #FFFFFF;
-  border: 1px solid var(--incident-border);
-  border-left: 4px solid var(--meta-accent, var(--incident-orange-red));
-  border-radius: 12px;
-  box-shadow: 0 7px 18px rgba(114, 27, 26, .045);
-}
-
-.incident-meta-label {
-  display: block;
-  margin-bottom: 5px;
+.incident-action-btn {
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-family: Figtree, Inter, system-ui, sans-serif;
   font-size: 11px;
-  line-height: 1;
   font-weight: 700;
-  letter-spacing: .02em;
-  color: var(--incident-text-light);
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color .18s ease, border-color .18s ease, color .18s ease, transform .18s ease;
 }
 
-.incident-meta-value {
-  display: block;
+.incident-action-btn--edit {
+  background: #FFFFFF;
+  color: #AB3619;
+  border: 1px solid rgba(171, 54, 25, .28);
+}
+
+.incident-action-btn--edit:hover {
+  background: rgba(240, 116, 32, .08);
+  border-color: #AB3619;
+  transform: translateY(-1px);
+}
+
+.incident-action-btn--delete {
+  background: #BB1B21;
+  color: #FFFFFF;
+  border: 1px solid #BB1B21;
+}
+
+.incident-action-btn--delete:hover {
+  background: #721B1A;
+  border-color: #721B1A;
+  transform: translateY(-1px);
+}
+
+.incident-delete-confirm {
+  position: fixed;
+  inset: 0;
+  z-index: 10020;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(26, 26, 26, .24);
+  backdrop-filter: blur(2px);
+}
+
+.incident-delete-confirm[hidden] {
+  display: none;
+}
+
+.incident-delete-confirm-card {
+  width: min(380px, 100%);
+  padding: 18px;
+  background: #FFFFFF;
+  border: 1px solid #EDE3D8;
+  border-radius: 14px;
+  box-shadow: 0 16px 38px rgba(114, 27, 26, .16);
+  font-family: Figtree, Inter, system-ui, sans-serif;
+}
+
+.incident-delete-confirm-card h3 {
+  margin: 0 0 8px;
+  color: #721B1A;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.incident-delete-confirm-card p {
+  margin: 0;
+  color: #6B4C3B;
   font-size: 12px;
-  line-height: 1.35;
-  font-weight: 600;
-  color: var(--incident-text);
-  overflow-wrap: anywhere;
+  line-height: 1.45;
 }
 
-.incident-meta-card:nth-child(5n + 1) { --meta-accent: var(--incident-orange-red); }
-.incident-meta-card:nth-child(5n + 2) { --meta-accent: var(--incident-amber); }
-.incident-meta-card:nth-child(5n + 3) { --meta-accent: var(--incident-red); }
-.incident-meta-card:nth-child(5n + 4) { --meta-accent: var(--incident-olive); }
-.incident-meta-card:nth-child(5n + 5) { --meta-accent: var(--incident-burgundy); }
+.incident-delete-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
 
 .incident-status-card {
-  margin-top: 14px;
+  margin-top: 0;
   padding: 14px;
   background: #FFFFFF;
   border: 1px solid var(--incident-border);
@@ -5295,10 +5343,6 @@ textarea {
 
   .incident-details-body {
     padding: 14px 14px 28px;
-  }
-
-  .incident-meta-grid {
-    grid-template-columns: 1fr;
   }
 
   .incident-status-controls {
