@@ -671,63 +671,90 @@ include BASE_PATH . '/shared/sidebar.php';
         $checked = checklist_json_items((string) ($task['checked_items'] ?? ''));
         $panelId = (int) $task['id'];
         $deadlineValue = $task['deadline'] ? str_replace(' ', 'T', substr((string) $task['deadline'], 0, 16)) : '';
+        $taskKind = checklist_task_kind($task);
+        $statusClass = str_replace('_', '-', $effective);
         ?>
-        <aside class="task-detail-panel" data-task-panel="<?= $panelId ?>" aria-hidden="true">
-            <div class="task-detail-head">
-                <button type="button" data-task-close aria-label="Close task details"><i data-lucide="x"></i></button>
-                <div><span class="status task-status-<?= htmlspecialchars($effective, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($groups[$effective] ?? ($statuses[$effective] ?? $effective), ENT_QUOTES, 'UTF-8') ?></span> <span class="task-kind-pill task-kind-<?= checklist_task_kind($task) ?>"><i data-lucide="<?= checklist_task_kind($task) === 'recurring' ? 'repeat-2' : 'square-pen' ?>"></i><?= checklist_task_kind($task) === 'recurring' ? 'Recurring' : 'Manual' ?></span><h2><?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?></h2></div>
-            </div>
-            <div class="task-detail-grid">
-                <div><span>Assigned</span><strong><?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?></strong></div>
-                <div><span>Due</span><strong><?= checklist_date_label((string) ($task['deadline'] ?? '')) ?></strong></div>
-                <div><span>Date assigned</span><strong><?= checklist_date_label((string) ($task['date_assigned'] ?: $task['created_at'])) ?></strong></div>
-                <div><span>Date completed</span><strong><?= checklist_date_label((string) ($task['date_completed'] ?: $task['completed_at'])) ?></strong></div>
-                <div><span>Completed by</span><strong><?= htmlspecialchars((string) ($task['completed_by_name'] ?? '-'), ENT_QUOTES, 'UTF-8') ?></strong></div>
-                <div><span>Type</span><strong><?= htmlspecialchars($types[(string) $task['checklist_type']] ?? (string) $task['checklist_type'], ENT_QUOTES, 'UTF-8') ?></strong></div>
-            </div>
-
-            <?php if ($canManage): ?>
-                <form method="post" class="task-admin-edit">
-                    <input type="hidden" name="action" value="admin_update_task">
-                    <input type="hidden" name="task_id" value="<?= $panelId ?>">
-                    <label>Assigned person<select name="assigned_employee_id"><?php foreach ($employees as $employee): ?><option value="<?= (int) $employee['id'] ?>" <?= (int) ($task['assigned_employee_id'] ?? 0) === (int) $employee['id'] ? 'selected' : '' ?>><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></label>
-                    <label>Status<select name="status"><?php ops_select_options($statuses, checklist_normalize_status((string) ($task['status'] ?? 'pending'))); ?></select></label>
-                    <label>Priority<select name="priority"><?php ops_select_options($priorities, (string) ($task['priority'] ?? 'medium')); ?></select></label>
-                    <label>Due date<input type="datetime-local" name="deadline" value="<?= htmlspecialchars($deadlineValue, ENT_QUOTES, 'UTF-8') ?>"></label>
-                    <button class="button small" type="submit">Save assignment</button>
-                </form>
-            <?php endif; ?>
-
-            <section><h3>Instructions</h3><p><?= nl2br(htmlspecialchars((string) ($task['instructions'] ?: $task['notes'] ?: 'No instructions added.'), ENT_QUOTES, 'UTF-8')) ?></p></section>
-
-            <form method="post" enctype="multipart/form-data" class="ops-form task-complete-form">
-                <input type="hidden" name="task_id" value="<?= $panelId ?>">
-                <h3>Checklist items</h3>
-                <div class="task-checkbox-list">
-                    <?php foreach ($items as $item): ?>
-                        <label><input type="checkbox" name="checked_items[]" value="<?= htmlspecialchars($item, ENT_QUOTES, 'UTF-8') ?>" <?= in_array($item, $checked, true) ? 'checked' : '' ?>><?= htmlspecialchars($item, ENT_QUOTES, 'UTF-8') ?></label>
-                    <?php endforeach; ?>
-                    <?php if (!$items): ?><p>No checklist items added.</p><?php endif; ?>
-                </div>
-                <?php if ($effective !== 'complete'): ?>
-                    <label>Status<select name="status"><?php ops_select_options($statuses, checklist_normalize_status((string) ($task['status'] ?? 'pending'))); ?></select></label>
-                    <label>Note<textarea name="completion_note" placeholder="Add a progress or completion note."><?= htmlspecialchars((string) ($task['completion_note'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea></label>
-                    <?php if (checklist_allows_photo((string) $task['checklist_type'])): ?><label>Photo proof optional<input type="file" name="photo_proof" accept="image/*,.pdf"></label><?php endif; ?>
-                    <div class="task-card-actions">
-                        <button class="button primary" type="submit" name="action" value="update_task_progress">Save</button>
+        <aside class="task-detail-panel task-details-panel" data-task-panel="<?= $panelId ?>" aria-hidden="true">
+            <header class="task-details-header">
+                <button type="button" class="task-details-close" data-task-close aria-label="Close task details"><i data-lucide="x"></i></button>
+                <div class="task-details-heading">
+                    <div class="task-details-badges">
+                        <span class="task-details-badge task-details-badge--status task-details-badge--<?= htmlspecialchars($statusClass, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($groups[$effective] ?? ($statuses[$effective] ?? $effective), ENT_QUOTES, 'UTF-8') ?></span>
+                        <span class="task-details-badge task-details-badge--<?= $taskKind === 'recurring' ? 'recurring' : 'manual' ?>"><i data-lucide="<?= $taskKind === 'recurring' ? 'repeat-2' : 'square-pen' ?>"></i><?= $taskKind === 'recurring' ? 'Recurring' : 'Manual' ?></span>
                     </div>
-                <?php else: ?>
-                    <div class="task-complete-note"><strong>Completion note</strong><p><?= nl2br(htmlspecialchars((string) ($task['completion_note'] ?? ''), ENT_QUOTES, 'UTF-8')) ?></p></div>
-                <?php endif; ?>
-            </form>
+                    <h2 class="task-details-title"><?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?></h2>
+                </div>
+            </header>
 
-            <?php if (!empty($task['photo_path'])): ?><section><h3>Files / proof</h3><a class="button small" href="<?= BASE_URL . '/' . htmlspecialchars((string) $task['photo_path'], ENT_QUOTES, 'UTF-8') ?>" target="_blank">Open proof</a></section><?php endif; ?>
-            <section><h3>Task history</h3><div class="activity-log">
-                <?php foreach (($activityByTask[$panelId] ?? []) as $activity): ?>
-                    <div class="activity-line"><strong><?= htmlspecialchars((string) $activity['action'], ENT_QUOTES, 'UTF-8') ?></strong><span><?= htmlspecialchars((string) ($activity['employee_name'] ?? 'System'), ENT_QUOTES, 'UTF-8') ?> - <?= htmlspecialchars((string) $activity['created_at'], ENT_QUOTES, 'UTF-8') ?></span></div>
-                <?php endforeach; ?>
-                <?php if (empty($activityByTask[$panelId])): ?><p>No activity history yet.</p><?php endif; ?>
-            </div></section>
+            <div class="task-details-body">
+                <section class="task-details-section task-summary-grid" aria-label="Task summary">
+                    <div class="task-summary-card"><span class="task-summary-label">Assigned</span><strong class="task-summary-value"><?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?></strong></div>
+                    <div class="task-summary-card"><span class="task-summary-label">Due</span><strong class="task-summary-value"><?= checklist_date_label((string) ($task['deadline'] ?? '')) ?></strong></div>
+                    <div class="task-summary-card"><span class="task-summary-label">Date assigned</span><strong class="task-summary-value"><?= checklist_date_label((string) ($task['date_assigned'] ?: $task['created_at'])) ?></strong></div>
+                    <div class="task-summary-card"><span class="task-summary-label">Date completed</span><strong class="task-summary-value"><?= checklist_date_label((string) ($task['date_completed'] ?: $task['completed_at'])) ?></strong></div>
+                    <div class="task-summary-card"><span class="task-summary-label">Completed by</span><strong class="task-summary-value"><?= htmlspecialchars((string) ($task['completed_by_name'] ?? '-'), ENT_QUOTES, 'UTF-8') ?></strong></div>
+                    <div class="task-summary-card"><span class="task-summary-label">Type</span><strong class="task-summary-value"><?= htmlspecialchars($types[(string) $task['checklist_type']] ?? (string) $task['checklist_type'], ENT_QUOTES, 'UTF-8') ?></strong></div>
+                </section>
+
+                <?php if ($canManage): ?>
+                    <form method="post" class="task-details-section task-edit-card">
+                        <input type="hidden" name="action" value="admin_update_task">
+                        <input type="hidden" name="task_id" value="<?= $panelId ?>">
+                        <h3 class="task-section-title">Assignment</h3>
+                        <div class="task-edit-grid">
+                            <div class="task-field"><label for="task-assignee-<?= $panelId ?>">Assigned person</label><select id="task-assignee-<?= $panelId ?>" name="assigned_employee_id" data-portal-custom-select><?php foreach ($employees as $employee): ?><option value="<?= (int) $employee['id'] ?>" <?= (int) ($task['assigned_employee_id'] ?? 0) === (int) $employee['id'] ? 'selected' : '' ?>><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></div>
+                            <div class="task-field"><label for="task-admin-status-<?= $panelId ?>">Status</label><select id="task-admin-status-<?= $panelId ?>" name="status" data-portal-custom-select><?php ops_select_options($statuses, checklist_normalize_status((string) ($task['status'] ?? 'pending'))); ?></select></div>
+                            <div class="task-field"><label for="task-priority-<?= $panelId ?>">Priority</label><select id="task-priority-<?= $panelId ?>" name="priority" data-portal-custom-select><?php ops_select_options($priorities, (string) ($task['priority'] ?? 'medium')); ?></select></div>
+                            <div class="task-field"><label for="task-deadline-<?= $panelId ?>">Due date</label><input id="task-deadline-<?= $panelId ?>" type="datetime-local" name="deadline" value="<?= htmlspecialchars($deadlineValue, ENT_QUOTES, 'UTF-8') ?>"></div>
+                        </div>
+                        <div class="task-edit-actions"><button class="task-btn task-btn--primary" type="submit">Save assignment</button></div>
+                    </form>
+                <?php endif; ?>
+
+                <section class="task-details-section task-content-card">
+                    <h3 class="task-content-heading">Instructions</h3>
+                    <p class="task-content-text"><?= htmlspecialchars((string) ($task['instructions'] ?: $task['notes'] ?: 'No instructions added.'), ENT_QUOTES, 'UTF-8') ?></p>
+                </section>
+
+                <form method="post" enctype="multipart/form-data" class="task-details-section task-details-progress-form">
+                    <input type="hidden" name="task_id" value="<?= $panelId ?>">
+                    <section class="task-content-card">
+                        <h3 class="task-content-heading">Checklist items</h3>
+                        <div class="task-checklist">
+                            <?php foreach ($items as $item): ?>
+                                <?php $itemComplete = in_array($item, $checked, true); ?>
+                                <label class="task-checklist-item<?= $itemComplete ? ' is-complete' : '' ?>"><input type="checkbox" name="checked_items[]" value="<?= htmlspecialchars($item, ENT_QUOTES, 'UTF-8') ?>" <?= $itemComplete ? 'checked' : '' ?>><span class="task-checklist-label"><?= htmlspecialchars($item, ENT_QUOTES, 'UTF-8') ?></span></label>
+                            <?php endforeach; ?>
+                            <?php if (!$items): ?><p class="task-history-empty">No checklist items added.</p><?php endif; ?>
+                        </div>
+                    </section>
+
+                    <?php if ($effective !== 'complete'): ?>
+                        <section class="task-details-section task-progress-card">
+                            <h3 class="task-section-title">Progress update</h3>
+                            <div class="task-field"><label for="task-progress-status-<?= $panelId ?>">Status</label><select id="task-progress-status-<?= $panelId ?>" name="status" data-portal-custom-select><?php ops_select_options($statuses, checklist_normalize_status((string) ($task['status'] ?? 'pending'))); ?></select></div>
+                            <div class="task-field"><label for="task-progress-note-<?= $panelId ?>">Note</label><textarea id="task-progress-note-<?= $panelId ?>" name="completion_note" placeholder="Add a progress or completion note."><?= htmlspecialchars((string) ($task['completion_note'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea></div>
+                            <?php if (checklist_allows_photo((string) $task['checklist_type'])): ?>
+                                <div class="task-field"><span class="task-field-label">Photo proof optional</span><div class="task-file-upload"><input id="task-proof-<?= $panelId ?>" class="task-file-input" type="file" name="photo_proof" accept="image/*,.pdf" data-task-file-input><label for="task-proof-<?= $panelId ?>" class="task-file-trigger"><i data-lucide="paperclip"></i>Choose photo</label><span class="task-file-name" data-task-file-name>No file selected</span></div></div>
+                            <?php endif; ?>
+                            <div class="task-progress-actions"><button class="task-btn task-btn--primary" type="submit" name="action" value="update_task_progress">Save progress</button></div>
+                        </section>
+                    <?php else: ?>
+                        <section class="task-details-section task-content-card"><h3 class="task-content-heading">Completion note</h3><p class="task-content-text"><?= htmlspecialchars((string) ($task['completion_note'] ?? 'No completion note added.'), ENT_QUOTES, 'UTF-8') ?></p></section>
+                    <?php endif; ?>
+                </form>
+
+                <?php if (!empty($task['photo_path'])): ?><section class="task-details-section task-content-card"><h3 class="task-content-heading">Files / proof</h3><a class="task-btn task-btn--secondary" href="<?= BASE_URL . '/' . htmlspecialchars((string) $task['photo_path'], ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">Open proof</a></section><?php endif; ?>
+                <section class="task-details-section task-content-card">
+                    <h3 class="task-content-heading">Task history</h3>
+                    <div class="task-history-list">
+                        <?php foreach (($activityByTask[$panelId] ?? []) as $activity): ?>
+                            <article class="task-history-item"><p class="task-history-action"><?= htmlspecialchars((string) $activity['action'], ENT_QUOTES, 'UTF-8') ?></p><p class="task-history-meta"><?= htmlspecialchars((string) ($activity['employee_name'] ?? 'System'), ENT_QUOTES, 'UTF-8') ?> - <?= htmlspecialchars((string) $activity['created_at'], ENT_QUOTES, 'UTF-8') ?></p></article>
+                        <?php endforeach; ?>
+                        <?php if (empty($activityByTask[$panelId])): ?><p class="task-history-empty">No activity history yet.</p><?php endif; ?>
+                    </div>
+                </section>
+            </div>
         </aside>
     <?php endforeach; ?>
     <div class="panel-backdrop task-panel-backdrop" data-task-close data-task-create-close hidden></div>
@@ -824,7 +851,18 @@ function initializePortalCustomSelects(root = document) {
   });
 }
 
-initializePortalCustomSelects();
+const createTaskPanel = document.querySelector('[data-task-create-panel]');
+if (createTaskPanel) initializePortalCustomSelects(createTaskPanel);
+
+document.addEventListener('change', (event) => {
+  if (event.target.matches('[data-task-file-input]')) {
+    const fileName = event.target.closest('.task-file-upload')?.querySelector('[data-task-file-name]');
+    if (fileName) fileName.textContent = event.target.files?.[0]?.name || 'No file selected';
+  }
+  if (event.target.matches('.task-checklist-item input[type="checkbox"]')) {
+    event.target.closest('.task-checklist-item')?.classList.toggle('is-complete', event.target.checked);
+  }
+});
 
 function initialiseTaskSectionToggles() {
   document.querySelectorAll('[data-collapsible-task-section]').forEach((section) => {
@@ -871,22 +909,35 @@ document.addEventListener('click', (event) => {
     if (details) details.hidden = !expanded;
   }
   if (open) {
-    document.querySelectorAll('.task-detail-panel.open').forEach((panel) => panel.classList.remove('open'));
+    document.querySelectorAll('.task-detail-panel.open').forEach((panel) => {
+      panel.classList.remove('open');
+      panel.setAttribute('aria-hidden', 'true');
+    });
     const panel = document.querySelector(`[data-task-panel="${open.dataset.taskOpen}"]`);
-    if (panel) panel.classList.add('open');
+    if (panel) {
+      initializePortalCustomSelects(panel);
+      panel.classList.add('open');
+      panel.setAttribute('aria-hidden', 'false');
+    }
     const backdrop = document.querySelector('.task-panel-backdrop');
     if (backdrop) backdrop.hidden = false;
     document.body.classList.add('task-panel-open');
   }
   if (createOpen) {
     const panel = document.querySelector('[data-task-create-panel]');
-    if (panel) panel.classList.add('open');
+    if (panel) {
+      panel.classList.add('open');
+      panel.setAttribute('aria-hidden', 'false');
+    }
     const backdrop = document.querySelector('.task-panel-backdrop');
     if (backdrop) backdrop.hidden = false;
     document.body.classList.add('task-panel-open');
   }
   if (close) {
-    document.querySelectorAll('.task-detail-panel.open').forEach((panel) => panel.classList.remove('open'));
+    document.querySelectorAll('.task-detail-panel.open').forEach((panel) => {
+      panel.classList.remove('open');
+      panel.setAttribute('aria-hidden', 'true');
+    });
     const backdrop = document.querySelector('.task-panel-backdrop');
     const createPanel = document.querySelector('[data-task-create-panel]');
     if (!createPanel || !createPanel.classList.contains('open')) {
@@ -896,7 +947,10 @@ document.addEventListener('click', (event) => {
   }
   if (createClose) {
     const panel = document.querySelector('[data-task-create-panel]');
-    if (panel) panel.classList.remove('open');
+    if (panel) {
+      panel.classList.remove('open');
+      panel.setAttribute('aria-hidden', 'true');
+    }
     const backdrop = document.querySelector('.task-panel-backdrop');
     const detailOpen = document.querySelector('.task-detail-panel.open');
     if (!detailOpen && backdrop) {
@@ -914,7 +968,10 @@ document.addEventListener('keydown', (event) => {
     return;
   }
   if (event.key !== 'Escape') return;
-  document.querySelectorAll('.task-detail-panel.open, .task-create-panel.open').forEach((panel) => panel.classList.remove('open'));
+  document.querySelectorAll('.task-detail-panel.open, .task-create-panel.open').forEach((panel) => {
+    panel.classList.remove('open');
+    panel.setAttribute('aria-hidden', 'true');
+  });
   const backdrop = document.querySelector('.task-panel-backdrop');
   if (backdrop) backdrop.hidden = true;
   document.body.classList.remove('task-panel-open');
