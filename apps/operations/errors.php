@@ -510,7 +510,28 @@ include BASE_PATH . '/shared/sidebar.php';
                     <div class="form-grid compact">
                         <label class="span-2">Error Title<input name="error_title" required placeholder="Wrong product packed"></label>
                         <label>Order ID if applicable<input name="order_reference" placeholder="#33863 or WEB-33780"></label>
-                        <label>Category<select name="category" required><option value="">Choose category</option><?php ops_select_options($errorCategories); ?></select></label>
+                        <label>Category
+                            <div class="custom-select" data-custom-select>
+                                <input type="hidden" name="category" id="error-category-value" required>
+                                <button type="button" class="custom-select-trigger" aria-haspopup="listbox" aria-expanded="false">
+                                    <span class="custom-select-value">Choose category</span>
+                                    <svg class="custom-select-chevron" viewBox="0 0 20 20" aria-hidden="true">
+                                        <path d="M6 8l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                                    </svg>
+                                </button>
+                                <div class="custom-select-menu" role="listbox" tabindex="-1">
+                                    <?php foreach ($errorCategories as $categoryValue => $categoryLabel): ?>
+                                        <button
+                                            type="button"
+                                            class="custom-select-option"
+                                            role="option"
+                                            data-value="<?= htmlspecialchars((string) $categoryValue, ENT_QUOTES, 'UTF-8') ?>"
+                                            aria-selected="false"
+                                        ><?= htmlspecialchars((string) $categoryLabel, ENT_QUOTES, 'UTF-8') ?></button>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                        </label>
                     </div>
                     <div class="incident-field incident-pill-field severity-choice severity-group" id="severity-group">
                         <label class="incident-pill-label" for="severityValue">Severity <span class="required">*</span></label>
@@ -703,19 +724,117 @@ document.addEventListener('click', (event) => {
   }
 });
 
+document.querySelectorAll('[data-custom-select]').forEach((select) => {
+  const trigger = select.querySelector('.custom-select-trigger');
+  const valueLabel = select.querySelector('.custom-select-value');
+  const hiddenInput = select.querySelector('input[type="hidden"]');
+  const menu = select.querySelector('.custom-select-menu');
+  const optionButtons = Array.from(select.querySelectorAll('.custom-select-option'));
+  let activeIndex = -1;
+
+  if (!trigger || !valueLabel || !hiddenInput || !menu || !optionButtons.length) return;
+
+  function openMenu() {
+    select.classList.add('is-open');
+    trigger.setAttribute('aria-expanded', 'true');
+    const selectedIndex = optionButtons.findIndex((option) => option.getAttribute('aria-selected') === 'true');
+    activeIndex = selectedIndex >= 0 ? selectedIndex : 0;
+    updateActiveOption();
+  }
+
+  function closeMenu() {
+    select.classList.remove('is-open');
+    trigger.setAttribute('aria-expanded', 'false');
+    activeIndex = -1;
+    clearActiveOption();
+  }
+
+  function selectOption(optionButton) {
+    optionButtons.forEach((option) => option.setAttribute('aria-selected', 'false'));
+    optionButton.setAttribute('aria-selected', 'true');
+    hiddenInput.value = optionButton.dataset.value || '';
+    hiddenInput.setCustomValidity('');
+    document.getElementById(hiddenInput.id + '-error')?.remove();
+    valueLabel.textContent = optionButton.textContent.trim();
+    hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+    closeMenu();
+    trigger.focus();
+  }
+
+  function updateActiveOption() {
+    optionButtons.forEach((option, index) => option.classList.toggle('is-active', index === activeIndex));
+    optionButtons[activeIndex]?.scrollIntoView({ block: 'nearest' });
+  }
+
+  function clearActiveOption() {
+    optionButtons.forEach((option) => option.classList.remove('is-active'));
+  }
+
+  trigger.addEventListener('click', () => {
+    select.classList.contains('is-open') ? closeMenu() : openMenu();
+  });
+
+  optionButtons.forEach((option) => {
+    option.addEventListener('click', () => selectOption(option));
+  });
+
+  trigger.addEventListener('keydown', (event) => {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      if (!select.classList.contains('is-open')) {
+        openMenu();
+        return;
+      }
+      activeIndex = Math.min(activeIndex + 1, optionButtons.length - 1);
+      updateActiveOption();
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (!select.classList.contains('is-open')) {
+        openMenu();
+        return;
+      }
+      activeIndex = Math.max(activeIndex - 1, 0);
+      updateActiveOption();
+    }
+
+    if (event.key === 'Enter' && select.classList.contains('is-open')) {
+      event.preventDefault();
+      selectOption(optionButtons[activeIndex]);
+    }
+
+    if (event.key === 'Escape') {
+      closeMenu();
+    }
+  });
+
+  document.addEventListener('click', (event) => {
+    if (!select.contains(event.target)) closeMenu();
+  });
+});
+
 document.getElementById('logErrorForm')?.addEventListener('submit', function(event) {
   const severityValue = document.getElementById('severityValue');
   const statusValue = document.getElementById('statusValue');
+  const categoryValue = document.getElementById('error-category-value');
   const description = this.querySelector('[name="description"]');
   const severity = String(severityValue?.value || '').trim();
   const status = String(statusValue?.value || '').trim();
+  const category = String(categoryValue?.value || '').trim();
   const descriptionText = String(description?.value || '').trim();
 
   document.getElementById('severity-group-error')?.remove();
   document.getElementById('status-group-error')?.remove();
+  document.getElementById('error-category-value-error')?.remove();
   document.getElementById('description-error')?.remove();
 
   let hasError = false;
+  if (!category) {
+    hasError = true;
+    categoryValue?.setCustomValidity('Please choose an error category.');
+    showFieldError('error-category-value', 'Choose an error category.');
+  }
   if (!severity) {
     hasError = true;
     severityValue?.setCustomValidity('Please select a severity level.');
@@ -733,7 +852,9 @@ document.getElementById('logErrorForm')?.addEventListener('submit', function(eve
 
   if (hasError) {
     event.preventDefault();
-    if (!severity) {
+    if (!category) {
+      this.querySelector('.custom-select-trigger')?.focus();
+    } else if (!severity) {
       this.querySelector('.severity-btn')?.focus();
     } else if (!status) {
       this.querySelector('.status-btn')?.focus();
