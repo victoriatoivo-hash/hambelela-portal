@@ -5418,7 +5418,7 @@ textarea {
 
 .incident-status-trigger {
   width: 100%;
-  height: 38px;
+  height: 34px;
   padding: 0 12px;
   border: 1px solid var(--incident-border);
   border-radius: 10px;
