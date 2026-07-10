@@ -557,8 +557,15 @@ include BASE_PATH . '/shared/sidebar.php';
         <?php foreach ($groups as $groupKey => $groupLabel): ?>
             <?php $groupTasks = $tasksByGroup[$groupKey] ?? []; ?>
             <?php $sectionKey = str_replace('_', '-', $groupKey); ?>
-            <section class="dtb-status-section" data-task-section="<?= htmlspecialchars($sectionKey, ENT_QUOTES, 'UTF-8') ?>">
-                <header class="dtb-status-header"><h2 class="dtb-status-title"><?= htmlspecialchars($groupLabel, ENT_QUOTES, 'UTF-8') ?></h2><span class="dtb-status-count"><?= number_format(count($groupTasks)) ?></span></header>
+            <section class="dtb-status-section task-status-section" data-task-section="<?= htmlspecialchars($sectionKey, ENT_QUOTES, 'UTF-8') ?>" data-collapsible-task-section>
+                <button type="button" class="dtb-status-header task-status-header" aria-expanded="true">
+                    <span class="task-status-heading-wrap"><span class="dtb-status-title task-status-title"><?= htmlspecialchars($groupLabel, ENT_QUOTES, 'UTF-8') ?></span></span>
+                    <span class="task-status-header-actions">
+                        <i class="task-status-chevron" data-lucide="chevron-down" aria-hidden="true"></i>
+                        <span class="dtb-status-count task-status-count"><?= number_format(count($groupTasks)) ?></span>
+                    </span>
+                </button>
+                <div class="task-status-body">
                 <div class="dtb-table-wrap">
                 <table class="dtb-board-table">
                     <colgroup><col class="dtb-col-expand"><col class="dtb-col-name"><col class="dtb-col-assigned"><col class="dtb-col-priority"><col class="dtb-col-due"><col class="dtb-col-days"><col class="dtb-col-status"><col class="dtb-col-actions"></colgroup>
@@ -624,6 +631,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 <?php if (!$groupTasks): ?><tr class="dtb-empty-row"><td colspan="8">No tasks in this section.</td></tr><?php endif; ?>
                     </tbody>
                 </table>
+                </div>
                 </div>
             </section>
         <?php endforeach; ?>
@@ -817,6 +825,29 @@ function initializePortalCustomSelects(root = document) {
 }
 
 initializePortalCustomSelects();
+
+function initialiseTaskSectionToggles() {
+  document.querySelectorAll('[data-collapsible-task-section]').forEach((section) => {
+    const header = section.querySelector('.task-status-header');
+    const sectionName = section.dataset.taskSection || 'unknown';
+    const storageKey = `task_section_collapsed_${sectionName}`;
+    if (!header || header.dataset.toggleInitialised === 'true') return;
+
+    header.dataset.toggleInitialised = 'true';
+    const shouldStartCollapsed = sessionStorage.getItem(storageKey) === 'true';
+    section.classList.toggle('is-collapsed', shouldStartCollapsed);
+    header.setAttribute('aria-expanded', shouldStartCollapsed ? 'false' : 'true');
+
+    header.addEventListener('click', () => {
+      const willBeCollapsed = !section.classList.contains('is-collapsed');
+      section.classList.toggle('is-collapsed', willBeCollapsed);
+      header.setAttribute('aria-expanded', willBeCollapsed ? 'false' : 'true');
+      sessionStorage.setItem(storageKey, String(willBeCollapsed));
+    });
+  });
+}
+
+document.addEventListener('DOMContentLoaded', initialiseTaskSectionToggles);
 
 document.addEventListener('click', (event) => {
   if (!event.target.closest('.portal-custom-select')) {
