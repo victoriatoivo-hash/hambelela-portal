@@ -4545,9 +4545,15 @@ textarea {
 }
 
 .people-chip-grid input:checked + span {
-  border-color: var(--bk-orange-red);
-  background: rgba(171, 54, 25, .10);
+  border-color: rgba(171, 54, 25, .22);
+  background: rgb(240 116 32 / 8%);
   color: var(--bk-burgundy);
+}
+
+.people-chip-grid label:hover span,
+.people-chip-grid label:active span {
+  border-color: rgba(171, 54, 25, .22);
+  background: rgb(240 116 32 / 8%);
 }
 
 .error-upload-zone {
