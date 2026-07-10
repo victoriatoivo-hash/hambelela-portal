@@ -458,38 +458,39 @@ if ($ready && ($tasks || $historyTasks) && ops_table_exists('ops_activity_logs')
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
-<main class="workspace module task-wrap">
-    <section class="module-header">
+<main class="workspace module digital-task-page">
+    <header class="dtb-page-header">
         <div>
-            <p class="eyebrow">Task Management</p>
-            <h1><?= $canManage ? 'Digital Task Board' : 'My Tasks' ?></h1>
+            <p class="dtb-page-kicker">Task Management</p>
+            <h1 class="dtb-page-title"><?= $canManage ? 'Digital Task Board' : 'My Tasks' ?></h1>
+            <p class="dtb-page-description">Create, assign and track recurring and manual staff tasks.</p>
         </div>
         <?php if ($canManage): ?>
-            <button class="button primary btn-new-task" type="button" data-task-create-open><i data-lucide="plus"></i> New Task</button>
+            <button class="dtb-btn dtb-btn-primary" type="button" data-task-create-open><i data-lucide="plus"></i> New Task</button>
         <?php endif; ?>
-    </section>
+    </header>
     <?php if (!$ready) { ops_setup_notice(); } ?>
     <?php ops_flash($message, $messageType); ?>
 
     <?php if ($canManage): ?>
-        <section class="ops-dashboard-grid task-metric-grid">
-            <article class="metric task-metric-card danger"><i data-lucide="alert-triangle"></i><span>Overdue Tasks</span><strong><?= number_format($metrics['overdue']) ?></strong><small>Needs action</small></article>
-            <article class="metric task-metric-card amber"><i data-lucide="hourglass"></i><span>Pending Tasks</span><strong><?= number_format($metrics['pending']) ?></strong><small>Not started</small></article>
-            <article class="metric task-metric-card purple"><i data-lucide="play-circle"></i><span>Started</span><strong><?= number_format($metrics['started']) ?></strong><small>Work started</small></article>
-            <article class="metric task-metric-card blue"><i data-lucide="clock-3"></i><span>In Progress</span><strong><?= number_format($metrics['in_progress']) ?></strong><small>Being worked on</small></article>
-            <article class="metric task-metric-card green"><i data-lucide="check-circle-2"></i><span>Completed Today</span><strong><?= number_format($metrics['completed_today']) ?></strong><small>Finished today</small></article>
-            <article class="metric task-metric-card teal"><i data-lucide="list-checks"></i><span>Total Active Tasks</span><strong><?= number_format($metrics['active']) ?></strong><small>Open workload</small></article>
+        <section class="dtb-stats-grid">
+            <article class="dtb-stat-card" data-stat="overdue"><span class="dtb-stat-icon"><i data-lucide="alert-triangle"></i></span><div><p class="dtb-stat-label">Overdue Tasks</p><strong class="dtb-stat-value"><?= number_format($metrics['overdue']) ?></strong><p class="dtb-stat-caption">Needs action</p></div></article>
+            <article class="dtb-stat-card" data-stat="pending"><span class="dtb-stat-icon"><i data-lucide="hourglass"></i></span><div><p class="dtb-stat-label">Pending Tasks</p><strong class="dtb-stat-value"><?= number_format($metrics['pending']) ?></strong><p class="dtb-stat-caption">Not started</p></div></article>
+            <article class="dtb-stat-card" data-stat="started"><span class="dtb-stat-icon"><i data-lucide="play-circle"></i></span><div><p class="dtb-stat-label">Started</p><strong class="dtb-stat-value"><?= number_format($metrics['started']) ?></strong><p class="dtb-stat-caption">Work started</p></div></article>
+            <article class="dtb-stat-card" data-stat="in-progress"><span class="dtb-stat-icon"><i data-lucide="clock-3"></i></span><div><p class="dtb-stat-label">In Progress</p><strong class="dtb-stat-value"><?= number_format($metrics['in_progress']) ?></strong><p class="dtb-stat-caption">Being worked on</p></div></article>
+            <article class="dtb-stat-card" data-stat="complete"><span class="dtb-stat-icon"><i data-lucide="check-circle-2"></i></span><div><p class="dtb-stat-label">Completed Today</p><strong class="dtb-stat-value"><?= number_format($metrics['completed_today']) ?></strong><p class="dtb-stat-caption">Finished today</p></div></article>
+            <article class="dtb-stat-card" data-stat="active"><span class="dtb-stat-icon"><i data-lucide="list-checks"></i></span><div><p class="dtb-stat-label">Total Active Tasks</p><strong class="dtb-stat-value"><?= number_format($metrics['active']) ?></strong><p class="dtb-stat-caption">Open workload</p></div></article>
         </section>
     <?php else: ?>
-        <section class="ops-dashboard-grid task-metric-grid employee-task-metrics">
-            <article class="metric task-metric-card teal"><i data-lucide="clipboard-list"></i><span>My Tasks</span><strong><?= number_format($metrics['active']) ?></strong><small>Assigned to you</small></article>
-            <article class="metric task-metric-card purple"><i data-lucide="calendar-clock"></i><span>Due Today</span><strong><?= number_format($metrics['due_today']) ?></strong><small>Before close</small></article>
-            <article class="metric task-metric-card danger"><i data-lucide="alert-triangle"></i><span>Overdue</span><strong><?= number_format($metrics['overdue']) ?></strong><small>Needs action</small></article>
-            <article class="metric task-metric-card blue"><i data-lucide="clock-3"></i><span>In Progress</span><strong><?= number_format($metrics['in_progress']) ?></strong><small>Being worked on</small></article>
+        <section class="dtb-stats-grid dtb-stats-grid-employee">
+            <article class="dtb-stat-card" data-stat="active"><span class="dtb-stat-icon"><i data-lucide="clipboard-list"></i></span><div><p class="dtb-stat-label">My Tasks</p><strong class="dtb-stat-value"><?= number_format($metrics['active']) ?></strong><p class="dtb-stat-caption">Assigned to you</p></div></article>
+            <article class="dtb-stat-card" data-stat="started"><span class="dtb-stat-icon"><i data-lucide="calendar-clock"></i></span><div><p class="dtb-stat-label">Due Today</p><strong class="dtb-stat-value"><?= number_format($metrics['due_today']) ?></strong><p class="dtb-stat-caption">Before close</p></div></article>
+            <article class="dtb-stat-card" data-stat="overdue"><span class="dtb-stat-icon"><i data-lucide="alert-triangle"></i></span><div><p class="dtb-stat-label">Overdue</p><strong class="dtb-stat-value"><?= number_format($metrics['overdue']) ?></strong><p class="dtb-stat-caption">Needs action</p></div></article>
+            <article class="dtb-stat-card" data-stat="in-progress"><span class="dtb-stat-icon"><i data-lucide="clock-3"></i></span><div><p class="dtb-stat-label">In Progress</p><strong class="dtb-stat-value"><?= number_format($metrics['in_progress']) ?></strong><p class="dtb-stat-caption">Being worked on</p></div></article>
         </section>
     <?php endif; ?>
 
-    <nav class="task-tabs" aria-label="Task views">
+    <nav class="dtb-tabs" aria-label="Task views">
         <?php
         $tabLabels = ['recurring' => 'Recurring Tasks', 'manual' => 'Manual Tasks', 'completed' => 'Completed Tasks', 'history' => 'Task History'];
         foreach ($tabLabels as $tabKey => $tabLabel):
@@ -497,15 +498,15 @@ include BASE_PATH . '/shared/sidebar.php';
             $tabQuery = array_merge($_GET, ['task_view' => $tabKey]);
             $tabUrl = 'checklists.php?' . http_build_query($tabQuery);
         ?>
-            <a class="task-tab <?= $filters['task_view'] === $tabKey ? 'active' : '' ?>" href="<?= htmlspecialchars($tabUrl, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($tabLabel, ENT_QUOTES, 'UTF-8') ?></a>
+            <a class="dtb-tab <?= $filters['task_view'] === $tabKey ? 'is-active' : '' ?>" href="<?= htmlspecialchars($tabUrl, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($tabLabel, ENT_QUOTES, 'UTF-8') ?></a>
         <?php endforeach; ?>
     </nav>
 
-    <details class="panel task-filter-panel" <?= $filtersAreActive ? 'open' : '' ?>>
-        <summary><span><i data-lucide="sliders-horizontal"></i> Filters</span><strong><?= $filtersAreActive ? 'Active' : 'Collapsed' ?></strong></summary>
-        <form method="get">
+    <details class="dtb-filter-card" <?= $filtersAreActive ? 'open' : '' ?>>
+        <summary class="dtb-filter-header"><span class="dtb-filter-heading"><i data-lucide="sliders-horizontal"></i> Filters</span><strong class="dtb-filter-state"><?= $filtersAreActive ? 'Active' : 'Collapsed' ?></strong></summary>
+        <form method="get" class="dtb-filter-body">
             <input type="hidden" name="task_view" value="<?= htmlspecialchars($filters['task_view'], ENT_QUOTES, 'UTF-8') ?>">
-            <div class="form-grid compact task-filter-grid">
+            <div class="dtb-filter-grid">
                 <label>Date from<input type="date" name="date_from" value="<?= htmlspecialchars($filters['date_from'], ENT_QUOTES, 'UTF-8') ?>"></label>
                 <label>Date to<input type="date" name="date_to" value="<?= htmlspecialchars($filters['date_to'], ENT_QUOTES, 'UTF-8') ?>"></label>
                 <?php if ($canManage): ?>
@@ -551,14 +552,17 @@ include BASE_PATH . '/shared/sidebar.php';
     <?php endif; ?>
 
     <?php if ($filters['task_view'] !== 'history'): ?>
-    <section class="task-board">
+    <section class="dtb-sections">
         <?php foreach ($groups as $groupKey => $groupLabel): ?>
             <?php $groupTasks = $tasksByGroup[$groupKey] ?? []; ?>
-            <details class="task-board-group group-<?= htmlspecialchars($groupKey, ENT_QUOTES, 'UTF-8') ?>" <?= $groupKey !== 'complete' ? 'open' : '' ?>>
-                <summary><span><?= htmlspecialchars($groupLabel, ENT_QUOTES, 'UTF-8') ?></span><strong><?= number_format(count($groupTasks)) ?></strong></summary>
-                <div class="task-board-head">
-                    <span>Task</span><span>Assigned</span><span>Priority</span><span>Due</span><span>Days</span><span>Status</span>
-                </div>
+            <?php $sectionKey = str_replace('_', '-', $groupKey); ?>
+            <section class="dtb-status-section" data-task-section="<?= htmlspecialchars($sectionKey, ENT_QUOTES, 'UTF-8') ?>">
+                <header class="dtb-status-header"><h2 class="dtb-status-title"><?= htmlspecialchars($groupLabel, ENT_QUOTES, 'UTF-8') ?></h2><span class="dtb-status-count"><?= number_format(count($groupTasks)) ?></span></header>
+                <div class="dtb-table-wrap">
+                <table class="dtb-board-table">
+                    <colgroup><col class="dtb-col-expand"><col class="dtb-col-name"><col class="dtb-col-assigned"><col class="dtb-col-priority"><col class="dtb-col-due"><col class="dtb-col-days"><col class="dtb-col-status"><col class="dtb-col-actions"></colgroup>
+                    <thead><tr><th aria-label="Expand"></th><th>Task</th><th>Assigned</th><th>Priority</th><th>Due</th><th>Days</th><th>Status</th><th>Actions</th></tr></thead>
+                    <tbody>
                 <?php foreach ($groupTasks as $task): ?>
                     <?php
                     $effective = checklist_effective_status($task);
@@ -568,16 +572,18 @@ include BASE_PATH . '/shared/sidebar.php';
                     $progressDone = $inlineItems ? count(array_intersect($inlineItems, $inlineChecked)) : 0;
                     $progressPercent = $inlineItems ? (int) round(($progressDone / $progressTotal) * 100) : 0;
                     ?>
-                    <details class="task-card-row group-<?= htmlspecialchars($effective, ENT_QUOTES, 'UTF-8') ?>">
-                        <summary class="task-board-row">
-                            <strong><span class="task-chevron">&gt;</span><?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?></strong>
-                            <span><?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?></span>
-                            <span class="priority-<?= htmlspecialchars((string) ($task['priority'] ?? 'medium'), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($priorities[(string) ($task['priority'] ?? 'medium')] ?? 'Medium', ENT_QUOTES, 'UTF-8') ?></span>
-                            <span><?= checklist_date_label((string) ($task['deadline'] ?? '')) ?></span>
-                            <span><?= htmlspecialchars(checklist_days_remaining((string) ($task['deadline'] ?? ''), $effective), ENT_QUOTES, 'UTF-8') ?></span>
-                            <em class="status task-status-<?= htmlspecialchars($effective, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($groups[$effective] ?? ($statuses[$effective] ?? $effective), ENT_QUOTES, 'UTF-8') ?></em>
-                        </summary>
-                        <div class="task-inline-detail">
+                    <?php $taskId = (int) $task['id']; $priorityKey = (string) ($task['priority'] ?? 'medium'); $statusKey = str_replace('_', '-', $effective); ?>
+                    <tr class="dtb-task-row" data-task-row="<?= $taskId ?>">
+                        <td><button class="dtb-row-toggle" type="button" data-task-row-toggle="<?= $taskId ?>" aria-expanded="false" aria-controls="task-details-<?= $taskId ?>"><i data-lucide="chevron-right"></i></button></td>
+                        <td><span class="dtb-task-name"><?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?></span></td>
+                        <td><?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?></td>
+                        <td><span class="dtb-priority-pill" data-priority="<?= htmlspecialchars(str_replace('_', '-', $priorityKey), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($priorities[$priorityKey] ?? 'Medium', ENT_QUOTES, 'UTF-8') ?></span></td>
+                        <td><?= checklist_date_label((string) ($task['deadline'] ?? '')) ?></td>
+                        <td><?= htmlspecialchars(checklist_days_remaining((string) ($task['deadline'] ?? ''), $effective), ENT_QUOTES, 'UTF-8') ?></td>
+                        <td><span class="dtb-status-pill" data-status="<?= htmlspecialchars($statusKey, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($groups[$effective] ?? ($statuses[$effective] ?? $effective), ENT_QUOTES, 'UTF-8') ?></span></td>
+                        <td><button class="dtb-btn dtb-btn-secondary" type="button" data-task-open="<?= $taskId ?>">View</button></td>
+                    </tr>
+                    <tr class="dtb-details-row" id="task-details-<?= $taskId ?>" data-task-details="<?= $taskId ?>" hidden><td colspan="8"><div class="dtb-details-panel"><div class="task-inline-detail">
                             <div class="task-inline-main">
                                 <div class="task-kind-line">
                                     <span class="task-kind-pill task-kind-<?= checklist_task_kind($task) ?>"><i data-lucide="<?= checklist_task_kind($task) === 'recurring' ? 'repeat-2' : 'square-pen' ?>"></i><?= checklist_task_kind($task) === 'recurring' ? 'Recurring' : 'Manual' ?></span>
@@ -612,41 +618,35 @@ include BASE_PATH . '/shared/sidebar.php';
                                     <div class="task-complete-note"><strong>Completion note</strong><p><?= nl2br(htmlspecialchars((string) ($task['completion_note'] ?? ''), ENT_QUOTES, 'UTF-8')) ?></p></div>
                                 <?php endif; ?>
                             </form>
-                        </div>
-                    </details>
+                        </div></div></td></tr>
                 <?php endforeach; ?>
-                <?php if (!$groupTasks): ?><p class="task-empty">No tasks in this section.</p><?php endif; ?>
-            </details>
+                <?php if (!$groupTasks): ?><tr class="dtb-empty-row"><td colspan="8">No tasks in this section.</td></tr><?php endif; ?>
+                    </tbody>
+                </table>
+                </div>
+            </section>
         <?php endforeach; ?>
     </section>
     <?php endif; ?>
 
     <?php if ($canManage && $filters['task_view'] === 'history'): ?>
-        <section class="panel task-history-panel">
-            <div class="section-row">
-                <h2>Task history</h2>
-                <span class="status"><?= number_format(count($historyTasks)) ?> completed rows</span>
-            </div>
-            <div class="task-history-table">
-                <div class="task-history-head">
-                    <span>Task</span><span>Employee</span><span>Assigned</span><span>Due</span><span>Completed</span><span>Checklist</span><span>Status changes</span>
-                </div>
+        <section class="dtb-history-section">
+            <header class="dtb-status-header"><h2 class="dtb-status-title">Task history</h2><span class="dtb-history-count"><?= number_format(count($historyTasks)) ?> completed rows</span></header>
+            <div class="dtb-table-wrap">
+            <table class="dtb-history-table">
+                <colgroup><col class="dtb-history-task"><col class="dtb-history-employee"><col class="dtb-history-date"><col class="dtb-history-date"><col class="dtb-history-date"><col class="dtb-history-small"><col class="dtb-history-small"></colgroup>
+                <thead><tr><th>Task</th><th>Employee</th><th>Assigned</th><th>Due</th><th>Completed</th><th>Checklist</th><th>Status changes</th></tr></thead>
+                <tbody>
                 <?php foreach (array_slice($historyTasks, 0, 120) as $historyTask): ?>
                     <?php
                     $historyItems = checklist_json_items((string) ($historyTask['checklist_items'] ?? ''));
                     $historyChecked = checklist_json_items((string) ($historyTask['checked_items'] ?? ''));
                     ?>
-                    <button class="task-history-row" type="button" data-task-open="<?= (int) $historyTask['id'] ?>">
-                        <strong><?= htmlspecialchars((string) $historyTask['task_name'], ENT_QUOTES, 'UTF-8') ?><small><?= htmlspecialchars((string) ($historyTask['completion_note'] ?? 'No completion note'), ENT_QUOTES, 'UTF-8') ?></small></strong>
-                        <span><?= htmlspecialchars((string) ($historyTask['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?></span>
-                        <span><?= checklist_date_label((string) ($historyTask['date_assigned'] ?: $historyTask['created_at'])) ?></span>
-                        <span><?= checklist_date_label((string) ($historyTask['deadline'] ?? '')) ?></span>
-                        <span><?= checklist_date_label((string) ($historyTask['date_completed'] ?: $historyTask['completed_at'])) ?></span>
-                        <span><?= count($historyChecked) ?>/<?= count($historyItems) ?></span>
-                        <span><?= number_format(count($activityByTask[(int) $historyTask['id']] ?? [])) ?> events</span>
-                    </button>
+                    <tr class="dtb-history-row" data-task-open="<?= (int) $historyTask['id'] ?>" tabindex="0"><td><span class="dtb-task-name"><?= htmlspecialchars((string) $historyTask['task_name'], ENT_QUOTES, 'UTF-8') ?></span><small><?= htmlspecialchars((string) ($historyTask['completion_note'] ?? 'No completion note'), ENT_QUOTES, 'UTF-8') ?></small></td><td><?= htmlspecialchars((string) ($historyTask['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?></td><td><?= checklist_date_label((string) ($historyTask['date_assigned'] ?: $historyTask['created_at'])) ?></td><td><?= checklist_date_label((string) ($historyTask['deadline'] ?? '')) ?></td><td><?= checklist_date_label((string) ($historyTask['date_completed'] ?: $historyTask['completed_at'])) ?></td><td><?= count($historyChecked) ?>/<?= count($historyItems) ?></td><td><?= number_format(count($activityByTask[(int) $historyTask['id']] ?? [])) ?> events</td></tr>
                 <?php endforeach; ?>
-                <?php if (!$historyTasks): ?><p class="task-empty">No completed task history matches these filters yet.</p><?php endif; ?>
+                <?php if (!$historyTasks): ?><tr class="dtb-empty-row"><td colspan="7">No completed task history matches these filters yet.</td></tr><?php endif; ?>
+                </tbody>
+            </table>
             </div>
         </section>
     <?php endif; ?>
@@ -725,10 +725,20 @@ include BASE_PATH . '/shared/sidebar.php';
 </main>
 <script>
 document.addEventListener('click', (event) => {
+  const rowToggle = event.target.closest('[data-task-row-toggle]');
   const open = event.target.closest('[data-task-open]');
   const close = event.target.closest('[data-task-close]');
   const createOpen = event.target.closest('[data-task-create-open]');
   const createClose = event.target.closest('[data-task-create-close]');
+  if (rowToggle) {
+    const taskId = rowToggle.dataset.taskRowToggle;
+    const row = document.querySelector(`[data-task-row="${taskId}"]`);
+    const details = document.querySelector(`[data-task-details="${taskId}"]`);
+    const expanded = rowToggle.getAttribute('aria-expanded') !== 'true';
+    rowToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    if (row) row.classList.toggle('is-expanded', expanded);
+    if (details) details.hidden = !expanded;
+  }
   if (open) {
     document.querySelectorAll('.task-detail-panel.open').forEach((panel) => panel.classList.remove('open'));
     const panel = document.querySelector(`[data-task-panel="${open.dataset.taskOpen}"]`);
@@ -766,6 +776,12 @@ document.addEventListener('click', (event) => {
 });
 
 document.addEventListener('keydown', (event) => {
+  const historyRow = event.target.closest('.dtb-history-row[data-task-open]');
+  if (historyRow && (event.key === 'Enter' || event.key === ' ')) {
+    event.preventDefault();
+    historyRow.click();
+    return;
+  }
   if (event.key !== 'Escape') return;
   document.querySelectorAll('.task-detail-panel.open, .task-create-panel.open').forEach((panel) => panel.classList.remove('open'));
   const backdrop = document.querySelector('.task-panel-backdrop');
