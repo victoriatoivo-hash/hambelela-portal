@@ -5746,7 +5746,8 @@ main.error-log-page {
 .error-log-page .error-table {
   display: block !important;
   width: 100% !important;
-  min-width: 1180px !important;
+  min-width: 1570px !important;
+  --error-table-columns: 110px 340px 125px 160px 120px 255px 125px 120px 85px 130px;
   border: 0 !important;
   border-radius: 0 !important;
   background: var(--bk-surface) !important;
@@ -5754,24 +5755,24 @@ main.error-log-page {
 }
 
 .error-log-page .error-table-simple {
-  min-width: 760px !important;
+  min-width: 815px !important;
+  --error-table-columns: 110px 340px 125px 120px 120px;
 }
 
 .error-log-page .error-table-row {
   display: grid !important;
+  grid-template-columns: var(--error-table-columns) !important;
   align-items: stretch !important;
   width: 100% !important;
   box-sizing: border-box !important;
 }
 
 .error-log-page .error-table-full .error-table-row {
-  grid-template-columns:
-    112px minmax(220px, 1.35fr) 128px 160px 120px minmax(170px, 1fr)
-    126px 120px 86px 140px !important;
+  grid-template-columns: var(--error-table-columns) !important;
 }
 
 .error-log-page .error-table-simple .error-table-row {
-  grid-template-columns: 112px minmax(240px, 1fr) 140px 120px 120px !important;
+  grid-template-columns: var(--error-table-columns) !important;
 }
 
 .error-log-page .error-table-row > span,
@@ -5780,6 +5781,7 @@ main.error-log-page {
   min-width: 0 !important;
   padding: 0 12px !important;
   border-right: 1px solid var(--bk-border) !important;
+  border-bottom: 1px solid var(--bk-border) !important;
   box-sizing: border-box !important;
 }
 
@@ -5789,7 +5791,7 @@ main.error-log-page {
 
 .error-log-page .error-table-row-head {
   min-height: 38px !important;
-  border-bottom: 1px solid var(--bk-border) !important;
+  border-bottom: 0 !important;
   background: #fbfaf9 !important;
 }
 
@@ -5806,7 +5808,6 @@ main.error-log-page {
 .error-log-page .error-table-row-data {
   min-height: 42px !important;
   border: 0 !important;
-  border-bottom: 1px solid var(--bk-border) !important;
   border-radius: 0 !important;
   background: #fff !important;
   color: var(--bk-text) !important;
@@ -5841,18 +5842,20 @@ main.error-log-page {
 .error-log-page .error-table-row-data .error-severity,
 .error-log-page .error-table-row-data .error-status {
   align-self: center !important;
-  justify-self: start !important;
-  width: fit-content !important;
-  height: 22px !important;
-  min-height: 22px !important;
-  margin-left: 12px !important;
-  padding: 0 9px !important;
-  border: 0 !important;
-  border-radius: 999px !important;
+  justify-self: stretch !important;
+  width: auto !important;
+  height: 100% !important;
+  min-height: 42px !important;
+  margin-left: 0 !important;
+  padding: 0 12px !important;
+  border-right: 1px solid var(--bk-border) !important;
+  border-bottom: 1px solid var(--bk-border) !important;
+  border-radius: 0 !important;
+  background: #fff !important;
   font-size: 10px !important;
   font-weight: 700 !important;
   font-style: normal !important;
-  line-height: 22px !important;
+  line-height: 1.25 !important;
   text-transform: uppercase !important;
 }
 
