@@ -3407,12 +3407,13 @@ textarea {
 .task-proof-upload { width: 100%; font-family: Figtree, Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
 .task-proof-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .task-proof-controls { min-height: 42px; padding: 5px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; border: 1px solid var(--task-border); border-radius: 10px; background: #FFFFFF; }
-.task-proof-button { height: 32px; min-height: 32px; padding: 0 11px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border-radius: 8px; font-family: inherit; font-size: 11px; line-height: 1; font-weight: 700; cursor: pointer; box-sizing: border-box; transition: background-color .18s ease, border-color .18s ease, color .18s ease, transform .18s ease; }
+.digital-task-page .task-details-panel .task-field .task-proof-button { height: 32px; min-height: 32px; padding: 0 11px; margin: 0; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border-radius: 8px; font-family: inherit; font-size: 11px; line-height: 1; font-weight: 700; text-transform: uppercase; letter-spacing: normal; cursor: pointer; box-sizing: border-box; transition: background-color .18s ease, border-color .18s ease, color .18s ease, transform .18s ease; }
 .task-proof-button--choose { border: 1px solid rgba(171, 54, 25, .25); background: rgba(240, 116, 32, .06); color: var(--task-orange-red); }
 .task-proof-button--choose:hover { border-color: var(--task-orange-red); background: rgba(240, 116, 32, .10); }
 .task-proof-button--paste { border: 1px solid rgba(168, 202, 25, .42); background: rgba(168, 202, 25, .10); color: #526800; }
 .task-proof-button--paste:hover { border-color: var(--task-olive); background: rgba(168, 202, 25, .18); }
-.task-proof-icon { width: 15px; height: 15px; flex: 0 0 auto; }
+.task-proof-button .task-proof-icon { display: block; width: 15px; height: 15px; flex: 0 0 15px; align-self: center; }
+.task-proof-button > span { display: inline-flex; align-items: center; line-height: 1; }
 .task-proof-button--choose.is-animating .task-proof-icon--paperclip { animation: taskProofPaperclipMove .42s ease; }
 @keyframes taskProofPaperclipMove { 0% { transform: translateY(0) rotate(0deg); } 30% { transform: translateY(-3px) rotate(-12deg); } 65% { transform: translateY(2px) rotate(8deg); } 100% { transform: translateY(0) rotate(0deg); } }
 .task-proof-file-name { min-width: 0; flex: 1 1 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; line-height: 1.2; font-weight: 400; color: var(--task-text-light); }

@@ -764,10 +764,10 @@ include BASE_PATH . '/shared/sidebar.php';
                                         <input id="task-proof-<?= $panelId ?>" class="task-proof-input" type="file" name="photo_proof" accept="image/png,image/jpeg,image/webp">
                                         <div class="task-proof-controls">
                                             <label for="task-proof-<?= $panelId ?>" class="task-proof-button task-proof-button--choose">
-                                                <i class="task-proof-icon task-proof-icon--paperclip" data-lucide="paperclip" aria-hidden="true"></i><span>Choose photo</span>
+                                                <i class="task-proof-icon task-proof-icon--paperclip" data-lucide="paperclip" aria-hidden="true"></i><span>Choose Photo</span>
                                             </label>
                                             <button type="button" class="task-proof-button task-proof-button--paste" data-paste-screenshot>
-                                                <i class="task-proof-icon" data-lucide="clipboard-paste" aria-hidden="true"></i><span>Paste screenshot</span>
+                                                <i class="task-proof-icon" data-lucide="clipboard-paste" aria-hidden="true"></i><span>Paste Screenshot</span>
                                             </button>
                                             <span class="task-proof-file-name" data-proof-file-name>No file selected</span>
                                         </div>
