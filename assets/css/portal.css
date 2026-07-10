@@ -3008,8 +3008,8 @@ textarea {
 .create-task-date-icon { position: absolute; right: 11px; top: 50%; width: 16px; height: 16px; color: var(--task-orange-red); pointer-events: none; transform: translateY(-50%); }
 .create-task-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
 .digital-task-page .create-task-actions .create-task-submit { height: 32px; min-height: 32px; padding: 0 15px; border: 1px solid var(--task-orange-red); border-radius: 9px; background: var(--task-orange-red); color: #FFFFFF; display: inline-flex; align-items: center; justify-content: center; gap: 7px; font-family: inherit; font-size: 11px; line-height: 1; font-weight: 700; cursor: pointer; box-shadow: 0 7px 16px rgba(171, 54, 25, .14); transition: background-color .18s ease, border-color .18s ease, transform .18s ease, box-shadow .18s ease; }
-.create-task-submit:hover,
-.create-task-submit:active { border-color: #F07420; background: #F07420; transform: translateY(-1px); }
+.digital-task-page .create-task-actions .create-task-submit:hover,
+.digital-task-page .create-task-actions .create-task-submit:active { border-color: #F07420; background: #F07420; transform: translateY(-1px); }
 .task-template-card { margin-top: 16px; padding: 16px; background: linear-gradient(135deg, rgba(168, 202, 25, .08), rgba(240, 116, 32, .05)), #FFFFFF; border: 1px solid rgba(168, 202, 25, .35); border-left: 4px solid var(--task-olive); border-radius: 13px; box-shadow: 0 8px 20px rgba(114, 27, 26, .045); }
 .digital-task-page .task-template-card .task-template-title { margin: 0 0 6px; color: var(--task-burgundy); font-size: 14px; line-height: 1.2; font-weight: 700; }
 .digital-task-page .task-template-card .task-template-description { margin: 0 0 10px; color: var(--task-text-mid); font-size: 12px; line-height: 1.45; font-weight: 400; }
