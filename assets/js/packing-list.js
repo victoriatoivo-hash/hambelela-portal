@@ -39,21 +39,21 @@
   const state = { search: '', priority: '', status: '', person: '', groupBy: 'month', date: '' };
 
   const priorities = [
-    ['top_critical', 'Top Critical', '#2e2e2e'],
-    ['high', 'High', '#4b189b'],
-    ['medium', 'Medium', '#555ee8'],
-    ['low', 'Low', '#579bfc']
+    ['top_critical', 'Top Critical', '#721B1A'],
+    ['high', 'High', '#BB1B21'],
+    ['medium', 'Medium', '#F07420'],
+    ['low', 'Low', '#A8CA19']
   ];
 
   let statuses = [
-    ['not_started', 'Not Started', '#bfbfbf'],
-    ['packing', 'Packing', '#ffad3b'],
-    ['website', 'Website', '#e12b4b'],
-    ['done', 'Done', '#00c875'],
-    ['packed_label_needed', 'Done, needs label', '#a64ddf'],
-    ['label_created', 'Label Created', '#579bfc'],
-    ['correction_needed', 'Correction Needed', '#d94848'],
-    ['done_needs_label', 'Done, needs label', '#a64ddf']
+    ['not_started', 'Not Started', '#C8BBB1'],
+    ['packing', 'Packing', '#F07420'],
+    ['website', 'Website', '#AB3619'],
+    ['done', 'Done', '#A8CA19'],
+    ['packed_label_needed', 'Done, needs label', '#721B1A'],
+    ['label_created', 'Label Created', '#6B4C3B'],
+    ['correction_needed', 'Correction Needed', '#BB1B21'],
+    ['done_needs_label', 'Done, needs label', '#721B1A']
   ];
 
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -69,6 +69,108 @@
   const packingLabelStorageKey = (field) => `hambelelaPackingLabels:${field}`;
   const baseColumnCount = 13;
   const totalColumnCount = () => baseColumnCount + customColumns.length;
+  const packingColumnStorageKey = 'hambelelaPackingColumnWidths';
+  let columnWidths = {};
+  try {
+    columnWidths = JSON.parse(localStorage.getItem(packingColumnStorageKey) || '{}') || {};
+  } catch (error) {
+    columnWidths = {};
+  }
+
+  const baseColumns = [
+    { key: 'select', label: '', className: 'check-cell col-checkbox', width: 38 },
+    { key: 'item', label: 'ITEM', className: 'col-item', width: 235 },
+    { key: 'notes', label: 'NOTES', className: 'col-notes comment-cell', width: 64, title: 'Open notes and full details' },
+    { key: 'date_loaded', label: 'DATE LOADED', className: 'col-dateloaded', width: 130 },
+    { key: 'priority', label: 'PRIORITY', className: 'col-priority', width: 130 },
+    { key: 'quantity_to_pack', label: 'QUANTITY', className: 'col-qty', width: 145 },
+    { key: 'person', label: 'PERSON RESPO...', className: 'col-person', width: 170, title: 'Person responsible' },
+    { key: 'quantity_packed', label: 'QUANTITY PACKED', className: 'col-qtypacked', width: 150 },
+    { key: 'date_completed', label: 'DATE COMPLETED', className: 'col-datecompleted', width: 150 },
+    { key: 'website_uploaded', label: 'WE...', className: 'col-webinv', width: 125, title: 'Front desk confirms quantity-to-pack has been updated on the website' },
+    { key: 'status', label: 'PACKING STATUS', className: 'col-packstatus', width: 125 },
+    { key: 'text', label: 'TEXT', className: 'col-text', width: 220 },
+    { key: 'add', label: '+', className: 'add-column-cell col-add-btn', width: 48 }
+  ];
+
+  function storedHeaderLabels() {
+    try { return JSON.parse(localStorage.getItem('hambelelaPackingHeaders') || '{}') || {}; } catch (error) { return {}; }
+  }
+
+  function packingHeaderLabel(column) {
+    return storedHeaderLabels()[column.key] || column.label;
+  }
+
+  function columnDefinitions() {
+    const addColumn = baseColumns[baseColumns.length - 1];
+    const coreColumns = baseColumns.slice(0, -1);
+    const custom = customColumns.map((column) => ({
+      key: column.col_key,
+      label: String(column.col_name || '').toUpperCase(),
+      className: 'col-custom',
+      width: 140,
+      customType: column.col_type,
+      isCustom: true
+    }));
+    return [...coreColumns, ...custom, addColumn];
+  }
+
+  function columnWidth(column) {
+    const minWidth = column.key === 'select' ? 38 : column.key === 'add' ? 48 : 58;
+    return Math.max(minWidth, Number(columnWidths[column.key] || column.width || minWidth));
+  }
+
+  function renderColGroup() {
+    return `<colgroup>${columnDefinitions().map((column) => `<col data-column-key="${esc(column.key)}" style="width:${columnWidth(column)}px">`).join('')}</colgroup>`;
+  }
+
+  function renderTableHeader() {
+    return `
+      <thead>
+        <tr>
+          ${columnDefinitions().map((column) => {
+            if (column.key === 'select') {
+              return `<th class="${esc(column.className)}" data-column-key="${esc(column.key)}"><input type="checkbox" data-packing-select-all></th>`;
+            }
+            if (column.key === 'add') {
+              return `<th class="${esc(column.className)}" data-column-key="${esc(column.key)}"><button type="button" data-add-packing-column>+</button></th>`;
+            }
+            const editable = config.canEditHeaders && !column.isCustom ? 'contenteditable="true"' : '';
+            const customAttrs = column.isCustom ? `data-custom-header="${esc(column.key)}" data-col-type="${esc(column.customType || 'text')}"` : `data-packing-column="${esc(column.key)}"`;
+            const title = column.title ? ` title="${esc(column.title)}"` : '';
+            return `<th class="${esc(column.className)}" data-column-key="${esc(column.key)}" ${customAttrs}${title} ${editable}>${esc(packingHeaderLabel(column))}</th>`;
+          }).join('')}
+        </tr>
+      </thead>
+    `;
+  }
+
+  function renderBoardMessage(message, actions = '') {
+    return `
+      <section class="packing-empty-panel">
+        <strong>${esc(message)}</strong>
+        ${actions}
+      </section>
+    `;
+  }
+
+  function columnKeySelector(key) {
+    return String(key || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  }
+
+  function applyColumnWidths() {
+    document.querySelectorAll('.packing-group-table').forEach((table) => {
+      columnDefinitions().forEach((column) => {
+        const width = columnWidth(column);
+        const selector = `[data-column-key="${columnKeySelector(column.key)}"]`;
+        table.querySelectorAll(selector).forEach((cell) => {
+          cell.style.width = `${width}px`;
+          cell.style.minWidth = `${width}px`;
+          cell.style.maxWidth = `${width}px`;
+        });
+      });
+    });
+  }
 
   function loadStoredPackingLabels() {
     try {
@@ -228,11 +330,16 @@
   }
 
   function renderLabel(task, field, value, options) {
-    return `<button type="button" class="board-label" style="--label-color:${esc(labelColor(options, value))}" data-packing-label="${esc(field)}" data-task-id="${esc(task.id)}">${esc(labelText(options, value))}</button>`;
+    const kind = field === 'priority'
+      ? 'packing-priority-pill'
+      : field === 'packing_status'
+        ? 'packing-status-pill'
+        : 'packing-person-pill';
+    return `<button type="button" class="board-label packing-pill ${kind}" style="--label-color:${esc(labelColor(options, value))}" data-state="${esc(normalize(value))}" data-packing-label="${esc(field)}" data-task-id="${esc(task.id)}">${esc(labelText(options, value))}</button>`;
   }
 
   function renderStaticLabel(value, options) {
-    return `<span class="board-label is-static" style="--label-color:${esc(labelColor(options, value))}">${esc(labelText(options, value))}</span>`;
+    return `<span class="board-label packing-pill is-static" style="--label-color:${esc(labelColor(options, value))}" data-state="${esc(normalize(value))}">${esc(labelText(options, value))}</span>`;
   }
 
   function canEditTask(task) {
@@ -261,10 +368,16 @@
   }
 
   function showSkeletonRows() {
-    body.innerHTML = Array.from({ length: 8 }).map(() => `
-      <tr class="skeleton-row">
-        ${Array.from({ length: 12 }).map(() => '<td><span class="board-skeleton-cell"></span></td>').join('')}
-      </tr>
+    body.innerHTML = Array.from({ length: 3 }).map(() => `
+      <section class="packing-date-group packing-skeleton-group">
+        <div class="packing-group-header">
+          <span class="board-skeleton-cell"></span>
+          <span class="board-skeleton-cell"></span>
+        </div>
+        <div class="packing-skeleton-lines">
+          ${Array.from({ length: 5 }).map(() => '<span class="board-skeleton-cell"></span>').join('')}
+        </div>
+      </section>
     `).join('');
   }
 
@@ -339,29 +452,24 @@
   }
 
   function renderCustomCells() {
-    return customColumns.map((column) => `<td data-custom-col="${esc(column.col_key)}">${renderCustomCell(column)}</td>`).join('');
+    return customColumns.map((column) => `<td class="col-custom" data-column-key="${esc(column.col_key)}" data-custom-col="${esc(column.col_key)}">${renderCustomCell(column)}</td>`).join('');
+  }
+
+  function renderEmptyCustomCells(className = '') {
+    return customColumns.map((column) => `<td class="${esc(className)}" data-column-key="${esc(column.col_key)}" data-custom-col="${esc(column.col_key)}"></td>`).join('');
   }
 
   function renderCustomHeaders() {
-    document.querySelectorAll('.packing-table thead tr').forEach((row) => {
-      row.querySelectorAll('[data-custom-header]').forEach((cell) => cell.remove());
-      const addCell = row.querySelector('.add-column-cell');
-      customColumns.forEach((column) => {
-        const th = document.createElement('th');
-        th.dataset.customHeader = column.col_key;
-        th.dataset.colType = column.col_type;
-        th.textContent = String(column.col_name || '').toUpperCase();
-        row.insertBefore(th, addCell);
-      });
-    });
-    makeColumnsResizable(document.querySelector('.board-wrap table'));
+    document.querySelectorAll('.packing-group-table').forEach(makeColumnsResizable);
+    applyColumnWidths();
   }
 
   function makeColumnsResizable(table) {
     if (!table) return;
     table.querySelectorAll('thead th').forEach((th) => {
       th.querySelector('.col-resizer')?.remove();
-      if (th.classList.contains('col-checkbox') || th.classList.contains('col-add-btn')) return;
+      const key = th.dataset.columnKey || '';
+      if (!key || key === 'select' || key === 'add') return;
 
       const resizer = document.createElement('div');
       resizer.className = 'col-resizer';
@@ -373,15 +481,15 @@
 
       const onMouseMove = (event) => {
         const newW = Math.max(50, startW + (event.pageX - startX));
-        th.style.width = `${newW}px`;
-        th.style.minWidth = `${newW}px`;
-        th.style.maxWidth = `${newW}px`;
+        columnWidths[key] = newW;
+        applyColumnWidths();
       };
 
       const onMouseUp = () => {
         document.removeEventListener('mousemove', onMouseMove);
         document.removeEventListener('mouseup', onMouseUp);
         document.body.classList.remove('is-resizing-column');
+        localStorage.setItem(packingColumnStorageKey, JSON.stringify(columnWidths));
       };
 
       resizer.addEventListener('mousedown', (event) => {
@@ -987,6 +1095,110 @@
     `;
   }
 
+  const groupAccentPalette = ['#BB1B21', '#F07420', '#A8CA19', '#AB3619', '#721B1A'];
+
+  function renderGroupV2(key, rows, index = 0) {
+    const groupSummary = summary(rows);
+    const pCounts = priorityCounts(rows);
+    const statusCounts = packingStatusCounts(rows);
+    const accent = groupAccentPalette[index % groupAccentPalette.length];
+    const bodyRows = rows.map((task) => {
+      const canEditOwn = canEditTask(task);
+      const manageOnly = currentUser.can_manage ? '' : 'disabled';
+      const ownOnly = canEditOwn ? '' : 'disabled';
+      const priorityCell = currentUser.can_manage
+        ? renderLabel(task, 'priority', task.priority || 'medium', priorities)
+        : renderStaticLabel(task.priority || 'medium', priorities);
+      const statusCell = canEditOwn
+        ? renderLabel(task, 'packing_status', task.packing_status || 'not_started', statuses)
+        : renderStaticLabel(task.packing_status || 'not_started', statuses);
+      return `
+        <tr data-task-id="${esc(task.id)}" class="packing-board-row board-row ${!previousTaskIds.has(String(task.id)) && hasRenderedOnce ? 'row-new' : ''} ${selected.has(String(task.id)) ? 'is-selected' : ''}">
+          <td class="check-cell col-checkbox" data-column-key="select"><input type="checkbox" data-packing-row-select="${esc(task.id)}" ${selected.has(String(task.id)) ? 'checked' : ''}></td>
+          <td class="task-cell col-item" data-column-key="item">${esc(task.item_name)}</td>
+          <td class="notes-cell col-notes" data-column-key="notes"><button type="button" title="Open notes" data-packing-open-panel="${esc(task.id)}"><i data-lucide="message-circle-plus"></i></button></td>
+          <td class="col-dateloaded" data-column-key="date_loaded">${esc(formatDate(task.date_loaded))}</td>
+          <td class="col-priority" data-column-key="priority">${priorityCell}</td>
+          <td class="col-qty" data-column-key="quantity_to_pack"><input class="board-inline-input" data-packing-text="quantity_planned" data-task-id="${esc(task.id)}" value="${esc(task.quantity_planned || '')}" ${manageOnly}></td>
+          <td class="col-person" data-column-key="person">${renderPerson(task)}</td>
+          <td class="col-qtypacked" data-column-key="quantity_packed"><input class="board-inline-input" data-packing-text="quantity_packed" data-task-id="${esc(task.id)}" value="${esc(task.quantity_packed || '')}" placeholder="Actual" ${ownOnly}></td>
+          <td class="col-datecompleted" data-column-key="date_completed">${esc(task.date_completed ? formatDate(task.date_completed) : '')}</td>
+          <td class="paid-cell col-webinv" data-column-key="website_uploaded">${renderCheck(task, 'website_uploaded', currentUser.can_edit_front_website)}</td>
+          <td class="col-packstatus" data-column-key="status">${statusCell}</td>
+          <td class="col-text" data-column-key="text" title="${esc(task.notes || '')}">${esc(task.notes || '')}</td>
+          ${renderCustomCells()}
+          <td class="col-add-btn" data-column-key="add"></td>
+        </tr>
+      `;
+    }).join('');
+
+    const addRow = currentUser.can_manage
+      ? `<tr class="add-task-row">
+          <td data-column-key="select"></td>
+          <td data-column-key="item"><button type="button" data-open-packing-create>+ Add item</button></td>
+          <td data-column-key="notes"></td>
+          <td data-column-key="date_loaded"></td>
+          <td data-column-key="priority"></td>
+          <td data-column-key="quantity_to_pack"></td>
+          <td data-column-key="person"></td>
+          <td data-column-key="quantity_packed"></td>
+          <td data-column-key="date_completed"></td>
+          <td data-column-key="website_uploaded"></td>
+          <td data-column-key="status"></td>
+          <td data-column-key="text"></td>
+          ${renderEmptyCustomCells()}
+          <td data-column-key="add"></td>
+        </tr>`
+      : '';
+
+    return `
+      <section class="packing-date-group" data-group-key="${esc(key)}" style="--packing-group-accent:${esc(accent)}" data-critical="${pCounts.critical}" data-high="${pCounts.high}" data-medium="${pCounts.medium}" data-low="${pCounts.low}">
+        <header class="packing-group-header">
+          <div class="packing-group-title-wrap">
+            <button type="button" class="group-collapse-button" data-packing-collapse aria-label="Collapse group" aria-expanded="true"><i class="group-chevron chevron" data-lucide="chevron-down"></i></button>
+            <div>
+              <strong class="packing-group-title group-label">${esc(groupLabel(key))}</strong>
+              <span class="packing-group-count group-count">${rows.length} Items</span>
+            </div>
+          </div>
+          <div class="packing-group-summaries">
+            ${prioritySummaryBar(pCounts)}
+            <span class="packing-fraction website-fraction">Website ${groupSummary.website}/${rows.length}</span>
+            ${packingProgressBar(statusCounts, rows.length)}
+          </div>
+        </header>
+        <div class="packing-group-table-wrap">
+          <table class="packing-group-table">
+            ${renderColGroup()}
+            ${renderTableHeader()}
+            <tbody>
+              ${bodyRows}
+              ${addRow}
+            </tbody>
+            <tfoot>
+              <tr class="packing-summary-row summary-row">
+                <td data-column-key="select"></td>
+                <td data-column-key="item"><span class="summary-pill">${esc(groupLabel(key))}</span></td>
+                <td data-column-key="notes"></td>
+                <td data-column-key="date_loaded"></td>
+                <td data-column-key="priority">${prioritySummaryBar(pCounts)}</td>
+                <td data-column-key="quantity_to_pack"></td>
+                <td data-column-key="person"></td>
+                <td data-column-key="quantity_packed"></td>
+                <td data-column-key="date_completed"></td>
+                <td data-column-key="website_uploaded"><span class="packing-fraction website-fraction">${groupSummary.website}/${rows.length}</span></td>
+                <td data-column-key="status">${packingProgressBar(statusCounts, rows.length)}</td>
+                <td data-column-key="text">${rows.length} items - Done: ${groupSummary.done} - Not started: ${groupSummary.notStarted} - Packing: ${groupSummary.packing} - ${esc(groupSummary.split)}</td>
+                ${renderEmptyCustomCells('summary-custom-cell')}
+                <td data-column-key="add"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </section>
+    `;
+  }
+
   function render() {
     const visible = visibleTasks();
     const knownIds = new Set(tasks.map((task) => String(task.id)));
@@ -1002,14 +1214,13 @@
           <button type="button" data-open-invoice><i data-lucide="upload"></i> Upload invoice</button>
           <button type="button" data-import-previous-packing><i data-lucide="copy-plus"></i> Import from previous list</button>
         </div>` : '';
-      body.innerHTML = `<tr><td colspan="${totalColumnCount()}"><div class="board-empty-state"><strong>${esc(message)}${hasFilters ? ' Clear filters to see all rows.' : ''}</strong>${actions}</div></td></tr>`;
+      body.innerHTML = renderBoardMessage(`${message}${hasFilters ? ' Clear filters to see all rows.' : ''}`, actions);
       renderMobileCards([]);
       setCount(tasks.length ? `${tasks.length} total item${tasks.length === 1 ? '' : 's'} loaded` : `${totalRows} packing rows in database`);
       updateMetrics(visible);
       updateFilterBadge();
       updateSelection();
       if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
-      makeColumnsResizable(document.querySelector('.board-wrap table'));
       return;
     }
     const groups = visible.reduce((memo, task) => {
@@ -1018,16 +1229,14 @@
       memo[key].push(task);
       return memo;
     }, {});
-    renderCustomHeaders();
-    body.innerHTML = Object.keys(groups).sort((a, b) => b.localeCompare(a)).map((key) => renderGroup(key, groups[key])).join('');
+    body.innerHTML = Object.keys(groups).sort((a, b) => b.localeCompare(a)).map((key, index) => renderGroupV2(key, groups[key], index)).join('');
     renderMobileCards(visible);
     setCount(`${visible.length} showing of ${tasks.length} packing item${tasks.length === 1 ? '' : 's'}`);
     updateMetrics(visible);
     updateFilterBadge();
     updateSelection();
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
-    makeColumnsResizable(document.querySelector('.board-wrap table'));
-    applyGroupColorBars();
+    renderCustomHeaders();
     animateBoardRows();
     previousTaskIds = new Set(tasks.map((task) => String(task.id)));
     hasRenderedOnce = true;
@@ -1036,11 +1245,11 @@
   function updateSelection() {
     const visibleIds = visibleTasks().map((task) => String(task.id));
     const selectedVisible = visibleIds.filter((id) => selected.has(id)).length;
-    if (selectAll) {
-      selectAll.checked = visibleIds.length > 0 && selectedVisible === visibleIds.length;
-      selectAll.indeterminate = selectedVisible > 0 && selectedVisible < visibleIds.length;
-      selectAll.disabled = visibleIds.length === 0;
-    }
+    document.querySelectorAll('[data-packing-select-all]').forEach((input) => {
+      input.checked = visibleIds.length > 0 && selectedVisible === visibleIds.length;
+      input.indeterminate = selectedVisible > 0 && selectedVisible < visibleIds.length;
+      input.disabled = visibleIds.length === 0;
+    });
     document.querySelectorAll('[data-packing-row-select]').forEach((input) => {
       input.checked = selected.has(String(input.dataset.packingRowSelect));
       input.closest('tr')?.classList.toggle('is-selected', input.checked);
@@ -1066,7 +1275,7 @@
       }
       fillPackerSelects();
       if (!data.migrationReady) {
-        body.innerHTML = `<tr><td colspan="${totalColumnCount()}">Import operations-packing-list-migration.sql first.</td></tr>`;
+        body.innerHTML = renderBoardMessage('Import operations-packing-list-migration.sql first.');
         setCount('Packing migration required');
         updateMetrics([]);
         return;
@@ -1793,11 +2002,21 @@
       }
       if (expandNote) { expandNote.closest('.notes-cell')?.classList.toggle('is-expanded'); return; }
       if (collapse) {
-        collapse.closest('tr').classList.toggle('collapsed');
-        let row = collapse.closest('tr').nextElementSibling;
-        while (row && !row.classList.contains('group-row')) {
-          row.hidden = !row.hidden;
-          row = row.nextElementSibling;
+        const group = collapse.closest('.packing-date-group');
+        if (group) {
+          const isCollapsed = group.classList.toggle('is-collapsed');
+          collapse.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
+          return;
+        }
+
+        const row = collapse.closest('tr');
+        if (row) {
+          row.classList.toggle('collapsed');
+          let next = row.nextElementSibling;
+          while (next && !next.classList.contains('group-row')) {
+            next.hidden = row.classList.contains('collapsed');
+            next = next.nextElementSibling;
+          }
         }
         return;
       }

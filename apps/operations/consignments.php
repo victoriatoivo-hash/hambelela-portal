@@ -15,56 +15,63 @@ $migrationReady = $ready
     && ops_column_exists('ops_packing_tasks', 'date_started');
 $canManage = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
 $canEditHeaders = user_has_role('owner_admin');
-$assetVersion = is_file(BASE_PATH . '/assets/js/packing-list.js')
+$packingJsVersion = is_file(BASE_PATH . '/assets/js/packing-list.js')
     ? (string) filemtime(BASE_PATH . '/assets/js/packing-list.js') . '-visibility1'
     : (string) time();
+$packingCssVersion = is_file(BASE_PATH . '/assets/css/packing-board.css')
+    ? (string) filemtime(BASE_PATH . '/assets/css/packing-board.css') . '-v2'
+    : (string) time();
+$extraStylesheets[] = [
+    'path' => 'assets/css/packing-board.css',
+    'version' => $packingCssVersion,
+];
 
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
-<main class="workspace module ops-board-page packing-list-page" data-board-theme="light">
-    <section class="monday-board-top">
-        <div class="monday-board-head work-board-head">
+<main class="workspace module ops-board-page packing-list-page packing-page-v2" data-board-theme="light">
+    <section class="monday-board-top packing-page-shell">
+        <div class="monday-board-head work-board-head packing-header">
             <div>
                 <h1>Hambelela Packing <i data-lucide="chevron-down"></i></h1>
                 <p class="work-board-subtitle">Bulk stock, invoice weights, packing allocation and website update tracking.</p>
                 <p class="packing-load-state" data-packing-count>Loading packing list...</p>
             </div>
             <div class="monday-board-head-actions">
-                <button type="button" class="invite-btn" data-packing-export><i data-lucide="download"></i> Export Excel</button>
-                <button type="button" data-packing-undo disabled><i data-lucide="undo-2"></i> Undo</button>
-                <button type="button" data-theme-toggle><i data-lucide="moon"></i></button>
+                <button type="button" class="invite-btn packing-btn packing-btn-secondary" data-packing-export><i data-lucide="download"></i> Export Excel</button>
+                <button type="button" class="packing-btn packing-btn-secondary" data-packing-undo disabled><i data-lucide="undo-2"></i> Undo</button>
+                <button type="button" class="packing-icon-btn" data-theme-toggle><i data-lucide="moon"></i></button>
             </div>
         </div>
 
-        <section class="work-metric-grid packing-metric-grid" aria-label="Packing summary">
-            <article class="work-metric-card metric-blue">
+        <section class="work-metric-grid packing-metric-grid packing-stats" aria-label="Packing summary">
+            <article class="work-metric-card packing-stat-card pk-total">
                 <span class="metric-icon"><i data-lucide="package-open"></i></span>
                 <div><span class="metric-title">Total Items</span><strong data-packing-metric="total">0</strong><small>In packing list</small></div>
             </article>
-            <article class="work-metric-card metric-orange">
+            <article class="work-metric-card packing-stat-card pk-packing">
                 <span class="metric-icon"><i data-lucide="clock-3"></i></span>
                 <div><span class="metric-title">Packing</span><strong data-packing-metric="packing">0</strong><small>Currently active</small></div>
             </article>
-            <article class="work-metric-card metric-green">
+            <article class="work-metric-card packing-stat-card pk-done">
                 <span class="metric-icon"><i data-lucide="check-circle-2"></i></span>
                 <div><span class="metric-title">Done</span><strong data-packing-metric="done">0</strong><small>Completed rows</small></div>
             </article>
-            <article class="work-metric-card metric-purple">
+            <article class="work-metric-card packing-stat-card pk-website">
                 <span class="metric-icon"><i data-lucide="globe-2"></i></span>
                 <div><span class="metric-title">Website Inventory</span><strong data-packing-metric="website">0</strong><small>Completed updates</small></div>
             </article>
-            <article class="work-metric-card metric-red">
+            <article class="work-metric-card packing-stat-card pk-pending">
                 <span class="metric-icon"><i data-lucide="hourglass"></i></span>
                 <div><span class="metric-title">Pending</span><strong data-packing-metric="pending">0</strong><small>Awaiting action</small></div>
             </article>
-            <article class="work-metric-card metric-pink">
+            <article class="work-metric-card packing-stat-card pk-unassigned">
                 <span class="metric-icon"><i data-lucide="user-round-x"></i></span>
                 <div><span class="metric-title">Unassigned</span><strong data-packing-metric="unassigned">0</strong><small>Needs person</small></div>
             </article>
         </section>
 
-        <section class="work-filter-bar packing-filter-bar" aria-label="Packing filters">
+        <section class="work-filter-bar packing-filter-bar packing-toolbar" aria-label="Packing filters">
             <label>Date
                 <input data-packing-date type="text" value="" placeholder="All months or YYYY-MM" inputmode="numeric">
             </label>
@@ -122,28 +129,10 @@ include BASE_PATH . '/shared/sidebar.php';
         <section class="ops-alert">Import <code>operations-packing-list-migration.sql</code> in phpMyAdmin to activate received weight, website confirmation and time tracking fields.</section>
     <?php endif; ?>
 
-    <section class="ops-board-shell packing-board-shell board-wrap">
-        <div class="ops-board-scroll">
-            <table class="ops-board-table packing-table">
-                <thead>
-                    <tr>
-                        <th class="check-cell col-checkbox"><input type="checkbox" data-packing-select-all></th>
-                        <th class="col-item" data-packing-column="item" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>ITEM</th>
-                        <th class="col-notes comment-cell" data-packing-column="notes" title="Open notes and full details" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>NOTES</th>
-                        <th class="col-dateloaded" data-packing-column="date_loaded" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>DATE LOADED</th>
-                        <th class="col-priority" data-packing-column="priority" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>PRIORITY</th>
-                        <th class="col-qty" data-packing-column="quantity_to_pack" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>QUANTITY</th>
-                        <th class="col-person" data-packing-column="person" title="Person responsible" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>PERSON RESPO...</th>
-                        <th class="col-qtypacked" data-packing-column="quantity_packed" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>QUANTITY PACKED</th>
-                        <th class="col-datecompleted" data-packing-column="date_completed" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>DATE COMPLETED</th>
-                        <th class="col-webinv" data-packing-column="website_uploaded" title="Front desk confirms quantity-to-pack has been updated on the website" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>WE...</th>
-                        <th class="col-packstatus" data-packing-column="status" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>PACKING STATUS</th>
-                        <th class="col-text" data-packing-column="text" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>TEXT</th>
-                        <th class="add-column-cell col-add-btn"><button type="button" data-add-packing-column>+</button></th>
-                    </tr>
-                </thead>
-                <tbody id="packing-list-body"><tr><td colspan="13">Loading packing list...</td></tr></tbody>
-            </table>
+    <section class="packing-board-shell packing-board-v2" aria-label="Packing board">
+        <input type="checkbox" class="packing-select-all-master" data-packing-select-all aria-hidden="true" tabindex="-1">
+        <div id="packing-list-body" class="packing-date-groups" aria-live="polite">
+            <div class="packing-loading-state">Loading packing list...</div>
         </div>
     </section>
 
@@ -235,5 +224,5 @@ window.HambelelaPacking = {
   canEditHeaders: <?= $canEditHeaders ? 'true' : 'false' ?>
 };
 </script>
-<script defer src="<?= BASE_URL ?>/assets/js/packing-list.js?v=<?= htmlspecialchars($assetVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
+<script defer src="<?= BASE_URL ?>/assets/js/packing-list.js?v=<?= htmlspecialchars($packingJsVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
 <?php include BASE_PATH . '/shared/footer.php'; ?>
