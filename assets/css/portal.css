@@ -5212,9 +5212,9 @@ textarea {
   align-items: center;
   gap: 8px;
   margin: 0 0 9px;
-  font-size: 13px;
+  font-size: 10px !important;
   line-height: 1.2;
-  font-weight: 700;
+  font-weight: 700 !important;
   color: var(--incident-burgundy);
 }
 
