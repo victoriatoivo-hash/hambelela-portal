@@ -370,9 +370,12 @@
   function showSkeletonRows() {
     body.innerHTML = Array.from({ length: 3 }).map(() => `
       <section class="packing-date-group packing-skeleton-group">
-        <div class="packing-group-header">
-          <span class="board-skeleton-cell"></span>
-          <span class="board-skeleton-cell"></span>
+        <div class="packing-date-header packing-skeleton-header">
+          <div class="packing-date-cell packing-date-cell--toggle"><span class="board-skeleton-cell"></span></div>
+          <div class="packing-date-cell packing-date-cell--title"><span class="board-skeleton-cell"></span></div>
+          <div class="packing-date-cell packing-date-cell--website"><span class="board-skeleton-cell"></span></div>
+          <div class="packing-date-cell packing-date-cell--priority"><span class="board-skeleton-cell"></span></div>
+          <div class="packing-date-cell packing-date-cell--progress"><span class="board-skeleton-cell"></span></div>
         </div>
         <div class="packing-skeleton-lines">
           ${Array.from({ length: 5 }).map(() => '<span class="board-skeleton-cell"></span>').join('')}
@@ -1031,6 +1034,32 @@
     `;
   }
 
+  function packingHeaderPriority(counts) {
+    const total = counts.critical + counts.high + counts.medium + counts.low || 1;
+    return `
+      <div class="packing-priority-summary" aria-label="Priority summary">
+        <span class="priority-critical" style="flex:${counts.critical / total}"></span>
+        <span class="priority-high" style="flex:${counts.high / total}"></span>
+        <span class="priority-medium" style="flex:${counts.medium / total}"></span>
+        <span class="priority-low" style="flex:${counts.low / total}"></span>
+      </div>
+    `;
+  }
+
+  function packingHeaderProgress(counts, total) {
+    const safeTotal = total || 1;
+    return `
+      <div class="packing-progress-summary">
+        <strong>${counts.done}/${total}</strong>
+        <div class="packing-progress-bar" aria-label="Packing status progress">
+          <span class="done" style="flex:${counts.done / safeTotal}"></span>
+          <span class="packing" style="flex:${counts.inprogress / safeTotal}"></span>
+          <span class="pending" style="flex:${counts.notstarted / safeTotal}"></span>
+        </div>
+      </div>
+    `;
+  }
+
   function renderGroup(key, rows) {
     const groupSummary = summary(rows);
     const pCounts = priorityCounts(rows);
@@ -1152,23 +1181,32 @@
       : '';
 
     return `
-      <section class="packing-date-group" data-group-key="${esc(key)}" style="--packing-group-accent:${esc(accent)}" data-critical="${pCounts.critical}" data-high="${pCounts.high}" data-medium="${pCounts.medium}" data-low="${pCounts.low}">
-        <header class="packing-group-header">
-          <div class="packing-group-title-wrap">
-            <button type="button" class="group-collapse-button" data-packing-collapse aria-label="Collapse group" aria-expanded="true"><i class="group-chevron chevron" data-lucide="chevron-down"></i></button>
-            <div>
-              <strong class="packing-group-title group-label">${esc(groupLabel(key))}</strong>
-              <span class="packing-group-count group-count">${rows.length} Items</span>
-            </div>
+      <section class="packing-date-group" data-group-key="${esc(key)}" style="--group-accent:${esc(accent)};--packing-group-accent:${esc(accent)}" data-critical="${pCounts.critical}" data-high="${pCounts.high}" data-medium="${pCounts.medium}" data-low="${pCounts.low}">
+        <header class="packing-date-header">
+          <div class="packing-date-cell packing-date-cell--toggle">
+            <button type="button" class="packing-group-toggle" data-packing-collapse aria-label="Collapse group" aria-expanded="true">
+              <i class="group-chevron chevron" data-lucide="chevron-down"></i>
+            </button>
           </div>
-          <div class="packing-group-summaries">
-            ${prioritySummaryBar(pCounts)}
-            <span class="packing-fraction website-fraction">Website ${groupSummary.website}/${rows.length}</span>
-            ${packingProgressBar(statusCounts, rows.length)}
+          <div class="packing-date-cell packing-date-cell--title">
+            <strong>${esc(groupLabel(key))}</strong>
+            <span>${rows.length} items</span>
+          </div>
+          <div class="packing-date-cell packing-date-cell--website">
+            <span class="packing-summary-label">Website</span>
+            <strong>${groupSummary.website}/${rows.length}</strong>
+          </div>
+          <div class="packing-date-cell packing-date-cell--priority">
+            <span class="packing-summary-label">Priority</span>
+            ${packingHeaderPriority(pCounts)}
+          </div>
+          <div class="packing-date-cell packing-date-cell--progress">
+            <span class="packing-summary-label">Packing</span>
+            ${packingHeaderProgress(statusCounts, rows.length)}
           </div>
         </header>
-        <div class="packing-group-table-wrap">
-          <table class="packing-group-table">
+        <div class="packing-date-body packing-group-table-wrap">
+          <table class="packing-table packing-group-table">
             ${renderColGroup()}
             ${renderTableHeader()}
             <tbody>
