@@ -26051,12 +26051,12 @@ body.sidebar-collapsed .shell:has(.portal-sidebar) {
   padding-left: 78px;
 }
 
-.shell:has(.portal-sidebar) > main.workspace,
+.shell:has(.portal-sidebar) > main.workspace:not(.digital-task-page),
 .shell:has(.portal-sidebar) > main.ledger-page,
-.shell:has(.portal-sidebar) > .workspace,
+.shell:has(.portal-sidebar) > .workspace:not(.digital-task-page),
 .shell:has(.portal-sidebar) > .ledger-page,
-body.sidebar-collapsed .shell:has(.portal-sidebar) > main.workspace,
-body.sidebar-collapsed .shell:has(.portal-sidebar) > .workspace {
+body.sidebar-collapsed .shell:has(.portal-sidebar) > main.workspace:not(.digital-task-page),
+body.sidebar-collapsed .shell:has(.portal-sidebar) > .workspace:not(.digital-task-page) {
   flex: 1 1 auto;
   margin-left: 0 !important;
   max-width: none !important;
