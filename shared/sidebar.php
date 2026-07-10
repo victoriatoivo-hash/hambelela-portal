@@ -91,13 +91,13 @@ $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bo
 </style>
 <style id="portal-shared-full-width-layout">
 .shell:has(.portal-sidebar){width:100%;max-width:none;box-sizing:border-box}
-.shell:has(.portal-sidebar)>main.workspace,
+.shell:has(.portal-sidebar)>main.workspace:not(.digital-task-page),
 .shell:has(.portal-sidebar)>main.ledger-page,
-.shell:has(.portal-sidebar)>.workspace,
+.shell:has(.portal-sidebar)>.workspace:not(.digital-task-page),
 .shell:has(.portal-sidebar)>.ledger-page{flex:1 1 auto;width:100%;max-width:none!important;min-width:0;margin-left:0!important;padding:28px;box-sizing:border-box}
 .shell:has(.portal-sidebar)>main.workspace.module{align-content:start}
 .shell:has(.portal-sidebar)>main.workspace.module>.module-header{width:100%;max-width:none}
-@media (max-width:760px){.shell:has(.portal-sidebar)>main.workspace,.shell:has(.portal-sidebar)>main.ledger-page,.shell:has(.portal-sidebar)>.workspace,.shell:has(.portal-sidebar)>.ledger-page{padding:18px}}
+@media (max-width:760px){.shell:has(.portal-sidebar)>main.workspace:not(.digital-task-page),.shell:has(.portal-sidebar)>main.ledger-page,.shell:has(.portal-sidebar)>.workspace:not(.digital-task-page),.shell:has(.portal-sidebar)>.ledger-page{padding:18px}}
 </style>
 <aside class="portal-sidebar" id="portalSidebar" aria-label="Portal navigation">
     <div class="ps-header">
