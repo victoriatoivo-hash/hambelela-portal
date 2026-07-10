@@ -2989,20 +2989,24 @@ textarea {
 .create-task-field textarea:focus { outline: 0; border-color: var(--task-orange-red); box-shadow: 0 0 0 3px rgba(171, 54, 25, .10); }
 .portal-custom-select-native { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .portal-custom-select { position: relative; width: 100%; font-family: inherit; text-transform: none; letter-spacing: normal; }
-.digital-task-page .create-task-form-card .portal-custom-select-trigger { width: 100%; height: 32px; padding: 0 12px; border: 1px solid var(--task-border); border-radius: 10px; background: #FFFFFF; color: var(--task-text); display: flex; align-items: center; justify-content: space-between; gap: 10px; font-family: inherit; font-size: 12px; font-weight: 400; text-align: left; cursor: pointer; box-sizing: border-box; transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease; }
+.portal-custom-select-trigger { width: 100%; height: 32px; padding: 0 12px; border: 1px solid var(--task-border); border-radius: 10px; background: #FFFFFF; color: var(--task-text); display: flex; align-items: center; justify-content: space-between; gap: 10px; font-family: inherit; font-size: 12px; font-weight: 400; text-align: left; cursor: pointer; box-sizing: border-box; transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease; }
 .portal-custom-select-trigger:hover { border-color: rgba(171, 54, 25, .32); background: #FFFDFB; }
 .portal-custom-select.is-open .portal-custom-select-trigger,
 .portal-custom-select-trigger:focus-visible { outline: 0; border-color: var(--task-orange-red); box-shadow: 0 0 0 3px rgba(171, 54, 25, .10); }
 .portal-custom-select-value { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; font-weight: 400; }
 .portal-custom-select-chevron { width: 16px; height: 16px; flex: 0 0 auto; color: var(--task-orange-red); transition: transform .2s ease; }
 .portal-custom-select.is-open .portal-custom-select-chevron { transform: rotate(180deg); }
-.portal-custom-select-menu { position: absolute; top: calc(100% + 7px); left: 0; right: 0; z-index: 1000; max-height: 250px; overflow-y: auto; padding: 6px; border: 1px solid var(--task-border); border-radius: 12px; background: #FFFFFF; box-shadow: 0 14px 34px rgba(114, 27, 26, .14); opacity: 0; visibility: hidden; transform: translateY(-6px) scale(.985); transform-origin: top; pointer-events: none; transition: opacity .18s ease, transform .18s ease, visibility .18s ease; }
+.portal-custom-select-menu { position: absolute; top: calc(100% + 7px); left: 0; right: 0; z-index: 1000; max-height: 280px; overflow-y: auto; padding: 6px; border: 1px solid var(--task-border); border-radius: 12px; background: #FFFFFF; box-shadow: 0 14px 34px rgba(114, 27, 26, .14); opacity: 0; visibility: hidden; transform: translateY(-6px) scale(.985); transform-origin: top; pointer-events: none; transition: opacity .18s ease, transform .18s ease, visibility .18s ease; }
 .portal-custom-select.is-open .portal-custom-select-menu { opacity: 1; visibility: visible; transform: translateY(0) scale(1); pointer-events: auto; }
-.digital-task-page .create-task-form-card .portal-custom-select-option { width: 100%; min-height: 34px; padding: 8px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--task-text); display: flex; align-items: center; font-family: inherit; font-size: 12px; font-weight: 400; line-height: 1.25; text-align: left; cursor: pointer; transition: background-color .15s ease, color .15s ease, transform .15s ease; }
+.portal-custom-select-option { width: 100%; min-height: 34px; padding: 8px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--task-text); display: flex; align-items: center; font-family: inherit; font-size: 12px; font-weight: 400; line-height: 1.25; text-align: left; cursor: pointer; box-sizing: border-box; transition: background-color .15s ease, color .15s ease, transform .15s ease; }
 .portal-custom-select-option:hover,
 .portal-custom-select-option.is-active { background: rgba(240, 116, 32, .10); color: var(--task-orange-red); }
 .portal-custom-select-option:hover { transform: translateX(2px); }
 .portal-custom-select-option[aria-selected="true"] { background: rgba(171, 54, 25, .12); color: var(--task-burgundy); font-weight: 600; }
+.portal-custom-select-menu::-webkit-scrollbar { width: 8px; }
+.portal-custom-select-menu::-webkit-scrollbar-track { background: transparent; }
+.portal-custom-select-menu::-webkit-scrollbar-thumb { background: rgba(171, 54, 25, .22); border-radius: 999px; }
+.portal-custom-select-menu::-webkit-scrollbar-thumb:hover { background: rgba(171, 54, 25, .36); }
 .create-task-date-wrap { position: relative; display: block; }
 .create-task-date-wrap input { padding-right: 38px; }
 .create-task-date-icon { position: absolute; right: 11px; top: 50%; width: 16px; height: 16px; color: var(--task-orange-red); pointer-events: none; transform: translateY(-50%); }
@@ -4124,8 +4128,8 @@ textarea {
 .dtb-filter-grid .portal-custom-select { margin-top: 5px; min-width: 0; }
 .digital-task-page .dtb-filter-grid .portal-custom-select-trigger { width: 100%; height: 38px; min-height: 38px; padding: 0 12px; border: 1px solid var(--task-border); border-radius: 10px; background: #FFFFFF; color: var(--task-text); display: flex; align-items: center; justify-content: space-between; gap: 10px; font-family: inherit; font-size: 12px; line-height: 1; font-weight: 400; text-align: left; cursor: pointer; box-sizing: border-box; }
 .digital-task-page .dtb-filter-grid .portal-custom-select-value { font-size: 12px; line-height: 1; font-weight: 400; }
-.digital-task-page .dtb-filter-grid .portal-custom-select-menu { z-index: 10050; max-height: 260px; }
-.digital-task-page .dtb-filter-grid .portal-custom-select-option { min-height: 36px; font-size: 12px; line-height: 1.2; font-weight: 400; }
+.digital-task-page .dtb-filter-grid .portal-custom-select-menu { z-index: 10050; }
+.digital-task-page .dtb-filter-grid .portal-custom-select-option { font-size: 12px; font-weight: 400; }
 .dtb-filter-body .ops-form-actions { margin-top: 12px; }
 .dtb-filter-body .ops-form-actions .button { height: 32px; min-height: 32px; padding: 0 13px; border-radius: 9px; font-size: 11px; }
 .dtb-filter-body .ops-form-actions .button.primary { border-color: #AB3619; background: #AB3619; color: #FFFFFF; }
