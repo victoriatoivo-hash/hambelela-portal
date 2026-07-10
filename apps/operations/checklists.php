@@ -768,7 +768,7 @@ include BASE_PATH . '/shared/sidebar.php';
     <?php endforeach; ?>
     <div class="panel-backdrop task-panel-backdrop" data-task-close data-task-create-close hidden></div>
 </main>
-<script src="<?= BASE_URL ?>/assets/vendor/flatpickr/flatpickr.min.js?v=<?= htmlspecialchars((string) filemtime(BASE_PATH . '/assets/vendor/flatpickr/flatpickr.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
+<script data-cfasync="false" defer src="<?= BASE_URL ?>/assets/vendor/flatpickr/flatpickr.min.js?v=<?= htmlspecialchars((string) filemtime(BASE_PATH . '/assets/vendor/flatpickr/flatpickr.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
 <script>
 function initialisePortalDatePickers(root = document) {
   if (typeof window.flatpickr !== 'function') return;
@@ -809,7 +809,11 @@ function initialisePortalDatePickers(root = document) {
   });
 }
 
-initialisePortalDatePickers(document);
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => initialisePortalDatePickers(document));
+} else {
+  initialisePortalDatePickers(document);
+}
 
 function initializePortalCustomSelects(root = document) {
   const wireCustomSelect = (customSelect, valueControl, optionButtons, getSelectedIndex, setValue) => {
