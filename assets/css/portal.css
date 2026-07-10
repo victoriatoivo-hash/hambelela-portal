@@ -3972,7 +3972,7 @@ textarea {
 }
 
 /* Digital Task Board: clean shared component system. */
-.digital-task-page {
+.workspace.module.digital-task-page {
   --task-olive: #A8CA19;
   --task-amber: #F07420;
   --task-orange-red: #AB3619;
@@ -4218,7 +4218,7 @@ textarea {
 }
 
 @media (max-width: 760px) {
-  .digital-task-page { padding: 18px 14px 34px; }
+  .workspace.module.digital-task-page { padding: 18px 14px 34px; }
   .dtb-page-header { flex-direction: column; }
   .dtb-stats-grid,
   .dtb-filter-grid { grid-template-columns: 1fr; }
