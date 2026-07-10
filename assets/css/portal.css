@@ -3365,14 +3365,6 @@ textarea {
 .task-details-body { padding: 18px 22px 30px; background: #FFFFFF; }
 .task-details-section { margin-top: 16px; }
 .task-details-section:first-child { margin-top: 0; }
-.task-summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.task-summary-card { --summary-accent: var(--task-orange-red); min-width: 0; min-height: 64px; padding: 11px 13px; background: #FFFFFF; border: 1px solid var(--task-border); border-left: 4px solid var(--summary-accent); border-radius: 11px; box-shadow: 0 7px 18px rgba(114,27,26,.045); }
-.task-summary-card:nth-child(5n + 2) { --summary-accent: var(--task-amber); }
-.task-summary-card:nth-child(5n + 3) { --summary-accent: var(--task-red); }
-.task-summary-card:nth-child(5n + 4) { --summary-accent: var(--task-olive); }
-.task-summary-card:nth-child(5n + 5) { --summary-accent: var(--task-burgundy); }
-.digital-task-page .task-details-panel .task-summary-label { display: block; margin-bottom: 5px; color: var(--task-text-light); font-size: 10px; line-height: 1; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; }
-.task-summary-value { display: block; color: var(--task-text); font-size: 12px; line-height: 1.35; font-weight: 500; overflow-wrap: anywhere; }
 .task-edit-card,
 .task-progress-card { padding: 16px; background: #FFFFFF; border: 1px solid var(--task-border); border-radius: 13px; box-shadow: var(--task-shadow); }
 .task-section-title { margin: 0 0 13px; color: var(--task-burgundy); font-size: 14px; line-height: 1.2; font-weight: 700; }
@@ -3427,7 +3419,6 @@ textarea {
   .task-detail-panel { width: 100%; border-left: 0; }
   .task-details-header { padding: 16px 14px; }
   .task-details-body { padding: 14px 14px 28px; }
-  .task-summary-grid,
   .task-edit-grid { grid-template-columns: 1fr; }
   .task-edit-actions,
   .task-progress-actions { justify-content: stretch; }
@@ -10038,8 +10029,7 @@ main.error-log-page {
   }
 
   .work-metric-grid,
-  .packing-metric-grid,
-  .task-summary-grid {
+  .packing-metric-grid {
     grid-template-columns: 1fr;
   }
 

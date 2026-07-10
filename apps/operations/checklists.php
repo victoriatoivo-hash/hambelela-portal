@@ -687,15 +687,6 @@ include BASE_PATH . '/shared/sidebar.php';
             </header>
 
             <div class="task-details-body">
-                <section class="task-details-section task-summary-grid" aria-label="Task summary">
-                    <div class="task-summary-card"><span class="task-summary-label">Assigned</span><strong class="task-summary-value"><?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?></strong></div>
-                    <div class="task-summary-card"><span class="task-summary-label">Due</span><strong class="task-summary-value"><?= checklist_date_label((string) ($task['deadline'] ?? '')) ?></strong></div>
-                    <div class="task-summary-card"><span class="task-summary-label">Date assigned</span><strong class="task-summary-value"><?= checklist_date_label((string) ($task['date_assigned'] ?: $task['created_at'])) ?></strong></div>
-                    <div class="task-summary-card"><span class="task-summary-label">Date completed</span><strong class="task-summary-value"><?= checklist_date_label((string) ($task['date_completed'] ?: $task['completed_at'])) ?></strong></div>
-                    <div class="task-summary-card"><span class="task-summary-label">Completed by</span><strong class="task-summary-value"><?= htmlspecialchars((string) ($task['completed_by_name'] ?? '-'), ENT_QUOTES, 'UTF-8') ?></strong></div>
-                    <div class="task-summary-card"><span class="task-summary-label">Type</span><strong class="task-summary-value"><?= htmlspecialchars($types[(string) $task['checklist_type']] ?? (string) $task['checklist_type'], ENT_QUOTES, 'UTF-8') ?></strong></div>
-                </section>
-
                 <?php if ($canManage): ?>
                     <form method="post" class="task-details-section task-edit-card">
                         <input type="hidden" name="action" value="admin_update_task">
