@@ -4129,11 +4129,14 @@ textarea {
 .dtb-filter-grid { display: grid; grid-template-columns: repeat(4, minmax(160px, 1fr)); gap: 10px; }
 .digital-task-page .dtb-filter-grid label { display: block; margin: 0; color: var(--task-text-mid); font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 .digital-task-page .dtb-filter-grid input,
-.digital-task-page .dtb-filter-grid select { width: 100%; height: 36px; margin-top: 5px; padding: 0 11px; border: 1px solid var(--task-border); border-radius: 9px; background: #FFFFFF; color: var(--task-text); font-family: inherit; font-size: 12px; line-height: 1.2; font-weight: 400; box-sizing: border-box; }
+.digital-task-page .dtb-filter-grid select { width: 100%; height: 32px; margin-top: 5px; padding: 0 11px; border: 1px solid var(--task-border); border-radius: 9px; background: #FFFFFF; color: var(--task-text); font-family: inherit; font-size: 12px; line-height: 1.2; font-weight: 400; box-sizing: border-box; }
 .dtb-filter-grid input:focus,
 .dtb-filter-grid select:focus { outline: 0; border-color: var(--task-orange-red); box-shadow: 0 0 0 3px rgba(171, 54, 25, .10); }
 .dtb-filter-body .ops-form-actions { margin-top: 12px; }
 .dtb-filter-body .ops-form-actions .button { height: 32px; min-height: 32px; padding: 0 13px; border-radius: 9px; font-size: 11px; }
+.dtb-filter-body .ops-form-actions .button.primary { border-color: #AB3619; background: #AB3619; color: #FFFFFF; }
+.dtb-filter-body .ops-form-actions .button.primary:hover,
+.dtb-filter-body .ops-form-actions .button.primary:active { border-color: #F07420; background: #F07420; }
 
 .dtb-sections { display: grid; gap: 14px; }
 .dtb-status-section { --section-colour: var(--task-orange-red); position: relative; width: 100%; background: #FFFFFF; border: 1px solid var(--task-border); border-radius: 13px; box-shadow: var(--task-shadow); overflow: hidden; }
