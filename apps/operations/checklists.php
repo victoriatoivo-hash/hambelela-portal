@@ -488,6 +488,10 @@ if ($ready && ($tasks || $historyTasks) && ops_table_exists('ops_activity_logs')
     foreach ($activityRows as $row) $activityByTask[(int) $row['entity_id']][] = $row;
 }
 
+$flatpickrVersion = (string) filemtime(BASE_PATH . '/assets/vendor/flatpickr/flatpickr.min.css');
+$extraStylesheets = [
+    ['path' => 'assets/vendor/flatpickr/flatpickr.min.css', 'version' => $flatpickrVersion],
+];
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
@@ -539,8 +543,8 @@ include BASE_PATH . '/shared/sidebar.php';
         <form method="get" class="dtb-filter-body">
             <input type="hidden" name="task_view" value="<?= htmlspecialchars($filters['task_view'], ENT_QUOTES, 'UTF-8') ?>">
             <div class="dtb-filter-grid">
-                <label>Date from<input type="date" name="date_from" value="<?= htmlspecialchars($filters['date_from'], ENT_QUOTES, 'UTF-8') ?>"></label>
-                <label>Date to<input type="date" name="date_to" value="<?= htmlspecialchars($filters['date_to'], ENT_QUOTES, 'UTF-8') ?>"></label>
+                <div class="dtb-filter-field"><label for="task-date-from-display">Date from</label><div class="portal-date-field" data-portal-date-field><input type="text" id="task-date-from-display" class="portal-date-input" data-submit-target="#task-date-from-value" placeholder="dd/mm/yyyy" autocomplete="off"><input type="hidden" id="task-date-from-value" name="date_from" value="<?= htmlspecialchars($filters['date_from'], ENT_QUOTES, 'UTF-8') ?>"><button type="button" class="portal-date-trigger" aria-label="Open Date From calendar"><i data-lucide="calendar-days" aria-hidden="true"></i></button></div></div>
+                <div class="dtb-filter-field"><label for="task-date-to-display">Date to</label><div class="portal-date-field" data-portal-date-field><input type="text" id="task-date-to-display" class="portal-date-input" data-submit-target="#task-date-to-value" placeholder="dd/mm/yyyy" autocomplete="off"><input type="hidden" id="task-date-to-value" name="date_to" value="<?= htmlspecialchars($filters['date_to'], ENT_QUOTES, 'UTF-8') ?>"><button type="button" class="portal-date-trigger" aria-label="Open Date To calendar"><i data-lucide="calendar-days" aria-hidden="true"></i></button></div></div>
                 <?php if ($canManage): ?>
                     <?php $employeeFilterOptions = ['' => 'All people']; foreach ($employees as $employee) $employeeFilterOptions[(string) $employee['id']] = (string) $employee['full_name']; ?>
                     <?php checklist_custom_filter_field('Person', 'employee_id', $employeeFilterOptions, $filters['employee_id']); ?>
@@ -570,7 +574,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         <div class="create-task-field"><label for="create-task-type">Task type</label><select id="create-task-type" name="checklist_type" data-portal-custom-select><?php ops_select_options($types); ?></select></div>
                         <div class="create-task-field"><label for="create-task-assignee">Assigned person</label><select id="create-task-assignee" name="assigned_employee_id" data-portal-custom-select><option value="">Unassigned</option><?php foreach ($employees as $employee): ?><option value="<?= (int) $employee['id'] ?>"><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></div>
                         <div class="create-task-field"><label for="create-task-priority">Priority</label><select id="create-task-priority" name="priority" data-portal-custom-select><?php ops_select_options($priorities, 'medium'); ?></select></div>
-                        <div class="create-task-field"><label for="create-task-deadline">Due date</label><span class="create-task-date-wrap"><input id="create-task-deadline" type="datetime-local" name="deadline"><i class="create-task-date-icon" data-lucide="calendar-clock"></i></span></div>
+                        <div class="create-task-field"><label for="create-task-deadline-display">Due date</label><div class="portal-date-field" data-portal-date-field><input id="create-task-deadline-display" type="text" class="portal-date-input" data-enable-time="true" data-submit-target="#create-task-deadline" placeholder="dd/mm/yyyy --:--" autocomplete="off"><input id="create-task-deadline" type="hidden" name="deadline"><button type="button" class="portal-date-trigger" aria-label="Open Due Date calendar"><i data-lucide="calendar-clock" aria-hidden="true"></i></button></div></div>
                         <div class="create-task-field create-task-field--task-name"><label for="create-task-name">Task name</label><input id="create-task-name" name="task_name" required placeholder="Clean packing table"></div>
                         <div class="create-task-field create-task-field--full"><label for="create-task-instructions">Task instructions</label><textarea id="create-task-instructions" name="instructions"></textarea></div>
                         <div class="create-task-field create-task-field--full"><label for="create-task-items">Required checklist items</label><textarea id="create-task-items" name="checklist_items_text" placeholder="One item per line"></textarea></div>
@@ -664,7 +668,7 @@ include BASE_PATH . '/shared/sidebar.php';
         $items = checklist_json_items((string) ($task['checklist_items'] ?? ''));
         $checked = checklist_json_items((string) ($task['checked_items'] ?? ''));
         $panelId = (int) $task['id'];
-        $deadlineValue = $task['deadline'] ? str_replace(' ', 'T', substr((string) $task['deadline'], 0, 16)) : '';
+        $deadlineValue = $task['deadline'] ? substr((string) $task['deadline'], 0, 16) : '';
         $taskKind = checklist_task_kind($task);
         $statusClass = str_replace('_', '-', $effective);
         ?>
@@ -690,7 +694,7 @@ include BASE_PATH . '/shared/sidebar.php';
                             <div class="task-field"><label for="task-assignee-<?= $panelId ?>">Assigned person</label><select id="task-assignee-<?= $panelId ?>" name="assigned_employee_id" data-portal-custom-select><?php foreach ($employees as $employee): ?><option value="<?= (int) $employee['id'] ?>" <?= (int) ($task['assigned_employee_id'] ?? 0) === (int) $employee['id'] ? 'selected' : '' ?>><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></div>
                             <div class="task-field"><label for="task-admin-status-<?= $panelId ?>">Status</label><select id="task-admin-status-<?= $panelId ?>" name="status" data-portal-custom-select><?php ops_select_options($statuses, checklist_normalize_status((string) ($task['status'] ?? 'pending'))); ?></select></div>
                             <div class="task-field"><label for="task-priority-<?= $panelId ?>">Priority</label><select id="task-priority-<?= $panelId ?>" name="priority" data-portal-custom-select><?php ops_select_options($priorities, (string) ($task['priority'] ?? 'medium')); ?></select></div>
-                            <div class="task-field"><label for="task-deadline-<?= $panelId ?>">Due date</label><input id="task-deadline-<?= $panelId ?>" type="datetime-local" name="deadline" value="<?= htmlspecialchars($deadlineValue, ENT_QUOTES, 'UTF-8') ?>"></div>
+                            <div class="task-field"><label for="task-deadline-display-<?= $panelId ?>">Due date</label><div class="portal-date-field" data-portal-date-field><input id="task-deadline-display-<?= $panelId ?>" type="text" class="portal-date-input" data-enable-time="true" data-submit-target="#task-deadline-<?= $panelId ?>" placeholder="dd/mm/yyyy --:--" autocomplete="off"><input id="task-deadline-<?= $panelId ?>" type="hidden" name="deadline" value="<?= htmlspecialchars($deadlineValue, ENT_QUOTES, 'UTF-8') ?>"><button type="button" class="portal-date-trigger" aria-label="Open Due Date calendar"><i data-lucide="calendar-clock" aria-hidden="true"></i></button></div></div>
                         </div>
                         <div class="task-edit-actions"><button class="task-btn task-btn--primary" type="submit">Save assignment</button></div>
                     </form>
@@ -764,7 +768,49 @@ include BASE_PATH . '/shared/sidebar.php';
     <?php endforeach; ?>
     <div class="panel-backdrop task-panel-backdrop" data-task-close data-task-create-close hidden></div>
 </main>
+<script src="<?= BASE_URL ?>/assets/vendor/flatpickr/flatpickr.min.js?v=<?= htmlspecialchars((string) filemtime(BASE_PATH . '/assets/vendor/flatpickr/flatpickr.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
 <script>
+function initialisePortalDatePickers(root = document) {
+  if (typeof window.flatpickr !== 'function') return;
+
+  root.querySelectorAll('.portal-date-input:not([data-date-initialised])').forEach((input) => {
+    input.dataset.dateInitialised = 'true';
+    const wrapper = input.closest('[data-portal-date-field]');
+    const trigger = wrapper?.querySelector('.portal-date-trigger');
+    const hiddenInput = document.querySelector(input.dataset.submitTarget || '');
+    const enableTime = input.dataset.enableTime === 'true';
+    const storageFormat = enableTime ? 'Y-m-d H:i' : 'Y-m-d';
+    const displayFormat = enableTime ? 'd/m/Y h:i K' : 'd/m/Y';
+    const initialValue = hiddenInput?.value || '';
+
+    const picker = window.flatpickr(input, {
+      dateFormat: displayFormat,
+      enableTime,
+      time_24hr: false,
+      minuteIncrement: 5,
+      allowInput: true,
+      disableMobile: true,
+      defaultDate: initialValue ? window.flatpickr.parseDate(initialValue, storageFormat) : null,
+      onReady(selectedDates, dateStr, instance) {
+        instance.calendarContainer.classList.add('portal-calendar');
+      },
+      onOpen(selectedDates, dateStr, instance) {
+        instance.calendarContainer.classList.add('portal-calendar');
+      },
+      onChange(selectedDates, dateStr, instance) {
+        if (hiddenInput) hiddenInput.value = selectedDates[0] ? instance.formatDate(selectedDates[0], storageFormat) : '';
+      },
+      onClose(selectedDates, dateStr, instance) {
+        if (hiddenInput) hiddenInput.value = selectedDates[0] ? instance.formatDate(selectedDates[0], storageFormat) : '';
+      }
+    });
+
+    trigger?.addEventListener('click', () => picker.open());
+  });
+}
+
+initialisePortalDatePickers(document);
+
 function initializePortalCustomSelects(root = document) {
   const wireCustomSelect = (customSelect, valueControl, optionButtons, getSelectedIndex, setValue) => {
     if (customSelect.dataset.customSelectReady === 'true') return;
