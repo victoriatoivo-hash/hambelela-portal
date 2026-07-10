@@ -4020,7 +4020,7 @@ textarea {
   right: 0;
   bottom: 0;
   left: auto;
-  z-index: 130;
+  z-index: 10000;
   width: min(760px, calc(100dvw - 24px));
   max-width: 100dvw;
   overflow-y: auto;
@@ -4037,10 +4037,14 @@ textarea {
   transition: transform 210ms ease, opacity 160ms ease, visibility 210ms ease;
   visibility: hidden;
   will-change: transform;
+  filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  isolation: isolate;
 }
 
 .error-log-panel {
-  z-index: 135;
+  z-index: 10001;
 }
 
 .error-log-panel.incident-modal {
@@ -4064,9 +4068,10 @@ textarea {
 }
 
 .error-panel-backdrop {
-  z-index: 120;
+  z-index: 9998;
   background: rgba(44, 24, 16, 0.38);
-  backdrop-filter: blur(4px);
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 .error-panel-backdrop[hidden] {
@@ -4910,9 +4915,10 @@ textarea {
 .panel-backdrop.incident-panel-overlay {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: 9998;
   background: rgba(26, 26, 26, .28);
-  backdrop-filter: blur(1px);
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 .panel-backdrop.incident-panel-overlay[hidden] {
