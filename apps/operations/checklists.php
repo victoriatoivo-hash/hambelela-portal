@@ -256,13 +256,19 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $taskTypeForProof = (string) ($taskRows[0]['checklist_type'] ?? '');
             $note = ops_post_string('completion_note', 1500);
             $photoPath = null;
-            if (!empty($_FILES['photo_proof']['name']) && is_uploaded_file($_FILES['photo_proof']['tmp_name'])) {
+            if (isset($_FILES['photo_proof']) && (int) ($_FILES['photo_proof']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
                 if (!checklist_allows_photo($taskTypeForProof)) throw new RuntimeException('Photo proof is only available for cleaning, shelf stocking and bottle/container tasks.');
+                if ((int) $_FILES['photo_proof']['error'] !== UPLOAD_ERR_OK) throw new RuntimeException('Photo upload failed.');
+                if ((int) $_FILES['photo_proof']['size'] > 10 * 1024 * 1024) throw new RuntimeException('The image must be smaller than 10 MB.');
+                if (!is_uploaded_file($_FILES['photo_proof']['tmp_name'])) throw new RuntimeException('Photo upload failed.');
+                $allowedPhotoTypes = ['image/png' => 'png', 'image/jpeg' => 'jpg', 'image/webp' => 'webp'];
+                $photoInfo = new finfo(FILEINFO_MIME_TYPE);
+                $photoMime = (string) $photoInfo->file($_FILES['photo_proof']['tmp_name']);
+                if (!isset($allowedPhotoTypes[$photoMime])) throw new RuntimeException('Only PNG, JPG and WebP images are allowed.');
                 $uploadDir = BASE_PATH . '/uploads/checklist-proofs';
                 if (!is_dir($uploadDir)) mkdir($uploadDir, 0775, true);
-                $extension = strtolower(pathinfo((string) $_FILES['photo_proof']['name'], PATHINFO_EXTENSION));
-                if (!in_array($extension, ['jpg', 'jpeg', 'png', 'webp', 'pdf'], true)) throw new RuntimeException('Photo proof must be JPG, PNG, WEBP or PDF.');
-                $fileName = 'task-' . $taskId . '-' . date('YmdHis') . '.' . $extension;
+                $extension = $allowedPhotoTypes[$photoMime];
+                $fileName = 'task-' . $taskId . '-' . date('YmdHis') . '-' . bin2hex(random_bytes(4)) . '.' . $extension;
                 if (move_uploaded_file($_FILES['photo_proof']['tmp_name'], $uploadDir . '/' . $fileName)) $photoPath = 'uploads/checklist-proofs/' . $fileName;
             }
             if ($status === 'complete') {
@@ -618,7 +624,7 @@ include BASE_PATH . '/shared/sidebar.php';
                                 <?php if ($effective !== 'complete'): ?>
                                     <label>Status<select name="status"><?php ops_select_options($statuses, checklist_normalize_status((string) ($task['status'] ?? 'pending'))); ?></select></label>
                                     <label>Note<textarea name="completion_note" placeholder="Add a progress or completion note."><?= htmlspecialchars((string) ($task['completion_note'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea></label>
-                                    <?php if (checklist_allows_photo((string) $task['checklist_type'])): ?><label>Photo proof optional<input type="file" name="photo_proof" accept="image/*,.pdf"></label><?php endif; ?>
+                                    <?php if (checklist_allows_photo((string) $task['checklist_type'])): ?><label>Photo proof optional<input type="file" name="photo_proof" accept="image/png,image/jpeg,image/webp"></label><?php endif; ?>
                                     <div class="task-card-actions">
                                         <button class="button primary" type="submit" name="action" value="update_task_progress">Save</button>
                                     </div>
@@ -726,7 +732,27 @@ include BASE_PATH . '/shared/sidebar.php';
                             <div class="task-field"><label for="task-progress-status-<?= $panelId ?>">Status</label><select id="task-progress-status-<?= $panelId ?>" name="status" data-portal-custom-select><?php ops_select_options($statuses, checklist_normalize_status((string) ($task['status'] ?? 'pending'))); ?></select></div>
                             <div class="task-field"><label for="task-progress-note-<?= $panelId ?>">Note</label><textarea id="task-progress-note-<?= $panelId ?>" name="completion_note" placeholder="Add a progress or completion note."><?= htmlspecialchars((string) ($task['completion_note'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea></div>
                             <?php if (checklist_allows_photo((string) $task['checklist_type'])): ?>
-                                <div class="task-field"><span class="task-field-label">Photo proof optional</span><div class="task-file-upload"><input id="task-proof-<?= $panelId ?>" class="task-file-input" type="file" name="photo_proof" accept="image/*,.pdf" data-task-file-input><label for="task-proof-<?= $panelId ?>" class="task-file-trigger"><i data-lucide="paperclip"></i>Choose photo</label><span class="task-file-name" data-task-file-name>No file selected</span></div></div>
+                                <div class="task-field">
+                                    <span class="task-field-label">Photo proof optional</span>
+                                    <div class="task-proof-upload" data-task-proof-upload>
+                                        <input id="task-proof-<?= $panelId ?>" class="task-proof-input" type="file" name="photo_proof" accept="image/png,image/jpeg,image/webp">
+                                        <div class="task-proof-controls">
+                                            <label for="task-proof-<?= $panelId ?>" class="task-proof-button task-proof-button--choose">
+                                                <i class="task-proof-icon task-proof-icon--paperclip" data-lucide="paperclip" aria-hidden="true"></i><span>Choose photo</span>
+                                            </label>
+                                            <button type="button" class="task-proof-button task-proof-button--paste" data-paste-screenshot>
+                                                <i class="task-proof-icon" data-lucide="clipboard-paste" aria-hidden="true"></i><span>Paste screenshot</span>
+                                            </button>
+                                            <span class="task-proof-file-name" data-proof-file-name>No file selected</span>
+                                        </div>
+                                        <div class="task-proof-paste-hint">You can also press Ctrl + V or Cmd + V to paste a screenshot.</div>
+                                        <div class="task-proof-preview is-hidden" data-proof-preview>
+                                            <img class="task-proof-preview-image" data-proof-preview-image alt="Photo proof preview">
+                                            <div class="task-proof-preview-actions"><button type="button" class="task-proof-preview-remove" data-remove-proof>Remove</button></div>
+                                        </div>
+                                        <p class="task-proof-error is-hidden" data-proof-error></p>
+                                    </div>
+                                </div>
                             <?php endif; ?>
                             <div class="task-progress-actions"><button class="task-btn task-btn--primary" type="submit" name="action" value="update_task_progress">Save progress</button></div>
                         </section>
@@ -846,14 +872,139 @@ const createTaskPanel = document.querySelector('[data-task-create-panel]');
 if (createTaskPanel) initializePortalCustomSelects(createTaskPanel);
 
 document.addEventListener('change', (event) => {
-  if (event.target.matches('[data-task-file-input]')) {
-    const fileName = event.target.closest('.task-file-upload')?.querySelector('[data-task-file-name]');
-    if (fileName) fileName.textContent = event.target.files?.[0]?.name || 'No file selected';
-  }
   if (event.target.matches('.task-checklist-item input[type="checkbox"]')) {
     event.target.closest('.task-checklist-item')?.classList.toggle('is-complete', event.target.checked);
   }
 });
+
+function initialiseTaskProofUpload(root = document) {
+  root.querySelectorAll('[data-task-proof-upload]:not([data-proof-initialised])').forEach((upload) => {
+    upload.dataset.proofInitialised = 'true';
+    const input = upload.querySelector('.task-proof-input');
+    const chooseButton = upload.querySelector('.task-proof-button--choose');
+    const pasteButton = upload.querySelector('[data-paste-screenshot]');
+    const fileName = upload.querySelector('[data-proof-file-name]');
+    const preview = upload.querySelector('[data-proof-preview]');
+    const previewImage = upload.querySelector('[data-proof-preview-image]');
+    const removeButton = upload.querySelector('[data-remove-proof]');
+    const errorMessage = upload.querySelector('[data-proof-error]');
+    const acceptedTypes = ['image/png', 'image/jpeg', 'image/webp'];
+    const maxFileSize = 10 * 1024 * 1024;
+    let currentObjectUrl = null;
+
+    const clearError = () => {
+      errorMessage.textContent = '';
+      errorMessage.classList.add('is-hidden');
+    };
+    const showError = (message) => {
+      errorMessage.textContent = message;
+      errorMessage.classList.remove('is-hidden');
+    };
+    const revokePreviewUrl = () => {
+      if (!currentObjectUrl) return;
+      URL.revokeObjectURL(currentObjectUrl);
+      currentObjectUrl = null;
+    };
+    const validateImageFile = (file) => {
+      if (!file) return false;
+      if (!acceptedTypes.includes(file.type)) {
+        showError('Please upload a PNG, JPG or WebP image.');
+        return false;
+      }
+      if (file.size > maxFileSize) {
+        showError('The image must be smaller than 10 MB.');
+        return false;
+      }
+      clearError();
+      return true;
+    };
+    const showPreview = (file) => {
+      revokePreviewUrl();
+      currentObjectUrl = URL.createObjectURL(file);
+      previewImage.src = currentObjectUrl;
+      preview.classList.remove('is-hidden');
+      fileName.textContent = file.name;
+    };
+    const updateInputWithFile = (file) => {
+      const transfer = new DataTransfer();
+      transfer.items.add(file);
+      input.files = transfer.files;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    const handleFile = (file, updateInput = true) => {
+      if (!validateImageFile(file)) {
+        input.value = '';
+        fileName.textContent = 'No file selected';
+        revokePreviewUrl();
+        previewImage.removeAttribute('src');
+        preview.classList.add('is-hidden');
+        return;
+      }
+      if (updateInput) updateInputWithFile(file);
+      else showPreview(file);
+    };
+    const clearSelectedFile = () => {
+      input.value = '';
+      fileName.textContent = 'No file selected';
+      revokePreviewUrl();
+      previewImage.removeAttribute('src');
+      preview.classList.add('is-hidden');
+      clearError();
+    };
+    const clipboardFile = (blob, type) => {
+      const extensions = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
+      return new File([blob], `task-screenshot-${Date.now()}.${extensions[type] || 'png'}`, { type, lastModified: Date.now() });
+    };
+    const handleClipboardItems = (items) => {
+      const imageItem = [...items].find((item) => item.kind === 'file' && acceptedTypes.includes(item.type));
+      const file = imageItem?.getAsFile();
+      if (!file) return false;
+      handleFile(clipboardFile(file, file.type));
+      return true;
+    };
+
+    chooseButton.addEventListener('click', () => {
+      chooseButton.classList.remove('is-animating');
+      void chooseButton.offsetWidth;
+      chooseButton.classList.add('is-animating');
+      window.setTimeout(() => chooseButton.classList.remove('is-animating'), 450);
+    });
+    input.addEventListener('change', () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      handleFile(file, false);
+    });
+    removeButton.addEventListener('click', clearSelectedFile);
+    pasteButton.addEventListener('click', async () => {
+      if (!navigator.clipboard?.read) {
+        showError('Clipboard image access is not supported here. Press Ctrl + V or Cmd + V instead.');
+        return;
+      }
+      try {
+        const clipboardItems = await navigator.clipboard.read();
+        for (const item of clipboardItems) {
+          const type = item.types.find((candidate) => acceptedTypes.includes(candidate));
+          if (!type) continue;
+          const blob = await item.getType(type);
+          handleFile(clipboardFile(blob, type));
+          return;
+        }
+        showError('No image was found in the clipboard.');
+      } catch (error) {
+        showError('Clipboard access was blocked. Click inside the panel and press Ctrl + V or Cmd + V.');
+      }
+    });
+
+    const panel = upload.closest('.task-detail-panel');
+    if (panel && panel.dataset.proofPasteInitialised !== 'true') {
+      panel.dataset.proofPasteInitialised = 'true';
+      panel.addEventListener('paste', (event) => {
+        if (!handleClipboardItems(event.clipboardData?.items || [])) return;
+        event.preventDefault();
+      });
+    }
+  });
+}
 
 function initialiseTaskSectionToggles() {
   document.querySelectorAll('[data-collapsible-task-section]').forEach((section) => {
@@ -907,6 +1058,7 @@ document.addEventListener('click', (event) => {
     const panel = document.querySelector(`[data-task-panel="${open.dataset.taskOpen}"]`);
     if (panel) {
       initializePortalCustomSelects(panel);
+      initialiseTaskProofUpload(panel);
       panel.classList.add('open');
       panel.setAttribute('aria-hidden', 'false');
     }
