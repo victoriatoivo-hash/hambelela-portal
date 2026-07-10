@@ -846,9 +846,16 @@ include BASE_PATH . '/shared/sidebar.php';
                     <form method="post" class="incident-status-card">
                         <input type="hidden" name="action" value="update_status">
                         <input type="hidden" name="error_id" value="<?= $errorId ?>">
-                        <label for="detail-status-<?= $errorId ?>">Status</label>
+                        <label id="detail-status-label-<?= $errorId ?>">Status</label>
                         <div class="incident-status-controls">
-                            <select class="incident-status-select" id="detail-status-<?= $errorId ?>" name="status"><?php ops_select_options($statusLabels, $status); ?></select>
+                            <div class="incident-status-custom-select" data-incident-status-select>
+                                <input type="hidden" name="status" class="incident-status-value-input" value="<?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8') ?>">
+                                <button type="button" class="incident-status-trigger" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="detail-status-label-<?= $errorId ?> detail-status-value-<?= $errorId ?>">
+                                    <span class="incident-status-trigger-value" id="detail-status-value-<?= $errorId ?>"><?= htmlspecialchars($statusLabels[$status] ?? $status, ENT_QUOTES, 'UTF-8') ?></span>
+                                    <svg class="incident-status-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 8l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                                </button>
+                                <div class="incident-status-menu" role="listbox" tabindex="-1" aria-label="Status options"></div>
+                            </div>
                             <button class="incident-status-update-btn" type="submit">Update status</button>
                         </div>
                     </form>
@@ -969,6 +976,126 @@ function openIncidentForm(mode = 'create', data = {}) {
   document.body.classList.add('error-panel-open');
 }
 
+function initIncidentStatusDropdown(root) {
+  const select = root.querySelector('[data-incident-status-select]');
+  if (!select || select.dataset.initialised === 'true') return;
+
+  select.dataset.initialised = 'true';
+
+  const trigger = select.querySelector('.incident-status-trigger');
+  const valueLabel = select.querySelector('.incident-status-trigger-value');
+  const hiddenInput = select.querySelector('.incident-status-value-input');
+  const menu = select.querySelector('.incident-status-menu');
+  if (!trigger || !valueLabel || !hiddenInput || !menu) return;
+
+  const incidentStatusOptions = ['Not Resolved', 'Resolved'];
+  const incidentStatusValueMap = { 'Not Resolved': 'open', 'Resolved': 'resolved' };
+  let activeIndex = -1;
+
+  function escapeHtml(value) {
+    return String(value)
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#039;');
+  }
+
+  menu.innerHTML = incidentStatusOptions.map((label, index) => {
+    const value = incidentStatusValueMap[label];
+    const isSelected = value === hiddenInput.value;
+    return `<button type="button" class="incident-status-option" role="option" data-value="${escapeHtml(value)}" data-index="${index}" aria-selected="${isSelected ? 'true' : 'false'}">${escapeHtml(label)}</button>`;
+  }).join('');
+
+  const optionButtons = Array.from(menu.querySelectorAll('.incident-status-option'));
+
+  function clearActiveOption() {
+    optionButtons.forEach((option) => option.classList.remove('is-active'));
+  }
+
+  function updateActiveOption() {
+    clearActiveOption();
+    const activeOption = optionButtons[activeIndex];
+    if (!activeOption) return;
+    activeOption.classList.add('is-active');
+    activeOption.scrollIntoView({ block: 'nearest' });
+  }
+
+  function openMenu() {
+    select.classList.add('is-open');
+    trigger.setAttribute('aria-expanded', 'true');
+    const selectedIndex = optionButtons.findIndex((option) => option.getAttribute('aria-selected') === 'true');
+    activeIndex = selectedIndex >= 0 ? selectedIndex : 0;
+    updateActiveOption();
+  }
+
+  function closeMenu() {
+    select.classList.remove('is-open');
+    trigger.setAttribute('aria-expanded', 'false');
+    activeIndex = -1;
+    clearActiveOption();
+  }
+
+  function selectOption(optionButton) {
+    optionButtons.forEach((option) => option.setAttribute('aria-selected', 'false'));
+    optionButton.setAttribute('aria-selected', 'true');
+    hiddenInput.value = optionButton.dataset.value || '';
+    valueLabel.textContent = optionButton.textContent.trim();
+    hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+    closeMenu();
+    trigger.focus();
+  }
+
+  trigger.addEventListener('click', () => {
+    select.classList.contains('is-open') ? closeMenu() : openMenu();
+  });
+
+  optionButtons.forEach((option) => {
+    option.addEventListener('click', () => selectOption(option));
+  });
+
+  trigger.addEventListener('keydown', (event) => {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      if (!select.classList.contains('is-open')) {
+        openMenu();
+        return;
+      }
+      activeIndex = Math.min(activeIndex + 1, optionButtons.length - 1);
+      updateActiveOption();
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (!select.classList.contains('is-open')) {
+        openMenu();
+        return;
+      }
+      activeIndex = Math.max(activeIndex - 1, 0);
+      updateActiveOption();
+    }
+
+    if (event.key === 'Enter' && select.classList.contains('is-open')) {
+      event.preventDefault();
+      const activeOption = optionButtons[activeIndex];
+      if (activeOption) selectOption(activeOption);
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeMenu();
+    }
+  });
+
+  document.addEventListener('click', (event) => {
+    if (!select.contains(event.target)) closeMenu();
+  });
+}
+
+document.querySelectorAll('.incident-details-panel').forEach((panel) => {
+  initIncidentStatusDropdown(panel);
+});
+
 document.addEventListener('click', (event) => {
   const severityButton = event.target.closest('#logErrorForm .severity-btn');
   const statusButton = event.target.closest('#logErrorForm .status-btn');
@@ -1043,7 +1170,10 @@ document.addEventListener('click', (event) => {
   if (detailOpen) {
     document.querySelectorAll('.error-detail-panel.open').forEach((panel) => panel.classList.remove('open'));
     const panel = document.querySelector(`[data-error-panel="${detailOpen.dataset.errorOpen}"]`);
-    if (panel) panel.classList.add('open');
+    if (panel) {
+      initIncidentStatusDropdown(panel);
+      panel.classList.add('open');
+    }
     const backdrop = document.querySelector('.error-panel-backdrop');
     if (backdrop) backdrop.hidden = false;
     document.body.classList.add('error-panel-open');

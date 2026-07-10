@@ -5151,7 +5151,14 @@ textarea {
   align-items: end;
 }
 
-.incident-status-select {
+.incident-status-custom-select {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  font-family: Figtree, Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.incident-status-trigger {
   width: 100%;
   height: 38px;
   padding: 0 12px;
@@ -5159,20 +5166,132 @@ textarea {
   border-radius: 10px;
   background: #FFFFFF;
   color: var(--incident-text);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   font-family: inherit;
   font-size: 12px;
-  line-height: 1.2;
+  font-weight: 400;
+  line-height: 1;
+  text-align: left;
+  cursor: pointer;
   box-sizing: border-box;
+  transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
 }
 
-.incident-status-select:hover {
-  border-color: rgba(171, 54, 25, .35);
+.incident-status-trigger:hover {
+  border-color: rgba(171, 54, 25, .42);
+  background: #FFFDFB;
 }
 
-.incident-status-select:focus {
+.incident-status-custom-select.is-open .incident-status-trigger,
+.incident-status-trigger:focus-visible {
   outline: 0;
   border-color: var(--incident-orange-red);
   box-shadow: 0 0 0 3px rgba(171, 54, 25, .10);
+}
+
+.incident-status-trigger-value {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.incident-status-chevron {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  color: var(--incident-orange-red);
+  transition: transform .2s ease;
+}
+
+.incident-status-custom-select.is-open .incident-status-chevron {
+  transform: rotate(180deg);
+}
+
+.incident-status-menu {
+  position: absolute;
+  top: calc(100% + 7px);
+  left: 0;
+  right: 0;
+  z-index: 10050;
+  max-height: 180px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid var(--incident-border);
+  border-radius: 12px;
+  background: #FFFFFF;
+  box-shadow: 0 14px 34px rgba(114, 27, 26, .14);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-6px) scale(.985);
+  transform-origin: top;
+  pointer-events: none;
+  transition: opacity .18s ease, transform .18s ease, visibility .18s ease;
+}
+
+.incident-status-custom-select.is-open .incident-status-menu {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.incident-status-option {
+  width: 100%;
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--incident-text);
+  display: flex;
+  align-items: center;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.2;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color .15s ease, color .15s ease, transform .15s ease;
+}
+
+.incident-status-option:hover,
+.incident-status-option.is-active {
+  background: rgba(240, 116, 32, .10);
+  color: var(--incident-orange-red);
+}
+
+.incident-status-option:hover {
+  transform: translateX(2px);
+}
+
+.incident-status-option[aria-selected="true"] {
+  background: rgba(171, 54, 25, .12);
+  color: var(--incident-burgundy);
+  font-weight: 600;
+}
+
+.incident-status-menu::-webkit-scrollbar {
+  width: 8px;
+}
+
+.incident-status-menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.incident-status-menu::-webkit-scrollbar-thumb {
+  background: rgba(171, 54, 25, .22);
+  border-radius: 999px;
+}
+
+.incident-status-menu::-webkit-scrollbar-thumb:hover {
+  background: rgba(171, 54, 25, .36);
 }
 
 .incident-status-update-btn {
