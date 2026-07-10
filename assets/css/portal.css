@@ -3971,30 +3971,6 @@ textarea {
   }
 }
 
-.error-severity,
-.error-status {
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 28px;
-  margin: 0 8px;
-  padding: 0 10px;
-  border-radius: 999px;
-  color: #fff;
-  font-size: 12px;
-  font-style: normal;
-  font-weight: 800;
-  white-space: nowrap;
-}
-
-.severity-critical { background: var(--el-red); }
-.severity-high { background: var(--el-amber); }
-.severity-medium { background: var(--el-orange-red); }
-.severity-low { background: var(--el-olive); }
-.status-open { background: #bfc3ce; }
-.status-in_review { background: var(--el-amber); }
-.status-resolved { background: var(--el-olive); }
-
 /* Incident report side panel: recreated to match the Bookkeeping/Error Log theme. */
 .incident-modal,
 .error-detail-panel {
@@ -5531,8 +5507,7 @@ main.error-log-page {
 
 .error-log-page .error-log-header,
 .error-log-page .error-stats-shell,
-.error-log-page .error-filter-card,
-.error-log-page .error-table-card {
+.error-log-page .error-filter-card {
   width: 100% !important;
   max-width: none !important;
   box-sizing: border-box !important;
@@ -5662,8 +5637,7 @@ main.error-log-page {
   white-space: nowrap !important;
 }
 
-.error-log-page .error-filter-card,
-.error-log-page .error-table-card {
+.error-log-page .error-filter-card {
   margin: 0 0 18px !important;
   overflow: hidden !important;
   border: 1px solid var(--bk-border) !important;
@@ -5812,149 +5786,204 @@ main.error-log-page {
   color: #fff !important;
 }
 
-.error-log-page .error-table-top {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: space-between !important;
-  gap: 16px !important;
-  min-height: 48px !important;
-  padding: 0 16px !important;
-  border-bottom: 1px solid var(--bk-border) !important;
+.error-board-section {
+  width: 100%;
+  margin: 0 0 18px;
+  background: #FFFFFF;
+  border: 1px solid var(--bk-border);
+  border-radius: 14px;
+  box-shadow: 0 10px 26px rgba(114, 27, 26, .06);
+  overflow: hidden;
 }
 
-.error-log-page .error-table-title {
-  margin: 0 !important;
-  color: var(--bk-text) !important;
-  font-size: 13px !important;
-  font-weight: 700 !important;
+.error-board-section-header {
+  min-height: 46px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #FFFFFF;
+  border-bottom: 1px solid var(--bk-border);
 }
 
-.error-log-page .error-table-wrap {
-  width: 100% !important;
-  overflow-x: auto !important;
+.error-board-section-title {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--bk-text);
 }
 
-.error-log-page .error-table {
-  display: block !important;
-  width: 100% !important;
-  min-width: 1570px !important;
-  --error-table-columns: 110px 340px 125px 160px 120px 255px 125px 120px 85px 130px;
-  border: 0 !important;
-  border-radius: 0 !important;
-  background: var(--bk-surface) !important;
-  box-shadow: none !important;
+.error-board-count {
+  min-height: 24px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #FDF6EE;
+  color: var(--bk-orange-red);
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
-.error-log-page .error-table-simple {
-  min-width: 815px !important;
-  --error-table-columns: 110px 340px 125px 120px 120px;
+.error-board-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
-.error-log-page .error-table-row {
-  display: grid !important;
-  grid-template-columns: var(--error-table-columns) !important;
-  align-items: stretch !important;
-  width: 100% !important;
-  box-sizing: border-box !important;
+.error-board-table {
+  width: 100%;
+  min-width: 1320px;
+  border-collapse: collapse;
+  border-spacing: 0;
+  table-layout: fixed;
+  background: #FFFFFF;
+  font-family: Figtree, Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
-.error-log-page .error-table-full .error-table-row {
-  grid-template-columns: var(--error-table-columns) !important;
+.error-board-table .col-date { width: 130px; }
+.error-board-table .col-title { width: 340px; }
+.error-board-table .col-order { width: 125px; }
+.error-board-table .col-category { width: 165px; }
+.error-board-table .col-severity { width: 120px; }
+.error-board-table .col-person { width: 255px; }
+.error-board-table .col-impact { width: 125px; }
+.error-board-table .col-status { width: 120px; }
+.error-board-table .col-repeat { width: 90px; }
+.error-board-table .col-logged-by { width: 145px; }
+
+.error-board-table thead th {
+  height: 40px;
+  min-height: 40px;
+  padding: 0 12px;
+  background: rgba(253, 246, 238, .42);
+  border-right: 1px solid var(--bk-border);
+  border-bottom: 1px solid var(--bk-border);
+  text-align: left;
+  vertical-align: middle;
+  font-size: 11px;
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--bk-burgundy);
+  white-space: normal;
+  overflow-wrap: break-word;
+  box-sizing: border-box;
 }
 
-.error-log-page .error-table-simple .error-table-row {
-  grid-template-columns: var(--error-table-columns) !important;
+.error-board-table thead th:last-child,
+.error-board-table tbody td:last-child {
+  border-right: 0;
 }
 
-.error-log-page .error-table-row > span,
-.error-log-page .error-table-row > strong,
-.error-log-page .error-table-row > em {
-  min-width: 0 !important;
-  padding: 0 12px !important;
-  border-right: 1px solid var(--bk-border) !important;
-  border-bottom: 1px solid var(--bk-border) !important;
-  box-sizing: border-box !important;
-}
-
-.error-log-page .error-table-row > :last-child {
-  border-right: 0 !important;
-}
-
-.error-log-page .error-table-row-head {
-  min-height: 38px !important;
-  border-bottom: 0 !important;
-  background: #fbfaf9 !important;
-}
-
-.error-log-page .error-table-row-head > span {
-  display: flex !important;
-  align-items: center !important;
-  color: var(--bk-burgundy) !important;
-  font-size: 10px !important;
-  font-weight: 700 !important;
-  letter-spacing: .06em !important;
-  text-transform: uppercase !important;
-}
-
-.error-log-page .error-table-row-data {
-  min-height: 42px !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  background: #fff !important;
-  color: var(--bk-text) !important;
-  cursor: pointer !important;
-  font: inherit !important;
-  text-align: left !important;
-}
-
-.error-log-page .error-table-row-data:hover {
-  background: #fffaf6 !important;
-  transform: none !important;
-}
-
-.error-log-page .error-table-row-data > span,
-.error-log-page .error-table-row-data > strong,
-.error-log-page .error-table-row-data > em {
-  display: flex !important;
-  align-items: center !important;
-  overflow: hidden !important;
-  color: #000000 !important;
+.error-board-table tbody td {
+  height: 42px;
+  min-height: 42px;
+  padding: 0 12px;
+  background: #FFFFFF;
+  border-right: 1px solid var(--bk-border);
+  border-bottom: 1px solid var(--bk-border);
+  text-align: left;
+  vertical-align: middle;
   font-size: 12px !important;
-  font-weight: 500 !important;
-  line-height: 1.25 !important;
-  text-overflow: ellipsis !important;
-  white-space: nowrap !important;
+  line-height: 1.3;
+  font-weight: 400 !important;
+  color: var(--bk-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-sizing: border-box;
 }
 
-.error-log-page .error-table-row-data > strong {
-  font-weight: 700 !important;
+.error-board-table tbody td * {
+  font-size: 12px;
 }
 
-.error-log-page .error-table-row-data .error-severity,
-.error-log-page .error-table-row-data .error-status {
-  align-self: center !important;
-  justify-self: stretch !important;
-  width: auto !important;
-  height: 100% !important;
-  min-height: 42px !important;
-  margin-left: 0 !important;
-  padding: 0 12px !important;
-  border-right: 1px solid var(--bk-border) !important;
-  border-bottom: 1px solid var(--bk-border) !important;
-  border-radius: 0 !important;
-  background: #fff !important;
-  font-size: 12px !important;
-  font-weight: 700 !important;
-  font-style: normal !important;
-  line-height: 1.25 !important;
-  text-transform: uppercase !important;
+.error-board-table tbody tr:last-child td {
+  border-bottom: 0;
 }
 
-.error-log-page .error-table .task-empty {
-  margin: 0 !important;
-  padding: 20px 16px !important;
-  color: #000000 !important;
-  font-size: 12px !important;
+.error-board-table tbody tr:hover td,
+.error-board-table tbody tr:focus td {
+  background: rgba(240, 116, 32, .035);
+}
+
+.error-board-row {
+  cursor: pointer;
+  outline: 0;
+}
+
+.error-board-title-link {
+  color: var(--bk-text);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.error-board-row:hover .error-board-title-link,
+.error-board-row:focus .error-board-title-link {
+  color: var(--bk-orange-red);
+}
+
+.error-board-table td:nth-child(1),
+.error-board-table th:nth-child(1) {
+  padding-left: 16px;
+  padding-right: 12px;
+}
+
+.error-board-table td:nth-child(1) {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
+.error-board-table .error-board-status,
+.error-board-table .error-board-severity {
+  max-width: 100%;
+  min-height: 24px;
+  padding: 0 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: #FFFFFF;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 600;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.error-board-table .error-board-severity.severity-critical { background: var(--el-red); }
+.error-board-table .error-board-severity.severity-high { background: var(--el-amber); }
+.error-board-table .error-board-severity.severity-medium { background: var(--el-orange-red); }
+.error-board-table .error-board-severity.severity-low { background: var(--el-olive); }
+.error-board-table .error-board-status.status-open { background: #bfc3ce; }
+.error-board-table .error-board-status.status-in_review { background: var(--el-amber); }
+.error-board-table .error-board-status.status-resolved { background: var(--el-olive); }
+
+.error-board-empty td {
+  height: 52px;
+  padding: 0 16px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--bk-text-light);
+}
+
+@media (max-width: 900px) {
+  .error-board-table {
+    min-width: 1320px;
+  }
+
+  .error-board-section-header {
+    padding: 0 12px;
+  }
 }
 
 .error-log-page .error-form-section {
@@ -9447,7 +9476,6 @@ main.error-log-page {
 .packing-board-shell,
 .task-board-group,
 .task-history-table,
-.error-table,
 .report-table-wrap,
 .invoice-draft-wrap,
 .pricing-table-wrap,

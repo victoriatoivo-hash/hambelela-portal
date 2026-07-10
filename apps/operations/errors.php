@@ -595,17 +595,52 @@ include BASE_PATH . '/shared/sidebar.php';
 
     <?php foreach (['open' => 'Not Resolved Errors', 'resolved' => 'Resolved Errors'] as $sectionStatus => $sectionTitle): ?>
     <?php $sectionErrors = $errorsByResolution[$sectionStatus] ?? []; ?>
-    <section class="error-table-card error-section-<?= htmlspecialchars($sectionStatus, ENT_QUOTES, 'UTF-8') ?>">
-        <div class="error-table-top"><h2 class="error-table-title"><?= htmlspecialchars($sectionTitle, ENT_QUOTES, 'UTF-8') ?></h2><span class="error-count-pill"><?= number_format(count($sectionErrors)) ?> shown</span></div>
-        <div class="error-table-wrap">
-        <div class="error-table <?= $showFullErrorLog ? 'error-table-full' : 'error-table-simple' ?>" role="table">
-            <div class="error-table-row error-table-row-head" role="row">
+    <section class="error-board-section error-section-<?= htmlspecialchars($sectionStatus, ENT_QUOTES, 'UTF-8') ?>">
+        <div class="error-board-section-header">
+            <h2 class="error-board-section-title"><?= htmlspecialchars($sectionTitle, ENT_QUOTES, 'UTF-8') ?></h2>
+            <span class="error-board-count"><?= number_format(count($sectionErrors)) ?> shown</span>
+        </div>
+        <div class="error-board-table-wrap">
+        <table class="error-board-table<?= $showFullErrorLog ? '' : ' error-board-table--simple' ?>">
+            <colgroup>
+                <col class="col-date">
+                <col class="col-title">
+                <col class="col-order">
                 <?php if ($showFullErrorLog): ?>
-                    <span>Date</span><span>Error Title</span><span>Order ID</span><span>Category</span><span>Severity</span><span>Person Involved</span><span>Customer Impact</span><span>Status</span><span>Repeat</span><span>Logged By</span>
-                <?php else: ?>
-                    <span>Date</span><span>Error Title</span><span>Order ID</span><span>Severity</span><span>Status</span>
+                    <col class="col-category">
                 <?php endif; ?>
-            </div>
+                <col class="col-severity">
+                <?php if ($showFullErrorLog): ?>
+                    <col class="col-person">
+                    <col class="col-impact">
+                <?php endif; ?>
+                <col class="col-status">
+                <?php if ($showFullErrorLog): ?>
+                    <col class="col-repeat">
+                    <col class="col-logged-by">
+                <?php endif; ?>
+            </colgroup>
+            <thead>
+                <tr>
+                    <th scope="col">Date</th>
+                    <th scope="col">Error Title</th>
+                    <th scope="col">Order ID</th>
+                    <?php if ($showFullErrorLog): ?>
+                        <th scope="col">Category</th>
+                    <?php endif; ?>
+                    <th scope="col">Severity</th>
+                    <?php if ($showFullErrorLog): ?>
+                        <th scope="col">Person Involved</th>
+                        <th scope="col">Customer Impact</th>
+                    <?php endif; ?>
+                    <th scope="col">Status</th>
+                    <?php if ($showFullErrorLog): ?>
+                        <th scope="col">Repeat</th>
+                        <th scope="col">Logged By</th>
+                    <?php endif; ?>
+                </tr>
+            </thead>
+            <tbody>
             <?php foreach ($sectionErrors as $error): ?>
                 <?php
                 $peopleIds = error_json_array((string) ($error['people_involved'] ?? ''));
@@ -614,29 +649,31 @@ include BASE_PATH . '/shared/sidebar.php';
                 $severity = (string) ($error['severity'] ?? 'low');
                 $status = (string) ($error['status'] ?? 'open');
                 ?>
-                <button class="error-table-row error-table-row-data" type="button" data-error-open="<?= (int) $error['id'] ?>" role="row">
+                <?php $errorTitle = (string) ($error['error_title'] ?: ($errorCategories[(string) $error['category']] ?? $error['category'])); ?>
+                <tr class="error-board-row" data-error-open="<?= (int) $error['id'] ?>" tabindex="0" aria-label="View incident <?= htmlspecialchars($errorTitle, ENT_QUOTES, 'UTF-8') ?>">
                     <?php if ($showFullErrorLog): ?>
-                        <span><?= error_date_label((string) ($error['logged_at'] ?? '')) ?></span>
-                        <strong><?= htmlspecialchars((string) ($error['error_title'] ?: ($errorCategories[(string) $error['category']] ?? $error['category'])), ENT_QUOTES, 'UTF-8') ?></strong>
-                        <span><?= htmlspecialchars((string) ($error['order_reference'] ?: $error['order_id'] ?: '-'), ENT_QUOTES, 'UTF-8') ?></span>
-                        <span><?= htmlspecialchars($errorCategories[(string) $error['category']] ?? (string) $error['category'], ENT_QUOTES, 'UTF-8') ?></span>
-                        <em class="error-severity severity-<?= htmlspecialchars($severity, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($severityLabels[$severity] ?? $severity, ENT_QUOTES, 'UTF-8') ?></em>
-                        <span><?= htmlspecialchars($peopleText, ENT_QUOTES, 'UTF-8') ?></span>
-                        <span><?= trim((string) ($error['customer_impact'] ?? '')) !== '' ? 'Yes' : 'No' ?></span>
-                        <em class="error-status status-<?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($statusLabels[$status] ?? $status, ENT_QUOTES, 'UTF-8') ?></em>
-                        <span><?= (int) ($error['repeat_issue'] ?? 0) === 1 ? 'Yes' : 'No' ?></span>
-                        <span><?= htmlspecialchars((string) ($error['logged_by_name'] ?? 'System'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <td><?= error_date_label((string) ($error['logged_at'] ?? '')) ?></td>
+                        <td><span class="error-board-title-link"><?= htmlspecialchars($errorTitle, ENT_QUOTES, 'UTF-8') ?></span></td>
+                        <td><?= htmlspecialchars((string) ($error['order_reference'] ?: $error['order_id'] ?: '-'), ENT_QUOTES, 'UTF-8') ?></td>
+                        <td><?= htmlspecialchars($errorCategories[(string) $error['category']] ?? (string) $error['category'], ENT_QUOTES, 'UTF-8') ?></td>
+                        <td><span class="error-board-severity severity-<?= htmlspecialchars($severity, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($severityLabels[$severity] ?? $severity, ENT_QUOTES, 'UTF-8') ?></span></td>
+                        <td><?= htmlspecialchars($peopleText, ENT_QUOTES, 'UTF-8') ?></td>
+                        <td><?= trim((string) ($error['customer_impact'] ?? '')) !== '' ? 'Yes' : 'No' ?></td>
+                        <td><span class="error-board-status status-<?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($statusLabels[$status] ?? $status, ENT_QUOTES, 'UTF-8') ?></span></td>
+                        <td><?= (int) ($error['repeat_issue'] ?? 0) === 1 ? 'Yes' : 'No' ?></td>
+                        <td><?= htmlspecialchars((string) ($error['logged_by_name'] ?? 'System'), ENT_QUOTES, 'UTF-8') ?></td>
                     <?php else: ?>
-                        <span><?= error_date_label((string) ($error['logged_at'] ?? '')) ?></span>
-                        <strong><?= htmlspecialchars((string) ($error['error_title'] ?: ($errorCategories[(string) $error['category']] ?? $error['category'])), ENT_QUOTES, 'UTF-8') ?></strong>
-                        <span><?= htmlspecialchars((string) ($error['order_reference'] ?: $error['order_id'] ?: '-'), ENT_QUOTES, 'UTF-8') ?></span>
-                        <em class="error-severity severity-<?= htmlspecialchars($severity, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($severityLabels[$severity] ?? $severity, ENT_QUOTES, 'UTF-8') ?></em>
-                        <em class="error-status status-<?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($statusLabels[$status] ?? $status, ENT_QUOTES, 'UTF-8') ?></em>
+                        <td><?= error_date_label((string) ($error['logged_at'] ?? '')) ?></td>
+                        <td><span class="error-board-title-link"><?= htmlspecialchars($errorTitle, ENT_QUOTES, 'UTF-8') ?></span></td>
+                        <td><?= htmlspecialchars((string) ($error['order_reference'] ?: $error['order_id'] ?: '-'), ENT_QUOTES, 'UTF-8') ?></td>
+                        <td><span class="error-board-severity severity-<?= htmlspecialchars($severity, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($severityLabels[$severity] ?? $severity, ENT_QUOTES, 'UTF-8') ?></span></td>
+                        <td><span class="error-board-status status-<?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($statusLabels[$status] ?? $status, ENT_QUOTES, 'UTF-8') ?></span></td>
                     <?php endif; ?>
-                </button>
+                </tr>
             <?php endforeach; ?>
-            <?php if (!$sectionErrors): ?><p class="task-empty">No <?= strtolower(htmlspecialchars($sectionTitle, ENT_QUOTES, 'UTF-8')) ?> found for the selected filters.</p><?php endif; ?>
-        </div>
+            <?php if (!$sectionErrors): ?><tr class="error-board-empty"><td colspan="<?= $showFullErrorLog ? 10 : 5 ?>">No <?= strtolower(htmlspecialchars($sectionTitle, ENT_QUOTES, 'UTF-8')) ?> found for the selected filters.</td></tr><?php endif; ?>
+            </tbody>
+        </table>
         </div>
     </section>
     <?php endforeach; ?>
@@ -1020,6 +1057,13 @@ document.addEventListener('click', (event) => {
       document.body.classList.remove('error-panel-open');
     }
   }
+});
+
+document.addEventListener('keydown', (event) => {
+  const errorRow = event.target.closest('.error-board-row[data-error-open]');
+  if (!errorRow || (event.key !== 'Enter' && event.key !== ' ')) return;
+  event.preventDefault();
+  errorRow.click();
 });
 
 document.querySelectorAll('[data-custom-select]').forEach((select) => {
