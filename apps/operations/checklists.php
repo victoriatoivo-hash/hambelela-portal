@@ -165,6 +165,33 @@ function checklist_normalize_status(string $status): string
     return 'pending';
 }
 
+function checklist_custom_filter_field(string $label, string $name, array $options, string $selected): void
+{
+    static $instance = 0;
+    $instance++;
+    if (!array_key_exists($selected, $options)) $selected = (string) (array_key_first($options) ?? '');
+    $fieldId = 'task-filter-' . preg_replace('/[^a-z0-9_-]+/i', '-', $name) . '-' . $instance;
+    $menuId = $fieldId . '-menu';
+    $selectedLabel = (string) ($options[$selected] ?? '');
+    ?>
+    <div class="dtb-filter-field">
+        <label id="<?= htmlspecialchars($fieldId . '-label', ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></label>
+        <div class="portal-custom-select" data-portal-custom-select-static>
+            <input type="hidden" name="<?= htmlspecialchars($name, ENT_QUOTES, 'UTF-8') ?>" class="portal-custom-select-input" value="<?= htmlspecialchars($selected, ENT_QUOTES, 'UTF-8') ?>">
+            <button type="button" class="portal-custom-select-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="<?= htmlspecialchars($menuId, ENT_QUOTES, 'UTF-8') ?>" aria-labelledby="<?= htmlspecialchars($fieldId . '-label', ENT_QUOTES, 'UTF-8') ?>">
+                <span class="portal-custom-select-value"><?= htmlspecialchars($selectedLabel, ENT_QUOTES, 'UTF-8') ?></span>
+                <svg class="portal-custom-select-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7.5 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <div class="portal-custom-select-menu" id="<?= htmlspecialchars($menuId, ENT_QUOTES, 'UTF-8') ?>" role="listbox">
+                <?php foreach ($options as $value => $optionLabel): ?>
+                    <button type="button" class="portal-custom-select-option" role="option" data-value="<?= htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') ?>" aria-selected="<?= (string) $value === $selected ? 'true' : 'false' ?>"><?= htmlspecialchars((string) $optionLabel, ENT_QUOTES, 'UTF-8') ?></button>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </div>
+    <?php
+}
+
 function checklist_insert_auto_task(int $employeeId, string $key, string $type, string $name, string $deadline, array $items, string $instructions, string $priority, string $rule): void
 {
     if (ops_rows('SELECT id FROM ops_checklist_tasks WHERE recurrence_key = ? AND assigned_employee_id = ? LIMIT 1', [$key, $employeeId])) return;
@@ -515,13 +542,14 @@ include BASE_PATH . '/shared/sidebar.php';
                 <label>Date from<input type="date" name="date_from" value="<?= htmlspecialchars($filters['date_from'], ENT_QUOTES, 'UTF-8') ?>"></label>
                 <label>Date to<input type="date" name="date_to" value="<?= htmlspecialchars($filters['date_to'], ENT_QUOTES, 'UTF-8') ?>"></label>
                 <?php if ($canManage): ?>
-                    <label>Person<select name="employee_id"><option value="">All people</option><?php foreach ($employees as $employee): ?><option value="<?= (int) $employee['id'] ?>" <?= (string) $employee['id'] === $filters['employee_id'] ? 'selected' : '' ?>><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></label>
+                    <?php $employeeFilterOptions = ['' => 'All people']; foreach ($employees as $employee) $employeeFilterOptions[(string) $employee['id']] = (string) $employee['full_name']; ?>
+                    <?php checklist_custom_filter_field('Person', 'employee_id', $employeeFilterOptions, $filters['employee_id']); ?>
                 <?php endif; ?>
-                <label>Status<select name="status"><option value="">All statuses</option><?php ops_select_options(['overdue' => 'Overdue', 'pending' => 'Pending', 'started' => 'Started', 'in_progress' => 'In Progress', 'completed' => 'Completed'], $filters['status']); ?></select></label>
+                <?php checklist_custom_filter_field('Status', 'status', ['' => 'All statuses', 'overdue' => 'Overdue', 'pending' => 'Pending', 'started' => 'Started', 'in_progress' => 'In Progress', 'completed' => 'Completed'], $filters['status']); ?>
                 <?php if ($canManage): ?>
-                    <label>Priority<select name="priority"><option value="">All priorities</option><?php ops_select_options($priorities, $filters['priority']); ?></select></label>
-                    <label>Task type<select name="checklist_type"><option value="">All types</option><?php ops_select_options($types, $filters['checklist_type']); ?></select></label>
-                    <label>Task kind<select name="task_kind"><?php ops_select_options(['' => 'All tasks', 'recurring' => 'Recurring tasks', 'manual' => 'Custom/manual tasks'], $filters['task_kind']); ?></select></label>
+                    <?php checklist_custom_filter_field('Priority', 'priority', ['' => 'All priorities'] + $priorities, $filters['priority']); ?>
+                    <?php checklist_custom_filter_field('Task type', 'checklist_type', ['' => 'All types'] + $types, $filters['checklist_type']); ?>
+                    <?php checklist_custom_filter_field('Task kind', 'task_kind', ['' => 'All tasks', 'recurring' => 'Recurring tasks', 'manual' => 'Custom/manual tasks'], $filters['task_kind']); ?>
                 <?php endif; ?>
                 <label class="span-2">Search<input name="search" value="<?= htmlspecialchars($filters['search'], ENT_QUOTES, 'UTF-8') ?>" placeholder="Search task name, notes or completion note"></label>
             </div>
@@ -778,40 +806,15 @@ include BASE_PATH . '/shared/sidebar.php';
 </main>
 <script>
 function initializePortalCustomSelects(root = document) {
-  root.querySelectorAll('select[data-portal-custom-select]:not([data-custom-select-ready])').forEach((nativeSelect, selectIndex) => {
-    nativeSelect.dataset.customSelectReady = 'true';
-    nativeSelect.classList.add('portal-custom-select-native');
-
-    const customSelect = document.createElement('div');
-    customSelect.className = 'portal-custom-select';
-    const menuId = `portal-custom-select-${selectIndex}-${Math.random().toString(36).slice(2, 8)}`;
-    customSelect.innerHTML = `
-      <button type="button" class="portal-custom-select-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="${menuId}">
-        <span class="portal-custom-select-value"></span>
-        <svg class="portal-custom-select-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7.5 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
-      <div class="portal-custom-select-menu" id="${menuId}" role="listbox"></div>`;
-    nativeSelect.insertAdjacentElement('afterend', customSelect);
+  const wireCustomSelect = (customSelect, valueControl, optionButtons, getSelectedIndex, setValue) => {
+    if (customSelect.dataset.customSelectReady === 'true') return;
+    customSelect.dataset.customSelectReady = 'true';
 
     const trigger = customSelect.querySelector('.portal-custom-select-trigger');
     const valueLabel = customSelect.querySelector('.portal-custom-select-value');
-    const menu = customSelect.querySelector('.portal-custom-select-menu');
-    const optionButtons = Array.from(nativeSelect.options).map((option, optionIndex) => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'portal-custom-select-option';
-      button.role = 'option';
-      button.dataset.value = option.value;
-      button.dataset.optionIndex = String(optionIndex);
-      button.textContent = option.textContent;
-      button.disabled = option.disabled;
-      menu.appendChild(button);
-      return button;
-    });
-
     const syncSelection = () => {
-      const selectedIndex = Math.max(0, nativeSelect.selectedIndex);
-      valueLabel.textContent = nativeSelect.options[selectedIndex]?.textContent || '';
+      const selectedIndex = Math.max(0, getSelectedIndex());
+      valueLabel.textContent = optionButtons[selectedIndex]?.textContent || '';
       optionButtons.forEach((button, index) => {
         button.setAttribute('aria-selected', index === selectedIndex ? 'true' : 'false');
         button.classList.toggle('is-active', index === selectedIndex);
@@ -826,11 +829,11 @@ function initializePortalCustomSelects(root = document) {
       });
       customSelect.classList.toggle('is-open', open);
       trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
-      if (open) optionButtons[nativeSelect.selectedIndex]?.focus();
+      if (open) optionButtons[Math.max(0, getSelectedIndex())]?.focus();
     };
     const chooseOption = (button) => {
-      nativeSelect.value = button.dataset.value;
-      nativeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      setValue(button.dataset.value || '');
+      valueControl.dispatchEvent(new Event('change', { bubbles: true }));
       syncSelection();
       setOpen(false);
       trigger.focus();
@@ -838,6 +841,10 @@ function initializePortalCustomSelects(root = document) {
 
     trigger.addEventListener('click', () => setOpen(!customSelect.classList.contains('is-open')));
     trigger.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+        return;
+      }
       if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
       event.preventDefault();
       setOpen(true);
@@ -863,11 +870,56 @@ function initializePortalCustomSelects(root = document) {
         optionButtons[nextIndex]?.focus();
       });
     });
-    nativeSelect.addEventListener('change', syncSelection);
+    valueControl.addEventListener('change', syncSelection);
     syncSelection();
+  };
+
+  root.querySelectorAll('select[data-portal-custom-select]:not([data-custom-select-ready])').forEach((nativeSelect, selectIndex) => {
+    nativeSelect.dataset.customSelectReady = 'true';
+    nativeSelect.classList.add('portal-custom-select-native');
+
+    const customSelect = document.createElement('div');
+    customSelect.className = 'portal-custom-select';
+    const menuId = `portal-custom-select-${selectIndex}-${Math.random().toString(36).slice(2, 8)}`;
+    customSelect.innerHTML = `
+      <button type="button" class="portal-custom-select-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="${menuId}">
+        <span class="portal-custom-select-value"></span>
+        <svg class="portal-custom-select-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7.5 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="portal-custom-select-menu" id="${menuId}" role="listbox"></div>`;
+    nativeSelect.insertAdjacentElement('afterend', customSelect);
+
+    const menu = customSelect.querySelector('.portal-custom-select-menu');
+    const optionButtons = Array.from(nativeSelect.options).map((option, optionIndex) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'portal-custom-select-option';
+      button.role = 'option';
+      button.dataset.value = option.value;
+      button.dataset.optionIndex = String(optionIndex);
+      button.textContent = option.textContent;
+      button.disabled = option.disabled;
+      menu.appendChild(button);
+      return button;
+    });
+    wireCustomSelect(customSelect, nativeSelect, optionButtons, () => nativeSelect.selectedIndex, (value) => { nativeSelect.value = value; });
+  });
+
+  root.querySelectorAll('.portal-custom-select[data-portal-custom-select-static]:not([data-custom-select-ready])').forEach((customSelect) => {
+    const hiddenInput = customSelect.querySelector('.portal-custom-select-input');
+    const optionButtons = Array.from(customSelect.querySelectorAll('.portal-custom-select-option'));
+    wireCustomSelect(
+      customSelect,
+      hiddenInput,
+      optionButtons,
+      () => Math.max(0, optionButtons.findIndex((button) => button.dataset.value === hiddenInput.value)),
+      (value) => { hiddenInput.value = value; }
+    );
   });
 }
 
+const taskFilterCard = document.querySelector('.dtb-filter-card');
+if (taskFilterCard) initializePortalCustomSelects(taskFilterCard);
 const createTaskPanel = document.querySelector('[data-task-create-panel]');
 if (createTaskPanel) initializePortalCustomSelects(createTaskPanel);
 
