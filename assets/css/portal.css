@@ -2979,7 +2979,7 @@ textarea {
 .digital-task-page .create-task-field select,
 .digital-task-page .create-task-field textarea { width: 100%; border: 1px solid var(--task-border); border-radius: 10px; background: #FFFFFF; color: var(--task-text); font-family: inherit; font-size: 12px; line-height: 1.3; font-weight: 400; text-transform: none; letter-spacing: normal; box-sizing: border-box; transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease; }
 .create-task-field input,
-.create-task-field select { height: 38px; padding: 0 12px; }
+.create-task-field select { height: 32px; padding: 0 12px; }
 .create-task-field textarea { min-height: 118px; padding: 12px; resize: vertical; }
 .create-task-field input::placeholder,
 .create-task-field textarea::placeholder { color: var(--task-text-light); font-size: 12px; font-weight: 400; }
@@ -2991,7 +2991,7 @@ textarea {
 .create-task-field textarea:focus { outline: 0; border-color: var(--task-orange-red); box-shadow: 0 0 0 3px rgba(171, 54, 25, .10); }
 .portal-custom-select-native { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .portal-custom-select { position: relative; width: 100%; font-family: inherit; text-transform: none; letter-spacing: normal; }
-.digital-task-page .create-task-form-card .portal-custom-select-trigger { width: 100%; height: 38px; padding: 0 12px; border: 1px solid var(--task-border); border-radius: 10px; background: #FFFFFF; color: var(--task-text); display: flex; align-items: center; justify-content: space-between; gap: 10px; font-family: inherit; font-size: 12px; font-weight: 400; text-align: left; cursor: pointer; box-sizing: border-box; transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease; }
+.digital-task-page .create-task-form-card .portal-custom-select-trigger { width: 100%; height: 32px; padding: 0 12px; border: 1px solid var(--task-border); border-radius: 10px; background: #FFFFFF; color: var(--task-text); display: flex; align-items: center; justify-content: space-between; gap: 10px; font-family: inherit; font-size: 12px; font-weight: 400; text-align: left; cursor: pointer; box-sizing: border-box; transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease; }
 .portal-custom-select-trigger:hover { border-color: rgba(171, 54, 25, .32); background: #FFFDFB; }
 .portal-custom-select.is-open .portal-custom-select-trigger,
 .portal-custom-select-trigger:focus-visible { outline: 0; border-color: var(--task-orange-red); box-shadow: 0 0 0 3px rgba(171, 54, 25, .10); }
