@@ -4165,7 +4165,7 @@ textarea {
 .incident-form {
   display: grid;
   gap: 0;
-  padding: 0 0 76px;
+  padding: 0;
 }
 
 .incident-section {
@@ -5314,17 +5314,27 @@ textarea {
   }
 }
 
-.incident-footer {
+.incident-footer,
+.error-log-panel-footer {
   position: sticky;
   bottom: 0;
   z-index: 3;
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: 10px;
-  margin-top: 16px;
+  min-height: 0;
+  margin: 0;
   padding: 14px 24px;
+  background: #ffffff;
   border-top: 1px solid var(--bk-border);
-  background: rgba(255, 255, 255, .94);
+  box-sizing: border-box;
+}
+
+.incident-footer > *,
+.error-log-panel-footer > * {
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 .incident-form .incident-btn-secondary,
