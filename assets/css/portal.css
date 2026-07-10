@@ -5098,6 +5098,11 @@ textarea {
   transform: translateY(-1px);
 }
 
+.incident-panel-actions .incident-action-btn--delete:hover,
+.incident-panel-actions .incident-action-btn--delete:active {
+  background: #F07420 !important;
+}
+
 .incident-delete-confirm {
   position: fixed;
   inset: 0;
