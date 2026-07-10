@@ -5256,7 +5256,7 @@ textarea {
 
 .incident-content-text {
   margin: 0;
-  font-size: 12px;
+  font-size: 12px !important;
   line-height: 1.55;
   font-weight: 400;
   color: var(--incident-text-mid);
@@ -5326,7 +5326,7 @@ textarea {
 
 .incident-history-action {
   margin: 0 0 4px;
-  font-size: 12px;
+  font-size: 11px !important;
   font-weight: 700;
   color: var(--incident-burgundy);
 }
