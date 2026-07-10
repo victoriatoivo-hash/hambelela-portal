@@ -582,13 +582,14 @@
 .packing-page-v2 .packing-toolbar input,
 .packing-page-v2 .packing-toolbar select {
     width: 100%;
-    height: 38px !important;
+    height: 32px !important;
     border: 1px solid rgba(171, 54, 25, .24) !important;
     border-radius: 10px !important;
     background: #fff !important;
     color: var(--pk-text) !important;
     font: inherit;
     font-size: 12px !important;
+    font-weight: 400 !important;
     padding: 0 10px !important;
     outline: 0;
 }
