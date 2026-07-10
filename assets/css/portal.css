@@ -4239,6 +4239,7 @@ textarea {
 }
 
 #logErrorForm .form-grid.compact > label,
+#logErrorForm .form-grid.compact > .incident-category-field,
 #logErrorForm label:has(textarea[name="resolution"]),
 #logErrorForm label:has(input[name="financial_impact"]),
 #logErrorForm label[for="description"],
@@ -4267,6 +4268,7 @@ textarea {
 }
 
 #logErrorForm .form-grid.compact > label,
+#logErrorForm .form-grid.compact > .incident-category-field,
 #logErrorForm label[for="description"],
 #logErrorForm label:has(textarea[name="resolution"]),
 #logErrorForm label:has(input[name="financial_impact"]),
@@ -4281,6 +4283,17 @@ textarea {
 #logErrorForm .form-grid.compact label.span-2 {
   width: 680px !important;
   max-width: 100% !important;
+}
+
+#logErrorForm .form-grid.compact > .incident-category-field {
+  height: auto !important;
+  min-height: 52px !important;
+}
+
+#logErrorForm .incident-category-label {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
 }
 
 #logErrorForm .custom-select {
@@ -4419,6 +4432,59 @@ textarea {
 
 #logErrorForm .custom-select-menu::-webkit-scrollbar-thumb:hover {
   background: rgba(171, 54, 25, .36);
+}
+
+#logErrorForm .incident-other-category {
+  margin-top: 10px;
+  width: 100%;
+  max-width: 100%;
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity .18s ease, transform .18s ease, max-height .18s ease, margin .18s ease;
+}
+
+#logErrorForm .incident-other-category.is-hidden {
+  display: none;
+}
+
+#logErrorForm .incident-other-category label {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--bk-burgundy);
+}
+
+#logErrorForm .incident-other-category .required {
+  color: var(--bk-red);
+}
+
+#logErrorForm .incident-other-category input {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--bk-border);
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--bk-text);
+  font-family: inherit;
+  font-size: 12px;
+  box-sizing: border-box;
+}
+
+#logErrorForm .incident-other-category input:focus {
+  outline: 0;
+  border-color: var(--bk-orange-red);
+  box-shadow: 0 0 0 3px rgba(171, 54, 25, .10);
+}
+
+#logErrorForm .incident-other-category input.is-invalid {
+  border-color: var(--bk-red);
+  box-shadow: 0 0 0 3px rgba(187, 27, 33, .10);
 }
 
 #logErrorForm .incident-resolution-stack {

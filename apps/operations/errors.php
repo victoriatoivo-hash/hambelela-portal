@@ -71,7 +71,7 @@ function error_bootstrap_schema(): void
             logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )"
     );
-    error_try_sql("ALTER TABLE ops_error_logs MODIFY category VARCHAR(80) NOT NULL");
+    error_try_sql("ALTER TABLE ops_error_logs MODIFY category VARCHAR(100) NOT NULL");
     error_try_sql("ALTER TABLE ops_error_logs MODIFY severity VARCHAR(20) NOT NULL DEFAULT 'low'");
     $columns = [
         'error_title' => "ALTER TABLE ops_error_logs ADD COLUMN error_title VARCHAR(190) NULL AFTER id",
@@ -161,12 +161,18 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($action === 'create_error') {
             $title = ops_post_string('error_title', 190);
             $description = ops_post_string('description', 3000);
-            $category = ops_post_string('category', 80);
+            $category = ops_post_string('category', 100);
+            $otherCategory = ops_post_string('other_category', 100);
             $severity = ops_post_string('severity', 20);
             $people = array_values(array_filter(array_map('intval', $_POST['people_involved'] ?? [])));
             if ($title === '') throw new RuntimeException('Error title is required.');
             if ($description === '') throw new RuntimeException('Description is required.');
-            if (!array_key_exists($category, $errorCategories)) throw new RuntimeException('Choose an error category.');
+            if ($category === 'other') {
+                if ($otherCategory === '') throw new RuntimeException('Other category is required.');
+                $category = $otherCategory;
+            } elseif (!array_key_exists($category, $errorCategories)) {
+                throw new RuntimeException('Choose an error category.');
+            }
             if (!array_key_exists($severity, $severityLabels)) throw new RuntimeException('Choose a severity.');
             if (!$people) throw new RuntimeException('Select at least one person involved.');
 
@@ -510,7 +516,8 @@ include BASE_PATH . '/shared/sidebar.php';
                     <div class="form-grid compact">
                         <label class="span-2">Error Title<input name="error_title" required placeholder="Wrong product packed"></label>
                         <label>Order ID if applicable<input name="order_reference" placeholder="#33863 or WEB-33780"></label>
-                        <label>Category
+                        <div class="incident-category-field">
+                            <label class="incident-category-label" for="error-category-value">Category</label>
                             <div class="custom-select" data-custom-select>
                                 <input type="hidden" name="category" id="error-category-value" required>
                                 <button type="button" class="custom-select-trigger" aria-haspopup="listbox" aria-expanded="false">
@@ -531,7 +538,11 @@ include BASE_PATH . '/shared/sidebar.php';
                                     <?php endforeach; ?>
                                 </div>
                             </div>
-                        </label>
+                            <div class="incident-field incident-other-category is-hidden" id="incident-other-category-field">
+                                <label for="incident-other-category">Other Category <span class="required">*</span></label>
+                                <input type="text" id="incident-other-category" name="other_category" maxlength="100" placeholder="Enter the category" autocomplete="off" disabled>
+                            </div>
+                        </div>
                     </div>
                     <div class="incident-field incident-pill-field severity-choice severity-group" id="severity-group">
                         <label class="incident-pill-label" for="severityValue">Severity <span class="required">*</span></label>
@@ -731,6 +742,8 @@ document.querySelectorAll('[data-custom-select]').forEach((select) => {
   const menu = select.querySelector('.custom-select-menu');
   const optionButtons = Array.from(select.querySelectorAll('.custom-select-option'));
   let activeIndex = -1;
+  const otherCategoryField = document.getElementById('incident-other-category-field');
+  const otherCategoryInput = document.getElementById('incident-other-category');
 
   if (!trigger || !valueLabel || !hiddenInput || !menu || !optionButtons.length) return;
 
@@ -752,13 +765,30 @@ document.querySelectorAll('[data-custom-select]').forEach((select) => {
   function selectOption(optionButton) {
     optionButtons.forEach((option) => option.setAttribute('aria-selected', 'false'));
     optionButton.setAttribute('aria-selected', 'true');
-    hiddenInput.value = optionButton.dataset.value || '';
+    const value = optionButton.dataset.value || '';
+    hiddenInput.value = value;
     hiddenInput.setCustomValidity('');
     document.getElementById(hiddenInput.id + '-error')?.remove();
     valueLabel.textContent = optionButton.textContent.trim();
+    updateOtherCategoryField(value);
     hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
     closeMenu();
     trigger.focus();
+  }
+
+  function updateOtherCategoryField(selectedCategory) {
+    if (!otherCategoryField || !otherCategoryInput) return;
+    const isOther = selectedCategory === 'other';
+    otherCategoryField.classList.toggle('is-hidden', !isOther);
+    otherCategoryInput.required = isOther;
+    otherCategoryInput.disabled = !isOther;
+    if (!isOther) {
+      otherCategoryInput.value = '';
+      otherCategoryInput.classList.remove('is-invalid');
+      otherCategoryInput.setCustomValidity('');
+    } else {
+      window.requestAnimationFrame(() => otherCategoryInput.focus());
+    }
   }
 
   function updateActiveOption() {
@@ -812,28 +842,44 @@ document.querySelectorAll('[data-custom-select]').forEach((select) => {
   document.addEventListener('click', (event) => {
     if (!select.contains(event.target)) closeMenu();
   });
+
+  otherCategoryInput?.addEventListener('input', () => {
+    if (otherCategoryInput.value.trim()) {
+      otherCategoryInput.classList.remove('is-invalid');
+      otherCategoryInput.setCustomValidity('');
+    }
+  });
 });
 
 document.getElementById('logErrorForm')?.addEventListener('submit', function(event) {
   const severityValue = document.getElementById('severityValue');
   const statusValue = document.getElementById('statusValue');
   const categoryValue = document.getElementById('error-category-value');
+  const otherCategoryInput = document.getElementById('incident-other-category');
   const description = this.querySelector('[name="description"]');
   const severity = String(severityValue?.value || '').trim();
   const status = String(statusValue?.value || '').trim();
   const category = String(categoryValue?.value || '').trim();
+  const otherCategory = String(otherCategoryInput?.value || '').trim();
   const descriptionText = String(description?.value || '').trim();
 
   document.getElementById('severity-group-error')?.remove();
   document.getElementById('status-group-error')?.remove();
   document.getElementById('error-category-value-error')?.remove();
   document.getElementById('description-error')?.remove();
+  otherCategoryInput?.classList.remove('is-invalid');
+  otherCategoryInput?.setCustomValidity('');
 
   let hasError = false;
   if (!category) {
     hasError = true;
     categoryValue?.setCustomValidity('Please choose an error category.');
     showFieldError('error-category-value', 'Choose an error category.');
+  }
+  if (category === 'other' && !otherCategory) {
+    hasError = true;
+    otherCategoryInput?.classList.add('is-invalid');
+    otherCategoryInput?.setCustomValidity('Please enter the category.');
   }
   if (!severity) {
     hasError = true;
@@ -854,6 +900,9 @@ document.getElementById('logErrorForm')?.addEventListener('submit', function(eve
     event.preventDefault();
     if (!category) {
       this.querySelector('.custom-select-trigger')?.focus();
+    } else if (category === 'other' && !otherCategory) {
+      otherCategoryInput?.reportValidity();
+      otherCategoryInput?.focus();
     } else if (!severity) {
       this.querySelector('.severity-btn')?.focus();
     } else if (!status) {
