@@ -4503,23 +4503,30 @@ textarea {
 
 .people-chip-grid label {
   display: inline-flex;
+  width: auto !important;
+  flex: 0 0 auto !important;
+  min-width: unset !important;
   align-items: center;
-  min-height: 32px;
+  gap: 5px;
   cursor: pointer;
 }
 
 .people-chip-grid span {
-  display: inline-flex;
+  display: inline-flex !important;
+  width: auto !important;
+  flex: 0 0 auto !important;
+  min-width: unset !important;
   align-items: center;
-  min-height: 32px;
-  padding: 0 12px;
-  border: 1px solid var(--bk-border);
-  border-radius: 999px;
+  gap: 5px;
+  padding: 4px 11px !important;
+  border: 1px solid #EDE3D8;
+  border-radius: 20px;
   background: #FFF8F1;
-  color: var(--bk-text-mid);
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: none;
+  color: #6B6B6B !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: .05em !important;
+  text-transform: uppercase !important;
   transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
 }
 
