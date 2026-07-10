@@ -4015,7 +4015,7 @@ textarea {
   margin-bottom: 18px;
 }
 
-.dtb-page-kicker {
+.digital-task-page .dtb-page-header p.dtb-page-kicker {
   margin: 0 0 4px;
   color: var(--task-text-mid);
   font-size: 10px;
@@ -4033,7 +4033,7 @@ textarea {
   font-weight: 700;
 }
 
-.dtb-page-description {
+.digital-task-page .dtb-page-header p.dtb-page-description {
   margin: 5px 0 0;
   color: var(--task-text-mid);
   font-size: 12px;
@@ -4112,7 +4112,7 @@ textarea {
 .dtb-stat-icon svg { width: 16px; height: 16px; }
 .digital-task-page .dtb-stat-card .dtb-stat-label { margin: 0 0 4px; color: var(--task-text-light); font-size: 10px; line-height: 1.1; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 .dtb-stat-value { display: block; margin: 0; color: var(--task-text); font-size: 20px; line-height: 1; font-weight: 700; }
-.dtb-stat-caption { margin: 4px 0 0; color: var(--task-text-mid); font-size: 10px; line-height: 1.2; font-weight: 400; }
+.digital-task-page .dtb-stat-card p.dtb-stat-caption { margin: 4px 0 0; color: var(--task-text-mid); font-size: 10px; line-height: 1.2; font-weight: 400; }
 
 .dtb-tabs { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
 .dtb-tab { height: 32px; padding: 0 14px; border: 1px solid var(--task-border); border-radius: 999px; background: #FFFFFF; color: var(--task-text-mid); display: inline-flex; align-items: center; justify-content: center; font-family: inherit; font-size: 11px; line-height: 1; font-weight: 600; text-decoration: none; cursor: pointer; transition: background-color .18s ease, border-color .18s ease, color .18s ease; }
@@ -4127,9 +4127,9 @@ textarea {
 .dtb-filter-state { height: 24px; padding: 0 9px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: var(--task-soft); color: var(--task-orange-red); font-size: 10px; font-weight: 700; }
 .dtb-filter-body { padding: 14px; border-top: 1px solid var(--task-border); }
 .dtb-filter-grid { display: grid; grid-template-columns: repeat(4, minmax(160px, 1fr)); gap: 10px; }
-.dtb-filter-grid label { display: block; margin: 0; color: var(--task-text-mid); font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
-.dtb-filter-grid input,
-.dtb-filter-grid select { width: 100%; height: 36px; margin-top: 5px; padding: 0 11px; border: 1px solid var(--task-border); border-radius: 9px; background: #FFFFFF; color: var(--task-text); font-family: inherit; font-size: 12px; line-height: 1.2; font-weight: 400; box-sizing: border-box; }
+.digital-task-page .dtb-filter-grid label { display: block; margin: 0; color: var(--task-text-mid); font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.digital-task-page .dtb-filter-grid input,
+.digital-task-page .dtb-filter-grid select { width: 100%; height: 36px; margin-top: 5px; padding: 0 11px; border: 1px solid var(--task-border); border-radius: 9px; background: #FFFFFF; color: var(--task-text); font-family: inherit; font-size: 12px; line-height: 1.2; font-weight: 400; box-sizing: border-box; }
 .dtb-filter-grid input:focus,
 .dtb-filter-grid select:focus { outline: 0; border-color: var(--task-orange-red); box-shadow: 0 0 0 3px rgba(171, 54, 25, .10); }
 .dtb-filter-body .ops-form-actions { margin-top: 12px; }

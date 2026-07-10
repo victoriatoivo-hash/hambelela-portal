@@ -574,7 +574,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     ?>
                     <?php $taskId = (int) $task['id']; $priorityKey = (string) ($task['priority'] ?? 'medium'); $statusKey = str_replace('_', '-', $effective); ?>
                     <tr class="dtb-task-row" data-task-row="<?= $taskId ?>">
-                        <td><button class="dtb-row-toggle" type="button" data-task-row-toggle="<?= $taskId ?>" aria-expanded="false" aria-controls="task-details-<?= $taskId ?>"><i data-lucide="chevron-right"></i></button></td>
+                        <td><button class="dtb-row-toggle" type="button" data-task-row-toggle="<?= $taskId ?>" aria-label="Expand task details" aria-expanded="false" aria-controls="task-details-<?= $taskId ?>"><i data-lucide="chevron-right"></i></button></td>
                         <td><span class="dtb-task-name"><?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?></span></td>
                         <td><?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?></td>
                         <td><span class="dtb-priority-pill" data-priority="<?= htmlspecialchars(str_replace('_', '-', $priorityKey), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($priorities[$priorityKey] ?? 'Medium', ENT_QUOTES, 'UTF-8') ?></span></td>
