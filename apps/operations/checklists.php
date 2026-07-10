@@ -524,29 +524,31 @@ include BASE_PATH . '/shared/sidebar.php';
     </details>
 
     <?php if ($canManage): ?>
-        <aside class="task-create-panel" data-task-create-panel aria-hidden="true">
-        <form class="ops-form checklist-create-form" method="post">
-            <input type="hidden" name="action" value="create_task">
-            <div class="task-detail-head">
-                <button type="button" data-task-create-close aria-label="Close create task"><i data-lucide="x"></i></button>
-                <div><span class="status task-kind-manual">Manual task</span><h2>Create task</h2></div>
+        <aside class="task-create-panel create-task-panel" data-task-create-panel aria-hidden="true">
+            <header class="create-task-header">
+                <button class="create-task-close" type="button" data-task-create-close aria-label="Close create task"><i data-lucide="x"></i></button>
+                <div><span class="create-task-type-badge">Manual task</span><h2 class="create-task-title">Create task</h2></div>
+            </header>
+            <div class="create-task-body">
+                <form class="create-task-form-card checklist-create-form" method="post">
+                    <input type="hidden" name="action" value="create_task">
+                    <div class="create-task-grid">
+                        <div class="create-task-field"><label for="create-task-type">Task type</label><select id="create-task-type" name="checklist_type" data-portal-custom-select><?php ops_select_options($types); ?></select></div>
+                        <div class="create-task-field"><label for="create-task-assignee">Assigned person</label><select id="create-task-assignee" name="assigned_employee_id" data-portal-custom-select><option value="">Unassigned</option><?php foreach ($employees as $employee): ?><option value="<?= (int) $employee['id'] ?>"><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></div>
+                        <div class="create-task-field"><label for="create-task-priority">Priority</label><select id="create-task-priority" name="priority" data-portal-custom-select><?php ops_select_options($priorities, 'medium'); ?></select></div>
+                        <div class="create-task-field"><label for="create-task-deadline">Due date</label><span class="create-task-date-wrap"><input id="create-task-deadline" type="datetime-local" name="deadline"><i class="create-task-date-icon" data-lucide="calendar-clock"></i></span></div>
+                        <div class="create-task-field create-task-field--task-name"><label for="create-task-name">Task name</label><input id="create-task-name" name="task_name" required placeholder="Clean packing table"></div>
+                        <div class="create-task-field create-task-field--full"><label for="create-task-instructions">Task instructions</label><textarea id="create-task-instructions" name="instructions"></textarea></div>
+                        <div class="create-task-field create-task-field--full"><label for="create-task-items">Required checklist items</label><textarea id="create-task-items" name="checklist_items_text" placeholder="One item per line"></textarea></div>
+                    </div>
+                    <div class="create-task-actions"><button class="create-task-submit btn-assign-task" type="submit">Assign task</button></div>
+                </form>
+                <section class="task-template-card">
+                    <h3 class="task-template-title">Reusable cleaning template</h3>
+                    <p class="task-template-description">Weekly cleaning tasks use this checklist automatically.</p>
+                    <ul class="task-template-list"><?php foreach (checklist_cleaning_template_items() as $templateItem): ?><li><?= htmlspecialchars($templateItem, ENT_QUOTES, 'UTF-8') ?></li><?php endforeach; ?></ul>
+                </section>
             </div>
-            <div class="form-grid compact">
-                <label>Task type<select name="checklist_type"><?php ops_select_options($types); ?></select></label>
-                <label>Assigned person<select name="assigned_employee_id"><option value="">Unassigned</option><?php foreach ($employees as $employee): ?><option value="<?= (int) $employee['id'] ?>"><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></label>
-                <label>Priority<select name="priority"><?php ops_select_options($priorities, 'medium'); ?></select></label>
-                <label>Due date<input type="datetime-local" name="deadline"></label>
-                <label class="span-2">Task name<input name="task_name" required placeholder="Clean packing table"></label>
-            </div>
-            <label>Task instructions<textarea name="instructions"></textarea></label>
-            <label>Required checklist items<textarea name="checklist_items_text" placeholder="One item per line"></textarea></label>
-            <div class="ops-form-actions"><button class="button primary btn-assign-task" type="submit">Assign task</button></div>
-        </form>
-        <section class="task-template-card">
-            <h3>Reusable cleaning template</h3>
-            <p>Weekly cleaning tasks use this checklist automatically.</p>
-            <ul><?php foreach (checklist_cleaning_template_items() as $templateItem): ?><li><?= htmlspecialchars($templateItem, ENT_QUOTES, 'UTF-8') ?></li><?php endforeach; ?></ul>
-        </section>
         </aside>
     <?php endif; ?>
 
@@ -723,7 +725,106 @@ include BASE_PATH . '/shared/sidebar.php';
     <div class="panel-backdrop task-panel-backdrop" data-task-close data-task-create-close hidden></div>
 </main>
 <script>
+function initializePortalCustomSelects(root = document) {
+  root.querySelectorAll('select[data-portal-custom-select]:not([data-custom-select-ready])').forEach((nativeSelect, selectIndex) => {
+    nativeSelect.dataset.customSelectReady = 'true';
+    nativeSelect.classList.add('portal-custom-select-native');
+
+    const customSelect = document.createElement('div');
+    customSelect.className = 'portal-custom-select';
+    const menuId = `portal-custom-select-${selectIndex}-${Math.random().toString(36).slice(2, 8)}`;
+    customSelect.innerHTML = `
+      <button type="button" class="portal-custom-select-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="${menuId}">
+        <span class="portal-custom-select-value"></span>
+        <svg class="portal-custom-select-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7.5 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="portal-custom-select-menu" id="${menuId}" role="listbox"></div>`;
+    nativeSelect.insertAdjacentElement('afterend', customSelect);
+
+    const trigger = customSelect.querySelector('.portal-custom-select-trigger');
+    const valueLabel = customSelect.querySelector('.portal-custom-select-value');
+    const menu = customSelect.querySelector('.portal-custom-select-menu');
+    const optionButtons = Array.from(nativeSelect.options).map((option, optionIndex) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'portal-custom-select-option';
+      button.role = 'option';
+      button.dataset.value = option.value;
+      button.dataset.optionIndex = String(optionIndex);
+      button.textContent = option.textContent;
+      button.disabled = option.disabled;
+      menu.appendChild(button);
+      return button;
+    });
+
+    const syncSelection = () => {
+      const selectedIndex = Math.max(0, nativeSelect.selectedIndex);
+      valueLabel.textContent = nativeSelect.options[selectedIndex]?.textContent || '';
+      optionButtons.forEach((button, index) => {
+        button.setAttribute('aria-selected', index === selectedIndex ? 'true' : 'false');
+        button.classList.toggle('is-active', index === selectedIndex);
+      });
+    };
+    const setOpen = (open) => {
+      document.querySelectorAll('.portal-custom-select.is-open').forEach((other) => {
+        if (other !== customSelect) {
+          other.classList.remove('is-open');
+          other.querySelector('.portal-custom-select-trigger')?.setAttribute('aria-expanded', 'false');
+        }
+      });
+      customSelect.classList.toggle('is-open', open);
+      trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (open) optionButtons[nativeSelect.selectedIndex]?.focus();
+    };
+    const chooseOption = (button) => {
+      nativeSelect.value = button.dataset.value;
+      nativeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      syncSelection();
+      setOpen(false);
+      trigger.focus();
+    };
+
+    trigger.addEventListener('click', () => setOpen(!customSelect.classList.contains('is-open')));
+    trigger.addEventListener('keydown', (event) => {
+      if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      setOpen(true);
+      const targetIndex = event.key === 'End' || event.key === 'ArrowUp' ? optionButtons.length - 1 : 0;
+      optionButtons[targetIndex]?.focus();
+    });
+    optionButtons.forEach((button, index) => {
+      button.addEventListener('click', () => chooseOption(button));
+      button.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' || event.key === 'Tab') {
+          setOpen(false);
+          if (event.key === 'Escape') { event.preventDefault(); trigger.focus(); }
+          return;
+        }
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          chooseOption(button);
+          return;
+        }
+        if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        const nextIndex = event.key === 'Home' ? 0 : event.key === 'End' ? optionButtons.length - 1 : event.key === 'ArrowDown' ? Math.min(optionButtons.length - 1, index + 1) : Math.max(0, index - 1);
+        optionButtons[nextIndex]?.focus();
+      });
+    });
+    nativeSelect.addEventListener('change', syncSelection);
+    syncSelection();
+  });
+}
+
+initializePortalCustomSelects();
+
 document.addEventListener('click', (event) => {
+  if (!event.target.closest('.portal-custom-select')) {
+    document.querySelectorAll('.portal-custom-select.is-open').forEach((select) => {
+      select.classList.remove('is-open');
+      select.querySelector('.portal-custom-select-trigger')?.setAttribute('aria-expanded', 'false');
+    });
+  }
   const rowToggle = event.target.closest('[data-task-row-toggle]');
   const open = event.target.closest('[data-task-open]');
   const close = event.target.closest('[data-task-close]');
