@@ -4684,10 +4684,14 @@ textarea {
 }
 
 .incident-form .repeat-choice label {
+  height: 32px;
   min-width: 60px;
+  padding: 4px 14px;
   border-color: var(--bk-border);
   background: var(--bk-cream);
   color: var(--bk-text-mid);
+  font-size: 11px;
+  line-height: 1;
 }
 
 .incident-form .repeat-choice input,
@@ -4700,7 +4704,7 @@ textarea {
 .incident-form .repeat-choice label:has(input[value="0"]:checked) {
   border-color: var(--bk-olive);
   background: var(--bk-olive);
-  color: var(--bk-text);
+  color: #fff;
 }
 
 .incident-form .repeat-choice label:has(input[value="1"]:checked) {
