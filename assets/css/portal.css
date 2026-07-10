@@ -4177,22 +4177,19 @@ textarea {
 .dtb-row-toggle svg { width: 13px; height: 13px; transition: transform .18s ease; }
 .dtb-task-row.is-expanded .dtb-row-toggle svg { transform: rotate(90deg); }
 
-.digital-task-page .dtb-board-table .dtb-priority-pill,
-.digital-task-page .dtb-board-table .dtb-status-pill { min-height: 24px; padding: 0 9px; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; font-size: 10px; line-height: 1; font-weight: 700; white-space: nowrap; }
-.digital-task-page .dtb-board-table tbody td:nth-child(4) { padding: 0; }
-.digital-task-page .dtb-board-table .dtb-priority-pill { width: 100%; height: 100%; min-height: 35px; padding: 0; font-weight: 400; text-align: center; box-sizing: border-box; }
-.dtb-priority-pill[data-priority="top-critical"] { background: var(--task-burgundy); color: #FFFFFF; }
-.dtb-priority-pill[data-priority="high"] { background: var(--task-red); color: #FFFFFF; }
-.dtb-priority-pill[data-priority="medium"] { background: var(--task-amber); color: #FFFFFF; }
-.dtb-priority-pill[data-priority="low"] { background: var(--task-olive); color: #263000; }
-.dtb-status-pill { padding: 0 10px; border-radius: 999px; }
-.digital-task-page .dtb-board-table tbody td:nth-child(7) { padding: 0; }
-.digital-task-page .dtb-board-table .dtb-status-pill { width: 100%; height: 100%; min-height: 35px; padding: 0; font-weight: 400; text-align: center; box-sizing: border-box; }
-.dtb-status-pill[data-status="overdue"] { background: var(--task-red); color: #FFFFFF; }
-.dtb-status-pill[data-status="pending"] { background: var(--task-amber); color: #FFFFFF; }
-.dtb-status-pill[data-status="started"] { background: var(--task-burgundy); color: #FFFFFF; }
-.dtb-status-pill[data-status="in-progress"] { background: var(--task-orange-red); color: #FFFFFF; }
-.dtb-status-pill[data-status="complete"] { background: var(--task-olive); color: #263000; }
+.digital-task-page .dtb-board-table tbody td.task-priority-cell,
+.digital-task-page .dtb-board-table tbody td.task-status-cell { padding: 4px; vertical-align: middle; }
+.task-priority-fill,
+.task-status-fill { width: 100%; min-height: 32px; height: calc(100% - 8px); display: flex; align-items: center; justify-content: center; border-radius: 5px; font-family: inherit; font-size: 11px; line-height: 1; font-weight: 700; text-align: center; box-sizing: border-box; white-space: nowrap; }
+.task-priority-fill[data-priority="top-critical"] { background: var(--task-burgundy); color: #FFFFFF; }
+.task-priority-fill[data-priority="high"] { background: var(--task-red); color: #FFFFFF; }
+.task-priority-fill[data-priority="medium"] { background: var(--task-amber); color: #FFFFFF; }
+.task-priority-fill[data-priority="low"] { background: var(--task-olive); color: #263000; }
+.task-status-fill[data-status="overdue"] { background: var(--task-red); color: #FFFFFF; }
+.task-status-fill[data-status="pending"] { background: var(--task-amber); color: #FFFFFF; }
+.task-status-fill[data-status="started"] { background: var(--task-burgundy); color: #FFFFFF; }
+.task-status-fill[data-status="in-progress"] { background: var(--task-orange-red); color: #FFFFFF; }
+.task-status-fill[data-status="complete"] { background: var(--task-olive); color: #263000; }
 
 .dtb-empty-row td { height: 48px; padding: 0 16px; color: var(--task-text-light); font-size: 12px; font-weight: 400; }
 .dtb-details-row td { height: auto; padding: 0; background: #FFFDFB; white-space: normal; overflow: visible; }

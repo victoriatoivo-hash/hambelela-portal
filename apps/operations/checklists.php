@@ -619,10 +619,10 @@ include BASE_PATH . '/shared/sidebar.php';
                         <td><button class="dtb-row-toggle" type="button" data-task-row-toggle="<?= $taskId ?>" aria-label="Expand task details" aria-expanded="false" aria-controls="task-details-<?= $taskId ?>"><i data-lucide="chevron-right"></i></button></td>
                         <td><span class="dtb-task-name"><?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?></span></td>
                         <td><?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?></td>
-                        <td><span class="dtb-priority-pill" data-priority="<?= htmlspecialchars(str_replace('_', '-', $priorityKey), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($priorities[$priorityKey] ?? 'Medium', ENT_QUOTES, 'UTF-8') ?></span></td>
+                        <td class="task-priority-cell"><div class="task-priority-fill" data-priority="<?= htmlspecialchars(str_replace('_', '-', $priorityKey), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($priorities[$priorityKey] ?? 'Medium', ENT_QUOTES, 'UTF-8') ?></div></td>
                         <td><?= checklist_date_label((string) ($task['deadline'] ?? '')) ?></td>
                         <td><?= htmlspecialchars(checklist_days_remaining((string) ($task['deadline'] ?? ''), $effective), ENT_QUOTES, 'UTF-8') ?></td>
-                        <td><span class="dtb-status-pill" data-status="<?= htmlspecialchars($statusKey, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($groups[$effective] ?? ($statuses[$effective] ?? $effective), ENT_QUOTES, 'UTF-8') ?></span></td>
+                        <td class="task-status-cell"><div class="task-status-fill" data-status="<?= htmlspecialchars($statusKey, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($groups[$effective] ?? ($statuses[$effective] ?? $effective), ENT_QUOTES, 'UTF-8') ?></div></td>
                         <td><button class="dtb-btn dtb-btn-secondary" type="button" data-task-open="<?= $taskId ?>">View</button></td>
                     </tr>
                     <tr class="dtb-details-row" id="task-details-<?= $taskId ?>" data-task-details="<?= $taskId ?>" hidden><td colspan="8"><div class="dtb-details-panel"><div class="task-inline-detail">
