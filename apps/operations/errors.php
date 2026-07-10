@@ -11,6 +11,12 @@ $activeApp = 'operations';
 $ready = ops_database_ready();
 $message = null;
 $messageType = 'success';
+$errorLogFlash = $_SESSION['error_log_flash'] ?? null;
+if (is_array($errorLogFlash)) {
+    $message = (string) ($errorLogFlash['message'] ?? '');
+    $messageType = (string) ($errorLogFlash['type'] ?? 'success');
+}
+unset($_SESSION['error_log_flash']);
 $currentEmployeeId = ops_current_employee_id();
 $currentRoleKey = current_role_key();
 $isOwnerErrorUser = user_has_role('owner_admin');
@@ -45,6 +51,18 @@ function error_try_sql(string $sql): void
     } catch (Throwable $e) {
         // Keep the error log page usable even when older installs already have columns.
     }
+}
+
+function error_log_redirect(string $message, string $type = 'success', string $query = ''): void
+{
+    $_SESSION['error_log_flash'] = [
+        'type' => $type,
+        'message' => $message,
+    ];
+
+    $location = BASE_URL . '/apps/operations/errors.php' . $query;
+    header('Location: ' . $location, true, 303);
+    exit;
 }
 
 function error_column_exists(string $column): bool
@@ -159,6 +177,12 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $action = ops_post_string('action', 40);
         if ($action === 'create_error') {
+            $submittedToken = (string) ($_POST['submission_token'] ?? '');
+            $sessionToken = (string) ($_SESSION['incident_submission_token'] ?? '');
+            if ($submittedToken === '' || $sessionToken === '' || !hash_equals($sessionToken, $submittedToken)) {
+                error_log_redirect('This incident has already been submitted or the form expired.', 'error', '?form_error=1');
+            }
+
             $title = ops_post_string('error_title', 190);
             $description = ops_post_string('description', 3000);
             $category = ops_post_string('category', 100);
@@ -218,7 +242,8 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 'related_id' => $errorId,
                 'action_link' => BASE_URL . '/apps/operations/errors.php?error_id=' . $errorId,
             ], ['owner_admin', 'front_desk_admin', 'supervisor_manager']);
-            $message = 'Error logged and added to KPI tracking.';
+            unset($_SESSION['incident_submission_token']);
+            error_log_redirect('Error logged and added to KPI tracking.', 'success', '?saved=1');
         }
 
         if ($action === 'update_status') {
@@ -233,13 +258,17 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = db()->prepare('UPDATE ops_error_logs SET status = ? WHERE id = ?');
             $stmt->execute([$status, $errorId]);
             ops_activity_log('error_status_updated', 'error_log', $errorId, ['status' => $status]);
-            $message = 'Error status updated.';
+            error_log_redirect('Error status updated.', 'success', '?status_updated=1');
         }
     } catch (Throwable $e) {
-        $message = $e->getMessage();
-        $messageType = 'error';
+        error_log_redirect($e->getMessage(), 'error', '?form_error=1');
     }
 }
+
+if ($ready && empty($_SESSION['incident_submission_token'])) {
+    $_SESSION['incident_submission_token'] = bin2hex(random_bytes(32));
+}
+$incidentSubmissionToken = (string) ($_SESSION['incident_submission_token'] ?? '');
 
 $filters = [
     'month' => trim((string) ($_GET['month'] ?? date('Y-m'))),
@@ -511,6 +540,7 @@ include BASE_PATH . '/shared/sidebar.php';
             </div>
             <form id="logErrorForm" class="ops-form error-incident-form log-error-modal incident-form" method="post" enctype="multipart/form-data">
                 <input type="hidden" name="action" value="create_error">
+                <input type="hidden" name="submission_token" value="<?= htmlspecialchars($incidentSubmissionToken, ENT_QUOTES, 'UTF-8') ?>">
                 <section class="error-form-section incident-section">
                     <h3><i data-lucide="file-warning"></i> Error Information</h3>
                     <div class="form-grid compact">
@@ -910,6 +940,14 @@ document.getElementById('logErrorForm')?.addEventListener('submit', function(eve
     } else {
       description?.focus();
     }
+    return;
+  }
+
+  const saveButton = this.querySelector('[type="submit"]');
+  if (saveButton) {
+    saveButton.disabled = true;
+    saveButton.dataset.originalText = saveButton.textContent;
+    saveButton.textContent = 'Saving...';
   }
 });
 
