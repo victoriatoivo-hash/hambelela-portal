@@ -5067,6 +5067,24 @@ textarea {
   border: 1px solid #BB1B21;
 }
 
+.incident-panel-actions .incident-action-btn--delete {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 7px !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  padding: 0 16px !important;
+  border: 0 !important;
+  border-radius: 8px !important;
+  background: var(--bk-orange-red) !important;
+  color: #fff !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  white-space: nowrap !important;
+  box-shadow: 0 8px 18px rgba(171, 54, 25, .12) !important;
+}
+
 .incident-action-btn--delete:hover {
   background: #721B1A;
   border-color: #721B1A;
