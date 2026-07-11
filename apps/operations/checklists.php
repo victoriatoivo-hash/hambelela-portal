@@ -619,7 +619,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         <td><?= checklist_date_label((string) ($task['deadline'] ?? '')) ?></td>
                         <td><?= htmlspecialchars(checklist_days_remaining((string) ($task['deadline'] ?? ''), $effective), ENT_QUOTES, 'UTF-8') ?></td>
                         <td class="task-status-cell"><div class="task-status-fill" data-status="<?= htmlspecialchars($statusKey, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($groups[$effective] ?? ($statuses[$effective] ?? $effective), ENT_QUOTES, 'UTF-8') ?></div></td>
-                        <td><button class="dtb-btn dtb-btn-secondary" type="button" data-task-open="<?= $taskId ?>">View</button></td>
+                        <td><button class="task-view-btn" type="button" data-task-open="<?= $taskId ?>"><svg class="task-view-btn-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="2.5" fill="none" stroke="currentColor" stroke-width="1.7"/></svg><span>View</span></button></td>
                     </tr>
                 <?php endforeach; ?>
                 <?php if (!$groupTasks): ?><tr class="dtb-empty-row"><td colspan="7">No tasks in this section.</td></tr><?php endif; ?>
@@ -1042,6 +1042,14 @@ function initialiseTaskSectionToggles() {
 document.addEventListener('DOMContentLoaded', initialiseTaskSectionToggles);
 
 document.addEventListener('click', (event) => {
+  const viewButton = event.target.closest('.task-view-btn');
+  if (viewButton) {
+    viewButton.classList.remove('is-clicked');
+    void viewButton.offsetWidth;
+    viewButton.classList.add('is-clicked');
+    window.setTimeout(() => viewButton.classList.remove('is-clicked'), 450);
+  }
+
   if (!event.target.closest('.portal-custom-select')) {
     document.querySelectorAll('.portal-custom-select.is-open').forEach((select) => {
       select.classList.remove('is-open');
