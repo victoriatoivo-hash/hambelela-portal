@@ -267,33 +267,115 @@ $assetVersion = is_file(BASE_PATH . '/assets/css/portal.css') ? (string) filemti
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') ?></title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal.css?v=<?= htmlspecialchars($assetVersion, ENT_QUOTES, 'UTF-8') ?>">
+    <style>.login-notice{margin:18px 0 0;padding:12px 14px;border:1px dashed rgba(171,54,25,.28);border-radius:11px;background:rgba(240,116,32,.04);color:var(--login-text-mid);font-size:12px;line-height:1.45;font-weight:400}</style>
 </head>
 <body class="login-page">
     <main class="login-card">
-        <p class="eyebrow">Hambelela Business Portal</p>
-        <h1>Sign in</h1>
-        <?php if ($error): ?><p class="ops-alert"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
-        <form method="post">
+        <header class="login-header">
+            <p class="login-eyebrow">Hambelela Business Portal</p>
+            <h1 class="login-title">Sign in</h1>
+            <p class="login-subtitle">Choose your staff profile and enter your private access code.</p>
+        </header>
+        <?php if ($error): ?><p class="login-alert" role="alert"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
+        <form method="post" class="login-form" id="login-form">
             <?php if (!$opsLoginReady): ?>
-                <p class="ops-alert">Temporary staff access is active.</p>
+                <p class="login-notice">Temporary staff access is active.</p>
             <?php endif; ?>
-            <label for="identity">Employee</label>
-            <select id="identity" name="identity" required>
-                <option value="">Choose your name</option>
-                <?php foreach ($loginEmployees as $employee): ?>
-                    <option value="db:<?= (int) $employee['id'] ?>"><?= htmlspecialchars($employee['full_name'], ENT_QUOTES, 'UTF-8') ?></option>
-                <?php endforeach; ?>
-                <?php if ($loginEmployees): ?><option value="" disabled>-- Local profiles --</option><?php endif; ?>
-                <?php foreach (local_login_accounts() as $key => [$name]): ?>
-                    <option value="local:<?= htmlspecialchars($key, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($name, ENT_QUOTES, 'UTF-8') ?></option>
-                <?php endforeach; ?>
-            </select>
-            <label for="code">Access code</label>
-            <input id="code" name="code" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="current-password" required>
-            <button type="submit">Continue</button>
+            <div class="login-field">
+                <label id="identity-label">Employee</label>
+                <div class="portal-custom-select" data-login-select>
+                    <input id="identity" type="hidden" name="identity" required>
+                    <button type="button" class="portal-custom-select-trigger" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="identity-label">
+                        <span class="portal-custom-select-value">Choose your name</span>
+                        <svg class="portal-custom-select-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7.5 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                    <div class="portal-custom-select-menu" role="listbox" tabindex="-1">
+                        <?php foreach ($loginEmployees as $employee): ?>
+                            <button type="button" class="portal-custom-select-option" role="option" data-value="db:<?= (int) $employee['id'] ?>" aria-selected="false"><?= htmlspecialchars($employee['full_name'], ENT_QUOTES, 'UTF-8') ?></button>
+                        <?php endforeach; ?>
+                        <?php foreach (local_login_accounts() as $key => [$name]): ?>
+                            <button type="button" class="portal-custom-select-option" role="option" data-value="local:<?= htmlspecialchars($key, ENT_QUOTES, 'UTF-8') ?>" aria-selected="false"><?= htmlspecialchars($name, ENT_QUOTES, 'UTF-8') ?></button>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            </div>
+            <div class="login-field">
+                <label for="code">Access code</label>
+                <div class="login-code-wrap">
+                    <input id="code" name="code" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="current-password" required>
+                    <button type="button" class="login-code-toggle" aria-label="Show access code" aria-pressed="false">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+                    </button>
+                </div>
+            </div>
+            <button type="submit" class="login-submit">Continue</button>
         </form>
-        <p class="login-help">Contact an administrator if you cannot access your account.</p>
+        <footer class="login-footer">Hambelela Business Portal<br>Authorised staff access only.</footer>
     </main>
+<script>
+(() => {
+  const select = document.querySelector('[data-login-select]');
+  const trigger = select.querySelector('.portal-custom-select-trigger');
+  const valueLabel = select.querySelector('.portal-custom-select-value');
+  const identity = select.querySelector('input[name="identity"]');
+  const options = Array.from(select.querySelectorAll('.portal-custom-select-option'));
+  const code = document.getElementById('code');
+  const toggle = document.querySelector('.login-code-toggle');
+  let activeIndex = -1;
+
+  const openMenu = () => {
+    select.classList.add('is-open');
+    trigger.setAttribute('aria-expanded', 'true');
+    activeIndex = Math.max(0, options.findIndex((option) => option.getAttribute('aria-selected') === 'true'));
+    options[activeIndex]?.focus();
+  };
+  const closeMenu = () => {
+    select.classList.remove('is-open');
+    trigger.setAttribute('aria-expanded', 'false');
+  };
+  const choose = (option) => {
+    options.forEach((item) => item.setAttribute('aria-selected', item === option ? 'true' : 'false'));
+    identity.value = option.dataset.value || '';
+    valueLabel.textContent = option.textContent || '';
+    code.value = '';
+    code.type = 'password';
+    toggle.setAttribute('aria-pressed', 'false');
+    toggle.setAttribute('aria-label', 'Show access code');
+    closeMenu();
+    trigger.focus();
+  };
+
+  trigger.addEventListener('click', () => select.classList.contains('is-open') ? closeMenu() : openMenu());
+  options.forEach((option, index) => {
+    option.addEventListener('click', () => choose(option));
+    option.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); choose(option); }
+      if (event.key === 'Escape') { event.preventDefault(); closeMenu(); trigger.focus(); }
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        activeIndex = event.key === 'ArrowDown' ? Math.min(options.length - 1, index + 1) : Math.max(0, index - 1);
+        options[activeIndex]?.focus();
+      }
+    });
+  });
+  document.addEventListener('click', (event) => { if (!select.contains(event.target)) closeMenu(); });
+  toggle.addEventListener('click', () => {
+    const showing = code.type === 'text';
+    code.type = showing ? 'password' : 'text';
+    toggle.setAttribute('aria-pressed', showing ? 'false' : 'true');
+    toggle.setAttribute('aria-label', showing ? 'Show access code' : 'Hide access code');
+    code.focus();
+  });
+  document.getElementById('login-form').addEventListener('submit', (event) => {
+    if (identity.value) return;
+    event.preventDefault();
+    openMenu();
+  });
+})();
+</script>
 </body>
 </html>
