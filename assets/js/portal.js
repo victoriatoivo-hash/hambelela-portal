@@ -7,14 +7,19 @@ function initialisePortalDatePickers(root = document) {
     const trigger = wrapper?.querySelector('.portal-date-trigger');
     const hiddenInput = document.querySelector(input.dataset.submitTarget || '');
     const enableTime = input.dataset.enableTime === 'true';
-    const storageFormat = enableTime ? 'Y-m-d H:i' : 'Y-m-d';
-    const displayFormat = enableTime ? 'd/m/Y h:i K' : 'd/m/Y';
+    const monthMode = input.dataset.monthMode === 'true';
+    const storageFormat = monthMode ? 'Y-m' : (enableTime ? 'Y-m-d H:i' : 'Y-m-d');
+    const displayFormat = monthMode ? 'F Y' : (enableTime ? 'd/m/Y h:i K' : 'd/m/Y');
     const initialValue = hiddenInput?.value || '';
     const defaultDate = initialValue
       ? window.flatpickr.parseDate(initialValue, storageFormat)
       : (enableTime ? new Date() : null);
     const syncValue = (selectedDates, instance) => {
-      if (hiddenInput) hiddenInput.value = selectedDates[0] ? instance.formatDate(selectedDates[0], storageFormat) : '';
+      if (!hiddenInput) return;
+      const nextValue = selectedDates[0] ? instance.formatDate(selectedDates[0], storageFormat) : '';
+      if (hiddenInput.value === nextValue) return;
+      hiddenInput.value = nextValue;
+      hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
     };
 
     const picker = window.flatpickr(input, {
@@ -37,6 +42,7 @@ function initialisePortalDatePickers(root = document) {
       },
       onChange(selectedDates, dateStr, instance) {
         syncValue(selectedDates, instance);
+        if (monthMode && selectedDates.length) instance.close();
       },
       onClose(selectedDates, dateStr, instance) {
         syncValue(selectedDates, instance);
@@ -47,8 +53,66 @@ function initialisePortalDatePickers(root = document) {
   });
 }
 
+function initialisePortalCustomSelects(root = document) {
+  root.querySelectorAll('select[data-portal-custom-select]:not([data-custom-select-ready])').forEach((nativeSelect, selectIndex) => {
+    nativeSelect.dataset.customSelectReady = 'true';
+    nativeSelect.classList.add('portal-custom-select-native');
+    const customSelect = document.createElement('div');
+    const menuId = `portal-select-${selectIndex}-${Math.random().toString(36).slice(2, 8)}`;
+    customSelect.className = 'portal-custom-select';
+    customSelect.innerHTML = `<button type="button" class="portal-custom-select-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="${menuId}"><span class="portal-custom-select-value"></span><svg class="portal-custom-select-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7.5 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="portal-custom-select-menu" id="${menuId}" role="listbox"></div>`;
+    nativeSelect.insertAdjacentElement('afterend', customSelect);
+    const trigger = customSelect.querySelector('.portal-custom-select-trigger');
+    const valueLabel = customSelect.querySelector('.portal-custom-select-value');
+    const menu = customSelect.querySelector('.portal-custom-select-menu');
+    const rebuild = () => {
+      menu.replaceChildren();
+      Array.from(nativeSelect.options).forEach((option, index) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'portal-custom-select-option';
+        button.role = 'option';
+        button.dataset.value = option.value;
+        button.textContent = option.textContent;
+        button.setAttribute('aria-selected', index === nativeSelect.selectedIndex ? 'true' : 'false');
+        button.addEventListener('click', () => {
+          nativeSelect.value = option.value;
+          nativeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+          sync();
+          setOpen(false);
+          trigger.focus();
+        });
+        menu.appendChild(button);
+      });
+    };
+    const sync = () => {
+      valueLabel.textContent = nativeSelect.selectedOptions[0]?.textContent || '';
+      menu.querySelectorAll('.portal-custom-select-option').forEach((button) => button.setAttribute('aria-selected', button.dataset.value === nativeSelect.value ? 'true' : 'false'));
+    };
+    const setOpen = (open) => {
+      document.querySelectorAll('.portal-custom-select.is-open').forEach((other) => { if (other !== customSelect) other.classList.remove('is-open'); });
+      customSelect.classList.toggle('is-open', open);
+      trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (open) menu.querySelector('[aria-selected="true"]')?.focus();
+    };
+    trigger.addEventListener('click', () => setOpen(!customSelect.classList.contains('is-open')));
+    trigger.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') setOpen(false);
+      if (event.key === 'ArrowDown') { event.preventDefault(); setOpen(true); }
+    });
+    nativeSelect.addEventListener('change', sync);
+    new MutationObserver(() => { rebuild(); sync(); }).observe(nativeSelect, { childList: true, subtree: true });
+    rebuild();
+    sync();
+  });
+}
+
 window.addEventListener('DOMContentLoaded', () => {
   initialisePortalDatePickers(document);
+  initialisePortalCustomSelects(document);
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('.portal-custom-select')) document.querySelectorAll('.portal-custom-select.is-open').forEach((select) => select.classList.remove('is-open'));
+  });
   if (window.lucide) {
     window.lucide.createIcons({ strokeWidth: 2 });
   }

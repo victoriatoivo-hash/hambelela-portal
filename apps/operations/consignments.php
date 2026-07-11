@@ -71,10 +71,14 @@ include BASE_PATH . '/shared/sidebar.php';
 
         <section class="work-filter-bar packing-filter-bar packing-toolbar" aria-label="Packing filters">
             <label>Date
-                <input data-packing-date type="text" value="" placeholder="All months or YYYY-MM" inputmode="numeric">
+                <div class="portal-date-field" data-portal-date-field>
+                    <input class="portal-date-input" type="text" placeholder="All months" autocomplete="off" data-month-mode="true" data-submit-target="#packing-date-value">
+                    <input id="packing-date-value" data-packing-date type="hidden" value="">
+                    <button type="button" class="portal-date-trigger" aria-label="Open month picker"><i data-lucide="calendar-days"></i></button>
+                </div>
             </label>
             <label>Priority
-                <select data-packing-filter="priority">
+                <select data-packing-filter="priority" data-portal-custom-select>
                     <option value="">All</option>
                     <option value="top_critical">Top Critical</option>
                     <option value="high">High</option>
@@ -83,7 +87,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 </select>
             </label>
             <label>Status
-                <select data-packing-filter="status">
+                <select data-packing-filter="status" data-portal-custom-select>
                     <option value="">All</option>
                     <option value="not_started">Not Started</option>
                     <option value="packing">Packing</option>
@@ -95,10 +99,10 @@ include BASE_PATH . '/shared/sidebar.php';
                 </select>
             </label>
             <label>Person
-                <select data-packing-filter="person"><option value="">All</option></select>
+                <select data-packing-filter="person" data-portal-custom-select><option value="">All</option></select>
             </label>
             <label>Group By
-                <select data-packing-group-select>
+                <select data-packing-group-select data-portal-custom-select>
                     <option value="month">Month</option>
                     <option value="priority">Priority</option>
                     <option value="person">Person</option>
@@ -106,7 +110,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 </select>
             </label>
             <label class="work-search">Search
-                <input data-packing-search type="search" placeholder="Search packing items...">
+                <input class="packing-search-input" data-packing-search type="search" placeholder="Search packing items...">
             </label>
             <div class="work-filter-actions">
                 <?php if ($canManage): ?>

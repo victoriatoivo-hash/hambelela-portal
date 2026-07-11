@@ -7552,6 +7552,33 @@ main.error-log-page {
   margin-bottom: 14px;
 }
 
+.packing-toolbar .portal-custom-select,
+.packing-toolbar .portal-date-field { width: 100%; min-width: 0; margin-top: 5px; }
+.packing-toolbar .portal-custom-select-trigger,
+.packing-toolbar .portal-date-input,
+.packing-toolbar .packing-search-input {
+  width: 100%;
+  height: 38px;
+  min-height: 38px;
+  border: 1px solid var(--pk-border, #EDE3D8);
+  border-radius: 10px;
+  background: #FFFFFF;
+  color: var(--pk-text, #1A1A1A);
+  font-family: Figtree, Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  box-sizing: border-box;
+}
+.packing-toolbar .portal-custom-select-trigger { padding: 0 12px; }
+.packing-toolbar .portal-date-input { padding: 0 38px 0 12px; }
+.packing-toolbar .packing-search-input { padding: 0 12px; margin-top: 5px; }
+.packing-toolbar .portal-custom-select-menu { z-index: 10050; border-color: var(--pk-border, #EDE3D8); }
+.packing-toolbar .portal-custom-select-option { min-height: 36px; color: var(--pk-text, #1A1A1A); font-size: 12px; font-weight: 400; }
+.packing-toolbar .portal-custom-select-option:hover,
+.packing-toolbar .portal-custom-select-option.is-active { background: rgba(240, 116, 32, .10); color: var(--pk-orange-red, #AB3619); }
+.packing-toolbar .portal-custom-select-option[aria-selected="true"] { background: rgba(171, 54, 25, .12); color: var(--pk-burgundy, #721B1A); font-weight: 600; }
+.packing-toolbar .portal-date-trigger { right: 5px; }
+
 .packing-board-shell {
   margin-top: 0;
   margin-bottom: 18px;
