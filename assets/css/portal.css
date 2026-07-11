@@ -4219,7 +4219,17 @@ textarea {
 .dtb-board-table thead th:last-child,
 .dtb-board-table tbody td:last-child { border-right: 0; }
 .dtb-board-table tbody tr:last-child td { border-bottom: 0; }
-.dtb-task-row:hover td { background: rgba(240, 116, 32, .035); }
+.digital-task-page .dtb-board-table tbody tr,
+.digital-task-page .dtb-history-table tbody tr { transition: background-color .18s ease, box-shadow .18s ease; }
+.digital-task-page .dtb-board-table tbody tr td,
+.digital-task-page .dtb-history-table tbody tr td { transition: background-color .18s ease; }
+.digital-task-page .dtb-task-row:hover td,
+.digital-task-page .dtb-history-row:hover td,
+.digital-task-page .dtb-history-row:focus td { background: rgba(253, 246, 238, .75); cursor: pointer; }
+.digital-task-page .dtb-task-row:hover .task-priority-fill,
+.digital-task-page .dtb-task-row:hover .task-status-fill { filter: brightness(1.02); }
+.digital-task-page .dtb-board-table tbody tr.dtb-empty-row:hover td,
+.digital-task-page .dtb-history-table tbody tr.dtb-empty-row:hover td { background: #FFFFFF; cursor: default; }
 .dtb-task-name { color: var(--task-text); font-size: 12px; font-weight: 500; }
 
 .digital-task-page .dtb-board-table tbody td.task-priority-cell,
@@ -4253,8 +4263,7 @@ textarea {
 .dtb-history-table td:last-child { border-right: 0; }
 .dtb-history-table tbody tr:last-child td { border-bottom: 0; }
 .dtb-history-row { cursor: pointer; }
-.dtb-history-row:hover td,
-.dtb-history-row:focus td { background: rgba(240, 116, 32, .035); }
+
 .dtb-history-row small { display: block; color: var(--task-text-light); font-size: 10px; font-weight: 400; }
 
 @media (max-width: 1250px) {
