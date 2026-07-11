@@ -78,7 +78,7 @@
   }
 
   const baseColumns = [
-    { key: 'select', label: '', className: 'check-cell col-checkbox', width: 38 },
+    { key: 'select', label: '', className: 'check-cell col-checkbox', width: 42 },
     { key: 'item', label: 'ITEM', className: 'col-item', width: 235 },
     { key: 'notes', label: 'NOTES', className: 'col-notes comment-cell', width: 64, title: 'Open notes and full details' },
     { key: 'date_loaded', label: 'DATE LOADED', className: 'col-dateloaded', width: 130 },
@@ -116,7 +116,8 @@
   }
 
   function columnWidth(column) {
-    const minWidth = column.key === 'select' ? 38 : column.key === 'add' ? 48 : 58;
+    const minWidth = column.key === 'select' ? 42 : column.key === 'add' ? 48 : 58;
+    if (column.key === 'select') return 42;
     return Math.max(minWidth, Number(columnWidths[column.key] || column.width || minWidth));
   }
 
