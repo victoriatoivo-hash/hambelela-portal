@@ -607,7 +607,7 @@
 }
 
 .packing-page-v2 .packing-date-group {
-    --col-select: 42px;
+    --col-select: 38px;
     --col-item: 235px;
     --col-notes: 64px;
     --col-date-loaded: 130px;
@@ -1221,16 +1221,53 @@
 
 .packing-list-page .packing-row-checkbox,
 .packing-list-page .packing-select-all-checkbox {
-    appearance: auto;
+    appearance: none;
     width: 14px;
     height: 14px;
     min-width: 14px;
     min-height: 14px;
     margin: 0;
     padding: 0;
-    accent-color: #AB3619;
+    display: inline-grid;
+    place-content: center;
+    border: 1px solid rgba(171, 54, 25, .28);
+    border-radius: 2px;
+    background: #fff;
     cursor: pointer;
     box-sizing: border-box;
+    transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease;
+}
+
+.packing-list-page .packing-row-checkbox:hover,
+.packing-list-page .packing-select-all-checkbox:hover {
+    border-color: #AB3619;
+    box-shadow: 0 0 0 2px rgba(171, 54, 25, .08);
+}
+
+.packing-list-page .packing-row-checkbox:checked,
+.packing-list-page .packing-select-all-checkbox:checked,
+.packing-list-page .packing-select-all-checkbox:indeterminate {
+    border-color: #AB3619;
+    background: #AB3619;
+}
+
+.packing-list-page .packing-row-checkbox:checked::after,
+.packing-list-page .packing-select-all-checkbox:checked::after {
+    content: "";
+    width: 7px;
+    height: 4px;
+    border-left: 1.8px solid #fff;
+    border-bottom: 1.8px solid #fff;
+    transform: rotate(-45deg) translateY(-1px);
+    transform-origin: center;
+}
+
+.packing-list-page .packing-select-all-checkbox:indeterminate::after {
+    content: "";
+    width: 7px;
+    height: 2px;
+    border-radius: 999px;
+    background: #fff;
 }
 
 .packing-list-page .packing-board-table thead th:last-child,

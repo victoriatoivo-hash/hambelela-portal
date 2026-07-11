@@ -78,7 +78,7 @@
   }
 
   const baseColumns = [
-    { key: 'select', label: '', className: 'check-cell col-checkbox', width: 42 },
+    { key: 'select', label: '', className: 'check-cell col-checkbox', width: 38 },
     { key: 'item', label: 'ITEM', className: 'col-item', width: 235 },
     { key: 'notes', label: 'NOTES', className: 'col-notes comment-cell', width: 64, title: 'Open notes and full details' },
     { key: 'date_loaded', label: 'DATE LOADED', className: 'col-dateloaded', width: 130 },
@@ -116,8 +116,8 @@
   }
 
   function columnWidth(column) {
-    const minWidth = column.key === 'select' ? 42 : column.key === 'add' ? 48 : 58;
-    if (column.key === 'select') return 42;
+    const minWidth = column.key === 'select' ? 38 : column.key === 'add' ? 48 : 58;
+    if (column.key === 'select') return 38;
     return Math.max(minWidth, Number(columnWidths[column.key] || column.width || minWidth));
   }
 
@@ -555,7 +555,7 @@
       { bg: '#fff3e0', text: '#b85c00', border: '#f5c07a' },
       { bg: '#f3fae0', text: '#5a7a00', border: '#c8e066' },
       { bg: '#fdf0eb', text: '#ab3619', border: '#f0c4b0' },
-      { bg: '#f8f0ff', text: '#6c3db0', border: '#d4b8f5' },
+      { bg: '#fdf0eb', text: '#721B1A', border: '#e6b8ad' },
       { bg: '#e8f8f0', text: '#1a7a4a', border: '#90dbb5' },
     ];
     body.querySelectorAll('tr').forEach((row) => {
@@ -1205,7 +1205,7 @@
 
     const addRow = currentUser.can_manage
       ? `<tr class="add-task-row">
-          <td data-column-key="select"></td>
+          <td class="packing-grid-cell--select packing-add-row-select" data-column-key="select"></td>
           <td data-column-key="item"><button type="button" data-open-packing-create>+ Add item</button></td>
           <td data-column-key="notes"></td>
           <td data-column-key="date_loaded"></td>
@@ -1259,7 +1259,7 @@
             </tbody>
             <tfoot>
               <tr class="packing-summary-row summary-row">
-                <td data-column-key="select"></td>
+                <td class="packing-grid-cell--select" data-column-key="select"></td>
                 <td data-column-key="item"><span class="summary-pill">${esc(groupLabel(key))}</span></td>
                 <td data-column-key="notes"></td>
                 <td data-column-key="date_loaded"></td>
