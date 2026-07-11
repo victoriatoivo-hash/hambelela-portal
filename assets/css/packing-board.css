@@ -426,7 +426,7 @@
 .packing-page-v2 .packing-btn,
 .packing-page-v2 .packing-icon-btn,
 .packing-page-v2 .packing-actions button,
-.packing-page-v2 .packing-toolbar button,
+.packing-page-v2 .packing-toolbar button:not(.portal-custom-select-trigger):not(.portal-custom-select-option):not(.portal-date-trigger),
 .packing-page-v2 .board-empty-actions button {
     display: inline-flex;
     align-items: center;
@@ -450,7 +450,7 @@
 .packing-page-v2 .packing-btn:hover,
 .packing-page-v2 .packing-icon-btn:hover,
 .packing-page-v2 .packing-actions button:hover,
-.packing-page-v2 .packing-toolbar button:hover,
+.packing-page-v2 .packing-toolbar button:not(.portal-custom-select-trigger):not(.portal-custom-select-option):not(.portal-date-trigger):hover,
 .packing-page-v2 .board-empty-actions button:hover {
     border-color: var(--pk-orange-red);
     transform: translateY(-1px);
@@ -1255,9 +1255,4 @@
 
 .packing-page-v2 .packing-month-scroll .packing-date-body {
     overflow: visible;
-}
-.packing-list-page .packing-toolbar .portal-custom-select-option {
-  min-height: 36px;
-  font-size: 12px;
-  font-weight: 400;
 }
