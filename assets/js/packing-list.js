@@ -6,6 +6,8 @@
   const panel = document.getElementById('packing-panel');
   const backdrop = document.getElementById('packing-backdrop');
   const panelTitle = document.getElementById('packing-panel-title');
+  const panelItemId = document.getElementById('packing-panel-item-id');
+  const panelSource = document.getElementById('packing-panel-source');
   const panelNotes = document.getElementById('packing-panel-notes');
   const panelActivity = document.getElementById('packing-panel-activity');
   const selectAll = document.querySelector('[data-packing-select-all]');
@@ -1555,30 +1557,44 @@
     currentTask = tasks.find((task) => String(task.id) === String(taskId));
     if (!currentTask) return;
     panelTitle.textContent = currentTask.item_name;
+    if (panelItemId) panelItemId.textContent = currentTask.monday_item_id ? `Monday item #${currentTask.monday_item_id}` : `Portal item #${currentTask.id}`;
+    if (panelSource) panelSource.textContent = currentTask.monday_item_id ? 'Created from Monday sync' : 'Created in the portal';
     panelNotes.value = currentTask.notes || '';
     const canEditOwn = canEditTask(currentTask);
     panelNotes.disabled = !canEditOwn;
     document.querySelectorAll('[data-packing-save-notes]').forEach((button) => { button.disabled = !canEditOwn; });
+    document.querySelectorAll('[data-packing-panel-tab]').forEach((button) => {
+      const active = button.dataset.packingPanelTab === 'details';
+      button.classList.toggle('active', active);
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    document.querySelectorAll('[data-packing-panel-name]').forEach((section) => section.classList.toggle('active', section.dataset.packingPanelName === 'details'));
+    const infoCard = (label, value) => `<article class="packing-item-info-card"><span class="packing-item-info-label">${esc(label)}</span><span class="packing-item-info-value">${esc(value || 'Not entered')}</span></article>`;
     panelActivity.innerHTML = `
-      <div class="packing-detail-grid">
-        <div><span>Item</span><strong>${esc(currentTask.item_name || '')}</strong></div>
-        <div><span>Received</span><strong>${esc(currentTask.received_weight || 'Not entered')}</strong></div>
-        <div><span>Quantity to pack</span><strong>${esc(currentTask.quantity_planned || 'Not entered')}</strong></div>
-        <div><span>Quantity packed</span><strong>${esc(currentTask.quantity_packed || 'Not entered')}</strong></div>
-        <div><span>Assigned</span><strong>${esc(currentTask.assigned_name || 'Unassigned')}</strong></div>
-        <div><span>Status</span><strong>${esc(labelText(statuses, currentTask.packing_status || 'not_started'))}</strong></div>
-        <div><span>Website inventory</span><strong>${Number(currentTask.website_uploaded || 0) === 1 ? 'Complete' : 'Pending'}</strong></div>
-        <div><span>Website inventory time</span><strong>${currentTask.website_uploaded_at ? esc(formatDate(currentTask.website_uploaded_at)) : '-'}</strong></div>
-        <div><span>Packing website confirmed</span><strong>${Number(currentTask.packing_website_confirmed || 0) === 1 ? 'Yes' : 'No'}</strong></div>
-        <div><span>Date loaded</span><strong>${esc(formatDate(currentTask.date_loaded))}</strong></div>
-        <div><span>Date completed</span><strong>${esc(formatDate(currentTask.date_completed) || 'Not complete')}</strong></div>
-        <div><span>Time taken</span><strong>${esc(duration(currentTask.date_started || currentTask.date_loaded, currentTask.date_completed) || 'Not complete')}</strong></div>
-        <div><span>Workload</span><strong>${esc(currentTask.workload_points || '')}</strong></div>
-        <div><span>Monday sync</span><strong>${esc(String(currentTask.monday_sync_status || 'not_synced').replace(/_/g, ' '))}</strong></div>
-        <div><span>Monday item</span><strong>${esc(currentTask.monday_item_id || 'Not synced')}</strong></div>
-        ${currentTask.monday_sync_error ? `<div class="packing-detail-wide"><span>Sync error</span><strong>${esc(currentTask.monday_sync_error)}</strong></div>` : ''}
-      </div>
-    `;
+      <section class="packing-item-section"><h2 class="packing-item-section-title">Packing information</h2><div class="packing-item-info-grid">
+        ${infoCard('Item', currentTask.item_name)}${infoCard('Received', currentTask.received_weight)}${infoCard('Quantity to pack', currentTask.quantity_planned)}${infoCard('Quantity packed', currentTask.quantity_packed)}
+      </div></section>
+      <section class="packing-item-section"><h2 class="packing-item-section-title">Assignment and status</h2><div class="packing-item-form-grid">
+        <div class="packing-item-field"><label>Assigned</label><div class="packing-item-control">${renderPerson(currentTask)}</div></div>
+        <div class="packing-item-field"><label>Packing status</label><div class="packing-item-control">${renderPackingStatus(currentTask, canEditOwn)}</div></div>
+        <div class="packing-item-field"><label>Website inventory</label><div class="packing-item-control">${renderCheck(currentTask, 'website_uploaded', canEditOwn)}</div></div>
+        <div class="packing-item-field"><label>Packing website confirmed</label><div class="packing-item-control">${renderCheck(currentTask, 'packing_website_confirmed', canEditOwn)}</div></div>
+      </div></section>
+      <section class="packing-item-section"><h2 class="packing-item-section-title">Dates and timing</h2><div class="packing-item-form-grid">
+        <div class="packing-item-field"><label>Date loaded</label>${renderPackingDate(currentTask, 'date_loaded', canEditOwn)}</div>
+        <div class="packing-item-field"><label>Date completed</label>${renderPackingDate(currentTask, 'date_completed', canEditOwn)}</div>
+      </div></section>
+      <section class="packing-item-section"><h2 class="packing-item-section-title">Performance</h2><div class="packing-item-info-grid">
+        ${infoCard('Time taken', duration(currentTask.date_started || currentTask.date_loaded, currentTask.date_completed) || 'Not complete')}${infoCard('Workload', currentTask.workload_points)}
+      </div></section>
+      <section class="packing-item-section"><h2 class="packing-item-section-title">Monday sync</h2><div class="packing-monday-sync-row">
+        <div><span class="packing-item-info-label">Sync status</span><strong>${esc(String(currentTask.monday_sync_status || 'not_synced').replace(/_/g, ' '))}</strong></div>
+        <div><span class="packing-item-info-label">Monday item</span><strong>${esc(currentTask.monday_item_id || 'Not synced')}</strong></div>
+        ${currentTask.monday_sync_error ? `<div class="packing-detail-wide"><span class="packing-item-info-label">Sync error</span><strong>${esc(currentTask.monday_sync_error)}</strong></div>` : ''}
+      </div></section>`;
+    if (typeof window.initialisePortalDatePickers === 'function') window.initialisePortalDatePickers(panelActivity);
+    if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
     panel.classList.add('open');
     panel.setAttribute('aria-hidden', 'false');
     backdrop.hidden = false;
@@ -2141,6 +2157,7 @@
         await updateTasksField(ids, field, nextValue);
         closeLabel();
         render();
+        if (currentTask && ids.includes(String(currentTask.id)) && panel.classList.contains('open')) openPanel(currentTask.id);
         completedIds.forEach((id) => playPackingStatusConfetti(document.querySelector(`[data-packing-status-cell][data-item-id="${CSS.escape(String(id))}"]`)));
         return;
       }
@@ -2148,21 +2165,24 @@
         const ids = selectedIdsFor(check.dataset.taskId);
         await updateTasksField(ids, check.dataset.packingCheck, check.checked ? '1' : '0');
         render();
+        if (currentTask && ids.includes(String(currentTask.id)) && panel.classList.contains('open')) openPanel(currentTask.id);
         return;
       }
       if (panelButton) { openPanel(panelButton.dataset.packingOpenPanel); return; }
       if (panelClose || event.target === backdrop) { closePanel(); return; }
       if (tab) {
-        document.querySelectorAll('[data-packing-panel-tab]').forEach((button) => button.classList.remove('active'));
+        document.querySelectorAll('[data-packing-panel-tab]').forEach((button) => { button.classList.remove('active', 'is-active'); button.setAttribute('aria-selected', 'false'); });
         document.querySelectorAll('[data-packing-panel-name]').forEach((section) => section.classList.remove('active'));
-        tab.classList.add('active');
+        tab.classList.add('active', 'is-active');
+        tab.setAttribute('aria-selected', 'true');
         document.querySelector(`[data-packing-panel-name="${tab.dataset.packingPanelTab}"]`)?.classList.add('active');
         return;
       }
       if (saveNotes && currentTask) {
         await updateTasksField([String(currentTask.id)], 'notes', panelNotes.value);
-        closePanel();
         render();
+        saveNotes.textContent = 'Saved';
+        window.setTimeout(() => { saveNotes.textContent = 'Save notes'; }, 1200);
         return;
       }
       if (expandNote) { expandNote.closest('.notes-cell')?.classList.toggle('is-expanded'); return; }
@@ -2200,6 +2220,7 @@
         await updateTasksField([String(packingDate.dataset.taskId)], packingDate.dataset.packingDateValue, packingDate.value);
         const task = tasks.find((item) => String(item.id) === String(packingDate.dataset.taskId));
         if (task) task[packingDate.dataset.packingDateValue] = packingDate.value;
+        if (currentTask && String(currentTask.id) === String(packingDate.dataset.taskId) && panel.classList.contains('open')) openPanel(currentTask.id);
         setCount('Packing date updated.');
       } catch (error) {
         setCount(error.message || 'Unable to save packing date.');

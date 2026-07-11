@@ -140,25 +140,42 @@ include BASE_PATH . '/shared/sidebar.php';
 
     <div class="label-menu" id="packing-label-menu" hidden></div>
     <div class="toolbar-popover" id="packing-popover" hidden></div>
-    <aside class="order-updates-panel" id="packing-panel" aria-hidden="true">
-        <div class="updates-panel-head">
-            <button type="button" data-packing-panel-close><i data-lucide="x"></i></button>
-            <h2 id="packing-panel-title">Packing item</h2>
-        </div>
-        <nav class="updates-tabs">
-            <button class="active" type="button" data-packing-panel-tab="details"><i data-lucide="home"></i> Details</button>
-            <button type="button" data-packing-panel-tab="files">Files</button>
-        </nav>
-        <section class="updates-tab-panel active" data-packing-panel-name="details">
-            <div class="update-composer">
-                <textarea id="packing-panel-notes" placeholder="Quantity differences, label issues, stock notes"></textarea>
-                <div><button type="button" data-packing-save-notes>Update</button></div>
+    <aside class="order-updates-panel packing-item-panel" id="packing-panel" aria-hidden="true">
+        <header class="packing-item-panel-header">
+            <button type="button" class="packing-item-close" data-packing-panel-close aria-label="Close item details"><i data-lucide="x"></i></button>
+            <div class="packing-item-heading">
+                <p class="packing-item-kicker">Packing Item</p>
+                <h1 class="packing-item-title" id="packing-panel-title">Packing item</h1>
+                <div class="packing-item-header-meta">
+                    <span id="packing-panel-item-id">Portal item</span>
+                    <span id="packing-panel-source">Packing list</span>
+                </div>
             </div>
-            <div id="packing-panel-activity" class="activity-log"></div>
+        </header>
+        <nav class="packing-item-tabs" role="tablist">
+            <button class="packing-item-tab active is-active" type="button" role="tab" aria-selected="true" data-packing-panel-tab="details"><i data-lucide="layout-list"></i> Details</button>
+            <button class="packing-item-tab" type="button" role="tab" aria-selected="false" data-packing-panel-tab="files"><i data-lucide="paperclip"></i> Files</button>
+        </nav>
+        <section class="updates-tab-panel packing-item-panel-body active" data-packing-panel-name="details">
+            <section class="packing-item-section packing-item-notes-section">
+                <div class="packing-item-section-header">
+                    <div>
+                        <h2 class="packing-item-section-title">Notes</h2>
+                        <p class="packing-item-section-subtitle">Add packing instructions, corrections or internal notes.</p>
+                    </div>
+                </div>
+                <textarea class="packing-item-notes-input" id="packing-panel-notes" rows="4" placeholder="Quantity differences, label issues, stock notes"></textarea>
+                <div class="packing-item-section-actions"><button type="button" class="pk-btn pk-btn--primary" data-packing-save-notes>Save notes</button></div>
+            </section>
+            <div id="packing-panel-activity" class="packing-item-activity"></div>
         </section>
-        <section class="updates-tab-panel" data-packing-panel-name="files">
-            <label class="file-drop">Upload invoice, labels or product photos<input type="file"></label>
-            <div class="activity-line">File storage will be linked in the next storage step.</div>
+        <section class="updates-tab-panel packing-item-panel-body" data-packing-panel-name="files">
+            <section class="packing-item-section">
+                <h2 class="packing-item-section-title">Files</h2>
+                <p class="packing-item-section-subtitle">Upload invoices, labels or product photos for this packing item.</p>
+                <label class="packing-item-file-drop"><i data-lucide="upload-cloud"></i><span>Choose a file</span><input type="file" accept="image/png,image/jpeg,image/webp,application/pdf"></label>
+                <p class="packing-item-file-note">File storage will be linked in the next storage step.</p>
+            </section>
         </section>
     </aside>
     <div class="panel-backdrop" id="packing-backdrop" hidden></div>
