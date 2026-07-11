@@ -78,17 +78,17 @@
   }
 
   const baseColumns = [
-    { key: 'select', label: '', className: 'check-cell col-checkbox', width: 38 },
+    { key: 'select', label: '', className: 'check-cell col-checkbox', width: 40 },
     { key: 'item', label: 'ITEM', className: 'col-item', width: 235 },
     { key: 'notes', label: 'NOTES', className: 'col-notes comment-cell', width: 64, title: 'Open notes and full details' },
     { key: 'date_loaded', label: 'DATE LOADED', className: 'col-dateloaded', width: 130 },
-    { key: 'priority', label: 'PRIORITY', className: 'col-priority', width: 130 },
-    { key: 'quantity_to_pack', label: 'QUANTITY', className: 'col-qty', width: 145 },
-    { key: 'person', label: 'PERSON RESPO...', className: 'col-person', width: 170, title: 'Person responsible' },
+    { key: 'priority', label: 'PRIORITY', className: 'col-priority', width: 140 },
+    { key: 'quantity_to_pack', label: 'QUANTITY', className: 'col-qty', width: 150 },
+    { key: 'person', label: 'PERSON RESPO...', className: 'col-person', width: 200, title: 'Person responsible' },
     { key: 'quantity_packed', label: 'QUANTITY PACKED', className: 'col-qtypacked', width: 150 },
     { key: 'date_completed', label: 'DATE COMPLETED', className: 'col-datecompleted', width: 150 },
-    { key: 'website_uploaded', label: 'WE...', className: 'col-webinv', width: 125, title: 'Front desk confirms quantity-to-pack has been updated on the website' },
-    { key: 'status', label: 'PACKING STATUS', className: 'col-packstatus', width: 125 },
+    { key: 'website_uploaded', label: 'WE...', className: 'col-webinv', width: 140, title: 'Front desk confirms quantity-to-pack has been updated on the website' },
+    { key: 'status', label: 'PACKING STATUS', className: 'col-packstatus', width: 130 },
     { key: 'text', label: 'TEXT', className: 'col-text', width: 220 },
     { key: 'add', label: '+', className: 'add-column-cell col-add-btn', width: 48 }
   ];
@@ -120,8 +120,26 @@
     return Math.max(minWidth, Number(columnWidths[column.key] || column.width || minWidth));
   }
 
+  function packingColumnClass(key) {
+    return ({
+      select: 'col-check',
+      item: 'col-item',
+      notes: 'col-notes',
+      date_loaded: 'col-date-loaded',
+      priority: 'col-priority',
+      quantity_to_pack: 'col-qty-pack',
+      person: 'col-person',
+      quantity_packed: 'col-packed',
+      date_completed: 'col-date-completed',
+      website_uploaded: 'col-website',
+      status: 'col-status',
+      text: 'col-text',
+      add: 'col-add'
+    })[key] || 'col-custom';
+  }
+
   function renderColGroup() {
-    return `<colgroup>${columnDefinitions().map((column) => `<col data-column-key="${esc(column.key)}" style="width:${columnWidth(column)}px">`).join('')}</colgroup>`;
+    return `<colgroup>${columnDefinitions().map((column) => `<col class="${packingColumnClass(column.key)}" data-column-key="${esc(column.key)}" style="width:${columnWidth(column)}px">`).join('')}</colgroup>`;
   }
 
   function renderTableHeader() {
@@ -1206,7 +1224,7 @@
           </div>
         </header>
         <div class="packing-date-body packing-group-table-wrap">
-          <table class="packing-table packing-group-table">
+          <table class="packing-board-table packing-group-table">
             ${renderColGroup()}
             ${renderTableHeader()}
             <tbody>
