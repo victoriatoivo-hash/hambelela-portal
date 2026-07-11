@@ -149,7 +149,7 @@
         <tr>
           ${columnDefinitions().map((column) => {
             if (column.key === 'select') {
-              return `<th class="${esc(column.className)}" data-column-key="${esc(column.key)}"><input type="checkbox" data-packing-select-all></th>`;
+              return `<th class="${esc(column.className)} packing-grid-cell--select" data-column-key="${esc(column.key)}"><input class="packing-select-all-checkbox" type="checkbox" data-packing-select-all></th>`;
             }
             if (column.key === 'add') {
               return `<th class="${esc(column.className)}" data-column-key="${esc(column.key)}"><button type="button" data-add-packing-column>+</button></th>`;
@@ -192,6 +192,7 @@
     document.querySelectorAll('.packing-group-table').forEach((table) => {
       columnDefinitions().forEach((column) => {
         const width = columnWidth(column);
+        if (column.key === 'select') return;
         const selector = `[data-column-key="${columnKeySelector(column.key)}"]`;
         table.querySelectorAll(selector).forEach((cell) => {
           cell.style.setProperty('width', `${width}px`, 'important');
@@ -1184,7 +1185,7 @@
         : renderStaticLabel(task.packing_status || 'not_started', statuses);
       return `
         <tr data-task-id="${esc(task.id)}" class="packing-board-row board-row ${!previousTaskIds.has(String(task.id)) && hasRenderedOnce ? 'row-new' : ''} ${selected.has(String(task.id)) ? 'is-selected' : ''}">
-          <td class="check-cell col-checkbox" data-column-key="select"><input type="checkbox" data-packing-row-select="${esc(task.id)}" ${selected.has(String(task.id)) ? 'checked' : ''}></td>
+          <td class="check-cell col-checkbox packing-grid-cell--select" data-column-key="select"><input class="packing-row-checkbox" type="checkbox" data-packing-row-select="${esc(task.id)}" ${selected.has(String(task.id)) ? 'checked' : ''}></td>
           <td class="task-cell col-item" data-column-key="item">${esc(task.item_name)}</td>
           <td class="notes-cell col-notes" data-column-key="notes"><button type="button" title="Open notes" data-packing-open-panel="${esc(task.id)}"><i data-lucide="message-circle-plus"></i></button></td>
           <td class="col-dateloaded packing-editable-date-cell" data-column-key="date_loaded">${renderPackingDate(task, 'date_loaded', currentUser.can_manage)}</td>
@@ -1227,7 +1228,7 @@
         <div class="packing-month-inner">
         <header class="packing-date-header packing-month-header">
           <div class="packing-date-cell packing-date-cell--toggle packing-month-toggle-cell">
-            <button type="button" class="packing-group-toggle" data-packing-collapse aria-label="Collapse group" aria-expanded="true">
+            <button type="button" class="packing-group-toggle packing-month-toggle" data-packing-collapse aria-label="Collapse group" aria-expanded="true">
               <i class="group-chevron chevron" data-lucide="chevron-down"></i>
             </button>
           </div>

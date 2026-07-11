@@ -56,8 +56,8 @@
     font-size: 13px !important;
 }
 
-.packing-list-page .packing-board-table th,
-.packing-list-page .packing-board-table td {
+.packing-list-page .packing-board-table th:not([data-column-key="select"]),
+.packing-list-page .packing-board-table td:not([data-column-key="select"]) {
     border: 1px solid var(--board-grid) !important;
     height: 36px !important;
     min-height: 36px !important;
@@ -90,13 +90,6 @@
 
 .packing-list-page .packing-board-table tr.is-selected td {
     background: var(--board-selected) !important;
-}
-
-.packing-list-page .packing-board-table .col-checkbox {
-    width: 38px !important;
-    min-width: 38px !important;
-    max-width: 38px !important;
-    padding: 0 !important;
 }
 
 .packing-list-page .packing-board-table .col-item {
@@ -179,15 +172,6 @@
     padding: 0 8px !important;
     font-size: 13px !important;
     text-align: inherit !important;
-}
-
-.packing-list-page .packing-board-table input[type="checkbox"] {
-    width: 16px !important;
-    height: 16px !important;
-    min-height: 16px !important;
-    border: 1px solid #c8d0df !important;
-    border-radius: 2px !important;
-    background: #fff !important;
 }
 
 .packing-list-page .notes-button,
@@ -683,11 +667,19 @@
 
 .packing-page-v2 .packing-date-cell--toggle {
     grid-column: 1;
+    width: var(--col-select);
+    min-width: var(--col-select);
+    max-width: var(--col-select);
+    height: 35px;
+    min-height: 35px;
+    padding: 0;
+    display: flex;
     align-items: center;
-    padding: 0 0 0 5px;
+    justify-content: center;
     position: relative;
     z-index: 2;
     background: #fff;
+    box-sizing: border-box;
 }
 
 .packing-page-v2 .packing-empty-panel .board-empty-actions button {
@@ -719,6 +711,9 @@
 .packing-page-v2 .packing-group-toggle {
     width: 28px;
     height: 28px;
+    min-width: 28px;
+    min-height: 28px;
+    margin: 0;
     padding: 0;
     display: inline-flex;
     align-items: center;
@@ -906,13 +901,6 @@
 
 .packing-page-v2 .packing-group-table .add-row td {
     background: #fff !important;
-}
-
-.packing-page-v2 .packing-group-table input[type="checkbox"] {
-    width: 14px;
-    height: 14px;
-    accent-color: var(--pk-orange-red);
-    cursor: pointer;
 }
 
 .packing-page-v2 .packing-group-table input,
@@ -1152,7 +1140,6 @@
     background: #FFFFFF !important;
 }
 
-.packing-list-page .packing-board-table [data-column-key="select"] { width: 42px !important; min-width: 42px !important; max-width: 42px !important; }
 .packing-list-page .packing-board-table [data-column-key="item"] { width: 235px !important; min-width: 235px !important; max-width: 235px !important; }
 .packing-list-page .packing-board-table [data-column-key="notes"] { width: 64px !important; min-width: 64px !important; max-width: 64px !important; }
 .packing-list-page .packing-board-table [data-column-key="date_loaded"] { width: 130px !important; min-width: 130px !important; max-width: 130px !important; }
@@ -1167,32 +1154,7 @@
 .packing-list-page .packing-board-table [data-column-key^="custom_"] { width: 140px !important; min-width: 140px !important; max-width: 140px !important; }
 .packing-list-page .packing-board-table [data-column-key="add"] { width: 48px !important; min-width: 48px !important; max-width: 48px !important; }
 
-.packing-list-page .packing-board-table th[data-column-key="select"],
-.packing-list-page .packing-board-table td[data-column-key="select"] {
-    position: relative;
-    z-index: 2;
-    padding: 0 0 0 5px !important;
-    text-align: center !important;
-    vertical-align: middle !important;
-    background: #fff;
-    box-sizing: border-box;
-}
-
-.packing-list-page .packing-board-table th[data-column-key="select"] input[type="checkbox"],
-.packing-list-page .packing-board-table td[data-column-key="select"] input[type="checkbox"] {
-    width: 14px !important;
-    height: 14px !important;
-    min-width: 14px !important;
-    min-height: 14px !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    vertical-align: middle;
-    accent-color: #AB3619;
-    cursor: pointer;
-    box-sizing: border-box;
-}
-
-.packing-list-page .packing-board-table thead th {
+.packing-list-page .packing-board-table thead th:not([data-column-key="select"]) {
     height: 35px !important;
     min-height: 35px !important;
     padding: 0 10px !important;
@@ -1217,7 +1179,7 @@
     transition: background-color .18s ease !important;
 }
 
-.packing-list-page .packing-board-table tbody td {
+.packing-list-page .packing-board-table tbody td:not([data-column-key="select"]) {
     height: 35px !important;
     min-height: 35px !important;
     padding: 0 10px !important;
@@ -1236,6 +1198,39 @@
     overflow: hidden !important;
     text-overflow: ellipsis !important;
     box-sizing: border-box !important;
+}
+
+/* Single select-column component shared by the table header and every row. */
+.packing-list-page .packing-board-table .packing-grid-cell--select {
+    width: var(--col-select);
+    min-width: var(--col-select);
+    max-width: var(--col-select);
+    height: 35px;
+    min-height: 35px;
+    padding: 0;
+    position: relative;
+    z-index: 2;
+    border: 0;
+    border-right: 1px solid var(--pk-border, var(--board-grid));
+    border-bottom: 1px solid var(--pk-border, var(--board-grid));
+    background: #fff;
+    text-align: center;
+    vertical-align: middle;
+    box-sizing: border-box;
+}
+
+.packing-list-page .packing-row-checkbox,
+.packing-list-page .packing-select-all-checkbox {
+    appearance: auto;
+    width: 14px;
+    height: 14px;
+    min-width: 14px;
+    min-height: 14px;
+    margin: 0;
+    padding: 0;
+    accent-color: #AB3619;
+    cursor: pointer;
+    box-sizing: border-box;
 }
 
 .packing-list-page .packing-board-table thead th:last-child,
