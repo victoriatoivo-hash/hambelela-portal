@@ -45,7 +45,7 @@ include BASE_PATH . '/shared/sidebar.php';
         </form>
     </header>
 
-    <section class="panel notification-page-list">
+    <section class="notifications-list">
         <?php if (!$items): ?>
             <p>No notifications yet.</p>
         <?php endif; ?>
@@ -53,14 +53,20 @@ include BASE_PATH . '/shared/sidebar.php';
             <?php
                 $link = (string) ($item['action_link'] ?? '');
                 $tag = strtolower((string) ($item['priority'] ?? 'normal'));
+                $module = strtolower((string) ($item['module'] ?? 'system'));
+                $category = str_contains($module, 'order') ? 'orders' : (str_contains($module, 'pack') ? 'packing' : (str_contains($module, 'task') ? 'tasks' : (str_contains($module, 'book') || str_contains($module, 'cash') ? 'bookkeeping' : (str_contains($module, 'error') ? 'errors' : 'system'))));
+                $createdAt = (string) ($item['created_at'] ?? '');
+                $createdTs = $createdAt !== '' ? strtotime($createdAt) : false;
             ?>
-            <a class="notification-page-item <?= empty($item['read_at']) ? 'is-unread' : '' ?>" href="<?= htmlspecialchars($link ?: '#', ENT_QUOTES, 'UTF-8') ?>">
-                <span class="notification-priority <?= htmlspecialchars($tag, ENT_QUOTES, 'UTF-8') ?>"></span>
-                <span>
-                    <strong><?= htmlspecialchars((string) ($item['title'] ?? 'Notification'), ENT_QUOTES, 'UTF-8') ?></strong>
-                    <small><?= htmlspecialchars((string) ($item['message'] ?? ''), ENT_QUOTES, 'UTF-8') ?></small>
-                    <em><?= htmlspecialchars((string) ($item['module'] ?? 'system'), ENT_QUOTES, 'UTF-8') ?> - <?= htmlspecialchars((string) ($item['created_at'] ?? ''), ENT_QUOTES, 'UTF-8') ?></em>
+            <a class="notification-row <?= empty($item['read_at']) ? 'is-unread' : 'is-read' ?>" data-category="<?= htmlspecialchars($category, ENT_QUOTES, 'UTF-8') ?>" data-priority="<?= htmlspecialchars($tag, ENT_QUOTES, 'UTF-8') ?>" href="<?= htmlspecialchars($link ?: '#', ENT_QUOTES, 'UTF-8') ?>">
+                <span class="notification-row-indicator"></span>
+                <span class="notification-row-icon"><i data-lucide="<?= $category === 'orders' ? 'shopping-bag' : ($category === 'packing' ? 'package' : ($category === 'tasks' ? 'list-checks' : ($category === 'errors' ? 'triangle-alert' : 'bell'))) ?>"></i></span>
+                <span class="notification-row-content">
+                    <span class="notification-row-heading"><strong class="notification-row-title"><?= htmlspecialchars((string) ($item['title'] ?? 'Notification'), ENT_QUOTES, 'UTF-8') ?></strong><time class="notification-row-time"><?= $createdTs ? htmlspecialchars(date('H:i', $createdTs), ENT_QUOTES, 'UTF-8') : '' ?></time></span>
+                    <span class="notification-row-message"><?= htmlspecialchars((string) ($item['message'] ?? ''), ENT_QUOTES, 'UTF-8') ?></span>
+                    <span class="notification-row-meta"><?= htmlspecialchars((string) ($item['module'] ?? 'system'), ENT_QUOTES, 'UTF-8') ?><?= $createdTs ? ' · ' . htmlspecialchars(date('j F Y', $createdTs), ENT_QUOTES, 'UTF-8') : '' ?></span>
                 </span>
+                <span class="notification-row-btn">View</span>
             </a>
         <?php endforeach; ?>
     </section>
