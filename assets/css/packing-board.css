@@ -1391,11 +1391,17 @@
 }
 
 .packing-list-page .packing-board-table .notes-cell button svg {
-    width: 12px !important;
-    height: 12px !important;
-    min-width: 12px !important;
-    min-height: 12px !important;
-    flex: 0 0 12px !important;
+    width: 16px !important;
+    height: 16px !important;
+    min-width: 16px !important;
+    min-height: 16px !important;
+    flex: 0 0 16px !important;
+}
+
+.packing-list-page .packing-board-table .packing-editable-date-cell .portal-date-input,
+.packing-list-page .packing-board-table .col-qty .board-inline-input {
+    font-size: 12px !important;
+    font-weight: 400 !important;
 }
 /* Shared portal controls in the Packing filters must win over legacy field sizing. */
 .packing-list-page .packing-toolbar .portal-custom-select-trigger,
