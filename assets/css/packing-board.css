@@ -1289,8 +1289,8 @@
 .packing-list-page .packing-toolbar .portal-custom-select-trigger,
 .packing-list-page .packing-toolbar .portal-date-input,
 .packing-list-page .packing-toolbar .packing-search-input {
-  height: 38px !important;
-  min-height: 38px !important;
+  height: 32px !important;
+  min-height: 32px !important;
   font-family: Figtree, Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
   font-size: 12px !important;
   font-weight: 400 !important;
@@ -1318,6 +1318,12 @@
 .packing-list-page .packing-toolbar [data-find-packing-duplicates],
 .packing-list-page .packing-toolbar [data-import-previous-packing] {
   color: #1A1A1A !important;
+}
+.packing-list-page .packing-toolbar [data-sync-monday-packing] svg,
+.packing-list-page .packing-toolbar [data-find-packing-duplicates] svg,
+.packing-list-page .packing-toolbar [data-import-previous-packing] svg {
+  color: #AB3619 !important;
+  stroke: #AB3619 !important;
 }
 
 .packing-page-v2 .packing-date-cell--title { grid-column: 2 / 7; }
