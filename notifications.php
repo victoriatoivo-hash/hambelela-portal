@@ -24,22 +24,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $payload = notifications_for_current_user(100);
 $items = $payload['notifications'] ?? [];
+$notificationsCssPath = __DIR__ . '/assets/css/notifications-page.css';
 
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
-<main class="workspace module">
-    <section class="module-header">
+<?php if (is_file($notificationsCssPath)): ?>
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/notifications-page.css?v=<?= (int) filemtime($notificationsCssPath) ?>">
+<?php endif; ?>
+<main class="notifications-page">
+    <header class="notifications-header">
         <div>
-            <p class="eyebrow">Portal</p>
-            <h1>Notifications</h1>
-            <p>Recent role-based alerts from your orders, packing, tasks, bookkeeping and errors.</p>
+            <p class="notifications-kicker">Portal</p>
+            <h1 class="notifications-title">Notifications</h1>
+            <p class="notifications-subtitle">Alerts from orders, packing, tasks, bookkeeping and errors.</p>
         </div>
-        <form class="module-actions" method="post">
-            <button class="button" type="submit" name="action" value="mark_read">Mark all read</button>
-            <button class="button" type="submit" name="action" value="clear">Clear all</button>
+        <form class="notifications-header-actions" method="post">
+            <button class="notification-header-btn" type="submit" name="action" value="mark_read">Mark all read</button>
+            <button class="notification-header-btn" type="submit" name="action" value="clear">Clear all</button>
         </form>
-    </section>
+    </header>
 
     <section class="panel notification-page-list">
         <?php if (!$items): ?>
