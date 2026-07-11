@@ -52,6 +52,7 @@ function initialisePortalDatePickers(root = document) {
     trigger?.addEventListener('click', () => picker.open());
   });
 }
+window.initialisePortalDatePickers = initialisePortalDatePickers;
 
 function initialisePortalCustomSelects(root = document) {
   root.querySelectorAll('select[data-portal-custom-select]:not([data-custom-select-ready])').forEach((nativeSelect, selectIndex) => {

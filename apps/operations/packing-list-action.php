@@ -2257,6 +2257,8 @@ try {
             'packing_website_confirmed' => 'packing_website_confirmed',
             'packing_status' => 'packing_status',
             'notes' => 'notes',
+            'date_loaded' => 'date_loaded',
+            'date_completed' => 'date_completed',
         ];
 
         if (!isset($allowed[$field])) {
@@ -2284,6 +2286,20 @@ try {
 
         if ($field === 'assigned_employee_id') {
             $value = $value === '' ? null : (string) ((int) $value);
+        }
+
+        if (in_array($field, ['date_loaded', 'date_completed'], true)) {
+            if (!$canManage) {
+                throw new RuntimeException('You do not have permission to update packing dates.');
+            }
+            $value = trim(str_replace('T', ' ', $value));
+            if ($value === '' && $field === 'date_completed') {
+                $value = null;
+            } elseif ($value === '' || !DateTimeImmutable::createFromFormat('Y-m-d H:i', substr($value, 0, 16))) {
+                throw new RuntimeException('Enter a valid packing date and time.');
+            } else {
+                $value = substr($value, 0, 16) . ':00';
+            }
         }
 
         $previousAssignmentRows = [];

@@ -84,11 +84,11 @@
     { key: 'date_loaded', label: 'DATE LOADED', className: 'col-dateloaded', width: 130 },
     { key: 'priority', label: 'PRIORITY', className: 'col-priority', width: 140 },
     { key: 'quantity_to_pack', label: 'QUANTITY', className: 'col-qty', width: 150 },
-    { key: 'person', label: 'PERSON RESPO...', className: 'col-person', width: 200, title: 'Person responsible' },
+    { key: 'person', label: 'PERSON RESPONSIBLE', className: 'col-person', width: 200, title: 'Person Responsible' },
     { key: 'quantity_packed', label: 'QUANTITY PACKED', className: 'col-qtypacked', width: 150 },
     { key: 'date_completed', label: 'DATE COMPLETED', className: 'col-datecompleted', width: 150 },
-    { key: 'website_uploaded', label: 'WE...', className: 'col-webinv', width: 140, title: 'Front desk confirms quantity-to-pack has been updated on the website' },
-    { key: 'status', label: 'PACKING STATUS', className: 'col-packstatus', width: 130 },
+    { key: 'website_uploaded', label: 'WEBSITE', className: 'col-webinv', width: 140, title: 'Front desk confirms quantity-to-pack has been updated on the website' },
+    { key: 'status', label: 'PACKING STATUS', className: 'col-packstatus', width: 140 },
     { key: 'text', label: 'TEXT', className: 'col-text', width: 220 },
     { key: 'add', label: '+', className: 'add-column-cell col-add-btn', width: 48 }
   ];
@@ -177,17 +177,39 @@
   }
 
   function applyColumnWidths() {
+    const variableNames = {
+      select: '--col-select', item: '--col-item', notes: '--col-notes', date_loaded: '--col-date-loaded',
+      priority: '--col-priority', quantity_to_pack: '--col-quantity', person: '--col-person',
+      quantity_packed: '--col-packed', date_completed: '--col-date-completed', website_uploaded: '--col-website',
+      status: '--col-status', text: '--col-text'
+    };
+    document.querySelectorAll('.packing-date-group').forEach((group) => {
+      columnDefinitions().forEach((column) => {
+        if (variableNames[column.key]) group.style.setProperty(variableNames[column.key], `${columnWidth(column)}px`);
+      });
+    });
     document.querySelectorAll('.packing-group-table').forEach((table) => {
       columnDefinitions().forEach((column) => {
         const width = columnWidth(column);
         const selector = `[data-column-key="${columnKeySelector(column.key)}"]`;
         table.querySelectorAll(selector).forEach((cell) => {
-          cell.style.width = `${width}px`;
-          cell.style.minWidth = `${width}px`;
-          cell.style.maxWidth = `${width}px`;
+          cell.style.setProperty('width', `${width}px`, 'important');
+          cell.style.setProperty('min-width', `${width}px`, 'important');
+          cell.style.setProperty('max-width', `${width}px`, 'important');
         });
       });
     });
+  }
+
+  function renderPackingDate(task, field, canEdit) {
+    const value = String(task[field] || '');
+    if (!canEdit) return esc(value ? formatDate(value) : '');
+    const id = `packing-${field}-${task.id}`;
+    return `<div class="packing-inline-date" data-portal-date-field>
+      <input id="${id}-display" class="portal-date-input packing-date-display${value ? '' : ' is-empty'}" type="text" data-enable-time="true" data-submit-target="#${id}" placeholder="Set date" aria-label="${field === 'date_loaded' ? 'Date Loaded' : 'Date Completed'}">
+      <input id="${id}" type="hidden" value="${esc(value ? value.slice(0, 16).replace('T', ' ') : '')}" data-packing-date-value="${esc(field)}" data-task-id="${esc(task.id)}">
+      <button type="button" class="portal-date-trigger packing-date-edit-icon" aria-label="Edit date"><i data-lucide="calendar-days"></i></button>
+    </div>`;
   }
 
   function loadStoredPackingLabels() {
@@ -1164,12 +1186,12 @@
           <td class="check-cell col-checkbox" data-column-key="select"><input type="checkbox" data-packing-row-select="${esc(task.id)}" ${selected.has(String(task.id)) ? 'checked' : ''}></td>
           <td class="task-cell col-item" data-column-key="item">${esc(task.item_name)}</td>
           <td class="notes-cell col-notes" data-column-key="notes"><button type="button" title="Open notes" data-packing-open-panel="${esc(task.id)}"><i data-lucide="message-circle-plus"></i></button></td>
-          <td class="col-dateloaded" data-column-key="date_loaded">${esc(formatDate(task.date_loaded))}</td>
+          <td class="col-dateloaded packing-editable-date-cell" data-column-key="date_loaded">${renderPackingDate(task, 'date_loaded', currentUser.can_manage)}</td>
           <td class="col-priority" data-column-key="priority">${priorityCell}</td>
           <td class="col-qty" data-column-key="quantity_to_pack"><input class="board-inline-input" data-packing-text="quantity_planned" data-task-id="${esc(task.id)}" value="${esc(task.quantity_planned || '')}" ${manageOnly}></td>
           <td class="col-person" data-column-key="person">${renderPerson(task)}</td>
           <td class="col-qtypacked" data-column-key="quantity_packed"><input class="board-inline-input" data-packing-text="quantity_packed" data-task-id="${esc(task.id)}" value="${esc(task.quantity_packed || '')}" placeholder="Actual" ${ownOnly}></td>
-          <td class="col-datecompleted" data-column-key="date_completed">${esc(task.date_completed ? formatDate(task.date_completed) : '')}</td>
+          <td class="col-datecompleted packing-editable-date-cell" data-column-key="date_completed">${renderPackingDate(task, 'date_completed', currentUser.can_manage)}</td>
           <td class="paid-cell col-webinv" data-column-key="website_uploaded">${renderCheck(task, 'website_uploaded', currentUser.can_edit_front_website)}</td>
           <td class="col-packstatus" data-column-key="status">${statusCell}</td>
           <td class="col-text" data-column-key="text" title="${esc(task.notes || '')}">${esc(task.notes || '')}</td>
@@ -1296,6 +1318,7 @@
     updateFilterBadge();
     updateSelection();
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+    if (typeof window.initialisePortalDatePickers === 'function') window.initialisePortalDatePickers(body);
     renderCustomHeaders();
     animateBoardRows();
     previousTaskIds = new Set(tasks.map((task) => String(task.id)));
@@ -2085,7 +2108,20 @@
     }
   });
 
-  document.addEventListener('change', (event) => {
+  document.addEventListener('change', async (event) => {
+    const packingDate = event.target.closest('[data-packing-date-value]');
+    if (packingDate) {
+      try {
+        await updateTasksField([String(packingDate.dataset.taskId)], packingDate.dataset.packingDateValue, packingDate.value);
+        const task = tasks.find((item) => String(item.id) === String(packingDate.dataset.taskId));
+        if (task) task[packingDate.dataset.packingDateValue] = packingDate.value;
+        setCount('Packing date updated.');
+      } catch (error) {
+        setCount(error.message || 'Unable to save packing date.');
+        await refresh();
+      }
+      return;
+    }
     const filter = event.target.closest('[data-packing-filter]');
     if (filter) {
       if (filter.dataset.packingFilter === 'priority') state.priority = filter.value;
