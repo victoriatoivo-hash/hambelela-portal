@@ -314,8 +314,13 @@ $stmt = $pdo->prepare("INSERT IGNORE INTO `settings` (`setting_key`,`setting_val
 foreach ($defaults as $row) $stmt->execute($row);
 $messages[] = 'Default settings inserted';
 
-// Insert default admin — password: Admin@Hambelela2025
-$pw = password_hash('Admin@Hambelela2025', PASSWORD_BCRYPT);
+// Insert the initial administrator using an environment-provided secret.
+$initialAdminPassword = (string) getenv('HR_INITIAL_ADMIN_PASSWORD');
+if (strlen($initialAdminPassword) < 12) {
+    $errors[] = 'Set HR_INITIAL_ADMIN_PASSWORD to a unique value of at least 12 characters before installing.';
+    goto output;
+}
+$pw = password_hash($initialAdminPassword, PASSWORD_DEFAULT);
 $stmt = $pdo->prepare("INSERT IGNORE INTO `users` (`name`,`email`,`password`,`role`) VALUES (?,?,?,?)");
 $stmt->execute(['Victoria Oaingome','victoria@hambelelaorganic.com',$pw,'admin']);
 $messages[] = 'Admin account ready';
@@ -354,9 +359,7 @@ $success = empty($errors);
   <?php if($success): ?>
   <div class="done">
     <strong>Installation complete!</strong><br><br>
-    Login details:<br>
-    Email: <code>victoria@hambelelaorganic.com</code><br>
-    Password: <code>Admin@Hambelela2025</code><br><br>
+    The administrator account was created using the password supplied through the secure installation environment.<br><br>
     <strong>Delete <code>install.php</code> and <code>install.sql</code> after logging in.</strong>
   </div>
   <a href="index.php" class="btn">Go to HR Portal</a>

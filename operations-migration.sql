@@ -13,10 +13,41 @@ CREATE TABLE IF NOT EXISTS ops_employees (
   email VARCHAR(190) UNIQUE,
   phone VARCHAR(60),
   password_hash VARCHAR(255),
+  failed_login_attempts INT NOT NULL DEFAULT 0,
+  locked_until DATETIME NULL,
+  last_failed_login_at DATETIME NULL,
+  requires_code_reset TINYINT(1) NOT NULL DEFAULT 1,
   status ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (role_id) REFERENCES ops_roles(id)
+);
+
+CREATE TABLE IF NOT EXISTS ops_login_attempts (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  employee_id INT NULL,
+  identity_hash CHAR(64) NOT NULL,
+  ip_address VARCHAR(80) NOT NULL,
+  successful TINYINT(1) NOT NULL DEFAULT 0,
+  attempted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_ops_login_attempts_ip_time (ip_address, attempted_at),
+  INDEX idx_ops_login_attempts_employee_time (employee_id, attempted_at)
+);
+
+CREATE TABLE IF NOT EXISTS ops_security_events (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  event_type VARCHAR(80) NOT NULL,
+  employee_id INT NULL,
+  ip_address VARCHAR(80) NULL,
+  user_agent VARCHAR(255) NULL,
+  metadata_json TEXT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_ops_security_events_type_time (event_type, created_at)
+);
+
+CREATE TABLE IF NOT EXISTS ops_security_migrations (
+  migration_key VARCHAR(120) PRIMARY KEY,
+  applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS ops_employee_availability (

@@ -1,7 +1,11 @@
 <?php
 if (php_sapi_name() !== 'cli') {
-    $key = $_GET['key'] ?? '';
-    if ($key !== 'HamOrg2026') { http_response_code(403); die('Forbidden'); }
+    $expectedKey = (string) getenv('HR_ACCRUAL_KEY');
+    $key = (string) ($_SERVER['HTTP_X_HR_ACCRUAL_KEY'] ?? '');
+    if ($expectedKey === '' || $key === '' || !hash_equals($expectedKey, $key)) {
+        http_response_code(403);
+        die('Forbidden');
+    }
 }
 
 require_once __DIR__ . '/config.php';

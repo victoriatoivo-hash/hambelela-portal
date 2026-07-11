@@ -383,7 +383,7 @@ $activeTab    = $_GET['tab'] ?? 'company';
 
           </div>
           <div style="margin-top:18px;display:flex;gap:10px;justify-content:space-between;align-items:center">
-            <a href="accrue-leave.php?key=HamOrg2026" target="_blank" class="btn btn-secondary"><i class="fa-solid fa-rotate"></i> Run Monthly Accrual Now</a>
+            <span class="form-help">Monthly accrual runs through the authenticated server task.</span>
             <div style="display:flex;gap:10px">
               <form method="POST" style="display:inline" onsubmit="return confirm('Reset ALL employee leave balances to current policy values?')">
                 <input type="hidden" name="action" value="renew_leave">

@@ -298,10 +298,5 @@ CREATE TABLE IF NOT EXISTS `audit_log` (
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- ── Default Admin User ───────────────────────────────────────
--- Password: Admin@Hambelela2025 (change after first login)
-INSERT IGNORE INTO `users` (`name`, `email`, `password`, `role`) VALUES (
-  'Victoria Oaingome',
-  'victoria@hambelelaorganic.com',
-  '$2y$12$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uXTMlF7Im',
-  'admin'
-);
+-- The initial administrator password must be supplied outside source control.
+-- Administrator creation is intentionally omitted from this SQL file.

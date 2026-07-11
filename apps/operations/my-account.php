@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/operations.php';
 require_once BASE_PATH . '/shared/notifications.php';
+require_once BASE_PATH . '/shared/login-security.php';
 
 require_login();
 
@@ -17,6 +18,10 @@ $notificationPrefs = notifications_preferences();
 $notificationModules = notifications_modules();
 $canManagePortal = user_has_role('owner_admin') || in_array((string) ($_SESSION['user_role'] ?? ''), ['admin', 'Owner/Admin', 'owner_admin'], true);
 $activeSettingsSection = 'profile';
+
+if (empty($_SESSION['settings_csrf_token'])) {
+    $_SESSION['settings_csrf_token'] = bin2hex(random_bytes(32));
+}
 
 function settings_employee_link_bootstrap(): void
 {
@@ -126,7 +131,7 @@ if ($ready) {
     $employeeId = ops_current_employee_id();
     if ($employeeId) {
         $rows = ops_rows(
-            "SELECT e.*, r.name AS role_name
+            "SELECT e.*, r.name AS role_name, r.role_key
              FROM ops_employees e
              JOIN ops_roles r ON r.id = e.role_id
              WHERE e.id = ?
@@ -139,6 +144,11 @@ if ($ready) {
 
 if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
+        $submittedToken = (string) ($_POST['csrf_token'] ?? '');
+        $sessionToken = (string) ($_SESSION['settings_csrf_token'] ?? '');
+        if ($submittedToken === '' || $sessionToken === '' || !hash_equals($sessionToken, $submittedToken)) {
+            throw new RuntimeException('Invalid request. Reload the page and try again.');
+        }
         if (!$employee) {
             throw new RuntimeException('Your employee account could not be found.');
         }
@@ -154,18 +164,36 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($action === 'reset_code') {
                 $code = trim((string) ($_POST['login_code'] ?? ''));
-                if (!preg_match('/^\d{4}$/', $code)) {
-                    throw new RuntimeException('Login code must be exactly 4 digits.');
-                }
+                $confirmCode = trim((string) ($_POST['confirm_login_code'] ?? ''));
 
                 $employeeId = (int) ($_POST['employee_id'] ?? 0);
                 if ($employeeId <= 0) {
                     throw new RuntimeException('Choose an employee to reset.');
                 }
 
-                $stmt = db()->prepare('UPDATE ops_employees SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+                $targetRows = ops_rows(
+                    'SELECT e.id, r.role_key FROM ops_employees e JOIN ops_roles r ON r.id = e.role_id WHERE e.id = ? LIMIT 1',
+                    [$employeeId]
+                );
+                $targetEmployee = $targetRows[0] ?? null;
+                if (!$targetEmployee) {
+                    throw new RuntimeException('The selected employee account could not be found.');
+                }
+                if ($code !== $confirmCode) {
+                    throw new RuntimeException('The new access code and confirmation do not match.');
+                }
+                $validationError = access_secret_validation_error($code, (string) $targetEmployee['role_key']);
+                if ($validationError !== null) {
+                    throw new RuntimeException($validationError);
+                }
+                if (access_secret_is_shared($code, $employeeId)) {
+                    throw new RuntimeException('That access code is already assigned to another account.');
+                }
+
+                $stmt = db()->prepare('UPDATE ops_employees SET password_hash = ?, requires_code_reset = 0, failed_login_attempts = 0, locked_until = NULL, last_failed_login_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
                 $stmt->execute([password_hash($code, PASSWORD_DEFAULT), $employeeId]);
-                $message = 'Employee login code reset.';
+                record_security_event('access_code_reset', $employeeId, ['performed_by' => (int) $employee['id']]);
+                $message = 'Employee access code reset.';
             } elseif ($action === 'delete_employee') {
                 $employeeId = (int) ($_POST['employee_id'] ?? 0);
                 if ($employeeId <= 0) {
@@ -208,8 +236,23 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $message = 'Portal user linked to HR employee profile.';
             } else {
                 $code = trim((string) ($_POST['login_code'] ?? ''));
-                if (!preg_match('/^\d{4}$/', $code)) {
-                    throw new RuntimeException('Login code must be exactly 4 digits.');
+                $confirmCode = trim((string) ($_POST['confirm_login_code'] ?? ''));
+                if ($code !== $confirmCode) {
+                    throw new RuntimeException('The access code and confirmation do not match.');
+                }
+
+                $roleId = (int) ($_POST['role_id'] ?? 0);
+                $roleRows = ops_rows('SELECT role_key FROM ops_roles WHERE id = ? LIMIT 1', [$roleId]);
+                $roleKey = (string) ($roleRows[0]['role_key'] ?? '');
+                if ($roleKey === '') {
+                    throw new RuntimeException('Choose a valid role.');
+                }
+                $validationError = access_secret_validation_error($code, $roleKey);
+                if ($validationError !== null) {
+                    throw new RuntimeException($validationError);
+                }
+                if (access_secret_is_shared($code)) {
+                    throw new RuntimeException('That access code is already assigned to another account.');
                 }
 
                 $email = strtolower(ops_post_string('email', 190));
@@ -218,25 +261,29 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 $stmt = db()->prepare(
-                    "INSERT INTO ops_employees (role_id, full_name, email, phone, password_hash, status)
-                     VALUES (?, ?, ?, ?, ?, ?)
+                    "INSERT INTO ops_employees (role_id, full_name, email, phone, password_hash, status, requires_code_reset)
+                     VALUES (?, ?, ?, ?, ?, ?, 0)
                      ON DUPLICATE KEY UPDATE
                         role_id = VALUES(role_id),
                         full_name = VALUES(full_name),
                         phone = VALUES(phone),
                         password_hash = VALUES(password_hash),
                         status = VALUES(status),
+                        requires_code_reset = 0,
+                        failed_login_attempts = 0,
+                        locked_until = NULL,
+                        last_failed_login_at = NULL,
                         updated_at = CURRENT_TIMESTAMP"
                 );
                 $stmt->execute([
-                    (int) ($_POST['role_id'] ?? 0),
+                    $roleId,
                     ops_post_string('full_name', 160),
                     $email,
                     ops_post_string('phone', 60),
                     password_hash($code, PASSWORD_DEFAULT),
                     ops_post_string('status', 20) ?: 'active',
                 ]);
-                $message = 'Employee account saved with a 4-digit login code.';
+                $message = 'Employee account saved with a secure access code.';
             }
         } elseif ($action === 'update_notifications') {
             $activeSettingsSection = 'notifications';
@@ -254,10 +301,6 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $newCode = trim((string) ($_POST['new_code'] ?? ''));
             $confirmCode = trim((string) ($_POST['confirm_code'] ?? ''));
 
-            if (!preg_match('/^\d{4}$/', $currentCode) || !preg_match('/^\d{4}$/', $newCode)) {
-                throw new RuntimeException('Codes must be exactly 4 digits.');
-            }
-
             if ($newCode !== $confirmCode) {
                 throw new RuntimeException('The new code and confirmation do not match.');
             }
@@ -266,9 +309,18 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('Current code is incorrect.');
             }
 
-            $stmt = db()->prepare('UPDATE ops_employees SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+            $validationError = access_secret_validation_error($newCode, (string) ($employee['role_key'] ?? ''));
+            if ($validationError !== null) {
+                throw new RuntimeException($validationError);
+            }
+            if (access_secret_is_shared($newCode, (int) $employee['id'])) {
+                throw new RuntimeException('That access code is already assigned to another account.');
+            }
+
+            $stmt = db()->prepare('UPDATE ops_employees SET password_hash = ?, requires_code_reset = 0, failed_login_attempts = 0, locked_until = NULL, last_failed_login_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
             $stmt->execute([password_hash($newCode, PASSWORD_DEFAULT), (int) $employee['id']]);
-            $message = 'Your login code has been updated.';
+            $message = 'Your access code has been updated.';
+            record_security_event('access_code_changed', (int) $employee['id']);
             ops_activity_log('employee_code_changed', 'ops_employee', (int) $employee['id']);
         }
     } catch (Throwable $e) {
@@ -403,21 +455,21 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
             <div id="section-security" class="settings-section <?= $activeSettingsSection === 'security' ? 'active' : '' ?>">
                 <form class="settings-card" method="post">
                     <input type="hidden" name="action" value="change_code">
-                    <h2>Login Code</h2>
-                    <p class="card-sub">Change your 4-digit portal login code. You need your current code to set a new one.</p>
+                    <h2>Access Code</h2>
+                    <p class="card-sub">Change your portal access code. Owner/Admin credentials require letters and numbers; staff codes require 6 to 10 digits.</p>
                     <div class="form-row">
                         <div class="form-group">
-                            <label>Current 4-digit code</label>
-                            <input type="password" name="current_code" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required>
+                            <label>Current access code</label>
+                            <input type="password" name="current_code" autocomplete="current-password" required>
                         </div>
                         <div class="form-group">
-                            <label>New 4-digit code</label>
-                            <input type="password" name="new_code" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required>
+                            <label>New access code</label>
+                            <input type="password" name="new_code" autocomplete="new-password" required>
                         </div>
                     </div>
                     <div class="form-group">
                         <label>Confirm new code</label>
-                        <input type="password" name="confirm_code" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required>
+                        <input type="password" name="confirm_code" autocomplete="new-password" required>
                     </div>
                     <div class="btn-row"><button class="btn-primary" type="submit">Update my code</button></div>
                 </form>
@@ -513,7 +565,7 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                 <div id="section-employees" class="settings-section <?= $activeSettingsSection === 'employees' ? 'active' : '' ?>">
                     <div class="settings-card">
                         <h2>Employees & Roles</h2>
-                        <p class="card-sub">Create staff logins, reset 4-digit codes and link portal users to HR employee profiles.</p>
+                        <p class="card-sub">Create staff logins, reset secure access codes and link portal users to HR employee profiles.</p>
 
                         <?php if (!$hrEmployees): ?>
                             <p class="settings-note">No HR employees could be loaded. Check the HR database connection in <code>config.local.php</code>.</p>
@@ -605,7 +657,8 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                                             <form class="settings-code-reset" method="post">
                                                 <input type="hidden" name="action" value="reset_code">
                                                 <input type="hidden" name="employee_id" value="<?= (int) $managedEmployee['id'] ?>">
-                                                <input name="login_code" type="text" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="0000" required>
+                                                <input name="login_code" type="password" inputmode="numeric" pattern="[0-9]{6,10}" minlength="6" maxlength="10" placeholder="New code" autocomplete="new-password" required>
+                                                <input name="confirm_login_code" type="password" inputmode="numeric" pattern="[0-9]{6,10}" minlength="6" maxlength="10" placeholder="Confirm" autocomplete="new-password" required>
                                                 <button class="btn-secondary" type="submit">Reset</button>
                                             </form>
                                         </td>
@@ -632,7 +685,7 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                     <form class="settings-card" method="post">
                         <input type="hidden" name="action" value="save_employee">
                         <h2>New employee</h2>
-                        <p class="card-sub">Add a staff login and set the initial 4-digit login code.</p>
+                        <p class="card-sub">Add a staff login and set a unique 6 to 10 digit access code.</p>
                         <div class="form-row">
                             <div class="form-group"><label>Full name</label><input name="full_name" required autocomplete="name"></div>
                             <div class="form-group"><label>Email</label><input type="email" name="email" required autocomplete="email"></div>
@@ -650,7 +703,8 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                         </div>
                         <div class="form-row">
                             <div class="form-group"><label>Status</label><select name="status"><?php ops_select_options(['active' => 'Active', 'inactive' => 'Inactive']); ?></select></div>
-                            <div class="form-group"><label>4-digit login code</label><input type="text" name="login_code" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required placeholder="1234"></div>
+                            <div class="form-group"><label>Access code</label><input type="password" name="login_code" inputmode="numeric" pattern="[0-9]{6,10}" minlength="6" maxlength="10" autocomplete="new-password" required placeholder="6 to 10 digits"></div>
+                            <div class="form-group"><label>Confirm access code</label><input type="password" name="confirm_login_code" inputmode="numeric" pattern="[0-9]{6,10}" minlength="6" maxlength="10" autocomplete="new-password" required placeholder="Repeat code"></div>
                         </div>
                         <div class="btn-row"><button class="btn-primary" type="submit">Create account</button></div>
                     </form>
@@ -706,7 +760,7 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                 <div class="settings-card">
                     <h2>Help & Support</h2>
                     <p class="card-sub">Guides and contacts for common portal questions.</p>
-                    <div class="toggle-row"><div class="toggle-label">Forgot your login code?</div><span class="settings-help-text">Ask Victoria to reset it from Employees & Roles.</span></div>
+                    <div class="toggle-row"><div class="toggle-label">Forgot your access code?</div><span class="settings-help-text">Ask an Owner/Admin to reset it from Employees & Roles.</span></div>
                     <div class="toggle-row"><div class="toggle-label">Found a bug or customer issue?</div><span class="settings-help-text">Log operational issues under Operations Error Log.</span></div>
                     <div class="toggle-row"><div class="toggle-label">Portal version</div><span class="settings-help-text">Hambelela Operations Portal - <?= date('Y') ?></span></div>
                 </div>
@@ -715,6 +769,14 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
     </div>
 </main>
 <script>
+document.querySelectorAll('form[method="post"]').forEach((form) => {
+    if (form.querySelector('input[name="csrf_token"]')) return;
+    const token = document.createElement('input');
+    token.type = 'hidden';
+    token.name = 'csrf_token';
+    token.value = <?= json_encode((string) $_SESSION['settings_csrf_token'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    form.prepend(token);
+});
 document.querySelectorAll('.settings-nav-item').forEach((item) => {
     item.addEventListener('click', () => {
         document.querySelectorAll('.settings-nav-item').forEach((navItem) => navItem.classList.remove('active'));
