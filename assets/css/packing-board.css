@@ -1179,7 +1179,8 @@
     padding: 0 10px !important;
     border: 0 !important;
     border-right: 1px solid var(--pk-border, var(--board-grid)) !important;
-    border-bottom: 1px solid var(--pk-border, var(--board-grid)) !important;
+    border-bottom: 0 !important;
+    box-shadow: inset 0 -1px 0 var(--pk-border, var(--board-grid));
     background: #FFFFFF !important;
     color: var(--pk-text, var(--board-text)) !important;
     text-align: left !important;
@@ -1195,7 +1196,7 @@
 
 .packing-list-page .packing-board-table thead th:last-child,
 .packing-list-page .packing-board-table tbody td:last-child { border-right: 0 !important; }
-.packing-list-page .packing-board-table tbody tr:last-child td { border-bottom: 0 !important; }
+.packing-list-page .packing-board-table tbody tr:last-child td { border-bottom: 0 !important; box-shadow: none; }
 .packing-list-page .packing-board-table tbody tr:hover td { background: rgba(253, 246, 238, .75) !important; }
 
 .packing-list-page .packing-board-table td[data-column-key="priority"],
