@@ -6162,7 +6162,7 @@ main.error-log-page {
 .error-log-page .error-filter-grid label {
   display: grid !important;
   gap: 4px !important;
-  color: #6B6B6B !important;
+  color: #721b1a !important;
   font-size: 10px !important;
   font-weight: 700 !important;
   letter-spacing: .05em !important;
