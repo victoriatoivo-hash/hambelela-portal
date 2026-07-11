@@ -687,6 +687,25 @@
     padding: 0;
 }
 
+.packing-page-v2 .packing-empty-panel .board-empty-actions button {
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 0 13px !important;
+  border-radius: 9px !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-family: inherit;
+  font-size: 11px !important;
+  line-height: 1;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: background-color .18s ease, border-color .18s ease, color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+
 .packing-page-v2 .packing-group-toggle {
     width: 28px;
     height: 28px;
