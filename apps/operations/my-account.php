@@ -305,7 +305,9 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('The new code and confirmation do not match.');
             }
 
-            if (empty($employee['password_hash']) || !password_verify($currentCode, (string) $employee['password_hash'])) {
+            $currentCodeVerified = !empty($employee['password_hash']) && password_verify($currentCode, (string) $employee['password_hash']);
+            $rotationSessionVerified = !empty($_SESSION['credential_rotation_authorized']) && !empty($employee['requires_code_reset']);
+            if (!$currentCodeVerified && !$rotationSessionVerified) {
                 throw new RuntimeException('Current code is incorrect.');
             }
 
@@ -319,6 +321,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $stmt = db()->prepare('UPDATE ops_employees SET password_hash = ?, requires_code_reset = 0, failed_login_attempts = 0, locked_until = NULL, last_failed_login_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
             $stmt->execute([password_hash($newCode, PASSWORD_DEFAULT), (int) $employee['id']]);
+            unset($_SESSION['credential_rotation_authorized']);
             $message = 'Your access code has been updated.';
             record_security_event('access_code_changed', (int) $employee['id']);
             ops_activity_log('employee_code_changed', 'ops_employee', (int) $employee['id']);

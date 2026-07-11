@@ -50,18 +50,6 @@ CREATE TABLE IF NOT EXISTS ops_security_migrations (
   applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS ops_access_recovery (
-  id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  employee_id INT NOT NULL,
-  token_hash CHAR(64) NOT NULL UNIQUE,
-  requested_ip VARCHAR(80) NULL,
-  expires_at DATETIME NOT NULL,
-  used_at DATETIME NULL,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_access_recovery_employee_time (employee_id, created_at),
-  INDEX idx_access_recovery_expiry (expires_at)
-);
-
 CREATE TABLE IF NOT EXISTS ops_employee_availability (
   employee_id INT PRIMARY KEY,
   availability_status ENUM('available', 'on_lunch', 'offline') NOT NULL DEFAULT 'available',

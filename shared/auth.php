@@ -3,16 +3,6 @@
 declare(strict_types=1);
 
 if (session_status() !== PHP_SESSION_ACTIVE) {
-    ini_set('session.use_strict_mode', '1');
-    ini_set('session.use_only_cookies', '1');
-    session_set_cookie_params([
-        'lifetime' => 0,
-        'path' => '/',
-        'domain' => '',
-        'secure' => true,
-        'httponly' => true,
-        'samesite' => 'Lax',
-    ]);
     session_start();
 }
 
@@ -41,6 +31,8 @@ function refresh_logged_in_user(): void
     $id = (int) ($_SESSION['user']['id'] ?? 0);
     $email = (string) ($_SESSION['user']['email'] ?? '');
     $name = (string) ($_SESSION['user']['name'] ?? '');
+    $isLocalFallback = (string) ($_SESSION['user']['source'] ?? '') === 'local_fallback';
+
     try {
         require_once BASE_PATH . '/shared/database.php';
         if ($id > 0) {
@@ -66,7 +58,9 @@ function refresh_logged_in_user(): void
         $stmt->closeCursor();
 
         if (!$employee) {
-            logout_user();
+            if (!$isLocalFallback) {
+                logout_user();
+            }
             return;
         }
 
@@ -79,7 +73,9 @@ function refresh_logged_in_user(): void
             'source' => 'database',
         ];
     } catch (Throwable $e) {
-        logout_user();
+        if (!$isLocalFallback) {
+            logout_user();
+        }
     }
 }
 
