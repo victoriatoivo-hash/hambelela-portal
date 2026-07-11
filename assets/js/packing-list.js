@@ -386,6 +386,37 @@
     return `<button type="button" class="board-label packing-pill ${kind}" style="--label-color:${esc(labelColor(options, value))}" data-state="${esc(normalize(value))}" data-packing-label="${esc(field)}" data-task-id="${esc(task.id)}">${esc(labelText(options, value))}</button>`;
   }
 
+  function renderPackingStatus(task, canEdit) {
+    const value = normalize(task.packing_status || 'not_started');
+    const content = `
+      <span class="packing-status-label">${esc(labelText(statuses, value))}</span>
+      ${canEdit ? '<i class="packing-status-chevron" data-lucide="chevron-down"></i>' : ''}
+      <span class="packing-status-animation-layer" aria-hidden="true"></span>`;
+    return `<div class="packing-status-cell-component" data-packing-status-cell data-item-id="${esc(task.id)}" data-status="${esc(value)}">
+      ${canEdit
+        ? `<button type="button" class="packing-status-cell-inner" aria-haspopup="listbox" aria-expanded="false" data-packing-label="packing_status" data-task-id="${esc(task.id)}">${content}</button>`
+        : `<span class="packing-status-cell-inner is-static">${content}</span>`}
+    </div>`;
+  }
+
+  function playPackingStatusConfetti(statusCell) {
+    const layer = statusCell?.querySelector('.packing-status-animation-layer');
+    if (!layer || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    layer.replaceChildren();
+    const colours = ['#A8CA19', '#F07420', '#AB3619', '#BB1B21', '#721B1A'];
+    for (let index = 0; index < 18; index += 1) {
+      const particle = document.createElement('span');
+      particle.className = 'packing-status-confetti-particle';
+      particle.style.setProperty('--confetti-x', `${Math.random() * 100}%`);
+      particle.style.setProperty('--confetti-delay', `${Math.random() * 120}ms`);
+      particle.style.setProperty('--confetti-drift', `${Math.round(Math.random() * 50 - 25)}px`);
+      particle.style.setProperty('--confetti-rotate', `${Math.random() * 260 - 130}deg`);
+      particle.style.setProperty('--confetti-colour', colours[index % colours.length]);
+      layer.appendChild(particle);
+    }
+    window.setTimeout(() => layer.replaceChildren(), 1050);
+  }
+
   function renderStaticLabel(value, options) {
     return `<span class="board-label packing-pill is-static" style="--label-color:${esc(labelColor(options, value))}" data-state="${esc(normalize(value))}">${esc(labelText(options, value))}</span>`;
   }
@@ -1120,9 +1151,7 @@
       const priorityCell = currentUser.can_manage
         ? renderLabel(task, 'priority', task.priority || 'medium', priorities)
         : renderStaticLabel(task.priority || 'medium', priorities);
-      const statusCell = canEditOwn
-        ? renderLabel(task, 'packing_status', task.packing_status || 'not_started', statuses)
-        : renderStaticLabel(task.packing_status || 'not_started', statuses);
+      const statusCell = renderPackingStatus(task, canEditOwn);
       return `
         <tr data-task-id="${esc(task.id)}" class="board-row ${!previousTaskIds.has(String(task.id)) && hasRenderedOnce ? 'row-new' : ''} ${selected.has(String(task.id)) ? 'is-selected' : ''}">
           <td class="check-cell col-checkbox"><input type="checkbox" data-packing-row-select="${esc(task.id)}" ${selected.has(String(task.id)) ? 'checked' : ''}></td>
@@ -1186,9 +1215,7 @@
       const priorityCell = currentUser.can_manage
         ? renderLabel(task, 'priority', task.priority || 'medium', priorities)
         : renderStaticLabel(task.priority || 'medium', priorities);
-      const statusCell = canEditOwn
-        ? renderLabel(task, 'packing_status', task.packing_status || 'not_started', statuses)
-        : renderStaticLabel(task.packing_status || 'not_started', statuses);
+      const statusCell = renderPackingStatus(task, canEditOwn);
       return `
         <tr data-task-id="${esc(task.id)}" class="packing-board-row board-row ${!previousTaskIds.has(String(task.id)) && hasRenderedOnce ? 'row-new' : ''} ${selected.has(String(task.id)) ? 'is-selected' : ''}">
           <td class="check-cell col-checkbox packing-grid-cell--select" data-column-key="select">
@@ -1406,8 +1433,15 @@
   function openLabel(anchor, taskId, field) {
     const options = labelOptionsFor(field);
     const rect = anchor.getBoundingClientRect();
+    document.querySelectorAll('.packing-status-cell-component.is-open').forEach((cell) => cell.classList.remove('is-open'));
+    document.querySelectorAll('.packing-status-cell-inner[aria-expanded="true"]').forEach((button) => button.setAttribute('aria-expanded', 'false'));
+    const statusComponent = field === 'packing_status' ? anchor.closest('.packing-status-cell-component') : null;
+    statusComponent?.classList.add('is-open');
+    if (statusComponent) anchor.setAttribute('aria-expanded', 'true');
     labelMenu.classList.remove('is-open');
     labelMenu.classList.remove('is-editor');
+    labelMenu.classList.toggle('packing-status-menu', field === 'packing_status');
+    labelMenu.classList.toggle('portal-custom-select-menu', field === 'packing_status');
     labelMenu.hidden = false;
     const estimatedHeight = field === 'packing_status' ? 390 : 260;
     const shouldFlip = rect.bottom + estimatedHeight > window.innerHeight;
@@ -1415,7 +1449,7 @@
     labelMenu.style.top = `${shouldFlip ? Math.max(8, rect.top - estimatedHeight - 8) : rect.bottom + 8}px`;
     labelMenu.innerHTML = `
       <div class="label-menu-grid packing-label-menu-grid">
-        ${options.map((item) => `<button type="button" style="--label-color:${esc(itemColor(item))}" data-packing-label-value="${esc(item[0])}" data-packing-label-field="${esc(field)}" data-packing-label-task="${esc(taskId)}">${esc(itemText(item))}</button>`).join('')}
+        ${options.map((item) => `<button type="button" class="${field === 'packing_status' ? 'portal-custom-select-option' : ''}" style="--label-color:${esc(itemColor(item))}" role="option" aria-selected="${normalize(item[0]) === normalize(tasks.find((task) => String(task.id) === String(taskId))?.[field]) ? 'true' : 'false'}" data-packing-label-value="${esc(item[0])}" data-packing-label-field="${esc(field)}" data-packing-label-task="${esc(taskId)}">${esc(itemText(item))}</button>`).join('')}
       </div>
       ${field === 'packing_status' ? `
         <button class="edit-labels packing-edit-labels" type="button" data-packing-edit-labels="${esc(field)}" data-packing-edit-task="${esc(taskId)}">
@@ -1509,6 +1543,8 @@
 
   function closeLabel() {
     if (!labelMenu || labelMenu.hidden) return;
+    document.querySelectorAll('.packing-status-cell-component.is-open').forEach((cell) => cell.classList.remove('is-open'));
+    document.querySelectorAll('.packing-status-cell-inner[aria-expanded="true"]').forEach((button) => button.setAttribute('aria-expanded', 'false'));
     labelMenu.classList.remove('is-open');
     window.setTimeout(() => {
       if (!labelMenu.classList.contains('is-open')) labelMenu.hidden = true;
@@ -2097,9 +2133,15 @@
       if (label) { openLabel(label, label.dataset.taskId, label.dataset.packingLabel); return; }
       if (labelChoice) {
         const ids = selectedIdsFor(labelChoice.dataset.packingLabelTask);
-        await updateTasksField(ids, labelChoice.dataset.packingLabelField, labelChoice.dataset.packingLabelValue);
+        const field = labelChoice.dataset.packingLabelField;
+        const nextValue = labelChoice.dataset.packingLabelValue;
+        const completedIds = field === 'packing_status' && normalize(nextValue) === 'done'
+          ? ids.filter((id) => normalize(tasks.find((task) => String(task.id) === String(id))?.packing_status) !== 'done')
+          : [];
+        await updateTasksField(ids, field, nextValue);
         closeLabel();
         render();
+        completedIds.forEach((id) => playPackingStatusConfetti(document.querySelector(`[data-packing-status-cell][data-item-id="${CSS.escape(String(id))}"]`)));
         return;
       }
       if (check) {
