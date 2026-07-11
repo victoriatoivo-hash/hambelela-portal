@@ -646,9 +646,16 @@
     grid-template-columns: var(--packing-columns);
     width: 1747px;
     min-width: 100%;
-    min-height: 64px;
+    min-height: 58px;
+    padding: 0;
+    border: 0;
     border-bottom: 1px solid var(--pk-border) !important;
     background: #fff !important;
+    color: inherit;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    box-sizing: border-box;
 }
 
 .packing-page-v2 .packing-date-cell {
@@ -670,8 +677,8 @@
     width: var(--col-select);
     min-width: var(--col-select);
     max-width: var(--col-select);
-    height: 35px;
-    min-height: 35px;
+    height: auto;
+    min-height: 58px;
     padding: 0;
     display: flex;
     align-items: center;
@@ -708,38 +715,35 @@
   flex: 0 0 15px !important;
 }
 
-.packing-page-v2 .packing-group-toggle {
-    width: 28px;
-    height: 28px;
-    min-width: 28px;
-    min-height: 28px;
-    margin: 0;
-    padding: 0;
-    display: inline-flex;
+.packing-page-v2 .packing-month-summary-toggle {
     align-items: center;
     justify-content: center;
-    border: 1px solid var(--pk-border);
-    border-radius: 8px;
-    background: #fff;
-    color: var(--group-accent, var(--pk-orange-red));
-    cursor: pointer;
-    transition: border-color .18s ease, background .18s ease;
+    padding: 0 !important;
 }
 
-.packing-page-v2 .packing-group-toggle:hover {
-    border-color: rgba(171, 54, 25, .35);
+.packing-page-v2 .packing-month-summary:hover {
     background: rgba(240, 116, 32, .06);
 }
 
-.packing-page-v2 .packing-group-toggle svg {
-    width: 12px;
-    height: 12px;
-    flex: 0 0 12px;
+.packing-page-v2 .packing-month-summary:focus-visible {
+    outline: 2px solid rgba(171, 54, 25, .35);
+    outline-offset: -2px;
+}
+
+.packing-page-v2 .packing-month-chevron {
+    width: 14px;
+    height: 14px;
+    flex: 0 0 14px;
+    color: #ab3619;
     transition: transform .2s ease;
 }
 
-.packing-page-v2 .packing-date-group.is-collapsed .packing-group-toggle svg {
-    transform: rotate(-90deg);
+.packing-page-v2 .packing-month-summary[aria-expanded="false"] .packing-month-chevron {
+    transform: rotate(0deg);
+}
+
+.packing-page-v2 .packing-month-summary[aria-expanded="true"] .packing-month-chevron {
+    transform: rotate(90deg);
 }
 
 .packing-page-v2 .packing-date-cell--title strong {
@@ -758,9 +762,9 @@
 }
 
 .packing-page-v2 .packing-summary-label {
-    margin-bottom: 6px;
+    margin-bottom: 4px;
     color: var(--pk-text-light);
-    font-size: 11px;
+    font-size: 10px;
     line-height: 1;
     font-weight: 700;
     letter-spacing: .04em;

@@ -587,7 +587,7 @@
       }
 
       const chevron = header.querySelector('.chevron, .group-chevron, [data-packing-collapse] svg');
-      if (chevron) chevron.style.color = palette.text;
+      if (chevron) chevron.style.color = chevron.classList.contains('packing-month-chevron') ? '#ab3619' : palette.text;
     });
   }
 
@@ -1233,33 +1233,34 @@
         </tr>`
       : '';
 
+    const collapseStorageKey = `packing_month_collapsed_${key}`;
+    const isCollapsed = sessionStorage.getItem(collapseStorageKey) === 'true';
+
     return `
-      <section class="packing-date-group" data-group-key="${esc(key)}" style="--group-accent:${esc(accent)};--packing-group-accent:${esc(accent)}" data-critical="${pCounts.critical}" data-high="${pCounts.high}" data-medium="${pCounts.medium}" data-low="${pCounts.low}">
+      <section class="packing-date-group packing-month-group${isCollapsed ? ' is-collapsed' : ''}" data-packing-month-group data-group-key="${esc(key)}" data-month-key="${esc(key)}" style="--group-accent:${esc(accent)};--packing-group-accent:${esc(accent)}" data-critical="${pCounts.critical}" data-high="${pCounts.high}" data-medium="${pCounts.medium}" data-low="${pCounts.low}">
         <div class="packing-month-scroll">
         <div class="packing-month-inner">
-        <header class="packing-date-header packing-month-header">
-          <div class="packing-date-cell packing-date-cell--toggle packing-month-toggle-cell">
-            <button type="button" class="packing-group-toggle packing-month-toggle" data-packing-collapse aria-label="Collapse group" aria-expanded="true">
-              <i class="group-chevron chevron" data-lucide="chevron-down"></i>
-            </button>
+        <button type="button" class="packing-date-header packing-month-header packing-month-summary" data-packing-collapse aria-label="${isCollapsed ? 'Expand' : 'Collapse'} ${esc(groupLabel(key))}" aria-expanded="${isCollapsed ? 'false' : 'true'}">
+          <div class="packing-date-cell packing-date-cell--toggle packing-month-toggle-cell packing-month-summary-toggle">
+            <i class="packing-month-chevron group-chevron chevron" data-lucide="chevron-right"></i>
           </div>
-          <div class="packing-date-cell packing-date-cell--title packing-month-title-cell">
+          <div class="packing-date-cell packing-date-cell--title packing-month-title-cell packing-month-summary-title">
             <strong>${esc(groupLabel(key))}</strong>
             <span>${rows.length} items</span>
           </div>
-          <div class="packing-date-cell packing-date-cell--website packing-month-website-cell">
+          <div class="packing-date-cell packing-date-cell--website packing-month-website-cell packing-month-summary-website">
             <span class="packing-summary-label">Website</span>
             <strong>${groupSummary.website}/${rows.length}</strong>
           </div>
-          <div class="packing-date-cell packing-date-cell--priority packing-month-priority-cell">
+          <div class="packing-date-cell packing-date-cell--priority packing-month-priority-cell packing-month-summary-priority">
             <span class="packing-summary-label">Priority</span>
             ${packingHeaderPriority(pCounts)}
           </div>
-          <div class="packing-date-cell packing-date-cell--progress packing-month-progress-cell">
+          <div class="packing-date-cell packing-date-cell--progress packing-month-progress-cell packing-month-summary-status">
             <span class="packing-summary-label">Packing</span>
             ${packingHeaderProgress(statusCounts, rows.length)}
           </div>
-        </header>
+        </button>
         <div class="packing-date-body packing-group-table-wrap">
           <table class="packing-board-table packing-group-table">
             ${renderColGroup()}
@@ -2120,6 +2121,9 @@
         if (group) {
           const isCollapsed = group.classList.toggle('is-collapsed');
           collapse.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
+          collapse.setAttribute('aria-label', `${isCollapsed ? 'Expand' : 'Collapse'} ${group.querySelector('.packing-month-summary-title strong')?.textContent?.trim() || 'month'}`);
+          const groupKey = group.dataset.monthKey || group.dataset.groupKey || 'month';
+          sessionStorage.setItem(`packing_month_collapsed_${groupKey}`, String(isCollapsed));
           return;
         }
 
