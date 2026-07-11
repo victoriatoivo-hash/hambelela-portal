@@ -4606,6 +4606,8 @@ textarea {
   display: inline-flex;
   align-items: center;
   margin: 0;
+  color: #721b1a !important;
+  font-size: 10px !important;
 }
 
 #logErrorForm .custom-select {
