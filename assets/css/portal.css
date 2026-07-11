@@ -4206,7 +4206,7 @@ textarea {
 .dtb-board-table .dtb-col-days { width: 150px; }
 .dtb-board-table .dtb-col-status { width: 150px; }
 .dtb-board-table .dtb-col-actions { width: 130px; }
-.digital-task-page .dtb-board-table thead th { height: 36px; padding: 0 11px; background: rgba(253, 246, 238, .48); border-right: 1px solid var(--task-border); border-bottom: 1px solid var(--task-border); text-align: left; vertical-align: middle; color: var(--task-burgundy); font-size: 10px; line-height: 1.1; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; box-sizing: border-box; }
+.digital-task-page .dtb-board-table thead th { height: 35px; padding: 0 11px; background: rgba(253, 246, 238, .48); border-right: 1px solid var(--task-border); border-bottom: 1px solid var(--task-border); text-align: left; vertical-align: middle; color: var(--task-burgundy); font-size: 10px; line-height: 1.1; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; box-sizing: border-box; }
 .digital-task-page .dtb-board-table tbody td { height: 35px; padding: 0 11px; background: #FFFFFF; border-right: 1px solid var(--task-border); border-bottom: 1px solid var(--task-border); vertical-align: middle; color: #1A1A1A; font-size: 12px; line-height: 1.3; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-sizing: border-box; }
 .dtb-board-table thead th:last-child,
 .dtb-board-table tbody td:last-child { border-right: 0; }
