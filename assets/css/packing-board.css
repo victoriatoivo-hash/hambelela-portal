@@ -1395,3 +1395,60 @@
 .packing-page-v2 .packing-month-scroll .packing-date-body {
     overflow: visible;
 }
+.packing-bulk-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  z-index: 140;
+  width: fit-content;
+  max-width: calc(100% - 24px);
+  min-height: 56px;
+  padding: 7px 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--pk-border, #EDE3D8);
+  border-radius: 14px;
+  background: #FFFFFF;
+  color: var(--pk-text, #1A1A1A);
+  box-shadow: 0 16px 34px rgba(114, 27, 26, .13), 0 4px 12px rgba(114, 27, 26, .05);
+  font-family: Figtree, Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  box-sizing: border-box;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 10px) scale(.985);
+  transition: opacity .22s ease, transform .22s ease;
+}
+.packing-bulk-bar.is-visible { opacity: 1; pointer-events: auto; transform: translate(-50%, 0) scale(1); }
+.packing-bulk-bar[hidden] { display: none; }
+.packing-bulk-selection { display: flex; align-items: center; gap: 8px; padding: 0 4px; white-space: nowrap; }
+.packing-bulk-count { min-width: 28px; height: 28px; padding: 0 8px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: var(--pk-orange-red, #AB3619); color: #FFFFFF; font-size: 11px; line-height: 1; font-weight: 700; box-sizing: border-box; }
+.packing-bulk-label { font-size: 12px; line-height: 1; font-weight: 600; color: var(--pk-text, #1A1A1A); }
+.packing-bulk-divider { width: 1px; height: 28px; flex: 0 0 1px; background: var(--pk-border, #EDE3D8); }
+.packing-bulk-actions { display: flex; align-items: center; gap: 4px; }
+.packing-bulk-action { min-width: 62px; height: 40px; padding: 4px 9px; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border: 0; border-radius: 9px; background: transparent; color: var(--pk-text-mid, #6B4C3B); font-family: inherit; font-size: 10px; line-height: 1; font-weight: 600; cursor: pointer; transition: background-color .18s ease, color .18s ease, transform .18s ease; }
+.packing-bulk-action svg { width: 15px; height: 15px; flex: 0 0 15px; color: var(--pk-orange-red, #AB3619); stroke: currentColor; transition: transform .2s ease, color .2s ease; }
+.packing-bulk-action:hover { background: rgba(240, 116, 32, .08); color: var(--pk-burgundy, #721B1A); transform: translateY(-1px); }
+.packing-bulk-action:hover svg { color: var(--pk-burgundy, #721B1A); transform: translateY(-1px) scale(1.08); }
+.packing-bulk-action:active { transform: translateY(0) scale(.98); }
+.packing-bulk-action[data-bulk-action="duplicate"]:hover svg { animation: packingDuplicateMove .42s ease; }
+.packing-bulk-action[data-bulk-action="export"]:hover svg { animation: packingExportMove .42s ease; }
+.packing-bulk-action[data-bulk-action="archive"]:hover svg { animation: packingArchiveMove .42s ease; }
+.packing-bulk-action--danger, .packing-bulk-action--danger svg { color: var(--pk-red, #BB1B21); }
+.packing-bulk-action--danger:hover { background: rgba(187, 27, 33, .08); color: var(--pk-burgundy, #721B1A); }
+.packing-bulk-action--danger:hover svg { color: var(--pk-burgundy, #721B1A); animation: packingDeleteShake .38s ease; }
+.packing-bulk-close { width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--pk-orange-red, #AB3619); cursor: pointer; transition: background-color .18s ease, border-color .18s ease, color .18s ease, transform .18s ease; }
+.packing-bulk-close svg { width: 15px; height: 15px; }
+.packing-bulk-close:hover { border-color: rgba(171, 54, 25, .22); background: rgba(240, 116, 32, .08); color: var(--pk-burgundy, #721B1A); transform: rotate(4deg); }
+.packing-page-v2 .packing-group-table tbody tr.is-selected td { background: rgba(240, 116, 32, .07); }
+@keyframes packingDuplicateMove { 0%,100% { transform: translate(0,0); } 45% { transform: translate(2px,-2px); } }
+@keyframes packingExportMove { 0%,100% { transform: translateY(0); } 45% { transform: translateY(-3px); } }
+@keyframes packingArchiveMove { 0%,100% { transform: translateY(0); } 45% { transform: translateY(2px); } }
+@keyframes packingDeleteShake { 0%,100% { transform: translateX(0); } 35% { transform: translateX(-2px); } 70% { transform: translateX(2px); } }
+@media (max-width: 700px) {
+  .packing-bulk-bar { left: 10px; right: 10px; width: auto; max-width: none; padding: 8px; overflow-x: auto; justify-content: flex-start; transform: translateY(10px) scale(.985); }
+  .packing-bulk-bar.is-visible { transform: translateY(0) scale(1); }
+  .packing-bulk-selection, .packing-bulk-actions { flex: 0 0 auto; }
+  .packing-bulk-action { min-width: 58px; }
+  .packing-bulk-close { flex: 0 0 32px; }
+}
