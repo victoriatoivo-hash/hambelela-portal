@@ -149,7 +149,13 @@
         <tr>
           ${columnDefinitions().map((column) => {
             if (column.key === 'select') {
-              return `<th class="${esc(column.className)} packing-grid-cell--select" data-column-key="${esc(column.key)}"><input class="packing-select-all-checkbox" type="checkbox" data-packing-select-all></th>`;
+              return `<th class="${esc(column.className)} packing-grid-cell--select" data-column-key="${esc(column.key)}">
+                <input class="packing-selection-input packing-selection-input--all" type="checkbox" tabindex="-1" aria-hidden="true">
+                <button type="button" class="packing-checkbox-control" role="checkbox" aria-checked="false" data-packing-select-all aria-label="Select all packing items">
+                  <svg class="packing-checkbox-tick" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 7.2 5.7 10 11 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  <span class="packing-checkbox-minus" aria-hidden="true"></span>
+                </button>
+              </th>`;
             }
             if (column.key === 'add') {
               return `<th class="${esc(column.className)}" data-column-key="${esc(column.key)}"><button type="button" data-add-packing-column>+</button></th>`;
@@ -1185,7 +1191,12 @@
         : renderStaticLabel(task.packing_status || 'not_started', statuses);
       return `
         <tr data-task-id="${esc(task.id)}" class="packing-board-row board-row ${!previousTaskIds.has(String(task.id)) && hasRenderedOnce ? 'row-new' : ''} ${selected.has(String(task.id)) ? 'is-selected' : ''}">
-          <td class="check-cell col-checkbox packing-grid-cell--select" data-column-key="select"><input class="packing-row-checkbox" type="checkbox" data-packing-row-select="${esc(task.id)}" ${selected.has(String(task.id)) ? 'checked' : ''}></td>
+          <td class="check-cell col-checkbox packing-grid-cell--select" data-column-key="select">
+            <input class="packing-selection-input" type="checkbox" name="selected_items[]" value="${esc(task.id)}" data-packing-row-select="${esc(task.id)}" tabindex="-1" aria-hidden="true" ${selected.has(String(task.id)) ? 'checked' : ''}>
+            <button type="button" class="packing-checkbox-control" role="checkbox" aria-checked="${selected.has(String(task.id)) ? 'true' : 'false'}" data-packing-row-checkbox="${esc(task.id)}" aria-label="Select this packing item">
+              <svg class="packing-checkbox-tick" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 7.2 5.7 10 11 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </td>
           <td class="task-cell col-item" data-column-key="item">${esc(task.item_name)}</td>
           <td class="notes-cell col-notes" data-column-key="notes"><button type="button" title="Open notes" data-packing-open-panel="${esc(task.id)}"><i data-lucide="message-circle-plus"></i></button></td>
           <td class="col-dateloaded packing-editable-date-cell" data-column-key="date_loaded">${renderPackingDate(task, 'date_loaded', currentUser.can_manage)}</td>
@@ -1330,14 +1341,18 @@
   function updateSelection() {
     const visibleIds = visibleTasks().map((task) => String(task.id));
     const selectedVisible = visibleIds.filter((id) => selected.has(id)).length;
-    document.querySelectorAll('[data-packing-select-all]').forEach((input) => {
-      input.checked = visibleIds.length > 0 && selectedVisible === visibleIds.length;
-      input.indeterminate = selectedVisible > 0 && selectedVisible < visibleIds.length;
-      input.disabled = visibleIds.length === 0;
+    document.querySelectorAll('[data-packing-select-all]').forEach((button) => {
+      const all = visibleIds.length > 0 && selectedVisible === visibleIds.length;
+      const mixed = selectedVisible > 0 && selectedVisible < visibleIds.length;
+      button.setAttribute('aria-checked', mixed ? 'mixed' : all ? 'true' : 'false');
+      button.disabled = visibleIds.length === 0;
+      const input = button.closest('.packing-grid-cell--select')?.querySelector('.packing-selection-input--all');
+      if (input) { input.checked = all; input.indeterminate = mixed; }
     });
     document.querySelectorAll('[data-packing-row-select]').forEach((input) => {
       input.checked = selected.has(String(input.dataset.packingRowSelect));
       input.closest('tr')?.classList.toggle('is-selected', input.checked);
+      input.closest('.packing-grid-cell--select')?.querySelector('[data-packing-row-checkbox]')?.setAttribute('aria-checked', input.checked ? 'true' : 'false');
     });
     updateBulkActionBar();
   }
@@ -1856,6 +1871,8 @@
     const openInvoice = event.target.closest('[data-open-invoice]');
     const closeModal = event.target.closest('[data-close-modal]');
     const rowSelect = event.target.closest('[data-packing-row-select]');
+    const rowCheckboxButton = event.target.closest('[data-packing-row-checkbox]');
+    const selectAllButton = event.target.closest('[data-packing-select-all]');
     const label = event.target.closest('[data-packing-label][data-task-id]');
     const labelChoice = event.target.closest('[data-packing-label-value]');
     const check = event.target.closest('[data-packing-check]');
@@ -2046,17 +2063,25 @@
         localStorage.setItem('hambelelaPackingTheme', next);
         return;
       }
+      if (rowCheckboxButton) {
+        const id = String(rowCheckboxButton.dataset.packingRowCheckbox);
+        if (selected.has(id)) selected.delete(id);
+        else selected.add(id);
+        updateSelection();
+        return;
+      }
+      if (selectAllButton) {
+        const ids = visibleTasks().map((task) => String(task.id));
+        const shouldSelectAll = selectAllButton.getAttribute('aria-checked') !== 'true';
+        if (shouldSelectAll) ids.forEach((id) => selected.add(id));
+        else ids.forEach((id) => selected.delete(id));
+        updateSelection();
+        return;
+      }
       if (rowSelect) {
         const id = String(rowSelect.dataset.packingRowSelect);
         if (rowSelect.checked) selected.add(id);
         else selected.delete(id);
-        updateSelection();
-        return;
-      }
-      if (event.target.closest('[data-packing-select-all]')) {
-        const ids = visibleTasks().map((task) => String(task.id));
-        if (event.target.checked) ids.forEach((id) => selected.add(id));
-        else ids.forEach((id) => selected.delete(id));
         updateSelection();
         return;
       }
