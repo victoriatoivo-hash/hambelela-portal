@@ -1127,7 +1127,7 @@
 .packing-list-page .packing-board-table {
     width: max-content !important;
     min-width: 100% !important;
-    border-collapse: collapse !important;
+    border-collapse: separate !important;
     border-spacing: 0 !important;
     table-layout: fixed !important;
     background: #FFFFFF !important;
