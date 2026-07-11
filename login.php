@@ -11,7 +11,8 @@ if (($_GET['action'] ?? '') === 'logout') {
     logout_user();
 }
 
-$error = null;
+$error = isset($_SESSION['login_error']) ? (string) $_SESSION['login_error'] : null;
+unset($_SESSION['login_error']);
 $opsLoginReady = false;
 $loginEmployees = [];
 
@@ -229,7 +230,7 @@ if ($opsLoginReady && $_SERVER['REQUEST_METHOD'] === 'POST') {
             unset($_SESSION['login_csrf_token']);
             record_login_event($_SESSION['user']);
             record_security_event('login_success', (int) $employee['id']);
-            header('Location: index.php');
+            header('Location: ' . BASE_URL . '/index.php', true, 303);
             exit;
         } else {
             $failedEmployeeId = $employee ? (int) $employee['id'] : null;
@@ -249,6 +250,13 @@ if ($opsLoginReady && $_SERVER['REQUEST_METHOD'] === 'POST') {
             record_security_event('login_failed', $failedEmployeeId);
             $error = 'Unable to sign in. Check your details and try again.';
         }
+    }
+
+    if ($error !== null) {
+        $_SESSION['login_error'] = $error;
+        unset($_SESSION['login_csrf_token']);
+        header('Location: ' . BASE_URL . '/login.php', true, 303);
+        exit;
     }
 }
 
@@ -290,7 +298,7 @@ $assetVersion = is_file(BASE_PATH . '/assets/css/portal.css') ? (string) filemti
         <?php if ($error): ?><p class="login-alert" role="alert"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
         <?php if (!$opsLoginReady): ?><p class="login-alert" role="alert">Staff access is temporarily unavailable. Contact an administrator.</p><?php endif; ?>
 
-        <form method="post" class="login-form" id="login-form" autocomplete="off">
+        <form method="post" action="<?= BASE_URL ?>/login.php" class="login-form" id="login-form" autocomplete="off">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars((string) $_SESSION['login_csrf_token'], ENT_QUOTES, 'UTF-8') ?>">
             <div class="login-field">
                 <label id="login-identity-label">Employee</label>
