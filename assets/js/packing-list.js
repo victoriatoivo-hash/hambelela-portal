@@ -143,7 +143,7 @@
     return `<colgroup>${columnDefinitions().map((column) => `<col class="${packingColumnClass(column.key)}" data-column-key="${esc(column.key)}" style="width:${columnWidth(column)}px">`).join('')}</colgroup>`;
   }
 
-  function renderTableHeader() {
+  function renderTableHeader(groupName = 'packing items') {
     return `
       <thead>
         <tr>
@@ -151,7 +151,7 @@
             if (column.key === 'select') {
               return `<th class="${esc(column.className)} packing-grid-cell--select" data-column-key="${esc(column.key)}">
                 <input class="packing-selection-input packing-selection-input--all" type="checkbox" tabindex="-1" aria-hidden="true">
-                <button type="button" class="packing-checkbox-control" role="checkbox" aria-checked="false" data-packing-select-all aria-label="Select all packing items">
+                <button type="button" class="packing-checkbox-control" role="checkbox" aria-checked="false" data-packing-select-all aria-label="Select all ${esc(groupName)} items">
                   <svg class="packing-checkbox-tick" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 7.2 5.7 10 11 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
                   <span class="packing-checkbox-minus" aria-hidden="true"></span>
                 </button>
@@ -1264,7 +1264,7 @@
         <div class="packing-date-body packing-group-table-wrap">
           <table class="packing-board-table packing-group-table">
             ${renderColGroup()}
-            ${renderTableHeader()}
+            ${renderTableHeader(groupLabel(key))}
             <tbody>
               ${bodyRows}
               ${addRow}
@@ -1341,14 +1341,19 @@
 
   function updateSelection() {
     const visibleIds = visibleTasks().map((task) => String(task.id));
-    const selectedVisible = visibleIds.filter((id) => selected.has(id)).length;
     document.querySelectorAll('[data-packing-select-all]').forEach((button) => {
-      const all = visibleIds.length > 0 && selectedVisible === visibleIds.length;
-      const mixed = selectedVisible > 0 && selectedVisible < visibleIds.length;
+      const group = button.closest('[data-packing-month-group]');
+      const scopedIds = group
+        ? [...group.querySelectorAll('[data-packing-row-select]')].map((input) => String(input.dataset.packingRowSelect))
+        : visibleIds;
+      const selectedInScope = scopedIds.filter((id) => selected.has(id)).length;
+      const all = scopedIds.length > 0 && selectedInScope === scopedIds.length;
+      const mixed = selectedInScope > 0 && selectedInScope < scopedIds.length;
       button.setAttribute('aria-checked', mixed ? 'mixed' : all ? 'true' : 'false');
-      button.disabled = visibleIds.length === 0;
+      button.disabled = scopedIds.length === 0;
       const input = button.closest('.packing-grid-cell--select')?.querySelector('.packing-selection-input--all');
       if (input) { input.checked = all; input.indeterminate = mixed; }
+      group?.classList.toggle('has-selection', selectedInScope > 0);
     });
     document.querySelectorAll('[data-packing-row-select]').forEach((input) => {
       input.checked = selected.has(String(input.dataset.packingRowSelect));
@@ -2072,7 +2077,10 @@
         return;
       }
       if (selectAllButton) {
-        const ids = visibleTasks().map((task) => String(task.id));
+        const group = selectAllButton.closest('[data-packing-month-group]');
+        const ids = group
+          ? [...group.querySelectorAll('[data-packing-row-select]')].map((input) => String(input.dataset.packingRowSelect))
+          : visibleTasks().map((task) => String(task.id));
         const shouldSelectAll = selectAllButton.getAttribute('aria-checked') !== 'true';
         if (shouldSelectAll) ids.forEach((id) => selected.add(id));
         else ids.forEach((id) => selected.delete(id));
