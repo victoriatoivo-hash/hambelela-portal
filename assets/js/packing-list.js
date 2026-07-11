@@ -1248,20 +1248,20 @@
             <strong>${esc(groupLabel(key))}</strong>
             <span>${rows.length} items</span>
           </div>
-          <div class="packing-date-cell packing-date-cell--website packing-month-website-cell packing-month-summary-website">
-            <span class="packing-summary-label">Website</span>
-            <strong>${groupSummary.website}/${rows.length}</strong>
-          </div>
           <div class="packing-date-cell packing-date-cell--priority packing-month-priority-cell packing-month-summary-priority">
             <span class="packing-summary-label">Priority</span>
             ${packingHeaderPriority(pCounts)}
+          </div>
+          <div class="packing-date-cell packing-date-cell--website packing-month-website-cell packing-month-summary-website">
+            <span class="packing-summary-label">Website</span>
+            <strong>${groupSummary.website}/${rows.length}</strong>
           </div>
           <div class="packing-date-cell packing-date-cell--progress packing-month-progress-cell packing-month-summary-status">
             <span class="packing-summary-label">Packing</span>
             ${packingHeaderProgress(statusCounts, rows.length)}
           </div>
         </button>
-        <div class="packing-date-body packing-group-table-wrap">
+        <div class="packing-date-body packing-month-body packing-group-table-wrap">
           <table class="packing-board-table packing-group-table">
             ${renderColGroup()}
             ${renderTableHeader(groupLabel(key))}

@@ -643,9 +643,9 @@
 
 .packing-page-v2 .packing-date-header {
     display: grid;
-    grid-template-columns: var(--packing-columns);
-    width: 1747px;
-    min-width: 100%;
+    grid-template-columns: 42px minmax(220px, 1fr) 180px 150px 180px;
+    width: 100%;
+    min-width: 872px;
     min-height: 58px;
     padding: 0;
     border: 0;
@@ -716,6 +716,9 @@
 }
 
 .packing-page-v2 .packing-month-summary-toggle {
+    width: 42px;
+    min-width: 42px;
+    max-width: 42px;
     align-items: center;
     justify-content: center;
     padding: 0 !important;
@@ -825,8 +828,7 @@
     background: #fff;
 }
 
-.packing-page-v2 .packing-date-group.is-collapsed .packing-date-body,
-.packing-page-v2 .packing-date-group.is-collapsed .packing-group-table-wrap {
+.packing-page-v2 .packing-month-group.is-collapsed .packing-month-body {
     display: none;
 }
 
@@ -1449,10 +1451,14 @@
   stroke: #AB3619 !important;
 }
 
-.packing-page-v2 .packing-date-cell--title { grid-column: 2 / 7; }
-.packing-page-v2 .packing-date-cell--website { grid-column: 7 / 9; }
-.packing-page-v2 .packing-date-cell--priority { grid-column: 9 / 11; }
-.packing-page-v2 .packing-date-cell--progress { grid-column: 11 / 13; border-right: 0; }
+.packing-page-v2 .packing-month-summary-status { border-right: 0; }
+
+@media (max-width: 900px) {
+    .packing-page-v2 .packing-month-summary {
+        grid-template-columns: 42px minmax(180px, 1fr) 150px 130px 160px;
+        min-width: 720px;
+    }
+}
 
 .packing-page-v2 .packing-month-scroll {
     width: 100%;
