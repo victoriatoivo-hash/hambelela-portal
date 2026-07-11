@@ -1297,6 +1297,29 @@
   line-height: 1 !important;
 }
 
+.packing-list-page .packing-toolbar .portal-date-trigger {
+  color: #AB3619 !important;
+}
+.packing-list-page .packing-toolbar .portal-date-trigger svg {
+  width: 15px !important;
+  height: 15px !important;
+  color: #AB3619 !important;
+  stroke: #AB3619 !important;
+}
+.packing-list-page .packing-toolbar .portal-custom-select-chevron {
+  color: #AB3619 !important;
+  stroke: #AB3619 !important;
+}
+.packing-list-page .packing-toolbar .work-filter-actions button {
+  height: 32px !important;
+  min-height: 32px !important;
+}
+.packing-list-page .packing-toolbar [data-sync-monday-packing],
+.packing-list-page .packing-toolbar [data-find-packing-duplicates],
+.packing-list-page .packing-toolbar [data-import-previous-packing] {
+  color: #1A1A1A !important;
+}
+
 .packing-page-v2 .packing-date-cell--title { grid-column: 2 / 7; }
 .packing-page-v2 .packing-date-cell--website { grid-column: 7 / 9; }
 .packing-page-v2 .packing-date-cell--priority { grid-column: 9 / 11; }
