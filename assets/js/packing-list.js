@@ -78,7 +78,7 @@
   }
 
   const baseColumns = [
-    { key: 'select', label: '', className: 'check-cell col-checkbox', width: 40 },
+    { key: 'select', label: '', className: 'check-cell col-checkbox', width: 38 },
     { key: 'item', label: 'ITEM', className: 'col-item', width: 235 },
     { key: 'notes', label: 'NOTES', className: 'col-notes comment-cell', width: 64, title: 'Open notes and full details' },
     { key: 'date_loaded', label: 'DATE LOADED', className: 'col-dateloaded', width: 130 },
@@ -1200,25 +1200,27 @@
 
     return `
       <section class="packing-date-group" data-group-key="${esc(key)}" style="--group-accent:${esc(accent)};--packing-group-accent:${esc(accent)}" data-critical="${pCounts.critical}" data-high="${pCounts.high}" data-medium="${pCounts.medium}" data-low="${pCounts.low}">
-        <header class="packing-date-header">
-          <div class="packing-date-cell packing-date-cell--toggle">
+        <div class="packing-month-scroll">
+        <div class="packing-month-inner">
+        <header class="packing-date-header packing-month-header">
+          <div class="packing-date-cell packing-date-cell--toggle packing-month-toggle-cell">
             <button type="button" class="packing-group-toggle" data-packing-collapse aria-label="Collapse group" aria-expanded="true">
               <i class="group-chevron chevron" data-lucide="chevron-down"></i>
             </button>
           </div>
-          <div class="packing-date-cell packing-date-cell--title">
+          <div class="packing-date-cell packing-date-cell--title packing-month-title-cell">
             <strong>${esc(groupLabel(key))}</strong>
             <span>${rows.length} items</span>
           </div>
-          <div class="packing-date-cell packing-date-cell--website">
+          <div class="packing-date-cell packing-date-cell--website packing-month-website-cell">
             <span class="packing-summary-label">Website</span>
             <strong>${groupSummary.website}/${rows.length}</strong>
           </div>
-          <div class="packing-date-cell packing-date-cell--priority">
+          <div class="packing-date-cell packing-date-cell--priority packing-month-priority-cell">
             <span class="packing-summary-label">Priority</span>
             ${packingHeaderPriority(pCounts)}
           </div>
-          <div class="packing-date-cell packing-date-cell--progress">
+          <div class="packing-date-cell packing-date-cell--progress packing-month-progress-cell">
             <span class="packing-summary-label">Packing</span>
             ${packingHeaderProgress(statusCounts, rows.length)}
           </div>
@@ -1250,6 +1252,8 @@
               </tr>
             </tfoot>
           </table>
+        </div>
+        </div>
         </div>
       </section>
     `;

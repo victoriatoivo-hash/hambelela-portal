@@ -623,6 +623,7 @@
 }
 
 .packing-page-v2 .packing-date-group {
+    --packing-columns: 38px 235px 64px 130px 140px 150px 200px 150px 150px 140px 130px 220px;
     position: relative;
     width: 100%;
     margin: 0;
@@ -646,8 +647,10 @@
 
 .packing-page-v2 .packing-date-header {
     display: grid;
-    grid-template-columns: 52px minmax(180px, 1fr) 150px 180px 220px;
-    min-height: 72px;
+    grid-template-columns: var(--packing-columns);
+    width: 1747px;
+    min-width: 100%;
+    min-height: 70px;
     border-bottom: 1px solid var(--pk-border) !important;
     background: #fff !important;
 }
@@ -667,14 +670,14 @@
 }
 
 .packing-page-v2 .packing-date-cell--toggle {
+    grid-column: 1;
     align-items: center;
-    padding-left: 14px;
-    padding-right: 10px;
+    padding: 0;
 }
 
 .packing-page-v2 .packing-group-toggle {
-    width: 30px;
-    height: 30px;
+    width: 28px;
+    height: 28px;
     padding: 0;
     display: inline-flex;
     align-items: center;
@@ -1077,12 +1080,6 @@
     }
 }
 
-@media (max-width: 1100px) {
-    .packing-page-v2 .packing-date-header {
-        grid-template-columns: 48px minmax(170px, 1fr) 130px 160px 190px;
-    }
-}
-
 @media (max-width: 800px) {
     .packing-list-page.packing-page-v2 {
         padding: 18px 14px 36px;
@@ -1103,26 +1100,6 @@
     }
 }
 
-@media (max-width: 760px) {
-    .packing-page-v2 .packing-date-header {
-        grid-template-columns: 44px minmax(0, 1fr);
-    }
-
-    .packing-page-v2 .packing-date-cell--title {
-        border-right: 0;
-    }
-
-    .packing-page-v2 .packing-date-cell--website,
-    .packing-page-v2 .packing-date-cell--priority,
-    .packing-page-v2 .packing-date-cell--progress {
-        grid-column: 1 / -1;
-        min-height: 54px;
-        border-top: 1px solid var(--pk-border);
-        border-right: 0;
-    }
-}
-
-
 /* Unified Packing Board contract */
 .packing-list-page .packing-board-table {
     width: max-content !important;
@@ -1133,7 +1110,7 @@
     background: #FFFFFF !important;
 }
 
-.packing-list-page .packing-board-table [data-column-key="select"] { width: 40px !important; min-width: 40px !important; max-width: 40px !important; }
+.packing-list-page .packing-board-table [data-column-key="select"] { width: 38px !important; min-width: 38px !important; max-width: 38px !important; }
 .packing-list-page .packing-board-table [data-column-key="item"] { width: 235px !important; min-width: 235px !important; max-width: 235px !important; }
 .packing-list-page .packing-board-table [data-column-key="notes"] { width: 64px !important; min-width: 64px !important; max-width: 64px !important; }
 .packing-list-page .packing-board-table [data-column-key="date_loaded"] { width: 130px !important; min-width: 130px !important; max-width: 130px !important; }
@@ -1223,6 +1200,31 @@
 .packing-list-page .packing-board-table tbody tr:hover .packing-status-fill,
 .packing-list-page .packing-board-table tbody tr:hover .board-label[data-packing-label="priority"],
 .packing-list-page .packing-board-table tbody tr:hover .board-label[data-packing-label="packing_status"] { filter: brightness(1.02); }
+
+.packing-list-page .packing-board-table .notes-cell {
+    padding: 0 !important;
+    text-align: center !important;
+}
+
+.packing-list-page .packing-board-table .notes-cell button {
+    width: 24px !important;
+    height: 24px !important;
+    padding: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border: 0 !important;
+    border-radius: 7px !important;
+    background: transparent !important;
+}
+
+.packing-list-page .packing-board-table .notes-cell button svg {
+    width: 12px !important;
+    height: 12px !important;
+    min-width: 12px !important;
+    min-height: 12px !important;
+    flex: 0 0 12px !important;
+}
 /* Shared portal controls in the Packing filters must win over legacy field sizing. */
 .packing-list-page .packing-toolbar .portal-custom-select-trigger,
 .packing-list-page .packing-toolbar .portal-date-input,
@@ -1233,6 +1235,26 @@
   font-size: 12px !important;
   font-weight: 400 !important;
   line-height: 1 !important;
+}
+
+.packing-page-v2 .packing-date-cell--title { grid-column: 2 / 7; }
+.packing-page-v2 .packing-date-cell--website { grid-column: 7 / 9; }
+.packing-page-v2 .packing-date-cell--priority { grid-column: 9 / 11; }
+.packing-page-v2 .packing-date-cell--progress { grid-column: 11 / 13; border-right: 0; }
+
+.packing-page-v2 .packing-month-scroll {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+.packing-page-v2 .packing-month-inner {
+    width: max-content;
+    min-width: 100%;
+}
+
+.packing-page-v2 .packing-month-scroll .packing-date-body {
+    overflow: visible;
 }
 .packing-list-page .packing-toolbar .portal-custom-select-option {
   min-height: 36px;
