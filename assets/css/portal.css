@@ -6308,8 +6308,8 @@ main.error-log-page {
 .error-board-table .col-logged-by { width: 145px; }
 
 .error-board-table thead th {
-  height: 40px;
-  min-height: 40px;
+  height: 35px;
+  min-height: 35px;
   padding: 0 12px;
   background: rgba(253, 246, 238, .42);
   border-right: 1px solid var(--bk-border);
@@ -6332,9 +6332,14 @@ main.error-log-page {
   border-right: 0;
 }
 
+.error-board-table tbody tr {
+  height: 35px;
+  min-height: 35px;
+}
+
 .error-board-table tbody td {
-  height: 42px;
-  min-height: 42px;
+  height: 35px;
+  min-height: 35px;
   padding: 0 12px;
   background: #FFFFFF;
   border-right: 1px solid var(--bk-border);
