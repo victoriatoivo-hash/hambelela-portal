@@ -4246,7 +4246,7 @@ textarea {
 .dtb-history-table .dtb-history-employee { width: 170px; }
 .dtb-history-table .dtb-history-date { width: 150px; }
 .dtb-history-table .dtb-history-small { width: 120px; }
-.dtb-history-table thead th { height: 35px; min-height: 35px; padding: 0 11px; background: rgba(253, 246, 238, .48); border-right: 1px solid var(--task-border); border-bottom: 1px solid var(--task-border); text-align: left; vertical-align: middle; color: #721b1a; font-size: 10px; line-height: 1.1; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; box-sizing: border-box; }
+.digital-task-page .dtb-history-table thead th { height: 35px; min-height: 35px; padding: 0 11px; background: rgba(253, 246, 238, .48); border-right: 1px solid var(--task-border); border-bottom: 1px solid var(--task-border); text-align: left; vertical-align: middle; color: #721b1a; font-size: 10px; line-height: 1.1; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; box-sizing: border-box; }
 .dtb-history-table tbody tr { height: 35px; min-height: 35px; }
 .dtb-history-table tbody td { height: 35px; min-height: 35px; padding: 0 10px; border-right: 1px solid var(--task-border); border-bottom: 1px solid var(--task-border); vertical-align: middle; color: var(--task-text); font-size: 12px; line-height: 1.2; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-sizing: border-box; }
 .dtb-history-table th:last-child,
