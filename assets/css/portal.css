@@ -4207,6 +4207,7 @@ textarea {
 .dtb-board-table .dtb-col-status { width: 150px; }
 .dtb-board-table .dtb-col-actions { width: 130px; }
 .digital-task-page .dtb-board-table thead th { height: 35px; padding: 0 11px; background: rgba(253, 246, 238, .48); border-right: 1px solid var(--task-border); border-bottom: 1px solid var(--task-border); text-align: left; vertical-align: middle; color: var(--task-burgundy); font-size: 10px; line-height: 1.1; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; box-sizing: border-box; }
+.digital-task-page .dtb-board-table tbody tr { height: 35px; }
 .digital-task-page .dtb-board-table tbody td { height: 35px; padding: 0 11px; background: #FFFFFF; border-right: 1px solid var(--task-border); border-bottom: 1px solid var(--task-border); vertical-align: middle; color: #1A1A1A; font-size: 12px; line-height: 1.3; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-sizing: border-box; }
 .dtb-board-table thead th:last-child,
 .dtb-board-table tbody td:last-child { border-right: 0; }
@@ -4217,7 +4218,7 @@ textarea {
 .digital-task-page .dtb-board-table tbody td.task-priority-cell,
 .digital-task-page .dtb-board-table tbody td.task-status-cell { padding: 4px; vertical-align: middle; }
 .task-priority-fill,
-.task-status-fill { width: 100%; min-height: 32px; height: calc(100% - 8px); display: flex; align-items: center; justify-content: center; border-radius: 5px; font-family: inherit; font-size: 11px; line-height: 1; font-weight: 700; text-align: center; box-sizing: border-box; white-space: nowrap; }
+.task-status-fill { width: 100%; min-height: 27px; height: 27px; display: flex; align-items: center; justify-content: center; border-radius: 5px; font-family: inherit; font-size: 11px; line-height: 1; font-weight: 700; text-align: center; box-sizing: border-box; white-space: nowrap; }
 .task-priority-fill[data-priority="top-critical"] { background: #721B1A; color: #FFFFFF; }
 .task-priority-fill[data-priority="high"] { background: #BB1B21; color: #FFFFFF; }
 .task-priority-fill[data-priority="medium"] { background: #F07420; color: #FFFFFF; }
