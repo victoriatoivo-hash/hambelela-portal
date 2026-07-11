@@ -9743,7 +9743,7 @@ main.error-log-page {
   }
 }
 
-.ops-board-page button,
+.ops-board-page button:not(.portal-custom-select-trigger):not(.portal-custom-select-option):not(.portal-date-trigger),
 .ops-board-page input,
 .ops-board-page select,
 .ops-board-page textarea,
