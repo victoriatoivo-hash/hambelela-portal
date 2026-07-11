@@ -1,4 +1,54 @@
+function initialisePortalDatePickers(root = document) {
+  if (typeof window.flatpickr !== 'function') return;
+
+  root.querySelectorAll('.portal-date-input:not([data-date-initialised])').forEach((input) => {
+    input.dataset.dateInitialised = 'true';
+    const wrapper = input.closest('[data-portal-date-field]');
+    const trigger = wrapper?.querySelector('.portal-date-trigger');
+    const hiddenInput = document.querySelector(input.dataset.submitTarget || '');
+    const enableTime = input.dataset.enableTime === 'true';
+    const storageFormat = enableTime ? 'Y-m-d H:i' : 'Y-m-d';
+    const displayFormat = enableTime ? 'd/m/Y h:i K' : 'd/m/Y';
+    const initialValue = hiddenInput?.value || '';
+    const defaultDate = initialValue
+      ? window.flatpickr.parseDate(initialValue, storageFormat)
+      : (enableTime ? new Date() : null);
+    const syncValue = (selectedDates, instance) => {
+      if (hiddenInput) hiddenInput.value = selectedDates[0] ? instance.formatDate(selectedDates[0], storageFormat) : '';
+    };
+
+    const picker = window.flatpickr(input, {
+      dateFormat: displayFormat,
+      enableTime,
+      time_24hr: false,
+      minuteIncrement: 5,
+      allowInput: true,
+      disableMobile: true,
+      defaultDate,
+      onReady(selectedDates, dateStr, instance) {
+        instance.calendarContainer.classList.add('portal-calendar');
+        syncValue(selectedDates, instance);
+      },
+      onOpen(selectedDates, dateStr, instance) {
+        instance.calendarContainer.classList.add('portal-calendar');
+        if (!initialValue && selectedDates.length === 0 && enableTime) instance.setDate(new Date(), false);
+        if (!initialValue && typeof instance.jumpToDate === 'function') instance.jumpToDate(new Date(), true);
+        syncValue(instance.selectedDates, instance);
+      },
+      onChange(selectedDates, dateStr, instance) {
+        syncValue(selectedDates, instance);
+      },
+      onClose(selectedDates, dateStr, instance) {
+        syncValue(selectedDates, instance);
+      }
+    });
+
+    trigger?.addEventListener('click', () => picker.open());
+  });
+}
+
 window.addEventListener('DOMContentLoaded', () => {
+  initialisePortalDatePickers(document);
   if (window.lucide) {
     window.lucide.createIcons({ strokeWidth: 2 });
   }

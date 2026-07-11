@@ -488,10 +488,6 @@ if ($ready && ($tasks || $historyTasks) && ops_table_exists('ops_activity_logs')
     foreach ($activityRows as $row) $activityByTask[(int) $row['entity_id']][] = $row;
 }
 
-$flatpickrVersion = (string) filemtime(BASE_PATH . '/assets/vendor/flatpickr/flatpickr.min.css');
-$extraStylesheets = [
-    ['path' => 'assets/vendor/flatpickr/flatpickr.min.css', 'version' => $flatpickrVersion],
-];
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
@@ -768,53 +764,7 @@ include BASE_PATH . '/shared/sidebar.php';
     <?php endforeach; ?>
     <div class="panel-backdrop task-panel-backdrop" data-task-close data-task-create-close hidden></div>
 </main>
-<script data-cfasync="false" defer src="<?= BASE_URL ?>/assets/vendor/flatpickr/flatpickr.min.js?v=<?= htmlspecialchars((string) filemtime(BASE_PATH . '/assets/vendor/flatpickr/flatpickr.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
 <script>
-function initialisePortalDatePickers(root = document) {
-  if (typeof window.flatpickr !== 'function') return;
-
-  root.querySelectorAll('.portal-date-input:not([data-date-initialised])').forEach((input) => {
-    input.dataset.dateInitialised = 'true';
-    const wrapper = input.closest('[data-portal-date-field]');
-    const trigger = wrapper?.querySelector('.portal-date-trigger');
-    const hiddenInput = document.querySelector(input.dataset.submitTarget || '');
-    const enableTime = input.dataset.enableTime === 'true';
-    const storageFormat = enableTime ? 'Y-m-d H:i' : 'Y-m-d';
-    const displayFormat = enableTime ? 'd/m/Y h:i K' : 'd/m/Y';
-    const initialValue = hiddenInput?.value || '';
-
-    const picker = window.flatpickr(input, {
-      dateFormat: displayFormat,
-      enableTime,
-      time_24hr: false,
-      minuteIncrement: 5,
-      allowInput: true,
-      disableMobile: true,
-      defaultDate: initialValue ? window.flatpickr.parseDate(initialValue, storageFormat) : null,
-      onReady(selectedDates, dateStr, instance) {
-        instance.calendarContainer.classList.add('portal-calendar');
-      },
-      onOpen(selectedDates, dateStr, instance) {
-        instance.calendarContainer.classList.add('portal-calendar');
-      },
-      onChange(selectedDates, dateStr, instance) {
-        if (hiddenInput) hiddenInput.value = selectedDates[0] ? instance.formatDate(selectedDates[0], storageFormat) : '';
-      },
-      onClose(selectedDates, dateStr, instance) {
-        if (hiddenInput) hiddenInput.value = selectedDates[0] ? instance.formatDate(selectedDates[0], storageFormat) : '';
-      }
-    });
-
-    trigger?.addEventListener('click', () => picker.open());
-  });
-}
-
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => initialisePortalDatePickers(document));
-} else {
-  initialisePortalDatePickers(document);
-}
-
 function initializePortalCustomSelects(root = document) {
   const wireCustomSelect = (customSelect, valueControl, optionButtons, getSelectedIndex, setValue) => {
     if (customSelect.dataset.customSelectReady === 'true') return;
