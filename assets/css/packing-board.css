@@ -1223,3 +1223,19 @@
 .packing-list-page .packing-board-table tbody tr:hover .packing-status-fill,
 .packing-list-page .packing-board-table tbody tr:hover .board-label[data-packing-label="priority"],
 .packing-list-page .packing-board-table tbody tr:hover .board-label[data-packing-label="packing_status"] { filter: brightness(1.02); }
+/* Shared portal controls in the Packing filters must win over legacy field sizing. */
+.packing-list-page .packing-toolbar .portal-custom-select-trigger,
+.packing-list-page .packing-toolbar .portal-date-input,
+.packing-list-page .packing-toolbar .packing-search-input {
+  height: 38px !important;
+  min-height: 38px !important;
+  font-family: Figtree, Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  line-height: 1 !important;
+}
+.packing-list-page .packing-toolbar .portal-custom-select-option {
+  min-height: 36px;
+  font-size: 12px;
+  font-weight: 400;
+}
