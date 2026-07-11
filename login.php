@@ -230,7 +230,7 @@ if ($opsLoginReady && $_SERVER['REQUEST_METHOD'] === 'POST') {
             unset($_SESSION['login_csrf_token']);
             record_login_event($_SESSION['user']);
             record_security_event('login_success', (int) $employee['id']);
-            header('Location: ' . BASE_URL . '/index.php', true, 303);
+            header('Location: ' . BASE_URL . '/index.php', true, 302);
             exit;
         } else {
             $failedEmployeeId = $employee ? (int) $employee['id'] : null;
@@ -255,7 +255,7 @@ if ($opsLoginReady && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($error !== null) {
         $_SESSION['login_error'] = $error;
         unset($_SESSION['login_csrf_token']);
-        header('Location: ' . BASE_URL . '/login.php', true, 303);
+        header('Location: ' . BASE_URL . '/login.php', true, 302);
         exit;
     }
 }
@@ -327,7 +327,7 @@ $assetVersion = is_file(BASE_PATH . '/assets/css/portal.css') ? (string) filemti
             <button type="submit" class="login-submit" <?= !$opsLoginReady || !$loginEmployees ? 'disabled' : '' ?>>Continue</button>
         </form>
 
-        <footer class="login-footer">Hambelela Business Portal<br>Authorised staff access only.<br>Contact an administrator if you cannot access your account.</footer>
+        <footer class="login-footer">Hambelela Business Portal<br>Authorised staff access only.<br><a href="<?= BASE_URL ?>/recover-access.php">Recover Owner/Admin access</a></footer>
     </main>
 <script>
 (() => {
