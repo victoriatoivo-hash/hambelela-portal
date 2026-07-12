@@ -1642,13 +1642,13 @@
 
 /* Full-cell packer Website confirmation. */
 .packing-list-page .packing-board-table td[data-column-key="website_uploaded"]{position:relative;height:35px;min-height:35px;padding:0;border:0;border-right:1px solid var(--pk-border);box-shadow:inset 0 -1px 0 var(--pk-border);background:#fff;vertical-align:middle;overflow:visible;box-sizing:border-box}
-.packing-list-page .packing-website-check{position:relative;width:100%;height:35px;min-height:35px;padding:0;display:flex;align-items:center;justify-content:center;border:0;border-radius:0;background:#fff;color:#00b875;cursor:pointer;box-sizing:border-box;transition:background-color .16s ease,color .16s ease,box-shadow .16s ease}
-.packing-list-page .packing-website-check-icon{width:15px;height:15px;flex:0 0 15px;opacity:0;transform:scale(.72);transition:opacity .16s ease,transform .16s ease}
+.packing-list-page .packing-website-check{position:relative;width:100%;height:35px;min-height:35px;padding:0;display:flex;align-items:center;justify-content:center;border:0;border-radius:0;background:#fff;color:#00b875;cursor:pointer;box-sizing:border-box;transition:background-color .14s ease,color .14s ease}
+.packing-list-page .packing-website-check-icon{width:15px;height:15px;flex:0 0 15px;opacity:0;transform:scale(.75);transition:opacity .14s ease,transform .16s ease}
 .packing-list-page .packing-website-check[data-checked="true"] .packing-website-check-icon{opacity:1;transform:scale(1)}
 .packing-list-page .packing-website-check:hover{background:rgba(168,202,25,.055)}.packing-list-page .packing-website-check[data-checked="false"]:hover .packing-website-check-icon{opacity:.22;transform:scale(.9)}
-.packing-list-page .packing-website-check.is-saving{cursor:wait;background:rgba(240,116,32,.04)}.packing-list-page .packing-website-check.is-saving::after{content:"";position:absolute;width:13px;height:13px;border:2px solid rgba(171,54,25,.14);border-top-color:#ab3619;border-radius:50%;animation:packingWebsiteSavingSpin .65s linear infinite}.packing-list-page .packing-website-check.is-saving .packing-website-check-icon{opacity:0}
-.packing-list-page .packing-website-check.is-just-checked .packing-website-check-icon{animation:packingWebsiteCheckIn .28s cubic-bezier(.2,.8,.2,1)}.packing-list-page .packing-website-check.is-just-unchecked .packing-website-check-icon{animation:packingWebsiteCheckOut .18s ease-in}
-@keyframes packingWebsiteSavingSpin{to{transform:rotate(360deg)}}@keyframes packingWebsiteCheckIn{0%{opacity:0;transform:scale(.45) rotate(-8deg)}65%{opacity:1;transform:scale(1.15) rotate(2deg)}100%{opacity:1;transform:scale(1)}}@keyframes packingWebsiteCheckOut{from{opacity:1;transform:scale(1)}to{opacity:0;transform:scale(.7)}}
+.packing-list-page .packing-website-check.is-saving{cursor:wait;box-shadow:inset 0 0 0 1px rgba(171,54,25,.12)}
+.packing-list-page .packing-website-check.is-just-checked .packing-website-check-icon{animation:packingWebsiteCheckIn .22s cubic-bezier(.2,.8,.2,1)}.packing-list-page .packing-website-check.is-just-unchecked .packing-website-check-icon{animation:packingWebsiteCheckOut .14s ease-in}
+@keyframes packingWebsiteCheckIn{0%{opacity:0;transform:scale(.55)}70%{opacity:1;transform:scale(1.12)}100%{opacity:1;transform:scale(1)}}@keyframes packingWebsiteCheckOut{from{opacity:1;transform:scale(1)}to{opacity:0;transform:scale(.75)}}
 
 /* Monday-style full-cell Packing Status and vertical menu. */
 .packing-list-page .packing-board-table td[data-column-key="status"]{position:relative;height:35px;min-height:35px;padding:0;border:0;border-right:1px solid var(--pk-border);box-shadow:inset 0 -1px 0 var(--pk-border);vertical-align:middle;overflow:visible;box-sizing:border-box}
@@ -1694,7 +1694,7 @@
 }
 
 .packing-list-page .packing-board-table td[data-column-key="website_uploaded"] {
-    padding: 4px !important;
+    padding: 0 !important;
     background: #fff !important;
 }
 

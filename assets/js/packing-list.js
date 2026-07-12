@@ -1768,6 +1768,21 @@
     });
   }
 
+  function updatePackingWebsiteSummaryForButton(button) {
+    const group = button?.closest('.packing-month-group');
+    if (!group) return;
+    const allButtons = group.querySelectorAll('[data-packing-website-check]');
+    const checkedButtons = group.querySelectorAll('[data-packing-website-check][data-checked="true"]');
+    const compactText = `${checkedButtons.length}/${allButtons.length}`;
+    const spacedText = `${checkedButtons.length} / ${allButtons.length}`;
+    group.querySelectorAll('.packing-month-summary-website strong').forEach((element) => {
+      element.textContent = compactText;
+    });
+    group.querySelectorAll('.packing-month-open-footer-cell--website strong').forEach((element) => {
+      element.textContent = spacedText;
+    });
+  }
+
   function initialisePackingEditableCells(root = document) {
     root.querySelectorAll('[data-packing-editable-cell]').forEach((cell) => {
       if (cell.dataset.initialised === 'true') return;
@@ -2356,22 +2371,33 @@
         return;
       }
       if (websiteCheck) {
+        event.preventDefault();
         event.stopPropagation();
-        if (websiteCheck.disabled) return;
+        if (websiteCheck.disabled || websiteCheck.dataset.saving === 'true') return;
         const itemId = String(websiteCheck.dataset.itemId || '');
-        const nextChecked = websiteCheck.dataset.checked !== 'true';
-        websiteCheck.disabled = true;
+        const previousChecked = websiteCheck.dataset.checked === 'true';
+        const nextChecked = !previousChecked;
+        websiteCheck.dataset.saving = 'true';
         websiteCheck.classList.add('is-saving');
+        websiteCheck.dataset.checked = String(nextChecked);
+        websiteCheck.setAttribute('aria-pressed', String(nextChecked));
+        websiteCheck.setAttribute('aria-label', nextChecked ? 'Remove website completion' : 'Mark website inventory as complete');
+        websiteCheck.classList.remove('is-just-checked', 'is-just-unchecked');
+        void websiteCheck.offsetWidth;
+        websiteCheck.classList.add(nextChecked ? 'is-just-checked' : 'is-just-unchecked');
+        updatePackingWebsiteSummaryForButton(websiteCheck);
         try {
           await updateTasksField([itemId], 'packing_website_confirmed', nextChecked ? '1' : '0');
-          render();
-          const updated = document.querySelector(`[data-packing-website-check][data-item-id="${CSS.escape(itemId)}"]`);
-          updated?.classList.add(nextChecked ? 'is-just-checked' : 'is-just-unchecked');
-          window.setTimeout(() => updated?.classList.remove('is-just-checked', 'is-just-unchecked'), 300);
         } catch (error) {
+          websiteCheck.dataset.checked = String(previousChecked);
+          websiteCheck.setAttribute('aria-pressed', String(previousChecked));
+          websiteCheck.setAttribute('aria-label', previousChecked ? 'Remove website completion' : 'Mark website inventory as complete');
+          updatePackingWebsiteSummaryForButton(websiteCheck);
           setCount(error.message || 'Unable to update website status.');
-          websiteCheck.disabled = false;
+        } finally {
+          websiteCheck.dataset.saving = 'false';
           websiteCheck.classList.remove('is-saving');
+          window.setTimeout(() => websiteCheck.classList.remove('is-just-checked', 'is-just-unchecked'), 240);
         }
         return;
       }
