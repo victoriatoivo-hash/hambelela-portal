@@ -796,6 +796,17 @@
     background: #f3eee8;
 }
 
+/* Override the legacy 24px Monday bar so the complete Packing bar matches Priority. */
+.packing-list-page.packing-page-v2 .packing-month-summary .packing-progress-bar {
+    height: 18px !important;
+    min-height: 18px !important;
+    max-height: 18px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 999px !important;
+    box-sizing: border-box !important;
+}
+
 .packing-page-v2 .packing-priority-summary span,
 .packing-page-v2 .packing-progress-bar span {
     display: block;
