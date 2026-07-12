@@ -1892,6 +1892,18 @@
   font-weight: 400;
   transform: none;
 }
+.ops-board-page.packing-list-page.packing-page-v2 .work-filter-bar.packing-toolbar .work-filter-actions button[data-sync-monday-packing]:hover,
+.ops-board-page.packing-list-page.packing-page-v2 .work-filter-bar.packing-toolbar .work-filter-actions button[data-sync-monday-packing]:active,
+.ops-board-page.packing-list-page.packing-page-v2 .work-filter-bar.packing-toolbar .work-filter-actions button[data-find-packing-duplicates]:hover,
+.ops-board-page.packing-list-page.packing-page-v2 .work-filter-bar.packing-toolbar .work-filter-actions button[data-find-packing-duplicates]:active,
+.ops-board-page.packing-list-page.packing-page-v2 .work-filter-bar.packing-toolbar .work-filter-actions button[data-import-previous-packing]:hover,
+.ops-board-page.packing-list-page.packing-page-v2 .work-filter-bar.packing-toolbar .work-filter-actions button[data-import-previous-packing]:active {
+  background: rgba(240,116,32,.08) !important;
+  border-color: rgba(171,54,25,.35) !important;
+  color: #AB3619 !important;
+  font-weight: 400 !important;
+  transform: none !important;
+}
 .packing-list-page .packing-toolbar [data-sync-monday-packing] svg,
 .packing-list-page .packing-toolbar [data-find-packing-duplicates] svg,
 .packing-list-page .packing-toolbar [data-import-previous-packing] svg {
