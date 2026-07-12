@@ -1497,15 +1497,15 @@
       </div>
       ${['packing_status', 'priority'].includes(field) ? `
         <div class="${field === 'packing_status' ? 'packing-status-menu-divider' : 'packing-priority-menu-divider'}"></div>
-        <button class="edit-labels packing-edit-labels" type="button" data-packing-edit-labels="${esc(field)}" data-packing-edit-task="${esc(taskId)}">
-          <i data-lucide="pencil"></i>
-          <span>Edit Labels</span>
+        <button class="edit-labels packing-edit-labels ${field === 'priority' ? 'packing-priority-utility' : ''}" type="button" data-packing-edit-labels="${esc(field)}" data-packing-edit-task="${esc(taskId)}">
+          <span class="${field === 'priority' ? 'packing-priority-utility-icon' : ''}"><i data-lucide="pencil"></i></span>
+          <span class="${field === 'priority' ? 'packing-priority-utility-label' : ''}">Edit Labels</span>
         </button>
       ` : ''}
       ${field === 'priority' ? `
-        <button class="edit-labels packing-edit-labels" type="button" data-packing-auto-labels>
-          <i data-lucide="sparkles"></i>
-          <span>Auto-assign labels</span>
+        <button class="edit-labels packing-edit-labels packing-priority-utility" type="button" data-packing-auto-labels>
+          <span class="packing-priority-utility-icon"><i data-lucide="sparkles"></i></span>
+          <span class="packing-priority-utility-label">Auto-assign Labels</span>
         </button>
       ` : ''}
     `;
@@ -1519,6 +1519,7 @@
     labelMenu.classList.add('is-editor');
     labelMenu.innerHTML = `
       <div class="packing-label-editor" data-packing-label-editor="${esc(field)}" data-packing-label-task="${esc(taskId)}">
+        ${field === 'priority' ? '<button type="button" class="packing-priority-editor-back" data-close-priority-label-editor><i data-lucide="arrow-left"></i><span>Back</span></button>' : ''}
         <div class="packing-label-editor-main">
           <div class="packing-label-editor-list">
             ${options.map((item, index) => `
@@ -1745,6 +1746,26 @@
       if (submit) { submit.disabled = false; submit.classList.remove('is-loading'); }
       if (submitText) submitText.textContent = 'Create packing row';
     }
+  }
+
+  function updatePrioritySummaryForTask(taskId) {
+    const trigger = document.querySelector(`.packing-priority-trigger[data-task-id="${CSS.escape(String(taskId))}"]`);
+    const group = trigger?.closest('.packing-month-group');
+    if (!group) return;
+    const counts = { critical: 0, high: 0, medium: 0, low: 0 };
+    group.querySelectorAll('.packing-priority-component').forEach((component) => {
+      const value = normalize(component.dataset.priority || 'medium');
+      if (value === 'top_critical' || value === 'critical') counts.critical += 1;
+      else if (value === 'high') counts.high += 1;
+      else if (value === 'low') counts.low += 1;
+      else counts.medium += 1;
+    });
+    group.querySelectorAll('.packing-priority-summary').forEach((summary) => {
+      const holder = document.createElement('div');
+      holder.innerHTML = packingHeaderPriority(counts).trim();
+      const replacement = holder.firstElementChild;
+      if (replacement) summary.replaceWith(replacement);
+    });
   }
 
   function initialisePackingEditableCells(root = document) {
@@ -2099,6 +2120,7 @@
     const savePackingLabel = event.target.closest('[data-save-packing-labels]');
     const removePackingLabel = event.target.closest('[data-remove-packing-label-row]');
     const autoPackingLabels = event.target.closest('[data-packing-auto-labels]');
+    const closePriorityEditor = event.target.closest('[data-close-priority-label-editor]');
 
     try {
       if (editPackingLabels) {
@@ -2194,6 +2216,14 @@
       if (refreshButton) { await refresh(); return; }
       if (selectInvoiceFile) {
         invoiceModal?.querySelector('[name="invoice_file"]')?.click();
+        return;
+      }
+
+      if (closePriorityEditor) {
+        const editor = closePriorityEditor.closest('[data-packing-label-editor="priority"]');
+        const taskId = editor?.dataset.packingLabelTask || '';
+        const trigger = document.querySelector(`.packing-priority-trigger[data-task-id="${CSS.escape(taskId)}"]`);
+        if (trigger) openLabel(trigger, taskId, 'priority');
         return;
       }
       if (removeInvoiceFile) {
@@ -2305,6 +2335,20 @@
           ? ids.filter((id) => normalize(tasks.find((task) => String(task.id) === String(id))?.packing_status) !== 'done')
           : [];
         await updateTasksField(ids, field, nextValue);
+        if (field === 'priority' && ids.length === 1) {
+          const taskId = ids[0];
+          const component = document.querySelector(`.packing-priority-trigger[data-task-id="${CSS.escape(taskId)}"]`)?.closest('.packing-priority-component');
+          const savedTask = tasks.find((task) => String(task.id) === String(taskId));
+          if (component && savedTask) {
+            component.dataset.priority = normalize(savedTask.priority).replace(/_/g, '-');
+            component.style.setProperty('--priority-colour', labelColor(labelOptionsFor('priority'), savedTask.priority));
+            const triggerLabel = component.querySelector('.packing-priority-trigger-label');
+            if (triggerLabel) triggerLabel.textContent = labelText(labelOptionsFor('priority'), savedTask.priority);
+          }
+          updatePrioritySummaryForTask(taskId);
+          closeLabel();
+          return;
+        }
         closeLabel();
         render();
         if (currentTask && ids.includes(String(currentTask.id)) && panel.classList.contains('open')) openPanel(currentTask.id);
