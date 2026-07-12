@@ -1102,7 +1102,6 @@
         const percentage = Math.round((item.count / safeTotal) * 100);
         return `<span class="packing-summary-segment ${esc(item.className)}" role="button" tabindex="0" data-label="${esc(item.label)}" data-count="${item.count}" data-total="${total}" data-percentage="${percentage}" style="--segment-colour:${esc(item.colour)};--segment-width:${(item.count / safeTotal) * 100}%" aria-label="${esc(item.label)}: ${item.count} of ${total} items, ${percentage} percent"></span>`;
       }).join('')}
-      <span class="packing-summary-tooltip" role="tooltip" hidden></span>
     </div>`;
   }
 
@@ -2474,31 +2473,42 @@
     if (!event.target.closest('#packing-label-menu') && !event.target.closest('[data-packing-label]')) closeLabel();
   });
 
+  function getPackingSummaryTooltip() {
+    let tooltip = document.querySelector('[data-packing-summary-tooltip]');
+    if (tooltip) return tooltip;
+    tooltip = document.createElement('div');
+    tooltip.className = 'packing-summary-tooltip';
+    tooltip.dataset.packingSummaryTooltip = '';
+    tooltip.setAttribute('role', 'tooltip');
+    document.body.appendChild(tooltip);
+    return tooltip;
+  }
+
   function showPackingSummaryTooltip(segment) {
     const bar = segment.closest('[data-packing-summary-bar]');
-    const tooltip = bar?.querySelector('.packing-summary-tooltip');
-    if (!tooltip) return;
+    const tooltip = getPackingSummaryTooltip();
     tooltip.textContent = `${segment.dataset.label} · ${segment.dataset.count}/${segment.dataset.total} · ${segment.dataset.percentage}%`;
-    tooltip.hidden = false;
     tooltip.classList.add('is-visible');
     bar.classList.add('has-active-segment');
-    const segmentRect = segment.getBoundingClientRect();
-    const tooltipRect = tooltip.getBoundingClientRect();
-    const padding = 8;
-    const left = Math.max(padding, Math.min(segmentRect.left + segmentRect.width / 2 - tooltipRect.width / 2, window.innerWidth - tooltipRect.width - padding));
-    let top = segmentRect.top - tooltipRect.height - 8;
-    tooltip.classList.toggle('is-below', top < padding);
-    if (top < padding) top = segmentRect.bottom + 8;
-    tooltip.style.left = `${left}px`;
-    tooltip.style.top = `${top}px`;
+    window.requestAnimationFrame(() => {
+      const segmentRect = segment.getBoundingClientRect();
+      const tooltipRect = tooltip.getBoundingClientRect();
+      const padding = 8;
+      const gap = 9;
+      const left = Math.max(padding, Math.min(segmentRect.left + segmentRect.width / 2 - tooltipRect.width / 2, window.innerWidth - tooltipRect.width - padding));
+      let top = segmentRect.top - tooltipRect.height - gap;
+      tooltip.classList.toggle('is-below', top < padding);
+      if (top < padding) top = segmentRect.bottom + gap;
+      tooltip.style.left = `${Math.round(left)}px`;
+      tooltip.style.top = `${Math.round(top)}px`;
+    });
   }
 
   function hidePackingSummaryTooltip(bar) {
-    const tooltip = bar?.querySelector('.packing-summary-tooltip');
+    const tooltip = document.querySelector('[data-packing-summary-tooltip]');
     if (!tooltip) return;
     tooltip.classList.remove('is-visible');
-    bar.classList.remove('has-active-segment');
-    window.setTimeout(() => { if (!tooltip.classList.contains('is-visible')) tooltip.hidden = true; }, 150);
+    bar?.classList.remove('has-active-segment');
   }
 
   document.addEventListener('pointerover', (event) => {

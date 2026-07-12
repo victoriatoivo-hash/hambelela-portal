@@ -1297,7 +1297,7 @@
     height: 1px;
     margin: -1px;
     padding: 0;
-    overflow: hidden;
+    overflow: visible;
     clip: rect(0 0 0 0);
     clip-path: inset(50%);
     border: 0;
@@ -1653,15 +1653,15 @@
 
 /* Shared interactive Priority and Packing summary bars. */
 .packing-list-page .packing-summary-bar { position:relative; }
-.packing-list-page .packing-summary-segment { position:relative; width:var(--segment-width); height:100%; min-width:3px; padding:0; border:0; background:var(--segment-colour); cursor:pointer; box-sizing:border-box; transform-origin:center; transition:transform .18s ease,filter .18s ease,box-shadow .18s ease,opacity .18s ease; }
+.packing-list-page .packing-summary-segment { position:relative; z-index:1; width:var(--segment-width); height:18px; min-height:18px; max-height:18px; min-width:3px; padding:0; border:0; background:var(--segment-colour); cursor:pointer; box-sizing:border-box; transform-origin:center; transition:transform .18s ease,filter .18s ease,box-shadow .18s ease,opacity .18s ease; }
 .packing-list-page .packing-summary-segment:first-of-type { border-radius:4px 0 0 4px; }
 .packing-list-page .packing-summary-segment:last-of-type { border-radius:0 4px 4px 0; }
 .packing-list-page .packing-summary-segment:only-of-type { border-radius:4px; }
-.packing-list-page .packing-summary-segment:hover,.packing-list-page .packing-summary-segment:focus-visible,.packing-list-page .packing-summary-segment.is-active { z-index:3; transform:scale(.92); filter:brightness(1.06); box-shadow:0 5px 12px rgba(114,27,26,.14); border-radius:4px; outline:0; }
+.packing-list-page .packing-summary-segment:hover,.packing-list-page .packing-summary-segment:focus-visible,.packing-list-page .packing-summary-segment.is-active { z-index:6; transform:scale(1.14); filter:brightness(1.04); box-shadow:0 6px 14px rgba(114,27,26,.18); border-radius:4px; outline:0; }
 .packing-list-page .packing-summary-bar.has-active-segment .packing-summary-segment { opacity:.72; }
 .packing-list-page .packing-summary-bar.has-active-segment .packing-summary-segment:hover,.packing-list-page .packing-summary-bar.has-active-segment .packing-summary-segment:focus-visible,.packing-list-page .packing-summary-bar.has-active-segment .packing-summary-segment.is-active { opacity:1; }
-.packing-summary-tooltip { position:fixed; z-index:20000; min-width:max-content; max-width:220px; padding:7px 9px; border:1px solid rgba(114,27,26,.18); border-radius:8px; background:#721b1a; color:#fff; box-shadow:0 8px 20px rgba(114,27,26,.18); font-family:Figtree,Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; font-size:12px; line-height:1.2; font-weight:500; white-space:nowrap; pointer-events:none; opacity:0; transform:translateY(4px) scale(.98); transition:opacity .14s ease,transform .14s ease; }
-.packing-summary-tooltip.is-visible { opacity:1; transform:translateY(0) scale(1); }
+.packing-summary-tooltip { position:fixed; z-index:25000; display:block; width:max-content; min-width:0; max-width:min(280px,calc(100vw - 16px)); padding:7px 10px; border:1px solid rgba(114,27,26,.18); border-radius:8px; background:#721b1a; color:#fff; box-shadow:0 8px 20px rgba(114,27,26,.18); font-family:Figtree,Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; font-size:12px; line-height:1.25; font-weight:500; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; box-sizing:border-box; pointer-events:none; opacity:0; visibility:hidden; transform:translateY(4px) scale(.98); transition:opacity .14s ease,transform .14s ease,visibility .14s ease; }
+.packing-summary-tooltip.is-visible { opacity:1; visibility:visible; transform:translateY(0) scale(1); }
 .packing-summary-tooltip::after { content:""; position:absolute; left:50%; bottom:-5px; width:9px; height:9px; background:inherit; border-right:1px solid rgba(114,27,26,.18); border-bottom:1px solid rgba(114,27,26,.18); transform:translateX(-50%) rotate(45deg); }
 .packing-summary-tooltip.is-below::after { top:-5px; bottom:auto; transform:translateX(-50%) rotate(225deg); }
 @media(prefers-reduced-motion:reduce){.packing-list-page .packing-summary-segment,.packing-summary-tooltip{transition:none}.packing-list-page .packing-summary-segment:hover,.packing-list-page .packing-summary-segment:focus-visible,.packing-list-page .packing-summary-segment.is-active{transform:none}}
