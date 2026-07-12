@@ -406,14 +406,11 @@
 
   function renderPackingStatus(task, canEdit) {
     const value = normalize(task.packing_status || 'not_started');
-    const content = `
-      <span class="packing-status-label">${esc(labelText(statuses, value))}</span>
-      ${canEdit ? '<i class="packing-status-chevron" data-lucide="chevron-down"></i>' : ''}
-      <span class="packing-status-animation-layer" aria-hidden="true"></span>`;
-    return `<div class="packing-status-cell-component" data-packing-status-cell data-item-id="${esc(task.id)}" data-status="${esc(value)}">
+    const content = `<span class="packing-status-trigger-label">${esc(labelText(statuses, value))}</span>${canEdit ? '<svg class="packing-status-trigger-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 8l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}<span class="packing-status-animation-layer" aria-hidden="true"></span>`;
+    return `<div class="packing-status-component" data-packing-status-cell data-packing-status-component data-item-id="${esc(task.id)}" data-status="${esc(value).replace(/_/g, '-')}">
       ${canEdit
-        ? `<button type="button" class="packing-status-cell-inner" aria-haspopup="listbox" aria-expanded="false" data-packing-label="packing_status" data-task-id="${esc(task.id)}">${content}</button>`
-        : `<span class="packing-status-cell-inner is-static">${content}</span>`}
+        ? `<button type="button" class="packing-status-trigger" aria-haspopup="menu" aria-expanded="false" data-packing-label="packing_status" data-task-id="${esc(task.id)}">${content}</button>`
+        : `<span class="packing-status-trigger is-static">${content}</span>`}
     </div>`;
   }
 
@@ -1469,12 +1466,17 @@
 
   function openLabel(anchor, taskId, field) {
     const options = labelOptionsFor(field);
+    const menuOptions = field === 'packing_status'
+      ? ['packing', 'website', 'done', 'not_started', 'packed_label_needed', 'label_created', 'correction_needed']
+          .map((key) => options.find((item) => normalize(item[0]) === key))
+          .filter(Boolean)
+      : options;
     const rect = anchor.getBoundingClientRect();
-    document.querySelectorAll('.packing-status-cell-component.is-open').forEach((cell) => cell.classList.remove('is-open'));
-    document.querySelectorAll('.packing-status-cell-inner[aria-expanded="true"]').forEach((button) => button.setAttribute('aria-expanded', 'false'));
+    document.querySelectorAll('.packing-status-component.is-open').forEach((cell) => cell.classList.remove('is-open'));
+    document.querySelectorAll('.packing-status-trigger[aria-expanded="true"]').forEach((button) => button.setAttribute('aria-expanded', 'false'));
     document.querySelectorAll('.packing-priority-component.is-open').forEach((cell) => cell.classList.remove('is-open'));
     document.querySelectorAll('.packing-priority-trigger[aria-expanded="true"]').forEach((button) => button.setAttribute('aria-expanded', 'false'));
-    const statusComponent = field === 'packing_status' ? anchor.closest('.packing-status-cell-component') : null;
+    const statusComponent = field === 'packing_status' ? anchor.closest('.packing-status-component') : null;
     const priorityComponent = field === 'priority' ? anchor.closest('.packing-priority-component') : null;
     statusComponent?.classList.add('is-open');
     priorityComponent?.classList.add('is-open');
@@ -1482,7 +1484,7 @@
     labelMenu.classList.remove('is-open');
     labelMenu.classList.remove('is-editor');
     labelMenu.classList.toggle('packing-status-menu', field === 'packing_status');
-    labelMenu.classList.toggle('portal-custom-select-menu', field === 'packing_status');
+    labelMenu.classList.remove('portal-custom-select-menu');
     labelMenu.classList.toggle('packing-priority-menu', field === 'priority');
     labelMenu.hidden = false;
     const estimatedHeight = field === 'packing_status' ? 390 : 260;
@@ -1490,17 +1492,17 @@
     labelMenu.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - 260))}px`;
     labelMenu.style.top = `${shouldFlip ? Math.max(8, rect.top - estimatedHeight - 8) : rect.bottom + 8}px`;
     labelMenu.innerHTML = `
-      <div class="label-menu-grid packing-label-menu-grid ${field === 'priority' ? 'packing-priority-options' : ''}">
-        ${options.map((item, index) => `<button type="button" class="${field === 'packing_status' ? 'portal-custom-select-option' : field === 'priority' ? 'packing-priority-option' : ''}" style="--label-color:${esc(itemColor(item))};--option-colour:${esc(itemColor(item))}" role="option" aria-selected="${normalize(item[0]) === normalize(tasks.find((task) => String(task.id) === String(taskId))?.[field]) ? 'true' : 'false'}" data-packing-label-value="${esc(item[0])}" data-packing-label-field="${esc(field)}" data-packing-label-task="${esc(taskId)}">${esc(itemText(item))}</button>${field === 'priority' && index === 0 ? `<button type="button" class="packing-priority-option packing-priority-option--default" role="option" data-packing-label-value="" data-packing-label-field="priority" data-packing-label-task="${esc(taskId)}">Default Label</button>` : ''}`).join('')}
+      <div class="label-menu-grid packing-label-menu-grid ${field === 'priority' ? 'packing-priority-options' : field === 'packing_status' ? 'packing-status-options' : ''}">
+        ${menuOptions.map((item, index) => `<button type="button" class="${field === 'packing_status' ? 'packing-status-option' : field === 'priority' ? 'packing-priority-option' : ''}" style="--label-color:${esc(itemColor(item))};--option-colour:${esc(itemColor(item))}" role="option" aria-selected="${normalize(item[0]) === normalize(tasks.find((task) => String(task.id) === String(taskId))?.[field]) ? 'true' : 'false'}" data-packing-label-value="${esc(item[0])}" data-packing-label-field="${esc(field)}" data-packing-label-task="${esc(taskId)}">${esc(itemText(item))}</button>${field === 'priority' && index === 0 ? `<button type="button" class="packing-priority-option packing-priority-option--default" role="option" data-packing-label-value="" data-packing-label-field="priority" data-packing-label-task="${esc(taskId)}">Default Label</button>` : ''}`).join('')}
       </div>
       ${['packing_status', 'priority'].includes(field) ? `
-        <div class="packing-priority-menu-divider"></div>
+        <div class="${field === 'packing_status' ? 'packing-status-menu-divider' : 'packing-priority-menu-divider'}"></div>
         <button class="edit-labels packing-edit-labels" type="button" data-packing-edit-labels="${esc(field)}" data-packing-edit-task="${esc(taskId)}">
           <i data-lucide="pencil"></i>
           <span>Edit Labels</span>
         </button>
       ` : ''}
-      ${['packing_status', 'priority'].includes(field) ? `
+      ${field === 'priority' ? `
         <button class="edit-labels packing-edit-labels" type="button" data-packing-auto-labels>
           <i data-lucide="sparkles"></i>
           <span>Auto-assign labels</span>
@@ -1586,8 +1588,8 @@
 
   function closeLabel() {
     if (!labelMenu || labelMenu.hidden) return;
-    document.querySelectorAll('.packing-status-cell-component.is-open').forEach((cell) => cell.classList.remove('is-open'));
-    document.querySelectorAll('.packing-status-cell-inner[aria-expanded="true"]').forEach((button) => button.setAttribute('aria-expanded', 'false'));
+    document.querySelectorAll('.packing-status-component.is-open').forEach((cell) => cell.classList.remove('is-open'));
+    document.querySelectorAll('.packing-status-trigger[aria-expanded="true"]').forEach((button) => button.setAttribute('aria-expanded', 'false'));
     document.querySelectorAll('.packing-priority-component.is-open').forEach((cell) => cell.classList.remove('is-open'));
     document.querySelectorAll('.packing-priority-trigger[aria-expanded="true"]').forEach((button) => button.setAttribute('aria-expanded', 'false'));
     labelMenu.classList.remove('is-open');
