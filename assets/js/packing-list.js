@@ -401,6 +401,21 @@
     return `<button type="button" class="board-label packing-pill ${kind}" style="--label-color:${esc(labelColor(options, value))}" data-state="${esc(normalize(value))}" data-packing-label="${esc(field)}" data-task-id="${esc(task.id)}">${esc(labelText(options, value))}</button>`;
   }
 
+  function capturePackingScrollState(source) {
+    const container = source?.closest('.packing-month-scroll,.packing-group-table-wrap');
+    return { windowX: window.scrollX, windowY: window.scrollY, container, left: container?.scrollLeft || 0, top: container?.scrollTop || 0, active: document.activeElement };
+  }
+
+  function restorePackingScrollState(state, focusTarget = null) {
+    if (!state) return;
+    requestAnimationFrame(() => {
+      window.scrollTo({ left: state.windowX, top: state.windowY, behavior: 'auto' });
+      if (state.container?.isConnected) { state.container.scrollLeft = state.left; state.container.scrollTop = state.top; }
+      const target = focusTarget?.isConnected ? focusTarget : state.active?.isConnected ? state.active : null;
+      target?.focus?.({ preventScroll: true });
+    });
+  }
+
   let packingToolsData = null;
   let packingToolsTab = 'trash';
 
@@ -1954,6 +1969,25 @@
     });
   }
 
+  function updatePackingStatusSummaryForComponent(component) {
+    const group = component?.closest('.packing-month-group');
+    if (!group) return;
+    const components = [...group.querySelectorAll('[data-packing-status-component]')];
+    const counts = components.reduce((memo, item) => {
+      const status = normalize(item.dataset.status || 'not_started');
+      if (['done', 'website', 'label_created'].includes(status)) memo.done += 1;
+      else if (['packing', 'in_progress', 'packed_label_needed', 'done_needs_label', 'correction_needed'].includes(status)) memo.inprogress += 1;
+      else memo.notstarted += 1;
+      return memo;
+    }, { done: 0, inprogress: 0, notstarted: 0 });
+    group.querySelectorAll('.packing-progress-summary').forEach((summary) => {
+      const holder = document.createElement('div');
+      holder.innerHTML = packingHeaderProgress(counts, components.length).trim();
+      const replacement = holder.firstElementChild;
+      if (replacement) summary.replaceWith(replacement);
+    });
+  }
+
   function updatePackingWebsiteSummaryForButton(button) {
     const group = button?.closest('.packing-month-group');
     if (!group) return;
@@ -2603,6 +2637,10 @@
         const completedIds = field === 'packing_status' && normalize(nextValue) === 'done'
           ? ids.filter((id) => normalize(tasks.find((task) => String(task.id) === String(id))?.packing_status) !== 'done')
           : [];
+        const sourceTrigger = document.querySelector(`[data-packing-label="${CSS.escape(field)}"][data-task-id="${CSS.escape(String(ids[0] || ''))}"]`);
+        const scrollState = capturePackingScrollState(sourceTrigger);
+        const sourceComponent = sourceTrigger?.closest(field === 'priority' ? '.packing-priority-component' : '.packing-status-component');
+        sourceComponent?.classList.add('is-saving');
         await updateTasksField(ids, field, nextValue);
         if (field === 'priority' && ids.length === 1) {
           const taskId = ids[0];
@@ -2620,6 +2658,28 @@
           }
           updatePrioritySummaryForTask(taskId);
           closeLabel();
+          sourceComponent?.classList.remove('is-saving');
+          restorePackingScrollState(scrollState, sourceTrigger);
+          return;
+        }
+        if (field === 'packing_status' && ids.length === 1) {
+          const savedTask = tasks.find((task) => String(task.id) === String(ids[0]));
+          if (sourceComponent && savedTask) {
+            const statusKey = normalize(savedTask.packing_status).replace(/_/g, '-');
+            const definition = findOption(statuses, savedTask.packing_status);
+            sourceComponent.dataset.status = statusKey;
+            const label = sourceComponent.querySelector('.packing-status-trigger-label');
+            if (label) label.textContent = labelText(statuses, savedTask.packing_status);
+            if (definition) {
+              sourceComponent.style.setProperty('--status-colour', itemColor(definition));
+              sourceComponent.style.setProperty('--status-text-colour', readablePriorityTextColour(itemColor(definition)));
+            }
+          }
+          updatePackingStatusSummaryForComponent(sourceComponent);
+          closeLabel();
+          sourceComponent?.classList.remove('is-saving');
+          restorePackingScrollState(scrollState, sourceTrigger);
+          completedIds.forEach((id) => playPackingStatusConfetti(document.querySelector(`[data-packing-status-cell][data-item-id="${CSS.escape(String(id))}"]`)));
           return;
         }
         closeLabel();
@@ -2661,9 +2721,9 @@
       }
       if (check) {
         const ids = selectedIdsFor(check.dataset.taskId);
+        const scrollState = capturePackingScrollState(check);
         await updateTasksField(ids, check.dataset.packingCheck, check.checked ? '1' : '0');
-        render();
-        if (currentTask && ids.includes(String(currentTask.id)) && panel.classList.contains('open')) openPanel(currentTask.id);
+        restorePackingScrollState(scrollState, check);
         return;
       }
       if (panelButton) { openPanel(panelButton.dataset.packingOpenPanel); return; }
@@ -2677,9 +2737,10 @@
         return;
       }
       if (saveNotes && currentTask) {
+        const scrollState = capturePackingScrollState(saveNotes);
         await updateTasksField([String(currentTask.id)], 'notes', panelNotes.value);
-        render();
         saveNotes.textContent = 'Saved';
+        restorePackingScrollState(scrollState, saveNotes);
         window.setTimeout(() => { saveNotes.textContent = 'Save notes'; }, 1200);
         return;
       }
