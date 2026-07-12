@@ -79,6 +79,25 @@ $packers = ops_rows(
      WHERE e.status = 'active' AND r.role_key IN ('packer', 'supervisor_manager')
      ORDER BY e.full_name"
 );
+$priorityLabels = [
+    ['key' => 'top_critical', 'label' => 'Top Critical', 'color' => '#721B1A', 'textColor' => '#FFFFFF', 'order' => 0, 'active' => true],
+    ['key' => 'high', 'label' => 'High', 'color' => '#BB1B21', 'textColor' => '#FFFFFF', 'order' => 1, 'active' => true],
+    ['key' => 'medium', 'label' => 'Medium', 'color' => '#F07420', 'textColor' => '#FFFFFF', 'order' => 2, 'active' => true],
+    ['key' => 'low', 'label' => 'Low', 'color' => '#A8CA19', 'textColor' => '#1A1A1A', 'order' => 3, 'active' => true],
+];
+if (ops_table_exists('ops_packing_priority_labels')) {
+    $savedPriorityLabels = ops_rows('SELECT priority_key, label, background_color, text_color, sort_order, is_active FROM ops_packing_priority_labels WHERE is_active = 1 ORDER BY sort_order, priority_key');
+    if ($savedPriorityLabels) {
+        $priorityLabels = array_map(static fn(array $row): array => [
+            'key' => (string) $row['priority_key'],
+            'label' => (string) $row['label'],
+            'color' => (string) $row['background_color'],
+            'textColor' => (string) $row['text_color'],
+            'order' => (int) $row['sort_order'],
+            'active' => (bool) $row['is_active'],
+        ], $savedPriorityLabels);
+    }
+}
 $packers = ops_canonical_employee_rows($packers);
 $packerNameMap = [];
 foreach ($packers as $packer) {
@@ -97,6 +116,7 @@ echo json_encode([
     'tasks' => $tasks,
     'totalRows' => $totalRows,
     'packers' => $packers,
+    'priorityLabels' => $priorityLabels,
     'currentUser' => [
         'id' => $currentEmployeeId,
         'role_key' => current_role_key(),

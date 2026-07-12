@@ -43,7 +43,7 @@
   const selected = new Set();
   const state = { search: '', priority: '', status: '', person: '', groupBy: 'month', date: '' };
 
-  const priorities = [
+  let priorities = [
     ['top_critical', 'Top Critical', '#721B1A'],
     ['high', 'High', '#BB1B21'],
     ['medium', 'Medium', '#F07420'],
@@ -387,7 +387,7 @@
 
   function renderLabel(task, field, value, options) {
     if (field === 'priority') {
-      return `<div class="packing-priority-component" data-priority-component data-priority="${esc(normalize(value).replace(/_/g, '-'))}" style="--priority-colour:${esc(labelColor(options, value))}">
+      return `<div class="packing-priority-component" data-priority-component data-priority="${esc(normalize(value).replace(/_/g, '-'))}" style="--priority-colour:${esc(labelColor(options, value))};--priority-text-colour:${esc((findOption(options, value) || [])[3] || readablePriorityTextColour(labelColor(options, value)))}">
         <button type="button" class="packing-priority-trigger" aria-haspopup="menu" aria-expanded="false" data-packing-label="priority" data-task-id="${esc(task.id)}">
           <span class="packing-priority-trigger-label">${esc(labelText(options, value))}</span>
         </button>
@@ -399,6 +399,36 @@
         ? 'packing-status-pill'
         : 'packing-person-pill';
     return `<button type="button" class="board-label packing-pill ${kind}" style="--label-color:${esc(labelColor(options, value))}" data-state="${esc(normalize(value))}" data-packing-label="${esc(field)}" data-task-id="${esc(task.id)}">${esc(labelText(options, value))}</button>`;
+  }
+
+  function priorityDefinition(key) {
+    return findOption(priorities, key) || null;
+  }
+
+  function readablePriorityTextColour(hex) {
+    const clean = String(hex || '').replace('#', '');
+    if (!/^[0-9a-f]{6}$/i.test(clean)) return '#FFFFFF';
+    const r = parseInt(clean.slice(0, 2), 16);
+    const g = parseInt(clean.slice(2, 4), 16);
+    const b = parseInt(clean.slice(4, 6), 16);
+    return (0.299 * r + 0.587 * g + 0.114 * b) > 165 ? '#1A1A1A' : '#FFFFFF';
+  }
+
+  function applyPriorityLabelDefinitions(definitions) {
+    priorities = definitions.map((item) => [String(item.key || ''), String(item.label || ''), String(item.color || '#AB3619'), String(item.textColor || readablePriorityTextColour(item.color))]);
+    document.querySelectorAll('[data-priority-component]').forEach((component) => {
+      const definition = priorityDefinition(component.dataset.priority);
+      if (!definition) return;
+      component.style.setProperty('--priority-colour', itemColor(definition));
+      component.style.setProperty('--priority-text-colour', definition[3] || readablePriorityTextColour(itemColor(definition)));
+      const label = component.querySelector('.packing-priority-trigger-label');
+      if (label) label.textContent = itemText(definition);
+    });
+    const colourByClass = { critical: itemColor(priorityDefinition('top_critical') || []), high: itemColor(priorityDefinition('high') || []), medium: itemColor(priorityDefinition('medium') || []), low: itemColor(priorityDefinition('low') || []) };
+    document.querySelectorAll('.packing-priority-summary .packing-summary-segment,.priority-summary-bar .packing-summary-segment').forEach((segment) => {
+      const key = Object.keys(colourByClass).find((name) => segment.classList.contains(name) || segment.classList.contains(`priority-${name}`));
+      if (key) segment.style.setProperty('--segment-colour', colourByClass[key]);
+    });
   }
 
   function renderEditableCell(task, field, label, placeholder = '') {
@@ -1131,7 +1161,7 @@
     return `
       <div class="priority-summary-cell">
         <span>Priority</span>
-        ${packingSummarySegments(segments.map(([cls, count]) => ({ className: cls, label: cls === 'critical' ? 'Top Critical' : cls[0].toUpperCase() + cls.slice(1), count, colour: { critical: '#721b1a', high: '#bb1b21', medium: '#f07420', low: '#a8ca19' }[cls] })), total, 'Priority summary', 'priority-summary-bar')}
+        ${packingSummarySegments(segments.map(([cls, count]) => { const key = cls === 'critical' ? 'top_critical' : cls; return { className: cls, label: labelText(priorities, key), count, colour: labelColor(priorities, key) }; }), total, 'Priority summary', 'priority-summary-bar')}
       </div>
     `;
   }
@@ -1153,10 +1183,10 @@
     const total = counts.critical + counts.high + counts.medium + counts.low || 1;
     return `
       ${packingSummarySegments([
-        { className: 'priority-critical', label: 'Top Critical', count: counts.critical, colour: '#721b1a' },
-        { className: 'priority-high', label: 'High', count: counts.high, colour: '#bb1b21' },
-        { className: 'priority-medium', label: 'Medium', count: counts.medium, colour: '#f07420' },
-        { className: 'priority-low', label: 'Low', count: counts.low, colour: '#a8ca19' },
+        { className: 'priority-critical', label: labelText(priorities, 'top_critical'), count: counts.critical, colour: labelColor(priorities, 'top_critical') },
+        { className: 'priority-high', label: labelText(priorities, 'high'), count: counts.high, colour: labelColor(priorities, 'high') },
+        { className: 'priority-medium', label: labelText(priorities, 'medium'), count: counts.medium, colour: labelColor(priorities, 'medium') },
+        { className: 'priority-low', label: labelText(priorities, 'low'), count: counts.low, colour: labelColor(priorities, 'low') },
       ], total, 'Priority summary', 'packing-priority-summary')}
     `;
   }
@@ -1439,6 +1469,9 @@
       const response = await fetch(`${config.dataUrl}?t=${Date.now()}`, { credentials: 'same-origin' });
       const data = await readJson(response);
       tasks = data.tasks || [];
+      if (Array.isArray(data.priorityLabels) && data.priorityLabels.length) {
+        priorities = data.priorityLabels.map((item) => [String(item.key), String(item.label), String(item.color), String(item.textColor || readablePriorityTextColour(item.color))]);
+      }
       totalRows = Number(data.totalRows || tasks.length || 0);
       packers = data.packers || [];
       currentUser = data.currentUser || {};
@@ -1587,7 +1620,7 @@
       optionsView.hidden = true;
       editorView.hidden = false;
       popup.classList.add('is-editor-open');
-      editorView.innerHTML = `<div class="packing-priority-editor-header"><button type="button" class="packing-priority-editor-back" data-close-priority-label-editor aria-label="Back"><i data-lucide="arrow-left"></i></button><strong>Edit priority labels</strong></div><div class="packing-priority-label-list">${options.map((item, index) => `<label class="packing-priority-label-row" data-packing-label-editor-row><input class="packing-priority-label-colour" type="color" value="${esc(itemColor(item))}" data-packing-label-color="${index}" aria-label="${esc(itemText(item))} color"><input class="packing-priority-label-input" type="text" value="${esc(itemText(item))}" data-packing-label-name="${index}" data-packing-label-key="${esc(item[0])}" aria-label="Label name"><button type="button" class="packing-priority-label-remove" data-remove-packing-label-row aria-label="Remove label">&times;</button></label>`).join('')}</div><button type="button" class="packing-priority-new-label" data-add-packing-label-row="priority">+ New label</button><button type="button" class="packing-priority-apply-labels" data-save-packing-labels="priority">Apply</button>`;
+      editorView.innerHTML = `<div class="packing-priority-editor-header"><button type="button" class="packing-priority-editor-back" data-close-priority-label-editor aria-label="Back"><i data-lucide="arrow-left"></i></button><strong>Edit priority labels</strong></div><div class="packing-priority-label-list">${options.map((item, index) => `<label class="packing-priority-label-row" data-packing-label-editor-row data-priority-label-row data-priority-key="${esc(item[0])}" data-priority-colour="${esc(itemColor(item))}"><input class="packing-priority-label-colour" type="color" value="${esc(itemColor(item))}" data-packing-label-color="${index}" data-priority-colour-trigger aria-label="${esc(itemText(item))} color"><input class="packing-priority-label-input" type="text" value="${esc(itemText(item))}" data-packing-label-name="${index}" data-packing-label-key="${esc(item[0])}" data-priority-label-input aria-label="Label name"><button type="button" class="packing-priority-label-remove" data-remove-packing-label-row data-priority-label-remove aria-label="Remove label">&times;</button></label>`).join('')}</div><button type="button" class="packing-priority-new-label" data-add-packing-label-row="priority">+ New label</button><button type="button" class="packing-priority-apply-labels" data-save-packing-labels="priority" data-priority-apply-labels>Apply</button>`;
       if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
       requestAnimationFrame(positionPriorityPopup);
       return;
@@ -1631,6 +1664,11 @@
     const row = document.createElement('label');
     row.className = field === 'priority' ? 'packing-priority-label-row' : 'packing-label-editor-row';
     row.dataset.packingLabelEditorRow = '';
+    if (field === 'priority') {
+      row.dataset.priorityLabelRow = '';
+      row.dataset.priorityKey = '';
+      row.dataset.priorityColour = '#0086c0';
+    }
     row.innerHTML = `
       <input class="${field === 'priority' ? 'packing-priority-label-colour' : ''}" type="color" value="#0086c0" data-packing-label-color="${index}" aria-label="New label color">
       <input class="${field === 'priority' ? 'packing-priority-label-input' : ''}" type="text" value="Add Label" data-packing-label-name="${index}" data-packing-label-key="" aria-label="Label name">
@@ -1641,7 +1679,7 @@
     if (field === 'priority') requestAnimationFrame(positionPriorityPopup);
   }
 
-  function savePackingLabelEditor(field) {
+  async function savePackingLabelEditor(field) {
     const editor = field === 'priority' ? priorityPopup?.querySelector('[data-priority-label-editor]') : labelMenu?.querySelector(`[data-packing-label-editor="${field}"]`);
     if (!editor) return;
     const options = [...editor.querySelectorAll('[data-packing-label-editor-row]')].map((row) => {
@@ -1651,6 +1689,28 @@
       const key = String(nameInput?.dataset.packingLabelKey || '').trim() || normalize(name);
       return [key, name, colorInput?.value || '#0086c0'];
     });
+    if (field === 'priority') {
+      const names = new Set();
+      const labels = options.map(([key, label, color], index) => {
+        const stableKey = String(key || normalize(label)).replace(/-/g, '_');
+        const nameKey = label.toLowerCase();
+        if (!stableKey || !label) throw new Error('Priority label names cannot be blank.');
+        if (names.has(nameKey)) throw new Error('Priority label names must be unique.');
+        if (!/^#[0-9a-f]{6}$/i.test(color)) throw new Error('A priority colour is invalid.');
+        names.add(nameKey);
+        return { key: stableKey, label, color: color.toUpperCase(), textColor: readablePriorityTextColour(color), order: index, active: true };
+      });
+      const usedKeys = new Set(tasks.map((task) => normalize(task.priority)));
+      for (const key of usedKeys) {
+        if (!labels.some((label) => normalize(label.key) === key)) throw new Error('A priority label currently used by packing items cannot be removed.');
+      }
+      const result = await post('save_priority_labels', { labels: JSON.stringify(labels) });
+      applyPriorityLabelDefinitions(result.labels || labels);
+      setCount('Priority labels updated.');
+      renderPriorityOptions();
+      positionPriorityPopup();
+      return;
+    }
     savePackingLabels(field, options);
     setCount('Packing status labels updated.');
     if (field === 'priority') renderPriorityOptions();
@@ -2238,7 +2298,18 @@
       }
 
       if (savePackingLabel) {
-        savePackingLabelEditor(savePackingLabel.dataset.savePackingLabels);
+        if (savePackingLabel.disabled) return;
+        savePackingLabel.disabled = true;
+        savePackingLabel.classList.add('is-saving');
+        const originalText = savePackingLabel.textContent;
+        savePackingLabel.textContent = 'Applying…';
+        try {
+          await savePackingLabelEditor(savePackingLabel.dataset.savePackingLabels);
+        } finally {
+          savePackingLabel.disabled = false;
+          savePackingLabel.classList.remove('is-saving');
+          savePackingLabel.textContent = originalText;
+        }
         return;
       }
 

@@ -1144,6 +1144,51 @@ try {
     $canManage = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
     $currentEmployeeId = ops_current_employee_id();
 
+    if ($action === 'save_priority_labels') {
+        if (!user_has_role('owner_admin')) {
+            throw new RuntimeException('Only Owner/Admin can edit priority labels.');
+        }
+        $labels = json_decode((string) ($_POST['labels'] ?? ''), true);
+        if (!is_array($labels) || !$labels) {
+            throw new RuntimeException('Priority labels are required.');
+        }
+        $keys = [];
+        $names = [];
+        foreach ($labels as $index => &$label) {
+            $key = strtolower(trim((string) ($label['key'] ?? '')));
+            $key = preg_replace('/[^a-z0-9_]+/', '_', $key) ?: '';
+            $name = trim((string) ($label['label'] ?? ''));
+            $color = strtoupper(trim((string) ($label['color'] ?? '')));
+            $textColor = strtoupper(trim((string) ($label['textColor'] ?? '#FFFFFF')));
+            if ($key === '' || $name === '') throw new RuntimeException('Every priority label requires a stable key and name.');
+            if (!preg_match('/^#[0-9A-F]{6}$/', $color) || !preg_match('/^#[0-9A-F]{6}$/', $textColor)) throw new RuntimeException('Invalid priority colour.');
+            if (isset($keys[$key]) || isset($names[strtolower($name)])) throw new RuntimeException('Priority keys and names must be unique.');
+            $keys[$key] = true;
+            $names[strtolower($name)] = true;
+            $label = ['key' => $key, 'label' => $name, 'color' => $color, 'textColor' => $textColor, 'order' => $index, 'active' => true];
+        }
+        unset($label);
+        $used = ops_rows('SELECT priority, COUNT(*) AS usage_count FROM ops_packing_tasks GROUP BY priority');
+        foreach ($used as $row) {
+            $key = strtolower((string) ($row['priority'] ?? ''));
+            if ($key !== '' && !isset($keys[$key])) throw new RuntimeException('A priority label currently used by packing items cannot be removed.');
+        }
+        db()->exec("CREATE TABLE IF NOT EXISTS ops_packing_priority_labels (priority_key VARCHAR(60) PRIMARY KEY, label VARCHAR(80) NOT NULL, background_color CHAR(7) NOT NULL, text_color CHAR(7) NOT NULL, sort_order INT NOT NULL DEFAULT 0, is_active TINYINT(1) NOT NULL DEFAULT 1, updated_by INT NULL, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)");
+        $pdo = db();
+        $pdo->beginTransaction();
+        try {
+            $pdo->exec('DELETE FROM ops_packing_priority_labels');
+            $stmt = $pdo->prepare('INSERT INTO ops_packing_priority_labels (priority_key, label, background_color, text_color, sort_order, is_active, updated_by) VALUES (?, ?, ?, ?, ?, 1, ?)');
+            foreach ($labels as $label) $stmt->execute([$label['key'], $label['label'], $label['color'], $label['textColor'], $label['order'], $currentEmployeeId ?: null]);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            throw $e;
+        }
+        echo json_encode(['ok' => true, 'labels' => $labels]);
+        exit;
+    }
+
     if ($action === 'list_custom_columns') {
         echo json_encode(['ok' => true, 'columns' => board_columns_list('packing')]);
         exit;
