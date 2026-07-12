@@ -469,7 +469,7 @@
     border-radius: 8px;
     background: #fff;
     color: #000;
-    font-size: 12px;
+    font-size: 12px !important;
     font-weight: 400;
     line-height: 12px;
     white-space: nowrap;
@@ -486,11 +486,13 @@
     transform: none;
     background-color: rgba(240, 116, 32, .08);
     border-color: rgba(171, 54, 25, .35) !important;
+    color: #ab3619 !important;
 }
 
 .packing-page-v2 [data-packing-export]:active {
     background-color: rgba(240, 116, 32, .08);
     border-color: rgba(171, 54, 25, .35) !important;
+    color: #ab3619 !important;
 }
 
 .packing-page-v2 .packing-stats {
