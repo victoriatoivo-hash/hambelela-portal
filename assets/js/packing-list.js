@@ -3,6 +3,9 @@
   const page = document.querySelector('.packing-list-page');
   const body = document.getElementById('packing-list-body');
   const labelMenu = document.getElementById('packing-label-menu');
+  let priorityPopup = null;
+  let priorityPopupTrigger = null;
+  let priorityPopupTaskId = '';
   const panel = document.getElementById('packing-panel');
   const backdrop = document.getElementById('packing-backdrop');
   const panelTitle = document.getElementById('packing-panel-title');
@@ -1464,7 +1467,66 @@
     });
   }
 
+  function ensurePriorityPopup() {
+    if (priorityPopup?.isConnected) return priorityPopup;
+    priorityPopup = document.createElement('div');
+    priorityPopup.className = 'packing-priority-popup';
+    priorityPopup.dataset.priorityPopup = '';
+    priorityPopup.setAttribute('aria-hidden', 'true');
+    priorityPopup.innerHTML = '<div class="packing-priority-popup-view" data-priority-options-view></div><div class="packing-priority-popup-view" data-priority-label-editor hidden></div>';
+    document.body.appendChild(priorityPopup);
+    return priorityPopup;
+  }
+
+  function positionPriorityPopup() {
+    if (!priorityPopupTrigger || !priorityPopup) return;
+    const rect = priorityPopupTrigger.getBoundingClientRect();
+    const popupRect = priorityPopup.getBoundingClientRect();
+    const padding = 8;
+    const gap = 7;
+    let left = rect.left + rect.width / 2 - popupRect.width / 2;
+    left = Math.max(padding, Math.min(left, window.innerWidth - popupRect.width - padding));
+    let top = rect.bottom + gap;
+    if (top + popupRect.height > window.innerHeight - padding) top = rect.top - popupRect.height - gap;
+    priorityPopup.style.left = `${Math.round(left)}px`;
+    priorityPopup.style.top = `${Math.max(padding, Math.round(top))}px`;
+  }
+
+  function renderPriorityOptions() {
+    const popup = ensurePriorityPopup();
+    const optionsView = popup.querySelector('[data-priority-options-view]');
+    const editorView = popup.querySelector('[data-priority-label-editor]');
+    const current = tasks.find((task) => String(task.id) === priorityPopupTaskId)?.priority;
+    optionsView.hidden = false;
+    editorView.hidden = true;
+    popup.classList.remove('is-editor-open');
+    optionsView.innerHTML = `<div class="packing-priority-options">${labelOptionsFor('priority').map((item) => `<button type="button" class="packing-priority-option" style="--priority-option-colour:${esc(itemColor(item))}" aria-selected="${normalize(item[0]) === normalize(current) ? 'true' : 'false'}" data-packing-label-value="${esc(item[0])}" data-packing-label-field="priority" data-packing-label-task="${esc(priorityPopupTaskId)}">${esc(itemText(item))}</button>`).join('')}</div><div class="packing-priority-popup-divider"></div><button type="button" class="packing-priority-utility" data-packing-edit-labels="priority" data-packing-edit-task="${esc(priorityPopupTaskId)}"><span class="packing-priority-utility-icon"><i data-lucide="pencil"></i></span><span class="packing-priority-utility-label">Edit Labels</span></button><button type="button" class="packing-priority-utility" data-packing-auto-labels><span class="packing-priority-utility-icon"><i data-lucide="sparkles"></i></span><span class="packing-priority-utility-label">Auto-assign Labels</span></button>`;
+    if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+  }
+
+  function openPriorityPopup(anchor, taskId) {
+    closeLabel();
+    const popup = ensurePriorityPopup();
+    priorityPopupTrigger = anchor;
+    priorityPopupTaskId = String(taskId);
+    anchor.setAttribute('aria-expanded', 'true');
+    renderPriorityOptions();
+    popup.classList.add('is-open');
+    popup.setAttribute('aria-hidden', 'false');
+    positionPriorityPopup();
+  }
+
+  function closePriorityPopup() {
+    if (!priorityPopup) return;
+    priorityPopup.classList.remove('is-open', 'is-editor-open');
+    priorityPopup.setAttribute('aria-hidden', 'true');
+    priorityPopupTrigger?.setAttribute('aria-expanded', 'false');
+    priorityPopupTrigger = null;
+    priorityPopupTaskId = '';
+  }
+
   function openLabel(anchor, taskId, field) {
+    if (field === 'priority') { openPriorityPopup(anchor, taskId); return; }
     const options = labelOptionsFor(field);
     const menuOptions = field === 'packing_status'
       ? ['packing', 'website', 'done', 'not_started', 'packed_label_needed', 'label_created', 'correction_needed']
@@ -1514,6 +1576,19 @@
   }
 
   function openPackingLabelEditor(field, taskId = '') {
+    if (field === 'priority') {
+      const popup = ensurePriorityPopup();
+      const optionsView = popup.querySelector('[data-priority-options-view]');
+      const editorView = popup.querySelector('[data-priority-label-editor]');
+      const options = labelOptionsFor('priority').filter((item) => item[0] !== '');
+      optionsView.hidden = true;
+      editorView.hidden = false;
+      popup.classList.add('is-editor-open');
+      editorView.innerHTML = `<div class="packing-priority-editor-header"><button type="button" class="packing-priority-editor-back" data-close-priority-label-editor aria-label="Back"><i data-lucide="arrow-left"></i></button><strong>Edit priority labels</strong></div><div class="packing-priority-label-list">${options.map((item, index) => `<label class="packing-priority-label-row" data-packing-label-editor-row><input class="packing-priority-label-colour" type="color" value="${esc(itemColor(item))}" data-packing-label-color="${index}" aria-label="${esc(itemText(item))} color"><input class="packing-priority-label-input" type="text" value="${esc(itemText(item))}" data-packing-label-name="${index}" data-packing-label-key="${esc(item[0])}" aria-label="Label name"><button type="button" class="packing-priority-label-remove" data-remove-packing-label-row aria-label="Remove label">&times;</button></label>`).join('')}</div><button type="button" class="packing-priority-new-label" data-add-packing-label-row="priority">+ New label</button><button type="button" class="packing-priority-apply-labels" data-save-packing-labels="priority">Apply</button>`;
+      if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+      requestAnimationFrame(positionPriorityPopup);
+      return;
+    }
     if (!labelMenu) return;
     const options = labelOptionsFor(field).filter((item) => field === 'packing_status' || item[0] !== '');
     labelMenu.classList.add('is-editor');
@@ -1546,24 +1621,25 @@
   }
 
   function addPackingLabelRow(field) {
-    const editor = labelMenu?.querySelector(`[data-packing-label-editor="${field}"]`);
-    const list = editor?.querySelector('.packing-label-editor-list');
+    const editor = field === 'priority' ? priorityPopup?.querySelector('[data-priority-label-editor]') : labelMenu?.querySelector(`[data-packing-label-editor="${field}"]`);
+    const list = editor?.querySelector(field === 'priority' ? '.packing-priority-label-list' : '.packing-label-editor-list');
     if (!list) return;
     const index = list.querySelectorAll('[data-packing-label-editor-row]').length;
     const row = document.createElement('label');
-    row.className = 'packing-label-editor-row';
+    row.className = field === 'priority' ? 'packing-priority-label-row' : 'packing-label-editor-row';
     row.dataset.packingLabelEditorRow = '';
     row.innerHTML = `
-      <input type="color" value="#0086c0" data-packing-label-color="${index}" aria-label="New label color">
-      <input type="text" value="Add Label" data-packing-label-name="${index}" data-packing-label-key="" aria-label="Label name">
-      <button type="button" data-remove-packing-label-row aria-label="Remove label">&times;</button>
+      <input class="${field === 'priority' ? 'packing-priority-label-colour' : ''}" type="color" value="#0086c0" data-packing-label-color="${index}" aria-label="New label color">
+      <input class="${field === 'priority' ? 'packing-priority-label-input' : ''}" type="text" value="Add Label" data-packing-label-name="${index}" data-packing-label-key="" aria-label="Label name">
+      <button class="${field === 'priority' ? 'packing-priority-label-remove' : ''}" type="button" data-remove-packing-label-row aria-label="Remove label">&times;</button>
     `;
     list.appendChild(row);
     row.querySelector('input[type="text"]')?.select();
+    if (field === 'priority') requestAnimationFrame(positionPriorityPopup);
   }
 
   function savePackingLabelEditor(field) {
-    const editor = labelMenu?.querySelector(`[data-packing-label-editor="${field}"]`);
+    const editor = field === 'priority' ? priorityPopup?.querySelector('[data-priority-label-editor]') : labelMenu?.querySelector(`[data-packing-label-editor="${field}"]`);
     if (!editor) return;
     const options = [...editor.querySelectorAll('[data-packing-label-editor-row]')].map((row) => {
       const nameInput = row.querySelector('[data-packing-label-name]');
@@ -1574,7 +1650,8 @@
     });
     savePackingLabels(field, options);
     setCount('Packing status labels updated.');
-    openLabelMenuAfterEditor(field, editor.dataset.packingLabelTask || '');
+    if (field === 'priority') renderPriorityOptions();
+    else openLabelMenuAfterEditor(field, editor.dataset.packingLabelTask || '');
   }
 
   function openLabelMenuAfterEditor(field, taskId) {
@@ -1588,6 +1665,7 @@
   }
 
   function closeLabel() {
+    closePriorityPopup();
     if (!labelMenu || labelMenu.hidden) return;
     document.querySelectorAll('.packing-status-component.is-open').forEach((cell) => cell.classList.remove('is-open'));
     document.querySelectorAll('.packing-status-trigger[aria-expanded="true"]').forEach((button) => button.setAttribute('aria-expanded', 'false'));
@@ -2149,8 +2227,10 @@
       }
 
       if (removePackingLabel) {
-        const rows = labelMenu?.querySelectorAll('[data-packing-label-editor-row]');
+        const editorRoot = removePackingLabel.closest('[data-priority-label-editor]') || labelMenu;
+        const rows = editorRoot?.querySelectorAll('[data-packing-label-editor-row]');
         if (rows && rows.length > 1) removePackingLabel.closest('[data-packing-label-editor-row]')?.remove();
+        if (editorRoot?.matches('[data-priority-label-editor]')) requestAnimationFrame(positionPriorityPopup);
         return;
       }
 
@@ -2235,10 +2315,8 @@
       }
 
       if (closePriorityEditor) {
-        const editor = closePriorityEditor.closest('[data-packing-label-editor="priority"]');
-        const taskId = editor?.dataset.packingLabelTask || '';
-        const trigger = document.querySelector(`.packing-priority-trigger[data-task-id="${CSS.escape(taskId)}"]`);
-        if (trigger) openLabel(trigger, taskId, 'priority');
+        renderPriorityOptions();
+        requestAnimationFrame(positionPriorityPopup);
         return;
       }
       if (removeInvoiceFile) {
@@ -2583,7 +2661,7 @@
   });
 
   document.addEventListener('click', (event) => {
-    if (!event.target.closest('#packing-label-menu') && !event.target.closest('[data-packing-label]')) closeLabel();
+    if (!event.target.closest('#packing-label-menu') && !event.target.closest('[data-priority-popup]') && !event.target.closest('[data-packing-label]')) closeLabel();
   });
 
   function getPackingSummaryTooltip() {
