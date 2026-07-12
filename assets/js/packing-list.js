@@ -1092,9 +1092,9 @@
     }, { done: 0, inprogress: 0, notstarted: 0 });
   }
 
-  function packingSummarySegments(items, total, label) {
+  function packingSummarySegments(items, total, label, containerClass) {
     const safeTotal = total || 1;
-    return `<div class="packing-summary-bar" data-packing-summary-bar aria-label="${esc(label)}">
+    return `<div class="${esc(containerClass)} packing-summary-bar" data-packing-summary-bar aria-label="${esc(label)}">
       ${items.filter((item) => item.count > 0).map((item) => {
         const percentage = Math.round((item.count / safeTotal) * 100);
         return `<button type="button" class="packing-summary-segment ${esc(item.className)}" data-label="${esc(item.label)}" data-count="${item.count}" data-total="${total}" data-percentage="${percentage}" style="--segment-colour:${esc(item.colour)};--segment-width:${(item.count / safeTotal) * 100}%" aria-label="${esc(item.label)}: ${item.count} of ${total} items, ${percentage} percent"></button>`;
@@ -1114,7 +1114,7 @@
     return `
       <div class="priority-summary-cell">
         <span>Priority</span>
-        ${packingSummarySegments(segments.map(([cls, count]) => ({ className: cls, label: cls === 'critical' ? 'Top Critical' : cls[0].toUpperCase() + cls.slice(1), count, colour: { critical: '#721b1a', high: '#bb1b21', medium: '#f07420', low: '#a8ca19' }[cls] })), total, 'Priority summary')}
+        ${packingSummarySegments(segments.map(([cls, count]) => ({ className: cls, label: cls === 'critical' ? 'Top Critical' : cls[0].toUpperCase() + cls.slice(1), count, colour: { critical: '#721b1a', high: '#bb1b21', medium: '#f07420', low: '#a8ca19' }[cls] })), total, 'Priority summary', 'priority-summary-bar')}
       </div>
     `;
   }
@@ -1127,7 +1127,7 @@
           { className: 'seg-done', label: 'Done', count: counts.done, colour: '#a8ca19' },
           { className: 'seg-inprogress', label: 'Packing', count: counts.inprogress, colour: '#f07420' },
           { className: 'seg-notstarted', label: 'Pending', count: counts.notstarted, colour: '#bb1b21' },
-        ], total, 'Packing status progress')}
+        ], total, 'Packing status progress', 'packing-progress-bar')}
       </div>
     `;
   }
@@ -1140,7 +1140,7 @@
         { className: 'priority-high', label: 'High', count: counts.high, colour: '#bb1b21' },
         { className: 'priority-medium', label: 'Medium', count: counts.medium, colour: '#f07420' },
         { className: 'priority-low', label: 'Low', count: counts.low, colour: '#a8ca19' },
-      ], total, 'Priority summary')}
+      ], total, 'Priority summary', 'packing-priority-summary')}
     `;
   }
 
@@ -1152,7 +1152,7 @@
           { className: 'done', label: 'Done', count: counts.done, colour: '#a8ca19' },
           { className: 'packing', label: 'Packing', count: counts.inprogress, colour: '#f07420' },
           { className: 'pending', label: 'Pending', count: counts.notstarted, colour: '#bb1b21' },
-        ], total, 'Packing status progress')}
+        ], total, 'Packing status progress', 'packing-progress-bar')}
       </div>
     `;
   }
