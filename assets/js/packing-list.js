@@ -1394,7 +1394,7 @@
     const isCollapsed = sessionStorage.getItem(collapseStorageKey) === 'true';
 
     return `
-      <section class="packing-date-group packing-month-group${isCollapsed ? ' is-collapsed' : ''}" data-packing-month-group data-group-key="${esc(key)}" data-month-key="${esc(key)}" style="--group-accent:${esc(accent)};--packing-group-accent:${esc(accent)}" data-critical="${pCounts.critical}" data-high="${pCounts.high}" data-medium="${pCounts.medium}" data-low="${pCounts.low}">
+      <section class="packing-date-group packing-month-group${isCollapsed ? ' is-collapsed' : ''}" data-packing-month-group data-group-key="${esc(key)}" data-month-key="${esc(key)}" style="--group-accent:${esc(accent)};--packing-group-accent:${esc(accent)};--packing-month-accent:${esc(accent)}" data-critical="${pCounts.critical}" data-high="${pCounts.high}" data-medium="${pCounts.medium}" data-low="${pCounts.low}">
         <div class="packing-month-scroll">
         <div class="packing-month-inner">
         <div class="packing-month-open-heading">

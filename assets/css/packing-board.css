@@ -643,6 +643,10 @@
 }
 
 .packing-page-v2 .packing-date-group {
+    --packing-grid-border: #EDE3D8;
+    --packing-grid-border-strong: #E4D6C8;
+    --packing-surface: #FFFFFF;
+    --pk-border: var(--packing-grid-border);
     --col-select: 38px;
     --col-item: 235px;
     --col-notes: 64px;
@@ -660,10 +664,10 @@
     width: 100%;
     margin: 0;
     overflow: hidden;
-    border: 1px solid var(--pk-border) !important;
-    border-radius: 14px !important;
-    background: #fff !important;
-    box-shadow: var(--pk-shadow) !important;
+    border: 1px solid var(--packing-grid-border);
+    border-radius: 12px;
+    background: var(--packing-surface);
+    box-shadow: none;
 }
 
 .packing-page-v2 .packing-date-group::before {
@@ -673,9 +677,13 @@
     left: 0;
     bottom: 0;
     width: 4px;
-    background: var(--group-accent, var(--pk-orange-red));
-    z-index: 1;
+    background: var(--packing-month-accent, #AB3619);
+    z-index: 8;
+    pointer-events: none;
 }
+
+.packing-page-v2 .packing-month-group.is-collapsed::before { display:block; opacity:1; }
+.packing-page-v2 .packing-month-open-heading,.packing-page-v2 .packing-month-closed-summary,.packing-page-v2 .packing-month-body{position:relative;z-index:2}
 
 .packing-page-v2 .packing-date-header {
     display: grid;
@@ -1571,7 +1579,7 @@
 /* Open month tally footer: the real table footer shares the table colgroup. */
 .packing-list-page .packing-board-table .packing-month-open-footer { display: table-footer-group; }
 .packing-list-page .packing-board-table .packing-month-open-footer-row { display: table-row; height:36px; min-height:36px; }
-.packing-list-page .packing-board-table .packing-month-open-footer-row td { height:36px !important; min-height:36px !important; padding:0 8px !important; vertical-align:middle !important; text-align:center !important; border-right:1px solid var(--pk-border) !important; border-top:1px solid var(--pk-border) !important; background:#fff !important; color:var(--pk-text-mid) !important; font-size:11px !important; line-height:1 !important; font-weight:400 !important; box-sizing:border-box !important; }
+.packing-list-page .packing-board-table .packing-month-open-footer-row td { height:36px !important; min-height:36px !important; padding:0 8px !important; vertical-align:middle !important; text-align:center !important; border-right:1px solid var(--pk-border) !important; border-top:0 !important; border-bottom:1px solid var(--pk-border) !important; background:#fff !important; color:var(--pk-text-mid) !important; font-size:11px !important; line-height:1 !important; font-weight:400 !important; box-sizing:border-box !important; }
 .packing-list-page .packing-board-table .packing-month-open-footer-row td:last-child { border-right:0 !important; }
 .packing-list-page .packing-board-table .packing-month-open-footer-cell--priority .packing-priority-summary { width:calc(100% - 12px); height:20px; min-height:20px; max-height:20px; margin:0 auto; border-radius:0; }
 .packing-list-page .packing-board-table .packing-month-open-footer-cell--priority .packing-priority-summary span { height:20px; min-height:20px; max-height:20px; }
@@ -1904,7 +1912,11 @@
     width: 100%;
     overflow-x: auto;
     overflow-y: hidden;
+    border: 0;
+    box-shadow: none;
+    scrollbar-color: rgba(114,27,26,.22) transparent;
 }
+.packing-page-v2 .packing-month-scroll::-webkit-scrollbar{height:8px}.packing-page-v2 .packing-month-scroll::-webkit-scrollbar-track{background:transparent}.packing-page-v2 .packing-month-scroll::-webkit-scrollbar-thumb{background:rgba(114,27,26,.20);border-radius:999px}
 
 .packing-page-v2 .packing-month-inner {
     width: max-content;
