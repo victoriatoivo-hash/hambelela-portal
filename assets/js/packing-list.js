@@ -409,7 +409,7 @@
 
   function renderPackingStatus(task, canEdit) {
     const value = normalize(task.packing_status || 'not_started');
-    const content = `<span class="packing-status-trigger-label">${esc(labelText(statuses, value))}</span>${canEdit ? '<svg class="packing-status-trigger-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 8l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}<span class="packing-status-animation-layer" aria-hidden="true"></span>`;
+    const content = `<span class="packing-status-trigger-label">${esc(labelText(statuses, value))}</span><span class="packing-status-animation-layer" aria-hidden="true"></span>`;
     return `<div class="packing-status-component" data-packing-status-cell data-packing-status-component data-item-id="${esc(task.id)}" data-status="${esc(value).replace(/_/g, '-')}">
       ${canEdit
         ? `<button type="button" class="packing-status-trigger" aria-haspopup="menu" aria-expanded="false" data-packing-label="packing_status" data-task-id="${esc(task.id)}">${content}</button>`
