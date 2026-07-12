@@ -482,14 +482,20 @@
     stroke: currentColor;
 }
 
-.packing-page-v2 [data-packing-export]:hover {
+.ops-board-page.packing-page-v2[data-board-theme="light"] .monday-board-head-actions button[data-packing-export] {
+    border: 1px solid #ede3d8 !important;
+    font-size: 12px !important;
+    font-weight: 400;
+}
+
+.ops-board-page.packing-page-v2[data-board-theme="light"] .monday-board-head-actions button[data-packing-export]:hover {
     transform: none;
     background-color: rgba(240, 116, 32, .08);
     border-color: rgba(171, 54, 25, .35) !important;
     color: #ab3619 !important;
 }
 
-.packing-page-v2 [data-packing-export]:active {
+.ops-board-page.packing-page-v2[data-board-theme="light"] .monday-board-head-actions button[data-packing-export]:active {
     background-color: rgba(240, 116, 32, .08);
     border-color: rgba(171, 54, 25, .35) !important;
     color: #ab3619 !important;

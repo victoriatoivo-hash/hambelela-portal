@@ -19,7 +19,7 @@ $packingJsVersion = is_file(BASE_PATH . '/assets/js/packing-list.js')
     ? (string) filemtime(BASE_PATH . '/assets/js/packing-list.js') . '-visibility1'
     : (string) time();
 $packingCssVersion = is_file(BASE_PATH . '/assets/css/packing-board.css')
-    ? (string) filemtime(BASE_PATH . '/assets/css/packing-board.css') . '-v4'
+    ? (string) filemtime(BASE_PATH . '/assets/css/packing-board.css') . '-v5'
     : (string) time();
 $extraStylesheets[] = [
     'path' => 'assets/css/packing-board.css',
