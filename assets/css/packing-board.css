@@ -1866,6 +1866,18 @@
   color: #1A1A1A !important;
   font-weight: 400;
 }
+.packing-list-page .packing-toolbar [data-sync-monday-packing]:hover,
+.packing-list-page .packing-toolbar [data-sync-monday-packing]:active,
+.packing-list-page .packing-toolbar [data-find-packing-duplicates]:hover,
+.packing-list-page .packing-toolbar [data-find-packing-duplicates]:active,
+.packing-list-page .packing-toolbar [data-import-previous-packing]:hover,
+.packing-list-page .packing-toolbar [data-import-previous-packing]:active {
+  background: rgba(240,116,32,.08);
+  border-color: rgba(171,54,25,.35) !important;
+  color: #AB3619 !important;
+  font-weight: 400;
+  transform: none;
+}
 .packing-list-page .packing-toolbar [data-sync-monday-packing] svg,
 .packing-list-page .packing-toolbar [data-find-packing-duplicates] svg,
 .packing-list-page .packing-toolbar [data-import-previous-packing] svg {
