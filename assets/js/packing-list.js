@@ -54,7 +54,7 @@
     ['not_started', 'Not Started', '#C8BBB1'],
     ['packing', 'Packing', '#F07420'],
     ['website', 'Website', '#AB3619'],
-    ['done', 'Done', '#A8CA19'],
+    ['done', 'Done', '#00C875'],
     ['packed_label_needed', 'Done, needs label', '#721B1A'],
     ['label_created', 'Label Created', '#6B4C3B'],
     ['correction_needed', 'Correction Needed', '#BB1B21'],
@@ -231,7 +231,10 @@
       if (Array.isArray(storedStatuses) && storedStatuses.length) {
         statuses = storedStatuses
           .filter((item) => Array.isArray(item) && item.length >= 3)
-          .map((item) => [String(item[0] || normalize(item[1])), String(item[1] || item[0]), String(item[2] || '#8c92a6')]);
+          .map((item) => {
+            const key = String(item[0] || normalize(item[1]));
+            return [key, String(item[1] || item[0]), normalize(key) === 'done' ? '#00C875' : String(item[2] || '#8c92a6')];
+          });
       }
     } catch (error) {
       localStorage.removeItem(packingLabelStorageKey('packing_status'));
