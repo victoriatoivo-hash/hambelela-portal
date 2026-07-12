@@ -457,6 +457,18 @@
     height: 18px;
 }
 
+.packing-page-v2 [data-packing-export] {
+    height: 32px;
+    min-height: 32px;
+    font-size: 12px;
+    font-weight: 400;
+}
+
+.packing-page-v2 [data-packing-export] svg {
+    color: #ab3619;
+    stroke: currentColor;
+}
+
 .packing-page-v2 .packing-stats {
     display: grid !important;
     grid-template-columns: repeat(6, minmax(160px, 1fr));
