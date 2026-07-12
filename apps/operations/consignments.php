@@ -218,7 +218,7 @@ include BASE_PATH . '/shared/sidebar.php';
             <div class="invoice-upload-body">
                 <nav class="invoice-progress" data-invoice-stepper aria-label="Invoice upload progress">
                     <?php foreach ([['upload','Upload'],['extract','Extract'],['review','Review'],['assign','Assign'],['create','Create']] as $index => [$stepKey,$stepLabel]): ?>
-                    <?= $index ? '<span class="invoice-progress-line"></span>' : '' ?><button type="button" class="invoice-progress-step<?= $index === 0 ? ' active is-active' : '' ?>" data-invoice-step="<?= h($stepKey) ?>"><span class="invoice-progress-number"><?= $index + 1 ?></span><span><?= h($stepLabel) ?></span></button>
+                    <?= $index ? '<span class="invoice-progress-line"></span>' : '' ?><button type="button" class="invoice-progress-step<?= $index === 0 ? ' active is-active' : '' ?>" data-invoice-step="<?= htmlspecialchars($stepKey, ENT_QUOTES, 'UTF-8') ?>"><span class="invoice-progress-number"><?= $index + 1 ?></span><span><?= htmlspecialchars($stepLabel, ENT_QUOTES, 'UTF-8') ?></span></button>
                     <?php endforeach; ?>
                 </nav>
                 <section class="invoice-section"><div class="invoice-section-header"><div><h3 class="invoice-section-title">Invoice source</h3><p class="invoice-section-description">Choose the PDF and confirm the invoice details before extraction.</p></div></div>
