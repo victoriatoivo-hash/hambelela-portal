@@ -6,6 +6,9 @@
   let priorityPopup = null;
   let priorityPopupTrigger = null;
   let priorityPopupTaskId = '';
+  let statusPopup = null;
+  let statusPopupTrigger = null;
+  let statusPopupTaskId = '';
   let labelInteractionScrollState = null;
   const panel = document.getElementById('packing-panel');
   const backdrop = document.getElementById('packing-backdrop');
@@ -503,8 +506,10 @@
 
   function renderPackingStatus(task, canEdit) {
     const value = normalize(task.packing_status || 'not_started');
+    const definition = statuses.find((item) => normalize(item[0]) === value) || statuses[0] || [value, titleCase(value), '#C4C4C4', '#FFFFFF'];
+    const statusStyle = `--status-colour:${esc(itemColor(definition))};--status-text-colour:${esc(definition[3] || readablePriorityTextColour(itemColor(definition)))}`;
     const content = `<span class="packing-status-trigger-label">${esc(labelText(statuses, value))}</span><span class="packing-status-animation-layer" aria-hidden="true"></span>`;
-    return `<div class="packing-status-component" data-packing-status-cell data-packing-status-component data-item-id="${esc(task.id)}" data-status="${esc(value).replace(/_/g, '-')}">
+    return `<div class="packing-status-component" style="${statusStyle}" data-packing-status-cell data-packing-status-component data-item-id="${esc(task.id)}" data-status-key="${esc(value)}" data-status="${esc(value).replace(/_/g, '-')}">
       ${canEdit
         ? `<button type="button" class="packing-status-trigger" aria-haspopup="menu" aria-expanded="false" data-packing-label="packing_status" data-task-id="${esc(task.id)}">${content}</button>`
         : `<span class="packing-status-trigger is-static">${content}</span>`}
@@ -1533,6 +1538,7 @@
       if (Array.isArray(data.priorityLabels) && data.priorityLabels.length) {
         priorities = data.priorityLabels.map((item) => [String(item.key), String(item.label), String(item.color), String(item.textColor || readablePriorityTextColour(item.color))]);
       }
+      if (Array.isArray(data.statusLabels) && data.statusLabels.length) statuses = data.statusLabels.map((item) => [String(item.key), String(item.label), String(item.color), String(item.textColor || readablePriorityTextColour(item.color))]);
       totalRows = Number(data.totalRows || tasks.length || 0);
       packers = data.packers || [];
       currentUser = data.currentUser || {};
@@ -1562,6 +1568,65 @@
       select.innerHTML = `${mineOption}<option value="">All Items</option>` + packers.map((packer) => `<option value="${esc(packer.id)}">${esc(packer.full_name)}</option>`).join('') + '<option value="__unassigned">Unassigned</option>';
       select.value = current;
     });
+  }
+
+  function ensureStatusPopup() {
+    if (statusPopup?.isConnected) return statusPopup;
+    statusPopup = document.createElement('div');
+    statusPopup.className = 'packing-status-popup';
+    statusPopup.dataset.packingStatusPopup = '';
+    statusPopup.setAttribute('aria-hidden', 'true');
+    statusPopup.innerHTML = '<div class="packing-status-popup-view" data-packing-status-options-view></div><div class="packing-status-popup-view" data-packing-status-label-editor hidden></div>';
+    document.body.appendChild(statusPopup);
+    return statusPopup;
+  }
+
+  function positionStatusPopup() {
+    if (!statusPopupTrigger || !statusPopup) return;
+    const rect = statusPopupTrigger.getBoundingClientRect();
+    const popupRect = statusPopup.getBoundingClientRect();
+    const padding = 8, gap = 7;
+    let left = Math.max(padding, Math.min(rect.left + rect.width / 2 - popupRect.width / 2, window.innerWidth - popupRect.width - padding));
+    let top = rect.bottom + gap;
+    if (top + popupRect.height > window.innerHeight - padding) top = rect.top - popupRect.height - gap;
+    statusPopup.style.left = `${Math.round(left)}px`;
+    statusPopup.style.top = `${Math.max(padding, Math.round(top))}px`;
+  }
+
+  function renderStatusOptions() {
+    const popup = ensureStatusPopup();
+    const optionsView = popup.querySelector('[data-packing-status-options-view]');
+    const editorView = popup.querySelector('[data-packing-status-label-editor]');
+    const current = tasks.find((task) => String(task.id) === statusPopupTaskId)?.packing_status;
+    optionsView.hidden = false;
+    editorView.hidden = true;
+    popup.classList.remove('is-editor-open');
+    optionsView.innerHTML = `<div class="packing-status-options">${statuses.map((item) => `<button type="button" class="packing-status-option" style="--option-colour:${esc(itemColor(item))};color:${esc(item[3] || readablePriorityTextColour(itemColor(item)))}" aria-selected="${normalize(item[0]) === normalize(current) ? 'true' : 'false'}" data-packing-label-value="${esc(item[0])}" data-packing-label-field="packing_status" data-packing-label-task="${esc(statusPopupTaskId)}">${esc(itemText(item))}</button>`).join('')}</div><div class="packing-status-popup-divider"></div><button type="button" class="packing-status-utility" data-packing-edit-labels="packing_status" data-packing-edit-task="${esc(statusPopupTaskId)}"><span class="packing-status-utility-icon"><i data-lucide="pencil"></i></span><span>Edit Labels</span></button><button type="button" class="packing-status-utility" data-packing-auto-labels><span class="packing-status-utility-icon"><i data-lucide="sparkles"></i></span><span>Auto-assign Labels</span></button>`;
+    if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+  }
+
+  function openStatusPopup(anchor, taskId) {
+    labelInteractionScrollState = capturePackingScrollState(anchor);
+    closeLabel();
+    const popup = ensureStatusPopup();
+    statusPopupTrigger = anchor;
+    statusPopupTaskId = String(taskId);
+    anchor.closest('.packing-status-component')?.classList.add('is-open');
+    anchor.setAttribute('aria-expanded', 'true');
+    renderStatusOptions();
+    popup.classList.add('is-open');
+    popup.setAttribute('aria-hidden', 'false');
+    positionStatusPopup();
+  }
+
+  function closeStatusPopup() {
+    if (!statusPopup) return;
+    statusPopup.classList.remove('is-open', 'is-editor-open');
+    statusPopup.setAttribute('aria-hidden', 'true');
+    statusPopupTrigger?.closest('.packing-status-component')?.classList.remove('is-open');
+    statusPopupTrigger?.setAttribute('aria-expanded', 'false');
+    statusPopupTrigger = null;
+    statusPopupTaskId = '';
   }
 
   function ensurePriorityPopup() {
@@ -1625,6 +1690,7 @@
 
   function openLabel(anchor, taskId, field) {
     if (field === 'priority') { openPriorityPopup(anchor, taskId); return; }
+    if (field === 'packing_status') { openStatusPopup(anchor, taskId); return; }
     labelInteractionScrollState = capturePackingScrollState(anchor);
     const options = labelOptionsFor(field);
     const menuOptions = field === 'packing_status'
@@ -1675,6 +1741,13 @@
   }
 
   function openPackingLabelEditor(field, taskId = '') {
+    if (field === 'packing_status') {
+      const popup = ensureStatusPopup(), optionsView = popup.querySelector('[data-packing-status-options-view]'), editorView = popup.querySelector('[data-packing-status-label-editor]');
+      optionsView.hidden = true; editorView.hidden = false; popup.classList.add('is-editor-open');
+      editorView.dataset.packingLabelEditor = 'packing_status'; editorView.dataset.packingLabelTask = String(taskId || statusPopupTaskId);
+      editorView.innerHTML = `<div class="packing-status-editor-header"><button type="button" class="packing-status-editor-back" data-close-status-label-editor aria-label="Back"><i data-lucide="arrow-left"></i></button><strong>Edit status labels</strong></div><div class="packing-status-label-list">${statuses.map((item, index) => `<label class="packing-status-label-row" data-packing-label-editor-row><input class="packing-status-label-colour" type="color" value="${esc(itemColor(item))}" data-packing-label-color="${index}"><input class="packing-status-label-input" type="text" value="${esc(itemText(item))}" data-packing-label-name="${index}" data-packing-label-key="${esc(item[0])}"><button type="button" class="packing-status-label-remove" data-remove-packing-label-row>&times;</button></label>`).join('')}</div><button type="button" class="packing-status-new-label" data-add-packing-label-row="packing_status">+ New label</button><button type="button" class="packing-status-apply-labels" data-save-packing-labels="packing_status">Apply</button>`;
+      if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 }); requestAnimationFrame(positionStatusPopup); return;
+    }
     if (field === 'priority') {
       const popup = ensurePriorityPopup();
       const optionsView = popup.querySelector('[data-priority-options-view]');
@@ -1720,12 +1793,12 @@
   }
 
   function addPackingLabelRow(field) {
-    const editor = field === 'priority' ? priorityPopup?.querySelector('[data-priority-label-editor]') : labelMenu?.querySelector(`[data-packing-label-editor="${field}"]`);
-    const list = editor?.querySelector(field === 'priority' ? '.packing-priority-label-list' : '.packing-label-editor-list');
+    const editor = field === 'priority' ? priorityPopup?.querySelector('[data-priority-label-editor]') : field === 'packing_status' ? statusPopup?.querySelector('[data-packing-status-label-editor]') : labelMenu?.querySelector(`[data-packing-label-editor="${field}"]`);
+    const list = editor?.querySelector(field === 'priority' ? '.packing-priority-label-list' : field === 'packing_status' ? '.packing-status-label-list' : '.packing-label-editor-list');
     if (!list) return;
     const index = list.querySelectorAll('[data-packing-label-editor-row]').length;
     const row = document.createElement('label');
-    row.className = field === 'priority' ? 'packing-priority-label-row' : 'packing-label-editor-row';
+    row.className = field === 'priority' ? 'packing-priority-label-row' : field === 'packing_status' ? 'packing-status-label-row' : 'packing-label-editor-row';
     row.dataset.packingLabelEditorRow = '';
     if (field === 'priority') {
       row.dataset.priorityLabelRow = '';
@@ -1740,10 +1813,11 @@
     list.appendChild(row);
     row.querySelector('input[type="text"]')?.select();
     if (field === 'priority') requestAnimationFrame(positionPriorityPopup);
+    if (field === 'packing_status') requestAnimationFrame(positionStatusPopup);
   }
 
   async function savePackingLabelEditor(field) {
-    const editor = field === 'priority' ? priorityPopup?.querySelector('[data-priority-label-editor]') : labelMenu?.querySelector(`[data-packing-label-editor="${field}"]`);
+    const editor = field === 'priority' ? priorityPopup?.querySelector('[data-priority-label-editor]') : field === 'packing_status' ? statusPopup?.querySelector('[data-packing-status-label-editor]') : labelMenu?.querySelector(`[data-packing-label-editor="${field}"]`);
     if (!editor) return;
     const options = [...editor.querySelectorAll('[data-packing-label-editor-row]')].map((row) => {
       const nameInput = row.querySelector('[data-packing-label-name]');
@@ -1774,6 +1848,22 @@
       positionPriorityPopup();
       return;
     }
+    if (field === 'packing_status') {
+      const names = new Set();
+      const labels = options.map(([key, label, color], index) => {
+        const stableKey = String(key || normalize(label)).replace(/-/g, '_'), nameKey = label.toLowerCase();
+        if (!stableKey || !label) throw new Error('Status label names cannot be blank.');
+        if (names.has(nameKey)) throw new Error('Status label names must be unique.');
+        names.add(nameKey);
+        return { key: stableKey, label, color: color.toUpperCase(), textColor: readablePriorityTextColour(color), order: index, active: true };
+      });
+      const usedKeys = new Set(tasks.map((task) => normalize(task.packing_status)));
+      for (const key of usedKeys) if (key && !labels.some((label) => normalize(label.key) === key)) throw new Error('A status label currently used by packing items cannot be removed.');
+      const result = await post('save_status_labels', { labels: JSON.stringify(labels) });
+      statuses = (result.labels || labels).map((item) => [item.key, item.label, item.color, item.textColor]);
+      savePackingLabels('packing_status', statuses);
+      setCount('Packing status labels updated.'); render(); closeStatusPopup(); return;
+    }
     savePackingLabels(field, options);
     setCount('Packing status labels updated.');
     if (field === 'priority') renderPriorityOptions();
@@ -1792,6 +1882,7 @@
 
   function closeLabel() {
     closePriorityPopup();
+    closeStatusPopup();
     if (!labelMenu || labelMenu.hidden) return;
     document.querySelectorAll('.packing-status-component.is-open').forEach((cell) => cell.classList.remove('is-open'));
     document.querySelectorAll('.packing-status-trigger[aria-expanded="true"]').forEach((button) => button.setAttribute('aria-expanded', 'false'));
@@ -2416,6 +2507,7 @@
     const removePackingLabel = event.target.closest('[data-remove-packing-label-row]');
     const autoPackingLabels = event.target.closest('[data-packing-auto-labels]');
     const closePriorityEditor = event.target.closest('[data-close-priority-label-editor]');
+    const closeStatusEditor = event.target.closest('[data-close-status-label-editor]');
 
     try {
       if (editPackingLabels) {
@@ -2429,12 +2521,15 @@
       }
 
       if (removePackingLabel) {
-        const editorRoot = removePackingLabel.closest('[data-priority-label-editor]') || labelMenu;
+        const editorRoot = removePackingLabel.closest('[data-priority-label-editor],[data-packing-status-label-editor]') || labelMenu;
         const rows = editorRoot?.querySelectorAll('[data-packing-label-editor-row]');
         if (rows && rows.length > 1) removePackingLabel.closest('[data-packing-label-editor-row]')?.remove();
         if (editorRoot?.matches('[data-priority-label-editor]')) requestAnimationFrame(positionPriorityPopup);
+        if (editorRoot?.matches('[data-packing-status-label-editor]')) requestAnimationFrame(positionStatusPopup);
         return;
       }
+
+      if (closeStatusEditor) { renderStatusOptions(); positionStatusPopup(); return; }
 
       if (savePackingLabel) {
         if (savePackingLabel.disabled) return;
@@ -2907,7 +3002,7 @@
   });
 
   document.addEventListener('click', (event) => {
-    if (!event.target.closest('#packing-label-menu') && !event.target.closest('[data-priority-popup]') && !event.target.closest('[data-packing-label]')) closeLabel();
+    if (!event.target.closest('#packing-label-menu') && !event.target.closest('[data-priority-popup]') && !event.target.closest('[data-packing-status-popup]') && !event.target.closest('[data-packing-label]')) closeLabel();
   });
 
   function getPackingSummaryTooltip() {
