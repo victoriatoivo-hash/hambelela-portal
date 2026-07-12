@@ -1704,6 +1704,17 @@
 .packing-list-page .invoice-btn,
 .packing-list-page .invoice-btn span { font-size: 12px !important; line-height: 1; text-align: center; }
 .packing-list-page .invoice-btn { height: 32px; min-height: 32px; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; }
+
+/* Upload Invoice source controls. */
+.packing-list-page .invoice-section .invoice-form-field input:not([type="file"]),
+.packing-list-page .invoice-section .invoice-file-upload,
+.packing-list-page .invoice-section [data-portal-date-field] { height: 32px; min-height: 32px; }
+.packing-list-page .invoice-section .invoice-form-field input:not([type="file"]) { padding-top: 0; padding-bottom: 0; font-size: 12px; line-height: 1; }
+.packing-list-page .invoice-section .invoice-file-upload { padding-top: 0; padding-bottom: 0; }
+.packing-list-page .invoice-section .invoice-file-button,
+.packing-list-page .invoice-section .portal-date-trigger { height: 31px; min-height: 31px; }
+.packing-list-page .invoice-section .invoice-file-button,
+.packing-list-page .invoice-section .invoice-file-button span { font-size: 12px !important; line-height: 1; }
 .packing-list-page .packing-item-info-card:nth-child(5n+4) { --info-accent: var(--pk-burgundy); }
 .packing-list-page .packing-item-info-label { margin-bottom: 5px; color: var(--pk-text-light); font-size: 10px; line-height: 1; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 .packing-list-page .packing-item-info-value { color: var(--pk-text); font-size: 12px; line-height: 1.35; font-weight: 400; overflow-wrap: anywhere; }
