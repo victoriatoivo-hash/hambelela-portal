@@ -390,8 +390,8 @@
 
   function renderEditableCell(task, field, label, placeholder = '') {
     const value = String(task[field] || '');
-    const emptyDisplay = field === 'notes' ? '<i class="packing-notes-icon" data-lucide="message-circle-plus"></i>' : esc(placeholder || '—');
-    return `<div class="packing-editable-cell${field === 'notes' ? ' packing-editable-cell--notes' : ''}" data-packing-editable-cell data-item-id="${esc(task.id)}" data-field="${esc(field)}" data-value="${esc(value)}" tabindex="0" role="button" aria-label="Edit ${esc(label)}">
+    const emptyDisplay = field === 'notes' ? '<i class="packing-notes-icon" data-lucide="message-circle-plus"></i>' : (field === 'quantity_packed' ? '' : esc(placeholder || '—'));
+    return `<div class="packing-editable-cell${field === 'notes' ? ' packing-editable-cell--notes' : ''}${field === 'quantity_packed' && !value ? ' is-empty' : ''}" data-packing-editable-cell data-item-id="${esc(task.id)}" data-field="${esc(field)}" data-value="${esc(value)}" tabindex="0" role="button" aria-label="Edit ${esc(label)}">
       <span class="packing-editable-display">${value ? esc(value) : emptyDisplay}</span>
       <input type="text" class="packing-editable-input" value="${esc(value)}" aria-label="${esc(label)}" placeholder="${esc(placeholder)}">
     </div>`;
@@ -1735,7 +1735,8 @@
       let cancelling = false;
       const showValue = (value) => {
         if (cell.dataset.field === 'notes' && !value) display.innerHTML = '<i class="packing-notes-icon" data-lucide="message-circle-plus"></i>';
-        else display.textContent = value || (cell.dataset.field === 'quantity_packed' ? 'Enter packed quantity' : '—');
+        else display.textContent = value || (cell.dataset.field === 'quantity_packed' ? '' : '—');
+        if (cell.dataset.field === 'quantity_packed') cell.classList.toggle('is-empty', !value);
         if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
       };
       const start = () => {
