@@ -1234,7 +1234,7 @@
             </button>
           </td>
           <td class="task-cell col-item" data-column-key="item">${currentUser.can_manage ? renderEditableCell(task, 'item_name', 'Item') : esc(task.item_name)}</td>
-          <td class="notes-cell col-notes" data-column-key="notes">${canEditOwn ? renderEditableCell(task, 'notes', 'Notes') : esc(task.notes || '')}</td>
+          <td class="notes-cell col-notes" data-column-key="notes"><button type="button" title="Open notes" data-packing-open-panel="${esc(task.id)}"><i data-lucide="message-circle-plus"></i></button></td>
           <td class="col-dateloaded packing-editable-date-cell" data-column-key="date_loaded">${renderPackingDate(task, 'date_loaded', currentUser.can_manage)}</td>
           <td class="col-priority" data-column-key="priority">${priorityCell}</td>
           <td class="col-qty" data-column-key="quantity_to_pack">${currentUser.can_manage ? renderEditableCell(task, 'quantity_planned', 'Quantity to pack') : esc(task.quantity_planned || '')}</td>
