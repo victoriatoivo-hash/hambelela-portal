@@ -1311,20 +1311,20 @@
               ${bodyRows}
               ${addRow}
             </tbody>
-            <tfoot>
-              <tr class="packing-summary-row summary-row">
+            <tfoot class="packing-month-open-footer">
+              <tr class="packing-month-open-footer-row">
                 <td class="packing-grid-cell--select" data-column-key="select"></td>
-                <td data-column-key="item"><span class="summary-pill">${esc(groupLabel(key))}</span></td>
+                <td data-column-key="item"></td>
                 <td data-column-key="notes"></td>
                 <td data-column-key="date_loaded"></td>
-                <td data-column-key="priority">${prioritySummaryBar(pCounts)}</td>
+                <td class="packing-month-open-footer-cell--priority" data-column-key="priority">${packingHeaderPriority(pCounts)}</td>
                 <td data-column-key="quantity_to_pack"></td>
                 <td data-column-key="person"></td>
                 <td data-column-key="quantity_packed"></td>
                 <td data-column-key="date_completed"></td>
-                <td data-column-key="website_uploaded"><span class="packing-fraction website-fraction">${groupSummary.website}/${rows.length}</span></td>
-                <td data-column-key="status">${packingProgressBar(statusCounts, rows.length)}</td>
-                <td data-column-key="text">${rows.length} items - Done: ${groupSummary.done} - Not started: ${groupSummary.notStarted} - Packing: ${groupSummary.packing} - ${esc(groupSummary.split)}</td>
+                <td class="packing-month-open-footer-cell--website" data-column-key="website_uploaded"><strong>${groupSummary.website} / ${rows.length}</strong></td>
+                <td class="packing-month-open-footer-cell--status" data-column-key="status">${packingHeaderProgress(statusCounts, rows.length)}</td>
+                <td data-column-key="text"></td>
                 ${renderEmptyCustomCells('summary-custom-cell')}
                 <td data-column-key="add"></td>
               </tr>
