@@ -1097,9 +1097,9 @@
     return `<div class="${esc(containerClass)} packing-summary-bar" data-packing-summary-bar aria-label="${esc(label)}">
       ${items.filter((item) => item.count > 0).map((item) => {
         const percentage = Math.round((item.count / safeTotal) * 100);
-        return `<button type="button" class="packing-summary-segment ${esc(item.className)}" data-label="${esc(item.label)}" data-count="${item.count}" data-total="${total}" data-percentage="${percentage}" style="--segment-colour:${esc(item.colour)};--segment-width:${(item.count / safeTotal) * 100}%" aria-label="${esc(item.label)}: ${item.count} of ${total} items, ${percentage} percent"></button>`;
+        return `<span class="packing-summary-segment ${esc(item.className)}" role="button" tabindex="0" data-label="${esc(item.label)}" data-count="${item.count}" data-total="${total}" data-percentage="${percentage}" style="--segment-colour:${esc(item.colour)};--segment-width:${(item.count / safeTotal) * 100}%" aria-label="${esc(item.label)}: ${item.count} of ${total} items, ${percentage} percent"></span>`;
       }).join('')}
-      <div class="packing-summary-tooltip" role="tooltip" hidden></div>
+      <span class="packing-summary-tooltip" role="tooltip" hidden></span>
     </div>`;
   }
 
@@ -2022,6 +2022,17 @@
   }
 
   document.addEventListener('click', async (event) => {
+    const summarySegment = event.target.closest('.packing-summary-segment');
+    if (summarySegment) {
+      event.preventDefault();
+      event.stopPropagation();
+      summarySegment.classList.remove('is-active');
+      void summarySegment.offsetWidth;
+      summarySegment.classList.add('is-active');
+      showPackingSummaryTooltip(summarySegment);
+      window.setTimeout(() => summarySegment.classList.remove('is-active'), 300);
+      return;
+    }
     const openCreate = event.target.closest('[data-open-packing-create]');
     const openInvoice = event.target.closest('[data-open-invoice]');
     const closeModal = event.target.closest('[data-close-modal]');
@@ -2488,6 +2499,17 @@
       return;
     }
     document.querySelectorAll('[data-packing-summary-bar]').forEach(hidePackingSummaryTooltip);
+  });
+  document.addEventListener('keydown', (event) => {
+    const segment = event.target.closest('.packing-summary-segment');
+    if (!segment || !['Enter', ' '].includes(event.key)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    segment.classList.remove('is-active');
+    void segment.offsetWidth;
+    segment.classList.add('is-active');
+    showPackingSummaryTooltip(segment);
+    window.setTimeout(() => segment.classList.remove('is-active'), 300);
   });
 
   document.addEventListener('keydown', (event) => {
