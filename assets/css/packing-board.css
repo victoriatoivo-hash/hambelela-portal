@@ -2,7 +2,10 @@
    Loaded after portal.css so the board keeps the Monday-style density. */
 
 .packing-list-page {
-    --board-grid: #cbd6ea;
+    --packing-grid-border: #EDE3D8;
+    --packing-grid-border-strong: #E4D6C8;
+    --board-grid: var(--packing-grid-border);
+    --pk-border: var(--packing-grid-border);
     --board-blue: #4e96ff;
     --board-row: #ffffff;
     --board-selected: #cfe5ff;
