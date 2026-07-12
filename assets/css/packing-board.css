@@ -1697,12 +1697,12 @@
 .packing-list-page .invoice-action-help span,
 .packing-list-page .invoice-manual-example,
 .packing-list-page .invoice-empty-state span,
-.packing-list-page .invoice-footer-status span { font-size: 10px; font-weight: 400; }
+.packing-list-page .invoice-footer-status span { font-size: 10px !important; font-weight: 400; }
 .packing-list-page .invoice-form-field .portal-custom-select,
 .packing-list-page .invoice-form-field .portal-custom-select-trigger { height: 32px; min-height: 32px; }
 .packing-list-page .invoice-form-field .portal-custom-select-trigger { padding: 0 11px; display: flex; align-items: center; justify-content: space-between; line-height: 1; box-sizing: border-box; }
 .packing-list-page .invoice-btn,
-.packing-list-page .invoice-btn span { font-size: 12px; line-height: 1; text-align: center; }
+.packing-list-page .invoice-btn span { font-size: 12px !important; line-height: 1; text-align: center; }
 .packing-list-page .invoice-btn { height: 32px; min-height: 32px; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; }
 .packing-list-page .packing-item-info-card:nth-child(5n+4) { --info-accent: var(--pk-burgundy); }
 .packing-list-page .packing-item-info-label { margin-bottom: 5px; color: var(--pk-text-light); font-size: 10px; line-height: 1; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
