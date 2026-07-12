@@ -465,7 +465,7 @@
     align-items: center;
     justify-content: center;
     gap: 7px;
-    border: 1px solid #ede3d8;
+    border: 1px solid #ede3d8 !important;
     border-radius: 8px;
     background: #fff;
     color: #000;
