@@ -401,6 +401,49 @@
     return `<button type="button" class="board-label packing-pill ${kind}" style="--label-color:${esc(labelColor(options, value))}" data-state="${esc(normalize(value))}" data-packing-label="${esc(field)}" data-task-id="${esc(task.id)}">${esc(labelText(options, value))}</button>`;
   }
 
+  let packingToolsData = null;
+  let packingToolsTab = 'trash';
+
+  function formatToolDate(value) {
+    if (!value) return 'Unknown date';
+    const date = new Date(String(value).replace(' ', 'T'));
+    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+  }
+
+  function packingActivityMarkup(row) {
+    let meta = {};
+    try { meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : (row.metadata || {}); } catch (error) { meta = {}; }
+    const item = row.item_name || `Packing item #${row.packing_item_id || ''}`;
+    const change = meta.field ? ` · ${meta.field}: ${meta.old_value || ''} → ${meta.new_value || ''}` : '';
+    return `<article class="packing-activity-row"><div class="packing-activity-icon"><i data-lucide="history"></i></div><div class="packing-activity-content"><div class="packing-activity-heading"><strong>${esc(String(row.action || '').replace(/_/g, ' '))}</strong><time>${esc(formatToolDate(row.created_at))}</time></div><p>${esc(item + change)}</p><div class="packing-activity-meta">${esc(row.performed_by || 'System')} · Packing List</div></div></article>`;
+  }
+
+  function renderPackingTools() {
+    const holder = document.querySelector('[data-packing-tools-body]');
+    if (!holder || !packingToolsData) return;
+    if (packingToolsTab === 'trash') {
+      const rows = packingToolsData.trash || [];
+      holder.innerHTML = rows.length ? `<div class="packing-trash-list">${rows.map((row) => `<article class="packing-trash-row"><div class="packing-trash-main"><strong>${esc(row.item_name)}</strong><span>Deleted by ${esc(row.deleted_by_name || 'Unknown')} · ${esc(formatToolDate(row.deleted_at))}</span><span>${Math.max(0, Number(row.days_remaining || 0))} days remaining</span></div><div class="packing-trash-meta"><span>${esc(String(row.date_loaded || '').slice(0, 7))}</span><span>${esc(row.quantity_planned || '')}</span></div><div class="packing-trash-actions"><button type="button" class="pk-btn pk-btn--secondary" data-restore-packing-item="${esc(row.id)}">Restore</button>${packingToolsData.canPermanentDelete ? `<button type="button" class="pk-btn pk-btn--danger" data-delete-packing-item-permanently="${esc(row.id)}">Delete forever</button>` : ''}</div></article>`).join('')}</div>` : '<div class="packing-tools-empty"><strong>Trash is empty</strong><span>Deleted Packing List items will appear here.</span></div>';
+    } else if (packingToolsTab === 'archived') {
+      const rows = packingToolsData.archived || [];
+      holder.innerHTML = rows.length ? `<div class="packing-trash-list">${rows.map((row) => `<article class="packing-trash-row is-archived"><div class="packing-trash-main"><strong>${esc(row.item_name)}</strong><span>Archived by ${esc(row.archived_by_name || 'Unknown')} · ${esc(formatToolDate(row.archived_at))}</span></div><div class="packing-trash-meta"><span>${esc(row.quantity_planned || '')}</span></div><div class="packing-trash-actions"><button type="button" class="pk-btn pk-btn--secondary" data-restore-archived-item="${esc(row.id)}">Restore to active</button></div></article>`).join('')}</div>` : '<div class="packing-tools-empty"><strong>No archived items</strong><span>Archived Packing List rows will appear here.</span></div>';
+    } else if (packingToolsTab === 'activity' || packingToolsTab === 'sync-history') {
+      const rows = packingToolsTab === 'activity' ? packingToolsData.activity || [] : packingToolsData.syncHistory || [];
+      /* Legacy inline renderer retained as a comment for this replacement.
+      holder.innerHTML = `<div class="packing-tools-list-head"><strong>${packingToolsTab === 'activity' ? 'Activity log' : 'Import / sync history'}</strong>${packingToolsTab === 'activity' ? '<button type="button" class="pk-btn pk-btn--secondary" data-export-packing-activity>Export CSV</button>' : ''}</div>${rows.length ? `<div class="packing-activity-list">${rows.map((row) => { let meta={}; try{meta=typeof row.metadata==='string'?JSON.parse(row.metadata):row.metadata||{}}catch{} return `<article class="packing-activity-row"><div class="packing-activity-icon"><i data-lucide="history"></i></div><div class="packing-activity-content"><div class="packing-activity-heading"><strong>${esc(String(row.action || '').replace(/_/g, ' '))}</strong><time>${esc(formatToolDate(row.created_at))}</time></div><p>${esc(row.item_name || `Packing item #${row.packing_item_id || ''}`)}${meta.field ? ` · ${esc(meta.field)}: ${esc(meta.old_value || '')} → ${esc(meta.new_value || '')}` : ''}</p><div class="packing-activity-meta">${esc(row.performed_by || 'System')} · Packing List</div></div></article>`; }).join('')}</div>` : '<div class="packing-tools-empty"><strong>No activity found</strong><span>Meaningful Packing List changes will appear here.</span></div>';
+      */
+      holder.innerHTML = `<div class="packing-tools-list-head"><strong>${packingToolsTab === 'activity' ? 'Activity log' : 'Import / sync history'}</strong>${packingToolsTab === 'activity' ? '<button type="button" class="pk-btn pk-btn--secondary" data-export-packing-activity>Export CSV</button>' : ''}</div>${rows.length ? `<div class="packing-activity-list">${rows.map(packingActivityMarkup).join('')}</div>` : '<div class="packing-tools-empty"><strong>No activity found</strong><span>Meaningful Packing List changes will appear here.</span></div>'}`;
+    } else {
+      holder.innerHTML = `<section class="packing-tools-bulk"><h3>Bulk actions</h3><p>${selected.size} rows currently selected.</p><div class="packing-tools-bulk-actions"><button class="pk-btn pk-btn--secondary" data-tools-bulk="archive">Archive selected</button><button class="pk-btn pk-btn--danger" data-tools-bulk="delete">Move selected to Trash</button><button class="pk-btn pk-btn--secondary" data-packing-export>Export selected rows</button></div></section>`;
+    }
+    if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+  }
+
+  async function loadPackingTools() {
+    packingToolsData = await post('tools_data');
+    renderPackingTools();
+  }
+
   function priorityDefinition(key) {
     return findOption(priorities, key) || null;
   }
@@ -2223,6 +2266,63 @@
   }
 
   document.addEventListener('click', async (event) => {
+    const openTools = event.target.closest('[data-open-packing-tools]');
+    const closeTools = event.target.closest('[data-close-packing-tools]');
+    const toolsTab = event.target.closest('[data-tools-tab]');
+    const restoreTrash = event.target.closest('[data-restore-packing-item]');
+    const deleteForever = event.target.closest('[data-delete-packing-item-permanently]');
+    const restoreArchived = event.target.closest('[data-restore-archived-item]');
+    const toolsBulk = event.target.closest('[data-tools-bulk]');
+    const exportActivity = event.target.closest('[data-export-packing-activity]');
+    if (openTools) {
+      const toolsPanel = document.querySelector('[data-packing-tools-panel]');
+      toolsPanel?.classList.add('is-open');
+      toolsPanel?.setAttribute('aria-hidden', 'false');
+      document.querySelector('.packing-tools-backdrop')?.classList.add('is-open');
+      await loadPackingTools();
+      return;
+    }
+    if (closeTools) {
+      document.querySelector('[data-packing-tools-panel]')?.classList.remove('is-open');
+      document.querySelector('[data-packing-tools-panel]')?.setAttribute('aria-hidden', 'true');
+      document.querySelector('.packing-tools-backdrop')?.classList.remove('is-open');
+      return;
+    }
+    if (toolsTab) {
+      packingToolsTab = toolsTab.dataset.toolsTab;
+      document.querySelectorAll('[data-tools-tab]').forEach((button) => button.classList.toggle('is-active', button === toolsTab));
+      renderPackingTools();
+      return;
+    }
+    if (restoreTrash || restoreArchived) {
+      await post(restoreTrash ? 'trash_restore' : 'archive_restore', { task_id: (restoreTrash || restoreArchived).getAttribute(restoreTrash ? 'data-restore-packing-item' : 'data-restore-archived-item') });
+      await Promise.all([loadPackingTools(), refresh()]);
+      setCount('Packing item restored.');
+      return;
+    }
+    if (deleteForever) {
+      const confirmation = window.prompt('Permanently delete this packing item? This cannot be undone. Type DELETE to continue.');
+      if (confirmation !== 'DELETE') return;
+      await post('trash_delete_forever', { task_id: deleteForever.dataset.deletePackingItemPermanently });
+      await loadPackingTools();
+      setCount('Packing item permanently deleted.');
+      return;
+    }
+    if (toolsBulk) {
+      await runPackingBulkAction(toolsBulk.dataset.toolsBulk);
+      await loadPackingTools();
+      return;
+    }
+    if (exportActivity) {
+      const rows = packingToolsData?.activity || [];
+      const csv = [['Date and time','Item','Action','Performed by','Source'], ...rows.map((row) => [row.created_at,row.item_name || '',row.action,row.performed_by || 'System','Packing List'])].map((row) => row.map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+      link.download = `packing-activity-${new Date().toISOString().slice(0,10)}.csv`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+      return;
+    }
     const summarySegment = event.target.closest('.packing-summary-segment');
     if (summarySegment) {
       event.preventDefault();

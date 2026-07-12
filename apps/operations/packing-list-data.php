@@ -23,6 +23,7 @@ $hasDateStarted = ops_column_exists('ops_packing_tasks', 'date_started');
 $hasInvoicePath = ops_column_exists('ops_packing_tasks', 'invoice_file_path');
 $hasLabelPath = ops_column_exists('ops_packing_tasks', 'label_file_path');
 $hasArchivedAt = ops_column_exists('ops_packing_tasks', 'archived_at');
+$hasDeletedAt = ops_column_exists('ops_packing_tasks', 'deleted_at');
 $hasMondayId = ops_column_exists('ops_packing_tasks', 'monday_item_id');
 $hasMondayBoardId = ops_column_exists('ops_packing_tasks', 'monday_board_id');
 $hasMondayStatus = ops_column_exists('ops_packing_tasks', 'monday_sync_status');
@@ -51,6 +52,9 @@ $params = [];
 if ($hasArchivedAt) {
     $whereParts[] = 'pt.archived_at IS NULL';
 }
+if ($hasDeletedAt) {
+    $whereParts[] = 'pt.deleted_at IS NULL';
+}
 $where = $whereParts ? 'WHERE ' . implode(' AND ', $whereParts) : '';
 
 $tasks = ops_rows(
@@ -69,7 +73,7 @@ $tasks = ops_rows(
     $params
 );
 
-$archiveWhere = $hasArchivedAt ? 'archived_at IS NULL' : '1=1';
+$archiveWhere = implode(' AND ', array_filter([$hasArchivedAt ? 'archived_at IS NULL' : '1=1', $hasDeletedAt ? 'deleted_at IS NULL' : '1=1']));
 $totalRows = (int) ops_count('ops_packing_tasks', $archiveWhere);
 
 $packers = ops_rows(

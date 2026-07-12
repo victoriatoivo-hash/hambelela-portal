@@ -1144,6 +1144,44 @@ try {
     $canManage = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
     $currentEmployeeId = ops_current_employee_id();
 
+    if (in_array($action, ['tools_data', 'trash_restore', 'trash_delete_forever', 'archive_restore', 'bulk_delete'], true)) {
+        if (!ops_column_exists('ops_packing_tasks', 'deleted_at')) db()->exec('ALTER TABLE ops_packing_tasks ADD COLUMN deleted_at DATETIME NULL');
+        if (!ops_column_exists('ops_packing_tasks', 'deleted_by')) db()->exec('ALTER TABLE ops_packing_tasks ADD COLUMN deleted_by INT NULL');
+        if (!ops_column_exists('ops_packing_tasks', 'delete_reason')) db()->exec('ALTER TABLE ops_packing_tasks ADD COLUMN delete_reason VARCHAR(255) NULL');
+    }
+
+    if ($action === 'tools_data') {
+        if (!$canManage) throw new RuntimeException('You do not have permission to view Packing Tools.');
+        $trash = ops_rows("SELECT pt.id, pt.item_name, pt.quantity_planned, pt.date_loaded, pt.deleted_at, e.full_name AS deleted_by_name, DATEDIFF(DATE_ADD(pt.deleted_at, INTERVAL 30 DAY), NOW()) AS days_remaining FROM ops_packing_tasks pt LEFT JOIN ops_employees e ON e.id = pt.deleted_by WHERE pt.deleted_at IS NOT NULL ORDER BY pt.deleted_at DESC LIMIT 200");
+        $archived = ops_column_exists('ops_packing_tasks', 'archived_at') ? ops_rows("SELECT pt.id, pt.item_name, pt.quantity_planned, pt.date_loaded, pt.archived_at, e.full_name AS archived_by_name FROM ops_packing_tasks pt LEFT JOIN ops_employees e ON e.id = pt.archived_by WHERE pt.archived_at IS NOT NULL AND pt.deleted_at IS NULL ORDER BY pt.archived_at DESC LIMIT 200") : [];
+        $activity = ops_table_exists('ops_activity_logs') ? ops_rows("SELECT l.id, l.entity_id AS packing_item_id, l.action, l.metadata, l.created_at, e.full_name AS performed_by, pt.item_name FROM ops_activity_logs l LEFT JOIN ops_employees e ON e.id = l.employee_id LEFT JOIN ops_packing_tasks pt ON pt.id = l.entity_id WHERE l.entity_type = 'packing_task' ORDER BY l.created_at DESC LIMIT 300") : [];
+        $sync = array_values(array_filter($activity, static fn(array $row): bool => str_contains((string) $row['action'], 'monday') || str_contains((string) $row['action'], 'invoice') || str_contains((string) $row['action'], 'website')));
+        echo json_encode(['ok' => true, 'trash' => $trash, 'archived' => $archived, 'activity' => $activity, 'syncHistory' => $sync, 'canPermanentDelete' => user_has_role('owner_admin')]);
+        exit;
+    }
+
+    if (in_array($action, ['trash_restore', 'trash_delete_forever', 'archive_restore'], true)) {
+        $id = (int) ($_POST['task_id'] ?? 0);
+        if ($id <= 0) throw new RuntimeException('Select a packing item.');
+        if ($action === 'trash_restore') {
+            $stmt = db()->prepare('UPDATE ops_packing_tasks SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND deleted_at IS NOT NULL');
+            $stmt->execute([$id]);
+            ops_activity_log('packing_row_restored', 'packing_task', $id, ['source' => 'packing_tools']);
+        } elseif ($action === 'archive_restore') {
+            if (!$canManage) throw new RuntimeException('You do not have permission to restore archived items.');
+            $stmt = db()->prepare('UPDATE ops_packing_tasks SET archived_at = NULL, archived_by = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+            $stmt->execute([$id]);
+            ops_activity_log('packing_row_unarchived', 'packing_task', $id, ['source' => 'packing_tools']);
+        } else {
+            if (!user_has_role('owner_admin')) throw new RuntimeException('Only Owner/Admin can permanently delete packing items.');
+            ops_activity_log('packing_row_permanently_deleted', 'packing_task', $id, ['source' => 'packing_tools']);
+            $stmt = db()->prepare('DELETE FROM ops_packing_tasks WHERE id = ? AND deleted_at IS NOT NULL');
+            $stmt->execute([$id]);
+        }
+        echo json_encode(['ok' => true, 'message' => 'Packing item updated.']);
+        exit;
+    }
+
     if ($action === 'save_priority_labels') {
         if (!user_has_role('owner_admin')) {
             throw new RuntimeException('Only Owner/Admin can edit priority labels.');
@@ -2507,9 +2545,11 @@ try {
         }
 
         if ($action === 'bulk_delete') {
-            $stmt = db()->prepare("DELETE FROM ops_packing_tasks WHERE id IN ({$placeholders})");
-            $stmt->execute($ids);
-            echo json_encode(['ok' => true, 'message' => 'Deleted ' . $stmt->rowCount() . ' packing rows.']);
+            $params = array_merge([$currentEmployeeId], $ids);
+            $stmt = db()->prepare("UPDATE ops_packing_tasks SET deleted_at = NOW(), deleted_by = ?, delete_reason = 'Moved to Trash from bulk action', updated_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders}) AND deleted_at IS NULL");
+            $stmt->execute($params);
+            foreach ($ids as $id) ops_activity_log('packing_row_deleted', 'packing_task', $id, ['source' => 'bulk_action']);
+            echo json_encode(['ok' => true, 'message' => 'Moved ' . $stmt->rowCount() . ' packing rows to Trash.']);
             exit;
         }
 
