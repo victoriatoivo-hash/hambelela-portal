@@ -495,6 +495,25 @@
     color: #ab3619 !important;
 }
 
+.packing-page-v2 [data-packing-undo] {
+    border: 1px solid #ede3d8 !important;
+    background: #fff;
+    color: #1a1a1a;
+    font-size: 12px;
+    font-weight: 400;
+    box-shadow: none;
+}
+
+.packing-page-v2 [data-packing-undo]:not(:disabled):hover,
+.packing-page-v2 [data-packing-undo]:not(:disabled):active,
+.packing-page-v2 [data-packing-undo]:not(:disabled):focus-visible {
+    transform: none;
+    background: rgba(240, 116, 32, .08);
+    border-color: rgba(171, 54, 25, .35) !important;
+    color: #ab3619;
+    outline: 0;
+}
+
 .ops-board-page.packing-page-v2[data-board-theme="light"] .monday-board-head-actions button[data-packing-export]:active {
     background-color: rgba(240, 116, 32, .08);
     border-color: rgba(171, 54, 25, .35) !important;
