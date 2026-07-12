@@ -89,7 +89,7 @@
     { key: 'person', label: 'PERSON RESPONSIBLE', className: 'col-person', width: 200, title: 'Person Responsible' },
     { key: 'quantity_packed', label: 'QUANTITY PACKED', className: 'col-qtypacked', width: 150 },
     { key: 'date_completed', label: 'DATE COMPLETED', className: 'col-datecompleted', width: 150 },
-    { key: 'website_uploaded', label: 'WEBSITE', className: 'col-webinv', width: 140, title: 'Front desk confirms quantity-to-pack has been updated on the website' },
+    { key: 'website_uploaded', label: 'WEBSITE', className: 'col-webinv', width: 140, title: 'Packer website confirmation' },
     { key: 'status', label: 'PACKING STATUS', className: 'col-packstatus', width: 140 },
     { key: 'text', label: 'TEXT', className: 'col-text', width: 220 },
     { key: 'add', label: '+', className: 'add-column-cell col-add-btn', width: 48 }
@@ -462,6 +462,11 @@
       return `<label class="website-inventory-toggle ${modifier}"${title}><input type="checkbox" data-packing-check="${esc(field)}" data-task-id="${esc(task.id)}" ${checked} ${disabled}><span>${esc(label)}</span></label>`;
     }
     return `<label class="paid-toggle"${title}><input type="checkbox" data-packing-check="${esc(field)}" data-task-id="${esc(task.id)}" ${checked} ${disabled}><span>&check;</span></label>`;
+  }
+
+  function renderWebsiteCheck(task, allowed) {
+    const checked = Number(task.packing_website_confirmed || 0) === 1;
+    return `<button type="button" class="packing-website-check" data-packing-website-check data-item-id="${esc(task.id)}" data-checked="${checked ? 'true' : 'false'}" aria-pressed="${checked ? 'true' : 'false'}" aria-label="${checked ? 'Remove website completion' : 'Mark website inventory as complete'}" ${allowed ? '' : 'disabled'}><svg class="packing-website-check-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5 9.2 17 19 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`;
   }
 
   function showSkeletonRows() {
@@ -1076,7 +1081,7 @@
     const done = tasksInGroup.filter((task) => normalize(task.packing_status) === 'done').length;
     const notStarted = tasksInGroup.filter((task) => normalize(task.packing_status) === 'not_started').length;
     const packing = tasksInGroup.filter((task) => normalize(task.packing_status) === 'packing').length;
-    const website = tasksInGroup.filter((task) => Number(task.website_uploaded || 0) === 1).length;
+    const website = tasksInGroup.filter((task) => Number(task.packing_website_confirmed || 0) === 1).length;
     const split = [...new Set(tasksInGroup.map((task) => task.assigned_name || 'Unassigned'))].join(', ');
     return { done, notStarted, packing, website, split };
   }
@@ -1188,7 +1193,7 @@
           <td class="col-person">${renderPerson(task)}</td>
           <td class="col-qtypacked"><input class="board-inline-input" data-packing-text="quantity_packed" data-task-id="${esc(task.id)}" value="${esc(task.quantity_packed || '')}" placeholder="Actual" ${ownOnly}></td>
           <td class="col-datecompleted">${esc(task.date_completed ? formatDate(task.date_completed) : '')}</td>
-          <td class="paid-cell col-webinv">${renderCheck(task, 'website_uploaded', currentUser.can_edit_front_website)}</td>
+          <td class="paid-cell col-webinv">${renderWebsiteCheck(task, canEditOwn)}</td>
           <td class="col-packstatus">${statusCell}</td>
           <td class="col-text" title="${esc(task.notes || '')}">${esc(task.notes || '')}</td>
           ${renderCustomCells()}
@@ -1257,7 +1262,7 @@
           <td class="col-person" data-column-key="person">${renderPerson(task)}</td>
           <td class="col-qtypacked" data-column-key="quantity_packed">${canEditOwn ? renderEditableCell(task, 'quantity_packed', 'Quantity packed', 'Enter packed quantity') : esc(task.quantity_packed || '')}</td>
           <td class="col-datecompleted packing-editable-date-cell" data-column-key="date_completed">${renderPackingDate(task, 'date_completed', currentUser.can_manage)}</td>
-          <td class="paid-cell col-webinv" data-column-key="website_uploaded">${renderCheck(task, 'website_uploaded', currentUser.can_edit_front_website)}</td>
+          <td class="paid-cell col-webinv" data-column-key="website_uploaded">${renderWebsiteCheck(task, canEditOwn)}</td>
           <td class="col-packstatus" data-column-key="status">${statusCell}</td>
           <td class="col-text" data-column-key="text" title="${esc(task.notes || '')}">${esc(task.notes || '')}</td>
           ${renderCustomCells()}
@@ -2059,6 +2064,7 @@
     const label = event.target.closest('[data-packing-label][data-task-id]');
     const labelChoice = event.target.closest('[data-packing-label-value]');
     const check = event.target.closest('[data-packing-check]');
+    const websiteCheck = event.target.closest('[data-packing-website-check]');
     const panelButton = event.target.closest('[data-packing-open-panel]');
     const panelClose = event.target.closest('[data-packing-panel-close]');
     const tab = event.target.closest('[data-packing-panel-tab]');
@@ -2301,6 +2307,26 @@
         render();
         if (currentTask && ids.includes(String(currentTask.id)) && panel.classList.contains('open')) openPanel(currentTask.id);
         completedIds.forEach((id) => playPackingStatusConfetti(document.querySelector(`[data-packing-status-cell][data-item-id="${CSS.escape(String(id))}"]`)));
+        return;
+      }
+      if (websiteCheck) {
+        event.stopPropagation();
+        if (websiteCheck.disabled) return;
+        const itemId = String(websiteCheck.dataset.itemId || '');
+        const nextChecked = websiteCheck.dataset.checked !== 'true';
+        websiteCheck.disabled = true;
+        websiteCheck.classList.add('is-saving');
+        try {
+          await updateTasksField([itemId], 'packing_website_confirmed', nextChecked ? '1' : '0');
+          render();
+          const updated = document.querySelector(`[data-packing-website-check][data-item-id="${CSS.escape(itemId)}"]`);
+          updated?.classList.add(nextChecked ? 'is-just-checked' : 'is-just-unchecked');
+          window.setTimeout(() => updated?.classList.remove('is-just-checked', 'is-just-unchecked'), 300);
+        } catch (error) {
+          setCount(error.message || 'Unable to update website status.');
+          websiteCheck.disabled = false;
+          websiteCheck.classList.remove('is-saving');
+        }
         return;
       }
       if (check) {

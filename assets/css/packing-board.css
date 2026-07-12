@@ -57,7 +57,7 @@
 }
 
 .packing-list-page .packing-board-table th:not([data-column-key="select"]),
-.packing-list-page .packing-board-table td:not([data-column-key="select"]):not([data-column-key="priority"]) {
+.packing-list-page .packing-board-table td:not([data-column-key="select"]):not([data-column-key="priority"]):not([data-column-key="website_uploaded"]) {
     border: 1px solid var(--board-grid) !important;
     height: 36px !important;
     min-height: 36px !important;
@@ -249,14 +249,6 @@
     background: #9b51e0 !important;
 }
 
-.packing-list-page .website-check,
-.packing-list-page .website-inventory-toggle,
-.packing-list-page .website-inventory-chip {
-    background: transparent !important;
-    color: var(--status-green) !important;
-    font-size: 18px !important;
-    font-weight: 800 !important;
-}
 
 .packing-list-page .packing-group-row td,
 .packing-list-page .group-header-row td {
@@ -1010,8 +1002,7 @@
 }
 
 .packing-page-v2 .packing-priority-pill,
-.packing-page-v2 .packing-status-pill,
-.packing-page-v2 .website-inventory-toggle {
+.packing-page-v2 .packing-status-pill {
     width: 100%;
     height: 100%;
     min-height: 42px;
@@ -1031,14 +1022,6 @@
     cursor: pointer;
 }
 
-.packing-page-v2 .website-inventory-toggle.is-off {
-    background: #C8BBB1 !important;
-}
-
-.packing-page-v2 .website-inventory-toggle.is-on {
-    background: var(--pk-olive) !important;
-    color: #1a1a1a !important;
-}
 
 .packing-page-v2 .packing-pill {
     display: inline-flex;
@@ -1251,7 +1234,7 @@
     transition: background-color .18s ease !important;
 }
 
-.packing-list-page .packing-board-table tbody td:not([data-column-key="select"]):not([data-column-key="priority"]) {
+.packing-list-page .packing-board-table tbody td:not([data-column-key="select"]):not([data-column-key="priority"]):not([data-column-key="website_uploaded"]) {
     height: 35px !important;
     min-height: 35px !important;
     padding: 0 10px !important;
@@ -1739,6 +1722,16 @@
 .packing-list-page .packing-priority-menu .packing-edit-labels svg{width:16px;height:16px;color:var(--pk-orange-red)}.packing-list-page .packing-priority-menu .packing-edit-labels:hover{background:rgba(240,116,32,.07);color:var(--pk-burgundy);transform:translateX(2px)}
 .packing-list-page .packing-priority-menu.is-editor{width:260px}.packing-list-page .packing-priority-menu .packing-label-editor-list{display:grid;gap:7px}.packing-list-page .packing-priority-menu .packing-label-editor-row{display:grid;grid-template-columns:28px minmax(0,1fr) 26px;align-items:center;gap:5px;min-height:34px}.packing-list-page .packing-priority-menu .packing-label-editor-row input[type="color"]{width:28px;height:28px;padding:2px;border:1px solid var(--pk-border);border-radius:6px;background:#fff}.packing-list-page .packing-priority-menu .packing-label-editor-row input[type="text"]{width:100%;height:30px;padding:0 8px;border:1px solid var(--pk-border);border-radius:5px;background:#fff;color:var(--pk-text);font:400 12px/1 Figtree,Inter,system-ui,sans-serif;box-sizing:border-box}.packing-list-page .packing-priority-menu .packing-label-editor-row input[type="text"]:focus{outline:0;border-color:var(--pk-orange-red);box-shadow:0 0 0 2px rgba(171,54,25,.1)}
 .packing-list-page .packing-priority-menu .packing-new-label-button{width:100%;height:32px;margin-top:9px;display:flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--pk-border);border-radius:6px;background:#fff;color:var(--pk-text-mid);font-size:12px}.packing-list-page .packing-priority-menu .packing-label-apply{width:calc(100% + 20px);height:36px;margin:10px -10px -10px;border:0;border-top:1px solid var(--pk-border);border-radius:0 0 12px 12px;background:#fff;color:var(--pk-burgundy);font-size:12px;font-weight:600}
+
+/* Full-cell packer Website confirmation. */
+.packing-list-page .packing-board-table td[data-column-key="website_uploaded"]{position:relative;height:35px;min-height:35px;padding:0;border:0;border-right:1px solid var(--pk-border);box-shadow:inset 0 -1px 0 var(--pk-border);background:#fff;vertical-align:middle;overflow:visible;box-sizing:border-box}
+.packing-list-page .packing-website-check{position:relative;width:100%;height:35px;min-height:35px;padding:0;display:flex;align-items:center;justify-content:center;border:0;border-radius:0;background:#fff;color:#00b875;cursor:pointer;box-sizing:border-box;transition:background-color .16s ease,color .16s ease,box-shadow .16s ease}
+.packing-list-page .packing-website-check-icon{width:15px;height:15px;flex:0 0 15px;opacity:0;transform:scale(.72);transition:opacity .16s ease,transform .16s ease}
+.packing-list-page .packing-website-check[data-checked="true"] .packing-website-check-icon{opacity:1;transform:scale(1)}
+.packing-list-page .packing-website-check:hover{background:rgba(168,202,25,.055)}.packing-list-page .packing-website-check[data-checked="false"]:hover .packing-website-check-icon{opacity:.22;transform:scale(.9)}
+.packing-list-page .packing-website-check.is-saving{cursor:wait;background:rgba(240,116,32,.04)}.packing-list-page .packing-website-check.is-saving::after{content:"";position:absolute;width:13px;height:13px;border:2px solid rgba(171,54,25,.14);border-top-color:#ab3619;border-radius:50%;animation:packingWebsiteSavingSpin .65s linear infinite}.packing-list-page .packing-website-check.is-saving .packing-website-check-icon{opacity:0}
+.packing-list-page .packing-website-check.is-just-checked .packing-website-check-icon{animation:packingWebsiteCheckIn .28s cubic-bezier(.2,.8,.2,1)}.packing-list-page .packing-website-check.is-just-unchecked .packing-website-check-icon{animation:packingWebsiteCheckOut .18s ease-in}
+@keyframes packingWebsiteSavingSpin{to{transform:rotate(360deg)}}@keyframes packingWebsiteCheckIn{0%{opacity:0;transform:scale(.45) rotate(-8deg)}65%{opacity:1;transform:scale(1.15) rotate(2deg)}100%{opacity:1;transform:scale(1)}}@keyframes packingWebsiteCheckOut{from{opacity:1;transform:scale(1)}to{opacity:0;transform:scale(.7)}}
 .packing-list-page .packing-item-info-card:nth-child(5n+4) { --info-accent: var(--pk-burgundy); }
 .packing-list-page .packing-item-info-label { margin-bottom: 5px; color: var(--pk-text-light); font-size: 10px; line-height: 1; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 .packing-list-page .packing-item-info-value { color: var(--pk-text); font-size: 12px; line-height: 1.35; font-weight: 400; overflow-wrap: anywhere; }
