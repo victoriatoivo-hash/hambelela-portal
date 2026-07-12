@@ -2,6 +2,7 @@
    Loaded after portal.css so the board keeps the Monday-style density. */
 
 .packing-list-page {
+    --packing-row-height: 35px;
     --packing-grid-border: #EDE3D8;
     --packing-grid-border-strong: #E4D6C8;
     --board-grid: var(--packing-grid-border);
@@ -1301,10 +1302,12 @@
 }
 
 .packing-list-page .packing-board-table tbody tr:not(.packing-add-item-row) {
-    height: 35px !important;
-    min-height: 35px !important;
+    height: var(--packing-row-height) !important;
+    min-height: var(--packing-row-height) !important;
+    max-height: var(--packing-row-height) !important;
     transition: background-color .18s ease !important;
-    border-bottom: 1px solid var(--pk-border, var(--board-grid));
+    border: 0;
+    box-shadow: none;
 }
 .packing-list-page .packing-board-table thead th[data-column-key="select"] { border-right:1px solid var(--pk-border, var(--board-grid)); border-bottom:1px solid var(--pk-border, var(--board-grid)); }
 
@@ -1314,7 +1317,7 @@
     padding: 0 10px !important;
     border: 0 !important;
     border-right: 1px solid var(--pk-border, var(--board-grid)) !important;
-    border-bottom: 0 !important;
+    border-bottom: 1px solid var(--pk-border, var(--board-grid)) !important;
     box-shadow: none;
     background: #FFFFFF !important;
     color: var(--pk-text, var(--board-text)) !important;
@@ -1341,7 +1344,7 @@
     z-index: 2;
     border: 0;
     border-right: 1px solid var(--pk-border, var(--board-grid));
-    border-bottom: 0;
+    border-bottom: 1px solid var(--pk-border, var(--board-grid));
     background: #fff;
     text-align: center;
     vertical-align: middle;
@@ -1422,7 +1425,6 @@
 
 .packing-list-page .packing-board-table thead th:last-child,
 .packing-list-page .packing-board-table tbody td:last-child { border-right: 0 !important; }
-.packing-list-page .packing-board-table tbody tr:last-child td { border-bottom: 0 !important; box-shadow: none; }
 .packing-list-page .packing-board-table tbody tr:hover td { background: rgba(253, 246, 238, .75) !important; }
 
 
@@ -1605,7 +1607,7 @@
 /* Open month tally footer: the real table footer shares the table colgroup. */
 .packing-list-page .packing-board-table .packing-month-open-footer { display: table-footer-group; }
 .packing-list-page .packing-board-table .packing-month-open-footer-row { display: table-row; height:36px; min-height:36px; }
-.packing-list-page .packing-board-table .packing-month-open-footer-row td { height:36px !important; min-height:36px !important; padding:0 8px !important; vertical-align:middle !important; text-align:center !important; border-right:1px solid var(--pk-border) !important; border-top:1px solid var(--pk-border) !important; border-bottom:0 !important; background:#fff !important; color:var(--pk-text-mid) !important; font-size:11px !important; line-height:1 !important; font-weight:400 !important; box-sizing:border-box !important; }
+.packing-list-page .packing-board-table .packing-month-open-footer-row td { height:36px !important; min-height:36px !important; padding:0 8px !important; vertical-align:middle !important; text-align:center !important; border-right:1px solid var(--pk-border) !important; border-top:0 !important; border-bottom:1px solid var(--pk-border) !important; background:#fff !important; color:var(--pk-text-mid) !important; font-size:11px !important; line-height:1 !important; font-weight:400 !important; box-sizing:border-box !important; }
 .packing-list-page .packing-board-table .packing-month-open-footer-row td:last-child { border-right:0 !important; }
 .packing-list-page .packing-board-table .packing-month-open-footer-cell--priority .packing-priority-summary { width:calc(100% - 12px); height:20px; min-height:20px; max-height:20px; margin:0 auto; border-radius:0; }
 .packing-list-page .packing-board-table .packing-month-open-footer-cell--priority .packing-priority-summary span { height:20px; min-height:20px; max-height:20px; }
@@ -1696,7 +1698,7 @@
 @media(max-width:640px){.packing-list-page .invoice-date-field .invoice-date-trigger{right:6px}}
 
 /* Monday-style Packing Priority component and vertical menu. */
-.packing-list-page .packing-board-table td[data-column-key="priority"]{position:relative;height:35px;min-height:35px;padding:0;border:0;border-right:1px solid var(--pk-border);box-shadow:none;vertical-align:middle;overflow:visible;box-sizing:border-box}
+.packing-list-page .packing-board-table td[data-column-key="priority"]{position:relative;height:35px;min-height:35px;padding:0;border:0;border-right:1px solid var(--pk-border);border-bottom:1px solid var(--pk-border);box-shadow:none;vertical-align:middle;overflow:visible;box-sizing:border-box}
 .packing-list-page .packing-priority-component{position:relative;width:100%;height:35px;min-width:0;display:flex;align-items:stretch}
 .packing-list-page .packing-priority-trigger{width:100%;height:35px;min-height:35px;padding:0 9px;display:flex;align-items:center;justify-content:center;gap:5px;border:0;border-radius:0;background:var(--priority-colour);color:var(--priority-text-colour,#fff);font:400 11px/1 Figtree,Inter,system-ui,sans-serif;text-align:center;cursor:pointer;box-sizing:border-box;transition:filter .16s ease,box-shadow .16s ease,transform .16s ease}
 .packing-list-page .packing-priority-trigger-label{color:inherit}
@@ -1734,7 +1736,7 @@
 .packing-priority-apply-labels.is-saving{opacity:.68;cursor:wait}
 
 /* Full-cell packer Website confirmation. */
-.packing-list-page .packing-board-table td[data-column-key="website_uploaded"]{position:relative;height:35px;min-height:35px;padding:0;border:0;border-right:1px solid var(--pk-border);box-shadow:none;background:#fff;vertical-align:middle;overflow:visible;box-sizing:border-box}
+.packing-list-page .packing-board-table td[data-column-key="website_uploaded"]{position:relative;height:35px;min-height:35px;padding:0;border:0;border-right:1px solid var(--pk-border);border-bottom:1px solid var(--pk-border);box-shadow:none;background:#fff;vertical-align:middle;overflow:visible;box-sizing:border-box}
 .packing-list-page .packing-website-check{position:relative;width:100%;height:35px;min-height:35px;padding:0;display:flex;align-items:center;justify-content:center;border:0;border-radius:0;background:#fff;color:#00b875;cursor:pointer;box-sizing:border-box;transition:background-color .14s ease,color .14s ease}
 .packing-list-page .packing-website-check-icon{width:15px;height:15px;flex:0 0 15px;opacity:0;transform:scale(.75);transition:opacity .14s ease,transform .16s ease}
 .packing-list-page .packing-website-check[data-checked="true"] .packing-website-check-icon{opacity:1;transform:scale(1)}
@@ -1744,7 +1746,7 @@
 @keyframes packingWebsiteCheckIn{0%{opacity:0;transform:scale(.55)}70%{opacity:1;transform:scale(1.12)}100%{opacity:1;transform:scale(1)}}@keyframes packingWebsiteCheckOut{from{opacity:1;transform:scale(1)}to{opacity:0;transform:scale(.75)}}
 
 /* Monday-style full-cell Packing Status and vertical menu. */
-.packing-list-page .packing-board-table td[data-column-key="status"]{position:relative;height:35px;min-height:35px;padding:0;border:0;border-right:1px solid var(--pk-border);box-shadow:none;vertical-align:middle;overflow:visible;box-sizing:border-box}
+.packing-list-page .packing-board-table td[data-column-key="status"]{position:relative;height:35px;min-height:35px;padding:0;border:0;border-right:1px solid var(--pk-border);border-bottom:1px solid var(--pk-border);box-shadow:none;vertical-align:middle;overflow:visible;box-sizing:border-box}
 .packing-list-page .packing-status-component{--status-colour:#c4c4c4;--status-text-colour:#fff;position:relative;width:100%;height:35px;min-width:0;display:flex;align-items:stretch}.packing-list-page .packing-status-component[data-status="packing"]{--status-colour:#f07420}.packing-list-page .packing-status-component[data-status="website"]{--status-colour:#bb1b21}.packing-list-page .packing-status-component[data-status="done"]{--status-colour:rgb(0,200,117);--status-text-colour:#fff}.packing-list-page .packing-status-component[data-status="packed-label-needed"],.packing-list-page .packing-status-component[data-status="done-needs-label"]{--status-colour:#721b1a}.packing-list-page .packing-status-component[data-status="label-created"]{--status-colour:#6b4c3b}.packing-list-page .packing-status-component[data-status="correction-needed"]{--status-colour:#bb1b21}
 .packing-list-page .packing-status-trigger{position:relative;width:100%;height:35px;min-height:35px;padding:0 9px;display:flex;align-items:center;justify-content:center;gap:5px;overflow:hidden;border:0;border-radius:0;background:var(--status-colour);color:var(--status-text-colour);font:400 11px/1 Figtree,Inter,system-ui,sans-serif;text-align:center;cursor:pointer;box-sizing:border-box;transition:filter .16s ease,transform .16s ease,box-shadow .16s ease}.packing-list-page .packing-status-trigger:hover{filter:brightness(1.04)}.packing-list-page .packing-status-trigger:active{transform:scale(.99)}.packing-list-page .packing-status-trigger.is-static{cursor:default}
 .packing-list-page .packing-status-trigger-label{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;position:relative;z-index:3}
@@ -1954,7 +1956,7 @@
 .packing-page-v2 .packing-month-scroll {
     width: 100%;
     overflow-x: auto;
-    overflow-y: hidden;
+    overflow-y: visible;
     border: 0;
     box-shadow: none;
     scrollbar-color: rgba(114,27,26,.22) transparent;
