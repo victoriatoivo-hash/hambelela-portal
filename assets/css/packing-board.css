@@ -49,7 +49,7 @@
 
 .packing-list-page table.packing-board-table,
 .packing-list-page .packing-board-table {
-    border-collapse: collapse !important;
+    border-collapse: separate !important;
     border-spacing: 0 !important;
     table-layout: fixed !important;
     min-width: 1480px !important;
@@ -61,7 +61,8 @@
 
 .packing-list-page .packing-board-table th:not([data-column-key="select"]),
 .packing-list-page .packing-board-table td:not([data-column-key="select"]):not([data-column-key="priority"]):not([data-column-key="website_uploaded"]):not([data-column-key="status"]) {
-    border: 1px solid var(--board-grid) !important;
+    border: 0 !important;
+    border-right: 1px solid var(--board-grid) !important;
     height: 36px !important;
     min-height: 36px !important;
     padding: 0 10px !important;
@@ -498,22 +499,23 @@
     color: #ab3619 !important;
 }
 
-.packing-page-v2 [data-packing-undo] {
+.ops-board-page.packing-list-page.packing-page-v2 .monday-board-head-actions [data-packing-undo] {
     border: 1px solid #ede3d8 !important;
-    background: #fff;
-    color: #1a1a1a;
+    background: #fff !important;
+    color: #1a1a1a !important;
     font-size: 12px;
-    font-weight: 400;
-    box-shadow: none;
+    font-weight: 400 !important;
+    box-shadow: none !important;
 }
 
-.packing-page-v2 [data-packing-undo]:not(:disabled):hover,
-.packing-page-v2 [data-packing-undo]:not(:disabled):active,
-.packing-page-v2 [data-packing-undo]:not(:disabled):focus-visible {
-    transform: none;
-    background: rgba(240, 116, 32, .08);
+.ops-board-page.packing-list-page.packing-page-v2 .monday-board-head-actions [data-packing-undo]:hover,
+.ops-board-page.packing-list-page.packing-page-v2 .monday-board-head-actions [data-packing-undo]:active,
+.ops-board-page.packing-list-page.packing-page-v2 .monday-board-head-actions [data-packing-undo]:focus-visible {
+    transform: none !important;
+    background: rgba(240, 116, 32, .08) !important;
     border-color: rgba(171, 54, 25, .35) !important;
-    color: #ab3619;
+    color: #ab3619 !important;
+    font-weight: 400 !important;
     outline: 0;
 }
 
@@ -1302,6 +1304,7 @@
     height: 35px !important;
     min-height: 35px !important;
     transition: background-color .18s ease !important;
+    border-bottom: 1px solid var(--pk-border, var(--board-grid));
 }
 
 .packing-list-page .packing-board-table tbody td:not([data-column-key="select"]):not([data-column-key="priority"]):not([data-column-key="website_uploaded"]):not([data-column-key="status"]) {
@@ -1311,7 +1314,7 @@
     border: 0 !important;
     border-right: 1px solid var(--pk-border, var(--board-grid)) !important;
     border-bottom: 0 !important;
-    box-shadow: inset 0 -1px 0 var(--pk-border, var(--board-grid));
+    box-shadow: none;
     background: #FFFFFF !important;
     color: var(--pk-text, var(--board-text)) !important;
     text-align: left !important;
@@ -1337,7 +1340,7 @@
     z-index: 2;
     border: 0;
     border-right: 1px solid var(--pk-border, var(--board-grid));
-    border-bottom: 1px solid var(--pk-border, var(--board-grid));
+    border-bottom: 0;
     background: #fff;
     text-align: center;
     vertical-align: middle;
