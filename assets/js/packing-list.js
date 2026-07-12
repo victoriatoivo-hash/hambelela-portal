@@ -387,7 +387,7 @@
 
   function renderLabel(task, field, value, options) {
     if (field === 'priority') {
-      return `<div class="packing-priority-component" data-priority-component data-priority="${esc(normalize(value).replace(/_/g, '-'))}" style="--priority-colour:${esc(labelColor(options, value))};--priority-text-colour:${esc((findOption(options, value) || [])[3] || readablePriorityTextColour(labelColor(options, value)))}">
+      return `<div class="packing-priority-component" data-priority-component data-item-id="${esc(task.id)}" data-priority="${esc(normalize(value).replace(/_/g, '-'))}" data-priority-key="${esc(normalize(value).replace(/_/g, '-'))}" style="--priority-colour:${esc(labelColor(options, value))};--priority-text-colour:${esc((findOption(options, value) || [])[3] || readablePriorityTextColour(labelColor(options, value)))}">
         <button type="button" class="packing-priority-trigger" aria-haspopup="menu" aria-expanded="false" data-packing-label="priority" data-task-id="${esc(task.id)}">
           <span class="packing-priority-trigger-label">${esc(labelText(options, value))}</span>
         </button>
@@ -459,9 +459,11 @@
 
   function applyPriorityLabelDefinitions(definitions) {
     priorities = definitions.map((item) => [String(item.key || ''), String(item.label || ''), String(item.color || '#AB3619'), String(item.textColor || readablePriorityTextColour(item.color))]);
+    window.portalPriorityLabels = definitions;
     document.querySelectorAll('[data-priority-component]').forEach((component) => {
       const definition = priorityDefinition(component.dataset.priority);
       if (!definition) return;
+      component.dataset.priorityKey = normalize(definition[0]).replace(/_/g, '-');
       component.style.setProperty('--priority-colour', itemColor(definition));
       component.style.setProperty('--priority-text-colour', definition[3] || readablePriorityTextColour(itemColor(definition)));
       const label = component.querySelector('.packing-priority-trigger-label');
@@ -1579,7 +1581,7 @@
     optionsView.hidden = false;
     editorView.hidden = true;
     popup.classList.remove('is-editor-open');
-    optionsView.innerHTML = `<div class="packing-priority-options">${labelOptionsFor('priority').map((item) => `<button type="button" class="packing-priority-option" style="--priority-option-colour:${esc(itemColor(item))}" aria-selected="${normalize(item[0]) === normalize(current) ? 'true' : 'false'}" data-packing-label-value="${esc(item[0])}" data-packing-label-field="priority" data-packing-label-task="${esc(priorityPopupTaskId)}">${esc(itemText(item))}</button>`).join('')}</div><div class="packing-priority-popup-divider"></div><button type="button" class="packing-priority-utility" data-packing-edit-labels="priority" data-packing-edit-task="${esc(priorityPopupTaskId)}"><span class="packing-priority-utility-icon"><i data-lucide="pencil"></i></span><span class="packing-priority-utility-label">Edit Labels</span></button><button type="button" class="packing-priority-utility" data-packing-auto-labels><span class="packing-priority-utility-icon"><i data-lucide="sparkles"></i></span><span class="packing-priority-utility-label">Auto-assign Labels</span></button>`;
+    optionsView.innerHTML = `<div class="packing-priority-options">${labelOptionsFor('priority').map((item) => `<button type="button" class="packing-priority-option" style="--priority-option-colour:${esc(itemColor(item))};color:${esc(item[3] || readablePriorityTextColour(itemColor(item)))}" aria-selected="${normalize(item[0]) === normalize(current) ? 'true' : 'false'}" data-packing-label-value="${esc(item[0])}" data-packing-label-field="priority" data-packing-label-task="${esc(priorityPopupTaskId)}">${esc(itemText(item))}</button>`).join('')}</div><div class="packing-priority-popup-divider"></div><button type="button" class="packing-priority-utility" data-packing-edit-labels="priority" data-packing-edit-task="${esc(priorityPopupTaskId)}"><span class="packing-priority-utility-icon"><i data-lucide="pencil"></i></span><span class="packing-priority-utility-label">Edit Labels</span></button><button type="button" class="packing-priority-utility" data-packing-auto-labels><span class="packing-priority-utility-icon"><i data-lucide="sparkles"></i></span><span class="packing-priority-utility-label">Auto-assign Labels</span></button>`;
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
   }
 
@@ -2608,7 +2610,11 @@
           const savedTask = tasks.find((task) => String(task.id) === String(taskId));
           if (component && savedTask) {
             component.dataset.priority = normalize(savedTask.priority).replace(/_/g, '-');
-            component.style.setProperty('--priority-colour', labelColor(labelOptionsFor('priority'), savedTask.priority));
+            component.dataset.priorityKey = normalize(savedTask.priority).replace(/_/g, '-');
+            const savedDefinition = priorityDefinition(savedTask.priority);
+            const savedColour = labelColor(labelOptionsFor('priority'), savedTask.priority);
+            component.style.setProperty('--priority-colour', savedColour);
+            component.style.setProperty('--priority-text-colour', savedDefinition?.[3] || readablePriorityTextColour(savedColour));
             const triggerLabel = component.querySelector('.packing-priority-trigger-label');
             if (triggerLabel) triggerLabel.textContent = labelText(labelOptionsFor('priority'), savedTask.priority);
           }
