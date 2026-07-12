@@ -1837,6 +1837,7 @@
 .packing-list-page .packing-toolbar [data-find-packing-duplicates],
 .packing-list-page .packing-toolbar [data-import-previous-packing] {
   color: #1A1A1A !important;
+  font-weight: 400;
 }
 .packing-list-page .packing-toolbar [data-sync-monday-packing] svg,
 .packing-list-page .packing-toolbar [data-find-packing-duplicates] svg,
