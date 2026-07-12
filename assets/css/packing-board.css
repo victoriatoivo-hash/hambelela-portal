@@ -788,6 +788,8 @@
 .packing-page-v2 .packing-progress-bar {
     width: 100%;
     height: 18px;
+    min-height: 18px;
+    max-height: 18px;
     display: flex;
     overflow: hidden;
     border-radius: 999px;
@@ -806,6 +808,8 @@
 .packing-page-v2 .packing-priority-summary .priority-low { background: #a8ca19; }
 
 .packing-page-v2 .packing-progress-summary {
+    height: 18px;
+    min-height: 18px;
     display: grid;
     grid-template-columns: auto minmax(90px, 1fr);
     align-items: center;
@@ -830,6 +834,10 @@
 
 .packing-page-v2 .packing-month-group.is-collapsed .packing-month-body {
     display: none;
+}
+
+.packing-page-v2 .packing-month-summary .packing-summary-label {
+    font-size: 10px;
 }
 
 .packing-page-v2 .packing-group-table {
