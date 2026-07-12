@@ -9,6 +9,7 @@
   let statusPopup = null;
   let statusPopupTrigger = null;
   let statusPopupTaskId = '';
+  let lastPackingModalTrigger = null;
   let labelInteractionScrollState = null;
   const panel = document.getElementById('packing-panel');
   const backdrop = document.getElementById('packing-backdrop');
@@ -1371,21 +1372,21 @@
     }).join('');
 
     const addRow = currentUser.can_manage
-      ? `<tr class="add-task-row">
-          <td class="packing-grid-cell--select packing-add-row-select" data-column-key="select"></td>
-          <td data-column-key="item"><button type="button" data-open-packing-create>+ Add item</button></td>
-          <td data-column-key="notes"></td>
-          <td data-column-key="date_loaded"></td>
-          <td data-column-key="priority"></td>
-          <td data-column-key="quantity_to_pack"></td>
-          <td data-column-key="person"></td>
-          <td data-column-key="quantity_packed"></td>
-          <td data-column-key="date_completed"></td>
-          <td data-column-key="website_uploaded"></td>
-          <td data-column-key="status"></td>
-          <td data-column-key="text"></td>
-          ${renderEmptyCustomCells()}
-          <td data-column-key="add"></td>
+      ? `<tr class="packing-add-item-row" data-packing-add-item-row>
+          <td class="packing-add-item-select-spacer" data-column-key="select"></td>
+          <td class="packing-add-item-action-cell" data-column-key="item"><button type="button" class="packing-add-item-trigger" data-open-packing-create data-open-new-packing-item aria-label="Add a new packing item"><span class="packing-add-item-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><span class="packing-add-item-label">Add item</span></button></td>
+          <td class="packing-add-item-empty-cell" data-column-key="notes"></td>
+          <td class="packing-add-item-empty-cell" data-column-key="date_loaded"></td>
+          <td class="packing-add-item-empty-cell" data-column-key="priority"></td>
+          <td class="packing-add-item-empty-cell" data-column-key="quantity_to_pack"></td>
+          <td class="packing-add-item-empty-cell" data-column-key="person"></td>
+          <td class="packing-add-item-empty-cell" data-column-key="quantity_packed"></td>
+          <td class="packing-add-item-empty-cell" data-column-key="date_completed"></td>
+          <td class="packing-add-item-empty-cell" data-column-key="website_uploaded"></td>
+          <td class="packing-add-item-empty-cell" data-column-key="status"></td>
+          <td class="packing-add-item-empty-cell" data-column-key="text"></td>
+          ${renderEmptyCustomCells('packing-add-item-empty-cell')}
+          <td class="packing-add-item-empty-cell" data-column-key="add"></td>
         </tr>`
       : '';
 
@@ -2611,9 +2612,9 @@
         return;
       }
 
-      if (openCreate) { createModal.hidden = false; return; }
+      if (openCreate) { event.preventDefault(); event.stopPropagation(); lastPackingModalTrigger = openCreate; createModal.hidden = false; return; }
       if (openInvoice) { invoiceModal.hidden = false; setInvoiceStep(invoiceDraftRows.length ? 'review' : 'upload'); return; }
-      if (closeModal) { createModal.hidden = true; invoiceModal.hidden = true; return; }
+      if (closeModal) { createModal.hidden = true; invoiceModal.hidden = true; lastPackingModalTrigger?.focus({ preventScroll: true }); lastPackingModalTrigger = null; return; }
       if (exportButton) { exportCsv(); return; }
       if (undo) { await undoLast(); return; }
       if (refreshButton) { await refresh(); return; }
