@@ -1584,6 +1584,7 @@
 .packing-list-page .pk-btn { height: 32px; min-height: 32px; padding: 0 13px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border-radius: 9px; font-family: inherit; font-size: 11px; line-height: 1; font-weight: 700; cursor: pointer; box-sizing: border-box; transition: background-color .18s ease,border-color .18s ease,color .18s ease,transform .18s ease,box-shadow .18s ease; }
 .packing-list-page .pk-btn--primary { border: 1px solid var(--pk-orange-red); background: var(--pk-orange-red); color: #fff; box-shadow: 0 7px 16px rgba(171,54,25,.14); }
 .packing-list-page .pk-btn--primary:hover { border-color: var(--pk-burgundy); background: var(--pk-burgundy); transform: translateY(-1px); }
+.packing-list-page .packing-item-notes-section .pk-btn--primary { font-size: 12px; }
 .packing-list-page .packing-item-info-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px; margin-top: 12px; }
 .packing-list-page .packing-item-info-card { --info-accent: var(--pk-orange-red); min-width: 0; min-height: 62px; padding: 10px 12px; display: flex; flex-direction: column; justify-content: center; background: #fff; border: 1px solid var(--pk-border); border-left: 4px solid var(--info-accent); border-radius: 10px; box-shadow: 0 6px 16px rgba(114,27,26,.04); }
 .packing-list-page .packing-item-info-card:nth-child(5n+2) { --info-accent: var(--pk-amber); }
