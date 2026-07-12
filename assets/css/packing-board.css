@@ -484,6 +484,13 @@
 
 .packing-page-v2 [data-packing-export]:hover {
     transform: none;
+    background-color: rgba(240, 116, 32, .08);
+    border-color: rgba(171, 54, 25, .35);
+}
+
+.packing-page-v2 [data-packing-export]:active {
+    background-color: rgba(240, 116, 32, .08);
+    border-color: rgba(171, 54, 25, .35);
 }
 
 .packing-page-v2 .packing-stats {
