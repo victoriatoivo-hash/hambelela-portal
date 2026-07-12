@@ -180,19 +180,35 @@ include BASE_PATH . '/shared/sidebar.php';
     </aside>
     <div class="panel-backdrop" id="packing-backdrop" hidden></div>
 
-    <div class="modal-backdrop" id="packing-create-modal" hidden>
-        <form class="panel ops-form packing-modal" data-packing-create-form>
-            <div class="section-row"><h2>New packing item</h2><button type="button" data-close-modal>Close</button></div>
-            <div class="form-grid compact">
-                <label>Item<input name="item_name" required placeholder="Chia Seeds"></label>
-                <label>Received weight<input name="received_weight" placeholder="25kg"></label>
-                <label>Priority<select name="priority"><option value="top_critical">Top Critical</option><option value="high" selected>High</option><option value="medium">Medium</option><option value="low">Low</option></select></label>
-                <label>Date loaded<input name="date_loaded" type="datetime-local" value="<?= htmlspecialchars(date('Y-m-d\TH:i'), ENT_QUOTES, 'UTF-8') ?>"></label>
-                <label>Quantity to pack<input name="quantity_planned" required placeholder="100g(150), 500g(8), 1kg(1)"></label>
-                <label>Person<select name="assigned_employee_id" data-create-person><option value="">Auto assign</option></select></label>
+    <div class="modal-backdrop packing-item-modal-overlay" id="packing-create-modal" hidden>
+        <form class="packing-item-modal" data-packing-create-form>
+            <header class="packing-item-modal-header">
+                <div><p class="packing-item-modal-kicker">Packing List</p><h2 class="packing-item-modal-title">New packing item</h2><p class="packing-item-modal-subtitle">Add the item, quantities, assignment and packing details.</p></div>
+                <button type="button" class="packing-item-modal-close" data-close-modal aria-label="Close new packing item"><i data-lucide="x"></i></button>
+            </header>
+            <div class="packing-item-modal-body">
+                <section class="packing-item-form-section">
+                    <div class="packing-item-form-section-header"><h3>Item details</h3><p>Enter the received item and quantities to be packed.</p></div>
+                    <div class="packing-item-form-grid">
+                        <div class="packing-item-form-field"><label>Item <span aria-hidden="true">*</span></label><input name="item_name" required placeholder="Chia Seeds"></div>
+                        <div class="packing-item-form-field"><label>Received weight</label><input name="received_weight" placeholder="25kg"></div>
+                        <div class="packing-item-form-field"><label>Quantity to pack <span aria-hidden="true">*</span></label><input name="quantity_planned" required placeholder="100g(150), 500g(8), 1kg(1)"></div>
+                        <div class="packing-item-form-field" data-portal-date-field><label>Date loaded</label><input id="new-packing-date-display" class="portal-date-input" type="text" data-enable-time="true" data-submit-target="#new-packing-date" placeholder="Select date and time"><input id="new-packing-date" name="date_loaded" type="hidden" value=""></div>
+                    </div>
+                </section>
+                <section class="packing-item-form-section">
+                    <div class="packing-item-form-section-header"><h3>Assignment and priority</h3><p>Choose the urgency and responsible packer.</p></div>
+                    <div class="packing-item-form-grid packing-item-form-grid--two">
+                        <div class="packing-item-form-field"><label>Priority</label><select name="priority" data-portal-custom-select><option value="top_critical">Top Critical</option><option value="high" selected>High</option><option value="medium">Medium</option><option value="low">Low</option></select></div>
+                        <div class="packing-item-form-field"><label>Person</label><select name="assigned_employee_id" data-create-person data-portal-custom-select><option value="">Auto assign</option></select></div>
+                    </div>
+                </section>
+                <section class="packing-item-form-section">
+                    <div class="packing-item-form-section-header"><h3>Notes</h3><p>Add packing instructions or internal information.</p></div>
+                    <div class="packing-item-form-field packing-item-form-field--full"><label>Notes</label><textarea name="notes" placeholder="Invoice notes or packing instructions"></textarea></div>
+                </section>
             </div>
-            <label>Notes<textarea name="notes" placeholder="Invoice notes or packing instructions"></textarea></label>
-            <div class="ops-form-actions"><button class="button primary" type="submit">Create packing row</button></div>
+            <footer class="packing-item-modal-footer"><button type="button" class="pk-btn pk-btn--secondary" data-close-modal>Cancel</button><button type="submit" class="pk-btn pk-btn--primary" data-create-packing-submit><span data-create-packing-submit-text>Create packing row</span></button></footer>
         </form>
     </div>
 

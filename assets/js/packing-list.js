@@ -1691,11 +1691,21 @@
   }
 
   async function createFromForm(form) {
-    const formData = new FormData(form);
-    await post('create', Object.fromEntries(formData.entries()));
-    form.reset();
-    createModal.hidden = true;
-    await refresh();
+    const submit = form.querySelector('[data-create-packing-submit]');
+    const submitText = form.querySelector('[data-create-packing-submit-text]');
+    if (submit?.disabled) return;
+    if (submit) { submit.disabled = true; submit.classList.add('is-loading'); }
+    if (submitText) submitText.textContent = 'Creating…';
+    try {
+      const formData = new FormData(form);
+      await post('create', Object.fromEntries(formData.entries()));
+      form.reset();
+      createModal.hidden = true;
+      await refresh();
+    } finally {
+      if (submit) { submit.disabled = false; submit.classList.remove('is-loading'); }
+      if (submitText) submitText.textContent = 'Create packing row';
+    }
   }
 
   async function extractInvoiceDraft(form) {
