@@ -1155,7 +1155,10 @@ try {
         $trash = ops_rows("SELECT pt.id, pt.item_name, pt.quantity_planned, pt.date_loaded, pt.deleted_at, e.full_name AS deleted_by_name, DATEDIFF(DATE_ADD(pt.deleted_at, INTERVAL 30 DAY), NOW()) AS days_remaining FROM ops_packing_tasks pt LEFT JOIN ops_employees e ON e.id = pt.deleted_by WHERE pt.deleted_at IS NOT NULL ORDER BY pt.deleted_at DESC LIMIT 200");
         $archived = ops_column_exists('ops_packing_tasks', 'archived_at') ? ops_rows("SELECT pt.id, pt.item_name, pt.quantity_planned, pt.date_loaded, pt.archived_at, e.full_name AS archived_by_name FROM ops_packing_tasks pt LEFT JOIN ops_employees e ON e.id = pt.archived_by WHERE pt.archived_at IS NOT NULL AND pt.deleted_at IS NULL ORDER BY pt.archived_at DESC LIMIT 200") : [];
         $activity = ops_table_exists('ops_activity_logs') ? ops_rows("SELECT l.id, l.entity_id AS packing_item_id, l.action, l.metadata, l.created_at, e.full_name AS performed_by, pt.item_name FROM ops_activity_logs l LEFT JOIN ops_employees e ON e.id = l.employee_id LEFT JOIN ops_packing_tasks pt ON pt.id = l.entity_id WHERE l.entity_type = 'packing_task' ORDER BY l.created_at DESC LIMIT 300") : [];
-        $sync = array_values(array_filter($activity, static fn(array $row): bool => str_contains((string) $row['action'], 'monday') || str_contains((string) $row['action'], 'invoice') || str_contains((string) $row['action'], 'website')));
+        $sync = array_values(array_filter($activity, static function (array $row): bool {
+            $actionName = (string) $row['action'];
+            return strpos($actionName, 'monday') !== false || strpos($actionName, 'invoice') !== false || strpos($actionName, 'website') !== false;
+        }));
         echo json_encode(['ok' => true, 'trash' => $trash, 'archived' => $archived, 'activity' => $activity, 'syncHistory' => $sync, 'canPermanentDelete' => user_has_role('owner_admin')]);
         exit;
     }
