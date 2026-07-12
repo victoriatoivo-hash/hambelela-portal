@@ -2248,6 +2248,7 @@ try {
         }
 
         $allowed = [
+            'item_name' => 'item_name',
             'received_weight' => 'received_weight',
             'priority' => 'priority',
             'quantity_planned' => 'quantity_planned',

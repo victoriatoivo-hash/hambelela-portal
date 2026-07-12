@@ -388,6 +388,15 @@
     return `<button type="button" class="board-label packing-pill ${kind}" style="--label-color:${esc(labelColor(options, value))}" data-state="${esc(normalize(value))}" data-packing-label="${esc(field)}" data-task-id="${esc(task.id)}">${esc(labelText(options, value))}</button>`;
   }
 
+  function renderEditableCell(task, field, label, placeholder = '') {
+    const value = String(task[field] || '');
+    const emptyDisplay = field === 'notes' ? '<i class="packing-notes-icon" data-lucide="message-circle-plus"></i>' : esc(placeholder || '—');
+    return `<div class="packing-editable-cell${field === 'notes' ? ' packing-editable-cell--notes' : ''}" data-packing-editable-cell data-item-id="${esc(task.id)}" data-field="${esc(field)}" data-value="${esc(value)}" tabindex="0" role="button" aria-label="Edit ${esc(label)}">
+      <span class="packing-editable-display">${value ? esc(value) : emptyDisplay}</span>
+      <input type="text" class="packing-editable-input" value="${esc(value)}" aria-label="${esc(label)}" placeholder="${esc(placeholder)}">
+    </div>`;
+  }
+
   function renderPackingStatus(task, canEdit) {
     const value = normalize(task.packing_status || 'not_started');
     const content = `
@@ -1148,8 +1157,6 @@
     const customEmptyCells = customColumns.map(() => '<td data-custom-col-summary></td>').join('');
     const bodyRows = rows.map((task) => {
       const canEditOwn = canEditTask(task);
-      const manageOnly = currentUser.can_manage ? '' : 'disabled';
-      const ownOnly = canEditOwn ? '' : 'disabled';
       const priorityCell = currentUser.can_manage
         ? renderLabel(task, 'priority', task.priority || 'medium', priorities)
         : renderStaticLabel(task.priority || 'medium', priorities);
@@ -1226,13 +1233,13 @@
               <svg class="packing-checkbox-tick" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 7.2 5.7 10 11 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
           </td>
-          <td class="task-cell col-item" data-column-key="item">${esc(task.item_name)}</td>
-          <td class="notes-cell col-notes" data-column-key="notes"><button type="button" title="Open notes" data-packing-open-panel="${esc(task.id)}"><i data-lucide="message-circle-plus"></i></button></td>
+          <td class="task-cell col-item" data-column-key="item">${currentUser.can_manage ? renderEditableCell(task, 'item_name', 'Item') : esc(task.item_name)}</td>
+          <td class="notes-cell col-notes" data-column-key="notes">${canEditOwn ? renderEditableCell(task, 'notes', 'Notes') : esc(task.notes || '')}</td>
           <td class="col-dateloaded packing-editable-date-cell" data-column-key="date_loaded">${renderPackingDate(task, 'date_loaded', currentUser.can_manage)}</td>
           <td class="col-priority" data-column-key="priority">${priorityCell}</td>
-          <td class="col-qty" data-column-key="quantity_to_pack"><input class="board-inline-input" data-packing-text="quantity_planned" data-task-id="${esc(task.id)}" value="${esc(task.quantity_planned || '')}" ${manageOnly}></td>
+          <td class="col-qty" data-column-key="quantity_to_pack">${currentUser.can_manage ? renderEditableCell(task, 'quantity_planned', 'Quantity to pack') : esc(task.quantity_planned || '')}</td>
           <td class="col-person" data-column-key="person">${renderPerson(task)}</td>
-          <td class="col-qtypacked" data-column-key="quantity_packed"><input class="board-inline-input" data-packing-text="quantity_packed" data-task-id="${esc(task.id)}" value="${esc(task.quantity_packed || '')}" placeholder="Actual" ${ownOnly}></td>
+          <td class="col-qtypacked" data-column-key="quantity_packed">${canEditOwn ? renderEditableCell(task, 'quantity_packed', 'Quantity packed', 'Enter packed quantity') : esc(task.quantity_packed || '')}</td>
           <td class="col-datecompleted packing-editable-date-cell" data-column-key="date_completed">${renderPackingDate(task, 'date_completed', currentUser.can_manage)}</td>
           <td class="paid-cell col-webinv" data-column-key="website_uploaded">${renderCheck(task, 'website_uploaded', currentUser.can_edit_front_website)}</td>
           <td class="col-packstatus" data-column-key="status">${statusCell}</td>
@@ -1369,6 +1376,7 @@
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
     if (typeof window.initialisePortalDatePickers === 'function') window.initialisePortalDatePickers(body);
     renderCustomHeaders();
+    initialisePackingEditableCells(body);
     animateBoardRows();
     previousTaskIds = new Set(tasks.map((task) => String(task.id)));
     hasRenderedOnce = true;
@@ -1706,6 +1714,71 @@
       if (submit) { submit.disabled = false; submit.classList.remove('is-loading'); }
       if (submitText) submitText.textContent = 'Create packing row';
     }
+  }
+
+  function initialisePackingEditableCells(root = document) {
+    root.querySelectorAll('[data-packing-editable-cell]').forEach((cell) => {
+      if (cell.dataset.initialised === 'true') return;
+      cell.dataset.initialised = 'true';
+      const display = cell.querySelector('.packing-editable-display');
+      const input = cell.querySelector('.packing-editable-input');
+      if (!display || !input) return;
+      let originalValue = cell.dataset.value || '';
+      let saving = false;
+      let cancelling = false;
+      const showValue = (value) => {
+        if (cell.dataset.field === 'notes' && !value) display.innerHTML = '<i class="packing-notes-icon" data-lucide="message-circle-plus"></i>';
+        else display.textContent = value || (cell.dataset.field === 'quantity_packed' ? 'Enter packed quantity' : '—');
+        if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+      };
+      const start = () => {
+        if (saving || cell.classList.contains('is-editing')) return;
+        originalValue = cell.dataset.value || '';
+        input.value = originalValue;
+        cell.classList.remove('has-error');
+        cell.classList.add('is-editing');
+        requestAnimationFrame(() => { input.focus(); input.select(); });
+      };
+      const cancel = () => {
+        cancelling = true;
+        input.value = originalValue;
+        cell.classList.remove('is-editing', 'has-error');
+        input.blur();
+        cancelling = false;
+      };
+      const commit = async () => {
+        if (saving || cancelling || !cell.classList.contains('is-editing')) return;
+        const nextValue = input.value.trim();
+        if (nextValue === originalValue) { cell.classList.remove('is-editing'); return; }
+        saving = true;
+        cell.classList.add('is-saving');
+        try {
+          await updateTasksField([String(cell.dataset.itemId)], cell.dataset.field, nextValue);
+          cell.dataset.value = nextValue;
+          originalValue = nextValue;
+          showValue(nextValue);
+          cell.classList.remove('is-editing', 'has-error');
+        } catch (error) {
+          input.value = originalValue;
+          cell.classList.add('has-error');
+          setCount(error.message || 'Unable to save this field.');
+          input.focus();
+        } finally {
+          saving = false;
+          cell.classList.remove('is-saving');
+        }
+      };
+      cell.addEventListener('click', (event) => { event.stopPropagation(); start(); });
+      cell.addEventListener('keydown', (event) => {
+        if (!cell.classList.contains('is-editing') && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); start(); }
+      });
+      input.addEventListener('click', (event) => event.stopPropagation());
+      input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') { event.preventDefault(); input.blur(); }
+        if (event.key === 'Escape') { event.preventDefault(); cancel(); cell.focus(); }
+      });
+      input.addEventListener('blur', commit);
+    });
   }
 
   async function extractInvoiceDraft(form) {
