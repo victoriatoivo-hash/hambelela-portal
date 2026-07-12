@@ -742,6 +742,8 @@
       item.classList.toggle('is-error', index === currentIndex && stateName === 'error');
       item.classList.toggle('is-available', isAvailable);
       item.setAttribute('aria-disabled', isAvailable ? 'false' : 'true');
+      if (index === currentIndex) item.setAttribute('aria-current', 'step');
+      else item.removeAttribute('aria-current');
     });
   }
 
@@ -977,7 +979,8 @@
     if (!invoiceDraftBody) return;
     assignDraftRows();
     if (!invoiceDraftRows.length) {
-      invoiceDraftBody.innerHTML = '<tr><td colspan="9">Extract an invoice or add a row to review before saving.</td></tr>';
+      invoiceDraftBody.innerHTML = '<tr class="invoice-empty-row"><td colspan="9"><div class="invoice-empty-state"><i data-lucide="file-text"></i><div><strong>No invoice rows yet</strong><span>Upload and extract an invoice, or add a row manually.</span></div></div></td></tr>';
+      if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
       setInvoiceStep('upload');
       renderDraftWorkloadSummary();
       return;
@@ -2055,6 +2058,8 @@
     const syncMonday = event.target.closest('[data-sync-monday-packing]');
     const findDuplicates = event.target.closest('[data-find-packing-duplicates]');
     const extractInvoice = event.target.closest('[data-extract-invoice]');
+    const selectInvoiceFile = event.target.closest('[data-select-invoice-file]');
+    const removeInvoiceFile = event.target.closest('[data-remove-invoice-file]');
     const addDraftRow = event.target.closest('[data-add-draft-row]');
     const redistributeDraft = event.target.closest('[data-redistribute-draft]');
     const splitDraftRowButton = event.target.closest('[data-split-draft-row]');
@@ -2165,6 +2170,18 @@
       if (exportButton) { exportCsv(); return; }
       if (undo) { await undoLast(); return; }
       if (refreshButton) { await refresh(); return; }
+      if (selectInvoiceFile) {
+        invoiceModal?.querySelector('[name="invoice_file"]')?.click();
+        return;
+      }
+      if (removeInvoiceFile) {
+        const input = invoiceModal?.querySelector('[name="invoice_file"]');
+        if (input) input.value = '';
+        const name = invoiceModal?.querySelector('[data-invoice-file-name]');
+        if (name) name.textContent = 'No PDF selected';
+        removeInvoiceFile.hidden = true;
+        return;
+      }
       if (extractInvoice) {
         const form = extractInvoice.closest('[data-invoice-draft-form]');
         if (form) await extractInvoiceDraft(form);
@@ -2174,6 +2191,9 @@
         invoiceDraftRows.push({ item_name: '', received_weight: '', unit: '', quantity_purchased: 1, quantity_planned: '', priority: invoicePriority?.value || 'medium', assigned_employee_id: '', assigned_name: '' });
         const result = redistributeDraftRows();
         renderInvoiceDraft();
+        const newRow = invoiceDraftBody?.querySelector('tr:last-child');
+        newRow?.classList.add('is-new');
+        newRow?.querySelector('[data-draft-field="item_name"]')?.focus();
         setInvoiceStatus(result.message || 'Review the new row, enter quantity-to-pack, then confirm. Use Redistribute Packers after edits.');
         return;
       }
@@ -2325,6 +2345,15 @@
   });
 
   document.addEventListener('change', async (event) => {
+    const invoiceFile = event.target.closest('[name="invoice_file"]');
+    if (invoiceFile) {
+      const file = invoiceFile.files?.[0];
+      const name = invoiceModal?.querySelector('[data-invoice-file-name]');
+      const remove = invoiceModal?.querySelector('[data-remove-invoice-file]');
+      if (name) name.textContent = file ? `${file.name} · ${(file.size / 1048576).toFixed(2)} MB` : 'No PDF selected';
+      if (remove) remove.hidden = !file;
+      setInvoiceStep('upload');
+    }
     const packingDate = event.target.closest('[data-packing-date-value]');
     if (packingDate) {
       try {

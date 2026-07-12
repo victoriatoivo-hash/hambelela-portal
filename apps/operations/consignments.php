@@ -212,43 +212,33 @@ include BASE_PATH . '/shared/sidebar.php';
         </form>
     </div>
 
-    <div class="modal-backdrop" id="packing-invoice-modal" hidden>
-        <form class="panel ops-form packing-modal packing-invoice-flow" data-invoice-draft-form>
-            <div class="section-row"><h2>Upload invoice</h2><button type="button" data-close-modal>Close</button></div>
-            <ol class="invoice-flow-steps" data-invoice-stepper>
-                <li class="active" data-invoice-step="upload">Upload</li><li data-invoice-step="extract">Extract</li><li data-invoice-step="review">Review</li><li data-invoice-step="assign">Assign</li><li data-invoice-step="create">Create</li>
-            </ol>
-            <div class="form-grid compact">
-                <label>Invoice PDF<input type="file" name="invoice_file" accept="application/pdf"></label>
-                <label>Supplier name<input name="supplier_name" placeholder="Optional"></label>
-                <label>Invoice number<input name="invoice_number" data-draft-invoice-number placeholder="Auto extracted"></label>
-                <label>Invoice date<input name="invoice_date" data-draft-invoice-date type="date"></label>
-                <label>Priority before sync<select name="invoice_priority" data-invoice-priority><option value="top_critical">Top Critical</option><option value="high">High</option><option value="medium" selected>Medium</option><option value="low">Low</option></select></label>
-                <label>Sync mode<select name="sync_mode"><option value="update_existing" selected>Update existing / skip duplicates</option><option value="skip_duplicates">Skip duplicates only</option><option value="create_only">Create new rows only</option></select></label>
+    <div class="invoice-upload-overlay" id="packing-invoice-modal" hidden>
+        <form class="invoice-upload-modal packing-invoice-flow" data-invoice-draft-form role="dialog" aria-modal="true" aria-labelledby="invoice-upload-title">
+            <header class="invoice-upload-header"><div><p class="invoice-upload-kicker">Packing List</p><h2 class="invoice-upload-title" id="invoice-upload-title">Upload invoice</h2><p class="invoice-upload-subtitle">Extract invoice items, review quantities, assign packers and sync approved rows.</p></div><button type="button" class="invoice-upload-close" data-close-modal aria-label="Close Upload Invoice"><i data-lucide="x"></i></button></header>
+            <div class="invoice-upload-body">
+                <nav class="invoice-progress" data-invoice-stepper aria-label="Invoice upload progress">
+                    <?php foreach ([['upload','Upload'],['extract','Extract'],['review','Review'],['assign','Assign'],['create','Create']] as $index => [$stepKey,$stepLabel]): ?>
+                    <?= $index ? '<span class="invoice-progress-line"></span>' : '' ?><button type="button" class="invoice-progress-step<?= $index === 0 ? ' active is-active' : '' ?>" data-invoice-step="<?= h($stepKey) ?>"><span class="invoice-progress-number"><?= $index + 1 ?></span><span><?= h($stepLabel) ?></span></button>
+                    <?php endforeach; ?>
+                </nav>
+                <section class="invoice-section"><div class="invoice-section-header"><div><h3 class="invoice-section-title">Invoice source</h3><p class="invoice-section-description">Choose the PDF and confirm the invoice details before extraction.</p></div></div>
+                    <div class="invoice-form-grid">
+                        <div class="invoice-form-field"><label for="invoice-file">Invoice PDF</label><div class="invoice-file-upload" data-invoice-file-upload><input id="invoice-file" type="file" name="invoice_file" accept="application/pdf" hidden><button type="button" class="invoice-file-button" data-select-invoice-file><i data-lucide="upload"></i><span>Choose invoice PDF</span></button><span class="invoice-file-name" data-invoice-file-name>No PDF selected</span><button type="button" class="invoice-file-remove" data-remove-invoice-file hidden aria-label="Remove selected PDF"><i data-lucide="x"></i></button></div></div>
+                        <div class="invoice-form-field"><label for="invoice-supplier">Supplier name</label><input id="invoice-supplier" name="supplier_name" placeholder="Optional"></div>
+                        <div class="invoice-form-field"><label for="invoice-number">Invoice number</label><input id="invoice-number" name="invoice_number" data-draft-invoice-number placeholder="Auto extracted"></div>
+                        <div class="invoice-form-field"><label for="invoice-date-display">Invoice date</label><div data-portal-date-field><input id="invoice-date-display" class="portal-date-input" type="text" data-enable-time="false" data-submit-target="#invoice-date" placeholder="Select date"><input id="invoice-date" name="invoice_date" data-draft-invoice-date type="hidden"><button type="button" class="portal-date-trigger" aria-label="Choose invoice date"><i data-lucide="calendar-days"></i></button></div></div>
+                    </div>
+                </section>
+                <section class="invoice-section"><div class="invoice-section-header"><div><h3 class="invoice-section-title">Extraction settings</h3><p class="invoice-section-description">Choose the default priority and how matching rows should be handled.</p></div></div><div class="invoice-form-grid invoice-form-grid--two">
+                    <div class="invoice-form-field"><label for="invoice-priority">Priority before sync</label><select id="invoice-priority" name="invoice_priority" data-invoice-priority data-portal-custom-select><option value="top_critical">Top Critical</option><option value="high">High</option><option value="medium" selected>Medium</option><option value="low">Low</option></select></div>
+                    <div class="invoice-form-field"><label for="invoice-sync-mode">Sync mode</label><select id="invoice-sync-mode" name="sync_mode" data-portal-custom-select><option value="update_existing" selected>Update existing / skip duplicates</option><option value="skip_duplicates">Skip duplicates only</option><option value="create_only">Create new rows only</option></select></div>
+                </div><div class="invoice-action-strip"><div class="invoice-action-help"><strong>Ready to extract?</strong><span>Upload a PDF or add rows manually if the invoice cannot be read.</span></div><div class="invoice-action-buttons"><button class="invoice-btn invoice-btn--primary" type="button" data-extract-invoice><i data-lucide="scan-text"></i><span>Extract invoice</span></button><button class="invoice-btn invoice-btn--secondary" type="button" data-add-draft-row><i data-lucide="plus"></i>Add row</button><button class="invoice-btn invoice-btn--secondary" type="button" data-redistribute-draft><i data-lucide="shuffle"></i>Redistribute packers</button></div></div>
+                    <div class="invoice-process-state" data-invoice-progress hidden><span class="invoice-process-spinner" aria-hidden="true"></span><div><strong data-invoice-progress-title>Reading invoice</strong><span data-invoice-progress-text>Extracting products, weights and quantities…</span></div></div>
+                </section>
+                <section class="invoice-section"><div class="invoice-section-header"><div><h3 class="invoice-section-title">Manual fallback</h3><p class="invoice-section-description">Enter one item per line when the invoice PDF cannot be extracted.</p></div></div><div class="invoice-form-field"><label for="invoice-manual">Invoice rows</label><textarea id="invoice-manual" class="invoice-manual-input" name="invoice_draft" placeholder="Mango Butter | 5kg | 100g(20), 250g(8)"></textarea><p class="invoice-manual-example">Format: Product | received weight | quantity to pack</p></div></section>
+                <section class="invoice-section"><div class="invoice-section-header"><div><h3 class="invoice-section-title">Extracted invoice rows</h3><p class="invoice-section-description">Review every row before creating or updating Packing List items.</p></div></div><div class="draft-workload-summary invoice-review-summary" data-draft-workload-summary hidden></div><div class="invoice-review-table-wrap invoice-draft-wrap"><table class="invoice-review-table invoice-draft-table"><thead><tr><th>Item</th><th>Received</th><th>Unit</th><th>Quantity to pack</th><th>Priority</th><th>Assigned</th><th>Workload</th><th>Monday</th><th>Actions</th></tr></thead><tbody data-invoice-draft-body><tr class="invoice-empty-row"><td colspan="9"><div class="invoice-empty-state"><i data-lucide="file-text"></i><div><strong>No invoice rows yet</strong><span>Upload and extract an invoice, or add a row manually.</span></div></div></td></tr></tbody></table></div></section>
             </div>
-            <p class="muted">Upload a PDF to extract product lines automatically. If extraction is unavailable, use the manual fallback below.</p>
-            <div class="ops-form-actions">
-                <button class="button" type="button" data-extract-invoice><i data-lucide="scan-text"></i> Extract invoice</button>
-                <button class="button" type="button" data-add-draft-row><i data-lucide="plus"></i> Add row</button>
-                <button class="button" type="button" data-redistribute-draft><i data-lucide="shuffle"></i> Redistribute Packers</button>
-            </div>
-            <div class="invoice-progress" data-invoice-progress hidden>
-                <span class="invoice-spinner" aria-hidden="true"></span>
-                <div>
-                    <strong data-invoice-progress-title>Extracting invoice items...</strong>
-                    <p data-invoice-progress-text>Please wait while the system reads the invoice and prepares draft rows.</p>
-                </div>
-            </div>
-            <label>Manual fallback<textarea name="invoice_draft" rows="4" placeholder="Product | received weight | quantity to pack, e.g. Mango Butter | 5kg | 100g(20), 250g(8)"></textarea></label>
-            <div class="invoice-draft-wrap">
-                <table class="invoice-draft-table">
-                    <thead><tr><th>Item</th><th>Received</th><th>Unit</th><th>Quantity to pack</th><th>Priority</th><th>Assigned</th><th>Workload</th><th>Monday</th><th>Actions</th></tr></thead>
-                    <tbody data-invoice-draft-body><tr><td colspan="9">Extract an invoice or add a row to review before saving.</td></tr></tbody>
-                </table>
-            </div>
-            <div class="draft-workload-summary" data-draft-workload-summary hidden></div>
-            <p class="muted" data-invoice-extract-status>Step 1: upload invoice or type rows manually.</p>
-            <div class="ops-form-actions"><button class="button primary" type="submit">Confirm and Sync to Monday</button></div>
+            <footer class="invoice-upload-footer"><div class="invoice-footer-status"><strong>Step 1 of 5</strong><span data-invoice-extract-status>Upload an invoice or add rows manually.</span></div><div class="invoice-footer-actions"><button class="invoice-btn invoice-btn--secondary" type="button" data-close-modal>Cancel</button><button class="invoice-btn invoice-btn--primary" type="submit">Confirm and sync to Monday</button></div></footer>
         </form>
     </div>
 </main>
