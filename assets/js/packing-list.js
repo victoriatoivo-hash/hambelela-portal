@@ -1092,6 +1092,17 @@
     }, { done: 0, inprogress: 0, notstarted: 0 });
   }
 
+  function packingSummarySegments(items, total, label) {
+    const safeTotal = total || 1;
+    return `<div class="packing-summary-bar" data-packing-summary-bar aria-label="${esc(label)}">
+      ${items.filter((item) => item.count > 0).map((item) => {
+        const percentage = Math.round((item.count / safeTotal) * 100);
+        return `<button type="button" class="packing-summary-segment ${esc(item.className)}" data-label="${esc(item.label)}" data-count="${item.count}" data-total="${total}" data-percentage="${percentage}" style="--segment-colour:${esc(item.colour)};--segment-width:${(item.count / safeTotal) * 100}%" aria-label="${esc(item.label)}: ${item.count} of ${total} items, ${percentage} percent"></button>`;
+      }).join('')}
+      <div class="packing-summary-tooltip" role="tooltip" hidden></div>
+    </div>`;
+  }
+
   function prioritySummaryBar(counts) {
     const total = counts.critical + counts.high + counts.medium + counts.low || 1;
     const segments = [
@@ -1103,23 +1114,20 @@
     return `
       <div class="priority-summary-cell">
         <span>Priority</span>
-        <div class="priority-summary-bar" aria-label="Priority summary">
-          ${segments.map(([cls, count]) => `<i class="bar-segment ${cls}" style="flex:${count / total}"></i>`).join('')}
-        </div>
+        ${packingSummarySegments(segments.map(([cls, count]) => ({ className: cls, label: cls === 'critical' ? 'Top Critical' : cls[0].toUpperCase() + cls.slice(1), count, colour: { critical: '#721b1a', high: '#bb1b21', medium: '#f07420', low: '#a8ca19' }[cls] })), total, 'Priority summary')}
       </div>
     `;
   }
 
   function packingProgressBar(counts, total) {
-    const safeTotal = total || 1;
     return `
       <div class="packing-progress-wrap">
         <span class="packing-fraction">${counts.done}/${total}</span>
-        <div class="packing-progress-bar" aria-label="Packing status progress">
-          <i class="seg-done" style="flex:${counts.done / safeTotal}"></i>
-          <i class="seg-inprogress" style="flex:${counts.inprogress / safeTotal}"></i>
-          <i class="seg-notstarted" style="flex:${counts.notstarted / safeTotal}"></i>
-        </div>
+        ${packingSummarySegments([
+          { className: 'seg-done', label: 'Done', count: counts.done, colour: '#a8ca19' },
+          { className: 'seg-inprogress', label: 'Packing', count: counts.inprogress, colour: '#f07420' },
+          { className: 'seg-notstarted', label: 'Pending', count: counts.notstarted, colour: '#bb1b21' },
+        ], total, 'Packing status progress')}
       </div>
     `;
   }
@@ -1127,25 +1135,24 @@
   function packingHeaderPriority(counts) {
     const total = counts.critical + counts.high + counts.medium + counts.low || 1;
     return `
-      <div class="packing-priority-summary" aria-label="Priority summary">
-        <span class="priority-critical" style="flex:${counts.critical / total}"></span>
-        <span class="priority-high" style="flex:${counts.high / total}"></span>
-        <span class="priority-medium" style="flex:${counts.medium / total}"></span>
-        <span class="priority-low" style="flex:${counts.low / total}"></span>
-      </div>
+      ${packingSummarySegments([
+        { className: 'priority-critical', label: 'Top Critical', count: counts.critical, colour: '#721b1a' },
+        { className: 'priority-high', label: 'High', count: counts.high, colour: '#bb1b21' },
+        { className: 'priority-medium', label: 'Medium', count: counts.medium, colour: '#f07420' },
+        { className: 'priority-low', label: 'Low', count: counts.low, colour: '#a8ca19' },
+      ], total, 'Priority summary')}
     `;
   }
 
   function packingHeaderProgress(counts, total) {
-    const safeTotal = total || 1;
     return `
       <div class="packing-progress-summary">
         <strong>${counts.done}/${total}</strong>
-        <div class="packing-progress-bar" aria-label="Packing status progress">
-          <span class="done" style="flex:${counts.done / safeTotal}"></span>
-          <span class="packing" style="flex:${counts.inprogress / safeTotal}"></span>
-          <span class="pending" style="flex:${counts.notstarted / safeTotal}"></span>
-        </div>
+        ${packingSummarySegments([
+          { className: 'done', label: 'Done', count: counts.done, colour: '#a8ca19' },
+          { className: 'packing', label: 'Packing', count: counts.inprogress, colour: '#f07420' },
+          { className: 'pending', label: 'Pending', count: counts.notstarted, colour: '#bb1b21' },
+        ], total, 'Packing status progress')}
       </div>
     `;
   }
@@ -2424,6 +2431,62 @@
 
   document.addEventListener('click', (event) => {
     if (!event.target.closest('#packing-label-menu') && !event.target.closest('[data-packing-label]')) closeLabel();
+  });
+
+  function showPackingSummaryTooltip(segment) {
+    const bar = segment.closest('[data-packing-summary-bar]');
+    const tooltip = bar?.querySelector('.packing-summary-tooltip');
+    if (!tooltip) return;
+    tooltip.textContent = `${segment.dataset.label} · ${segment.dataset.count}/${segment.dataset.total} · ${segment.dataset.percentage}%`;
+    tooltip.hidden = false;
+    tooltip.classList.add('is-visible');
+    bar.classList.add('has-active-segment');
+    const segmentRect = segment.getBoundingClientRect();
+    const tooltipRect = tooltip.getBoundingClientRect();
+    const padding = 8;
+    const left = Math.max(padding, Math.min(segmentRect.left + segmentRect.width / 2 - tooltipRect.width / 2, window.innerWidth - tooltipRect.width - padding));
+    let top = segmentRect.top - tooltipRect.height - 8;
+    tooltip.classList.toggle('is-below', top < padding);
+    if (top < padding) top = segmentRect.bottom + 8;
+    tooltip.style.left = `${left}px`;
+    tooltip.style.top = `${top}px`;
+  }
+
+  function hidePackingSummaryTooltip(bar) {
+    const tooltip = bar?.querySelector('.packing-summary-tooltip');
+    if (!tooltip) return;
+    tooltip.classList.remove('is-visible');
+    bar.classList.remove('has-active-segment');
+    window.setTimeout(() => { if (!tooltip.classList.contains('is-visible')) tooltip.hidden = true; }, 150);
+  }
+
+  document.addEventListener('pointerover', (event) => {
+    const segment = event.target.closest('.packing-summary-segment');
+    if (segment) showPackingSummaryTooltip(segment);
+  });
+  document.addEventListener('pointerout', (event) => {
+    const segment = event.target.closest('.packing-summary-segment');
+    if (segment && !segment.contains(event.relatedTarget)) hidePackingSummaryTooltip(segment.closest('[data-packing-summary-bar]'));
+  });
+  document.addEventListener('focusin', (event) => {
+    const segment = event.target.closest('.packing-summary-segment');
+    if (segment) showPackingSummaryTooltip(segment);
+  });
+  document.addEventListener('focusout', (event) => {
+    const segment = event.target.closest('.packing-summary-segment');
+    if (segment) hidePackingSummaryTooltip(segment.closest('[data-packing-summary-bar]'));
+  });
+  document.addEventListener('pointerdown', (event) => {
+    const segment = event.target.closest('.packing-summary-segment');
+    if (segment) {
+      segment.classList.remove('is-active');
+      void segment.offsetWidth;
+      segment.classList.add('is-active');
+      showPackingSummaryTooltip(segment);
+      window.setTimeout(() => segment.classList.remove('is-active'), 300);
+      return;
+    }
+    document.querySelectorAll('[data-packing-summary-bar]').forEach(hidePackingSummaryTooltip);
   });
 
   document.addEventListener('keydown', (event) => {
