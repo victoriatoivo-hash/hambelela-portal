@@ -57,7 +57,7 @@
 }
 
 .packing-list-page .packing-board-table th:not([data-column-key="select"]),
-.packing-list-page .packing-board-table td:not([data-column-key="select"]) {
+.packing-list-page .packing-board-table td:not([data-column-key="select"]):not([data-column-key="priority"]) {
     border: 1px solid var(--board-grid) !important;
     height: 36px !important;
     min-height: 36px !important;
