@@ -6,6 +6,7 @@
   let priorityPopup = null;
   let priorityPopupTrigger = null;
   let priorityPopupTaskId = '';
+  let labelInteractionScrollState = null;
   const panel = document.getElementById('packing-panel');
   const backdrop = document.getElementById('packing-backdrop');
   const panelTitle = document.getElementById('packing-panel-title');
@@ -1601,6 +1602,7 @@
   }
 
   function openPriorityPopup(anchor, taskId) {
+    labelInteractionScrollState = capturePackingScrollState(anchor);
     closeLabel();
     const popup = ensurePriorityPopup();
     priorityPopupTrigger = anchor;
@@ -1623,6 +1625,7 @@
 
   function openLabel(anchor, taskId, field) {
     if (field === 'priority') { openPriorityPopup(anchor, taskId); return; }
+    labelInteractionScrollState = capturePackingScrollState(anchor);
     const options = labelOptionsFor(field);
     const menuOptions = field === 'packing_status'
       ? ['packing', 'website', 'done', 'not_started', 'packed_label_needed', 'label_created', 'correction_needed']
@@ -2638,7 +2641,7 @@
           ? ids.filter((id) => normalize(tasks.find((task) => String(task.id) === String(id))?.packing_status) !== 'done')
           : [];
         const sourceTrigger = document.querySelector(`[data-packing-label="${CSS.escape(field)}"][data-task-id="${CSS.escape(String(ids[0] || ''))}"]`);
-        const scrollState = capturePackingScrollState(sourceTrigger);
+        const scrollState = labelInteractionScrollState || capturePackingScrollState(sourceTrigger);
         const sourceComponent = sourceTrigger?.closest(field === 'priority' ? '.packing-priority-component' : '.packing-status-component');
         sourceComponent?.classList.add('is-saving');
         await updateTasksField(ids, field, nextValue);
@@ -2660,6 +2663,7 @@
           closeLabel();
           sourceComponent?.classList.remove('is-saving');
           restorePackingScrollState(scrollState, sourceTrigger);
+          labelInteractionScrollState = null;
           return;
         }
         if (field === 'packing_status' && ids.length === 1) {
@@ -2679,6 +2683,7 @@
           closeLabel();
           sourceComponent?.classList.remove('is-saving');
           restorePackingScrollState(scrollState, sourceTrigger);
+          labelInteractionScrollState = null;
           completedIds.forEach((id) => playPackingStatusConfetti(document.querySelector(`[data-packing-status-cell][data-item-id="${CSS.escape(String(id))}"]`)));
           return;
         }
