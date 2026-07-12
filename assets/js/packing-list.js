@@ -390,8 +390,8 @@
 
   function renderEditableCell(task, field, label, placeholder = '') {
     const value = String(task[field] || '');
-    const emptyDisplay = field === 'notes' ? '<i class="packing-notes-icon" data-lucide="message-circle-plus"></i>' : (field === 'quantity_packed' ? '' : esc(placeholder || '—'));
-    return `<div class="packing-editable-cell${field === 'notes' ? ' packing-editable-cell--notes' : ''}${field === 'quantity_packed' && !value ? ' is-empty' : ''}" data-packing-editable-cell data-item-id="${esc(task.id)}" data-field="${esc(field)}" data-value="${esc(value)}" tabindex="0" role="button" aria-label="Edit ${esc(label)}">
+    const emptyDisplay = ['notes', 'quantity_packed'].includes(field) ? '' : esc(placeholder || '—');
+    return `<div class="packing-editable-cell${field === 'notes' ? ' packing-editable-cell--notes' : ''}${['notes', 'quantity_packed'].includes(field) && !value ? ' is-empty' : ''}" data-packing-editable-cell data-item-id="${esc(task.id)}" data-field="${esc(field)}" data-value="${esc(value)}" tabindex="0" role="button" aria-label="Edit ${esc(label)}" title="${esc(value)}">
       <span class="packing-editable-display">${value ? esc(value) : emptyDisplay}</span>
       <input type="text" class="packing-editable-input" value="${esc(value)}" aria-label="${esc(label)}" placeholder="${esc(placeholder)}">
     </div>`;
@@ -1174,7 +1174,7 @@
         <tr data-task-id="${esc(task.id)}" class="board-row ${!previousTaskIds.has(String(task.id)) && hasRenderedOnce ? 'row-new' : ''} ${selected.has(String(task.id)) ? 'is-selected' : ''}">
           <td class="check-cell col-checkbox"><input type="checkbox" data-packing-row-select="${esc(task.id)}" ${selected.has(String(task.id)) ? 'checked' : ''}></td>
           <td class="task-cell col-item">${esc(task.item_name)}</td>
-          <td class="notes-cell col-notes"><button type="button" title="Open notes" data-packing-open-panel="${esc(task.id)}"><i data-lucide="message-circle-plus"></i></button></td>
+          <td class="notes-cell col-notes">${canEditOwn ? renderEditableCell({ ...task, notes: task.packer_notes || '' }, 'notes', 'Notes', 'Add note') : esc(task.packer_notes || '')}</td>
           <td class="col-dateloaded">${esc(formatDate(task.date_loaded))}</td>
           <td class="col-priority">${priorityCell}</td>
           <td class="col-qty"><input class="board-inline-input" data-packing-text="quantity_planned" data-task-id="${esc(task.id)}" value="${esc(task.quantity_planned || '')}" ${manageOnly}></td>
@@ -1243,7 +1243,7 @@
             </button>
           </td>
           <td class="task-cell col-item" data-column-key="item">${currentUser.can_manage ? renderEditableCell(task, 'item_name', 'Item') : esc(task.item_name)}</td>
-          <td class="notes-cell col-notes" data-column-key="notes"><button type="button" title="Open notes" data-packing-open-panel="${esc(task.id)}"><i data-lucide="message-circle-plus"></i></button></td>
+          <td class="notes-cell col-notes" data-column-key="notes">${canEditOwn ? renderEditableCell({ ...task, notes: task.packer_notes || '' }, 'notes', 'Notes', 'Add note') : esc(task.packer_notes || '')}</td>
           <td class="col-dateloaded packing-editable-date-cell" data-column-key="date_loaded">${renderPackingDate(task, 'date_loaded', currentUser.can_manage)}</td>
           <td class="col-priority" data-column-key="priority">${priorityCell}</td>
           <td class="col-qty" data-column-key="quantity_to_pack">${currentUser.can_manage ? renderEditableCell(task, 'quantity_planned', 'Quantity to pack') : esc(task.quantity_planned || '')}</td>
@@ -1736,9 +1736,9 @@
       let saving = false;
       let cancelling = false;
       const showValue = (value) => {
-        if (cell.dataset.field === 'notes' && !value) display.innerHTML = '<i class="packing-notes-icon" data-lucide="message-circle-plus"></i>';
-        else display.textContent = value || (cell.dataset.field === 'quantity_packed' ? '' : '—');
-        if (cell.dataset.field === 'quantity_packed') cell.classList.toggle('is-empty', !value);
+        display.textContent = value || (['notes', 'quantity_packed'].includes(cell.dataset.field) ? '' : '—');
+        if (['notes', 'quantity_packed'].includes(cell.dataset.field)) cell.classList.toggle('is-empty', !value);
+        cell.title = value;
         if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
       };
       const start = () => {

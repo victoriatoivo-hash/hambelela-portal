@@ -29,6 +29,7 @@ $hasMondayStatus = ops_column_exists('ops_packing_tasks', 'monday_sync_status');
 $hasMondayError = ops_column_exists('ops_packing_tasks', 'monday_sync_error');
 $hasPackingRowKey = ops_column_exists('ops_packing_tasks', 'packing_row_key');
 $hasWebsiteUploadedAt = ops_column_exists('ops_packing_tasks', 'website_uploaded_at');
+$hasPackerNotes = ops_column_exists('ops_packing_tasks', 'packer_notes');
 
 $receivedSelect = $hasReceivedWeight ? 'pt.received_weight' : "NULL AS received_weight";
 $confirmedSelect = $hasPackingConfirmed ? 'pt.packing_website_confirmed' : '0 AS packing_website_confirmed';
@@ -41,6 +42,7 @@ $mondayStatusSelect = $hasMondayStatus ? 'pt.monday_sync_status' : "'not_synced'
 $mondayErrorSelect = $hasMondayError ? 'pt.monday_sync_error' : 'NULL AS monday_sync_error';
 $packingRowKeySelect = $hasPackingRowKey ? 'pt.packing_row_key' : 'NULL AS packing_row_key';
 $websiteUploadedAtSelect = $hasWebsiteUploadedAt ? 'pt.website_uploaded_at' : 'NULL AS website_uploaded_at';
+$packerNotesSelect = $hasPackerNotes ? 'pt.packer_notes' : "'' AS packer_notes";
 
 $currentEmployeeId = ops_current_employee_id();
 $canManage = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
@@ -56,7 +58,7 @@ $tasks = ops_rows(
         pt.id, pt.item_name, {$receivedSelect}, pt.priority, pt.date_loaded, {$startedSelect},
         pt.quantity_planned, pt.assigned_employee_id, e.full_name AS assigned_name,
         pt.quantity_packed, pt.date_completed, pt.website_uploaded, {$confirmedSelect},
-        pt.packing_status, pt.notes, pt.workload_points, {$invoiceSelect}, {$labelSelect},
+        pt.packing_status, pt.notes, {$packerNotesSelect}, pt.workload_points, {$invoiceSelect}, {$labelSelect},
         {$mondayIdSelect}, {$mondayBoardIdSelect}, {$mondayStatusSelect}, {$mondayErrorSelect}, {$packingRowKeySelect},
         {$websiteUploadedAtSelect}
      FROM ops_packing_tasks pt

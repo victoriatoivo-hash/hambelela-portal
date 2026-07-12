@@ -2247,6 +2247,10 @@ try {
             throw new RuntimeException('No packing item selected.');
         }
 
+        if ($field === 'notes' && !ops_column_exists('ops_packing_tasks', 'packer_notes')) {
+            db()->exec('ALTER TABLE ops_packing_tasks ADD COLUMN packer_notes TEXT NULL AFTER notes');
+        }
+
         $allowed = [
             'item_name' => 'item_name',
             'received_weight' => 'received_weight',
@@ -2257,7 +2261,7 @@ try {
             'website_uploaded' => 'website_uploaded',
             'packing_website_confirmed' => 'packing_website_confirmed',
             'packing_status' => 'packing_status',
-            'notes' => 'notes',
+            'notes' => 'packer_notes',
             'date_loaded' => 'date_loaded',
             'date_completed' => 'date_completed',
         ];

@@ -1617,10 +1617,12 @@
 
 /* Shared inline editor for Item, Quantity, Quantity Packed and Notes. */
 .packing-list-page .packing-editable-cell { position:relative; height:35px; min-height:35px; margin:0 -10px; padding:0 10px; display:flex; align-items:center; cursor:text; box-sizing:border-box; transition:background-color .15s ease,box-shadow .15s ease; }
-.packing-list-page .notes-cell .packing-editable-cell { margin:0; width:100%; justify-content:center; }
+.packing-list-page .notes-cell .packing-editable-cell { width:calc(100% + 20px); justify-content:flex-start; }
 .packing-list-page .packing-editable-display { min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-size:12px; line-height:1.2; font-weight:400; color:var(--pk-text); }
 .packing-list-page .packing-editable-cell[data-field="quantity_packed"].is-empty .packing-editable-display { color:transparent; }
 .packing-list-page .packing-editable-cell[data-field="quantity_packed"].is-empty:hover::after { border-color:rgba(171,54,25,.35); }
+.packing-list-page .packing-editable-cell--notes.is-empty .packing-editable-display { color:transparent; }
+.packing-list-page .packing-editable-cell--notes.is-empty { cursor:text; }
 .packing-list-page .packing-editable-input { display:none; }
 .packing-list-page .packing-editable-cell:hover { background:rgba(253,246,238,.72); }
 .packing-list-page .packing-editable-cell:hover::after { content:""; position:absolute; inset:3px; border:1px dashed rgba(171,54,25,.30); border-radius:4px; pointer-events:none; }
