@@ -799,7 +799,9 @@
 .packing-page-v2 .packing-priority-summary span,
 .packing-page-v2 .packing-progress-bar span {
     display: block;
-    height: 100%;
+    height: 18px;
+    min-height: 18px;
+    max-height: 18px;
 }
 
 .packing-page-v2 .packing-priority-summary .priority-critical { background: #721b1a; }
