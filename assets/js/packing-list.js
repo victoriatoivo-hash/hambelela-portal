@@ -2421,7 +2421,11 @@
     }
     if (toolsTab) {
       packingToolsTab = toolsTab.dataset.toolsTab;
-      document.querySelectorAll('[data-tools-tab]').forEach((button) => button.classList.toggle('is-active', button === toolsTab));
+      document.querySelectorAll('[data-tools-tab]').forEach((button) => {
+        const selectedTab = button === toolsTab;
+        button.classList.toggle('is-active', selectedTab);
+        button.setAttribute('aria-selected', String(selectedTab));
+      });
       renderPackingTools();
       return;
     }
@@ -3073,6 +3077,15 @@
     document.querySelectorAll('[data-packing-summary-bar]').forEach(hidePackingSummaryTooltip);
   });
   document.addEventListener('keydown', (event) => {
+    const toolsTab = event.target.closest?.('[data-tools-tab]');
+    if (toolsTab && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+      const tabs = [...toolsTab.closest('[role="tablist"]').querySelectorAll('[data-tools-tab]')];
+      const current = tabs.indexOf(toolsTab);
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (current + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+      event.preventDefault();
+      tabs[next]?.focus({ preventScroll: true });
+      return;
+    }
     const segment = event.target.closest('.packing-summary-segment');
     if (!segment || !['Enter', ' '].includes(event.key)) return;
     event.preventDefault();
