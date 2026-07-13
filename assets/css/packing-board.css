@@ -1035,7 +1035,7 @@
     border-right: 0 !important;
 }
 
-.packing-page-v2 .packing-group-table tbody tr:last-child td {
+.packing-page-v2 .packing-group-table tbody tr:last-child:not(.packing-add-item-row) td {
     border-bottom: 0 !important;
 }
 
