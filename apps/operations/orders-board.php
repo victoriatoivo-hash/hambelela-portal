@@ -27,6 +27,17 @@ $extraStylesheets = [
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
+<style>
+.orders-page .orders-summary-label {
+    margin-bottom: 4px;
+    color: #A08070;
+    font-size: 10px;
+    line-height: 1;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+</style>
 <main class="workspace module ops-board-page portal-page orders-page" data-board-theme="light">
     <section class="monday-board-top orders-page-top">
         <header class="monday-board-head work-board-head portal-page-header orders-page-header">
