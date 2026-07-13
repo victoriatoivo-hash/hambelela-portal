@@ -26778,3 +26778,69 @@ body.dark-mode .portal-dark-toggle {
 .packing-list-page .packing-board-table tbody tr:hover .packing-status-fill,
 .packing-list-page .packing-board-table tbody tr:hover .board-label[data-packing-label="priority"],
 .packing-list-page .packing-board-table tbody tr:hover .board-label[data-packing-label="packing_status"] { filter: brightness(1.02); }
+
+/* Shared compact checkbox for portal data grids. */
+.portal-grid-checkbox {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.portal-grid-checkbox-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.portal-grid-checkbox-box {
+  position: relative;
+  width: 15px;
+  height: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(171, 54, 25, .28);
+  border-radius: 3px;
+  background: #fff;
+  color: #fff;
+  box-sizing: border-box;
+  transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+
+.portal-grid-checkbox-box svg {
+  width: 10px;
+  height: 10px;
+  opacity: 0;
+}
+
+.portal-grid-checkbox:hover .portal-grid-checkbox-box {
+  border-color: #ab3619;
+  background: rgba(240, 116, 32, .06);
+}
+
+.portal-grid-checkbox-input:checked + .portal-grid-checkbox-box,
+.portal-grid-checkbox-input:indeterminate + .portal-grid-checkbox-box {
+  border-color: #ab3619;
+  background: #ab3619;
+}
+
+.portal-grid-checkbox-input:checked + .portal-grid-checkbox-box svg { opacity: 1; }
+
+.portal-grid-checkbox-input:indeterminate + .portal-grid-checkbox-box::before {
+  content: "";
+  width: 8px;
+  height: 2px;
+  border-radius: 999px;
+  background: #fff;
+}
+
+.portal-grid-checkbox-input:focus-visible + .portal-grid-checkbox-box {
+  outline: 0;
+  box-shadow: 0 0 0 3px rgba(171, 54, 25, .14);
+}
