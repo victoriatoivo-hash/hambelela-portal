@@ -9747,11 +9747,11 @@ main.error-log-page {
   }
 }
 
-.ops-board-page button:not(.portal-custom-select-trigger):not(.portal-custom-select-option):not(.portal-date-trigger),
-.ops-board-page input,
-.ops-board-page select,
-.ops-board-page textarea,
-.ops-board-table {
+.ops-board-page:not(.orders-page) button:not(.portal-custom-select-trigger):not(.portal-custom-select-option):not(.portal-date-trigger),
+.ops-board-page:not(.orders-page) input,
+.ops-board-page:not(.orders-page) select,
+.ops-board-page:not(.orders-page) textarea,
+.ops-board-page:not(.orders-page) .ops-board-table {
   font-family: Figtree, Inter, ui-sans-serif, system-ui, sans-serif;
   font-size: 14px;
 }
