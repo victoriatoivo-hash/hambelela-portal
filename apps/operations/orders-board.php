@@ -36,8 +36,14 @@ include BASE_PATH . '/shared/sidebar.php';
             <div class="monday-board-head-actions">
                 <div class="board-viewers" id="board-viewers" aria-label="Currently viewing"></div>
                 <button type="button" class="invite-btn" data-export-excel><i data-lucide="download"></i> Export Excel</button>
-                <button type="button" data-undo-board disabled><i data-lucide="undo-2"></i> Undo</button>
-                <button type="button" data-theme-toggle><i data-lucide="moon"></i></button>
+                <div class="availability-switch-wrap">
+                    <span>Available</span>
+                    <button class="availability-switch is-available" type="button" data-availability-toggle aria-pressed="true" aria-label="Toggle lunch availability">
+                        <span></span>
+                    </button>
+                    <span>Lunch</span>
+                </div>
+                <span class="board-state" id="board-sync-state" aria-live="polite"></span>
             </div>
         </header>
 
@@ -116,18 +122,6 @@ include BASE_PATH . '/shared/sidebar.php';
     <?php elseif (!$hasAvailability): ?>
         <section class="ops-alert">Import <code>operations-live-board-migration.sql</code> in phpMyAdmin first. This adds packer lunch/availability tracking.</section>
     <?php endif; ?>
-
-    <section class="monday-control-strip orders-availability-bar">
-        <div class="availability-switch-wrap">
-            <span>Available</span>
-            <button class="availability-switch is-available" type="button" data-availability-toggle aria-pressed="true">
-                <span></span>
-            </button>
-            <span>Lunch</span>
-        </div>
-        <div class="board-state" id="board-sync-state">Live</div>
-        <div class="board-quick-actions"></div>
-    </section>
 
     <section class="ops-board-shell orders-date-groups">
         <div class="ops-board-scroll orders-grid-scroll">

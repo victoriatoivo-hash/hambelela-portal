@@ -73,7 +73,7 @@
   min-height: 64px;
   padding: 12px 14px;
   display: grid;
-  grid-template-columns: 28px minmax(0,1fr);
+  grid-template-columns: 20px minmax(0,1fr);
   align-items: center;
   gap: 9px;
   border: 1px solid var(--orders-border);
@@ -87,11 +87,11 @@
 .orders-page .work-metric-card.metric-green { --widget-accent: var(--orders-olive); }
 .orders-page .work-metric-card.metric-pink { --widget-accent: #c73557; }
 .orders-page .work-metric-card.metric-red { --widget-accent: var(--orders-red); }
-.orders-page .metric-icon { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 8px; background: color-mix(in srgb, var(--widget-accent) 10%, white); color: var(--widget-accent); }
-.orders-page .metric-icon svg { width: 14px; height: 14px; }
-.orders-page .work-metric-card > div { min-width: 0; display: grid; grid-template-columns: 1fr auto; align-items: end; column-gap: 6px; }
+.orders-page .metric-icon { width: 18px; height: 18px; display: grid; place-items: center; border-radius: 6px; background: color-mix(in srgb, var(--widget-accent) 10%, white); color: var(--widget-accent); }
+.orders-page .metric-icon svg { width: 12px; height: 12px; }
+.orders-page .work-metric-card > div { min-width: 0; display: grid; grid-template-columns: auto 1fr; align-items: baseline; column-gap: 6px; }
 .orders-page .metric-title { grid-column: 1 / -1; color: var(--orders-muted); font-size: 10px; line-height: 1.05; font-weight: 600; text-transform: uppercase; }
-.orders-page .work-metric-card strong { color: var(--orders-text); font-size: 20px; line-height: 1; font-weight: 700; }
+.orders-page .work-metric-card strong { color: var(--orders-text); font-size: 12px; line-height: 1; font-weight: 700; }
 .orders-page .work-metric-card small { color: var(--orders-muted); font-size: 9px; line-height: 1; font-weight: 400; }
 
 .orders-tools-bar { display: none; }
@@ -168,23 +168,12 @@
 .orders-filter-panel .work-filter-actions button[data-board-refresh] { background: var(--orders-rust); color: #fff; }
 .orders-filter-panel svg { width: 14px; height: 14px; }
 
-.orders-availability-bar {
-  min-height: 42px;
-  margin: 0 0 14px;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  background: transparent;
-  border: 0;
-}
 .orders-page .availability-switch-wrap { display: flex; align-items: center; gap: 8px; color: var(--orders-muted); font-size: 11px; font-weight: 400; }
-.orders-page .availability-switch { width: 36px; height: 20px; padding: 2px; border: 0; border-radius: 999px; background: var(--orders-olive); cursor: pointer; }
-.orders-page .availability-switch > span { display: block; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .18s ease; }
-.orders-page .availability-switch.is-lunch { background: var(--orders-orange); }
-.orders-page .availability-switch.is-lunch > span { transform: translateX(16px); }
-.orders-page .board-state { color: var(--orders-muted); font-size: 10px; font-weight: 400; }
+.orders-page .monday-board-head-actions .availability-switch { width: 36px; height: 20px; min-height: 20px; padding: 2px; border: 0; border-radius: 999px; background: var(--orders-olive); cursor: pointer; }
+.orders-page .monday-board-head-actions .availability-switch > span { display: block; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .18s ease; }
+.orders-page .monday-board-head-actions .availability-switch.is-lunch { background: var(--orders-orange); }
+.orders-page .monday-board-head-actions .availability-switch.is-lunch > span { transform: translateX(16px); }
+.orders-page .board-state { display: none; }
 
 .orders-date-groups { width: 100%; min-width: 0; margin: 0; padding: 0; border: 0; background: transparent; overflow: visible; }
 .orders-grid-scroll { width: 100%; min-width: 0; overflow: visible; }
