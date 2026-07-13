@@ -1003,7 +1003,7 @@
     redistributeDraftRows();
     renderInvoiceDraft();
     setInvoiceProgress(true, 'Assignments redistributed', 'Assigned column and assignment review have been updated.', 'success');
-    setInvoiceStatus('Assignments redistributed. Review warnings before syncing to Monday.');
+    setInvoiceStatus('Assignments redistributed. Review warnings before creating packing items.');
     setTimeout(() => setInvoiceProgress(false), 1800);
   }
 
@@ -1091,7 +1091,7 @@
     if (!invoiceDraftBody) return;
     assignDraftRows();
     if (!invoiceDraftRows.length) {
-      invoiceDraftBody.innerHTML = '<tr class="invoice-empty-row"><td colspan="9"><div class="invoice-empty-state"><i data-lucide="file-text"></i><div><strong>No invoice rows yet</strong><span>Upload and extract an invoice, or add a row manually.</span></div></div></td></tr>';
+      invoiceDraftBody.innerHTML = '<tr class="invoice-empty-row"><td colspan="8"><div class="invoice-empty-state"><i data-lucide="file-text"></i><div><strong>No invoice rows yet</strong><span>Upload and extract an invoice, or add a row manually.</span></div></div></td></tr>';
       if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
       setInvoiceStep('upload');
       renderDraftWorkloadSummary();
@@ -1110,7 +1110,6 @@
         <td><select data-draft-field="priority">${priorityOptions}</select></td>
         <td><select data-draft-field="assigned_employee_id">${personOptions}</select></td>
         <td data-draft-workload>${esc(row.workload || draftWorkload(row))}${warning ? `<small class="draft-warning-inline">${esc(warning)}</small>` : ''}</td>
-        <td><span class="sync-pill sync-pending">Will sync</span></td>
         <td class="draft-row-actions">
           <button type="button" title="Split row" data-split-draft-row="${index}"><i data-lucide="copy-plus"></i></button>
           <button type="button" title="Remove row" data-remove-draft-row="${index}"><i data-lucide="trash-2"></i></button>
@@ -2205,15 +2204,14 @@
     submit?.classList.add('is-loading');
     setInvoiceStep('create');
     try {
-      setInvoiceStatus('Creating portal rows and syncing to Monday...');
+      setInvoiceStatus('Creating packing items in the portal...');
       const formData = new FormData(form);
       const result = await post('create_invoice_rows', {
         rows_json: JSON.stringify(invoiceDraftRows),
         invoice_number: formData.get('invoice_number') || '',
         invoice_date: formData.get('invoice_date') || '',
         supplier_name: formData.get('supplier_name') || '',
-        sync_mode: formData.get('sync_mode') || 'update_existing',
-        sync_to_monday: '1'
+        sync_mode: formData.get('sync_mode') || 'update_existing'
       });
       invoiceDraftRows = [];
       invoiceModal.hidden = true;
@@ -2922,7 +2920,7 @@
     if (event.target.closest('[data-invoice-priority]')) {
       applyInvoicePriorityToDraftRows(event.target.value || 'medium');
       renderInvoiceDraft();
-      setInvoiceStatus('Priority updated for draft rows before Monday sync.');
+      setInvoiceStatus('Priority updated for draft rows.');
     }
     const draftField = event.target.closest('[data-draft-field]');
     if (draftField) {

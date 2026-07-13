@@ -2268,7 +2268,7 @@ try {
 
         echo json_encode([
             'ok' => true,
-            'message' => "Packing sync complete. Created {$created}, updated {$updated}, skipped {$skipped}. Synced {$synced} to Monday, failed {$failed}, duplicates detected {$duplicates}.",
+            'message' => "Packing items created. Created {$created}, updated {$updated}, skipped {$skipped}, duplicates detected {$duplicates}.",
             'created' => $created,
             'updated' => $updated,
             'skipped' => $skipped,
