@@ -1693,7 +1693,7 @@ $canHardDelete = user_has_role('owner_admin');
         #copyTotalBtn {
             font-family: Figtree, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             font-size: 12px;
-            font-weight: 800;
+            font-weight: 400;
             width: 180px;
             height: 32px;
             display: flex;
