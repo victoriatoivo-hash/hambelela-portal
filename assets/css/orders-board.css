@@ -336,18 +336,15 @@
 .orders-page .label-menu.is-open, body > .label-menu.is-open { opacity:1; visibility:visible; pointer-events:auto; transform:translateY(0) scale(1); }
 .orders-page .label-menu-grid button, body > .label-menu .label-menu-grid button { min-height:32px; font-size:12px; transition:transform .15s ease,filter .15s ease,box-shadow .15s ease; }
 .orders-page .label-menu-grid button:hover, body > .label-menu .label-menu-grid button:hover { transform:translateX(2px); filter:brightness(1.04); box-shadow:0 5px 12px rgba(114,27,26,.12); }
-.orders-page .orders-details-panel { position:fixed; top:0; right:0; bottom:0; z-index:30000; width:min(620px,100vw); height:100vh; transform:translateX(100%); transition:transform .22s ease; background:#fff; border-left:1px solid var(--orders-border); box-shadow:-18px 0 42px rgba(114,27,26,.12); font-family:Figtree,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
-.orders-page .orders-details-panel.open { transform:translateX(0); }
-.orders-page .orders-details-panel-header { position:sticky; top:0; z-index:3; min-height:58px; background:#fff; border-bottom:1px solid var(--orders-border); }
-.orders-page .orders-details-panel-tabs { position:sticky; top:58px; z-index:3; background:#fff; }
-.orders-page .orders-details-panel button { font-family:inherit; }
-.orders-page .order-panel-header { position: sticky; top: 0; z-index: 2; background: #fff; border-bottom: 1px solid var(--orders-border); }
-.orders-page .updates-tabs { position: sticky; top: 58px; z-index: 2; background: #fff; }
-.orders-page .order-details-list { margin: 0; padding: 16px; display: grid; gap: 8px; }
-.orders-page .order-details-list > div { min-height: 48px; padding: 9px 11px; display: grid; gap: 5px; border: 1px solid var(--orders-border); border-radius: 9px; background: #fff; }
-.orders-page .order-details-list dt { color: var(--orders-burgundy); font-size: 10px; font-weight: 600; text-transform: uppercase; }
-.orders-page .order-details-list dd { margin: 0; color: var(--orders-text); font-size: 12px; font-weight: 400; }
-
+.orders-details-panel { --orders-border:#ede3d8; position:fixed; top:0; right:0; bottom:0; z-index:30000; width:min(620px,100vw); height:100vh; transform:translateX(100%); transition:transform .22s ease; background:#fff; border-left:1px solid var(--orders-border); box-shadow:-18px 0 42px rgba(114,27,26,.12); font-family:Figtree,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+.orders-details-panel.open { transform:translateX(0); }
+.orders-details-panel .orders-details-panel-header { position:sticky; top:0; z-index:3; min-height:58px; background:#fff; border-bottom:1px solid var(--orders-border); }
+.orders-details-panel .orders-details-panel-tabs { position:sticky; top:58px; z-index:3; background:#fff; }
+.orders-details-panel button { font-family:inherit; }
+.orders-details-panel .order-details-list { margin:0; padding:16px; display:grid; gap:8px; }
+.orders-details-panel .order-details-list > div { min-height:48px; padding:9px 11px; display:grid; gap:5px; border:1px solid var(--orders-border); border-radius:9px; background:#fff; }
+.orders-details-panel .order-details-list dt { color:#721b1a; font-size:10px; font-weight:600; text-transform:uppercase; }
+.orders-details-panel .order-details-list dd { margin:0; color:#1a1a1a; font-size:12px; font-weight:400; }
 .orders-page .monday-bulk-action-bar { left: calc(50% + 130px); max-width: calc(100vw - 300px); border: 1px solid var(--orders-border); border-radius: 14px; background: #fff; box-shadow: 0 16px 40px rgba(114,27,26,.16); }
 
 @media (max-width:1500px) {
@@ -365,6 +362,6 @@
   .orders-stat-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .orders-filter-panel { grid-template-columns: 1fr; }
   .orders-availability-bar { justify-content: flex-start; flex-wrap: wrap; }
-  .orders-page .order-side-panel { width: 100vw; }
+  .orders-details-panel { width: 100vw; }
 }
 @media (max-width:430px) { .orders-stat-grid { grid-template-columns: 1fr; } }

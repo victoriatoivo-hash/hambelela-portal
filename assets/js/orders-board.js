@@ -29,6 +29,9 @@
 
   if (!body || !config.dataUrl || !config.actionUrl) return;
 
+  if (panel && panel.parentElement !== document.body) document.body.appendChild(panel);
+  if (backdrop && backdrop.parentElement !== document.body) document.body.appendChild(backdrop);
+
   let groupDatePopover = null;
   let labelMenuCloseTimer = null;
   let ordersCache = [];
