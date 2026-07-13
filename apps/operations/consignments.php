@@ -16,10 +16,10 @@ $migrationReady = $ready
 $canManage = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
 $canEditHeaders = user_has_role('owner_admin');
 $packingJsVersion = is_file(BASE_PATH . '/assets/js/packing-list.js')
-    ? (string) filemtime(BASE_PATH . '/assets/js/packing-list.js') . '-people2'
+    ? (string) filemtime(BASE_PATH . '/assets/js/packing-list.js') . '-people3'
     : (string) time();
 $packingCssVersion = is_file(BASE_PATH . '/assets/css/packing-board.css')
-    ? (string) filemtime(BASE_PATH . '/assets/css/packing-board.css') . '-people2'
+    ? (string) filemtime(BASE_PATH . '/assets/css/packing-board.css') . '-people3'
     : (string) time();
 $extraStylesheets[] = [
     'path' => 'assets/css/packing-board.css',

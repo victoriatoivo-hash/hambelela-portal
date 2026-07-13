@@ -1795,6 +1795,7 @@
 .packing-list-page .packing-board-table td[data-column-key="person"]{position:relative;height:35px;min-height:35px;max-height:35px;padding:0;border-right:1px solid var(--pk-border,#ede3d8);border-bottom:1px solid var(--pk-border,#ede3d8);vertical-align:middle;overflow:visible;box-sizing:border-box}
 .packing-list-page .packing-person-component{position:relative;width:100%;height:35px;min-width:0}
 .packing-list-page .packing-person-trigger{width:100%;height:35px;min-height:35px;padding:0 9px;display:grid;grid-template-columns:22px minmax(0,1fr) 12px;align-items:center;gap:7px;border:0;border-radius:0;background:#fff;color:#1a1a1a;font-family:Figtree,Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:12px;font-weight:400;line-height:1;text-align:left;cursor:pointer;box-sizing:border-box;transition:background-color .15s ease,color .15s ease}
+.packing-list-page.ops-board-page button.packing-person-trigger[data-packing-person-trigger]{font-size:12px}
 .packing-list-page .packing-person-trigger:hover,.packing-list-page .packing-person-component.is-open .packing-person-trigger{background:rgba(240,116,32,.055)}
 .packing-list-page .packing-person-trigger.is-static{cursor:default}.packing-list-page .packing-person-trigger.is-static:hover{background:#fff}
 .packing-list-page .packing-person-avatar{width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:rgba(171,54,25,.09);color:#721b1a;font-size:9px;font-weight:700;flex:0 0 22px}
