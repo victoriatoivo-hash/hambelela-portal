@@ -1886,10 +1886,6 @@
       Pay2Cell: '#BB1B21', Other: '#c4c4c4', ...optionColourMap(paymentLabels)
     };
     const statusColours = { COMPLETE: '#e2445c', 'IN PROGRESS': '#fdab3d', 'NEW ORDER': '#c4c4c4', Assigned: '#a8ca19', ...optionColourMap(statusLabels) };
-    const groupOrderIds = orders.map((order) => String(order.id)).join(',');
-    const editableDateAttrs = isDateGroupKey(key)
-      ? ` data-edit-group-date data-group-key="${esc(key)}" data-order-ids="${esc(groupOrderIds)}" role="button" tabindex="0" title="Change group date"`
-      : '';
     const footerRow = isOpen ? `
       <div class="monday-grid ob-group-footer" data-group-footer="${esc(key)}" style="--ob-group-colour:${esc(colour)}">
         <div class="monday-cell col-checkbox"></div>
@@ -1941,7 +1937,7 @@
           <div class="orders-date-summary-scroll">
             <button type="button" class="orders-date-summary monday-group-summary group-row ob-group-header ${isOpen ? 'is-open' : ''}" data-toggle-orders-date data-collapse-group="${esc(key)}" aria-expanded="${isOpen ? 'true' : 'false'}" data-group="${esc(key)}" data-colour="${esc(colour)}" data-count="${esc(orders.length)}" data-amount="${esc(money(total))}" data-paid="${esc(paid)}" data-total="${esc(orders.length)}">
               <span class="orders-date-summary-chevron" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none"><path d="M4.5 2.5 8 6 4.5 9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-              <span class="orders-date-summary-main"><strong class="orders-date-summary-title"${editableDateAttrs}>${esc(groupLabel(key))}</strong><span class="orders-date-summary-count">${esc(groupCountText(orders.length))}</span></span>
+              <span class="orders-date-summary-main"><strong class="orders-date-summary-title">${esc(groupLabel(key))}</strong><span class="orders-date-summary-count">${esc(groupCountText(orders.length))}</span></span>
               <span class="orders-date-summary-block orders-date-summary-block--mode"><span class="orders-summary-label">Mode</span>${stackedBar(modeCounts, modeColours, 'ob-mode-bar', 'mode')}</span>
               <span class="orders-date-summary-block orders-date-summary-block--amount"><span class="orders-summary-label">Amount</span><strong class="orders-summary-value">${esc(money(total))}</strong></span>
               <span class="orders-date-summary-block orders-date-summary-block--payment"><span class="orders-summary-label">Payment</span>${stackedBar(paymentCounts, paymentColours, 'ob-payment-bar', 'payment')}</span>
