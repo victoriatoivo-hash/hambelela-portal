@@ -2057,7 +2057,7 @@
   function closeRichLabelPopover() {
     document.querySelectorAll('.mode-cell.is-active').forEach((cell) => cell.classList.remove('is-active'));
     if (labelMenu) {
-      labelMenu.classList.remove('mode-label-popover', 'is-editing-labels');
+      labelMenu.classList.remove('orders-label-popup', 'is-editing-labels');
       delete labelMenu.dataset.richLabelOrder;
       delete labelMenu.dataset.richLabelField;
       labelMenu.style.width = '';
@@ -2112,10 +2112,12 @@
 
   function positionRichLabelMenu(anchor) {
     const rect = anchor.getBoundingClientRect();
-    const width = 760;
+    const width = 240;
+    const menuHeight = Math.min(labelMenu.scrollHeight || 320, window.innerHeight - 16);
+    const shouldFlip = rect.bottom + menuHeight + 8 > window.innerHeight;
     labelMenu.style.width = `${width}px`;
     labelMenu.style.left = `${Math.max(8, Math.min(rect.left + rect.width / 2 - width / 2, window.innerWidth - width - 8))}px`;
-    labelMenu.style.top = `${rect.bottom + 10}px`;
+    labelMenu.style.top = `${shouldFlip ? Math.max(8, rect.top - menuHeight - 8) : rect.bottom + 8}px`;
   }
 
   function bindRichLabelPicker() {
@@ -2133,7 +2135,7 @@
       event.preventDefault();
       event.stopPropagation();
       const field = labelMenu.dataset.richLabelField || 'order_type';
-      labelMenu.classList.add('mode-label-popover', 'is-open', 'is-editing-labels');
+      labelMenu.classList.add('orders-label-popup', 'label-menu', 'is-open', 'is-editing-labels');
       labelMenu.hidden = false;
       labelMenu.innerHTML = renderRichLabelEditor(field);
       bindRichLabelEditorUI();
@@ -2151,7 +2153,7 @@
       event.preventDefault();
       event.stopPropagation();
       const field = labelMenu.dataset.richLabelField || 'order_type';
-      labelMenu.classList.add('mode-label-popover', 'is-open');
+      labelMenu.classList.add('orders-label-popup', 'label-menu', 'is-open');
       labelMenu.classList.remove('is-editing-labels');
       labelMenu.hidden = false;
       labelMenu.innerHTML = renderRichLabelPicker(field);
@@ -2169,7 +2171,7 @@
     }
     anchor.classList.add('is-active', 'mode-cell');
     labelMenu.hidden = false;
-    labelMenu.className = 'mode-label-popover is-open';
+    labelMenu.className = 'label-menu orders-label-popup is-open';
     labelMenu.dataset.richLabelOrder = orderId;
     labelMenu.dataset.richLabelField = field;
     labelMenu.innerHTML = renderRichLabelPicker(field);
@@ -3358,7 +3360,7 @@
       if (richEditLabels) {
         event.preventDefault();
         const field = labelMenu.dataset.richLabelField || 'order_type';
-        labelMenu.classList.add('mode-label-popover', 'is-open', 'is-editing-labels');
+        labelMenu.classList.add('orders-label-popup', 'label-menu', 'is-open', 'is-editing-labels');
         labelMenu.innerHTML = renderRichLabelEditor(field);
         bindRichLabelEditorUI();
         return;
@@ -3373,7 +3375,7 @@
       if (richLabelBack) {
         event.preventDefault();
         const field = labelMenu.dataset.richLabelField || 'order_type';
-        labelMenu.classList.add('mode-label-popover', 'is-open');
+        labelMenu.classList.add('orders-label-popup', 'label-menu', 'is-open');
         labelMenu.classList.remove('is-editing-labels');
         labelMenu.innerHTML = renderRichLabelPicker(field);
         bindRichLabelPicker();
