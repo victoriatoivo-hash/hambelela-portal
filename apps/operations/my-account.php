@@ -782,6 +782,13 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
     </div>
 </main>
 <script>
+window.portalRoutes = Object.assign({}, window.portalRoutes, {
+    resetEmployeeCode: <?= json_encode(
+        BASE_URL . '/apps/operations/reset-employee-code.php',
+        JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
+    ) ?>,
+});
+
 document.querySelectorAll('form[method="post"]').forEach((form) => {
     if (form.querySelector('input[name="csrf_token"]')) return;
     const token = document.createElement('input');
@@ -834,6 +841,9 @@ const parseSettingsJsonResponse = async (response) => {
             contentType,
             responseText: responseText.slice(0, 1000),
         });
+        if (response.status === 404) {
+            throw new Error('Reset Code endpoint was not found.');
+        }
         throw new Error(`The server returned an invalid response (${response.status}).`);
     }
     try {
@@ -866,7 +876,11 @@ document.querySelectorAll('[data-reset-code-form]').forEach((form) => {
         const submitButton = form.querySelector('button[type="submit"]');
         if (submitButton) submitButton.disabled = true;
         try {
-            const response = await fetch(form.action || window.location.href, {
+            const endpoint = window.portalRoutes?.resetEmployeeCode;
+            if (!endpoint) {
+                throw new Error('Reset Code endpoint is not configured.');
+            }
+            const response = await fetch(endpoint, {
                 method: 'POST',
                 body: new FormData(form),
                 credentials: 'same-origin',
