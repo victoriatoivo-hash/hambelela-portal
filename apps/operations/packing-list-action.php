@@ -2295,6 +2295,23 @@ try {
 
         if ($field === 'assigned_employee_id') {
             $value = $value === '' ? null : (string) ((int) $value);
+            if ($value !== null) {
+                $hasPackingAssignable = ops_ensure_packing_assignable_column();
+                $eligibilitySql = $hasPackingAssignable
+                    ? 'e.packing_assignable = 1'
+                    : "r.role_key IN ('packer', 'supervisor_manager')";
+                $eligible = ops_rows(
+                    "SELECT e.id
+                     FROM ops_employees e
+                     JOIN ops_roles r ON r.id = e.role_id
+                     WHERE e.id = ? AND e.status = 'active' AND {$eligibilitySql}
+                     LIMIT 1",
+                    [(int) $value]
+                );
+                if (!$eligible) {
+                    throw new RuntimeException('Choose an active employee who is eligible for Packing assignment.');
+                }
+            }
         }
 
         if (in_array($field, ['date_loaded', 'date_completed'], true)) {

@@ -31,6 +31,7 @@ $hasMondayError = ops_column_exists('ops_packing_tasks', 'monday_sync_error');
 $hasPackingRowKey = ops_column_exists('ops_packing_tasks', 'packing_row_key');
 $hasWebsiteUploadedAt = ops_column_exists('ops_packing_tasks', 'website_uploaded_at');
 $hasPackerNotes = ops_column_exists('ops_packing_tasks', 'packer_notes');
+$hasPackingAssignable = ops_ensure_packing_assignable_column();
 
 $receivedSelect = $hasReceivedWeight ? 'pt.received_weight' : "NULL AS received_weight";
 $confirmedSelect = $hasPackingConfirmed ? 'pt.packing_website_confirmed' : '0 AS packing_website_confirmed';
@@ -76,11 +77,14 @@ $tasks = ops_rows(
 $archiveWhere = implode(' AND ', array_filter([$hasArchivedAt ? 'archived_at IS NULL' : '1=1', $hasDeletedAt ? 'deleted_at IS NULL' : '1=1']));
 $totalRows = (int) ops_count('ops_packing_tasks', $archiveWhere);
 
+$packingEligibilityWhere = $hasPackingAssignable
+    ? 'e.packing_assignable = 1'
+    : "r.role_key IN ('packer', 'supervisor_manager')";
 $packers = ops_rows(
-    "SELECT e.id, e.full_name, r.role_key
+    "SELECT e.id, e.full_name, r.role_key, r.name AS role_name
      FROM ops_employees e
      JOIN ops_roles r ON r.id = e.role_id
-     WHERE e.status = 'active' AND r.role_key IN ('packer', 'supervisor_manager')
+     WHERE e.status = 'active' AND {$packingEligibilityWhere}
      ORDER BY e.full_name"
 );
 $priorityLabels = [
@@ -142,6 +146,8 @@ echo json_encode([
         'can_bulk_manage' => $canManage,
         'can_delete' => user_has_role('owner_admin', 'supervisor_manager'),
         'can_edit_front_website' => user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager'),
+        'can_manage_people' => user_has_role('owner_admin'),
+        'employee_accounts_url' => BASE_URL . '/apps/operations/my-account.php?section=employees',
     ],
     'migrationReady' => $hasReceivedWeight && $hasPackingConfirmed && $hasDateStarted,
 ]);

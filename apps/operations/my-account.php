@@ -17,7 +17,10 @@ $employee = null;
 $notificationPrefs = notifications_preferences();
 $notificationModules = notifications_modules();
 $canManagePortal = user_has_role('owner_admin') || in_array((string) ($_SESSION['user_role'] ?? ''), ['admin', 'Owner/Admin', 'owner_admin'], true);
-$activeSettingsSection = 'profile';
+$requestedSettingsSection = strtolower(trim((string) ($_GET['section'] ?? '')));
+$activeSettingsSection = in_array($requestedSettingsSection, ['profile', 'security', 'notifications', 'appearance', 'employees', 'portal', 'help'], true)
+    ? $requestedSettingsSection
+    : 'profile';
 
 if (empty($_SESSION['settings_csrf_token'])) {
     $_SESSION['settings_csrf_token'] = bin2hex(random_bytes(32));
@@ -157,14 +160,25 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $action = ops_post_string('action', 40) ?: 'change_code';
 
-        if (in_array($action, ['reset_code', 'delete_employee', 'save_hr_link', 'save_employee'], true)) {
+        if (in_array($action, ['reset_code', 'delete_employee', 'save_hr_link', 'save_employee', 'save_packing_eligibility'], true)) {
             if (!$canManagePortal) {
                 throw new RuntimeException('Only Owner/Admin can manage employee accounts.');
             }
 
             $activeSettingsSection = 'employees';
 
-            if ($action === 'reset_code') {
+            if ($action === 'save_packing_eligibility') {
+                if (!ops_ensure_packing_assignable_column()) {
+                    throw new RuntimeException('Packing assignment eligibility is not available yet.');
+                }
+                $employeeId = (int) ($_POST['employee_id'] ?? 0);
+                if ($employeeId <= 0) {
+                    throw new RuntimeException('Choose an employee account.');
+                }
+                $eligible = (string) ($_POST['packing_assignable'] ?? '') === '1' ? 1 : 0;
+                db()->prepare('UPDATE ops_employees SET packing_assignable = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')->execute([$eligible, $employeeId]);
+                $message = 'Packing assignment eligibility updated.';
+            } elseif ($action === 'reset_code') {
                 $code = trim((string) ($_POST['login_code'] ?? ''));
                 $confirmCode = trim((string) ($_POST['confirm_login_code'] ?? ''));
 
@@ -261,6 +275,12 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     throw new RuntimeException('Email is required.');
                 }
 
+                $existingEmployeeRows = ops_rows(
+                    'SELECT id FROM ops_employees WHERE LOWER(email) = LOWER(?) LIMIT 1',
+                    [$email]
+                );
+                $isNewEmployee = empty($existingEmployeeRows);
+
                 $stmt = db()->prepare(
                     "INSERT INTO ops_employees (role_id, full_name, email, phone, password_hash, status, requires_code_reset)
                      VALUES (?, ?, ?, ?, ?, ?, 0)
@@ -284,6 +304,12 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     password_hash($code, PASSWORD_DEFAULT),
                     ops_post_string('status', 20) ?: 'active',
                 ]);
+                if ($isNewEmployee && ops_ensure_packing_assignable_column()) {
+                    $packingAssignable = in_array($roleKey, ['packer', 'supervisor_manager'], true) ? 1 : 0;
+                    db()->prepare(
+                        'UPDATE ops_employees SET packing_assignable = ? WHERE LOWER(email) = LOWER(?)'
+                    )->execute([$packingAssignable, $email]);
+                }
                 $message = 'Employee account saved with a secure access code.';
             }
         } elseif ($action === 'update_notifications') {
@@ -372,8 +398,10 @@ if ($ready && $canManagePortal && $employeeLinks) {
         }
     }
 }
+$hasPackingAssignable = $ready ? ops_ensure_packing_assignable_column() : false;
+$packingAssignableSelect = $hasPackingAssignable ? 'e.packing_assignable' : "IF(r.role_key IN ('packer', 'supervisor_manager'), 1, 0) AS packing_assignable";
 $managedEmployees = $ready && $canManagePortal ? ops_rows(
-    "SELECT e.*, r.name AS role_name, r.role_key
+    "SELECT e.*, r.name AS role_name, r.role_key, {$packingAssignableSelect}
      FROM ops_employees e
      JOIN ops_roles r ON r.id = e.role_id
      WHERE e.status = 'active' AND r.role_key <> 'owner_admin'
@@ -631,6 +659,7 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                                         <th>HR Link</th>
                                         <th>Leave</th>
                                         <th>Status</th>
+                                        <th>Packing assignment</th>
                                         <th>Reset Code</th>
                                         <th>Created</th>
                                         <th>Delete</th>
@@ -667,6 +696,14 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                                         </td>
                                         <td><span class="settings-pill <?= (string) ($managedEmployee['status'] ?? '') === 'active' ? 'is-linked' : 'is-muted' ?>"><?= htmlspecialchars($managedEmployee['status'], ENT_QUOTES, 'UTF-8') ?></span></td>
                                         <td>
+                                            <form method="post">
+                                                <input type="hidden" name="action" value="save_packing_eligibility">
+                                                <input type="hidden" name="employee_id" value="<?= (int) $managedEmployee['id'] ?>">
+                                                <input type="hidden" name="packing_assignable" value="<?= !empty($managedEmployee['packing_assignable']) ? '0' : '1' ?>">
+                                                <button class="btn-secondary" type="submit"><?= !empty($managedEmployee['packing_assignable']) ? 'Eligible' : 'Not eligible' ?></button>
+                                            </form>
+                                        </td>
+                                        <td>
                                             <form class="settings-code-reset" method="post" action="<?= htmlspecialchars(BASE_URL . '/apps/operations/reset-employee-code.php', ENT_QUOTES, 'UTF-8') ?>" novalidate data-reset-code-form>
                                                 <input type="hidden" name="action" value="reset_code">
                                                 <input type="hidden" name="employee_id" value="<?= (int) $managedEmployee['id'] ?>">
@@ -689,7 +726,7 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
-                                <?php if (!$managedEmployees): ?><tr><td colspan="9">No employee accounts recorded yet.</td></tr><?php endif; ?>
+                                <?php if (!$managedEmployees): ?><tr><td colspan="10">No employee accounts recorded yet.</td></tr><?php endif; ?>
                                 </tbody>
                             </table>
                         </div>

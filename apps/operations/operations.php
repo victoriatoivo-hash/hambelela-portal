@@ -516,6 +516,30 @@ function ops_column_exists(string $table, string $column): bool
     }
 }
 
+function ops_ensure_packing_assignable_column(): bool
+{
+    if (!ops_table_exists('ops_employees')) {
+        return false;
+    }
+    if (ops_column_exists('ops_employees', 'packing_assignable')) {
+        return true;
+    }
+
+    try {
+        db()->exec('ALTER TABLE ops_employees ADD COLUMN packing_assignable TINYINT(1) NOT NULL DEFAULT 0 AFTER status');
+        db()->exec(
+            "UPDATE ops_employees e
+             JOIN ops_roles r ON r.id = e.role_id
+             SET e.packing_assignable = 1
+             WHERE r.role_key IN ('packer', 'supervisor_manager')"
+        );
+    } catch (Throwable $e) {
+        return false;
+    }
+
+    return ops_column_exists('ops_employees', 'packing_assignable');
+}
+
 function ops_table_exists(string $table): bool
 {
     $stmt = null;

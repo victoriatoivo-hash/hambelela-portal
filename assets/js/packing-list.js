@@ -9,6 +9,9 @@
   let statusPopup = null;
   let statusPopupTrigger = null;
   let statusPopupTaskId = '';
+  let personPopup = null;
+  let personPopupTrigger = null;
+  let personPopupTaskId = '';
   let lastPackingModalTrigger = null;
   let labelInteractionScrollState = null;
   const panel = document.getElementById('packing-panel');
@@ -545,8 +548,18 @@
   }
 
   function renderPerson(task) {
-    if (!currentUser.can_manage) return esc(task.assigned_name || '');
-    return `<button type="button" class="packer-cell-button" data-packing-label="assigned_employee_id" data-task-id="${esc(task.id)}">${esc(task.assigned_name || 'Unassigned')}</button>`;
+    const employeeId = String(task.assigned_employee_id || '');
+    const name = task.assigned_name || 'Unassigned';
+    const initials = employeeId ? employeeInitials(name) : '&mdash;';
+    const content = `<span class="packing-person-avatar">${initials}</span><span class="packing-person-trigger-label">${esc(name)}</span><svg class="packing-person-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 8l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    if (!currentUser.can_manage) {
+      return `<div class="packing-person-component is-static" data-packing-person-component data-item-id="${esc(task.id)}" data-employee-id="${esc(employeeId)}"><span class="packing-person-trigger is-static">${content}</span></div>`;
+    }
+    return `<div class="packing-person-component" data-packing-person-component data-item-id="${esc(task.id)}" data-employee-id="${esc(employeeId)}"><button type="button" class="packing-person-trigger" data-packing-person-trigger data-task-id="${esc(task.id)}" aria-haspopup="listbox" aria-expanded="false">${content}</button></div>`;
+  }
+
+  function employeeInitials(name) {
+    return esc(String(name || '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase() || '').join('') || '?');
   }
 
   function renderCheck(task, field, allowed) {
@@ -1581,6 +1594,91 @@
     return statusPopup;
   }
 
+  function ensurePersonPopup() {
+    if (personPopup?.isConnected) return personPopup;
+    personPopup = document.createElement('div');
+    personPopup.className = 'packing-person-popup';
+    personPopup.dataset.packingPersonPopup = '';
+    personPopup.setAttribute('aria-hidden', 'true');
+    personPopup.innerHTML = `<div class="packing-person-search-wrap"><i data-lucide="search" class="packing-person-search-icon"></i><input type="search" class="packing-person-search" data-packing-person-search placeholder="Search people" autocomplete="off" aria-label="Search people"></div><div class="packing-person-options" data-packing-person-options role="listbox"></div><div class="packing-person-popup-divider"></div><button type="button" class="packing-person-utility" data-edit-packing-people><span class="packing-person-utility-icon"><i data-lucide="pencil"></i></span><span>Edit people</span></button>`;
+    document.body.appendChild(personPopup);
+    if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+    personPopup.querySelector('[data-packing-person-search]')?.addEventListener('input', (event) => renderPersonOptions(event.target.value));
+    personPopup.addEventListener('keydown', (event) => {
+      const options = [...personPopup.querySelectorAll('.packing-person-option:not([hidden])')];
+      if (event.key === 'Escape') { event.preventDefault(); closePersonPopup(true); return; }
+      if (!['ArrowDown', 'ArrowUp', 'Enter'].includes(event.key) || !options.length) return;
+      const active = document.activeElement?.closest?.('.packing-person-option');
+      if (event.key === 'Enter' && active) { event.preventDefault(); active.click(); return; }
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        const index = Math.max(-1, options.indexOf(active));
+        const next = event.key === 'ArrowDown' ? (index + 1) % options.length : (index <= 0 ? options.length - 1 : index - 1);
+        options[next].focus({ preventScroll: true });
+      }
+    });
+    return personPopup;
+  }
+
+  function renderPersonOptions(query = '') {
+    const popup = ensurePersonPopup();
+    const container = popup.querySelector('[data-packing-person-options]');
+    const selectedId = String(tasks.find((task) => String(task.id) === personPopupTaskId)?.assigned_employee_id || '');
+    const needle = String(query || '').trim().toLowerCase();
+    const options = [{ id: '', full_name: 'Unassigned', role_name: '' }, ...packers].filter((employee) => {
+      const haystack = `${employee.full_name || ''} ${employee.role_name || employee.role_key || ''}`.toLowerCase();
+      return !needle || haystack.includes(needle);
+    });
+    container.innerHTML = options.length ? options.map((employee) => {
+      const id = String(employee.id || '');
+      const selectedOption = id === selectedId;
+      const role = employee.role_name || String(employee.role_key || '').replace(/_/g, ' ');
+      return `<button type="button" class="packing-person-option" role="option" aria-selected="${selectedOption ? 'true' : 'false'}" data-packing-person-option data-employee-id="${esc(id)}" data-employee-name="${esc(employee.full_name)}"><span class="packing-person-option-avatar">${id ? employeeInitials(employee.full_name) : '&mdash;'}</span><span class="packing-person-option-copy"><strong>${esc(employee.full_name)}</strong>${role ? `<small>${esc(role)}</small>` : ''}</span><span class="packing-person-option-check" aria-hidden="true">${selectedOption ? '&check;' : ''}</span></button>`;
+    }).join('') : '<p class="packing-person-empty">No eligible employees found.</p>';
+  }
+
+  function positionPersonPopup() {
+    if (!personPopup || !personPopupTrigger) return;
+    const rect = personPopupTrigger.getBoundingClientRect();
+    const popupRect = personPopup.getBoundingClientRect();
+    const padding = 8, gap = 7;
+    let left = Math.max(padding, Math.min(rect.left + rect.width / 2 - popupRect.width / 2, window.innerWidth - popupRect.width - padding));
+    let top = rect.bottom + gap;
+    if (top + popupRect.height > window.innerHeight - padding) top = rect.top - popupRect.height - gap;
+    personPopup.style.left = `${Math.round(left)}px`;
+    personPopup.style.top = `${Math.max(padding, Math.round(top))}px`;
+  }
+
+  function openPersonPopup(anchor, taskId) {
+    labelInteractionScrollState = capturePackingScrollState(anchor);
+    closeLabel();
+    const popup = ensurePersonPopup();
+    personPopupTrigger = anchor;
+    personPopupTaskId = String(taskId);
+    anchor.setAttribute('aria-expanded', 'true');
+    anchor.closest('.packing-person-component')?.classList.add('is-open');
+    const search = popup.querySelector('[data-packing-person-search]');
+    search.value = '';
+    renderPersonOptions();
+    popup.classList.add('is-open');
+    popup.setAttribute('aria-hidden', 'false');
+    popup.querySelector('[data-edit-packing-people]').hidden = !currentUser.can_manage_people;
+    positionPersonPopup();
+    window.requestAnimationFrame(() => search.focus({ preventScroll: true }));
+  }
+
+  function closePersonPopup(restoreFocus = false) {
+    if (!personPopup) return;
+    const trigger = personPopupTrigger;
+    personPopup.classList.remove('is-open');
+    personPopup.setAttribute('aria-hidden', 'true');
+    trigger?.setAttribute('aria-expanded', 'false');
+    trigger?.closest('.packing-person-component')?.classList.remove('is-open', 'is-saving');
+    personPopupTrigger = null;
+    personPopupTaskId = '';
+    if (restoreFocus) trigger?.focus({ preventScroll: true });
+  }
+
   function positionStatusPopup() {
     if (!statusPopupTrigger || !statusPopup) return;
     const rect = statusPopupTrigger.getBoundingClientRect();
@@ -1883,6 +1981,7 @@
   function closeLabel() {
     closePriorityPopup();
     closeStatusPopup();
+    closePersonPopup();
     if (!labelMenu || labelMenu.hidden) return;
     document.querySelectorAll('.packing-status-component.is-open').forEach((cell) => cell.classList.remove('is-open'));
     document.querySelectorAll('.packing-status-trigger[aria-expanded="true"]').forEach((button) => button.setAttribute('aria-expanded', 'false'));
@@ -2467,6 +2566,9 @@
     const selectAllButton = event.target.closest('[data-packing-select-all]');
     const label = event.target.closest('[data-packing-label][data-task-id]');
     const labelChoice = event.target.closest('[data-packing-label-value]');
+    const personTrigger = event.target.closest('[data-packing-person-trigger]');
+    const personOption = event.target.closest('[data-packing-person-option]');
+    const editPackingPeople = event.target.closest('[data-edit-packing-people]');
     const check = event.target.closest('[data-packing-check]');
     const websiteCheck = event.target.closest('[data-packing-website-check]');
     const panelButton = event.target.closest('[data-packing-open-panel]');
@@ -2704,6 +2806,47 @@
         if (rowSelect.checked) selected.add(id);
         else selected.delete(id);
         updateSelection();
+        return;
+      }
+      if (personTrigger) {
+        event.preventDefault();
+        event.stopPropagation();
+        openPersonPopup(personTrigger, personTrigger.dataset.taskId);
+        return;
+      }
+      if (personOption) {
+        event.preventDefault();
+        event.stopPropagation();
+        const taskId = personPopupTaskId;
+        const ids = selectedIdsFor(taskId);
+        const employeeId = String(personOption.dataset.employeeId || '');
+        const sourceTrigger = personPopupTrigger;
+        const scrollState = labelInteractionScrollState || capturePackingScrollState(sourceTrigger);
+        sourceTrigger?.closest('.packing-person-component')?.classList.add('is-saving');
+        try {
+          await updateTasksField(ids, 'assigned_employee_id', employeeId);
+          ids.forEach((id) => {
+            const task = tasks.find((item) => String(item.id) === String(id));
+            const component = document.querySelector(`[data-packing-person-component][data-item-id="${CSS.escape(String(id))}"]`);
+            if (task && component) component.outerHTML = renderPerson(task);
+          });
+          updateMetrics(visibleTasks());
+          setCount(ids.length > 1 ? `${ids.length} packing assignments updated.` : 'Packing assignment updated.');
+          closePersonPopup();
+          restorePackingScrollState(scrollState, document.querySelector(`[data-packing-person-trigger][data-task-id="${CSS.escape(String(taskId))}"]`));
+          labelInteractionScrollState = null;
+        } catch (error) {
+          sourceTrigger?.closest('.packing-person-component')?.classList.remove('is-saving');
+          setCount(error.message || 'Unable to update Packing assignment.');
+        }
+        return;
+      }
+      if (editPackingPeople) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (currentUser.can_manage_people && currentUser.employee_accounts_url) {
+          window.location.href = currentUser.employee_accounts_url;
+        }
         return;
       }
       if (label) { openLabel(label, label.dataset.taskId, label.dataset.packingLabel); return; }
@@ -2983,7 +3126,7 @@
   });
 
   document.addEventListener('click', (event) => {
-    if (!event.target.closest('#packing-label-menu') && !event.target.closest('[data-priority-popup]') && !event.target.closest('[data-packing-status-popup]') && !event.target.closest('[data-packing-label]')) closeLabel();
+    if (!event.target.closest('#packing-label-menu') && !event.target.closest('[data-priority-popup]') && !event.target.closest('[data-packing-status-popup]') && !event.target.closest('[data-packing-person-popup]') && !event.target.closest('[data-packing-person-trigger]') && !event.target.closest('[data-packing-label]')) closeLabel();
   });
 
   function getPackingSummaryTooltip() {
