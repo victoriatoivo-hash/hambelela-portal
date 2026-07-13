@@ -73,7 +73,7 @@
 .notification-filter-card.is-collapsed .notification-filter-body { display: none; }
 .notification-filter-grid { display: grid; grid-template-columns: repeat(3,minmax(170px,1fr)); gap: 10px; }
 .notification-filter-field label { display: block; margin: 0 0 6px; color: #6B4C3B; font-size: 10px; font-weight: 700; text-transform: uppercase; }
-.notification-filter-field input,.notification-filter-field select { width: 100%; height: 32px; min-height: 32px; padding: 0 12px; border: 1px solid #EDE3D8; border-radius: 10px; background: #fff; color: #1A1A1A; font: 400 12px/1 inherit; box-sizing: border-box; }
+.notification-filter-field input,.notification-filter-field select { width: 100%; height: 32px; min-height: 32px; padding: 0 12px; border: 1px solid #EDE3D8; border-radius: 10px; background: #fff; color: #1A1A1A; font-family: inherit; font-size: 12px; font-weight: 400; line-height: 1; box-sizing: border-box; }
 .notification-filter-actions .nt-btn { height: 32px; min-height: 32px; font-size: 12px; }
 .notification-filter-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 
