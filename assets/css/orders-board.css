@@ -166,6 +166,8 @@
   cursor: pointer;
 }
 .orders-filter-panel .work-filter-actions button[data-board-refresh] { background: var(--orders-rust); color: #fff; }
+.orders-filter-panel .work-filter-actions button:not([data-board-refresh]) { color: #111; }
+.orders-filter-panel .work-filter-actions button:not([data-board-refresh]) svg { color: var(--orders-rust); }
 .orders-filter-panel svg { width: 14px; height: 14px; }
 
 .orders-page .availability-switch-wrap { display: flex; align-items: center; gap: 8px; color: var(--orders-muted); font-size: 11px; font-weight: 400; }
