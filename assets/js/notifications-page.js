@@ -77,14 +77,14 @@
     const definitions = [['read','Read status',['All','Unread','Read']],['category','Category',['All categories','Orders','Packing','Tasks','Bookkeeping','Errors','System']],['priority','Priority',['All priorities','High','Normal']],['search','Search',null]];
     definitions.forEach(([name, label, options]) => {
       const field = element('div', 'notification-filter-field'); field.append(element('label', '', label));
-      if (options) { const select = element('select'); select.name = name; options.forEach((text, index) => { const option = element('option', '', text); option.value = index ? text.toLowerCase().replace(' categories','').replace(' priorities','') : ''; select.append(option); }); field.append(select); }
+      if (options) { const select = element('select'); select.name = name; select.dataset.portalCustomSelect = ''; options.forEach((text, index) => { const option = element('option', '', text); option.value = index ? text.toLowerCase().replace(' categories','').replace(' priorities','') : ''; select.append(option); }); field.append(select); }
       else { const input = element('input'); input.type = 'search'; input.name = name; input.placeholder = 'Search notifications...'; field.append(input); }
       grid.append(field);
     });
     const actions = element('div', 'notification-filter-actions'); const clear = element('button', 'nt-btn nt-btn--secondary', 'Clear'); clear.type = 'reset'; const apply = element('button', 'nt-btn nt-btn--primary', 'Apply filters'); apply.type = 'submit'; actions.append(clear, apply);
     form.append(grid, actions); card.append(header, form);
     form.addEventListener('submit', (event) => { event.preventDefault(); renderGroups(filteredNotifications(new FormData(form))); });
-    form.addEventListener('reset', () => setTimeout(() => renderGroups(currentData.notifications), 0));
+    form.addEventListener('reset', () => setTimeout(() => { form.querySelectorAll('select').forEach((select) => select.dispatchEvent(new Event('change', { bubbles: true }))); renderGroups(currentData.notifications); }, 0));
     return card;
   }
 
@@ -129,7 +129,9 @@
 
   function renderPage(data) {
     currentData = { summary: data.summary || {}, notifications: Array.isArray(data.notifications) ? data.notifications : [] };
-    root.replaceChildren(createStats(currentData.summary), createFilters()); renderGroups(currentData.notifications);
+    root.replaceChildren(createStats(currentData.summary), createFilters());
+    if (typeof window.initialisePortalCustomSelects === 'function') window.initialisePortalCustomSelects(root);
+    renderGroups(currentData.notifications);
     markAllButton.disabled = !currentData.notifications.some((item) => !item.read_at); clearAllButton.disabled = !currentData.notifications.length; syncBadges(); refreshIcons();
   }
 
