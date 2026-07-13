@@ -31,7 +31,7 @@ include BASE_PATH . '/shared/sidebar.php';
     <section class="monday-board-top orders-page-top">
         <header class="monday-board-head work-board-head portal-page-header orders-page-header">
             <div>
-                <h1>Hambelela Orders <i data-lucide="chevron-down"></i></h1>
+                <h1 style="color: #721B1A;">Hambelela Orders <i data-lucide="chevron-down"></i></h1>
             </div>
             <div class="monday-board-head-actions">
                 <div class="board-viewers" id="board-viewers" aria-label="Currently viewing"></div>
