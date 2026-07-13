@@ -143,8 +143,8 @@
   box-shadow: 0 16px 38px rgba(114,27,26,.16);
 }
 .orders-filter-menu[hidden] { display: none; }
-.orders-filter-menu button { width: 100%; height: 32px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; color: #1a1a1a; font: 400 12px/1 Figtree,system-ui,sans-serif; text-align: left; cursor: pointer; transition: background-color .15s ease,color .15s ease,transform .15s ease; }
-.orders-filter-menu button:hover, .orders-filter-menu button.is-selected { background: #fdf6ee; color: #ab3619; transform: translateX(2px); }
+#orders-filter-menu button { width: 100%; height: 32px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; color: #1a1a1a; font: 400 12px/1 Figtree,system-ui,sans-serif; text-align: left; cursor: pointer; transition: background-color .15s ease,color .15s ease,transform .15s ease; }
+#orders-filter-menu button:hover, #orders-filter-menu button.is-selected { background: #fdf6ee; color: #ab3619; transform: translateX(2px); }
 .orders-filter-panel .date-filter-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 6px; }
 .orders-filter-panel .date-filter-row button { width: auto; color: var(--orders-rust); cursor: pointer; }
 .orders-filter-panel .work-filter-actions { grid-column: 1 / -1; margin-top: 0; display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
