@@ -667,7 +667,7 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                                         </td>
                                         <td><span class="settings-pill <?= (string) ($managedEmployee['status'] ?? '') === 'active' ? 'is-linked' : 'is-muted' ?>"><?= htmlspecialchars($managedEmployee['status'], ENT_QUOTES, 'UTF-8') ?></span></td>
                                         <td>
-                                            <form class="settings-code-reset" method="post" novalidate data-reset-code-form>
+                                            <form class="settings-code-reset" method="post" action="<?= htmlspecialchars(BASE_URL . '/apps/operations/reset-employee-code.php', ENT_QUOTES, 'UTF-8') ?>" novalidate data-reset-code-form>
                                                 <input type="hidden" name="action" value="reset_code">
                                                 <input type="hidden" name="employee_id" value="<?= (int) $managedEmployee['id'] ?>">
                                                 <input name="login_code" type="password" class="employee-reset-code" inputmode="numeric" maxlength="4" placeholder="New PIN" autocomplete="new-password" data-reset-code>
@@ -825,6 +825,25 @@ const showSettingsToast = (message, type = 'error') => {
 
 const validateEmployeeResetCode = (value) => /^\d{4}$/.test(String(value).trim());
 
+const parseSettingsJsonResponse = async (response) => {
+    const contentType = response.headers.get('content-type') || '';
+    const responseText = await response.text();
+    if (!contentType.toLowerCase().includes('application/json')) {
+        console.error('Reset code endpoint returned non-JSON.', {
+            status: response.status,
+            contentType,
+            responseText: responseText.slice(0, 1000),
+        });
+        throw new Error(`The server returned an invalid response (${response.status}).`);
+    }
+    try {
+        return JSON.parse(responseText);
+    } catch (error) {
+        console.error('Reset code endpoint returned malformed JSON.', responseText.slice(0, 1000));
+        throw new Error('The server returned malformed JSON.');
+    }
+};
+
 document.querySelectorAll('[data-reset-code-form]').forEach((form) => {
     form.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -856,7 +875,7 @@ document.querySelectorAll('[data-reset-code-form]').forEach((form) => {
                     'X-Requested-With': 'XMLHttpRequest',
                 },
             });
-            const result = await response.json();
+            const result = await parseSettingsJsonResponse(response);
             if (!response.ok || !result.success) {
                 throw new Error(result.message || 'The reset code could not be updated.');
             }
