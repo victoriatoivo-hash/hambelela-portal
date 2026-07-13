@@ -1955,20 +1955,30 @@
 
 .packing-page-v2 .packing-month-scroll {
     width: 100%;
+    margin: 0;
+    padding: 0;
     overflow-x: auto;
-    overflow-y: visible;
+    overflow-y: hidden;
     border: 0;
     box-shadow: none;
-    scrollbar-color: rgba(114,27,26,.22) transparent;
+    box-sizing: border-box;
+    scrollbar-gutter: auto;
+    scrollbar-color: rgba(114,27,26,.28) #f3eee8;
 }
-.packing-page-v2 .packing-month-scroll::-webkit-scrollbar{height:8px}.packing-page-v2 .packing-month-scroll::-webkit-scrollbar-track{background:transparent}.packing-page-v2 .packing-month-scroll::-webkit-scrollbar-thumb{background:rgba(114,27,26,.20);border-radius:999px}
+.packing-page-v2 .packing-month-scroll::-webkit-scrollbar{height:8px}.packing-page-v2 .packing-month-scroll::-webkit-scrollbar-track{background:#f3eee8}.packing-page-v2 .packing-month-scroll::-webkit-scrollbar-thumb{background:rgba(114,27,26,.28);border-radius:999px}
 
 .packing-page-v2 .packing-month-inner {
     width: max-content;
     min-width: 100%;
+    margin: 0;
+    padding: 0;
+    display: block;
+    box-sizing: border-box;
 }
 
 .packing-page-v2 .packing-month-scroll .packing-date-body {
+    margin: 0;
+    padding: 0;
     overflow: visible;
 }
 .packing-bulk-bar {
