@@ -1784,24 +1784,34 @@ include BASE_PATH . '/shared/sidebar.php';
         .cor-wrap .page-eyebrow { margin: 0; color: var(--cor-orange-red); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
         .cor-wrap h1 { margin: 2px 0 6px; color: var(--cor-burgundy); font-size: 26px; line-height: 1.05; }
         .cor-wrap .page-subtitle { margin: 0; color: var(--cor-text-mid); font-size: 13px; }
-        .cor-filter-panel { margin: 24px 0 18px; border: 1px solid var(--cor-border); border-radius: 8px; background: var(--cor-surface); box-shadow: 0 2px 8px rgba(44,24,16,.04); overflow: hidden; }
-        .cor-filter-panel summary { list-style: none; min-height: 36px; padding: 0 14px; display: flex; align-items: center; gap: 9px; color: var(--cor-red); font-size: 13px; font-weight: 800; cursor: pointer; user-select: none; }
-        .cor-filter-panel summary::-webkit-details-marker { display: none; }
-        .cor-filter-panel summary .filter-icon { width: 16px; height: 16px; color: var(--cor-red); flex: 0 0 auto; }
-        .cor-filter-panel summary::after { content: 'Open'; margin-left: auto; color: var(--cor-text-light); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
-        .cor-filter-panel[open] summary { border-bottom: 1px solid var(--cor-border); }
-        .cor-filter-panel[open] summary::after { content: 'Close'; }
-        .cor-filter-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 0; padding: 12px 16px; background: #fffaf6; }
-        .cor-quick-ranges, .cor-filter-selects, .cor-date-inputs { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-        .cor-range-btn, .cor-btn-apply, .cor-btn-export { height: 30px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
-        .cor-range-btn { padding: 0 12px; border: 1px solid var(--cor-border); background: var(--cor-surface); color: var(--cor-text-mid); }
-        .cor-range-btn.active, .cor-range-btn:hover { background: var(--cor-orange-red); border-color: var(--cor-orange-red); color: #fff; }
-        .cor-filter-bar select, .cor-filter-bar input[type="date"] { height: 30px; min-width: 135px; padding: 0 8px; border: 1px solid var(--cor-border); border-radius: 6px; background: var(--cor-surface); color: var(--cor-text); font-size: 12px; }
-        .cor-filter-bar select:focus, .cor-filter-bar input:focus { outline: none; border-color: var(--cor-orange-red); box-shadow: 0 0 0 2px rgba(171,54,25,.15); }
-        .cor-btn-apply { border: 0; padding: 0 16px; background: var(--cor-orange-red); color: #fff; }
-        .cor-btn-apply:hover { background: var(--cor-burgundy); }
-        .cor-btn-export { padding: 0 12px; border: 1px solid var(--cor-border); background: var(--cor-surface); color: var(--cor-text-mid); }
-        .cor-btn-export:hover { border-color: var(--cor-orange-red); background: #f5ece8; }
+        .orders-filter-panel { width: 100%; margin: 24px 0 18px; border: 1px solid var(--cor-border); border-radius: 12px; background: #fff; box-shadow: 0 10px 26px rgba(114,27,26,.06); overflow: visible; }
+        .orders-filter-header { width: 100%; min-height: 42px; padding: 0 14px; border: 0; border-radius: 12px; background: #fff; color: var(--cor-burgundy); display: flex; align-items: center; justify-content: space-between; gap: 12px; font-family: inherit; cursor: pointer; box-sizing: border-box; transition: background-color .16s ease; }
+        .orders-filter-header:hover { background: rgba(240,116,32,.045); }
+        .orders-filter-header-left, .orders-filter-header-right { display: inline-flex; align-items: center; gap: 8px; }
+        .orders-filter-icon { width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; color: var(--cor-orange-red); }
+        .orders-filter-icon svg, .orders-filter-chevron { width: 14px; height: 14px; }
+        .orders-filter-title { color: var(--cor-burgundy); font-size: 13px; line-height: 1; font-weight: 600; }
+        .orders-filter-state, .orders-filter-active-count { min-height: 22px; padding: 0 9px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; color: var(--cor-orange-red); font-size: 10px; line-height: 1; font-weight: 600; }
+        .orders-filter-state { background: rgba(240,116,32,.08); }
+        .orders-filter-active-count { background: rgba(168,202,25,.12); color: var(--cor-burgundy); }
+        .orders-filter-chevron { color: var(--cor-orange-red); transition: transform .18s ease; }
+        .orders-filter-panel:not(.is-collapsed) .orders-filter-chevron { transform: rotate(180deg); }
+        .orders-filter-body { padding: 14px; border-top: 1px solid var(--cor-border); background: #fff; box-sizing: border-box; animation: ordersFilterIn .16s ease-out; }
+        @keyframes ordersFilterIn { from { opacity: .65; transform: translateY(-3px); } to { opacity: 1; transform: translateY(0); } }
+        .orders-filter-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; align-items: end; }
+        .orders-filter-field { min-width: 0; }
+        .orders-filter-field-label { display: block; margin: 0 0 6px; color: var(--cor-burgundy); font-size: 10px; line-height: 1; font-weight: 600; letter-spacing: .025em; text-transform: uppercase; }
+        .orders-filter-panel .portal-custom-select-trigger, .orders-filter-input, .orders-filter-panel .portal-date-input { height: 32px; min-height: 32px; border: 1px solid rgba(171,54,25,.22); border-radius: 9px; font-size: 12px; font-weight: 400; }
+        .orders-filter-panel .portal-custom-select-menu { z-index: 10050; }
+        .orders-filter-panel .portal-custom-select-chevron { width: 13px; height: 13px; color: var(--cor-orange-red); }
+        .orders-filter-input { width: 100%; padding: 0 11px; background: #fff; color: var(--cor-text); font-family: inherit; box-sizing: border-box; }
+        .orders-filter-input:focus { outline: 0; border-color: var(--cor-orange-red); box-shadow: 0 0 0 2px rgba(171,54,25,.10); }
+        .orders-custom-dates { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; grid-column: span 2; }
+        .orders-filter-panel .portal-date-input { padding: 0 38px 0 11px; }
+        .orders-filter-actions { margin-top: 12px; display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+        .orders-filter-action { height: 32px; min-height: 32px; padding: 0 12px; border: 1px solid rgba(171,54,25,.24); border-radius: 9px; background: #fff; color: var(--cor-orange-red); display: inline-flex; align-items: center; justify-content: center; gap: 7px; font-family: inherit; font-size: 11px; line-height: 1; font-weight: 700; text-decoration: none; cursor: pointer; box-sizing: border-box; }
+        .orders-filter-action.primary { border-color: var(--cor-orange-red); background: var(--cor-orange-red); color: #fff; }
+        .orders-filter-action:hover { transform: translateY(-1px); }
         .cor-stat-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-bottom: 16px; }
         .cor-stat-card { border: 1px solid var(--cor-border); border-radius: 10px; padding: 14px 16px; background: var(--cor-surface); box-shadow: 0 2px 8px rgba(44,24,16,.06); transition: transform 180ms ease; }
         .cor-stat-card:hover { transform: translateY(-2px); }
@@ -1965,7 +1975,10 @@ include BASE_PATH . '/shared/sidebar.php';
         .cor-empty { padding: 16px 18px; color: var(--cor-text-mid); font-size: 13px; }
         @media (max-width: 1100px) { .cor-stat-grid { grid-template-columns: repeat(3, 1fr); } .cor-report-grid, .cor-two-col, .inv-visual-grid { grid-template-columns: 1fr; } }
         @media (max-width: 900px) { .cor-summary-stat-grid, .inv-stat-row, .inv-stat-row-two { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-        @media (max-width: 767px) { .cor-stat-grid, .cor-summary-stat-grid { grid-template-columns: repeat(2, 1fr); } .cor-tab { padding: 0 12px; font-size: 11px; } .cor-filter-panel { margin-top: 18px; } .cor-filter-bar { align-items: stretch; flex-direction: column; } .cor-filter-selects, .cor-date-inputs, .cor-quick-ranges { align-items: stretch; } .cor-filter-bar select, .cor-filter-bar input[type="date"], .cor-btn-apply, .cor-btn-export, .cor-btn-daily, .cor-btn-export-sm { width: 100%; } .del-breakdown-top, .vat-breakdown-card, .inv-health-card { flex-direction: column; align-items: flex-start; } .del-hbar-label { min-width: 80px; font-size: 11px; } .del-table-tools, .inv-tools-row { align-items: stretch; flex-direction: column; } .inv-tools-row { display: grid; grid-template-columns: 1fr; } .del-table-tools input, .del-table-tools select, .inv-tools input, .inv-tools select, .inv-sort-btn, .inv-refresh-btn { width: 100%; } }
+        @media (max-width: 1400px) { .orders-filter-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+        @media (max-width: 900px) { .orders-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+        @media (max-width: 767px) { .cor-stat-grid, .cor-summary-stat-grid { grid-template-columns: repeat(2, 1fr); } .cor-tab { padding: 0 12px; font-size: 11px; } .orders-filter-panel { margin-top: 18px; } .del-breakdown-top, .vat-breakdown-card, .inv-health-card { flex-direction: column; align-items: flex-start; } .del-hbar-label { min-width: 80px; font-size: 11px; } .del-table-tools, .inv-tools-row { align-items: stretch; flex-direction: column; } .inv-tools-row { display: grid; grid-template-columns: 1fr; } .del-table-tools input, .del-table-tools select, .inv-tools input, .inv-tools select, .inv-sort-btn, .inv-refresh-btn { width: 100%; } }
+        @media (max-width: 600px) { .orders-filter-grid { grid-template-columns: 1fr; } .orders-custom-dates { grid-template-columns: 1fr; grid-column: auto; } .orders-filter-actions > * { flex: 1 1 auto; } }
         @media (max-width: 500px) { .cor-summary-stat-grid, .vat-second-stats, .inv-stat-row, .inv-stat-row-two { grid-template-columns: 1fr; } }
     </style>
 
@@ -1980,52 +1993,51 @@ include BASE_PATH . '/shared/sidebar.php';
         <?php ops_setup_notice(); ?>
     <?php endif; ?>
 
-    <?php $filterPanelOpen = $filters['range'] !== 'month' || $filters['status'] !== 'all' || $filters['mode'] !== 'all' || $filters['payment'] !== 'all'; ?>
+    <?php $activeFilterCount = (int) ($filters['range'] !== 'month') + (int) ($filters['status'] !== 'all') + (int) ($filters['mode'] !== 'all') + (int) ($filters['payment'] !== 'all'); ?>
     <div class="cor-loading-banner" data-cor-loading hidden>Loading website data...</div>
     <?php if ($reportSyncError): ?>
         <div class="cor-data-message cor-data-error">Could not connect to WooCommerce: <?= cor_e($reportSyncError) ?></div>
     <?php endif; ?>
-    <details class="cor-filter-panel" <?= $filterPanelOpen ? 'open' : '' ?>>
-        <summary>
-            <i data-lucide="sliders-horizontal" class="filter-icon" aria-hidden="true"></i>
-            <span>Filters</span>
-        </summary>
-    <form class="cor-filter-bar" method="get" data-cor-filter>
+    <section class="orders-filter-panel is-collapsed" data-orders-filter-panel>
+      <button type="button" class="orders-filter-header" data-orders-filter-toggle aria-expanded="false" aria-controls="orders-filter-body">
+        <span class="orders-filter-header-left"><span class="orders-filter-icon"><i data-lucide="sliders-horizontal" aria-hidden="true"></i></span><span class="orders-filter-title">Filters</span><?php if ($activeFilterCount > 0): ?><span class="orders-filter-active-count"><?= $activeFilterCount ?> active</span><?php endif; ?></span>
+        <span class="orders-filter-header-right"><span class="orders-filter-state" data-orders-filter-state>Collapsed</span><svg class="orders-filter-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 8l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      </button>
+      <div id="orders-filter-body" class="orders-filter-body" data-orders-filter-body hidden>
+    <form method="get" data-cor-filter>
         <input type="hidden" name="range" value="<?= cor_e($filters['range']) ?>" data-cor-range>
         <input type="hidden" name="tab" value="<?= cor_e($filters['tab']) ?>" data-cor-tab-input>
-        <div class="cor-quick-ranges">
-            <?php foreach (['today' => 'Today', 'week' => 'This Week', 'month' => 'This Month', 'year' => 'Year', 'custom' => 'Custom'] as $key => $label): ?>
-                <button class="cor-range-btn <?= $filters['range'] === $key ? 'active' : '' ?>" type="button" data-range="<?= cor_e($key) ?>"><?= cor_e($label) ?></button>
-            <?php endforeach; ?>
-        </div>
-        <div class="cor-date-inputs" data-custom-dates style="<?= $filters['range'] !== 'custom' ? 'display:none' : '' ?>">
-            <input type="date" name="from" value="<?= cor_e($filters['from']) ?>">
-            <span style="color:var(--cor-text-mid)">to</span>
-            <input type="date" name="to" value="<?= cor_e($filters['to']) ?>">
-        </div>
-        <div class="cor-filter-selects">
-            <select name="status">
+        <div class="orders-filter-grid">
+          <label class="orders-filter-field"><span class="orders-filter-field-label">Date range</span><select data-orders-range data-portal-custom-select>
+            <?php foreach (['today' => 'Today', 'week' => 'This Week', 'month' => 'This Month', 'year' => 'Year', 'custom' => 'Custom'] as $key => $label): ?><option value="<?= cor_e($key) ?>" <?= $filters['range'] === $key ? 'selected' : '' ?>><?= cor_e($label) ?></option><?php endforeach; ?>
+          </select></label>
+          <label class="orders-filter-field"><span class="orders-filter-field-label">Status</span><select name="status" data-portal-custom-select>
                 <option value="all">All Statuses</option>
                 <?php foreach (OPS_ORDER_STATUSES as $key => $label): ?>
                     <option value="<?= cor_e($key) ?>" <?= $filters['status'] === $key ? 'selected' : '' ?>><?= cor_e($label) ?></option>
                 <?php endforeach; ?>
-            </select>
-            <select name="mode">
+            </select></label>
+          <label class="orders-filter-field"><span class="orders-filter-field-label">Mode</span><select name="mode" data-portal-custom-select>
                 <option value="all">All Modes</option>
                 <option value="delivery" <?= $filters['mode'] === 'delivery' ? 'selected' : '' ?>>Delivery</option>
                 <option value="collection" <?= $filters['mode'] === 'collection' ? 'selected' : '' ?>>Collection</option>
                 <option value="courier" <?= $filters['mode'] === 'courier' ? 'selected' : '' ?>>Courier</option>
-            </select>
-            <select name="payment">
+            </select></label>
+          <label class="orders-filter-field"><span class="orders-filter-field-label">Payment</span><select name="payment" data-portal-custom-select>
                 <option value="all">All Payments</option>
                 <?php foreach ($paymentOptions as $payment): ?>
                     <option value="<?= cor_e($payment) ?>" <?= $filters['payment'] === $payment ? 'selected' : '' ?>><?= cor_e($payment) ?></option>
                 <?php endforeach; ?>
-            </select>
+            </select></label>
+          <div class="orders-custom-dates" data-custom-dates style="<?= $filters['range'] !== 'custom' ? 'display:none' : '' ?>">
+            <label class="orders-filter-field"><span class="orders-filter-field-label">Date from</span><span class="portal-date-field" data-portal-date-field><input class="portal-date-input" type="text" data-submit-target="#orders-date-from" placeholder="Select date"><input id="orders-date-from" type="hidden" name="from" value="<?= cor_e($filters['from']) ?>"><button type="button" class="portal-date-trigger" aria-label="Open start date"><i data-lucide="calendar-days"></i></button></span></label>
+            <label class="orders-filter-field"><span class="orders-filter-field-label">Date to</span><span class="portal-date-field" data-portal-date-field><input class="portal-date-input" type="text" data-submit-target="#orders-date-to" placeholder="Select date"><input id="orders-date-to" type="hidden" name="to" value="<?= cor_e($filters['to']) ?>"><button type="button" class="portal-date-trigger" aria-label="Open end date"><i data-lucide="calendar-days"></i></button></span></label>
+          </div>
         </div>
-        <button class="cor-btn-apply" type="submit">Apply</button>
+        <div class="orders-filter-actions"><a class="orders-filter-action" href="?<?= cor_e(http_build_query(['tab' => $filters['tab']])) ?>">Clear filters</a><button class="orders-filter-action primary" type="submit"><i data-lucide="refresh-cw" aria-hidden="true"></i>Refresh</button></div>
     </form>
-    </details>
+      </div>
+    </section>
 
     <div class="cor-tabs-wrap">
     <nav class="cor-tabs" aria-label="Report tabs">
@@ -2291,7 +2303,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 <?php foreach ($queryBase as $key => $value): ?><input type="hidden" name="<?= cor_e($key) ?>" value="<?= cor_e($value) ?>"><?php endforeach; ?>
                 <input type="hidden" name="tab" value="delivery">
                 <input type="text" name="del_search" value="<?= cor_e($deliverySearch) ?>" placeholder="Search customer or order #...">
-                <select name="del_status" onchange="this.form.submit()">
+                <select name="del_status" onchange="this.form.submit()" data-portal-custom-select>
                     <option value="all">All</option>
                     <?php foreach (OPS_ORDER_STATUSES as $key => $label): ?>
                         <option value="<?= cor_e($key) ?>" <?= $deliveryStatus === $key ? 'selected' : '' ?>><?= cor_e($label) ?></option>
@@ -2678,13 +2690,13 @@ include BASE_PATH . '/shared/sidebar.php';
                 <input type="hidden" name="inv_live" value="1">
                 <div class="inv-tools-row">
                     <input name="inv_search" value="<?= cor_e($inventorySearch) ?>" placeholder="Search product or SKU...">
-                    <select name="inv_category">
+                    <select name="inv_category" data-portal-custom-select>
                         <option value="all">All</option>
                         <?php foreach ($inventoryCategories as $category): ?>
                             <option value="<?= cor_e($category) ?>" <?= $inventoryCategory === $category ? 'selected' : '' ?>><?= cor_e($category) ?></option>
                         <?php endforeach; ?>
                     </select>
-                    <select name="inv_sort">
+                    <select name="inv_sort" data-portal-custom-select>
                         <option value="name" <?= $inventorySort === 'name' ? 'selected' : '' ?>>Sort: Name</option>
                         <option value="qty" <?= $inventorySort === 'qty' ? 'selected' : '' ?>>Sort: Qty</option>
                         <option value="retail_val" <?= $inventorySort === 'retail_val' ? 'selected' : '' ?>>Sort: Retail Value</option>
@@ -2692,7 +2704,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         <option value="cost_val" <?= $inventorySort === 'cost_val' ? 'selected' : '' ?>>Sort: Cost Value</option>
                     </select>
                     <a class="inv-sort-btn" href="?<?= cor_e(http_build_query(array_merge($inventoryQueryBase, ['inv_dir' => $inventoryDir === 'asc' ? 'desc' : 'asc']))) ?>"><?= $inventoryDir === 'asc' ? '&uarr; Asc' : '&darr; Desc' ?></a>
-                    <select name="inv_stock">
+                    <select name="inv_stock" data-portal-custom-select>
                         <option value="all" <?= $inventoryStock === 'all' ? 'selected' : '' ?>>All Stock</option>
                         <option value="in" <?= $inventoryStock === 'in' ? 'selected' : '' ?>>In Stock</option>
                         <option value="low" <?= $inventoryStock === 'low' ? 'selected' : '' ?>>Low Stock</option>
@@ -2795,6 +2807,26 @@ document.addEventListener('DOMContentLoaded', function () {
   var tabInput = document.querySelector('[data-cor-tab-input]');
   var customDates = document.querySelector('[data-custom-dates]');
   var loadingBanner = document.querySelector('[data-cor-loading]');
+  var filterPanel = document.querySelector('[data-orders-filter-panel]');
+
+  function setOrdersFilterOpen(open) {
+    if (!filterPanel) return;
+    var toggle = filterPanel.querySelector('[data-orders-filter-toggle]');
+    var body = filterPanel.querySelector('[data-orders-filter-body]');
+    var state = filterPanel.querySelector('[data-orders-filter-state]');
+    filterPanel.classList.toggle('is-collapsed', !open);
+    if (toggle) toggle.setAttribute('aria-expanded', String(open));
+    if (body) body.hidden = !open;
+    if (state) state.textContent = open ? 'Expanded' : 'Collapsed';
+    localStorage.setItem('ordersFiltersOpen', open ? '1' : '0');
+  }
+
+  if (filterPanel) {
+    setOrdersFilterOpen(localStorage.getItem('ordersFiltersOpen') === '1');
+    filterPanel.querySelector('[data-orders-filter-toggle]')?.addEventListener('click', function () {
+      setOrdersFilterOpen(filterPanel.classList.contains('is-collapsed'));
+    });
+  }
 
   function showLoading() {
     if (loadingBanner) loadingBanner.hidden = false;
@@ -2804,18 +2836,11 @@ document.addEventListener('DOMContentLoaded', function () {
     form.addEventListener('submit', showLoading);
   }
 
-  document.querySelectorAll('[data-range]').forEach(function (button) {
-    button.addEventListener('click', function () {
-      if (!form || !rangeInput) return;
-      rangeInput.value = button.dataset.range || 'month';
-      if (customDates) customDates.style.display = rangeInput.value === 'custom' ? '' : 'none';
-      if (rangeInput.value !== 'custom') {
-        showLoading();
-        form.submit();
-      }
-      document.querySelectorAll('[data-range]').forEach(function (btn) { btn.classList.remove('active'); });
-      button.classList.add('active');
-    });
+  var rangeSelect = document.querySelector('[data-orders-range]');
+  rangeSelect?.addEventListener('change', function () {
+    if (!rangeInput) return;
+    rangeInput.value = rangeSelect.value || 'month';
+    if (customDates) customDates.style.display = rangeInput.value === 'custom' ? '' : 'none';
   });
 
   document.querySelectorAll('.cor-tab').forEach(function (tab) {
