@@ -1957,6 +1957,7 @@
 .ops-board-page.packing-list-page .work-filter-bar.packing-toolbar .work-filter-actions button:not(.portal-custom-select-trigger):not(.portal-custom-select-option):not(.portal-date-trigger) {
   height: 32px !important;
   min-height: 32px !important;
+  font-weight: 400 !important;
 }
 .packing-list-page .packing-toolbar [data-find-packing-duplicates],
 .packing-list-page .packing-toolbar [data-import-previous-packing] {
