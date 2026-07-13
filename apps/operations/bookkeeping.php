@@ -1451,6 +1451,9 @@ $canHardDelete = user_has_role('owner_admin');
         .bk-filter-section .bk-side-button {
             font-weight: 400;
         }
+        .recon-card .bk-side-button {
+            font-weight: 400;
+        }
         .bk-history-list {
             display: grid;
             gap: 7px;
