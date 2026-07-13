@@ -53,6 +53,7 @@
     let payload;
     try { payload = JSON.parse(body); } catch (_) { throw new Error(`The server returned an invalid response (${response.status}).`); }
     if (!response.ok || payload.ok === false) throw new Error(payload.message || 'Notification action failed.');
+    return payload;
   }
 
   function createStats(summary) {
@@ -96,12 +97,12 @@
   }
 
   function createRow(item) {
-    const row = element('article', `notification-row ${item.read_at ? 'is-read' : 'is-unread'}`); row.dataset.notificationId = String(item.id || ''); row.dataset.category = categoryFor(item.module); row.dataset.targetUrl = String(item.action_link || '');
+    const row = element('article', `notification-row ${item.read_at ? 'is-read' : 'is-unread'}`); row.dataset.notificationRow = ''; row.dataset.notificationId = String(item.id || ''); row.dataset.category = categoryFor(item.module); row.dataset.targetUrl = String(item.action_link || '');
     row.append(element('span', 'notification-row-indicator'));
     const iconBox = element('span', 'notification-row-icon'); const icon = element('i'); icon.dataset.lucide = iconFor(row.dataset.category); iconBox.append(icon); row.append(iconBox);
     const content = element('span', 'notification-row-content'); const heading = element('span', 'notification-row-heading'); heading.append(element('strong', 'notification-row-title', item.title || 'Notification'), element('time', 'notification-row-time', formatTime(item.created_at)));
     content.append(heading, element('span', 'notification-row-message', item.message || ''), element('span', 'notification-row-meta', `${item.module || 'system'}${item.created_at ? ` · ${formatDate(item.created_at)}` : ''}`)); row.append(content);
-    const actions = element('span', 'notification-row-actions'); if (item.action_link) { const view = element('button', 'notification-row-btn', 'View'); view.type = 'button'; view.dataset.openNotification = ''; actions.append(view); } if (!item.read_at) { const read = iconButton('check', 'Mark as read'); read.dataset.pageMarkRead = ''; actions.append(read); } const archive = iconButton('archive', 'Archive'); archive.dataset.pageArchive = ''; actions.append(archive); row.append(actions);
+    const actions = element('span', 'notification-row-actions'); if (item.action_link) { const view = element('button', 'notification-row-btn', 'View'); view.type = 'button'; view.dataset.openNotification = ''; actions.append(view); } if (!item.read_at) { const read = iconButton('check', 'Mark as read'); read.dataset.notificationTick = ''; read.dataset.notificationId = String(item.id || ''); read.setAttribute('aria-pressed', 'false'); actions.append(read); } const archive = iconButton('archive', 'Archive'); archive.dataset.pageArchive = ''; actions.append(archive); row.append(actions);
     return row;
   }
 
@@ -139,6 +140,66 @@
   function refreshIcons() { if (window.lucide?.createIcons) window.lucide.createIcons(); }
   function syncBadges() { const count = currentData.notifications.filter((item) => !item.read_at).length; document.querySelectorAll('[data-notification-count]').forEach((badge) => { badge.textContent = count > 99 ? '99+' : String(count); badge.classList.toggle('is-hidden', count < 1); }); }
 
+  function setStatValue(key, value) {
+    const card = root.querySelector(`[data-stat="${key}"] .notification-stat-value`);
+    if (card) card.textContent = String(Math.max(0, Number(value) || 0));
+  }
+
+  function updateGroupCountsAfterRead(row) {
+    const sourceGroup = row.closest('.notification-group');
+    const sourceCount = sourceGroup?.querySelector('.notification-group-count');
+    if (sourceCount) sourceCount.textContent = String(Math.max(0, Number(sourceCount.textContent) - 1));
+    const readCount = root.querySelector('.notification-group[data-group="read"] .notification-group-count');
+    if (readCount) readCount.textContent = String((Number(readCount.textContent) || 0) + 1);
+  }
+
+  function applyReadState(row, tick, active) {
+    tick.setAttribute('aria-pressed', String(active));
+    tick.classList.toggle('is-active', active);
+    row.classList.toggle('is-read', active);
+    row.classList.toggle('is-unread', !active);
+  }
+
+  async function handleNotificationTick(tick) {
+    if (tick.disabled) return;
+    const row = tick.closest('[data-notification-row]');
+    const id = tick.dataset.notificationId;
+    const item = currentData.notifications.find((entry) => String(entry.id) === String(id));
+    if (!row || !id || !item || item.read_at) return;
+    const wasActionRequired = isActionRequired(item);
+
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+    tick.disabled = true;
+    tick.classList.add('is-saving');
+    applyReadState(row, tick, true);
+
+    try {
+      const payload = await postAction('mark_read', id);
+      item.read_at = new Date().toISOString();
+      const unread = Number.isFinite(Number(payload.unread_count)) ? Number(payload.unread_count) : currentData.notifications.filter((entry) => !entry.read_at).length;
+      currentData.summary.unread = unread;
+      if (wasActionRequired) currentData.summary.action_required = Math.max(0, Number(currentData.summary.action_required || 0) - 1);
+      setStatValue('unread', unread);
+      setStatValue('action', currentData.summary.action_required || 0);
+      updateGroupCountsAfterRead(row);
+      syncBadges();
+      markAllButton.disabled = unread < 1;
+      tick.classList.add('is-saved');
+      window.setTimeout(() => tick.classList.remove('is-saved'), 500);
+    } catch (error) {
+      applyReadState(row, tick, false);
+      window.dispatchEvent(new CustomEvent('portal:toast', { detail: { title: 'Notification not updated', message: error.message || 'Please try again.' } }));
+    } finally {
+      tick.disabled = false;
+      tick.classList.remove('is-saving');
+      window.requestAnimationFrame(() => {
+        window.scrollTo(scrollX, scrollY);
+        tick.focus({ preventScroll: true });
+      });
+    }
+  }
+
   async function load() { root.replaceChildren(element('div', 'notifications-loading', 'Loading notifications...')); markAllButton.disabled = true; clearAllButton.disabled = true; try { renderPage(await fetchData()); } catch (error) { console.error('Unable to initialise Notifications:', error); renderError(error.message); } }
   async function runAction(action) { markAllButton.disabled = true; clearAllButton.disabled = true; try { await action(); await load(); } catch (error) { renderError(error.message); } }
 
@@ -149,7 +210,7 @@
     if (event.target.closest('[data-page-mark-all-read]')) { runAction(() => postAction('mark_read')); return; }
     if (event.target.closest('[data-page-clear-all]')) { if (window.confirm('Archive all notifications?')) runAction(() => postAction('clear')); return; }
     const row = event.target.closest('.notification-row'); if (!row) return; const id = row.dataset.notificationId;
-    if (event.target.closest('[data-page-mark-read]')) { runAction(() => postAction('mark_read', id)); return; }
+    const tick = event.target.closest('[data-notification-tick]'); if (tick) { event.preventDefault(); event.stopPropagation(); handleNotificationTick(tick); return; }
     if (event.target.closest('[data-page-archive]')) { runAction(() => postAction('clear', id)); return; }
     if (event.target.closest('[data-open-notification]')) { const open = async () => { if (row.classList.contains('is-unread')) await postAction('mark_read', id); if (row.dataset.targetUrl) window.location.href = row.dataset.targetUrl; }; runAction(open); }
   });
