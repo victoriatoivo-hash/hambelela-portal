@@ -835,7 +835,7 @@ $canHardDelete = user_has_role('owner_admin');
             height: 32px;
             padding: 0 16px;
             font-size: 12px;
-            font-weight: 700;
+            font-weight: 400;
             white-space: nowrap;
             cursor: pointer;
             font-family: Figtree, system-ui, -apple-system, sans-serif;
@@ -1448,6 +1448,9 @@ $canHardDelete = user_has_role('owner_admin');
         .bk-side-button:hover {
             background: var(--ledger-orange);
         }
+        .bk-filter-section .bk-side-button {
+            font-weight: 400;
+        }
         .bk-history-list {
             display: grid;
             gap: 7px;
@@ -1476,7 +1479,7 @@ $canHardDelete = user_has_role('owner_admin');
             padding: 0 18px;
             font-family: Figtree, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             font-size: 12px;
-            font-weight: 800;
+            font-weight: 400;
             cursor: pointer;
             display: inline-flex;
             align-items: center;
