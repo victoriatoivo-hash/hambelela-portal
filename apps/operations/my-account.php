@@ -143,6 +143,8 @@ if ($ready) {
 }
 
 if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $isResetCodeAjax = (string) ($_POST['action'] ?? '') === 'reset_code'
+        && strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest';
     try {
         $submittedToken = (string) ($_POST['csrf_token'] ?? '');
         $sessionToken = (string) ($_SESSION['settings_csrf_token'] ?? '');
@@ -182,9 +184,8 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($code !== $confirmCode) {
                     throw new RuntimeException('The new access code and confirmation do not match.');
                 }
-                $validationError = access_secret_validation_error($code, (string) $targetEmployee['role_key']);
-                if ($validationError !== null) {
-                    throw new RuntimeException($validationError);
+                if (!preg_match('/^\d{4}$/', $code)) {
+                    throw new RuntimeException('Reset code must contain exactly 4 numbers.');
                 }
                 if (access_secret_is_shared($code, $employeeId)) {
                     throw new RuntimeException('That access code is already assigned to another account.');
@@ -329,6 +330,15 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
     } catch (Throwable $e) {
         $message = $e->getMessage();
         $messageType = 'error';
+    }
+
+    if ($isResetCodeAjax) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'success' => $messageType === 'success',
+            'message' => $messageType === 'success' ? 'Reset code updated successfully.' : $message,
+        ], JSON_UNESCAPED_SLASHES);
+        exit;
     }
 }
 
@@ -657,11 +667,11 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                                         </td>
                                         <td><span class="settings-pill <?= (string) ($managedEmployee['status'] ?? '') === 'active' ? 'is-linked' : 'is-muted' ?>"><?= htmlspecialchars($managedEmployee['status'], ENT_QUOTES, 'UTF-8') ?></span></td>
                                         <td>
-                                            <form class="settings-code-reset" method="post">
+                                            <form class="settings-code-reset" method="post" novalidate data-reset-code-form>
                                                 <input type="hidden" name="action" value="reset_code">
                                                 <input type="hidden" name="employee_id" value="<?= (int) $managedEmployee['id'] ?>">
-                                                <input name="login_code" type="password" inputmode="numeric" pattern="[0-9]{6,10}" minlength="6" maxlength="10" placeholder="New code" autocomplete="new-password" required>
-                                                <input name="confirm_login_code" type="password" inputmode="numeric" pattern="[0-9]{6,10}" minlength="6" maxlength="10" placeholder="Confirm" autocomplete="new-password" required>
+                                                <input name="login_code" type="password" class="employee-reset-code" inputmode="numeric" maxlength="4" placeholder="New PIN" autocomplete="new-password" data-reset-code>
+                                                <input name="confirm_login_code" type="password" class="employee-reset-code" inputmode="numeric" maxlength="4" placeholder="Confirm PIN" autocomplete="new-password" data-reset-code-confirm>
                                                 <button class="btn-secondary" type="submit">Reset</button>
                                             </form>
                                         </td>
@@ -779,6 +789,85 @@ document.querySelectorAll('form[method="post"]').forEach((form) => {
     token.name = 'csrf_token';
     token.value = <?= json_encode((string) $_SESSION['settings_csrf_token'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
     form.prepend(token);
+});
+
+const showSettingsToast = (message, type = 'error') => {
+    let container = document.querySelector('.portal-toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.className = 'portal-toast-container';
+        document.body.appendChild(container);
+    }
+
+    const toast = document.createElement('div');
+    toast.className = `portal-toast ${type === 'success' ? 'is-success' : 'is-error'}`;
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.className = 'portal-toast-close';
+    closeButton.setAttribute('aria-label', 'Close notification');
+    closeButton.textContent = '\u00d7';
+    const title = document.createElement('p');
+    title.className = 'portal-toast-title';
+    title.textContent = type === 'success' ? 'Success' : 'Unable to reset code';
+    const body = document.createElement('p');
+    body.className = 'portal-toast-message';
+    body.textContent = message;
+    toast.append(closeButton, title, body);
+    container.prepend(toast);
+
+    const close = () => {
+        toast.classList.add('is-leaving');
+        window.setTimeout(() => toast.remove(), 220);
+    };
+    closeButton.addEventListener('click', close);
+    window.setTimeout(close, 5000);
+};
+
+const validateEmployeeResetCode = (value) => /^\d{4}$/.test(String(value).trim());
+
+document.querySelectorAll('[data-reset-code-form]').forEach((form) => {
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const codeInput = form.querySelector('[data-reset-code]');
+        const confirmInput = form.querySelector('[data-reset-code-confirm]');
+        const code = String(codeInput?.value || '').trim();
+        const confirmation = String(confirmInput?.value || '').trim();
+
+        if (!validateEmployeeResetCode(code)) {
+            showSettingsToast('Reset code must contain exactly 4 numbers.');
+            codeInput?.focus();
+            return;
+        }
+        if (code !== confirmation) {
+            showSettingsToast('The new reset code and confirmation do not match.');
+            confirmInput?.focus();
+            return;
+        }
+
+        const submitButton = form.querySelector('button[type="submit"]');
+        if (submitButton) submitButton.disabled = true;
+        try {
+            const response = await fetch(form.action || window.location.href, {
+                method: 'POST',
+                body: new FormData(form),
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+                throw new Error(result.message || 'The reset code could not be updated.');
+            }
+            form.reset();
+            showSettingsToast(result.message || 'Reset code updated successfully.', 'success');
+        } catch (error) {
+            showSettingsToast(error.message || 'The reset code could not be updated.');
+        } finally {
+            if (submitButton) submitButton.disabled = false;
+        }
+    });
 });
 document.querySelectorAll('.settings-nav-item').forEach((item) => {
     item.addEventListener('click', () => {
