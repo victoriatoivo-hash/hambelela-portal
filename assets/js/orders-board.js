@@ -29,6 +29,7 @@
 
   if (!body || !config.dataUrl || !config.actionUrl) return;
 
+  if (labelMenu && labelMenu.parentElement !== document.body) document.body.appendChild(labelMenu);
   if (panel && panel.parentElement !== document.body) document.body.appendChild(panel);
   if (backdrop && backdrop.parentElement !== document.body) document.body.appendChild(backdrop);
 
