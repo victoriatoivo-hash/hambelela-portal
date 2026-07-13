@@ -98,15 +98,15 @@
 .orders-filter-panel {
   width: 100%;
   margin: 0 0 14px;
-  padding: 14px;
+  padding: 16px;
   display: grid;
   grid-template-columns: minmax(150px,.85fr) repeat(4,minmax(145px,.85fr)) minmax(220px,1.35fr);
   gap: 10px;
   align-items: end;
   border: 1px solid var(--orders-border);
-  border-radius: 12px;
+  border-radius: 14px;
   background: #fff;
-  box-shadow: 0 10px 26px rgba(114,27,26,.05);
+  box-shadow: 0 10px 26px rgba(114,27,26,.06);
 }
 .orders-filter-panel > label { min-width: 0; display: grid; gap: 5px; color: var(--orders-burgundy); font-size: 10px; line-height: 1; font-weight: 600; text-transform: uppercase; }
 .orders-filter-panel input,

@@ -15997,7 +15997,7 @@ button.hr-section-tab {
   font-size: var(--font-size-xs);
 }
 
-.ops-board-page .work-filter-bar {
+.ops-board-page:not(.orders-page) .work-filter-bar {
   gap: 12px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
