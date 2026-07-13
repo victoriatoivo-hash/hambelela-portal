@@ -349,6 +349,14 @@ body > .orders-label-popup .mode-label-edit-grid { display:grid; gap:6px; }
 body > .orders-label-popup .mode-label-edit-item { display:grid; grid-template-columns:34px minmax(0,1fr); gap:6px; }
 body > .orders-label-popup .mode-label-colour-button { width:34px; height:32px; padding:2px; border:1px solid #ede3d8; border-radius:6px; }
 body > .orders-label-popup .mode-label-name-input { width:100%; height:32px; min-height:32px; padding:0 8px; border:1px solid #ede3d8; border-radius:6px; color:#1a1a1a; font-size:12px; font-weight:400; }
+body > .label-menu .orders-people-search { display:grid; gap:5px; padding:2px 6px 8px; color:#6b4c3b; font-family:Figtree,system-ui,sans-serif; font-size:10px; font-weight:600; text-transform:uppercase; }
+body > .label-menu .orders-people-search input { width:100%; height:32px; min-height:32px; padding:0 9px; border:1px solid #ede3d8; border-radius:7px; color:#1a1a1a; font-family:inherit; font-size:12px; font-weight:400; text-transform:none; }
+body > .label-menu .orders-people-option { display:grid; grid-template-columns:24px minmax(0,1fr); align-items:center; gap:8px; text-align:left; }
+body > .label-menu .orders-person-avatar { width:24px; height:24px; display:grid; place-items:center; border-radius:50%; background:#fdf6ee; color:#ab3619; font-size:9px; font-weight:700; }
+.order-date-picker-popover,
+.order-date-picker-popover button,
+.order-date-picker-popover input,
+.order-date-picker-popover select { font-family:Figtree,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; font-size:12px; font-weight:400; }
 .orders-details-panel { --orders-border:#ede3d8; position:fixed; top:0; right:0; bottom:0; z-index:30000; width:min(620px,100vw); height:100vh; transform:translateX(100%); transition:transform .22s ease; background:#fff; border-left:1px solid var(--orders-border); box-shadow:-18px 0 42px rgba(114,27,26,.12); font-family:Figtree,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
 .orders-details-panel.open { transform:translateX(0); }
 .orders-details-panel .orders-details-panel-header { position:sticky; top:0; z-index:3; min-height:58px; background:#fff; border-bottom:1px solid var(--orders-border); }

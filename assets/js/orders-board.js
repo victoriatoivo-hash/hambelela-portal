@@ -2253,11 +2253,15 @@
     const shouldFlip = rect.bottom + estimatedHeight > window.innerHeight;
     labelMenu.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - 220))}px`;
     labelMenu.style.top = `${shouldFlip ? Math.max(8, rect.top - estimatedHeight - 8) : rect.bottom + 8}px`;
+    const peoplePicker = field === 'assigned_packer_id';
     labelMenu.innerHTML = `
-      <div class="label-menu-grid">
-        ${options.map((item) => `
-          <button type="button" style="--label-color:${esc(itemColor(item))}" data-label-value="${esc(item[0])}" data-label-field="${esc(field)}" data-label-order="${esc(orderId)}">${esc(itemText(item))}</button>
-        `).join('')}
+      ${peoplePicker ? '<label class="orders-people-search"><span>Search people</span><input type="search" data-orders-people-search placeholder="Search people"></label>' : ''}
+      <div class="label-menu-grid ${peoplePicker ? 'orders-people-options' : ''}">
+        ${options.map((item) => {
+          const name = itemText(item);
+          const initials = name === 'Unassigned' ? '—' : name.split(/\s+/).slice(0, 2).map((part) => part.charAt(0)).join('').toUpperCase();
+          return `<button type="button" ${peoplePicker ? `class="orders-people-option" data-person-name="${esc(name.toLowerCase())}"` : ''} style="--label-color:${esc(itemColor(item))}" data-label-value="${esc(item[0])}" data-label-field="${esc(field)}" data-label-order="${esc(orderId)}">${peoplePicker ? `<span class="orders-person-avatar">${esc(initials)}</span><span>${esc(name)}</span>` : esc(name)}</button>`;
+        }).join('')}
       </div>
       ${field === 'assigned_packer_id'
         ? '<button class="edit-labels" type="button" data-edit-order-people><i data-lucide="users"></i> Edit people</button>'
@@ -3730,6 +3734,14 @@
   });
 
   document.addEventListener('input', (event) => {
+    if (event.target.matches('[data-orders-people-search]')) {
+      const query = normalize(event.target.value);
+      labelMenu.querySelectorAll('[data-person-name]').forEach((option) => {
+        option.hidden = query !== '' && !normalize(option.dataset.personName).includes(query);
+      });
+      return;
+    }
+
     if (event.target.closest('#panel-update-editor')) {
       savePanelEditorSelection();
       return;
