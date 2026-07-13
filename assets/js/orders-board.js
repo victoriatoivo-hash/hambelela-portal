@@ -2249,9 +2249,12 @@
     const rect = anchor.getBoundingClientRect();
     labelMenu.classList.remove('is-open');
     labelMenu.hidden = false;
+    const menuWidth = 240;
+    const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
+    const viewportHeight = document.documentElement.clientHeight || window.innerHeight;
     const estimatedHeight = field === 'status' ? 210 : 320;
-    const shouldFlip = rect.bottom + estimatedHeight > window.innerHeight;
-    labelMenu.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - 220))}px`;
+    const shouldFlip = rect.bottom + estimatedHeight > viewportHeight;
+    labelMenu.style.left = `${Math.max(8, Math.min(rect.left, viewportWidth - menuWidth - 8))}px`;
     labelMenu.style.top = `${shouldFlip ? Math.max(8, rect.top - estimatedHeight - 8) : rect.bottom + 8}px`;
     const peoplePicker = field === 'assigned_packer_id';
     labelMenu.innerHTML = `
