@@ -1298,9 +1298,6 @@ try {
             $assignedId = (int) (ops_best_packer_for_packing($workload) ?? 0);
         }
         $notes = trim(ops_post_string('notes', 1000) . ($quantityWarning !== '' ? "\nWarning: {$quantityWarning}" : ''));
-        if (packing_monday_configured()) {
-            packing_ensure_monday_sync_schema();
-        }
         $rowKey = packing_row_key([
             'item_name' => ops_post_string('item_name', 190),
             'received_weight' => $receivedWeight,
@@ -1317,26 +1314,6 @@ try {
             if ($existing) {
                 echo json_encode(['ok' => true, 'message' => 'Matching packing item already exists. No duplicate row was created.', 'existing_id' => (int) $existing[0]['id']]);
                 exit;
-            }
-        }
-
-        $mondayPayload = null;
-        $mondayMatch = null;
-        if (packing_monday_configured()) {
-            try {
-                $mondayPayload = packing_monday_board_payload();
-                $mondayMaps = packing_monday_lookup_maps($mondayPayload['items'] ?? [], $mondayPayload['columns'] ?? []);
-                $mondayMatch = packing_find_monday_match([
-                    'item_name' => ops_post_string('item_name', 190),
-                    'received_weight' => $receivedWeight,
-                    'quantity_planned' => $quantityPlan,
-                    'date_loaded' => $dateLoaded,
-                    'assigned_employee_id' => $assignedId > 0 ? $assignedId : null,
-                    'notes' => $notes,
-                ], $mondayMaps);
-            } catch (Throwable $e) {
-                $mondayPayload = null;
-                $mondayMatch = null;
             }
         }
 
@@ -1358,20 +1335,10 @@ try {
             $placeholders[] = '?';
             $params[] = $rowKey;
         }
-        if ($mondayMatch && ops_column_exists('ops_packing_tasks', 'monday_item_id')) {
-            $columns[] = 'monday_item_id';
-            $placeholders[] = '?';
-            $params[] = (string) $mondayMatch['monday_item_id'];
-        }
-        if ($mondayMatch && ops_column_exists('ops_packing_tasks', 'monday_board_id')) {
-            $columns[] = 'monday_board_id';
-            $placeholders[] = '?';
-            $params[] = (string) MONDAY_PACKING_BOARD_ID;
-        }
         if (ops_column_exists('ops_packing_tasks', 'monday_sync_status')) {
             $columns[] = 'monday_sync_status';
             $placeholders[] = '?';
-            $params[] = $mondayMatch ? 'updated' : 'not_synced';
+            $params[] = 'not_synced';
         }
 
         $stmt = db()->prepare(
@@ -1379,40 +1346,6 @@ try {
         );
         $stmt->execute($params);
         $newId = (int) db()->lastInsertId();
-
-        if (packing_monday_configured() && $mondayPayload) {
-            try {
-                $syncRow = [
-                    'id' => $newId,
-                    'item_name' => ops_post_string('item_name', 190),
-                    'received_weight' => $receivedWeight,
-                    'priority' => $priority,
-                    'date_loaded' => $dateLoaded,
-                    'quantity_planned' => $quantityPlan,
-                    'assigned_employee_id' => $assignedId > 0 ? $assignedId : null,
-                    'workload_points' => $workload,
-                    'notes' => $notes,
-                    'monday_item_id' => $mondayMatch['monday_item_id'] ?? '',
-                ];
-                $result = packing_monday_create_or_update_row($syncRow, $mondayPayload);
-                $state = [
-                    'monday_item_id' => $result['id'],
-                    'monday_board_id' => (string) MONDAY_PACKING_BOARD_ID,
-                    'monday_sync_status' => $result['status'] === 'updated' ? 'updated' : 'synced',
-                    'monday_sync_error' => null,
-                    'packing_row_key' => $rowKey,
-                ];
-                if (ops_column_exists('ops_packing_tasks', 'monday_synced_at')) {
-                    $state['monday_synced_at'] = date('Y-m-d H:i:s');
-                }
-                packing_sync_state($newId, $state);
-            } catch (Throwable $e) {
-                packing_sync_state($newId, [
-                    'monday_sync_status' => 'failed',
-                    'monday_sync_error' => substr($e->getMessage(), 0, 1000),
-                ]);
-            }
-        }
 
         echo json_encode(['ok' => true, 'message' => $quantityWarning !== '' ? 'Packing item created. Quantity-to-pack warning added.' : 'Packing item created.', 'warning' => $quantityWarning]);
         exit;
@@ -1601,6 +1534,8 @@ try {
     }
 
     if ($action === 'sync_monday_row') {
+        throw new RuntimeException('Packing List Monday sync has been retired. This item remains available in the portal.');
+
         if (!$canManage) {
             throw new RuntimeException('Only admin/front desk can sync Monday.com packing rows.');
         }
@@ -1679,6 +1614,8 @@ try {
     }
 
     if ($action === 'sync_monday') {
+        throw new RuntimeException('Packing List Monday sync has been retired. Packing items are managed in the portal.');
+
         if (!$canManage) {
             throw new RuntimeException('Only admin/front desk can sync Monday.com packing rows.');
         }
@@ -2066,10 +2003,8 @@ try {
         $invoiceNumber = ops_post_string('invoice_number', 120);
         $invoiceDate = ops_post_string('invoice_date', 40);
         $supplierName = ops_post_string('supplier_name', 190);
-        $syncToMonday = (string) ($_POST['sync_to_monday'] ?? '1') !== '0';
-        if ($syncToMonday) {
-            packing_ensure_monday_sync_schema();
-        }
+        // Legacy clients may still submit sync_to_monday; Packing imports are portal-only.
+        $syncToMonday = false;
         $syncMode = ops_post_string('sync_mode', 40) ?: 'update_existing';
         if (!in_array($syncMode, ['update_existing', 'skip_duplicates', 'create_only'], true)) {
             $syncMode = 'update_existing';
