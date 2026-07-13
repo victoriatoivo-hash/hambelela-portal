@@ -16409,17 +16409,17 @@ button.hr-section-tab {
   border-left: 3px solid #6c49bb;
 }
 
-.ops-board-page .board-label,
-.ops-board-page .status-label,
-.ops-board-page .payment-label,
-.ops-board-page .mode-label,
-.ops-board-page .packer-cell-button,
-.ops-board-page .sync-status-pill,
-.ops-board-page .website-inventory-toggle,
-.ops-board-page .summary-pill,
-.ops-board-page .board-custom-status,
-.ops-board-page [class*="-badge"],
-.ops-board-page [class*="-tag"] {
+.ops-board-page:not(.orders-page) .board-label,
+.ops-board-page:not(.orders-page) .status-label,
+.ops-board-page:not(.orders-page) .payment-label,
+.ops-board-page:not(.orders-page) .mode-label,
+.ops-board-page:not(.orders-page) .packer-cell-button,
+.ops-board-page:not(.orders-page) .sync-status-pill,
+.ops-board-page:not(.orders-page) .website-inventory-toggle,
+.ops-board-page:not(.orders-page) .summary-pill,
+.ops-board-page:not(.orders-page) .board-custom-status,
+.ops-board-page:not(.orders-page) [class*="-badge"],
+.ops-board-page:not(.orders-page) [class*="-tag"] {
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -16438,8 +16438,8 @@ button.hr-section-tab {
   vertical-align: middle !important;
 }
 
-.ops-board-page .status-label,
-.ops-board-page .packing-table .board-label[data-packing-label="packing_status"] {
+.ops-board-page:not(.orders-page) .status-label,
+.ops-board-page:not(.orders-page) .packing-table .board-label[data-packing-label="packing_status"] {
   width: calc(100% - 8px) !important;
   margin: 0 4px !important;
 }

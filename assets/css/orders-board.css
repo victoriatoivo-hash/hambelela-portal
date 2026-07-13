@@ -265,17 +265,17 @@
 .orders-page .orders-grid-cell:last-child { border-right:0; }
 .orders-page .orders-grid-header > .orders-grid-cell { color:var(--orders-burgundy); font-size:10px; line-height:1; font-weight:600; letter-spacing:.025em; text-transform:uppercase; }
 .orders-page .orders-cell-text { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.orders-page .orders-row-checkbox {
-  appearance:none; width:15px; height:15px; min-width:15px; min-height:15px; margin:0;
+.orders-page .orders-grid-cell--select > input.orders-row-checkbox {
+  appearance:none; width:15px; height:15px; min-width:15px; min-height:15px; max-width:15px; max-height:15px; margin:0; padding:0;
   border:1px solid rgba(171,54,25,.28); border-radius:3px; background:#fff; cursor:pointer;
   transition:background-color .15s ease,border-color .15s ease,box-shadow .15s ease;
 }
-.orders-page .orders-row-checkbox:checked {
+.orders-page .orders-grid-cell--select > input.orders-row-checkbox:checked {
   border-color:var(--orders-rust); background-color:var(--orders-rust);
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='m2.2 6.1 2.2 2.2 5.4-5.1' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-position:center; background-repeat:no-repeat; background-size:10px;
 }
-.orders-page .orders-row-checkbox:focus-visible { outline:0; box-shadow:0 0 0 3px rgba(171,54,25,.14); }
+.orders-page .orders-grid-cell--select > input.orders-row-checkbox:focus-visible { outline:0; box-shadow:0 0 0 3px rgba(171,54,25,.14); }
 .orders-page .orders-notes-trigger {
   position:relative; width:26px; height:26px; padding:0; display:inline-flex; align-items:center; justify-content:center;
   border:1px solid rgba(171,54,25,.2); border-radius:7px; background:#fff; color:var(--orders-text-mid); cursor:pointer;
