@@ -123,7 +123,7 @@ include BASE_PATH . '/shared/sidebar.php';
         <section class="ops-alert">Import <code>operations-live-board-migration.sql</code> in phpMyAdmin first. This adds packer lunch/availability tracking.</section>
     <?php endif; ?>
 
-    <section class="ops-board-shell orders-date-groups">
+    <section class="orders-date-groups">
         <div class="ops-board-scroll orders-grid-scroll">
             <div class="ops-board-table monday-board orders-board-v2 orders-grid-root" id="orders-board-body">
                 <div class="board-empty-state">Loading orders...</div>
