@@ -16475,13 +16475,13 @@ button.hr-section-tab {
   gap: 10px !important;
 }
 
-.ops-board-page .work-metric-card .metric-icon {
+.ops-board-page:not(.orders-page) .work-metric-card .metric-icon {
   width: 28px !important;
   height: 28px !important;
   border-radius: 6px !important;
 }
 
-.ops-board-page .work-metric-card strong {
+.ops-board-page:not(.orders-page) .work-metric-card strong {
   font-size: 20px !important;
 }
 
