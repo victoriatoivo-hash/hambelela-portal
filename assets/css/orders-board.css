@@ -162,7 +162,7 @@
   color: var(--orders-rust);
   font-size: 11px;
   line-height: 1;
-  font-weight: 600;
+  font-weight: 400;
   cursor: pointer;
 }
 .orders-filter-panel .work-filter-actions button[data-board-refresh] { background: var(--orders-rust); color: #fff; }
