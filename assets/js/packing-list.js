@@ -1394,8 +1394,6 @@
 
     return `
       <section class="packing-date-group packing-month-group${isCollapsed ? ' is-collapsed' : ''}" data-packing-month-group data-group-key="${esc(key)}" data-month-key="${esc(key)}" style="--group-accent:${esc(accent)};--packing-group-accent:${esc(accent)};--packing-month-accent:${esc(accent)}" data-critical="${pCounts.critical}" data-high="${pCounts.high}" data-medium="${pCounts.medium}" data-low="${pCounts.low}">
-        <div class="packing-month-scroll">
-        <div class="packing-month-inner">
         <div class="packing-month-open-heading">
           <button type="button" class="packing-month-toggle packing-month-open-toggle" data-packing-collapse aria-label="Collapse ${esc(groupLabel(key))}" aria-expanded="true">
             <i class="packing-month-chevron" data-lucide="chevron-down"></i>
@@ -1423,35 +1421,37 @@
             ${packingHeaderProgress(statusCounts, rows.length)}
           </div>
         </button>
-        <div class="packing-date-body packing-month-body packing-group-table-wrap">
-          <table class="packing-board-table packing-group-table">
-            ${renderColGroup()}
-            ${renderTableHeader(groupLabel(key))}
-            <tbody>
-              ${bodyRows}
-              ${addRow}
-            </tbody>
-            <tfoot class="packing-month-open-footer">
-              <tr class="packing-month-open-footer-row">
-                <td class="packing-grid-cell--select" data-column-key="select"></td>
-                <td data-column-key="item"></td>
-                <td data-column-key="notes"></td>
-                <td data-column-key="date_loaded"></td>
-                <td class="packing-month-open-footer-cell--priority" data-column-key="priority">${packingHeaderPriority(pCounts)}</td>
-                <td data-column-key="quantity_to_pack"></td>
-                <td data-column-key="person"></td>
-                <td data-column-key="quantity_packed"></td>
-                <td data-column-key="date_completed"></td>
-                <td class="packing-month-open-footer-cell--website" data-column-key="website_uploaded"><strong>${groupSummary.website} / ${rows.length}</strong></td>
-                <td class="packing-month-open-footer-cell--status" data-column-key="status">${packingHeaderProgress(statusCounts, rows.length)}</td>
-                <td data-column-key="text"></td>
-                ${renderEmptyCustomCells('summary-custom-cell')}
-                <td data-column-key="add"></td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-        </div>
+        <div class="packing-month-content" data-packing-month-content${isCollapsed ? ' hidden' : ''}>
+          <div class="packing-month-scroll">
+            <div class="packing-date-body packing-month-body packing-group-table-wrap">
+              <table class="packing-board-table packing-group-table">
+                ${renderColGroup()}
+                ${renderTableHeader(groupLabel(key))}
+                <tbody>
+                  ${bodyRows}
+                  ${addRow}
+                </tbody>
+                <tfoot class="packing-month-open-footer">
+                  <tr class="packing-month-open-footer-row">
+                    <td class="packing-grid-cell--select" data-column-key="select"></td>
+                    <td data-column-key="item"></td>
+                    <td data-column-key="notes"></td>
+                    <td data-column-key="date_loaded"></td>
+                    <td class="packing-month-open-footer-cell--priority" data-column-key="priority">${packingHeaderPriority(pCounts)}</td>
+                    <td data-column-key="quantity_to_pack"></td>
+                    <td data-column-key="person"></td>
+                    <td data-column-key="quantity_packed"></td>
+                    <td data-column-key="date_completed"></td>
+                    <td class="packing-month-open-footer-cell--website" data-column-key="website_uploaded"><strong>${groupSummary.website} / ${rows.length}</strong></td>
+                    <td class="packing-month-open-footer-cell--status" data-column-key="status">${packingHeaderProgress(statusCounts, rows.length)}</td>
+                    <td data-column-key="text"></td>
+                    ${renderEmptyCustomCells('summary-custom-cell')}
+                    <td data-column-key="add"></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
         </div>
       </section>
     `;
@@ -2828,6 +2828,8 @@
         const group = collapse.closest('.packing-date-group');
         if (group) {
           const isCollapsed = group.classList.toggle('is-collapsed');
+          const content = group.querySelector('[data-packing-month-content]');
+          if (content) content.hidden = isCollapsed;
           const monthLabel = group.querySelector('.packing-month-open-title')?.textContent?.trim() || 'month';
           group.querySelectorAll('[data-packing-collapse]').forEach((control) => {
             control.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');

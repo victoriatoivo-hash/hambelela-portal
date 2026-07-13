@@ -687,7 +687,11 @@
     --packing-columns: var(--col-select) var(--col-item) var(--col-notes) var(--col-date-loaded) var(--col-priority) var(--col-quantity) var(--col-person) var(--col-packed) var(--col-date-completed) var(--col-website) var(--col-status) var(--col-text);
     position: relative;
     width: 100%;
+    height: auto;
+    min-height: 0;
     margin: 0;
+    padding: 0;
+    display: block;
     overflow: hidden;
     border: 1px solid var(--packing-grid-border);
     border-radius: 12px;
@@ -771,6 +775,23 @@
 .packing-page-v2 .packing-month-group.is-collapsed .packing-month-open-heading { display: none; }
 .packing-page-v2 .packing-month-group.is-collapsed .packing-month-closed-summary { display: grid; }
 .packing-page-v2 .packing-month-group:not(.is-collapsed) .packing-month-body { display: block; }
+
+.packing-page-v2 .packing-month-content {
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    margin: 0;
+    padding: 0;
+    display: block;
+    position: static;
+    overflow: visible;
+    box-sizing: border-box;
+}
+
+.packing-page-v2 .packing-month-content[hidden] {
+    display: none !important;
+}
 
 .packing-page-v2 .packing-date-cell {
     min-width: 0;
@@ -951,8 +972,14 @@
 .packing-page-v2 .packing-date-body,
 .packing-page-v2 .packing-group-table-wrap {
     width: 100%;
-    overflow-x: auto;
+    height: auto;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+    position: static;
     background: #fff;
+    box-sizing: border-box;
 }
 
 .packing-page-v2 .packing-month-group.is-collapsed .packing-month-body {
@@ -1948,10 +1975,14 @@
 
 .packing-page-v2 .packing-month-scroll {
     width: 100%;
+    max-width: 100%;
+    height: auto;
+    min-height: 0;
     margin: 0;
     padding: 0;
     overflow-x: auto;
     overflow-y: hidden;
+    position: relative;
     border: 0;
     box-shadow: none;
     box-sizing: border-box;
@@ -1959,15 +1990,6 @@
     scrollbar-color: rgba(114,27,26,.28) #f3eee8;
 }
 .packing-page-v2 .packing-month-scroll::-webkit-scrollbar{height:8px}.packing-page-v2 .packing-month-scroll::-webkit-scrollbar-track{background:#f3eee8}.packing-page-v2 .packing-month-scroll::-webkit-scrollbar-thumb{background:rgba(114,27,26,.28);border-radius:999px}
-
-.packing-page-v2 .packing-month-inner {
-    width: max-content;
-    min-width: 100%;
-    margin: 0;
-    padding: 0;
-    display: block;
-    box-sizing: border-box;
-}
 
 .packing-page-v2 .packing-month-scroll .packing-date-body {
     margin: 0;
