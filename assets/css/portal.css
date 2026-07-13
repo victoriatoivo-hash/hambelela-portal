@@ -14836,7 +14836,7 @@ body.login-page { min-height: 100%; background: #FFFFFF !important; }
 .duplicate-review-table-head,
 .duplicate-review-row {
   display: grid;
-  grid-template-columns: minmax(170px, 1.2fr) 92px 98px 92px 110px 110px 132px 130px 210px;
+  grid-template-columns: minmax(170px, 1.2fr) 92px 98px 92px 110px 110px 130px 210px;
   gap: 8px;
   align-items: center;
   padding: 8px 12px;

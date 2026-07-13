@@ -117,7 +117,6 @@ include BASE_PATH . '/shared/sidebar.php';
                 <?php if ($canManage): ?>
                     <button type="button" data-open-packing-create><i data-lucide="plus"></i> New item</button>
                     <button type="button" data-open-invoice><i data-lucide="upload"></i> Upload invoice</button>
-                    <button type="button" data-sync-monday-packing><i data-lucide="download-cloud"></i> Sync Monday</button>
                     <button type="button" data-find-packing-duplicates><i data-lucide="scan-search"></i> Find possible duplicates</button>
                     <button type="button" data-import-previous-packing><i data-lucide="copy-plus"></i> Import previous list</button>
                 <?php endif; ?>
@@ -246,7 +245,7 @@ include BASE_PATH . '/shared/sidebar.php';
     <div class="packing-tools-backdrop" data-close-packing-tools></div>
     <aside class="packing-tools-panel" data-packing-tools-panel aria-hidden="true">
       <header class="packing-tools-panel-header"><div><p class="packing-tools-kicker">Packing List</p><h2 class="packing-tools-title">Packing tools</h2><p class="packing-tools-subtitle">Review deleted items, restore changes and track Packing List activity.</p></div><button type="button" class="packing-tools-close" data-close-packing-tools aria-label="Close Packing Tools"><i data-lucide="x"></i></button></header>
-      <nav class="packing-tools-tabs" role="tablist" aria-label="Packing tools"><button type="button" class="packing-tools-tab is-active" role="tab" aria-selected="true" data-tools-tab="trash">Trash</button><button type="button" class="packing-tools-tab" role="tab" aria-selected="false" data-tools-tab="activity">Activity log</button><button type="button" class="packing-tools-tab" role="tab" aria-selected="false" data-tools-tab="archived">Archived</button><button type="button" class="packing-tools-tab" role="tab" aria-selected="false" data-tools-tab="sync-history">Sync history</button><button type="button" class="packing-tools-tab" role="tab" aria-selected="false" data-tools-tab="bulk-actions">Bulk actions</button></nav>
+      <nav class="packing-tools-tabs" role="tablist" aria-label="Packing tools"><button type="button" class="packing-tools-tab is-active" role="tab" aria-selected="true" data-tools-tab="trash">Trash</button><button type="button" class="packing-tools-tab" role="tab" aria-selected="false" data-tools-tab="activity">Activity log</button><button type="button" class="packing-tools-tab" role="tab" aria-selected="false" data-tools-tab="archived">Archived</button><button type="button" class="packing-tools-tab" role="tab" aria-selected="false" data-tools-tab="import-history">Import history</button><button type="button" class="packing-tools-tab" role="tab" aria-selected="false" data-tools-tab="bulk-actions">Bulk actions</button></nav>
       <div class="packing-tools-body" data-packing-tools-body><div class="packing-tools-empty">Loading Packing Tools…</div></div>
     </aside>
     <?php endif; ?>

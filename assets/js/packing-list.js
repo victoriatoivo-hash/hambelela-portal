@@ -447,12 +447,12 @@
     } else if (packingToolsTab === 'archived') {
       const rows = packingToolsData.archived || [];
       holder.innerHTML = rows.length ? `<div class="packing-trash-list">${rows.map((row) => `<article class="packing-trash-row is-archived"><div class="packing-trash-main"><strong>${esc(row.item_name)}</strong><span>Archived by ${esc(row.archived_by_name || 'Unknown')} · ${esc(formatToolDate(row.archived_at))}</span></div><div class="packing-trash-meta"><span>${esc(row.quantity_planned || '')}</span></div><div class="packing-trash-actions"><button type="button" class="pk-btn pk-btn--secondary" data-restore-archived-item="${esc(row.id)}">Restore to active</button></div></article>`).join('')}</div>` : '<div class="packing-tools-empty"><strong>No archived items</strong><span>Archived Packing List rows will appear here.</span></div>';
-    } else if (packingToolsTab === 'activity' || packingToolsTab === 'sync-history') {
+    } else if (packingToolsTab === 'activity' || packingToolsTab === 'import-history') {
       const rows = packingToolsTab === 'activity' ? packingToolsData.activity || [] : packingToolsData.syncHistory || [];
       /* Legacy inline renderer retained as a comment for this replacement.
       holder.innerHTML = `<div class="packing-tools-list-head"><strong>${packingToolsTab === 'activity' ? 'Activity log' : 'Import / sync history'}</strong>${packingToolsTab === 'activity' ? '<button type="button" class="pk-btn pk-btn--secondary" data-export-packing-activity>Export CSV</button>' : ''}</div>${rows.length ? `<div class="packing-activity-list">${rows.map((row) => { let meta={}; try{meta=typeof row.metadata==='string'?JSON.parse(row.metadata):row.metadata||{}}catch{} return `<article class="packing-activity-row"><div class="packing-activity-icon"><i data-lucide="history"></i></div><div class="packing-activity-content"><div class="packing-activity-heading"><strong>${esc(String(row.action || '').replace(/_/g, ' '))}</strong><time>${esc(formatToolDate(row.created_at))}</time></div><p>${esc(row.item_name || `Packing item #${row.packing_item_id || ''}`)}${meta.field ? ` · ${esc(meta.field)}: ${esc(meta.old_value || '')} → ${esc(meta.new_value || '')}` : ''}</p><div class="packing-activity-meta">${esc(row.performed_by || 'System')} · Packing List</div></div></article>`; }).join('')}</div>` : '<div class="packing-tools-empty"><strong>No activity found</strong><span>Meaningful Packing List changes will appear here.</span></div>';
       */
-      holder.innerHTML = `<div class="packing-tools-list-head"><strong>${packingToolsTab === 'activity' ? 'Activity log' : 'Import / sync history'}</strong>${packingToolsTab === 'activity' ? '<button type="button" class="pk-btn pk-btn--secondary" data-export-packing-activity>Export CSV</button>' : ''}</div>${rows.length ? `<div class="packing-activity-list">${rows.map(packingActivityMarkup).join('')}</div>` : '<div class="packing-tools-empty"><strong>No activity found</strong><span>Meaningful Packing List changes will appear here.</span></div>'}`;
+      holder.innerHTML = `<div class="packing-tools-list-head"><strong>${packingToolsTab === 'activity' ? 'Activity log' : 'Import history'}</strong>${packingToolsTab === 'activity' ? '<button type="button" class="pk-btn pk-btn--secondary" data-export-packing-activity>Export CSV</button>' : ''}</div>${rows.length ? `<div class="packing-activity-list">${rows.map(packingActivityMarkup).join('')}</div>` : '<div class="packing-tools-empty"><strong>No activity found</strong><span>Meaningful Packing List changes will appear here.</span></div>'}`;
     } else {
       holder.innerHTML = `<section class="packing-tools-bulk"><h3>Bulk actions</h3><p>${selected.size} rows currently selected.</p><div class="packing-tools-bulk-actions"><button class="pk-btn pk-btn--secondary" data-tools-bulk="archive">Archive selected</button><button class="pk-btn pk-btn--danger" data-tools-bulk="delete">Move selected to Trash</button><button class="pk-btn pk-btn--secondary" data-packing-export>Export selected rows</button></div></section>`;
     }
@@ -1898,8 +1898,8 @@
     currentTask = tasks.find((task) => String(task.id) === String(taskId));
     if (!currentTask) return;
     panelTitle.textContent = currentTask.item_name;
-    if (panelItemId) panelItemId.textContent = currentTask.monday_item_id ? `Monday item #${currentTask.monday_item_id}` : `Portal item #${currentTask.id}`;
-    if (panelSource) panelSource.textContent = currentTask.monday_item_id ? 'Created from Monday sync' : 'Created in the portal';
+    if (panelItemId) panelItemId.textContent = `Portal item #${currentTask.id}`;
+    if (panelSource) panelSource.textContent = currentTask.monday_item_id ? 'Imported from legacy Monday data' : 'Created in the portal';
     panelNotes.value = currentTask.notes || '';
     const canEditOwn = canEditTask(currentTask);
     panelNotes.disabled = !canEditOwn;
@@ -1928,11 +1928,6 @@
       </div></section>
       <section class="packing-item-section"><h2 class="packing-item-section-title">Performance</h2><div class="packing-item-info-grid">
         ${infoCard('Time taken', duration(currentTask.date_started || currentTask.date_loaded, currentTask.date_completed) || 'Not complete')}${infoCard('Workload', currentTask.workload_points)}
-      </div></section>
-      <section class="packing-item-section"><h2 class="packing-item-section-title">Monday sync</h2><div class="packing-monday-sync-row">
-        <div><span class="packing-item-info-label">Sync status</span><strong>${esc(String(currentTask.monday_sync_status || 'not_synced').replace(/_/g, ' '))}</strong></div>
-        <div><span class="packing-item-info-label">Monday item</span><strong>${esc(currentTask.monday_item_id || 'Not synced')}</strong></div>
-        ${currentTask.monday_sync_error ? `<div class="packing-detail-wide"><span class="packing-item-info-label">Sync error</span><strong>${esc(currentTask.monday_sync_error)}</strong></div>` : ''}
       </div></section>`;
     if (typeof window.initialisePortalDatePickers === 'function') window.initialisePortalDatePickers(panelActivity);
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
@@ -2245,7 +2240,6 @@
               <span>Received</span>
               <span>Qty</span>
               <span>Person</span>
-              <span>Monday</span>
               <span>Reason</span>
               <span>Action</span>
             </div>
@@ -2256,7 +2250,6 @@
               <span>${esc(keep.received_weight || '-')}</span>
               <span>${esc(keep.quantity_planned || '-')}</span>
               <span>${esc(keep.assigned_name || 'Unassigned')}</span>
-              <span>${esc(keep.monday_sync_status || 'not synced')} ${keep.monday_item_id ? `#${esc(keep.monday_item_id)}` : ''}</span>
               <span>${esc(group.match_type || 'Original suggested')}</span>
               <span class="duplicate-keep-pill">Keep</span>
             </div>
@@ -2268,7 +2261,6 @@
                 <span>${esc(row.received_weight || '-')}</span>
                 <span>${esc(row.quantity_planned || '-')}</span>
                 <span>${esc(row.assigned_name || 'Unassigned')}</span>
-                <span>${esc(row.monday_sync_status || 'not synced')} ${row.monday_item_id ? `#${esc(row.monday_item_id)}` : ''}</span>
                 <span>${esc(group.match_type || 'Possible duplicate')}</span>
                 <span class="duplicate-row-actions">
                   <label><input type="radio" name="dup-action-${esc(row.id)}" value="keep"> Keep</label>
@@ -2487,7 +2479,6 @@
     const undo = event.target.closest('[data-packing-undo]');
     const refreshButton = event.target.closest('[data-packing-refresh]');
     const importPrevious = event.target.closest('[data-import-previous-packing]');
-    const syncMonday = event.target.closest('[data-sync-monday-packing]');
     const findDuplicates = event.target.closest('[data-find-packing-duplicates]');
     const extractInvoice = event.target.closest('[data-extract-invoice]');
     const selectInvoiceFile = event.target.closest('[data-select-invoice-file]');
@@ -2677,21 +2668,6 @@
           await refresh();
         } finally {
           importPrevious.classList.remove('is-loading');
-        }
-        return;
-      }
-      if (syncMonday) {
-        try {
-          syncMonday.classList.add('is-loading');
-          syncMonday.disabled = true;
-          const result = await post('sync_monday');
-          await refresh();
-          setCount(result.message || 'Monday packing list synced.');
-        } catch (error) {
-          setCount(`Monday sync issue: ${error.message}`);
-        } finally {
-          syncMonday.classList.remove('is-loading');
-          syncMonday.disabled = false;
         }
         return;
       }
