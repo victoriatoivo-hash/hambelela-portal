@@ -200,6 +200,42 @@
     }
   }
 
+  async function handleMarkAllRead() {
+    if (markAllButton.disabled) return;
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+    markAllButton.disabled = true;
+    markAllButton.classList.add('is-saving');
+    try {
+      await postAction('mark_read');
+      const savedAt = new Date().toISOString();
+      currentData.notifications.forEach((item) => { if (!item.read_at) item.read_at = savedAt; });
+      currentData.summary.unread = 0;
+      currentData.summary.action_required = 0;
+      root.querySelectorAll('[data-notification-row].is-unread').forEach((row) => {
+        const tick = row.querySelector('[data-notification-tick]');
+        row.classList.remove('is-unread');
+        row.classList.add('is-read');
+        if (tick) { tick.setAttribute('aria-pressed', 'true'); tick.classList.add('is-active'); }
+      });
+      setStatValue('unread', 0);
+      setStatValue('action', 0);
+      ['action-required', 'today', 'earlier'].forEach((key) => {
+        const count = root.querySelector(`.notification-group[data-group="${key}"] .notification-group-count`);
+        if (count) count.textContent = '0';
+      });
+      const readCount = root.querySelector('.notification-group[data-group="read"] .notification-group-count');
+      if (readCount) readCount.textContent = String(currentData.notifications.length);
+      syncBadges();
+    } catch (error) {
+      markAllButton.disabled = false;
+      window.dispatchEvent(new CustomEvent('portal:toast', { detail: { title: 'Notifications not updated', message: error.message || 'Please try again.' } }));
+    } finally {
+      markAllButton.classList.remove('is-saving');
+      window.requestAnimationFrame(() => window.scrollTo(scrollX, scrollY));
+    }
+  }
+
   async function load() { root.replaceChildren(element('div', 'notifications-loading', 'Loading notifications...')); markAllButton.disabled = true; clearAllButton.disabled = true; try { renderPage(await fetchData()); } catch (error) { console.error('Unable to initialise Notifications:', error); renderError(error.message); } }
   async function runAction(action) { markAllButton.disabled = true; clearAllButton.disabled = true; try { await action(); await load(); } catch (error) { renderError(error.message); } }
 
@@ -207,7 +243,7 @@
     const filterToggle = event.target.closest('[data-notification-filter-toggle]'); if (filterToggle) { const card = filterToggle.closest('.notification-filter-card'); const collapsed = card.classList.toggle('is-collapsed'); filterToggle.setAttribute('aria-expanded', String(!collapsed)); filterToggle.querySelector('.notification-filter-state').textContent = collapsed ? 'Collapsed' : 'Expanded'; return; }
     const groupHeader = event.target.closest('.notification-group-header'); if (groupHeader) { const group = groupHeader.closest('.notification-group'); const collapsed = group.classList.toggle('is-collapsed'); groupHeader.setAttribute('aria-expanded', String(!collapsed)); return; }
     if (event.target.closest('[data-retry-notifications]')) { load(); return; }
-    if (event.target.closest('[data-page-mark-all-read]')) { runAction(() => postAction('mark_read')); return; }
+    if (event.target.closest('[data-page-mark-all-read]')) { event.preventDefault(); handleMarkAllRead(); return; }
     if (event.target.closest('[data-page-clear-all]')) { if (window.confirm('Archive all notifications?')) runAction(() => postAction('clear')); return; }
     const row = event.target.closest('.notification-row'); if (!row) return; const id = row.dataset.notificationId;
     const tick = event.target.closest('[data-notification-tick]'); if (tick) { event.preventDefault(); event.stopPropagation(); handleNotificationTick(tick); return; }
