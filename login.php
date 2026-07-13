@@ -153,11 +153,10 @@ function ensure_default_ops_accounts(): void
 }
 
 try {
-    ensure_auth_tables();
     db()->query('SELECT 1 FROM ops_employees LIMIT 1');
-    ensure_default_ops_accounts();
     $opsLoginReady = true;
 } catch (Throwable $e) {
+    error_log('Employee login database probe failed: ' . $e->getMessage());
     $opsLoginReady = false;
     $setupWarning = 'Database employee login is temporarily unavailable.';
 }
