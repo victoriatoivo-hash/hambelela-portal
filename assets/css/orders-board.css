@@ -187,34 +187,27 @@
 .orders-page .orders-date-group {
   --orders-text-mid:#6b4c3b;
   --orders-text-light:#a08070;
-  width:100%; min-width:0; margin:0 0 14px; padding:0;
+  width:100%; height:auto; min-width:0; min-height:0; margin:0 0 14px; padding:0; display:block; box-sizing:border-box;
   border:1px solid var(--orders-border); border-left:4px solid var(--date-accent,var(--orders-rust)); border-radius:14px;
   background:#fff; box-shadow:0 10px 26px rgba(114,27,26,.06); overflow:hidden;
 }
-.orders-page .monday-group-shell, .orders-page .orders-date-content { width: 100%; min-width: 0; }
-.orders-page .monday-group-bar { display: none; }
-.orders-page .orders-date-summary-scroll {
-  width: 100%;
-  min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-color: rgba(114,27,26,.28) #f3eee8;
-  scrollbar-width: thin;
-}
+.orders-page .orders-date-content { width: 100%; min-width: 0; }
+.orders-page .orders-date-content[hidden] { display: none; }
 .orders-page .orders-date-summary {
   width: 100%;
-  min-width: 1172px;
+  min-width: 0;
   min-height: 58px;
   height: 58px;
+  max-height: 58px;
   padding: 0;
   display: grid;
   grid-template-columns: 42px minmax(260px,1fr) 180px 150px 210px 110px 220px;
   align-items: stretch;
   border: 0;
   border-radius: 0;
-  background: #fff;
+  background: transparent;
   color: var(--orders-text);
-  box-shadow: 0 10px 26px rgba(114,27,26,.06);
+  box-shadow: none;
   font: inherit;
   text-align: left;
   cursor: pointer;
@@ -279,7 +272,7 @@
 .orders-page .orders-grid-cell--text .orders-cell-text { color:var(--orders-text-mid); }
 .orders-page .ob-group-column-title, .orders-page .column-header-title { color: var(--orders-burgundy); font-size: 10px; font-weight: 600; text-transform: uppercase; }
 .orders-page .monday-column-header > .monday-cell { color: var(--orders-burgundy); font-size: 10px; font-weight: 600; text-transform: uppercase; }
-.orders-page .monday-grid[hidden], .orders-page .orders-date-group.is-collapsed .orders-date-content { display: none; }
+.orders-page .monday-grid[hidden] { display: none; }
 .orders-page .orders-date-group.is-open .orders-date-content { display: block; }
 .orders-page .task-name, .orders-page .notes-cell button { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .orders-page .notes-cell button { width: 100%; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
