@@ -1336,19 +1336,17 @@
     }, {});
   }
 
-  function stackedBar(values, colours, cssClass) {
+  function stackedBar(values, colours, cssClass, summaryType = '') {
     const total = Object.values(values).reduce((sum, count) => sum + Number(count || 0), 0);
     const segments = Object.entries(values).map(([key, count]) => {
       if (!count || total === 0) return '';
       const colour = colours[key] || colours[key.toUpperCase()] || fallbackBarColour;
       const numericCount = Number(count);
       const percent = total > 0 ? ((numericCount / total) * 100).toFixed(1) : '0.0';
-      const tooltip = `${key} ${numericCount}/${total} ${percent}%`;
-      return `<div class="ob-bar-segment summary-segment" style="flex:${numericCount / total};background:${esc(colour)}" data-label="${esc(key)}" data-count="${esc(numericCount)}" data-total="${esc(total)}" data-percent="${esc(`${percent}%`)}" data-tooltip="${esc(tooltip)}" aria-label="${esc(tooltip)}" tabindex="0">
-        <span class="summary-segment-tooltip">${esc(tooltip)}</span>
-      </div>`;
+      const tooltip = `${key}\n${numericCount}/${total}\n${percent}%`;
+      return `<span class="orders-summary-segment ob-bar-segment summary-segment" data-summary-type="${esc(summaryType)}" data-summary-key="${esc(normalize(key))}" data-label="${esc(key)}" data-count="${esc(numericCount)}" data-total="${esc(total)}" data-percentage="${esc(percent)}" data-tooltip="${esc(tooltip)}" aria-label="${esc(`${key} ${numericCount}/${total} ${percent}%`)}" style="--segment-width:${esc(`${percent}%`)};--segment-colour:${esc(colour)}"></span>`;
     }).join('');
-    return `<div class="ob-stacked-bar summary-bar ${cssClass}">${segments}</div>`;
+    return `<span class="orders-summary-bar ob-stacked-bar summary-bar ${cssClass}">${segments}</span>`;
   }
 
   let activeSummaryTooltip = null;
@@ -1892,31 +1890,6 @@
     const editableDateAttrs = isDateGroupKey(key)
       ? ` data-edit-group-date data-group-key="${esc(key)}" data-order-ids="${esc(groupOrderIds)}" role="button" tabindex="0" title="Change group date"`
       : '';
-    const headerSummaryCells = isOpen ? `
-        <div class="monday-cell ob-group-date-cell col-date"></div>
-        <div class="monday-cell col-mobile"></div>
-        <div class="monday-cell ob-group-bar-cell col-mode"></div>
-        <div class="monday-cell ob-group-amount-cell col-amount"></div>
-        <div class="monday-cell ob-group-bar-cell col-payment"></div>
-        <div class="monday-cell ob-group-paid-cell col-paid"></div>
-        <div class="monday-cell ob-group-bar-cell col-status"></div>
-        <div class="monday-cell col-packedby"></div>
-        <div class="monday-cell col-text"></div>
-        ${customColumns.map(() => '<div class="monday-cell col-custom"></div>').join('')}
-        <div class="monday-cell add-column-cell"></div>
-    ` : `
-        <div class="monday-cell ob-group-date-cell col-date"><span class="ob-group-column-title">DATE</span><span class="ob-date-pill">${esc(groupDatePill(key))}</span></div>
-        <div class="monday-cell col-mobile"></div>
-        <div class="monday-cell ob-group-bar-cell col-mode"><span class="ob-group-column-title">Mode</span>${stackedBar(modeCounts, modeColours, 'ob-mode-bar')}</div>
-        <div class="monday-cell ob-group-amount-cell col-amount"><span class="ob-group-column-title">AMOUNT</span><div class="ob-group-sum">${esc(money(total))}</div><div class="ob-group-sum-label">sum</div></div>
-        <div class="monday-cell ob-group-bar-cell col-payment"><span class="ob-group-column-title">PAYMENT</span>${stackedBar(paymentCounts, paymentColours, 'ob-payment-bar')}</div>
-        <div class="monday-cell ob-group-paid-cell col-paid"><span class="ob-group-column-title">PAID</span><span class="ob-paid-fraction">${paid}/${orders.length}</span></div>
-        <div class="monday-cell ob-group-bar-cell col-status"><span class="ob-group-column-title">Status</span>${stackedBar(statusCounts, statusColours, 'ob-status-bar')}</div>
-        <div class="monday-cell col-packedby"></div>
-        <div class="monday-cell col-text"></div>
-        ${customColumns.map(() => '<div class="monday-cell col-custom"></div>').join('')}
-        <div class="monday-cell add-column-cell"></div>
-    `;
     const footerRow = isOpen ? `
       <div class="monday-grid ob-group-footer" data-group-footer="${esc(key)}" style="--ob-group-colour:${esc(colour)}">
         <div class="monday-cell col-checkbox"></div>
@@ -1962,24 +1935,19 @@
     }).join('');
 
     return `
-      <section class="monday-group ${isOpen ? 'expanded' : 'collapsed'}" data-group-card="${esc(key)}" style="--ob-group-colour:${esc(colour)};--group-color:${esc(colour)}">
+      <section class="monday-group orders-date-group ${isOpen ? 'expanded is-open' : 'collapsed is-collapsed'}" data-orders-date-group data-date-key="${esc(key)}" data-group-card="${esc(key)}" style="--ob-group-colour:${esc(colour)};--group-color:${esc(colour)};--date-accent:${esc(colour)}">
         <div class="monday-group-shell">
           <div class="monday-group-bar" aria-hidden="true"></div>
-          <div class="monday-grid monday-group-summary group-row ob-group-header ${isOpen ? 'is-open' : ''}" data-group="${esc(key)}" data-colour="${esc(colour)}" data-count="${esc(orders.length)}" data-amount="${esc(money(total))}" data-paid="${esc(paid)}" data-total="${esc(orders.length)}" style="--ob-group-colour:${esc(colour)}">
-            <div class="monday-cell ob-group-toggle-cell col-checkbox">
-              <button type="button" class="ob-group-toggle monday-toggle" data-collapse-group="${esc(key)}" aria-expanded="${isOpen ? 'true' : 'false'}">
-                <span class="ob-chevron" aria-hidden="true">&rsaquo;</span>
-              </button>
-            </div>
-            <div class="monday-cell ob-group-name-cell col-task">
-              <span class="board-group-copy">
-                <span class="ob-group-colour-selector" aria-hidden="true"><span></span></span>
-                <strong class="ob-group-date-label monday-date-title"${editableDateAttrs}>${esc(groupLabel(key))}</strong>
-                <small class="ob-group-task-count monday-task-count">${esc(groupCountText(orders.length))}</small>
-              </span>
-            </div>
-            <div class="monday-cell col-task-icon"></div>
-            ${headerSummaryCells}
+          <div class="orders-date-summary-scroll">
+            <button type="button" class="orders-date-summary monday-group-summary group-row ob-group-header ${isOpen ? 'is-open' : ''}" data-toggle-orders-date data-collapse-group="${esc(key)}" aria-expanded="${isOpen ? 'true' : 'false'}" data-group="${esc(key)}" data-colour="${esc(colour)}" data-count="${esc(orders.length)}" data-amount="${esc(money(total))}" data-paid="${esc(paid)}" data-total="${esc(orders.length)}">
+              <span class="orders-date-summary-chevron" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none"><path d="M4.5 2.5 8 6 4.5 9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+              <span class="orders-date-summary-main"><strong class="orders-date-summary-title"${editableDateAttrs}>${esc(groupLabel(key))}</strong><span class="orders-date-summary-count">${esc(groupCountText(orders.length))}</span></span>
+              <span class="orders-date-summary-block orders-date-summary-block--mode"><span class="orders-summary-label">Mode</span>${stackedBar(modeCounts, modeColours, 'ob-mode-bar', 'mode')}</span>
+              <span class="orders-date-summary-block orders-date-summary-block--amount"><span class="orders-summary-label">Amount</span><strong class="orders-summary-value">${esc(money(total))}</strong></span>
+              <span class="orders-date-summary-block orders-date-summary-block--payment"><span class="orders-summary-label">Payment</span>${stackedBar(paymentCounts, paymentColours, 'ob-payment-bar', 'payment')}</span>
+              <span class="orders-date-summary-block orders-date-summary-block--paid"><span class="orders-summary-label">Paid</span><strong class="orders-summary-value">${paid}/${orders.length}</strong></span>
+              <span class="orders-date-summary-block orders-date-summary-block--status"><span class="orders-summary-label">Status</span>${stackedBar(statusCounts, statusColours, 'ob-status-bar', 'status')}</span>
+            </button>
           </div>
           <div class="monday-group-orders">
             <div class="monday-grid monday-column-header ob-col-header-row" data-group="${esc(key)}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
@@ -3148,6 +3116,7 @@
     const closeButton = event.target.closest('[data-panel-close]');
     const tab = event.target.closest('[data-panel-tab]');
     const groupHeader = event.target.closest('.ob-group-header');
+    const summarySegment = event.target.closest('.orders-summary-segment');
     const collapse = event.target.closest('[data-collapse-group]') || (
       groupHeader && !event.target.closest('input, button, a, select, textarea') ? groupHeader.querySelector('[data-collapse-group]') : null
     );
@@ -3535,6 +3504,12 @@
 
       if (panelButton) openPanel(panelButton.dataset.openPanel);
       if (closeButton || event.target === backdrop) closePanel();
+
+      if (summarySegment) {
+        event.preventDefault();
+        showSummaryTooltip(summarySegment);
+        return;
+      }
 
       if (tab) {
         document.querySelectorAll('.updates-tabs button').forEach((button) => button.classList.remove('active', 'is-active'));
