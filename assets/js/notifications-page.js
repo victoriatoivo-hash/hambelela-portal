@@ -1,52 +1,158 @@
 (() => {
   const page = document.querySelector('[data-notifications-page]');
   if (!page) return;
-  const endpoint = page.dataset.endpoint;
-  const errorBox = page.querySelector('[data-notifications-error]');
-  const errorMessage = page.querySelector('[data-notifications-error-message]');
-  const actionButtons = page.querySelectorAll('[data-page-mark-all-read], [data-page-clear-all]');
-  const showError = (message) => {
-    if (!errorBox) return;
-    if (errorMessage) errorMessage.textContent = message || 'Unable to update notifications.';
-    errorBox.hidden = false;
+
+  const root = page.querySelector('[data-notifications-root]');
+  const feedEndpoint = page.dataset.feedEndpoint;
+  const actionEndpoint = page.dataset.actionEndpoint;
+  const markAllButton = page.querySelector('[data-page-mark-all-read]');
+  const clearAllButton = page.querySelector('[data-page-clear-all]');
+  let currentData = { summary: {}, notifications: [] };
+
+  const element = (tag, className, text) => {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
   };
-  const clearError = () => { if (errorBox) errorBox.hidden = true; };
-  const post = async (action, ids = '') => {
-    if (!endpoint) throw new Error('Notifications endpoint is not configured.');
-    const body = new URLSearchParams({ action, ids });
-    const response = await fetch(endpoint, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' }, body });
+
+  const categoryFor = (moduleName) => {
+    const module = String(moduleName || '').toLowerCase();
+    if (module.includes('order')) return 'orders';
+    if (module.includes('pack')) return 'packing';
+    if (module.includes('task')) return 'tasks';
+    if (module.includes('book') || module.includes('cash')) return 'bookkeeping';
+    if (module.includes('error')) return 'errors';
+    return 'system';
+  };
+
+  const iconFor = (category) => ({ orders: 'shopping-bag', packing: 'package', tasks: 'list-checks', errors: 'triangle-alert' }[category] || 'bell');
+  const isActionRequired = (item) => !item.read_at && ['urgent', 'critical', 'important', 'high'].includes(String(item.priority || '').toLowerCase());
+  const isToday = (value) => String(value || '').slice(0, 10) === new Date().toISOString().slice(0, 10);
+
+  async function fetchData() {
+    if (!feedEndpoint) throw new Error('Notifications feed is not configured.');
+    const response = await fetch(feedEndpoint, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
     const contentType = response.headers.get('content-type') || '';
-    const text = await response.text();
-    if (!contentType.includes('application/json')) throw new Error(response.status === 401 ? 'Your session has expired. Please sign in again.' : `The server returned an invalid response (${response.status}).`);
+    const body = await response.text();
+    if (!contentType.includes('application/json')) throw new Error(`The notification service returned an invalid response (${response.status}).`);
     let payload;
-    try { payload = JSON.parse(text); } catch (error) { throw new Error('The notifications response is not valid JSON.'); }
+    try { payload = JSON.parse(body); } catch (_) { throw new Error('The notification service returned invalid JSON.'); }
+    if (!response.ok || payload.success !== true) throw new Error(payload.message || 'Unable to load notifications.');
+    return payload.data || { summary: {}, notifications: [] };
+  }
+
+  async function postAction(action, ids = '') {
+    if (!actionEndpoint) throw new Error('Notification actions are not configured.');
+    const response = await fetch(actionEndpoint, {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+      body: new URLSearchParams({ action, ids })
+    });
+    const body = await response.text();
+    let payload;
+    try { payload = JSON.parse(body); } catch (_) { throw new Error(`The server returned an invalid response (${response.status}).`); }
     if (!response.ok || payload.ok === false) throw new Error(payload.message || 'Notification action failed.');
-    return payload;
-  };
-  const syncBadges = (count) => document.querySelectorAll('[data-notification-count]').forEach((badge) => { badge.textContent = String(count); badge.classList.toggle('is-hidden', count < 1); });
-  const updateUnread = () => { const count = page.querySelectorAll('.notification-row.is-unread').length; page.querySelector('[data-stat-value="unread"]')?.replaceChildren(String(count)); syncBadges(count); };
-  const removeRow = (row) => { row.remove(); updateUnread(); };
-  page.addEventListener('click', async (event) => {
-    const filterToggle = event.target.closest('[data-notification-filter-toggle]');
-    const groupHeader = event.target.closest('.notification-group-header');
-    if (filterToggle) { const card=filterToggle.closest('.notification-filter-card'); const collapsed=card.classList.toggle('is-collapsed'); filterToggle.setAttribute('aria-expanded', String(!collapsed)); filterToggle.querySelector('.notification-filter-state').textContent=collapsed?'Collapsed':'Expanded'; return; }
-    if (groupHeader) { const group=groupHeader.closest('.notification-group'); const collapsed=group.classList.toggle('is-collapsed'); groupHeader.setAttribute('aria-expanded', String(!collapsed)); return; }
-    if (event.target.closest('[data-retry-notifications]')) { clearError(); return; }
-    if (event.target.closest('[data-page-mark-all-read]')) { await runAction(async()=>{await post('mark_read');page.querySelectorAll('.notification-row.is-unread').forEach(row=>{row.classList.remove('is-unread');row.classList.add('is-read');row.querySelector('[data-page-mark-read]')?.remove();});updateUnread();}); return; }
-    if (event.target.closest('[data-page-clear-all]')) { if (!confirm('Archive all notifications? This cannot be undone from this page.')) return; await runAction(async()=>{await post('clear');page.querySelectorAll('.notification-row').forEach(removeRow);}); return; }
-    const desktop = event.target.closest('[data-enable-desktop-alerts]');
-    if (desktop) { if (!('Notification' in window)) { desktop.textContent='Unavailable'; return; } const permission=await Notification.requestPermission(); desktop.textContent=permission==='granted'?'Enabled':permission==='denied'?'Blocked':'Enable'; desktop.disabled=permission==='granted'; return; }
-    const row = event.target.closest('.notification-row'); if (!row) return; const id=row.dataset.notificationId;
-    if (event.target.closest('[data-page-mark-read]')) { await runAction(async()=>{await post('mark_read',id);row.classList.remove('is-unread');row.classList.add('is-read');event.target.closest('[data-page-mark-read]')?.remove();updateUnread();});return; }
-    if (event.target.closest('[data-page-archive]')) { await runAction(async()=>{await post('clear',id);removeRow(row);});return; }
-    if (event.target.closest('[data-open-notification]')) { await runAction(async()=>{if(row.classList.contains('is-unread')) await post('mark_read',id);if(row.dataset.targetUrl) location.href=row.dataset.targetUrl;});return; }
+  }
+
+  function createStats(summary) {
+    const grid = element('section', 'notification-stats-grid');
+    [['unread','bell','Unread'],['action_required','circle-alert','Action required'],['today','calendar-days','Today'],['packing','package','Packing'],['tasks','list-checks','Tasks'],['errors','triangle-alert','Errors']].forEach(([key, icon, label]) => {
+      const card = element('article', 'notification-stat-card'); card.dataset.stat = key === 'action_required' ? 'action' : key;
+      const iconBox = element('div', 'notification-stat-icon'); const iconNode = element('i'); iconNode.dataset.lucide = icon; iconBox.append(iconNode);
+      const content = element('div'); content.append(element('p', 'notification-stat-label', label), element('p', 'notification-stat-value', String(summary[key] || 0)));
+      card.append(iconBox, content); grid.append(card);
+    });
+    return grid;
+  }
+
+  function createFilters() {
+    const card = element('section', 'notification-filter-card is-collapsed');
+    const header = element('button', 'notification-filter-header'); header.type = 'button'; header.dataset.notificationFilterToggle = ''; header.setAttribute('aria-expanded', 'false');
+    const title = element('span', 'notification-filter-title'); const icon = element('i'); icon.dataset.lucide = 'sliders-horizontal'; title.append(icon, document.createTextNode('Filters'));
+    header.append(title, element('span', 'notification-filter-state', 'Collapsed'));
+    const form = element('form', 'notification-filter-body');
+    const grid = element('div', 'notification-filter-grid');
+    const definitions = [['read','Read status',['All','Unread','Read']],['category','Category',['All categories','Orders','Packing','Tasks','Bookkeeping','Errors','System']],['priority','Priority',['All priorities','High','Normal']],['search','Search',null]];
+    definitions.forEach(([name, label, options]) => {
+      const field = element('div', 'notification-filter-field'); field.append(element('label', '', label));
+      if (options) { const select = element('select'); select.name = name; options.forEach((text, index) => { const option = element('option', '', text); option.value = index ? text.toLowerCase().replace(' categories','').replace(' priorities','') : ''; select.append(option); }); field.append(select); }
+      else { const input = element('input'); input.type = 'search'; input.name = name; input.placeholder = 'Search notifications...'; field.append(input); }
+      grid.append(field);
+    });
+    const actions = element('div', 'notification-filter-actions'); const clear = element('button', 'nt-btn nt-btn--secondary', 'Clear'); clear.type = 'reset'; const apply = element('button', 'nt-btn nt-btn--primary', 'Apply filters'); apply.type = 'submit'; actions.append(clear, apply);
+    form.append(grid, actions); card.append(header, form);
+    form.addEventListener('submit', (event) => { event.preventDefault(); renderGroups(filteredNotifications(new FormData(form))); });
+    form.addEventListener('reset', () => setTimeout(() => renderGroups(currentData.notifications), 0));
+    return card;
+  }
+
+  function filteredNotifications(formData) {
+    const read = String(formData.get('read') || ''); const category = String(formData.get('category') || ''); const priority = String(formData.get('priority') || ''); const search = String(formData.get('search') || '').toLowerCase().trim();
+    return currentData.notifications.filter((item) => {
+      const itemRead = Boolean(item.read_at); const itemCategory = categoryFor(item.module); const itemPriority = String(item.priority || 'normal').toLowerCase(); const haystack = `${item.title || ''} ${item.message || ''} ${item.module || ''}`.toLowerCase();
+      return (!read || (read === 'read' ? itemRead : !itemRead)) && (!category || itemCategory === category) && (!priority || itemPriority === priority) && (!search || haystack.includes(search));
+    });
+  }
+
+  function createRow(item) {
+    const row = element('article', `notification-row ${item.read_at ? 'is-read' : 'is-unread'}`); row.dataset.notificationId = String(item.id || ''); row.dataset.category = categoryFor(item.module); row.dataset.targetUrl = String(item.action_link || '');
+    row.append(element('span', 'notification-row-indicator'));
+    const iconBox = element('span', 'notification-row-icon'); const icon = element('i'); icon.dataset.lucide = iconFor(row.dataset.category); iconBox.append(icon); row.append(iconBox);
+    const content = element('span', 'notification-row-content'); const heading = element('span', 'notification-row-heading'); heading.append(element('strong', 'notification-row-title', item.title || 'Notification'), element('time', 'notification-row-time', formatTime(item.created_at)));
+    content.append(heading, element('span', 'notification-row-message', item.message || ''), element('span', 'notification-row-meta', `${item.module || 'system'}${item.created_at ? ` · ${formatDate(item.created_at)}` : ''}`)); row.append(content);
+    const actions = element('span', 'notification-row-actions'); if (item.action_link) { const view = element('button', 'notification-row-btn', 'View'); view.type = 'button'; view.dataset.openNotification = ''; actions.append(view); } if (!item.read_at) { const read = iconButton('check', 'Mark as read'); read.dataset.pageMarkRead = ''; actions.append(read); } const archive = iconButton('archive', 'Archive'); archive.dataset.pageArchive = ''; actions.append(archive); row.append(actions);
+    return row;
+  }
+
+  function iconButton(iconName, label) { const button = element('button', 'notification-icon-btn'); button.type = 'button'; button.setAttribute('aria-label', label); const icon = element('i'); icon.dataset.lucide = iconName; button.append(icon); return button; }
+  function formatTime(value) { const date = new Date(String(value || '').replace(' ', 'T')); return Number.isNaN(date.valueOf()) ? '' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+  function formatDate(value) { const date = new Date(String(value || '').replace(' ', 'T')); return Number.isNaN(date.valueOf()) ? '' : date.toLocaleDateString([], { day: 'numeric', month: 'long', year: 'numeric' }); }
+
+  function renderGroups(items) {
+    const existing = root.querySelector('.notification-groups'); if (existing) existing.remove();
+    const groupsNode = element('div', 'notification-groups');
+    const groups = [
+      ['action-required','Action required','Notifications needing attention', items.filter(isActionRequired)],
+      ['today','Today','New portal activity today', items.filter((item) => !isActionRequired(item) && !item.read_at && isToday(item.created_at))],
+      ['earlier','Earlier','Unread notifications from previous days', items.filter((item) => !isActionRequired(item) && !item.read_at && !isToday(item.created_at))],
+      ['read','Read','Notifications already reviewed', items.filter((item) => Boolean(item.read_at))]
+    ];
+    groups.forEach(([key, title, description, groupItems]) => {
+      const group = element('section', 'notification-group'); group.dataset.group = key;
+      const header = element('button', 'notification-group-header'); header.type = 'button'; header.setAttribute('aria-expanded', 'true'); const labels = element('span'); labels.append(element('span', 'notification-group-title', title), element('span', 'notification-group-description', description)); const right = element('span', 'notification-group-header-right'); const chevron = element('i', 'notification-group-chevron'); chevron.dataset.lucide = 'chevron-down'; right.append(chevron, element('span', 'notification-group-count', String(groupItems.length))); header.append(labels, right);
+      const body = element('div', 'notification-group-body'); const list = element('div', 'notification-list'); if (!groupItems.length) { const empty = element('div', 'notification-empty-state'); const emptyIcon = element('i'); emptyIcon.dataset.lucide = 'bell-off'; const copy = element('div'); copy.append(element('strong', '', 'No notifications'), element('span', '', 'New alerts will appear in this section.')); empty.append(emptyIcon, copy); list.append(empty); } else groupItems.forEach((item) => list.append(createRow(item))); body.append(list); group.append(header, body); groupsNode.append(group);
+    });
+    root.append(groupsNode); refreshIcons();
+  }
+
+  function renderPage(data) {
+    currentData = { summary: data.summary || {}, notifications: Array.isArray(data.notifications) ? data.notifications : [] };
+    root.replaceChildren(createStats(currentData.summary), createFilters()); renderGroups(currentData.notifications);
+    markAllButton.disabled = !currentData.notifications.some((item) => !item.read_at); clearAllButton.disabled = !currentData.notifications.length; syncBadges(); refreshIcons();
+  }
+
+  function renderError(message) {
+    const box = element('div', 'notifications-error'); const copy = element('div'); copy.append(element('strong', '', 'Notifications could not be loaded'), element('p', '', message || 'Please try again.')); const retry = element('button', 'nt-btn nt-btn--secondary', 'Retry'); retry.type = 'button'; retry.dataset.retryNotifications = ''; box.append(copy, retry); root.replaceChildren(box);
+  }
+
+  function refreshIcons() { if (window.lucide?.createIcons) window.lucide.createIcons(); }
+  function syncBadges() { const count = currentData.notifications.filter((item) => !item.read_at).length; document.querySelectorAll('[data-notification-count]').forEach((badge) => { badge.textContent = count > 99 ? '99+' : String(count); badge.classList.toggle('is-hidden', count < 1); }); }
+
+  async function load() { root.replaceChildren(element('div', 'notifications-loading', 'Loading notifications...')); markAllButton.disabled = true; clearAllButton.disabled = true; try { renderPage(await fetchData()); } catch (error) { console.error('Unable to initialise Notifications:', error); renderError(error.message); } }
+  async function runAction(action) { markAllButton.disabled = true; clearAllButton.disabled = true; try { await action(); await load(); } catch (error) { renderError(error.message); } }
+
+  page.addEventListener('click', (event) => {
+    const filterToggle = event.target.closest('[data-notification-filter-toggle]'); if (filterToggle) { const card = filterToggle.closest('.notification-filter-card'); const collapsed = card.classList.toggle('is-collapsed'); filterToggle.setAttribute('aria-expanded', String(!collapsed)); filterToggle.querySelector('.notification-filter-state').textContent = collapsed ? 'Collapsed' : 'Expanded'; return; }
+    const groupHeader = event.target.closest('.notification-group-header'); if (groupHeader) { const group = groupHeader.closest('.notification-group'); const collapsed = group.classList.toggle('is-collapsed'); groupHeader.setAttribute('aria-expanded', String(!collapsed)); return; }
+    if (event.target.closest('[data-retry-notifications]')) { load(); return; }
+    if (event.target.closest('[data-page-mark-all-read]')) { runAction(() => postAction('mark_read')); return; }
+    if (event.target.closest('[data-page-clear-all]')) { if (window.confirm('Archive all notifications?')) runAction(() => postAction('clear')); return; }
+    const row = event.target.closest('.notification-row'); if (!row) return; const id = row.dataset.notificationId;
+    if (event.target.closest('[data-page-mark-read]')) { runAction(() => postAction('mark_read', id)); return; }
+    if (event.target.closest('[data-page-archive]')) { runAction(() => postAction('clear', id)); return; }
+    if (event.target.closest('[data-open-notification]')) { const open = async () => { if (row.classList.contains('is-unread')) await postAction('mark_read', id); if (row.dataset.targetUrl) window.location.href = row.dataset.targetUrl; }; runAction(open); }
   });
-  const runAction = async (action) => {
-    actionButtons.forEach(button => { button.disabled = true; });
-    clearError();
-    try { await action(); } catch (error) { console.error('Notifications action failed:', error); showError(error.message); }
-    finally { actionButtons.forEach(button => { button.disabled = false; }); }
-  };
-  if ('Notification' in window) { const btn=page.querySelector('[data-enable-desktop-alerts]'); if(btn && Notification.permission==='granted'){btn.textContent='Enabled';btn.disabled=true;} if(btn && Notification.permission==='denied')btn.textContent='Blocked'; }
-  updateUnread();
+
+  load();
 })();
