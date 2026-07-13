@@ -16004,7 +16004,7 @@ button.hr-section-tab {
   box-shadow: var(--shadow-card);
 }
 
-.ops-board-page .work-filter-bar label {
+.ops-board-page:not(.orders-page) .work-filter-bar label {
   color: var(--color-text-primary);
   font-size: var(--font-size-label);
   font-weight: var(--font-weight-semibold);
