@@ -14,51 +14,14 @@ $error = null;
 $setupWarning = null;
 $opsLoginReady = false;
 
-function local_login_accounts(): array
+function default_ops_account_profiles(): array
 {
     return [
-        'victoria' => ['Victoria Toivo', 'victoria@hambelelaorganic.com', 'Owner/Admin', 'owner_admin', '158a323a7ba44870f23d96f1516dd70aa48e9a72db4ebb026b0a89e212a208ab'],
-        'frontdesk' => ['Secilia Shiweda', 'shiwedasecilia3@gmail.com', 'Front Desk/Admin Employee', 'front_desk_admin', 'fe675fe7aaee830b6fed09b64e034f84dcbdaeb429d9cccd4ebb90e15af8dd71'],
-        'klaudia' => ['Klaudia Averinus', 'klaudia@hambelelaorganic.com', 'Packer/Production Staff', 'packer', 'b281bc2c616cb3c3a097215fdc9397ae87e6e06b156cc34e656be7a1a9ce8839'],
-        'ndinelao' => ['Ndinelao Kalola', 'ndinelao@hambelelaorganic.com', 'Packer/Production Staff', 'packer', '8c9a013ab70c0434313e3e881c310b9ff24aff1075255ceede3f2c239c231623'],
+        ['Victoria Toivo', 'victoria@hambelelaorganic.com', 'Owner/Admin', 'owner_admin'],
+        ['Secilia Shiweda', 'shiwedasecilia3@gmail.com', 'Front Desk/Admin Employee', 'front_desk_admin'],
+        ['Klaudia Averinus', 'klaudia@hambelelaorganic.com', 'Packer/Production Staff', 'packer'],
+        ['Ndinelao Kalola', 'ndinelao@hambelelaorganic.com', 'Packer/Production Staff', 'packer'],
     ];
-}
-
-function try_local_login(string $identity, string $code): bool
-{
-    $identity = strtolower(trim(str_replace('local:', '', $identity)));
-    $accounts = local_login_accounts();
-    $matchedKey = isset($accounts[$identity]) ? $identity : null;
-
-    if (!$matchedKey) {
-        foreach ($accounts as $key => $account) {
-            if (strtolower($account[1]) === $identity || strtolower($account[0]) === $identity) {
-                $matchedKey = $key;
-                break;
-            }
-        }
-    }
-
-    if (!$matchedKey) {
-        return false;
-    }
-
-    [$name, $email, $role, $roleKey, $expectedCodeHash] = $accounts[$matchedKey];
-    if (!hash_equals($expectedCodeHash, hash('sha256', $code))) {
-        return false;
-    }
-
-    $_SESSION['user'] = [
-        'id' => null,
-        'name' => $name,
-        'email' => $email,
-        'role' => $role,
-        'role_key' => $roleKey,
-        'source' => 'local_fallback',
-    ];
-    $_SESSION['credential_rotation_authorized'] = true;
-
-    return true;
 }
 
 function ensure_auth_tables(): void
@@ -139,7 +102,7 @@ function ensure_default_ops_accounts(): void
         $roleStmt->execute([$key, $name, $description]);
     }
 
-    $defaults = local_login_accounts();
+    $defaults = default_ops_account_profiles();
 
     $roleLookup = db()->prepare('SELECT id FROM ops_roles WHERE role_key = ? LIMIT 1');
     $findByEmail = db()->prepare('SELECT id FROM ops_employees WHERE LOWER(email) = LOWER(?) LIMIT 1');
@@ -155,7 +118,7 @@ function ensure_default_ops_accounts(): void
          ON DUPLICATE KEY UPDATE role_id = VALUES(role_id), full_name = VALUES(full_name), status = 'active'"
     );
 
-    foreach ($defaults as [$name, $email, $role, $roleKey, $code]) {
+    foreach ($defaults as [$name, $email, $role, $roleKey]) {
         $roleLookup->execute([$roleKey]);
         $roleId = (int) $roleLookup->fetchColumn();
         if ($roleId <= 0) {
@@ -206,16 +169,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($opsLoginReady) {
         $employeeId = str_starts_with($identity, 'db:') ? (int) substr($identity, 3) : 0;
         $stmt = db()->prepare(
-            "SELECT e.id, e.full_name, e.email, e.password_hash, r.role_key, r.name AS role_name
+            "SELECT e.id, e.full_name, e.email, e.password_hash, e.locked_until, r.role_key, r.name AS role_name
              FROM ops_employees e
              JOIN ops_roles r ON r.id = e.role_id
-             WHERE e.status = 'active' AND (e.id = ? OR LOWER(e.email) = LOWER(?) OR LOWER(e.full_name) = LOWER(?))
+             WHERE e.status = 'active' AND e.id = ?
              LIMIT 1"
         );
-        $stmt->execute([$employeeId, $identity, $identity]);
+        $stmt->execute([$employeeId]);
         $employee = $stmt->fetch();
+        $isLocked = $employee
+            && !empty($employee['locked_until'])
+            && strtotime((string) $employee['locked_until']) > time();
 
-        if ($employee && $employee['password_hash'] && password_verify($code, $employee['password_hash'])) {
+        if ($employee && !$isLocked && $employee['password_hash'] && password_verify($code, $employee['password_hash'])) {
+            $clearLockout = db()->prepare(
+                'UPDATE ops_employees
+                 SET failed_login_attempts = 0, locked_until = NULL, last_failed_login_at = NULL
+                 WHERE id = ?'
+            );
+            $clearLockout->execute([(int) $employee['id']]);
             session_regenerate_id(true);
             $_SESSION['user'] = [
                 'id' => (int) $employee['id'],
@@ -229,13 +201,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: index.php');
             exit;
         }
-    }
-
-    if (try_local_login($identity, $code)) {
-        session_regenerate_id(true);
-        record_login_event($_SESSION['user'], 'local_fallback');
-        header('Location: index.php');
-        exit;
     }
 
     $error = $opsLoginReady
@@ -283,7 +248,7 @@ $assetVersion = is_file(BASE_PATH . '/assets/css/portal.css') ? (string) filemti
         <?php if ($error): ?><p class="login-alert" role="alert"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
         <form method="post" class="login-form" id="login-form">
             <?php if (!$opsLoginReady): ?>
-                <p class="login-notice">Temporary staff access is active.</p>
+                <p class="login-notice">Employee login is temporarily unavailable. Contact an administrator.</p>
             <?php endif; ?>
             <div class="login-field">
                 <label id="identity-label">Employee</label>
@@ -296,9 +261,6 @@ $assetVersion = is_file(BASE_PATH . '/assets/css/portal.css') ? (string) filemti
                     <div class="portal-custom-select-menu" role="listbox" tabindex="-1">
                         <?php foreach ($loginEmployees as $employee): ?>
                             <button type="button" class="portal-custom-select-option" role="option" data-value="db:<?= (int) $employee['id'] ?>" aria-selected="false"><?= htmlspecialchars($employee['full_name'], ENT_QUOTES, 'UTF-8') ?></button>
-                        <?php endforeach; ?>
-                        <?php foreach (local_login_accounts() as $key => [$name]): ?>
-                            <button type="button" class="portal-custom-select-option" role="option" data-value="local:<?= htmlspecialchars($key, ENT_QUOTES, 'UTF-8') ?>" aria-selected="false"><?= htmlspecialchars($name, ENT_QUOTES, 'UTF-8') ?></button>
                         <?php endforeach; ?>
                     </div>
                 </div>

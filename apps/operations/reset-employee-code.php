@@ -56,9 +56,10 @@ try {
         reset_code_json(['success' => false, 'message' => 'The new reset code and confirmation do not match.'], 422);
     }
 
-    $stmt = db()->prepare('SELECT id FROM ops_employees WHERE id = ? AND status = \'active\' LIMIT 1');
+    $stmt = db()->prepare('SELECT id, full_name FROM ops_employees WHERE id = ? AND status = \'active\' LIMIT 1');
     $stmt->execute([(int) $employeeId]);
-    if (!$stmt->fetchColumn()) {
+    $employeeAccount = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$employeeAccount) {
         reset_code_json(['success' => false, 'message' => 'The selected employee account could not be found.'], 404);
     }
 
@@ -69,13 +70,35 @@ try {
     $database = db();
     $database->beginTransaction();
     try {
+        $codeHash = password_hash($code, PASSWORD_DEFAULT);
+        if ($codeHash === false) {
+            throw new RuntimeException('Unable to hash employee access code.');
+        }
+
         $stmt = $database->prepare(
             'UPDATE ops_employees
              SET password_hash = ?, requires_code_reset = 0, failed_login_attempts = 0,
                  locked_until = NULL, last_failed_login_at = NULL, updated_at = CURRENT_TIMESTAMP
-             WHERE id = ?'
+             WHERE id = ? AND status = \'active\''
         );
-        $stmt->execute([password_hash($code, PASSWORD_DEFAULT), (int) $employeeId]);
+        $stmt->execute([$codeHash, (int) $employeeId]);
+        if ($stmt->rowCount() !== 1) {
+            throw new RuntimeException('Employee access-code update did not affect exactly one active account.');
+        }
+
+        $check = $database->prepare(
+            'SELECT id, password_hash, updated_at
+             FROM ops_employees
+             WHERE id = ? AND status = \'active\'
+             LIMIT 1'
+        );
+        $check->execute([(int) $employeeId]);
+        $updatedAccount = $check->fetch(PDO::FETCH_ASSOC);
+        $savedHash = (string) ($updatedAccount['password_hash'] ?? '');
+        if (!$updatedAccount || $savedHash === '' || !password_verify($code, $savedHash)) {
+            throw new RuntimeException('The saved employee access-code hash could not be verified.');
+        }
+
         $database->commit();
     } catch (Throwable $error) {
         if ($database->inTransaction()) {
@@ -86,9 +109,17 @@ try {
 
     record_security_event('access_code_reset', (int) $employeeId, [
         'performed_by' => (int) (current_user()['id'] ?? 0),
+        'employee_name' => (string) ($employeeAccount['full_name'] ?? ''),
     ]);
 
-    reset_code_json(['success' => true, 'message' => 'Reset code updated successfully.']);
+    reset_code_json([
+        'success' => true,
+        'message' => 'Employee access code updated successfully.',
+        'data' => [
+            'employee_account_id' => (int) $employeeId,
+            'code_changed' => true,
+        ],
+    ]);
 } catch (Throwable $error) {
     error_log('Reset employee code failed: ' . $error->getMessage());
     reset_code_json(['success' => false, 'message' => 'Unable to update the reset code.'], 500);

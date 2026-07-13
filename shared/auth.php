@@ -29,38 +29,26 @@ function refresh_logged_in_user(): void
     $refreshed = true;
 
     $id = (int) ($_SESSION['user']['id'] ?? 0);
-    $email = (string) ($_SESSION['user']['email'] ?? '');
-    $name = (string) ($_SESSION['user']['name'] ?? '');
-    $isLocalFallback = (string) ($_SESSION['user']['source'] ?? '') === 'local_fallback';
+    if ($id <= 0) {
+        logout_user();
+        return;
+    }
 
     try {
         require_once BASE_PATH . '/shared/database.php';
-        if ($id > 0) {
-            $stmt = db()->prepare(
-                "SELECT e.id, e.full_name, e.email, r.role_key, r.name AS role_name
-                 FROM ops_employees e
-                 JOIN ops_roles r ON r.id = e.role_id
-                 WHERE e.id = ? AND e.status = 'active'
-                 LIMIT 1"
-            );
-            $stmt->execute([$id]);
-        } else {
-            $stmt = db()->prepare(
-                "SELECT e.id, e.full_name, e.email, r.role_key, r.name AS role_name
-                 FROM ops_employees e
-                 JOIN ops_roles r ON r.id = e.role_id
-                 WHERE e.status = 'active' AND (LOWER(e.email) = LOWER(?) OR LOWER(e.full_name) = LOWER(?))
-                 LIMIT 1"
-            );
-            $stmt->execute([$email, $name]);
-        }
+        $stmt = db()->prepare(
+            "SELECT e.id, e.full_name, e.email, r.role_key, r.name AS role_name
+             FROM ops_employees e
+             JOIN ops_roles r ON r.id = e.role_id
+             WHERE e.id = ? AND e.status = 'active'
+             LIMIT 1"
+        );
+        $stmt->execute([$id]);
         $employee = $stmt->fetch();
         $stmt->closeCursor();
 
         if (!$employee) {
-            if (!$isLocalFallback) {
-                logout_user();
-            }
+            logout_user();
             return;
         }
 
@@ -73,9 +61,7 @@ function refresh_logged_in_user(): void
             'source' => 'database',
         ];
     } catch (Throwable $e) {
-        if (!$isLocalFallback) {
-            logout_user();
-        }
+        logout_user();
     }
 }
 
