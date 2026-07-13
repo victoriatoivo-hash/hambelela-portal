@@ -4102,7 +4102,7 @@ textarea {
 
 .digital-task-page button.dtb-btn svg { width: 15px; height: 15px; }
 .dtb-btn-primary { border: 1px solid var(--task-orange-red); background: var(--task-orange-red); color: #FFFFFF; box-shadow: 0 7px 16px rgba(171, 54, 25, .14); }
-.dtb-page-header > .dtb-btn-primary { font-weight: 400; }
+.digital-task-page .dtb-page-header > button.dtb-btn-primary { font-weight: 400; }
 .dtb-btn-primary:hover { border-color: var(--task-burgundy); background: var(--task-burgundy); transform: translateY(-1px); }
 .dtb-btn-secondary { border: 1px solid rgba(171, 54, 25, .25); background: #FFFFFF; color: var(--task-orange-red); }
 .dtb-btn-secondary:hover { border-color: var(--task-orange-red); background: rgba(240, 116, 32, .06); }
