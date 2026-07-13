@@ -1562,7 +1562,7 @@ $canHardDelete = user_has_role('owner_admin');
             cursor: pointer;
             font: inherit;
             font-size: 12px;
-            font-weight: 800;
+            font-weight: 400;
         }
         .bk-tab.is-active {
             background: var(--ledger-rust);
