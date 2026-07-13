@@ -15980,13 +15980,13 @@ button.hr-section-tab {
   transform: translateY(-2px);
 }
 
-.ops-board-page .work-metric-card .metric-icon {
+.ops-board-page:not(.orders-page) .work-metric-card .metric-icon {
   width: 32px;
   height: 32px;
   border-radius: 8px;
 }
 
-.ops-board-page .work-metric-card strong {
+.ops-board-page:not(.orders-page) .work-metric-card strong {
   font-size: 22px;
   font-weight: var(--font-weight-semibold);
   line-height: 1;
