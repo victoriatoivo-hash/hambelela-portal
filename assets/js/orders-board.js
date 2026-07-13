@@ -264,7 +264,7 @@
     const title = currentLabel !== ''
       ? `<span class="column-header-title" data-column-header-title>${esc(currentLabel)}</span>`
       : (key === 'updates' ? updatesTitle : '<span class="column-header-title is-empty" aria-hidden="true"></span>');
-    return `<div class="monday-cell ob-col-th column-header ${cssClass}" data-column-key="${esc(key)}" data-column="${esc(column)}"${editableAttrs}>${title}<span class="column-resizer" data-column-resizer="${esc(column)}"></span></div>`;
+    return `<div class="orders-grid-cell orders-grid-cell--${esc(key)} monday-cell ob-col-th column-header ${cssClass}" data-column-key="${esc(key)}" data-column="${esc(column)}"${editableAttrs}>${title}<span class="column-resizer" data-column-resizer="${esc(column)}"></span></div>`;
   }
 
   function columnWidthTarget() {
@@ -1387,7 +1387,7 @@
     removeSummaryTooltip();
     activeSummarySegment = segment;
     activeSummaryTooltip = document.createElement('div');
-    activeSummaryTooltip.className = 'summary-segment-tooltip is-floating';
+    activeSummaryTooltip.className = 'orders-summary-tooltip is-floating';
     activeSummaryTooltip.textContent = text;
     document.body.appendChild(activeSummaryTooltip);
     positionSummaryTooltip();
@@ -1483,7 +1483,7 @@
   }
 
   function renderCustomCells() {
-    return customColumns.map((column) => `<div class="monday-cell col-custom" data-custom-col="${esc(column.col_key)}">${renderCustomCell(column)}</div>`).join('');
+    return customColumns.map((column) => `<div class="orders-grid-cell orders-grid-cell--custom monday-cell col-custom" data-custom-col="${esc(column.col_key)}">${renderCustomCell(column)}</div>`).join('');
   }
 
   function renderCustomHeaders() {
@@ -1492,7 +1492,7 @@
       const addCell = row.querySelector('.add-column-cell');
       customColumns.forEach((column) => {
         const th = document.createElement('div');
-        th.className = 'monday-cell ob-col-th col-custom';
+        th.className = 'orders-grid-cell orders-grid-cell--custom monday-cell ob-col-th col-custom';
         th.dataset.customHeader = column.colKey || column.col_key;
         th.dataset.colType = column.col_type;
         th.textContent = String(column.col_name || '').toUpperCase();
@@ -1887,45 +1887,45 @@
     };
     const statusColours = { COMPLETE: '#e2445c', 'IN PROGRESS': '#fdab3d', 'NEW ORDER': '#c4c4c4', Assigned: '#a8ca19', ...optionColourMap(statusLabels) };
     const footerRow = isOpen ? `
-      <div class="monday-grid ob-group-footer" data-group-footer="${esc(key)}" style="--ob-group-colour:${esc(colour)}">
-        <div class="monday-cell col-checkbox"></div>
-        <div class="monday-cell col-task"></div>
-        <div class="monday-cell col-task-icon"></div>
-        <div class="monday-cell ob-group-date-cell date-sort-cell col-date" data-date-sort-cell="${esc(key)}">
+      <div class="orders-summary-footer monday-grid ob-group-footer" data-group-footer="${esc(key)}" style="--ob-group-colour:${esc(colour)}">
+        <div class="orders-grid-cell orders-grid-cell--select monday-cell col-checkbox"></div>
+        <div class="orders-grid-cell orders-grid-cell--task monday-cell col-task"></div>
+        <div class="orders-grid-cell orders-grid-cell--notes monday-cell col-task-icon"></div>
+        <div class="orders-grid-cell orders-grid-cell--date monday-cell ob-group-date-cell date-sort-cell col-date" data-date-sort-cell="${esc(key)}">
           <button type="button" class="ob-date-pill date-sort-trigger" data-date-sort-trigger="${esc(key)}" aria-haspopup="menu" aria-expanded="${activeDateSortGroup === key ? 'true' : 'false'}">${esc(groupDatePill(key))}</button>
           ${renderDateSortPopover(key, orders)}
         </div>
-        <div class="monday-cell col-mobile"></div>
-        <div class="monday-cell ob-group-bar-cell col-mode">${stackedBar(modeCounts, modeColours, 'ob-mode-bar')}</div>
-        <div class="monday-cell ob-group-amount-cell col-amount"><div class="ob-group-sum">${esc(money(total))}</div><div class="ob-group-sum-label">sum</div></div>
-        <div class="monday-cell ob-group-bar-cell col-payment">${stackedBar(paymentCounts, paymentColours, 'ob-payment-bar')}</div>
-        <div class="monday-cell ob-group-paid-cell col-paid"><span class="ob-paid-fraction">${paid}/${orders.length}</span></div>
-        <div class="monday-cell ob-group-bar-cell col-status">${stackedBar(statusCounts, statusColours, 'ob-status-bar')}</div>
-        <div class="monday-cell col-packedby"></div>
-        <div class="monday-cell col-text"></div>
-        ${customColumns.map(() => '<div class="monday-cell col-custom"></div>').join('')}
-        <div class="monday-cell add-column-cell"></div>
+        <div class="orders-grid-cell orders-grid-cell--mobile monday-cell col-mobile"></div>
+        <div class="orders-grid-cell orders-grid-cell--mode monday-cell ob-group-bar-cell col-mode">${stackedBar(modeCounts, modeColours, 'ob-mode-bar')}</div>
+        <div class="orders-grid-cell orders-grid-cell--amount monday-cell ob-group-amount-cell col-amount"><div class="ob-group-sum">${esc(money(total))}</div></div>
+        <div class="orders-grid-cell orders-grid-cell--payment monday-cell ob-group-bar-cell col-payment">${stackedBar(paymentCounts, paymentColours, 'ob-payment-bar')}</div>
+        <div class="orders-grid-cell orders-grid-cell--paid monday-cell ob-group-paid-cell col-paid"><span class="ob-paid-fraction">${paid}/${orders.length}</span></div>
+        <div class="orders-grid-cell orders-grid-cell--status monday-cell ob-group-bar-cell col-status">${stackedBar(statusCounts, statusColours, 'ob-status-bar')}</div>
+        <div class="orders-grid-cell orders-grid-cell--packer monday-cell col-packedby"></div>
+        <div class="orders-grid-cell orders-grid-cell--text monday-cell col-text"></div>
+        ${customColumns.map(() => '<div class="orders-grid-cell orders-grid-cell--custom monday-cell col-custom"></div>').join('')}
+        <div class="orders-grid-cell orders-grid-cell--add monday-cell add-column-cell"></div>
       </div>
     ` : '';
 
     const rows = orders.map((order, rowIndex) => {
       const stripClass = `${rowIndex === 0 ? 'is-group-first' : ''} ${rowIndex === orders.length - 1 ? 'is-group-last-visible' : ''}`.trim();
       return `
-        <div data-order-id="${esc(order.id)}" data-group-row="${esc(key)}" data-group-date="${esc(key)}" class="monday-grid monday-order-row board-row ob-data-row order-row ${stripClass} ${!previousOrderIds.has(String(order.id)) && hasRenderedOnce ? 'row-new' : ''} ${selectedOrders.has(String(order.id)) ? 'is-selected' : ''}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
-          <div class="monday-cell check-cell col-checkbox"><input type="checkbox" data-row-select="${esc(order.id)}" ${selectedOrders.has(String(order.id)) ? 'checked' : ''} aria-label="Select order"></div>
-          <div class="monday-cell task-cell editable-cell col-task" data-editable-order-field="customer_name" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_name || '')}" tabindex="0"><span class="task-drag-handle" data-row-drag-handle="${esc(order.id)}" draggable="true" role="button" tabindex="0" aria-label="Drag order row" title="Drag row">⋮⋮</span><span class="task-name">${esc(order.order_number.replace(/^WEB-/, ''))} ${esc(order.customer_name)}</span></div>
-          <div class="monday-cell comment-cell col-task-icon update-icon-cell">${renderUpdateIconCell(order)}</div>
-          <div class="monday-cell col-date order-date-cell" data-order-id="${esc(order.id)}" data-datetime="${esc(orderDisplayDateTime(order))}" role="button" tabindex="0" title="Edit order date/time">${prettyDate(orderDisplayDateTime(order))}</div>
-          <div class="monday-cell editable-cell col-mobile" data-editable-order-field="customer_contact" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_contact || '')}" tabindex="0">${esc(order.customer_contact || '')}</div>
-          <div class="monday-cell col-mode"${labelCellStyle(modeLabels, order.order_type)}>${renderLabelCell(order, 'order_type', order.order_type, modeLabels, 'mode-label')}</div>
-          <div class="monday-cell editable-cell col-amount" data-editable-order-field="total_amount" data-order-id="${esc(order.id)}" data-value="${esc(order.total_amount ?? '')}" tabindex="0">${esc(money(order.total_amount))}</div>
-          <div class="monday-cell col-payment"${labelCellStyle(paymentLabels, order.payment_method || 'Cash')}>${renderLabelCell(order, 'payment_method', order.payment_method || 'Cash', paymentLabels, 'payment-label')}</div>
-          <div class="monday-cell paid-cell col-paid ${order.payment_status === 'paid' ? 'is-paid' : 'unpaid'}" data-paid-toggle="${esc(order.id)}" data-paid-state="${order.payment_status === 'paid' ? 'paid' : 'unpaid'}" role="button" tabindex="0" aria-label="${order.payment_status === 'paid' ? 'Mark order unpaid' : 'Mark order paid'}">${renderPaidCell(order)}</div>
-          <div class="monday-cell col-status"${labelCellStyle(statusLabels, order.status || 'new_order')}>${renderLabelCell(order, 'status', order.status || 'new_order', statusLabels, 'status-label')}</div>
-          <div class="monday-cell col-packedby"><button type="button" class="orders-people-trigger" data-label-field="assigned_packer_id" data-order-id="${esc(order.id)}">${renderPackerCell(order)}</button></div>
-          <div class="monday-cell notes-cell col-text"><button type="button" data-expand-note>${esc(order.notes || '')}</button></div>
+        <div data-order-id="${esc(order.id)}" data-group-row="${esc(key)}" data-group-date="${esc(key)}" class="orders-grid-row monday-grid monday-order-row board-row ob-data-row order-row ${stripClass} ${!previousOrderIds.has(String(order.id)) && hasRenderedOnce ? 'row-new' : ''} ${selectedOrders.has(String(order.id)) ? 'is-selected' : ''}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
+          <div class="orders-grid-cell orders-grid-cell--select monday-cell check-cell col-checkbox"><input class="orders-row-checkbox" type="checkbox" data-row-select="${esc(order.id)}" ${selectedOrders.has(String(order.id)) ? 'checked' : ''} aria-label="Select order"></div>
+          <div class="orders-grid-cell orders-grid-cell--task monday-cell task-cell editable-cell col-task" data-editable-order-field="customer_name" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_name || '')}" tabindex="0"><span class="task-drag-handle" data-row-drag-handle="${esc(order.id)}" draggable="true" role="button" tabindex="0" aria-label="Drag order row" title="Drag row">⋮⋮</span><span class="orders-cell-text task-name">${esc(order.order_number.replace(/^WEB-/, ''))} ${esc(order.customer_name)}</span></div>
+          <div class="orders-grid-cell orders-grid-cell--notes monday-cell comment-cell col-task-icon update-icon-cell">${renderUpdateIconCell(order)}</div>
+          <div class="orders-grid-cell orders-grid-cell--date monday-cell col-date order-date-cell" data-order-id="${esc(order.id)}" data-datetime="${esc(orderDisplayDateTime(order))}" role="button" tabindex="0" title="Edit order date/time"><span class="orders-cell-text">${prettyDate(orderDisplayDateTime(order))}</span></div>
+          <div class="orders-grid-cell orders-grid-cell--mobile monday-cell editable-cell col-mobile" data-editable-order-field="customer_contact" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_contact || '')}" tabindex="0"><span class="orders-cell-text">${esc(order.customer_contact || '')}</span></div>
+          <div class="orders-grid-cell orders-grid-cell--mode monday-cell col-mode"${labelCellStyle(modeLabels, order.order_type)}>${renderLabelCell(order, 'order_type', order.order_type, modeLabels, 'mode-label')}</div>
+          <div class="orders-grid-cell orders-grid-cell--amount monday-cell editable-cell col-amount" data-editable-order-field="total_amount" data-order-id="${esc(order.id)}" data-value="${esc(order.total_amount ?? '')}" tabindex="0"><span class="orders-cell-text">${esc(money(order.total_amount))}</span></div>
+          <div class="orders-grid-cell orders-grid-cell--payment monday-cell col-payment"${labelCellStyle(paymentLabels, order.payment_method || 'Cash')}>${renderLabelCell(order, 'payment_method', order.payment_method || 'Cash', paymentLabels, 'payment-label')}</div>
+          <div class="orders-grid-cell orders-grid-cell--paid monday-cell paid-cell col-paid ${order.payment_status === 'paid' ? 'is-paid' : 'unpaid'}" data-paid-toggle="${esc(order.id)}" data-paid-state="${order.payment_status === 'paid' ? 'paid' : 'unpaid'}" role="button" tabindex="0" aria-label="${order.payment_status === 'paid' ? 'Mark order unpaid' : 'Mark order paid'}">${renderPaidCell(order)}</div>
+          <div class="orders-grid-cell orders-grid-cell--status monday-cell col-status"${labelCellStyle(statusLabels, order.status || 'new_order')}>${renderLabelCell(order, 'status', order.status || 'new_order', statusLabels, 'status-label')}</div>
+          <div class="orders-grid-cell orders-grid-cell--packer monday-cell col-packedby"><button type="button" class="orders-people-trigger" data-label-field="assigned_packer_id" data-order-id="${esc(order.id)}">${renderPackerCell(order)}</button></div>
+          <div class="orders-grid-cell orders-grid-cell--text monday-cell notes-cell col-text"><button class="orders-cell-text" type="button" data-expand-note>${esc(order.notes || '')}</button></div>
           ${renderCustomCells()}
-          <div class="monday-cell add-column-cell"></div>
+          <div class="orders-grid-cell orders-grid-cell--add monday-cell add-column-cell"></div>
         </div>
       `;
     }).join('');
@@ -1935,9 +1935,9 @@
         <div class="monday-group-shell">
           <div class="monday-group-bar" aria-hidden="true"></div>
           <div class="orders-date-summary-scroll">
-            <button type="button" class="orders-date-summary monday-group-summary group-row ob-group-header ${isOpen ? 'is-open' : ''}" data-toggle-orders-date data-collapse-group="${esc(key)}" aria-expanded="${isOpen ? 'true' : 'false'}" data-group="${esc(key)}" data-colour="${esc(colour)}" data-count="${esc(orders.length)}" data-amount="${esc(money(total))}" data-paid="${esc(paid)}" data-total="${esc(orders.length)}">
-              <span class="orders-date-summary-chevron" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none"><path d="M4.5 2.5 8 6 4.5 9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-              <span class="orders-date-summary-main"><strong class="orders-date-summary-title">${esc(groupLabel(key))}</strong><span class="orders-date-summary-count">${esc(groupCountText(orders.length))}</span></span>
+            <button type="button" class="orders-date-header orders-date-summary monday-group-summary group-row ob-group-header ${isOpen ? 'is-open' : ''}" data-orders-date-toggle data-toggle-orders-date data-collapse-group="${esc(key)}" aria-expanded="${isOpen ? 'true' : 'false'}" data-group="${esc(key)}" data-colour="${esc(colour)}" data-count="${esc(orders.length)}" data-amount="${esc(money(total))}" data-paid="${esc(paid)}" data-total="${esc(orders.length)}">
+              <span class="orders-date-header-chevron orders-date-summary-chevron" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none"><path d="M4.5 2.5 8 6 4.5 9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+              <span class="orders-date-header-copy orders-date-summary-main"><strong class="orders-date-summary-title">${esc(groupLabel(key))}</strong><span class="orders-date-summary-count">${esc(groupCountText(orders.length))}</span></span>
               <span class="orders-date-summary-block orders-date-summary-block--mode"><span class="orders-summary-label">Mode</span>${stackedBar(modeCounts, modeColours, 'ob-mode-bar', 'mode')}</span>
               <span class="orders-date-summary-block orders-date-summary-block--amount"><span class="orders-summary-label">Amount</span><strong class="orders-summary-value">${esc(money(total))}</strong></span>
               <span class="orders-date-summary-block orders-date-summary-block--payment"><span class="orders-summary-label">Payment</span>${stackedBar(paymentCounts, paymentColours, 'ob-payment-bar', 'payment')}</span>
@@ -1945,9 +1945,11 @@
               <span class="orders-date-summary-block orders-date-summary-block--status"><span class="orders-summary-label">Status</span>${stackedBar(statusCounts, statusColours, 'ob-status-bar', 'status')}</span>
             </button>
           </div>
-          <div class="monday-group-orders">
-            <div class="monday-grid monday-column-header ob-col-header-row" data-group="${esc(key)}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
-              <div class="monday-cell check-cell col-checkbox"><input type="checkbox" data-select-all-orders aria-label="Select all visible orders"></div>
+          <div class="orders-date-content monday-group-orders" data-orders-date-content>
+            <div class="orders-table-scroll">
+              <div class="orders-table-grid">
+            <div class="orders-grid-header monday-grid monday-column-header ob-col-header-row" data-group="${esc(key)}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
+              <div class="orders-grid-cell orders-grid-cell--select monday-cell check-cell col-checkbox"><input class="orders-row-checkbox" type="checkbox" data-select-all-orders aria-label="Select all visible orders"></div>
               ${columnHeader('Task', 'col-task', 'task')}
               ${columnHeader('', 'col-task-icon comment-cell', 'comment', 'updates')}
               ${columnHeader('DATE', 'col-date', 'date')}
@@ -1959,27 +1961,29 @@
               ${columnHeader('Status', 'col-status', 'status')}
               ${columnHeader('Packed by', 'col-packedby', 'packedBy', 'packer')}
               ${columnHeader('Text', 'col-text', 'text')}
-              ${customColumns.map((column) => `<div class="monday-cell ob-col-th col-custom">${esc(column.col_name || '')}</div>`).join('')}
-              <div class="monday-cell add-column-cell"><button type="button" data-add-column>+</button></div>
+              ${customColumns.map((column) => `<div class="orders-grid-cell orders-grid-cell--custom monday-cell ob-col-th col-custom">${esc(column.col_name || '')}</div>`).join('')}
+              <div class="orders-grid-cell orders-grid-cell--add monday-cell add-column-cell"><button type="button" data-add-column>+</button></div>
             </div>
-            ${rows}
-            <div class="monday-grid add-task-row" data-group-row="${esc(key)}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
-              <div class="monday-cell col-checkbox"></div>
-              <div class="monday-cell col-task"><button type="button" data-add-task="${esc(key)}">+ Add task</button></div>
-              <div class="monday-cell col-task-icon"></div>
-              <div class="monday-cell col-date"></div>
-              <div class="monday-cell col-mobile"></div>
-              <div class="monday-cell col-mode"></div>
-              <div class="monday-cell col-amount"></div>
-              <div class="monday-cell col-payment"></div>
-              <div class="monday-cell col-paid"></div>
-              <div class="monday-cell col-status"></div>
-              <div class="monday-cell col-packedby"></div>
-              <div class="monday-cell col-text"></div>
-              ${customColumns.map(() => '<div class="monday-cell col-custom"></div>').join('')}
-              <div class="monday-cell add-column-cell"></div>
+            <div class="orders-grid-body">${rows}</div>
+            <div class="orders-add-row monday-grid add-task-row" data-group-row="${esc(key)}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
+              <div class="orders-grid-cell orders-grid-cell--select monday-cell col-checkbox"></div>
+              <div class="orders-grid-cell orders-grid-cell--task monday-cell col-task"><button type="button" data-add-task="${esc(key)}">+ Add task</button></div>
+              <div class="orders-grid-cell orders-grid-cell--notes monday-cell col-task-icon"></div>
+              <div class="orders-grid-cell orders-grid-cell--date monday-cell col-date"></div>
+              <div class="orders-grid-cell orders-grid-cell--mobile monday-cell col-mobile"></div>
+              <div class="orders-grid-cell orders-grid-cell--mode monday-cell col-mode"></div>
+              <div class="orders-grid-cell orders-grid-cell--amount monday-cell col-amount"></div>
+              <div class="orders-grid-cell orders-grid-cell--payment monday-cell col-payment"></div>
+              <div class="orders-grid-cell orders-grid-cell--paid monday-cell col-paid"></div>
+              <div class="orders-grid-cell orders-grid-cell--status monday-cell col-status"></div>
+              <div class="orders-grid-cell orders-grid-cell--packer monday-cell col-packedby"></div>
+              <div class="orders-grid-cell orders-grid-cell--text monday-cell col-text"></div>
+              ${customColumns.map(() => '<div class="orders-grid-cell orders-grid-cell--custom monday-cell col-custom"></div>').join('')}
+              <div class="orders-grid-cell orders-grid-cell--add monday-cell add-column-cell"></div>
             </div>
             ${footerRow}
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -2501,7 +2505,7 @@
   function renderUpdateIconCell(order) {
     const counts = orderActivityCounts(order);
     const hasActivity = counts.activity_count > 0;
-    return `<button type="button" class="update-icon-button${hasActivity ? ' has-activity' : ''}" data-open-panel="${esc(order.id)}" aria-label="${hasActivity ? `Open updates, ${counts.activity_count} saved` : 'Open updates'}">
+    return `<button type="button" class="orders-notes-trigger update-icon-button${hasActivity ? ' has-activity' : ''}" data-orders-details-trigger data-open-panel="${esc(order.id)}" data-order-id="${esc(order.id)}" aria-label="${hasActivity ? `Open order details, ${counts.activity_count} saved` : 'Open order details'}">
       <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
         <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7A8.4 8.4 0 0 1 4 11.5 8.5 8.5 0 0 1 12.5 3 8.5 8.5 0 0 1 21 11.5Z"></path>
         <path d="M12.5 8v7M9 11.5h7"></path>

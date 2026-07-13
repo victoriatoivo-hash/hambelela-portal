@@ -140,13 +140,13 @@ include BASE_PATH . '/shared/sidebar.php';
     <div class="label-menu" id="board-label-menu" hidden></div>
     <div class="toolbar-popover" id="toolbar-popover" hidden></div>
     <div class="orders-filter-menu" id="orders-filter-menu" role="listbox" hidden></div>
-    <aside class="order-updates-panel order-side-panel" id="order-updates-panel" aria-hidden="true">
-        <div class="order-panel-header updates-panel-head">
+    <aside class="orders-details-panel order-updates-panel order-side-panel" id="order-updates-panel" data-orders-details-panel aria-hidden="true">
+        <div class="orders-details-panel-header order-panel-header updates-panel-head">
             <button class="order-panel-close" type="button" data-panel-close aria-label="Close order details"><i data-lucide="x"></i></button>
             <h2 class="order-panel-title" id="panel-order-title">Order</h2>
             <button class="order-panel-menu" type="button" aria-label="More order actions"><i data-lucide="ellipsis"></i></button>
         </div>
-        <nav class="order-panel-tabs updates-tabs">
+        <nav class="orders-details-panel-tabs order-panel-tabs updates-tabs">
             <button type="button" data-panel-tab="details">Details</button>
             <button class="order-panel-tab is-active active" type="button" data-panel-tab="updates" id="panel-updates-tab">Notes</button>
             <button type="button" data-panel-tab="files">Files</button>
