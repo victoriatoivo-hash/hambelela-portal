@@ -1,0 +1,241 @@
+:root {
+  --portal-page-max: 1920px;
+  --portal-page-gutter: clamp(12px, 1.5vw, 24px);
+  --portal-section-gap: clamp(10px, 1.2vw, 18px);
+  --portal-card-padding: clamp(12px, 1.25vw, 18px);
+  --portal-row-height: 35px;
+  --portal-button-height: 32px;
+  --portal-sidebar-open: 236px;
+  --portal-sidebar-compact: 68px;
+  --portal-header-height: 60px;
+  --portal-border: #ede3d8;
+  --portal-surface: #ffffff;
+  --portal-soft: #fdf6ee;
+  --portal-text: #1a1a1a;
+  --portal-text-mid: #6b4c3b;
+  --portal-text-light: #a08070;
+  --portal-orange-red: #ab3619;
+  --portal-burgundy: #721b1a;
+  --portal-amber: #f07420;
+  --portal-olive: #a8ca19;
+  --portal-shadow: 0 10px 26px rgba(114, 27, 26, .06);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  min-height: 100%;
+  overflow-x: hidden;
+}
+
+body,
+input,
+select,
+textarea,
+button {
+  font-family: Figtree, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
+input,
+select,
+textarea,
+button,
+.portal-grid > *,
+.portal-flex > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+html body .shell:has(.portal-sidebar) {
+  width: 100%;
+  max-width: none;
+  min-height: 100vh;
+  padding-left: var(--portal-sidebar-open) !important;
+  background: var(--portal-surface);
+  transition: padding-left .22s ease;
+}
+
+html body .shell:has(.portal-sidebar.collapsed),
+html body.sidebar-collapsed .shell:has(.portal-sidebar) {
+  padding-left: var(--portal-sidebar-compact) !important;
+}
+
+html body .portal-sidebar {
+  width: var(--portal-sidebar-open) !important;
+  min-width: var(--portal-sidebar-open) !important;
+}
+
+html body .portal-sidebar.collapsed,
+html body.sidebar-collapsed .portal-sidebar {
+  width: var(--portal-sidebar-compact) !important;
+  min-width: var(--portal-sidebar-compact) !important;
+}
+
+.shell:has(.portal-sidebar) > main.workspace:not(.digital-task-page),
+.shell:has(.portal-sidebar) > main.ledger-page,
+.shell:has(.portal-sidebar) > .workspace:not(.digital-task-page),
+.shell:has(.portal-sidebar) > .ledger-page {
+  width: 100%;
+  max-width: var(--portal-page-max) !important;
+  min-width: 0;
+  margin: 0 auto !important;
+  padding: var(--portal-page-gutter) !important;
+}
+
+.portal-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  min-width: 0;
+}
+
+.portal-page-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.portal-table-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: auto;
+}
+
+.portal-data-grid {
+  width: max-content;
+  min-width: 100%;
+}
+
+.portal-sidebar-backdrop,
+.portal-mobile-nav-toggle {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  html body .shell:has(.portal-sidebar),
+  html body .shell:has(.portal-sidebar.collapsed),
+  html body.sidebar-collapsed .shell:has(.portal-sidebar) {
+    display: block;
+    padding-left: 0 !important;
+  }
+
+  html body .portal-sidebar,
+  html body .portal-sidebar.collapsed,
+  html body.sidebar-collapsed .portal-sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 30000;
+    width: min(var(--portal-sidebar-open), calc(100vw - 54px)) !important;
+    min-width: 0 !important;
+    height: 100dvh;
+    min-height: 100dvh;
+    transform: translateX(-100%);
+    transition: transform .22s ease;
+  }
+
+  .portal-sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  .portal-sidebar.collapsed .ps-nav-label,
+  .portal-sidebar.collapsed .ps-logo-text,
+  .portal-sidebar.collapsed .ps-user-info,
+  .portal-sidebar.collapsed .ps-nav-badge,
+  .portal-sidebar.collapsed .ps-toggle-switch {
+    width: auto;
+    opacity: 1;
+    overflow: visible;
+    pointer-events: auto;
+  }
+
+  .portal-sidebar.collapsed .ps-nav-item,
+  .portal-sidebar.collapsed .ps-user {
+    justify-content: flex-start;
+  }
+
+  .portal-sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 29990;
+    border: 0;
+    background: rgba(26, 26, 26, .28);
+    backdrop-filter: blur(1px);
+    cursor: pointer;
+  }
+
+  body.portal-mobile-nav-open .portal-sidebar-backdrop {
+    display: block;
+  }
+
+  .portal-mobile-nav-toggle {
+    position: fixed;
+    top: max(12px, env(safe-area-inset-top));
+    left: max(12px, env(safe-area-inset-left));
+    z-index: 29980;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--portal-border);
+    border-radius: 10px;
+    background: var(--portal-surface);
+    color: var(--portal-orange-red);
+    box-shadow: var(--portal-shadow);
+    cursor: pointer;
+  }
+
+  body.portal-mobile-nav-open .portal-mobile-nav-toggle {
+    visibility: hidden;
+  }
+
+  .shell:has(.portal-sidebar) > main.workspace:not(.digital-task-page),
+  .shell:has(.portal-sidebar) > main.ledger-page,
+  .shell:has(.portal-sidebar) > .workspace:not(.digital-task-page),
+  .shell:has(.portal-sidebar) > .ledger-page {
+    padding-top: calc(var(--portal-page-gutter) + 48px) !important;
+  }
+}
+
+@media (max-width: 700px) {
+  .portal-page-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .portal-page-header-actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}

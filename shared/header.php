@@ -15,6 +15,9 @@ $notificationLastId = 0;
 $assetVersion = defined('BASE_PATH') && is_file(BASE_PATH . '/assets/css/portal.css')
     ? (string) filemtime(BASE_PATH . '/assets/css/portal.css')
     : (string) time();
+$responsiveAssetVersion = defined('BASE_PATH') && is_file(BASE_PATH . '/assets/css/portal-responsive.css')
+    ? (string) filemtime(BASE_PATH . '/assets/css/portal-responsive.css')
+    : $assetVersion;
 ?>
 <!doctype html>
 <html lang="en">
@@ -26,6 +29,7 @@ $assetVersion = defined('BASE_PATH') && is_file(BASE_PATH . '/assets/css/portal.
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal.css?v=<?= htmlspecialchars($assetVersion, ENT_QUOTES, 'UTF-8') ?>">
+    <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal-responsive.css?v=<?= htmlspecialchars($responsiveAssetVersion, ENT_QUOTES, 'UTF-8') ?>">
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/vendor/flatpickr/flatpickr.min.css?v=<?= htmlspecialchars((string) filemtime(BASE_PATH . '/assets/vendor/flatpickr/flatpickr.min.css'), ENT_QUOTES, 'UTF-8') ?>">
     <?php foreach (($extraStylesheets ?? []) as $stylesheet): ?>
         <?php

@@ -99,7 +99,11 @@ $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bo
 .shell:has(.portal-sidebar)>main.workspace.module>.module-header{width:100%;max-width:none}
 @media (max-width:760px){.shell:has(.portal-sidebar)>main.workspace:not(.digital-task-page),.shell:has(.portal-sidebar)>main.ledger-page,.shell:has(.portal-sidebar)>.workspace:not(.digital-task-page),.shell:has(.portal-sidebar)>.ledger-page{padding:18px}}
 </style>
-<aside class="portal-sidebar" id="portalSidebar" aria-label="Portal navigation">
+<button class="portal-mobile-nav-toggle" id="portalMobileNavToggle" type="button" aria-controls="portalSidebar" aria-expanded="false" aria-label="Open navigation">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+</button>
+<button class="portal-sidebar-backdrop" id="portalSidebarBackdrop" type="button" aria-label="Close navigation" tabindex="-1"></button>
+<aside class="portal-sidebar" id="portalSidebar" aria-label="Portal navigation" aria-hidden="false">
     <div class="ps-header">
         <div class="ps-logo">
             <div class="ps-logo-mark">H</div>
@@ -156,8 +160,46 @@ $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bo
     </div>
 </aside>
 <script>
-function toggleSidebar(){const sidebar=document.getElementById('portalSidebar');if(!sidebar)return;const collapsed=sidebar.classList.toggle('collapsed');localStorage.setItem('sidebarCollapsed',collapsed?'1':'0');document.body.classList.toggle('sidebar-collapsed',collapsed)}
-(function(){const sidebar=document.getElementById('portalSidebar');if(!sidebar)return;if(localStorage.getItem('sidebarCollapsed')==='1'){sidebar.classList.add('collapsed');document.body.classList.add('sidebar-collapsed')}const mobileToggle=document.querySelector('.mobile-nav-toggle');if(mobileToggle){mobileToggle.addEventListener('click',function(){sidebar.classList.toggle('mobile-open')})}})();
+function toggleSidebar(){const sidebar=document.getElementById('portalSidebar');if(!sidebar)return;if(window.matchMedia('(max-width: 900px)').matches){window.portalSidebarNavigation?.open();return}const collapsed=sidebar.classList.toggle('collapsed');localStorage.setItem('sidebarCollapsed',collapsed?'1':'0');document.body.classList.toggle('sidebar-collapsed',collapsed)}
+(function(){
+    const sidebar=document.getElementById('portalSidebar');
+    const mobileToggle=document.getElementById('portalMobileNavToggle');
+    const backdrop=document.getElementById('portalSidebarBackdrop');
+    if(!sidebar)return;
+    const mobileQuery=window.matchMedia('(max-width: 900px)');
+    let lastFocused=null;
+    const focusable=()=>Array.from(sidebar.querySelectorAll('a[href],button:not([disabled]),[tabindex]:not([tabindex="-1"])'));
+    const setOpen=(open)=>{
+        if(!mobileQuery.matches)open=false;
+        sidebar.classList.toggle('mobile-open',open);
+        document.body.classList.toggle('portal-mobile-nav-open',open);
+        mobileToggle?.setAttribute('aria-expanded',open?'true':'false');
+        mobileToggle?.setAttribute('aria-label',open?'Close navigation':'Open navigation');
+        sidebar.setAttribute('aria-hidden',mobileQuery.matches&&!open?'true':'false');
+        if(open){lastFocused=document.activeElement;requestAnimationFrame(()=>focusable()[0]?.focus())}
+        else if(lastFocused instanceof HTMLElement){lastFocused.focus();lastFocused=null}
+    };
+    window.portalSidebarNavigation={open:()=>setOpen(true),close:()=>setOpen(false)};
+    if(!mobileQuery.matches&&localStorage.getItem('sidebarCollapsed')==='1'){sidebar.classList.add('collapsed');document.body.classList.add('sidebar-collapsed')}
+    mobileToggle?.addEventListener('click',()=>setOpen(!sidebar.classList.contains('mobile-open')));
+    backdrop?.addEventListener('click',()=>setOpen(false));
+    sidebar.querySelectorAll('a[href]').forEach(link=>link.addEventListener('click',()=>{if(mobileQuery.matches)setOpen(false)}));
+    document.addEventListener('keydown',(event)=>{
+        if(!sidebar.classList.contains('mobile-open'))return;
+        if(event.key==='Escape'){event.preventDefault();setOpen(false);return}
+        if(event.key!=='Tab')return;
+        const items=focusable();if(!items.length)return;
+        const first=items[0],last=items[items.length-1];
+        if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus()}
+        else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()}
+    });
+    const syncViewport=()=>{
+        if(!mobileQuery.matches){setOpen(false);sidebar.setAttribute('aria-hidden','false')}
+        else{sidebar.classList.remove('collapsed');document.body.classList.remove('sidebar-collapsed');sidebar.setAttribute('aria-hidden',sidebar.classList.contains('mobile-open')?'false':'true')}
+    };
+    mobileQuery.addEventListener?.('change',syncViewport);
+    syncViewport();
+})();
 function toggleDarkMode(){const dark=document.body.classList.toggle('dark-mode');localStorage.setItem('darkMode',dark?'1':'0')}
 (function(){if(localStorage.getItem('darkMode')==='1'){document.body.classList.add('dark-mode')}})();
 </script>
