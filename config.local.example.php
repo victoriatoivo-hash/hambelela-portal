@@ -17,7 +17,6 @@ return [
     'wc_consumer_secret' => 'paste-new-read-only-consumer-secret-here',
 
     'monday_api_token' => 'paste-your-monday-api-token-here',
-    'monday_packing_board_id' => '1590283675',
 
     // Embedded HR Portal database.
     // By default, apps/hr-portal reads the live HR config from:

@@ -149,10 +149,7 @@ function packing_extract_lines_from_text(string $text): array
 
 function packing_monday_configured(): bool
 {
-    return defined('MONDAY_API_TOKEN')
-        && defined('MONDAY_PACKING_BOARD_ID')
-        && MONDAY_API_TOKEN !== ''
-        && MONDAY_PACKING_BOARD_ID !== '';
+    return false;
 }
 
 function packing_monday_normalize(string $value): string
@@ -167,44 +164,7 @@ function packing_string_contains(string $haystack, string $needle): bool
 
 function packing_monday_api(string $query, array $variables = []): array
 {
-    if (!packing_monday_configured()) {
-        throw new RuntimeException('Monday.com is not configured. Add monday_api_token and monday_packing_board_id to config.local.php.');
-    }
-    if (!function_exists('curl_init')) {
-        throw new RuntimeException('The PHP cURL extension is required for Monday.com sync.');
-    }
-
-    $ch = curl_init('https://api.monday.com/v2');
-    curl_setopt_array($ch, [
-        CURLOPT_POST => true,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            'Authorization: ' . MONDAY_API_TOKEN,
-            'Content-Type: application/json',
-        ],
-        CURLOPT_POSTFIELDS => json_encode(['query' => $query, 'variables' => $variables]),
-        CURLOPT_TIMEOUT => 45,
-    ]);
-
-    $raw = curl_exec($ch);
-    $curlError = curl_error($ch);
-    $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($raw === false || $curlError !== '') {
-        throw new RuntimeException('Monday.com connection failed: ' . $curlError);
-    }
-
-    $payload = json_decode((string) $raw, true);
-    if (!is_array($payload)) {
-        throw new RuntimeException('Monday.com returned an invalid response.');
-    }
-    if ($status >= 400 || !empty($payload['errors'])) {
-        $message = $payload['errors'][0]['message'] ?? 'Monday.com API request failed.';
-        throw new RuntimeException($message);
-    }
-
-    return $payload['data'] ?? [];
+    throw new RuntimeException('Packing List Monday integration has been removed.');
 }
 
 function packing_monday_board_payload(): array
