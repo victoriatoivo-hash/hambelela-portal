@@ -332,7 +332,7 @@
 .orders-page .ob-summary-bar, .orders-page .stacked-bar { min-height: 18px; border-radius: 999px; overflow: hidden; }
 .orders-page .board-empty-state { padding: 40px 20px; border: 1px dashed var(--orders-border); border-radius: 12px; background: #fff; color: var(--orders-muted); text-align: center; }
 
-.orders-page .label-menu, body > .label-menu { z-index:10050; width:min(240px,calc(100vw - 16px)); opacity:0; visibility:hidden; pointer-events:none; transform:translateY(-5px) scale(.985); transition:opacity .16s ease,visibility .16s ease,transform .16s ease; }
+.orders-page .label-menu, body > .label-menu { z-index:10050; width:min(240px,calc(100vw - 16px)); max-height:calc(100vh - 16px); overflow-y:auto; opacity:0; visibility:hidden; pointer-events:none; transform:translateY(-5px) scale(.985); transition:opacity .16s ease,visibility .16s ease,transform .16s ease; }
 .orders-page .label-menu.is-open, body > .label-menu.is-open { opacity:1; visibility:visible; pointer-events:auto; transform:translateY(0) scale(1); }
 .orders-page .label-menu-grid button, body > .label-menu .label-menu-grid button { min-height:32px; font-size:12px; transition:transform .15s ease,filter .15s ease,box-shadow .15s ease; }
 .orders-page .label-menu-grid button:hover, body > .label-menu .label-menu-grid button:hover { transform:translateX(2px); filter:brightness(1.04); box-shadow:0 5px 12px rgba(114,27,26,.12); }
