@@ -2447,10 +2447,20 @@
     }
 
     const assignOption = currentUser.can_edit_packed_by ? optionButton('Assign unassigned orders', 'assign', '') : '';
-    return `<div class="toolbar-panel">
-      ${optionButton('Sync website orders', 'sync', '')}
-      ${assignOption}
-      ${optionButton('Toggle light/dark mode', 'theme', '')}
+    return `<div class="toolbar-panel toolbar-columns orders-more-panel">
+      <div><strong>Picker</strong>
+        ${optionButton('All pickers', 'person', '', boardState.person === '')}
+        ${currentUser.id ? optionButton('Only my orders', 'person', '__me__', boardState.person === '__me__') : ''}
+        ${uniqueValues('packer_name').map((name) => optionButton(name, 'person', name, boardState.person === name)).join('')}
+      </div>
+      <div><strong>Visible columns</strong>
+        ${columns.map(([key, label]) => `<label class="toolbar-check"><input type="checkbox" data-hide-column="${esc(key)}" ${boardState.hidden.has(key) ? 'checked' : ''}> ${esc(label)}</label>`).join('')}
+      </div>
+      <div><strong>Board tools</strong>
+        ${optionButton('Sync website orders', 'sync', '')}
+        ${assignOption}
+        ${optionButton('Toggle light/dark mode', 'theme', '')}
+      </div>
     </div>`;
   }
 
