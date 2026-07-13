@@ -7,7 +7,8 @@ require_once BASE_PATH . '/shared/notifications.php';
 
 require_login();
 
-header('Content-Type: application/json');
+header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: no-store');
 
 try {
     $action = (string) ($_POST['action'] ?? $_GET['action'] ?? 'list');
@@ -34,8 +35,8 @@ try {
     }
 
     $payload = notifications_for_current_user(12);
-    echo json_encode(['ok' => true] + $payload);
+    echo json_encode(['ok' => true] + $payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 } catch (Throwable $e) {
     http_response_code(500);
-    echo json_encode(['ok' => false, 'message' => 'Notifications are temporarily unavailable.']);
+    echo json_encode(['ok' => false, 'message' => 'Notifications are temporarily unavailable.'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 }
