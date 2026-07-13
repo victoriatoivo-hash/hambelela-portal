@@ -11,6 +11,7 @@
   const metricNodes = document.querySelectorAll('[data-work-metric]');
   const labelMenu = document.getElementById('board-label-menu');
   const toolbarPopover = document.getElementById('toolbar-popover');
+  const filterMenu = document.getElementById('orders-filter-menu');
   const panel = document.getElementById('order-updates-panel');
   const backdrop = document.getElementById('panel-backdrop');
   const panelTitle = document.getElementById('panel-order-title');
@@ -23,6 +24,7 @@
   const panelUpdatesTab = document.getElementById('panel-updates-tab');
   const schedulePopover = document.getElementById('order-schedule-popover');
   const panelActivity = document.getElementById('panel-activity-log');
+  const panelDetails = document.getElementById('panel-order-details');
   const undoButton = document.querySelector('[data-undo-board]');
 
   if (!body || !config.dataUrl || !config.actionUrl) return;
@@ -53,6 +55,13 @@
     groupBy: 'date',
     hidden: new Set()
   };
+  const filterOptions = {
+    status: [['', 'All statuses'], ['new_order', 'New Order'], ['in_progress', 'In Progress'], ['completed', 'Complete']],
+    mode: [['', 'All modes'], ['collection', 'Collection'], ['delivery', 'Delivery'], ['courier', 'Courier']],
+    payment: [['', 'All payments'], ['Cash', 'Cash'], ['EFT', 'EFT'], ['Ewallet', 'Ewallet'], ['Bluewallet', 'Bluewallet'], ['Swipe', 'Swipe']],
+    group: [['date', 'Date'], ['status', 'Status'], ['packer', 'Packed by'], ['mode', 'Mode']]
+  };
+  let activeFilterSelect = null;
 
   const columns = [
     ['select', 'Select'], ['task', 'Task'], ['updates', 'Updates'], ['date', 'Date'],
@@ -142,6 +151,37 @@
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
   })[char]);
   const selectorEsc = (value) => window.CSS && CSS.escape ? CSS.escape(String(value)) : String(value).replace(/["\\]/g, '\\$&');
+
+  function closeOrdersFilterMenu() {
+    if (!filterMenu) return;
+    filterMenu.hidden = true;
+    activeFilterSelect?.querySelector('[data-orders-filter-trigger]')?.setAttribute('aria-expanded', 'false');
+    activeFilterSelect = null;
+  }
+
+  function positionOrdersFilterMenu(trigger) {
+    if (!filterMenu || !trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    const width = Math.max(210, rect.width);
+    filterMenu.style.width = `${width}px`;
+    const menuHeight = Math.min(filterMenu.scrollHeight || 260, 360);
+    const opensUp = rect.bottom + menuHeight + 8 > window.innerHeight && rect.top > menuHeight;
+    filterMenu.style.left = `${Math.min(Math.max(8, rect.left), window.innerWidth - width - 8)}px`;
+    filterMenu.style.top = `${opensUp ? Math.max(8, rect.top - menuHeight - 6) : Math.min(window.innerHeight - menuHeight - 8, rect.bottom + 6)}px`;
+  }
+
+  function openOrdersFilterMenu(container) {
+    if (!filterMenu || !container) return;
+    const type = container.dataset.ordersFilterSelect;
+    const input = container.querySelector('input');
+    const trigger = container.querySelector('[data-orders-filter-trigger]');
+    const options = filterOptions[type] || [];
+    activeFilterSelect = container;
+    filterMenu.innerHTML = options.map(([value, label]) => `<button type="button" class="${String(input?.value || '') === String(value) ? 'is-selected' : ''}" data-orders-filter-option="${esc(value)}">${esc(label)}</button>`).join('');
+    filterMenu.hidden = false;
+    trigger?.setAttribute('aria-expanded', 'true');
+    positionOrdersFilterMenu(trigger);
+  }
 
   const money = (value) => {
     const amount = Number(value || 0);
@@ -458,9 +498,7 @@
 
     const finish = (nextOrder = order) => {
       renderEditableCell(cell, nextOrder, field);
-      if (field === 'customer_name' || field === 'total_amount' || field === 'assigned_packer_id') {
-        renderOrders(ordersCache);
-      }
+      if (field === 'total_amount' && nextOrder) refreshGroupSummaries([groupKey(nextOrder)]);
     };
 
     const cancel = () => {
@@ -654,7 +692,33 @@
     const orderIds = currentSelectedIdsFor(orderId);
     const changes = await updateOrdersField(orderIds, field, value);
     closeLabelMenu();
-    renderOrders(ordersCache);
+    const groupingField = { status: 'status', order_type: 'mode', assigned_packer_id: 'packer' }[field];
+    if (groupingField && boardState.groupBy === groupingField) {
+      renderOrders(ordersCache);
+    } else {
+      const options = field === 'order_type' ? modeLabels : field === 'payment_method' ? paymentLabels : statusLabels;
+      const cellClass = field === 'order_type' ? 'col-mode' : field === 'payment_method' ? 'col-payment' : 'col-status';
+      orderIds.forEach((id) => {
+        const order = ordersCache.find((item) => String(item.id) === String(id));
+        const row = body.querySelector(`.monday-order-row[data-order-id="${selectorEsc(id)}"]`);
+        if (!order || !row) return;
+        if (field === 'assigned_packer_id') {
+          const cell = row.querySelector('.col-packedby');
+          if (cell) cell.innerHTML = `<button type="button" class="orders-people-trigger" data-label-field="assigned_packer_id" data-order-id="${esc(id)}">${renderPackerCell(order)}</button>`;
+          return;
+        }
+        const cell = row.querySelector(`.${cellClass}`);
+        if (!cell) return;
+        cell.style.setProperty('--cell-fill-color', findColor(options, value));
+        cell.innerHTML = renderLabelCell(order, field, value, options, field === 'order_type' ? 'mode-label' : field === 'payment_method' ? 'payment-label' : 'status-label');
+      });
+      const groupKeys = orderIds.map((id) => {
+        const order = ordersCache.find((item) => String(item.id) === String(id));
+        return order ? groupKey(order) : '';
+      }).filter(Boolean);
+      refreshGroupSummaries(groupKeys);
+      updateWorkMetrics(visibleOrders());
+    }
     if (field === 'status') playCompleteConfettiForChanges(changes, value);
   }
 
@@ -1750,15 +1814,58 @@
   }
 
   function renderPaidCell(order) {
-    return order.payment_status === 'paid' ? '<span class="paid-icon" aria-hidden="true">✓</span>' : '';
+    return order.payment_status === 'paid' ? '<span class="paid-icon" aria-hidden="true">&#10003;</span>' : '';
+  }
+
+  function refreshGroupSummaries(groupKeys) {
+    const groups = groupedOrders(visibleOrders());
+    [...new Set(groupKeys)].forEach((key) => {
+      if (!groups[key]) return;
+      const current = body.querySelector(`[data-group-card="${selectorEsc(key)}"]`);
+      if (!current) return;
+      const template = document.createElement('template');
+      template.innerHTML = renderGroup(key, groups[key], Object.keys(groups).indexOf(key));
+      const next = template.content.querySelector('[data-group-card]');
+      const nextSummary = next?.querySelector('.monday-group-summary');
+      const nextFooter = next?.querySelector('.ob-group-footer');
+      if (nextSummary) current.querySelector('.monday-group-summary')?.replaceWith(nextSummary);
+      const currentFooter = current.querySelector('.ob-group-footer');
+      if (currentFooter && nextFooter) currentFooter.replaceWith(nextFooter);
+    });
+    if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
   }
 
   async function togglePaidCell(paidCell) {
     const orderId = paidCell.dataset.paidToggle;
     if (!orderId) return;
     const value = paidCell.dataset.paidState === 'paid' ? 'unpaid' : 'paid';
-    await updateOrdersField(currentSelectedIdsFor(orderId), 'payment_status', value);
-    renderOrders(ordersCache);
+    const ids = currentSelectedIdsFor(orderId);
+    const previous = ids.map((id) => {
+      const order = ordersCache.find((item) => String(item.id) === String(id));
+      return [String(id), order?.payment_status || 'unpaid'];
+    });
+    const groupKeys = ids.map((id) => {
+      const order = ordersCache.find((item) => String(item.id) === String(id));
+      return order ? groupKey(order) : '';
+    }).filter(Boolean);
+    const paint = (id, state) => {
+      const cell = body.querySelector(`[data-paid-toggle="${selectorEsc(id)}"]`);
+      if (!cell) return;
+      cell.dataset.paidState = state;
+      cell.classList.toggle('is-paid', state === 'paid');
+      cell.classList.toggle('unpaid', state !== 'paid');
+      cell.innerHTML = state === 'paid' ? '<span class="paid-icon" aria-hidden="true">&#10003;</span>' : '';
+      cell.setAttribute('aria-label', state === 'paid' ? 'Mark order unpaid' : 'Mark order paid');
+    };
+    ids.forEach((id) => paint(id, value));
+    try {
+      await updateOrdersField(ids, 'payment_status', value);
+      refreshGroupSummaries(groupKeys);
+      updateWorkMetrics(visibleOrders());
+    } catch (error) {
+      previous.forEach(([id, state]) => paint(id, state));
+      throw error;
+    }
   }
 
   function renderGroup(key, orders, index) {
@@ -1846,7 +1953,7 @@
           <div class="monday-cell col-payment"${labelCellStyle(paymentLabels, order.payment_method || 'Cash')}>${renderLabelCell(order, 'payment_method', order.payment_method || 'Cash', paymentLabels, 'payment-label')}</div>
           <div class="monday-cell paid-cell col-paid ${order.payment_status === 'paid' ? 'is-paid' : 'unpaid'}" data-paid-toggle="${esc(order.id)}" data-paid-state="${order.payment_status === 'paid' ? 'paid' : 'unpaid'}" role="button" tabindex="0" aria-label="${order.payment_status === 'paid' ? 'Mark order unpaid' : 'Mark order paid'}">${renderPaidCell(order)}</div>
           <div class="monday-cell col-status"${labelCellStyle(statusLabels, order.status || 'new_order')}>${renderLabelCell(order, 'status', order.status || 'new_order', statusLabels, 'status-label')}</div>
-          <div class="monday-cell editable-cell col-packedby" data-editable-order-field="assigned_packer_id" data-order-id="${esc(order.id)}" data-value="${esc(order.assigned_packer_id || '')}" tabindex="0">${renderPackerCell(order)}<small class="pick-duration">${esc(durationText(order.packing_started_at, order.completed_at || order.packed_at))}</small></div>
+          <div class="monday-cell col-packedby"><button type="button" class="orders-people-trigger" data-label-field="assigned_packer_id" data-order-id="${esc(order.id)}">${renderPackerCell(order)}</button></div>
           <div class="monday-cell notes-cell col-text"><button type="button" data-expand-note>${esc(order.notes || '')}</button></div>
           ${renderCustomCells()}
           <div class="monday-cell add-column-cell"></div>
@@ -2178,8 +2285,9 @@
           <button type="button" style="--label-color:${esc(itemColor(item))}" data-label-value="${esc(item[0])}" data-label-field="${esc(field)}" data-label-order="${esc(orderId)}">${esc(itemText(item))}</button>
         `).join('')}
       </div>
-      ${field === 'assigned_packer_id' ? '' : `<button class="edit-labels" type="button" data-edit-labels="${esc(field)}"><i data-lucide="pencil"></i> Edit Labels</button>`}
-      <button class="edit-labels" type="button">Auto-assign labels</button>
+      ${field === 'assigned_packer_id'
+        ? '<button class="edit-labels" type="button" data-edit-order-people><i data-lucide="users"></i> Edit people</button>'
+        : `<button class="edit-labels" type="button" data-edit-labels="${esc(field)}"><i data-lucide="pencil"></i> Edit Labels</button>`}
     `;
     requestAnimationFrame(() => labelMenu.classList.add('is-open'));
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
@@ -2774,6 +2882,19 @@
     document.querySelector('[data-panel-name="updates"]')?.classList.add('active');
     resetPanelComposer();
     renderPanelUpdates();
+    if (panelDetails) {
+      panelDetails.innerHTML = [
+        ['Order', currentOrder.order_number || ''],
+        ['Customer', currentOrder.customer_name || ''],
+        ['Date', prettyDate(orderDisplayDateTime(currentOrder))],
+        ['Mobile number', currentOrder.customer_contact || ''],
+        ['Mode', findText(modeLabels, currentOrder.order_type || '')],
+        ['Amount', money(currentOrder.total_amount)],
+        ['Payment', currentOrder.payment_method || ''],
+        ['Status', findText(statusLabels, currentOrder.status || '')],
+        ['Packed by', currentOrder.packer_name || 'Unassigned']
+      ].map(([label, value]) => `<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join('');
+    }
     panelActivity.innerHTML = `
       <div class="activity-line">Created ${esc(prettyDate(orderDisplayDateTime(currentOrder)))}</div>
       <div class="activity-line">Status: ${esc(findText(statusLabels, currentOrder.status))}</div>
@@ -3054,8 +3175,38 @@
     const addLabel = event.target.closest('[data-add-label-row]');
     const saveLabels = event.target.closest('[data-save-labels]');
     const bulkAction = event.target.closest('[data-order-bulk-action]');
+    const editOrderPeople = event.target.closest('[data-edit-order-people]');
+    const filterTrigger = event.target.closest('[data-orders-filter-trigger]');
+    const filterOption = event.target.closest('[data-orders-filter-option]');
 
     try {
+      if (filterTrigger) {
+        event.preventDefault();
+        const container = filterTrigger.closest('[data-orders-filter-select]');
+        if (activeFilterSelect === container && !filterMenu?.hidden) closeOrdersFilterMenu();
+        else openOrdersFilterMenu(container);
+        return;
+      }
+
+      if (filterOption && activeFilterSelect) {
+        event.preventDefault();
+        const input = activeFilterSelect.querySelector('input');
+        const label = activeFilterSelect.querySelector('[data-orders-filter-trigger] span');
+        if (input) {
+          input.value = filterOption.dataset.ordersFilterOption || '';
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if (label) label.textContent = filterOption.textContent || '';
+        closeOrdersFilterMenu();
+        return;
+      }
+
+      if (editOrderPeople) {
+        event.preventDefault();
+        if (currentUser.employee_accounts_url) window.location.href = currentUser.employee_accounts_url;
+        return;
+      }
+
       if (editorCommand) {
         event.preventDefault();
         event.stopPropagation();
@@ -3433,7 +3584,14 @@
         boardState.mode = '';
         boardState.payment = '';
         boardState.status = '';
-        document.querySelectorAll('[data-board-filter]').forEach((select) => { select.value = ''; });
+        document.querySelectorAll('[data-board-filter]').forEach((input) => {
+          input.value = '';
+          const container = input.closest('[data-orders-filter-select]');
+          const type = container?.dataset.ordersFilterSelect;
+          const label = container?.querySelector('[data-orders-filter-trigger] span');
+          const defaultOption = (filterOptions[type] || []).find(([value]) => value === '');
+          if (label && defaultOption) label.textContent = defaultOption[1];
+        });
         const searchInput = document.querySelector('[data-board-search]');
         if (searchInput) searchInput.value = '';
         boardDateScope = 'month';
@@ -3496,6 +3654,7 @@
   document.addEventListener('click', (event) => {
     if (!event.target.closest('#board-label-menu') && !event.target.closest('[data-label-field]')) closeLabelMenu();
     if (!event.target.closest('#toolbar-popover') && !event.target.closest('[data-toolbar]')) closeToolbar();
+    if (!event.target.closest('#orders-filter-menu') && !event.target.closest('[data-orders-filter-select]')) closeOrdersFilterMenu();
     if (activeDateSortGroup && !event.target.closest('[data-date-sort-cell]')) closeDateSortPopover();
     if (event.target.closest('.order-update-composer')) {
       panelComposer?.classList.add('is-focused');

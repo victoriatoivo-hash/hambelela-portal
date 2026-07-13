@@ -15,15 +15,21 @@ $isAdminBoard = user_has_role('owner_admin', 'supervisor_manager');
 $canBulkAssign = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
 $canEditHeaders = current_role_key() !== 'guest';
 $boardAssetVersion = is_file(BASE_PATH . '/assets/js/orders-board.js')
-    ? (string) filemtime(BASE_PATH . '/assets/js/orders-board.js') . '-bulk-actions-clean2'
+    ? (string) filemtime(BASE_PATH . '/assets/js/orders-board.js') . '-orders-rebuild'
     : (string) time();
+$ordersStylesVersion = is_file(BASE_PATH . '/assets/css/orders-board.css')
+    ? (string) filemtime(BASE_PATH . '/assets/css/orders-board.css')
+    : (string) time();
+$extraStylesheets = [
+    ['path' => 'assets/css/orders-board.css', 'version' => $ordersStylesVersion],
+];
 
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
-<main class="workspace module ops-board-page ob-wrap" data-board-theme="light">
-    <section class="monday-board-top">
-        <div class="monday-board-head work-board-head">
+<main class="workspace module ops-board-page portal-page orders-page" data-board-theme="light">
+    <section class="monday-board-top orders-page-top">
+        <header class="monday-board-head work-board-head portal-page-header orders-page-header">
             <div>
                 <h1>Hambelela Orders <i data-lucide="chevron-down"></i></h1>
             </div>
@@ -33,9 +39,9 @@ include BASE_PATH . '/shared/sidebar.php';
                 <button type="button" data-undo-board disabled><i data-lucide="undo-2"></i> Undo</button>
                 <button type="button" data-theme-toggle><i data-lucide="moon"></i></button>
             </div>
-        </div>
+        </header>
 
-        <section class="work-metric-grid <?= $isAdminBoard ? 'admin-metrics' : '' ?>" aria-label="Work summary">
+        <section class="work-metric-grid portal-stat-grid orders-stat-grid <?= $isAdminBoard ? 'admin-metrics' : '' ?>" aria-label="Work summary">
             <?php if ($isAdminBoard): ?>
                 <article class="work-metric-card metric-blue"><span class="metric-icon"><i data-lucide="shopping-bag"></i></span><div><span class="metric-title">Total Orders</span><strong data-work-metric="total_orders">0</strong><small>All time</small></div></article>
                 <article class="work-metric-card metric-slate"><span class="metric-icon"><i data-lucide="file-plus-2"></i></span><div><span class="metric-title">New Orders</span><strong data-work-metric="new_today">0</strong><small>Today</small></div></article>
@@ -52,7 +58,7 @@ include BASE_PATH . '/shared/sidebar.php';
             <?php endif; ?>
         </section>
 
-        <section class="ob-video-toolbar" aria-label="Monday board toolbar">
+        <section class="ob-video-toolbar orders-tools-bar" aria-label="Orders tools">
             <button type="button" class="ob-view-selector"><i data-lucide="table-2"></i> Main table <i data-lucide="chevron-down"></i></button>
             <button type="button" class="ob-new-task" data-board-action="sync"><span>New task</span><i data-lucide="chevron-down"></i></button>
             <label class="ob-toolbar-search"><i data-lucide="search"></i><input data-board-search type="search" placeholder="Search"></label>
@@ -63,7 +69,7 @@ include BASE_PATH . '/shared/sidebar.php';
             <button type="button" data-toolbar="more"><i data-lucide="ellipsis"></i></button>
         </section>
 
-        <section class="work-filter-bar" aria-label="Board filters">
+        <section class="work-filter-bar portal-filter-panel orders-filter-panel" aria-label="Board filters">
             <label>Date Range
                 <div class="date-filter-row">
                     <input id="board-date-filter" type="date" value="<?= htmlspecialchars($defaultBoardDate, ENT_QUOTES, 'UTF-8') ?>">
@@ -71,38 +77,28 @@ include BASE_PATH . '/shared/sidebar.php';
                 </div>
             </label>
             <label>Status
-                <select data-board-filter="status">
-                    <option value="">All</option>
-                    <option value="new_order">New Order</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="completed">Complete</option>
-                </select>
+                <div class="orders-filter-select" data-orders-filter-select="status">
+                    <input type="hidden" data-board-filter="status" value="">
+                    <button type="button" class="orders-filter-trigger" data-orders-filter-trigger aria-haspopup="listbox" aria-expanded="false"><span>All statuses</span><i data-lucide="chevron-down"></i></button>
+                </div>
             </label>
             <label>Mode
-                <select data-board-filter="mode">
-                    <option value="">All</option>
-                    <option value="collection">Collection</option>
-                    <option value="delivery">Delivery</option>
-                    <option value="courier">Courier</option>
-                </select>
+                <div class="orders-filter-select" data-orders-filter-select="mode">
+                    <input type="hidden" data-board-filter="mode" value="">
+                    <button type="button" class="orders-filter-trigger" data-orders-filter-trigger aria-haspopup="listbox" aria-expanded="false"><span>All modes</span><i data-lucide="chevron-down"></i></button>
+                </div>
             </label>
             <label>Payment
-                <select data-board-filter="payment">
-                    <option value="">All</option>
-                    <option value="Cash">Cash</option>
-                    <option value="EFT">EFT</option>
-                    <option value="Ewallet">Ewallet</option>
-                    <option value="Bluewallet">Bluewallet</option>
-                    <option value="Swipe">Swipe</option>
-                </select>
+                <div class="orders-filter-select" data-orders-filter-select="payment">
+                    <input type="hidden" data-board-filter="payment" value="">
+                    <button type="button" class="orders-filter-trigger" data-orders-filter-trigger aria-haspopup="listbox" aria-expanded="false"><span>All payments</span><i data-lucide="chevron-down"></i></button>
+                </div>
             </label>
             <label>Group By
-                <select data-board-group-select>
-                    <option value="date">Date</option>
-                    <option value="status">Status</option>
-                    <option value="packer">Packed by</option>
-                    <option value="mode">Mode</option>
-                </select>
+                <div class="orders-filter-select" data-orders-filter-select="group">
+                    <input type="hidden" data-board-group-select value="date">
+                    <button type="button" class="orders-filter-trigger" data-orders-filter-trigger aria-haspopup="listbox" aria-expanded="false"><span>Date</span><i data-lucide="chevron-down"></i></button>
+                </div>
             </label>
             <label class="work-search">Search Orders
                 <input data-board-search type="search" placeholder="Search orders...">
@@ -121,7 +117,7 @@ include BASE_PATH . '/shared/sidebar.php';
         <section class="ops-alert">Import <code>operations-live-board-migration.sql</code> in phpMyAdmin first. This adds packer lunch/availability tracking.</section>
     <?php endif; ?>
 
-    <section class="monday-control-strip">
+    <section class="monday-control-strip orders-availability-bar">
         <div class="availability-switch-wrap">
             <span>Available</span>
             <button class="availability-switch is-available" type="button" data-availability-toggle aria-pressed="true">
@@ -133,9 +129,9 @@ include BASE_PATH . '/shared/sidebar.php';
         <div class="board-quick-actions"></div>
     </section>
 
-    <section class="ops-board-shell">
-        <div class="ops-board-scroll">
-            <div class="ops-board-table monday-board orders-board-v2" id="orders-board-body">
+    <section class="ops-board-shell orders-date-groups">
+        <div class="ops-board-scroll orders-grid-scroll">
+            <div class="ops-board-table monday-board orders-board-v2 orders-grid-root" id="orders-board-body">
                 <div class="board-empty-state">Loading orders...</div>
             </div>
         </div>
@@ -143,6 +139,7 @@ include BASE_PATH . '/shared/sidebar.php';
 
     <div class="label-menu" id="board-label-menu" hidden></div>
     <div class="toolbar-popover" id="toolbar-popover" hidden></div>
+    <div class="orders-filter-menu" id="orders-filter-menu" role="listbox" hidden></div>
     <aside class="order-updates-panel order-side-panel" id="order-updates-panel" aria-hidden="true">
         <div class="order-panel-header updates-panel-head">
             <button class="order-panel-close" type="button" data-panel-close aria-label="Close order details"><i data-lucide="x"></i></button>
@@ -150,11 +147,14 @@ include BASE_PATH . '/shared/sidebar.php';
             <button class="order-panel-menu" type="button" aria-label="More order actions"><i data-lucide="ellipsis"></i></button>
         </div>
         <nav class="order-panel-tabs updates-tabs">
-            <button class="order-panel-tab is-active active" type="button" data-panel-tab="updates" id="panel-updates-tab">Updates</button>
+            <button type="button" data-panel-tab="details">Details</button>
+            <button class="order-panel-tab is-active active" type="button" data-panel-tab="updates" id="panel-updates-tab">Notes</button>
             <button type="button" data-panel-tab="files">Files</button>
             <button type="button" data-panel-tab="activity">Activity Log</button>
-            <button type="button">+</button>
         </nav>
+        <section class="updates-tab-panel" data-panel-name="details">
+            <dl class="order-details-list" id="panel-order-details"></dl>
+        </section>
         <section class="updates-tab-panel active" data-panel-name="updates">
             <div class="order-update-meta-actions">
                 <span><i data-lucide="mail"></i> Update via email</span>

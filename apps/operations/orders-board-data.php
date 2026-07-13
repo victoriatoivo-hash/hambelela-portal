@@ -193,6 +193,7 @@ echo json_encode([
         'can_edit_packed_by' => in_array($roleKey, ['owner_admin', 'front_desk_admin', 'supervisor_manager'], true),
         'can_bulk_manage' => in_array($roleKey, ['owner_admin', 'front_desk_admin', 'supervisor_manager'], true),
         'can_delete' => in_array($roleKey, ['owner_admin', 'supervisor_manager'], true),
+        'employee_accounts_url' => BASE_URL . '/apps/operations/my-account.php?section=employees',
     ],
     'date' => $date,
     'month' => $month,
