@@ -40,6 +40,7 @@ include BASE_PATH . '/shared/sidebar.php';
             </div>
             <div class="monday-board-head-actions">
                 <?php if ($canViewPackingTools): ?><button type="button" class="packing-tools-button" data-open-packing-tools><i data-lucide="wrench"></i><span>Packing tools</span></button><?php endif; ?>
+                <button type="button" class="packing-btn packing-btn-secondary" data-reset-packing-columns title="Reset column widths"><i data-lucide="columns-3"></i> Reset column widths</button>
                 <button type="button" class="invite-btn packing-btn packing-btn-secondary" data-packing-export><i data-lucide="download"></i> Export Excel</button>
                 <button type="button" class="packing-btn packing-btn-secondary" data-packing-undo style="height:32px;min-height:32px" disabled><i data-lucide="undo-2"></i> Undo</button>
             </div>

@@ -84,13 +84,9 @@
   const packingLabelStorageKey = (field) => `hambelelaPackingLabels:${field}`;
   const baseColumnCount = 12;
   const totalColumnCount = () => baseColumnCount + customColumns.length;
-  const packingColumnStorageKey = 'hambelelaPackingColumnWidths';
+  const packingColumnStoragePrefix = 'hambelelaPackingColumnWidths';
   let columnWidths = {};
-  try {
-    columnWidths = JSON.parse(localStorage.getItem(packingColumnStorageKey) || '{}') || {};
-  } catch (error) {
-    columnWidths = {};
-  }
+  let loadedPackingColumnUser = '';
 
   const baseColumns = [
     { key: 'select', label: '', className: 'check-cell col-checkbox', width: 38 },
@@ -106,6 +102,43 @@
     { key: 'text', label: 'TEXT', className: 'col-text', width: 220 },
     { key: 'add', label: '+', className: 'add-column-cell col-add-btn', width: 48 }
   ];
+
+  const packingColumnStorageKey = () => `${packingColumnStoragePrefix}:${String(currentUser.id || 'anonymous')}`;
+
+  function loadPackingColumnWidths() {
+    const userKey = packingColumnStorageKey();
+    if (loadedPackingColumnUser === userKey) return;
+    try {
+      columnWidths = JSON.parse(localStorage.getItem(userKey) || '{}') || {};
+    } catch (error) {
+      columnWidths = {};
+    }
+    loadedPackingColumnUser = userKey;
+  }
+
+  function savePackingColumnWidths() {
+    localStorage.setItem(packingColumnStorageKey(), JSON.stringify(columnWidths));
+  }
+
+  function packingColumnLimits(key) {
+    if (key === 'item') return [160, 520];
+    if (key === 'notes') return [42, 90];
+    if (key === 'date_loaded') return [125, 260];
+    if (key === 'priority') return [110, 220];
+    if (key === 'quantity_to_pack') return [140, 420];
+    if (key === 'person') return [145, 300];
+    if (key === 'quantity_packed') return [140, 360];
+    if (key === 'date_completed') return [130, 260];
+    if (key === 'status') return [120, 240];
+    if (key === 'text') return [180, 600];
+    if (key.startsWith('custom_')) return [80, 400];
+    return [80, 400];
+  }
+
+  function clampPackingColumnWidth(key, width) {
+    const [minimum, maximum] = packingColumnLimits(key);
+    return Math.min(maximum, Math.max(minimum, Math.round(Number(width) || minimum)));
+  }
 
   function storedHeaderLabels() {
     try { return JSON.parse(localStorage.getItem('hambelelaPackingHeaders') || '{}') || {}; } catch (error) { return {}; }
@@ -132,7 +165,8 @@
   function columnWidth(column) {
     const minWidth = column.key === 'select' ? 38 : column.key === 'add' ? 48 : 58;
     if (column.key === 'select') return 38;
-    return Math.max(minWidth, Number(columnWidths[column.key] || column.width || minWidth));
+    if (column.key === 'add') return 48;
+    return clampPackingColumnWidth(column.key, columnWidths[column.key] || column.width || minWidth);
   }
 
   function packingColumnClass(key) {
@@ -765,37 +799,72 @@
   function makeColumnsResizable(table) {
     if (!table) return;
     table.querySelectorAll('thead th').forEach((th) => {
-      th.querySelector('.col-resizer')?.remove();
+      th.querySelector('.packing-column-resizer')?.remove();
       const key = th.dataset.columnKey || '';
       if (!key || key === 'select' || key === 'add') return;
 
       const resizer = document.createElement('div');
-      resizer.className = 'col-resizer';
+      const [minimum, maximum] = packingColumnLimits(key);
+      resizer.className = 'col-resizer packing-column-resizer';
+      resizer.dataset.packingColumnResizer = '';
+      resizer.dataset.columnKey = key;
+      resizer.setAttribute('role', 'separator');
+      resizer.setAttribute('aria-label', `Resize ${packingHeaderLabel(columnDefinitions().find((column) => column.key === key) || { key, label: key })} column`);
+      resizer.setAttribute('aria-orientation', 'vertical');
+      resizer.setAttribute('aria-valuemin', String(minimum));
+      resizer.setAttribute('aria-valuemax', String(maximum));
+      resizer.setAttribute('aria-valuenow', String(Math.round(th.getBoundingClientRect().width)));
+      resizer.tabIndex = 0;
       th.style.position = 'relative';
       th.appendChild(resizer);
 
       let startX = 0;
       let startW = 0;
 
-      const onMouseMove = (event) => {
-        const newW = Math.max(50, startW + (event.pageX - startX));
-        columnWidths[key] = newW;
+      const setWidth = (width) => {
+        columnWidths[key] = clampPackingColumnWidth(key, width);
+        resizer.setAttribute('aria-valuenow', String(columnWidths[key]));
         applyColumnWidths();
       };
 
-      const onMouseUp = () => {
-        document.removeEventListener('mousemove', onMouseMove);
-        document.removeEventListener('mouseup', onMouseUp);
-        document.body.classList.remove('is-resizing-column');
-        localStorage.setItem(packingColumnStorageKey, JSON.stringify(columnWidths));
+      const onPointerMove = (event) => {
+        setWidth(startW + (event.clientX - startX));
       };
 
-      resizer.addEventListener('mousedown', (event) => {
-        startX = event.pageX;
-        startW = th.offsetWidth;
-        document.body.classList.add('is-resizing-column');
-        document.addEventListener('mousemove', onMouseMove);
-        document.addEventListener('mouseup', onMouseUp);
+      const onPointerUp = (event) => {
+        document.removeEventListener('pointermove', onPointerMove);
+        document.removeEventListener('pointerup', onPointerUp);
+        document.removeEventListener('pointercancel', onPointerUp);
+        resizer.classList.remove('is-resizing');
+        document.body.classList.remove('is-resizing-column', 'is-resizing-packing-column');
+        if (resizer.hasPointerCapture?.(event.pointerId)) resizer.releasePointerCapture(event.pointerId);
+        savePackingColumnWidths();
+      };
+
+      resizer.addEventListener('pointerdown', (event) => {
+        if (event.button !== 0) return;
+        startX = event.clientX;
+        startW = th.getBoundingClientRect().width;
+        resizer.classList.add('is-resizing');
+        document.body.classList.add('is-resizing-column', 'is-resizing-packing-column');
+        resizer.setPointerCapture?.(event.pointerId);
+        document.addEventListener('pointermove', onPointerMove);
+        document.addEventListener('pointerup', onPointerUp);
+        document.addEventListener('pointercancel', onPointerUp);
+        event.preventDefault();
+        event.stopPropagation();
+      });
+
+      resizer.addEventListener('keydown', (event) => {
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+        const step = event.shiftKey ? 25 : 10;
+        const direction = event.key === 'ArrowRight' ? 1 : -1;
+        setWidth((columnWidths[key] || th.getBoundingClientRect().width) + (step * direction));
+        savePackingColumnWidths();
+        event.preventDefault();
+        event.stopPropagation();
+      });
+      resizer.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
       });
@@ -1640,6 +1709,7 @@
       totalRows = Number(data.totalRows || tasks.length || 0);
       packers = data.packers || [];
       currentUser = data.currentUser || {};
+      loadPackingColumnWidths();
       if (!defaultPersonFilterApplied && !currentUser.can_manage && currentUser.id) {
         state.person = '__mine';
         defaultPersonFilterApplied = true;
@@ -2086,15 +2156,16 @@
     if (panelSource) panelSource.textContent = currentTask.monday_item_id ? 'Imported from legacy Monday data' : 'Created in the portal';
     panelNotes.value = currentTask.notes || '';
     const canEditOwn = canEditTask(currentTask);
+    const defaultPanelTab = currentUser.can_edit_front_website ? 'website' : 'details';
     panelNotes.disabled = !canEditOwn;
     document.querySelectorAll('[data-packing-save-notes]').forEach((button) => { button.disabled = !canEditOwn; });
     document.querySelectorAll('[data-packing-panel-tab]').forEach((button) => {
-      const active = button.dataset.packingPanelTab === 'details';
+      const active = button.dataset.packingPanelTab === defaultPanelTab;
       button.classList.toggle('active', active);
       button.classList.toggle('is-active', active);
       button.setAttribute('aria-selected', active ? 'true' : 'false');
     });
-    document.querySelectorAll('[data-packing-panel-name]').forEach((section) => section.classList.toggle('active', section.dataset.packingPanelName === 'details'));
+    document.querySelectorAll('[data-packing-panel-name]').forEach((section) => section.classList.toggle('active', section.dataset.packingPanelName === defaultPanelTab));
     const infoCard = (label, value) => `<article class="packing-item-info-card"><span class="packing-item-info-label">${esc(label)}</span><span class="packing-item-info-value">${esc(value || 'Not entered')}</span></article>`;
     panelActivity.innerHTML = `
       <section class="packing-item-section"><h2 class="packing-item-section-title">Packing information</h2><div class="packing-item-info-grid">
@@ -2681,6 +2752,7 @@
     const expandNote = event.target.closest('[data-packing-expand-note]');
     const collapse = event.target.closest('[data-packing-collapse]');
     const exportButton = event.target.closest('[data-packing-export]');
+    const resetColumns = event.target.closest('[data-reset-packing-columns]');
     const undo = event.target.closest('[data-packing-undo]');
     const refreshButton = event.target.closest('[data-packing-refresh]');
     const importPrevious = event.target.closest('[data-import-previous-packing]');
@@ -2813,6 +2885,13 @@
       if (openCreate) { event.preventDefault(); event.stopPropagation(); lastPackingModalTrigger = openCreate; createModal.hidden = false; return; }
       if (openInvoice) { invoiceModal.hidden = false; setInvoiceStep(invoiceDraftRows.length ? 'review' : 'upload'); return; }
       if (closeModal) { createModal.hidden = true; invoiceModal.hidden = true; lastPackingModalTrigger?.focus({ preventScroll: true }); lastPackingModalTrigger = null; return; }
+      if (resetColumns) {
+        localStorage.removeItem(packingColumnStorageKey());
+        columnWidths = {};
+        render();
+        setCount('Column widths reset.');
+        return;
+      }
       if (exportButton) { exportCsv(); return; }
       if (undo) { await undoLast(); return; }
       if (refreshButton) { await refresh(); return; }
