@@ -540,6 +540,54 @@ function ops_ensure_packing_assignable_column(): bool
     return ops_column_exists('ops_employees', 'packing_assignable');
 }
 
+function ops_ensure_packing_auto_assignable_column(): bool
+{
+    if (!ops_ensure_packing_assignable_column()) {
+        return false;
+    }
+    if (ops_column_exists('ops_employees', 'packing_auto_assignable')) {
+        return true;
+    }
+
+    try {
+        db()->exec('ALTER TABLE ops_employees ADD COLUMN packing_auto_assignable TINYINT(1) NOT NULL DEFAULT 0 AFTER packing_assignable');
+        db()->exec(
+            "UPDATE ops_employees e
+             JOIN ops_roles r ON r.id = e.role_id
+             SET e.packing_assignable = 1
+             WHERE e.status = 'active'
+               AND r.role_key IN ('packer', 'supervisor_manager', 'front_desk_admin', 'owner_admin')"
+        );
+        db()->exec(
+            "UPDATE ops_employees e
+             JOIN ops_roles r ON r.id = e.role_id
+             SET e.packing_auto_assignable = 1
+             WHERE e.status = 'active'
+               AND e.packing_assignable = 1
+               AND r.role_key IN ('packer', 'supervisor_manager')"
+        );
+    } catch (Throwable $e) {
+        return false;
+    }
+
+    return ops_column_exists('ops_employees', 'packing_auto_assignable');
+}
+
+function ops_employee_can_receive_packing(int $employeeId, bool $automatic = false): bool
+{
+    if ($employeeId <= 0 || !ops_ensure_packing_auto_assignable_column()) {
+        return false;
+    }
+
+    $column = $automatic ? 'packing_auto_assignable' : 'packing_assignable';
+    $rows = ops_rows(
+        "SELECT id FROM ops_employees WHERE id = ? AND status = 'active' AND {$column} = 1 LIMIT 1",
+        [$employeeId]
+    );
+
+    return !empty($rows);
+}
+
 function ops_table_exists(string $table): bool
 {
     $stmt = null;
@@ -1037,16 +1085,18 @@ function ops_duration_label(?string $start, ?string $end): string
 
 function ops_best_packer_for_packing(float $workloadPoints): ?int
 {
+    if (!ops_ensure_packing_auto_assignable_column()) {
+        return null;
+    }
     $rows = ops_rows(
         "SELECT e.id,
             COALESCE(SUM(pt.workload_points), 0) AS load_score,
             COUNT(pt.id) AS active_items
          FROM ops_employees e
-         JOIN ops_roles r ON r.id = e.role_id
          LEFT JOIN ops_packing_tasks pt ON pt.assigned_employee_id = e.id
            AND pt.packing_status NOT IN ('done', 'done_needs_label', 'label_created', 'website')
          LEFT JOIN ops_employee_availability ea ON ea.employee_id = e.id
-         WHERE e.status = 'active' AND r.role_key IN ('packer', 'supervisor_manager')
+         WHERE e.status = 'active' AND e.packing_auto_assignable = 1
            AND (
              ea.employee_id IS NULL
              OR ea.availability_status = 'available'

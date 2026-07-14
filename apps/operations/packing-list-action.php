@@ -1997,6 +1997,8 @@ try {
         $duplicates = 0;
         $audit = [];
         $matchedExistingIds = [];
+        $automaticAssignments = [];
+        $automaticAssignmentUnavailable = false;
 
         foreach ($rows as $rowIndex => $row) {
             if (!is_array($row)) {
@@ -2012,10 +2014,25 @@ try {
             $priority = trim((string) ($row['priority'] ?? 'medium')) ?: 'medium';
             $dateLoaded = date('Y-m-d H:i:s');
             $assignedId = (int) ($row['assigned_employee_id'] ?? 0);
+            $assignmentSource = (string) ($row['assignment_source'] ?? 'auto') === 'manual' ? 'manual' : 'auto';
             $workload = packing_workload_score($receivedWeight, $quantityPlan, $priority);
             $quantityWarning = packing_quantity_warning($receivedWeight, $quantityPlan);
-            if ($assignedId <= 0) {
-                $assignedId = (int) (ops_best_packer_for_packing($workload) ?? 0);
+            if ($assignmentSource === 'manual') {
+                if ($assignedId <= 0 || !ops_employee_can_receive_packing($assignedId, false)) {
+                    throw new RuntimeException('Choose an active employee who is eligible for manual Packing assignment.');
+                }
+            } else {
+                if ($assignedId > 0 && !ops_employee_can_receive_packing($assignedId, true)) {
+                    $assignedId = 0;
+                }
+                if ($assignedId <= 0) {
+                    $assignedId = (int) (ops_best_packer_for_packing($workload) ?? 0);
+                }
+                if ($assignedId > 0) {
+                    $automaticAssignments[$assignedId] = ($automaticAssignments[$assignedId] ?? 0) + 1;
+                } else {
+                    $automaticAssignmentUnavailable = true;
+                }
             }
             $invoiceRowKey = packing_invoice_row_key($invoiceNumber, (int) $rowIndex, $itemName, $receivedWeight, $quantityPlan);
             $notes = trim(
@@ -2226,9 +2243,36 @@ try {
             }
         }
 
+        if ($automaticAssignments) {
+            $assignedIds = array_keys($automaticAssignments);
+            $assignedRows = ops_rows(
+                'SELECT id, full_name FROM ops_employees WHERE id IN (' . implode(',', array_fill(0, count($assignedIds), '?')) . ')',
+                $assignedIds
+            );
+            $assignedNames = [];
+            foreach ($assignedRows as $assignedRow) {
+                $assignedNames[(int) $assignedRow['id']] = (string) $assignedRow['full_name'];
+            }
+            ops_activity_log('packing_invoice_auto_distributed', 'packing_import', 0, [
+                'invoice_number' => $invoiceNumber,
+                'assignments' => array_map(
+                    static fn(int $employeeId, int $count): array => [
+                        'employee_id' => $employeeId,
+                        'employee_name' => $assignedNames[$employeeId] ?? 'Unknown',
+                        'row_count' => $count,
+                    ],
+                    array_keys($automaticAssignments),
+                    array_values($automaticAssignments)
+                ),
+                'changed_by' => current_user()['name'] ?? 'Unknown',
+            ]);
+        }
+
         echo json_encode([
             'ok' => true,
-            'message' => "Packing items created. Created {$created}, updated {$updated}, skipped {$skipped}, duplicates detected {$duplicates}.",
+            'message' => $automaticAssignmentUnavailable
+                ? "Packing items created. Created {$created}, updated {$updated}, skipped {$skipped}. Some rows remain unassigned because no employees are eligible for automatic distribution."
+                : "Packing items created. Created {$created}, updated {$updated}, skipped {$skipped}, duplicates detected {$duplicates}.",
             'created' => $created,
             'updated' => $updated,
             'skipped' => $skipped,
@@ -2295,22 +2339,8 @@ try {
 
         if ($field === 'assigned_employee_id') {
             $value = $value === '' ? null : (string) ((int) $value);
-            if ($value !== null) {
-                $hasPackingAssignable = ops_ensure_packing_assignable_column();
-                $eligibilitySql = $hasPackingAssignable
-                    ? 'e.packing_assignable = 1'
-                    : "r.role_key IN ('packer', 'supervisor_manager')";
-                $eligible = ops_rows(
-                    "SELECT e.id
-                     FROM ops_employees e
-                     JOIN ops_roles r ON r.id = e.role_id
-                     WHERE e.id = ? AND e.status = 'active' AND {$eligibilitySql}
-                     LIMIT 1",
-                    [(int) $value]
-                );
-                if (!$eligible) {
-                    throw new RuntimeException('Choose an active employee who is eligible for Packing assignment.');
-                }
+            if ($value !== null && !ops_employee_can_receive_packing((int) $value, false)) {
+                throw new RuntimeException('Choose an active employee who is eligible for Packing assignment.');
             }
         }
 

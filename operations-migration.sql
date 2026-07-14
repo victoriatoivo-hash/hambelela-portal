@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS ops_employees (
   last_failed_login_at DATETIME NULL,
   requires_code_reset TINYINT(1) NOT NULL DEFAULT 1,
   status ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
+  packing_assignable TINYINT(1) NOT NULL DEFAULT 0,
+  packing_auto_assignable TINYINT(1) NOT NULL DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (role_id) REFERENCES ops_roles(id)

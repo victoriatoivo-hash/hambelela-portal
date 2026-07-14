@@ -32,6 +32,7 @@ $hasPackingRowKey = ops_column_exists('ops_packing_tasks', 'packing_row_key');
 $hasWebsiteUploadedAt = ops_column_exists('ops_packing_tasks', 'website_uploaded_at');
 $hasPackerNotes = ops_column_exists('ops_packing_tasks', 'packer_notes');
 $hasPackingAssignable = ops_ensure_packing_assignable_column();
+$hasPackingAutoAssignable = ops_ensure_packing_auto_assignable_column();
 
 $receivedSelect = $hasReceivedWeight ? 'pt.received_weight' : "NULL AS received_weight";
 $confirmedSelect = $hasPackingConfirmed ? 'pt.packing_website_confirmed' : '0 AS packing_website_confirmed';
@@ -81,7 +82,8 @@ $packingEligibilityWhere = $hasPackingAssignable
     ? 'e.packing_assignable = 1'
     : "r.role_key IN ('packer', 'supervisor_manager')";
 $packers = ops_rows(
-    "SELECT e.id, e.full_name, r.role_key, r.name AS role_name
+    "SELECT e.id, e.full_name, r.role_key, r.name AS role_name,
+            " . ($hasPackingAutoAssignable ? 'e.packing_auto_assignable' : "IF(r.role_key IN ('packer', 'supervisor_manager'), 1, 0) AS packing_auto_assignable") . "
      FROM ops_employees e
      JOIN ops_roles r ON r.id = e.role_id
      WHERE e.status = 'active' AND {$packingEligibilityWhere}

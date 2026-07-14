@@ -168,15 +168,25 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $activeSettingsSection = 'employees';
 
             if ($action === 'save_packing_eligibility') {
-                if (!ops_ensure_packing_assignable_column()) {
+                if (!ops_ensure_packing_auto_assignable_column()) {
                     throw new RuntimeException('Packing assignment eligibility is not available yet.');
                 }
                 $employeeId = (int) ($_POST['employee_id'] ?? 0);
                 if ($employeeId <= 0) {
                     throw new RuntimeException('Choose an employee account.');
                 }
-                $eligible = (string) ($_POST['packing_assignable'] ?? '') === '1' ? 1 : 0;
-                db()->prepare('UPDATE ops_employees SET packing_assignable = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')->execute([$eligible, $employeeId]);
+                $field = (string) ($_POST['eligibility_field'] ?? 'packing_assignable');
+                if (!in_array($field, ['packing_assignable', 'packing_auto_assignable'], true)) {
+                    throw new RuntimeException('Choose a valid Packing eligibility setting.');
+                }
+                $eligible = (string) ($_POST['eligibility_value'] ?? '') === '1' ? 1 : 0;
+                if ($field === 'packing_auto_assignable' && $eligible === 1) {
+                    db()->prepare('UPDATE ops_employees SET packing_assignable = 1, packing_auto_assignable = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?')->execute([$employeeId]);
+                } elseif ($field === 'packing_assignable' && $eligible === 0) {
+                    db()->prepare('UPDATE ops_employees SET packing_assignable = 0, packing_auto_assignable = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?')->execute([$employeeId]);
+                } else {
+                    db()->prepare("UPDATE ops_employees SET {$field} = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")->execute([$eligible, $employeeId]);
+                }
                 $message = 'Packing assignment eligibility updated.';
             } elseif ($action === 'reset_code') {
                 $code = trim((string) ($_POST['login_code'] ?? ''));
@@ -304,11 +314,12 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     password_hash($code, PASSWORD_DEFAULT),
                     ops_post_string('status', 20) ?: 'active',
                 ]);
-                if ($isNewEmployee && ops_ensure_packing_assignable_column()) {
-                    $packingAssignable = in_array($roleKey, ['packer', 'supervisor_manager'], true) ? 1 : 0;
+                if ($isNewEmployee && ops_ensure_packing_auto_assignable_column()) {
+                    $packingAssignable = in_array($roleKey, ['packer', 'supervisor_manager', 'front_desk_admin', 'owner_admin'], true) ? 1 : 0;
+                    $packingAutoAssignable = in_array($roleKey, ['packer', 'supervisor_manager'], true) ? 1 : 0;
                     db()->prepare(
-                        'UPDATE ops_employees SET packing_assignable = ? WHERE LOWER(email) = LOWER(?)'
-                    )->execute([$packingAssignable, $email]);
+                        'UPDATE ops_employees SET packing_assignable = ?, packing_auto_assignable = ? WHERE LOWER(email) = LOWER(?)'
+                    )->execute([$packingAssignable, $packingAutoAssignable, $email]);
                 }
                 $message = 'Employee account saved with a secure access code.';
             }
@@ -399,9 +410,11 @@ if ($ready && $canManagePortal && $employeeLinks) {
     }
 }
 $hasPackingAssignable = $ready ? ops_ensure_packing_assignable_column() : false;
+$hasPackingAutoAssignable = $ready ? ops_ensure_packing_auto_assignable_column() : false;
 $packingAssignableSelect = $hasPackingAssignable ? 'e.packing_assignable' : "IF(r.role_key IN ('packer', 'supervisor_manager'), 1, 0) AS packing_assignable";
+$packingAutoAssignableSelect = $hasPackingAutoAssignable ? 'e.packing_auto_assignable' : "IF(r.role_key IN ('packer', 'supervisor_manager'), 1, 0) AS packing_auto_assignable";
 $managedEmployees = $ready && $canManagePortal ? ops_rows(
-    "SELECT e.*, r.name AS role_name, r.role_key, {$packingAssignableSelect}
+    "SELECT e.*, r.name AS role_name, r.role_key, {$packingAssignableSelect}, {$packingAutoAssignableSelect}
      FROM ops_employees e
      JOIN ops_roles r ON r.id = e.role_id
      WHERE e.status = 'active' AND r.role_key <> 'owner_admin'
@@ -648,7 +661,7 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
 
                     <div class="settings-card">
                         <h2>Employee accounts</h2>
-                        <p class="card-sub">Active operational staff only. Owner/Admin is managed separately from employee tracking.</p>
+                        <p class="card-sub">Manual assignment controls who appears in Packing selectors. Automatic distribution is a separate, narrower workload pool.</p>
                         <div class="settings-table-wrap">
                             <table class="settings-table">
                                 <thead>
@@ -660,6 +673,7 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                                         <th>Leave</th>
                                         <th>Status</th>
                                         <th>Packing assignment</th>
+                                        <th>Automatic distribution</th>
                                         <th>Reset Code</th>
                                         <th>Created</th>
                                         <th>Delete</th>
@@ -699,8 +713,18 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                                             <form method="post">
                                                 <input type="hidden" name="action" value="save_packing_eligibility">
                                                 <input type="hidden" name="employee_id" value="<?= (int) $managedEmployee['id'] ?>">
-                                                <input type="hidden" name="packing_assignable" value="<?= !empty($managedEmployee['packing_assignable']) ? '0' : '1' ?>">
+                                                <input type="hidden" name="eligibility_field" value="packing_assignable">
+                                                <input type="hidden" name="eligibility_value" value="<?= !empty($managedEmployee['packing_assignable']) ? '0' : '1' ?>">
                                                 <button class="btn-secondary" type="submit"><?= !empty($managedEmployee['packing_assignable']) ? 'Eligible' : 'Not eligible' ?></button>
+                                            </form>
+                                        </td>
+                                        <td>
+                                            <form method="post">
+                                                <input type="hidden" name="action" value="save_packing_eligibility">
+                                                <input type="hidden" name="employee_id" value="<?= (int) $managedEmployee['id'] ?>">
+                                                <input type="hidden" name="eligibility_field" value="packing_auto_assignable">
+                                                <input type="hidden" name="eligibility_value" value="<?= !empty($managedEmployee['packing_auto_assignable']) ? '0' : '1' ?>">
+                                                <button class="btn-secondary" type="submit"><?= !empty($managedEmployee['packing_auto_assignable']) ? 'Included' : 'Excluded' ?></button>
                                             </form>
                                         </td>
                                         <td>
@@ -726,7 +750,7 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
-                                <?php if (!$managedEmployees): ?><tr><td colspan="10">No employee accounts recorded yet.</td></tr><?php endif; ?>
+                                <?php if (!$managedEmployees): ?><tr><td colspan="11">No employee accounts recorded yet.</td></tr><?php endif; ?>
                                 </tbody>
                             </table>
                         </div>

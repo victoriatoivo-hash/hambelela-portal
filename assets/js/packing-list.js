@@ -950,46 +950,57 @@
     };
   }
 
+  function autoAssignablePackers() {
+    return packers.filter((packer) => Number(packer.packing_auto_assignable || 0) === 1);
+  }
+
   function assignDraftRows(options = {}) {
-    if (!packers.length) {
+    const automaticPackers = autoAssignablePackers();
+    if (!automaticPackers.length) {
       invoiceDraftRows.forEach((row) => {
         row.workload = draftWorkload(row);
-        row.assigned_employee_id = '';
-        row.assigned_name = '';
+        if (row.assignment_source !== 'manual') {
+          row.assigned_employee_id = '';
+          row.assigned_name = '';
+          row.assignment_source = 'auto';
+        }
       });
-      return { changed: false, message: 'No active packers are available for assignment.' };
+      return { changed: false, message: 'No employees are currently eligible for automatic distribution. Assign these rows manually.' };
     }
 
     const force = Boolean(options.force);
     const before = invoiceDraftRows.map((row) => String(row.assigned_employee_id || ''));
     invoiceDraftRows.forEach((row) => {
       row.workload = draftWorkload(row);
-      if (force) {
+      if (force && row.assignment_source !== 'manual') {
+        row.assigned_employee_id = '';
+        row.assigned_name = '';
+        row.assignment_source = 'auto';
+      }
+    });
+
+    const loads = new Map(automaticPackers.map((packer) => [String(packer.id), 0]));
+    invoiceDraftRows.forEach((row) => {
+      const id = String(row.assigned_employee_id || '');
+      if (id && loads.has(id)) {
+        const packer = automaticPackers.find((item) => String(item.id) === id);
+        row.assigned_name = packer?.full_name || row.assigned_name || '';
+        loads.set(id, (loads.get(id) || 0) + Number(row.workload || 0));
+      } else if (id && row.assignment_source !== 'manual') {
         row.assigned_employee_id = '';
         row.assigned_name = '';
       }
     });
 
-    const loads = new Map(packers.map((packer) => [String(packer.id), 0]));
-    if (!force) {
-      invoiceDraftRows.forEach((row) => {
-        const id = String(row.assigned_employee_id || '');
-        if (id && loads.has(id)) {
-          const packer = packers.find((item) => String(item.id) === id);
-          row.assigned_name = packer?.full_name || row.assigned_name || '';
-          loads.set(id, (loads.get(id) || 0) + Number(row.workload || 0));
-        }
-      });
-    }
-
     invoiceDraftRows
       .map((row, index) => ({ row, index, workload: Number(row.workload || 0) }))
-      .filter((item) => force || !item.row.assigned_employee_id)
+      .filter((item) => item.row.assignment_source !== 'manual' && !item.row.assigned_employee_id)
       .sort((a, b) => b.workload - a.workload || a.index - b.index)
       .forEach(({ row }) => {
-        const best = [...packers].sort((a, b) => (loads.get(String(a.id)) || 0) - (loads.get(String(b.id)) || 0))[0];
+        const best = [...automaticPackers].sort((a, b) => (loads.get(String(a.id)) || 0) - (loads.get(String(b.id)) || 0))[0];
         row.assigned_employee_id = String(best.id);
         row.assigned_name = best.full_name;
+        row.assignment_source = 'auto';
         loads.set(String(best.id), (loads.get(String(best.id)) || 0) + Number(row.workload || 0));
       });
 
@@ -1026,10 +1037,11 @@
       const id = String(row.assigned_employee_id || '');
       const name = row.assigned_name || packers.find((packer) => String(packer.id) === id)?.full_name || 'Unassigned';
       const key = id || 'unassigned';
-      const current = totals.get(key) || { name, workload: 0, rows: 0 };
+      const current = totals.get(key) || { name, workload: 0, rows: 0, manualRows: 0 };
       current.name = name;
       current.workload += Number(row.workload || draftWorkload(row) || 0);
       current.rows += 1;
+      if (row.assignment_source === 'manual') current.manualRows += 1;
       totals.set(key, current);
     });
     return [...totals.values()].sort((a, b) => b.workload - a.workload);
@@ -1063,7 +1075,7 @@
           <div class="draft-summary-card">
             <span>${esc(item.name)}</span>
             <strong>${item.workload.toFixed(1)}</strong>
-            <small>${item.rows} row${item.rows === 1 ? '' : 's'} assigned</small>
+            <small>${item.rows} row${item.rows === 1 ? '' : 's'} assigned${item.manualRows ? ` &middot; ${item.manualRows} manual` : ''}</small>
           </div>
         `).join('')}
       </div>
@@ -1096,6 +1108,7 @@
         priority: invoicePriority?.value || 'medium',
         assigned_employee_id: '',
         assigned_name: '',
+        assignment_source: 'auto',
       };
     }).filter((row) => row.item_name);
   }
@@ -1156,6 +1169,7 @@
       received_weight: received || row.received_weight || '',
       assigned_employee_id: '',
       assigned_name: '',
+      assignment_source: 'auto',
       workload: undefined,
     }));
     invoiceDraftRows.splice(index, 1, ...newRows);
@@ -2269,7 +2283,7 @@
       formData.set('action', 'extract_invoice');
       const response = await fetch(config.actionUrl, { method: 'POST', body: formData, credentials: 'same-origin' });
       const data = await readJson(response);
-      invoiceDraftRows = (data.rows || []).map((row) => ({ ...row, priority: invoicePriority?.value || 'medium', assigned_employee_id: '', assigned_name: '' }));
+      invoiceDraftRows = (data.rows || []).map((row) => ({ ...row, priority: invoicePriority?.value || 'medium', assigned_employee_id: '', assigned_name: '', assignment_source: 'auto' }));
       const invoiceNumber = document.querySelector('[data-draft-invoice-number]');
       const invoiceDate = document.querySelector('[data-draft-invoice-date]');
       if (invoiceNumber) invoiceNumber.value = data.invoice_number || '';
@@ -2737,7 +2751,7 @@
         return;
       }
       if (addDraftRow) {
-        invoiceDraftRows.push({ item_name: '', received_weight: '', unit: '', quantity_purchased: 1, quantity_planned: '', priority: invoicePriority?.value || 'medium', assigned_employee_id: '', assigned_name: '' });
+        invoiceDraftRows.push({ item_name: '', received_weight: '', unit: '', quantity_purchased: 1, quantity_planned: '', priority: invoicePriority?.value || 'medium', assigned_employee_id: '', assigned_name: '', assignment_source: 'auto' });
         const result = redistributeDraftRows();
         renderInvoiceDraft();
         const newRow = invoiceDraftBody?.querySelector('tr:last-child');
@@ -3052,6 +3066,13 @@
         if (fieldName === 'assigned_employee_id') {
           const packer = packers.find((item) => String(item.id) === String(draftField.value));
           row.assigned_name = packer?.full_name || '';
+          row.assignment_source = draftField.value ? 'manual' : 'auto';
+          if (!draftField.value) {
+            const result = assignDraftRows();
+            renderInvoiceDraft();
+            setInvoiceStatus(result.message || 'The row was returned to automatic distribution.');
+            return;
+          }
         }
         row.workload = draftWorkload(row);
         if (['received_weight', 'quantity_planned', 'unit', 'priority'].includes(fieldName)) {
