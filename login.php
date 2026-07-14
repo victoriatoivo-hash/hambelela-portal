@@ -165,46 +165,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $identity = trim((string) ($_POST['identity'] ?? ''));
     $code = trim((string) ($_POST['code'] ?? ''));
 
-    if ($opsLoginReady) {
-        $employeeId = str_starts_with($identity, 'db:') ? (int) substr($identity, 3) : 0;
-        $stmt = db()->prepare(
-            "SELECT e.id, e.full_name, e.email, e.password_hash, e.locked_until, r.role_key, r.name AS role_name
-             FROM ops_employees e
-             JOIN ops_roles r ON r.id = e.role_id
-             WHERE e.status = 'active' AND e.id = ?
-             LIMIT 1"
-        );
-        $stmt->execute([$employeeId]);
-        $employee = $stmt->fetch();
-        $isLocked = $employee
-            && !empty($employee['locked_until'])
-            && strtotime((string) $employee['locked_until']) > time();
-
-        if ($employee && !$isLocked && $employee['password_hash'] && password_verify($code, $employee['password_hash'])) {
-            $clearLockout = db()->prepare(
-                'UPDATE ops_employees
-                 SET failed_login_attempts = 0, locked_until = NULL, last_failed_login_at = NULL
-                 WHERE id = ?'
+    try {
+        if ($opsLoginReady) {
+            $employeeId = str_starts_with($identity, 'db:') ? (int) substr($identity, 3) : 0;
+            $stmt = db()->prepare(
+                "SELECT e.id, e.full_name, e.email, e.password_hash, r.role_key, r.name AS role_name
+                 FROM ops_employees e
+                 JOIN ops_roles r ON r.id = e.role_id
+                 WHERE e.status = 'active' AND e.id = ?
+                 LIMIT 1"
             );
-            $clearLockout->execute([(int) $employee['id']]);
-            session_regenerate_id(true);
-            $_SESSION['user'] = [
-                'id' => (int) $employee['id'],
-                'name' => $employee['full_name'],
-                'email' => $employee['email'],
-                'role' => $employee['role_name'],
-                'role_key' => $employee['role_key'],
-                'source' => 'database',
-            ];
-            record_login_event($_SESSION['user'], 'database');
-            header('Location: index.php');
-            exit;
-        }
-    }
+            $stmt->execute([$employeeId]);
+            $employee = $stmt->fetch();
 
-    $error = $opsLoginReady
-        ? 'Unable to sign in. Check your details and try again.'
-        : 'Unable to sign in. Contact an administrator.';
+            if ($employee && $employee['password_hash'] && password_verify($code, $employee['password_hash'])) {
+                session_regenerate_id(true);
+                $_SESSION['user'] = [
+                    'id' => (int) $employee['id'],
+                    'name' => $employee['full_name'],
+                    'email' => $employee['email'],
+                    'role' => $employee['role_name'],
+                    'role_key' => $employee['role_key'],
+                    'source' => 'database',
+                ];
+                record_login_event($_SESSION['user'], 'database');
+                header('Location: index.php');
+                exit;
+            }
+        }
+
+        $error = $opsLoginReady
+            ? 'Unable to sign in. Check your details and try again.'
+            : 'Unable to sign in. Contact an administrator.';
+    } catch (Throwable $loginError) {
+        error_log(
+            'Portal login failed: ' . $loginError->getMessage()
+            . ' in ' . $loginError->getFile()
+            . ':' . $loginError->getLine()
+        );
+        $error = 'Unable to sign in right now. Please try again.';
+    }
 }
 
 $loginEmployees = [];
