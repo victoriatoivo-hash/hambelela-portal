@@ -13427,6 +13427,10 @@ body.login-page { min-height: 100%; background: #FFFFFF !important; }
   box-sizing: border-box;
 }
 
+.courier-wrap .module-header .page-subtitle {
+  font-size: 10px !important;
+}
+
 .courier-wrap .meta-value {
   display: block;
   font-size: 12px;
