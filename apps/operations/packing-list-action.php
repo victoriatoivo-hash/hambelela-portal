@@ -2340,8 +2340,11 @@ try {
             throw new RuntimeException('Invalid packing update.');
         }
 
-        if (in_array($field, ['assigned_employee_id', 'website_uploaded'], true) && !$canManage) {
+        if ($field === 'assigned_employee_id' && !$canManage) {
             throw new RuntimeException('You do not have permission to update this field.');
+        }
+        if ($field === 'website_uploaded' && !user_has_role('owner_admin', 'front_desk_admin')) {
+            throw new RuntimeException('Only Owner/Admin or Front Desk/Admin can update the website confirmation.');
         }
 
         if ($field === 'packing_website_confirmed' && !$canManage) {
@@ -2367,7 +2370,7 @@ try {
         }
 
         if (in_array($field, ['date_loaded', 'date_completed'], true)) {
-            if (!$canManage) {
+            if (!$canManage && $field !== 'date_completed') {
                 throw new RuntimeException('You do not have permission to update packing dates.');
             }
             $value = trim(str_replace('T', ' ', $value));
@@ -2382,6 +2385,7 @@ try {
 
         $previousAssignmentRows = [];
         $previousStatusRows = [];
+        $previousWebsiteRows = [];
         if ($field === 'assigned_employee_id' && ops_table_exists('ops_packing_assignment_log')) {
             foreach (ops_rows('SELECT id, assigned_employee_id FROM ops_packing_tasks WHERE id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')', $ids) as $row) {
                 $previousAssignmentRows[(int) $row['id']] = $row['assigned_employee_id'] !== null ? (int) $row['assigned_employee_id'] : null;
@@ -2393,11 +2397,21 @@ try {
                 $previousStatusRows[(int) $row['id']] = $row;
             }
         }
+        if ($field === 'website_uploaded') {
+            foreach (ops_rows('SELECT id, website_uploaded, website_uploaded_at, inventory_updated_at, inventory_updated_by FROM ops_packing_tasks WHERE id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')', $ids) as $row) {
+                $previousWebsiteRows[(int) $row['id']] = $row;
+            }
+        }
 
         $set = $allowed[$field] . ' = ?';
         $setParams = [$value];
+        $websiteUpdatedAt = $field === 'website_uploaded'
+            ? (new DateTimeImmutable('now', new DateTimeZone('Africa/Windhoek')))->format('Y-m-d H:i:s')
+            : null;
         if ($field === 'website_uploaded' && ops_column_exists('ops_packing_tasks', 'website_uploaded_at')) {
-            $set .= ", website_uploaded_at = CASE WHEN ? = '1' AND website_uploaded_at IS NULL THEN NOW() ELSE website_uploaded_at END";
+            $set .= ", website_uploaded_at = CASE WHEN ? = '1' AND website_uploaded_at IS NULL THEN ? WHEN ? = '0' THEN NULL ELSE website_uploaded_at END";
+            $setParams[] = $value;
+            $setParams[] = $websiteUpdatedAt;
             $setParams[] = $value;
         }
         if ($field === 'website_uploaded' && ops_column_exists('ops_packing_tasks', 'inventory_updated_by')) {
@@ -2406,8 +2420,9 @@ try {
             $setParams[] = $currentEmployeeId ?: null;
         }
         if ($field === 'website_uploaded' && ops_column_exists('ops_packing_tasks', 'inventory_updated_at')) {
-            $set .= ", inventory_updated_at = CASE WHEN ? = '1' THEN COALESCE(inventory_updated_at, NOW()) ELSE NULL END";
+            $set .= ", inventory_updated_at = CASE WHEN ? = '1' THEN ? ELSE NULL END";
             $setParams[] = $value;
+            $setParams[] = $websiteUpdatedAt;
         }
         if ($field === 'packing_status') {
             if ($value === 'packing' && ops_column_exists('ops_packing_tasks', 'date_started')) {
@@ -2430,7 +2445,7 @@ try {
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
         $params = array_merge($setParams, $ids);
         $scope = '';
-        if (!$canManage && !in_array($field, ['quantity_packed', 'packing_website_confirmed', 'packing_status', 'notes'], true)) {
+        if (!$canManage && !in_array($field, ['quantity_packed', 'packing_website_confirmed', 'packing_status', 'notes', 'date_completed'], true)) {
             throw new RuntimeException('Packers cannot update this field.');
         }
         if (!$canManage) {
@@ -2440,9 +2455,16 @@ try {
 
         $stmt = db()->prepare("UPDATE ops_packing_tasks SET {$set}, updated_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders}){$scope}");
         $stmt->execute($params);
-        $updatedRows = $field === 'packing_status'
-            ? ops_rows('SELECT id, packing_status, date_completed FROM ops_packing_tasks WHERE id IN (' . $placeholders . ')' . $scope, $scope === '' ? $ids : array_merge($ids, [$currentEmployeeId ?: 0]))
-            : [];
+        if ($field === 'packing_status') {
+            $updatedRows = ops_rows('SELECT id, packing_status, date_completed FROM ops_packing_tasks WHERE id IN (' . $placeholders . ')' . $scope, $scope === '' ? $ids : array_merge($ids, [$currentEmployeeId ?: 0]));
+        } elseif ($field === 'website_uploaded') {
+            $updatedRows = ops_rows(
+                'SELECT pt.id, pt.website_uploaded, pt.website_uploaded_at, pt.inventory_updated_at, pt.inventory_updated_by, e.full_name AS inventory_updated_by_name FROM ops_packing_tasks pt LEFT JOIN ops_employees e ON e.id = pt.inventory_updated_by WHERE pt.id IN (' . $placeholders . ')',
+                $ids
+            );
+        } else {
+            $updatedRows = [];
+        }
 
         if ($field === 'assigned_employee_id' && $previousAssignmentRows && ops_table_exists('ops_packing_assignment_log')) {
             $logStmt = db()->prepare('INSERT INTO ops_packing_assignment_log (packing_task_id, old_employee_id, new_employee_id, changed_by) VALUES (?, ?, ?, ?)');
@@ -2510,6 +2532,13 @@ try {
                 $activityMeta['previous_date_completed'] = $beforeDate;
                 $activityMeta['date_completed'] = $afterDate;
                 $activityMeta['date_completed_action'] = $beforeDate === $afterDate ? 'preserved' : ($afterDate === null ? 'cleared' : 'set');
+            }
+            if ($field === 'website_uploaded') {
+                $before = $previousWebsiteRows[(int) $id] ?? [];
+                $activityMeta['previous_value'] = (int) ($before['website_uploaded'] ?? 0);
+                $activityMeta['previous_updated_at'] = $before['inventory_updated_at'] ?? $before['website_uploaded_at'] ?? null;
+                $activityMeta['previous_updated_by'] = $before['inventory_updated_by'] ?? null;
+                $activityMeta['event'] = $value === '1' ? 'Website marked as updated' : 'Website update confirmation removed';
             }
             ops_activity_log('packing_' . $field . '_updated', 'packing_task', $id, $activityMeta);
             if ($field === 'assigned_employee_id') {

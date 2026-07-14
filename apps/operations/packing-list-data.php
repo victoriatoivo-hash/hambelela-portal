@@ -30,6 +30,8 @@ $hasMondayStatus = ops_column_exists('ops_packing_tasks', 'monday_sync_status');
 $hasMondayError = ops_column_exists('ops_packing_tasks', 'monday_sync_error');
 $hasPackingRowKey = ops_column_exists('ops_packing_tasks', 'packing_row_key');
 $hasWebsiteUploadedAt = ops_column_exists('ops_packing_tasks', 'website_uploaded_at');
+$hasInventoryUpdatedAt = ops_column_exists('ops_packing_tasks', 'inventory_updated_at');
+$hasInventoryUpdatedBy = ops_column_exists('ops_packing_tasks', 'inventory_updated_by');
 $hasPackerNotes = ops_column_exists('ops_packing_tasks', 'packer_notes');
 $hasPackingAssignable = ops_ensure_packing_assignable_column();
 $hasPackingAutoAssignable = ops_ensure_packing_auto_assignable_column();
@@ -44,11 +46,17 @@ $mondayBoardIdSelect = $hasMondayBoardId ? 'pt.monday_board_id' : 'NULL AS monda
 $mondayStatusSelect = $hasMondayStatus ? 'pt.monday_sync_status' : "'not_synced' AS monday_sync_status";
 $mondayErrorSelect = $hasMondayError ? 'pt.monday_sync_error' : 'NULL AS monday_sync_error';
 $packingRowKeySelect = $hasPackingRowKey ? 'pt.packing_row_key' : 'NULL AS packing_row_key';
-$websiteUploadedAtSelect = $hasWebsiteUploadedAt ? 'pt.website_uploaded_at' : 'NULL AS website_uploaded_at';
 $packerNotesSelect = $hasPackerNotes ? 'pt.packer_notes' : "'' AS packer_notes";
 
 $currentEmployeeId = ops_current_employee_id();
 $canManage = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
+$canManageWebsiteUpdate = user_has_role('owner_admin', 'front_desk_admin');
+$websiteUploadedSelect = $canManageWebsiteUpdate ? 'pt.website_uploaded' : '0 AS website_uploaded';
+$websiteUploadedAtSelect = $canManageWebsiteUpdate && $hasWebsiteUploadedAt ? 'pt.website_uploaded_at' : 'NULL AS website_uploaded_at';
+$inventoryUpdatedAtSelect = $canManageWebsiteUpdate && $hasInventoryUpdatedAt ? 'pt.inventory_updated_at' : 'NULL AS inventory_updated_at';
+$inventoryUpdatedBySelect = $canManageWebsiteUpdate && $hasInventoryUpdatedBy ? 'pt.inventory_updated_by' : 'NULL AS inventory_updated_by';
+$inventoryUpdatedByNameSelect = $canManageWebsiteUpdate && $hasInventoryUpdatedBy ? 'website_employee.full_name AS inventory_updated_by_name' : 'NULL AS inventory_updated_by_name';
+$websiteEmployeeJoin = $canManageWebsiteUpdate && $hasInventoryUpdatedBy ? 'LEFT JOIN ops_employees website_employee ON website_employee.id = pt.inventory_updated_by' : '';
 
 // One-time, narrowly scoped repair for the invoice-import bug that wrote the
 // host's UTC time to date_loaded while a database default populated
@@ -89,12 +97,13 @@ $tasks = ops_rows(
     "SELECT
         pt.id, pt.item_name, {$receivedSelect}, pt.priority, pt.date_loaded, {$startedSelect},
         pt.quantity_planned, pt.assigned_employee_id, e.full_name AS assigned_name,
-        pt.quantity_packed, pt.date_completed, pt.website_uploaded, {$confirmedSelect},
+        pt.quantity_packed, pt.date_completed, {$websiteUploadedSelect}, {$confirmedSelect},
         pt.packing_status, pt.notes, {$packerNotesSelect}, pt.workload_points, {$invoiceSelect}, {$labelSelect},
         {$mondayIdSelect}, {$mondayBoardIdSelect}, {$mondayStatusSelect}, {$mondayErrorSelect}, {$packingRowKeySelect},
-        {$websiteUploadedAtSelect}
+        {$websiteUploadedAtSelect}, {$inventoryUpdatedAtSelect}, {$inventoryUpdatedBySelect}, {$inventoryUpdatedByNameSelect}
      FROM ops_packing_tasks pt
      LEFT JOIN ops_employees e ON e.id = pt.assigned_employee_id
+     {$websiteEmployeeJoin}
      {$where}
      ORDER BY pt.date_loaded DESC, FIELD(pt.priority, 'top_critical', 'high', 'medium', 'low'), pt.id DESC
      LIMIT 500",
@@ -173,7 +182,7 @@ echo json_encode([
         'can_manage' => $canManage,
         'can_bulk_manage' => $canManage,
         'can_delete' => user_has_role('owner_admin', 'supervisor_manager'),
-        'can_edit_front_website' => user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager'),
+        'can_edit_front_website' => $canManageWebsiteUpdate,
         'can_manage_people' => user_has_role('owner_admin'),
         'employee_accounts_url' => BASE_URL . '/apps/operations/my-account.php?section=employees',
     ],

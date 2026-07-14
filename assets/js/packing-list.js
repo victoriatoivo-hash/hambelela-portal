@@ -12,6 +12,9 @@
   let personPopup = null;
   let personPopupTrigger = null;
   let personPopupTaskId = '';
+  let itemActionsPopup = null;
+  let itemActionsTaskId = '';
+  let itemActionsTrigger = null;
   let lastPackingModalTrigger = null;
   let labelInteractionScrollState = null;
   const panel = document.getElementById('packing-panel');
@@ -82,7 +85,7 @@
   const labelText = (options, value) => itemText(findOption(options, value) || [value, String(value || '').replace(/_/g, ' ')]);
   const labelColor = (options, value) => itemColor(findOption(options, value) || ['', '', '#8c92a6']);
   const packingLabelStorageKey = (field) => `hambelelaPackingLabels:${field}`;
-  const baseColumnCount = 13;
+  const baseColumnCount = 12;
   const totalColumnCount = () => baseColumnCount + customColumns.length;
   const packingColumnStorageKey = 'hambelelaPackingColumnWidths';
   let columnWidths = {};
@@ -101,7 +104,6 @@
     { key: 'person', label: 'PERSON RESPONSIBLE', className: 'col-person', width: 200, title: 'Person Responsible' },
     { key: 'quantity_packed', label: 'QUANTITY PACKED', className: 'col-qtypacked', width: 150 },
     { key: 'date_completed', label: 'DATE COMPLETED', className: 'col-datecompleted', width: 150 },
-    { key: 'website_uploaded', label: 'WEBSITE', className: 'col-webinv', width: 140, title: 'Packer website confirmation' },
     { key: 'status', label: 'PACKING STATUS', className: 'col-packstatus', width: 140 },
     { key: 'notes', label: 'NOTES', className: 'col-notes comment-cell', width: 64, title: 'Open notes and full details' },
     { key: 'text', label: 'TEXT', className: 'col-text', width: 220 },
@@ -147,7 +149,6 @@
       person: 'col-person',
       quantity_packed: 'col-packed',
       date_completed: 'col-date-completed',
-      website_uploaded: 'col-website',
       status: 'col-status',
       text: 'col-text',
       add: 'col-add'
@@ -202,7 +203,7 @@
     const variableNames = {
       select: '--col-select', item: '--col-item', notes: '--col-notes', date_loaded: '--col-date-loaded',
       priority: '--col-priority', quantity_to_pack: '--col-quantity', person: '--col-person',
-      quantity_packed: '--col-packed', date_completed: '--col-date-completed', website_uploaded: '--col-website',
+      quantity_packed: '--col-packed', date_completed: '--col-date-completed',
       status: '--col-status', text: '--col-text'
     };
     document.querySelectorAll('.packing-date-group').forEach((group) => {
@@ -361,8 +362,7 @@
         task[field] = value;
         const returned = returnedRows.get(String(task.id));
         if (returned) {
-          task.packing_status = returned.packing_status;
-          task.date_completed = returned.date_completed;
+          Object.keys(returned).forEach((key) => { if (key !== 'id') task[key] = returned[key]; });
         }
         if (field === 'assigned_employee_id') {
           const packer = packers.find((item) => String(item.id) === String(value));
@@ -379,7 +379,7 @@
       const task = tasks.find((item) => String(item.id) === String(id));
       if (!task) return;
       document.querySelectorAll(`tr[data-task-id="${CSS.escape(String(id))}"] [data-column-key="date_completed"]`).forEach((cell) => {
-        cell.innerHTML = renderPackingDate(task, 'date_completed', currentUser.can_manage);
+        cell.innerHTML = renderPackingDate(task, 'date_completed', canEditTask(task));
       });
       document.querySelectorAll(`[data-mobile-date-completed="${CSS.escape(String(id))}"]`).forEach((cell) => {
         cell.textContent = task.date_completed ? formatDate(task.date_completed) : '';
@@ -534,6 +534,13 @@
     </div>`;
   }
 
+  function renderItemCell(task) {
+    return `<div class="packing-item-cell">
+      <button type="button" class="packing-item-main-trigger" data-packing-open-panel="${esc(task.id)}"><span class="packing-item-name">${esc(task.item_name)}</span></button>
+      ${currentUser.can_delete ? `<button type="button" class="packing-item-menu-trigger" data-packing-item-menu="${esc(task.id)}" aria-label="Open item actions" aria-haspopup="menu" aria-expanded="false"><span></span><span></span><span></span></button>` : ''}
+    </div>`;
+  }
+
   function renderPackingStatus(task, canEdit) {
     const value = normalize(task.packing_status || 'not_started');
     const definition = statuses.find((item) => normalize(item[0]) === value) || statuses[0] || [value, titleCase(value), '#C4C4C4', '#FFFFFF'];
@@ -626,7 +633,6 @@
         <div class="packing-date-header packing-skeleton-header">
           <div class="packing-date-cell packing-date-cell--toggle"><span class="board-skeleton-cell"></span></div>
           <div class="packing-date-cell packing-date-cell--title"><span class="board-skeleton-cell"></span></div>
-          <div class="packing-date-cell packing-date-cell--website"><span class="board-skeleton-cell"></span></div>
           <div class="packing-date-cell packing-date-cell--priority"><span class="board-skeleton-cell"></span></div>
           <div class="packing-date-cell packing-date-cell--progress"><span class="board-skeleton-cell"></span></div>
         </div>
@@ -693,7 +699,6 @@
           <span>${esc(task.received_weight || 'No weight')}</span>
           <span>${esc(task.quantity_planned || 'No plan')}</span>
           <span>Person: ${esc(task.assigned_name || 'Unassigned')}</span>
-          <span>Website: ${Number(task.website_uploaded || 0) === 1 ? 'Complete' : 'Pending'}</span>
         </div>
       </article>
     `).join('');
@@ -1350,14 +1355,13 @@
       return `
         <tr data-task-id="${esc(task.id)}" class="board-row ${!previousTaskIds.has(String(task.id)) && hasRenderedOnce ? 'row-new' : ''} ${selected.has(String(task.id)) ? 'is-selected' : ''}">
           <td class="check-cell col-checkbox"><input type="checkbox" data-packing-row-select="${esc(task.id)}" ${selected.has(String(task.id)) ? 'checked' : ''}></td>
-          <td class="task-cell col-item">${esc(task.item_name)}</td>
+          <td class="task-cell col-item">${renderItemCell(task)}</td>
           <td class="col-dateloaded">${esc(formatDate(task.date_loaded))}</td>
           <td class="col-priority">${priorityCell}</td>
           <td class="col-qty"><input class="board-inline-input" data-packing-text="quantity_planned" data-task-id="${esc(task.id)}" value="${esc(task.quantity_planned || '')}" ${manageOnly}></td>
           <td class="col-person">${renderPerson(task)}</td>
           <td class="col-qtypacked"><input class="board-inline-input" data-packing-text="quantity_packed" data-task-id="${esc(task.id)}" value="${esc(task.quantity_packed || '')}" placeholder="Actual" ${ownOnly}></td>
           <td class="col-datecompleted">${esc(task.date_completed ? formatDate(task.date_completed) : '')}</td>
-          <td class="paid-cell col-webinv">${renderWebsiteCheck(task, canEditOwn)}</td>
           <td class="col-packstatus">${statusCell}</td>
           <td class="notes-cell col-notes">${canEditOwn ? renderEditableCell({ ...task, notes: task.packer_notes || '' }, 'notes', 'Notes', 'Add note') : esc(task.packer_notes || '')}</td>
           <td class="col-text" title="${esc(task.notes || '')}">${esc(task.notes || '')}</td>
@@ -1381,7 +1385,6 @@
         <td class="col-person"></td>
         <td class="col-qtypacked"></td>
         <td class="col-datecompleted"></td>
-        <td class="col-webinv"><span class="packing-fraction website-fraction">${groupSummary.website}/${rows.length}</span></td>
         <td class="col-packstatus">${packingProgressBar(statusCounts, rows.length)}</td>
         <td class="col-notes"></td>
         <td class="col-text"></td>
@@ -1391,7 +1394,7 @@
       ${bodyRows}
       ${addRow}
       <tr class="summary-row">
-        <td></td><td colspan="${totalColumnCount() - 1}"><span class="summary-pill">${esc(groupLabel(key))}</span> ${rows.length} items · Done: ${groupSummary.done} · Not started: ${groupSummary.notStarted} · Packing: ${groupSummary.packing} · Website: ${groupSummary.website}/${rows.length} · ${esc(groupSummary.split)}</td>
+        <td></td><td colspan="${totalColumnCount() - 1}"><span class="summary-pill">${esc(groupLabel(key))}</span> ${rows.length} items · Done: ${groupSummary.done} · Not started: ${groupSummary.notStarted} · Packing: ${groupSummary.packing} · ${esc(groupSummary.split)}</td>
       </tr>
     `;
   }
@@ -1419,14 +1422,13 @@
               <svg class="packing-checkbox-tick" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 7.2 5.7 10 11 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
           </td>
-          <td class="task-cell col-item" data-column-key="item">${currentUser.can_manage ? renderEditableCell(task, 'item_name', 'Item') : esc(task.item_name)}</td>
+          <td class="task-cell col-item" data-column-key="item">${renderItemCell(task)}</td>
           <td class="col-dateloaded packing-editable-date-cell" data-column-key="date_loaded">${renderPackingDate(task, 'date_loaded', currentUser.can_manage)}</td>
           <td class="col-priority" data-column-key="priority">${priorityCell}</td>
           <td class="col-qty" data-column-key="quantity_to_pack">${currentUser.can_manage ? renderEditableCell(task, 'quantity_planned', 'Quantity to pack') : esc(task.quantity_planned || '')}</td>
           <td class="col-person" data-column-key="person">${renderPerson(task)}</td>
           <td class="col-qtypacked" data-column-key="quantity_packed">${canEditOwn ? renderEditableCell(task, 'quantity_packed', 'Quantity packed', 'Enter packed quantity') : esc(task.quantity_packed || '')}</td>
-          <td class="col-datecompleted packing-editable-date-cell" data-column-key="date_completed">${renderPackingDate(task, 'date_completed', currentUser.can_manage)}</td>
-          <td class="paid-cell col-webinv" data-column-key="website_uploaded">${renderWebsiteCheck(task, canEditOwn)}</td>
+          <td class="col-datecompleted packing-editable-date-cell" data-column-key="date_completed">${renderPackingDate(task, 'date_completed', canEditOwn)}</td>
           <td class="col-packstatus" data-column-key="status">${statusCell}</td>
           <td class="notes-cell col-notes" data-column-key="notes">${canEditOwn ? renderEditableCell({ ...task, notes: task.packer_notes || '' }, 'notes', 'Notes', 'Add note') : esc(task.packer_notes || '')}</td>
           <td class="col-text" data-column-key="text" title="${esc(task.notes || '')}">${esc(task.notes || '')}</td>
@@ -1446,7 +1448,6 @@
           <td class="packing-add-item-empty-cell" data-column-key="person"></td>
           <td class="packing-add-item-empty-cell" data-column-key="quantity_packed"></td>
           <td class="packing-add-item-empty-cell" data-column-key="date_completed"></td>
-          <td class="packing-add-item-empty-cell" data-column-key="website_uploaded"></td>
           <td class="packing-add-item-empty-cell" data-column-key="status"></td>
           <td class="packing-add-item-empty-cell" data-column-key="notes"></td>
           <td class="packing-add-item-empty-cell" data-column-key="text"></td>
@@ -1478,10 +1479,6 @@
             <span class="packing-summary-label">Priority</span>
             ${packingHeaderPriority(pCounts)}
           </div>
-          <div class="packing-date-cell packing-date-cell--website packing-month-website-cell packing-month-summary-website">
-            <span class="packing-summary-label">Website</span>
-            <strong>${groupSummary.website}/${rows.length}</strong>
-          </div>
           <div class="packing-date-cell packing-date-cell--progress packing-month-progress-cell packing-month-summary-status">
             <span class="packing-summary-label">Packing</span>
             ${packingHeaderProgress(statusCounts, rows.length)}
@@ -1508,7 +1505,6 @@
                     <td data-column-key="person"></td>
                     <td data-column-key="quantity_packed"></td>
                     <td data-column-key="date_completed"></td>
-                    <td class="packing-month-open-footer-cell--website" data-column-key="website_uploaded"><strong>${groupSummary.website} / ${rows.length}</strong></td>
                     <td class="packing-month-open-footer-cell--status" data-column-key="status">${packingHeaderProgress(statusCounts, rows.length)}</td>
                     <td data-column-key="text"></td>
                     ${renderEmptyCustomCells('summary-custom-cell')}
@@ -2071,7 +2067,6 @@
       <section class="packing-item-section"><h2 class="packing-item-section-title">Assignment and status</h2><div class="packing-item-form-grid">
         <div class="packing-item-field"><label>Assigned</label><div class="packing-item-control">${renderPerson(currentTask)}</div></div>
         <div class="packing-item-field"><label>Packing status</label><div class="packing-item-control">${renderPackingStatus(currentTask, canEditOwn)}</div></div>
-        <div class="packing-item-field"><label>Website inventory</label><div class="packing-item-control">${renderCheck(currentTask, 'website_uploaded', canEditOwn)}</div></div>
         <div class="packing-item-field"><label>Packing website confirmed</label><div class="packing-item-control">${renderCheck(currentTask, 'packing_website_confirmed', canEditOwn)}</div></div>
       </div></section>
       <section class="packing-item-section"><h2 class="packing-item-section-title">Dates and timing</h2><div class="packing-item-form-grid">
@@ -2081,6 +2076,16 @@
       <section class="packing-item-section"><h2 class="packing-item-section-title">Performance</h2><div class="packing-item-info-grid">
         ${infoCard('Time taken', duration(currentTask.date_started || currentTask.date_loaded, currentTask.date_completed) || 'Not complete')}${infoCard('Workload', currentTask.workload_points)}
       </div></section>`;
+    if (currentUser.can_edit_front_website) {
+      const websiteToggle = panel.querySelector('[data-packing-panel-website]');
+      if (websiteToggle) websiteToggle.checked = Number(currentTask.website_uploaded || 0) === 1;
+      const updatedAt = panel.querySelector('[data-packing-website-updated-at]');
+      const updatedBy = panel.querySelector('[data-packing-website-updated-by]');
+      if (updatedAt) updatedAt.textContent = currentTask.inventory_updated_at || currentTask.website_uploaded_at
+        ? formatDate(currentTask.inventory_updated_at || currentTask.website_uploaded_at)
+        : (Number(currentTask.website_uploaded || 0) === 1 ? 'Updated date not recorded' : 'Not updated');
+      if (updatedBy) updatedBy.textContent = currentTask.inventory_updated_by_name || '—';
+    }
     if (typeof window.initialisePortalDatePickers === 'function') window.initialisePortalDatePickers(panelActivity);
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
     panel.classList.add('open');
@@ -2188,6 +2193,40 @@
       if (submit) { submit.disabled = false; submit.classList.remove('is-loading'); }
       if (submitText) submitText.textContent = 'Create packing row';
     }
+  }
+
+  function openItemActions(trigger, taskId) {
+    if (!currentUser.can_delete) return;
+    if (!itemActionsPopup) {
+      itemActionsPopup = document.createElement('div');
+      itemActionsPopup.className = 'packing-item-actions-popup';
+      itemActionsPopup.innerHTML = '<button type="button" data-packing-item-delete><i data-lucide="trash-2"></i><span>Move to trash</span></button>';
+      document.body.appendChild(itemActionsPopup);
+    }
+    itemActionsTaskId = String(taskId || '');
+    itemActionsTrigger?.setAttribute('aria-expanded', 'false');
+    itemActionsTrigger = trigger;
+    trigger.setAttribute('aria-expanded', 'true');
+    const rect = trigger.getBoundingClientRect();
+    itemActionsPopup.style.left = `${Math.min(rect.left, window.innerWidth - 190)}px`;
+    itemActionsPopup.style.top = `${rect.bottom + 6}px`;
+    itemActionsPopup.hidden = false;
+    if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+  }
+
+  function closeItemActions() { if (itemActionsPopup) itemActionsPopup.hidden = true; itemActionsTrigger?.setAttribute('aria-expanded', 'false'); itemActionsTrigger = null; itemActionsTaskId = ''; }
+
+  function confirmTrash(task) {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'packing-confirm-overlay';
+      overlay.innerHTML = `<div class="packing-confirm-dialog" role="dialog" aria-modal="true"><h2>Move item to trash?</h2><p>${esc(task?.item_name || 'This item')} can be restored later from Packing tools.</p><div><button type="button" data-cancel>Cancel</button><button type="button" class="is-danger" data-confirm>Move to trash</button></div></div>`;
+      document.body.appendChild(overlay);
+      overlay.addEventListener('click', (event) => {
+        if (event.target.closest('[data-confirm]')) { overlay.remove(); resolve(true); }
+        else if (event.target === overlay || event.target.closest('[data-cancel]')) { overlay.remove(); resolve(false); }
+      });
+    });
   }
 
   function updatePrioritySummaryForTask(taskId) {
@@ -2626,6 +2665,9 @@
     const editPackingPeople = event.target.closest('[data-edit-packing-people]');
     const check = event.target.closest('[data-packing-check]');
     const websiteCheck = event.target.closest('[data-packing-website-check]');
+    const panelWebsite = event.target.closest('[data-packing-panel-website]');
+    const itemMenu = event.target.closest('[data-packing-item-menu]');
+    const itemDelete = event.target.closest('[data-packing-item-delete]');
     const panelButton = event.target.closest('[data-packing-open-panel]');
     const panelClose = event.target.closest('[data-packing-panel-close]');
     const tab = event.target.closest('[data-packing-panel-tab]');
@@ -3011,6 +3053,32 @@
         const scrollState = capturePackingScrollState(check);
         await updateTasksField(ids, check.dataset.packingCheck, check.checked ? '1' : '0');
         restorePackingScrollState(scrollState, check);
+        return;
+      }
+      if (panelWebsite && currentTask && currentUser.can_edit_front_website) {
+        await updateTasksField([String(currentTask.id)], 'website_uploaded', panelWebsite.checked ? '1' : '0');
+        openPanel(currentTask.id);
+        document.querySelector('[data-packing-panel-tab="website"]')?.click();
+        return;
+      }
+      if (itemMenu) {
+        event.preventDefault();
+        event.stopPropagation();
+        openItemActions(itemMenu, itemMenu.dataset.packingItemMenu);
+        return;
+      }
+      if (itemDelete) {
+        event.preventDefault();
+        const task = tasks.find((row) => String(row.id) === itemActionsTaskId);
+        const taskId = itemActionsTaskId;
+        closeItemActions();
+        if (taskId && await confirmTrash(task)) {
+          await post('bulk_delete', { task_ids: taskId });
+          if (currentTask && String(currentTask.id) === taskId) closePanel();
+          selected.delete(taskId);
+          await refresh();
+          setCount('Item moved to trash.');
+        }
         return;
       }
       if (panelButton) { openPanel(panelButton.dataset.packingOpenPanel); return; }
