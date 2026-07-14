@@ -8,6 +8,10 @@ require_once BASE_PATH . '/shared/database.php';
 
 require_login();
 
+final class HrBridgeUserException extends RuntimeException
+{
+}
+
 function hr_bridge_config_defines(string $path): array
 {
     if (!is_file($path) || !is_readable($path)) {
@@ -42,7 +46,7 @@ function hr_bridge_fail(string $message, int $status = 503): void
 try {
     $portalUserId = (int) ($_SESSION['user']['id'] ?? 0);
     if ($portalUserId < 1) {
-        throw new RuntimeException('Your portal session does not contain a valid employee account.');
+        throw new HrBridgeUserException('Your portal session does not contain a valid employee account.');
     }
 
     $link = db()->prepare(
@@ -56,7 +60,7 @@ try {
     $link->closeCursor();
 
     if ($hrEmployeeId < 1) {
-        throw new RuntimeException('Your employee account is not linked to an HR profile. Ask an Owner/Admin to add the link in Employees & Roles.');
+        throw new HrBridgeUserException('Your employee account is not linked to an HR profile. Ask an Owner/Admin to add the link in Employees & Roles.');
     }
 
     $local = isset($localSecrets) && is_array($localSecrets) ? $localSecrets : [];
@@ -72,7 +76,7 @@ try {
     $hrPass = (string) (getenv('HAMBELELA_HR_DB_PASS') ?: ($local['hr_db_pass'] ?? ($live['DB_PASS'] ?? '')));
 
     if ($hrName === '' || $hrUser === '') {
-        throw new RuntimeException('The HR database connection is not configured.');
+        throw new HrBridgeUserException('The HR Portal connection is not configured. Please contact an administrator.');
     }
 
     $hrDb = new PDO(
@@ -97,7 +101,7 @@ try {
     $accountStmt->closeCursor();
 
     if (!$account) {
-        throw new RuntimeException('The linked HR profile does not have an active HR Portal account.');
+        throw new HrBridgeUserException('The linked HR profile does not have an active HR Portal account.');
     }
 
     session_write_close();
@@ -119,5 +123,8 @@ try {
     exit;
 } catch (Throwable $error) {
     error_log('HR portal bridge failed: ' . $error->getMessage() . ' in ' . $error->getFile() . ':' . $error->getLine());
-    hr_bridge_fail($error->getMessage());
+    $message = $error instanceof HrBridgeUserException
+        ? $error->getMessage()
+        : 'Unable to sign in to the HR Portal right now. Please try again or contact an administrator.';
+    hr_bridge_fail($message);
 }
