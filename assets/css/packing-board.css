@@ -447,11 +447,19 @@
 }
 
 .packing-page-v2 .packing-btn-primary:hover,
+.packing-page-v2 .packing-btn-primary:active,
+.packing-page-v2 .packing-btn-primary:focus-visible,
 .packing-page-v2 [data-open-packing-create]:hover,
+.packing-page-v2 [data-open-packing-create]:active,
+.packing-page-v2 [data-open-packing-create]:focus-visible,
 .packing-page-v2 [data-open-invoice]:hover,
-.packing-page-v2 [data-packing-refresh]:hover {
-    border-color: var(--pk-burgundy);
-    background: var(--pk-burgundy) !important;
+.packing-page-v2 [data-open-invoice]:active,
+.packing-page-v2 [data-open-invoice]:focus-visible,
+.packing-page-v2 [data-packing-refresh]:hover,
+.packing-page-v2 [data-packing-refresh]:active,
+.packing-page-v2 [data-packing-refresh]:focus-visible {
+    border-color: #F07420;
+    background: #F07420 !important;
 }
 
 .packing-page-v2 .packing-btn svg,
