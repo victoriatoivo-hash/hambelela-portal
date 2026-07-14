@@ -13392,10 +13392,16 @@ body.login-page { min-height: 100%; background: #FFFFFF !important; }
 }
 
 .courier-wrap .upload-form > label.upload-input-field .portal-date-field,
+.courier-wrap .upload-form > label.upload-input-field .portal-date-value,
 .courier-wrap .upload-form > label.upload-input-field > input,
 .courier-wrap .upload-form .notes-field > textarea {
-  font-size: 12px !important;
-  font-weight: 400;
+  font: 400 12px/1.2 Figtree, Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+}
+
+.courier-wrap .upload-form > label.upload-input-field > input::placeholder,
+.courier-wrap .upload-form .notes-field > textarea::placeholder {
+  font: 400 12px/1.2 Figtree, Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  opacity: 1;
 }
 
 .courier-wrap .meta-value {
