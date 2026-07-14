@@ -5,6 +5,8 @@ declare(strict_types=1);
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/shared/auth.php';
 require_once __DIR__ . '/shared/database.php';
+require_once __DIR__ . '/shared/login-security.php';
+require_once __DIR__ . '/shared/temporary-access-codes.php';
 
 if (($_GET['action'] ?? '') === 'logout') {
     logout_user();
@@ -177,8 +179,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             );
             $stmt->execute([$employeeId]);
             $employee = $stmt->fetch();
+            $permanentValid = $employee
+                && !empty($employee['password_hash'])
+                && password_verify($code, (string) $employee['password_hash']);
 
-            if ($employee && $employee['password_hash'] && password_verify($code, $employee['password_hash'])) {
+            if ($permanentValid) {
                 session_regenerate_id(true);
                 $_SESSION['user'] = [
                     'id' => (int) $employee['id'],
@@ -192,11 +197,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 header('Location: index.php');
                 exit;
             }
+
+            $temporaryAccount = $employee ? temporary_access_account(db(), (int) $employee['id']) : null;
+            $temporaryHashMatches = $temporaryAccount
+                && !empty($temporaryAccount['temporary_code_hash'])
+                && password_verify($code, (string) $temporaryAccount['temporary_code_hash']);
+            $temporaryNotExpired = $temporaryAccount
+                && !empty($temporaryAccount['temporary_code_expires_at'])
+                && strtotime((string) $temporaryAccount['temporary_code_expires_at']) >= time();
+            $temporaryValid = $temporaryHashMatches
+                && $temporaryNotExpired
+                && empty($temporaryAccount['temporary_code_used_at'])
+                && !empty($temporaryAccount['must_change_access_code']);
+
+            if ($temporaryValid) {
+                session_regenerate_id(true);
+                $_SESSION['user'] = [
+                    'id' => (int) $employee['id'],
+                    'name' => $employee['full_name'],
+                    'email' => $employee['email'],
+                    'role' => $employee['role_name'],
+                    'role_key' => $employee['role_key'],
+                    'source' => 'database',
+                ];
+                $_SESSION['login_type'] = 'temporary_code';
+                $_SESSION['must_change_access_code'] = true;
+                record_login_event($_SESSION['user'], 'temporary_code');
+                record_security_event('temporary_access_code_used', (int) $employee['id']);
+                header('Location: change-access-code.php', true, 303);
+                exit;
+            }
+
+            if ($temporaryHashMatches && !$temporaryNotExpired) {
+                $error = 'This temporary access code has expired. Ask an administrator to create a new one.';
+            } elseif ($temporaryHashMatches) {
+                $error = 'This temporary access code is no longer valid.';
+            }
         }
 
-        $error = $opsLoginReady
-            ? 'Unable to sign in. Check your details and try again.'
-            : 'Unable to sign in. Contact an administrator.';
+        if ($error === null) {
+            $error = $opsLoginReady
+                ? 'Unable to sign in. Check your details and try again.'
+                : 'Unable to sign in. Contact an administrator.';
+        }
     } catch (Throwable $loginError) {
         error_log(
             'Portal login failed: ' . $loginError->getMessage()

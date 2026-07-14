@@ -78,6 +78,15 @@ function require_login(): void
         header('Location: ' . BASE_URL . '/login.php');
         exit;
     }
+
+    $scriptName = basename((string) ($_SERVER['SCRIPT_NAME'] ?? ''));
+    if (
+        !empty($_SESSION['must_change_access_code'])
+        && !in_array($scriptName, ['change-access-code.php', 'login.php'], true)
+    ) {
+        header('Location: ' . BASE_URL . '/change-access-code.php', true, 303);
+        exit;
+    }
 }
 
 function logout_user(): void
