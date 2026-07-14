@@ -2144,6 +2144,11 @@ body.is-resizing-packing-column {
 .ops-board-page.packing-list-page.packing-page-v2 .work-filter-bar.packing-toolbar .work-filter-actions button[data-import-previous-packing] {
   font-weight: 400 !important;
 }
+.ops-board-page.packing-list-page.packing-page-v2 .work-filter-bar.packing-toolbar .work-filter-actions button[data-open-packing-create]:hover,
+.ops-board-page.packing-list-page.packing-page-v2 .work-filter-bar.packing-toolbar .work-filter-actions button[data-open-invoice]:hover,
+.ops-board-page.packing-list-page.packing-page-v2 .work-filter-bar.packing-toolbar .work-filter-actions button[data-packing-refresh]:hover {
+  border-color: #F07420 !important;
+}
 .packing-list-page .packing-toolbar [data-find-packing-duplicates] svg,
 .packing-list-page .packing-toolbar [data-import-previous-packing] svg {
   color: #AB3619 !important;
