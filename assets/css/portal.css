@@ -13404,6 +13404,17 @@ body.login-page { min-height: 100%; background: #FFFFFF !important; }
   opacity: 1;
 }
 
+.courier-wrap .filter-strip label.field-label {
+  color: #721B1A !important;
+}
+
+.courier-wrap .filter-strip .portal-date-field,
+.courier-wrap .filter-strip .portal-date-value,
+.courier-wrap .filter-strip input[type="search"],
+.courier-wrap .filter-strip input[type="search"]::placeholder {
+  font: 400 12px/1.2 Figtree, Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+}
+
 .courier-wrap .meta-value {
   display: block;
   font-size: 12px;
