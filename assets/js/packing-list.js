@@ -12,9 +12,6 @@
   let personPopup = null;
   let personPopupTrigger = null;
   let personPopupTaskId = '';
-  let itemActionsPopup = null;
-  let itemActionsTaskId = '';
-  let itemActionsTrigger = null;
   let lastPackingModalTrigger = null;
   let labelInteractionScrollState = null;
   const panel = document.getElementById('packing-panel');
@@ -179,7 +176,7 @@
             const editable = config.canEditHeaders && !column.isCustom ? 'contenteditable="true"' : '';
             const customAttrs = column.isCustom ? `data-custom-header="${esc(column.key)}" data-col-type="${esc(column.customType || 'text')}"` : `data-packing-column="${esc(column.key)}"`;
             const title = column.title ? ` title="${esc(column.title)}"` : '';
-            return `<th class="${esc(column.className)}" data-column-key="${esc(column.key)}" ${customAttrs}${title} ${editable}>${esc(packingHeaderLabel(column))}</th>`;
+            return `<th class="${esc(column.className)}" data-column-key="${esc(column.key)}" ${customAttrs}${title}><span class="packing-column-heading-label" ${editable}>${esc(packingHeaderLabel(column))}</span><span class="packing-column-heading-dots" aria-hidden="true"><i></i><i></i><i></i></span></th>`;
           }).join('')}
         </tr>
       </thead>
@@ -537,7 +534,6 @@
   function renderItemCell(task) {
     return `<div class="packing-item-cell">
       <button type="button" class="packing-item-main-trigger" data-packing-open-panel="${esc(task.id)}"><span class="packing-item-name">${esc(task.item_name)}</span></button>
-      ${currentUser.can_delete ? `<button type="button" class="packing-item-menu-trigger" data-packing-item-menu="${esc(task.id)}" aria-label="Open item actions" aria-haspopup="menu" aria-expanded="false"><span></span><span></span><span></span></button>` : ''}
     </div>`;
   }
 
@@ -2195,39 +2191,6 @@
     }
   }
 
-  function openItemActions(trigger, taskId) {
-    if (!currentUser.can_delete) return;
-    if (!itemActionsPopup) {
-      itemActionsPopup = document.createElement('div');
-      itemActionsPopup.className = 'packing-item-actions-popup';
-      itemActionsPopup.innerHTML = '<button type="button" data-packing-item-delete><i data-lucide="trash-2"></i><span>Move to trash</span></button>';
-      document.body.appendChild(itemActionsPopup);
-    }
-    itemActionsTaskId = String(taskId || '');
-    itemActionsTrigger?.setAttribute('aria-expanded', 'false');
-    itemActionsTrigger = trigger;
-    trigger.setAttribute('aria-expanded', 'true');
-    const rect = trigger.getBoundingClientRect();
-    itemActionsPopup.style.left = `${Math.min(rect.left, window.innerWidth - 190)}px`;
-    itemActionsPopup.style.top = `${rect.bottom + 6}px`;
-    itemActionsPopup.hidden = false;
-    if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
-  }
-
-  function closeItemActions() { if (itemActionsPopup) itemActionsPopup.hidden = true; itemActionsTrigger?.setAttribute('aria-expanded', 'false'); itemActionsTrigger = null; itemActionsTaskId = ''; }
-
-  function confirmTrash(task) {
-    return new Promise((resolve) => {
-      const overlay = document.createElement('div');
-      overlay.className = 'packing-confirm-overlay';
-      overlay.innerHTML = `<div class="packing-confirm-dialog" role="dialog" aria-modal="true"><h2>Move item to trash?</h2><p>${esc(task?.item_name || 'This item')} can be restored later from Packing tools.</p><div><button type="button" data-cancel>Cancel</button><button type="button" class="is-danger" data-confirm>Move to trash</button></div></div>`;
-      document.body.appendChild(overlay);
-      overlay.addEventListener('click', (event) => {
-        if (event.target.closest('[data-confirm]')) { overlay.remove(); resolve(true); }
-        else if (event.target === overlay || event.target.closest('[data-cancel]')) { overlay.remove(); resolve(false); }
-      });
-    });
-  }
 
   function updatePrioritySummaryForTask(taskId) {
     const trigger = document.querySelector(`.packing-priority-trigger[data-task-id="${CSS.escape(String(taskId))}"]`);
@@ -2666,8 +2629,6 @@
     const check = event.target.closest('[data-packing-check]');
     const websiteCheck = event.target.closest('[data-packing-website-check]');
     const panelWebsite = event.target.closest('[data-packing-panel-website]');
-    const itemMenu = event.target.closest('[data-packing-item-menu]');
-    const itemDelete = event.target.closest('[data-packing-item-delete]');
     const panelButton = event.target.closest('[data-packing-open-panel]');
     const panelClose = event.target.closest('[data-packing-panel-close]');
     const tab = event.target.closest('[data-packing-panel-tab]');
@@ -3061,26 +3022,6 @@
         document.querySelector('[data-packing-panel-tab="website"]')?.click();
         return;
       }
-      if (itemMenu) {
-        event.preventDefault();
-        event.stopPropagation();
-        openItemActions(itemMenu, itemMenu.dataset.packingItemMenu);
-        return;
-      }
-      if (itemDelete) {
-        event.preventDefault();
-        const task = tasks.find((row) => String(row.id) === itemActionsTaskId);
-        const taskId = itemActionsTaskId;
-        closeItemActions();
-        if (taskId && await confirmTrash(task)) {
-          await post('bulk_delete', { task_ids: taskId });
-          if (currentTask && String(currentTask.id) === taskId) closePanel();
-          selected.delete(taskId);
-          await refresh();
-          setCount('Item moved to trash.');
-        }
-        return;
-      }
       if (panelButton) { openPanel(panelButton.dataset.packingOpenPanel); return; }
       if (panelClose || event.target === backdrop) { closePanel(); return; }
       if (tab) {
@@ -3244,10 +3185,11 @@
       }
     }
     if (header && config.canEditHeaders) {
+      const label = header.querySelector('.packing-column-heading-label');
       let labels = {};
       try { labels = JSON.parse(localStorage.getItem('hambelelaPackingHeaders') || '{}') || {}; } catch (error) { labels = {}; }
-      labels[header.dataset.packingColumn] = header.textContent.trim().toUpperCase();
-      header.textContent = labels[header.dataset.packingColumn];
+      labels[header.dataset.packingColumn] = (label?.textContent || '').trim().toUpperCase();
+      if (label) label.textContent = labels[header.dataset.packingColumn];
       localStorage.setItem('hambelelaPackingHeaders', JSON.stringify(labels));
     }
   }, true);
@@ -3370,7 +3312,8 @@
   try {
     const labels = JSON.parse(localStorage.getItem('hambelelaPackingHeaders') || '{}') || {};
     document.querySelectorAll('[data-packing-column]').forEach((header) => {
-      if (labels[header.dataset.packingColumn]) header.textContent = labels[header.dataset.packingColumn];
+      const label = header.querySelector('.packing-column-heading-label');
+      if (label && labels[header.dataset.packingColumn]) label.textContent = labels[header.dataset.packingColumn];
     });
   } catch (error) {}
   loadCustomColumns()
