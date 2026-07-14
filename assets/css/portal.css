@@ -13396,6 +13396,13 @@ body.login-page { min-height: 100%; background: #FFFFFF !important; }
   margin-top: 7px;
 }
 
+.courier-wrap .upload-form > label.upload-input-field .portal-date-field,
+.courier-wrap .upload-form > label.upload-input-field > input,
+.courier-wrap .upload-form .notes-field > textarea {
+  font-size: 12px !important;
+  font-weight: 400;
+}
+
 .courier-wrap .meta-value {
   display: block;
   font-size: 12px;
