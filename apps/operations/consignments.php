@@ -40,7 +40,6 @@ include BASE_PATH . '/shared/sidebar.php';
             </div>
             <div class="monday-board-head-actions">
                 <?php if ($canViewPackingTools): ?><button type="button" class="packing-tools-button" data-open-packing-tools><i data-lucide="wrench"></i><span>Packing tools</span></button><?php endif; ?>
-                <button type="button" class="packing-btn packing-btn-secondary" data-reset-packing-columns title="Reset column widths"><i data-lucide="columns-3"></i> Reset column widths</button>
                 <button type="button" class="invite-btn packing-btn packing-btn-secondary" data-packing-export><i data-lucide="download"></i> Export Excel</button>
                 <button type="button" class="packing-btn packing-btn-secondary" data-packing-undo style="height:32px;min-height:32px" disabled><i data-lucide="undo-2"></i> Undo</button>
             </div>
@@ -259,11 +258,11 @@ include BASE_PATH . '/shared/sidebar.php';
             <footer class="invoice-upload-footer"><div class="invoice-footer-status"><strong>Step 1 of 5</strong><span data-invoice-extract-status>Upload an invoice or add rows manually.</span></div><div class="invoice-footer-actions"><button class="invoice-btn invoice-btn--secondary" type="button" data-close-modal>Cancel</button><button class="invoice-btn invoice-btn--primary" type="submit">Create packing items</button></div></footer>
         </form>
     </div>
-    <?php if ($canManage): ?>
+    <?php if ($canViewPackingTools): ?>
     <div class="packing-tools-backdrop" data-close-packing-tools></div>
     <aside class="packing-tools-panel" data-packing-tools-panel aria-hidden="true">
       <header class="packing-tools-panel-header"><div><p class="packing-tools-kicker">Packing List</p><h2 class="packing-tools-title">Packing tools</h2><p class="packing-tools-subtitle">Review deleted items, restore changes and track Packing List activity.</p></div><button type="button" class="packing-tools-close" data-close-packing-tools aria-label="Close Packing Tools"><i data-lucide="x"></i></button></header>
-      <nav class="packing-tools-tabs" role="tablist" aria-label="Packing tools"><button type="button" class="packing-tools-tab is-active" role="tab" aria-selected="true" data-tools-tab="trash">Trash</button><button type="button" class="packing-tools-tab" role="tab" aria-selected="false" data-tools-tab="activity">Activity log</button><button type="button" class="packing-tools-tab" role="tab" aria-selected="false" data-tools-tab="archived">Archived</button><button type="button" class="packing-tools-tab" role="tab" aria-selected="false" data-tools-tab="import-history">Import history</button><?php if ($canManage): ?><button type="button" class="packing-tools-tab" role="tab" aria-selected="false" data-tools-tab="bulk-actions">Bulk actions</button><?php endif; ?></nav>
+      <nav class="packing-tools-tabs" role="tablist" aria-label="Packing tools"><button type="button" class="packing-tools-tab is-active" role="tab" aria-selected="true" data-tools-tab="trash">Trash</button><button type="button" class="packing-tools-tab" role="tab" aria-selected="false" data-tools-tab="activity">Activity log</button><button type="button" class="packing-tools-tab" role="tab" aria-selected="false" data-tools-tab="archived">Archived</button><button type="button" class="packing-tools-tab" role="tab" aria-selected="false" data-tools-tab="import-history">Import history</button><button type="button" class="packing-tools-tab" role="tab" aria-selected="false" data-tools-tab="columns">Columns</button><?php if ($canManage): ?><button type="button" class="packing-tools-tab" role="tab" aria-selected="false" data-tools-tab="bulk-actions">Bulk actions</button><?php endif; ?></nav>
       <div class="packing-tools-body" data-packing-tools-body><div class="packing-tools-empty">Loading Packing Tools…</div></div>
     </aside>
     <?php endif; ?>
