@@ -26855,3 +26855,6 @@ body.dark-mode .portal-dark-toggle {
 .packing-list-page .packing-board-table tbody tr.packing-board-row .packing-person-trigger,
 .packing-list-page .packing-board-table tbody tr.packing-board-row .packing-status-component,
 .packing-list-page .packing-board-table tbody tr.packing-board-row .packing-status-trigger{height:32px!important;min-height:32px!important;max-height:32px!important}
+#packing-list-body .packing-board-table tbody tr.packing-board-row.board-row,
+#packing-list-body .packing-board-table tbody tr.packing-board-row.board-row > td{height:32px!important;min-height:32px!important;max-height:32px!important;box-sizing:border-box!important}
+#packing-list-body .packing-board-table tbody tr.packing-board-row.board-row > td:not([data-column-key="priority"]):not([data-column-key="status"]){padding-top:0!important;padding-bottom:0!important}
