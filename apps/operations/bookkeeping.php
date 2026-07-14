@@ -1366,7 +1366,7 @@ $canHardDelete = user_has_role('owner_admin');
         .bk-field {
             display: grid;
             gap: 4px;
-            color: #6B6B6B;
+            color: #721b1a;
             font-size: 10px;
             font-weight: 700;
             text-transform: uppercase;
@@ -1383,8 +1383,14 @@ $canHardDelete = user_has_role('owner_admin');
             color: #1a1a1a;
             font: inherit;
             font-size: 12px;
+            font-weight: 400;
             padding: 0 8px;
             outline: 0;
+        }
+
+        .add-row input[data-add-field="transaction_date"] {
+            font-size: 12px;
+            font-weight: 400;
         }
         .bk-field textarea {
             height: 58px;
