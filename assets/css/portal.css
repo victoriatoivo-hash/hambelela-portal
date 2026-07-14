@@ -13319,17 +13319,20 @@ body.login-page { min-height: 100%; background: #FFFFFF !important; }
 }
 
 .courier-wrap .courier-grid-header .courier-cell {
-  height: 44px;
-  min-height: 44px;
+  height: 36px;
+  min-height: 36px;
+  max-height: 36px;
   padding: 0 14px;
   align-items: center;
   justify-content: flex-start;
   background: #fbfaf9;
-  color: #7a1d12;
-  font-size: 11px;
+  color: rgb(114, 27, 26);
+  cursor: col-resize;
+  font-family: Figtree, Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 10px;
   font-weight: 700;
-  line-height: 1;
-  letter-spacing: .04em;
+  line-height: 11px;
+  letter-spacing: .5px;
   text-align: left;
   text-transform: uppercase;
 }
