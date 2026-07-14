@@ -18,11 +18,11 @@ function portal_feature_permissions(): array
             'error_log', 'settings', 'notifications', 'courier', 'hr',
             'operations', 'barcode',
         ],
-        'front_desk_admin' => ['packing_list'],
-        'front_desk_admin_employee' => ['packing_list'],
-        'packer' => ['packing_list'],
-        'packer_production_staff' => ['packing_list'],
-        'supervisor_manager' => ['packing_list'],
+        'front_desk_admin' => ['dashboard', 'packing_list', 'notifications', 'hr'],
+        'front_desk_admin_employee' => ['dashboard', 'packing_list', 'notifications', 'hr'],
+        'packer' => ['dashboard', 'packing_list', 'notifications', 'hr'],
+        'packer_production_staff' => ['dashboard', 'packing_list', 'notifications', 'hr'],
+        'supervisor_manager' => ['dashboard', 'packing_list', 'notifications', 'hr'],
     ];
 }
 
