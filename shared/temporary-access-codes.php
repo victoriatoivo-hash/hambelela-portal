@@ -4,9 +4,20 @@ declare(strict_types=1);
 
 function temporary_access_column_exists(PDO $database, string $column): bool
 {
-    $stmt = $database->prepare('SHOW COLUMNS FROM ops_employees LIKE ?');
-    $stmt->execute([$column]);
-    return (bool) $stmt->fetchColumn();
+    try {
+        $stmt = $database->prepare(
+            'SELECT COUNT(*)
+             FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE()
+               AND TABLE_NAME = ?
+               AND COLUMN_NAME = ?'
+        );
+        $stmt->execute(['ops_employees', $column]);
+        return (int) $stmt->fetchColumn() > 0;
+    } catch (Throwable $error) {
+        error_log('Temporary access schema inspection failed: ' . $error->getMessage());
+        return false;
+    }
 }
 function ensure_temporary_access_schema(PDO $database): void
 {
