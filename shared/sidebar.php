@@ -38,7 +38,7 @@ $portalNavItems = [
     ['id' => 'operations-bookkeeping', 'label' => 'Bookkeeping', 'icon' => 'bookkeeping', 'href' => BASE_URL . '/apps/operations/bookkeeping.php', 'match' => ['/apps/operations/bookkeeping.php']],
     ['id' => 'operations-cash-tools', 'label' => 'Cash Tools', 'icon' => 'cash', 'href' => BASE_URL . '/apps/operations/bank-statement-processor.php', 'match' => ['/apps/operations/bank-statement-processor.php']],
     ['id' => 'operations-consignments', 'label' => 'Packing List', 'icon' => 'packing', 'href' => BASE_URL . '/apps/operations/consignments.php', 'match' => ['/apps/operations/consignments.php']],
-    ['id' => 'operations-courier', 'label' => 'Courier', 'icon' => 'courier', 'href' => BASE_URL . '/apps/operations/courier.php', 'match' => ['/apps/operations/courier.php']],
+    ['id' => 'operations-courier', 'label' => 'Courier Waybills', 'icon' => 'courier', 'href' => BASE_URL . '/apps/operations/courier.php', 'match' => ['/apps/operations/courier.php']],
     ['id' => 'hr-portal', 'label' => 'HR Portal', 'icon' => 'hr', 'href' => BASE_URL . '/apps/hr-portal/portal-login.php', 'match' => ['/apps/hr-portal/portal-login.php', '/apps/hr-portal/index.php']],
     ['id' => 'operations-inventory', 'label' => 'Inventory', 'icon' => 'inventory', 'href' => BASE_URL . '/apps/operations/orders.php?tab=inventory', 'match' => ['/apps/operations/orders.php']],
     ['id' => 'operations-pos-reports', 'label' => 'POS Reports', 'icon' => 'reports', 'href' => BASE_URL . '/apps/operations/orders.php', 'match' => ['/apps/operations/orders.php']],
@@ -64,6 +64,7 @@ $featureByNavId = [
     'settings' => 'settings',
 ];
 $sidebarRoleKey = normalise_portal_role((string) ($sidebarUser['role_key'] ?? $sidebarUserRole));
+$isEmployeeSidebar = !in_array($sidebarRoleKey, ['owner_admin', 'guest'], true);
 $employeePortalNavItems = [];
 foreach ($portalNavItems as $portalNavItem) {
     $featureKey = $featureByNavId[$portalNavItem['id']] ?? '';
@@ -158,6 +159,7 @@ $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bo
     </nav>
 
     <div class="ps-bottom">
+        <?php if (!$isEmployeeSidebar): ?>
         <a href="<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/notifications.php" class="ps-nav-item ps-nav-item--notify" title="Notifications">
             <span class="ps-nav-icon"><?= getSidebarIcon('notifications') ?></span>
             <span class="ps-nav-label">Notifications</span>
@@ -169,6 +171,7 @@ $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bo
             <span class="ps-nav-label">Dark mode</span>
             <span class="ps-toggle-switch" id="darkToggleSwitch"></span>
         </div>
+        <?php endif; ?>
 
         <div class="ps-user">
             <div class="ps-user-avatar"><?= htmlspecialchars($sidebarUserInitial, ENT_QUOTES, 'UTF-8') ?></div>

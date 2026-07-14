@@ -45,6 +45,7 @@ function hr_bridge_fail(string $message, int $status = 503): void
 
 try {
     $portalUserId = (int) ($_SESSION['user']['id'] ?? 0);
+    $portalRoleKey = current_role_key();
     if ($portalUserId < 1) {
         throw new HrBridgeUserException('Your portal session does not contain a valid employee account.');
     }
@@ -119,7 +120,11 @@ try {
     $_SESSION['portal_return_to'] = (BASE_URL ?: '') . '/index.php';
     session_write_close();
 
-    $destination = (string) $account['role'] === 'employee' ? 'self-service.php' : 'dashboard.php';
+    // Portal operational roles never imply HR administration. Only the portal
+    // Owner/Admin retains the HR account's administrative destination.
+    $destination = $portalRoleKey === 'owner_admin' && (string) $account['role'] !== 'employee'
+        ? 'dashboard.php'
+        : 'self-service.php';
     header('Location: ' . (BASE_URL ?: '') . '/apps/hr-portal/' . $destination, true, 303);
     exit;
 } catch (Throwable $error) {
