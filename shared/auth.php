@@ -87,9 +87,6 @@ function require_login(): void
         header('Location: ' . BASE_URL . '/change-access-code.php', true, 303);
         exit;
     }
-
-    require_once __DIR__ . '/employee-features.php';
-    enforce_employee_feature_for_current_request();
 }
 
 function logout_user(): void
