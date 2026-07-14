@@ -1979,6 +1979,23 @@
     max-height: 32px !important;
 }
 
+/* Priority and Packing Status remain full-cell 35px buttons. */
+#packing-list-body .packing-board-table tbody tr.packing-board-row.board-row > td[data-column-key="priority"],
+#packing-list-body .packing-board-table tbody tr.packing-board-row.board-row > td[data-column-key="status"],
+#packing-list-body .packing-board-table tbody tr.packing-board-row.board-row .packing-priority-component,
+#packing-list-body .packing-board-table tbody tr.packing-board-row.board-row .packing-priority-trigger,
+#packing-list-body .packing-board-table tbody tr.packing-board-row.board-row .packing-status-component,
+#packing-list-body .packing-board-table tbody tr.packing-board-row.board-row .packing-status-trigger {
+    width: 100% !important;
+    height: 35px !important;
+    min-height: 35px !important;
+    max-height: 35px !important;
+    margin: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    box-sizing: border-box !important;
+}
+
 .packing-list-page .packing-date-edit-icon {
     position: absolute;
     top: 50%;
