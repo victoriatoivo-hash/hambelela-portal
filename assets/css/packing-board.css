@@ -1761,6 +1761,7 @@
 .packing-list-page .packing-priority-component[data-priority-key="low"] .packing-priority-trigger{color:#fff}
 .packing-list-page .packing-status-component.is-saving .packing-status-trigger,.packing-list-page .packing-priority-component.is-saving .packing-priority-trigger{cursor:wait;filter:brightness(.97)}
 .packing-list-page .packing-priority-trigger:hover{filter:brightness(1.04)}.packing-list-page .packing-priority-trigger:active{transform:scale(.99)}
+.packing-list-page .packing-priority-trigger.is-static{cursor:default;pointer-events:none}.packing-list-page .packing-priority-trigger.is-static:hover{filter:none}.packing-list-page .packing-priority-trigger.is-static:active{transform:none}
 .packing-list-page .label-menu.packing-priority-menu{position:fixed;z-index:12000;width:202px;padding:10px;display:block;background:#fff;border:1px solid var(--pk-border);border-radius:12px;box-shadow:0 14px 32px rgba(114,27,26,.16);box-sizing:border-box;opacity:0;transform:translateY(-6px) scale(.985);transform-origin:top center;transition:opacity .18s ease-out,transform .18s ease-out}
 .packing-list-page .label-menu.packing-priority-menu.is-open{opacity:1;transform:translateY(0) scale(1)}
 .packing-list-page .packing-priority-options{display:grid;grid-template-columns:1fr;gap:6px}

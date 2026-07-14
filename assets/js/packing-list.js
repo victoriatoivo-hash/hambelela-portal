@@ -542,6 +542,18 @@
     return `<span class="board-label packing-pill is-static" style="--label-color:${esc(labelColor(options, value))}" data-state="${esc(normalize(value))}">${esc(labelText(options, value))}</span>`;
   }
 
+  function renderStaticPriorityLabel(value, options) {
+    const colour = labelColor(options, value);
+    const definition = findOption(options, value) || [];
+    const key = normalize(value).replace(/_/g, '-');
+    return `
+      <div class="packing-priority-component is-static" data-priority-component data-priority="${esc(key)}" data-priority-key="${esc(key)}" style="--priority-colour:${esc(colour)};--priority-text-colour:${esc(definition[3] || readablePriorityTextColour(colour))}">
+        <span class="packing-priority-trigger is-static" aria-label="Priority: ${esc(labelText(options, value))}">
+          <span class="packing-priority-trigger-label">${esc(labelText(options, value))}</span>
+        </span>
+      </div>`;
+  }
+
   function canEditTask(task) {
     if (currentUser.can_manage) return true;
     return String(task?.assigned_employee_id || '') === String(currentUser.id || '');
@@ -1306,7 +1318,7 @@
       const canEditOwn = canEditTask(task);
       const priorityCell = currentUser.can_manage
         ? renderLabel(task, 'priority', task.priority || 'medium', priorities)
-        : renderStaticLabel(task.priority || 'medium', priorities);
+        : renderStaticPriorityLabel(task.priority || 'medium', priorities);
       const statusCell = renderPackingStatus(task, canEditOwn);
       return `
         <tr data-task-id="${esc(task.id)}" class="board-row ${!previousTaskIds.has(String(task.id)) && hasRenderedOnce ? 'row-new' : ''} ${selected.has(String(task.id)) ? 'is-selected' : ''}">
@@ -1370,7 +1382,7 @@
       const ownOnly = canEditOwn ? '' : 'disabled';
       const priorityCell = currentUser.can_manage
         ? renderLabel(task, 'priority', task.priority || 'medium', priorities)
-        : renderStaticLabel(task.priority || 'medium', priorities);
+        : renderStaticPriorityLabel(task.priority || 'medium', priorities);
       const statusCell = renderPackingStatus(task, canEditOwn);
       return `
         <tr data-task-id="${esc(task.id)}" class="packing-board-row board-row ${!previousTaskIds.has(String(task.id)) && hasRenderedOnce ? 'row-new' : ''} ${selected.has(String(task.id)) ? 'is-selected' : ''}">
