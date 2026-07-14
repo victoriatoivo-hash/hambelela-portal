@@ -1494,7 +1494,6 @@
                   <tr class="packing-month-open-footer-row">
                     <td class="packing-grid-cell--select" data-column-key="select"></td>
                     <td data-column-key="item"></td>
-                    <td data-column-key="notes"></td>
                     <td data-column-key="date_loaded"></td>
                     <td class="packing-month-open-footer-cell--priority" data-column-key="priority">${packingHeaderPriority(pCounts)}</td>
                     <td data-column-key="quantity_to_pack"></td>
@@ -1502,6 +1501,7 @@
                     <td data-column-key="quantity_packed"></td>
                     <td data-column-key="date_completed"></td>
                     <td class="packing-month-open-footer-cell--status" data-column-key="status">${packingHeaderProgress(statusCounts, rows.length)}</td>
+                    <td data-column-key="notes"></td>
                     <td data-column-key="text"></td>
                     ${renderEmptyCustomCells('summary-custom-cell')}
                     <td data-column-key="add"></td>
