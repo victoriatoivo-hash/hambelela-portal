@@ -167,6 +167,11 @@ function packing_monday_api(string $query, array $variables = []): array
     throw new RuntimeException('Packing List Monday integration has been removed.');
 }
 
+function packing_status_is_completed(string $status): bool
+{
+    return in_array(strtolower(trim($status)), ['done', 'website', 'packed_label_needed', 'done_needs_label'], true);
+}
+
 function packing_monday_board_payload(): array
 {
     $query = <<<'GRAPHQL'
@@ -1102,6 +1107,7 @@ try {
 
     $action = ops_post_string('action', 40);
     $canManage = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
+    $canViewPackingTools = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager', 'packer');
     $currentEmployeeId = ops_current_employee_id();
 
     if (in_array($action, ['tools_data', 'trash_restore', 'trash_delete_forever', 'archive_restore', 'bulk_delete'], true)) {
@@ -1111,7 +1117,7 @@ try {
     }
 
     if ($action === 'tools_data') {
-        if (!$canManage) throw new RuntimeException('You do not have permission to view Packing Tools.');
+        if (!$canViewPackingTools) throw new RuntimeException('You do not have permission to view Packing Tools.');
         $trash = ops_rows("SELECT pt.id, pt.item_name, pt.quantity_planned, pt.date_loaded, pt.deleted_at, e.full_name AS deleted_by_name, DATEDIFF(DATE_ADD(pt.deleted_at, INTERVAL 30 DAY), NOW()) AS days_remaining FROM ops_packing_tasks pt LEFT JOIN ops_employees e ON e.id = pt.deleted_by WHERE pt.deleted_at IS NOT NULL ORDER BY pt.deleted_at DESC LIMIT 200");
         $archived = ops_column_exists('ops_packing_tasks', 'archived_at') ? ops_rows("SELECT pt.id, pt.item_name, pt.quantity_planned, pt.date_loaded, pt.archived_at, e.full_name AS archived_by_name FROM ops_packing_tasks pt LEFT JOIN ops_employees e ON e.id = pt.archived_by WHERE pt.archived_at IS NOT NULL AND pt.deleted_at IS NULL ORDER BY pt.archived_at DESC LIMIT 200") : [];
         $activity = ops_table_exists('ops_activity_logs') ? ops_rows("SELECT l.id, l.entity_id AS packing_item_id, l.action, l.metadata, l.created_at, e.full_name AS performed_by, pt.item_name FROM ops_activity_logs l LEFT JOIN ops_employees e ON e.id = l.employee_id LEFT JOIN ops_packing_tasks pt ON pt.id = l.entity_id WHERE l.entity_type = 'packing_task' ORDER BY l.created_at DESC LIMIT 300") : [];
@@ -1119,7 +1125,7 @@ try {
             $actionName = (string) $row['action'];
             return strpos($actionName, 'monday') !== false || strpos($actionName, 'invoice') !== false || strpos($actionName, 'website') !== false;
         }));
-        echo json_encode(['ok' => true, 'trash' => $trash, 'archived' => $archived, 'activity' => $activity, 'syncHistory' => $sync, 'canPermanentDelete' => user_has_role('owner_admin')]);
+        echo json_encode(['ok' => true, 'trash' => $trash, 'archived' => $archived, 'activity' => $activity, 'syncHistory' => $sync, 'canManageTools' => $canManage, 'canPermanentDelete' => user_has_role('owner_admin')]);
         exit;
     }
 
@@ -2384,10 +2390,14 @@ try {
             if ($value === 'packing' && ops_column_exists('ops_packing_tasks', 'date_started')) {
                 $set .= ', date_started = COALESCE(date_started, NOW())';
             }
-            if (in_array($value, ['done', 'packed_label_needed', 'label_created', 'website'], true)) {
-                $set .= ', date_completed = COALESCE(date_completed, NOW())';
-            } elseif ($value === 'not_started') {
+            if (packing_status_is_completed((string) $value)) {
+                $completedAt = (new DateTimeImmutable('now', new DateTimeZone('Africa/Windhoek')))->format('Y-m-d H:i:s');
+                $set .= ', date_completed = COALESCE(date_completed, ?)';
+                $setParams[] = $completedAt;
+            } else {
                 $set .= ', date_completed = NULL';
+            }
+            if ($value === 'not_started') {
                 if (ops_column_exists('ops_packing_tasks', 'date_started')) {
                     $set .= ', date_started = NULL';
                 }
