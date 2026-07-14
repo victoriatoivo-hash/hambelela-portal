@@ -31,6 +31,7 @@ $sidebarUser = isset($user) && is_array($user)
 $sidebarUserName = trim((string) ($sidebarUser['name'] ?? ($_SESSION['user']['name'] ?? ($_SESSION['user_name'] ?? 'User'))));
 $sidebarUserRole = trim((string) ($sidebarUser['role'] ?? ($_SESSION['user']['role'] ?? ($_SESSION['user_role'] ?? ''))));
 $sidebarUserInitial = strtoupper(substr($sidebarUserName !== '' ? $sidebarUserName : 'U', 0, 1));
+$isEmployeeSidebar = function_exists('is_employee_session') && is_employee_session();
 
 $portalNavItems = [
     ['id' => 'portal-dashboard', 'label' => 'Dashboard', 'icon' => 'dashboard', 'href' => '/index.php', 'match' => ['/index.php']],
@@ -45,6 +46,29 @@ $portalNavItems = [
     ['id' => 'operations-errors', 'label' => 'Error Log', 'icon' => 'errors', 'href' => BASE_URL . '/apps/operations/errors.php', 'match' => ['/apps/operations/errors.php']],
     ['id' => 'settings', 'label' => 'Settings', 'icon' => 'settings', 'href' => BASE_URL . '/apps/operations/my-account.php', 'match' => ['/apps/operations/my-account.php']],
 ];
+
+$featureByNavId = [
+    'portal-dashboard' => 'dashboard',
+    'operations-orders' => 'orders',
+    'operations-bookkeeping' => 'bookkeeping',
+    'operations-cash-tools' => 'cash_tools',
+    'operations-consignments' => 'packing_list',
+    'operations-inventory' => 'inventory',
+    'operations-pos-reports' => 'pos_reports',
+    'kpi' => 'kpi_dashboard',
+    'operations-checklists' => 'task_management',
+    'operations-errors' => 'error_log',
+    'settings' => 'settings',
+];
+$sidebarRoleKey = normalise_portal_role((string) ($sidebarUser['role_key'] ?? $sidebarUserRole));
+$allowedPortalNavItems = [];
+foreach ($portalNavItems as $portalNavItem) {
+    $featureKey = $featureByNavId[$portalNavItem['id']] ?? '';
+    if (portal_role_can_access_feature($sidebarRoleKey, $featureKey)) {
+        $allowedPortalNavItems[] = $portalNavItem;
+    }
+}
+$portalNavItems = $allowedPortalNavItems;
 
 function getSidebarIcon(string $id): string
 {
@@ -129,17 +153,17 @@ $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bo
     </nav>
 
     <div class="ps-bottom">
-        <a href="<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/notifications.php" class="ps-nav-item ps-nav-item--notify" title="Notifications">
+        <?php if (!$isEmployeeSidebar): ?><a href="<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/notifications.php" class="ps-nav-item ps-nav-item--notify" title="Notifications">
             <span class="ps-nav-icon"><?= getSidebarIcon('notifications') ?></span>
             <span class="ps-nav-label">Notifications</span>
             <span class="ps-notification-badge<?= $notificationUnread > 0 ? '' : ' is-hidden' ?>" data-notification-count><?= $notificationUnread > 0 ? htmlspecialchars($notificationUnreadLabel, ENT_QUOTES, 'UTF-8') : '' ?></span>
-        </a>
+        </a><?php endif; ?>
 
-        <div class="ps-nav-item ps-dark-toggle" onclick="toggleDarkMode()" title="Dark mode">
+        <?php if (!$isEmployeeSidebar): ?><div class="ps-nav-item ps-dark-toggle" onclick="toggleDarkMode()" title="Dark mode">
             <span class="ps-nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></span>
             <span class="ps-nav-label">Dark mode</span>
             <span class="ps-toggle-switch" id="darkToggleSwitch"></span>
-        </div>
+        </div><?php endif; ?>
 
         <div class="ps-user">
             <div class="ps-user-avatar"><?= htmlspecialchars($sidebarUserInitial, ENT_QUOTES, 'UTF-8') ?></div>

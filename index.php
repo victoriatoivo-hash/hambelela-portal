@@ -20,27 +20,10 @@ if ($roleKey === 'owner_admin') {
         ['name' => 'Packing List', 'desc' => 'consignment breakdowns, fair packer assignments and actual quantities', 'icon' => 'package-open', 'href' => BASE_URL . '/apps/operations/consignments.php', 'active' => true, 'tone' => 'blue'],
         ['name' => 'Courier', 'desc' => 'upload waybills, alert front desk and track customer sends', 'icon' => 'truck', 'href' => BASE_URL . '/apps/operations/courier.php', 'active' => true, 'tone' => 'green'],
     ];
-} elseif (in_array($roleKey, ['front_desk_admin', 'supervisor_manager'], true)) {
-    $apps = [
-        ['name' => 'Live Orders Board', 'desc' => 'website orders, payments, picker assignment and daily status', 'icon' => 'table-2', 'href' => BASE_URL . '/apps/operations/orders-board.php', 'active' => true, 'tone' => 'blue'],
-        ['name' => 'Courier', 'desc' => 'send uploaded waybills to customers and mark them complete', 'icon' => 'truck', 'href' => BASE_URL . '/apps/operations/courier.php', 'active' => true, 'tone' => 'green'],
-        ['name' => 'Error Log', 'desc' => 'record order, stock, customer and cash handling issues', 'icon' => 'triangle-alert', 'href' => BASE_URL . '/apps/operations/errors.php', 'active' => true, 'tone' => 'rose'],
-        ['name' => 'Digital Checklist', 'desc' => 'opening, closing, cleaning and stock refill tasks', 'icon' => 'list-checks', 'href' => BASE_URL . '/apps/operations/checklists.php', 'active' => true, 'tone' => 'green'],
-    ];
-} elseif ($roleKey === 'packer') {
-    $apps = [
-        ['name' => 'Live Orders Board', 'desc' => 'see assigned orders and what the team is packing', 'icon' => 'table-2', 'href' => BASE_URL . '/apps/operations/orders-board.php', 'active' => true, 'tone' => 'blue'],
-        ['name' => 'Packing List', 'desc' => 'assigned consignment packing quantities and completion status', 'icon' => 'package-open', 'href' => BASE_URL . '/apps/operations/consignments.php', 'active' => true, 'tone' => 'pink'],
-        ['name' => 'Courier', 'desc' => 'upload courier labels for front desk follow-up', 'icon' => 'truck', 'href' => BASE_URL . '/apps/operations/courier.php', 'active' => true, 'tone' => 'green'],
-        ['name' => 'Digital Checklist', 'desc' => 'daily assigned tasks and completion tracking', 'icon' => 'list-checks', 'href' => BASE_URL . '/apps/operations/checklists.php', 'active' => true, 'tone' => 'green'],
-        ['name' => 'Barcode Verification', 'desc' => 'scan products before marking orders packed', 'icon' => 'scan-barcode', 'href' => BASE_URL . '/apps/operations/barcode.php', 'active' => false, 'tone' => 'violet'],
-    ];
 } else {
-    $apps = [];
-}
-
-if ($roleKey !== 'owner_admin') {
-    $apps[] = ['name' => 'HR Portal', 'desc' => 'leave, payslips, documents and employee self-service', 'icon' => 'shield-check', 'href' => BASE_URL . '/apps/hr-portal/portal-login.php', 'active' => true, 'tone' => 'green'];
+    $apps = [
+        ['name' => 'Packing List', 'desc' => 'assigned consignment packing quantities and completion status', 'icon' => 'package-open', 'href' => BASE_URL . '/apps/operations/consignments.php', 'active' => true, 'tone' => 'green'],
+    ];
 }
 
 include __DIR__ . '/shared/header.php';
