@@ -2,7 +2,7 @@
    Loaded after portal.css so the board keeps the Monday-style density. */
 
 .packing-list-page {
-    --packing-row-height: 35px;
+    --packing-row-height: 36px;
     --packing-grid-border: #EDE3D8;
     --packing-grid-border-strong: #E4D6C8;
     --board-grid: var(--packing-grid-border);
@@ -1954,47 +1954,50 @@
     font-weight: 400 !important;
 }
 
-/* Final Packing List row-height contract (this page stylesheet loads last). */
-#packing-list-body .packing-board-table tbody tr.packing-board-row.board-row,
-#packing-list-body .packing-board-table tbody tr.packing-board-row.board-row > td {
-    height: 32px !important;
-    min-height: 32px !important;
-    max-height: 32px !important;
+/* One height contract for every Packing List grid row and full-cell control. */
+#packing-list-body .packing-board-table thead tr,
+#packing-list-body .packing-board-table thead th,
+#packing-list-body .packing-board-table tbody tr,
+#packing-list-body .packing-board-table tbody td,
+#packing-list-body .packing-board-table tfoot tr,
+#packing-list-body .packing-board-table tfoot td,
+#packing-list-body .packing-board-table .packing-add-item-row,
+#packing-list-body .packing-board-table .packing-add-item-row > td,
+#packing-list-body .packing-board-table .packing-month-open-footer-row,
+#packing-list-body .packing-board-table .packing-month-open-footer-row > td,
+#packing-list-body .packing-board-table .summary-row,
+#packing-list-body .packing-board-table .summary-row > td,
+#packing-list-body .packing-board-table .packing-item-cell,
+#packing-list-body .packing-board-table .packing-item-main-trigger,
+#packing-list-body .packing-board-table .packing-editable-cell,
+#packing-list-body .packing-board-table .packing-editable-input,
+#packing-list-body .packing-board-table .packing-inline-date,
+#packing-list-body .packing-board-table .packing-date-display,
+#packing-list-body .packing-board-table .packing-priority-component,
+#packing-list-body .packing-board-table .packing-priority-trigger,
+#packing-list-body .packing-board-table .packing-person-component,
+#packing-list-body .packing-board-table .packing-person-trigger,
+#packing-list-body .packing-board-table .packing-website-check,
+#packing-list-body .packing-board-table .packing-status-component,
+#packing-list-body .packing-board-table .packing-status-trigger,
+#packing-list-body .packing-board-table .packing-add-item-trigger,
+.packing-list-page .invoice-review-table tr,
+.packing-list-page .invoice-review-table th,
+.packing-list-page .invoice-review-table td,
+.packing-list-page .invoice-review-table input,
+.packing-list-page .invoice-review-table select {
+    height: var(--packing-row-height) !important;
+    min-height: var(--packing-row-height) !important;
+    max-height: var(--packing-row-height) !important;
     box-sizing: border-box !important;
 }
 
-#packing-list-body .packing-board-table tbody tr.packing-board-row.board-row .packing-item-cell,
-#packing-list-body .packing-board-table tbody tr.packing-board-row.board-row .packing-item-main-trigger,
-#packing-list-body .packing-board-table tbody tr.packing-board-row.board-row .packing-editable-cell,
-#packing-list-body .packing-board-table tbody tr.packing-board-row.board-row .packing-editable-input,
-#packing-list-body .packing-board-table tbody tr.packing-board-row.board-row .packing-inline-date,
-#packing-list-body .packing-board-table tbody tr.packing-board-row.board-row .packing-date-display,
-#packing-list-body .packing-board-table tbody tr.packing-board-row.board-row .packing-priority-component,
-#packing-list-body .packing-board-table tbody tr.packing-board-row.board-row .packing-priority-trigger,
-#packing-list-body .packing-board-table tbody tr.packing-board-row.board-row .packing-person-component,
-#packing-list-body .packing-board-table tbody tr.packing-board-row.board-row .packing-person-trigger,
-#packing-list-body .packing-board-table tbody tr.packing-board-row.board-row .packing-status-component,
-#packing-list-body .packing-board-table tbody tr.packing-board-row.board-row .packing-status-trigger {
-    height: 32px !important;
-    min-height: 32px !important;
-    max-height: 32px !important;
-}
-
-/* Priority and Packing Status remain full-cell 35px buttons. */
-#packing-list-body .packing-board-table tbody tr.packing-board-row.board-row > td[data-column-key="priority"],
-#packing-list-body .packing-board-table tbody tr.packing-board-row.board-row > td[data-column-key="status"],
-#packing-list-body .packing-board-table tbody tr.packing-board-row.board-row .packing-priority-component,
-#packing-list-body .packing-board-table tbody tr.packing-board-row.board-row .packing-priority-trigger,
-#packing-list-body .packing-board-table tbody tr.packing-board-row.board-row .packing-status-component,
-#packing-list-body .packing-board-table tbody tr.packing-board-row.board-row .packing-status-trigger {
+#packing-list-body .packing-board-table .packing-priority-trigger,
+#packing-list-body .packing-board-table .packing-status-trigger,
+#packing-list-body .packing-board-table .packing-person-trigger,
+#packing-list-body .packing-board-table .packing-website-check {
     width: 100% !important;
-    height: 35px !important;
-    min-height: 35px !important;
-    max-height: 35px !important;
     margin: 0 !important;
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
-    box-sizing: border-box !important;
 }
 
 .packing-list-page .packing-date-edit-icon {

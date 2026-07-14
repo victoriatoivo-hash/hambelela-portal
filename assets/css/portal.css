@@ -26835,26 +26835,9 @@ body.dark-mode .portal-dark-toggle {
 .packing-item-main-trigger:hover .packing-item-name{text-decoration:underline;text-underline-offset:2px}
 .packing-item-name{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px!important;line-height:1;font-weight:400}
 .packing-list-page .packing-board-table thead th:not(.packing-grid-cell--select):not(.col-add-btn){position:relative;height:35px;padding:0 24px 0 7px;color:#721b1a;font-size:10px!important;line-height:1;font-weight:700;vertical-align:middle}
-.packing-list-page .packing-board-table .packing-column-heading-label{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#721b1a;font-size:10px;line-height:35px;font-weight:700}
+.packing-list-page .packing-board-table .packing-column-heading-label{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#721b1a;font-size:10px;line-height:var(--packing-row-height,36px);font-weight:700}
 .packing-column-heading-dots{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:12px;height:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;color:#ab3619}
 .packing-column-heading-dots i{display:block;width:3px;height:3px;min-width:3px;min-height:3px;border-radius:50%;background:currentColor}
 .packing-panel-website-toggle{display:flex;align-items:center;justify-content:space-between;gap:16px;border:1px solid #ead8cf;border-radius:10px;padding:13px 14px;color:#721b1a;cursor:pointer}.packing-panel-website-toggle input{width:18px;height:18px;accent-color:#b8321b}
 .packing-panel-website-audit{margin:16px 0 0;display:grid;grid-template-columns:1fr 1fr;gap:10px}.packing-panel-website-audit div{padding:11px;border-radius:9px;background:#fbf7f4}.packing-panel-website-audit dt{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#a08070}.packing-panel-website-audit dd{margin:4px 0 0;color:#4b332b}
 @media(max-width:700px){.packing-panel-website-audit{grid-template-columns:1fr}}
-
-/* Compact Packing List rows. */
-.packing-list-page .packing-board-table tbody tr.packing-board-row,
-.packing-list-page .packing-board-table tbody tr.packing-board-row > td{height:32px!important;min-height:32px!important;max-height:32px!important}
-.packing-list-page .packing-board-table tbody tr.packing-board-row .packing-item-cell,
-.packing-list-page .packing-board-table tbody tr.packing-board-row .packing-item-main-trigger,
-.packing-list-page .packing-board-table tbody tr.packing-board-row .packing-editable-cell,
-.packing-list-page .packing-board-table tbody tr.packing-board-row .packing-editable-input,
-.packing-list-page .packing-board-table tbody tr.packing-board-row .packing-priority-component,
-.packing-list-page .packing-board-table tbody tr.packing-board-row .packing-priority-trigger,
-.packing-list-page .packing-board-table tbody tr.packing-board-row .packing-person-component,
-.packing-list-page .packing-board-table tbody tr.packing-board-row .packing-person-trigger,
-.packing-list-page .packing-board-table tbody tr.packing-board-row .packing-status-component,
-.packing-list-page .packing-board-table tbody tr.packing-board-row .packing-status-trigger{height:32px!important;min-height:32px!important;max-height:32px!important}
-#packing-list-body .packing-board-table tbody tr.packing-board-row.board-row,
-#packing-list-body .packing-board-table tbody tr.packing-board-row.board-row > td{height:32px!important;min-height:32px!important;max-height:32px!important;box-sizing:border-box!important}
-#packing-list-body .packing-board-table tbody tr.packing-board-row.board-row > td:not([data-column-key="priority"]):not([data-column-key="status"]){padding-top:0!important;padding-bottom:0!important}
