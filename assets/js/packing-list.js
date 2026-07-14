@@ -93,7 +93,6 @@
   const baseColumns = [
     { key: 'select', label: '', className: 'check-cell col-checkbox', width: 38 },
     { key: 'item', label: 'ITEM', className: 'col-item', width: 235 },
-    { key: 'notes', label: 'NOTES', className: 'col-notes comment-cell', width: 64, title: 'Open notes and full details' },
     { key: 'date_loaded', label: 'DATE LOADED', className: 'col-dateloaded', width: 130 },
     { key: 'priority', label: 'PRIORITY', className: 'col-priority', width: 140 },
     { key: 'quantity_to_pack', label: 'QUANTITY', className: 'col-qty', width: 150 },
@@ -102,6 +101,7 @@
     { key: 'date_completed', label: 'DATE COMPLETED', className: 'col-datecompleted', width: 150 },
     { key: 'website_uploaded', label: 'WEBSITE', className: 'col-webinv', width: 140, title: 'Packer website confirmation' },
     { key: 'status', label: 'PACKING STATUS', className: 'col-packstatus', width: 140 },
+    { key: 'notes', label: 'NOTES', className: 'col-notes comment-cell', width: 64, title: 'Open notes and full details' },
     { key: 'text', label: 'TEXT', className: 'col-text', width: 220 },
     { key: 'add', label: '+', className: 'add-column-cell col-add-btn', width: 48 }
   ];
@@ -1312,7 +1312,6 @@
         <tr data-task-id="${esc(task.id)}" class="board-row ${!previousTaskIds.has(String(task.id)) && hasRenderedOnce ? 'row-new' : ''} ${selected.has(String(task.id)) ? 'is-selected' : ''}">
           <td class="check-cell col-checkbox"><input type="checkbox" data-packing-row-select="${esc(task.id)}" ${selected.has(String(task.id)) ? 'checked' : ''}></td>
           <td class="task-cell col-item">${esc(task.item_name)}</td>
-          <td class="notes-cell col-notes">${canEditOwn ? renderEditableCell({ ...task, notes: task.packer_notes || '' }, 'notes', 'Notes', 'Add note') : esc(task.packer_notes || '')}</td>
           <td class="col-dateloaded">${esc(formatDate(task.date_loaded))}</td>
           <td class="col-priority">${priorityCell}</td>
           <td class="col-qty"><input class="board-inline-input" data-packing-text="quantity_planned" data-task-id="${esc(task.id)}" value="${esc(task.quantity_planned || '')}" ${manageOnly}></td>
@@ -1321,6 +1320,7 @@
           <td class="col-datecompleted">${esc(task.date_completed ? formatDate(task.date_completed) : '')}</td>
           <td class="paid-cell col-webinv">${renderWebsiteCheck(task, canEditOwn)}</td>
           <td class="col-packstatus">${statusCell}</td>
+          <td class="notes-cell col-notes">${canEditOwn ? renderEditableCell({ ...task, notes: task.packer_notes || '' }, 'notes', 'Notes', 'Add note') : esc(task.packer_notes || '')}</td>
           <td class="col-text" title="${esc(task.notes || '')}">${esc(task.notes || '')}</td>
           ${renderCustomCells()}
           <td class="col-add-btn"></td>
@@ -1336,7 +1336,6 @@
       <tr class="group-row group-header group-header-row" data-critical="${pCounts.critical}" data-high="${pCounts.high}" data-medium="${pCounts.medium}" data-low="${pCounts.low}">
         <td class="check-cell col-checkbox"><button type="button" class="group-collapse-button" data-packing-collapse aria-label="Collapse group"><i class="group-chevron chevron" data-lucide="chevron-down"></i></button></td>
         <td class="col-item group-date"><span class="group-label">${esc(groupLabel(key))}</span><span class="group-count">${rows.length} Items</span></td>
-        <td class="col-notes"></td>
         <td class="col-dateloaded"></td>
         <td class="col-priority">${prioritySummaryBar(pCounts)}</td>
         <td class="col-qty"></td>
@@ -1345,6 +1344,7 @@
         <td class="col-datecompleted"></td>
         <td class="col-webinv"><span class="packing-fraction website-fraction">${groupSummary.website}/${rows.length}</span></td>
         <td class="col-packstatus">${packingProgressBar(statusCounts, rows.length)}</td>
+        <td class="col-notes"></td>
         <td class="col-text"></td>
         ${customEmptyCells}
         <td class="col-add-btn"></td>
@@ -1381,7 +1381,6 @@
             </button>
           </td>
           <td class="task-cell col-item" data-column-key="item">${currentUser.can_manage ? renderEditableCell(task, 'item_name', 'Item') : esc(task.item_name)}</td>
-          <td class="notes-cell col-notes" data-column-key="notes">${canEditOwn ? renderEditableCell({ ...task, notes: task.packer_notes || '' }, 'notes', 'Notes', 'Add note') : esc(task.packer_notes || '')}</td>
           <td class="col-dateloaded packing-editable-date-cell" data-column-key="date_loaded">${renderPackingDate(task, 'date_loaded', currentUser.can_manage)}</td>
           <td class="col-priority" data-column-key="priority">${priorityCell}</td>
           <td class="col-qty" data-column-key="quantity_to_pack">${currentUser.can_manage ? renderEditableCell(task, 'quantity_planned', 'Quantity to pack') : esc(task.quantity_planned || '')}</td>
@@ -1390,6 +1389,7 @@
           <td class="col-datecompleted packing-editable-date-cell" data-column-key="date_completed">${renderPackingDate(task, 'date_completed', currentUser.can_manage)}</td>
           <td class="paid-cell col-webinv" data-column-key="website_uploaded">${renderWebsiteCheck(task, canEditOwn)}</td>
           <td class="col-packstatus" data-column-key="status">${statusCell}</td>
+          <td class="notes-cell col-notes" data-column-key="notes">${canEditOwn ? renderEditableCell({ ...task, notes: task.packer_notes || '' }, 'notes', 'Notes', 'Add note') : esc(task.packer_notes || '')}</td>
           <td class="col-text" data-column-key="text" title="${esc(task.notes || '')}">${esc(task.notes || '')}</td>
           ${renderCustomCells()}
           <td class="col-add-btn" data-column-key="add"></td>
@@ -1401,7 +1401,6 @@
       ? `<tr class="packing-add-item-row" data-packing-add-item-row>
           <td class="packing-add-item-select-spacer" data-column-key="select"></td>
           <td class="packing-add-item-action-cell" data-column-key="item"><button type="button" class="packing-add-item-trigger" data-open-packing-create data-open-new-packing-item aria-label="Add a new packing item"><span class="packing-add-item-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><span class="packing-add-item-label">Add item</span></button></td>
-          <td class="packing-add-item-empty-cell" data-column-key="notes"></td>
           <td class="packing-add-item-empty-cell" data-column-key="date_loaded"></td>
           <td class="packing-add-item-empty-cell" data-column-key="priority"></td>
           <td class="packing-add-item-empty-cell" data-column-key="quantity_to_pack"></td>
@@ -1410,6 +1409,7 @@
           <td class="packing-add-item-empty-cell" data-column-key="date_completed"></td>
           <td class="packing-add-item-empty-cell" data-column-key="website_uploaded"></td>
           <td class="packing-add-item-empty-cell" data-column-key="status"></td>
+          <td class="packing-add-item-empty-cell" data-column-key="notes"></td>
           <td class="packing-add-item-empty-cell" data-column-key="text"></td>
           ${renderEmptyCustomCells('packing-add-item-empty-cell')}
           <td class="packing-add-item-empty-cell" data-column-key="add"></td>
