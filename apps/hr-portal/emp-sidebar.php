@@ -30,6 +30,7 @@ function empNavItem($href, $icon, $label, $badge=0, $current='') {
 
   <div style="flex:1;overflow-y:auto">
     <div class="nav-section">My Portal</div>
+    <?= empNavItem('../../index.php','fa-solid fa-arrow-left','Back to Portal',0,$currentPage) ?>
     <?= empNavItem('self-service.php','fa-solid fa-house','My Dashboard',0,$currentPage) ?>
     <?= empNavItem('my-notifications.php','fa-regular fa-bell','Notifications',$empUnread,$currentPage) ?>
     <div class="nav-section">Requests</div>

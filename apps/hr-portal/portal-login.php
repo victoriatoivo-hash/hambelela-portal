@@ -116,6 +116,7 @@ try {
         'role' => (string) $account['role'],
         'emp_id' => (int) $account['employee_id'],
     ];
+    $_SESSION['portal_return_to'] = (BASE_URL ?: '') . '/index.php';
     session_write_close();
 
     $destination = (string) $account['role'] === 'employee' ? 'self-service.php' : 'dashboard.php';

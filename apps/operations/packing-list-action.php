@@ -2365,9 +2365,16 @@ try {
         }
 
         $previousAssignmentRows = [];
+        $previousStatusRows = [];
         if ($field === 'assigned_employee_id' && ops_table_exists('ops_packing_assignment_log')) {
             foreach (ops_rows('SELECT id, assigned_employee_id FROM ops_packing_tasks WHERE id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')', $ids) as $row) {
                 $previousAssignmentRows[(int) $row['id']] = $row['assigned_employee_id'] !== null ? (int) $row['assigned_employee_id'] : null;
+            }
+        }
+
+        if ($field === 'packing_status') {
+            foreach (ops_rows('SELECT id, packing_status, date_completed FROM ops_packing_tasks WHERE id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')', $ids) as $row) {
+                $previousStatusRows[(int) $row['id']] = $row;
             }
         }
 
@@ -2417,6 +2424,9 @@ try {
 
         $stmt = db()->prepare("UPDATE ops_packing_tasks SET {$set}, updated_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders}){$scope}");
         $stmt->execute($params);
+        $updatedRows = $field === 'packing_status'
+            ? ops_rows('SELECT id, packing_status, date_completed FROM ops_packing_tasks WHERE id IN (' . $placeholders . ')' . $scope, $scope === '' ? $ids : array_merge($ids, [$currentEmployeeId ?: 0]))
+            : [];
 
         if ($field === 'assigned_employee_id' && $previousAssignmentRows && ops_table_exists('ops_packing_assignment_log')) {
             $logStmt = db()->prepare('INSERT INTO ops_packing_assignment_log (packing_task_id, old_employee_id, new_employee_id, changed_by) VALUES (?, ?, ?, ?)');
@@ -2464,12 +2474,28 @@ try {
             }
         }
 
+        $updatedStatusById = [];
+        foreach ($updatedRows as $updatedRow) {
+            $updatedStatusById[(int) $updatedRow['id']] = $updatedRow;
+        }
         foreach ($ids as $id) {
-            ops_activity_log('packing_' . $field . '_updated', 'packing_task', $id, [
+            $activityMeta = [
                 'field' => $field,
                 'value' => $value,
                 'changed_by' => current_user()['name'] ?? 'Unknown',
-            ]);
+            ];
+            if ($field === 'packing_status') {
+                $before = $previousStatusRows[(int) $id] ?? [];
+                $after = $updatedStatusById[(int) $id] ?? [];
+                $beforeDate = $before['date_completed'] ?? null;
+                $afterDate = $after['date_completed'] ?? null;
+                $activityMeta['previous_status'] = $before['packing_status'] ?? null;
+                $activityMeta['status'] = $after['packing_status'] ?? $value;
+                $activityMeta['previous_date_completed'] = $beforeDate;
+                $activityMeta['date_completed'] = $afterDate;
+                $activityMeta['date_completed_action'] = $beforeDate === $afterDate ? 'preserved' : ($afterDate === null ? 'cleared' : 'set');
+            }
+            ops_activity_log('packing_' . $field . '_updated', 'packing_task', $id, $activityMeta);
             if ($field === 'assigned_employee_id') {
                 notifications_notify_packing_assigned($id, $value === null ? null : (int) $value);
             } elseif ($field === 'packing_status' && in_array($value, ['packed_label_needed', 'label_created', 'website'], true)) {
@@ -2487,7 +2513,7 @@ try {
             }
         }
 
-        echo json_encode(['ok' => true, 'message' => 'Packing row updated.', 'updated' => $stmt->rowCount()]);
+        echo json_encode(['ok' => true, 'message' => 'Packing row updated.', 'updated' => $stmt->rowCount(), 'updated_rows' => $updatedRows]);
         exit;
     }
 

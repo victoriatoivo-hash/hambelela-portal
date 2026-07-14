@@ -49,6 +49,7 @@ $logoSrc  = file_exists($logoPath) ? '../uploads/logo_white.jpg' : '';
 
   <div style="flex:1;overflow-y:auto">
     <div class="nav-section">Overview</div>
+    <?= navItem('../../index.php','fa-solid fa-arrow-left','Back to Portal',0,$currentPage) ?>
     <?= navItem('dashboard.php','fa-solid fa-house','Dashboard',0,$currentPage) ?>
     <div class="nav-section">HR Management</div>
     <?= navItem('employees.php','fa-solid fa-users','Employees',0,$currentPage) ?>

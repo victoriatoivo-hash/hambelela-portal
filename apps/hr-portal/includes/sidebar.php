@@ -30,9 +30,7 @@ function navItem($href, $icon, $label, $badge=0, $current='') {
 
   <div style="flex:1;overflow-y:auto">
     <div class="nav-section">Overview</div>
-    <?php if ($showBusinessPortalLink): ?>
-      <?= navItem('../../index.php','fa-solid fa-arrow-left','Business Portal',0,$currentPage) ?>
-    <?php endif ?>
+    <?= navItem('../../index.php','fa-solid fa-arrow-left','Back to Portal',0,$currentPage) ?>
     <?= navItem('dashboard.php','fa-solid fa-house','Dashboard',0,$currentPage) ?>
     <div class="nav-section">HR Management</div>
     <?= navItem('employees.php','fa-solid fa-users','Employees',0,$currentPage) ?>
