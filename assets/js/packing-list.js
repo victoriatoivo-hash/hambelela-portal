@@ -210,7 +210,7 @@
             const editable = config.canEditHeaders && !column.isCustom ? 'contenteditable="true"' : '';
             const customAttrs = column.isCustom ? `data-custom-header="${esc(column.key)}" data-col-type="${esc(column.customType || 'text')}"` : `data-packing-column="${esc(column.key)}"`;
             const title = column.title ? ` title="${esc(column.title)}"` : '';
-            return `<th class="${esc(column.className)}" data-column-key="${esc(column.key)}" ${customAttrs}${title}><span class="packing-column-heading-label" ${editable}>${esc(packingHeaderLabel(column))}</span><span class="packing-column-heading-dots" aria-hidden="true"><i></i><i></i><i></i></span></th>`;
+            return `<th class="${esc(column.className)}" data-column-key="${esc(column.key)}" ${customAttrs}${title}><span class="packing-column-heading-label" ${editable}>${esc(packingHeaderLabel(column))}</span></th>`;
           }).join('')}
         </tr>
       </thead>
