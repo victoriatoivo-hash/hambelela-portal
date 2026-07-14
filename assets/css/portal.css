@@ -16485,6 +16485,10 @@ button.hr-section-tab {
   font-size: 20px !important;
 }
 
+.ops-board-page.packing-page-v2 .packing-stat-card strong {
+  font-size: 12px !important;
+}
+
 .ops-board-page .work-filter-bar input,
 .ops-board-page .work-filter-bar select,
 .ops-board-page .work-filter-bar button:not(.portal-custom-select-trigger):not(.portal-custom-select-option):not(.portal-date-trigger),
