@@ -26841,3 +26841,17 @@ body.dark-mode .portal-dark-toggle {
 .packing-panel-website-toggle{display:flex;align-items:center;justify-content:space-between;gap:16px;border:1px solid #ead8cf;border-radius:10px;padding:13px 14px;color:#721b1a;cursor:pointer}.packing-panel-website-toggle input{width:18px;height:18px;accent-color:#b8321b}
 .packing-panel-website-audit{margin:16px 0 0;display:grid;grid-template-columns:1fr 1fr;gap:10px}.packing-panel-website-audit div{padding:11px;border-radius:9px;background:#fbf7f4}.packing-panel-website-audit dt{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#a08070}.packing-panel-website-audit dd{margin:4px 0 0;color:#4b332b}
 @media(max-width:700px){.packing-panel-website-audit{grid-template-columns:1fr}}
+
+/* Compact Packing List rows. */
+.packing-list-page .packing-board-table tbody tr.packing-board-row,
+.packing-list-page .packing-board-table tbody tr.packing-board-row > td{height:32px!important;min-height:32px!important;max-height:32px!important}
+.packing-list-page .packing-board-table tbody tr.packing-board-row .packing-item-cell,
+.packing-list-page .packing-board-table tbody tr.packing-board-row .packing-item-main-trigger,
+.packing-list-page .packing-board-table tbody tr.packing-board-row .packing-editable-cell,
+.packing-list-page .packing-board-table tbody tr.packing-board-row .packing-editable-input,
+.packing-list-page .packing-board-table tbody tr.packing-board-row .packing-priority-component,
+.packing-list-page .packing-board-table tbody tr.packing-board-row .packing-priority-trigger,
+.packing-list-page .packing-board-table tbody tr.packing-board-row .packing-person-component,
+.packing-list-page .packing-board-table tbody tr.packing-board-row .packing-person-trigger,
+.packing-list-page .packing-board-table tbody tr.packing-board-row .packing-status-component,
+.packing-list-page .packing-board-table tbody tr.packing-board-row .packing-status-trigger{height:32px!important;min-height:32px!important;max-height:32px!important}
