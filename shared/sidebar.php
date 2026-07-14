@@ -159,13 +159,13 @@ $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bo
     </nav>
 
     <div class="ps-bottom">
-        <?php if (!$isEmployeeSidebar): ?>
         <a href="<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/notifications.php" class="ps-nav-item ps-nav-item--notify" title="Notifications">
             <span class="ps-nav-icon"><?= getSidebarIcon('notifications') ?></span>
             <span class="ps-nav-label">Notifications</span>
             <span class="ps-notification-badge<?= $notificationUnread > 0 ? '' : ' is-hidden' ?>" data-notification-count><?= $notificationUnread > 0 ? htmlspecialchars($notificationUnreadLabel, ENT_QUOTES, 'UTF-8') : '' ?></span>
         </a>
 
+        <?php if (!$isEmployeeSidebar): ?>
         <div class="ps-nav-item ps-dark-toggle" onclick="toggleDarkMode()" title="Dark mode">
             <span class="ps-nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></span>
             <span class="ps-nav-label">Dark mode</span>

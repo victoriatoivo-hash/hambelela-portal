@@ -75,10 +75,10 @@ function notifications_default_modules_for_role(string $roleKey): array
     if (in_array($roleKey, ['owner_admin', 'supervisor_manager'], true)) {
         return ['operations', 'packing', 'bookkeeping', 'tasks', 'errors', 'whatsapp', 'cost_workbook', 'system'];
     }
-    if ($roleKey === 'front_desk_admin') {
-        return ['operations', 'bookkeeping', 'tasks', 'errors', 'whatsapp', 'system'];
+    if (in_array($roleKey, ['front_desk_admin', 'front_desk_admin_employee'], true)) {
+        return ['operations', 'packing', 'bookkeeping', 'tasks', 'errors', 'whatsapp', 'system'];
     }
-    if ($roleKey === 'packer') {
+    if (in_array($roleKey, ['packer', 'packer_production_staff'], true)) {
         return ['operations', 'packing', 'tasks', 'system'];
     }
 
