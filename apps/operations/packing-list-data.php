@@ -51,7 +51,7 @@ $packerNotesSelect = $hasPackerNotes ? 'pt.packer_notes' : "'' AS packer_notes";
 $currentEmployeeId = ops_current_employee_id();
 $canManage = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
 $canManageWebsiteUpdate = user_has_role('owner_admin', 'front_desk_admin');
-$websiteUploadedSelect = $canManageWebsiteUpdate ? 'pt.website_uploaded' : '0 AS website_uploaded';
+$websiteUploadedSelect = 'pt.website_uploaded';
 $websiteUploadedAtSelect = $canManageWebsiteUpdate && $hasWebsiteUploadedAt ? 'pt.website_uploaded_at' : 'NULL AS website_uploaded_at';
 $inventoryUpdatedAtSelect = $canManageWebsiteUpdate && $hasInventoryUpdatedAt ? 'pt.inventory_updated_at' : 'NULL AS inventory_updated_at';
 $inventoryUpdatedBySelect = $canManageWebsiteUpdate && $hasInventoryUpdatedBy ? 'pt.inventory_updated_by' : 'NULL AS inventory_updated_by';
@@ -172,7 +172,7 @@ foreach ($tasks as &$task) {
         $task['inventory_updated_by_role'] = str_replace(' Employee', '', ops_staff_role_label(['role_key' => $task['inventory_updated_by_role_key'] ?? '', 'role_name' => $task['inventory_updated_by_role_name'] ?? '']));
     }
     if (!$canManageWebsiteUpdate) {
-        foreach (['website_uploaded', 'website_uploaded_at', 'inventory_updated_at', 'inventory_updated_by', 'inventory_updated_by_name', 'inventory_updated_by_role_key', 'inventory_updated_by_role_name', 'inventory_updated_by_role'] as $websiteField) {
+        foreach (['website_uploaded_at', 'inventory_updated_at', 'inventory_updated_by', 'inventory_updated_by_name', 'inventory_updated_by_role_key', 'inventory_updated_by_role_name', 'inventory_updated_by_role'] as $websiteField) {
             unset($task[$websiteField]);
         }
     }

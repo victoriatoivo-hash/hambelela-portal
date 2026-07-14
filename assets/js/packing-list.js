@@ -230,7 +230,8 @@
             const editable = config.canEditHeaders && !column.isCustom ? 'contenteditable="true"' : '';
             const customAttrs = column.isCustom ? `data-custom-header="${esc(column.key)}" data-col-type="${esc(column.customType || 'text')}"` : `data-packing-column="${esc(column.key)}"`;
             const title = column.title ? ` title="${esc(column.title)}"` : '';
-            return `<th class="${esc(column.className)}" data-column-key="${esc(column.key)}" ${customAttrs}${title}><span class="packing-column-heading-label" ${editable}>${esc(packingHeaderLabel(column))}</span></th>`;
+            const websiteClass = isWebsiteUpdatedColumn(column) ? ' packing-grid-header-cell--website-updated' : '';
+            return `<th class="${esc(column.className)}${websiteClass}" data-column-key="${esc(column.key)}" ${customAttrs}${title}><span class="packing-column-heading-label" ${editable}>${esc(packingHeaderLabel(column))}</span></th>`;
           }).join('')}
         </tr>
       </thead>
@@ -714,9 +715,10 @@
     return `<label class="paid-toggle"${title}><input type="checkbox" data-packing-check="${esc(field)}" data-task-id="${esc(task.id)}" ${checked} ${disabled}><span>&check;</span></label>`;
   }
 
-  function renderWebsiteCheck(task, allowed) {
-    const checked = Number(task.packing_website_confirmed || 0) === 1;
-    return `<button type="button" class="packing-website-check" data-packing-website-check data-item-id="${esc(task.id)}" data-checked="${checked ? 'true' : 'false'}" aria-pressed="${checked ? 'true' : 'false'}" aria-label="${checked ? 'Remove website completion' : 'Mark website inventory as complete'}" ${allowed ? '' : 'disabled'}><svg class="packing-website-check-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5 9.2 17 19 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`;
+  function renderWebsiteToggle(task) {
+    const checked = Number(task.website_uploaded || 0) === 1;
+    const locked = checked || !currentUser.can_edit_front_website;
+    return `<button type="button" class="packing-website-toggle${locked ? ' is-locked' : ''}" data-packing-website-toggle data-packing-item-id="${esc(task.id)}" data-checked="${checked ? 'true' : 'false'}" data-locked="${locked ? '1' : '0'}" aria-pressed="${checked ? 'true' : 'false'}" aria-disabled="${locked ? 'true' : 'false'}" aria-label="${checked ? 'Website updated' : currentUser.can_edit_front_website ? 'Mark website as updated' : 'Website not updated'}"><svg class="packing-website-tick" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10.5l3.2 3.2L16 5.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`;
   }
 
   function showSkeletonRows() {
@@ -796,7 +798,8 @@
     `).join('');
   }
 
-  function renderCustomCell(column) {
+  function renderCustomCell(column, task = null) {
+    if (isWebsiteUpdatedColumn(column) && task) return renderWebsiteToggle(task);
     if (column.col_type === 'number') return '<input class="board-custom-input" type="number" placeholder="0">';
     if (column.col_type === 'date') return '<input class="board-custom-input" type="date">';
     if (column.col_type === 'checkbox') return '<input class="board-custom-check" type="checkbox">';
@@ -805,12 +808,20 @@
     return '<input class="board-custom-input" type="text" placeholder="-">';
   }
 
-  function renderCustomCells(columns = customColumns) {
-    return columns.map((column) => `<td class="col-custom" data-column-key="${esc(column.col_key)}" data-custom-col="${esc(column.col_key)}">${renderCustomCell(column)}</td>`).join('');
+  function renderCustomCells(columns = customColumns, task = null) {
+    return columns.map((column) => {
+      const websiteClass = isWebsiteUpdatedColumn(column) ? ' packing-grid-cell--website-updated' : '';
+      return `<td class="col-custom${websiteClass}" data-column-key="${esc(column.col_key)}" data-custom-col="${esc(column.col_key)}">${renderCustomCell(column, task)}</td>`;
+    }).join('');
   }
 
   function renderEmptyCustomCells(className = '', columns = customColumns) {
     return columns.map((column) => `<td class="${esc(className)}" data-column-key="${esc(column.col_key)}" data-custom-col="${esc(column.col_key)}"></td>`).join('');
+  }
+
+  function renderWebsiteSummaryCells(rows) {
+    const completed = rows.filter((task) => Number(task.website_uploaded || 0) === 1).length;
+    return websiteUpdatedColumns().map((column) => `<td class="summary-custom-cell packing-month-open-footer-cell--website" data-column-key="${esc(column.col_key)}" data-custom-col="${esc(column.col_key)}"><strong>${completed} / ${rows.length}</strong></td>`).join('');
   }
 
   function renderCustomHeaders() {
@@ -1490,10 +1501,10 @@
           <td class="col-person">${renderPerson(task)}</td>
           <td class="col-qtypacked"><input class="board-inline-input" data-packing-text="quantity_packed" data-task-id="${esc(task.id)}" value="${esc(task.quantity_packed || '')}" placeholder="Actual" ${ownOnly}></td>
           <td class="col-datecompleted">${esc(task.date_completed ? formatDate(task.date_completed) : '')}</td>
-          ${renderCustomCells(websiteUpdatedColumns())}
+          ${renderCustomCells(websiteUpdatedColumns(), task)}
           <td class="col-packstatus">${statusCell}</td>
           <td class="col-text" title="${esc(task.notes || '')}">${esc(task.notes || '')}</td>
-          ${renderCustomCells(trailingCustomColumns())}
+          ${renderCustomCells(trailingCustomColumns(), task)}
           <td class="col-add-btn"></td>
         </tr>
       `;
@@ -1557,10 +1568,10 @@
           <td class="col-person" data-column-key="person">${renderPerson(task)}</td>
           <td class="col-qtypacked" data-column-key="quantity_packed">${canEditOwn ? renderEditableCell(task, 'quantity_packed', 'Quantity packed', 'Enter packed quantity') : esc(task.quantity_packed || '')}</td>
           <td class="col-datecompleted packing-editable-date-cell" data-column-key="date_completed">${renderPackingDate(task, 'date_completed', canEditOwn)}</td>
-          ${renderCustomCells(websiteUpdatedColumns())}
+          ${renderCustomCells(websiteUpdatedColumns(), task)}
           <td class="col-packstatus" data-column-key="status">${statusCell}</td>
           <td class="col-text" data-column-key="text" title="${esc(task.notes || '')}">${esc(task.notes || '')}</td>
-          ${renderCustomCells(trailingCustomColumns())}
+          ${renderCustomCells(trailingCustomColumns(), task)}
           <td class="col-add-btn" data-column-key="add"></td>
         </tr>
       `;
@@ -1632,7 +1643,7 @@
                     <td data-column-key="person"></td>
                     <td data-column-key="quantity_packed"></td>
                     <td data-column-key="date_completed"></td>
-                    ${renderEmptyCustomCells('summary-custom-cell', websiteUpdatedColumns())}
+                    ${renderWebsiteSummaryCells(rows)}
                     <td class="packing-month-open-footer-cell--status" data-column-key="status">${packingHeaderProgress(statusCounts, rows.length)}</td>
                     <td data-column-key="text"></td>
                     ${renderEmptyCustomCells('summary-custom-cell', trailingCustomColumns())}
@@ -2361,8 +2372,8 @@
   function updatePackingWebsiteSummaryForButton(button) {
     const group = button?.closest('.packing-month-group');
     if (!group) return;
-    const allButtons = group.querySelectorAll('[data-packing-website-check]');
-    const checkedButtons = group.querySelectorAll('[data-packing-website-check][data-checked="true"]');
+    const allButtons = group.querySelectorAll('[data-packing-website-toggle]');
+    const checkedButtons = group.querySelectorAll('[data-packing-website-toggle][aria-pressed="true"]');
     const compactText = `${checkedButtons.length}/${allButtons.length}`;
     const spacedText = `${checkedButtons.length} / ${allButtons.length}`;
     group.querySelectorAll('.packing-month-summary-website strong').forEach((element) => {
@@ -2766,7 +2777,7 @@
     const personOption = event.target.closest('[data-packing-person-option]');
     const editPackingPeople = event.target.closest('[data-edit-packing-people]');
     const check = event.target.closest('[data-packing-check]');
-    const websiteCheck = event.target.closest('[data-packing-website-check]');
+    const websiteCheck = event.target.closest('[data-packing-website-toggle]');
     const panelWebsite = event.target.closest('[data-packing-panel-website]');
     const panelButton = event.target.closest('[data-packing-open-panel]');
     const panelClose = event.target.closest('[data-packing-panel-close]');
@@ -3128,31 +3139,46 @@
       if (websiteCheck) {
         event.preventDefault();
         event.stopPropagation();
-        if (websiteCheck.disabled || websiteCheck.dataset.saving === 'true') return;
-        const itemId = String(websiteCheck.dataset.itemId || '');
-        const previousChecked = websiteCheck.dataset.checked === 'true';
-        const nextChecked = !previousChecked;
+        if (websiteCheck.dataset.locked === '1' || websiteCheck.dataset.saving === 'true' || !currentUser.can_edit_front_website) return;
+        const itemId = String(websiteCheck.dataset.packingItemId || '');
+        const previousChecked = websiteCheck.getAttribute('aria-pressed') === 'true';
+        if (!itemId || previousChecked) return;
         websiteCheck.dataset.saving = 'true';
         websiteCheck.classList.add('is-saving');
-        websiteCheck.dataset.checked = String(nextChecked);
-        websiteCheck.setAttribute('aria-pressed', String(nextChecked));
-        websiteCheck.setAttribute('aria-label', nextChecked ? 'Remove website completion' : 'Mark website inventory as complete');
-        websiteCheck.classList.remove('is-just-checked', 'is-just-unchecked');
-        void websiteCheck.offsetWidth;
-        websiteCheck.classList.add(nextChecked ? 'is-just-checked' : 'is-just-unchecked');
+        websiteCheck.dataset.checked = 'true';
+        websiteCheck.setAttribute('aria-pressed', 'true');
+        websiteCheck.setAttribute('aria-label', 'Website updated');
         updatePackingWebsiteSummaryForButton(websiteCheck);
         try {
-          await updateTasksField([itemId], 'packing_website_confirmed', nextChecked ? '1' : '0');
+          const result = await post('confirm_website_update', { task_id: itemId });
+          const confirmation = result.data || {};
+          const person = confirmation.website_updated_by || {};
+          const task = tasks.find((item) => String(item.id) === itemId);
+          if (task) Object.assign(task, {
+            website_uploaded: 1,
+            website_uploaded_at: confirmation.website_updated_at,
+            inventory_updated_at: confirmation.website_updated_at,
+            inventory_updated_by: person.id || null,
+            inventory_updated_by_name: person.name || 'User not recorded',
+            inventory_updated_by_role: person.role || '',
+          });
+          websiteCheck.dataset.locked = '1';
+          websiteCheck.classList.add('is-locked', 'is-confirmed');
+          websiteCheck.setAttribute('aria-disabled', 'true');
+          window.setTimeout(() => websiteCheck.classList.remove('is-confirmed'), 320);
+          if (currentTask && String(currentTask.id) === itemId && panel.classList.contains('open')) renderWebsiteConfirmation(task || currentTask);
+          updateMetrics();
+          setCount(result.message || 'Website update confirmed.');
         } catch (error) {
-          websiteCheck.dataset.checked = String(previousChecked);
-          websiteCheck.setAttribute('aria-pressed', String(previousChecked));
-          websiteCheck.setAttribute('aria-label', previousChecked ? 'Remove website completion' : 'Mark website inventory as complete');
+          websiteCheck.dataset.checked = 'false';
+          websiteCheck.setAttribute('aria-pressed', 'false');
+          websiteCheck.setAttribute('aria-label', 'Mark website as updated');
           updatePackingWebsiteSummaryForButton(websiteCheck);
           setCount(error.message || 'Unable to update website status.');
         } finally {
           websiteCheck.dataset.saving = 'false';
           websiteCheck.classList.remove('is-saving');
-          window.setTimeout(() => websiteCheck.classList.remove('is-just-checked', 'is-just-unchecked'), 240);
+          websiteCheck.focus({ preventScroll: true });
         }
         return;
       }
