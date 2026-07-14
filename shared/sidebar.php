@@ -31,7 +31,6 @@ $sidebarUser = isset($user) && is_array($user)
 $sidebarUserName = trim((string) ($sidebarUser['name'] ?? ($_SESSION['user']['name'] ?? ($_SESSION['user_name'] ?? 'User'))));
 $sidebarUserRole = trim((string) ($sidebarUser['role'] ?? ($_SESSION['user']['role'] ?? ($_SESSION['user_role'] ?? ''))));
 $sidebarUserInitial = strtoupper(substr($sidebarUserName !== '' ? $sidebarUserName : 'U', 0, 1));
-$isEmployeeSidebar = function_exists('is_employee_session') && is_employee_session();
 
 $portalNavItems = [
     ['id' => 'portal-dashboard', 'label' => 'Dashboard', 'icon' => 'dashboard', 'href' => '/index.php', 'match' => ['/index.php']],
@@ -159,15 +158,6 @@ $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bo
     </nav>
 
     <div class="ps-bottom">
-        <?php if ($isEmployeeSidebar && portal_role_can_access_feature($sidebarRoleKey, 'notifications')): ?>
-        <a href="<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/notifications.php" class="ps-nav-item ps-nav-item--notify" title="Notifications">
-            <span class="ps-nav-icon"><?= getSidebarIcon('notifications') ?></span>
-            <span class="ps-nav-label">Notifications</span>
-            <span class="ps-notification-badge<?= $notificationUnread > 0 ? '' : ' is-hidden' ?>" data-notification-count><?= $notificationUnread > 0 ? htmlspecialchars($notificationUnreadLabel, ENT_QUOTES, 'UTF-8') : '' ?></span>
-        </a>
-        <?php endif; ?>
-
-        <?php if (!$isEmployeeSidebar): ?>
         <a href="<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/notifications.php" class="ps-nav-item ps-nav-item--notify" title="Notifications">
             <span class="ps-nav-icon"><?= getSidebarIcon('notifications') ?></span>
             <span class="ps-nav-label">Notifications</span>
@@ -187,7 +177,6 @@ $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bo
                 <span class="ps-user-role"><?= htmlspecialchars($sidebarUserRole, ENT_QUOTES, 'UTF-8') ?></span>
             </div>
         </div>
-        <?php endif; ?>
 
         <a href="<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/login.php?action=logout" class="ps-nav-item ps-nav-item--logout" title="Logout">
             <span class="ps-nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span>
