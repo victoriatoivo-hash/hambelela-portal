@@ -39,6 +39,7 @@ $portalNavItems = [
     ['id' => 'operations-bookkeeping', 'label' => 'Bookkeeping', 'icon' => 'bookkeeping', 'href' => BASE_URL . '/apps/operations/bookkeeping.php', 'match' => ['/apps/operations/bookkeeping.php']],
     ['id' => 'operations-cash-tools', 'label' => 'Cash Tools', 'icon' => 'cash', 'href' => BASE_URL . '/apps/operations/bank-statement-processor.php', 'match' => ['/apps/operations/bank-statement-processor.php']],
     ['id' => 'operations-consignments', 'label' => 'Packing List', 'icon' => 'packing', 'href' => BASE_URL . '/apps/operations/consignments.php', 'match' => ['/apps/operations/consignments.php']],
+    ['id' => 'hr-portal', 'label' => 'HR Portal', 'icon' => 'hr', 'href' => BASE_URL . '/apps/hr-portal/portal-login.php', 'match' => ['/apps/hr-portal/portal-login.php', '/apps/hr-portal/index.php']],
     ['id' => 'operations-inventory', 'label' => 'Inventory', 'icon' => 'inventory', 'href' => BASE_URL . '/apps/operations/orders.php?tab=inventory', 'match' => ['/apps/operations/orders.php']],
     ['id' => 'operations-pos-reports', 'label' => 'POS Reports', 'icon' => 'reports', 'href' => BASE_URL . '/apps/operations/orders.php', 'match' => ['/apps/operations/orders.php']],
     ['id' => 'kpi', 'label' => 'KPI Dashboard', 'icon' => 'kpi', 'href' => BASE_URL . '/apps/operations/reports.php', 'match' => ['/apps/operations/reports.php']],
@@ -53,6 +54,7 @@ $featureByNavId = [
     'operations-bookkeeping' => 'bookkeeping',
     'operations-cash-tools' => 'cash_tools',
     'operations-consignments' => 'packing_list',
+    'hr-portal' => 'hr',
     'operations-inventory' => 'inventory',
     'operations-pos-reports' => 'pos_reports',
     'kpi' => 'kpi_dashboard',
@@ -61,14 +63,14 @@ $featureByNavId = [
     'settings' => 'settings',
 ];
 $sidebarRoleKey = normalise_portal_role((string) ($sidebarUser['role_key'] ?? $sidebarUserRole));
-$allowedPortalNavItems = [];
+$employeePortalNavItems = [];
 foreach ($portalNavItems as $portalNavItem) {
     $featureKey = $featureByNavId[$portalNavItem['id']] ?? '';
     if (portal_role_can_access_feature($sidebarRoleKey, $featureKey)) {
-        $allowedPortalNavItems[] = $portalNavItem;
+        $employeePortalNavItems[] = $portalNavItem;
     }
 }
-$portalNavItems = $allowedPortalNavItems;
+$portalNavItems = $employeePortalNavItems;
 
 function getSidebarIcon(string $id): string
 {
@@ -84,6 +86,7 @@ function getSidebarIcon(string $id): string
         'kpi' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
         'operations-checklists' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
         'operations-errors' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+        'hr-portal' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></svg>',
         'notifications' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>',
         'settings' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
     ];
@@ -153,17 +156,17 @@ $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bo
     </nav>
 
     <div class="ps-bottom">
-        <?php if (!$isEmployeeSidebar): ?><a href="<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/notifications.php" class="ps-nav-item ps-nav-item--notify" title="Notifications">
+        <a href="<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/notifications.php" class="ps-nav-item ps-nav-item--notify" title="Notifications">
             <span class="ps-nav-icon"><?= getSidebarIcon('notifications') ?></span>
             <span class="ps-nav-label">Notifications</span>
             <span class="ps-notification-badge<?= $notificationUnread > 0 ? '' : ' is-hidden' ?>" data-notification-count><?= $notificationUnread > 0 ? htmlspecialchars($notificationUnreadLabel, ENT_QUOTES, 'UTF-8') : '' ?></span>
-        </a><?php endif; ?>
+        </a>
 
-        <?php if (!$isEmployeeSidebar): ?><div class="ps-nav-item ps-dark-toggle" onclick="toggleDarkMode()" title="Dark mode">
+        <div class="ps-nav-item ps-dark-toggle" onclick="toggleDarkMode()" title="Dark mode">
             <span class="ps-nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></span>
             <span class="ps-nav-label">Dark mode</span>
             <span class="ps-toggle-switch" id="darkToggleSwitch"></span>
-        </div><?php endif; ?>
+        </div>
 
         <div class="ps-user">
             <div class="ps-user-avatar"><?= htmlspecialchars($sidebarUserInitial, ENT_QUOTES, 'UTF-8') ?></div>
@@ -216,4 +219,5 @@ function toggleSidebar(){const sidebar=document.getElementById('portalSidebar');
 })();
 function toggleDarkMode(){const dark=document.body.classList.toggle('dark-mode');localStorage.setItem('darkMode',dark?'1':'0')}
 (function(){if(localStorage.getItem('darkMode')==='1'){document.body.classList.add('dark-mode')}})();
+document.addEventListener('click',(event)=>{if(!event.target.closest('[data-employee-nav-coming-soon]'))return;event.preventDefault();if(typeof employeeSoonMessage==='function'){employeeSoonMessage();return}window.alert('This section is coming soon.')});
 </script>
