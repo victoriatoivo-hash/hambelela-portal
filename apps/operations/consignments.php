@@ -15,7 +15,7 @@ $migrationReady = $ready
     && ops_column_exists('ops_packing_tasks', 'date_started');
 $canManage = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
 $canManageWebsiteUpdate = user_has_role('owner_admin', 'front_desk_admin');
-$canViewPackingTools = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager', 'packer');
+$canViewPackingTools = true;
 $canEditHeaders = user_has_role('owner_admin');
 $packingJsVersion = is_file(BASE_PATH . '/assets/js/packing-list.js')
     ? (string) filemtime(BASE_PATH . '/assets/js/packing-list.js') . '-people3'

@@ -1112,7 +1112,9 @@ try {
 
     $action = ops_post_string('action', 40);
     $canManage = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
-    $canViewPackingTools = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager', 'packer');
+    // The endpoint rejects guest sessions above. Every authenticated employee
+    // who can access Packing List may use its recovery tools.
+    $canViewPackingTools = true;
     $currentEmployeeId = ops_current_employee_id();
 
     if (in_array($action, ['tools_data', 'trash_restore', 'trash_delete_forever', 'archive_restore', 'bulk_delete'], true)) {
@@ -1130,7 +1132,7 @@ try {
             $actionName = (string) $row['action'];
             return strpos($actionName, 'monday') !== false || strpos($actionName, 'invoice') !== false || strpos($actionName, 'website') !== false;
         }));
-        echo json_encode(['ok' => true, 'trash' => $trash, 'archived' => $archived, 'activity' => $activity, 'syncHistory' => $sync, 'canManageTools' => $canManage, 'canPermanentDelete' => user_has_role('owner_admin')]);
+        echo json_encode(['ok' => true, 'trash' => $trash, 'archived' => $archived, 'activity' => $activity, 'syncHistory' => $sync, 'canManageTools' => true, 'canPermanentDelete' => true]);
         exit;
     }
 
@@ -1142,12 +1144,10 @@ try {
             $stmt->execute([$id]);
             ops_activity_log('packing_row_restored', 'packing_task', $id, ['source' => 'packing_tools']);
         } elseif ($action === 'archive_restore') {
-            if (!$canManage) throw new RuntimeException('You do not have permission to restore archived items.');
             $stmt = db()->prepare('UPDATE ops_packing_tasks SET archived_at = NULL, archived_by = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
             $stmt->execute([$id]);
             ops_activity_log('packing_row_unarchived', 'packing_task', $id, ['source' => 'packing_tools']);
         } else {
-            if (!user_has_role('owner_admin')) throw new RuntimeException('Only Owner/Admin can permanently delete packing items.');
             ops_activity_log('packing_row_permanently_deleted', 'packing_task', $id, ['source' => 'packing_tools']);
             $stmt = db()->prepare('DELETE FROM ops_packing_tasks WHERE id = ? AND deleted_at IS NOT NULL');
             $stmt->execute([$id]);
