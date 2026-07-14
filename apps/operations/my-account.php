@@ -674,7 +674,7 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                                         <th>Status</th>
                                         <th>Packing assignment</th>
                                         <th>Automatic distribution</th>
-                                        <th>Reset Code</th>
+                                        <th>Temporary Code</th>
                                         <th>Created</th>
                                         <th>Delete</th>
                                     </tr>
@@ -728,13 +728,13 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                                             </form>
                                         </td>
                                         <td>
-                                            <form class="settings-code-reset" method="post" action="<?= htmlspecialchars(BASE_URL . '/apps/operations/reset-employee-code.php', ENT_QUOTES, 'UTF-8') ?>" novalidate data-reset-code-form>
-                                                <input type="hidden" name="action" value="reset_code">
-                                                <input type="hidden" name="employee_id" value="<?= (int) $managedEmployee['id'] ?>">
-                                                <input name="login_code" type="password" class="employee-reset-code" inputmode="numeric" maxlength="4" placeholder="New PIN" autocomplete="new-password" data-reset-code>
-                                                <input name="confirm_login_code" type="password" class="employee-reset-code" inputmode="numeric" maxlength="4" placeholder="Confirm PIN" autocomplete="new-password" data-reset-code-confirm>
-                                                <button class="btn-secondary" type="submit">Reset</button>
-                                            </form>
+                                            <button
+                                                class="btn-secondary"
+                                                type="button"
+                                                data-create-temporary-code
+                                                data-employee-id="<?= (int) $managedEmployee['id'] ?>"
+                                                data-employee-name="<?= htmlspecialchars($managedEmployee['full_name'], ENT_QUOTES, 'UTF-8') ?>"
+                                            >Create temporary code</button>
                                         </td>
                                         <td><?= htmlspecialchars((string) $managedEmployee['created_at'], ENT_QUOTES, 'UTF-8') ?></td>
                                         <td>
@@ -842,10 +842,32 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
         </section>
     </div>
 </main>
+<dialog class="temporary-code-dialog" data-temporary-code-dialog>
+    <div class="temporary-code-dialog-card">
+        <h2>Temporary access code created</h2>
+        <p class="temporary-code-dialog-copy">This code is shown once. Share it securely; the employee must replace it after signing in.</p>
+        <dl>
+            <div><dt>Employee</dt><dd data-temporary-employee></dd></div>
+            <div><dt>Code</dt><dd class="temporary-code-value" data-temporary-code></dd></div>
+            <div><dt>Expires</dt><dd data-temporary-expiry></dd></div>
+        </dl>
+        <div class="temporary-code-dialog-actions">
+            <button class="btn-primary" type="button" data-copy-temporary-code>Copy code</button>
+            <button class="btn-secondary" type="button" data-close-temporary-code>Close</button>
+        </div>
+    </div>
+</dialog>
+<style>
+.temporary-code-dialog{width:min(430px,calc(100vw - 32px));padding:0;border:1px solid #ede3d8;border-radius:14px;background:#fff;color:#2c211d;font-family:Figtree,sans-serif;box-shadow:0 22px 60px rgba(66,35,25,.2)}.temporary-code-dialog::backdrop{background:rgba(30,20,16,.42)}.temporary-code-dialog-card{padding:22px}.temporary-code-dialog h2{margin:0 0 6px;color:#721b1a;font-size:14px;line-height:1.2}.temporary-code-dialog-copy{margin:0 0 18px;color:#6f5a50;font-size:12px;line-height:1.5}.temporary-code-dialog dl{margin:0}.temporary-code-dialog dl div{display:grid;grid-template-columns:88px 1fr;gap:12px;padding:9px 0;border-top:1px solid #ede3d8}.temporary-code-dialog dt{color:#a08070;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}.temporary-code-dialog dd{margin:0;font-size:12px}.temporary-code-value{color:#721b1a!important;font-size:22px!important;font-weight:700!important;letter-spacing:.18em}.temporary-code-dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}.temporary-code-dialog-actions button{height:32px;font-weight:400}
+</style>
 <script>
 window.portalRoutes = Object.assign({}, window.portalRoutes, {
     resetEmployeeCode: <?= json_encode(
         BASE_URL . '/apps/operations/reset-employee-code.php',
+        JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
+    ) ?>,
+    createTemporaryCode: <?= json_encode(
+        BASE_URL . '/apps/operations/create-temporary-code.php',
         JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
     ) ?>,
 });
@@ -962,6 +984,62 @@ document.querySelectorAll('[data-reset-code-form]').forEach((form) => {
             if (submitButton) submitButton.disabled = false;
         }
     });
+});
+
+const temporaryCodeDialog = document.querySelector('[data-temporary-code-dialog]');
+const temporaryCodeValue = temporaryCodeDialog?.querySelector('[data-temporary-code]');
+const closeTemporaryCodeDialog = () => {
+    if (temporaryCodeValue) temporaryCodeValue.textContent = '';
+    temporaryCodeDialog?.close();
+};
+
+document.querySelectorAll('[data-create-temporary-code]').forEach((button) => {
+    button.addEventListener('click', async () => {
+        const employeeName = button.dataset.employeeName || 'this employee';
+        if (!window.confirm(`Create a 24-hour temporary access code for ${employeeName}? Any previous temporary code will stop working.`)) return;
+
+        button.disabled = true;
+        try {
+            const formData = new FormData();
+            formData.set('employee_id', button.dataset.employeeId || '');
+            formData.set('csrf_token', <?= json_encode((string) $_SESSION['settings_csrf_token'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>);
+            const response = await fetch(window.portalRoutes.createTemporaryCode, {
+                method: 'POST',
+                body: formData,
+                credentials: 'same-origin',
+                headers: {'X-Requested-With': 'XMLHttpRequest'},
+            });
+            const contentType = response.headers.get('content-type') || '';
+            if (!contentType.toLowerCase().includes('application/json')) {
+                throw new Error(`The server returned an invalid response (${response.status}).`);
+            }
+            const result = await response.json();
+            if (!response.ok || !result.success || !result.data?.temporary_code) {
+                throw new Error(result.message || 'The temporary code could not be created.');
+            }
+
+            temporaryCodeDialog.querySelector('[data-temporary-employee]').textContent = result.data.employee_name || employeeName;
+            temporaryCodeValue.textContent = result.data.temporary_code;
+            temporaryCodeDialog.querySelector('[data-temporary-expiry]').textContent = new Date(result.data.expires_at.replace(' ', 'T')).toLocaleString();
+            temporaryCodeDialog.showModal();
+        } catch (error) {
+            showSettingsToast(error.message || 'The temporary code could not be created.');
+        } finally {
+            button.disabled = false;
+        }
+    });
+});
+
+temporaryCodeDialog?.querySelector('[data-copy-temporary-code]')?.addEventListener('click', async () => {
+    const code = temporaryCodeValue?.textContent || '';
+    if (!code) return;
+    await navigator.clipboard.writeText(code);
+    showSettingsToast('Temporary code copied.', 'success');
+});
+temporaryCodeDialog?.querySelector('[data-close-temporary-code]')?.addEventListener('click', closeTemporaryCodeDialog);
+temporaryCodeDialog?.addEventListener('cancel', (event) => {
+    event.preventDefault();
+    closeTemporaryCodeDialog();
 });
 document.querySelectorAll('.settings-nav-item').forEach((item) => {
     item.addEventListener('click', () => {
