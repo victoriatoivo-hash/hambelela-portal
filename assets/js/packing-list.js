@@ -147,18 +147,39 @@
     return storedHeaderLabels()[column.key] || column.label;
   }
 
+  function isWebsiteUpdatedColumn(column) {
+    const identity = `${column?.col_key || ''} ${column?.col_name || ''}`
+      .toLowerCase()
+      .replace(/[_-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return identity.includes('website updated');
+  }
+
+  function websiteUpdatedColumns() {
+    return customColumns.filter(isWebsiteUpdatedColumn);
+  }
+
+  function trailingCustomColumns() {
+    return customColumns.filter((column) => !isWebsiteUpdatedColumn(column));
+  }
+
   function columnDefinitions() {
     const addColumn = baseColumns[baseColumns.length - 1];
     const coreColumns = baseColumns.slice(0, -1);
-    const custom = customColumns.map((column) => ({
+    const customDefinition = (column) => ({
       key: column.col_key,
       label: String(column.col_name || '').toUpperCase(),
       className: 'col-custom',
       width: 140,
       customType: column.col_type,
       isCustom: true
-    }));
-    return [...coreColumns, ...custom, addColumn];
+    });
+    const websiteColumns = websiteUpdatedColumns().map(customDefinition);
+    const trailingColumns = trailingCustomColumns().map(customDefinition);
+    const statusIndex = coreColumns.findIndex((column) => column.key === 'status');
+    coreColumns.splice(statusIndex, 0, ...websiteColumns);
+    return [...coreColumns, ...trailingColumns, addColumn];
   }
 
   function columnWidth(column) {
@@ -784,12 +805,12 @@
     return '<input class="board-custom-input" type="text" placeholder="-">';
   }
 
-  function renderCustomCells() {
-    return customColumns.map((column) => `<td class="col-custom" data-column-key="${esc(column.col_key)}" data-custom-col="${esc(column.col_key)}">${renderCustomCell(column)}</td>`).join('');
+  function renderCustomCells(columns = customColumns) {
+    return columns.map((column) => `<td class="col-custom" data-column-key="${esc(column.col_key)}" data-custom-col="${esc(column.col_key)}">${renderCustomCell(column)}</td>`).join('');
   }
 
-  function renderEmptyCustomCells(className = '') {
-    return customColumns.map((column) => `<td class="${esc(className)}" data-column-key="${esc(column.col_key)}" data-custom-col="${esc(column.col_key)}"></td>`).join('');
+  function renderEmptyCustomCells(className = '', columns = customColumns) {
+    return columns.map((column) => `<td class="${esc(className)}" data-column-key="${esc(column.col_key)}" data-custom-col="${esc(column.col_key)}"></td>`).join('');
   }
 
   function renderCustomHeaders() {
@@ -1451,7 +1472,8 @@
     const groupSummary = summary(rows);
     const pCounts = priorityCounts(rows);
     const statusCounts = packingStatusCounts(rows);
-    const customEmptyCells = customColumns.map(() => '<td data-custom-col-summary></td>').join('');
+    const websiteEmptyCells = websiteUpdatedColumns().map(() => '<td data-custom-col-summary></td>').join('');
+    const customEmptyCells = trailingCustomColumns().map(() => '<td data-custom-col-summary></td>').join('');
     const bodyRows = rows.map((task) => {
       const canEditOwn = canEditTask(task);
       const priorityCell = currentUser.can_manage
@@ -1468,9 +1490,10 @@
           <td class="col-person">${renderPerson(task)}</td>
           <td class="col-qtypacked"><input class="board-inline-input" data-packing-text="quantity_packed" data-task-id="${esc(task.id)}" value="${esc(task.quantity_packed || '')}" placeholder="Actual" ${ownOnly}></td>
           <td class="col-datecompleted">${esc(task.date_completed ? formatDate(task.date_completed) : '')}</td>
+          ${renderCustomCells(websiteUpdatedColumns())}
           <td class="col-packstatus">${statusCell}</td>
           <td class="col-text" title="${esc(task.notes || '')}">${esc(task.notes || '')}</td>
-          ${renderCustomCells()}
+          ${renderCustomCells(trailingCustomColumns())}
           <td class="col-add-btn"></td>
         </tr>
       `;
@@ -1490,6 +1513,7 @@
         <td class="col-person"></td>
         <td class="col-qtypacked"></td>
         <td class="col-datecompleted"></td>
+        ${websiteEmptyCells}
         <td class="col-packstatus">${packingProgressBar(statusCounts, rows.length)}</td>
         <td class="col-text"></td>
         ${customEmptyCells}
@@ -1533,9 +1557,10 @@
           <td class="col-person" data-column-key="person">${renderPerson(task)}</td>
           <td class="col-qtypacked" data-column-key="quantity_packed">${canEditOwn ? renderEditableCell(task, 'quantity_packed', 'Quantity packed', 'Enter packed quantity') : esc(task.quantity_packed || '')}</td>
           <td class="col-datecompleted packing-editable-date-cell" data-column-key="date_completed">${renderPackingDate(task, 'date_completed', canEditOwn)}</td>
+          ${renderCustomCells(websiteUpdatedColumns())}
           <td class="col-packstatus" data-column-key="status">${statusCell}</td>
           <td class="col-text" data-column-key="text" title="${esc(task.notes || '')}">${esc(task.notes || '')}</td>
-          ${renderCustomCells()}
+          ${renderCustomCells(trailingCustomColumns())}
           <td class="col-add-btn" data-column-key="add"></td>
         </tr>
       `;
@@ -1551,9 +1576,10 @@
           <td class="packing-add-item-empty-cell" data-column-key="person"></td>
           <td class="packing-add-item-empty-cell" data-column-key="quantity_packed"></td>
           <td class="packing-add-item-empty-cell" data-column-key="date_completed"></td>
+          ${renderEmptyCustomCells('packing-add-item-empty-cell', websiteUpdatedColumns())}
           <td class="packing-add-item-empty-cell" data-column-key="status"></td>
           <td class="packing-add-item-empty-cell" data-column-key="text"></td>
-          ${renderEmptyCustomCells('packing-add-item-empty-cell')}
+          ${renderEmptyCustomCells('packing-add-item-empty-cell', trailingCustomColumns())}
           <td class="packing-add-item-empty-cell" data-column-key="add"></td>
         </tr>`
       : '';
@@ -1606,9 +1632,10 @@
                     <td data-column-key="person"></td>
                     <td data-column-key="quantity_packed"></td>
                     <td data-column-key="date_completed"></td>
+                    ${renderEmptyCustomCells('summary-custom-cell', websiteUpdatedColumns())}
                     <td class="packing-month-open-footer-cell--status" data-column-key="status">${packingHeaderProgress(statusCounts, rows.length)}</td>
                     <td data-column-key="text"></td>
-                    ${renderEmptyCustomCells('summary-custom-cell')}
+                    ${renderEmptyCustomCells('summary-custom-cell', trailingCustomColumns())}
                     <td data-column-key="add"></td>
                   </tr>
                 </tfoot>
