@@ -377,8 +377,14 @@
   function updateDateCompletedCells(ids) {
     ids.forEach((id) => {
       const task = tasks.find((item) => String(item.id) === String(id));
-      const cell = document.querySelector(`tr[data-task-id="${CSS.escape(String(id))}"] [data-column-key="date_completed"]`);
-      if (task && cell) cell.innerHTML = renderPackingDate(task, 'date_completed', currentUser.can_manage);
+      if (!task) return;
+      document.querySelectorAll(`tr[data-task-id="${CSS.escape(String(id))}"] [data-column-key="date_completed"]`).forEach((cell) => {
+        cell.innerHTML = renderPackingDate(task, 'date_completed', currentUser.can_manage);
+      });
+      document.querySelectorAll(`[data-mobile-date-completed="${CSS.escape(String(id))}"]`).forEach((cell) => {
+        cell.textContent = task.date_completed ? formatDate(task.date_completed) : '';
+        cell.classList.toggle('is-empty', !task.date_completed);
+      });
     });
     if (typeof window.initialisePortalDatePickers === 'function') window.initialisePortalDatePickers(body);
     if (window.lucide) window.lucide.createIcons();
@@ -679,10 +685,11 @@
       <article class="board-mobile-card" data-mobile-task-id="${esc(task.id)}">
         <header>
           <strong>${esc(task.item_name)}</strong>
-          ${renderStaticLabel(task.packing_status || 'not_started', statuses)}
+          ${renderPackingStatus(task, canEditTask(task))}
         </header>
         <div class="board-card-meta">
           <span>${esc(formatDate(task.date_loaded))}</span>
+          <span data-mobile-date-completed="${esc(task.id)}" class="${task.date_completed ? '' : 'is-empty'}">${esc(task.date_completed ? formatDate(task.date_completed) : '')}</span>
           <span>${esc(task.received_weight || 'No weight')}</span>
           <span>${esc(task.quantity_planned || 'No plan')}</span>
           <span>Person: ${esc(task.assigned_name || 'Unassigned')}</span>
@@ -2938,18 +2945,22 @@
         if (field === 'packing_status') {
           ids.forEach((id) => {
             const savedTask = tasks.find((task) => String(task.id) === String(id));
-            const component = document.querySelector(`[data-packing-status-cell][data-item-id="${CSS.escape(String(id))}"]`);
-            if (!component || !savedTask) return;
+            const components = document.querySelectorAll(`[data-packing-status-cell][data-item-id="${CSS.escape(String(id))}"]`);
+            if (!components.length || !savedTask) return;
             const statusKey = normalize(savedTask.packing_status).replace(/_/g, '-');
             const definition = findOption(statuses, savedTask.packing_status);
-            component.dataset.status = statusKey;
-            const label = component.querySelector('.packing-status-trigger-label');
-            if (label) label.textContent = labelText(statuses, savedTask.packing_status);
-            if (definition) {
-              component.style.setProperty('--status-colour', itemColor(definition));
-              component.style.setProperty('--status-text-colour', readablePriorityTextColour(itemColor(definition)));
-            }
-            updatePackingStatusSummaryForComponent(component);
+            components.forEach((component) => {
+              component.dataset.status = statusKey;
+              component.dataset.statusKey = normalize(savedTask.packing_status);
+              const label = component.querySelector('.packing-status-trigger-label');
+              if (label) label.textContent = labelText(statuses, savedTask.packing_status);
+              if (definition) {
+                component.style.setProperty('--status-colour', itemColor(definition));
+                component.style.setProperty('--status-text-colour', readablePriorityTextColour(itemColor(definition)));
+              }
+            });
+            const tableComponent = [...components].find((component) => component.closest('.packing-date-group'));
+            if (tableComponent) updatePackingStatusSummaryForComponent(tableComponent);
           });
           closeLabel();
           sourceComponent?.classList.remove('is-saving');
