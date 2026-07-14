@@ -155,8 +155,8 @@ include BASE_PATH . '/shared/sidebar.php';
             </div>
         </header>
         <nav class="packing-item-tabs" role="tablist">
-            <button class="packing-item-tab active is-active" type="button" role="tab" aria-selected="true" data-packing-panel-tab="details"><i data-lucide="layout-list"></i> Details</button>
             <?php if ($canManageWebsiteUpdate): ?><button class="packing-item-tab" type="button" role="tab" aria-selected="false" data-packing-panel-tab="website"><i data-lucide="globe-2"></i> Website</button><?php endif; ?>
+            <button class="packing-item-tab active is-active" type="button" role="tab" aria-selected="true" data-packing-panel-tab="details"><i data-lucide="layout-list"></i> Details</button>
             <button class="packing-item-tab" type="button" role="tab" aria-selected="false" data-packing-panel-tab="files"><i data-lucide="paperclip"></i> Files</button>
         </nav>
         <section class="updates-tab-panel packing-item-panel-body active" data-packing-panel-name="details">
