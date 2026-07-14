@@ -449,9 +449,9 @@
     const role = task?.inventory_updated_by_role || '';
     if (websiteToggle) {
       websiteToggle.checked = confirmed;
-      websiteToggle.disabled = confirmed;
+      websiteToggle.disabled = !currentUser.can_edit_front_website;
     }
-    control?.classList.toggle('is-locked', confirmed);
+    control?.classList.toggle('is-locked', !currentUser.can_edit_front_website);
     if (badge) badge.hidden = !confirmed;
     if (updatedAt) updatedAt.textContent = confirmed
       ? (task.inventory_updated_at || task.website_uploaded_at ? formatWebsiteDate(task.inventory_updated_at || task.website_uploaded_at) : 'Updated date not recorded')
@@ -717,7 +717,7 @@
 
   function renderWebsiteToggle(task) {
     const checked = Number(task.website_uploaded || 0) === 1;
-    const locked = checked || !currentUser.can_edit_front_website;
+    const locked = !currentUser.can_edit_front_website;
     return `<button type="button" class="packing-website-toggle${locked ? ' is-locked' : ''}" data-packing-website-toggle data-packing-item-id="${esc(task.id)}" data-checked="${checked ? 'true' : 'false'}" data-locked="${locked ? '1' : '0'}" aria-pressed="${checked ? 'true' : 'false'}" aria-disabled="${locked ? 'true' : 'false'}" aria-label="${checked ? 'Website updated' : currentUser.can_edit_front_website ? 'Mark website as updated' : 'Website not updated'}"><svg class="packing-website-tick" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10.5l3.2 3.2L16 5.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`;
   }
 
@@ -3142,37 +3142,38 @@
         if (websiteCheck.dataset.locked === '1' || websiteCheck.dataset.saving === 'true' || !currentUser.can_edit_front_website) return;
         const itemId = String(websiteCheck.dataset.packingItemId || '');
         const previousChecked = websiteCheck.getAttribute('aria-pressed') === 'true';
-        if (!itemId || previousChecked) return;
+        if (!itemId) return;
+        const nextChecked = !previousChecked;
         websiteCheck.dataset.saving = 'true';
         websiteCheck.classList.add('is-saving');
-        websiteCheck.dataset.checked = 'true';
-        websiteCheck.setAttribute('aria-pressed', 'true');
-        websiteCheck.setAttribute('aria-label', 'Website updated');
+        websiteCheck.dataset.checked = nextChecked ? 'true' : 'false';
+        websiteCheck.setAttribute('aria-pressed', nextChecked ? 'true' : 'false');
+        websiteCheck.setAttribute('aria-label', nextChecked ? 'Website updated' : 'Mark website as updated');
         updatePackingWebsiteSummaryForButton(websiteCheck);
         try {
-          const result = await post('confirm_website_update', { task_id: itemId });
+          const result = await post('confirm_website_update', { task_id: itemId, confirmed: nextChecked ? '1' : '0' });
           const confirmation = result.data || {};
           const person = confirmation.website_updated_by || {};
           const task = tasks.find((item) => String(item.id) === itemId);
           if (task) Object.assign(task, {
-            website_uploaded: 1,
-            website_uploaded_at: confirmation.website_updated_at,
-            inventory_updated_at: confirmation.website_updated_at,
-            inventory_updated_by: person.id || null,
-            inventory_updated_by_name: person.name || 'User not recorded',
-            inventory_updated_by_role: person.role || '',
+            website_uploaded: nextChecked ? 1 : 0,
+            website_uploaded_at: nextChecked ? confirmation.website_updated_at : null,
+            inventory_updated_at: nextChecked ? confirmation.website_updated_at : null,
+            inventory_updated_by: nextChecked ? (person.id || null) : null,
+            inventory_updated_by_name: nextChecked ? (person.name || 'User not recorded') : null,
+            inventory_updated_by_role: nextChecked ? (person.role || '') : '',
           });
-          websiteCheck.dataset.locked = '1';
-          websiteCheck.classList.add('is-locked', 'is-confirmed');
-          websiteCheck.setAttribute('aria-disabled', 'true');
-          window.setTimeout(() => websiteCheck.classList.remove('is-confirmed'), 320);
+          if (nextChecked) {
+            websiteCheck.classList.add('is-confirmed');
+            window.setTimeout(() => websiteCheck.classList.remove('is-confirmed'), 320);
+          }
           if (currentTask && String(currentTask.id) === itemId && panel.classList.contains('open')) renderWebsiteConfirmation(task || currentTask);
           updateMetrics();
-          setCount(result.message || 'Website update confirmed.');
+          setCount(result.message || (nextChecked ? 'Website update confirmed.' : 'Website update confirmation removed.'));
         } catch (error) {
-          websiteCheck.dataset.checked = 'false';
-          websiteCheck.setAttribute('aria-pressed', 'false');
-          websiteCheck.setAttribute('aria-label', 'Mark website as updated');
+          websiteCheck.dataset.checked = previousChecked ? 'true' : 'false';
+          websiteCheck.setAttribute('aria-pressed', previousChecked ? 'true' : 'false');
+          websiteCheck.setAttribute('aria-label', previousChecked ? 'Website updated' : 'Mark website as updated');
           updatePackingWebsiteSummaryForButton(websiteCheck);
           setCount(error.message || 'Unable to update website status.');
         } finally {
@@ -3190,32 +3191,36 @@
         return;
       }
       if (panelWebsite && currentTask && currentUser.can_edit_front_website) {
-        if (!panelWebsite.checked || Number(currentTask.website_uploaded || 0) === 1) {
-          panelWebsite.checked = Number(currentTask.website_uploaded || 0) === 1;
-          return;
-        }
+        const nextChecked = panelWebsite.checked;
+        const previousChecked = Number(currentTask.website_uploaded || 0) === 1;
         const control = panelWebsite.closest('[data-packing-website-control]');
         panelWebsite.disabled = true;
         control?.classList.add('is-saving');
         try {
-          const result = await post('confirm_website_update', { task_id: String(currentTask.id) });
+          const result = await post('confirm_website_update', { task_id: String(currentTask.id), confirmed: nextChecked ? '1' : '0' });
           const confirmation = result.data || {};
           const person = confirmation.website_updated_by || {};
           Object.assign(currentTask, {
-            website_uploaded: 1,
-            website_uploaded_at: confirmation.website_updated_at,
-            inventory_updated_at: confirmation.website_updated_at,
-            inventory_updated_by: person.id || null,
-            inventory_updated_by_name: person.name || 'User not recorded',
-            inventory_updated_by_role: person.role || '',
+            website_uploaded: nextChecked ? 1 : 0,
+            website_uploaded_at: nextChecked ? confirmation.website_updated_at : null,
+            inventory_updated_at: nextChecked ? confirmation.website_updated_at : null,
+            inventory_updated_by: nextChecked ? (person.id || null) : null,
+            inventory_updated_by_name: nextChecked ? (person.name || 'User not recorded') : null,
+            inventory_updated_by_role: nextChecked ? (person.role || '') : '',
           });
           renderWebsiteConfirmation(currentTask);
+          document.querySelectorAll(`[data-packing-website-toggle][data-packing-item-id="${CSS.escape(String(currentTask.id))}"]`).forEach((button) => {
+            button.dataset.checked = nextChecked ? 'true' : 'false';
+            button.setAttribute('aria-pressed', nextChecked ? 'true' : 'false');
+            button.setAttribute('aria-label', nextChecked ? 'Website updated' : 'Mark website as updated');
+            updatePackingWebsiteSummaryForButton(button);
+          });
           updateMetrics();
-          setCount(result.message || 'Website update confirmed.');
+          setCount(result.message || (nextChecked ? 'Website update confirmed.' : 'Website update confirmation removed.'));
         } catch (error) {
-          panelWebsite.checked = false;
+          panelWebsite.checked = previousChecked;
           panelWebsite.disabled = false;
-          setCount(error.message || 'Unable to confirm the website update.');
+          setCount(error.message || 'Unable to update the website confirmation.');
         } finally {
           control?.classList.remove('is-saving');
         }

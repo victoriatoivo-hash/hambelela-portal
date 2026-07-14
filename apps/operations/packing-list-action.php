@@ -2314,6 +2314,7 @@ try {
         }
 
         $taskId = (int) ($_POST['task_id'] ?? 0);
+        $confirmed = (string) ($_POST['confirmed'] ?? '1') === '1';
         $employeeId = ops_current_employee_id();
         if ($taskId <= 0 || !$employeeId) {
             throw new RuntimeException('The packing item or authenticated employee could not be identified.');
@@ -2323,11 +2324,16 @@ try {
         }
 
         $confirmedAt = (new DateTimeImmutable('now', new DateTimeZone('Africa/Windhoek')))->format('Y-m-d H:i:s');
-        $stmt = db()->prepare('UPDATE ops_packing_tasks SET website_uploaded = 1, website_uploaded_at = ?, inventory_updated_at = ?, inventory_updated_by = ?, updated_at = ? WHERE id = ? AND website_uploaded = 0');
-        $stmt->execute([$confirmedAt, $confirmedAt, $employeeId, $confirmedAt, $taskId]);
+        if ($confirmed) {
+            $stmt = db()->prepare('UPDATE ops_packing_tasks SET website_uploaded = 1, website_uploaded_at = ?, inventory_updated_at = ?, inventory_updated_by = ?, updated_at = ? WHERE id = ? AND website_uploaded = 0');
+            $stmt->execute([$confirmedAt, $confirmedAt, $employeeId, $confirmedAt, $taskId]);
+        } else {
+            $stmt = db()->prepare('UPDATE ops_packing_tasks SET website_uploaded = 0, website_uploaded_at = NULL, inventory_updated_at = NULL, inventory_updated_by = NULL, updated_at = ? WHERE id = ? AND website_uploaded = 1');
+            $stmt->execute([$confirmedAt, $taskId]);
+        }
         if ($stmt->rowCount() !== 1) {
             http_response_code(409);
-            echo json_encode(['ok' => false, 'message' => 'This website update has already been confirmed and cannot be changed.']);
+            echo json_encode(['ok' => false, 'message' => $confirmed ? 'This website update is already confirmed.' : 'This website update is already unconfirmed.']);
             exit;
         }
 
@@ -2338,19 +2344,19 @@ try {
         $nameParts = array_values(array_filter(preg_split('/\s+/', $employeeName) ?: []));
         $initials = implode('', array_map(static fn(string $part): string => strtoupper(substr($part, 0, 1)), array_slice($nameParts, 0, 2)));
 
-        ops_activity_log('packing_website_update_confirmed', 'packing_task', $taskId, [
-            'event' => 'Website update confirmed by ' . $employeeName . '.',
+        ops_activity_log($confirmed ? 'packing_website_update_confirmed' : 'packing_website_update_unconfirmed', 'packing_task', $taskId, [
+            'event' => ($confirmed ? 'Website update confirmed by ' : 'Website update confirmation removed by ') . $employeeName . '.',
             'confirmed_at' => $confirmedAt,
             'confirmed_by' => $employeeId,
             'changed_by' => $employeeName,
         ]);
 
-        echo json_encode(['ok' => true, 'message' => 'Website update confirmed.', 'data' => [
-            'website_updated' => true,
-            'website_updated_at' => $confirmedAt,
-            'website_updated_at_iso' => (new DateTimeImmutable($confirmedAt, new DateTimeZone('Africa/Windhoek')))->format(DateTimeInterface::ATOM),
-            'website_updated_by' => ['id' => $employeeId, 'name' => $employeeName, 'role' => $employeeRole, 'initials' => $initials ?: '?'],
-            'locked' => true,
+        echo json_encode(['ok' => true, 'message' => $confirmed ? 'Website update confirmed.' : 'Website update confirmation removed.', 'data' => [
+            'website_updated' => $confirmed,
+            'website_updated_at' => $confirmed ? $confirmedAt : null,
+            'website_updated_at_iso' => $confirmed ? (new DateTimeImmutable($confirmedAt, new DateTimeZone('Africa/Windhoek')))->format(DateTimeInterface::ATOM) : null,
+            'website_updated_by' => $confirmed ? ['id' => $employeeId, 'name' => $employeeName, 'role' => $employeeRole, 'initials' => $initials ?: '?'] : null,
+            'locked' => false,
         ]]);
         exit;
     }
