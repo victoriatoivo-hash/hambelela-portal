@@ -13276,12 +13276,17 @@ body.login-page { min-height: 100%; background: #FFFFFF !important; }
 }
 
 .courier-wrap .courier-grid-history {
-  grid-template-columns:
-    minmax(360px, 1.6fr)
-    minmax(220px, 1fr)
-    minmax(220px, 1fr)
-    minmax(220px, 1fr)
-    minmax(150px, .7fr);
+  grid-template-columns: repeat(5, 130px);
+  width: 650px;
+  min-width: 650px;
+}
+
+.courier-wrap .courier-grid-history.courier-grid-header .courier-cell {
+  display: block;
+  width: 130px;
+  min-width: 130px;
+  max-width: 130px;
+  padding-top: 12px;
 }
 
 .courier-wrap .courier-grid-header,
