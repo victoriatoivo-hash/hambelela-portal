@@ -6,4 +6,5 @@ ALTER TABLE ops_packing_tasks
   ADD COLUMN label_file_path VARCHAR(255) NULL AFTER invoice_file_path;
 
 ALTER TABLE ops_packing_tasks
-  MODIFY packing_status VARCHAR(80) NOT NULL DEFAULT 'not_started';
+  MODIFY packing_status VARCHAR(80) NOT NULL DEFAULT 'not_started',
+  MODIFY date_completed DATETIME NULL DEFAULT NULL;

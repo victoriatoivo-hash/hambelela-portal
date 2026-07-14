@@ -6,6 +6,10 @@ define('APP_NAME', 'Hambelela Business Portal');
 define('BASE_PATH', __DIR__);
 define('BASE_URL', '');
 
+// The portal stores and displays operational DATETIME values in the business
+// timezone. Set it explicitly so hosting-server UTC settings cannot shift them.
+date_default_timezone_set('Africa/Windhoek');
+
 $localConfig = __DIR__ . '/config.local.php';
 $localSecrets = [];
 

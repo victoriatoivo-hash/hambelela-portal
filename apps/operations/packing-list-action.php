@@ -172,6 +172,11 @@ function packing_status_is_completed(string $status): bool
     return in_array(strtolower(trim($status)), ['done', 'website', 'packed_label_needed', 'done_needs_label'], true);
 }
 
+function packing_portal_now(): string
+{
+    return (new DateTimeImmutable('now', new DateTimeZone('Africa/Windhoek')))->format('Y-m-d H:i:s');
+}
+
 function packing_monday_board_payload(): array
 {
     $query = <<<'GRAPHQL'
@@ -1256,7 +1261,7 @@ try {
         $receivedWeight = ops_post_string('received_weight', 80);
         $quantityPlan = ops_post_string('quantity_planned', 255);
         $dateLoaded = str_replace('T', ' ', ops_post_string('date_loaded', 30));
-        $dateLoaded = $dateLoaded ?: date('Y-m-d H:i:s');
+        $dateLoaded = $dateLoaded ?: packing_portal_now();
         $workload = packing_workload_score($receivedWeight, $quantityPlan, $priority);
         $quantityWarning = packing_quantity_warning($receivedWeight, $quantityPlan);
         $assignedId = (int) ($_POST['assigned_employee_id'] ?? 0);
@@ -1283,8 +1288,8 @@ try {
             }
         }
 
-        $columns = ['item_name', 'received_weight', 'priority', 'date_loaded', 'quantity_planned', 'assigned_employee_id', 'workload_points', 'notes', 'created_by'];
-        $placeholders = ['?', '?', '?', '?', '?', '?', '?', '?', '?'];
+        $columns = ['item_name', 'received_weight', 'priority', 'date_loaded', 'quantity_planned', 'assigned_employee_id', 'packing_status', 'date_completed', 'workload_points', 'notes', 'created_by'];
+        $placeholders = ['?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?'];
         $params = [
             ops_post_string('item_name', 190),
             $receivedWeight,
@@ -1292,6 +1297,8 @@ try {
             $dateLoaded,
             $quantityPlan,
             $assignedId > 0 ? $assignedId : null,
+            'not_started',
+            null,
             $workload,
             $notes,
             $currentEmployeeId,
@@ -2005,6 +2012,7 @@ try {
         $matchedExistingIds = [];
         $automaticAssignments = [];
         $automaticAssignmentUnavailable = false;
+        $batchLoadedAt = packing_portal_now();
 
         foreach ($rows as $rowIndex => $row) {
             if (!is_array($row)) {
@@ -2018,7 +2026,7 @@ try {
             $receivedWeight = trim(substr((string) ($row['received_weight'] ?? ''), 0, 80));
             $quantityPlan = trim(substr((string) ($row['quantity_planned'] ?? ''), 0, 255));
             $priority = trim((string) ($row['priority'] ?? 'medium')) ?: 'medium';
-            $dateLoaded = date('Y-m-d H:i:s');
+            $dateLoaded = $batchLoadedAt;
             $assignedId = (int) ($row['assigned_employee_id'] ?? 0);
             $assignmentSource = (string) ($row['assignment_source'] ?? 'auto') === 'manual' ? 'manual' : 'auto';
             $workload = packing_workload_score($receivedWeight, $quantityPlan, $priority);
@@ -2144,9 +2152,9 @@ try {
                 $audit[] = "Updated existing row: {$itemName}";
             } else {
 
-            $columns = ['item_name', 'received_weight', 'priority', 'date_loaded', 'quantity_planned', 'assigned_employee_id', 'workload_points', 'notes', 'created_by'];
-            $placeholders = ['?', '?', '?', '?', '?', '?', '?', '?', '?'];
-            $params = [$itemName, $receivedWeight, $priority, $dateLoaded, $quantityPlan, $assignedId > 0 ? $assignedId : null, $workload, $notes, $currentEmployeeId];
+            $columns = ['item_name', 'received_weight', 'priority', 'date_loaded', 'quantity_planned', 'assigned_employee_id', 'packing_status', 'date_completed', 'workload_points', 'notes', 'created_by'];
+            $placeholders = ['?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?'];
+            $params = [$itemName, $receivedWeight, $priority, $dateLoaded, $quantityPlan, $assignedId > 0 ? $assignedId : null, 'not_started', null, $workload, $notes, $currentEmployeeId];
             if ($hasPackingRowKey) {
                 $columns[] = 'packing_row_key';
                 $placeholders[] = '?';
@@ -2273,6 +2281,14 @@ try {
                 'changed_by' => current_user()['name'] ?? 'Unknown',
             ]);
         }
+
+        ops_activity_log('packing_invoice_rows_created', 'packing_import', 0, [
+            'invoice_number' => $invoiceNumber,
+            'created' => $created,
+            'updated' => $updated,
+            'loaded_at' => $batchLoadedAt,
+            'changed_by' => current_user()['name'] ?? 'Unknown',
+        ]);
 
         echo json_encode([
             'ok' => true,

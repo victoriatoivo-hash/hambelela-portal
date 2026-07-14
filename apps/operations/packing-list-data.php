@@ -49,6 +49,32 @@ $packerNotesSelect = $hasPackerNotes ? 'pt.packer_notes' : "'' AS packer_notes";
 
 $currentEmployeeId = ops_current_employee_id();
 $canManage = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
+
+// One-time, narrowly scoped repair for the invoice-import bug that wrote the
+// host's UTC time to date_loaded while a database default populated
+// date_completed in portal time. The completed value is the reliable import
+// moment for these untouched Not Started rows, then completion is cleared.
+if ($canManage) {
+    $repair = db()->prepare(
+        "UPDATE ops_packing_tasks
+         SET date_loaded = date_completed,
+             date_completed = NULL,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE packing_status = 'not_started'
+           AND date_completed IS NOT NULL
+           AND notes LIKE 'Created from invoice review%'
+           AND ABS(TIMESTAMPDIFF(MINUTE, date_loaded, date_completed)) BETWEEN 90 AND 150"
+    );
+    $repair->execute();
+    $repairedRows = $repair->rowCount();
+    if ($repairedRows > 0) {
+        ops_activity_log('packing_invoice_timestamp_repaired', 'packing_import', 0, [
+            'rows_repaired' => $repairedRows,
+            'changed_by' => current_user()['name'] ?? 'Unknown',
+        ]);
+    }
+}
+
 $whereParts = [];
 $params = [];
 if ($hasArchivedAt) {
