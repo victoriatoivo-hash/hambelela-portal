@@ -169,7 +169,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     try {
         if ($opsLoginReady) {
-            $employeeId = str_starts_with($identity, 'db:') ? (int) substr($identity, 3) : 0;
+            $employeeId = strpos($identity, 'db:') === 0 ? (int) substr($identity, 3) : 0;
             $stmt = db()->prepare(
                 "SELECT e.id, e.full_name, e.email, e.password_hash, r.role_key, r.name AS role_name
                  FROM ops_employees e
