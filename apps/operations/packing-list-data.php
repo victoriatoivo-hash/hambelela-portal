@@ -50,7 +50,7 @@ $packerNotesSelect = $hasPackerNotes ? 'pt.packer_notes' : "'' AS packer_notes";
 
 $currentEmployeeId = ops_current_employee_id();
 $canManage = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
-$canManageWebsiteUpdate = user_has_role('owner_admin', 'front_desk_admin');
+$canManageWebsiteUpdate = true;
 $websiteUploadedSelect = 'pt.website_uploaded';
 $websiteUploadedAtSelect = $canManageWebsiteUpdate && $hasWebsiteUploadedAt ? 'pt.website_uploaded_at' : 'NULL AS website_uploaded_at';
 $inventoryUpdatedAtSelect = $canManageWebsiteUpdate && $hasInventoryUpdatedAt ? 'pt.inventory_updated_at' : 'NULL AS inventory_updated_at';

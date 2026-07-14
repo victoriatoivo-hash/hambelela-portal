@@ -2307,12 +2307,6 @@ try {
     }
 
     if ($action === 'confirm_website_update') {
-        if (!user_has_role('owner_admin', 'front_desk_admin')) {
-            http_response_code(403);
-            echo json_encode(['ok' => false, 'message' => 'You do not have permission to confirm website updates.']);
-            exit;
-        }
-
         $taskId = (int) ($_POST['task_id'] ?? 0);
         $confirmed = (string) ($_POST['confirmed'] ?? '1') === '1';
         $employeeId = ops_current_employee_id();
