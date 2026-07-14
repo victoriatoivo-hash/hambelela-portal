@@ -3007,49 +3007,6 @@ textarea {
 .portal-custom-select-menu::-webkit-scrollbar-track { background: transparent; }
 .portal-custom-select-menu::-webkit-scrollbar-thumb { background: rgba(171, 54, 25, .22); border-radius: 999px; }
 .portal-custom-select-menu::-webkit-scrollbar-thumb:hover { background: rgba(171, 54, 25, .36); }
-.portal-date-field { position: relative; width: 100%; }
-.portal-date-input { width: 100%; height: 38px; min-height: 38px; padding: 0 38px 0 12px; border: 1px solid var(--task-border); border-radius: 10px; background: #FFFFFF; color: var(--task-text); font-family: Figtree, Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 12px; font-weight: 400; line-height: 1; box-sizing: border-box; transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease; }
-.portal-date-input:hover { border-color: rgba(171, 54, 25, .35); }
-.portal-date-input:focus { outline: 0; border-color: var(--task-orange-red); box-shadow: 0 0 0 3px rgba(171, 54, 25, .10); }
-.portal-date-trigger { position: absolute; top: 50%; right: 5px; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--task-orange-red); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transform: translateY(-50%); }
-.portal-date-trigger:hover { background: rgba(240, 116, 32, .08); }
-.portal-date-trigger svg { width: 15px; height: 15px; }
-.digital-task-page .create-task-field .portal-date-input,
-.digital-task-page .task-details-panel .task-field .portal-date-input { height: 38px; min-height: 38px; padding: 0 38px 0 12px; }
-
-.flatpickr-calendar.portal-calendar { width: 300px; padding: 10px; border: 1px solid var(--task-border); border-radius: 14px; background: #FFFFFF; box-shadow: 0 14px 34px rgba(114, 27, 26, .14); font-family: Figtree, Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; opacity: 0; transform: translateY(-6px) scale(.985); transition: opacity .18s ease, transform .18s ease; }
-.flatpickr-calendar.portal-calendar.open { opacity: 1; transform: translateY(0) scale(1); }
-.portal-calendar .flatpickr-months { align-items: center; margin-bottom: 8px; }
-.portal-calendar .flatpickr-month { height: 34px; color: var(--task-burgundy); }
-.portal-calendar .flatpickr-current-month { padding-top: 3px; color: var(--task-burgundy); font-size: 13px; font-weight: 700; }
-.portal-calendar .flatpickr-current-month input.cur-year { color: var(--task-burgundy); font-size: 13px; font-weight: 700; }
-.portal-calendar .flatpickr-prev-month,
-.portal-calendar .flatpickr-next-month { top: 7px; width: 30px; height: 30px; padding: 7px; border-radius: 8px; color: var(--task-orange-red); fill: var(--task-orange-red); }
-.portal-calendar .flatpickr-prev-month:hover,
-.portal-calendar .flatpickr-next-month:hover { background: rgba(240, 116, 32, .08); }
-.portal-calendar .flatpickr-weekdays { height: 28px; }
-.portal-calendar span.flatpickr-weekday { color: var(--task-text-light); font-size: 10px; font-weight: 700; }
-.portal-calendar .flatpickr-day { width: 34px; max-width: 34px; height: 34px; border: 0; border-radius: 9px; background: transparent; color: var(--task-text); font-size: 12px; font-weight: 400; line-height: 34px; transition: background-color .15s ease, color .15s ease, transform .15s ease; }
-.portal-calendar .flatpickr-day:hover,
-.portal-calendar .flatpickr-day:focus { background: rgba(240, 116, 32, .10); color: var(--task-orange-red); transform: translateY(-1px); }
-.portal-calendar .flatpickr-day.today { border: 1px solid rgba(168, 202, 25, .6); background: rgba(168, 202, 25, .12); color: #526800; }
-.portal-calendar .flatpickr-day.selected,
-.portal-calendar .flatpickr-day.startRange,
-.portal-calendar .flatpickr-day.endRange { border-color: var(--task-burgundy); background: var(--task-burgundy); color: #FFFFFF; }
-.portal-calendar .flatpickr-day.inRange { border-color: transparent; background: rgba(171, 54, 25, .10); color: var(--task-burgundy); box-shadow: none; }
-.portal-calendar .flatpickr-day.prevMonthDay,
-.portal-calendar .flatpickr-day.nextMonthDay { color: #BBA99D; }
-.portal-calendar .flatpickr-day.flatpickr-disabled { color: #D8CDC4; cursor: not-allowed; }
-.portal-calendar .flatpickr-time { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; max-height: none; height: auto; margin-top: 8px; padding: 10px 12px; border-top: 1px solid var(--task-border); background: rgba(253, 246, 238, .65); box-sizing: border-box; overflow: visible; }
-.portal-calendar .flatpickr-time .numInputWrapper { display: flex; align-items: center; height: 32px; }
-.portal-calendar .flatpickr-time input,
-.portal-calendar .flatpickr-time .flatpickr-am-pm { display: flex; align-items: center; justify-content: center; height: 32px; border: 1px solid var(--task-border); border-radius: 8px; background: #FFFFFF; color: var(--task-text); font-size: 12px; font-weight: 500; line-height: 1; box-sizing: border-box; }
-.portal-calendar .flatpickr-time .flatpickr-am-pm { color: var(--task-orange-red); }
-.portal-calendar .flatpickr-time input:hover,
-.portal-calendar .flatpickr-time .flatpickr-am-pm:hover { border-color: rgba(171, 54, 25, .35); background: #FFFFFF; }
-.portal-calendar .flatpickr-time input:focus,
-.portal-calendar .flatpickr-time .flatpickr-am-pm:focus { border-color: var(--task-orange-red); background: #FFFFFF; box-shadow: 0 0 0 3px rgba(171, 54, 25, .10); outline: 0; }
-.portal-calendar .flatpickr-time .flatpickr-time-separator { display: flex; align-items: center; align-self: center; justify-content: center; height: 32px; color: var(--task-text-mid); font-size: 13px; font-weight: 700; line-height: 1; }
 .create-task-date-wrap { position: relative; display: block; }
 .create-task-date-wrap input { padding-right: 38px; }
 .create-task-date-icon { position: absolute; right: 11px; top: 50%; width: 16px; height: 16px; color: var(--task-orange-red); pointer-events: none; transform: translateY(-50%); }

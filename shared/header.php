@@ -18,6 +18,8 @@ $assetVersion = defined('BASE_PATH') && is_file(BASE_PATH . '/assets/css/portal.
 $responsiveAssetVersion = defined('BASE_PATH') && is_file(BASE_PATH . '/assets/css/portal-responsive.css')
     ? (string) filemtime(BASE_PATH . '/assets/css/portal-responsive.css')
     : $assetVersion;
+$datePickerCssVersion = (string) filemtime(BASE_PATH . '/assets/css/portal-date-picker.css');
+$datePickerJsVersion = (string) filemtime(BASE_PATH . '/assets/js/portal-date-picker.js');
 ?>
 <!doctype html>
 <html lang="en">
@@ -30,7 +32,6 @@ $responsiveAssetVersion = defined('BASE_PATH') && is_file(BASE_PATH . '/assets/c
     <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal.css?v=<?= htmlspecialchars($assetVersion, ENT_QUOTES, 'UTF-8') ?>">
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal-responsive.css?v=<?= htmlspecialchars($responsiveAssetVersion, ENT_QUOTES, 'UTF-8') ?>">
-    <link rel="stylesheet" href="<?= BASE_URL ?>/assets/vendor/flatpickr/flatpickr.min.css?v=<?= htmlspecialchars((string) filemtime(BASE_PATH . '/assets/vendor/flatpickr/flatpickr.min.css'), ENT_QUOTES, 'UTF-8') ?>">
     <?php foreach (($extraStylesheets ?? []) as $stylesheet): ?>
         <?php
             $stylesheetPath = (string) ($stylesheet['path'] ?? '');
@@ -42,8 +43,9 @@ $responsiveAssetVersion = defined('BASE_PATH') && is_file(BASE_PATH . '/assets/c
         ?>
         <link rel="stylesheet" href="<?= BASE_URL ?>/<?= htmlspecialchars($stylesheetHref, ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($stylesheetVersion, ENT_QUOTES, 'UTF-8') ?>">
     <?php endforeach; ?>
+    <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal-date-picker.css?v=<?= htmlspecialchars($datePickerCssVersion, ENT_QUOTES, 'UTF-8') ?>">
     <script defer src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-    <script defer src="<?= BASE_URL ?>/assets/vendor/flatpickr/flatpickr.min.js?v=<?= htmlspecialchars((string) filemtime(BASE_PATH . '/assets/vendor/flatpickr/flatpickr.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
+    <script defer src="<?= BASE_URL ?>/assets/js/portal-date-picker.js?v=<?= htmlspecialchars($datePickerJsVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
     <script defer src="<?= BASE_URL ?>/assets/js/portal.js?v=<?= htmlspecialchars($assetVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
 </head>
 <body>

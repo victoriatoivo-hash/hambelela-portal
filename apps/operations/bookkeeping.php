@@ -1457,6 +1457,13 @@ $canHardDelete = user_has_role('owner_admin');
         .bk-recon-line strong {
             font-size: 14px;
         }
+        .recon-card .bk-recon-line,
+        .recon-card .bk-recon-line strong {
+            font-size: 12px;
+        }
+        .recon-card .bk-field {
+            color: #721b1a;
+        }
         .bk-recon-variance.is-negative {
             color: #BB1B21;
         }
@@ -1979,8 +1986,8 @@ $canHardDelete = user_has_role('owner_admin');
             <div class="bk-side-head"><span>Filters</span></div>
             <div class="bk-side-body">
                 <div class="bk-filter-grid">
-                    <label class="bk-field">From<input type="date" data-bk-filter-from></label>
-                    <label class="bk-field">To<input type="date" data-bk-filter-to></label>
+                    <label class="bk-field">From<input type="date" data-portal-date-mode="date" data-bk-filter-from></label>
+                    <label class="bk-field">To<input type="date" data-portal-date-mode="date" data-bk-filter-to></label>
                 </div>
                 <label class="bk-field">Search<input type="search" data-bk-filter-search placeholder="Description or notes"></label>
                 <button class="bk-side-button" type="button" data-bk-filter-clear>Clear filters</button>
@@ -2058,7 +2065,7 @@ $canHardDelete = user_has_role('owner_admin');
                         <div class="ledger-row add-row" data-add-row data-day="<?= htmlspecialchars($day, ENT_QUOTES, 'UTF-8') ?>">
                             <div class="ledger-cell check-cell"></div>
                             <div class="ledger-cell"><input data-add-field="description" placeholder="Add cash entry"></div>
-                            <div class="ledger-cell"><input data-add-field="transaction_date" type="datetime-local" value="<?= htmlspecialchars($addDate, ENT_QUOTES, 'UTF-8') ?>"></div>
+                            <div class="ledger-cell"><input data-add-field="transaction_date" data-portal-date-mode="datetime" type="datetime-local" value="<?= htmlspecialchars($addDate, ENT_QUOTES, 'UTF-8') ?>"></div>
                             <div class="ledger-cell"><input data-add-field="cash_in" type="number" min="0" step="0.01" placeholder="0.00"></div>
                             <div class="ledger-cell"><input data-add-field="cash_out" type="number" min="0" step="0.01" placeholder="0.00"></div>
                             <div class="ledger-cell ledger-total money-net" data-add-total>N$0.00</div>
@@ -2995,6 +3002,7 @@ function startEdit(cell) {
   const originalValue = cell.dataset.value ?? originalText;
   const input = field === 'notes' ? document.createElement('textarea') : document.createElement('input');
   input.type = field === 'transaction_date' ? 'datetime-local' : (['cash_in', 'cash_out'].includes(field) ? 'number' : 'text');
+  if (field === 'transaction_date') input.dataset.portalDateMode = 'datetime';
   if (input.type === 'number') {
     input.min = '0';
     input.step = '0.01';
@@ -3003,8 +3011,6 @@ function startEdit(cell) {
   cell.classList.add('is-editing');
   cell.innerHTML = '';
   cell.appendChild(input);
-  input.focus();
-  if (input.select) input.select();
   let cancelled = false;
   const finish = async (save) => {
     if (!cell.classList.contains('is-editing')) return;
@@ -3015,8 +3021,22 @@ function startEdit(cell) {
     try {
       const data = await postLedger('update_entry', { entry_id: id, field, value });
       const entry = data.entry;
-      if (entry.day !== row.closest('[data-day-group]')?.dataset.dayGroup) {
-        window.location.reload();
+      const currentGroup = row.closest('[data-day-group]');
+      if (entry.day !== currentGroup?.dataset.dayGroup) {
+        const destination = [...document.querySelectorAll('[data-day-group]')]
+          .find((group) => group.dataset.dayGroup === entry.day);
+        const replacement = renderEntry(entry);
+        if (destination) {
+          const addRow = destination.querySelector('[data-add-row]');
+          addRow ? addRow.before(replacement) : destination.appendChild(replacement);
+          row.remove();
+          recalcGroup(destination);
+        } else {
+          row.replaceWith(replacement);
+        }
+        if (currentGroup?.isConnected) recalcGroup(currentGroup);
+        refreshStats();
+        toast('Saved');
         return;
       }
       if (field === 'description') {
@@ -3049,7 +3069,17 @@ function startEdit(cell) {
       alert(error.message);
     }
   };
-  input.addEventListener('blur', () => finish(true), { once: true });
+  if (field === 'transaction_date') {
+    window.initialisePortalDatePickers?.(input);
+    const dateTrigger = cell.querySelector('[data-portal-date-trigger]');
+    input.addEventListener('change', () => finish(true), { once: true });
+    dateTrigger?.focus();
+    dateTrigger?.click();
+  } else {
+    input.addEventListener('blur', () => finish(true), { once: true });
+    input.focus();
+    if (input.select) input.select();
+  }
   input.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
       cancelled = true;
