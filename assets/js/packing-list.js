@@ -469,7 +469,7 @@
     if (!holder || !packingToolsData) return;
     if (packingToolsTab === 'trash') {
       const rows = packingToolsData.trash || [];
-      holder.innerHTML = rows.length ? `<div class="packing-trash-list">${rows.map((row) => `<article class="packing-trash-row"><div class="packing-trash-main"><strong>${esc(row.item_name)}</strong><span>Deleted by ${esc(row.deleted_by_name || 'Unknown')} · ${esc(formatToolDate(row.deleted_at))}</span><span>${Math.max(0, Number(row.days_remaining || 0))} days remaining</span></div><div class="packing-trash-meta"><span>${esc(String(row.date_loaded || '').slice(0, 7))}</span><span>${esc(row.quantity_planned || '')}</span></div>${packingToolsData.canManageTools ? `<div class="packing-trash-actions"><button type="button" class="pk-btn pk-btn--secondary" data-restore-packing-item="${esc(row.id)}">Restore</button>${packingToolsData.canPermanentDelete ? `<button type="button" class="pk-btn pk-btn--danger" data-delete-packing-item-permanently="${esc(row.id)}">Delete forever</button>` : ''}</div>` : ''}</article>`).join('')}</div>` : '<div class="packing-tools-empty"><strong>Trash is empty</strong><span>Deleted Packing List items will appear here.</span></div>';
+      holder.innerHTML = rows.length ? `<div class="packing-trash-list">${rows.map((row) => `<article class="packing-trash-row"><div class="packing-trash-main"><strong>${esc(row.item_name)}</strong><span>Deleted by ${esc(row.deleted_by_name || 'Unknown')} · ${esc(formatToolDate(row.deleted_at))}</span><span>${Math.max(0, Number(row.days_remaining || 0))} days remaining</span></div><div class="packing-trash-meta"><span>${esc(String(row.date_loaded || '').slice(0, 7))}</span><span>${esc(row.quantity_planned || '')}</span></div>${packingToolsData.canManageTools ? `<div class="packing-trash-actions"><button type="button" class="packing-trash-action packing-trash-action--restore" data-restore-packing-item="${esc(row.id)}"><svg class="packing-trash-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8v5h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.6 12.4A7.5 7.5 0 1 0 8 6.8L4 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Restore</span></button>${packingToolsData.canPermanentDelete ? `<button type="button" class="packing-trash-action packing-trash-action--delete" data-delete-packing-item-permanently="${esc(row.id)}"><svg class="packing-trash-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M9 7V4h6v3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 7l1 13h8l1-13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 11v5M14 11v5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span>Delete forever</span></button>` : ''}</div>` : ''}</article>`).join('')}</div>` : '<div class="packing-tools-empty"><strong>Trash is empty</strong><span>Deleted Packing List items will appear here.</span></div>';
     } else if (packingToolsTab === 'archived') {
       const rows = packingToolsData.archived || [];
       holder.innerHTML = rows.length ? `<div class="packing-trash-list">${rows.map((row) => `<article class="packing-trash-row is-archived"><div class="packing-trash-main"><strong>${esc(row.item_name)}</strong><span>Archived by ${esc(row.archived_by_name || 'Unknown')} · ${esc(formatToolDate(row.archived_at))}</span></div><div class="packing-trash-meta"><span>${esc(row.quantity_planned || '')}</span></div>${packingToolsData.canManageTools ? `<div class="packing-trash-actions"><button type="button" class="pk-btn pk-btn--secondary" data-restore-archived-item="${esc(row.id)}">Restore to active</button></div>` : ''}</article>`).join('')}</div>` : '<div class="packing-tools-empty"><strong>No archived items</strong><span>Archived Packing List rows will appear here.</span></div>';
@@ -2576,17 +2576,29 @@
       return;
     }
     if (restoreTrash || restoreArchived) {
-      await post(restoreTrash ? 'trash_restore' : 'archive_restore', { task_id: (restoreTrash || restoreArchived).getAttribute(restoreTrash ? 'data-restore-packing-item' : 'data-restore-archived-item') });
-      await Promise.all([loadPackingTools(), refresh()]);
-      setCount('Packing item restored.');
+      if (restoreTrash?.classList.contains('is-processing')) return;
+      restoreTrash?.classList.add('is-processing');
+      try {
+        await post(restoreTrash ? 'trash_restore' : 'archive_restore', { task_id: (restoreTrash || restoreArchived).getAttribute(restoreTrash ? 'data-restore-packing-item' : 'data-restore-archived-item') });
+        await Promise.all([loadPackingTools(), refresh()]);
+        setCount('Packing item restored.');
+      } finally {
+        restoreTrash?.classList.remove('is-processing');
+      }
       return;
     }
     if (deleteForever) {
+      if (deleteForever.classList.contains('is-processing')) return;
       const confirmation = window.prompt('Permanently delete this packing item? This cannot be undone. Type DELETE to continue.');
       if (confirmation !== 'DELETE') return;
-      await post('trash_delete_forever', { task_id: deleteForever.dataset.deletePackingItemPermanently });
-      await loadPackingTools();
-      setCount('Packing item permanently deleted.');
+      deleteForever.classList.add('is-processing');
+      try {
+        await post('trash_delete_forever', { task_id: deleteForever.dataset.deletePackingItemPermanently });
+        await loadPackingTools();
+        setCount('Packing item permanently deleted.');
+      } finally {
+        deleteForever.classList.remove('is-processing');
+      }
       return;
     }
     if (toolsBulk) {
