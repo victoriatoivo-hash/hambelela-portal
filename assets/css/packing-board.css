@@ -1595,7 +1595,7 @@ body.is-resizing-packing-column .packing-page-v2 .packing-column-resizer::after 
 .packing-list-page .pk-btn { height: 32px; min-height: 32px; padding: 0 13px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border-radius: 9px; font-family: inherit; font-size: 11px; line-height: 1; font-weight: 700; cursor: pointer; box-sizing: border-box; transition: background-color .18s ease,border-color .18s ease,color .18s ease,transform .18s ease,box-shadow .18s ease; }
 .packing-list-page .pk-btn--primary { border: 1px solid var(--pk-orange-red); background: var(--pk-orange-red); color: #fff; box-shadow: 0 7px 16px rgba(171,54,25,.14); }
 .packing-list-page .pk-btn--primary:hover { border-color: var(--pk-burgundy); background: var(--pk-burgundy); transform: translateY(-1px); }
-.packing-list-page .packing-item-notes-section .pk-btn--primary { font-size: 12px; }
+.packing-list-page .packing-item-notes-section .pk-btn--primary { font-size: 12px; font-weight: 400; }
 
 /* New Packing Item modal */
 .packing-list-page .packing-item-modal-overlay { position: fixed; inset: 0; z-index: 15000; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(26,26,26,.28); backdrop-filter: blur(2px); }
