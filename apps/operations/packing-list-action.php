@@ -2306,6 +2306,55 @@ try {
         exit;
     }
 
+    if ($action === 'confirm_website_update') {
+        if (!user_has_role('owner_admin', 'front_desk_admin')) {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'message' => 'You do not have permission to confirm website updates.']);
+            exit;
+        }
+
+        $taskId = (int) ($_POST['task_id'] ?? 0);
+        $employeeId = ops_current_employee_id();
+        if ($taskId <= 0 || !$employeeId) {
+            throw new RuntimeException('The packing item or authenticated employee could not be identified.');
+        }
+        if (!ops_column_exists('ops_packing_tasks', 'website_uploaded_at') || !ops_column_exists('ops_packing_tasks', 'inventory_updated_by') || !ops_column_exists('ops_packing_tasks', 'inventory_updated_at')) {
+            throw new RuntimeException('Website confirmation audit fields are not ready.');
+        }
+
+        $confirmedAt = (new DateTimeImmutable('now', new DateTimeZone('Africa/Windhoek')))->format('Y-m-d H:i:s');
+        $stmt = db()->prepare('UPDATE ops_packing_tasks SET website_uploaded = 1, website_uploaded_at = ?, inventory_updated_at = ?, inventory_updated_by = ?, updated_at = ? WHERE id = ? AND website_uploaded = 0');
+        $stmt->execute([$confirmedAt, $confirmedAt, $employeeId, $confirmedAt, $taskId]);
+        if ($stmt->rowCount() !== 1) {
+            http_response_code(409);
+            echo json_encode(['ok' => false, 'message' => 'This website update has already been confirmed and cannot be changed.']);
+            exit;
+        }
+
+        $employeeRows = ops_rows('SELECT e.id, e.full_name, r.role_key, r.name AS role_name FROM ops_employees e JOIN ops_roles r ON r.id = e.role_id WHERE e.id = ? LIMIT 1', [$employeeId]);
+        $employee = $employeeRows[0] ?? ['id' => $employeeId, 'full_name' => current_user()['name'] ?? 'User not recorded', 'role_key' => current_role_key()];
+        $employeeName = ops_staff_display_name($employee) ?: 'User not recorded';
+        $employeeRole = str_replace(' Employee', '', ops_staff_role_label($employee));
+        $nameParts = array_values(array_filter(preg_split('/\s+/', $employeeName) ?: []));
+        $initials = implode('', array_map(static fn(string $part): string => strtoupper(substr($part, 0, 1)), array_slice($nameParts, 0, 2)));
+
+        ops_activity_log('packing_website_update_confirmed', 'packing_task', $taskId, [
+            'event' => 'Website update confirmed by ' . $employeeName . '.',
+            'confirmed_at' => $confirmedAt,
+            'confirmed_by' => $employeeId,
+            'changed_by' => $employeeName,
+        ]);
+
+        echo json_encode(['ok' => true, 'message' => 'Website update confirmed.', 'data' => [
+            'website_updated' => true,
+            'website_updated_at' => $confirmedAt,
+            'website_updated_at_iso' => (new DateTimeImmutable($confirmedAt, new DateTimeZone('Africa/Windhoek')))->format(DateTimeInterface::ATOM),
+            'website_updated_by' => ['id' => $employeeId, 'name' => $employeeName, 'role' => $employeeRole, 'initials' => $initials ?: '?'],
+            'locked' => true,
+        ]]);
+        exit;
+    }
+
     if ($action === 'update_field' || $action === 'bulk_update') {
         $ids = $action === 'bulk_update'
             ? array_values(array_filter(array_map('intval', explode(',', (string) ($_POST['task_ids'] ?? '')))))
@@ -2345,6 +2394,11 @@ try {
         }
         if ($field === 'website_uploaded' && !user_has_role('owner_admin', 'front_desk_admin')) {
             throw new RuntimeException('Only Owner/Admin or Front Desk/Admin can update the website confirmation.');
+        }
+        if ($field === 'website_uploaded') {
+            http_response_code(409);
+            echo json_encode(['ok' => false, 'message' => 'Website confirmations must use the locked confirmation action and cannot be edited.']);
+            exit;
         }
 
         if ($field === 'packing_website_confirmed' && !$canManage) {

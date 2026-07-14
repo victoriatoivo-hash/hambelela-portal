@@ -56,7 +56,8 @@ $websiteUploadedAtSelect = $canManageWebsiteUpdate && $hasWebsiteUploadedAt ? 'p
 $inventoryUpdatedAtSelect = $canManageWebsiteUpdate && $hasInventoryUpdatedAt ? 'pt.inventory_updated_at' : 'NULL AS inventory_updated_at';
 $inventoryUpdatedBySelect = $canManageWebsiteUpdate && $hasInventoryUpdatedBy ? 'pt.inventory_updated_by' : 'NULL AS inventory_updated_by';
 $inventoryUpdatedByNameSelect = $canManageWebsiteUpdate && $hasInventoryUpdatedBy ? 'website_employee.full_name AS inventory_updated_by_name' : 'NULL AS inventory_updated_by_name';
-$websiteEmployeeJoin = $canManageWebsiteUpdate && $hasInventoryUpdatedBy ? 'LEFT JOIN ops_employees website_employee ON website_employee.id = pt.inventory_updated_by' : '';
+$inventoryUpdatedByRoleSelect = $canManageWebsiteUpdate && $hasInventoryUpdatedBy ? 'website_role.role_key AS inventory_updated_by_role_key, website_role.name AS inventory_updated_by_role_name' : 'NULL AS inventory_updated_by_role_key, NULL AS inventory_updated_by_role_name';
+$websiteEmployeeJoin = $canManageWebsiteUpdate && $hasInventoryUpdatedBy ? 'LEFT JOIN ops_employees website_employee ON website_employee.id = pt.inventory_updated_by LEFT JOIN ops_roles website_role ON website_role.id = website_employee.role_id' : '';
 
 // One-time, narrowly scoped repair for the invoice-import bug that wrote the
 // host's UTC time to date_loaded while a database default populated
@@ -100,7 +101,7 @@ $tasks = ops_rows(
         pt.quantity_packed, pt.date_completed, {$websiteUploadedSelect}, {$confirmedSelect},
         pt.packing_status, pt.notes, {$packerNotesSelect}, pt.workload_points, {$invoiceSelect}, {$labelSelect},
         {$mondayIdSelect}, {$mondayBoardIdSelect}, {$mondayStatusSelect}, {$mondayErrorSelect}, {$packingRowKeySelect},
-        {$websiteUploadedAtSelect}, {$inventoryUpdatedAtSelect}, {$inventoryUpdatedBySelect}, {$inventoryUpdatedByNameSelect}
+        {$websiteUploadedAtSelect}, {$inventoryUpdatedAtSelect}, {$inventoryUpdatedBySelect}, {$inventoryUpdatedByNameSelect}, {$inventoryUpdatedByRoleSelect}
      FROM ops_packing_tasks pt
      LEFT JOIN ops_employees e ON e.id = pt.assigned_employee_id
      {$websiteEmployeeJoin}
@@ -165,6 +166,15 @@ foreach ($tasks as &$task) {
     $assignedId = (int) ($task['assigned_employee_id'] ?? 0);
     if ($assignedId && isset($packerNameMap[$assignedId])) {
         $task['assigned_name'] = $packerNameMap[$assignedId];
+    }
+    if ($canManageWebsiteUpdate && !empty($task['inventory_updated_by_name'])) {
+        $task['inventory_updated_by_name'] = ops_staff_display_name(['full_name' => $task['inventory_updated_by_name'], 'role_key' => $task['inventory_updated_by_role_key'] ?? '']);
+        $task['inventory_updated_by_role'] = str_replace(' Employee', '', ops_staff_role_label(['role_key' => $task['inventory_updated_by_role_key'] ?? '', 'role_name' => $task['inventory_updated_by_role_name'] ?? '']));
+    }
+    if (!$canManageWebsiteUpdate) {
+        foreach (['website_uploaded', 'website_uploaded_at', 'inventory_updated_at', 'inventory_updated_by', 'inventory_updated_by_name', 'inventory_updated_by_role_key', 'inventory_updated_by_role_name', 'inventory_updated_by_role'] as $websiteField) {
+            unset($task[$websiteField]);
+        }
     }
 }
 unset($task);

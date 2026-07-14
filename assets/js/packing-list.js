@@ -371,6 +371,46 @@
     return result;
   }
 
+  function websiteInitials(name) {
+    return String(name || '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join('') || '?';
+  }
+
+  function formatWebsiteDate(value) {
+    const date = new Date(String(value || '').replace(' ', 'T'));
+    return Number.isNaN(date.getTime()) ? String(value || '') : date.toLocaleString([], {
+      day: 'numeric', month: 'long', year: 'numeric', hour: 'numeric', minute: '2-digit'
+    });
+  }
+
+  function renderWebsiteConfirmation(task) {
+    const confirmed = Number(task?.website_uploaded || 0) === 1;
+    const websiteToggle = panel.querySelector('[data-packing-panel-website]');
+    const control = panel.querySelector('[data-packing-website-control]');
+    const badge = panel.querySelector('[data-packing-website-confirmed]');
+    const updatedAt = panel.querySelector('[data-packing-website-updated-at]');
+    const updatedBy = panel.querySelector('[data-packing-website-updated-by]');
+    const completedBy = panel.querySelector('[data-website-completed-by]');
+    const name = task?.inventory_updated_by_name || (confirmed ? 'User not recorded' : '');
+    const role = task?.inventory_updated_by_role || '';
+    if (websiteToggle) {
+      websiteToggle.checked = confirmed;
+      websiteToggle.disabled = confirmed;
+    }
+    control?.classList.toggle('is-locked', confirmed);
+    if (badge) badge.hidden = !confirmed;
+    if (updatedAt) updatedAt.textContent = confirmed
+      ? (task.inventory_updated_at || task.website_uploaded_at ? formatWebsiteDate(task.inventory_updated_at || task.website_uploaded_at) : 'Updated date not recorded')
+      : 'Not updated';
+    if (updatedBy) updatedBy.textContent = confirmed ? name : '—';
+    if (completedBy) completedBy.hidden = !confirmed;
+    const nameNode = panel.querySelector('[data-website-updated-by-name]');
+    const roleNode = panel.querySelector('[data-website-updated-by-role]');
+    const initialsNode = panel.querySelector('[data-website-updated-by-initials]');
+    if (nameNode) nameNode.textContent = name;
+    if (roleNode) roleNode.textContent = role;
+    if (initialsNode) initialsNode.textContent = websiteInitials(name);
+  }
+
   function updateDateCompletedCells(ids) {
     ids.forEach((id) => {
       const task = tasks.find((item) => String(item.id) === String(id));
@@ -2073,14 +2113,7 @@
         ${infoCard('Time taken', duration(currentTask.date_started || currentTask.date_loaded, currentTask.date_completed) || 'Not complete')}${infoCard('Workload', currentTask.workload_points)}
       </div></section>`;
     if (currentUser.can_edit_front_website) {
-      const websiteToggle = panel.querySelector('[data-packing-panel-website]');
-      if (websiteToggle) websiteToggle.checked = Number(currentTask.website_uploaded || 0) === 1;
-      const updatedAt = panel.querySelector('[data-packing-website-updated-at]');
-      const updatedBy = panel.querySelector('[data-packing-website-updated-by]');
-      if (updatedAt) updatedAt.textContent = currentTask.inventory_updated_at || currentTask.website_uploaded_at
-        ? formatDate(currentTask.inventory_updated_at || currentTask.website_uploaded_at)
-        : (Number(currentTask.website_uploaded || 0) === 1 ? 'Updated date not recorded' : 'Not updated');
-      if (updatedBy) updatedBy.textContent = currentTask.inventory_updated_by_name || '—';
+      renderWebsiteConfirmation(currentTask);
     }
     if (typeof window.initialisePortalDatePickers === 'function') window.initialisePortalDatePickers(panelActivity);
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
@@ -3029,9 +3062,35 @@
         return;
       }
       if (panelWebsite && currentTask && currentUser.can_edit_front_website) {
-        await updateTasksField([String(currentTask.id)], 'website_uploaded', panelWebsite.checked ? '1' : '0');
-        openPanel(currentTask.id);
-        document.querySelector('[data-packing-panel-tab="website"]')?.click();
+        if (!panelWebsite.checked || Number(currentTask.website_uploaded || 0) === 1) {
+          panelWebsite.checked = Number(currentTask.website_uploaded || 0) === 1;
+          return;
+        }
+        const control = panelWebsite.closest('[data-packing-website-control]');
+        panelWebsite.disabled = true;
+        control?.classList.add('is-saving');
+        try {
+          const result = await post('confirm_website_update', { task_id: String(currentTask.id) });
+          const confirmation = result.data || {};
+          const person = confirmation.website_updated_by || {};
+          Object.assign(currentTask, {
+            website_uploaded: 1,
+            website_uploaded_at: confirmation.website_updated_at,
+            inventory_updated_at: confirmation.website_updated_at,
+            inventory_updated_by: person.id || null,
+            inventory_updated_by_name: person.name || 'User not recorded',
+            inventory_updated_by_role: person.role || '',
+          });
+          renderWebsiteConfirmation(currentTask);
+          updateMetrics();
+          setCount(result.message || 'Website update confirmed.');
+        } catch (error) {
+          panelWebsite.checked = false;
+          panelWebsite.disabled = false;
+          setCount(error.message || 'Unable to confirm the website update.');
+        } finally {
+          control?.classList.remove('is-saving');
+        }
         return;
       }
       if (panelButton) { openPanel(panelButton.dataset.packingOpenPanel); return; }

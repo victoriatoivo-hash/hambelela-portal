@@ -177,8 +177,12 @@ include BASE_PATH . '/shared/sidebar.php';
             <section class="packing-item-section packing-item-website-section">
                 <h2 class="packing-item-section-title">Website Updated</h2>
                 <p class="packing-item-section-subtitle">Record that this item has been updated on the website.</p>
-                <label class="packing-panel-website-toggle"><input type="checkbox" data-packing-panel-website><span>Website updated</span></label>
+                <label class="packing-panel-website-toggle packing-website-control" data-packing-website-control><input type="checkbox" data-packing-panel-website><span>Website updated</span><span class="packing-website-confirmed-badge" data-packing-website-confirmed hidden><i data-lucide="check"></i> Confirmed</span></label>
                 <dl class="packing-panel-website-audit"><div><dt>Updated</dt><dd data-packing-website-updated-at>Not updated</dd></div><div><dt>Updated by</dt><dd data-packing-website-updated-by>—</dd></div></dl>
+                <div class="packing-website-completed-by" data-website-completed-by hidden>
+                    <div class="packing-website-user-avatar" data-website-updated-by-initials></div>
+                    <div class="packing-website-user-copy"><span class="packing-website-user-label">Completed by</span><strong class="packing-website-user-name" data-website-updated-by-name></strong><span class="packing-website-user-role" data-website-updated-by-role></span></div>
+                </div>
             </section>
         </section>
         <?php endif; ?>
