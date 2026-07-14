@@ -47,19 +47,20 @@ $portalNavItems = [
     ['id' => 'settings', 'label' => 'Settings', 'icon' => 'settings', 'href' => BASE_URL . '/apps/operations/my-account.php', 'match' => ['/apps/operations/my-account.php']],
 ];
 
-if ($isEmployeeSidebar) {
-    $employeeFeatureByNavId = [
-        'operations-orders'=>'orders','operations-bookkeeping'=>'bookkeeping','operations-cash-tools'=>'cash_tools',
-        'operations-consignments'=>'packing_list','operations-inventory'=>'inventory','operations-pos-reports'=>'reports',
-        'kpi'=>'reports','operations-checklists'=>'tasks','operations-errors'=>'error_log','settings'=>'settings',
-    ];
-    foreach ($portalNavItems as &$portalNavItem) {
-        $featureKey = $employeeFeatureByNavId[$portalNavItem['id']] ?? null;
-        $portalNavItem['coming_soon'] = $featureKey !== null && !employee_can_access_feature($featureKey);
-        unset($portalNavItem['badge']);
-    }
-    unset($portalNavItem);
-}
+$featureByNavId = [
+    'portal-dashboard'=>'dashboard','operations-orders'=>'orders','operations-bookkeeping'=>'bookkeeping',
+    'operations-cash-tools'=>'cash_tools','operations-consignments'=>'packing_list',
+    'operations-inventory'=>'inventory','operations-pos-reports'=>'pos_reports','kpi'=>'kpi_dashboard',
+    'operations-checklists'=>'task_management','operations-errors'=>'error_log','settings'=>'settings',
+];
+$sidebarRoleKey = normalise_portal_role((string) ($sidebarUser['role_key'] ?? $sidebarUserRole));
+$portalNavItems = array_values(array_filter(
+    $portalNavItems,
+    static fn(array $item): bool => portal_role_can_access_feature(
+        $sidebarRoleKey,
+        (string) ($featureByNavId[$item['id']] ?? '')
+    )
+));
 
 function getSidebarIcon(string $id): string
 {
@@ -114,11 +115,6 @@ $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bo
 .shell:has(.portal-sidebar)>main.workspace.module>.module-header{width:100%;max-width:none}
 @media (max-width:760px){.shell:has(.portal-sidebar)>main.workspace:not(.digital-task-page),.shell:has(.portal-sidebar)>main.ledger-page,.shell:has(.portal-sidebar)>.workspace:not(.digital-task-page),.shell:has(.portal-sidebar)>.ledger-page{padding:18px}}
 </style>
-<?php if ($isEmployeeSidebar): ?>
-<style id="employee-sidebar-release-styles">
-.ps-nav-item--coming-soon{width:100%;border-top:0;border-right:0;border-bottom:0;background:transparent;font:inherit;text-align:left;opacity:.62;cursor:default}.ps-nav-item--coming-soon:hover{background:rgba(240,116,32,.045);color:#6B4C3B}.ps-nav-item--coming-soon .ps-nav-status{margin-left:auto;padding:3px 6px;border-radius:999px;background:rgba(240,116,32,.08);color:#AB3619;font-size:9px;font-weight:600}.portal-sidebar.collapsed .ps-nav-status{display:none}
-</style>
-<?php endif; ?>
 <aside class="portal-sidebar" id="portalSidebar" aria-label="Portal navigation" aria-hidden="false">
     <div class="ps-header">
         <div class="ps-logo">
@@ -137,31 +133,29 @@ $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bo
         <div class="ps-nav-group">
             <?php foreach ($portalNavItems as $item): ?>
                 <?php $isActive = $isActiveItem($item); ?>
-                <?php $comingSoon = !empty($item['coming_soon']); $navTag = $comingSoon ? 'button' : 'a'; ?>
-                <<?= $navTag ?> <?= $comingSoon ? 'type="button" aria-disabled="true" data-employee-nav-coming-soon' : 'href="' . htmlspecialchars((string) $item['href'], ENT_QUOTES, 'UTF-8') . '"' ?> class="ps-nav-item<?= $isActive ? ' ps-nav-item--active' : '' ?><?= $comingSoon ? ' ps-nav-item--coming-soon' : '' ?>" title="<?= htmlspecialchars((string) $item['label'], ENT_QUOTES, 'UTF-8') ?>">
+                <a href="<?= htmlspecialchars((string) $item['href'], ENT_QUOTES, 'UTF-8') ?>" class="ps-nav-item<?= $isActive ? ' ps-nav-item--active' : '' ?>" title="<?= htmlspecialchars((string) $item['label'], ENT_QUOTES, 'UTF-8') ?>">
                     <span class="ps-nav-icon"><?= getSidebarIcon((string) $item['id']) ?></span>
                     <span class="ps-nav-label"><?= htmlspecialchars((string) $item['label'], ENT_QUOTES, 'UTF-8') ?></span>
-                    <?php if ($comingSoon): ?><span class="ps-nav-status">Soon</span><?php endif; ?>
                     <?php if (!empty($item['badge'])): ?>
                         <span class="ps-nav-badge"><?= (int) $item['badge'] ?></span>
                     <?php endif; ?>
-                </<?= $navTag ?>>
+                </a>
             <?php endforeach; ?>
         </div>
     </nav>
 
     <div class="ps-bottom">
-        <<?= $isEmployeeSidebar ? 'button' : 'a' ?> <?= $isEmployeeSidebar ? 'type="button" aria-disabled="true" data-employee-nav-coming-soon' : 'href="' . htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') . '/notifications.php"' ?> class="ps-nav-item ps-nav-item--notify<?= $isEmployeeSidebar ? ' ps-nav-item--coming-soon' : '' ?>" title="Notifications">
+        <?php if (!$isEmployeeSidebar): ?><a href="<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/notifications.php" class="ps-nav-item ps-nav-item--notify" title="Notifications">
             <span class="ps-nav-icon"><?= getSidebarIcon('notifications') ?></span>
             <span class="ps-nav-label">Notifications</span>
-            <?php if ($isEmployeeSidebar): ?><span class="ps-nav-status">Soon</span><?php else: ?><span class="ps-notification-badge<?= $notificationUnread > 0 ? '' : ' is-hidden' ?>" data-notification-count><?= $notificationUnread > 0 ? htmlspecialchars($notificationUnreadLabel, ENT_QUOTES, 'UTF-8') : '' ?></span><?php endif; ?>
-        </<?= $isEmployeeSidebar ? 'button' : 'a' ?>>
+            <span class="ps-notification-badge<?= $notificationUnread > 0 ? '' : ' is-hidden' ?>" data-notification-count><?= $notificationUnread > 0 ? htmlspecialchars($notificationUnreadLabel, ENT_QUOTES, 'UTF-8') : '' ?></span>
+        </a><?php endif; ?>
 
-        <div class="ps-nav-item ps-dark-toggle" onclick="toggleDarkMode()" title="Dark mode">
+        <?php if (!$isEmployeeSidebar): ?><div class="ps-nav-item ps-dark-toggle" onclick="toggleDarkMode()" title="Dark mode">
             <span class="ps-nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></span>
             <span class="ps-nav-label">Dark mode</span>
             <span class="ps-toggle-switch" id="darkToggleSwitch"></span>
-        </div>
+        </div><?php endif; ?>
 
         <div class="ps-user">
             <div class="ps-user-avatar"><?= htmlspecialchars($sidebarUserInitial, ENT_QUOTES, 'UTF-8') ?></div>
@@ -214,5 +208,4 @@ function toggleSidebar(){const sidebar=document.getElementById('portalSidebar');
 })();
 function toggleDarkMode(){const dark=document.body.classList.toggle('dark-mode');localStorage.setItem('darkMode',dark?'1':'0')}
 (function(){if(localStorage.getItem('darkMode')==='1'){document.body.classList.add('dark-mode')}})();
-document.addEventListener('click',(event)=>{if(!event.target.closest('[data-employee-nav-coming-soon]'))return;event.preventDefault();event.stopPropagation();if(typeof showEmployeeSoon==='function'){showEmployeeSoon();return}document.querySelector('.employee-nav-toast')?.remove();const toast=document.createElement('div');toast.className='employee-nav-toast';toast.textContent='This section is coming soon.';Object.assign(toast.style,{position:'fixed',left:'50%',bottom:'24px',transform:'translateX(-50%)',zIndex:'50000',padding:'10px 14px',border:'1px solid #EDE3D8',borderRadius:'9px',background:'#fff',color:'#721B1A',boxShadow:'0 12px 30px rgba(114,27,26,.14)',fontSize:'12px'});document.body.appendChild(toast);setTimeout(()=>toast.remove(),2400)});
 </script>
