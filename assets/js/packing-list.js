@@ -82,7 +82,7 @@
   const labelText = (options, value) => itemText(findOption(options, value) || [value, String(value || '').replace(/_/g, ' ')]);
   const labelColor = (options, value) => itemColor(findOption(options, value) || ['', '', '#8c92a6']);
   const packingLabelStorageKey = (field) => `hambelelaPackingLabels:${field}`;
-  const baseColumnCount = 12;
+  const baseColumnCount = 11;
   const totalColumnCount = () => baseColumnCount + customColumns.length;
   const packingColumnStoragePrefix = 'hambelelaPackingColumnWidths';
   let columnWidths = {};
@@ -98,7 +98,6 @@
     { key: 'quantity_packed', label: 'QUANTITY PACKED', className: 'col-qtypacked', width: 150 },
     { key: 'date_completed', label: 'DATE COMPLETED', className: 'col-datecompleted', width: 150 },
     { key: 'status', label: 'PACKING STATUS', className: 'col-packstatus', width: 140 },
-    { key: 'notes', label: 'NOTES', className: 'col-notes comment-cell', width: 64, title: 'Open notes and full details' },
     { key: 'text', label: 'TEXT', className: 'col-text', width: 220 },
     { key: 'add', label: '+', className: 'add-column-cell col-add-btn', width: 48 }
   ];
@@ -1470,7 +1469,6 @@
           <td class="col-qtypacked"><input class="board-inline-input" data-packing-text="quantity_packed" data-task-id="${esc(task.id)}" value="${esc(task.quantity_packed || '')}" placeholder="Actual" ${ownOnly}></td>
           <td class="col-datecompleted">${esc(task.date_completed ? formatDate(task.date_completed) : '')}</td>
           <td class="col-packstatus">${statusCell}</td>
-          <td class="notes-cell col-notes">${canEditOwn ? renderEditableCell({ ...task, notes: task.packer_notes || '' }, 'notes', 'Notes', 'Add note') : esc(task.packer_notes || '')}</td>
           <td class="col-text" title="${esc(task.notes || '')}">${esc(task.notes || '')}</td>
           ${renderCustomCells()}
           <td class="col-add-btn"></td>
@@ -1493,7 +1491,6 @@
         <td class="col-qtypacked"></td>
         <td class="col-datecompleted"></td>
         <td class="col-packstatus">${packingProgressBar(statusCounts, rows.length)}</td>
-        <td class="col-notes"></td>
         <td class="col-text"></td>
         ${customEmptyCells}
         <td class="col-add-btn"></td>
@@ -1537,7 +1534,6 @@
           <td class="col-qtypacked" data-column-key="quantity_packed">${canEditOwn ? renderEditableCell(task, 'quantity_packed', 'Quantity packed', 'Enter packed quantity') : esc(task.quantity_packed || '')}</td>
           <td class="col-datecompleted packing-editable-date-cell" data-column-key="date_completed">${renderPackingDate(task, 'date_completed', canEditOwn)}</td>
           <td class="col-packstatus" data-column-key="status">${statusCell}</td>
-          <td class="notes-cell col-notes" data-column-key="notes">${canEditOwn ? renderEditableCell({ ...task, notes: task.packer_notes || '' }, 'notes', 'Notes', 'Add note') : esc(task.packer_notes || '')}</td>
           <td class="col-text" data-column-key="text" title="${esc(task.notes || '')}">${esc(task.notes || '')}</td>
           ${renderCustomCells()}
           <td class="col-add-btn" data-column-key="add"></td>
@@ -1556,7 +1552,6 @@
           <td class="packing-add-item-empty-cell" data-column-key="quantity_packed"></td>
           <td class="packing-add-item-empty-cell" data-column-key="date_completed"></td>
           <td class="packing-add-item-empty-cell" data-column-key="status"></td>
-          <td class="packing-add-item-empty-cell" data-column-key="notes"></td>
           <td class="packing-add-item-empty-cell" data-column-key="text"></td>
           ${renderEmptyCustomCells('packing-add-item-empty-cell')}
           <td class="packing-add-item-empty-cell" data-column-key="add"></td>
@@ -1612,7 +1607,6 @@
                     <td data-column-key="quantity_packed"></td>
                     <td data-column-key="date_completed"></td>
                     <td class="packing-month-open-footer-cell--status" data-column-key="status">${packingHeaderProgress(statusCounts, rows.length)}</td>
-                    <td data-column-key="notes"></td>
                     <td data-column-key="text"></td>
                     ${renderEmptyCustomCells('summary-custom-cell')}
                     <td data-column-key="add"></td>
