@@ -8,7 +8,6 @@ function temporary_access_column_exists(PDO $database, string $column): bool
     $stmt->execute([$column]);
     return (bool) $stmt->fetchColumn();
 }
-
 function ensure_temporary_access_schema(PDO $database): void
 {
     $columns = [
@@ -55,4 +54,3 @@ function temporary_access_account(PDO $database, int $employeeId): ?array
     $account = $stmt->fetch(PDO::FETCH_ASSOC);
     return $account ?: null;
 }
-

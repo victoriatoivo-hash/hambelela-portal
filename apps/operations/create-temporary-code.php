@@ -18,7 +18,6 @@ function temporary_code_json(array $payload, int $status = 200): never
     echo json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     exit;
 }
-
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     temporary_code_json(['success' => false, 'message' => 'Method not allowed.'], 405);
 }
@@ -96,4 +95,3 @@ try {
     error_log('Create temporary access code failed: ' . $error->getMessage());
     temporary_code_json(['success' => false, 'message' => 'Unable to create a temporary access code right now.'], 500);
 }
-
