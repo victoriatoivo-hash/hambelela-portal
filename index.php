@@ -23,13 +23,13 @@ if ($roleKey === 'owner_admin') {
 } else {
     $apps = [
         ['name' => 'Packing List', 'desc' => 'assigned consignment packing quantities and completion status', 'icon' => 'package-open', 'href' => BASE_URL . '/apps/operations/consignments.php', 'active' => true, 'tone' => 'green'],
-        ['name'=>'HR Portal','desc'=>'leave, payslips and employee self-service','icon'=>'shield-check','href'=>BASE_URL.'/apps/hr-portal/portal-login.php','active'=>true,'tone'=>'green'],
+        ['name'=>'Courier','desc'=>'courier labels and customer follow-up','icon'=>'truck','href'=>BASE_URL.'/apps/operations/courier.php','active'=>true,'tone'=>'green'],
+        ['name'=>'HR Portal','desc'=>'leave, payslips and employee self-service','icon'=>'shield-check','href'=>'','active'=>false,'tone'=>'green'],
         ['name'=>'Orders','desc'=>'website orders, payments and daily status','icon'=>'table-2','href'=>'','active'=>false,'tone'=>'pink'],
         ['name'=>'Tasks','desc'=>'daily assigned tasks and completion tracking','icon'=>'list-checks','href'=>'','active'=>false,'tone'=>'green'],
-        ['name'=>'Courier','desc'=>'courier labels and customer follow-up','icon'=>'truck','href'=>'','active'=>false,'tone'=>'green'],
         ['name'=>'Inventory','desc'=>'stock visibility and inventory updates','icon'=>'package','href'=>'','active'=>false,'tone'=>'pink'],
         ['name'=>'Bookkeeping','desc'=>'cash and bookkeeping workflows','icon'=>'book-open','href'=>'','active'=>false,'tone'=>'green'],
-        ['name'=>'Notifications','desc'=>'your account alerts and updates','icon'=>'bell','href'=>BASE_URL.'/notifications.php','active'=>true,'tone'=>'pink'],
+        ['name'=>'Notifications','desc'=>'your account alerts and updates','icon'=>'bell','href'=>'','active'=>false,'tone'=>'pink'],
         ['name'=>'Error Log','desc'=>'operational issue tracking','icon'=>'triangle-alert','href'=>'','active'=>false,'tone'=>'pink'],
         ['name'=>'Reports','desc'=>'operational performance reports','icon'=>'chart-no-axes-combined','href'=>'','active'=>false,'tone'=>'pink'],
     ];
@@ -39,7 +39,7 @@ include __DIR__ . '/shared/header.php';
 include __DIR__ . '/shared/sidebar.php';
 ?>
 <main class="workspace launcher">
-    <?php if ($roleKey !== 'owner_admin'): ?><section class="employee-workspace-intro"><h1>Employee Workspace</h1><p>Packing List is currently available.<br>Additional portal sections are coming soon.</p></section><?php endif; ?>
+    <?php if ($roleKey !== 'owner_admin'): ?><section class="employee-workspace-intro"><h1>Packing List and Courier are currently available.</h1><p>Additional portal sections are coming soon.</p></section><?php endif; ?>
     <section class="launcher-hero" aria-labelledby="launcher-title">
         <h1 id="launcher-title">essentials <span class="mascot" aria-hidden="true">&#9822;</span></h1>
         <p>your business command center</p>

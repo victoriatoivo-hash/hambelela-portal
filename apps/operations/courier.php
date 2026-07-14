@@ -12,8 +12,9 @@ $ready = ops_database_ready();
 $currentUser = current_user();
 $currentEmployeeId = ops_current_employee_id();
 $roleKey = current_role_key();
-$canUploadWaybills = in_array($roleKey, ['owner_admin', 'packer', 'supervisor_manager'], true);
-$canSendWaybills = in_array($roleKey, ['owner_admin', 'front_desk_admin', 'supervisor_manager'], true);
+$canUploadWaybills = in_array($roleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'packer', 'packer_production_staff', 'supervisor_manager'], true);
+$canSendWaybills = in_array($roleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager'], true);
+$canExportWaybills = $roleKey === 'owner_admin';
 $historyDateFrom = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_GET['date_from'] ?? '')) ? (string) $_GET['date_from'] : date('Y-m-d', strtotime('-7 days'));
 $historyDateTo = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_GET['date_to'] ?? '')) ? (string) $_GET['date_to'] : date('Y-m-d');
 
@@ -803,7 +804,7 @@ if ($ready && (string) ($_GET['action'] ?? '') === 'waybill_download_zip') {
 }
 
 if ($ready && (string) ($_GET['action'] ?? '') === 'waybill_export_csv') {
-    if (!$canSendWaybills) {
+    if (!$canExportWaybills) {
         http_response_code(403);
         exit('Not allowed.');
     }
@@ -1066,7 +1067,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         <h2 class="card-title">Sent History</h2>
                         <p class="card-sub">Waybills marked sent from <?= wb_e($historyDateFrom) ?> to <?= wb_e($historyDateTo) ?>.</p>
                     </div>
-                    <?php if ($canSendWaybills): ?>
+                    <?php if ($canExportWaybills): ?>
                         <a class="btn-secondary export-btn courier-secondary-btn" href="courier.php?action=waybill_export_csv&amp;date_from=<?= wb_e($historyDateFrom) ?>&amp;date_to=<?= wb_e($historyDateTo) ?>"><i data-lucide="download"></i> Export CSV</a>
                     <?php endif; ?>
                 </div>
