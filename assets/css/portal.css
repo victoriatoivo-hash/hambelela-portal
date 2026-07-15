@@ -5650,13 +5650,13 @@ textarea {
   font-size: 12px !important;
   line-height: 1.55;
   font-weight: 400;
-  color: var(--incident-text-mid);
+  color: #1A1A1A;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
 .incident-empty-text {
-  color: var(--incident-text-light);
+  color: #1A1A1A;
   font-style: normal;
 }
 
