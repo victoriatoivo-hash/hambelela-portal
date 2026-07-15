@@ -17476,8 +17476,7 @@ body.is-resizing-column .packing-list-page .col-resizer:hover {
   background: #f6f8fc;
 }
 
-.packing-list-page .packing-table tbody tr.board-row.is-selected td,
-.packing-list-page .packing-table tbody tr.board-row:hover td {
+.packing-list-page .packing-table tbody tr.board-row.is-selected td {
   background: #cce5ff !important;
 }
 
@@ -26811,8 +26810,6 @@ body.dark-mode .portal-dark-toggle {
 .packing-list-page .packing-board-table thead th:last-child,
 .packing-list-page .packing-board-table tbody td:last-child { border-right: 0; }
 .packing-list-page .packing-board-table tbody tr:last-child td { border-bottom: 0; }
-.packing-list-page .packing-board-table tbody tr:hover td { background: rgba(253, 246, 238, .75); }
-
 .packing-list-page .packing-board-table td[data-column-key="priority"],
 .packing-list-page .packing-board-table td[data-column-key="status"] { padding: 0 4px; }
 
@@ -26832,11 +26829,6 @@ body.dark-mode .portal-dark-toggle {
   line-height: 1;
   box-sizing: border-box;
 }
-
-.packing-list-page .packing-board-table tbody tr:hover .packing-priority-fill,
-.packing-list-page .packing-board-table tbody tr:hover .packing-status-fill,
-.packing-list-page .packing-board-table tbody tr:hover .board-label[data-packing-label="priority"],
-.packing-list-page .packing-board-table tbody tr:hover .board-label[data-packing-label="packing_status"] { filter: brightness(1.02); }
 
 /* Shared compact checkbox for portal data grids. */
 .portal-grid-checkbox {
