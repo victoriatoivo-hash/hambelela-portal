@@ -243,6 +243,12 @@ function ledger_entry(int $id): array
     ];
 }
 
+function ledger_display_datetime(string $value): string
+{
+    $timestamp = strtotime($value);
+    return $timestamp === false ? $value : date('d/m/Y h:i A', $timestamp);
+}
+
 function ledger_custom_cell_html(array $column, array $customFields): string
 {
     $key = (string) $column['column_key'];
@@ -1415,6 +1421,29 @@ $canHardDelete = user_has_role('owner_admin');
             font-size: 12px;
             font-weight: 400;
         }
+        .bk-filter-grid .portal-date-picker,
+        .add-row .portal-date-picker,
+        .ledger-data-cell .portal-date-picker {
+            width: 100%;
+            min-width: 0;
+        }
+        .bk-filter-grid .portal-date-field,
+        .add-row .portal-date-field,
+        .ledger-data-cell .portal-date-field {
+            height: 32px;
+            min-height: 32px;
+            color: #1a1a1a;
+            font-size: 12px;
+            font-weight: 400;
+        }
+        .bk-filter-grid .portal-date-icon,
+        .add-row .portal-date-icon,
+        .ledger-data-cell .portal-date-icon {
+            width: 15px;
+            height: 15px;
+            flex-basis: 15px;
+            color: #ab3619;
+        }
         .bk-field textarea {
             height: 58px;
             padding-top: 7px;
@@ -2050,7 +2079,7 @@ $canHardDelete = user_has_role('owner_admin');
                             <div class="ledger-row entry-row" data-entry-id="<?= (int) $entry['id'] ?>" data-cash-in="<?= $rowIn ?>" data-cash-out="<?= $rowOut ?>">
                                 <div class="ledger-cell check-cell"><input class="bk-row-check" type="checkbox" data-id="<?= (int) $entry['id'] ?>" aria-label="Select ledger entry"></div>
                                 <div class="ledger-cell ledger-data-cell bk-editable" data-field="description" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars((string) $entry['description'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars((string) $entry['description'], ENT_QUOTES, 'UTF-8') ?></div>
-                                <div class="ledger-cell ledger-data-cell bk-editable" data-field="transaction_date" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars(date('Y-m-d\TH:i', strtotime($entryDate)), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(date('M j, g:i A', strtotime($entryDate)), ENT_QUOTES, 'UTF-8') ?></div>
+                                <div class="ledger-cell ledger-data-cell bk-editable" data-field="transaction_date" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars(date('Y-m-d\TH:i', strtotime($entryDate)), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(ledger_display_datetime($entryDate), ENT_QUOTES, 'UTF-8') ?></div>
                                 <div class="ledger-cell ledger-data-cell bk-editable money-cell money-in" data-field="cash_in" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars((string) $rowIn, ENT_QUOTES, 'UTF-8') ?>"><?= $rowIn > 0 ? ledger_money($rowIn) : '' ?></div>
                                 <div class="ledger-cell ledger-data-cell bk-editable money-cell money-out" data-field="cash_out" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars((string) $rowOut, ENT_QUOTES, 'UTF-8') ?>"><?= $rowOut > 0 ? ledger_money($rowOut) : '' ?></div>
                                 <div class="ledger-cell ledger-total money-net" data-row-total><?= ledger_money($rowTotal) ?></div>
@@ -2156,7 +2185,7 @@ $canHardDelete = user_has_role('owner_admin');
                                 <div class="bk-trash-top">
                                     <div>
                                         <div class="bk-trash-title"><?= htmlspecialchars((string) $item['description'], ENT_QUOTES, 'UTF-8') ?></div>
-                                        <div class="bk-trash-meta"><?= htmlspecialchars(date('M j, g:i A', strtotime((string) $item['transaction_date'])), ENT_QUOTES, 'UTF-8') ?> - <?= htmlspecialchars(ucfirst($trashStatus), ENT_QUOTES, 'UTF-8') ?></div>
+                                        <div class="bk-trash-meta"><?= htmlspecialchars(ledger_display_datetime((string) $item['transaction_date']), ENT_QUOTES, 'UTF-8') ?> - <?= htmlspecialchars(ucfirst($trashStatus), ENT_QUOTES, 'UTF-8') ?></div>
                                     </div>
                                     <div class="bk-trash-amount"><?= ledger_money($trashTotal) ?></div>
                                 </div>
@@ -2330,7 +2359,10 @@ function inputDate(value) {
 function displayDate(value) {
   const date = new Date(String(value || '').replace(' ', 'T'));
   if (Number.isNaN(date.getTime())) return value || '';
-  return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  const pad = (number) => String(number).padStart(2, '0');
+  const hour = date.getHours() % 12 || 12;
+  const meridiem = date.getHours() >= 12 ? 'PM' : 'AM';
+  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ${pad(hour)}:${pad(date.getMinutes())} ${meridiem}`;
 }
 
 function customColumnByKey(key) {
