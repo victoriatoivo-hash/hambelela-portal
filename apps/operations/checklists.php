@@ -231,6 +231,36 @@ if ($ready) {
 if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $action = ops_post_string('action', 40);
+        if ($action === 'bulk_task_action') {
+            header('Content-Type: application/json; charset=utf-8');
+            if (!$canManage) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'You do not have permission to manage tasks.']);
+                exit;
+            }
+            $bulkAction = ops_post_string('bulk_action', 20);
+            $taskIds = array_values(array_unique(array_filter(array_map('intval', $_POST['task_ids'] ?? []))));
+            if (!$taskIds) throw new RuntimeException('Select at least one task.');
+            $placeholders = implode(',', array_fill(0, count($taskIds), '?'));
+            if ($bulkAction === 'duplicate') {
+                $sql = "INSERT INTO ops_checklist_tasks
+                    (checklist_type, task_name, priority, assigned_employee_id, date_assigned, deadline, status, notes, instructions, checklist_items, checked_items, completion_note, recurrence_key, recurring_rule, created_by)
+                    SELECT checklist_type, CONCAT(task_name, ' (Copy)'), priority, assigned_employee_id, NOW(), deadline, 'pending', notes, instructions, checklist_items, NULL, NULL, NULL, NULL, ?
+                    FROM ops_checklist_tasks WHERE id IN ({$placeholders})";
+                $stmt = db()->prepare($sql);
+                $stmt->execute([$currentEmployeeId, ...$taskIds]);
+            } elseif ($bulkAction === 'archive') {
+                $stmt = db()->prepare("UPDATE ops_checklist_tasks SET status = 'complete', completed_at = COALESCE(completed_at, NOW()), date_completed = COALESCE(date_completed, NOW()), completed_by = COALESCE(completed_by, ?) WHERE id IN ({$placeholders})");
+                $stmt->execute([$currentEmployeeId, ...$taskIds]);
+            } elseif ($bulkAction === 'delete') {
+                $stmt = db()->prepare("DELETE FROM ops_checklist_tasks WHERE id IN ({$placeholders})");
+                $stmt->execute($taskIds);
+            } else {
+                throw new RuntimeException('Unsupported bulk action.');
+            }
+            echo json_encode(['success' => true, 'affected' => count($taskIds)]);
+            exit;
+        }
         $taskId = (int) ($_POST['task_id'] ?? 0);
         $scope = $canManage ? 'id = ?' : 'id = ? AND assigned_employee_id = ?';
         $scopeParams = $canManage ? [$taskId] : [$taskId, $currentEmployeeId ?: 0];
@@ -602,8 +632,8 @@ include BASE_PATH . '/shared/sidebar.php';
                 <div class="task-status-body">
                 <div class="dtb-table-wrap">
                 <table class="dtb-board-table">
-                    <colgroup><col class="dtb-col-name"><col class="dtb-col-assigned"><col class="dtb-col-priority"><col class="dtb-col-due"><col class="dtb-col-days"><col class="dtb-col-status"><col class="dtb-col-actions"></colgroup>
-                    <thead><tr><th>Task</th><th>Assigned</th><th>Priority</th><th>Due</th><th>Days</th><th>Status</th><th>Actions</th></tr></thead>
+                    <colgroup><col class="dtb-col-select"><col class="dtb-col-name"><col class="dtb-col-assigned"><col class="dtb-col-priority"><col class="dtb-col-due"><col class="dtb-col-days"><col class="dtb-col-status"><col class="dtb-col-actions"></colgroup>
+                    <thead><tr><th class="dtb-select-cell"><input class="dtb-task-check dtb-task-check-all" type="checkbox" aria-label="Select all <?= htmlspecialchars($groupLabel, ENT_QUOTES, 'UTF-8') ?> tasks"></th><th>Task</th><th>Assigned</th><th>Priority</th><th>Due</th><th>Days</th><th>Status</th><th>Actions</th></tr></thead>
                     <tbody>
                 <?php foreach ($groupTasks as $task): ?>
                     <?php
@@ -612,7 +642,8 @@ include BASE_PATH . '/shared/sidebar.php';
                     $statusKey = str_replace('_', '-', $effective);
                     ?>
                     <?php $taskId = (int) $task['id']; ?>
-                    <tr class="dtb-task-row">
+                    <tr class="dtb-task-row" data-task-row data-task-id="<?= $taskId ?>" data-task-name="<?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?>" data-task-assigned="<?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?>" data-task-priority="<?= htmlspecialchars($priorities[$priorityKey] ?? 'Medium', ENT_QUOTES, 'UTF-8') ?>" data-task-status="<?= htmlspecialchars($groups[$effective] ?? ($statuses[$effective] ?? $effective), ENT_QUOTES, 'UTF-8') ?>">
+                        <td class="dtb-select-cell"><input class="dtb-task-check" type="checkbox" value="<?= $taskId ?>" aria-label="Select <?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?>"></td>
                         <td><span class="dtb-task-name"><?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?></span></td>
                         <td><?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?></td>
                         <td class="task-priority-cell"><div class="task-priority-fill" data-priority="<?= htmlspecialchars(str_replace('_', '-', $priorityKey), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($priorities[$priorityKey] ?? 'Medium', ENT_QUOTES, 'UTF-8') ?></div></td>
@@ -622,7 +653,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         <td><button class="task-view-btn" type="button" data-task-open="<?= $taskId ?>"><svg class="task-view-btn-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="2.5" fill="none" stroke="currentColor" stroke-width="1.7"/></svg><span>View</span></button></td>
                     </tr>
                 <?php endforeach; ?>
-                <?php if (!$groupTasks): ?><tr class="dtb-empty-row"><td colspan="7">No tasks in this section.</td></tr><?php endif; ?>
+                <?php if (!$groupTasks): ?><tr class="dtb-empty-row"><td colspan="8">No tasks in this section.</td></tr><?php endif; ?>
                     </tbody>
                 </table>
                 </div>
@@ -631,6 +662,15 @@ include BASE_PATH . '/shared/sidebar.php';
         <?php endforeach; ?>
     </section>
     <?php endif; ?>
+
+    <div class="dtb-bulk-action-bar" data-task-bulk-bar hidden>
+        <div class="dtb-bulk-summary"><span class="dtb-bulk-count" data-task-bulk-count>0</span><span data-task-bulk-label>tasks selected</span></div>
+        <button type="button" class="dtb-bulk-action" data-task-bulk-action="duplicate"><i data-lucide="copy" aria-hidden="true"></i><span>Duplicate</span></button>
+        <button type="button" class="dtb-bulk-action" data-task-bulk-action="export"><i data-lucide="upload" aria-hidden="true"></i><span>Export</span></button>
+        <button type="button" class="dtb-bulk-action" data-task-bulk-action="archive"><i data-lucide="archive" aria-hidden="true"></i><span>Archive</span></button>
+        <button type="button" class="dtb-bulk-action dtb-bulk-action--danger" data-task-bulk-action="delete"><i data-lucide="trash-2" aria-hidden="true"></i><span>Delete</span></button>
+        <button type="button" class="dtb-bulk-close" data-task-bulk-close aria-label="Clear task selection"><i data-lucide="x" aria-hidden="true"></i></button>
+    </div>
 
     <?php if ($canManage && $filters['task_view'] === 'history'): ?>
         <section class="dtb-history-section">
@@ -1039,7 +1079,82 @@ function initialiseTaskSectionToggles() {
   });
 }
 
-document.addEventListener('DOMContentLoaded', initialiseTaskSectionToggles);
+function initialiseTaskBulkSelection() {
+  const bar = document.querySelector('[data-task-bulk-bar]');
+  if (!bar || bar.dataset.initialised === 'true') return;
+  bar.dataset.initialised = 'true';
+  const rowChecks = [...document.querySelectorAll('.dtb-task-row .dtb-task-check')];
+  const allChecks = [...document.querySelectorAll('.dtb-task-check-all')];
+  const count = bar.querySelector('[data-task-bulk-count]');
+  const label = bar.querySelector('[data-task-bulk-label]');
+
+  const selectedRows = () => rowChecks.filter((check) => check.checked).map((check) => check.closest('[data-task-row]')).filter(Boolean);
+  const update = () => {
+    const rows = selectedRows();
+    rowChecks.forEach((check) => check.closest('[data-task-row]')?.classList.toggle('is-selected', check.checked));
+    allChecks.forEach((check) => {
+      const sectionChecks = [...check.closest('table').querySelectorAll('tbody .dtb-task-check')];
+      const checked = sectionChecks.filter((item) => item.checked).length;
+      check.checked = sectionChecks.length > 0 && checked === sectionChecks.length;
+      check.indeterminate = checked > 0 && checked < sectionChecks.length;
+    });
+    count.textContent = String(rows.length);
+    label.textContent = rows.length === 1 ? 'task selected' : 'tasks selected';
+    bar.hidden = rows.length === 0;
+  };
+  const clear = () => {
+    rowChecks.forEach((check) => { check.checked = false; });
+    update();
+  };
+
+  rowChecks.forEach((check) => check.addEventListener('change', update));
+  allChecks.forEach((check) => check.addEventListener('change', () => {
+    check.closest('table').querySelectorAll('tbody .dtb-task-check').forEach((item) => { item.checked = check.checked; });
+    update();
+  }));
+  bar.querySelector('[data-task-bulk-close]')?.addEventListener('click', clear);
+  bar.addEventListener('click', async (event) => {
+    const actionButton = event.target.closest('[data-task-bulk-action]');
+    if (!actionButton || actionButton.disabled) return;
+    const rows = selectedRows();
+    if (!rows.length) return;
+    const action = actionButton.dataset.taskBulkAction;
+    if (action === 'export') {
+      const csv = [['Task', 'Assigned', 'Priority', 'Status'], ...rows.map((row) => [row.dataset.taskName, row.dataset.taskAssigned, row.dataset.taskPriority, row.dataset.taskStatus])]
+        .map((values) => values.map((value) => `"${String(value || '').replaceAll('"', '""')}"`).join(','))
+        .join('\r\n');
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+      link.download = `task-selection-${new Date().toISOString().slice(0, 10)}.csv`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+      return;
+    }
+    if (action === 'delete' && !window.confirm(`Delete ${rows.length} selected task${rows.length === 1 ? '' : 's'}?`)) return;
+    const formData = new FormData();
+    formData.append('action', 'bulk_task_action');
+    formData.append('bulk_action', action);
+    rows.forEach((row) => formData.append('task_ids[]', row.dataset.taskId));
+    actionButton.disabled = true;
+    bar.classList.add('is-saving');
+    try {
+      const response = await fetch(window.location.href, { method: 'POST', body: formData, credentials: 'same-origin', headers: { Accept: 'application/json' } });
+      const result = await response.json();
+      if (!response.ok || result.success !== true) throw new Error(result.message || 'Unable to update selected tasks.');
+      window.location.reload();
+    } catch (error) {
+      window.alert(error.message || 'Unable to update selected tasks.');
+      actionButton.disabled = false;
+      bar.classList.remove('is-saving');
+    }
+  });
+  update();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  initialiseTaskSectionToggles();
+  initialiseTaskBulkSelection();
+});
 
 document.addEventListener('click', (event) => {
   const viewButton = event.target.closest('.task-view-btn');
