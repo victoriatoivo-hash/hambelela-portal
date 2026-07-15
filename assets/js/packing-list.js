@@ -1852,6 +1852,10 @@
   }
 
   function openPersonPopup(anchor, taskId) {
+    if (personPopup?.classList.contains('is-open') && personPopupTrigger === anchor) {
+      closePersonPopup();
+      return;
+    }
     labelInteractionScrollState = capturePackingScrollState(anchor);
     closeLabel();
     const popup = ensurePersonPopup();
@@ -1906,6 +1910,10 @@
   }
 
   function openStatusPopup(anchor, taskId) {
+    if (statusPopup?.classList.contains('is-open') && statusPopupTrigger === anchor) {
+      closeStatusPopup();
+      return;
+    }
     labelInteractionScrollState = capturePackingScrollState(anchor);
     closeLabel();
     const popup = ensureStatusPopup();
