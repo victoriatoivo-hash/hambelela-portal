@@ -259,15 +259,9 @@
   function columnHeader(label, cssClass, column, key = column) {
     const currentLabel = columnLabels[key] ?? label;
     const editableAttrs = currentLabel !== '' ? ` data-editable-column-header="true" tabindex="0" aria-label="Rename ${esc(currentLabel)} column"` : '';
-    const updatesTitle = `<span class="column-header-title column-header-icon" aria-label="Updates">
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7A8.4 8.4 0 0 1 4 11.5 8.5 8.5 0 0 1 12.5 3 8.5 8.5 0 0 1 21 11.5Z"></path>
-        <path d="M12.5 8v7M9 11.5h7"></path>
-      </svg>
-    </span>`;
     const title = currentLabel !== ''
       ? `<span class="column-header-title" data-column-header-title>${esc(currentLabel)}</span>`
-      : (key === 'updates' ? updatesTitle : '<span class="column-header-title is-empty" aria-hidden="true"></span>');
+      : '<span class="column-header-title is-empty" aria-hidden="true"></span>';
     return `<div class="orders-grid-cell orders-grid-cell--${esc(key)} monday-cell ob-col-th column-header ${cssClass}" data-column-key="${esc(key)}" data-column="${esc(column)}"${editableAttrs}>${title}<span class="column-resizer" data-column-resizer="${esc(column)}"></span></div>`;
   }
 
