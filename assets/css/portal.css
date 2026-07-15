@@ -6341,7 +6341,7 @@ main.error-log-page {
 .error-board-title-link {
   color: var(--bk-text);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 400;
   text-decoration: none;
 }
 
