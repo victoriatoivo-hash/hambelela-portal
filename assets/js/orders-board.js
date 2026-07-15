@@ -1888,10 +1888,7 @@
         <div class="orders-grid-cell orders-grid-cell--select monday-cell col-checkbox"></div>
         <div class="orders-grid-cell orders-grid-cell--task monday-cell col-task"></div>
         <div class="orders-grid-cell orders-grid-cell--notes monday-cell col-task-icon"></div>
-        <div class="orders-grid-cell orders-grid-cell--date monday-cell ob-group-date-cell date-sort-cell col-date" data-date-sort-cell="${esc(key)}">
-          <button type="button" class="ob-date-pill date-sort-trigger" data-date-sort-trigger="${esc(key)}" aria-haspopup="menu" aria-expanded="${activeDateSortGroup === key ? 'true' : 'false'}">${esc(groupDatePill(key))}</button>
-          ${renderDateSortPopover(key, orders)}
-        </div>
+        <div class="orders-grid-cell orders-grid-cell--date monday-cell ob-group-date-cell date-sort-cell col-date"></div>
         <div class="orders-grid-cell orders-grid-cell--mobile monday-cell col-mobile"></div>
         <div class="orders-grid-cell orders-grid-cell--mode monday-cell ob-group-bar-cell col-mode">${stackedBar(modeCounts, modeColours, 'ob-mode-bar')}</div>
         <div class="orders-grid-cell orders-grid-cell--amount monday-cell ob-group-amount-cell col-amount"><div class="ob-group-sum">${esc(money(total))}</div></div>
