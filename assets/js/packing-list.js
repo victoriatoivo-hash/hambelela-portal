@@ -44,6 +44,25 @@
   let currentTask = null;
   let lastUndo = null;
   let invoiceDraftRows = [];
+
+  function isFrontDeskAdmin() {
+    return String(currentUser.role_key || '') === 'front_desk_admin';
+  }
+
+  function applyPackingToolbarAccess() {
+    if (!isFrontDeskAdmin()) return;
+
+    document.querySelectorAll([
+      '[data-open-packing-create]',
+      '[data-open-invoice]',
+      '[data-find-packing-duplicates]',
+      '[data-import-previous-packing]',
+    ].join(',')).forEach((button) => button.remove());
+
+    const refreshButton = document.querySelector('[data-packing-refresh]');
+    const toolbar = refreshButton?.closest('.work-filter-actions');
+    if (refreshButton && toolbar) toolbar.prepend(refreshButton);
+  }
   let defaultPersonFilterApplied = false;
   let hasRenderedOnce = false;
   let previousTaskIds = new Set();
@@ -1667,7 +1686,7 @@
       const message = tasks.length
         ? 'No packing items match the current filters.'
         : 'No packing rows exist in the database yet. Use New item or Upload invoice to create the packing list.';
-      const actions = currentUser.can_manage ? `
+      const actions = currentUser.can_manage && !isFrontDeskAdmin() ? `
         <div class="board-empty-actions">
           <button type="button" data-open-packing-create><i data-lucide="plus"></i> New item</button>
           <button type="button" data-open-invoice><i data-lucide="upload"></i> Upload invoice</button>
@@ -1743,6 +1762,7 @@
       totalRows = Number(data.totalRows || tasks.length || 0);
       packers = data.packers || [];
       currentUser = data.currentUser || {};
+      applyPackingToolbarAccess();
       loadPackingColumnWidths();
       if (!defaultPersonFilterApplied && !currentUser.can_manage && currentUser.id) {
         state.person = '__mine';
