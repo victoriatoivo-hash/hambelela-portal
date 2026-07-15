@@ -91,9 +91,6 @@ if ($canManage) {
          WHERE notes LIKE 'Created from invoice review%'"
     );
     $clearGeneratedNoteSql = 'UPDATE ops_packing_tasks SET notes = NULL';
-    if ($hasPackingRowKey) {
-        $clearGeneratedNoteSql .= ', packing_row_key = ?';
-    }
     if ($hasPackerNotes) {
         $clearGeneratedNoteSql .= ", packer_notes = CASE WHEN COALESCE(TRIM(packer_notes), '') = '' THEN ? ELSE packer_notes END";
     }
@@ -107,11 +104,9 @@ if ($canManage) {
         if (strcasecmp(trim((string) array_shift($lines)), 'Created from invoice review') !== 0) {
             continue;
         }
-        $invoiceRowKey = '';
         $userLines = [];
         foreach ($lines as $line) {
-            if (preg_match('/^Packing row key:\s*([a-f0-9]{24})\s*$/i', trim($line), $keyMatch)) {
-                $invoiceRowKey = strtolower((string) $keyMatch[1]);
+            if (preg_match('/^Packing row key:\s*[a-f0-9]{24}\s*$/i', trim($line))) {
                 continue;
             }
             if (preg_match('/^(Supplier|Invoice number|Invoice date|Unit|Invoice quantity|Warning):/i', trim($line))) {
@@ -121,14 +116,7 @@ if ($canManage) {
                 $userLines[] = $line;
             }
         }
-        if ($invoiceRowKey === '') {
-            // Without the embedded key this is not one of the known templates.
-            continue;
-        }
         $clearParams = [];
-        if ($hasPackingRowKey) {
-            $clearParams[] = 'invoice:' . $invoiceRowKey;
-        }
         if ($hasPackerNotes) {
             $clearParams[] = trim(implode("\n", $userLines));
         } elseif ($userLines) {

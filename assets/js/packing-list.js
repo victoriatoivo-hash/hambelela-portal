@@ -98,7 +98,10 @@
     { key: 'quantity_packed', label: 'QUANTITY PACKED', className: 'col-qtypacked', width: 150 },
     { key: 'date_completed', label: 'DATE COMPLETED', className: 'col-datecompleted', width: 150 },
     { key: 'status', label: 'PACKING STATUS', className: 'col-packstatus', width: 140 },
-    { key: 'text', label: 'TEXT', className: 'col-text', width: 220 },
+    // This schema is shared by every role. Keep the stable `text` key for
+    // existing widths and custom-column placement, but expose the field by
+    // its actual editable name everywhere.
+    { key: 'text', label: 'NOTES', className: 'col-text', width: 220 },
     { key: 'add', label: '+', className: 'add-column-cell col-add-btn', width: 48 }
   ];
 
@@ -139,12 +142,8 @@
     return Math.min(maximum, Math.max(minimum, Math.round(Number(width) || minimum)));
   }
 
-  function storedHeaderLabels() {
-    try { return JSON.parse(localStorage.getItem('hambelelaPackingHeaders') || '{}') || {}; } catch (error) { return {}; }
-  }
-
   function packingHeaderLabel(column) {
-    return storedHeaderLabels()[column.key] || column.label;
+    return column.label;
   }
 
   function isWebsiteUpdatedColumn(column) {
@@ -227,11 +226,10 @@
             if (column.key === 'add') {
               return `<th class="${esc(column.className)}" data-column-key="${esc(column.key)}"><button type="button" data-add-packing-column>+</button></th>`;
             }
-            const editable = config.canEditHeaders && !column.isCustom ? 'contenteditable="true"' : '';
             const customAttrs = column.isCustom ? `data-custom-header="${esc(column.key)}" data-col-type="${esc(column.customType || 'text')}"` : `data-packing-column="${esc(column.key)}"`;
             const title = column.title ? ` title="${esc(column.title)}"` : '';
             const websiteClass = isWebsiteUpdatedColumn(column) ? ' packing-grid-header-cell--website-updated' : '';
-            return `<th class="${esc(column.className)}${websiteClass}" data-column-key="${esc(column.key)}" ${customAttrs}${title}><span class="packing-column-heading-label" ${editable}>${esc(packingHeaderLabel(column))}</span></th>`;
+            return `<th class="${esc(column.className)}${websiteClass}" data-column-key="${esc(column.key)}" ${customAttrs}${title}><span class="packing-column-heading-label">${esc(packingHeaderLabel(column))}</span></th>`;
           }).join('')}
         </tr>
       </thead>
@@ -3378,7 +3376,6 @@
 
   document.addEventListener('blur', async (event) => {
     const text = event.target.closest('[data-packing-text]');
-    const header = event.target.closest('[data-packing-column]');
     if (text) {
       const task = tasks.find((item) => String(item.id) === String(text.dataset.taskId));
       if (task && String(task[text.dataset.packingText] || '') !== text.value) {
@@ -3389,14 +3386,6 @@
           body.innerHTML = `<tr><td colspan="${totalColumnCount()}">${esc(error.message)}</td></tr>`;
         }
       }
-    }
-    if (header && config.canEditHeaders) {
-      const label = header.querySelector('.packing-column-heading-label');
-      let labels = {};
-      try { labels = JSON.parse(localStorage.getItem('hambelelaPackingHeaders') || '{}') || {}; } catch (error) { labels = {}; }
-      labels[header.dataset.packingColumn] = (label?.textContent || '').trim().toUpperCase();
-      if (label) label.textContent = labels[header.dataset.packingColumn];
-      localStorage.setItem('hambelelaPackingHeaders', JSON.stringify(labels));
     }
   }, true);
 
@@ -3515,13 +3504,6 @@
   if (storedTheme) page.dataset.boardTheme = storedTheme;
   updateFilterBadge();
   animateMetricCards();
-  try {
-    const labels = JSON.parse(localStorage.getItem('hambelelaPackingHeaders') || '{}') || {};
-    document.querySelectorAll('[data-packing-column]').forEach((header) => {
-      const label = header.querySelector('.packing-column-heading-label');
-      if (label && labels[header.dataset.packingColumn]) label.textContent = labels[header.dataset.packingColumn];
-    });
-  } catch (error) {}
   loadCustomColumns()
     .catch(() => {})
     .finally(() => {

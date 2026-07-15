@@ -16,7 +16,6 @@ $migrationReady = $ready
 $canManage = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
 $canManageWebsiteUpdate = user_has_role('owner_admin', 'front_desk_admin');
 $canViewPackingTools = true;
-$canEditHeaders = user_has_role('owner_admin');
 $packingJsVersion = is_file(BASE_PATH . '/assets/js/packing-list.js')
     ? (string) filemtime(BASE_PATH . '/assets/js/packing-list.js') . '-people3'
     : (string) time();
@@ -270,7 +269,6 @@ include BASE_PATH . '/shared/sidebar.php';
 window.HambelelaPacking = {
   dataUrl: 'packing-list-data.php',
   actionUrl: 'packing-list-action.php',
-  canEditHeaders: <?= $canEditHeaders ? 'true' : 'false' ?>
 };
 </script>
 <script defer src="<?= BASE_URL ?>/assets/js/packing-list.js?v=<?= htmlspecialchars($packingJsVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
