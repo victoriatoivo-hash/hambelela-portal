@@ -3144,7 +3144,7 @@
               if (label) label.textContent = labelText(statuses, savedTask.packing_status);
               if (definition) {
                 component.style.setProperty('--status-colour', itemColor(definition));
-                component.style.setProperty('--status-text-colour', readablePriorityTextColour(itemColor(definition)));
+                component.style.setProperty('--status-text-colour', definition[3] || readablePriorityTextColour(itemColor(definition)));
               }
             });
             const tableComponent = [...components].find((component) => component.closest('.packing-date-group'));
