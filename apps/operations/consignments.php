@@ -14,7 +14,7 @@ $migrationReady = $ready
     && ops_column_exists('ops_packing_tasks', 'packing_website_confirmed')
     && ops_column_exists('ops_packing_tasks', 'date_started');
 $canManage = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
-$canManageWebsiteUpdate = user_has_role('owner_admin', 'front_desk_admin');
+$canViewWebsiteUpdate = user_has_role('owner_admin', 'front_desk_admin', 'front_desk_admin_employee');
 $canViewPackingTools = true;
 $packingJsVersion = is_file(BASE_PATH . '/assets/js/packing-list.js')
     ? (string) filemtime(BASE_PATH . '/assets/js/packing-list.js') . '-people3'
@@ -58,7 +58,7 @@ include BASE_PATH . '/shared/sidebar.php';
             </article>
             <article class="work-metric-card packing-stat-card pk-website">
                 <span class="metric-icon"><i data-lucide="globe-2"></i></span>
-                <div><span class="metric-title">Website Inventory</span><strong data-packing-metric="website">0</strong></div>
+                <div><span class="metric-title">Website Complete</span><strong data-packing-metric="website">0</strong></div>
             </article>
             <article class="work-metric-card packing-stat-card pk-pending">
                 <span class="metric-icon"><i data-lucide="hourglass"></i></span>
@@ -153,7 +153,7 @@ include BASE_PATH . '/shared/sidebar.php';
             </div>
         </header>
         <nav class="packing-item-tabs" role="tablist">
-            <?php if ($canManageWebsiteUpdate): ?><button class="packing-item-tab" type="button" role="tab" aria-selected="false" data-packing-panel-tab="website"><i data-lucide="globe-2"></i> Website</button><?php endif; ?>
+            <?php if ($canViewWebsiteUpdate): ?><button class="packing-item-tab" type="button" role="tab" aria-selected="false" data-packing-panel-tab="website"><i data-lucide="globe-2"></i> Website</button><?php endif; ?>
             <button class="packing-item-tab active is-active" type="button" role="tab" aria-selected="true" data-packing-panel-tab="details"><i data-lucide="layout-list"></i> Details</button>
             <button class="packing-item-tab" type="button" role="tab" aria-selected="false" data-packing-panel-tab="files"><i data-lucide="paperclip"></i> Files</button>
         </nav>
@@ -170,11 +170,11 @@ include BASE_PATH . '/shared/sidebar.php';
             </section>
             <div id="packing-panel-activity" class="packing-item-activity"></div>
         </section>
-        <?php if ($canManageWebsiteUpdate): ?>
+        <?php if ($canViewWebsiteUpdate): ?>
         <section class="updates-tab-panel packing-item-panel-body" data-packing-panel-name="website">
             <section class="packing-item-section packing-item-website-section">
                 <h2 class="packing-item-section-title">Website Updated</h2>
-                <p class="packing-item-section-subtitle">Record that this item has been updated on the website.</p>
+                <p class="packing-item-section-subtitle">Confirm that the product or inventory information was updated on the live website.</p>
                 <label class="packing-panel-website-toggle packing-website-control" data-packing-website-control><input type="checkbox" data-packing-panel-website><span>Website updated</span><span class="packing-website-confirmed-badge" data-packing-website-confirmed hidden><i data-lucide="check"></i> Confirmed</span></label>
                 <dl class="packing-panel-website-audit"><div><dt>Updated</dt><dd data-packing-website-updated-at>Not updated</dd></div><div><dt>Updated by</dt><dd data-packing-website-updated-by>—</dd></div></dl>
                 <div class="packing-website-completed-by" data-website-completed-by hidden>

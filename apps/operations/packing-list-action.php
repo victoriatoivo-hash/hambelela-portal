@@ -390,7 +390,7 @@ function packing_monday_row_from_item(array $item, array $columnTitles): array
         'assigned_employee_id' => $assignedId,
         'quantity_packed' => $quantityPacked,
         'date_completed' => $dateCompletedRaw !== '' ? packing_monday_datetime($dateCompletedRaw) : null,
-        'website_uploaded' => $website,
+        'packing_website_confirmed' => $website,
         'packing_status' => $status,
         'workload_points' => $workload,
         'notes' => trim($notes . "\nMonday item #" . (string) ($item['id'] ?? '')),
@@ -597,8 +597,7 @@ function packing_monday_column_values_for_row(array $row, array $columnTitles, a
     packing_monday_set_column($values, $columnTitles, $columnTypes, $columnLabels, ['Person Responsible', 'Person', 'Assigned', 'Packer'], 'people', $assignedName);
     packing_monday_set_column($values, $columnTitles, $columnTypes, $columnLabels, ['Quantity Packed', 'Actual Packed', 'Packed'], 'text', (string) ($row['quantity_packed'] ?? ''));
     packing_monday_set_column($values, $columnTitles, $columnTypes, $columnLabels, ['Date Completed', 'Completed Date'], 'date', (string) ($row['date_completed'] ?? ''));
-    packing_monday_set_column($values, $columnTitles, $columnTypes, $columnLabels, ['Website Quantity Updated', 'Website Updated', 'Website'], 'checkbox', (int) ($row['website_uploaded'] ?? 0));
-    packing_monday_set_column($values, $columnTitles, $columnTypes, $columnLabels, ['Packing Website Update Confirmed', 'Packing Website Confirmed'], 'checkbox', (int) ($row['packing_website_confirmed'] ?? 0));
+    packing_monday_set_column($values, $columnTitles, $columnTypes, $columnLabels, ['Website Complete', 'Website Quantity Updated', 'Website Updated', 'Website', 'Packing Website Update Confirmed', 'Packing Website Confirmed'], 'checkbox', (int) ($row['packing_website_confirmed'] ?? 0));
     packing_monday_set_column($values, $columnTitles, $columnTypes, $columnLabels, ['Packing Status'], 'status', packing_monday_label('status', (string) ($row['packing_status'] ?? 'not_started')));
     packing_monday_set_column($values, $columnTitles, $columnTypes, $columnLabels, ['Notes', 'Text'], 'text', (string) ($row['notes'] ?? ''));
 
@@ -944,7 +943,7 @@ function packing_find_portal_match(array $mondayRow, array $portalRows, array $m
 
 function packing_import_monday_row(array $row, int $employeeId): int
 {
-    $columns = ['item_name', 'received_weight', 'priority', 'date_loaded', 'quantity_planned', 'assigned_employee_id', 'quantity_packed', 'date_completed', 'website_uploaded', 'packing_status', 'workload_points', 'notes', 'created_by'];
+    $columns = ['item_name', 'received_weight', 'priority', 'date_loaded', 'quantity_planned', 'assigned_employee_id', 'quantity_packed', 'date_completed', 'packing_website_confirmed', 'packing_status', 'workload_points', 'notes', 'created_by'];
     $placeholders = array_fill(0, count($columns), '?');
     $params = [
         (string) ($row['item_name'] ?? 'Monday item'),
@@ -955,7 +954,7 @@ function packing_import_monday_row(array $row, int $employeeId): int
         !empty($row['assigned_employee_id']) ? (int) $row['assigned_employee_id'] : null,
         (string) ($row['quantity_packed'] ?? ''),
         !empty($row['date_completed']) ? (string) $row['date_completed'] : null,
-        (int) ($row['website_uploaded'] ?? 0),
+        (int) ($row['packing_website_confirmed'] ?? 0),
         (string) ($row['packing_status'] ?? 'not_started'),
         (float) ($row['workload_points'] ?? 0),
         trim((string) ($row['notes'] ?? '') . "\nCreated source: Monday sync"),
@@ -2299,28 +2298,27 @@ try {
         exit;
     }
 
-    if ($action === 'confirm_website_update') {
+    if ($action === 'confirm_frontdesk_website_update') {
         $taskId = (int) ($_POST['task_id'] ?? 0);
-        $confirmed = (string) ($_POST['confirmed'] ?? '1') === '1';
         $employeeId = ops_current_employee_id();
+        if (!user_has_role('front_desk_admin', 'front_desk_admin_employee')) {
+            throw new RuntimeException('Only an authenticated Front Desk employee may confirm this website update.');
+        }
         if ($taskId <= 0 || !$employeeId) {
             throw new RuntimeException('The packing item or authenticated employee could not be identified.');
         }
-        if (!ops_column_exists('ops_packing_tasks', 'website_uploaded_at') || !ops_column_exists('ops_packing_tasks', 'inventory_updated_by') || !ops_column_exists('ops_packing_tasks', 'inventory_updated_at')) {
+        if (!ops_ensure_packing_website_workflow_columns()) {
             throw new RuntimeException('Website confirmation audit fields are not ready.');
         }
 
         $confirmedAt = (new DateTimeImmutable('now', new DateTimeZone('Africa/Windhoek')))->format('Y-m-d H:i:s');
-        if ($confirmed) {
-            $stmt = db()->prepare('UPDATE ops_packing_tasks SET website_uploaded = 1, website_uploaded_at = ?, inventory_updated_at = ?, inventory_updated_by = ?, updated_at = ? WHERE id = ? AND website_uploaded = 0');
-            $stmt->execute([$confirmedAt, $confirmedAt, $employeeId, $confirmedAt, $taskId]);
-        } else {
-            $stmt = db()->prepare('UPDATE ops_packing_tasks SET website_uploaded = 0, website_uploaded_at = NULL, inventory_updated_at = NULL, inventory_updated_by = NULL, updated_at = ? WHERE id = ? AND website_uploaded = 1');
-            $stmt->execute([$confirmedAt, $taskId]);
-        }
+        $itemRows = ops_rows('SELECT item_name FROM ops_packing_tasks WHERE id = ? LIMIT 1', [$taskId]);
+        $itemName = (string) ($itemRows[0]['item_name'] ?? 'Packing item');
+        $stmt = db()->prepare('UPDATE ops_packing_tasks SET frontdesk_website_updated = 1, frontdesk_website_updated_at = ?, frontdesk_website_updated_by = ?, updated_at = ? WHERE id = ? AND frontdesk_website_updated = 0');
+        $stmt->execute([$confirmedAt, $employeeId, $confirmedAt, $taskId]);
         if ($stmt->rowCount() !== 1) {
             http_response_code(409);
-            echo json_encode(['ok' => false, 'message' => $confirmed ? 'This website update is already confirmed.' : 'This website update is already unconfirmed.']);
+            echo json_encode(['ok' => false, 'message' => 'This Front Desk website update is already confirmed and locked.']);
             exit;
         }
 
@@ -2331,19 +2329,21 @@ try {
         $nameParts = array_values(array_filter(preg_split('/\s+/', $employeeName) ?: []));
         $initials = implode('', array_map(static fn(string $part): string => strtoupper(substr($part, 0, 1)), array_slice($nameParts, 0, 2)));
 
-        ops_activity_log($confirmed ? 'packing_website_update_confirmed' : 'packing_website_update_unconfirmed', 'packing_task', $taskId, [
-            'event' => ($confirmed ? 'Website update confirmed by ' : 'Website update confirmation removed by ') . $employeeName . '.',
+        ops_activity_log('frontdesk_website_update_confirmed', 'packing_task', $taskId, [
+            'event' => 'Front Desk website update confirmed.',
+            'item' => $itemName,
+            'employee' => $employeeName,
             'confirmed_at' => $confirmedAt,
             'confirmed_by' => $employeeId,
             'changed_by' => $employeeName,
         ]);
 
-        echo json_encode(['ok' => true, 'message' => $confirmed ? 'Website update confirmed.' : 'Website update confirmation removed.', 'data' => [
-            'website_updated' => $confirmed,
-            'website_updated_at' => $confirmed ? $confirmedAt : null,
-            'website_updated_at_iso' => $confirmed ? (new DateTimeImmutable($confirmedAt, new DateTimeZone('Africa/Windhoek')))->format(DateTimeInterface::ATOM) : null,
-            'website_updated_by' => $confirmed ? ['id' => $employeeId, 'name' => $employeeName, 'role' => $employeeRole, 'initials' => $initials ?: '?'] : null,
-            'locked' => false,
+        echo json_encode(['ok' => true, 'message' => 'Front Desk website update confirmed.', 'data' => [
+            'frontdesk_website_updated' => true,
+            'frontdesk_website_updated_at' => $confirmedAt,
+            'frontdesk_website_updated_at_iso' => (new DateTimeImmutable($confirmedAt, new DateTimeZone('Africa/Windhoek')))->format(DateTimeInterface::ATOM),
+            'frontdesk_website_updated_by' => ['id' => $employeeId, 'name' => $employeeName, 'role' => $employeeRole, 'initials' => $initials ?: '?'],
+            'locked' => true,
         ]]);
         exit;
     }
@@ -2370,7 +2370,6 @@ try {
             'quantity_planned' => 'quantity_planned',
             'assigned_employee_id' => 'assigned_employee_id',
             'quantity_packed' => 'quantity_packed',
-            'website_uploaded' => 'website_uploaded',
             'packing_website_confirmed' => 'packing_website_confirmed',
             'packing_status' => 'packing_status',
             'notes' => 'packer_notes',
@@ -2385,15 +2384,6 @@ try {
         if ($field === 'assigned_employee_id' && !$canManage) {
             throw new RuntimeException('You do not have permission to update this field.');
         }
-        if ($field === 'website_uploaded' && !user_has_role('owner_admin', 'front_desk_admin')) {
-            throw new RuntimeException('Only Owner/Admin or Front Desk/Admin can update the website confirmation.');
-        }
-        if ($field === 'website_uploaded') {
-            http_response_code(409);
-            echo json_encode(['ok' => false, 'message' => 'Website confirmations must use the locked confirmation action and cannot be edited.']);
-            exit;
-        }
-
         if ($field === 'packing_website_confirmed' && !$canManage) {
             $owned = ops_rows(
                 'SELECT COUNT(*) AS count_rows FROM ops_packing_tasks WHERE id IN (' . implode(',', array_fill(0, count($ids), '?')) . ') AND assigned_employee_id = ?',
@@ -2404,7 +2394,7 @@ try {
             }
         }
 
-        $checkboxFields = ['website_uploaded', 'packing_website_confirmed'];
+        $checkboxFields = ['packing_website_confirmed'];
         if (in_array($field, $checkboxFields, true)) {
             $value = $value === '1' || $value === 'true' || $value === 'yes' ? '1' : '0';
         }
@@ -2432,7 +2422,6 @@ try {
 
         $previousAssignmentRows = [];
         $previousStatusRows = [];
-        $previousWebsiteRows = [];
         if ($field === 'assigned_employee_id' && ops_table_exists('ops_packing_assignment_log')) {
             foreach (ops_rows('SELECT id, assigned_employee_id FROM ops_packing_tasks WHERE id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')', $ids) as $row) {
                 $previousAssignmentRows[(int) $row['id']] = $row['assigned_employee_id'] !== null ? (int) $row['assigned_employee_id'] : null;
@@ -2444,32 +2433,15 @@ try {
                 $previousStatusRows[(int) $row['id']] = $row;
             }
         }
-        if ($field === 'website_uploaded') {
-            foreach (ops_rows('SELECT id, website_uploaded, website_uploaded_at, inventory_updated_at, inventory_updated_by FROM ops_packing_tasks WHERE id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')', $ids) as $row) {
-                $previousWebsiteRows[(int) $row['id']] = $row;
-            }
-        }
-
         $set = $allowed[$field] . ' = ?';
         $setParams = [$value];
-        $websiteUpdatedAt = $field === 'website_uploaded'
-            ? (new DateTimeImmutable('now', new DateTimeZone('Africa/Windhoek')))->format('Y-m-d H:i:s')
-            : null;
-        if ($field === 'website_uploaded' && ops_column_exists('ops_packing_tasks', 'website_uploaded_at')) {
-            $set .= ", website_uploaded_at = CASE WHEN ? = '1' AND website_uploaded_at IS NULL THEN ? WHEN ? = '0' THEN NULL ELSE website_uploaded_at END";
-            $setParams[] = $value;
-            $setParams[] = $websiteUpdatedAt;
-            $setParams[] = $value;
-        }
-        if ($field === 'website_uploaded' && ops_column_exists('ops_packing_tasks', 'inventory_updated_by')) {
-            $set .= ", inventory_updated_by = CASE WHEN ? = '1' THEN ? ELSE NULL END";
-            $setParams[] = $value;
-            $setParams[] = $currentEmployeeId ?: null;
-        }
-        if ($field === 'website_uploaded' && ops_column_exists('ops_packing_tasks', 'inventory_updated_at')) {
-            $set .= ", inventory_updated_at = CASE WHEN ? = '1' THEN ? ELSE NULL END";
-            $setParams[] = $value;
-            $setParams[] = $websiteUpdatedAt;
+        if ($field === 'packing_website_confirmed') {
+            if (!ops_ensure_packing_website_workflow_columns()) {
+                throw new RuntimeException('Packing Website Complete audit fields are not ready.');
+            }
+            $packingCompletedAt = (new DateTimeImmutable('now', new DateTimeZone('Africa/Windhoek')))->format('Y-m-d H:i:s');
+            $set .= ", packing_website_completed_at = CASE WHEN ? = '1' THEN ? ELSE NULL END, packing_website_completed_by = CASE WHEN ? = '1' THEN ? ELSE NULL END";
+            array_push($setParams, $value, $packingCompletedAt, $value, $currentEmployeeId ?: null);
         }
         if ($field === 'packing_status') {
             if ($value === 'packing' && ops_column_exists('ops_packing_tasks', 'date_started')) {
@@ -2504,11 +2476,8 @@ try {
         $stmt->execute($params);
         if ($field === 'packing_status') {
             $updatedRows = ops_rows('SELECT id, packing_status, date_completed FROM ops_packing_tasks WHERE id IN (' . $placeholders . ')' . $scope, $scope === '' ? $ids : array_merge($ids, [$currentEmployeeId ?: 0]));
-        } elseif ($field === 'website_uploaded') {
-            $updatedRows = ops_rows(
-                'SELECT pt.id, pt.website_uploaded, pt.website_uploaded_at, pt.inventory_updated_at, pt.inventory_updated_by, e.full_name AS inventory_updated_by_name FROM ops_packing_tasks pt LEFT JOIN ops_employees e ON e.id = pt.inventory_updated_by WHERE pt.id IN (' . $placeholders . ')',
-                $ids
-            );
+        } elseif ($field === 'packing_website_confirmed') {
+            $updatedRows = ops_rows('SELECT id, packing_website_confirmed, packing_website_completed_at, packing_website_completed_by FROM ops_packing_tasks WHERE id IN (' . $placeholders . ')', $ids);
         } else {
             $updatedRows = [];
         }
@@ -2580,12 +2549,11 @@ try {
                 $activityMeta['date_completed'] = $afterDate;
                 $activityMeta['date_completed_action'] = $beforeDate === $afterDate ? 'preserved' : ($afterDate === null ? 'cleared' : 'set');
             }
-            if ($field === 'website_uploaded') {
-                $before = $previousWebsiteRows[(int) $id] ?? [];
-                $activityMeta['previous_value'] = (int) ($before['website_uploaded'] ?? 0);
-                $activityMeta['previous_updated_at'] = $before['inventory_updated_at'] ?? $before['website_uploaded_at'] ?? null;
-                $activityMeta['previous_updated_by'] = $before['inventory_updated_by'] ?? null;
-                $activityMeta['event'] = $value === '1' ? 'Website marked as updated' : 'Website update confirmation removed';
+            if ($field === 'packing_website_confirmed') {
+                $after = $updatedStatusById[(int) $id] ?? [];
+                $activityMeta['event'] = $value === '1' ? 'Packing Website Complete confirmed' : 'Packing Website Complete cleared';
+                $activityMeta['packing_website_completed_at'] = $after['packing_website_completed_at'] ?? null;
+                $activityMeta['packing_website_completed_by'] = $after['packing_website_completed_by'] ?? null;
             }
             ops_activity_log('packing_' . $field . '_updated', 'packing_task', $id, $activityMeta);
             if ($field === 'assigned_employee_id') {

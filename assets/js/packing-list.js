@@ -162,7 +162,7 @@
   }
 
   function packingHeaderLabel(column) {
-    return column.label;
+    return isWebsiteUpdatedColumn(column) ? 'Website Complete' : column.label;
   }
 
   function isWebsiteUpdatedColumn(column) {
@@ -171,7 +171,7 @@
       .replace(/[_-]+/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
-    return identity.includes('website updated');
+    return identity.includes('website updated') || identity.includes('website complete');
   }
 
   function websiteUpdatedColumns() {
@@ -388,7 +388,7 @@
     const total = source.length;
     const done = source.filter((task) => packingStatusIsCompleted(task.packing_status)).length;
     const packing = source.filter((task) => normalize(task.packing_status) === 'packing').length;
-    const website = source.filter((task) => Number(task.website_uploaded || 0) === 1 || Number(task.packing_website_confirmed || 0) === 1).length;
+    const website = source.filter((task) => Number(task.packing_website_confirmed || 0) === 1).length;
     const pending = source.filter((task) => !packingStatusIsCompleted(task.packing_status)).length;
     const unassigned = source.filter((task) => !Number(task.assigned_employee_id || 0)).length;
     setMetric('total', total);
@@ -457,23 +457,25 @@
   }
 
   function renderWebsiteConfirmation(task) {
-    const confirmed = Number(task?.website_uploaded || 0) === 1;
+    const audit = task?.frontdesk_website || {};
+    const confirmed = Boolean(audit.updated);
     const websiteToggle = panel.querySelector('[data-packing-panel-website]');
     const control = panel.querySelector('[data-packing-website-control]');
     const badge = panel.querySelector('[data-packing-website-confirmed]');
     const updatedAt = panel.querySelector('[data-packing-website-updated-at]');
     const updatedBy = panel.querySelector('[data-packing-website-updated-by]');
     const completedBy = panel.querySelector('[data-website-completed-by]');
-    const name = task?.inventory_updated_by_name || (confirmed ? 'User not recorded' : '');
-    const role = task?.inventory_updated_by_role || '';
+    const person = audit.updated_by || {};
+    const name = person.name || (confirmed ? 'User not recorded' : '');
+    const role = person.role || '';
     if (websiteToggle) {
       websiteToggle.checked = confirmed;
-      websiteToggle.disabled = !currentUser.can_edit_front_website;
+      websiteToggle.disabled = confirmed || !currentUser.can_confirm_front_website;
     }
-    control?.classList.toggle('is-locked', !currentUser.can_edit_front_website);
+    control?.classList.toggle('is-locked', confirmed || !currentUser.can_confirm_front_website);
     if (badge) badge.hidden = !confirmed;
     if (updatedAt) updatedAt.textContent = confirmed
-      ? (task.inventory_updated_at || task.website_uploaded_at ? formatWebsiteDate(task.inventory_updated_at || task.website_uploaded_at) : 'Updated date not recorded')
+      ? (audit.updated_at ? formatWebsiteDate(audit.updated_at) : 'Updated date not recorded')
       : 'Not updated';
     if (updatedBy) updatedBy.textContent = confirmed ? name : '—';
     if (completedBy) completedBy.hidden = !confirmed;
@@ -722,22 +724,13 @@
   function renderCheck(task, field, allowed) {
     const checked = Number(task[field] || 0) === 1 ? 'checked' : '';
     const disabled = allowed ? '' : 'disabled';
-    const uploadedAt = field === 'website_uploaded' && task.website_uploaded_at ? formatDate(task.website_uploaded_at) : '';
-    const isWebsiteInventory = field === 'website_uploaded';
-    const titleText = uploadedAt ? `Website inventory completed ${uploadedAt}` : 'Website inventory pending';
-    const title = ` title="${esc(titleText)}"`;
-    if (isWebsiteInventory) {
-      const label = checked ? 'Complete' : 'Pending';
-      const modifier = checked ? 'is-complete' : 'is-pending';
-      return `<label class="website-inventory-toggle ${modifier}"${title}><input type="checkbox" data-packing-check="${esc(field)}" data-task-id="${esc(task.id)}" ${checked} ${disabled}><span>${esc(label)}</span></label>`;
-    }
-    return `<label class="paid-toggle"${title}><input type="checkbox" data-packing-check="${esc(field)}" data-task-id="${esc(task.id)}" ${checked} ${disabled}><span>&check;</span></label>`;
+    return `<label class="paid-toggle"><input type="checkbox" data-packing-check="${esc(field)}" data-task-id="${esc(task.id)}" ${checked} ${disabled}><span>&check;</span></label>`;
   }
 
   function renderWebsiteToggle(task) {
-    const checked = Number(task.website_uploaded || 0) === 1;
-    const locked = !currentUser.can_edit_front_website;
-    return `<button type="button" class="packing-website-toggle${locked ? ' is-locked' : ''}" data-packing-website-toggle data-packing-item-id="${esc(task.id)}" data-checked="${checked ? 'true' : 'false'}" data-locked="${locked ? '1' : '0'}" aria-pressed="${checked ? 'true' : 'false'}" aria-disabled="${locked ? 'true' : 'false'}" aria-label="${checked ? 'Website updated' : currentUser.can_edit_front_website ? 'Mark website as updated' : 'Website not updated'}"><svg class="packing-website-tick" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10.5l3.2 3.2L16 5.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`;
+    const checked = Number(task.packing_website_confirmed || 0) === 1;
+    const locked = !canEditTask(task);
+    return `<button type="button" class="packing-website-toggle${locked ? ' is-locked' : ''}" data-packing-website-toggle data-packing-item-id="${esc(task.id)}" data-checked="${checked ? 'true' : 'false'}" data-locked="${locked ? '1' : '0'}" aria-pressed="${checked ? 'true' : 'false'}" aria-disabled="${locked ? 'true' : 'false'}" aria-label="${checked ? 'Website Complete' : locked ? 'Website Complete not confirmed' : 'Mark Website Complete'}"><svg class="packing-website-tick" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10.5l3.2 3.2L16 5.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`;
   }
 
   function showSkeletonRows() {
@@ -839,7 +832,7 @@
   }
 
   function renderWebsiteSummaryCells(rows) {
-    const completed = rows.filter((task) => Number(task.website_uploaded || 0) === 1).length;
+    const completed = rows.filter((task) => Number(task.packing_website_confirmed || 0) === 1).length;
     return websiteUpdatedColumns().map((column) => `<td class="summary-custom-cell packing-month-open-footer-cell--website" data-column-key="${esc(column.col_key)}" data-custom-col="${esc(column.col_key)}"><strong>${completed} / ${rows.length}</strong></td>`).join('');
   }
 
@@ -2210,7 +2203,7 @@
     if (panelSource) panelSource.textContent = currentTask.monday_item_id ? 'Imported from legacy Monday data' : 'Created in the portal';
     panelNotes.value = currentTask.packer_notes || '';
     const canEditOwn = canEditTask(currentTask);
-    const defaultPanelTab = currentUser.can_edit_front_website ? 'website' : 'details';
+    const defaultPanelTab = currentUser.can_view_front_website ? 'website' : 'details';
     panelNotes.disabled = !canEditOwn;
     document.querySelectorAll('[data-packing-save-notes]').forEach((button) => { button.disabled = !canEditOwn; });
     document.querySelectorAll('[data-packing-panel-tab]').forEach((button) => {
@@ -2228,16 +2221,18 @@
       <section class="packing-item-section"><h2 class="packing-item-section-title">Assignment and status</h2><div class="packing-item-form-grid">
         <div class="packing-item-field"><label>Assigned</label><div class="packing-item-control">${renderPerson(currentTask)}</div></div>
         <div class="packing-item-field"><label>Packing status</label><div class="packing-item-control">${renderPackingStatus(currentTask, canEditOwn)}</div></div>
-        <div class="packing-item-field"><label>Packing website confirmed</label><div class="packing-item-control">${renderCheck(currentTask, 'packing_website_confirmed', canEditOwn)}</div></div>
+        <div class="packing-item-field"><label>Website Complete</label><div class="packing-item-control">${renderCheck(currentTask, 'packing_website_confirmed', canEditOwn)}</div></div>
       </div></section>
       <section class="packing-item-section"><h2 class="packing-item-section-title">Dates and timing</h2><div class="packing-item-form-grid">
         <div class="packing-item-field"><label>Date loaded</label>${renderPackingDate(currentTask, 'date_loaded', canEditOwn)}</div>
         <div class="packing-item-field"><label>Date completed</label>${renderPackingDate(currentTask, 'date_completed', canEditOwn)}</div>
+        ${infoCard('Website completed at', currentTask.packing_website_completed_at ? formatWebsiteDate(currentTask.packing_website_completed_at) : 'Not complete')}
+        ${infoCard('Website completed by', currentTask.packing_website_completed_by_name || 'Not complete')}
       </div></section>
       <section class="packing-item-section"><h2 class="packing-item-section-title">Performance</h2><div class="packing-item-info-grid">
         ${infoCard('Time taken', duration(currentTask.date_started || currentTask.date_loaded, currentTask.date_completed) || 'Not complete')}${infoCard('Workload', currentTask.workload_points)}
       </div></section>`;
-    if (currentUser.can_edit_front_website) {
+    if (currentUser.can_view_front_website) {
       renderWebsiteConfirmation(currentTask);
     }
     if (typeof window.initialisePortalDatePickers === 'function') window.initialisePortalDatePickers(panelActivity);
@@ -2258,10 +2253,10 @@
   }
 
   function exportPackingRows(rows, filename) {
-    const headers = ['Item', 'Received Weight', 'Priority', 'Date Loaded', 'Quantity To Pack', 'Person Responsible', 'Quantity Packed', 'Date Completed', 'Website Inventory', 'Packing Website Confirmed', 'Status', 'Notes'];
+    const headers = ['Item', 'Received Weight', 'Priority', 'Date Loaded', 'Quantity To Pack', 'Person Responsible', 'Quantity Packed', 'Date Completed', 'Website Complete', 'Status', 'Notes'];
     const csvRows = [headers, ...rows.map((task) => [
       task.item_name, task.received_weight, labelText(priorities, task.priority), formatDate(task.date_loaded), task.quantity_planned,
-      task.assigned_name, task.quantity_packed, formatDate(task.date_completed), Number(task.website_uploaded || 0) === 1 ? 'Complete' : 'Pending', task.packing_website_confirmed,
+      task.assigned_name, task.quantity_packed, formatDate(task.date_completed), Number(task.packing_website_confirmed || 0) === 1 ? 'Complete' : 'Pending',
       labelText(statuses, task.packing_status), task.packer_notes
     ])];
     const csv = csvRows.map((row) => row.map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
@@ -3159,7 +3154,7 @@
       if (websiteCheck) {
         event.preventDefault();
         event.stopPropagation();
-        if (websiteCheck.dataset.locked === '1' || websiteCheck.dataset.saving === 'true' || !currentUser.can_edit_front_website) return;
+        if (websiteCheck.dataset.locked === '1' || websiteCheck.dataset.saving === 'true') return;
         const itemId = String(websiteCheck.dataset.packingItemId || '');
         const previousChecked = websiteCheck.getAttribute('aria-pressed') === 'true';
         if (!itemId) return;
@@ -3168,32 +3163,23 @@
         websiteCheck.classList.add('is-saving');
         websiteCheck.dataset.checked = nextChecked ? 'true' : 'false';
         websiteCheck.setAttribute('aria-pressed', nextChecked ? 'true' : 'false');
-        websiteCheck.setAttribute('aria-label', nextChecked ? 'Website updated' : 'Mark website as updated');
+        websiteCheck.setAttribute('aria-label', nextChecked ? 'Website Complete' : 'Mark Website Complete');
         updatePackingWebsiteSummaryForButton(websiteCheck);
         try {
-          const result = await post('confirm_website_update', { task_id: itemId, confirmed: nextChecked ? '1' : '0' });
-          const confirmation = result.data || {};
-          const person = confirmation.website_updated_by || {};
+          const result = await updateTasksField([itemId], 'packing_website_confirmed', nextChecked ? '1' : '0');
           const task = tasks.find((item) => String(item.id) === itemId);
-          if (task) Object.assign(task, {
-            website_uploaded: nextChecked ? 1 : 0,
-            website_uploaded_at: nextChecked ? confirmation.website_updated_at : null,
-            inventory_updated_at: nextChecked ? confirmation.website_updated_at : null,
-            inventory_updated_by: nextChecked ? (person.id || null) : null,
-            inventory_updated_by_name: nextChecked ? (person.name || 'User not recorded') : null,
-            inventory_updated_by_role: nextChecked ? (person.role || '') : '',
-          });
+          if (task) task.packing_website_confirmed = nextChecked ? 1 : 0;
           if (nextChecked) {
             websiteCheck.classList.add('is-confirmed');
             window.setTimeout(() => websiteCheck.classList.remove('is-confirmed'), 320);
           }
-          if (currentTask && String(currentTask.id) === itemId && panel.classList.contains('open')) renderWebsiteConfirmation(task || currentTask);
+          if (currentTask && String(currentTask.id) === itemId && panel.classList.contains('open')) openPanel(itemId);
           updateMetrics();
-          setCount(result.message || (nextChecked ? 'Website update confirmed.' : 'Website update confirmation removed.'));
+          setCount(result.message || (nextChecked ? 'Website Complete confirmed.' : 'Website Complete cleared.'));
         } catch (error) {
           websiteCheck.dataset.checked = previousChecked ? 'true' : 'false';
           websiteCheck.setAttribute('aria-pressed', previousChecked ? 'true' : 'false');
-          websiteCheck.setAttribute('aria-label', previousChecked ? 'Website updated' : 'Mark website as updated');
+          websiteCheck.setAttribute('aria-label', previousChecked ? 'Website Complete' : 'Mark Website Complete');
           updatePackingWebsiteSummaryForButton(websiteCheck);
           setCount(error.message || 'Unable to update website status.');
         } finally {
@@ -3210,33 +3196,26 @@
         restorePackingScrollState(scrollState, check);
         return;
       }
-      if (panelWebsite && currentTask && currentUser.can_edit_front_website) {
-        const nextChecked = panelWebsite.checked;
-        const previousChecked = Number(currentTask.website_uploaded || 0) === 1;
+      if (panelWebsite && currentTask && currentUser.can_confirm_front_website) {
+        const previousChecked = Boolean(currentTask.frontdesk_website?.updated);
+        if (previousChecked || !panelWebsite.checked) {
+          panelWebsite.checked = previousChecked;
+          return;
+        }
         const control = panelWebsite.closest('[data-packing-website-control]');
         panelWebsite.disabled = true;
         control?.classList.add('is-saving');
         try {
-          const result = await post('confirm_website_update', { task_id: String(currentTask.id), confirmed: nextChecked ? '1' : '0' });
+          const result = await post('confirm_frontdesk_website_update', { task_id: String(currentTask.id) });
           const confirmation = result.data || {};
-          const person = confirmation.website_updated_by || {};
-          Object.assign(currentTask, {
-            website_uploaded: nextChecked ? 1 : 0,
-            website_uploaded_at: nextChecked ? confirmation.website_updated_at : null,
-            inventory_updated_at: nextChecked ? confirmation.website_updated_at : null,
-            inventory_updated_by: nextChecked ? (person.id || null) : null,
-            inventory_updated_by_name: nextChecked ? (person.name || 'User not recorded') : null,
-            inventory_updated_by_role: nextChecked ? (person.role || '') : '',
-          });
+          currentTask.frontdesk_website = {
+            updated: true,
+            updated_at: confirmation.frontdesk_website_updated_at,
+            updated_by: confirmation.frontdesk_website_updated_by || null,
+            locked: true,
+          };
           renderWebsiteConfirmation(currentTask);
-          document.querySelectorAll(`[data-packing-website-toggle][data-packing-item-id="${CSS.escape(String(currentTask.id))}"]`).forEach((button) => {
-            button.dataset.checked = nextChecked ? 'true' : 'false';
-            button.setAttribute('aria-pressed', nextChecked ? 'true' : 'false');
-            button.setAttribute('aria-label', nextChecked ? 'Website updated' : 'Mark website as updated');
-            updatePackingWebsiteSummaryForButton(button);
-          });
-          updateMetrics();
-          setCount(result.message || (nextChecked ? 'Website update confirmed.' : 'Website update confirmation removed.'));
+          setCount(result.message || 'Front Desk website update confirmed.');
         } catch (error) {
           panelWebsite.checked = previousChecked;
           panelWebsite.disabled = false;

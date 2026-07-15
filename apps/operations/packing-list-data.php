@@ -29,12 +29,10 @@ $hasMondayBoardId = ops_column_exists('ops_packing_tasks', 'monday_board_id');
 $hasMondayStatus = ops_column_exists('ops_packing_tasks', 'monday_sync_status');
 $hasMondayError = ops_column_exists('ops_packing_tasks', 'monday_sync_error');
 $hasPackingRowKey = ops_column_exists('ops_packing_tasks', 'packing_row_key');
-$hasWebsiteUploadedAt = ops_column_exists('ops_packing_tasks', 'website_uploaded_at');
-$hasInventoryUpdatedAt = ops_column_exists('ops_packing_tasks', 'inventory_updated_at');
-$hasInventoryUpdatedBy = ops_column_exists('ops_packing_tasks', 'inventory_updated_by');
 $hasPackerNotes = ops_column_exists('ops_packing_tasks', 'packer_notes');
 $hasPackingAssignable = ops_ensure_packing_assignable_column();
 $hasPackingAutoAssignable = ops_ensure_packing_auto_assignable_column();
+$hasWebsiteWorkflows = ops_ensure_packing_website_workflow_columns();
 
 $receivedSelect = $hasReceivedWeight ? 'pt.received_weight' : "NULL AS received_weight";
 $confirmedSelect = $hasPackingConfirmed ? 'pt.packing_website_confirmed' : '0 AS packing_website_confirmed';
@@ -50,14 +48,18 @@ $packerNotesSelect = $hasPackerNotes ? 'pt.packer_notes' : "'' AS packer_notes";
 
 $currentEmployeeId = ops_current_employee_id();
 $canManage = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
-$canManageWebsiteUpdate = true;
-$websiteUploadedSelect = 'pt.website_uploaded';
-$websiteUploadedAtSelect = $canManageWebsiteUpdate && $hasWebsiteUploadedAt ? 'pt.website_uploaded_at' : 'NULL AS website_uploaded_at';
-$inventoryUpdatedAtSelect = $canManageWebsiteUpdate && $hasInventoryUpdatedAt ? 'pt.inventory_updated_at' : 'NULL AS inventory_updated_at';
-$inventoryUpdatedBySelect = $canManageWebsiteUpdate && $hasInventoryUpdatedBy ? 'pt.inventory_updated_by' : 'NULL AS inventory_updated_by';
-$inventoryUpdatedByNameSelect = $canManageWebsiteUpdate && $hasInventoryUpdatedBy ? 'website_employee.full_name AS inventory_updated_by_name' : 'NULL AS inventory_updated_by_name';
-$inventoryUpdatedByRoleSelect = $canManageWebsiteUpdate && $hasInventoryUpdatedBy ? 'website_role.role_key AS inventory_updated_by_role_key, website_role.name AS inventory_updated_by_role_name' : 'NULL AS inventory_updated_by_role_key, NULL AS inventory_updated_by_role_name';
-$websiteEmployeeJoin = $canManageWebsiteUpdate && $hasInventoryUpdatedBy ? 'LEFT JOIN ops_employees website_employee ON website_employee.id = pt.inventory_updated_by LEFT JOIN ops_roles website_role ON website_role.id = website_employee.role_id' : '';
+$canViewFrontdeskWebsite = user_has_role('owner_admin', 'front_desk_admin', 'front_desk_admin_employee');
+$canConfirmFrontdeskWebsite = user_has_role('front_desk_admin', 'front_desk_admin_employee');
+$packingWebsiteAuditSelect = $hasWebsiteWorkflows
+    ? 'pt.packing_website_completed_at, pt.packing_website_completed_by, packing_website_employee.full_name AS packing_website_completed_by_name'
+    : 'NULL AS packing_website_completed_at, NULL AS packing_website_completed_by, NULL AS packing_website_completed_by_name';
+$frontdeskWebsiteSelect = $canViewFrontdeskWebsite && $hasWebsiteWorkflows
+    ? 'pt.frontdesk_website_updated, pt.frontdesk_website_updated_at, pt.frontdesk_website_updated_by, frontdesk_employee.full_name AS frontdesk_website_updated_by_name, frontdesk_role.role_key AS frontdesk_website_updated_by_role_key, frontdesk_role.name AS frontdesk_website_updated_by_role_name'
+    : '0 AS frontdesk_website_updated, NULL AS frontdesk_website_updated_at, NULL AS frontdesk_website_updated_by, NULL AS frontdesk_website_updated_by_name, NULL AS frontdesk_website_updated_by_role_key, NULL AS frontdesk_website_updated_by_role_name';
+$websiteWorkflowJoins = $hasWebsiteWorkflows
+    ? 'LEFT JOIN ops_employees packing_website_employee ON packing_website_employee.id = pt.packing_website_completed_by '
+        . ($canViewFrontdeskWebsite ? 'LEFT JOIN ops_employees frontdesk_employee ON frontdesk_employee.id = pt.frontdesk_website_updated_by LEFT JOIN ops_roles frontdesk_role ON frontdesk_role.id = frontdesk_employee.role_id' : '')
+    : '';
 
 // One-time, narrowly scoped repair for the invoice-import bug that wrote the
 // host's UTC time to date_loaded while a database default populated
@@ -150,13 +152,12 @@ $tasks = ops_rows(
     "SELECT
         pt.id, pt.item_name, {$receivedSelect}, pt.priority, pt.date_loaded, {$startedSelect},
         pt.quantity_planned, pt.assigned_employee_id, e.full_name AS assigned_name,
-        pt.quantity_packed, pt.date_completed, {$websiteUploadedSelect}, {$confirmedSelect},
+        pt.quantity_packed, pt.date_completed, {$confirmedSelect}, {$packingWebsiteAuditSelect}, {$frontdeskWebsiteSelect},
         pt.packing_status, pt.notes, {$packerNotesSelect}, pt.workload_points, {$invoiceSelect}, {$labelSelect},
-        {$mondayIdSelect}, {$mondayBoardIdSelect}, {$mondayStatusSelect}, {$mondayErrorSelect}, {$packingRowKeySelect},
-        {$websiteUploadedAtSelect}, {$inventoryUpdatedAtSelect}, {$inventoryUpdatedBySelect}, {$inventoryUpdatedByNameSelect}, {$inventoryUpdatedByRoleSelect}
+        {$mondayIdSelect}, {$mondayBoardIdSelect}, {$mondayStatusSelect}, {$mondayErrorSelect}, {$packingRowKeySelect}
      FROM ops_packing_tasks pt
      LEFT JOIN ops_employees e ON e.id = pt.assigned_employee_id
-     {$websiteEmployeeJoin}
+     {$websiteWorkflowJoins}
      {$where}
      ORDER BY pt.date_loaded DESC, FIELD(pt.priority, 'top_critical', 'high', 'medium', 'low'), pt.id DESC
      LIMIT 500",
@@ -219,12 +220,36 @@ foreach ($tasks as &$task) {
     if ($assignedId && isset($packerNameMap[$assignedId])) {
         $task['assigned_name'] = $packerNameMap[$assignedId];
     }
-    if ($canManageWebsiteUpdate && !empty($task['inventory_updated_by_name'])) {
-        $task['inventory_updated_by_name'] = ops_staff_display_name(['full_name' => $task['inventory_updated_by_name'], 'role_key' => $task['inventory_updated_by_role_key'] ?? '']);
-        $task['inventory_updated_by_role'] = str_replace(' Employee', '', ops_staff_role_label(['role_key' => $task['inventory_updated_by_role_key'] ?? '', 'role_name' => $task['inventory_updated_by_role_name'] ?? '']));
+    $task['packing_website'] = [
+        'complete' => (bool) ($task['packing_website_confirmed'] ?? false),
+        'completed_at' => $task['packing_website_completed_at'] ?? null,
+        'completed_by' => !empty($task['packing_website_completed_by']) ? [
+            'id' => (int) $task['packing_website_completed_by'],
+            'name' => (string) ($task['packing_website_completed_by_name'] ?? 'User not recorded'),
+        ] : null,
+    ];
+    if ($canViewFrontdeskWebsite) {
+        $roleKey = (string) ($task['frontdesk_website_updated_by_role_key'] ?? '');
+        $roleName = (string) ($task['frontdesk_website_updated_by_role_name'] ?? '');
+        $frontdeskName = !empty($task['frontdesk_website_updated_by_name'])
+            ? ops_staff_display_name(['full_name' => $task['frontdesk_website_updated_by_name'], 'role_key' => $roleKey])
+            : null;
+        $task['frontdesk_website'] = [
+            'updated' => (bool) ($task['frontdesk_website_updated'] ?? false),
+            'updated_at' => $task['frontdesk_website_updated_at'] ?? null,
+            'updated_by' => !empty($task['frontdesk_website_updated_by']) ? [
+                'id' => (int) $task['frontdesk_website_updated_by'],
+                'name' => $frontdeskName ?: 'User not recorded',
+                'role' => str_replace(' Employee', '', ops_staff_role_label(['role_key' => $roleKey, 'role_name' => $roleName])),
+            ] : null,
+            'locked' => (bool) ($task['frontdesk_website_updated'] ?? false),
+        ];
+        foreach (['frontdesk_website_updated', 'frontdesk_website_updated_at', 'frontdesk_website_updated_by', 'frontdesk_website_updated_by_name', 'frontdesk_website_updated_by_role_key', 'frontdesk_website_updated_by_role_name'] as $websiteField) {
+            unset($task[$websiteField]);
+        }
     }
-    if (!$canManageWebsiteUpdate) {
-        foreach (['website_uploaded_at', 'inventory_updated_at', 'inventory_updated_by', 'inventory_updated_by_name', 'inventory_updated_by_role_key', 'inventory_updated_by_role_name', 'inventory_updated_by_role'] as $websiteField) {
+    if (!$canViewFrontdeskWebsite) {
+        foreach (['frontdesk_website_updated', 'frontdesk_website_updated_at', 'frontdesk_website_updated_by', 'frontdesk_website_updated_by_name', 'frontdesk_website_updated_by_role_key', 'frontdesk_website_updated_by_role_name', 'frontdesk_website'] as $websiteField) {
             unset($task[$websiteField]);
         }
     }
@@ -244,7 +269,8 @@ echo json_encode([
         'can_manage' => $canManage,
         'can_bulk_manage' => $canManage,
         'can_delete' => user_has_role('owner_admin', 'supervisor_manager'),
-        'can_edit_front_website' => $canManageWebsiteUpdate,
+        'can_view_front_website' => $canViewFrontdeskWebsite,
+        'can_confirm_front_website' => $canConfirmFrontdeskWebsite,
         'can_manage_people' => user_has_role('owner_admin'),
         'employee_accounts_url' => BASE_URL . '/apps/operations/my-account.php?section=employees',
     ],

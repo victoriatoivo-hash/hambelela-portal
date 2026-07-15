@@ -540,6 +540,39 @@ function ops_ensure_packing_assignable_column(): bool
     return ops_column_exists('ops_employees', 'packing_assignable');
 }
 
+function ops_ensure_packing_website_workflow_columns(): bool
+{
+    if (!ops_table_exists('ops_packing_tasks')) {
+        return false;
+    }
+
+    $columns = [
+        'packing_website_completed_at' => 'DATETIME NULL',
+        'packing_website_completed_by' => 'INT NULL',
+        'frontdesk_website_updated' => 'TINYINT(1) NOT NULL DEFAULT 0',
+        'frontdesk_website_updated_at' => 'DATETIME NULL',
+        'frontdesk_website_updated_by' => 'INT NULL',
+    ];
+
+    foreach ($columns as $column => $definition) {
+        if (ops_column_exists('ops_packing_tasks', $column)) {
+            continue;
+        }
+        try {
+            db()->exec("ALTER TABLE ops_packing_tasks ADD COLUMN {$column} {$definition}");
+        } catch (Throwable $e) {
+            return false;
+        }
+    }
+
+    foreach (array_keys($columns) as $column) {
+        if (!ops_column_exists('ops_packing_tasks', $column)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 function ops_ensure_packing_auto_assignable_column(): bool
 {
     if (!ops_ensure_packing_assignable_column()) {
