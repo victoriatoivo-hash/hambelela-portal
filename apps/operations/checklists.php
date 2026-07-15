@@ -23,11 +23,10 @@ $types = [
     'stock_refill' => 'Stock refill',
 ];
 $priorities = ['low' => 'Low', 'medium' => 'Medium', 'high' => 'High', 'top_critical' => 'Top Critical'];
-$statuses = ['pending' => 'Pending', 'started' => 'Started', 'in_progress' => 'In Progress', 'complete' => 'Complete'];
+$statuses = ['pending' => 'Pending', 'in_progress' => 'In Progress', 'complete' => 'Complete'];
 $groups = [
     'overdue' => 'Overdue',
     'pending' => 'Pending',
-    'started' => 'Started',
     'in_progress' => 'In Progress',
     'complete' => 'Complete',
 ];
@@ -84,6 +83,17 @@ function checklist_bootstrap_schema(): void
     }
     checklist_try_sql("UPDATE ops_checklist_tasks SET status = 'pending' WHERE status IN ('not_started', 'missed')");
     checklist_try_sql("UPDATE ops_checklist_tasks SET status = 'complete' WHERE status IN ('done', 'completed', 'approved', 'needs_review')");
+    $legacyStarted = ops_rows("SELECT id FROM ops_checklist_tasks WHERE status IN ('start', 'started')");
+    if ($legacyStarted) {
+        checklist_try_sql("UPDATE ops_checklist_tasks SET status = 'in_progress' WHERE status IN ('start', 'started')");
+        foreach ($legacyStarted as $legacyTask) {
+            ops_activity_log('task_status_migrated', 'checklist_task', (int) $legacyTask['id'], [
+                'event' => 'Legacy Started status consolidated into In Progress.',
+                'previous_status' => 'started',
+                'status' => 'in_progress',
+            ]);
+        }
+    }
 }
 
 function checklist_json_items(?string $value): array
@@ -159,7 +169,7 @@ function checklist_normalize_status(string $status): string
 {
     $status = strtolower(trim($status));
     if (in_array($status, ['not_started', 'pending', 'missed', ''], true)) return 'pending';
-    if (in_array($status, ['start', 'started'], true)) return 'started';
+    if (in_array($status, ['start', 'started'], true)) return 'in_progress';
     if (in_array($status, ['progress', 'in_progress'], true)) return 'in_progress';
     if (in_array($status, ['done', 'completed', 'approved', 'needs_review', 'complete'], true)) return 'complete';
     return 'pending';
@@ -231,6 +241,47 @@ if ($ready) {
 if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $action = ops_post_string('action', 40);
+        if ($action === 'update_task_status') {
+            header('Content-Type: application/json; charset=utf-8');
+            $taskId = (int) ($_POST['task_id'] ?? 0);
+            $status = checklist_normalize_status(ops_post_string('status', 30));
+            if ($taskId <= 0 || !array_key_exists($status, $statuses)) {
+                throw new RuntimeException('Choose a valid task status.');
+            }
+            $scope = $canManage ? 'id = ?' : 'id = ? AND assigned_employee_id = ?';
+            $scopeParams = $canManage ? [$taskId] : [$taskId, $currentEmployeeId ?: 0];
+            $beforeRows = ops_rows("SELECT status, deadline FROM ops_checklist_tasks WHERE {$scope} LIMIT 1", $scopeParams);
+            if (!$beforeRows) throw new RuntimeException('Task was not found or is not assigned to you.');
+            $previousStatus = checklist_normalize_status((string) $beforeRows[0]['status']);
+            if ($status === 'complete') {
+                $set = 'status = ?, completed_at = COALESCE(completed_at, NOW()), date_completed = COALESCE(date_completed, NOW()), completed_by = COALESCE(completed_by, ?)';
+                $updateParams = [$status, $currentEmployeeId];
+            } else {
+                $set = 'status = ?, completed_at = NULL, date_completed = NULL, completed_by = NULL';
+                $updateParams = [$status];
+            }
+            $stmt = db()->prepare("UPDATE ops_checklist_tasks SET {$set} WHERE {$scope}");
+            $stmt->execute([...$updateParams, ...$scopeParams]);
+            if ($stmt->rowCount() < 1 && $previousStatus !== $status) throw new RuntimeException('The task status could not be saved.');
+            ops_activity_log($status === 'complete' ? 'task_completed' : ($previousStatus === 'complete' ? 'task_reopened' : 'task_status_changed'), 'checklist_task', $taskId, [
+                'previous_status' => $previousStatus,
+                'status' => $status,
+                'changed_by' => current_user()['name'] ?? 'Unknown',
+            ]);
+            $afterRows = ops_rows("SELECT t.status, t.deadline, t.date_completed, t.completed_by, e.full_name AS completed_by_name FROM ops_checklist_tasks t LEFT JOIN ops_employees e ON e.id = t.completed_by WHERE t.id = ? LIMIT 1", [$taskId]);
+            $after = $afterRows[0] ?? ['status' => $status, 'deadline' => $beforeRows[0]['deadline'] ?? null];
+            $displayStatus = checklist_effective_status($after);
+            echo json_encode(['success' => true, 'task' => [
+                'id' => $taskId,
+                'status' => $status,
+                'display_status' => $displayStatus,
+                'display_label' => $groups[$displayStatus] ?? ($statuses[$displayStatus] ?? $displayStatus),
+                'date_completed' => $after['date_completed'] ?? null,
+                'completed_by' => $after['completed_by'] ?? null,
+                'completed_by_name' => $after['completed_by_name'] ?? null,
+            ]]);
+            exit;
+        }
         if ($action === 'bulk_task_action') {
             header('Content-Type: application/json; charset=utf-8');
             if (!$canManage) {
@@ -345,6 +396,11 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = 'Task saved.';
         }
     } catch (Throwable $e) {
+        if (($action ?? '') === 'update_task_status') {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+            exit;
+        }
         $message = $e->getMessage();
         $messageType = 'error';
     }
@@ -363,6 +419,7 @@ $filters = [
     'date_to' => trim((string) ($_GET['date_to'] ?? '')),
     'employee_id' => trim((string) ($_GET['employee_id'] ?? '')),
     'status' => trim((string) ($_GET['status'] ?? '')),
+    'overdue_only' => (string) ($_GET['overdue_only'] ?? '') === '1' ? '1' : '',
     'priority' => trim((string) ($_GET['priority'] ?? '')),
     'checklist_type' => trim((string) ($_GET['checklist_type'] ?? '')),
     'task_kind' => trim((string) ($_GET['task_kind'] ?? '')),
@@ -414,10 +471,11 @@ if ($filters['search'] !== '') {
     $where[] = '(t.task_name LIKE ? OR t.notes LIKE ? OR t.instructions LIKE ? OR t.completion_note LIKE ?)';
     array_push($params, '%' . $filters['search'] . '%', '%' . $filters['search'] . '%', '%' . $filters['search'] . '%', '%' . $filters['search'] . '%');
 }
+if ($filters['overdue_only'] === '1') {
+    $where[] = "t.status <> 'complete' AND t.deadline IS NOT NULL AND t.deadline < NOW()";
+}
 if ($filters['status'] !== '') {
-    if ($filters['status'] === 'overdue') {
-        $where[] = "t.status IN ('pending', 'not_started', 'missed') AND t.deadline IS NOT NULL AND t.deadline < NOW()";
-    } elseif ($filters['status'] === 'completed') {
+    if ($filters['status'] === 'completed') {
         $where[] = "t.status = 'complete'";
     } elseif (array_key_exists($filters['status'], $statuses)) {
         $where[] = 't.status = ?';
@@ -490,17 +548,19 @@ foreach ($tasks as $task) {
     if (!isset($tasksByGroup[$effectiveStatus])) $effectiveStatus = 'pending';
     $tasksByGroup[$effectiveStatus][] = $task;
 }
-$metrics = ['total' => count($tasks), 'overdue' => count($tasksByGroup['overdue']), 'pending' => count($tasksByGroup['pending']), 'started' => count($tasksByGroup['started']), 'in_progress' => count($tasksByGroup['in_progress']), 'completed_today' => 0, 'due_today' => 0, 'missed_recurring' => 0];
+$metrics = ['total' => count($tasks), 'overdue' => count($tasksByGroup['overdue']), 'pending' => 0, 'in_progress' => 0, 'completed_today' => 0, 'due_today' => 0, 'missed_recurring' => 0];
 foreach ($tasks as $task) {
     $savedStatus = checklist_normalize_status((string) ($task['status'] ?? 'pending'));
+    if ($savedStatus === 'pending') $metrics['pending']++;
+    if ($savedStatus === 'in_progress') $metrics['in_progress']++;
     if ($savedStatus === 'complete' && !empty($task['date_completed']) && substr((string) $task['date_completed'], 0, 10) === date('Y-m-d')) $metrics['completed_today']++;
     if (!empty($task['deadline']) && substr((string) $task['deadline'], 0, 10) === date('Y-m-d') && $savedStatus !== 'complete') $metrics['due_today']++;
     if (checklist_task_kind($task) === 'recurring' && checklist_effective_status($task) === 'overdue') $metrics['missed_recurring']++;
 }
 $completedCount = count($tasksByGroup['complete']);
 $metrics['compliance'] = $metrics['total'] > 0 ? (int) round(($completedCount / max(1, $metrics['total'])) * 100) : 0;
-$metrics['active'] = max(0, $metrics['total'] - count($tasksByGroup['complete']));
-$filtersAreActive = $filters['date_from'] !== '' || $filters['date_to'] !== '' || $filters['employee_id'] !== '' || $filters['status'] !== '' || $filters['priority'] !== '' || $filters['checklist_type'] !== '' || $filters['task_kind'] !== '' || $filters['search'] !== '';
+$metrics['active'] = $metrics['pending'] + $metrics['in_progress'];
+$filtersAreActive = $filters['date_from'] !== '' || $filters['date_to'] !== '' || $filters['employee_id'] !== '' || $filters['status'] !== '' || $filters['overdue_only'] !== '' || $filters['priority'] !== '' || $filters['checklist_type'] !== '' || $filters['task_kind'] !== '' || $filters['search'] !== '';
 
 $activityByTask = [];
 if ($ready && ($tasks || $historyTasks) && ops_table_exists('ops_activity_logs')) {
@@ -521,7 +581,7 @@ if ($ready && ($tasks || $historyTasks) && ops_table_exists('ops_activity_logs')
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
-<main class="workspace module digital-task-page">
+<main class="workspace module digital-task-page" data-task-view="<?= htmlspecialchars($filters['task_view'], ENT_QUOTES, 'UTF-8') ?>">
     <header class="dtb-page-header">
         <div>
             <p class="dtb-page-kicker">Task Management</p>
@@ -534,23 +594,13 @@ include BASE_PATH . '/shared/sidebar.php';
     <?php if (!$ready) { ops_setup_notice(); } ?>
     <?php ops_flash($message, $messageType); ?>
 
-    <?php if ($canManage): ?>
-        <section class="dtb-stats-grid">
-            <article class="dtb-stat-card" data-stat="overdue"><span class="dtb-stat-icon"><i data-lucide="alert-triangle"></i></span><div><p class="dtb-stat-label">Overdue Tasks</p><strong class="dtb-stat-value"><?= number_format($metrics['overdue']) ?></strong></div></article>
-            <article class="dtb-stat-card" data-stat="pending"><span class="dtb-stat-icon"><i data-lucide="hourglass"></i></span><div><p class="dtb-stat-label">Pending Tasks</p><strong class="dtb-stat-value"><?= number_format($metrics['pending']) ?></strong></div></article>
-            <article class="dtb-stat-card" data-stat="started"><span class="dtb-stat-icon"><i data-lucide="play-circle"></i></span><div><p class="dtb-stat-label">Started</p><strong class="dtb-stat-value"><?= number_format($metrics['started']) ?></strong></div></article>
-            <article class="dtb-stat-card" data-stat="in-progress"><span class="dtb-stat-icon"><i data-lucide="clock-3"></i></span><div><p class="dtb-stat-label">In Progress</p><strong class="dtb-stat-value"><?= number_format($metrics['in_progress']) ?></strong></div></article>
-            <article class="dtb-stat-card" data-stat="complete"><span class="dtb-stat-icon"><i data-lucide="check-circle-2"></i></span><div><p class="dtb-stat-label">Completed Today</p><strong class="dtb-stat-value"><?= number_format($metrics['completed_today']) ?></strong></div></article>
-            <article class="dtb-stat-card" data-stat="active"><span class="dtb-stat-icon"><i data-lucide="list-checks"></i></span><div><p class="dtb-stat-label">Total Active Tasks</p><strong class="dtb-stat-value"><?= number_format($metrics['active']) ?></strong></div></article>
-        </section>
-    <?php else: ?>
-        <section class="dtb-stats-grid dtb-stats-grid-employee">
-            <article class="dtb-stat-card" data-stat="active"><span class="dtb-stat-icon"><i data-lucide="clipboard-list"></i></span><div><p class="dtb-stat-label">My Tasks</p><strong class="dtb-stat-value"><?= number_format($metrics['active']) ?></strong></div></article>
-            <article class="dtb-stat-card" data-stat="started"><span class="dtb-stat-icon"><i data-lucide="calendar-clock"></i></span><div><p class="dtb-stat-label">Due Today</p><strong class="dtb-stat-value"><?= number_format($metrics['due_today']) ?></strong></div></article>
-            <article class="dtb-stat-card" data-stat="overdue"><span class="dtb-stat-icon"><i data-lucide="alert-triangle"></i></span><div><p class="dtb-stat-label">Overdue</p><strong class="dtb-stat-value"><?= number_format($metrics['overdue']) ?></strong></div></article>
-            <article class="dtb-stat-card" data-stat="in-progress"><span class="dtb-stat-icon"><i data-lucide="clock-3"></i></span><div><p class="dtb-stat-label">In Progress</p><strong class="dtb-stat-value"><?= number_format($metrics['in_progress']) ?></strong></div></article>
-        </section>
-    <?php endif; ?>
+    <section class="dtb-stats-grid">
+        <article class="dtb-stat-card" data-stat="overdue"><span class="dtb-stat-icon"><i data-lucide="alert-triangle"></i></span><div><p class="dtb-stat-label">Overdue</p><strong class="dtb-stat-value"><?= number_format($metrics['overdue']) ?></strong></div></article>
+        <article class="dtb-stat-card" data-stat="pending"><span class="dtb-stat-icon"><i data-lucide="hourglass"></i></span><div><p class="dtb-stat-label">Pending</p><strong class="dtb-stat-value"><?= number_format($metrics['pending']) ?></strong></div></article>
+        <article class="dtb-stat-card" data-stat="in-progress"><span class="dtb-stat-icon"><i data-lucide="clock-3"></i></span><div><p class="dtb-stat-label">In Progress</p><strong class="dtb-stat-value"><?= number_format($metrics['in_progress']) ?></strong></div></article>
+        <article class="dtb-stat-card" data-stat="complete"><span class="dtb-stat-icon"><i data-lucide="check-circle-2"></i></span><div><p class="dtb-stat-label">Completed Today</p><strong class="dtb-stat-value"><?= number_format($metrics['completed_today']) ?></strong></div></article>
+        <article class="dtb-stat-card" data-stat="active"><span class="dtb-stat-icon"><i data-lucide="list-checks"></i></span><div><p class="dtb-stat-label">Total Active</p><strong class="dtb-stat-value"><?= number_format($metrics['active']) ?></strong></div></article>
+    </section>
 
     <nav class="dtb-tabs" aria-label="Task views">
         <?php
@@ -575,7 +625,8 @@ include BASE_PATH . '/shared/sidebar.php';
                     <?php $employeeFilterOptions = ['' => 'All people']; foreach ($employees as $employee) $employeeFilterOptions[(string) $employee['id']] = (string) $employee['full_name']; ?>
                     <?php checklist_custom_filter_field('Person', 'employee_id', $employeeFilterOptions, $filters['employee_id']); ?>
                 <?php endif; ?>
-                <?php checklist_custom_filter_field('Status', 'status', ['' => 'All statuses', 'overdue' => 'Overdue', 'pending' => 'Pending', 'started' => 'Started', 'in_progress' => 'In Progress', 'completed' => 'Completed'], $filters['status']); ?>
+                <?php checklist_custom_filter_field('Status', 'status', ['' => 'All statuses', 'pending' => 'Pending', 'in_progress' => 'In Progress', 'completed' => 'Complete'], $filters['status']); ?>
+                <label class="dtb-overdue-filter"><span>Overdue only</span><input type="checkbox" name="overdue_only" value="1" <?= $filters['overdue_only'] === '1' ? 'checked' : '' ?>></label>
                 <?php if ($canManage): ?>
                     <?php checklist_custom_filter_field('Priority', 'priority', ['' => 'All priorities'] + $priorities, $filters['priority']); ?>
                     <?php checklist_custom_filter_field('Task type', 'checklist_type', ['' => 'All types'] + $types, $filters['checklist_type']); ?>
@@ -617,50 +668,45 @@ include BASE_PATH . '/shared/sidebar.php';
     <?php endif; ?>
 
     <?php if ($filters['task_view'] !== 'history'): ?>
-    <section class="dtb-sections">
-        <?php foreach ($groups as $groupKey => $groupLabel): ?>
-            <?php $groupTasks = $tasksByGroup[$groupKey] ?? []; ?>
-            <?php $sectionKey = str_replace('_', '-', $groupKey); ?>
-            <section class="dtb-status-section task-status-section" data-task-section="<?= htmlspecialchars($sectionKey, ENT_QUOTES, 'UTF-8') ?>" data-collapsible-task-section>
-                <button type="button" class="dtb-status-header task-status-header" aria-expanded="true">
-                    <span class="task-status-heading-wrap"><span class="dtb-status-title task-status-title"><?= htmlspecialchars($groupLabel, ENT_QUOTES, 'UTF-8') ?></span></span>
-                    <span class="task-status-header-actions">
-                        <i class="task-status-chevron" data-lucide="chevron-down" aria-hidden="true"></i>
-                        <span class="dtb-status-count task-status-count"><?= number_format(count($groupTasks)) ?></span>
-                    </span>
-                </button>
-                <div class="task-status-body">
-                <div class="dtb-table-wrap">
-                <table class="dtb-board-table">
-                    <colgroup><col class="dtb-col-select"><col class="dtb-col-name"><col class="dtb-col-assigned"><col class="dtb-col-priority"><col class="dtb-col-due"><col class="dtb-col-days"><col class="dtb-col-status"><col class="dtb-col-actions"></colgroup>
-                    <thead><tr><th class="dtb-select-cell"><input class="dtb-task-check dtb-task-check-all" type="checkbox" aria-label="Select all <?= htmlspecialchars($groupLabel, ENT_QUOTES, 'UTF-8') ?> tasks"></th><th>Task</th><th>Assigned</th><th>Priority</th><th>Due</th><th>Days</th><th>Status</th><th>Actions</th></tr></thead>
-                    <tbody>
-                <?php foreach ($groupTasks as $task): ?>
+    <section class="task-board" data-task-board>
+        <div class="dtb-table-wrap">
+        <table class="dtb-board-table task-board-table">
+            <colgroup><col class="dtb-col-select"><col class="dtb-col-name"><col class="dtb-col-actions"><col class="dtb-col-assigned"><col class="dtb-col-priority"><col class="dtb-col-due"><col class="dtb-col-days"><col class="dtb-col-status"><col class="dtb-col-progress"><col class="dtb-col-completed"><col class="dtb-col-notes"></colgroup>
+            <thead><tr><th class="dtb-select-cell"><input class="dtb-task-check dtb-task-check-all" type="checkbox" aria-label="Select all visible tasks"></th><th>Task</th><th>Details</th><th>Assigned</th><th>Priority</th><th>Due</th><th>Days</th><th>Status</th><th>Progress</th><th>Completed</th><th>Notes</th></tr></thead>
+            <tbody>
+                <?php foreach ($tasks as $task): ?>
                     <?php
                     $effective = checklist_effective_status($task);
                     $priorityKey = (string) ($task['priority'] ?? 'medium');
                     $statusKey = str_replace('_', '-', $effective);
+                    $savedStatus = checklist_normalize_status((string) ($task['status'] ?? 'pending'));
+                    $rowItems = checklist_json_items((string) ($task['checklist_items'] ?? ''));
+                    $rowChecked = checklist_json_items((string) ($task['checked_items'] ?? ''));
+                    $progress = $rowItems ? (int) round(count($rowChecked) / max(1, count($rowItems)) * 100) : ($savedStatus === 'complete' ? 100 : 0);
                     ?>
                     <?php $taskId = (int) $task['id']; ?>
-                    <tr class="dtb-task-row" data-task-row data-task-id="<?= $taskId ?>" data-task-name="<?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?>" data-task-assigned="<?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?>" data-task-priority="<?= htmlspecialchars($priorities[$priorityKey] ?? 'Medium', ENT_QUOTES, 'UTF-8') ?>" data-task-status="<?= htmlspecialchars($groups[$effective] ?? ($statuses[$effective] ?? $effective), ENT_QUOTES, 'UTF-8') ?>">
+                    <tr class="dtb-task-row task-grid-row" data-task-row data-task-id="<?= $taskId ?>" data-saved-status="<?= htmlspecialchars($savedStatus, ENT_QUOTES, 'UTF-8') ?>" data-display-status="<?= htmlspecialchars($effective, ENT_QUOTES, 'UTF-8') ?>" data-task-name="<?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?>" data-task-assigned="<?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?>" data-task-priority="<?= htmlspecialchars($priorities[$priorityKey] ?? 'Medium', ENT_QUOTES, 'UTF-8') ?>" data-task-status="<?= htmlspecialchars($groups[$effective] ?? ($statuses[$effective] ?? $effective), ENT_QUOTES, 'UTF-8') ?>">
                         <td class="dtb-select-cell"><input class="dtb-task-check" type="checkbox" value="<?= $taskId ?>" aria-label="Select <?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?>"></td>
-                        <td><span class="dtb-task-name"><?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?></span></td>
+                        <td><button type="button" class="task-name-trigger" data-task-open="<?= $taskId ?>"><?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?></button></td>
+                        <td><button class="task-detail-icon" type="button" data-task-open="<?= $taskId ?>" aria-label="Open task details"><i data-lucide="panel-right-open"></i></button></td>
                         <td><?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?></td>
                         <td class="task-priority-cell"><div class="task-priority-fill" data-priority="<?= htmlspecialchars(str_replace('_', '-', $priorityKey), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($priorities[$priorityKey] ?? 'Medium', ENT_QUOTES, 'UTF-8') ?></div></td>
                         <td><?= checklist_date_label((string) ($task['deadline'] ?? '')) ?></td>
                         <td><?= htmlspecialchars(checklist_days_remaining((string) ($task['deadline'] ?? ''), $effective), ENT_QUOTES, 'UTF-8') ?></td>
-                        <td class="task-status-cell"><div class="task-status-fill" data-status="<?= htmlspecialchars($statusKey, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($groups[$effective] ?? ($statuses[$effective] ?? $effective), ENT_QUOTES, 'UTF-8') ?></div></td>
-                        <td><button class="task-view-btn" type="button" data-task-open="<?= $taskId ?>"><svg class="task-view-btn-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="2.5" fill="none" stroke="currentColor" stroke-width="1.7"/></svg><span>View</span></button></td>
+                        <td class="task-status-cell"><button type="button" class="task-status-trigger" data-task-status-trigger data-status="<?= htmlspecialchars($statusKey, ENT_QUOTES, 'UTF-8') ?>" aria-haspopup="menu" aria-expanded="false"><?= htmlspecialchars($groups[$effective] ?? ($statuses[$effective] ?? $effective), ENT_QUOTES, 'UTF-8') ?></button></td>
+                        <td><span class="task-progress-value"><?= $progress ?>%</span></td>
+                        <td data-task-completed><?= htmlspecialchars(checklist_date_label((string) ($task['date_completed'] ?: $task['completed_at'])), ENT_QUOTES, 'UTF-8') ?></td>
+                        <td><span class="task-notes-preview"><?= htmlspecialchars((string) ($task['completion_note'] ?: $task['notes'] ?: '—'), ENT_QUOTES, 'UTF-8') ?></span></td>
                     </tr>
                 <?php endforeach; ?>
-                <?php if (!$groupTasks): ?><tr class="dtb-empty-row"><td colspan="8">No tasks in this section.</td></tr><?php endif; ?>
-                    </tbody>
-                </table>
-                </div>
-                </div>
-            </section>
-        <?php endforeach; ?>
+                <?php if (!$tasks): ?><tr class="dtb-empty-row"><td colspan="11">No tasks match this view and its filters.</td></tr><?php endif; ?>
+            </tbody>
+        </table>
+        </div>
     </section>
+    <div class="task-status-popup" data-task-status-popup hidden role="menu">
+        <?php foreach ($statuses as $statusKey => $statusLabel): ?><button type="button" data-status-key="<?= htmlspecialchars($statusKey, ENT_QUOTES, 'UTF-8') ?>" role="menuitem"><?= htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8') ?></button><?php endforeach; ?>
+    </div>
     <?php endif; ?>
 
     <div class="dtb-bulk-action-bar" data-task-bulk-bar hidden>
@@ -720,7 +766,16 @@ include BASE_PATH . '/shared/sidebar.php';
                 </div>
             </header>
 
-            <div class="task-details-body">
+            <nav class="task-panel-tabs" aria-label="Task detail sections">
+                <button type="button" data-task-panel-jump="task-details-<?= $panelId ?>">Details</button>
+                <button type="button" data-task-panel-jump="task-checklist-<?= $panelId ?>">Checklist</button>
+                <button type="button" data-task-panel-jump="task-notes-<?= $panelId ?>">Notes</button>
+                <button type="button" data-task-panel-jump="task-files-<?= $panelId ?>">Files</button>
+                <button type="button" data-task-panel-jump="task-activity-<?= $panelId ?>">Activity</button>
+                <?php if ($taskKind === 'recurring'): ?><button type="button" data-task-panel-jump="task-details-<?= $panelId ?>">Schedule</button><?php endif; ?>
+            </nav>
+
+            <div class="task-details-body" id="task-details-<?= $panelId ?>">
                 <?php if ($canManage): ?>
                     <form method="post" class="task-details-section task-edit-card">
                         <input type="hidden" name="action" value="admin_update_task">
@@ -744,7 +799,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 <form method="post" enctype="multipart/form-data" class="task-details-section task-details-progress-form">
                     <input type="hidden" name="task_id" value="<?= $panelId ?>">
                     <section class="task-content-card">
-                        <h3 class="task-content-heading">Checklist items</h3>
+                    <h3 class="task-content-heading" id="task-checklist-<?= $panelId ?>">Checklist items</h3>
                         <div class="task-checklist">
                             <?php foreach ($items as $item): ?>
                                 <?php $itemComplete = in_array($item, $checked, true); ?>
@@ -758,7 +813,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         <section class="task-details-section task-progress-card">
                             <h3 class="task-section-title">Progress update</h3>
                             <div class="task-field"><label for="task-progress-status-<?= $panelId ?>">Status</label><select id="task-progress-status-<?= $panelId ?>" name="status" data-portal-custom-select><?php ops_select_options($statuses, checklist_normalize_status((string) ($task['status'] ?? 'pending'))); ?></select></div>
-                            <div class="task-field"><label for="task-progress-note-<?= $panelId ?>">Note</label><textarea id="task-progress-note-<?= $panelId ?>" name="completion_note" placeholder="Add a progress or completion note."><?= htmlspecialchars((string) ($task['completion_note'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea></div>
+                            <div class="task-field" id="task-notes-<?= $panelId ?>"><label for="task-progress-note-<?= $panelId ?>">Note</label><textarea id="task-progress-note-<?= $panelId ?>" name="completion_note" placeholder="Add a progress or completion note."><?= htmlspecialchars((string) ($task['completion_note'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea></div>
                             <?php if (checklist_allows_photo((string) $task['checklist_type'])): ?>
                                 <div class="task-field">
                                     <span class="task-field-label">Photo proof optional</span>
@@ -789,8 +844,8 @@ include BASE_PATH . '/shared/sidebar.php';
                     <?php endif; ?>
                 </form>
 
-                <?php if (!empty($task['photo_path'])): ?><section class="task-details-section task-content-card"><h3 class="task-content-heading">Files / proof</h3><a class="task-btn task-btn--secondary" href="<?= BASE_URL . '/' . htmlspecialchars((string) $task['photo_path'], ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">Open proof</a></section><?php endif; ?>
-                <section class="task-details-section task-content-card">
+                <section class="task-details-section task-content-card" id="task-files-<?= $panelId ?>"><h3 class="task-content-heading">Files / proof</h3><?php if (!empty($task['photo_path'])): ?><a class="task-btn task-btn--secondary" href="<?= BASE_URL . '/' . htmlspecialchars((string) $task['photo_path'], ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">Open proof</a><?php else: ?><p class="task-history-empty">No files uploaded.</p><?php endif; ?></section>
+                <section class="task-details-section task-content-card" id="task-activity-<?= $panelId ?>">
                     <h3 class="task-content-heading">Task history</h3>
                     <div class="task-history-list">
                         <?php foreach (($activityByTask[$panelId] ?? []) as $activity): ?>
@@ -1058,27 +1113,6 @@ function initialiseTaskProofUpload(root = document) {
   });
 }
 
-function initialiseTaskSectionToggles() {
-  document.querySelectorAll('[data-collapsible-task-section]').forEach((section) => {
-    const header = section.querySelector('.task-status-header');
-    const sectionName = section.dataset.taskSection || 'unknown';
-    const storageKey = `task_section_collapsed_${sectionName}`;
-    if (!header || header.dataset.toggleInitialised === 'true') return;
-
-    header.dataset.toggleInitialised = 'true';
-    const shouldStartCollapsed = sessionStorage.getItem(storageKey) === 'true';
-    section.classList.toggle('is-collapsed', shouldStartCollapsed);
-    header.setAttribute('aria-expanded', shouldStartCollapsed ? 'false' : 'true');
-
-    header.addEventListener('click', () => {
-      const willBeCollapsed = !section.classList.contains('is-collapsed');
-      section.classList.toggle('is-collapsed', willBeCollapsed);
-      header.setAttribute('aria-expanded', willBeCollapsed ? 'false' : 'true');
-      sessionStorage.setItem(storageKey, String(willBeCollapsed));
-    });
-  });
-}
-
 function initialiseTaskBulkSelection() {
   const bar = document.querySelector('[data-task-bulk-bar]');
   if (!bar || bar.dataset.initialised === 'true') return;
@@ -1151,12 +1185,142 @@ function initialiseTaskBulkSelection() {
   update();
 }
 
+function initialiseTaskStatusWorkflow() {
+  const popup = document.querySelector('[data-task-status-popup]');
+  const page = document.querySelector('.digital-task-page');
+  if (!popup || popup.dataset.initialised === 'true') return;
+  popup.dataset.initialised = 'true';
+  let activeTrigger = null;
+
+  const close = () => {
+    popup.hidden = true;
+    activeTrigger?.setAttribute('aria-expanded', 'false');
+    activeTrigger = null;
+  };
+  const position = (trigger) => {
+    const rect = trigger.getBoundingClientRect();
+    const width = 170;
+    popup.style.left = `${Math.max(8, Math.min(window.innerWidth - width - 8, rect.left))}px`;
+    popup.style.top = `${Math.min(window.innerHeight - 130, rect.bottom + 5)}px`;
+  };
+  const updateWidget = (name, delta) => {
+    const value = document.querySelector(`[data-stat="${name}"] .dtb-stat-value`);
+    if (value) value.textContent = String(Math.max(0, Number(value.textContent.replace(/,/g, '')) + delta));
+  };
+
+  document.addEventListener('click', async (event) => {
+    const trigger = event.target.closest('[data-task-status-trigger]');
+    if (trigger) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (activeTrigger === trigger && !popup.hidden) { close(); return; }
+      activeTrigger?.setAttribute('aria-expanded', 'false');
+      activeTrigger = trigger;
+      trigger.setAttribute('aria-expanded', 'true');
+      position(trigger);
+      popup.hidden = false;
+      return;
+    }
+    const option = event.target.closest('[data-status-key]');
+    if (option && activeTrigger) {
+      const row = activeTrigger.closest('[data-task-row]');
+      const previousSaved = row?.dataset.savedStatus || 'pending';
+      const previousDisplay = row?.dataset.displayStatus || previousSaved;
+      const nextStatus = option.dataset.statusKey;
+      if (!row || !['pending', 'in_progress', 'complete'].includes(nextStatus)) return;
+      const triggerForSave = activeTrigger;
+      close();
+      triggerForSave.disabled = true;
+      row.classList.add('is-saving');
+      try {
+        const formData = new FormData();
+        formData.append('action', 'update_task_status');
+        formData.append('task_id', row.dataset.taskId);
+        formData.append('status', nextStatus);
+        const response = await fetch(window.location.href, { method:'POST', body:formData, credentials:'same-origin', headers:{ Accept:'application/json' } });
+        const result = await response.json();
+        if (!response.ok || result.success !== true) throw new Error(result.message || 'Unable to save status.');
+        const task = result.task;
+        row.dataset.savedStatus = task.status;
+        row.dataset.displayStatus = task.display_status;
+        row.dataset.taskStatus = task.display_label;
+        triggerForSave.dataset.status = String(task.display_status).replaceAll('_', '-');
+        triggerForSave.textContent = task.display_label;
+        const completedCell = row.querySelector('[data-task-completed]');
+        if (completedCell) completedCell.textContent = task.date_completed ? task.date_completed.replace(' ', ' · ').slice(0, 16) : '—';
+        if (previousSaved !== task.status) {
+          updateWidget(previousSaved === 'in_progress' ? 'in-progress' : previousSaved, -1);
+          updateWidget(task.status === 'in_progress' ? 'in-progress' : task.status, 1);
+          if (previousSaved === 'complete' || task.status === 'complete') updateWidget('active', task.status === 'complete' ? -1 : 1);
+        }
+        if (previousDisplay === 'overdue' && task.display_status !== 'overdue') updateWidget('overdue', -1);
+        if (previousDisplay !== 'overdue' && task.display_status === 'overdue') updateWidget('overdue', 1);
+        if (task.status === 'complete' && !['completed', 'history'].includes(page?.dataset.taskView || '')) {
+          row.classList.add('is-completing');
+          window.setTimeout(() => row.remove(), 360);
+        }
+      } catch (error) {
+        window.alert(error.message || 'Unable to save task status.');
+      } finally {
+        triggerForSave.disabled = false;
+        row.classList.remove('is-saving');
+      }
+      return;
+    }
+    if (!event.target.closest('[data-task-status-popup]')) close();
+  });
+  window.addEventListener('resize', close);
+  document.addEventListener('scroll', close, true);
+}
+
+function initialiseTaskColumnResizing() {
+  const table = document.querySelector('.task-board-table');
+  if (!table || table.dataset.resizable === 'true') return;
+  table.dataset.resizable = 'true';
+  const columns = [...table.querySelectorAll('colgroup col')];
+  const headers = [...table.querySelectorAll('thead th')];
+  const storageKey = `task_board_column_widths_${document.querySelector('.digital-task-page')?.dataset.taskView || 'default'}`;
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(storageKey) || '{}'); } catch (_) { saved = {}; }
+  columns.forEach((column, index) => {
+    if (saved[index]) column.style.width = `${saved[index]}px`;
+    const header = headers[index];
+    if (!header || index === 0) return;
+    const handle = document.createElement('span');
+    handle.className = 'task-column-resizer';
+    handle.setAttribute('aria-hidden', 'true');
+    header.appendChild(handle);
+    handle.addEventListener('pointerdown', (event) => {
+      event.preventDefault();
+      const startX = event.clientX;
+      const startWidth = header.getBoundingClientRect().width;
+      handle.setPointerCapture(event.pointerId);
+      const move = (moveEvent) => { column.style.width = `${Math.max(70, Math.round(startWidth + moveEvent.clientX - startX))}px`; };
+      const up = () => {
+        handle.removeEventListener('pointermove', move);
+        const widths = {};
+        columns.forEach((item, itemIndex) => { widths[itemIndex] = Math.round(item.getBoundingClientRect().width); });
+        localStorage.setItem(storageKey, JSON.stringify(widths));
+      };
+      handle.addEventListener('pointermove', move);
+      handle.addEventListener('pointerup', up, { once:true });
+    });
+  });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-  initialiseTaskSectionToggles();
   initialiseTaskBulkSelection();
+  initialiseTaskStatusWorkflow();
+  initialiseTaskColumnResizing();
 });
 
 document.addEventListener('click', (event) => {
+  const panelJump = event.target.closest('[data-task-panel-jump]');
+  if (panelJump) {
+    const target = document.getElementById(panelJump.dataset.taskPanelJump);
+    target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
   const viewButton = event.target.closest('.task-view-btn');
   if (viewButton) {
     viewButton.classList.remove('is-clicked');
