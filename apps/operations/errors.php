@@ -566,7 +566,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         <span class="error-stat-icon"><i data-lucide="<?= htmlspecialchars($stat['icon'], ENT_QUOTES, 'UTF-8') ?>"></i></span>
                         <div>
                             <span class="error-stat-label"><?= htmlspecialchars($stat['label'], ENT_QUOTES, 'UTF-8') ?></span>
-                            <strong class="error-stat-value"><?= htmlspecialchars((string) $stat['value'], ENT_QUOTES, 'UTF-8') ?></strong>
+                            <span class="error-stat-value"><?= htmlspecialchars((string) $stat['value'], ENT_QUOTES, 'UTF-8') ?></span>
                         </div>
                     </article>
                 <?php endforeach; ?>
