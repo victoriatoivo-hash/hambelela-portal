@@ -1615,17 +1615,20 @@
     if (!bar) {
       bar = document.createElement('div');
       bar.id = 'orders-bulk-action-bar';
-      bar.className = 'monday-bulk-action-bar';
+      bar.className = 'orders-packing-bulk-bar';
       bar.hidden = true;
       (page || document.body).appendChild(bar);
     }
     bar.innerHTML = `
-      <div class="bulk-selected-count"><span data-bulk-count>0</span><strong data-bulk-label>items selected</strong></div>
-      <button type="button" data-order-bulk-action="duplicate" data-needs-manage><i data-lucide="copy"></i><span>Duplicate</span></button>
-      <button type="button" data-order-bulk-action="export"><i data-lucide="upload"></i><span>Export</span></button>
-      <button type="button" data-order-bulk-action="archive" data-needs-manage><i data-lucide="archive"></i><span>Archive</span></button>
-      <button type="button" data-order-bulk-action="delete" data-needs-delete><i data-lucide="trash-2"></i><span>Delete</span></button>
-      <button type="button" class="bulk-close" data-order-bulk-action="close" aria-label="Close selected bar"><i data-lucide="x"></i></button>
+      <div class="orders-packing-bulk-selection"><span class="orders-packing-bulk-count" data-bulk-count>0</span><strong class="orders-packing-bulk-label" data-bulk-label>items selected</strong></div>
+      <div class="orders-packing-bulk-divider" aria-hidden="true"></div>
+      <div class="orders-packing-bulk-actions">
+        <button type="button" class="orders-packing-bulk-action" data-bulk-action="duplicate" data-order-bulk-action="duplicate" data-needs-manage><i data-lucide="copy"></i><span>Duplicate</span></button>
+        <button type="button" class="orders-packing-bulk-action" data-bulk-action="export" data-order-bulk-action="export"><i data-lucide="upload"></i><span>Export</span></button>
+        <button type="button" class="orders-packing-bulk-action" data-bulk-action="archive" data-order-bulk-action="archive" data-needs-manage><i data-lucide="archive"></i><span>Archive</span></button>
+        <button type="button" class="orders-packing-bulk-action orders-packing-bulk-action--danger" data-bulk-action="delete" data-order-bulk-action="delete" data-needs-delete><i data-lucide="trash-2"></i><span>Delete</span></button>
+      </div>
+      <button type="button" class="orders-packing-bulk-close" data-order-bulk-action="close" aria-label="Close selected bar"><i data-lucide="x"></i></button>
     `;
     return bar;
   }
