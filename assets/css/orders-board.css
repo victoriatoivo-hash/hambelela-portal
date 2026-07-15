@@ -188,7 +188,7 @@
 .orders-grid-scroll { width: 100%; min-width: 0; overflow: visible; }
 .orders-grid-root { width: 100%; min-width: 0; display: grid; gap: 12px; }
 .orders-page .orders-board-v2 {
-  --orders-columns: 34px minmax(220px,1.55fr) 44px minmax(145px,1fr) minmax(150px,1fr) minmax(120px,.82fr) minmax(130px,.9fr) minmax(180px,1.15fr) minmax(78px,.55fr) minmax(135px,.9fr) minmax(145px,.95fr) minmax(230px,1.55fr) 42px;
+  --orders-columns: 34px minmax(220px,1.55fr) 58px minmax(145px,1fr) minmax(150px,1fr) minmax(120px,.82fr) minmax(130px,.9fr) minmax(180px,1.15fr) minmax(78px,.55fr) minmax(135px,.9fr) minmax(145px,.95fr) minmax(230px,1.55fr) 42px;
   --orders-min-width: 1620px;
 }
 .orders-page .orders-date-group {
@@ -313,6 +313,10 @@
 .orders-page .orders-grid-cell--select,
 .orders-page .orders-grid-cell--notes,
 .orders-page .orders-grid-cell--paid { justify-content:center; padding:0; }
+.orders-page .orders-grid-cell--notes {
+  border-left:1px solid var(--orders-border);
+  border-right:1px solid var(--orders-border);
+}
 .orders-page .orders-grid-row > .orders-grid-cell--mode,
 .orders-page .orders-grid-row > .orders-grid-cell--payment,
 .orders-page .orders-grid-row > .orders-grid-cell--status { padding:0; }

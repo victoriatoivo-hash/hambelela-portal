@@ -75,7 +75,7 @@
   const HEADER_STORAGE_KEY = 'hambelelaBoardHeaders';
   const defaultColumnLabels = {
     task: 'Task',
-    updates: '',
+    updates: 'Details',
     date: 'DATE',
     mobile: 'Mobile number',
     mode: 'Mode',
@@ -1676,10 +1676,6 @@
   function normalizeColumnLabels(labels) {
     const next = {};
     Object.keys(defaultColumnLabels).forEach((key) => {
-      if (key === 'updates') {
-        next[key] = '';
-        return;
-      }
       const value = String(labels?.[key] ?? '').trim();
       next[key] = value || defaultColumnLabels[key];
     });
@@ -1948,7 +1944,7 @@
             <div class="orders-grid-header monday-grid monday-column-header ob-col-header-row" data-group="${esc(key)}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
               <div class="orders-grid-cell orders-grid-cell--select monday-cell check-cell col-checkbox"><label class="portal-grid-checkbox"><input class="portal-grid-checkbox-input orders-row-checkbox" type="checkbox" data-select-all-orders aria-label="Select all visible orders"><span class="portal-grid-checkbox-box" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="m2.2 6.1 2.2 2.2 5.4-5.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span></label></div>
               ${columnHeader('Task', 'col-task', 'task')}
-              ${columnHeader('', 'col-task-icon comment-cell', 'comment', 'updates')}
+              ${columnHeader('Details', 'col-task-icon comment-cell', 'comment', 'updates')}
               ${columnHeader('DATE', 'col-date', 'date')}
               ${columnHeader('Mobile number', 'col-mobile', 'mobile')}
               ${columnHeader('Mode', 'col-mode', 'mode')}
