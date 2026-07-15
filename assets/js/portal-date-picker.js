@@ -78,8 +78,10 @@
   }
 
   function positionPopup() {
-    if (!active || !popup?.classList.contains('is-open')) return;
+    if (!active || !popup) return;
     const rect = active.trigger.getBoundingClientRect();
+    popup.classList.add('is-positioning');
+    popup.style.visibility = 'hidden';
     const popupRect = popup.getBoundingClientRect();
     const margin = 10;
     let left = Math.min(rect.left, window.innerWidth - popupRect.width - margin);
@@ -89,6 +91,8 @@
     top = Math.max(margin, Math.min(top, window.innerHeight - popupRect.height - margin));
     popup.style.left = `${Math.round(left)}px`;
     popup.style.top = `${Math.round(top)}px`;
+    popup.classList.remove('is-positioning');
+    popup.style.visibility = '';
   }
 
   function open(control) {
@@ -98,13 +102,14 @@
     viewDate = new Date(draftDate || new Date());
     ensurePopup();
     renderPopup();
+    positionPopup();
     popup.classList.add('is-open');
     popup.setAttribute('aria-hidden', 'false');
     control.wrapper.classList.add('is-open');
     control.cell?.classList.add('portal-date-cell', 'is-editing');
     control.trigger.classList.add('is-open');
     control.trigger.setAttribute('aria-expanded', 'true');
-    requestAnimationFrame(() => { positionPopup(); popup.querySelector('.portal-date-day.is-selected,.portal-date-day:not(.is-outside-month)')?.focus(); });
+    requestAnimationFrame(() => { positionPopup(); popup.querySelector('.portal-date-day.is-selected,.portal-date-day:not(.is-outside-month)')?.focus({ preventScroll: true }); });
   }
 
   function close(restoreFocus = true) {

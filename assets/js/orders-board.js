@@ -47,7 +47,6 @@
   let hasRenderedOnce = false;
   let previousOrderIds = new Set();
   let customColumns = [];
-  let orderDatePicker = null;
   let rowDragState = null;
   const selectedOrders = new Set();
   const boardState = {
@@ -971,174 +970,6 @@
     };
   }
 
-  function combineDateTime(date, time) {
-    const safeDate = /^\d{4}-\d{2}-\d{2}$/.test(String(date || '')) ? date : todayKey();
-    const safeTime = /^\d{2}:\d{2}$/.test(String(time || '')) ? time : '00:00';
-    return `${safeDate} ${safeTime}:00`;
-  }
-
-  function displayTime(time) {
-    const [hour, minute] = String(time || '00:00').split(':').map((part) => Number(part));
-    const suffix = hour >= 12 ? 'PM' : 'AM';
-    const displayHour = hour % 12 || 12;
-    return `${displayHour}:${String(minute || 0).padStart(2, '0')}${suffix}`;
-  }
-
-  function monthSelectOptions(selectedMonth) {
-    return Array.from({ length: 12 }, (_, index) => {
-      const date = new Date(2026, index, 1);
-      const label = date.toLocaleDateString('en-GB', { month: 'short' });
-      return `<option value="${index}" ${index === selectedMonth ? 'selected' : ''}>${esc(label)}</option>`;
-    }).join('');
-  }
-
-  function yearSelectOptions(selectedYear) {
-    const start = selectedYear - 3;
-    return Array.from({ length: 7 }, (_, index) => {
-      const year = start + index;
-      return `<option value="${year}" ${year === selectedYear ? 'selected' : ''}>${year}</option>`;
-    }).join('');
-  }
-
-  function timeOptionsHtml(selectedTime) {
-    const options = [];
-    for (let hour = 6; hour <= 22; hour++) {
-      for (let minute = 0; minute < 60; minute += 15) {
-        const value = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-        options.push(`<button type="button" class="order-time-option ${value === selectedTime ? 'is-selected' : ''}" data-order-time-option="${value}">${displayTime(value)}</button>`);
-      }
-    }
-    return options.join('');
-  }
-
-  function calendarGridHtml(year, month, selectedDate) {
-    const dayNames = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
-    const first = new Date(year, month, 1);
-    const offset = (first.getDay() + 6) % 7;
-    const gridStart = new Date(year, month, 1 - offset);
-    const selected = dateTimeParts(selectedDate).date;
-    const cells = dayNames.map((day) => `<span class="order-date-picker-day-name">${day}</span>`);
-    for (let index = 0; index < 42; index++) {
-      const date = new Date(gridStart);
-      date.setDate(gridStart.getDate() + index);
-      const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-      cells.push(`
-        <button type="button" class="order-date-picker-day ${date.getMonth() === month ? '' : 'is-muted'} ${value === selected ? 'is-selected' : ''}" data-order-date-day="${value}">
-          ${date.getDate()}
-        </button>
-      `);
-    }
-    return cells.join('');
-  }
-
-  function positionOrderDatePicker() {
-    if (!orderDatePicker?.cell || !orderDatePicker?.popover) return;
-    const rect = orderDatePicker.cell.getBoundingClientRect();
-    const popover = orderDatePicker.popover;
-    const width = 264;
-    const left = Math.min(Math.max(8, rect.left), window.innerWidth - width - 8);
-    popover.style.left = `${left + window.scrollX}px`;
-    popover.style.top = `${rect.bottom + window.scrollY + 4}px`;
-  }
-
-  function closeOrderDatePicker() {
-    if (orderDatePicker?.cell) orderDatePicker.cell.classList.remove('is-editing');
-    document.querySelectorAll('.order-date-cell.is-editing').forEach((cell) => cell.classList.remove('is-editing'));
-    document.querySelectorAll('.order-date-picker-popover').forEach((popover) => popover.remove());
-    orderDatePicker = null;
-  }
-
-  function setOrderDatePickerStatus(message) {
-    const status = orderDatePicker?.popover?.querySelector('[data-order-date-status]');
-    if (status) status.textContent = message || '';
-  }
-
-  function renderOrderDatePicker() {
-    if (!orderDatePicker?.popover) return;
-    const selectedParts = dateTimeParts(combineDateTime(orderDatePicker.date, orderDatePicker.time));
-    const view = new Date(`${orderDatePicker.viewYear}-${String(orderDatePicker.viewMonth + 1).padStart(2, '0')}-01T12:00:00`);
-    orderDatePicker.popover.innerHTML = `
-      <div class="order-date-picker-top">
-        <button type="button" class="order-date-picker-today" data-order-date-today>Today</button>
-        <button type="button" class="order-date-picker-clock ${orderDatePicker.showTime ? 'is-active' : ''}" data-order-date-time-toggle aria-label="Show time options"><i data-lucide="clock-3"></i></button>
-      </div>
-      <div class="order-date-picker-inputs">
-        <input type="date" value="${esc(selectedParts.date)}" data-order-date-input>
-        <input type="time" value="${esc(selectedParts.time)}" data-order-time-input>
-      </div>
-      <div class="order-date-picker-nav">
-        <select class="order-date-picker-select" data-order-date-month aria-label="Month">${monthSelectOptions(view.getMonth())}</select>
-        <select class="order-date-picker-select" data-order-date-year aria-label="Year">${yearSelectOptions(view.getFullYear())}</select>
-        <div class="order-date-picker-arrows">
-          <button type="button" data-order-date-prev aria-label="Previous month">&lsaquo;</button>
-          <button type="button" data-order-date-next aria-label="Next month">&rsaquo;</button>
-        </div>
-      </div>
-      <div class="order-date-picker-grid">${calendarGridHtml(view.getFullYear(), view.getMonth(), selectedParts.date)}</div>
-      ${orderDatePicker.showTime ? `<div class="order-time-list">${timeOptionsHtml(selectedParts.time)}</div>` : ''}
-      <div class="order-date-picker-status" data-order-date-status></div>
-    `;
-    if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
-    positionOrderDatePicker();
-  }
-
-  async function commitOrderDatePicker(newDate = orderDatePicker?.date, newTime = orderDatePicker?.time) {
-    if (!orderDatePicker?.orderId) return;
-    if (orderDatePicker.saving) return;
-    const orderId = String(orderDatePicker.orderId);
-    const dateInput = orderDatePicker.popover?.querySelector('[data-order-date-input]');
-    const timeInput = orderDatePicker.popover?.querySelector('[data-order-time-input]');
-    if (dateInput && /^\d{4}-\d{2}-\d{2}$/.test(dateInput.value)) newDate = dateInput.value;
-    if (timeInput && /^\d{2}:\d{2}$/.test(timeInput.value)) newTime = timeInput.value;
-    const dateTime = combineDateTime(newDate, newTime);
-    orderDatePicker.saving = true;
-    orderDatePicker.date = newDate;
-    orderDatePicker.time = newTime;
-    setOrderDatePickerStatus('Saving...');
-    try {
-      const ids = currentSelectedIdsFor(orderId);
-      await updateOrdersField(ids, 'created_at', dateTime);
-      if (syncState) {
-        syncState.textContent = ids.length > 1
-          ? `Changed date for ${ids.length} selected orders to ${prettyDate(dateTime)}.`
-          : `Order date changed to ${prettyDate(dateTime)}.`;
-      }
-      closeOrderDatePicker();
-      renderOrders(ordersCache);
-    } catch (error) {
-      orderDatePicker.saving = false;
-      setOrderDatePickerStatus(String(error?.message || 'Could not save date/time.'));
-      throw error;
-    }
-  }
-
-  async function saveOrderDateTime(newDate, newTime) {
-    return commitOrderDatePicker(newDate, newTime);
-  }
-
-  function openOrderDatePicker(dateCell) {
-    const orderId = dateCell.dataset.orderId;
-    if (!orderId) return;
-    const parts = dateTimeParts(dateCell.dataset.datetime || '');
-    closeOrderDatePicker();
-    const popover = document.createElement('div');
-    popover.className = 'order-date-picker-popover';
-    popover.dataset.orderDatePicker = orderId;
-    document.body.appendChild(popover);
-    dateCell.classList.add('is-editing');
-    orderDatePicker = {
-      cell: dateCell,
-      popover,
-      orderId,
-      date: parts.date,
-      time: parts.time,
-      viewYear: Number(parts.date.slice(0, 4)),
-      viewMonth: Number(parts.date.slice(5, 7)) - 1,
-      showTime: false
-    };
-    renderOrderDatePicker();
-  }
-
   function isValidRevenueOrder(order) {
     const status = normalize(order.status);
     const paymentStatus = normalize(order.payment_status);
@@ -1909,7 +1740,7 @@
           <div class="orders-grid-cell orders-grid-cell--select monday-cell check-cell col-checkbox"><label class="portal-grid-checkbox"><input class="portal-grid-checkbox-input orders-row-checkbox" type="checkbox" data-row-select="${esc(order.id)}" ${selectedOrders.has(String(order.id)) ? 'checked' : ''} aria-label="Select order"><span class="portal-grid-checkbox-box" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="m2.2 6.1 2.2 2.2 5.4-5.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span></label></div>
           <div class="orders-grid-cell orders-grid-cell--task monday-cell task-cell editable-cell col-task" data-editable-order-field="customer_name" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_name || '')}" tabindex="0"><span class="task-drag-handle" data-row-drag-handle="${esc(order.id)}" draggable="true" role="button" tabindex="0" aria-label="Drag order row" title="Drag row">⋮⋮</span><span class="orders-cell-text task-name">${esc(order.order_number.replace(/^WEB-/, ''))} ${esc(order.customer_name)}</span></div>
           <div class="orders-grid-cell orders-grid-cell--notes monday-cell comment-cell col-task-icon update-icon-cell">${renderUpdateIconCell(order)}</div>
-          <div class="orders-grid-cell orders-grid-cell--date monday-cell col-date order-date-cell" data-order-id="${esc(order.id)}" data-datetime="${esc(orderDisplayDateTime(order))}" role="button" tabindex="0" title="Edit order date/time"><span class="orders-cell-text">${prettyDate(orderDisplayDateTime(order))}</span></div>
+          <div class="orders-grid-cell orders-grid-cell--date monday-cell col-date order-date-cell portal-date-cell" data-order-id="${esc(order.id)}" title="Edit order date/time"><input type="datetime-local" class="orders-date-trigger" data-orders-date-input data-order-id="${esc(order.id)}" value="${esc(orderDisplayDateTime(order).replace(' ', 'T').slice(0, 16))}" aria-label="Order date and time"></div>
           <div class="orders-grid-cell orders-grid-cell--mobile monday-cell editable-cell col-mobile" data-editable-order-field="customer_contact" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_contact || '')}" tabindex="0"><span class="orders-cell-text">${esc(order.customer_contact || '')}</span></div>
           <div class="orders-grid-cell orders-grid-cell--mode monday-cell col-mode"${labelCellStyle(modeLabels, order.order_type)}>${renderLabelCell(order, 'order_type', order.order_type, modeLabels, 'mode-label')}</div>
           <div class="orders-grid-cell orders-grid-cell--amount monday-cell editable-cell col-amount" data-editable-order-field="total_amount" data-order-id="${esc(order.id)}" data-value="${esc(order.total_amount ?? '')}" tabindex="0"><span class="orders-cell-text">${esc(money(order.total_amount))}</span></div>
@@ -3109,8 +2940,6 @@
     }
 
     const groupDateEdit = event.target.closest('[data-edit-group-date]');
-    const orderDateCell = event.target.closest('.order-date-cell[data-order-id]');
-    const orderDatePopover = event.target.closest('.order-date-picker-popover');
     const dateSortTrigger = event.target.closest('[data-date-sort-trigger]');
     const dateSortOption = event.target.closest('[data-date-sort-option]');
     const labelButton = event.target.closest('[data-label-field][data-order-id]');
@@ -3263,80 +3092,6 @@
           activeDateSortGroup = null;
           renderOrders(ordersCache);
         }
-        return;
-      }
-
-      if (orderDatePopover) {
-        event.stopPropagation();
-        const status = orderDatePicker?.popover?.querySelector('[data-order-date-status]');
-        try {
-          const day = event.target.closest('[data-order-date-day]');
-          const timeOption = event.target.closest('[data-order-time-option]');
-          if (event.target.closest('[data-order-date-today]')) {
-            event.preventDefault();
-            orderDatePicker.date = todayKey();
-            orderDatePicker.viewYear = Number(orderDatePicker.date.slice(0, 4));
-            orderDatePicker.viewMonth = Number(orderDatePicker.date.slice(5, 7)) - 1;
-            await saveOrderDateTime(orderDatePicker.date, orderDatePicker.time);
-            return;
-          }
-          if (event.target.closest('[data-order-date-time-toggle]')) {
-            event.preventDefault();
-            orderDatePicker.showTime = !orderDatePicker.showTime;
-            renderOrderDatePicker();
-            return;
-          }
-          if (event.target.closest('[data-order-date-prev]')) {
-            event.preventDefault();
-            orderDatePicker.viewMonth -= 1;
-            if (orderDatePicker.viewMonth < 0) {
-              orderDatePicker.viewMonth = 11;
-              orderDatePicker.viewYear -= 1;
-            }
-            renderOrderDatePicker();
-            return;
-          }
-          if (event.target.closest('[data-order-date-next]')) {
-            event.preventDefault();
-            orderDatePicker.viewMonth += 1;
-            if (orderDatePicker.viewMonth > 11) {
-              orderDatePicker.viewMonth = 0;
-              orderDatePicker.viewYear += 1;
-            }
-            renderOrderDatePicker();
-            return;
-          }
-          if (day) {
-            event.preventDefault();
-            orderDatePicker.date = day.dataset.orderDateDay;
-            await saveOrderDateTime(orderDatePicker.date, orderDatePicker.time);
-            return;
-          }
-          if (timeOption) {
-            event.preventDefault();
-            orderDatePicker.time = timeOption.dataset.orderTimeOption;
-            await saveOrderDateTime(orderDatePicker.date, orderDatePicker.time);
-            return;
-          }
-        } catch (error) {
-          if (status) status.textContent = String(error?.message || 'Could not save date/time.');
-        }
-        return;
-      }
-
-      if (orderDateCell) {
-        event.preventDefault();
-        event.stopPropagation();
-        if (orderDatePicker?.orderId && String(orderDatePicker.orderId) === String(orderDateCell.dataset.orderId)) {
-          await commitOrderDatePicker();
-          return;
-        }
-        openOrderDatePicker(orderDateCell);
-        return;
-      }
-
-      if (orderDatePicker) {
-        await commitOrderDatePicker();
         return;
       }
 
@@ -3663,18 +3418,6 @@
   });
 
   document.addEventListener('keydown', (event) => {
-    if (orderDatePicker && (event.key === 'Enter' || event.key === 'Tab')) {
-      event.preventDefault();
-      commitOrderDatePicker().catch(showError);
-      return;
-    }
-
-    if (orderDatePicker && event.key === 'Escape') {
-      event.preventDefault();
-      closeOrderDatePicker();
-      return;
-    }
-
     if (event.key === 'Escape' && schedulePopover && !schedulePopover.hidden) {
       schedulePopover.hidden = true;
       return;
@@ -3709,19 +3452,12 @@
     }
 
     const groupDateEdit = event.target.closest('[data-edit-group-date]');
-    const orderDateCell = event.target.closest('.order-date-cell[data-order-id]');
-    if (orderDateCell && (event.key === 'Enter' || event.key === ' ')) {
-      event.preventDefault();
-      openOrderDatePicker(orderDateCell);
-      return;
-    }
     if (groupDateEdit && (event.key === 'Enter' || event.key === ' ')) {
       event.preventDefault();
       openGroupDatePopover(groupDateEdit);
       return;
     }
     if (event.key === 'Escape') {
-      closeOrderDatePicker();
       closeLabelMenu();
       closeToolbar();
       closeColumnModal();
@@ -3764,6 +3500,29 @@
   });
 
   document.addEventListener('change', (event) => {
+    const ordersDateInput = event.target.closest('[data-orders-date-input][data-order-id]');
+    if (ordersDateInput) {
+      const orderId = String(ordersDateInput.dataset.orderId || '');
+      const dateTime = String(ordersDateInput.value || '').replace('T', ' ');
+      if (!orderId || !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(dateTime)) return;
+      const ids = currentSelectedIdsFor(orderId);
+      ordersDateInput.disabled = true;
+      updateOrdersField(ids, 'created_at', `${dateTime}:00`).then(() => {
+        if (syncState) {
+          syncState.textContent = ids.length > 1
+            ? `Changed date for ${ids.length} selected orders to ${prettyDate(dateTime)}.`
+            : `Order date changed to ${prettyDate(dateTime)}.`;
+        }
+        const saved = ordersCache.find((order) => String(order.id) === orderId);
+        if (saved) saved.created_at = `${dateTime}:00`;
+      }).catch((error) => {
+        showError(error);
+      }).finally(() => {
+        ordersDateInput.disabled = false;
+      });
+      return;
+    }
+
     if (event.target === panelFileInput) {
       panelSelectedFiles = Array.from(panelFileInput.files || []);
       renderPanelAttachments();
@@ -3800,37 +3559,6 @@
         showError(error);
         refresh().catch(() => {});
       });
-    }
-
-    if (orderDatePicker && event.target.closest('.order-date-picker-popover')) {
-      const monthSelect = event.target.closest('[data-order-date-month]');
-      const yearSelect = event.target.closest('[data-order-date-year]');
-      const dateInput = event.target.closest('[data-order-date-input]');
-      const timeInput = event.target.closest('[data-order-time-input]');
-      const status = orderDatePicker.popover?.querySelector('[data-order-date-status]');
-      try {
-        if (monthSelect) {
-          orderDatePicker.viewMonth = Number(monthSelect.value);
-          renderOrderDatePicker();
-        } else if (yearSelect) {
-          orderDatePicker.viewYear = Number(yearSelect.value);
-          renderOrderDatePicker();
-        } else if (dateInput && /^\d{4}-\d{2}-\d{2}$/.test(dateInput.value)) {
-          orderDatePicker.date = dateInput.value;
-          orderDatePicker.viewYear = Number(orderDatePicker.date.slice(0, 4));
-          orderDatePicker.viewMonth = Number(orderDatePicker.date.slice(5, 7)) - 1;
-          saveOrderDateTime(orderDatePicker.date, orderDatePicker.time).catch((error) => {
-            if (status) status.textContent = String(error?.message || 'Could not save date/time.');
-          });
-        } else if (timeInput && /^\d{2}:\d{2}$/.test(timeInput.value)) {
-          orderDatePicker.time = timeInput.value;
-          saveOrderDateTime(orderDatePicker.date, orderDatePicker.time).catch((error) => {
-            if (status) status.textContent = String(error?.message || 'Could not save date/time.');
-          });
-        }
-      } catch (error) {
-        if (status) status.textContent = String(error?.message || 'Could not save date/time.');
-      }
     }
 
     const directFilter = event.target.closest('[data-board-filter]');
