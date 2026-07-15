@@ -1394,7 +1394,7 @@
   function renderLabelCell(order, field, value, options, cssClass) {
     const color = findColor(options, value);
     const text = findText(options, value);
-    return `<button class="board-label ${cssClass}" style="--label-color:${esc(color)}" data-label-field="${field}" data-label-value-current="${esc(value || '')}" data-order-id="${esc(order.id)}">${esc(text)}</button>`;
+    return `<button type="button" class="board-label ${cssClass}" style="--label-color:${esc(color)}" aria-haspopup="menu" aria-expanded="false" data-label-field="${field}" data-label-value-current="${esc(value || '')}" data-order-id="${esc(order.id)}"><span class="orders-label-trigger-text">${esc(text)}</span></button>`;
   }
 
   function labelCellStyle(options, value) {
@@ -2041,6 +2041,7 @@
 
   function closeRichLabelPopover() {
     document.querySelectorAll('.mode-cell.is-active').forEach((cell) => cell.classList.remove('is-active'));
+    document.querySelectorAll('.board-label[aria-expanded="true"]').forEach((button) => button.setAttribute('aria-expanded', 'false'));
     if (labelMenu) {
       labelMenu.classList.remove('orders-label-popup', 'is-editing-labels');
       delete labelMenu.dataset.richLabelOrder;
@@ -2068,13 +2069,12 @@
     return `
       <div class="mode-label-grid seven-per-row">
         ${options.map((item) => `
-          <button type="button" class="mode-label-option" data-rich-label-value="${esc(item[0])}" style="background:${esc(itemColor(item))}">${esc(itemText(item))}</button>
+          <button type="button" class="mode-label-option" data-rich-label-value="${esc(item[0])}" style="--label-option-color:${esc(itemColor(item))};background:${esc(itemColor(item))}">${esc(itemText(item))}</button>
         `).join('')}
       </div>
       <div class="mode-label-actions">
-        <button type="button" class="mode-edit-labels-button" data-rich-edit-labels><i data-lucide="pencil"></i> Edit Labels</button>
+        <button type="button" class="mode-edit-labels-button" data-rich-edit-labels><span class="orders-label-utility-icon"><i data-lucide="pencil"></i></span><span>Edit Labels</span></button>
       </div>
-      <div class="mode-label-footer">Auto-assign labels</div>
     `;
   }
 
@@ -2097,7 +2097,7 @@
 
   function positionRichLabelMenu(anchor) {
     const rect = anchor.getBoundingClientRect();
-    const width = 240;
+    const width = 202;
     const menuHeight = Math.min(labelMenu.scrollHeight || 320, window.innerHeight - 16);
     const shouldFlip = rect.bottom + menuHeight + 8 > window.innerHeight;
     labelMenu.style.width = `${width}px`;
@@ -2155,6 +2155,7 @@
       labelMenuCloseTimer = null;
     }
     anchor.classList.add('is-active', 'mode-cell');
+    anchor.setAttribute('aria-expanded', 'true');
     labelMenu.hidden = false;
     labelMenu.className = 'label-menu orders-label-popup is-open';
     labelMenu.dataset.richLabelOrder = orderId;
@@ -2220,6 +2221,14 @@
 
   function openLabelMenu(anchor, orderId, field) {
     if (['order_type', 'payment_method', 'status'].includes(field)) {
+      const isCurrentMenu = !labelMenu.hidden
+        && labelMenu.classList.contains('is-open')
+        && labelMenu.dataset.richLabelOrder === String(orderId)
+        && labelMenu.dataset.richLabelField === field;
+      if (isCurrentMenu) {
+        closeLabelMenu();
+        return;
+      }
       openRichLabelMenu(anchor, orderId, field);
       return;
     }

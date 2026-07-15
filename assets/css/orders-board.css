@@ -337,8 +337,15 @@
   color: #fff;
   font-size: 12px;
   font-weight: 400;
+  line-height: 1;
+  text-align: center;
   cursor: pointer;
+  box-sizing: border-box;
+  transition: filter .16s ease, box-shadow .16s ease, transform .16s ease;
 }
+.orders-page .board-label:hover { filter:brightness(1.04); transform:none; }
+.orders-page .board-label:active { transform:scale(.99); }
+.orders-page .orders-label-trigger-text { min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:inherit; }
 .orders-page .orders-grid-cell--mode .board-label,
 .orders-page .orders-grid-cell--payment .board-label,
 .orders-page .orders-grid-cell--status .board-label { width:100%; height:35px; min-height:35px; border:0; border-radius:0; margin:0; }
@@ -362,12 +369,17 @@
 .orders-page .label-menu.is-open, body > .label-menu.is-open { opacity:1; visibility:visible; pointer-events:auto; transform:translateY(0) scale(1); }
 .orders-page .label-menu-grid button, body > .label-menu .label-menu-grid button { min-height:32px; font-size:12px; transition:transform .15s ease,filter .15s ease,box-shadow .15s ease; }
 .orders-page .label-menu-grid button:hover, body > .label-menu .label-menu-grid button:hover { transform:translateX(2px); filter:brightness(1.04); box-shadow:0 5px 12px rgba(114,27,26,.12); }
-body > .orders-label-popup { position:fixed; z-index:30040; width:240px; max-height:calc(100vh - 16px); padding:8px; overflow-y:auto; border:1px solid #ede3d8; border-radius:10px; background:#fff; box-shadow:0 16px 36px rgba(114,27,26,.16); font-family:Figtree,system-ui,sans-serif; }
-body > .orders-label-popup .mode-label-grid { display:grid; grid-template-columns:1fr; gap:5px; padding:0; }
-body > .orders-label-popup .mode-label-option { width:100%; min-height:32px; height:32px; padding:0 10px; border:0; border-radius:6px; color:#fff; font-size:12px; line-height:1; font-weight:500; text-align:left; cursor:pointer; transition:transform .15s ease,filter .15s ease,box-shadow .15s ease; }
-body > .orders-label-popup .mode-label-option:hover { transform:translateX(2px); filter:brightness(1.04); box-shadow:0 5px 12px rgba(114,27,26,.12); }
-body > .orders-label-popup .mode-label-actions { padding:7px 0 0; }
-body > .orders-label-popup .mode-edit-labels-button,
+body > .orders-label-popup { position:fixed; z-index:30040; width:202px; max-height:calc(100vh - 16px); padding:10px; overflow-y:auto; border:1px solid #ede3d8; border-radius:12px; background:#fff; box-shadow:0 14px 32px rgba(114,27,26,.16); font-family:Figtree,Inter,system-ui,sans-serif; }
+body > .orders-label-popup .mode-label-grid { display:grid; grid-template-columns:1fr; gap:6px; padding:0; }
+body > .orders-label-popup .mode-label-option { width:100%; min-height:32px; height:32px; padding:0 10px; display:flex; align-items:center; justify-content:center; border:0; border-radius:2px; color:#fff; font-size:12px; line-height:1; font-weight:500; text-align:center; cursor:pointer; box-sizing:border-box; transition:transform .16s ease,filter .16s ease,box-shadow .16s ease; }
+body > .orders-label-popup .mode-label-option:hover,
+body > .orders-label-popup .mode-label-option:focus-visible { outline:0; transform:translateX(2px); filter:brightness(1.05); box-shadow:0 5px 12px rgba(114,27,26,.12); }
+body > .orders-label-popup .mode-label-option:active { transform:translateX(2px) scale(.985); }
+body > .orders-label-popup .mode-label-actions { margin:10px -10px -10px; padding:4px 10px 0; border-top:1px solid #ede3d8; }
+body > .orders-label-popup .mode-edit-labels-button { width:100%; height:40px; min-height:40px; padding:0 10px; display:grid; grid-template-columns:18px minmax(0,1fr); align-items:center; gap:9px; border:0; border-radius:8px; background:transparent; color:#6b4c3b; font-size:12px; line-height:1; font-weight:400; text-align:left; cursor:pointer; box-sizing:border-box; transition:background-color .16s ease,color .16s ease,transform .16s ease; }
+body > .orders-label-popup .mode-edit-labels-button:hover { background:rgba(240,116,32,.07); color:#721b1a; transform:translateX(2px); }
+body > .orders-label-popup .orders-label-utility-icon { width:18px; height:18px; display:inline-flex; align-items:center; justify-content:center; color:#ab3619; }
+body > .orders-label-popup .orders-label-utility-icon svg { width:15px; height:15px; }
 body > .orders-label-popup .mode-label-apply,
 body > .orders-label-popup .mode-new-label-button { width:100%; min-height:32px; border:1px solid rgba(171,54,25,.22); border-radius:7px; background:#fff; color:#ab3619; font-size:12px; font-weight:500; cursor:pointer; }
 body > .orders-label-popup .mode-label-footer { padding:8px 2px 0; color:#a08070; font-size:10px; }
