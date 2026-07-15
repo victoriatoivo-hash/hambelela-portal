@@ -6046,7 +6046,7 @@ main.error-log-page {
   overflow: hidden !important;
   color: var(--bk-text) !important;
   font-size: 12px !important;
-  font-weight: 700 !important;
+  font-weight: 400 !important;
   line-height: 1.08 !important;
   text-overflow: ellipsis !important;
   white-space: nowrap !important;
