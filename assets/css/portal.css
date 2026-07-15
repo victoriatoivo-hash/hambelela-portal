@@ -4213,9 +4213,9 @@ textarea {
 .dtb-task-name { color: var(--task-text); font-size: 12px; font-weight: 500; }
 
 .digital-task-page .dtb-board-table tbody td.task-priority-cell,
-.digital-task-page .dtb-board-table tbody td.task-status-cell { padding: 0 4px; vertical-align: middle; }
+.digital-task-page .dtb-board-table tbody td.task-status-cell { padding: 0; vertical-align: middle; }
 .task-priority-fill,
-.task-status-fill { width: 100%; min-height: 27px; height: 27px; display: flex; align-items: center; justify-content: center; border-radius: 5px; font-family: inherit; font-size: 11px; line-height: 1; font-weight: 700; text-align: center; box-sizing: border-box; white-space: nowrap; }
+.task-status-fill { width: 100%; min-height: 34px; height: 100%; display: flex; align-items: center; justify-content: center; border-radius: 0; font-family: inherit; font-size: 11px; line-height: 1; font-weight: 700; text-align: center; box-sizing: border-box; white-space: nowrap; }
 .task-priority-fill { font-weight: 400; }
 .task-status-fill { font-weight: 400; }
 .task-priority-fill[data-priority="top-critical"] { background: #721B1A; color: #FFFFFF; }
