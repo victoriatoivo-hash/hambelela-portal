@@ -254,7 +254,7 @@
 .orders-page .orders-summary-footer { min-height:35px; }
 .orders-page .orders-grid-cell { min-width:0; height:35px; min-height:35px; max-height:35px; padding:0 10px; display:flex; align-items:center; overflow:hidden; border-right:1px solid var(--orders-border); border-bottom:1px solid var(--orders-border); background:#fff; color:var(--orders-text); font-family:Figtree,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; font-size:12px; line-height:1.2; font-weight:400; white-space:nowrap; text-overflow:ellipsis; }
 .orders-page .orders-grid-cell:last-child { border-right:0; }
-.orders-page .orders-grid-header > .orders-grid-cell { color:var(--orders-burgundy); font-size:10px; line-height:1; font-weight:600; letter-spacing:.025em; text-transform:uppercase; }
+.orders-page .orders-grid-header > .orders-grid-cell { background:rgb(253 246 238 / 72%); color:var(--orders-burgundy); font-size:10px; line-height:1; font-weight:600; letter-spacing:.025em; text-transform:uppercase; }
 .orders-page .orders-cell-text { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .orders-page .orders-grid-cell--select .portal-grid-checkbox {
   width:14px;
