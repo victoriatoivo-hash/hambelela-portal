@@ -70,14 +70,15 @@
 .orders-page .work-metric-card {
   --widget-accent: var(--orders-rust);
   min-width: 0;
-  min-height: 64px;
-  padding: 12px 14px;
+  min-height: 66px;
+  padding: 12px 16px;
   display: grid;
-  grid-template-columns: 20px minmax(0,1fr);
+  grid-template-columns: 28px minmax(0,1fr);
   align-items: center;
-  gap: 9px;
+  gap: 10px;
   border: 1px solid var(--orders-border);
-  border-radius: 11px;
+  border-left: 4px solid var(--widget-accent);
+  border-radius: 8px;
   background: #fff;
   box-shadow: 0 10px 26px rgba(114,27,26,.06);
   transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
@@ -92,12 +93,12 @@
 .orders-page .work-metric-card.metric-green { --widget-accent: var(--orders-olive); }
 .orders-page .work-metric-card.metric-pink { --widget-accent: #c73557; }
 .orders-page .work-metric-card.metric-red { --widget-accent: var(--orders-red); }
-.orders-page .metric-icon { width: 18px; height: 18px; display: grid; place-items: center; border-radius: 6px; background: color-mix(in srgb, var(--widget-accent) 10%, white); color: var(--widget-accent); }
+.orders-page .metric-icon { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 6px; background: color-mix(in srgb, var(--widget-accent) 10%, white); color: var(--widget-accent); }
 .orders-page .metric-icon svg { width: 12px; height: 12px; }
-.orders-page .work-metric-card > div { min-width: 0; display: grid; grid-template-columns: auto 1fr; align-items: baseline; column-gap: 6px; }
-.orders-page .metric-title { grid-column: 1 / -1; color: var(--orders-muted); font-size: 10px; line-height: 1.05; font-weight: 600; text-transform: uppercase; }
-.orders-page .work-metric-card strong { display: inline; margin: 0; color: var(--orders-text); font-size: 12px; line-height: 1; font-weight: 700; }
-.orders-page .work-metric-card small { color: var(--orders-muted); font-size: 9px; line-height: 1; font-weight: 400; }
+.orders-page .work-metric-card > div { min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 5px; }
+.orders-page .metric-title { color: var(--orders-muted); font-size: 10px; line-height: 1.15; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.orders-page .work-metric-card strong { display: block; margin: 0; color: var(--orders-text); font-size: 12px; line-height: 1; font-weight: 700; }
+.orders-page .work-metric-card small { display: none; }
 
 .orders-tools-bar { display: none; }
 .orders-filter-panel {
