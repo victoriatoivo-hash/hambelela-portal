@@ -653,6 +653,8 @@ $canHardDelete = user_has_role('owner_admin');
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal.css?v=<?= (int) @filemtime(BASE_PATH . '/assets/css/portal.css') ?>">
+    <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal-date-picker.css?v=<?= (int) @filemtime(BASE_PATH . '/assets/css/portal-date-picker.css') ?>">
+    <script defer src="<?= BASE_URL ?>/assets/js/portal-date-picker.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/portal-date-picker.js') ?>"></script>
     <style>
         :root {
             --ledger-red: #721B1A;
