@@ -289,6 +289,9 @@
   border-color:#AB3619;
   background:#AB3619;
 }
+.orders-page .orders-board-v2 .orders-grid-header.monday-column-header > .orders-grid-cell.orders-grid-cell--select.col-checkbox::after {
+  content:none !important;
+}
 .orders-page .orders-grid-row.is-selected > .orders-grid-cell:not(.orders-grid-cell--mode):not(.orders-grid-cell--payment):not(.orders-grid-cell--status) {
   background: rgba(240,116,32,.07);
 }
