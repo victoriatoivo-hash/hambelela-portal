@@ -1863,58 +1863,116 @@ $canHardDelete = user_has_role('owner_admin');
         }
         .bk-action-bar {
             position: fixed;
-            bottom: -90px;
             left: 50%;
-            transform: translateX(-50%);
+            bottom: 16px;
+            transform: translate(-50%, 18px);
             z-index: 300;
-            transition: bottom .28s cubic-bezier(.34,1.56,.64,1);
-            pointer-events: none;
-        }
-        .bk-action-bar.visible {
-            bottom: 24px;
-            pointer-events: all;
-        }
-        .bk-action-bar-inner {
-            background: #2C1810;
-            color: #fff;
-            border-radius: 12px;
-            padding: 10px 16px;
+            width: fit-content;
+            max-width: calc(100vw - 24px);
+            min-height: 56px;
+            padding: 7px 10px;
             display: flex;
             align-items: center;
-            gap: 16px;
-            box-shadow: 0 8px 24px rgba(44,24,16,.3);
+            gap: 10px;
+            background: #FFFFFF;
+            border: 1px solid #EDE3D8;
+            border-radius: 14px;
+            box-shadow: 0 14px 34px rgba(114, 27, 26, .18);
+            box-sizing: border-box;
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transition: opacity .18s ease, transform .18s ease, visibility .18s ease;
+        }
+        .bk-action-bar.visible {
+            opacity: 1;
+            visibility: visible;
+            transform: translate(-50%, 0);
+            pointer-events: auto;
+        }
+        .bk-action-selection {
+            display: flex;
+            align-items: center;
+            gap: 8px;
             white-space: nowrap;
         }
         .bk-action-count {
+            width: 34px;
+            height: 34px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 34px;
+            border-radius: 50%;
+            background: #AB3619;
+            color: #FFFFFF;
             font-size: 12px;
-            font-weight: 600;
-            color: #A08070;
-            min-width: 70px;
+            font-weight: 700;
+            line-height: 1;
+        }
+        .bk-action-label {
+            color: #1A1A1A;
+            font-size: 12px;
+            font-weight: 400;
+            line-height: 1;
+        }
+        .bk-action-divider {
+            width: 1px;
+            height: 32px;
+            flex: 0 0 1px;
+            background: #EDE3D8;
         }
         .bk-action-btns {
             display: flex;
-            gap: 6px;
+            align-items: center;
+            gap: 2px;
         }
         .bk-action-btn {
-            background: rgba(255,255,255,.1);
-            color: #fff;
-            border: 1px solid rgba(255,255,255,.15);
-            border-radius: 7px;
-            height: 30px;
-            padding: 0 12px;
-            font-size: 12px;
-            font-weight: 500;
+            min-width: 58px;
+            height: 40px;
+            padding: 4px 8px;
+            background: transparent;
+            color: #6B4C3B;
+            border: 0;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 400;
+            line-height: 1;
             cursor: pointer;
             display: inline-flex;
+            flex-direction: column;
             align-items: center;
-            gap: 5px;
-            transition: background .15s;
+            justify-content: center;
+            gap: 4px;
+            transition: background-color .15s ease, color .15s ease;
             font-family: Figtree, system-ui, sans-serif;
         }
-        .bk-action-btn:hover { background: rgba(255,255,255,.2); }
-        .bk-action-btn.danger { color: #f09595; border-color: rgba(240,149,149,.3); }
-        .bk-action-btn.danger:hover { background: rgba(187,27,33,.3); }
-        .bk-action-btn.cancel { color: #A08070; border-color: transparent; }
+        .bk-action-btn svg { width: 15px; height: 15px; color: #AB3619; }
+        .bk-action-btn:hover { background: rgba(240,116,32,.08); color: #AB3619; }
+        .bk-action-btn.danger { color: #BB1B21; }
+        .bk-action-btn.danger svg { color: #BB1B21; }
+        .bk-action-btn.danger:hover { background: rgba(187,27,33,.08); }
+        .bk-action-close {
+            width: 32px;
+            height: 32px;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 32px;
+            border: 0;
+            border-radius: 8px;
+            background: transparent;
+            color: #AB3619;
+            cursor: pointer;
+        }
+        .bk-action-close:hover { background: rgba(240,116,32,.08); }
+        .bk-action-close svg { width: 15px; height: 15px; }
+        @media (max-width: 620px) {
+            .bk-action-bar { gap: 6px; padding: 6px; }
+            .bk-action-label, .bk-action-divider { display: none; }
+            .bk-action-btn { min-width: 50px; padding-inline: 5px; }
+        }
         .toast {
             position: fixed;
             right: 22px;
@@ -2216,24 +2274,28 @@ $canHardDelete = user_has_role('owner_admin');
     </div>
 </aside>
 <div class="bk-action-bar" id="bkActionBar" aria-live="polite">
-    <div class="bk-action-bar-inner">
-        <span class="bk-action-count" id="bkActionCount">0 selected</span>
-        <div class="bk-action-btns">
-            <button class="bk-action-btn" type="button" onclick="moveToDate()">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                Move to date
-            </button>
-            <button class="bk-action-btn" type="button" onclick="archiveSelected()">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
-                Archive
-            </button>
-            <button class="bk-action-btn danger" type="button" onclick="softDeleteSelected()">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                Delete
-            </button>
-            <button class="bk-action-btn cancel" type="button" onclick="clearSelection()">Cancel</button>
-        </div>
+    <div class="bk-action-selection">
+        <span class="bk-action-count" id="bkActionCount">0</span>
+        <strong class="bk-action-label" id="bkActionLabel">items selected</strong>
     </div>
+    <div class="bk-action-divider" aria-hidden="true"></div>
+    <div class="bk-action-btns">
+        <button class="bk-action-btn" type="button" onclick="moveToDate()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <span>Move date</span>
+        </button>
+        <button class="bk-action-btn" type="button" onclick="archiveSelected()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+            <span>Archive</span>
+        </button>
+        <button class="bk-action-btn danger" type="button" onclick="softDeleteSelected()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+            <span>Delete</span>
+        </button>
+    </div>
+    <button class="bk-action-close" type="button" onclick="clearSelection()" aria-label="Clear selection">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
 </div>
 <div class="custom-column-popover" id="customColumnPopover" aria-hidden="true">
     <div class="custom-type-grid" data-custom-type-grid>
@@ -2784,13 +2846,16 @@ function updateFloatingBar() {
   const ids = getSelectedIds();
   const bar = document.getElementById('bkActionBar');
   const count = document.getElementById('bkActionCount');
-  if (!bar || !count) return;
+  const label = document.getElementById('bkActionLabel');
+  if (!bar || !count || !label) return;
   if (ids.length > 0) {
     bar.classList.add('visible');
-    count.textContent = `${ids.length} selected`;
+    count.textContent = String(ids.length);
+    label.textContent = ids.length === 1 ? 'item selected' : 'items selected';
   } else {
     bar.classList.remove('visible');
-    count.textContent = '0 selected';
+    count.textContent = '0';
+    label.textContent = 'items selected';
   }
 }
 
