@@ -26692,9 +26692,18 @@ body.dark-mode .portal-dark-toggle {
 }
 
 .portal-grid-checkbox-input {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
   position: absolute;
   width: 1px;
   height: 1px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  box-shadow: none;
   opacity: 0;
   pointer-events: none;
 }
