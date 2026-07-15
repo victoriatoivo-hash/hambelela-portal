@@ -394,6 +394,7 @@
 
   function taskFieldValue(task, field) {
     if (!task) return '';
+    if (field === 'notes') return task.packer_notes ?? '';
     return task[field] ?? '';
   }
 
@@ -411,7 +412,8 @@
     const returnedRows = new Map((result.updated_rows || []).map((row) => [String(row.id), row]));
     tasks.forEach((task) => {
       if (ids.includes(String(task.id))) {
-        task[field] = value;
+        if (field === 'notes') task.packer_notes = value;
+        else task[field] = value;
         const returned = returnedRows.get(String(task.id));
         if (returned) {
           Object.keys(returned).forEach((key) => { if (key !== 'id') task[key] = returned[key]; });
@@ -1369,7 +1371,7 @@
       if (state.person === '__mine' && String(task.assigned_employee_id || '') !== String(currentUser.id || '')) return false;
       if (state.person === '__unassigned' && Number(task.assigned_employee_id || 0) !== 0) return false;
       if (state.person && !['__mine', '__unassigned'].includes(state.person) && String(task.assigned_employee_id || '') !== String(state.person)) return false;
-      const haystack = [task.item_name, task.received_weight, task.quantity_planned, task.quantity_packed, task.assigned_name, task.notes].join(' ').toLowerCase();
+      const haystack = [task.item_name, task.received_weight, task.quantity_planned, task.quantity_packed, task.assigned_name, task.packer_notes].join(' ').toLowerCase();
       return !search || haystack.includes(search);
     });
   }
@@ -1503,7 +1505,7 @@
           <td class="col-datecompleted">${esc(task.date_completed ? formatDate(task.date_completed) : '')}</td>
           ${renderCustomCells(websiteUpdatedColumns(), task)}
           <td class="col-packstatus">${statusCell}</td>
-          <td class="col-text" title="${esc(task.notes || '')}">${esc(task.notes || '')}</td>
+          <td class="col-text" title="${esc(task.packer_notes || '')}">${canEditOwn ? renderEditableCell({ ...task, notes: task.packer_notes || '' }, 'notes', 'Notes', 'Add note') : esc(task.packer_notes || '')}</td>
           ${renderCustomCells(trailingCustomColumns(), task)}
           <td class="col-add-btn"></td>
         </tr>
@@ -1570,7 +1572,7 @@
           <td class="col-datecompleted packing-editable-date-cell" data-column-key="date_completed">${renderPackingDate(task, 'date_completed', canEditOwn)}</td>
           ${renderCustomCells(websiteUpdatedColumns(), task)}
           <td class="col-packstatus" data-column-key="status">${statusCell}</td>
-          <td class="col-text" data-column-key="text" title="${esc(task.notes || '')}">${esc(task.notes || '')}</td>
+          <td class="col-text" data-column-key="text" title="${esc(task.packer_notes || '')}">${canEditOwn ? renderEditableCell({ ...task, notes: task.packer_notes || '' }, 'notes', 'Notes', 'Add note') : esc(task.packer_notes || '')}</td>
           ${renderCustomCells(trailingCustomColumns(), task)}
           <td class="col-add-btn" data-column-key="add"></td>
         </tr>
@@ -2188,7 +2190,7 @@
     panelTitle.textContent = currentTask.item_name;
     if (panelItemId) panelItemId.textContent = `Portal item #${currentTask.id}`;
     if (panelSource) panelSource.textContent = currentTask.monday_item_id ? 'Imported from legacy Monday data' : 'Created in the portal';
-    panelNotes.value = currentTask.notes || '';
+    panelNotes.value = currentTask.packer_notes || '';
     const canEditOwn = canEditTask(currentTask);
     const defaultPanelTab = currentUser.can_edit_front_website ? 'website' : 'details';
     panelNotes.disabled = !canEditOwn;
@@ -2242,7 +2244,7 @@
     const csvRows = [headers, ...rows.map((task) => [
       task.item_name, task.received_weight, labelText(priorities, task.priority), formatDate(task.date_loaded), task.quantity_planned,
       task.assigned_name, task.quantity_packed, formatDate(task.date_completed), Number(task.website_uploaded || 0) === 1 ? 'Complete' : 'Pending', task.packing_website_confirmed,
-      labelText(statuses, task.packing_status), task.notes
+      labelText(statuses, task.packing_status), task.packer_notes
     ])];
     const csv = csvRows.map((row) => row.map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

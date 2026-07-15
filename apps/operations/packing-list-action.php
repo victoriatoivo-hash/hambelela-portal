@@ -703,10 +703,17 @@ function packing_find_existing_invoice_row(string $invoiceNumber, string $rowKey
     }
 
     if ($rowKey !== '') {
-        $existing = ops_rows(
-            "SELECT * FROM ops_packing_tasks WHERE notes LIKE ?{$excludeSql} ORDER BY id ASC LIMIT 1",
-            array_merge(['%Packing row key: ' . $rowKey . '%'], $excludeParams)
-        );
+        $storedRowKey = 'invoice:' . $rowKey;
+        $hasStoredRowKey = ops_column_exists('ops_packing_tasks', 'packing_row_key');
+        $existing = $hasStoredRowKey
+            ? ops_rows(
+                "SELECT * FROM ops_packing_tasks WHERE (packing_row_key = ? OR notes LIKE ?){$excludeSql} ORDER BY id ASC LIMIT 1",
+                array_merge([$storedRowKey, '%Packing row key: ' . $rowKey . '%'], $excludeParams)
+            )
+            : ops_rows(
+                "SELECT * FROM ops_packing_tasks WHERE notes LIKE ?{$excludeSql} ORDER BY id ASC LIMIT 1",
+                array_merge(['%Packing row key: ' . $rowKey . '%'], $excludeParams)
+            );
         if ($existing) {
             return $existing[0];
         }
@@ -2049,24 +2056,8 @@ try {
                 }
             }
             $invoiceRowKey = packing_invoice_row_key($invoiceNumber, (int) $rowIndex, $itemName, $receivedWeight, $quantityPlan);
-            $notes = trim(
-                'Created from invoice review'
-                . ($supplierName !== '' ? "\nSupplier: {$supplierName}" : '')
-                . ($invoiceNumber !== '' ? "\nInvoice number: {$invoiceNumber}" : '')
-                . ($invoiceDate !== '' ? "\nInvoice date: {$invoiceDate}" : '')
-                . (!empty($row['unit']) ? "\nUnit: " . substr((string) $row['unit'], 0, 40) : '')
-                . (!empty($row['quantity_purchased']) ? "\nInvoice quantity: " . substr((string) $row['quantity_purchased'], 0, 80) : '')
-                . "\nPacking row key: {$invoiceRowKey}"
-                . ($quantityWarning !== '' ? "\nWarning: {$quantityWarning}" : '')
-            );
-            $rowKey = packing_row_key([
-                'item_name' => $itemName,
-                'received_weight' => $receivedWeight,
-                'quantity_planned' => $quantityPlan,
-                'date_loaded' => $dateLoaded,
-                'assigned_employee_id' => $assignedId > 0 ? $assignedId : null,
-                'notes' => $notes,
-            ]);
+            $notes = '';
+            $rowKey = 'invoice:' . $invoiceRowKey;
 
             if ($hasPackingRowKey) {
                 $duplicate = ops_rows(
@@ -2126,7 +2117,6 @@ try {
                     'quantity_planned = ?',
                     'assigned_employee_id = ?',
                     'workload_points = ?',
-                    'notes = ?',
                 ];
                 $updateParams = [
                     $itemName,
@@ -2136,8 +2126,11 @@ try {
                     $quantityPlan,
                     $assignedId > 0 ? $assignedId : null,
                     $workload,
-                    $notes,
                 ];
+                if ($hasPackingRowKey) {
+                    $updateSet[] = 'packing_row_key = ?';
+                    $updateParams[] = $rowKey;
+                }
                 if ($hasMondayStatus) {
                     $updateSet[] = 'monday_sync_status = ?';
                     $updateParams[] = 'updated';
@@ -2545,7 +2538,7 @@ try {
             }
         }
 
-        if (ops_column_exists('ops_packing_tasks', 'packing_row_key') && in_array($field, ['received_weight', 'quantity_planned', 'assigned_employee_id', 'notes'], true)) {
+        if (ops_column_exists('ops_packing_tasks', 'packing_row_key') && in_array($field, ['received_weight', 'quantity_planned', 'assigned_employee_id'], true)) {
             $rowsForKeys = ops_rows(
                 'SELECT id, item_name, received_weight, quantity_planned, date_loaded, assigned_employee_id, notes FROM ops_packing_tasks WHERE id IN (' . $placeholders . ')' . $scope,
                 $scope === '' ? $ids : [...$ids, $currentEmployeeId ?: 0]

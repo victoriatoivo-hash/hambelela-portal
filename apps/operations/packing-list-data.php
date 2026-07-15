@@ -82,6 +82,70 @@ if ($canManage) {
             'changed_by' => current_user()['name'] ?? 'Unknown',
         ]);
     }
+
+    // Strip the legacy invoice-review template while carrying any unrecognised
+    // (user-written) lines into the editable packer note field.
+    $generatedNoteRows = ops_rows(
+        "SELECT id, notes" . ($hasPackerNotes ? ', packer_notes' : '') . "
+         FROM ops_packing_tasks
+         WHERE notes LIKE 'Created from invoice review%'"
+    );
+    $clearGeneratedNoteSql = 'UPDATE ops_packing_tasks SET notes = NULL';
+    if ($hasPackingRowKey) {
+        $clearGeneratedNoteSql .= ', packing_row_key = ?';
+    }
+    if ($hasPackerNotes) {
+        $clearGeneratedNoteSql .= ", packer_notes = CASE WHEN COALESCE(TRIM(packer_notes), '') = '' THEN ? ELSE packer_notes END";
+    }
+    $clearGeneratedNoteSql .= ', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND notes = ?';
+    $clearGeneratedNote = db()->prepare($clearGeneratedNoteSql);
+    $clearedGeneratedNotes = 0;
+    foreach ($generatedNoteRows as $generatedNoteRow) {
+        $originalNote = (string) ($generatedNoteRow['notes'] ?? '');
+        $normalizedNote = trim(str_replace(["\r\n", "\r"], "\n", $originalNote));
+        $lines = explode("\n", $normalizedNote);
+        if (strcasecmp(trim((string) array_shift($lines)), 'Created from invoice review') !== 0) {
+            continue;
+        }
+        $invoiceRowKey = '';
+        $userLines = [];
+        foreach ($lines as $line) {
+            if (preg_match('/^Packing row key:\s*([a-f0-9]{24})\s*$/i', trim($line), $keyMatch)) {
+                $invoiceRowKey = strtolower((string) $keyMatch[1]);
+                continue;
+            }
+            if (preg_match('/^(Supplier|Invoice number|Invoice date|Unit|Invoice quantity|Warning):/i', trim($line))) {
+                continue;
+            }
+            if (trim($line) !== '') {
+                $userLines[] = $line;
+            }
+        }
+        if ($invoiceRowKey === '') {
+            // Without the embedded key this is not one of the known templates.
+            continue;
+        }
+        $clearParams = [];
+        if ($hasPackingRowKey) {
+            $clearParams[] = 'invoice:' . $invoiceRowKey;
+        }
+        if ($hasPackerNotes) {
+            $clearParams[] = trim(implode("\n", $userLines));
+        } elseif ($userLines) {
+            // Do not discard user text on older schemas.
+            continue;
+        }
+        $clearParams[] = (int) $generatedNoteRow['id'];
+        $clearParams[] = $originalNote;
+        $clearGeneratedNote->execute($clearParams);
+        $clearedGeneratedNotes += $clearGeneratedNote->rowCount();
+    }
+    if ($clearedGeneratedNotes > 0) {
+        ops_activity_log('packing_generated_invoice_notes_cleared', 'packing_import', 0, [
+            'rows_cleared' => $clearedGeneratedNotes,
+            'changed_by' => current_user()['name'] ?? 'Unknown',
+        ]);
+    }
 }
 
 $whereParts = [];
