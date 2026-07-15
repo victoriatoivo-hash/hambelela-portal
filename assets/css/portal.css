@@ -5330,7 +5330,7 @@ textarea {
   height: 34px !important;
   min-height: 34px !important;
   font-size: 12px !important;
-  font-weight: 700 !important;
+  font-weight: 400 !important;
 }
 
 .incident-action-btn--edit:hover {
@@ -5358,7 +5358,7 @@ textarea {
   background: var(--bk-orange-red) !important;
   color: #fff !important;
   font-size: 12px !important;
-  font-weight: 700 !important;
+  font-weight: 400 !important;
   white-space: nowrap !important;
   box-shadow: 0 8px 18px rgba(171, 54, 25, .12) !important;
 }
@@ -5604,7 +5604,7 @@ textarea {
   color: #fff !important;
   font-family: inherit;
   font-size: 12px !important;
-  font-weight: 700 !important;
+  font-weight: 400 !important;
   line-height: 1;
   white-space: nowrap !important;
   cursor: pointer;
