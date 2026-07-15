@@ -1967,6 +1967,10 @@
   }
 
   function openPriorityPopup(anchor, taskId) {
+    if (priorityPopup?.classList.contains('is-open') && priorityPopupTrigger === anchor) {
+      closePriorityPopup();
+      return;
+    }
     labelInteractionScrollState = capturePackingScrollState(anchor);
     closeLabel();
     const popup = ensurePriorityPopup();
