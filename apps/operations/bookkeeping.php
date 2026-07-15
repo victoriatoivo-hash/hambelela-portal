@@ -1207,7 +1207,7 @@ $canHardDelete = user_has_role('owner_admin');
             border: 1px solid rgba(171, 54, 25, .3);
             background: var(--ledger-white);
         }
-        .bk-row-check {
+        .ledger-page .check-cell .bk-row-check {
             position: relative;
             width: 14px;
             height: 14px;
@@ -1218,6 +1218,7 @@ $canHardDelete = user_has_role('owner_admin');
             display: inline-flex;
             align-items: center;
             justify-content: center;
+            -webkit-appearance: none;
             appearance: none;
             border: 1px solid rgba(171, 54, 25, .30);
             border-radius: 3px;
@@ -1227,7 +1228,7 @@ $canHardDelete = user_has_role('owner_admin');
             box-sizing: border-box;
             transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease, transform .15s ease;
         }
-        .bk-row-check:checked {
+        .ledger-page .check-cell .bk-row-check:checked {
             border-color: var(--ledger-rust);
             background-color: var(--ledger-rust);
             background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M3 7.2 5.7 10 11 4.5' fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
@@ -1235,7 +1236,7 @@ $canHardDelete = user_has_role('owner_admin');
             background-repeat: no-repeat;
             background-size: 12px 12px;
         }
-        .bk-row-check:focus-visible {
+        .ledger-page .check-cell .bk-row-check:focus-visible {
             outline: 0;
             box-shadow: 0 0 0 3px rgba(171, 54, 25, .12);
         }
