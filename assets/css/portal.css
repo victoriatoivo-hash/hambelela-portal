@@ -13369,6 +13369,32 @@ body.login-page { min-height: 100%; background: #FFFFFF !important; }
   flex: 0 0 14px;
 }
 
+.courier-wrap .courier-grid-header .courier-select-cell {
+  position: relative;
+  z-index: 1;
+  border-left: 1px solid #EDE3D8;
+  cursor: default;
+}
+
+.courier-wrap .queue-item {
+  position: relative;
+  box-shadow: none;
+}
+
+.courier-wrap .queue-item::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 0;
+  width: 4px;
+  pointer-events: none;
+}
+
+.courier-wrap .queue-item > .courier-cell {
+  position: relative;
+  z-index: 1;
+}
+
 .courier-wrap .queue-item.is-selected .courier-cell {
   background: rgba(240, 116, 32, .045);
 }
@@ -13420,9 +13446,9 @@ body.login-page { min-height: 100%; background: #FFFFFF !important; }
   .courier-bulk-selection, .courier-bulk-actions { flex: 0 0 auto; }
 }
 
-.courier-wrap .queue-item.status-overdue { box-shadow: inset 4px 0 0 #BB1B21; }
-.courier-wrap .queue-item.status-duesoon { box-shadow: inset 4px 0 0 #F07420; }
-.courier-wrap .queue-item.status-ok { box-shadow: inset 4px 0 0 #A8CA19; }
+.courier-wrap .queue-item.status-overdue::before { background: #BB1B21; }
+.courier-wrap .queue-item.status-duesoon::before { background: #F07420; }
+.courier-wrap .queue-item.status-ok::before { background: #A8CA19; }
 
 .courier-wrap .queue-main {
   gap: 8px;
