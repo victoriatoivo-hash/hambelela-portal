@@ -154,6 +154,7 @@
 #orders-filter-menu button:hover, #orders-filter-menu button.is-selected { background: #fdf6ee; color: #ab3619; transform: translateX(2px); }
 .orders-filter-panel .date-filter-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 6px; }
 .orders-filter-panel .date-filter-row button { width: auto; color: var(--orders-rust); cursor: pointer; }
+.orders-filter-panel .date-filter-row .portal-date-picker:not(.is-empty) .portal-date-value { color: #1a1a1a; }
 .orders-filter-panel .work-filter-actions { grid-column: 1 / -1; margin-top: 0; display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
 .orders-filter-panel .work-filter-actions button {
   height: 32px;
