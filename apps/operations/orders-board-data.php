@@ -18,6 +18,9 @@ if (!$ready) {
     exit;
 }
 
+$user = current_user();
+$roleKey = (string) ($user['role_key'] ?? '');
+
 $date = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_GET['date'] ?? '')) ? (string) $_GET['date'] : '';
 $month = $date === '' && preg_match('/^\d{4}-\d{2}$/', (string) ($_GET['month'] ?? '')) ? (string) $_GET['month'] : '';
 $dateStart = '';
@@ -124,6 +127,44 @@ if ($orderIds) {
         $order['items'] = $itemsByOrder[(int) ($order['id'] ?? 0)] ?? [];
     }
     unset($order);
+
+    $activitiesByOrder = [];
+    if (ops_table_exists('ops_activity_logs')) {
+        $activityRows = ops_rows(
+            "SELECT al.id, al.entity_id AS order_id, al.action, al.metadata, al.created_at,
+                    e.full_name AS actor_name, r.name AS actor_role
+             FROM ops_activity_logs al
+             LEFT JOIN ops_employees e ON e.id = al.employee_id
+             LEFT JOIN ops_roles r ON r.id = e.role_id
+             WHERE al.entity_type = 'order' AND al.entity_id IN ({$placeholders})
+             ORDER BY al.created_at DESC, al.id DESC
+             LIMIT 2000",
+            $orderIds
+        );
+        $packerVisibleActions = [
+            'order_created', 'status_changed', 'order_completed', 'packed_by_changed', 'packed_by_cleared',
+            'order_datetime_updated', 'group_date_updated', 'update_added', 'bulk_status_updated',
+            'bulk_assigned_packer_id_updated',
+        ];
+        foreach ($activityRows as $activityRow) {
+            $actionKey = (string) ($activityRow['action'] ?? '');
+            if ($roleKey === 'packer' && !in_array($actionKey, $packerVisibleActions, true)) {
+                continue;
+            }
+            $metadata = $activityRow['metadata'] ?? [];
+            if (is_string($metadata)) {
+                $decoded = json_decode($metadata, true);
+                $metadata = is_array($decoded) ? $decoded : [];
+            }
+            $activityRow['metadata'] = is_array($metadata) ? $metadata : [];
+            unset($activityRow['ip_address']);
+            $activitiesByOrder[(int) ($activityRow['order_id'] ?? 0)][] = $activityRow;
+        }
+    }
+    foreach ($orders as &$order) {
+        $order['activity'] = $activitiesByOrder[(int) ($order['id'] ?? 0)] ?? [];
+    }
+    unset($order);
 }
 
 $archiveMetricWhere = $hasArchivedAt ? ' AND archived_at IS NULL' : '';
@@ -188,9 +229,6 @@ $viewers = ops_table_exists('ops_board_presence') ? ops_rows(
      WHERE bp.last_seen_at >= DATE_SUB(NOW(), INTERVAL 2 MINUTE)
      ORDER BY bp.last_seen_at DESC"
 ) : [];
-
-$user = current_user();
-$roleKey = (string) ($user['role_key'] ?? '');
 
 echo json_encode([
     'ok' => true,

@@ -180,8 +180,9 @@ include BASE_PATH . '/shared/sidebar.php';
             <div class="order-file-dropzone is-disabled" aria-disabled="true"><i data-lucide="paperclip"></i><strong>Order file storage is coming soon</strong><span>Uploads are unavailable until secure order storage is connected.</span></div>
             <div class="order-panel-empty" id="panel-files-list"><strong>No files uploaded</strong><span>Files attached to updates are listed inside the update entry.</span></div>
         </section>
-        <section class="order-panel-section updates-tab-panel" data-panel-name="activity">
-            <div id="panel-activity-log" class="order-activity-list"></div>
+        <section class="order-panel-section order-activity-tab updates-tab-panel" data-panel-name="activity">
+            <header><h3 class="order-activity-heading">Activity</h3><p class="order-activity-subheading">Operational changes made to this order.</p></header>
+            <div id="panel-activity-log" class="portal-activity-timeline" aria-live="polite"></div>
         </section>
         </div>
     </aside>

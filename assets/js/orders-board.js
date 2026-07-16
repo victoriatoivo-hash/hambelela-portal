@@ -790,12 +790,13 @@
       activeOrderMutationCount = Math.max(0, activeOrderMutationCount - 1);
     }
 
-    ordersCache.forEach((order) => {
-      if (savedIds.includes(String(order.id))) {
-        updateOrderCacheField(order.id, field, value);
-      }
-    });
     const savedChanges = changes.filter((change) => savedIds.includes(change.id));
+    savedChanges.forEach((change) => {
+      const order = ordersCache.find((item) => String(item.id) === String(change.id));
+      updateOrderCacheField(change.id, field, value);
+      prependLocalOrderActivity(order, field, change.value, value);
+    });
+    if (currentOrder && savedIds.includes(String(currentOrder.id))) renderPanelActivity();
     setUndo(savedChanges);
     if (syncState && ids.length > 1 && savedIds.length === ids.length) {
       syncState.textContent = `Saved ${ids.length} selected orders.`;
@@ -2969,18 +2970,94 @@
     if (window.lucide) window.lucide.createIcons();
   }
 
+  function orderActivityDate(value) {
+    if (!value) return 'Date unavailable';
+    const parsed = new Date(String(value).replace(' ', 'T'));
+    if (Number.isNaN(parsed.getTime())) return String(value);
+    return parsed.toLocaleString('en-GB', {
+      day:'numeric', month:'long', year:'numeric', hour:'numeric', minute:'2-digit', hour12:true
+    }).replace(' at ', ', ');
+  }
+
+  function orderActivityDefinition(action, metadata = {}) {
+    const field = metadata.field || '';
+    const definitions = {
+      order_created:['Order created', 'Order record was created.', 'file-plus-2'],
+      status_changed:['Status changed', 'Order status was updated.', 'circle-check'],
+      order_completed:['Order completed', 'Order was marked complete.', 'badge-check'],
+      packed_by_changed:['Packing assignment changed', 'Packing responsibility was reassigned.', 'user-round'],
+      packed_by_cleared:['Packing assignment cleared', 'Packing responsibility was removed.', 'user-round-x'],
+      payment_changed:['Payment method changed', 'Payment method was updated.', 'wallet-cards'],
+      payment_status_updated:['Paid status updated', 'Payment status was updated.', 'badge-dollar-sign'],
+      mode_changed:['Fulfilment mode changed', 'Order fulfilment mode was updated.', 'truck'],
+      order_datetime_updated:['Order date changed', 'Order date and time were updated.', 'calendar-days'],
+      group_date_updated:['Order date changed', 'Order date group was updated.', 'calendar-days'],
+      mobile_changed:['Mobile number changed', 'Customer contact number was updated.', 'phone'],
+      amount_changed:['Order amount changed', 'Order amount was updated.', 'banknote'],
+      customer_updated:['Customer details updated', 'Customer details were updated.', 'contact-round'],
+      update_added:['Update added', 'An operational update was added.', 'message-square'],
+      order_archived:['Order archived', 'Order was moved to the archive.', 'archive'],
+      order_restored:['Order restored', 'Order was restored.', 'rotate-ccw']
+    };
+    if (definitions[action]) return definitions[action];
+    if (String(action).startsWith('bulk_')) {
+      const label = field ? field.replaceAll('_', ' ') : 'order field';
+      return [`${label.charAt(0).toUpperCase()}${label.slice(1)} changed`, 'Order details were updated.', 'pencil-line'];
+    }
+    return ['Order activity', 'An operational change was recorded.', 'history'];
+  }
+
+  function orderActivityValue(field, value) {
+    if (value === null || value === undefined || value === '') return 'Not set';
+    if (field === 'status') return findText(statusLabels, value) || value;
+    if (field === 'order_type') return findText(modeLabels, value) || value;
+    if (field === 'payment_method') return findText(paymentLabels, value) || value;
+    if (field === 'assigned_packer_id') return packersCache.find((packer) => String(packer.id) === String(value))?.full_name || `Employee ${value}`;
+    if (field === 'total_amount') return money(value);
+    return String(value);
+  }
+
+  function prependLocalOrderActivity(order, field, oldValue, newValue) {
+    if (!order) return;
+    const actions = {
+      customer_name:'customer_updated', customer_contact:'mobile_changed', payment_method:'payment_changed',
+      payment_status:'payment_status_updated', order_type:'mode_changed', total_amount:'amount_changed',
+      status:newValue === 'completed' ? 'order_completed' : 'status_changed',
+      assigned_packer_id:newValue ? 'packed_by_changed' : 'packed_by_cleared', created_at:'order_datetime_updated', notes:'update_added'
+    };
+    const action = actions[field];
+    if (!action) return;
+    order.activity = Array.isArray(order.activity) ? order.activity : [];
+    order.activity.unshift({
+      id:`local-${Date.now()}-${Math.random()}`, action, created_at:new Date().toISOString(),
+      actor_name:currentUser.name || currentUser.full_name || 'Current user', actor_role:currentUser.role_name || currentUser.role_key || '',
+      metadata:{ field, old_value:field === 'notes' ? '' : oldValue, new_value:field === 'notes' ? 'Order update saved' : newValue }
+    });
+  }
+
   function renderPanelActivity() {
     if (!panelActivity || !currentOrder) return;
-    const events = [
-      ['Order created', prettyDate(orderDisplayDateTime(currentOrder)), 'shopping-bag'],
-      ['Current status', findText(statusLabels, currentOrder.status || '') || 'New order', 'circle-check'],
-      ['Packing assignment', currentOrder.packer_name || 'Unassigned', 'user-round']
-    ];
-    if (savedUpdateBody(currentOrder)) events.push(['Update added', 'A saved order update is available', 'message-square']);
-    panelActivity.innerHTML = events.map(([title, detail, icon]) => `<article class="order-activity-card">
-      <span class="order-activity-icon"><i data-lucide="${esc(icon)}"></i></span>
-      <div><strong>${esc(title)}</strong><small>${esc(detail)}</small></div>
-    </article>`).join('');
+    let events = Array.isArray(currentOrder.activity) ? currentOrder.activity : [];
+    if (!events.length) {
+      events = [{
+        id:'imported-snapshot', action:'imported_snapshot', created_at:currentOrder.source_created_at || currentOrder.created_at,
+        metadata:{}, actor_name:'', actor_role:''
+      }];
+    }
+    panelActivity.innerHTML = events.map((event) => {
+      const metadata = event.metadata && typeof event.metadata === 'object' ? event.metadata : {};
+      const [title, defaultDescription, icon] = event.action === 'imported_snapshot'
+        ? ['Order record imported', `Initial snapshot: ${findText(statusLabels, currentOrder.status || '') || 'New order'}; assigned to ${currentOrder.packer_name || 'Unassigned'}.`, 'database']
+        : orderActivityDefinition(event.action, metadata);
+      const actor = event.actor_name || metadata.changed_by || '';
+      const initials = actor.split(/\s+/).filter(Boolean).slice(0,2).map((part) => part.charAt(0)).join('').toUpperCase();
+      const field = metadata.field || (event.action.includes('packed_by') ? 'assigned_packer_id' : '');
+      const oldValue = metadata.old_value ?? metadata.previous_packer_id ?? metadata.from_date ?? '';
+      const newValue = metadata.new_value ?? metadata.assigned_packer_id ?? metadata.to_date ?? metadata.value ?? '';
+      const change = oldValue !== '' && newValue !== '' ? `<div class="portal-activity-change"><div><span>Previous</span><strong>${esc(orderActivityValue(field, oldValue))}</strong></div><div><span>New</span><strong>${esc(orderActivityValue(field, newValue))}</strong></div></div>` : '';
+      const actorBlock = actor ? `<div class="portal-activity-actor"><span class="portal-activity-avatar">${esc(initials || 'U')}</span><span class="portal-activity-actor-copy"><strong class="portal-activity-actor-name">${esc(actor)}</strong><small class="portal-activity-actor-role">${esc(event.actor_role || '')}</small></span></div>` : '';
+      return `<article class="portal-activity-item"><span class="portal-activity-icon"><i data-lucide="${esc(icon)}"></i></span><div class="portal-activity-content"><h4 class="portal-activity-title">${esc(title)}</h4><time class="portal-activity-time">${esc(orderActivityDate(event.created_at))}</time><p class="portal-activity-description">${esc(defaultDescription)}</p>${change}${actorBlock}</div></article>`;
+    }).join('');
     if (window.lucide) window.lucide.createIcons({ strokeWidth:2 });
   }
 

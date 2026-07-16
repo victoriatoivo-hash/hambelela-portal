@@ -1133,6 +1133,15 @@ try {
             $value = number_format((float) $value, 2, '.', '');
         }
 
+        $previousRows = ops_rows(
+            'SELECT customer_name, customer_contact, payment_method, order_type, total_amount, status, payment_status, notes, assigned_packer_id FROM ops_orders WHERE id = ? LIMIT 1',
+            [$orderId]
+        );
+        if (!$previousRows) {
+            throw new RuntimeException('Order not found. Refresh and try again.');
+        }
+        $previousOrder = $previousRows[0];
+
         if ($field === 'assigned_packer_id') {
             $user = current_user();
             $roleKey = (string) ($user['role_key'] ?? '');
@@ -1151,8 +1160,7 @@ try {
                     throw new RuntimeException('Choose an active employee eligible for Packing assignment.');
                 }
             }
-            $previousRows = ops_rows('SELECT assigned_packer_id FROM ops_orders WHERE id = ? LIMIT 1', [$orderId]);
-            $previousPackerId = (int) ($previousRows[0]['assigned_packer_id'] ?? 0);
+            $previousPackerId = (int) ($previousOrder['assigned_packer_id'] ?? 0);
             $assignedAt = ops_column_exists('ops_orders', 'assigned_at') ? ', assigned_at = CASE WHEN ? IS NULL THEN NULL ELSE COALESCE(assigned_at, NOW()) END' : '';
             $stmt = db()->prepare('UPDATE ops_orders SET assigned_packer_id = ?' . $assignedAt . ', updated_at = CURRENT_TIMESTAMP WHERE id = ?');
             if ($assignedAt !== '') {
@@ -1185,6 +1193,12 @@ try {
             }
             $stmt = db()->prepare('UPDATE ops_orders SET ' . $set . ' WHERE id = ?');
             $stmt->execute([$value, $orderId]);
+            ops_activity_log($value === 'completed' ? 'order_completed' : 'status_changed', 'order', $orderId, [
+                'field' => 'status',
+                'old_value' => (string) ($previousOrder['status'] ?? ''),
+                'new_value' => $value,
+                'changed_by' => current_user()['name'] ?? 'Unknown',
+            ]);
             ops_log_order_stage_event($orderId, $value, [
                 'source' => 'orders_board_field',
                 'status' => $value,
@@ -1205,12 +1219,30 @@ try {
             $stmt = db()->prepare('UPDATE ops_orders SET payment_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
             $stmt->execute([$value, $orderId]);
             ops_activity_log('payment_status_updated', 'order', $orderId, [
-                'payment_status' => $value,
+                'field' => 'payment_status',
+                'old_value' => (string) ($previousOrder['payment_status'] ?? ''),
+                'new_value' => $value,
                 'changed_by' => current_user()['name'] ?? 'Unknown',
             ]);
         } else {
             $stmt = db()->prepare('UPDATE ops_orders SET ' . $allowed[$field] . ' = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
             $stmt->execute([$value, $orderId]);
+            $activityActions = [
+                'customer_name' => 'customer_updated',
+                'customer_contact' => 'mobile_changed',
+                'payment_method' => 'payment_changed',
+                'order_type' => 'mode_changed',
+                'total_amount' => 'amount_changed',
+                'notes' => 'update_added',
+            ];
+            if (isset($activityActions[$field])) {
+                ops_activity_log($activityActions[$field], 'order', $orderId, [
+                    'field' => $field,
+                    'old_value' => $field === 'notes' ? '' : (string) ($previousOrder[$field] ?? ''),
+                    'new_value' => $field === 'notes' ? 'Order update saved' : $value,
+                    'changed_by' => current_user()['name'] ?? 'Unknown',
+                ]);
+            }
         }
 
         echo json_encode(['ok' => true, 'message' => 'Order updated.']);
