@@ -1804,7 +1804,7 @@
 
   function renderPaidCell(order) {
     const paid = order.payment_status === 'paid';
-    return `<button type="button" class="orders-paid-toggle${paid ? ' is-confirmed' : ''}" data-paid-toggle="${esc(order.id)}" data-paid-state="${paid ? 'paid' : 'unpaid'}" aria-pressed="${paid ? 'true' : 'false'}" aria-label="${paid ? 'Mark order unpaid' : 'Mark order paid'}"><svg class="orders-paid-tick" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10.5l3.2 3.2L16 5.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`;
+    return `<button type="button" class="orders-paid-toggle" data-paid-toggle="${esc(order.id)}" data-paid-state="${paid ? 'paid' : 'unpaid'}" aria-pressed="${paid ? 'true' : 'false'}" aria-label="${paid ? 'Mark order unpaid' : 'Mark order paid'}"><svg class="orders-paid-tick" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10.5l3.2 3.2L16 5.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`;
   }
 
   function refreshGroupSummaries(groupKeys) {
