@@ -313,7 +313,7 @@
           .filter((item) => Array.isArray(item) && item.length >= 3)
           .map((item) => {
             const key = String(item[0] || normalize(item[1]));
-            return [key, String(item[1] || item[0]), normalize(key) === 'done' ? '#00C875' : String(item[2] || '#8c92a6')];
+            return [key, String(item[1] || item[0]), String(item[2] || '#8c92a6')];
           });
       }
     } catch (error) {
@@ -1417,14 +1417,31 @@
     }, { critical: 0, high: 0, medium: 0, low: 0 });
   }
 
-  function packingStatusCounts(tasksInGroup) {
-    return tasksInGroup.reduce((memo, task) => {
-      const status = normalize(task.packing_status || 'not_started');
-      if (packingStatusIsCompleted(status)) memo.done += 1;
-      else if (['packing', 'in_progress', 'packed_label_needed', 'done_needs_label', 'correction_needed'].includes(status)) memo.inprogress += 1;
-      else memo.notstarted += 1;
-      return memo;
-    }, { done: 0, inprogress: 0, notstarted: 0 });
+  function packingStatusCounts(items, statusValue = (item) => item.packing_status) {
+    const definitions = statuses.map((definition) => ({
+      key: normalize(definition[0]),
+      label: itemText(definition),
+      colour: itemColor(definition),
+      count: 0,
+    }));
+    const definitionByKey = new Map(definitions.map((definition) => [definition.key, definition]));
+    const unknown = { key: 'unknown', label: 'Unknown', colour: '#D8CFC8', count: 0 };
+    let completed = 0;
+
+    items.forEach((item) => {
+      const key = normalize(statusValue(item) || 'not_started');
+      const definition = definitionByKey.get(key);
+      if (definition) definition.count += 1;
+      else unknown.count += 1;
+      if (packingStatusIsCompleted(key)) completed += 1;
+    });
+
+    if (unknown.count > 0) {
+      console.warn(`Packing status summary contains ${unknown.count} item(s) with an unknown status.`);
+      definitions.push(unknown);
+    }
+
+    return { completed, segments: definitions };
   }
 
   function packingSummarySegments(items, total, label, containerClass) {
@@ -1456,12 +1473,11 @@
   function packingProgressBar(counts, total) {
     return `
       <div class="packing-progress-wrap">
-        <span class="packing-fraction">${counts.done}/${total}</span>
-        ${packingSummarySegments([
-          { className: 'seg-done', label: 'Done', count: counts.done, colour: '#a8ca19' },
-          { className: 'seg-inprogress', label: 'Packing', count: counts.inprogress, colour: '#f07420' },
-          { className: 'seg-notstarted', label: 'Pending', count: counts.notstarted, colour: '#bb1b21' },
-        ], total, 'Packing status progress', 'packing-progress-bar')}
+        <span class="packing-fraction">${counts.completed}/${total}</span>
+        ${packingSummarySegments(counts.segments.map((segment) => ({
+          ...segment,
+          className: `status-${segment.key.replace(/[^a-z0-9_-]/g, '-')}`,
+        })), total, 'Packing status distribution', 'packing-progress-bar')}
       </div>
     `;
   }
@@ -1481,12 +1497,11 @@
   function packingHeaderProgress(counts, total) {
     return `
       <div class="packing-progress-summary">
-        <strong>${counts.done}/${total}</strong>
-        ${packingSummarySegments([
-          { className: 'done', label: 'Done', count: counts.done, colour: '#a8ca19' },
-          { className: 'packing', label: 'Packing', count: counts.inprogress, colour: '#f07420' },
-          { className: 'pending', label: 'Pending', count: counts.notstarted, colour: '#bb1b21' },
-        ], total, 'Packing status progress', 'packing-progress-bar')}
+        <strong>${counts.completed}/${total}</strong>
+        ${packingSummarySegments(counts.segments.map((segment) => ({
+          ...segment,
+          className: `status-${segment.key.replace(/[^a-z0-9_-]/g, '-')}`,
+        })), total, 'Packing status distribution', 'packing-progress-bar')}
       </div>
     `;
   }
@@ -2381,16 +2396,16 @@
     const group = component?.closest('.packing-month-group');
     if (!group) return;
     const components = [...group.querySelectorAll('[data-packing-status-component]')];
-    const counts = components.reduce((memo, item) => {
-      const status = normalize(item.dataset.status || 'not_started');
-      if (packingStatusIsCompleted(status)) memo.done += 1;
-      else if (['packing', 'in_progress', 'packed_label_needed', 'done_needs_label', 'correction_needed'].includes(status)) memo.inprogress += 1;
-      else memo.notstarted += 1;
-      return memo;
-    }, { done: 0, inprogress: 0, notstarted: 0 });
+    const counts = packingStatusCounts(components, (item) => item.dataset.statusKey || item.dataset.status);
     group.querySelectorAll('.packing-progress-summary').forEach((summary) => {
       const holder = document.createElement('div');
       holder.innerHTML = packingHeaderProgress(counts, components.length).trim();
+      const replacement = holder.firstElementChild;
+      if (replacement) summary.replaceWith(replacement);
+    });
+    group.querySelectorAll('.packing-progress-wrap').forEach((summary) => {
+      const holder = document.createElement('div');
+      holder.innerHTML = packingProgressBar(counts, components.length).trim();
       const replacement = holder.firstElementChild;
       if (replacement) summary.replaceWith(replacement);
     });
