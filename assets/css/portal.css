@@ -22751,9 +22751,9 @@ body:has(.ob-wrap) .ob-wrap .column-header[data-editable-column-header] {
 }
 
 body:has(.ob-wrap) .ob-wrap .column-header.is-editing {
-  outline: 2px solid #0073ea !important;
-  outline-offset: -2px !important;
-  background: #ffffff !important;
+  outline: 0 !important;
+  box-shadow: inset 0 0 0 1px rgba(171, 54, 25, 0.22) !important;
+  background: transparent !important;
   z-index: 30 !important;
 }
 
@@ -22836,9 +22836,9 @@ body:has(.ob-wrap) .ob-wrap .order-date-cell {
 }
 
 body:has(.ob-wrap) .ob-wrap .order-date-cell.is-editing {
-  outline: 2px solid #0073ea !important;
-  outline-offset: -2px !important;
-  background: #ffffff !important;
+  outline: 0 !important;
+  box-shadow: inset 0 0 0 1px rgba(171, 54, 25, 0.22) !important;
+  background: transparent !important;
   z-index: 30 !important;
 }
 
@@ -23039,9 +23039,9 @@ body:has(.ob-wrap) .ob-wrap .editable-cell.col-packedby {
 }
 
 body:has(.ob-wrap) .ob-wrap .editable-cell.is-editing {
-  outline: 2px solid #0073ea !important;
-  outline-offset: -2px !important;
-  background: #ffffff !important;
+  outline: 0 !important;
+  box-shadow: inset 0 0 0 1px rgba(171, 54, 25, 0.22) !important;
+  background: transparent !important;
   z-index: 20 !important;
 }
 
@@ -23052,11 +23052,36 @@ body:has(.ob-wrap) .ob-wrap .editable-cell select {
   min-height: 30px !important;
   border: 0 !important;
   outline: 0 !important;
-  background: #ffffff !important;
+  background: transparent !important;
   padding: 0 8px !important;
   font: inherit !important;
   color: inherit !important;
   box-sizing: border-box !important;
+}
+
+body:has(.ob-wrap) .ob-wrap .editable-cell input::selection,
+body:has(.ob-wrap) .ob-wrap .editable-cell textarea::selection,
+body:has(.ob-wrap) .ob-wrap .editable-cell [contenteditable="true"]::selection,
+body:has(.ob-wrap) .ob-wrap .column-header-title-input::selection {
+  background: rgba(171, 54, 25, 0.16);
+  color: #1a1a1a;
+}
+
+body:has(.ob-wrap) .ob-wrap .orders-inline-cell-input {
+  height: 35px !important;
+  min-height: 35px !important;
+  margin: 0 !important;
+  padding: 0 10px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #1a1a1a !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  caret-color: #ab3619 !important;
+  font-family: Figtree, system-ui, sans-serif !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
 }
 
 body:has(.ob-wrap) .ob-wrap .editable-cell.is-saving::after {
@@ -23161,7 +23186,7 @@ body:has(.ob-wrap) .ob-wrap .monday-order-row.is-selected .monday-cell * {
 }
 
 body:has(.ob-wrap) .ob-wrap .order-date-cell.is-editing {
-  font-weight: 500 !important;
+  font-weight: 400 !important;
 }
 
 body:has(.ob-wrap) .ob-wrap .mode-cell.is-active,
@@ -23684,10 +23709,10 @@ body:has(.ob-wrap) .ob-wrap small {
 
 body:has(.ob-wrap) .ob-wrap .editable-cell.is-editing,
 body:has(.ob-wrap) .ob-wrap .order-date-cell.is-editing {
-  outline: 2px solid var(--orders-monday-primary) !important;
-  outline-offset: -2px !important;
-  background: #ffffff !important;
-  font-weight: 500 !important;
+  outline: 0 !important;
+  box-shadow: inset 0 0 0 1px rgba(171, 54, 25, 0.22) !important;
+  background: transparent !important;
+  font-weight: 400 !important;
 }
 
 .ops-board-page #board-label-menu.label-menu {
@@ -24034,8 +24059,8 @@ body:has(.ob-wrap) .ob-wrap .paid-check {
 
 body:has(.ob-wrap) .ob-wrap .editable-cell.is-editing,
 body:has(.ob-wrap) .ob-wrap .order-date-cell.is-editing {
-  outline: var(--space-2) var(--border-style) var(--primary-color) !important;
-  outline-offset: calc(-1 * var(--space-2)) !important;
+  outline: 0 !important;
+  box-shadow: inset 0 0 0 1px rgba(171, 54, 25, 0.22) !important;
 }
 
 #board-label-menu.mode-label-popover,

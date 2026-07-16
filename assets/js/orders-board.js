@@ -500,8 +500,7 @@
 
     control.value = field === 'total_amount' ? String(originalValue).replace(/[^\d.]/g, '') : originalValue;
     cell.appendChild(control);
-    control.focus();
-    if (control.select) control.select();
+    focusInlineEditorAtEnd(control);
 
     const finish = (nextOrder = order) => {
       renderEditableCell(cell, nextOrder, field);
@@ -591,8 +590,51 @@
     return order[field] ?? '';
   }
 
+  function ordersTablePosition(orderId = '') {
+    const activeElement = document.activeElement;
+    const row = activeElement?.closest?.('.monday-order-row')
+      || (orderId ? document.querySelector(`.monday-order-row[data-order-id="${selectorEsc(orderId)}"]`) : null);
+    const group = row?.closest?.('[data-group-card]') || activeElement?.closest?.('[data-group-card]');
+    const table = activeElement?.closest?.('.orders-table-scroll') || group?.querySelector('.orders-table-scroll');
+
+    return {
+      groupKey: group?.dataset.groupCard || '',
+      table,
+      tableLeft: table?.scrollLeft || 0,
+      tableTop: table?.scrollTop || 0,
+      windowX: window.scrollX,
+      windowY: window.scrollY
+    };
+  }
+
+  function restoreOrdersTablePosition(position) {
+    if (!position) return;
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        const table = position.table?.isConnected
+          ? position.table
+          : position.groupKey
+            ? body.querySelector(`[data-group-card="${selectorEsc(position.groupKey)}"] .orders-table-scroll`)
+            : null;
+        if (table) {
+          table.scrollLeft = position.tableLeft;
+          table.scrollTop = position.tableTop;
+        }
+        window.scrollTo({ left: position.windowX, top: position.windowY, behavior: 'auto' });
+      });
+    });
+  }
+
+  function focusInlineEditorAtEnd(control) {
+    control.focus({ preventScroll: true });
+    if (typeof control.setSelectionRange !== 'function') return;
+    const end = String(control.value || '').length;
+    control.setSelectionRange(end, end);
+  }
+
   async function updateOrdersField(orderIds, field, value) {
     const ids = orderIds.map(String);
+    const position = ordersTablePosition(ids[0] || '');
     const changes = ids.map((id) => {
       const order = ordersCache.find((item) => String(item.id) === id);
       return { id, field, value: orderFieldValue(order, field) };
@@ -654,6 +696,7 @@
       }
     } finally {
       rows.forEach((row) => row.classList.remove('is-saving'));
+      restoreOrdersTablePosition(position);
     }
 
     ordersCache.forEach((order) => {
@@ -1637,8 +1680,7 @@
     header.classList.add('is-editing');
     title.hidden = true;
     header.insertBefore(input, header.querySelector('.column-resizer'));
-    input.focus();
-    input.select();
+    focusInlineEditorAtEnd(input);
 
     input.addEventListener('click', (event) => event.stopPropagation());
     input.addEventListener('mousedown', (event) => event.stopPropagation());
