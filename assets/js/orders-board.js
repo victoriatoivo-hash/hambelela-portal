@@ -2986,7 +2986,7 @@
     panelReturnPosition = null;
   }
 
-  async function refresh(trigger = null) {
+  async function refresh(trigger = null, options = {}) {
     setButtonBusy(trigger, true);
     try {
       if (!hasRenderedOnce) showSkeletonRows();
@@ -3002,8 +3002,14 @@
       if (!response.ok || !data.ok) throw new Error(data.message || 'Could not load board');
       currentUser = data.currentUser || {};
       window.HambelelaBoardMetrics = data.metrics || null;
-      renderPackers(data.packers || [], data.currentEmployeeId);
       renderViewers(data.viewers || []);
+      const background = options.background === true;
+      const boardIsPositioned = [...body.querySelectorAll('[data-orders-board-scroll], .orders-table-scroll')]
+        .some((table) => table.scrollLeft !== 0 || table.scrollTop !== 0);
+      if (background && hasRenderedOnce && (ordersInteractionInProgress() || boardIsPositioned)) {
+        return data;
+      }
+      renderPackers(data.packers || [], data.currentEmployeeId);
       renderOrders(data.orders || []);
       if (syncState && !lastSyncMessage) {
         const count = data.orders?.length || 0;
@@ -3215,6 +3221,7 @@
         const cell = body.querySelector(`.monday-order-row[data-order-id="${selectorEsc(orderId)}"] [data-editable-order-field="customer_name"]`);
         if (cell) beginEditableCell(cell);
       }
+      return data;
       return;
     }
 
@@ -3935,7 +3942,7 @@
         })
         .finally(() => {
           if (document.visibilityState !== 'hidden') {
-            syncWebsite(true).then(refresh).catch((error) => {
+            syncWebsite(true).then(() => refresh(null, { background:true })).catch((error) => {
               if (syncState) syncState.textContent = `Sync issue: ${error.message}`;
             });
           }
@@ -3944,12 +3951,12 @@
   window.setInterval(heartbeat, 30000);
   window.setInterval(() => {
     if (document.visibilityState !== 'hidden' && !ordersInteractionInProgress()) {
-      refresh().catch((error) => showError(error));
+      refresh(null, { background:true }).catch((error) => showError(error));
     }
   }, 10000);
   window.setInterval(() => {
     if (document.visibilityState !== 'hidden' && !ordersInteractionInProgress()) {
-      syncWebsite(true).then(refresh).catch((error) => showError(error));
+      syncWebsite(true).then(() => refresh(null, { background:true })).catch((error) => showError(error));
     }
   }, 60000);
   window.addEventListener('resize', positionOrderDatePicker);
