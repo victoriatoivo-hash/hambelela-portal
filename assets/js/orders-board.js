@@ -152,6 +152,10 @@
   let activeDateSortGroup = null;
   let dateGroupSorts = {};
   let labelEditorAutosaveTimer = null;
+  let pendingOrdersInteractionPosition = null;
+  let panelReturnPosition = null;
+  let panelReturnTrigger = null;
+  let activeOrderMutationCount = 0;
 
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
@@ -590,12 +594,16 @@
     return order[field] ?? '';
   }
 
-  function ordersTablePosition(orderId = '') {
-    const activeElement = document.activeElement;
-    const row = activeElement?.closest?.('.monday-order-row')
+  function getOrdersScrollContainer(element) {
+    return element?.closest?.('[data-orders-board-scroll], .orders-table-scroll') || null;
+  }
+
+  function ordersTablePosition(element = null, orderId = '') {
+    const source = element instanceof Element ? element : document.activeElement;
+    const row = source?.closest?.('.monday-order-row')
       || (orderId ? document.querySelector(`.monday-order-row[data-order-id="${selectorEsc(orderId)}"]`) : null);
-    const group = row?.closest?.('[data-group-card]') || activeElement?.closest?.('[data-group-card]');
-    const table = activeElement?.closest?.('.orders-table-scroll') || group?.querySelector('.orders-table-scroll');
+    const group = row?.closest?.('[data-group-card]') || source?.closest?.('[data-group-card]');
+    const table = getOrdersScrollContainer(source) || group?.querySelector('[data-orders-board-scroll], .orders-table-scroll');
 
     return {
       groupKey: group?.dataset.groupCard || '',
@@ -609,20 +617,47 @@
 
   function restoreOrdersTablePosition(position) {
     if (!position) return;
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        const table = position.table?.isConnected
-          ? position.table
-          : position.groupKey
-            ? body.querySelector(`[data-group-card="${selectorEsc(position.groupKey)}"] .orders-table-scroll`)
-            : null;
-        if (table) {
-          table.scrollLeft = position.tableLeft;
-          table.scrollTop = position.tableTop;
-        }
-        window.scrollTo({ left: position.windowX, top: position.windowY, behavior: 'auto' });
-      });
+    const apply = () => {
+      const table = position.table?.isConnected
+        ? position.table
+        : position.groupKey
+          ? body.querySelector(`[data-group-card="${selectorEsc(position.groupKey)}"] [data-orders-board-scroll], [data-group-card="${selectorEsc(position.groupKey)}"] .orders-table-scroll`)
+          : null;
+      if (table) {
+        table.scrollLeft = position.tableLeft;
+        table.scrollTop = position.tableTop;
+      }
+      if (window.scrollX !== position.windowX || window.scrollY !== position.windowY) {
+        window.scrollTo({ left: position.windowX, top: position.windowY, behavior: 'instant' });
+      }
+    };
+    apply();
+    window.requestAnimationFrame(apply);
+  }
+
+  function captureOrdersBoardPositions() {
+    return [...body.querySelectorAll('[data-group-card]')].map((group) => {
+      const table = group.querySelector('[data-orders-board-scroll], .orders-table-scroll');
+      return { groupKey: group.dataset.groupCard || '', tableLeft: table?.scrollLeft || 0, tableTop: table?.scrollTop || 0 };
     });
+  }
+
+  function restoreOrdersBoardPositions(positions) {
+    (positions || []).forEach((position) => restoreOrdersTablePosition({
+      ...position,
+      table: null,
+      windowX: window.scrollX,
+      windowY: window.scrollY
+    }));
+  }
+
+  function ordersInteractionInProgress() {
+    return activeOrderMutationCount > 0
+      || Boolean(body.querySelector('.is-editing'))
+      || Boolean(personPopup?.classList.contains('is-open'))
+      || Boolean(labelMenu && !labelMenu.hidden)
+      || Boolean(panel?.classList.contains('is-open'))
+      || Boolean(getOrdersScrollContainer(document.activeElement));
   }
 
   function focusInlineEditorAtEnd(control) {
@@ -634,7 +669,9 @@
 
   async function updateOrdersField(orderIds, field, value) {
     const ids = orderIds.map(String);
-    const position = ordersTablePosition(ids[0] || '');
+    const sourceRow = ids[0] ? document.querySelector(`.monday-order-row[data-order-id="${selectorEsc(ids[0])}"]`) : null;
+    const position = ordersTablePosition(sourceRow, ids[0] || '');
+    activeOrderMutationCount += 1;
     const changes = ids.map((id) => {
       const order = ordersCache.find((item) => String(item.id) === id);
       return { id, field, value: orderFieldValue(order, field) };
@@ -697,6 +734,7 @@
     } finally {
       rows.forEach((row) => row.classList.remove('is-saving'));
       restoreOrdersTablePosition(position);
+      activeOrderMutationCount = Math.max(0, activeOrderMutationCount - 1);
     }
 
     ordersCache.forEach((order) => {
@@ -1931,7 +1969,7 @@
               <span class="orders-date-summary-block orders-date-summary-block--status"><span class="orders-summary-label">Status</span>${stackedBar(statusCounts, statusColours, 'ob-status-bar', 'status')}</span>
         </button>
         <div class="orders-date-content monday-group-orders" data-orders-date-content${hiddenAttrs}>
-            <div class="orders-table-scroll">
+            <div class="orders-table-scroll" data-orders-board-scroll>
               <div class="orders-table-grid">
             <div class="orders-grid-header monday-grid monday-column-header ob-col-header-row" data-group="${esc(key)}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
               <div class="orders-grid-cell orders-grid-cell--select monday-cell check-cell col-checkbox"><label class="portal-grid-checkbox"><input class="portal-grid-checkbox-input orders-row-checkbox" type="checkbox" data-select-all-orders aria-label="Select all visible orders"><span class="portal-grid-checkbox-box" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="m2.2 6.1 2.2 2.2 5.4-5.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span></label></div>
@@ -1975,6 +2013,8 @@
   }
 
   function renderOrders(orders) {
+    const savedBoardPositions = hasRenderedOnce ? captureOrdersBoardPositions() : [];
+    const savedWindowPosition = { x: window.scrollX, y: window.scrollY };
     ordersCache = orders;
     syncOrdersGridColumns();
     const knownIds = new Set(ordersCache.map((order) => String(order.id)));
@@ -2005,6 +2045,10 @@
     updateSelectionBar();
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
     animateBoardRows();
+    restoreOrdersBoardPositions(savedBoardPositions);
+    if (window.scrollX !== savedWindowPosition.x || window.scrollY !== savedWindowPosition.y) {
+      window.scrollTo({ left:savedWindowPosition.x, top:savedWindowPosition.y, behavior:'instant' });
+    }
     previousOrderIds = new Set(ordersCache.map((order) => String(order.id)));
     hasRenderedOnce = true;
   }
@@ -2577,7 +2621,7 @@
 
   function restorePanelEditorSelection() {
     if (!panelEditor) return;
-    panelEditor.focus();
+    panelEditor.focus({ preventScroll:true });
     if (!panelEditorRange) return;
     const selection = window.getSelection();
     selection.removeAllRanges();
@@ -2591,7 +2635,7 @@
 
   function selectPanelEditorContents() {
     if (!panelEditor || !document.createRange) return;
-    panelEditor.focus();
+    panelEditor.focus({ preventScroll:true });
     const range = document.createRange();
     range.selectNodeContents(panelEditor);
     const selection = window.getSelection();
@@ -2615,14 +2659,14 @@
         panelEditor.innerHTML = `<${tag}>${panelEditor.innerHTML}</${tag}>`;
         savePanelEditorSelection();
         panelComposer?.classList.add('is-focused');
-        panelEditor.focus();
+        panelEditor.focus({ preventScroll:true });
         return;
       }
       if (command === 'foreColor' && value) {
         panelEditor.innerHTML = `<span style="color:${esc(value)}">${panelEditor.innerHTML}</span>`;
         savePanelEditorSelection();
         panelComposer?.classList.add('is-focused');
-        panelEditor.focus();
+        panelEditor.focus({ preventScroll:true });
         return;
       }
     }
@@ -2635,7 +2679,7 @@
     }
     savePanelEditorSelection();
     panelComposer?.classList.add('is-focused');
-    panelEditor.focus();
+    panelEditor.focus({ preventScroll:true });
   }
 
   function insertPanelEditorText(text) {
@@ -2892,9 +2936,11 @@
     if (window.lucide) window.lucide.createIcons();
   }
 
-  function openPanel(orderId, initialTab = 'details') {
+  function openPanel(orderId, initialTab = 'details', sourceElement = document.activeElement) {
     currentOrder = ordersCache.find((order) => String(order.id) === String(orderId));
     if (!currentOrder) return;
+    panelReturnPosition = ordersTablePosition(sourceElement, orderId);
+    panelReturnTrigger = sourceElement instanceof HTMLElement ? sourceElement : null;
     panelTitle.textContent = orderPanelTitle(currentOrder);
     document.querySelectorAll('.updates-tabs button').forEach((button) => button.classList.remove('active', 'is-active'));
     document.querySelectorAll('.updates-tab-panel').forEach((section) => section.classList.remove('active'));
@@ -2925,6 +2971,8 @@
     panel.classList.add('open', 'is-open');
     panel.setAttribute('aria-hidden', 'false');
     backdrop.hidden = false;
+    panel.querySelector('[data-panel-close]')?.focus({ preventScroll:true });
+    restoreOrdersTablePosition(panelReturnPosition);
   }
 
   function closePanel() {
@@ -2932,6 +2980,10 @@
     panel.setAttribute('aria-hidden', 'true');
     backdrop.hidden = true;
     resetPanelComposer();
+    panelReturnTrigger?.focus?.({ preventScroll:true });
+    restoreOrdersTablePosition(panelReturnPosition);
+    panelReturnTrigger = null;
+    panelReturnPosition = null;
   }
 
   async function refresh(trigger = null) {
@@ -3120,7 +3172,15 @@
     rowDragState = null;
   });
 
+  document.addEventListener('pointerdown', (event) => {
+    const table = getOrdersScrollContainer(event.target);
+    pendingOrdersInteractionPosition = table ? ordersTablePosition(event.target) : null;
+  }, true);
+
   document.addEventListener('click', async (event) => {
+    const clickPosition = pendingOrdersInteractionPosition;
+    pendingOrdersInteractionPosition = null;
+    if (clickPosition) restoreOrdersTablePosition(clickPosition);
     if (event.target.closest('.column-resizer')) return;
     if (event.target.closest('[data-row-drag-handle]')) return;
     if (event.target.closest('.editable-cell.is-editing')) return;
@@ -3130,7 +3190,7 @@
     if (orderNameTrigger) {
       event.preventDefault();
       event.stopPropagation();
-      openPanel(orderNameTrigger.dataset.orderId, 'details');
+      openPanel(orderNameTrigger.dataset.orderId, 'details', orderNameTrigger);
       return;
     }
 
@@ -3150,7 +3210,7 @@
       const action = orderRowAction.dataset.orderRowAction;
       closeToolbar();
       if (action === 'details' || action === 'notes') {
-        openPanel(orderId, action === 'notes' ? 'updates' : 'details');
+        openPanel(orderId, action === 'notes' ? 'updates' : 'details', orderRowAction);
       } else if (action === 'edit-name') {
         const cell = body.querySelector(`.monday-order-row[data-order-id="${selectorEsc(orderId)}"] [data-editable-order-field="customer_name"]`);
         if (cell) beginEditableCell(cell);
@@ -3425,7 +3485,7 @@
         modal.querySelectorAll('.col-type-card').forEach((card) => card.classList.remove('selected'));
         colType.classList.add('selected');
         modal.querySelector('[data-col-name-step]').hidden = false;
-        modal.querySelector('[data-col-name]').focus();
+        modal.querySelector('[data-col-name]').focus({ preventScroll:true });
         return;
       }
 
@@ -3532,7 +3592,7 @@
       if (panelButton) {
         event.preventDefault();
         event.stopPropagation();
-        openPanel(panelButton.dataset.openPanel, 'updates');
+        openPanel(panelButton.dataset.openPanel, 'updates', panelButton);
         return;
       }
       if (closeButton || event.target === backdrop) closePanel();
@@ -3633,7 +3693,7 @@
       if (scheduleOption) {
         event.preventDefault();
         if (schedulePopover) schedulePopover.hidden = true;
-        if (panelEditor) panelEditor.focus();
+        if (panelEditor) panelEditor.focus({ preventScroll:true });
         return;
       }
 
@@ -3641,7 +3701,7 @@
         const bodyHtml = [panelEditorHtml(), updateAttachmentHtml()].filter(Boolean).join('');
         if (!panelEditorText() && panelSelectedFiles.length === 0) {
           panelComposer?.classList.add('is-focused');
-          panelEditor?.focus();
+          panelEditor?.focus({ preventScroll:true });
           return;
         }
         panelComposer?.classList.add('is-saving');
@@ -3675,7 +3735,7 @@
     if (activeDateSortGroup && !event.target.closest('[data-date-sort-cell]')) closeDateSortPopover();
     if (event.target.closest('.order-update-composer')) {
       panelComposer?.classList.add('is-focused');
-      if (!event.target.closest('button') && panelEditor) panelEditor.focus();
+      if (!event.target.closest('button') && panelEditor) panelEditor.focus({ preventScroll:true });
     } else if (panelComposer && panel?.classList.contains('open')) {
       panelComposer.classList.remove('is-focused');
       if (schedulePopover) schedulePopover.hidden = true;
@@ -3883,10 +3943,14 @@
     });
   window.setInterval(heartbeat, 30000);
   window.setInterval(() => {
-    if (document.visibilityState !== 'hidden') refresh().catch((error) => showError(error));
+    if (document.visibilityState !== 'hidden' && !ordersInteractionInProgress()) {
+      refresh().catch((error) => showError(error));
+    }
   }, 10000);
   window.setInterval(() => {
-    if (document.visibilityState !== 'hidden') syncWebsite(true).then(refresh).catch((error) => showError(error));
+    if (document.visibilityState !== 'hidden' && !ordersInteractionInProgress()) {
+      syncWebsite(true).then(refresh).catch((error) => showError(error));
+    }
   }, 60000);
   window.addEventListener('resize', positionOrderDatePicker);
   window.addEventListener('scroll', positionOrderDatePicker, true);
