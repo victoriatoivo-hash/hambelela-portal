@@ -1329,6 +1329,19 @@
     return customColumns.map((column) => `<div class="orders-grid-cell orders-grid-cell--custom monday-cell col-custom" data-custom-col="${esc(column.col_key)}">${renderCustomCell(column)}</div>`).join('');
   }
 
+  function syncOrdersGridColumns() {
+    if (!body) return;
+    const fixed = [
+      'var(--orders-col-select,34px)', 'var(--orders-col-task,220px)', 'var(--orders-col-updates,58px)',
+      'var(--orders-col-date,150px)', 'var(--orders-col-mobile,150px)', 'var(--orders-col-mode,120px)',
+      'var(--orders-col-amount,130px)', 'var(--orders-col-payment,180px)', 'var(--orders-col-paid,78px)',
+      'var(--orders-col-status,135px)', 'var(--orders-col-packed-by,145px)', 'var(--orders-col-text,230px)'
+    ];
+    const custom = customColumns.map(() => '140px');
+    body.style.setProperty('--orders-columns', [...fixed, ...custom, 'var(--orders-col-add,42px)'].join(' '));
+    body.style.setProperty('--orders-min-width', `calc(${[...fixed, ...custom, 'var(--orders-col-add,42px)'].join(' + ')})`);
+  }
+
   function renderCustomHeaders() {
     body.querySelectorAll('.monday-column-header').forEach((row) => {
       row.querySelectorAll('[data-custom-header]').forEach((cell) => cell.remove());
@@ -1347,6 +1360,7 @@
   async function loadCustomColumns() {
     const data = await post('list_custom_columns', {});
     customColumns = data.columns || [];
+    syncOrdersGridColumns();
     renderCustomHeaders();
   }
 
@@ -1362,6 +1376,7 @@
       col_type: column.col_type
     });
     customColumns.push(data.column || column);
+    syncOrdersGridColumns();
     renderCustomHeaders();
     renderOrders(ordersCache);
   }
@@ -1918,6 +1933,7 @@
 
   function renderOrders(orders) {
     ordersCache = orders;
+    syncOrdersGridColumns();
     const knownIds = new Set(ordersCache.map((order) => String(order.id)));
     [...selectedOrders].forEach((id) => {
       if (!knownIds.has(id)) selectedOrders.delete(id);
