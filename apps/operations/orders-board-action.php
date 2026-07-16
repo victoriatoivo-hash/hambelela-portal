@@ -1238,8 +1238,8 @@ try {
             if (isset($activityActions[$field])) {
                 ops_activity_log($activityActions[$field], 'order', $orderId, [
                     'field' => $field,
-                    'old_value' => $field === 'notes' ? '' : (string) ($previousOrder[$field] ?? ''),
-                    'new_value' => $field === 'notes' ? 'Order update saved' : $value,
+                    'old_value' => (string) ($previousOrder[$field] ?? ''),
+                    'new_value' => $value,
                     'changed_by' => current_user()['name'] ?? 'Unknown',
                 ]);
             }
