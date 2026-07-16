@@ -690,6 +690,12 @@ function wb_queue_html(array $rows, bool $canSend): string
             $statusClass = wb_queue_status_class($row);
             ?>
             <article class="courier-grid courier-grid-waybill courier-grid-row queue-item <?= wb_e($statusClass) ?>" data-batch-id="<?= wb_e($batchId) ?>">
+                <div class="courier-cell courier-select-cell">
+                    <label class="portal-grid-checkbox courier-row-checkbox" aria-label="Select waybill batch">
+                        <input class="portal-grid-checkbox-input" type="checkbox" data-courier-row-select value="<?= wb_e($batchId) ?>">
+                        <span class="portal-grid-checkbox-box" aria-hidden="true"></span>
+                    </label>
+                </div>
                 <div class="courier-cell queue-main">
                     <div class="file-count"><?= number_format((int) ($row['number_of_waybills'] ?: $row['file_count'])) ?></div>
                     <div>
@@ -1050,9 +1056,14 @@ include BASE_PATH . '/shared/sidebar.php';
                     <button class="btn-secondary refresh-btn courier-secondary-btn" type="button" data-refresh-waybills><i data-lucide="refresh-cw"></i> Refresh</button>
                 </div>
                 <div class="courier-table-scroll courier-table-wrap">
-                    <div class="courier-table-shell">
+                        <div class="courier-table-shell">
                         <div class="courier-grid courier-grid-waybill courier-grid-header queue-head">
-                            <div class="courier-cell queue-main"><span class="queue-head-count-spacer" aria-hidden="true"></span><span>Courier</span></div><div class="courier-cell">Uploaded</div><div class="courier-cell">By</div><div class="courier-cell">Due</div><div class="courier-cell">Files</div><div class="courier-cell">Status</div><div class="courier-cell">Notes</div><div class="courier-cell">Actions</div>
+                            <div class="courier-cell courier-select-cell">
+                                <label class="portal-grid-checkbox courier-select-all" aria-label="Select all waybill batches">
+                                    <input class="portal-grid-checkbox-input" type="checkbox" data-courier-select-all>
+                                    <span class="portal-grid-checkbox-box" aria-hidden="true"></span>
+                                </label>
+                            </div><div class="courier-cell queue-main"><span>Courier</span></div><div class="courier-cell">Uploaded</div><div class="courier-cell">By</div><div class="courier-cell">Due</div><div class="courier-cell">Files</div><div class="courier-cell">Status</div><div class="courier-cell">Notes</div><div class="courier-cell">Actions</div>
                         </div>
                         <div class="queue-list" data-waybill-queue><?= $payload['queue_html'] ?></div>
                     </div>
@@ -1082,6 +1093,17 @@ include BASE_PATH . '/shared/sidebar.php';
             </div>
         </section>
     </section>
+    <div class="courier-bulk-bar" data-courier-bulk-bar hidden>
+        <div class="courier-bulk-selection"><span class="courier-bulk-count" data-courier-bulk-count>0</span><strong class="courier-bulk-label" data-courier-bulk-label>items selected</strong></div>
+        <div class="courier-bulk-divider" aria-hidden="true"></div>
+        <div class="courier-bulk-actions">
+            <button type="button" class="courier-bulk-action" data-courier-bulk-action="download"><i data-lucide="download"></i><span>Download</span></button>
+            <?php if ($canSendWaybills): ?>
+                <button type="button" class="courier-bulk-action" data-courier-bulk-action="send"><i data-lucide="send"></i><span>Mark Sent</span></button>
+            <?php endif; ?>
+        </div>
+        <button type="button" class="courier-bulk-close" data-courier-bulk-action="close" aria-label="Close bulk actions"><i data-lucide="x"></i></button>
+    </div>
     <div class="courier-toast" data-waybill-toast></div>
 </main>
 
@@ -1093,6 +1115,8 @@ include BASE_PATH . '/shared/sidebar.php';
     const toast = document.querySelector('[data-waybill-toast]');
     const queue = document.querySelector('[data-waybill-queue]');
     const history = document.querySelector('[data-waybill-history]');
+    const bulkBar = document.querySelector('[data-courier-bulk-bar]');
+    const selectedBatches = new Set();
     const statEls = {
         uploaded_today: document.querySelector('[data-stat="uploaded_today"]'),
         pending: document.querySelector('[data-stat="pending"]'),
@@ -1133,7 +1157,73 @@ include BASE_PATH . '/shared/sidebar.php';
                 }
             });
         }
+        syncCourierSelection();
         refreshIcons();
+    }
+
+    function queueCheckboxes() {
+        return Array.from(document.querySelectorAll('[data-courier-row-select]'));
+    }
+
+    function updateCourierBulkBar() {
+        if (!bulkBar) return;
+        const count = selectedBatches.size;
+        bulkBar.hidden = count === 0;
+        bulkBar.classList.toggle('is-visible', count > 0);
+        bulkBar.querySelector('[data-courier-bulk-count]').textContent = String(count);
+        bulkBar.querySelector('[data-courier-bulk-label]').textContent = count === 1 ? 'item selected' : 'items selected';
+        refreshIcons();
+    }
+
+    function syncCourierSelection() {
+        const checkboxes = queueCheckboxes();
+        const available = new Set(checkboxes.map((checkbox) => checkbox.value));
+        Array.from(selectedBatches).forEach((batchId) => {
+            if (!available.has(batchId)) selectedBatches.delete(batchId);
+        });
+        checkboxes.forEach((checkbox) => {
+            checkbox.checked = selectedBatches.has(checkbox.value);
+            checkbox.closest('.queue-item')?.classList.toggle('is-selected', checkbox.checked);
+        });
+        const selectAll = document.querySelector('[data-courier-select-all]');
+        if (selectAll) {
+            selectAll.checked = checkboxes.length > 0 && checkboxes.every((checkbox) => checkbox.checked);
+            selectAll.indeterminate = checkboxes.some((checkbox) => checkbox.checked) && !selectAll.checked;
+        }
+        updateCourierBulkBar();
+    }
+
+    function clearCourierSelection() {
+        selectedBatches.clear();
+        syncCourierSelection();
+    }
+
+    async function markSelectedSent() {
+        const batchIds = Array.from(selectedBatches);
+        if (!batchIds.length) return;
+        let latestPayload = null;
+        for (const batchId of batchIds) {
+            const body = new FormData();
+            body.append('action', 'waybill_mark_sent');
+            body.append('batch_id', batchId);
+            latestPayload = await fetchJson('courier.php', { method: 'POST', body });
+        }
+        selectedBatches.clear();
+        if (latestPayload) renderPayload(latestPayload);
+        showToast(batchIds.length === 1 ? 'Waybill marked as sent.' : `${batchIds.length} waybill batches marked as sent.`);
+    }
+
+    function downloadSelectedBatches() {
+        Array.from(selectedBatches).forEach((batchId, index) => {
+            window.setTimeout(() => {
+                const link = document.createElement('a');
+                link.href = 'courier.php?action=waybill_download_zip&batch_id=' + encodeURIComponent(batchId);
+                link.download = '';
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+            }, index * 180);
+        });
     }
 
     function fetchJson(url, options) {
@@ -1289,6 +1379,17 @@ include BASE_PATH . '/shared/sidebar.php';
     }
 
     document.addEventListener('click', (event) => {
+        const bulkAction = event.target.closest('[data-courier-bulk-action]');
+        if (bulkAction) {
+            const action = bulkAction.getAttribute('data-courier-bulk-action');
+            if (action === 'close') clearCourierSelection();
+            if (action === 'download') downloadSelectedBatches();
+            if (action === 'send') {
+                bulkAction.disabled = true;
+                markSelectedSent().catch((error) => showToast(error.message)).finally(() => { bulkAction.disabled = false; });
+            }
+            return;
+        }
         const refreshAnimationButton = event.target.closest('.courier-wrap .refresh-btn');
         const downloadButton = event.target.closest('.courier-wrap .download-btn');
         const exportButton = event.target.closest('.courier-wrap .export-btn');
@@ -1330,6 +1431,24 @@ include BASE_PATH . '/shared/sidebar.php';
                 .finally(() => {
                     refreshButton.disabled = false;
                 });
+        }
+    });
+
+    document.addEventListener('change', (event) => {
+        const rowCheckbox = event.target.closest('[data-courier-row-select]');
+        if (rowCheckbox) {
+            if (rowCheckbox.checked) selectedBatches.add(rowCheckbox.value);
+            else selectedBatches.delete(rowCheckbox.value);
+            syncCourierSelection();
+            return;
+        }
+        const selectAll = event.target.closest('[data-courier-select-all]');
+        if (selectAll) {
+            queueCheckboxes().forEach((checkbox) => {
+                if (selectAll.checked) selectedBatches.add(checkbox.value);
+                else selectedBatches.delete(checkbox.value);
+            });
+            syncCourierSelection();
         }
     });
 

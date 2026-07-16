@@ -13260,6 +13260,7 @@ body.login-page { min-height: 100%; background: #FFFFFF !important; }
 
 .courier-wrap .courier-grid-waybill {
   --courier-columns:
+    42px
     minmax(260px, 1.55fr)
     minmax(120px, .65fr)
     minmax(120px, .65fr)
@@ -13345,6 +13346,78 @@ body.login-page { min-height: 100%; background: #FFFFFF !important; }
 
 .courier-wrap .courier-grid-header .queue-head-count-spacer {
   display: none;
+}
+
+.courier-wrap .courier-select-cell {
+  padding: 0;
+  justify-content: center;
+  overflow: visible;
+}
+
+.courier-wrap .courier-select-cell .portal-grid-checkbox {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  padding: 2px;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+}
+
+.courier-wrap .courier-select-cell .portal-grid-checkbox-box {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+}
+
+.courier-wrap .queue-item.is-selected .courier-cell {
+  background: rgba(240, 116, 32, .045);
+}
+
+.courier-bulk-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  z-index: 140;
+  width: fit-content;
+  max-width: calc(100% - 24px);
+  min-height: 56px;
+  padding: 7px 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #EDE3D8;
+  border-radius: 14px;
+  background: #FFFFFF;
+  color: #1A1A1A;
+  box-shadow: 0 16px 34px rgba(114, 27, 26, .13), 0 4px 12px rgba(114, 27, 26, .05);
+  font-family: Figtree, Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  box-sizing: border-box;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 10px) scale(.985);
+  transition: opacity .22s ease, transform .22s ease;
+}
+
+.courier-bulk-bar[hidden] { display: none; }
+.courier-bulk-bar.is-visible { opacity: 1; pointer-events: auto; transform: translate(-50%, 0) scale(1); }
+.courier-bulk-selection, .courier-bulk-actions { display: flex; align-items: center; }
+.courier-bulk-selection { gap: 8px; padding: 0 4px; white-space: nowrap; }
+.courier-bulk-count { min-width: 28px; height: 28px; padding: 0 8px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: #AB3619; color: #FFFFFF; font-size: 11px; line-height: 1; font-weight: 700; box-sizing: border-box; }
+.courier-bulk-label { color: #1A1A1A; font-size: 12px; line-height: 1; font-weight: 600; }
+.courier-bulk-divider { width: 1px; height: 28px; flex: 0 0 1px; background: #EDE3D8; }
+.courier-bulk-actions { gap: 4px; }
+.courier-bulk-action { min-width: 68px; height: 40px; padding: 4px 9px; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border: 0; border-radius: 9px; background: transparent; color: #6B4C3B; font: 600 12px/1 inherit; cursor: pointer; transition: background-color .18s ease, color .18s ease, transform .18s ease; }
+.courier-bulk-action svg, .courier-bulk-close svg { width: 15px; height: 15px; flex: 0 0 15px; color: #AB3619; stroke: currentColor; transition: transform .2s ease, color .2s ease; }
+.courier-bulk-action:hover { background: rgba(240, 116, 32, .08); color: #721B1A; transform: translateY(-1px); }
+.courier-bulk-action:hover svg { color: #721B1A; transform: translateY(-1px) scale(1.08); }
+.courier-bulk-action:active { transform: translateY(0) scale(.98); }
+.courier-bulk-close { width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border: 1px solid transparent; border-radius: 8px; background: transparent; color: #AB3619; cursor: pointer; transition: background-color .18s ease, border-color .18s ease, color .18s ease, transform .18s ease; }
+.courier-bulk-close:hover { border-color: rgba(171, 54, 25, .22); background: rgba(240, 116, 32, .08); color: #721B1A; transform: rotate(4deg); }
+
+@media (max-width: 700px) {
+  .courier-bulk-bar { left: 10px; right: 10px; width: auto; max-width: none; overflow-x: auto; justify-content: flex-start; transform: translateY(10px) scale(.985); }
+  .courier-bulk-bar.is-visible { transform: translateY(0) scale(1); }
+  .courier-bulk-selection, .courier-bulk-actions { flex: 0 0 auto; }
 }
 
 .courier-wrap .queue-item.status-overdue { box-shadow: inset 4px 0 0 #BB1B21; }
