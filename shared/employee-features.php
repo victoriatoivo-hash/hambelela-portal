@@ -18,11 +18,11 @@ function portal_feature_permissions(): array
             'error_log', 'settings', 'notifications', 'courier', 'hr',
             'operations', 'barcode',
         ],
-        'front_desk_admin' => ['dashboard', 'packing_list', 'courier', 'hr', 'notifications'],
-        'front_desk_admin_employee' => ['dashboard', 'packing_list', 'courier', 'hr', 'notifications'],
-        'packer' => ['dashboard', 'packing_list', 'courier', 'hr', 'notifications'],
-        'packer_production_staff' => ['dashboard', 'packing_list', 'courier', 'hr', 'notifications'],
-        'supervisor_manager' => ['dashboard', 'packing_list', 'courier', 'hr', 'notifications'],
+        'front_desk_admin' => ['dashboard', 'packing_list', 'courier', 'hr', 'notifications', 'kpi_dashboard'],
+        'front_desk_admin_employee' => ['dashboard', 'packing_list', 'courier', 'hr', 'notifications', 'kpi_dashboard'],
+        'packer' => ['dashboard', 'packing_list', 'courier', 'hr', 'notifications', 'kpi_dashboard'],
+        'packer_production_staff' => ['dashboard', 'packing_list', 'courier', 'hr', 'notifications', 'kpi_dashboard'],
+        'supervisor_manager' => ['dashboard', 'packing_list', 'courier', 'hr', 'notifications', 'kpi_dashboard'],
     ];
 }
 
@@ -34,7 +34,7 @@ function portal_role_can_access_feature(string $roleKey, string $featureKey): bo
     // Notifications and Courier are shared employee workspace features. Keep
     // them available to every authenticated staff role, including custom role
     // keys created after this permission map was introduced.
-    if ($roleKey !== 'guest' && in_array($featureKey, ['notifications', 'courier'], true)) {
+    if ($roleKey !== 'guest' && in_array($featureKey, ['notifications', 'courier', 'kpi_dashboard'], true)) {
         return true;
     }
 
