@@ -1477,7 +1477,7 @@
       const addCell = row.querySelector('.add-column-cell');
       customColumns.forEach((column) => {
         const th = document.createElement('div');
-        th.className = 'orders-grid-cell orders-grid-cell--custom monday-cell ob-col-th col-custom';
+        th.className = 'orders-grid-cell orders-grid-cell--custom orders-grid-header-cell monday-cell ob-col-th column-header col-custom';
         th.dataset.customHeader = column.colKey || column.col_key;
         th.dataset.colType = column.col_type;
         th.textContent = String(column.col_name || '').toUpperCase();
@@ -2021,8 +2021,8 @@
               <div class="orders-table-grid">
             <div class="orders-grid-header monday-grid monday-column-header ob-col-header-row" data-group="${esc(key)}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
               ${ordersColumns.map(columnHeader).join('')}
-              ${customColumns.map((column) => `<div class="orders-grid-cell orders-grid-cell--custom monday-cell ob-col-th col-custom">${esc(column.col_name || '')}</div>`).join('')}
-              <div class="orders-grid-cell orders-grid-cell--add monday-cell add-column-cell"><button type="button" data-add-column>+</button></div>
+              ${customColumns.map((column) => `<div class="orders-grid-cell orders-grid-cell--custom orders-grid-header-cell monday-cell ob-col-th column-header col-custom" data-custom-header="${esc(column.col_key || '')}">${esc(column.col_name || '')}</div>`).join('')}
+              <div class="orders-grid-cell orders-grid-cell--add orders-grid-header-cell monday-cell column-header add-column-cell"><button type="button" data-add-column>+</button></div>
             </div>
             <div class="orders-grid-body">${rows}</div>
             <div class="orders-add-row monday-grid add-task-row" data-group-row="${esc(key)}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>

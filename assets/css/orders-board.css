@@ -294,6 +294,7 @@
 .orders-page .orders-summary-footer { height:35px; min-height:35px; max-height:35px; }
 .orders-page .orders-grid-cell { min-width:0; height:35px; min-height:35px; max-height:35px; margin:0; padding:0 10px; display:flex; align-items:center; overflow:hidden; border:0; border-right:1px solid #ede3d8; border-bottom:1px solid #ede3d8; background:#fff; color:var(--orders-text); font-family:Figtree,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; font-size:12px; line-height:1.2; font-weight:400; white-space:nowrap; text-overflow:ellipsis; box-sizing:border-box; }
 .orders-page .orders-grid-cell:last-child { border-right:0; }
+.orders-page .orders-grid-cell.add-column-cell { width:100% !important; min-width:0 !important; max-width:none !important; margin:0 !important; box-sizing:border-box !important; }
 .orders-page .orders-grid-cell.check-cell,
 .orders-page .orders-grid-cell.comment-cell {
   width:100%;
