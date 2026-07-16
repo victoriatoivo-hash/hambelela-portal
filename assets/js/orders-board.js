@@ -1833,6 +1833,7 @@
     }
     renderCustomHeaders();
     body.innerHTML = groupKeys.map((key, index) => renderGroup(key, groups[key], index)).join('');
+    enhanceOrderTaskCells();
     renderMobileCards(visible);
     if (groupLabelNode) groupLabelNode.textContent = `Grouped by ${boardState.groupBy}`;
     applyHiddenColumns();
@@ -1841,6 +1842,19 @@
     animateBoardRows();
     previousOrderIds = new Set(ordersCache.map((order) => String(order.id)));
     hasRenderedOnce = true;
+  }
+
+  function enhanceOrderTaskCells() {
+    body.querySelectorAll('.monday-order-row[data-order-id] .orders-grid-cell--task').forEach((cell) => {
+      const orderId = String(cell.dataset.orderId || cell.closest('[data-order-id]')?.dataset.orderId || '');
+      const name = String(cell.querySelector('.task-name')?.textContent || '').trim();
+      if (!orderId || !name) return;
+      cell.removeAttribute('tabindex');
+      cell.innerHTML = `<div class="orders-task-cell">
+        <button type="button" class="orders-task-name-trigger" data-order-panel-open data-order-id="${esc(orderId)}" data-tooltip="${esc(name)}" aria-label="Open ${esc(name)} details"><span class="orders-task-name">${esc(name)}</span></button>
+        <button type="button" class="orders-task-menu-trigger" data-order-row-menu data-order-id="${esc(orderId)}" aria-label="Open order actions" aria-haspopup="menu" aria-expanded="false"><span></span><span></span><span></span></button>
+      </div>`;
+    });
   }
 
   function updateSelectionBar() {
@@ -2127,9 +2141,34 @@
 
   function closeToolbar() {
     if (toolbarPopover) {
+      const triggerId = toolbarPopover.dataset.orderMenuTriggerId;
+      if (triggerId) {
+        document.querySelector(`[data-order-row-menu][data-order-id="${selectorEsc(triggerId)}"]`)?.setAttribute('aria-expanded', 'false');
+      }
+      toolbarPopover.classList.remove('orders-row-actions-menu');
+      delete toolbarPopover.dataset.orderMenuTriggerId;
       toolbarPopover.hidden = true;
       toolbarPopover.style.transform = '';
     }
+  }
+
+  function openOrderRowMenu(anchor, orderId) {
+    if (!toolbarPopover || !anchor || !orderId) return;
+    const rect = anchor.getBoundingClientRect();
+    toolbarPopover.hidden = false;
+    toolbarPopover.classList.add('orders-row-actions-menu');
+    toolbarPopover.style.transform = '';
+    toolbarPopover.style.left = `${Math.max(8, Math.min(rect.right - 180, window.innerWidth - 188))}px`;
+    toolbarPopover.style.top = `${Math.min(rect.bottom + 6, window.innerHeight - 132)}px`;
+    toolbarPopover.innerHTML = `
+      <div class="orders-row-actions" role="menu" aria-label="Order actions">
+        <button type="button" role="menuitem" data-order-row-action="details" data-order-id="${esc(orderId)}"><i data-lucide="panel-right-open"></i><span>View details</span></button>
+        <button type="button" role="menuitem" data-order-row-action="notes" data-order-id="${esc(orderId)}"><i data-lucide="message-square"></i><span>Open notes</span></button>
+        <button type="button" role="menuitem" data-order-row-action="edit-name" data-order-id="${esc(orderId)}"><i data-lucide="pencil"></i><span>Edit task name</span></button>
+      </div>`;
+    anchor.setAttribute('aria-expanded', 'true');
+    toolbarPopover.dataset.orderMenuTriggerId = String(orderId);
+    if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
   }
 
   function labelOptionsFor(field) {
@@ -2688,14 +2727,15 @@
     if (window.lucide) window.lucide.createIcons();
   }
 
-  function openPanel(orderId) {
+  function openPanel(orderId, initialTab = 'details') {
     currentOrder = ordersCache.find((order) => String(order.id) === String(orderId));
     if (!currentOrder) return;
     panelTitle.textContent = orderPanelTitle(currentOrder);
     document.querySelectorAll('.updates-tabs button').forEach((button) => button.classList.remove('active', 'is-active'));
     document.querySelectorAll('.updates-tab-panel').forEach((section) => section.classList.remove('active'));
-    panelUpdatesTab?.classList.add('active', 'is-active');
-    document.querySelector('[data-panel-name="updates"]')?.classList.add('active');
+    const requestedTab = document.querySelector(`[data-panel-tab="${initialTab}"]`) ? initialTab : 'details';
+    document.querySelector(`[data-panel-tab="${requestedTab}"]`)?.classList.add('active', 'is-active');
+    document.querySelector(`[data-panel-name="${requestedTab}"]`)?.classList.add('active');
     resetPanelComposer();
     renderPanelUpdates();
     if (panelDetails) {
@@ -2717,13 +2757,13 @@
       <div class="activity-line">Packed by: ${esc(currentOrder.packer_name || 'Unassigned')}</div>
       <div class="activity-line">Picking time: ${esc(durationText(currentOrder.packing_started_at, currentOrder.completed_at || currentOrder.packed_at) || 'Not started')}</div>
     `;
-    panel.classList.add('open');
+    panel.classList.add('open', 'is-open');
     panel.setAttribute('aria-hidden', 'false');
     backdrop.hidden = false;
   }
 
   function closePanel() {
-    panel.classList.remove('open');
+    panel.classList.remove('open', 'is-open');
     panel.setAttribute('aria-hidden', 'true');
     backdrop.hidden = true;
     resetPanelComposer();
@@ -2919,6 +2959,38 @@
     if (event.target.closest('.column-resizer')) return;
     if (event.target.closest('[data-row-drag-handle]')) return;
     if (event.target.closest('.editable-cell.is-editing')) return;
+
+    const orderNameTrigger = event.target.closest('[data-order-panel-open][data-order-id]');
+    if (orderNameTrigger) {
+      event.preventDefault();
+      event.stopPropagation();
+      openPanel(orderNameTrigger.dataset.orderId, 'details');
+      return;
+    }
+
+    const orderRowMenu = event.target.closest('[data-order-row-menu][data-order-id]');
+    if (orderRowMenu) {
+      event.preventDefault();
+      event.stopPropagation();
+      openOrderRowMenu(orderRowMenu, orderRowMenu.dataset.orderId);
+      return;
+    }
+
+    const orderRowAction = event.target.closest('[data-order-row-action][data-order-id]');
+    if (orderRowAction) {
+      event.preventDefault();
+      event.stopPropagation();
+      const orderId = orderRowAction.dataset.orderId;
+      const action = orderRowAction.dataset.orderRowAction;
+      closeToolbar();
+      if (action === 'details' || action === 'notes') {
+        openPanel(orderId, action === 'notes' ? 'updates' : 'details');
+      } else if (action === 'edit-name') {
+        const cell = body.querySelector(`.monday-order-row[data-order-id="${selectorEsc(orderId)}"] [data-editable-order-field="customer_name"]`);
+        if (cell) beginEditableCell(cell);
+      }
+      return;
+    }
 
     const columnHeaderTitle = event.target.closest('[data-column-header-title]');
     if (columnHeaderTitle) {
@@ -3264,7 +3336,12 @@
         return;
       }
 
-      if (panelButton) openPanel(panelButton.dataset.openPanel);
+      if (panelButton) {
+        event.preventDefault();
+        event.stopPropagation();
+        openPanel(panelButton.dataset.openPanel, 'updates');
+        return;
+      }
       if (closeButton || event.target === backdrop) closePanel();
 
       if (summarySegment) {
