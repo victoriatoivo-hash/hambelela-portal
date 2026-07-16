@@ -1421,8 +1421,10 @@
     document.body.classList.add('orders-tools-open');
     restoreOrdersBoardPositions(ordersToolsBoardPositions);
     window.scrollTo({ left: ordersToolsWindowPosition.x, top: ordersToolsWindowPosition.y, behavior: 'instant' });
+    const ordersToolsCloseButton = ordersToolsPanel.querySelector('[data-orders-tools-close]');
+    ordersToolsCloseButton?.focus({ preventScroll: true });
     await loadOrdersTools();
-    window.requestAnimationFrame(() => ordersToolsPanel.querySelector('[data-orders-tools-close]')?.focus({ preventScroll: true }));
+    window.requestAnimationFrame(() => ordersToolsCloseButton?.focus({ preventScroll: true }));
   }
 
   function closeOrdersTools() {
