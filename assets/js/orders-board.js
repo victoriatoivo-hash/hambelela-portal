@@ -2134,7 +2134,7 @@
     document.querySelectorAll('.mode-cell.is-active').forEach((cell) => cell.classList.remove('is-active'));
     document.querySelectorAll('.board-label[aria-expanded="true"]').forEach((button) => button.setAttribute('aria-expanded', 'false'));
     if (labelMenu) {
-      labelMenu.classList.remove('orders-label-popup', 'is-editing-labels');
+      labelMenu.classList.remove('orders-label-popup', 'is-editing-labels', 'is-payment-options');
       delete labelMenu.dataset.richLabelOrder;
       delete labelMenu.dataset.richLabelField;
       labelMenu.style.width = '';
@@ -2158,7 +2158,7 @@
   function renderRichLabelPicker(field) {
     const options = richLabelOptions(field);
     return `
-      <div class="mode-label-grid seven-per-row">
+      <div class="mode-label-grid seven-per-row${field === 'payment_method' ? ' portal-payment-options' : ''}">
         ${options.map((item) => `
           <button type="button" class="mode-label-option" data-rich-label-value="${esc(item[0])}" style="--label-option-color:${esc(itemColor(item))};background:${esc(itemColor(item))}">${esc(itemText(item))}</button>
         `).join('')}
@@ -2188,7 +2188,7 @@
 
   function positionRichLabelMenu(anchor) {
     const rect = anchor.getBoundingClientRect();
-    const width = 202;
+    const width = labelMenu.dataset.richLabelField === 'payment_method' ? 360 : 202;
     const menuHeight = Math.min(labelMenu.scrollHeight || 320, window.innerHeight - 16);
     const shouldFlip = rect.bottom + menuHeight + 8 > window.innerHeight;
     labelMenu.style.width = `${width}px`;
@@ -2251,6 +2251,7 @@
     labelMenu.className = 'label-menu orders-label-popup is-open';
     labelMenu.dataset.richLabelOrder = orderId;
     labelMenu.dataset.richLabelField = field;
+    labelMenu.classList.toggle('is-payment-options', field === 'payment_method');
     labelMenu.innerHTML = renderRichLabelPicker(field);
     positionRichLabelMenu(anchor);
     bindRichLabelPicker();
