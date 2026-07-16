@@ -265,22 +265,11 @@
 .orders-page .orders-date-summary-count { display: block; margin-top: 3px; color: var(--orders-muted); font-size: 10px; line-height: 1; font-weight: 400; white-space: nowrap; }
 .orders-page .orders-summary-label { display: block; margin-bottom: 5px; color: var(--orders-text-mid,var(--orders-muted)); font-size: 10px; line-height: 1; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; white-space: nowrap; }
 .orders-page .orders-summary-value { display: block; max-width: 100%; color: var(--orders-text); font-size: 12px; line-height: 1; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.orders-page .portal-distribution-summary { width:100%; height:35px; min-height:35px; padding:0 10px; display:flex; align-items:center; justify-content:center; box-sizing:border-box; }
-.orders-page .portal-distribution-bar { width:min(110px,calc(100% - 12px)); height:18px; display:flex; align-items:stretch; overflow:visible; border-radius:6px; background:#f1ece8; box-sizing:border-box; }
-.orders-page .portal-distribution-track { width:100%; height:18px; display:flex; overflow:hidden; border-radius:6px; }
-.orders-page .portal-distribution-segment { position:relative; width:var(--segment-width); height:18px; min-width:0; padding:0; flex:0 0 auto; border:0; border-radius:0; background:var(--segment-colour); cursor:pointer; transform-origin:center; transition:transform .16s ease,filter .16s ease,box-shadow .16s ease,width .22s ease,background-color .18s ease; }
-.orders-page .portal-distribution-segment:hover,
-.orders-page .portal-distribution-segment:focus-visible,
-.orders-page .portal-distribution-segment.is-active { z-index:3; outline:0; transform:scaleY(1.16) scaleX(1.035); filter:saturate(1.06) brightness(1.02); box-shadow:0 5px 12px rgba(114,27,26,.13); }
-.portal-distribution-tooltip { position:fixed; z-index:55000; min-width:74px; max-width:180px; padding:8px 10px; display:grid; gap:3px; border:1px solid rgba(171,54,25,.28); border-radius:8px; background:#721b1a; color:#fff; box-shadow:0 12px 26px rgba(114,27,26,.20); font-family:Figtree,system-ui,sans-serif; font-size:12px; line-height:1.1; font-weight:500; text-align:left; opacity:0; visibility:hidden; pointer-events:none; transform:translateY(4px) scale(.97); transition:opacity .14s ease,visibility .14s ease,transform .14s ease; box-sizing:border-box; }
-.portal-distribution-tooltip.is-open { opacity:1; visibility:visible; transform:translateY(0) scale(1); }
-.portal-distribution-tooltip::after { content:""; position:absolute; left:var(--tooltip-arrow-left,50%); bottom:-5px; width:10px; height:10px; border-right:1px solid rgba(171,54,25,.28); border-bottom:1px solid rgba(171,54,25,.28); background:#721b1a; transform:translateX(-50%) rotate(45deg); }
-.portal-distribution-tooltip.opens-below::after { top:-5px; bottom:auto; border:0; border-left:1px solid rgba(171,54,25,.28); border-top:1px solid rgba(171,54,25,.28); }
-.portal-distribution-tooltip strong { font-size:12px; line-height:1.1; font-weight:600; }
-@media (prefers-reduced-motion:reduce) {
-  .orders-page .portal-distribution-segment,.portal-distribution-tooltip { transition:none; }
-  .orders-page .portal-distribution-segment:hover,.orders-page .portal-distribution-segment:focus-visible,.orders-page .portal-distribution-segment.is-active { transform:none; }
-}
+.orders-page .orders-summary-bar { width: 100%; max-width: 170px; height: 18px; min-height: 18px; display: flex; align-items: stretch; overflow: hidden; border-radius: 999px; background: #f3ece5; box-sizing: border-box; }
+.orders-page .orders-summary-segment { display: block; height: 18px; min-width: 2px; flex: 0 0 var(--segment-width); background: var(--segment-colour); transition: flex-basis .2s ease,filter .15s ease; }
+.orders-page .orders-summary-segment:hover,
+.orders-page .orders-summary-segment:focus-visible { filter: brightness(1.08); outline: 0; }
+.orders-summary-tooltip.is-floating { position:fixed; z-index:30050; padding:7px 10px; border-radius:8px; background:var(--orders-burgundy,#721b1a); color:#fff; box-shadow:0 8px 20px rgba(114,27,26,.18); font-family:Figtree,system-ui,sans-serif; font-size:12px; line-height:1.25; font-weight:500; white-space:pre-line; text-align:center; pointer-events:none; }
 .orders-page .orders-table-scroll { width:100%; min-width:0; overflow-x:auto; overflow-y:visible; border:0; box-sizing:border-box; scrollbar-color:#c9b9aa transparent; scrollbar-width:thin; }
 .orders-page .orders-table-grid { width:max-content; min-width:max(100%,var(--orders-min-width)); }
 .orders-page .orders-grid-header,
