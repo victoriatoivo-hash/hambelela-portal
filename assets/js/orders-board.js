@@ -34,6 +34,9 @@
   if (backdrop && backdrop.parentElement !== document.body) document.body.appendChild(backdrop);
 
   let groupDatePopover = null;
+  let personPopup = null;
+  let personPopupTrigger = null;
+  let personPopupOrderId = '';
   let labelMenuCloseTimer = null;
   let ordersCache = [];
   let packersCache = [];
@@ -712,7 +715,7 @@
         if (!order || !row) return;
         if (field === 'assigned_packer_id') {
           const cell = row.querySelector('.col-packedby');
-          if (cell) cell.innerHTML = `<button type="button" class="orders-people-trigger" data-label-field="assigned_packer_id" data-order-id="${esc(id)}">${renderPackerCell(order)}</button>`;
+          if (cell) cell.innerHTML = renderPackerCell(order);
           return;
         }
         const cell = row.querySelector(`.${cellClass}`);
@@ -1647,7 +1650,99 @@
   }
 
   function renderPackerCell(order) {
-    return esc(order.packer_name || 'Unassigned');
+    const employeeId = String(order.assigned_packer_id || '');
+    const name = order.packer_name || 'Unassigned';
+    const initials = employeeId ? employeeInitials(name) : '&mdash;';
+    const content = `<span class="packing-person-avatar">${initials}</span><span class="packing-person-trigger-label">${esc(name)}</span><svg class="packing-person-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 8l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    if (!currentUser.can_edit_packed_by) return `<div class="packing-person-component orders-packed-by-selector is-static" data-orders-person-component data-employee-id="${esc(employeeId)}"><span class="packing-person-trigger is-static">${content}</span></div>`;
+    return `<div class="packing-person-component orders-packed-by-selector" data-orders-person-component data-employee-id="${esc(employeeId)}"><button type="button" class="packing-person-trigger" data-orders-person-trigger data-order-id="${esc(order.id)}" aria-haspopup="listbox" aria-expanded="false">${content}</button></div>`;
+  }
+
+  function employeeInitials(name) {
+    return esc(String(name || '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase() || '').join('') || '?');
+  }
+
+  function ensurePersonPopup() {
+    if (personPopup?.isConnected) return personPopup;
+    personPopup = document.createElement('div');
+    personPopup.className = 'packing-person-popup orders-person-popup';
+    personPopup.dataset.ordersPersonPopup = '';
+    personPopup.setAttribute('aria-hidden', 'true');
+    personPopup.innerHTML = `<div class="packing-person-search-wrap"><i data-lucide="search" class="packing-person-search-icon"></i><input type="search" class="packing-person-search" data-orders-person-search placeholder="Search people" autocomplete="off" aria-label="Search people"></div><div class="packing-person-options" data-orders-person-options role="listbox"></div><div class="packing-person-popup-divider"></div><button type="button" class="packing-person-utility" data-edit-order-people><span class="packing-person-utility-icon"><i data-lucide="pencil"></i></span><span>Edit people</span></button>`;
+    document.body.appendChild(personPopup);
+    if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+    personPopup.querySelector('[data-orders-person-search]')?.addEventListener('input', (event) => renderPersonOptions(event.target.value));
+    personPopup.addEventListener('keydown', (event) => {
+      const options = [...personPopup.querySelectorAll('.packing-person-option:not([hidden])')];
+      if (event.key === 'Escape') { event.preventDefault(); closePersonPopup(true); return; }
+      if (!['ArrowDown', 'ArrowUp', 'Enter'].includes(event.key) || !options.length) return;
+      const active = document.activeElement?.closest?.('.packing-person-option');
+      if (event.key === 'Enter' && active) { event.preventDefault(); active.click(); return; }
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        const index = Math.max(-1, options.indexOf(active));
+        const next = event.key === 'ArrowDown' ? (index + 1) % options.length : (index <= 0 ? options.length - 1 : index - 1);
+        options[next].focus({ preventScroll: true });
+      }
+    });
+    return personPopup;
+  }
+
+  function renderPersonOptions(query = '') {
+    const popup = ensurePersonPopup();
+    const container = popup.querySelector('[data-orders-person-options]');
+    const selectedId = String(ordersCache.find((order) => String(order.id) === personPopupOrderId)?.assigned_packer_id || '');
+    const needle = String(query || '').trim().toLowerCase();
+    const options = [{ id: '', full_name: 'Unassigned', role_key: '' }, ...packersCache].filter((employee) => !needle || `${employee.full_name || ''} ${employee.role_name || employee.role_key || ''}`.toLowerCase().includes(needle));
+    container.innerHTML = options.length ? options.map((employee) => {
+      const id = String(employee.id || '');
+      const selected = id === selectedId;
+      const role = employee.role_name || String(employee.role_key || '').replace(/_/g, ' ');
+      return `<button type="button" class="packing-person-option" role="option" aria-selected="${selected ? 'true' : 'false'}" data-orders-person-option data-employee-id="${esc(id)}"><span class="packing-person-option-avatar">${id ? employeeInitials(employee.full_name) : '&mdash;'}</span><span class="packing-person-option-copy"><strong>${esc(employee.full_name)}</strong>${role ? `<small>${esc(role)}</small>` : ''}</span><span class="packing-person-option-check" aria-hidden="true">${selected ? '&check;' : ''}</span></button>`;
+    }).join('') : '<p class="packing-person-empty">No eligible employees found.</p>';
+  }
+
+  function positionPersonPopup() {
+    if (!personPopup || !personPopupTrigger) return;
+    const rect = personPopupTrigger.getBoundingClientRect();
+    const popupRect = personPopup.getBoundingClientRect();
+    const padding = 10, gap = 7;
+    const left = Math.max(padding, Math.min(rect.left + rect.width / 2 - popupRect.width / 2, window.innerWidth - popupRect.width - padding));
+    let top = rect.bottom + gap;
+    if (top + popupRect.height > window.innerHeight - padding) top = rect.top - popupRect.height - gap;
+    personPopup.style.left = `${Math.round(left)}px`;
+    personPopup.style.top = `${Math.max(padding, Math.round(top))}px`;
+  }
+
+  function openPersonPopup(trigger) {
+    if (personPopup?.classList.contains('is-open') && personPopupTrigger === trigger) { closePersonPopup(); return; }
+    closeLabelMenu();
+    const popup = ensurePersonPopup();
+    personPopupTrigger?.closest('[data-orders-person-component]')?.classList.remove('is-open');
+    personPopupTrigger = trigger;
+    personPopupOrderId = String(trigger.dataset.orderId || '');
+    trigger.setAttribute('aria-expanded', 'true');
+    trigger.closest('[data-orders-person-component]')?.classList.add('is-open');
+    const search = popup.querySelector('[data-orders-person-search]');
+    search.value = '';
+    renderPersonOptions();
+    popup.querySelector('[data-edit-order-people]').hidden = !currentUser.can_manage_people;
+    popup.classList.add('is-open');
+    popup.setAttribute('aria-hidden', 'false');
+    positionPersonPopup();
+    window.requestAnimationFrame(() => search.focus({ preventScroll: true }));
+  }
+
+  function closePersonPopup(restoreFocus = false) {
+    if (!personPopup) return;
+    const trigger = personPopupTrigger;
+    personPopup.classList.remove('is-open');
+    personPopup.setAttribute('aria-hidden', 'true');
+    trigger?.setAttribute('aria-expanded', 'false');
+    trigger?.closest('[data-orders-person-component]')?.classList.remove('is-open', 'is-saving');
+    personPopupTrigger = null;
+    personPopupOrderId = '';
+    if (restoreFocus) trigger?.focus({ preventScroll: true });
   }
 
   function renderPaidCell(order) {
@@ -1758,7 +1853,7 @@
           <div class="orders-grid-cell orders-grid-cell--payment monday-cell col-payment"${labelCellStyle(paymentLabels, order.payment_method || 'Cash')}>${renderLabelCell(order, 'payment_method', order.payment_method || 'Cash', paymentLabels, 'payment-label')}</div>
           <div class="orders-grid-cell orders-grid-cell--paid monday-cell paid-cell col-paid ${order.payment_status === 'paid' ? 'is-paid' : 'unpaid'}" data-paid-toggle="${esc(order.id)}" data-paid-state="${order.payment_status === 'paid' ? 'paid' : 'unpaid'}" role="button" tabindex="0" aria-label="${order.payment_status === 'paid' ? 'Mark order unpaid' : 'Mark order paid'}">${renderPaidCell(order)}</div>
           <div class="orders-grid-cell orders-grid-cell--status monday-cell col-status"${labelCellStyle(statusLabels, order.status || 'new_order')}>${renderLabelCell(order, 'status', order.status || 'new_order', statusLabels, 'status-label')}</div>
-          <div class="orders-grid-cell orders-grid-cell--packer monday-cell col-packedby"><button type="button" class="orders-people-trigger" data-label-field="assigned_packer_id" data-order-id="${esc(order.id)}">${renderPackerCell(order)}</button></div>
+          <div class="orders-grid-cell orders-grid-cell--packer monday-cell col-packedby">${renderPackerCell(order)}</div>
           <div class="orders-grid-cell orders-grid-cell--text monday-cell notes-cell col-text"><button class="orders-cell-text" type="button" data-expand-note>${esc(order.notes || '')}</button></div>
           ${renderCustomCells()}
           <div class="orders-grid-cell orders-grid-cell--add monday-cell add-column-cell"></div>
@@ -2970,6 +3065,7 @@
     if (event.target.closest('.column-resizer')) return;
     if (event.target.closest('[data-row-drag-handle]')) return;
     if (event.target.closest('.editable-cell.is-editing')) return;
+    if (personPopup?.classList.contains('is-open') && !event.target.closest('[data-orders-person-popup], [data-orders-person-trigger]')) closePersonPopup();
 
     const orderNameTrigger = event.target.closest('[data-order-panel-open][data-order-id]');
     if (orderNameTrigger) {
@@ -3074,10 +3170,36 @@
     const saveLabels = event.target.closest('[data-save-labels]');
     const bulkAction = event.target.closest('[data-order-bulk-action]');
     const editOrderPeople = event.target.closest('[data-edit-order-people]');
+    const personTrigger = event.target.closest('[data-orders-person-trigger]');
+    const personOption = event.target.closest('[data-orders-person-option]');
     const filterTrigger = event.target.closest('[data-orders-filter-trigger]');
     const filterOption = event.target.closest('[data-orders-filter-option]');
 
     try {
+      if (personTrigger) {
+        event.preventDefault();
+        event.stopPropagation();
+        openPersonPopup(personTrigger);
+        return;
+      }
+
+      if (personOption) {
+        event.preventDefault();
+        event.stopPropagation();
+        const orderId = personPopupOrderId;
+        const employeeId = String(personOption.dataset.employeeId || '');
+        const sourceTrigger = personPopupTrigger;
+        sourceTrigger?.closest('[data-orders-person-component]')?.classList.add('is-saving');
+        try {
+          await updateRichLabelValue(orderId, 'assigned_packer_id', employeeId);
+          closePersonPopup();
+        } catch (error) {
+          sourceTrigger?.closest('[data-orders-person-component]')?.classList.remove('is-saving');
+          throw error;
+        }
+        return;
+      }
+
       if (filterTrigger) {
         event.preventDefault();
         const container = filterTrigger.closest('[data-orders-filter-select]');
@@ -3101,6 +3223,7 @@
 
       if (editOrderPeople) {
         event.preventDefault();
+        closePersonPopup();
         if (currentUser.employee_accounts_url) window.location.href = currentUser.employee_accounts_url;
         return;
       }
@@ -3511,6 +3634,13 @@
       return;
     }
 
+    const personTrigger = event.target.closest('[data-orders-person-trigger]');
+    if (personTrigger && (event.key === 'Enter' || event.key === ' ' || event.key === 'ArrowDown')) {
+      event.preventDefault();
+      openPersonPopup(personTrigger);
+      return;
+    }
+
     const richNameInput = event.target.closest('[data-rich-label-name]');
     if (richNameInput && event.key === 'Enter') {
       event.preventDefault();
@@ -3546,6 +3676,7 @@
       return;
     }
     if (event.key === 'Escape') {
+      closePersonPopup();
       closeLabelMenu();
       closeToolbar();
       closeColumnModal();
@@ -3555,14 +3686,6 @@
   });
 
   document.addEventListener('input', (event) => {
-    if (event.target.matches('[data-orders-people-search]')) {
-      const query = normalize(event.target.value);
-      labelMenu.querySelectorAll('[data-person-name]').forEach((option) => {
-        option.hidden = query !== '' && !normalize(option.dataset.personName).includes(query);
-      });
-      return;
-    }
-
     if (event.target.closest('#panel-update-editor')) {
       savePanelEditorSelection();
       return;
@@ -3715,4 +3838,6 @@
   }, 60000);
   window.addEventListener('resize', positionOrderDatePicker);
   window.addEventListener('scroll', positionOrderDatePicker, true);
+  window.addEventListener('resize', positionPersonPopup);
+  window.addEventListener('scroll', positionPersonPopup, true);
 })();

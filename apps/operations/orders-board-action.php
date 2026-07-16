@@ -1140,6 +1140,19 @@ try {
                 throw new RuntimeException('Only front desk, supervisor or admin can change Packed by.');
             }
             $packerId = $value === '' ? null : (int) $value;
+            if ($packerId) {
+                $hasPackingAssignable = ops_ensure_packing_assignable_column();
+                $eligibilityWhere = $hasPackingAssignable ? 'e.packing_assignable = 1' : "r.role_key IN ('packer', 'supervisor_manager')";
+                $eligible = ops_rows(
+                    "SELECT e.id FROM ops_employees e JOIN ops_roles r ON r.id = e.role_id WHERE e.id = ? AND e.status = 'active' AND {$eligibilityWhere} LIMIT 1",
+                    [$packerId]
+                );
+                if (!$eligible) {
+                    throw new RuntimeException('Choose an active employee eligible for Packing assignment.');
+                }
+            }
+            $previousRows = ops_rows('SELECT assigned_packer_id FROM ops_orders WHERE id = ? LIMIT 1', [$orderId]);
+            $previousPackerId = (int) ($previousRows[0]['assigned_packer_id'] ?? 0);
             $assignedAt = ops_column_exists('ops_orders', 'assigned_at') ? ', assigned_at = CASE WHEN ? IS NULL THEN NULL ELSE COALESCE(assigned_at, NOW()) END' : '';
             $stmt = db()->prepare('UPDATE ops_orders SET assigned_packer_id = ?' . $assignedAt . ', updated_at = CURRENT_TIMESTAMP WHERE id = ?');
             if ($assignedAt !== '') {
@@ -1147,12 +1160,17 @@ try {
             } else {
                 $stmt->execute([$packerId, $orderId]);
             }
-            if ($packerId) {
-                ops_log_order_stage_event($orderId, 'assigned', [
-                    'source' => 'orders_board_field',
-                    'assigned_packer_id' => $packerId,
-                ]);
-            }
+            ops_log_order_stage_event($orderId, $packerId ? 'assigned' : 'assignment_cleared', [
+                'source' => 'orders_board_field',
+                'previous_packer_id' => $previousPackerId ?: null,
+                'assigned_packer_id' => $packerId,
+                'changed_by' => current_user()['name'] ?? 'Unknown',
+            ]);
+            ops_activity_log($packerId ? 'packed_by_changed' : 'packed_by_cleared', 'order', $orderId, [
+                'previous_packer_id' => $previousPackerId ?: null,
+                'assigned_packer_id' => $packerId,
+                'changed_by' => current_user()['name'] ?? 'Unknown',
+            ]);
             notifications_notify_order_assigned($orderId, $packerId);
         } elseif ($field === 'status') {
             $set = 'status = ?, updated_at = CURRENT_TIMESTAMP';
@@ -1269,6 +1287,17 @@ try {
         $set = $allowed[$field] . ' = ?';
         if ($field === 'assigned_packer_id') {
             $value = $value === '' ? null : (int) $value;
+            if ($value) {
+                $hasPackingAssignable = ops_ensure_packing_assignable_column();
+                $eligibilityWhere = $hasPackingAssignable ? 'e.packing_assignable = 1' : "r.role_key IN ('packer', 'supervisor_manager')";
+                $eligible = ops_rows(
+                    "SELECT e.id FROM ops_employees e JOIN ops_roles r ON r.id = e.role_id WHERE e.id = ? AND e.status = 'active' AND {$eligibilityWhere} LIMIT 1",
+                    [$value]
+                );
+                if (!$eligible) {
+                    throw new RuntimeException('Choose an active employee eligible for Packing assignment.');
+                }
+            }
             if (ops_column_exists('ops_orders', 'assigned_at')) {
                 $set .= ', assigned_at = CASE WHEN ? IS NULL THEN NULL ELSE COALESCE(assigned_at, NOW()) END';
                 $params[] = $value;
@@ -1297,8 +1326,8 @@ try {
                     'source' => 'orders_board_bulk',
                     'status' => $value,
                 ]);
-            } elseif ($field === 'assigned_packer_id' && $value) {
-                ops_log_order_stage_event($id, 'assigned', [
+            } elseif ($field === 'assigned_packer_id') {
+                ops_log_order_stage_event($id, $value ? 'assigned' : 'assignment_cleared', [
                     'source' => 'orders_board_bulk',
                     'assigned_packer_id' => $value,
                 ]);

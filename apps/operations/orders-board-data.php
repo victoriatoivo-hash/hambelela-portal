@@ -144,14 +144,18 @@ if ($hasTotalAmount) {
     $metrics['total_revenue'] = (float) ($revenueRows[0]['total_revenue'] ?? 0);
 }
 
+$hasPackingAssignable = ops_ensure_packing_assignable_column();
+$packingEligibilityWhere = $hasPackingAssignable
+    ? 'e.packing_assignable = 1'
+    : "r.role_key IN ('packer', 'supervisor_manager')";
 $packers = ops_rows(
-    "SELECT e.id, e.full_name, r.role_key, COALESCE(ea.availability_status, 'available') AS availability_status,
+    "SELECT e.id, e.full_name, r.role_key, r.name AS role_name, COALESCE(ea.availability_status, 'available') AS availability_status,
         ea.unavailable_until, ea.note
      FROM ops_employees e
      JOIN ops_roles r ON r.id = e.role_id
      LEFT JOIN ops_employee_availability ea ON ea.employee_id = e.id
-     WHERE e.status = 'active' AND r.role_key IN ('front_desk_admin', 'packer', 'owner_admin')
-     ORDER BY FIELD(r.role_key, 'front_desk_admin', 'packer', 'owner_admin'), e.full_name"
+     WHERE e.status = 'active' AND {$packingEligibilityWhere}
+     ORDER BY e.full_name"
 );
 $packers = ops_canonical_employee_rows($packers, true);
 $packerNameMap = [];
@@ -191,6 +195,7 @@ echo json_encode([
         'name' => $user['name'] ?? '',
         'role_key' => $roleKey,
         'can_edit_packed_by' => in_array($roleKey, ['owner_admin', 'front_desk_admin', 'supervisor_manager'], true),
+        'can_manage_people' => $roleKey === 'owner_admin',
         'can_bulk_manage' => in_array($roleKey, ['owner_admin', 'front_desk_admin', 'supervisor_manager'], true),
         'can_delete' => in_array($roleKey, ['owner_admin', 'supervisor_manager'], true),
         'employee_accounts_url' => BASE_URL . '/apps/operations/my-account.php?section=employees',
