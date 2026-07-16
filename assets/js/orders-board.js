@@ -54,6 +54,10 @@
   let lastUndo = null;
   let ordersToolsData = null;
   let ordersToolsTab = 'trash';
+  let ordersToolsCloseTimer = null;
+  let ordersToolsReturnFocus = null;
+  let ordersToolsBoardPositions = null;
+  let ordersToolsWindowPosition = null;
   let hasRenderedOnce = false;
   let previousOrderIds = new Set();
   let customColumns = [];
@@ -1401,21 +1405,39 @@
 
   async function openOrdersTools(tab = ordersToolsTab) {
     if (!ordersToolsPanel) return;
+    if (ordersToolsCloseTimer) {
+      window.clearTimeout(ordersToolsCloseTimer);
+      ordersToolsCloseTimer = null;
+    }
+    ordersToolsReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : document.querySelector('[data-orders-tools-open]');
+    ordersToolsBoardPositions = captureOrdersBoardPositions();
+    ordersToolsWindowPosition = { x: window.scrollX, y: window.scrollY };
     ordersToolsTab = tab;
     document.querySelectorAll('[data-orders-tools-tab]').forEach((button) => button.classList.toggle('is-active', button.dataset.ordersToolsTab === tab));
     ordersToolsBackdrop.hidden = false;
+    ordersToolsBackdrop.classList.add('is-open');
     ordersToolsPanel.classList.add('is-open');
     ordersToolsPanel.setAttribute('aria-hidden', 'false');
     document.body.classList.add('orders-tools-open');
+    restoreOrdersBoardPositions(ordersToolsBoardPositions);
+    window.scrollTo({ left: ordersToolsWindowPosition.x, top: ordersToolsWindowPosition.y, behavior: 'instant' });
+    window.requestAnimationFrame(() => ordersToolsPanel.querySelector('[data-orders-tools-close]')?.focus({ preventScroll: true }));
     await loadOrdersTools();
   }
 
   function closeOrdersTools() {
     if (!ordersToolsPanel) return;
     ordersToolsPanel.classList.remove('is-open');
+    ordersToolsBackdrop?.classList.remove('is-open');
     ordersToolsPanel.setAttribute('aria-hidden', 'true');
-    ordersToolsBackdrop.hidden = true;
     document.body.classList.remove('orders-tools-open');
+    restoreOrdersBoardPositions(ordersToolsBoardPositions);
+    if (ordersToolsWindowPosition) window.scrollTo({ left: ordersToolsWindowPosition.x, top: ordersToolsWindowPosition.y, behavior: 'instant' });
+    ordersToolsReturnFocus?.focus?.({ preventScroll: true });
+    ordersToolsCloseTimer = window.setTimeout(() => {
+      if (!ordersToolsPanel.classList.contains('is-open') && ordersToolsBackdrop) ordersToolsBackdrop.hidden = true;
+      ordersToolsCloseTimer = null;
+    }, 240);
   }
 
   async function runOrdersToolsAction(action, ids) {
@@ -4044,6 +4066,10 @@
       return;
     }
     if (event.key === 'Escape') {
+      if (ordersToolsPanel?.classList.contains('is-open')) {
+        closeOrdersTools();
+        return;
+      }
       closePersonPopup();
       closeLabelMenu();
       closeToolbar();
