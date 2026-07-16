@@ -1803,7 +1803,8 @@
   }
 
   function renderPaidCell(order) {
-    return order.payment_status === 'paid' ? '<span class="paid-icon" aria-hidden="true">&#10003;</span>' : '';
+    const paid = order.payment_status === 'paid';
+    return `<button type="button" class="orders-paid-toggle${paid ? ' is-confirmed' : ''}" data-paid-toggle="${esc(order.id)}" data-paid-state="${paid ? 'paid' : 'unpaid'}" aria-pressed="${paid ? 'true' : 'false'}" aria-label="${paid ? 'Mark order unpaid' : 'Mark order paid'}"><svg class="orders-paid-tick" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10.5l3.2 3.2L16 5.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`;
   }
 
   function refreshGroupSummaries(groupKeys) {
@@ -1838,13 +1839,13 @@
       return order ? groupKey(order) : '';
     }).filter(Boolean);
     const paint = (id, state) => {
-      const cell = body.querySelector(`[data-paid-toggle="${selectorEsc(id)}"]`);
-      if (!cell) return;
-      cell.dataset.paidState = state;
-      cell.classList.toggle('is-paid', state === 'paid');
-      cell.classList.toggle('unpaid', state !== 'paid');
-      cell.innerHTML = state === 'paid' ? '<span class="paid-icon" aria-hidden="true">&#10003;</span>' : '';
-      cell.setAttribute('aria-label', state === 'paid' ? 'Mark order unpaid' : 'Mark order paid');
+      const toggle = body.querySelector(`[data-paid-toggle="${selectorEsc(id)}"]`);
+      if (!toggle) return;
+      const paid = state === 'paid';
+      toggle.dataset.paidState = state;
+      toggle.classList.toggle('is-confirmed', paid);
+      toggle.setAttribute('aria-pressed', paid ? 'true' : 'false');
+      toggle.setAttribute('aria-label', paid ? 'Mark order unpaid' : 'Mark order paid');
     };
     ids.forEach((id) => paint(id, value));
     try {
@@ -1908,7 +1909,7 @@
           <div class="orders-grid-cell orders-grid-cell--mode monday-cell col-mode"${labelCellStyle(modeLabels, order.order_type)}>${renderLabelCell(order, 'order_type', order.order_type, modeLabels, 'mode-label')}</div>
           <div class="orders-grid-cell orders-grid-cell--amount monday-cell editable-cell col-amount" data-editable-order-field="total_amount" data-order-id="${esc(order.id)}" data-value="${esc(order.total_amount ?? '')}" tabindex="0"><span class="orders-inline-cell-trigger">${esc(money(order.total_amount))}</span></div>
           <div class="orders-grid-cell orders-grid-cell--payment monday-cell col-payment"${labelCellStyle(paymentLabels, order.payment_method || 'Cash')}>${renderLabelCell(order, 'payment_method', order.payment_method || 'Cash', paymentLabels, 'payment-label')}</div>
-          <div class="orders-grid-cell orders-grid-cell--paid monday-cell paid-cell col-paid ${order.payment_status === 'paid' ? 'is-paid' : 'unpaid'}" data-paid-toggle="${esc(order.id)}" data-paid-state="${order.payment_status === 'paid' ? 'paid' : 'unpaid'}" role="button" tabindex="0" aria-label="${order.payment_status === 'paid' ? 'Mark order unpaid' : 'Mark order paid'}">${renderPaidCell(order)}</div>
+          <div class="orders-grid-cell orders-grid-cell--paid monday-cell col-paid">${renderPaidCell(order)}</div>
           <div class="orders-grid-cell orders-grid-cell--status monday-cell col-status"${labelCellStyle(statusLabels, order.status || 'new_order')}>${renderLabelCell(order, 'status', order.status || 'new_order', statusLabels, 'status-label')}</div>
           <div class="orders-grid-cell orders-grid-cell--packer monday-cell col-packedby">${renderPackerCell(order)}</div>
           <div class="orders-grid-cell orders-grid-cell--text monday-cell notes-cell col-text"><button class="orders-cell-text" type="button" data-expand-note>${esc(order.notes || '')}</button></div>
@@ -3717,13 +3718,6 @@
     if (editableCell && !editableCell.classList.contains('is-editing') && (event.key === 'Enter' || event.key === ' ')) {
       event.preventDefault();
       beginEditableCell(editableCell);
-      return;
-    }
-
-    const paidCell = event.target.closest('[data-paid-toggle]');
-    if (paidCell && (event.key === 'Enter' || event.key === ' ')) {
-      event.preventDefault();
-      togglePaidCell(paidCell).catch(showError);
       return;
     }
 
