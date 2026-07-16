@@ -191,17 +191,17 @@
 .orders-page .orders-board-v2 {
   --orders-columns:
     var(--orders-col-select,34px)
-    var(--orders-col-task,220px)
+    var(--orders-col-task,280px)
     var(--orders-col-updates,58px)
-    var(--orders-col-date,150px)
-    var(--orders-col-mobile,150px)
-    var(--orders-col-mode,120px)
-    var(--orders-col-amount,130px)
-    var(--orders-col-payment,180px)
-    var(--orders-col-paid,78px)
-    var(--orders-col-status,135px)
-    var(--orders-col-packed-by,145px)
-    var(--orders-col-text,230px)
+    var(--orders-col-date,180px)
+    var(--orders-col-mobile,190px)
+    var(--orders-col-mode,150px)
+    var(--orders-col-amount,160px)
+    var(--orders-col-payment,190px)
+    var(--orders-col-paid,90px)
+    var(--orders-col-status,160px)
+    var(--orders-col-packed-by,180px)
+    var(--orders-col-text,260px)
     var(--orders-col-add,42px);
   --orders-min-width:var(--orders-grid-min-width,1620px);
 }
@@ -280,6 +280,10 @@
   max-width:none;
 }
 .orders-page .orders-grid-header > .orders-grid-cell { background:#fff; color:var(--orders-burgundy); font-size:10px; line-height:1; font-weight:600; letter-spacing:.02em; text-transform:uppercase; }
+.orders-page .orders-grid-header-cell { position:relative; min-width:0; overflow:visible; z-index:3; }
+.orders-page .orders-grid-header-cell .column-header-title { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.orders-page .orders-grid-header-cell .portal-column-resizer { height:35px; }
+.orders-page .orders-grid-header-cell:hover { z-index:4; }
 .orders-page .orders-summary-footer > .orders-grid-cell { border-bottom:0; }
 .orders-page .orders-cell-text { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .orders-page .orders-grid-cell--select .portal-grid-checkbox {

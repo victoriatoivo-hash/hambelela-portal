@@ -23,6 +23,10 @@ $packingCssVersion = is_file(BASE_PATH . '/assets/css/packing-board.css')
     ? (string) filemtime(BASE_PATH . '/assets/css/packing-board.css') . '-people4'
     : (string) time();
 $extraStylesheets[] = [
+    'path' => 'assets/css/portal-column-resize.css',
+    'version' => is_file(BASE_PATH . '/assets/css/portal-column-resize.css') ? (string) filemtime(BASE_PATH . '/assets/css/portal-column-resize.css') : (string) time(),
+];
+$extraStylesheets[] = [
     'path' => 'assets/css/packing-board.css',
     'version' => $packingCssVersion,
 ];
@@ -271,5 +275,6 @@ window.HambelelaPacking = {
   actionUrl: 'packing-list-action.php',
 };
 </script>
+<script defer src="<?= BASE_URL ?>/assets/js/portal-column-resize.js?v=<?= is_file(BASE_PATH . '/assets/js/portal-column-resize.js') ? (string) filemtime(BASE_PATH . '/assets/js/portal-column-resize.js') : (string) time() ?>"></script>
 <script defer src="<?= BASE_URL ?>/assets/js/packing-list.js?v=<?= htmlspecialchars($packingJsVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
 <?php include BASE_PATH . '/shared/footer.php'; ?>

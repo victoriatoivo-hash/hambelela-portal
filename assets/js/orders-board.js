@@ -111,7 +111,7 @@
   const expandedGroups = new Set();
   const groupColours = ['#c73557', '#ec4899', '#10b981', '#8b5cf6', '#f97316', '#14b8a6', '#f59e0b', '#ef4444'];
   const fallbackBarColour = '#c4c4c4';
-  const COLUMN_STORAGE_KEY = 'ordersBoardColumnWidths';
+  const COLUMN_STORAGE_PREFIX = 'portalColumnWidths:orders';
   const DATE_SORT_STORAGE_KEY = 'ordersBoardDateSorts';
   const dateSortOptions = [
     ['manual', 'Manual'],
@@ -121,7 +121,7 @@
   ];
   const columnVarMap = {
     task: '--orders-col-task',
-    comment: '--orders-col-updates',
+    details: '--orders-col-updates',
     date: '--orders-col-date',
     mobile: '--orders-col-mobile',
     mode: '--orders-col-mode',
@@ -133,22 +133,17 @@
     text: '--orders-col-text'
   };
   const columnMinWidths = {
-    task: 160,
-    comment: 38,
-    date: 120,
-    mobile: 120,
-    mode: 90,
-    amount: 90,
-    payment: 110,
-    paid: 64,
-    status: 110,
-    packedBy: 110,
-    text: 160
+    task: 180, details: 48, date: 145, mobile: 150, mode: 120,
+    amount: 110, payment: 150, paid: 70, status: 130, packedBy: 150, text: 180
   };
-  let resizingColumn = null;
-  let resizingHandle = null;
-  let resizeStartX = 0;
-  let resizeStartWidth = 0;
+  const columnMaxWidths = {
+    task: 560, details: 90, date: 280, mobile: 320, mode: 240,
+    amount: 230, payment: 340, paid: 130, status: 260, packedBy: 320, text: 650
+  };
+  const columnDefaultWidths = {
+    task: 280, details: 58, date: 180, mobile: 190, mode: 150,
+    amount: 160, payment: 190, paid: 90, status: 160, packedBy: 180, text: 260
+  };
   let activeDateSortGroup = null;
   let dateGroupSorts = {};
   let labelEditorAutosaveTimer = null;
@@ -268,19 +263,26 @@
     const title = currentLabel !== ''
       ? `<span class="column-header-title" data-column-header-title>${esc(currentLabel)}</span>`
       : '<span class="column-header-title is-empty" aria-hidden="true"></span>';
-    return `<div class="orders-grid-cell orders-grid-cell--${esc(key)} monday-cell ob-col-th column-header ${cssClass}" data-column-key="${esc(key)}" data-column="${esc(column)}"${editableAttrs}>${title}<span class="column-resizer" data-column-resizer="${esc(column)}"></span></div>`;
+    const [minimum, maximum] = [columnMinWidths[column] || 40, columnMaxWidths[column] || 800];
+    return `<div class="orders-grid-cell orders-grid-cell--${esc(key)} orders-grid-header-cell monday-cell ob-col-th column-header ${cssClass}" data-column-key="${esc(key)}" data-column="${esc(column)}"${editableAttrs}>${title}<span class="portal-column-resizer column-resizer" data-column-resizer data-board-key="orders" data-column-key="${esc(column)}" role="separator" aria-orientation="vertical" aria-label="Resize ${esc(currentLabel)} column" aria-valuemin="${minimum}" aria-valuemax="${maximum}" tabindex="0"></span></div>`;
   }
 
   function columnWidthTarget() {
-    return document.documentElement;
+    return body;
+  }
+
+  function clampColumnWidth(column, width) {
+    const minimum = columnMinWidths[column] || 40;
+    const maximum = columnMaxWidths[column] || 800;
+    return Math.min(maximum, Math.max(minimum, Math.round(Number(width) || minimum)));
   }
 
   function setColumnWidth(column, width) {
     const cssVar = columnVarMap[column];
     if (!cssVar) return;
-    const minWidth = columnMinWidths[column] || 40;
-    const nextWidth = Math.max(minWidth, Number(width) || minWidth);
+    const nextWidth = clampColumnWidth(column, width);
     columnWidthTarget().style.setProperty(cssVar, `${Math.round(nextWidth)}px`);
+    syncOrdersGridColumns();
   }
 
   function columnWidth(column, fallbackElement = null) {
@@ -291,10 +293,16 @@
     return fallbackElement?.getBoundingClientRect().width || 0;
   }
 
+  function ordersColumnStorageKey() {
+    const userId = String(config.currentUserId || currentUser.id || 'anonymous');
+    const device = window.PortalColumnResize?.deviceKey?.() || `${window.innerWidth}x${window.innerHeight}`;
+    return `${COLUMN_STORAGE_PREFIX}:${userId}:${device}`;
+  }
+
   function loadSavedColumnWidths() {
     let saved = {};
     try {
-      saved = JSON.parse(window.localStorage?.getItem(COLUMN_STORAGE_KEY) || '{}') || {};
+      saved = JSON.parse(window.localStorage?.getItem(ordersColumnStorageKey()) || '{}') || {};
     } catch (error) {
       saved = {};
     }
@@ -314,7 +322,7 @@
       if (width) widths[column] = width;
     });
     try {
-      window.localStorage?.setItem(COLUMN_STORAGE_KEY, JSON.stringify(widths));
+      window.localStorage?.setItem(ordersColumnStorageKey(), JSON.stringify(widths));
     } catch (error) {
       // Column resizing should still work even if browser storage is unavailable.
     }
@@ -592,6 +600,36 @@
     if (field === 'assigned_packer_id') return order.assigned_packer_id || '';
     if (field === 'created_at') return orderDisplayDateTime(order) || '';
     return order[field] ?? '';
+  }
+
+  function resetOrdersColumnWidths() {
+    Object.entries(columnDefaultWidths).forEach(([column, width]) => setColumnWidth(column, width));
+    try { window.localStorage?.removeItem(ordersColumnStorageKey()); } catch (error) {}
+    saveColumnWidths();
+  }
+
+  function autoFitOrdersColumn(column) {
+    const header = body.querySelector(`[data-column="${selectorEsc(column)}"]`);
+    const cellKey = header?.dataset.columnKey || column;
+    const cells = [...body.querySelectorAll(`.orders-grid-cell--${selectorEsc(cellKey)}`)].slice(0, 80);
+    const measured = cells.reduce((maximum, cell) => Math.max(maximum, cell.scrollWidth + 22), columnMinWidths[column] || 40);
+    return clampColumnWidth(column, measured);
+  }
+
+  function bindOrdersColumnResizers() {
+    if (!window.PortalColumnResize) return;
+    body.querySelectorAll('.portal-column-resizer[data-board-key="orders"]').forEach((handle) => {
+      const column = handle.dataset.columnKey || '';
+      handle.setAttribute('aria-valuenow', String(Math.round(columnWidth(column, handle.parentElement))));
+      window.PortalColumnResize.bindHandle(handle, {
+        key: column,
+        readWidth: (key, element) => columnWidth(key, element.parentElement),
+        clampWidth: clampColumnWidth,
+        applyWidth: setColumnWidth,
+        onCommit: saveColumnWidths,
+        autoFit: autoFitOrdersColumn
+      });
+    });
   }
 
   function getOrdersScrollContainer(element) {
@@ -1413,10 +1451,10 @@
   function syncOrdersGridColumns() {
     if (!body) return;
     const fixed = [
-      'var(--orders-col-select,34px)', 'var(--orders-col-task,220px)', 'var(--orders-col-updates,58px)',
-      'var(--orders-col-date,150px)', 'var(--orders-col-mobile,150px)', 'var(--orders-col-mode,120px)',
-      'var(--orders-col-amount,130px)', 'var(--orders-col-payment,180px)', 'var(--orders-col-paid,78px)',
-      'var(--orders-col-status,135px)', 'var(--orders-col-packed-by,145px)', 'var(--orders-col-text,230px)'
+      'var(--orders-col-select,34px)', 'var(--orders-col-task,280px)', 'var(--orders-col-updates,58px)',
+      'var(--orders-col-date,180px)', 'var(--orders-col-mobile,190px)', 'var(--orders-col-mode,150px)',
+      'var(--orders-col-amount,160px)', 'var(--orders-col-payment,190px)', 'var(--orders-col-paid,90px)',
+      'var(--orders-col-status,160px)', 'var(--orders-col-packed-by,180px)', 'var(--orders-col-text,260px)'
     ];
     const custom = customColumns.map(() => '140px');
     body.style.setProperty('--orders-columns', [...fixed, ...custom, 'var(--orders-col-add,42px)'].join(' '));
@@ -1974,7 +2012,7 @@
             <div class="orders-grid-header monday-grid monday-column-header ob-col-header-row" data-group="${esc(key)}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
               <div class="orders-grid-cell orders-grid-cell--select monday-cell check-cell col-checkbox"><label class="portal-grid-checkbox"><input class="portal-grid-checkbox-input orders-row-checkbox" type="checkbox" data-select-all-orders aria-label="Select all visible orders"><span class="portal-grid-checkbox-box" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="m2.2 6.1 2.2 2.2 5.4-5.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span></label></div>
               ${columnHeader('Task', 'col-task', 'task')}
-              ${columnHeader('Details', 'col-task-icon comment-cell', 'comment', 'updates')}
+              ${columnHeader('Details', 'col-task-icon comment-cell', 'details', 'updates')}
               ${columnHeader('DATE', 'col-date', 'date')}
               ${columnHeader('Mobile number', 'col-mobile', 'mobile')}
               ${columnHeader('Mode', 'col-mode', 'mode')}
@@ -2038,6 +2076,7 @@
     }
     renderCustomHeaders();
     body.innerHTML = groupKeys.map((key, index) => renderGroup(key, groups[key], index)).join('');
+    bindOrdersColumnResizers();
     enhanceOrderTaskCells();
     renderMobileCards(visible);
     if (groupLabelNode) groupLabelNode.textContent = `Grouped by ${boardState.groupBy}`;
@@ -3061,39 +3100,6 @@
     }
   }
 
-  document.addEventListener('mousedown', (event) => {
-    const handle = event.target.closest('.column-resizer');
-    if (!handle) return;
-
-    const headerCell = handle.closest('.column-header');
-    const column = headerCell?.dataset.column || handle.dataset.columnResizer;
-    if (!headerCell || !columnVarMap[column]) return;
-
-    event.preventDefault();
-    event.stopPropagation();
-    resizingColumn = column;
-    resizingHandle = handle;
-    resizeStartX = event.clientX;
-    resizeStartWidth = columnWidth(column, headerCell);
-    document.body.classList.add('is-resizing-column');
-    resizingHandle.classList.add('is-active');
-  });
-
-  document.addEventListener('mousemove', (event) => {
-    if (!resizingColumn) return;
-    event.preventDefault();
-    setColumnWidth(resizingColumn, resizeStartWidth + event.clientX - resizeStartX);
-  });
-
-  document.addEventListener('mouseup', () => {
-    if (!resizingColumn) return;
-    saveColumnWidths();
-    resizingHandle?.classList.remove('is-active');
-    resizingColumn = null;
-    resizingHandle = null;
-    document.body.classList.remove('is-resizing-column');
-  });
-
   document.addEventListener('mouseover', (event) => {
     const segment = event.target.closest('.summary-segment');
     if (!segment || !body.contains(segment)) return;
@@ -3179,6 +3185,10 @@
   });
 
   document.addEventListener('pointerdown', (event) => {
+    if (event.target.closest('.portal-column-resizer')) {
+      pendingOrdersInteractionPosition = null;
+      return;
+    }
     const table = getOrdersScrollContainer(event.target);
     pendingOrdersInteractionPosition = table ? ordersTablePosition(event.target) : null;
   }, true);
@@ -3188,6 +3198,12 @@
     pendingOrdersInteractionPosition = null;
     if (clickPosition) restoreOrdersTablePosition(clickPosition);
     if (event.target.closest('.column-resizer')) return;
+    const resetColumns = event.target.closest('[data-reset-orders-columns]');
+    if (resetColumns) {
+      resetOrdersColumnWidths();
+      resetColumns.blur();
+      return;
+    }
     if (event.target.closest('[data-row-drag-handle]')) return;
     if (event.target.closest('.editable-cell.is-editing')) return;
     if (personPopup?.classList.contains('is-open') && !event.target.closest('[data-orders-person-popup], [data-orders-person-trigger]')) closePersonPopup();

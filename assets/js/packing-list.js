@@ -850,8 +850,9 @@
 
       const resizer = document.createElement('div');
       const [minimum, maximum] = packingColumnLimits(key);
-      resizer.className = 'col-resizer packing-column-resizer';
+      resizer.className = 'portal-column-resizer col-resizer packing-column-resizer';
       resizer.dataset.packingColumnResizer = '';
+      resizer.dataset.boardKey = 'packing';
       resizer.dataset.columnKey = key;
       resizer.setAttribute('role', 'separator');
       resizer.setAttribute('aria-label', `Resize ${packingHeaderLabel(columnDefinitions().find((column) => column.key === key) || { key, label: key })} column`);
@@ -863,55 +864,17 @@
       th.style.position = 'relative';
       th.appendChild(resizer);
 
-      let startX = 0;
-      let startW = 0;
-
       const setWidth = (width) => {
         columnWidths[key] = clampPackingColumnWidth(key, width);
         resizer.setAttribute('aria-valuenow', String(columnWidths[key]));
         applyColumnWidths();
       };
-
-      const onPointerMove = (event) => {
-        setWidth(startW + (event.clientX - startX));
-      };
-
-      const onPointerUp = (event) => {
-        document.removeEventListener('pointermove', onPointerMove);
-        document.removeEventListener('pointerup', onPointerUp);
-        document.removeEventListener('pointercancel', onPointerUp);
-        resizer.classList.remove('is-resizing');
-        document.body.classList.remove('is-resizing-column', 'is-resizing-packing-column');
-        if (resizer.hasPointerCapture?.(event.pointerId)) resizer.releasePointerCapture(event.pointerId);
-        savePackingColumnWidths();
-      };
-
-      resizer.addEventListener('pointerdown', (event) => {
-        if (event.button !== 0) return;
-        startX = event.clientX;
-        startW = th.getBoundingClientRect().width;
-        resizer.classList.add('is-resizing');
-        document.body.classList.add('is-resizing-column', 'is-resizing-packing-column');
-        resizer.setPointerCapture?.(event.pointerId);
-        document.addEventListener('pointermove', onPointerMove);
-        document.addEventListener('pointerup', onPointerUp);
-        document.addEventListener('pointercancel', onPointerUp);
-        event.preventDefault();
-        event.stopPropagation();
-      });
-
-      resizer.addEventListener('keydown', (event) => {
-        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
-        const step = event.shiftKey ? 25 : 10;
-        const direction = event.key === 'ArrowRight' ? 1 : -1;
-        setWidth((columnWidths[key] || th.getBoundingClientRect().width) + (step * direction));
-        savePackingColumnWidths();
-        event.preventDefault();
-        event.stopPropagation();
-      });
-      resizer.addEventListener('click', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
+      window.PortalColumnResize?.bindHandle(resizer, {
+        key,
+        readWidth: () => columnWidths[key] || th.getBoundingClientRect().width,
+        clampWidth: clampPackingColumnWidth,
+        applyWidth: (columnKey, width) => setWidth(width),
+        onCommit: savePackingColumnWidths
       });
     });
   }

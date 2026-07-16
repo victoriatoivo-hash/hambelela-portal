@@ -21,6 +21,7 @@ $ordersStylesVersion = is_file(BASE_PATH . '/assets/css/orders-board.css')
     ? (string) filemtime(BASE_PATH . '/assets/css/orders-board.css')
     : (string) time();
 $extraStylesheets = [
+    ['path' => 'assets/css/portal-column-resize.css', 'version' => is_file(BASE_PATH . '/assets/css/portal-column-resize.css') ? (string) filemtime(BASE_PATH . '/assets/css/portal-column-resize.css') : (string) time()],
     ['path' => 'assets/css/orders-board.css', 'version' => $ordersStylesVersion],
 ];
 
@@ -124,6 +125,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 <button type="button" data-clear-board-filters><i data-lucide="refresh-cw"></i> Clear Filters</button>
                 <button type="button" data-board-refresh><i data-lucide="refresh-cw"></i> Refresh</button>
                 <button type="button" data-toolbar="more"><i data-lucide="sliders-horizontal"></i> More Filters</button>
+                <button type="button" data-reset-orders-columns><i data-lucide="columns-3"></i> Reset column widths</button>
             </div>
         </section>
     </section>
@@ -136,7 +138,7 @@ include BASE_PATH . '/shared/sidebar.php';
 
     <section class="orders-date-groups">
         <div class="ops-board-scroll orders-grid-scroll">
-            <div class="ops-board-table monday-board orders-board-v2 orders-grid-root" id="orders-board-body">
+            <div class="ops-board-table monday-board orders-board-v2 orders-grid-root" id="orders-board-body" data-orders-board data-board-key="orders">
                 <div class="board-empty-state">Loading orders...</div>
             </div>
         </div>
@@ -229,8 +231,10 @@ window.HambelelaBoard = {
   dataUrl: 'orders-board-data.php',
   actionUrl: 'orders-board-action.php',
   statuses: <?= json_encode(OPS_ORDER_STATUSES) ?>,
-  canEditHeaders: <?= $canEditHeaders ? 'true' : 'false' ?>
+  canEditHeaders: <?= $canEditHeaders ? 'true' : 'false' ?>,
+  currentUserId: <?= (int) (current_user()['id'] ?? 0) ?>
 };
 </script>
+<script defer src="<?= BASE_URL ?>/assets/js/portal-column-resize.js?v=<?= is_file(BASE_PATH . '/assets/js/portal-column-resize.js') ? (string) filemtime(BASE_PATH . '/assets/js/portal-column-resize.js') : (string) time() ?>"></script>
 <script defer src="<?= BASE_URL ?>/assets/js/orders-board.js?v=<?= htmlspecialchars($boardAssetVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
 <?php include BASE_PATH . '/shared/footer.php'; ?>
