@@ -292,17 +292,29 @@
   min-width:0;
   max-width:none;
 }
-.orders-page .orders-grid-header > .orders-grid-cell { background:#fff; color:var(--orders-burgundy); font-size:10px; line-height:1; font-weight:600; letter-spacing:.02em; text-transform:uppercase; }
-.orders-page .orders-grid-header-cell { position:relative; min-width:0; height:35px; min-height:35px; max-height:35px; margin:0; padding:0; overflow:visible; z-index:3; box-sizing:border-box; }
+.orders-page .orders-grid-header { height:35px !important; min-height:35px !important; max-height:35px !important; }
+.orders-page .orders-grid-header > .orders-grid-cell,
+.orders-page .orders-grid-header-cell {
+  position:relative !important; min-width:0 !important; height:35px !important; min-height:35px !important; max-height:35px !important;
+  margin:0 !important; padding:0 8px !important; display:flex !important; align-items:center !important; justify-content:center !important;
+  overflow:visible !important; border:0 !important; border-right:1px solid #EDE3D8 !important; border-bottom:1px solid #EDE3D8 !important;
+  background:rgb(171 54 25 / 18%) !important; color:#721B1A !important; z-index:3;
+  font-family:Figtree,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:10px !important; line-height:1 !important; font-weight:600 !important; letter-spacing:.02em !important;
+  text-align:center !important; text-transform:uppercase !important; white-space:nowrap !important; box-sizing:border-box !important;
+}
+.orders-page .orders-grid-header > .orders-grid-cell:last-child { border-right:0 !important; }
 .orders-page .orders-column-heading-trigger,
 .orders-page .orders-column-heading-input {
   width:100%; height:35px; min-height:35px; max-height:35px; min-width:0;
-  margin:0; padding:0 10px; display:flex; align-items:center; justify-content:flex-start; gap:6px;
+  margin:0; padding:0; display:flex; align-items:center; justify-content:center;
   overflow:hidden; border:0; border-radius:0; background:transparent; color:#721B1A;
   box-shadow:none; outline:0; font-family:Figtree,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
   font-size:10px; line-height:1; font-weight:600; letter-spacing:.02em; text-transform:uppercase;
-  text-align:left; text-overflow:ellipsis; white-space:nowrap; box-sizing:border-box;
+  text-align:center; text-overflow:ellipsis; white-space:nowrap; box-sizing:border-box;
 }
+.orders-page .orders-grid-header-label { min-width:0; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:inherit !important; font-size:10px !important; line-height:1 !important; font-weight:600 !important; text-align:center !important; }
+.orders-page .orders-column-heading-trigger[hidden] { display:none !important; }
 .orders-page .orders-column-heading-trigger { cursor:text; }
 .orders-page .orders-column-heading-trigger:hover,
 .orders-page .orders-column-heading-trigger:focus-visible,

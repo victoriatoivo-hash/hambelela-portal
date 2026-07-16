@@ -24998,9 +24998,9 @@ body:has(.ob-wrap) .ob-wrap .monday-column-header > .monday-cell,
 body:has(.ob-wrap) .ob-wrap .monday-order-row > .monday-cell,
 body:has(.ob-wrap) .ob-wrap .add-task-row > .monday-cell,
 body:has(.ob-wrap) .ob-wrap div.ob-group-footer > .monday-cell {
-  height: 36px !important;
-  min-height: 36px !important;
-  max-height: 36px !important;
+  height: 35px !important;
+  min-height: 35px !important;
+  max-height: 35px !important;
 }
 
 body:has(.ob-wrap) .ob-wrap .monday-order-row > .col-mode,
@@ -25295,9 +25295,9 @@ body:has(.ob-wrap) .ob-wrap .orders-board-v2 .monday-group.collapsed .monday-gro
 .ob-wrap .orders-board-v2 .monday-order-row,
 .ob-wrap .orders-board-v2 .add-task-row,
 .ob-wrap .orders-board-v2 .ob-group-footer {
-  height: 36px !important;
-  min-height: 36px !important;
-  max-height: 36px !important;
+  height: 35px !important;
+  min-height: 35px !important;
+  max-height: 35px !important;
 }
 
 .ob-wrap .orders-board-v2 .monday-grid > .monday-cell {

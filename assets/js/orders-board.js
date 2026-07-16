@@ -69,11 +69,21 @@
   };
   let activeFilterSelect = null;
 
-  const columns = [
-    ['select', 'Select'], ['task', 'Task'], ['updates', 'Updates'], ['date', 'Date'],
-    ['mobile', 'Mobile number'], ['mode', 'Mode'], ['amount', 'Amount'], ['payment', 'Payment'],
-    ['paid', 'Paid'], ['status', 'Status'], ['packer', 'Packed by'], ['text', 'Text']
+  const ordersColumns = [
+    { key: 'select', column: 'select', label: '', cssClass: 'col-checkbox', editable: false, resizable: false },
+    { key: 'task', column: 'task', label: 'Task', cssClass: 'col-task' },
+    { key: 'updates', column: 'details', label: 'Details', cssClass: 'col-task-icon comment-cell' },
+    { key: 'date', column: 'date', label: 'Date', cssClass: 'col-date' },
+    { key: 'mobile', column: 'mobile', label: 'Mobile Number', cssClass: 'col-mobile' },
+    { key: 'mode', column: 'mode', label: 'Mode', cssClass: 'col-mode' },
+    { key: 'amount', column: 'amount', label: 'Amount', cssClass: 'col-amount' },
+    { key: 'payment', column: 'payment', label: 'Payment', cssClass: 'col-payment' },
+    { key: 'paid', column: 'paid', label: 'Paid', cssClass: 'col-paid col-header-paid' },
+    { key: 'status', column: 'status', label: 'Status', cssClass: 'col-status' },
+    { key: 'packer', column: 'packedBy', label: 'Packed By', cssClass: 'col-packedby' },
+    { key: 'text', column: 'text', label: 'Text', cssClass: 'col-text' }
   ];
+  const columns = ordersColumns.map(({ key, label }) => [key, label || 'Select']);
   const HEADER_STORAGE_KEY = 'hambelelaBoardHeaders';
   const defaultColumnLabels = {
     task: 'Task',
@@ -257,14 +267,19 @@
     button.disabled = busy;
   }
 
-  function columnHeader(label, cssClass, column, key = column) {
+  function columnHeader(definition) {
+    const { key, column, label, cssClass = '', editable = true, resizable = true } = definition;
+    if (key === 'select') {
+      return `<div class="orders-grid-cell orders-grid-cell--select orders-grid-header-cell monday-cell ob-col-th column-header ${cssClass}" data-column-key="select"><label class="portal-grid-checkbox"><input class="portal-grid-checkbox-input orders-row-checkbox" type="checkbox" data-select-all-orders aria-label="Select all visible orders"><span class="portal-grid-checkbox-box" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="m2.2 6.1 2.2 2.2 5.4-5.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span></label></div>`;
+    }
     const currentLabel = columnLabels[key] ?? label;
-    const editableAttrs = currentLabel !== '' ? ' data-editable-column-header="true"' : '';
+    const editableAttrs = editable && currentLabel !== '' ? ' data-editable-column-header="true"' : '';
     const title = currentLabel !== ''
-      ? `<button type="button" class="orders-column-heading-trigger column-header-title" data-column-header-title aria-label="Rename ${esc(currentLabel)} column">${esc(currentLabel)}</button>`
-      : '<span class="column-header-title is-empty" aria-hidden="true"></span>';
+      ? `<button type="button" class="orders-grid-header-label orders-column-heading-trigger column-header-title" data-column-header-title aria-label="Rename ${esc(currentLabel)} column">${esc(currentLabel)}</button>`
+      : '<span class="orders-grid-header-label column-header-title is-empty" aria-hidden="true"></span>';
     const [minimum, maximum] = [columnMinWidths[column] || 40, columnMaxWidths[column] || 800];
-    return `<div class="orders-grid-cell orders-grid-cell--${esc(key)} orders-grid-header-cell monday-cell ob-col-th column-header ${cssClass}" data-column-key="${esc(key)}" data-column="${esc(column)}"${editableAttrs}>${title}<span class="portal-column-resizer column-resizer" data-column-resizer data-board-key="orders" data-column-key="${esc(column)}" role="separator" aria-orientation="vertical" aria-label="Resize ${esc(currentLabel)} column" aria-valuemin="${minimum}" aria-valuemax="${maximum}" tabindex="0"></span></div>`;
+    const resizer = resizable ? `<span class="portal-column-resizer column-resizer" data-column-resizer data-board-key="orders" data-column-key="${esc(column)}" role="separator" aria-orientation="vertical" aria-label="Resize ${esc(currentLabel)} column" aria-valuemin="${minimum}" aria-valuemax="${maximum}" tabindex="0"></span>` : '';
+    return `<div class="orders-grid-cell orders-grid-cell--${esc(key)} orders-grid-header-cell monday-cell ob-col-th column-header ${cssClass}" data-column-key="${esc(key)}" data-column="${esc(column)}"${editableAttrs}>${title}${resizer}</div>`;
   }
 
   function columnWidthTarget() {
@@ -2008,18 +2023,7 @@
             <div class="orders-table-scroll" data-orders-board-scroll>
               <div class="orders-table-grid">
             <div class="orders-grid-header monday-grid monday-column-header ob-col-header-row" data-group="${esc(key)}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
-              <div class="orders-grid-cell orders-grid-cell--select monday-cell check-cell col-checkbox"><label class="portal-grid-checkbox"><input class="portal-grid-checkbox-input orders-row-checkbox" type="checkbox" data-select-all-orders aria-label="Select all visible orders"><span class="portal-grid-checkbox-box" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="m2.2 6.1 2.2 2.2 5.4-5.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span></label></div>
-              ${columnHeader('Task', 'col-task', 'task')}
-              ${columnHeader('Details', 'col-task-icon comment-cell', 'details', 'updates')}
-              ${columnHeader('DATE', 'col-date', 'date')}
-              ${columnHeader('Mobile number', 'col-mobile', 'mobile')}
-              ${columnHeader('Mode', 'col-mode', 'mode')}
-              ${columnHeader('AMOUNT', 'col-amount', 'amount')}
-              ${columnHeader('PAYMENT', 'col-payment', 'payment')}
-              ${columnHeader('PAID', 'col-paid col-header-paid', 'paid')}
-              ${columnHeader('Status', 'col-status', 'status')}
-              ${columnHeader('Packed by', 'col-packedby', 'packedBy', 'packer')}
-              ${columnHeader('Text', 'col-text', 'text')}
+              ${ordersColumns.map(columnHeader).join('')}
               ${customColumns.map((column) => `<div class="orders-grid-cell orders-grid-cell--custom monday-cell ob-col-th col-custom">${esc(column.col_name || '')}</div>`).join('')}
               <div class="orders-grid-cell orders-grid-cell--add monday-cell add-column-cell"><button type="button" data-add-column>+</button></div>
             </div>
