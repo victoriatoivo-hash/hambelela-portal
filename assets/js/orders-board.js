@@ -415,6 +415,10 @@
       cell.innerHTML = `<span class="task-name">${esc(editableDisplayValue(order, field))}</span>`;
       return;
     }
+    if (field === 'customer_contact' || field === 'total_amount') {
+      cell.innerHTML = `<span class="orders-inline-cell-trigger">${esc(editableDisplayValue(order, field))}</span>`;
+      return;
+    }
     cell.textContent = editableDisplayValue(order, field);
   }
 
@@ -486,6 +490,9 @@
       });
     } else {
       control.type = 'text';
+      if (field === 'customer_contact' || field === 'total_amount') {
+        control.className = 'orders-inline-cell-input';
+      }
     }
 
     control.value = field === 'total_amount' ? String(originalValue).replace(/[^\d.]/g, '') : originalValue;
@@ -503,7 +510,11 @@
       finished = true;
       cell.classList.remove('is-editing', 'is-saving');
       cell.classList.remove('has-error');
-      cell.textContent = originalDisplay;
+      if (field === 'customer_contact' || field === 'total_amount') {
+        cell.innerHTML = `<span class="orders-inline-cell-trigger">${esc(originalDisplay)}</span>`;
+      } else {
+        cell.textContent = originalDisplay;
+      }
       cell.dataset.value = originalValue;
     };
 
@@ -1741,9 +1752,9 @@
           <div class="orders-grid-cell orders-grid-cell--task monday-cell task-cell editable-cell col-task" data-editable-order-field="customer_name" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_name || '')}" tabindex="0"><span class="task-drag-handle" data-row-drag-handle="${esc(order.id)}" draggable="true" role="button" tabindex="0" aria-label="Drag order row" title="Drag row">⋮⋮</span><span class="orders-cell-text task-name">${esc(order.order_number.replace(/^WEB-/, ''))} ${esc(order.customer_name)}</span></div>
           <div class="orders-grid-cell orders-grid-cell--notes monday-cell comment-cell col-task-icon update-icon-cell">${renderUpdateIconCell(order)}</div>
           <div class="orders-grid-cell orders-grid-cell--date monday-cell col-date order-date-cell portal-date-cell" data-order-id="${esc(order.id)}" title="Edit order date/time"><input type="datetime-local" class="orders-date-trigger" data-orders-date-input data-order-id="${esc(order.id)}" value="${esc(orderDisplayDateTime(order).replace(' ', 'T').slice(0, 16))}" aria-label="Order date and time"></div>
-          <div class="orders-grid-cell orders-grid-cell--mobile monday-cell editable-cell col-mobile" data-editable-order-field="customer_contact" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_contact || '')}" tabindex="0"><span class="orders-cell-text">${esc(order.customer_contact || '')}</span></div>
+          <div class="orders-grid-cell orders-grid-cell--mobile monday-cell editable-cell col-mobile" data-editable-order-field="customer_contact" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_contact || '')}" tabindex="0"><span class="orders-inline-cell-trigger">${esc(order.customer_contact || '')}</span></div>
           <div class="orders-grid-cell orders-grid-cell--mode monday-cell col-mode"${labelCellStyle(modeLabels, order.order_type)}>${renderLabelCell(order, 'order_type', order.order_type, modeLabels, 'mode-label')}</div>
-          <div class="orders-grid-cell orders-grid-cell--amount monday-cell editable-cell col-amount" data-editable-order-field="total_amount" data-order-id="${esc(order.id)}" data-value="${esc(order.total_amount ?? '')}" tabindex="0"><span class="orders-cell-text">${esc(money(order.total_amount))}</span></div>
+          <div class="orders-grid-cell orders-grid-cell--amount monday-cell editable-cell col-amount" data-editable-order-field="total_amount" data-order-id="${esc(order.id)}" data-value="${esc(order.total_amount ?? '')}" tabindex="0"><span class="orders-inline-cell-trigger">${esc(money(order.total_amount))}</span></div>
           <div class="orders-grid-cell orders-grid-cell--payment monday-cell col-payment"${labelCellStyle(paymentLabels, order.payment_method || 'Cash')}>${renderLabelCell(order, 'payment_method', order.payment_method || 'Cash', paymentLabels, 'payment-label')}</div>
           <div class="orders-grid-cell orders-grid-cell--paid monday-cell paid-cell col-paid ${order.payment_status === 'paid' ? 'is-paid' : 'unpaid'}" data-paid-toggle="${esc(order.id)}" data-paid-state="${order.payment_status === 'paid' ? 'paid' : 'unpaid'}" role="button" tabindex="0" aria-label="${order.payment_status === 'paid' ? 'Mark order unpaid' : 'Mark order paid'}">${renderPaidCell(order)}</div>
           <div class="orders-grid-cell orders-grid-cell--status monday-cell col-status"${labelCellStyle(statusLabels, order.status || 'new_order')}>${renderLabelCell(order, 'status', order.status || 'new_order', statusLabels, 'status-label')}</div>
