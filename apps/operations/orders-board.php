@@ -47,7 +47,7 @@ include BASE_PATH . '/shared/sidebar.php';
             </div>
             <div class="monday-board-head-actions">
                 <div class="board-viewers" id="board-viewers" aria-label="Currently viewing"></div>
-                <button type="button" class="invite-btn" data-export-excel><i data-lucide="download"></i> Export Excel</button>
+                <button type="button" class="invite-btn packing-btn packing-btn-secondary orders-export-button" data-export-excel><i data-lucide="download"></i> Export Excel</button>
                 <div class="availability-switch-wrap">
                     <span>Available</span>
                     <button class="availability-switch is-available" type="button" data-availability-toggle aria-pressed="true" aria-label="Toggle lunch availability">
