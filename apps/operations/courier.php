@@ -693,7 +693,11 @@ function wb_queue_html(array $rows, bool $canSend): string
                 <div class="courier-cell courier-select-cell">
                     <label class="portal-grid-checkbox courier-row-checkbox" aria-label="Select waybill batch">
                         <input class="portal-grid-checkbox-input" type="checkbox" data-courier-row-select value="<?= wb_e($batchId) ?>">
-                        <span class="portal-grid-checkbox-box" aria-hidden="true"></span>
+                        <span class="portal-grid-checkbox-box" aria-hidden="true">
+                            <svg viewBox="0 0 12 12" aria-hidden="true">
+                                <path d="M2.25 6.25 4.8 8.8 9.75 3.85" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                        </span>
                     </label>
                 </div>
                 <div class="courier-cell queue-main">
@@ -1061,7 +1065,11 @@ include BASE_PATH . '/shared/sidebar.php';
                             <div class="courier-cell courier-select-cell">
                                 <label class="portal-grid-checkbox courier-select-all" aria-label="Select all waybill batches">
                                     <input class="portal-grid-checkbox-input" type="checkbox" data-courier-select-all>
-                                    <span class="portal-grid-checkbox-box" aria-hidden="true"></span>
+                                    <span class="portal-grid-checkbox-box" aria-hidden="true">
+                                        <svg viewBox="0 0 12 12" aria-hidden="true">
+                                            <path d="M2.25 6.25 4.8 8.8 9.75 3.85" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                                        </svg>
+                                    </span>
                                 </label>
                             </div><div class="courier-cell queue-main"><span>Courier</span></div><div class="courier-cell">Uploaded</div><div class="courier-cell">By</div><div class="courier-cell">Due</div><div class="courier-cell">Files</div><div class="courier-cell">Status</div><div class="courier-cell">Notes</div><div class="courier-cell">Actions</div>
                         </div>
