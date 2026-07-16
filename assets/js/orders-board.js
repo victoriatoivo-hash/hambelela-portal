@@ -3260,6 +3260,7 @@
       order_completed:['Order completed', 'Order was marked complete.', 'badge-check'],
       packed_by_changed:['Packing assignment changed', 'Packing responsibility was reassigned.', 'user-round'],
       packed_by_cleared:['Packing assignment cleared', 'Packing responsibility was removed.', 'user-round-x'],
+      walk_in_auto_assigned:['Walk-in order assigned', 'Order automatically assigned to Secilia Shiweda (Walk-in Customer).', 'user-round-check'],
       payment_changed:['Payment method changed', 'Payment method was updated.', 'wallet-cards'],
       payment_status_updated:['Paid status updated', 'Payment status was updated.', 'badge-dollar-sign'],
       mode_changed:['Fulfilment mode changed', 'Order fulfilment mode was updated.', 'truck'],
@@ -3285,7 +3286,10 @@
     if (field === 'status') return findText(statusLabels, value) || value;
     if (field === 'order_type') return findText(modeLabels, value) || value;
     if (field === 'payment_method') return findText(paymentLabels, value) || value;
-    if (field === 'assigned_packer_id') return packersCache.find((packer) => String(packer.id) === String(value))?.full_name || `Employee ${value}`;
+    if (field === 'assigned_packer_id') {
+      const matched = packersCache.find((packer) => String(packer.id) === String(value));
+      return matched?.full_name || (/^\d+$/.test(String(value)) ? `Employee ${value}` : String(value));
+    }
     if (field === 'total_amount') return money(value);
     return String(value);
   }
@@ -3325,11 +3329,12 @@
       const actor = event.actor_name || metadata.changed_by || '';
       const initials = actor.split(/\s+/).filter(Boolean).slice(0,2).map((part) => part.charAt(0)).join('').toUpperCase();
       const field = metadata.field || (event.action.includes('packed_by') ? 'assigned_packer_id' : '');
-      const oldValue = metadata.old_value ?? metadata.previous_packer_id ?? metadata.from_date ?? '';
-      const newValue = metadata.new_value ?? metadata.assigned_packer_id ?? metadata.to_date ?? metadata.value ?? '';
+      const oldValue = metadata.old_value ?? metadata.previous_packer_id ?? metadata.previous_value ?? metadata.from_date ?? '';
+      const newValue = metadata.assigned_packer_id ?? metadata.new_value ?? metadata.to_date ?? metadata.value ?? '';
       const change = oldValue !== '' && newValue !== '' ? `<div class="portal-activity-change"><div><span>Previous</span><strong>${esc(orderActivityValue(field, oldValue))}</strong></div><div><span>New</span><strong>${esc(orderActivityValue(field, newValue))}</strong></div></div>` : '';
       const actorBlock = actor ? `<div class="portal-activity-actor"><span class="portal-activity-avatar">${esc(initials || 'U')}</span><span class="portal-activity-actor-copy"><strong class="portal-activity-actor-name">${esc(actor)}</strong><small class="portal-activity-actor-role">${esc(event.actor_role || '')}</small></span></div>` : '';
-      return `<article class="portal-activity-item"><span class="portal-activity-icon"><i data-lucide="${esc(icon)}"></i></span><div class="portal-activity-content"><h4 class="portal-activity-title">${esc(title)}</h4><time class="portal-activity-time">${esc(orderActivityDate(event.created_at))}</time><p class="portal-activity-description">${esc(defaultDescription)}</p>${change}${actorBlock}</div></article>`;
+      const description = metadata.message || defaultDescription;
+      return `<article class="portal-activity-item"><span class="portal-activity-icon"><i data-lucide="${esc(icon)}"></i></span><div class="portal-activity-content"><h4 class="portal-activity-title">${esc(title)}</h4><time class="portal-activity-time">${esc(orderActivityDate(event.created_at))}</time><p class="portal-activity-description">${esc(description)}</p>${change}${actorBlock}</div></article>`;
     }).join('');
     if (window.lucide) window.lucide.createIcons({ strokeWidth:2 });
   }
@@ -3670,7 +3675,6 @@
     const ordersToolsClose = event.target.closest('[data-orders-tools-close], [data-orders-tools-backdrop]');
     const ordersToolsTabButton = event.target.closest('[data-orders-tools-tab]');
     const ordersToolsAction = event.target.closest('[data-orders-tools-action]');
-    const assign = event.target.closest('[data-board-action="assign"]');
     const sync = event.target.closest('[data-board-action="sync"], .new-task-btn');
     const refreshButton = event.target.closest('[data-board-refresh]');
     const themeToggle = event.target.closest('[data-theme-toggle]');
@@ -4009,7 +4013,6 @@
       if (toolbarAction) {
         const action = toolbarAction.dataset.toolbarAction;
         if (action === 'sync') await syncWebsite(false, toolbarAction, true).then(refresh);
-        else if (action === 'assign') await post('assign').then(refresh);
         else if (action === 'theme') {
           const next = page.dataset.boardTheme === 'dark' ? 'light' : 'dark';
           page.dataset.boardTheme = next;
@@ -4091,7 +4094,6 @@
         await refresh();
       }
 
-      if (assign) await post('assign').then(refresh);
       if (sync) {
         await syncWebsite(false, sync, true).then(refresh);
       }

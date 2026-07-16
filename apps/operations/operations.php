@@ -469,31 +469,59 @@ function ops_workload_score(int $itemCount, string $orderType, int $complexity, 
     return round(max(1, $itemCount) * max(1, $complexity) * $typePoints * $priorityPoints, 2);
 }
 
-function ops_best_packer_id(float $newWorkload): ?int
+function ops_is_walk_in_order(string $customerName, string $customerContact, string $orderType = ''): bool
 {
+    $normalise = static function (string $value): string {
+        return preg_replace('/[^a-z0-9]+/', '', strtolower(trim($value))) ?? '';
+    };
+    $type = $normalise($orderType);
+
+    return in_array($type, ['walkin', 'walkincustomer'], true)
+        || str_contains($normalise($customerContact), 'walkin')
+        || str_contains($normalise($customerName), 'walkincustomer');
+}
+
+function ops_secilia_front_desk_employee_id(): ?int
+{
+    $emailFilter = ops_column_exists('ops_employees', 'email')
+        ? " OR LOWER(COALESCE(e.email, '')) = 'shiwedasecilia3@gmail.com'"
+        : '';
     $rows = ops_rows(
-        "SELECT
-            e.id,
-            COALESCE(SUM(o.workload_score), 0) AS load_score,
-            COUNT(o.id) AS active_orders,
-            COALESCE(SUM(CASE WHEN o.status = 'in_progress' THEN 1 ELSE 0 END), 0) AS in_progress_orders
-         FROM ops_employees e
+        "SELECT e.id FROM ops_employees e
          JOIN ops_roles r ON r.id = e.role_id
-         LEFT JOIN ops_employee_availability ea ON ea.employee_id = e.id
-         LEFT JOIN ops_orders o ON o.assigned_packer_id = e.id
-           AND o.status IN ('assigned', 'in_progress', 'packed')
-         WHERE e.status = 'active' AND r.role_key IN ('packer', 'supervisor_manager')
-           AND (
-             ea.employee_id IS NULL
-             OR ea.availability_status = 'available'
-             OR (ea.unavailable_until IS NOT NULL AND ea.unavailable_until <= NOW())
-           )
-         GROUP BY e.id
-         ORDER BY load_score ASC, active_orders ASC, in_progress_orders ASC, e.id ASC
-         LIMIT 1"
+         WHERE e.status = 'active' AND r.role_key = 'front_desk_admin'
+           AND (LOWER(TRIM(e.full_name)) = 'secilia shiweda'{$emailFilter})
+         ORDER BY CASE WHEN LOWER(TRIM(e.full_name)) = 'secilia shiweda' THEN 0 ELSE 1 END, e.id
+         LIMIT 2"
     );
 
-    return $rows ? (int) $rows[0]['id'] : null;
+    return count($rows) === 1 ? (int) $rows[0]['id'] : null;
+}
+
+function ops_initial_order_packer_id(string $customerName, string $customerContact, string $orderType = ''): ?int
+{
+    return ops_is_walk_in_order($customerName, $customerContact, $orderType)
+        ? ops_secilia_front_desk_employee_id()
+        : null;
+}
+
+function ops_log_initial_order_assignment(int $orderId, ?int $packerId, string $source): void
+{
+    if ($orderId <= 0 || !$packerId) {
+        return;
+    }
+    $metadata = [
+        'source' => $source,
+        'previous_packer_id' => null,
+        'previous_value' => 'Unassigned',
+        'assigned_packer_id' => $packerId,
+        'new_value' => 'Secilia Shiweda',
+        'reason' => 'Walk-in Customer',
+        'message' => 'Order automatically assigned to Secilia Shiweda (Walk-in Customer).',
+    ];
+    ops_log_order_stage_event($orderId, 'assigned', $metadata, $packerId);
+    ops_activity_log('walk_in_auto_assigned', 'order', $orderId, $metadata);
+    notifications_notify_order_assigned($orderId, $packerId);
 }
 
 function ops_column_exists(string $table, string $column): bool
@@ -1013,43 +1041,6 @@ function ops_reconcile_core_staff(): void
     } catch (Throwable $e) {
         error_log('Core staff reconciliation failed: ' . $e->getMessage());
     }
-}
-
-function ops_assign_unassigned_orders(): int
-{
-    $orders = ops_rows(
-        "SELECT id, workload_score
-         FROM ops_orders
-         WHERE assigned_packer_id IS NULL
-           AND status IN ('new_order', 'assigned')
-         ORDER BY created_at ASC
-         LIMIT 100"
-    );
-
-    $assigned = 0;
-    $assignedAtSet = ops_column_exists('ops_orders', 'assigned_at')
-        ? ', assigned_at = COALESCE(assigned_at, NOW())'
-        : '';
-    $stmt = db()->prepare("UPDATE ops_orders SET assigned_packer_id = ?{$assignedAtSet}, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
-
-    foreach ($orders as $order) {
-        $packerId = ops_best_packer_id((float) $order['workload_score']);
-        if (!$packerId) {
-            continue;
-        }
-
-        $stmt->execute([$packerId, (int) $order['id']]);
-        if ($stmt->rowCount() > 0) {
-            $assigned++;
-            ops_log_order_stage_event((int) $order['id'], 'assigned', [
-                'assigned_packer_id' => $packerId,
-                'source' => 'auto_assignment',
-            ]);
-            notifications_notify_order_assigned((int) $order['id'], $packerId);
-        }
-    }
-
-    return $assigned;
 }
 
 function ops_flash(?string $message, string $type = 'success'): void

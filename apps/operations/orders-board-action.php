@@ -565,15 +565,17 @@ function ops_board_sync_website_orders(?string $date = null): array
             $complexity = count($items) >= 8 ? 3 : (count($items) >= 4 ? 2 : 1);
             $priority = ($order['status'] ?? '') === 'pending' ? 'normal' : 'urgent';
             $workload = ops_workload_score($itemCount, $orderType, $complexity, $priority);
-            $packerId = null;
+            $customerName = ops_board_customer_name($order);
+            $customerContact = (string) (($order['billing']['phone'] ?? '') ?: ($order['billing']['email'] ?? ''));
+            $packerId = ops_initial_order_packer_id($customerName, $customerContact, $orderType);
             $createdAt = date('Y-m-d H:i:s', strtotime((string) ($order['date_created'] ?? 'now')));
             $orderNumber = 'WEB-' . (string) ($order['number'] ?? $wooOrderId);
 
             $orderValues = [
                 $wooOrderId,
                 $orderNumber,
-                ops_board_customer_name($order),
-                (string) (($order['billing']['phone'] ?? '') ?: ($order['billing']['email'] ?? '')),
+                $customerName,
+                $customerContact,
                 (string) ($order['payment_method_title'] ?? $order['payment_method'] ?? ''),
             ];
 
@@ -627,6 +629,10 @@ function ops_board_sync_website_orders(?string $date = null): array
                     'woo_order_id' => $wooOrderId,
                     'order_number' => $orderNumber,
                 ]);
+                ops_log_initial_order_assignment($orderId, $packerId, 'orders_board_woocommerce_sync');
+                if ($packerId) {
+                    $assigned++;
+                }
             }
 
             foreach ($items as $line) {
@@ -664,19 +670,12 @@ function ops_board_sync_website_orders(?string $date = null): array
         throw $e;
     }
 
-    try {
-        $assigned = ops_assign_unassigned_orders();
-    } catch (Throwable $e) {
-        ops_board_sync_log('post-sync assignment failed', ['error' => $e->getMessage()]);
-        throw $e;
-    }
-
     ops_board_sync_log('sync finished', [
         'seen' => count($orders),
         'imported' => $imported,
         'updated' => $updated,
         'lines' => $lineCount,
-        'assigned' => $assigned,
+        'walk_in_assigned' => $assigned,
     ]);
 
     return [
@@ -931,8 +930,7 @@ try {
             $stmt->execute([$employeeId, $status, $until, ops_post_string('note', 255)]);
         }
 
-        $assigned = ops_assign_unassigned_orders();
-        echo json_encode(['ok' => true, 'message' => 'Availability updated.', 'assigned' => $assigned]);
+        echo json_encode(['ok' => true, 'message' => 'Availability updated.']);
         exit;
     }
 
@@ -948,16 +946,6 @@ try {
         }
 
         echo json_encode(['ok' => true]);
-        exit;
-    }
-
-    if ($action === 'assign') {
-        if (!user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager')) {
-            throw new RuntimeException('Only admin, front desk or supervisor can assign orders.');
-        }
-
-        $assigned = ops_assign_unassigned_orders();
-        echo json_encode(['ok' => true, 'message' => 'Assigned ' . $assigned . ' orders.', 'assigned' => $assigned]);
         exit;
     }
 
@@ -1281,13 +1269,13 @@ try {
         if ($field === 'assigned_packer_id') {
             $user = current_user();
             $roleKey = (string) ($user['role_key'] ?? '');
-            if (!in_array($roleKey, ['owner_admin', 'front_desk_admin', 'supervisor_manager'], true)) {
-                throw new RuntimeException('Only front desk, supervisor or admin can change Packed by.');
+            if (!in_array($roleKey, ['owner_admin', 'front_desk_admin', 'supervisor_manager', 'packer'], true)) {
+                throw new RuntimeException('You do not have permission to change Packed by.');
             }
             $packerId = $value === '' ? null : (int) $value;
             if ($packerId) {
                 $hasPackingAssignable = ops_ensure_packing_assignable_column();
-                $eligibilityWhere = $hasPackingAssignable ? 'e.packing_assignable = 1' : "r.role_key IN ('packer', 'supervisor_manager')";
+                $eligibilityWhere = $hasPackingAssignable ? "(e.packing_assignable = 1 OR r.role_key = 'front_desk_admin')" : "r.role_key IN ('packer', 'supervisor_manager', 'front_desk_admin')";
                 $eligible = ops_rows(
                     "SELECT e.id FROM ops_employees e JOIN ops_roles r ON r.id = e.role_id WHERE e.id = ? AND e.status = 'active' AND {$eligibilityWhere} LIMIT 1",
                     [$packerId]
@@ -1297,6 +1285,16 @@ try {
                 }
             }
             $previousPackerId = (int) ($previousOrder['assigned_packer_id'] ?? 0);
+            $nameRows = ops_rows('SELECT id, full_name FROM ops_employees WHERE id IN (?, ?)', [
+                $previousPackerId ?: -1,
+                $packerId ?: -1,
+            ]);
+            $packerNames = [];
+            foreach ($nameRows as $nameRow) {
+                $packerNames[(int) $nameRow['id']] = (string) $nameRow['full_name'];
+            }
+            $previousPackerName = $previousPackerId ? ($packerNames[$previousPackerId] ?? ('Employee ' . $previousPackerId)) : 'Unassigned';
+            $packerName = $packerId ? ($packerNames[$packerId] ?? ('Employee ' . $packerId)) : 'Unassigned';
             $assignedAt = ops_column_exists('ops_orders', 'assigned_at') ? ', assigned_at = CASE WHEN ? IS NULL THEN NULL ELSE COALESCE(assigned_at, NOW()) END' : '';
             $stmt = db()->prepare('UPDATE ops_orders SET assigned_packer_id = ?' . $assignedAt . ', updated_at = CURRENT_TIMESTAMP WHERE id = ?');
             if ($assignedAt !== '') {
@@ -1308,12 +1306,18 @@ try {
                 'source' => 'orders_board_field',
                 'previous_packer_id' => $previousPackerId ?: null,
                 'assigned_packer_id' => $packerId,
+                'previous_value' => $previousPackerName,
+                'new_value' => $packerName,
                 'changed_by' => current_user()['name'] ?? 'Unknown',
+                'message' => 'Packed By changed from ' . $previousPackerName . ' to ' . $packerName . '.',
             ]);
             ops_activity_log($packerId ? 'packed_by_changed' : 'packed_by_cleared', 'order', $orderId, [
                 'previous_packer_id' => $previousPackerId ?: null,
                 'assigned_packer_id' => $packerId,
+                'previous_value' => $previousPackerName,
+                'new_value' => $packerName,
                 'changed_by' => current_user()['name'] ?? 'Unknown',
+                'message' => 'Packed By changed from ' . $previousPackerName . ' to ' . $packerName . '.',
             ]);
             notifications_notify_order_assigned($orderId, $packerId);
         } elseif ($field === 'status') {
@@ -1559,12 +1563,17 @@ try {
             $created = 0;
             foreach ($orders as $order) {
                 $copyNumber = 'COPY-' . date('His') . '-' . (int) $order['id'];
+                $initialPackerId = ops_initial_order_packer_id(
+                    (string) ($order['customer_name'] ?? ''),
+                    (string) ($order['customer_contact'] ?? ''),
+                    (string) ($order['order_type'] ?? '')
+                );
                 $stmt = db()->prepare(
                     "INSERT INTO ops_orders
                      (woo_order_id, order_number, customer_name, customer_contact, payment_method, total_amount, product_total, tax_total,
                       shipping_total, shipping_tax_total, discount_total, refund_total, payment_status, order_type, priority, complexity,
                       assigned_packer_id, assigned_at, assigned_verifier_id, status, notes, workload_score, created_by, created_at)
-                     VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, 'new_order', ?, ?, ?, NOW())"
+                     VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, 'new_order', ?, ?, ?, NOW())"
                 );
                 $stmt->execute([
                     $copyNumber,
@@ -1582,12 +1591,14 @@ try {
                     (string) ($order['order_type'] ?? 'collection'),
                     (string) ($order['priority'] ?? 'normal'),
                     (int) ($order['complexity'] ?? 1),
+                    $initialPackerId,
                     $order['assigned_verifier_id'] ?? null,
                     trim("Duplicated from {$order['order_number']}\n" . (string) ($order['notes'] ?? '')),
                     (float) ($order['workload_score'] ?? 0),
                     ops_current_employee_id(),
                 ]);
                 $newId = (int) db()->lastInsertId();
+                ops_log_initial_order_assignment($newId, $initialPackerId, 'orders_board_duplicate');
                 $items = ops_rows('SELECT * FROM ops_order_items WHERE order_id = ?', [(int) $order['id']]);
                 foreach ($items as $item) {
                     $itemStmt = db()->prepare(

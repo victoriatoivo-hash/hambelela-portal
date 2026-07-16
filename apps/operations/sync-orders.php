@@ -224,7 +224,9 @@ if ($ready && $hasWooColumns && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $complexity = count($items) >= 8 ? 3 : (count($items) >= 4 ? 2 : 1);
             $priority = ($order['status'] ?? '') === 'pending' ? 'normal' : 'urgent';
             $workload = ops_workload_score($itemCount, $orderType, $complexity, $priority);
-            $packerId = null;
+            $customerName = ops_wc_customer_name($order);
+            $customerContact = (string) (($order['billing']['phone'] ?? '') ?: ($order['billing']['email'] ?? ''));
+            $packerId = ops_initial_order_packer_id($customerName, $customerContact, $orderType);
             $createdAt = date('Y-m-d H:i:s', strtotime((string) ($order['date_created'] ?? 'now')));
             $orderNumber = 'WEB-' . (string) ($order['number'] ?? $wooOrderId);
             $breakdown = ops_wc_order_breakdown($order);
@@ -232,8 +234,8 @@ if ($ready && $hasWooColumns && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $orderValues = [
                 $wooOrderId,
                 $orderNumber,
-                ops_wc_customer_name($order),
-                (string) (($order['billing']['phone'] ?? '') ?: ($order['billing']['email'] ?? '')),
+                $customerName,
+                $customerContact,
                 (string) ($order['payment_method_title'] ?? $order['payment_method'] ?? ''),
             ];
             if ($hasTotalAmount) {
@@ -284,6 +286,7 @@ if ($ready && $hasWooColumns && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     'woo_order_id' => $wooOrderId,
                     'order_number' => $orderNumber,
                 ]);
+                ops_log_initial_order_assignment($orderId, $packerId, 'woocommerce_sync');
             }
 
             foreach ($items as $line) {

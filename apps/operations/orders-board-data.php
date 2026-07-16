@@ -201,8 +201,8 @@ if ($hasTotalAmount) {
 
 $hasPackingAssignable = ops_ensure_packing_assignable_column();
 $packingEligibilityWhere = $hasPackingAssignable
-    ? 'e.packing_assignable = 1'
-    : "r.role_key IN ('packer', 'supervisor_manager')";
+    ? "(e.packing_assignable = 1 OR r.role_key = 'front_desk_admin')"
+    : "r.role_key IN ('packer', 'supervisor_manager', 'front_desk_admin')";
 $packers = ops_rows(
     "SELECT e.id, e.full_name, r.role_key, r.name AS role_name, COALESCE(ea.availability_status, 'available') AS availability_status,
         ea.unavailable_until, ea.note
@@ -246,7 +246,7 @@ echo json_encode([
         'id' => ops_current_employee_id(),
         'name' => $user['name'] ?? '',
         'role_key' => $roleKey,
-        'can_edit_packed_by' => in_array($roleKey, ['owner_admin', 'front_desk_admin', 'supervisor_manager'], true),
+        'can_edit_packed_by' => in_array($roleKey, ['owner_admin', 'front_desk_admin', 'supervisor_manager', 'packer'], true),
         'can_manage_people' => $roleKey === 'owner_admin',
         'can_bulk_manage' => in_array($roleKey, ['owner_admin', 'front_desk_admin', 'supervisor_manager'], true),
         'can_delete' => in_array($roleKey, ['owner_admin', 'supervisor_manager'], true),
