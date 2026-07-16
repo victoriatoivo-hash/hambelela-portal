@@ -234,6 +234,10 @@
       trigger.insertAdjacentHTML('beforeend', calendarIcon);
       input.insertAdjacentElement('beforebegin', wrapper);
       wrapper.append(trigger, input);
+      if (wrapper.closest('.orders-grid-cell--date')) {
+        wrapper.classList.add('portal-date-picker--grid-cell');
+        trigger.classList.add('portal-date-field--grid-cell', 'orders-date-trigger');
+      }
       input.dataset.portalDateOriginalType = nativeType;
       input.type = 'hidden';
       input.required = false;
