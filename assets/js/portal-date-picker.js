@@ -112,6 +112,14 @@
     requestAnimationFrame(() => { positionPopup(); popup.querySelector('.portal-date-day.is-selected,.portal-date-day:not(.is-outside-month)')?.focus({ preventScroll: true }); });
   }
 
+  function toggle(control) {
+    if (active === control) {
+      close(false);
+      return;
+    }
+    open(control);
+  }
+
   function close(restoreFocus = true) {
     if (!active) return;
     const control = active;
@@ -258,12 +266,12 @@
       else display.textContent = displayValue(date, mode) || placeholder;
       wrapper.classList.toggle('is-empty', !date);
     };
-    trigger.addEventListener('click', (event) => { event.preventDefault(); open(control); });
+    trigger.addEventListener('click', (event) => { event.preventDefault(); toggle(control); });
     trigger.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(control); }
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggle(control); }
       if (event.key === 'Escape') close();
     });
-    existingWrapper?.querySelector('.portal-date-trigger')?.addEventListener('click', (event) => { event.preventDefault(); open(control); });
+    existingWrapper?.querySelector('.portal-date-trigger')?.addEventListener('click', (event) => { event.preventDefault(); toggle(control); });
     target.addEventListener('change', sync);
     sync();
   }
