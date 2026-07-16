@@ -1423,6 +1423,7 @@
     window.scrollTo({ left: ordersToolsWindowPosition.x, top: ordersToolsWindowPosition.y, behavior: 'instant' });
     const ordersToolsCloseButton = ordersToolsPanel.querySelector('[data-orders-tools-close]');
     ordersToolsCloseButton?.focus({ preventScroll: true });
+    window.setTimeout(() => ordersToolsCloseButton?.focus({ preventScroll: true }), 0);
     await loadOrdersTools();
     window.requestAnimationFrame(() => ordersToolsCloseButton?.focus({ preventScroll: true }));
   }
