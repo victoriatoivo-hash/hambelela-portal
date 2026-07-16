@@ -1421,8 +1421,8 @@
     document.body.classList.add('orders-tools-open');
     restoreOrdersBoardPositions(ordersToolsBoardPositions);
     window.scrollTo({ left: ordersToolsWindowPosition.x, top: ordersToolsWindowPosition.y, behavior: 'instant' });
-    window.requestAnimationFrame(() => ordersToolsPanel.querySelector('[data-orders-tools-close]')?.focus({ preventScroll: true }));
     await loadOrdersTools();
+    window.requestAnimationFrame(() => ordersToolsPanel.querySelector('[data-orders-tools-close]')?.focus({ preventScroll: true }));
   }
 
   function closeOrdersTools() {
