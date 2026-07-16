@@ -30,6 +30,14 @@ function portal_role_can_access_feature(string $roleKey, string $featureKey): bo
 {
     $permissions = portal_feature_permissions();
     $roleKey = normalise_portal_role($roleKey);
+
+    // Notifications and Courier are shared employee workspace features. Keep
+    // them available to every authenticated staff role, including custom role
+    // keys created after this permission map was introduced.
+    if ($roleKey !== 'guest' && in_array($featureKey, ['notifications', 'courier'], true)) {
+        return true;
+    }
+
     return isset($permissions[$roleKey]) && in_array($featureKey, $permissions[$roleKey], true);
 }
 

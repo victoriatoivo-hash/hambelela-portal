@@ -82,7 +82,10 @@ function notifications_default_modules_for_role(string $roleKey): array
         return ['operations', 'packing', 'tasks', 'system'];
     }
 
-    return ['system'];
+    // Custom/new employee roles still need their own assignment and workflow
+    // notifications. Recipient rows remain account-specific, so this does not
+    // expose another employee's feed.
+    return ['operations', 'packing', 'tasks', 'system'];
 }
 
 function notifications_modules(): array

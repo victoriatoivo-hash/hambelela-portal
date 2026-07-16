@@ -12,7 +12,7 @@ $ready = ops_database_ready();
 $currentUser = current_user();
 $currentEmployeeId = ops_current_employee_id();
 $roleKey = current_role_key();
-$canUploadWaybills = in_array($roleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'packer', 'packer_production_staff', 'supervisor_manager'], true);
+$canUploadWaybills = $currentEmployeeId > 0 && $roleKey !== 'guest';
 $canSendWaybills = in_array($roleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager'], true);
 $canExportWaybills = $roleKey === 'owner_admin';
 $historyDateFrom = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_GET['date_from'] ?? '')) ? (string) $_GET['date_from'] : date('Y-m-d', strtotime('-7 days'));
