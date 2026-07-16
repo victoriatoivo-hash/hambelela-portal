@@ -31,6 +31,11 @@
   const ordersToolsPanel = document.querySelector('[data-orders-tools-panel]');
   const ordersToolsBackdrop = document.querySelector('[data-orders-tools-backdrop]');
   const ordersToolsContent = document.querySelector('[data-orders-tools-content]');
+  const morePanel = document.querySelector('[data-orders-more-panel]');
+  const moreBackdrop = document.querySelector('[data-orders-more-backdrop]');
+  const moreBody = document.querySelector('[data-orders-more-body]');
+  const moreActiveCount = document.querySelector('[data-orders-more-active-count]');
+  const activeFilterChips = document.querySelector('[data-orders-active-filter-chips]');
 
   if (!body || !config.dataUrl || !config.actionUrl) return;
 
@@ -69,9 +74,17 @@
     mode: '',
     payment: '',
     status: '',
+    paid: '',
+    minAmount: '',
+    maxAmount: '',
+    createdAfter: '',
+    createdBefore: '',
     groupBy: 'date',
     hidden: new Set()
   };
+  let moreDraft = null;
+  let morePreferencesLoaded = false;
+  const boardDisplay = { rowHover: true, summaries: true };
   const filterOptions = {
     status: [['', 'All statuses'], ['new_order', 'New Order'], ['in_progress', 'In Progress'], ['completed', 'Complete']],
     mode: [['', 'All modes'], ['collection', 'Collection'], ['delivery', 'Delivery'], ['courier', 'Courier']],
@@ -1199,6 +1212,13 @@
       if (boardState.mode && normalize(order.order_type) !== normalize(boardState.mode)) return false;
       if (boardState.payment && normalize(order.payment_method) !== normalize(boardState.payment)) return false;
       if (boardState.status && normalize(order.status) !== normalize(boardState.status)) return false;
+      if (boardState.paid && (order.payment_status === 'paid' ? 'paid' : 'unpaid') !== boardState.paid) return false;
+      const amount = Number(order.total_amount || 0);
+      if (boardState.minAmount !== '' && amount < Number(boardState.minAmount)) return false;
+      if (boardState.maxAmount !== '' && amount > Number(boardState.maxAmount)) return false;
+      const created = dateKey(orderDisplayDateTime(order));
+      if (boardState.createdAfter && created < boardState.createdAfter) return false;
+      if (boardState.createdBefore && created > boardState.createdBefore) return false;
       return true;
     });
 
@@ -2190,6 +2210,7 @@
     const visible = visibleOrders();
     updateWorkMetrics(visible);
     updateFilterBadge();
+    renderMoreFilterChips();
     if (!visible.length) {
       body.innerHTML = '<div class="board-empty-state"><p>Try adjusting your filters or date range.</p><div class="board-empty-actions"><button type="button" data-clear-board-filters>Clear Filters</button></div></div>';
       renderMobileCards([]);
@@ -2504,6 +2525,124 @@
     return [...new Set(ordersCache.map((order) => order[field] || fallback))].sort();
   }
 
+  function moreStorageKey(name) {
+    return `ordersBoard:${name}:${currentUser.id || 'device'}`;
+  }
+
+  function cloneMoreState() {
+    return {
+      search: boardState.search,
+      person: boardState.person,
+      mode: boardState.mode,
+      payment: boardState.payment,
+      status: boardState.status,
+      paid: boardState.paid,
+      minAmount: boardState.minAmount,
+      maxAmount: boardState.maxAmount,
+      createdAfter: boardState.createdAfter,
+      createdBefore: boardState.createdBefore,
+      hidden: new Set(boardState.hidden),
+      display: { ...boardDisplay }
+    };
+  }
+
+  function moreFilterCount(state = moreDraft || boardState) {
+    return ['person', 'mode', 'payment', 'status', 'paid', 'minAmount', 'maxAmount', 'createdAfter', 'createdBefore']
+      .filter((key) => String(state[key] || '') !== '').length;
+  }
+
+  function renderMoreFilterChips() {
+    if (!activeFilterChips) return;
+    const labels = {
+      person: 'Person', mode: 'Mode', payment: 'Payment', status: 'Status', paid: 'Paid',
+      minAmount: 'Min amount', maxAmount: 'Max amount', createdAfter: 'After', createdBefore: 'Before'
+    };
+    const chips = Object.keys(labels).filter((key) => String(boardState[key] || '') !== '').map((key) => {
+      let value = String(boardState[key]);
+      if (key === 'person' && value === '__me__') value = 'My orders';
+      if (key === 'paid') value = value === 'paid' ? 'Paid' : 'Unpaid';
+      if (key === 'minAmount' || key === 'maxAmount') value = `N$${value}`;
+      return `<button type="button" data-remove-more-filter="${esc(key)}"><span>${esc(labels[key])}: ${esc(value)}</span><i data-lucide="x"></i></button>`;
+    });
+    activeFilterChips.hidden = chips.length === 0;
+    activeFilterChips.innerHTML = chips.join('');
+    if (chips.length && window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+  }
+
+  function moreChoice(name, label, options) {
+    const value = String(moreDraft[name] || '');
+    const selected = options.find(([optionValue]) => String(optionValue) === value) || options[0];
+    return `<div class="orders-more-field"><span>${esc(label)}</span><details class="orders-more-select" data-more-select="${esc(name)}">
+      <summary><span>${esc(selected?.[1] || '')}</span><i data-lucide="chevron-down"></i></summary>
+      <div class="orders-more-select-menu" role="listbox">${options.map(([optionValue, optionLabel]) => `<button type="button" role="option" aria-selected="${String(optionValue) === value}" data-more-choice-option="${esc(name)}" data-value="${esc(optionValue)}">${esc(optionLabel)}</button>`).join('')}</div>
+    </details></div>`;
+  }
+
+  function moreCheck(name, label, checked, disabled = false, badge = '') {
+    return `<label class="orders-more-check ${disabled ? 'is-disabled' : ''}">
+      <input type="checkbox" data-more-check="${esc(name)}" ${checked ? 'checked' : ''} ${disabled ? 'disabled' : ''}>
+      <span class="orders-more-check-box"><i data-lucide="check"></i></span><span>${esc(label)}</span>${badge ? `<small>${esc(badge)}</small>` : ''}
+    </label>`;
+  }
+
+  function renderMorePanel() {
+    if (!moreBody || !moreDraft) return;
+    const people = [['', 'All employees'], ['__me__', 'Only my orders'], ['Unassigned', 'Unassigned'], ...uniqueValues('packer_name').filter((name) => name !== 'Unassigned').map((name) => [name, name])];
+    const visibleColumns = ordersColumns.map(({ key, label }) => moreCheck(`column:${key}`, label || 'Select', !moreDraft.hidden.has(key), ['select', 'task'].includes(key), ['select', 'task'].includes(key) ? 'Required' : '')).join('');
+    moreBody.innerHTML = `
+      <section class="orders-more-section"><h3>Order filters</h3><p>Limit the board by its current operational status.</p><div class="orders-more-fields">${moreChoice('status', 'Order status', filterOptions.status)}</div></section>
+      <section class="orders-more-section"><h3>People</h3><p>Limit the board to assigned, unassigned or your own orders.</p><div class="orders-more-fields">${moreChoice('person', 'Assigned employee', people)}</div></section>
+      <section class="orders-more-section"><h3>Payment and fulfilment</h3><p>Combine fulfilment, payment and paid-state filters.</p><div class="orders-more-fields">${moreChoice('mode', 'Mode', filterOptions.mode)}${moreChoice('payment', 'Payment method', filterOptions.payment)}${moreChoice('paid', 'Paid status', [['', 'All'], ['paid', 'Paid'], ['unpaid', 'Unpaid']])}</div></section>
+      <section class="orders-more-section"><h3>Amount and date</h3><p>Use order totals and creation dates to narrow the board.</p><div class="orders-more-fields">
+        <label class="orders-more-field"><span>Minimum amount</span><div class="orders-more-amount"><b>N$</b><input inputmode="decimal" data-more-input="minAmount" value="${esc(moreDraft.minAmount)}"></div></label>
+        <label class="orders-more-field"><span>Maximum amount</span><div class="orders-more-amount"><b>N$</b><input inputmode="decimal" data-more-input="maxAmount" value="${esc(moreDraft.maxAmount)}"></div></label>
+        <label class="orders-more-field"><span>Created after</span><input data-more-input="createdAfter" value="${esc(moreDraft.createdAfter)}" placeholder="YYYY-MM-DD"></label>
+        <label class="orders-more-field"><span>Created before</span><input data-more-input="createdBefore" value="${esc(moreDraft.createdBefore)}" placeholder="YYYY-MM-DD"></label>
+      </div></section>
+      <section class="orders-more-section"><h3>Visible columns</h3><p>Choose the columns shown for this account and device.</p><div class="orders-visible-columns-grid">${visibleColumns}</div><button type="button" class="orders-more-inline-action" data-more-reset-columns><i data-lucide="columns-3"></i> Reset visible columns</button></section>
+      <section class="orders-more-section"><h3>Board display</h3><p>Adjust local display preferences without changing other accounts.</p><div class="orders-visible-columns-grid">${moreCheck('display:rowHover', 'Show row hover', moreDraft.display.rowHover)}${moreCheck('display:summaries', 'Show summary bars', moreDraft.display.summaries)}</div><button type="button" class="orders-more-inline-action" data-reset-orders-columns><i data-lucide="rotate-ccw"></i> Reset column widths</button></section>`;
+    const count = moreFilterCount();
+    if (moreActiveCount) moreActiveCount.textContent = count ? `${count} active filter${count === 1 ? '' : 's'}` : 'No active filters';
+    if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+  }
+
+  function setMorePanelOpen(open) {
+    if (!morePanel || !moreBackdrop) return;
+    if (open) {
+      moreDraft = cloneMoreState();
+      renderMorePanel();
+      moreBackdrop.hidden = false;
+      morePanel.classList.add('is-open');
+      moreBackdrop.classList.add('is-open');
+    } else {
+      morePanel.classList.remove('is-open');
+      moreBackdrop.classList.remove('is-open');
+      window.setTimeout(() => { if (!morePanel.classList.contains('is-open')) moreBackdrop.hidden = true; }, 180);
+      moreDraft = null;
+    }
+    morePanel.setAttribute('aria-hidden', String(!open));
+  }
+
+  function applyBoardDisplay() {
+    page.classList.toggle('orders-board--no-hover', !boardDisplay.rowHover);
+    page.classList.toggle('orders-board--hide-summaries', !boardDisplay.summaries);
+  }
+
+  function applyMoreFilters() {
+    if (!moreDraft) return;
+    ['search', 'person', 'mode', 'payment', 'status', 'paid', 'minAmount', 'maxAmount', 'createdAfter', 'createdBefore'].forEach((key) => { boardState[key] = moreDraft[key]; });
+    boardState.hidden = new Set(moreDraft.hidden);
+    Object.assign(boardDisplay, moreDraft.display);
+    localStorage.setItem(moreStorageKey('columns'), JSON.stringify([...boardState.hidden]));
+    localStorage.setItem(moreStorageKey('display'), JSON.stringify(boardDisplay));
+    const searchInput = document.querySelector('[data-board-search]');
+    if (searchInput) searchInput.value = boardState.search;
+    applyBoardDisplay();
+    renderOrders(ordersCache);
+    renderMoreFilterChips();
+    setMorePanelOpen(false);
+  }
+
   function openToolbar(anchor, type) {
     if (!toolbarPopover) return;
     const rect = anchor.getBoundingClientRect();
@@ -2668,22 +2807,7 @@
       </div>`;
     }
 
-    const assignOption = currentUser.can_edit_packed_by ? optionButton('Assign unassigned orders', 'assign', '') : '';
-    return `<div class="toolbar-panel toolbar-columns orders-more-panel">
-      <div><strong>Picker</strong>
-        ${optionButton('All pickers', 'person', '', boardState.person === '')}
-        ${currentUser.id ? optionButton('Only my orders', 'person', '__me__', boardState.person === '__me__') : ''}
-        ${uniqueValues('packer_name').map((name) => optionButton(name, 'person', name, boardState.person === name)).join('')}
-      </div>
-      <div><strong>Visible columns</strong>
-        ${columns.map(([key, label]) => `<label class="toolbar-check"><input type="checkbox" data-hide-column="${esc(key)}" ${boardState.hidden.has(key) ? 'checked' : ''}> ${esc(label)}</label>`).join('')}
-      </div>
-      <div><strong>Board tools</strong>
-        ${optionButton('Sync website orders', 'sync', '')}
-        ${assignOption}
-        ${optionButton('Toggle light/dark mode', 'theme', '')}
-      </div>
-    </div>`;
+    return '';
   }
 
   function applyToolbarAction(action, value) {
@@ -3273,6 +3397,20 @@
       }
       if (!response.ok || !data.ok) throw new Error(data.message || 'Could not load board');
       currentUser = data.currentUser || {};
+      if (!morePreferencesLoaded) {
+        try {
+          const hidden = JSON.parse(localStorage.getItem(moreStorageKey('columns')) || '[]');
+          const display = JSON.parse(localStorage.getItem(moreStorageKey('display')) || '{}');
+          boardState.hidden = new Set(Array.isArray(hidden) ? hidden : []);
+          boardState.hidden.delete('select');
+          boardState.hidden.delete('task');
+          Object.assign(boardDisplay, display && typeof display === 'object' ? display : {});
+        } catch (error) {
+          boardState.hidden = new Set();
+        }
+        morePreferencesLoaded = true;
+        applyBoardDisplay();
+      }
       window.HambelelaBoardMetrics = data.metrics || null;
       renderViewers(data.viewers || []);
       const background = options.background === true;
@@ -3566,6 +3704,52 @@
     const filterOption = event.target.closest('[data-orders-filter-option]');
 
     try {
+      if (event.target === moreBackdrop || event.target.closest('[data-orders-more-close], [data-orders-more-cancel]')) {
+        event.preventDefault();
+        setMorePanelOpen(false);
+        return;
+      }
+
+      const moreOption = event.target.closest('[data-more-choice-option]');
+      if (moreOption && moreDraft) {
+        event.preventDefault();
+        moreDraft[moreOption.dataset.moreChoiceOption] = moreOption.dataset.value || '';
+        renderMorePanel();
+        return;
+      }
+
+      const removeMoreFilter = event.target.closest('[data-remove-more-filter]');
+      if (removeMoreFilter) {
+        event.preventDefault();
+        boardState[removeMoreFilter.dataset.removeMoreFilter] = '';
+        renderOrders(ordersCache);
+        renderMoreFilterChips();
+        return;
+      }
+
+      if (event.target.closest('[data-orders-more-reset]') && moreDraft) {
+        event.preventDefault();
+        Object.assign(moreDraft, {
+          search: '', person: '', mode: '', payment: '', status: '', paid: '',
+          minAmount: '', maxAmount: '', createdAfter: '', createdBefore: ''
+        });
+        renderMorePanel();
+        return;
+      }
+
+      if (event.target.closest('[data-more-reset-columns]') && moreDraft) {
+        event.preventDefault();
+        moreDraft.hidden = new Set();
+        renderMorePanel();
+        return;
+      }
+
+      if (event.target.closest('[data-orders-more-apply]')) {
+        event.preventDefault();
+        applyMoreFilters();
+        return;
+      }
+
       if (personTrigger) {
         event.preventDefault();
         event.stopPropagation();
@@ -3813,7 +3997,12 @@
       }
 
       if (toolbar) {
-        openToolbar(toolbar, toolbar.dataset.toolbar);
+        if (toolbar.dataset.toolbar === 'more') {
+          closeToolbar();
+          setMorePanelOpen(true);
+        } else {
+          openToolbar(toolbar, toolbar.dataset.toolbar);
+        }
         return;
       }
 
@@ -4018,6 +4207,11 @@
   });
 
   document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && morePanel?.classList.contains('is-open')) {
+      event.preventDefault();
+      setMorePanelOpen(false);
+      return;
+    }
     const summarySegment = event.target.closest('.packing-summary-segment');
     if (summarySegment && body.contains(summarySegment) && (event.key === 'Enter' || event.key === ' ')) {
       event.preventDefault();
@@ -4069,6 +4263,10 @@
       return;
     }
     if (event.key === 'Escape') {
+      if (morePanel?.classList.contains('is-open')) {
+        setMorePanelOpen(false);
+        return;
+      }
       if (ordersToolsPanel?.classList.contains('is-open')) {
         closeOrdersTools();
         return;
@@ -4083,6 +4281,13 @@
   });
 
   document.addEventListener('input', (event) => {
+    const moreInput = event.target.closest('[data-more-input]');
+    if (moreInput && moreDraft) {
+      moreDraft[moreInput.dataset.moreInput] = moreInput.value;
+      if (moreActiveCount) moreActiveCount.textContent = `${moreFilterCount(moreDraft)} active`;
+      return;
+    }
+
     if (event.target.closest('#panel-update-editor')) {
       savePanelEditorSelection();
       return;
@@ -4108,6 +4313,19 @@
   });
 
   document.addEventListener('change', (event) => {
+    const moreCheckInput = event.target.closest('[data-more-check]');
+    if (moreCheckInput && moreDraft) {
+      const name = String(moreCheckInput.dataset.moreCheck || '');
+      if (name.startsWith('column:')) {
+        const column = name.slice(7);
+        if (moreCheckInput.checked) moreDraft.hidden.delete(column);
+        else moreDraft.hidden.add(column);
+      } else if (name.startsWith('display:')) {
+        moreDraft.display[name.slice(8)] = moreCheckInput.checked;
+      }
+      return;
+    }
+
     const ordersDateInput = event.target.closest('[data-orders-date-input][data-order-id]');
     if (ordersDateInput) {
       const orderId = String(ordersDateInput.dataset.orderId || '');

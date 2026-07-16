@@ -131,6 +131,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 <button type="button" data-toolbar="more"><i data-lucide="sliders-horizontal"></i> More Filters</button>
                 <button type="button" data-reset-orders-columns><i data-lucide="columns-3"></i> Reset column widths</button>
             </div>
+            <div class="orders-active-filter-chips" data-orders-active-filter-chips hidden></div>
         </section>
     </section>
 
@@ -151,6 +152,28 @@ include BASE_PATH . '/shared/sidebar.php';
     <div class="label-menu" id="board-label-menu" hidden></div>
     <div class="toolbar-popover" id="toolbar-popover" hidden></div>
     <div class="orders-filter-menu" id="orders-filter-menu" role="listbox" hidden></div>
+    <div class="orders-more-backdrop" data-orders-more-backdrop hidden></div>
+    <aside class="orders-more-panel" data-orders-more-panel aria-hidden="true" aria-labelledby="orders-more-title">
+        <header class="orders-more-header">
+            <div>
+                <span>ORDERS</span>
+                <h2 id="orders-more-title">More filters</h2>
+                <p>Refine the Orders Board and customise which columns are visible.</p>
+            </div>
+            <div class="orders-more-header-actions">
+                <span class="orders-more-active-count" data-orders-more-active-count>No active filters</span>
+                <button type="button" class="orders-more-close" data-orders-more-close aria-label="Close More filters"><i data-lucide="x"></i></button>
+            </div>
+        </header>
+        <div class="orders-more-body" data-orders-more-body></div>
+        <footer class="orders-more-footer">
+            <button type="button" class="orders-more-button orders-more-button--reset" data-orders-more-reset><i data-lucide="rotate-ccw"></i> Reset filters</button>
+            <div>
+                <button type="button" class="orders-more-button" data-orders-more-cancel>Cancel</button>
+                <button type="button" class="orders-more-button orders-more-button--primary" data-orders-more-apply>Apply filters</button>
+            </div>
+        </footer>
+    </aside>
     <?php if ($canOpenOrdersTools): ?>
     <div class="orders-tools-backdrop" data-orders-tools-backdrop hidden></div>
     <aside class="orders-tools-panel" data-orders-tools-panel aria-hidden="true" aria-labelledby="orders-tools-title">
