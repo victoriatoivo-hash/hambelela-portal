@@ -1294,40 +1294,52 @@
     return `${count} ${count === 1 ? 'Task' : 'Tasks'}`;
   }
 
-  function countValues(orders, resolver, defaults = {}) {
-    const counts = { ...defaults };
+  function distributionDefinitions(options) {
+    const seen = new Set();
+    return options.reduce((definitions, item) => {
+      const key = normalize(item[0]);
+      if (!key || seen.has(key)) return definitions;
+      seen.add(key);
+      definitions.push({ key, label: itemText(item), colour: itemColor(item) });
+      return definitions;
+    }, []);
+  }
+
+  function buildDistributionData({ orders, valueFor, definitions }) {
+    const counts = new Map();
     orders.forEach((order) => {
-      const value = resolver(order) || 'Other';
-      counts[value] = (counts[value] || 0) + 1;
+      const key = normalize(valueFor(order));
+      if (key) counts.set(key, (counts.get(key) || 0) + 1);
     });
-    return counts;
+
+    const orderedDefinitions = [...definitions];
+    counts.forEach((count, key) => {
+      if (!orderedDefinitions.some((definition) => definition.key === key)) {
+        orderedDefinitions.push({ key, label: labelText(key), colour: fallbackBarColour });
+      }
+    });
+
+    return orderedDefinitions.map((definition) => ({
+      ...definition,
+      count: counts.get(definition.key) || 0,
+      total: orders.length,
+      percentage: orders.length ? ((counts.get(definition.key) || 0) / orders.length) * 100 : 0
+    })).filter((entry) => entry.count > 0);
   }
 
-  function optionColourMap(options) {
-    return options.reduce((map, item) => {
-      map[itemText(item)] = itemColor(item);
-      map[itemText(item).toUpperCase()] = itemColor(item);
-      return map;
-    }, {});
-  }
-
-  function stackedBar(values, colours, cssClass, summaryType = '') {
-    const total = Object.values(values).reduce((sum, count) => sum + Number(count || 0), 0);
-    const segments = Object.entries(values).map(([key, count]) => {
-      if (!count || total === 0) return '';
-      const colour = colours[key] || colours[key.toUpperCase()] || fallbackBarColour;
-      const numericCount = Number(count);
-      const percent = total > 0 ? ((numericCount / total) * 100).toFixed(1) : '0.0';
-      const tooltip = `${key}\n${numericCount}/${total}\n${percent}%`;
-      return `<span class="orders-summary-segment ob-bar-segment summary-segment" data-summary-type="${esc(summaryType)}" data-summary-key="${esc(normalize(key))}" data-label="${esc(key)}" data-count="${esc(numericCount)}" data-total="${esc(total)}" data-percentage="${esc(percent)}" data-tooltip="${esc(tooltip)}" aria-label="${esc(`${key} ${numericCount}/${total} ${percent}%`)}" style="--segment-width:${esc(`${percent}%`)};--segment-colour:${esc(colour)}"></span>`;
+  function distributionBar(entries, summaryType = '') {
+    const segments = entries.map((entry) => {
+      const percent = entry.percentage.toFixed(1);
+      return `<button type="button" class="portal-distribution-segment summary-segment" data-summary-type="${esc(summaryType)}" data-summary-key="${esc(entry.key)}" data-label="${esc(entry.label)}" data-count="${esc(entry.count)}" data-total="${esc(entry.total)}" data-percentage="${esc(percent)}" aria-label="${esc(`${entry.label} ${entry.count}/${entry.total} ${percent}%`)}" style="--segment-width:${esc(`${percent}%`)};--segment-colour:${esc(entry.colour)}"></button>`;
     }).join('');
-    return `<span class="orders-summary-bar ob-stacked-bar summary-bar ${cssClass}">${segments}</span>`;
+    return `<span class="portal-distribution-summary"><span class="portal-distribution-bar"><span class="portal-distribution-track">${segments}</span></span></span>`;
   }
 
   let activeSummaryTooltip = null;
   let activeSummarySegment = null;
 
   function removeSummaryTooltip() {
+    activeSummarySegment?.classList.remove('is-active');
     if (activeSummaryTooltip) {
       activeSummaryTooltip.remove();
       activeSummaryTooltip = null;
@@ -1348,24 +1360,30 @@
       Math.max(segmentRect.left + (segmentRect.width / 2) - (tooltipRect.width / 2), viewportPadding),
       window.innerWidth - tooltipRect.width - viewportPadding
     );
-    const top = Math.max(segmentRect.top - tooltipRect.height - 10, viewportPadding);
+    const opensBelow = segmentRect.top < tooltipRect.height + 18;
+    const top = opensBelow
+      ? Math.min(segmentRect.bottom + 10, window.innerHeight - tooltipRect.height - viewportPadding)
+      : Math.max(segmentRect.top - tooltipRect.height - 10, viewportPadding);
 
     activeSummaryTooltip.style.left = `${left}px`;
     activeSummaryTooltip.style.top = `${top}px`;
+    activeSummaryTooltip.classList.toggle('opens-below', opensBelow);
     activeSummaryTooltip.style.setProperty('--tooltip-arrow-left', `${segmentRect.left + (segmentRect.width / 2) - left}px`);
   }
 
   function showSummaryTooltip(segment) {
-    const text = segment.dataset.tooltip || segment.getAttribute('aria-label') || '';
-    if (!text) return;
+    if (!segment.dataset.label) return;
 
     removeSummaryTooltip();
     activeSummarySegment = segment;
     activeSummaryTooltip = document.createElement('div');
-    activeSummaryTooltip.className = 'orders-summary-tooltip is-floating';
-    activeSummaryTooltip.textContent = text;
+    activeSummaryTooltip.className = 'portal-distribution-tooltip';
+    activeSummaryTooltip.setAttribute('role', 'tooltip');
+    activeSummaryTooltip.innerHTML = `<strong>${esc(segment.dataset.label)}</strong><span>${esc(segment.dataset.count)}/${esc(segment.dataset.total)}</span><span>${esc(segment.dataset.percentage)}%</span>`;
     document.body.appendChild(activeSummaryTooltip);
     positionSummaryTooltip();
+    window.requestAnimationFrame(() => activeSummaryTooltip?.classList.add('is-open'));
+    segment.classList.add('is-active');
   }
 
   function renderLabelCell(order, field, value, options, cssClass) {
@@ -1953,20 +1971,17 @@
     const colour = groupColours[index % groupColours.length];
     const isOpen = expandedGroups.has(key);
     const hiddenAttrs = isOpen ? '' : ' hidden';
-    const modeCounts = countValues(orders, (order) => findText(modeLabels, order.order_type || 'Other'), {
-      Delivery: 0, Collection: 0, Courier: 0, 'Walk-in': 0
+    const modeDistribution = buildDistributionData({ orders, valueFor: (order) => order.order_type, definitions: distributionDefinitions(modeLabels) });
+    const paymentDistribution = buildDistributionData({ orders, valueFor: (order) => order.payment_method, definitions: distributionDefinitions(paymentLabels) });
+    const paidDistribution = buildDistributionData({
+      orders,
+      valueFor: (order) => order.payment_status === 'paid' ? 'paid' : 'unpaid',
+      definitions: [
+        { key: 'paid', label: 'Paid', colour: '#00c875' },
+        { key: 'unpaid', label: 'Unpaid', colour: '#ede3d8' }
+      ]
     });
-    const paymentCounts = countValues(orders, (order) => findText(paymentLabels, order.payment_method || 'Other'));
-    const statusCounts = countValues(orders, (order) => findText(statusLabels, order.status || 'new_order').toUpperCase(), {
-      COMPLETE: 0, 'IN PROGRESS': 0, 'NEW ORDER': 0
-    });
-    const modeColours = { Delivery: '#b5a280', Collection: '#c98f80', Courier: '#5c3a1e', 'Walk-in': '#c4c4c4', ...optionColourMap(modeLabels) };
-    const paymentColours = {
-      EFT: '#7B68EE', Cash: '#9e9e9e', EasyWallet: '#6a5acd', Ewallet: '#9b95b9', Swipe: '#323338',
-      'Card/Swipe': '#323338', Bluewallet: '#00838F', Nedbank: '#07c66b', 'FNB eWallet': '#1B5E20',
-      Pay2Cell: '#BB1B21', Other: '#c4c4c4', ...optionColourMap(paymentLabels)
-    };
-    const statusColours = { COMPLETE: '#e2445c', 'IN PROGRESS': '#fdab3d', 'NEW ORDER': '#c4c4c4', Assigned: '#a8ca19', ...optionColourMap(statusLabels) };
+    const statusDistribution = buildDistributionData({ orders, valueFor: (order) => order.status || 'new_order', definitions: distributionDefinitions(statusLabels) });
     const footerRow = isOpen ? `
       <div class="orders-summary-footer monday-grid ob-group-footer" data-group-footer="${esc(key)}" style="--ob-group-colour:${esc(colour)}">
         <div class="orders-grid-cell orders-grid-cell--select monday-cell col-checkbox"></div>
@@ -1974,11 +1989,11 @@
         <div class="orders-grid-cell orders-grid-cell--notes monday-cell col-task-icon"></div>
         <div class="orders-grid-cell orders-grid-cell--date monday-cell ob-group-date-cell date-sort-cell col-date"></div>
         <div class="orders-grid-cell orders-grid-cell--mobile monday-cell col-mobile"></div>
-        <div class="orders-grid-cell orders-grid-cell--mode monday-cell ob-group-bar-cell col-mode">${stackedBar(modeCounts, modeColours, 'ob-mode-bar')}</div>
+        <div class="orders-grid-cell orders-grid-cell--mode monday-cell ob-group-bar-cell col-mode">${distributionBar(modeDistribution, 'mode')}</div>
         <div class="orders-grid-cell orders-grid-cell--amount monday-cell ob-group-amount-cell col-amount"><div class="ob-group-sum">${esc(money(total))}</div></div>
-        <div class="orders-grid-cell orders-grid-cell--payment monday-cell ob-group-bar-cell col-payment">${stackedBar(paymentCounts, paymentColours, 'ob-payment-bar')}</div>
-        <div class="orders-grid-cell orders-grid-cell--paid monday-cell ob-group-paid-cell col-paid"><span class="ob-paid-fraction">${paid}/${orders.length}</span></div>
-        <div class="orders-grid-cell orders-grid-cell--status monday-cell ob-group-bar-cell col-status">${stackedBar(statusCounts, statusColours, 'ob-status-bar')}</div>
+        <div class="orders-grid-cell orders-grid-cell--payment monday-cell ob-group-bar-cell col-payment">${distributionBar(paymentDistribution, 'payment')}</div>
+        <div class="orders-grid-cell orders-grid-cell--paid monday-cell ob-group-bar-cell col-paid">${distributionBar(paidDistribution, 'paid')}</div>
+        <div class="orders-grid-cell orders-grid-cell--status monday-cell ob-group-bar-cell col-status">${distributionBar(statusDistribution, 'status')}</div>
         <div class="orders-grid-cell orders-grid-cell--packer monday-cell col-packedby"></div>
         <div class="orders-grid-cell orders-grid-cell--text monday-cell col-text"></div>
         ${customColumns.map(() => '<div class="orders-grid-cell orders-grid-cell--custom monday-cell col-custom"></div>').join('')}
@@ -2013,11 +2028,11 @@
         <button type="button" class="orders-date-header orders-date-summary monday-group-summary group-row ob-group-header ${isOpen ? 'is-open' : ''}" data-orders-date-toggle data-toggle-orders-date data-collapse-group="${esc(key)}" aria-expanded="${isOpen ? 'true' : 'false'}" data-group="${esc(key)}" data-colour="${esc(colour)}" data-count="${esc(orders.length)}" data-amount="${esc(money(total))}" data-paid="${esc(paid)}" data-total="${esc(orders.length)}">
               <span class="orders-date-header-chevron orders-date-summary-chevron" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none"><path d="M4.5 2.5 8 6 4.5 9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
               <span class="orders-date-header-copy orders-date-summary-main"><strong class="orders-date-summary-title">${esc(groupLabel(key))}</strong><span class="orders-date-summary-count">${esc(groupCountText(orders.length))}</span></span>
-              <span class="orders-date-summary-block orders-date-summary-block--mode"><span class="orders-summary-label">Mode</span>${stackedBar(modeCounts, modeColours, 'ob-mode-bar', 'mode')}</span>
+              <span class="orders-date-summary-block orders-date-summary-block--mode"><span class="orders-summary-label">Mode</span>${distributionBar(modeDistribution, 'mode')}</span>
               <span class="orders-date-summary-block orders-date-summary-block--amount"><span class="orders-summary-label">Amount</span><strong class="orders-summary-value">${esc(money(total))}</strong></span>
-              <span class="orders-date-summary-block orders-date-summary-block--payment"><span class="orders-summary-label">Payment</span>${stackedBar(paymentCounts, paymentColours, 'ob-payment-bar', 'payment')}</span>
-              <span class="orders-date-summary-block orders-date-summary-block--paid"><span class="orders-summary-label">Paid</span><strong class="orders-summary-value">${paid}/${orders.length}</strong></span>
-              <span class="orders-date-summary-block orders-date-summary-block--status"><span class="orders-summary-label">Status</span>${stackedBar(statusCounts, statusColours, 'ob-status-bar', 'status')}</span>
+              <span class="orders-date-summary-block orders-date-summary-block--payment"><span class="orders-summary-label">Payment</span>${distributionBar(paymentDistribution, 'payment')}</span>
+              <span class="orders-date-summary-block orders-date-summary-block--paid"><span class="orders-summary-label">Paid</span>${distributionBar(paidDistribution, 'paid')}</span>
+              <span class="orders-date-summary-block orders-date-summary-block--status"><span class="orders-summary-label">Status</span>${distributionBar(statusDistribution, 'status')}</span>
         </button>
         <div class="orders-date-content monday-group-orders" data-orders-date-content${hiddenAttrs}>
             <div class="orders-table-scroll" data-orders-board-scroll>
@@ -3275,7 +3290,8 @@
     const closeButton = event.target.closest('[data-panel-close]');
     const tab = event.target.closest('[data-panel-tab]');
     const groupHeader = event.target.closest('.ob-group-header');
-    const summarySegment = event.target.closest('.orders-summary-segment');
+    const summarySegment = event.target.closest('.portal-distribution-segment');
+    if (activeSummaryTooltip && !summarySegment) removeSummaryTooltip();
     const collapse = event.target.closest('[data-collapse-group]') || (
       groupHeader && !event.target.closest('input, button, a, select, textarea') ? groupHeader.querySelector('[data-collapse-group]') : null
     );
@@ -3624,7 +3640,8 @@
 
       if (summarySegment) {
         event.preventDefault();
-        showSummaryTooltip(summarySegment);
+        if (activeSummarySegment === summarySegment && activeSummaryTooltip) removeSummaryTooltip();
+        else showSummaryTooltip(summarySegment);
         return;
       }
 
@@ -3773,6 +3790,11 @@
   });
 
   document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && activeSummaryTooltip) {
+      removeSummaryTooltip();
+      return;
+    }
+
     if (event.key === 'Escape' && schedulePopover && !schedulePopover.hidden) {
       schedulePopover.hidden = true;
       return;
