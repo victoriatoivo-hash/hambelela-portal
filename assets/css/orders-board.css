@@ -404,8 +404,8 @@
 .orders-page .monday-column-header > .monday-cell { color: var(--orders-burgundy); font-size: 10px; font-weight: 600; text-transform: uppercase; }
 .orders-page .monday-grid[hidden] { display: none; }
 .orders-page .orders-date-group.is-open .orders-date-content { display: block; }
-.orders-page .task-name, .orders-page .notes-cell button { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.orders-page .notes-cell button { width: 100%; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.orders-page .task-name,
+.orders-page .orders-text-cell .orders-inline-cell-trigger { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .orders-page .task-drag-handle, .orders-page .pick-duration { display: none; }
 .orders-page .orders-grid-cell--task,
 .orders-page .orders-grid-cell--text { position:relative; height:35px; min-height:35px; max-height:35px; padding:0; overflow:hidden; box-sizing:border-box; }

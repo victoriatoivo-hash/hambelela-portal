@@ -2012,7 +2012,7 @@
           <div class="orders-grid-cell orders-grid-cell--paid monday-cell col-paid">${renderPaidCell(order)}</div>
           <div class="orders-grid-cell orders-grid-cell--status monday-cell col-status"${labelCellStyle(statusLabels, order.status || 'new_order')}>${renderLabelCell(order, 'status', order.status || 'new_order', statusLabels, 'status-label')}</div>
           <div class="orders-grid-cell orders-grid-cell--packer monday-cell col-packedby">${renderPackerCell(order)}</div>
-          <div class="orders-grid-cell orders-grid-cell--text monday-cell notes-cell editable-cell col-text" data-editable-order-field="notes" data-order-id="${esc(order.id)}" data-value="${esc(order.notes || '')}" tabindex="0"><span class="orders-inline-cell-trigger">${esc(order.notes || '')}</span></div>
+          <div class="orders-grid-cell orders-grid-cell--text orders-text-cell monday-cell editable-cell col-text" data-editable-order-field="notes" data-order-id="${esc(order.id)}" data-value="${esc(order.notes || '')}" tabindex="0"><span class="orders-inline-cell-trigger">${esc(order.notes || '')}</span></div>
           ${renderCustomCells()}
           <div class="orders-grid-cell orders-grid-cell--add monday-cell add-column-cell"></div>
         </div>
@@ -3408,7 +3408,6 @@
     const selectAll = event.target.closest('[data-select-all-orders]');
     const undo = event.target.closest('[data-undo-board]');
     const exportExcel = event.target.closest('[data-export-excel]');
-    const expandNote = event.target.closest('[data-expand-note]');
     const assign = event.target.closest('[data-board-action="assign"]');
     const sync = event.target.closest('[data-board-action="sync"], .new-task-btn');
     const refreshButton = event.target.closest('[data-board-refresh]');
@@ -3662,11 +3661,6 @@
 
       if (exportExcel) {
         exportVisibleOrders();
-        return;
-      }
-
-      if (expandNote) {
-        expandNote.closest('.notes-cell')?.classList.toggle('is-expanded');
         return;
       }
 
