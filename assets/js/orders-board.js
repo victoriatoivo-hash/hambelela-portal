@@ -1311,61 +1311,55 @@
     }, {});
   }
 
-  function stackedBar(values, colours, cssClass, summaryType = '') {
+  function packingStyleSummaryBar(values, colours, cssClass, label) {
     const total = Object.values(values).reduce((sum, count) => sum + Number(count || 0), 0);
+    const safeTotal = total || 1;
     const segments = Object.entries(values).map(([key, count]) => {
       if (!count || total === 0) return '';
       const colour = colours[key] || colours[key.toUpperCase()] || fallbackBarColour;
       const numericCount = Number(count);
-      const percent = total > 0 ? ((numericCount / total) * 100).toFixed(1) : '0.0';
-      const tooltip = `${key}\n${numericCount}/${total}\n${percent}%`;
-      return `<span class="orders-summary-segment ob-bar-segment summary-segment" data-summary-type="${esc(summaryType)}" data-summary-key="${esc(normalize(key))}" data-label="${esc(key)}" data-count="${esc(numericCount)}" data-total="${esc(total)}" data-percentage="${esc(percent)}" data-tooltip="${esc(tooltip)}" aria-label="${esc(`${key} ${numericCount}/${total} ${percent}%`)}" style="--segment-width:${esc(`${percent}%`)};--segment-colour:${esc(colour)}"></span>`;
+      const percentage = Math.round((numericCount / safeTotal) * 100);
+      return `<span class="packing-summary-segment" role="button" tabindex="0" data-label="${esc(key)}" data-count="${numericCount}" data-total="${total}" data-percentage="${percentage}" style="--segment-colour:${esc(colour)};--segment-width:${(numericCount / safeTotal) * 100}%" aria-label="${esc(key)}: ${numericCount} of ${total} items, ${percentage} percent"></span>`;
     }).join('');
-    return `<span class="orders-summary-bar ob-stacked-bar summary-bar ${cssClass}">${segments}</span>`;
+    return `<div class="${esc(cssClass)} packing-summary-bar" data-packing-summary-bar aria-label="${esc(label)}">${segments}</div>`;
   }
 
-  let activeSummaryTooltip = null;
-  let activeSummarySegment = null;
-
-  function removeSummaryTooltip() {
-    if (activeSummaryTooltip) {
-      activeSummaryTooltip.remove();
-      activeSummaryTooltip = null;
-    }
-    activeSummarySegment = null;
+  function getPackingSummaryTooltip() {
+    let tooltip = document.querySelector('[data-packing-summary-tooltip]');
+    if (tooltip) return tooltip;
+    tooltip = document.createElement('div');
+    tooltip.className = 'packing-summary-tooltip';
+    tooltip.dataset.packingSummaryTooltip = '';
+    tooltip.setAttribute('role', 'tooltip');
+    document.body.appendChild(tooltip);
+    return tooltip;
   }
 
-  function positionSummaryTooltip() {
-    if (!activeSummaryTooltip || !activeSummarySegment || !document.body.contains(activeSummarySegment)) {
-      removeSummaryTooltip();
-      return;
-    }
-
-    const segmentRect = activeSummarySegment.getBoundingClientRect();
-    const tooltipRect = activeSummaryTooltip.getBoundingClientRect();
-    const viewportPadding = 8;
-    const left = Math.min(
-      Math.max(segmentRect.left + (segmentRect.width / 2) - (tooltipRect.width / 2), viewportPadding),
-      window.innerWidth - tooltipRect.width - viewportPadding
-    );
-    const top = Math.max(segmentRect.top - tooltipRect.height - 10, viewportPadding);
-
-    activeSummaryTooltip.style.left = `${left}px`;
-    activeSummaryTooltip.style.top = `${top}px`;
-    activeSummaryTooltip.style.setProperty('--tooltip-arrow-left', `${segmentRect.left + (segmentRect.width / 2) - left}px`);
+  function showPackingSummaryTooltip(segment) {
+    const bar = segment.closest('[data-packing-summary-bar]');
+    const tooltip = getPackingSummaryTooltip();
+    tooltip.textContent = `${segment.dataset.label} \u00b7 ${segment.dataset.count}/${segment.dataset.total} \u00b7 ${segment.dataset.percentage}%`;
+    tooltip.classList.add('is-visible');
+    bar?.classList.add('has-active-segment');
+    requestAnimationFrame(() => {
+      const segmentRect = segment.getBoundingClientRect();
+      const tooltipRect = tooltip.getBoundingClientRect();
+      const padding = 8;
+      const gap = 9;
+      const left = Math.max(padding, Math.min(segmentRect.left + segmentRect.width / 2 - tooltipRect.width / 2, window.innerWidth - tooltipRect.width - padding));
+      let top = segmentRect.top - tooltipRect.height - gap;
+      tooltip.classList.toggle('is-below', top < padding);
+      if (top < padding) top = segmentRect.bottom + gap;
+      tooltip.style.left = `${Math.round(left)}px`;
+      tooltip.style.top = `${Math.round(top)}px`;
+    });
   }
 
-  function showSummaryTooltip(segment) {
-    const text = segment.dataset.tooltip || segment.getAttribute('aria-label') || '';
-    if (!text) return;
-
-    removeSummaryTooltip();
-    activeSummarySegment = segment;
-    activeSummaryTooltip = document.createElement('div');
-    activeSummaryTooltip.className = 'orders-summary-tooltip is-floating';
-    activeSummaryTooltip.textContent = text;
-    document.body.appendChild(activeSummaryTooltip);
-    positionSummaryTooltip();
+  function hidePackingSummaryTooltip(bar) {
+    const tooltip = document.querySelector('[data-packing-summary-tooltip]');
+    if (!tooltip) return;
+    tooltip.classList.remove('is-visible');
+    bar?.classList.remove('has-active-segment');
   }
 
   function renderLabelCell(order, field, value, options, cssClass) {
@@ -1974,11 +1968,11 @@
         <div class="orders-grid-cell orders-grid-cell--notes monday-cell col-task-icon"></div>
         <div class="orders-grid-cell orders-grid-cell--date monday-cell ob-group-date-cell date-sort-cell col-date"></div>
         <div class="orders-grid-cell orders-grid-cell--mobile monday-cell col-mobile"></div>
-        <div class="orders-grid-cell orders-grid-cell--mode monday-cell ob-group-bar-cell col-mode">${stackedBar(modeCounts, modeColours, 'ob-mode-bar')}</div>
+        <div class="orders-grid-cell orders-grid-cell--mode monday-cell ob-group-bar-cell col-mode">${packingStyleSummaryBar(modeCounts, modeColours, 'ob-mode-bar', 'Mode distribution')}</div>
         <div class="orders-grid-cell orders-grid-cell--amount monday-cell ob-group-amount-cell col-amount"><div class="ob-group-sum">${esc(money(total))}</div></div>
-        <div class="orders-grid-cell orders-grid-cell--payment monday-cell ob-group-bar-cell col-payment">${stackedBar(paymentCounts, paymentColours, 'ob-payment-bar')}</div>
+        <div class="orders-grid-cell orders-grid-cell--payment monday-cell ob-group-bar-cell col-payment">${packingStyleSummaryBar(paymentCounts, paymentColours, 'ob-payment-bar', 'Payment distribution')}</div>
         <div class="orders-grid-cell orders-grid-cell--paid monday-cell ob-group-paid-cell col-paid"><span class="ob-paid-fraction">${paid}/${orders.length}</span></div>
-        <div class="orders-grid-cell orders-grid-cell--status monday-cell ob-group-bar-cell col-status">${stackedBar(statusCounts, statusColours, 'ob-status-bar')}</div>
+        <div class="orders-grid-cell orders-grid-cell--status monday-cell ob-group-bar-cell col-status">${packingStyleSummaryBar(statusCounts, statusColours, 'ob-status-bar', 'Status distribution')}</div>
         <div class="orders-grid-cell orders-grid-cell--packer monday-cell col-packedby"></div>
         <div class="orders-grid-cell orders-grid-cell--text monday-cell col-text"></div>
         ${customColumns.map(() => '<div class="orders-grid-cell orders-grid-cell--custom monday-cell col-custom"></div>').join('')}
@@ -2013,11 +2007,11 @@
         <button type="button" class="orders-date-header orders-date-summary monday-group-summary group-row ob-group-header ${isOpen ? 'is-open' : ''}" data-orders-date-toggle data-toggle-orders-date data-collapse-group="${esc(key)}" aria-expanded="${isOpen ? 'true' : 'false'}" data-group="${esc(key)}" data-colour="${esc(colour)}" data-count="${esc(orders.length)}" data-amount="${esc(money(total))}" data-paid="${esc(paid)}" data-total="${esc(orders.length)}">
               <span class="orders-date-header-chevron orders-date-summary-chevron" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none"><path d="M4.5 2.5 8 6 4.5 9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
               <span class="orders-date-header-copy orders-date-summary-main"><strong class="orders-date-summary-title">${esc(groupLabel(key))}</strong><span class="orders-date-summary-count">${esc(groupCountText(orders.length))}</span></span>
-              <span class="orders-date-summary-block orders-date-summary-block--mode"><span class="orders-summary-label">Mode</span>${stackedBar(modeCounts, modeColours, 'ob-mode-bar', 'mode')}</span>
+              <span class="orders-date-summary-block orders-date-summary-block--mode"><span class="orders-summary-label">Mode</span>${packingStyleSummaryBar(modeCounts, modeColours, 'ob-mode-bar', 'Mode distribution')}</span>
               <span class="orders-date-summary-block orders-date-summary-block--amount"><span class="orders-summary-label">Amount</span><strong class="orders-summary-value">${esc(money(total))}</strong></span>
-              <span class="orders-date-summary-block orders-date-summary-block--payment"><span class="orders-summary-label">Payment</span>${stackedBar(paymentCounts, paymentColours, 'ob-payment-bar', 'payment')}</span>
+              <span class="orders-date-summary-block orders-date-summary-block--payment"><span class="orders-summary-label">Payment</span>${packingStyleSummaryBar(paymentCounts, paymentColours, 'ob-payment-bar', 'Payment distribution')}</span>
               <span class="orders-date-summary-block orders-date-summary-block--paid"><span class="orders-summary-label">Paid</span><strong class="orders-summary-value">${paid}/${orders.length}</strong></span>
-              <span class="orders-date-summary-block orders-date-summary-block--status"><span class="orders-summary-label">Status</span>${stackedBar(statusCounts, statusColours, 'ob-status-bar', 'status')}</span>
+              <span class="orders-date-summary-block orders-date-summary-block--status"><span class="orders-summary-label">Status</span>${packingStyleSummaryBar(statusCounts, statusColours, 'ob-status-bar', 'Status distribution')}</span>
         </button>
         <div class="orders-date-content monday-group-orders" data-orders-date-content${hiddenAttrs}>
             <div class="orders-table-scroll" data-orders-board-scroll>
@@ -3102,34 +3096,43 @@
     }
   }
 
-  document.addEventListener('mouseover', (event) => {
-    const segment = event.target.closest('.summary-segment');
+  document.addEventListener('pointerover', (event) => {
+    const segment = event.target.closest('.packing-summary-segment');
     if (!segment || !body.contains(segment)) return;
-    if (activeSummarySegment === segment) return;
-    showSummaryTooltip(segment);
+    showPackingSummaryTooltip(segment);
   });
 
-  document.addEventListener('mouseout', (event) => {
-    const segment = event.target.closest('.summary-segment');
+  document.addEventListener('pointerout', (event) => {
+    const segment = event.target.closest('.packing-summary-segment');
     if (!segment || !body.contains(segment)) return;
     if (event.relatedTarget && segment.contains(event.relatedTarget)) return;
-    removeSummaryTooltip();
+    hidePackingSummaryTooltip(segment.closest('[data-packing-summary-bar]'));
   });
 
   document.addEventListener('focusin', (event) => {
-    const segment = event.target.closest('.summary-segment');
+    const segment = event.target.closest('.packing-summary-segment');
     if (!segment || !body.contains(segment)) return;
-    showSummaryTooltip(segment);
+    showPackingSummaryTooltip(segment);
   });
 
   document.addEventListener('focusout', (event) => {
-    const segment = event.target.closest('.summary-segment');
+    const segment = event.target.closest('.packing-summary-segment');
     if (!segment || !body.contains(segment)) return;
-    removeSummaryTooltip();
+    hidePackingSummaryTooltip(segment.closest('[data-packing-summary-bar]'));
   });
 
-  window.addEventListener('scroll', positionSummaryTooltip, true);
-  window.addEventListener('resize', positionSummaryTooltip);
+  document.addEventListener('pointerdown', (event) => {
+    const segment = event.target.closest('.packing-summary-segment');
+    if (segment && body.contains(segment)) {
+      segment.classList.remove('is-active');
+      void segment.offsetWidth;
+      segment.classList.add('is-active');
+      showPackingSummaryTooltip(segment);
+      window.setTimeout(() => segment.classList.remove('is-active'), 300);
+      return;
+    }
+    document.querySelectorAll('[data-packing-summary-bar]').forEach(hidePackingSummaryTooltip);
+  });
 
   document.addEventListener('selectionchange', savePanelEditorSelection);
 
@@ -3275,7 +3278,6 @@
     const closeButton = event.target.closest('[data-panel-close]');
     const tab = event.target.closest('[data-panel-tab]');
     const groupHeader = event.target.closest('.ob-group-header');
-    const summarySegment = event.target.closest('.orders-summary-segment');
     const collapse = event.target.closest('[data-collapse-group]') || (
       groupHeader && !event.target.closest('input, button, a, select, textarea') ? groupHeader.querySelector('[data-collapse-group]') : null
     );
@@ -3622,12 +3624,6 @@
       }
       if (closeButton || event.target === backdrop) closePanel();
 
-      if (summarySegment) {
-        event.preventDefault();
-        showSummaryTooltip(summarySegment);
-        return;
-      }
-
       if (tab) {
         document.querySelectorAll('.updates-tabs button').forEach((button) => button.classList.remove('active', 'is-active'));
         document.querySelectorAll('.updates-tab-panel').forEach((section) => section.classList.remove('active'));
@@ -3773,6 +3769,17 @@
   });
 
   document.addEventListener('keydown', (event) => {
+    const summarySegment = event.target.closest('.packing-summary-segment');
+    if (summarySegment && body.contains(summarySegment) && (event.key === 'Enter' || event.key === ' ')) {
+      event.preventDefault();
+      summarySegment.classList.remove('is-active');
+      void summarySegment.offsetWidth;
+      summarySegment.classList.add('is-active');
+      showPackingSummaryTooltip(summarySegment);
+      window.setTimeout(() => summarySegment.classList.remove('is-active'), 300);
+      return;
+    }
+
     if (event.key === 'Escape' && schedulePopover && !schedulePopover.hidden) {
       schedulePopover.hidden = true;
       return;
