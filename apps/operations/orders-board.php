@@ -13,6 +13,7 @@ $hasAvailability = $ready && ops_table_exists('ops_employee_availability');
 $defaultBoardDate = date('Y-m-d');
 $isAdminBoard = user_has_role('owner_admin', 'supervisor_manager');
 $canBulkAssign = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
+$canOpenOrdersTools = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
 $canEditHeaders = current_role_key() !== 'guest';
 $boardAssetVersion = is_file(BASE_PATH . '/assets/js/orders-board.js')
     ? (string) filemtime(BASE_PATH . '/assets/js/orders-board.js') . '-orders-rebuild'
@@ -47,6 +48,9 @@ include BASE_PATH . '/shared/sidebar.php';
             </div>
             <div class="monday-board-head-actions">
                 <div class="board-viewers" id="board-viewers" aria-label="Currently viewing"></div>
+                <?php if ($canOpenOrdersTools): ?>
+                <button type="button" class="orders-tools-trigger" data-orders-tools-open><i data-lucide="wrench"></i><span>Orders tools</span></button>
+                <?php endif; ?>
                 <button type="button" class="invite-btn packing-btn packing-btn-secondary orders-export-button" data-export-excel><i data-lucide="download"></i> Export Excel</button>
                 <div class="availability-switch-wrap">
                     <span>Available</span>
@@ -147,6 +151,22 @@ include BASE_PATH . '/shared/sidebar.php';
     <div class="label-menu" id="board-label-menu" hidden></div>
     <div class="toolbar-popover" id="toolbar-popover" hidden></div>
     <div class="orders-filter-menu" id="orders-filter-menu" role="listbox" hidden></div>
+    <?php if ($canOpenOrdersTools): ?>
+    <div class="orders-tools-backdrop" data-orders-tools-backdrop hidden></div>
+    <aside class="orders-tools-panel" data-orders-tools-panel aria-hidden="true" aria-labelledby="orders-tools-title">
+        <header class="orders-tools-header">
+            <div><span>ORDERS</span><h2 id="orders-tools-title">Orders tools</h2><p>Review deleted orders, restore archived records and track changes made to the Orders Board.</p></div>
+            <button type="button" class="orders-tools-close" data-orders-tools-close aria-label="Close Orders tools"><i data-lucide="x"></i></button>
+        </header>
+        <nav class="orders-tools-tabs" aria-label="Orders tools sections">
+            <button type="button" class="orders-tools-tab is-active" data-orders-tools-tab="trash">Trash</button>
+            <button type="button" class="orders-tools-tab" data-orders-tools-tab="activity">Activity</button>
+            <button type="button" class="orders-tools-tab" data-orders-tools-tab="archived">Archived</button>
+            <button type="button" class="orders-tools-tab" data-orders-tools-tab="bulk">Bulk actions</button>
+        </nav>
+        <div class="orders-tools-content" data-orders-tools-content><div class="orders-tools-loading">Loading Orders tools…</div></div>
+    </aside>
+    <?php endif; ?>
     <aside class="order-panel" id="order-updates-panel" data-orders-details-panel aria-hidden="true" aria-labelledby="panel-order-title">
         <header class="order-panel-header">
             <button class="order-panel-close" type="button" data-panel-close aria-label="Close order panel"><i data-lucide="x"></i></button>
@@ -194,6 +214,8 @@ window.HambelelaBoard = {
   actionUrl: 'orders-board-action.php',
   statuses: <?= json_encode(OPS_ORDER_STATUSES) ?>,
   canEditHeaders: <?= $canEditHeaders ? 'true' : 'false' ?>,
+  canOpenOrdersTools: <?= $canOpenOrdersTools ? 'true' : 'false' ?>,
+  currentRole: <?= json_encode(current_role_key()) ?>,
   currentUserId: <?= (int) (current_user()['id'] ?? 0) ?>
 };
 </script>

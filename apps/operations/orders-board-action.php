@@ -188,6 +188,38 @@ function ops_board_order_breakdown(array $order): array
     ];
 }
 
+function ops_board_ensure_tools_columns(): void
+{
+    $columns = [
+        'archived_at' => 'DATETIME NULL',
+        'archived_by' => 'INT NULL',
+        'archive_reason' => 'VARCHAR(255) NULL',
+        'deleted_at' => 'DATETIME NULL',
+        'deleted_by' => 'INT NULL',
+        'delete_reason' => 'VARCHAR(255) NULL',
+    ];
+    foreach ($columns as $name => $definition) {
+        if (ops_column_exists('ops_orders', $name)) {
+            continue;
+        }
+        db()->exec("ALTER TABLE ops_orders ADD COLUMN {$name} {$definition}");
+    }
+}
+
+function ops_board_tools_ids(string $field = 'order_ids'): array
+{
+    $ids = array_values(array_unique(array_filter(array_map('intval', explode(',', (string) ($_POST[$field] ?? ''))))));
+    if (!$ids || count($ids) > 200) {
+        throw new RuntimeException($ids ? 'Please select 200 orders or fewer at once.' : 'No orders selected.');
+    }
+    return $ids;
+}
+
+function ops_board_tools_can_manage(): bool
+{
+    return user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
+}
+
 function ops_board_label_store_path(): string
 {
     $dir = BASE_PATH . '/storage/cache';
@@ -664,6 +696,110 @@ try {
     }
 
     $action = ops_post_string('action', 40);
+
+    if (in_array($action, ['orders_tools_data', 'trash_orders', 'restore_trashed_orders', 'archive_orders', 'restore_archived_orders', 'delete_orders_forever'], true)) {
+        ops_board_ensure_tools_columns();
+    }
+
+    if ($action === 'orders_tools_data') {
+        if (!ops_board_tools_can_manage()) {
+            throw new RuntimeException('You do not have permission to open Orders tools.');
+        }
+        $trash = ops_rows(
+            "SELECT o.id, o.order_number, o.customer_name, o.total_amount, o.status, o.deleted_at, o.delete_reason,
+                    e.full_name AS deleted_by_name, o.woo_order_id
+             FROM ops_orders o LEFT JOIN ops_employees e ON e.id = o.deleted_by
+             WHERE o.deleted_at IS NOT NULL ORDER BY o.deleted_at DESC LIMIT 250"
+        );
+        $archived = ops_rows(
+            "SELECT o.id, o.order_number, o.customer_name, o.total_amount, o.status, o.archived_at, o.archive_reason,
+                    e.full_name AS archived_by_name, o.woo_order_id
+             FROM ops_orders o LEFT JOIN ops_employees e ON e.id = o.archived_by
+             WHERE o.archived_at IS NOT NULL AND o.deleted_at IS NULL ORDER BY o.archived_at DESC LIMIT 250"
+        );
+        $activity = ops_table_exists('ops_activity_logs') ? ops_rows(
+            "SELECT al.id, al.entity_id AS order_id, al.action, al.metadata, al.created_at,
+                    e.full_name AS actor_name, r.name AS actor_role, o.order_number, o.customer_name
+             FROM ops_activity_logs al
+             LEFT JOIN ops_employees e ON e.id = al.employee_id
+             LEFT JOIN ops_roles r ON r.id = e.role_id
+             LEFT JOIN ops_orders o ON o.id = al.entity_id
+             WHERE al.entity_type = 'order'
+             ORDER BY al.created_at DESC, al.id DESC LIMIT 250"
+        ) : [];
+        echo json_encode([
+            'ok' => true,
+            'trash' => $trash,
+            'archived' => $archived,
+            'activity' => $activity,
+            'permissions' => [
+                'can_manage' => true,
+                'can_delete_forever' => user_has_role('owner_admin'),
+            ],
+        ]);
+        exit;
+    }
+
+    if (in_array($action, ['trash_orders', 'restore_trashed_orders', 'archive_orders', 'restore_archived_orders', 'delete_orders_forever'], true)) {
+        if (!ops_board_tools_can_manage()) {
+            throw new RuntimeException('You do not have permission to manage Orders records.');
+        }
+        $ids = ops_board_tools_ids();
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $actorId = ops_current_employee_id();
+        $actorName = current_user()['name'] ?? 'Unknown';
+
+        if ($action === 'trash_orders') {
+            $reason = trim(ops_post_string('reason', 255)) ?: 'Moved from Orders Board';
+            $stmt = db()->prepare("UPDATE ops_orders SET deleted_at = NOW(), deleted_by = ?, delete_reason = ?, updated_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders}) AND deleted_at IS NULL");
+            $stmt->execute(array_merge([$actorId, $reason], $ids));
+            foreach ($ids as $id) ops_activity_log('order_moved_to_trash', 'order', $id, ['reason' => $reason, 'changed_by' => $actorName]);
+            echo json_encode(['ok' => true, 'message' => 'Moved ' . $stmt->rowCount() . ' order(s) to Trash.']);
+            exit;
+        }
+        if ($action === 'restore_trashed_orders') {
+            $stmt = db()->prepare("UPDATE ops_orders SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, updated_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders}) AND deleted_at IS NOT NULL");
+            $stmt->execute($ids);
+            foreach ($ids as $id) ops_activity_log('order_restored_from_trash', 'order', $id, ['changed_by' => $actorName]);
+            echo json_encode(['ok' => true, 'message' => 'Restored ' . $stmt->rowCount() . ' order(s).']);
+            exit;
+        }
+        if ($action === 'archive_orders') {
+            $reason = trim(ops_post_string('reason', 255)) ?: 'Archived from Orders Board';
+            $stmt = db()->prepare("UPDATE ops_orders SET archived_at = NOW(), archived_by = ?, archive_reason = ?, updated_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders}) AND archived_at IS NULL AND deleted_at IS NULL");
+            $stmt->execute(array_merge([$actorId, $reason], $ids));
+            foreach ($ids as $id) ops_activity_log('order_archived', 'order', $id, ['reason' => $reason, 'changed_by' => $actorName]);
+            echo json_encode(['ok' => true, 'message' => 'Archived ' . $stmt->rowCount() . ' order(s).']);
+            exit;
+        }
+        if ($action === 'restore_archived_orders') {
+            $stmt = db()->prepare("UPDATE ops_orders SET archived_at = NULL, archived_by = NULL, archive_reason = NULL, updated_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders}) AND archived_at IS NOT NULL");
+            $stmt->execute($ids);
+            foreach ($ids as $id) ops_activity_log('order_restored_from_archive', 'order', $id, ['changed_by' => $actorName]);
+            echo json_encode(['ok' => true, 'message' => 'Restored ' . $stmt->rowCount() . ' archived order(s).']);
+            exit;
+        }
+        if ($action === 'delete_orders_forever') {
+            if (!user_has_role('owner_admin')) {
+                throw new RuntimeException('Only Owner/Admin can delete an order forever.');
+            }
+            $records = ops_rows("SELECT id, order_number, customer_name, woo_order_id FROM ops_orders WHERE id IN ({$placeholders}) AND deleted_at IS NOT NULL", $ids);
+            if (count($records) !== count($ids)) {
+                throw new RuntimeException('Only records already in Trash may be deleted forever.');
+            }
+            foreach ($records as $record) {
+                ops_activity_log('order_permanently_deleted', 'order', (int) $record['id'], [
+                    'order_number' => $record['order_number'], 'customer_name' => $record['customer_name'],
+                    'source' => $record['woo_order_id'] ? 'woocommerce_portal_representation' : 'portal', 'changed_by' => $actorName,
+                ]);
+            }
+            db()->prepare("DELETE FROM ops_order_items WHERE order_id IN ({$placeholders})")->execute($ids);
+            $stmt = db()->prepare("DELETE FROM ops_orders WHERE id IN ({$placeholders}) AND deleted_at IS NOT NULL");
+            $stmt->execute($ids);
+            echo json_encode(['ok' => true, 'message' => 'Permanently removed ' . $stmt->rowCount() . ' portal record(s). WooCommerce source orders were not changed.']);
+            exit;
+        }
+    }
 
     if ($action === 'list_column_labels') {
         echo json_encode(['ok' => true, 'labels' => ops_board_column_labels()]);
@@ -1396,11 +1532,9 @@ try {
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
 
         if ($action === 'bulk_archive') {
-            if (!ops_column_exists('ops_orders', 'archived_at')) {
-                throw new RuntimeException('Import operations-bulk-actions-migration.sql first.');
-            }
+            ops_board_ensure_tools_columns();
             $params = array_merge([ops_current_employee_id()], $ids);
-            $stmt = db()->prepare("UPDATE ops_orders SET archived_at = NOW(), archived_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders})");
+            $stmt = db()->prepare("UPDATE ops_orders SET archived_at = NOW(), archived_by = ?, archive_reason = 'Bulk action', updated_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders}) AND archived_at IS NULL AND deleted_at IS NULL");
             $stmt->execute($params);
             foreach ($ids as $id) {
                 ops_activity_log('order_archived', 'order', $id, ['changed_by' => current_user()['name'] ?? 'Unknown']);
@@ -1410,11 +1544,13 @@ try {
         }
 
         if ($action === 'bulk_delete') {
-            $itemStmt = db()->prepare("DELETE FROM ops_order_items WHERE order_id IN ({$placeholders})");
-            $itemStmt->execute($ids);
-            $stmt = db()->prepare("DELETE FROM ops_orders WHERE id IN ({$placeholders})");
-            $stmt->execute($ids);
-            echo json_encode(['ok' => true, 'message' => 'Deleted ' . $stmt->rowCount() . ' selected orders.']);
+            ops_board_ensure_tools_columns();
+            $stmt = db()->prepare("UPDATE ops_orders SET deleted_at = NOW(), deleted_by = ?, delete_reason = 'Bulk action', updated_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders}) AND deleted_at IS NULL");
+            $stmt->execute(array_merge([ops_current_employee_id()], $ids));
+            foreach ($ids as $id) {
+                ops_activity_log('order_moved_to_trash', 'order', $id, ['source' => 'bulk_action', 'changed_by' => current_user()['name'] ?? 'Unknown']);
+            }
+            echo json_encode(['ok' => true, 'message' => 'Moved ' . $stmt->rowCount() . ' selected orders to Trash.']);
             exit;
         }
 

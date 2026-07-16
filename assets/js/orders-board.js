@@ -28,6 +28,9 @@
   const panelActivity = document.getElementById('panel-activity-log');
   const panelDetails = document.getElementById('panel-order-details');
   const undoButton = document.querySelector('[data-undo-board]');
+  const ordersToolsPanel = document.querySelector('[data-orders-tools-panel]');
+  const ordersToolsBackdrop = document.querySelector('[data-orders-tools-backdrop]');
+  const ordersToolsContent = document.querySelector('[data-orders-tools-content]');
 
   if (!body || !config.dataUrl || !config.actionUrl) return;
 
@@ -49,6 +52,8 @@
   let syncInFlight = false;
   let lastSyncMessage = '';
   let lastUndo = null;
+  let ordersToolsData = null;
+  let ordersToolsTab = 'trash';
   let hasRenderedOnce = false;
   let previousOrderIds = new Set();
   let customColumns = [];
@@ -1341,6 +1346,91 @@
     return `<div class="${esc(cssClass)} packing-summary-bar" data-packing-summary-bar aria-label="${esc(label)}">${segments}</div>`;
   }
 
+  function ordersToolsEmpty(title, description) {
+    return `<div class="orders-tools-empty"><div><strong>${esc(title)}</strong><span>${esc(description)}</span></div></div>`;
+  }
+
+  function ordersToolsRecord(record, kind) {
+    const isTrash = kind === 'trash';
+    const date = record[isTrash ? 'deleted_at' : 'archived_at'] || '';
+    const actor = record[isTrash ? 'deleted_by_name' : 'archived_by_name'] || 'Unknown';
+    const reason = record[isTrash ? 'delete_reason' : 'archive_reason'] || (isTrash ? 'Moved to Trash' : 'Archived');
+    return `<article class="orders-tools-record">
+      <div><strong>${esc(record.order_number || `Order #${record.id}`)}</strong><small>${record.woo_order_id ? 'WooCommerce portal record' : 'Portal-created record'}</small></div>
+      <div>${esc(record.customer_name || 'No customer')}<small>${esc(record.status || '')}</small></div>
+      <div>N$${Number(record.total_amount || 0).toLocaleString(undefined,{maximumFractionDigits:2})}</div>
+      <div>${esc(date)}<small>${esc(actor)} · ${esc(reason)}</small></div>
+      <div class="orders-tools-record-actions">
+        <button type="button" class="orders-tools-button" data-orders-tools-action="${isTrash ? 'restore-trash' : 'restore-archive'}" data-order-id="${esc(record.id)}"><i data-lucide="rotate-ccw"></i>${isTrash ? 'Restore' : 'Restore to board'}</button>
+        ${isTrash && ordersToolsData?.permissions?.can_delete_forever ? `<button type="button" class="orders-tools-button orders-tools-button--danger" data-orders-tools-action="delete-forever" data-order-id="${esc(record.id)}"><i data-lucide="trash-2"></i>Delete forever</button>` : ''}
+      </div>
+    </article>`;
+  }
+
+  function renderOrdersTools() {
+    if (!ordersToolsContent || !ordersToolsData) return;
+    if (ordersToolsTab === 'trash') {
+      ordersToolsContent.innerHTML = ordersToolsData.trash?.length
+        ? `<div class="orders-tools-list">${ordersToolsData.trash.map((row) => ordersToolsRecord(row, 'trash')).join('')}</div>`
+        : ordersToolsEmpty('Trash is empty', 'Deleted Orders Board records will appear here.');
+    } else if (ordersToolsTab === 'archived') {
+      ordersToolsContent.innerHTML = ordersToolsData.archived?.length
+        ? `<div class="orders-tools-list">${ordersToolsData.archived.map((row) => ordersToolsRecord(row, 'archive')).join('')}</div>`
+        : ordersToolsEmpty('No archived orders', 'Archived records will appear here.');
+    } else if (ordersToolsTab === 'activity') {
+      const events = ordersToolsData.activity || [];
+      ordersToolsContent.innerHTML = events.length ? `<div class="orders-tools-activity">${events.map((event) => {
+        let metadata = event.metadata || {};
+        if (typeof metadata === 'string') { try { metadata = JSON.parse(metadata); } catch (_) { metadata = {}; } }
+        const action = String(event.action || '').replaceAll('_', ' ');
+        return `<article class="orders-tools-event"><strong>${esc(action)}</strong> · ${esc(event.order_number || `Order #${event.order_id}`)}<div>${esc(event.customer_name || '')}</div><small>${esc(event.actor_name || metadata.changed_by || 'System')} · ${esc(event.actor_role || '')} · ${esc(event.created_at || '')}</small></article>`;
+      }).join('')}</div>` : ordersToolsEmpty('No activity found', 'Try changing the selected filters.');
+    } else {
+      const ids = [...selectedOrders];
+      ordersToolsContent.innerHTML = `<section class="orders-tools-bulk-summary"><span>Selected orders</span><strong>${ids.length}</strong><p>${ids.length ? esc(ids.slice(0,12).map((id) => ordersCache.find((order) => String(order.id) === id)?.order_number || `#${id}`).join(', ')) : 'Select rows on the Orders Board to use bulk actions.'}</p><div class="orders-tools-bulk-actions"><button type="button" class="orders-tools-button" data-orders-tools-action="archive-selected" ${ids.length ? '' : 'disabled'}><i data-lucide="archive"></i>Archive selected</button><button type="button" class="orders-tools-button orders-tools-button--danger" data-orders-tools-action="trash-selected" ${ids.length ? '' : 'disabled'}><i data-lucide="trash-2"></i>Move selected to Trash</button><button type="button" class="orders-tools-button" data-orders-tools-action="export-selected" ${ids.length ? '' : 'disabled'}><i data-lucide="download"></i>Export selected</button></div></section>`;
+    }
+    if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+  }
+
+  async function loadOrdersTools() {
+    if (!ordersToolsContent) return;
+    ordersToolsContent.innerHTML = '<div class="orders-tools-loading">Loading Orders tools…</div>';
+    ordersToolsData = await post('orders_tools_data');
+    renderOrdersTools();
+  }
+
+  async function openOrdersTools(tab = ordersToolsTab) {
+    if (!ordersToolsPanel) return;
+    ordersToolsTab = tab;
+    document.querySelectorAll('[data-orders-tools-tab]').forEach((button) => button.classList.toggle('is-active', button.dataset.ordersToolsTab === tab));
+    ordersToolsBackdrop.hidden = false;
+    ordersToolsPanel.classList.add('is-open');
+    ordersToolsPanel.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('orders-tools-open');
+    await loadOrdersTools();
+  }
+
+  function closeOrdersTools() {
+    if (!ordersToolsPanel) return;
+    ordersToolsPanel.classList.remove('is-open');
+    ordersToolsPanel.setAttribute('aria-hidden', 'true');
+    ordersToolsBackdrop.hidden = true;
+    document.body.classList.remove('orders-tools-open');
+  }
+
+  async function runOrdersToolsAction(action, ids) {
+    const orderIds = Array.isArray(ids) ? ids : [ids];
+    const map = { 'restore-trash':'restore_trashed_orders', 'restore-archive':'restore_archived_orders', 'delete-forever':'delete_orders_forever', 'archive-selected':'archive_orders', 'trash-selected':'trash_orders' };
+    if (action === 'export-selected') { exportSelectedOrders(); return; }
+    if (action === 'delete-forever' && !window.confirm('Delete this order forever?\n\nThis permanently removes the portal record and cannot be undone. The WooCommerce source order will not be deleted.')) return;
+    if (action === 'archive-selected' && !window.confirm(`Archive ${orderIds.length} selected order(s)?`)) return;
+    if (action === 'trash-selected' && !window.confirm(`Move ${orderIds.length} selected order(s) to Trash?`)) return;
+    await post(map[action], { order_ids: orderIds.join(',') });
+    orderIds.forEach((id) => selectedOrders.delete(String(id)));
+    await refresh(null, { preservePosition: true });
+    await loadOrdersTools();
+  }
+
   function getPackingSummaryTooltip() {
     let tooltip = document.querySelector('[data-packing-summary-tooltip]');
     if (tooltip) return tooltip;
@@ -2426,6 +2516,7 @@
         <button type="button" role="menuitem" data-order-row-action="details" data-order-id="${esc(orderId)}"><i data-lucide="panel-right-open"></i><span>View details</span></button>
         <button type="button" role="menuitem" data-order-row-action="notes" data-order-id="${esc(orderId)}"><i data-lucide="message-square"></i><span>Open notes</span></button>
         <button type="button" role="menuitem" data-order-row-action="edit-name" data-order-id="${esc(orderId)}"><i data-lucide="pencil"></i><span>Edit task name</span></button>
+        ${config.canOpenOrdersTools ? `<button type="button" role="menuitem" data-order-row-action="archive" data-order-id="${esc(orderId)}"><i data-lucide="archive"></i><span>Archive</span></button><button type="button" role="menuitem" data-order-row-action="trash" data-order-id="${esc(orderId)}"><i data-lucide="trash-2"></i><span>Move to Trash</span></button>` : ''}
       </div>`;
     anchor.setAttribute('aria-expanded', 'true');
     toolbarPopover.dataset.orderMenuTriggerId = String(orderId);
@@ -3362,6 +3453,10 @@
       } else if (action === 'edit-name') {
         const cell = body.querySelector(`.monday-order-row[data-order-id="${selectorEsc(orderId)}"] [data-editable-order-field="customer_name"]`);
         if (cell) beginEditableCell(cell);
+      } else if (action === 'archive' || action === 'trash') {
+        if (!window.confirm(action === 'archive' ? 'Archive this order?' : 'Move this order to Trash?')) return;
+        await post(action === 'archive' ? 'archive_orders' : 'trash_orders', { order_ids: orderId });
+        await refresh(null, { preservePosition: true });
       }
       return data;
       return;
@@ -3408,6 +3503,10 @@
     const selectAll = event.target.closest('[data-select-all-orders]');
     const undo = event.target.closest('[data-undo-board]');
     const exportExcel = event.target.closest('[data-export-excel]');
+    const ordersToolsOpen = event.target.closest('[data-orders-tools-open]');
+    const ordersToolsClose = event.target.closest('[data-orders-tools-close], [data-orders-tools-backdrop]');
+    const ordersToolsTabButton = event.target.closest('[data-orders-tools-tab]');
+    const ordersToolsAction = event.target.closest('[data-orders-tools-action]');
     const assign = event.target.closest('[data-board-action="assign"]');
     const sync = event.target.closest('[data-board-action="sync"], .new-task-btn');
     const refreshButton = event.target.closest('[data-board-refresh]');
@@ -3654,6 +3753,15 @@
         return;
       }
 
+      if (ordersToolsOpen) { await openOrdersTools(); return; }
+      if (ordersToolsClose) { closeOrdersTools(); return; }
+      if (ordersToolsTabButton) { ordersToolsTab = ordersToolsTabButton.dataset.ordersToolsTab; document.querySelectorAll('[data-orders-tools-tab]').forEach((button) => button.classList.toggle('is-active', button === ordersToolsTabButton)); renderOrdersTools(); return; }
+      if (ordersToolsAction) {
+        const action = ordersToolsAction.dataset.ordersToolsAction;
+        const ids = action.endsWith('-selected') ? [...selectedOrders] : [ordersToolsAction.dataset.orderId];
+        await runOrdersToolsAction(action, ids);
+        return;
+      }
       if (undo) {
         await undoLastChange();
         return;

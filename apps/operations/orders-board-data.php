@@ -36,6 +36,7 @@ $hasTotalAmount = ops_column_exists('ops_orders', 'total_amount');
 $hasAssignedAt = ops_column_exists('ops_orders', 'assigned_at');
 $hasStartedAt = ops_column_exists('ops_orders', 'packing_started_at');
 $hasArchivedAt = ops_column_exists('ops_orders', 'archived_at');
+$hasDeletedAt = ops_column_exists('ops_orders', 'deleted_at');
 $amountSelect = $hasTotalAmount ? 'o.total_amount' : '0 AS total_amount';
 $assignedAtSelect = $hasAssignedAt ? 'o.assigned_at' : 'NULL AS assigned_at';
 $startedAtSelect = $hasStartedAt ? 'o.packing_started_at' : 'NULL AS packing_started_at';
@@ -79,6 +80,9 @@ if ($dateStart !== '' && $dateEnd !== '') {
 }
 if ($hasArchivedAt) {
     $whereParts[] = 'o.archived_at IS NULL';
+}
+if ($hasDeletedAt) {
+    $whereParts[] = 'o.deleted_at IS NULL';
 }
 $where = $whereParts ? 'WHERE ' . implode(' AND ', $whereParts) : '';
 
@@ -168,6 +172,7 @@ if ($orderIds) {
 }
 
 $archiveMetricWhere = $hasArchivedAt ? ' AND archived_at IS NULL' : '';
+$archiveMetricWhere .= $hasDeletedAt ? ' AND deleted_at IS NULL' : '';
 $metricWhere = $dateStart !== '' && $dateEnd !== ''
     ? "{$metricDateTimeExpr} >= '" . str_replace("'", "''", $dateStart) . "' AND {$metricDateTimeExpr} < '" . str_replace("'", "''", $dateEnd) . "'"
     : '1=1';
