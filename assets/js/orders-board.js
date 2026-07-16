@@ -4106,8 +4106,6 @@
       syncWebsite(true).then(() => refresh(null, { background:true })).catch((error) => showError(error));
     }
   }, 60000);
-  window.addEventListener('resize', positionOrderDatePicker);
-  window.addEventListener('scroll', positionOrderDatePicker, true);
   window.addEventListener('resize', positionPersonPopup);
   window.addEventListener('scroll', positionPersonPopup, true);
 })();
