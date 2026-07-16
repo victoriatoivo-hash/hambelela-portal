@@ -147,84 +147,45 @@ include BASE_PATH . '/shared/sidebar.php';
     <div class="label-menu" id="board-label-menu" hidden></div>
     <div class="toolbar-popover" id="toolbar-popover" hidden></div>
     <div class="orders-filter-menu" id="orders-filter-menu" role="listbox" hidden></div>
-    <aside class="orders-details-panel order-updates-panel order-side-panel" id="order-updates-panel" data-orders-details-panel aria-hidden="true">
-        <div class="orders-details-panel-header order-panel-header updates-panel-head">
-            <button class="order-panel-close" type="button" data-panel-close aria-label="Close order details"><i data-lucide="x"></i></button>
-            <h2 class="order-panel-title" id="panel-order-title">Order</h2>
-            <button class="order-panel-menu" type="button" aria-label="More order actions"><i data-lucide="ellipsis"></i></button>
-        </div>
-        <nav class="orders-details-panel-tabs order-panel-tabs updates-tabs">
-            <button type="button" data-panel-tab="details">Details</button>
-            <button class="order-panel-tab is-active active" type="button" data-panel-tab="updates" id="panel-updates-tab">Notes</button>
-            <button type="button" data-panel-tab="files">Files</button>
-            <button type="button" data-panel-tab="activity">Activity Log</button>
+    <aside class="order-panel" id="order-updates-panel" data-orders-details-panel aria-hidden="true" aria-labelledby="panel-order-title">
+        <header class="order-panel-header">
+            <button class="order-panel-close" type="button" data-panel-close aria-label="Close order panel"><i data-lucide="x"></i></button>
+            <div class="order-panel-heading"><span class="order-panel-kicker">Order</span><h2 class="order-panel-title" id="panel-order-title">Order</h2><div class="order-panel-meta" id="panel-order-meta"></div></div>
+            <button class="order-panel-menu" type="button" data-order-panel-menu aria-label="Open order actions"><span></span><span></span><span></span></button>
+        </header>
+        <nav class="order-panel-tabs updates-tabs" aria-label="Order details sections">
+            <button class="order-panel-tab is-active active" type="button" data-panel-tab="details">Details</button>
+            <button class="order-panel-tab" type="button" data-panel-tab="items">Items</button>
+            <button class="order-panel-tab" type="button" data-panel-tab="updates" id="panel-updates-tab">Updates</button>
+            <button class="order-panel-tab" type="button" data-panel-tab="files">Files</button>
+            <button class="order-panel-tab" type="button" data-panel-tab="activity">Activity</button>
         </nav>
-        <section class="updates-tab-panel" data-panel-name="details">
-            <dl class="order-details-list" id="panel-order-details"></dl>
-        </section>
-        <section class="updates-tab-panel active" data-panel-name="updates">
-            <div class="order-update-meta-actions">
-                <span><i data-lucide="mail"></i> Update via email</span>
-                <span><i data-lucide="message-square-heart"></i> Give feedback</span>
-            </div>
-            <div class="order-updates-content">
-                <div class="order-update-composer update-composer" id="order-update-composer">
-                    <div class="order-format-toolbar" aria-label="Update formatting toolbar">
-                        <button type="button" class="order-editor-button" data-editor-command="formatBlock" data-editor-value="P" title="Paragraph">P</button>
-                        <button type="button" class="order-editor-button" data-editor-command="bold" title="Bold"><strong>B</strong></button>
-                        <button type="button" class="order-editor-button" data-editor-command="italic" title="Italic"><em>I</em></button>
-                        <button type="button" class="order-editor-button" data-editor-command="underline" title="Underline"><u>U</u></button>
-                        <button type="button" class="order-editor-button" data-editor-command="strikeThrough" title="Strikethrough"><s>S</s></button>
-                        <button type="button" class="order-editor-button" data-editor-popup="colour" title="Text colour">A</button>
-                        <button type="button" class="order-editor-button" data-editor-popup="font-size" title="Font size">14</button>
-                        <button type="button" class="order-editor-button" data-editor-command="insertOrderedList" title="Numbered list">1.</button>
-                        <button type="button" class="order-editor-button" data-editor-command="insertUnorderedList" title="Bullet list">UL</button>
-                        <button type="button" class="order-editor-button" data-editor-command="createLink" title="Insert link"><i data-lucide="link"></i></button>
-                        <button type="button" class="order-editor-button" data-editor-popup="align" title="Align text"><i data-lucide="align-left"></i></button>
-                        <button type="button" class="order-editor-button" data-editor-command="insertHorizontalRule" title="Horizontal rule">HR</button>
-                        <button type="button" class="order-editor-button" data-editor-command="undo" title="Undo"><i data-lucide="undo-2"></i></button>
-                        <button type="button" class="order-editor-button" data-editor-action="confirm" title="Confirm"><i data-lucide="check"></i></button>
-                    </div>
-                    <div class="order-update-editor" id="panel-update-editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Write an update and mention others with @"></div>
-                    <input type="file" class="update-file-input" id="order-update-file-input" hidden multiple>
-                    <div class="order-selected-attachments" id="order-selected-attachments" hidden></div>
-                    <div class="order-composer-bottom">
-                        <div class="order-composer-icons">
-                            <button type="button" class="order-composer-icon-button" data-composer-action="mention" title="Mention someone">@</button>
-                            <button type="button" class="order-composer-icon-button" data-composer-action="attach" title="Attach files"><i data-lucide="paperclip"></i></button>
-                            <button type="button" class="order-composer-icon-button" data-composer-action="gif" title="Add GIF">GIF</button>
-                            <button type="button" class="order-composer-icon-button" data-composer-action="emoji" title="Add emoji"><i data-lucide="smile"></i></button>
-                            <button type="button" class="order-composer-icon-button" data-composer-action="magic" title="Refine text"><i data-lucide="sparkles"></i></button>
-                        </div>
-                        <div class="order-update-submit-wrap">
-                            <button class="order-update-button" type="button" data-save-notes>Update</button>
-                            <button class="order-update-dropdown-button" type="button" data-update-schedule-toggle aria-label="Schedule update"><i data-lucide="chevron-down"></i></button>
-                            <div class="order-schedule-popover" id="order-schedule-popover" hidden>
-                                <button class="order-schedule-option" type="button" data-schedule-option>Tomorrow at 09:00 AM</button>
-                                <button class="order-schedule-option" type="button" data-schedule-option>Monday at 09:00 AM</button>
-                                <div class="order-schedule-divider"></div>
-                                <button class="order-schedule-option" type="button" data-schedule-option>Custom time</button>
-                            </div>
-                        </div>
-                    </div>
+        <div class="order-panel-body">
+        <section class="order-panel-section updates-tab-panel active" data-panel-name="details"><div id="panel-order-details"></div></section>
+        <section class="order-panel-section updates-tab-panel" data-panel-name="items"><div class="order-panel-card order-items-card" id="panel-order-items"></div></section>
+        <section class="order-panel-section updates-tab-panel" data-panel-name="updates">
+            <div class="order-update-composer" id="order-update-composer">
+                <textarea class="order-update-textarea" id="panel-update-editor" placeholder="Write an update about this order..." rows="4"></textarea>
+                <input type="file" id="order-update-file-input" hidden multiple accept="image/*,.pdf,.doc,.docx">
+                <div class="order-selected-attachments" id="order-selected-attachments" hidden></div>
+                <div class="order-update-actions">
+                    <button type="button" class="order-update-attach" data-composer-action="attach" disabled title="Order file storage is not connected"><i data-lucide="paperclip"></i> Attach</button>
+                    <button class="order-update-submit" type="button" data-save-notes>Add update</button>
                 </div>
-                <div class="order-empty-updates" id="panel-empty-updates" hidden>
-                    <div class="order-empty-illustration" aria-hidden="true"><i data-lucide="messages-square"></i></div>
-                    <div class="order-empty-title">No updates yet</div>
-                    <p class="order-empty-text">Share progress, mention a teammate, or upload a file to get things moving</p>
-                </div>
-                <div id="panel-updates-list" class="order-updates-list"></div>
             </div>
+            <div class="order-panel-empty" id="panel-empty-updates" hidden><i data-lucide="message-square"></i><strong>No updates yet</strong><span>Add an update to share progress or important order information.</span></div>
+            <div id="panel-updates-list" class="order-updates-list"></div>
         </section>
-        <section class="updates-tab-panel" data-panel-name="files">
-            <label class="file-drop">Upload file, proof of payment, delivery note or packing photo<input type="file"></label>
-            <div class="activity-line">Files will be linked to this order in the next storage step.</div>
+        <section class="order-panel-section updates-tab-panel" data-panel-name="files">
+            <div class="order-file-dropzone is-disabled" aria-disabled="true"><i data-lucide="paperclip"></i><strong>Order file storage is coming soon</strong><span>Uploads are unavailable until secure order storage is connected.</span></div>
+            <div class="order-panel-empty" id="panel-files-list"><strong>No files uploaded</strong><span>Files attached to updates are listed inside the update entry.</span></div>
         </section>
-        <section class="updates-tab-panel" data-panel-name="activity">
-            <div id="panel-activity-log" class="activity-log"></div>
+        <section class="order-panel-section updates-tab-panel" data-panel-name="activity">
+            <div id="panel-activity-log" class="order-activity-list"></div>
         </section>
+        </div>
     </aside>
-    <div class="panel-backdrop" id="panel-backdrop" hidden></div>
+    <div class="order-panel-backdrop" id="panel-backdrop" hidden></div>
 </main>
 <script>
 window.HambelelaBoard = {

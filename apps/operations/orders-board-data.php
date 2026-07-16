@@ -98,6 +98,14 @@ $orderIds = array_map(static fn (array $order): int => (int) ($order['id'] ?? 0)
 $orderIds = array_values(array_filter($orderIds));
 if ($orderIds) {
     $placeholders = implode(',', array_fill(0, count($orderIds), '?'));
+    $orderItems = ops_rows(
+        "SELECT id, order_id, product_name, sku, quantity, packed_quantity, status FROM ops_order_items WHERE order_id IN ({$placeholders}) ORDER BY order_id, id",
+        $orderIds
+    );
+    $itemsByOrder = [];
+    foreach ($orderItems as $item) {
+        $itemsByOrder[(int) ($item['order_id'] ?? 0)][] = $item;
+    }
     $itemStats = ops_rows(
         "SELECT order_id, COUNT(id) AS item_lines, COALESCE(SUM(quantity), 0) AS item_quantity
          FROM ops_order_items
@@ -113,6 +121,7 @@ if ($orderIds) {
         $stat = $itemStatsByOrder[(int) ($order['id'] ?? 0)] ?? null;
         $order['item_lines'] = $stat ? (int) ($stat['item_lines'] ?? 0) : 0;
         $order['item_quantity'] = $stat ? (float) ($stat['item_quantity'] ?? 0) : 0;
+        $order['items'] = $itemsByOrder[(int) ($order['id'] ?? 0)] ?? [];
     }
     unset($order);
 }

@@ -15,6 +15,8 @@
   const panel = document.getElementById('order-updates-panel');
   const backdrop = document.getElementById('panel-backdrop');
   const panelTitle = document.getElementById('panel-order-title');
+  const panelMeta = document.getElementById('panel-order-meta');
+  const panelItems = document.getElementById('panel-order-items');
   const panelEditor = document.getElementById('panel-update-editor');
   const panelComposer = document.getElementById('order-update-composer');
   const panelFileInput = document.getElementById('order-update-file-input');
@@ -2786,13 +2788,11 @@
 
   function panelEditorHtml() {
     if (!panelEditor) return '';
-    const clone = panelEditor.cloneNode(true);
-    clone.querySelectorAll('script,style').forEach((node) => node.remove());
-    return clone.innerHTML.trim();
+    return esc(String(panelEditor.value || '').trim()).replace(/\n/g, '<br>');
   }
 
   function panelEditorText() {
-    return String(panelEditor?.innerText || '').replace(/\u00a0/g, ' ').trim();
+    return String(panelEditor?.value || '').replace(/\u00a0/g, ' ').trim();
   }
 
   function sanitizeUpdateHtml(body) {
@@ -2932,7 +2932,7 @@
   }
 
   function resetPanelComposer() {
-    if (panelEditor) panelEditor.innerHTML = '';
+    if (panelEditor) panelEditor.value = '';
     panelEditorRange = null;
     panelSelectedFiles = [];
     renderPanelAttachments();
@@ -2943,22 +2943,19 @@
 
   function updatePanelTabCount(count) {
     if (!panelUpdatesTab) return;
-    panelUpdatesTab.textContent = count > 0 ? `Updates / ${count}` : 'Updates';
+    panelUpdatesTab.textContent = 'Updates';
+    panelUpdatesTab.setAttribute('aria-label', count > 0 ? `Updates, ${count} saved` : 'Updates');
   }
 
   function renderUpdateCard(body, timestamp = 'now') {
     const safeBody = sanitizeUpdateHtml(body);
-    return `<article class="order-update-card update-card">
+    return `<article class="order-update-entry">
       <div class="order-update-card-header">
         <span class="order-panel-avatar order-update-avatar">${esc(panelAuthorInitials())}</span>
         <strong>${esc(panelAuthorName())}</strong>
         <small>${esc(timestamp)}</small>
       </div>
       <div class="order-update-card-body">${safeBody}</div>
-      <footer class="order-update-card-actions">
-        <button type="button"><i data-lucide="thumbs-up"></i> Like</button>
-        <button type="button"><i data-lucide="reply"></i> Reply</button>
-      </footer>
     </article>`;
   }
 
@@ -2971,41 +2968,53 @@
     if (window.lucide) window.lucide.createIcons();
   }
 
+  function renderPanelActivity() {
+    if (!panelActivity || !currentOrder) return;
+    const events = [
+      ['Order created', prettyDate(orderDisplayDateTime(currentOrder)), 'shopping-bag'],
+      ['Current status', findText(statusLabels, currentOrder.status || '') || 'New order', 'circle-check'],
+      ['Packing assignment', currentOrder.packer_name || 'Unassigned', 'user-round']
+    ];
+    if (savedUpdateBody(currentOrder)) events.push(['Update added', 'A saved order update is available', 'message-square']);
+    panelActivity.innerHTML = events.map(([title, detail, icon]) => `<article class="order-activity-card">
+      <span class="order-activity-icon"><i data-lucide="${esc(icon)}"></i></span>
+      <div><strong>${esc(title)}</strong><small>${esc(detail)}</small></div>
+    </article>`).join('');
+    if (window.lucide) window.lucide.createIcons({ strokeWidth:2 });
+  }
+
   function openPanel(orderId, initialTab = 'details', sourceElement = document.activeElement) {
     currentOrder = ordersCache.find((order) => String(order.id) === String(orderId));
     if (!currentOrder) return;
     panelReturnPosition = ordersTablePosition(sourceElement, orderId);
     panelReturnTrigger = sourceElement instanceof HTMLElement ? sourceElement : null;
     panelTitle.textContent = orderPanelTitle(currentOrder);
-    document.querySelectorAll('.updates-tabs button').forEach((button) => button.classList.remove('active', 'is-active'));
-    document.querySelectorAll('.updates-tab-panel').forEach((section) => section.classList.remove('active'));
-    const requestedTab = document.querySelector(`[data-panel-tab="${initialTab}"]`) ? initialTab : 'details';
-    document.querySelector(`[data-panel-tab="${requestedTab}"]`)?.classList.add('active', 'is-active');
-    document.querySelector(`[data-panel-name="${requestedTab}"]`)?.classList.add('active');
+    if (panelMeta) panelMeta.textContent = [currentOrder.customer_name, prettyDate(orderDisplayDateTime(currentOrder))].filter(Boolean).join(' • ');
+    panel.querySelectorAll('[data-panel-tab]').forEach((button) => button.classList.remove('active', 'is-active'));
+    panel.querySelectorAll('[data-panel-name]').forEach((section) => section.classList.remove('active'));
+    const requestedTab = panel.querySelector(`[data-panel-tab="${initialTab}"]`) ? initialTab : 'details';
+    panel.querySelector(`[data-panel-tab="${requestedTab}"]`)?.classList.add('active', 'is-active');
+    panel.querySelector(`[data-panel-name="${requestedTab}"]`)?.classList.add('active');
     resetPanelComposer();
     renderPanelUpdates();
     if (panelDetails) {
-      panelDetails.innerHTML = [
-        ['Order', currentOrder.order_number || ''],
-        ['Customer', currentOrder.customer_name || ''],
-        ['Date', prettyDate(orderDisplayDateTime(currentOrder))],
-        ['Mobile number', currentOrder.customer_contact || ''],
-        ['Mode', findText(modeLabels, currentOrder.order_type || '')],
-        ['Amount', money(currentOrder.total_amount)],
-        ['Payment', currentOrder.payment_method || ''],
-        ['Status', findText(statusLabels, currentOrder.status || '')],
-        ['Packed by', currentOrder.packer_name || 'Unassigned']
-      ].map(([label, value]) => `<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join('');
+      const cards = [
+        ['Order summary', [['Order', currentOrder.order_number || ''], ['Date', prettyDate(orderDisplayDateTime(currentOrder))], ['Status', findText(statusLabels, currentOrder.status || '')]]],
+        ['Customer', [['Name', currentOrder.customer_name || ''], ['Mobile number', currentOrder.customer_contact || '']]],
+        ['Fulfilment', [['Mode', findText(modeLabels, currentOrder.order_type || '')], ['Packed by', currentOrder.packer_name || 'Unassigned']]],
+        ['Payment', [['Amount', money(currentOrder.total_amount)], ['Method', currentOrder.payment_method || ''], ['Paid', currentOrder.is_paid ? 'Yes' : 'No']]]
+      ];
+      panelDetails.innerHTML = cards.map(([title, fields]) => `<section class="order-panel-card"><h3>${esc(title)}</h3><div class="order-details-grid">${fields.map(([label, value]) => `<div class="order-detail-field"><span class="order-detail-label">${esc(label)}</span><span class="order-detail-value">${esc(value || '—')}</span></div>`).join('')}</div></section>`).join('');
     }
-    panelActivity.innerHTML = `
-      <div class="activity-line">Created ${esc(prettyDate(orderDisplayDateTime(currentOrder)))}</div>
-      <div class="activity-line">Status: ${esc(findText(statusLabels, currentOrder.status))}</div>
-      <div class="activity-line">Packed by: ${esc(currentOrder.packer_name || 'Unassigned')}</div>
-      <div class="activity-line">Picking time: ${esc(durationText(currentOrder.packing_started_at, currentOrder.completed_at || currentOrder.packed_at) || 'Not started')}</div>
-    `;
+    if (panelItems) {
+      const items = Array.isArray(currentOrder.items) ? currentOrder.items : [];
+      panelItems.innerHTML = `<h3>Order items</h3>${items.length ? `<div class="order-items-grid"><div class="order-items-head"><span>Item</span><span>Qty</span><span>Packed</span></div>${items.map((item) => `<div class="order-item-row"><span><strong>${esc(item.product_name || 'Item')}</strong><small>${esc(item.sku || '')}</small></span><span>${esc(item.quantity ?? 0)}</span><span>${esc(item.packed_quantity ?? 0)}</span></div>`).join('')}</div>` : '<div class="order-panel-empty"><strong>No item lines available</strong><span>This order has no linked item records.</span></div>'}`;
+    }
+    renderPanelActivity();
     panel.classList.add('open', 'is-open');
     panel.setAttribute('aria-hidden', 'false');
     backdrop.hidden = false;
+    backdrop.classList.add('is-open');
     panel.querySelector('[data-panel-close]')?.focus({ preventScroll:true });
     restoreOrdersTablePosition(panelReturnPosition);
   }
@@ -3013,6 +3022,7 @@
   function closePanel() {
     panel.classList.remove('open', 'is-open');
     panel.setAttribute('aria-hidden', 'true');
+    backdrop.classList.remove('is-open');
     backdrop.hidden = true;
     resetPanelComposer();
     panelReturnTrigger?.focus?.({ preventScroll:true });
@@ -3625,10 +3635,10 @@
       if (closeButton || event.target === backdrop) closePanel();
 
       if (tab) {
-        document.querySelectorAll('.updates-tabs button').forEach((button) => button.classList.remove('active', 'is-active'));
-        document.querySelectorAll('.updates-tab-panel').forEach((section) => section.classList.remove('active'));
+        panel?.querySelectorAll('[data-panel-tab]').forEach((button) => button.classList.remove('active', 'is-active'));
+        panel?.querySelectorAll('[data-panel-name]').forEach((section) => section.classList.remove('active'));
         tab.classList.add('active', 'is-active');
-        document.querySelector(`[data-panel-name="${tab.dataset.panelTab}"]`)?.classList.add('active');
+        panel?.querySelector(`[data-panel-name="${tab.dataset.panelTab}"]`)?.classList.add('active');
       }
 
       if (collapse) {
@@ -3732,6 +3742,7 @@
           Object.assign(currentOrder, updateOrderCacheField(currentOrder.id, 'notes', bodyHtml) || {});
           resetPanelComposer();
           renderPanelUpdates();
+          renderPanelActivity();
           noteIds.forEach(refreshUpdateIconCell);
           if (syncState) {
             syncState.textContent = noteIds.length > 1
