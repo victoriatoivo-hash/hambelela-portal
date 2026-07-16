@@ -189,6 +189,19 @@
 .orders-grid-scroll { width: 100%; min-width: 0; overflow: visible; }
 .orders-grid-root { width: 100%; min-width: 0; display: grid; gap: 12px; }
 .orders-page .orders-board-v2 {
+  --orders-col-select:34px;
+  --orders-col-task:280px;
+  --orders-col-updates:58px;
+  --orders-col-date:180px;
+  --orders-col-mobile:190px;
+  --orders-col-mode:150px;
+  --orders-col-amount:160px;
+  --orders-col-payment:190px;
+  --orders-col-paid:90px;
+  --orders-col-status:160px;
+  --orders-col-packed-by:180px;
+  --orders-col-text:260px;
+  --orders-col-add:42px;
   --orders-columns:
     var(--orders-col-select,34px)
     var(--orders-col-task,280px)
@@ -280,8 +293,21 @@
   max-width:none;
 }
 .orders-page .orders-grid-header > .orders-grid-cell { background:#fff; color:var(--orders-burgundy); font-size:10px; line-height:1; font-weight:600; letter-spacing:.02em; text-transform:uppercase; }
-.orders-page .orders-grid-header-cell { position:relative; min-width:0; overflow:visible; z-index:3; }
-.orders-page .orders-grid-header-cell .column-header-title { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.orders-page .orders-grid-header-cell { position:relative; min-width:0; height:35px; min-height:35px; max-height:35px; margin:0; padding:0; overflow:visible; z-index:3; box-sizing:border-box; }
+.orders-page .orders-column-heading-trigger,
+.orders-page .orders-column-heading-input {
+  width:100%; height:35px; min-height:35px; max-height:35px; min-width:0;
+  margin:0; padding:0 10px; display:flex; align-items:center; justify-content:flex-start; gap:6px;
+  overflow:hidden; border:0; border-radius:0; background:transparent; color:#721B1A;
+  box-shadow:none; outline:0; font-family:Figtree,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:10px; line-height:1; font-weight:600; letter-spacing:.02em; text-transform:uppercase;
+  text-align:left; text-overflow:ellipsis; white-space:nowrap; box-sizing:border-box;
+}
+.orders-page .orders-column-heading-trigger { cursor:text; }
+.orders-page .orders-column-heading-trigger:hover,
+.orders-page .orders-column-heading-trigger:focus-visible,
+.orders-page .orders-grid-header-cell.is-editing { background:rgba(240,116,32,.045); }
+.orders-page .orders-column-heading-input { display:block; }
 .orders-page .orders-grid-header-cell .portal-column-resizer { height:35px; }
 .orders-page .orders-grid-header-cell:hover { z-index:4; }
 .orders-page .orders-summary-footer > .orders-grid-cell { border-bottom:0; }
@@ -346,7 +372,7 @@
 .orders-page .orders-task-cell { position:relative; width:100%; height:35px; min-width:0; display:grid; grid-template-columns:minmax(0,1fr) 24px; align-items:center; box-sizing:border-box; }
 .orders-page .orders-task-name-trigger { position:relative; width:100%; height:35px; min-width:0; padding:0 9px; display:flex; align-items:center; border:0; border-radius:0; background:transparent; color:#1A1A1A; font-family:Figtree,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; font-size:12px; line-height:1; font-weight:400; text-align:left; cursor:pointer; box-sizing:border-box; transition:background-color .15s ease,color .15s ease; }
 .orders-page .orders-task-name-trigger:hover { background:rgba(240,116,32,.045); color:#721B1A; }
-.orders-page .orders-task-name-trigger:focus-visible { outline:0; box-shadow:inset 0 0 0 1px rgba(171,54,25,.32); }
+.orders-page .orders-task-name-trigger:focus-visible { outline:0; background:rgba(240,116,32,.045); }
 .orders-page .orders-task-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .orders-page .orders-task-name-trigger[data-tooltip]:hover::after,
 .orders-page .orders-task-name-trigger[data-tooltip]:focus-visible::after { content:attr(data-tooltip); position:fixed; z-index:30100; max-width:min(360px,calc(100vw - 24px)); margin:30px 0 0 4px; padding:7px 9px; border:1px solid #EDE3D8; border-radius:7px; background:#fff; color:#6B4C3B; box-shadow:0 8px 20px rgba(114,27,26,.14); font-size:11px; line-height:1.25; white-space:normal; pointer-events:none; }
@@ -403,14 +429,14 @@
 .orders-page .orders-paid-tick { width:15px; height:15px; flex:0 0 15px; opacity:0; transform:scale(.78); transition:opacity .14s ease,transform .14s ease; }
 .orders-page .orders-paid-toggle[aria-pressed="true"] .orders-paid-tick { opacity:1; transform:scale(1); }
 .orders-page .orders-paid-toggle:hover { background:rgba(168,202,25,.045); }
-.orders-page .orders-paid-toggle:focus-visible { outline:0; box-shadow:inset 0 0 0 2px rgba(171,54,25,.18); }
+.orders-page .orders-paid-toggle:focus-visible { outline:0; background:rgba(168,202,25,.065); }
 .orders-page .orders-paid-toggle.is-confirmed .orders-paid-tick { animation:ordersPaidTickIn .28s ease-out; }
 @keyframes ordersPaidTickIn { 0%{opacity:0;transform:scale(.55)} 70%{opacity:1;transform:scale(1.14)} 100%{opacity:1;transform:scale(1)} }
 .orders-page .orders-grid-cell--packer { position:relative; height:35px; min-height:35px; max-height:35px; padding:0; overflow:hidden; box-sizing:border-box; }
 .orders-page .packing-person-component { position:relative; width:100%; height:35px; min-height:35px; max-height:35px; min-width:0; }
 .orders-page .packing-person-trigger { width:100%; height:35px; min-height:35px; max-height:35px; padding:0 9px; display:grid; grid-template-columns:22px minmax(0,1fr) 12px; align-items:center; gap:7px; border:0; border-radius:0; background:#fff; color:#1a1a1a; font-family:Figtree,Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; font-size:12px; font-weight:400; line-height:1; text-align:left; cursor:pointer; box-shadow:none; outline:0; box-sizing:border-box; transition:background-color .15s ease,box-shadow .15s ease; }
 .orders-page .packing-person-trigger:hover,.orders-page .packing-person-component.is-open .packing-person-trigger { background:rgba(240,116,32,.055); }
-.orders-page .packing-person-component.is-open .packing-person-trigger,.orders-page .packing-person-trigger:focus-visible { outline:0; box-shadow:inset 0 0 0 1px rgba(171,54,25,.22); }
+.orders-page .packing-person-component.is-open .packing-person-trigger,.orders-page .packing-person-trigger:focus-visible { outline:0; background:rgba(240,116,32,.055); box-shadow:none; }
 .orders-page .packing-person-trigger.is-static { cursor:default; }.orders-page .packing-person-trigger.is-static:hover { background:#fff; box-shadow:none; }
 .orders-page .packing-person-avatar { width:22px; height:22px; display:inline-flex; align-items:center; justify-content:center; border-radius:50%; background:rgba(171,54,25,.09); color:#721b1a; font-size:9px; font-weight:700; flex:0 0 22px; }
 .orders-page .packing-person-component[data-employee-id=""] .packing-person-avatar { background:rgba(107,76,59,.07); color:#a08070; }
@@ -431,8 +457,13 @@
 .orders-person-popup .packing-person-option-check { color:#ab3619; font-size:13px; text-align:center; }.orders-person-popup .packing-person-empty { margin:8px; color:#a08070; font-size:11px; }
 .orders-person-popup .packing-person-popup-divider { height:1px; margin:7px -7px 0; background:#ede3d8; }
 .orders-person-popup .packing-person-utility { width:100%; height:32px; padding:0 8px; display:grid; grid-template-columns:18px minmax(0,1fr); align-items:center; gap:7px; border:0; border-radius:7px; background:transparent; color:#ab3619; font:600 11px/1 Figtree,Inter,system-ui,sans-serif; text-align:left; cursor:pointer; }.orders-person-popup .packing-person-utility:hover { background:rgba(240,116,32,.07); }.orders-person-popup .packing-person-utility-icon svg { width:15px; height:15px; color:#ab3619; }
-.orders-page .editable-cell, .orders-page .order-date-cell { position: relative; cursor: text; }
-.orders-page .editable-cell.is-editing::after, .orders-page .order-date-cell.is-editing::after { content: ''; position: absolute; inset: 2px; border: 1px dashed var(--orders-rust); border-radius: 3px; pointer-events: none; }
+.orders-page .editable-cell, .orders-page .order-date-cell { position:relative; cursor:text; }
+.orders-page .editable-cell.is-editing,
+.orders-page .order-date-cell:focus-within { background:rgba(240,116,32,.045); }
+.orders-page .orders-grid-cell-control { width:100%; height:35px; min-height:35px; max-height:35px; margin:0; padding:0 10px; border:0; border-radius:0; background:transparent; box-shadow:none; outline:0; box-sizing:border-box; }
+.orders-page .orders-grid-cell--date { position:relative; height:35px; min-height:35px; max-height:35px; padding:0; overflow:hidden; box-sizing:border-box; }
+.orders-page .orders-date-trigger { width:100%; height:35px; min-height:35px; max-height:35px; margin:0; padding:0 10px; border:0; border-radius:0; background:transparent; color:#1a1a1a; box-shadow:none; outline:0; font:400 12px/1 Figtree,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; box-sizing:border-box; }
+.orders-page .orders-date-trigger:hover,.orders-page .orders-date-trigger:focus { background:rgba(240,116,32,.04); }
 .orders-page .orders-grid-cell--mobile,
 .orders-page .orders-grid-cell--amount {
   position:relative;
@@ -475,10 +506,8 @@
 }
 .orders-page .orders-inline-cell-input { display:block; line-height:35px; }
 .orders-page .orders-inline-cell-trigger:hover { background:rgba(240,116,32,.04); }
-.orders-page .orders-grid-cell--mobile.is-editing::after,
-.orders-page .orders-grid-cell--amount.is-editing::after { display:none; }
 .orders-page .orders-grid-cell--mobile:focus-within,
-.orders-page .orders-grid-cell--amount:focus-within { box-shadow:inset 0 0 0 1px rgba(171,54,25,.20); }
+.orders-page .orders-grid-cell--amount:focus-within { background:rgba(240,116,32,.045); box-shadow:none; }
 .orders-page .orders-grid-cell--custom { padding:0; }
 .orders-page .orders-grid-cell--custom .board-custom-input,
 .orders-page .orders-grid-cell--custom .board-custom-check {

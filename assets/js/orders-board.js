@@ -259,9 +259,9 @@
 
   function columnHeader(label, cssClass, column, key = column) {
     const currentLabel = columnLabels[key] ?? label;
-    const editableAttrs = currentLabel !== '' ? ` data-editable-column-header="true" tabindex="0" aria-label="Rename ${esc(currentLabel)} column"` : '';
+    const editableAttrs = currentLabel !== '' ? ' data-editable-column-header="true"' : '';
     const title = currentLabel !== ''
-      ? `<span class="column-header-title" data-column-header-title>${esc(currentLabel)}</span>`
+      ? `<button type="button" class="orders-column-heading-trigger column-header-title" data-column-header-title aria-label="Rename ${esc(currentLabel)} column">${esc(currentLabel)}</button>`
       : '<span class="column-header-title is-empty" aria-hidden="true"></span>';
     const [minimum, maximum] = [columnMinWidths[column] || 40, columnMaxWidths[column] || 800];
     return `<div class="orders-grid-cell orders-grid-cell--${esc(key)} orders-grid-header-cell monday-cell ob-col-th column-header ${cssClass}" data-column-key="${esc(key)}" data-column="${esc(column)}"${editableAttrs}>${title}<span class="portal-column-resizer column-resizer" data-column-resizer data-board-key="orders" data-column-key="${esc(column)}" role="separator" aria-orientation="vertical" aria-label="Resize ${esc(currentLabel)} column" aria-valuemin="${minimum}" aria-valuemax="${maximum}" tabindex="0"></span></div>`;
@@ -505,9 +505,7 @@
       });
     } else {
       control.type = 'text';
-      if (field === 'customer_contact' || field === 'total_amount') {
-        control.className = 'orders-inline-cell-input';
-      }
+      control.className = 'orders-grid-cell-control orders-inline-cell-input';
     }
 
     control.value = field === 'total_amount' ? String(originalValue).replace(/[^\d.]/g, '') : originalValue;
@@ -1713,13 +1711,13 @@
   function beginColumnHeaderEdit(header) {
     if (!header || header.classList.contains('is-editing')) return;
     const key = header.dataset.columnKey || '';
-    if (!key || key === 'updates' || !defaultColumnLabels[key]) return;
+    if (!key || !defaultColumnLabels[key]) return;
     const title = header.querySelector('[data-column-header-title]');
     if (!title) return;
 
     const previous = columnLabels[key] || defaultColumnLabels[key] || '';
     const input = document.createElement('input');
-    input.className = 'column-header-title-input';
+    input.className = 'orders-column-heading-input';
     input.value = previous;
     input.setAttribute('aria-label', `Rename ${previous} column`);
 
