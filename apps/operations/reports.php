@@ -4,12 +4,8 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/operations.php';
 require_once __DIR__ . '/owner-dashboard-data.php';
-require_once __DIR__ . '/kpi-performance-service.php';
 
-require_login();
-
-$kpiCurrentRole = normalise_portal_role(current_role_key());
-$kpiIsOwner = in_array($kpiCurrentRole, ['owner_admin', 'supervisor_manager'], true);
+require_role('owner_admin', 'supervisor_manager');
 
 $pageTitle = 'KPI Reports | ' . APP_NAME;
 $activeApp = 'kpi';
@@ -335,20 +331,21 @@ function kpi_default_weights(): array
 {
     return [
         'front_desk' => [
-            'orders' => ['label' => 'Customer Response', 'weight' => 25],
-            'errors' => ['label' => 'Order / Courier Accuracy', 'weight' => 20],
-            'website_stock' => ['label' => 'Website Updates', 'weight' => 20],
-            'bookkeeping' => ['label' => 'Cash / Bookkeeping', 'weight' => 15],
-            'tasks' => ['label' => 'Task Completion', 'weight' => 10],
-            'reliability' => ['label' => 'Attendance / Compliance', 'weight' => 10],
+            'orders' => ['label' => 'Order / walk-in completion', 'weight' => 20],
+            'bookkeeping' => ['label' => 'Bookkeeping accuracy', 'weight' => 20],
+            'website_stock' => ['label' => 'Website stock upload', 'weight' => 15],
+            'tasks' => ['label' => 'Task completion', 'weight' => 15],
+            'errors' => ['label' => 'Error score', 'weight' => 15],
+            'communication' => ['label' => 'Communication / manual assessment', 'weight' => 10],
+            'reliability' => ['label' => 'Reliability / attendance', 'weight' => 5],
         ],
         'packer' => [
-            'packing_productivity' => ['label' => 'Productivity', 'weight' => 30],
-            'packing_accuracy' => ['label' => 'Accuracy', 'weight' => 25],
-            'order_speed' => ['label' => 'Speed', 'weight' => 15],
-            'attendance' => ['label' => 'Attendance', 'weight' => 10],
-            'tasks' => ['label' => 'Compliance', 'weight' => 10],
-            'team' => ['label' => 'Team Contribution', 'weight' => 10],
+            'order_speed' => ['label' => 'Order packing speed', 'weight' => 20],
+            'packing_productivity' => ['label' => 'Packing list productivity', 'weight' => 25],
+            'packing_accuracy' => ['label' => 'Packing accuracy', 'weight' => 20],
+            'tasks' => ['label' => 'Task / cleaning compliance', 'weight' => 15],
+            'errors' => ['label' => 'Error score', 'weight' => 15],
+            'team' => ['label' => 'Team contribution / manual', 'weight' => 5],
         ],
     ];
 }
@@ -555,16 +552,16 @@ function kpi_business_minutes(?string $from, ?string $to): ?float
 function kpi_tier(float $score): array
 {
     if ($score >= 90) {
-        return ['tier' => 'Gold', 'label' => 'Gold', 'bonus_multiplier' => 1.0, 'bonus_label' => 'Gold bonus', 'recommendation' => 'Eligible for owner review', 'reward' => true, 'class' => 'gold'];
+        return ['tier' => 'Excellent', 'label' => 'Excellent', 'bonus_multiplier' => 1.0, 'bonus_label' => 'Bonus and increment candidate', 'recommendation' => 'Strong bonus / increment consideration', 'reward' => true, 'class' => 'exceptional'];
     }
-    if ($score >= 85) {
-        return ['tier' => 'Silver', 'label' => 'Silver', 'bonus_multiplier' => 0.75, 'bonus_label' => 'Silver bonus', 'recommendation' => 'Eligible for owner review', 'reward' => true, 'class' => 'silver'];
+    if ($score >= 80) {
+        return ['tier' => 'Good', 'label' => 'Good', 'bonus_multiplier' => 0.75, 'bonus_label' => 'Good bonus candidate', 'recommendation' => 'Bonus eligible', 'reward' => false, 'class' => 'high'];
     }
-    if ($score >= 75) {
-        return ['tier' => 'Bronze', 'label' => 'Bronze', 'bonus_multiplier' => 0.5, 'bonus_label' => 'Bronze bonus', 'recommendation' => 'Eligible for owner review', 'reward' => true, 'class' => 'bronze'];
+    if ($score >= 70) {
+        return ['tier' => 'Needs Improvement', 'label' => 'Needs Improvement', 'bonus_multiplier' => 0.35, 'bonus_label' => 'Small/conditional bonus', 'recommendation' => 'Coach and monitor', 'reward' => false, 'class' => 'satisfactory'];
     }
 
-    return ['tier' => 'No Bonus', 'label' => 'No Bonus', 'bonus_multiplier' => 0.0, 'bonus_label' => 'Not eligible', 'recommendation' => 'Coaching or performance plan', 'reward' => false, 'class' => 'none'];
+    return ['tier' => 'Performance Concern', 'label' => 'Performance Concern', 'bonus_multiplier' => 0.0, 'bonus_label' => 'No bonus', 'recommendation' => 'Performance conversation required', 'reward' => false, 'class' => 'loss'];
 }
 
 function kpi_float_setting(array $settings, string $key): float
@@ -825,7 +822,7 @@ function kpi_build_scores(string $period, string $start, string $end, array $set
                 'packing_productivity' => ['score' => $productivity, 'raw' => number_format($workVolume, 1) . ' work pts / items'],
                 'packing_accuracy' => ['score' => $accuracyScore, 'raw' => number_format((int) ($errors['error_count'] ?? 0)) . ' errors'],
                 'tasks' => ['score' => $compliance, 'raw' => number_format($checkDone) . '/' . number_format($checkTotal) . ' tasks'],
-                'attendance' => ['score' => (float) $input['attendance_score'], 'raw' => 'Attendance records + manual exceptions'],
+                'errors' => ['score' => $accuracyScore, 'raw' => number_format($errorPoints, 1) . ' penalty pts'],
                 'team' => ['score' => $team, 'raw' => 'Manual score'],
             ];
             $scorecard = 'Packer KPI Scorecard';
@@ -2810,7 +2807,6 @@ function kpi_store_score_snapshots(string $period, array $scores): void
 
 if ($ready) {
     kpi_bootstrap();
-    kpi_performance_bootstrap();
 }
 
 $settings = [
@@ -2827,66 +2823,7 @@ $settings = [
 if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $action = ops_post_string('kpi_action', 60);
-        if ($action !== 'acknowledge_review' && !$kpiIsOwner) {
-            throw new RuntimeException('Only the Owner/Admin can change KPI reviews or bonus decisions.');
-        }
-        if ($action === 'refresh_scores') {
-            $freshScores = kpi_build_scores($period, $periodStart, $periodEnd, $settings);
-            kpi_performance_sync($period, $freshScores);
-            kpi_performance_audit(null, $period, 'scores_refreshed', '', count($freshScores) . ' employee scorecards');
-            $message = 'Scores refreshed from live operational records.';
-        } elseif ($action === 'review_performance') {
-            $employeeId = max(0, (int) ($_POST['employee_id'] ?? 0));
-            $adjustment = max(-10, min(10, (float) ($_POST['manual_adjustment'] ?? 0)));
-            $reason = ops_post_string('adjustment_reason', 1000);
-            $reviewStatus = ops_post_string('review_status', 40) ?: 'Pending Review';
-            $bonusStatus = ops_post_string('bonus_status', 40) ?: 'Pending Review';
-            $allowedReview = ['Not Reviewed', 'Pending Review', 'Reviewed', 'Locked'];
-            $allowedBonus = ['Not Eligible', 'Eligible', 'Pending Review', 'Approved', 'Declined', 'Paid'];
-            if ($employeeId <= 0 || !in_array($reviewStatus, $allowedReview, true) || !in_array($bonusStatus, $allowedBonus, true)) {
-                throw new RuntimeException('Invalid KPI review request.');
-            }
-            if (abs($adjustment) > 0.001 && $reason === '') {
-                throw new RuntimeException('A reason is required for every manual score adjustment.');
-            }
-            $scoreRow = null;
-            foreach (kpi_build_scores($period, $periodStart, $periodEnd, $settings) as $candidate) {
-                if ((int) $candidate['employee_id'] === $employeeId) {
-                    $scoreRow = $candidate;
-                    break;
-                }
-            }
-            if (!$scoreRow) {
-                throw new RuntimeException('Employee scorecard was not found for this period.');
-            }
-            $finalScore = max(0, min(100, (float) $scoreRow['score'] + $adjustment));
-            $tier = kpi_performance_tier($finalScore);
-            $bonusAmount = $bonusStatus === 'Not Eligible' || $bonusStatus === 'Declined' ? null : round((float) $scoreRow['max_bonus'] * (float) $tier['bonus_multiplier'], 2);
-            $old = kpi_performance_reviews($period)[$employeeId] ?? [];
-            db()->prepare(
-                "INSERT INTO kpi_performance_reviews
-                    (employee_id, period_key, automatic_score, manual_adjustment, final_score, tier, review_status, bonus_status, bonus_amount, adjustment_reason, owner_note, reviewed_by, reviewed_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-                 ON DUPLICATE KEY UPDATE automatic_score = VALUES(automatic_score), manual_adjustment = VALUES(manual_adjustment), final_score = VALUES(final_score), tier = VALUES(tier), review_status = VALUES(review_status), bonus_status = VALUES(bonus_status), bonus_amount = VALUES(bonus_amount), adjustment_reason = VALUES(adjustment_reason), owner_note = VALUES(owner_note), reviewed_by = VALUES(reviewed_by), reviewed_at = NOW()"
-            )->execute([$employeeId, $period, (float) $scoreRow['score'], $adjustment, $finalScore, $tier['label'], $reviewStatus, $bonusStatus, $bonusAmount, $reason, ops_post_string('owner_note', 2000), ops_current_employee_id()]);
-            kpi_performance_audit($employeeId, $period, 'review_updated', $old, ['score' => $finalScore, 'review_status' => $reviewStatus, 'bonus_status' => $bonusStatus], $reason);
-            $message = 'Performance review saved and added to the audit history.';
-        } elseif ($action === 'lock_period' || $action === 'reopen_period') {
-            $locking = $action === 'lock_period';
-            db()->prepare('UPDATE kpi_performance_reviews SET locked_at = ' . ($locking ? 'NOW()' : 'NULL') . ", review_status = ? WHERE period_key = ?")
-                ->execute([$locking ? 'Locked' : 'Pending Review', $period]);
-            kpi_performance_audit(null, $period, $action, !$locking, $locking, ops_post_string('adjustment_reason', 1000));
-            $message = $locking ? 'KPI period locked.' : 'KPI period reopened.';
-        } elseif ($action === 'acknowledge_review') {
-            $employeeId = (int) (ops_current_employee_id() ?? 0);
-            if ($employeeId <= 0) {
-                throw new RuntimeException('Your employee profile is not linked.');
-            }
-            db()->prepare('UPDATE kpi_performance_reviews SET employee_note = ?, employee_acknowledged_at = NOW() WHERE employee_id = ? AND period_key = ?')
-                ->execute([ops_post_string('employee_note', 1000), $employeeId, $period]);
-            kpi_performance_audit($employeeId, $period, 'employee_acknowledged', '', 'Acknowledged');
-            $message = 'Your review acknowledgement was saved.';
-        } elseif ($action === 'save_settings') {
+        if ($action === 'save_settings') {
             $keys = [
                 'kpi_bonus_percent',
                 'kpi_target_orders_month',
@@ -2903,13 +2840,6 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = 'KPI bonus and target settings saved.';
         } elseif ($action === 'save_weights') {
             foreach (kpi_default_weights() as $group => $weights) {
-                $submittedTotal = 0.0;
-                foreach ($weights as $key => $row) {
-                    $submittedTotal += max(0, (float) ($_POST['weight_' . $group . '_' . $key] ?? $row['weight']));
-                }
-                if (abs($submittedTotal - 100) > 0.01) {
-                    throw new RuntimeException(ucwords(str_replace('_', ' ', $group)) . ' weights must total exactly 100%.');
-                }
                 foreach ($weights as $key => $row) {
                     $value = max(0, (float) ($_POST['weight_' . $group . '_' . $key] ?? $row['weight']));
                     $stmt = db()->prepare(
@@ -3004,14 +2934,6 @@ $settings = [
 $employeeScores = $ready ? kpi_build_scores($period, $periodStart, $periodEnd, $settings) : [];
 if ($ready) {
     kpi_store_score_snapshots($period, $employeeScores);
-    kpi_performance_sync($period, $employeeScores);
-    $employeeScores = kpi_performance_apply_reviews($employeeScores, kpi_performance_reviews($period));
-}
-if (!$kpiIsOwner) {
-    $currentEmployeeId = (int) (ops_current_employee_id() ?? 0);
-    $employeeScores = array_values(array_filter($employeeScores, static function (array $row) use ($currentEmployeeId): bool {
-        return (int) ($row['employee_id'] ?? 0) === $currentEmployeeId;
-    }));
 }
 $previousScores = $ready ? kpi_build_scores($previousPeriod, $previousStart, $previousEnd, $settings) : [];
 $previousByEmployee = [];
@@ -3581,19 +3503,8 @@ $unlinkedEmployees = array_values(array_filter($employeeScores, static function 
 $dateRangeQuery = http_build_query(['start_date' => $filterStartDate, 'end_date' => $filterEndDate]);
 $ownerDashboardData = $ready ? owner_dashboard_build($filterStartDate, $filterEndDate) : owner_dashboard_build(date('Y-m-d'), date('Y-m-d'));
 
-$kpiCssPath = BASE_PATH . '/assets/css/kpi-performance.css';
-$extraStylesheets = [[
-    'path' => 'assets/css/kpi-performance.css',
-    'version' => is_file($kpiCssPath) ? (string) filemtime($kpiCssPath) : (string) time(),
-]];
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
-include __DIR__ . '/reports-performance-view.php';
-?>
-<script defer src="<?= BASE_URL ?>/assets/js/kpi-performance.js?v=<?= htmlspecialchars((string) filemtime(BASE_PATH . '/assets/js/kpi-performance.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
-<?php
-include BASE_PATH . '/shared/footer.php';
-return;
 ?>
 <main class="workspace module kpi-performance-page">
     <section class="module-header">
