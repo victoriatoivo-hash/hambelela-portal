@@ -15,6 +15,8 @@ $roleKey = current_role_key();
 $canUploadWaybills = $currentEmployeeId > 0 && $roleKey !== 'guest';
 $canSendWaybills = in_array($roleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager'], true);
 $canExportWaybills = $roleKey === 'owner_admin';
+$canManageWaybills = in_array($roleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager'], true);
+$canDeleteWaybillsForever = $roleKey === 'owner_admin';
 $historyDateFrom = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_GET['date_from'] ?? '')) ? (string) $_GET['date_from'] : date('Y-m-d', strtotime('-7 days'));
 $historyDateTo = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_GET['date_to'] ?? '')) ? (string) $_GET['date_to'] : date('Y-m-d');
 
@@ -82,6 +84,12 @@ function wb_bootstrap_schema(): void
         'courier_names' => "ALTER TABLE hambelela_waybills ADD COLUMN courier_names TEXT NULL AFTER sent_date",
         'number_of_waybills' => "ALTER TABLE hambelela_waybills ADD COLUMN number_of_waybills INT NOT NULL DEFAULT 1 AFTER courier_names",
         'waybill_reminder_sent' => "ALTER TABLE hambelela_waybills ADD COLUMN waybill_reminder_sent TINYINT(1) NOT NULL DEFAULT 0 AFTER status",
+        'archived_at' => "ALTER TABLE hambelela_waybills ADD COLUMN archived_at DATETIME NULL AFTER status",
+        'archived_by' => "ALTER TABLE hambelela_waybills ADD COLUMN archived_by INT NULL AFTER archived_at",
+        'deleted_at' => "ALTER TABLE hambelela_waybills ADD COLUMN deleted_at DATETIME NULL AFTER archived_by",
+        'deleted_by' => "ALTER TABLE hambelela_waybills ADD COLUMN deleted_by INT NULL AFTER deleted_at",
+        'restored_at' => "ALTER TABLE hambelela_waybills ADD COLUMN restored_at DATETIME NULL AFTER deleted_by",
+        'restored_by' => "ALTER TABLE hambelela_waybills ADD COLUMN restored_by INT NULL AFTER restored_at",
         'updated_at' => "ALTER TABLE hambelela_waybills ADD COLUMN updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at",
     ];
     foreach ($columns as $column => $sql) {
@@ -390,7 +398,7 @@ function wb_update_overdue_and_reminders(): void
     $overdueRows = ops_rows(
         "SELECT id, due_by
          FROM hambelela_waybills
-         WHERE status = 'pending' AND due_by < NOW()
+         WHERE status = 'pending' AND due_by < NOW() AND archived_at IS NULL AND deleted_at IS NULL
          LIMIT 500"
     );
     if ($overdueRows) {
@@ -409,6 +417,8 @@ function wb_update_overdue_and_reminders(): void
         "SELECT batch_id, sent_date, courier_names, number_of_waybills, due_by, COUNT(*) AS file_count
          FROM hambelela_waybills
          WHERE status = 'pending'
+           AND archived_at IS NULL
+           AND deleted_at IS NULL
            AND waybill_reminder_sent = 0
            AND due_by BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 30 MINUTE)
          GROUP BY batch_id, sent_date, courier_names, number_of_waybills, due_by
@@ -460,6 +470,11 @@ function wb_stream_batch_download(string $batchId): void
         http_response_code(404);
         exit('No files found.');
     }
+    ops_activity_log('courier_waybill_downloaded', 'courier_waybill_batch', 0, [
+        'batch_id' => $batchId,
+        'file_count' => count($files),
+        'changed_by' => wb_current_name(),
+    ]);
 
     if (count($files) === 1) {
         $file = $files[0];
@@ -557,7 +572,7 @@ function wb_fetch_batch_rows(array $statuses, bool $history = false, ?string $da
 {
     $params = $statuses;
     $placeholders = implode(',', array_fill(0, count($statuses), '?'));
-    $where = "w.status IN ({$placeholders})";
+    $where = "w.status IN ({$placeholders}) AND w.archived_at IS NULL AND w.deleted_at IS NULL";
     if ($history) {
         $where .= " AND DATE(COALESCE(w.sent_at, w.uploaded_at)) BETWEEN ? AND ?";
         $params[] = $dateFrom ?: date('Y-m-d', strtotime('-7 days'));
@@ -624,7 +639,8 @@ function wb_stats(): array
                     AND sent_at < DATE_FORMAT(DATE_ADD(CURDATE(), INTERVAL 1 MONTH), '%Y-%m-01')
                 THEN 1 ELSE 0
             END) AS sent_this_month
-         FROM hambelela_waybills"
+         FROM hambelela_waybills
+         WHERE archived_at IS NULL AND deleted_at IS NULL"
     );
     $row = $rows[0] ?? [];
 
@@ -718,6 +734,17 @@ function wb_queue_html(array $rows, bool $canSend): string
                     <?php if ($canSend): ?>
                         <button class="btn-mark-sent mark-sent mark-sent-btn courier-action-btn" type="button" data-batch-id="<?= wb_e($batchId) ?>"><i data-lucide="send"></i> Mark Sent</button>
                     <?php endif; ?>
+                    <?php if ($GLOBALS['canManageWaybills'] ?? false): ?>
+                        <div class="courier-row-menu">
+                            <button type="button" class="courier-row-menu-trigger" data-courier-row-menu aria-label="More waybill actions" aria-expanded="false"><i data-lucide="ellipsis"></i></button>
+                            <div class="courier-row-menu-popover" hidden>
+                                <a href="courier.php?action=waybill_download_zip&amp;batch_id=<?= wb_e($batchId) ?>"><i data-lucide="download"></i><span>Download</span></a>
+                                <?php if ($canSend): ?><button type="button" data-courier-row-action="send" data-batch-id="<?= wb_e($batchId) ?>"><i data-lucide="send"></i><span>Mark sent</span></button><?php endif; ?>
+                                <button type="button" data-courier-row-action="archive" data-batch-id="<?= wb_e($batchId) ?>"><i data-lucide="archive"></i><span>Archive</span></button>
+                                <button type="button" class="is-danger" data-courier-row-action="trash" data-batch-id="<?= wb_e($batchId) ?>"><i data-lucide="trash-2"></i><span>Move to Trash</span></button>
+                            </div>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </article>
             <?php
@@ -754,6 +781,83 @@ function wb_history_html(array $rows): string
     return (string) ob_get_clean();
 }
 
+function wb_batch_ids_from_request(): array
+{
+    $ids = array_values(array_unique(array_filter(array_map(
+        static fn (string $value): string => substr(trim($value), 0, 60),
+        explode(',', (string) ($_POST['batch_ids'] ?? ''))
+    ))));
+    if (!$ids || count($ids) > 200) {
+        throw new RuntimeException($ids ? 'Please select 200 waybill batches or fewer.' : 'No waybills selected.');
+    }
+    return $ids;
+}
+
+function wb_batch_placeholders(array $batchIds): string
+{
+    return implode(',', array_fill(0, count($batchIds), '?'));
+}
+
+function wb_lifecycle_batches(string $view): array
+{
+    $condition = $view === 'trash'
+        ? 'w.deleted_at IS NOT NULL'
+        : 'w.archived_at IS NOT NULL AND w.deleted_at IS NULL';
+    return ops_rows(
+        "SELECT w.batch_id, MIN(w.id) AS first_id, MIN(w.waybill_reference) AS waybill_reference,
+                MIN(w.order_id) AS order_id, MIN(w.customer_name) AS customer_name,
+                MIN(w.courier_names) AS courier_names, MIN(w.status) AS status,
+                MAX(w.deleted_at) AS deleted_at, MAX(w.archived_at) AS archived_at,
+                MAX(w.restored_at) AS restored_at, COUNT(*) AS file_count,
+                de.full_name AS deleted_by_name, ae.full_name AS archived_by_name
+         FROM hambelela_waybills w
+         LEFT JOIN ops_employees de ON de.id = w.deleted_by
+         LEFT JOIN ops_employees ae ON ae.id = w.archived_by
+         WHERE {$condition}
+         GROUP BY w.batch_id, de.full_name, ae.full_name
+         ORDER BY " . ($view === 'trash' ? 'deleted_at' : 'archived_at') . " DESC
+         LIMIT 250"
+    );
+}
+
+function wb_activity_rows(): array
+{
+    if (!ops_table_exists('ops_activity_logs')) {
+        return [];
+    }
+    $rows = ops_rows(
+        "SELECT al.id, al.action, al.metadata, al.created_at,
+                e.full_name AS actor_name, r.name AS actor_role
+         FROM ops_activity_logs al
+         LEFT JOIN ops_employees e ON e.id = al.employee_id
+         LEFT JOIN ops_roles r ON r.id = e.role_id
+         WHERE al.entity_type IN ('courier_waybill', 'courier_waybill_batch')
+         ORDER BY al.created_at DESC, al.id DESC
+         LIMIT 250"
+    );
+    foreach ($rows as &$row) {
+        $metadata = json_decode((string) ($row['metadata'] ?? ''), true);
+        $row['metadata'] = is_array($metadata) ? $metadata : [];
+    }
+    unset($row);
+    return $rows;
+}
+
+function wb_tools_payload(bool $canManage, bool $canDeleteForever): array
+{
+    return [
+        'tools' => [
+            'trash' => wb_lifecycle_batches('trash'),
+            'archived' => wb_lifecycle_batches('archived'),
+            'activity' => wb_activity_rows(),
+            'permissions' => [
+                'can_manage' => $canManage,
+                'can_delete_forever' => $canDeleteForever,
+            ],
+        ],
+    ];
+}
+
 function wb_dashboard_payload(bool $canSend, ?string $dateFrom = null, ?string $dateTo = null): array
 {
     wb_update_overdue_and_reminders();
@@ -780,8 +884,67 @@ function wb_export_csv(?string $dateFrom = null, ?string $dateTo = null): void
          ORDER BY w.sent_at DESC, w.id DESC",
         [$dateFrom, $dateTo]
     );
+    ops_activity_log('courier_export_generated', 'courier_waybill_batch', 0, [
+        'date_from' => $dateFrom,
+        'date_to' => $dateTo,
+        'row_count' => count($rows),
+        'changed_by' => wb_current_name(),
+    ]);
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="waybill-sent-history-' . date('Ymd') . '.csv"');
+    $out = fopen('php://output', 'w');
+    fputcsv($out, ['Batch ID', 'Sent Date', 'Courier', 'Number of Waybills', 'File', 'Uploaded By', 'Uploaded At', 'Due By', 'Sent By', 'Sent At', 'Status', 'Notes']);
+    foreach ($rows as $row) {
+        fputcsv($out, [
+            $row['batch_id'],
+            $row['sent_date'],
+            $row['courier_names'],
+            $row['number_of_waybills'],
+            $row['original_filename'] ?: basename((string) $row['file_path']),
+            $row['uploaded_by_name'],
+            $row['uploaded_at'],
+            $row['due_by'],
+            $row['sent_by_name'],
+            $row['sent_at'],
+            $row['status'],
+            $row['notes'],
+        ]);
+    }
+    fclose($out);
+    exit;
+}
+
+function wb_export_selected_csv(array $batchIds): void
+{
+    $batchIds = array_values(array_unique(array_filter(array_map(
+        static fn($value): string => substr(trim((string) $value), 0, 60),
+        $batchIds
+    ))));
+    if (!$batchIds) {
+        http_response_code(400);
+        exit('Select at least one waybill batch.');
+    }
+
+    $placeholders = wb_batch_placeholders($batchIds);
+    $rows = ops_rows(
+        "SELECT w.*, up.full_name AS uploaded_by_name, sp.full_name AS sent_by_name
+         FROM hambelela_waybills w
+         LEFT JOIN ops_employees up ON up.id = w.uploaded_by
+         LEFT JOIN ops_employees sp ON sp.id = w.sent_by
+         WHERE w.batch_id IN ({$placeholders})
+           AND w.archived_at IS NULL
+           AND w.deleted_at IS NULL
+         ORDER BY w.uploaded_at DESC, w.id DESC",
+        $batchIds
+    );
+
+    ops_activity_log('courier_export_generated', 'courier_waybill_batch', 0, [
+        'batch_ids' => $batchIds,
+        'row_count' => count($rows),
+        'changed_by' => wb_current_name(),
+    ]);
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="waybill-selected-' . date('Ymd-His') . '.csv"');
     $out = fopen('php://output', 'w');
     fputcsv($out, ['Batch ID', 'Sent Date', 'Courier', 'Number of Waybills', 'File', 'Uploaded By', 'Uploaded At', 'Due By', 'Sent By', 'Sent At', 'Status', 'Notes']);
     foreach ($rows as $row) {
@@ -821,6 +984,14 @@ if ($ready && (string) ($_GET['action'] ?? '') === 'waybill_export_csv') {
     wb_export_csv($historyDateFrom, $historyDateTo);
 }
 
+if ($ready && (string) ($_GET['action'] ?? '') === 'waybill_export_selected') {
+    if (!$canManageWaybills) {
+        http_response_code(403);
+        exit('Not allowed.');
+    }
+    wb_export_selected_csv(explode(',', (string) ($_GET['batch_ids'] ?? '')));
+}
+
 if ($ready && (string) ($_GET['action'] ?? '') === 'waybill_queue_refresh') {
     wb_json(['success' => true] + wb_dashboard_payload($canSendWaybills, $historyDateFrom, $historyDateTo));
 }
@@ -828,6 +999,71 @@ if ($ready && (string) ($_GET['action'] ?? '') === 'waybill_queue_refresh') {
 if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = ops_post_string('action', 60);
     try {
+        if ($action === 'waybill_tools_data') {
+            if (!$canManageWaybills) {
+                throw new RuntimeException('You do not have permission to open Courier tools.');
+            }
+            wb_json(['success' => true] + wb_tools_payload($canManageWaybills, $canDeleteWaybillsForever));
+        }
+
+        if (in_array($action, ['waybill_archive', 'waybill_trash', 'waybill_restore_archive', 'waybill_restore_trash', 'waybill_delete_forever'], true)) {
+            if (!$canManageWaybills) {
+                throw new RuntimeException('You do not have permission to manage Courier records.');
+            }
+            if ($action === 'waybill_delete_forever' && !$canDeleteWaybillsForever) {
+                throw new RuntimeException('Only Owner/Admin can permanently delete waybill records.');
+            }
+            if (!$currentEmployeeId) {
+                throw new RuntimeException('Could not identify the logged-in employee.');
+            }
+
+            $batchIds = wb_batch_ids_from_request();
+            $placeholders = wb_batch_placeholders($batchIds);
+            $actorName = wb_current_name();
+            $message = '';
+            $activityAction = '';
+
+            if ($action === 'waybill_archive') {
+                $stmt = db()->prepare("UPDATE hambelela_waybills SET archived_at = NOW(), archived_by = ?, restored_at = NULL, restored_by = NULL WHERE batch_id IN ({$placeholders}) AND archived_at IS NULL AND deleted_at IS NULL");
+                $stmt->execute(array_merge([$currentEmployeeId], $batchIds));
+                $message = 'Archived ' . count($batchIds) . ' waybill batch(es).';
+                $activityAction = 'courier_waybill_archived';
+            } elseif ($action === 'waybill_trash') {
+                $stmt = db()->prepare("UPDATE hambelela_waybills SET deleted_at = NOW(), deleted_by = ?, restored_at = NULL, restored_by = NULL WHERE batch_id IN ({$placeholders}) AND deleted_at IS NULL");
+                $stmt->execute(array_merge([$currentEmployeeId], $batchIds));
+                $message = 'Moved ' . count($batchIds) . ' waybill batch(es) to Trash.';
+                $activityAction = 'courier_waybill_trashed';
+            } elseif ($action === 'waybill_restore_archive') {
+                $stmt = db()->prepare("UPDATE hambelela_waybills SET archived_at = NULL, archived_by = NULL, restored_at = NOW(), restored_by = ? WHERE batch_id IN ({$placeholders}) AND archived_at IS NOT NULL AND deleted_at IS NULL");
+                $stmt->execute(array_merge([$currentEmployeeId], $batchIds));
+                $message = 'Restored ' . count($batchIds) . ' archived waybill batch(es) to the queue.';
+                $activityAction = 'courier_waybill_archive_restored';
+            } elseif ($action === 'waybill_restore_trash') {
+                $stmt = db()->prepare("UPDATE hambelela_waybills SET deleted_at = NULL, deleted_by = NULL, archived_at = NULL, archived_by = NULL, restored_at = NOW(), restored_by = ? WHERE batch_id IN ({$placeholders}) AND deleted_at IS NOT NULL");
+                $stmt->execute(array_merge([$currentEmployeeId], $batchIds));
+                $message = 'Restored ' . count($batchIds) . ' waybill batch(es) from Trash.';
+                $activityAction = 'courier_waybill_trash_restored';
+            } else {
+                $stmt = db()->prepare("DELETE FROM hambelela_waybills WHERE batch_id IN ({$placeholders}) AND deleted_at IS NOT NULL");
+                $stmt->execute($batchIds);
+                $message = 'Permanently deleted ' . count($batchIds) . ' portal waybill batch(es).';
+                $activityAction = 'courier_waybill_deleted_forever';
+            }
+
+            foreach ($batchIds as $batchId) {
+                ops_activity_log($activityAction, 'courier_waybill_batch', 0, [
+                    'batch_id' => $batchId,
+                    'changed_by' => $actorName,
+                    'previous_value' => $action === 'waybill_archive' ? 'Active queue' : ($action === 'waybill_trash' ? 'Active queue' : ucfirst(str_replace('waybill_restore_', '', $action))),
+                    'new_value' => $action === 'waybill_archive' ? 'Archived' : ($action === 'waybill_trash' ? 'Trash' : ($action === 'waybill_delete_forever' ? 'Deleted forever' : 'Active queue')),
+                ]);
+            }
+
+            wb_json(['success' => true, 'message' => $message]
+                + wb_dashboard_payload($canSendWaybills, $historyDateFrom, $historyDateTo)
+                + wb_tools_payload($canManageWaybills, $canDeleteWaybillsForever));
+        }
+
         if ($action === 'waybill_upload') {
             if (!$canUploadWaybills) {
                 throw new RuntimeException('Only packers and admin can upload waybills.');
@@ -895,7 +1131,13 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     $currentEmployeeId,
                     $uploadedAt->format('Y-m-d H:i:s'),
                 ]);
-                ops_activity_log('courier_waybill_uploaded', 'courier_waybill', $newId, ['batch_id' => $batchId, 'file' => $stored['original']]);
+                ops_activity_log('courier_waybill_uploaded', 'courier_waybill', $newId, [
+                    'batch_id' => $batchId,
+                    'file' => $stored['original'],
+                    'changed_by' => wb_current_name(),
+                    'previous_value' => 'Not created',
+                    'new_value' => 'Pending',
+                ]);
                 $created++;
             }
 
@@ -922,7 +1164,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $rows = ops_rows(
                 "SELECT id, due_by, file_path
                  FROM hambelela_waybills
-                 WHERE batch_id = ? AND status IN ('pending', 'overdue')",
+                 WHERE batch_id = ? AND status IN ('pending', 'overdue') AND archived_at IS NULL AND deleted_at IS NULL",
                 [$batchId]
             );
             if (!$rows) {
@@ -937,7 +1179,13 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 wb_log_sla((int) $row['id'], $currentEmployeeId, (string) $row['due_by'], $sentAt);
                 $legacyStmt->execute([$currentEmployeeId, $sentAt, (string) $row['file_path']]);
             }
-            ops_activity_log('courier_waybill_sent', 'courier_waybill_batch', 0, ['batch_id' => $batchId, 'count' => count($rows)]);
+            ops_activity_log('courier_waybill_sent', 'courier_waybill_batch', 0, [
+                'batch_id' => $batchId,
+                'count' => count($rows),
+                'changed_by' => wb_current_name(),
+                'previous_value' => 'Pending',
+                'new_value' => 'Sent',
+            ]);
             wb_json(['success' => true, 'message' => count($rows) . ' waybill' . (count($rows) === 1 ? '' : 's') . ' marked as sent.'] + wb_dashboard_payload($canSendWaybills, $historyDateFrom, $historyDateTo));
         }
 
@@ -958,6 +1206,15 @@ include BASE_PATH . '/shared/sidebar.php';
         <div>
             <h1>Courier Waybills</h1>
             <p class="page-subtitle">Upload, track and send courier waybills from one queue.</p>
+        </div>
+        <div class="courier-page-actions">
+            <?php if ($canManageWaybills): ?>
+                <button type="button" class="courier-tools-button" data-courier-tools-open><i data-lucide="wrench"></i><span>Courier tools</span></button>
+            <?php endif; ?>
+            <button class="btn-secondary refresh-btn courier-secondary-btn" type="button" data-refresh-waybills><i data-lucide="refresh-cw"></i> Refresh</button>
+            <?php if ($canExportWaybills): ?>
+                <a class="btn-secondary export-btn courier-secondary-btn" href="courier.php?action=waybill_export_csv&amp;date_from=<?= wb_e($historyDateFrom) ?>&amp;date_to=<?= wb_e($historyDateTo) ?>"><i data-lucide="download"></i> Export CSV</a>
+            <?php endif; ?>
         </div>
     </section>
 
@@ -1057,7 +1314,6 @@ include BASE_PATH . '/shared/sidebar.php';
                     <div>
                         <h2 class="card-title">Waybill Queue</h2>
                     </div>
-                    <button class="btn-secondary refresh-btn courier-secondary-btn" type="button" data-refresh-waybills><i data-lucide="refresh-cw"></i> Refresh</button>
                 </div>
                 <div class="courier-table-scroll courier-table-wrap">
                         <div class="courier-table-shell">
@@ -1086,9 +1342,6 @@ include BASE_PATH . '/shared/sidebar.php';
                         <h2 class="card-title">Sent History</h2>
                         <p class="card-sub">Waybills marked sent from <?= wb_e($historyDateFrom) ?> to <?= wb_e($historyDateTo) ?>.</p>
                     </div>
-                    <?php if ($canExportWaybills): ?>
-                        <a class="btn-secondary export-btn courier-secondary-btn" href="courier.php?action=waybill_export_csv&amp;date_from=<?= wb_e($historyDateFrom) ?>&amp;date_to=<?= wb_e($historyDateTo) ?>"><i data-lucide="download"></i> Export CSV</a>
-                    <?php endif; ?>
                 </div>
                 <div class="courier-table-scroll courier-table-wrap">
                     <div class="courier-table-shell">
@@ -1109,8 +1362,53 @@ include BASE_PATH . '/shared/sidebar.php';
             <?php if ($canSendWaybills): ?>
                 <button type="button" class="courier-bulk-action" data-courier-bulk-action="send"><i data-lucide="send"></i><span>Mark Sent</span></button>
             <?php endif; ?>
+            <?php if ($canManageWaybills): ?>
+                <button type="button" class="courier-bulk-action" data-courier-bulk-action="archive"><i data-lucide="archive"></i><span>Archive</span></button>
+                <button type="button" class="courier-bulk-action courier-bulk-action--danger" data-courier-bulk-action="trash"><i data-lucide="trash-2"></i><span>Delete</span></button>
+            <?php endif; ?>
         </div>
         <button type="button" class="courier-bulk-close" data-courier-bulk-action="close" aria-label="Close bulk actions"><i data-lucide="x"></i></button>
+    </div>
+    <?php if ($canManageWaybills): ?>
+        <div class="courier-tools-backdrop" data-courier-tools-backdrop hidden></div>
+        <aside class="courier-tools-panel" data-courier-tools-panel aria-hidden="true" aria-labelledby="courier-tools-title">
+            <header class="courier-tools-header">
+                <div><span class="courier-tools-kicker">Courier</span><h2 id="courier-tools-title">Courier tools</h2><p>Review deleted waybills, restore archived records and track Courier activity.</p></div>
+                <button type="button" class="courier-tools-close" data-courier-tools-close aria-label="Close Courier tools"><i data-lucide="x"></i></button>
+            </header>
+            <nav class="courier-tools-tabs" aria-label="Courier tools sections">
+                <button type="button" class="is-active" data-courier-tools-tab="trash">Trash</button>
+                <button type="button" data-courier-tools-tab="activity">Activity</button>
+                <button type="button" data-courier-tools-tab="archived">Archived</button>
+                <button type="button" data-courier-tools-tab="bulk">Bulk actions</button>
+            </nav>
+            <div class="courier-tools-body">
+                <section data-courier-tools-view="trash"><div class="courier-tools-list" data-courier-tools-trash></div></section>
+                <section data-courier-tools-view="activity" hidden><div class="courier-tools-activity" data-courier-tools-activity></div></section>
+                <section data-courier-tools-view="archived" hidden><div class="courier-tools-list" data-courier-tools-archived></div></section>
+                <section data-courier-tools-view="bulk" hidden>
+                    <div class="courier-tools-bulk">
+                        <span>Selected waybills</span><strong data-courier-tools-selected>0</strong>
+                        <div class="courier-tools-bulk-actions">
+                            <button type="button" data-courier-tools-bulk="download"><i data-lucide="download"></i>Download selected</button>
+                            <?php if ($canSendWaybills): ?><button type="button" data-courier-tools-bulk="send"><i data-lucide="send"></i>Mark selected sent</button><?php endif; ?>
+                            <button type="button" data-courier-tools-bulk="archive"><i data-lucide="archive"></i>Archive selected</button>
+                            <button type="button" class="is-danger" data-courier-tools-bulk="trash"><i data-lucide="trash-2"></i>Move selected to Trash</button>
+                            <button type="button" data-courier-tools-bulk="export"><i data-lucide="file-down"></i>Export selected</button>
+                        </div>
+                        <p data-courier-tools-bulk-empty>No waybills selected. Select rows in the Courier queue to use bulk actions.</p>
+                    </div>
+                </section>
+            </div>
+        </aside>
+    <?php endif; ?>
+    <div class="courier-confirm" data-courier-confirm hidden>
+        <div class="courier-confirm-backdrop" data-courier-confirm-cancel></div>
+        <section class="courier-confirm-card" role="dialog" aria-modal="true" aria-labelledby="courier-confirm-title">
+            <h2 id="courier-confirm-title" data-courier-confirm-title></h2>
+            <p data-courier-confirm-message></p>
+            <div><button type="button" data-courier-confirm-cancel>Cancel</button><button type="button" class="is-primary" data-courier-confirm-accept>Confirm</button></div>
+        </section>
     </div>
     <div class="courier-toast" data-waybill-toast></div>
 </main>
@@ -1125,6 +1423,15 @@ include BASE_PATH . '/shared/sidebar.php';
     const history = document.querySelector('[data-waybill-history]');
     const bulkBar = document.querySelector('[data-courier-bulk-bar]');
     const selectedBatches = new Set();
+    const toolsPanel = document.querySelector('[data-courier-tools-panel]');
+    const toolsBackdrop = document.querySelector('[data-courier-tools-backdrop]');
+    const toolsTrash = document.querySelector('[data-courier-tools-trash]');
+    const toolsArchived = document.querySelector('[data-courier-tools-archived]');
+    const toolsActivity = document.querySelector('[data-courier-tools-activity]');
+    const confirmShell = document.querySelector('[data-courier-confirm]');
+    let toolsData = null;
+    let toolsReturnFocus = null;
+    let confirmResolver = null;
     const statEls = {
         uploaded_today: document.querySelector('[data-stat="uploaded_today"]'),
         pending: document.querySelector('[data-stat="pending"]'),
@@ -1169,6 +1476,104 @@ include BASE_PATH . '/shared/sidebar.php';
         refreshIcons();
     }
 
+    function esc(value) {
+        const span = document.createElement('span');
+        span.textContent = String(value ?? '');
+        return span.innerHTML;
+    }
+
+    function askConfirmation(title, message, acceptLabel) {
+        if (!confirmShell) return Promise.resolve(window.confirm(title + '\n\n' + message));
+        confirmShell.querySelector('[data-courier-confirm-title]').textContent = title;
+        confirmShell.querySelector('[data-courier-confirm-message]').textContent = message;
+        confirmShell.querySelector('[data-courier-confirm-accept]').textContent = acceptLabel;
+        confirmShell.hidden = false;
+        confirmShell.querySelector('[data-courier-confirm-accept]').focus();
+        return new Promise((resolve) => { confirmResolver = resolve; });
+    }
+
+    function settleConfirmation(accepted) {
+        if (!confirmShell || confirmShell.hidden) return;
+        confirmShell.hidden = true;
+        if (confirmResolver) confirmResolver(accepted);
+        confirmResolver = null;
+    }
+
+    function lifecycleLabel(action) {
+        return {
+            courier_waybill_uploaded: 'Waybill created',
+            courier_waybill_downloaded: 'Waybill downloaded',
+            courier_waybill_sent: 'Marked sent',
+            courier_waybill_archived: 'Waybill archived',
+            courier_waybill_archive_restored: 'Waybill restored',
+            courier_waybill_trashed: 'Moved to Trash',
+            courier_waybill_trash_restored: 'Restored from Trash',
+            courier_waybill_deleted_forever: 'Deleted forever'
+        }[action] || 'Courier activity';
+    }
+
+    function renderTools(data) {
+        if (!data) return;
+        toolsData = data;
+        const permissions = data.permissions || {};
+        const trashRows = data.trash || [];
+        const archivedRows = data.archived || [];
+        if (toolsTrash) {
+            toolsTrash.innerHTML = trashRows.length ? trashRows.map((row) => `
+                <article class="courier-tools-record">
+                    <div><strong>${esc(row.waybill_reference || row.batch_id)}</strong><span>Order: ${esc(row.order_id || 'Not linked')}</span><span>${esc(row.customer_name || 'Customer not recorded')} · ${esc(row.courier_names || 'Courier not selected')}</span><small>Deleted ${esc(row.deleted_at || '')} by ${esc(row.deleted_by_name || 'Unknown')}</small></div>
+                    <div class="courier-tools-record-actions">
+                        <button type="button" data-courier-tool-action="restore-trash" data-batch-id="${esc(row.batch_id)}"><i data-lucide="rotate-ccw"></i>Restore</button>
+                        ${permissions.can_delete_forever ? `<button type="button" class="is-danger" data-courier-tool-action="delete-forever" data-batch-id="${esc(row.batch_id)}"><i data-lucide="trash-2"></i>Delete forever</button>` : ''}
+                    </div>
+                </article>`).join('') : '<div class="courier-tools-empty"><strong>Trash is empty</strong><span>Deleted Courier waybills will appear here.</span></div>';
+        }
+        if (toolsArchived) {
+            toolsArchived.innerHTML = archivedRows.length ? archivedRows.map((row) => `
+                <article class="courier-tools-record is-archived">
+                    <div><strong>${esc(row.waybill_reference || row.batch_id)}</strong><span>Order: ${esc(row.order_id || 'Not linked')} · ${esc(row.customer_name || 'Customer not recorded')}</span><span>${esc(row.courier_names || 'Courier not selected')} · ${esc(row.status || 'pending')}</span><small>Archived ${esc(row.archived_at || '')} by ${esc(row.archived_by_name || 'Unknown')}</small></div>
+                    <div class="courier-tools-record-actions"><button type="button" data-courier-tool-action="restore-archive" data-batch-id="${esc(row.batch_id)}"><i data-lucide="archive-restore"></i>Restore to queue</button></div>
+                </article>`).join('') : '<div class="courier-tools-empty"><strong>No archived waybills</strong><span>Archived waybills will appear here.</span></div>';
+        }
+        if (toolsActivity) {
+            const activity = data.activity || [];
+            toolsActivity.innerHTML = activity.length ? activity.map((event) => {
+                const meta = event.metadata || {};
+                return `<article class="courier-tools-event"><span class="courier-tools-event-icon"><i data-lucide="history"></i></span><div><div class="courier-tools-event-heading"><strong>${esc(lifecycleLabel(event.action))}</strong><time>${esc(event.created_at || '')}</time></div><p>Waybill ${esc(meta.batch_id || 'record')} ${meta.previous_value || meta.new_value ? `· ${esc(meta.previous_value || '')} → ${esc(meta.new_value || '')}` : ''}</p><small>${esc(event.actor_name || meta.changed_by || 'System')} ${event.actor_role ? '· ' + esc(event.actor_role) : ''}</small></div></article>`;
+            }).join('') : '<div class="courier-tools-empty"><strong>No Courier activity found</strong><span>Try changing the selected filters.</span></div>';
+        }
+        updateCourierBulkBar();
+        refreshIcons();
+    }
+
+    async function loadTools() {
+        if (!toolsPanel) return;
+        const body = new FormData();
+        body.append('action', 'waybill_tools_data');
+        const data = await fetchJson('courier.php', { method: 'POST', body });
+        renderTools(data.tools);
+    }
+
+    function openTools(trigger) {
+        if (!toolsPanel) return;
+        toolsReturnFocus = trigger || document.activeElement;
+        toolsPanel.classList.add('is-open');
+        toolsPanel.setAttribute('aria-hidden', 'false');
+        if (toolsBackdrop) { toolsBackdrop.hidden = false; requestAnimationFrame(() => toolsBackdrop.classList.add('is-open')); }
+        document.body.classList.add('courier-tools-open');
+        loadTools().catch((error) => showToast(error.message));
+        setTimeout(() => toolsPanel.querySelector('[data-courier-tools-close]')?.focus(), 20);
+    }
+
+    function closeTools() {
+        if (!toolsPanel) return;
+        toolsPanel.classList.remove('is-open');
+        toolsPanel.setAttribute('aria-hidden', 'true');
+        if (toolsBackdrop) { toolsBackdrop.classList.remove('is-open'); setTimeout(() => { toolsBackdrop.hidden = true; }, 240); }
+        document.body.classList.remove('courier-tools-open');
+        toolsReturnFocus?.focus?.();
+    }
+
     function queueCheckboxes() {
         return Array.from(document.querySelectorAll('[data-courier-row-select]'));
     }
@@ -1180,6 +1585,10 @@ include BASE_PATH . '/shared/sidebar.php';
         bulkBar.classList.toggle('is-visible', count > 0);
         bulkBar.querySelector('[data-courier-bulk-count]').textContent = String(count);
         bulkBar.querySelector('[data-courier-bulk-label]').textContent = count === 1 ? 'item selected' : 'items selected';
+        document.querySelectorAll('[data-courier-tools-selected]').forEach((element) => { element.textContent = String(count); });
+        document.querySelectorAll('[data-courier-tools-bulk]').forEach((button) => { button.disabled = count === 0; });
+        const bulkEmpty = document.querySelector('[data-courier-tools-bulk-empty]');
+        if (bulkEmpty) bulkEmpty.hidden = count > 0;
         refreshIcons();
     }
 
@@ -1221,6 +1630,35 @@ include BASE_PATH . '/shared/sidebar.php';
         showToast(batchIds.length === 1 ? 'Waybill marked as sent.' : `${batchIds.length} waybill batches marked as sent.`);
     }
 
+    async function runLifecycle(action, batchIds) {
+        if (!batchIds.length) return;
+        const prompts = {
+            archive: ['Archive selected waybills?', 'Archived waybills will be removed from the active Courier queue but remain available in Courier Tools.', 'Archive'],
+            trash: ['Move selected waybills to Trash?', 'You can restore these records later from Courier Tools.', 'Move to Trash'],
+            'restore-archive': ['Restore archived waybill?', 'This waybill will return to the active Courier queue.', 'Restore to queue'],
+            'restore-trash': ['Restore waybill from Trash?', 'This waybill will return to the active Courier queue.', 'Restore'],
+            'delete-forever': ['Delete this waybill record forever?', 'This action cannot be undone.', 'Delete forever']
+        };
+        const prompt = prompts[action];
+        if (prompt && !(await askConfirmation(prompt[0], prompt[1], prompt[2]))) return;
+        const endpointAction = {
+            archive: 'waybill_archive',
+            trash: 'waybill_trash',
+            'restore-archive': 'waybill_restore_archive',
+            'restore-trash': 'waybill_restore_trash',
+            'delete-forever': 'waybill_delete_forever'
+        }[action];
+        if (!endpointAction) return;
+        const body = new FormData();
+        body.append('action', endpointAction);
+        body.append('batch_ids', batchIds.join(','));
+        const data = await fetchJson('courier.php', { method: 'POST', body });
+        selectedBatches.clear();
+        renderPayload(data);
+        if (data.tools) renderTools(data.tools);
+        showToast(data.message || 'Courier records updated.');
+    }
+
     function downloadSelectedBatches() {
         Array.from(selectedBatches).forEach((batchId, index) => {
             window.setTimeout(() => {
@@ -1232,6 +1670,12 @@ include BASE_PATH . '/shared/sidebar.php';
                 link.remove();
             }, index * 180);
         });
+    }
+
+    function exportSelectedBatches() {
+        if (!selectedBatches.size) return;
+        window.location.href = 'courier.php?action=waybill_export_selected&batch_ids='
+            + encodeURIComponent(Array.from(selectedBatches).join(','));
     }
 
     function fetchJson(url, options) {
@@ -1387,6 +1831,58 @@ include BASE_PATH . '/shared/sidebar.php';
     }
 
     document.addEventListener('click', (event) => {
+        if (event.target.closest('[data-courier-confirm-accept]')) { settleConfirmation(true); return; }
+        if (event.target.closest('[data-courier-confirm-cancel]')) { settleConfirmation(false); return; }
+        const toolsOpen = event.target.closest('[data-courier-tools-open]');
+        if (toolsOpen) { openTools(toolsOpen); return; }
+        if (event.target.closest('[data-courier-tools-close], [data-courier-tools-backdrop]')) { closeTools(); return; }
+        const toolsTab = event.target.closest('[data-courier-tools-tab]');
+        if (toolsTab) {
+            document.querySelectorAll('[data-courier-tools-tab]').forEach((button) => button.classList.toggle('is-active', button === toolsTab));
+            document.querySelectorAll('[data-courier-tools-view]').forEach((view) => { view.hidden = view.dataset.courierToolsView !== toolsTab.dataset.courierToolsTab; });
+            return;
+        }
+        const toolsAction = event.target.closest('[data-courier-tool-action]');
+        if (toolsAction) {
+            toolsAction.disabled = true;
+            runLifecycle(toolsAction.dataset.courierToolAction, [toolsAction.dataset.batchId])
+                .catch((error) => showToast(error.message))
+                .finally(() => { toolsAction.disabled = false; });
+            return;
+        }
+        const toolsBulk = event.target.closest('[data-courier-tools-bulk]');
+        if (toolsBulk) {
+            const action = toolsBulk.dataset.courierToolsBulk;
+            if (!selectedBatches.size) return;
+            if (action === 'download') downloadSelectedBatches();
+            else if (action === 'export') exportSelectedBatches();
+            else if (action === 'send') markSelectedSent().then(loadTools).catch((error) => showToast(error.message));
+            else runLifecycle(action, Array.from(selectedBatches)).catch((error) => showToast(error.message));
+            return;
+        }
+        const rowMenuTrigger = event.target.closest('[data-courier-row-menu]');
+        if (rowMenuTrigger) {
+            const menu = rowMenuTrigger.nextElementSibling;
+            const willOpen = menu?.hidden;
+            document.querySelectorAll('.courier-row-menu-popover').forEach((item) => { item.hidden = true; });
+            if (menu) menu.hidden = !willOpen;
+            rowMenuTrigger.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+            return;
+        }
+        const rowAction = event.target.closest('[data-courier-row-action]');
+        if (rowAction) {
+            const batchId = rowAction.dataset.batchId;
+            const action = rowAction.dataset.courierRowAction;
+            if (action === 'send') {
+                const body = new FormData();
+                body.append('action', 'waybill_mark_sent');
+                body.append('batch_id', batchId);
+                fetchJson('courier.php', { method: 'POST', body }).then(renderPayload).catch((error) => showToast(error.message));
+            } else {
+                runLifecycle(action, [batchId]).catch((error) => showToast(error.message));
+            }
+            return;
+        }
         const bulkAction = event.target.closest('[data-courier-bulk-action]');
         if (bulkAction) {
             const action = bulkAction.getAttribute('data-courier-bulk-action');
@@ -1395,6 +1891,10 @@ include BASE_PATH . '/shared/sidebar.php';
             if (action === 'send') {
                 bulkAction.disabled = true;
                 markSelectedSent().catch((error) => showToast(error.message)).finally(() => { bulkAction.disabled = false; });
+            }
+            if (action === 'archive' || action === 'trash') {
+                bulkAction.disabled = true;
+                runLifecycle(action, Array.from(selectedBatches)).catch((error) => showToast(error.message)).finally(() => { bulkAction.disabled = false; });
             }
             return;
         }
@@ -1458,6 +1958,15 @@ include BASE_PATH . '/shared/sidebar.php';
             });
             syncCourierSelection();
         }
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape') return;
+        if (confirmShell && !confirmShell.hidden) {
+            settleConfirmation(false);
+            return;
+        }
+        if (toolsPanel?.classList.contains('is-open')) closeTools();
     });
 
     setInterval(() => {
