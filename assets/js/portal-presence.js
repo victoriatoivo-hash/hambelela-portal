@@ -13,6 +13,7 @@
   const popover = status.querySelector('[data-portal-online-popover]');
   const listNode = status.querySelector('[data-portal-online-list]');
   const knownEmployees = new Set();
+  let presenceSignature = '';
 
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
@@ -30,10 +31,12 @@
     if (!header) {
       status.classList.add('portal-header-status--floating');
       document.body.append(status);
+      requestAnimationFrame(() => status.classList.add('is-mounted'));
       return;
     }
     header.classList.add('portal-header-with-status');
     header.append(status);
+    requestAnimationFrame(() => status.classList.add('is-mounted'));
   };
 
   const updateClock = () => {
@@ -65,7 +68,18 @@
   const renderPresence = (employees) => {
     const visible = Array.isArray(employees) ? employees : [];
     const online = visible.filter((employee) => employee.presence === 'online');
-    countNode.textContent = `${online.length} online`;
+    const nextSignature = JSON.stringify(visible.map((employee) => [
+      employee.id,
+      employee.name,
+      employee.role,
+      employee.page,
+      employee.presence,
+      Math.floor(Number(employee.seconds_since_activity || 0) / 60)
+    ]));
+    if (nextSignature === presenceSignature) return;
+    presenceSignature = nextSignature;
+    const nextCount = `${online.length} online`;
+    if (countNode.textContent !== nextCount) countNode.textContent = nextCount;
 
     const avatarEmployees = visible.slice(0, 3);
     avatarsNode.innerHTML = avatarEmployees.map((employee) => {
