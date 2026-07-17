@@ -27,11 +27,9 @@ if ($roleKey === 'owner_admin') {
         ['name'=>'HR Portal','desc'=>'leave, payslips and employee self-service','icon'=>'shield-check','href'=>BASE_URL.'/apps/hr-portal/portal-login.php','active'=>true,'tone'=>'green'],
         ['name'=>'Orders','desc'=>'website orders, payments and daily status','icon'=>'table-2','href'=>'','active'=>false,'tone'=>'pink'],
         ['name'=>'Tasks','desc'=>'daily assigned tasks and completion tracking','icon'=>'list-checks','href'=>'','active'=>false,'tone'=>'green'],
-        ['name'=>'Inventory','desc'=>'stock visibility and inventory updates','icon'=>'package','href'=>'','active'=>false,'tone'=>'pink'],
         ['name'=>'Bookkeeping','desc'=>'cash and bookkeeping workflows','icon'=>'book-open','href'=>'','active'=>false,'tone'=>'green'],
         ['name'=>'Notifications','desc'=>'your account alerts and updates','icon'=>'bell','href'=>'','active'=>false,'tone'=>'pink'],
         ['name'=>'Error Log','desc'=>'operational issue tracking','icon'=>'triangle-alert','href'=>'','active'=>false,'tone'=>'pink'],
-        ['name'=>'Reports','desc'=>'operational performance reports','icon'=>'chart-no-axes-combined','href'=>'','active'=>false,'tone'=>'pink'],
     ];
 }
 
