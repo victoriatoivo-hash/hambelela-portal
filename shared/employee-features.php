@@ -18,11 +18,11 @@ function portal_feature_permissions(): array
             'error_log', 'settings', 'notifications', 'courier', 'hr',
             'operations', 'barcode',
         ],
-        'front_desk_admin' => ['dashboard', 'packing_list', 'courier', 'hr', 'notifications'],
-        'front_desk_admin_employee' => ['dashboard', 'packing_list', 'courier', 'hr', 'notifications'],
-        'packer' => ['dashboard', 'packing_list', 'courier', 'hr', 'notifications'],
-        'packer_production_staff' => ['dashboard', 'packing_list', 'courier', 'hr', 'notifications'],
-        'supervisor_manager' => ['dashboard', 'packing_list', 'courier', 'hr', 'notifications'],
+        'front_desk_admin' => ['dashboard', 'orders', 'packing_list', 'courier', 'hr', 'notifications', 'task_management', 'error_log'],
+        'front_desk_admin_employee' => ['dashboard', 'orders', 'packing_list', 'courier', 'hr', 'notifications', 'task_management', 'error_log'],
+        'packer' => ['dashboard', 'orders', 'packing_list', 'courier', 'hr', 'notifications', 'task_management'],
+        'packer_production_staff' => ['dashboard', 'orders', 'packing_list', 'courier', 'hr', 'notifications', 'task_management'],
+        'supervisor_manager' => ['dashboard', 'orders', 'packing_list', 'courier', 'hr', 'notifications', 'task_management'],
     ];
 }
 
@@ -31,10 +31,10 @@ function portal_role_can_access_feature(string $roleKey, string $featureKey): bo
     $permissions = portal_feature_permissions();
     $roleKey = normalise_portal_role($roleKey);
 
-    // Notifications and Courier are shared employee workspace features. Keep
+    // Core operational pages are shared employee workspace features. Keep
     // them available to every authenticated staff role, including custom role
     // keys created after this permission map was introduced.
-    if ($roleKey !== 'guest' && in_array($featureKey, ['notifications', 'courier'], true)) {
+    if ($roleKey !== 'guest' && in_array($featureKey, ['notifications', 'courier', 'orders', 'task_management'], true)) {
         return true;
     }
 

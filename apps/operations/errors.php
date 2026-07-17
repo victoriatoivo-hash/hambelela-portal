@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/operations.php';
 
-require_role('owner_admin', 'front_desk_admin');
+require_role('owner_admin', 'front_desk_admin', 'front_desk_admin_employee');
 
 $pageTitle = 'Error Log | ' . APP_NAME;
 $activeApp = 'operations';
@@ -20,7 +20,7 @@ unset($_SESSION['error_log_flash']);
 $currentEmployeeId = ops_current_employee_id();
 $currentRoleKey = current_role_key();
 $isOwnerErrorUser = user_has_role('owner_admin');
-$isFrontDeskErrorUser = user_has_role('front_desk_admin');
+$isFrontDeskErrorUser = user_has_role('front_desk_admin', 'front_desk_admin_employee');
 $canManageStatus = $isOwnerErrorUser;
 $showFullErrorLog = $isOwnerErrorUser;
 

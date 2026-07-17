@@ -25,19 +25,21 @@ if ($roleKey === 'owner_admin') {
         ['name' => 'Packing List', 'desc' => 'assigned consignment packing quantities and completion status', 'icon' => 'package-open', 'href' => BASE_URL . '/apps/operations/consignments.php', 'active' => true, 'tone' => 'green'],
         ['name'=>'Courier Waybills','desc'=>'courier labels and customer follow-up','icon'=>'truck','href'=>BASE_URL.'/apps/operations/courier.php','active'=>true,'tone'=>'green'],
         ['name'=>'HR Portal','desc'=>'leave, payslips and employee self-service','icon'=>'shield-check','href'=>BASE_URL.'/apps/hr-portal/portal-login.php','active'=>true,'tone'=>'green'],
-        ['name'=>'Orders','desc'=>'website orders, payments and daily status','icon'=>'table-2','href'=>'','active'=>false,'tone'=>'pink'],
-        ['name'=>'Tasks','desc'=>'daily assigned tasks and completion tracking','icon'=>'list-checks','href'=>'','active'=>false,'tone'=>'green'],
+        ['name'=>'Orders','desc'=>'website orders, payments and daily status','icon'=>'table-2','href'=>BASE_URL.'/apps/operations/orders-board.php','active'=>true,'tone'=>'pink'],
+        ['name'=>'Tasks','desc'=>'daily assigned tasks and completion tracking','icon'=>'list-checks','href'=>BASE_URL.'/apps/operations/checklists.php','active'=>true,'tone'=>'green'],
         ['name'=>'Bookkeeping','desc'=>'cash and bookkeeping workflows','icon'=>'book-open','href'=>'','active'=>false,'tone'=>'green'],
-        ['name'=>'Notifications','desc'=>'your account alerts and updates','icon'=>'bell','href'=>'','active'=>false,'tone'=>'pink'],
-        ['name'=>'Error Log','desc'=>'operational issue tracking','icon'=>'triangle-alert','href'=>'','active'=>false,'tone'=>'pink'],
+        ['name'=>'Notifications','desc'=>'your account alerts and updates','icon'=>'bell','href'=>BASE_URL.'/notifications.php','active'=>true,'tone'=>'pink'],
     ];
+    if (in_array($roleKey, ['front_desk_admin', 'front_desk_admin_employee'], true)) {
+        $apps[] = ['name'=>'Error Log','desc'=>'operational issue tracking','icon'=>'triangle-alert','href'=>BASE_URL.'/apps/operations/errors.php','active'=>true,'tone'=>'pink'];
+    }
 }
 
 include __DIR__ . '/shared/header.php';
 include __DIR__ . '/shared/sidebar.php';
 ?>
 <main class="workspace launcher">
-    <?php if ($roleKey !== 'owner_admin'): ?><section class="employee-workspace-intro"><h1>Packing List, Courier Waybills and HR Portal are currently available.</h1><p>Additional portal sections are coming soon.</p></section><?php endif; ?>
+    <?php if ($roleKey !== 'owner_admin'): ?><section class="employee-workspace-intro"><h1>Packing List, Courier Waybills, HR Portal, Orders, Tasks and Notifications are currently available.</h1><p>Additional portal sections are coming soon.</p></section><?php endif; ?>
     <section class="launcher-hero" aria-labelledby="launcher-title">
         <h1 id="launcher-title">essentials <span class="mascot" aria-hidden="true">&#9822;</span></h1>
         <p>your business command center</p>
