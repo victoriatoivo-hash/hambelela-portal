@@ -20,6 +20,27 @@ $responsiveAssetVersion = defined('BASE_PATH') && is_file(BASE_PATH . '/assets/c
     : $assetVersion;
 $datePickerCssVersion = (string) filemtime(BASE_PATH . '/assets/css/portal-date-picker.css');
 $datePickerJsVersion = (string) filemtime(BASE_PATH . '/assets/js/portal-date-picker.js');
+$presenceJsVersion = is_file(BASE_PATH . '/assets/js/portal-presence.js')
+    ? (string) filemtime(BASE_PATH . '/assets/js/portal-presence.js')
+    : $assetVersion;
+$headerUser = current_user();
+$showPortalHeaderStatus = (string) ($headerUser['role_key'] ?? 'guest') !== 'guest';
+$headerNotificationUnread = 0;
+if ($showPortalHeaderStatus && function_exists('notifications_summary_for_current_user')) {
+    $headerNotificationSummary = notifications_summary_for_current_user(1);
+    $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ?? 0);
+}
+$headerUserName = trim((string) ($headerUser['name'] ?? 'User'));
+$headerUserInitials = '';
+foreach (preg_split('/\s+/', $headerUserName) ?: [] as $headerNamePart) {
+    if ($headerNamePart !== '') {
+        $headerUserInitials .= strtoupper(substr($headerNamePart, 0, 1));
+    }
+    if (strlen($headerUserInitials) >= 2) {
+        break;
+    }
+}
+$headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
 ?>
 <!doctype html>
 <html lang="en">
@@ -47,6 +68,43 @@ $datePickerJsVersion = (string) filemtime(BASE_PATH . '/assets/js/portal-date-pi
     <script defer src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script defer src="<?= BASE_URL ?>/assets/js/portal-date-picker.js?v=<?= htmlspecialchars($datePickerJsVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
     <script defer src="<?= BASE_URL ?>/assets/js/portal.js?v=<?= htmlspecialchars($assetVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
+    <?php if ($showPortalHeaderStatus): ?>
+        <script defer src="<?= BASE_URL ?>/assets/js/portal-presence.js?v=<?= htmlspecialchars($presenceJsVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
+    <?php endif; ?>
 </head>
 <body>
 <div class="shell">
+    <?php if ($showPortalHeaderStatus): ?>
+        <section class="portal-header-status" data-portal-header-status
+                 data-presence-endpoint="<?= htmlspecialchars(BASE_URL . '/apps/operations/portal-presence.php', ENT_QUOTES, 'UTF-8') ?>">
+            <div class="portal-header-clock" aria-label="Current Namibia time">
+                <span data-portal-date>---</span>
+                <strong data-portal-time>--:-- --</strong>
+            </div>
+            <div class="portal-online-widget" data-portal-online-widget tabindex="0"
+                 aria-label="Online employees" aria-expanded="false">
+                <div class="portal-online-avatars" data-portal-online-avatars></div>
+                <span class="portal-online-count" data-portal-online-count>0 online</span>
+                <div class="portal-online-popover" data-portal-online-popover hidden>
+                    <strong>Currently online</strong>
+                    <div data-portal-online-list>
+                        <p class="portal-online-empty">Checking staff status…</p>
+                    </div>
+                </div>
+            </div>
+            <a class="portal-header-notifications" href="<?= htmlspecialchars(BASE_URL . '/notifications.php', ENT_QUOTES, 'UTF-8') ?>"
+               aria-label="Notifications">
+                <i data-lucide="bell"></i>
+                <?php if ($headerNotificationUnread > 0): ?>
+                    <span><?= htmlspecialchars($headerNotificationUnread > 99 ? '99+' : (string) $headerNotificationUnread, ENT_QUOTES, 'UTF-8') ?></span>
+                <?php endif; ?>
+            </a>
+            <a class="portal-header-user" href="<?= htmlspecialchars(BASE_URL . '/apps/operations/my-account.php', ENT_QUOTES, 'UTF-8') ?>">
+                <span><?= htmlspecialchars($headerUserInitials, ENT_QUOTES, 'UTF-8') ?></span>
+                <span class="portal-header-user-copy">
+                    <strong><?= htmlspecialchars($headerUserName, ENT_QUOTES, 'UTF-8') ?></strong>
+                    <small><?= htmlspecialchars((string) ($headerUser['role'] ?? ''), ENT_QUOTES, 'UTF-8') ?></small>
+                </span>
+            </a>
+        </section>
+    <?php endif; ?>
