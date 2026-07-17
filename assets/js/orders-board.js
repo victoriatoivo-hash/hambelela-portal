@@ -55,6 +55,11 @@
   let panelEditorRange = null;
   let panelSelectedFiles = [];
   let syncInFlight = false;
+  let refreshInFlight = null;
+  let liveCursor = '';
+  let liveFailures = 0;
+  let livePollTimer = null;
+  let liveRenderPending = false;
   let lastSyncMessage = '';
   let lastUndo = null;
   let ordersToolsData = null;
@@ -3388,10 +3393,19 @@
   }
 
   async function refresh(trigger = null, options = {}) {
+    if (refreshInFlight) return refreshInFlight;
+    const run = async () => {
     setButtonBusy(trigger, true);
     try {
       if (!hasRenderedOnce) showSkeletonRows();
-      const response = await fetch(`${config.dataUrl}?${boardDataParams().toString()}`, { credentials: 'same-origin' });
+      const params = boardDataParams();
+      const background = options.background === true;
+      if (background && hasRenderedOnce && liveCursor) params.set('since', liveCursor);
+      const response = await fetch(`${config.dataUrl}?${params.toString()}`, {
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+        cache: 'no-store'
+      });
       const text = await response.text();
       let data;
       try {
@@ -3401,6 +3415,8 @@
         throw new Error(clean ? `Board returned a page instead of JSON: ${clean.slice(0, 180)}` : 'Board returned an empty response.');
       }
       if (!response.ok || !data.ok) throw new Error(data.message || 'Could not load board');
+      liveCursor = String(data.cursor || data.serverTime || liveCursor);
+      liveFailures = 0;
       currentUser = data.currentUser || {};
       if (!morePreferencesLoaded) {
         try {
@@ -3418,14 +3434,34 @@
       }
       window.HambelelaBoardMetrics = data.metrics || null;
       renderViewers(data.viewers || []);
-      const background = options.background === true;
-      const boardIsPositioned = [...body.querySelectorAll('[data-orders-board-scroll], .orders-table-scroll')]
-        .some((table) => table.scrollLeft !== 0 || table.scrollTop !== 0);
-      if (background && hasRenderedOnce && (ordersInteractionInProgress() || boardIsPositioned)) {
-        return data;
-      }
       renderPackers(data.packers || [], data.currentEmployeeId);
-      renderOrders(data.orders || []);
+      if (data.incremental) {
+        const changed = Array.isArray(data.orders) ? data.orders : [];
+        const removed = new Set((data.removed_ids || []).map(String));
+        const merged = new Map(
+          ordersCache
+            .filter((order) => !removed.has(String(order.id)))
+            .map((order) => [String(order.id), order])
+        );
+        changed.forEach((order) => merged.set(String(order.id), order));
+        if (changed.length || removed.size) {
+          ordersCache = [...merged.values()];
+          if (ordersInteractionInProgress()) {
+            liveRenderPending = true;
+            updateWorkMetrics(visibleOrders());
+          } else {
+            liveRenderPending = false;
+            renderOrders(ordersCache);
+          }
+        } else if (liveRenderPending && !ordersInteractionInProgress()) {
+          liveRenderPending = false;
+          renderOrders(ordersCache);
+        } else {
+          updateWorkMetrics(visibleOrders());
+        }
+      } else {
+        renderOrders(data.orders || []);
+      }
       if (syncState && !lastSyncMessage) {
         const count = data.orders?.length || 0;
         const suffix = boardDateScope === 'month'
@@ -3433,8 +3469,19 @@
           : boardDateScope === 'all' ? ' across all dates' : '';
         syncState.textContent = `Loaded ${count} orders${suffix} at ${new Date().toLocaleTimeString()}`;
       }
+      return data;
+    } catch (error) {
+      liveFailures += 1;
+      throw error;
     } finally {
       setButtonBusy(trigger, false);
+    }
+    };
+    refreshInFlight = run();
+    try {
+      return await refreshInFlight;
+    } finally {
+      refreshInFlight = null;
     }
   }
 
@@ -4426,6 +4473,26 @@
     post('presence').catch(() => {});
   }
 
+  function scheduleLivePoll(delay = null) {
+    window.clearTimeout(livePollTimer);
+    const hidden = document.visibilityState === 'hidden';
+    const baseDelay = hidden ? 10000 : 1000;
+    const retryDelay = liveFailures > 0
+      ? Math.min(30000, baseDelay * (2 ** Math.min(liveFailures, 5)))
+      : baseDelay;
+    livePollTimer = window.setTimeout(runLivePoll, delay ?? retryDelay);
+  }
+
+  async function runLivePoll() {
+    try {
+      await refresh(null, { background:true });
+    } catch (error) {
+      showError(error);
+    } finally {
+      scheduleLivePoll();
+    }
+  }
+
   heartbeat();
   loadCustomLabels()
     .catch(() => {})
@@ -4444,19 +4511,16 @@
               if (syncState) syncState.textContent = `Sync issue: ${error.message}`;
             });
           }
+          scheduleLivePoll(1000);
         });
     });
   window.setInterval(heartbeat, 30000);
   window.setInterval(() => {
-    if (document.visibilityState !== 'hidden' && !ordersInteractionInProgress()) {
-      refresh(null, { background:true }).catch((error) => showError(error));
-    }
-  }, 10000);
-  window.setInterval(() => {
-    if (document.visibilityState !== 'hidden' && !ordersInteractionInProgress()) {
+    if (document.visibilityState !== 'hidden') {
       syncWebsite(true).then(() => refresh(null, { background:true })).catch((error) => showError(error));
     }
-  }, 60000);
+  }, 15000);
+  document.addEventListener('visibilitychange', () => scheduleLivePoll(250));
   window.addEventListener('resize', positionPersonPopup);
   window.addEventListener('scroll', positionPersonPopup, true);
 })();

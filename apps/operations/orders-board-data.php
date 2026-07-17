@@ -23,6 +23,10 @@ $roleKey = (string) ($user['role_key'] ?? '');
 
 $date = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_GET['date'] ?? '')) ? (string) $_GET['date'] : '';
 $month = $date === '' && preg_match('/^\d{4}-\d{2}$/', (string) ($_GET['month'] ?? '')) ? (string) $_GET['month'] : '';
+$since = preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', (string) ($_GET['since'] ?? ''))
+    ? (string) $_GET['since']
+    : '';
+$incremental = $since !== '';
 $dateStart = '';
 $dateEnd = '';
 if ($date !== '') {
@@ -84,6 +88,11 @@ if ($hasArchivedAt) {
 if ($hasDeletedAt) {
     $whereParts[] = 'o.deleted_at IS NULL';
 }
+if ($incremental) {
+    // Repeat the boundary second so simultaneous changes cannot fall between polls.
+    $whereParts[] = 'o.updated_at >= DATE_SUB(?, INTERVAL 1 SECOND)';
+    $params[] = $since;
+}
 $where = $whereParts ? 'WHERE ' . implode(' AND ', $whereParts) : '';
 
 $orders = ops_rows(
@@ -91,7 +100,7 @@ $orders = ops_rows(
         o.id, o.order_number, o.customer_name, o.customer_contact, o.payment_method, {$amountSelect}, o.payment_status,
         o.order_type, o.status, o.workload_score, {$displayDateTimeExpr} AS displayed_order_datetime,
         {$displayDateTimeExpr} AS created_at, o.created_at AS source_created_at, {$assignedAtSelect}, {$startedAtSelect}, o.packed_at, o.completed_at, o.notes,
-        o.assigned_packer_id, e.full_name AS packer_name, {$manualOrderSelect}
+        o.assigned_packer_id, e.full_name AS packer_name, o.updated_at, {$manualOrderSelect}
      FROM ops_orders o
      LEFT JOIN ops_employees e ON e.id = o.assigned_packer_id
      {$manualOrderJoin}
@@ -100,6 +109,30 @@ $orders = ops_rows(
      LIMIT 500",
     $params
 );
+
+$removedIds = [];
+if ($incremental && ($hasArchivedAt || $hasDeletedAt)) {
+    $removedWhere = ['o.updated_at >= DATE_SUB(?, INTERVAL 1 SECOND)'];
+    $removedParams = [$since];
+    $removedStates = [];
+    if ($hasArchivedAt) {
+        $removedStates[] = 'o.archived_at IS NOT NULL';
+    }
+    if ($hasDeletedAt) {
+        $removedStates[] = 'o.deleted_at IS NOT NULL';
+    }
+    if ($dateStart !== '' && $dateEnd !== '') {
+        $removedWhere[] = "{$displayDateTimeExpr} >= ? AND {$displayDateTimeExpr} < ?";
+        $removedParams[] = $dateStart;
+        $removedParams[] = $dateEnd;
+    }
+    $removedWhere[] = '(' . implode(' OR ', $removedStates) . ')';
+    $removedRows = ops_rows(
+        'SELECT o.id FROM ops_orders o WHERE ' . implode(' AND ', $removedWhere),
+        $removedParams
+    );
+    $removedIds = array_values(array_map(static fn (array $row): int => (int) $row['id'], $removedRows));
+}
 
 $orderIds = array_map(static fn (array $order): int => (int) ($order['id'] ?? 0), $orders);
 $orderIds = array_values(array_filter($orderIds));
@@ -238,6 +271,8 @@ $viewers = ops_table_exists('ops_board_presence') ? ops_rows(
 echo json_encode([
     'ok' => true,
     'orders' => $orders,
+    'incremental' => $incremental,
+    'removed_ids' => $removedIds,
     'metrics' => $metrics,
     'packers' => $packers,
     'viewers' => $viewers,
@@ -255,4 +290,5 @@ echo json_encode([
     'date' => $date,
     'month' => $month,
     'serverTime' => date('Y-m-d H:i:s'),
+    'cursor' => date('Y-m-d H:i:s'),
 ]);
