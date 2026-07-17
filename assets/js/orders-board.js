@@ -3,7 +3,6 @@
   const page = document.querySelector('.ops-board-page');
   const body = document.getElementById('orders-board-body');
   const syncState = document.getElementById('board-sync-state');
-  const viewersNode = document.getElementById('board-viewers');
   const availabilitySwitch = document.querySelector('[data-availability-toggle]');
   const availabilityWrap = document.querySelector('.availability-switch-wrap');
   const dateFilter = document.getElementById('board-date-filter');
@@ -60,6 +59,8 @@
   let liveFailures = 0;
   let livePollTimer = null;
   let liveRenderPending = false;
+  let refreshSequence = 0;
+  let appliedRefreshSequence = 0;
   let lastSyncMessage = '';
   let lastUndo = null;
   let ordersToolsData = null;
@@ -1108,17 +1109,6 @@
       const isAvailable = !currentPacker || currentPacker.availability_status !== 'on_lunch';
       setAvailabilityVisual(isAvailable);
     }
-  }
-
-  function renderViewers(viewers) {
-    if (!viewersNode) return;
-    if (!viewers.length) {
-      viewersNode.innerHTML = '<span>No live viewers</span>';
-      return;
-    }
-    viewersNode.innerHTML = viewers.slice(0, 5).map((viewer) => `
-      <span title="${esc(viewer.full_name)} - ${esc(viewer.role_name)}">${esc(String(viewer.full_name || '?').slice(0, 2).toUpperCase())}</span>
-    `).join('') + `<small>${viewers.length} online</small>`;
   }
 
   function groupedOrders(orders) {
@@ -3394,6 +3384,7 @@
 
   async function refresh(trigger = null, options = {}) {
     if (refreshInFlight) return refreshInFlight;
+    const requestSequence = ++refreshSequence;
     const run = async () => {
     setButtonBusy(trigger, true);
     try {
@@ -3406,7 +3397,12 @@
         headers: { Accept: 'application/json' },
         cache: 'no-store'
       });
+      const contentType = String(response.headers.get('content-type') || '').toLowerCase();
       const text = await response.text();
+      if (!contentType.includes('application/json')) {
+        const clean = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        throw new Error(clean ? `Board returned a page instead of JSON: ${clean.slice(0, 180)}` : `Board returned an invalid response (${response.status}).`);
+      }
       let data;
       try {
         data = JSON.parse(text);
@@ -3415,7 +3411,11 @@
         throw new Error(clean ? `Board returned a page instead of JSON: ${clean.slice(0, 180)}` : 'Board returned an empty response.');
       }
       if (!response.ok || !data.ok) throw new Error(data.message || 'Could not load board');
-      liveCursor = String(data.cursor || data.serverTime || liveCursor);
+      if (requestSequence < appliedRefreshSequence) return data;
+      appliedRefreshSequence = requestSequence;
+      const payload = data.data && typeof data.data === 'object' ? data.data : {};
+      const responseMode = String(payload.mode || data.mode || (data.incremental ? 'delta' : 'snapshot'));
+      liveCursor = String(payload.cursor || data.cursor || data.serverTime || liveCursor);
       liveFailures = 0;
       currentUser = data.currentUser || {};
       if (!morePreferencesLoaded) {
@@ -3433,18 +3433,26 @@
         applyBoardDisplay();
       }
       window.HambelelaBoardMetrics = data.metrics || null;
-      renderViewers(data.viewers || []);
       renderPackers(data.packers || [], data.currentEmployeeId);
-      if (data.incremental) {
-        const changed = Array.isArray(data.orders) ? data.orders : [];
-        const removed = new Set((data.removed_ids || []).map(String));
+      if (responseMode === 'delta') {
+        const changed = [
+          ...(Array.isArray(payload.created) ? payload.created : []),
+          ...(Array.isArray(payload.updated) ? payload.updated : []),
+        ];
+        if (!changed.length && Array.isArray(data.orders)) changed.push(...data.orders);
+        const removed = new Set((payload.removed_ids || data.removed_ids || []).map(String));
+        const currentById = new Map(ordersCache.map((order) => [String(order.id), order]));
+        const effectiveChanged = changed.filter((order) => {
+          const current = currentById.get(String(order.id));
+          return !current || JSON.stringify(current) !== JSON.stringify(order);
+        });
         const merged = new Map(
           ordersCache
             .filter((order) => !removed.has(String(order.id)))
             .map((order) => [String(order.id), order])
         );
-        changed.forEach((order) => merged.set(String(order.id), order));
-        if (changed.length || removed.size) {
+        effectiveChanged.forEach((order) => merged.set(String(order.id), order));
+        if (effectiveChanged.length || removed.size) {
           ordersCache = [...merged.values()];
           if (ordersInteractionInProgress()) {
             liveRenderPending = true;
@@ -3459,8 +3467,12 @@
         } else {
           updateWorkMetrics(visibleOrders());
         }
+      } else if (responseMode === 'snapshot') {
+        const snapshotOrders = Array.isArray(payload.orders) ? payload.orders : data.orders;
+        if (!Array.isArray(snapshotOrders)) throw new Error('Board snapshot is missing its orders array.');
+        renderOrders(snapshotOrders);
       } else {
-        renderOrders(data.orders || []);
+        throw new Error(`Board returned an unsupported response mode: ${responseMode || 'unknown'}.`);
       }
       if (syncState && !lastSyncMessage) {
         const count = data.orders?.length || 0;
@@ -4469,10 +4481,6 @@
   updateFilterBadge();
   animateMetricCards();
 
-  function heartbeat() {
-    post('presence').catch(() => {});
-  }
-
   function scheduleLivePoll(delay = null) {
     window.clearTimeout(livePollTimer);
     const hidden = document.visibilityState === 'hidden';
@@ -4493,7 +4501,6 @@
     }
   }
 
-  heartbeat();
   loadCustomLabels()
     .catch(() => {})
     .then(() => loadColumnLabels())
@@ -4514,7 +4521,6 @@
           scheduleLivePoll(1000);
         });
     });
-  window.setInterval(heartbeat, 30000);
   window.setInterval(() => {
     if (document.visibilityState !== 'hidden') {
       syncWebsite(true).then(() => refresh(null, { background:true })).catch((error) => showError(error));

@@ -27,6 +27,7 @@ $since = preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', (string) ($_GET['
     ? (string) $_GET['since']
     : '';
 $incremental = $since !== '';
+$responseCursor = date('Y-m-d H:i:s');
 $dateStart = '';
 $dateEnd = '';
 if ($date !== '') {
@@ -89,9 +90,10 @@ if ($hasDeletedAt) {
     $whereParts[] = 'o.deleted_at IS NULL';
 }
 if ($incremental) {
-    // Repeat the boundary second so simultaneous changes cannot fall between polls.
-    $whereParts[] = 'o.updated_at >= DATE_SUB(?, INTERVAL 1 SECOND)';
+    // Repeat the boundary second and cap the window at this response cursor.
+    $whereParts[] = 'o.updated_at >= DATE_SUB(?, INTERVAL 1 SECOND) AND o.updated_at <= ?';
     $params[] = $since;
+    $params[] = $responseCursor;
 }
 $where = $whereParts ? 'WHERE ' . implode(' AND ', $whereParts) : '';
 
@@ -112,8 +114,8 @@ $orders = ops_rows(
 
 $removedIds = [];
 if ($incremental && ($hasArchivedAt || $hasDeletedAt)) {
-    $removedWhere = ['o.updated_at >= DATE_SUB(?, INTERVAL 1 SECOND)'];
-    $removedParams = [$since];
+    $removedWhere = ['o.updated_at >= DATE_SUB(?, INTERVAL 1 SECOND)', 'o.updated_at <= ?'];
+    $removedParams = [$since, $responseCursor];
     $removedStates = [];
     if ($hasArchivedAt) {
         $removedStates[] = 'o.archived_at IS NOT NULL';
@@ -259,23 +261,45 @@ foreach ($orders as &$order) {
 }
 unset($order);
 
-$viewers = ops_table_exists('ops_board_presence') ? ops_rows(
-    "SELECT e.full_name, r.name AS role_name, bp.last_seen_at
-     FROM ops_board_presence bp
-     JOIN ops_employees e ON e.id = bp.employee_id
-     JOIN ops_roles r ON r.id = e.role_id
-     WHERE bp.last_seen_at >= DATE_SUB(NOW(), INTERVAL 2 MINUTE)
-     ORDER BY bp.last_seen_at DESC"
-) : [];
+$createdOrders = [];
+$updatedOrders = [];
+if ($incremental) {
+    $createdBoundary = strtotime($since . ' -1 second');
+    foreach ($orders as $order) {
+        $createdAt = strtotime((string) ($order['source_created_at'] ?? ''));
+        if ($createdAt !== false && $createdBoundary !== false && $createdAt >= $createdBoundary) {
+            $createdOrders[] = $order;
+        } else {
+            $updatedOrders[] = $order;
+        }
+    }
+}
+
+$responseData = $incremental
+    ? [
+        'mode' => 'delta',
+        'created' => $createdOrders,
+        'updated' => $updatedOrders,
+        'removed_ids' => $removedIds,
+        'cursor' => $responseCursor,
+    ]
+    : [
+        'mode' => 'snapshot',
+        'orders' => $orders,
+        'total_matching' => count($orders),
+        'cursor' => $responseCursor,
+    ];
 
 echo json_encode([
     'ok' => true,
+    'success' => true,
+    'mode' => $incremental ? 'delta' : 'snapshot',
+    'data' => $responseData,
     'orders' => $orders,
     'incremental' => $incremental,
     'removed_ids' => $removedIds,
     'metrics' => $metrics,
     'packers' => $packers,
-    'viewers' => $viewers,
     'currentEmployeeId' => ops_current_employee_id(),
     'currentUser' => [
         'id' => ops_current_employee_id(),
@@ -289,6 +313,6 @@ echo json_encode([
     ],
     'date' => $date,
     'month' => $month,
-    'serverTime' => date('Y-m-d H:i:s'),
-    'cursor' => date('Y-m-d H:i:s'),
+    'serverTime' => $responseCursor,
+    'cursor' => $responseCursor,
 ]);

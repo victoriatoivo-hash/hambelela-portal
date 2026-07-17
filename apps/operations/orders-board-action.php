@@ -512,8 +512,7 @@ function ops_board_sync_website_orders(?string $date = null): array
                     order_type = VALUES(order_type),
                     notes = VALUES(notes),
                     workload_score = VALUES(workload_score),
-                    {$displayDateTimeUpdate},
-                    updated_at = CURRENT_TIMESTAMP"
+                    {$displayDateTimeUpdate}"
             );
         } else {
             $orderStmt = $pdo->prepare(
@@ -529,8 +528,7 @@ function ops_board_sync_website_orders(?string $date = null): array
                     order_type = VALUES(order_type),
                     notes = VALUES(notes),
                     workload_score = VALUES(workload_score),
-                    {$displayDateTimeUpdate},
-                    updated_at = CURRENT_TIMESTAMP"
+                    {$displayDateTimeUpdate}"
             );
         }
 
@@ -931,21 +929,6 @@ try {
         }
 
         echo json_encode(['ok' => true, 'message' => 'Availability updated.']);
-        exit;
-    }
-
-    if ($action === 'presence') {
-        $employeeId = ops_current_employee_id();
-        if ($employeeId && ops_table_exists('ops_board_presence')) {
-            $stmt = db()->prepare(
-                "INSERT INTO ops_board_presence (employee_id, page, last_seen_at)
-                 VALUES (?, 'orders_board', NOW())
-                 ON DUPLICATE KEY UPDATE page = VALUES(page), last_seen_at = VALUES(last_seen_at)"
-            );
-            $stmt->execute([$employeeId]);
-        }
-
-        echo json_encode(['ok' => true]);
         exit;
     }
 
