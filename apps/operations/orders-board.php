@@ -51,13 +51,6 @@ include BASE_PATH . '/shared/sidebar.php';
                 <button type="button" class="orders-tools-trigger" data-orders-tools-open><i data-lucide="wrench"></i><span>Orders tools</span></button>
                 <?php endif; ?>
                 <button type="button" class="invite-btn packing-btn packing-btn-secondary orders-export-button" data-export-excel><i data-lucide="download"></i> Export Excel</button>
-                <div class="availability-switch-wrap">
-                    <span>Available</span>
-                    <button class="availability-switch is-available" type="button" data-availability-toggle aria-pressed="true" aria-label="Toggle lunch availability">
-                        <span></span>
-                    </button>
-                    <span>Lunch</span>
-                </div>
                 <span class="board-state" id="board-sync-state" aria-live="polite"></span>
             </div>
         </header>
