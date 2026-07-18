@@ -419,8 +419,18 @@ function ops_board_sync_website_orders(?string $date = null): array
     ];
 
     if ($date && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
-        $baseQuery['after'] = date('Y-m-d\T00:00:00', strtotime($date . ' -1 day'));
-        $baseQuery['before'] = date('Y-m-d\T23:59:59', strtotime($date . ' +1 day'));
+        // WooCommerce compares these values in UTC. Build the recovery window in
+        // the portal's business timezone first, then convert it explicitly.
+        $windhoek = new DateTimeZone('Africa/Windhoek');
+        $utc = new DateTimeZone('UTC');
+        $windowStart = (new DateTimeImmutable($date . ' 00:00:00', $windhoek))
+            ->modify('-1 day')
+            ->setTimezone($utc);
+        $windowEnd = (new DateTimeImmutable($date . ' 00:00:00', $windhoek))
+            ->modify('+2 days')
+            ->setTimezone($utc);
+        $baseQuery['after'] = $windowStart->format('Y-m-d\TH:i:s\Z');
+        $baseQuery['before'] = $windowEnd->format('Y-m-d\TH:i:s\Z');
     }
 
     $ordersById = [];
@@ -464,7 +474,12 @@ function ops_board_sync_website_orders(?string $date = null): array
 
     $orders = array_values($ordersById);
 
-    ops_board_sync_log('woocommerce orders fetched', ['count' => count($orders), 'warnings' => array_slice(array_unique($syncWarnings), 0, 3)]);
+    ops_board_sync_log('woocommerce orders fetched', [
+        'count' => count($orders),
+        'after' => $baseQuery['after'] ?? null,
+        'before' => $baseQuery['before'] ?? null,
+        'warnings' => array_slice(array_unique($syncWarnings), 0, 3),
+    ]);
 
     $pdo = db();
     $hasTotalAmount = ops_column_exists('ops_orders', 'total_amount');

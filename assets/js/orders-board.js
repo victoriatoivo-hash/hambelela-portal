@@ -59,6 +59,7 @@
   let liveFailures = 0;
   let livePollTimer = null;
   let liveRenderPending = false;
+  const livePendingGroupKeys = new Set();
   let refreshSequence = 0;
   let appliedRefreshSequence = 0;
   let lastSyncMessage = '';
@@ -2235,6 +2236,69 @@
     hasRenderedOnce = true;
   }
 
+  function patchLiveOrderGroups(previousOrders, nextOrders, changedOrders, removedIds) {
+    const affected = new Set(livePendingGroupKeys);
+    const previousById = new Map(previousOrders.map((order) => [String(order.id), order]));
+    changedOrders.forEach((order) => {
+      const previous = previousById.get(String(order.id));
+      if (previous) affected.add(groupKey(previous));
+      affected.add(groupKey(order));
+    });
+    removedIds.forEach((id) => {
+      const previous = previousById.get(String(id));
+      if (previous) affected.add(groupKey(previous));
+    });
+    livePendingGroupKeys.clear();
+
+    ordersCache = nextOrders;
+    const visible = visibleOrders();
+    const groups = groupedOrders(visible);
+    const groupKeys = Object.keys(groups).sort((a, b) => b.localeCompare(a));
+    const savedBoardPositions = captureOrdersBoardPositions();
+    const savedWindowPosition = { x:window.scrollX, y:window.scrollY };
+
+    affected.forEach((key) => {
+      const existing = body.querySelector(`[data-orders-date-group][data-date-key="${selectorEsc(key)}"]`);
+      const groupOrders = groups[key] || [];
+      if (!groupOrders.length) {
+        existing?.remove();
+        return;
+      }
+
+      const template = document.createElement('template');
+      template.innerHTML = renderGroup(key, groupOrders, groupKeys.indexOf(key)).trim();
+      const replacement = template.content.firstElementChild;
+      if (!replacement) return;
+      if (existing) {
+        existing.replaceWith(replacement);
+        return;
+      }
+
+      const insertionIndex = groupKeys.indexOf(key);
+      const laterKey = groupKeys.slice(insertionIndex + 1)
+        .find((candidate) => body.querySelector(`[data-orders-date-group][data-date-key="${selectorEsc(candidate)}"]`));
+      const laterGroup = laterKey
+        ? body.querySelector(`[data-orders-date-group][data-date-key="${selectorEsc(laterKey)}"]`)
+        : null;
+      if (laterGroup) laterGroup.before(replacement);
+      else body.appendChild(replacement);
+    });
+
+    updateWorkMetrics(visible);
+    updateFilterBadge();
+    renderMoreFilterChips();
+    bindOrdersColumnResizers();
+    renderMobileCards(visible);
+    applyHiddenColumns();
+    updateSelectionBar();
+    if (window.lucide) window.lucide.createIcons({ strokeWidth:2 });
+    restoreOrdersBoardPositions(savedBoardPositions);
+    if (window.scrollX !== savedWindowPosition.x || window.scrollY !== savedWindowPosition.y) {
+      window.scrollTo({ left:savedWindowPosition.x, top:savedWindowPosition.y, behavior:'instant' });
+    }
+    previousOrderIds = new Set(ordersCache.map((order) => String(order.id)));
+  }
+
   function enhanceOrderTaskCells() {
     body.querySelectorAll('.monday-order-row[data-order-id] .orders-grid-cell--task').forEach((cell) => {
       const orderId = String(cell.dataset.orderId || cell.closest('[data-order-id]')?.dataset.orderId || '');
@@ -3446,6 +3510,7 @@
           const current = currentById.get(String(order.id));
           return !current || JSON.stringify(current) !== JSON.stringify(order);
         });
+        const previousOrders = ordersCache;
         const merged = new Map(
           ordersCache
             .filter((order) => !removed.has(String(order.id)))
@@ -3453,17 +3518,27 @@
         );
         effectiveChanged.forEach((order) => merged.set(String(order.id), order));
         if (effectiveChanged.length || removed.size) {
-          ordersCache = [...merged.values()];
+          const nextOrders = [...merged.values()];
           if (ordersInteractionInProgress()) {
+            effectiveChanged.forEach((order) => {
+              const previous = currentById.get(String(order.id));
+              if (previous) livePendingGroupKeys.add(groupKey(previous));
+              livePendingGroupKeys.add(groupKey(order));
+            });
+            removed.forEach((id) => {
+              const previous = currentById.get(String(id));
+              if (previous) livePendingGroupKeys.add(groupKey(previous));
+            });
+            ordersCache = nextOrders;
             liveRenderPending = true;
             updateWorkMetrics(visibleOrders());
           } else {
             liveRenderPending = false;
-            renderOrders(ordersCache);
+            patchLiveOrderGroups(previousOrders, nextOrders, effectiveChanged, removed);
           }
         } else if (liveRenderPending && !ordersInteractionInProgress()) {
           liveRenderPending = false;
-          renderOrders(ordersCache);
+          patchLiveOrderGroups(ordersCache, ordersCache, [], new Set());
         } else {
           updateWorkMetrics(visibleOrders());
         }
@@ -4521,11 +4596,13 @@
           scheduleLivePoll(1000);
         });
     });
+  // Recovery sync is intentionally much slower than the delta feed. Running it
+  // every few seconds created a second refresh controller and visible flicker.
   window.setInterval(() => {
     if (document.visibilityState !== 'hidden') {
       syncWebsite(true).then(() => refresh(null, { background:true })).catch((error) => showError(error));
     }
-  }, 15000);
+  }, 5 * 60 * 1000);
   document.addEventListener('visibilitychange', () => scheduleLivePoll(250));
   window.addEventListener('resize', positionPersonPopup);
   window.addEventListener('scroll', positionPersonPopup, true);
