@@ -76,6 +76,12 @@ function checklist_bootstrap_schema(): void
         'recurrence_key' => "ALTER TABLE ops_checklist_tasks ADD COLUMN recurrence_key VARCHAR(120) NULL AFTER completed_by",
         'recurring_rule' => "ALTER TABLE ops_checklist_tasks ADD COLUMN recurring_rule VARCHAR(80) NULL AFTER recurrence_key",
         'created_by' => "ALTER TABLE ops_checklist_tasks ADD COLUMN created_by INT NULL AFTER recurring_rule",
+        'archived_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN archived_at DATETIME NULL AFTER created_by",
+        'archived_by' => "ALTER TABLE ops_checklist_tasks ADD COLUMN archived_by INT NULL AFTER archived_at",
+        'deleted_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN deleted_at DATETIME NULL AFTER archived_by",
+        'deleted_by' => "ALTER TABLE ops_checklist_tasks ADD COLUMN deleted_by INT NULL AFTER deleted_at",
+        'restored_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN restored_at DATETIME NULL AFTER deleted_by",
+        'restored_by' => "ALTER TABLE ops_checklist_tasks ADD COLUMN restored_by INT NULL AFTER restored_at",
         'updated_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at",
     ];
     foreach ($columns as $column => $sql) {
@@ -241,6 +247,96 @@ if ($ready) {
 if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $action = ops_post_string('action', 40);
+        if ($action === 'task_tools_data') {
+            header('Content-Type: application/json; charset=utf-8');
+            $scopeSql = $canManage ? '1=1' : 't.assigned_employee_id = ?';
+            $scopeValues = $canManage ? [] : [$currentEmployeeId ?: 0];
+            $trash = ops_rows(
+                "SELECT t.id, t.task_name, t.priority, t.status, t.deadline, e.full_name AS assigned_name,
+                    d.full_name AS deleted_by_name, t.deleted_at
+                 FROM ops_checklist_tasks t
+                 LEFT JOIN ops_employees e ON e.id = t.assigned_employee_id
+                 LEFT JOIN ops_employees d ON d.id = t.deleted_by
+                 WHERE {$scopeSql} AND t.deleted_at IS NOT NULL
+                 ORDER BY t.deleted_at DESC LIMIT 150",
+                $scopeValues
+            );
+            $archived = ops_rows(
+                "SELECT t.id, t.task_name, t.status, e.full_name AS assigned_name,
+                    a.full_name AS archived_by_name, t.archived_at
+                 FROM ops_checklist_tasks t
+                 LEFT JOIN ops_employees e ON e.id = t.assigned_employee_id
+                 LEFT JOIN ops_employees a ON a.id = t.archived_by
+                 WHERE {$scopeSql} AND t.archived_at IS NOT NULL AND t.deleted_at IS NULL
+                 ORDER BY t.archived_at DESC LIMIT 150",
+                $scopeValues
+            );
+            $activityWhere = $canManage
+                ? "al.entity_type = 'checklist_task'"
+                : "al.entity_type = 'checklist_task' AND EXISTS (SELECT 1 FROM ops_checklist_tasks st WHERE st.id = al.entity_id AND st.assigned_employee_id = ?)";
+            $activity = ops_rows(
+                "SELECT al.id, al.entity_id AS task_id, al.action, al.metadata, al.created_at,
+                    e.full_name AS employee_name, r.name AS role_name, t.task_name
+                 FROM ops_activity_logs al
+                 LEFT JOIN ops_employees e ON e.id = al.employee_id
+                 LEFT JOIN ops_roles r ON r.id = e.role_id
+                 LEFT JOIN ops_checklist_tasks t ON t.id = al.entity_id
+                 WHERE {$activityWhere}
+                 ORDER BY al.created_at DESC, al.id DESC LIMIT 250",
+                $canManage ? [] : [$currentEmployeeId ?: 0]
+            );
+            echo json_encode([
+                'success' => true,
+                'trash' => $trash,
+                'archived' => $archived,
+                'activity' => $activity,
+                'permissions' => [
+                    'can_manage' => $canManage,
+                    'can_delete_forever' => user_has_role('owner_admin'),
+                    'can_bulk' => $canManage,
+                ],
+            ]);
+            exit;
+        }
+        if (in_array($action, ['task_archive', 'task_trash', 'task_restore', 'task_delete_forever'], true)) {
+            header('Content-Type: application/json; charset=utf-8');
+            if (!$canManage) {
+                http_response_code(403);
+                throw new RuntimeException('You do not have permission to manage this task.');
+            }
+            $taskId = (int) ($_POST['task_id'] ?? 0);
+            if ($taskId <= 0) throw new RuntimeException('Choose a valid task.');
+            $before = ops_rows('SELECT id, task_name, status, archived_at, deleted_at FROM ops_checklist_tasks WHERE id = ? LIMIT 1', [$taskId]);
+            if (!$before) throw new RuntimeException('Task not found.');
+            if ($action === 'task_archive') {
+                db()->prepare('UPDATE ops_checklist_tasks SET archived_at = NOW(), archived_by = ?, deleted_at = NULL, deleted_by = NULL WHERE id = ?')->execute([$currentEmployeeId, $taskId]);
+                $event = 'task_archived';
+            } elseif ($action === 'task_trash') {
+                db()->prepare('UPDATE ops_checklist_tasks SET deleted_at = NOW(), deleted_by = ?, archived_at = NULL, archived_by = NULL WHERE id = ?')->execute([$currentEmployeeId, $taskId]);
+                $event = 'task_moved_to_trash';
+            } elseif ($action === 'task_restore') {
+                db()->prepare('UPDATE ops_checklist_tasks SET archived_at = NULL, archived_by = NULL, deleted_at = NULL, deleted_by = NULL, restored_at = NOW(), restored_by = ? WHERE id = ?')->execute([$currentEmployeeId, $taskId]);
+                $event = 'task_restored';
+            } else {
+                if (!user_has_role('owner_admin')) {
+                    http_response_code(403);
+                    throw new RuntimeException('Only the Owner/Admin can permanently delete tasks.');
+                }
+                if (empty($before[0]['deleted_at'])) throw new RuntimeException('Only tasks in Trash can be permanently deleted.');
+                ops_activity_log('task_deleted_forever', 'checklist_task', $taskId, ['task_name' => $before[0]['task_name']]);
+                db()->prepare('DELETE FROM ops_checklist_tasks WHERE id = ?')->execute([$taskId]);
+                echo json_encode(['success' => true, 'message' => 'Task permanently deleted.']);
+                exit;
+            }
+            ops_activity_log($event, 'checklist_task', $taskId, [
+                'task_name' => $before[0]['task_name'],
+                'old_value' => $before[0]['status'],
+                'new_value' => $event,
+                'description' => str_replace('_', ' ', $event),
+            ]);
+            echo json_encode(['success' => true, 'task_id' => $taskId, 'event' => $event]);
+            exit;
+        }
         if ($action === 'update_task_status') {
             header('Content-Type: application/json; charset=utf-8');
             $taskId = (int) ($_POST['task_id'] ?? 0);
@@ -300,16 +396,31 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     FROM ops_checklist_tasks WHERE id IN ({$placeholders})";
                 $stmt = db()->prepare($sql);
                 $stmt->execute([$currentEmployeeId, ...$taskIds]);
+            } elseif ($bulkAction === 'status') {
+                $value = checklist_normalize_status(ops_post_string('value', 30));
+                if (!array_key_exists($value, $statuses)) throw new RuntimeException('Choose a valid status.');
+                $stmt = db()->prepare("UPDATE ops_checklist_tasks SET status = ? WHERE id IN ({$placeholders}) AND deleted_at IS NULL");
+                $stmt->execute([$value, ...$taskIds]);
+            } elseif ($bulkAction === 'priority') {
+                $value = ops_post_string('value', 30);
+                if (!array_key_exists($value, $priorities)) throw new RuntimeException('Choose a valid priority.');
+                $stmt = db()->prepare("UPDATE ops_checklist_tasks SET priority = ? WHERE id IN ({$placeholders}) AND deleted_at IS NULL");
+                $stmt->execute([$value, ...$taskIds]);
+            } elseif ($bulkAction === 'assign') {
+                $value = max(0, (int) ($_POST['value'] ?? 0));
+                $stmt = db()->prepare("UPDATE ops_checklist_tasks SET assigned_employee_id = ? WHERE id IN ({$placeholders}) AND deleted_at IS NULL");
+                $stmt->execute([$value ?: null, ...$taskIds]);
             } elseif ($bulkAction === 'archive') {
-                $stmt = db()->prepare("UPDATE ops_checklist_tasks SET status = 'complete', completed_at = COALESCE(completed_at, NOW()), date_completed = COALESCE(date_completed, NOW()), completed_by = COALESCE(completed_by, ?) WHERE id IN ({$placeholders})");
+                $stmt = db()->prepare("UPDATE ops_checklist_tasks SET archived_at = NOW(), archived_by = ?, deleted_at = NULL, deleted_by = NULL WHERE id IN ({$placeholders})");
                 $stmt->execute([$currentEmployeeId, ...$taskIds]);
             } elseif ($bulkAction === 'delete') {
-                $stmt = db()->prepare("DELETE FROM ops_checklist_tasks WHERE id IN ({$placeholders})");
-                $stmt->execute($taskIds);
+                $stmt = db()->prepare("UPDATE ops_checklist_tasks SET deleted_at = NOW(), deleted_by = ?, archived_at = NULL, archived_by = NULL WHERE id IN ({$placeholders})");
+                $stmt->execute([$currentEmployeeId, ...$taskIds]);
             } else {
                 throw new RuntimeException('Unsupported bulk action.');
             }
-            echo json_encode(['success' => true, 'affected' => count($taskIds)]);
+            ops_activity_log('task_bulk_action', 'checklist_task', (int) $taskIds[0], ['bulk_action' => $bulkAction, 'task_ids' => $taskIds]);
+            echo json_encode(['success' => true, 'affected' => count($taskIds), 'task_ids' => $taskIds, 'bulk_action' => $bulkAction]);
             exit;
         }
         $taskId = (int) ($_POST['task_id'] ?? 0);
@@ -396,7 +507,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = 'Task saved.';
         }
     } catch (Throwable $e) {
-        if (($action ?? '') === 'update_task_status') {
+        if (in_array(($action ?? ''), ['update_task_status', 'bulk_task_action', 'task_tools_data', 'task_archive', 'task_trash', 'task_restore', 'task_delete_forever'], true)) {
             http_response_code(422);
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
             exit;
@@ -431,6 +542,8 @@ if (!$canManage && $filters['task_view'] === 'history') $filters['task_view'] = 
 
 $where = [];
 $params = [];
+$where[] = 't.archived_at IS NULL';
+$where[] = 't.deleted_at IS NULL';
 if (!$canManage) {
     $where[] = 't.assigned_employee_id = ?';
     $params[] = $currentEmployeeId ?: 0;
@@ -495,7 +608,7 @@ $tasks = $ready ? ops_rows(
     $params
 ) : [];
 
-$historyWhere = ["t.status = 'complete'"];
+$historyWhere = ["t.status = 'complete'", 't.archived_at IS NULL', 't.deleted_at IS NULL'];
 $historyParams = [];
 if (!$canManage) {
     $historyWhere[] = 't.assigned_employee_id = ?';
@@ -587,9 +700,12 @@ include BASE_PATH . '/shared/sidebar.php';
             <p class="dtb-page-kicker">Task Management</p>
             <h1 class="dtb-page-title"><?= $canManage ? 'Digital Task Board' : 'My Tasks' ?></h1>
         </div>
-        <?php if ($canManage): ?>
-            <button class="dtb-btn dtb-btn-primary" type="button" data-task-create-open><i data-lucide="plus"></i> New Task</button>
-        <?php endif; ?>
+        <div class="dtb-page-actions">
+            <button class="task-tools-trigger" type="button" data-task-tools-open><i data-lucide="wrench"></i><span>Task tools</span></button>
+            <?php if ($canManage): ?>
+                <button class="dtb-btn dtb-btn-primary" type="button" data-task-create-open><i data-lucide="plus"></i> New Task</button>
+            <?php endif; ?>
+        </div>
     </header>
     <?php if (!$ready) { ops_setup_notice(); } ?>
     <?php ops_flash($message, $messageType); ?>
@@ -637,6 +753,21 @@ include BASE_PATH . '/shared/sidebar.php';
             <div class="ops-form-actions"><a class="button" href="checklists.php?task_view=<?= htmlspecialchars($filters['task_view'], ENT_QUOTES, 'UTF-8') ?>">Clear</a><button class="button primary" type="submit">Apply filters</button></div>
         </form>
     </details>
+
+    <aside class="packing-tools-panel task-tools-panel" data-task-tools-panel aria-hidden="true">
+        <header class="packing-tools-panel-header">
+            <div><p class="packing-tools-kicker">Task Management</p><h2 class="packing-tools-title">Task tools</h2><p class="packing-tools-subtitle">Review deleted tasks, restore archived tasks and track task activity.</p></div>
+            <button type="button" class="packing-tools-close" data-task-tools-close aria-label="Close Task tools"><i data-lucide="x"></i></button>
+        </header>
+        <nav class="packing-tools-tabs" role="tablist" aria-label="Task tools">
+            <button type="button" class="packing-tools-tab is-active" role="tab" aria-selected="true" data-task-tools-tab="trash">Trash</button>
+            <button type="button" class="packing-tools-tab" role="tab" aria-selected="false" data-task-tools-tab="activity">Activity</button>
+            <button type="button" class="packing-tools-tab" role="tab" aria-selected="false" data-task-tools-tab="archived">Archived</button>
+            <?php if ($canManage): ?><button type="button" class="packing-tools-tab" role="tab" aria-selected="false" data-task-tools-tab="bulk">Bulk actions</button><?php endif; ?>
+        </nav>
+        <div class="packing-tools-body task-tools-body" data-task-tools-body><div class="task-tools-loading">Loading Task tools…</div></div>
+    </aside>
+    <div class="panel-backdrop task-tools-backdrop" data-task-tools-backdrop hidden></div>
 
     <?php if ($canManage): ?>
         <aside class="task-create-panel create-task-panel" data-task-create-panel aria-hidden="true">
@@ -688,7 +819,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     <tr class="dtb-task-row task-grid-row" data-task-row data-task-id="<?= $taskId ?>" data-saved-status="<?= htmlspecialchars($savedStatus, ENT_QUOTES, 'UTF-8') ?>" data-display-status="<?= htmlspecialchars($effective, ENT_QUOTES, 'UTF-8') ?>" data-task-name="<?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?>" data-task-assigned="<?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?>" data-task-priority="<?= htmlspecialchars($priorities[$priorityKey] ?? 'Medium', ENT_QUOTES, 'UTF-8') ?>" data-task-status="<?= htmlspecialchars($groups[$effective] ?? ($statuses[$effective] ?? $effective), ENT_QUOTES, 'UTF-8') ?>">
                         <td class="dtb-select-cell"><input class="dtb-task-check" type="checkbox" value="<?= $taskId ?>" aria-label="Select <?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?>"></td>
                         <td><button type="button" class="task-name-trigger" data-task-open="<?= $taskId ?>"><?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?></button></td>
-                        <td><button class="task-detail-icon" type="button" data-task-open="<?= $taskId ?>" aria-label="Open task details"><i data-lucide="panel-right-open"></i></button></td>
+                        <td><div class="task-row-actions"><button class="task-detail-icon" type="button" data-task-open="<?= $taskId ?>" aria-label="Open task details"><i data-lucide="panel-right-open"></i></button><?php if ($canManage): ?><button class="task-row-menu-trigger" type="button" data-task-row-menu="<?= $taskId ?>" aria-label="Task actions" aria-expanded="false"><i data-lucide="ellipsis"></i></button><?php endif; ?></div></td>
                         <td><?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?></td>
                         <td class="task-priority-cell"><div class="task-priority-fill" data-priority="<?= htmlspecialchars(str_replace('_', '-', $priorityKey), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($priorities[$priorityKey] ?? 'Medium', ENT_QUOTES, 'UTF-8') ?></div></td>
                         <td><?= checklist_date_label((string) ($task['deadline'] ?? '')) ?></td>
@@ -707,6 +838,7 @@ include BASE_PATH . '/shared/sidebar.php';
     <div class="task-status-popup" data-task-status-popup hidden role="menu">
         <?php foreach ($statuses as $statusKey => $statusLabel): ?><button type="button" data-status-key="<?= htmlspecialchars($statusKey, ENT_QUOTES, 'UTF-8') ?>" role="menuitem"><?= htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8') ?></button><?php endforeach; ?>
     </div>
+    <div class="task-row-menu" data-task-row-menu-popup hidden role="menu"><button type="button" data-task-row-action="open">Open task</button><button type="button" data-task-row-action="archive">Archive</button><button type="button" data-task-row-action="trash">Move to Trash</button></div>
     <?php endif; ?>
 
     <div class="dtb-bulk-action-bar" data-task-bulk-bar hidden>
@@ -1113,6 +1245,208 @@ function initialiseTaskProofUpload(root = document) {
   });
 }
 
+const taskToolsEsc = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[character]));
+let taskUndoTimer = 0;
+function showTaskUndo(taskIds, label = 'Task updated') {
+  document.querySelector('[data-task-undo-toast]')?.remove();
+  const toast = document.createElement('div');
+  toast.className = 'task-undo-toast';
+  toast.dataset.taskUndoToast = 'true';
+  toast.innerHTML = `<span>${taskToolsEsc(label)}</span><button type="button">Undo</button>`;
+  document.body.appendChild(toast);
+  toast.querySelector('button').addEventListener('click', async () => {
+    toast.querySelector('button').disabled = true;
+    try {
+      for (const taskId of taskIds) {
+        const form = new FormData();
+        form.append('action', 'task_restore');
+        form.append('task_id', taskId);
+        const response = await fetch(window.location.href, { method:'POST', body:form, credentials:'same-origin', headers:{ Accept:'application/json' } });
+        const result = await response.json();
+        if (!response.ok || result.success !== true) throw new Error(result.message || 'Unable to undo task action.');
+      }
+      toast.remove();
+      document.dispatchEvent(new CustomEvent('task-tools:refresh-board'));
+    } catch (error) { window.alert(error.message); toast.querySelector('button').disabled = false; }
+  });
+  window.clearTimeout(taskUndoTimer);
+  taskUndoTimer = window.setTimeout(() => toast.remove(), 8000);
+}
+
+function initialiseTaskTools() {
+  const panel = document.querySelector('[data-task-tools-panel]');
+  const backdrop = document.querySelector('[data-task-tools-backdrop]');
+  const body = document.querySelector('[data-task-tools-body]');
+  const trigger = document.querySelector('[data-task-tools-open]');
+  if (!panel || !backdrop || !body || !trigger || panel.dataset.initialised === 'true') return;
+  panel.dataset.initialised = 'true';
+  let tab = 'trash';
+  let data = null;
+  let returnFocus = null;
+  let scrollY = 0;
+
+  const selectedTaskIds = () => [...document.querySelectorAll('.dtb-task-row .dtb-task-check:checked')]
+    .map((input) => input.closest('[data-task-row]')?.dataset.taskId).filter(Boolean);
+  const formatDate = (value) => {
+    if (!value) return '—';
+    const date = new Date(String(value).replace(' ', 'T'));
+    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString([], { dateStyle:'medium', timeStyle:'short' });
+  };
+  const post = async (action, values = {}) => {
+    const form = new FormData();
+    form.append('action', action);
+    Object.entries(values).forEach(([key, value]) => {
+      if (Array.isArray(value)) value.forEach((item) => form.append(`${key}[]`, item));
+      else form.append(key, value);
+    });
+    const response = await fetch(window.location.href, { method:'POST', body:form, credentials:'same-origin', headers:{ Accept:'application/json' } });
+    const result = await response.json();
+    if (!response.ok || result.success !== true) throw new Error(result.message || 'Task tools action failed.');
+    return result;
+  };
+  const refreshBoard = async () => {
+    const y = window.scrollY;
+    const response = await fetch(window.location.href, { credentials:'same-origin', headers:{ Accept:'text/html' }, cache:'no-store' });
+    const html = await response.text();
+    const parsed = new DOMParser().parseFromString(html, 'text/html');
+    const replacements = [
+      ['.dtb-stats-grid', '.dtb-stats-grid'],
+      ['[data-task-board]', '[data-task-board]'],
+      ['[data-task-bulk-bar]', '[data-task-bulk-bar]'],
+    ];
+    replacements.forEach(([currentSelector, nextSelector]) => {
+      const current = document.querySelector(currentSelector);
+      const next = parsed.querySelector(nextSelector);
+      if (current && next) current.replaceWith(next);
+    });
+    document.querySelector('[data-task-bulk-bar]')?.setAttribute('hidden', '');
+    initialiseTaskBulkSelection();
+    initialiseTaskStatusWorkflow();
+    initialiseTaskColumnResizing();
+    if (window.lucide) window.lucide.createIcons({ strokeWidth:2 });
+    window.scrollTo({ top:y, behavior:'instant' });
+  };
+  const render = () => {
+    panel.querySelectorAll('[data-task-tools-tab]').forEach((button) => {
+      const active = button.dataset.taskToolsTab === tab;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    if (!data) { body.innerHTML = '<div class="task-tools-loading">Loading Task tools…</div>'; return; }
+    if (tab === 'trash') {
+      const rows = data.trash || [];
+      body.innerHTML = rows.length ? `<div class="task-tools-card-list">${rows.map((row) => `<article class="task-tools-card"><div class="task-tools-card-copy"><strong>${taskToolsEsc(row.task_name)}</strong><span>${taskToolsEsc(row.assigned_name || 'Unassigned')} · ${taskToolsEsc(row.priority || 'medium')} · ${taskToolsEsc(row.status || 'pending')}</span><span>Due ${taskToolsEsc(formatDate(row.deadline))}</span><small>Deleted by ${taskToolsEsc(row.deleted_by_name || 'Unknown')} · ${taskToolsEsc(formatDate(row.deleted_at))}</small></div>${data.permissions.can_manage ? `<div class="packing-trash-actions"><button type="button" class="packing-trash-action packing-trash-action--restore" data-task-tools-action="restore" data-task-id="${taskToolsEsc(row.id)}"><span>Restore</span></button>${data.permissions.can_delete_forever ? `<button type="button" class="packing-trash-action packing-trash-action--delete" data-task-tools-action="delete_forever" data-task-id="${taskToolsEsc(row.id)}"><span>Delete forever</span></button>` : ''}</div>` : ''}</article>`).join('')}</div>` : '<div class="task-tools-empty"><i data-lucide="trash-2"></i><strong>Trash is empty</strong><span>Deleted tasks will appear here.</span></div>';
+    } else if (tab === 'archived') {
+      const rows = data.archived || [];
+      body.innerHTML = rows.length ? `<div class="task-tools-card-list">${rows.map((row) => `<article class="task-tools-card"><div class="task-tools-card-copy"><strong>${taskToolsEsc(row.task_name)}</strong><span>${taskToolsEsc(row.assigned_name || 'Unassigned')} · ${taskToolsEsc(row.status || 'pending')}</span><small>Archived by ${taskToolsEsc(row.archived_by_name || 'Unknown')} · ${taskToolsEsc(formatDate(row.archived_at))}</small></div><div class="packing-trash-actions">${data.permissions.can_manage ? `<button type="button" class="packing-trash-action packing-trash-action--restore" data-task-tools-action="restore" data-task-id="${taskToolsEsc(row.id)}"><span>Restore</span></button>` : ''}<button type="button" class="pk-btn pk-btn--secondary" data-task-open="${taskToolsEsc(row.id)}">Open task</button></div></article>`).join('')}</div>` : '<div class="task-tools-empty"><i data-lucide="archive"></i><strong>No archived tasks</strong><span>Archived tasks will appear here.</span></div>';
+    } else if (tab === 'activity') {
+      const rows = data.activity || [];
+      body.innerHTML = rows.length ? `<div class="task-tools-timeline">${rows.map((row) => { let meta={}; try { meta=typeof row.metadata==='string'?JSON.parse(row.metadata):row.metadata||{}; } catch (_) {} return `<article class="portal-activity-item"><span class="portal-activity-icon"><i data-lucide="history"></i></span><div class="portal-activity-content"><h4 class="portal-activity-title">${taskToolsEsc(String(row.action || '').replaceAll('_', ' '))}</h4><time class="portal-activity-time">${taskToolsEsc(formatDate(row.created_at))}</time><p class="portal-activity-description">${taskToolsEsc(meta.description || row.task_name || `Task #${row.task_id}`)}</p>${meta.old_value || meta.new_value ? `<div class="portal-activity-change"><div><span>Previous</span><strong>${taskToolsEsc(meta.old_value || '—')}</strong></div><div><span>New</span><strong>${taskToolsEsc(meta.new_value || '—')}</strong></div></div>` : ''}<div class="task-tools-actor">${taskToolsEsc(row.employee_name || 'System')} · ${taskToolsEsc(row.role_name || 'Portal')}</div></div></article>`; }).join('')}</div>` : '<div class="task-tools-empty"><i data-lucide="history"></i><strong>No activity recorded yet.</strong></div>';
+    } else {
+      const count = selectedTaskIds().length;
+      body.innerHTML = `<section class="task-tools-bulk"><h3>Selected tasks</h3><p>${count ? `${count} task${count === 1 ? '' : 's'} selected.` : 'No tasks selected.'}</p><div class="task-tools-bulk-grid"><button class="pk-btn pk-btn--secondary" data-task-tools-bulk="status">Change Status</button><button class="pk-btn pk-btn--secondary" data-task-tools-bulk="priority">Change Priority</button><button class="pk-btn pk-btn--secondary" data-task-tools-bulk="assign">Assign employee</button><button class="pk-btn pk-btn--secondary" data-task-tools-bulk="archive">Archive selected</button><button class="pk-btn pk-btn--danger" data-task-tools-bulk="delete">Move selected to Trash</button><button class="pk-btn pk-btn--secondary" data-task-tools-bulk="export">Export selected</button></div></section>`;
+    }
+    if (window.lucide) window.lucide.createIcons({ strokeWidth:2 });
+  };
+  const load = async () => { data = await post('task_tools_data'); render(); };
+  const open = async () => {
+    returnFocus = document.activeElement;
+    scrollY = window.scrollY;
+    panel.classList.add('open', 'is-open');
+    panel.setAttribute('aria-hidden', 'false');
+    backdrop.hidden = false;
+    backdrop.classList.add('is-open');
+    try { await load(); } catch (error) { body.innerHTML = `<div class="task-tools-empty"><strong>${taskToolsEsc(error.message)}</strong></div>`; }
+  };
+  const close = () => {
+    panel.classList.remove('open', 'is-open');
+    panel.setAttribute('aria-hidden', 'true');
+    backdrop.classList.remove('is-open');
+    window.setTimeout(() => { backdrop.hidden = true; }, 180);
+    window.scrollTo({ top:scrollY, behavior:'instant' });
+    returnFocus?.focus?.({ preventScroll:true });
+  };
+  trigger.addEventListener('click', open);
+  document.addEventListener('task-tools:refresh-board', async () => {
+    await refreshBoard();
+    if (panel.classList.contains('is-open')) await load();
+  });
+  backdrop.addEventListener('click', close);
+  panel.querySelector('[data-task-tools-close]')?.addEventListener('click', close);
+  panel.addEventListener('click', async (event) => {
+    const tabButton = event.target.closest('[data-task-tools-tab]');
+    if (tabButton) { tab = tabButton.dataset.taskToolsTab; render(); return; }
+    const actionButton = event.target.closest('[data-task-tools-action]');
+    if (actionButton) {
+      const action = actionButton.dataset.taskToolsAction;
+      if (action === 'delete_forever' && window.prompt('Type DELETE to permanently delete this task.') !== 'DELETE') return;
+      actionButton.disabled = true;
+      try {
+        await post(action === 'restore' ? 'task_restore' : 'task_delete_forever', { task_id:actionButton.dataset.taskId });
+        await Promise.all([load(), refreshBoard()]);
+      } catch (error) { window.alert(error.message); actionButton.disabled = false; }
+      return;
+    }
+    const bulk = event.target.closest('[data-task-tools-bulk]');
+    if (bulk) {
+      const ids = selectedTaskIds();
+      if (!ids.length) return;
+      if (bulk.dataset.taskToolsBulk === 'export') {
+        document.querySelector('[data-task-bulk-action="export"]')?.click();
+        return;
+      }
+      let action = bulk.dataset.taskToolsBulk;
+      let value = '';
+      if (action === 'status') value = window.prompt('Status: pending, in_progress, or complete', 'pending') || '';
+      if (action === 'priority') value = window.prompt('Priority: low, medium, high, or top_critical', 'medium') || '';
+      if (action === 'assign') value = window.prompt('Employee ID (leave 0 for unassigned)', '0') || '0';
+      bulk.disabled = true;
+      try {
+        await post('bulk_task_action', { bulk_action:action, task_ids:ids, value });
+        if (['archive', 'delete'].includes(action)) showTaskUndo(ids, action === 'archive' ? 'Tasks archived' : 'Tasks moved to Trash');
+        await Promise.all([load(), refreshBoard()]);
+      }
+      catch (error) { window.alert(error.message); bulk.disabled = false; }
+    }
+  });
+}
+
+function initialiseTaskRowMenus() {
+  const popup = document.querySelector('[data-task-row-menu-popup]');
+  if (!popup || popup.dataset.initialised === 'true') return;
+  popup.dataset.initialised = 'true';
+  let taskId = '';
+  const close = () => { popup.hidden = true; taskId = ''; };
+  document.addEventListener('click', async (event) => {
+    const trigger = event.target.closest('[data-task-row-menu]');
+    if (trigger) {
+      event.stopPropagation();
+      taskId = trigger.dataset.taskRowMenu;
+      const rect = trigger.getBoundingClientRect();
+      popup.style.left = `${Math.max(8, rect.right - 155)}px`;
+      popup.style.top = `${rect.bottom + 5}px`;
+      popup.hidden = false;
+      return;
+    }
+    const action = event.target.closest('[data-task-row-action]');
+    if (action && taskId) {
+      const selectedId = taskId;
+      close();
+      if (action.dataset.taskRowAction === 'open') { document.querySelector(`[data-task-open="${CSS.escape(selectedId)}"]`)?.click(); return; }
+      const form = new FormData();
+      form.append('action', action.dataset.taskRowAction === 'archive' ? 'task_archive' : 'task_trash');
+      form.append('task_id', selectedId);
+      const response = await fetch(window.location.href, { method:'POST', body:form, credentials:'same-origin', headers:{ Accept:'application/json' } });
+      const result = await response.json();
+      if (!response.ok || result.success !== true) { window.alert(result.message || 'Unable to update task.'); return; }
+      document.querySelector(`[data-task-row][data-task-id="${CSS.escape(selectedId)}"]`)?.remove();
+      showTaskUndo([selectedId], action.dataset.taskRowAction === 'archive' ? 'Task archived' : 'Task moved to Trash');
+      return;
+    }
+    if (!event.target.closest('[data-task-row-menu-popup]')) close();
+  });
+}
+
 function initialiseTaskBulkSelection() {
   const bar = document.querySelector('[data-task-bulk-bar]');
   if (!bar || bar.dataset.initialised === 'true') return;
@@ -1175,7 +1509,10 @@ function initialiseTaskBulkSelection() {
       const response = await fetch(window.location.href, { method: 'POST', body: formData, credentials: 'same-origin', headers: { Accept: 'application/json' } });
       const result = await response.json();
       if (!response.ok || result.success !== true) throw new Error(result.message || 'Unable to update selected tasks.');
-      window.location.reload();
+      rows.forEach((row) => row.remove());
+      if (['archive', 'delete'].includes(action)) showTaskUndo(rows.map((row) => row.dataset.taskId), action === 'archive' ? 'Tasks archived' : 'Tasks moved to Trash');
+      clear();
+      document.querySelector('[data-task-tools-panel].is-open [data-task-tools-tab].is-active')?.click();
     } catch (error) {
       window.alert(error.message || 'Unable to update selected tasks.');
       actionButton.disabled = false;
@@ -1309,6 +1646,8 @@ function initialiseTaskColumnResizing() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  initialiseTaskTools();
+  initialiseTaskRowMenus();
   initialiseTaskBulkSelection();
   initialiseTaskStatusWorkflow();
   initialiseTaskColumnResizing();
