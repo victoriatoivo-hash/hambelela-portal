@@ -26978,3 +26978,96 @@ body.dark-mode .portal-dark-toggle {
 /* Shared portal header status */
 .portal-header-with-status{display:flex;align-items:center;gap:12px}.portal-header-with-status>.portal-header-status{margin-left:auto}.portal-header-status{position:relative;z-index:120;display:flex;align-items:center;gap:12px;flex:0 0 auto;min-height:36px;visibility:hidden;opacity:0;font-family:Figtree,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;transition:opacity .12s ease}.portal-header-status.is-mounted{visibility:visible;opacity:1}.portal-header-status--floating{position:fixed;top:20px;right:24px;z-index:500}.portal-header-clock{min-width:76px;display:flex;flex-direction:column;align-items:flex-end;justify-content:center;line-height:1}.portal-header-clock span{color:#A08070;font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}.portal-header-clock strong{margin-top:4px;color:#721B1A;font-size:12px;font-weight:700;white-space:nowrap}.portal-online-widget{position:relative;min-height:32px;padding:0 9px 0 7px;display:flex;align-items:center;gap:8px;border:1px solid #EDE3D8;border-radius:10px;background:#fff;cursor:pointer;outline:0}.portal-online-widget:hover,.portal-online-widget:focus-visible{border-color:#F07420;background:rgba(240,116,32,.035)}.portal-online-avatars{display:flex;align-items:center;padding-left:6px}.portal-online-avatar{position:relative;width:24px;height:24px;margin-left:-6px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #fff;border-radius:50%;background:#f7ece8;color:#721B1A;box-shadow:0 0 0 1px rgba(171,54,25,.12);font-size:9px;font-weight:600;line-height:1}.portal-online-avatar.is-entering{animation:portalPresenceIn .28s ease both}.portal-online-avatar--more{background:#fff7ef;color:#AB3619}.portal-presence-dot{position:absolute;right:-1px;bottom:-1px;width:7px;height:7px;border:1px solid #fff;border-radius:50%;background:#00C875}.portal-presence-dot.is-away{background:#F07420}.portal-online-count{color:#6B4C3B;font-size:11px;font-weight:500;white-space:nowrap}.portal-online-popover{position:absolute;top:calc(100% + 9px);right:0;width:280px;padding:13px;border:1px solid #EDE3D8;border-radius:12px;background:#fff;box-shadow:0 15px 34px rgba(114,27,26,.15)}.portal-online-popover[hidden]{display:none}.portal-online-popover>strong{display:block;padding:0 3px 9px;color:#721B1A;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}.portal-online-person{min-height:48px;padding:7px 3px;display:grid;grid-template-columns:28px minmax(0,1fr);align-items:center;gap:9px;border-top:1px solid #F2E9E1}.portal-online-person:first-child{border-top:0}.portal-online-person .portal-online-avatar{margin:0}.portal-online-person>span:last-child{min-width:0;display:grid}.portal-online-person strong{overflow:hidden;color:#1A1A1A;font-size:12px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}.portal-online-person small{color:#6B4C3B;font-size:10px}.portal-online-person em{margin-top:2px;overflow:hidden;color:#A08070;font-size:10px;font-style:normal;text-overflow:ellipsis;white-space:nowrap}.portal-online-empty{margin:8px 3px;color:#A08070;font-size:11px}.portal-header-notifications{position:relative;width:32px;height:32px;display:grid;place-items:center;border:1px solid #EDE3D8;border-radius:9px;background:#fff;color:#AB3619;text-decoration:none}.portal-header-notifications:hover{border-color:#F07420;background:rgba(240,116,32,.04)}.portal-header-notifications svg{width:15px;height:15px}.portal-header-notifications span{position:absolute;top:-6px;right:-6px;min-width:17px;height:17px;padding:0 4px;display:grid;place-items:center;border:2px solid #fff;border-radius:9px;background:#AB3619;color:#fff;font-size:8px;font-weight:700}.portal-header-user{min-width:0;height:34px;display:flex;align-items:center;gap:7px;color:inherit;text-decoration:none}.portal-header-user>span:first-child{width:28px;height:28px;display:grid;place-items:center;border-radius:50%;background:#AB3619;color:#fff;font-size:9px;font-weight:700}.portal-header-user-copy{min-width:0;display:grid}.portal-header-user-copy strong{max-width:110px;overflow:hidden;color:#1A1A1A;font-size:11px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}.portal-header-user-copy small{max-width:110px;overflow:hidden;color:#A08070;font-size:9px;text-overflow:ellipsis;white-space:nowrap}@keyframes portalPresenceIn{from{opacity:0;transform:translateX(5px)}to{opacity:1;transform:translateX(0)}}body.dark-mode .portal-online-widget,body.dark-mode .portal-online-popover,body.dark-mode .portal-header-notifications{border-color:#3a2010;background:#1e1108}body.dark-mode .portal-header-clock strong,body.dark-mode .portal-online-popover>strong{color:#f0a070}body.dark-mode .portal-online-count,body.dark-mode .portal-online-person small{color:#c0a090}body.dark-mode .portal-online-person strong,body.dark-mode .portal-header-user-copy strong{color:#f0e8e0}body.dark-mode .portal-online-person{border-color:#3a2010}
 @media(max-width:1200px){.portal-header-status{gap:8px}.portal-header-user-copy{display:none}.portal-header-user{width:28px}.portal-header-clock{min-width:70px}}@media(max-width:700px){.portal-header-with-status{align-items:flex-start;flex-wrap:wrap}.portal-header-with-status>.portal-header-status{width:100%;margin:6px 0 0;justify-content:flex-end}.portal-header-status--floating{top:10px;right:10px}.portal-header-clock span{font-size:9px}.portal-online-widget{padding-right:7px}.portal-online-avatars .portal-online-avatar:nth-child(n+3):not(.portal-online-avatar--more){display:none}.portal-header-user{display:none}.portal-online-popover{position:fixed;top:58px;right:10px;left:10px;width:auto}}
+
+/* Compact shared ERP workspace rhythm */
+:root {
+  --portal-workspace-pad-block: 16px;
+  --portal-workspace-pad-inline: 20px;
+  --portal-module-gap: 16px;
+  --portal-section-gap: 16px;
+}
+
+.shell:has(.portal-sidebar) {
+  min-height: 100dvh;
+  padding-top: 0;
+}
+
+.shell:has(.portal-sidebar) > main.workspace:not(.digital-task-page),
+.shell:has(.portal-sidebar) > main.workspace.digital-task-page,
+.shell:has(.portal-sidebar) > main.ledger-page,
+.shell:has(.portal-sidebar) > .workspace:not(.digital-task-page),
+.shell:has(.portal-sidebar) > .workspace.digital-task-page,
+.shell:has(.portal-sidebar) > .ledger-page,
+body.sidebar-collapsed .shell:has(.portal-sidebar) > main.workspace:not(.digital-task-page),
+body.sidebar-collapsed .shell:has(.portal-sidebar) > main.workspace.digital-task-page,
+body.sidebar-collapsed .shell:has(.portal-sidebar) > .workspace:not(.digital-task-page),
+body.sidebar-collapsed .shell:has(.portal-sidebar) > .workspace.digital-task-page {
+  min-height: 100dvh;
+  padding: var(--portal-workspace-pad-block) var(--portal-workspace-pad-inline);
+}
+
+.shell:has(.portal-sidebar) > main.workspace.module {
+  gap: var(--portal-module-gap);
+}
+
+.shell:has(.portal-sidebar) > main.workspace.module > :first-child,
+.shell:has(.portal-sidebar) > main.ledger-page > :first-child {
+  margin-top: 0;
+}
+
+.shell:has(.portal-sidebar) .module-header,
+.shell:has(.portal-sidebar) .monday-board-head,
+.shell:has(.portal-sidebar) .work-board-head {
+  margin-bottom: 0;
+}
+
+.shell:has(.portal-sidebar) .work-metric-grid,
+.shell:has(.portal-sidebar) .metric-grid,
+.shell:has(.portal-sidebar) .dtb-stats-grid,
+.shell:has(.portal-sidebar) .task-metric-grid,
+.shell:has(.portal-sidebar) .error-stats-grid,
+.shell:has(.portal-sidebar) .notification-stats-grid {
+  gap: 10px;
+  margin-block: 0;
+}
+
+.shell:has(.portal-sidebar) .work-filter-bar,
+.shell:has(.portal-sidebar) .packing-filter-bar,
+.shell:has(.portal-sidebar) .orders-filter-panel,
+.shell:has(.portal-sidebar) .dtb-filter-card,
+.shell:has(.portal-sidebar) .notification-filter-card,
+.shell:has(.portal-sidebar) .bk-filter-section {
+  margin-block: 0;
+}
+
+.shell:has(.portal-sidebar) .task-board,
+.shell:has(.portal-sidebar) .packing-board,
+.shell:has(.portal-sidebar) .orders-board,
+.shell:has(.portal-sidebar) .error-board-section,
+.shell:has(.portal-sidebar) .notification-groups {
+  margin-top: var(--portal-section-gap);
+}
+
+@media (max-height: 900px) and (min-width: 901px) {
+  :root {
+    --portal-workspace-pad-block: 12px;
+    --portal-workspace-pad-inline: 16px;
+    --portal-module-gap: 12px;
+    --portal-section-gap: 12px;
+  }
+
+  .shell:has(.portal-sidebar) .module-header p,
+  .shell:has(.portal-sidebar) .packing-load-state,
+  .shell:has(.portal-sidebar) .orders-load-state {
+    margin-top: 4px;
+  }
+}
+
+@media (max-width: 900px) {
+  :root {
+    --portal-workspace-pad-block: 14px;
+    --portal-workspace-pad-inline: 14px;
+    --portal-module-gap: 12px;
+    --portal-section-gap: 10px;
+  }
+}
