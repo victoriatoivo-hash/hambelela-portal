@@ -109,6 +109,7 @@ html body.sidebar-collapsed .portal-sidebar {
   justify-content: flex-end;
   flex-wrap: wrap;
   gap: 8px;
+  min-width: 0;
 }
 
 .portal-table-scroll {

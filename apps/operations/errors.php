@@ -539,7 +539,9 @@ include BASE_PATH . '/shared/sidebar.php';
             <p class="error-log-kicker">Operations</p>
             <h1 class="error-log-title">Error Log</h1>
         </div>
-        <button class="button primary error-log-btn-primary" type="button" data-error-modal-open><i data-lucide="plus"></i> Log Error</button>
+        <div class="error-log-header-actions" data-portal-header-status-target>
+            <button class="button primary error-log-btn-primary" type="button" data-error-modal-open><i data-lucide="plus"></i> Log Error</button>
+        </div>
     </section>
     <?php if (!$ready) { ops_setup_notice(); } ?>
     <?php ops_flash($message, $messageType); ?>

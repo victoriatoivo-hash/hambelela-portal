@@ -23,8 +23,13 @@ $datePickerJsVersion = (string) filemtime(BASE_PATH . '/assets/js/portal-date-pi
 $presenceJsVersion = is_file(BASE_PATH . '/assets/js/portal-presence.js')
     ? (string) filemtime(BASE_PATH . '/assets/js/portal-presence.js')
     : $assetVersion;
+$headerAccountCssVersion = is_file(BASE_PATH . '/assets/css/portal-header-account.css')
+    ? (string) filemtime(BASE_PATH . '/assets/css/portal-header-account.css')
+    : $assetVersion;
 $headerUser = current_user();
 $showPortalHeaderStatus = (string) ($headerUser['role_key'] ?? 'guest') !== 'guest';
+$pageUsesPortalSidebar = (bool) ($pageUsesPortalSidebar ?? true);
+$showPortalHeaderAccount = $showPortalHeaderStatus && !$pageUsesPortalSidebar;
 $headerNotificationUnread = 0;
 if ($showPortalHeaderStatus && function_exists('notifications_summary_for_current_user')) {
     $headerNotificationSummary = notifications_summary_for_current_user(1);
@@ -53,6 +58,7 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
     <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal.css?v=<?= htmlspecialchars($assetVersion, ENT_QUOTES, 'UTF-8') ?>">
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal-responsive.css?v=<?= htmlspecialchars($responsiveAssetVersion, ENT_QUOTES, 'UTF-8') ?>">
+    <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal-header-account.css?v=<?= htmlspecialchars($headerAccountCssVersion, ENT_QUOTES, 'UTF-8') ?>">
     <?php foreach (($extraStylesheets ?? []) as $stylesheet): ?>
         <?php
             $stylesheetPath = (string) ($stylesheet['path'] ?? '');
@@ -75,7 +81,7 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
 <body>
 <div class="shell">
     <?php if ($showPortalHeaderStatus): ?>
-        <section class="portal-header-status" data-portal-header-status
+        <section class="portal-header-status<?= $showPortalHeaderAccount ? ' portal-header-status--has-account' : '' ?>" data-portal-header-status
                  data-presence-endpoint="<?= htmlspecialchars(BASE_URL . '/apps/operations/portal-presence.php', ENT_QUOTES, 'UTF-8') ?>">
             <div class="portal-header-clock" aria-label="Current Namibia time">
                 <span data-portal-date>---</span>
@@ -99,12 +105,22 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
                     <span><?= htmlspecialchars($headerNotificationUnread > 99 ? '99+' : (string) $headerNotificationUnread, ENT_QUOTES, 'UTF-8') ?></span>
                 <?php endif; ?>
             </a>
-            <a class="portal-header-user" href="<?= htmlspecialchars(BASE_URL . '/apps/operations/my-account.php', ENT_QUOTES, 'UTF-8') ?>">
-                <span><?= htmlspecialchars($headerUserInitials, ENT_QUOTES, 'UTF-8') ?></span>
-                <span class="portal-header-user-copy">
-                    <strong><?= htmlspecialchars($headerUserName, ENT_QUOTES, 'UTF-8') ?></strong>
-                    <small><?= htmlspecialchars((string) ($headerUser['role'] ?? ''), ENT_QUOTES, 'UTF-8') ?></small>
-                </span>
-            </a>
+            <?php if ($showPortalHeaderAccount): ?>
+                <div class="portal-header-account" data-portal-header-account>
+                    <a class="portal-header-user portal-header-account-identity"
+                       href="<?= htmlspecialchars(BASE_URL . '/apps/operations/my-account.php', ENT_QUOTES, 'UTF-8') ?>">
+                        <span class="portal-header-avatar"><?= htmlspecialchars($headerUserInitials, ENT_QUOTES, 'UTF-8') ?></span>
+                        <span class="portal-header-account-copy">
+                            <strong><?= htmlspecialchars($headerUserName, ENT_QUOTES, 'UTF-8') ?></strong>
+                            <span><?= htmlspecialchars((string) ($headerUser['role'] ?? ''), ENT_QUOTES, 'UTF-8') ?></span>
+                        </span>
+                    </a>
+                    <a class="portal-header-logout"
+                       href="<?= htmlspecialchars(BASE_URL . '/login.php?action=logout', ENT_QUOTES, 'UTF-8') ?>">
+                        <i data-lucide="log-out" aria-hidden="true"></i>
+                        <span>Logout</span>
+                    </a>
+                </div>
+            <?php endif; ?>
         </section>
     <?php endif; ?>

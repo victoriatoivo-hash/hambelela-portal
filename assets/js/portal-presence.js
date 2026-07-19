@@ -26,7 +26,7 @@
 
   const mount = () => {
     const header = document.querySelector(
-      'main.workspace.module > .module-header, main.workspace.module .portal-page-header, main.workspace.module .work-board-head, main.workspace > header, main > .module-header, main > .ledger-top'
+      'main.workspace.module > .module-header, main.workspace.module > .error-log-header, main.workspace.module .portal-page-header, main.workspace.module .work-board-head, main.workspace > header, main > .module-header, main > .ledger-top'
     );
     if (!header) {
       status.classList.add('portal-header-status--floating');

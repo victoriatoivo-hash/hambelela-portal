@@ -646,17 +646,6 @@ $headerNotificationSummary = function_exists('notifications_summary_for_current_
     ? notifications_summary_for_current_user(1)
     : ['unread_count' => 0];
 $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ?? 0);
-$headerUserName = trim((string) ($currentUser['name'] ?? 'User'));
-$headerUserInitials = '';
-foreach (preg_split('/\s+/', $headerUserName) ?: [] as $headerNamePart) {
-    if ($headerNamePart !== '') {
-        $headerUserInitials .= strtoupper(substr($headerNamePart, 0, 1));
-    }
-    if (strlen($headerUserInitials) >= 2) {
-        break;
-    }
-}
-$headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
 ?>
 <!doctype html>
 <html lang="en">
@@ -2080,14 +2069,6 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
                     <?php if ($headerNotificationUnread > 0): ?>
                         <span><?= htmlspecialchars($headerNotificationUnread > 99 ? '99+' : (string) $headerNotificationUnread, ENT_QUOTES, 'UTF-8') ?></span>
                     <?php endif; ?>
-                </a>
-                <a class="portal-header-user"
-                   href="<?= htmlspecialchars(BASE_URL . '/apps/operations/my-account.php', ENT_QUOTES, 'UTF-8') ?>">
-                    <span><?= htmlspecialchars($headerUserInitials, ENT_QUOTES, 'UTF-8') ?></span>
-                    <span class="portal-header-user-copy">
-                        <strong><?= htmlspecialchars($headerUserName, ENT_QUOTES, 'UTF-8') ?></strong>
-                        <small><?= htmlspecialchars((string) ($currentUser['role'] ?? ''), ENT_QUOTES, 'UTF-8') ?></small>
-                    </span>
                 </a>
             </section>
         </div>
