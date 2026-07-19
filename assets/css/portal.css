@@ -27360,3 +27360,11 @@ body.sidebar-collapsed .shell:has(.portal-sidebar) > .workspace.digital-task-pag
 .workspace.module.courier-wrap .courier-row-menu-popover a {
   font-weight: 400;
 }
+
+/* Keep the primary upload action regular even when legacy button rules load. */
+.workspace.module.courier-wrap
+.upload-form
+.form-actions
+button.btn-primary[data-upload-submit] {
+  font-weight: 400;
+}
