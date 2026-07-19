@@ -3007,6 +3007,111 @@ textarea {
 .portal-custom-select-menu::-webkit-scrollbar-track { background: transparent; }
 .portal-custom-select-menu::-webkit-scrollbar-thumb { background: rgba(171, 54, 25, .22); border-radius: 999px; }
 .portal-custom-select-menu::-webkit-scrollbar-thumb:hover { background: rgba(171, 54, 25, .36); }
+.portal-select-popup {
+  position: fixed;
+  z-index: 52000;
+  max-width: calc(100vw - 16px);
+  max-height: min(280px, calc(100vh - 16px));
+  padding: 7px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border: 1px solid #EDE3D8;
+  border-radius: 10px;
+  background: #FFFFFF;
+  box-shadow: 0 16px 34px rgba(114, 27, 26, .16);
+  color: #1A1A1A;
+  font-family: Figtree, Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
+  letter-spacing: normal;
+  text-transform: none;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-4px) scale(.985);
+  transform-origin: top center;
+  box-sizing: border-box;
+  overscroll-behavior: contain;
+  transition: opacity .14s ease, visibility .14s ease, transform .14s ease;
+}
+
+.portal-select-popup[data-placement="top"] {
+  transform: translateY(4px) scale(.985);
+  transform-origin: bottom center;
+}
+
+.portal-select-popup.is-open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+
+.portal-select-popup .portal-select-option {
+  width: 100%;
+  min-height: 34px;
+  margin: 0;
+  padding: 7px 9px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  border: 0;
+  border-radius: 8px;
+  outline: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #1A1A1A;
+  font-family: inherit;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  line-height: 1.2;
+  text-align: left;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: background-color .14s ease, color .14s ease, transform .14s ease, box-shadow .14s ease;
+}
+
+.portal-select-popup .portal-select-option:hover,
+.portal-select-popup .portal-select-option.is-active,
+.portal-select-popup .portal-select-option:focus-visible {
+  background: rgba(240, 116, 32, .06);
+  color: #721B1A;
+  transform: translateX(1px);
+}
+
+.portal-select-popup .portal-select-option:focus-visible {
+  box-shadow: inset 0 0 0 1px rgba(171, 54, 25, .20);
+}
+
+.portal-select-popup .portal-select-option.is-selected,
+.portal-select-popup .portal-select-option[aria-selected="true"] {
+  background: rgba(171, 54, 25, .08);
+  color: #721B1A;
+  font-weight: 500 !important;
+}
+
+.portal-select-popup .portal-select-option:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.portal-select-popup .portal-select-option:disabled:hover {
+  background: transparent;
+  color: #1A1A1A;
+  transform: none;
+}
+
+.portal-select-popup::-webkit-scrollbar { width: 8px; }
+.portal-select-popup::-webkit-scrollbar-track { background: transparent; }
+.portal-select-popup::-webkit-scrollbar-thumb { background: rgba(171, 54, 25, .22); border-radius: 999px; }
+.portal-select-popup::-webkit-scrollbar-thumb:hover { background: rgba(171, 54, 25, .36); }
+
+@media (prefers-reduced-motion: reduce) {
+  .portal-select-popup,
+  .portal-select-popup .portal-select-option {
+    transition: none;
+  }
+}
 .create-task-date-wrap { position: relative; display: block; }
 .create-task-date-wrap input { padding-right: 38px; }
 .create-task-date-icon { position: absolute; right: 11px; top: 50%; width: 16px; height: 16px; color: var(--task-orange-red); pointer-events: none; transform: translateY(-50%); }
