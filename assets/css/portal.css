@@ -6134,7 +6134,7 @@ main.error-log-page {
 }
 
 .error-log-page .error-filter-grid input,
-.error-log-page .error-filter-grid select,
+.error-log-page .error-filter-grid select:not(.portal-custom-select-native),
 .error-log-page .error-filter-grid textarea {
   width: 100% !important;
   margin-top: 0 !important;
@@ -6151,15 +6151,56 @@ main.error-log-page {
 }
 
 .error-log-page .error-filter-grid input,
-.error-log-page .error-filter-grid select {
+.error-log-page .error-filter-grid select:not(.portal-custom-select-native) {
   height: 30px !important;
   min-height: 30px !important;
   padding: 0 8px !important;
 }
 
-.error-log-page .error-filter-grid select {
+.error-log-page .error-filter-grid select:not(.portal-custom-select-native) {
   line-height: 30px !important;
   appearance: auto !important;
+}
+
+.error-log-page .error-filter-grid .portal-custom-select-native {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  min-height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.error-log-page .error-filter-grid .portal-custom-select {
+  min-width: 0;
+  margin: 0;
+}
+
+.error-log-page .error-filter-grid .portal-custom-select-trigger {
+  width: 100%;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid rgba(171, 54, 25, .24);
+  border-radius: 10px;
+  background: #fff;
+  color: #1a1a1a;
+  font: 400 12px/1 Figtree, Inter, system-ui, sans-serif;
+}
+
+.error-log-page .error-filter-grid .portal-custom-select-menu {
+  z-index: 10050;
+}
+
+.error-log-page .error-filter-grid .portal-custom-select-option {
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  text-transform: none;
+  letter-spacing: normal;
 }
 
 .error-log-page .error-filter-grid input::placeholder {
