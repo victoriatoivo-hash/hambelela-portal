@@ -27352,3 +27352,11 @@ body.sidebar-collapsed .shell:has(.portal-sidebar) > .workspace.digital-task-pag
     --portal-section-gap: 10px;
   }
 }
+
+/* Keep every Courier Waybills action label at the portal's regular weight. */
+.workspace.module.courier-wrap button,
+.workspace.module.courier-wrap a.btn-primary,
+.workspace.module.courier-wrap a.btn-secondary,
+.workspace.module.courier-wrap .courier-row-menu-popover a {
+  font-weight: 400;
+}
