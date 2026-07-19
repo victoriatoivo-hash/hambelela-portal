@@ -53,11 +53,15 @@
   let currentOrder = null;
   let panelEditorRange = null;
   let panelSelectedFiles = [];
-  let syncInFlight = false;
+  let syncInFlight = null;
+  let syncInFlightForced = false;
   let refreshInFlight = null;
   let liveCursor = '';
   let liveFailures = 0;
   let livePollTimer = null;
+  let livePollInFlight = false;
+  let lastRecoverySyncAt = 0;
+  const sourceRecoveryInterval = 5 * 60 * 1000;
   let liveRenderPending = false;
   const livePendingGroupKeys = new Set();
   let refreshSequence = 0;
@@ -3573,32 +3577,53 @@
   }
 
   async function syncWebsite(quiet = false, trigger = null, force = false) {
-    if (syncInFlight) return null;
-    syncInFlight = true;
+    while (syncInFlight) {
+      const activeSync = syncInFlight;
+      const activeSyncWasForced = syncInFlightForced;
+      try {
+        const result = await activeSync;
+        if (!force || activeSyncWasForced) return result;
+      } catch (error) {
+        if (!force || activeSyncWasForced) throw error;
+      }
+    }
     if (trigger) {
       trigger.classList.add('is-loading');
       trigger.disabled = true;
     }
-    try {
-      if (!quiet && syncState) syncState.textContent = 'Syncing website orders...';
-      const data = await post('sync', { date: boardDateScope === 'date' ? (dateFilter?.value || '') : '', force: force ? '1' : '' });
-      const result = data.result || {};
-      const warnings = Array.isArray(result.warnings) && result.warnings.length ? ` - warning: ${result.warnings[0]}` : '';
-      const skipped = result.skipped ? ' (recent sync reused)' : '';
-      lastSyncMessage = `Website: ${result.website_orders_seen ?? 0} seen, ${result.imported ?? 0} new, ${result.updated ?? 0} updated${skipped}${warnings}`;
-      if (syncState) {
-        syncState.textContent = lastSyncMessage;
+    const run = async () => {
+      try {
+        if (!quiet && syncState) syncState.textContent = 'Syncing website orders...';
+        const data = await post('sync', { date: boardDateScope === 'date' ? (dateFilter?.value || '') : '', force: force ? '1' : '' });
+        const result = data.result || {};
+        const warnings = Array.isArray(result.warnings) && result.warnings.length ? ` - warning: ${result.warnings[0]}` : '';
+        const skipped = result.skipped ? ' (recent sync reused)' : '';
+        lastSyncMessage = `Website: ${result.website_orders_seen ?? 0} seen, ${result.imported ?? 0} new, ${result.updated ?? 0} updated${skipped}${warnings}`;
+        lastRecoverySyncAt = Date.now();
+        if (syncState) {
+          syncState.textContent = lastSyncMessage;
+        }
+        return data;
+      } catch (error) {
+        lastSyncMessage = `Sync issue: ${error.message}`;
+        if (syncState) syncState.textContent = `Sync issue: ${error.message}`;
+        throw error;
+      } finally {
+        if (trigger) {
+          trigger.classList.remove('is-loading');
+          trigger.disabled = false;
+        }
       }
-      return data;
-    } catch (error) {
-      lastSyncMessage = `Sync issue: ${error.message}`;
-      if (syncState) syncState.textContent = `Sync issue: ${error.message}`;
-      throw error;
+    };
+    const request = run();
+    syncInFlight = request;
+    syncInFlightForced = force;
+    try {
+      return await request;
     } finally {
-      syncInFlight = false;
-      if (trigger) {
-        trigger.classList.remove('is-loading');
-        trigger.disabled = false;
+      if (syncInFlight === request) {
+        syncInFlight = null;
+        syncInFlightForced = false;
       }
     }
   }
@@ -4567,11 +4592,28 @@
   }
 
   async function runLivePoll() {
+    if (livePollInFlight) return;
+    livePollInFlight = true;
+    livePollTimer = null;
+    let recoveryError = null;
     try {
+      if (
+        document.visibilityState !== 'hidden'
+        && Date.now() - lastRecoverySyncAt >= sourceRecoveryInterval
+      ) {
+        lastRecoverySyncAt = Date.now();
+        try {
+          await syncWebsite(true);
+        } catch (error) {
+          recoveryError = error;
+        }
+      }
       await refresh(null, { background:true });
+      if (recoveryError) showError(recoveryError);
     } catch (error) {
       showError(error);
     } finally {
+      livePollInFlight = false;
       scheduleLivePoll();
     }
   }
@@ -4587,22 +4629,19 @@
         .catch((error) => {
           body.innerHTML = `<tr><td colspan="13">${esc(error.message)}</td></tr>`;
         })
-        .finally(() => {
+        .finally(async () => {
           if (document.visibilityState !== 'hidden') {
-            syncWebsite(true).then(() => refresh(null, { background:true })).catch((error) => {
+            lastRecoverySyncAt = Date.now();
+            try {
+              await syncWebsite(true);
+              await refresh(null, { background:true });
+            } catch (error) {
               if (syncState) syncState.textContent = `Sync issue: ${error.message}`;
-            });
+            }
           }
           scheduleLivePoll(1000);
         });
     });
-  // Recovery sync is intentionally much slower than the delta feed. Running it
-  // every few seconds created a second refresh controller and visible flicker.
-  window.setInterval(() => {
-    if (document.visibilityState !== 'hidden') {
-      syncWebsite(true).then(() => refresh(null, { background:true })).catch((error) => showError(error));
-    }
-  }, 5 * 60 * 1000);
   document.addEventListener('visibilitychange', () => scheduleLivePoll(250));
   window.addEventListener('resize', positionPersonPopup);
   window.addEventListener('scroll', positionPersonPopup, true);
