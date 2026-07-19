@@ -642,6 +642,21 @@ $activityLog = $ready ? ops_rows(
      LIMIT 100"
 ) : [];
 $canHardDelete = user_has_role('owner_admin');
+$headerNotificationSummary = function_exists('notifications_summary_for_current_user')
+    ? notifications_summary_for_current_user(1)
+    : ['unread_count' => 0];
+$headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ?? 0);
+$headerUserName = trim((string) ($currentUser['name'] ?? 'User'));
+$headerUserInitials = '';
+foreach (preg_split('/\s+/', $headerUserName) ?: [] as $headerNamePart) {
+    if ($headerNamePart !== '') {
+        $headerUserInitials .= strtoupper(substr($headerNamePart, 0, 1));
+    }
+    if (strlen($headerUserInitials) >= 2) {
+        break;
+    }
+}
+$headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
 ?>
 <!doctype html>
 <html lang="en">
@@ -654,7 +669,9 @@ $canHardDelete = user_has_role('owner_admin');
     <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal.css?v=<?= (int) @filemtime(BASE_PATH . '/assets/css/portal.css') ?>">
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal-date-picker.css?v=<?= (int) @filemtime(BASE_PATH . '/assets/css/portal-date-picker.css') ?>">
+    <script defer src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script defer src="<?= BASE_URL ?>/assets/js/portal-date-picker.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/portal-date-picker.js') ?>"></script>
+    <script defer src="<?= BASE_URL ?>/assets/js/portal-presence.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/portal-presence.js') ?>"></script>
     <style>
         :root {
             --ledger-red: #721B1A;
@@ -690,6 +707,13 @@ $canHardDelete = user_has_role('owner_admin');
             justify-content: space-between;
             gap: 18px;
             margin-bottom: 24px;
+        }
+        .ledger-top-actions {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+            min-width: 0;
         }
         h1 {
             margin: 0;
@@ -2028,9 +2052,45 @@ $canHardDelete = user_has_role('owner_admin');
             <h1>Hambelela Bookkeeping</h1>
             <p class="ledger-subtitle">Daily cash in, cash out, net movement, and closing balance.</p>
         </div>
-        <?php if ($ready): ?>
-            <button class="bk-drawer-trigger" type="button" id="bkDrawerBtn" onclick="openDrawer()">Cash tools</button>
-        <?php endif; ?>
+        <div class="ledger-top-actions" data-portal-header-status-target>
+            <?php if ($ready): ?>
+                <button class="bk-drawer-trigger" type="button" id="bkDrawerBtn" onclick="openDrawer()">Cash tools</button>
+            <?php endif; ?>
+            <section class="portal-header-status" data-portal-header-status
+                     data-presence-endpoint="<?= htmlspecialchars(BASE_URL . '/apps/operations/portal-presence.php', ENT_QUOTES, 'UTF-8') ?>">
+                <div class="portal-header-clock" aria-label="Current Namibia time">
+                    <span data-portal-date>---</span>
+                    <strong data-portal-time>--:-- --</strong>
+                </div>
+                <div class="portal-online-widget" data-portal-online-widget tabindex="0"
+                     aria-label="Online employees" aria-expanded="false">
+                    <div class="portal-online-avatars" data-portal-online-avatars></div>
+                    <span class="portal-online-count" data-portal-online-count>0 online</span>
+                    <div class="portal-online-popover" data-portal-online-popover hidden>
+                        <strong>Currently online</strong>
+                        <div data-portal-online-list>
+                            <p class="portal-online-empty">Checking staff status...</p>
+                        </div>
+                    </div>
+                </div>
+                <a class="portal-header-notifications"
+                   href="<?= htmlspecialchars(BASE_URL . '/notifications.php', ENT_QUOTES, 'UTF-8') ?>"
+                   aria-label="Notifications">
+                    <i data-lucide="bell"></i>
+                    <?php if ($headerNotificationUnread > 0): ?>
+                        <span><?= htmlspecialchars($headerNotificationUnread > 99 ? '99+' : (string) $headerNotificationUnread, ENT_QUOTES, 'UTF-8') ?></span>
+                    <?php endif; ?>
+                </a>
+                <a class="portal-header-user"
+                   href="<?= htmlspecialchars(BASE_URL . '/apps/operations/my-account.php', ENT_QUOTES, 'UTF-8') ?>">
+                    <span><?= htmlspecialchars($headerUserInitials, ENT_QUOTES, 'UTF-8') ?></span>
+                    <span class="portal-header-user-copy">
+                        <strong><?= htmlspecialchars($headerUserName, ENT_QUOTES, 'UTF-8') ?></strong>
+                        <small><?= htmlspecialchars((string) ($currentUser['role'] ?? ''), ENT_QUOTES, 'UTF-8') ?></small>
+                    </span>
+                </a>
+            </section>
+        </div>
     </header>
 
     <?php if (!$ready): ?>

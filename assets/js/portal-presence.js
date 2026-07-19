@@ -26,7 +26,7 @@
 
   const mount = () => {
     const header = document.querySelector(
-      'main.workspace.module > .module-header, main.workspace.module .portal-page-header, main.workspace.module .work-board-head, main.workspace > header, main > .module-header'
+      'main.workspace.module > .module-header, main.workspace.module .portal-page-header, main.workspace.module .work-board-head, main.workspace > header, main > .module-header, main > .ledger-top'
     );
     if (!header) {
       status.classList.add('portal-header-status--floating');
@@ -34,8 +34,9 @@
       requestAnimationFrame(() => status.classList.add('is-mounted'));
       return;
     }
+    const target = header.querySelector('[data-portal-header-status-target]') || header;
     header.classList.add('portal-header-with-status');
-    header.append(status);
+    target.append(status);
     requestAnimationFrame(() => status.classList.add('is-mounted'));
   };
 
@@ -148,6 +149,7 @@
   });
 
   mount();
+  window.lucide?.createIcons();
   updateClock();
   heartbeat();
   window.setInterval(updateClock, 1000);
