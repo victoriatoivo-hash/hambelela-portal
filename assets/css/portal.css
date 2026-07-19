@@ -27295,6 +27295,10 @@ body.sidebar-collapsed .shell:has(.portal-sidebar) > .workspace.digital-task-pag
   margin-block: 0;
 }
 
+.shell:has(.portal-sidebar) .bk-filter-section {
+  margin-bottom: var(--portal-section-gap);
+}
+
 .shell:has(.portal-sidebar) .task-board,
 .shell:has(.portal-sidebar) .packing-board,
 .shell:has(.portal-sidebar) .orders-board,
