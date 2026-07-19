@@ -710,7 +710,7 @@ include BASE_PATH . '/shared/sidebar.php';
     <?php if (!$ready) { ops_setup_notice(); } ?>
     <?php ops_flash($message, $messageType); ?>
 
-    <section class="dtb-stats-grid">
+    <section class="dtb-stats-grid task-dashboard-widgets">
         <article class="dtb-stat-card" data-stat="overdue"><span class="dtb-stat-icon"><i data-lucide="alert-triangle"></i></span><div><p class="dtb-stat-label">Overdue</p><strong class="dtb-stat-value"><?= number_format($metrics['overdue']) ?></strong></div></article>
         <article class="dtb-stat-card" data-stat="pending"><span class="dtb-stat-icon"><i data-lucide="hourglass"></i></span><div><p class="dtb-stat-label">Pending</p><strong class="dtb-stat-value"><?= number_format($metrics['pending']) ?></strong></div></article>
         <article class="dtb-stat-card" data-stat="in-progress"><span class="dtb-stat-icon"><i data-lucide="clock-3"></i></span><div><p class="dtb-stat-label">In Progress</p><strong class="dtb-stat-value"><?= number_format($metrics['in_progress']) ?></strong></div></article>
@@ -718,7 +718,7 @@ include BASE_PATH . '/shared/sidebar.php';
         <article class="dtb-stat-card" data-stat="active"><span class="dtb-stat-icon"><i data-lucide="list-checks"></i></span><div><p class="dtb-stat-label">Total Active</p><strong class="dtb-stat-value"><?= number_format($metrics['active']) ?></strong></div></article>
     </section>
 
-    <nav class="dtb-tabs" aria-label="Task views">
+    <nav class="dtb-tabs task-board-navigation" aria-label="Task views">
         <?php
         $tabLabels = ['recurring' => 'Recurring Tasks', 'manual' => 'Manual Tasks', 'completed' => 'Completed Tasks', 'history' => 'Task History'];
         foreach ($tabLabels as $tabKey => $tabLabel):

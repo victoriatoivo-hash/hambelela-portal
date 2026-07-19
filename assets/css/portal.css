@@ -27198,6 +27198,32 @@ body.sidebar-collapsed .shell:has(.portal-sidebar) > .workspace.digital-task-pag
   margin-top: var(--portal-section-gap);
 }
 
+/* Task Management follows the portal's fixed 16px section rhythm. */
+.workspace.module.digital-task-page {
+  --portal-section-gap: 16px;
+}
+
+.digital-task-page .task-dashboard-widgets {
+  margin: 0;
+  padding: 0;
+}
+
+.digital-task-page .task-board-navigation {
+  margin: var(--portal-section-gap) 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.digital-task-page .dtb-filter-card {
+  margin: 0;
+}
+
+.digital-task-page .dtb-history-section {
+  margin-top: var(--portal-section-gap);
+}
+
 @media (max-height: 900px) and (min-width: 901px) {
   :root {
     --portal-workspace-pad-block: 12px;
