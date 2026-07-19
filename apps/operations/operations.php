@@ -475,10 +475,12 @@ function ops_is_walk_in_order(string $customerName, string $customerContact, str
         return preg_replace('/[^a-z0-9]+/', '', strtolower(trim($value))) ?? '';
     };
     $type = $normalise($orderType);
+    $contact = $normalise($customerContact);
+    $name = $normalise($customerName);
 
     return in_array($type, ['walkin', 'walkincustomer'], true)
-        || str_contains($normalise($customerContact), 'walkin')
-        || str_contains($normalise($customerName), 'walkincustomer');
+        || in_array($contact, ['walkin', 'walkincustomer'], true)
+        || $name === 'walkincustomer';
 }
 
 function ops_secilia_front_desk_employee_id(): ?int
