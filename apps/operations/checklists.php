@@ -742,7 +742,10 @@ include BASE_PATH . '/shared/sidebar.php';
                     <?php checklist_custom_filter_field('Person', 'employee_id', $employeeFilterOptions, $filters['employee_id']); ?>
                 <?php endif; ?>
                 <?php checklist_custom_filter_field('Status', 'status', ['' => 'All statuses', 'pending' => 'Pending', 'in_progress' => 'In Progress', 'completed' => 'Complete'], $filters['status']); ?>
-                <label class="dtb-overdue-filter"><span>Overdue only</span><input type="checkbox" name="overdue_only" value="1" <?= $filters['overdue_only'] === '1' ? 'checked' : '' ?>></label>
+                <label class="dtb-overdue-filter">
+                    <input class="dtb-task-check task-overdue-check" type="checkbox" name="overdue_only" value="1" data-task-overdue-only <?= $filters['overdue_only'] === '1' ? 'checked' : '' ?>>
+                    <span>Overdue only</span>
+                </label>
                 <?php if ($canManage): ?>
                     <?php checklist_custom_filter_field('Priority', 'priority', ['' => 'All priorities'] + $priorities, $filters['priority']); ?>
                     <?php checklist_custom_filter_field('Task type', 'checklist_type', ['' => 'All types'] + $types, $filters['checklist_type']); ?>
@@ -1645,12 +1648,85 @@ function initialiseTaskColumnResizing() {
   });
 }
 
+function initialiseTaskOverdueFilter() {
+  const checkbox = document.querySelector('[data-task-overdue-only]');
+  const form = checkbox?.closest('form');
+  if (!checkbox || !form || checkbox.dataset.initialised === 'true') return;
+  checkbox.dataset.initialised = 'true';
+
+  const updateTaskViewLinks = (sourceUrl) => {
+    document.querySelectorAll('.dtb-tab').forEach((link) => {
+      const linkUrl = new URL(link.href, window.location.href);
+      const taskView = linkUrl.searchParams.get('task_view');
+      linkUrl.search = sourceUrl.search;
+      if (taskView) linkUrl.searchParams.set('task_view', taskView);
+      link.href = `${linkUrl.pathname}${linkUrl.search}${linkUrl.hash}`;
+    });
+  };
+
+  checkbox.addEventListener('change', async () => {
+    const previousChecked = !checkbox.checked;
+    const pageScrollY = window.scrollY;
+    const tableWrap = document.querySelector('[data-task-board] .dtb-table-wrap');
+    const tableScrollLeft = tableWrap?.scrollLeft || 0;
+    const params = new URLSearchParams(new FormData(form));
+    const nextUrl = new URL(form.action || window.location.href, window.location.href);
+    nextUrl.search = params.toString();
+
+    checkbox.disabled = true;
+    document.querySelector('[data-task-board]')?.setAttribute('aria-busy', 'true');
+
+    try {
+      const response = await fetch(nextUrl.toString(), {
+        credentials: 'same-origin',
+        headers: { Accept: 'text/html' },
+        cache: 'no-store',
+      });
+      if (!response.ok) throw new Error('Unable to update the overdue filter.');
+
+      const html = await response.text();
+      const parsed = new DOMParser().parseFromString(html, 'text/html');
+      [
+        ['.dtb-stats-grid', '.dtb-stats-grid'],
+        ['[data-task-board]', '[data-task-board]'],
+        ['[data-task-bulk-bar]', '[data-task-bulk-bar]'],
+      ].forEach(([currentSelector, nextSelector]) => {
+        const current = document.querySelector(currentSelector);
+        const next = parsed.querySelector(nextSelector);
+        if (current && next) current.replaceWith(next);
+      });
+
+      const nextFilterState = parsed.querySelector('.dtb-filter-state');
+      const currentFilterState = document.querySelector('.dtb-filter-state');
+      if (currentFilterState && nextFilterState) currentFilterState.textContent = nextFilterState.textContent;
+
+      window.history.replaceState({}, '', `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
+      updateTaskViewLinks(nextUrl);
+      document.querySelector('[data-task-bulk-bar]')?.setAttribute('hidden', '');
+      initialiseTaskBulkSelection();
+      initialiseTaskStatusWorkflow();
+      initialiseTaskColumnResizing();
+      if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+      const nextTableWrap = document.querySelector('[data-task-board] .dtb-table-wrap');
+      if (nextTableWrap) nextTableWrap.scrollLeft = tableScrollLeft;
+      window.scrollTo({ top: pageScrollY, behavior: 'instant' });
+    } catch (error) {
+      checkbox.checked = previousChecked;
+      window.alert(error.message || 'Unable to update the overdue filter.');
+    } finally {
+      checkbox.disabled = false;
+      document.querySelector('[data-task-board]')?.removeAttribute('aria-busy');
+    }
+  });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   initialiseTaskTools();
   initialiseTaskRowMenus();
   initialiseTaskBulkSelection();
   initialiseTaskStatusWorkflow();
   initialiseTaskColumnResizing();
+  initialiseTaskOverdueFilter();
 });
 
 document.addEventListener('click', (event) => {
