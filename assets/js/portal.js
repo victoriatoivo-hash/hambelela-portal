@@ -797,6 +797,7 @@ document.addEventListener('click', (event) => {
   const sourceSelector = [
     '[data-portal-horizontal-scroll-source]',
     '.ops-board-scroll',
+    '.orders-table-scroll',
     '.ledger-board',
     '.courier-table-scroll',
     '.dtb-table-wrap',
