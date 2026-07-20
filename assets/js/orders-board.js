@@ -3375,13 +3375,92 @@
 
   function renderPanelDetails() {
     if (!panelDetails || !currentOrder) return;
+    const hasWebsiteDocuments = Number(currentOrder.woo_order_id || 0) > 0;
+    const documentCard = `
+      <section class="order-panel-card order-documents-card">
+        <h3>Documents</h3>
+        ${hasWebsiteDocuments ? `
+          <div class="order-documents-list">
+            ${['receipt', 'invoice'].map((type) => `
+              <div class="order-document-row">
+                <span class="order-document-name">
+                  <i data-lucide="${type === 'receipt' ? 'receipt-text' : 'file-text'}" aria-hidden="true"></i>
+                  ${type === 'receipt' ? 'Receipt' : 'Invoice'}
+                </span>
+                <span class="order-document-actions">
+                  <button type="button" data-order-document data-order-id="${esc(currentOrder.id)}" data-document-type="${type}" data-document-action="download">
+                    <i data-lucide="download" aria-hidden="true"></i><span>Download</span>
+                  </button>
+                  <button type="button" data-order-document data-order-id="${esc(currentOrder.id)}" data-document-type="${type}" data-document-action="print">
+                    <i data-lucide="printer" aria-hidden="true"></i><span>Print</span>
+                  </button>
+                </span>
+              </div>
+            `).join('')}
+          </div>
+        ` : `
+          <div class="order-documents-unavailable">
+            <i data-lucide="file-x-2" aria-hidden="true"></i>
+            <span>Receipt and invoice documents are available for website orders only.</span>
+          </div>
+        `}
+      </section>`;
     const cards = [
       ['Order summary', [['Order', currentOrder.order_number || ''], ['Date', prettyDate(orderDisplayDateTime(currentOrder))], ['Status', findText(statusLabels, currentOrder.status || '')]]],
       ['Customer', [['Name', currentOrder.customer_name || ''], ['Mobile number', currentOrder.customer_contact || '']]],
       ['Fulfilment', [['Mode', findText(modeLabels, currentOrder.order_type || '')], ['Packed by', currentOrder.packer_name || 'Unassigned']]],
       ['Payment', [['Amount', money(currentOrder.total_amount)], ['Method', currentOrder.payment_method || ''], ['Paid', currentOrder.is_paid ? 'Yes' : 'No']]]
     ];
-    panelDetails.innerHTML = cards.map(([title, fields]) => `<section class="order-panel-card"><h3>${esc(title)}</h3><div class="order-details-grid">${fields.map(([label, value]) => `<div class="order-detail-field"><span class="order-detail-label">${esc(label)}</span><span class="order-detail-value">${esc(value || 'Not set')}</span></div>`).join('')}</div></section>`).join('');
+    panelDetails.innerHTML = documentCard + cards.map(([title, fields]) => `<section class="order-panel-card"><h3>${esc(title)}</h3><div class="order-details-grid">${fields.map(([label, value]) => `<div class="order-detail-field"><span class="order-detail-label">${esc(label)}</span><span class="order-detail-value">${esc(value || 'Not set')}</span></div>`).join('')}</div></section>`).join('');
+    window.lucide?.createIcons?.({ strokeWidth:2 });
+  }
+
+  function orderDocumentUrl(orderId, documentType, action) {
+    const url = new URL('orders-board-document.php', window.location.href);
+    url.searchParams.set('order_id', String(orderId));
+    url.searchParams.set('document_type', documentType);
+    url.searchParams.set('action', action);
+    return url.toString();
+  }
+
+  async function handleOrderDocument(button) {
+    if (button.disabled) return;
+    const orderId = Number(button.dataset.orderId || 0);
+    const documentType = String(button.dataset.documentType || '');
+    const action = String(button.dataset.documentAction || '');
+    if (!orderId || !['receipt', 'invoice'].includes(documentType) || !['download', 'print'].includes(action)) return;
+    const url = orderDocumentUrl(orderId, documentType, action);
+    if (action === 'print') {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        window.alert('Allow pop-ups to print this document.');
+        return;
+      }
+      printWindow.opener = null;
+      printWindow.location.href = url;
+      return;
+    }
+    button.disabled = true;
+    button.classList.add('is-loading');
+    try {
+      const response = await fetch(url, { credentials:'same-origin', headers:{ Accept:'application/pdf' } });
+      if (!response.ok) throw new Error((await response.text()).trim() || 'Unable to download this document.');
+      const blob = await response.blob();
+      const disposition = response.headers.get('content-disposition') || '';
+      const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] || `${documentType}-${orderId}.pdf`;
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(link.href);
+    } catch (error) {
+      window.alert(error.message || 'Unable to download this document.');
+    } finally {
+      button.disabled = false;
+      button.classList.remove('is-loading');
+    }
   }
 
   function syncOpenOrderPanel(orderId, field) {
@@ -3503,15 +3582,7 @@
     panel.querySelector(`[data-panel-name="${requestedTab}"]`)?.classList.add('active');
     resetPanelComposer();
     renderPanelUpdates();
-    if (panelDetails) {
-      const cards = [
-        ['Order summary', [['Order', currentOrder.order_number || ''], ['Date', prettyDate(orderDisplayDateTime(currentOrder))], ['Status', findText(statusLabels, currentOrder.status || '')]]],
-        ['Customer', [['Name', currentOrder.customer_name || ''], ['Mobile number', currentOrder.customer_contact || '']]],
-        ['Fulfilment', [['Mode', findText(modeLabels, currentOrder.order_type || '')], ['Packed by', currentOrder.packer_name || 'Unassigned']]],
-        ['Payment', [['Amount', money(currentOrder.total_amount)], ['Method', currentOrder.payment_method || ''], ['Paid', currentOrder.is_paid ? 'Yes' : 'No']]]
-      ];
-      panelDetails.innerHTML = cards.map(([title, fields]) => `<section class="order-panel-card"><h3>${esc(title)}</h3><div class="order-details-grid">${fields.map(([label, value]) => `<div class="order-detail-field"><span class="order-detail-label">${esc(label)}</span><span class="order-detail-value">${esc(value || '—')}</span></div>`).join('')}</div></section>`).join('');
-    }
+    renderPanelDetails();
     if (panelItems) {
       const items = Array.isArray(currentOrder.items) ? currentOrder.items : [];
       panelItems.innerHTML = `<h3>Order items</h3>${items.length ? `<div class="order-items-grid"><div class="order-items-head"><span>Item</span><span>Qty</span><span>Packed</span></div>${items.map((item) => `<div class="order-item-row"><span><strong>${esc(item.product_name || 'Item')}</strong><small>${esc(item.sku || '')}</small></span><span>${esc(item.quantity ?? 0)}</span><span>${esc(item.packed_quantity ?? 0)}</span></div>`).join('')}</div>` : '<div class="order-panel-empty"><strong>No item lines available</strong><span>This order has no linked item records.</span></div>'}`;
@@ -3837,6 +3908,13 @@
     pendingOrdersInteractionPosition = null;
     if (clickPosition) restoreOrdersTablePosition(clickPosition);
     if (event.target.closest('.column-resizer')) return;
+    const documentAction = event.target.closest('[data-order-document]');
+    if (documentAction) {
+      event.preventDefault();
+      event.stopPropagation();
+      await handleOrderDocument(documentAction);
+      return;
+    }
     const resetColumns = event.target.closest('[data-reset-orders-columns]');
     if (resetColumns) {
       resetOrdersColumnWidths();

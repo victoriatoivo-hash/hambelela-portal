@@ -57,9 +57,11 @@ $hasAssignedAt = ops_column_exists('ops_orders', 'assigned_at');
 $hasStartedAt = ops_column_exists('ops_orders', 'packing_started_at');
 $hasArchivedAt = ops_column_exists('ops_orders', 'archived_at');
 $hasDeletedAt = ops_column_exists('ops_orders', 'deleted_at');
+$hasWooOrderId = ops_column_exists('ops_orders', 'woo_order_id');
 $amountSelect = $hasTotalAmount ? 'o.total_amount' : '0 AS total_amount';
 $assignedAtSelect = $hasAssignedAt ? 'o.assigned_at' : 'NULL AS assigned_at';
 $startedAtSelect = $hasStartedAt ? 'o.packing_started_at' : 'NULL AS packing_started_at';
+$wooOrderIdSelect = $hasWooOrderId ? 'o.woo_order_id' : 'NULL AS woo_order_id';
 $displayDateTimeExpr = ops_order_display_datetime_expr('o');
 $metricDateTimeExpr = ops_order_display_datetime_expr();
 $hasManualOrder = ops_table_exists('ops_order_manual_order');
@@ -114,7 +116,7 @@ $where = $whereParts ? 'WHERE ' . implode(' AND ', $whereParts) : '';
 
 $orders = ops_rows(
     "SELECT
-        o.id, o.order_number, o.customer_name, o.customer_contact, o.payment_method, {$amountSelect}, o.payment_status,
+        o.id, o.order_number, {$wooOrderIdSelect}, o.customer_name, o.customer_contact, o.payment_method, {$amountSelect}, o.payment_status,
         o.order_type, o.status, o.workload_score, {$displayDateTimeExpr} AS displayed_order_datetime,
         {$displayDateTimeExpr} AS created_at, o.created_at AS source_created_at, {$assignedAtSelect}, {$startedAtSelect}, o.packed_at, o.completed_at, o.notes,
         o.assigned_packer_id, e.full_name AS packer_name, o.updated_at, {$manualOrderSelect}
