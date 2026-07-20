@@ -207,6 +207,14 @@ body.orders-tools-open{overflow:hidden}
 .orders-filter-panel .date-filter-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 6px; }
 .orders-filter-panel .date-filter-row button { width: auto; color: var(--orders-rust); cursor: pointer; }
 .orders-filter-panel .date-filter-row .portal-date-picker:not(.is-empty) .portal-date-value { color: #1a1a1a; }
+.orders-filter-panel .orders-date-filter-error {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #c71f2d;
+  font-size: 11px;
+  line-height: 1.3;
+}
+.orders-filter-panel [data-orders-custom-date-field][hidden] { display: none !important; }
 .orders-filter-panel .work-filter-actions { grid-column: 1 / -1; margin-top: 0; display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
 .orders-filter-panel .work-filter-actions button {
   height: 32px;

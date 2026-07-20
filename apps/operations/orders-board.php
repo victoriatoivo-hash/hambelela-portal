@@ -85,11 +85,18 @@ include BASE_PATH . '/shared/sidebar.php';
 
         <section class="work-filter-bar portal-filter-panel orders-filter-panel" aria-label="Board filters">
             <label>Date Range
-                <div class="date-filter-row">
-                    <input id="board-date-filter" type="date" value="<?= htmlspecialchars($defaultBoardDate, ENT_QUOTES, 'UTF-8') ?>">
-                    <button type="button" data-date-all>All dates</button>
+                <div class="orders-filter-select" data-orders-filter-select="datePreset">
+                    <input id="board-date-preset" type="hidden" value="today">
+                    <button type="button" class="orders-filter-trigger" data-orders-filter-trigger aria-haspopup="listbox" aria-expanded="false"><span>Today</span><i data-lucide="chevron-down"></i></button>
                 </div>
             </label>
+            <label class="orders-custom-date-field" data-orders-custom-date-field hidden>Date From
+                <input id="board-date-from" type="date" value="<?= htmlspecialchars($defaultBoardDate, ENT_QUOTES, 'UTF-8') ?>">
+            </label>
+            <label class="orders-custom-date-field" data-orders-custom-date-field hidden>Date To
+                <input id="board-date-to" type="date" value="<?= htmlspecialchars($defaultBoardDate, ENT_QUOTES, 'UTF-8') ?>">
+            </label>
+            <p class="orders-date-filter-error" data-orders-date-filter-error role="alert" hidden></p>
             <label>Status
                 <div class="orders-filter-select" data-orders-filter-select="status">
                     <input type="hidden" data-board-filter="status" value="">

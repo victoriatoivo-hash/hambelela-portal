@@ -5,7 +5,11 @@
   const syncState = document.getElementById('board-sync-state');
   const availabilitySwitch = document.querySelector('[data-availability-toggle]');
   const availabilityWrap = document.querySelector('.availability-switch-wrap');
-  const dateFilter = document.getElementById('board-date-filter');
+  const datePreset = document.getElementById('board-date-preset');
+  const dateFromFilter = document.getElementById('board-date-from');
+  const dateToFilter = document.getElementById('board-date-to');
+  const customDateFields = document.querySelectorAll('[data-orders-custom-date-field]');
+  const dateFilterError = document.querySelector('[data-orders-date-filter-error]');
   const groupLabelNode = document.getElementById('board-group-label');
   const metricNodes = document.querySelectorAll('[data-work-metric]');
   const labelMenu = document.getElementById('board-label-menu');
@@ -99,6 +103,7 @@
   let morePreferencesLoaded = false;
   const boardDisplay = { rowHover: true, summaries: true };
   const filterOptions = {
+    datePreset: [['today', 'Today'], ['week', 'This Week'], ['month', 'This Month'], ['custom', 'Custom Period'], ['all', 'All Dates']],
     status: [['', 'All statuses'], ['new_order', 'New Order'], ['in_progress', 'In Progress'], ['completed', 'Complete']],
     mode: [['', 'All modes'], ['collection', 'Collection'], ['delivery', 'Delivery'], ['courier', 'Courier']],
     payment: [['', 'All payments'], ['Cash', 'Cash'], ['EFT', 'EFT'], ['Ewallet', 'Ewallet'], ['Bluewallet', 'Bluewallet'], ['Swipe', 'Swipe']],
@@ -246,10 +251,33 @@
   const normalize = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
   const labelText = (value) => String(value || '').replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
   const dateKey = (value) => String(value || '').slice(0, 10);
-  const todayKey = () => new Date().toISOString().slice(0, 10);
+  const windhoekDateParts = (date = new Date()) => Object.fromEntries(
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Africa/Windhoek',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).formatToParts(date).filter((part) => part.type !== 'literal').map((part) => [part.type, part.value])
+  );
+  const todayKey = () => {
+    const parts = windhoekDateParts();
+    return `${parts.year}-${parts.month}-${parts.day}`;
+  };
   const isDateGroupKey = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
-  let boardDateScope = dateFilter?.value ? 'date' : 'all';
-  let boardMonth = (dateFilter?.value || todayKey()).slice(0, 7);
+  const dateFilterStorageKey = 'hambelelaOrdersDateFilter';
+  let storedDateFilter = {};
+  try {
+    storedDateFilter = JSON.parse(sessionStorage.getItem(dateFilterStorageKey) || '{}');
+  } catch (error) {
+    storedDateFilter = {};
+  }
+  let boardDateScope = ['today', 'week', 'month', 'custom', 'all'].includes(storedDateFilter.preset)
+    ? storedDateFilter.preset
+    : 'today';
+  let boardMonth = todayKey().slice(0, 7);
+  if (datePreset) datePreset.value = boardDateScope;
+  if (dateFromFilter && /^\d{4}-\d{2}-\d{2}$/.test(storedDateFilter.from || '')) dateFromFilter.value = storedDateFilter.from;
+  if (dateToFilter && /^\d{4}-\d{2}-\d{2}$/.test(storedDateFilter.to || '')) dateToFilter.value = storedDateFilter.to;
 
   function orderDisplayDateTime(order) {
     return order?.displayed_order_datetime
@@ -278,7 +306,7 @@
   }
 
   function selectedBoardMonth() {
-    const anchor = dateFilter?.value || `${boardMonth || todayKey().slice(0, 7)}-01`;
+    const anchor = dateFromFilter?.value || `${boardMonth || todayKey().slice(0, 7)}-01`;
     return String(anchor).slice(0, 7);
   }
 
@@ -287,12 +315,64 @@
     return Number.isNaN(date.getTime()) ? month : date.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
   }
 
+  function addUtcDays(dateKeyValue, days) {
+    const [year, month, day] = String(dateKeyValue).split('-').map(Number);
+    const result = new Date(Date.UTC(year, month - 1, day + days, 12));
+    return result.toISOString().slice(0, 10);
+  }
+
+  function activeDateRange() {
+    const today = todayKey();
+    if (boardDateScope === 'all') return null;
+    if (boardDateScope === 'custom') {
+      const from = dateFromFilter?.value || '';
+      const to = dateToFilter?.value || '';
+      return from && to && from <= to ? { from, to } : null;
+    }
+    if (boardDateScope === 'month') {
+      const [year, month] = today.split('-').map(Number);
+      const last = new Date(Date.UTC(year, month, 0, 12)).toISOString().slice(0, 10);
+      return { from: `${today.slice(0, 7)}-01`, to: last };
+    }
+    if (boardDateScope === 'week') {
+      const [year, month, day] = today.split('-').map(Number);
+      const weekday = new Date(Date.UTC(year, month - 1, day, 12)).getUTCDay();
+      const mondayOffset = weekday === 0 ? -6 : 1 - weekday;
+      const from = addUtcDays(today, mondayOffset);
+      return { from, to: addUtcDays(from, 6) };
+    }
+    return { from: today, to: today };
+  }
+
+  function persistDateFilter() {
+    sessionStorage.setItem(dateFilterStorageKey, JSON.stringify({
+      preset: boardDateScope,
+      from: dateFromFilter?.value || '',
+      to: dateToFilter?.value || ''
+    }));
+  }
+
+  function updateDateFilterUi() {
+    const custom = boardDateScope === 'custom';
+    customDateFields.forEach((field) => { field.hidden = !custom; });
+    const label = document.querySelector('[data-orders-filter-select="datePreset"] [data-orders-filter-trigger] span');
+    const option = filterOptions.datePreset.find(([value]) => value === boardDateScope);
+    if (label && option) label.textContent = option[1];
+    if (dateFilterError) {
+      const missing = custom && (!dateFromFilter?.value || !dateToFilter?.value);
+      const reversed = custom && dateFromFilter?.value && dateToFilter?.value && dateFromFilter.value > dateToFilter.value;
+      dateFilterError.hidden = !(missing || reversed);
+      dateFilterError.textContent = reversed ? 'Date From cannot be later than Date To.' : missing ? 'Choose both Date From and Date To.' : '';
+    }
+    persistDateFilter();
+  }
+
   function boardDataParams() {
     const params = new URLSearchParams();
-    if (boardDateScope === 'date') {
-      params.set('date', dateFilter?.value || '');
-    } else if (boardDateScope === 'month') {
-      params.set('month', boardMonth || selectedBoardMonth());
+    const range = activeDateRange();
+    if (range) {
+      params.set('date_from', range.from);
+      params.set('date_to', range.to);
     }
     params.set('t', String(Date.now()));
     return params;
@@ -1718,7 +1798,9 @@
 
   function exportVisibleOrders() {
     const rows = visibleOrders();
-    exportOrders(rows, `hambelela-orders-${dateFilter?.value || 'all-dates'}.csv`);
+    const range = activeDateRange();
+    const rangeLabel = range ? `${range.from}-to-${range.to}` : 'all-dates';
+    exportOrders(rows, `hambelela-orders-${rangeLabel}.csv`);
   }
 
   function exportOrders(rows, filename) {
@@ -3560,9 +3642,10 @@
       }
       if (syncState && !lastSyncMessage) {
         const count = data.orders?.length || 0;
-        const suffix = boardDateScope === 'month'
-          ? ` for ${monthLabel(data.month || boardMonth)}`
-          : boardDateScope === 'all' ? ' across all dates' : '';
+        const range = activeDateRange();
+        const suffix = boardDateScope === 'all'
+          ? ' across all dates'
+          : range ? ` from ${range.from} to ${range.to}` : '';
         syncState.textContent = `Loaded ${count} orders${suffix} at ${new Date().toLocaleTimeString()}`;
       }
       return data;
@@ -3599,7 +3682,11 @@
     const run = async () => {
       try {
         if (!quiet && syncState) syncState.textContent = 'Syncing website orders...';
-        const data = await post('sync', { date: boardDateScope === 'date' ? (dateFilter?.value || '') : '', force: force ? '1' : '' });
+        const range = activeDateRange();
+        const data = await post('sync', {
+          date: range && range.from === range.to ? range.from : '',
+          force: force ? '1' : ''
+        });
         const result = data.result || {};
         const warnings = Array.isArray(result.warnings) && result.warnings.length ? ` - warning: ${result.warnings[0]}` : '';
         const skipped = result.skipped ? ' (recent sync reused)' : '';
@@ -4274,7 +4361,8 @@
 
       if (dateAll) {
         boardDateScope = 'all';
-        if (dateFilter) dateFilter.value = '';
+        if (datePreset) datePreset.value = 'all';
+        updateDateFilterUi();
         if (syncState) syncState.textContent = 'Loading all dates...';
         await refresh(dateAll);
       }
@@ -4295,10 +4383,12 @@
         });
         const searchInput = document.querySelector('[data-board-search]');
         if (searchInput) searchInput.value = '';
-        boardDateScope = 'month';
+        boardDateScope = 'today';
+        if (datePreset) datePreset.value = 'today';
         boardMonth = selectedBoardMonth();
+        updateDateFilterUi();
         lastSyncMessage = '';
-        if (syncState) syncState.textContent = `Loading ${monthLabel(boardMonth)}...`;
+        if (syncState) syncState.textContent = 'Loading today...';
         await refresh(clearFilters);
       }
 
@@ -4479,6 +4569,25 @@
   });
 
   document.addEventListener('change', (event) => {
+    if (event.target === datePreset) {
+      boardDateScope = datePreset.value || 'today';
+      updateDateFilterUi();
+      if (boardDateScope !== 'custom' || activeDateRange()) {
+        liveCursor = '';
+        refresh().catch(showError);
+      }
+      return;
+    }
+
+    if (event.target === dateFromFilter || event.target === dateToFilter) {
+      updateDateFilterUi();
+      if (boardDateScope === 'custom' && activeDateRange()) {
+        liveCursor = '';
+        refresh().catch(showError);
+      }
+      return;
+    }
+
     const moreCheckInput = event.target.closest('[data-more-check]');
     if (moreCheckInput && moreDraft) {
       const name = String(moreCheckInput.dataset.moreCheck || '');
@@ -4543,16 +4652,6 @@
       scheduleLabelEditorAutosave(editor.dataset.labelEditor);
     }
 
-    if (event.target === dateFilter) {
-      boardDateScope = dateFilter?.value ? 'date' : 'all';
-      boardMonth = selectedBoardMonth();
-      if (syncState) syncState.textContent = 'Loading selected date...';
-      syncWebsite(false, null, true).then(refresh).catch((error) => {
-        showError(error);
-        refresh().catch(() => {});
-      });
-    }
-
     const directFilter = event.target.closest('[data-board-filter]');
     if (directFilter) {
       const field = directFilter.dataset.boardFilter;
@@ -4583,6 +4682,7 @@
   const storedTheme = localStorage.getItem('hambelelaBoardTheme');
   if (storedTheme) page.dataset.boardTheme = storedTheme;
   applyStoredHeaders();
+  updateDateFilterUi();
   updateFilterBadge();
   animateMetricCards();
 

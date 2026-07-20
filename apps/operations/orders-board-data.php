@@ -23,6 +23,18 @@ $roleKey = (string) ($user['role_key'] ?? '');
 
 $date = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_GET['date'] ?? '')) ? (string) $_GET['date'] : '';
 $month = $date === '' && preg_match('/^\d{4}-\d{2}$/', (string) ($_GET['month'] ?? '')) ? (string) $_GET['month'] : '';
+$rangeStart = $date === '' && $month === '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_GET['date_from'] ?? ''))
+    ? (string) $_GET['date_from']
+    : '';
+$rangeEnd = $rangeStart !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_GET['date_to'] ?? ''))
+    ? (string) $_GET['date_to']
+    : '';
+$rangeRequested = array_key_exists('date_from', $_GET) || array_key_exists('date_to', $_GET);
+if ($date === '' && $month === '' && $rangeRequested && ($rangeStart === '' || $rangeEnd === '' || $rangeStart > $rangeEnd)) {
+    http_response_code(422);
+    echo json_encode(['ok' => false, 'message' => 'Choose a valid Date From and Date To range.']);
+    exit;
+}
 $since = preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', (string) ($_GET['since'] ?? ''))
     ? (string) $_GET['since']
     : '';
@@ -36,6 +48,9 @@ if ($date !== '') {
 } elseif ($month !== '') {
     $dateStart = $month . '-01 00:00:00';
     $dateEnd = date('Y-m-d H:i:s', strtotime($dateStart . ' +1 month'));
+} elseif ($rangeStart !== '' && $rangeEnd !== '' && $rangeStart <= $rangeEnd) {
+    $dateStart = $rangeStart . ' 00:00:00';
+    $dateEnd = date('Y-m-d H:i:s', strtotime($rangeEnd . ' 00:00:00 +1 day'));
 }
 $hasTotalAmount = ops_column_exists('ops_orders', 'total_amount');
 $hasAssignedAt = ops_column_exists('ops_orders', 'assigned_at');
@@ -318,6 +333,8 @@ echo json_encode([
     ], $ordersPermissions),
     'date' => $date,
     'month' => $month,
+    'dateFrom' => $rangeStart,
+    'dateTo' => $rangeEnd,
     'serverTime' => $responseCursor,
     'cursor' => $responseCursor,
 ]);
