@@ -980,6 +980,10 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             position: relative;
             padding-right: 18px;
         }
+        .ledger-header .ledger-cell.check-cell {
+            padding: 0;
+            justify-content: center;
+        }
         .ledger-column-resize-handle {
             position: absolute;
             top: 0;
