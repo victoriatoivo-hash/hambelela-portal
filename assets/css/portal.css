@@ -27372,3 +27372,12 @@ body.sidebar-collapsed .shell:has(.portal-sidebar) > .workspace.digital-task-pag
 button.btn-primary[data-upload-submit] {
   font-weight: 400;
 }
+
+/* Keep Task Management status labels consistently legible in every state. */
+.workspace.module.digital-task-page
+.task-board-table
+tbody
+.task-status-cell
+button.task-status-trigger {
+  font-size: 12px;
+}
