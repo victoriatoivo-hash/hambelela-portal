@@ -15,6 +15,7 @@ $bookkeepingRoleKey = normalise_portal_role((string) ($currentUser['role_key'] ?
 $canOperateBookkeeping = in_array($bookkeepingRoleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager'], true);
 $canManageBookkeeping = $bookkeepingRoleKey === 'owner_admin';
 $isBookkeepingReadOnly = !$canOperateBookkeeping;
+$canSelectBookkeepingRows = true;
 $ledgerUserId = (int) ($currentUser['id'] ?? $employeeId ?? 0);
 $ledgerUserName = (string) ($currentUser['name'] ?? 'Unknown user');
 $message = null;
@@ -1250,12 +1251,13 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             border: 1px solid rgba(171, 54, 25, .3);
             background: var(--ledger-white);
         }
-        .ledger-page .check-cell .bk-row-check {
+        .ledger-page .check-cell .bk-row-check,
+        .ledger-page .check-cell .bk-select-all {
             position: relative;
-            width: 14px;
-            height: 14px;
-            min-width: 14px;
-            min-height: 14px;
+            width: 15px;
+            height: 15px;
+            min-width: 15px;
+            min-height: 15px;
             margin: 0;
             padding: 0;
             display: inline-flex;
@@ -1271,7 +1273,13 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             box-sizing: border-box;
             transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease, transform .15s ease;
         }
-        .ledger-page .check-cell .bk-row-check:checked {
+        .ledger-page .check-cell .bk-row-check:hover,
+        .ledger-page .check-cell .bk-select-all:hover {
+            border-color: rgba(171, 54, 25, .55);
+            transform: translateY(-1px);
+        }
+        .ledger-page .check-cell .bk-row-check:checked,
+        .ledger-page .check-cell .bk-select-all:checked {
             border-color: var(--ledger-rust);
             background-color: var(--ledger-rust);
             background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M3 7.2 5.7 10 11 4.5' fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
@@ -1279,7 +1287,16 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             background-repeat: no-repeat;
             background-size: 12px 12px;
         }
-        .ledger-page .check-cell .bk-row-check:focus-visible {
+        .ledger-page .check-cell .bk-select-all:indeterminate {
+            border-color: var(--ledger-rust);
+            background-color: var(--ledger-rust);
+            background-image: linear-gradient(#fff, #fff);
+            background-position: center;
+            background-repeat: no-repeat;
+            background-size: 8px 2px;
+        }
+        .ledger-page .check-cell .bk-row-check:focus-visible,
+        .ledger-page .check-cell .bk-select-all:focus-visible {
             outline: 0;
             box-shadow: 0 0 0 3px rgba(171, 54, 25, .12);
         }
@@ -2184,7 +2201,7 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
                             <div class="day-sum"></div>
                         </div>
                         <div class="ledger-row ledger-header">
-                            <div class="ledger-cell check-cell"></div>
+                            <div class="ledger-cell check-cell"><?php if ($canSelectBookkeepingRows): ?><input class="bk-select-all" type="checkbox" aria-label="Select all visible entries for <?= htmlspecialchars($dayLabel, ENT_QUOTES, 'UTF-8') ?>"><?php endif; ?></div>
                             <div class="ledger-cell" data-ledger-column="description">Description<span class="ledger-column-resize-handle" data-ledger-resize-column="description" aria-hidden="true"></span></div>
                             <div class="ledger-cell" data-ledger-column="transaction_date">Date & Time<span class="ledger-column-resize-handle" data-ledger-resize-column="transaction_date" aria-hidden="true"></span></div>
                             <div class="ledger-cell" data-ledger-column="cash_in">Cash In<span class="ledger-column-resize-handle" data-ledger-resize-column="cash_in" aria-hidden="true"></span></div>
@@ -2209,7 +2226,7 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
                             $entryCustomFields = ledger_decode_json($entry['custom_fields_json'] ?? '{}');
                             ?>
                             <div class="ledger-row entry-row" data-entry-id="<?= (int) $entry['id'] ?>" data-cash-in="<?= $rowIn ?>" data-cash-out="<?= $rowOut ?>">
-                            <div class="ledger-cell check-cell"><?php if ($canManageBookkeeping): ?><input class="bk-row-check" type="checkbox" data-id="<?= (int) $entry['id'] ?>" aria-label="Select ledger entry"><?php endif; ?></div>
+                            <div class="ledger-cell check-cell"><?php if ($canSelectBookkeepingRows): ?><input class="bk-row-check" type="checkbox" data-id="<?= (int) $entry['id'] ?>" aria-label="Select ledger entry"><?php endif; ?></div>
                             <div class="ledger-cell ledger-data-cell <?= $canOperateBookkeeping ? 'bk-editable' : '' ?>" data-field="description" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars((string) $entry['description'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars((string) $entry['description'], ENT_QUOTES, 'UTF-8') ?></div>
                             <div class="ledger-cell ledger-data-cell <?= $canOperateBookkeeping ? 'bk-editable' : '' ?>" data-field="transaction_date" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars(date('Y-m-d\TH:i', strtotime($entryDate)), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(ledger_display_datetime($entryDate), ENT_QUOTES, 'UTF-8') ?></div>
                             <div class="ledger-cell ledger-data-cell <?= $canOperateBookkeeping ? 'bk-editable' : '' ?> money-cell money-in" data-field="cash_in" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars((string) $rowIn, ENT_QUOTES, 'UTF-8') ?>"><?= $rowIn > 0 ? ledger_money($rowIn) : '' ?></div>
@@ -2350,7 +2367,8 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
         </section>
     </div>
 </aside>
-<?php if ($canManageBookkeeping): ?>
+<?php endif; ?>
+<?php if ($ready && $canSelectBookkeepingRows): ?>
 <div class="bk-action-bar" id="bkActionBar" aria-live="polite">
     <div class="bk-action-selection">
         <span class="bk-action-count" id="bkActionCount">0</span>
@@ -2358,6 +2376,11 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
     </div>
     <div class="bk-action-divider" aria-hidden="true"></div>
     <div class="bk-action-btns">
+        <button class="bk-action-btn" type="button" onclick="exportSelected()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+            <span>Export selected</span>
+        </button>
+        <?php if ($canManageBookkeeping): ?>
         <button class="bk-action-btn" type="button" onclick="moveToDate()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
             <span>Move date</span>
@@ -2370,11 +2393,14 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
             <span>Delete</span>
         </button>
+        <?php endif; ?>
     </div>
     <button class="bk-action-close" type="button" onclick="clearSelection()" aria-label="Clear selection">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
     </button>
 </div>
+<?php endif; ?>
+<?php if ($ready && $canManageBookkeeping): ?>
 <div class="custom-column-popover" id="customColumnPopover" aria-hidden="true">
     <div class="custom-type-grid" data-custom-type-grid>
         <button class="custom-type-btn" type="button" data-custom-type="status">Status</button>
@@ -2397,13 +2423,17 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
     </form>
 </div>
 <?php endif; ?>
-<?php endif; ?>
 <script>
 const todayKey = <?= json_encode($today, JSON_UNESCAPED_SLASHES) ?>;
 let systemBalance = <?= json_encode(round($closingBalance, 2), JSON_UNESCAPED_SLASHES) ?>;
 const suggestedOpeningAmount = <?= json_encode($suggestedAmount > 0 ? round($suggestedAmount, 2) : 0, JSON_UNESCAPED_SLASHES) ?>;
 window.bkActivityLog = <?= json_encode($activityLog, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
 window.bkCustomColumns = <?= json_encode($customColumns, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+window.bookkeepingPermissions = <?= json_encode([
+    'canSelectRows' => $canSelectBookkeepingRows,
+    'canOperate' => $canOperateBookkeeping,
+    'canManage' => $canManageBookkeeping,
+], JSON_UNESCAPED_SLASHES) ?>;
 const ledgerColumnStorageKey = 'hambelela.cashLedger.columnWidths.v1';
 const coreLedgerColumns = [
   { key: 'select', width: 32, min: 32, locked: true },
@@ -2921,6 +2951,24 @@ function getSelectedIds() {
   return Array.from(document.querySelectorAll('.bk-row-check:checked')).map((cb) => cb.dataset.id).filter(Boolean);
 }
 
+function visibleRowChecks(group = document) {
+  return Array.from(group.querySelectorAll('.bk-row-check')).filter((checkbox) => {
+    const row = checkbox.closest('.entry-row');
+    return row && !row.hidden && row.offsetParent !== null;
+  });
+}
+
+function updateSelectAllState() {
+  document.querySelectorAll('.bk-select-all').forEach((checkbox) => {
+    const group = checkbox.closest('[data-day-group]');
+    const rowChecks = visibleRowChecks(group || document);
+    const selectedCount = rowChecks.filter((rowCheck) => rowCheck.checked).length;
+    checkbox.checked = rowChecks.length > 0 && selectedCount === rowChecks.length;
+    checkbox.indeterminate = selectedCount > 0 && selectedCount < rowChecks.length;
+    checkbox.disabled = rowChecks.length === 0;
+  });
+}
+
 function updateFloatingBar() {
   const ids = getSelectedIds();
   const bar = document.getElementById('bkActionBar');
@@ -2936,6 +2984,7 @@ function updateFloatingBar() {
     count.textContent = '0';
     label.textContent = 'items selected';
   }
+  updateSelectAllState();
 }
 
 function clearSelection() {
@@ -2944,6 +2993,29 @@ function clearSelection() {
     cb.closest('.entry-row')?.classList.remove('bk-row-selected');
   });
   updateFloatingBar();
+}
+
+function exportSelected() {
+  const selectedRows = Array.from(document.querySelectorAll('.bk-row-check:checked'))
+    .map((checkbox) => checkbox.closest('.entry-row'))
+    .filter(Boolean);
+  if (!selectedRows.length) return;
+  const headings = ['Description', 'Date & Time', 'Cash In', 'Cash Out', 'Total', 'Notes'];
+  const rows = selectedRows.map((row) => Array.from(row.querySelectorAll('.ledger-cell'))
+    .slice(1, 7)
+    .map((cell) => (cell.textContent || '').trim()));
+  const csv = [headings, ...rows]
+    .map((columns) => columns.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(','))
+    .join('\r\n');
+  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `hambelela-bookkeeping-selected-${todayKey}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 async function runSelectedAction(action, fields = {}) {
@@ -3024,11 +3096,17 @@ function applySidebarFilters() {
       const matchesSearch = !search || text.includes(search);
       const visible = matchesDate && matchesSearch;
       row.hidden = !visible;
+      if (!visible) {
+        const checkbox = row.querySelector('.bk-row-check');
+        if (checkbox) checkbox.checked = false;
+        row.classList.remove('bk-row-selected');
+      }
       if (visible) visibleRows++;
     });
     const dateVisible = (!from || day >= from) && (!to || day <= to);
     group.hidden = !dateVisible || (search && visibleRows === 0);
   });
+  updateFloatingBar();
 }
 
 async function postLedger(action, fields = {}) {
@@ -3107,7 +3185,7 @@ function renderEntry(entry) {
     return `<div class="ledger-cell ledger-custom-cell" data-custom-cell data-custom-column-key="${escapeHtml(column.column_key)}" data-custom-type="${escapeHtml(column.type)}" data-id="${entry.id}" data-value="${escapeHtml(value)}">${renderCustomValue(column, value)}</div>`;
   }).join('');
   row.innerHTML = `
-    <div class="ledger-cell check-cell"><input class="bk-row-check" type="checkbox" data-id="${entry.id}" aria-label="Select ledger entry"></div>
+    <div class="ledger-cell check-cell">${window.bookkeepingPermissions?.canSelectRows ? `<input class="bk-row-check" type="checkbox" data-id="${entry.id}" aria-label="Select ledger entry">` : ''}</div>
     <div class="ledger-cell ledger-data-cell bk-editable" data-field="description" data-id="${entry.id}"></div>
     <div class="ledger-cell ledger-data-cell bk-editable" data-field="transaction_date" data-id="${entry.id}" data-value="${entry.date_input || inputDate(entry.date)}">${displayDate(entry.date)}</div>
     <div class="ledger-cell ledger-data-cell bk-editable money-cell money-in" data-field="cash_in" data-id="${entry.id}" data-value="${Number(entry.cash_in || 0)}">${Number(entry.cash_in || 0) > 0 ? money(entry.cash_in) : ''}</div>
@@ -3294,6 +3372,7 @@ document.addEventListener('click', (event) => {
   const clearFilters = event.target.closest('[data-bk-filter-clear]');
   const saveRecon = event.target.closest('[data-save-recon]');
   const resetDenoms = event.target.closest('[data-reset-denoms]');
+  const selectAll = event.target.closest('.bk-select-all');
   const rowCheck = event.target.closest('.bk-row-check');
   const restore = event.target.closest('[data-restore-id]');
   const hardDelete = event.target.closest('[data-delete-id]');
@@ -3327,6 +3406,15 @@ document.addEventListener('click', (event) => {
   }
   if (customCell) {
     startCustomEdit(customCell);
+    return;
+  }
+  if (selectAll) {
+    const group = selectAll.closest('[data-day-group]');
+    visibleRowChecks(group || document).forEach((checkbox) => {
+      checkbox.checked = selectAll.checked;
+      checkbox.closest('.entry-row')?.classList.toggle('bk-row-selected', checkbox.checked);
+    });
+    updateFloatingBar();
     return;
   }
   if (rowCheck) {
@@ -3431,6 +3519,7 @@ document.addEventListener('keydown', (event) => {
 applyLedgerColumnWidths();
 setReconValues();
 setOpeningVariance();
+updateFloatingBar();
 </script>
 </body>
 </html>
