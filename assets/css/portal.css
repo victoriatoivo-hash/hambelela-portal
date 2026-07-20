@@ -27393,6 +27393,12 @@ button.dtb-btn.dtb-btn-primary {
 }
 
 .workspace.module.digital-task-page
+.dtb-page-actions
+button.task-tools-trigger {
+  font-size: 12px;
+}
+
+.workspace.module.digital-task-page
 .task-board-table
 tbody
 button.task-name-trigger {
