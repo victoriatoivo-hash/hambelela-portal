@@ -895,8 +895,10 @@ document.addEventListener('click', (event) => {
 
     activeSource = source;
     const rect = source.getBoundingClientRect();
-    const left = Math.max(0, rect.left);
-    const right = Math.max(0, window.innerWidth - rect.right);
+    const content = source.closest('.workspace.module, main.workspace, main') || source;
+    const contentRect = content.getBoundingClientRect();
+    const left = Math.max(0, contentRect.left);
+    const right = 0;
     let bottom = 0;
     document.querySelectorAll(fixedBottomSelector).forEach((bar) => {
       if (isRendered(bar)) bottom = Math.max(bottom, bar.getBoundingClientRect().height);
@@ -905,7 +907,7 @@ document.addEventListener('click', (event) => {
     mirror.style.left = `${left}px`;
     mirror.style.right = `${right}px`;
     mirror.style.setProperty('--portal-sticky-scroll-bottom', `${bottom}px`);
-    mirrorInner.style.width = `${source.scrollWidth}px`;
+    mirrorInner.style.width = `${Math.ceil(source.scrollWidth)}px`;
     if (!syncing) mirror.scrollLeft = source.scrollLeft;
     mirror.hidden = false;
     document.body.classList.add('portal-sticky-horizontal-scroll-active');
@@ -984,6 +986,7 @@ document.addEventListener('click', (event) => {
     if (source) activate(source);
   }, { passive: true });
   window.addEventListener('resize', requestUpdate, { passive: true });
+  window.addEventListener('orientationchange', requestUpdate, { passive: true });
   window.addEventListener('scroll', requestUpdate, { passive: true, capture: true });
 
   const mutationObserver = new MutationObserver((mutations) => {

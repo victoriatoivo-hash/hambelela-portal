@@ -34,6 +34,12 @@
   transition: left .2s ease, right .2s ease, bottom .16s ease;
 }
 
+@media (max-width: 760px) {
+  .portal-sticky-horizontal-scrollbar {
+    left: 0 !important;
+  }
+}
+
 .portal-sticky-horizontal-scrollbar[hidden] {
   display: none !important;
 }

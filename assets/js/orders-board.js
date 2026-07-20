@@ -3388,6 +3388,9 @@
                   ${type === 'receipt' ? 'Receipt' : 'Invoice'}
                 </span>
                 <span class="order-document-actions">
+                  <button type="button" data-order-document data-order-id="${esc(currentOrder.id)}" data-document-type="${type}" data-document-action="view">
+                    <i data-lucide="external-link" aria-hidden="true"></i><span>View</span>
+                  </button>
                   <button type="button" data-order-document data-order-id="${esc(currentOrder.id)}" data-document-type="${type}" data-document-action="download">
                     <i data-lucide="download" aria-hidden="true"></i><span>Download</span>
                   </button>
@@ -3401,7 +3404,7 @@
         ` : `
           <div class="order-documents-unavailable">
             <i data-lucide="file-x-2" aria-hidden="true"></i>
-            <span>Receipt and invoice documents are available for website orders only.</span>
+            <span>Original POS receipt unavailable. This order was not created through the website POS.</span>
           </div>
         `}
       </section>`;
@@ -3428,16 +3431,24 @@
     const orderId = Number(button.dataset.orderId || 0);
     const documentType = String(button.dataset.documentType || '');
     const action = String(button.dataset.documentAction || '');
-    if (!orderId || !['receipt', 'invoice'].includes(documentType) || !['download', 'print'].includes(action)) return;
+    if (!orderId || !['receipt', 'invoice'].includes(documentType) || !['view', 'download', 'print'].includes(action)) return;
     const url = orderDocumentUrl(orderId, documentType, action);
-    if (action === 'print') {
-      const printWindow = window.open('', '_blank');
-      if (!printWindow) {
-        window.alert('Allow pop-ups to print this document.');
+    if (action === 'view' || action === 'print') {
+      button.disabled = true;
+      button.classList.add('is-loading');
+      const documentWindow = window.open('', '_blank');
+      if (!documentWindow) {
+        button.disabled = false;
+        button.classList.remove('is-loading');
+        window.alert(`Allow pop-ups to ${action} this document.`);
         return;
       }
-      printWindow.opener = null;
-      printWindow.location.href = url;
+      documentWindow.opener = null;
+      documentWindow.location.href = url;
+      window.setTimeout(() => {
+        button.disabled = false;
+        button.classList.remove('is-loading');
+      }, 500);
       return;
     }
     button.disabled = true;
@@ -3593,6 +3604,9 @@
     backdrop.hidden = false;
     backdrop.classList.add('is-open');
     panel.querySelector('[data-panel-close]')?.focus({ preventScroll:true });
+    const panelBody = panel.querySelector('.order-panel-body');
+    if (panelBody) panelBody.scrollTop = 0;
+    panel.scrollTop = 0;
     restoreOrdersTablePosition(panelReturnPosition);
   }
 
@@ -4391,7 +4405,7 @@
       if (panelButton) {
         event.preventDefault();
         event.stopPropagation();
-        openPanel(panelButton.dataset.openPanel, 'updates', panelButton);
+        openPanel(panelButton.dataset.openPanel, 'details', panelButton);
         return;
       }
       if (closeButton || event.target === backdrop) closePanel();

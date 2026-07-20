@@ -3,47 +3,88 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/operations.php';
+require_once BASE_PATH . '/shared/woocommerce.php';
 
 function orders_document_fail(string $message, int $status): never
 {
     http_response_code($status);
     header('Content-Type: text/plain; charset=utf-8');
+    header('Cache-Control: private, no-store');
     echo $message;
     exit;
 }
 
-function orders_document_pdf_escape(string $value): string
+function orders_document_source_url(array $sourceOrder, string $documentType): ?string
 {
-    return str_replace(['\\', '(', ')'], ['\\\\', '\(', '\)'], $value);
+    $candidates = [];
+    foreach ((array) ($sourceOrder['meta_data'] ?? []) as $meta) {
+        $key = strtolower((string) ($meta['key'] ?? ''));
+        $value = $meta['value'] ?? null;
+        if (strpos($key, $documentType) === false || is_array($value) || is_object($value)) {
+            continue;
+        }
+        $value = trim((string) $value);
+        if (filter_var($value, FILTER_VALIDATE_URL)) {
+            $candidates[] = $value;
+        }
+    }
+
+    foreach ([$documentType . '_url', $documentType . '_pdf', 'pos_' . $documentType . '_url'] as $field) {
+        $value = trim((string) ($sourceOrder[$field] ?? ''));
+        if (filter_var($value, FILTER_VALIDATE_URL)) {
+            array_unshift($candidates, $value);
+        }
+    }
+
+    $storeHost = strtolower((string) parse_url(WC_STORE_URL, PHP_URL_HOST));
+    foreach (array_unique($candidates) as $candidate) {
+        $scheme = strtolower((string) parse_url($candidate, PHP_URL_SCHEME));
+        $host = strtolower((string) parse_url($candidate, PHP_URL_HOST));
+        if ($scheme === 'https' && $host !== '' && hash_equals($storeHost, $host)) {
+            return $candidate;
+        }
+    }
+
+    return null;
 }
 
-function orders_document_pdf(array $lines): string
+function orders_document_fetch(string $url): array
 {
-    $content = "BT\n/F1 10 Tf\n50 790 Td\n";
-    foreach ($lines as $index => $line) {
-        $content .= ($index > 0 ? "0 -16 Td\n" : '')
-            . '(' . orders_document_pdf_escape((string) $line) . ") Tj\n";
+    if (!function_exists('curl_init')) {
+        throw new RuntimeException('Website document service is temporarily unavailable.');
     }
-    $content .= "ET\n";
-    $objects = [
-        '<< /Type /Catalog /Pages 2 0 R >>',
-        '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-        '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>',
-        '<< /Length ' . strlen($content) . " >>\nstream\n" . $content . 'endstream',
-        '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_MAXREDIRS => 3,
+        CURLOPT_CONNECTTIMEOUT => 5,
+        CURLOPT_TIMEOUT => 20,
+        CURLOPT_HEADER => true,
+        CURLOPT_HTTPHEADER => ['Accept: application/pdf,text/html;q=0.9,*/*;q=0.8'],
+    ]);
+    $response = curl_exec($ch);
+    $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    $headerSize = (int) curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+    $contentType = (string) curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+    $effectiveUrl = (string) curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
+    $error = curl_error($ch);
+    curl_close($ch);
+
+    if (!is_string($response) || $status < 200 || $status >= 300) {
+        throw new RuntimeException($error !== '' ? $error : 'Source document request failed.');
+    }
+    $storeHost = strtolower((string) parse_url(WC_STORE_URL, PHP_URL_HOST));
+    $effectiveHost = strtolower((string) parse_url($effectiveUrl, PHP_URL_HOST));
+    if ($effectiveHost === '' || !hash_equals($storeHost, $effectiveHost)) {
+        throw new RuntimeException('Source document redirected outside the configured website.');
+    }
+
+    return [
+        'headers' => substr($response, 0, $headerSize),
+        'body' => substr($response, $headerSize),
+        'content_type' => $contentType !== '' ? $contentType : 'application/octet-stream',
     ];
-    $pdf = "%PDF-1.4\n";
-    $offsets = [];
-    foreach ($objects as $index => $object) {
-        $offsets[] = strlen($pdf);
-        $pdf .= ($index + 1) . " 0 obj\n{$object}\nendobj\n";
-    }
-    $xref = strlen($pdf);
-    $pdf .= "xref\n0 " . (count($objects) + 1) . "\n0000000000 65535 f \n";
-    foreach ($offsets as $offset) {
-        $pdf .= sprintf("%010d 00000 n \n", $offset);
-    }
-    return $pdf . "trailer\n<< /Size " . (count($objects) + 1) . " /Root 1 0 R >>\nstartxref\n{$xref}\n%%EOF";
 }
 
 if (current_role_key() === 'guest') {
@@ -57,77 +98,64 @@ if (!in_array($roleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_em
 $orderId = filter_input(INPUT_GET, 'order_id', FILTER_VALIDATE_INT);
 $documentType = strtolower(trim((string) ($_GET['document_type'] ?? '')));
 $action = strtolower(trim((string) ($_GET['action'] ?? '')));
-if (!$orderId || !in_array($documentType, ['receipt', 'invoice'], true) || !in_array($action, ['download', 'print'], true)) {
+if (!$orderId || !in_array($documentType, ['receipt', 'invoice'], true) || !in_array($action, ['view', 'download', 'print'], true)) {
     orders_document_fail('Choose a valid order document and action.', 422);
 }
-if (!ops_database_ready() || !ops_column_exists('ops_orders', 'woo_order_id')) {
-    orders_document_fail('Order documents are unavailable.', 503);
+if (!ops_database_ready() || !ops_column_exists('ops_orders', 'woo_order_id') || !wc_configured()) {
+    orders_document_fail('Website document service is temporarily unavailable.', 503);
 }
 
-$amountSelect = ops_column_exists('ops_orders', 'total_amount')
-    ? 'total_amount'
-    : '0 AS total_amount';
-$order = ops_rows(
-    'SELECT id, order_number, woo_order_id, customer_name, customer_contact, payment_method,
-            ' . $amountSelect . ', payment_status, status, order_type, created_at
-       FROM ops_orders WHERE id = ? LIMIT 1',
-    [(int) $orderId]
-)[0] ?? null;
+$order = ops_rows('SELECT id, order_number, woo_order_id FROM ops_orders WHERE id = ? LIMIT 1', [(int) $orderId])[0] ?? null;
 if (!$order) {
     orders_document_fail('Order not found.', 404);
 }
-if ((int) ($order['woo_order_id'] ?? 0) <= 0) {
-    orders_document_fail('Documents are only available for website orders.', 409);
+$sourceOrderId = (int) ($order['woo_order_id'] ?? 0);
+if ($sourceOrderId <= 0) {
+    orders_document_fail('Original POS receipt unavailable. This order was not created through the website POS.', 409);
 }
 
-$items = ops_rows(
-    'SELECT product_name, sku, quantity FROM ops_order_items WHERE order_id = ? ORDER BY id ASC',
-    [(int) $orderId]
-);
-$title = $documentType === 'receipt' ? 'Receipt' : 'Invoice';
-$number = trim((string) ($order['order_number'] ?? '')) ?: (string) $orderId;
-$lines = [
-    'Hambelela Organic',
-    $title . ' - Order ' . $number,
-    'Date: ' . (string) ($order['created_at'] ?? ''),
-    'Customer: ' . (string) ($order['customer_name'] ?? ''),
-    'Contact: ' . (string) ($order['customer_contact'] ?? ''),
-    'Payment: ' . (string) ($order['payment_method'] ?? ''),
-    'Payment status: ' . (string) ($order['payment_status'] ?? ''),
-    '', 'Items',
-];
-foreach ($items as $item) {
-    $sku = trim((string) ($item['sku'] ?? ''));
-    $lines[] = (string) ($item['product_name'] ?? 'Item')
-        . ($sku !== '' ? ' [' . $sku . ']' : '')
-        . ' x ' . (string) ($item['quantity'] ?? 0);
+try {
+    $sourceOrder = wc_get('orders/' . $sourceOrderId);
+    $sourceUrl = orders_document_source_url($sourceOrder, $documentType);
+    if (!$sourceUrl) {
+        orders_document_fail(
+            $documentType === 'invoice'
+                ? 'Original invoice is unavailable for this order.'
+                : 'Unable to load the original POS receipt.',
+            404
+        );
+    }
+    $document = orders_document_fetch($sourceUrl);
+} catch (Throwable $error) {
+    orders_document_fail('Website document service is temporarily unavailable.', 502);
 }
-$lines[] = '';
-$lines[] = 'Total: N$' . number_format((float) ($order['total_amount'] ?? 0), 2);
 
-ops_activity_log('order_document_' . $action, 'order', (int) $orderId, [
+$sourcePath = (string) parse_url($sourceUrl, PHP_URL_PATH);
+$originalName = basename($sourcePath);
+$contentDisposition = '';
+if (preg_match('/^Content-Disposition:\s*(.+)$/im', (string) $document['headers'], $match)) {
+    $contentDisposition = trim($match[1]);
+}
+if ($contentDisposition !== '' && preg_match('/filename\*?=(?:UTF-8\'\')?"?([^";\r\n]+)"?/i', $contentDisposition, $match)) {
+    $headerName = basename(rawurldecode(trim($match[1])));
+    if ($headerName !== '' && $headerName !== '.') {
+        $originalName = $headerName;
+    }
+}
+if ($originalName === '' || $originalName === '/' || !preg_match('/\.[A-Za-z0-9]{2,5}$/', $originalName)) {
+    $number = preg_replace('/[^A-Za-z0-9_-]+/', '-', (string) ($order['order_number'] ?? $sourceOrderId));
+    $originalName = ucfirst($documentType) . '-' . $number . (stripos($document['content_type'], 'pdf') !== false ? '.pdf' : '.html');
+}
+
+ops_activity_log('original_pos_' . $documentType . '_' . $action, 'order', (int) $orderId, [
+    'source' => 'website_pos',
+    'source_order_id' => $sourceOrderId,
     'document_type' => $documentType,
-    'order_number' => $number,
+    'message' => 'Original POS ' . $documentType . ' ' . $action . 'ed.',
 ]);
-$filename = $documentType . '-' . preg_replace('/[^A-Za-z0-9_-]+/', '-', $number);
 
-if ($action === 'download') {
-    $pdf = orders_document_pdf($lines);
-    header('Content-Type: application/pdf');
-    header('Content-Disposition: attachment; filename="' . $filename . '.pdf"');
-    header('Content-Length: ' . strlen($pdf));
-    header('Cache-Control: private, no-store');
-    echo $pdf;
-    exit;
-}
-
-header('Content-Type: text/html; charset=utf-8');
+header('Content-Type: ' . $document['content_type']);
+header('Content-Disposition: ' . ($action === 'download' ? 'attachment' : 'inline') . '; filename="' . addcslashes($originalName, '"\\') . '"');
+header('Content-Length: ' . strlen($document['body']));
 header('Cache-Control: private, no-store');
-$safeTitle = htmlspecialchars($title . ' - Order ' . $number, ENT_QUOTES, 'UTF-8');
-echo '<!doctype html><html><head><meta charset="utf-8"><title>' . $safeTitle . '</title>';
-echo '<style>body{font:14px/1.5 Arial,sans-serif;color:#1a1a1a;margin:40px}h1{color:#721b1a;margin:0 0 20px}.line{padding:5px 0;border-bottom:1px solid #ede3d8}@media print{button{display:none}}</style></head><body>';
-echo '<button type="button" onclick="window.print()">Print</button><h1>' . $safeTitle . '</h1>';
-foreach ($lines as $line) {
-    echo '<div class="line">' . htmlspecialchars((string) $line, ENT_QUOTES, 'UTF-8') . '</div>';
-}
-echo '<script>window.addEventListener("load",function(){window.print();});</script></body></html>';
+echo $document['body'];
