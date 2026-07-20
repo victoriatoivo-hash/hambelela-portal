@@ -785,3 +785,222 @@ document.addEventListener('click', (event) => {
     panel.classList.toggle('active', panel.dataset.packerPanel === section);
   });
 });
+
+/**
+ * One shared, viewport-sticky horizontal scrollbar for wide portal tables.
+ * The source remains scrollable by touch/trackpad; only its native bar is hidden.
+ */
+(() => {
+  if (window.__hambelelaStickyHorizontalScrollStarted) return;
+  window.__hambelelaStickyHorizontalScrollStarted = true;
+
+  const sourceSelector = [
+    '[data-portal-horizontal-scroll-source]',
+    '.ops-board-scroll',
+    '.ledger-board',
+    '.courier-table-scroll',
+    '.dtb-table-wrap',
+    '.error-board-table-wrap',
+    '.table-scroll',
+    '.hr-table-scroll',
+    '.owner-table-wrap',
+    '.cor-table-wrap',
+    '.inv-table-wrap',
+    '.invoice-review-table-wrap'
+  ].join(',');
+  const panelSelector = [
+    '.orders-tools-panel.is-open',
+    '.orders-more-panel.is-open',
+    '.order-panel.is-open',
+    '.order-panel.open',
+    '.packing-tools-panel.is-open',
+    '.packing-item-panel.is-open',
+    '.task-details-panel.is-open',
+    '.task-tools-panel.is-open',
+    '.courier-tools-panel.is-open'
+  ].join(',');
+  const fixedBottomSelector = [
+    '.orders-packing-bulk-bar.is-visible',
+    '.packing-bulk-bar.is-visible',
+    '.dtb-bulk-action-bar.is-visible',
+    '.courier-bulk-bar.is-visible'
+  ].join(',');
+
+  const mirror = document.createElement('div');
+  mirror.className = 'portal-sticky-horizontal-scrollbar';
+  mirror.dataset.portalHorizontalScrollMirror = '';
+  mirror.setAttribute('role', 'region');
+  mirror.setAttribute('aria-label', 'Horizontal table scroll');
+  mirror.hidden = true;
+  const mirrorInner = document.createElement('div');
+  mirrorInner.className = 'portal-sticky-horizontal-scrollbar-inner';
+  mirror.appendChild(mirrorInner);
+  document.body.appendChild(mirror);
+
+  const boundSources = new WeakSet();
+  const visibleSources = new Set();
+  let sources = [];
+  let activeSource = null;
+  let syncing = false;
+  let frame = 0;
+
+  const isRendered = (element) => {
+    if (!element?.isConnected) return false;
+    const rect = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    return style.display !== 'none'
+      && style.visibility !== 'hidden'
+      && rect.width > 0
+      && rect.height > 0;
+  };
+
+  const hasOverflow = (source) => source.scrollWidth > source.clientWidth + 1;
+
+  const intersectsViewport = (source) => {
+    const rect = source.getBoundingClientRect();
+    return rect.bottom > 0 && rect.top < window.innerHeight;
+  };
+
+  const panelIsOpen = () => Boolean(document.querySelector(panelSelector))
+    || document.body.classList.contains('portal-panel-open')
+    || document.body.classList.contains('orders-tools-open')
+    || document.body.classList.contains('packing-tools-open');
+
+  const chooseSource = () => {
+    const eligible = sources.filter((source) => (
+      isRendered(source)
+      && hasOverflow(source)
+      && (visibleSources.has(source) || intersectsViewport(source))
+    ));
+    if (activeSource && eligible.includes(activeSource)) return activeSource;
+    const centre = window.innerHeight / 2;
+    return eligible.sort((a, b) => {
+      const aRect = a.getBoundingClientRect();
+      const bRect = b.getBoundingClientRect();
+      const aDistance = Math.abs(((aRect.top + aRect.bottom) / 2) - centre);
+      const bDistance = Math.abs(((bRect.top + bRect.bottom) / 2) - centre);
+      return aDistance - bDistance;
+    })[0] || null;
+  };
+
+  const update = () => {
+    frame = 0;
+    const source = chooseSource();
+    if (!source || panelIsOpen()) {
+      mirror.hidden = true;
+      document.body.classList.remove('portal-sticky-horizontal-scroll-active');
+      return;
+    }
+
+    activeSource = source;
+    const rect = source.getBoundingClientRect();
+    const left = Math.max(0, rect.left);
+    const right = Math.max(0, window.innerWidth - rect.right);
+    let bottom = 0;
+    document.querySelectorAll(fixedBottomSelector).forEach((bar) => {
+      if (isRendered(bar)) bottom = Math.max(bottom, bar.getBoundingClientRect().height);
+    });
+
+    mirror.style.left = `${left}px`;
+    mirror.style.right = `${right}px`;
+    mirror.style.setProperty('--portal-sticky-scroll-bottom', `${bottom}px`);
+    mirrorInner.style.width = `${source.scrollWidth}px`;
+    if (!syncing) mirror.scrollLeft = source.scrollLeft;
+    mirror.hidden = false;
+    document.body.classList.add('portal-sticky-horizontal-scroll-active');
+  };
+
+  const requestUpdate = () => {
+    if (frame) return;
+    frame = requestAnimationFrame(update);
+  };
+
+  const activate = (source) => {
+    if (!source || !sources.includes(source)) return;
+    activeSource = source;
+    requestUpdate();
+  };
+
+  const intersectionObserver = 'IntersectionObserver' in window
+    ? new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) visibleSources.add(entry.target);
+        else visibleSources.delete(entry.target);
+      });
+      requestUpdate();
+    }, { threshold: 0 })
+    : null;
+
+  const resizeObserver = 'ResizeObserver' in window
+    ? new ResizeObserver(requestUpdate)
+    : null;
+
+  const bindSource = (source) => {
+    if (boundSources.has(source)) return;
+    boundSources.add(source);
+    source.classList.add('portal-horizontal-scroll-source');
+    if (!source.hasAttribute('tabindex')) source.tabIndex = 0;
+    if (!source.hasAttribute('aria-label')) source.setAttribute('aria-label', 'Scrollable table');
+    source.addEventListener('pointerdown', () => activate(source), { passive: true });
+    source.addEventListener('focusin', () => activate(source));
+    source.addEventListener('scroll', () => {
+      activeSource = source;
+      if (!syncing) {
+        syncing = true;
+        mirror.scrollLeft = source.scrollLeft;
+        requestAnimationFrame(() => { syncing = false; });
+      }
+      requestUpdate();
+    }, { passive: true });
+    intersectionObserver?.observe(source);
+    resizeObserver?.observe(source);
+    const content = source.firstElementChild;
+    if (content) resizeObserver?.observe(content);
+  };
+
+  const discover = () => {
+    sources = Array.from(document.querySelectorAll(sourceSelector)).filter((source) => {
+      const style = getComputedStyle(source);
+      return ['auto', 'scroll'].includes(style.overflowX) || source.matches('[data-portal-horizontal-scroll-source]');
+    });
+    sources.forEach((source) => {
+      bindSource(source);
+      if (source.firstElementChild) resizeObserver?.observe(source.firstElementChild);
+    });
+    if (activeSource && !sources.includes(activeSource)) activeSource = null;
+    requestUpdate();
+  };
+
+  mirror.addEventListener('scroll', () => {
+    if (!activeSource || syncing) return;
+    syncing = true;
+    activeSource.scrollLeft = mirror.scrollLeft;
+    requestAnimationFrame(() => { syncing = false; });
+  }, { passive: true });
+
+  document.addEventListener('pointerdown', (event) => {
+    const source = event.target.closest(sourceSelector);
+    if (source) activate(source);
+  }, { passive: true });
+  window.addEventListener('resize', requestUpdate, { passive: true });
+  window.addEventListener('scroll', requestUpdate, { passive: true, capture: true });
+
+  const mutationObserver = new MutationObserver((mutations) => {
+    if (mutations.some((mutation) => mutation.type === 'childList')) discover();
+    else requestUpdate();
+  });
+  mutationObserver.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['class', 'hidden']
+  });
+
+  window.addEventListener('beforeunload', () => {
+    intersectionObserver?.disconnect();
+    resizeObserver?.disconnect();
+    mutationObserver.disconnect();
+  }, { once: true });
+
+  discover();
+})();

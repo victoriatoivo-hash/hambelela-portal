@@ -1,0 +1,74 @@
+/* Shared single visible scrollbar for horizontally overflowing portal tables. */
+:root {
+  --portal-sticky-scrollbar-height: 16px;
+  --portal-sticky-scroll-bottom: 0px;
+}
+
+.portal-horizontal-scroll-source {
+  overflow-x: auto !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.portal-horizontal-scroll-source::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+}
+
+.portal-sticky-horizontal-scrollbar {
+  position: fixed;
+  right: 0;
+  bottom: var(--portal-sticky-scroll-bottom, 0px);
+  z-index: 24000;
+  height: var(--portal-sticky-scrollbar-height, 16px);
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: rgba(255, 250, 247, .97);
+  border-top: 1px solid #EDE3D8;
+  box-shadow: 0 -4px 14px rgba(114, 27, 26, .06);
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(114, 27, 26, .34) rgba(237, 227, 216, .72);
+  transition: left .2s ease, right .2s ease, bottom .16s ease;
+}
+
+.portal-sticky-horizontal-scrollbar[hidden] {
+  display: none !important;
+}
+
+.portal-sticky-horizontal-scrollbar-inner {
+  height: 1px;
+  pointer-events: none;
+}
+
+.portal-sticky-horizontal-scrollbar::-webkit-scrollbar {
+  height: 10px;
+}
+
+.portal-sticky-horizontal-scrollbar::-webkit-scrollbar-track {
+  background: rgba(237, 227, 216, .72);
+}
+
+.portal-sticky-horizontal-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(114, 27, 26, .34);
+  border: 2px solid rgba(255, 250, 247, .96);
+  border-radius: 999px;
+}
+
+.portal-sticky-horizontal-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(171, 54, 25, .48);
+}
+
+body.dark-mode .portal-sticky-horizontal-scrollbar {
+  background: rgba(30, 17, 8, .97);
+  border-top-color: #3a2010;
+}
+
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .portal-sticky-horizontal-scrollbar {
+    height: calc(var(--portal-sticky-scrollbar-height, 16px) + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}

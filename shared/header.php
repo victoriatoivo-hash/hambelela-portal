@@ -26,6 +26,12 @@ $presenceJsVersion = is_file(BASE_PATH . '/assets/js/portal-presence.js')
 $headerAccountCssVersion = is_file(BASE_PATH . '/assets/css/portal-header-account.css')
     ? (string) filemtime(BASE_PATH . '/assets/css/portal-header-account.css')
     : $assetVersion;
+$stickyScrollbarCssVersion = is_file(BASE_PATH . '/assets/css/portal-sticky-scrollbar.css')
+    ? (string) filemtime(BASE_PATH . '/assets/css/portal-sticky-scrollbar.css')
+    : $assetVersion;
+$portalJsVersion = is_file(BASE_PATH . '/assets/js/portal.js')
+    ? (string) filemtime(BASE_PATH . '/assets/js/portal.js')
+    : $assetVersion;
 $headerUser = current_user();
 $showPortalHeaderStatus = (string) ($headerUser['role_key'] ?? 'guest') !== 'guest';
 $pageUsesPortalSidebar = (bool) ($pageUsesPortalSidebar ?? true);
@@ -71,9 +77,10 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
         <link rel="stylesheet" href="<?= BASE_URL ?>/<?= htmlspecialchars($stylesheetHref, ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($stylesheetVersion, ENT_QUOTES, 'UTF-8') ?>">
     <?php endforeach; ?>
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal-date-picker.css?v=<?= htmlspecialchars($datePickerCssVersion, ENT_QUOTES, 'UTF-8') ?>">
+    <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal-sticky-scrollbar.css?v=<?= htmlspecialchars($stickyScrollbarCssVersion, ENT_QUOTES, 'UTF-8') ?>">
     <script defer src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script defer src="<?= BASE_URL ?>/assets/js/portal-date-picker.js?v=<?= htmlspecialchars($datePickerJsVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
-    <script defer src="<?= BASE_URL ?>/assets/js/portal.js?v=<?= htmlspecialchars($assetVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
+    <script defer src="<?= BASE_URL ?>/assets/js/portal.js?v=<?= htmlspecialchars($portalJsVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
     <?php if ($showPortalHeaderStatus): ?>
         <script defer src="<?= BASE_URL ?>/assets/js/portal-presence.js?v=<?= htmlspecialchars($presenceJsVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
     <?php endif; ?>
