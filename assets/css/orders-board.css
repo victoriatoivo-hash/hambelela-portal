@@ -138,7 +138,8 @@
 .orders-tools-bar { display: none; }
 
 .monday-board-head-actions .orders-tools-trigger{height:32px;min-height:32px;padding:0 12px;display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid rgba(171,54,25,.24);border-radius:9px;background:#AB3619;color:#fff;font-family:Figtree,system-ui,sans-serif;font-size:11px!important;line-height:1;font-weight:700!important;white-space:nowrap;cursor:pointer;box-shadow:0 7px 16px rgba(114,27,26,.1);transition:transform .16s ease,box-shadow .16s ease,background-color .16s ease}
-.orders-tools-trigger:hover{background:#721B1A;transform:translateY(-1px);box-shadow:0 10px 22px rgba(114,27,26,.15)}
+.orders-tools-trigger:hover,.orders-tools-trigger:focus-visible,.orders-tools-trigger:active,.orders-tools-trigger[aria-expanded="true"]{background:#F07420;color:#fff;border-color:#F07420;transform:translateY(-1px);box-shadow:0 10px 22px rgba(240,116,32,.2)}
+.orders-tools-trigger,.orders-tools-trigger svg{color:#fff}
 .orders-tools-trigger svg{width:14px;height:14px;transition:transform .2s ease}.orders-tools-trigger:hover svg{transform:rotate(-12deg)}
 .orders-tools-backdrop{position:fixed;inset:0;z-index:59990;background:rgba(26,26,26,.14);opacity:0;visibility:hidden;pointer-events:none;transition:opacity .18s ease,visibility .18s ease}
 .orders-tools-backdrop.is-open{opacity:1;visibility:visible;pointer-events:auto}
