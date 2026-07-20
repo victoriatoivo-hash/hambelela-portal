@@ -29,7 +29,7 @@ if ($roleKey === 'owner_admin') {
         ['name'=>'HR Portal','desc'=>'leave, payslips and employee self-service','icon'=>'shield-check','href'=>BASE_URL.'/apps/hr-portal/portal-login.php','active'=>true,'tone'=>'green'],
         ['name'=>'Orders','desc'=>'website orders, payments and daily status','icon'=>'table-2','href'=>BASE_URL.'/apps/operations/orders-board.php','active'=>true,'tone'=>'pink'],
         ['name'=>'Tasks','desc'=>'daily assigned tasks and completion tracking','icon'=>'list-checks','href'=>BASE_URL.'/apps/operations/checklists.php','active'=>true,'tone'=>'green'],
-        ['name'=>'Bookkeeping','desc'=>'cash and bookkeeping workflows','icon'=>'book-open','href'=>'','active'=>false,'tone'=>'green'],
+        ['name'=>'Bookkeeping','desc'=>'cash and bookkeeping workflows','icon'=>'book-open','href'=>BASE_URL.'/apps/operations/bookkeeping.php','active'=>true,'tone'=>'green'],
         ['name'=>'Notifications','desc'=>'your account alerts and updates','icon'=>'bell','href'=>BASE_URL.'/notifications.php','active'=>true,'tone'=>'pink'],
     ];
     if (in_array($roleKey, ['front_desk_admin', 'front_desk_admin_employee'], true)) {
@@ -42,7 +42,7 @@ include __DIR__ . '/shared/sidebar.php';
 ?>
 <main class="workspace launcher">
     <header class="launcher-account-header" data-portal-header-status-target aria-label="Portal account and status"></header>
-    <?php if ($roleKey !== 'owner_admin'): ?><section class="employee-workspace-intro"><h1>Packing List, Courier Waybills, HR Portal, Orders, Tasks and Notifications are currently available.</h1><p>Additional portal sections are coming soon.</p></section><?php endif; ?>
+    <?php if ($roleKey !== 'owner_admin'): ?><section class="employee-workspace-intro"><h1>Packing List, Courier Waybills, HR Portal, Orders, Bookkeeping, Tasks and Notifications are currently available.</h1><p>Additional portal sections are coming soon.</p></section><?php endif; ?>
     <section class="launcher-hero" aria-labelledby="launcher-title">
         <h1 id="launcher-title">essentials <span class="mascot" aria-hidden="true">&#9822;</span></h1>
         <p>your business command center</p>

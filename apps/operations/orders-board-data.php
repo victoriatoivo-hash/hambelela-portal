@@ -290,6 +290,14 @@ $responseData = $incremental
         'cursor' => $responseCursor,
     ];
 
+$ordersPermissions = [
+    'can_edit_packed_by' => in_array($roleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager', 'packer', 'packer_production_staff'], true),
+    'can_manage_people' => $roleKey === 'owner_admin',
+    'can_bulk_manage' => in_array($roleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager'], true),
+    'can_delete' => in_array($roleKey, ['owner_admin', 'supervisor_manager'], true),
+];
+$responseData['permissions'] = $ordersPermissions;
+
 echo json_encode([
     'ok' => true,
     'success' => true,
@@ -300,17 +308,14 @@ echo json_encode([
     'removed_ids' => $removedIds,
     'metrics' => $metrics,
     'packers' => $packers,
+    'permissions' => $ordersPermissions,
     'currentEmployeeId' => ops_current_employee_id(),
-    'currentUser' => [
+    'currentUser' => array_merge([
         'id' => ops_current_employee_id(),
         'name' => $user['name'] ?? '',
         'role_key' => $roleKey,
-        'can_edit_packed_by' => in_array($roleKey, ['owner_admin', 'front_desk_admin', 'supervisor_manager', 'packer'], true),
-        'can_manage_people' => $roleKey === 'owner_admin',
-        'can_bulk_manage' => in_array($roleKey, ['owner_admin', 'front_desk_admin', 'supervisor_manager'], true),
-        'can_delete' => in_array($roleKey, ['owner_admin', 'supervisor_manager'], true),
         'employee_accounts_url' => BASE_URL . '/apps/operations/my-account.php?section=employees',
-    ],
+    ], $ordersPermissions),
     'date' => $date,
     'month' => $month,
     'serverTime' => $responseCursor,

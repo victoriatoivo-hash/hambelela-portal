@@ -37,6 +37,8 @@
   const activeFilterChips = document.querySelector('[data-orders-active-filter-chips]');
 
   if (!body || !config.dataUrl || !config.actionUrl) return;
+  if (window.__hambelelaOrdersControllerStarted) return;
+  window.__hambelelaOrdersControllerStarted = true;
 
   if (labelMenu && labelMenu.parentElement !== document.body) document.body.appendChild(labelMenu);
   if (panel && panel.parentElement !== document.body) document.body.appendChild(panel);
@@ -3484,6 +3486,9 @@
       const payload = data.data && typeof data.data === 'object' ? data.data : {};
       const responseMode = String(payload.mode || data.mode || (data.incremental ? 'delta' : 'snapshot'));
       liveCursor = String(payload.cursor || data.cursor || data.serverTime || liveCursor);
+      if (background && hasRenderedOnce && responseMode !== 'delta') {
+        throw new Error('Background Orders refresh did not return an incremental update.');
+      }
       liveFailures = 0;
       currentUser = data.currentUser || {};
       if (!morePreferencesLoaded) {
@@ -4627,7 +4632,9 @@
     .finally(() => {
       refresh()
         .catch((error) => {
-          body.innerHTML = `<tr><td colspan="13">${esc(error.message)}</td></tr>`;
+          if (!hasRenderedOnce) {
+            body.innerHTML = `<div class="board-empty-state"><p>${esc(error.message)}</p></div>`;
+          }
         })
         .finally(async () => {
           if (document.visibilityState !== 'hidden') {

@@ -4,17 +4,25 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/operations.php';
 
-require_role('owner_admin', 'front_desk_admin');
+require_login();
 
 $pageTitle = 'Hambelela Bookkeeping | ' . APP_NAME;
 $activeApp = 'operations-bookkeeping';
 $ready = ops_database_ready();
 $employeeId = ops_current_employee_id();
 $currentUser = current_user();
+$bookkeepingRoleKey = normalise_portal_role((string) ($currentUser['role_key'] ?? current_role_key()));
+$canOperateBookkeeping = in_array($bookkeepingRoleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager'], true);
+$canManageBookkeeping = $bookkeepingRoleKey === 'owner_admin';
+$isBookkeepingReadOnly = !$canOperateBookkeeping;
 $ledgerUserId = (int) ($currentUser['id'] ?? $employeeId ?? 0);
 $ledgerUserName = (string) ($currentUser['name'] ?? 'Unknown user');
 $message = null;
 $messageType = 'success';
+
+final class LedgerPermissionException extends RuntimeException
+{
+}
 
 function ledger_money(float $amount): string
 {
@@ -277,6 +285,23 @@ if ($ready) {
 if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $action = ops_post_string('action', 40);
+        if (!$canOperateBookkeeping) {
+            throw new LedgerPermissionException('Your Bookkeeping access is read-only.');
+        }
+        $ownerOnlyActions = [
+            'cashbook_add_custom_column',
+            'cashbook_rename_custom_column',
+            'cashbook_delete_custom_column',
+            'cashbook_soft_delete',
+            'cashbook_archive',
+            'cashbook_move_date',
+            'cashbook_restore',
+            'cashbook_permanent_delete',
+            'cashbook_save_recon',
+        ];
+        if (in_array($action, $ownerOnlyActions, true) && !$canManageBookkeeping) {
+            throw new LedgerPermissionException('Only the Owner/Admin can perform this Bookkeeping action.');
+        }
         if ($action === 'add_entry') {
             $description = ops_post_string('description', 190);
             if ($description === '') throw new RuntimeException('Description is required.');
@@ -539,7 +564,12 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         throw new RuntimeException('Unknown ledger action.');
     } catch (Throwable $e) {
-        if (ledger_wants_json()) ledger_json(['ok' => false, 'message' => $e->getMessage()], 400);
+        if (ledger_wants_json()) {
+            ledger_json(
+                ['ok' => false, 'message' => $e->getMessage()],
+                $e instanceof LedgerPermissionException ? 403 : 400
+            );
+        }
         $message = $e->getMessage();
         $messageType = 'error';
     }
@@ -641,7 +671,7 @@ $activityLog = $ready ? ops_rows(
      ORDER BY l.created_at DESC, l.id DESC
      LIMIT 100"
 ) : [];
-$canHardDelete = user_has_role('owner_admin');
+$canHardDelete = $canManageBookkeeping;
 $headerNotificationSummary = function_exists('notifications_summary_for_current_user')
     ? notifications_summary_for_current_user(1)
     : ['unread_count' => 0];
@@ -2035,14 +2065,14 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
 <body>
 <div class="ledger-shell shell">
 <?php include BASE_PATH . '/shared/sidebar.php'; ?>
-<main class="ledger-page bk-wrap">
+<main class="ledger-page bk-wrap" data-bookkeeping-access="<?= $isBookkeepingReadOnly ? 'read-only' : ($canManageBookkeeping ? 'full' : 'operational') ?>">
     <header class="ledger-top">
         <div>
             <h1>Hambelela Bookkeeping</h1>
             <p class="ledger-subtitle">Daily cash in, cash out, net movement, and closing balance.</p>
         </div>
         <div class="ledger-top-actions" data-portal-header-status-target>
-            <?php if ($ready): ?>
+            <?php if ($ready && $canOperateBookkeeping): ?>
                 <button class="bk-drawer-trigger" type="button" id="bkDrawerBtn" onclick="openDrawer()">Cash tools</button>
             <?php endif; ?>
             <section class="portal-header-status" data-portal-header-status
@@ -2084,7 +2114,7 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             <article class="stat-card" style="--accent: #A8CA19;"><span class="stat-label">Entries Today</span><strong class="stat-value" data-stat-count><?= number_format($entriesToday) ?></strong></article>
         </section>
 
-        <?php if (!$hasOpening): ?>
+        <?php if (!$hasOpening && $canOperateBookkeeping): ?>
             <section class="bk-opening-prompt" id="bkOpeningPrompt" aria-label="Opening balance prompt">
                 <div class="bk-opening-inner">
                     <div class="bk-opening-left">
@@ -2168,7 +2198,7 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
                                     <span class="ledger-column-resize-handle" data-ledger-resize-column="<?= htmlspecialchars($column['column_key'], ENT_QUOTES, 'UTF-8') ?>" aria-hidden="true"></span>
                                 </div>
                             <?php endforeach; ?>
-                            <div class="ledger-cell ledger-add-col-cell"><button class="ledger-add-column-btn" type="button" data-add-ledger-column aria-label="Add ledger column">+</button></div>
+                            <div class="ledger-cell ledger-add-col-cell"><?php if ($canManageBookkeeping): ?><button class="ledger-add-column-btn" type="button" data-add-ledger-column aria-label="Add ledger column">+</button><?php endif; ?></div>
                         </div>
                         <?php foreach ($dayEntries as $entry): ?>
                             <?php
@@ -2179,20 +2209,21 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
                             $entryCustomFields = ledger_decode_json($entry['custom_fields_json'] ?? '{}');
                             ?>
                             <div class="ledger-row entry-row" data-entry-id="<?= (int) $entry['id'] ?>" data-cash-in="<?= $rowIn ?>" data-cash-out="<?= $rowOut ?>">
-                                <div class="ledger-cell check-cell"><input class="bk-row-check" type="checkbox" data-id="<?= (int) $entry['id'] ?>" aria-label="Select ledger entry"></div>
-                                <div class="ledger-cell ledger-data-cell bk-editable" data-field="description" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars((string) $entry['description'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars((string) $entry['description'], ENT_QUOTES, 'UTF-8') ?></div>
-                                <div class="ledger-cell ledger-data-cell bk-editable" data-field="transaction_date" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars(date('Y-m-d\TH:i', strtotime($entryDate)), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(ledger_display_datetime($entryDate), ENT_QUOTES, 'UTF-8') ?></div>
-                                <div class="ledger-cell ledger-data-cell bk-editable money-cell money-in" data-field="cash_in" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars((string) $rowIn, ENT_QUOTES, 'UTF-8') ?>"><?= $rowIn > 0 ? ledger_money($rowIn) : '' ?></div>
-                                <div class="ledger-cell ledger-data-cell bk-editable money-cell money-out" data-field="cash_out" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars((string) $rowOut, ENT_QUOTES, 'UTF-8') ?>"><?= $rowOut > 0 ? ledger_money($rowOut) : '' ?></div>
+                            <div class="ledger-cell check-cell"><?php if ($canManageBookkeeping): ?><input class="bk-row-check" type="checkbox" data-id="<?= (int) $entry['id'] ?>" aria-label="Select ledger entry"><?php endif; ?></div>
+                            <div class="ledger-cell ledger-data-cell <?= $canOperateBookkeeping ? 'bk-editable' : '' ?>" data-field="description" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars((string) $entry['description'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars((string) $entry['description'], ENT_QUOTES, 'UTF-8') ?></div>
+                            <div class="ledger-cell ledger-data-cell <?= $canOperateBookkeeping ? 'bk-editable' : '' ?>" data-field="transaction_date" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars(date('Y-m-d\TH:i', strtotime($entryDate)), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(ledger_display_datetime($entryDate), ENT_QUOTES, 'UTF-8') ?></div>
+                            <div class="ledger-cell ledger-data-cell <?= $canOperateBookkeeping ? 'bk-editable' : '' ?> money-cell money-in" data-field="cash_in" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars((string) $rowIn, ENT_QUOTES, 'UTF-8') ?>"><?= $rowIn > 0 ? ledger_money($rowIn) : '' ?></div>
+                            <div class="ledger-cell ledger-data-cell <?= $canOperateBookkeeping ? 'bk-editable' : '' ?> money-cell money-out" data-field="cash_out" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars((string) $rowOut, ENT_QUOTES, 'UTF-8') ?>"><?= $rowOut > 0 ? ledger_money($rowOut) : '' ?></div>
                                 <div class="ledger-cell ledger-total money-net" data-row-total><?= ledger_money($rowTotal) ?></div>
-                                <div class="ledger-cell ledger-data-cell bk-editable" data-field="notes" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars((string) ($entry['notes'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars((string) ($entry['notes'] ?? ''), ENT_QUOTES, 'UTF-8') ?></div>
+                            <div class="ledger-cell ledger-data-cell <?= $canOperateBookkeeping ? 'bk-editable' : '' ?>" data-field="notes" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars((string) ($entry['notes'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars((string) ($entry['notes'] ?? ''), ENT_QUOTES, 'UTF-8') ?></div>
                                 <?php foreach ($customColumns as $column): ?>
                                     <?php $customValue = (string) ($entryCustomFields[$column['column_key']] ?? ''); ?>
-                                    <div class="ledger-cell ledger-custom-cell" data-custom-cell data-custom-column-key="<?= htmlspecialchars($column['column_key'], ENT_QUOTES, 'UTF-8') ?>" data-custom-type="<?= htmlspecialchars($column['type'], ENT_QUOTES, 'UTF-8') ?>" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars($customValue, ENT_QUOTES, 'UTF-8') ?>"><?= ledger_custom_cell_html($column, $entryCustomFields) ?></div>
+                                    <div class="ledger-cell ledger-custom-cell" <?= $canOperateBookkeeping ? 'data-custom-cell' : '' ?> data-custom-column-key="<?= htmlspecialchars($column['column_key'], ENT_QUOTES, 'UTF-8') ?>" data-custom-type="<?= htmlspecialchars($column['type'], ENT_QUOTES, 'UTF-8') ?>" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars($customValue, ENT_QUOTES, 'UTF-8') ?>"><?= ledger_custom_cell_html($column, $entryCustomFields) ?></div>
                                 <?php endforeach; ?>
                                 <div class="ledger-cell ledger-add-col-cell"></div>
                             </div>
                         <?php endforeach; ?>
+                        <?php if ($canOperateBookkeeping): ?>
                         <div class="ledger-row add-row" data-add-row data-day="<?= htmlspecialchars($day, ENT_QUOTES, 'UTF-8') ?>">
                             <div class="ledger-cell check-cell"></div>
                             <div class="ledger-cell"><input data-add-field="description" placeholder="Add cash entry"></div>
@@ -2206,6 +2237,7 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
                             <?php endforeach; ?>
                             <div class="ledger-cell ledger-add-col-cell"></div>
                         </div>
+                        <?php endif; ?>
                     </section>
                 <?php endforeach; ?>
             </div>
@@ -2220,7 +2252,7 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
     <?php endif; ?>
 </main>
 </div>
-<?php if ($ready): ?>
+<?php if ($ready && $canOperateBookkeeping): ?>
 <div class="bk-overlay" id="bkOverlay" onclick="closeDrawer()"></div>
 <aside class="bk-drawer cash-tools-panel" id="bkDrawer" aria-label="Cash ledger tools">
     <div class="bk-drawer-header">
@@ -2229,8 +2261,10 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
     </div>
     <div class="bk-tabs" role="tablist" aria-label="Cash tools tabs">
         <button class="bk-tab is-active" type="button" data-tab="counter" onclick="switchTab(this, 'counter')">Count till</button>
+        <?php if ($canManageBookkeeping): ?>
         <button class="bk-tab" type="button" data-tab="recon" onclick="switchTab(this, 'recon')">Reconcile</button>
         <button class="bk-tab" type="button" data-tab="trash" onclick="switchTab(this, 'trash')">Trash</button>
+        <?php endif; ?>
         <button class="bk-tab" type="button" data-tab="activity" onclick="switchTab(this, 'activity')">Activity</button>
     </div>
     <div class="bk-drawer-body">
@@ -2250,6 +2284,7 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
                 <button class="bk-copy-total" id="copyTotalBtn" type="button" onclick="copyCountedTotal()">Copy counted total</button>
             </div>
         </section>
+        <?php if ($canManageBookkeeping): ?>
         <section class="bk-tab-panel" id="tab-recon">
             <section class="bk-side-section recon-card">
                 <div class="bk-side-head"><span>Variance Reconciliation</span></div>
@@ -2304,6 +2339,7 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
                 </div>
             </section>
         </section>
+        <?php endif; ?>
         <section class="bk-tab-panel" id="tab-activity">
             <section class="bk-side-section">
                 <div class="bk-side-head"><span>Activity Log</span></div>
@@ -2314,6 +2350,7 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
         </section>
     </div>
 </aside>
+<?php if ($canManageBookkeeping): ?>
 <div class="bk-action-bar" id="bkActionBar" aria-live="polite">
     <div class="bk-action-selection">
         <span class="bk-action-count" id="bkActionCount">0</span>
@@ -2359,6 +2396,7 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
         </div>
     </form>
 </div>
+<?php endif; ?>
 <?php endif; ?>
 <script>
 const todayKey = <?= json_encode($today, JSON_UNESCAPED_SLASHES) ?>;
