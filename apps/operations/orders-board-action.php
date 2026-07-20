@@ -101,17 +101,19 @@ function ops_board_run_guarded_sync(?string $date, bool $force = false): array
     }
 }
 
-function ops_board_payment_status(array $order): string
+function ops_board_normalise_walk_in_marker(?string $value): string
 {
-    if (in_array((string) ($order['status'] ?? ''), ['cancelled', 'refunded', 'failed'], true)) {
-        return 'refunded';
-    }
+    $value = strtolower(trim((string) $value));
+    $value = preg_replace('/[\s\-_]+/', ' ', $value) ?? '';
 
-    if (!empty($order['date_paid']) || (($order['status'] ?? '') === 'processing') || (($order['status'] ?? '') === 'completed')) {
-        return 'paid';
-    }
+    return trim($value);
+}
 
-    return 'unpaid';
+function ops_board_initial_payment_status(?string $sourceMobile): string
+{
+    return ops_board_normalise_walk_in_marker($sourceMobile) === 'walk in customer'
+        ? 'paid'
+        : 'unpaid';
 }
 
 function ops_board_order_type(array $order): string
@@ -523,7 +525,6 @@ function ops_board_sync_website_orders(?string $date = null): array
                     payment_method = VALUES(payment_method),
                     total_amount = VALUES(total_amount),
                     {$breakdownUpdates}
-                    payment_status = VALUES(payment_status),
                     order_type = VALUES(order_type),
                     notes = VALUES(notes),
                     workload_score = VALUES(workload_score),
@@ -539,7 +540,6 @@ function ops_board_sync_website_orders(?string $date = null): array
                     customer_name = VALUES(customer_name),
                     customer_contact = VALUES(customer_contact),
                     payment_method = VALUES(payment_method),
-                    payment_status = VALUES(payment_status),
                     order_type = VALUES(order_type),
                     notes = VALUES(notes),
                     workload_score = VALUES(workload_score),
@@ -609,7 +609,7 @@ function ops_board_sync_website_orders(?string $date = null): array
             }
 
             $orderValues = array_merge($orderValues, [
-                    ops_board_payment_status($order),
+                    ops_board_initial_payment_status($customerContact),
                     $orderType,
                     $priority,
                     $complexity,
@@ -643,6 +643,14 @@ function ops_board_sync_website_orders(?string $date = null): array
                     'order_number' => $orderNumber,
                 ]);
                 ops_log_initial_order_assignment($orderId, $packerId, 'orders_board_woocommerce_sync');
+                if (ops_board_initial_payment_status($customerContact) === 'paid') {
+                    ops_activity_log('payment_status_auto_walk_in', 'order', $orderId, [
+                        'previous_value' => 'unpaid',
+                        'new_value' => 'paid',
+                        'source' => 'first_import_walk_in_customer',
+                        'message' => 'Paid automatically marked for Walk-in Customer order.',
+                    ]);
+                }
                 if ($packerId) {
                     $assigned++;
                 }
@@ -1354,13 +1362,23 @@ try {
                 ], ['owner_admin', 'front_desk_admin', 'supervisor_manager']);
             }
         } elseif ($field === 'payment_status') {
+            if (!user_has_role('owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager')) {
+                throw new RuntimeException('You do not have permission to change Paid.');
+            }
             $stmt = db()->prepare('UPDATE ops_orders SET payment_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
             $stmt->execute([$value, $orderId]);
+            $actor = current_user();
+            $oldPaid = (string) ($previousOrder['payment_status'] ?? 'unpaid') === 'paid';
+            $newPaid = $value === 'paid';
             ops_activity_log('payment_status_updated', 'order', $orderId, [
                 'field' => 'payment_status',
                 'old_value' => (string) ($previousOrder['payment_status'] ?? ''),
                 'new_value' => $value,
-                'changed_by' => current_user()['name'] ?? 'Unknown',
+                'previous_value' => $oldPaid ? 'Yes' : 'No',
+                'changed_by' => $actor['name'] ?? 'Unknown',
+                'actor_role' => $actor['role_key'] ?? current_role_key(),
+                'source' => 'manual_orders_board',
+                'message' => 'Paid changed from ' . ($oldPaid ? 'Yes' : 'No') . ' to ' . ($newPaid ? 'Yes' : 'No') . ' by ' . ($actor['name'] ?? 'Unknown') . '.',
             ]);
         } else {
             $stmt = db()->prepare('UPDATE ops_orders SET ' . $allowed[$field] . ' = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
@@ -1423,6 +1441,10 @@ try {
 
         if ($field === 'created_at' && !user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager')) {
             throw new RuntimeException('Only admin, front desk or supervisor can bulk change order dates.');
+        }
+
+        if ($field === 'payment_status' && !user_has_role('owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager')) {
+            throw new RuntimeException('You do not have permission to change Paid.');
         }
 
         if ($field === 'payment_status' && !in_array($value, ['paid', 'unpaid', 'partial', 'refunded'], true)) {

@@ -49,17 +49,19 @@ function ops_sync_recent_logs(int $limit = 30): array
     return array_slice(array_reverse($lines), 0, $limit);
 }
 
-function ops_wc_payment_status(array $order): string
+function ops_wc_normalise_walk_in_marker(?string $value): string
 {
-    if (in_array((string) ($order['status'] ?? ''), ['cancelled', 'refunded', 'failed'], true)) {
-        return 'refunded';
-    }
+    $value = strtolower(trim((string) $value));
+    $value = preg_replace('/[\s\-_]+/', ' ', $value) ?? '';
 
-    if (!empty($order['date_paid']) || (($order['status'] ?? '') === 'processing') || (($order['status'] ?? '') === 'completed')) {
-        return 'paid';
-    }
+    return trim($value);
+}
 
-    return 'unpaid';
+function ops_wc_initial_payment_status(?string $sourceMobile): string
+{
+    return ops_wc_normalise_walk_in_marker($sourceMobile) === 'walk in customer'
+        ? 'paid'
+        : 'unpaid';
 }
 
 function ops_wc_order_type(array $order): string
@@ -187,7 +189,6 @@ if ($ready && $hasWooColumns && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 customer_name = VALUES(customer_name),
                 customer_contact = VALUES(customer_contact),
                 payment_method = VALUES(payment_method){$amountUpdates}{$breakdownUpdates},
-                payment_status = VALUES(payment_status),
                 order_type = VALUES(order_type),
                 notes = VALUES(notes),
                 workload_score = VALUES(workload_score),
@@ -253,7 +254,7 @@ if ($ready && $hasWooColumns && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 );
             }
             $orderValues = array_merge($orderValues, [
-                ops_wc_payment_status($order),
+                ops_wc_initial_payment_status($customerContact),
                 $orderType,
                 $priority,
                 $complexity,
