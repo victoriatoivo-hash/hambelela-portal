@@ -1913,8 +1913,19 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
         .bk-trash-amount,
         .bk-trash-btn,
         .bk-trash-btn.danger {
-            color: #1A1A1A;
-            font-weight: 400;
+            color: #1A1A1A !important;
+            font-weight: 400 !important;
+        }
+        .bk-trash-btn:hover,
+        .bk-trash-btn:focus,
+        .bk-trash-btn:focus-visible,
+        .bk-trash-btn:active,
+        .bk-trash-btn.danger:hover,
+        .bk-trash-btn.danger:focus,
+        .bk-trash-btn.danger:focus-visible,
+        .bk-trash-btn.danger:active {
+            color: #1A1A1A !important;
+            font-weight: 400 !important;
         }
         .bk-log-list {
             max-height: 400px;
