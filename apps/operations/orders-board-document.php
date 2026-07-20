@@ -80,10 +80,32 @@ function orders_document_fetch(string $url): array
         throw new RuntimeException('Source document redirected outside the configured website.');
     }
 
+    $body = substr($response, $headerSize);
+    $normalizedType = strtolower(trim(explode(';', $contentType)[0] ?? ''));
+    if ($body === '') {
+        throw new RuntimeException('Source document response was empty.');
+    }
+    if (!in_array($normalizedType, ['application/pdf', 'text/html'], true)) {
+        throw new RuntimeException('Source document returned an unsupported content type.');
+    }
+    if ($normalizedType === 'text/html') {
+        $sample = strtolower(substr($body, 0, 8192));
+        $looksLikeLogin = strpos($sample, '<title>login') !== false
+            || strpos($sample, 'wp-login.php') !== false
+            || strpos($sample, 'name="log"') !== false
+            || strpos($sample, 'name="pwd"') !== false;
+        $looksLikeError = strpos($sample, '<title>error') !== false
+            || strpos($sample, 'fatal error') !== false
+            || strpos($sample, 'page not found') !== false;
+        if ($looksLikeLogin || $looksLikeError) {
+            throw new RuntimeException('Source document service returned a login or error page.');
+        }
+    }
+
     return [
         'headers' => substr($response, 0, $headerSize),
-        'body' => substr($response, $headerSize),
-        'content_type' => $contentType !== '' ? $contentType : 'application/octet-stream',
+        'body' => $body,
+        'content_type' => $contentType,
     ];
 }
 
@@ -155,6 +177,8 @@ ops_activity_log('original_pos_' . $documentType . '_' . $action, 'order', (int)
 ]);
 
 header('Content-Type: ' . $document['content_type']);
+header('X-Portal-Original-Document: 1');
+header('X-Content-Type-Options: nosniff');
 header('Content-Disposition: ' . ($action === 'download' ? 'attachment' : 'inline') . '; filename="' . addcslashes($originalName, '"\\') . '"');
 header('Content-Length: ' . strlen($document['body']));
 header('Cache-Control: private, no-store');

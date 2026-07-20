@@ -3398,6 +3398,7 @@
                     <i data-lucide="printer" aria-hidden="true"></i><span>Print</span>
                   </button>
                 </span>
+                <span class="order-document-error" data-order-document-error="${type}" role="status" hidden></span>
               </div>
             `).join('')}
           </div>
@@ -3426,6 +3427,45 @@
     return url.toString();
   }
 
+  function orderDocumentError(documentType, message = '') {
+    const target = panelDetails?.querySelector(`[data-order-document-error="${documentType}"]`);
+    if (!target) return;
+    target.textContent = message;
+    target.hidden = message === '';
+  }
+
+  function orderDocumentFilename(disposition, fallback) {
+    const utf8 = String(disposition || '').match(/filename\*=UTF-8''([^;\r\n]+)/i)?.[1];
+    const normal = String(disposition || '').match(/filename="?([^";\r\n]+)"?/i)?.[1];
+    const value = utf8 || normal;
+    if (!value) return fallback;
+    try {
+      return decodeURIComponent(value).split(/[\\/]/).pop() || fallback;
+    } catch (_) {
+      return value.split(/[\\/]/).pop() || fallback;
+    }
+  }
+
+  async function fetchOrderDocument(url) {
+    const response = await fetch(url, {
+      credentials:'same-origin',
+      redirect:'follow',
+      headers:{ Accept:'application/pdf,text/html;q=0.9' }
+    });
+    if (!response.ok) {
+      const message = (await response.text()).trim();
+      throw new Error(message || `Document request failed (HTTP ${response.status}).`);
+    }
+    const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+    const verified = response.headers.get('x-portal-original-document') === '1';
+    if (!verified || (!contentType.includes('application/pdf') && !contentType.includes('text/html'))) {
+      throw new Error('The website did not return an original POS document.');
+    }
+    const blob = await response.blob();
+    if (!blob.size) throw new Error('The website returned an empty document.');
+    return { blob, response, contentType };
+  }
+
   async function handleOrderDocument(button) {
     if (button.disabled) return;
     const orderId = Number(button.dataset.orderId || 0);
@@ -3433,41 +3473,58 @@
     const action = String(button.dataset.documentAction || '');
     if (!orderId || !['receipt', 'invoice'].includes(documentType) || !['view', 'download', 'print'].includes(action)) return;
     const url = orderDocumentUrl(orderId, documentType, action);
-    if (action === 'view' || action === 'print') {
-      button.disabled = true;
-      button.classList.add('is-loading');
-      const documentWindow = window.open('', '_blank');
-      if (!documentWindow) {
-        button.disabled = false;
-        button.classList.remove('is-loading');
-        window.alert(`Allow pop-ups to ${action} this document.`);
-        return;
-      }
-      documentWindow.opener = null;
-      documentWindow.location.href = url;
-      window.setTimeout(() => {
-        button.disabled = false;
-        button.classList.remove('is-loading');
-      }, 500);
-      return;
-    }
     button.disabled = true;
     button.classList.add('is-loading');
+    orderDocumentError(documentType);
     try {
-      const response = await fetch(url, { credentials:'same-origin', headers:{ Accept:'application/pdf' } });
-      if (!response.ok) throw new Error((await response.text()).trim() || 'Unable to download this document.');
-      const blob = await response.blob();
-      const disposition = response.headers.get('content-disposition') || '';
-      const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] || `${documentType}-${orderId}.pdf`;
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(link.href);
+      const { blob, response } = await fetchOrderDocument(url);
+      const objectUrl = URL.createObjectURL(blob);
+      if (action === 'download') {
+        const filename = orderDocumentFilename(
+          response.headers.get('content-disposition'),
+          `${documentType}-${orderId}.${blob.type.includes('html') ? 'html' : 'pdf'}`
+        );
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+      } else if (action === 'view') {
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.target = '_blank';
+        link.rel = 'noopener';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+      } else {
+        const frame = document.createElement('iframe');
+        frame.hidden = true;
+        frame.src = objectUrl;
+        frame.setAttribute('title', `Print ${documentType}`);
+        frame.addEventListener('load', () => {
+          window.setTimeout(() => {
+            try {
+              frame.contentWindow?.focus();
+              frame.contentWindow?.print();
+            } finally {
+              window.setTimeout(() => {
+                frame.remove();
+                URL.revokeObjectURL(objectUrl);
+              }, 30000);
+            }
+          }, 250);
+        }, { once:true });
+        document.body.appendChild(frame);
+      }
     } catch (error) {
-      window.alert(error.message || 'Unable to download this document.');
+      orderDocumentError(
+        documentType,
+        error.message || `Unable to load the original POS ${documentType}.`
+      );
     } finally {
       button.disabled = false;
       button.classList.remove('is-loading');
