@@ -1930,6 +1930,9 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
         #tab-trash .bk-trash-list .bk-trash-amount {
             font-weight: 400 !important;
         }
+        #tab-trash .bk-trash-list .bk-trash-title {
+            font-weight: 400 !important;
+        }
         .bk-log-list {
             max-height: 400px;
             overflow-y: auto;
