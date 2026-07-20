@@ -128,7 +128,6 @@ include BASE_PATH . '/shared/sidebar.php';
                 <button type="button" data-clear-board-filters><i data-lucide="refresh-cw"></i> Clear Filters</button>
                 <button type="button" data-board-refresh><i data-lucide="refresh-cw"></i> Refresh</button>
                 <button type="button" data-toolbar="more"><i data-lucide="sliders-horizontal"></i> More Filters</button>
-                <button type="button" data-reset-orders-columns><i data-lucide="columns-3"></i> Reset column widths</button>
             </div>
             <div class="orders-active-filter-chips" data-orders-active-filter-chips hidden></div>
         </section>
