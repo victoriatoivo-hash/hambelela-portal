@@ -1907,6 +1907,15 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             color: #BB1B21;
             border-color: rgba(187, 27, 33, .26);
         }
+        #tab-trash .bk-side-head,
+        .bk-trash-title,
+        .bk-trash-meta,
+        .bk-trash-amount,
+        .bk-trash-btn,
+        .bk-trash-btn.danger {
+            color: #1A1A1A;
+            font-weight: 400;
+        }
         .bk-log-list {
             max-height: 400px;
             overflow-y: auto;
