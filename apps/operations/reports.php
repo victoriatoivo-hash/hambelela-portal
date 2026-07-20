@@ -5,30 +5,55 @@ declare(strict_types=1);
 require_once __DIR__ . '/operations.php';
 require_once __DIR__ . '/owner-dashboard-data.php';
 
-require_role('owner_admin', 'supervisor_manager');
+require_login();
 
 $pageTitle = 'KPI Reports | ' . APP_NAME;
 $activeApp = 'kpi';
 $ready = ops_database_ready();
 $message = null;
 $messageType = 'success';
+$currentKpiUser = current_user();
+$isKpiManager = user_has_role('owner_admin', 'supervisor_manager');
+$currentKpiEmployeeId = max(0, (int) ($currentKpiUser['id'] ?? 0));
 $requestedTab = preg_replace('/[^a-z0-9_-]/', '', (string) ($_GET['tab'] ?? 'overview')) ?: 'overview';
-$period = preg_match('/^\d{4}-\d{2}$/', (string) ($_GET['period'] ?? '')) ? (string) $_GET['period'] : date('Y-m');
-$defaultStartDate = $requestedTab === 'overview' ? date('Y-m-d') : date('Y-m-01');
-$defaultEndDate = $requestedTab === 'overview' ? date('Y-m-d') : date('Y-m-t');
-$filterStartDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_GET['start_date'] ?? '')) ? (string) $_GET['start_date'] : $defaultStartDate;
-$filterEndDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_GET['end_date'] ?? '')) ? (string) $_GET['end_date'] : $defaultEndDate;
+$allowedPeriodPresets = ['today', 'yesterday', 'this_week', 'last_week', 'this_month', 'last_month', 'last_30_days', 'custom'];
+$defaultPeriodPreset = $requestedTab === 'overview' && $isKpiManager ? 'today' : 'this_month';
+$periodPreset = in_array((string) ($_GET['period_preset'] ?? ''), $allowedPeriodPresets, true)
+    ? (string) $_GET['period_preset']
+    : $defaultPeriodPreset;
+$today = new DateTimeImmutable('today');
+$presetRanges = [
+    'today' => [$today, $today],
+    'yesterday' => [$today->modify('-1 day'), $today->modify('-1 day')],
+    'this_week' => [$today->modify('monday this week'), $today],
+    'last_week' => [$today->modify('monday last week'), $today->modify('sunday last week')],
+    'this_month' => [$today->modify('first day of this month'), $today],
+    'last_month' => [$today->modify('first day of last month'), $today->modify('last day of last month')],
+    'last_30_days' => [$today->modify('-29 days'), $today],
+];
+$defaultStartDate = $presetRanges[$defaultPeriodPreset][0]->format('Y-m-d');
+$defaultEndDate = $presetRanges[$defaultPeriodPreset][1]->format('Y-m-d');
+if ($periodPreset === 'custom') {
+    $filterStartDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_GET['start_date'] ?? '')) ? (string) $_GET['start_date'] : $defaultStartDate;
+    $filterEndDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_GET['end_date'] ?? '')) ? (string) $_GET['end_date'] : $defaultEndDate;
+} else {
+    $filterStartDate = $presetRanges[$periodPreset][0]->format('Y-m-d');
+    $filterEndDate = $presetRanges[$periodPreset][1]->format('Y-m-d');
+}
 if ($filterEndDate < $filterStartDate) {
     $filterEndDate = $filterStartDate;
 }
 $period = substr($filterStartDate, 0, 7);
 $periodStart = $filterStartDate . ' 00:00:00';
 $periodEnd = (new DateTimeImmutable($filterEndDate . ' 00:00:00'))->modify('+1 day')->format('Y-m-d H:i:s');
-$previousPeriod = (new DateTimeImmutable($periodStart))->modify('-1 month')->format('Y-m');
-$previousStart = $previousPeriod . '-01 00:00:00';
-$previousEnd = (new DateTimeImmutable($previousStart))->modify('+1 month')->format('Y-m-d H:i:s');
-$activeTab = $requestedTab;
-$selectedEmployeeId = max(0, (int) ($_GET['employee_id'] ?? 0));
+$rangeDays = (int) (new DateTimeImmutable($filterStartDate))->diff(new DateTimeImmutable($filterEndDate))->days + 1;
+$previousEndDate = (new DateTimeImmutable($filterStartDate))->modify('-1 day');
+$previousStartDate = $previousEndDate->modify('-' . max(0, $rangeDays - 1) . ' days');
+$previousPeriod = $previousStartDate->format('Y-m');
+$previousStart = $previousStartDate->format('Y-m-d 00:00:00');
+$previousEnd = $previousEndDate->modify('+1 day')->format('Y-m-d 00:00:00');
+$activeTab = $isKpiManager ? $requestedTab : 'employees';
+$selectedEmployeeId = $isKpiManager ? max(0, (int) ($_GET['employee_id'] ?? 0)) : $currentKpiEmployeeId;
 
 function kpi_try_sql(string $sql): void
 {
@@ -2805,7 +2830,7 @@ function kpi_store_score_snapshots(string $period, array $scores): void
     }
 }
 
-if ($ready) {
+if ($ready && $isKpiManager) {
     kpi_bootstrap();
 }
 
@@ -2819,6 +2844,11 @@ $settings = [
     'target_order_total_minutes' => (float) kpi_setting('kpi_target_order_total_minutes', '360'),
     'error_penalty_points' => (float) kpi_setting('kpi_error_penalty_points', '8'),
 ];
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$isKpiManager) {
+    http_response_code(403);
+    exit('You do not have permission to change KPI settings.');
+}
 
 if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
@@ -2932,10 +2962,18 @@ $settings = [
 ];
 
 $employeeScores = $ready ? kpi_build_scores($period, $periodStart, $periodEnd, $settings) : [];
-if ($ready) {
+if ($ready && $isKpiManager) {
     kpi_store_score_snapshots($period, $employeeScores);
 }
 $previousScores = $ready ? kpi_build_scores($previousPeriod, $previousStart, $previousEnd, $settings) : [];
+if (!$isKpiManager) {
+    $employeeScores = array_values(array_filter($employeeScores, static function (array $row) use ($currentKpiEmployeeId): bool {
+        return (int) ($row['employee_id'] ?? 0) === $currentKpiEmployeeId;
+    }));
+    $previousScores = array_values(array_filter($previousScores, static function (array $row) use ($currentKpiEmployeeId): bool {
+        return (int) ($row['employee_id'] ?? 0) === $currentKpiEmployeeId;
+    }));
+}
 $previousByEmployee = [];
 foreach ($previousScores as $row) {
     $previousByEmployee[(int) $row['employee_id']] = $row;
@@ -3486,6 +3524,9 @@ $tabs = [
     'errors' => 'Errors',
     'bonus' => 'Bonus Incentive Score',
 ];
+if (!$isKpiManager) {
+    $tabs = ['employees' => 'My Performance'];
+}
 $scoresById = [];
 foreach ($employeeScores as $row) {
     $scoresById[(int) $row['employee_id']] = $row;
@@ -3500,8 +3541,14 @@ $pickerEmployees = array_values(array_filter($employeeScores, static function (a
 $unlinkedEmployees = array_values(array_filter($employeeScores, static function (array $row): bool {
     return empty($row['hr_linked']);
 }));
-$dateRangeQuery = http_build_query(['start_date' => $filterStartDate, 'end_date' => $filterEndDate]);
-$ownerDashboardData = $ready ? owner_dashboard_build($filterStartDate, $filterEndDate) : owner_dashboard_build(date('Y-m-d'), date('Y-m-d'));
+$dateRangeQuery = http_build_query([
+    'period_preset' => $periodPreset,
+    'start_date' => $filterStartDate,
+    'end_date' => $filterEndDate,
+]);
+$ownerDashboardData = $isKpiManager
+    ? ($ready ? owner_dashboard_build($filterStartDate, $filterEndDate) : owner_dashboard_build(date('Y-m-d'), date('Y-m-d')))
+    : [];
 
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
@@ -3509,10 +3556,26 @@ include BASE_PATH . '/shared/sidebar.php';
 <main class="workspace module kpi-performance-page">
     <section class="module-header">
         <div>
-            <h1>Performance Dashboard</h1>
+            <h1><?= $isKpiManager ? 'Performance Dashboard' : 'My Performance' ?></h1>
         </div>
         <form class="kpi-period-form" method="get">
             <input type="hidden" name="tab" value="<?= htmlspecialchars($activeTab, ENT_QUOTES, 'UTF-8') ?>">
+            <label>Period
+                <select name="period_preset">
+                    <?php foreach ([
+                        'today' => 'Today',
+                        'yesterday' => 'Yesterday',
+                        'this_week' => 'This week',
+                        'last_week' => 'Last week',
+                        'this_month' => 'This month',
+                        'last_month' => 'Last month',
+                        'last_30_days' => 'Last 30 days',
+                        'custom' => 'Custom range',
+                    ] as $presetKey => $presetLabel): ?>
+                        <option value="<?= $presetKey ?>" <?= $periodPreset === $presetKey ? 'selected' : '' ?>><?= $presetLabel ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </label>
             <label>From<input type="date" name="start_date" value="<?= htmlspecialchars($filterStartDate, ENT_QUOTES, 'UTF-8') ?>"></label>
             <label>To<input type="date" name="end_date" value="<?= htmlspecialchars($filterEndDate, ENT_QUOTES, 'UTF-8') ?>"></label>
             <button class="button primary" type="submit"><i data-lucide="calendar-range"></i> View</button>
@@ -3520,7 +3583,7 @@ include BASE_PATH . '/shared/sidebar.php';
     </section>
     <?php if (!$ready) { ops_setup_notice(); } ?>
     <?php ops_flash($message, $messageType); ?>
-    <?php if ($ready && $unlinkedEmployees): ?>
+    <?php if ($ready && $isKpiManager && $unlinkedEmployees): ?>
         <section class="ops-alert kpi-link-alert">
             <strong>HR employee links needed.</strong>
             <?= count($unlinkedEmployees) ?> active portal user<?= count($unlinkedEmployees) === 1 ? '' : 's' ?> are not linked to HR employee profiles. KPI salary, leave and availability tracking may be inaccurate.
@@ -3685,12 +3748,14 @@ include BASE_PATH . '/shared/sidebar.php';
         <?php endforeach; ?>
     <?php elseif ($activeTab === 'employees'): ?>
         <section class="panel kpi-employee-picker">
-            <div class="section-row"><div><h2>Individual Employee Profiles</h2><p>Open one employee at a time inside KPI Reports.</p></div></div>
-            <div class="kpi-employee-tabs">
-                <?php foreach ($employeeScores as $row): ?>
-                    <a class="<?= $selectedEmployee && (int) $selectedEmployee['employee_id'] === (int) $row['employee_id'] ? 'active' : '' ?>" href="reports.php?tab=employees&employee_id=<?= (int) $row['employee_id'] ?>&<?= htmlspecialchars($dateRangeQuery, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8') ?></a>
-                <?php endforeach; ?>
-            </div>
+            <div class="section-row"><div><h2><?= $isKpiManager ? 'Individual Employee Profiles' : 'My Performance Profile' ?></h2><p><?= $isKpiManager ? 'Open one employee at a time inside KPI Reports.' : 'Your operational score, supporting evidence and development signals for the selected period.' ?></p></div></div>
+            <?php if ($isKpiManager): ?>
+                <div class="kpi-employee-tabs">
+                    <?php foreach ($employeeScores as $row): ?>
+                        <a class="<?= $selectedEmployee && (int) $selectedEmployee['employee_id'] === (int) $row['employee_id'] ? 'active' : '' ?>" href="reports.php?tab=employees&employee_id=<?= (int) $row['employee_id'] ?>&<?= htmlspecialchars($dateRangeQuery, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8') ?></a>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
         </section>
         <?php if ($selectedEmployee): ?>
             <section class="panel kpi-profile">

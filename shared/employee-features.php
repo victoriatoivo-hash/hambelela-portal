@@ -18,11 +18,11 @@ function portal_feature_permissions(): array
             'error_log', 'settings', 'notifications', 'courier', 'hr',
             'operations', 'barcode',
         ],
-        'front_desk_admin' => ['dashboard', 'orders', 'bookkeeping', 'packing_list', 'courier', 'hr', 'notifications', 'task_management', 'error_log'],
-        'front_desk_admin_employee' => ['dashboard', 'orders', 'bookkeeping', 'packing_list', 'courier', 'hr', 'notifications', 'task_management', 'error_log'],
-        'packer' => ['dashboard', 'orders', 'bookkeeping', 'packing_list', 'courier', 'hr', 'notifications', 'task_management'],
-        'packer_production_staff' => ['dashboard', 'orders', 'bookkeeping', 'packing_list', 'courier', 'hr', 'notifications', 'task_management'],
-        'supervisor_manager' => ['dashboard', 'orders', 'bookkeeping', 'packing_list', 'courier', 'hr', 'notifications', 'task_management'],
+        'front_desk_admin' => ['dashboard', 'orders', 'bookkeeping', 'packing_list', 'courier', 'hr', 'notifications', 'task_management', 'error_log', 'kpi_dashboard'],
+        'front_desk_admin_employee' => ['dashboard', 'orders', 'bookkeeping', 'packing_list', 'courier', 'hr', 'notifications', 'task_management', 'error_log', 'kpi_dashboard'],
+        'packer' => ['dashboard', 'orders', 'bookkeeping', 'packing_list', 'courier', 'hr', 'notifications', 'task_management', 'kpi_dashboard'],
+        'packer_production_staff' => ['dashboard', 'orders', 'bookkeeping', 'packing_list', 'courier', 'hr', 'notifications', 'task_management', 'kpi_dashboard'],
+        'supervisor_manager' => ['dashboard', 'orders', 'bookkeeping', 'packing_list', 'courier', 'hr', 'notifications', 'task_management', 'kpi_dashboard'],
     ];
 }
 
