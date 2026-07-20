@@ -27381,3 +27381,20 @@ tbody
 button.task-status-trigger {
   font-size: 12px;
 }
+
+/* Keep Task Management header actions and task names at the approved typography. */
+.workspace.module.digital-task-page
+.dtb-page-actions
+button.task-tools-trigger,
+.workspace.module.digital-task-page
+.dtb-page-actions
+button.dtb-btn.dtb-btn-primary {
+  font-weight: 400;
+}
+
+.workspace.module.digital-task-page
+.task-board-table
+tbody
+button.task-name-trigger {
+  font-size: 12px;
+}
