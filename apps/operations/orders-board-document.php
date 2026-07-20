@@ -14,6 +14,15 @@ function orders_document_fail(string $message, int $status): never
     exit;
 }
 
+function orders_document_json(array $payload, int $status = 200): never
+{
+    http_response_code($status);
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: private, no-store');
+    echo json_encode($payload, JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
 function orders_document_source_url(array $sourceOrder, string $documentType): ?string
 {
     $candidates = [];
@@ -120,7 +129,10 @@ if (!in_array($roleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_em
 $orderId = filter_input(INPUT_GET, 'order_id', FILTER_VALIDATE_INT);
 $documentType = strtolower(trim((string) ($_GET['document_type'] ?? '')));
 $action = strtolower(trim((string) ($_GET['action'] ?? '')));
-if (!$orderId || !in_array($documentType, ['receipt', 'invoice'], true) || !in_array($action, ['view', 'download', 'print'], true)) {
+if (!$orderId || !in_array($action, ['availability', 'view', 'download', 'print'], true)) {
+    orders_document_fail('Choose a valid order document and action.', 422);
+}
+if ($action !== 'availability' && !in_array($documentType, ['receipt', 'invoice'], true)) {
     orders_document_fail('Choose a valid order document and action.', 422);
 }
 if (!ops_database_ready() || !ops_column_exists('ops_orders', 'woo_order_id') || !wc_configured()) {
@@ -133,11 +145,33 @@ if (!$order) {
 }
 $sourceOrderId = (int) ($order['woo_order_id'] ?? 0);
 if ($sourceOrderId <= 0) {
+    if ($action === 'availability') {
+        orders_document_json([
+            'portal_order_id' => (int) $orderId,
+            'source_type' => 'portal',
+            'source_order_id' => null,
+            'documents' => [
+                'receipt' => ['available' => false],
+                'invoice' => ['available' => false],
+            ],
+        ]);
+    }
     orders_document_fail('Original POS receipt unavailable. This order was not created through the website POS.', 409);
 }
 
 try {
     $sourceOrder = wc_get('orders/' . $sourceOrderId);
+    if ($action === 'availability') {
+        orders_document_json([
+            'portal_order_id' => (int) $orderId,
+            'source_type' => 'website_pos',
+            'source_order_id' => $sourceOrderId,
+            'documents' => [
+                'receipt' => ['available' => orders_document_source_url($sourceOrder, 'receipt') !== null],
+                'invoice' => ['available' => orders_document_source_url($sourceOrder, 'invoice') !== null],
+            ],
+        ]);
+    }
     $sourceUrl = orders_document_source_url($sourceOrder, $documentType);
     if (!$sourceUrl) {
         orders_document_fail(

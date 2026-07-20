@@ -3388,17 +3388,17 @@
                   ${type === 'receipt' ? 'Receipt' : 'Invoice'}
                 </span>
                 <span class="order-document-actions">
-                  <button type="button" data-order-document data-order-id="${esc(currentOrder.id)}" data-document-type="${type}" data-document-action="view">
+                  <button type="button" data-order-document data-order-id="${esc(currentOrder.id)}" data-document-type="${type}" data-document-action="view" disabled>
                     <i data-lucide="external-link" aria-hidden="true"></i><span>View</span>
                   </button>
-                  <button type="button" data-order-document data-order-id="${esc(currentOrder.id)}" data-document-type="${type}" data-document-action="download">
+                  <button type="button" data-order-document data-order-id="${esc(currentOrder.id)}" data-document-type="${type}" data-document-action="download" disabled>
                     <i data-lucide="download" aria-hidden="true"></i><span>Download</span>
                   </button>
-                  <button type="button" data-order-document data-order-id="${esc(currentOrder.id)}" data-document-type="${type}" data-document-action="print">
+                  <button type="button" data-order-document data-order-id="${esc(currentOrder.id)}" data-document-type="${type}" data-document-action="print" disabled>
                     <i data-lucide="printer" aria-hidden="true"></i><span>Print</span>
                   </button>
                 </span>
-                <span class="order-document-error" data-order-document-error="${type}" role="status" hidden></span>
+                <span class="order-document-error" data-order-document-error="${type}" role="status">Checking original document…</span>
               </div>
             `).join('')}
           </div>
@@ -3417,6 +3417,7 @@
     ];
     panelDetails.innerHTML = documentCard + cards.map(([title, fields]) => `<section class="order-panel-card"><h3>${esc(title)}</h3><div class="order-details-grid">${fields.map(([label, value]) => `<div class="order-detail-field"><span class="order-detail-label">${esc(label)}</span><span class="order-detail-value">${esc(value || 'Not set')}</span></div>`).join('')}</div></section>`).join('');
     window.lucide?.createIcons?.({ strokeWidth:2 });
+    if (hasWebsiteDocuments) hydrateOrderDocumentAvailability(currentOrder.id);
   }
 
   function orderDocumentUrl(orderId, documentType, action) {
@@ -3425,6 +3426,32 @@
     url.searchParams.set('document_type', documentType);
     url.searchParams.set('action', action);
     return url.toString();
+  }
+
+  async function hydrateOrderDocumentAvailability(orderId) {
+    try {
+      const response = await fetch(orderDocumentUrl(orderId, 'all', 'availability'), {
+        credentials:'same-origin',
+        headers:{ Accept:'application/json' }
+      });
+      if (!response.ok) throw new Error('Original document service unavailable.');
+      const result = await response.json();
+      if (!currentOrder || String(currentOrder.id) !== String(orderId)) return;
+      ['receipt', 'invoice'].forEach((type) => {
+        const available = result?.documents?.[type]?.available === true;
+        panelDetails?.querySelectorAll(`[data-order-document][data-document-type="${type}"]`)
+          .forEach((control) => {
+            control.disabled = !available;
+            control.setAttribute('aria-disabled', available ? 'false' : 'true');
+          });
+        orderDocumentError(type, available ? '' : `${type === 'receipt' ? 'Receipt' : 'Invoice'} unavailable for this order.`);
+      });
+    } catch (_) {
+      if (!currentOrder || String(currentOrder.id) !== String(orderId)) return;
+      ['receipt', 'invoice'].forEach((type) => {
+        orderDocumentError(type, 'Original document service unavailable.');
+      });
+    }
   }
 
   function orderDocumentError(documentType, message = '') {
