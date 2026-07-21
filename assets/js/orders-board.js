@@ -106,7 +106,7 @@
     datePreset: [['today', 'Today'], ['week', 'This Week'], ['month', 'This Month'], ['custom', 'Custom Period'], ['all', 'All Dates']],
     status: [['', 'All statuses'], ['new_order', 'New Order'], ['in_progress', 'In Progress'], ['completed', 'Complete']],
     mode: [['', 'All modes'], ['collection', 'Collection'], ['delivery', 'Delivery'], ['courier', 'Courier']],
-    payment: [['', 'All payments'], ['Cash', 'Cash'], ['EFT', 'EFT'], ['Ewallet', 'Ewallet'], ['Bluewallet', 'Bluewallet'], ['Swipe', 'Swipe']],
+    payment: [['', 'All payments']],
     group: [['date', 'Date'], ['status', 'Status'], ['packer', 'Packed by'], ['mode', 'Mode']]
   };
   let activeFilterSelect = null;
@@ -143,11 +143,19 @@
   let columnLabels = { ...defaultColumnLabels };
 
   let paymentLabels = [
-    ['Cash', '#bdbdbd'], ['EFT', '#7b4bd3'], ['Ewallet', '#9b95b9'], ['Bluewallet', '#00845f'],
-    ['Swipe', '#333333'], ['Pay2Cell', '#c03456'], ['EFT & Cash', '#3d1784'], ['Ewallet & Cash', '#2b5797'],
-    ['Swipe & Ewallet', '#ffc400'], ['Bluewallet & Swipe', '#ed4aa5'], ['Coupon', '#57413d'], ['DPO', '#0876d8'],
-    ['EasyWallet', '#a648d9'], ['Nedbank', '#07c66b'], ['Post Pay', '#4dc3bd']
+    ['Cash', '#bdbdbd'], ['Card/Swipe', '#333333'], ['EFT', '#7b4bd3'], ['FNB eWallet', '#1b5e20'],
+    ['EasyWallet', '#a648d9'], ['Blue Wallet', '#00845f'], ['Nedbank', '#07c66b'],
+    ['NetBank Wallet', '#2b5797'], ['Pay2Cell', '#c03456'], ['PayToday', '#4dc3bd']
   ];
+
+  function syncPaymentFilterOptions() {
+    const values = new Set(paymentLabels.map((item) => String(item[0] || '').trim()).filter(Boolean));
+    ordersCache.forEach((order) => {
+      const value = String(order.payment_method || '').trim();
+      if (value) values.add(value);
+    });
+    filterOptions.payment = [['', 'All payments'], ...[...values].map((value) => [value, value])];
+  }
 
   let modeLabels = [
     ['collection', 'Collection', '#d49382'], ['delivery', 'Delivery', '#bca98d'], ['courier', 'Courier', '#895749'],
@@ -1028,6 +1036,7 @@
       if (Array.isArray(data.labels?.payment_method)) {
         paymentLabels = data.labels.payment_method;
         localStorage.setItem('hambelelaPaymentLabels', JSON.stringify(paymentLabels));
+        syncPaymentFilterOptions();
       }
       if (Array.isArray(data.labels?.status)) {
         statusLabels = data.labels.status;
@@ -1037,6 +1046,7 @@
       try {
         modeLabels = JSON.parse(localStorage.getItem('hambelelaModeLabels') || 'null') || modeLabels;
         paymentLabels = JSON.parse(localStorage.getItem('hambelelaPaymentLabels') || 'null') || paymentLabels;
+        syncPaymentFilterOptions();
         statusLabels = JSON.parse(localStorage.getItem('hambelelaStatusLabels') || 'null') || statusLabels;
       } catch (innerError) {
         localStorage.removeItem('hambelelaModeLabels');
@@ -2289,6 +2299,7 @@
     const savedBoardPositions = hasRenderedOnce ? captureOrdersBoardPositions() : [];
     const savedWindowPosition = { x: window.scrollX, y: window.scrollY };
     ordersCache = orders;
+    syncPaymentFilterOptions();
     syncOrdersGridColumns();
     const knownIds = new Set(ordersCache.map((order) => String(order.id)));
     [...selectedOrders].forEach((id) => {
@@ -2342,6 +2353,7 @@
     livePendingGroupKeys.clear();
 
     ordersCache = nextOrders;
+    syncPaymentFilterOptions();
     const visible = visibleOrders();
     const groups = groupedOrders(visible);
     const groupKeys = Object.keys(groups).sort((a, b) => b.localeCompare(a));
@@ -2464,7 +2476,7 @@
         `).join('')}
       </div>
       <div class="mode-label-actions">
-        <button type="button" class="mode-edit-labels-button" data-rich-edit-labels><span class="orders-label-utility-icon"><i data-lucide="pencil"></i></span><span>Edit Labels</span></button>
+        ${field === 'payment_method' ? '' : '<button type="button" class="mode-edit-labels-button" data-rich-edit-labels><span class="orders-label-utility-icon"><i data-lucide="pencil"></i></span><span>Edit Labels</span></button>'}
       </div>
     `;
   }
