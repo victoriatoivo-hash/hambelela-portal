@@ -2227,7 +2227,7 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
         </div>
         <div class="ledger-top-actions" data-portal-header-status-target>
             <?php if ($ready && $canOperateBookkeeping): ?>
-                <button class="bk-drawer-trigger" type="button" id="bkDrawerBtn" onclick="openDrawer()">Cash tools</button>
+                <button class="bk-drawer-trigger" type="button" id="bkDrawerBtn" data-view-bar-action onclick="openDrawer()">Cash tools</button>
             <?php endif; ?>
             <section class="portal-header-status" data-portal-header-status
                      data-presence-endpoint="<?= htmlspecialchars(BASE_URL . '/apps/operations/portal-presence.php', ENT_QUOTES, 'UTF-8') ?>">
