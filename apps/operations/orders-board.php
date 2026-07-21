@@ -46,7 +46,7 @@ include BASE_PATH . '/shared/sidebar.php';
             <div>
                 <h1 style="color: #721B1A;">Hambelela Orders <i data-lucide="chevron-down"></i></h1>
             </div>
-            <div class="monday-board-head-actions">
+            <div class="monday-board-head-actions orders-header-actions" data-portal-header-status-target>
                 <?php if ($canOpenOrdersTools): ?>
                 <button type="button" class="orders-tools-trigger" data-orders-tools-open><i data-lucide="wrench"></i><span>Orders tools</span></button>
                 <?php endif; ?>
