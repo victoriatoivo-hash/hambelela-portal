@@ -15,7 +15,7 @@ if (($_GET['action'] ?? '') === 'logout') {
             db()->prepare('UPDATE kpi_sessions SET last_seen_at = UTC_TIMESTAMP(), logout_at = UTC_TIMESTAMP() WHERE session_token = ? AND logout_at IS NULL')->execute([$kpiSessionToken]);
         }
     } catch (Throwable $kpiError) {
-        error_log(date(DATE_ATOM) . ' logout: ' . $kpiError->getMessage() . PHP_EOL, 3, __DIR__ . '/kpi_tracking_error.log');
+        error_log(date(DATE_ATOM) . ' logout: ' . $kpiError->getMessage() . PHP_EOL, 3, __DIR__ . '/logs/kpi_errors.log');
     }
     logout_user();
 }
@@ -106,7 +106,7 @@ function record_kpi_login_session(int $userId): void
         db()->prepare('INSERT INTO kpi_sessions (session_token, user_id, login_at, last_seen_at) VALUES (?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())')->execute([$token, $userId]);
         $_SESSION['kpi_session_token'] = $token;
     } catch (Throwable $kpiError) {
-        error_log(date(DATE_ATOM) . ' login: ' . $kpiError->getMessage() . PHP_EOL, 3, __DIR__ . '/kpi_tracking_error.log');
+        error_log(date(DATE_ATOM) . ' login: ' . $kpiError->getMessage() . PHP_EOL, 3, __DIR__ . '/logs/kpi_errors.log');
     }
 }
 

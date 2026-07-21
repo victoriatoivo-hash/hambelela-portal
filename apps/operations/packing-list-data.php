@@ -198,7 +198,7 @@ if (ops_table_exists('ops_packing_priority_labels')) {
     }
 }
 $statusLabels = [
-    ['key'=>'packing','label'=>'Packing','color'=>'#FFA72B','textColor'=>'#FFFFFF','order'=>0,'active'=>true],
+    ['key'=>'packing','label'=>'In Progress','color'=>'#FFA72B','textColor'=>'#FFFFFF','order'=>0,'active'=>true],
     ['key'=>'website','label'=>'Website','color'=>'#AB3619','textColor'=>'#FFFFFF','order'=>1,'active'=>true],
     ['key'=>'done','label'=>'Done','color'=>'#00C875','textColor'=>'#FFFFFF','order'=>2,'active'=>true],
     ['key'=>'not_started','label'=>'Not Started','color'=>'#C4C4C4','textColor'=>'#FFFFFF','order'=>3,'active'=>true],
@@ -208,7 +208,7 @@ $statusLabels = [
 ];
 if (ops_table_exists('ops_packing_status_labels')) {
     $saved = ops_rows('SELECT status_key, label, background_color, text_color, sort_order, is_active FROM ops_packing_status_labels WHERE is_active = 1 ORDER BY sort_order, status_key');
-    if ($saved) $statusLabels = array_map(static fn(array $row): array => ['key'=>(string)$row['status_key'],'label'=>(string)$row['label'],'color'=>(string)$row['background_color'],'textColor'=>(string)$row['text_color'],'order'=>(int)$row['sort_order'],'active'=>(bool)$row['is_active']], $saved);
+    if ($saved) $statusLabels = array_map(static fn(array $row): array => ['key'=>(string)$row['status_key'],'label'=>(string)$row['status_key'] === 'packing' ? 'In Progress' : (string)$row['label'],'color'=>(string)$row['background_color'],'textColor'=>(string)$row['text_color'],'order'=>(int)$row['sort_order'],'active'=>(bool)$row['is_active']], $saved);
 }
 $packers = ops_canonical_employee_rows($packers);
 $packerNameMap = [];

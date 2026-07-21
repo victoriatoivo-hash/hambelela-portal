@@ -1179,7 +1179,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 try {
                     db()->prepare('INSERT INTO kpi_status_events (module, record_id, old_status, new_status, changed_by, changed_at) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())')->execute(['waybill', (int) $row['id'], (string) ($row['status'] ?? 'pending'), 'sent', $currentEmployeeId]);
                 } catch (Throwable $kpiError) {
-                    error_log(date(DATE_ATOM) . ' waybill status: ' . $kpiError->getMessage() . PHP_EOL, 3, BASE_PATH . '/kpi_tracking_error.log');
+                    error_log(date(DATE_ATOM) . ' waybill status: ' . $kpiError->getMessage() . PHP_EOL, 3, BASE_PATH . '/logs/kpi_errors.log');
                 }
                 wb_log_sla((int) $row['id'], $currentEmployeeId, (string) $row['due_by'], $sentAt);
                 $legacyStmt->execute([$currentEmployeeId, $sentAt, (string) $row['file_path']]);

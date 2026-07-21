@@ -2467,7 +2467,7 @@ try {
         try {
             db()->prepare('INSERT INTO kpi_status_events (module, record_id, old_status, new_status, changed_by, changed_at) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())')->execute(['website_update', $taskId, 'pending', 'complete', $employeeId]);
         } catch (Throwable $kpiError) {
-            error_log(date(DATE_ATOM) . ' website update status: ' . $kpiError->getMessage() . PHP_EOL, 3, BASE_PATH . '/kpi_tracking_error.log');
+            error_log(date(DATE_ATOM) . ' website update status: ' . $kpiError->getMessage() . PHP_EOL, 3, BASE_PATH . '/logs/kpi_errors.log');
         }
 
         $employeeRows = ops_rows('SELECT e.id, e.full_name, r.role_key, r.name AS role_name FROM ops_employees e JOIN ops_roles r ON r.id = e.role_id WHERE e.id = ? LIMIT 1', [$employeeId]);
@@ -2714,7 +2714,7 @@ try {
                         db()->prepare('INSERT INTO kpi_status_events (module, record_id, old_status, new_status, changed_by, changed_at) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())')->execute(['packing', (int) $id, $oldKpiStatus, $newKpiStatus, $currentEmployeeId ?: null]);
                     }
                 } catch (Throwable $kpiError) {
-                    error_log(date(DATE_ATOM) . ' packing status: ' . $kpiError->getMessage() . PHP_EOL, 3, BASE_PATH . '/kpi_tracking_error.log');
+                    error_log(date(DATE_ATOM) . ' packing status: ' . $kpiError->getMessage() . PHP_EOL, 3, BASE_PATH . '/logs/kpi_errors.log');
                 }
                 $beforeDate = $before['date_completed'] ?? null;
                 $afterDate = $after['date_completed'] ?? null;

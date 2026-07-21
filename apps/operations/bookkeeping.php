@@ -153,7 +153,7 @@ function ledger_kpi_status_event(int $entryId, ?string $oldStatus, string $newSt
     try {
         db()->prepare('INSERT INTO kpi_status_events (module, record_id, old_status, new_status, changed_by, changed_at) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())')->execute(['bookkeeping', $entryId, $oldStatus, $newStatus, $actorId ?: null]);
     } catch (Throwable $kpiError) {
-        error_log(date(DATE_ATOM) . ' bookkeeping status: ' . $kpiError->getMessage() . PHP_EOL, 3, BASE_PATH . '/kpi_tracking_error.log');
+        error_log(date(DATE_ATOM) . ' bookkeeping status: ' . $kpiError->getMessage() . PHP_EOL, 3, BASE_PATH . '/logs/kpi_errors.log');
     }
 }
 

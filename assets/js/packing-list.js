@@ -80,7 +80,7 @@
 
   let statuses = [
     ['not_started', 'Not Started', '#C8BBB1'],
-    ['packing', 'Packing', '#F07420'],
+    ['packing', 'In Progress', '#F07420'],
     ['website', 'Website', '#AB3619'],
     ['done', 'Done', '#00C875'],
     ['packed_label_needed', 'Done, needs label', '#721B1A'],

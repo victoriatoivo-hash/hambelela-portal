@@ -39,6 +39,16 @@ try {
              ON DUPLICATE KEY UPDATE page = VALUES(page), path = VALUES(path), last_seen_at = VALUES(last_seen_at)"
         );
         $stmt->execute([$employeeId, $page !== '' ? $page : 'Business Portal', $path]);
+
+        try {
+            $kpiSessionToken = (string) ($_SESSION['kpi_session_token'] ?? '');
+            if ($kpiSessionToken !== '') {
+                db()->prepare('UPDATE kpi_sessions SET last_seen_at = UTC_TIMESTAMP() WHERE session_token = ? AND user_id = ? AND logout_at IS NULL')->execute([$kpiSessionToken, $employeeId]);
+            }
+            db()->exec('UPDATE kpi_sessions SET logout_at = DATE_ADD(last_seen_at, INTERVAL 30 SECOND) WHERE logout_at IS NULL AND last_seen_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 SECOND)');
+        } catch (Throwable $kpiError) {
+            error_log(date(DATE_ATOM) . ' presence heartbeat: ' . $kpiError->getMessage() . PHP_EOL, 3, BASE_PATH . '/logs/kpi_errors.log');
+        }
     }
 
     $where = ["e.status = 'active'", "bp.last_seen_at >= DATE_SUB(NOW(), INTERVAL 10 MINUTE)"];

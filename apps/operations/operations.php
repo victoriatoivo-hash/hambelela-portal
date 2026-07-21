@@ -477,41 +477,6 @@ function ops_business_minutes_between(?string $from, ?string $to): ?float
     return round($minutes, 1);
 }
 
-function ops_log_kpi_status_change(string $module, int $recordId, ?string $oldStatus, ?string $newStatus, ?int $assignedEmployeeId = null, array $metadata = []): void
-{
-    if ($module === '' || $recordId <= 0 || !ops_table_exists('kpi_status_history')) {
-        return;
-    }
-
-    $changedBy = ops_current_employee_id();
-    $linkedHrEmployeeId = null;
-    if (ops_table_exists('employee_user_links')) {
-        $rows = ops_rows('SELECT hr_employee_id FROM employee_user_links WHERE portal_user_id = ? LIMIT 1', [$changedBy]);
-        $linkedHrEmployeeId = $rows ? (int) $rows[0]['hr_employee_id'] : null;
-    }
-
-    try {
-        $stmt = db()->prepare(
-            "INSERT INTO kpi_status_history
-                (module_key, record_id, old_status, new_status, changed_by_user_id, linked_hr_employee_id, assigned_employee_id, business_time_elapsed, notes)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        );
-        $stmt->execute([
-            $module,
-            $recordId,
-            $oldStatus,
-            $newStatus,
-            $changedBy,
-            $linkedHrEmployeeId,
-            $assignedEmployeeId,
-            null,
-            $metadata ? json_encode($metadata, JSON_UNESCAPED_SLASHES) : null,
-        ]);
-    } catch (Throwable $e) {
-        // KPI history should support reporting without breaking daily work.
-    }
-}
-
 function ops_post_string(string $key, int $max = 255): string
 {
     return substr(trim((string) ($_POST[$key] ?? '')), 0, $max);

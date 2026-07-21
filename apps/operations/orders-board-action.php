@@ -1347,7 +1347,7 @@ try {
                     db()->prepare('INSERT INTO kpi_status_events (module, record_id, old_status, new_status, changed_by, changed_at) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())')->execute(['order', $orderId, $oldKpiStatus, $value, ops_current_employee_id() ?: null]);
                 }
             } catch (Throwable $kpiError) {
-                error_log(date(DATE_ATOM) . ' order status: ' . $kpiError->getMessage() . PHP_EOL, 3, BASE_PATH . '/kpi_tracking_error.log');
+                error_log(date(DATE_ATOM) . ' order status: ' . $kpiError->getMessage() . PHP_EOL, 3, BASE_PATH . '/logs/kpi_errors.log');
             }
             ops_activity_log($value === 'completed' ? 'order_completed' : 'status_changed', 'order', $orderId, [
                 'field' => 'status',
@@ -1536,7 +1536,7 @@ try {
                         db()->prepare('INSERT INTO kpi_status_events (module, record_id, old_status, new_status, changed_by, changed_at) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())')->execute(['order', (int) $id, $oldKpiStatus, (string) $value, ops_current_employee_id() ?: null]);
                     }
                 } catch (Throwable $kpiError) {
-                    error_log(date(DATE_ATOM) . ' order bulk status: ' . $kpiError->getMessage() . PHP_EOL, 3, BASE_PATH . '/kpi_tracking_error.log');
+                    error_log(date(DATE_ATOM) . ' order bulk status: ' . $kpiError->getMessage() . PHP_EOL, 3, BASE_PATH . '/logs/kpi_errors.log');
                 }
                 ops_log_order_stage_event($id, (string) $value, [
                     'source' => 'orders_board_bulk',
