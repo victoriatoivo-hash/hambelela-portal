@@ -3687,6 +3687,8 @@ textarea {
 .kpi-health-card > span { color: var(--t-text-mid); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
 .kpi-health-card > strong { color: var(--t-text); font-size: 23px; line-height: 1.1; }
 .kpi-health-card small, .kpi-health-card em { color: var(--t-text-light); font-size: 11px; font-style: normal; }
+.kpi-health-card .kpi-delta-good { color: var(--t-olive); font-weight: 700; }
+.kpi-health-card .kpi-delta-bad { color: var(--t-orange-red); font-weight: 700; }
 .kpi-health-card .kpi-low-data { width: fit-content; padding: 3px 6px; border-radius: 999px; background: color-mix(in srgb, var(--t-amber) 13%, var(--t-surface)); color: var(--t-orange-red); }
 .kpi-health-card.is-loading span, .kpi-health-card.is-loading strong, .kpi-health-card.is-loading small { height: 12px; border-radius: 6px; background: linear-gradient(90deg, var(--t-border), var(--t-cream), var(--t-border)); background-size: 200% 100%; animation: kpi-skeleton 1.3s linear infinite; }
 @keyframes kpi-skeleton { to { background-position: -200% 0; } }

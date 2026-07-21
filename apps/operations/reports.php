@@ -125,7 +125,7 @@ include BASE_PATH . '/shared/sidebar.php';
             <label data-kpi-custom hidden><span>To</span><input type="date" data-kpi-to></label>
             <span class="kpi-period-caption" data-kpi-caption aria-live="polite">Loading reporting period…</span>
         </section>
-        <div class="kpi-adoption-banner" data-kpi-adoption hidden>Rate-based metrics begin at the system adoption date, so earlier dates are excluded from fairness calculations.</div>
+        <div class="kpi-adoption-banner" data-kpi-adoption hidden></div>
         <div class="ops-alert error" data-kpi-error hidden role="alert"></div>
         <section class="kpi-health-grid" data-kpi-cards aria-label="Business health summary"><?php foreach (range(1, 6) as $placeholder): ?><article class="kpi-health-card is-loading"><span></span><strong></strong><small></small></article><?php endforeach; ?></section>
         <section class="kpi-health-columns">

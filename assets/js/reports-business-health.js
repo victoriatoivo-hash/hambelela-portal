@@ -37,9 +37,10 @@
 
   function renderCards(cards) {
     q('[data-kpi-cards]').innerHTML = Object.entries(cards).map(([key, metric]) => {
-      const delta = metric.delta === null ? 'No comparison available' : `${metric.delta > 0 ? '+' : ''}${metric.delta} vs prior period`;
+      const improving = metric.delta !== null && (metric.lower_is_better ? metric.delta < 0 : metric.delta > 0);
+      const delta = metric.delta === null ? 'No comparison available' : `${metric.delta > 0 ? '▲' : metric.delta < 0 ? '▼' : '•'} ${Math.abs(metric.delta)} vs prior period`;
       const badge = metric.low_data ? `<em class="kpi-low-data">Low data · n=${metric.sample}</em>` : `<em>n=${metric.sample}</em>`;
-      return `<article class="kpi-health-card"><span>${escapeHtml(labels[key] || key)}</span><strong>${display(metric)}</strong><small>${escapeHtml(delta)}</small>${badge}</article>`;
+      return `<article class="kpi-health-card"><span>${escapeHtml(labels[key] || key)}</span><strong>${display(metric)}</strong><small class="${metric.delta === null || metric.delta === 0 ? '' : improving ? 'kpi-delta-good' : 'kpi-delta-bad'}">${escapeHtml(delta)}</small>${badge}</article>`;
     }).join('');
   }
 
@@ -83,6 +84,7 @@
       if (!response.ok || !data.ok) throw new Error(data.message || 'Business Health could not be loaded.');
       latest = data;
       q('[data-kpi-caption]').textContent = `${data.period.from} to ${data.period.to}`;
+      q('[data-kpi-adoption]').textContent = `Averages calculated from ${new Date(`${data.period.adoption_date}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} (system adoption date).`;
       q('[data-kpi-adoption]').hidden = !data.period.show_adoption_banner;
       renderCards(data.cards); renderScores(data.scores); renderAttention(data.attention); renderTeam(data.team); renderCharts(data);
     } catch (error) {
