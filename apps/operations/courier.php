@@ -706,7 +706,7 @@ function wb_queue_html(array $rows, bool $canSend): string
             $statusClass = wb_queue_status_class($row);
             ?>
             <article class="courier-grid courier-grid-waybill courier-grid-row queue-item <?= wb_e($statusClass) ?>" data-batch-id="<?= wb_e($batchId) ?>">
-                <div class="courier-cell courier-select-cell">
+                <div class="courier-cell courier-select-cell" data-column-key="select">
                     <label class="portal-grid-checkbox courier-row-checkbox" aria-label="Select waybill batch">
                         <input class="portal-grid-checkbox-input" type="checkbox" data-courier-row-select value="<?= wb_e($batchId) ?>">
                         <span class="portal-grid-checkbox-box" aria-hidden="true">
@@ -716,20 +716,20 @@ function wb_queue_html(array $rows, bool $canSend): string
                         </span>
                     </label>
                 </div>
-                <div class="courier-cell queue-main">
+                <div class="courier-cell queue-main" data-column-key="courier">
                     <div class="file-count"><?= number_format((int) ($row['number_of_waybills'] ?: $row['file_count'])) ?></div>
                     <div>
                         <strong class="ref"><?= wb_e($row['courier_names'] ?: 'Courier not selected') ?></strong>
                         <span class="meta-value">Sent date: <?= wb_e($row['sent_date'] ?: 'Not set') ?></span>
                     </div>
                 </div>
-                <div class="courier-cell"><span class="meta-value"><?= wb_e(wb_dt((string) $row['uploaded_at'])) ?></span></div>
-                <div class="courier-cell"><span class="meta-value"><?= wb_e($row['uploaded_by_display']) ?></span></div>
-                <div class="courier-cell"><span class="meta-value"><?= wb_e(wb_due_label((string) $row['due_by'])) ?></span></div>
-                <div class="courier-cell"><span class="meta-value"><?= wb_e((string) $row['file_names']) ?></span></div>
-                <div class="courier-cell"><?= wb_status_badge((string) $row['status'], (string) $row['due_by']) ?></div>
-                <div class="courier-cell queue-notes"><span class="meta-value"><?= wb_e($row['notes'] ?: 'No notes') ?></span></div>
-                <div class="courier-cell courier-actions-cell queue-item-actions">
+                <div class="courier-cell" data-column-key="uploaded"><span class="meta-value"><?= wb_e(wb_dt((string) $row['uploaded_at'])) ?></span></div>
+                <div class="courier-cell" data-column-key="by"><span class="meta-value"><?= wb_e($row['uploaded_by_display']) ?></span></div>
+                <div class="courier-cell" data-column-key="due"><span class="meta-value"><?= wb_e(wb_due_label((string) $row['due_by'])) ?></span></div>
+                <div class="courier-cell" data-column-key="files"><span class="meta-value"><?= wb_e((string) $row['file_names']) ?></span></div>
+                <div class="courier-cell" data-column-key="status"><?= wb_status_badge((string) $row['status'], (string) $row['due_by']) ?></div>
+                <div class="courier-cell queue-notes" data-column-key="notes"><span class="meta-value"><?= wb_e($row['notes'] ?: 'No notes') ?></span></div>
+                <div class="courier-cell courier-actions-cell queue-item-actions" data-column-key="actions">
                     <a class="btn-secondary download-btn courier-secondary-btn" href="courier.php?action=waybill_download_zip&amp;batch_id=<?= wb_e($batchId) ?>"><i data-lucide="download"></i> Download<?= (int) $row['file_count'] > 1 ? ' ZIP' : '' ?></a>
                     <?php if ($canSend): ?>
                         <button class="btn-mark-sent mark-sent mark-sent-btn courier-action-btn" type="button" data-batch-id="<?= wb_e($batchId) ?>"><i data-lucide="send"></i> Mark Sent</button>
@@ -1197,11 +1197,15 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $payload = $ready ? wb_dashboard_payload($canSendWaybills, $historyDateFrom, $historyDateTo) : ['stats' => ['uploaded_today' => 0, 'pending' => 0, 'overdue' => 0, 'sent_this_month' => 0], 'queue_html' => '', 'history_html' => ''];
 $duePreview = wb_due_for_upload(wb_now())->format('Y-m-d H:i:s');
+$extraStylesheets[] = [
+    'path' => 'assets/css/portal-column-resize.css',
+    'version' => is_file(BASE_PATH . '/assets/css/portal-column-resize.css') ? (string) filemtime(BASE_PATH . '/assets/css/portal-column-resize.css') : (string) time(),
+];
 
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
-<main class="workspace module courier-wrap">
+<main class="workspace module courier-wrap" data-courier-user-id="<?= (int) $currentEmployeeId ?>">
     <section class="module-header">
         <div>
             <h1>Courier Waybills</h1>
@@ -1314,11 +1318,12 @@ include BASE_PATH . '/shared/sidebar.php';
                     <div>
                         <h2 class="card-title">Waybill Queue</h2>
                     </div>
+                    <button type="button" class="courier-reset-columns" data-reset-courier-columns><i data-lucide="rotate-ccw"></i><span>Reset column widths</span></button>
                 </div>
                 <div class="courier-table-scroll courier-table-wrap">
                         <div class="courier-table-shell courier-table-shell--queue">
                         <div class="courier-grid courier-grid-waybill courier-grid-header queue-head">
-                            <div class="courier-cell courier-select-cell">
+                            <div class="courier-cell courier-select-cell" data-column-key="select">
                                 <label class="portal-grid-checkbox courier-select-all" aria-label="Select all waybill batches">
                                     <input class="portal-grid-checkbox-input" type="checkbox" data-courier-select-all>
                                     <span class="portal-grid-checkbox-box" aria-hidden="true">
@@ -1327,7 +1332,7 @@ include BASE_PATH . '/shared/sidebar.php';
                                         </svg>
                                     </span>
                                 </label>
-                            </div><div class="courier-cell queue-main"><span>Courier</span></div><div class="courier-cell">Uploaded</div><div class="courier-cell">By</div><div class="courier-cell">Due</div><div class="courier-cell">Files</div><div class="courier-cell">Status</div><div class="courier-cell">Notes</div><div class="courier-cell">Actions</div>
+                            </div><div class="courier-cell queue-main" data-column-key="courier"><span>Courier</span></div><div class="courier-cell" data-column-key="uploaded">Uploaded</div><div class="courier-cell" data-column-key="by">By</div><div class="courier-cell" data-column-key="due">Due</div><div class="courier-cell" data-column-key="files">Files</div><div class="courier-cell" data-column-key="status">Status</div><div class="courier-cell" data-column-key="notes">Notes</div><div class="courier-cell" data-column-key="actions">Actions</div>
                         </div>
                         <div class="queue-list" data-waybill-queue><?= $payload['queue_html'] ?></div>
                     </div>
@@ -1413,6 +1418,7 @@ include BASE_PATH . '/shared/sidebar.php';
     <div class="courier-toast" data-waybill-toast></div>
 </main>
 
+<script src="<?= BASE_URL ?>/assets/js/portal-column-resize.js?v=<?= is_file(BASE_PATH . '/assets/js/portal-column-resize.js') ? (string) filemtime(BASE_PATH . '/assets/js/portal-column-resize.js') : (string) time() ?>"></script>
 <script>
 (function () {
     const app = document.querySelector('[data-waybill-app]');
@@ -1429,6 +1435,12 @@ include BASE_PATH . '/shared/sidebar.php';
     const toolsArchived = document.querySelector('[data-courier-tools-archived]');
     const toolsActivity = document.querySelector('[data-courier-tools-activity]');
     const confirmShell = document.querySelector('[data-courier-confirm]');
+    const courierColumnDefaults = { select: 36, courier: 138, uploaded: 104, by: 84, due: 104, files: 108, status: 78, notes: 84, actions: 132 };
+    const courierColumnMinimums = { select: 36, courier: 105, uploaded: 88, by: 72, due: 88, files: 90, status: 72, notes: 74, actions: 118 };
+    const courierColumnMaximums = { courier: 480, uploaded: 260, by: 260, due: 280, files: 520, status: 240, notes: 520, actions: 420 };
+    const courierColumnOrder = Object.keys(courierColumnDefaults);
+    const courierColumnStorageKey = `hambelelaCourierColumnWidths:${app.dataset.courierUserId || 'anonymous'}`;
+    let courierColumnWidths = {};
     let toolsData = null;
     let toolsReturnFocus = null;
     let confirmResolver = null;
@@ -1452,6 +1464,76 @@ include BASE_PATH . '/shared/sidebar.php';
         }
     }
 
+    function clampCourierColumnWidth(key, width) {
+        const minimum = courierColumnMinimums[key] || 60;
+        const maximum = courierColumnMaximums[key] || minimum;
+        return Math.min(maximum, Math.max(minimum, Math.round(Number(width) || courierColumnDefaults[key] || minimum)));
+    }
+
+    function loadCourierColumnWidths() {
+        try {
+            const stored = JSON.parse(localStorage.getItem(courierColumnStorageKey) || '{}') || {};
+            courierColumnWidths = Object.fromEntries(courierColumnOrder.map((key) => [key, key === 'select' ? 36 : clampCourierColumnWidth(key, stored[key] || courierColumnDefaults[key])]));
+        } catch (error) {
+            courierColumnWidths = { ...courierColumnDefaults };
+        }
+    }
+
+    function courierGridTemplate() {
+        return courierColumnOrder.map((key) => {
+            const width = key === 'select' ? 36 : clampCourierColumnWidth(key, courierColumnWidths[key] || courierColumnDefaults[key]);
+            return key === 'actions' ? `minmax(${width}px, 1fr)` : `${width}px`;
+        }).join(' ');
+    }
+
+    function applyCourierColumnWidths() {
+        const template = courierGridTemplate();
+        const requestedWidth = courierColumnOrder.reduce((total, key) => total + (key === 'select' ? 36 : clampCourierColumnWidth(key, courierColumnWidths[key] || courierColumnDefaults[key])), 0);
+        const shell = document.querySelector('.courier-table-shell--queue');
+        if (shell) shell.style.width = `max(100%, ${requestedWidth}px)`;
+        document.querySelectorAll('.courier-grid-waybill').forEach((grid) => { grid.style.gridTemplateColumns = template; });
+        document.querySelectorAll('.queue-head [data-column-key]').forEach((header) => {
+            const key = header.dataset.columnKey;
+            const handle = header.querySelector('.courier-column-resizer');
+            if (handle && key) handle.setAttribute('aria-valuenow', String(courierColumnWidths[key] || courierColumnDefaults[key]));
+        });
+    }
+
+    function saveCourierColumnWidths() {
+        localStorage.setItem(courierColumnStorageKey, JSON.stringify(courierColumnWidths));
+    }
+
+    function initialiseCourierColumnResize() {
+        loadCourierColumnWidths();
+        const headers = [...document.querySelectorAll('.queue-head [data-column-key]')];
+        headers.forEach((header, index) => {
+            header.querySelector('.courier-column-resizer')?.remove();
+            const key = header.dataset.columnKey;
+            if (!key || key === 'select' || index === headers.length - 1) return;
+            const handle = document.createElement('span');
+            handle.className = 'portal-column-resizer courier-column-resizer';
+            handle.dataset.columnKey = key;
+            handle.setAttribute('role', 'separator');
+            handle.setAttribute('aria-label', `Resize ${header.textContent.trim()} column`);
+            handle.setAttribute('aria-orientation', 'vertical');
+            handle.setAttribute('aria-valuemin', String(courierColumnMinimums[key]));
+            handle.setAttribute('aria-valuemax', String(courierColumnMaximums[key]));
+            handle.tabIndex = 0;
+            header.appendChild(handle);
+            window.PortalColumnResize?.bindHandle(handle, {
+                key,
+                readWidth: () => courierColumnWidths[key] || courierColumnDefaults[key],
+                clampWidth: clampCourierColumnWidth,
+                applyWidth: (columnKey, width) => {
+                    courierColumnWidths[columnKey] = clampCourierColumnWidth(columnKey, width);
+                    applyCourierColumnWidths();
+                },
+                onCommit: saveCourierColumnWidths
+            });
+        });
+        applyCourierColumnWidths();
+    }
+
     function animateCourierButton(button, className = 'is-animating', duration = 500) {
         if (!button) return;
         button.classList.remove(className);
@@ -1473,6 +1555,7 @@ include BASE_PATH . '/shared/sidebar.php';
             });
         }
         syncCourierSelection();
+        applyCourierColumnWidths();
         refreshIcons();
     }
 
@@ -1834,6 +1917,14 @@ include BASE_PATH . '/shared/sidebar.php';
         if (event.target.closest('[data-courier-confirm-accept]')) { settleConfirmation(true); return; }
         if (event.target.closest('[data-courier-confirm-cancel]')) { settleConfirmation(false); return; }
         const toolsOpen = event.target.closest('[data-courier-tools-open]');
+        const resetColumns = event.target.closest('[data-reset-courier-columns]');
+        if (resetColumns) {
+            courierColumnWidths = { ...courierColumnDefaults };
+            saveCourierColumnWidths();
+            applyCourierColumnWidths();
+            showToast('Courier column widths reset.');
+            return;
+        }
         if (toolsOpen) { openTools(toolsOpen); return; }
         if (event.target.closest('[data-courier-tools-close], [data-courier-tools-backdrop]')) { closeTools(); return; }
         const toolsTab = event.target.closest('[data-courier-tools-tab]');
@@ -1974,6 +2065,7 @@ include BASE_PATH . '/shared/sidebar.php';
             .then(renderPayload)
             .catch(() => {});
     }, 60000);
+    initialiseCourierColumnResize();
 })();
 </script>
 <?php include BASE_PATH . '/shared/footer.php'; ?>
