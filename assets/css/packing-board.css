@@ -2188,11 +2188,17 @@ body.is-resizing-packing-column {
 /* The complete Packing List has one horizontal overflow owner. */
 .packing-list-page,
 .packing-list-page .packing-page-shell,
-.packing-list-page .packing-board-shell,
-.packing-list-page .packing-date-groups {
+.packing-list-page .packing-board-shell {
     width: 100%;
     max-width: 100%;
     min-width: 0;
+    box-sizing: border-box;
+}
+
+.packing-list-page .packing-list-table-scroll > .packing-date-groups {
+    width: max-content;
+    min-width: 100%;
+    max-width: none;
     box-sizing: border-box;
 }
 
