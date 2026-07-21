@@ -3612,7 +3612,19 @@ include BASE_PATH . '/shared/sidebar.php';
                 </div>
             </div>
 
-            <div class="owner-card-grid owner-health-grid" data-owner-health></div>
+            <div class="owner-card-grid owner-health-grid" data-owner-health>
+                <?php foreach (($ownerDashboardData['metrics'] ?? []) as $metric): ?>
+                    <article class="owner-metric-card">
+                        <div class="owner-card-top">
+                            <span class="owner-card-icon"><i data-lucide="activity"></i></span>
+                            <h3><?= htmlspecialchars((string) ($metric['label'] ?? ''), ENT_QUOTES, 'UTF-8') ?></h3>
+                        </div>
+                        <strong><?= htmlspecialchars((string) ($metric['value'] ?? '0'), ENT_QUOTES, 'UTF-8') ?></strong>
+                        <small><?= htmlspecialchars((string) ($metric['subtitle'] ?? ''), ENT_QUOTES, 'UTF-8') ?></small>
+                        <div class="owner-progress"><span style="width: <?= max(0, min(100, (int) ($metric['progress'] ?? 0))) ?>%"></span></div>
+                    </article>
+                <?php endforeach; ?>
+            </div>
 
             <div class="owner-section-grid">
                 <section class="owner-panel owner-span-2">
@@ -3637,7 +3649,21 @@ include BASE_PATH . '/shared/sidebar.php';
                                     <th>Status</th>
                                 </tr>
                             </thead>
-                            <tbody data-owner-boards></tbody>
+                            <tbody data-owner-boards>
+                                <?php foreach (($ownerDashboardData['board_status'] ?? []) as $row): ?>
+                                    <tr>
+                                        <td><strong><?= htmlspecialchars((string) ($row['name'] ?? 'Employee'), ENT_QUOTES, 'UTF-8') ?></strong></td>
+                                        <td><?= htmlspecialchars((string) ($row['role'] ?? '-'), ENT_QUOTES, 'UTF-8') ?></td>
+                                        <td><?= number_format((int) ($row['order_board'] ?? 0)) ?></td>
+                                        <td><?= number_format((int) ($row['packing_list'] ?? 0)) ?></td>
+                                        <td><?= number_format((int) ($row['checklist'] ?? 0)) ?></td>
+                                        <td><?= htmlspecialchars((string) ($row['mode'] ?? '-'), ENT_QUOTES, 'UTF-8') ?></td>
+                                        <td><?= htmlspecialchars((string) ($row['avg_time'] ?? '-'), ENT_QUOTES, 'UTF-8') ?></td>
+                                        <td><?= number_format((int) ($row['stale'] ?? 0)) ?></td>
+                                        <td><?= htmlspecialchars((string) ($row['status'] ?? '-'), ENT_QUOTES, 'UTF-8') ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
                         </table>
                     </div>
                     <div class="owner-mode-panel">
@@ -3650,7 +3676,16 @@ include BASE_PATH . '/shared/sidebar.php';
                         <div class="owner-table-wrap">
                             <table class="owner-mode-table">
                                 <thead><tr><th>Employee</th><th>Courier / Delivery</th><th>Collections</th><th>Total handled</th></tr></thead>
-                                <tbody data-owner-mode></tbody>
+                                <tbody data-owner-mode>
+                                    <?php foreach (($ownerDashboardData['mode']['rows'] ?? []) as $row): ?>
+                                        <tr>
+                                            <td><strong><?= htmlspecialchars((string) ($row['name'] ?? 'Employee'), ENT_QUOTES, 'UTF-8') ?></strong></td>
+                                            <td><?= number_format((int) ($row['courier'] ?? 0)) ?></td>
+                                            <td><?= number_format((int) ($row['collection'] ?? 0)) ?></td>
+                                            <td><?= number_format((int) ($row['total'] ?? 0)) ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
                             </table>
                         </div>
                     </div>
@@ -3663,7 +3698,18 @@ include BASE_PATH . '/shared/sidebar.php';
                             <p>Unresolved issues assigned to the owner.</p>
                         </div>
                     </div>
-                    <div class="owner-error-list" data-owner-errors></div>
+                    <div class="owner-error-list" data-owner-errors>
+                        <?php if (empty($ownerDashboardData['owner_errors'])): ?>
+                            <p class="owner-empty">No unresolved owner issues in this period.</p>
+                        <?php else: ?>
+                            <?php foreach ($ownerDashboardData['owner_errors'] as $error): ?>
+                                <article class="owner-error-item">
+                                    <strong><?= htmlspecialchars((string) ($error['description'] ?? 'Issue'), ENT_QUOTES, 'UTF-8') ?></strong>
+                                    <small><?= htmlspecialchars((string) ($error['logged_at'] ?? ''), ENT_QUOTES, 'UTF-8') ?> &middot; <?= htmlspecialchars((string) ($error['logged_by'] ?? 'System'), ENT_QUOTES, 'UTF-8') ?></small>
+                                </article>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </div>
                 </section>
             </div>
 
@@ -3688,7 +3734,20 @@ include BASE_PATH . '/shared/sidebar.php';
                                 <th>Status</th>
                             </tr>
                         </thead>
-                        <tbody data-owner-staff></tbody>
+                        <tbody data-owner-staff>
+                            <?php foreach (($ownerDashboardData['staff'] ?? []) as $row): ?>
+                                <tr>
+                                    <td><strong><?= htmlspecialchars((string) ($row['name'] ?? 'Employee'), ENT_QUOTES, 'UTF-8') ?></strong></td>
+                                    <td><?= htmlspecialchars((string) ($row['role'] ?? '-'), ENT_QUOTES, 'UTF-8') ?></td>
+                                    <td><?= number_format((int) ($row['orders'] ?? 0)) ?></td>
+                                    <td><?= number_format((int) ($row['packing'] ?? 0)) ?></td>
+                                    <td><?= number_format((int) ($row['tasks'] ?? 0)) ?></td>
+                                    <td><?= htmlspecialchars((string) ($row['avg_time'] ?? '-'), ENT_QUOTES, 'UTF-8') ?></td>
+                                    <td><?= number_format((int) ($row['stale_items'] ?? 0)) ?></td>
+                                    <td><?= htmlspecialchars((string) ($row['status'] ?? '-'), ENT_QUOTES, 'UTF-8') ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
                     </table>
                 </div>
             </section>
@@ -3755,6 +3814,9 @@ include BASE_PATH . '/shared/sidebar.php';
                         <a class="<?= $selectedEmployee && (int) $selectedEmployee['employee_id'] === (int) $row['employee_id'] ? 'active' : '' ?>" href="reports.php?tab=employees&employee_id=<?= (int) $row['employee_id'] ?>&<?= htmlspecialchars($dateRangeQuery, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8') ?></a>
                     <?php endforeach; ?>
                 </div>
+            <?php endif; ?>
+            <?php if (!$employeeScores): ?>
+                <p class="kpi-warning-text">No employee performance records are available for the selected period. Try a wider date range or confirm that active portal users are linked to HR employee profiles.</p>
             <?php endif; ?>
         </section>
         <?php if ($selectedEmployee): ?>
