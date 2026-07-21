@@ -61,8 +61,9 @@
 
   function enhance(source, index) {
     if (source.dataset.viewBarEnhanced === 'true') return;
-    const form = source.matches('form') ? source : source.querySelector('form');
-    if (!form) return;
+    // Some live filters are client-side sections rather than submit forms.
+    // Treat the section itself as the movable filter surface in that case.
+    const form = source.matches('form') ? source : (source.querySelector('form') || source);
 
     source.dataset.viewBarEnhanced = 'true';
     source.classList.add('portal-view-bar-source');
@@ -85,6 +86,19 @@
     if (group) bar.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button" data-view-action="group" aria-expanded="false">${icon('columns-3')}<span>Group by</span></button>`);
     bar.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button portal-view-bar__overflow" data-view-action="more" aria-label="More view options" aria-expanded="false">${icon('ellipsis')}</button>`);
     source.before(bar);
+
+    // Page actions belong in the same predictable bar, immediately after Group by.
+    // Move the real controls so their existing event listeners and permissions remain intact.
+    const actionHost = source.querySelector('.work-filter-actions, [data-view-bar-actions]')
+      || source.closest('main')?.querySelector('[data-view-bar-actions]');
+    const actions = actionHost
+      ? [...actionHost.children].filter((node) => node.matches('button, a'))
+      : [...(source.closest('main')?.querySelectorAll('[data-view-bar-action]') || [])];
+    const overflow = bar.querySelector('.portal-view-bar__overflow');
+    actions.forEach((action) => {
+      action.classList.add('portal-view-bar__page-action');
+      bar.insertBefore(action, overflow);
+    });
 
     const searchLabel = bar.querySelector('.portal-view-bar__search');
     const quickSearch = searchLabel?.querySelector('input');
@@ -167,7 +181,7 @@
   }
 
   function init() {
-    document.querySelectorAll('details.dtb-filter-card, details.error-filter-card, .notification-filter-card, .bk-filter-section, .packing-filter-bar').forEach(enhance);
+    document.querySelectorAll('details.dtb-filter-card, details.error-filter-card, .notification-filter-card, .bk-filter-section, .packing-filter-bar, .courier-wrap .filter-strip').forEach(enhance);
     document.querySelectorAll('[data-view-search]').forEach((label) => label.addEventListener('click', () => {
       label.classList.add('is-open');
       label.querySelector('input')?.focus({ preventScroll: true });
