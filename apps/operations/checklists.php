@@ -842,7 +842,7 @@ include BASE_PATH . '/shared/sidebar.php';
         <?php endforeach; ?>
     </nav>
 
-    <details class="dtb-filter-card" <?= $filtersAreActive ? 'open' : '' ?>>
+    <details class="dtb-filter-card" data-portal-view-filter <?= $filtersAreActive ? 'open' : '' ?>>
         <summary class="dtb-filter-header"><span class="dtb-filter-heading"><i data-lucide="sliders-horizontal"></i> Filters</span><strong class="dtb-filter-state"><?= $filtersAreActive ? 'Active' : 'Collapsed' ?></strong></summary>
         <form method="get" class="dtb-filter-body">
             <input type="hidden" name="task_view" value="<?= htmlspecialchars($filters['task_view'], ENT_QUOTES, 'UTF-8') ?>">

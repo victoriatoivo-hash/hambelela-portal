@@ -13,10 +13,7 @@ for (const label of ['Person', 'Filter', 'Sort', 'Hide', 'Group by']) assert.mat
 assert.match(css, /font:400 12px\/1 Figtree/);
 assert.match(css, /height:32px/);
 assert.match(css, /#ab3619/i);
-assert.match(js, /details\.dtb-filter-card/);
-assert.match(js, /details\.error-filter-card/);
-assert.match(js, /\.bk-filter-section/);
-assert.match(js, /\.packing-filter-bar/);
+assert.match(js, /querySelectorAll\('\[data-portal-view-filter\], \[data-waybill-filter\]'\)/);
 assert.match(js, /data-column-index/);
 assert.match(js, /data-generic-sort-direction/);
 assert.match(ordersJs, /sortBy: 'latest'/);

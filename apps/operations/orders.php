@@ -1998,7 +1998,7 @@ include BASE_PATH . '/shared/sidebar.php';
     <?php if ($reportSyncError): ?>
         <div class="cor-data-message cor-data-error">Could not connect to WooCommerce: <?= cor_e($reportSyncError) ?></div>
     <?php endif; ?>
-    <section class="orders-filter-panel is-collapsed" data-orders-filter-panel>
+    <section class="orders-filter-panel is-collapsed" data-orders-filter-panel data-portal-view-filter>
       <button type="button" class="orders-filter-header" data-orders-filter-toggle aria-expanded="false" aria-controls="orders-filter-body">
         <span class="orders-filter-header-left"><span class="orders-filter-icon"><i data-lucide="sliders-horizontal" aria-hidden="true"></i></span><span class="orders-filter-title">Filters</span><?php if ($activeFilterCount > 0): ?><span class="orders-filter-active-count"><?= $activeFilterCount ?> active</span><?php endif; ?></span>
         <span class="orders-filter-header-right"><span class="orders-filter-state" data-orders-filter-state>Collapsed</span><svg class="orders-filter-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 8l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>

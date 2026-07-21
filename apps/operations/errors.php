@@ -582,7 +582,7 @@ include BASE_PATH . '/shared/sidebar.php';
         </section>
     <?php endif; ?>
 
-    <details class="error-filter-card" <?= $filtersAreActive ? 'open' : '' ?>>
+    <details class="error-filter-card" data-portal-view-filter <?= $filtersAreActive ? 'open' : '' ?>>
         <summary class="error-filter-header"><span><i data-lucide="sliders-horizontal"></i> Filters</span><strong><?= $filtersAreActive ? 'Active' : 'Collapsed' ?></strong></summary>
         <form class="error-filter-body" method="get">
             <div class="error-filter-grid">

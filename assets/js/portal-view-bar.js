@@ -130,7 +130,7 @@
       const action = button.dataset.viewAction;
 
       if (action === 'filter') {
-        const popover = openPopover(button, '<h3>Filter this view</h3><div class="portal-view-bar__form"></div>');
+        const popover = openPopover(button, '<header class="portal-view-bar__popover-header"><span class="portal-view-bar__popover-icon">' + icon('list-filter') + '</span><div><h3>Filter this view</h3><p>Choose only the items you want employees to see.</p></div></header><div class="portal-view-bar__form"></div>');
         if (!popover) return;
         popover.querySelector('.portal-view-bar__form').append(form);
         active.movedForm = form;
@@ -181,7 +181,7 @@
   }
 
   function init() {
-    document.querySelectorAll('details.dtb-filter-card, details.error-filter-card, .notification-filter-card, .bk-filter-section, .packing-filter-bar, .courier-wrap .filter-strip').forEach(enhance);
+    document.querySelectorAll('[data-portal-view-filter], [data-waybill-filter]').forEach(enhance);
     document.querySelectorAll('[data-view-search]').forEach((label) => label.addEventListener('click', () => {
       label.classList.add('is-open');
       label.querySelector('input')?.focus({ preventScroll: true });

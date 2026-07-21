@@ -69,6 +69,7 @@
 
   function createFilters() {
     const card = element('section', 'notification-filter-card is-collapsed');
+    card.dataset.portalViewFilter = '';
     const header = element('button', 'notification-filter-header'); header.type = 'button'; header.dataset.notificationFilterToggle = ''; header.setAttribute('aria-expanded', 'false');
     const title = element('span', 'notification-filter-title'); const icon = element('i'); icon.dataset.lucide = 'sliders-horizontal'; title.append(icon, document.createTextNode('Filters'));
     header.append(title, element('span', 'notification-filter-state', 'Collapsed'));
