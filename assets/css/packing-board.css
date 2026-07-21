@@ -2279,55 +2279,6 @@ body.packing-list-page {
     table-layout: fixed !important;
 }
 
-.packing-list-page .packing-group-bottom-scroll {
-    position: sticky;
-    bottom: 0;
-    z-index: 18;
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-    height: 16px;
-    margin: 0;
-    padding: 0;
-    overflow-x: scroll;
-    overflow-y: hidden;
-    background: #FDF6EE;
-    border: 1px solid rgba(171, 54, 25, .24);
-    border-radius: 999px;
-    scrollbar-width: auto;
-    scrollbar-color: #AB3619 #FDF6EE;
-    box-sizing: border-box;
-}
-
-.packing-list-page .packing-group-bottom-scroll[hidden] {
-    display: none;
-}
-
-.packing-list-page .packing-group-scroll-width {
-    height: 1px;
-    pointer-events: none;
-}
-
-.packing-list-page .packing-group-bottom-scroll::-webkit-scrollbar {
-    display: block !important;
-    height: 14px !important;
-}
-
-.packing-list-page .packing-group-bottom-scroll::-webkit-scrollbar-track {
-    background: #FDF6EE;
-    border-radius: 999px;
-}
-
-.packing-list-page .packing-group-bottom-scroll::-webkit-scrollbar-thumb {
-    min-width: 48px;
-    background: #AB3619;
-    border: 3px solid #FDF6EE;
-    border-radius: 999px;
-}
-
-.packing-list-page .packing-group-bottom-scroll::-webkit-scrollbar-thumb:hover {
-    background: #721B1A;
-}
 .packing-bulk-bar {
   position: fixed;
   left: 50%;
