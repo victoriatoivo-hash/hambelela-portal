@@ -135,12 +135,17 @@ include BASE_PATH . '/shared/sidebar.php';
         <section class="ops-alert">Import <code>operations-packing-list-migration.sql</code> in phpMyAdmin to activate received weight, website confirmation and time tracking fields.</section>
     <?php endif; ?>
 
-    <section class="packing-board-shell packing-board-v2" aria-label="Packing board">
+    <section class="packing-board-shell packing-board-v2 packing-list-section" aria-label="Packing board">
         <input type="checkbox" class="packing-select-all-master" data-packing-select-all aria-hidden="true" tabindex="-1">
-        <div class="packing-list-table-scroll" data-packing-list-table-scroll role="region" aria-label="Packing List table">
-            <div id="packing-list-body" class="packing-date-groups" aria-live="polite">
-                <div class="packing-loading-state">Loading packing list...</div>
+        <div class="packing-list-viewport" id="packingListViewport" data-packing-list-table-scroll role="region" aria-label="Packing List table">
+            <div class="packing-list-grid" id="packingListGrid">
+                <div id="packing-list-body" class="packing-date-groups" aria-live="polite">
+                    <div class="packing-loading-state">Loading packing list...</div>
+                </div>
             </div>
+        </div>
+        <div class="packing-list-bottom-scroll" id="packingListBottomScroll" aria-label="Scroll Packing List horizontally" tabindex="0">
+            <div class="packing-list-scroll-width" id="packingListScrollWidth"></div>
         </div>
     </section>
 

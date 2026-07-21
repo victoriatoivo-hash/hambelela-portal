@@ -2,6 +2,10 @@
   const config = window.HambelelaPacking || {};
   const page = document.querySelector('.packing-list-page');
   const body = document.getElementById('packing-list-body');
+  const packingListViewport = document.getElementById('packingListViewport');
+  const packingListGrid = document.getElementById('packingListGrid');
+  const packingListBottomScroll = document.getElementById('packingListBottomScroll');
+  const packingListScrollWidth = document.getElementById('packingListScrollWidth');
   const labelMenu = document.getElementById('packing-label-menu');
   let priorityPopup = null;
   let priorityPopupTrigger = null;
@@ -36,6 +40,43 @@
   const invoicePriority = document.querySelector('[data-invoice-priority]');
 
   if (!body || !config.dataUrl || !config.actionUrl) return;
+
+  let syncingPackingViewport = false;
+  let syncingPackingBottomScroll = false;
+
+  function updatePackingListScrollbar() {
+    if (!packingListViewport || !packingListGrid || !packingListBottomScroll || !packingListScrollWidth) return;
+    const fullTableWidth = Math.max(packingListGrid.scrollWidth, packingListViewport.clientWidth + 1);
+    packingListScrollWidth.style.width = `${fullTableWidth}px`;
+    packingListScrollWidth.style.minWidth = `${fullTableWidth}px`;
+    packingListBottomScroll.hidden = false;
+    packingListBottomScroll.scrollLeft = packingListViewport.scrollLeft;
+  }
+
+  function initialisePackingListScrollbar() {
+    if (!packingListViewport || !packingListGrid || !packingListBottomScroll || !packingListScrollWidth) return;
+    packingListViewport.addEventListener('scroll', () => {
+      if (syncingPackingBottomScroll) return;
+      syncingPackingViewport = true;
+      packingListBottomScroll.scrollLeft = packingListViewport.scrollLeft;
+      syncingPackingViewport = false;
+    }, { passive: true });
+    packingListBottomScroll.addEventListener('scroll', () => {
+      if (syncingPackingViewport) return;
+      syncingPackingBottomScroll = true;
+      packingListViewport.scrollLeft = packingListBottomScroll.scrollLeft;
+      syncingPackingBottomScroll = false;
+    }, { passive: true });
+    if ('ResizeObserver' in window) {
+      const observer = new ResizeObserver(updatePackingListScrollbar);
+      observer.observe(packingListViewport);
+      observer.observe(packingListGrid);
+    }
+    updatePackingListScrollbar();
+    requestAnimationFrame(updatePackingListScrollbar);
+  }
+
+  initialisePackingListScrollbar();
 
   let tasks = [];
   let packers = [];
@@ -549,7 +590,7 @@
   }
 
   function capturePackingScrollState(source) {
-    const container = source?.closest('.packing-list-table-scroll')
+    const container = source?.closest('.packing-list-viewport')
       || document.querySelector('[data-packing-list-table-scroll]');
     return { windowX: window.scrollX, windowY: window.scrollY, container, left: container?.scrollLeft || 0, top: container?.scrollTop || 0, active: document.activeElement };
   }
@@ -1671,6 +1712,7 @@
       updateFilterBadge();
       updateSelection();
       if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+      requestAnimationFrame(updatePackingListScrollbar);
       return;
     }
     const groups = visible.reduce((memo, task) => {
@@ -1686,6 +1728,7 @@
     updateFilterBadge();
     updateSelection();
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+    requestAnimationFrame(updatePackingListScrollbar);
     if (typeof window.initialisePortalDatePickers === 'function') window.initialisePortalDatePickers(body);
     renderCustomHeaders();
     initialisePackingEditableCells(body);

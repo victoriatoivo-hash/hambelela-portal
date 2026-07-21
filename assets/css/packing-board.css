@@ -2185,7 +2185,7 @@ body.is-resizing-packing-column {
     overflow: visible;
 }
 
-/* The complete Packing List has one horizontal overflow owner. */
+/* One hidden-native viewport and one permanently visible synchronized scrollbar. */
 .packing-list-page,
 .packing-list-page .packing-page-shell,
 .packing-list-page .packing-board-shell {
@@ -2195,62 +2195,101 @@ body.is-resizing-packing-column {
     box-sizing: border-box;
 }
 
-.packing-list-page .packing-list-table-scroll > .packing-date-groups {
+.packing-list-page .packing-list-section {
+    overflow: hidden !important;
+}
+
+.packing-list-page .packing-list-grid,
+.packing-list-page .packing-list-grid > .packing-date-groups {
     width: max-content;
-    min-width: 100%;
+    min-width: max(100%, 1800px);
     max-width: none;
+    flex-shrink: 0;
     box-sizing: border-box;
 }
 
 .packing-list-page .packing-board-shell {
-    overflow: visible !important;
+    overflow: hidden !important;
 }
 
-.packing-list-page .packing-list-table-scroll {
+.packing-list-page .packing-list-viewport {
     display: block;
     width: 100%;
     max-width: 100%;
     min-width: 0;
     overflow-x: auto;
     overflow-y: visible;
-    scrollbar-gutter: stable;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(114, 27, 26, .32) #FDF6EE;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
     -webkit-overflow-scrolling: touch;
     box-sizing: border-box;
 }
 
-.packing-list-page .packing-list-table-scroll .packing-month-scroll,
-.packing-list-page .packing-list-table-scroll .packing-group-table-wrap,
-.packing-list-page .packing-list-table-scroll .packing-date-body,
-.packing-list-page .packing-list-table-scroll .packing-month-body {
+.packing-list-page .packing-list-viewport::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+}
+
+.packing-list-page .packing-list-viewport .packing-month-scroll,
+.packing-list-page .packing-list-viewport .packing-group-table-wrap,
+.packing-list-page .packing-list-viewport .packing-date-body,
+.packing-list-page .packing-list-viewport .packing-month-body {
     max-width: none;
     overflow-x: visible !important;
 }
 
-.packing-list-page .packing-list-table-scroll .packing-board-table {
+.packing-list-page .packing-list-viewport .packing-board-table {
     width: max-content !important;
-    min-width: 100% !important;
+    min-width: 1800px !important;
     table-layout: fixed !important;
 }
 
-.packing-list-page .packing-list-table-scroll::-webkit-scrollbar {
-    height: 10px;
+.packing-list-page .packing-list-bottom-scroll {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    height: 16px;
+    margin: 8px 0 0;
+    padding: 0;
+    overflow-x: scroll !important;
+    overflow-y: hidden;
+    background: #FDF6EE;
+    border: 1px solid rgba(171, 54, 25, .24);
+    border-radius: 999px;
+    scrollbar-width: auto;
+    scrollbar-color: #AB3619 #FDF6EE;
+    box-sizing: border-box;
 }
 
-.packing-list-page .packing-list-table-scroll::-webkit-scrollbar-track {
+.packing-list-page .packing-list-scroll-width {
+    height: 1px;
+    min-width: 1800px;
+    pointer-events: none;
+}
+
+.packing-list-page .packing-list-bottom-scroll::-webkit-scrollbar {
+    display: block !important;
+    height: 14px !important;
+}
+
+.packing-list-page .packing-list-bottom-scroll::-webkit-scrollbar-track {
     background: #FDF6EE;
     border-radius: 999px;
 }
 
-.packing-list-page .packing-list-table-scroll::-webkit-scrollbar-thumb {
-    background: rgba(114, 27, 26, .32);
-    border: 2px solid #FDF6EE;
+.packing-list-page .packing-list-bottom-scroll::-webkit-scrollbar-thumb {
+    min-width: 48px;
+    background: #AB3619;
+    border: 3px solid #FDF6EE;
     border-radius: 999px;
 }
 
-.packing-list-page .packing-list-table-scroll::-webkit-scrollbar-thumb:hover {
-    background: #AB3619;
+.packing-list-page .packing-list-bottom-scroll::-webkit-scrollbar-thumb:hover {
+    background: #721B1A;
 }
 .packing-bulk-bar {
   position: fixed;
