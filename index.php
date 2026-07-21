@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/shared/auth.php';
+require_once __DIR__ . '/apps/operations/operations.php';
 
 require_login();
 
@@ -12,6 +13,26 @@ $activeApp = 'dashboard';
 $pageUsesPortalSidebar = false;
 $hidePortalSidebar = true;
 $roleKey = current_role_key();
+$dashboardTaskRows = [];
+$dashboardTaskCount = 0;
+if ($roleKey !== 'owner_admin' && ops_table_exists('ops_checklist_tasks')) {
+    $employeeId = ops_current_employee_id() ?: 0;
+    $visibilityWhere = ops_column_exists('ops_checklist_tasks', 'employee_visible') ? ' AND employee_visible = 1' : '';
+    $dashboardTaskRows = ops_rows(
+        "SELECT id, task_name, deadline, priority FROM ops_checklist_tasks
+         WHERE assigned_employee_id = ?{$visibilityWhere}
+           AND archived_at IS NULL AND deleted_at IS NULL AND status <> 'complete'
+         ORDER BY CASE WHEN deadline IS NOT NULL AND deadline < NOW() THEN 0 ELSE 1 END, deadline ASC LIMIT 8",
+        [$employeeId]
+    );
+    $countRows = ops_rows(
+        "SELECT COUNT(*) AS total FROM ops_checklist_tasks
+         WHERE assigned_employee_id = ?{$visibilityWhere}
+           AND archived_at IS NULL AND deleted_at IS NULL AND status <> 'complete'",
+        [$employeeId]
+    );
+    $dashboardTaskCount = (int) ($countRows[0]['total'] ?? 0);
+}
 
 if ($roleKey === 'owner_admin') {
     $apps = [
@@ -57,9 +78,11 @@ include __DIR__ . '/shared/sidebar.php';
                 </span>
                 <strong><?= htmlspecialchars($app['name'], ENT_QUOTES, 'UTF-8') ?></strong>
                 <small><?= htmlspecialchars($app['desc'], ENT_QUOTES, 'UTF-8') ?></small>
+                <?php if ($app['name'] === 'Tasks' && $dashboardTaskCount > 0): ?><span class="employee-task-count" aria-label="<?= $dashboardTaskCount ?> incomplete tasks"><?= $dashboardTaskCount > 99 ? '99+' : $dashboardTaskCount ?></span><?php endif; ?>
             </a>
         <?php endforeach; ?>
     </section>
 </main>
+<?php if ($roleKey !== 'owner_admin' && $dashboardTaskCount > 0): ?><div class="dashboard-task-reminder" data-dashboard-task-reminder hidden><button type="button" class="dashboard-task-reminder-backdrop" data-dashboard-task-dismiss aria-label="Close task reminder"></button><section><button type="button" class="dashboard-task-reminder-close" data-dashboard-task-dismiss aria-label="Close"><i data-lucide="x"></i></button><span>Tasks requiring attention</span><h2>You have <?= number_format($dashboardTaskCount) ?> incomplete task<?= $dashboardTaskCount === 1 ? '' : 's' ?>.</h2><div><?php foreach ($dashboardTaskRows as $task): ?><a href="<?= BASE_URL ?>/apps/operations/checklists.php?task_id=<?= (int) $task['id'] ?>"><strong><?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?></strong><small><?= !empty($task['deadline']) ? htmlspecialchars(date('D j M, H:i', strtotime((string) $task['deadline'])), ENT_QUOTES, 'UTF-8') : 'No due time' ?></small></a><?php endforeach; ?></div><a class="dashboard-task-reminder-open" href="<?= BASE_URL ?>/apps/operations/checklists.php">Open Task Management</a></section></div><script>(()=>{const modal=document.querySelector('[data-dashboard-task-reminder]');if(!modal)return;const key='taskReminder:<?= date('Y-m-d') ?>:<?= (int) (current_user()['id'] ?? 0) ?>';if(!sessionStorage.getItem(key))modal.hidden=false;modal.querySelectorAll('[data-dashboard-task-dismiss]').forEach(button=>button.addEventListener('click',()=>{modal.hidden=true;sessionStorage.setItem(key,'dismissed')}));})();</script><?php endif; ?>
 <?php if ($roleKey !== 'owner_admin'): ?><style>.employee-workspace-intro{margin:0 0 16px}.employee-workspace-intro h1{margin:0 0 5px;color:#721b1a;font-size:14px;font-weight:600}.employee-workspace-intro p{margin:0;color:#6b4c3b;font-size:12px;line-height:1.45}.employee-app-status{position:absolute;top:12px;right:12px;min-height:22px;padding:0 8px;display:inline-flex;align-items:center;border-radius:999px;background:rgba(168,202,25,.14);color:#721b1a;font-size:10px;font-weight:600}</style><?php endif; ?>
 <?php include __DIR__ . '/shared/footer.php'; ?>
