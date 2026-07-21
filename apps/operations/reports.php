@@ -86,10 +86,14 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
 $settings = [];
 $employees = [];
 $holidays = [];
+$recentEvents = [];
+$recentSessions = [];
 if ($ready) {
     foreach (ops_rows('SELECT setting_key, setting_value FROM kpi_settings') as $row) $settings[(string) $row['setting_key']] = (string) $row['setting_value'];
     $employees = ops_rows("SELECT e.id, e.full_name, e.hire_date, e.working_days, e.shift_start, e.shift_end, e.late_grace_minutes, r.name AS role_name FROM ops_employees e JOIN ops_roles r ON r.id = e.role_id WHERE e.status = 'active' ORDER BY e.full_name");
     $holidays = ops_rows('SELECT holiday_date, COALESCE(NULLIF(name, \'\'), holiday_name) AS holiday_name FROM kpi_holidays WHERE active = 1 ORDER BY holiday_date');
+    $recentEvents = ops_rows('SELECT se.module, se.record_id, se.old_status, se.new_status, se.changed_at, e.full_name FROM kpi_status_events se LEFT JOIN ops_employees e ON e.id = se.changed_by ORDER BY se.id DESC LIMIT 30');
+    $recentSessions = ops_rows('SELECT s.login_at, s.last_seen_at, s.logout_at, e.full_name FROM kpi_sessions s LEFT JOIN ops_employees e ON e.id = s.user_id ORDER BY s.id DESC LIMIT 20');
 }
 
 include BASE_PATH . '/shared/header.php';
@@ -132,6 +136,12 @@ include BASE_PATH . '/shared/sidebar.php';
             <div class="section-row"><div><p class="eyebrow">Working calendar</p><h2>Public holidays</h2></div></div>
             <form method="post" class="inline-fields"><input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>"><input type="hidden" name="kpi_action" value="save_holiday"><label class="field"><span>Date</span><input type="date" name="holiday_date" required></label><label class="field"><span>Name</span><input name="holiday_name" maxlength="100" required></label><button class="btn-primary" type="submit">Add holiday</button></form>
             <div class="table-scroll"><table class="data-table"><thead><tr><th>Date</th><th>Holiday</th><th>Action</th></tr></thead><tbody><?php foreach ($holidays as $holiday): ?><tr><td><?= htmlspecialchars((string) $holiday['holiday_date'], ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars((string) $holiday['holiday_name'], ENT_QUOTES, 'UTF-8') ?></td><td><form method="post"><input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>"><input type="hidden" name="kpi_action" value="remove_holiday"><input type="hidden" name="holiday_date" value="<?= htmlspecialchars((string) $holiday['holiday_date'], ENT_QUOTES, 'UTF-8') ?>"><button class="btn-secondary" type="submit">Remove</button></form></td></tr><?php endforeach; ?></tbody></table></div>
+        </section>
+
+        <section class="panel">
+            <div class="section-row"><div><p class="eyebrow">Phase 1 verification</p><h2>Contained tracking evidence</h2></div></div>
+            <div class="table-scroll"><table class="data-table"><thead><tr><th>When</th><th>Module</th><th>Record</th><th>Status change</th><th>Changed by</th></tr></thead><tbody><?php foreach ($recentEvents as $event): ?><tr><td><?= htmlspecialchars((string) $event['changed_at'], ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars((string) $event['module'], ENT_QUOTES, 'UTF-8') ?></td><td>#<?= (int) $event['record_id'] ?></td><td><?= htmlspecialchars((string) ($event['old_status'] ?? '-'), ENT_QUOTES, 'UTF-8') ?> &rarr; <?= htmlspecialchars((string) $event['new_status'], ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars((string) ($event['full_name'] ?? 'Unknown'), ENT_QUOTES, 'UTF-8') ?></td></tr><?php endforeach; ?><?php if (!$recentEvents): ?><tr><td colspan="5">No status events recorded yet.</td></tr><?php endif; ?></tbody></table></div>
+            <div class="table-scroll"><table class="data-table"><thead><tr><th>Employee</th><th>Login</th><th>Last activity</th><th>Logout</th></tr></thead><tbody><?php foreach ($recentSessions as $session): ?><tr><td><?= htmlspecialchars((string) ($session['full_name'] ?? 'Unknown'), ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars((string) $session['login_at'], ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars((string) $session['last_seen_at'], ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars((string) ($session['logout_at'] ?? 'Open'), ENT_QUOTES, 'UTF-8') ?></td></tr><?php endforeach; ?><?php if (!$recentSessions): ?><tr><td colspan="4">No tracked login sessions yet.</td></tr><?php endif; ?></tbody></table></div>
         </section>
     <?php endif; ?>
 </main>
