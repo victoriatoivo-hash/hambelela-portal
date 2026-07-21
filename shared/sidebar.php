@@ -76,8 +76,14 @@ $portalNavItems = $employeePortalNavItems;
 if ($isEmployeeSidebar) {
     $employeeNavOrder = [
         'operations-consignments' => 10,
-        'operations-bookkeeping' => 20,
-        'operations-cash-tools' => 30,
+        'operations-courier' => 20,
+        'hr-portal' => 30,
+        'operations-orders' => 40,
+        'operations-checklists' => 50,
+        'operations-bookkeeping' => 60,
+        'operations-cash-tools' => 70,
+        'notifications' => 80,
+        'operations-errors' => 90,
     ];
     usort($portalNavItems, static fn(array $left, array $right): int =>
         ($employeeNavOrder[$left['id']] ?? 999) <=> ($employeeNavOrder[$right['id']] ?? 999)

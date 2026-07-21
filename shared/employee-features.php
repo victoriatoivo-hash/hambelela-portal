@@ -11,6 +11,11 @@ function normalise_portal_role(string $role): string
 
 function portal_feature_permissions(): array
 {
+    $employeeModules = [
+        'packing_list', 'courier', 'hr', 'orders', 'task_management',
+        'bookkeeping', 'cash_tools', 'notifications',
+    ];
+
     return [
         'owner_admin' => [
             'dashboard', 'orders', 'bookkeeping', 'cash_tools', 'packing_list',
@@ -18,11 +23,11 @@ function portal_feature_permissions(): array
             'error_log', 'settings', 'notifications', 'courier', 'hr',
             'operations', 'barcode',
         ],
-        'front_desk_admin' => ['packing_list', 'bookkeeping', 'cash_tools'],
-        'front_desk_admin_employee' => ['packing_list', 'bookkeeping', 'cash_tools'],
-        'packer' => ['packing_list', 'bookkeeping', 'cash_tools'],
-        'packer_production_staff' => ['packing_list', 'bookkeeping', 'cash_tools'],
-        'supervisor_manager' => ['packing_list', 'bookkeeping', 'cash_tools'],
+        'front_desk_admin' => [...$employeeModules, 'error_log'],
+        'front_desk_admin_employee' => [...$employeeModules, 'error_log'],
+        'packer' => $employeeModules,
+        'packer_production_staff' => $employeeModules,
+        'supervisor_manager' => $employeeModules,
     ];
 }
 
@@ -31,10 +36,13 @@ function portal_role_can_access_feature(string $roleKey, string $featureKey): bo
     $permissions = portal_feature_permissions();
     $roleKey = normalise_portal_role($roleKey);
 
-    // The staged employee workspace currently exposes exactly these three
-    // operational features. Custom authenticated staff roles receive the same
-    // baseline without duplicating route or sidebar permission logic.
-    if ($roleKey !== 'guest' && $roleKey !== 'owner_admin' && in_array($featureKey, ['packing_list', 'bookkeeping', 'cash_tools'], true)) {
+    // Unknown authenticated staff roles receive the standard employee modules.
+    // Error Log remains explicitly restricted to front desk and owner/admin.
+    $employeeModules = [
+        'packing_list', 'courier', 'hr', 'orders', 'task_management',
+        'bookkeeping', 'cash_tools', 'notifications',
+    ];
+    if ($roleKey !== 'guest' && $roleKey !== 'owner_admin' && in_array($featureKey, $employeeModules, true)) {
         return true;
     }
 

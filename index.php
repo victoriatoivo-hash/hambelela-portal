@@ -25,13 +25,16 @@ if ($roleKey === 'owner_admin') {
 } else {
     $apps = [
         ['name' => 'Packing List', 'desc' => 'assigned consignment packing quantities and completion status', 'icon' => 'package-open', 'href' => BASE_URL . '/apps/operations/consignments.php', 'active' => true, 'tone' => 'green'],
-        ['name'=>'Bookkeeping','desc'=>'cash and bookkeeping workflows','icon'=>'book-open','href'=>BASE_URL.'/apps/operations/bookkeeping.php','active'=>true,'tone'=>'green'],
-        ['name'=>'Cash Tools','desc'=>'denomination counter and calculated cash totals','icon'=>'calculator','href'=>BASE_URL.'/apps/operations/bookkeeping.php?cash_tools=1','active'=>true,'tone'=>'green'],
-        ['name'=>'Orders','desc'=>'website orders, payments and daily status','icon'=>'table-2','href'=>BASE_URL.'/apps/operations/orders-board.php','active'=>true,'tone'=>'pink'],
-        ['name'=>'Inventory','desc'=>'stock and inventory workflows','icon'=>'boxes','href'=>'','active'=>false,'tone'=>'green'],
-        ['name'=>'Task Management','desc'=>'daily assigned tasks and completion tracking','icon'=>'list-checks','href'=>'','active'=>false,'tone'=>'green'],
-        ['name'=>'Settings','desc'=>'portal administration and permissions','icon'=>'settings','href'=>'','active'=>false,'tone'=>'pink'],
+        ['name' => 'Courier Waybills', 'desc' => 'courier labels and customer follow-up', 'icon' => 'truck', 'href' => BASE_URL . '/apps/operations/courier.php', 'active' => true, 'tone' => 'green'],
+        ['name' => 'HR Portal', 'desc' => 'leave, payslips and employee self-service', 'icon' => 'shield-check', 'href' => BASE_URL . '/apps/hr-portal/portal-login.php', 'active' => true, 'tone' => 'green'],
+        ['name' => 'Orders', 'desc' => 'website orders, payments and daily status', 'icon' => 'table-2', 'href' => BASE_URL . '/apps/operations/orders-board.php', 'active' => true, 'tone' => 'pink'],
+        ['name' => 'Tasks', 'desc' => 'daily assigned tasks and completion tracking', 'icon' => 'list-checks', 'href' => BASE_URL . '/apps/operations/checklists.php', 'active' => true, 'tone' => 'green'],
+        ['name' => 'Bookkeeping', 'desc' => 'cash and bookkeeping workflows', 'icon' => 'book-open', 'href' => BASE_URL . '/apps/operations/bookkeeping.php', 'active' => true, 'tone' => 'green'],
+        ['name' => 'Notifications', 'desc' => 'your account alerts and updates', 'icon' => 'bell', 'href' => BASE_URL . '/notifications.php', 'active' => true, 'tone' => 'green'],
     ];
+    if (in_array($roleKey, ['front_desk_admin', 'front_desk_admin_employee'], true)) {
+        $apps[] = ['name' => 'Error Log', 'desc' => 'operational issue tracking', 'icon' => 'triangle-alert', 'href' => BASE_URL . '/apps/operations/errors.php', 'active' => true, 'tone' => 'pink'];
+    }
 }
 
 include __DIR__ . '/shared/header.php';
@@ -39,7 +42,7 @@ include __DIR__ . '/shared/sidebar.php';
 ?>
 <main class="workspace launcher">
     <header class="launcher-account-header" data-portal-header-status-target aria-label="Portal account and status"></header>
-    <?php if ($roleKey !== 'owner_admin'): ?><section class="employee-workspace-intro"><h1>Packing List, Orders, Bookkeeping and Cash Tools are currently available.</h1><p>Additional portal sections are coming soon.</p></section><?php endif; ?>
+    <?php if ($roleKey !== 'owner_admin'): ?><section class="employee-workspace-intro"><h1>Your operational apps are available.</h1><p>Open an app below to begin working.</p></section><?php endif; ?>
     <section class="launcher-hero" aria-labelledby="launcher-title">
         <h1 id="launcher-title">essentials <span class="mascot" aria-hidden="true">&#9822;</span></h1>
         <p>your business command center</p>
@@ -47,17 +50,16 @@ include __DIR__ . '/shared/sidebar.php';
 
     <section class="app-grid role-app-grid" aria-label="Business apps">
         <?php foreach ($apps as $app): ?>
-            <?php $tag = $app['active'] ? 'a' : 'div'; ?>
-            <<?= $tag ?> class="app-card <?= $app['active'] ? 'is-active employee-app-tile--available' : 'is-muted employee-app-tile--coming-soon' ?>" <?= $app['active'] ? 'href="' . htmlspecialchars($app['href'], ENT_QUOTES, 'UTF-8') . '"' : 'data-employee-app-coming-soon aria-disabled="true" tabindex="0" role="button"' ?>>
-                <?php if ($roleKey !== 'owner_admin'): ?><span class="employee-app-status"><?= $app['active'] ? 'Available' : 'Coming soon' ?></span><?php endif; ?>
+            <a class="app-card is-active employee-app-tile--available" href="<?= htmlspecialchars($app['href'], ENT_QUOTES, 'UTF-8') ?>">
+                <?php if ($roleKey !== 'owner_admin'): ?><span class="employee-app-status">Available</span><?php endif; ?>
                 <span class="app-icon <?= htmlspecialchars($app['tone'], ENT_QUOTES, 'UTF-8') ?>">
                     <i data-lucide="<?= htmlspecialchars($app['icon'], ENT_QUOTES, 'UTF-8') ?>"></i>
                 </span>
                 <strong><?= htmlspecialchars($app['name'], ENT_QUOTES, 'UTF-8') ?></strong>
                 <small><?= htmlspecialchars($app['desc'], ENT_QUOTES, 'UTF-8') ?></small>
-            </<?= $tag ?>>
+            </a>
         <?php endforeach; ?>
     </section>
 </main>
-<?php if ($roleKey !== 'owner_admin'): ?><style>.employee-workspace-intro{margin:0 0 16px}.employee-workspace-intro h1{margin:0 0 5px;color:#721b1a;font-size:14px;font-weight:600}.employee-workspace-intro p{margin:0;color:#6b4c3b;font-size:12px;line-height:1.45}.employee-app-tile--coming-soon{position:relative;opacity:.72;cursor:default;filter:saturate(.65)}.employee-app-status{position:absolute;top:12px;right:12px;min-height:22px;padding:0 8px;display:inline-flex;align-items:center;border-radius:999px;background:rgba(240,116,32,.08);color:#ab3619;font-size:10px;font-weight:600}.employee-app-tile--available .employee-app-status{background:rgba(168,202,25,.14);color:#721b1a}.employee-soon-toast{position:fixed;left:50%;bottom:24px;z-index:50000;transform:translateX(-50%);padding:10px 14px;border:1px solid #ede3d8;border-radius:9px;background:#fff;color:#721b1a;box-shadow:0 12px 30px rgba(114,27,26,.14);font-size:12px}</style><script>function employeeSoonMessage(){document.querySelector('.employee-soon-toast')?.remove();const toast=document.createElement('div');toast.className='employee-soon-toast';toast.textContent='This section is coming soon.';document.body.appendChild(toast);setTimeout(()=>toast.remove(),2200)}document.addEventListener('click',e=>{if(e.target.closest('[data-employee-app-coming-soon]')){e.preventDefault();employeeSoonMessage()}});document.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.closest('[data-employee-app-coming-soon]')){e.preventDefault();employeeSoonMessage()}});</script><?php endif; ?>
+<?php if ($roleKey !== 'owner_admin'): ?><style>.employee-workspace-intro{margin:0 0 16px}.employee-workspace-intro h1{margin:0 0 5px;color:#721b1a;font-size:14px;font-weight:600}.employee-workspace-intro p{margin:0;color:#6b4c3b;font-size:12px;line-height:1.45}.employee-app-status{position:absolute;top:12px;right:12px;min-height:22px;padding:0 8px;display:inline-flex;align-items:center;border-radius:999px;background:rgba(168,202,25,.14);color:#721b1a;font-size:10px;font-weight:600}</style><?php endif; ?>
 <?php include __DIR__ . '/shared/footer.php'; ?>
