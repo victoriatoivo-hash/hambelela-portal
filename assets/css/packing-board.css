@@ -2,7 +2,7 @@
    Loaded after portal.css so the board keeps the Monday-style density. */
 
 .packing-list-page {
-    --packing-row-height: 36px;
+    --packing-row-height: 35px;
     --packing-grid-border: #EDE3D8;
     --packing-grid-border-strong: #E4D6C8;
     --board-grid: var(--packing-grid-border);
