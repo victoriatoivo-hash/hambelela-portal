@@ -5,6 +5,7 @@ const responsiveCss = fs.readFileSync(new URL('../assets/css/portal-responsive.c
 const sidebarPhp = fs.readFileSync(new URL('../shared/sidebar.php', import.meta.url), 'utf8');
 const bookkeepingPhp = fs.readFileSync(new URL('../apps/operations/bookkeeping.php', import.meta.url), 'utf8');
 const presenceJs = fs.readFileSync(new URL('../assets/js/portal-presence.js', import.meta.url), 'utf8');
+const footerPhp = fs.readFileSync(new URL('../shared/footer.php', import.meta.url), 'utf8');
 
 assert.match(responsiveCss, /@media \(max-width: 900px\)/, 'The shared layout must define a tablet/mobile breakpoint.');
 assert.match(responsiveCss, /@media \(max-width: 430px\)/, 'The shared layout must define a narrow-phone breakpoint.');
@@ -22,5 +23,11 @@ assert.match(sidebarPhp, /mobileToggle\?\.setAttribute\('aria-expanded'/, 'The m
 assert.match(bookkeepingPhp, /assets\/js\/portal-presence\.js/, 'Bookkeeping must load the shared authenticated-page controller.');
 assert.match(presenceJs, /assets\/css\/portal-responsive\.css/, 'Legacy authenticated pages must receive the shared mobile stylesheet.');
 assert.match(presenceJs, /!document\.querySelector\('link\[href\*="\/assets\/css\/portal-responsive\.css"\]'/, 'The mobile stylesheet fallback must not duplicate styles already loaded by the shared header.');
+assert.match(footerPhp, /data-portal-responsive-final/, 'Footer pages must load responsive CSS after page-level styles.');
+assert.match(footerPhp, /mobile-final2/, 'The final responsive layer must use a fresh cache version.');
+assert.match(presenceJs, /dataset\.portalResponsiveFinal/, 'Legacy pages must append a final responsive layer when they omit the footer.');
+assert.match(presenceJs, /document\.body\.append\(finalResponsiveStylesheet\)/, 'Legacy responsive CSS must be last in document order.');
+assert.match(responsiveCss, /\.orders-board-scroll,[\s\S]*\.courier-table-scroll,[\s\S]*overflow-x: auto !important;/, 'Operational tables must scroll within the phone viewport.');
+assert.match(responsiveCss, /@media \(max-width: 600px\)[\s\S]*\.courier-wrap \.stat-cards,[\s\S]*repeat\(2, minmax\(0, 1fr\)\)/, 'Phone metric cards must use compact two-column layouts.');
 
 console.log('Portal mobile responsive static checks passed.');

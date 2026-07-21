@@ -29,6 +29,13 @@ for (const [name, source] of Object.entries({ Bookkeeping: bookkeeping, Packing:
   assert.match(source, /data-portal-view-filter/, `${name} must explicitly opt in to the shared filter bar`);
 }
 assert.match(courier, /data-waybill-filter/, 'Courier must retain its safe semantic shared-filter hook');
+assert.match(courier, /portal-view-bar\.css'.*courier2/s, 'Courier must load its restored layout in the document head');
+assert.match(courier, /portalViewBarCssLoadedInHead = true/, 'Courier must prevent a second late stylesheet request');
+assert.match(courier, /filter-apply-button[^>]*type="submit"/, 'Courier filters must provide an explicit Apply action');
+assert.match(courier, /__hambelelaCourierControllerStarted/, 'Courier must guard against duplicate controller initialisation');
+assert.match(courier, /dataset\.courierController = 'ready'/, 'Courier must expose a testable ready state');
+assert.match(courier, /credentials: 'same-origin'/, 'Courier API interactions must retain the authenticated session');
+assert.match(courier, /content-type/, 'Courier must detect invalid or redirected API responses');
 assert.match(notifications, /dataset\.portalViewFilter/, 'Notifications must explicitly opt in to the shared filter bar');
 assert.match(viewBar, /querySelectorAll\('\[data-portal-view-filter\], \[data-waybill-filter\]'\)/, 'Shared filter discovery must use explicit cross-page hooks');
 assert.doesNotMatch(viewBar, /details\.dtb-filter-card, details\.error-filter-card/, 'Shared filter discovery must not depend on a partial legacy class list');

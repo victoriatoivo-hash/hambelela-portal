@@ -1206,6 +1206,14 @@ $extraStylesheets[] = [
     'path' => 'assets/css/portal-column-resize.css',
     'version' => is_file(BASE_PATH . '/assets/css/portal-column-resize.css') ? (string) filemtime(BASE_PATH . '/assets/css/portal-column-resize.css') : (string) time(),
 ];
+$extraStylesheets[] = [
+    // Courier's verified card, upload, queue and responsive layout lives in
+    // this stylesheet. Load it in the document head so the page never falls
+    // back to raw browser controls while waiting for the shared footer.
+    'path' => 'assets/css/portal-view-bar.css',
+    'version' => is_file(BASE_PATH . '/assets/css/portal-view-bar.css') ? (string) filemtime(BASE_PATH . '/assets/css/portal-view-bar.css') . '-courier2' : (string) time(),
+];
+$portalViewBarCssLoadedInHead = true;
 
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
@@ -1261,7 +1269,8 @@ include BASE_PATH . '/shared/sidebar.php';
                 <input type="search" name="search" placeholder="Search courier waybills">
             </label>
             <div class="filter-actions-row">
-                <a class="btn-primary filter-clear-button" href="courier.php">Clear filters</a>
+                <button class="btn-primary filter-apply-button" type="submit"><i data-lucide="check"></i> Apply filters</button>
+                <a class="btn-secondary filter-clear-button" href="courier.php"><i data-lucide="rotate-ccw"></i> Reset</a>
             </div>
         </form>
 
@@ -1429,6 +1438,9 @@ include BASE_PATH . '/shared/sidebar.php';
 (function () {
     const app = document.querySelector('[data-waybill-app]');
     if (!app) return;
+    if (window.__hambelelaCourierControllerStarted) return;
+    window.__hambelelaCourierControllerStarted = true;
+    app.dataset.courierController = 'starting';
 
     const toast = document.querySelector('[data-waybill-toast]');
     const queue = document.querySelector('[data-waybill-queue]');
@@ -1768,13 +1780,30 @@ include BASE_PATH . '/shared/sidebar.php';
             + encodeURIComponent(Array.from(selectedBatches).join(','));
     }
 
-    function fetchJson(url, options) {
-        return fetch(url, options || {}).then((response) => response.json().then((data) => {
-            if (!response.ok || !data.success) {
-                throw new Error(data.message || 'Request failed.');
+    async function fetchJson(url, options) {
+        const requestOptions = {
+            credentials: 'same-origin',
+            cache: 'no-store',
+            ...(options || {}),
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                ...((options && options.headers) || {})
             }
-            return data;
-        }));
+        };
+        const response = await fetch(url, requestOptions);
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.toLowerCase().includes('application/json')) {
+            if (response.redirected || /login\.php/i.test(response.url || '')) {
+                throw new Error('Your session has expired. Refresh the page and sign in again.');
+            }
+            throw new Error('Courier could not read the server response. Refresh the page and try again.');
+        }
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            throw new Error(data.message || 'Courier request failed.');
+        }
+        return data;
     }
 
     function filteredRefreshUrl() {
@@ -2069,6 +2098,8 @@ include BASE_PATH . '/shared/sidebar.php';
             .catch(() => {});
     }, 60000);
     initialiseCourierColumnResize();
+    app.dataset.courierController = 'ready';
+    document.documentElement.classList.add('courier-js-ready');
 })();
 </script>
 <?php include BASE_PATH . '/shared/footer.php'; ?>

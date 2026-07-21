@@ -10,6 +10,16 @@
     responsiveStylesheet.href = new URL('../css/portal-responsive.css?v=mobile1', presenceScriptUrl).href;
     document.head.append(responsiveStylesheet);
   }
+  // Some legacy pages do not include the shared footer, while other pages
+  // declare desktop-only styles after the shared header. Ensure one final
+  // responsive link is last in document order so phone rules actually win.
+  if (presenceScriptUrl && !document.querySelector('[data-portal-responsive-final]')) {
+    const finalResponsiveStylesheet = document.createElement('link');
+    finalResponsiveStylesheet.rel = 'stylesheet';
+    finalResponsiveStylesheet.dataset.portalResponsiveFinal = 'true';
+    finalResponsiveStylesheet.href = new URL('../css/portal-responsive.css?v=mobile-final2', presenceScriptUrl).href;
+    document.body.append(finalResponsiveStylesheet);
+  }
   if (presenceScriptUrl && !document.querySelector('link[href*="/assets/css/portal-view-bar.css"]')) {
     const viewBarStylesheet = document.createElement('link');
     viewBarStylesheet.rel = 'stylesheet';
