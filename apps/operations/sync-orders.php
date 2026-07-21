@@ -188,7 +188,7 @@ if ($ready && $hasWooColumns && $_SERVER['REQUEST_METHOD'] === 'POST') {
              ON DUPLICATE KEY UPDATE
                 customer_name = VALUES(customer_name),
                 customer_contact = VALUES(customer_contact),
-                payment_method = VALUES(payment_method){$amountUpdates}{$breakdownUpdates},
+                payment_method = CASE WHEN VALUES(payment_method) <> '' THEN VALUES(payment_method) ELSE payment_method END{$amountUpdates}{$breakdownUpdates},
                 order_type = VALUES(order_type),
                 notes = VALUES(notes),
                 workload_score = VALUES(workload_score),
@@ -237,7 +237,7 @@ if ($ready && $hasWooColumns && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $orderNumber,
                 $customerName,
                 $customerContact,
-                (string) ($order['payment_method_title'] ?? $order['payment_method'] ?? ''),
+                ops_wc_payment_method($order),
             ];
             if ($hasTotalAmount) {
                 $orderValues[] = (float) ($order['total'] ?? 0);
