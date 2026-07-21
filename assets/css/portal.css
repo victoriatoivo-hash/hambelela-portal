@@ -13867,6 +13867,12 @@ body.login-page { min-height: 100%; background: #FFFFFF !important; }
   }
 }
 
+@media (max-width: 1100px) {
+  .courier-wrap .courier-table-shell--queue {
+    min-width: 980px;
+  }
+}
+
 @media (max-width: 900px) {
   .courier-wrap {
     padding: 14px;
@@ -13878,9 +13884,6 @@ body.login-page { min-height: 100%; background: #FFFFFF !important; }
     align-items: stretch;
   }
 
-  .courier-wrap .courier-table-shell--queue {
-    min-width: 980px;
-  }
 }
 
 @media (max-width: 767px) {
