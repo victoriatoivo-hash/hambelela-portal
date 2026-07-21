@@ -41,6 +41,117 @@ const OPS_ERROR_CATEGORIES = [
 const OPS_BUSINESS_START = '08:00:00';
 const OPS_BUSINESS_END = '17:00:00';
 
+/** Payment methods offered by the website/POS, in their display order. */
+function ops_website_payment_methods(): array
+{
+    return [
+        'Cash',
+        'Card/Swipe',
+        'EFT',
+        'FNB eWallet',
+        'EasyWallet',
+        'Blue Wallet',
+        'Nedbank',
+        'NetBank Wallet',
+        'Pay2Cell',
+        'PayToday',
+    ];
+}
+
+function ops_normalize_website_payment_method(string $value): string
+{
+    $value = strtolower(trim($value));
+    $value = preg_replace('/[\s_-]+/', ' ', $value) ?? '';
+
+    $patterns = [
+        'FNB eWallet' => '/\bfnb\s*e\s*wallet\b/i',
+        'NetBank Wallet' => '/\bnet\s*bank\s*wallet\b/i',
+        'EasyWallet' => '/\beasy\s*wallet\b/i',
+        'Blue Wallet' => '/\bblue\s*wallet\b|\bbluewallet\b/i',
+        'Pay2Cell' => '/\bpay\s*2\s*cell\b/i',
+        'PayToday' => '/\bpay\s*today\b/i',
+        'Card/Swipe' => '/\bcard\s*\/\s*swipe\b|\bcard\b|\bswipe\b/i',
+        'EFT' => '/\beft\b|\bbank transfer\b|\bbacs\b/i',
+        'Nedbank' => '/\bnedbank\b/i',
+        'Cash' => '/\bcash\b/i',
+    ];
+
+    foreach ($patterns as $method => $pattern) {
+        if (preg_match($pattern, $value)) {
+            return $method;
+        }
+    }
+
+    return '';
+}
+
+function ops_collect_order_payment_text($value, string $key = '', array &$entries = []): void
+{
+    if (is_array($value)) {
+        foreach ($value as $childKey => $childValue) {
+            ops_collect_order_payment_text($childValue, (string) $childKey, $entries);
+        }
+        return;
+    }
+
+    if (!is_scalar($value)) {
+        return;
+    }
+
+    $text = is_bool($value) ? ($value ? 'true' : 'false') : trim((string) $value);
+    if ($text === '') {
+        return;
+    }
+
+    if (($text[0] ?? '') === '{' || ($text[0] ?? '') === '[') {
+        $decoded = json_decode($text, true);
+        if (is_array($decoded)) {
+            ops_collect_order_payment_text($decoded, $key, $entries);
+        }
+    }
+
+    $entries[] = trim($key . ' ' . $text);
+}
+
+/**
+ * Resolve the real WooCommerce/POS tender. Generic split-payment titles are
+ * never stored as a method: exact component methods are returned, otherwise
+ * an empty value lets the front person choose without sync overwriting it.
+ */
+function ops_wc_payment_method(array $order): string
+{
+    $title = trim((string) ($order['payment_method_title'] ?? ''));
+    $methodId = trim((string) ($order['payment_method'] ?? ''));
+    $metadata = [];
+    ops_collect_order_payment_text($order['meta_data'] ?? [], '', $metadata);
+    $metadataText = implode(' | ', $metadata);
+    $allText = trim($title . ' | ' . $methodId . ' | ' . $metadataText);
+    $split = (bool) preg_match('/\bsplit[\s_-]*(payment|tender)?\b/i', $allText);
+
+    $components = [];
+    foreach (ops_website_payment_methods() as $candidate) {
+        $candidatePattern = [
+            'Cash' => '/\bcash\b/i', 'Card/Swipe' => '/\bcard\b|\bswipe\b/i',
+            'EFT' => '/\beft\b|\bbank transfer\b|\bbacs\b/i',
+            'FNB eWallet' => '/\bfnb\s*e\s*wallet\b/i', 'EasyWallet' => '/\beasy\s*wallet\b/i',
+            'Blue Wallet' => '/\bblue\s*wallet\b|\bbluewallet\b/i', 'Nedbank' => '/\bnedbank\b/i',
+            'NetBank Wallet' => '/\bnet\s*bank\s*wallet\b/i', 'Pay2Cell' => '/\bpay\s*2\s*cell\b/i',
+            'PayToday' => '/\bpay\s*today\b/i',
+        ][$candidate];
+        if (preg_match($candidatePattern, $metadataText)) {
+            $components[] = $candidate;
+        }
+    }
+    $components = array_values(array_unique($components));
+
+    if ($split || count($components) > 1) {
+        return count($components) > 1 ? implode(' & ', $components) : '';
+    }
+
+    return ops_normalize_website_payment_method($title)
+        ?: ops_normalize_website_payment_method($methodId);
+}
+
 function ops_nav(string $active): void
 {
     if (user_has_role('owner_admin')) {
