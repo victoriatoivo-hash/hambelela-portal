@@ -4,6 +4,7 @@ import fs from 'node:fs';
 const responsiveCss = fs.readFileSync(new URL('../assets/css/portal-responsive.css', import.meta.url), 'utf8');
 const sidebarPhp = fs.readFileSync(new URL('../shared/sidebar.php', import.meta.url), 'utf8');
 const bookkeepingPhp = fs.readFileSync(new URL('../apps/operations/bookkeeping.php', import.meta.url), 'utf8');
+const presenceJs = fs.readFileSync(new URL('../assets/js/portal-presence.js', import.meta.url), 'utf8');
 
 assert.match(responsiveCss, /@media \(max-width: 900px\)/, 'The shared layout must define a tablet/mobile breakpoint.');
 assert.match(responsiveCss, /@media \(max-width: 430px\)/, 'The shared layout must define a narrow-phone breakpoint.');
@@ -18,6 +19,8 @@ assert.match(sidebarPhp, /mobileToggle\?\.addEventListener\('click'/, 'The mobil
 assert.match(sidebarPhp, /mobileBackdrop\?\.addEventListener\('click'/, 'The mobile sidebar backdrop must close the menu.');
 assert.match(sidebarPhp, /mobileToggle\?\.setAttribute\('aria-expanded'/, 'The mobile menu must expose its expanded state.');
 
-assert.match(bookkeepingPhp, /assets\/css\/portal-responsive\.css/, 'Bookkeeping must load the shared mobile stylesheet.');
+assert.match(bookkeepingPhp, /assets\/js\/portal-presence\.js/, 'Bookkeeping must load the shared authenticated-page controller.');
+assert.match(presenceJs, /assets\/css\/portal-responsive\.css/, 'Legacy authenticated pages must receive the shared mobile stylesheet.');
+assert.match(presenceJs, /!document\.querySelector\('link\[href\*="\/assets\/css\/portal-responsive\.css"\]'/, 'The mobile stylesheet fallback must not duplicate styles already loaded by the shared header.');
 
 console.log('Portal mobile responsive static checks passed.');
