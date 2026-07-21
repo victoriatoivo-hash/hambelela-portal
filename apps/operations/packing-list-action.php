@@ -2381,6 +2381,17 @@ try {
             throw new RuntimeException('Invalid packing update.');
         }
 
+        $value = trim($value);
+        if ($field === 'item_name' && $value === '') {
+            throw new RuntimeException('Item is required.');
+        }
+        if ($field === 'received_weight') {
+            $value = strtoupper((string) preg_replace('/\s+/', '', $value));
+        }
+        if (in_array($field, ['quantity_planned', 'quantity_packed'], true) && !preg_match('/^\d+(?:\.\d+)?/', $value)) {
+            throw new RuntimeException('Enter a quantity of 0 or more using the existing unit format.');
+        }
+
         if ($field === 'assigned_employee_id' && !$canManage) {
             throw new RuntimeException('You do not have permission to update this field.');
         }
@@ -2422,6 +2433,10 @@ try {
 
         $previousAssignmentRows = [];
         $previousStatusRows = [];
+        $previousValueRows = [];
+        foreach (ops_rows('SELECT id, ' . $allowed[$field] . ' AS previous_value FROM ops_packing_tasks WHERE id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')', $ids) as $previousRow) {
+            $previousValueRows[(int) $previousRow['id']] = $previousRow['previous_value'];
+        }
         if ($field === 'assigned_employee_id' && ops_table_exists('ops_packing_assignment_log')) {
             foreach (ops_rows('SELECT id, assigned_employee_id FROM ops_packing_tasks WHERE id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')', $ids) as $row) {
                 $previousAssignmentRows[(int) $row['id']] = $row['assigned_employee_id'] !== null ? (int) $row['assigned_employee_id'] : null;
@@ -2507,7 +2522,7 @@ try {
             }
         }
 
-        if (ops_column_exists('ops_packing_tasks', 'packing_row_key') && in_array($field, ['received_weight', 'quantity_planned', 'assigned_employee_id'], true)) {
+        if (ops_column_exists('ops_packing_tasks', 'packing_row_key') && in_array($field, ['item_name', 'received_weight', 'quantity_planned', 'assigned_employee_id'], true)) {
             $rowsForKeys = ops_rows(
                 'SELECT id, item_name, received_weight, quantity_planned, date_loaded, assigned_employee_id, notes FROM ops_packing_tasks WHERE id IN (' . $placeholders . ')' . $scope,
                 $scope === '' ? $ids : [...$ids, $currentEmployeeId ?: 0]
@@ -2536,7 +2551,10 @@ try {
             $activityMeta = [
                 'field' => $field,
                 'value' => $value,
+                'previous_value' => $previousValueRows[(int) $id] ?? null,
+                'new_value' => $value,
                 'changed_by' => current_user()['name'] ?? 'Unknown',
+                'changed_at' => date('Y-m-d H:i:s'),
             ];
             if ($field === 'packing_status') {
                 $before = $previousStatusRows[(int) $id] ?? [];

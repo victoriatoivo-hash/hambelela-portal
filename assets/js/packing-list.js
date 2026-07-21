@@ -2255,7 +2255,7 @@
     }, 160);
   }
 
-  function openPanel(taskId) {
+  function openPanel(taskId, preferredTab = '') {
     currentTask = tasks.find((task) => String(task.id) === String(taskId));
     if (!currentTask) return;
     panelTitle.textContent = currentTask.item_name;
@@ -2263,7 +2263,7 @@
     if (panelSource) panelSource.textContent = currentTask.monday_item_id ? 'Imported from legacy Monday data' : 'Created in the portal';
     panelNotes.value = currentTask.packer_notes || '';
     const canEditOwn = canEditTask(currentTask);
-    const defaultPanelTab = currentUser.can_view_front_website ? 'website' : 'details';
+    const defaultPanelTab = preferredTab || (currentUser.can_view_front_website ? 'website' : 'details');
     panelNotes.disabled = !canEditOwn;
     document.querySelectorAll('[data-packing-save-notes]').forEach((button) => { button.disabled = !canEditOwn; });
     document.querySelectorAll('[data-packing-panel-tab]').forEach((button) => {
@@ -2274,9 +2274,10 @@
     });
     document.querySelectorAll('[data-packing-panel-name]').forEach((section) => section.classList.toggle('active', section.dataset.packingPanelName === defaultPanelTab));
     const infoCard = (label, value) => `<article class="packing-item-info-card"><span class="packing-item-info-label">${esc(label)}</span><span class="packing-item-info-value">${esc(value || 'Not entered')}</span></article>`;
+    const editableInfoCard = (field, label, value, allowed) => `<div class="packing-item-info-card${allowed ? ' packing-item-info-card--editable' : ''}" data-packing-info-field="${esc(field)}" role="button" tabindex="${allowed ? '0' : '-1'}" aria-disabled="${allowed ? 'false' : 'true'}" aria-label="${allowed ? `Edit ${esc(label.toLowerCase())}` : esc(label)}"><span class="packing-item-info-label">${esc(label)}</span><span class="packing-item-info-value">${esc(value || 'Not entered')}</span>${allowed ? '<span class="packing-item-info-edit-icon" aria-hidden="true">&#9998;</span>' : ''}</div>`;
     panelActivity.innerHTML = `
       <section class="packing-item-section"><h2 class="packing-item-section-title">Packing information</h2><div class="packing-item-info-grid">
-        ${infoCard('Item', currentTask.item_name)}${infoCard('Received', currentTask.received_weight)}${infoCard('Quantity to pack', currentTask.quantity_planned)}${infoCard('Quantity packed', currentTask.quantity_packed)}
+        ${editableInfoCard('item_name', 'Item', currentTask.item_name, Boolean(currentUser.can_manage))}${editableInfoCard('received_weight', 'Received', currentTask.received_weight, Boolean(currentUser.can_manage))}${editableInfoCard('quantity_planned', 'Quantity to pack', currentTask.quantity_planned, Boolean(currentUser.can_manage))}${editableInfoCard('quantity_packed', 'Quantity packed', currentTask.quantity_packed, canEditOwn)}
       </div></section>
       <section class="packing-item-section"><h2 class="packing-item-section-title">Assignment and status</h2><div class="packing-item-form-grid">
         <div class="packing-item-field"><label>Assigned</label><div class="packing-item-control">${renderPerson(currentTask)}</div></div>
@@ -2300,6 +2301,55 @@
     panel.classList.add('open');
     panel.setAttribute('aria-hidden', 'false');
     backdrop.hidden = false;
+  }
+
+  function packingPanelNumber(value) {
+    const match = String(value || '').trim().match(/^(-?\d+(?:\.\d+)?)/);
+    return match ? Number(match[1]) : NaN;
+  }
+
+  function beginPackingInfoEdit(card) {
+    if (!currentTask || card.getAttribute('aria-disabled') === 'true' || card.classList.contains('is-editing') || card.classList.contains('is-saving')) return;
+    const field = card.dataset.packingInfoField;
+    const label = card.querySelector('.packing-item-info-label')?.textContent || 'Value';
+    card.classList.add('is-editing');
+    card.innerHTML = `<span class="packing-item-info-label">${esc(label)}</span><input class="packing-item-info-input" data-packing-info-input value="${esc(currentTask[field] || '')}" aria-label="${esc(label)}"><span class="packing-item-info-actions"><button type="button" data-packing-info-save>Save</button><button type="button" data-packing-info-cancel>Cancel</button></span><span class="packing-item-info-error" data-packing-info-error role="alert"></span>`;
+    const input = card.querySelector('[data-packing-info-input]');
+    input?.focus();
+    input?.select();
+  }
+
+  async function savePackingInfoCard(card) {
+    if (!currentTask || card.classList.contains('is-saving')) return;
+    const field = card.dataset.packingInfoField;
+    const input = card.querySelector('[data-packing-info-input]');
+    const errorNode = card.querySelector('[data-packing-info-error]');
+    let value = String(input?.value || '').trim();
+    if (field === 'item_name' && !value) { errorNode.textContent = 'Item is required.'; return; }
+    if (field === 'received_weight') value = value.replace(/\s+/g, '').toUpperCase();
+    if (['quantity_planned', 'quantity_packed'].includes(field)) {
+      const numeric = packingPanelNumber(value);
+      if (!value || !Number.isFinite(numeric) || numeric < 0) { errorNode.textContent = 'Enter a quantity of 0 or more.'; return; }
+    }
+    if (field === 'quantity_packed') {
+      const packed = packingPanelNumber(value);
+      const planned = packingPanelNumber(currentTask.quantity_planned);
+      if (Number.isFinite(planned) && packed > planned && !window.confirm('Quantity Packed exceeds Quantity to Pack. Save anyway?')) return;
+    }
+    const taskId = String(currentTask.id);
+    const activeTab = document.querySelector('[data-packing-panel-tab].is-active')?.dataset.packingPanelTab || 'details';
+    card.classList.add('is-saving');
+    card.querySelectorAll('input, button').forEach((node) => { node.disabled = true; });
+    errorNode.textContent = 'Saving...';
+    try {
+      await updateTasksField([taskId], field, value);
+      await refresh();
+      openPanel(taskId, activeTab);
+    } catch (error) {
+      card.classList.remove('is-saving');
+      card.querySelectorAll('input, button').forEach((node) => { node.disabled = false; });
+      errorNode.textContent = error.message || 'Could not save this value.';
+    }
   }
 
   function closePanel() {
@@ -3286,6 +3336,13 @@
         return;
       }
       if (panelButton) { openPanel(panelButton.dataset.packingOpenPanel); return; }
+      const packingInfoCard = event.target.closest('[data-packing-info-field]');
+      if (packingInfoCard) {
+        if (event.target.closest('[data-packing-info-cancel]')) { openPanel(currentTask.id); return; }
+        if (event.target.closest('[data-packing-info-save]')) { await savePackingInfoCard(packingInfoCard); return; }
+        if (!event.target.closest('[data-packing-info-input]')) beginPackingInfoEdit(packingInfoCard);
+        return;
+      }
       if (panelClose || event.target === backdrop) { closePanel(); return; }
       if (tab) {
         document.querySelectorAll('[data-packing-panel-tab]').forEach((button) => { button.classList.remove('active', 'is-active'); button.setAttribute('aria-selected', 'false'); });
@@ -3554,6 +3611,23 @@
   });
 
   document.addEventListener('keydown', (event) => {
+    const packingInfoInput = event.target.closest?.('[data-packing-info-input]');
+    const packingInfoCard = event.target.closest?.('[data-packing-info-field]');
+    if (!packingInfoInput && packingInfoCard && ['Enter', ' '].includes(event.key)) {
+      event.preventDefault();
+      beginPackingInfoEdit(packingInfoCard);
+      return;
+    }
+    if (packingInfoInput && event.key === 'Escape') {
+      event.preventDefault();
+      if (currentTask) openPanel(currentTask.id);
+      return;
+    }
+    if (packingInfoInput && event.key === 'Enter') {
+      event.preventDefault();
+      void savePackingInfoCard(packingInfoCard);
+      return;
+    }
     if (event.key === 'Escape') {
       closeLabel();
       closeColumnModal();
