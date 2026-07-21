@@ -810,6 +810,7 @@ function kpi_build_scores(string $period, string $start, string $end, array $set
         $check = $checkByEmployee[$employeeId] ?? ['checklist_total' => 0, 'checklist_done' => 0, 'missed_tasks' => 0];
         $checkTotal = (int) $check['checklist_total'];
         $checkDone = (int) $check['checklist_done'];
+        $measuredEventCount = (int) ($errors['error_count'] ?? 0) + $checkTotal;
         $checkRate = $checkTotal > 0 ? kpi_score(($checkDone / max(1, $checkTotal)) * 100) : (float) $input['compliance_score'];
         $attendanceReliability = kpi_score(((float) $input['attendance_score'] + (float) $input['reliability_score']) / 2);
         $errorPoints = (float) ($errors['error_points'] ?? 0);
@@ -832,6 +833,7 @@ function kpi_build_scores(string $period, string $start, string $end, array $set
             $packingWorkload = (float) ($packingTask['packing_workload'] ?? 0);
             $workVolume = max($itemsPacked, $packingWorkload, (float) $packingDoneRows);
             $itemsPacked = $workVolume;
+            $measuredEventCount += $handledOrders + (int) round($workVolume);
             $productivity = kpi_score((kpi_ratio_score((float) ($completedOrders + $packingDoneRows), kpi_float_setting($settings, 'target_orders_month')) * 0.45) + (kpi_ratio_score($workVolume, kpi_float_setting($settings, 'target_items_month')) * 0.55));
             $startSpeed = isset($pack['avg_start_minutes']) && $pack['avg_start_minutes'] !== null ? kpi_speed_score((float) $pack['avg_start_minutes'], kpi_float_setting($settings, 'target_start_minutes')) : null;
             $packSpeed = isset($pack['avg_pack_minutes']) && $pack['avg_pack_minutes'] !== null ? kpi_speed_score((float) $pack['avg_pack_minutes'], kpi_float_setting($settings, 'target_packing_minutes')) : null;
@@ -856,6 +858,7 @@ function kpi_build_scores(string $period, string $start, string $end, array $set
         } else {
             $front = $frontByEmployee[$employeeId] ?? [];
             $ordersLoaded = (int) ($front['orders_loaded'] ?? 0);
+            $measuredEventCount += $ordersLoaded;
             $unassigned = (int) ($front['unassigned_orders'] ?? 0);
             $delayed = (int) ($front['delayed_orders'] ?? 0);
             $corrections = (int) ($front['correction_orders'] ?? 0);
@@ -909,7 +912,21 @@ function kpi_build_scores(string $period, string $start, string $end, array $set
             $overall = ($overall / $totalWeight) * 100;
         }
         $overall = kpi_score($overall);
-        $tier = kpi_tier($overall);
+        $hasMeasuredActivity = $measuredEventCount > 0;
+        if ($hasMeasuredActivity) {
+            $tier = kpi_tier($overall);
+        } else {
+            $overall = 0.0;
+            $tier = [
+                'tier' => 'Not assessed',
+                'label' => 'Not assessed',
+                'bonus_multiplier' => 0.0,
+                'bonus_label' => 'No measured period',
+                'recommendation' => 'No measured activity in the selected period',
+                'reward' => false,
+                'class' => 'unmeasured',
+            ];
+        }
         $salary = (float) $input['monthly_salary'];
         $maxBonus = $salary * (kpi_float_setting($settings, 'bonus_percent') / 100);
         $bonusAmount = round($maxBonus * (float) $tier['bonus_multiplier'], 2);
@@ -929,6 +946,8 @@ function kpi_build_scores(string $period, string $start, string $end, array $set
             'role_group' => $roleGroup,
             'role_name' => (string) $employee['role_name'],
             'scorecard' => $scorecard,
+            'has_measured_activity' => $hasMeasuredActivity,
+            'measured_event_count' => $measuredEventCount,
             'components' => $components,
             'score' => $overall,
             'tier' => $tier,
@@ -948,10 +967,17 @@ function kpi_build_scores(string $period, string $start, string $end, array $set
     }
 
     usort($scores, function (array $a, array $b): int {
+        if ((bool) $a['has_measured_activity'] !== (bool) $b['has_measured_activity']) {
+            return (bool) $b['has_measured_activity'] <=> (bool) $a['has_measured_activity'];
+        }
+        if (!(bool) $a['has_measured_activity']) {
+            return strcasecmp((string) $a['name'], (string) $b['name']);
+        }
         return $b['score'] <=> $a['score'];
     });
+    $rank = 0;
     foreach ($scores as $index => $score) {
-        $scores[$index]['rank'] = $index + 1;
+        $scores[$index]['rank'] = !empty($score['has_measured_activity']) ? ++$rank : null;
     }
 
     return $scores;
@@ -2796,6 +2822,10 @@ function kpi_store_score_snapshots(string $period, array $scores): void
     }
 
     foreach ($scores as $row) {
+        if (empty($row['has_measured_activity'])) {
+            continue;
+        }
+
         try {
             $stmt = db()->prepare(
                 "INSERT INTO kpi_employee_scores
@@ -2978,18 +3008,21 @@ $previousByEmployee = [];
 foreach ($previousScores as $row) {
     $previousByEmployee[(int) $row['employee_id']] = $row;
 }
-$topPerformer = $employeeScores[0] ?? null;
-$bottomPerformer = $employeeScores ? $employeeScores[count($employeeScores) - 1] : null;
-$averageScore = $employeeScores ? array_sum(array_column($employeeScores, 'score')) / count($employeeScores) : 0;
-$bonusForecast = array_sum(array_column($employeeScores, 'bonus_amount'));
-$rewardCandidates = array_values(array_filter($employeeScores, function (array $row): bool {
+$measuredEmployeeScores = array_values(array_filter($employeeScores, static function (array $row): bool {
+    return !empty($row['has_measured_activity']);
+}));
+$topPerformer = $measuredEmployeeScores[0] ?? null;
+$bottomPerformer = $measuredEmployeeScores ? $measuredEmployeeScores[count($measuredEmployeeScores) - 1] : null;
+$averageScore = $measuredEmployeeScores ? array_sum(array_column($measuredEmployeeScores, 'score')) / count($measuredEmployeeScores) : 0;
+$bonusForecast = array_sum(array_column($measuredEmployeeScores, 'bonus_amount'));
+$rewardCandidates = array_values(array_filter($measuredEmployeeScores, function (array $row): bool {
     return (bool) $row['tier']['reward'];
 }));
-$trainingCandidates = array_values(array_filter($employeeScores, function (array $row): bool {
+$trainingCandidates = array_values(array_filter($measuredEmployeeScores, function (array $row): bool {
     return (float) $row['score'] < 60;
 }));
 $departmentScores = [];
-foreach ($employeeScores as $row) {
+foreach ($measuredEmployeeScores as $row) {
     $key = (string) $row['scorecard'];
     $departmentScores[$key]['total'] = ($departmentScores[$key]['total'] ?? 0) + (float) $row['score'];
     $departmentScores[$key]['count'] = ($departmentScores[$key]['count'] ?? 0) + 1;
@@ -3023,7 +3056,7 @@ $systemMetrics = [
 $businessSummary = $ready ? kpi_order_business_summary($periodStart, $periodEnd, $settings) : [];
 $totalOrdersInRange = $ready && ops_table_exists('ops_orders') ? ops_count('ops_orders', "created_at >= '" . str_replace("'", "''", $periodStart) . "' AND created_at < '" . str_replace("'", "''", $periodEnd) . "' AND status NOT IN ('cancelled', 'canceled', 'refunded', 'failed')") : 0;
 $completedOrdersInRange = $ready && ops_table_exists('ops_orders') ? ops_count('ops_orders', "completed_at >= '" . str_replace("'", "''", $periodStart) . "' AND completed_at < '" . str_replace("'", "''", $periodEnd) . "' AND status IN ('completed', 'packed', 'verified', 'ready_for_collection', 'ready_for_courier', 'ready_for_delivery')") : 0;
-$overallBusinessHealth = $employeeScores ? kpi_score(($averageScore * 0.7) + (max(0, 100 - ((int) ($systemMetricRow['overdue_orders'] ?? 0) * 6) - ((int) ($systemMetricRow['correction_orders'] ?? 0) * 5)) * 0.3)) : 0;
+$overallBusinessHealth = $measuredEmployeeScores ? kpi_score(($averageScore * 0.7) + (max(0, 100 - ((int) ($systemMetricRow['overdue_orders'] ?? 0) * 6) - ((int) ($systemMetricRow['correction_orders'] ?? 0) * 5)) * 0.3)) : 0;
 $trendMonths = [];
 $trendValues = [];
 $trendEnd = new DateTimeImmutable($filterEndDate . ' 00:00:00');
@@ -3811,7 +3844,7 @@ include BASE_PATH . '/shared/sidebar.php';
             <?php if ($isKpiManager): ?>
                 <div class="kpi-employee-tabs">
                     <?php foreach ($employeeScores as $row): ?>
-                        <a class="<?= $selectedEmployee && (int) $selectedEmployee['employee_id'] === (int) $row['employee_id'] ? 'active' : '' ?>" href="reports.php?tab=employees&employee_id=<?= (int) $row['employee_id'] ?>&<?= htmlspecialchars($dateRangeQuery, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8') ?></a>
+                        <a class="<?= $selectedEmployee && (int) $selectedEmployee['employee_id'] === (int) $row['employee_id'] ? 'active' : '' ?>" href="reports.php?tab=employees&employee_id=<?= (int) $row['employee_id'] ?>&<?= htmlspecialchars($dateRangeQuery, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8') ?><?= empty($row['has_measured_activity']) ? ' · No activity' : '' ?></a>
                     <?php endforeach; ?>
                 </div>
             <?php endif; ?>
@@ -3821,10 +3854,10 @@ include BASE_PATH . '/shared/sidebar.php';
         </section>
         <?php if ($selectedEmployee): ?>
             <section class="panel kpi-profile">
-                <div class="section-row"><div><h2><?= htmlspecialchars($selectedEmployee['name'], ENT_QUOTES, 'UTF-8') ?></h2><p><?= htmlspecialchars($selectedEmployee['role_name'], ENT_QUOTES, 'UTF-8') ?> | Salary <?= kpi_money((float) $selectedEmployee['salary']) ?> | <?= htmlspecialchars((string) $selectedEmployee['tier']['recommendation'], ENT_QUOTES, 'UTF-8') ?></p><?php if (empty($selectedEmployee['hr_linked'])): ?><p class="kpi-warning-text">This user is not linked to an HR employee profile. KPI and leave tracking may be inaccurate.</p><?php else: ?><p class="kpi-hr-context">HR: <?= htmlspecialchars((string) ($selectedEmployee['hr_job_title'] ?: 'Employee'), ENT_QUOTES, 'UTF-8') ?><?= !empty($selectedEmployee['hr_department']) ? ' | ' . htmlspecialchars((string) $selectedEmployee['hr_department'], ENT_QUOTES, 'UTF-8') : '' ?><?= !empty($selectedEmployee['on_leave']) ? ' | Approved leave considered' : '' ?></p><?php endif; ?></div><span class="kpi-score"><?= kpi_percent((float) $selectedEmployee['score']) ?></span></div>
+                <div class="section-row"><div><h2><?= htmlspecialchars($selectedEmployee['name'], ENT_QUOTES, 'UTF-8') ?></h2><p><?= htmlspecialchars($selectedEmployee['role_name'], ENT_QUOTES, 'UTF-8') ?> | Salary <?= kpi_money((float) $selectedEmployee['salary']) ?> | <?= htmlspecialchars((string) $selectedEmployee['tier']['recommendation'], ENT_QUOTES, 'UTF-8') ?></p><?php if (empty($selectedEmployee['has_measured_activity'])): ?><p class="kpi-warning-text">Not assessed yet: no operational activity was recorded for this employee in the selected period. Widen the date range to review measured performance.</p><?php endif; ?><?php if (empty($selectedEmployee['hr_linked'])): ?><p class="kpi-warning-text">This user is not linked to an HR employee profile. KPI and leave tracking may be inaccurate.</p><?php else: ?><p class="kpi-hr-context">HR: <?= htmlspecialchars((string) ($selectedEmployee['hr_job_title'] ?: 'Employee'), ENT_QUOTES, 'UTF-8') ?><?= !empty($selectedEmployee['hr_department']) ? ' | ' . htmlspecialchars((string) $selectedEmployee['hr_department'], ENT_QUOTES, 'UTF-8') : '' ?><?= !empty($selectedEmployee['on_leave']) ? ' | Approved leave considered' : '' ?></p><?php endif; ?></div><span class="kpi-score"><?= !empty($selectedEmployee['has_measured_activity']) ? kpi_percent((float) $selectedEmployee['score']) : 'N/A' ?></span></div>
                 <div class="kpi-profile-grid">
                     <?php foreach ($selectedEmployee['components'] as $label => $component): ?>
-                        <article><h3><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></h3><p><span>Score</span><strong><?= kpi_percent((float) $component['score']) ?></strong></p><p><span>Weight</span><strong><?= number_format((float) $component['weight']) ?>%</strong></p><?php if (!empty($component['raw'])): ?><p><span>Signal</span><strong><?= htmlspecialchars((string) $component['raw'], ENT_QUOTES, 'UTF-8') ?></strong></p><?php endif; ?></article>
+                        <article><h3><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></h3><p><span>Score</span><strong><?= !empty($selectedEmployee['has_measured_activity']) ? kpi_percent((float) $component['score']) : 'Not measured' ?></strong></p><p><span>Weight</span><strong><?= number_format((float) $component['weight']) ?>%</strong></p><p><span>Signal</span><strong><?= !empty($selectedEmployee['has_measured_activity']) ? htmlspecialchars((string) ($component['raw'] ?: 'Recorded activity'), ENT_QUOTES, 'UTF-8') : 'No recorded source activity' ?></strong></p></article>
                     <?php endforeach; ?>
                     <article><h3>Bonus / increment</h3><p><span>Suggested bonus</span><strong><?= kpi_money((float) $selectedEmployee['bonus_amount']) ?></strong></p><p><span>Status</span><strong><?= htmlspecialchars((string) $selectedEmployee['tier']['label'], ENT_QUOTES, 'UTF-8') ?></strong></p><p><span>Recommendation</span><strong><?= htmlspecialchars((string) $selectedEmployee['tier']['recommendation'], ENT_QUOTES, 'UTF-8') ?></strong></p></article>
                 </div>
@@ -4267,27 +4300,30 @@ include BASE_PATH . '/shared/sidebar.php';
                 <tbody>
                 <?php foreach ($employeeScores as $row): ?>
                     <?php
-                    $previous = $previousByEmployee[(int) $row['employee_id']]['score'] ?? null;
-                    $trend = $previous === null ? 'No prior month' : (($row['score'] - (float) $previous) >= 0 ? '+' : '') . kpi_percent((float) $row['score'] - (float) $previous);
+                    $hasMeasuredActivity = !empty($row['has_measured_activity']);
+                    $previous = $hasMeasuredActivity ? ($previousByEmployee[(int) $row['employee_id']]['score'] ?? null) : null;
+                    $trend = !$hasMeasuredActivity
+                        ? 'Not assessed'
+                        : ($previous === null ? 'No prior month' : (($row['score'] - (float) $previous) >= 0 ? '+' : '') . kpi_percent((float) $row['score'] - (float) $previous));
                     ?>
                     <tr>
-                        <td>#<?= number_format((int) $row['rank']) ?></td>
+                        <td><?= $hasMeasuredActivity ? '#' . number_format((int) $row['rank']) : '&mdash;' ?></td>
                         <td><strong><?= htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8') ?></strong><br><small><?= htmlspecialchars($row['scorecard'], ENT_QUOTES, 'UTF-8') ?></small></td>
                         <td><?= !empty($row['hr_linked']) ? '<span class="status">linked</span>' : '<span class="status kpi-status-warning">missing</span>' ?><?= !empty($row['on_leave']) ? '<br><small>On approved leave</small>' : '' ?></td>
                         <td><?= htmlspecialchars($row['role_name'], ENT_QUOTES, 'UTF-8') ?></td>
-                        <td><strong><?= kpi_percent((float) $row['score']) ?></strong><div class="kpi-bar"><span><i style="width: <?= min(100, (float) $row['score']) ?>%"></i></span></div></td>
+                        <td><strong><?= $hasMeasuredActivity ? kpi_percent((float) $row['score']) : 'N/A' ?></strong><?php if ($hasMeasuredActivity): ?><div class="kpi-bar"><span><i style="width: <?= min(100, (float) $row['score']) ?>%"></i></span></div><?php else: ?><br><small>No measured activity</small><?php endif; ?></td>
                         <td><span class="kpi-tier-badge kpi-tier-<?= htmlspecialchars((string) $row['tier']['class'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars((string) $row['tier']['label'], ENT_QUOTES, 'UTF-8') ?></span></td>
-                        <td><?= kpi_percent((float) $settings['bonus_percent'] * (float) $row['tier']['bonus_multiplier']) ?></td>
-                        <td><?= kpi_money((float) $row['bonus_amount']) ?><br><small>Max <?= kpi_money((float) $row['max_bonus']) ?></small></td>
+                        <td><?= $hasMeasuredActivity ? kpi_percent((float) $settings['bonus_percent'] * (float) $row['tier']['bonus_multiplier']) : '&mdash;' ?></td>
+                        <td><?= $hasMeasuredActivity ? kpi_money((float) $row['bonus_amount']) : '&mdash;' ?><?php if ($hasMeasuredActivity): ?><br><small>Max <?= kpi_money((float) $row['max_bonus']) ?></small><?php endif; ?></td>
                         <td><?= number_format((int) $row['orders_handled']) ?></td>
                         <td><?= number_format((float) $row['items_packed'], 1) ?></td>
                         <td><?= kpi_duration($row['avg_completion_minutes'] !== null ? (float) $row['avg_completion_minutes'] : null) ?></td>
                         <td><?= number_format((int) $row['error_count']) ?></td>
-                        <td><?= kpi_percent((float) $row['attendance_score']) ?></td>
-                        <td><?= kpi_percent((float) $row['reliability_score']) ?></td>
+                        <td><?= $hasMeasuredActivity ? kpi_percent((float) $row['attendance_score']) : '&mdash;' ?></td>
+                        <td><?= $hasMeasuredActivity ? kpi_percent((float) $row['reliability_score']) : '&mdash;' ?></td>
                         <td><?= htmlspecialchars($trend, ENT_QUOTES, 'UTF-8') ?></td>
-                        <td><?= $row['tier']['reward'] ? 'Eligible' : '-' ?></td>
-                        <td><?= htmlspecialchars((string) $row['tier']['bonus_label'], ENT_QUOTES, 'UTF-8') ?></td>
+                        <td><?= !$hasMeasuredActivity ? '&mdash;' : ($row['tier']['reward'] ? 'Eligible' : '-') ?></td>
+                        <td><?= $hasMeasuredActivity ? htmlspecialchars((string) $row['tier']['bonus_label'], ENT_QUOTES, 'UTF-8') : '&mdash;' ?></td>
                     </tr>
                 <?php endforeach; ?>
                 <?php if (!$employeeScores): ?><tr><td colspan="17">No KPI data recorded yet.</td></tr><?php endif; ?>
@@ -4298,16 +4334,18 @@ include BASE_PATH . '/shared/sidebar.php';
 
     <section class="dashboard-grid kpi-scorecard-grid">
         <?php foreach ($employeeScores as $row): ?>
+            <?php $hasMeasuredActivity = !empty($row['has_measured_activity']); ?>
             <article class="panel kpi-scorecard">
                 <div class="section-row">
                     <div><h2><?= htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8') ?></h2><p><?= htmlspecialchars($row['scorecard'], ENT_QUOTES, 'UTF-8') ?></p></div>
-                    <span class="kpi-score"><?= kpi_percent((float) $row['score']) ?></span>
+                    <span class="kpi-score"><?= $hasMeasuredActivity ? kpi_percent((float) $row['score']) : 'N/A' ?></span>
                 </div>
+                <?php if (!$hasMeasuredActivity): ?><p class="kpi-profile-warning">No measured activity was recorded for this employee in the selected period.</p><?php endif; ?>
                 <?php foreach ($row['components'] as $label => $component): ?>
                     <div class="kpi-component-row">
                         <div><strong><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></strong><small><?= number_format((float) $component['weight']) ?>% weight</small></div>
-                        <span><?= kpi_percent((float) $component['score']) ?></span>
-                        <div class="kpi-bar"><span><i style="width: <?= min(100, (float) $component['score']) ?>%"></i></span></div>
+                        <span><?= $hasMeasuredActivity ? kpi_percent((float) $component['score']) : 'Not measured' ?></span>
+                        <?php if ($hasMeasuredActivity): ?><div class="kpi-bar"><span><i style="width: <?= min(100, (float) $component['score']) ?>%"></i></span></div><?php endif; ?>
                     </div>
                 <?php endforeach; ?>
             </article>
