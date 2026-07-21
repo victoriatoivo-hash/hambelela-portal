@@ -1339,6 +1339,14 @@ try {
             }
             $stmt = db()->prepare('UPDATE ops_orders SET ' . $set . ' WHERE id = ?');
             $stmt->execute([$value, $orderId]);
+            try {
+                $oldKpiStatus = (string) ($previousOrder['status'] ?? '');
+                if ($oldKpiStatus !== $value) {
+                    db()->prepare('INSERT INTO kpi_status_events (module, record_id, old_status, new_status, changed_by, changed_at) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())')->execute(['order', $orderId, $oldKpiStatus, $value, ops_current_employee_id() ?: null]);
+                }
+            } catch (Throwable $kpiError) {
+                error_log(date(DATE_ATOM) . ' order status: ' . $kpiError->getMessage() . PHP_EOL, 3, BASE_PATH . '/kpi_tracking_error.log');
+            }
             ops_activity_log($value === 'completed' ? 'order_completed' : 'status_changed', 'order', $orderId, [
                 'field' => 'status',
                 'old_value' => (string) ($previousOrder['status'] ?? ''),
@@ -1475,6 +1483,12 @@ try {
         }
 
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $previousKpiStatuses = [];
+        if ($field === 'status') {
+            foreach (ops_rows("SELECT id, status FROM ops_orders WHERE id IN ({$placeholders})", $ids) as $previousKpiRow) {
+                $previousKpiStatuses[(int) $previousKpiRow['id']] = (string) ($previousKpiRow['status'] ?? '');
+            }
+        }
         $params = [];
         $set = $allowed[$field] . ' = ?';
         if ($field === 'assigned_packer_id') {
@@ -1514,6 +1528,14 @@ try {
 
         foreach ($ids as $id) {
             if ($field === 'status') {
+                try {
+                    $oldKpiStatus = $previousKpiStatuses[(int) $id] ?? '';
+                    if ($oldKpiStatus !== (string) $value) {
+                        db()->prepare('INSERT INTO kpi_status_events (module, record_id, old_status, new_status, changed_by, changed_at) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())')->execute(['order', (int) $id, $oldKpiStatus, (string) $value, ops_current_employee_id() ?: null]);
+                    }
+                } catch (Throwable $kpiError) {
+                    error_log(date(DATE_ATOM) . ' order bulk status: ' . $kpiError->getMessage() . PHP_EOL, 3, BASE_PATH . '/kpi_tracking_error.log');
+                }
                 ops_log_order_stage_event($id, (string) $value, [
                     'source' => 'orders_board_bulk',
                     'status' => $value,

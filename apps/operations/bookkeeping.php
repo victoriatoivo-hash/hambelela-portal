@@ -147,6 +147,16 @@ function ledger_required_reason(string $message): string
     return $reason;
 }
 
+function ledger_kpi_status_event(int $entryId, ?string $oldStatus, string $newStatus, ?int $actorId): void
+{
+    if ($entryId <= 0 || $newStatus === '' || $oldStatus === $newStatus) return;
+    try {
+        db()->prepare('INSERT INTO kpi_status_events (module, record_id, old_status, new_status, changed_by, changed_at) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())')->execute(['bookkeeping', $entryId, $oldStatus, $newStatus, $actorId ?: null]);
+    } catch (Throwable $kpiError) {
+        error_log(date(DATE_ATOM) . ' bookkeeping status: ' . $kpiError->getMessage() . PHP_EOL, 3, BASE_PATH . '/kpi_tracking_error.log');
+    }
+}
+
 function cashbook_log(
     int $userId,
     string $userName,
@@ -535,6 +545,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute($ids);
             foreach ($beforeRows as $row) {
                 cashbook_log($ledgerUserId, $ledgerUserName, 'deleted', (int) $row['id'], 'status', (string) ($row['status'] ?? 'active'), 'deleted', 'Moved to Trash. Reason: ' . $reason);
+                ledger_kpi_status_event((int) $row['id'], (string) ($row['status'] ?? 'active'), 'deleted', $employeeId);
             }
             db()->commit();
             ledger_json(['ok' => true, 'message' => 'Moved to trash.']);
@@ -548,6 +559,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute($ids);
             foreach ($beforeRows as $row) {
                 cashbook_log($ledgerUserId, $ledgerUserName, 'archived', (int) $row['id'], 'status', (string) ($row['status'] ?? 'active'), 'archived', 'Archived from active Bookkeeping');
+                ledger_kpi_status_event((int) $row['id'], (string) ($row['status'] ?? 'active'), 'archived', $employeeId);
             }
             db()->commit();
             ledger_json(['ok' => true, 'message' => 'Archived.']);
@@ -582,6 +594,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute($ids);
             foreach ($beforeRows as $row) {
                 cashbook_log($ledgerUserId, $ledgerUserName, 'restored', (int) $row['id'], 'status', (string) ($row['status'] ?? ''), 'active', 'Restored to active Bookkeeping');
+                ledger_kpi_status_event((int) $row['id'], (string) ($row['status'] ?? ''), 'active', $employeeId);
             }
             db()->commit();
             ledger_json(['ok' => true, 'message' => 'Restored.']);

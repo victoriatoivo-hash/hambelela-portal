@@ -9,6 +9,14 @@ require_once __DIR__ . '/shared/login-security.php';
 require_once __DIR__ . '/shared/temporary-access-codes.php';
 
 if (($_GET['action'] ?? '') === 'logout') {
+    try {
+        $kpiSessionToken = (string) ($_SESSION['kpi_session_token'] ?? '');
+        if ($kpiSessionToken !== '') {
+            db()->prepare('UPDATE kpi_sessions SET last_seen_at = UTC_TIMESTAMP(), logout_at = UTC_TIMESTAMP() WHERE session_token = ? AND logout_at IS NULL')->execute([$kpiSessionToken]);
+        }
+    } catch (Throwable $kpiError) {
+        error_log(date(DATE_ATOM) . ' logout: ' . $kpiError->getMessage() . PHP_EOL, 3, __DIR__ . '/kpi_tracking_error.log');
+    }
     logout_user();
 }
 
@@ -87,6 +95,18 @@ function record_login_event(array $user, string $source): void
         ]);
     } catch (Throwable $e) {
         // Login tracking should never block staff from accessing the portal.
+    }
+}
+
+function record_kpi_login_session(int $userId): void
+{
+    if ($userId <= 0) return;
+    try {
+        $token = hash('sha256', session_id() . '|' . $userId . '|' . bin2hex(random_bytes(16)));
+        db()->prepare('INSERT INTO kpi_sessions (session_token, user_id, login_at, last_seen_at) VALUES (?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())')->execute([$token, $userId]);
+        $_SESSION['kpi_session_token'] = $token;
+    } catch (Throwable $kpiError) {
+        error_log(date(DATE_ATOM) . ' login: ' . $kpiError->getMessage() . PHP_EOL, 3, __DIR__ . '/kpi_tracking_error.log');
     }
 }
 
@@ -194,6 +214,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'source' => 'database',
                 ];
                 record_login_event($_SESSION['user'], 'database');
+                record_kpi_login_session((int) $_SESSION['user']['id']);
                 header('Location: index.php');
                 exit;
             }
@@ -223,6 +244,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['login_type'] = 'temporary_code';
                 $_SESSION['must_change_access_code'] = true;
                 record_login_event($_SESSION['user'], 'temporary_code');
+                record_kpi_login_session((int) $_SESSION['user']['id']);
                 record_security_event('temporary_access_code_used', (int) $employee['id']);
                 header('Location: change-access-code.php', true, 303);
                 exit;
