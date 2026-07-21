@@ -2186,6 +2186,12 @@ body.is-resizing-packing-column {
 }
 
 /* One hidden-native viewport and one permanently visible synchronized scrollbar. */
+html:has(body.packing-list-page),
+body.packing-list-page {
+    max-width: 100%;
+    overflow-x: hidden !important;
+}
+
 .packing-list-page,
 .packing-list-page .packing-page-shell,
 .packing-list-page .packing-board-shell {
@@ -2193,6 +2199,10 @@ body.is-resizing-packing-column {
     max-width: 100%;
     min-width: 0;
     box-sizing: border-box;
+}
+
+.packing-list-page .portal-custom-select-native {
+    max-width: 100% !important;
 }
 
 .packing-list-page .packing-list-section {
