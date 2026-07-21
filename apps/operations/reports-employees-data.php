@@ -40,7 +40,7 @@ try {
          LEFT JOIN (SELECT assigned_employee_id, COUNT(*) items, SUM(CASE weight_class WHEN 'S' THEN ? WHEN 'M' THEN ? WHEN 'L' THEN ? WHEN 'XL' THEN ? ELSE ? END) points, SUM(packing_status NOT IN ('done','website','packed_label_needed','done_needs_label','label_created')) open_items FROM ops_packing_tasks WHERE date_loaded BETWEEN ? AND ? AND deleted_at IS NULL GROUP BY assigned_employee_id) pack ON pack.assigned_employee_id=e.id
          LEFT JOIN (SELECT changed_by, COUNT(DISTINCT record_id) orders_done FROM kpi_status_events WHERE module='order' AND new_status='completed' AND changed_at BETWEEN ? AND ? GROUP BY changed_by) ord ON ord.changed_by=e.id
          LEFT JOIN (SELECT changed_by, COUNT(*) updates_done FROM kpi_status_events WHERE module='website_update' AND new_status='complete' AND changed_at BETWEEN ? AND ? GROUP BY changed_by) web ON web.changed_by=e.id
-         WHERE e.status='active' AND r.role_key<>'owner_admin' ORDER BY r.role_key,e.full_name",
+         WHERE e.status='active' AND r.role_key<>'owner_admin' ORDER BY r.role_key,CASE WHEN r.role_key='packer' THEN COALESCE(pack.points,0) END DESC,e.full_name",
         [$fromSql,$toSql,$pointS,$pointM,$pointL,$pointXl,$pointM,$fromSql,$toSql,$fromSql,$toSql,$fromSql,$toSql]
     );
     $spark = ops_rows("SELECT assigned_employee_id employee_id, DATE(date_completed) day, SUM(CASE weight_class WHEN 'S' THEN ? WHEN 'M' THEN ? WHEN 'L' THEN ? WHEN 'XL' THEN ? ELSE ? END) points FROM ops_packing_tasks WHERE date_completed>=DATE_SUB(CURDATE(),INTERVAL 13 DAY) AND deleted_at IS NULL GROUP BY assigned_employee_id,DATE(date_completed) ORDER BY day", [$pointS,$pointM,$pointL,$pointXl,$pointM]);
