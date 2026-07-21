@@ -372,6 +372,16 @@
     gap: 16px;
 }
 
+.packing-page-v2 .packing-header-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    gap: 10px;
+    margin-left: auto;
+}
+
 .packing-page-v2 .work-board-title,
 .packing-page-v2 .packing-header h1 {
     margin: 0;
@@ -1287,6 +1297,13 @@ body.is-resizing-packing-column .packing-page-v2 .packing-column-resizer::after 
     .packing-page-v2 .packing-header {
         flex-direction: column;
         align-items: stretch;
+    }
+
+    .packing-page-v2 .packing-header-actions {
+        width: 100%;
+        justify-content: flex-start;
+        flex-wrap: wrap;
+        margin-left: 0;
     }
 
     .packing-page-v2 .packing-actions {
