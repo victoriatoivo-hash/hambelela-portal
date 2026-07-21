@@ -16,7 +16,7 @@ $canOperateBookkeeping = $bookkeepingRoleKey !== 'guest'
     && portal_role_can_access_feature($bookkeepingRoleKey, 'bookkeeping');
 $canManageBookkeeping = $bookkeepingRoleKey === 'owner_admin';
 $isBookkeepingReadOnly = !$canOperateBookkeeping;
-$canSelectBookkeepingRows = true;
+$canSelectBookkeepingRows = $canOperateBookkeeping;
 $ledgerUserId = (int) ($currentUser['id'] ?? $employeeId ?? 0);
 $ledgerUserName = (string) ($currentUser['name'] ?? 'Unknown user');
 $bookkeepingCsrfToken = (string) ($_SESSION['bookkeeping_csrf_token'] ?? '');
@@ -140,6 +140,13 @@ function ledger_bulk_placeholders(array $ids): string
     return implode(',', array_fill(0, count($ids), '?'));
 }
 
+function ledger_required_reason(string $message): string
+{
+    $reason = ops_post_string('reason', 500);
+    if ($reason === '') throw new RuntimeException($message);
+    return $reason;
+}
+
 function cashbook_log(
     int $userId,
     string $userName,
@@ -151,12 +158,15 @@ function cashbook_log(
     ?string $description = null
 ): void {
     if (!ops_database_ready()) return;
+    if ($description !== null) $description = substr($description, 0, 255);
+    $sessionReference = substr(hash('sha256', session_id()), 0, 20);
+    $deviceReference = substr(hash('sha256', (string) ($_SERVER['HTTP_USER_AGENT'] ?? 'unknown-device')), 0, 20);
     $stmt = db()->prepare(
         "INSERT INTO hambelela_cashbook_log
-         (entry_id, action, field, old_value, new_value, description, user_id, user_name, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)"
+         (entry_id, action, field, old_value, new_value, description, user_id, user_name, session_reference, device_reference, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)"
     );
-    $stmt->execute([$entryId, $action, $field, $oldValue, $newValue, $description, $userId, $userName]);
+    $stmt->execute([$entryId, $action, $field, $oldValue, $newValue, $description, $userId, $userName, $sessionReference, $deviceReference]);
     $stmt->closeCursor();
 }
 
@@ -244,9 +254,17 @@ function ledger_bootstrap_schema(): void
             description VARCHAR(255) DEFAULT NULL,
             user_id INT NOT NULL,
             user_name VARCHAR(100) NOT NULL,
+            session_reference VARCHAR(40) NULL,
+            device_reference VARCHAR(40) NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
     );
+    if (!ops_column_exists('hambelela_cashbook_log', 'session_reference')) {
+        db()->exec("ALTER TABLE hambelela_cashbook_log ADD COLUMN session_reference VARCHAR(40) NULL AFTER user_name");
+    }
+    if (!ops_column_exists('hambelela_cashbook_log', 'device_reference')) {
+        db()->exec("ALTER TABLE hambelela_cashbook_log ADD COLUMN device_reference VARCHAR(40) NULL AFTER session_reference");
+    }
 }
 
 function ledger_entry(int $id): array
@@ -317,12 +335,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             'cashbook_add_custom_column',
             'cashbook_rename_custom_column',
             'cashbook_delete_custom_column',
-            'cashbook_soft_delete',
-            'cashbook_archive',
-            'cashbook_move_date',
-            'cashbook_restore',
             'cashbook_permanent_delete',
-            'cashbook_save_recon',
         ];
         if (in_array($action, $ownerOnlyActions, true) && !$canManageBookkeeping) {
             throw new LedgerPermissionException('Only the Owner/Admin can perform this Bookkeeping action.');
@@ -414,16 +427,25 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($field === 'description' && $value === '') throw new RuntimeException('Description is required.');
             if ($field === 'transaction_date') $value = ledger_normalize_datetime($value);
             if (in_array($field, ['cash_in', 'cash_out'], true)) $value = (string) ledger_number($value);
-            $oldStmt = db()->prepare('SELECT ' . $allowed[$field] . ' FROM ops_cash_book_entries WHERE id = ? AND ' . ledger_active_where() . ' LIMIT 1');
+            $oldStmt = db()->prepare('SELECT ' . $allowed[$field] . ', transaction_date FROM ops_cash_book_entries WHERE id = ? AND ' . ledger_active_where() . ' LIMIT 1');
             $oldStmt->execute([$id]);
-            $oldValue = (string) $oldStmt->fetchColumn();
+            $oldRow = $oldStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+            $oldValue = (string) ($oldRow[$allowed[$field]] ?? '');
             $oldStmt->closeCursor();
+            $entryDate = substr((string) ($oldRow['transaction_date'] ?? ''), 0, 10);
+            $isReconciled = $entryDate !== '' && (bool) ops_rows('SELECT id FROM hambelela_cashbook_recon WHERE recon_date = ? LIMIT 1', [$entryDate]);
+            $editReason = ops_post_string('reason', 500);
+            if (($field === 'transaction_date' || $isReconciled) && $editReason === '') {
+                throw new RuntimeException($field === 'transaction_date' ? 'A reason is required to change an entry date.' : 'A reason is required to edit an entry from a reconciled date.');
+            }
+            db()->beginTransaction();
             $stmt = db()->prepare('UPDATE ops_cash_book_entries SET ' . $allowed[$field] . ' = ?, edited_by = ?, updated_by_user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND ' . ledger_active_where());
             $stmt->execute([$value, $employeeId, $ledgerUserId, $id]);
-            cashbook_log($ledgerUserId, $ledgerUserName, 'edited', $id, $field, $oldValue, $value);
+            cashbook_log($ledgerUserId, $ledgerUserName, 'edited', $id, $field, $oldValue, $value, $editReason !== '' ? 'Reason: ' . $editReason : null);
             $entry = ledger_entry($id);
             $type = ledger_transaction_type($entry['cash_in'], $entry['cash_out']);
             db()->prepare('UPDATE ops_cash_book_entries SET transaction_type = ? WHERE id = ?')->execute([$type, $id]);
+            db()->commit();
             ledger_json(['ok' => true, 'message' => 'Saved.', 'entry' => ledger_entry($id)]);
         }
         if ($action === 'cashbook_add_custom_column') {
@@ -482,47 +504,62 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$columnRows) throw new RuntimeException('Custom column not found.');
             $value = trim((string) ($_POST['value'] ?? ''));
             if ((string) $columnRows[0]['column_type'] === 'numbers') $value = $value === '' ? '' : (string) ((float) preg_replace('/[^0-9.\-]+/', '', $value));
-            $rows = ops_rows('SELECT custom_fields_json FROM ops_cash_book_entries WHERE id = ? AND ' . ledger_active_where() . ' LIMIT 1', [$id]);
+            $rows = ops_rows('SELECT custom_fields_json, transaction_date FROM ops_cash_book_entries WHERE id = ? AND ' . ledger_active_where() . ' LIMIT 1', [$id]);
             if (!$rows) throw new RuntimeException('Ledger entry not found.');
+            $customEntryDate = substr((string) ($rows[0]['transaction_date'] ?? ''), 0, 10);
+            $customIsReconciled = $customEntryDate !== '' && (bool) ops_rows('SELECT id FROM hambelela_cashbook_recon WHERE recon_date = ? LIMIT 1', [$customEntryDate]);
+            $customReason = ops_post_string('reason', 500);
+            if ($customIsReconciled && $customReason === '') throw new RuntimeException('A reason is required to edit an entry from a reconciled date.');
             $custom = ledger_decode_json($rows[0]['custom_fields_json'] ?? '{}');
             $oldValue = (string) ($custom[$key] ?? '');
             if ($value === '') unset($custom[$key]);
             else $custom[$key] = $value;
+            db()->beginTransaction();
             db()->prepare('UPDATE ops_cash_book_entries SET custom_fields_json = ?, edited_by = ?, updated_by_user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND ' . ledger_active_where())->execute([
                 json_encode($custom, JSON_UNESCAPED_SLASHES),
                 $employeeId,
                 $ledgerUserId,
                 $id,
             ]);
-            cashbook_log($ledgerUserId, $ledgerUserName, 'edited', $id, $key, $oldValue, $value);
+            cashbook_log($ledgerUserId, $ledgerUserName, 'edited', $id, $key, $oldValue, $value, $customReason !== '' ? 'Reason: ' . $customReason : null);
+            db()->commit();
             ledger_json(['ok' => true, 'message' => 'Saved.', 'custom_fields' => $custom]);
         }
         if ($action === 'cashbook_soft_delete') {
             $ids = ledger_bulk_ids();
+            $reason = ledger_required_reason('A reason is required to move entries to Trash.');
             $placeholders = ledger_bulk_placeholders($ids);
+            $beforeRows = ops_rows("SELECT id, status FROM ops_cash_book_entries WHERE id IN ({$placeholders}) AND " . ledger_active_where(), $ids);
+            db()->beginTransaction();
             $stmt = db()->prepare("UPDATE ops_cash_book_entries SET status = 'deleted', deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders})");
             $stmt->execute($ids);
-            foreach ($ids as $id) {
-                cashbook_log($ledgerUserId, $ledgerUserName, 'deleted', $id, null, null, null, 'Moved to trash');
+            foreach ($beforeRows as $row) {
+                cashbook_log($ledgerUserId, $ledgerUserName, 'deleted', (int) $row['id'], 'status', (string) ($row['status'] ?? 'active'), 'deleted', 'Moved to Trash. Reason: ' . $reason);
             }
+            db()->commit();
             ledger_json(['ok' => true, 'message' => 'Moved to trash.']);
         }
         if ($action === 'cashbook_archive') {
             $ids = ledger_bulk_ids();
             $placeholders = ledger_bulk_placeholders($ids);
+            $beforeRows = ops_rows("SELECT id, status FROM ops_cash_book_entries WHERE id IN ({$placeholders}) AND " . ledger_active_where(), $ids);
+            db()->beginTransaction();
             $stmt = db()->prepare("UPDATE ops_cash_book_entries SET status = 'archived', deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders})");
             $stmt->execute($ids);
-            foreach ($ids as $id) {
-                cashbook_log($ledgerUserId, $ledgerUserName, 'archived', $id, null, null, null, 'Archived');
+            foreach ($beforeRows as $row) {
+                cashbook_log($ledgerUserId, $ledgerUserName, 'archived', (int) $row['id'], 'status', (string) ($row['status'] ?? 'active'), 'archived', 'Archived from active Bookkeeping');
             }
+            db()->commit();
             ledger_json(['ok' => true, 'message' => 'Archived.']);
         }
         if ($action === 'cashbook_move_date') {
             $ids = ledger_bulk_ids();
+            $reason = ledger_required_reason('A reason is required to change an entry date.');
             $newDate = ops_post_string('new_date', 20);
             if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $newDate)) throw new RuntimeException('Use date format YYYY-MM-DD.');
             $select = db()->prepare('SELECT transaction_date FROM ops_cash_book_entries WHERE id = ? AND ' . ledger_active_where() . ' LIMIT 1');
             $update = db()->prepare('UPDATE ops_cash_book_entries SET transaction_date = ?, edited_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND ' . ledger_active_where());
+            db()->beginTransaction();
             foreach ($ids as $id) {
                 $select->execute([$id]);
                 $current = (string) $select->fetchColumn();
@@ -531,34 +568,48 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $time = date('H:i:s', strtotime($current));
                 $newDateTime = $newDate . ' ' . $time;
                 $update->execute([$newDateTime, $employeeId, $id]);
-                cashbook_log($ledgerUserId, $ledgerUserName, 'moved', $id, 'transaction_date', $current, $newDateTime);
+                cashbook_log($ledgerUserId, $ledgerUserName, 'moved', $id, 'transaction_date', $current, $newDateTime, 'Reason: ' . $reason);
             }
+            db()->commit();
             ledger_json(['ok' => true, 'message' => 'Moved to date.']);
         }
         if ($action === 'cashbook_restore') {
             $ids = ledger_bulk_ids();
             $placeholders = ledger_bulk_placeholders($ids);
+            $beforeRows = ops_rows("SELECT id, status FROM ops_cash_book_entries WHERE id IN ({$placeholders}) AND COALESCE(status, 'active') IN ('deleted', 'archived')", $ids);
+            db()->beginTransaction();
             $stmt = db()->prepare("UPDATE ops_cash_book_entries SET status = 'active', deleted_at = NULL, archived_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders})");
             $stmt->execute($ids);
-            foreach ($ids as $id) {
-                cashbook_log($ledgerUserId, $ledgerUserName, 'restored', $id, null, null, null, 'Restored');
+            foreach ($beforeRows as $row) {
+                cashbook_log($ledgerUserId, $ledgerUserName, 'restored', (int) $row['id'], 'status', (string) ($row['status'] ?? ''), 'active', 'Restored to active Bookkeeping');
             }
+            db()->commit();
             ledger_json(['ok' => true, 'message' => 'Restored.']);
         }
         if ($action === 'cashbook_permanent_delete') {
-            if (!user_has_role('owner_admin')) throw new RuntimeException('Only the owner/admin can permanently delete ledger entries.');
+            if (!user_has_role('owner_admin')) throw new LedgerPermissionException('Only the owner/admin can permanently delete ledger entries.');
             $ids = ledger_bulk_ids();
             $placeholders = ledger_bulk_placeholders($ids);
+            $beforeRows = ops_rows("SELECT * FROM ops_cash_book_entries WHERE id IN ({$placeholders}) AND COALESCE(status, 'active') IN ('deleted', 'archived')", $ids);
+            db()->beginTransaction();
+            foreach ($beforeRows as $row) {
+                cashbook_log($ledgerUserId, $ledgerUserName, 'permanently_deleted', (int) $row['id'], 'record', json_encode($row, JSON_UNESCAPED_SLASHES), null, 'Owner/Admin permanent deletion');
+            }
             $stmt = db()->prepare("DELETE FROM ops_cash_book_entries WHERE id IN ({$placeholders}) AND COALESCE(status, 'active') IN ('deleted', 'archived')");
             $stmt->execute($ids);
+            db()->commit();
             ledger_json(['ok' => true, 'message' => 'Permanently deleted.']);
         }
         if ($action === 'cashbook_save_recon') {
             $reconDate = ops_post_string('recon_date', 20);
             if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $reconDate)) $reconDate = date('Y-m-d');
+            $priorRecon = ops_rows('SELECT id, system_balance, counted_total, variance, variance_note FROM hambelela_cashbook_recon WHERE recon_date = ? ORDER BY id DESC LIMIT 1', [$reconDate]);
+            $reconReason = ops_post_string('reason', 500);
+            if ($priorRecon && $reconReason === '') throw new RuntimeException('A reason is required to reopen or change a completed reconciliation.');
             $systemBalance = (float) ($_POST['system_balance'] ?? 0);
             $countedTotal = (float) ($_POST['counted_total'] ?? 0);
             $variance = $countedTotal - $systemBalance;
+            db()->beginTransaction();
             $stmt = db()->prepare(
                 "INSERT INTO hambelela_cashbook_recon
                  (recon_date, system_balance, counted_total, variance, variance_note, logged_by)
@@ -572,26 +623,31 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 ops_post_string('variance_note', 1500),
                 $employeeId ?: 0,
             ]);
+            $reconciliationId = (int) db()->lastInsertId();
             cashbook_log(
                 $ledgerUserId,
                 $ledgerUserName,
                 'reconciled',
                 null,
-                null,
-                null,
-                null,
-                'System ' . ledger_money($systemBalance) . ' - Counted ' . ledger_money($countedTotal) . ' - Variance ' . ledger_money($variance)
+                'reconciliation',
+                $priorRecon ? json_encode($priorRecon[0], JSON_UNESCAPED_SLASHES) : null,
+                json_encode(['id' => $reconciliationId, 'date' => $reconDate, 'system_balance' => $systemBalance, 'counted_total' => $countedTotal, 'variance' => $variance], JSON_UNESCAPED_SLASHES),
+                'Reconciliation #' . $reconciliationId . ': System ' . ledger_money($systemBalance) . ' - Counted ' . ledger_money($countedTotal) . ' - Variance ' . ledger_money($variance)
+                    . ($reconReason !== '' ? ' - Reason: ' . $reconReason : '')
             );
+            db()->commit();
             $history = ops_rows(
-                "SELECT recon_date, system_balance, counted_total, variance, variance_note, created_at
-                 FROM hambelela_cashbook_recon
-                 ORDER BY created_at DESC, id DESC
+                "SELECT r.recon_date, r.system_balance, r.counted_total, r.variance, r.variance_note, r.created_at, e.full_name AS reconciled_by
+                 FROM hambelela_cashbook_recon r
+                 LEFT JOIN ops_employees e ON e.id = r.logged_by
+                 ORDER BY r.created_at DESC, r.id DESC
                  LIMIT 5"
             );
             ledger_json(['ok' => true, 'message' => 'Reconciliation saved.', 'history' => $history]);
         }
         throw new RuntimeException('Unknown ledger action.');
     } catch (Throwable $e) {
+        if (db()->inTransaction()) db()->rollBack();
         if (ledger_wants_json()) {
             ledger_json(
                 ['ok' => false, 'message' => $e->getMessage()],
@@ -680,11 +736,14 @@ if (!$groups) {
 
 $netToday = $cashInToday - $cashOutToday;
 $reconHistory = $ready ? ops_rows(
-    "SELECT recon_date, system_balance, counted_total, variance, variance_note, created_at
-     FROM hambelela_cashbook_recon
-     ORDER BY created_at DESC, id DESC
+    "SELECT r.recon_date, r.system_balance, r.counted_total, r.variance, r.variance_note, r.created_at, e.full_name AS reconciled_by
+     FROM hambelela_cashbook_recon r
+     LEFT JOIN ops_employees e ON e.id = r.logged_by
+     ORDER BY r.created_at DESC, r.id DESC
      LIMIT 5"
 ) : [];
+$reconciledDateRows = $ready ? ops_rows('SELECT DISTINCT recon_date FROM hambelela_cashbook_recon') : [];
+$reconciledDateSet = array_fill_keys(array_map(static fn (array $row): string => (string) $row['recon_date'], $reconciledDateRows), true);
 $trashItems = $ready ? ops_rows(
     "SELECT *
      FROM ops_cash_book_entries
@@ -2282,7 +2341,7 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
                             $entryDate = (string) $entry['transaction_date'];
                             $entryCustomFields = ledger_decode_json($entry['custom_fields_json'] ?? '{}');
                             ?>
-                            <div class="ledger-row entry-row" data-entry-id="<?= (int) $entry['id'] ?>" data-cash-in="<?= $rowIn ?>" data-cash-out="<?= $rowOut ?>" data-created-by="<?= htmlspecialchars((string) ($entry['created_by_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars(($entry['created_by_name'] ?? '') !== '' ? 'Created by ' . (string) $entry['created_by_name'] : '', ENT_QUOTES, 'UTF-8') ?>">
+                            <div class="ledger-row entry-row" data-entry-id="<?= (int) $entry['id'] ?>" data-cash-in="<?= $rowIn ?>" data-cash-out="<?= $rowOut ?>" data-reconciled="<?= isset($reconciledDateSet[substr($entryDate, 0, 10)]) ? '1' : '0' ?>" data-created-by="<?= htmlspecialchars((string) ($entry['created_by_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars(($entry['created_by_name'] ?? '') !== '' ? 'Created by ' . (string) $entry['created_by_name'] : '', ENT_QUOTES, 'UTF-8') ?>">
                             <div class="ledger-cell check-cell"><?php if ($canSelectBookkeepingRows): ?><input class="bk-row-check" type="checkbox" data-id="<?= (int) $entry['id'] ?>" aria-label="Select ledger entry"><?php endif; ?></div>
                             <div class="ledger-cell ledger-data-cell <?= $canOperateBookkeeping ? 'bk-editable' : '' ?>" data-field="description" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars((string) $entry['description'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars((string) $entry['description'], ENT_QUOTES, 'UTF-8') ?></div>
                             <div class="ledger-cell ledger-data-cell <?= $canOperateBookkeeping ? 'bk-editable' : '' ?>" data-field="transaction_date" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars(date('Y-m-d\TH:i', strtotime($entryDate)), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(ledger_display_datetime($entryDate), ENT_QUOTES, 'UTF-8') ?></div>
@@ -2335,10 +2394,8 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
     </div>
     <div class="bk-tabs" role="tablist" aria-label="Cash tools tabs">
         <button class="bk-tab is-active" type="button" data-tab="counter" onclick="switchTab(this, 'counter')">Count till</button>
-        <?php if ($canManageBookkeeping): ?>
         <button class="bk-tab" type="button" data-tab="recon" onclick="switchTab(this, 'recon')">Reconcile</button>
         <button class="bk-tab" type="button" data-tab="trash" onclick="switchTab(this, 'trash')">Trash</button>
-        <?php endif; ?>
         <button class="bk-tab" type="button" data-tab="activity" onclick="switchTab(this, 'activity')">Activity</button>
     </div>
     <div class="bk-drawer-body">
@@ -2358,7 +2415,6 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
                 <button class="bk-copy-total" id="copyTotalBtn" type="button" onclick="copyCountedTotal()">Copy counted total</button>
             </div>
         </section>
-        <?php if ($canManageBookkeeping): ?>
         <section class="bk-tab-panel" id="tab-recon">
             <section class="bk-side-section recon-card">
                 <div class="bk-side-head"><span>Variance Reconciliation</span></div>
@@ -2372,7 +2428,7 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
                         <?php foreach ($reconHistory as $row): ?>
                             <div class="bk-history-item">
                                 <strong><?= htmlspecialchars((string) $row['recon_date'], ENT_QUOTES, 'UTF-8') ?> - <?= ledger_money((float) $row['variance']) ?></strong>
-                                <small>Counted <?= ledger_money((float) $row['counted_total']) ?> vs system <?= ledger_money((float) $row['system_balance']) ?></small>
+                                <small>Counted <?= ledger_money((float) $row['counted_total']) ?> vs system <?= ledger_money((float) $row['system_balance']) ?> · Reconciled by <?= htmlspecialchars((string) ($row['reconciled_by'] ?? 'Unknown employee'), ENT_QUOTES, 'UTF-8') ?> at <?= htmlspecialchars(ledger_display_datetime((string) $row['created_at']), ENT_QUOTES, 'UTF-8') ?></small>
                             </div>
                         <?php endforeach; ?>
                         <?php if (!$reconHistory): ?><div class="bk-history-item">No reconciliations saved yet.</div><?php endif; ?>
@@ -2413,7 +2469,6 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
                 </div>
             </section>
         </section>
-        <?php endif; ?>
         <section class="bk-tab-panel" id="tab-activity">
             <section class="bk-side-section">
                 <div class="bk-side-head"><span>Activity Log</span></div>
@@ -2437,7 +2492,6 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
             <span>Export selected</span>
         </button>
-        <?php if ($canManageBookkeeping): ?>
         <button class="bk-action-btn" type="button" onclick="moveToDate()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
             <span>Move date</span>
@@ -2450,7 +2504,6 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
             <span>Delete</span>
         </button>
-        <?php endif; ?>
     </div>
     <button class="bk-action-close" type="button" onclick="clearSelection()" aria-label="Clear selection">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
@@ -2485,6 +2538,7 @@ const todayKey = <?= json_encode($today, JSON_UNESCAPED_SLASHES) ?>;
 let systemBalance = <?= json_encode(round($closingBalance, 2), JSON_UNESCAPED_SLASHES) ?>;
 const suggestedOpeningAmount = <?= json_encode($suggestedAmount > 0 ? round($suggestedAmount, 2) : 0, JSON_UNESCAPED_SLASHES) ?>;
 window.bkActivityLog = <?= json_encode($activityLog, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+window.bkReconciledDates = <?= json_encode(array_keys($reconciledDateSet), JSON_UNESCAPED_SLASHES) ?>;
 window.bkCustomColumns = <?= json_encode($customColumns, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
 window.bookkeepingPermissions = <?= json_encode([
     'canSelectRows' => $canSelectBookkeepingRows,
@@ -2803,7 +2857,14 @@ function startCustomEdit(cell) {
     cell.innerHTML = renderCustomValue(column, cell.dataset.value);
     if (!save || cancelled || value === originalValue) return;
     try {
-      await postLedger('cashbook_update_custom_value', { entry_id: id, column_key: key, value });
+      const reconciled = cell.closest('.entry-row')?.dataset.reconciled === '1';
+      const reason = reconciled ? (prompt('Reason for editing this reconciled entry (required):')?.trim() || '') : '';
+      if (reconciled && !reason) {
+        cell.dataset.value = originalValue;
+        cell.innerHTML = renderCustomValue(column, originalValue);
+        return;
+      }
+      await postLedger('cashbook_update_custom_value', { entry_id: id, column_key: key, value, reason });
       toast('Saved');
     } catch (error) {
       cell.dataset.value = originalValue;
@@ -2939,7 +3000,7 @@ function renderReconHistory(rows) {
   history.innerHTML = rows.map((row) => `
     <div class="bk-history-item">
       <strong>${row.recon_date} - ${money(row.variance)}</strong>
-      <small>Counted ${money(row.counted_total)} vs system ${money(row.system_balance)}</small>
+      <small>Counted ${money(row.counted_total)} vs system ${money(row.system_balance)} · Reconciled by ${escapeHtml(row.reconciled_by || 'Unknown employee')} at ${escapeHtml(displayDate(row.created_at))}</small>
     </div>
   `).join('');
 }
@@ -2971,6 +3032,7 @@ function renderActivityLog() {
     restored: { label: 'Restored', colour: '#A8CA19' },
     moved: { label: 'Moved', colour: '#F07420' },
     reconciled: { label: 'Reconciled', colour: '#AB3619' },
+    permanently_deleted: { label: 'Permanently deleted', colour: '#721B1A' },
   };
   const fieldLabels = {
     description: 'Description',
@@ -3088,8 +3150,10 @@ async function runSelectedAction(action, fields = {}) {
 function softDeleteSelected() {
   const ids = getSelectedIds();
   if (!ids.length) return;
-  if (!confirm(`Move ${ids.length} item(s) to trash? You can restore them from Cash tools.`)) return;
-  runSelectedAction('cashbook_soft_delete').catch((error) => alert(error.message));
+  const reason = prompt(`Move ${ids.length} selected ${ids.length === 1 ? 'entry' : 'entries'} to Trash?\n\nThe entries will be removed from the active bookkeeping list but can be restored later.\n\nReason (required):`)?.trim() || '';
+  if (!reason) return;
+  if (!confirm(`Move ${ids.length} selected ${ids.length === 1 ? 'entry' : 'entries'} to Trash?\n\nReason: ${reason}`)) return;
+  runSelectedAction('cashbook_soft_delete', { reason }).catch((error) => alert(error.message));
 }
 
 function archiveSelected() {
@@ -3107,7 +3171,9 @@ function moveToDate() {
     alert('Invalid date format. Use YYYY-MM-DD.');
     return;
   }
-  runSelectedAction('cashbook_move_date', { new_date: newDate }).catch((error) => alert(error.message));
+  const reason = prompt('Reason for changing the selected entry date(s) (required):')?.trim() || '';
+  if (!reason) return;
+  runSelectedAction('cashbook_move_date', { new_date: newDate, reason }).catch((error) => alert(error.message));
 }
 
 async function restoreTrashItem(id) {
@@ -3339,7 +3405,16 @@ function startEdit(cell) {
     cell.textContent = save && !cancelled ? value : originalText;
     if (!save || cancelled || value === String(originalValue)) return;
     try {
-      const data = await postLedger('update_entry', { entry_id: id, field, value });
+      let reason = '';
+      if (field === 'transaction_date' || row.dataset.reconciled === '1') {
+        reason = prompt(field === 'transaction_date' ? 'Reason for changing this entry date (required):' : 'Reason for editing this reconciled entry (required):')?.trim() || '';
+        if (!reason) {
+          cell.textContent = originalText;
+          toast('No change saved. A reason is required.');
+          return;
+        }
+      }
+      const data = await postLedger('update_entry', { entry_id: id, field, value, reason });
       const entry = data.entry;
       const currentGroup = row.closest('[data-day-group]');
       if (entry.day !== currentGroup?.dataset.dayGroup) {
@@ -3519,11 +3594,19 @@ document.addEventListener('click', (event) => {
   }
   if (saveRecon) {
     const countedTotal = parseMoney(document.querySelector('[data-counted-total]').textContent);
+    const difference = countedTotal - systemBalance;
+    if (!confirm(`Reconcile ${todayKey}?\n\nExpected cash: ${money(systemBalance)}\nCounted cash: ${money(countedTotal)}\nDifference: ${money(difference)}`)) return;
+    let reason = '';
+    if ((window.bkReconciledDates || []).includes(todayKey)) {
+      reason = prompt('Reason for reopening or changing this completed reconciliation (required):')?.trim() || '';
+      if (!reason) return;
+    }
     postLedger('cashbook_save_recon', {
       recon_date: todayKey,
       system_balance: systemBalance,
       counted_total: countedTotal,
-      variance_note: document.querySelector('[data-recon-note]')?.value || ''
+      variance_note: document.querySelector('[data-recon-note]')?.value || '',
+      reason
     }).then((data) => {
       renderReconHistory(data.history || []);
       document.querySelector('[data-recon-note]').value = '';
