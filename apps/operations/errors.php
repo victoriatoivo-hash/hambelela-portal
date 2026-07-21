@@ -392,8 +392,9 @@ $filters = [
     'customer_impacted' => trim((string) ($_GET['customer_impacted'] ?? '')),
     'order_reference' => trim((string) ($_GET['order_reference'] ?? '')),
     'status' => trim((string) ($_GET['status'] ?? '')),
+    'search' => trim((string) ($_GET['search'] ?? '')),
 ];
-$filtersAreActive = $filters['date_from'] !== '' || $filters['date_to'] !== '' || $filters['severity'] !== '' || $filters['category'] !== '' || $filters['employee_id'] !== '' || $filters['repeat_issue'] !== '' || $filters['customer_impacted'] !== '' || $filters['order_reference'] !== '' || $filters['status'] !== '';
+$filtersAreActive = $filters['date_from'] !== '' || $filters['date_to'] !== '' || $filters['severity'] !== '' || $filters['category'] !== '' || $filters['employee_id'] !== '' || $filters['repeat_issue'] !== '' || $filters['customer_impacted'] !== '' || $filters['order_reference'] !== '' || $filters['status'] !== '' || $filters['search'] !== '';
 
 $where = ['el.deleted_at IS NULL'];
 $params = [];
@@ -439,6 +440,11 @@ if ($filters['order_reference'] !== '') {
     $where[] = '(el.order_reference LIKE ? OR CAST(el.order_id AS CHAR) LIKE ?)';
     $params[] = '%' . $filters['order_reference'] . '%';
     $params[] = '%' . $filters['order_reference'] . '%';
+}
+if ($filters['search'] !== '') {
+    $where[] = '(el.error_title LIKE ? OR el.description LIKE ? OR el.category LIKE ? OR el.order_reference LIKE ?)';
+    $term = '%' . $filters['search'] . '%';
+    array_push($params, $term, $term, $term, $term);
 }
 if (array_key_exists($filters['status'], $statusLabels)) {
     $where[] = 'el.status = ?';
@@ -580,6 +586,7 @@ include BASE_PATH . '/shared/sidebar.php';
         <summary class="error-filter-header"><span><i data-lucide="sliders-horizontal"></i> Filters</span><strong><?= $filtersAreActive ? 'Active' : 'Collapsed' ?></strong></summary>
         <form class="error-filter-body" method="get">
             <div class="error-filter-grid">
+                <label class="span-2">Search<input type="search" name="search" value="<?= htmlspecialchars($filters['search'], ENT_QUOTES, 'UTF-8') ?>" placeholder="Search errors, descriptions, categories or orders"></label>
                 <label>Month<input type="month" name="month" value="<?= htmlspecialchars($filters['month'], ENT_QUOTES, 'UTF-8') ?>"></label>
                 <label>Date from<input type="date" name="date_from" value="<?= htmlspecialchars($filters['date_from'], ENT_QUOTES, 'UTF-8') ?>"></label>
                 <label>Date to<input type="date" name="date_to" value="<?= htmlspecialchars($filters['date_to'], ENT_QUOTES, 'UTF-8') ?>"></label>
