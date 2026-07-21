@@ -4,6 +4,12 @@
   // A few legacy pages close their own document instead of using the shared
   // footer. Load the shared view-bar assets here only when they are absent.
   const presenceScriptUrl = document.currentScript?.src;
+  if (presenceScriptUrl && !document.querySelector('link[href*="/assets/css/portal-responsive.css"]')) {
+    const responsiveStylesheet = document.createElement('link');
+    responsiveStylesheet.rel = 'stylesheet';
+    responsiveStylesheet.href = new URL('../css/portal-responsive.css?v=mobile1', presenceScriptUrl).href;
+    document.head.append(responsiveStylesheet);
+  }
   if (presenceScriptUrl && !document.querySelector('link[href*="/assets/css/portal-view-bar.css"]')) {
     const viewBarStylesheet = document.createElement('link');
     viewBarStylesheet.rel = 'stylesheet';

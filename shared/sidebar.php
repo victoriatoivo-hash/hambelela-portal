@@ -151,6 +151,14 @@ $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bo
 .shell:has(.portal-sidebar)>main.workspace.module>.module-header{width:100%;max-width:none}
 @media (max-width:760px){.shell:has(.portal-sidebar)>main.workspace:not(.digital-task-page),.shell:has(.portal-sidebar)>main.ledger-page,.shell:has(.portal-sidebar)>.workspace:not(.digital-task-page),.shell:has(.portal-sidebar)>.ledger-page{padding:18px}}
 </style>
+<button class="portal-mobile-nav-toggle" type="button" aria-controls="portalSidebar" aria-expanded="false" aria-label="Open portal menu">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+        <line x1="4" y1="7" x2="20" y2="7"></line>
+        <line x1="4" y1="12" x2="20" y2="12"></line>
+        <line x1="4" y1="17" x2="20" y2="17"></line>
+    </svg>
+</button>
+<button class="portal-sidebar-backdrop" type="button" aria-label="Close portal menu" tabindex="-1"></button>
 <aside class="portal-sidebar" id="portalSidebar" aria-label="Portal navigation" aria-hidden="false">
     <div class="ps-header">
         <div class="ps-logo">
@@ -217,6 +225,8 @@ function toggleSidebar(){const sidebar=document.getElementById('portalSidebar');
     const sidebar=document.getElementById('portalSidebar');
     if(!sidebar)return;
     const mobileQuery=window.matchMedia('(max-width: 900px)');
+    const mobileToggle=document.querySelector('.portal-mobile-nav-toggle[aria-controls="portalSidebar"]');
+    const mobileBackdrop=document.querySelector('.portal-sidebar-backdrop');
     let lastFocused=null;
     const focusable=()=>Array.from(sidebar.querySelectorAll('a[href],button:not([disabled]),[tabindex]:not([tabindex="-1"])'));
     const setOpen=(open)=>{
@@ -224,10 +234,15 @@ function toggleSidebar(){const sidebar=document.getElementById('portalSidebar');
         sidebar.classList.toggle('mobile-open',open);
         document.body.classList.toggle('portal-mobile-nav-open',open);
         sidebar.setAttribute('aria-hidden',mobileQuery.matches&&!open?'true':'false');
+        mobileToggle?.setAttribute('aria-expanded',open?'true':'false');
+        mobileToggle?.setAttribute('aria-label',open?'Close portal menu':'Open portal menu');
+        if(mobileBackdrop)mobileBackdrop.tabIndex=open?0:-1;
         if(open){lastFocused=document.activeElement;requestAnimationFrame(()=>focusable()[0]?.focus())}
         else if(lastFocused instanceof HTMLElement){lastFocused.focus();lastFocused=null}
     };
     window.portalSidebarNavigation={open:()=>setOpen(true),close:()=>setOpen(false)};
+    mobileToggle?.addEventListener('click',()=>setOpen(!sidebar.classList.contains('mobile-open')));
+    mobileBackdrop?.addEventListener('click',()=>setOpen(false));
     if(!mobileQuery.matches&&localStorage.getItem('sidebarCollapsed')==='1'){sidebar.classList.add('collapsed');document.body.classList.add('sidebar-collapsed')}
     sidebar.querySelectorAll('a[href]').forEach(link=>link.addEventListener('click',()=>{if(mobileQuery.matches)setOpen(false)}));
     document.addEventListener('keydown',(event)=>{
