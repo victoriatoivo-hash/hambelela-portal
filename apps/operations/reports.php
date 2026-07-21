@@ -5,9 +5,11 @@ declare(strict_types=1);
 require_once __DIR__ . '/operations.php';
 require_role('owner_admin');
 
+$phaseThreeTabs = ['attendance'=>'Attendance','orders'=>'Orders','packing-performance'=>'Packing Performance','bookkeeping'=>'Bookkeeping','waybills'=>'Waybills','task-management'=>'Task Management','hr-leave'=>'HR and Leave','website-updates'=>'Website Updates','errors-quality'=>'Errors and Quality','performance-reports'=>'Performance Reports','audit-log'=>'Audit Log'];
 $tab = (string) ($_GET['tab'] ?? 'business-health');
-if (!in_array($tab, ['business-health', 'settings'], true)) $tab = 'business-health';
-$pageTitle = ($tab === 'settings' ? 'KPI Settings' : 'Business Health') . ' | ' . APP_NAME;
+if (!in_array($tab, array_merge(['business-health','employees','settings'],array_keys($phaseThreeTabs)), true)) $tab = 'business-health';
+$currentKpiTitle = $tab === 'settings' ? 'KPI Settings' : ($tab === 'employees' ? 'Employees' : ($phaseThreeTabs[$tab] ?? 'Business Health'));
+$pageTitle = $currentKpiTitle . ' | ' . APP_NAME;
 $activeApp = 'kpi';
 $ready = ops_database_ready();
 $message = '';
@@ -105,14 +107,16 @@ include BASE_PATH . '/shared/sidebar.php';
     <section class="module-header">
         <div>
             <p class="eyebrow">KPI &amp; Performance Management</p>
-            <h1><?= $tab === 'settings' ? 'KPI Settings' : 'Business Health' ?></h1>
-            <p><?= $tab === 'settings' ? 'Control data windows, fairness thresholds, working calendars and employee schedules.' : 'A fair, evidence-led view of operational health and the work needing attention.' ?></p>
+            <h1><?= htmlspecialchars($currentKpiTitle,ENT_QUOTES,'UTF-8') ?></h1>
+            <p><?= $tab === 'settings' ? 'Control data windows, fairness thresholds, working calendars and employee schedules.' : ($tab === 'employees' ? 'Role-relative performance evidence, workload and attendance for each employee.' : 'A fair, evidence-led view of operational health and the work needing attention.') ?></p>
         </div>
         <?php if ($tab === 'business-health'): ?><button class="btn-secondary" type="button" data-kpi-refresh>Refresh</button><?php endif; ?>
     </section>
 
     <nav class="kpi-health-tabs" aria-label="KPI sections">
         <a href="reports.php?tab=business-health" class="<?= $tab === 'business-health' ? 'active' : '' ?>">Business Health</a>
+        <a href="reports.php?tab=employees" class="<?= $tab === 'employees' ? 'active' : '' ?>">Employees</a>
+        <?php foreach($phaseThreeTabs as $tabKey=>$tabLabel): ?><a href="reports.php?tab=<?= $tabKey ?>" class="<?= $tab===$tabKey?'active':'' ?>"><?= htmlspecialchars($tabLabel,ENT_QUOTES,'UTF-8') ?></a><?php endforeach; ?>
         <a href="reports.php?tab=settings" class="<?= $tab === 'settings' ? 'active' : '' ?>">KPI Settings</a>
     </nav>
 
@@ -139,6 +143,19 @@ include BASE_PATH . '/shared/sidebar.php';
         </section>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
         <script src="<?= BASE_URL ?>/assets/js/reports-business-health.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/reports-business-health.js') ?>"></script>
+    <?php elseif ($tab === 'employees'): ?>
+        <section class="kpi-period-panel" aria-label="Reporting period">
+            <label><span>Period</span><select data-kpi-period><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="this_week">This week</option><option value="last_week">Last week</option><option value="this_month">This month</option><option value="last_month">Last month</option><option value="custom">Custom</option></select></label>
+            <label data-kpi-custom hidden><span>From</span><input type="date" data-kpi-from></label><label data-kpi-custom hidden><span>To</span><input type="date" data-kpi-to></label>
+            <span class="kpi-period-caption" data-kpi-caption aria-live="polite">Loading reporting period…</span>
+        </section>
+        <div class="kpi-adoption-banner" data-kpi-adoption hidden></div><div class="ops-alert error" data-kpi-error hidden role="alert"></div>
+        <section class="kpi-employee-index" data-kpi-employees><?php foreach (range(1, 3) as $placeholder): ?><article class="kpi-team-card is-loading"><header><span></span><div><strong></strong><small></small></div></header></article><?php endforeach; ?></section>
+        <script src="<?= BASE_URL ?>/assets/js/reports-employees.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/reports-employees.js') ?>"></script>
+    <?php elseif (isset($phaseThreeTabs[$tab])): ?>
+        <section class="kpi-period-panel" aria-label="Reporting period"><label><span>Period</span><select data-kpi-period><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="this_week">This week</option><option value="last_week">Last week</option><option value="this_month">This month</option><option value="last_month">Last month</option><option value="custom">Custom</option></select></label><label data-kpi-custom hidden><span>From</span><input type="date" data-kpi-from></label><label data-kpi-custom hidden><span>To</span><input type="date" data-kpi-to></label><span class="kpi-period-caption" data-kpi-caption>Loading…</span><?php if($tab==='performance-reports'): ?><button class="btn-secondary" type="button" onclick="window.print()">Print report</button><?php endif; ?></section>
+        <div class="kpi-adoption-banner" data-kpi-adoption hidden></div><div class="ops-alert error" data-kpi-error hidden role="alert"></div><section data-kpi-section-content><div class="kpi-health-grid"><?php foreach(range(1,6)as$i): ?><article class="kpi-health-card is-loading"><span></span><strong></strong><small></small></article><?php endforeach; ?></div></section>
+        <script src="<?= BASE_URL ?>/assets/js/reports-section.js?v=<?= (int)@filemtime(BASE_PATH.'/assets/js/reports-section.js') ?>"></script>
     <?php else: ?>
         <?php if ($message !== ''): ?><div class="ops-alert <?= $messageType === 'error' ? 'error' : 'success' ?>" role="status"><?= htmlspecialchars($message, ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
 
