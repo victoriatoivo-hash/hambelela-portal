@@ -11,7 +11,11 @@
   function closePopover({ restoreFocus = false } = {}) {
     if (!active) return;
     const { popover, button, movedForm, formAnchor } = active;
-    if (movedForm && formAnchor?.parentNode) formAnchor.parentNode.insertBefore(movedForm, formAnchor.nextSibling);
+    if (movedForm && formAnchor?.parentNode) {
+      formAnchor.parentNode.insertBefore(movedForm, formAnchor.nextSibling);
+      movedForm.classList.remove('is-in-view-popover');
+      movedForm.style.setProperty('display', 'none', 'important');
+    }
     popover.remove();
     button.setAttribute('aria-expanded', 'false');
     if (restoreFocus) button.focus({ preventScroll: true });
@@ -67,6 +71,9 @@
 
     source.dataset.viewBarEnhanced = 'true';
     source.classList.add('portal-view-bar-source');
+    // Several legacy page styles use display:grid!important. Keep the old
+    // filter deterministically hidden regardless of stylesheet order.
+    source.style.setProperty('display', 'none', 'important');
     const formAnchor = document.createComment(`portal-filter-form-${index}`);
     form.before(formAnchor);
 
@@ -132,6 +139,8 @@
       if (action === 'filter') {
         const popover = openPopover(button, '<header class="portal-view-bar__popover-header"><span class="portal-view-bar__popover-icon">' + icon('list-filter') + '</span><div><h3>Filter this view</h3><p>Choose only the items you want employees to see.</p></div></header><div class="portal-view-bar__form"></div>');
         if (!popover) return;
+        form.classList.add('is-in-view-popover');
+        form.style.removeProperty('display');
         popover.querySelector('.portal-view-bar__form').append(form);
         active.movedForm = form;
         active.formAnchor = formAnchor;
@@ -187,6 +196,34 @@
       label.querySelector('input')?.focus({ preventScroll: true });
     }));
     window.lucide?.createIcons({ attrs: { 'aria-hidden': 'true' }, strokeWidth: 1.7 });
+
+    const panelSelectors = [
+      '.orders-tools-panel.is-open', '.orders-details-panel.is-open',
+      '.order-panel.is-open', '.order-panel.open',
+      '.packing-tools-panel.is-open', '.packing-item-panel.is-open',
+      '.invoice-upload-modal.is-open', '.invoice-upload-modal.open',
+      '.task-tools-panel.is-open', '.task-detail-panel.open',
+      '.task-details-panel.is-open', '.task-create-panel.open',
+      '.task-create-panel.is-open', '.error-log-panel.open',
+      '.error-detail-panel.open', '.courier-tools-panel.is-open',
+      '.bk-drawer.is-open'
+    ];
+    const syncPanelState = () => document.body.classList.toggle(
+      'portal-panel-open',
+      Boolean(document.querySelector(panelSelectors.join(',')))
+    );
+    const panelObserver = new MutationObserver(syncPanelState);
+    document.querySelectorAll([
+      '.orders-tools-panel', '.orders-details-panel', '.order-panel',
+      '.packing-tools-panel', '.packing-item-panel', '.invoice-upload-modal',
+      '.task-tools-panel', '.task-detail-panel', '.task-details-panel',
+      '.task-create-panel', '.error-log-panel', '.error-detail-panel',
+      '.courier-tools-panel', '.bk-drawer'
+    ].join(',')).forEach((panel) => panelObserver.observe(panel, {
+      attributes: true,
+      attributeFilter: ['class', 'aria-hidden']
+    }));
+    syncPanelState();
   }
 
   document.addEventListener('pointerdown', (event) => {

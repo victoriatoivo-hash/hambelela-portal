@@ -45,6 +45,13 @@ body:has(.task-details-panel.is-open) .portal-header-status,
 body:has(.courier-tools-panel.is-open) .portal-header-status,
 body:has(.bk-drawer.open) .portal-header-status,
 body:has(.bk-drawer.is-open) .portal-header-status{visibility:hidden!important;opacity:0!important;pointer-events:none!important}
+body:has(.packing-item-panel.is-open) .portal-header-status,
+body:has(.invoice-upload-modal.is-open) .portal-header-status,
+body:has(.invoice-upload-modal.open) .portal-header-status,
+body:has(.task-detail-panel.open) .portal-header-status,
+body:has(.error-log-panel.open) .portal-header-status,
+body:has(.error-detail-panel.open) .portal-header-status,
+body.portal-panel-open .portal-header-status{visibility:hidden!important;opacity:0!important;pointer-events:none!important}
 
 /* Isolated Courier recovery: restored from the last complete page styling. */
 .courier-wrap {

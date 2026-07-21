@@ -1,6 +1,22 @@
 (() => {
   'use strict';
 
+  // A few legacy pages close their own document instead of using the shared
+  // footer. Load the shared view-bar assets here only when they are absent.
+  const presenceScriptUrl = document.currentScript?.src;
+  if (presenceScriptUrl && !document.querySelector('link[href*="/assets/css/portal-view-bar.css"]')) {
+    const viewBarStylesheet = document.createElement('link');
+    viewBarStylesheet.rel = 'stylesheet';
+    viewBarStylesheet.href = new URL('../css/portal-view-bar.css?v=shared5', presenceScriptUrl).href;
+    document.head.append(viewBarStylesheet);
+  }
+  if (presenceScriptUrl && !document.querySelector('script[src*="/assets/js/portal-view-bar.js"]')) {
+    const viewBarController = document.createElement('script');
+    viewBarController.src = new URL('portal-view-bar.js?v=shared5', presenceScriptUrl).href;
+    viewBarController.async = false;
+    document.head.append(viewBarController);
+  }
+
   const status = document.querySelector('[data-portal-header-status]');
   if (!status) return;
 

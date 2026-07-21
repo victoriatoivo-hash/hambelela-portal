@@ -21,6 +21,7 @@ assert.match(viewCss, /\.courier-wrap \.courier-chip\s*\{/, 'Courier choices mus
 assert.match(bookkeeping, /id="bkDrawerBtn" data-view-bar-action/, 'Cash tools must move into the shared bar');
 assert.match(viewCss, /\.bk-drawer\{z-index:60000!important\}/, 'Cash drawer must cover header status controls');
 assert.match(viewCss, /body:has\(\.packing-tools-panel\.is-open\) \.portal-header-status/, 'Packing slide-out must cover shared header controls');
+assert.match(viewCss, /body:has\(\.packing-item-panel\.is-open\) \.portal-header-status/, 'Packing item slide-out must cover shared header controls');
 assert.match(viewCss, /body:has\(\.task-details-panel\.is-open\) \.portal-header-status/, 'Task detail slide-out must cover shared header controls');
 assert.match(viewCss, /visibility:hidden!important;opacity:0!important;pointer-events:none!important/, 'Covered header controls must not remain visible or clickable');
 assert.match(errors, /name="search"/, 'Error Log must expose search');
