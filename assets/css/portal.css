@@ -13877,31 +13877,6 @@ body.login-page { min-height: 100%; background: #FFFFFF !important; }
   width: 8px;
 }
 
-.courier-wrap .courier-reset-columns {
-  height: 30px;
-  padding: 0 9px;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  border: 1px solid rgba(171, 54, 25, .2);
-  border-radius: 8px;
-  background: #fff;
-  color: #6B4C3B;
-  font: 600 10px/1 Figtree, sans-serif;
-  cursor: pointer;
-}
-
-.courier-wrap .courier-reset-columns:hover {
-  border-color: #AB3619;
-  color: #AB3619;
-  background: #FFFDFC;
-}
-
-.courier-wrap .courier-reset-columns svg {
-  width: 13px;
-  height: 13px;
-}
-
 .courier-wrap .courier-queue-header-actions {
   display: flex;
   align-items: center;

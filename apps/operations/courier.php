@@ -1323,7 +1323,6 @@ include BASE_PATH . '/shared/sidebar.php';
                         <h2 class="card-title">Waybill Queue</h2>
                     </div>
                     <div class="courier-queue-header-actions">
-                        <button type="button" class="courier-reset-columns" data-reset-courier-columns><i data-lucide="rotate-ccw"></i><span>Reset column widths</span></button>
                         <button class="btn-secondary refresh-btn courier-secondary-btn" type="button" data-refresh-waybills><i data-lucide="refresh-cw"></i> Refresh</button>
                     </div>
                 </div>
@@ -1925,14 +1924,6 @@ include BASE_PATH . '/shared/sidebar.php';
         if (event.target.closest('[data-courier-confirm-accept]')) { settleConfirmation(true); return; }
         if (event.target.closest('[data-courier-confirm-cancel]')) { settleConfirmation(false); return; }
         const toolsOpen = event.target.closest('[data-courier-tools-open]');
-        const resetColumns = event.target.closest('[data-reset-courier-columns]');
-        if (resetColumns) {
-            courierColumnWidths = { ...courierColumnDefaults };
-            saveCourierColumnWidths();
-            applyCourierColumnWidths();
-            showToast('Courier column widths reset.');
-            return;
-        }
         if (toolsOpen) { openTools(toolsOpen); return; }
         if (event.target.closest('[data-courier-tools-close], [data-courier-tools-backdrop]')) { closeTools(); return; }
         const toolsTab = event.target.closest('[data-courier-tools-tab]');
