@@ -1218,10 +1218,10 @@ include BASE_PATH . '/shared/sidebar.php';
         </div>
         <div class="courier-page-actions">
             <?php if ($canManageWaybills): ?>
-                <button type="button" class="courier-tools-button" data-courier-tools-open><i data-lucide="wrench"></i><span>Courier tools</span></button>
+                <button type="button" class="courier-tools-button" data-courier-tools-open data-view-bar-action><i data-lucide="wrench"></i><span>Courier tools</span></button>
             <?php endif; ?>
             <?php if ($canExportWaybills): ?>
-                <a class="btn-secondary export-btn courier-secondary-btn" href="courier.php?action=waybill_export_csv&amp;date_from=<?= wb_e($historyDateFrom) ?>&amp;date_to=<?= wb_e($historyDateTo) ?>"><i data-lucide="download"></i> Export CSV</a>
+                <a class="btn-secondary export-btn courier-secondary-btn" data-view-bar-action href="courier.php?action=waybill_export_csv&amp;date_from=<?= wb_e($historyDateFrom) ?>&amp;date_to=<?= wb_e($historyDateTo) ?>"><i data-lucide="download"></i> Export CSV</a>
             <?php endif; ?>
         </div>
     </section>
