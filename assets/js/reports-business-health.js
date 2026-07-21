@@ -45,7 +45,7 @@
   }
 
   function renderScores(scores) {
-    const routes = { orders: 'orders-board.php', packing: 'consignments.php', waybills: 'courier.php', tasks: 'checklists.php', bookkeeping: 'bookkeeping.php', website: 'consignments.php?view=website', attendance: '../hr-portal/portal-login.php' };
+    const routes = { orders: 'reports.php?tab=orders', packing: 'reports.php?tab=packing-performance', waybills: 'reports.php?tab=waybills', tasks: 'reports.php?tab=task-management', bookkeeping: 'reports.php?tab=bookkeeping', website: 'reports.php?tab=website-updates', attendance: 'reports.php?tab=attendance' };
     q('[data-kpi-scores]').innerHTML = scores.map((score) => {
       const separator = routes[score.key].includes('?') ? '&' : '?';
       const href = `${routes[score.key]}${separator}period=${encodeURIComponent(period.value)}&date_from=${encodeURIComponent(from.value)}&date_to=${encodeURIComponent(to.value)}`;
@@ -58,7 +58,7 @@
   }
 
   function renderTeam(team) {
-    q('[data-kpi-team]').innerHTML = team.map((person) => `<article class="kpi-team-card"><header><span class="kpi-person-dot ${person.online ? 'online' : ''}"></span><div><strong>${escapeHtml(person.name)}</strong><small>${escapeHtml(person.role)} · ${person.online ? 'Online' : 'Offline'}</small></div><b>${person.hours_today === null ? '—' : `${Number(person.hours_today).toFixed(1)}h`}</b></header><div>${person.metrics.map((metric) => `<span><small>${escapeHtml(metric.label)}</small><strong>${metric.value === null ? '<i title="Not measured yet">—</i>' : escapeHtml(metric.value)}</strong></span>`).join('')}</div></article>`).join('');
+    q('[data-kpi-team]').innerHTML = team.map((person) => `<a class="kpi-team-card" href="kpi-employee.php?id=${Number(person.id)}&period=${encodeURIComponent(period.value)}"><header><span class="kpi-person-dot ${person.online ? 'online' : ''}"></span><div><strong>${escapeHtml(person.name)}</strong><small>${escapeHtml(person.role)} · ${person.online ? 'Online' : 'Offline'}</small></div><b>${person.hours_today === null ? '—' : `${Number(person.hours_today).toFixed(1)}h`}</b></header><div>${person.metrics.map((metric) => `<span><small>${escapeHtml(metric.label)}</small><strong>${metric.value === null ? '<i title="Not measured yet">—</i>' : escapeHtml(metric.value)}</strong></span>`).join('')}</div></a>`).join('');
   }
 
   function renderCharts(data) {
