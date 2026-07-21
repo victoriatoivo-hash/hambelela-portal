@@ -3682,10 +3682,15 @@
     panelReturnTrigger = sourceElement instanceof HTMLElement ? sourceElement : null;
     panelTitle.textContent = orderPanelTitle(currentOrder);
     if (panelMeta) panelMeta.textContent = [currentOrder.customer_name, prettyDate(orderDisplayDateTime(currentOrder))].filter(Boolean).join(' • ');
-    panel.querySelectorAll('[data-panel-tab]').forEach((button) => button.classList.remove('active', 'is-active'));
+    panel.querySelectorAll('[data-panel-tab]').forEach((button) => {
+      button.classList.remove('active', 'is-active');
+      button.setAttribute('aria-selected', 'false');
+    });
     panel.querySelectorAll('[data-panel-name]').forEach((section) => section.classList.remove('active'));
     const requestedTab = panel.querySelector(`[data-panel-tab="${initialTab}"]`) ? initialTab : 'details';
-    panel.querySelector(`[data-panel-tab="${requestedTab}"]`)?.classList.add('active', 'is-active');
+    const requestedTabButton = panel.querySelector(`[data-panel-tab="${requestedTab}"]`);
+    requestedTabButton?.classList.add('active', 'is-active');
+    requestedTabButton?.setAttribute('aria-selected', 'true');
     panel.querySelector(`[data-panel-name="${requestedTab}"]`)?.classList.add('active');
     resetPanelComposer();
     renderPanelUpdates();
@@ -4410,7 +4415,7 @@
 
       if (ordersToolsOpen) { await openOrdersTools(); return; }
       if (ordersToolsClose) { closeOrdersTools(); return; }
-      if (ordersToolsTabButton) { ordersToolsTab = ordersToolsTabButton.dataset.ordersToolsTab; document.querySelectorAll('[data-orders-tools-tab]').forEach((button) => button.classList.toggle('is-active', button === ordersToolsTabButton)); renderOrdersTools(); return; }
+      if (ordersToolsTabButton) { ordersToolsTab = ordersToolsTabButton.dataset.ordersToolsTab; document.querySelectorAll('[data-orders-tools-tab]').forEach((button) => { const active = button === ordersToolsTabButton; button.classList.toggle('is-active', active); button.setAttribute('aria-selected', active ? 'true' : 'false'); }); renderOrdersTools(); return; }
       if (ordersToolsAction) {
         const action = ordersToolsAction.dataset.ordersToolsAction;
         const ids = action.endsWith('-selected') ? [...selectedOrders] : [ordersToolsAction.dataset.orderId];
@@ -4507,9 +4512,10 @@
       if (closeButton || event.target === backdrop) closePanel();
 
       if (tab) {
-        panel?.querySelectorAll('[data-panel-tab]').forEach((button) => button.classList.remove('active', 'is-active'));
+        panel?.querySelectorAll('[data-panel-tab]').forEach((button) => { button.classList.remove('active', 'is-active'); button.setAttribute('aria-selected', 'false'); });
         panel?.querySelectorAll('[data-panel-name]').forEach((section) => section.classList.remove('active'));
         tab.classList.add('active', 'is-active');
+        tab.setAttribute('aria-selected', 'true');
         panel?.querySelector(`[data-panel-name="${tab.dataset.panelTab}"]`)?.classList.add('active');
       }
 

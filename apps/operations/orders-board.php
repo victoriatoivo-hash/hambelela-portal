@@ -178,11 +178,11 @@ include BASE_PATH . '/shared/sidebar.php';
             <div><span>ORDERS</span><h2 id="orders-tools-title">Orders tools</h2><p>Review deleted orders, restore archived records and track changes made to the Orders Board.</p></div>
             <button type="button" class="orders-tools-close" data-orders-tools-close aria-label="Close Orders tools"><i data-lucide="x"></i></button>
         </header>
-        <nav class="orders-tools-tabs" aria-label="Orders tools sections">
-            <button type="button" class="orders-tools-tab is-active" data-orders-tools-tab="trash">Trash</button>
-            <button type="button" class="orders-tools-tab" data-orders-tools-tab="activity">Activity</button>
-            <button type="button" class="orders-tools-tab" data-orders-tools-tab="archived">Archived</button>
-            <button type="button" class="orders-tools-tab" data-orders-tools-tab="bulk">Bulk actions</button>
+        <nav class="orders-tools-tabs portal-panel-tabs" role="tablist" aria-label="Orders tools sections">
+            <button type="button" class="orders-tools-tab portal-panel-tab is-active" role="tab" aria-selected="true" data-orders-tools-tab="trash"><i data-lucide="trash-2" aria-hidden="true"></i><span>Trash</span></button>
+            <button type="button" class="orders-tools-tab portal-panel-tab" role="tab" aria-selected="false" data-orders-tools-tab="activity"><i data-lucide="history" aria-hidden="true"></i><span>Activity</span></button>
+            <button type="button" class="orders-tools-tab portal-panel-tab" role="tab" aria-selected="false" data-orders-tools-tab="archived"><i data-lucide="archive" aria-hidden="true"></i><span>Archived</span></button>
+            <button type="button" class="orders-tools-tab portal-panel-tab" role="tab" aria-selected="false" data-orders-tools-tab="bulk"><i data-lucide="list-checks" aria-hidden="true"></i><span>Bulk actions</span></button>
         </nav>
         <div class="orders-tools-content" data-orders-tools-content><div class="orders-tools-loading">Loading Orders tools…</div></div>
     </aside>
@@ -193,12 +193,12 @@ include BASE_PATH . '/shared/sidebar.php';
             <div class="order-panel-heading"><span class="order-panel-kicker">Order</span><h2 class="order-panel-title" id="panel-order-title">Order</h2><div class="order-panel-meta" id="panel-order-meta"></div></div>
             <button class="order-panel-menu" type="button" data-order-panel-menu aria-label="Open order actions"><span></span><span></span><span></span></button>
         </header>
-        <nav class="order-panel-tabs updates-tabs" aria-label="Order details sections">
-            <button class="order-panel-tab is-active active" type="button" data-panel-tab="details">Details</button>
-            <button class="order-panel-tab" type="button" data-panel-tab="items">Items</button>
-            <button class="order-panel-tab" type="button" data-panel-tab="updates" id="panel-updates-tab">Updates</button>
-            <button class="order-panel-tab" type="button" data-panel-tab="files">Files</button>
-            <button class="order-panel-tab" type="button" data-panel-tab="activity">Activity</button>
+        <nav class="order-panel-tabs updates-tabs portal-panel-tabs" role="tablist" aria-label="Order details sections">
+            <button class="order-panel-tab portal-panel-tab is-active active" type="button" role="tab" aria-selected="true" data-panel-tab="details"><i data-lucide="layout-list" aria-hidden="true"></i><span>Details</span></button>
+            <button class="order-panel-tab portal-panel-tab" type="button" role="tab" aria-selected="false" data-panel-tab="items"><i data-lucide="package" aria-hidden="true"></i><span>Items</span></button>
+            <button class="order-panel-tab portal-panel-tab" type="button" role="tab" aria-selected="false" data-panel-tab="updates" id="panel-updates-tab"><i data-lucide="message-square" aria-hidden="true"></i><span>Updates</span></button>
+            <button class="order-panel-tab portal-panel-tab" type="button" role="tab" aria-selected="false" data-panel-tab="files"><i data-lucide="paperclip" aria-hidden="true"></i><span>Files</span></button>
+            <button class="order-panel-tab portal-panel-tab" type="button" role="tab" aria-selected="false" data-panel-tab="activity"><i data-lucide="history" aria-hidden="true"></i><span>Activity</span></button>
         </nav>
         <div class="order-panel-body">
         <section class="order-panel-section updates-tab-panel active" data-panel-name="details"><div id="panel-order-details"></div></section>

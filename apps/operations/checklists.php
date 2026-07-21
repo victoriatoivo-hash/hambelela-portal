@@ -874,11 +874,11 @@ include BASE_PATH . '/shared/sidebar.php';
             <div><p class="packing-tools-kicker">Task Management</p><h2 class="packing-tools-title">Task tools</h2><p class="packing-tools-subtitle">Review deleted tasks, restore archived tasks and track task activity.</p></div>
             <button type="button" class="packing-tools-close" data-task-tools-close aria-label="Close Task tools"><i data-lucide="x"></i></button>
         </header>
-        <nav class="packing-tools-tabs" role="tablist" aria-label="Task tools">
-            <button type="button" class="packing-tools-tab is-active" role="tab" aria-selected="true" data-task-tools-tab="trash">Trash</button>
-            <button type="button" class="packing-tools-tab" role="tab" aria-selected="false" data-task-tools-tab="activity">Activity</button>
-            <button type="button" class="packing-tools-tab" role="tab" aria-selected="false" data-task-tools-tab="archived">Archived</button>
-            <?php if ($canManage): ?><button type="button" class="packing-tools-tab" role="tab" aria-selected="false" data-task-tools-tab="bulk">Bulk actions</button><?php endif; ?>
+        <nav class="packing-tools-tabs portal-panel-tabs" role="tablist" aria-label="Task tools">
+            <button type="button" class="packing-tools-tab portal-panel-tab is-active" role="tab" aria-selected="true" data-task-tools-tab="trash"><i data-lucide="trash-2" aria-hidden="true"></i><span>Trash</span></button>
+            <button type="button" class="packing-tools-tab portal-panel-tab" role="tab" aria-selected="false" data-task-tools-tab="activity"><i data-lucide="history" aria-hidden="true"></i><span>Activity</span></button>
+            <button type="button" class="packing-tools-tab portal-panel-tab" role="tab" aria-selected="false" data-task-tools-tab="archived"><i data-lucide="archive" aria-hidden="true"></i><span>Archived</span></button>
+            <?php if ($canManage): ?><button type="button" class="packing-tools-tab portal-panel-tab" role="tab" aria-selected="false" data-task-tools-tab="bulk"><i data-lucide="list-checks" aria-hidden="true"></i><span>Bulk actions</span></button><?php endif; ?>
         </nav>
         <div class="packing-tools-body task-tools-body" data-task-tools-body><div class="task-tools-loading">Loading Task tools…</div></div>
     </aside>
@@ -1015,13 +1015,13 @@ include BASE_PATH . '/shared/sidebar.php';
                 </div>
             </header>
 
-            <nav class="task-panel-tabs" aria-label="Task detail sections">
-                <button type="button" data-task-panel-jump="task-details-<?= $panelId ?>">Details</button>
-                <button type="button" data-task-panel-jump="task-checklist-<?= $panelId ?>">Checklist</button>
-                <button type="button" data-task-panel-jump="task-notes-<?= $panelId ?>">Notes</button>
-                <button type="button" data-task-panel-jump="task-files-<?= $panelId ?>">Files</button>
-                <button type="button" data-task-panel-jump="task-activity-<?= $panelId ?>">Activity</button>
-                <?php if ($taskKind === 'recurring'): ?><button type="button" data-task-panel-jump="task-details-<?= $panelId ?>">Schedule</button><?php endif; ?>
+            <nav class="task-panel-tabs portal-panel-tabs" aria-label="Task detail sections">
+                <button type="button" class="portal-panel-tab" data-task-panel-jump="task-details-<?= $panelId ?>"><i data-lucide="layout-list" aria-hidden="true"></i><span>Details</span></button>
+                <button type="button" class="portal-panel-tab" data-task-panel-jump="task-checklist-<?= $panelId ?>"><i data-lucide="list-checks" aria-hidden="true"></i><span>Checklist</span></button>
+                <button type="button" class="portal-panel-tab" data-task-panel-jump="task-notes-<?= $panelId ?>"><i data-lucide="notebook-pen" aria-hidden="true"></i><span>Notes</span></button>
+                <button type="button" class="portal-panel-tab" data-task-panel-jump="task-files-<?= $panelId ?>"><i data-lucide="paperclip" aria-hidden="true"></i><span>Files</span></button>
+                <button type="button" class="portal-panel-tab" data-task-panel-jump="task-activity-<?= $panelId ?>"><i data-lucide="history" aria-hidden="true"></i><span>Activity</span></button>
+                <?php if ($taskKind === 'recurring'): ?><button type="button" class="portal-panel-tab" data-task-panel-jump="task-details-<?= $panelId ?>"><i data-lucide="repeat-2" aria-hidden="true"></i><span>Schedule</span></button><?php endif; ?>
             </nav>
 
             <div class="task-details-body" id="task-details-<?= $panelId ?>">

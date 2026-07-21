@@ -1387,11 +1387,11 @@ include BASE_PATH . '/shared/sidebar.php';
                 <div><span class="courier-tools-kicker">Courier</span><h2 id="courier-tools-title">Courier tools</h2><p>Review deleted waybills, restore archived records and track Courier activity.</p></div>
                 <button type="button" class="courier-tools-close" data-courier-tools-close aria-label="Close Courier tools"><i data-lucide="x"></i></button>
             </header>
-            <nav class="courier-tools-tabs" aria-label="Courier tools sections">
-                <button type="button" class="is-active" data-courier-tools-tab="trash">Trash</button>
-                <button type="button" data-courier-tools-tab="activity">Activity</button>
-                <button type="button" data-courier-tools-tab="archived">Archived</button>
-                <button type="button" data-courier-tools-tab="bulk">Bulk actions</button>
+            <nav class="courier-tools-tabs portal-panel-tabs" role="tablist" aria-label="Courier tools sections">
+                <button type="button" class="portal-panel-tab is-active" role="tab" aria-selected="true" data-courier-tools-tab="trash"><i data-lucide="trash-2" aria-hidden="true"></i><span>Trash</span></button>
+                <button type="button" class="portal-panel-tab" role="tab" aria-selected="false" data-courier-tools-tab="activity"><i data-lucide="history" aria-hidden="true"></i><span>Activity</span></button>
+                <button type="button" class="portal-panel-tab" role="tab" aria-selected="false" data-courier-tools-tab="archived"><i data-lucide="archive" aria-hidden="true"></i><span>Archived</span></button>
+                <button type="button" class="portal-panel-tab" role="tab" aria-selected="false" data-courier-tools-tab="bulk"><i data-lucide="list-checks" aria-hidden="true"></i><span>Bulk actions</span></button>
             </nav>
             <div class="courier-tools-body">
                 <section data-courier-tools-view="trash"><div class="courier-tools-list" data-courier-tools-trash></div></section>
@@ -1928,7 +1928,11 @@ include BASE_PATH . '/shared/sidebar.php';
         if (event.target.closest('[data-courier-tools-close], [data-courier-tools-backdrop]')) { closeTools(); return; }
         const toolsTab = event.target.closest('[data-courier-tools-tab]');
         if (toolsTab) {
-            document.querySelectorAll('[data-courier-tools-tab]').forEach((button) => button.classList.toggle('is-active', button === toolsTab));
+            document.querySelectorAll('[data-courier-tools-tab]').forEach((button) => {
+                const active = button === toolsTab;
+                button.classList.toggle('is-active', active);
+                button.setAttribute('aria-selected', active ? 'true' : 'false');
+            });
             document.querySelectorAll('[data-courier-tools-view]').forEach((view) => { view.hidden = view.dataset.courierToolsView !== toolsTab.dataset.courierToolsTab; });
             return;
         }
