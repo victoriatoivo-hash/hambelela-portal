@@ -1220,7 +1220,6 @@ include BASE_PATH . '/shared/sidebar.php';
             <?php if ($canManageWaybills): ?>
                 <button type="button" class="courier-tools-button" data-courier-tools-open><i data-lucide="wrench"></i><span>Courier tools</span></button>
             <?php endif; ?>
-            <button class="btn-secondary refresh-btn courier-secondary-btn" type="button" data-refresh-waybills><i data-lucide="refresh-cw"></i> Refresh</button>
             <?php if ($canExportWaybills): ?>
                 <a class="btn-secondary export-btn courier-secondary-btn" href="courier.php?action=waybill_export_csv&amp;date_from=<?= wb_e($historyDateFrom) ?>&amp;date_to=<?= wb_e($historyDateTo) ?>"><i data-lucide="download"></i> Export CSV</a>
             <?php endif; ?>
@@ -1323,7 +1322,10 @@ include BASE_PATH . '/shared/sidebar.php';
                     <div>
                         <h2 class="card-title">Waybill Queue</h2>
                     </div>
-                    <button type="button" class="courier-reset-columns" data-reset-courier-columns><i data-lucide="rotate-ccw"></i><span>Reset column widths</span></button>
+                    <div class="courier-queue-header-actions">
+                        <button type="button" class="courier-reset-columns" data-reset-courier-columns><i data-lucide="rotate-ccw"></i><span>Reset column widths</span></button>
+                        <button class="btn-secondary refresh-btn courier-secondary-btn" type="button" data-refresh-waybills><i data-lucide="refresh-cw"></i> Refresh</button>
+                    </div>
                 </div>
                 <div class="courier-table-scroll courier-table-wrap">
                         <div class="courier-table-shell courier-table-shell--queue">
