@@ -303,20 +303,15 @@ function ops_board_default_payment_labels(): array
 {
     return [
         ['Cash', '#bdbdbd'],
+        ['Card/Swipe', '#333333'],
         ['EFT', '#7b4bd3'],
-        ['Ewallet', '#9b95b9'],
-        ['Bluewallet', '#00845f'],
-        ['Swipe', '#333333'],
-        ['Pay2Cell', '#c03456'],
-        ['EFT & Cash', '#3d1784'],
-        ['Ewallet & Cash', '#2b5797'],
-        ['Swipe & Ewallet', '#ffc400'],
-        ['Bluewallet & Swipe', '#ed4aa5'],
-        ['Coupon', '#57413d'],
-        ['DPO', '#0876d8'],
+        ['FNB eWallet', '#1b5e20'],
         ['EasyWallet', '#a648d9'],
+        ['Blue Wallet', '#00845f'],
         ['Nedbank', '#07c66b'],
-        ['Post Pay', '#4dc3bd'],
+        ['NetBank Wallet', '#2b5797'],
+        ['Pay2Cell', '#c03456'],
+        ['PayToday', '#4dc3bd'],
     ];
 }
 
@@ -353,6 +348,9 @@ function ops_board_label_options(): array
     if (is_file($path)) {
         $saved = json_decode((string) @file_get_contents($path), true);
         if (is_array($saved)) {
+            // Payment methods are controlled by the website/POS. Do not let
+            // stale locally edited labels drift away from those methods.
+            unset($saved['payment_method']);
             $labels = array_replace($labels, $saved);
         }
     }
@@ -522,7 +520,7 @@ function ops_board_sync_website_orders(?string $date = null): array
                  ON DUPLICATE KEY UPDATE
                     customer_name = VALUES(customer_name),
                     customer_contact = VALUES(customer_contact),
-                    payment_method = VALUES(payment_method),
+                    payment_method = CASE WHEN VALUES(payment_method) <> '' THEN VALUES(payment_method) ELSE payment_method END,
                     total_amount = VALUES(total_amount),
                     {$breakdownUpdates}
                     order_type = VALUES(order_type),
@@ -539,7 +537,7 @@ function ops_board_sync_website_orders(?string $date = null): array
                  ON DUPLICATE KEY UPDATE
                     customer_name = VALUES(customer_name),
                     customer_contact = VALUES(customer_contact),
-                    payment_method = VALUES(payment_method),
+                    payment_method = CASE WHEN VALUES(payment_method) <> '' THEN VALUES(payment_method) ELSE payment_method END,
                     order_type = VALUES(order_type),
                     notes = VALUES(notes),
                     workload_score = VALUES(workload_score),
@@ -589,7 +587,7 @@ function ops_board_sync_website_orders(?string $date = null): array
                 $orderNumber,
                 $customerName,
                 $customerContact,
-                (string) ($order['payment_method_title'] ?? $order['payment_method'] ?? ''),
+                ops_wc_payment_method($order),
             ];
 
             if ($hasTotalAmount) {
@@ -876,6 +874,10 @@ try {
         $field = ops_post_string('field', 50);
         if (!in_array($field, ['order_type', 'payment_method', 'status'], true)) {
             throw new RuntimeException('Unsupported label field.');
+        }
+        if ($field === 'payment_method') {
+            echo json_encode(['ok' => true, 'labels' => ops_board_default_payment_labels()]);
+            exit;
         }
         $raw = (string) ($_POST['labels'] ?? '[]');
         $decoded = json_decode($raw, true);
