@@ -1123,7 +1123,7 @@ try {
     $canViewPackingTools = true;
     $currentEmployeeId = ops_current_employee_id();
 
-    if (in_array($action, ['tools_data', 'trash_restore', 'trash_delete_forever', 'archive_restore', 'bulk_delete'], true)) {
+    if (in_array($action, ['tools_data', 'trash_restore', 'trash_delete_forever', 'trash_bulk_restore', 'trash_bulk_delete_forever', 'archive_restore', 'bulk_delete'], true)) {
         if (!ops_column_exists('ops_packing_tasks', 'deleted_at')) db()->exec('ALTER TABLE ops_packing_tasks ADD COLUMN deleted_at DATETIME NULL');
         if (!ops_column_exists('ops_packing_tasks', 'deleted_by')) db()->exec('ALTER TABLE ops_packing_tasks ADD COLUMN deleted_by INT NULL');
         if (!ops_column_exists('ops_packing_tasks', 'delete_reason')) db()->exec('ALTER TABLE ops_packing_tasks ADD COLUMN delete_reason VARCHAR(255) NULL');
@@ -1142,23 +1142,79 @@ try {
         exit;
     }
 
-    if (in_array($action, ['trash_restore', 'trash_delete_forever', 'archive_restore'], true)) {
-        $id = (int) ($_POST['task_id'] ?? 0);
-        if ($id <= 0) throw new RuntimeException('Select a packing item.');
-        if ($action === 'trash_restore') {
-            $stmt = db()->prepare('UPDATE ops_packing_tasks SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND deleted_at IS NOT NULL');
-            $stmt->execute([$id]);
-            ops_activity_log('packing_row_restored', 'packing_task', $id, ['source' => 'packing_tools']);
-        } elseif ($action === 'archive_restore') {
+    if (in_array($action, ['trash_restore', 'trash_delete_forever', 'trash_bulk_restore', 'trash_bulk_delete_forever', 'archive_restore'], true)) {
+        if (!$canViewPackingTools) throw new RuntimeException('You do not have permission to change Packing List Trash items.');
+        if ($action === 'archive_restore') {
+            $id = (int) ($_POST['task_id'] ?? 0);
+            if ($id <= 0) throw new RuntimeException('Select a packing item.');
             $stmt = db()->prepare('UPDATE ops_packing_tasks SET archived_at = NULL, archived_by = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
             $stmt->execute([$id]);
+            if ($stmt->rowCount() !== 1) throw new RuntimeException('The archived packing item was not found.');
             ops_activity_log('packing_row_unarchived', 'packing_task', $id, ['source' => 'packing_tools']);
-        } else {
-            ops_activity_log('packing_row_permanently_deleted', 'packing_task', $id, ['source' => 'packing_tools']);
-            $stmt = db()->prepare('DELETE FROM ops_packing_tasks WHERE id = ? AND deleted_at IS NOT NULL');
-            $stmt->execute([$id]);
+            echo json_encode(['ok' => true, 'message' => 'Packing item updated.']);
+            exit;
         }
-        echo json_encode(['ok' => true, 'message' => 'Packing item updated.']);
+
+        $isBulk = in_array($action, ['trash_bulk_restore', 'trash_bulk_delete_forever'], true);
+        $isPermanentDelete = in_array($action, ['trash_delete_forever', 'trash_bulk_delete_forever'], true);
+        $ids = $isBulk
+            ? array_values(array_unique(array_filter(array_map('intval', explode(',', (string) ($_POST['task_ids'] ?? ''))), static fn (int $id): bool => $id > 0)))
+            : [(int) ($_POST['task_id'] ?? 0)];
+        if (!$ids || $ids[0] <= 0) throw new RuntimeException('Select at least one packing item.');
+        if (count($ids) > 200) throw new RuntimeException('Select no more than 200 packing items at a time.');
+
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        db()->beginTransaction();
+        $rows = ops_rows("SELECT id, item_name FROM ops_packing_tasks WHERE id IN ({$placeholders}) AND deleted_at IS NOT NULL FOR UPDATE", $ids);
+        $rowsById = [];
+        foreach ($rows as $row) $rowsById[(int) $row['id']] = $row;
+        $failures = [];
+        foreach ($ids as $id) {
+            if (!isset($rowsById[$id])) $failures[] = '#' . $id . ': not found in Trash or no longer available';
+        }
+        if ($failures) {
+            db()->rollBack();
+            throw new RuntimeException('No items were changed. ' . implode('; ', $failures) . '.');
+        }
+
+        $bulkReference = $isBulk ? 'packing-trash-' . gmdate('YmdHis') . '-' . bin2hex(random_bytes(4)) : null;
+        $employee = current_user();
+        $changedBy = (string) ($employee['name'] ?? 'Unknown');
+        $changedAt = gmdate('Y-m-d H:i:s') . ' UTC';
+        try {
+            foreach ($ids as $id) {
+                $row = $rowsById[$id];
+                $metadata = [
+                    'source' => $isBulk ? 'packing_tools_bulk' : 'packing_tools',
+                    'record_id' => $id,
+                    'item_name' => (string) $row['item_name'],
+                    'action_performed' => $isPermanentDelete ? 'permanently_deleted' : 'restored',
+                    'changed_by' => $changedBy,
+                    'changed_at' => $changedAt,
+                    'bulk_action_reference' => $bulkReference,
+                ];
+                if ($isPermanentDelete) {
+                    ops_activity_log('packing_row_permanently_deleted', 'packing_task', $id, $metadata);
+                    $stmt = db()->prepare('DELETE FROM ops_packing_tasks WHERE id = ? AND deleted_at IS NOT NULL');
+                } else {
+                    $stmt = db()->prepare('UPDATE ops_packing_tasks SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND deleted_at IS NOT NULL');
+                }
+                $stmt->execute([$id]);
+                if ($stmt->rowCount() !== 1) throw new RuntimeException('#' . $id . ': the item changed while the bulk action was running');
+                if (!$isPermanentDelete) ops_activity_log('packing_row_restored', 'packing_task', $id, $metadata);
+            }
+            db()->commit();
+        } catch (Throwable $transactionError) {
+            if (db()->inTransaction()) db()->rollBack();
+            throw new RuntimeException('No items were changed. ' . $transactionError->getMessage(), 0, $transactionError);
+        }
+        $count = count($ids);
+        echo json_encode([
+            'ok' => true,
+            'message' => $isPermanentDelete ? "Permanently deleted {$count} selected item" . ($count === 1 ? '.' : 's.') : "Restored {$count} selected item" . ($count === 1 ? '.' : 's.'),
+            'bulk_action_reference' => $bulkReference,
+            'results' => array_map(static fn (int $id): array => ['id' => $id, 'ok' => true], $ids),
+        ]);
         exit;
     }
 
@@ -2678,5 +2734,6 @@ try {
 
     throw new RuntimeException('Unknown packing action.');
 } catch (Throwable $e) {
+    if (db()->inTransaction()) db()->rollBack();
     packing_json_fail($e);
 }

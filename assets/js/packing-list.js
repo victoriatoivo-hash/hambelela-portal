@@ -567,6 +567,14 @@
 
   let packingToolsData = null;
   let packingToolsTab = 'trash';
+  const packingTrashSelection = new Set();
+  let packingTrashBulkInFlight = false;
+
+  function packingTrashCheckbox(id, label, checked = false, selectAll = false, mixed = false) {
+    const attribute = selectAll ? 'data-trash-select-all' : `data-trash-select="${esc(id)}"`;
+    const state = mixed ? 'mixed' : checked ? 'true' : 'false';
+    return `<span class="packing-trash-checkbox-wrap"><input class="packing-selection-input" type="checkbox" tabindex="-1" aria-hidden="true" ${checked ? 'checked' : ''}><button type="button" class="packing-checkbox-control" role="checkbox" aria-checked="${state}" ${attribute} aria-label="${esc(label)}"><svg class="packing-checkbox-tick" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.3 6.2 4.8 8.6 9.8 3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="packing-checkbox-minus" aria-hidden="true"></span></button></span>`;
+  }
 
   function formatToolDate(value) {
     if (!value) return 'Unknown date';
@@ -587,7 +595,12 @@
     if (!holder || !packingToolsData) return;
     if (packingToolsTab === 'trash') {
       const rows = packingToolsData.trash || [];
-      holder.innerHTML = rows.length ? `<div class="packing-trash-list">${rows.map((row) => `<article class="packing-trash-row"><div class="packing-trash-main"><strong>${esc(row.item_name)}</strong><span>Deleted by ${esc(row.deleted_by_name || 'Unknown')} · ${esc(formatToolDate(row.deleted_at))}</span><span>${Math.max(0, Number(row.days_remaining || 0))} days remaining</span></div><div class="packing-trash-meta"><span>${esc(String(row.date_loaded || '').slice(0, 7))}</span><span>${esc(row.quantity_planned || '')}</span></div>${packingToolsData.canManageTools ? `<div class="packing-trash-actions"><button type="button" class="packing-trash-action packing-trash-action--restore" data-restore-packing-item="${esc(row.id)}"><svg class="packing-trash-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8v5h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.6 12.4A7.5 7.5 0 1 0 8 6.8L4 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Restore</span></button>${packingToolsData.canPermanentDelete ? `<button type="button" class="packing-trash-action packing-trash-action--delete" data-delete-packing-item-permanently="${esc(row.id)}"><svg class="packing-trash-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M9 7V4h6v3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 7l1 13h8l1-13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 11v5M14 11v5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span>Delete forever</span></button>` : ''}</div>` : ''}</article>`).join('')}</div>` : '<div class="packing-tools-empty"><strong>Trash is empty</strong><span>Deleted Packing List items will appear here.</span></div>';
+      const visibleIds = rows.map((row) => String(row.id));
+      [...packingTrashSelection].forEach((id) => { if (!visibleIds.includes(id)) packingTrashSelection.delete(id); });
+      const selectedCount = visibleIds.filter((id) => packingTrashSelection.has(id)).length;
+      const allSelected = rows.length > 0 && selectedCount === rows.length;
+      const mixed = selectedCount > 0 && !allSelected;
+      holder.innerHTML = rows.length ? `<div class="packing-trash-selection-toolbar">${packingTrashCheckbox('', 'Select all visible trash items', allSelected, true, mixed)}<span>Select all</span><span class="packing-trash-selection-count" aria-live="polite">${selectedCount} item${selectedCount === 1 ? '' : 's'} selected</span></div><div class="packing-trash-list">${rows.map((row) => { const checked = packingTrashSelection.has(String(row.id)); return `<article class="packing-trash-row${checked ? ' is-selected' : ''}" data-trash-id="${esc(row.id)}"><div class="packing-trash-selector">${packingTrashCheckbox(row.id, `Select ${row.item_name || 'packing item'}`, checked)}</div><div class="packing-trash-main"><strong>${esc(row.item_name)}</strong><span>Deleted by ${esc(row.deleted_by_name || 'Unknown')} · ${esc(formatToolDate(row.deleted_at))}</span><span>${Math.max(0, Number(row.days_remaining || 0))} days remaining</span></div><div class="packing-trash-meta"><span>${esc(String(row.date_loaded || '').slice(0, 7))}</span><span>${esc(row.quantity_planned || '')}</span></div>${packingToolsData.canManageTools ? `<div class="packing-trash-actions"><button type="button" class="packing-trash-action packing-trash-action--restore" data-restore-packing-item="${esc(row.id)}"><svg class="packing-trash-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8v5h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.6 12.4A7.5 7.5 0 1 0 8 6.8L4 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Restore</span></button>${packingToolsData.canPermanentDelete ? `<button type="button" class="packing-trash-action packing-trash-action--delete" data-delete-packing-item-permanently="${esc(row.id)}"><svg class="packing-trash-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M9 7V4h6v3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 7l1 13h8l1-13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 11v5M14 11v5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span>Delete forever</span></button>` : ''}</div>` : ''}</article>`; }).join('')}</div><div class="packing-trash-bulk-bar${selectedCount ? ' is-visible' : ''}" aria-hidden="${selectedCount ? 'false' : 'true'}"><strong>${selectedCount} item${selectedCount === 1 ? '' : 's'} selected.</strong><button type="button" class="pk-btn pk-btn--secondary" data-trash-bulk="restore">Restore selected</button>${packingToolsData.canPermanentDelete ? '<button type="button" class="pk-btn pk-btn--danger" data-trash-bulk="delete">Delete selected forever</button>' : ''}<button type="button" class="pk-btn pk-btn--secondary" data-trash-clear-selection>Clear selection</button><span class="packing-trash-bulk-error" data-trash-bulk-error role="alert"></span></div>` : '<div class="packing-tools-empty"><strong>Trash is empty</strong><span>Deleted Packing List items will appear here.</span></div>';
     } else if (packingToolsTab === 'archived') {
       const rows = packingToolsData.archived || [];
       holder.innerHTML = rows.length ? `<div class="packing-trash-list">${rows.map((row) => `<article class="packing-trash-row is-archived"><div class="packing-trash-main"><strong>${esc(row.item_name)}</strong><span>Archived by ${esc(row.archived_by_name || 'Unknown')} · ${esc(formatToolDate(row.archived_at))}</span></div><div class="packing-trash-meta"><span>${esc(row.quantity_planned || '')}</span></div>${packingToolsData.canManageTools ? `<div class="packing-trash-actions"><button type="button" class="pk-btn pk-btn--secondary" data-restore-archived-item="${esc(row.id)}">Restore to active</button></div>` : ''}</article>`).join('')}</div>` : '<div class="packing-tools-empty"><strong>No archived items</strong><span>Archived Packing List rows will appear here.</span></div>';
@@ -2746,6 +2759,10 @@
     const restoreArchived = event.target.closest('[data-restore-archived-item]');
     const toolsBulk = event.target.closest('[data-tools-bulk]');
     const exportActivity = event.target.closest('[data-export-packing-activity]');
+    const trashSelect = event.target.closest('[data-trash-select]');
+    const trashSelectAll = event.target.closest('[data-trash-select-all]');
+    const trashBulk = event.target.closest('[data-trash-bulk]');
+    const trashClear = event.target.closest('[data-trash-clear-selection]');
     if (openTools) {
       const toolsPanel = document.querySelector('[data-packing-tools-panel]');
       toolsPanel?.classList.add('is-open');
@@ -2761,6 +2778,7 @@
       return;
     }
     if (toolsTab) {
+      packingTrashSelection.clear();
       packingToolsTab = toolsTab.dataset.toolsTab;
       document.querySelectorAll('[data-tools-tab]').forEach((button) => {
         const selectedTab = button === toolsTab;
@@ -2768,6 +2786,48 @@
         button.setAttribute('aria-selected', String(selectedTab));
       });
       renderPackingTools();
+      return;
+    }
+    if (trashSelect) {
+      const id = String(trashSelect.dataset.trashSelect || '');
+      if (packingTrashSelection.has(id)) packingTrashSelection.delete(id);
+      else packingTrashSelection.add(id);
+      renderPackingTools();
+      return;
+    }
+    if (trashSelectAll) {
+      const visibleIds = (packingToolsData?.trash || []).map((row) => String(row.id));
+      const allSelected = visibleIds.length > 0 && visibleIds.every((id) => packingTrashSelection.has(id));
+      visibleIds.forEach((id) => allSelected ? packingTrashSelection.delete(id) : packingTrashSelection.add(id));
+      renderPackingTools();
+      return;
+    }
+    if (trashClear) {
+      packingTrashSelection.clear();
+      renderPackingTools();
+      return;
+    }
+    if (trashBulk) {
+      if (packingTrashBulkInFlight || packingTrashSelection.size === 0) return;
+      const ids = [...packingTrashSelection];
+      const operation = trashBulk.dataset.trashBulk;
+      if (operation === 'delete' && !window.confirm(`Permanently delete ${ids.length} selected item${ids.length === 1 ? '' : 's'}? This cannot be undone.`)) return;
+      packingTrashBulkInFlight = true;
+      document.querySelectorAll('[data-trash-bulk], [data-trash-clear-selection], [data-trash-select], [data-trash-select-all]').forEach((control) => { control.disabled = true; });
+      trashBulk.classList.add('is-processing');
+      try {
+        const result = await post(operation === 'restore' ? 'trash_bulk_restore' : 'trash_bulk_delete_forever', { task_ids: ids.join(',') });
+        packingTrashSelection.clear();
+        await Promise.all([loadPackingTools(), refresh()]);
+        setCount(result.message || `${ids.length} packing items updated.`);
+      } catch (error) {
+        const target = document.querySelector('[data-trash-bulk-error]');
+        if (target) target.textContent = error.message || 'The bulk action could not be completed.';
+      } finally {
+        packingTrashBulkInFlight = false;
+        trashBulk.classList.remove('is-processing');
+        document.querySelectorAll('[data-trash-bulk], [data-trash-clear-selection], [data-trash-select], [data-trash-select-all]').forEach((control) => { control.disabled = false; });
+      }
       return;
     }
     if (restoreTrash || restoreArchived) {
