@@ -31,6 +31,20 @@
 .courier-wrap .courier-hub{display:grid!important;gap:0!important;width:100%!important}.courier-wrap .stat-cards{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:10px!important;width:100%!important}.courier-wrap .stat-card{display:flex!important;flex-direction:column!important;justify-content:center!important;width:100%!important;height:68px!important;padding:11px 16px 10px!important;border:1px solid #ede3d8!important;border-radius:12px!important;background:#fff!important;box-shadow:0 10px 26px rgba(114,27,26,.06)!important}.courier-wrap .section-card,.courier-wrap .courier-section{display:block;width:100%!important;padding:24px!important;border:1px solid #ede3d8!important;border-radius:14px!important;background:#fff!important;box-shadow:0 10px 26px rgba(114,27,26,.06)!important}.courier-wrap .upload-form{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:12px!important}.courier-wrap .courier-chips{display:flex!important;flex-wrap:wrap!important;gap:8px!important}.courier-wrap .courier-chip{display:inline-flex!important;align-items:center!important;width:auto!important;min-height:32px!important;padding:0 10px!important}
 /* Drawers and backdrops cover shared header date, presence and notifications. */
 .bk-overlay{z-index:59990!important}.bk-drawer{z-index:60000!important}.portal-header-status{z-index:120!important}
+.orders-tools-backdrop,.order-panel-backdrop,.packing-tools-backdrop,.task-tools-backdrop,.courier-tools-backdrop,.bk-overlay{z-index:59990!important}
+.orders-tools-panel,.orders-details-panel,.order-panel,.packing-tools-panel,.task-tools-panel,.task-create-panel,.task-details-panel,.courier-tools-panel,.bk-drawer{z-index:60000!important;background:#fff!important}
+body:has(.orders-tools-panel.is-open) .portal-header-status,
+body:has(.orders-details-panel.is-open) .portal-header-status,
+body:has(.order-panel.is-open) .portal-header-status,
+body:has(.order-panel.open) .portal-header-status,
+body:has(.packing-tools-panel.is-open) .portal-header-status,
+body:has(.task-tools-panel.is-open) .portal-header-status,
+body:has(.task-create-panel.is-open) .portal-header-status,
+body:has(.task-details-panel.is-open) .portal-header-status,
+body:has(.courier-tools-panel.is-open) .portal-header-status,
+body:has(.bk-drawer.open) .portal-header-status,
+body:has(.bk-drawer.is-open) .portal-header-status{visibility:hidden!important;opacity:0!important;pointer-events:none!important}
 /* Task sections use every available workspace pixel. */
+.shell:has(.portal-sidebar)>main.workspace.module.digital-task-page{width:auto!important;max-width:none!important;min-width:0!important;justify-self:stretch!important;align-self:stretch!important}
 .workspace.module.digital-task-page,.digital-task-page .task-board,.digital-task-page .dtb-sections,.digital-task-page .dtb-status-section,.digital-task-page .dtb-table-wrap{width:100%!important;max-width:none!important;min-width:0!important;box-sizing:border-box!important}
 @media(max-width:900px){.courier-wrap .stat-cards{grid-template-columns:repeat(2,minmax(0,1fr))!important}}@media(max-width:700px){.courier-wrap .stat-cards,.courier-wrap .upload-form{grid-template-columns:1fr!important}.courier-wrap .section-card,.courier-wrap .courier-section{padding:16px!important}}

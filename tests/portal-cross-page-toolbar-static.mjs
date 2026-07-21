@@ -14,7 +14,11 @@ assert.match(viewCss, /portal-view-bar__popover \.portal-view-bar-source\{displa
 assert.match(courier, /data-courier-tools-open data-view-bar-action/, 'Courier tools must move into the shared bar');
 assert.match(bookkeeping, /id="bkDrawerBtn" data-view-bar-action/, 'Cash tools must move into the shared bar');
 assert.match(viewCss, /\.bk-drawer\{z-index:60000!important\}/, 'Cash drawer must cover header status controls');
+assert.match(viewCss, /body:has\(\.packing-tools-panel\.is-open\) \.portal-header-status/, 'Packing slide-out must cover shared header controls');
+assert.match(viewCss, /body:has\(\.task-details-panel\.is-open\) \.portal-header-status/, 'Task detail slide-out must cover shared header controls');
+assert.match(viewCss, /visibility:hidden!important;opacity:0!important;pointer-events:none!important/, 'Covered header controls must not remain visible or clickable');
 assert.match(errors, /name="search"/, 'Error Log must expose search');
 assert.match(errors, /el\.error_title LIKE \? OR el\.description LIKE \?/, 'Error Log search must filter its dataset');
 assert.match(viewCss, /\.workspace\.module\.digital-task-page.*width:100%!important/s, 'Task Management must fill the workspace');
+assert.match(viewCss, /main\.workspace\.module\.digital-task-page\{width:auto!important;max-width:none!important/, 'Task Management must stretch through the shell grid');
 console.log('cross-page toolbar and panel layering contract passed');
