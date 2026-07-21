@@ -45,7 +45,12 @@
   }
 
   function renderScores(scores) {
-    q('[data-kpi-scores]').innerHTML = scores.map((score) => `<article class="kpi-score-row"><div><strong>${escapeHtml(score.label)}</strong><small>${escapeHtml(score.reason)}</small></div><div class="kpi-score-value"><b>${score.score === null ? '<span title="Fewer than 5 measured records">—</span>' : `${score.score}%`}</b>${score.sample < 5 ? `<em>Low data · n=${score.sample}</em>` : ''}</div><span class="kpi-score-track"><i style="width:${score.score === null ? 0 : Math.max(0, Math.min(100, score.score))}%"></i></span></article>`).join('');
+    const routes = { orders: 'orders-board.php', packing: 'consignments.php', waybills: 'courier.php', tasks: 'checklists.php', bookkeeping: 'bookkeeping.php', website: 'consignments.php?view=website', attendance: '../hr-portal/portal-login.php' };
+    q('[data-kpi-scores]').innerHTML = scores.map((score) => {
+      const separator = routes[score.key].includes('?') ? '&' : '?';
+      const href = `${routes[score.key]}${separator}period=${encodeURIComponent(period.value)}&date_from=${encodeURIComponent(from.value)}&date_to=${encodeURIComponent(to.value)}`;
+      return `<a class="kpi-score-row" href="${href}"><div><strong>${escapeHtml(score.label)}</strong><small>${escapeHtml(score.reason)}</small></div><div class="kpi-score-value"><b>${score.score === null ? '<span title="Fewer than 5 measured records">—</span>' : `${score.score}%`}</b>${score.sample < 5 ? `<em>Low data · n=${score.sample}</em>` : ''}</div><span class="kpi-score-track"><i style="width:${score.score === null ? 0 : Math.max(0, Math.min(100, score.score))}%"></i></span></a>`;
+    }).join('');
   }
 
   function renderAttention(items) {
