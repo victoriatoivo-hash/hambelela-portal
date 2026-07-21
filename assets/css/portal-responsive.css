@@ -802,3 +802,355 @@ html body.sidebar-collapsed .portal-sidebar {
     transition-duration: .01ms !important;
   }
 }
+
+/*
+ * Live-page mobile contract.
+ *
+ * Keep this block at the end of the final responsive asset. The operations
+ * pages pre-date the shared responsive shell and use different names for
+ * their real scrolling surfaces. Target those exact surfaces here so a wide
+ * board/table scrolls locally instead of making the whole portal wider than
+ * the phone viewport.
+ */
+@media (max-width: 900px) {
+  html,
+  body {
+    max-width: 100%;
+    overflow-x: clip !important;
+  }
+
+  body > .shell,
+  body > .shell > main,
+  .orders-page,
+  .packing-list-page,
+  .bk-wrap,
+  .digital-task-page,
+  .courier-wrap,
+  .error-log-page,
+  .cor-wrap,
+  .kpi-health-page {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  /* Exact live board and table containers. */
+  .orders-page .ops-board-scroll,
+  .orders-page .orders-grid-scroll,
+  .packing-list-page .packing-board-shell,
+  .packing-list-page .packing-list-grid,
+  .bk-wrap .ledger-board,
+  .digital-task-page .dtb-table-wrap,
+  .courier-wrap .courier-table-scroll,
+  .error-log-page .error-board-table-wrap,
+  .cor-wrap .cor-table-wrap,
+  .kpi-health-page .table-scroll,
+  .kpi-health-page .kpi-attendance-calendar {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    overscroll-behavior-inline: contain;
+    scroll-behavior: smooth;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .bk-wrap .ledger-board-inner,
+  .digital-task-page .dtb-board-table,
+  .digital-task-page .dtb-history-table,
+  .error-log-page .error-board-table,
+  .cor-wrap .cor-products-table,
+  .cor-wrap .cor-table,
+  .kpi-health-page .data-table {
+    width: max-content !important;
+    max-width: none !important;
+  }
+
+  .portal-view-bar,
+  .packing-list-page .packing-toolbar,
+  .orders-page .orders-tools-bar,
+  .cor-wrap .cor-tabs-wrap,
+  .kpi-health-page .kpi-health-tabs {
+    display: flex !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .portal-view-bar::-webkit-scrollbar,
+  .packing-list-page .packing-toolbar::-webkit-scrollbar,
+  .orders-page .orders-tools-bar::-webkit-scrollbar,
+  .cor-wrap .cor-tabs-wrap::-webkit-scrollbar,
+  .kpi-health-page .kpi-health-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .portal-view-bar > *,
+  .packing-list-page .packing-toolbar > *,
+  .orders-page .orders-tools-bar > *,
+  .cor-wrap .cor-tabs-wrap > *,
+  .kpi-health-page .kpi-health-tabs > * {
+    flex: 0 0 auto !important;
+  }
+
+  .orders-page .monday-board-top,
+  .packing-list-page .packing-page-shell,
+  .packing-list-page .packing-board-shell,
+  .bk-wrap .bk-page-layout,
+  .digital-task-page .dtb-page-shell,
+  .courier-wrap .courier-hub,
+  .error-log-page .error-board-section,
+  .cor-wrap .cor-tab-content,
+  .kpi-health-page .kpi-health-panel {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin-inline: 0 !important;
+  }
+
+  .orders-more-panel,
+  .orders-tools-panel,
+  .order-panel,
+  .packing-tools-panel,
+  .packing-item-panel,
+  .task-tools-panel,
+  .task-details-panel,
+  .task-create-panel,
+  .courier-tools-panel,
+  .error-log-panel,
+  .error-detail-panel,
+  .bk-drawer {
+    position: fixed !important;
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: auto !important;
+    width: min(100%, 560px) !important;
+    max-width: 100% !important;
+    max-height: 100dvh !important;
+    overflow: hidden !important;
+  }
+
+  .orders-more-panel > :last-child,
+  .orders-tools-panel > :last-child,
+  .order-panel .order-panel-body,
+  .packing-tools-panel > :last-child,
+  .packing-item-panel > :last-child,
+  .task-tools-panel > :last-child,
+  .task-details-panel > :last-child,
+  .task-create-panel > :last-child,
+  .courier-tools-panel > :last-child,
+  .error-log-panel > :last-child,
+  .error-detail-panel > :last-child,
+  .bk-drawer .bk-drawer-body {
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 600px) {
+  :root {
+    --portal-page-gutter: 10px;
+    --portal-card-padding: 10px;
+    --portal-section-gap: 8px;
+    --portal-button-height: 30px;
+  }
+
+  body {
+    font-size: 12px;
+  }
+
+  .shell:has(.portal-sidebar) > main,
+  .shell:has(.portal-sidebar) > main.workspace,
+  .shell:has(.portal-sidebar) > main.ledger-page {
+    padding: 58px 10px 14px !important;
+  }
+
+  .portal-header-with-status > .portal-header-status {
+    width: auto !important;
+    max-width: calc(100% - 48px) !important;
+    min-height: 32px !important;
+    margin: 0 0 0 auto !important;
+    justify-content: flex-end !important;
+    gap: 5px !important;
+    overflow: visible !important;
+  }
+
+  .portal-header-clock {
+    min-width: 56px !important;
+  }
+
+  .portal-header-clock span,
+  .portal-online-avatars {
+    display: none !important;
+  }
+
+  .portal-online-widget {
+    min-height: 30px !important;
+    padding: 0 7px !important;
+  }
+
+  .portal-header-notifications {
+    width: 30px !important;
+    min-width: 30px !important;
+    height: 30px !important;
+  }
+
+  .work-metric-grid,
+  .orders-stat-grid,
+  .packing-stats,
+  .dtb-stats-grid,
+  .error-stats-grid,
+  .courier-wrap .stat-cards,
+  .bk-wrap .stat-grid,
+  .cor-wrap .cor-summary-stat-grid,
+  .kpi-health-grid,
+  .kpi-employee-summary,
+  .kpi-employee-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 7px !important;
+  }
+
+  .work-metric-grid > *,
+  .orders-stat-grid > *,
+  .packing-stats > *,
+  .dtb-stats-grid > *,
+  .error-stats-grid > *,
+  .courier-wrap .stat-cards > *,
+  .bk-wrap .stat-grid > *,
+  .cor-wrap .cor-summary-stat-grid > *,
+  .kpi-health-grid > * {
+    min-width: 0 !important;
+    min-height: 58px !important;
+    padding: 9px !important;
+  }
+
+  .module-header,
+  .monday-board-head,
+  .packing-header,
+  .ledger-top,
+  .dtb-page-header,
+  .error-log-header,
+  .courier-wrap .module-header {
+    margin-bottom: 10px !important;
+  }
+
+  .module-header h1,
+  .monday-board-head h1,
+  .packing-header h1,
+  .ledger-top h1,
+  .dtb-page-title,
+  .error-log-header h1,
+  .courier-wrap .module-header h1 {
+    font-size: 17px !important;
+    line-height: 1.2 !important;
+  }
+
+  button,
+  .button,
+  [class*="btn"] {
+    min-height: 30px;
+  }
+
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    width: 100% !important;
+    max-width: 100% !important;
+    font-size: 16px !important; /* Prevent iOS form zoom. */
+  }
+
+  .upload-form,
+  .invoice-form-grid,
+  .packing-item-form-grid,
+  .dtb-filter-grid,
+  .error-filter-grid,
+  .bk-filter-grid,
+  .orders-filter-grid,
+  .cor-filter-grid,
+  .form-grid,
+  .form-grid.compact,
+  .kpi-health-columns,
+  .kpi-chart-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .portal-view-bar,
+  .packing-list-page .packing-toolbar,
+  .orders-page .orders-tools-bar {
+    margin-block: 8px !important;
+    padding: 3px !important;
+    gap: 1px !important;
+  }
+
+  .portal-view-bar__button,
+  .portal-view-bar__page-action,
+  .portal-view-bar__search {
+    min-height: 30px !important;
+    padding-inline: 7px !important;
+    font-size: 10px !important;
+  }
+
+  .portal-view-bar__button svg,
+  .portal-view-bar__page-action svg,
+  .portal-view-bar__search svg {
+    width: 14px !important;
+    height: 14px !important;
+  }
+
+  .portal-view-bar__popover,
+  .portal-online-popover {
+    position: fixed !important;
+    top: 58px !important;
+    right: 8px !important;
+    left: 8px !important;
+    width: auto !important;
+    max-width: none !important;
+    max-height: calc(100dvh - 70px) !important;
+    overflow-y: auto !important;
+  }
+
+  .orders-more-panel,
+  .orders-tools-panel,
+  .order-panel,
+  .packing-tools-panel,
+  .packing-item-panel,
+  .task-tools-panel,
+  .task-details-panel,
+  .task-create-panel,
+  .courier-tools-panel,
+  .error-log-panel,
+  .error-detail-panel,
+  .bk-drawer {
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+  }
+}
+
+@media (max-width: 360px) {
+  .work-metric-grid,
+  .orders-stat-grid,
+  .packing-stats,
+  .dtb-stats-grid,
+  .error-stats-grid,
+  .courier-wrap .stat-cards,
+  .bk-wrap .stat-grid,
+  .cor-wrap .cor-summary-stat-grid,
+  .kpi-health-grid,
+  .kpi-employee-summary,
+  .kpi-employee-metrics {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}

@@ -24,10 +24,28 @@ assert.match(bookkeepingPhp, /assets\/js\/portal-presence\.js/, 'Bookkeeping mus
 assert.match(presenceJs, /assets\/css\/portal-responsive\.css/, 'Legacy authenticated pages must receive the shared mobile stylesheet.');
 assert.match(presenceJs, /!document\.querySelector\('link\[href\*="\/assets\/css\/portal-responsive\.css"\]'/, 'The mobile stylesheet fallback must not duplicate styles already loaded by the shared header.');
 assert.match(footerPhp, /data-portal-responsive-final/, 'Footer pages must load responsive CSS after page-level styles.');
-assert.match(footerPhp, /mobile-final2/, 'The final responsive layer must use a fresh cache version.');
+assert.match(footerPhp, /mobile-final3/, 'The final responsive layer must use a fresh cache version.');
 assert.match(presenceJs, /dataset\.portalResponsiveFinal/, 'Legacy pages must append a final responsive layer when they omit the footer.');
 assert.match(presenceJs, /document\.body\.append\(finalResponsiveStylesheet\)/, 'Legacy responsive CSS must be last in document order.');
+assert.match(presenceJs, /mobile-final3/, 'Legacy pages must receive the same fresh mobile asset version.');
 assert.match(responsiveCss, /\.orders-board-scroll,[\s\S]*\.courier-table-scroll,[\s\S]*overflow-x: auto !important;/, 'Operational tables must scroll within the phone viewport.');
 assert.match(responsiveCss, /@media \(max-width: 600px\)[\s\S]*\.courier-wrap \.stat-cards,[\s\S]*repeat\(2, minmax\(0, 1fr\)\)/, 'Phone metric cards must use compact two-column layouts.');
+
+const liveMobileScrollContainers = [
+  '.orders-page .ops-board-scroll',
+  '.packing-list-page .packing-board-shell',
+  '.bk-wrap .ledger-board',
+  '.digital-task-page .dtb-table-wrap',
+  '.courier-wrap .courier-table-scroll',
+  '.error-log-page .error-board-table-wrap',
+  '.cor-wrap .cor-table-wrap',
+  '.kpi-health-page .table-scroll',
+];
+for (const selector of liveMobileScrollContainers) {
+  assert.ok(responsiveCss.includes(selector), `The final mobile contract must target the live ${selector} container.`);
+}
+assert.match(responsiveCss, /\.orders-page \.ops-board-scroll,[\s\S]*overflow-x: auto !important;/, 'Live operational boards must scroll locally on phones.');
+assert.match(responsiveCss, /@media \(max-width: 360px\)[\s\S]*grid-template-columns: minmax\(0, 1fr\) !important;/, 'Very narrow phones must collapse metric cards to one column.');
+assert.match(responsiveCss, /font-size: 16px !important; \/\* Prevent iOS form zoom\. \*\//, 'Phone form controls must not trigger iOS page zoom.');
 
 console.log('Portal mobile responsive static checks passed.');
