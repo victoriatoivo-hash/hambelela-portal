@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 const js = fs.readFileSync(new URL('../assets/js/portal-view-bar.js', import.meta.url), 'utf8');
 const css = fs.readFileSync(new URL('../assets/css/portal-view-bar.css', import.meta.url), 'utf8');
+const footer = fs.readFileSync(new URL('../shared/footer.php', import.meta.url), 'utf8');
 
 assert.match(js, /const formAnchor = document\.createComment/);
 assert.match(js, /form\.before\(formAnchor\)/);
@@ -14,4 +15,5 @@ assert.match(js, /nodes: \[popover\]/);
 assert.match(css, /\.portal-view-bar-source\{display:none!important\}/);
 assert.match(css, /justify-content:flex-start!important/);
 assert.match(css, /\.portal-view-bar__search svg\{[^}]*visibility:visible/);
+assert.match(footer, /interactive4/, 'filter assets need an explicit cache-busting release suffix');
 console.log('portal view bar regression contract passed');
