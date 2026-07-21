@@ -1339,6 +1339,7 @@ try {
             }
             $stmt = db()->prepare('UPDATE ops_orders SET ' . $set . ' WHERE id = ?');
             $stmt->execute([$value, $orderId]);
+            ops_log_kpi_status_change('order', $orderId, (string) ($previousOrder['status'] ?? ''), $value, (int) ($previousOrder['assigned_packer_id'] ?? 0));
             ops_activity_log($value === 'completed' ? 'order_completed' : 'status_changed', 'order', $orderId, [
                 'field' => 'status',
                 'old_value' => (string) ($previousOrder['status'] ?? ''),
@@ -1475,6 +1476,12 @@ try {
         }
 
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $previousStatuses = [];
+        if ($field === 'status') {
+            foreach (ops_rows("SELECT id, status FROM ops_orders WHERE id IN ({$placeholders})", $ids) as $row) {
+                $previousStatuses[(int) $row['id']] = (string) ($row['status'] ?? '');
+            }
+        }
         $params = [];
         $set = $allowed[$field] . ' = ?';
         if ($field === 'assigned_packer_id') {
@@ -1514,6 +1521,7 @@ try {
 
         foreach ($ids as $id) {
             if ($field === 'status') {
+                kpi_foundation_log_status('order', $id, $previousStatuses[$id] ?? '', (string) $value, ops_current_employee_id(), ['source' => 'orders_board_bulk']);
                 ops_log_order_stage_event($id, (string) $value, [
                     'source' => 'orders_board_bulk',
                     'status' => $value,

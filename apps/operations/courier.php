@@ -407,6 +407,7 @@ function wb_update_overdue_and_reminders(): void
         $stmt = db()->prepare("UPDATE hambelela_waybills SET status = 'overdue' WHERE id IN ({$placeholders})");
         $stmt->execute($ids);
         foreach ($overdueRows as $row) {
+            kpi_foundation_log_status('waybill', (int) $row['id'], 'pending', 'overdue', ops_current_employee_id(), ['source' => 'waybill_sla']);
             if ($ceciliaId > 0) {
                 wb_log_sla((int) $row['id'], $ceciliaId, (string) $row['due_by'], null);
             }
@@ -1177,6 +1178,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $legacyStmt = db()->prepare("UPDATE ops_courier_waybills SET status = 'sent', sent_by = ?, sent_at = ? WHERE label_path = ?");
             foreach ($rows as $row) {
                 wb_log_sla((int) $row['id'], $currentEmployeeId, (string) $row['due_by'], $sentAt);
+                ops_log_kpi_status_change('waybill', (int) $row['id'], 'pending', 'sent', $currentEmployeeId);
                 $legacyStmt->execute([$currentEmployeeId, $sentAt, (string) $row['file_path']]);
             }
             ops_activity_log('courier_waybill_sent', 'courier_waybill_batch', 0, [

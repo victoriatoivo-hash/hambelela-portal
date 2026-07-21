@@ -6,6 +6,7 @@ require_once dirname(__DIR__, 2) . '/config.php';
 require_once BASE_PATH . '/shared/auth.php';
 require_once BASE_PATH . '/shared/database.php';
 require_once BASE_PATH . '/shared/notifications.php';
+require_once BASE_PATH . '/shared/kpi-foundation.php';
 
 const OPS_ORDER_STATUSES = [
     'new_order' => 'New Order',
@@ -368,6 +369,10 @@ function ops_business_minutes_between(?string $from, ?string $to): ?float
 
 function ops_log_kpi_status_change(string $module, int $recordId, ?string $oldStatus, ?string $newStatus, ?int $assignedEmployeeId = null, array $metadata = []): void
 {
+    $moduleMap = ['orders' => 'order', 'order' => 'order', 'packing' => 'packing', 'waybill' => 'waybill', 'task' => 'task', 'bookkeeping' => 'bookkeeping', 'website_update' => 'website_update'];
+    if ($newStatus !== null && isset($moduleMap[$module])) {
+        kpi_foundation_log_status($moduleMap[$module], $recordId, $oldStatus, $newStatus);
+    }
     if ($module === '' || $recordId <= 0 || !ops_table_exists('kpi_status_history')) {
         return;
     }

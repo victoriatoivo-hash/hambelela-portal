@@ -5,7 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/operations.php';
 require_once __DIR__ . '/owner-dashboard-data.php';
 
-require_login();
+require_role('owner_admin');
 
 $pageTitle = 'KPI Reports | ' . APP_NAME;
 $activeApp = 'kpi';
@@ -13,7 +13,7 @@ $ready = ops_database_ready();
 $message = null;
 $messageType = 'success';
 $currentKpiUser = current_user();
-$isKpiManager = user_has_role('owner_admin', 'supervisor_manager');
+$isKpiManager = user_has_role('owner_admin');
 $currentKpiEmployeeId = max(0, (int) ($currentKpiUser['id'] ?? 0));
 $requestedTab = preg_replace('/[^a-z0-9_-]/', '', (string) ($_GET['tab'] ?? 'overview')) ?: 'overview';
 $allowedPeriodPresets = ['today', 'yesterday', 'this_week', 'last_week', 'this_month', 'last_month', 'last_30_days', 'custom'];
@@ -439,6 +439,11 @@ function kpi_hr_leave_map(string $periodStart, string $periodEnd): array
 
 function kpi_setting(string $key, string $default): string
 {
+    if (ops_table_exists('kpi_settings')) {
+        $canonicalKey = str_starts_with($key, 'kpi_') ? substr($key, 4) : $key;
+        $rows = ops_rows('SELECT setting_value FROM kpi_settings WHERE setting_key = ? LIMIT 1', [$canonicalKey]);
+        if ($rows) return (string) $rows[0]['setting_value'];
+    }
     if (!ops_table_exists('ops_report_settings')) {
         return $default;
     }
@@ -449,6 +454,15 @@ function kpi_setting(string $key, string $default): string
 
 function kpi_save_setting(string $key, string $value): void
 {
+    if (ops_table_exists('kpi_settings')) {
+        $canonicalKey = str_starts_with($key, 'kpi_') ? substr($key, 4) : $key;
+        $canonical = db()->prepare(
+            "INSERT INTO kpi_settings (setting_key, setting_value, updated_by)
+             VALUES (?, ?, ?)
+             ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_by = VALUES(updated_by)"
+        );
+        $canonical->execute([$canonicalKey, $value, ops_current_employee_id() ?: null]);
+    }
     $stmt = db()->prepare(
         "INSERT INTO ops_report_settings (setting_key, setting_value)
          VALUES (?, ?)
@@ -2861,6 +2875,7 @@ function kpi_store_score_snapshots(string $period, array $scores): void
 }
 
 if ($ready && $isKpiManager) {
+    kpi_foundation_bootstrap();
     kpi_bootstrap();
 }
 
@@ -2873,6 +2888,24 @@ $settings = [
     'target_assignment_minutes' => (float) kpi_setting('kpi_target_assignment_minutes', '45'),
     'target_order_total_minutes' => (float) kpi_setting('kpi_target_order_total_minutes', '360'),
     'error_penalty_points' => (float) kpi_setting('kpi_error_penalty_points', '8'),
+];
+$foundationSettings = [
+    'data_start_date' => kpi_setting('data_start_date', '2026-07-01'),
+    'adoption_date' => kpi_setting('adoption_date', '2026-07-14'),
+    'target_fulfilment_hours' => kpi_setting('target_fulfilment_hours', '6'),
+    'on_time_dispatch_target_hours' => kpi_setting('on_time_dispatch_target_hours', '6'),
+    'waybill_overdue_threshold_hours' => kpi_setting('waybill_overdue_threshold_hours', '24'),
+    'website_update_lag_target_minutes' => kpi_setting('website_update_lag_target_minutes', '60'),
+    'stale_work_threshold_days' => kpi_setting('stale_work_threshold_days', '2'),
+    'weight_points_s' => kpi_setting('weight_points_s', '1'),
+    'weight_points_m' => kpi_setting('weight_points_m', '3'),
+    'weight_points_l' => kpi_setting('weight_points_l', '6'),
+    'weight_points_xl' => kpi_setting('weight_points_xl', '10'),
+    'working_days' => kpi_setting('working_days', '1,2,3,4,5'),
+    'shift_start' => kpi_setting('shift_start', '08:00'),
+    'shift_end' => kpi_setting('shift_end', '17:00'),
+    'late_grace_minutes' => kpi_setting('late_grace_minutes', '10'),
+    'composite_score_enabled' => kpi_setting('composite_score_enabled', '0'),
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$isKpiManager) {
@@ -2898,6 +2931,16 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 kpi_save_setting($key, number_format(max(0, (float) ($_POST[$key] ?? 0)), 2, '.', ''));
             }
             $message = 'KPI bonus and target settings saved.';
+        } elseif ($action === 'save_foundation_settings') {
+            foreach (array_keys($foundationSettings) as $key) {
+                $value = trim((string) ($_POST[$key] ?? $foundationSettings[$key]));
+                if (in_array($key, ['data_start_date', 'adoption_date'], true) && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+                    throw new RuntimeException('Enter valid KPI foundation dates.');
+                }
+                kpi_save_setting($key, substr($value, 0, 255));
+                $foundationSettings[$key] = $value;
+            }
+            $message = 'KPI foundation settings saved.';
         } elseif ($action === 'save_weights') {
             foreach (kpi_default_weights() as $group => $weights) {
                 foreach ($weights as $key => $row) {
@@ -3915,13 +3958,12 @@ include BASE_PATH . '/shared/sidebar.php';
                 </section>
             <?php endif; ?>
         <?php endif; ?>
-    <?php elseif (in_array($activeTab, ['attendance', 'website', 'hr', 'settings', 'performance-reports', 'audit-log'], true)): ?>
+    <?php elseif (in_array($activeTab, ['attendance', 'website', 'hr', 'performance-reports', 'audit-log'], true)): ?>
         <?php
         $pendingSections = [
             'attendance' => ['Attendance', 'Attendance records are not connected to a reliable portal data source for this period.'],
             'website' => ['Website Updates', 'Website update activity will appear here when the source events are available.'],
             'hr' => ['HR and Leave', 'HR and leave performance evidence is shown only when employee profiles are linked.'],
-            'settings' => ['KPI Settings', 'Scoring rules and thresholds remain owner/admin controlled.'],
             'performance-reports' => ['Performance Reports', 'Exportable performance reports will use the selected period and measured evidence.'],
             'audit-log' => ['Audit Log', 'KPI configuration and performance decision history will appear here when audit records are available.'],
         ];
@@ -4279,6 +4321,35 @@ include BASE_PATH . '/shared/sidebar.php';
                 </div>
             </div>
         </div>
+    </section>
+    <?php endif; ?>
+
+    <?php if ($activeTab === 'settings'): ?>
+    <section class="dashboard-grid kpi-management-grid">
+        <article class="panel">
+            <div class="section-row"><div><h2>KPI foundation settings</h2><p>Owner-only dates, workflow targets and fair packing weights used by the KPI data layer.</p></div></div>
+            <form class="kpi-settings-grid" method="post">
+                <input type="hidden" name="kpi_action" value="save_foundation_settings">
+                <label>Data start date<input name="data_start_date" type="date" value="<?= htmlspecialchars($foundationSettings['data_start_date'], ENT_QUOTES, 'UTF-8') ?>"></label>
+                <label>System adoption date<input name="adoption_date" type="date" value="<?= htmlspecialchars($foundationSettings['adoption_date'], ENT_QUOTES, 'UTF-8') ?>"></label>
+                <label>Fulfilment target (hours)<input name="target_fulfilment_hours" type="number" min="1" step="1" value="<?= htmlspecialchars($foundationSettings['target_fulfilment_hours'], ENT_QUOTES, 'UTF-8') ?>"></label>
+                <label>Dispatch target (hours)<input name="on_time_dispatch_target_hours" type="number" min="1" step="1" value="<?= htmlspecialchars($foundationSettings['on_time_dispatch_target_hours'], ENT_QUOTES, 'UTF-8') ?>"></label>
+                <label>Waybill overdue threshold (hours)<input name="waybill_overdue_threshold_hours" type="number" min="1" step="1" value="<?= htmlspecialchars($foundationSettings['waybill_overdue_threshold_hours'], ENT_QUOTES, 'UTF-8') ?>"></label>
+                <label>Website update target (minutes)<input name="website_update_lag_target_minutes" type="number" min="1" step="1" value="<?= htmlspecialchars($foundationSettings['website_update_lag_target_minutes'], ENT_QUOTES, 'UTF-8') ?>"></label>
+                <label>Stale work threshold (days)<input name="stale_work_threshold_days" type="number" min="1" step="1" value="<?= htmlspecialchars($foundationSettings['stale_work_threshold_days'], ENT_QUOTES, 'UTF-8') ?>"></label>
+                <label>S points<input name="weight_points_s" type="number" min="0" step="1" value="<?= htmlspecialchars($foundationSettings['weight_points_s'], ENT_QUOTES, 'UTF-8') ?>"></label>
+                <label>M points<input name="weight_points_m" type="number" min="0" step="1" value="<?= htmlspecialchars($foundationSettings['weight_points_m'], ENT_QUOTES, 'UTF-8') ?>"></label>
+                <label>L points<input name="weight_points_l" type="number" min="0" step="1" value="<?= htmlspecialchars($foundationSettings['weight_points_l'], ENT_QUOTES, 'UTF-8') ?>"></label>
+                <label>XL points<input name="weight_points_xl" type="number" min="0" step="1" value="<?= htmlspecialchars($foundationSettings['weight_points_xl'], ENT_QUOTES, 'UTF-8') ?>"></label>
+                <label>Working weekdays (1=Mon)<input name="working_days" type="text" value="<?= htmlspecialchars($foundationSettings['working_days'], ENT_QUOTES, 'UTF-8') ?>"></label>
+                <label>Shift start<input name="shift_start" type="time" value="<?= htmlspecialchars($foundationSettings['shift_start'], ENT_QUOTES, 'UTF-8') ?>"></label>
+                <label>Shift end<input name="shift_end" type="time" value="<?= htmlspecialchars($foundationSettings['shift_end'], ENT_QUOTES, 'UTF-8') ?>"></label>
+                <label>Late grace (minutes)<input name="late_grace_minutes" type="number" min="0" step="1" value="<?= htmlspecialchars($foundationSettings['late_grace_minutes'], ENT_QUOTES, 'UTF-8') ?>"></label>
+                <label>Composite score<select name="composite_score_enabled"><option value="0" <?= $foundationSettings['composite_score_enabled'] === '0' ? 'selected' : '' ?>>Disabled</option><option value="1" <?= $foundationSettings['composite_score_enabled'] === '1' ? 'selected' : '' ?>>Force enabled</option></select></label>
+                <div><button class="button primary" type="submit"><i data-lucide="save"></i> Save foundation settings</button></div>
+            </form>
+            <?php if ($foundationSettings['composite_score_enabled'] === '1'): ?><p class="kpi-warning-text">Insufficient data — scores are indicative only.</p><?php endif; ?>
+        </article>
     </section>
     <?php endif; ?>
 

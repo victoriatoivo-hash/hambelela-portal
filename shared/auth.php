@@ -94,6 +94,8 @@ function require_login(): void
 
 function logout_user(): void
 {
+    require_once __DIR__ . '/kpi-foundation.php';
+    kpi_foundation_close_session();
     $_SESSION = [];
     session_destroy();
 }

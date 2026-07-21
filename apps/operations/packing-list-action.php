@@ -2321,6 +2321,7 @@ try {
             echo json_encode(['ok' => false, 'message' => 'This Front Desk website update is already confirmed and locked.']);
             exit;
         }
+        ops_log_kpi_status_change('website_update', $taskId, 'pending', 'complete', $employeeId);
 
         $employeeRows = ops_rows('SELECT e.id, e.full_name, r.role_key, r.name AS role_name FROM ops_employees e JOIN ops_roles r ON r.id = e.role_id WHERE e.id = ? LIMIT 1', [$employeeId]);
         $employee = $employeeRows[0] ?? ['id' => $employeeId, 'full_name' => current_user()['name'] ?? 'User not recorded', 'role_key' => current_role_key()];
@@ -2375,6 +2376,8 @@ try {
             'notes' => 'packer_notes',
             'date_loaded' => 'date_loaded',
             'date_completed' => 'date_completed',
+            'weight_class' => 'weight_class',
+            'unit_weight_kg' => 'unit_weight_kg',
         ];
 
         if (!isset($allowed[$field])) {
@@ -2394,6 +2397,15 @@ try {
 
         if ($field === 'assigned_employee_id' && !$canManage) {
             throw new RuntimeException('You do not have permission to update this field.');
+        }
+        if (in_array($field, ['weight_class', 'unit_weight_kg'], true) && !$canManage) {
+            throw new RuntimeException('Only an administrator can update packing weight classes.');
+        }
+        if ($field === 'weight_class' && !in_array($value, ['S', 'M', 'L', 'XL'], true)) {
+            throw new RuntimeException('Choose S, M, L or XL.');
+        }
+        if ($field === 'unit_weight_kg') {
+            $value = $value === '' ? null : number_format(max(0, (float) $value), 3, '.', '');
         }
         if ($field === 'packing_website_confirmed' && !$canManage) {
             $owned = ops_rows(
@@ -2559,6 +2571,7 @@ try {
             if ($field === 'packing_status') {
                 $before = $previousStatusRows[(int) $id] ?? [];
                 $after = $updatedStatusById[(int) $id] ?? [];
+                ops_log_kpi_status_change('packing', (int) $id, isset($before['packing_status']) ? (string) $before['packing_status'] : null, (string) ($after['packing_status'] ?? $value));
                 $beforeDate = $before['date_completed'] ?? null;
                 $afterDate = $after['date_completed'] ?? null;
                 $activityMeta['previous_status'] = $before['packing_status'] ?? null;
