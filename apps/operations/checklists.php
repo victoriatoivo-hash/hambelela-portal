@@ -1016,12 +1016,12 @@ include BASE_PATH . '/shared/sidebar.php';
             </header>
 
             <nav class="task-panel-tabs portal-panel-tabs" aria-label="Task detail sections">
-                <button type="button" class="portal-panel-tab" data-task-panel-jump="task-details-<?= $panelId ?>"><i data-lucide="layout-list" aria-hidden="true"></i><span>Details</span></button>
-                <button type="button" class="portal-panel-tab" data-task-panel-jump="task-checklist-<?= $panelId ?>"><i data-lucide="list-checks" aria-hidden="true"></i><span>Checklist</span></button>
-                <button type="button" class="portal-panel-tab" data-task-panel-jump="task-notes-<?= $panelId ?>"><i data-lucide="notebook-pen" aria-hidden="true"></i><span>Notes</span></button>
-                <button type="button" class="portal-panel-tab" data-task-panel-jump="task-files-<?= $panelId ?>"><i data-lucide="paperclip" aria-hidden="true"></i><span>Files</span></button>
-                <button type="button" class="portal-panel-tab" data-task-panel-jump="task-activity-<?= $panelId ?>"><i data-lucide="history" aria-hidden="true"></i><span>Activity</span></button>
-                <?php if ($taskKind === 'recurring'): ?><button type="button" class="portal-panel-tab" data-task-panel-jump="task-details-<?= $panelId ?>"><i data-lucide="repeat-2" aria-hidden="true"></i><span>Schedule</span></button><?php endif; ?>
+                <button type="button" class="portal-panel-tab is-active" aria-selected="true" data-task-panel-jump="task-details-<?= $panelId ?>"><i data-lucide="layout-list" aria-hidden="true"></i><span>Details</span></button>
+                <button type="button" class="portal-panel-tab" aria-selected="false" data-task-panel-jump="task-checklist-<?= $panelId ?>"><i data-lucide="list-checks" aria-hidden="true"></i><span>Checklist</span></button>
+                <button type="button" class="portal-panel-tab" aria-selected="false" data-task-panel-jump="task-notes-<?= $panelId ?>"><i data-lucide="notebook-pen" aria-hidden="true"></i><span>Notes</span></button>
+                <button type="button" class="portal-panel-tab" aria-selected="false" data-task-panel-jump="task-files-<?= $panelId ?>"><i data-lucide="paperclip" aria-hidden="true"></i><span>Files</span></button>
+                <button type="button" class="portal-panel-tab" aria-selected="false" data-task-panel-jump="task-activity-<?= $panelId ?>"><i data-lucide="history" aria-hidden="true"></i><span>Activity</span></button>
+                <?php if ($taskKind === 'recurring'): ?><button type="button" class="portal-panel-tab" aria-selected="false" data-task-panel-jump="task-details-<?= $panelId ?>"><i data-lucide="repeat-2" aria-hidden="true"></i><span>Schedule</span></button><?php endif; ?>
             </nav>
 
             <div class="task-details-body" id="task-details-<?= $panelId ?>">
@@ -1848,6 +1848,12 @@ document.addEventListener('DOMContentLoaded', () => {
 document.addEventListener('click', (event) => {
   const panelJump = event.target.closest('[data-task-panel-jump]');
   if (panelJump) {
+    const tabs = panelJump.closest('.task-panel-tabs')?.querySelectorAll('[data-task-panel-jump]') || [];
+    tabs.forEach((tab) => {
+      const selected = tab === panelJump;
+      tab.classList.toggle('is-active', selected);
+      tab.setAttribute('aria-selected', selected ? 'true' : 'false');
+    });
     const target = document.getElementById(panelJump.dataset.taskPanelJump);
     target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     return;
