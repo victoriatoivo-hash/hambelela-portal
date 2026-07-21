@@ -2185,7 +2185,7 @@ body.is-resizing-packing-column {
     overflow: visible;
 }
 
-/* One hidden-native viewport and one permanently visible synchronized scrollbar. */
+/* Each expanded month owns its table scroll and a synchronized sticky scrollbar. */
 html:has(body.packing-list-page),
 body.packing-list-page {
     max-width: 100%;
@@ -2206,20 +2206,19 @@ body.packing-list-page {
 }
 
 .packing-list-page .packing-list-section {
-    overflow: hidden !important;
+    overflow: visible;
 }
 
 .packing-list-page .packing-list-grid,
 .packing-list-page .packing-list-grid > .packing-date-groups {
-    width: max-content;
-    min-width: max(100%, 1800px);
-    max-width: none;
-    flex-shrink: 0;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
     box-sizing: border-box;
 }
 
 .packing-list-page .packing-board-shell {
-    overflow: hidden !important;
+    overflow: visible;
 }
 
 .packing-list-page .packing-list-viewport {
@@ -2227,26 +2226,38 @@ body.packing-list-page {
     width: 100%;
     max-width: 100%;
     min-width: 0;
-    overflow-x: auto;
+    overflow: visible;
     overflow-y: visible;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-    -webkit-overflow-scrolling: touch;
     box-sizing: border-box;
 }
 
-.packing-list-page .packing-list-viewport::-webkit-scrollbar {
-    display: none;
-    width: 0;
-    height: 0;
-}
-
-.packing-list-page .packing-list-viewport .packing-month-scroll,
 .packing-list-page .packing-list-viewport .packing-group-table-wrap,
 .packing-list-page .packing-list-viewport .packing-date-body,
 .packing-list-page .packing-list-viewport .packing-month-body {
     max-width: none;
     overflow-x: visible !important;
+}
+
+.packing-list-page .packing-list-viewport .packing-month-scroll {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto !important;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    -webkit-overflow-scrolling: touch;
+}
+
+.packing-list-page .packing-list-viewport .packing-month-scroll::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+}
+
+.packing-list-page .packing-list-viewport .packing-month-scroll .packing-group-table-wrap {
+    width: max-content;
+    min-width: 100%;
 }
 
 .packing-list-page .packing-list-viewport .packing-board-table {
@@ -2255,17 +2266,17 @@ body.packing-list-page {
     table-layout: fixed !important;
 }
 
-.packing-list-page .packing-list-bottom-scroll {
-    display: block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
+.packing-list-page .packing-group-bottom-scroll {
+    position: sticky;
+    bottom: 0;
+    z-index: 18;
     width: 100%;
     max-width: 100%;
     min-width: 0;
     height: 16px;
-    margin: 8px 0 0;
+    margin: 0;
     padding: 0;
-    overflow-x: scroll !important;
+    overflow-x: scroll;
     overflow-y: hidden;
     background: #FDF6EE;
     border: 1px solid rgba(171, 54, 25, .24);
@@ -2275,30 +2286,33 @@ body.packing-list-page {
     box-sizing: border-box;
 }
 
-.packing-list-page .packing-list-scroll-width {
+.packing-list-page .packing-group-bottom-scroll[hidden] {
+    display: none;
+}
+
+.packing-list-page .packing-group-scroll-width {
     height: 1px;
-    min-width: 1800px;
     pointer-events: none;
 }
 
-.packing-list-page .packing-list-bottom-scroll::-webkit-scrollbar {
+.packing-list-page .packing-group-bottom-scroll::-webkit-scrollbar {
     display: block !important;
     height: 14px !important;
 }
 
-.packing-list-page .packing-list-bottom-scroll::-webkit-scrollbar-track {
+.packing-list-page .packing-group-bottom-scroll::-webkit-scrollbar-track {
     background: #FDF6EE;
     border-radius: 999px;
 }
 
-.packing-list-page .packing-list-bottom-scroll::-webkit-scrollbar-thumb {
+.packing-list-page .packing-group-bottom-scroll::-webkit-scrollbar-thumb {
     min-width: 48px;
     background: #AB3619;
     border: 3px solid #FDF6EE;
     border-radius: 999px;
 }
 
-.packing-list-page .packing-list-bottom-scroll::-webkit-scrollbar-thumb:hover {
+.packing-list-page .packing-group-bottom-scroll::-webkit-scrollbar-thumb:hover {
     background: #721B1A;
 }
 .packing-bulk-bar {

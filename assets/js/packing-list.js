@@ -2,10 +2,6 @@
   const config = window.HambelelaPacking || {};
   const page = document.querySelector('.packing-list-page');
   const body = document.getElementById('packing-list-body');
-  const packingListViewport = document.getElementById('packingListViewport');
-  const packingListGrid = document.getElementById('packingListGrid');
-  const packingListBottomScroll = document.getElementById('packingListBottomScroll');
-  const packingListScrollWidth = document.getElementById('packingListScrollWidth');
   const labelMenu = document.getElementById('packing-label-menu');
   let priorityPopup = null;
   let priorityPopupTrigger = null;
@@ -41,42 +37,68 @@
 
   if (!body || !config.dataUrl || !config.actionUrl) return;
 
-  let syncingPackingViewport = false;
-  let syncingPackingBottomScroll = false;
+  let packingGroupScrollControllers = [];
 
-  function updatePackingListScrollbar() {
-    if (!packingListViewport || !packingListGrid || !packingListBottomScroll || !packingListScrollWidth) return;
-    const fullTableWidth = Math.max(packingListGrid.scrollWidth, packingListViewport.clientWidth + 1);
-    packingListScrollWidth.style.width = `${fullTableWidth}px`;
-    packingListScrollWidth.style.minWidth = `${fullTableWidth}px`;
-    packingListBottomScroll.hidden = false;
-    packingListBottomScroll.scrollLeft = packingListViewport.scrollLeft;
+  function destroyPackingGroupScrollbars() {
+    packingGroupScrollControllers.forEach((controller) => {
+      controller.source.removeEventListener('scroll', controller.onSourceScroll);
+      controller.proxy.removeEventListener('scroll', controller.onProxyScroll);
+      controller.observer?.disconnect();
+    });
+    packingGroupScrollControllers = [];
   }
 
-  function initialisePackingListScrollbar() {
-    if (!packingListViewport || !packingListGrid || !packingListBottomScroll || !packingListScrollWidth) return;
-    packingListViewport.addEventListener('scroll', () => {
-      if (syncingPackingBottomScroll) return;
-      syncingPackingViewport = true;
-      packingListBottomScroll.scrollLeft = packingListViewport.scrollLeft;
-      syncingPackingViewport = false;
-    }, { passive: true });
-    packingListBottomScroll.addEventListener('scroll', () => {
-      if (syncingPackingViewport) return;
-      syncingPackingBottomScroll = true;
-      packingListViewport.scrollLeft = packingListBottomScroll.scrollLeft;
-      syncingPackingBottomScroll = false;
-    }, { passive: true });
-    if ('ResizeObserver' in window) {
-      const observer = new ResizeObserver(updatePackingListScrollbar);
-      observer.observe(packingListViewport);
-      observer.observe(packingListGrid);
+  function updatePackingGroupScrollbar(controller) {
+    const { group, source, proxy, spacer } = controller;
+    if (!group.isConnected || group.classList.contains('is-collapsed') || source.closest('[hidden]')) {
+      proxy.hidden = true;
+      return;
     }
-    updatePackingListScrollbar();
-    requestAnimationFrame(updatePackingListScrollbar);
+
+    const table = source.querySelector('.packing-board-table');
+    const contentWidth = Math.max(source.scrollWidth, table?.scrollWidth || 0);
+    const hasOverflow = contentWidth > source.clientWidth + 1;
+    spacer.style.width = `${contentWidth}px`;
+    spacer.style.minWidth = `${contentWidth}px`;
+    proxy.hidden = !hasOverflow;
+    if (hasOverflow && Math.abs(proxy.scrollLeft - source.scrollLeft) > 1) {
+      proxy.scrollLeft = source.scrollLeft;
+    }
   }
 
-  initialisePackingListScrollbar();
+  function initialisePackingGroupScrollbars() {
+    destroyPackingGroupScrollbars();
+    body.querySelectorAll('[data-packing-month-group]').forEach((group) => {
+      const source = group.querySelector('[data-packing-group-scroll]');
+      const proxy = group.querySelector('[data-packing-group-bottom-scroll]');
+      const spacer = group.querySelector('[data-packing-group-scroll-width]');
+      if (!source || !proxy || !spacer) return;
+
+      const controller = { group, source, proxy, spacer, syncingSource: false, syncingProxy: false, observer: null };
+      controller.onSourceScroll = () => {
+        if (controller.syncingProxy) return;
+        controller.syncingSource = true;
+        proxy.scrollLeft = source.scrollLeft;
+        controller.syncingSource = false;
+      };
+      controller.onProxyScroll = () => {
+        if (controller.syncingSource) return;
+        controller.syncingProxy = true;
+        source.scrollLeft = proxy.scrollLeft;
+        controller.syncingProxy = false;
+      };
+      source.addEventListener('scroll', controller.onSourceScroll, { passive: true });
+      proxy.addEventListener('scroll', controller.onProxyScroll, { passive: true });
+      if ('ResizeObserver' in window) {
+        controller.observer = new ResizeObserver(() => updatePackingGroupScrollbar(controller));
+        controller.observer.observe(source);
+        const table = source.querySelector('.packing-board-table');
+        if (table) controller.observer.observe(table);
+      }
+      packingGroupScrollControllers.push(controller);
+      updatePackingGroupScrollbar(controller);
+    });
+  }
 
   let tasks = [];
   let packers = [];
@@ -590,7 +612,8 @@
   }
 
   function capturePackingScrollState(source) {
-    const container = source?.closest('.packing-list-viewport')
+    const container = source?.closest('[data-packing-group-scroll]')
+      || source?.closest('.packing-list-viewport')
       || document.querySelector('[data-packing-list-table-scroll]');
     return { windowX: window.scrollX, windowY: window.scrollY, container, left: container?.scrollLeft || 0, top: container?.scrollTop || 0, active: document.activeElement };
   }
@@ -1656,7 +1679,7 @@
           </div>
         </button>
         <div class="packing-month-content" data-packing-month-content${isCollapsed ? ' hidden' : ''}>
-          <div class="packing-month-scroll">
+          <div class="packing-month-scroll" data-packing-group-scroll role="region" aria-label="${esc(groupLabel(key))} Packing List table" tabindex="0">
             <div class="packing-date-body packing-month-body packing-group-table-wrap">
               <table class="packing-board-table packing-group-table">
                 ${renderColGroup()}
@@ -1685,6 +1708,9 @@
               </table>
             </div>
           </div>
+          <div class="packing-group-bottom-scroll" data-packing-group-bottom-scroll aria-label="Scroll ${esc(groupLabel(key))} Packing List horizontally" tabindex="0" hidden>
+            <div class="packing-group-scroll-width" data-packing-group-scroll-width></div>
+          </div>
         </div>
       </section>
     `;
@@ -1712,7 +1738,7 @@
       updateFilterBadge();
       updateSelection();
       if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
-      requestAnimationFrame(updatePackingListScrollbar);
+      requestAnimationFrame(initialisePackingGroupScrollbars);
       return;
     }
     const groups = visible.reduce((memo, task) => {
@@ -1728,7 +1754,7 @@
     updateFilterBadge();
     updateSelection();
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
-    requestAnimationFrame(updatePackingListScrollbar);
+    requestAnimationFrame(initialisePackingGroupScrollbars);
     if (typeof window.initialisePortalDatePickers === 'function') window.initialisePortalDatePickers(body);
     renderCustomHeaders();
     initialisePackingEditableCells(body);
@@ -3291,6 +3317,7 @@
           });
           const groupKey = group.dataset.monthKey || group.dataset.groupKey || 'month';
           sessionStorage.setItem(`packing_month_collapsed_${groupKey}`, String(isCollapsed));
+          requestAnimationFrame(initialisePackingGroupScrollbars);
           return;
         }
 

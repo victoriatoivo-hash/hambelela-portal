@@ -144,9 +144,6 @@ include BASE_PATH . '/shared/sidebar.php';
                 </div>
             </div>
         </div>
-        <div class="packing-list-bottom-scroll" id="packingListBottomScroll" aria-label="Scroll Packing List horizontally" tabindex="0">
-            <div class="packing-list-scroll-width" id="packingListScrollWidth"></div>
-        </div>
     </section>
 
     <div class="label-menu" id="packing-label-menu" hidden></div>
