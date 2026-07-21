@@ -25,7 +25,6 @@ $canManageStatus = $isOwnerErrorUser;
 $showFullErrorLog = $isOwnerErrorUser;
 
 $severityLabels = ['critical' => 'Critical', 'high' => 'High', 'medium' => 'Medium', 'low' => 'Low'];
-$causeLabels = ['employee' => 'Employee', 'process' => 'Process', 'system' => 'System', 'supplier' => 'Supplier'];
 $statusLabels = ['open' => 'Not Resolved', 'resolved' => 'Resolved'];
 $errorCategories = [
     'wrong_product_packed' => 'Wrong Product Packed',
@@ -100,7 +99,6 @@ function error_bootstrap_schema(): void
         'repeat_note' => "ALTER TABLE ops_error_logs ADD COLUMN repeat_note TEXT NULL AFTER repeat_issue",
         'attachment_paths' => "ALTER TABLE ops_error_logs ADD COLUMN attachment_paths TEXT NULL AFTER resolution",
         'updated_at' => "ALTER TABLE ops_error_logs ADD COLUMN updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER logged_at",
-        'cause' => "ALTER TABLE ops_error_logs ADD COLUMN cause ENUM('employee','process','system','supplier') NOT NULL DEFAULT 'process' AFTER severity",
         'deleted_at' => "ALTER TABLE ops_error_logs ADD COLUMN deleted_at DATETIME NULL AFTER updated_at",
         'deleted_by' => "ALTER TABLE ops_error_logs ADD COLUMN deleted_by INT NULL AFTER deleted_at",
     ];
@@ -202,7 +200,6 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $category = ops_post_string('category', 100);
             $otherCategory = ops_post_string('other_category', 100);
             $severity = ops_post_string('severity', 20);
-            $cause = ops_post_string('cause', 20) ?: 'process';
             $people = array_values(array_filter(array_map('intval', $_POST['people_involved'] ?? [])));
             if ($title === '') throw new RuntimeException('Error title is required.');
             if ($description === '') throw new RuntimeException('Description is required.');
@@ -213,7 +210,6 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('Choose an error category.');
             }
             if (!array_key_exists($severity, $severityLabels)) throw new RuntimeException('Choose a severity.');
-            if (!array_key_exists($cause, $causeLabels)) throw new RuntimeException('Choose a cause.');
             if (!$people) throw new RuntimeException('Select at least one person involved.');
 
             $primaryEmployeeId = $people[0] ?? null;
@@ -222,8 +218,8 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!array_key_exists($status, $statusLabels)) $status = 'open';
             $stmt = db()->prepare(
                 "INSERT INTO ops_error_logs
-                 (error_title, employee_id, people_involved, order_id, order_reference, category, severity, cause, description, customer_impact, financial_impact, resolution, repeat_issue, repeat_note, status, logged_by)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                 (error_title, employee_id, people_involved, order_id, order_reference, category, severity, description, customer_impact, financial_impact, resolution, repeat_issue, repeat_note, status, logged_by)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             );
             $stmt->execute([
                 $title,
@@ -233,7 +229,6 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $orderReference ?: null,
                 $category,
                 $severity,
-                $cause,
                 $description,
                 '',
                 (float) ($_POST['financial_impact'] ?? 0),
@@ -280,7 +275,6 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $category = ops_post_string('category', 100);
             $otherCategory = ops_post_string('other_category', 100);
             $severity = ops_post_string('severity', 20);
-            $cause = ops_post_string('cause', 20) ?: 'process';
             $people = array_values(array_filter(array_map('intval', $_POST['people_involved'] ?? [])));
             if ($title === '') throw new RuntimeException('Error title is required.');
             if ($description === '') throw new RuntimeException('Description is required.');
@@ -291,7 +285,6 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('Choose an error category.');
             }
             if (!array_key_exists($severity, $severityLabels)) throw new RuntimeException('Choose a severity.');
-            if (!array_key_exists($cause, $causeLabels)) throw new RuntimeException('Choose a cause.');
             if (!$people) throw new RuntimeException('Select at least one person involved.');
 
             $status = ops_post_string('status', 30) ?: 'open';
@@ -301,7 +294,6 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 'order_reference' => ops_post_string('order_reference', 60) ?: null,
                 'category' => $category,
                 'severity' => $severity,
-                'cause' => $cause,
                 'people_involved' => $people,
                 'description' => $description,
                 'financial_impact' => (float) ($_POST['financial_impact'] ?? 0),
@@ -321,7 +313,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $stmt = db()->prepare(
                 "UPDATE ops_error_logs
-                 SET error_title = ?, employee_id = ?, people_involved = ?, order_reference = ?, category = ?, severity = ?, cause = ?, description = ?, financial_impact = ?, resolution = ?, repeat_issue = ?, status = ?
+                 SET error_title = ?, employee_id = ?, people_involved = ?, order_reference = ?, category = ?, severity = ?, description = ?, financial_impact = ?, resolution = ?, repeat_issue = ?, status = ?
                  WHERE id = ? AND deleted_at IS NULL"
             );
             $stmt->execute([
@@ -331,7 +323,6 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $newData['order_reference'],
                 $newData['category'],
                 $newData['severity'],
-                $newData['cause'],
                 $newData['description'],
                 $newData['financial_impact'],
                 $newData['resolution'],
@@ -743,13 +734,6 @@ include BASE_PATH . '/shared/sidebar.php';
                             <?php endforeach; ?>
                         </div>
                     </div>
-                    <label>Cause
-                        <select name="cause" required>
-                            <?php foreach ($causeLabels as $value => $label): ?>
-                                <option value="<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </label>
                     <div class="incident-field incident-pill-field status-choice status-group" id="status-group">
                         <label class="incident-pill-label" for="statusValue">Status <span class="required">*</span></label>
                         <input type="hidden" name="status" id="statusValue" value="open" required>
@@ -827,7 +811,6 @@ include BASE_PATH . '/shared/sidebar.php';
             'category' => array_key_exists($storedCategory, $errorCategories) ? $storedCategory : 'other',
             'other_category' => array_key_exists($storedCategory, $errorCategories) ? '' : $storedCategory,
             'severity' => $severity,
-            'cause' => (string) ($error['cause'] ?? 'process'),
             'status' => $status,
             'description' => (string) ($error['description'] ?? ''),
             'people_involved' => $peopleIds,
@@ -979,7 +962,6 @@ function openIncidentForm(mode = 'create', data = {}) {
     form.elements.error_title.value = data.error_title || '';
     form.elements.order_reference.value = data.order_reference || '';
     form.elements.description.value = data.description || '';
-    form.elements.cause.value = data.cause || 'process';
     form.elements.resolution.value = data.resolution || '';
     form.elements.financial_impact.value = data.financial_impact || '0';
     form.querySelectorAll('[name="people_involved[]"]').forEach((checkbox) => {

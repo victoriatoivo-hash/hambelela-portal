@@ -359,7 +359,6 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = db()->prepare("UPDATE ops_checklist_tasks SET {$set} WHERE {$scope}");
             $stmt->execute([...$updateParams, ...$scopeParams]);
             if ($stmt->rowCount() < 1 && $previousStatus !== $status) throw new RuntimeException('The task status could not be saved.');
-            ops_log_kpi_status_change('task', $taskId, $previousStatus, $status);
             ops_activity_log($status === 'complete' ? 'task_completed' : ($previousStatus === 'complete' ? 'task_reopened' : 'task_status_changed'), 'checklist_task', $taskId, [
                 'previous_status' => $previousStatus,
                 'status' => $status,
@@ -400,12 +399,8 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             } elseif ($bulkAction === 'status') {
                 $value = checklist_normalize_status(ops_post_string('value', 30));
                 if (!array_key_exists($value, $statuses)) throw new RuntimeException('Choose a valid status.');
-                $beforeBulkStatuses = ops_rows("SELECT id, status FROM ops_checklist_tasks WHERE id IN ({$placeholders}) AND deleted_at IS NULL", $taskIds);
                 $stmt = db()->prepare("UPDATE ops_checklist_tasks SET status = ? WHERE id IN ({$placeholders}) AND deleted_at IS NULL");
                 $stmt->execute([$value, ...$taskIds]);
-                foreach ($beforeBulkStatuses as $beforeBulkStatus) {
-                    ops_log_kpi_status_change('task', (int) $beforeBulkStatus['id'], (string) $beforeBulkStatus['status'], $value);
-                }
             } elseif ($bulkAction === 'priority') {
                 $value = ops_post_string('value', 30);
                 if (!array_key_exists($value, $priorities)) throw new RuntimeException('Choose a valid priority.');
@@ -464,11 +459,8 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $deadline = str_replace('T', ' ', ops_post_string('deadline', 30));
             $status = checklist_normalize_status(ops_post_string('status', 30));
             if (!array_key_exists($status, $statuses)) $status = 'pending';
-            $oldRows = ops_rows('SELECT status FROM ops_checklist_tasks WHERE id = ? LIMIT 1', [$taskId]);
-            $oldStatus = (string) ($oldRows[0]['status'] ?? '');
             $stmt = db()->prepare("UPDATE ops_checklist_tasks SET assigned_employee_id = ?, deadline = ?, priority = ?, status = ? WHERE id = ?");
             $stmt->execute([$assignedId > 0 ? $assignedId : null, $deadline ?: null, ops_post_string('priority', 30) ?: 'medium', $status, $taskId]);
-            kpi_foundation_log_status('task', $taskId, $oldStatus, $status, $currentEmployeeId, ['source' => 'task_admin_update']);
             ops_activity_log('task_admin_updated', 'checklist_task', $taskId, ['status' => $status, 'assigned_employee_id' => $assignedId]);
             notifications_notify_task_assigned($taskId, $assignedId > 0 ? $assignedId : null, 'Checklist task');
             $message = 'Task updated.';
@@ -478,7 +470,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $status = checklist_normalize_status(ops_post_string('status', 30));
             if (!array_key_exists($status, $statuses)) $status = 'pending';
             $checked = array_values(array_filter(array_map('strval', $_POST['checked_items'] ?? [])));
-            $taskRows = ops_rows("SELECT checklist_items, checklist_type, status FROM ops_checklist_tasks WHERE {$scope} LIMIT 1", $scopeParams);
+            $taskRows = ops_rows("SELECT checklist_items, checklist_type FROM ops_checklist_tasks WHERE {$scope} LIMIT 1", $scopeParams);
             if (!$taskRows) throw new RuntimeException('Task was not found or is not assigned to you.');
             $taskTypeForProof = (string) ($taskRows[0]['checklist_type'] ?? '');
             $note = ops_post_string('completion_note', 1500);
@@ -511,7 +503,6 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $stmt = db()->prepare("UPDATE ops_checklist_tasks SET {$set} WHERE {$scope}");
             $stmt->execute([...$params, ...$scopeParams]);
-            kpi_foundation_log_status('task', $taskId, (string) ($taskRows[0]['status'] ?? ''), $status, $currentEmployeeId, ['source' => 'task_progress']);
             ops_activity_log('task_progress_updated', 'checklist_task', $taskId, ['status' => $status, 'checked_items' => $checked]);
             $message = 'Task saved.';
         }

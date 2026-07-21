@@ -6,7 +6,6 @@ require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/shared/auth.php';
 require_once __DIR__ . '/shared/database.php';
 require_once __DIR__ . '/shared/login-security.php';
-require_once __DIR__ . '/shared/kpi-foundation.php';
 require_once __DIR__ . '/shared/temporary-access-codes.php';
 
 if (($_GET['action'] ?? '') === 'logout') {
@@ -195,7 +194,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'source' => 'database',
                 ];
                 record_login_event($_SESSION['user'], 'database');
-                kpi_foundation_open_session((int) $_SESSION['user']['id']);
                 header('Location: index.php');
                 exit;
             }
@@ -225,7 +223,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['login_type'] = 'temporary_code';
                 $_SESSION['must_change_access_code'] = true;
                 record_login_event($_SESSION['user'], 'temporary_code');
-                kpi_foundation_open_session((int) $_SESSION['user']['id']);
                 record_security_event('temporary_access_code_used', (int) $employee['id']);
                 header('Location: change-access-code.php', true, 303);
                 exit;

@@ -342,7 +342,6 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             );
             $stmt->execute([$date, $type, $description, $cashIn, $cashOut, ops_post_string('notes', 1500), $employeeId, $ledgerUserId, $ledgerUserName]);
             $id = (int) db()->lastInsertId();
-            ops_log_kpi_status_change('bookkeeping', $id, null, 'active', $employeeId);
             cashbook_log(
                 $ledgerUserId,
                 $ledgerUserName,

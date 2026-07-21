@@ -33,7 +33,6 @@ try {
     $employeeId = ops_current_employee_id();
 
     if ($employeeId) {
-        kpi_foundation_heartbeat($employeeId);
         $stmt = db()->prepare(
             "INSERT INTO ops_board_presence (employee_id, page, path, last_seen_at)
              VALUES (?, ?, ?, NOW())
