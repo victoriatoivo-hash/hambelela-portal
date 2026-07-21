@@ -18,11 +18,11 @@ function portal_feature_permissions(): array
             'error_log', 'settings', 'notifications', 'courier', 'hr',
             'operations', 'barcode',
         ],
-        'front_desk_admin' => ['dashboard', 'orders', 'bookkeeping', 'packing_list', 'courier', 'hr', 'notifications', 'task_management', 'error_log', 'kpi_dashboard'],
-        'front_desk_admin_employee' => ['dashboard', 'orders', 'bookkeeping', 'packing_list', 'courier', 'hr', 'notifications', 'task_management', 'error_log', 'kpi_dashboard'],
-        'packer' => ['dashboard', 'orders', 'bookkeeping', 'packing_list', 'courier', 'hr', 'notifications', 'task_management', 'kpi_dashboard'],
-        'packer_production_staff' => ['dashboard', 'orders', 'bookkeeping', 'packing_list', 'courier', 'hr', 'notifications', 'task_management', 'kpi_dashboard'],
-        'supervisor_manager' => ['dashboard', 'orders', 'bookkeeping', 'packing_list', 'courier', 'hr', 'notifications', 'task_management', 'kpi_dashboard'],
+        'front_desk_admin' => ['packing_list', 'bookkeeping', 'cash_tools'],
+        'front_desk_admin_employee' => ['packing_list', 'bookkeeping', 'cash_tools'],
+        'packer' => ['packing_list', 'bookkeeping', 'cash_tools'],
+        'packer_production_staff' => ['packing_list', 'bookkeeping', 'cash_tools'],
+        'supervisor_manager' => ['packing_list', 'bookkeeping', 'cash_tools'],
     ];
 }
 
@@ -31,10 +31,10 @@ function portal_role_can_access_feature(string $roleKey, string $featureKey): bo
     $permissions = portal_feature_permissions();
     $roleKey = normalise_portal_role($roleKey);
 
-    // Core operational pages are shared employee workspace features. Keep
-    // them available to every authenticated staff role, including custom role
-    // keys created after this permission map was introduced.
-    if ($roleKey !== 'guest' && in_array($featureKey, ['notifications', 'courier', 'orders', 'bookkeeping', 'task_management'], true)) {
+    // The staged employee workspace currently exposes exactly these three
+    // operational features. Custom authenticated staff roles receive the same
+    // baseline without duplicating route or sidebar permission logic.
+    if ($roleKey !== 'guest' && $roleKey !== 'owner_admin' && in_array($featureKey, ['packing_list', 'bookkeeping', 'cash_tools'], true)) {
         return true;
     }
 

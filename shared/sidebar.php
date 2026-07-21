@@ -36,7 +36,7 @@ $portalNavItems = [
     ['id' => 'portal-dashboard', 'label' => 'Dashboard', 'icon' => 'dashboard', 'href' => '/index.php', 'match' => ['/index.php']],
     ['id' => 'operations-orders', 'label' => 'Orders', 'icon' => 'orders', 'href' => BASE_URL . '/apps/operations/orders-board.php', 'match' => ['/apps/operations/orders-board.php']],
     ['id' => 'operations-bookkeeping', 'label' => 'Bookkeeping', 'icon' => 'bookkeeping', 'href' => BASE_URL . '/apps/operations/bookkeeping.php', 'match' => ['/apps/operations/bookkeeping.php']],
-    ['id' => 'operations-cash-tools', 'label' => 'Cash Tools', 'icon' => 'cash', 'href' => BASE_URL . '/apps/operations/bank-statement-processor.php', 'match' => ['/apps/operations/bank-statement-processor.php']],
+    ['id' => 'operations-cash-tools', 'label' => 'Cash Tools', 'icon' => 'cash', 'href' => BASE_URL . '/apps/operations/bookkeeping.php?cash_tools=1', 'match' => ['/apps/operations/bookkeeping.php']],
     ['id' => 'operations-consignments', 'label' => 'Packing List', 'icon' => 'packing', 'href' => BASE_URL . '/apps/operations/consignments.php', 'match' => ['/apps/operations/consignments.php']],
     ['id' => 'operations-courier', 'label' => 'Courier Waybills', 'icon' => 'courier', 'href' => BASE_URL . '/apps/operations/courier.php', 'match' => ['/apps/operations/courier.php']],
     ['id' => 'hr-portal', 'label' => 'HR Portal', 'icon' => 'hr', 'href' => BASE_URL . '/apps/hr-portal/portal-login.php', 'match' => ['/apps/hr-portal/portal-login.php', '/apps/hr-portal/index.php']],
@@ -73,6 +73,16 @@ foreach ($portalNavItems as $portalNavItem) {
     }
 }
 $portalNavItems = $employeePortalNavItems;
+if ($isEmployeeSidebar) {
+    $employeeNavOrder = [
+        'operations-consignments' => 10,
+        'operations-bookkeeping' => 20,
+        'operations-cash-tools' => 30,
+    ];
+    usort($portalNavItems, static fn(array $left, array $right): int =>
+        ($employeeNavOrder[$left['id']] ?? 999) <=> ($employeeNavOrder[$right['id']] ?? 999)
+    );
+}
 
 function getSidebarIcon(string $id): string
 {
@@ -100,6 +110,12 @@ function getSidebarIcon(string $id): string
 $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bool {
     foreach (($item['match'] ?? []) as $matchPath) {
         if ($currentPath === $matchPath) {
+            if (($item['id'] ?? '') === 'operations-bookkeeping') {
+                return empty($_GET['cash_tools']);
+            }
+            if (($item['id'] ?? '') === 'operations-cash-tools') {
+                return !empty($_GET['cash_tools']);
+            }
             if (($item['id'] ?? '') === 'operations-inventory') {
                 return ($_GET['tab'] ?? '') === 'inventory';
             }
@@ -159,11 +175,13 @@ $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bo
     </nav>
 
     <div class="ps-bottom">
+        <?php if (!$isEmployeeSidebar): ?>
         <a href="<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/notifications.php" class="ps-nav-item ps-nav-item--notify" title="Notifications">
             <span class="ps-nav-icon"><?= getSidebarIcon('notifications') ?></span>
             <span class="ps-nav-label">Notifications</span>
             <span class="ps-notification-badge<?= $notificationUnread > 0 ? '' : ' is-hidden' ?>" data-notification-count><?= $notificationUnread > 0 ? htmlspecialchars($notificationUnreadLabel, ENT_QUOTES, 'UTF-8') : '' ?></span>
         </a>
+        <?php endif; ?>
 
         <?php if (!$isEmployeeSidebar): ?>
         <div class="ps-nav-item ps-dark-toggle" onclick="toggleDarkMode()" title="Dark mode">

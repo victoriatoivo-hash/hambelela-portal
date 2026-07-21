@@ -7,17 +7,23 @@ require_once __DIR__ . '/operations.php';
 require_login();
 
 $pageTitle = 'Hambelela Bookkeeping | ' . APP_NAME;
-$activeApp = 'operations-bookkeeping';
+$activeApp = !empty($_GET['cash_tools']) ? 'operations-cash-tools' : 'operations-bookkeeping';
 $ready = ops_database_ready();
 $employeeId = ops_current_employee_id();
 $currentUser = current_user();
 $bookkeepingRoleKey = normalise_portal_role((string) ($currentUser['role_key'] ?? current_role_key()));
-$canOperateBookkeeping = in_array($bookkeepingRoleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager'], true);
+$canOperateBookkeeping = $bookkeepingRoleKey !== 'guest'
+    && portal_role_can_access_feature($bookkeepingRoleKey, 'bookkeeping');
 $canManageBookkeeping = $bookkeepingRoleKey === 'owner_admin';
 $isBookkeepingReadOnly = !$canOperateBookkeeping;
 $canSelectBookkeepingRows = true;
 $ledgerUserId = (int) ($currentUser['id'] ?? $employeeId ?? 0);
 $ledgerUserName = (string) ($currentUser['name'] ?? 'Unknown user');
+$bookkeepingCsrfToken = (string) ($_SESSION['bookkeeping_csrf_token'] ?? '');
+if ($bookkeepingCsrfToken === '') {
+    $bookkeepingCsrfToken = bin2hex(random_bytes(32));
+    $_SESSION['bookkeeping_csrf_token'] = $bookkeepingCsrfToken;
+}
 $message = null;
 $messageType = 'success';
 
@@ -175,6 +181,9 @@ function ledger_bootstrap_schema(): void
             attachment_path VARCHAR(255) NULL,
             recorded_by INT NULL,
             edited_by INT NULL,
+            created_by_user_id INT NULL,
+            created_by_name VARCHAR(190) NULL,
+            updated_by_user_id INT NULL,
             archived_at DATETIME NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -188,6 +197,15 @@ function ledger_bootstrap_schema(): void
     }
     if (!ops_column_exists('ops_cash_book_entries', 'custom_fields_json')) {
         db()->exec("ALTER TABLE ops_cash_book_entries ADD COLUMN custom_fields_json JSON NULL");
+    }
+    if (!ops_column_exists('ops_cash_book_entries', 'created_by_user_id')) {
+        db()->exec("ALTER TABLE ops_cash_book_entries ADD COLUMN created_by_user_id INT NULL AFTER recorded_by");
+    }
+    if (!ops_column_exists('ops_cash_book_entries', 'created_by_name')) {
+        db()->exec("ALTER TABLE ops_cash_book_entries ADD COLUMN created_by_name VARCHAR(190) NULL AFTER created_by_user_id");
+    }
+    if (!ops_column_exists('ops_cash_book_entries', 'updated_by_user_id')) {
+        db()->exec("ALTER TABLE ops_cash_book_entries ADD COLUMN updated_by_user_id INT NULL AFTER edited_by");
     }
     db()->exec(
         "CREATE TABLE IF NOT EXISTS hambelela_cashbook_columns (
@@ -248,6 +266,8 @@ function ledger_entry(int $id): array
         'cash_out' => $cashOut,
         'total' => $cashIn - $cashOut,
         'notes' => (string) ($row['notes'] ?? ''),
+        'created_by_user_id' => (int) ($row['created_by_user_id'] ?? $row['recorded_by'] ?? 0),
+        'created_by_name' => (string) ($row['created_by_name'] ?? ''),
         'custom_fields' => ledger_decode_json($row['custom_fields_json'] ?? '{}'),
     ];
 }
@@ -285,6 +305,10 @@ if ($ready) {
 
 if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
+        $submittedCsrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if ($submittedCsrfToken === '' || !hash_equals($bookkeepingCsrfToken, $submittedCsrfToken)) {
+            throw new LedgerPermissionException('Your session token is invalid. Refresh Bookkeeping and try again.');
+        }
         $action = ops_post_string('action', 40);
         if (!$canOperateBookkeeping) {
             throw new LedgerPermissionException('Your Bookkeeping access is read-only.');
@@ -313,10 +337,10 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $type = ledger_transaction_type($cashIn, $cashOut);
             $stmt = db()->prepare(
                 "INSERT INTO ops_cash_book_entries
-                 (transaction_date, transaction_type, description, cash_in, cash_out, source, notes, recorded_by)
-                 VALUES (?, ?, ?, ?, ?, 'manual_cash_entry', ?, ?)"
+                 (transaction_date, transaction_type, description, cash_in, cash_out, source, notes, recorded_by, created_by_user_id, created_by_name)
+                 VALUES (?, ?, ?, ?, ?, 'manual_cash_entry', ?, ?, ?, ?)"
             );
-            $stmt->execute([$date, $type, $description, $cashIn, $cashOut, ops_post_string('notes', 1500), $employeeId]);
+            $stmt->execute([$date, $type, $description, $cashIn, $cashOut, ops_post_string('notes', 1500), $employeeId, $ledgerUserId, $ledgerUserName]);
             $id = (int) db()->lastInsertId();
             cashbook_log(
                 $ledgerUserId,
@@ -350,14 +374,16 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($cashIn <= 0) throw new RuntimeException('Enter the opening cash amount.');
             $stmt = db()->prepare(
                 "INSERT INTO ops_cash_book_entries
-                 (transaction_date, transaction_type, description, cash_in, cash_out, source, notes, recorded_by)
-                 VALUES (?, 'opening_balance', 'Opening balance', ?, 0, 'opening_balance', ?, ?)"
+                 (transaction_date, transaction_type, description, cash_in, cash_out, source, notes, recorded_by, created_by_user_id, created_by_name)
+                 VALUES (?, 'opening_balance', 'Opening balance', ?, 0, 'opening_balance', ?, ?, ?, ?)"
             );
             $stmt->execute([
                 date('Y-m-d H:i:s'),
                 $cashIn,
                 ops_post_string('notes', 1500),
                 $employeeId,
+                $ledgerUserId,
+                $ledgerUserName,
             ]);
             $id = (int) db()->lastInsertId();
             cashbook_log(
@@ -392,8 +418,8 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $oldStmt->execute([$id]);
             $oldValue = (string) $oldStmt->fetchColumn();
             $oldStmt->closeCursor();
-            $stmt = db()->prepare('UPDATE ops_cash_book_entries SET ' . $allowed[$field] . ' = ?, edited_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND ' . ledger_active_where());
-            $stmt->execute([$value, $employeeId, $id]);
+            $stmt = db()->prepare('UPDATE ops_cash_book_entries SET ' . $allowed[$field] . ' = ?, edited_by = ?, updated_by_user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND ' . ledger_active_where());
+            $stmt->execute([$value, $employeeId, $ledgerUserId, $id]);
             cashbook_log($ledgerUserId, $ledgerUserName, 'edited', $id, $field, $oldValue, $value);
             $entry = ledger_entry($id);
             $type = ledger_transaction_type($entry['cash_in'], $entry['cash_out']);
@@ -462,9 +488,10 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $oldValue = (string) ($custom[$key] ?? '');
             if ($value === '') unset($custom[$key]);
             else $custom[$key] = $value;
-            db()->prepare('UPDATE ops_cash_book_entries SET custom_fields_json = ?, edited_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND ' . ledger_active_where())->execute([
+            db()->prepare('UPDATE ops_cash_book_entries SET custom_fields_json = ?, edited_by = ?, updated_by_user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND ' . ledger_active_where())->execute([
                 json_encode($custom, JSON_UNESCAPED_SLASHES),
                 $employeeId,
+                $ledgerUserId,
                 $id,
             ]);
             cashbook_log($ledgerUserId, $ledgerUserName, 'edited', $id, $key, $oldValue, $value);
@@ -2255,7 +2282,7 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
                             $entryDate = (string) $entry['transaction_date'];
                             $entryCustomFields = ledger_decode_json($entry['custom_fields_json'] ?? '{}');
                             ?>
-                            <div class="ledger-row entry-row" data-entry-id="<?= (int) $entry['id'] ?>" data-cash-in="<?= $rowIn ?>" data-cash-out="<?= $rowOut ?>">
+                            <div class="ledger-row entry-row" data-entry-id="<?= (int) $entry['id'] ?>" data-cash-in="<?= $rowIn ?>" data-cash-out="<?= $rowOut ?>" data-created-by="<?= htmlspecialchars((string) ($entry['created_by_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars(($entry['created_by_name'] ?? '') !== '' ? 'Created by ' . (string) $entry['created_by_name'] : '', ENT_QUOTES, 'UTF-8') ?>">
                             <div class="ledger-cell check-cell"><?php if ($canSelectBookkeepingRows): ?><input class="bk-row-check" type="checkbox" data-id="<?= (int) $entry['id'] ?>" aria-label="Select ledger entry"><?php endif; ?></div>
                             <div class="ledger-cell ledger-data-cell <?= $canOperateBookkeeping ? 'bk-editable' : '' ?>" data-field="description" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars((string) $entry['description'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars((string) $entry['description'], ENT_QUOTES, 'UTF-8') ?></div>
                             <div class="ledger-cell ledger-data-cell <?= $canOperateBookkeeping ? 'bk-editable' : '' ?>" data-field="transaction_date" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars(date('Y-m-d\TH:i', strtotime($entryDate)), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(ledger_display_datetime($entryDate), ENT_QUOTES, 'UTF-8') ?></div>
@@ -2464,6 +2491,7 @@ window.bookkeepingPermissions = <?= json_encode([
     'canOperate' => $canOperateBookkeeping,
     'canManage' => $canManageBookkeeping,
 ], JSON_UNESCAPED_SLASHES) ?>;
+window.bookkeepingCsrfToken = <?= json_encode($bookkeepingCsrfToken, JSON_UNESCAPED_SLASHES) ?>;
 const ledgerColumnStorageKey = 'hambelela.cashLedger.columnWidths.v1';
 const coreLedgerColumns = [
   { key: 'select', width: 32, min: 32, locked: true },
@@ -3139,10 +3167,15 @@ function applySidebarFilters() {
   updateFloatingBar();
 }
 
+<?php if (!empty($_GET['cash_tools'])): ?>
+document.addEventListener('DOMContentLoaded', openDrawer, { once: true });
+<?php endif; ?>
+
 async function postLedger(action, fields = {}) {
   const form = new FormData();
   form.set('response', 'json');
   form.set('action', action);
+  form.set('csrf_token', window.bookkeepingCsrfToken || '');
   Object.entries(fields).forEach(([key, value]) => form.set(key, value));
   const response = await fetch('bookkeeping.php', {
     method: 'POST',
