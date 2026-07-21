@@ -137,8 +137,10 @@ include BASE_PATH . '/shared/sidebar.php';
 
     <section class="packing-board-shell packing-board-v2" aria-label="Packing board">
         <input type="checkbox" class="packing-select-all-master" data-packing-select-all aria-hidden="true" tabindex="-1">
-        <div id="packing-list-body" class="packing-date-groups" aria-live="polite">
-            <div class="packing-loading-state">Loading packing list...</div>
+        <div class="packing-list-table-scroll" data-packing-list-table-scroll role="region" aria-label="Packing List table">
+            <div id="packing-list-body" class="packing-date-groups" aria-live="polite">
+                <div class="packing-loading-state">Loading packing list...</div>
+            </div>
         </div>
     </section>
 

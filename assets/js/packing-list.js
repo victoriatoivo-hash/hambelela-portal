@@ -549,7 +549,8 @@
   }
 
   function capturePackingScrollState(source) {
-    const container = source?.closest('.packing-month-scroll,.packing-group-table-wrap');
+    const container = source?.closest('.packing-list-table-scroll')
+      || document.querySelector('[data-packing-list-table-scroll]');
     return { windowX: window.scrollX, windowY: window.scrollY, container, left: container?.scrollLeft || 0, top: container?.scrollTop || 0, active: document.activeElement };
   }
 

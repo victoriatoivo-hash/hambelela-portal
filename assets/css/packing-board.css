@@ -30,7 +30,6 @@
 }
 
 .packing-list-page .ops-board,
-.packing-list-page .packing-board-shell,
 .packing-list-page .monday-board {
     background: transparent !important;
     border: 0 !important;
@@ -2173,21 +2172,79 @@ body.is-resizing-packing-column {
     min-height: 0;
     margin: 0;
     padding: 0;
-    overflow-x: auto;
-    overflow-y: hidden;
+    overflow: visible;
     position: relative;
     border: 0;
     box-shadow: none;
     box-sizing: border-box;
-    scrollbar-gutter: auto;
-    scrollbar-color: rgba(114,27,26,.28) #f3eee8;
 }
-.packing-page-v2 .packing-month-scroll::-webkit-scrollbar{height:8px}.packing-page-v2 .packing-month-scroll::-webkit-scrollbar-track{background:#f3eee8}.packing-page-v2 .packing-month-scroll::-webkit-scrollbar-thumb{background:rgba(114,27,26,.28);border-radius:999px}
 
 .packing-page-v2 .packing-month-scroll .packing-date-body {
     margin: 0;
     padding: 0;
     overflow: visible;
+}
+
+/* The complete Packing List has one horizontal overflow owner. */
+.packing-list-page,
+.packing-list-page .packing-page-shell,
+.packing-list-page .packing-board-shell,
+.packing-list-page .packing-date-groups {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.packing-list-page .packing-board-shell {
+    overflow: visible !important;
+}
+
+.packing-list-page .packing-list-table-scroll {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: visible;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(114, 27, 26, .32) #FDF6EE;
+    -webkit-overflow-scrolling: touch;
+    box-sizing: border-box;
+}
+
+.packing-list-page .packing-list-table-scroll .packing-month-scroll,
+.packing-list-page .packing-list-table-scroll .packing-group-table-wrap,
+.packing-list-page .packing-list-table-scroll .packing-date-body,
+.packing-list-page .packing-list-table-scroll .packing-month-body {
+    max-width: none;
+    overflow-x: visible !important;
+}
+
+.packing-list-page .packing-list-table-scroll .packing-board-table {
+    width: max-content !important;
+    min-width: 100% !important;
+    table-layout: fixed !important;
+}
+
+.packing-list-page .packing-list-table-scroll::-webkit-scrollbar {
+    height: 10px;
+}
+
+.packing-list-page .packing-list-table-scroll::-webkit-scrollbar-track {
+    background: #FDF6EE;
+    border-radius: 999px;
+}
+
+.packing-list-page .packing-list-table-scroll::-webkit-scrollbar-thumb {
+    background: rgba(114, 27, 26, .32);
+    border: 2px solid #FDF6EE;
+    border-radius: 999px;
+}
+
+.packing-list-page .packing-list-table-scroll::-webkit-scrollbar-thumb:hover {
+    background: #AB3619;
 }
 .packing-bulk-bar {
   position: fixed;
