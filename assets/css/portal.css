@@ -12906,8 +12906,8 @@ body.login-page { min-height: 100%; background: #FFFFFF !important; }
 }
 
 .courier-wrap .courier-table-shell {
-  width: max-content;
-  min-width: max(100%, 1100px);
+  width: 100%;
+  min-width: 0;
   box-sizing: border-box;
   border: 1px solid #EDE3D8;
   border-radius: 12px;
@@ -13406,15 +13406,15 @@ body.login-page { min-height: 100%; background: #FFFFFF !important; }
 
 .courier-wrap .courier-grid-waybill {
   --courier-columns:
-    42px
-    minmax(260px, 1.55fr)
-    minmax(120px, .65fr)
-    minmax(120px, .65fr)
-    minmax(120px, .65fr)
-    minmax(250px, 1.4fr)
-    minmax(100px, .55fr)
-    minmax(130px, .8fr)
-    minmax(270px, 1.4fr);
+    38px
+    minmax(150px, 1.25fr)
+    minmax(112px, .85fr)
+    minmax(92px, .7fr)
+    minmax(112px, .85fr)
+    minmax(120px, 1fr)
+    minmax(82px, .62fr)
+    minmax(100px, .8fr)
+    minmax(178px, 1.2fr);
   grid-template-columns: var(--courier-columns);
 }
 
@@ -13446,17 +13446,19 @@ body.login-page { min-height: 100%; background: #FFFFFF !important; }
 
 .courier-wrap .courier-cell {
   min-width: 0;
-  min-height: 48px;
+  height: 36px;
+  min-height: 36px;
+  max-height: 36px;
   box-sizing: border-box;
   border-right: 1px solid #EDE3D8;
-  padding: 12px 14px;
+  padding: 6px 8px;
   display: flex;
   align-items: center;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: #252733;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 400;
 }
 
@@ -13468,7 +13470,7 @@ body.login-page { min-height: 100%; background: #FFFFFF !important; }
   height: 36px;
   min-height: 36px;
   max-height: 36px;
-  padding: 0 14px;
+  padding: 0 8px;
   align-items: center;
   justify-content: flex-start;
   background: #fbfaf9;
@@ -13597,7 +13599,7 @@ body.login-page { min-height: 100%; background: #FFFFFF !important; }
 .courier-wrap .queue-item.status-ok::before { background: #A8CA19; }
 
 .courier-wrap .queue-main {
-  gap: 8px;
+  gap: 6px;
 }
 
 .courier-wrap .courier-cell > *,
@@ -13624,14 +13626,16 @@ body.login-page { min-height: 100%; background: #FFFFFF !important; }
 }
 
 .courier-wrap .file-count {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  border-radius: 6px;
   background: rgba(168, 202, 25, 0.18);
   color: #721B1A;
   display: inline-grid;
   place-items: center;
   font-weight: 600;
+  font-size: 11px;
 }
 
 .courier-wrap .queue-item .wq-meta,
@@ -13742,9 +13746,26 @@ body.login-page { min-height: 100%; background: #FFFFFF !important; }
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 5px;
   flex-wrap: nowrap;
   white-space: nowrap;
+}
+
+.courier-wrap .queue-item-actions .btn-secondary,
+.courier-wrap .queue-item-actions .btn-mark-sent {
+  height: 26px;
+  min-height: 26px;
+  padding: 0 7px;
+  border-radius: 6px;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.courier-wrap .queue-item-actions .btn-secondary svg,
+.courier-wrap .queue-item-actions .btn-mark-sent svg {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 12px;
 }
 
 .courier-wrap .courier-actions-cell .courier-btn,
@@ -13850,6 +13871,10 @@ body.login-page { min-height: 100%; background: #FFFFFF !important; }
   .courier-wrap .courier-section-header {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .courier-wrap .courier-table-shell--queue {
+    min-width: 980px;
   }
 }
 

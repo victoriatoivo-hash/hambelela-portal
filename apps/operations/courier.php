@@ -1316,7 +1316,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     </div>
                 </div>
                 <div class="courier-table-scroll courier-table-wrap">
-                        <div class="courier-table-shell">
+                        <div class="courier-table-shell courier-table-shell--queue">
                         <div class="courier-grid courier-grid-waybill courier-grid-header queue-head">
                             <div class="courier-cell courier-select-cell">
                                 <label class="portal-grid-checkbox courier-select-all" aria-label="Select all waybill batches">
@@ -1344,7 +1344,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     </div>
                 </div>
                 <div class="courier-table-scroll courier-table-wrap">
-                    <div class="courier-table-shell">
+                    <div class="courier-table-shell courier-table-shell--history">
                         <div class="courier-grid courier-grid-history courier-grid-header history-head">
                             <div class="courier-cell">Customer</div><div class="courier-cell">Uploaded By</div><div class="courier-cell">Sent At</div><div class="courier-cell">Sent By</div><div class="courier-cell">Actions</div>
                         </div>
