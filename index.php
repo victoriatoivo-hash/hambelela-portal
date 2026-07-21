@@ -27,7 +27,7 @@ if ($roleKey === 'owner_admin') {
         ['name' => 'Packing List', 'desc' => 'assigned consignment packing quantities and completion status', 'icon' => 'package-open', 'href' => BASE_URL . '/apps/operations/consignments.php', 'active' => true, 'tone' => 'green'],
         ['name'=>'Bookkeeping','desc'=>'cash and bookkeeping workflows','icon'=>'book-open','href'=>BASE_URL.'/apps/operations/bookkeeping.php','active'=>true,'tone'=>'green'],
         ['name'=>'Cash Tools','desc'=>'denomination counter and calculated cash totals','icon'=>'calculator','href'=>BASE_URL.'/apps/operations/bookkeeping.php?cash_tools=1','active'=>true,'tone'=>'green'],
-        ['name'=>'Orders','desc'=>'website orders, payments and daily status','icon'=>'table-2','href'=>'','active'=>false,'tone'=>'pink'],
+        ['name'=>'Orders','desc'=>'website orders, payments and daily status','icon'=>'table-2','href'=>BASE_URL.'/apps/operations/orders-board.php','active'=>true,'tone'=>'pink'],
         ['name'=>'Inventory','desc'=>'stock and inventory workflows','icon'=>'boxes','href'=>'','active'=>false,'tone'=>'green'],
         ['name'=>'Task Management','desc'=>'daily assigned tasks and completion tracking','icon'=>'list-checks','href'=>'','active'=>false,'tone'=>'green'],
         ['name'=>'Settings','desc'=>'portal administration and permissions','icon'=>'settings','href'=>'','active'=>false,'tone'=>'pink'],
@@ -39,7 +39,7 @@ include __DIR__ . '/shared/sidebar.php';
 ?>
 <main class="workspace launcher">
     <header class="launcher-account-header" data-portal-header-status-target aria-label="Portal account and status"></header>
-    <?php if ($roleKey !== 'owner_admin'): ?><section class="employee-workspace-intro"><h1>Packing List, Bookkeeping and Cash Tools are currently available.</h1><p>Additional portal sections are coming soon.</p></section><?php endif; ?>
+    <?php if ($roleKey !== 'owner_admin'): ?><section class="employee-workspace-intro"><h1>Packing List, Orders, Bookkeeping and Cash Tools are currently available.</h1><p>Additional portal sections are coming soon.</p></section><?php endif; ?>
     <section class="launcher-hero" aria-labelledby="launcher-title">
         <h1 id="launcher-title">essentials <span class="mascot" aria-hidden="true">&#9822;</span></h1>
         <p>your business command center</p>
