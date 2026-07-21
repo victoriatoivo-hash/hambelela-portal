@@ -85,6 +85,8 @@ function checklist_bootstrap_schema(): void
         'completed_by' => "ALTER TABLE ops_checklist_tasks ADD COLUMN completed_by INT NULL AFTER date_completed",
         'recurrence_key' => "ALTER TABLE ops_checklist_tasks ADD COLUMN recurrence_key VARCHAR(120) NULL AFTER completed_by",
         'recurring_rule' => "ALTER TABLE ops_checklist_tasks ADD COLUMN recurring_rule VARCHAR(80) NULL AFTER recurrence_key",
+        'recurring_template_id' => "ALTER TABLE ops_checklist_tasks ADD COLUMN recurring_template_id INT NULL AFTER recurring_rule",
+        'employee_visible' => "ALTER TABLE ops_checklist_tasks ADD COLUMN employee_visible TINYINT(1) NOT NULL DEFAULT 1 AFTER recurring_template_id",
         'created_by' => "ALTER TABLE ops_checklist_tasks ADD COLUMN created_by INT NULL AFTER recurring_rule",
         'archived_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN archived_at DATETIME NULL AFTER created_by",
         'archived_by' => "ALTER TABLE ops_checklist_tasks ADD COLUMN archived_by INT NULL AFTER archived_at",
@@ -97,6 +99,25 @@ function checklist_bootstrap_schema(): void
     foreach ($columns as $column => $sql) {
         if (!checklist_column_exists($column)) checklist_try_sql($sql);
     }
+    db()->exec(
+        "CREATE TABLE IF NOT EXISTS ops_checklist_recurring_templates (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            template_key VARCHAR(120) NULL UNIQUE,
+            task_name VARCHAR(190) NOT NULL,
+            checklist_type VARCHAR(40) NOT NULL DEFAULT 'opening',
+            priority VARCHAR(30) NOT NULL DEFAULT 'medium',
+            assigned_employee_id INT NULL,
+            recurring_rule VARCHAR(80) NOT NULL,
+            due_time TIME NOT NULL DEFAULT '09:00:00',
+            instructions TEXT NULL,
+            checklist_items TEXT NULL,
+            employee_visible TINYINT(1) NOT NULL DEFAULT 1,
+            is_active TINYINT(1) NOT NULL DEFAULT 1,
+            created_by INT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )"
+    );
     checklist_try_sql("UPDATE ops_checklist_tasks SET status = 'pending' WHERE status IN ('not_started', 'missed')");
     checklist_try_sql("UPDATE ops_checklist_tasks SET status = 'complete' WHERE status IN ('done', 'completed', 'approved', 'needs_review')");
     $legacyStarted = ops_rows("SELECT id FROM ops_checklist_tasks WHERE status IN ('start', 'started')");
@@ -229,23 +250,64 @@ function checklist_insert_auto_task(int $employeeId, string $key, string $type, 
     $stmt->execute([$type, $name, $priority, $employeeId, $deadline, $instructions, $instructions, json_encode($items, JSON_UNESCAPED_SLASHES), $key, $rule, ops_current_employee_id()]);
 }
 
+function checklist_seed_default_recurring_templates(): void
+{
+    if (!ops_table_exists('ops_checklist_recurring_templates')) return;
+    $defaults = [
+        ['daily-stock', 'Stock up shelves before opening', 'stock_refill', 'top_critical', 'daily_business_day', '08:00:00', 'Stock all shelves before opening and note any low-stock products.', checklist_shelf_template_items()],
+        ['cleaning-twice-weekly', 'Packing area cleaning', 'cleaning', 'high', 'twice_weekly', '16:30:00', 'Complete the scheduled packing-area cleaning checklist.', checklist_cleaning_template_items()],
+        ['saturday-bottle-wash', 'Saturday bottle/container washing', 'saturday', 'top_critical', 'weekly_saturday', '13:00:00', 'Wash reusable bottles and containers, then reset the packing area.', ['Wash dishes/containers', 'Clean tables', 'Clean workspace', 'Organize packing area']],
+    ];
+    $stmt = db()->prepare(
+        "INSERT INTO ops_checklist_recurring_templates
+         (template_key, task_name, checklist_type, priority, recurring_rule, due_time, instructions, checklist_items, employee_visible, is_active, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?)
+         ON DUPLICATE KEY UPDATE template_key = VALUES(template_key)"
+    );
+    foreach ($defaults as $default) {
+        $stmt->execute([...array_slice($default, 0, 7), json_encode($default[7], JSON_UNESCAPED_SLASHES), ops_current_employee_id()]);
+    }
+}
+
+function checklist_rule_runs_today(string $rule, int $dayNumber): bool
+{
+    if ($rule === 'daily_business_day') return $dayNumber >= 1 && $dayNumber <= 6;
+    if ($rule === 'twice_weekly') return in_array($dayNumber, [2, 4], true);
+    if ($rule === 'weekly_saturday') return $dayNumber === 6;
+    if (preg_match('/^weekly_([1-7])$/', $rule, $match)) return $dayNumber === (int) $match[1];
+    return false;
+}
+
 function checklist_seed_recurring_tasks(): void
 {
-    if (!ops_table_exists('ops_checklist_tasks') || !checklist_column_exists('recurrence_key')) return;
+    if (!ops_table_exists('ops_checklist_tasks') || !ops_table_exists('ops_checklist_recurring_templates')) return;
+    checklist_seed_default_recurring_templates();
     $today = new DateTimeImmutable('today');
     $dayNumber = (int) $today->format('N');
-    if ($dayNumber > 6) return;
+    $dateKey = $today->format('Y-m-d');
     $packers = ops_rows(
         "SELECT e.id FROM ops_employees e JOIN ops_roles r ON r.id = e.role_id
          WHERE e.status = 'active' AND r.role_key IN ('packer', 'supervisor_manager')"
     );
-    $dateKey = $today->format('Y-m-d');
-    $cleaning = checklist_cleaning_template_items();
-    foreach ($packers as $packer) {
-        $id = (int) $packer['id'];
-        checklist_insert_auto_task($id, 'daily-stock-' . $dateKey . '-' . $id, 'stock_refill', 'Stock up shelves before opening', $dateKey . ' 09:00:00', checklist_shelf_template_items(), 'Stock all shelves before opening and note any low-stock products.', 'top_critical', 'daily_business_day');
-        if (in_array($dayNumber, [2, 4], true)) checklist_insert_auto_task($id, 'cleaning-twice-weekly-' . $dateKey . '-' . $id, 'cleaning', 'Packing area cleaning', $dateKey . ' 16:30:00', $cleaning, 'Complete the scheduled packing-area cleaning checklist.', 'high', 'twice_weekly');
-        if ($dayNumber === 6) checklist_insert_auto_task($id, 'saturday-bottle-wash-' . $dateKey . '-' . $id, 'saturday', 'Saturday bottle/container washing', $dateKey . ' 13:00:00', ['Wash dishes/containers', 'Clean tables', 'Clean workspace', 'Organize packing area'], 'Wash reusable bottles and containers, then reset the packing area.', 'top_critical', 'weekly_saturday');
+    $templates = ops_rows('SELECT * FROM ops_checklist_recurring_templates WHERE is_active = 1');
+    foreach ($templates as $template) {
+        if (!checklist_rule_runs_today((string) $template['recurring_rule'], $dayNumber)) continue;
+        $targets = !empty($template['assigned_employee_id']) ? [['id' => (int) $template['assigned_employee_id']]] : $packers;
+        foreach ($targets as $target) {
+            $employeeId = (int) $target['id'];
+            $key = 'template-' . (int) $template['id'] . '-' . $dateKey . '-' . $employeeId;
+            if (ops_rows(
+                'SELECT id FROM ops_checklist_tasks WHERE recurrence_key = ? OR (assigned_employee_id = ? AND task_name = ? AND DATE(deadline) = ?) LIMIT 1',
+                [$key, $employeeId, $template['task_name'], $dateKey]
+            )) continue;
+            $stmt = db()->prepare(
+                "INSERT INTO ops_checklist_tasks
+                 (checklist_type, task_name, priority, assigned_employee_id, date_assigned, deadline, status, notes, instructions, checklist_items, recurrence_key, recurring_rule, recurring_template_id, employee_visible, created_by)
+                 VALUES (?, ?, ?, ?, NOW(), ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?)"
+            );
+            $deadline = $dateKey . ' ' . (string) ($template['due_time'] ?: '09:00:00');
+            $stmt->execute([$template['checklist_type'], $template['task_name'], $template['priority'], $employeeId, $deadline, $template['instructions'], $template['instructions'], $template['checklist_items'], $key, $template['recurring_rule'], $template['id'], $template['employee_visible'], $template['created_by']]);
+        }
     }
 }
 
@@ -257,6 +319,20 @@ if ($ready) {
 if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $action = ops_post_string('action', 40);
+        if ($action === 'task_cancel_recurrence') {
+            if (!$canManage) { http_response_code(403); throw new RuntimeException('Only management can change recurring schedules.'); }
+            $taskId = (int) ($_POST['task_id'] ?? 0);
+            $task = ops_rows('SELECT recurring_template_id, recurring_rule, task_name FROM ops_checklist_tasks WHERE id = ? LIMIT 1', [$taskId]);
+            if (!$task) throw new RuntimeException('Task not found.');
+            if (!empty($task[0]['recurring_template_id'])) {
+                db()->prepare('UPDATE ops_checklist_recurring_templates SET is_active = 0 WHERE id = ?')->execute([(int) $task[0]['recurring_template_id']]);
+            } else {
+                db()->prepare('UPDATE ops_checklist_recurring_templates SET is_active = 0 WHERE recurring_rule = ?')->execute([(string) $task[0]['recurring_rule']]);
+            }
+            ops_activity_log('task_recurrence_cancelled', 'checklist_task', $taskId, ['task_name' => $task[0]['task_name']]);
+            header('Location: checklists.php?task_view=recurring&recurrence_stopped=1');
+            exit;
+        }
         if ($action === 'task_tools_data') {
             header('Content-Type: application/json; charset=utf-8');
             $scopeSql = $canManage ? '1=1' : 't.assigned_employee_id = ?';
@@ -445,10 +521,23 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $deadline = str_replace('T', ' ', ops_post_string('deadline', 30));
             $taskName = ops_post_string('task_name', 190);
             if ($taskName === '') throw new RuntimeException('Task name is required.');
+            $employeeVisible = isset($_POST['employee_visible']) ? 1 : 0;
+            $recurringRule = ops_post_string('recurring_rule', 80);
+            $templateId = null;
+            if ($recurringRule !== '' && ops_table_exists('ops_checklist_recurring_templates')) {
+                $dueTime = $deadline ? date('H:i:s', strtotime($deadline)) : '09:00:00';
+                $templateStmt = db()->prepare(
+                    "INSERT INTO ops_checklist_recurring_templates
+                     (task_name, checklist_type, priority, assigned_employee_id, recurring_rule, due_time, instructions, checklist_items, employee_visible, is_active, created_by)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)"
+                );
+                $templateStmt->execute([$taskName, ops_post_string('checklist_type', 30) ?: 'opening', ops_post_string('priority', 30) ?: 'medium', $assignedId > 0 ? $assignedId : null, $recurringRule, $dueTime, ops_post_string('instructions', 1500), checklist_items_from_text((string) ($_POST['checklist_items_text'] ?? '')), $employeeVisible, $currentEmployeeId]);
+                $templateId = (int) db()->lastInsertId();
+            }
             $stmt = db()->prepare(
                 "INSERT INTO ops_checklist_tasks
-                 (checklist_type, task_name, priority, assigned_employee_id, date_assigned, deadline, status, notes, instructions, checklist_items, created_by)
-                 VALUES (?, ?, ?, ?, NOW(), ?, 'pending', ?, ?, ?, ?)"
+                 (checklist_type, task_name, priority, assigned_employee_id, date_assigned, deadline, status, notes, instructions, checklist_items, recurrence_key, recurring_rule, recurring_template_id, employee_visible, created_by)
+                 VALUES (?, ?, ?, ?, NOW(), ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?)"
             );
             $stmt->execute([
                 ops_post_string('checklist_type', 30) ?: 'opening',
@@ -459,6 +548,10 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 ops_post_string('instructions', 1500),
                 ops_post_string('instructions', 1500),
                 checklist_items_from_text((string) ($_POST['checklist_items_text'] ?? '')),
+                $templateId ? 'template-' . $templateId . '-' . date('Y-m-d') . '-' . max(0, $assignedId) : null,
+                $recurringRule ?: null,
+                $templateId,
+                $employeeVisible,
                 $currentEmployeeId,
             ]);
             $createdTaskId = (int) db()->lastInsertId();
@@ -474,8 +567,9 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!array_key_exists($status, $statuses)) $status = 'pending';
             $oldRows = ops_rows('SELECT status FROM ops_checklist_tasks WHERE id = ? LIMIT 1', [$taskId]);
             $oldStatus = (string) ($oldRows[0]['status'] ?? '');
-            $stmt = db()->prepare("UPDATE ops_checklist_tasks SET assigned_employee_id = ?, deadline = ?, priority = ?, status = ? WHERE id = ?");
-            $stmt->execute([$assignedId > 0 ? $assignedId : null, $deadline ?: null, ops_post_string('priority', 30) ?: 'medium', $status, $taskId]);
+            $employeeVisible = isset($_POST['employee_visible']) ? 1 : 0;
+            $stmt = db()->prepare("UPDATE ops_checklist_tasks SET assigned_employee_id = ?, deadline = ?, priority = ?, status = ?, employee_visible = ? WHERE id = ?");
+            $stmt->execute([$assignedId > 0 ? $assignedId : null, $deadline ?: null, ops_post_string('priority', 30) ?: 'medium', $status, $employeeVisible, $taskId]);
             checklist_kpi_status_event($taskId, $oldStatus, $status, $currentEmployeeId);
             ops_activity_log('task_admin_updated', 'checklist_task', $taskId, ['status' => $status, 'assigned_employee_id' => $assignedId]);
             notifications_notify_task_assigned($taskId, $assignedId > 0 ? $assignedId : null, 'Checklist task');
@@ -524,7 +618,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = 'Task saved.';
         }
     } catch (Throwable $e) {
-        if (in_array(($action ?? ''), ['update_task_status', 'bulk_task_action', 'task_tools_data', 'task_archive', 'task_trash', 'task_restore', 'task_delete_forever'], true)) {
+        if (in_array(($action ?? ''), ['update_task_status', 'bulk_task_action', 'task_tools_data', 'task_archive', 'task_trash', 'task_restore', 'task_delete_forever', 'task_cancel_recurrence'], true)) {
             http_response_code(422);
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
             exit;
@@ -564,6 +658,7 @@ $where[] = 't.deleted_at IS NULL';
 if (!$canManage) {
     $where[] = 't.assigned_employee_id = ?';
     $params[] = $currentEmployeeId ?: 0;
+    $where[] = 't.employee_visible = 1';
 }
 if ($filters['date_from'] !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['date_from'])) {
     $where[] = 'DATE(COALESCE(t.date_assigned, t.created_at)) >= ?';
@@ -806,6 +901,8 @@ include BASE_PATH . '/shared/sidebar.php';
                         <div class="create-task-field create-task-field--task-name"><label for="create-task-name">Task name</label><input id="create-task-name" name="task_name" required placeholder="Clean packing table"></div>
                         <div class="create-task-field create-task-field--full"><label for="create-task-instructions">Task instructions</label><textarea id="create-task-instructions" name="instructions"></textarea></div>
                         <div class="create-task-field create-task-field--full"><label for="create-task-items">Required checklist items</label><textarea id="create-task-items" name="checklist_items_text" placeholder="One item per line"></textarea></div>
+                        <div class="create-task-field"><label for="create-task-recurrence">Automatic recurrence</label><select id="create-task-recurrence" name="recurring_rule" data-portal-custom-select><option value="">One-time task</option><option value="daily_business_day">Every business day</option><option value="twice_weekly">Every Tuesday and Thursday</option><option value="weekly_1">Every Monday</option><option value="weekly_2">Every Tuesday</option><option value="weekly_3">Every Wednesday</option><option value="weekly_4">Every Thursday</option><option value="weekly_5">Every Friday</option><option value="weekly_saturday">Every Saturday</option></select></div>
+                        <label class="create-task-visible"><input type="checkbox" name="employee_visible" value="1" checked><span>Active and visible to the assigned employee</span></label>
                     </div>
                     <div class="create-task-actions"><button class="create-task-submit btn-assign-task" type="submit">Assign task</button></div>
                 </form>
@@ -939,8 +1036,10 @@ include BASE_PATH . '/shared/sidebar.php';
                             <div class="task-field"><label for="task-priority-<?= $panelId ?>">Priority</label><select id="task-priority-<?= $panelId ?>" name="priority" data-portal-custom-select><?php ops_select_options($priorities, (string) ($task['priority'] ?? 'medium')); ?></select></div>
                             <div class="task-field"><label for="task-deadline-display-<?= $panelId ?>">Due date</label><div class="portal-date-field" data-portal-date-field><input id="task-deadline-display-<?= $panelId ?>" type="text" class="portal-date-input" data-enable-time="true" data-submit-target="#task-deadline-<?= $panelId ?>" placeholder="dd/mm/yyyy --:--" autocomplete="off"><input id="task-deadline-<?= $panelId ?>" type="hidden" name="deadline" value="<?= htmlspecialchars($deadlineValue, ENT_QUOTES, 'UTF-8') ?>"><button type="button" class="portal-date-trigger" aria-label="Open Due Date calendar"><i data-lucide="calendar-clock" aria-hidden="true"></i></button></div></div>
                         </div>
+                        <label class="create-task-visible"><input type="checkbox" name="employee_visible" value="1" <?= !isset($task['employee_visible']) || (int) $task['employee_visible'] === 1 ? 'checked' : '' ?>><span>Active and visible to the assigned employee</span></label>
                         <div class="task-edit-actions"><button class="task-btn task-btn--primary" type="submit">Save assignment</button></div>
                     </form>
+                    <?php if ($taskKind === 'recurring'): ?><form method="post" class="task-recurrence-stop-form"><input type="hidden" name="action" value="task_cancel_recurrence"><input type="hidden" name="task_id" value="<?= $panelId ?>"><button class="task-btn task-btn--danger" type="submit">Stop future recurrence</button><small>The current task stays available; no new copies will be created.</small></form><?php endif; ?>
                 <?php endif; ?>
 
                 <section class="task-details-section task-content-card">
