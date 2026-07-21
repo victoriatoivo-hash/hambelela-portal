@@ -1781,27 +1781,25 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             font-size: 18px;
             line-height: 1;
         }
-        .bk-tabs {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 8px;
-            padding: 12px 14px 0;
+        .bk-tabs.portal-panel-tabs {
+            padding: 0 14px;
+            gap: 22px;
         }
-        .bk-tab {
-            height: 32px;
-            border: 1px solid rgba(171, 54, 25, .24);
-            border-radius: 999px;
-            background: #fff;
-            color: #1a1a1a;
-            cursor: pointer;
-            font: inherit;
-            font-size: 12px;
-            font-weight: 400;
+        .bk-tabs.portal-panel-tabs .bk-tab {
+            height: 43px;
+            min-height: 43px;
+            padding: 0;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            color: #6B4C3B;
+            font: 500 12px/1 Figtree, system-ui, sans-serif;
+            box-shadow: none;
         }
-        .bk-tab.is-active {
-            background: var(--ledger-rust);
-            border-color: var(--ledger-rust);
-            color: var(--ledger-white);
+        .bk-tabs.portal-panel-tabs .bk-tab:hover,
+        .bk-tabs.portal-panel-tabs .bk-tab.is-active {
+            background: transparent;
+            color: #AB3619;
         }
         .bk-drawer-body {
             display: flex;
@@ -1948,17 +1946,21 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
         .bk-copy-total-row {
             padding: 0;
         }
-        .bk-trash-list {
-            display: grid;
-            gap: 10px;
-        }
+        .bk-trash-list { display: flex; flex-direction: column; gap: 0; }
         .bk-trash-item {
-            border: 1px solid var(--ledger-border);
-            border-radius: 12px;
+            min-height: 70px;
+            border: 0;
+            border-bottom: 1px solid var(--ledger-border);
+            border-radius: 0;
             background: #fff;
-            padding: 10px;
+            padding: 10px 8px;
             display: grid;
-            gap: 8px;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: center;
+            gap: 12px;
+        }
+        .bk-trash-item:hover {
+            background: #FFFDFC;
         }
         .bk-trash-top {
             display: flex;
@@ -1985,7 +1987,8 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
         }
         .bk-trash-actions {
             display: flex;
-            gap: 8px;
+            justify-content: flex-end;
+            gap: 6px;
         }
         .bk-trash-btn {
             height: 28px;
@@ -1995,9 +1998,9 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             color: var(--ledger-rust);
             cursor: pointer;
             font: inherit;
-            font-size: 12px;
-            font-weight: 800;
-            padding: 0 10px;
+            font-size: 10px;
+            font-weight: 500;
+            padding: 0 9px;
         }
         .bk-trash-btn:hover {
             background: #FDF6EE;
@@ -2005,6 +2008,11 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
         .bk-trash-btn.danger {
             color: #BB1B21;
             border-color: rgba(187, 27, 33, .26);
+        }
+        @media (max-width: 600px) {
+            .bk-tabs.portal-panel-tabs { gap: 18px; padding-inline: 12px; }
+            .bk-trash-item { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+            .bk-trash-actions { justify-content: flex-start; }
         }
         #tab-trash .bk-side-head,
         .bk-trash-title,
@@ -2405,11 +2413,11 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
         <div class="bk-drawer-title">Cash tools</div>
         <button class="bk-drawer-close" type="button" onclick="closeDrawer()" aria-label="Close cash tools">&times;</button>
     </div>
-    <div class="bk-tabs" role="tablist" aria-label="Cash tools tabs">
-        <button class="bk-tab is-active" type="button" data-tab="counter" onclick="switchTab(this, 'counter')">Count till</button>
-        <button class="bk-tab" type="button" data-tab="recon" onclick="switchTab(this, 'recon')">Reconcile</button>
-        <button class="bk-tab" type="button" data-tab="trash" onclick="switchTab(this, 'trash')">Trash</button>
-        <button class="bk-tab" type="button" data-tab="activity" onclick="switchTab(this, 'activity')">Activity</button>
+    <div class="bk-tabs portal-panel-tabs" role="tablist" aria-label="Cash tools tabs">
+        <button class="bk-tab portal-panel-tab is-active" type="button" role="tab" aria-selected="true" data-tab="counter" onclick="switchTab(this, 'counter')"><i data-lucide="calculator" aria-hidden="true"></i><span>Count till</span></button>
+        <button class="bk-tab portal-panel-tab" type="button" role="tab" aria-selected="false" data-tab="recon" onclick="switchTab(this, 'recon')"><i data-lucide="circle-check-big" aria-hidden="true"></i><span>Reconcile</span></button>
+        <button class="bk-tab portal-panel-tab" type="button" role="tab" aria-selected="false" data-tab="trash" onclick="switchTab(this, 'trash')"><i data-lucide="trash-2" aria-hidden="true"></i><span>Trash</span></button>
+        <button class="bk-tab portal-panel-tab" type="button" role="tab" aria-selected="false" data-tab="activity" onclick="switchTab(this, 'activity')"><i data-lucide="history" aria-hidden="true"></i><span>Activity</span></button>
     </div>
     <div class="bk-drawer-body">
         <section class="bk-tab-panel is-active" id="tab-counter">
@@ -3215,7 +3223,11 @@ function closeDrawer() {
 }
 
 function switchTab(button, tab) {
-  document.querySelectorAll('.bk-tab').forEach((node) => node.classList.toggle('is-active', node === button));
+  document.querySelectorAll('.bk-tab').forEach((node) => {
+    const selected = node === button;
+    node.classList.toggle('is-active', selected);
+    node.setAttribute('aria-selected', selected ? 'true' : 'false');
+  });
   document.querySelectorAll('.bk-tab-panel').forEach((panel) => panel.classList.toggle('is-active', panel.id === `tab-${tab}`));
   if (tab === 'activity') renderActivityLog();
 }
