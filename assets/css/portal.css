@@ -3674,6 +3674,7 @@ textarea {
 .kpi-health-tabs a.active { color: var(--t-burgundy); border-bottom-color: var(--t-orange-red); }
 .kpi-period-panel { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; padding: 14px; border: 1px solid var(--t-border); border-radius: 12px; background: var(--t-surface); }
 .kpi-period-panel label { display: grid; gap: 5px; color: var(--t-text-mid); font-weight: 700; }
+.kpi-period-panel [hidden] { display: none; }
 .kpi-period-panel select, .kpi-period-panel input { min-height: 36px; padding: 6px 10px; border: 1px solid var(--t-border); border-radius: 8px; background: var(--t-surface); color: var(--t-text); font: inherit; }
 .kpi-period-caption { margin-left: auto; padding-bottom: 9px; color: var(--t-text-light); }
 .kpi-adoption-banner { margin-bottom: 16px; padding: 11px 14px; border-left: 4px solid var(--t-amber); border-radius: 8px; background: color-mix(in srgb, var(--t-amber) 10%, var(--t-surface)); color: var(--t-burgundy); }
