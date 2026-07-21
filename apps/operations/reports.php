@@ -5,7 +5,9 @@ declare(strict_types=1);
 require_once __DIR__ . '/operations.php';
 require_role('owner_admin');
 
-$pageTitle = 'KPI Settings | ' . APP_NAME;
+$tab = (string) ($_GET['tab'] ?? 'business-health');
+if (!in_array($tab, ['business-health', 'settings'], true)) $tab = 'business-health';
+$pageTitle = ($tab === 'settings' ? 'KPI Settings' : 'Business Health') . ' | ' . APP_NAME;
 $activeApp = 'kpi';
 $ready = ops_database_ready();
 $message = '';
@@ -34,7 +36,7 @@ $settingFields = [
     'late_grace_minutes' => ['Late grace period (minutes)', 'number', '10'],
 ];
 
-if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($ready && $tab === 'settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         if (!hash_equals($csrf, (string) ($_POST['csrf_token'] ?? ''))) throw new RuntimeException('Your session token is invalid.');
         $action = ops_post_string('kpi_action', 40);
@@ -88,7 +90,7 @@ $employees = [];
 $holidays = [];
 $recentEvents = [];
 $recentSessions = [];
-if ($ready) {
+if ($ready && $tab === 'settings') {
     foreach (ops_rows('SELECT setting_key, setting_value FROM kpi_settings') as $row) $settings[(string) $row['setting_key']] = (string) $row['setting_value'];
     $employees = ops_rows("SELECT e.id, e.full_name, e.hire_date, e.working_days, e.shift_start, e.shift_end, e.late_grace_minutes, r.name AS role_name FROM ops_employees e JOIN ops_roles r ON r.id = e.role_id WHERE e.status = 'active' ORDER BY e.full_name");
     $holidays = ops_rows('SELECT holiday_date, COALESCE(NULLIF(name, \'\'), holiday_name) AS holiday_name FROM kpi_holidays WHERE active = 1 ORDER BY holiday_date');
@@ -99,17 +101,44 @@ if ($ready) {
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
-<main class="workspace module kpi-settings-page">
+<main class="workspace module kpi-health-page" data-kpi-tab="<?= htmlspecialchars($tab, ENT_QUOTES, 'UTF-8') ?>">
     <section class="module-header">
         <div>
             <p class="eyebrow">KPI &amp; Performance Management</p>
-            <h1>KPI Settings</h1>
-            <p>Control data windows, fairness thresholds, working calendars and employee schedules.</p>
+            <h1><?= $tab === 'settings' ? 'KPI Settings' : 'Business Health' ?></h1>
+            <p><?= $tab === 'settings' ? 'Control data windows, fairness thresholds, working calendars and employee schedules.' : 'A fair, evidence-led view of operational health and the work needing attention.' ?></p>
         </div>
+        <?php if ($tab === 'business-health'): ?><button class="btn-secondary" type="button" data-kpi-refresh>Refresh</button><?php endif; ?>
     </section>
+
+    <nav class="kpi-health-tabs" aria-label="KPI sections">
+        <a href="reports.php?tab=business-health" class="<?= $tab === 'business-health' ? 'active' : '' ?>">Business Health</a>
+        <a href="reports.php?tab=settings" class="<?= $tab === 'settings' ? 'active' : '' ?>">KPI Settings</a>
+    </nav>
 
     <?php if (!$ready): ?>
         <?php ops_setup_notice(); ?>
+    <?php elseif ($tab === 'business-health'): ?>
+        <section class="kpi-period-panel" aria-label="Reporting period">
+            <label><span>Period</span><select data-kpi-period><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="this_week">This week</option><option value="last_week">Last week</option><option value="this_month">This month</option><option value="last_month">Last month</option><option value="custom">Custom</option></select></label>
+            <label data-kpi-custom hidden><span>From</span><input type="date" data-kpi-from></label>
+            <label data-kpi-custom hidden><span>To</span><input type="date" data-kpi-to></label>
+            <span class="kpi-period-caption" data-kpi-caption aria-live="polite">Loading reporting period…</span>
+        </section>
+        <div class="kpi-adoption-banner" data-kpi-adoption hidden>Rate-based metrics begin at the system adoption date, so earlier dates are excluded from fairness calculations.</div>
+        <div class="ops-alert error" data-kpi-error hidden role="alert"></div>
+        <section class="kpi-health-grid" data-kpi-cards aria-label="Business health summary"><?php foreach (range(1, 6) as $placeholder): ?><article class="kpi-health-card is-loading"><span></span><strong></strong><small></small></article><?php endforeach; ?></section>
+        <section class="kpi-health-columns">
+            <article class="kpi-health-panel"><div class="kpi-panel-heading"><div><p class="eyebrow">Seven operating areas</p><h2>Operational scores</h2></div><small>Dash means unmeasured · fewer than 5 records is low data</small></div><div class="kpi-score-list" data-kpi-scores></div></article>
+            <article class="kpi-health-panel"><div class="kpi-panel-heading"><div><p class="eyebrow">Prioritised exceptions</p><h2>Needs attention</h2></div></div><div class="kpi-attention-list" data-kpi-attention></div></article>
+        </section>
+        <section class="kpi-health-panel"><div class="kpi-panel-heading"><div><p class="eyebrow">People and workload</p><h2>Team today</h2></div></div><div class="kpi-team-grid" data-kpi-team></div></section>
+        <section class="kpi-chart-grid">
+            <article class="kpi-health-panel"><div class="kpi-panel-heading"><div><p class="eyebrow">Volume and value</p><h2>Orders and revenue</h2></div></div><div class="kpi-chart-frame"><canvas data-kpi-orders-chart></canvas></div></article>
+            <article class="kpi-health-panel"><div class="kpi-panel-heading"><div><p class="eyebrow">Fair workload view</p><h2>Packing output</h2></div><div class="kpi-chart-toggle"><button type="button" class="active" data-kpi-chart-mode="raw">Items</button><button type="button" data-kpi-chart-mode="weighted">Weighted</button></div></div><div class="kpi-chart-frame"><canvas data-kpi-packing-chart></canvas></div></article>
+        </section>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+        <script src="<?= BASE_URL ?>/assets/js/reports-business-health.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/reports-business-health.js') ?>"></script>
     <?php else: ?>
         <?php if ($message !== ''): ?><div class="ops-alert <?= $messageType === 'error' ? 'error' : 'success' ?>" role="status"><?= htmlspecialchars($message, ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
 
