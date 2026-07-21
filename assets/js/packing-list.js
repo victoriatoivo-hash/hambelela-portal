@@ -44,6 +44,7 @@
   let currentTask = null;
   let lastUndo = null;
   let invoiceDraftRows = [];
+  let invoiceImportId = '';
 
   function isFrontDeskAdmin() {
     return String(currentUser.role_key || '') === 'front_desk_admin';
@@ -2533,6 +2534,7 @@
       const response = await fetch(config.actionUrl, { method: 'POST', body: formData, credentials: 'same-origin' });
       const data = await readJson(response);
       invoiceDraftRows = (data.rows || []).map((row) => ({ ...row, priority: invoicePriority?.value || 'medium', assigned_employee_id: '', assigned_name: '', assignment_source: 'auto' }));
+      invoiceImportId = globalThis.crypto?.randomUUID?.() || `packing-import-${Date.now()}-${Math.random().toString(16).slice(2)}`;
       const invoiceNumber = document.querySelector('[data-draft-invoice-number]');
       const invoiceDate = document.querySelector('[data-draft-invoice-date]');
       if (invoiceNumber) invoiceNumber.value = data.invoice_number || '';
@@ -2559,12 +2561,18 @@
     if (!invoiceDraftRows.length) throw new Error('No invoice rows to create.');
     const submit = form.querySelector('[type="submit"]');
     submit?.classList.add('is-loading');
+    if (submit) submit.disabled = true;
     setInvoiceStep('create');
     try {
-      setInvoiceStatus('Creating packing items in the portal...');
+      const submittedCount = invoiceDraftRows.length;
+      if (!invoiceImportId) invoiceImportId = globalThis.crypto?.randomUUID?.() || `packing-import-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      setInvoiceProgress(true, 'Loading invoice items', `Loading 0 of ${submittedCount} items…`, 'loading');
+      setInvoiceStatus(`Submitting all ${submittedCount} reviewed items in one transaction…`);
       const formData = new FormData(form);
       const result = await post('create_invoice_rows', {
         rows_json: JSON.stringify(invoiceDraftRows),
+        declared_count: submittedCount,
+        import_id: invoiceImportId,
         invoice_number: formData.get('invoice_number') || '',
         invoice_date: formData.get('invoice_date') || '',
         supplier_name: formData.get('supplier_name') || '',
@@ -2572,13 +2580,30 @@
         client_timestamp: new Date().toISOString(),
         client_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || ''
       });
+      const insertedCount = Number(result.inserted_count ?? result.created ?? 0);
+      const updatedCount = Number(result.updated_count ?? result.updated ?? 0);
+      const skippedCount = Number(result.skipped_count ?? result.skipped ?? 0);
+      const failedCount = Number(result.failed_count ?? result.failed ?? 0);
+      const acceptedCount = insertedCount + updatedCount + skippedCount;
+      const databaseCount = Number(result.database_count ?? acceptedCount);
+      if (result.success === false || failedCount > 0 || acceptedCount !== submittedCount || databaseCount !== submittedCount) {
+        const failureText = (result.failed_rows || result.failed || []).map((row) => `Line ${Number(row.line_number ?? row.index ?? 0) + 1}: ${row.item || 'Unnamed item'} — ${row.reason || 'Not accepted'}`).join(' | ');
+        setInvoiceStep('review', 'error');
+        setInvoiceProgress(true, `${acceptedCount} of ${submittedCount} items loaded`, `${failedCount || submittedCount - acceptedCount} item${(failedCount || submittedCount - acceptedCount) === 1 ? '' : 's'} require attention.${failureText ? ` ${failureText}` : ''}`, 'error');
+        setInvoiceStatus(failureText || `Reconciliation stopped: previewed ${submittedCount}, accepted ${acceptedCount}, confirmed in database ${databaseCount}. No rows were silently discarded.`);
+        return;
+      }
+      setInvoiceProgress(true, 'Invoice loaded', `${submittedCount} of ${submittedCount} items loaded successfully.`, 'success');
+      setInvoiceStatus(`${submittedCount} of ${submittedCount} items loaded successfully.`);
+      await refresh();
       invoiceDraftRows = [];
+      invoiceImportId = '';
       invoiceModal.hidden = true;
       setInvoiceStep('upload');
-      await refresh();
       setCount(result.message || 'Packing rows created and synced.');
     } finally {
       submit?.classList.remove('is-loading');
+      if (submit) submit.disabled = false;
     }
   }
 
@@ -3506,7 +3531,13 @@
       if (createForm) await createFromForm(createForm);
       if (invoiceForm) await createInvoiceDraft(invoiceForm);
     } catch (error) {
-      body.innerHTML = `<tr><td colspan="${totalColumnCount()}">${esc(error.message)}</td></tr>`;
+      if (invoiceForm) {
+        setInvoiceStep('review', 'error');
+        setInvoiceProgress(true, 'Invoice load failed', error.message || 'No invoice items were loaded.', 'error');
+        setInvoiceStatus(error.message || 'The invoice items could not be loaded. Review the rows and try again.');
+      } else {
+        body.innerHTML = `<tr><td colspan="${totalColumnCount()}">${esc(error.message)}</td></tr>`;
+      }
     }
   });
 

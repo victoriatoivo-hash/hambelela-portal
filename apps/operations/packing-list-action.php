@@ -2034,6 +2034,15 @@ try {
         if (!is_array($rows) || !$rows) {
             throw new RuntimeException('No invoice rows were submitted.');
         }
+        $declaredCount = (int) ($_POST['declared_count'] ?? count($rows));
+        $submittedCount = count($rows);
+        $importId = trim(substr((string) ($_POST['import_id'] ?? ''), 0, 100));
+        if ($declaredCount !== $submittedCount) {
+            throw new RuntimeException("Invoice row count mismatch: preview declared {$declaredCount}, but the server received {$submittedCount}.");
+        }
+        if ($importId === '' || !preg_match('/^[A-Za-z0-9._:-]{8,100}$/', $importId)) {
+            throw new RuntimeException('A valid invoice import reference is required. Re-extract the invoice and try again.');
+        }
 
         $invoiceNumber = ops_post_string('invoice_number', 120);
         $invoiceDate = ops_post_string('invoice_date', 40);
@@ -2071,6 +2080,10 @@ try {
         $failed = 0;
         $duplicates = 0;
         $audit = [];
+        $insertedIds = [];
+        $acceptedIds = [];
+        $skippedRows = [];
+        $failedRows = [];
         $matchedExistingIds = [];
         $automaticAssignments = [];
         $automaticAssignmentUnavailable = false;
@@ -2078,12 +2091,44 @@ try {
 
         foreach ($rows as $rowIndex => $row) {
             if (!is_array($row)) {
+                $failedRows[] = ['index' => $rowIndex, 'line_number' => $rowIndex, 'item' => '', 'reason' => 'The submitted row is not a valid item object.'];
                 continue;
             }
+            $validationName = trim(substr((string) ($row['item_name'] ?? ''), 0, 190));
+            if ($validationName === '') {
+                $failedRows[] = ['index' => $rowIndex, 'line_number' => $rowIndex, 'item' => '', 'reason' => 'Item name is required.'];
+                continue;
+            }
+            $validationAssignmentSource = (string) ($row['assignment_source'] ?? 'auto') === 'manual' ? 'manual' : 'auto';
+            $validationAssignedId = (int) ($row['assigned_employee_id'] ?? 0);
+            if ($validationAssignmentSource === 'manual' && ($validationAssignedId <= 0 || !ops_employee_can_receive_packing($validationAssignedId, false))) {
+                $failedRows[] = ['index' => $rowIndex, 'line_number' => $rowIndex, 'item' => $validationName, 'reason' => 'Choose an active employee eligible for manual Packing assignment.'];
+            }
+        }
+        if ($failedRows) {
+            echo json_encode([
+                'ok' => true,
+                'success' => false,
+                'invoice_id' => $invoiceNumber,
+                'import_id' => $importId,
+                'previewed_count' => $declaredCount,
+                'submitted_count' => $submittedCount,
+                'inserted_count' => 0,
+                'updated_count' => 0,
+                'skipped_count' => 0,
+                'failed_count' => count($failedRows),
+                'inserted_ids' => [],
+                'skipped' => [],
+                'failed' => $failedRows,
+                'message' => 'No items were loaded because one or more preview rows require attention.',
+            ]);
+            exit;
+        }
+
+        db()->beginTransaction();
+
+        foreach ($rows as $rowIndex => $row) {
             $itemName = trim(substr((string) ($row['item_name'] ?? ''), 0, 190));
-            if ($itemName === '') {
-                continue;
-            }
 
             $receivedWeight = trim(substr((string) ($row['received_weight'] ?? ''), 0, 80));
             $quantityPlan = trim(substr((string) ($row['quantity_planned'] ?? ''), 0, 255));
@@ -2110,8 +2155,9 @@ try {
                     $automaticAssignmentUnavailable = true;
                 }
             }
-            $invoiceRowKey = packing_invoice_row_key($invoiceNumber, (int) $rowIndex, $itemName, $receivedWeight, $quantityPlan);
-            $notes = '';
+            $invoiceRowKey = packing_invoice_row_key($importId, (int) $rowIndex, $itemName, $receivedWeight, $quantityPlan);
+            $originalRow = json_encode($row, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $notes = "Invoice number: {$invoiceNumber}\nSource import ID: {$importId}\nSource line number: " . ($rowIndex + 1) . "\nOriginal extracted row: " . substr((string) $originalRow, 0, 1500);
             $rowKey = 'invoice:' . $invoiceRowKey;
 
             if ($hasPackingRowKey) {
@@ -2128,6 +2174,9 @@ try {
                         'changed_by' => current_user()['name'] ?? 'Unknown',
                     ]);
                     $audit[] = "Duplicate prevented: {$itemName}";
+                    $skipped++;
+                    $acceptedIds[] = (int) $duplicate[0]['id'];
+                    $skippedRows[] = ['index' => $rowIndex, 'line_number' => $rowIndex, 'item' => $itemName, 'reason' => 'This exact import line was already loaded.', 'existing_id' => (int) $duplicate[0]['id']];
                     continue;
                 }
             }
@@ -2139,6 +2188,7 @@ try {
             if ($existingRow) {
                 $duplicates++;
                 $matchedExistingIds[] = (int) $existingRow['id'];
+                $acceptedIds[] = (int) $existingRow['id'];
                 if ($syncMode === 'skip_duplicates') {
                     $statusSet = [];
                     $statusParams = [];
@@ -2161,6 +2211,7 @@ try {
                     ]);
                     $audit[] = "Skipped duplicate: {$itemName}";
                     $skipped++;
+                    $skippedRows[] = ['index' => $rowIndex, 'line_number' => $rowIndex, 'item' => $itemName, 'reason' => 'Matching existing Packing List row was left unchanged.', 'existing_id' => (int) $existingRow['id']];
                     continue;
                 }
 
@@ -2219,6 +2270,9 @@ try {
             );
             $stmt->execute($params);
             $newId = (int) db()->lastInsertId();
+            $insertedIds[] = $newId;
+            $acceptedIds[] = $newId;
+            $matchedExistingIds[] = $newId;
             $created++;
                 $audit[] = "Created new row: {$itemName}";
             }
@@ -2332,24 +2386,56 @@ try {
 
         ops_activity_log('packing_invoice_rows_created', 'packing_import', 0, [
             'invoice_number' => $invoiceNumber,
+            'import_id' => $importId,
+            'previewed_count' => $declaredCount,
+            'submitted_count' => $submittedCount,
             'created' => $created,
             'updated' => $updated,
+            'skipped' => $skipped,
+            'failed' => count($failedRows),
+            'inserted_ids' => $insertedIds,
             'loaded_at' => $batchLoadedAt,
             'changed_by' => current_user()['name'] ?? 'Unknown',
         ]);
 
+        db()->commit();
+        $acceptedIds = array_values(array_unique(array_map('intval', $acceptedIds)));
+        $databaseCount = 0;
+        if ($acceptedIds) {
+            $databaseRows = ops_rows(
+                'SELECT COUNT(*) AS total FROM ops_packing_tasks WHERE id IN (' . implode(',', array_fill(0, count($acceptedIds), '?')) . ') AND ' . packing_active_where(),
+                $acceptedIds
+            );
+            $databaseCount = (int) ($databaseRows[0]['total'] ?? 0);
+        }
+
         echo json_encode([
             'ok' => true,
+            'success' => true,
             'message' => $automaticAssignmentUnavailable
                 ? "Packing items created. Created {$created}, updated {$updated}, skipped {$skipped}. Some rows remain unassigned because no employees are eligible for automatic distribution."
                 : "Packing items created. Created {$created}, updated {$updated}, skipped {$skipped}, duplicates detected {$duplicates}.",
             'created' => $created,
             'updated' => $updated,
-            'skipped' => $skipped,
             'synced' => $synced,
-            'failed' => $failed,
+            'sync_failed_count' => $failed,
             'duplicates' => $duplicates,
             'audit' => $audit,
+            'invoice_id' => $invoiceNumber,
+            'import_id' => $importId,
+            'previewed_count' => $declaredCount,
+            'submitted_count' => $submittedCount,
+            'inserted_count' => $created,
+            'updated_count' => $updated,
+            'skipped_count' => $skipped,
+            'failed_count' => count($failedRows),
+            'inserted_ids' => $insertedIds,
+            'accepted_ids' => $acceptedIds,
+            'database_count' => $databaseCount,
+            'board_returned_count' => $databaseCount,
+            'skipped' => $skippedRows,
+            'failed' => $failedRows,
+            'failed_rows' => $failedRows,
         ]);
         exit;
     }
