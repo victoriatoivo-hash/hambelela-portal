@@ -75,9 +75,10 @@ include BASE_PATH . '/shared/sidebar.php';
         <section class="ob-video-toolbar orders-tools-bar" aria-label="Orders tools">
             <button type="button" class="ob-view-selector"><i data-lucide="table-2"></i> Main table <i data-lucide="chevron-down"></i></button>
             <button type="button" class="ob-new-task" data-board-action="sync"><span>New task</span><i data-lucide="chevron-down"></i></button>
-            <label class="ob-toolbar-search"><i data-lucide="search"></i><input data-board-search type="search" placeholder="Search"></label>
+            <label class="ob-toolbar-search" data-view-search><i data-lucide="search"></i><input data-board-search type="search" placeholder="Search orders" aria-label="Search orders"></label>
             <button type="button" data-toolbar="person"><i data-lucide="circle-user-round"></i> Person</button>
             <button type="button" data-toolbar="filter"><i data-lucide="filter"></i> Filter</button>
+            <button type="button" data-toolbar="sort"><i data-lucide="arrow-up-down"></i> Sort</button>
             <button type="button" data-toolbar="hide"><i data-lucide="eye-off"></i> Hide</button>
             <button type="button" data-toolbar="group"><i data-lucide="columns-3"></i> Group by</button>
             <button type="button" data-toolbar="more"><i data-lucide="ellipsis"></i></button>
