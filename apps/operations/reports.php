@@ -3544,18 +3544,21 @@ $errorOwnerSummary = [
     'Most error-linked person' => $topErrorEmployee ? (string) ($topErrorEmployee['full_name'] ?: 'Unassigned') . ' (' . number_format((int) $topErrorEmployee['total']) . ')' : '-',
 ];
 $tabs = [
-    'overview' => 'Overview Dashboard',
-    'employees' => 'Employee Profiles',
-    'front-desk' => 'Front Desk Performance',
-    'picker-1' => 'Packer Performance 1',
-    'picker-2' => 'Packer Performance 2',
-    'orders' => 'Order Board',
-    'packing' => 'Packing List',
-    'tasks' => 'Task Management',
+    'overview' => 'Business Health',
+    'team-overview' => 'Team Overview',
+    'employees' => 'Employees',
+    'attendance' => 'Attendance',
+    'orders' => 'Orders',
+    'packing' => 'Packing Performance',
     'bookkeeping' => 'Bookkeeping',
-    'courier' => 'Courier',
-    'errors' => 'Errors',
-    'bonus' => 'Bonus Incentive Score',
+    'courier' => 'Waybills',
+    'tasks' => 'Task Management',
+    'website' => 'Website Updates',
+    'hr' => 'HR and Leave',
+    'errors' => 'Errors and Quality',
+    'settings' => 'KPI Settings',
+    'performance-reports' => 'Performance Reports',
+    'audit-log' => 'Audit Log',
 ];
 if (!$isKpiManager) {
     $tabs = ['employees' => 'My Performance'];
@@ -3574,6 +3577,12 @@ $pickerEmployees = array_values(array_filter($employeeScores, static function (a
 $unlinkedEmployees = array_values(array_filter($employeeScores, static function (array $row): bool {
     return empty($row['hr_linked']);
 }));
+$measuredEmployees = array_values(array_filter($employeeScores, static function (array $row): bool {
+    return !empty($row['has_measured_activity']);
+}));
+$teamAverageScore = $measuredEmployees
+    ? array_sum(array_map(static fn(array $row): float => (float) ($row['score'] ?? 0), $measuredEmployees)) / count($measuredEmployees)
+    : null;
 $dateRangeQuery = http_build_query([
     'period_preset' => $periodPreset,
     'start_date' => $filterStartDate,
@@ -3589,7 +3598,9 @@ include BASE_PATH . '/shared/sidebar.php';
 <main class="workspace module kpi-performance-page">
     <section class="module-header">
         <div>
-            <h1><?= $isKpiManager ? 'Performance Dashboard' : 'My Performance' ?></h1>
+            <span class="kpi-page-eyebrow">Owner / Admin</span>
+            <h1><?= $isKpiManager ? 'KPI & Performance Management' : 'My Performance' ?></h1>
+            <?php if ($isKpiManager): ?><p class="kpi-page-summary">Business health, team performance and operational evidence in one owner workspace.</p><?php endif; ?>
         </div>
         <form class="kpi-period-form" method="get">
             <input type="hidden" name="tab" value="<?= htmlspecialchars($activeTab, ENT_QUOTES, 'UTF-8') ?>">
@@ -3633,9 +3644,9 @@ include BASE_PATH . '/shared/sidebar.php';
         <section class="owner-performance-dashboard" data-owner-dashboard data-dashboard-endpoint="<?= htmlspecialchars(BASE_URL . '/apps/operations/api-dashboard.php', ENT_QUOTES, 'UTF-8') ?>">
             <div class="owner-dashboard-head">
                 <div>
-                    <span class="owner-eyebrow"><span class="owner-live-dot"></span> Hambelela Organic</span>
-                    <h2>Owner Performance Dashboard</h2>
-                    <p>Live operations view for orders, packing, checklists, staff and owner action items.</p>
+                    <span class="owner-eyebrow"><span class="owner-live-dot"></span> Business Health</span>
+                    <h2>Business Health</h2>
+                    <p>Live owner view of orders, packing, tasks, people and operational risk for the selected period.</p>
                 </div>
                 <div class="owner-dashboard-controls">
                     <label>From<input type="date" data-owner-from value="<?= htmlspecialchars($filterStartDate, ENT_QUOTES, 'UTF-8') ?>"></label>
@@ -3785,6 +3796,35 @@ include BASE_PATH . '/shared/sidebar.php';
                 </div>
             </section>
         </section>
+    <?php elseif ($activeTab === 'team-overview'): ?>
+        <section class="kpi-visible-section">
+            <div class="kpi-visible-section-head">
+                <div><span>People performance</span><h2>Team Overview</h2><p>Measured performance only. Employees without eligible activity remain unassessed.</p></div>
+            </div>
+            <div class="kpi-visible-metrics">
+                <article><span>Active employees</span><strong><?= number_format(count($employeeScores)) ?></strong></article>
+                <article><span>Measured employees</span><strong><?= number_format(count($measuredEmployees)) ?></strong></article>
+                <article><span>Not assessed</span><strong><?= number_format(max(0, count($employeeScores) - count($measuredEmployees))) ?></strong></article>
+                <article><span>Measured team average</span><strong><?= $teamAverageScore === null ? 'Data unavailable' : htmlspecialchars(kpi_percent($teamAverageScore), ENT_QUOTES, 'UTF-8') ?></strong></article>
+            </div>
+            <div class="kpi-visible-table-wrap">
+                <table class="kpi-visible-table">
+                    <thead><tr><th>Employee</th><th>Role</th><th>Department</th><th>Assessment</th><th>Score</th><th></th></tr></thead>
+                    <tbody>
+                    <?php foreach ($employeeScores as $row): ?>
+                        <tr>
+                            <td><?= htmlspecialchars((string) ($row['name'] ?? $row['portal_name'] ?? 'Employee'), ENT_QUOTES, 'UTF-8') ?></td>
+                            <td><?= htmlspecialchars((string) ($row['role_name'] ?? '-'), ENT_QUOTES, 'UTF-8') ?></td>
+                            <td><?= htmlspecialchars((string) (($row['hr_department'] ?? '') ?: 'Not linked'), ENT_QUOTES, 'UTF-8') ?></td>
+                            <td><span class="kpi-assessment-state <?= !empty($row['has_measured_activity']) ? 'is-measured' : '' ?>"><?= !empty($row['has_measured_activity']) ? 'Measured' : 'Not assessed' ?></span></td>
+                            <td><?= !empty($row['has_measured_activity']) ? htmlspecialchars(kpi_percent((float) ($row['score'] ?? 0)), ENT_QUOTES, 'UTF-8') : 'Data unavailable' ?></td>
+                            <td><a class="button small" href="reports.php?tab=employees&employee_id=<?= (int) ($row['employee_id'] ?? 0) ?>&<?= htmlspecialchars($dateRangeQuery, ENT_QUOTES, 'UTF-8') ?>">View profile</a></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </section>
     <?php elseif ($activeTab === 'orders'): ?>
         <section class="panel kpi-system-panel">
             <div class="section-row"><div><h2>Orders KPI</h2><p>Business-hour timing uses Mon-Fri 08:00-17:00, Saturday 09:00-13:00, and excludes Sundays. After-hours orders start counting at the next opening time.</p></div></div>
@@ -3875,6 +3915,22 @@ include BASE_PATH . '/shared/sidebar.php';
                 </section>
             <?php endif; ?>
         <?php endif; ?>
+    <?php elseif (in_array($activeTab, ['attendance', 'website', 'hr', 'settings', 'performance-reports', 'audit-log'], true)): ?>
+        <?php
+        $pendingSections = [
+            'attendance' => ['Attendance', 'Attendance records are not connected to a reliable portal data source for this period.'],
+            'website' => ['Website Updates', 'Website update activity will appear here when the source events are available.'],
+            'hr' => ['HR and Leave', 'HR and leave performance evidence is shown only when employee profiles are linked.'],
+            'settings' => ['KPI Settings', 'Scoring rules and thresholds remain owner/admin controlled.'],
+            'performance-reports' => ['Performance Reports', 'Exportable performance reports will use the selected period and measured evidence.'],
+            'audit-log' => ['Audit Log', 'KPI configuration and performance decision history will appear here when audit records are available.'],
+        ];
+        [$pendingTitle, $pendingCopy] = $pendingSections[$activeTab];
+        ?>
+        <section class="kpi-visible-section kpi-unavailable-section">
+            <div class="kpi-visible-section-head"><div><span>KPI Management</span><h2><?= htmlspecialchars($pendingTitle, ENT_QUOTES, 'UTF-8') ?></h2><p><?= htmlspecialchars($pendingCopy, ENT_QUOTES, 'UTF-8') ?></p></div></div>
+            <div class="kpi-data-unavailable"><i data-lucide="database-zap"></i><div><strong>Data unavailable</strong><p>No figures are shown until a verified source is connected. This prevents invented scores or misleading zeroes.</p></div></div>
+        </section>
     <?php elseif (in_array($activeTab, ['packing', 'bookkeeping', 'tasks', 'courier', 'errors'], true)): ?>
         <?php kpi_render_module_report($activeTab, $employeeScores, $employeeKpiDetails); ?>
     <?php endif; ?>
@@ -4390,6 +4446,36 @@ include BASE_PATH . '/shared/sidebar.php';
         </article>
     </section>
     <?php endif; ?>
+<style>
+.kpi-performance-page { padding-top: 14px; }
+.kpi-performance-page .module-header { align-items: flex-end; margin-bottom: 12px; }
+.kpi-page-eyebrow { color: #AB3619; font-size: 10px; font-weight: 600; text-transform: uppercase; }
+.kpi-page-summary { margin: 4px 0 0; color: #1A1A1A; font-size: 12px; font-weight: 400; }
+.kpi-report-tabs { display: flex; gap: 6px; margin: 0 0 14px; padding: 7px; overflow-x: auto; border: 1px solid #EDE3D8; border-radius: 10px; background: #fff; scrollbar-width: thin; }
+.kpi-report-tabs a { flex: 0 0 auto; min-height: 30px; padding: 0 10px; display: inline-flex; align-items: center; border: 1px solid transparent; border-radius: 8px; color: #1A1A1A; font-size: 12px; font-weight: 400; text-decoration: none; }
+.kpi-report-tabs a:hover { border-color: rgba(171,54,25,.24); background: rgba(240,116,32,.06); color: #AB3619; }
+.kpi-report-tabs a.active { border-color: #AB3619; background: #AB3619; color: #fff; }
+.kpi-visible-section { display: grid; gap: 12px; }
+.kpi-visible-section-head { padding: 14px; border: 1px solid #EDE3D8; border-radius: 10px; background: #fff; }
+.kpi-visible-section-head span { color: #AB3619; font-size: 10px; font-weight: 600; text-transform: uppercase; }
+.kpi-visible-section-head h2 { margin: 4px 0; color: #721B1A; font-size: 18px; }
+.kpi-visible-section-head p { margin: 0; color: #1A1A1A; font-size: 12px; font-weight: 400; }
+.kpi-visible-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.kpi-visible-metrics article { min-height: 72px; padding: 12px; border: 1px solid #EDE3D8; border-left: 4px solid #AB3619; border-radius: 8px; background: #fff; }
+.kpi-visible-metrics span { display: block; color: #7C655E; font-size: 10px; font-weight: 600; text-transform: uppercase; }
+.kpi-visible-metrics strong { display: block; margin-top: 7px; color: #1A1A1A; font-size: 16px; font-weight: 600; }
+.kpi-visible-table-wrap { overflow: auto; border: 1px solid #EDE3D8; border-radius: 10px; background: #fff; }
+.kpi-visible-table { width: 100%; border-collapse: collapse; }
+.kpi-visible-table th, .kpi-visible-table td { height: 36px; padding: 0 10px; border-bottom: 1px solid #EDE3D8; color: #1A1A1A; font-size: 12px; font-weight: 400; text-align: left; white-space: nowrap; }
+.kpi-visible-table th { background: rgba(253,246,238,.72); color: #721B1A; font-size: 10px; font-weight: 600; text-transform: uppercase; }
+.kpi-assessment-state { padding: 4px 7px; border-radius: 999px; background: rgba(114,27,26,.08); color: #721B1A; font-size: 10px; }
+.kpi-assessment-state.is-measured { background: rgba(168,202,25,.14); }
+.kpi-data-unavailable { min-height: 130px; padding: 20px; display: flex; align-items: center; justify-content: center; gap: 12px; border: 1px dashed #EDE3D8; border-radius: 10px; background: #fff; color: #1A1A1A; }
+.kpi-data-unavailable svg { width: 20px; height: 20px; color: #AB3619; }
+.kpi-data-unavailable p { margin: 3px 0 0; font-size: 12px; font-weight: 400; }
+@media (max-width: 900px) { .kpi-visible-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .kpi-performance-page .module-header { align-items: stretch; } }
+@media (max-width: 560px) { .kpi-visible-metrics { grid-template-columns: 1fr; } }
+</style>
 </main>
 <?php if ($activeTab === 'overview'): ?>
 <style>
