@@ -36,7 +36,6 @@ $portalNavItems = [
     ['id' => 'portal-dashboard', 'label' => 'Dashboard', 'icon' => 'dashboard', 'href' => '/index.php', 'match' => ['/index.php']],
     ['id' => 'operations-orders', 'label' => 'Orders', 'icon' => 'orders', 'href' => BASE_URL . '/apps/operations/orders-board.php', 'match' => ['/apps/operations/orders-board.php']],
     ['id' => 'operations-bookkeeping', 'label' => 'Bookkeeping', 'icon' => 'bookkeeping', 'href' => BASE_URL . '/apps/operations/bookkeeping.php', 'match' => ['/apps/operations/bookkeeping.php']],
-    ['id' => 'operations-cash-tools', 'label' => 'Cash Tools', 'icon' => 'cash', 'href' => BASE_URL . '/apps/operations/bookkeeping.php?cash_tools=1', 'match' => ['/apps/operations/bookkeeping.php']],
     ['id' => 'operations-consignments', 'label' => 'Packing List', 'icon' => 'packing', 'href' => BASE_URL . '/apps/operations/consignments.php', 'match' => ['/apps/operations/consignments.php']],
     ['id' => 'operations-courier', 'label' => 'Courier Waybills', 'icon' => 'courier', 'href' => BASE_URL . '/apps/operations/courier.php', 'match' => ['/apps/operations/courier.php']],
     ['id' => 'hr-portal', 'label' => 'HR Portal', 'icon' => 'hr', 'href' => BASE_URL . '/apps/hr-portal/portal-login.php', 'match' => ['/apps/hr-portal/portal-login.php', '/apps/hr-portal/index.php']],
@@ -52,7 +51,6 @@ $featureByNavId = [
     'portal-dashboard' => 'dashboard',
     'operations-orders' => 'orders',
     'operations-bookkeeping' => 'bookkeeping',
-    'operations-cash-tools' => 'cash_tools',
     'operations-consignments' => 'packing_list',
     'operations-courier' => 'courier',
     'hr-portal' => 'hr',
@@ -81,7 +79,6 @@ if ($isEmployeeSidebar) {
         'operations-orders' => 40,
         'operations-checklists' => 50,
         'operations-bookkeeping' => 60,
-        'operations-cash-tools' => 70,
         'notifications' => 80,
         'operations-errors' => 90,
     ];
@@ -97,7 +94,6 @@ function getSidebarIcon(string $id): string
         'operations-dashboard' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>',
         'operations-orders' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>',
         'operations-bookkeeping' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>',
-        'operations-cash-tools' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>',
         'operations-consignments' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>',
         'operations-courier' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17h4V5H2v12h3"/><path d="M14 9h4l4 4v4h-3"/><circle cx="7.5" cy="17.5" r="2.5"/><circle cx="16.5" cy="17.5" r="2.5"/></svg>',
         'operations-inventory' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96 12 12.01l8.73-5.05"/><path d="M12 22.08V12"/></svg>',
@@ -117,10 +113,7 @@ $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bo
     foreach (($item['match'] ?? []) as $matchPath) {
         if ($currentPath === $matchPath) {
             if (($item['id'] ?? '') === 'operations-bookkeeping') {
-                return empty($_GET['cash_tools']);
-            }
-            if (($item['id'] ?? '') === 'operations-cash-tools') {
-                return !empty($_GET['cash_tools']);
+                return true;
             }
             if (($item['id'] ?? '') === 'operations-inventory') {
                 return ($_GET['tab'] ?? '') === 'inventory';
