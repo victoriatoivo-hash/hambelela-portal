@@ -41,7 +41,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 <h1>Hambelela Packing <i data-lucide="chevron-down"></i></h1>
                 <p class="packing-load-state" data-packing-count>Loading packing list...</p>
             </div>
-            <div class="monday-board-head-actions">
+            <div class="monday-board-head-actions packing-header-actions" data-portal-header-status-target>
                 <?php if ($canViewPackingTools): ?><button type="button" class="packing-tools-button" data-open-packing-tools><i data-lucide="wrench"></i><span>Packing tools</span></button><?php endif; ?>
                 <button type="button" class="invite-btn packing-btn packing-btn-secondary" data-packing-export><i data-lucide="download"></i> Export Excel</button>
             </div>
