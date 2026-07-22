@@ -589,6 +589,106 @@ window.addEventListener('DOMContentLoaded', () => {
 
   portalNotificationPoller.start();
 
+  const urgentTaskAlerts = (() => {
+    const endpoint = '/api/notifications.php';
+    const queue = [];
+    const known = new Set();
+    let active = null;
+    let timer = null;
+    let audioUnlocked = false;
+    let previousFocus = null;
+
+    const createModal = () => {
+      const root = document.createElement('div');
+      root.className = 'urgent-task-alert';
+      root.hidden = true;
+      root.innerHTML = '<div class="urgent-task-alert__backdrop" aria-hidden="true"></div><section class="urgent-task-alert__dialog" role="alertdialog" aria-modal="true" aria-labelledby="urgentTaskTitle" aria-describedby="urgentTaskMessage"><button type="button" class="urgent-task-alert__close" aria-label="Close urgent task notification">&times;</button><div class="urgent-task-alert__icon" aria-hidden="true">!</div><span class="urgent-task-alert__eyebrow">Urgent task</span><h2 id="urgentTaskTitle"></h2><p class="urgent-task-alert__message" id="urgentTaskMessage"></p><div class="urgent-task-alert__meta"><span data-alert-assigned-by></span><span data-alert-due></span></div><div class="urgent-task-alert__position" aria-live="polite"></div><div class="urgent-task-alert__actions"><button type="button" class="urgent-task-alert__dismiss">Dismiss</button><button type="button" class="urgent-task-alert__view">View Task</button></div></section>';
+      document.body.appendChild(root);
+      return root;
+    };
+    const modal = createModal();
+    const dialog = modal.querySelector('.urgent-task-alert__dialog');
+    const postState = async (alertId, state) => {
+      try { await fetch(endpoint, { method: 'POST', credentials: 'same-origin', headers: {'Content-Type':'application/x-www-form-urlencoded'}, body: new URLSearchParams({action:`urgent_${state}`, alert_id:String(alertId)}) }); } catch (_) {}
+    };
+    const unlockAudio = () => { audioUnlocked = true; };
+    ['pointerdown', 'keydown', 'touchstart'].forEach((name) => window.addEventListener(name, unlockAudio, {once:true, passive:true}));
+    const playSound = () => {
+      if (!audioUnlocked) return;
+      try {
+        const Context = window.AudioContext || window.webkitAudioContext;
+        if (!Context) return;
+        const context = new Context();
+        const gain = context.createGain();
+        gain.gain.setValueAtTime(0.0001, context.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.11, context.currentTime + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.42);
+        gain.connect(context.destination);
+        [620, 820].forEach((frequency, index) => { const tone = context.createOscillator(); tone.type='sine'; tone.frequency.value=frequency; tone.connect(gain); tone.start(context.currentTime + index * .1); tone.stop(context.currentTime + .36 + index * .1); });
+      } catch (_) {}
+    };
+    const formatDue = (value) => {
+      if (!value) return '';
+      const date = new Date(String(value).replace(' ', 'T'));
+      return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString([], {dateStyle:'medium', timeStyle:'short'});
+    };
+    const showNext = async () => {
+      if (active || !queue.length) return;
+      active = queue.shift();
+      previousFocus = document.activeElement;
+      modal.querySelector('#urgentTaskTitle').textContent = active.title || 'Urgent task';
+      modal.querySelector('#urgentTaskMessage').textContent = active.message || 'Please review this task immediately.';
+      modal.querySelector('[data-alert-assigned-by]').textContent = `Assigned by: ${active.assignedBy || 'Management'}`;
+      modal.querySelector('[data-alert-due]').textContent = active.dueAt ? `Due: ${formatDue(active.dueAt)}` : '';
+      modal.querySelector('.urgent-task-alert__position').textContent = `1 of ${queue.length + 1} urgent task${queue.length ? 's' : ''}`;
+      modal.hidden = false;
+      document.body.classList.add('urgent-task-alert-open');
+      modal.querySelector('.urgent-task-alert__view').focus();
+      if (!active.deliveredAt) { await postState(active.alertId, 'delivered'); playSound(); }
+    };
+    const finish = async (state) => {
+      if (!active) return;
+      const finished = active;
+      active = null;
+      modal.hidden = true;
+      document.body.classList.remove('urgent-task-alert-open');
+      await postState(finished.alertId, state);
+      if (state === 'viewed') {
+        const target = `/apps/operations/checklists.php?task_id=${encodeURIComponent(finished.taskId)}`;
+        if (/\/apps\/operations\/checklists\.php$/.test(window.location.pathname) && typeof window.openTaskPanel === 'function') {
+          window.openTaskPanel(finished.taskId); history.replaceState({}, '', target);
+        } else window.location.assign(target);
+        return;
+      }
+      if (previousFocus instanceof HTMLElement) previousFocus.focus();
+      showNext();
+    };
+    modal.querySelector('.urgent-task-alert__close').addEventListener('click', () => finish('dismissed'));
+    modal.querySelector('.urgent-task-alert__dismiss').addEventListener('click', () => finish('dismissed'));
+    modal.querySelector('.urgent-task-alert__view').addEventListener('click', () => finish('viewed'));
+    modal.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') { event.preventDefault(); finish('dismissed'); return; }
+      if (event.key !== 'Tab') return;
+      const focusable = Array.from(dialog.querySelectorAll('button:not([disabled])'));
+      if (!focusable.length) return;
+      const first = focusable[0], last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    });
+    const check = async () => {
+      if (document.visibilityState === 'hidden') return;
+      try {
+        const response = await fetch(`${endpoint}?mode=urgent`, {credentials:'same-origin', headers:{Accept:'application/json'}});
+        if (!response.ok) return;
+        const payload = await response.json();
+        (payload.alerts || []).forEach((alert) => { const id=String(alert.alertId); if (!known.has(id) && String(active?.alertId)!==id) { known.add(id); queue.push(alert); } });
+        showNext();
+      } catch (_) {}
+    };
+    return { start() { check(); timer = window.setInterval(check, 12000); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); }); } };
+  })();
+  urgentTaskAlerts.start();
+
   document.querySelectorAll('.portal-nav-link, .portal-dark-toggle').forEach((button) => {
     button.addEventListener('click', (event) => {
       const rect = button.getBoundingClientRect();

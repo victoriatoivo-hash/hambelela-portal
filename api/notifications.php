@@ -12,6 +12,24 @@ header('Content-Type: application/json');
 try {
     $mode = (string) ($_GET['mode'] ?? 'summary');
 
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $action = (string) ($_POST['action'] ?? '');
+        $alertId = (int) ($_POST['alert_id'] ?? 0);
+        if (!in_array($action, ['urgent_delivered', 'urgent_viewed', 'urgent_dismissed'], true) || $alertId <= 0) {
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'message' => 'Invalid urgent alert action.']);
+            exit;
+        }
+        $state = substr($action, 7);
+        echo json_encode(['ok' => notifications_mark_urgent_state($alertId, $state)]);
+        exit;
+    }
+
+    if ($mode === 'urgent') {
+        echo json_encode(['ok' => true, 'alerts' => notifications_urgent_tasks_for_current_user()], JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
     if ($mode !== 'summary') {
         http_response_code(400);
         echo json_encode(['ok' => false, 'message' => 'Unsupported notification mode.']);

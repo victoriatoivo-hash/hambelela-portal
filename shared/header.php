@@ -63,6 +63,7 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal.css?v=<?= htmlspecialchars($assetVersion, ENT_QUOTES, 'UTF-8') ?>">
+    <?php if ($showPortalHeaderStatus): ?><link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/urgent-task-alert.css?v=<?= htmlspecialchars((string) filemtime(BASE_PATH . '/assets/css/urgent-task-alert.css'), ENT_QUOTES, 'UTF-8') ?>"><?php endif; ?>
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal-responsive.css?v=<?= htmlspecialchars($responsiveAssetVersion, ENT_QUOTES, 'UTF-8') ?>">
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal-header-account.css?v=<?= htmlspecialchars($headerAccountCssVersion, ENT_QUOTES, 'UTF-8') ?>">
     <?php foreach (($extraStylesheets ?? []) as $stylesheet): ?>

@@ -95,6 +95,9 @@ function checklist_bootstrap_schema(): void
         'restored_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN restored_at DATETIME NULL AFTER deleted_by",
         'restored_by' => "ALTER TABLE ops_checklist_tasks ADD COLUMN restored_by INT NULL AFTER restored_at",
         'updated_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at",
+        'urgent_alert_enabled' => "ALTER TABLE ops_checklist_tasks ADD COLUMN urgent_alert_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER employee_visible",
+        'urgent_alert_message' => "ALTER TABLE ops_checklist_tasks ADD COLUMN urgent_alert_message VARCHAR(240) NULL AFTER urgent_alert_enabled",
+        'urgent_alert_sent_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN urgent_alert_sent_at DATETIME NULL AFTER urgent_alert_message",
     ];
     foreach ($columns as $column => $sql) {
         if (!checklist_column_exists($column)) checklist_try_sql($sql);
@@ -131,6 +134,43 @@ function checklist_bootstrap_schema(): void
             ]);
         }
     }
+}
+
+function checklist_urgent_recipient_ids(array $values, int $assignedId): array
+{
+    $ids = [];
+    foreach ($values as $value) {
+        $value = trim((string) $value);
+        if (preg_match('/^employee:(\d+)$/', $value, $match)) $ids[] = (int) $match[1];
+        elseif ($value === 'role:front_desk') $ids = array_merge($ids, notifications_role_recipients(['front_desk_admin', 'front_desk_admin_employee']));
+        elseif ($value === 'role:packers') $ids = array_merge($ids, notifications_role_recipients(['packer', 'packer_production_staff']));
+        elseif ($value === 'role:all_relevant') $ids = array_merge($ids, notifications_role_recipients(['front_desk_admin', 'front_desk_admin_employee', 'packer', 'packer_production_staff', 'supervisor_manager']));
+        elseif ($value === 'assigned' && $assignedId > 0) $ids[] = $assignedId;
+    }
+    if (ops_table_exists('ops_employees') && $ids) {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+        $marks = implode(',', array_fill(0, count($ids), '?'));
+        $valid = ops_rows("SELECT id FROM ops_employees WHERE status = 'active' AND id IN ({$marks})", $ids);
+        return array_map(static fn(array $row): int => (int) $row['id'], $valid);
+    }
+    return [];
+}
+
+function checklist_send_urgent_alert(int $taskId, string $title, string $message, array $recipientIds, bool $resend = false): ?int
+{
+    if ($taskId <= 0 || !$recipientIds) return null;
+    $notificationId = notifications_create([
+        'title' => $title, 'message' => $message, 'module' => 'tasks', 'priority' => 'urgent',
+        'related_type' => 'checklist_task', 'related_id' => $taskId,
+        'action_link' => BASE_URL . '/apps/operations/checklists.php?task_id=' . $taskId,
+    ], $recipientIds);
+    if ($notificationId) {
+        db()->prepare('UPDATE ops_checklist_tasks SET urgent_alert_enabled = 1, urgent_alert_message = ?, urgent_alert_sent_at = NOW() WHERE id = ?')->execute([$message, $taskId]);
+        ops_activity_log($resend ? 'task_urgent_alert_resent' : 'task_urgent_alert_sent', 'checklist_task', $taskId, [
+            'notification_id' => $notificationId, 'recipient_ids' => $recipientIds, 'message' => $message,
+        ]);
+    }
+    return $notificationId;
 }
 
 function checklist_json_items(?string $value): array
@@ -521,6 +561,11 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $deadline = str_replace('T', ' ', ops_post_string('deadline', 30));
             $taskName = ops_post_string('task_name', 190);
             if ($taskName === '') throw new RuntimeException('Task name is required.');
+            $urgentRequested = !empty($_POST['send_urgent_alert']);
+            $urgentRecipients = $urgentRequested ? checklist_urgent_recipient_ids((array) ($_POST['urgent_alert_recipients'] ?? []), $assignedId) : [];
+            if ($urgentRequested && !$urgentRecipients) throw new RuntimeException('Choose at least one valid urgent alert recipient.');
+            $urgentMessage = $urgentRequested ? (ops_post_string('urgent_alert_message', 240) ?: ops_post_string('instructions', 240)) : '';
+            if ($urgentRequested && $urgentMessage === '') $urgentMessage = 'Please review and begin this urgent task.';
             $employeeVisible = isset($_POST['employee_visible']) ? 1 : 0;
             $recurringRule = ops_post_string('recurring_rule', 80);
             $templateId = null;
@@ -557,6 +602,11 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $createdTaskId = (int) db()->lastInsertId();
             ops_activity_log('task_created', 'checklist_task', $createdTaskId, ['assigned_employee_id' => $assignedId]);
             notifications_notify_task_assigned($createdTaskId, $assignedId > 0 ? $assignedId : null, $taskName);
+            if ($urgentRequested) {
+                if (!checklist_send_urgent_alert($createdTaskId, $taskName, $urgentMessage, $urgentRecipients)) {
+                    throw new RuntimeException('The task was saved, but its urgent alert could not be sent.');
+                }
+            }
             $message = 'Task created and assigned.';
         }
 
@@ -565,7 +615,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $deadline = str_replace('T', ' ', ops_post_string('deadline', 30));
             $status = checklist_normalize_status(ops_post_string('status', 30));
             if (!array_key_exists($status, $statuses)) $status = 'pending';
-            $oldRows = ops_rows('SELECT status FROM ops_checklist_tasks WHERE id = ? LIMIT 1', [$taskId]);
+            $oldRows = ops_rows('SELECT status, task_name, instructions, urgent_alert_sent_at FROM ops_checklist_tasks WHERE id = ? LIMIT 1', [$taskId]);
             $oldStatus = (string) ($oldRows[0]['status'] ?? '');
             $employeeVisible = isset($_POST['employee_visible']) ? 1 : 0;
             $stmt = db()->prepare("UPDATE ops_checklist_tasks SET assigned_employee_id = ?, deadline = ?, priority = ?, status = ?, employee_visible = ? WHERE id = ?");
@@ -573,7 +623,29 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             checklist_kpi_status_event($taskId, $oldStatus, $status, $currentEmployeeId);
             ops_activity_log('task_admin_updated', 'checklist_task', $taskId, ['status' => $status, 'assigned_employee_id' => $assignedId]);
             notifications_notify_task_assigned($taskId, $assignedId > 0 ? $assignedId : null, 'Checklist task');
+            if (!empty($_POST['send_urgent_alert']) && empty($oldRows[0]['urgent_alert_sent_at'])) {
+                $urgentRecipients = checklist_urgent_recipient_ids((array) ($_POST['urgent_alert_recipients'] ?? []), $assignedId);
+                if (!$urgentRecipients) throw new RuntimeException('Choose at least one valid urgent alert recipient.');
+                $urgentMessage = ops_post_string('urgent_alert_message', 240) ?: (string) ($oldRows[0]['instructions'] ?? '');
+                if (!checklist_send_urgent_alert($taskId, (string) ($oldRows[0]['task_name'] ?? 'Urgent task'), $urgentMessage ?: 'Please review and begin this urgent task.', $urgentRecipients)) {
+                    throw new RuntimeException('The task was saved, but its urgent alert could not be sent.');
+                }
+            }
             $message = 'Task updated.';
+        }
+
+        if ($action === 'resend_urgent_alert') {
+            if (!$canManage) { http_response_code(403); throw new RuntimeException('Only management can resend urgent task alerts.'); }
+            $taskRows = ops_rows('SELECT task_name, instructions, assigned_employee_id, urgent_alert_message FROM ops_checklist_tasks WHERE id = ? LIMIT 1', [$taskId]);
+            if (!$taskRows) throw new RuntimeException('Task not found.');
+            $assignedId = (int) ($taskRows[0]['assigned_employee_id'] ?? 0);
+            $urgentRecipients = checklist_urgent_recipient_ids((array) ($_POST['urgent_alert_recipients'] ?? ['assigned']), $assignedId);
+            if (!$urgentRecipients) throw new RuntimeException('Choose at least one valid urgent alert recipient.');
+            $urgentMessage = ops_post_string('urgent_alert_message', 240) ?: (string) ($taskRows[0]['urgent_alert_message'] ?: $taskRows[0]['instructions']);
+            if (!checklist_send_urgent_alert($taskId, (string) $taskRows[0]['task_name'], $urgentMessage ?: 'Please review and begin this urgent task.', $urgentRecipients, true)) {
+                throw new RuntimeException('The urgent alert could not be resent.');
+            }
+            $message = 'Urgent alert resent.';
         }
 
         if ($action === 'update_task_progress') {
@@ -903,6 +975,14 @@ include BASE_PATH . '/shared/sidebar.php';
                         <div class="create-task-field create-task-field--full"><label for="create-task-items">Required checklist items</label><textarea id="create-task-items" name="checklist_items_text" placeholder="One item per line"></textarea></div>
                         <div class="create-task-field"><label for="create-task-recurrence">Automatic recurrence</label><select id="create-task-recurrence" name="recurring_rule" data-portal-custom-select><option value="">One-time task</option><option value="daily_business_day">Every business day</option><option value="twice_weekly">Every Tuesday and Thursday</option><option value="weekly_1">Every Monday</option><option value="weekly_2">Every Tuesday</option><option value="weekly_3">Every Wednesday</option><option value="weekly_4">Every Thursday</option><option value="weekly_5">Every Friday</option><option value="weekly_saturday">Every Saturday</option></select></div>
                         <label class="create-task-visible"><input type="checkbox" name="employee_visible" value="1" checked><span>Active and visible to the assigned employee</span></label>
+                        <section class="task-urgent-control create-task-field--full" data-urgent-control>
+                            <label class="task-urgent-toggle"><input type="checkbox" name="send_urgent_alert" value="1" data-urgent-toggle><span class="task-urgent-toggle__track" aria-hidden="true"><span class="task-urgent-toggle__thumb"></span></span><span class="task-urgent-toggle__copy"><strong>Send urgent alert</strong><small>Notify employees immediately with a popup and sound.</small></span></label>
+                            <div class="task-urgent-options" data-urgent-options hidden>
+                                <span class="task-field-label">Notify</span>
+                                <div class="task-urgent-recipients"><label><input type="checkbox" name="urgent_alert_recipients[]" value="assigned"> Assigned employee</label><label><input type="checkbox" name="urgent_alert_recipients[]" value="role:front_desk"> Front desk</label><label><input type="checkbox" name="urgent_alert_recipients[]" value="role:packers"> Packers</label><label><input type="checkbox" name="urgent_alert_recipients[]" value="role:all_relevant"> All relevant employees</label></div>
+                                <label for="create-urgent-message">Alert message</label><textarea id="create-urgent-message" name="urgent_alert_message" maxlength="240" placeholder="Enter a short urgent instruction"></textarea><small>The task title is included automatically.</small>
+                            </div>
+                        </section>
                     </div>
                     <div class="create-task-actions"><button class="create-task-submit btn-assign-task" type="submit">Assign task</button></div>
                 </form>
@@ -1037,6 +1117,13 @@ include BASE_PATH . '/shared/sidebar.php';
                             <div class="task-field"><label for="task-deadline-display-<?= $panelId ?>">Due date</label><div class="portal-date-field" data-portal-date-field><input id="task-deadline-display-<?= $panelId ?>" type="text" class="portal-date-input" data-enable-time="true" data-submit-target="#task-deadline-<?= $panelId ?>" placeholder="dd/mm/yyyy --:--" autocomplete="off"><input id="task-deadline-<?= $panelId ?>" type="hidden" name="deadline" value="<?= htmlspecialchars($deadlineValue, ENT_QUOTES, 'UTF-8') ?>"><button type="button" class="portal-date-trigger" aria-label="Open Due Date calendar"><i data-lucide="calendar-clock" aria-hidden="true"></i></button></div></div>
                         </div>
                         <label class="create-task-visible"><input type="checkbox" name="employee_visible" value="1" <?= !isset($task['employee_visible']) || (int) $task['employee_visible'] === 1 ? 'checked' : '' ?>><span>Active and visible to the assigned employee</span></label>
+                        <section class="task-urgent-control" data-urgent-control>
+                            <?php if (empty($task['urgent_alert_sent_at'])): ?>
+                                <label class="task-urgent-toggle"><input type="checkbox" name="send_urgent_alert" value="1" data-urgent-toggle><span class="task-urgent-toggle__track" aria-hidden="true"><span class="task-urgent-toggle__thumb"></span></span><span class="task-urgent-toggle__copy"><strong>Send urgent alert</strong><small>Notify employees after this task update saves.</small></span></label>
+                            <?php else: ?><div class="task-urgent-sent"><strong>Urgent alert sent</strong><small><?= htmlspecialchars(checklist_date_label((string) $task['urgent_alert_sent_at']), ENT_QUOTES, 'UTF-8') ?></small></div><?php endif; ?>
+                            <div class="task-urgent-options" data-urgent-options <?= empty($task['urgent_alert_sent_at']) ? 'hidden' : '' ?>><span class="task-field-label">Notify</span><div class="task-urgent-recipients"><label><input type="checkbox" name="urgent_alert_recipients[]" value="assigned" checked> Assigned employee</label><label><input type="checkbox" name="urgent_alert_recipients[]" value="role:front_desk"> Front desk</label><label><input type="checkbox" name="urgent_alert_recipients[]" value="role:packers"> Packers</label><label><input type="checkbox" name="urgent_alert_recipients[]" value="role:all_relevant"> All relevant employees</label></div><label for="urgent-message-<?= $panelId ?>">Alert message</label><textarea id="urgent-message-<?= $panelId ?>" name="urgent_alert_message" maxlength="240"><?= htmlspecialchars((string) ($task['urgent_alert_message'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea></div>
+                            <?php if (!empty($task['urgent_alert_sent_at'])): ?><button class="task-btn task-btn--secondary" type="submit" name="action" value="resend_urgent_alert" data-resend-urgent>Resend urgent alert</button><?php endif; ?>
+                        </section>
                         <div class="task-edit-actions"><button class="task-btn task-btn--primary" type="submit">Save assignment</button></div>
                     </form>
                     <?php if ($taskKind === 'recurring'): ?><form method="post" class="task-recurrence-stop-form"><input type="hidden" name="action" value="task_cancel_recurrence"><input type="hidden" name="task_id" value="<?= $panelId ?>"><button class="task-btn task-btn--danger" type="submit">Stop future recurrence</button><small>The current task stays available; no new copies will be created.</small></form><?php endif; ?>
@@ -1111,6 +1198,22 @@ include BASE_PATH . '/shared/sidebar.php';
     <div class="panel-backdrop task-panel-backdrop" data-task-close data-task-create-close hidden></div>
 </main>
 <script>
+document.querySelectorAll('[data-urgent-control]').forEach((control) => {
+  const toggle = control.querySelector('[data-urgent-toggle]');
+  const options = control.querySelector('[data-urgent-options]');
+  if (toggle && options) {
+    const sync = () => { options.hidden = !toggle.checked; };
+    toggle.addEventListener('change', sync);
+    sync();
+  }
+});
+document.querySelectorAll('[data-resend-urgent]').forEach((button) => button.addEventListener('click', (event) => {
+  if (!window.confirm('Send this urgent task alert again to employees who have not completed the task?')) event.preventDefault();
+}));
+document.querySelectorAll('.checklist-create-form, .task-edit-card').forEach((form) => form.addEventListener('submit', () => {
+  window.setTimeout(() => form.querySelectorAll('button[type="submit"]').forEach((button) => { button.disabled = true; }), 0);
+}));
+
 function initializePortalCustomSelects(root = document) {
   const wireCustomSelect = (customSelect, valueControl, optionButtons, getSelectedIndex, setValue) => {
     if (customSelect.dataset.customSelectReady === 'true') return;
@@ -1945,5 +2048,20 @@ document.addEventListener('keydown', (event) => {
   if (backdrop) backdrop.hidden = true;
   document.body.classList.remove('task-panel-open');
 });
+
+window.openTaskPanel = function (taskId) {
+  const panel = document.querySelector(`[data-task-panel="${String(taskId).replace(/[^0-9]/g, '')}"]`);
+  if (!panel) return false;
+  initializePortalCustomSelects(panel);
+  initialiseTaskProofUpload(panel);
+  panel.classList.add('open');
+  panel.setAttribute('aria-hidden', 'false');
+  const backdrop = document.querySelector('.task-panel-backdrop');
+  if (backdrop) backdrop.hidden = false;
+  document.body.classList.add('task-panel-open');
+  return true;
+};
+const initialTaskId = new URLSearchParams(window.location.search).get('task_id');
+if (initialTaskId) window.openTaskPanel(initialTaskId);
 </script>
 <?php include BASE_PATH . '/shared/footer.php'; ?>

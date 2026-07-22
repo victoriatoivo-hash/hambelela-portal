@@ -255,7 +255,9 @@ function notifications_create(array $data, array $recipientIds): ?int
 
     $module = (string) ($data['module'] ?? 'system');
     $recipientIds = array_values(array_unique(array_filter(array_map('intval', $recipientIds))));
-    $recipientIds = array_values(array_filter($recipientIds, static fn (int $id): bool => notifications_recipient_accepts($id, $module)));
+    if ((string) ($data['priority'] ?? 'normal') !== 'urgent') {
+        $recipientIds = array_values(array_filter($recipientIds, static fn (int $id): bool => notifications_recipient_accepts($id, $module)));
+    }
     if (!$recipientIds) {
         return null;
     }
@@ -291,6 +293,58 @@ function notifications_create(array $data, array $recipientIds): ?int
 function notifications_create_for_roles(array $data, array $roleKeys): ?int
 {
     return notifications_create($data, notifications_role_recipients($roleKeys));
+}
+
+function notifications_urgent_tasks_for_current_user(int $limit = 20): array
+{
+    $employeeId = notifications_current_employee_id();
+    if (!$employeeId || !notifications_schema_ready()) return [];
+    try {
+        $limit = max(1, min(50, $limit));
+        $stmt = db()->prepare(
+            "SELECT n.id AS alert_id, n.related_id AS task_id, n.title, n.message,
+                    n.created_at, nr.delivered_at, e.full_name AS assigned_by,
+                    t.deadline AS due_at
+             FROM notification_recipients nr
+             JOIN notifications n ON n.id = nr.notification_id
+             LEFT JOIN ops_checklist_tasks t ON t.id = n.related_id
+             LEFT JOIN ops_employees e ON e.id = n.created_by
+             WHERE nr.employee_id = ? AND n.module = 'tasks' AND n.priority = 'urgent'
+               AND n.related_type = 'checklist_task' AND nr.read_at IS NULL AND nr.cleared_at IS NULL
+               AND (t.id IS NULL OR t.status NOT IN ('complete','completed','approved'))
+             ORDER BY n.created_at ASC, n.id ASC LIMIT {$limit}"
+        );
+        $stmt->execute([$employeeId]);
+        $rows = $stmt->fetchAll();
+        $stmt->closeCursor();
+        return array_map(static function (array $row): array {
+            return [
+                'alertId' => (int) $row['alert_id'], 'taskId' => (int) $row['task_id'],
+                'title' => (string) $row['title'], 'message' => (string) $row['message'],
+                'priority' => 'urgent', 'assignedBy' => (string) ($row['assigned_by'] ?: 'Management'),
+                'dueAt' => $row['due_at'], 'createdAt' => $row['created_at'],
+                'deliveredAt' => $row['delivered_at'],
+            ];
+        }, $rows);
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
+function notifications_mark_urgent_state(int $notificationId, string $state): bool
+{
+    $employeeId = notifications_current_employee_id();
+    if (!$employeeId || $notificationId <= 0 || !notifications_schema_ready()) return false;
+    $column = ['delivered' => 'delivered_at', 'viewed' => 'read_at', 'dismissed' => 'cleared_at'][$state] ?? '';
+    if ($column === '') return false;
+    $stmt = db()->prepare(
+        "UPDATE notification_recipients nr JOIN notifications n ON n.id = nr.notification_id
+         SET nr.{$column} = COALESCE(nr.{$column}, NOW())
+         WHERE nr.notification_id = ? AND nr.employee_id = ? AND n.module = 'tasks'
+           AND n.priority = 'urgent' AND n.related_type = 'checklist_task'"
+    );
+    $stmt->execute([$notificationId, $employeeId]);
+    return $stmt->rowCount() > 0;
 }
 
 function notifications_payload_for_current_user(int $limit = 12): array
