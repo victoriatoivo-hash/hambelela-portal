@@ -433,6 +433,12 @@ function ops_rows(string $sql, array $params = []): array
     }
 }
 
+function ops_row(string $sql, array $params = []): ?array
+{
+    $rows = ops_rows($sql, $params);
+    return $rows[0] ?? null;
+}
+
 function ops_order_datetime_columns(): array
 {
     $columns = [];
