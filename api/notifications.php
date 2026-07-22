@@ -26,7 +26,8 @@ try {
     }
 
     if ($mode === 'urgent') {
-        echo json_encode(['ok' => true, 'alerts' => notifications_urgent_tasks_for_current_user()], JSON_UNESCAPED_SLASHES);
+        $preferences = notifications_preferences();
+        echo json_encode(['ok' => true, 'alerts' => notifications_urgent_tasks_for_current_user(), 'sound_enabled' => (int) ($preferences['sound_enabled'] ?? 1)], JSON_UNESCAPED_SLASHES);
         exit;
     }
 

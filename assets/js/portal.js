@@ -596,6 +596,7 @@ window.addEventListener('DOMContentLoaded', () => {
     let active = null;
     let timer = null;
     let audioUnlocked = false;
+    let soundEnabled = true;
     let previousFocus = null;
 
     const createModal = () => {
@@ -614,7 +615,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const unlockAudio = () => { audioUnlocked = true; };
     ['pointerdown', 'keydown', 'touchstart'].forEach((name) => window.addEventListener(name, unlockAudio, {once:true, passive:true}));
     const playSound = () => {
-      if (!audioUnlocked) return;
+      if (!audioUnlocked || !soundEnabled) return;
       try {
         const Context = window.AudioContext || window.webkitAudioContext;
         if (!Context) return;
@@ -681,6 +682,7 @@ window.addEventListener('DOMContentLoaded', () => {
         const response = await fetch(`${endpoint}?mode=urgent`, {credentials:'same-origin', headers:{Accept:'application/json'}});
         if (!response.ok) return;
         const payload = await response.json();
+        soundEnabled = Number(payload.sound_enabled ?? 1) === 1;
         (payload.alerts || []).forEach((alert) => { const id=String(alert.alertId); if (!known.has(id) && String(active?.alertId)!==id) { known.add(id); queue.push(alert); } });
         showNext();
       } catch (_) {}
