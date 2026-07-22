@@ -117,7 +117,7 @@ $where = $whereParts ? 'WHERE ' . implode(' AND ', $whereParts) : '';
 $orders = ops_rows(
     "SELECT
         o.id, o.order_number, {$wooOrderIdSelect}, o.customer_name, o.customer_contact, o.payment_method, {$amountSelect}, o.payment_status,
-        o.order_type, o.status, o.workload_score, {$displayDateTimeExpr} AS displayed_order_datetime,
+        COALESCE(NULLIF(o.fulfilment_mode, ''), o.order_type) AS order_type, o.fulfilment_mode, o.status, o.workload_score, {$displayDateTimeExpr} AS displayed_order_datetime,
         {$displayDateTimeExpr} AS created_at, o.created_at AS source_created_at, {$assignedAtSelect}, {$startedAtSelect}, o.packed_at, o.completed_at, o.notes,
         o.assigned_packer_id, e.full_name AS packer_name, o.updated_at, {$manualOrderSelect}
      FROM ops_orders o
@@ -177,6 +177,12 @@ if ($orderIds) {
         $itemStatsByOrder[(int) ($stat['order_id'] ?? 0)] = $stat;
     }
     foreach ($orders as &$order) {
+        $fulfilment = ops_resolve_order_fulfilment($order);
+        $order['fulfilmentMode'] = $fulfilment['mode'];
+        $order['fulfilmentLabel'] = $fulfilment['label'];
+        $order['fulfilmentSource'] = $fulfilment['source'];
+        $order['fulfilmentUpdatedAt'] = $fulfilment['updated_at'];
+        $order['order_type'] = $fulfilment['mode'];
         $stat = $itemStatsByOrder[(int) ($order['id'] ?? 0)] ?? null;
         $order['item_lines'] = $stat ? (int) ($stat['item_lines'] ?? 0) : 0;
         $order['item_quantity'] = $stat ? (float) ($stat['item_quantity'] ?? 0) : 0;

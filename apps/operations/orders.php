@@ -101,7 +101,7 @@ function cor_filtered_where(array $filters, array &$params, string $alias = 'o')
         $params[] = $filters['status'];
     }
     if ($filters['mode'] !== 'all') {
-        $where[] = "{$alias}.order_type = ?";
+        $where[] = "COALESCE(NULLIF({$alias}.fulfilment_mode, ''), {$alias}.order_type) = ?";
         $params[] = $filters['mode'];
     }
     if ($filters['payment'] !== 'all') {
@@ -806,7 +806,7 @@ function cor_export(array $filters, string $format): void
     $params = [];
     $where = cor_filtered_where($filters, $params);
     $rows = cor_query_rows(
-        "SELECT o.order_number, o.created_at, o.customer_name, o.customer_contact, o.order_type, o.payment_method,
+        "SELECT o.order_number, o.created_at, o.customer_name, o.customer_contact, COALESCE(NULLIF(o.fulfilment_mode, ''), o.order_type) AS order_type, o.payment_method,
                 o.total_amount, o.payment_status, o.status, COALESCE(e.full_name, 'Unassigned') AS packer_name
          FROM ops_orders o
          LEFT JOIN ops_employees e ON e.id = o.assigned_packer_id
@@ -1411,10 +1411,10 @@ if ($ready) {
         ]);
     }
     $modeRows = cor_query_rows(
-        "SELECT COALESCE(NULLIF(order_type, ''), 'collection') AS label, COUNT(*) AS cnt, COALESCE(SUM(total_amount), 0) AS rev
+        "SELECT COALESCE(NULLIF(fulfilment_mode, ''), NULLIF(order_type, ''), 'collection') AS label, COUNT(*) AS cnt, COALESCE(SUM(total_amount), 0) AS rev
          FROM ops_orders o
          WHERE {$where}
-         GROUP BY COALESCE(NULLIF(order_type, ''), 'collection')
+         GROUP BY COALESCE(NULLIF(fulfilment_mode, ''), NULLIF(order_type, ''), 'collection')
          ORDER BY rev DESC",
         $params
     );
@@ -1455,15 +1455,15 @@ if ($ready) {
     $refundSummary['amount'] = array_reduce($refundRows, static fn(float $carry, array $row): float => $carry + (float) ($row['refund_total'] ?: $row['total_amount']), 0.0);
     $refundSummary['pct'] = $summary['total_revenue'] > 0 ? ($refundSummary['amount'] / $summary['total_revenue']) * 100 : 0.0;
 
-    $deliveryWhere = $where . " AND ((o.shipping_total + o.shipping_tax_total) > 0 OR o.order_type IN ('delivery','courier'))";
+    $deliveryWhere = $where . " AND ((o.shipping_total + o.shipping_tax_total) > 0 OR COALESCE(NULLIF(o.fulfilment_mode, ''), o.order_type) IN ('delivery','courier'))";
     $deliveryRows = cor_query_rows(
-        "SELECT COALESCE(NULLIF(o.order_type, ''), 'collection') AS label,
+        "SELECT COALESCE(NULLIF(o.fulfilment_mode, ''), NULLIF(o.order_type, ''), 'collection') AS label,
                 COUNT(*) AS cnt,
                 COALESCE(SUM(o.shipping_total + o.shipping_tax_total), 0) AS total_cost,
                 COALESCE(AVG(o.shipping_total + o.shipping_tax_total), 0) AS avg_cost
          FROM ops_orders o
          WHERE {$deliveryWhere}
-         GROUP BY COALESCE(NULLIF(o.order_type, ''), 'collection')
+         GROUP BY COALESCE(NULLIF(o.fulfilment_mode, ''), NULLIF(o.order_type, ''), 'collection')
          ORDER BY total_cost DESC, cnt DESC",
         $params
     );
@@ -1502,7 +1502,7 @@ if ($ready) {
     $deliveryCountRow = cor_query_one("SELECT COUNT(*) AS cnt FROM ops_orders o WHERE {$deliveryOrderWhere}", $deliveryOrderParams);
     $deliveryOrdersCount = (int) ($deliveryCountRow['cnt'] ?? 0);
     $deliveryOrderRows = cor_query_rows(
-        "SELECT o.order_number, o.created_at, o.customer_name, o.customer_contact, o.order_type,
+        "SELECT o.order_number, o.created_at, o.customer_name, o.customer_contact, COALESCE(NULLIF(o.fulfilment_mode, ''), o.order_type) AS order_type,
                 COALESCE(o.shipping_total + o.shipping_tax_total, 0) AS delivery_cost,
                 o.status
          FROM ops_orders o
@@ -1707,7 +1707,7 @@ if ($ready) {
     $offset = ($page - 1) * $perPage;
 
     $orderRows = cor_query_rows(
-        "SELECT o.order_number, o.created_at, o.customer_name, o.customer_contact, o.order_type, o.payment_method,
+        "SELECT o.order_number, o.created_at, o.customer_name, o.customer_contact, COALESCE(NULLIF(o.fulfilment_mode, ''), o.order_type) AS order_type, o.payment_method,
                 o.total_amount, o.payment_status, o.status, COALESCE(e.full_name, 'Unassigned') AS packer_name
          FROM ops_orders o
          LEFT JOIN ops_employees e ON e.id = o.assigned_packer_id

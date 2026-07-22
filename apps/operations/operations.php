@@ -152,6 +152,38 @@ function ops_wc_payment_method(array $order): string
         ?: ops_normalize_website_payment_method($methodId);
 }
 
+function ops_normalize_fulfilment_mode(?string $value): string
+{
+    $value = strtolower(trim((string) $value));
+    $value = preg_replace('/[\s-]+/', '_', $value) ?? '';
+    if ($value === '') return 'unknown';
+    if (preg_match('/courier|nampost|nam_post|pudo|shipping|\bship\b/', $value)) return 'courier';
+    if (preg_match('/local_pickup|pickup|pick_up|collection|collect/', $value)) return 'collection';
+    if (preg_match('/delivery|local_delivery|flat_rate/', $value)) return 'delivery';
+    return 'unknown';
+}
+
+function ops_pos_fulfilment_from_order(array $order): array
+{
+    $line = (array) (($order['shipping_lines'][0] ?? null) ?: []);
+    $methodId = trim((string) ($line['method_id'] ?? ''));
+    $methodTitle = trim((string) ($line['method_title'] ?? ''));
+    $raw = trim($methodId . ' ' . $methodTitle);
+    $mode = $raw === '' ? 'collection' : ops_normalize_fulfilment_mode($raw);
+    return ['mode'=>$mode,'label'=>$mode === 'unknown' ? 'Not set' : ucfirst($mode),'source'=>'pos','raw'=>$raw];
+}
+
+function ops_resolve_order_fulfilment(array $order): array
+{
+    $candidates = [['pos',$order['pos_fulfilment_mode']??null],['pos',$order['fulfilment_mode']??null],['website',$order['order_type']??($order['website_shipping_mode']??null)]];
+    foreach ($candidates as [$source,$raw]) {
+        if ($raw === null || trim((string)$raw) === '') continue;
+        $mode = ops_normalize_fulfilment_mode((string)$raw);
+        if ($mode !== 'unknown') return ['mode'=>$mode,'label'=>ucfirst($mode),'source'=>$source,'raw'=>(string)$raw,'updated_at'=>$order['fulfilment_updated_at']??($order['updated_at']??null)];
+    }
+    return ['mode'=>'unknown','label'=>'Not set','source'=>'unknown','raw'=>'','updated_at'=>$order['fulfilment_updated_at']??null];
+}
+
 function ops_nav(string $active): void
 {
     if (user_has_role('owner_admin')) {

@@ -118,17 +118,7 @@ function ops_board_initial_payment_status(?string $sourceMobile): string
 
 function ops_board_order_type(array $order): string
 {
-    $method = strtolower((string) (($order['shipping_lines'][0]['method_title'] ?? '') . ' ' . ($order['shipping_lines'][0]['method_id'] ?? '')));
-
-    if (strpos($method, 'courier') !== false || strpos($method, 'pudo') !== false || strpos($method, 'ship') !== false) {
-        return 'courier';
-    }
-
-    if (strpos($method, 'delivery') !== false || strpos($method, 'local') !== false) {
-        return 'delivery';
-    }
-
-    return 'collection';
+    return ops_pos_fulfilment_from_order($order)['mode'];
 }
 
 function ops_board_customer_name(array $order): string
@@ -633,6 +623,9 @@ function ops_board_sync_website_orders(?string $date = null): array
             $orderIdStmt->execute([$wooOrderId]);
             $orderId = (int) $orderIdStmt->fetchColumn();
             $orderIdStmt->closeCursor();
+            if (ops_column_exists('ops_orders', 'fulfilment_mode')) {
+                $pdo->prepare('UPDATE ops_orders SET fulfilment_mode = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')->execute([$orderType, $orderId]);
+            }
 
             if ($affected === 1) {
                 ops_log_order_stage_event($orderId, 'order_received', [
@@ -1237,7 +1230,7 @@ try {
             'customer_name' => 'customer_name',
             'customer_contact' => 'customer_contact',
             'payment_method' => 'payment_method',
-            'order_type' => 'order_type',
+            'order_type' => ops_column_exists('ops_orders', 'fulfilment_mode') ? 'fulfilment_mode' : 'order_type',
             'total_amount' => 'total_amount',
             'status' => 'status',
             'payment_status' => 'payment_status',
@@ -1266,7 +1259,7 @@ try {
         }
 
         $previousRows = ops_rows(
-            'SELECT customer_name, customer_contact, payment_method, order_type, total_amount, status, payment_status, notes, assigned_packer_id FROM ops_orders WHERE id = ? LIMIT 1',
+            'SELECT customer_name, customer_contact, payment_method, order_type, fulfilment_mode, total_amount, status, payment_status, notes, assigned_packer_id FROM ops_orders WHERE id = ? LIMIT 1',
             [$orderId]
         );
         if (!$previousRows) {
@@ -1404,14 +1397,20 @@ try {
             if (isset($activityActions[$field])) {
                 ops_activity_log($activityActions[$field], 'order', $orderId, [
                     'field' => $field,
-                    'old_value' => (string) ($previousOrder[$field] ?? ''),
+                    'old_value' => (string) ($field === 'order_type' ? ($previousOrder['fulfilment_mode'] ?: $previousOrder['order_type']) : ($previousOrder[$field] ?? '')),
                     'new_value' => $value,
                     'changed_by' => current_user()['name'] ?? 'Unknown',
                 ]);
             }
         }
 
-        echo json_encode(['ok' => true, 'message' => 'Order updated.']);
+        $response = ['ok' => true, 'message' => 'Order updated.'];
+        if ($field === 'order_type') {
+            $current = ops_rows('SELECT fulfilment_mode, order_type, updated_at FROM ops_orders WHERE id = ? LIMIT 1', [$orderId])[0] ?? [];
+            $resolved = ops_resolve_order_fulfilment($current);
+            $response += ['fulfilmentMode'=>$resolved['mode'],'fulfilmentLabel'=>$resolved['label'],'fulfilmentSource'=>$resolved['source'],'fulfilmentUpdatedAt'=>$resolved['updated_at']];
+        }
+        echo json_encode($response);
         exit;
     }
 
@@ -1433,7 +1432,7 @@ try {
             'customer_contact' => 'customer_contact',
             'total_amount' => 'total_amount',
             'payment_status' => 'payment_status',
-            'order_type' => 'order_type',
+            'order_type' => ops_column_exists('ops_orders', 'fulfilment_mode') ? 'fulfilment_mode' : 'order_type',
             'payment_method' => 'payment_method',
             'status' => 'status',
             'assigned_packer_id' => 'assigned_packer_id',

@@ -66,17 +66,7 @@ function ops_wc_initial_payment_status(?string $sourceMobile): string
 
 function ops_wc_order_type(array $order): string
 {
-    $method = strtolower((string) (($order['shipping_lines'][0]['method_title'] ?? '') . ' ' . ($order['shipping_lines'][0]['method_id'] ?? '')));
-
-    if (strpos($method, 'courier') !== false || strpos($method, 'pudo') !== false || strpos($method, 'ship') !== false) {
-        return 'courier';
-    }
-
-    if (strpos($method, 'delivery') !== false || strpos($method, 'local') !== false) {
-        return 'delivery';
-    }
-
-    return 'collection';
+    return ops_pos_fulfilment_from_order($order)['mode'];
 }
 
 function ops_wc_customer_name(array $order): string
@@ -280,6 +270,9 @@ if ($ready && $hasWooColumns && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $orderIdStmt = $pdo->query('SELECT id FROM ops_orders WHERE woo_order_id = ' . $wooOrderId);
             $orderId = (int) $orderIdStmt->fetchColumn();
             $orderIdStmt->closeCursor();
+            if (ops_column_exists('ops_orders', 'fulfilment_mode')) {
+                $pdo->prepare('UPDATE ops_orders SET fulfilment_mode = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')->execute([$orderType, $orderId]);
+            }
 
             if ($affected === 1) {
                 ops_log_order_stage_event($orderId, 'order_received', [
