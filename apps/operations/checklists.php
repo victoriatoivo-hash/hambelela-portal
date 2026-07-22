@@ -22,7 +22,9 @@ $ready = ops_database_ready();
 $message = null;
 $messageType = 'success';
 $currentEmployeeId = ops_current_employee_id();
-$canManage = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
+// Task visibility is deliberately stricter than general operations management:
+// only the actual owner role may view or administer every employee's tasks.
+$canManage = user_has_role('owner_admin');
 
 $types = [
     'opening' => 'Opening',
@@ -721,7 +723,6 @@ $filters = [
     'search' => trim((string) ($_GET['search'] ?? '')),
 ];
 if (!in_array($filters['task_view'], ['recurring', 'manual', 'completed', 'history'], true)) $filters['task_view'] = 'recurring';
-if (!$canManage && $filters['task_view'] === 'history') $filters['task_view'] = 'completed';
 
 $where = [];
 $params = [];
@@ -797,6 +798,7 @@ $historyParams = [];
 if (!$canManage) {
     $historyWhere[] = 't.assigned_employee_id = ?';
     $historyParams[] = $currentEmployeeId ?: 0;
+    $historyWhere[] = 't.employee_visible = 1';
 }
 if ($filters['date_from'] !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['date_from'])) {
     $historyWhere[] = 'DATE(COALESCE(t.date_completed, t.completed_at, t.date_assigned, t.created_at)) >= ?';
@@ -828,7 +830,7 @@ if ($filters['search'] !== '') {
     array_push($historyParams, '%' . $filters['search'] . '%', '%' . $filters['search'] . '%', '%' . $filters['search'] . '%', '%' . $filters['search'] . '%');
 }
 $historyWhereSql = 'WHERE ' . implode(' AND ', $historyWhere);
-$historyTasks = ($ready && $canManage) ? ops_rows(
+$historyTasks = $ready ? ops_rows(
     "SELECT t.*, e.full_name AS assigned_name, cb.full_name AS completed_by_name
      FROM ops_checklist_tasks t
      LEFT JOIN ops_employees e ON e.id = t.assigned_employee_id
@@ -906,7 +908,6 @@ include BASE_PATH . '/shared/sidebar.php';
         <?php
         $tabLabels = ['recurring' => 'Recurring Tasks', 'manual' => 'Manual Tasks', 'completed' => 'Completed Tasks', 'history' => 'Task History'];
         foreach ($tabLabels as $tabKey => $tabLabel):
-            if ($tabKey === 'history' && !$canManage) continue;
             $tabQuery = array_merge($_GET, ['task_view' => $tabKey]);
             $tabUrl = 'checklists.php?' . http_build_query($tabQuery);
         ?>
@@ -1027,7 +1028,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         <td><span class="task-notes-preview"><?= htmlspecialchars((string) ($task['completion_note'] ?: $task['notes'] ?: '—'), ENT_QUOTES, 'UTF-8') ?></span></td>
                     </tr>
                 <?php endforeach; ?>
-                <?php if (!$tasks): ?><tr class="dtb-empty-row"><td colspan="11">No tasks match this view and its filters.</td></tr><?php endif; ?>
+                <?php if (!$tasks): ?><tr class="dtb-empty-row"><td colspan="11"><?= $canManage ? 'No tasks match this view and its filters.' : 'No tasks are currently assigned to you.' ?></td></tr><?php endif; ?>
             </tbody>
         </table>
         </div>
@@ -1047,7 +1048,7 @@ include BASE_PATH . '/shared/sidebar.php';
         <button type="button" class="dtb-bulk-close" data-task-bulk-close aria-label="Clear task selection"><i data-lucide="x" aria-hidden="true"></i></button>
     </div>
 
-    <?php if ($canManage && $filters['task_view'] === 'history'): ?>
+    <?php if ($filters['task_view'] === 'history'): ?>
         <section class="dtb-history-section">
             <header class="dtb-status-header"><h2 class="dtb-status-title">Task history</h2><span class="dtb-history-count"><?= number_format(count($historyTasks)) ?> completed rows</span></header>
             <div class="dtb-table-wrap">
@@ -1182,7 +1183,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     <?php endif; ?>
                 </form>
 
-                <section class="task-details-section task-content-card" id="task-files-<?= $panelId ?>"><h3 class="task-content-heading">Files / proof</h3><?php if (!empty($task['photo_path'])): ?><a class="task-btn task-btn--secondary" href="<?= BASE_URL . '/' . htmlspecialchars((string) $task['photo_path'], ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">Open proof</a><?php else: ?><p class="task-history-empty">No files uploaded.</p><?php endif; ?></section>
+                <section class="task-details-section task-content-card" id="task-files-<?= $panelId ?>"><h3 class="task-content-heading">Files / proof</h3><?php if (!empty($task['photo_path'])): ?><a class="task-btn task-btn--secondary" href="<?= BASE_URL ?>/apps/operations/task-proof.php?task_id=<?= $panelId ?>" target="_blank" rel="noopener">Open proof</a><?php else: ?><p class="task-history-empty">No files uploaded.</p><?php endif; ?></section>
                 <section class="task-details-section task-content-card" id="task-activity-<?= $panelId ?>">
                     <h3 class="task-content-heading">Task history</h3>
                     <div class="task-history-list">

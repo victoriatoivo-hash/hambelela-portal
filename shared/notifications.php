@@ -301,6 +301,7 @@ function notifications_urgent_tasks_for_current_user(int $limit = 20): array
     if (!$employeeId || !notifications_schema_ready()) return [];
     try {
         $limit = max(1, min(50, $limit));
+        $canViewAllTasks = user_has_role('owner_admin');
         $stmt = db()->prepare(
             "SELECT n.id AS alert_id, n.related_id AS task_id, n.title, n.message,
                     n.created_at, nr.delivered_at, e.full_name AS assigned_by,
@@ -312,9 +313,10 @@ function notifications_urgent_tasks_for_current_user(int $limit = 20): array
              WHERE nr.employee_id = ? AND n.module = 'tasks' AND n.priority = 'urgent'
                AND n.related_type = 'checklist_task' AND nr.read_at IS NULL AND nr.cleared_at IS NULL
                AND (t.id IS NULL OR t.status NOT IN ('complete','completed','approved'))
+               AND (t.id IS NULL OR ? = 1 OR t.assigned_employee_id = ?)
              ORDER BY n.created_at ASC, n.id ASC LIMIT {$limit}"
         );
-        $stmt->execute([$employeeId]);
+        $stmt->execute([$employeeId, $canViewAllTasks ? 1 : 0, $employeeId]);
         $rows = $stmt->fetchAll();
         $stmt->closeCursor();
         return array_map(static function (array $row): array {
@@ -449,8 +451,15 @@ function notifications_for_current_user(int $limit = 10): array
     }
 
     try {
-        $countStmt = db()->prepare('SELECT COUNT(*) FROM notification_recipients WHERE employee_id = ? AND read_at IS NULL AND cleared_at IS NULL');
-        $countStmt->execute([$employeeId]);
+        $canViewAllTasks = user_has_role('owner_admin');
+        $taskScope = " AND (n.related_type IS NULL OR n.related_type <> 'checklist_task' OR n.related_id IS NULL OR ? = 1 OR t.assigned_employee_id = ?)";
+        $countStmt = db()->prepare(
+            "SELECT COUNT(*) FROM notification_recipients nr
+             JOIN notifications n ON n.id = nr.notification_id
+             LEFT JOIN ops_checklist_tasks t ON t.id = n.related_id AND n.related_type = 'checklist_task'
+             WHERE nr.employee_id = ? AND nr.read_at IS NULL AND nr.cleared_at IS NULL{$taskScope}"
+        );
+        $countStmt->execute([$employeeId, $canViewAllTasks ? 1 : 0, $employeeId]);
         $unread = (int) $countStmt->fetchColumn();
         $countStmt->closeCursor();
 
@@ -458,11 +467,13 @@ function notifications_for_current_user(int $limit = 10): array
             "SELECT n.*, nr.read_at, nr.cleared_at
              FROM notification_recipients nr
              JOIN notifications n ON n.id = nr.notification_id
+             LEFT JOIN ops_checklist_tasks t ON t.id = n.related_id AND n.related_type = 'checklist_task'
              WHERE nr.employee_id = ? AND nr.cleared_at IS NULL
+               {$taskScope}
              ORDER BY n.created_at DESC
              LIMIT {$limit}"
         );
-        $stmt->execute([$employeeId]);
+        $stmt->execute([$employeeId, $canViewAllTasks ? 1 : 0, $employeeId]);
         $rows = $stmt->fetchAll();
         $stmt->closeCursor();
 
@@ -480,8 +491,15 @@ function notifications_summary_for_current_user(int $limit = 5): array
     }
 
     try {
-        $countStmt = db()->prepare('SELECT COUNT(*) FROM notification_recipients WHERE employee_id = ? AND read_at IS NULL AND cleared_at IS NULL');
-        $countStmt->execute([$employeeId]);
+        $canViewAllTasks = user_has_role('owner_admin');
+        $taskScope = " AND (n.related_type IS NULL OR n.related_type <> 'checklist_task' OR n.related_id IS NULL OR ? = 1 OR t.assigned_employee_id = ?)";
+        $countStmt = db()->prepare(
+            "SELECT COUNT(*) FROM notification_recipients nr
+             JOIN notifications n ON n.id = nr.notification_id
+             LEFT JOIN ops_checklist_tasks t ON t.id = n.related_id AND n.related_type = 'checklist_task'
+             WHERE nr.employee_id = ? AND nr.read_at IS NULL AND nr.cleared_at IS NULL{$taskScope}"
+        );
+        $countStmt->execute([$employeeId, $canViewAllTasks ? 1 : 0, $employeeId]);
         $unread = (int) $countStmt->fetchColumn();
         $countStmt->closeCursor();
 
@@ -490,11 +508,13 @@ function notifications_summary_for_current_user(int $limit = 5): array
             "SELECT n.id, n.title, n.message, n.created_at, n.action_link
              FROM notification_recipients nr
              JOIN notifications n ON n.id = nr.notification_id
+             LEFT JOIN ops_checklist_tasks t ON t.id = n.related_id AND n.related_type = 'checklist_task'
              WHERE nr.employee_id = ? AND nr.read_at IS NULL AND nr.cleared_at IS NULL
+               {$taskScope}
              ORDER BY n.created_at DESC, n.id DESC
              LIMIT {$limit}"
         );
-        $stmt->execute([$employeeId]);
+        $stmt->execute([$employeeId, $canViewAllTasks ? 1 : 0, $employeeId]);
         $rows = $stmt->fetchAll();
         $stmt->closeCursor();
 
