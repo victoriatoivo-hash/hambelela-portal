@@ -13,6 +13,7 @@ $activeApp = 'operations';
 $ready = ops_database_ready();
 $message = null;
 $messageType = 'success';
+$employeeFormValues = ['full_name' => '', 'email' => '', 'phone' => '', 'role_id' => '', 'status' => 'active'];
 $employee = null;
 $notificationPrefs = notifications_preferences();
 $notificationModules = notifications_modules();
@@ -262,9 +263,11 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $code = trim((string) ($_POST['login_code'] ?? ''));
                 $confirmCode = trim((string) ($_POST['confirm_login_code'] ?? ''));
-                if ($code !== $confirmCode) {
-                    throw new RuntimeException('The access code and confirmation do not match.');
-                }
+                if ($code === '') throw new RuntimeException('Enter an access code.');
+                if (!preg_match('/^\d+$/', $code)) throw new RuntimeException('The access code may contain numbers only.');
+                if (strlen($code) < 6) throw new RuntimeException('The access code must contain at least 6 digits.');
+                if (strlen($code) > 10) throw new RuntimeException('The access code cannot exceed 10 digits.');
+                if (!hash_equals($code, $confirmCode)) throw new RuntimeException('The access codes do not match.');
 
                 $roleId = (int) ($_POST['role_id'] ?? 0);
                 $roleRows = ops_rows('SELECT role_key FROM ops_roles WHERE id = ? LIMIT 1', [$roleId]);
@@ -277,7 +280,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     throw new RuntimeException($validationError);
                 }
                 if (access_secret_is_shared($code)) {
-                    throw new RuntimeException('That access code is already assigned to another account.');
+                    throw new RuntimeException('This access code is already in use. Choose another code.');
                 }
 
                 $email = strtolower(ops_post_string('email', 190));
@@ -289,22 +292,11 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     'SELECT id FROM ops_employees WHERE LOWER(email) = LOWER(?) LIMIT 1',
                     [$email]
                 );
-                $isNewEmployee = empty($existingEmployeeRows);
+                if ($existingEmployeeRows) throw new RuntimeException('This email already belongs to another employee.');
 
                 $stmt = db()->prepare(
                     "INSERT INTO ops_employees (role_id, full_name, email, phone, password_hash, status, requires_code_reset)
-                     VALUES (?, ?, ?, ?, ?, ?, 0)
-                     ON DUPLICATE KEY UPDATE
-                        role_id = VALUES(role_id),
-                        full_name = VALUES(full_name),
-                        phone = VALUES(phone),
-                        password_hash = VALUES(password_hash),
-                        status = VALUES(status),
-                        requires_code_reset = 0,
-                        failed_login_attempts = 0,
-                        locked_until = NULL,
-                        last_failed_login_at = NULL,
-                        updated_at = CURRENT_TIMESTAMP"
+                     VALUES (?, ?, ?, ?, ?, ?, 0)"
                 );
                 $stmt->execute([
                     $roleId,
@@ -314,7 +306,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     password_hash($code, PASSWORD_DEFAULT),
                     ops_post_string('status', 20) ?: 'active',
                 ]);
-                if ($isNewEmployee && ops_ensure_packing_auto_assignable_column()) {
+                if (ops_ensure_packing_auto_assignable_column()) {
                     $packingAssignable = in_array($roleKey, ['packer', 'supervisor_manager', 'front_desk_admin', 'owner_admin'], true) ? 1 : 0;
                     $packingAutoAssignable = in_array($roleKey, ['packer', 'supervisor_manager'], true) ? 1 : 0;
                     db()->prepare(
@@ -367,6 +359,9 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
     } catch (Throwable $e) {
         $message = $e->getMessage();
         $messageType = 'error';
+        if (($action ?? '') === 'save_employee') {
+            foreach (array_keys($employeeFormValues) as $field) $employeeFormValues[$field] = trim((string) ($_POST[$field] ?? $employeeFormValues[$field]));
+        }
     }
 
     if ($isResetCodeAjax) {
@@ -380,6 +375,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $employeeRoles = $ready && $canManagePortal ? ops_rows("SELECT id, name FROM ops_roles WHERE role_key <> 'owner_admin' ORDER BY FIELD(role_key, 'front_desk_admin', 'packer', 'supervisor_manager'), name") : [];
+$extraStylesheets = array_merge($extraStylesheets ?? [], [['path' => 'assets/css/settings-access-code.css', 'version' => is_file(BASE_PATH . '/assets/css/settings-access-code.css') ? (string) filemtime(BASE_PATH . '/assets/css/settings-access-code.css') : (string) time()]]);
 $hrEmployees = $ready && $canManagePortal ? ops_hr_employee_options() : [];
 $employeeLinks = [];
 if ($ready && $canManagePortal && ops_table_exists('employee_user_links')) {
@@ -756,29 +752,29 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                         </div>
                     </div>
 
-                    <form class="settings-card" method="post">
+                    <form class="settings-card" method="post" id="newEmployeeForm" novalidate>
                         <input type="hidden" name="action" value="save_employee">
                         <h2>New employee</h2>
                         <p class="card-sub">Add a staff login and set a unique 6 to 10 digit access code.</p>
                         <div class="form-row">
-                            <div class="form-group"><label>Full name</label><input name="full_name" required autocomplete="name"></div>
-                            <div class="form-group"><label>Email</label><input type="email" name="email" required autocomplete="email"></div>
+                            <div class="form-group"><label>Full name</label><input name="full_name" value="<?= htmlspecialchars($employeeFormValues['full_name'], ENT_QUOTES, 'UTF-8') ?>" required autocomplete="name"></div>
+                            <div class="form-group"><label>Email</label><input type="email" name="email" value="<?= htmlspecialchars($employeeFormValues['email'], ENT_QUOTES, 'UTF-8') ?>" required autocomplete="email"></div>
                         </div>
                         <div class="form-row">
-                            <div class="form-group"><label>Phone</label><input name="phone" autocomplete="tel"></div>
+                            <div class="form-group"><label>Phone</label><input name="phone" value="<?= htmlspecialchars($employeeFormValues['phone'], ENT_QUOTES, 'UTF-8') ?>" autocomplete="tel"></div>
                             <div class="form-group">
                                 <label>Role</label>
                                 <select name="role_id" required>
                                     <?php foreach ($employeeRoles as $role): ?>
-                                        <option value="<?= (int) $role['id'] ?>"><?= htmlspecialchars($role['name'], ENT_QUOTES, 'UTF-8') ?></option>
+                                        <option value="<?= (int) $role['id'] ?>" <?= (string) $employeeFormValues['role_id'] === (string) $role['id'] ? 'selected' : '' ?>><?= htmlspecialchars($role['name'], ENT_QUOTES, 'UTF-8') ?></option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
                         </div>
                         <div class="form-row">
-                            <div class="form-group"><label>Status</label><select name="status"><?php ops_select_options(['active' => 'Active', 'inactive' => 'Inactive']); ?></select></div>
-                            <div class="form-group"><label>Access code</label><input type="password" name="login_code" inputmode="numeric" pattern="[0-9]{6,10}" minlength="6" maxlength="10" autocomplete="new-password" required placeholder="6 to 10 digits"></div>
-                            <div class="form-group"><label>Confirm access code</label><input type="password" name="confirm_login_code" inputmode="numeric" pattern="[0-9]{6,10}" minlength="6" maxlength="10" autocomplete="new-password" required placeholder="Repeat code"></div>
+                            <div class="form-group"><label>Status</label><select name="status"><?php ops_select_options(['active' => 'Active', 'inactive' => 'Inactive'], $employeeFormValues['status']); ?></select></div>
+                            <div class="form-group"><label for="accessCode">Access code</label><input type="password" id="accessCode" name="login_code" inputmode="numeric" autocomplete="new-password" minlength="6" maxlength="10" aria-describedby="accessCodeHelp accessCodeError" required placeholder="6 to 10 digits"><small id="accessCodeHelp" class="field-help">Enter a unique 6 to 10 digit access code.</small><p id="accessCodeError" class="field-error" role="alert" hidden></p></div>
+                            <div class="form-group"><label for="confirmAccessCode">Confirm access code</label><input type="password" id="confirmAccessCode" name="confirm_login_code" inputmode="numeric" autocomplete="new-password" minlength="6" maxlength="10" aria-describedby="confirmAccessCodeError" required placeholder="Repeat code"><p id="confirmAccessCodeError" class="field-error" role="alert" hidden></p></div>
                         </div>
                         <div class="btn-row"><button class="btn-primary" type="submit">Create account</button></div>
                     </form>
@@ -912,6 +908,44 @@ const showSettingsToast = (message, type = 'error') => {
     closeButton.addEventListener('click', close);
     window.setTimeout(close, 5000);
 };
+
+const newEmployeeForm = document.querySelector('#newEmployeeForm');
+const accessCodeInput = document.querySelector('#accessCode');
+const confirmAccessCodeInput = document.querySelector('#confirmAccessCode');
+const accessCodeError = document.querySelector('#accessCodeError');
+const confirmAccessCodeError = document.querySelector('#confirmAccessCodeError');
+const setAccessFieldError = (input, errorNode, message = '') => {
+    input?.setCustomValidity(message);
+    input?.setAttribute('aria-invalid', message ? 'true' : 'false');
+    if (errorNode) {
+        errorNode.textContent = message;
+        errorNode.hidden = !message;
+    }
+};
+const validateNewEmployeeAccessCodes = () => {
+    const code = String(accessCodeInput?.value || '').trim();
+    const confirmation = String(confirmAccessCodeInput?.value || '').trim();
+    let codeMessage = '';
+    let confirmationMessage = '';
+    if (code === '') codeMessage = 'Enter an access code.';
+    else if (!/^\d+$/.test(code)) codeMessage = 'The access code may contain numbers only.';
+    else if (code.length < 6) codeMessage = 'The access code must contain at least 6 digits.';
+    else if (code.length > 10) codeMessage = 'The access code cannot exceed 10 digits.';
+    else if (code !== confirmation) confirmationMessage = 'The access codes do not match.';
+    setAccessFieldError(accessCodeInput, accessCodeError, codeMessage);
+    setAccessFieldError(confirmAccessCodeInput, confirmAccessCodeError, confirmationMessage);
+    return !codeMessage && !confirmationMessage;
+};
+accessCodeInput?.addEventListener('input', validateNewEmployeeAccessCodes);
+confirmAccessCodeInput?.addEventListener('input', validateNewEmployeeAccessCodes);
+newEmployeeForm?.addEventListener('submit', (event) => {
+    const accessCodesValid = validateNewEmployeeAccessCodes();
+    if (!accessCodesValid || !newEmployeeForm.checkValidity()) {
+        event.preventDefault();
+        newEmployeeForm.reportValidity();
+        (accessCodeInput?.getAttribute('aria-invalid') === 'true' ? accessCodeInput : confirmAccessCodeInput)?.focus();
+    }
+});
 
 const validateEmployeeResetCode = (value) => /^\d{4}$/.test(String(value).trim());
 
