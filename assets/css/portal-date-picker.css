@@ -86,7 +86,7 @@
 /* Body-level overlay. Explicit resets keep page grids and tables out of the calendar. */
 .portal-date-popup {
   position: fixed;
-  z-index: 50000;
+  z-index: 70000;
   width: 300px;
   max-width: calc(100vw - 20px);
   padding: 12px;
