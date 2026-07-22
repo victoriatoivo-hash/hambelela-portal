@@ -19,7 +19,7 @@ function access_secret_validation_error(string $secret, string $roleKey): ?strin
     }
     $ascending = '01234567890123456789';
     $descending = '98765432109876543210';
-    if (str_contains($ascending, $secret) || str_contains($descending, $secret)) {
+    if (strpos($ascending, $secret) !== false || strpos($descending, $secret) !== false) {
         return 'Sequential access codes are not allowed.';
     }
 

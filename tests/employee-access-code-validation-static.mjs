@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import assert from 'node:assert/strict';
 
 const source = fs.readFileSync(new URL('../apps/operations/my-account.php', import.meta.url), 'utf8');
+const security = fs.readFileSync(new URL('../shared/login-security.php', import.meta.url), 'utf8');
 assert.match(source, /id="newEmployeeForm" novalidate/);
 assert.match(source, /type="password" id="accessCode"[^>]*minlength="6"[^>]*maxlength="10"/);
 assert.match(source, /type="password" id="confirmAccessCode"/);
@@ -14,4 +15,6 @@ assert.match(source, /password_hash\(\$code, PASSWORD_DEFAULT\)/);
 assert.match(source, /This email already belongs to another employee\./);
 assert.match(source, /This access code is already in use\. Choose another code\./);
 assert.doesNotMatch(source, /value="<\?= htmlspecialchars\([^\n]*login_code/);
+assert.doesNotMatch(security, /str_contains\(/);
+assert.match(security, /strpos\(/);
 console.log('Employee access-code validation static checks passed.');
