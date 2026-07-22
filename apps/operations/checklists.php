@@ -372,7 +372,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 db()->prepare('UPDATE ops_checklist_recurring_templates SET is_active = 0 WHERE recurring_rule = ?')->execute([(string) $task[0]['recurring_rule']]);
             }
             ops_activity_log('task_recurrence_cancelled', 'checklist_task', $taskId, ['task_name' => $task[0]['task_name']]);
-            header('Location: checklists.php?task_view=recurring&recurrence_stopped=1');
+            header('Location: checklists.php?task_view=active&recurrence_stopped=1#recurringTasks');
             exit;
         }
         if ($action === 'task_tools_data') {
@@ -570,6 +570,10 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($urgentRequested && $urgentMessage === '') $urgentMessage = 'Please review and begin this urgent task.';
             $employeeVisible = isset($_POST['employee_visible']) ? 1 : 0;
             $recurringRule = ops_post_string('recurring_rule', 80);
+            $allowedRecurringRules = ['', 'daily_business_day', 'twice_weekly', 'weekly_1', 'weekly_2', 'weekly_3', 'weekly_4', 'weekly_5', 'weekly_saturday'];
+            if (!in_array($recurringRule, $allowedRecurringRules, true)) {
+                throw new RuntimeException('Choose a valid task recurrence.');
+            }
             $templateId = null;
             if ($recurringRule !== '' && ops_table_exists('ops_checklist_recurring_templates')) {
                 $dueTime = $deadline ? date('H:i:s', strtotime($deadline)) : '09:00:00';
@@ -719,10 +723,12 @@ $filters = [
     'priority' => trim((string) ($_GET['priority'] ?? '')),
     'checklist_type' => trim((string) ($_GET['checklist_type'] ?? '')),
     'task_kind' => trim((string) ($_GET['task_kind'] ?? '')),
-    'task_view' => trim((string) ($_GET['task_view'] ?? 'recurring')),
+    'task_view' => trim((string) ($_GET['task_view'] ?? 'active')),
     'search' => trim((string) ($_GET['search'] ?? '')),
 ];
-if (!in_array($filters['task_view'], ['recurring', 'manual', 'completed', 'history'], true)) $filters['task_view'] = 'recurring';
+$requestedTaskView = $filters['task_view'];
+if (in_array($filters['task_view'], ['recurring', 'manual'], true)) $filters['task_view'] = 'active';
+if (!in_array($filters['task_view'], ['active', 'completed', 'history'], true)) $filters['task_view'] = 'active';
 
 $where = [];
 $params = [];
@@ -753,15 +759,13 @@ if (array_key_exists($filters['checklist_type'], $types)) {
     $where[] = 't.checklist_type = ?';
     $params[] = $filters['checklist_type'];
 }
-if ($filters['task_kind'] === 'recurring') {
+if ($filters['task_view'] !== 'active' && $filters['task_kind'] === 'recurring') {
     $where[] = "t.recurrence_key IS NOT NULL AND t.recurrence_key <> ''";
-} elseif ($filters['task_kind'] === 'manual') {
+} elseif ($filters['task_view'] !== 'active' && $filters['task_kind'] === 'manual') {
     $where[] = "(t.recurrence_key IS NULL OR t.recurrence_key = '')";
 }
-if ($filters['task_view'] === 'recurring') {
-    $where[] = "t.recurrence_key IS NOT NULL AND t.recurrence_key <> '' AND t.status <> 'complete'";
-} elseif ($filters['task_view'] === 'manual') {
-    $where[] = "(t.recurrence_key IS NULL OR t.recurrence_key = '') AND t.status <> 'complete'";
+if ($filters['task_view'] === 'active') {
+    $where[] = "t.status <> 'complete'";
 } elseif (in_array($filters['task_view'], ['completed', 'history'], true)) {
     $where[] = "t.status = 'complete'";
 }
@@ -792,6 +796,8 @@ $tasks = $ready ? ops_rows(
      LIMIT 500",
     $params
 ) : [];
+$manualTasks = array_values(array_filter($tasks, static fn (array $task): bool => checklist_task_kind($task) === 'manual'));
+$recurringTasks = array_values(array_filter($tasks, static fn (array $task): bool => checklist_task_kind($task) === 'recurring'));
 
 $historyWhere = ["t.status = 'complete'", 't.archived_at IS NULL', 't.deleted_at IS NULL'];
 $historyParams = [];
@@ -880,7 +886,7 @@ if ($ready && ($tasks || $historyTasks) && ops_table_exists('ops_activity_logs')
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
-<main class="workspace module digital-task-page" data-task-view="<?= htmlspecialchars($filters['task_view'], ENT_QUOTES, 'UTF-8') ?>">
+<main class="workspace module digital-task-page" data-task-view="<?= htmlspecialchars($filters['task_view'], ENT_QUOTES, 'UTF-8') ?>" data-requested-task-view="<?= htmlspecialchars($requestedTaskView, ENT_QUOTES, 'UTF-8') ?>">
     <header class="dtb-page-header">
         <div>
             <p class="dtb-page-kicker">Task Management</p>
@@ -889,7 +895,7 @@ include BASE_PATH . '/shared/sidebar.php';
         <div class="dtb-page-actions">
             <button class="task-tools-trigger" type="button" data-task-tools-open><i data-lucide="wrench"></i><span>Task tools</span></button>
             <?php if ($canManage): ?>
-                <button class="dtb-btn dtb-btn-primary" type="button" data-task-create-open><i data-lucide="plus"></i> New Task</button>
+                <button class="dtb-btn dtb-btn-primary" type="button" data-task-create-open data-task-create-kind="manual"><i data-lucide="plus"></i> New Task</button>
             <?php endif; ?>
         </div>
     </header>
@@ -906,7 +912,7 @@ include BASE_PATH . '/shared/sidebar.php';
 
     <nav class="dtb-tabs task-board-navigation" aria-label="Task views">
         <?php
-        $tabLabels = ['recurring' => 'Recurring Tasks', 'manual' => 'Manual Tasks', 'completed' => 'Completed Tasks', 'history' => 'Task History'];
+        $tabLabels = ['active' => 'Tasks', 'completed' => 'Completed Tasks', 'history' => 'Task History'];
         foreach ($tabLabels as $tabKey => $tabLabel):
             $tabQuery = array_merge($_GET, ['task_view' => $tabKey]);
             $tabUrl = 'checklists.php?' . http_build_query($tabQuery);
@@ -934,7 +940,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 <?php if ($canManage): ?>
                     <?php checklist_custom_filter_field('Priority', 'priority', ['' => 'All priorities'] + $priorities, $filters['priority']); ?>
                     <?php checklist_custom_filter_field('Task type', 'checklist_type', ['' => 'All types'] + $types, $filters['checklist_type']); ?>
-                    <?php checklist_custom_filter_field('Task kind', 'task_kind', ['' => 'All tasks', 'recurring' => 'Recurring tasks', 'manual' => 'Custom/manual tasks'], $filters['task_kind']); ?>
+                    <?php if ($filters['task_view'] !== 'active') checklist_custom_filter_field('Task kind', 'task_kind', ['' => 'All tasks', 'recurring' => 'Recurring tasks', 'manual' => 'Custom/manual tasks'], $filters['task_kind']); ?>
                 <?php endif; ?>
                 <label class="span-2">Search<input name="search" value="<?= htmlspecialchars($filters['search'], ENT_QUOTES, 'UTF-8') ?>" placeholder="Search task name, notes or completion note"></label>
             </div>
@@ -996,7 +1002,33 @@ include BASE_PATH . '/shared/sidebar.php';
         </aside>
     <?php endif; ?>
 
-    <?php if ($filters['task_view'] !== 'history'): ?>
+    <?php if ($filters['task_view'] === 'active'): ?>
+    <div class="task-management-page" data-task-management-sections>
+        <?php foreach ([
+            'manual' => ['title' => 'Manual Tasks', 'description' => 'Tasks created and assigned manually.', 'tasks' => $manualTasks],
+            'recurring' => ['title' => 'Recurring Tasks', 'description' => 'Tasks that repeat according to a schedule.', 'tasks' => $recurringTasks],
+        ] as $sectionKey => $section): ?>
+            <section class="task-section task-section--<?= $sectionKey ?>" id="<?= $sectionKey ?>Tasks" aria-labelledby="<?= $sectionKey ?>TasksHeading">
+                <header class="task-section__header" data-task-section-header>
+                    <div><h2 id="<?= $sectionKey ?>TasksHeading"><?= $section['title'] ?></h2><p><?= $section['description'] ?></p></div>
+                    <div class="task-section__actions">
+                        <?php if ($canManage && $sectionKey === 'recurring'): ?><button class="dtb-btn task-section__add" type="button" data-task-create-open data-task-create-kind="recurring"><i data-lucide="plus"></i> Add Recurring Task</button><?php endif; ?>
+                        <button type="button" class="task-section__toggle" aria-expanded="true" aria-controls="<?= $sectionKey ?>TasksContent"><span class="sr-only">Collapse <?= $section['title'] ?></span><i data-lucide="chevron-down" aria-hidden="true"></i></button>
+                    </div>
+                </header>
+                <div class="task-section__content" id="<?= $sectionKey ?>TasksContent">
+                    <?php $displayTasks = $section['tasks']; $displayTaskKind = $sectionKey; $emptyTaskMessage = $canManage ? 'No ' . strtolower($section['title']) . ' match these filters.' : 'No ' . strtolower($section['title']) . ' are currently assigned to you.'; include __DIR__ . '/partials/checklist-task-table.php'; ?>
+                </div>
+            </section>
+        <?php endforeach; ?>
+    </div>
+    <div class="task-status-popup" data-task-status-popup hidden role="menu">
+        <?php foreach ($statuses as $statusKey => $statusLabel): ?><button type="button" data-status-key="<?= htmlspecialchars($statusKey, ENT_QUOTES, 'UTF-8') ?>" role="menuitem"><?= htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8') ?></button><?php endforeach; ?>
+    </div>
+    <div class="task-row-menu" data-task-row-menu-popup hidden role="menu"><button type="button" data-task-row-action="open">Open task</button><button type="button" data-task-row-action="archive">Archive</button><button type="button" data-task-row-action="trash">Move to Trash</button></div>
+    <?php endif; ?>
+
+    <?php if ($filters['task_view'] === 'completed'): ?>
     <section class="task-board" data-task-board>
         <div class="dtb-table-wrap">
         <table class="dtb-board-table task-board-table">
@@ -1834,36 +1866,38 @@ function initialiseTaskStatusWorkflow() {
 }
 
 function initialiseTaskColumnResizing() {
-  const table = document.querySelector('.task-board-table');
-  if (!table || table.dataset.resizable === 'true') return;
-  table.dataset.resizable = 'true';
-  const columns = [...table.querySelectorAll('colgroup col')];
-  const headers = [...table.querySelectorAll('thead th')];
-  const storageKey = `task_board_column_widths_${document.querySelector('.digital-task-page')?.dataset.taskView || 'default'}`;
-  let saved = {};
-  try { saved = JSON.parse(localStorage.getItem(storageKey) || '{}'); } catch (_) { saved = {}; }
-  columns.forEach((column, index) => {
-    if (saved[index]) column.style.width = `${saved[index]}px`;
-    const header = headers[index];
-    if (!header || index === 0) return;
-    const handle = document.createElement('span');
-    handle.className = 'task-column-resizer';
-    handle.setAttribute('aria-hidden', 'true');
-    header.appendChild(handle);
-    handle.addEventListener('pointerdown', (event) => {
-      event.preventDefault();
-      const startX = event.clientX;
-      const startWidth = header.getBoundingClientRect().width;
-      handle.setPointerCapture(event.pointerId);
-      const move = (moveEvent) => { column.style.width = `${Math.max(70, Math.round(startWidth + moveEvent.clientX - startX))}px`; };
-      const up = () => {
-        handle.removeEventListener('pointermove', move);
-        const widths = {};
-        columns.forEach((item, itemIndex) => { widths[itemIndex] = Math.round(item.getBoundingClientRect().width); });
-        localStorage.setItem(storageKey, JSON.stringify(widths));
-      };
-      handle.addEventListener('pointermove', move);
-      handle.addEventListener('pointerup', up, { once:true });
+  document.querySelectorAll('.task-board-table').forEach((table) => {
+    if (table.dataset.resizable === 'true') return;
+    table.dataset.resizable = 'true';
+    const columns = [...table.querySelectorAll('colgroup col')];
+    const headers = [...table.querySelectorAll('thead th')];
+    const kind = table.closest('[data-task-kind]')?.dataset.taskKind || document.querySelector('.digital-task-page')?.dataset.taskView || 'default';
+    const storageKey = `task_board_column_widths_${kind}`;
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem(storageKey) || '{}'); } catch (_) { saved = {}; }
+    columns.forEach((column, index) => {
+      if (saved[index]) column.style.width = `${saved[index]}px`;
+      const header = headers[index];
+      if (!header || index === 0) return;
+      const handle = document.createElement('span');
+      handle.className = 'task-column-resizer';
+      handle.setAttribute('aria-hidden', 'true');
+      header.appendChild(handle);
+      handle.addEventListener('pointerdown', (event) => {
+        event.preventDefault();
+        const startX = event.clientX;
+        const startWidth = header.getBoundingClientRect().width;
+        handle.setPointerCapture(event.pointerId);
+        const move = (moveEvent) => { column.style.width = `${Math.max(70, Math.round(startWidth + moveEvent.clientX - startX))}px`; };
+        const up = () => {
+          handle.removeEventListener('pointermove', move);
+          const widths = {};
+          columns.forEach((item, itemIndex) => { widths[itemIndex] = Math.round(item.getBoundingClientRect().width); });
+          localStorage.setItem(storageKey, JSON.stringify(widths));
+        };
+        handle.addEventListener('pointermove', move);
+        handle.addEventListener('pointerup', up, { once:true });
+      });
     });
   });
 }
@@ -1874,70 +1908,35 @@ function initialiseTaskOverdueFilter() {
   if (!checkbox || !form || checkbox.dataset.initialised === 'true') return;
   checkbox.dataset.initialised = 'true';
 
-  const updateTaskViewLinks = (sourceUrl) => {
-    document.querySelectorAll('.dtb-tab').forEach((link) => {
-      const linkUrl = new URL(link.href, window.location.href);
-      const taskView = linkUrl.searchParams.get('task_view');
-      linkUrl.search = sourceUrl.search;
-      if (taskView) linkUrl.searchParams.set('task_view', taskView);
-      link.href = `${linkUrl.pathname}${linkUrl.search}${linkUrl.hash}`;
-    });
-  };
-
-  checkbox.addEventListener('change', async () => {
-    const previousChecked = !checkbox.checked;
-    const pageScrollY = window.scrollY;
-    const tableWrap = document.querySelector('[data-task-board] .dtb-table-wrap');
-    const tableScrollLeft = tableWrap?.scrollLeft || 0;
-    const params = new URLSearchParams(new FormData(form));
-    const nextUrl = new URL(form.action || window.location.href, window.location.href);
-    nextUrl.search = params.toString();
-
+  checkbox.addEventListener('change', () => {
     checkbox.disabled = true;
-    document.querySelector('[data-task-board]')?.setAttribute('aria-busy', 'true');
-
-    try {
-      const response = await fetch(nextUrl.toString(), {
-        credentials: 'same-origin',
-        headers: { Accept: 'text/html' },
-        cache: 'no-store',
-      });
-      if (!response.ok) throw new Error('Unable to update the overdue filter.');
-
-      const html = await response.text();
-      const parsed = new DOMParser().parseFromString(html, 'text/html');
-      [
-        ['.dtb-stats-grid', '.dtb-stats-grid'],
-        ['[data-task-board]', '[data-task-board]'],
-        ['[data-task-bulk-bar]', '[data-task-bulk-bar]'],
-      ].forEach(([currentSelector, nextSelector]) => {
-        const current = document.querySelector(currentSelector);
-        const next = parsed.querySelector(nextSelector);
-        if (current && next) current.replaceWith(next);
-      });
-
-      const nextFilterState = parsed.querySelector('.dtb-filter-state');
-      const currentFilterState = document.querySelector('.dtb-filter-state');
-      if (currentFilterState && nextFilterState) currentFilterState.textContent = nextFilterState.textContent;
-
-      window.history.replaceState({}, '', `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
-      updateTaskViewLinks(nextUrl);
-      document.querySelector('[data-task-bulk-bar]')?.setAttribute('hidden', '');
-      initialiseTaskBulkSelection();
-      initialiseTaskStatusWorkflow();
-      initialiseTaskColumnResizing();
-      if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
-      const nextTableWrap = document.querySelector('[data-task-board] .dtb-table-wrap');
-      if (nextTableWrap) nextTableWrap.scrollLeft = tableScrollLeft;
-      window.scrollTo({ top: pageScrollY, behavior: 'instant' });
-    } catch (error) {
-      checkbox.checked = previousChecked;
-      window.alert(error.message || 'Unable to update the overdue filter.');
-    } finally {
-      checkbox.disabled = false;
-      document.querySelector('[data-task-board]')?.removeAttribute('aria-busy');
-    }
+    form.requestSubmit();
   });
+}
+
+function initialiseTaskSections() {
+  const page = document.querySelector('.digital-task-page');
+  if (!page || page.dataset.sectionsInitialised === 'true') return;
+  page.dataset.sectionsInitialised = 'true';
+  document.addEventListener('click', (event) => {
+    const header = event.target.closest('[data-task-section-header]');
+    if (!header || event.target.closest('[data-task-create-open]')) return;
+    const toggle = header.querySelector('.task-section__toggle');
+    if (!toggle) return;
+    const content = document.getElementById(toggle.getAttribute('aria-controls'));
+    if (!content) return;
+    const expanded = toggle.getAttribute('aria-expanded') === 'true';
+    toggle.setAttribute('aria-expanded', String(!expanded));
+    content.hidden = expanded;
+    const sectionName = header.querySelector('h2')?.textContent?.trim() || 'section';
+    const label = toggle.querySelector('.sr-only');
+    if (label) label.textContent = `${expanded ? 'Expand' : 'Collapse'} ${sectionName}`;
+  });
+  const requestedView = page.dataset.requestedTaskView;
+  const recurringHash = ['#recurring-tasks', '#recurringTasks'].includes(window.location.hash);
+  if (requestedView === 'recurring' || recurringHash) {
+    window.requestAnimationFrame(() => document.getElementById('recurringTasks')?.scrollIntoView({ block:'start' }));
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1947,6 +1946,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initialiseTaskStatusWorkflow();
   initialiseTaskColumnResizing();
   initialiseTaskOverdueFilter();
+  initialiseTaskSections();
 });
 
 document.addEventListener('click', (event) => {
@@ -1998,6 +1998,16 @@ document.addEventListener('click', (event) => {
   }
   if (createOpen) {
     const panel = document.querySelector('[data-task-create-panel]');
+    const recurringSelect = panel?.querySelector('#create-task-recurrence');
+    const createKind = createOpen.dataset.taskCreateKind === 'recurring' ? 'recurring' : 'manual';
+    if (recurringSelect) {
+      recurringSelect.value = createKind === 'recurring' ? 'daily_business_day' : '';
+      const selectedLabel = recurringSelect.options[recurringSelect.selectedIndex]?.textContent || '';
+      const customValue = recurringSelect.closest('.portal-custom-select')?.querySelector('.portal-custom-select-value');
+      if (customValue) customValue.textContent = selectedLabel;
+    }
+    const badge = panel?.querySelector('.create-task-type-badge');
+    if (badge) badge.textContent = createKind === 'recurring' ? 'Recurring task' : 'Manual task';
     if (panel) {
       panel.classList.add('open');
       panel.setAttribute('aria-hidden', 'false');
