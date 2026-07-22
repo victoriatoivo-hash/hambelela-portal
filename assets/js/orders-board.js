@@ -85,6 +85,7 @@
   let customColumns = [];
   let rowDragState = null;
   const selectedOrders = new Set();
+  let bulkTrashInProgress = false;
   const boardState = {
     search: '',
     person: '',
@@ -1876,7 +1877,7 @@
       button.hidden = !currentUser.can_bulk_manage;
     });
     bar.querySelectorAll('[data-needs-delete]').forEach((button) => {
-      button.hidden = !currentUser.can_delete;
+      button.hidden = !(currentUser.can_move_to_trash ?? currentUser.can_delete);
     });
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
   }
@@ -1897,12 +1898,30 @@
       return;
     }
     if (action === 'archive' && !window.confirm(`Archive ${selectedOrders.size} selected item${selectedOrders.size === 1 ? '' : 's'}?`)) return;
-    if (action === 'delete' && !window.confirm(`Delete ${selectedOrders.size} selected item${selectedOrders.size === 1 ? '' : 's'} permanently?`)) return;
+    if (action === 'delete' && !window.confirm(`Move ${selectedOrders.size} selected item${selectedOrders.size === 1 ? '' : 's'} to Trash?\n\nThe ${selectedOrders.size === 1 ? 'item' : 'items'} will be removed from the active Order page and can be restored later.`)) return;
     const actionMap = { duplicate: 'bulk_duplicate', archive: 'bulk_archive', delete: 'bulk_delete' };
     if (!actionMap[action]) return;
-    await post(actionMap[action], { order_ids: [...selectedOrders].join(',') });
-    clearOrderSelection();
-    await refresh();
+    if (action === 'delete' && bulkTrashInProgress) return;
+    const actionButton = document.querySelector(`[data-order-bulk-action="${action}"]`);
+    if (action === 'delete') bulkTrashInProgress = true;
+    setButtonBusy(actionButton, true);
+    try {
+      const ids = [...selectedOrders];
+      const result = await post(actionMap[action], { order_ids: ids.join(',') });
+      if (action === 'delete') {
+        const removedIds = (result.trashedIds || ids).map(String);
+        removedIds.forEach((id) => {
+          document.querySelectorAll(`.order-row[data-order-id="${selectorEsc(id)}"]`).forEach((row) => row.classList.add('is-being-removed'));
+        });
+        ordersCache = ordersCache.filter((order) => !removedIds.includes(String(order.id)));
+      }
+      clearOrderSelection();
+      if (syncState) syncState.textContent = result.message || `${ids.length} item(s) moved to Trash.`;
+      await refresh();
+    } finally {
+      if (action === 'delete') bulkTrashInProgress = false;
+      setButtonBusy(actionButton, false);
+    }
   }
 
   function normalizeColumnLabels(labels) {

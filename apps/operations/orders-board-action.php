@@ -209,7 +209,12 @@ function ops_board_tools_ids(string $field = 'order_ids'): array
 
 function ops_board_tools_can_manage(): bool
 {
-    return user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
+    return user_has_role('owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager', 'packer', 'packer_production_staff');
+}
+
+function ops_board_can_move_to_trash(): bool
+{
+    return user_has_role('owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager', 'packer', 'packer_production_staff');
 }
 
 function ops_board_label_store_path(): string
@@ -761,11 +766,26 @@ try {
         $actorName = current_user()['name'] ?? 'Unknown';
 
         if ($action === 'trash_orders') {
+            if (!ops_board_can_move_to_trash()) throw new RuntimeException('You do not have permission to move orders to Trash.');
             $reason = trim(ops_post_string('reason', 255)) ?: 'Moved from Orders Board';
-            $stmt = db()->prepare("UPDATE ops_orders SET deleted_at = NOW(), deleted_by = ?, delete_reason = ?, updated_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders}) AND deleted_at IS NULL");
-            $stmt->execute(array_merge([$actorId, $reason], $ids));
-            foreach ($ids as $id) ops_activity_log('order_moved_to_trash', 'order', $id, ['reason' => $reason, 'changed_by' => $actorName]);
-            echo json_encode(['ok' => true, 'message' => 'Moved ' . $stmt->rowCount() . ' order(s) to Trash.']);
+            db()->beginTransaction();
+            try {
+                $records = ops_rows("SELECT id, assigned_packer_id FROM ops_orders WHERE id IN ({$placeholders}) AND deleted_at IS NULL FOR UPDATE", $ids);
+                if (count($records) !== count($ids)) throw new RuntimeException('One or more selected orders are unavailable or already in Trash.');
+                if (user_has_role('packer', 'packer_production_staff')) {
+                    $employeeId = ops_current_employee_id();
+                    foreach ($records as $record) if ((int) ($record['assigned_packer_id'] ?? 0) !== $employeeId) throw new RuntimeException('Packers may move only orders assigned to them to Trash.');
+                }
+                $stmt = db()->prepare("UPDATE ops_orders SET deleted_at = NOW(), deleted_by = ?, delete_reason = ?, updated_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders}) AND deleted_at IS NULL");
+                $stmt->execute(array_merge([$actorId, $reason], $ids));
+                if ($stmt->rowCount() !== count($ids)) throw new RuntimeException('Not every selected order could be moved to Trash.');
+                foreach ($ids as $id) ops_activity_log('order_moved_to_trash', 'order', $id, ['reason' => $reason, 'changed_by' => $actorName]);
+                db()->commit();
+            } catch (Throwable $trashError) {
+                if (db()->inTransaction()) db()->rollBack();
+                throw $trashError;
+            }
+            echo json_encode(['ok' => true, 'success' => true, 'message' => count($ids) . ' order(s) moved to Trash.', 'trashedIds' => $ids]);
             exit;
         }
         if ($action === 'restore_trashed_orders') {
@@ -1568,12 +1588,12 @@ try {
         }
 
         $canBulkManage = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
-        $canDelete = user_has_role('owner_admin', 'supervisor_manager');
-        if (!$canBulkManage) {
+        $canDelete = ops_board_can_move_to_trash();
+        if (!$canBulkManage && !($action === 'bulk_delete' && $canDelete)) {
             throw new RuntimeException('You do not have permission to use this bulk action.');
         }
         if ($action === 'bulk_delete' && !$canDelete) {
-            throw new RuntimeException('Only owner/admin or supervisor can delete orders.');
+            throw new RuntimeException('You do not have permission to move orders to Trash.');
         }
 
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
@@ -1592,12 +1612,24 @@ try {
 
         if ($action === 'bulk_delete') {
             ops_board_ensure_tools_columns();
-            $stmt = db()->prepare("UPDATE ops_orders SET deleted_at = NOW(), deleted_by = ?, delete_reason = 'Bulk action', updated_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders}) AND deleted_at IS NULL");
-            $stmt->execute(array_merge([ops_current_employee_id()], $ids));
-            foreach ($ids as $id) {
-                ops_activity_log('order_moved_to_trash', 'order', $id, ['source' => 'bulk_action', 'changed_by' => current_user()['name'] ?? 'Unknown']);
+            $actorId = ops_current_employee_id();
+            db()->beginTransaction();
+            try {
+                $records = ops_rows("SELECT id, assigned_packer_id FROM ops_orders WHERE id IN ({$placeholders}) AND deleted_at IS NULL FOR UPDATE", $ids);
+                if (count($records) !== count($ids)) throw new RuntimeException('One or more selected orders are unavailable or already in Trash.');
+                if (user_has_role('packer', 'packer_production_staff')) {
+                    foreach ($records as $record) if ((int) ($record['assigned_packer_id'] ?? 0) !== $actorId) throw new RuntimeException('Packers may move only orders assigned to them to Trash.');
+                }
+                $stmt = db()->prepare("UPDATE ops_orders SET deleted_at = NOW(), deleted_by = ?, delete_reason = 'Bulk action', updated_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders}) AND deleted_at IS NULL");
+                $stmt->execute(array_merge([$actorId], $ids));
+                if ($stmt->rowCount() !== count($ids)) throw new RuntimeException('Not every selected order could be moved to Trash.');
+                foreach ($ids as $id) ops_activity_log('order_moved_to_trash', 'order', $id, ['source' => 'bulk_action', 'changed_by' => current_user()['name'] ?? 'Unknown']);
+                db()->commit();
+            } catch (Throwable $trashError) {
+                if (db()->inTransaction()) db()->rollBack();
+                throw $trashError;
             }
-            echo json_encode(['ok' => true, 'message' => 'Moved ' . $stmt->rowCount() . ' selected orders to Trash.']);
+            echo json_encode(['ok' => true, 'success' => true, 'message' => count($ids) . ' selected orders moved to Trash.', 'trashedIds' => $ids]);
             exit;
         }
 
@@ -1669,7 +1701,8 @@ try {
 
     throw new RuntimeException('Unknown board action.');
 } catch (Throwable $e) {
-    http_response_code(400);
+    $permissionFailure = stripos($e->getMessage(), 'permission') !== false || stripos($e->getMessage(), 'Packers may') !== false || stripos($e->getMessage(), 'Only Owner/Admin') !== false;
+    http_response_code($permissionFailure ? 403 : 400);
     ops_board_sync_log('board action failed', [
         'action' => $action ?? 'unknown',
         'error' => $e->getMessage(),

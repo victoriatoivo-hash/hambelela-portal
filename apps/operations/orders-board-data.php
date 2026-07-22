@@ -318,7 +318,8 @@ $ordersPermissions = [
     'can_edit_paid' => in_array($roleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager'], true),
     'can_manage_people' => $roleKey === 'owner_admin',
     'can_bulk_manage' => in_array($roleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager'], true),
-    'can_delete' => in_array($roleKey, ['owner_admin', 'supervisor_manager'], true),
+    'can_move_to_trash' => in_array($roleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager', 'packer', 'packer_production_staff'], true),
+    'can_delete' => in_array($roleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager', 'packer', 'packer_production_staff'], true),
 ];
 $responseData['permissions'] = $ordersPermissions;
 

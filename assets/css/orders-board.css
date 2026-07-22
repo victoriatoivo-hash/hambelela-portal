@@ -955,3 +955,4 @@ body > .orders-label-popup .mode-label-name-input { width:100%; height:32px; min
     flex: 1;
   }
 }
+.order-row{transition:opacity .18s ease,transform .18s ease}.order-row.is-being-removed{opacity:0;transform:translateX(12px)}@media(prefers-reduced-motion:reduce){.order-row{transition:none}}
