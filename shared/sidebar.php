@@ -73,6 +73,7 @@ foreach ($portalNavItems as $portalNavItem) {
 $portalNavItems = $employeePortalNavItems;
 if ($isEmployeeSidebar) {
     $employeeNavOrder = [
+        'portal-dashboard' => 0,
         'operations-consignments' => 10,
         'operations-courier' => 20,
         'hr-portal' => 30,

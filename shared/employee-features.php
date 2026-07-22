@@ -12,7 +12,7 @@ function normalise_portal_role(string $role): string
 function portal_feature_permissions(): array
 {
     $employeeModules = [
-        'packing_list', 'courier', 'hr', 'orders', 'task_management',
+        'dashboard', 'packing_list', 'courier', 'hr', 'orders', 'task_management',
         'bookkeeping', 'cash_tools', 'notifications',
     ];
 
@@ -39,7 +39,7 @@ function portal_role_can_access_feature(string $roleKey, string $featureKey): bo
     // Unknown authenticated staff roles receive the standard employee modules.
     // Error Log remains explicitly restricted to front desk and owner/admin.
     $employeeModules = [
-        'packing_list', 'courier', 'hr', 'orders', 'task_management',
+        'dashboard', 'packing_list', 'courier', 'hr', 'orders', 'task_management',
         'bookkeeping', 'cash_tools', 'notifications',
     ];
     if ($roleKey !== 'guest' && $roleKey !== 'owner_admin' && in_array($featureKey, $employeeModules, true)) {
