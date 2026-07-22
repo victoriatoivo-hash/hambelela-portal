@@ -655,9 +655,11 @@ window.addEventListener('DOMContentLoaded', () => {
       document.body.classList.remove('urgent-task-alert-open');
       await postState(finished.alertId, state);
       if (state === 'viewed') {
-        const target = `/apps/operations/checklists.php?task_id=${encodeURIComponent(finished.taskId)}`;
-        if (/\/apps\/operations\/checklists\.php$/.test(window.location.pathname) && typeof window.openTaskPanel === 'function') {
-          window.openTaskPanel(finished.taskId); history.replaceState({}, '', target);
+        const target = `/apps/operations/checklists.php?task_view=manual&task_id=${encodeURIComponent(finished.taskId)}`;
+        const onManualTasks = /\/apps\/operations\/checklists\.php$/.test(window.location.pathname)
+          && new URLSearchParams(window.location.search).get('task_view') === 'manual';
+        if (onManualTasks && typeof window.openTaskPanel === 'function' && window.openTaskPanel(finished.taskId)) {
+          history.replaceState({}, '', target);
         } else window.location.assign(target);
         return;
       }

@@ -437,7 +437,7 @@ function notifications_notify_task_assigned(int $taskId, ?int $employeeId, strin
         'priority' => 'normal',
         'related_type' => 'checklist_task',
         'related_id' => $taskId,
-        'action_link' => BASE_URL . '/apps/operations/checklists.php?task_id=' . $taskId,
+        'action_link' => BASE_URL . '/apps/operations/checklists.php?task_view=manual&task_id=' . $taskId,
     ], [$employeeId]);
 }
 

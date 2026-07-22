@@ -162,7 +162,7 @@ function checklist_send_urgent_alert(int $taskId, string $title, string $message
     $notificationId = notifications_create([
         'title' => $title, 'message' => $message, 'module' => 'tasks', 'priority' => 'urgent',
         'related_type' => 'checklist_task', 'related_id' => $taskId,
-        'action_link' => BASE_URL . '/apps/operations/checklists.php?task_id=' . $taskId,
+        'action_link' => BASE_URL . '/apps/operations/checklists.php?task_view=manual&task_id=' . $taskId,
     ], $recipientIds);
     if ($notificationId) {
         db()->prepare('UPDATE ops_checklist_tasks SET urgent_alert_enabled = 1, urgent_alert_message = ?, urgent_alert_sent_at = NOW() WHERE id = ?')->execute([$message, $taskId]);
