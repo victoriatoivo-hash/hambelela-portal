@@ -155,6 +155,7 @@ if ($ready && $hasWooColumns && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $displayDateTimeInsertColumn = $displayDateTimeColumn !== 'created_at' ? ', ' . $displayDateTimeColumn : '';
         $displayDateTimeInsertValue = $displayDateTimeColumn !== 'created_at' ? ', ?' : '';
         $displayDateTimeUpdate = $displayDateTimeColumn . ' = VALUES(' . $displayDateTimeColumn . ')';
+        ops_ensure_order_payment_schema();
         $pdo->beginTransaction();
 
         $amountColumns = $hasTotalAmount ? ', total_amount' : '';
@@ -270,6 +271,11 @@ if ($ready && $hasWooColumns && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $orderIdStmt = $pdo->query('SELECT id FROM ops_orders WHERE woo_order_id = ' . $wooOrderId);
             $orderId = (int) $orderIdStmt->fetchColumn();
             $orderIdStmt->closeCursor();
+            $paymentAllocations = ops_wc_payment_allocations($order);
+            if ($paymentAllocations) {
+                $paymentVersion = (string) (($order['date_modified_gmt'] ?? '') ?: ($order['date_modified'] ?? '') ?: date(DATE_ATOM));
+                ops_replace_order_payment_allocations($orderId, $paymentAllocations, 'woocommerce', $paymentVersion);
+            }
             if (ops_column_exists('ops_orders', 'fulfilment_mode')) {
                 $pdo->prepare('UPDATE ops_orders SET fulfilment_mode = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')->execute([$orderType, $orderId]);
             }

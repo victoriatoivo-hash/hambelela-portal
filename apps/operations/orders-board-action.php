@@ -307,6 +307,7 @@ function ops_board_default_payment_labels(): array
         ['NetBank Wallet', '#2b5797'],
         ['Pay2Cell', '#c03456'],
         ['PayToday', '#4dc3bd'],
+        ['DPO', '#2563EB'],
     ];
 }
 
@@ -406,6 +407,7 @@ function ops_board_sync_website_orders(?string $date = null): array
     if (!ops_column_exists('ops_orders', 'woo_order_id') || !ops_column_exists('ops_order_items', 'woo_order_line_id')) {
         throw new RuntimeException('Import operations-woocommerce-sync-migration.sql first.');
     }
+    ops_ensure_order_payment_schema();
 
     $baseQuery = [
         'per_page' => 100,
@@ -628,6 +630,11 @@ function ops_board_sync_website_orders(?string $date = null): array
             $orderIdStmt->execute([$wooOrderId]);
             $orderId = (int) $orderIdStmt->fetchColumn();
             $orderIdStmt->closeCursor();
+            $paymentAllocations = ops_wc_payment_allocations($order);
+            if ($paymentAllocations) {
+                $paymentVersion = (string) (($order['date_modified_gmt'] ?? '') ?: ($order['date_modified'] ?? '') ?: date(DATE_ATOM));
+                ops_replace_order_payment_allocations($orderId, $paymentAllocations, 'woocommerce', $paymentVersion);
+            }
             if (ops_column_exists('ops_orders', 'fulfilment_mode')) {
                 $pdo->prepare('UPDATE ops_orders SET fulfilment_mode = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')->execute([$orderType, $orderId]);
             }
@@ -712,6 +719,57 @@ try {
     }
 
     $action = ops_post_string('action', 40);
+
+    if ($action === 'save_payment_allocations') {
+        if (!ops_can_update_order_payment_method()) throw new RuntimeException('You do not have permission to edit order payments.');
+        $submittedCsrf = (string) ($_POST['csrf_token'] ?? '');
+        $sessionCsrf = (string) ($_SESSION['orders_csrf_token'] ?? '');
+        if ($sessionCsrf === '' || !hash_equals($sessionCsrf, $submittedCsrf)) {
+            http_response_code(419);
+            throw new RuntimeException('Your session token is invalid. Refresh Orders and try again.');
+        }
+        if (!ops_ensure_order_payment_schema()) throw new RuntimeException('Payment allocation storage is unavailable.');
+        $orderId = (int) ($_POST['order_id'] ?? 0);
+        $order = $orderId > 0 ? ops_row('SELECT id, woo_order_id, total_amount FROM ops_orders WHERE id = ? AND deleted_at IS NULL LIMIT 1', [$orderId]) : null;
+        if (!$order) throw new RuntimeException('Order not found.');
+        if ((int) ($order['woo_order_id'] ?? 0) > 0) {
+            throw new RuntimeException('Website/POS payments are read-only in the portal because two-way WooCommerce payment allocation updates are not supported.');
+        }
+        $rawAllocations = json_decode((string) ($_POST['payments'] ?? '[]'), true);
+        if (!is_array($rawAllocations) || !$rawAllocations) throw new RuntimeException('Add at least one payment method.');
+        $allocations = [];
+        $seen = [];
+        foreach ($rawAllocations as $rawAllocation) {
+            if (!is_array($rawAllocation)) throw new RuntimeException('Invalid payment allocation.');
+            $method = ops_normalize_payment_code((string) ($rawAllocation['method'] ?? ''));
+            $amountCents = filter_var($rawAllocation['amount_cents'] ?? null, FILTER_VALIDATE_INT);
+            if ($method === '' || !array_key_exists($method, ops_payment_method_map())) throw new RuntimeException('Choose a supported payment method.');
+            if (isset($seen[$method])) throw new RuntimeException('A payment method cannot be selected twice.');
+            if ($amountCents === false || $amountCents <= 0) throw new RuntimeException('Every payment amount must be greater than zero.');
+            $seen[$method] = true;
+            $allocations[] = ['method'=>$method, 'amount_cents'=>(int) $amountCents, 'transaction_reference'=>substr(trim((string) ($rawAllocation['transaction_reference'] ?? '')), 0, 190)];
+        }
+        $submittedVersion = trim((string) ($_POST['version'] ?? ''));
+        $currentAllocations = ops_order_payment_allocations($orderId);
+        $currentVersion = $currentAllocations ? (string) ($currentAllocations[0]['version'] ?? '') : '';
+        if ($currentVersion !== '' && $submittedVersion !== $currentVersion) {
+            http_response_code(409);
+            throw new RuntimeException('This payment was updated elsewhere. Reload the latest payment details before saving.');
+        }
+        $version = gmdate('Y-m-d\TH:i:s\Z') . '-' . bin2hex(random_bytes(4));
+        db()->beginTransaction();
+        try {
+            ops_replace_order_payment_allocations($orderId, $allocations, 'portal', $version, ops_current_employee_id());
+            db()->commit();
+        } catch (Throwable $paymentError) {
+            if (db()->inTransaction()) db()->rollBack();
+            throw $paymentError;
+        }
+        $saved = ops_order_payment_allocations($orderId);
+        $savedOrder = ops_row('SELECT payment_method, payment_status, updated_at FROM ops_orders WHERE id = ? LIMIT 1', [$orderId]);
+        echo json_encode(['ok'=>true, 'message'=>'Payment saved.', 'payments'=>$saved, 'payment_method'=>$savedOrder['payment_method'], 'payment_status'=>$savedOrder['payment_status'], 'version'=>$version, 'updated_at'=>$savedOrder['updated_at']], JSON_UNESCAPED_SLASHES);
+        exit;
+    }
 
     if (in_array($action, ['orders_tools_data', 'trash_orders', 'restore_trashed_orders', 'archive_orders', 'restore_archived_orders', 'delete_orders_forever'], true)) {
         ops_board_ensure_tools_columns();
@@ -1262,6 +1320,10 @@ try {
             throw new RuntimeException('Invalid order update.');
         }
 
+        if ($field === 'payment_method') {
+            throw new RuntimeException('Use the Payment editor to update payment methods and amounts.');
+        }
+
         if ($field === 'status' && !array_key_exists($value, OPS_ORDER_STATUSES)) {
             throw new RuntimeException('Invalid status.');
         }
@@ -1394,6 +1456,14 @@ try {
             if (!ops_can_update_order_paid_status()) {
                 throw new RuntimeException('You do not have permission to change Paid.');
             }
+            if ($value === 'paid') {
+                $allocations = ops_order_payment_allocations($orderId);
+                $allocatedCents = array_sum(array_map(static fn(array $payment): int => (int) ($payment['amount_cents'] ?? 0), $allocations));
+                $orderTotalCents = (int) round((float) ($previousOrder['total_amount'] ?? 0) * 100);
+                if ($allocations && $allocatedCents < $orderTotalCents) {
+                    throw new RuntimeException('Allocated payments do not cover the order total. Add the remaining payment before marking this order paid.');
+                }
+            }
             $paidAuditSet = ops_column_exists('ops_orders', 'paid_updated_at') && ops_column_exists('ops_orders', 'paid_updated_by_employee_id')
                 ? ', paid_updated_at = CURRENT_TIMESTAMP, paid_updated_by_employee_id = ?' : '';
             $stmt = db()->prepare('UPDATE ops_orders SET payment_status = ?, updated_at = CURRENT_TIMESTAMP' . $paidAuditSet . ' WHERE id = ?');
@@ -1475,6 +1545,10 @@ try {
             throw new RuntimeException('Invalid bulk update.');
         }
 
+        if ($field === 'payment_method') {
+            throw new RuntimeException('Use each order\'s Payment editor to update payment methods and amounts.');
+        }
+
         if ($field === 'assigned_packer_id' && !user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager')) {
             throw new RuntimeException('Only admin, front desk or supervisor can bulk assign orders.');
         }
@@ -1524,6 +1598,21 @@ try {
         }
 
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        if ($field === 'payment_status' && $value === 'paid' && ops_ensure_order_payment_schema()) {
+            $underAllocated = ops_rows(
+                "SELECT o.id
+                 FROM ops_orders o
+                 JOIN order_payment_allocations p ON p.order_id = o.id
+                 WHERE o.id IN ({$placeholders})
+                 GROUP BY o.id, o.total_amount
+                 HAVING SUM(p.amount_cents) < ROUND(o.total_amount * 100)
+                 LIMIT 1",
+                $ids
+            );
+            if ($underAllocated) {
+                throw new RuntimeException('One or more selected orders have payments that do not cover their totals. Complete the allocations before marking them paid.');
+            }
+        }
         $previousKpiStatuses = [];
         if ($field === 'status') {
             foreach (ops_rows("SELECT id, status FROM ops_orders WHERE id IN ({$placeholders})", $ids) as $previousKpiRow) {
@@ -1726,7 +1815,7 @@ try {
 } catch (Throwable $e) {
     $permissionFailure = stripos($e->getMessage(), 'permission') !== false || stripos($e->getMessage(), 'Packers may') !== false || stripos($e->getMessage(), 'Only Owner/Admin') !== false;
     $existingStatus = http_response_code();
-    http_response_code($permissionFailure ? 403 : ($existingStatus === 419 ? 419 : 400));
+    http_response_code($permissionFailure ? 403 : (in_array($existingStatus, [409, 419], true) ? $existingStatus : 400));
     ops_board_sync_log('board action failed', [
         'action' => $action ?? 'unknown',
         'error' => $e->getMessage(),

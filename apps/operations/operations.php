@@ -56,7 +56,47 @@ function ops_website_payment_methods(): array
         'NetBank Wallet',
         'Pay2Cell',
         'PayToday',
+        'DPO',
     ];
+}
+
+function ops_payment_method_map(): array
+{
+    return [
+        'cash' => 'Cash', 'card_swipe' => 'Card/Swipe', 'eft' => 'EFT',
+        'fnb_ewallet' => 'FNB eWallet', 'easywallet' => 'EasyWallet',
+        'blue_wallet' => 'Blue Wallet', 'nedbank' => 'Nedbank',
+        'netbank_wallet' => 'NetBank Wallet', 'pay2cell' => 'Pay2Cell',
+        'paytoday' => 'PayToday', 'dpo' => 'DPO',
+    ];
+}
+
+function ops_normalize_payment_code(string $value): string
+{
+    $value = strtolower(trim($value));
+    $value = preg_replace('/[^a-z0-9]+/', '_', $value) ?? '';
+    $value = trim($value, '_');
+    $aliases = [
+        'cash' => 'cash', 'cod' => 'cash', 'cash_on_delivery' => 'cash',
+        'card' => 'card_swipe', 'swipe' => 'card_swipe', 'card_swipe' => 'card_swipe',
+        'eft' => 'eft', 'bacs' => 'eft', 'bank_transfer' => 'eft', 'direct_bank_transfer' => 'eft',
+        'fnb_ewallet' => 'fnb_ewallet', 'fnb_e_wallet' => 'fnb_ewallet', 'fnbwlt' => 'fnb_ewallet',
+        'easywallet' => 'easywallet', 'easy_wallet' => 'easywallet', 'easywlt' => 'easywallet',
+        'bluewallet' => 'blue_wallet', 'blue_wallet' => 'blue_wallet', 'bluewlt' => 'blue_wallet',
+        'nedbank' => 'nedbank', 'netbank_wallet' => 'netbank_wallet',
+        'pay2cell' => 'pay2cell', 'pay_2_cell' => 'pay2cell', 'paytoday' => 'paytoday', 'pay_today' => 'paytoday',
+        'dpo' => 'dpo', 'dpo_pay' => 'dpo', 'dpo_paygate' => 'dpo', 'woocommerce_dpo' => 'dpo', 'paygate' => 'dpo', 'paygate_payweb3' => 'dpo',
+    ];
+    if (isset($aliases[$value])) return $aliases[$value];
+    foreach (ops_payment_method_map() as $code => $label) {
+        if (strtolower((string) preg_replace('/[^a-z0-9]+/', '_', $label)) === $value) return $code;
+    }
+    return '';
+}
+
+function ops_payment_label(string $code): string
+{
+    return ops_payment_method_map()[$code] ?? ucwords(str_replace('_', ' ', $code));
 }
 
 function ops_normalize_website_payment_method(string $value): string
@@ -75,6 +115,7 @@ function ops_normalize_website_payment_method(string $value): string
         'EFT' => '/\beft\b|\bbank transfer\b|\bbacs\b/i',
         'Nedbank' => '/\bnedbank\b/i',
         'Cash' => '/\bcash\b/i',
+        'DPO' => '/\bdpo\b|\bpaygate\b/i',
     ];
 
     foreach ($patterns as $method => $pattern) {
@@ -121,6 +162,10 @@ function ops_collect_order_payment_text($value, string $key = '', array &$entrie
  */
 function ops_wc_payment_method(array $order): string
 {
+    $allocations = ops_wc_payment_allocations($order);
+    if ($allocations) {
+        return implode(' / ', array_map(static fn(array $allocation): string => ops_payment_label((string) $allocation['method']), $allocations));
+    }
     $title = trim((string) ($order['payment_method_title'] ?? ''));
     $methodId = trim((string) ($order['payment_method'] ?? ''));
     $metadata = [];
@@ -138,6 +183,7 @@ function ops_wc_payment_method(array $order): string
             'Blue Wallet' => '/\bblue\s*wallet\b|\bbluewallet\b/i', 'Nedbank' => '/\bnedbank\b/i',
             'NetBank Wallet' => '/\bnet\s*bank\s*wallet\b/i', 'Pay2Cell' => '/\bpay\s*2\s*cell\b/i',
             'PayToday' => '/\bpay\s*today\b/i',
+            'DPO' => '/\bdpo\b|\bpaygate\b/i',
         ][$candidate];
         if (preg_match($candidatePattern, $metadataText)) {
             $components[] = $candidate;
@@ -151,6 +197,118 @@ function ops_wc_payment_method(array $order): string
 
     return ops_normalize_website_payment_method($title)
         ?: ops_normalize_website_payment_method($methodId);
+}
+
+function ops_ensure_order_payment_schema(): bool
+{
+    static $ready = null;
+    if ($ready !== null) return $ready;
+    if (!ops_database_ready() || !ops_table_exists('ops_orders')) return false;
+    try {
+        db()->exec("CREATE TABLE IF NOT EXISTS order_payment_allocations (
+            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            order_id INT NOT NULL,
+            payment_method VARCHAR(30) NOT NULL,
+            amount_cents BIGINT NOT NULL,
+            transaction_reference VARCHAR(190) NULL,
+            source VARCHAR(30) NOT NULL DEFAULT 'portal',
+            source_version VARCHAR(80) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            updated_by_employee_id INT NULL,
+            UNIQUE KEY uq_order_payment_method (order_id, payment_method),
+            KEY idx_order_payment_updated (order_id, updated_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        db()->exec("CREATE TABLE IF NOT EXISTS order_payment_allocation_audit (
+            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            order_id INT NOT NULL,
+            previous_allocations_json LONGTEXT NULL,
+            new_allocations_json LONGTEXT NOT NULL,
+            changed_by_employee_id INT NULL,
+            source VARCHAR(30) NOT NULL,
+            changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            KEY idx_payment_audit_order (order_id, changed_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        $legacyRows = ops_rows(
+            "SELECT o.id, o.payment_method, o.total_amount, o.updated_at
+             FROM ops_orders o
+             LEFT JOIN order_payment_allocations p ON p.order_id = o.id
+             WHERE p.id IS NULL AND o.payment_status = 'paid' AND COALESCE(o.payment_method, '') <> ''
+             LIMIT 500"
+        );
+        $legacyInsert = db()->prepare('INSERT IGNORE INTO order_payment_allocations (order_id, payment_method, amount_cents, source, source_version) VALUES (?, ?, ?, ?, ?)');
+        foreach ($legacyRows as $legacyRow) {
+            $method = ops_normalize_payment_code((string) $legacyRow['payment_method']);
+            if ($method === '') continue;
+            $legacyInsert->execute([(int) $legacyRow['id'], $method, (int) round((float) $legacyRow['total_amount'] * 100), 'legacy_paid_order', (string) ($legacyRow['updated_at'] ?? '')]);
+        }
+    } catch (Throwable $e) {
+        error_log(date(DATE_ATOM) . ' order payment schema: ' . $e->getMessage() . PHP_EOL, 3, BASE_PATH . '/storage/logs/operations-sync.log');
+        return $ready = false;
+    }
+    return $ready = ops_table_exists('order_payment_allocations') && ops_table_exists('order_payment_allocation_audit');
+}
+
+function ops_order_payment_allocations(int $orderId): array
+{
+    if ($orderId <= 0 || !ops_ensure_order_payment_schema()) return [];
+    $rows = ops_rows('SELECT payment_method, amount_cents, transaction_reference, source, source_version, updated_at FROM order_payment_allocations WHERE order_id = ? ORDER BY id', [$orderId]);
+    return array_map(static fn(array $row): array => [
+        'method' => (string) $row['payment_method'],
+        'label' => ops_payment_label((string) $row['payment_method']),
+        'amount_cents' => (int) $row['amount_cents'],
+        'transaction_reference' => (string) ($row['transaction_reference'] ?? ''),
+        'source' => (string) $row['source'],
+        'version' => (string) $row['source_version'],
+        'updated_at' => (string) $row['updated_at'],
+    ], $rows);
+}
+
+function ops_wc_payment_allocations(array $order): array
+{
+    $candidates = [];
+    $visit = static function ($value, string $key = '') use (&$visit, &$candidates): void {
+        if (is_string($value) && (($value[0] ?? '') === '[' || ($value[0] ?? '') === '{')) {
+            $decoded = json_decode($value, true);
+            if (is_array($decoded)) $value = $decoded;
+        }
+        if (!is_array($value)) return;
+        $methodRaw = $value['payment_method'] ?? $value['method'] ?? $value['gateway'] ?? $value['tender'] ?? $value['type'] ?? '';
+        $amountRaw = $value['amount_cents'] ?? $value['amount'] ?? $value['value'] ?? $value['total'] ?? null;
+        $method = ops_normalize_payment_code((string) $methodRaw);
+        if ($method !== '' && $amountRaw !== null && is_numeric((string) $amountRaw)) {
+            $isCents = array_key_exists('amount_cents', $value) || stripos($key, 'cent') !== false;
+            $amountCents = $isCents ? (int) round((float) $amountRaw) : (int) round((float) $amountRaw * 100);
+            if ($amountCents > 0) $candidates[$method] = ($candidates[$method] ?? 0) + $amountCents;
+        }
+        foreach ($value as $childKey => $child) $visit($child, $key . ' ' . (string) $childKey);
+    };
+    foreach ((array) ($order['meta_data'] ?? []) as $meta) {
+        $visit($meta['value'] ?? null, (string) ($meta['key'] ?? ''));
+    }
+    if (!$candidates) {
+        $method = ops_normalize_payment_code((string) (($order['payment_method'] ?? '') ?: ($order['payment_method_title'] ?? '')));
+        $confirmedPaid = !empty($order['date_paid']) || in_array((string) ($order['status'] ?? ''), ['processing', 'completed'], true);
+        if ($method !== '' && $confirmedPaid) $candidates[$method] = (int) round((float) ($order['total'] ?? 0) * 100);
+    }
+    return array_values(array_map(static fn(string $method, int $amount): array => ['method'=>$method, 'amount_cents'=>$amount], array_keys($candidates), array_values($candidates)));
+}
+
+function ops_replace_order_payment_allocations(int $orderId, array $allocations, string $source, string $version, ?int $employeeId = null): void
+{
+    if ($orderId <= 0 || !$allocations || !ops_ensure_order_payment_schema()) return;
+    $previous = ops_order_payment_allocations($orderId);
+    db()->prepare('DELETE FROM order_payment_allocations WHERE order_id = ?')->execute([$orderId]);
+    $insert = db()->prepare('INSERT INTO order_payment_allocations (order_id, payment_method, amount_cents, transaction_reference, source, source_version, updated_by_employee_id) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    foreach ($allocations as $allocation) {
+        $insert->execute([$orderId, $allocation['method'], $allocation['amount_cents'], $allocation['transaction_reference'] ?? null, $source, $version, $employeeId]);
+    }
+    $summary = implode(' / ', array_map(static fn(array $allocation): string => ops_payment_label((string) $allocation['method']), $allocations));
+    $totalCents = array_sum(array_column($allocations, 'amount_cents'));
+    $order = ops_row('SELECT total_amount FROM ops_orders WHERE id = ? LIMIT 1', [$orderId]);
+    $paid = $order && $totalCents >= (int) round((float) $order['total_amount'] * 100) ? 'paid' : ($totalCents > 0 ? 'partial' : 'unpaid');
+    db()->prepare('UPDATE ops_orders SET payment_method = ?, payment_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')->execute([$summary, $paid, $orderId]);
+    db()->prepare('INSERT INTO order_payment_allocation_audit (order_id, previous_allocations_json, new_allocations_json, changed_by_employee_id, source) VALUES (?, ?, ?, ?, ?)')->execute([$orderId, json_encode($previous, JSON_UNESCAPED_SLASHES), json_encode($allocations, JSON_UNESCAPED_SLASHES), $employeeId, $source]);
 }
 
 function ops_normalize_fulfilment_mode(?string $value): string
@@ -807,6 +965,11 @@ function ops_can_update_order_paid_status(): bool
 {
     $roleKey = current_role_key();
     return $roleKey !== 'guest' && portal_role_can_access_feature($roleKey, 'orders');
+}
+
+function ops_can_update_order_payment_method(): bool
+{
+    return user_has_role('owner_admin', 'front_desk_admin', 'front_desk_admin_employee');
 }
 
 function ops_staff_text_key(array $employee): string

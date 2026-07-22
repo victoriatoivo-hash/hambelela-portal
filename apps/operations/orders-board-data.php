@@ -190,6 +190,33 @@ if ($orderIds) {
     }
     unset($order);
 
+    $paymentsByOrder = [];
+    if (ops_ensure_order_payment_schema()) {
+        $paymentRows = ops_rows(
+            "SELECT order_id, payment_method, amount_cents, transaction_reference, source, source_version, updated_at
+             FROM order_payment_allocations WHERE order_id IN ({$placeholders}) ORDER BY id",
+            $orderIds
+        );
+        foreach ($paymentRows as $paymentRow) {
+            $paymentsByOrder[(int) $paymentRow['order_id']][] = [
+                'method' => (string) $paymentRow['payment_method'],
+                'label' => ops_payment_label((string) $paymentRow['payment_method']),
+                'amount_cents' => (int) $paymentRow['amount_cents'],
+                'transaction_reference' => (string) ($paymentRow['transaction_reference'] ?? ''),
+                'source' => (string) $paymentRow['source'],
+                'version' => (string) $paymentRow['source_version'],
+                'updated_at' => (string) $paymentRow['updated_at'],
+            ];
+        }
+    }
+    foreach ($orders as &$order) {
+        $order['payments'] = $paymentsByOrder[(int) $order['id']] ?? [];
+        $order['payment_version'] = (string) ($order['payments'][0]['version'] ?? '');
+        $order['payment_source_of_truth'] = (int) ($order['woo_order_id'] ?? 0) > 0 ? 'website_pos' : 'portal';
+        $order['can_edit_payment'] = ops_can_update_order_payment_method() && $order['payment_source_of_truth'] === 'portal';
+    }
+    unset($order);
+
     $activitiesByOrder = [];
     if (ops_table_exists('ops_activity_logs')) {
         $activityRows = ops_rows(
@@ -316,6 +343,7 @@ $responseData = $incremental
 $ordersPermissions = [
     'can_edit_packed_by' => in_array($roleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager', 'packer', 'packer_production_staff'], true),
     'can_edit_paid' => ops_can_update_order_paid_status(),
+    'can_edit_payment' => ops_can_update_order_payment_method(),
     'can_manage_people' => $roleKey === 'owner_admin',
     'can_bulk_manage' => in_array($roleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager'], true),
     'can_move_to_trash' => in_array($roleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager', 'packer', 'packer_production_staff'], true),

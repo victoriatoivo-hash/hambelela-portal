@@ -66,7 +66,7 @@
   let liveFailures = 0;
   let livePollInFlight = false;
   let lastRecoverySyncAt = 0;
-  const sourceRecoveryInterval = 5 * 60 * 1000;
+  const sourceRecoveryInterval = 45 * 1000;
   let liveRenderPending = false;
   const livePendingGroupKeys = new Set();
   let refreshSequence = 0;
@@ -146,7 +146,12 @@
   let paymentLabels = [
     ['Cash', '#bdbdbd'], ['Card/Swipe', '#333333'], ['EFT', '#7b4bd3'], ['FNB eWallet', '#1b5e20'],
     ['EasyWallet', '#a648d9'], ['Blue Wallet', '#00845f'], ['Nedbank', '#07c66b'],
-    ['NetBank Wallet', '#2b5797'], ['Pay2Cell', '#c03456'], ['PayToday', '#4dc3bd']
+    ['NetBank Wallet', '#2b5797'], ['Pay2Cell', '#c03456'], ['PayToday', '#4dc3bd'], ['DPO', '#2563EB']
+  ];
+  const PAYMENT_METHODS = [
+    ['cash','Cash'], ['card_swipe','Card/Swipe'], ['eft','EFT'], ['fnb_ewallet','FNB eWallet'],
+    ['easywallet','EasyWallet'], ['blue_wallet','Blue Wallet'], ['nedbank','Nedbank'],
+    ['netbank_wallet','NetBank Wallet'], ['pay2cell','Pay2Cell'], ['paytoday','PayToday'], ['dpo','DPO']
   ];
 
   function syncPaymentFilterOptions() {
@@ -154,6 +159,10 @@
     ordersCache.forEach((order) => {
       const value = String(order.payment_method || '').trim();
       if (value) values.add(value);
+      (Array.isArray(order.payments) ? order.payments : []).forEach((payment) => {
+        const label = payment.label || PAYMENT_METHODS.find(([code]) => code === payment.method)?.[1] || '';
+        if (label) values.add(label);
+      });
     });
     filterOptions.payment = [['', 'All payments'], ...[...values].map((value) => [value, value])];
   }
@@ -994,7 +1003,7 @@
         const cell = row.querySelector(`.${cellClass}`);
         if (!cell) return;
         cell.style.setProperty('--cell-fill-color', findColor(options, value));
-        cell.innerHTML = renderLabelCell(order, field, value, options, field === 'order_type' ? 'mode-label' : field === 'payment_method' ? 'payment-label' : 'status-label');
+        cell.innerHTML = field === 'payment_method' ? renderPaymentBadge(order) : renderLabelCell(order, field, value, options, field === 'order_type' ? 'mode-label' : 'status-label');
       });
       const groupKeys = orderIds.map((id) => {
         const order = ordersCache.find((item) => String(item.id) === String(id));
@@ -1304,7 +1313,12 @@
       if (boardState.person === '__me__' && String(order.assigned_packer_id || '') !== String(currentUser.id || '')) return false;
       if (boardState.person && boardState.person !== '__me__' && (order.packer_name || 'Unassigned') !== boardState.person) return false;
       if (boardState.mode && normalize(order.order_type) !== normalize(boardState.mode)) return false;
-      if (boardState.payment && normalize(order.payment_method) !== normalize(boardState.payment)) return false;
+      if (boardState.payment) {
+        const requestedPayment = normalize(boardState.payment);
+        const paymentMatches = normalize(order.payment_method) === requestedPayment
+          || (Array.isArray(order.payments) && order.payments.some((payment) => normalize(payment.label || payment.method) === requestedPayment));
+        if (!paymentMatches) return false;
+      }
       if (boardState.status && normalize(order.status) !== normalize(boardState.status)) return false;
       if (boardState.paid && (order.payment_status === 'paid' ? 'paid' : 'unpaid') !== boardState.paid) return false;
       const amount = Number(order.total_amount || 0);
@@ -1612,6 +1626,67 @@
     const color = findColor(options, value);
     const text = findText(options, value);
     return `<button type="button" class="board-label ${cssClass}" style="--label-color:${esc(color)}" aria-haspopup="menu" aria-expanded="false" data-label-field="${field}" data-label-value-current="${esc(value || '')}" data-order-id="${esc(order.id)}"><span class="orders-label-trigger-text">${esc(text)}</span></button>`;
+  }
+
+  function legacyPaymentCode(value) {
+    const normalized = normalize(value).replace(/[^a-z0-9]+/g, '_');
+    const aliases = {card:'card_swipe',swipe:'card_swipe',card_swipe:'card_swipe',bacs:'eft',bank_transfer:'eft',bluewallet:'blue_wallet',dpo_pay:'dpo',dpo_paygate:'dpo',paygate:'dpo'};
+    return aliases[normalized] || (PAYMENT_METHODS.some(([code]) => code === normalized) ? normalized : '');
+  }
+
+  function renderPaymentBadge(order) {
+    let payments = Array.isArray(order.payments) ? order.payments.filter((payment) => Number(payment.amount_cents) > 0) : [];
+    if (!payments.length) {
+      const method = legacyPaymentCode(order.payment_method || '');
+      if (method) payments = [{method,label:PAYMENT_METHODS.find(([code])=>code===method)?.[1] || order.payment_method,amount_cents:order.payment_status==='paid'?Math.round(Number(order.total_amount||0)*100):0}];
+    }
+    const canEdit = Boolean(order.can_edit_payment);
+    const title = payments.length ? payments.map((payment) => `${payment.label || PAYMENT_METHODS.find(([code])=>code===payment.method)?.[1] || payment.method} ${money(Number(payment.amount_cents||0)/100)}`).join(' and ') : 'Payment not allocated';
+    const segments = payments.length ? payments.map((payment, index) => `${index ? '<span class="payment-badge__separator" aria-hidden="true">/</span>' : ''}<span class="payment-badge__segment" data-payment-method="${esc(payment.method)}">${esc(payment.label || PAYMENT_METHODS.find(([code])=>code===payment.method)?.[1] || payment.method)}</span>`).join('') : '<span class="payment-badge__segment" data-payment-method="unknown">Not set</span>';
+    return `<button type="button" class="payment-badge${payments.length>1?' payment-badge--split':''}" data-order-payment-edit data-order-id="${esc(order.id)}" aria-label="${esc(canEdit?'Edit payment: '+title:'View payment: '+title)}">${segments}</button>`;
+  }
+
+  function closePaymentEditor() {
+    document.getElementById('order-payment-editor')?.remove();
+  }
+
+  function openPaymentEditor(orderId) {
+    closePaymentEditor();
+    const order = ordersCache.find((item) => String(item.id) === String(orderId));
+    if (!order) return;
+    const editable = Boolean(order.can_edit_payment);
+    const payments = Array.isArray(order.payments) && order.payments.length
+      ? order.payments.map((payment) => ({...payment}))
+      : [{method:legacyPaymentCode(order.payment_method||'') || 'cash',amount_cents:order.payment_status==='paid'?Math.round(Number(order.total_amount||0)*100):0}];
+    const modal = document.createElement('div');
+    modal.id = 'order-payment-editor';
+    modal.className = 'payment-editor';
+    modal.innerHTML = `<button type="button" class="payment-editor__backdrop" data-payment-editor-close aria-label="Close payment editor"></button><section class="payment-editor__dialog" role="dialog" aria-modal="true" aria-labelledby="payment-editor-title"><header><div><span>Order payment</span><h2 id="payment-editor-title">${esc(order.order_number || 'Order')}</h2></div><button type="button" data-payment-editor-close aria-label="Close">×</button></header>${order.payment_source_of_truth==='website_pos'?'<p class="payment-editor__notice">Managed by the website/POS. Amounts are read-only here so the next sync cannot overwrite a portal edit.</p>':''}<div class="payment-editor__rows" data-payment-editor-rows></div><button type="button" class="payment-editor__add" data-payment-add ${editable?'':'hidden'}>+ Add payment method</button><div class="payment-editor__totals"><span>Order total <strong>${esc(money(order.total_amount))}</strong></span><span>Collected <strong data-payment-collected></strong></span><span>Due <strong data-payment-due></strong></span></div><footer><button type="button" data-payment-editor-close>Cancel</button>${editable?'<button type="button" class="primary" data-payment-save>Save</button>':''}</footer><p class="payment-editor__error" data-payment-error aria-live="polite"></p></section>`;
+    document.body.appendChild(modal);
+    const rows = modal.querySelector('[data-payment-editor-rows]');
+    const updateTotals = () => {
+      const collected = payments.reduce((sum,payment)=>sum+Number(payment.amount_cents||0),0);
+      modal.querySelector('[data-payment-collected]').textContent = money(collected/100);
+      modal.querySelector('[data-payment-due]').textContent = money(Math.max(0,Math.round(Number(order.total_amount||0)*100)-collected)/100);
+    };
+    const renderRows = () => {
+      rows.innerHTML = payments.map((payment,index)=>`<div class="payment-editor__row"><select data-payment-method-index="${index}" ${editable?'':'disabled'}>${PAYMENT_METHODS.map(([code,label])=>`<option value="${code}" ${code===payment.method?'selected':''}>${esc(label)}</option>`).join('')}</select><label>N$<input type="number" min="0" step="0.01" value="${(Number(payment.amount_cents||0)/100).toFixed(2)}" data-payment-amount-index="${index}" ${editable?'':'disabled'}></label>${editable&&payments.length>1?`<button type="button" data-payment-remove="${index}" aria-label="Remove payment">×</button>`:''}</div>`).join('');
+      updateTotals();
+    };
+    renderRows();
+    modal.addEventListener('input',(event)=>{const index=Number(event.target.dataset.paymentAmountIndex);if(Number.isInteger(index)&&payments[index]){payments[index].amount_cents=Math.round(Number(event.target.value||0)*100);updateTotals();}});
+    modal.addEventListener('change',(event)=>{const index=Number(event.target.dataset.paymentMethodIndex);if(Number.isInteger(index)&&payments[index])payments[index].method=event.target.value;});
+    modal.addEventListener('click',async(event)=>{
+      if(event.target.closest('[data-payment-editor-close]')) return closePaymentEditor();
+      if(event.target.closest('[data-payment-add]')){payments.push({method:PAYMENT_METHODS.find(([code])=>!payments.some(p=>p.method===code))?.[0]||'cash',amount_cents:0});renderRows();return;}
+      const remove=event.target.closest('[data-payment-remove]');if(remove){payments.splice(Number(remove.dataset.paymentRemove),1);renderRows();return;}
+      const save=event.target.closest('[data-payment-save]');if(!save)return;
+      const errorNode=modal.querySelector('[data-payment-error]');errorNode.textContent='';
+      if(new Set(payments.map(p=>p.method)).size!==payments.length){errorNode.textContent='A payment method cannot appear twice.';return;}
+      if(payments.some(p=>Number(p.amount_cents)<=0)){errorNode.textContent='Every payment amount must be greater than zero.';return;}
+      save.disabled=true;save.textContent='Saving…';
+      try{const data=await post('save_payment_allocations',{order_id:order.id,payments:JSON.stringify(payments),version:order.payment_version||''});order.payments=data.payments;order.payment_version=data.version;order.payment_method=data.payment_method;order.payment_status=data.payment_status;const row=body.querySelector(`.monday-order-row[data-order-id="${selectorEsc(order.id)}"]`);if(row){row.querySelector('.col-payment').innerHTML=renderPaymentBadge(order);row.querySelector('.col-paid').innerHTML=renderPaidCell(order);}closePaymentEditor();if(syncState)syncState.textContent='Payment saved.';}catch(error){errorNode.textContent=error.message;save.disabled=false;save.textContent='Save';}
+    });
   }
 
   function labelCellStyle(options, value) {
@@ -2267,7 +2342,7 @@
           <div class="orders-grid-cell orders-grid-cell--mobile monday-cell editable-cell col-mobile" data-editable-order-field="customer_contact" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_contact || '')}" tabindex="0"><span class="orders-inline-cell-trigger">${esc(order.customer_contact || '')}</span></div>
           <div class="orders-grid-cell orders-grid-cell--mode monday-cell col-mode"${labelCellStyle(modeLabels, order.order_type)}>${renderLabelCell(order, 'order_type', order.order_type, modeLabels, 'mode-label')}</div>
           <div class="orders-grid-cell orders-grid-cell--amount monday-cell editable-cell col-amount" data-editable-order-field="total_amount" data-order-id="${esc(order.id)}" data-value="${esc(order.total_amount ?? '')}" tabindex="0"><span class="orders-inline-cell-trigger">${esc(money(order.total_amount))}</span></div>
-          <div class="orders-grid-cell orders-grid-cell--payment monday-cell col-payment"${labelCellStyle(paymentLabels, order.payment_method || 'Cash')}>${renderLabelCell(order, 'payment_method', order.payment_method || 'Cash', paymentLabels, 'payment-label')}</div>
+          <div class="orders-grid-cell orders-grid-cell--payment monday-cell col-payment">${renderPaymentBadge(order)}</div>
           <div class="orders-grid-cell orders-grid-cell--paid monday-cell col-paid">${renderPaidCell(order)}</div>
           <div class="orders-grid-cell orders-grid-cell--status monday-cell col-status"${labelCellStyle(statusLabels, order.status || 'new_order')}>${renderLabelCell(order, 'status', order.status || 'new_order', statusLabels, 'status-label')}</div>
           <div class="orders-grid-cell orders-grid-cell--packer monday-cell col-packedby">${renderPackerCell(order)}</div>
@@ -4126,6 +4201,7 @@
     const groupDateEdit = event.target.closest('[data-edit-group-date]');
     const dateSortTrigger = event.target.closest('[data-date-sort-trigger]');
     const dateSortOption = event.target.closest('[data-date-sort-option]');
+    const paymentEdit = event.target.closest('[data-order-payment-edit]');
     const labelButton = event.target.closest('[data-label-field][data-order-id]');
     const labelChoice = event.target.closest('[data-label-value]');
     const richLabelChoice = event.target.closest('[data-rich-label-value]');
@@ -4500,6 +4576,11 @@
 
       if (labelButton) {
         openLabelMenu(labelButton, labelButton.dataset.orderId, labelButton.dataset.labelField);
+        return;
+      }
+
+      if (paymentEdit) {
+        openPaymentEditor(paymentEdit.dataset.orderId);
         return;
       }
 
