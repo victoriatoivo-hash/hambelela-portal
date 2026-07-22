@@ -283,7 +283,9 @@
   }
 
   document.addEventListener('click', (event) => {
-    if (active && !event.target.closest('.portal-date-popup') && !event.target.closest('.portal-date-picker,[data-portal-date-field]')) close(false);
+    const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
+    const clickedPopup = popup && path.includes(popup);
+    if (active && !clickedPopup && !event.target.closest('.portal-date-picker,[data-portal-date-field]')) close(false);
   });
   document.addEventListener('submit', (event) => {
     const missing = [...event.target.querySelectorAll('[data-portal-date-required="true"]')].find((input) => !input.value);
