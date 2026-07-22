@@ -1036,7 +1036,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     <div><h2 id="<?= $sectionKey ?>TasksHeading"><?= $section['title'] ?></h2><p><?= $section['description'] ?></p></div>
                     <div class="task-section__actions">
                         <?php if ($canManage && $sectionKey === 'recurring'): ?><button class="dtb-btn task-section__add" type="button" data-task-create-open data-task-create-kind="recurring"><i data-lucide="plus"></i> Add Recurring Task</button><?php endif; ?>
-                        <button type="button" class="task-section__toggle" aria-expanded="true" aria-controls="<?= $sectionKey ?>TasksContent"><span class="sr-only">Collapse <?= $section['title'] ?></span><i data-lucide="chevron-down" aria-hidden="true"></i></button>
+                        <button type="button" class="task-section__toggle" aria-expanded="true" aria-controls="<?= $sectionKey ?>TasksContent" aria-label="Collapse <?= htmlspecialchars($section['title'], ENT_QUOTES, 'UTF-8') ?>"><i data-lucide="chevron-down" aria-hidden="true"></i></button>
                     </div>
                 </header>
                 <div class="task-section__content" id="<?= $sectionKey ?>TasksContent">
@@ -1952,8 +1952,7 @@ function initialiseTaskSections() {
     toggle.setAttribute('aria-expanded', String(!expanded));
     content.hidden = expanded;
     const sectionName = header.querySelector('h2')?.textContent?.trim() || 'section';
-    const label = toggle.querySelector('.sr-only');
-    if (label) label.textContent = `${expanded ? 'Expand' : 'Collapse'} ${sectionName}`;
+    toggle.setAttribute('aria-label', `${expanded ? 'Expand' : 'Collapse'} ${sectionName}`);
   });
   const requestedView = page.dataset.requestedTaskView;
   const recurringHash = ['#recurring-tasks', '#recurringTasks'].includes(window.location.hash);

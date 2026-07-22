@@ -4346,7 +4346,9 @@ textarea {
 .task-section__actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 .digital-task-page .task-section__add { height: 30px; min-height: 30px; padding: 0 11px; border: 1px solid rgba(171,54,25,.22); border-radius: 9px; background: #FFFFFF; color: #AB3619; font-size: 10px; }
 .digital-task-page .task-section__add svg { width: 12px; height: 12px; }
-.task-section__toggle { display: grid; flex: 0 0 30px; width: 30px; height: 30px; padding: 0; place-items: center; color: #AB3619; background: rgba(240,116,32,.06); border: 1px solid rgba(171,54,25,.18); border-radius: 9px; cursor: pointer; }
+.task-section__toggle { display: grid; flex: 0 0 30px; width: 30px; height: 30px; padding: 0; place-items: center; color: #AB3619; background: transparent; border: 0; border-radius: 9px; cursor: pointer; }
+.task-section__toggle:hover,
+.task-section__toggle:focus-visible { color: #721B1A; background: transparent; outline: none; }
 .task-section__toggle svg { width: 12px; height: 12px; transition: transform 160ms ease; }
 .task-section__toggle[aria-expanded="false"] svg { transform: rotate(-90deg); }
 .task-section .task-board { border: 0; border-radius: 0; box-shadow: none; }
