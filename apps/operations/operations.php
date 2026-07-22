@@ -6,6 +6,7 @@ require_once dirname(__DIR__, 2) . '/config.php';
 require_once BASE_PATH . '/shared/auth.php';
 require_once BASE_PATH . '/shared/database.php';
 require_once BASE_PATH . '/shared/notifications.php';
+require_once BASE_PATH . '/shared/employee-features.php';
 
 const OPS_ORDER_STATUSES = [
     'new_order' => 'New Order',
@@ -781,63 +782,31 @@ function ops_current_employee_id(): ?int
 {
     $user = current_user();
     $id = (int) ($user['id'] ?? 0);
-    if ($id > 0) {
-        return $id;
+    return $id > 0 ? $id : null;
+}
+
+function ops_task_scope_for_current_user(): array
+{
+    if (user_has_role('owner_admin')) {
+        return ['type' => 'all', 'employee_id' => null];
     }
+    $employeeId = ops_current_employee_id();
+    return ['type' => 'assigned', 'employee_id' => $employeeId && $employeeId > 0 ? $employeeId : null];
+}
 
-    $email = (string) ($user['email'] ?? '');
-    $name = (string) ($user['name'] ?? '');
-    if ($email === '' && $name === '') {
-        return null;
-    }
+function ops_current_user_can_access_task(int $taskId): bool
+{
+    if ($taskId <= 0) return false;
+    $scope = ops_task_scope_for_current_user();
+    if ($scope['type'] === 'all') return true;
+    if (!$scope['employee_id']) return false;
+    return (bool) ops_row('SELECT id FROM ops_checklist_tasks WHERE id = ? AND assigned_employee_id = ? AND deleted_at IS NULL LIMIT 1', [$taskId, $scope['employee_id']]);
+}
 
-    $rows = ops_rows(
-        "SELECT id
-         FROM ops_employees
-         WHERE status = 'active' AND (LOWER(email) = LOWER(?) OR LOWER(full_name) = LOWER(?))
-         LIMIT 1",
-        [$email, $name]
-    );
-
-    if ($rows) {
-        return (int) $rows[0]['id'];
-    }
-
-    $roleKey = (string) ($user['role_key'] ?? '');
-    if ($name === '' || !in_array($roleKey, ['packer', 'front_desk_admin', 'supervisor_manager', 'owner_admin'], true)) {
-        return null;
-    }
-
-    try {
-        $roleStmt = db()->prepare('SELECT id FROM ops_roles WHERE role_key = ? LIMIT 1');
-        $roleStmt->execute([$roleKey]);
-        $roleId = (int) $roleStmt->fetchColumn();
-        $roleStmt->closeCursor();
-        if ($roleId <= 0) {
-            return null;
-        }
-
-        $stmt = db()->prepare(
-            "INSERT INTO ops_employees (role_id, full_name, email, status)
-             VALUES (?, ?, ?, 'active')
-             ON DUPLICATE KEY UPDATE role_id = VALUES(role_id), full_name = VALUES(full_name), status = 'active'"
-        );
-        $stmt->execute([$roleId, $name, $email ?: null]);
-
-        $newId = (int) db()->lastInsertId();
-        if ($newId > 0) {
-            return $newId;
-        }
-
-        $rows = ops_rows(
-            "SELECT id FROM ops_employees WHERE status = 'active' AND (LOWER(email) = LOWER(?) OR LOWER(full_name) = LOWER(?)) LIMIT 1",
-            [$email, $name]
-        );
-
-        return $rows ? (int) $rows[0]['id'] : null;
-    } catch (Throwable $e) {
-        return null;
-    }
+function ops_can_update_order_paid_status(): bool
+{
+    $roleKey = current_role_key();
+    return $roleKey !== 'guest' && portal_role_can_access_feature($roleKey, 'orders');
 }
 
 function ops_staff_text_key(array $employee): string

@@ -3,12 +3,15 @@ import { readFileSync } from 'node:fs';
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 const tasks = read('apps/operations/checklists.php');
+const operations = read('apps/operations/operations.php');
 const proof = read('apps/operations/task-proof.php');
 const notifications = read('shared/notifications.php');
 
-assert.match(tasks, /\$canManage = user_has_role\('owner_admin'\);/,
+assert.match(operations, /function ops_task_scope_for_current_user[\s\S]*user_has_role\('owner_admin'\)/,
   'Only the owner role may receive the all-task management scope.');
-assert.doesNotMatch(tasks, /\$canManage = user_has_role\('owner_admin',/,
+assert.match(tasks, /\$canManage = \$taskScope\['type'\] === 'all';/,
+  'The Task page must consume the centralized scope.');
+assert.doesNotMatch(operations, /ops_task_scope_for_current_user[\s\S]*user_has_role\('owner_admin',/,
   'Operational employee roles must not be granted all-task scope.');
 assert.match(tasks, /if \(!\$canManage\) \{\s*\$where\[\] = 't\.assigned_employee_id = \?';/s,
   'The active task query must use the authenticated employee id.');

@@ -1385,11 +1385,22 @@ try {
                 ], ['owner_admin', 'front_desk_admin', 'supervisor_manager']);
             }
         } elseif ($field === 'payment_status') {
-            if (!user_has_role('owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager')) {
+            $submittedCsrf = (string) ($_POST['csrf_token'] ?? '');
+            $sessionCsrf = (string) ($_SESSION['orders_csrf_token'] ?? '');
+            if ($sessionCsrf === '' || !hash_equals($sessionCsrf, $submittedCsrf)) {
+                http_response_code(419);
+                throw new RuntimeException('Your session token expired. Refresh the Order List and try again.');
+            }
+            if (!ops_can_update_order_paid_status()) {
                 throw new RuntimeException('You do not have permission to change Paid.');
             }
-            $stmt = db()->prepare('UPDATE ops_orders SET payment_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
-            $stmt->execute([$value, $orderId]);
+            $paidAuditSet = ops_column_exists('ops_orders', 'paid_updated_at') && ops_column_exists('ops_orders', 'paid_updated_by_employee_id')
+                ? ', paid_updated_at = CURRENT_TIMESTAMP, paid_updated_by_employee_id = ?' : '';
+            $stmt = db()->prepare('UPDATE ops_orders SET payment_status = ?, updated_at = CURRENT_TIMESTAMP' . $paidAuditSet . ' WHERE id = ?');
+            $paidParams = [$value];
+            if ($paidAuditSet !== '') $paidParams[] = ops_current_employee_id();
+            $paidParams[] = $orderId;
+            $stmt->execute($paidParams);
             $actor = current_user();
             $oldPaid = (string) ($previousOrder['payment_status'] ?? 'unpaid') === 'paid';
             $newPaid = $value === 'paid';
@@ -1472,8 +1483,17 @@ try {
             throw new RuntimeException('Only admin, front desk or supervisor can bulk change order dates.');
         }
 
-        if ($field === 'payment_status' && !user_has_role('owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager')) {
+        if ($field === 'payment_status' && !ops_can_update_order_paid_status()) {
             throw new RuntimeException('You do not have permission to change Paid.');
+        }
+
+        if ($field === 'payment_status') {
+            $submittedCsrf = (string) ($_POST['csrf_token'] ?? '');
+            $sessionCsrf = (string) ($_SESSION['orders_csrf_token'] ?? '');
+            if ($sessionCsrf === '' || !hash_equals($sessionCsrf, $submittedCsrf)) {
+                http_response_code(419);
+                throw new RuntimeException('Your session token expired. Refresh the Order List and try again.');
+            }
         }
 
         if ($field === 'payment_status' && !in_array($value, ['paid', 'unpaid', 'partial', 'refunded'], true)) {
@@ -1539,6 +1559,9 @@ try {
                 }
                 $set .= ', packed_at = COALESCE(packed_at, NOW()), completed_at = COALESCE(completed_at, NOW())';
             }
+        } elseif ($field === 'payment_status' && ops_column_exists('ops_orders', 'paid_updated_at') && ops_column_exists('ops_orders', 'paid_updated_by_employee_id')) {
+            $set .= ', paid_updated_at = CURRENT_TIMESTAMP, paid_updated_by_employee_id = ?';
+            $params[] = ops_current_employee_id();
         }
 
         array_unshift($params, $value);
@@ -1702,7 +1725,8 @@ try {
     throw new RuntimeException('Unknown board action.');
 } catch (Throwable $e) {
     $permissionFailure = stripos($e->getMessage(), 'permission') !== false || stripos($e->getMessage(), 'Packers may') !== false || stripos($e->getMessage(), 'Only Owner/Admin') !== false;
-    http_response_code($permissionFailure ? 403 : 400);
+    $existingStatus = http_response_code();
+    http_response_code($permissionFailure ? 403 : ($existingStatus === 419 ? 419 : 400));
     ops_board_sync_log('board action failed', [
         'action' => $action ?? 'unknown',
         'error' => $e->getMessage(),

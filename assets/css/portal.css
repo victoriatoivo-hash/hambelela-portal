@@ -4484,6 +4484,10 @@ textarea {
   .digital-task-page .task-section__add { width: auto; }
 }
 
+.portal-toast-actions { position: relative; z-index: 1; display: flex; justify-content: flex-end; gap: 7px; margin-top: 10px; }
+.portal-toast-actions button { min-height: 28px; padding: 0 10px; border: 1px solid rgba(171,54,25,.22); border-radius: 8px; background: #FFFFFF; color: #AB3619; font: 600 10px/1 Figtree,sans-serif; cursor: pointer; }
+.portal-toast-actions button:last-child { border-color: #AB3619; background: #AB3619; color: #FFFFFF; }
+
 @media (prefers-reduced-motion: reduce) {
   .task-section__toggle svg { transition: none; }
 }

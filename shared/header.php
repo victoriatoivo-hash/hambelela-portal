@@ -81,6 +81,7 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal-sticky-scrollbar.css?v=<?= htmlspecialchars($stickyScrollbarCssVersion, ENT_QUOTES, 'UTF-8') ?>">
     <script defer src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script defer src="<?= BASE_URL ?>/assets/js/portal-date-picker.js?v=<?= htmlspecialchars($datePickerJsVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
+    <script>window.HambelelaPortalUser={id:<?= (int) ($headerUser['id'] ?? 0) ?>,role:<?= json_encode((string) ($headerUser['role_key'] ?? 'guest')) ?>};</script>
     <script defer src="<?= BASE_URL ?>/assets/js/portal.js?v=<?= htmlspecialchars($portalJsVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
     <?php if ($showPortalHeaderStatus): ?>
         <script defer src="<?= BASE_URL ?>/assets/js/portal-presence.js?v=<?= htmlspecialchars($presenceJsVersion, ENT_QUOTES, 'UTF-8') ?>"></script>

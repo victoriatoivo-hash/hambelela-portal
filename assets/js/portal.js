@@ -469,10 +469,9 @@ window.addEventListener('DOMContentLoaded', () => {
 
   const portalNotificationPoller = (() => {
     const apiUrl = '/api/notifications.php';
-    const pollInterval = 30000;
-    const storageKey = 'portal_last_seen_notification_id';
+    const portalUser = window.HambelelaPortalUser || { id: 0, role: 'guest' };
+    const storageKey = `portal_last_seen_notification_id_${portalUser.id}_${portalUser.role}`;
     let lastSeenLatestId = 0;
-    let initialized = false;
 
     try {
       lastSeenLatestId = Number(window.localStorage?.getItem(storageKey) || 0);
@@ -504,14 +503,26 @@ window.addEventListener('DOMContentLoaded', () => {
       toast.innerHTML = `<button type="button" class="portal-toast-close" aria-label="Close notification">×</button>
         <p class="portal-toast-title">${escapeHtml(notification.title || 'New notification')}</p>
         <p class="portal-toast-message">${escapeHtml(notification.message || '')}</p>`;
+      const isTask = notification.related_type === 'checklist_task' && Number(notification.related_id || 0) > 0;
+      if (isTask) toast.insertAdjacentHTML('beforeend', '<div class="portal-toast-actions"><button type="button" data-toast-dismiss>Dismiss</button><button type="button" data-toast-view>View Task</button></div>');
+      const markState = (state) => fetch(apiUrl, { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({action:`notification_${state}`, notification_id:String(notification.id)}) }).catch(() => {});
 
       const close = () => {
         toast.classList.add('is-leaving');
         window.setTimeout(() => toast.remove(), 220);
       };
 
-      toast.querySelector('.portal-toast-close')?.addEventListener('click', close);
+      toast.querySelector('.portal-toast-close')?.addEventListener('click', () => { markState('dismissed'); close(); });
+      toast.querySelector('[data-toast-dismiss]')?.addEventListener('click', () => { markState('dismissed'); close(); });
+      toast.querySelector('[data-toast-view]')?.addEventListener('click', async () => {
+        await markState('viewed');
+        const taskId = Number(notification.related_id || 0);
+        if (/\/apps\/operations\/checklists\.php$/.test(window.location.pathname) && typeof window.openTaskPanel === 'function' && window.openTaskPanel(taskId)) close();
+        else window.location.assign(notification.action_link || `/apps/operations/checklists.php?task_view=active&task_id=${encodeURIComponent(taskId)}`);
+      });
       container.prepend(toast);
+      markState('delivered');
+      if (isTask) window.dispatchEvent(new CustomEvent('portal:task-update', { detail: notification }));
       window.setTimeout(close, 5000);
     };
 
@@ -551,13 +562,6 @@ window.addEventListener('DOMContentLoaded', () => {
         const latestIds = latest.map((notification) => Number(notification.id || 0)).filter(Boolean);
         const maxLatestId = latestIds.length ? Math.max(...latestIds) : lastSeenLatestId;
 
-        if (!initialized && lastSeenLatestId <= 0) {
-          lastSeenLatestId = maxLatestId;
-          persistLastSeen();
-          initialized = true;
-          return;
-        }
-
         latest
           .slice()
           .sort((a, b) => Number(a.id || 0) - Number(b.id || 0))
@@ -573,28 +577,19 @@ window.addEventListener('DOMContentLoaded', () => {
           lastSeenLatestId = maxLatestId;
         }
         persistLastSeen();
-        initialized = true;
       } catch (error) {
         console.warn('Notification polling failed', error);
       }
     };
 
-    return {
-      start() {
-        fetchNotifications();
-        window.setInterval(fetchNotifications, pollInterval);
-      },
-    };
+    return { poll: fetchNotifications };
   })();
-
-  portalNotificationPoller.start();
 
   const urgentTaskAlerts = (() => {
     const endpoint = '/api/notifications.php';
     const queue = [];
     const known = new Set();
     let active = null;
-    let timer = null;
     let audioUnlocked = false;
     let soundEnabled = true;
     let previousFocus = null;
@@ -655,9 +650,9 @@ window.addEventListener('DOMContentLoaded', () => {
       document.body.classList.remove('urgent-task-alert-open');
       await postState(finished.alertId, state);
       if (state === 'viewed') {
-        const target = `/apps/operations/checklists.php?task_view=manual&task_id=${encodeURIComponent(finished.taskId)}`;
+        const target = `/apps/operations/checklists.php?task_view=active&task_id=${encodeURIComponent(finished.taskId)}`;
         const onManualTasks = /\/apps\/operations\/checklists\.php$/.test(window.location.pathname)
-          && new URLSearchParams(window.location.search).get('task_view') === 'manual';
+          && ['active', 'manual', null].includes(new URLSearchParams(window.location.search).get('task_view'));
         if (onManualTasks && typeof window.openTaskPanel === 'function' && window.openTaskPanel(finished.taskId)) {
           history.replaceState({}, '', target);
         } else window.location.assign(target);
@@ -689,9 +684,22 @@ window.addEventListener('DOMContentLoaded', () => {
         showNext();
       } catch (_) {}
     };
-    return { start() { check(); timer = window.setInterval(check, 12000); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); }); } };
+    return { poll: check };
   })();
-  urgentTaskAlerts.start();
+
+  const portalLiveUpdates = (() => {
+    let timerId = null;
+    let requestInProgress = false;
+    const poll = async () => {
+      if (requestInProgress || document.visibilityState === 'hidden') return;
+      requestInProgress = true;
+      try { await Promise.all([portalNotificationPoller.poll(), urgentTaskAlerts.poll()]); window.dispatchEvent(new CustomEvent('portal:live-tick')); }
+      finally { requestInProgress = false; }
+    };
+    return { start() { if (timerId) return; poll(); timerId = window.setInterval(poll, 10000); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') poll(); }); window.addEventListener('online', poll); }, poll };
+  })();
+  window.portalLiveUpdates = portalLiveUpdates;
+  portalLiveUpdates.start();
 
   document.querySelectorAll('.portal-nav-link, .portal-dark-toggle').forEach((button) => {
     button.addEventListener('click', (event) => {
@@ -873,9 +881,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   requestDesktopPermission();
   fetchNotifications(false);
-  window.setInterval(() => {
-    if (document.visibilityState !== 'hidden') fetchNotifications(true);
-  }, 60000);
+  window.addEventListener('portal:live-tick', () => fetchNotifications(true));
 });
 
 document.addEventListener('click', (event) => {

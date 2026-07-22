@@ -255,7 +255,7 @@ function notifications_create(array $data, array $recipientIds): ?int
 
     $module = (string) ($data['module'] ?? 'system');
     $recipientIds = array_values(array_unique(array_filter(array_map('intval', $recipientIds))));
-    if ((string) ($data['priority'] ?? 'normal') !== 'urgent') {
+    if (empty($data['required_delivery']) && (string) ($data['priority'] ?? 'normal') !== 'urgent') {
         $recipientIds = array_values(array_filter($recipientIds, static fn (int $id): bool => notifications_recipient_accepts($id, $module)));
     }
     if (!$recipientIds) {
@@ -341,11 +341,31 @@ function notifications_mark_urgent_state(int $notificationId, string $state): bo
     if ($column === '') return false;
     $stmt = db()->prepare(
         "UPDATE notification_recipients nr JOIN notifications n ON n.id = nr.notification_id
+         JOIN ops_checklist_tasks t ON t.id = n.related_id AND n.related_type = 'checklist_task'
          SET nr.{$column} = COALESCE(nr.{$column}, NOW())
          WHERE nr.notification_id = ? AND nr.employee_id = ? AND n.module = 'tasks'
-           AND n.priority = 'urgent' AND n.related_type = 'checklist_task'"
+           AND n.priority = 'urgent' AND n.related_type = 'checklist_task'
+           AND (t.assigned_employee_id = ? OR ? = 1)"
     );
-    $stmt->execute([$notificationId, $employeeId]);
+    $stmt->execute([$notificationId, $employeeId, $employeeId, user_has_role('owner_admin') ? 1 : 0]);
+    return $stmt->rowCount() > 0;
+}
+
+function notifications_mark_task_state(int $notificationId, string $state): bool
+{
+    $employeeId = notifications_current_employee_id();
+    if (!$employeeId || $notificationId <= 0 || !notifications_schema_ready()) return false;
+    $column = ['delivered' => 'delivered_at', 'viewed' => 'read_at', 'dismissed' => 'cleared_at'][$state] ?? '';
+    if ($column === '') return false;
+    $stmt = db()->prepare(
+        "UPDATE notification_recipients nr
+         JOIN notifications n ON n.id = nr.notification_id
+         JOIN ops_checklist_tasks t ON t.id = n.related_id AND n.related_type = 'checklist_task'
+         SET nr.{$column} = COALESCE(nr.{$column}, NOW())
+         WHERE nr.notification_id = ? AND nr.employee_id = ?
+           AND (t.assigned_employee_id = ? OR ? = 1)"
+    );
+    $stmt->execute([$notificationId, $employeeId, $employeeId, user_has_role('owner_admin') ? 1 : 0]);
     return $stmt->rowCount() > 0;
 }
 
@@ -426,20 +446,21 @@ function notifications_notify_packing_assigned(int $taskId, ?int $employeeId): v
     ], [$employeeId]);
 }
 
-function notifications_notify_task_assigned(int $taskId, ?int $employeeId, string $taskName): void
+function notifications_notify_task_assigned(int $taskId, ?int $employeeId, string $taskName): ?int
 {
     if (!$employeeId) {
-        return;
+        return null;
     }
 
-    notifications_create([
-        'title' => 'Task assigned',
+    return notifications_create([
+        'title' => 'New task assigned',
         'message' => $taskName . ' has been assigned to you.',
         'module' => 'tasks',
         'priority' => 'normal',
+        'required_delivery' => true,
         'related_type' => 'checklist_task',
         'related_id' => $taskId,
-        'action_link' => BASE_URL . '/apps/operations/checklists.php?task_view=manual&task_id=' . $taskId,
+        'action_link' => BASE_URL . '/apps/operations/checklists.php?task_view=active&task_id=' . $taskId,
     ], [$employeeId]);
 }
 

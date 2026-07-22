@@ -14,6 +14,14 @@ try {
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = (string) ($_POST['action'] ?? '');
+        if (in_array($action, ['notification_delivered', 'notification_viewed', 'notification_dismissed'], true)) {
+            $notificationId = (int) ($_POST['notification_id'] ?? 0);
+            if ($notificationId <= 0) { http_response_code(400); echo json_encode(['ok' => false]); exit; }
+            $updated = notifications_mark_task_state($notificationId, substr($action, 13));
+            if (!$updated) http_response_code(404);
+            echo json_encode(['ok' => $updated, 'message' => $updated ? 'Notification updated.' : 'Notification not found.']);
+            exit;
+        }
         $alertId = (int) ($_POST['alert_id'] ?? 0);
         if (!in_array($action, ['urgent_delivered', 'urgent_viewed', 'urgent_dismissed'], true) || $alertId <= 0) {
             http_response_code(400);

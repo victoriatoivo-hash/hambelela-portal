@@ -9,14 +9,14 @@ const tasks = read('apps/operations/checklists.php');
 const notifications = read('shared/notifications.php');
 
 assert.match(portal, /\?mode=urgent/);
-assert.match(portal, /window\.setInterval\(check, 12000\)/);
+assert.match(portal, /window\.setInterval\(poll, 10000\)/);
 assert.match(portal, /urgent_delivered|urgent_\$\{state\}/);
 assert.match(portal, /View Task/);
 assert.match(portal, /textContent = active\.title/);
 assert.match(portal, /history\.replaceState/);
-assert.match(portal, /task_view=manual&task_id=/);
+assert.match(portal, /task_view=active&task_id=/);
 assert.match(portal, /onManualTasks/);
-assert.match(tasks, /checklists\.php\?task_view=manual&task_id=/);
+assert.match(tasks, /checklists\.php\?task_view=active&task_id=/);
 assert.match(api, /notifications_urgent_tasks_for_current_user/);
 assert.match(notifications, /nr\.employee_id = \?/);
 assert.match(notifications, /delivered_at.*read_at.*cleared_at/s);

@@ -15,6 +15,8 @@ $isAdminBoard = user_has_role('owner_admin', 'supervisor_manager');
 $canBulkAssign = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
 $canOpenOrdersTools = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
 $canEditHeaders = current_role_key() !== 'guest';
+$ordersCsrfToken = (string) ($_SESSION['orders_csrf_token'] ?? '');
+if ($ordersCsrfToken === '') { $ordersCsrfToken = bin2hex(random_bytes(32)); $_SESSION['orders_csrf_token'] = $ordersCsrfToken; }
 $boardAssetVersion = is_file(BASE_PATH . '/assets/js/orders-board.js')
     ? (string) filemtime(BASE_PATH . '/assets/js/orders-board.js') . '-orders-rebuild'
     : (string) time();
@@ -237,7 +239,8 @@ window.HambelelaBoard = {
   canEditHeaders: <?= $canEditHeaders ? 'true' : 'false' ?>,
   canOpenOrdersTools: <?= $canOpenOrdersTools ? 'true' : 'false' ?>,
   currentRole: <?= json_encode(current_role_key()) ?>,
-  currentUserId: <?= (int) (current_user()['id'] ?? 0) ?>
+  currentUserId: <?= (int) (current_user()['id'] ?? 0) ?>,
+  csrfToken: <?= json_encode($ordersCsrfToken) ?>
 };
 </script>
 <script defer src="<?= BASE_URL ?>/assets/js/portal-column-resize.js?v=<?= is_file(BASE_PATH . '/assets/js/portal-column-resize.js') ? (string) filemtime(BASE_PATH . '/assets/js/portal-column-resize.js') : (string) time() ?>"></script>

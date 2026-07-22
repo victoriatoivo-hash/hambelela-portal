@@ -64,7 +64,6 @@
   let refreshInFlight = null;
   let liveCursor = '';
   let liveFailures = 0;
-  let livePollTimer = null;
   let livePollInFlight = false;
   let lastRecoverySyncAt = 0;
   const sourceRecoveryInterval = 5 * 60 * 1000;
@@ -86,6 +85,7 @@
   let rowDragState = null;
   const selectedOrders = new Set();
   let bulkTrashInProgress = false;
+  const paidUpdatesInProgress = new Set();
   const boardState = {
     search: '',
     person: '',
@@ -1109,6 +1109,7 @@
   async function post(action, fields = {}) {
     const form = new FormData();
     form.set('action', action);
+    form.set('csrf_token', config.csrfToken || '');
     Object.entries(fields).forEach(([key, value]) => form.set(key, value));
 
     const response = await fetch(config.actionUrl, { method: 'POST', body: form, credentials: 'same-origin' });
@@ -2178,7 +2179,10 @@
 
   async function togglePaidCell(paidCell) {
     const orderId = paidCell.dataset.paidToggle;
-    if (!orderId) return;
+    if (!orderId || paidUpdatesInProgress.has(String(orderId))) return;
+    paidUpdatesInProgress.add(String(orderId));
+    paidCell.disabled = true;
+    paidCell.setAttribute('aria-busy', 'true');
     const value = paidCell.dataset.paidState === 'paid' ? 'unpaid' : 'paid';
     const ids = currentSelectedIdsFor(orderId);
     const previous = ids.map((id) => {
@@ -2206,6 +2210,10 @@
     } catch (error) {
       previous.forEach(([id, state]) => paint(id, state));
       throw error;
+    } finally {
+      paidUpdatesInProgress.delete(String(orderId));
+      paidCell.disabled = false;
+      paidCell.removeAttribute('aria-busy');
     }
   }
 
@@ -4902,20 +4910,9 @@
   updateFilterBadge();
   animateMetricCards();
 
-  function scheduleLivePoll(delay = null) {
-    window.clearTimeout(livePollTimer);
-    const hidden = document.visibilityState === 'hidden';
-    const baseDelay = hidden ? 10000 : 1000;
-    const retryDelay = liveFailures > 0
-      ? Math.min(30000, baseDelay * (2 ** Math.min(liveFailures, 5)))
-      : baseDelay;
-    livePollTimer = window.setTimeout(runLivePoll, delay ?? retryDelay);
-  }
-
   async function runLivePoll() {
     if (livePollInFlight) return;
     livePollInFlight = true;
-    livePollTimer = null;
     let recoveryError = null;
     try {
       if (
@@ -4935,7 +4932,6 @@
       showError(error);
     } finally {
       livePollInFlight = false;
-      scheduleLivePoll();
     }
   }
 
@@ -4962,10 +4958,9 @@
               if (syncState) syncState.textContent = `Sync issue: ${error.message}`;
             }
           }
-          scheduleLivePoll(1000);
         });
     });
-  document.addEventListener('visibilitychange', () => scheduleLivePoll(250));
+  window.addEventListener('portal:live-tick', runLivePoll);
   window.addEventListener('resize', positionPersonPopup);
   window.addEventListener('scroll', positionPersonPopup, true);
 })();

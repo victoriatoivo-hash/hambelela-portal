@@ -21,10 +21,11 @@ $activeApp = 'operations-checklists';
 $ready = ops_database_ready();
 $message = null;
 $messageType = 'success';
-$currentEmployeeId = ops_current_employee_id();
+$taskScope = ops_task_scope_for_current_user();
+$currentEmployeeId = $taskScope['employee_id'] ?? ops_current_employee_id();
 // Task visibility is deliberately stricter than general operations management:
 // only the actual owner role may view or administer every employee's tasks.
-$canManage = user_has_role('owner_admin');
+$canManage = $taskScope['type'] === 'all';
 
 $types = [
     'opening' => 'Opening',
@@ -164,7 +165,7 @@ function checklist_send_urgent_alert(int $taskId, string $title, string $message
     $notificationId = notifications_create([
         'title' => $title, 'message' => $message, 'module' => 'tasks', 'priority' => 'urgent',
         'related_type' => 'checklist_task', 'related_id' => $taskId,
-        'action_link' => BASE_URL . '/apps/operations/checklists.php?task_view=manual&task_id=' . $taskId,
+        'action_link' => BASE_URL . '/apps/operations/checklists.php?task_view=active&task_id=' . $taskId,
     ], $recipientIds);
     if ($notificationId) {
         db()->prepare('UPDATE ops_checklist_tasks SET urgent_alert_enabled = 1, urgent_alert_message = ?, urgent_alert_sent_at = NOW() WHERE id = ?')->execute([$message, $taskId]);
@@ -575,17 +576,20 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('Choose a valid task recurrence.');
             }
             $templateId = null;
-            if ($recurringRule !== '' && ops_table_exists('ops_checklist_recurring_templates')) {
+            $taskDb = db();
+            $taskDb->beginTransaction();
+            try {
+              if ($recurringRule !== '' && ops_table_exists('ops_checklist_recurring_templates')) {
                 $dueTime = $deadline ? date('H:i:s', strtotime($deadline)) : '09:00:00';
-                $templateStmt = db()->prepare(
+                $templateStmt = $taskDb->prepare(
                     "INSERT INTO ops_checklist_recurring_templates
                      (task_name, checklist_type, priority, assigned_employee_id, recurring_rule, due_time, instructions, checklist_items, employee_visible, is_active, created_by)
                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)"
                 );
                 $templateStmt->execute([$taskName, ops_post_string('checklist_type', 30) ?: 'opening', ops_post_string('priority', 30) ?: 'medium', $assignedId > 0 ? $assignedId : null, $recurringRule, $dueTime, ops_post_string('instructions', 1500), checklist_items_from_text((string) ($_POST['checklist_items_text'] ?? '')), $employeeVisible, $currentEmployeeId]);
                 $templateId = (int) db()->lastInsertId();
-            }
-            $stmt = db()->prepare(
+              }
+            $stmt = $taskDb->prepare(
                 "INSERT INTO ops_checklist_tasks
                  (checklist_type, task_name, priority, assigned_employee_id, date_assigned, deadline, status, notes, instructions, checklist_items, recurrence_key, recurring_rule, recurring_template_id, employee_visible, created_by)
                  VALUES (?, ?, ?, ?, NOW(), ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -607,7 +611,14 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             $createdTaskId = (int) db()->lastInsertId();
             ops_activity_log('task_created', 'checklist_task', $createdTaskId, ['assigned_employee_id' => $assignedId]);
-            notifications_notify_task_assigned($createdTaskId, $assignedId > 0 ? $assignedId : null, $taskName);
+            if ($assignedId > 0 && !notifications_notify_task_assigned($createdTaskId, $assignedId, $taskName)) {
+                throw new RuntimeException('The task assignment notification could not be saved.');
+            }
+            $taskDb->commit();
+            } catch (Throwable $taskCreateError) {
+                if ($taskDb->inTransaction()) $taskDb->rollBack();
+                throw $taskCreateError;
+            }
             if ($urgentRequested) {
                 if (!checklist_send_urgent_alert($createdTaskId, $taskName, $urgentMessage, $urgentRecipients)) {
                     throw new RuntimeException('The task was saved, but its urgent alert could not be sent.');
@@ -621,14 +632,26 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $deadline = str_replace('T', ' ', ops_post_string('deadline', 30));
             $status = checklist_normalize_status(ops_post_string('status', 30));
             if (!array_key_exists($status, $statuses)) $status = 'pending';
-            $oldRows = ops_rows('SELECT status, task_name, instructions, urgent_alert_sent_at FROM ops_checklist_tasks WHERE id = ? LIMIT 1', [$taskId]);
+            $oldRows = ops_rows('SELECT status, task_name, instructions, urgent_alert_sent_at, assigned_employee_id FROM ops_checklist_tasks WHERE id = ? LIMIT 1', [$taskId]);
+            if (!$oldRows) throw new RuntimeException('Task not found.');
             $oldStatus = (string) ($oldRows[0]['status'] ?? '');
+            $oldAssignedId = (int) ($oldRows[0]['assigned_employee_id'] ?? 0);
             $employeeVisible = isset($_POST['employee_visible']) ? 1 : 0;
-            $stmt = db()->prepare("UPDATE ops_checklist_tasks SET assigned_employee_id = ?, deadline = ?, priority = ?, status = ?, employee_visible = ? WHERE id = ?");
-            $stmt->execute([$assignedId > 0 ? $assignedId : null, $deadline ?: null, ops_post_string('priority', 30) ?: 'medium', $status, $employeeVisible, $taskId]);
-            checklist_kpi_status_event($taskId, $oldStatus, $status, $currentEmployeeId);
-            ops_activity_log('task_admin_updated', 'checklist_task', $taskId, ['status' => $status, 'assigned_employee_id' => $assignedId]);
-            notifications_notify_task_assigned($taskId, $assignedId > 0 ? $assignedId : null, 'Checklist task');
+            $taskDb = db();
+            $taskDb->beginTransaction();
+            try {
+                $stmt = $taskDb->prepare("UPDATE ops_checklist_tasks SET assigned_employee_id = ?, deadline = ?, priority = ?, status = ?, employee_visible = ? WHERE id = ?");
+                $stmt->execute([$assignedId > 0 ? $assignedId : null, $deadline ?: null, ops_post_string('priority', 30) ?: 'medium', $status, $employeeVisible, $taskId]);
+                checklist_kpi_status_event($taskId, $oldStatus, $status, $currentEmployeeId);
+                ops_activity_log('task_admin_updated', 'checklist_task', $taskId, ['status' => $status, 'previous_assigned_employee_id' => $oldAssignedId ?: null, 'assigned_employee_id' => $assignedId ?: null]);
+                if ($assignedId > 0 && $assignedId !== $oldAssignedId && !notifications_notify_task_assigned($taskId, $assignedId, (string) ($oldRows[0]['task_name'] ?? 'Checklist task'))) {
+                    throw new RuntimeException('The reassignment notification could not be saved.');
+                }
+                $taskDb->commit();
+            } catch (Throwable $taskUpdateError) {
+                if ($taskDb->inTransaction()) $taskDb->rollBack();
+                throw $taskUpdateError;
+            }
             if (!empty($_POST['send_urgent_alert']) && empty($oldRows[0]['urgent_alert_sent_at'])) {
                 $urgentRecipients = checklist_urgent_recipient_ids((array) ($_POST['urgent_alert_recipients'] ?? []), $assignedId);
                 if (!$urgentRecipients) throw new RuntimeException('Choose at least one valid urgent alert recipient.');
@@ -2072,6 +2095,31 @@ window.openTaskPanel = function (taskId) {
   document.body.classList.add('task-panel-open');
   return true;
 };
+window.addEventListener('portal:task-update', async (event) => {
+  const notification = event.detail || {};
+  const taskId = Number(notification.related_id || 0);
+  const page = document.querySelector('.digital-task-page[data-task-view="active"]');
+  if (!page || taskId <= 0 || document.querySelector(`[data-task-row][data-task-id="${taskId}"]`)) return;
+  try {
+    const url = new URL('/apps/operations/checklists.php', window.location.origin);
+    url.searchParams.set('task_view', 'active');
+    url.searchParams.set('task_id', String(taskId));
+    const response = await fetch(url, { credentials:'same-origin', cache:'no-store', headers:{Accept:'text/html'} });
+    if (!response.ok) return;
+    const parsed = new DOMParser().parseFromString(await response.text(), 'text/html');
+    const nextRow = parsed.querySelector(`[data-task-row][data-task-id="${taskId}"]`);
+    const nextPanel = parsed.querySelector(`[data-task-panel="${taskId}"]`);
+    if (!nextRow || nextRow.closest('[data-task-kind]')?.dataset.taskKind !== 'manual') return;
+    const tbody = document.querySelector('[data-task-kind="manual"] tbody');
+    tbody?.querySelector('.dtb-empty-row')?.remove();
+    tbody?.appendChild(nextRow);
+    if (nextPanel && !document.querySelector(`[data-task-panel="${taskId}"]`)) document.querySelector('.task-panel-backdrop')?.before(nextPanel);
+    ['active', 'pending'].forEach((name) => { const value = document.querySelector(`[data-stat="${name}"] .dtb-stat-value`); if (value) value.textContent = String(Number(value.textContent.replace(/,/g, '')) + 1); });
+    initialiseTaskBulkSelection();
+    initialiseTaskColumnResizing();
+    if (window.lucide) window.lucide.createIcons({ strokeWidth:2 });
+  } catch (error) { console.warn('Task update could not be added to the current view', error); }
+});
 const initialTaskId = new URLSearchParams(window.location.search).get('task_id');
 if (initialTaskId) window.openTaskPanel(initialTaskId);
 </script>
