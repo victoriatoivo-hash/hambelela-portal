@@ -122,6 +122,35 @@ function ledger_transaction_type(float $cashIn, float $cashOut): string
     return 'cash_received';
 }
 
+function ledger_is_opening_balance(array $entry): bool
+{
+    return (string) ($entry['transaction_type'] ?? '') === 'opening_balance'
+        || (string) ($entry['source'] ?? '') === 'opening_balance';
+}
+
+function ledger_calculate_daily_balance(array $entries): array
+{
+    $openingCents = 0;
+    $cashInCents = 0;
+    $cashOutCents = 0;
+    foreach ($entries as $entry) {
+        $inCents = (int) round(abs((float) ($entry['cash_in'] ?? 0)) * 100);
+        $outCents = (int) round(abs((float) ($entry['cash_out'] ?? 0)) * 100);
+        if (ledger_is_opening_balance($entry)) {
+            $openingCents += $inCents - $outCents;
+            continue;
+        }
+        $cashInCents += $inCents;
+        $cashOutCents += $outCents;
+    }
+    return [
+        'opening_balance' => $openingCents / 100,
+        'cash_in' => $cashInCents / 100,
+        'cash_out' => $cashOutCents / 100,
+        'closing_balance' => ($openingCents + $cashInCents - $cashOutCents) / 100,
+    ];
+}
+
 function ledger_active_where(): string
 {
     return "archived_at IS NULL AND COALESCE(status, 'active') = 'active'";
@@ -294,6 +323,8 @@ function ledger_entry(int $id): array
         'cash_out' => $cashOut,
         'total' => $cashIn - $cashOut,
         'notes' => (string) ($row['notes'] ?? ''),
+        'transaction_type' => (string) ($row['transaction_type'] ?? ''),
+        'source' => (string) ($row['source'] ?? ''),
         'created_by_user_id' => (int) ($row['created_by_user_id'] ?? $row['recorded_by'] ?? 0),
         'created_by_name' => (string) ($row['created_by_name'] ?? ''),
         'custom_fields' => ledger_decode_json($row['custom_fields_json'] ?? '{}'),
@@ -387,7 +418,6 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                    AND (
                        source = 'opening_balance'
                        OR transaction_type = 'opening_balance'
-                       OR description = 'Opening balance'
                    )
                  LIMIT 1",
                 [$today]
@@ -437,12 +467,24 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($field === 'description' && $value === '') throw new RuntimeException('Description is required.');
             if ($field === 'transaction_date') $value = ledger_normalize_datetime($value);
             if (in_array($field, ['cash_in', 'cash_out'], true)) $value = (string) ledger_number($value);
-            $oldStmt = db()->prepare('SELECT ' . $allowed[$field] . ', transaction_date FROM ops_cash_book_entries WHERE id = ? AND ' . ledger_active_where() . ' LIMIT 1');
+            $oldStmt = db()->prepare('SELECT ' . $allowed[$field] . ', transaction_date, transaction_type, source FROM ops_cash_book_entries WHERE id = ? AND ' . ledger_active_where() . ' LIMIT 1');
             $oldStmt->execute([$id]);
             $oldRow = $oldStmt->fetch(PDO::FETCH_ASSOC) ?: [];
             $oldValue = (string) ($oldRow[$allowed[$field]] ?? '');
             $oldStmt->closeCursor();
             $entryDate = substr((string) ($oldRow['transaction_date'] ?? ''), 0, 10);
+            $isOpeningEntry = ledger_is_opening_balance($oldRow);
+            if ($field === 'transaction_date' && $isOpeningEntry) {
+                $newDay = substr((string) $value, 0, 10);
+                $duplicateOpening = ops_rows(
+                    "SELECT id FROM ops_cash_book_entries
+                     WHERE id <> ? AND " . ledger_active_where() . " AND DATE(transaction_date) = ?
+                       AND (source = 'opening_balance' OR transaction_type = 'opening_balance')
+                     LIMIT 1",
+                    [$id, $newDay]
+                );
+                if ($duplicateOpening) throw new RuntimeException('That date already has an opening balance.');
+            }
             $isReconciled = $entryDate !== '' && (bool) ops_rows('SELECT id FROM hambelela_cashbook_recon WHERE recon_date = ? LIMIT 1', [$entryDate]);
             $editReason = ops_post_string('reason', 500);
             if (($field === 'transaction_date' || $isReconciled) && $editReason === '') {
@@ -453,7 +495,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$value, $employeeId, $ledgerUserId, $id]);
             cashbook_log($ledgerUserId, $ledgerUserName, 'edited', $id, $field, $oldValue, $value, $editReason !== '' ? 'Reason: ' . $editReason : null);
             $entry = ledger_entry($id);
-            $type = ledger_transaction_type($entry['cash_in'], $entry['cash_out']);
+            $type = $isOpeningEntry ? 'opening_balance' : ledger_transaction_type($entry['cash_in'], $entry['cash_out']);
             db()->prepare('UPDATE ops_cash_book_entries SET transaction_type = ? WHERE id = ?')->execute([$type, $id]);
             db()->commit();
             ledger_json(['ok' => true, 'message' => 'Saved.', 'entry' => ledger_entry($id)]);
@@ -569,6 +611,27 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $reason = ledger_required_reason('A reason is required to change an entry date.');
             $newDate = ops_post_string('new_date', 20);
             if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $newDate)) throw new RuntimeException('Use date format YYYY-MM-DD.');
+            $placeholders = ledger_bulk_placeholders($ids);
+            $movingRows = ops_rows(
+                "SELECT id, transaction_type, source FROM ops_cash_book_entries
+                 WHERE id IN ({$placeholders}) AND " . ledger_active_where(),
+                $ids
+            );
+            $movingOpeningIds = array_values(array_map(
+                static fn (array $row): int => (int) $row['id'],
+                array_filter($movingRows, 'ledger_is_opening_balance')
+            ));
+            if (count($movingOpeningIds) > 1) throw new RuntimeException('Only one opening balance can exist on a date. Move opening balances separately.');
+            if ($movingOpeningIds) {
+                $duplicateOpening = ops_rows(
+                    "SELECT id FROM ops_cash_book_entries
+                     WHERE id NOT IN ({$placeholders}) AND " . ledger_active_where() . " AND DATE(transaction_date) = ?
+                       AND (source = 'opening_balance' OR transaction_type = 'opening_balance')
+                     LIMIT 1",
+                    [...$ids, $newDate]
+                );
+                if ($duplicateOpening) throw new RuntimeException('That date already has an opening balance.');
+            }
             $select = db()->prepare('SELECT transaction_date FROM ops_cash_book_entries WHERE id = ? AND ' . ledger_active_where() . ' LIMIT 1');
             $update = db()->prepare('UPDATE ops_cash_book_entries SET transaction_date = ?, edited_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND ' . ledger_active_where());
             db()->beginTransaction();
@@ -682,10 +745,8 @@ $customColumns = $ready ? ledger_custom_columns() : [];
 
 $today = date('Y-m-d');
 $hasOpening = false;
-$lastRecon = null;
-$lastLedgerClose = 0.0;
 $suggestedAmount = 0.0;
-$suggestedSource = 'Previous ledger closing total';
+$suggestedSource = 'Previous day closing balance';
 if ($ready) {
     $openingRows = ops_rows(
         "SELECT COUNT(*) AS opening_count
@@ -695,34 +756,10 @@ if ($ready) {
            AND (
                source = 'opening_balance'
                OR transaction_type = 'opening_balance'
-               OR description = 'Opening balance'
            )",
         [$today]
     );
     $hasOpening = (int) ($openingRows[0]['opening_count'] ?? 0) > 0;
-    $reconRows = ops_rows(
-        "SELECT counted_total, recon_date
-         FROM hambelela_cashbook_recon
-         ORDER BY recon_date DESC, created_at DESC, id DESC
-         LIMIT 1"
-    );
-    $lastRecon = $reconRows[0] ?? null;
-    $lastLedgerCloseRows = ops_rows(
-        "SELECT (
-            COALESCE(SUM(cash_in), 0) - COALESCE(SUM(cash_out), 0)
-         ) AS closing_total
-         FROM ops_cash_book_entries
-         WHERE " . ledger_active_where() . "
-           AND DATE(transaction_date) < ?",
-        [$today]
-    );
-    $lastLedgerClose = (float) ($lastLedgerCloseRows[0]['closing_total'] ?? 0);
-    if ($lastRecon) {
-        $suggestedAmount = (float) ($lastRecon['counted_total'] ?? 0);
-        $suggestedSource = 'Last reconciliation (' . date('d M Y', strtotime((string) $lastRecon['recon_date'])) . ')';
-    } else {
-        $suggestedAmount = $lastLedgerClose;
-    }
 }
 $cashInToday = 0.0;
 $cashOutToday = 0.0;
@@ -731,20 +768,28 @@ $closingBalance = 0.0;
 $groups = [];
 
 foreach ($entries as $entry) {
-    $cashIn = (float) ($entry['cash_in'] ?? 0);
-    $cashOut = (float) ($entry['cash_out'] ?? 0);
     $day = date('Y-m-d', strtotime((string) $entry['transaction_date']));
-    $closingBalance += $cashIn - $cashOut;
-    if ($day === $today) {
-        $cashInToday += $cashIn;
-        $cashOutToday += $cashOut;
-        $entriesToday++;
-    }
     $groups[$day][] = $entry;
 }
 
 if (!$groups) {
     $groups[$today] = [];
+}
+krsort($groups, SORT_STRING);
+$dailyBalances = [];
+foreach ($groups as $day => $dayEntries) {
+    $dailyBalances[$day] = ledger_calculate_daily_balance($dayEntries);
+}
+$latestApplicableDate = (string) array_key_first($groups);
+$closingBalance = (float) ($dailyBalances[$latestApplicableDate]['closing_balance'] ?? 0);
+$cashInToday = (float) ($dailyBalances[$today]['cash_in'] ?? 0);
+$cashOutToday = (float) ($dailyBalances[$today]['cash_out'] ?? 0);
+$entriesToday = isset($groups[$today]) ? count($groups[$today]) : 0;
+foreach ($dailyBalances as $day => $balance) {
+    if ($day >= $today) continue;
+    $suggestedAmount = (float) $balance['closing_balance'];
+    $suggestedSource = 'Closing balance for ' . date('d M Y', strtotime($day));
+    break;
 }
 
 $netToday = $cashInToday - $cashOutToday;
@@ -1055,12 +1100,15 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
         }
         .day-sum {
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
             border-left: 1px solid var(--ledger-border);
             font-weight: 800;
             font-size: 11px;
         }
+        .day-sum span { color: var(--ledger-muted); font-size: 8px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+        .day-sum strong { color: inherit; font: inherit; }
         .ledger-header {
             background: #fafafa;
             color: #1a1a1a;
@@ -2315,9 +2363,11 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             <div class="ledger-board-inner">
                 <?php foreach ($groups as $day => $dayEntries): ?>
                     <?php
-                    $dayIn = array_sum(array_map(static fn (array $row): float => (float) $row['cash_in'], $dayEntries));
-                    $dayOut = array_sum(array_map(static fn (array $row): float => (float) $row['cash_out'], $dayEntries));
-                    $dayNet = $dayIn - $dayOut;
+                    $dayBalance = $dailyBalances[$day];
+                    $dayOpening = (float) $dayBalance['opening_balance'];
+                    $dayIn = (float) $dayBalance['cash_in'];
+                    $dayOut = (float) $dayBalance['cash_out'];
+                    $dayClosing = (float) $dayBalance['closing_balance'];
                     $dayLabel = (new DateTimeImmutable($day))->format('d F Y');
                     $addDate = $day . 'T' . date('H:i');
                     ?>
@@ -2328,10 +2378,10 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
                                 <span class="day-name"><?= htmlspecialchars($dayLabel, ENT_QUOTES, 'UTF-8') ?></span>
                                 <span class="day-count" data-day-count><?= count($dayEntries) ?> <?= count($dayEntries) === 1 ? 'entry' : 'entries' ?></span>
                             </div>
-                            <div class="day-sum money-in" data-day-in><?= ledger_money($dayIn) ?></div>
-                            <div class="day-sum money-out" data-day-out><?= ledger_money($dayOut) ?></div>
-                            <div class="day-sum money-net" data-day-net><?= ledger_money($dayNet) ?></div>
-                            <div class="day-sum"></div>
+                            <div class="day-sum"><span>Opening</span><strong data-day-opening><?= ledger_money($dayOpening) ?></strong></div>
+                            <div class="day-sum money-in"><span>Cash In</span><strong data-day-in><?= ledger_money($dayIn) ?></strong></div>
+                            <div class="day-sum money-out"><span>Cash Out</span><strong data-day-out><?= ledger_money($dayOut) ?></strong></div>
+                            <div class="day-sum money-net"><span>Closing</span><strong data-day-closing><?= ledger_money($dayClosing) ?></strong></div>
                             <?php foreach ($customColumns as $column): ?>
                                 <div class="day-sum"></div>
                             <?php endforeach; ?>
@@ -2362,7 +2412,7 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
                             $entryDate = (string) $entry['transaction_date'];
                             $entryCustomFields = ledger_decode_json($entry['custom_fields_json'] ?? '{}');
                             ?>
-                            <div class="ledger-row entry-row" data-entry-id="<?= (int) $entry['id'] ?>" data-cash-in="<?= $rowIn ?>" data-cash-out="<?= $rowOut ?>" data-reconciled="<?= isset($reconciledDateSet[substr($entryDate, 0, 10)]) ? '1' : '0' ?>" data-created-by="<?= htmlspecialchars((string) ($entry['created_by_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars(($entry['created_by_name'] ?? '') !== '' ? 'Created by ' . (string) $entry['created_by_name'] : '', ENT_QUOTES, 'UTF-8') ?>">
+                            <div class="ledger-row entry-row" data-entry-id="<?= (int) $entry['id'] ?>" data-cash-in="<?= $rowIn ?>" data-cash-out="<?= $rowOut ?>" data-entry-type="<?= htmlspecialchars((string) ($entry['transaction_type'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" data-entry-source="<?= htmlspecialchars((string) ($entry['source'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" data-reconciled="<?= isset($reconciledDateSet[substr($entryDate, 0, 10)]) ? '1' : '0' ?>" data-created-by="<?= htmlspecialchars((string) ($entry['created_by_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars(($entry['created_by_name'] ?? '') !== '' ? 'Created by ' . (string) $entry['created_by_name'] : '', ENT_QUOTES, 'UTF-8') ?>">
                             <div class="ledger-cell check-cell"><?php if ($canSelectBookkeepingRows): ?><input class="bk-row-check" type="checkbox" data-id="<?= (int) $entry['id'] ?>" aria-label="Select ledger entry"><?php endif; ?></div>
                             <div class="ledger-cell ledger-data-cell <?= $canOperateBookkeeping ? 'bk-editable' : '' ?>" data-field="description" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars((string) $entry['description'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars((string) $entry['description'], ENT_QUOTES, 'UTF-8') ?></div>
                             <div class="ledger-cell ledger-data-cell <?= $canOperateBookkeeping ? 'bk-editable' : '' ?>" data-field="transaction_date" data-id="<?= (int) $entry['id'] ?>" data-value="<?= htmlspecialchars(date('Y-m-d\TH:i', strtotime($entryDate)), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(ledger_display_datetime($entryDate), ENT_QUOTES, 'UTF-8') ?></div>
@@ -2398,7 +2448,7 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
         </section>
 
         <section class="closing-card" aria-label="Closing balance">
-            <span>Closing Balance</span>
+            <span data-closing-balance-label><?= $latestApplicableDate === $today ? 'Current Balance' : 'Closing Balance' ?> &mdash; <?= htmlspecialchars(date('d F Y', strtotime($latestApplicableDate)), ENT_QUOTES, 'UTF-8') ?></span>
             <strong data-closing-balance><?= ledger_money($closingBalance) ?></strong>
         </section>
         </div>
@@ -3256,6 +3306,7 @@ function applySidebarFilters() {
     group.hidden = !dateVisible || (search && visibleRows === 0);
   });
   updateFloatingBar();
+  updateDisplayedClosingBalance();
 }
 
 <?php if (!empty($_GET['cash_tools'])): ?>
@@ -3283,48 +3334,86 @@ function entryTotal(row) {
   return parseMoney(row.dataset.cashIn) - parseMoney(row.dataset.cashOut);
 }
 
-function recalcGroup(group) {
-  let cashIn = 0;
-  let cashOut = 0;
+function rowIsOpeningBalance(row) {
+  return row.dataset.entryType === 'opening_balance' || row.dataset.entrySource === 'opening_balance';
+}
+
+function calculateGroupBalance(group) {
+  let openingCents = 0;
+  let cashInCents = 0;
+  let cashOutCents = 0;
   group.querySelectorAll('.entry-row').forEach((row) => {
-    cashIn += parseMoney(row.dataset.cashIn);
-    cashOut += parseMoney(row.dataset.cashOut);
+    const inCents = Math.round(Math.abs(parseMoney(row.dataset.cashIn)) * 100);
+    const outCents = Math.round(Math.abs(parseMoney(row.dataset.cashOut)) * 100);
+    if (rowIsOpeningBalance(row)) {
+      openingCents += inCents - outCents;
+      return;
+    }
+    cashInCents += inCents;
+    cashOutCents += outCents;
+  });
+  return {
+    opening: openingCents / 100,
+    cashIn: cashInCents / 100,
+    cashOut: cashOutCents / 100,
+    closing: (openingCents + cashInCents - cashOutCents) / 100
+  };
+}
+
+function latestDayGroup(visibleOnly = false) {
+  return [...document.querySelectorAll('[data-day-group]')]
+    .filter((group) => !visibleOnly || !group.hidden)
+    .sort((left, right) => String(right.dataset.dayGroup || '').localeCompare(String(left.dataset.dayGroup || '')))[0] || null;
+}
+
+function updateDisplayedClosingBalance() {
+  const group = latestDayGroup(true);
+  const balance = group ? calculateGroupBalance(group).closing : 0;
+  const day = group?.dataset.dayGroup || '';
+  const valueNode = document.querySelector('[data-closing-balance]');
+  const labelNode = document.querySelector('[data-closing-balance-label]');
+  if (valueNode) valueNode.textContent = money(balance);
+  if (labelNode) {
+    const label = day === todayKey ? 'Current Balance' : 'Closing Balance';
+    const dateLabel = day
+      ? new Date(`${day}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+      : '';
+    labelNode.textContent = dateLabel ? `${label} — ${dateLabel}` : label;
+  }
+}
+
+function recalcGroup(group) {
+  group.querySelectorAll('.entry-row').forEach((row) => {
     const total = entryTotal(row);
     const totalCell = row.querySelector('[data-row-total]');
     if (totalCell) totalCell.textContent = money(total);
   });
-  group.querySelector('[data-day-in]').textContent = money(cashIn);
-  group.querySelector('[data-day-out]').textContent = money(cashOut);
-  group.querySelector('[data-day-net]').textContent = money(cashIn - cashOut);
+  const balance = calculateGroupBalance(group);
+  group.querySelector('[data-day-opening]').textContent = money(balance.opening);
+  group.querySelector('[data-day-in]').textContent = money(balance.cashIn);
+  group.querySelector('[data-day-out]').textContent = money(balance.cashOut);
+  group.querySelector('[data-day-closing]').textContent = money(balance.closing);
   const count = group.querySelectorAll('.entry-row').length;
   group.querySelector('[data-day-count]').textContent = `${count} ${count === 1 ? 'entry' : 'entries'}`;
   recalcStats();
 }
 
 function recalcStats() {
-  let todayIn = 0;
-  let todayOut = 0;
   let todayCount = 0;
-  let closing = 0;
+  let todayBalance = { cashIn: 0, cashOut: 0 };
   document.querySelectorAll('[data-day-group]').forEach((group) => {
     const isToday = group.dataset.dayGroup === todayKey;
-    group.querySelectorAll('.entry-row').forEach((row) => {
-      const cashIn = parseMoney(row.dataset.cashIn);
-      const cashOut = parseMoney(row.dataset.cashOut);
-      closing += cashIn - cashOut;
-      if (isToday) {
-        todayIn += cashIn;
-        todayOut += cashOut;
-        todayCount++;
-      }
-    });
+    if (!isToday) return;
+    todayBalance = calculateGroupBalance(group);
+    todayCount = group.querySelectorAll('.entry-row').length;
   });
-  document.querySelector('[data-stat-cash-in]').textContent = money(todayIn);
-  document.querySelector('[data-stat-cash-out]').textContent = money(todayOut);
-  document.querySelector('[data-stat-net]').textContent = money(todayIn - todayOut);
+  document.querySelector('[data-stat-cash-in]').textContent = money(todayBalance.cashIn);
+  document.querySelector('[data-stat-cash-out]').textContent = money(todayBalance.cashOut);
+  document.querySelector('[data-stat-net]').textContent = money(todayBalance.cashIn - todayBalance.cashOut);
   document.querySelector('[data-stat-count]').textContent = String(todayCount);
-  document.querySelector('[data-closing-balance]').textContent = money(closing);
-  systemBalance = closing;
+  const latestGroup = latestDayGroup(false);
+  systemBalance = latestGroup ? calculateGroupBalance(latestGroup).closing : 0;
+  updateDisplayedClosingBalance();
   setReconValues();
 }
 
@@ -3334,6 +3423,8 @@ function renderEntry(entry) {
   row.dataset.entryId = entry.id;
   row.dataset.cashIn = String(entry.cash_in || 0);
   row.dataset.cashOut = String(entry.cash_out || 0);
+  row.dataset.entryType = entry.transaction_type || '';
+  row.dataset.entrySource = entry.source || '';
   const customCells = (window.bkCustomColumns || []).map((column) => {
     const value = entry.custom_fields?.[column.column_key] || '';
     return `<div class="ledger-cell ledger-custom-cell" data-custom-cell data-custom-column-key="${escapeHtml(column.column_key)}" data-custom-type="${escapeHtml(column.type)}" data-id="${entry.id}" data-value="${escapeHtml(value)}">${renderCustomValue(column, value)}</div>`;
@@ -3455,7 +3546,7 @@ function startEdit(cell) {
           row.replaceWith(replacement);
         }
         if (currentGroup?.isConnected) recalcGroup(currentGroup);
-        refreshStats();
+        recalcStats();
         toast('Saved');
         return;
       }
