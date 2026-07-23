@@ -1154,3 +1154,16 @@ html body.sidebar-collapsed .portal-sidebar {
     grid-template-columns: minmax(0, 1fr) !important;
   }
 }
+
+/* Keep the shared status controls in one ordered row at every breakpoint. */
+@media (max-width: 768px) {
+  .portal-header-with-status > .portal-header-status { overflow: visible !important; }
+  .portal-header-status > .portal-header-actions { display:flex !important;width:auto !important;max-width:100% !important;margin-left:auto !important;padding-right:8px !important;align-items:center !important;justify-content:flex-end !important;gap:5px !important;overflow:visible !important; }
+  .portal-header-actions .portal-online-staff__count { display:none !important; }
+  .portal-header-actions .portal-online-avatars { display:flex !important; }
+  .portal-header-actions .portal-online-staff { min-height:30px !important;padding-inline:4px !important; }
+  .portal-header-actions .portal-header-clock { min-width:78px !important; }
+  .portal-header-actions .portal-header-clock span { display:block !important;font-size:9px !important; }
+  .portal-header-actions .portal-header-clock strong { font-size:10px !important; }
+  .portal-header-actions .portal-notification-button { width:30px !important;min-width:30px !important;height:30px !important; }
+}

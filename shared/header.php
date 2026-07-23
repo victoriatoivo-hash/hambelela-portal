@@ -37,9 +37,11 @@ $showPortalHeaderStatus = (string) ($headerUser['role_key'] ?? 'guest') !== 'gue
 $pageUsesPortalSidebar = (bool) ($pageUsesPortalSidebar ?? true);
 $showPortalHeaderAccount = $showPortalHeaderStatus && !$pageUsesPortalSidebar;
 $headerNotificationUnread = 0;
+$headerNotificationLatest = [];
 if ($showPortalHeaderStatus && function_exists('notifications_summary_for_current_user')) {
-    $headerNotificationSummary = notifications_summary_for_current_user(1);
+    $headerNotificationSummary = notifications_summary_for_current_user(3);
     $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ?? 0);
+    $headerNotificationLatest = array_slice((array) ($headerNotificationSummary['latest'] ?? []), 0, 3);
 }
 $headerUserName = trim((string) ($headerUser['name'] ?? 'User'));
 $headerUserInitials = '';
@@ -91,15 +93,13 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
 <div class="shell">
     <?php if ($showPortalHeaderStatus): ?>
         <section class="portal-header-status<?= $showPortalHeaderAccount ? ' portal-header-status--has-account' : '' ?>" data-portal-header-status
-                 data-presence-endpoint="<?= htmlspecialchars(BASE_URL . '/apps/operations/portal-presence.php', ENT_QUOTES, 'UTF-8') ?>">
-            <div class="portal-header-clock" aria-label="Current Namibia time">
-                <span data-portal-date>---</span>
-                <strong data-portal-time>--:-- --</strong>
-            </div>
-            <div class="portal-online-widget" data-portal-online-widget tabindex="0"
-                 aria-label="Online employees" aria-expanded="false">
+                 data-presence-endpoint="<?= htmlspecialchars(BASE_URL . '/apps/operations/portal-presence.php', ENT_QUOTES, 'UTF-8') ?>"
+                 data-notification-endpoint="<?= htmlspecialchars(BASE_URL . '/api/notifications.php?mode=summary', ENT_QUOTES, 'UTF-8') ?>">
+            <div class="portal-header-actions">
+            <div class="portal-header-action portal-online-widget portal-online-staff" data-portal-online-widget data-online-staff-button
+                 role="button" tabindex="0" aria-label="Online employees" aria-expanded="false">
                 <div class="portal-online-avatars" data-portal-online-avatars></div>
-                <span class="portal-online-count" data-portal-online-count>0 online</span>
+                <span class="portal-online-count portal-online-staff__count" data-portal-online-count>0 online</span>
                 <div class="portal-online-popover" data-portal-online-popover hidden>
                     <strong>Currently online</strong>
                     <div data-portal-online-list>
@@ -107,13 +107,31 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
                     </div>
                 </div>
             </div>
-            <a class="portal-header-notifications" href="<?= htmlspecialchars(BASE_URL . '/notifications.php', ENT_QUOTES, 'UTF-8') ?>"
-               aria-label="Notifications">
+            <div class="portal-notification-control">
+            <a class="portal-header-action portal-header-notifications portal-notification-button" data-notification-button href="<?= htmlspecialchars(BASE_URL . '/notifications.php', ENT_QUOTES, 'UTF-8') ?>"
+               aria-label="Notifications, <?= (int) $headerNotificationUnread ?> unread" aria-expanded="false" aria-controls="portal-notification-preview">
                 <i data-lucide="bell"></i>
-                <?php if ($headerNotificationUnread > 0): ?>
-                    <span><?= htmlspecialchars($headerNotificationUnread > 99 ? '99+' : (string) $headerNotificationUnread, ENT_QUOTES, 'UTF-8') ?></span>
-                <?php endif; ?>
+                <span class="portal-notification-button__badge<?= $headerNotificationUnread > 0 ? '' : ' is-hidden' ?>" data-notification-count><?= htmlspecialchars($headerNotificationUnread > 99 ? '99+' : ($headerNotificationUnread > 0 ? (string) $headerNotificationUnread : ''), ENT_QUOTES, 'UTF-8') ?></span>
             </a>
+            <div id="portal-notification-preview" class="portal-notification-preview" data-notification-preview role="tooltip" aria-hidden="true">
+                <div class="portal-notification-preview__header"><strong class="portal-notification-preview__title">Notifications</strong><span class="portal-notification-preview__count" data-notification-preview-count><?= (int) $headerNotificationUnread ?> unread</span></div>
+                <div data-notification-preview-list>
+                <?php if ($headerNotificationLatest): foreach ($headerNotificationLatest as $headerNotification): ?>
+                    <a class="portal-notification-preview__item" href="<?= htmlspecialchars((string) (($headerNotification['action_link'] ?? '') ?: BASE_URL . '/notifications.php'), ENT_QUOTES, 'UTF-8') ?>">
+                        <span class="portal-notification-preview__indicator" aria-hidden="true"></span><span><strong class="portal-notification-preview__item-title"><?= htmlspecialchars((string) ($headerNotification['title'] ?? 'Notification'), ENT_QUOTES, 'UTF-8') ?></strong><span class="portal-notification-preview__item-text"><?= htmlspecialchars((string) ($headerNotification['message'] ?? ''), ENT_QUOTES, 'UTF-8') ?></span></span><time class="portal-notification-preview__time"><?= htmlspecialchars(date('h:i A', strtotime((string) ($headerNotification['created_at'] ?? 'now'))), ENT_QUOTES, 'UTF-8') ?></time>
+                    </a>
+                <?php endforeach; else: ?>
+                    <div class="portal-notification-preview__empty"><strong>No new notifications</strong><span>You are all caught up.</span></div>
+                <?php endif; ?>
+                </div>
+                <a class="portal-notification-preview__footer" href="<?= htmlspecialchars(BASE_URL . '/notifications.php', ENT_QUOTES, 'UTF-8') ?>">View all notifications →</a>
+            </div>
+            </div>
+            <div class="portal-header-clock" aria-label="Current date and time">
+                <span class="portal-header-clock__date" data-portal-date>---</span>
+                <strong class="portal-header-clock__time" data-portal-time>--:-- --</strong>
+            </div>
+            </div>
             <?php if ($showPortalHeaderAccount): ?>
                 <div class="portal-header-account" data-portal-header-account>
                     <a class="portal-header-user portal-header-account-identity"
