@@ -63,7 +63,7 @@ function ops_website_payment_methods(): array
 function ops_payment_method_map(): array
 {
     return [
-        'cash' => 'Cash', 'card_swipe' => 'Card/Swipe', 'eft' => 'EFT',
+        'cash' => 'Cash', 'card_swipe' => 'Swipe', 'eft' => 'EFT',
         'fnb_ewallet' => 'FNB eWallet', 'easywallet' => 'EasyWallet',
         'blue_wallet' => 'Blue Wallet', 'nedbank' => 'Nedbank',
         'netbank_wallet' => 'NetBank Wallet', 'pay2cell' => 'Pay2Cell',
@@ -77,8 +77,8 @@ function ops_normalize_payment_code(string $value): string
     $value = preg_replace('/[^a-z0-9]+/', '_', $value) ?? '';
     $value = trim($value, '_');
     $aliases = [
-        'cash' => 'cash', 'cod' => 'cash', 'cash_on_delivery' => 'cash',
-        'card' => 'card_swipe', 'swipe' => 'card_swipe', 'card_swipe' => 'card_swipe',
+        'cash' => 'cash', 'cod' => 'cash', 'cash_on_delivery' => 'cash', 'cash_payment' => 'cash',
+        'card' => 'card_swipe', 'card_payment' => 'card_swipe', 'swipe' => 'card_swipe', 'card_swipe' => 'card_swipe',
         'eft' => 'eft', 'bacs' => 'eft', 'bank_transfer' => 'eft', 'direct_bank_transfer' => 'eft',
         'fnb_ewallet' => 'fnb_ewallet', 'fnb_e_wallet' => 'fnb_ewallet', 'fnbwlt' => 'fnb_ewallet',
         'easywallet' => 'easywallet', 'easy_wallet' => 'easywallet', 'easywlt' => 'easywallet',
@@ -229,6 +229,15 @@ function ops_ensure_order_payment_schema(): bool
             changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             KEY idx_payment_audit_order (order_id, changed_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        $orderColumns = [
+            'payment_source' => "VARCHAR(30) NOT NULL DEFAULT 'woocommerce'",
+            'payment_updated_at' => 'DATETIME NULL',
+            'payment_updated_by_employee_id' => 'INT NULL',
+            'payment_version' => 'VARCHAR(80) NULL',
+        ];
+        foreach ($orderColumns as $column => $definition) {
+            if (!ops_column_exists('ops_orders', $column)) db()->exec("ALTER TABLE ops_orders ADD COLUMN {$column} {$definition}");
+        }
         $legacyRows = ops_rows(
             "SELECT o.id, o.payment_method, o.total_amount, o.updated_at
              FROM ops_orders o
@@ -294,6 +303,29 @@ function ops_wc_payment_allocations(array $order): array
     return array_values(array_map(static fn(string $method, int $amount): array => ['method'=>$method, 'amount_cents'=>$amount], array_keys($candidates), array_values($candidates)));
 }
 
+function ops_wc_payment_source(array $order): string
+{
+    $meta = [];
+    foreach ((array) ($order['meta_data'] ?? []) as $entry) {
+        $meta[(string) ($entry['key'] ?? '')] = $entry['value'] ?? null;
+    }
+    $declared = strtolower(trim((string) ($meta['_hpos_payment_source'] ?? '')));
+    if ($declared === 'order_list') return 'order_list';
+    if (!empty($meta['_hpos_sale']) || array_key_exists('_hpos_split', $meta)) return 'pos';
+    return 'woocommerce';
+}
+
+function ops_sync_order_payment_allocations(int $orderId, array $allocations, string $source, string $version): void
+{
+    if (!$allocations) return;
+    $current = ops_row('SELECT payment_source, payment_version FROM ops_orders WHERE id = ? LIMIT 1', [$orderId]);
+    $currentSource = (string) ($current['payment_source'] ?? 'woocommerce');
+    if ((string) ($current['payment_version'] ?? '') === $version) return;
+    if ($source === 'woocommerce' && in_array($currentSource, ['pos', 'order_list'], true)) return;
+    if ($source === 'order_list' && $currentSource === 'pos' && (string) ($current['payment_version'] ?? '') !== $version) return;
+    ops_replace_order_payment_allocations($orderId, $allocations, $source, $version);
+}
+
 function ops_replace_order_payment_allocations(int $orderId, array $allocations, string $source, string $version, ?int $employeeId = null): void
 {
     if ($orderId <= 0 || !$allocations || !ops_ensure_order_payment_schema()) return;
@@ -307,7 +339,7 @@ function ops_replace_order_payment_allocations(int $orderId, array $allocations,
     $totalCents = array_sum(array_column($allocations, 'amount_cents'));
     $order = ops_row('SELECT total_amount FROM ops_orders WHERE id = ? LIMIT 1', [$orderId]);
     $paid = $order && $totalCents >= (int) round((float) $order['total_amount'] * 100) ? 'paid' : ($totalCents > 0 ? 'partial' : 'unpaid');
-    db()->prepare('UPDATE ops_orders SET payment_method = ?, payment_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')->execute([$summary, $paid, $orderId]);
+    db()->prepare('UPDATE ops_orders SET payment_method = ?, payment_status = ?, payment_source = ?, payment_updated_at = CURRENT_TIMESTAMP, payment_updated_by_employee_id = ?, payment_version = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')->execute([$summary, $paid, $source, $employeeId, $version, $orderId]);
     db()->prepare('INSERT INTO order_payment_allocation_audit (order_id, previous_allocations_json, new_allocations_json, changed_by_employee_id, source) VALUES (?, ?, ?, ?, ?)')->execute([$orderId, json_encode($previous, JSON_UNESCAPED_SLASHES), json_encode($allocations, JSON_UNESCAPED_SLASHES), $employeeId, $source]);
 }
 

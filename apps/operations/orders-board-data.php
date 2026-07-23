@@ -212,8 +212,8 @@ if ($orderIds) {
     foreach ($orders as &$order) {
         $order['payments'] = $paymentsByOrder[(int) $order['id']] ?? [];
         $order['payment_version'] = (string) ($order['payments'][0]['version'] ?? '');
-        $order['payment_source_of_truth'] = (int) ($order['woo_order_id'] ?? 0) > 0 ? 'website_pos' : 'portal';
-        $order['can_edit_payment'] = ops_can_update_order_payment_method() && $order['payment_source_of_truth'] === 'portal';
+        $order['payment_source_of_truth'] = (string) (($order['payments'][0]['source'] ?? '') ?: ((int) ($order['woo_order_id'] ?? 0) > 0 ? 'woocommerce' : 'order_list'));
+        $order['can_edit_payment'] = ops_can_update_order_payment_method();
     }
     unset($order);
 

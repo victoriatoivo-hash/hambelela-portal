@@ -274,7 +274,7 @@ if ($ready && $hasWooColumns && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $paymentAllocations = ops_wc_payment_allocations($order);
             if ($paymentAllocations) {
                 $paymentVersion = (string) (($order['date_modified_gmt'] ?? '') ?: ($order['date_modified'] ?? '') ?: date(DATE_ATOM));
-                ops_replace_order_payment_allocations($orderId, $paymentAllocations, 'woocommerce', $paymentVersion);
+                ops_sync_order_payment_allocations($orderId, $paymentAllocations, ops_wc_payment_source($order), $paymentVersion);
             }
             if (ops_column_exists('ops_orders', 'fulfilment_mode')) {
                 $pdo->prepare('UPDATE ops_orders SET fulfilment_mode = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')->execute([$orderType, $orderId]);

@@ -298,7 +298,7 @@ function ops_board_default_payment_labels(): array
 {
     return [
         ['Cash', '#bdbdbd'],
-        ['Card/Swipe', '#333333'],
+        ['Swipe', '#333333'],
         ['EFT', '#7b4bd3'],
         ['FNB eWallet', '#1b5e20'],
         ['EasyWallet', '#a648d9'],
@@ -633,7 +633,7 @@ function ops_board_sync_website_orders(?string $date = null): array
             $paymentAllocations = ops_wc_payment_allocations($order);
             if ($paymentAllocations) {
                 $paymentVersion = (string) (($order['date_modified_gmt'] ?? '') ?: ($order['date_modified'] ?? '') ?: date(DATE_ATOM));
-                ops_replace_order_payment_allocations($orderId, $paymentAllocations, 'woocommerce', $paymentVersion);
+                ops_sync_order_payment_allocations($orderId, $paymentAllocations, ops_wc_payment_source($order), $paymentVersion);
             }
             if (ops_column_exists('ops_orders', 'fulfilment_mode')) {
                 $pdo->prepare('UPDATE ops_orders SET fulfilment_mode = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')->execute([$orderType, $orderId]);
@@ -732,9 +732,6 @@ try {
         $orderId = (int) ($_POST['order_id'] ?? 0);
         $order = $orderId > 0 ? ops_row('SELECT id, woo_order_id, total_amount FROM ops_orders WHERE id = ? AND deleted_at IS NULL LIMIT 1', [$orderId]) : null;
         if (!$order) throw new RuntimeException('Order not found.');
-        if ((int) ($order['woo_order_id'] ?? 0) > 0) {
-            throw new RuntimeException('Website/POS payments are read-only in the portal because two-way WooCommerce payment allocation updates are not supported.');
-        }
         $rawAllocations = json_decode((string) ($_POST['payments'] ?? '[]'), true);
         if (!is_array($rawAllocations) || !$rawAllocations) throw new RuntimeException('Add at least one payment method.');
         $allocations = [];
@@ -749,6 +746,10 @@ try {
             $seen[$method] = true;
             $allocations[] = ['method'=>$method, 'amount_cents'=>(int) $amountCents, 'transaction_reference'=>substr(trim((string) ($rawAllocation['transaction_reference'] ?? '')), 0, 190)];
         }
+        if (count($allocations) > 1 && count($seen) < 2) throw new RuntimeException('A split payment requires two different methods.');
+        $totalCents = (int) round((float) $order['total_amount'] * 100);
+        $collectedCents = array_sum(array_column($allocations, 'amount_cents'));
+        if ($collectedCents > $totalCents) throw new RuntimeException('Collected payment cannot exceed the order total. Correct the allocations before saving.');
         $submittedVersion = trim((string) ($_POST['version'] ?? ''));
         $currentAllocations = ops_order_payment_allocations($orderId);
         $currentVersion = $currentAllocations ? (string) ($currentAllocations[0]['version'] ?? '') : '';
@@ -759,7 +760,25 @@ try {
         $version = gmdate('Y-m-d\TH:i:s\Z') . '-' . bin2hex(random_bytes(4));
         db()->beginTransaction();
         try {
-            ops_replace_order_payment_allocations($orderId, $allocations, 'portal', $version, ops_current_employee_id());
+            if ((int) ($order['woo_order_id'] ?? 0) > 0) {
+                $primary = $allocations[0]['method'];
+                $posSplit = array_map(static fn(array $allocation): array => [
+                    'method' => $allocation['method'],
+                    'amount' => number_format((int) $allocation['amount_cents'] / 100, 2, '.', ''),
+                ], $allocations);
+                wc_put('orders/' . (int) $order['woo_order_id'], [
+                    'payment_method' => $primary,
+                    'payment_method_title' => count($allocations) > 1 ? 'Split Payment' : ops_payment_label($primary),
+                    'meta_data' => [
+                        ['key'=>'_hpos_split', 'value'=>json_encode(count($allocations) > 1 ? $posSplit : [], JSON_UNESCAPED_SLASHES)],
+                        ['key'=>'_hpos_payment_allocations', 'value'=>json_encode($allocations, JSON_UNESCAPED_SLASHES)],
+                        ['key'=>'_hpos_payment_source', 'value'=>'order_list'],
+                        ['key'=>'_hpos_payment_version', 'value'=>$version],
+                        ['key'=>'_hpos_payment_updated_by_employee_id', 'value'=>ops_current_employee_id()],
+                    ],
+                ]);
+            }
+            ops_replace_order_payment_allocations($orderId, $allocations, 'order_list', $version, ops_current_employee_id());
             db()->commit();
         } catch (Throwable $paymentError) {
             if (db()->inTransaction()) db()->rollBack();
@@ -767,7 +786,7 @@ try {
         }
         $saved = ops_order_payment_allocations($orderId);
         $savedOrder = ops_row('SELECT payment_method, payment_status, updated_at FROM ops_orders WHERE id = ? LIMIT 1', [$orderId]);
-        echo json_encode(['ok'=>true, 'message'=>'Payment saved.', 'payments'=>$saved, 'payment_method'=>$savedOrder['payment_method'], 'payment_status'=>$savedOrder['payment_status'], 'version'=>$version, 'updated_at'=>$savedOrder['updated_at']], JSON_UNESCAPED_SLASHES);
+        echo json_encode(['ok'=>true, 'message'=>'Payment saved.', 'payments'=>$saved, 'payment_method'=>$savedOrder['payment_method'], 'payment_status'=>$savedOrder['payment_status'], 'total_cents'=>$totalCents, 'collected_cents'=>$collectedCents, 'due_cents'=>max(0, $totalCents-$collectedCents), 'paid'=>$collectedCents >= $totalCents, 'source'=>'order_list', 'version'=>$version, 'updated_at'=>$savedOrder['updated_at']], JSON_UNESCAPED_SLASHES);
         exit;
     }
 

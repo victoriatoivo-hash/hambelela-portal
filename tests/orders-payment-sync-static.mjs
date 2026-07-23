@@ -6,7 +6,7 @@ const action = readFileSync(new URL('../apps/operations/orders-board-action.php'
 const manualSync = readFileSync(new URL('../apps/operations/sync-orders.php', import.meta.url), 'utf8');
 const board = readFileSync(new URL('../assets/js/orders-board.js', import.meta.url), 'utf8');
 
-for (const method of ['Cash', 'Card/Swipe', 'EFT', 'FNB eWallet', 'EasyWallet', 'Blue Wallet', 'Nedbank', 'NetBank Wallet', 'Pay2Cell', 'PayToday', 'DPO']) {
+for (const method of ['Cash', 'Swipe', 'EFT', 'FNB eWallet', 'EasyWallet', 'Blue Wallet', 'Nedbank', 'NetBank Wallet', 'Pay2Cell', 'PayToday', 'DPO']) {
   assert.ok(operations.includes(`'${method}'`), `Website method ${method} must be canonical.`);
   assert.ok(action.includes(`['${method}',`), `Board option ${method} must match the website.`);
 }

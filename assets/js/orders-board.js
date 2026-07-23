@@ -145,12 +145,12 @@
   let columnLabels = { ...defaultColumnLabels };
 
   let paymentLabels = [
-    ['Cash', '#bdbdbd'], ['Card/Swipe', '#333333'], ['EFT', '#7b4bd3'], ['FNB eWallet', '#1b5e20'],
+    ['Cash', '#bdbdbd'], ['Swipe', '#333333'], ['EFT', '#7b4bd3'], ['FNB eWallet', '#1b5e20'],
     ['EasyWallet', '#a648d9'], ['Blue Wallet', '#00845f'], ['Nedbank', '#07c66b'],
     ['NetBank Wallet', '#2b5797'], ['Pay2Cell', '#c03456'], ['PayToday', '#4dc3bd'], ['DPO', '#2563EB']
   ];
   const PAYMENT_METHODS = [
-    ['cash','Cash'], ['card_swipe','Card/Swipe'], ['eft','EFT'], ['fnb_ewallet','FNB eWallet'],
+    ['cash','Cash'], ['card_swipe','Swipe'], ['eft','EFT'], ['fnb_ewallet','FNB eWallet'],
     ['easywallet','EasyWallet'], ['blue_wallet','Blue Wallet'], ['nedbank','Nedbank'],
     ['netbank_wallet','NetBank Wallet'], ['pay2cell','Pay2Cell'], ['paytoday','PayToday'], ['dpo','DPO']
   ];
@@ -1662,13 +1662,13 @@
     const modal = document.createElement('div');
     modal.id = 'order-payment-editor';
     modal.className = 'payment-editor';
-    modal.innerHTML = `<button type="button" class="payment-editor__backdrop" data-payment-editor-close aria-label="Close payment editor"></button><section class="payment-editor__dialog" role="dialog" aria-modal="true" aria-labelledby="payment-editor-title"><header><div><span>Order payment</span><h2 id="payment-editor-title">${esc(order.order_number || 'Order')}</h2></div><button type="button" data-payment-editor-close aria-label="Close">×</button></header>${order.payment_source_of_truth==='website_pos'?'<p class="payment-editor__notice">Managed by the website/POS. Amounts are read-only here so the next sync cannot overwrite a portal edit.</p>':''}<div class="payment-editor__rows" data-payment-editor-rows></div><button type="button" class="payment-editor__add" data-payment-add ${editable?'':'hidden'}>+ Add payment method</button><div class="payment-editor__totals"><span>Order total <strong>${esc(money(order.total_amount))}</strong></span><span>Collected <strong data-payment-collected></strong></span><span>Due <strong data-payment-due></strong></span></div><footer><button type="button" data-payment-editor-close>Cancel</button>${editable?'<button type="button" class="primary" data-payment-save>Save</button>':''}</footer><p class="payment-editor__error" data-payment-error aria-live="polite"></p></section>`;
+    modal.innerHTML = `<button type="button" class="payment-editor__backdrop" data-payment-editor-close aria-label="Close payment editor"></button><section class="payment-editor__dialog" role="dialog" aria-modal="true" aria-labelledby="payment-editor-title"><header><div><span>Order payment</span><h2 id="payment-editor-title">${esc(order.order_number || 'Order')}</h2></div><button type="button" data-payment-editor-close aria-label="Close">×</button></header><label class="payment-editor__type">Payment type<select data-payment-type ${editable?'':'disabled'}><option value="single">Single Payment</option><option value="split" ${payments.length>1?'selected':''}>Split Payment</option></select></label><div class="payment-editor__rows" data-payment-editor-rows></div><button type="button" class="payment-editor__add" data-payment-add ${editable&&payments.length>1?'':'hidden'}>+ Add payment method</button><div class="payment-editor__totals"><span>Order total <strong>${esc(money(order.total_amount))}</strong></span><span>Collected <strong data-payment-collected></strong></span><span>Due <strong data-payment-due></strong></span></div><footer><button type="button" data-payment-editor-close>Cancel</button>${editable?'<button type="button" class="primary" data-payment-save>Save Payment</button>':''}</footer><p class="payment-editor__error" data-payment-error aria-live="polite"></p></section>`;
     document.body.appendChild(modal);
     const rows = modal.querySelector('[data-payment-editor-rows]');
     const updateTotals = () => {
       const collected = payments.reduce((sum,payment)=>sum+Number(payment.amount_cents||0),0);
       modal.querySelector('[data-payment-collected]').textContent = money(collected/100);
-      modal.querySelector('[data-payment-due]').textContent = money(Math.max(0,Math.round(Number(order.total_amount||0)*100)-collected)/100);
+      modal.querySelector('[data-payment-due]').textContent = money((Math.round(Number(order.total_amount||0)*100)-collected)/100);
     };
     const renderRows = () => {
       rows.innerHTML = payments.map((payment,index)=>`<div class="payment-editor__row"><select data-payment-method-index="${index}" ${editable?'':'disabled'}>${PAYMENT_METHODS.map(([code,label])=>`<option value="${code}" ${code===payment.method?'selected':''}>${esc(label)}</option>`).join('')}</select><label>N$<input type="number" min="0" step="0.01" value="${(Number(payment.amount_cents||0)/100).toFixed(2)}" data-payment-amount-index="${index}" ${editable?'':'disabled'}></label>${editable&&payments.length>1?`<button type="button" data-payment-remove="${index}" aria-label="Remove payment">×</button>`:''}</div>`).join('');
@@ -1676,17 +1676,19 @@
     };
     renderRows();
     modal.addEventListener('input',(event)=>{const index=Number(event.target.dataset.paymentAmountIndex);if(Number.isInteger(index)&&payments[index]){payments[index].amount_cents=Math.round(Number(event.target.value||0)*100);updateTotals();}});
-    modal.addEventListener('change',(event)=>{const index=Number(event.target.dataset.paymentMethodIndex);if(Number.isInteger(index)&&payments[index])payments[index].method=event.target.value;});
+    modal.addEventListener('change',(event)=>{if(event.target.matches('[data-payment-type]')){if(event.target.value==='single'){payments.splice(1);modal.querySelector('[data-payment-add]').hidden=true;}else{if(payments.length<2)payments.push({method:PAYMENT_METHODS.find(([code])=>!payments.some(p=>p.method===code))?.[0]||'eft',amount_cents:0});modal.querySelector('[data-payment-add]').hidden=false;}renderRows();return;}const index=Number(event.target.dataset.paymentMethodIndex);if(Number.isInteger(index)&&payments[index])payments[index].method=event.target.value;});
     modal.addEventListener('click',async(event)=>{
       if(event.target.closest('[data-payment-editor-close]')) return closePaymentEditor();
       if(event.target.closest('[data-payment-add]')){payments.push({method:PAYMENT_METHODS.find(([code])=>!payments.some(p=>p.method===code))?.[0]||'cash',amount_cents:0});renderRows();return;}
-      const remove=event.target.closest('[data-payment-remove]');if(remove){payments.splice(Number(remove.dataset.paymentRemove),1);renderRows();return;}
+      const remove=event.target.closest('[data-payment-remove]');if(remove){payments.splice(Number(remove.dataset.paymentRemove),1);if(payments.length===1){modal.querySelector('[data-payment-type]').value='single';modal.querySelector('[data-payment-add]').hidden=true;}renderRows();return;}
       const save=event.target.closest('[data-payment-save]');if(!save)return;
       const errorNode=modal.querySelector('[data-payment-error]');errorNode.textContent='';
       if(new Set(payments.map(p=>p.method)).size!==payments.length){errorNode.textContent='A payment method cannot appear twice.';return;}
+      if(modal.querySelector('[data-payment-type]').value==='split'&&payments.length<2){errorNode.textContent='A split payment requires at least two methods.';return;}
       if(payments.some(p=>Number(p.amount_cents)<=0)){errorNode.textContent='Every payment amount must be greater than zero.';return;}
+      if(payments.reduce((sum,p)=>sum+Number(p.amount_cents||0),0)>Math.round(Number(order.total_amount||0)*100)){errorNode.textContent='Collected payment cannot exceed the order total.';return;}
       save.disabled=true;save.textContent='Saving…';
-      try{const data=await post('save_payment_allocations',{order_id:order.id,payments:JSON.stringify(payments),version:order.payment_version||''});order.payments=data.payments;order.payment_version=data.version;order.payment_method=data.payment_method;order.payment_status=data.payment_status;const row=body.querySelector(`.monday-order-row[data-order-id="${selectorEsc(order.id)}"]`);if(row){row.querySelector('.col-payment').innerHTML=renderPaymentBadge(order);row.querySelector('.col-paid').innerHTML=renderPaidCell(order);}closePaymentEditor();if(syncState)syncState.textContent='Payment saved.';}catch(error){errorNode.textContent=error.message;save.disabled=false;save.textContent='Save';}
+      try{const data=await post('save_payment_allocations',{order_id:order.id,payments:JSON.stringify(payments),version:order.payment_version||''});order.payments=data.payments;order.payment_version=data.version;order.payment_source_of_truth=data.source;order.payment_method=data.payment_method;order.payment_status=data.payment_status;const row=body.querySelector(`.monday-order-row[data-order-id="${selectorEsc(order.id)}"]`);if(row){row.querySelector('.col-payment').innerHTML=renderPaymentBadge(order);row.querySelector('.col-paid').innerHTML=renderPaidCell(order);}closePaymentEditor();if(syncState)syncState.textContent='Payment saved.';}catch(error){errorNode.textContent=error.message;save.disabled=false;save.textContent='Save Payment';}
     });
   }
 
