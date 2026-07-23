@@ -292,8 +292,14 @@ function ops_wc_payment_allocations(array $order): array
         }
         foreach ($value as $childKey => $child) $visit($child, $key . ' ' . (string) $childKey);
     };
+    $paymentMeta = [];
     foreach ((array) ($order['meta_data'] ?? []) as $meta) {
-        $visit($meta['value'] ?? null, (string) ($meta['key'] ?? ''));
+        $paymentMeta[(string) ($meta['key'] ?? '')] = $meta['value'] ?? null;
+    }
+    if (array_key_exists('_hpos_payment_allocations', $paymentMeta)) {
+        $visit($paymentMeta['_hpos_payment_allocations'], '_hpos_payment_allocations amount_cents');
+    } elseif (array_key_exists('_hpos_split', $paymentMeta)) {
+        $visit($paymentMeta['_hpos_split'], '_hpos_split amount');
     }
     if (!$candidates) {
         $method = ops_normalize_payment_code((string) (($order['payment_method'] ?? '') ?: ($order['payment_method_title'] ?? '')));

@@ -12,6 +12,8 @@ assert.match(operations, /amount_cents BIGINT NOT NULL/);
 assert.match(operations, /UNIQUE KEY uq_order_payment_method/);
 assert.match(operations, /CREATE TABLE IF NOT EXISTS order_payment_allocation_audit/);
 assert.match(operations, /ops_wc_payment_allocations\(\$order\)/);
+assert.match(operations, /array_key_exists\('_hpos_payment_allocations'/);
+assert.match(operations, /elseif \(array_key_exists\('_hpos_split'/);
 assert.match(operations, /'paygate' => 'dpo'/);
 assert.match(operations, /'woocommerce_dpo' => 'dpo'/);
 assert.match(operations, /'fnbwlt' => 'fnb_ewallet'/);
