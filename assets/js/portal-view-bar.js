@@ -59,8 +59,84 @@
     return source.closest('main')?.querySelector('table, [role="table"], .ops-board-table');
   }
 
-  function headers(table) {
-    return [...(table?.querySelectorAll('thead th') || [])].filter((th) => th.textContent.trim());
+  function surfaceFor(source) {
+    return tableFor(source) || source.closest('main')?.querySelector('.ledger-board');
+  }
+
+  function headers(surface) {
+    if (!surface) return [];
+    const selector = surface.matches('.ledger-board') ? '.ledger-header .ledger-cell' : 'thead th';
+    return [...surface.querySelectorAll(selector)].map((header, columnIndex) => {
+      header.dataset.portalColumnIndex = String(columnIndex);
+      return header;
+    }).filter((header) => header.textContent.trim());
+  }
+
+  function controlOptions(control) {
+    if (!control) return [];
+    if (control.matches('select')) return [...control.options].map((option) => ({ value: option.value, label: option.textContent, selected: option.selected }));
+    const custom = control.closest('.portal-custom-select');
+    return [...(custom?.querySelectorAll('.portal-custom-select-option') || [])].map((option) => ({
+      value: option.dataset.value || '', label: option.textContent || '', selected: option.getAttribute('aria-selected') === 'true'
+    }));
+  }
+
+  function setControlValue(control, value) {
+    if (!control) return;
+    control.value = value;
+    const custom = control.closest('.portal-custom-select');
+    if (custom) {
+      const options = [...custom.querySelectorAll('.portal-custom-select-option')];
+      options.forEach((option) => option.setAttribute('aria-selected', option.dataset.value === value ? 'true' : 'false'));
+      const selected = options.find((option) => option.dataset.value === value);
+      const display = custom.querySelector('.portal-custom-select-value');
+      if (display && selected) display.textContent = selected.textContent;
+    }
+    control.dispatchEvent(new Event('input', { bubbles: true }));
+    control.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function setColumnVisible(surface, columnIndex, visible) {
+    if (surface.matches('.ledger-board')) {
+      surface.querySelectorAll(`.ledger-row .ledger-cell:nth-child(${columnIndex + 1})`).forEach((cell) => { cell.hidden = !visible; });
+      return;
+    }
+    surface.querySelectorAll(`tr > *:nth-child(${columnIndex + 1})`).forEach((cell) => { cell.hidden = !visible; });
+  }
+
+  function sortSurface(surface, columnIndex, direction) {
+    const multiplier = direction === 'asc' ? 1 : -1;
+    if (surface.matches('.ledger-board')) {
+      surface.querySelectorAll('.day-group').forEach((groupNode) => {
+        const rows = [...groupNode.querySelectorAll(':scope > .ledger-row:not(.ledger-header)')];
+        rows.sort((a, b) => (a.children[columnIndex]?.textContent.trim() || '').localeCompare(b.children[columnIndex]?.textContent.trim() || '', undefined, { numeric: true }) * multiplier).forEach((row) => groupNode.append(row));
+      });
+      return;
+    }
+    surface.querySelectorAll('tbody').forEach((tbody) => {
+      [...tbody.rows].filter((row) => !row.classList.contains('portal-view-group-row')).sort((a, b) => (a.cells[columnIndex]?.textContent.trim() || '').localeCompare(b.cells[columnIndex]?.textContent.trim() || '', undefined, { numeric: true }) * multiplier).forEach((row) => tbody.append(row));
+    });
+  }
+
+  function groupSurface(surface, columnIndex, label) {
+    if (surface.matches('.ledger-board')) return;
+    surface.querySelectorAll('tbody').forEach((tbody) => {
+      tbody.querySelectorAll('.portal-view-group-row').forEach((row) => row.remove());
+      const rows = [...tbody.rows];
+      rows.sort((a, b) => (a.cells[columnIndex]?.textContent.trim() || '').localeCompare(b.cells[columnIndex]?.textContent.trim() || '', undefined, { numeric: true }));
+      let previous = null;
+      rows.forEach((row) => {
+        const value = row.cells[columnIndex]?.textContent.trim() || `No ${label}`;
+        if (value !== previous) {
+          const groupRow = document.createElement('tr');
+          groupRow.className = 'portal-view-group-row';
+          groupRow.innerHTML = `<td colspan="${Math.max(1, row.cells.length)}">${escapeAttribute(value)}</td>`;
+          tbody.append(groupRow);
+          previous = value;
+        }
+        tbody.append(row);
+      });
+    });
   }
 
   function enhance(source, index) {
@@ -78,9 +154,9 @@
     form.before(formAnchor);
 
     const search = form.querySelector('input[type="search"], input[name="search"], [data-bk-filter-search]');
-    const person = form.querySelector('select[name*="employee"], select[name*="person"], [data-packing-filter="person"]');
+    const person = form.querySelector('select[name*="employee"], select[name*="person"], input[name*="employee"], input[name*="person"], [data-packing-filter="person"]');
     const group = form.querySelector('select[name*="group"], [data-packing-group-select], [data-board-group-select]');
-    const table = tableFor(source);
+    const surface = surfaceFor(source);
     const bar = document.createElement('nav');
     bar.className = 'portal-view-bar portal-filter-toolbar';
     bar.setAttribute('aria-label', 'Search, filter and arrange this view');
@@ -93,8 +169,8 @@
     if (search) controls.insertAdjacentHTML('beforeend', `<label class="portal-view-bar__search portal-toolbar-action portal-toolbar-action--icon-only" data-toolbar-action="search" title="Search">${icon('search')}<input type="search" placeholder="Search" aria-label="Search this view"></label>`);
     if (person) controls.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button portal-toolbar-action" data-view-action="person" data-toolbar-action="person" aria-expanded="false">${icon('circle-user-round')}<span>Person</span></button>`);
     controls.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button portal-toolbar-action" data-view-action="filter" data-toolbar-action="filter" aria-expanded="false">${icon('filter')}<span>Filter</span></button>`);
-    if (table) controls.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button portal-toolbar-action" data-view-action="sort" data-toolbar-action="sort" aria-expanded="false">${icon('arrow-up-down')}<span>Sort</span></button><button type="button" class="portal-view-bar__button portal-toolbar-action" data-view-action="hide" data-toolbar-action="hide" aria-expanded="false">${icon('eye-off')}<span>Hide</span></button>`);
-    if (group) controls.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button portal-toolbar-action" data-view-action="group" data-toolbar-action="group" aria-expanded="false">${icon('columns-3')}<span>Group by</span></button>`);
+    if (surface) controls.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button portal-toolbar-action" data-view-action="sort" data-toolbar-action="sort" aria-expanded="false">${icon('arrow-up-down')}<span>Sort</span></button><button type="button" class="portal-view-bar__button portal-toolbar-action" data-view-action="hide" data-toolbar-action="hide" aria-expanded="false">${icon('eye-off')}<span>Hide</span></button>`);
+    if (group || surface) controls.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button portal-toolbar-action" data-view-action="group" data-toolbar-action="group" aria-expanded="false">${icon('columns-3')}<span>Group by</span></button>`);
     bar.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button portal-view-bar__overflow portal-toolbar-action portal-toolbar-action--more" data-view-action="more" data-toolbar-action="tools" aria-label="More tools" aria-expanded="false">${icon('ellipsis')}</button>`);
     source.before(bar);
 
@@ -154,41 +230,47 @@
         active.formAnchor = formAnchor;
         positionPopover(popover, button);
       } else if (action === 'person' && person) {
-        const popover = openPopover(button, `<h3>Person</h3><div class="portal-view-bar__popover-list">${[...person.options].map((option) => `<button type="button" class="portal-view-bar__choice${option.selected ? ' is-selected' : ''}" data-select-value="${escapeAttribute(option.value)}">${escapeAttribute(option.textContent)}</button>`).join('')}</div>`);
+        const popover = openPopover(button, `<h3>Person</h3><div class="portal-view-bar__popover-list">${controlOptions(person).map((option) => `<button type="button" class="portal-view-bar__choice${option.selected ? ' is-selected' : ''}" data-select-value="${escapeAttribute(option.value)}">${escapeAttribute(option.label)}</button>`).join('')}</div>`);
         popover?.addEventListener('click', (choiceEvent) => {
           const choice = choiceEvent.target.closest('[data-select-value]');
           if (!choice) return;
-          person.value = choice.dataset.selectValue;
-          person.dispatchEvent(new Event('change', { bubbles: true }));
+          setControlValue(person, choice.dataset.selectValue);
           closePopover();
         });
       } else if (action === 'group' && group) {
-        const popover = openPopover(button, `<h3>Group items by</h3><div class="portal-view-bar__popover-list">${[...group.options].map((option) => `<button type="button" class="portal-view-bar__choice${option.selected ? ' is-selected' : ''}" data-group-value="${escapeAttribute(option.value)}">${escapeAttribute(option.textContent)}</button>`).join('')}</div>`);
+        const popover = openPopover(button, `<h3>Group items by</h3><div class="portal-view-bar__popover-list">${controlOptions(group).map((option) => `<button type="button" class="portal-view-bar__choice${option.selected ? ' is-selected' : ''}" data-group-value="${escapeAttribute(option.value)}">${escapeAttribute(option.label)}</button>`).join('')}</div>`);
         popover?.addEventListener('click', (choiceEvent) => {
           const choice = choiceEvent.target.closest('[data-group-value]');
           if (!choice) return;
-          group.value = choice.dataset.groupValue;
-          group.dispatchEvent(new Event('change', { bubbles: true }));
+          setControlValue(group, choice.dataset.groupValue);
           closePopover();
         });
-      } else if (action === 'hide' && table) {
-        const cols = headers(table);
-        const popover = openPopover(button, `<h3>Display columns</h3><div class="portal-view-bar__popover-list">${cols.map((th, columnIndex) => `<label class="portal-view-bar__choice"><input type="checkbox" data-column-index="${columnIndex}" ${th.hidden ? '' : 'checked'}><span>${escapeAttribute(th.textContent.trim())}</span></label>`).join('')}</div>`);
+      } else if (action === 'group' && surface) {
+        const cols = headers(surface).filter((header) => !surface.matches('.ledger-board') || header.dataset.ledgerColumn === 'transaction_date');
+        const popover = openPopover(button, `<h3>Group items by</h3><div class="portal-view-bar__popover-list">${cols.map((header) => `<button type="button" class="portal-view-bar__choice" data-generic-group-column="${header.dataset.portalColumnIndex}">${escapeAttribute(header.textContent.trim())}</button>`).join('')}</div>`);
+        popover?.addEventListener('click', (choiceEvent) => {
+          const choice = choiceEvent.target.closest('[data-generic-group-column]');
+          if (!choice) return;
+          const columnIndex = Number(choice.dataset.genericGroupColumn);
+          const header = headers(surface).find((item) => Number(item.dataset.portalColumnIndex) === columnIndex);
+          groupSurface(surface, columnIndex, header?.textContent.trim() || 'group');
+          closePopover();
+        });
+      } else if (action === 'hide' && surface) {
+        const cols = headers(surface);
+        const popover = openPopover(button, `<h3>Display columns</h3><div class="portal-view-bar__popover-list">${cols.map((th) => `<label class="portal-view-bar__choice"><input type="checkbox" data-column-index="${th.dataset.portalColumnIndex}" ${th.hidden ? '' : 'checked'}><span>${escapeAttribute(th.textContent.trim())}</span></label>`).join('')}</div>`);
         popover?.addEventListener('change', (changeEvent) => {
           const input = changeEvent.target.closest('[data-column-index]');
           if (!input) return;
-          const nth = Number(input.dataset.columnIndex) + 1;
-          table.querySelectorAll(`tr > *:nth-child(${nth})`).forEach((cell) => { cell.hidden = !input.checked; });
+          setColumnVisible(surface, Number(input.dataset.columnIndex), input.checked);
         });
-      } else if (action === 'sort' && table) {
-        const cols = headers(table);
-        const popover = openPopover(button, `<h3>Sort items</h3><div class="portal-sort-panel"><label>Choose column<select data-generic-sort-column>${cols.map((th, columnIndex) => `<option value="${columnIndex}">${escapeAttribute(th.textContent.trim())}</option>`).join('')}</select></label><label>Direction<select data-generic-sort-direction><option value="asc">Ascending</option><option value="desc">Descending</option></select></label></div>`);
+      } else if (action === 'sort' && surface) {
+        const cols = headers(surface);
+        const popover = openPopover(button, `<h3>Sort items</h3><div class="portal-sort-panel"><label>Choose column<select data-generic-sort-column>${cols.map((th) => `<option value="${th.dataset.portalColumnIndex}">${escapeAttribute(th.textContent.trim())}</option>`).join('')}</select></label><label>Direction<select data-generic-sort-direction><option value="asc">Ascending</option><option value="desc">Descending</option></select></label></div>`);
         popover?.addEventListener('change', () => {
           const columnIndex = Number(popover.querySelector('[data-generic-sort-column]').value);
           const direction = popover.querySelector('[data-generic-sort-direction]').value;
-          const tbody = table.tBodies?.[0];
-          if (!tbody) return;
-          [...tbody.rows].sort((a, b) => (a.cells[columnIndex]?.textContent.trim() || '').localeCompare(b.cells[columnIndex]?.textContent.trim() || '', undefined, { numeric: true }) * (direction === 'asc' ? 1 : -1)).forEach((row) => tbody.append(row));
+          sortSurface(surface, columnIndex, direction);
         });
       } else if (action === 'more') {
         const popover = openPopover(button, `<h3>View options</h3><div class="portal-view-bar__popover-list"><button type="button" class="portal-view-bar__choice" data-reset-view>${icon('rotate-ccw')}<span>Reset filters and columns</span></button></div>`);
