@@ -3,9 +3,10 @@
 
   const icon = (name) => `<i data-lucide="${name}" aria-hidden="true"></i>`;
   let active = null;
+  const enhancedViews = new WeakMap();
 
   function escapeAttribute(value) {
-    return String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    return String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#039;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
   function closePopover({ restoreFocus = false } = {}) {
@@ -24,9 +25,9 @@
 
   function positionPopover(popover, button) {
     const rect = button.getBoundingClientRect();
-    const gutter = 10;
+    const gutter = 12;
     const gap = 7;
-    const width = Math.min(360, window.innerWidth - gutter * 2);
+    const width = Math.min(popover.classList.contains('portal-view-bar__popover--wide') ? 780 : 380, window.innerWidth - gutter * 2);
     popover.style.width = `${width}px`;
     popover.style.left = `${Math.max(gutter, Math.min(rect.left, window.innerWidth - width - gutter))}px`;
     const height = Math.min(popover.scrollHeight, window.innerHeight - gutter * 2);
@@ -60,12 +61,30 @@
   }
 
   function surfaceFor(source) {
+    if (source.closest('main')?.classList.contains('courier-wrap')) return source.closest('main').querySelector('.courier-table-shell--queue');
     return tableFor(source) || source.closest('main')?.querySelector('.ledger-board');
+  }
+
+  function viewType(source) {
+    const main = source.closest('main');
+    if (main?.classList.contains('courier-wrap')) return 'courier';
+    if (main?.classList.contains('digital-task-page')) return 'tasks';
+    return 'bookkeeping';
+  }
+
+  function searchPlaceholder(type) {
+    return type === 'courier' ? 'Search waybills...' : type === 'tasks' ? 'Search tasks...' : 'Search bookkeeping...';
+  }
+
+  function viewSurfaces(source) {
+    const main = source.closest('main');
+    if (viewType(source) === 'tasks') return [...main.querySelectorAll('.task-board table')];
+    return [surfaceFor(source)].filter(Boolean);
   }
 
   function headers(surface) {
     if (!surface) return [];
-    const selector = surface.matches('.ledger-board') ? '.ledger-header .ledger-cell' : 'thead th';
+    const selector = surface.matches('.ledger-board') ? '.ledger-header .ledger-cell' : surface.matches('.courier-table-shell--queue') ? '.queue-head .courier-cell' : 'thead th';
     return [...surface.querySelectorAll(selector)].map((header, columnIndex) => {
       header.dataset.portalColumnIndex = String(columnIndex);
       return header;
@@ -101,6 +120,10 @@
       surface.querySelectorAll(`.ledger-row .ledger-cell:nth-child(${columnIndex + 1})`).forEach((cell) => { cell.hidden = !visible; });
       return;
     }
+    if (surface.matches('.courier-table-shell--queue')) {
+      surface.querySelectorAll(`.courier-grid > .courier-cell:nth-child(${columnIndex + 1})`).forEach((cell) => { cell.hidden = !visible; });
+      return;
+    }
     surface.querySelectorAll(`tr > *:nth-child(${columnIndex + 1})`).forEach((cell) => { cell.hidden = !visible; });
   }
 
@@ -113,6 +136,12 @@
       });
       return;
     }
+    if (surface.matches('.courier-table-shell--queue')) {
+      const list = surface.querySelector('.queue-list');
+      if (!list) return;
+      [...list.children].sort((a, b) => (a.children[columnIndex]?.textContent.trim() || '').localeCompare(b.children[columnIndex]?.textContent.trim() || '', undefined, { numeric: true }) * multiplier).forEach((row) => list.append(row));
+      return;
+    }
     surface.querySelectorAll('tbody').forEach((tbody) => {
       [...tbody.rows].filter((row) => !row.classList.contains('portal-view-group-row')).sort((a, b) => (a.cells[columnIndex]?.textContent.trim() || '').localeCompare(b.cells[columnIndex]?.textContent.trim() || '', undefined, { numeric: true }) * multiplier).forEach((row) => tbody.append(row));
     });
@@ -120,23 +149,132 @@
 
   function groupSurface(surface, columnIndex, label) {
     if (surface.matches('.ledger-board')) return;
+    if (surface.matches('.courier-table-shell--queue')) {
+      const list = surface.querySelector('.queue-list');
+      if (!list) return;
+      list.querySelectorAll('.portal-view-grid-group').forEach((node) => node.remove());
+      const rows = [...list.children];
+      rows.sort((a, b) => (a.children[columnIndex]?.textContent.trim() || '').localeCompare(b.children[columnIndex]?.textContent.trim() || '', undefined, { numeric: true }));
+      const counts = new Map();
+      rows.forEach((row) => { const value = row.children[columnIndex]?.textContent.trim() || `No ${label}`; counts.set(value, (counts.get(value) || 0) + 1); });
+      let previous = null;
+      rows.forEach((row) => {
+        const value = row.children[columnIndex]?.textContent.trim() || `No ${label}`;
+        if (value !== previous) {
+          const heading = document.createElement('button');
+          heading.type = 'button';
+          heading.className = 'portal-view-grid-group';
+          heading.dataset.groupValue = value;
+          heading.innerHTML = `${icon('chevron-down')}<span>${escapeAttribute(value)}</span><strong>${counts.get(value)}</strong>`;
+          list.append(heading);
+          previous = value;
+        }
+        row.dataset.portalGroupValue = value;
+        list.append(row);
+      });
+      return;
+    }
     surface.querySelectorAll('tbody').forEach((tbody) => {
       tbody.querySelectorAll('.portal-view-group-row').forEach((row) => row.remove());
       const rows = [...tbody.rows];
       rows.sort((a, b) => (a.cells[columnIndex]?.textContent.trim() || '').localeCompare(b.cells[columnIndex]?.textContent.trim() || '', undefined, { numeric: true }));
+      const counts = new Map();
+      rows.forEach((row) => { const value = row.cells[columnIndex]?.textContent.trim() || `No ${label}`; counts.set(value, (counts.get(value) || 0) + 1); });
       let previous = null;
       rows.forEach((row) => {
         const value = row.cells[columnIndex]?.textContent.trim() || `No ${label}`;
         if (value !== previous) {
           const groupRow = document.createElement('tr');
           groupRow.className = 'portal-view-group-row';
-          groupRow.innerHTML = `<td colspan="${Math.max(1, row.cells.length)}">${escapeAttribute(value)}</td>`;
+          groupRow.dataset.groupValue = value;
+          groupRow.innerHTML = `<td colspan="${Math.max(1, row.cells.length)}"><button type="button" data-toggle-portal-group>${icon('chevron-down')}<span>${escapeAttribute(value)}</span><strong>${counts.get(value)}</strong></button></td>`;
           tbody.append(groupRow);
           previous = value;
         }
+        row.dataset.portalGroupValue = value;
         tbody.append(row);
       });
     });
+  }
+
+  function clearGroups(surface) {
+    surface.querySelectorAll('.portal-view-group-row,.portal-view-grid-group').forEach((node) => node.remove());
+    surface.querySelectorAll('[data-portal-group-value]').forEach((row) => { row.hidden = false; delete row.dataset.portalGroupValue; });
+  }
+
+  function rowNodes(surface) {
+    if (surface.matches('.ledger-board')) return [...surface.querySelectorAll('.ledger-row:not(.ledger-header)')];
+    if (surface.matches('.courier-table-shell--queue')) return [...surface.querySelectorAll('.queue-list > .courier-grid')];
+    return [...surface.querySelectorAll('tbody tr:not(.portal-view-group-row)')];
+  }
+
+  function filterVisibleRows(surfaces, term) {
+    const needle = term.trim().toLocaleLowerCase();
+    surfaces.forEach((surface) => rowNodes(surface).forEach((row) => {
+      row.hidden = needle !== '' && !row.textContent.toLocaleLowerCase().includes(needle);
+    }));
+  }
+
+  function announce(message, failed = false) {
+    let notice = document.querySelector('[data-portal-toolbar-notice]');
+    if (!notice) {
+      notice = document.createElement('div');
+      notice.className = 'portal-toolbar-notice';
+      notice.dataset.portalToolbarNotice = '';
+      notice.setAttribute('role', 'status');
+      document.body.append(notice);
+    }
+    notice.textContent = message;
+    notice.classList.toggle('is-error', failed);
+    notice.classList.add('is-visible');
+    window.clearTimeout(announce.timer);
+    announce.timer = window.setTimeout(() => notice.classList.remove('is-visible'), 2600);
+  }
+
+  async function syncView(source, button) {
+    if (button.disabled) return;
+    button.disabled = true;
+    button.classList.add('is-syncing');
+    const type = viewType(source);
+    try {
+      if (type === 'courier') {
+        const existing = source.closest('main').querySelector('[data-refresh-waybills]');
+        if (!existing) throw new Error('Courier refresh is unavailable.');
+        existing.click();
+        await new Promise((resolve, reject) => {
+          const toast = document.querySelector('[data-waybill-toast]');
+          const timeout = window.setTimeout(() => { observer?.disconnect(); reject(new Error('Courier synchronization timed out.')); }, 12000);
+          const observer = toast ? new MutationObserver(() => {
+            const message = toast.textContent.trim();
+            if (!message) return;
+            window.clearTimeout(timeout);
+            observer.disconnect();
+            /refreshed/i.test(message) ? resolve() : reject(new Error(message));
+          }) : null;
+          observer?.observe(toast, { childList: true, characterData: true, subtree: true });
+        });
+      } else {
+        const response = await fetch(location.href, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'text/html' } });
+        if (!response.ok) throw new Error(`Synchronization failed (${response.status}).`);
+        const parsed = new DOMParser().parseFromString(await response.text(), 'text/html');
+        const selectors = type === 'tasks'
+          ? ['.dtb-stats-grid', '[data-task-management-sections]', '[data-task-board]']
+          : ['.bk-stats', '.ledger-board'];
+        let replaced = 0;
+        selectors.forEach((selector) => {
+          const current = document.querySelector(selector);
+          const next = parsed.querySelector(selector);
+          if (current && next) { current.replaceWith(next); replaced += 1; }
+        });
+        if (!replaced) throw new Error('No refreshed records were returned.');
+      }
+      announce(type === 'courier' ? 'Waybills synchronized.' : type === 'tasks' ? 'Tasks synchronized.' : 'Bookkeeping synchronized.');
+    } catch (error) {
+      announce(error.message || 'Synchronization failed.', true);
+    } finally {
+      button.disabled = false;
+      button.classList.remove('is-syncing');
+    }
   }
 
   function enhance(source, index) {
@@ -157,25 +295,30 @@
     const person = form.querySelector('select[name*="employee"], select[name*="person"], input[name*="employee"], input[name*="person"], [data-packing-filter="person"]');
     const group = form.querySelector('select[name*="group"], [data-packing-group-select], [data-board-group-select]');
     const surface = surfaceFor(source);
+    const surfaces = viewSurfaces(source);
+    const type = viewType(source);
+    const storageKey = `portal-table-toolbar:${location.pathname}:${type}`;
+    let preferences = {};
+    try { preferences = JSON.parse(localStorage.getItem(storageKey) || '{}'); } catch (_error) { preferences = {}; }
     const bar = document.createElement('nav');
-    bar.className = 'portal-view-bar portal-filter-toolbar';
+    bar.className = 'portal-view-bar portal-filter-toolbar portal-table-toolbar';
     bar.setAttribute('aria-label', 'Search, filter and arrange this view');
     bar.setAttribute('data-filter-toolbar', '');
     bar.dataset.viewBar = String(index);
     const controls = document.createElement('div');
-    controls.className = 'portal-filter-toolbar__controls';
+    controls.className = 'portal-filter-toolbar__controls portal-table-toolbar__controls';
     bar.append(controls);
 
-    if (search) controls.insertAdjacentHTML('beforeend', `<label class="portal-view-bar__search portal-toolbar-action portal-toolbar-action--icon-only" data-toolbar-action="search" title="Search">${icon('search')}<input type="search" placeholder="Search" aria-label="Search this view"></label>`);
+    if (search) controls.insertAdjacentHTML('beforeend', `<div class="portal-view-bar__search portal-toolbar-search" data-toolbar-action="search"><button type="button" class="portal-view-bar__button portal-toolbar-action portal-toolbar-search__trigger" data-search-trigger aria-label="Open search" aria-expanded="false">${icon('search')}<span>Search</span></button><input class="portal-toolbar-search__input" type="search" placeholder="${searchPlaceholder(type)}" aria-label="${searchPlaceholder(type)}"><button type="button" class="portal-toolbar-search__clear" data-search-clear aria-label="Clear search">${icon('x')}</button></div>`);
     if (person) controls.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button portal-toolbar-action" data-view-action="person" data-toolbar-action="person" aria-expanded="false">${icon('circle-user-round')}<span>Person</span></button>`);
-    controls.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button portal-toolbar-action" data-view-action="filter" data-toolbar-action="filter" aria-expanded="false">${icon('filter')}<span>Filter</span></button>`);
+    controls.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button portal-toolbar-action" data-view-action="filter" data-toolbar-action="filter" aria-expanded="false">${icon('filter')}<span>Filter</span><strong class="portal-toolbar-filter-count" data-filter-count hidden>0</strong></button>`);
     if (surface) controls.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button portal-toolbar-action" data-view-action="sort" data-toolbar-action="sort" aria-expanded="false">${icon('arrow-up-down')}<span>Sort</span></button><button type="button" class="portal-view-bar__button portal-toolbar-action" data-view-action="hide" data-toolbar-action="hide" aria-expanded="false">${icon('eye-off')}<span>Hide</span></button>`);
     if (group || surface) controls.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button portal-toolbar-action" data-view-action="group" data-toolbar-action="group" aria-expanded="false">${icon('columns-3')}<span>Group by</span></button>`);
+    controls.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button portal-toolbar-action" data-view-action="sync" data-toolbar-action="sync" aria-label="Synchronize this view">${icon('refresh-cw')}<span>Sync</span></button>`);
     bar.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button portal-view-bar__overflow portal-toolbar-action portal-toolbar-action--more" data-view-action="more" data-toolbar-action="tools" aria-label="More tools" aria-expanded="false">${icon('ellipsis')}</button>`);
     source.before(bar);
 
-    // Page actions belong in the same predictable bar, immediately after Group by.
-    // Move the real controls so their existing event listeners and permissions remain intact.
+    // Keep the real, permission-aware page actions and expose them from Tools.
     const actionHost = source.querySelector('.work-filter-actions, [data-view-bar-actions]')
       || source.closest('main')?.querySelector('[data-view-bar-actions]');
     const actions = actionHost
@@ -183,34 +326,58 @@
       : [...(source.closest('main')?.querySelectorAll('[data-view-bar-action]') || [])];
     const overflow = bar.querySelector('.portal-view-bar__overflow');
     actions.forEach((action) => {
-      action.classList.add('portal-view-bar__page-action', 'portal-toolbar-action');
-      const isCashTools = action.id === 'bkDrawerBtn' || /cash\s*tools/i.test(action.textContent || '');
-      action.dataset.toolbarAction = isCashTools ? 'cash-tools' : (action.dataset.toolbarAction || 'page-action');
-      if (isCashTools && !action.querySelector('svg, i[data-lucide]')) action.insertAdjacentHTML('afterbegin', icon('calculator'));
-      if (!action.hasAttribute('aria-expanded') && action.matches('button')) action.setAttribute('aria-expanded', 'false');
-      controls.append(action);
+      action.dataset.portalToolbarOriginalAction = '';
+      action.style.setProperty('display', 'none', 'important');
     });
+
+    enhancedViews.set(source, { source, form, surfaces, type, storageKey, preferences, actions });
+    const updateFilterCount = () => {
+      const count = [...form.querySelectorAll('input,select')].filter((control) => {
+        if (control === search || control === person || control.type === 'hidden' || control.type === 'search') return false;
+        return control.type === 'checkbox' ? control.checked : Boolean(control.value);
+      }).length;
+      const badge = bar.querySelector('[data-filter-count]');
+      if (badge) { badge.textContent = String(count); badge.hidden = count === 0; }
+      bar.querySelector('[data-view-action="filter"]')?.classList.toggle('is-active', count > 0);
+    };
+    form.addEventListener('change', updateFilterCount);
+    updateFilterCount();
 
     const searchLabel = bar.querySelector('.portal-view-bar__search');
     const quickSearch = searchLabel?.querySelector('input');
     if (quickSearch && search) {
       quickSearch.value = search.value;
-      searchLabel.addEventListener('click', () => {
+      const trigger = searchLabel.querySelector('[data-search-trigger]');
+      const openSearch = () => {
         searchLabel.classList.add('is-open');
+        trigger?.setAttribute('aria-expanded', 'true');
         quickSearch.focus({ preventScroll: true });
-      });
+      };
+      trigger?.addEventListener('click', openSearch);
+      let searchTimer = 0;
       quickSearch.addEventListener('input', () => {
-        search.value = quickSearch.value;
-        search.dispatchEvent(new Event('input', { bubbles: true }));
+        window.clearTimeout(searchTimer);
+        searchLabel.classList.toggle('has-value', Boolean(quickSearch.value));
+        searchTimer = window.setTimeout(() => filterVisibleRows(surfaces, quickSearch.value), 180);
+      });
+      searchLabel.querySelector('[data-search-clear]')?.addEventListener('click', () => {
+        quickSearch.value = '';
+        search.value = '';
+        searchLabel.classList.remove('has-value');
+        filterVisibleRows(surfaces, '');
+        openSearch();
       });
       quickSearch.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter') {
+        if (event.key === 'Escape') {
           event.preventDefault();
-          form.requestSubmit?.();
-        }
-        if (event.key === 'Escape' && !quickSearch.value) {
+          quickSearch.value = '';
+          search.value = '';
+          filterVisibleRows(surfaces, '');
           searchLabel.classList.remove('is-open');
+          searchLabel.classList.remove('has-value');
+          trigger?.setAttribute('aria-expanded', 'false');
           quickSearch.blur();
+          trigger?.focus({ preventScroll: true });
         }
       });
     }
@@ -228,6 +395,7 @@
         popover.querySelector('.portal-view-bar__form').append(form);
         active.movedForm = form;
         active.formAnchor = formAnchor;
+        popover.classList.add('portal-view-bar__popover--wide');
         positionPopover(popover, button);
       } else if (action === 'person' && person) {
         const popover = openPopover(button, `<h3>Person</h3><div class="portal-view-bar__popover-list">${controlOptions(person).map((option) => `<button type="button" class="portal-view-bar__choice${option.selected ? ' is-selected' : ''}" data-select-value="${escapeAttribute(option.value)}">${escapeAttribute(option.label)}</button>`).join('')}</div>`);
@@ -235,6 +403,7 @@
           const choice = choiceEvent.target.closest('[data-select-value]');
           if (!choice) return;
           setControlValue(person, choice.dataset.selectValue);
+          if (form.matches('form')) form.requestSubmit?.();
           closePopover();
         });
       } else if (action === 'group' && group) {
@@ -247,22 +416,40 @@
         });
       } else if (action === 'group' && surface) {
         const cols = headers(surface).filter((header) => !surface.matches('.ledger-board') || header.dataset.ledgerColumn === 'transaction_date');
-        const popover = openPopover(button, `<h3>Group items by</h3><div class="portal-view-bar__popover-list">${cols.map((header) => `<button type="button" class="portal-view-bar__choice" data-generic-group-column="${header.dataset.portalColumnIndex}">${escapeAttribute(header.textContent.trim())}</button>`).join('')}</div>`);
+        const popover = openPopover(button, `<h3>Group items by</h3><div class="portal-view-bar__popover-list"><button type="button" class="portal-view-bar__choice${preferences.group === undefined ? ' is-selected' : ''}" data-generic-group-column="">No grouping</button>${cols.map((header) => `<button type="button" class="portal-view-bar__choice${String(preferences.group) === header.dataset.portalColumnIndex ? ' is-selected' : ''}" data-generic-group-column="${header.dataset.portalColumnIndex}">${escapeAttribute(header.textContent.trim())}</button>`).join('')}</div>`);
         popover?.addEventListener('click', (choiceEvent) => {
           const choice = choiceEvent.target.closest('[data-generic-group-column]');
           if (!choice) return;
+          if (choice.dataset.genericGroupColumn === '') {
+            surfaces.forEach(clearGroups);
+            delete preferences.group;
+            localStorage.setItem(storageKey, JSON.stringify(preferences));
+            closePopover();
+            return;
+          }
           const columnIndex = Number(choice.dataset.genericGroupColumn);
           const header = headers(surface).find((item) => Number(item.dataset.portalColumnIndex) === columnIndex);
-          groupSurface(surface, columnIndex, header?.textContent.trim() || 'group');
+          surfaces.forEach((item) => groupSurface(item, columnIndex, header?.textContent.trim() || 'group'));
+          preferences.group = columnIndex;
+          localStorage.setItem(storageKey, JSON.stringify(preferences));
           closePopover();
         });
       } else if (action === 'hide' && surface) {
-        const cols = headers(surface);
-        const popover = openPopover(button, `<h3>Display columns</h3><div class="portal-view-bar__popover-list">${cols.map((th) => `<label class="portal-view-bar__choice"><input type="checkbox" data-column-index="${th.dataset.portalColumnIndex}" ${th.hidden ? '' : 'checked'}><span>${escapeAttribute(th.textContent.trim())}</span></label>`).join('')}</div>`);
+        const cols = headers(surface).filter((th) => !/select|action/i.test(th.textContent.trim()) && Number(th.dataset.portalColumnIndex) > 0);
+        const popover = openPopover(button, `<h3>Display columns</h3><div class="portal-view-bar__popover-list">${cols.map((th) => `<label class="portal-view-bar__choice"><input type="checkbox" data-column-index="${th.dataset.portalColumnIndex}" ${th.hidden ? '' : 'checked'}><span>${escapeAttribute(th.textContent.trim())}</span></label>`).join('')}<button type="button" class="portal-view-bar__choice" data-show-all-columns>Show all columns</button></div>`);
         popover?.addEventListener('change', (changeEvent) => {
           const input = changeEvent.target.closest('[data-column-index]');
           if (!input) return;
-          setColumnVisible(surface, Number(input.dataset.columnIndex), input.checked);
+          const visibleCount = [...popover.querySelectorAll('[data-column-index]:checked')].length;
+          if (!input.checked && visibleCount < 1) { input.checked = true; return; }
+          surfaces.forEach((item) => setColumnVisible(item, Number(input.dataset.columnIndex), input.checked));
+          preferences.hidden = [...popover.querySelectorAll('[data-column-index]:not(:checked)')].map((item) => Number(item.dataset.columnIndex));
+          localStorage.setItem(storageKey, JSON.stringify(preferences));
+        });
+        popover?.querySelector('[data-show-all-columns]')?.addEventListener('click', () => {
+          popover.querySelectorAll('[data-column-index]').forEach((input) => { input.checked = true; surfaces.forEach((item) => setColumnVisible(item, Number(input.dataset.columnIndex), true)); });
+          preferences.hidden = [];
+          localStorage.setItem(storageKey, JSON.stringify(preferences));
         });
       } else if (action === 'sort' && surface) {
         const cols = headers(surface);
@@ -271,12 +458,30 @@
           const columnIndex = Number(popover.querySelector('[data-generic-sort-column]').value);
           const direction = popover.querySelector('[data-generic-sort-direction]').value;
           sortSurface(surface, columnIndex, direction);
+          preferences.sort = { columnIndex, direction };
+          localStorage.setItem(storageKey, JSON.stringify(preferences));
         });
+      } else if (action === 'sync') {
+        syncView(source, button);
       } else if (action === 'more') {
-        const popover = openPopover(button, `<h3>View options</h3><div class="portal-view-bar__popover-list"><button type="button" class="portal-view-bar__choice" data-reset-view>${icon('rotate-ccw')}<span>Reset filters and columns</span></button></div>`);
-        popover?.querySelector('[data-reset-view]')?.addEventListener('click', () => { window.location.href = window.location.pathname; });
+        const labels = actions.map((item, actionIndex) => {
+          const label = item.textContent.trim();
+          const iconName = /export|download/i.test(label) ? 'download' : /cash/i.test(label) ? 'calculator' : 'wrench';
+          return `<button type="button" class="portal-view-bar__choice" data-run-page-action="${actionIndex}">${icon(iconName)}<span>${escapeAttribute(label)}</span></button>`;
+        }).join('');
+        const popover = openPopover(button, `<h3>${type === 'tasks' ? 'Task tools' : type === 'courier' ? 'Courier tools' : 'Bookkeeping tools'}</h3><div class="portal-view-bar__popover-list">${labels || '<span class="portal-view-bar__empty">No additional tools available.</span>'}</div>`);
+        popover?.addEventListener('click', (toolEvent) => {
+          const tool = toolEvent.target.closest('[data-run-page-action]');
+          if (!tool) return;
+          const original = actions[Number(tool.dataset.runPageAction)];
+          closePopover();
+          original?.click();
+        });
       }
     });
+
+    (preferences.hidden || []).forEach((columnIndex) => surfaces.forEach((item) => setColumnVisible(item, Number(columnIndex), false)));
+    if (preferences.sort) surfaces.forEach((item) => sortSurface(item, Number(preferences.sort.columnIndex), preferences.sort.direction));
   }
 
   function init() {
@@ -318,6 +523,12 @@
 
   document.addEventListener('pointerdown', (event) => {
     if (active && !event.target.closest('.portal-view-bar__popover') && !event.target.closest('[data-view-action]')) closePopover();
+    document.querySelectorAll('.portal-toolbar-search.is-open').forEach((searchBox) => {
+      if (!searchBox.contains(event.target) && !searchBox.querySelector('input')?.value) {
+        searchBox.classList.remove('is-open');
+        searchBox.querySelector('[data-search-trigger]')?.setAttribute('aria-expanded', 'false');
+      }
+    });
   });
   document.addEventListener('click', (event) => {
     const button = event.target.closest('[data-filter-toolbar] [data-toolbar-action]');
@@ -327,7 +538,21 @@
     button.classList.add('is-animating');
     window.setTimeout(() => button.classList.remove('is-animating'), 360);
   });
+  document.addEventListener('click', (event) => {
+    const toggle = event.target.closest('[data-toggle-portal-group], .portal-view-grid-group');
+    if (!toggle) return;
+    const heading = toggle.closest('.portal-view-group-row, .portal-view-grid-group');
+    const value = heading?.dataset.groupValue;
+    if (!value) return;
+    const collapsed = heading.classList.toggle('is-collapsed');
+    let sibling = heading.nextElementSibling;
+    while (sibling && !sibling.matches('.portal-view-group-row,.portal-view-grid-group')) {
+      if (sibling.dataset.portalGroupValue === value || heading.matches('.portal-view-group-row')) sibling.hidden = collapsed;
+      sibling = sibling.nextElementSibling;
+    }
+  });
   document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && active) closePopover({ restoreFocus: true }); });
   window.addEventListener('resize', () => { if (active) positionPopover(active.popover, active.button); }, { passive: true });
+  window.addEventListener('scroll', () => { if (active) positionPopover(active.popover, active.button); }, { passive: true, capture: true });
   document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', init, { once: true }) : init();
 })();

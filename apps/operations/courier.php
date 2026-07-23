@@ -1332,7 +1332,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         <h2 class="card-title">Waybill Queue</h2>
                     </div>
                     <div class="courier-queue-header-actions">
-                        <button class="btn-secondary refresh-btn courier-secondary-btn" type="button" data-refresh-waybills><i data-lucide="refresh-cw"></i> Refresh</button>
+                        <button class="btn-secondary refresh-btn courier-secondary-btn" type="button" data-refresh-waybills data-view-sync-action><i data-lucide="refresh-cw"></i> Refresh</button>
                     </div>
                 </div>
                 <div class="courier-table-scroll courier-table-wrap">
