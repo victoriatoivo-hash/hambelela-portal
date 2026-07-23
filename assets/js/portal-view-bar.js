@@ -82,16 +82,20 @@
     const group = form.querySelector('select[name*="group"], [data-packing-group-select], [data-board-group-select]');
     const table = tableFor(source);
     const bar = document.createElement('nav');
-    bar.className = 'portal-view-bar';
+    bar.className = 'portal-view-bar portal-filter-toolbar';
     bar.setAttribute('aria-label', 'Search, filter and arrange this view');
+    bar.setAttribute('data-filter-toolbar', '');
     bar.dataset.viewBar = String(index);
+    const controls = document.createElement('div');
+    controls.className = 'portal-filter-toolbar__controls';
+    bar.append(controls);
 
-    if (search) bar.insertAdjacentHTML('beforeend', `<label class="portal-view-bar__search" title="Search">${icon('search')}<input type="search" placeholder="Search" aria-label="Search this view"></label>`);
-    if (person) bar.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button" data-view-action="person" aria-expanded="false">${icon('circle-user-round')}<span>Person</span></button>`);
-    bar.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button" data-view-action="filter" aria-expanded="false">${icon('filter')}<span>Filter</span></button>`);
-    if (table) bar.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button" data-view-action="sort" aria-expanded="false">${icon('arrow-up-down')}<span>Sort</span></button><button type="button" class="portal-view-bar__button" data-view-action="hide" aria-expanded="false">${icon('eye-off')}<span>Hide</span></button>`);
-    if (group) bar.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button" data-view-action="group" aria-expanded="false">${icon('columns-3')}<span>Group by</span></button>`);
-    bar.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button portal-view-bar__overflow" data-view-action="more" aria-label="More view options" aria-expanded="false">${icon('ellipsis')}</button>`);
+    if (search) controls.insertAdjacentHTML('beforeend', `<label class="portal-view-bar__search portal-toolbar-action portal-toolbar-action--icon-only" data-toolbar-action="search" title="Search">${icon('search')}<input type="search" placeholder="Search" aria-label="Search this view"></label>`);
+    if (person) controls.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button portal-toolbar-action" data-view-action="person" data-toolbar-action="person" aria-expanded="false">${icon('circle-user-round')}<span>Person</span></button>`);
+    controls.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button portal-toolbar-action" data-view-action="filter" data-toolbar-action="filter" aria-expanded="false">${icon('filter')}<span>Filter</span></button>`);
+    if (table) controls.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button portal-toolbar-action" data-view-action="sort" data-toolbar-action="sort" aria-expanded="false">${icon('arrow-up-down')}<span>Sort</span></button><button type="button" class="portal-view-bar__button portal-toolbar-action" data-view-action="hide" data-toolbar-action="hide" aria-expanded="false">${icon('eye-off')}<span>Hide</span></button>`);
+    if (group) controls.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button portal-toolbar-action" data-view-action="group" data-toolbar-action="group" aria-expanded="false">${icon('columns-3')}<span>Group by</span></button>`);
+    bar.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button portal-view-bar__overflow portal-toolbar-action portal-toolbar-action--more" data-view-action="more" data-toolbar-action="tools" aria-label="More tools" aria-expanded="false">${icon('ellipsis')}</button>`);
     source.before(bar);
 
     // Page actions belong in the same predictable bar, immediately after Group by.
@@ -103,8 +107,12 @@
       : [...(source.closest('main')?.querySelectorAll('[data-view-bar-action]') || [])];
     const overflow = bar.querySelector('.portal-view-bar__overflow');
     actions.forEach((action) => {
-      action.classList.add('portal-view-bar__page-action');
-      bar.insertBefore(action, overflow);
+      action.classList.add('portal-view-bar__page-action', 'portal-toolbar-action');
+      const isCashTools = action.id === 'bkDrawerBtn' || /cash\s*tools/i.test(action.textContent || '');
+      action.dataset.toolbarAction = isCashTools ? 'cash-tools' : (action.dataset.toolbarAction || 'page-action');
+      if (isCashTools && !action.querySelector('svg, i[data-lucide]')) action.insertAdjacentHTML('afterbegin', icon('calculator'));
+      if (!action.hasAttribute('aria-expanded') && action.matches('button')) action.setAttribute('aria-expanded', 'false');
+      controls.append(action);
     });
 
     const searchLabel = bar.querySelector('.portal-view-bar__search');
@@ -228,6 +236,14 @@
 
   document.addEventListener('pointerdown', (event) => {
     if (active && !event.target.closest('.portal-view-bar__popover') && !event.target.closest('[data-view-action]')) closePopover();
+  });
+  document.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-filter-toolbar] [data-toolbar-action]');
+    if (!button) return;
+    button.classList.remove('is-animating');
+    void button.offsetWidth;
+    button.classList.add('is-animating');
+    window.setTimeout(() => button.classList.remove('is-animating'), 360);
   });
   document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && active) closePopover({ restoreFocus: true }); });
   window.addEventListener('resize', () => { if (active) positionPopover(active.popover, active.button); }, { passive: true });

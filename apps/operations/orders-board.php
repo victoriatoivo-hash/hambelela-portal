@@ -74,16 +74,17 @@ include BASE_PATH . '/shared/sidebar.php';
             <?php endif; ?>
         </section>
 
-        <section class="ob-video-toolbar orders-tools-bar" aria-label="Orders tools">
-            <button type="button" class="ob-view-selector"><i data-lucide="table-2"></i> Main table <i data-lucide="chevron-down"></i></button>
-            <button type="button" class="ob-new-task" data-board-action="sync"><span>New task</span><i data-lucide="chevron-down"></i></button>
-            <label class="ob-toolbar-search" data-view-search><i data-lucide="search"></i><input data-board-search type="search" placeholder="Search orders" aria-label="Search orders"></label>
-            <button type="button" data-toolbar="person"><i data-lucide="circle-user-round"></i> Person</button>
-            <button type="button" data-toolbar="filter"><i data-lucide="filter"></i> Filter</button>
-            <button type="button" data-toolbar="sort"><i data-lucide="arrow-up-down"></i> Sort</button>
-            <button type="button" data-toolbar="hide"><i data-lucide="eye-off"></i> Hide</button>
-            <button type="button" data-toolbar="group"><i data-lucide="columns-3"></i> Group by</button>
-            <button type="button" data-toolbar="more"><i data-lucide="ellipsis"></i></button>
+        <section class="ob-video-toolbar orders-tools-bar portal-filter-toolbar" data-filter-toolbar aria-label="Orders tools">
+            <div class="portal-filter-toolbar__controls">
+                <label class="ob-toolbar-search portal-toolbar-action portal-toolbar-action--icon-only" data-view-search data-toolbar-action="search"><i data-lucide="search"></i><input data-board-search type="search" placeholder="Search orders" aria-label="Search orders"></label>
+                <button type="button" class="portal-toolbar-action" data-toolbar="person" data-toolbar-action="person" aria-expanded="false"><i data-lucide="circle-user-round"></i> Person</button>
+                <button type="button" class="portal-toolbar-action" data-toolbar="filter" data-toolbar-action="filter" aria-expanded="false"><i data-lucide="filter"></i> Filter</button>
+                <button type="button" class="portal-toolbar-action" data-toolbar="sort" data-toolbar-action="sort" aria-expanded="false"><i data-lucide="arrow-up-down"></i> Sort</button>
+                <button type="button" class="portal-toolbar-action" data-toolbar="hide" data-toolbar-action="hide" aria-expanded="false"><i data-lucide="eye-off"></i> Hide</button>
+                <button type="button" class="portal-toolbar-action" data-toolbar="group" data-toolbar-action="group" aria-expanded="false"><i data-lucide="columns-3"></i> Group by</button>
+                <button type="button" class="ob-new-task portal-toolbar-action" data-board-action="sync" data-toolbar-action="sync"><i data-lucide="refresh-cw"></i><span>Sync</span></button>
+            </div>
+            <button type="button" class="portal-toolbar-action portal-toolbar-action--more" data-toolbar="more" data-toolbar-action="tools" aria-label="More tools" aria-expanded="false"><i data-lucide="ellipsis"></i></button>
         </section>
 
         <section class="work-filter-bar portal-filter-panel orders-filter-panel" aria-label="Board filters">

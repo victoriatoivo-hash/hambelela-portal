@@ -49,6 +49,7 @@
   if (backdrop && backdrop.parentElement !== document.body) document.body.appendChild(backdrop);
 
   let groupDatePopover = null;
+  let toolbarTrigger = null;
   let personPopup = null;
   let personPopupTrigger = null;
   let personPopupOrderId = '';
@@ -2885,6 +2886,8 @@
       moreDraft = null;
     }
     morePanel.setAttribute('aria-hidden', String(!open));
+    const moreTrigger = document.querySelector('[data-toolbar="more"]');
+    moreTrigger?.setAttribute('aria-expanded', String(open));
   }
 
   function applyBoardDisplay() {
@@ -2909,6 +2912,9 @@
 
   function openToolbar(anchor, type) {
     if (!toolbarPopover) return;
+    closeToolbar();
+    toolbarTrigger = anchor;
+    toolbarTrigger.setAttribute('aria-expanded', 'true');
     const rect = anchor.getBoundingClientRect();
     toolbarPopover.hidden = false;
     toolbarPopover.style.transform = '';
@@ -2928,6 +2934,10 @@
       delete toolbarPopover.dataset.orderMenuTriggerId;
       toolbarPopover.hidden = true;
       toolbarPopover.style.transform = '';
+    }
+    if (toolbarTrigger) {
+      toolbarTrigger.setAttribute('aria-expanded', 'false');
+      toolbarTrigger = null;
     }
   }
 
@@ -4771,6 +4781,7 @@
     if (event.key === 'Escape' && morePanel?.classList.contains('is-open')) {
       event.preventDefault();
       setMorePanelOpen(false);
+      document.querySelector('[data-toolbar="more"]')?.focus({ preventScroll: true });
       return;
     }
     const summarySegment = event.target.closest('.packing-summary-segment');
@@ -4834,7 +4845,9 @@
       }
       closePersonPopup();
       closeLabelMenu();
+      const returnToToolbar = toolbarTrigger;
       closeToolbar();
+      returnToToolbar?.focus({ preventScroll: true });
       closeColumnModal();
       closeGroupDatePopover();
       closeDateSortPopover();

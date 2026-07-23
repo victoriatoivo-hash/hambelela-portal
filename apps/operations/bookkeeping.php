@@ -2275,7 +2275,7 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
         </div>
         <div class="ledger-top-actions" data-portal-header-status-target>
             <?php if ($ready && $canOperateBookkeeping): ?>
-                <button class="bk-drawer-trigger" type="button" id="bkDrawerBtn" data-view-bar-action onclick="openDrawer()">Cash tools</button>
+                <button class="bk-drawer-trigger" type="button" id="bkDrawerBtn" data-view-bar-action data-toolbar-action="cash-tools" aria-expanded="false" onclick="openDrawer()"><i data-lucide="calculator"></i><span>Cash Tools</span></button>
             <?php endif; ?>
             <section class="portal-header-status" data-portal-header-status
                      data-presence-endpoint="<?= htmlspecialchars(BASE_URL . '/apps/operations/portal-presence.php', ENT_QUOTES, 'UTF-8') ?>">
@@ -3265,11 +3265,13 @@ async function permanentDeleteTrashItem(id) {
 function openDrawer() {
   document.getElementById('bkDrawer')?.classList.add('is-open');
   document.getElementById('bkOverlay')?.classList.add('is-open');
+  document.getElementById('bkDrawerBtn')?.setAttribute('aria-expanded', 'true');
 }
 
 function closeDrawer() {
   document.getElementById('bkDrawer')?.classList.remove('is-open');
   document.getElementById('bkOverlay')?.classList.remove('is-open');
+  document.getElementById('bkDrawerBtn')?.setAttribute('aria-expanded', 'false');
 }
 
 function switchTab(button, tab) {
