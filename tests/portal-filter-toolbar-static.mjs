@@ -24,14 +24,16 @@ assert.match(css, /portal-toolbar-dots/);
 assert.match(css, /@media \(max-width: 768px\)/);
 assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
 assert.match(css, /portal-filter-toolbar__controls[^}]*overflow-x:\s*auto/s);
+assert.match(css, /portal-filter-toolbar\s*>\s*\.portal-filter-toolbar__controls[^}]*flex:\s*1 1 auto !important/s);
 assert.match(css, /portal-toolbar-action--more[^}]*position:\s*relative/s);
 assert.match(bookkeeping, /id="bkDrawerBtn"[^>]*data-toolbar-action="cash-tools"[^>]*aria-expanded="false"/);
 assert.match(bookkeeping, /bkDrawerBtn'\)\?\.setAttribute\('aria-expanded', 'true'\)/);
 assert.match(bookkeeping, /bkDrawerBtn'\)\?\.setAttribute\('aria-expanded', 'false'\)/);
+assert.match(bookkeeping, /closeDrawer\(true\)/);
 assert.doesNotMatch(css, /portal-view-bar__page-action[^\n]*border:1px solid rgba\(171,54,25/);
 assert.match(orders, /portal-filter-toolbar/);
 assert.match(orders, /portal-toolbar-action--more/);
-assert.match(presence, /portal-view-bar\.css\?v=shared6/);
-assert.match(presence, /portal-view-bar\.js\?v=shared6/);
+assert.match(presence, /portal-view-bar\.css\?v=shared7/);
+assert.match(presence, /portal-view-bar\.js\?v=shared7/);
 
 console.log('Portal filter toolbar checks passed.');

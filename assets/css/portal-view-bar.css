@@ -1055,8 +1055,8 @@ body.portal-panel-open .portal-header-status{visibility:hidden!important;opacity
 @keyframes portal-toolbar-dots { 0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)} }
 @keyframes portal-toolbar-dot { 0%,100%{transform:translateY(0)}50%{transform:translateY(-1.5px)} }
 @media (max-width: 768px) {
-  .portal-filter-toolbar { min-height: 40px !important; padding: 4px 7px !important; overflow: hidden; }
-  .portal-filter-toolbar__controls { flex: 1 1 auto; overflow-x: auto; overflow-y: hidden; overscroll-behavior-inline: contain; scrollbar-width: none; }
+  .portal-filter-toolbar { min-height: 40px !important; padding: 4px 7px !important; overflow: hidden !important; }
+  .portal-filter-toolbar > .portal-filter-toolbar__controls { flex: 1 1 auto !important; width: auto !important; max-width: calc(100% - 40px); overflow-x: auto !important; overflow-y: hidden !important; overscroll-behavior-inline: contain; scrollbar-width: none; }
   .portal-filter-toolbar__controls::-webkit-scrollbar { display: none; }
   .portal-filter-toolbar .portal-toolbar-action { flex: 0 0 auto; min-height: 30px !important; padding-inline: 6px !important; }
   .portal-filter-toolbar .portal-toolbar-action--more { position: relative; z-index: 2; flex: 0 0 30px !important; padding: 0 !important; background: #fff !important; }

@@ -3268,10 +3268,11 @@ function openDrawer() {
   document.getElementById('bkDrawerBtn')?.setAttribute('aria-expanded', 'true');
 }
 
-function closeDrawer() {
+function closeDrawer(restoreFocus = false) {
   document.getElementById('bkDrawer')?.classList.remove('is-open');
   document.getElementById('bkOverlay')?.classList.remove('is-open');
   document.getElementById('bkDrawerBtn')?.setAttribute('aria-expanded', 'false');
+  if (restoreFocus) document.getElementById('bkDrawerBtn')?.focus({ preventScroll: true });
 }
 
 function switchTab(button, tab) {
@@ -3771,7 +3772,7 @@ document.addEventListener('input', (event) => {
 
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
-    closeDrawer();
+    closeDrawer(true);
     closeCustomColumnPopover();
   }
   const row = event.target.closest('[data-add-row]');
