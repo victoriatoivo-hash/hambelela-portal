@@ -2345,7 +2345,7 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             </section>
         <?php endif; ?>
 
-        <section class="bk-side-section bk-filter-section" data-portal-view-filter aria-label="Cash ledger filters">
+        <section class="bk-side-section bk-filter-section" data-portal-view-filter aria-label="Cash ledger filters" hidden style="display:none!important">
             <div class="bk-side-head"><span>Filters</span></div>
             <div class="bk-side-body">
                 <div class="bk-filter-grid portal-data-filter-grid">

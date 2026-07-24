@@ -21,6 +21,7 @@
     if (movedForm && formAnchor?.parentNode) {
       formAnchor.parentNode.insertBefore(movedForm, formAnchor.nextSibling);
       movedForm.classList.remove('is-in-view-popover');
+      movedForm.hidden = true;
       movedForm.style.setProperty('display', 'none', 'important');
     }
     popover.remove();
@@ -398,6 +399,7 @@
 
     source.dataset.viewBarEnhanced = 'true';
     source.classList.add('portal-view-bar-source');
+    source.hidden = true;
     // Several legacy page styles use display:grid!important. Keep the old
     // filter deterministically hidden regardless of stylesheet order.
     source.style.setProperty('display', 'none', 'important');
@@ -508,6 +510,7 @@
       if (action === 'filter') {
         const popover = openPopover(button, '<header class="portal-view-bar__popover-header"><span class="portal-view-bar__popover-icon">' + icon('list-filter') + '</span><div><h3>Filter this view</h3><p>Choose only the items you want employees to see.</p></div></header><div class="portal-view-bar__form"></div>');
         if (!popover) return;
+        form.hidden = false;
         form.classList.add('is-in-view-popover');
         form.style.removeProperty('display');
         popover.querySelector('.portal-view-bar__form').append(form);
