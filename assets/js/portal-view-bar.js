@@ -1,6 +1,9 @@
 (() => {
   'use strict';
 
+  if (document.documentElement.dataset.portalViewBarReady === 'true') return;
+  document.documentElement.dataset.portalViewBarReady = 'true';
+
   const icon = (name) => `<i data-lucide="${name}" aria-hidden="true"></i>`;
   const portalFilterConfigs = {
     packing: { searchPlaceholder: 'Search packing...', fields: ['date', 'status', 'priority', 'person', 'group', 'search'] },
@@ -12,6 +15,7 @@
   let active = null;
   let activeThemeSelect = null;
   const enhancedViews = new WeakMap();
+  const toolbarControllers = new WeakMap();
 
   function escapeAttribute(value) {
     return String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#039;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -48,7 +52,7 @@
     popover.style.top = `${top}px`;
   }
 
-  function openPopover(button, html) {
+  function openPopover(button, html, { position = true } = {}) {
     if (active?.button === button) {
       closePopover({ restoreFocus: true });
       return null;
@@ -62,7 +66,7 @@
     document.body.appendChild(popover);
     button.setAttribute('aria-expanded', 'true');
     active = { popover, button, movedForm: null, formAnchor: null };
-    positionPopover(popover, button);
+    if (position) positionPopover(popover, button);
     window.lucide?.createIcons({ nodes: [popover], attrs: { 'aria-hidden': 'true' }, strokeWidth: 1.7 });
     return popover;
   }
@@ -349,9 +353,11 @@
   }
 
   async function syncView(source, button) {
-    if (button.disabled) return;
+    if (button.disabled || button.dataset.loading === 'true') return;
+    button.dataset.loading = 'true';
     button.disabled = true;
     button.classList.add('is-syncing');
+    button.setAttribute('aria-busy', 'true');
     const type = viewType(source);
     if (type === 'packing') source.classList.add('packing-filter-grid');
     try {
@@ -390,8 +396,10 @@
     } catch (error) {
       announce(error.message || 'Synchronization failed.', true);
     } finally {
+      button.dataset.loading = 'false';
       button.disabled = false;
       button.classList.remove('is-syncing');
+      button.setAttribute('aria-busy', 'false');
     }
   }
 
@@ -528,13 +536,13 @@
       });
     }
 
-    bar.addEventListener('click', (event) => {
+    const handleToolbarClick = (event) => {
       const button = event.target.closest('[data-view-action]');
       if (!button) return;
       const action = button.dataset.viewAction;
 
       if (action === 'filter') {
-        const popover = openPopover(button, '<header class="portal-view-bar__popover-header"><span class="portal-view-bar__popover-icon">' + icon('list-filter') + '</span><div><h3>Filter this view</h3><p>Choose only the items you want employees to see.</p></div></header><div class="portal-view-bar__form"></div>');
+        const popover = openPopover(button, '<header class="portal-view-bar__popover-header"><span class="portal-view-bar__popover-icon">' + icon('list-filter') + '</span><div><h3>Filter this view</h3><p>Choose only the items you want employees to see.</p></div></header><div class="portal-view-bar__form"></div>', { position: false });
         if (!popover) return;
         form.hidden = false;
         form.classList.add('is-in-view-popover');
@@ -634,7 +642,8 @@
           original?.click();
         });
       }
-    });
+    };
+    toolbarControllers.set(bar, handleToolbarClick);
 
     (preferences.hidden || []).forEach((columnIndex) => surfaces.forEach((item) => setColumnVisible(item, Number(columnIndex), false)));
     if (preferences.sort) surfaces.forEach((item) => sortSurface(item, Number(preferences.sort.columnIndex), preferences.sort.direction));
@@ -686,11 +695,11 @@
   });
   document.addEventListener('click', (event) => {
     const button = event.target.closest('[data-filter-toolbar] [data-toolbar-action]');
-    if (!button) return;
-    button.classList.remove('is-animating');
-    void button.offsetWidth;
-    button.classList.add('is-animating');
-    window.setTimeout(() => button.classList.remove('is-animating'), 360);
+    if (!button || button.disabled) return;
+    button.classList.add('is-pressed');
+    requestAnimationFrame(() => button.classList.remove('is-pressed'));
+    const toolbar = button.closest('[data-view-bar]');
+    toolbarControllers.get(toolbar)?.(event);
   });
   document.addEventListener('click', (event) => {
     const toggle = event.target.closest('[data-toggle-portal-group], .portal-view-grid-group');
