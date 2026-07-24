@@ -39,10 +39,13 @@
   const moreBody = document.querySelector('[data-orders-more-body]');
   const moreActiveCount = document.querySelector('[data-orders-more-active-count]');
   const activeFilterChips = document.querySelector('[data-orders-active-filter-chips]');
+  const ordersFilterPanel = document.querySelector('.orders-filter-panel');
 
   if (!body || !config.dataUrl || !config.actionUrl) return;
   if (window.__hambelelaOrdersControllerStarted) return;
   window.__hambelelaOrdersControllerStarted = true;
+  const ordersFilterAnchor = document.createComment('orders-filter-panel');
+  ordersFilterPanel?.before(ordersFilterAnchor);
 
   if (labelMenu && labelMenu.parentElement !== document.body) document.body.appendChild(labelMenu);
   if (panel && panel.parentElement !== document.body) document.body.appendChild(panel);
@@ -2919,24 +2922,55 @@
     toolbarTrigger.setAttribute('aria-expanded', 'true');
     const rect = anchor.getBoundingClientRect();
     toolbarPopover.hidden = false;
-    toolbarPopover.classList.toggle('portal-view-bar__popover', type === 'person');
-    toolbarPopover.setAttribute('role', type === 'person' ? 'dialog' : 'menu');
-    toolbarPopover.setAttribute('aria-label', type === 'person' ? 'Person' : `${type} options`);
+    const sharedPopup = type === 'person' || type === 'filter';
+    toolbarPopover.classList.toggle('portal-view-bar__popover', sharedPopup);
+    toolbarPopover.classList.toggle('packing-filter-popup', type === 'filter');
+    toolbarPopover.classList.toggle('orders-compact-filter-popup', type === 'filter');
+    toolbarPopover.setAttribute('role', sharedPopup ? 'dialog' : 'menu');
+    toolbarPopover.setAttribute('aria-label', type === 'person' ? 'Person' : type === 'filter' ? 'Filter orders' : `${type} options`);
     toolbarPopover.style.transform = '';
-    toolbarPopover.style.left = `${Math.min(rect.left, window.innerWidth - 360)}px`;
-    toolbarPopover.style.top = `${rect.bottom + 8}px`;
-    toolbarPopover.innerHTML = toolbarContent(type);
+    if (type === 'filter' && ordersFilterPanel) {
+      toolbarPopover.replaceChildren();
+      ordersFilterPanel.classList.add('packing-filter-grid', 'is-in-view-popover');
+      toolbarPopover.append(ordersFilterPanel);
+      positionOrdersFilterPopup();
+    } else {
+      toolbarPopover.style.left = `${Math.min(rect.left, window.innerWidth - 360)}px`;
+      toolbarPopover.style.top = `${rect.bottom + 8}px`;
+      toolbarPopover.innerHTML = toolbarContent(type);
+    }
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+  }
+
+  function positionOrdersFilterPopup() {
+    if (!toolbarTrigger || !toolbarPopover || toolbarPopover.hidden || !toolbarPopover.classList.contains('orders-compact-filter-popup')) return;
+    const rect = toolbarTrigger.getBoundingClientRect();
+    const edgeGap = 12;
+    const popupGap = 6;
+    const width = Math.min(560, window.innerWidth - edgeGap * 2);
+    toolbarPopover.style.width = `${width}px`;
+    const height = toolbarPopover.offsetHeight;
+    const roomBelow = window.innerHeight - rect.bottom;
+    const openAbove = roomBelow < height + popupGap && rect.top > height + popupGap;
+    const left = Math.max(edgeGap, Math.min(rect.left, window.innerWidth - width - edgeGap));
+    const top = Math.max(edgeGap, Math.min(openAbove ? rect.top - height - popupGap : rect.bottom + popupGap, window.innerHeight - height - edgeGap));
+    toolbarPopover.style.left = `${left}px`;
+    toolbarPopover.style.top = `${top}px`;
   }
 
   function closeToolbar() {
     if (toolbarPopover) {
+      if (ordersFilterPanel?.parentElement === toolbarPopover && ordersFilterAnchor.parentNode) {
+        ordersFilterAnchor.parentNode.insertBefore(ordersFilterPanel, ordersFilterAnchor.nextSibling);
+        ordersFilterPanel.classList.remove('packing-filter-grid', 'is-in-view-popover');
+      }
       const triggerId = toolbarPopover.dataset.orderMenuTriggerId;
       if (triggerId) {
         document.querySelector(`[data-order-row-menu][data-order-id="${selectorEsc(triggerId)}"]`)?.setAttribute('aria-expanded', 'false');
       }
       toolbarPopover.classList.remove('orders-row-actions-menu');
       toolbarPopover.classList.remove('portal-view-bar__popover');
+      toolbarPopover.classList.remove('packing-filter-popup', 'orders-compact-filter-popup');
       toolbarPopover.removeAttribute('role');
       toolbarPopover.removeAttribute('aria-label');
       delete toolbarPopover.dataset.orderMenuTriggerId;
@@ -3066,15 +3100,6 @@
       return `<h3>Person</h3><div class="portal-view-bar__popover-list">
         <button type="button" class="portal-view-bar__choice${boardState.person === '' ? ' is-selected' : ''}" data-toolbar-action="person" data-toolbar-value="">All Items</button>
         ${people.map((name) => `<button type="button" class="portal-view-bar__choice${boardState.person === name ? ' is-selected' : ''}" data-toolbar-action="person" data-toolbar-value="${esc(name)}">${esc(name)}</button>`).join('')}
-      </div>`;
-    }
-
-    if (type === 'filter') {
-      return `<div class="toolbar-panel toolbar-columns">
-        <div><strong>Status</strong>${statusLabels.map((item) => optionButton(itemText(item), 'status', item[0], normalize(boardState.status) === normalize(item[0]))).join('')}</div>
-        <div><strong>Mode</strong>${modeLabels.slice(0, 8).map((item) => optionButton(itemText(item), 'mode', item[0], normalize(boardState.mode) === normalize(item[0]))).join('')}</div>
-        <div><strong>Payment</strong>${paymentLabels.slice(0, 8).map((item) => optionButton(itemText(item), 'payment', item[0], normalize(boardState.payment) === normalize(item[0]))).join('')}</div>
-        ${optionButton('Clear filters', 'clear_filters', '')}
       </div>`;
     }
 
@@ -4772,7 +4797,7 @@
 
   document.addEventListener('click', (event) => {
     if (!event.target.closest('#board-label-menu') && !event.target.closest('[data-label-field]')) closeLabelMenu();
-    if (!event.target.closest('#toolbar-popover') && !event.target.closest('[data-toolbar]')) closeToolbar();
+    if (!event.target.closest('#toolbar-popover') && !event.target.closest('[data-toolbar]') && !event.target.closest('#orders-filter-menu')) closeToolbar();
     if (!event.target.closest('#orders-filter-menu') && !event.target.closest('[data-orders-filter-select]')) closeOrdersFilterMenu();
     if (activeDateSortGroup && !event.target.closest('[data-date-sort-cell]')) closeDateSortPopover();
     if (event.target.closest('.order-update-composer')) {
@@ -5067,6 +5092,6 @@
         });
     });
   window.addEventListener('portal:live-tick', runLivePoll);
-  window.addEventListener('resize', positionPersonPopup);
-  window.addEventListener('scroll', positionPersonPopup, true);
+  window.addEventListener('resize', () => { positionPersonPopup(); positionOrdersFilterPopup(); });
+  window.addEventListener('scroll', () => { positionPersonPopup(); positionOrdersFilterPopup(); }, true);
 })();
