@@ -74,9 +74,13 @@ include BASE_PATH . '/shared/sidebar.php';
             <?php endif; ?>
         </section>
 
-        <section class="ob-video-toolbar orders-tools-bar portal-filter-toolbar" data-filter-toolbar aria-label="Orders tools">
-            <div class="portal-filter-toolbar__controls">
-                <label class="ob-toolbar-search portal-toolbar-action portal-toolbar-action--icon-only" data-view-search data-toolbar-action="search"><i data-lucide="search"></i><input data-board-search type="search" placeholder="Search orders" aria-label="Search orders"></label>
+        <section class="ob-video-toolbar orders-tools-bar portal-filter-toolbar portal-table-toolbar" data-filter-toolbar aria-label="Orders tools">
+            <div class="portal-filter-toolbar__controls portal-table-toolbar__controls">
+                <div class="portal-view-bar__search portal-toolbar-search" data-view-search>
+                    <button type="button" class="portal-view-bar__button portal-toolbar-action portal-toolbar-search__trigger" data-search-trigger data-toolbar-action="search" aria-label="Open search" aria-expanded="false"><i data-lucide="search"></i><span>Search</span></button>
+                    <input class="portal-toolbar-search__input" data-board-search type="search" placeholder="Search orders..." aria-label="Search orders">
+                    <button type="button" class="portal-toolbar-search__clear" data-search-clear aria-label="Clear search"><i data-lucide="x"></i></button>
+                </div>
                 <button type="button" class="portal-toolbar-action" data-toolbar="person" data-toolbar-action="person" aria-expanded="false"><i data-lucide="circle-user-round"></i> Person</button>
                 <button type="button" class="portal-toolbar-action" data-toolbar="filter" data-toolbar-action="filter" aria-expanded="false"><i data-lucide="filter"></i> Filter</button>
                 <button type="button" class="portal-toolbar-action" data-toolbar="sort" data-toolbar-action="sort" aria-expanded="false"><i data-lucide="arrow-up-down"></i> Sort</button>

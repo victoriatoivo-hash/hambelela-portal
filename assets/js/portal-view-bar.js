@@ -215,6 +215,37 @@
     }));
   }
 
+  function bindStandaloneSearch(searchBox) {
+    if (!searchBox || searchBox.dataset.searchBound === 'true') return;
+    searchBox.dataset.searchBound = 'true';
+    const trigger = searchBox.querySelector('[data-search-trigger]');
+    const input = searchBox.querySelector('input[type="search"]');
+    const clear = searchBox.querySelector('[data-search-clear]');
+    if (!trigger || !input) return;
+    const open = () => {
+      searchBox.classList.add('is-open');
+      trigger.setAttribute('aria-expanded', 'true');
+      input.focus({ preventScroll: true });
+    };
+    trigger.addEventListener('click', open);
+    input.addEventListener('input', () => searchBox.classList.toggle('has-value', Boolean(input.value)));
+    clear?.addEventListener('click', () => {
+      input.value = '';
+      searchBox.classList.remove('has-value');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      open();
+    });
+    input.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      input.value = '';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      searchBox.classList.remove('is-open', 'has-value');
+      trigger.setAttribute('aria-expanded', 'false');
+      trigger.focus({ preventScroll: true });
+    });
+  }
+
   function announce(message, failed = false) {
     let notice = document.querySelector('[data-portal-toolbar-notice]');
     if (!notice) {
@@ -346,6 +377,7 @@
     const searchLabel = bar.querySelector('.portal-view-bar__search');
     const quickSearch = searchLabel?.querySelector('input');
     if (quickSearch && search) {
+      searchLabel.dataset.searchBound = 'true';
       quickSearch.value = search.value;
       const trigger = searchLabel.querySelector('[data-search-trigger]');
       const openSearch = () => {
@@ -486,10 +518,7 @@
 
   function init() {
     document.querySelectorAll('[data-portal-view-filter], [data-waybill-filter]').forEach(enhance);
-    document.querySelectorAll('[data-view-search]').forEach((label) => label.addEventListener('click', () => {
-      label.classList.add('is-open');
-      label.querySelector('input')?.focus({ preventScroll: true });
-    }));
+    document.querySelectorAll('.portal-toolbar-search').forEach(bindStandaloneSearch);
     window.lucide?.createIcons({ attrs: { 'aria-hidden': 'true' }, strokeWidth: 1.7 });
 
     const panelSelectors = [
