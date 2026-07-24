@@ -449,6 +449,8 @@
     const updateFilterCount = () => {
       const count = [...form.querySelectorAll('input,select')].filter((control) => {
         if (control === search || control === person || control.type === 'hidden' || control.type === 'search') return false;
+        if (control.matches('[data-packing-group-select], [data-bk-filter-group], [data-board-group-select]')) return false;
+        if (control.matches('select')) return control.selectedIndex > 0;
         return control.type === 'checkbox' ? control.checked : Boolean(control.value);
       }).length;
       const badge = bar.querySelector('[data-filter-count]');
