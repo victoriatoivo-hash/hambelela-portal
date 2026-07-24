@@ -451,6 +451,15 @@
         controls.append(packingActions);
       }
     }
+    if (type === 'bookkeeping') {
+      const cashTools = source.closest('main')?.querySelector('#bkDrawerBtn');
+      if (cashTools) {
+        cashTools.className = 'bookkeeping-cash-tools-button';
+        cashTools.dataset.bookkeepingAction = 'cash-tools';
+        cashTools.setAttribute('aria-controls', 'bkDrawer');
+        controls.append(cashTools);
+      }
+    }
     controls.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button portal-toolbar-action" data-view-action="sync" data-toolbar-action="sync" aria-label="Synchronize this view">${icon('refresh-cw')}<span>Sync</span></button>`);
     if (type !== 'packing') {
       bar.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button portal-view-bar__overflow portal-toolbar-action portal-toolbar-action--more" data-view-action="more" data-toolbar-action="tools" aria-label="More tools" aria-expanded="false">${icon('ellipsis')}</button>`);
@@ -462,7 +471,7 @@
       || source.closest('main')?.querySelector('[data-view-bar-actions]');
     const actions = actionHost
       ? [...actionHost.children].filter((node) => node.matches('button, a'))
-      : [...(source.closest('main')?.querySelectorAll('[data-view-bar-action]') || [])];
+      : [...(source.closest('main')?.querySelectorAll('[data-view-bar-action]') || [])].filter((node) => !controls.contains(node));
     const overflow = bar.querySelector('.portal-view-bar__overflow');
     actions.forEach((action) => {
       action.dataset.portalToolbarOriginalAction = '';
