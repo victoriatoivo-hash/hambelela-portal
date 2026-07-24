@@ -544,6 +544,10 @@
         active.formAnchor = formAnchor;
         popover.classList.add('portal-data-filter-popup');
         form.classList.add('portal-data-filter-grid');
+        if (type === 'packing' || type === 'bookkeeping') {
+          popover.classList.add('orders-compact-filter-popup');
+          form.classList.add('orders-filter-panel');
+        }
         if (type === 'packing') popover.classList.add('packing-filter-popup');
         positionPopover(popover, button);
       } else if (action === 'person' && person) {
