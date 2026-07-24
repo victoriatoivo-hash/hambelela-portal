@@ -29,7 +29,8 @@
     const rect = button.getBoundingClientRect();
     const gutter = 12;
     const gap = 7;
-    const width = Math.min(popover.classList.contains('portal-view-bar__popover--wide') ? 780 : 380, window.innerWidth - gutter * 2);
+    const preferredWidth = popover.classList.contains('packing-filter-popup') ? 560 : popover.classList.contains('portal-view-bar__popover--wide') ? 780 : 380;
+    const width = Math.min(preferredWidth, window.innerWidth - gutter * 2);
     popover.style.width = `${width}px`;
     popover.style.left = `${Math.max(gutter, Math.min(rect.left, window.innerWidth - width - gutter))}px`;
     const height = Math.min(popover.scrollHeight, window.innerHeight - gutter * 2);
@@ -69,13 +70,14 @@
 
   function viewType(source) {
     const main = source.closest('main');
+    if (main?.classList.contains('packing-list-page')) return 'packing';
     if (main?.classList.contains('courier-wrap')) return 'courier';
     if (main?.classList.contains('digital-task-page')) return 'tasks';
     return 'bookkeeping';
   }
 
   function searchPlaceholder(type) {
-    return type === 'courier' ? 'Search waybills...' : type === 'tasks' ? 'Search tasks...' : 'Search bookkeeping...';
+    return type === 'courier' ? 'Search waybills...' : type === 'tasks' ? 'Search tasks...' : type === 'packing' ? 'Search packing items...' : 'Search bookkeeping...';
   }
 
   function viewSurfaces(source) {
@@ -342,6 +344,7 @@
     button.disabled = true;
     button.classList.add('is-syncing');
     const type = viewType(source);
+    if (type === 'packing') source.classList.add('packing-filter-grid');
     try {
       if (type === 'courier') {
         const existing = source.closest('main').querySelector('[data-refresh-waybills]');
@@ -502,7 +505,7 @@
         popover.querySelector('.portal-view-bar__form').append(form);
         active.movedForm = form;
         active.formAnchor = formAnchor;
-        popover.classList.add('portal-view-bar__popover--wide');
+        popover.classList.add(type === 'packing' ? 'packing-filter-popup' : 'portal-view-bar__popover--wide');
         positionPopover(popover, button);
       } else if (action === 'person' && person) {
         const popover = openPopover(button, `<h3>Person</h3><div class="portal-view-bar__popover-list">${controlOptions(person).map((option) => `<button type="button" class="portal-view-bar__choice${option.selected ? ' is-selected' : ''}" data-select-value="${escapeAttribute(option.value)}">${escapeAttribute(option.label)}</button>`).join('')}</div>`);
