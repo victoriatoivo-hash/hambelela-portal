@@ -4,7 +4,10 @@
   const icon = (name) => `<i data-lucide="${name}" aria-hidden="true"></i>`;
   const portalFilterConfigs = {
     packing: { searchPlaceholder: 'Search packing...', fields: ['date', 'status', 'priority', 'person', 'group', 'search'] },
-    bookkeeping: { searchPlaceholder: 'Search bookkeeping...', fields: ['date', 'entryType', 'payment', 'person', 'group', 'search'] }
+    bookkeeping: { searchPlaceholder: 'Search bookkeeping...', fields: ['date', 'entryType', 'payment', 'person', 'group', 'search'] },
+    tasks: { searchPlaceholder: 'Search tasks...' },
+    courier: { searchPlaceholder: 'Search waybills...' },
+    errors: { searchPlaceholder: 'Search errors...' }
   };
   let active = null;
   let activeThemeSelect = null;
@@ -78,6 +81,7 @@
     if (main?.classList.contains('packing-list-page')) return 'packing';
     if (main?.classList.contains('courier-wrap')) return 'courier';
     if (main?.classList.contains('digital-task-page')) return 'tasks';
+    if (main?.classList.contains('error-log-page')) return 'errors';
     return 'bookkeeping';
   }
 
@@ -538,13 +542,9 @@
         popover.querySelector('.portal-view-bar__form').append(form);
         active.movedForm = form;
         active.formAnchor = formAnchor;
-        if (type === 'packing' || type === 'bookkeeping') {
-          popover.classList.add('portal-data-filter-popup');
-          form.classList.add('portal-data-filter-grid');
-          if (type === 'packing') popover.classList.add('packing-filter-popup');
-        } else {
-          popover.classList.add('portal-view-bar__popover--wide');
-        }
+        popover.classList.add('portal-data-filter-popup');
+        form.classList.add('portal-data-filter-grid');
+        if (type === 'packing') popover.classList.add('packing-filter-popup');
         positionPopover(popover, button);
       } else if (action === 'person' && person) {
         const popover = openPopover(button, `<h3>Person</h3><div class="portal-view-bar__popover-list">${controlOptions(person).map((option) => `<button type="button" class="portal-view-bar__choice${option.selected ? ' is-selected' : ''}" data-select-value="${escapeAttribute(option.value)}">${escapeAttribute(option.label)}</button>`).join('')}</div>`);
