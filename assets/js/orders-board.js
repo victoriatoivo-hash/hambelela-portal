@@ -2942,7 +2942,7 @@
     toolbarTrigger.setAttribute('aria-expanded', 'true');
     const rect = anchor.getBoundingClientRect();
     toolbarPopover.hidden = false;
-    const sharedPopup = type === 'person' || type === 'filter' || type === 'sort';
+    const sharedPopup = type === 'person' || type === 'filter' || type === 'sort' || type === 'hide';
     toolbarPopover.classList.toggle('portal-view-bar__popover', sharedPopup);
     toolbarPopover.classList.toggle('packing-filter-popup', type === 'filter');
     toolbarPopover.classList.toggle('orders-compact-filter-popup', type === 'filter');
@@ -3167,9 +3167,10 @@
     }
 
     if (type === 'hide') {
-      return `<div class="toolbar-panel"><strong>Hide columns</strong>${columns.map(([key, label]) => `
-        <label class="toolbar-check"><input type="checkbox" data-hide-column="${esc(key)}" ${boardState.hidden.has(key) ? 'checked' : ''}> ${esc(label)}</label>
-      `).join('')}</div>`;
+      const displayColumns = columns.filter(([key]) => key !== 'select');
+      return `<h3>Display columns</h3><div class="portal-view-bar__popover-list">${displayColumns.map(([key, label]) => `
+        <label class="portal-view-bar__choice"><input type="checkbox" data-hide-column="${esc(key)}" ${boardState.hidden.has(key) ? '' : 'checked'}><span>${esc(label)}</span></label>
+      `).join('')}<button type="button" class="portal-view-bar__choice" data-show-all-order-columns>Show all columns</button></div>`;
     }
 
     if (type === 'group' || type === 'view') {
@@ -4357,6 +4358,7 @@
     const clearFilters = event.target.closest('[data-clear-board-filters]');
     const toolbar = event.target.closest('[data-toolbar]');
     const toolbarAction = event.target.closest('[data-toolbar-action]');
+    const showAllOrderColumns = event.target.closest('[data-show-all-order-columns]');
     const editLabels = event.target.closest('[data-edit-labels]');
     const addLabel = event.target.closest('[data-add-label-row]');
     const saveLabels = event.target.closest('[data-save-labels]');
@@ -4657,6 +4659,15 @@
 
       if (saveLabels) {
         saveLabelEditor(saveLabels.dataset.saveLabels);
+        return;
+      }
+
+      if (showAllOrderColumns) {
+        event.preventDefault();
+        boardState.hidden.clear();
+        localStorage.setItem(moreStorageKey('columns'), '[]');
+        toolbarPopover?.querySelectorAll('[data-hide-column]').forEach((input) => { input.checked = true; });
+        applyHiddenColumns();
         return;
       }
 
@@ -5059,8 +5070,14 @@
 
     const hidden = event.target.closest('[data-hide-column]');
     if (hidden) {
-      if (hidden.checked) boardState.hidden.add(hidden.dataset.hideColumn);
-      else boardState.hidden.delete(hidden.dataset.hideColumn);
+      const visibleInputs = [...toolbarPopover.querySelectorAll('[data-hide-column]:checked')];
+      if (!hidden.checked && visibleInputs.length < 1) {
+        hidden.checked = true;
+        return;
+      }
+      if (hidden.checked) boardState.hidden.delete(hidden.dataset.hideColumn);
+      else boardState.hidden.add(hidden.dataset.hideColumn);
+      localStorage.setItem(moreStorageKey('columns'), JSON.stringify([...boardState.hidden]));
       applyHiddenColumns();
     }
 
