@@ -8,6 +8,7 @@ const bookkeeping = readFileSync(new URL('../apps/operations/bookkeeping.php', i
 const courier = readFileSync(new URL('../apps/operations/courier.php', import.meta.url), 'utf8');
 const tasks = readFileSync(new URL('../apps/operations/checklists.php', import.meta.url), 'utf8');
 const presence = readFileSync(new URL('../assets/js/portal-presence.js', import.meta.url), 'utf8');
+const ordersJs = readFileSync(new URL('../assets/js/orders-board.js', import.meta.url), 'utf8');
 
 assert.match(js, /portal-filter-toolbar/);
 assert.match(js, /portal-filter-toolbar__controls/);
@@ -45,6 +46,9 @@ assert.match(orders, /data-search-trigger data-toolbar-action="search"/);
 assert.match(orders, /portal-toolbar-search__input[^>]*data-board-search/);
 assert.match(orders, /data-search-clear/);
 assert.match(js, /function bindStandaloneSearch\(searchBox\)/);
+assert.match(ordersJs, /classList\.toggle\('portal-view-bar__popover', type === 'person'\)/);
+assert.match(ordersJs, /<h3>Person<\/h3><div class="portal-view-bar__popover-list">/);
+assert.match(ordersJs, />All Items<\/button>/);
 assert.match(courier, /data-waybill-filter/);
 assert.match(tasks, /data-portal-view-filter/);
 assert.match(js, /input\[name\*="employee"\]/);

@@ -2919,6 +2919,9 @@
     toolbarTrigger.setAttribute('aria-expanded', 'true');
     const rect = anchor.getBoundingClientRect();
     toolbarPopover.hidden = false;
+    toolbarPopover.classList.toggle('portal-view-bar__popover', type === 'person');
+    toolbarPopover.setAttribute('role', type === 'person' ? 'dialog' : 'menu');
+    toolbarPopover.setAttribute('aria-label', type === 'person' ? 'Person' : `${type} options`);
     toolbarPopover.style.transform = '';
     toolbarPopover.style.left = `${Math.min(rect.left, window.innerWidth - 360)}px`;
     toolbarPopover.style.top = `${rect.bottom + 8}px`;
@@ -2933,6 +2936,9 @@
         document.querySelector(`[data-order-row-menu][data-order-id="${selectorEsc(triggerId)}"]`)?.setAttribute('aria-expanded', 'false');
       }
       toolbarPopover.classList.remove('orders-row-actions-menu');
+      toolbarPopover.classList.remove('portal-view-bar__popover');
+      toolbarPopover.removeAttribute('role');
+      toolbarPopover.removeAttribute('aria-label');
       delete toolbarPopover.dataset.orderMenuTriggerId;
       toolbarPopover.hidden = true;
       toolbarPopover.style.transform = '';
@@ -3056,7 +3062,11 @@
     }
 
     if (type === 'person') {
-      return `<div class="toolbar-panel"><strong>Filter by picker</strong>${optionButton('All pickers', 'person', '', boardState.person === '')}${currentUser.id ? optionButton('Only my orders', 'person', '__me__', boardState.person === '__me__') : ''}${uniqueValues('packer_name').map((name) => optionButton(name, 'person', name, boardState.person === name)).join('')}</div>`;
+      const people = uniqueValues('packer_name');
+      return `<h3>Person</h3><div class="portal-view-bar__popover-list">
+        <button type="button" class="portal-view-bar__choice${boardState.person === '' ? ' is-selected' : ''}" data-toolbar-action="person" data-toolbar-value="">All Items</button>
+        ${people.map((name) => `<button type="button" class="portal-view-bar__choice${boardState.person === name ? ' is-selected' : ''}" data-toolbar-action="person" data-toolbar-value="${esc(name)}">${esc(name)}</button>`).join('')}
+      </div>`;
     }
 
     if (type === 'filter') {
