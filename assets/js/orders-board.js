@@ -2937,6 +2937,11 @@
 
   function openToolbar(anchor, type) {
     if (!toolbarPopover) return;
+    if (toolbarTrigger === anchor && !toolbarPopover.hidden) {
+      closeToolbar();
+      anchor.focus({ preventScroll: true });
+      return;
+    }
     closeToolbar();
     toolbarTrigger = anchor;
     toolbarTrigger.setAttribute('aria-expanded', 'true');
@@ -2951,6 +2956,7 @@
     toolbarPopover.style.transform = '';
     if (type === 'filter' && ordersFilterPanel) {
       toolbarPopover.replaceChildren();
+      ordersFilterPanel.hidden = false;
       ordersFilterPanel.classList.add('packing-filter-grid', 'is-in-view-popover');
       toolbarPopover.append(ordersFilterPanel);
       positionOrdersFilterPopup();
@@ -2984,6 +2990,7 @@
       if (ordersFilterPanel?.parentElement === toolbarPopover && ordersFilterAnchor.parentNode) {
         ordersFilterAnchor.parentNode.insertBefore(ordersFilterPanel, ordersFilterAnchor.nextSibling);
         ordersFilterPanel.classList.remove('packing-filter-grid', 'is-in-view-popover');
+        ordersFilterPanel.hidden = true;
       }
       const triggerId = toolbarPopover.dataset.orderMenuTriggerId;
       if (triggerId) {

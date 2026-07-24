@@ -91,7 +91,7 @@ include BASE_PATH . '/shared/sidebar.php';
             <button type="button" class="portal-toolbar-action portal-toolbar-action--more" data-toolbar="more" data-toolbar-action="tools" aria-label="More tools" aria-expanded="false"><i data-lucide="ellipsis"></i></button>
         </section>
 
-        <section class="work-filter-bar portal-filter-panel orders-filter-panel" aria-label="Board filters">
+        <div class="orders-filter-panel" aria-label="Board filters" hidden>
             <label>Date Range
                 <div class="orders-filter-select" data-orders-filter-select="datePreset">
                     <input id="board-date-preset" type="hidden" value="today">
@@ -137,7 +137,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 <button type="button" data-board-refresh><i data-lucide="refresh-cw"></i> Refresh</button>
             </div>
             <div class="orders-active-filter-chips" data-orders-active-filter-chips hidden></div>
-        </section>
+        </div>
     </section>
 
     <?php if (!$ready): ?>

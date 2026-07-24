@@ -18662,10 +18662,6 @@ body:has(.ob-wrap) .workspace {
   box-shadow: 0 2px 8px rgba(44, 24, 16, 0.04) !important;
 }
 
-.ob-wrap .orders-filter-panel {
-  display: none !important;
-}
-
 .ob-wrap .work-filter-bar label,
 .ob-wrap .filter-bar label,
 .ob-wrap .filter-label {
