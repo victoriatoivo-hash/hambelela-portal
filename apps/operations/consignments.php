@@ -82,15 +82,6 @@ include BASE_PATH . '/shared/sidebar.php';
                     <button type="button" class="portal-date-trigger" aria-label="Open month picker"><i data-lucide="calendar-days"></i></button>
                 </div>
             </label>
-            <label>Priority
-                <select data-packing-filter="priority" data-portal-custom-select>
-                    <option value="">All</option>
-                    <option value="top_critical">Top Critical</option>
-                    <option value="high">High</option>
-                    <option value="medium">Medium</option>
-                    <option value="low">Low</option>
-                </select>
-            </label>
             <label>Status
                 <select data-packing-filter="status" data-portal-custom-select>
                     <option value="">All</option>
@@ -101,6 +92,15 @@ include BASE_PATH . '/shared/sidebar.php';
                     <option value="label_created">Label Created</option>
                     <option value="website">Website</option>
                     <option value="correction_needed">Correction Needed</option>
+                </select>
+            </label>
+            <label>Priority
+                <select data-packing-filter="priority" data-portal-custom-select>
+                    <option value="">All</option>
+                    <option value="top_critical">Top Critical</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
                 </select>
             </label>
             <label>Person
@@ -114,8 +114,8 @@ include BASE_PATH . '/shared/sidebar.php';
                     <option value="status">Status</option>
                 </select>
             </label>
-            <label class="work-search">Search
-                <input class="packing-search-input" data-packing-search type="search" placeholder="Search packing items...">
+            <label class="work-search">Search Packing
+                <input class="packing-search-input" data-packing-search type="search" placeholder="Search packing...">
             </label>
             <div class="work-filter-actions">
                 <?php if ($canManage): ?>

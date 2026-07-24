@@ -3484,11 +3484,15 @@
     }
   });
 
+  let packingSearchTimer = 0;
   document.addEventListener('input', (event) => {
     const search = event.target.closest('[data-packing-search]');
     if (search) {
-      state.search = search.value;
-      render();
+      window.clearTimeout(packingSearchTimer);
+      packingSearchTimer = window.setTimeout(() => {
+        state.search = search.value;
+        render();
+      }, 180);
     }
     const dateInput = event.target.closest('[data-packing-date]');
     if (dateInput) {

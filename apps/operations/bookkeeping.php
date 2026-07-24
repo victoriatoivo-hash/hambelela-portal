@@ -2348,11 +2348,15 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
         <section class="bk-side-section bk-filter-section" data-portal-view-filter aria-label="Cash ledger filters">
             <div class="bk-side-head"><span>Filters</span></div>
             <div class="bk-side-body">
-                <div class="bk-filter-grid">
-                    <label class="bk-field">From<input type="date" data-portal-date-mode="date" data-bk-filter-from></label>
-                    <label class="bk-field">To<input type="date" data-portal-date-mode="date" data-bk-filter-to></label>
+                <div class="bk-filter-grid portal-data-filter-grid">
+                    <label class="bk-field">Date Range<select data-bk-date-range data-portal-custom-select><option value="all">All dates</option><option value="today">Today</option><option value="week">This week</option><option value="month">This month</option></select></label>
+                    <label class="bk-field">Entry Type<select data-bk-filter-entry-type data-portal-custom-select><option value="">All entries</option><option value="cash_in">Cash In</option><option value="cash_out">Cash Out</option></select></label>
+                    <label class="bk-field">Payment<select data-bk-filter-payment data-portal-custom-select><option value="">All payments</option></select></label>
+                    <label class="bk-field">Person<select data-bk-filter-person data-portal-custom-select><option value="">All people</option></select></label>
+                    <label class="bk-field">Group By<select data-bk-filter-group data-portal-custom-select><option value="date">Date</option></select></label>
+                    <label class="bk-field">Search Bookkeeping<input type="search" data-bk-filter-search placeholder="Search bookkeeping..."></label>
+                    <input type="hidden" data-bk-filter-from><input type="hidden" data-bk-filter-to>
                 </div>
-                <label class="bk-field">Search<input type="search" data-bk-filter-search placeholder="Description or notes"></label>
                 <button class="bk-side-button" type="button" data-bk-filter-clear>Clear filters</button>
             </div>
         </section>
@@ -3289,6 +3293,9 @@ function applySidebarFilters() {
   const from = document.querySelector('[data-bk-filter-from]')?.value || '';
   const to = document.querySelector('[data-bk-filter-to]')?.value || '';
   const search = (document.querySelector('[data-bk-filter-search]')?.value || '').toLowerCase().trim();
+  const entryType = document.querySelector('[data-bk-filter-entry-type]')?.value || '';
+  const payment = document.querySelector('[data-bk-filter-payment]')?.value || '';
+  const person = document.querySelector('[data-bk-filter-person]')?.value || '';
   document.querySelectorAll('[data-day-group]').forEach((group) => {
     const day = group.dataset.dayGroup || '';
     let visibleRows = 0;
@@ -3296,7 +3303,10 @@ function applySidebarFilters() {
       const text = row.textContent.toLowerCase();
       const matchesDate = (!from || day >= from) && (!to || day <= to);
       const matchesSearch = !search || text.includes(search);
-      const visible = matchesDate && matchesSearch;
+      const matchesType = !entryType || (entryType === 'cash_in' ? Number(row.dataset.cashIn || 0) > 0 : Number(row.dataset.cashOut || 0) > 0);
+      const matchesPayment = !payment || (row.dataset.entrySource || '') === payment;
+      const matchesPerson = !person || (row.dataset.createdBy || '') === person;
+      const visible = matchesDate && matchesSearch && matchesType && matchesPayment && matchesPerson;
       row.hidden = !visible;
       if (!visible) {
         const checkbox = row.querySelector('.bk-row-check');
@@ -3306,11 +3316,40 @@ function applySidebarFilters() {
       if (visible) visibleRows++;
     });
     const dateVisible = (!from || day >= from) && (!to || day <= to);
-    group.hidden = !dateVisible || (search && visibleRows === 0);
+    group.hidden = !dateVisible || visibleRows === 0;
   });
   updateFloatingBar();
   updateDisplayedClosingBalance();
+  updateFilteredBookkeepingStats();
 }
+
+function syncBookkeepingFilterOptions() {
+  const payment = document.querySelector('[data-bk-filter-payment]');
+  const person = document.querySelector('[data-bk-filter-person]');
+  if (!payment || !person || payment.dataset.optionsReady) return;
+  const rows = [...document.querySelectorAll('.entry-row')];
+  const addOptions = (select, values) => values.filter(Boolean).sort((a, b) => a.localeCompare(b)).forEach((value) => select.add(new Option(value, value)));
+  addOptions(payment, [...new Set(rows.map((row) => row.dataset.entrySource || ''))]);
+  addOptions(person, [...new Set(rows.map((row) => row.dataset.createdBy || ''))]);
+  payment.dataset.optionsReady = 'true';
+  person.dataset.optionsReady = 'true';
+}
+
+function applyBookkeepingDatePreset(value) {
+  const from = document.querySelector('[data-bk-filter-from]');
+  const to = document.querySelector('[data-bk-filter-to]');
+  if (!from || !to) return;
+  const localDate = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  const today = new Date();
+  let start = null;
+  if (value === 'today') start = new Date(today);
+  if (value === 'week') { start = new Date(today); start.setDate(today.getDate() - ((today.getDay() + 6) % 7)); }
+  if (value === 'month') start = new Date(today.getFullYear(), today.getMonth(), 1);
+  from.value = start ? localDate(start) : '';
+  to.value = start ? localDate(today) : '';
+}
+
+syncBookkeepingFilterOptions();
 
 <?php if (!empty($_GET['cash_tools'])): ?>
 document.addEventListener('DOMContentLoaded', openDrawer, { once: true });
@@ -3341,11 +3380,12 @@ function rowIsOpeningBalance(row) {
   return row.dataset.entryType === 'opening_balance' || row.dataset.entrySource === 'opening_balance';
 }
 
-function calculateGroupBalance(group) {
+function calculateGroupBalance(group, visibleOnly = false) {
   let openingCents = 0;
   let cashInCents = 0;
   let cashOutCents = 0;
   group.querySelectorAll('.entry-row').forEach((row) => {
+    if (visibleOnly && row.hidden) return;
     const inCents = Math.round(Math.abs(parseMoney(row.dataset.cashIn)) * 100);
     const outCents = Math.round(Math.abs(parseMoney(row.dataset.cashOut)) * 100);
     if (rowIsOpeningBalance(row)) {
@@ -3371,7 +3411,7 @@ function latestDayGroup(visibleOnly = false) {
 
 function updateDisplayedClosingBalance() {
   const group = latestDayGroup(true);
-  const balance = group ? calculateGroupBalance(group).closing : 0;
+  const balance = group ? calculateGroupBalance(group, true).closing : 0;
   const day = group?.dataset.dayGroup || '';
   const valueNode = document.querySelector('[data-closing-balance]');
   const labelNode = document.querySelector('[data-closing-balance-label]');
@@ -3383,6 +3423,22 @@ function updateDisplayedClosingBalance() {
       : '';
     labelNode.textContent = dateLabel ? `${label} — ${dateLabel}` : label;
   }
+}
+
+function updateFilteredBookkeepingStats() {
+  let cashIn = 0;
+  let cashOut = 0;
+  let count = 0;
+  document.querySelectorAll('[data-day-group]:not([hidden]) .entry-row:not([hidden])').forEach((row) => {
+    if (rowIsOpeningBalance(row)) return;
+    cashIn += Math.abs(parseMoney(row.dataset.cashIn));
+    cashOut += Math.abs(parseMoney(row.dataset.cashOut));
+    count += 1;
+  });
+  document.querySelector('[data-stat-cash-in]').textContent = money(cashIn);
+  document.querySelector('[data-stat-cash-out]').textContent = money(cashOut);
+  document.querySelector('[data-stat-net]').textContent = money(cashIn - cashOut);
+  document.querySelector('[data-stat-count]').textContent = String(count);
 }
 
 function recalcGroup(group) {
@@ -3708,6 +3764,10 @@ document.addEventListener('click', (event) => {
     document.querySelector('[data-bk-filter-from]').value = '';
     document.querySelector('[data-bk-filter-to]').value = '';
     document.querySelector('[data-bk-filter-search]').value = '';
+    document.querySelector('[data-bk-date-range]').value = 'all';
+    document.querySelector('[data-bk-filter-entry-type]').value = '';
+    document.querySelector('[data-bk-filter-payment]').value = '';
+    document.querySelector('[data-bk-filter-person]').value = '';
     applySidebarFilters();
     return;
   }
@@ -3751,6 +3811,7 @@ document.addEventListener('submit', (event) => {
   saveCustomColumn(event);
 });
 
+let bookkeepingSearchTimer = 0;
 document.addEventListener('input', (event) => {
   if (event.target.id === 'openingAmount') {
     event.target.closest('.bk-opening-input-wrap')?.classList.remove('is-invalid');
@@ -3762,12 +3823,22 @@ document.addEventListener('input', (event) => {
     setReconValues();
     return;
   }
-  if (event.target.matches('[data-bk-filter-from], [data-bk-filter-to], [data-bk-filter-search]')) {
+  if (event.target.matches('[data-bk-filter-search]')) {
+    window.clearTimeout(bookkeepingSearchTimer);
+    bookkeepingSearchTimer = window.setTimeout(applySidebarFilters, 180);
+    return;
+  }
+  if (event.target.matches('[data-bk-filter-from], [data-bk-filter-to], [data-bk-filter-entry-type], [data-bk-filter-payment], [data-bk-filter-person]')) {
     applySidebarFilters();
     return;
   }
   if (!row || !event.target.matches('[data-add-field="cash_in"], [data-add-field="cash_out"]')) return;
   row.querySelector('[data-add-total]').textContent = money(parseMoney(addValue(row, 'cash_in')) - parseMoney(addValue(row, 'cash_out')));
+});
+
+document.addEventListener('change', (event) => {
+  if (event.target.matches('[data-bk-date-range]')) applyBookkeepingDatePreset(event.target.value);
+  if (event.target.matches('[data-bk-date-range], [data-bk-filter-entry-type], [data-bk-filter-payment], [data-bk-filter-person]')) applySidebarFilters();
 });
 
 document.addEventListener('keydown', (event) => {

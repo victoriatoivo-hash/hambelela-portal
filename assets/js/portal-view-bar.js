@@ -29,7 +29,7 @@
     const rect = button.getBoundingClientRect();
     const gutter = 12;
     const gap = 7;
-    const preferredWidth = popover.classList.contains('packing-filter-popup') ? 560 : popover.classList.contains('portal-view-bar__popover--wide') ? 780 : 380;
+    const preferredWidth = popover.classList.contains('portal-data-filter-popup') || popover.classList.contains('packing-filter-popup') ? 560 : popover.classList.contains('portal-view-bar__popover--wide') ? 780 : 380;
     const width = Math.min(preferredWidth, window.innerWidth - gutter * 2);
     popover.style.width = `${width}px`;
     popover.style.left = `${Math.max(gutter, Math.min(rect.left, window.innerWidth - width - gutter))}px`;
@@ -507,7 +507,13 @@
         popover.querySelector('.portal-view-bar__form').append(form);
         active.movedForm = form;
         active.formAnchor = formAnchor;
-        popover.classList.add(type === 'packing' ? 'packing-filter-popup' : 'portal-view-bar__popover--wide');
+        if (type === 'packing' || type === 'bookkeeping') {
+          popover.classList.add('portal-data-filter-popup');
+          form.classList.add('portal-data-filter-grid');
+          if (type === 'packing') popover.classList.add('packing-filter-popup');
+        } else {
+          popover.classList.add('portal-view-bar__popover--wide');
+        }
         positionPopover(popover, button);
       } else if (action === 'person' && person) {
         const popover = openPopover(button, `<h3>Person</h3><div class="portal-view-bar__popover-list">${controlOptions(person).map((option) => `<button type="button" class="portal-view-bar__choice${option.selected ? ' is-selected' : ''}" data-select-value="${escapeAttribute(option.value)}">${escapeAttribute(option.label)}</button>`).join('')}</div>`);
