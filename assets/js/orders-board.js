@@ -2942,7 +2942,7 @@
     toolbarTrigger.setAttribute('aria-expanded', 'true');
     const rect = anchor.getBoundingClientRect();
     toolbarPopover.hidden = false;
-    const sharedPopup = type === 'person' || type === 'filter' || type === 'sort' || type === 'hide';
+    const sharedPopup = type === 'person' || type === 'filter' || type === 'sort' || type === 'hide' || type === 'group' || type === 'view';
     toolbarPopover.classList.toggle('portal-view-bar__popover', sharedPopup);
     toolbarPopover.classList.toggle('packing-filter-popup', type === 'filter');
     toolbarPopover.classList.toggle('orders-compact-filter-popup', type === 'filter');
@@ -3174,12 +3174,10 @@
     }
 
     if (type === 'group' || type === 'view') {
-      return `<div class="toolbar-panel"><strong>Group by</strong>
-        ${optionButton('Date', 'group', 'date', boardState.groupBy === 'date')}
-        ${optionButton('Status', 'group', 'status', boardState.groupBy === 'status')}
-        ${optionButton('Packed by', 'group', 'packer', boardState.groupBy === 'packer')}
-        ${optionButton('Mode', 'group', 'mode', boardState.groupBy === 'mode')}
-      </div>`;
+      const groups = [['date', 'Date'], ['status', 'Status'], ['packer', 'Packed by'], ['mode', 'Mode']];
+      return `<h3>Group items by</h3><div class="portal-view-bar__popover-list">${groups.map(([value, label]) => `
+        <button type="button" class="portal-view-bar__choice${boardState.groupBy === value ? ' is-selected' : ''}" data-toolbar-action="group" data-toolbar-value="${esc(value)}" aria-pressed="${boardState.groupBy === value}">${esc(label)}</button>
+      `).join('')}</div>`;
     }
 
     return '';

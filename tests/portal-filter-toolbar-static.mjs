@@ -71,6 +71,8 @@ assert.match(ordersJs, /<h3>Display columns<\/h3><div class="portal-view-bar__po
 assert.match(ordersJs, /class="portal-view-bar__choice"><input type="checkbox" data-hide-column/);
 assert.match(ordersJs, /data-show-all-order-columns>Show all columns/);
 assert.match(ordersJs, /if \(!hidden\.checked && visibleInputs\.length < 1\)/);
+assert.match(ordersJs, /<h3>Group items by<\/h3><div class="portal-view-bar__popover-list">/);
+assert.match(ordersJs, /class="portal-view-bar__choice\$\{boardState\.groupBy === value \? ' is-selected' : ''\}" data-toolbar-action="group"/);
 assert.doesNotMatch(ordersJs, /<div class="toolbar-panel toolbar-columns">/);
 assert.match(portalCss, /\.ob-wrap \.orders-filter-panel\s*\{\s*display:\s*none !important;/);
 assert.match(css, /\.orders-compact-filter-popup \.orders-filter-panel\{display:grid!important;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)!important/);
