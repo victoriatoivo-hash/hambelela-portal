@@ -951,10 +951,6 @@ include BASE_PATH . '/shared/sidebar.php';
             <div class="dtb-filter-grid">
                 <div class="dtb-filter-field"><label for="task-date-from-display">Date from</label><div class="portal-date-field" data-portal-date-field><input type="text" id="task-date-from-display" class="portal-date-input" data-submit-target="#task-date-from-value" placeholder="dd/mm/yyyy" autocomplete="off"><input type="hidden" id="task-date-from-value" name="date_from" value="<?= htmlspecialchars($filters['date_from'], ENT_QUOTES, 'UTF-8') ?>"><button type="button" class="portal-date-trigger" aria-label="Open Date From calendar"><i data-lucide="calendar-days" aria-hidden="true"></i></button></div></div>
                 <div class="dtb-filter-field"><label for="task-date-to-display">Date to</label><div class="portal-date-field" data-portal-date-field><input type="text" id="task-date-to-display" class="portal-date-input" data-submit-target="#task-date-to-value" placeholder="dd/mm/yyyy" autocomplete="off"><input type="hidden" id="task-date-to-value" name="date_to" value="<?= htmlspecialchars($filters['date_to'], ENT_QUOTES, 'UTF-8') ?>"><button type="button" class="portal-date-trigger" aria-label="Open Date To calendar"><i data-lucide="calendar-days" aria-hidden="true"></i></button></div></div>
-                <?php if ($canManage): ?>
-                    <?php $employeeFilterOptions = ['' => 'All people']; foreach ($employees as $employee) $employeeFilterOptions[(string) $employee['id']] = (string) $employee['full_name']; ?>
-                    <?php checklist_custom_filter_field('Person', 'employee_id', $employeeFilterOptions, $filters['employee_id']); ?>
-                <?php endif; ?>
                 <?php checklist_custom_filter_field('Status', 'status', ['' => 'All statuses', 'pending' => 'Pending', 'in_progress' => 'In Progress', 'completed' => 'Complete'], $filters['status']); ?>
                 <?php if ($canManage): ?>
                     <?php checklist_custom_filter_field('Priority', 'priority', ['' => 'All priorities'] + $priorities, $filters['priority']); ?>
