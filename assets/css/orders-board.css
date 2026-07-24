@@ -174,6 +174,7 @@ body.orders-tools-open{overflow:hidden}
   background: #fff;
   box-shadow: 0 10px 26px rgba(114,27,26,.06);
 }
+.orders-filter-panel[hidden] { display: none !important; }
 .orders-filter-panel > label { min-width: 0; display: grid; gap: 5px; color: var(--orders-burgundy); font-size: 10px; line-height: 1; font-weight: 600; text-transform: uppercase; }
 .orders-filter-panel input,
 .orders-filter-panel select,
