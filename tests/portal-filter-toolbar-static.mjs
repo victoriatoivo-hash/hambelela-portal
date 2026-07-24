@@ -38,8 +38,8 @@ assert.match(bookkeeping, /closeDrawer\(true\)/);
 assert.doesNotMatch(css, /portal-view-bar__page-action[^\n]*border:1px solid rgba\(171,54,25/);
 assert.match(orders, /portal-filter-toolbar/);
 assert.match(orders, /portal-toolbar-action--more/);
-assert.match(presence, /portal-view-bar\.css\?v=shared12/);
-assert.match(presence, /portal-view-bar\.js\?v=shared12/);
+assert.match(presence, /portal-view-bar\.css\?v=shared13/);
+assert.match(presence, /portal-view-bar\.js\?v=shared13/);
 assert.match(orders, /portal-filter-toolbar portal-table-toolbar/);
 assert.match(orders, /portal-view-bar__search portal-toolbar-search/);
 assert.match(orders, /data-search-trigger data-toolbar-action="search"/);
@@ -76,5 +76,9 @@ assert.match(css, /\.packing-filter-popup\{height:auto!important;max-height:min\
 assert.match(css, /\.packing-filter-popup \.packing-filter-grid\{display:grid!important;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)!important;gap:9px 12px!important/);
 assert.match(css, /height:34px!important;min-height:34px!important;max-height:34px!important/);
 assert.match(css, /@media\(max-width:600px\)\{\.packing-filter-popup/);
+assert.match(css, /\.packing-filter-popup\{[^}]*border:1px solid #ede3d8!important/);
+assert.match(css, /border:1px solid rgba\(171,54,25,\.24\)!important/);
+assert.match(css, /border-color:#ab3619!important;outline:2px solid rgba\(171,54,25,\.14\)!important/);
+assert.match(css, /body:has\(\.packing-filter-popup \.portal-custom-select\.is-open\) \.portal-select-popup/);
 
 console.log('Portal filter toolbar checks passed.');
