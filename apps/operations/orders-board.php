@@ -159,7 +159,7 @@ include BASE_PATH . '/shared/sidebar.php';
             <div>
                 <span>ORDERS</span>
                 <h2 id="orders-more-title">More filters</h2>
-                <p>Refine the Orders Board and customise which columns are visible.</p>
+                <p>Refine the Orders Board with additional operational filters.</p>
             </div>
             <div class="orders-more-header-actions">
                 <span class="orders-more-active-count" data-orders-more-active-count>No active filters</span>

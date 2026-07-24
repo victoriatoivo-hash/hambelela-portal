@@ -965,6 +965,6 @@ body > .orders-label-popup .mode-label-name-input { width:100%; height:32px; min
 @media(max-width:600px){.payment-badge{flex-wrap:wrap}.payment-badge__segment{min-height:28px}.payment-editor__row{grid-template-columns:1fr 1fr 30px}.payment-editor__dialog{padding:14px}.payment-editor__dialog footer{position:sticky;bottom:-14px;padding:10px 0;background:#fff}}
 .payment-badge__segment[data-payment-method=cash]{color:#fff;background:#721B1A}
 body:has(.orders-page) .ps-notification-badge,body:has(.orders-page) .portal-notification-button__badge{font-weight:400}
-.orders-page .orders-tools-bar [data-toolbar-action] svg{color:#AB3619;stroke:currentColor}
+.workspace.module.orders-page .orders-tools-bar [data-toolbar-action] svg{color:#AB3619!important;stroke:currentColor!important}
 .orders-page #toolbar-popover .packing-sort-fields .portal-theme-select__trigger{height:34px!important;min-height:34px!important;max-height:34px!important;padding:0 12px!important;font-family:Figtree,sans-serif!important;font-size:12px!important;font-weight:400!important;line-height:1!important}
 .orders-page .portal-theme-select__menu[data-orders-sort-menu],.orders-page .portal-theme-select__menu[data-orders-sort-menu] .portal-theme-select__option{font-family:Figtree,sans-serif;font-size:12px;font-weight:400}
