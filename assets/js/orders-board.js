@@ -1511,12 +1511,14 @@
     const date = record[isTrash ? 'deleted_at' : 'archived_at'] || '';
     const actor = record[isTrash ? 'deleted_by_name' : 'archived_by_name'] || 'Unknown';
     const reason = record[isTrash ? 'delete_reason' : 'archive_reason'] || (isTrash ? 'Moved to Trash' : 'Archived');
-    return `<article class="orders-tools-record">
+    return `<article class="orders-tools-record orders-trash-row">
+      <div class="orders-trash-row__details">
       <div><strong>${esc(record.order_number || `Order #${record.id}`)}</strong><small>${record.woo_order_id ? 'WooCommerce portal record' : 'Portal-created record'}</small></div>
       <div>${esc(record.customer_name || 'No customer')}<small>${esc(record.status || '')}</small></div>
       <div>N$${Number(record.total_amount || 0).toLocaleString(undefined,{maximumFractionDigits:2})}</div>
       <div>${esc(date)}<small>${esc(actor)} · ${esc(reason)}</small></div>
-      <div class="orders-tools-record-actions">
+      </div>
+      <div class="orders-tools-record-actions orders-trash-row__actions">
         <button type="button" class="orders-tools-button" data-orders-tools-action="${isTrash ? 'restore-trash' : 'restore-archive'}" data-order-id="${esc(record.id)}"><i data-lucide="rotate-ccw"></i>${isTrash ? 'Restore' : 'Restore to board'}</button>
         ${isTrash && ordersToolsData?.permissions?.can_delete_forever ? `<button type="button" class="orders-tools-button orders-tools-button--danger" data-orders-tools-action="delete-forever" data-order-id="${esc(record.id)}"><i data-lucide="trash-2"></i>Delete forever</button>` : ''}
       </div>
@@ -2831,7 +2833,6 @@
       maxAmount: boardState.maxAmount,
       createdAfter: boardState.createdAfter,
       createdBefore: boardState.createdBefore,
-      hidden: new Set(boardState.hidden),
       display: { ...boardDisplay }
     };
   }
@@ -2878,7 +2879,6 @@
   function renderMorePanel() {
     if (!moreBody || !moreDraft) return;
     const people = [['', 'All employees'], ['__me__', 'Only my orders'], ['Unassigned', 'Unassigned'], ...uniqueValues('packer_name').filter((name) => name !== 'Unassigned').map((name) => [name, name])];
-    const visibleColumns = ordersColumns.map(({ key, label }) => moreCheck(`column:${key}`, label || 'Select', !moreDraft.hidden.has(key), ['select', 'task'].includes(key), ['select', 'task'].includes(key) ? 'Required' : '')).join('');
     moreBody.innerHTML = `
       <section class="orders-more-section"><h3>Order filters</h3><p>Limit the board by its current operational status.</p><div class="orders-more-fields">${moreChoice('status', 'Order status', filterOptions.status)}</div></section>
       <section class="orders-more-section"><h3>People</h3><p>Limit the board to assigned, unassigned or your own orders.</p><div class="orders-more-fields">${moreChoice('person', 'Assigned employee', people)}</div></section>
@@ -2889,7 +2889,6 @@
         <label class="orders-more-field"><span>Created after</span><input data-more-input="createdAfter" value="${esc(moreDraft.createdAfter)}" placeholder="YYYY-MM-DD"></label>
         <label class="orders-more-field"><span>Created before</span><input data-more-input="createdBefore" value="${esc(moreDraft.createdBefore)}" placeholder="YYYY-MM-DD"></label>
       </div></section>
-      <section class="orders-more-section"><h3>Visible columns</h3><p>Choose the columns shown for this account and device.</p><div class="orders-visible-columns-grid">${visibleColumns}</div><button type="button" class="orders-more-inline-action" data-more-reset-columns><i data-lucide="columns-3"></i> Reset visible columns</button></section>
       <section class="orders-more-section"><h3>Board display</h3><p>Adjust local display preferences without changing other accounts.</p><div class="orders-visible-columns-grid">${moreCheck('display:rowHover', 'Show row hover', moreDraft.display.rowHover)}${moreCheck('display:summaries', 'Show summary bars', moreDraft.display.summaries)}</div><button type="button" class="orders-more-inline-action" data-reset-orders-columns><i data-lucide="rotate-ccw"></i> Reset column widths</button></section>`;
     const count = moreFilterCount();
     if (moreActiveCount) moreActiveCount.textContent = count ? `${count} active filter${count === 1 ? '' : 's'}` : 'No active filters';
@@ -2923,9 +2922,9 @@
   function applyMoreFilters() {
     if (!moreDraft) return;
     ['search', 'person', 'mode', 'payment', 'status', 'paid', 'minAmount', 'maxAmount', 'createdAfter', 'createdBefore'].forEach((key) => { boardState[key] = moreDraft[key]; });
-    boardState.hidden = new Set(moreDraft.hidden);
+    boardState.hidden.clear();
     Object.assign(boardDisplay, moreDraft.display);
-    localStorage.setItem(moreStorageKey('columns'), JSON.stringify([...boardState.hidden]));
+    localStorage.removeItem(moreStorageKey('columns'));
     localStorage.setItem(moreStorageKey('display'), JSON.stringify(boardDisplay));
     const searchInput = document.querySelector('[data-board-search]');
     if (searchInput) searchInput.value = boardState.search;
@@ -2947,7 +2946,7 @@
     toolbarTrigger.setAttribute('aria-expanded', 'true');
     const rect = anchor.getBoundingClientRect();
     toolbarPopover.hidden = false;
-    const sharedPopup = type === 'person' || type === 'filter' || type === 'sort' || type === 'hide' || type === 'group' || type === 'view';
+    const sharedPopup = type === 'person' || type === 'filter' || type === 'sort' || type === 'group' || type === 'view';
     toolbarPopover.classList.toggle('portal-view-bar__popover', sharedPopup);
     toolbarPopover.classList.toggle('packing-filter-popup', type === 'filter');
     toolbarPopover.classList.toggle('orders-compact-filter-popup', type === 'filter');
@@ -3171,13 +3170,6 @@
         ['packer', 'Packed By'], ['text', 'Text']
       ].map(([value, label]) => ({ value, label }));
       return `<h3>Sort items</h3><div class="packing-sort-fields">${ordersSortSelect('column', 'Choose column', columnOptions, boardState.sortColumn)}${ordersSortSelect('direction', 'Direction', [{ value: 'asc', label: 'Ascending' }, { value: 'desc', label: 'Descending' }], boardState.sortDirection)}</div>`;
-    }
-
-    if (type === 'hide') {
-      const displayColumns = columns.filter(([key]) => key !== 'select');
-      return `<h3>Display columns</h3><div class="portal-view-bar__popover-list">${displayColumns.map(([key, label]) => `
-        <label class="portal-view-bar__choice"><input type="checkbox" data-hide-column="${esc(key)}" ${boardState.hidden.has(key) ? '' : 'checked'}><span>${esc(label)}</span></label>
-      `).join('')}<button type="button" class="portal-view-bar__choice" data-show-all-order-columns>Show all columns</button></div>`;
     }
 
     if (type === 'group' || type === 'view') {
@@ -3982,11 +3974,9 @@
       currentUser = data.currentUser || {};
       if (!morePreferencesLoaded) {
         try {
-          const hidden = JSON.parse(localStorage.getItem(moreStorageKey('columns')) || '[]');
           const display = JSON.parse(localStorage.getItem(moreStorageKey('display')) || '{}');
-          boardState.hidden = new Set(Array.isArray(hidden) ? hidden : []);
-          boardState.hidden.delete('select');
-          boardState.hidden.delete('task');
+          boardState.hidden.clear();
+          localStorage.removeItem(moreStorageKey('columns'));
           Object.assign(boardDisplay, display && typeof display === 'object' ? display : {});
         } catch (error) {
           boardState.hidden = new Set();
@@ -4363,7 +4353,6 @@
     const clearFilters = event.target.closest('[data-clear-board-filters]');
     const toolbar = event.target.closest('[data-toolbar]');
     const toolbarAction = event.target.closest('[data-toolbar-action]');
-    const showAllOrderColumns = event.target.closest('[data-show-all-order-columns]');
     const editLabels = event.target.closest('[data-edit-labels]');
     const addLabel = event.target.closest('[data-add-label-row]');
     const saveLabels = event.target.closest('[data-save-labels]');
@@ -4404,13 +4393,6 @@
           search: '', person: '', mode: '', payment: '', status: '', paid: '',
           minAmount: '', maxAmount: '', createdAfter: '', createdBefore: ''
         });
-        renderMorePanel();
-        return;
-      }
-
-      if (event.target.closest('[data-more-reset-columns]') && moreDraft) {
-        event.preventDefault();
-        moreDraft.hidden = new Set();
         renderMorePanel();
         return;
       }
@@ -4664,15 +4646,6 @@
 
       if (saveLabels) {
         saveLabelEditor(saveLabels.dataset.saveLabels);
-        return;
-      }
-
-      if (showAllOrderColumns) {
-        event.preventDefault();
-        boardState.hidden.clear();
-        localStorage.setItem(moreStorageKey('columns'), '[]');
-        toolbarPopover?.querySelectorAll('[data-hide-column]').forEach((input) => { input.checked = true; });
-        applyHiddenColumns();
         return;
       }
 
@@ -5025,11 +4998,7 @@
     const moreCheckInput = event.target.closest('[data-more-check]');
     if (moreCheckInput && moreDraft) {
       const name = String(moreCheckInput.dataset.moreCheck || '');
-      if (name.startsWith('column:')) {
-        const column = name.slice(7);
-        if (moreCheckInput.checked) moreDraft.hidden.delete(column);
-        else moreDraft.hidden.add(column);
-      } else if (name.startsWith('display:')) {
+      if (name.startsWith('display:')) {
         moreDraft.display[name.slice(8)] = moreCheckInput.checked;
       }
       return;
@@ -5071,19 +5040,6 @@
       const field = labelMenu?.dataset.richLabelField || 'order_type';
       updateRichLabelEdit(field, Number(richColourInput.dataset.richLabelColor), { color: richColourInput.value }).catch(showError);
       return;
-    }
-
-    const hidden = event.target.closest('[data-hide-column]');
-    if (hidden) {
-      const visibleInputs = [...toolbarPopover.querySelectorAll('[data-hide-column]:checked')];
-      if (!hidden.checked && visibleInputs.length < 1) {
-        hidden.checked = true;
-        return;
-      }
-      if (hidden.checked) boardState.hidden.delete(hidden.dataset.hideColumn);
-      else boardState.hidden.add(hidden.dataset.hideColumn);
-      localStorage.setItem(moreStorageKey('columns'), JSON.stringify([...boardState.hidden]));
-      applyHiddenColumns();
     }
 
     const labelColour = event.target.closest('[data-label-editor] [data-label-color]');

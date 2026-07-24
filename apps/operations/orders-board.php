@@ -84,7 +84,6 @@ include BASE_PATH . '/shared/sidebar.php';
                 <button type="button" class="portal-toolbar-action" data-toolbar="person" data-toolbar-action="person" aria-expanded="false"><i data-lucide="circle-user-round"></i> Person</button>
                 <button type="button" class="portal-toolbar-action" data-toolbar="filter" data-toolbar-action="filter" aria-expanded="false"><i data-lucide="filter"></i> Filter</button>
                 <button type="button" class="portal-toolbar-action" data-toolbar="sort" data-toolbar-action="sort" aria-expanded="false"><i data-lucide="arrow-up-down"></i> Sort</button>
-                <button type="button" class="portal-toolbar-action" data-toolbar="hide" data-toolbar-action="hide" aria-expanded="false"><i data-lucide="eye-off"></i> Hide</button>
                 <button type="button" class="portal-toolbar-action" data-toolbar="group" data-toolbar-action="group" aria-expanded="false"><i data-lucide="columns-3"></i> Group by</button>
                 <button type="button" class="ob-new-task portal-toolbar-action" data-board-action="sync" data-toolbar-action="sync"><i data-lucide="refresh-cw"></i><span>Sync</span></button>
             </div>
@@ -128,9 +127,6 @@ include BASE_PATH . '/shared/sidebar.php';
                     <input type="hidden" data-board-group-select value="date">
                     <button type="button" class="orders-filter-trigger" data-orders-filter-trigger aria-haspopup="listbox" aria-expanded="false"><span>Date</span><i data-lucide="chevron-down"></i></button>
                 </div>
-            </label>
-            <label class="work-search">Search Orders
-                <input data-board-search type="search" placeholder="Search orders...">
             </label>
             <div class="work-filter-actions">
                 <button type="button" data-clear-board-filters><i data-lucide="refresh-cw"></i> Clear Filters</button>
