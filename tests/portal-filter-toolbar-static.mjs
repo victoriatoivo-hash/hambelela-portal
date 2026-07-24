@@ -63,6 +63,10 @@ assert.match(ordersJs, /const ordersFilterPanel = document\.querySelector\('\.or
 assert.match(ordersJs, /toolbarPopover\.classList\.toggle\('packing-filter-popup', type === 'filter'\)/);
 assert.match(ordersJs, /ordersFilterPanel\.classList\.add\('packing-filter-grid', 'is-in-view-popover'\)/);
 assert.match(ordersJs, /function positionOrdersFilterPopup\(\)/);
+assert.match(ordersJs, /function ordersSortSelect\(field, label, options, selectedValue\)/);
+assert.match(ordersJs, /function bindOrdersSortPopup\(\)/);
+assert.match(ordersJs, /if \(type === 'sort'\) \{/);
+assert.match(ordersJs, /boardState\.sortColumn = option\.dataset\.ordersSortValue/);
 assert.doesNotMatch(ordersJs, /<div class="toolbar-panel toolbar-columns">/);
 assert.match(portalCss, /\.ob-wrap \.orders-filter-panel\s*\{\s*display:\s*none !important;/);
 assert.match(css, /\.orders-compact-filter-popup \.orders-filter-panel\{display:grid!important;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)!important/);

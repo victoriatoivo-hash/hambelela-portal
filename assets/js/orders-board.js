@@ -101,6 +101,8 @@
     maxAmount: '',
     createdAfter: '',
     createdBefore: '',
+    sortColumn: 'date',
+    sortDirection: 'desc',
     groupBy: 'date',
     hidden: new Set()
   };
@@ -1334,7 +1336,25 @@
       return true;
     });
 
-    orders = [...orders].sort(compareOrdersNewestFirst);
+    const sortValue = (order, column) => {
+      if (column === 'task') return order.order_number || order.customer_name || '';
+      if (column === 'date') return orderDisplayDateTime(order) || '';
+      if (column === 'mobile') return order.customer_contact || '';
+      if (column === 'mode') return findText(modeLabels, order.order_type || 'collection');
+      if (column === 'amount') return Number(order.total_amount || 0);
+      if (column === 'payment') return order.payment_method || '';
+      if (column === 'paid') return order.payment_status || '';
+      if (column === 'status') return findText(statusLabels, order.status || 'new_order');
+      if (column === 'packer') return order.packer_name || 'Unassigned';
+      return order.notes || '';
+    };
+    const direction = boardState.sortDirection === 'asc' ? 1 : -1;
+    orders = [...orders].sort((a, b) => {
+      const left = sortValue(a, boardState.sortColumn);
+      const right = sortValue(b, boardState.sortColumn);
+      if (typeof left === 'number' && typeof right === 'number') return (left - right) * direction;
+      return String(left).localeCompare(String(right), undefined, { numeric: true, sensitivity: 'base' }) * direction;
+    });
 
     return orders;
   }
@@ -2922,7 +2942,7 @@
     toolbarTrigger.setAttribute('aria-expanded', 'true');
     const rect = anchor.getBoundingClientRect();
     toolbarPopover.hidden = false;
-    const sharedPopup = type === 'person' || type === 'filter';
+    const sharedPopup = type === 'person' || type === 'filter' || type === 'sort';
     toolbarPopover.classList.toggle('portal-view-bar__popover', sharedPopup);
     toolbarPopover.classList.toggle('packing-filter-popup', type === 'filter');
     toolbarPopover.classList.toggle('orders-compact-filter-popup', type === 'filter');
@@ -2938,6 +2958,7 @@
       toolbarPopover.style.left = `${Math.min(rect.left, window.innerWidth - 360)}px`;
       toolbarPopover.style.top = `${rect.bottom + 8}px`;
       toolbarPopover.innerHTML = toolbarContent(type);
+      if (type === 'sort') bindOrdersSortPopup();
     }
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
   }
@@ -3090,6 +3111,39 @@
     return `<button type="button" class="${active ? 'active' : ''}" data-toolbar-action="${esc(action)}" data-toolbar-value="${esc(value)}">${esc(label)}</button>`;
   }
 
+  function ordersSortSelect(field, label, options, selectedValue) {
+    const selected = options.find((option) => option.value === selectedValue) || options[0];
+    return `<div class="packing-sort-field"><span class="packing-sort-label">${esc(label)}</span><div class="portal-theme-select" data-orders-sort-select="${esc(field)}"><button type="button" class="portal-theme-select__trigger" data-orders-sort-trigger aria-haspopup="listbox" aria-expanded="false"><span>${esc(selected.label)}</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"></path></svg></button><div class="portal-theme-select__menu" data-orders-sort-menu role="listbox" aria-label="${esc(label)}">${options.map((option) => `<button type="button" class="portal-theme-select__option${option.value === selectedValue ? ' is-selected' : ''}" data-orders-sort-value="${esc(option.value)}" role="option" aria-selected="${option.value === selectedValue}">${esc(option.label)}</button>`).join('')}</div></div></div>`;
+  }
+
+  function bindOrdersSortPopup() {
+    toolbarPopover?.querySelectorAll('[data-orders-sort-trigger]').forEach((trigger) => {
+      trigger.addEventListener('click', () => {
+        const select = trigger.closest('[data-orders-sort-select]');
+        const menu = select?.querySelector('[data-orders-sort-menu]');
+        const opening = !select?.classList.contains('is-open');
+        toolbarPopover.querySelectorAll('[data-orders-sort-select].is-open').forEach((item) => item.classList.remove('is-open'));
+        if (!select || !menu || !opening) return;
+        select.classList.add('is-open');
+        trigger.setAttribute('aria-expanded', 'true');
+        const rect = trigger.getBoundingClientRect();
+        menu.style.left = `${rect.left}px`;
+        menu.style.top = `${rect.bottom + 5}px`;
+        menu.style.width = `${rect.width}px`;
+      });
+    });
+    toolbarPopover?.querySelectorAll('[data-orders-sort-value]').forEach((option) => {
+      option.addEventListener('click', () => {
+        const select = option.closest('[data-orders-sort-select]');
+        const field = select?.dataset.ordersSortSelect;
+        if (field === 'column') boardState.sortColumn = option.dataset.ordersSortValue || 'date';
+        if (field === 'direction') boardState.sortDirection = option.dataset.ordersSortValue || 'desc';
+        renderOrders(ordersCache);
+        closeToolbar();
+      });
+    });
+  }
+
   function toolbarContent(type) {
     if (type === 'search') {
       return `<div class="toolbar-panel"><label>Search board<input data-toolbar-search value="${esc(boardState.search)}" placeholder="Search orders, customers, phone, notes"></label></div>`;
@@ -3101,6 +3155,15 @@
         <button type="button" class="portal-view-bar__choice${boardState.person === '' ? ' is-selected' : ''}" data-toolbar-action="person" data-toolbar-value="">All Items</button>
         ${people.map((name) => `<button type="button" class="portal-view-bar__choice${boardState.person === name ? ' is-selected' : ''}" data-toolbar-action="person" data-toolbar-value="${esc(name)}">${esc(name)}</button>`).join('')}
       </div>`;
+    }
+
+    if (type === 'sort') {
+      const columnOptions = [
+        ['task', 'Task'], ['date', 'Date'], ['mobile', 'Mobile Number'], ['mode', 'Mode'],
+        ['amount', 'Amount'], ['payment', 'Payment'], ['paid', 'Paid'], ['status', 'Status'],
+        ['packer', 'Packed By'], ['text', 'Text']
+      ].map(([value, label]) => ({ value, label }));
+      return `<h3>Sort items</h3><div class="packing-sort-fields">${ordersSortSelect('column', 'Choose column', columnOptions, boardState.sortColumn)}${ordersSortSelect('direction', 'Direction', [{ value: 'asc', label: 'Ascending' }, { value: 'desc', label: 'Descending' }], boardState.sortDirection)}</div>`;
     }
 
     if (type === 'hide') {
