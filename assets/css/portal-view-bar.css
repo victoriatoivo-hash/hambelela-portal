@@ -45,7 +45,7 @@ body:has(.packing-filter-popup .portal-custom-select.is-open) .portal-select-pop
 .portal-data-filter-popup .dtb-filter-field>label{display:block!important;margin:0!important;color:#1a1a1a!important;font:600 11px/14px Figtree,sans-serif!important;text-transform:none!important;letter-spacing:0!important}
 .portal-data-filter-popup .span-2{grid-column:auto!important}
 .portal-data-filter-popup .ops-form-actions,.portal-data-filter-popup .filter-actions-row{display:none!important}
-body:has(.digital-task-page) .portal-data-filter-popup{height:auto!important;min-height:0!important;max-height:min(360px,calc(100vh - 80px))!important;padding:14px 16px!important;overflow-x:hidden!important;overflow-y:visible!important}
+body:has(.digital-task-page) .portal-data-filter-popup{height:auto!important;min-height:0!important;max-height:min(360px,calc(100vh - 80px))!important;padding:14px 16px!important;overflow:hidden!important}
 body:has(.digital-task-page) .portal-data-filter-grid,body:has(.digital-task-page) .dtb-filter-body,body:has(.digital-task-page) .dtb-filter-grid{height:auto!important;min-height:0!important;max-height:none!important;margin:0!important;padding:0!important;overflow:visible!important;box-sizing:border-box!important}
 body:has(.digital-task-page) .dtb-filter-field{width:100%!important;min-width:0!important;height:auto!important;min-height:0!important;margin:0!important}
 @media(max-height:520px){body:has(.digital-task-page) .portal-data-filter-popup{max-height:calc(100vh - 24px)!important;overflow-y:auto!important}}
