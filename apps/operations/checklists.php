@@ -956,10 +956,6 @@ include BASE_PATH . '/shared/sidebar.php';
                     <?php checklist_custom_filter_field('Person', 'employee_id', $employeeFilterOptions, $filters['employee_id']); ?>
                 <?php endif; ?>
                 <?php checklist_custom_filter_field('Status', 'status', ['' => 'All statuses', 'pending' => 'Pending', 'in_progress' => 'In Progress', 'completed' => 'Complete'], $filters['status']); ?>
-                <label class="dtb-overdue-filter">
-                    <input class="dtb-task-check task-overdue-check" type="checkbox" name="overdue_only" value="1" data-task-overdue-only <?= $filters['overdue_only'] === '1' ? 'checked' : '' ?>>
-                    <span>Overdue only</span>
-                </label>
                 <?php if ($canManage): ?>
                     <?php checklist_custom_filter_field('Priority', 'priority', ['' => 'All priorities'] + $priorities, $filters['priority']); ?>
                     <?php checklist_custom_filter_field('Task type', 'checklist_type', ['' => 'All types'] + $types, $filters['checklist_type']); ?>
