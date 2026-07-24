@@ -429,6 +429,28 @@
     controls.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button portal-toolbar-action" data-view-action="filter" data-toolbar-action="filter" aria-expanded="false">${icon('filter')}<span>Filter</span><strong class="portal-toolbar-filter-count" data-filter-count hidden>0</strong></button>`);
     if (surface) controls.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button portal-toolbar-action" data-view-action="sort" data-toolbar-action="sort" aria-expanded="false">${icon('arrow-up-down')}<span>Sort</span></button><button type="button" class="portal-view-bar__button portal-toolbar-action" data-view-action="hide" data-toolbar-action="hide" aria-expanded="false">${icon('eye-off')}<span>Hide</span></button>`);
     if (group || surface) controls.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button portal-toolbar-action" data-view-action="group" data-toolbar-action="group" aria-expanded="false">${icon('columns-3')}<span>Group by</span></button>`);
+    if (type === 'packing') {
+      const uploadInvoice = source.querySelector('[data-open-invoice]');
+      const newItem = source.querySelector('[data-open-packing-create]');
+      if (uploadInvoice || newItem) {
+        const packingActions = document.createElement('div');
+        packingActions.className = 'packing-toolbar-actions';
+        packingActions.dataset.packingActions = '';
+        if (uploadInvoice) {
+          uploadInvoice.className = 'packing-action-button';
+          uploadInvoice.dataset.packingAction = 'upload-invoice';
+          uploadInvoice.setAttribute('aria-label', 'Upload invoice');
+          packingActions.append(uploadInvoice);
+        }
+        if (newItem) {
+          newItem.className = 'packing-action-button packing-action-button--primary';
+          newItem.dataset.packingAction = 'new-item';
+          newItem.setAttribute('aria-label', 'Add new packing item');
+          packingActions.append(newItem);
+        }
+        controls.append(packingActions);
+      }
+    }
     controls.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button portal-toolbar-action" data-view-action="sync" data-toolbar-action="sync" aria-label="Synchronize this view">${icon('refresh-cw')}<span>Sync</span></button>`);
     if (type !== 'packing') {
       bar.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button portal-view-bar__overflow portal-toolbar-action portal-toolbar-action--more" data-view-action="more" data-toolbar-action="tools" aria-label="More tools" aria-expanded="false">${icon('ellipsis')}</button>`);
