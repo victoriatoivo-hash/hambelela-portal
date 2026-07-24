@@ -2273,9 +2273,9 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             <h1>Hambelela Bookkeeping</h1>
             <p class="ledger-subtitle">Daily cash in, cash out, net movement, and closing balance.</p>
         </div>
-        <div class="ledger-top-actions" data-portal-header-status-target>
+        <div class="ledger-top-actions bookkeeping-header-actions" data-portal-header-status-target>
             <?php if ($ready && $canOperateBookkeeping): ?>
-                <button class="bk-drawer-trigger" type="button" id="bkDrawerBtn" data-view-bar-action data-toolbar-action="cash-tools" aria-expanded="false" onclick="openDrawer()"><i data-lucide="calculator"></i><span>Cash Tools</span></button>
+                <button class="bookkeeping-cash-tools-button" type="button" id="bkDrawerBtn" data-bookkeeping-action="cash-tools" aria-controls="bkDrawer" aria-expanded="false" onclick="openDrawer()"><i data-lucide="calculator"></i><span>Cash Tools</span></button>
             <?php endif; ?>
             <section class="portal-header-status" data-portal-header-status
                      data-presence-endpoint="<?= htmlspecialchars(BASE_URL . '/apps/operations/portal-presence.php', ENT_QUOTES, 'UTF-8') ?>">

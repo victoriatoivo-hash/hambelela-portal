@@ -19,7 +19,7 @@ assert.match(js, /bookkeeping: \{ searchPlaceholder: 'Search bookkeeping\.\.\.',
 assert.match(js, /portal-filter-toolbar__controls/);
 assert.match(js, /data-filter-toolbar/);
 assert.equal((js.match(/document\.addEventListener\('click', \(event\) => \{\s*const button = event\.target\.closest\('\[data-filter-toolbar\]/g) || []).length, 1);
-for (const action of ['search', 'person', 'filter', 'sort', 'hide', 'group', 'sync', 'cash-tools', 'tools']) {
+for (const action of ['search', 'person', 'filter', 'sort', 'hide', 'group', 'sync', 'tools']) {
   assert.match(js + orders + bookkeeping, new RegExp(`data-toolbar-action=["']${action}`));
 }
 assert.match(css, /border:\s*1px solid #ede3d8 !important/);
@@ -36,15 +36,15 @@ assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
 assert.match(css, /portal-filter-toolbar__controls[^}]*overflow-x:\s*auto/s);
 assert.match(css, /portal-filter-toolbar\s*>\s*\.portal-filter-toolbar__controls[^}]*flex:\s*1 1 auto !important/s);
 assert.match(css, /portal-toolbar-action--more[^}]*position:sticky/);
-assert.match(bookkeeping, /id="bkDrawerBtn"[^>]*data-toolbar-action="cash-tools"[^>]*aria-expanded="false"/);
+assert.match(bookkeeping, /id="bkDrawerBtn"[^>]*data-bookkeeping-action="cash-tools"[^>]*aria-controls="bkDrawer"[^>]*aria-expanded="false"/);
 assert.match(bookkeeping, /bkDrawerBtn'\)\?\.setAttribute\('aria-expanded', 'true'\)/);
 assert.match(bookkeeping, /bkDrawerBtn'\)\?\.setAttribute\('aria-expanded', 'false'\)/);
 assert.match(bookkeeping, /closeDrawer\(true\)/);
 assert.doesNotMatch(css, /portal-view-bar__page-action[^\n]*border:1px solid rgba\(171,54,25/);
 assert.match(orders, /portal-filter-toolbar/);
 assert.match(orders, /portal-toolbar-action--more/);
-assert.match(presence, /portal-view-bar\.css\?v=shared20/);
-assert.match(presence, /portal-view-bar\.js\?v=shared20/);
+assert.match(presence, /portal-view-bar\.css\?v=shared21/);
+assert.match(presence, /portal-view-bar\.js\?v=shared21/);
 assert.match(orders, /portal-filter-toolbar portal-table-toolbar/);
 assert.match(orders, /portal-view-bar__search portal-toolbar-search/);
 assert.match(orders, /data-search-trigger data-toolbar-action="search"/);
@@ -97,13 +97,15 @@ assert.match(js, /const uploadInvoice = source\.querySelector\('\[data-open-invo
 assert.match(js, /const newItem = source\.querySelector\('\[data-open-packing-create\]'\)/);
 assert.match(js, /packingActions\.append\(uploadInvoice\)/);
 assert.match(js, /packingActions\.append\(newItem\)/);
-assert.match(js, /const cashTools = source\.closest\('main'\)\?\.querySelector\('#bkDrawerBtn'\)/);
-assert.match(js, /cashTools\.className = 'bookkeeping-cash-tools-button'/);
-assert.match(js, /controls\.append\(cashTools\)/);
+assert.doesNotMatch(js, /controls\.append\(cashTools\)/);
+assert.match(bookkeeping, /class="ledger-top-actions bookkeeping-header-actions"/);
+assert.match(bookkeeping, /class="bookkeeping-cash-tools-button"[^>]*id="bkDrawerBtn"[^>]*data-bookkeeping-action="cash-tools"/);
 assert.match(js, /filter\(\(node\) => !controls\.contains\(node\)\)/);
 assert.match(css, /\.packing-toolbar-actions\{display:flex!important/);
 assert.match(css, /\.packing-action-button--primary\{color:#fff!important;background:#ab3619!important/);
 assert.match(css, /\.bookkeeping-cash-tools-button\{display:inline-flex!important/);
+assert.match(css, /background-color:#721b1a!important;border:1px solid #721b1a!important/);
+assert.match(css, /background-color:#f07420!important;border-color:#f07420!important/);
 assert.match(js, /data-show-all-columns/);
 assert.match(js, /data-toggle-portal-group/);
 assert.match(courier, /data-refresh-waybills data-view-sync-action/);
