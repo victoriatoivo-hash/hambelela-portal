@@ -3,6 +3,7 @@
 
   const icon = (name) => `<i data-lucide="${name}" aria-hidden="true"></i>`;
   let active = null;
+  let activeThemeSelect = null;
   const enhancedViews = new WeakMap();
 
   function escapeAttribute(value) {
@@ -11,6 +12,7 @@
 
   function closePopover({ restoreFocus = false } = {}) {
     if (!active) return;
+    closeThemeSelect();
     const { popover, button, movedForm, formAnchor } = active;
     if (movedForm && formAnchor?.parentNode) {
       formAnchor.parentNode.insertBefore(movedForm, formAnchor.nextSibling);
@@ -243,6 +245,79 @@
       searchBox.classList.remove('is-open', 'has-value');
       trigger.setAttribute('aria-expanded', 'false');
       trigger.focus({ preventScroll: true });
+    });
+  }
+
+  function themeSelectMarkup(field, label, options, selectedValue) {
+    const selected = options.find((option) => String(option.value) === String(selectedValue)) || options[0];
+    return `<div class="packing-sort-field"><span class="packing-sort-label">${escapeAttribute(label)}</span><div class="portal-theme-select" data-theme-select data-sort-field="${escapeAttribute(field)}"><button type="button" class="portal-theme-select__trigger" data-theme-select-trigger aria-haspopup="listbox" aria-expanded="false"><span data-theme-select-value>${escapeAttribute(selected?.label || '')}</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"></path></svg></button><div class="portal-theme-select__menu" data-theme-select-menu role="listbox" aria-label="${escapeAttribute(label)}">${options.map((option) => `<button type="button" class="portal-theme-select__option${String(option.value) === String(selected?.value) ? ' is-selected' : ''}" data-select-value="${escapeAttribute(option.value)}" role="option" aria-selected="${String(option.value) === String(selected?.value)}">${escapeAttribute(option.label)}</button>`).join('')}</div><input type="hidden" data-theme-select-input value="${escapeAttribute(selected?.value || '')}"></div></div>`;
+  }
+
+  function positionThemeSelectMenu(select) {
+    if (!select?.classList.contains('is-open')) return;
+    const trigger = select.querySelector('[data-theme-select-trigger]');
+    const menu = select.querySelector('[data-theme-select-menu]');
+    if (!trigger || !menu) return;
+    const rect = trigger.getBoundingClientRect();
+    const edgeGap = 12;
+    const verticalGap = 5;
+    const width = Math.max(170, rect.width);
+    menu.style.width = `${width}px`;
+    menu.style.maxHeight = `${Math.min(260, window.innerHeight - 24)}px`;
+    const menuHeight = menu.offsetHeight;
+    const roomBelow = window.innerHeight - rect.bottom;
+    const openAbove = roomBelow < menuHeight + verticalGap && rect.top > menuHeight + verticalGap;
+    const top = Math.max(edgeGap, Math.min(openAbove ? rect.top - menuHeight - verticalGap : rect.bottom + verticalGap, window.innerHeight - menuHeight - edgeGap));
+    const left = Math.max(edgeGap, Math.min(rect.left, window.innerWidth - width - edgeGap));
+    menu.style.top = `${top}px`;
+    menu.style.left = `${left}px`;
+  }
+
+  function closeThemeSelect(restoreFocus = false) {
+    if (!activeThemeSelect) return;
+    const trigger = activeThemeSelect.querySelector('[data-theme-select-trigger]');
+    activeThemeSelect.classList.remove('is-open');
+    trigger?.setAttribute('aria-expanded', 'false');
+    if (restoreFocus) trigger?.focus({ preventScroll: true });
+    activeThemeSelect = null;
+  }
+
+  function openThemeSelect(select, focusSelected = false) {
+    if (activeThemeSelect && activeThemeSelect !== select) closeThemeSelect();
+    const trigger = select.querySelector('[data-theme-select-trigger]');
+    select.classList.add('is-open');
+    trigger?.setAttribute('aria-expanded', 'true');
+    activeThemeSelect = select;
+    positionThemeSelectMenu(select);
+    if (focusSelected) select.querySelector('.portal-theme-select__option.is-selected')?.focus({ preventScroll: true });
+  }
+
+  function initThemeSelects(root, onChange) {
+    root.querySelectorAll('[data-theme-select]').forEach((select) => {
+      const trigger = select.querySelector('[data-theme-select-trigger]');
+      const options = [...select.querySelectorAll('.portal-theme-select__option')];
+      trigger?.addEventListener('click', () => select.classList.contains('is-open') ? closeThemeSelect(true) : openThemeSelect(select));
+      trigger?.addEventListener('keydown', (event) => {
+        if (!['ArrowDown', 'ArrowUp'].includes(event.key)) return;
+        event.preventDefault();
+        openThemeSelect(select, true);
+      });
+      options.forEach((option, optionIndex) => {
+        option.addEventListener('click', () => {
+          options.forEach((item) => { const selected = item === option; item.classList.toggle('is-selected', selected); item.setAttribute('aria-selected', String(selected)); });
+          select.querySelector('[data-theme-select-value]').textContent = option.textContent.trim();
+          select.querySelector('[data-theme-select-input]').value = option.dataset.selectValue || '';
+          onChange(select.dataset.sortField, option.dataset.selectValue || '');
+          closeThemeSelect(true);
+        });
+        option.addEventListener('keydown', (event) => {
+          if (event.key === 'Escape') { event.preventDefault(); closeThemeSelect(true); return; }
+          if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); option.click(); return; }
+          if (!['ArrowDown', 'ArrowUp'].includes(event.key)) return;
+          event.preventDefault();
+          options[(optionIndex + (event.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length].focus({ preventScroll: true });
+        });
+      });
     });
   }
 
@@ -485,10 +560,13 @@
         });
       } else if (action === 'sort' && surface) {
         const cols = headers(surface);
-        const popover = openPopover(button, `<h3>Sort items</h3><div class="portal-sort-panel"><label>Choose column<select data-generic-sort-column>${cols.map((th) => `<option value="${th.dataset.portalColumnIndex}">${escapeAttribute(th.textContent.trim())}</option>`).join('')}</select></label><label>Direction<select data-generic-sort-direction><option value="asc">Ascending</option><option value="desc">Descending</option></select></label></div>`);
-        popover?.addEventListener('change', () => {
-          const columnIndex = Number(popover.querySelector('[data-generic-sort-column]').value);
-          const direction = popover.querySelector('[data-generic-sort-direction]').value;
+        const columnOptions = cols.map((th) => ({ value: th.dataset.portalColumnIndex, label: th.textContent.trim() }));
+        const selectedColumn = preferences.sort?.columnIndex ?? columnOptions[0]?.value ?? 0;
+        const selectedDirection = preferences.sort?.direction || 'asc';
+        const popover = openPopover(button, `<h3>Sort items</h3><div class="packing-sort-fields">${themeSelectMarkup('column', 'Choose column', columnOptions, selectedColumn)}${themeSelectMarkup('direction', 'Direction', [{ value: 'asc', label: 'Ascending' }, { value: 'desc', label: 'Descending' }], selectedDirection)}</div>`);
+        if (popover) initThemeSelects(popover, (field, value) => {
+          const columnIndex = Number(field === 'column' ? value : popover.querySelector('[data-sort-field="column"] [data-theme-select-input]').value);
+          const direction = field === 'direction' ? value : popover.querySelector('[data-sort-field="direction"] [data-theme-select-input]').value;
           sortSurface(surface, columnIndex, direction);
           preferences.sort = { columnIndex, direction };
           localStorage.setItem(storageKey, JSON.stringify(preferences));
@@ -551,6 +629,7 @@
   }
 
   document.addEventListener('pointerdown', (event) => {
+    if (activeThemeSelect && !event.target.closest('[data-theme-select]')) closeThemeSelect();
     if (active && !event.target.closest('.portal-view-bar__popover') && !event.target.closest('[data-view-action]')) closePopover();
     document.querySelectorAll('.portal-toolbar-search.is-open').forEach((searchBox) => {
       if (!searchBox.contains(event.target) && !searchBox.querySelector('input')?.value) {
@@ -580,8 +659,12 @@
       sibling = sibling.nextElementSibling;
     }
   });
-  document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && active) closePopover({ restoreFocus: true }); });
-  window.addEventListener('resize', () => { if (active) positionPopover(active.popover, active.button); }, { passive: true });
-  window.addEventListener('scroll', () => { if (active) positionPopover(active.popover, active.button); }, { passive: true, capture: true });
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    if (activeThemeSelect) { event.preventDefault(); closeThemeSelect(true); return; }
+    if (active) closePopover({ restoreFocus: true });
+  });
+  window.addEventListener('resize', () => { if (active) positionPopover(active.popover, active.button); if (activeThemeSelect) positionThemeSelectMenu(activeThemeSelect); }, { passive: true });
+  window.addEventListener('scroll', () => { if (active) positionPopover(active.popover, active.button); if (activeThemeSelect) positionThemeSelectMenu(activeThemeSelect); }, { passive: true, capture: true });
   document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', init, { once: true }) : init();
 })();
