@@ -8,6 +8,7 @@ const bookkeeping = readFileSync(new URL('../apps/operations/bookkeeping.php', i
 const courier = readFileSync(new URL('../apps/operations/courier.php', import.meta.url), 'utf8');
 const tasks = readFileSync(new URL('../apps/operations/checklists.php', import.meta.url), 'utf8');
 const presence = readFileSync(new URL('../assets/js/portal-presence.js', import.meta.url), 'utf8');
+const portalCss = readFileSync(new URL('../assets/css/portal.css', import.meta.url), 'utf8');
 const ordersJs = readFileSync(new URL('../assets/js/orders-board.js', import.meta.url), 'utf8');
 
 assert.match(js, /portal-filter-toolbar/);
@@ -80,5 +81,7 @@ assert.match(css, /\.packing-filter-popup\{[^}]*border:1px solid #ede3d8!importa
 assert.match(css, /border:1px solid rgba\(171,54,25,\.24\)!important/);
 assert.match(css, /border-color:#ab3619!important;outline:2px solid rgba\(171,54,25,\.14\)!important/);
 assert.match(css, /body:has\(\.packing-filter-popup \.portal-custom-select\.is-open\) \.portal-select-popup/);
+assert.match(portalCss, /\.packing-filter-bar\s*\{[^}]*border:\s*0;[^}]*outline:\s*0;[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;/s);
+assert.match(portalCss, /\.packing-filter-bar::before,\s*\.packing-filter-bar::after\s*\{[^}]*border:\s*0;[^}]*outline:\s*0;[^}]*box-shadow:\s*none;/s);
 
 console.log('Portal filter toolbar checks passed.');

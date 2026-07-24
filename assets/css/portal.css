@@ -7762,6 +7762,18 @@ main.error-log-page {
   min-height: 0;
   padding: 12px 14px;
   overflow: visible;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.packing-filter-bar::before,
+.packing-filter-bar::after {
+  border: 0;
+  outline: 0;
+  box-shadow: none;
 }
 
 .packing-filter-bar label {
