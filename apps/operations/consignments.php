@@ -75,7 +75,7 @@ include BASE_PATH . '/shared/sidebar.php';
         </section>
 
         <section class="work-filter-bar packing-filter-bar packing-toolbar" data-portal-view-filter aria-label="Packing filters">
-            <label>Date
+            <label>Date Range
                 <div class="portal-date-field" data-portal-date-field>
                     <input class="portal-date-input" type="text" placeholder="All months" autocomplete="off" data-month-mode="true" data-submit-target="#packing-date-value">
                     <input id="packing-date-value" data-packing-date type="hidden" value="">

@@ -2,6 +2,10 @@
   'use strict';
 
   const icon = (name) => `<i data-lucide="${name}" aria-hidden="true"></i>`;
+  const portalFilterConfigs = {
+    packing: { searchPlaceholder: 'Search packing...', fields: ['date', 'status', 'priority', 'person', 'group', 'search'] },
+    bookkeeping: { searchPlaceholder: 'Search bookkeeping...', fields: ['date', 'entryType', 'payment', 'person', 'group', 'search'] }
+  };
   let active = null;
   let activeThemeSelect = null;
   const enhancedViews = new WeakMap();
@@ -77,7 +81,7 @@
   }
 
   function searchPlaceholder(type) {
-    return type === 'courier' ? 'Search waybills...' : type === 'tasks' ? 'Search tasks...' : type === 'packing' ? 'Search packing items...' : 'Search bookkeeping...';
+    return portalFilterConfigs[type]?.searchPlaceholder || (type === 'courier' ? 'Search waybills...' : type === 'tasks' ? 'Search tasks...' : 'Search...');
   }
 
   function viewSurfaces(source) {
