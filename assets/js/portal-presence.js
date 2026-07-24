@@ -23,12 +23,12 @@
   if (presenceScriptUrl && !document.querySelector('link[href*="/assets/css/portal-view-bar.css"]')) {
     const viewBarStylesheet = document.createElement('link');
     viewBarStylesheet.rel = 'stylesheet';
-    viewBarStylesheet.href = new URL('../css/portal-view-bar.css?v=shared23', presenceScriptUrl).href;
+    viewBarStylesheet.href = new URL('../css/portal-view-bar.css?v=shared24', presenceScriptUrl).href;
     document.head.append(viewBarStylesheet);
   }
   if (presenceScriptUrl && !document.querySelector('script[src*="/assets/js/portal-view-bar.js"]')) {
     const viewBarController = document.createElement('script');
-    viewBarController.src = new URL('portal-view-bar.js?v=shared23', presenceScriptUrl).href;
+    viewBarController.src = new URL('portal-view-bar.js?v=shared24', presenceScriptUrl).href;
     viewBarController.async = false;
     document.head.append(viewBarController);
   }

@@ -915,11 +915,11 @@ include BASE_PATH . '/shared/sidebar.php';
             <p class="dtb-page-kicker">Task Management</p>
             <h1 class="dtb-page-title"><?= $canManage ? 'Digital Task Board' : 'My Tasks' ?></h1>
         </div>
-        <div class="dtb-page-actions">
-            <button class="task-tools-trigger" type="button" data-task-tools-open data-view-bar-action><i data-lucide="wrench"></i><span>Task tools</span></button>
+        <div class="dtb-page-actions task-header-actions" data-portal-header-status-target>
             <?php if ($canManage): ?>
                 <button class="dtb-btn dtb-btn-primary" type="button" data-task-create-open data-task-create-kind="manual"><i data-lucide="plus"></i> New Task</button>
             <?php endif; ?>
+            <button class="task-tools-trigger task-tools-button" type="button" data-task-tools-open data-task-action="tools" aria-controls="task-tools-panel" aria-expanded="false"><i data-lucide="wrench"></i><span>Task Tools</span></button>
         </div>
     </header>
     <?php if (!$ready) { ops_setup_notice(); } ?>
@@ -954,8 +954,8 @@ include BASE_PATH . '/shared/sidebar.php';
                 <?php checklist_custom_filter_field('Status', 'status', ['' => 'All statuses', 'pending' => 'Pending', 'in_progress' => 'In Progress', 'completed' => 'Complete'], $filters['status']); ?>
                 <?php if ($canManage): ?>
                     <?php checklist_custom_filter_field('Priority', 'priority', ['' => 'All priorities'] + $priorities, $filters['priority']); ?>
-                    <?php checklist_custom_filter_field('Task type', 'checklist_type', ['' => 'All types'] + $types, $filters['checklist_type']); ?>
-                    <?php if ($filters['task_view'] !== 'active') checklist_custom_filter_field('Task kind', 'task_kind', ['' => 'All tasks', 'recurring' => 'Recurring tasks', 'manual' => 'Custom/manual tasks'], $filters['task_kind']); ?>
+                    <?php $employeeFilterOptions = ['' => 'All people']; foreach ($employees as $employee) $employeeFilterOptions[(string) $employee['id']] = (string) $employee['full_name']; ?>
+                    <?php checklist_custom_filter_field('Person', 'employee_id', $employeeFilterOptions, $filters['employee_id']); ?>
                 <?php endif; ?>
                 <label class="span-2">Search<input name="search" value="<?= htmlspecialchars($filters['search'], ENT_QUOTES, 'UTF-8') ?>" placeholder="Search task name, notes or completion note"></label>
             </div>
@@ -963,7 +963,7 @@ include BASE_PATH . '/shared/sidebar.php';
         </form>
     </details>
 
-    <aside class="packing-tools-panel task-tools-panel" data-task-tools-panel aria-hidden="true">
+    <aside class="packing-tools-panel task-tools-panel" id="task-tools-panel" data-task-tools-panel aria-hidden="true">
         <header class="packing-tools-panel-header">
             <div><p class="packing-tools-kicker">Task Management</p><h2 class="packing-tools-title">Task tools</h2><p class="packing-tools-subtitle">Review deleted tasks, restore archived tasks and track task activity.</p></div>
             <button type="button" class="packing-tools-close" data-task-tools-close aria-label="Close Task tools"><i data-lucide="x"></i></button>
@@ -1622,6 +1622,8 @@ function initialiseTaskTools() {
   const open = async () => {
     returnFocus = document.activeElement;
     scrollY = window.scrollY;
+    trigger.classList.add('is-active');
+    trigger.setAttribute('aria-expanded', 'true');
     panel.classList.add('open', 'is-open');
     panel.setAttribute('aria-hidden', 'false');
     backdrop.hidden = false;
@@ -1629,6 +1631,8 @@ function initialiseTaskTools() {
     try { await load(); } catch (error) { body.innerHTML = `<div class="task-tools-empty"><strong>${taskToolsEsc(error.message)}</strong></div>`; }
   };
   const close = () => {
+    trigger.classList.remove('is-active');
+    trigger.setAttribute('aria-expanded', 'false');
     panel.classList.remove('open', 'is-open');
     panel.setAttribute('aria-hidden', 'true');
     backdrop.classList.remove('is-open');
