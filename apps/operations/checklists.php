@@ -1479,6 +1479,13 @@ include BASE_PATH . '/shared/sidebar.php';
         <div class="task-complete-confirm__backdrop"></div>
         <section><h2 id="task-complete-confirm-title">Complete this task?</h2><p data-task-complete-confirm-copy>All required checklist items are complete. Completion will be recorded under your name and time.</p><div><button type="button" data-task-complete-cancel>Cancel</button><button type="button" data-task-complete-accept>Complete Task</button></div></section>
     </div>
+    <div class="task-action-menu" data-task-action-menu role="menu" hidden>
+        <button type="button" class="task-action-menu__item" data-task-trash-action="restore" role="menuitem"><i data-lucide="history" aria-hidden="true"></i><span>Restore</span></button>
+        <button type="button" class="task-action-menu__item task-action-menu__item--danger" data-task-trash-action="delete-permanently" role="menuitem"><i data-lucide="trash-2" aria-hidden="true"></i><span>Delete permanently</span></button>
+    </div>
+    <div class="task-trash-confirm" data-task-trash-confirm role="dialog" aria-modal="true" aria-labelledby="task-trash-confirm-title" hidden>
+        <div class="task-trash-confirm__backdrop"></div>
+        <section><h2 id="task-trash-confirm-title">Delete this task permanently?</h2><p>This task and its stored history will be permanently deleted. This action cannot be undone.</p><div><button type="button" data-task-trash-cancel>Cancel</button><button type="button" class="task-trash-confirm__delete" data-task-trash-accept>Delete permanently</button></div></section>
     </div>
 </main>
 <script>
@@ -1843,6 +1850,10 @@ function initialiseTaskTools() {
   let data = null;
   let returnFocus = null;
   let scrollY = 0;
+  const actionMenu = document.querySelector('[data-task-action-menu]');
+  const trashConfirm = document.querySelector('[data-task-trash-confirm]');
+  let actionTrigger = null;
+  let actionTaskId = null;
 
   const selectedTaskIds = () => [...document.querySelectorAll('.dtb-task-row .dtb-task-check:checked')]
     .map((input) => input.closest('[data-task-row]')?.dataset.taskId).filter(Boolean);
@@ -1887,6 +1898,10 @@ function initialiseTaskTools() {
     window.scrollTo({ top:y, behavior:'instant' });
   };
   const render = () => {
+    if (actionMenu) actionMenu.hidden = true;
+    actionTrigger?.setAttribute('aria-expanded', 'false');
+    actionTrigger = null;
+    actionTaskId = null;
     panel.querySelectorAll('[data-task-tools-tab]').forEach((button) => {
       const active = button.dataset.taskToolsTab === tab;
       button.classList.toggle('is-active', active);
@@ -1895,7 +1910,7 @@ function initialiseTaskTools() {
     if (!data) { body.innerHTML = '<div class="task-tools-loading">Loading Task tools…</div>'; return; }
     if (tab === 'trash') {
       const rows = data.trash || [];
-      body.innerHTML = rows.length ? `<div class="task-tools-card-list">${rows.map((row) => `<article class="task-tools-card"><div class="task-tools-card-copy"><strong>${taskToolsEsc(row.task_name)}</strong><span>${taskToolsEsc(row.assigned_name || 'Unassigned')} · ${taskToolsEsc(row.priority || 'normal')} · ${taskToolsEsc(row.status || 'pending')}</span><span>Due ${taskToolsEsc(formatDate(row.deadline))}</span><small>Deleted by ${taskToolsEsc(row.deleted_by_name || 'Unknown')} · ${taskToolsEsc(formatDate(row.deleted_at))}</small></div>${data.permissions.can_manage ? `<div class="packing-trash-actions"><button type="button" class="packing-trash-action packing-trash-action--restore" data-task-tools-action="restore" data-task-id="${taskToolsEsc(row.id)}"><span>Restore</span></button>${data.permissions.can_delete_forever ? `<button type="button" class="packing-trash-action packing-trash-action--delete" data-task-tools-action="delete_forever" data-task-id="${taskToolsEsc(row.id)}"><span>Delete forever</span></button>` : ''}</div>` : ''}</article>`).join('')}</div>` : '<div class="task-tools-empty"><i data-lucide="trash-2"></i><strong>Trash is empty</strong><span>Deleted tasks will appear here.</span></div>';
+      body.innerHTML = rows.length ? `<div class="task-tools-card-list" data-task-trash-list><div class="task-trash-table__heading"><span>Task</span><span class="task-trash-table__action-heading">Action</span></div>${rows.map((row) => `<article class="task-tools-card" data-task-trash-row data-task-id="${taskToolsEsc(row.id)}"><div class="task-tools-card-copy"><strong>${taskToolsEsc(row.task_name)}</strong><span>${taskToolsEsc(row.assigned_name || 'Unassigned')} · ${taskToolsEsc(row.priority || 'normal')} · ${taskToolsEsc(row.status || 'new')}</span><span>Due ${taskToolsEsc(formatDate(row.deadline))}</span><small>Deleted by ${taskToolsEsc(row.deleted_by_name || 'Unknown')} · ${taskToolsEsc(formatDate(row.deleted_at))}</small></div><div class="task-trash-table__action-cell">${data.permissions.can_manage ? `<button type="button" class="task-action-menu__trigger" data-task-action-trigger data-task-id="${taskToolsEsc(row.id)}" aria-label="Actions for ${taskToolsEsc(row.task_name)}" aria-haspopup="menu" aria-expanded="false"><i data-lucide="ellipsis" aria-hidden="true"></i></button>` : ''}</div></article>`).join('')}<div class="task-trash-table__count" data-task-trash-count>${rows.length} task${rows.length === 1 ? '' : 's'} in Trash</div></div>` : '<div class="task-tools-empty"><i data-lucide="trash-2"></i><strong>Trash is empty</strong><span>Deleted tasks will appear here.</span></div>';
     } else if (tab === 'archived') {
       const rows = data.archived || [];
       body.innerHTML = rows.length ? `<div class="task-tools-card-list">${rows.map((row) => `<article class="task-tools-card"><div class="task-tools-card-copy"><strong>${taskToolsEsc(row.task_name)}</strong><span>${taskToolsEsc(row.assigned_name || 'Unassigned')} · ${taskToolsEsc(row.status || 'pending')}</span><small>Archived by ${taskToolsEsc(row.archived_by_name || 'Unknown')} · ${taskToolsEsc(formatDate(row.archived_at))}</small></div><div class="packing-trash-actions">${data.permissions.can_manage ? `<button type="button" class="packing-trash-action packing-trash-action--restore" data-task-tools-action="restore" data-task-id="${taskToolsEsc(row.id)}"><span>Restore</span></button>` : ''}<button type="button" class="pk-btn pk-btn--secondary" data-task-open="${taskToolsEsc(row.id)}">Open task</button></div></article>`).join('')}</div>` : '<div class="task-tools-empty"><i data-lucide="archive"></i><strong>No archived tasks</strong><span>Archived tasks will appear here.</span></div>';
@@ -1930,6 +1945,96 @@ function initialiseTaskTools() {
     window.scrollTo({ top:scrollY, behavior:'instant' });
     returnFocus?.focus?.({ preventScroll:true });
   };
+  const closeActionMenu = (restoreFocus = false) => {
+    if (!actionMenu || actionMenu.hidden) return;
+    actionMenu.hidden = true;
+    actionTrigger?.setAttribute('aria-expanded', 'false');
+    if (restoreFocus && actionTrigger?.isConnected) actionTrigger.focus({ preventScroll:true });
+    actionTrigger = null;
+    actionTaskId = null;
+  };
+  const positionActionMenu = (selectedTrigger) => {
+    if (!actionMenu) return;
+    actionMenu.hidden = false;
+    const triggerRect = selectedTrigger.getBoundingClientRect();
+    const menuRect = actionMenu.getBoundingClientRect();
+    const left = Math.max(8, Math.min(window.innerWidth - menuRect.width - 8, triggerRect.right - menuRect.width));
+    const below = triggerRect.bottom + 6;
+    const top = below + menuRect.height <= window.innerHeight - 8 ? below : Math.max(8, triggerRect.top - menuRect.height - 6);
+    actionMenu.style.left = `${Math.round(left)}px`;
+    actionMenu.style.top = `${Math.round(top)}px`;
+  };
+  const showTaskActionToast = (message, danger = false) => {
+    document.querySelector('[data-task-action-toast]')?.remove();
+    const toast = document.createElement('div');
+    toast.className = `task-action-toast${danger ? ' task-action-toast--danger' : ''}`;
+    toast.dataset.taskActionToast = 'true';
+    toast.setAttribute('role', 'status');
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    window.setTimeout(() => toast.remove(), 4200);
+  };
+  const confirmPermanentDelete = () => new Promise((resolve) => {
+    if (!trashConfirm) { resolve(false); return; }
+    trashConfirm.hidden = false;
+    document.body.classList.add('task-confirm-open');
+    const accept = trashConfirm.querySelector('[data-task-trash-accept]');
+    const cancel = trashConfirm.querySelector('[data-task-trash-cancel]');
+    const finish = (confirmed) => {
+      trashConfirm.hidden = true;
+      document.body.classList.remove('task-confirm-open');
+      accept.removeEventListener('click', onAccept);
+      cancel.removeEventListener('click', onCancel);
+      resolve(confirmed);
+    };
+    const onAccept = () => finish(true);
+    const onCancel = () => finish(false);
+    accept.addEventListener('click', onAccept);
+    cancel.addEventListener('click', onCancel);
+    cancel.focus({ preventScroll:true });
+  });
+  document.addEventListener('click', async (event) => {
+    const selectedTrigger = event.target.closest('[data-task-action-trigger]');
+    if (selectedTrigger && panel.contains(selectedTrigger)) {
+      event.preventDefault();
+      if (actionTrigger === selectedTrigger && !actionMenu.hidden) { closeActionMenu(true); return; }
+      closeActionMenu();
+      actionTrigger = selectedTrigger;
+      actionTaskId = selectedTrigger.dataset.taskId;
+      selectedTrigger.setAttribute('aria-expanded', 'true');
+      actionMenu.querySelector('[data-task-trash-action="delete-permanently"]').hidden = !data?.permissions?.can_delete_forever;
+      positionActionMenu(selectedTrigger);
+      if (window.lucide) window.lucide.createIcons({ strokeWidth:2 });
+      return;
+    }
+    const menuItem = event.target.closest('[data-task-trash-action]');
+    if (menuItem && actionMenu?.contains(menuItem)) {
+      event.preventDefault();
+      const action = menuItem.dataset.taskTrashAction;
+      const taskId = actionTaskId;
+      if (!taskId || menuItem.disabled) return;
+      if (action === 'delete-permanently' && !await confirmPermanentDelete()) { closeActionMenu(true); return; }
+      menuItem.disabled = true;
+      try {
+        await post(action === 'restore' ? 'task_restore' : 'task_delete_forever', { task_id:taskId });
+        data.trash = (data.trash || []).filter((row) => String(row.id) !== String(taskId));
+        closeActionMenu();
+        render();
+        if (action === 'restore') await refreshBoard();
+        showTaskActionToast(action === 'restore' ? 'Task restored successfully.' : 'Task deleted permanently.');
+      } catch (error) {
+        showTaskActionToast(error.message || 'The task could not be updated.', true);
+        menuItem.disabled = false;
+      }
+      return;
+    }
+    if (!event.target.closest('[data-task-action-menu]')) closeActionMenu();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && actionMenu && !actionMenu.hidden) { event.preventDefault(); closeActionMenu(true); }
+  });
+  body.addEventListener('scroll', () => closeActionMenu(), { passive:true });
+  window.addEventListener('resize', () => closeActionMenu());
   trigger.addEventListener('click', open);
   document.addEventListener('task-tools:refresh-board', async () => {
     await refreshBoard();
