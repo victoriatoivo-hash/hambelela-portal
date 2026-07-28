@@ -17,6 +17,7 @@ assert.match(tasks, /new DateTimeZone\('Africa\/Windhoek'\)/);
 assert.match(tasks, /This time has already passed\. Select a future time\./);
 assert.match(tasks, /\$deadline = checklist_create_due_at\(\$_POST\)/);
 assert.match(tasks, /const validateDueAt = \(\) =>/);
+assert.match(tasks, /\.replace\(\/\^0\/, ''\)\.toUpperCase\(\)/, 'The contextual summary must use unpadded 12-hour AM/PM text');
 assert.doesNotMatch(tasks, /Assign the task anyway\?/);
 assert.match(picker, /data-time-hour/);
 assert.match(picker, /data-time-minute/);
