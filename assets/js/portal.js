@@ -128,6 +128,11 @@ const portalCustomSelectOverlay = (() => {
       };
     const viewportRight = viewport.left + viewport.width;
     const viewportBottom = viewport.top + viewport.height;
+    const isCompactPaymentSelect = activeControl.nativeSelect.dataset.portalSelectVariant === 'payment-method'
+      && viewport.width <= 600;
+    const effectiveMaximumHeight = isCompactPaymentSelect
+      ? Math.min(240, Math.floor(viewport.height * 0.45))
+      : popupMaximumHeight;
     const availableWidth = Math.max(0, viewport.width - (viewportPadding * 2));
     const popupWidth = Math.min(rect.width, availableWidth);
     let left = Math.max(
@@ -137,17 +142,17 @@ const portalCustomSelectOverlay = (() => {
 
     popup.style.width = `${Math.round(popupWidth)}px`;
     popup.style.minWidth = `${Math.round(popupWidth)}px`;
-    popup.style.maxHeight = `${popupMaximumHeight}px`;
+    popup.style.maxHeight = `${effectiveMaximumHeight}px`;
     popup.style.left = `${Math.round(left)}px`;
     popup.style.top = `${Math.round(rect.bottom + popupGap)}px`;
     popup.dataset.placement = 'bottom';
 
-    const desiredHeight = Math.min(popupMaximumHeight, popup.scrollHeight);
+    const desiredHeight = Math.min(effectiveMaximumHeight, popup.scrollHeight);
     const spaceBelow = Math.max(0, viewportBottom - rect.bottom - popupGap - viewportPadding);
     const spaceAbove = Math.max(0, rect.top - viewport.top - popupGap - viewportPadding);
     const openAbove = desiredHeight > spaceBelow && spaceAbove > spaceBelow;
     const availableHeight = openAbove ? spaceAbove : spaceBelow;
-    popup.style.maxHeight = `${Math.max(0, Math.min(popupMaximumHeight, Math.floor(availableHeight)))}px`;
+    popup.style.maxHeight = `${Math.max(0, Math.min(effectiveMaximumHeight, Math.floor(availableHeight)))}px`;
 
     const popupRect = popup.getBoundingClientRect();
     const top = openAbove
