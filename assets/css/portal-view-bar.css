@@ -1108,6 +1108,7 @@ body.portal-panel-open .portal-header-status{visibility:hidden!important;opacity
 .portal-table-toolbar .portal-toolbar-action svg{width:15px!important;height:15px!important;flex:0 0 15px!important;color:#526075!important;stroke:currentColor!important;pointer-events:none!important}
 .digital-task-page .portal-table-toolbar .portal-toolbar-action svg{color:#AB3619!important;stroke:#AB3619!important}
 .error-log-page .portal-table-toolbar .portal-toolbar-action svg{color:#ab3619!important;stroke:#ab3619!important}
+.bk-wrap .portal-table-toolbar__controls .portal-toolbar-action:not(.portal-toolbar-action--more) svg,.bk-wrap .portal-table-toolbar__controls .portal-toolbar-action:not(.portal-toolbar-action--more) i[data-lucide]{color:#ab3619!important;stroke:#ab3619!important}
 .portal-table-toolbar .portal-toolbar-action:hover,.portal-table-toolbar .portal-toolbar-action.is-active,.portal-table-toolbar .portal-toolbar-action[aria-expanded=true]{color:#ab3619!important;background:rgba(240,116,32,.08)!important}
 .portal-table-toolbar .portal-toolbar-action:hover svg,.portal-table-toolbar .portal-toolbar-action.is-active svg,.portal-table-toolbar .portal-toolbar-action[aria-expanded=true] svg{color:#ab3619!important}
 .portal-table-toolbar .portal-toolbar-action:focus-visible{outline:2px solid rgba(171,54,25,.35)!important;outline-offset:1px!important}
