@@ -27276,7 +27276,7 @@ body.dark-mode .portal-dark-toggle {
 
 /* Task Tools uses the shared right-side portal tools architecture. */
 .digital-task-page .dtb-page-actions { display:flex; flex:0 0 auto; align-items:center; justify-content:flex-end; gap:8px; margin-left:auto; }
-.digital-task-page .task-tools-trigger { height:32px; min-height:32px; padding:0 12px; display:inline-flex; flex:0 0 auto; align-items:center; justify-content:center; gap:6px; border:1px solid #721B1A; border-radius:9px; background:#721B1A; color:#fff; box-sizing:border-box; box-shadow:none; font:600 11px/1 Figtree,Inter,system-ui,sans-serif; white-space:nowrap; cursor:pointer; transition:color .15s,background-color .15s,border-color .15s,box-shadow .15s,transform .12s; }
+.digital-task-page .task-tools-trigger { height:32px; min-height:32px; padding:0 12px; display:inline-flex; flex:0 0 auto; align-items:center; justify-content:center; gap:6px; border:1px solid #AB3619; border-radius:9px; background:#AB3619; color:#fff; box-sizing:border-box; box-shadow:none; font:600 11px/1 Figtree,Inter,system-ui,sans-serif; white-space:nowrap; cursor:pointer; transition:color .15s,background-color .15s,border-color .15s,box-shadow .15s,transform .12s; }
 .digital-task-page .task-tools-trigger svg { width:13px; height:13px; flex:0 0 13px; color:currentColor; stroke:currentColor; transition:transform .15s ease; }
 .digital-task-page .task-tools-trigger:hover,.digital-task-page .task-tools-trigger:active,.digital-task-page .task-tools-trigger.is-active,.digital-task-page .task-tools-trigger[aria-expanded="true"] { border-color:#F07420; background:#F07420; color:#fff; }
 .digital-task-page .task-tools-trigger:hover { box-shadow:0 5px 14px rgba(240,116,32,.22); }
