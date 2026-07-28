@@ -1428,7 +1428,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 <?php endif; ?>
 
                 <section class="task-details-section task-content-card">
-                    <h3 class="task-content-heading">Instructions</h3>
+                    <h3 class="task-content-heading task-instructions__heading">Instructions</h3>
                     <p class="task-content-text"><?= htmlspecialchars((string) ($task['instructions'] ?: $task['notes'] ?: 'No instructions added.'), ENT_QUOTES, 'UTF-8') ?></p>
                 </section>
 
@@ -1436,7 +1436,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     <input type="hidden" name="task_id" value="<?= $panelId ?>">
                     <div class="task-completion-error" data-task-completion-error role="alert" hidden><strong>This task cannot be completed yet.</strong><span data-task-completion-error-message></span></div>
                     <section class="task-content-card">
-                    <h3 class="task-content-heading" id="task-checklist-<?= $panelId ?>">Checklist items</h3>
+                    <h3 class="task-content-heading task-checklist__heading" id="task-checklist-<?= $panelId ?>">Checklist items</h3>
                         <div class="task-checklist">
                             <?php foreach ($items as $item): ?>
                                 <?php $itemComplete = in_array($item, $checked, true); ?>
@@ -1448,7 +1448,7 @@ include BASE_PATH . '/shared/sidebar.php';
 
                     <?php if ($effective !== 'complete'): ?>
                         <section class="task-details-section task-progress-card">
-                            <h3 class="task-section-title">Progress update</h3>
+                            <h3 class="task-section-title task-progress__heading">Progress Update</h3>
                             <div class="task-field"><label for="task-progress-status-<?= $panelId ?>">Status</label><select id="task-progress-status-<?= $panelId ?>" name="status" data-portal-custom-select><?php ops_select_options($statuses, checklist_normalize_status((string) ($task['status'] ?? 'new'))); ?></select></div>
                             <div class="task-field" id="task-notes-<?= $panelId ?>"><label class="task-progress-label" for="task-progress-note-<?= $panelId ?>">Note <span class="required-marker" aria-hidden="true">*</span></label><textarea id="task-progress-note-<?= $panelId ?>" name="completion_note" required minlength="5" aria-required="true" placeholder="Explain what was completed or provide a progress update."><?= htmlspecialchars((string) ($task['completion_note'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea><p class="task-progress-note-error" data-task-note-error hidden>Enter a note explaining the progress or work completed.</p></div>
                             <div class="task-progress-actions"><button class="task-btn task-btn--primary" type="submit" name="action" value="update_task_progress">Save progress</button></div>
