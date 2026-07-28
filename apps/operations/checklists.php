@@ -274,6 +274,27 @@ function checklist_days_remaining(?string $deadline, string $status): string
     return $days === 0 ? 'Due today' : $days . ' day' . ($days === 1 ? '' : 's') . ' left';
 }
 
+function checklist_create_due_at(array $request): string
+{
+    $raw = trim((string) ($request['due_at'] ?? ''));
+    if ($raw === '') throw new RuntimeException('Select the task due date and time.');
+    $timezone = new DateTimeZone('Africa/Windhoek');
+    $dueAt = false;
+    foreach (['Y-m-d H:i:s', 'Y-m-d H:i', 'Y-m-d\TH:i'] as $format) {
+        $candidate = DateTimeImmutable::createFromFormat('!' . $format, $raw, $timezone);
+        $errors = DateTimeImmutable::getLastErrors();
+        if ($candidate && ($errors === false || ((int) $errors['warning_count'] === 0 && (int) $errors['error_count'] === 0))) {
+            $dueAt = $candidate;
+            break;
+        }
+    }
+    if (!$dueAt) throw new RuntimeException('Select a valid task due date and time.');
+    if ($dueAt <= new DateTimeImmutable('now', $timezone)) {
+        throw new RuntimeException('This time has already passed. Select a future time.');
+    }
+    return $dueAt->format('Y-m-d H:i:s');
+}
+
 function checklist_effective_status(array $task): string
 {
     $status = checklist_normalize_status((string) ($task['status'] ?? 'pending'));
@@ -649,7 +670,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($action === 'create_task' && $canManage) {
             $assignedId = (int) ($_POST['assigned_employee_id'] ?? 0);
-            $deadline = str_replace('T', ' ', ops_post_string('deadline', 30));
+            $deadline = checklist_create_due_at($_POST);
             $taskName = ops_post_string('task_name', 190);
             if ($taskName === '') throw new RuntimeException('Task name is required.');
             if ($assignedId <= 0) throw new RuntimeException('Assigned employee is required.');
@@ -658,7 +679,6 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $urgentRecipients = $urgentRequested ? checklist_urgent_recipient_ids((array) ($_POST['urgent_alert_recipients'] ?? []), $assignedId) : [];
             if ($urgentRequested && !$urgentRecipients) throw new RuntimeException('Choose at least one valid urgent alert recipient.');
             $employeeVisible = 1;
-            if ($deadline === '') throw new RuntimeException('A due date and time are required for assigned tasks.');
             $recurringRule = ops_post_string('recurring_rule', 80);
             $allowedRecurringRules = ['', 'daily_business_day', 'twice_weekly', 'weekly_1', 'weekly_2', 'weekly_3', 'weekly_4', 'weekly_5', 'weekly_saturday'];
             if (!in_array($recurringRule, $allowedRecurringRules, true)) {
@@ -1106,10 +1126,9 @@ include BASE_PATH . '/shared/sidebar.php';
                         <label class="task-form-field task-form-field--full"><span class="task-form-label">Task name <span aria-hidden="true">*</span></span><input id="create-task-name" name="task_name" maxlength="120" required placeholder="What needs to be done?" autocomplete="off"></label>
                         <div class="task-form-grid__row task-form-grid__row--assignment">
                           <label class="task-form-field"><span class="task-form-label">Assigned employee *</span><select id="create-task-assignee" name="assigned_employee_id" required data-portal-custom-select><option value="">Choose employee</option><?php foreach ($employees as $employee): ?><option value="<?= (int) $employee['id'] ?>"><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></label>
-                          <label class="task-form-field"><span class="task-form-label">Due date *</span><input id="create-task-date" type="date" required data-task-due-date></label>
-                          <label class="task-form-field"><span class="task-form-label">Due time *</span><input id="create-task-time" type="time" required data-task-due-time></label>
+                          <div class="task-form-field task-datetime-field"><label class="task-form-label" for="create-task-due-display">Due date and time <span class="required-marker" aria-hidden="true">*</span></label><div class="portal-date-field" data-portal-date-field><input id="create-task-due-display" type="text" class="portal-date-input task-datetime-trigger is-empty" data-enable-time="true" data-submit-target="#create-task-due-at" data-task-due-trigger placeholder="Select due date and time" autocomplete="off" aria-describedby="create-task-due-error"><input id="create-task-due-at" type="hidden" name="due_at" data-task-due-value data-portal-date-required-message="Select the task due date and time." required><button type="button" class="portal-date-trigger" aria-label="Open Due date and time picker"><i data-lucide="calendar-clock" aria-hidden="true"></i></button></div><span id="create-task-due-error" class="task-form-error" data-task-due-error aria-live="polite"></span></div>
                         </div>
-                        <input id="create-task-deadline" type="hidden" name="deadline"><p class="task-due-summary" data-task-due-summary aria-live="polite"></p>
+                        <p class="task-due-summary" data-task-due-summary aria-live="polite"></p>
                         <fieldset class="task-form-field task-priority-field"><legend class="task-form-label">Priority *</legend><div class="task-priority-options" role="radiogroup" aria-label="Priority"><label><input type="radio" name="priority" value="normal" checked><span>Normal</span></label><label><input type="radio" name="priority" value="important"><span>Important</span></label><label><input type="radio" name="priority" value="urgent"><span>Urgent</span></label></div></fieldset>
                         <label class="task-form-field task-form-field--full"><span class="task-form-label">Instructions *</span><textarea id="create-task-instructions" name="instructions" required placeholder="Explain what must be done and what the finished result should look like."></textarea></label>
                       </div></section>
@@ -1379,9 +1398,9 @@ function initialiseTaskCreateForm() {
   const form = document.querySelector('[data-task-create-form]');
   if (!form || form.dataset.initialised === 'true') return;
   form.dataset.initialised = 'true';
-  const dateInput = form.querySelector('[data-task-due-date]');
-  const timeInput = form.querySelector('[data-task-due-time]');
-  const deadlineInput = form.querySelector('[name="deadline"]');
+  const dueAtInput = form.querySelector('[data-task-due-value]');
+  const dueTrigger = form.querySelector('[data-task-due-trigger]');
+  const dueError = form.querySelector('[data-task-due-error]');
   const dueSummary = form.querySelector('[data-task-due-summary]');
   const repeatToggle = form.querySelector('[data-task-repeat-toggle]');
   const repeatOptions = form.querySelector('[data-task-repeat-options]');
@@ -1393,17 +1412,32 @@ function initialiseTaskCreateForm() {
   const checklistWarning = form.querySelector('[data-task-checklist-warning]');
   let saving = false;
 
-  const syncDeadline = () => {
-    deadlineInput.value = dateInput.value && timeInput.value ? `${dateInput.value}T${timeInput.value}` : '';
-    if (!deadlineInput.value) { dueSummary.textContent = ''; return; }
-    const due = new Date(`${dateInput.value}T${timeInput.value}:00`);
+  const parseDueAt = () => dueAtInput.value ? new Date(dueAtInput.value.replace(' ', 'T') + (dueAtInput.value.length === 16 ? ':00' : '')) : null;
+  const formatDueTime = (due) => new Intl.DateTimeFormat('en-NA', { hour:'2-digit', minute:'2-digit', hour12:true, timeZone:'Africa/Windhoek' }).format(due);
+  const syncDueAt = () => {
+    const due = parseDueAt();
+    dueTrigger.classList.toggle('is-empty', !due);
+    if (!due || Number.isNaN(due.getTime())) { dueSummary.textContent = ''; return; }
     const now = new Date();
     const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
     const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
     const day = sameDay(due, now) ? 'today' : sameDay(due, tomorrow) ? 'tomorrow' : new Intl.DateTimeFormat('en-NA', { weekday:'long', day:'numeric', month:'long', timeZone:'Africa/Windhoek' }).format(due);
-    dueSummary.textContent = `Due ${day} at ${timeInput.value}`;
+    dueSummary.textContent = `Due ${day} at ${formatDueTime(due)}`;
   };
-  dateInput.addEventListener('change', syncDeadline); timeInput.addEventListener('change', syncDeadline);
+  const validateDueAt = () => {
+    const due = parseDueAt();
+    let message = '';
+    if (!due) message = 'Select the task due date and time.';
+    else if (Number.isNaN(due.getTime())) message = 'Select a valid task due date and time.';
+    else if (due <= new Date()) message = 'This time has already passed. Select a future time.';
+    dueError.textContent = message;
+    dueTrigger.classList.toggle('is-invalid', !!message);
+    dueTrigger.setAttribute('aria-invalid', message ? 'true' : 'false');
+    dueTrigger.setCustomValidity(message);
+    return !message;
+  };
+  dueAtInput.addEventListener('input', () => { syncDueAt(); validateDueAt(); });
+  dueAtInput.addEventListener('change', () => { syncDueAt(); validateDueAt(); });
 
   const syncRecurrence = () => {
     repeatOptions.hidden = !repeatToggle.checked;
@@ -1458,12 +1492,11 @@ function initialiseTaskCreateForm() {
   document.querySelector('[data-task-template-search]')?.addEventListener('input', (event) => document.querySelectorAll('[data-task-template]').forEach((button) => { button.hidden = !button.textContent.toLowerCase().includes(event.target.value.toLowerCase()); }));
 
   form.addEventListener('submit', (event) => {
-    syncDeadline(); syncChecklist(); syncRecurrence();
+    syncDueAt(); syncChecklist(); syncRecurrence();
+    if (!validateDueAt()) { event.preventDefault(); dueTrigger.focus(); return; }
     const required = [...form.querySelectorAll('[required]')];
     const invalid = required.find((field) => !String(field.value || '').trim());
     if (invalid) { event.preventDefault(); invalid.focus(); invalid.setAttribute('aria-invalid', 'true'); return; }
-    const due = new Date(`${dateInput.value}T${timeInput.value}:00`);
-    if (due < new Date() && !window.confirm('This due time has already passed. Assign the task anyway?')) { event.preventDefault(); timeInput.focus(); return; }
     if (saving) { event.preventDefault(); return; }
     saving = true;
     const submit = form.querySelector('[type="submit"]'); submit.disabled = true; submit.textContent = 'Assigning…';

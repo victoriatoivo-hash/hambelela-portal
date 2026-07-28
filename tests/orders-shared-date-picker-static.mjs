@@ -8,7 +8,7 @@ const ordersCss = fs.readFileSync('assets/css/orders-board.css', 'utf8');
 
 assert.match(sharedJs, /document\.body\.appendChild\(popup\)/, 'Shared popup must be appended to document.body.');
 assert.match(sharedJs, /getBoundingClientRect\(\)/, 'Shared popup must use viewport positioning.');
-assert.match(sharedCss, /z-index:\s*50000/, 'Shared popup must sit above the Orders board.');
+assert.match(sharedCss, /z-index:\s*70000/, 'Shared popup must sit above slide-in panels and the Orders board.');
 assert.match(sharedCss, /background(?:-color)?:\s*#FFFFFF/i, 'Shared popup must have an opaque white surface.');
 assert.match(sharedCss, /isolation:\s*isolate/, 'Shared popup must isolate its stacking context.');
 assert.match(sharedCss, /repeat\(7,\s*minmax\(0,\s*1fr\)\)/, 'Calendar must preserve seven equal columns.');
