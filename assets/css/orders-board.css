@@ -1024,6 +1024,30 @@ body > .orders-label-popup .mode-label-name-input { width:100%; height:32px; min
 .payment-editor__dialog #payment-editor-title{font-weight:600}
 .payment-editor__type{display:grid;gap:5px;margin-bottom:12px;color:#6B4C3B;font:700 10px/1.2 Figtree,sans-serif;text-transform:uppercase}.payment-editor__type select{width:100%;height:36px;padding:0 9px;border:1px solid #EDE3D8;border-radius:9px;background:#fff;color:#1a1a1a;font:12px Figtree,sans-serif;text-transform:none}
 @media(max-width:600px){.payment-badge{flex-wrap:wrap}.payment-badge__segment{min-height:28px}.payment-editor__row{grid-template-columns:1fr 1fr 30px}.payment-editor__dialog{padding:14px}.payment-editor__dialog footer{position:sticky;bottom:-14px;padding:10px 0;background:#fff}}
+
+/* Payment method selectors reuse the portal custom listbox with Orders colours. */
+.orders-payment-modal [data-portal-select-variant="payment-method"] { min-width:0; }
+.orders-payment-modal [data-payment-value="cash"],.portal-select-popup [data-payment-option="cash"] { --payment-bg:#C4C4C4; }
+.orders-payment-modal [data-payment-value="card-swipe"],.portal-select-popup [data-payment-option="card-swipe"] { --payment-bg:var(--payment-card,#343434); }
+.orders-payment-modal [data-payment-value="eft"],.portal-select-popup [data-payment-option="eft"] { --payment-bg:#784BD1; }
+.orders-payment-modal [data-payment-value="fnb-ewallet"],.portal-select-popup [data-payment-option="fnb-ewallet"] { --payment-bg:#009999; }
+.orders-payment-modal [data-payment-value="easywallet"],.portal-select-popup [data-payment-option="easywallet"] { --payment-bg:#DF2F4A; }
+.orders-payment-modal [data-payment-value="blue-wallet"],.portal-select-popup [data-payment-option="blue-wallet"] { --payment-bg:#0033A1; }
+.orders-payment-modal [data-payment-value="nedbank"],.portal-select-popup [data-payment-option="nedbank"] { --payment-bg:#008533; }
+.orders-payment-modal [data-payment-value="netbank-wallet"],.portal-select-popup [data-payment-option="netbank-wallet"] { --payment-bg:var(--payment-netbank-wallet,#5670B8); }
+.orders-payment-modal [data-payment-value="pay2cell"],.portal-select-popup [data-payment-option="pay2cell"] { --payment-bg:#FF9900; }
+.orders-payment-modal [data-payment-value="paytoday"],.portal-select-popup [data-payment-option="paytoday"] { --payment-bg:#00FFD7; }
+.orders-payment-modal [data-payment-value="dpo"],.portal-select-popup [data-payment-option="dpo"] { --payment-bg:#007EB5; }
+.orders-payment-modal .payment-method-trigger { width:100%;height:35px;min-height:35px;padding:0 12px;display:flex;align-items:center;justify-content:space-between;gap:8px;color:#fff;-webkit-text-fill-color:#fff;background:var(--payment-bg,#7F5347);border:1px solid var(--payment-bg,#7F5347);border-radius:8px;font:inherit;text-align:left;cursor:pointer; }
+.orders-payment-modal .payment-method-trigger:hover,.orders-payment-modal .payment-method-trigger:focus-visible,.orders-payment-modal .payment-method-trigger[aria-expanded="true"] { color:#fff;-webkit-text-fill-color:#fff;background:var(--payment-bg,#7F5347);border-color:var(--payment-bg,#7F5347); }
+.orders-payment-modal .payment-method-trigger:focus-visible { outline:2px solid rgba(114,27,26,.28);outline-offset:2px;box-shadow:none; }
+.orders-payment-modal .payment-method-trigger .portal-custom-select-chevron { color:#fff; }
+.portal-select-popup[data-portal-select-variant="payment-method"] { z-index:52010;padding:4px;max-height:270px;background:#fff;border:1px solid #EDE3D8;border-radius:8px;box-shadow:0 10px 26px rgba(114,27,26,.14); }
+.portal-select-popup[data-portal-select-variant="payment-method"] [data-payment-option] { width:100%;min-height:32px;padding:0 10px;display:flex;align-items:center;color:#fff;-webkit-text-fill-color:#fff;background:var(--payment-bg,#7F5347);border:0;border-radius:5px;font:inherit;text-align:left;cursor:pointer;opacity:1;transform:none; }
+.portal-select-popup[data-portal-select-variant="payment-method"] [data-payment-option]+[data-payment-option] { margin-top:3px; }
+.portal-select-popup[data-portal-select-variant="payment-method"] [data-payment-option]:hover,.portal-select-popup[data-portal-select-variant="payment-method"] [data-payment-option]:focus-visible,.portal-select-popup[data-portal-select-variant="payment-method"] [data-payment-option][aria-selected="true"] { color:#fff;-webkit-text-fill-color:#fff;background:var(--payment-bg,#7F5347);filter:brightness(.92);transform:none;opacity:1; }
+.portal-select-popup[data-portal-select-variant="payment-method"] [data-payment-option]:focus-visible { outline:2px solid #fff;outline-offset:-3px;box-shadow:none; }
+@media(max-width:600px){.portal-select-popup[data-portal-select-variant="payment-method"]{max-height:min(240px,45vh)}.orders-payment-modal .payment-method-trigger{height:35px;min-height:35px}}
 .payment-badge__segment[data-payment-method=cash],.payment-badge__segment[data-payment-method=fnb-ewallet],.payment-badge__segment[data-payment-method=fnb-e-wallet],.payment-badge__segment[data-payment-method=pay2cell],.payment-badge__segment[data-payment-method=pay-2-cell],.payment-badge__segment[data-payment-method=paytoday],.payment-badge__segment[data-payment-method=pay-today]{color:#fff}
 body:has(.orders-page) .ps-notification-badge,body:has(.orders-page) .portal-notification-button__badge{font-weight:400}
 .workspace.module.orders-page .orders-tools-bar [data-toolbar-action] svg{color:#AB3619!important;stroke:currentColor!important}
