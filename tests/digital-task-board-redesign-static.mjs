@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 const page = readFileSync(new URL('../apps/operations/checklists.php', import.meta.url), 'utf8');
 const taskTable = readFileSync(new URL('../apps/operations/partials/checklist-task-table.php', import.meta.url), 'utf8');
 const css = readFileSync(new URL('../assets/css/portal.css', import.meta.url), 'utf8');
+const viewBar = readFileSync(new URL('../assets/js/portal-view-bar.js', import.meta.url), 'utf8');
 
 assert.match(page, /\$statuses = \['new' => 'New', 'in_progress' => 'In Progress', 'complete' => 'Complete'\]/);
 assert.doesNotMatch(page, /data-status-key="(?:pending|blocked|cancelled)"/);
@@ -56,5 +57,6 @@ assert.match(css, /\.task-management-page \{[^}]*grid-template-columns: minmax\(
 assert.match(css, /\.task-section \{[^}]*align-self: stretch[^}]*width: 100%[^}]*max-width: none[^}]*min-width: 0/);
 assert.match(css, /\.task-section\.is-collapsed \{[^}]*width: 100%[^}]*max-width: none[^}]*min-width: 0/);
 assert.match(page, /classList\.toggle\('is-collapsed', expanded\)/);
+assert.match(viewBar, /type !== 'packing' && type !== 'tasks'/);
 
 console.log('Digital Task Board redesign checks passed.');

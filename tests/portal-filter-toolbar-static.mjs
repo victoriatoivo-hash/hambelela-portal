@@ -92,7 +92,7 @@ assert.match(js, /function controlOptions\(control\)/);
 assert.match(js, /function groupSurface\(surface/);
 assert.match(js, /function syncView\(source, button\)/);
 assert.match(js, /portal-table-toolbar:/);
-assert.match(js, /if \(type !== 'packing'\) \{\s*bar\.insertAdjacentHTML\('beforeend'/);
+assert.match(js, /if \(type !== 'packing' && type !== 'tasks'\) \{\s*bar\.insertAdjacentHTML\('beforeend'/);
 assert.match(js, /const uploadInvoice = source\.querySelector\('\[data-open-invoice\]'\)/);
 assert.match(js, /const newItem = source\.querySelector\('\[data-open-packing-create\]'\)/);
 assert.match(js, /packingActions\.append\(uploadInvoice\)/);
