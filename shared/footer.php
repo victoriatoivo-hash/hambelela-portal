@@ -1,5 +1,5 @@
 <?php if (empty($portalViewBarCssLoadedInHead)): ?>
-<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal-view-bar.css?v=<?= is_file(BASE_PATH . '/assets/css/portal-view-bar.css') ? (string) filemtime(BASE_PATH . '/assets/css/portal-view-bar.css') : (string) time() ?>-interactive7">
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal-view-bar.css?v=<?= is_file(BASE_PATH . '/assets/css/portal-view-bar.css') ? (string) filemtime(BASE_PATH . '/assets/css/portal-view-bar.css') : (string) time() ?>-interactive8">
 <?php endif; ?>
 <!-- Keep responsive rules after every page-level and feature stylesheet. -->
 <link rel="stylesheet" data-portal-responsive-final href="<?= BASE_URL ?>/assets/css/portal-responsive.css?v=<?= is_file(BASE_PATH . '/assets/css/portal-responsive.css') ? (string) filemtime(BASE_PATH . '/assets/css/portal-responsive.css') : (string) time() ?>-mobile-final3">
