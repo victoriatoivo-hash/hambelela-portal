@@ -327,6 +327,27 @@ function checklist_days_remaining(?string $deadline, string $status): string
     return $days === 0 ? 'Due today' : $days . ' day' . ($days === 1 ? '' : 's') . ' left';
 }
 
+function checklist_due_state(?string $deadline, string $status): ?array
+{
+    if (!$deadline || $status === 'complete') return null;
+    $timezone = new DateTimeZone('Africa/Windhoek');
+    try {
+        $due = new DateTimeImmutable($deadline, $timezone);
+        $now = new DateTimeImmutable('now', $timezone);
+    } catch (Throwable $e) {
+        return null;
+    }
+    if ($due < $now) $value = 'overdue';
+    elseif ($due->format('Y-m-d') === $now->format('Y-m-d')) $value = 'due_today';
+    else $value = 'upcoming';
+    return [
+        'value' => $value,
+        'label' => ['upcoming' => 'Upcoming', 'due_today' => 'Due Today', 'overdue' => 'Overdue'][$value],
+        'iso' => $due->format(DateTimeInterface::ATOM),
+        'title' => 'Due ' . $due->format('j F Y \a\t g:i A'),
+    ];
+}
+
 function checklist_create_due_at(array $request): string
 {
     $raw = trim((string) ($request['due_at'] ?? ''));
@@ -1286,7 +1307,7 @@ include BASE_PATH . '/shared/sidebar.php';
         <div class="dtb-table-wrap">
         <table class="dtb-board-table task-board-table">
             <colgroup><col class="dtb-col-select"><col class="dtb-col-name"><col class="dtb-col-actions"><col class="dtb-col-assigned"><col class="dtb-col-priority"><col class="dtb-col-due"><col class="dtb-col-days"><col class="dtb-col-status"><col class="dtb-col-progress"><col class="dtb-col-completed"><col class="dtb-col-notes"></colgroup>
-            <thead><tr><th class="dtb-select-cell"><input class="dtb-task-check dtb-task-check-all" type="checkbox" aria-label="Select all visible tasks"></th><th>Task</th><th>Details</th><th>Assigned</th><th>Priority</th><th>Due</th><th>Days</th><th>Status</th><th>Progress</th><th>Completed</th><th>Notes</th></tr></thead>
+            <thead><tr><th class="dtb-select-cell"><input class="dtb-task-check dtb-task-check-all" type="checkbox" aria-label="Select all visible tasks"></th><th>Task</th><th>Details</th><th>Assigned</th><th>Priority</th><th>Due</th><th>When Due</th><th>Status</th><th>Progress</th><th>Completed</th><th>Notes</th></tr></thead>
             <tbody>
                 <?php foreach ($tasks as $task): ?>
                     <?php
@@ -1297,6 +1318,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     $rowItems = checklist_json_items((string) ($task['checklist_items'] ?? ''));
                     $rowChecked = checklist_json_items((string) ($task['checked_items'] ?? ''));
                     $progress = $savedStatus === 'complete' ? 100 : ($savedStatus === 'new' ? 0 : ($rowItems ? (int) round(count($rowChecked) / max(1, count($rowItems)) * 100) : 0));
+                    $dueState = checklist_due_state((string) ($task['deadline'] ?? ''), $savedStatus);
                     ?>
                     <?php $taskId = (int) $task['id']; ?>
                     <tr class="dtb-task-row task-grid-row" data-task-row data-task-id="<?= $taskId ?>" data-saved-status="<?= htmlspecialchars($savedStatus, ENT_QUOTES, 'UTF-8') ?>" data-display-status="<?= htmlspecialchars($effective, ENT_QUOTES, 'UTF-8') ?>" data-task-name="<?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?>" data-task-assigned="<?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?>" data-task-priority="<?= htmlspecialchars($priorities[$priorityKey] ?? 'Medium', ENT_QUOTES, 'UTF-8') ?>" data-task-status="<?= htmlspecialchars($groups[$effective] ?? ($statuses[$effective] ?? $effective), ENT_QUOTES, 'UTF-8') ?>">
@@ -1306,7 +1328,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         <td><?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?></td>
                         <td class="task-priority-cell"><div class="task-priority-fill" data-priority="<?= htmlspecialchars(str_replace('_', '-', $priorityKey), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($priorities[$priorityKey] ?? 'Normal', ENT_QUOTES, 'UTF-8') ?></div></td>
                         <td><?= checklist_date_label((string) ($task['deadline'] ?? '')) ?></td>
-                        <td><?= htmlspecialchars(checklist_days_remaining((string) ($task['deadline'] ?? ''), $effective), ENT_QUOTES, 'UTF-8') ?></td>
+                        <td class="task-table__due-cell"><?php if ($dueState): ?><span class="task-due-state task-due-state--<?= htmlspecialchars(str_replace('_', '-', $dueState['value']), ENT_QUOTES, 'UTF-8') ?>" data-task-due-state data-task-due-at="<?= htmlspecialchars($dueState['iso'], ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars($dueState['title'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($dueState['label'], ENT_QUOTES, 'UTF-8') ?></span><?php elseif ($savedStatus !== 'complete'): ?><span class="task-due-state task-due-state--missing" data-task-due-state>Set due date</span><?php else: ?>—<?php endif; ?></td>
                         <td class="task-status-cell"><button type="button" class="task-status-trigger" data-task-status-trigger data-status="<?= htmlspecialchars($statusKey, ENT_QUOTES, 'UTF-8') ?>" aria-haspopup="menu" aria-expanded="false"><?= htmlspecialchars($groups[$effective] ?? ($statuses[$effective] ?? $effective), ENT_QUOTES, 'UTF-8') ?></button></td>
                         <td><span class="task-progress-value"><?= $progress ?>%</span></td>
                         <td data-task-completed><?= htmlspecialchars(checklist_date_label((string) ($task['date_completed'] ?: $task['completed_at'])), ENT_QUOTES, 'UTF-8') ?></td>
@@ -1860,6 +1882,7 @@ function initialiseTaskTools() {
     initialiseTaskBulkSelection();
     initialiseTaskStatusWorkflow();
     initialiseTaskColumnResizing();
+    window.taskDueStateController?.refresh();
     if (window.lucide) window.lucide.createIcons({ strokeWidth:2 });
     window.scrollTo({ top:y, behavior:'instant' });
   };
@@ -2283,6 +2306,7 @@ function initialiseTaskStatusWorkflow() {
         row.dataset.taskStatus = task.display_label;
         triggerForSave.dataset.status = String(task.display_status).replaceAll('_', '-');
         triggerForSave.textContent = task.display_label;
+        window.taskDueStateController?.refresh();
         const completedCell = row.querySelector('[data-task-completed]');
         if (completedCell) completedCell.textContent = task.date_completed ? task.date_completed.replace(' ', ' · ').slice(0, 16) : '—';
         if (previousSaved !== task.status) {
@@ -2360,6 +2384,41 @@ function initialiseTaskOverdueFilter() {
   });
 }
 
+function initialiseTaskDueStates() {
+  const root = document.querySelector('.digital-task-page');
+  if (!root || window.taskDueStateController) return;
+  const TASK_TIMEZONE = 'Africa/Windhoek';
+  const labels = { upcoming:'Upcoming', due_today:'Due Today', overdue:'Overdue' };
+  let timer = null;
+  const dateKey = (date) => new Intl.DateTimeFormat('en-CA', {
+    timeZone:TASK_TIMEZONE, year:'numeric', month:'2-digit', day:'2-digit'
+  }).formatToParts(date).filter((part) => part.type !== 'literal').map((part) => part.value).join('-');
+  const update = (indicator, now) => {
+    const row = indicator.closest('[data-task-row]');
+    if (row?.dataset.savedStatus === 'complete') {
+      indicator.replaceWith(document.createTextNode('—'));
+      return null;
+    }
+    const due = new Date(indicator.dataset.taskDueAt || '');
+    if (Number.isNaN(due.getTime())) return null;
+    const value = due.getTime() < now.getTime() ? 'overdue' : (dateKey(due) === dateKey(now) ? 'due_today' : 'upcoming');
+    indicator.classList.remove('task-due-state--upcoming', 'task-due-state--due-today', 'task-due-state--overdue');
+    indicator.classList.add(`task-due-state--${value.replace('_', '-')}`);
+    indicator.textContent = labels[value];
+    return due.getTime() > now.getTime() ? due.getTime() - now.getTime() : null;
+  };
+  const refresh = () => {
+    if (timer) window.clearTimeout(timer);
+    const now = new Date();
+    const waits = [...root.querySelectorAll('[data-task-due-state][data-task-due-at]')].map((indicator) => update(indicator, now)).filter((wait) => wait !== null);
+    const nextDelay = Math.max(250, Math.min(60000, waits.length ? Math.min(...waits) + 50 : 60000));
+    timer = window.setTimeout(refresh, nextDelay);
+  };
+  window.taskDueStateController = { refresh };
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+  refresh();
+}
+
 function initialiseTaskSections() {
   const page = document.querySelector('.digital-task-page');
   if (!page || page.dataset.sectionsInitialised === 'true') return;
@@ -2394,6 +2453,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initialiseTaskColumnResizing();
   initialiseTaskOverdueFilter();
   initialiseTaskSections();
+  initialiseTaskDueStates();
 });
 
 document.addEventListener('click', (event) => {
@@ -2530,6 +2590,7 @@ window.addEventListener('portal:task-update', async (event) => {
     const tbody = document.querySelector('[data-task-kind="manual"] tbody');
     tbody?.querySelector('.dtb-empty-row')?.remove();
     tbody?.appendChild(nextRow);
+    window.taskDueStateController?.refresh();
     if (nextPanel && !document.querySelector(`[data-task-panel="${taskId}"]`)) document.querySelector('.task-panel-backdrop')?.before(nextPanel);
     ['active', 'new'].forEach((name) => { const value = document.querySelector(`[data-stat="${name}"] .dtb-stat-value`); if (value) value.textContent = String(Number(value.textContent.replace(/,/g, '')) + 1); });
     initialiseTaskBulkSelection();
