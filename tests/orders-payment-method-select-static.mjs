@@ -14,6 +14,7 @@ assert.match(orders, /payments\[index\]\.method=event\.target\.value;updateTotal
 assert.match(portal, /popupElement\.dataset\.portalSelectVariant = selectVariant/);
 assert.match(portal, /button\.dataset\.paymentOption = option\.dataset\.paymentOption/);
 assert.match(portal, /customSelect\.dataset\.paymentValue = selectedOption\?\.dataset\.paymentOption/);
+assert.match(portal, /Math\.min\(240, Math\.floor\(viewport\.height \* 0\.45\)\)/, 'Mobile payment menus must honor the 240px / 45vh cap in inline positioning.');
 
 const expectedColours = {
   cash: '#C4C4C4',
