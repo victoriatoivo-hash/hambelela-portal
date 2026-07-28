@@ -27254,7 +27254,7 @@ body.dark-mode .portal-dark-toggle {
 .digital-task-page .dtb-task-check:indeterminate::after { content: ""; width: 7px; height: 1.5px; border-radius: 2px; background: #fff; }
 .digital-task-page .dtb-task-check:active { transform:scale(.94); }
 .digital-task-page .dtb-task-check:focus-visible { outline:0; box-shadow:0 0 0 3px rgba(171,54,25,.11); }
-.digital-task-page .dtb-task-row.is-selected > td:not(.task-priority-cell):not(.task-status-cell) { background: rgba(171, 54, 25, .055); }
+.digital-task-page .dtb-task-row.is-selected > td:not(.task-priority-cell):not(.task-status-cell):not(.task-table__due-cell) { background: rgba(171, 54, 25, .055); }
 
 .dtb-bulk-action-bar { position: fixed; left: 50%; bottom: 22px; z-index: 30000; transform: translateX(-50%); min-height: 54px; padding: 7px 10px; display: flex; align-items: stretch; gap: 4px; border: 1px solid #ede3d8; border-radius: 14px; background: #fff; box-shadow: 0 16px 38px rgba(114, 27, 26, .20); animation: dtbBulkBarIn .18s ease-out; }
 .dtb-bulk-action-bar[hidden] { display: none; }
@@ -27471,7 +27471,7 @@ body.dark-mode .portal-dark-toggle {
 .digital-task-page .task-board-table th { position:relative; }
 .digital-task-page .task-column-resizer { position:absolute; top:0; right:-3px; z-index:2; width:7px; height:35px; cursor:col-resize; touch-action:none; }
 .digital-task-page .task-column-resizer:hover { background:rgba(240,116,32,.22); }
-.digital-task-page .task-board-table tbody tr:hover td:not(.task-priority-cell):not(.task-status-cell) { background:rgba(240,116,32,.045); }
+.digital-task-page .task-board-table tbody tr:hover td:not(.task-priority-cell):not(.task-status-cell):not(.task-table__due-cell) { background:rgba(240,116,32,.045); }
 .digital-task-page .task-board-table .dtb-col-select { width:34px; }
 .digital-task-page .task-board-table .dtb-col-name { width:260px; }
 .digital-task-page .task-board-table .dtb-col-actions { width:48px; }
@@ -27484,11 +27484,25 @@ body.dark-mode .portal-dark-toggle {
 .digital-task-page .task-board-table .dtb-col-completed { width:155px; }
 .digital-task-page .task-board-table .dtb-col-notes { width:240px; }
 .digital-task-page .task-board-table td.task-status-cell,
-.digital-task-page .task-board-table td.task-priority-cell { padding:0; }
+.digital-task-page .task-board-table td.task-priority-cell,
+.digital-task-page .task-board-table td.task-table__due-cell { padding:0; }
+.digital-task-page {
+  --task-upcoming:#4B91B8;
+  --task-due-today:#347FC0;
+  --task-overdue:#1F4E9C;
+}
+.digital-task-page .task-due-state { display:flex; align-items:center; justify-content:center; width:100%; height:100%; min-height:35px; padding:0 8px; border:0; border-radius:0; color:#fff; font:400 12px/1 Figtree,system-ui,sans-serif; text-align:center; white-space:nowrap; cursor:default; box-shadow:none; box-sizing:border-box; transition:background-color .18s ease,color .18s ease,box-shadow .18s ease; }
+.digital-task-page .task-due-state--upcoming { background-color:var(--task-upcoming); }
+.digital-task-page .task-due-state--due-today { background-color:var(--task-due-today); }
+.digital-task-page .task-due-state--overdue { background-color:var(--task-overdue); }
+.digital-task-page .task-due-state--missing { background:#68727c; }
 .digital-task-page .task-status-trigger { width:100%; height:35px; padding:0 8px; border:0; border-radius:0; display:flex; align-items:center; justify-content:center; background:#F07420; color:#fff; font:400 12px/1 Figtree,system-ui,sans-serif; cursor:pointer; }
 .digital-task-page .task-status-trigger[data-status="in-progress"] { background:#AB3619; }
 .digital-task-page .task-status-trigger[data-status="complete"] { background:#A8CA19; color:#1A1A1A; }
 .digital-task-page .task-status-trigger[data-status="overdue"] { background:#BB1B21; color:#fff; }
+@media (max-width:600px) {
+  .digital-task-page .task-due-state { min-height:35px; padding-inline:5px; font-size:11px; }
+}
 .digital-task-page .task-name-trigger { max-width:100%; padding:0; border:0; background:transparent; color:#1A1A1A; font:400 12px/1.2 Figtree,system-ui,sans-serif; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; }
 .digital-task-page .task-name-trigger:hover { color:#AB3619; text-decoration:underline; }
 .digital-task-page .task-detail-icon { width:100%; height:35px; border:0; background:transparent; color:#AB3619; display:grid; place-items:center; cursor:pointer; }
