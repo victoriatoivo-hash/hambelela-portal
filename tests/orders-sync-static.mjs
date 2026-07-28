@@ -21,6 +21,7 @@ assert.match(sharedJs, /window\.showPortalToast = \(\{/);
 assert.match(sharedJs, /container\.setAttribute\('aria-live', 'polite'\)/);
 assert.match(sharedJs, /container\.setAttribute\('aria-atomic', 'true'\)/);
 assert.match(sharedCss, /\.portal-toolbar-action\[data-toolbar-action=sync\]\.is-syncing svg\{animation:portal-toolbar-sync 650ms linear infinite\}/);
+assert.match(sharedCss, /\.portal-toolbar-action\[data-toolbar-action=sync\]\.is-syncing svg\{animation:portal-toolbar-sync 1\.4s linear infinite!important\}/);
 assert.doesNotMatch(css, /orders-sync-spin/);
 assert.doesNotMatch(board, /(?:window\.)?location\.reload\s*\(/);
 
