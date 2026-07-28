@@ -244,6 +244,9 @@ body.orders-tools-open{overflow:hidden}
 .orders-filter-panel .work-filter-actions button[data-board-refresh] { background: var(--orders-rust); color: #fff; }
 .orders-filter-panel .work-filter-actions button:not([data-board-refresh]) { color: #111; }
 .orders-filter-panel .work-filter-actions button:not([data-board-refresh]) svg { color: var(--orders-rust); }
+.orders-page [data-orders-sync].is-syncing .orders-toolbar__sync-icon { animation: orders-sync-spin .75s linear infinite; }
+@keyframes orders-sync-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .orders-page [data-orders-sync].is-syncing .orders-toolbar__sync-icon { animation-duration: 1.5s; } }
 .orders-filter-panel svg { width: 14px; height: 14px; }
 
 .orders-page .availability-switch-wrap { display: flex; align-items: center; gap: 8px; color: var(--orders-muted); font-size: 11px; font-weight: 400; }
