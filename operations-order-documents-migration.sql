@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS ops_order_documents (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  order_id BIGINT UNSIGNED NOT NULL,
+  document_type VARCHAR(16) NOT NULL,
+  source_system VARCHAR(32) NOT NULL DEFAULT 'website_pos',
+  source_order_id VARCHAR(100) NOT NULL,
+  document_id VARCHAR(190) NOT NULL,
+  source_url TEXT NOT NULL,
+  generated_at DATETIME NULL,
+  document_version VARCHAR(100) NOT NULL,
+  source_checksum VARCHAR(128) NULL,
+  cached_checksum VARCHAR(64) NULL,
+  cached_path VARCHAR(255) NULL,
+  is_current TINYINT(1) NOT NULL DEFAULT 1,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_order_document (order_id, document_type, document_id, document_version),
+  KEY idx_order_document_current (order_id, document_type, is_current)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

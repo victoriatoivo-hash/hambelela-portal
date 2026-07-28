@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/operations.php';
 require_once BASE_PATH . '/shared/woocommerce.php';
 require_once BASE_PATH . '/shared/board-columns.php';
+require_once __DIR__ . '/lib/orders-documents.php';
 
 header('Content-Type: application/json');
 
@@ -408,6 +409,9 @@ function ops_board_sync_website_orders(?string $date = null): array
         throw new RuntimeException('Import operations-woocommerce-sync-migration.sql first.');
     }
     ops_ensure_order_payment_schema();
+    // Create/verify the metadata table before the order transaction starts;
+    // MySQL DDL inside that transaction would implicitly commit it.
+    ops_order_documents_ensure_table();
 
     $baseQuery = [
         'per_page' => 100,
@@ -630,6 +634,9 @@ function ops_board_sync_website_orders(?string $date = null): array
             $orderIdStmt->execute([$wooOrderId]);
             $orderId = (int) $orderIdStmt->fetchColumn();
             $orderIdStmt->closeCursor();
+            // Store only stable POS document identifiers during Sync. The exact
+            // PDF is fetched and preserved only when a staff member opens it.
+            ops_order_document_sync_metadata($orderId, $order);
             $paymentAllocations = ops_wc_payment_allocations($order);
             if ($paymentAllocations) {
                 $paymentVersion = (string) (($order['date_modified_gmt'] ?? '') ?: ($order['date_modified'] ?? '') ?: date(DATE_ATOM));

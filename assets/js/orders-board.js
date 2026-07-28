@@ -3655,7 +3655,7 @@
         ${hasWebsiteDocuments ? `
           <div class="order-documents-list">
             ${['receipt', 'invoice'].map((type) => `
-              <div class="order-document-row">
+              <div class="order-document-row" data-document-type="${type}" data-document-loading="true" data-document-available="false">
                 <span class="order-document-name">
                   <i data-lucide="${type === 'receipt' ? 'receipt-text' : 'file-text'}" aria-hidden="true"></i>
                   ${type === 'receipt' ? 'Receipt' : 'Invoice'}
@@ -3671,14 +3671,14 @@
                     <i data-lucide="printer" aria-hidden="true"></i><span>Print</span>
                   </button>
                 </span>
-                <span class="order-document-error" data-order-document-error="${type}" role="status">Checking original document…</span>
+                <span class="order-document-error" data-order-document-error="${type}" role="status">Checking POS document…</span>
               </div>
             `).join('')}
           </div>
         ` : `
           <div class="order-documents-unavailable">
             <i data-lucide="file-x-2" aria-hidden="true"></i>
-            <span>Original POS receipt unavailable. This order was not created through the website POS.</span>
+            <span>Not generated in POS.</span>
           </div>
         `}
       </section>`;
@@ -3712,17 +3712,24 @@
       if (!currentOrder || String(currentOrder.id) !== String(orderId)) return;
       ['receipt', 'invoice'].forEach((type) => {
         const available = result?.documents?.[type]?.available === true;
+        const row = panelDetails?.querySelector(`.order-document-row[data-document-type="${type}"]`);
+        if (row) {
+          row.dataset.documentLoading = 'false';
+          row.dataset.documentAvailable = available ? 'true' : 'false';
+        }
         panelDetails?.querySelectorAll(`[data-order-document][data-document-type="${type}"]`)
           .forEach((control) => {
             control.disabled = !available;
             control.setAttribute('aria-disabled', available ? 'false' : 'true');
           });
-        orderDocumentError(type, available ? '' : `${type === 'receipt' ? 'Receipt' : 'Invoice'} unavailable for this order.`);
+        orderDocumentError(type, available ? 'Available' : 'Not generated in POS.');
       });
     } catch (_) {
       if (!currentOrder || String(currentOrder.id) !== String(orderId)) return;
       ['receipt', 'invoice'].forEach((type) => {
-        orderDocumentError(type, 'Original document service unavailable.');
+        const row = panelDetails?.querySelector(`.order-document-row[data-document-type="${type}"]`);
+        if (row) row.dataset.documentLoading = 'false';
+        orderDocumentError(type, 'Unable to load document. Try again.');
       });
     }
   }
@@ -3750,7 +3757,7 @@
     const response = await fetch(url, {
       credentials:'same-origin',
       redirect:'follow',
-      headers:{ Accept:'application/pdf,text/html;q=0.9' }
+      headers:{ Accept:'application/pdf' }
     });
     if (!response.ok) {
       const message = (await response.text()).trim();
@@ -3758,8 +3765,8 @@
     }
     const contentType = String(response.headers.get('content-type') || '').toLowerCase();
     const verified = response.headers.get('x-portal-original-document') === '1';
-    if (!verified || (!contentType.includes('application/pdf') && !contentType.includes('text/html'))) {
-      throw new Error('The website did not return an original POS document.');
+    if (!verified || !contentType.includes('application/pdf')) {
+      throw new Error('The POS did not return an original PDF document.');
     }
     const blob = await response.blob();
     if (!blob.size) throw new Error('The website returned an empty document.');
@@ -3782,7 +3789,7 @@
       if (action === 'download') {
         const filename = orderDocumentFilename(
           response.headers.get('content-disposition'),
-          `${documentType}-${orderId}.${blob.type.includes('html') ? 'html' : 'pdf'}`
+          `${documentType}-${orderId}.pdf`
         );
         const link = document.createElement('a');
         link.href = objectUrl;
