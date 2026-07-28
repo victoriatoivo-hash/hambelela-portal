@@ -27644,6 +27644,14 @@ button.task-tools-trigger {
   font-size: 12px;
 }
 
+/* Task Management toolbar icons use the approved portal accent. */
+.workspace.module.digital-task-page
+.portal-table-toolbar__controls
+.portal-toolbar-action svg {
+  color: #AB3619;
+  stroke: #AB3619;
+}
+
 .workspace.module.digital-task-page
 .task-board-table
 tbody
