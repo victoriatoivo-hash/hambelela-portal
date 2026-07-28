@@ -23,7 +23,7 @@
   if (presenceScriptUrl && !document.querySelector('link[href*="/assets/css/portal-view-bar.css"]')) {
     const viewBarStylesheet = document.createElement('link');
     viewBarStylesheet.rel = 'stylesheet';
-    viewBarStylesheet.href = new URL('../css/portal-view-bar.css?v=shared25', presenceScriptUrl).href;
+    viewBarStylesheet.href = new URL('../css/portal-view-bar.css?v=shared26', presenceScriptUrl).href;
     document.head.append(viewBarStylesheet);
   }
   if (presenceScriptUrl && !document.querySelector('script[src*="/assets/js/portal-view-bar.js"]')) {

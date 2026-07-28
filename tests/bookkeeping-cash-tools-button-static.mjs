@@ -6,6 +6,7 @@ const css = readFileSync(new URL('../assets/css/portal-view-bar.css', import.met
 const rule = css.match(/\.bookkeeping-cash-tools-button\{([^}]+)\}/)?.[1] || '';
 for (const declaration of [
   'display:flex!important',
+  'width:108.719px!important',
   'height:32px!important',
   'min-height:32px!important',
   'padding:0 12px!important',
