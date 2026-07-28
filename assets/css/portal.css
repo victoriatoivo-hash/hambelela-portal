@@ -27411,7 +27411,7 @@ body.dark-mode .portal-dark-toggle {
 .task-tools-timeline .portal-activity-time,.task-tools-actor { color:#A08070; font-size:10px; }
 .task-tools-timeline .portal-activity-description { margin:6px 0; color:#6B4C3B; font-size:12px; }
 .task-tools-bulk h3 { margin:0 0 6px; color:#721B1A; font-size:14px; }
-.task-tools-bulk p { margin:0 0 14px; color:#6B4C3B; font-size:12px; }
+.digital-task-page .task-tools-panel .task-tools-bulk > p { margin:0 0 14px; color:#6B4C3B; font-size:10px !important; }
 .task-tools-bulk-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
 .task-tools-bulk-grid .pk-btn { width:100%; height:32px; }
 .task-row-actions { display:flex; align-items:center; justify-content:center; gap:3px; }
