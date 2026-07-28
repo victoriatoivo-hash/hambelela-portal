@@ -35,7 +35,7 @@
   color: var(--orders-burgundy);
   font-size: 22px;
   line-height: 1.2;
-  font-weight: 700;
+  font-weight: 600;
 }
 .orders-page-header h1 svg { display: none; }
 .orders-page .monday-board-head-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }

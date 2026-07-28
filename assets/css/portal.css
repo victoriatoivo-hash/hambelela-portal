@@ -19563,7 +19563,7 @@ body:has(.ob-wrap) .workspace.ob-wrap {
 .ob-wrap .work-board-head h1 {
   color: #7a1f1f !important;
   font-size: 24px !important;
-  font-weight: 800 !important;
+  font-weight: 600 !important;
   letter-spacing: 0 !important;
 }
 
