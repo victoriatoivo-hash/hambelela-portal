@@ -1979,6 +1979,9 @@
       bar = document.createElement('div');
       bar.id = 'orders-bulk-action-bar';
       bar.className = 'orders-packing-bulk-bar';
+      bar.dataset.ordersBulkActions = '';
+      bar.setAttribute('role', 'toolbar');
+      bar.setAttribute('aria-label', 'Selected orders actions');
       bar.hidden = true;
       (page || document.body).appendChild(bar);
     }
