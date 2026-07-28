@@ -274,6 +274,17 @@
     })}`;
   };
   const normalize = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  function formatOrderInvoiceReference(orderReference = '') {
+    const rawReference = String(orderReference).trim();
+    if (!rawReference) return '—';
+    const websiteOrderMatch = rawReference.match(/^WEB[-_\s]*#?\s*(.+)$/i);
+    if (!websiteOrderMatch) return rawReference;
+    const orderNumber = websiteOrderMatch[1]
+      .trim()
+      .replace(/^INV[-_\s#]*/i, '')
+      .replace(/^#\s*/, '');
+    return orderNumber ? `INV-${orderNumber}` : rawReference;
+  }
   const normaliseOrderColourKey = (value = '') => String(value)
     .trim()
     .toLowerCase()
@@ -586,7 +597,7 @@
 
   function editableDisplayValue(order, field) {
     if (!order) return '';
-    if (field === 'customer_name') return `${String(order.order_number || '').replace(/^WEB-/, '')} ${order.customer_name || ''}`.trim();
+    if (field === 'customer_name') return `${formatOrderInvoiceReference(order.order_number)} ${order.customer_name || ''}`.trim();
     if (field === 'customer_contact') return order.customer_contact || '';
     if (field === 'total_amount') return money(order.total_amount);
     if (field === 'assigned_packer_id') return order.packer_name || 'Unassigned';
@@ -1334,7 +1345,7 @@
     const search = boardState.search.toLowerCase();
     let orders = ordersCache.filter((order) => {
       const haystack = [
-        order.order_number, order.customer_name, order.customer_contact, order.payment_method,
+        order.order_number, formatOrderInvoiceReference(order.order_number), order.customer_name, order.customer_contact, order.payment_method,
         order.order_type, order.status, order.packer_name, order.notes
       ].join(' ').toLowerCase();
 
@@ -1536,7 +1547,7 @@
     const reason = record[isTrash ? 'delete_reason' : 'archive_reason'] || (isTrash ? 'Moved to Trash' : 'Archived');
     return `<article class="orders-tools-record orders-trash-row">
       <div class="orders-trash-row__details">
-      <div><strong>${esc(record.order_number || `Order #${record.id}`)}</strong><small>${record.woo_order_id ? 'WooCommerce portal record' : 'Portal-created record'}</small></div>
+      <div><strong>${esc(formatOrderInvoiceReference(record.order_number || `Order #${record.id}`))}</strong><small>${record.woo_order_id ? 'WooCommerce portal record' : 'Portal-created record'}</small></div>
       <div>${esc(record.customer_name || 'No customer')}<small>${esc(record.status || '')}</small></div>
       <div>N$${Number(record.total_amount || 0).toLocaleString(undefined,{maximumFractionDigits:2})}</div>
       <div>${esc(date)}<small>${esc(actor)} · ${esc(reason)}</small></div>
@@ -1564,11 +1575,11 @@
         let metadata = event.metadata || {};
         if (typeof metadata === 'string') { try { metadata = JSON.parse(metadata); } catch (_) { metadata = {}; } }
         const action = String(event.action || '').replaceAll('_', ' ');
-        return `<article class="orders-tools-event"><strong>${esc(action)}</strong> · ${esc(event.order_number || `Order #${event.order_id}`)}<div>${esc(event.customer_name || '')}</div><small>${esc(event.actor_name || metadata.changed_by || 'System')} · ${esc(event.actor_role || '')} · ${esc(event.created_at || '')}</small></article>`;
+        return `<article class="orders-tools-event"><strong>${esc(action)}</strong> · ${esc(formatOrderInvoiceReference(event.order_number || `Order #${event.order_id}`))}<div>${esc(event.customer_name || '')}</div><small>${esc(event.actor_name || metadata.changed_by || 'System')} · ${esc(event.actor_role || '')} · ${esc(event.created_at || '')}</small></article>`;
       }).join('')}</div>` : ordersToolsEmpty('No activity found', 'Try changing the selected filters.');
     } else {
       const ids = [...selectedOrders];
-      ordersToolsContent.innerHTML = `<section class="orders-tools-bulk-summary"><span>Selected orders</span><strong>${ids.length}</strong><p>${ids.length ? esc(ids.slice(0,12).map((id) => ordersCache.find((order) => String(order.id) === id)?.order_number || `#${id}`).join(', ')) : 'Select rows on the Orders Board to use bulk actions.'}</p><div class="orders-tools-bulk-actions"><button type="button" class="orders-tools-button" data-orders-tools-action="archive-selected" ${ids.length ? '' : 'disabled'}><i data-lucide="archive"></i>Archive selected</button><button type="button" class="orders-tools-button orders-tools-button--danger" data-orders-tools-action="trash-selected" ${ids.length ? '' : 'disabled'}><i data-lucide="trash-2"></i>Move selected to Trash</button><button type="button" class="orders-tools-button" data-orders-tools-action="export-selected" ${ids.length ? '' : 'disabled'}><i data-lucide="download"></i>Export selected</button></div></section>`;
+      ordersToolsContent.innerHTML = `<section class="orders-tools-bulk-summary"><span>Selected orders</span><strong>${ids.length}</strong><p>${ids.length ? esc(ids.slice(0,12).map((id) => formatOrderInvoiceReference(ordersCache.find((order) => String(order.id) === id)?.order_number || `#${id}`)).join(', ')) : 'Select rows on the Orders Board to use bulk actions.'}</p><div class="orders-tools-bulk-actions"><button type="button" class="orders-tools-button" data-orders-tools-action="archive-selected" ${ids.length ? '' : 'disabled'}><i data-lucide="archive"></i>Archive selected</button><button type="button" class="orders-tools-button orders-tools-button--danger" data-orders-tools-action="trash-selected" ${ids.length ? '' : 'disabled'}><i data-lucide="trash-2"></i>Move selected to Trash</button><button type="button" class="orders-tools-button" data-orders-tools-action="export-selected" ${ids.length ? '' : 'disabled'}><i data-lucide="download"></i>Export selected</button></div></section>`;
     }
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
   }
@@ -1715,7 +1726,8 @@
     const modal = document.createElement('div');
     modal.id = 'order-payment-editor';
     modal.className = 'payment-editor';
-    modal.innerHTML = `<button type="button" class="payment-editor__backdrop" data-payment-editor-close aria-label="Close payment editor"></button><section class="payment-editor__dialog" role="dialog" aria-modal="true" aria-labelledby="payment-editor-title"><header><div><span>Order payment</span><h2 id="payment-editor-title">${esc(order.order_number || 'Order')}</h2></div><button type="button" data-payment-editor-close aria-label="Close">×</button></header><label class="payment-editor__type">Payment type<select data-payment-type ${editable?'':'disabled'}><option value="single">Single Payment</option><option value="split" ${payments.length>1?'selected':''}>Split Payment</option></select></label><div class="payment-editor__rows" data-payment-editor-rows></div><button type="button" class="payment-editor__add" data-payment-add ${editable&&payments.length>1?'':'hidden'}>+ Add payment method</button><div class="payment-editor__totals"><span>Order total <strong>${esc(money(order.total_amount))}</strong></span><span>Collected <strong data-payment-collected></strong></span><span>Due <strong data-payment-due></strong></span></div><footer><button type="button" data-payment-editor-close>Cancel</button>${editable?'<button type="button" class="primary" data-payment-save>Save Payment</button>':''}</footer><p class="payment-editor__error" data-payment-error aria-live="polite"></p></section>`;
+    modal.dataset.orderId = String(order.id);
+    modal.innerHTML = `<button type="button" class="payment-editor__backdrop" data-payment-editor-close aria-label="Close payment editor"></button><section class="payment-editor__dialog" role="dialog" aria-modal="true" aria-labelledby="payment-editor-title"><header><div><span>Order payment</span><h2 id="payment-editor-title" data-payment-order-reference>${esc(formatOrderInvoiceReference(order.order_number || order.id))}</h2></div><button type="button" data-payment-editor-close aria-label="Close">×</button></header><label class="payment-editor__type">Payment type<select data-payment-type ${editable?'':'disabled'}><option value="single">Single Payment</option><option value="split" ${payments.length>1?'selected':''}>Split Payment</option></select></label><div class="payment-editor__rows" data-payment-editor-rows></div><button type="button" class="payment-editor__add" data-payment-add ${editable&&payments.length>1?'':'hidden'}>+ Add payment method</button><div class="payment-editor__totals"><span>Order total <strong>${esc(money(order.total_amount))}</strong></span><span>Collected <strong data-payment-collected></strong></span><span>Due <strong data-payment-due></strong></span></div><footer><button type="button" data-payment-editor-close>Cancel</button>${editable?'<button type="button" class="primary" data-payment-save>Save Payment</button>':''}</footer><p class="payment-editor__error" data-payment-error aria-live="polite"></p></section>`;
     document.body.appendChild(modal);
     const rows = modal.querySelector('[data-payment-editor-rows]');
     const updateTotals = () => {
@@ -1804,7 +1816,7 @@
     list.innerHTML = orders.map((order) => `
       <article class="board-mobile-card" data-mobile-order-id="${esc(order.id)}">
         <header>
-          <strong>${esc(order.order_number.replace(/^WEB-/, ''))} ${esc(order.customer_name)}</strong>
+          <strong>${esc(formatOrderInvoiceReference(order.order_number))} ${esc(order.customer_name)}</strong>
           ${renderLabelCell(order, 'status', order.status || 'new_order', statusLabels, 'status-label')}
         </header>
         <div class="board-card-meta">
@@ -1949,7 +1961,7 @@
   function exportOrders(rows, filename) {
     const headers = ['Order', 'Customer', 'Date', 'Mobile number', 'Mode', 'Amount', 'Payment', 'Paid', 'Status', 'Packed by', 'Text'];
     const csvRows = [headers, ...rows.map((order) => [
-      order.order_number || '',
+      formatOrderInvoiceReference(order.order_number),
       order.customer_name || '',
       prettyDate(orderDisplayDateTime(order)),
       order.customer_contact || '',
@@ -2395,7 +2407,7 @@
       return `
         <div data-order-id="${esc(order.id)}" data-group-row="${esc(key)}" data-group-date="${esc(key)}" class="orders-grid-row monday-grid monday-order-row board-row ob-data-row order-row ${stripClass} ${!previousOrderIds.has(String(order.id)) && hasRenderedOnce ? 'row-new' : ''} ${selectedOrders.has(String(order.id)) ? 'is-selected' : ''}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
           <div class="orders-grid-cell orders-grid-cell--select monday-cell check-cell col-checkbox"><label class="portal-grid-checkbox"><input class="portal-grid-checkbox-input orders-row-checkbox" type="checkbox" data-row-select="${esc(order.id)}" ${selectedOrders.has(String(order.id)) ? 'checked' : ''} aria-label="Select order"><span class="portal-grid-checkbox-box" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="m2.2 6.1 2.2 2.2 5.4-5.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span></label></div>
-          <div class="orders-grid-cell orders-grid-cell--task monday-cell task-cell editable-cell col-task" data-editable-order-field="customer_name" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_name || '')}" tabindex="0"><span class="orders-inline-cell-trigger task-name">${esc(order.order_number.replace(/^WEB-/, ''))} ${esc(order.customer_name)}</span></div>
+          <div class="orders-grid-cell orders-grid-cell--task monday-cell task-cell editable-cell col-task" data-editable-order-field="customer_name" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_name || '')}" tabindex="0"><span class="orders-inline-cell-trigger task-name" data-order-reference>${esc(formatOrderInvoiceReference(order.order_number))} ${esc(order.customer_name)}</span></div>
           <div class="orders-grid-cell orders-grid-cell--notes monday-cell comment-cell col-task-icon update-icon-cell">${renderUpdateIconCell(order)}</div>
           <div class="orders-grid-cell orders-grid-cell--date monday-cell col-date order-date-cell portal-date-cell" data-order-id="${esc(order.id)}" title="Edit order date/time"><input type="datetime-local" class="orders-date-trigger" data-orders-date-input data-order-id="${esc(order.id)}" value="${esc(orderDisplayDateTime(order).replace(' ', 'T').slice(0, 16))}" aria-label="Order date and time"></div>
           <div class="orders-grid-cell orders-grid-cell--mobile monday-cell editable-cell col-mobile" data-editable-order-field="customer_contact" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_contact || '')}" tabindex="0"><span class="orders-inline-cell-trigger">${esc(order.customer_contact || '')}</span></div>
@@ -3237,9 +3249,9 @@
   }
 
   function orderPanelTitle(order) {
-    const number = String(order?.order_number || '').replace(/^WEB-/, '');
+    const number = formatOrderInvoiceReference(order?.order_number || '');
     const name = String(order?.customer_name || '').trim();
-    return `#${number}${name ? ` ${name}` : ''}`;
+    return `${number}${name ? ` ${name}` : ''}`;
   }
 
   function savedUpdateBody(order) {
@@ -3663,7 +3675,7 @@
         `}
       </section>`;
     const cards = [
-      ['Order summary', [['Order', currentOrder.order_number || ''], ['Date', prettyDate(orderDisplayDateTime(currentOrder))], ['Status', findText(statusLabels, currentOrder.status || '')]]],
+      ['Order summary', [['Order', formatOrderInvoiceReference(currentOrder.order_number)], ['Date', prettyDate(orderDisplayDateTime(currentOrder))], ['Status', findText(statusLabels, currentOrder.status || '')]]],
       ['Customer', [['Name', currentOrder.customer_name || ''], ['Mobile number', currentOrder.customer_contact || '']]],
       ['Fulfilment', [['Mode', findText(modeLabels, currentOrder.order_type || '')], ['Packed by', currentOrder.packer_name || 'Unassigned']]],
       ['Payment', [['Amount', money(currentOrder.total_amount)], ['Method', currentOrder.payment_method || ''], ['Paid', currentOrder.is_paid ? 'Yes' : 'No']]]
