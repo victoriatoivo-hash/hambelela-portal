@@ -27629,6 +27629,12 @@ button.dtb-btn.dtb-btn-primary svg {
 
 .workspace.module.digital-task-page
 .dtb-page-actions
+button.dtb-btn.dtb-btn-primary {
+  font-size: 12px;
+}
+
+.workspace.module.digital-task-page
+.dtb-page-actions
 button.dtb-btn.dtb-btn-primary:hover,
 .workspace.module.digital-task-page
 .dtb-page-actions
