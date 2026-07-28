@@ -27317,7 +27317,7 @@ body.dark-mode .portal-dark-toggle {
   letter-spacing:.08em; text-transform:uppercase;
 }
 .task-tools-panel .packing-tools-title { margin:0; color:#721B1A; font-size:20px; line-height:1.2; }
-.task-tools-panel .packing-tools-subtitle { margin:5px 0 0; color:#6B4C3B; font-size:10px; }
+.digital-task-page .task-tools-panel p.packing-tools-subtitle { margin:5px 0 0; color:#6B4C3B; font-size:10px !important; }
 .task-tools-panel .packing-tools-close {
   width:32px; height:32px; padding:0; display:grid; place-items:center;
   border:1px solid #EDE3D8; border-radius:9px; background:#fff;
