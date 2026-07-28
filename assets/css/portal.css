@@ -27665,6 +27665,50 @@ button.task-name-trigger {
   font-size: 10px;
 }
 
+.digital-task-page a.dtb-stat-card {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.digital-task-page a.dtb-stat-card:hover,
+.digital-task-page a.dtb-stat-card:focus-visible {
+  border-color: rgba(171, 54, 25, .42);
+  box-shadow: 0 8px 20px rgba(114, 27, 26, .09);
+  outline: none;
+}
+
+.task-completion-error {
+  display: grid;
+  gap: 3px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  color: #721B1A;
+  background: #FDF6EE;
+  border: 1px solid rgba(187, 27, 33, .34);
+  border-radius: 10px;
+  font-size: 11px;
+}
+.task-completion-error[hidden] { display: none; }
+.task-checklist-item.is-incomplete {
+  background: rgba(187, 27, 33, .06);
+  border-color: #BB1B21;
+  box-shadow: inset 3px 0 0 #BB1B21;
+}
+.task-checklist-item small { margin-left: auto; color: #AB3619; font-size: 9px; }
+.task-completion-requirements { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+.task-completion-requirements label { display: inline-flex; align-items: center; gap: 7px; color: #5f463b; font-size: 11px; }
+.task-complete-confirm { position: fixed; inset: 0; z-index: 72000; display: grid; place-items: center; padding: 18px; }
+.task-complete-confirm[hidden] { display: none; }
+.task-complete-confirm__backdrop { position: absolute; inset: 0; background: rgba(26, 26, 26, .38); }
+.task-complete-confirm > section { position: relative; width: min(390px, 100%); padding: 20px; background: #fff; border: 1px solid #EDE3D8; border-radius: 14px; box-shadow: 0 24px 60px rgba(114, 27, 26, .2); }
+.task-complete-confirm h2 { margin: 0 0 8px; color: #721B1A; font-size: 18px; }
+.task-complete-confirm p { margin: 0 0 18px; color: #6B4C3B; font-size: 12px; line-height: 1.5; }
+.task-complete-confirm section > div { display: flex; justify-content: flex-end; gap: 8px; }
+.task-complete-confirm button { min-height: 34px; padding: 0 13px; border: 1px solid rgba(171, 54, 25, .24); border-radius: 9px; color: #721B1A; background: #fff; cursor: pointer; }
+.task-complete-confirm [data-task-complete-accept] { color: #fff; background: #AB3619; border-color: #AB3619; }
+body.task-confirm-open { overflow: hidden; }
+
 /* Employee dashboard task reminders */
 .employee-task-count { position:absolute; right:12px; bottom:12px; min-width:22px; height:22px; padding:0 6px; display:grid; place-items:center; border:2px solid #fff; border-radius:999px; background:#BB1B21; color:#fff; box-shadow:0 5px 12px rgba(187,27,33,.22); font:700 10px/1 Figtree,sans-serif; }
 .dashboard-task-reminder { position:fixed; inset:0; z-index:70000; display:grid; place-items:center; padding:18px; }

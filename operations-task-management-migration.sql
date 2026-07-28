@@ -40,6 +40,14 @@ ALTER TABLE ops_checklist_tasks ADD COLUMN recurrence_key VARCHAR(120) NULL AFTE
 ALTER TABLE ops_checklist_tasks ADD COLUMN recurring_rule VARCHAR(80) NULL AFTER recurrence_key;
 ALTER TABLE ops_checklist_tasks ADD COLUMN created_by INT NULL AFTER recurring_rule;
 ALTER TABLE ops_checklist_tasks ADD COLUMN updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at;
+ALTER TABLE ops_checklist_tasks ADD COLUMN first_displayed_at DATETIME NULL AFTER date_assigned;
+ALTER TABLE ops_checklist_tasks ADD COLUMN first_opened_at DATETIME NULL AFTER first_displayed_at;
+ALTER TABLE ops_checklist_tasks ADD COLUMN acknowledged_at DATETIME NULL AFTER first_opened_at;
+ALTER TABLE ops_checklist_tasks ADD COLUMN started_at DATETIME NULL AFTER acknowledged_at;
+ALTER TABLE ops_checklist_tasks ADD COLUMN completion_note_required TINYINT(1) NOT NULL DEFAULT 0 AFTER completion_note;
+ALTER TABLE ops_checklist_tasks ADD COLUMN completion_evidence_required TINYINT(1) NOT NULL DEFAULT 0 AFTER completion_note_required;
+ALTER TABLE ops_checklist_tasks ADD COLUMN performance_scored TINYINT(1) NOT NULL DEFAULT 1 AFTER completion_evidence_required;
+ALTER TABLE ops_checklist_tasks ADD COLUMN blocked_reason TEXT NULL AFTER performance_scored;
 
 UPDATE ops_checklist_tasks SET status = 'not_started' WHERE status IN ('pending', 'missed');
 UPDATE ops_checklist_tasks SET status = 'done' WHERE status IN ('completed', 'approved');

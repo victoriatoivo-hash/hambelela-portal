@@ -36,12 +36,15 @@ $types = [
     'stock_refill' => 'Stock refill',
 ];
 $priorities = ['low' => 'Low', 'medium' => 'Medium', 'high' => 'High', 'top_critical' => 'Top Critical'];
-$statuses = ['pending' => 'Pending', 'in_progress' => 'In Progress', 'complete' => 'Complete'];
+$statuses = ['new' => 'New', 'pending' => 'Pending', 'in_progress' => 'In Progress', 'blocked' => 'Blocked', 'complete' => 'Complete', 'cancelled' => 'Cancelled'];
 $groups = [
+    'new' => 'New',
     'overdue' => 'Overdue',
     'pending' => 'Pending',
     'in_progress' => 'In Progress',
+    'blocked' => 'Blocked',
     'complete' => 'Complete',
+    'cancelled' => 'Cancelled',
 ];
 
 function checklist_column_exists(string $column): bool
@@ -101,6 +104,14 @@ function checklist_bootstrap_schema(): void
         'urgent_alert_enabled' => "ALTER TABLE ops_checklist_tasks ADD COLUMN urgent_alert_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER employee_visible",
         'urgent_alert_message' => "ALTER TABLE ops_checklist_tasks ADD COLUMN urgent_alert_message VARCHAR(240) NULL AFTER urgent_alert_enabled",
         'urgent_alert_sent_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN urgent_alert_sent_at DATETIME NULL AFTER urgent_alert_message",
+        'first_displayed_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN first_displayed_at DATETIME NULL AFTER date_assigned",
+        'first_opened_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN first_opened_at DATETIME NULL AFTER first_displayed_at",
+        'acknowledged_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN acknowledged_at DATETIME NULL AFTER first_opened_at",
+        'started_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN started_at DATETIME NULL AFTER acknowledged_at",
+        'completion_note_required' => "ALTER TABLE ops_checklist_tasks ADD COLUMN completion_note_required TINYINT(1) NOT NULL DEFAULT 0 AFTER completion_note",
+        'completion_evidence_required' => "ALTER TABLE ops_checklist_tasks ADD COLUMN completion_evidence_required TINYINT(1) NOT NULL DEFAULT 0 AFTER completion_note_required",
+        'performance_scored' => "ALTER TABLE ops_checklist_tasks ADD COLUMN performance_scored TINYINT(1) NOT NULL DEFAULT 1 AFTER completion_evidence_required",
+        'blocked_reason' => "ALTER TABLE ops_checklist_tasks ADD COLUMN blocked_reason TEXT NULL AFTER performance_scored",
     ];
     foreach ($columns as $column => $sql) {
         if (!checklist_column_exists($column)) checklist_try_sql($sql);
@@ -184,6 +195,31 @@ function checklist_json_items(?string $value): array
     return array_values(array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', $value) ?: [])));
 }
 
+function checklist_completion_validation(array $task, ?array $checkedOverride = null, ?string $noteOverride = null, bool $newEvidence = false): array
+{
+    $required = checklist_json_items((string) ($task['checklist_items'] ?? ''));
+    $checked = $checkedOverride ?? checklist_json_items((string) ($task['checked_items'] ?? ''));
+    $incomplete = array_values(array_diff($required, $checked));
+    if ($incomplete) {
+        $count = count($incomplete);
+        return ['valid' => false, 'code' => 'task_checklist_incomplete', 'message' => $count . ' required checklist ' . ($count === 1 ? 'item is' : 'items are') . ' incomplete.', 'incomplete_items' => $incomplete];
+    }
+    $note = $noteOverride ?? (string) ($task['completion_note'] ?? '');
+    if (!empty($task['completion_note_required']) && trim($note) === '') {
+        return ['valid' => false, 'code' => 'task_note_required', 'message' => 'Add the required completion note.', 'incomplete_items' => []];
+    }
+    if (!empty($task['completion_evidence_required']) && !$newEvidence && empty($task['photo_path'])) {
+        return ['valid' => false, 'code' => 'task_evidence_required', 'message' => 'Upload the required completion evidence.', 'incomplete_items' => []];
+    }
+    return ['valid' => true, 'code' => null, 'message' => '', 'incomplete_items' => []];
+}
+
+function checklist_require_completion(array $task, ?array $checkedOverride = null, ?string $noteOverride = null, bool $newEvidence = false): void
+{
+    $validation = checklist_completion_validation($task, $checkedOverride, $noteOverride, $newEvidence);
+    if (!$validation['valid']) throw new RuntimeException(json_encode($validation, JSON_UNESCAPED_SLASHES));
+}
+
 function checklist_items_from_text(string $value): string
 {
     return json_encode(array_values(array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', $value) ?: []))), JSON_UNESCAPED_SLASHES);
@@ -233,8 +269,7 @@ function checklist_days_remaining(?string $deadline, string $status): string
 function checklist_effective_status(array $task): string
 {
     $status = checklist_normalize_status((string) ($task['status'] ?? 'pending'));
-    if ($status === 'complete') return $status;
-    if ($status !== 'pending') return $status;
+    if (in_array($status, ['complete', 'cancelled'], true)) return $status;
     if (!empty($task['deadline'])) {
         try {
             if (new DateTimeImmutable((string) $task['deadline']) < new DateTimeImmutable('now')) return 'overdue';
@@ -248,10 +283,13 @@ function checklist_effective_status(array $task): string
 function checklist_normalize_status(string $status): string
 {
     $status = strtolower(trim($status));
+    if ($status === 'new') return 'new';
     if (in_array($status, ['not_started', 'pending', 'missed', ''], true)) return 'pending';
     if (in_array($status, ['start', 'started'], true)) return 'in_progress';
     if (in_array($status, ['progress', 'in_progress'], true)) return 'in_progress';
     if (in_array($status, ['done', 'completed', 'approved', 'needs_review', 'complete'], true)) return 'complete';
+    if ($status === 'blocked') return 'blocked';
+    if ($status === 'cancelled') return 'cancelled';
     return 'pending';
 }
 
@@ -288,7 +326,7 @@ function checklist_insert_auto_task(int $employeeId, string $key, string $type, 
     $stmt = db()->prepare(
         "INSERT INTO ops_checklist_tasks
          (checklist_type, task_name, priority, assigned_employee_id, date_assigned, deadline, status, notes, instructions, checklist_items, recurrence_key, recurring_rule, created_by)
-         VALUES (?, ?, ?, ?, NOW(), ?, 'pending', ?, ?, ?, ?, ?, ?)"
+         VALUES (?, ?, ?, ?, NOW(), ?, 'new', ?, ?, ?, ?, ?, ?)"
     );
     $stmt->execute([$type, $name, $priority, $employeeId, $deadline, $instructions, $instructions, json_encode($items, JSON_UNESCAPED_SLASHES), $key, $rule, ops_current_employee_id()]);
 }
@@ -346,7 +384,7 @@ function checklist_seed_recurring_tasks(): void
             $stmt = db()->prepare(
                 "INSERT INTO ops_checklist_tasks
                  (checklist_type, task_name, priority, assigned_employee_id, date_assigned, deadline, status, notes, instructions, checklist_items, recurrence_key, recurring_rule, recurring_template_id, employee_visible, created_by)
-                 VALUES (?, ?, ?, ?, NOW(), ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?)"
+                 VALUES (?, ?, ?, ?, NOW(), ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?)"
             );
             $deadline = $dateKey . ' ' . (string) ($template['due_time'] ?: '09:00:00');
             $stmt->execute([$template['checklist_type'], $template['task_name'], $template['priority'], $employeeId, $deadline, $template['instructions'], $template['instructions'], $template['checklist_items'], $key, $template['recurring_rule'], $template['id'], $template['employee_visible'], $template['created_by']]);
@@ -466,6 +504,21 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             echo json_encode(['success' => true, 'task_id' => $taskId, 'event' => $event]);
             exit;
         }
+        if ($action === 'acknowledge_task') {
+            header('Content-Type: application/json; charset=utf-8');
+            $taskId = (int) ($_POST['task_id'] ?? 0);
+            $scope = $canManage ? 'id = ?' : 'id = ? AND assigned_employee_id = ?';
+            $scopeParams = $canManage ? [$taskId] : [$taskId, $currentEmployeeId ?: 0];
+            $taskRows = ops_rows("SELECT id, status FROM ops_checklist_tasks WHERE {$scope} LIMIT 1", $scopeParams);
+            if (!$taskRows) throw new RuntimeException('Task was not found or is not assigned to you.');
+            $previousStatus = checklist_normalize_status((string) $taskRows[0]['status']);
+            $nextStatus = $previousStatus === 'new' ? 'pending' : $previousStatus;
+            db()->prepare("UPDATE ops_checklist_tasks SET first_displayed_at = COALESCE(first_displayed_at, NOW()), first_opened_at = COALESCE(first_opened_at, NOW()), acknowledged_at = COALESCE(acknowledged_at, NOW()), status = ? WHERE {$scope}")->execute([$nextStatus, ...$scopeParams]);
+            if ($previousStatus !== $nextStatus) checklist_kpi_status_event($taskId, $previousStatus, $nextStatus, $currentEmployeeId);
+            ops_activity_log('task_acknowledged', 'checklist_task', $taskId, ['previous_status' => $previousStatus, 'status' => $nextStatus]);
+            echo json_encode(['success' => true, 'status' => $nextStatus]);
+            exit;
+        }
         if ($action === 'update_task_status') {
             header('Content-Type: application/json; charset=utf-8');
             $taskId = (int) ($_POST['task_id'] ?? 0);
@@ -475,16 +528,22 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $scope = $canManage ? 'id = ?' : 'id = ? AND assigned_employee_id = ?';
             $scopeParams = $canManage ? [$taskId] : [$taskId, $currentEmployeeId ?: 0];
-            $beforeRows = ops_rows("SELECT status, deadline FROM ops_checklist_tasks WHERE {$scope} LIMIT 1", $scopeParams);
+            $beforeRows = ops_rows("SELECT * FROM ops_checklist_tasks WHERE {$scope} LIMIT 1", $scopeParams);
             if (!$beforeRows) throw new RuntimeException('Task was not found or is not assigned to you.');
             $previousStatus = checklist_normalize_status((string) $beforeRows[0]['status']);
+            if (!$canManage && $previousStatus === 'complete' && $status !== 'complete') {
+                http_response_code(403);
+                throw new RuntimeException('Only management can reopen a completed task.');
+            }
             if ($status === 'complete') {
+                checklist_require_completion($beforeRows[0]);
                 $set = 'status = ?, completed_at = COALESCE(completed_at, NOW()), date_completed = COALESCE(date_completed, NOW()), completed_by = COALESCE(completed_by, ?)';
                 $updateParams = [$status, $currentEmployeeId];
             } else {
                 $set = 'status = ?, completed_at = NULL, date_completed = NULL, completed_by = NULL';
                 $updateParams = [$status];
             }
+            if ($status === 'in_progress') $set .= ', started_at = COALESCE(started_at, NOW())';
             $stmt = db()->prepare("UPDATE ops_checklist_tasks SET {$set} WHERE {$scope}");
             $stmt->execute([...$updateParams, ...$scopeParams]);
             if ($stmt->rowCount() < 1 && $previousStatus !== $status) throw new RuntimeException('The task status could not be saved.');
@@ -522,16 +581,33 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($bulkAction === 'duplicate') {
                 $sql = "INSERT INTO ops_checklist_tasks
                     (checklist_type, task_name, priority, assigned_employee_id, date_assigned, deadline, status, notes, instructions, checklist_items, checked_items, completion_note, recurrence_key, recurring_rule, created_by)
-                    SELECT checklist_type, CONCAT(task_name, ' (Copy)'), priority, assigned_employee_id, NOW(), deadline, 'pending', notes, instructions, checklist_items, NULL, NULL, NULL, NULL, ?
+                    SELECT checklist_type, CONCAT(task_name, ' (Copy)'), priority, assigned_employee_id, NOW(), deadline, 'new', notes, instructions, checklist_items, NULL, NULL, NULL, NULL, ?
                     FROM ops_checklist_tasks WHERE id IN ({$placeholders})";
                 $stmt = db()->prepare($sql);
                 $stmt->execute([$currentEmployeeId, ...$taskIds]);
             } elseif ($bulkAction === 'status') {
                 $value = checklist_normalize_status(ops_post_string('value', 30));
                 if (!array_key_exists($value, $statuses)) throw new RuntimeException('Choose a valid status.');
-                $beforeBulkStatuses = ops_rows("SELECT id, status FROM ops_checklist_tasks WHERE id IN ({$placeholders}) AND deleted_at IS NULL", $taskIds);
-                $stmt = db()->prepare("UPDATE ops_checklist_tasks SET status = ? WHERE id IN ({$placeholders}) AND deleted_at IS NULL");
-                $stmt->execute([$value, ...$taskIds]);
+                $beforeBulkStatuses = ops_rows("SELECT * FROM ops_checklist_tasks WHERE id IN ({$placeholders}) AND deleted_at IS NULL", $taskIds);
+                if (count($beforeBulkStatuses) !== count($taskIds)) throw new RuntimeException('One or more selected tasks could not be validated.');
+                if ($value === 'complete') {
+                    foreach ($beforeBulkStatuses as $bulkTask) checklist_require_completion($bulkTask);
+                }
+                $bulkDb = db();
+                $bulkDb->beginTransaction();
+                try {
+                    if ($value === 'complete') {
+                        $stmt = $bulkDb->prepare("UPDATE ops_checklist_tasks SET status = ?, completed_at = COALESCE(completed_at, NOW()), date_completed = COALESCE(date_completed, NOW()), completed_by = COALESCE(completed_by, ?) WHERE id IN ({$placeholders}) AND deleted_at IS NULL");
+                        $stmt->execute([$value, $currentEmployeeId, ...$taskIds]);
+                    } else {
+                        $stmt = $bulkDb->prepare("UPDATE ops_checklist_tasks SET status = ?, completed_at = NULL, date_completed = NULL, completed_by = NULL WHERE id IN ({$placeholders}) AND deleted_at IS NULL");
+                        $stmt->execute([$value, ...$taskIds]);
+                    }
+                    $bulkDb->commit();
+                } catch (Throwable $bulkError) {
+                    if ($bulkDb->inTransaction()) $bulkDb->rollBack();
+                    throw $bulkError;
+                }
                 foreach ($beforeBulkStatuses as $beforeBulkStatus) checklist_kpi_status_event((int) $beforeBulkStatus['id'], (string) $beforeBulkStatus['status'], $value, $currentEmployeeId);
             } elseif ($bulkAction === 'priority') {
                 $value = ops_post_string('value', 30);
@@ -564,12 +640,18 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $deadline = str_replace('T', ' ', ops_post_string('deadline', 30));
             $taskName = ops_post_string('task_name', 190);
             if ($taskName === '') throw new RuntimeException('Task name is required.');
+            if ($assignedId <= 0) throw new RuntimeException('Assigned employee is required.');
+            if (ops_post_string('instructions', 1500) === '') throw new RuntimeException('Task instructions are required.');
             $urgentRequested = !empty($_POST['send_urgent_alert']);
             $urgentRecipients = $urgentRequested ? checklist_urgent_recipient_ids((array) ($_POST['urgent_alert_recipients'] ?? []), $assignedId) : [];
             if ($urgentRequested && !$urgentRecipients) throw new RuntimeException('Choose at least one valid urgent alert recipient.');
             $urgentMessage = $urgentRequested ? (ops_post_string('urgent_alert_message', 240) ?: ops_post_string('instructions', 240)) : '';
             if ($urgentRequested && $urgentMessage === '') $urgentMessage = 'Please review and begin this urgent task.';
             $employeeVisible = isset($_POST['employee_visible']) ? 1 : 0;
+            $completionNoteRequired = isset($_POST['completion_note_required']) ? 1 : 0;
+            $completionEvidenceRequired = isset($_POST['completion_evidence_required']) ? 1 : 0;
+            $performanceScored = isset($_POST['performance_scored']) ? 1 : 0;
+            if ($performanceScored && $deadline === '') throw new RuntimeException('A due date and time are required for performance-scored tasks.');
             $recurringRule = ops_post_string('recurring_rule', 80);
             $allowedRecurringRules = ['', 'daily_business_day', 'twice_weekly', 'weekly_1', 'weekly_2', 'weekly_3', 'weekly_4', 'weekly_5', 'weekly_saturday'];
             if (!in_array($recurringRule, $allowedRecurringRules, true)) {
@@ -591,8 +673,8 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
               }
             $stmt = $taskDb->prepare(
                 "INSERT INTO ops_checklist_tasks
-                 (checklist_type, task_name, priority, assigned_employee_id, date_assigned, deadline, status, notes, instructions, checklist_items, recurrence_key, recurring_rule, recurring_template_id, employee_visible, created_by)
-                 VALUES (?, ?, ?, ?, NOW(), ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?)"
+                 (checklist_type, task_name, priority, assigned_employee_id, date_assigned, deadline, status, notes, instructions, checklist_items, completion_note_required, completion_evidence_required, performance_scored, recurrence_key, recurring_rule, recurring_template_id, employee_visible, created_by)
+                 VALUES (?, ?, ?, ?, NOW(), ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             );
             $stmt->execute([
                 ops_post_string('checklist_type', 30) ?: 'opening',
@@ -603,6 +685,9 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 ops_post_string('instructions', 1500),
                 ops_post_string('instructions', 1500),
                 checklist_items_from_text((string) ($_POST['checklist_items_text'] ?? '')),
+                $completionNoteRequired,
+                $completionEvidenceRequired,
+                $performanceScored,
                 $templateId ? 'template-' . $templateId . '-' . date('Y-m-d') . '-' . max(0, $assignedId) : null,
                 $recurringRule ?: null,
                 $templateId,
@@ -632,16 +717,20 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $deadline = str_replace('T', ' ', ops_post_string('deadline', 30));
             $status = checklist_normalize_status(ops_post_string('status', 30));
             if (!array_key_exists($status, $statuses)) $status = 'pending';
-            $oldRows = ops_rows('SELECT status, task_name, instructions, urgent_alert_sent_at, assigned_employee_id FROM ops_checklist_tasks WHERE id = ? LIMIT 1', [$taskId]);
+            $oldRows = ops_rows('SELECT * FROM ops_checklist_tasks WHERE id = ? LIMIT 1', [$taskId]);
             if (!$oldRows) throw new RuntimeException('Task not found.');
+            if ($status === 'complete') checklist_require_completion($oldRows[0]);
             $oldStatus = (string) ($oldRows[0]['status'] ?? '');
             $oldAssignedId = (int) ($oldRows[0]['assigned_employee_id'] ?? 0);
             $employeeVisible = isset($_POST['employee_visible']) ? 1 : 0;
+            $completionNoteRequired = isset($_POST['completion_note_required']) ? 1 : 0;
+            $completionEvidenceRequired = isset($_POST['completion_evidence_required']) ? 1 : 0;
+            $performanceScored = isset($_POST['performance_scored']) ? 1 : 0;
             $taskDb = db();
             $taskDb->beginTransaction();
             try {
-                $stmt = $taskDb->prepare("UPDATE ops_checklist_tasks SET assigned_employee_id = ?, deadline = ?, priority = ?, status = ?, employee_visible = ? WHERE id = ?");
-                $stmt->execute([$assignedId > 0 ? $assignedId : null, $deadline ?: null, ops_post_string('priority', 30) ?: 'medium', $status, $employeeVisible, $taskId]);
+                $stmt = $taskDb->prepare("UPDATE ops_checklist_tasks SET assigned_employee_id = ?, deadline = ?, priority = ?, status = ?, employee_visible = ?, completion_note_required = ?, completion_evidence_required = ?, performance_scored = ? WHERE id = ?");
+                $stmt->execute([$assignedId > 0 ? $assignedId : null, $deadline ?: null, ops_post_string('priority', 30) ?: 'medium', $status, $employeeVisible, $completionNoteRequired, $completionEvidenceRequired, $performanceScored, $taskId]);
                 checklist_kpi_status_event($taskId, $oldStatus, $status, $currentEmployeeId);
                 ops_activity_log('task_admin_updated', 'checklist_task', $taskId, ['status' => $status, 'previous_assigned_employee_id' => $oldAssignedId ?: null, 'assigned_employee_id' => $assignedId ?: null]);
                 if ($assignedId > 0 && $assignedId !== $oldAssignedId && !notifications_notify_task_assigned($taskId, $assignedId, (string) ($oldRows[0]['task_name'] ?? 'Checklist task'))) {
@@ -681,7 +770,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $status = checklist_normalize_status(ops_post_string('status', 30));
             if (!array_key_exists($status, $statuses)) $status = 'pending';
             $checked = array_values(array_filter(array_map('strval', $_POST['checked_items'] ?? [])));
-            $taskRows = ops_rows("SELECT checklist_items, checklist_type, status FROM ops_checklist_tasks WHERE {$scope} LIMIT 1", $scopeParams);
+            $taskRows = ops_rows("SELECT * FROM ops_checklist_tasks WHERE {$scope} LIMIT 1", $scopeParams);
             if (!$taskRows) throw new RuntimeException('Task was not found or is not assigned to you.');
             $taskTypeForProof = (string) ($taskRows[0]['checklist_type'] ?? '');
             $note = ops_post_string('completion_note', 1500);
@@ -701,6 +790,8 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $fileName = 'task-' . $taskId . '-' . date('YmdHis') . '-' . bin2hex(random_bytes(4)) . '.' . $extension;
                 if (move_uploaded_file($_FILES['photo_proof']['tmp_name'], $uploadDir . '/' . $fileName)) $photoPath = 'uploads/checklist-proofs/' . $fileName;
             }
+            if ($status === 'complete') checklist_require_completion($taskRows[0], $checked, $note, $photoPath !== null);
+            if ($status === 'blocked' && trim($note) === '') throw new RuntimeException('Enter a reason before marking this task Blocked.');
             if ($status === 'complete') {
                 $set = 'status = ?, checked_items = ?, completion_note = ?, completed_at = COALESCE(completed_at, NOW()), date_completed = COALESCE(date_completed, NOW()), completed_by = COALESCE(completed_by, ?)';
                 $params = [$status, json_encode($checked, JSON_UNESCAPED_SLASHES), $note, $currentEmployeeId];
@@ -708,6 +799,8 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $set = 'status = ?, checked_items = ?, completion_note = ?, completed_at = NULL, date_completed = NULL, completed_by = NULL';
                 $params = [$status, json_encode($checked, JSON_UNESCAPED_SLASHES), $note];
             }
+            if ($status === 'in_progress') $set .= ', started_at = COALESCE(started_at, NOW())';
+            if ($status === 'blocked') { $set .= ', blocked_reason = ?'; $params[] = $note; }
             if ($photoPath !== null) {
                 $set .= ', photo_path = ?';
                 $params[] = $photoPath;
@@ -719,12 +812,14 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = 'Task saved.';
         }
     } catch (Throwable $e) {
-        if (in_array(($action ?? ''), ['update_task_status', 'bulk_task_action', 'task_tools_data', 'task_archive', 'task_trash', 'task_restore', 'task_delete_forever', 'task_cancel_recurrence'], true)) {
+        $validationPayload = json_decode($e->getMessage(), true);
+        $errorMessage = is_array($validationPayload) && !empty($validationPayload['message']) ? (string) $validationPayload['message'] : $e->getMessage();
+        if (in_array(($action ?? ''), ['acknowledge_task', 'update_task_status', 'bulk_task_action', 'task_tools_data', 'task_archive', 'task_trash', 'task_restore', 'task_delete_forever', 'task_cancel_recurrence'], true)) {
             http_response_code(422);
-            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+            echo json_encode(array_merge(['success' => false, 'message' => $errorMessage], is_array($validationPayload) ? $validationPayload : []));
             exit;
         }
-        $message = $e->getMessage();
+        $message = $errorMessage;
         $messageType = 'error';
     }
 }
@@ -788,7 +883,7 @@ if ($filters['task_view'] !== 'active' && $filters['task_kind'] === 'recurring')
     $where[] = "(t.recurrence_key IS NULL OR t.recurrence_key = '')";
 }
 if ($filters['task_view'] === 'active') {
-    $where[] = "t.status <> 'complete'";
+    $where[] = "t.status NOT IN ('complete', 'cancelled')";
 } elseif (in_array($filters['task_view'], ['completed', 'history'], true)) {
     $where[] = "t.status = 'complete'";
 }
@@ -797,7 +892,7 @@ if ($filters['search'] !== '') {
     array_push($params, '%' . $filters['search'] . '%', '%' . $filters['search'] . '%', '%' . $filters['search'] . '%', '%' . $filters['search'] . '%');
 }
 if ($filters['overdue_only'] === '1') {
-    $where[] = "t.status <> 'complete' AND t.deadline IS NOT NULL AND t.deadline < NOW()";
+    $where[] = "t.status NOT IN ('complete', 'cancelled') AND t.deadline IS NOT NULL AND t.deadline < NOW()";
 }
 if ($filters['status'] !== '') {
     if ($filters['status'] === 'completed') {
@@ -876,18 +971,23 @@ foreach ($tasks as $task) {
     if (!isset($tasksByGroup[$effectiveStatus])) $effectiveStatus = 'pending';
     $tasksByGroup[$effectiveStatus][] = $task;
 }
-$metrics = ['total' => count($tasks), 'overdue' => count($tasksByGroup['overdue']), 'pending' => 0, 'in_progress' => 0, 'completed_today' => 0, 'due_today' => 0, 'missed_recurring' => 0];
+$metrics = ['total' => count($tasks), 'new' => 0, 'overdue' => count($tasksByGroup['overdue']), 'pending' => 0, 'in_progress' => 0, 'completed_today' => 0, 'completed_month' => 0, 'due_today' => 0, 'missed_recurring' => 0];
 foreach ($tasks as $task) {
     $savedStatus = checklist_normalize_status((string) ($task['status'] ?? 'pending'));
+    if ($savedStatus === 'new') $metrics['new']++;
     if ($savedStatus === 'pending') $metrics['pending']++;
     if ($savedStatus === 'in_progress') $metrics['in_progress']++;
     if ($savedStatus === 'complete' && !empty($task['date_completed']) && substr((string) $task['date_completed'], 0, 10) === date('Y-m-d')) $metrics['completed_today']++;
     if (!empty($task['deadline']) && substr((string) $task['deadline'], 0, 10) === date('Y-m-d') && $savedStatus !== 'complete') $metrics['due_today']++;
     if (checklist_task_kind($task) === 'recurring' && checklist_effective_status($task) === 'overdue') $metrics['missed_recurring']++;
 }
+foreach ($historyTasks as $task) {
+    $completedDate = (string) ($task['date_completed'] ?: $task['completed_at']);
+    if ($completedDate !== '' && substr($completedDate, 0, 7) === date('Y-m')) $metrics['completed_month']++;
+}
 $completedCount = count($tasksByGroup['complete']);
 $metrics['compliance'] = $metrics['total'] > 0 ? (int) round(($completedCount / max(1, $metrics['total'])) * 100) : 0;
-$metrics['active'] = $metrics['pending'] + $metrics['in_progress'];
+$metrics['active'] = $metrics['new'] + $metrics['pending'] + $metrics['in_progress'] + $metrics['overdue'];
 $filtersAreActive = $filters['date_from'] !== '' || $filters['date_to'] !== '' || $filters['employee_id'] !== '' || $filters['status'] !== '' || $filters['overdue_only'] !== '' || $filters['priority'] !== '' || $filters['checklist_type'] !== '' || $filters['task_kind'] !== '' || $filters['search'] !== '';
 
 $activityByTask = [];
@@ -909,7 +1009,7 @@ if ($ready && ($tasks || $historyTasks) && ops_table_exists('ops_activity_logs')
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
-<main class="workspace module digital-task-page" data-task-view="<?= htmlspecialchars($filters['task_view'], ENT_QUOTES, 'UTF-8') ?>" data-requested-task-view="<?= htmlspecialchars($requestedTaskView, ENT_QUOTES, 'UTF-8') ?>">
+<main class="workspace module digital-task-page" data-task-view="<?= htmlspecialchars($filters['task_view'], ENT_QUOTES, 'UTF-8') ?>" data-requested-task-view="<?= htmlspecialchars($requestedTaskView, ENT_QUOTES, 'UTF-8') ?>" data-can-manage="<?= $canManage ? '1' : '0' ?>">
     <header class="dtb-page-header">
         <div>
             <p class="dtb-page-kicker">Task Management</p>
@@ -926,11 +1026,11 @@ include BASE_PATH . '/shared/sidebar.php';
     <?php ops_flash($message, $messageType); ?>
 
     <section class="dtb-stats-grid task-dashboard-widgets">
-        <article class="dtb-stat-card" data-stat="overdue"><span class="dtb-stat-icon"><i data-lucide="alert-triangle"></i></span><div><p class="dtb-stat-label">Overdue</p><strong class="dtb-stat-value"><?= number_format($metrics['overdue']) ?></strong></div></article>
-        <article class="dtb-stat-card" data-stat="pending"><span class="dtb-stat-icon"><i data-lucide="hourglass"></i></span><div><p class="dtb-stat-label">Pending</p><strong class="dtb-stat-value"><?= number_format($metrics['pending']) ?></strong></div></article>
+        <a class="dtb-stat-card" data-stat="new" href="checklists.php?task_view=active&amp;status=new"><span class="dtb-stat-icon"><i data-lucide="sparkles"></i></span><div><p class="dtb-stat-label">New</p><strong class="dtb-stat-value"><?= number_format($metrics['new']) ?></strong></div></a>
+        <a class="dtb-stat-card" data-stat="due-today" href="checklists.php?task_view=active&amp;date_from=<?= date('Y-m-d') ?>&amp;date_to=<?= date('Y-m-d') ?>"><span class="dtb-stat-icon"><i data-lucide="calendar-clock"></i></span><div><p class="dtb-stat-label">Due Today</p><strong class="dtb-stat-value"><?= number_format($metrics['due_today']) ?></strong></div></a>
         <article class="dtb-stat-card" data-stat="in-progress"><span class="dtb-stat-icon"><i data-lucide="clock-3"></i></span><div><p class="dtb-stat-label">In Progress</p><strong class="dtb-stat-value"><?= number_format($metrics['in_progress']) ?></strong></div></article>
-        <article class="dtb-stat-card" data-stat="complete"><span class="dtb-stat-icon"><i data-lucide="check-circle-2"></i></span><div><p class="dtb-stat-label">Completed Today</p><strong class="dtb-stat-value"><?= number_format($metrics['completed_today']) ?></strong></div></article>
-        <article class="dtb-stat-card" data-stat="active"><span class="dtb-stat-icon"><i data-lucide="list-checks"></i></span><div><p class="dtb-stat-label">Total Active</p><strong class="dtb-stat-value"><?= number_format($metrics['active']) ?></strong></div></article>
+        <a class="dtb-stat-card" data-stat="overdue" href="checklists.php?task_view=active&amp;overdue_only=1"><span class="dtb-stat-icon"><i data-lucide="alert-triangle"></i></span><div><p class="dtb-stat-label">Overdue</p><strong class="dtb-stat-value"><?= number_format($metrics['overdue']) ?></strong></div></a>
+        <a class="dtb-stat-card" data-stat="complete" href="checklists.php?task_view=completed"><span class="dtb-stat-icon"><i data-lucide="check-circle-2"></i></span><div><p class="dtb-stat-label">Completed This Month</p><strong class="dtb-stat-value"><?= number_format($metrics['completed_month']) ?></strong></div></a>
     </section>
 
     <nav class="dtb-tabs task-board-navigation" aria-label="Task views">
@@ -989,12 +1089,13 @@ include BASE_PATH . '/shared/sidebar.php';
                     <input type="hidden" name="action" value="create_task">
                     <div class="create-task-grid">
                         <div class="create-task-field"><label for="create-task-type">Task type</label><select id="create-task-type" name="checklist_type" data-portal-custom-select><?php ops_select_options($types); ?></select></div>
-                        <div class="create-task-field"><label for="create-task-assignee">Assigned person</label><select id="create-task-assignee" name="assigned_employee_id" data-portal-custom-select><option value="">Unassigned</option><?php foreach ($employees as $employee): ?><option value="<?= (int) $employee['id'] ?>"><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></div>
+                        <div class="create-task-field"><label for="create-task-assignee">Assigned person</label><select id="create-task-assignee" name="assigned_employee_id" required data-portal-custom-select><option value="">Choose employee</option><?php foreach ($employees as $employee): ?><option value="<?= (int) $employee['id'] ?>"><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></div>
                         <div class="create-task-field"><label for="create-task-priority">Priority</label><select id="create-task-priority" name="priority" data-portal-custom-select><?php ops_select_options($priorities, 'medium'); ?></select></div>
                         <div class="create-task-field"><label for="create-task-deadline-display">Due date</label><div class="portal-date-field" data-portal-date-field><input id="create-task-deadline-display" type="text" class="portal-date-input" data-enable-time="true" data-submit-target="#create-task-deadline" placeholder="dd/mm/yyyy --:--" autocomplete="off"><input id="create-task-deadline" type="hidden" name="deadline"><button type="button" class="portal-date-trigger" aria-label="Open Due Date calendar"><i data-lucide="calendar-clock" aria-hidden="true"></i></button></div></div>
                         <div class="create-task-field create-task-field--task-name"><label for="create-task-name">Task name</label><input id="create-task-name" name="task_name" required placeholder="Clean packing table"></div>
-                        <div class="create-task-field create-task-field--full"><label for="create-task-instructions">Task instructions</label><textarea id="create-task-instructions" name="instructions"></textarea></div>
+                        <div class="create-task-field create-task-field--full"><label for="create-task-instructions">Task instructions</label><textarea id="create-task-instructions" name="instructions" required></textarea></div>
                         <div class="create-task-field create-task-field--full"><label for="create-task-items">Required checklist items</label><textarea id="create-task-items" name="checklist_items_text" placeholder="One item per line"></textarea></div>
+                        <div class="task-completion-requirements create-task-field--full"><label><input type="checkbox" name="completion_note_required" value="1"><span>Require a completion note</span></label><label><input type="checkbox" name="completion_evidence_required" value="1"><span>Require photo evidence</span></label><label><input type="checkbox" name="performance_scored" value="1" checked><span>Include in performance scoring</span></label></div>
                         <div class="create-task-field"><label for="create-task-recurrence">Automatic recurrence</label><select id="create-task-recurrence" name="recurring_rule" data-portal-custom-select><option value="">One-time task</option><option value="daily_business_day">Every business day</option><option value="twice_weekly">Every Tuesday and Thursday</option><option value="weekly_1">Every Monday</option><option value="weekly_2">Every Tuesday</option><option value="weekly_3">Every Wednesday</option><option value="weekly_4">Every Thursday</option><option value="weekly_5">Every Friday</option><option value="weekly_saturday">Every Saturday</option></select></div>
                         <label class="create-task-visible"><input type="checkbox" name="employee_visible" value="1" checked><span>Active and visible to the assigned employee</span></label>
                         <section class="task-urgent-control create-task-field--full" data-urgent-control>
@@ -1165,6 +1266,7 @@ include BASE_PATH . '/shared/sidebar.php';
                             <div class="task-field"><label for="task-deadline-display-<?= $panelId ?>">Due date</label><div class="portal-date-field" data-portal-date-field><input id="task-deadline-display-<?= $panelId ?>" type="text" class="portal-date-input" data-enable-time="true" data-submit-target="#task-deadline-<?= $panelId ?>" placeholder="dd/mm/yyyy --:--" autocomplete="off"><input id="task-deadline-<?= $panelId ?>" type="hidden" name="deadline" value="<?= htmlspecialchars($deadlineValue, ENT_QUOTES, 'UTF-8') ?>"><button type="button" class="portal-date-trigger" aria-label="Open Due Date calendar"><i data-lucide="calendar-clock" aria-hidden="true"></i></button></div></div>
                         </div>
                         <label class="create-task-visible"><input type="checkbox" name="employee_visible" value="1" <?= !isset($task['employee_visible']) || (int) $task['employee_visible'] === 1 ? 'checked' : '' ?>><span>Active and visible to the assigned employee</span></label>
+                        <div class="task-completion-requirements"><label><input type="checkbox" name="completion_note_required" value="1" <?= !empty($task['completion_note_required']) ? 'checked' : '' ?>><span>Require completion note</span></label><label><input type="checkbox" name="completion_evidence_required" value="1" <?= !empty($task['completion_evidence_required']) ? 'checked' : '' ?>><span>Require photo evidence</span></label><label><input type="checkbox" name="performance_scored" value="1" <?= !isset($task['performance_scored']) || !empty($task['performance_scored']) ? 'checked' : '' ?>><span>Performance scored</span></label></div>
                         <section class="task-urgent-control" data-urgent-control>
                             <?php if (empty($task['urgent_alert_sent_at'])): ?>
                                 <label class="task-urgent-toggle"><input type="checkbox" name="send_urgent_alert" value="1" data-urgent-toggle><span class="task-urgent-toggle__track" aria-hidden="true"><span class="task-urgent-toggle__thumb"></span></span><span class="task-urgent-toggle__copy"><strong>Send urgent alert</strong><small>Notify employees after this task update saves.</small></span></label>
@@ -1182,14 +1284,15 @@ include BASE_PATH . '/shared/sidebar.php';
                     <p class="task-content-text"><?= htmlspecialchars((string) ($task['instructions'] ?: $task['notes'] ?: 'No instructions added.'), ENT_QUOTES, 'UTF-8') ?></p>
                 </section>
 
-                <form method="post" enctype="multipart/form-data" class="task-details-section task-details-progress-form">
+                <form method="post" enctype="multipart/form-data" class="task-details-section task-details-progress-form" data-task-progress-form data-task-id="<?= $panelId ?>" data-note-required="<?= !empty($task['completion_note_required']) ? '1' : '0' ?>" data-evidence-required="<?= !empty($task['completion_evidence_required']) ? '1' : '0' ?>" data-has-evidence="<?= !empty($task['photo_path']) ? '1' : '0' ?>">
                     <input type="hidden" name="task_id" value="<?= $panelId ?>">
+                    <div class="task-completion-error" data-task-completion-error role="alert" hidden><strong>This task cannot be completed yet.</strong><span data-task-completion-error-message></span></div>
                     <section class="task-content-card">
                     <h3 class="task-content-heading" id="task-checklist-<?= $panelId ?>">Checklist items</h3>
                         <div class="task-checklist">
                             <?php foreach ($items as $item): ?>
                                 <?php $itemComplete = in_array($item, $checked, true); ?>
-                                <label class="task-checklist-item<?= $itemComplete ? ' is-complete' : '' ?>"><input type="checkbox" name="checked_items[]" value="<?= htmlspecialchars($item, ENT_QUOTES, 'UTF-8') ?>" <?= $itemComplete ? 'checked' : '' ?>><span class="task-checklist-label"><?= htmlspecialchars($item, ENT_QUOTES, 'UTF-8') ?></span></label>
+                                <label class="task-checklist-item<?= $itemComplete ? ' is-complete' : '' ?>" data-required-checklist-item><input type="checkbox" name="checked_items[]" value="<?= htmlspecialchars($item, ENT_QUOTES, 'UTF-8') ?>" <?= $itemComplete ? 'checked' : '' ?>><span class="task-checklist-label"><?= htmlspecialchars($item, ENT_QUOTES, 'UTF-8') ?></span><small>Required</small></label>
                             <?php endforeach; ?>
                             <?php if (!$items): ?><p class="task-history-empty">No checklist items added.</p><?php endif; ?>
                         </div>
@@ -1244,6 +1347,10 @@ include BASE_PATH . '/shared/sidebar.php';
         </aside>
     <?php endforeach; ?>
     <div class="panel-backdrop task-panel-backdrop" data-task-close data-task-create-close hidden></div>
+    <div class="task-complete-confirm" data-task-complete-confirm role="dialog" aria-modal="true" aria-labelledby="task-complete-confirm-title" hidden>
+        <div class="task-complete-confirm__backdrop"></div>
+        <section><h2 id="task-complete-confirm-title">Complete this task?</h2><p data-task-complete-confirm-copy>All required checklist items are complete. Completion will be recorded under your name and time.</p><div><button type="button" data-task-complete-cancel>Cancel</button><button type="button" data-task-complete-accept>Complete Task</button></div></section>
+    </div>
 </main>
 <script>
 document.querySelectorAll('[data-urgent-control]').forEach((control) => {
@@ -1796,6 +1903,106 @@ function initialiseTaskBulkSelection() {
   update();
 }
 
+function showTaskCompletionError(taskId, message, incompleteItems = []) {
+  const panel = document.querySelector(`[data-task-panel="${String(taskId).replace(/[^0-9]/g, '')}"]`);
+  if (!panel) return;
+  window.openTaskPanel?.(taskId);
+  const box = panel.querySelector('[data-task-completion-error]');
+  const copy = box?.querySelector('[data-task-completion-error-message]');
+  if (copy) copy.textContent = message || 'Complete every required item before finishing this task.';
+  if (box) box.hidden = false;
+  const incomplete = new Set(incompleteItems.map(String));
+  panel.querySelectorAll('[data-required-checklist-item]').forEach((label) => {
+    const input = label.querySelector('input');
+    const blocked = incomplete.size ? incomplete.has(input?.value || '') : !input?.checked;
+    label.classList.toggle('is-incomplete', blocked);
+  });
+  const first = panel.querySelector('[data-required-checklist-item].is-incomplete') || box;
+  first?.scrollIntoView({ behavior:'smooth', block:'center' });
+}
+
+function validateTaskProgressForm(form) {
+  const status = form.querySelector('[name="status"]')?.value;
+  if (status !== 'complete') return { valid:true, incomplete:[] };
+  const incomplete = [...form.querySelectorAll('[data-required-checklist-item] input:not(:checked)')].map((input) => input.value);
+  if (incomplete.length) return { valid:false, incomplete, message:`${incomplete.length} required checklist ${incomplete.length === 1 ? 'item is' : 'items are'} incomplete.` };
+  if (form.dataset.noteRequired === '1' && !form.querySelector('[name="completion_note"]')?.value.trim()) return { valid:false, incomplete:[], message:'Add the required completion note.' };
+  if (form.dataset.evidenceRequired === '1' && form.dataset.hasEvidence !== '1' && !form.querySelector('[name="photo_proof"]')?.files?.length) return { valid:false, incomplete:[], message:'Upload the required completion evidence.' };
+  return { valid:true, incomplete:[] };
+}
+
+function confirmTaskCompletion(requiredCount) {
+  const dialog = document.querySelector('[data-task-complete-confirm]');
+  if (!dialog) return Promise.resolve(false);
+  const copy = dialog.querySelector('[data-task-complete-confirm-copy]');
+  if (copy) copy.textContent = `All ${requiredCount} required checklist ${requiredCount === 1 ? 'item is' : 'items are'} complete. Completion will be recorded under your name and time.`;
+  dialog.hidden = false;
+  document.body.classList.add('task-confirm-open');
+  return new Promise((resolve) => {
+    const finish = (accepted) => {
+      dialog.hidden = true;
+      document.body.classList.remove('task-confirm-open');
+      accept.removeEventListener('click', onAccept);
+      cancel.removeEventListener('click', onCancel);
+      resolve(accepted);
+    };
+    const accept = dialog.querySelector('[data-task-complete-accept]');
+    const cancel = dialog.querySelector('[data-task-complete-cancel]');
+    const onAccept = () => finish(true);
+    const onCancel = () => finish(false);
+    accept.addEventListener('click', onAccept);
+    cancel.addEventListener('click', onCancel);
+    cancel.focus();
+  });
+}
+
+function initialiseTaskCompletionEnforcement() {
+  document.querySelectorAll('[data-task-progress-form]').forEach((form) => {
+    if (form.dataset.completionEnforced === 'true') return;
+    form.dataset.completionEnforced = 'true';
+    form.addEventListener('change', (event) => {
+      const item = event.target.closest('[data-required-checklist-item]');
+      if (item) item.classList.toggle('is-complete', event.target.checked);
+    });
+    form.addEventListener('submit', async (event) => {
+      const validation = validateTaskProgressForm(form);
+      if (!validation.valid) {
+        event.preventDefault();
+        showTaskCompletionError(form.dataset.taskId, validation.message, validation.incomplete);
+        return;
+      }
+      if (form.querySelector('[name="status"]')?.value === 'complete' && form.dataset.completionConfirmed !== 'true') {
+        event.preventDefault();
+        const requiredCount = form.querySelectorAll('[data-required-checklist-item]').length;
+        if (await confirmTaskCompletion(requiredCount)) {
+          form.dataset.completionConfirmed = 'true';
+          form.requestSubmit(event.submitter || undefined);
+        }
+      }
+    });
+  });
+}
+
+async function acknowledgeTaskOpen(taskId, panel) {
+  if (!panel || panel.dataset.taskAcknowledged === 'true') return;
+  if (document.querySelector('.digital-task-page')?.dataset.canManage === '1') return;
+  const row = document.querySelector(`[data-task-row][data-task-id="${taskId}"]`);
+  if (row?.dataset.savedStatus !== 'new') return;
+  panel.dataset.taskAcknowledged = 'true';
+  const data = new FormData();
+  data.append('action', 'acknowledge_task');
+  data.append('task_id', taskId);
+  try {
+    const response = await fetch(window.location.href, { method:'POST', body:data, credentials:'same-origin', headers:{Accept:'application/json'} });
+    const result = await response.json();
+    if (!response.ok || result.success !== true) throw new Error(result.message || 'Unable to acknowledge task.');
+    if (row) row.dataset.savedStatus = result.status;
+  } catch (error) {
+    panel.dataset.taskAcknowledged = 'false';
+    console.warn('Task acknowledgement could not be saved', error);
+  }
+}
+
 function initialiseTaskStatusWorkflow() {
   const popup = document.querySelector('[data-task-status-popup]');
   const page = document.querySelector('.digital-task-page');
@@ -1839,6 +2046,17 @@ function initialiseTaskStatusWorkflow() {
       const previousDisplay = row?.dataset.displayStatus || previousSaved;
       const nextStatus = option.dataset.statusKey;
       if (!row || !['pending', 'in_progress', 'complete'].includes(nextStatus)) return;
+      if (nextStatus === 'complete') {
+        const completionForm = document.querySelector(`[data-task-progress-form][data-task-id="${row.dataset.taskId}"]`);
+        const validation = completionForm ? validateTaskProgressForm(completionForm) : { valid:true, incomplete:[] };
+        if (!validation.valid) {
+          close();
+          showTaskCompletionError(row.dataset.taskId, validation.message, validation.incomplete);
+          return;
+        }
+        const requiredCount = completionForm?.querySelectorAll('[data-required-checklist-item]').length || 0;
+        if (!await confirmTaskCompletion(requiredCount)) { close(); return; }
+      }
       const triggerForSave = activeTrigger;
       close();
       triggerForSave.disabled = true;
@@ -1850,7 +2068,11 @@ function initialiseTaskStatusWorkflow() {
         formData.append('status', nextStatus);
         const response = await fetch(window.location.href, { method:'POST', body:formData, credentials:'same-origin', headers:{ Accept:'application/json' } });
         const result = await response.json();
-        if (!response.ok || result.success !== true) throw new Error(result.message || 'Unable to save status.');
+        if (!response.ok || result.success !== true) {
+          const saveError = new Error(result.message || 'Unable to save status.');
+          saveError.payload = result;
+          throw saveError;
+        }
         const task = result.task;
         row.dataset.savedStatus = task.status;
         row.dataset.displayStatus = task.display_status;
@@ -1871,7 +2093,8 @@ function initialiseTaskStatusWorkflow() {
           window.setTimeout(() => row.remove(), 360);
         }
       } catch (error) {
-        window.alert(error.message || 'Unable to save task status.');
+        if (nextStatus === 'complete') showTaskCompletionError(row.dataset.taskId, error.message, error.payload?.incomplete_items || []);
+        else window.alert(error.message || 'Unable to save task status.');
       } finally {
         triggerForSave.disabled = false;
         row.classList.remove('is-saving');
@@ -1962,6 +2185,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initialiseTaskRowMenus();
   initialiseTaskBulkSelection();
   initialiseTaskStatusWorkflow();
+  initialiseTaskCompletionEnforcement();
   initialiseTaskColumnResizing();
   initialiseTaskOverdueFilter();
   initialiseTaskSections();
@@ -2007,6 +2231,7 @@ document.addEventListener('click', (event) => {
     if (panel) {
       initializePortalCustomSelects(panel);
       initialiseTaskProofUpload(panel);
+      acknowledgeTaskOpen(open.dataset.taskOpen, panel);
       panel.classList.add('open');
       panel.setAttribute('aria-hidden', 'false');
     }
@@ -2083,6 +2308,7 @@ window.openTaskPanel = function (taskId) {
   if (!panel) return false;
   initializePortalCustomSelects(panel);
   initialiseTaskProofUpload(panel);
+  acknowledgeTaskOpen(taskId, panel);
   panel.classList.add('open');
   panel.setAttribute('aria-hidden', 'false');
   const backdrop = document.querySelector('.task-panel-backdrop');
