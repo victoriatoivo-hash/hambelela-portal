@@ -1545,16 +1545,23 @@
     const date = record[isTrash ? 'deleted_at' : 'archived_at'] || '';
     const actor = record[isTrash ? 'deleted_by_name' : 'archived_by_name'] || 'Unknown';
     const reason = record[isTrash ? 'delete_reason' : 'archive_reason'] || (isTrash ? 'Moved to Trash' : 'Archived');
+    if (isTrash) return `<article class="orders-tools-record orders-trash-grid orders-trash-row" role="row" data-order-id="${esc(record.id)}">
+      <div class="orders-trash-order" role="cell"><strong>${esc(formatOrderInvoiceReference(record.order_number || `Order #${record.id}`))}</strong><small>${record.woo_order_id ? 'WooCommerce portal record' : 'Portal-created record'}</small><span>N$${Number(record.total_amount || 0).toLocaleString(undefined,{maximumFractionDigits:2})}</span></div>
+      <div class="orders-trash-details" role="cell"><span>${esc(record.customer_name || 'No customer')}</span><small>${esc(record.status || '')}</small><span>${esc(date)}</span><small>${esc(actor)} · ${esc(reason)}</small></div>
+      <div class="portal-trash-action-cell orders-trash-actions orders-tools-record-actions" role="cell">
+        <button type="button" class="orders-tools-button" data-orders-tools-action="restore-trash" data-order-id="${esc(record.id)}"><i data-lucide="rotate-ccw"></i>Restore</button>
+        ${isTrash && ordersToolsData?.permissions?.can_delete_forever ? `<button type="button" class="orders-tools-button orders-tools-button--danger" data-orders-tools-action="delete-forever" data-order-id="${esc(record.id)}"><i data-lucide="trash-2"></i>Delete forever</button>` : ''}
+      </div>
+    </article>`;
     return `<article class="orders-tools-record orders-trash-row">
       <div class="orders-trash-row__details">
-      <div><strong>${esc(formatOrderInvoiceReference(record.order_number || `Order #${record.id}`))}</strong><small>${record.woo_order_id ? 'WooCommerce portal record' : 'Portal-created record'}</small></div>
-      <div>${esc(record.customer_name || 'No customer')}<small>${esc(record.status || '')}</small></div>
-      <div>N$${Number(record.total_amount || 0).toLocaleString(undefined,{maximumFractionDigits:2})}</div>
-      <div>${esc(date)}<small>${esc(actor)} · ${esc(reason)}</small></div>
+        <div><strong>${esc(formatOrderInvoiceReference(record.order_number || `Order #${record.id}`))}</strong><small>${record.woo_order_id ? 'WooCommerce portal record' : 'Portal-created record'}</small></div>
+        <div>${esc(record.customer_name || 'No customer')}<small>${esc(record.status || '')}</small></div>
+        <div>N$${Number(record.total_amount || 0).toLocaleString(undefined,{maximumFractionDigits:2})}</div>
+        <div>${esc(date)}<small>${esc(actor)} · ${esc(reason)}</small></div>
       </div>
       <div class="orders-tools-record-actions orders-trash-row__actions">
-        <button type="button" class="orders-tools-button" data-orders-tools-action="${isTrash ? 'restore-trash' : 'restore-archive'}" data-order-id="${esc(record.id)}"><i data-lucide="rotate-ccw"></i>${isTrash ? 'Restore' : 'Restore to board'}</button>
-        ${isTrash && ordersToolsData?.permissions?.can_delete_forever ? `<button type="button" class="orders-tools-button orders-tools-button--danger" data-orders-tools-action="delete-forever" data-order-id="${esc(record.id)}"><i data-lucide="trash-2"></i>Delete forever</button>` : ''}
+        <button type="button" class="orders-tools-button" data-orders-tools-action="restore-archive" data-order-id="${esc(record.id)}"><i data-lucide="rotate-ccw"></i>Restore to board</button>
       </div>
     </article>`;
   }
@@ -1563,7 +1570,7 @@
     if (!ordersToolsContent || !ordersToolsData) return;
     if (ordersToolsTab === 'trash') {
       ordersToolsContent.innerHTML = ordersToolsData.trash?.length
-        ? `<div class="orders-tools-list">${ordersToolsData.trash.map((row) => ordersToolsRecord(row, 'trash')).join('')}</div>`
+        ? `<div class="orders-tools-list orders-trash-list" role="table" aria-label="Deleted orders"><div class="orders-trash-grid orders-trash-grid--header" role="row"><div role="columnheader">Order details</div><div role="columnheader">Customer / Activity</div><div role="columnheader">Action</div></div>${ordersToolsData.trash.map((row) => ordersToolsRecord(row, 'trash')).join('')}</div>`
         : ordersToolsEmpty('Trash is empty', 'Deleted Orders Board records will appear here.');
     } else if (ordersToolsTab === 'archived') {
       ordersToolsContent.innerHTML = ordersToolsData.archived?.length
