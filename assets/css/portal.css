@@ -27409,7 +27409,8 @@ body.dark-mode .portal-dark-toggle {
 .task-tools-timeline .portal-activity-icon svg { width:12px; height:12px; }
 .task-tools-timeline .portal-activity-title { margin:0; color:#721B1A; font-size:12px; text-transform:capitalize; }
 .task-tools-timeline .portal-activity-time,.task-tools-actor { color:#A08070; font-size:10px; }
-.task-tools-timeline .portal-activity-description { margin:6px 0; color:#6B4C3B; font-size:12px; }
+.digital-task-page .task-tools-panel .task-tools-timeline .portal-activity-description { margin:6px 0; color:#323338 !important; font-size:12px; }
+.digital-task-page .task-tools-panel .task-tools-timeline .task-tools-actor { color:#323338 !important; }
 .task-tools-bulk h3 { margin:0 0 6px; color:#721B1A; font-size:14px; }
 .digital-task-page .task-tools-panel .task-tools-bulk > p { margin:0 0 14px; color:#6B4C3B; font-size:10px !important; }
 .task-tools-bulk-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
