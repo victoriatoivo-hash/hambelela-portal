@@ -1852,6 +1852,8 @@ function initialiseTaskTools() {
   let scrollY = 0;
   const actionMenu = document.querySelector('[data-task-action-menu]');
   const trashConfirm = document.querySelector('[data-task-trash-confirm]');
+  if (actionMenu && actionMenu.parentElement !== document.body) document.body.appendChild(actionMenu);
+  if (trashConfirm && trashConfirm.parentElement !== document.body) document.body.appendChild(trashConfirm);
   let actionTrigger = null;
   let actionTaskId = null;
 
@@ -1946,8 +1948,12 @@ function initialiseTaskTools() {
     returnFocus?.focus?.({ preventScroll:true });
   };
   const closeActionMenu = (restoreFocus = false) => {
-    if (!actionMenu || actionMenu.hidden) return;
+    if (!actionMenu) return;
     actionMenu.hidden = true;
+    actionMenu.style.removeProperty('visibility');
+    actionMenu.style.removeProperty('left');
+    actionMenu.style.removeProperty('top');
+    actionMenu.removeAttribute('data-task-id');
     actionTrigger?.setAttribute('aria-expanded', 'false');
     if (restoreFocus && actionTrigger?.isConnected) actionTrigger.focus({ preventScroll:true });
     actionTrigger = null;
@@ -1955,6 +1961,7 @@ function initialiseTaskTools() {
   };
   const positionActionMenu = (selectedTrigger) => {
     if (!actionMenu) return;
+    actionMenu.style.visibility = 'hidden';
     actionMenu.hidden = false;
     const triggerRect = selectedTrigger.getBoundingClientRect();
     const menuRect = actionMenu.getBoundingClientRect();
@@ -1963,6 +1970,7 @@ function initialiseTaskTools() {
     const top = below + menuRect.height <= window.innerHeight - 8 ? below : Math.max(8, triggerRect.top - menuRect.height - 6);
     actionMenu.style.left = `${Math.round(left)}px`;
     actionMenu.style.top = `${Math.round(top)}px`;
+    actionMenu.style.visibility = '';
   };
   const showTaskActionToast = (message, danger = false) => {
     document.querySelector('[data-task-action-toast]')?.remove();
@@ -2001,10 +2009,12 @@ function initialiseTaskTools() {
       closeActionMenu();
       actionTrigger = selectedTrigger;
       actionTaskId = selectedTrigger.dataset.taskId;
+      actionMenu.dataset.taskId = actionTaskId;
       selectedTrigger.setAttribute('aria-expanded', 'true');
       actionMenu.querySelector('[data-task-trash-action="delete-permanently"]').hidden = !data?.permissions?.can_delete_forever;
       positionActionMenu(selectedTrigger);
       if (window.lucide) window.lucide.createIcons({ strokeWidth:2 });
+      actionMenu.querySelector('[data-task-trash-action]:not([hidden])')?.focus({ preventScroll:true });
       return;
     }
     const menuItem = event.target.closest('[data-task-trash-action]');
@@ -2033,7 +2043,7 @@ function initialiseTaskTools() {
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && actionMenu && !actionMenu.hidden) { event.preventDefault(); closeActionMenu(true); }
   });
-  body.addEventListener('scroll', () => closeActionMenu(), { passive:true });
+  panel.addEventListener('scroll', () => closeActionMenu(), { passive:true, capture:true });
   window.addEventListener('resize', () => closeActionMenu());
   trigger.addEventListener('click', open);
   document.addEventListener('task-tools:refresh-board', async () => {
