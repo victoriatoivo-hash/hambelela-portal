@@ -1164,8 +1164,7 @@ include BASE_PATH . '/shared/sidebar.php';
 <main class="workspace module digital-task-page" data-task-view="<?= htmlspecialchars($filters['task_view'], ENT_QUOTES, 'UTF-8') ?>" data-requested-task-view="<?= htmlspecialchars($requestedTaskView, ENT_QUOTES, 'UTF-8') ?>" data-can-manage="<?= $canManage ? '1' : '0' ?>">
     <header class="dtb-page-header">
         <div>
-            <p class="dtb-page-kicker">Task Management</p>
-            <h1 class="dtb-page-title"><?= $canManage ? 'Digital Task Board' : 'My Tasks' ?></h1>
+            <h1 class="dtb-page-title">Task Management</h1>
         </div>
         <div class="dtb-page-actions task-header-actions" data-portal-header-status-target>
             <?php if ($canManage): ?>

@@ -58,5 +58,8 @@ assert.match(css, /\.task-section \{[^}]*align-self: stretch[^}]*width: 100%[^}]
 assert.match(css, /\.task-section\.is-collapsed \{[^}]*width: 100%[^}]*max-width: none[^}]*min-width: 0/);
 assert.match(page, /classList\.toggle\('is-collapsed', expanded\)/);
 assert.match(viewBar, /type !== 'packing' && type !== 'tasks'/);
+assert.match(page, /<h1 class="dtb-page-title">Task Management<\/h1>/);
+assert.doesNotMatch(page, /<p class="dtb-page-kicker">/);
+assert.doesNotMatch(page, /Digital Task Board|My Tasks/);
 
 console.log('Digital Task Board redesign checks passed.');
