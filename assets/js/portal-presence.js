@@ -28,7 +28,7 @@
   }
   if (presenceScriptUrl && !document.querySelector('script[src*="/assets/js/portal-view-bar.js"]')) {
     const viewBarController = document.createElement('script');
-    viewBarController.src = new URL('portal-view-bar.js?v=shared26', presenceScriptUrl).href;
+    viewBarController.src = new URL('portal-view-bar.js?v=shared27', presenceScriptUrl).href;
     viewBarController.async = false;
     document.head.append(viewBarController);
   }
