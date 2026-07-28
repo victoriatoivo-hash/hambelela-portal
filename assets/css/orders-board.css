@@ -10,6 +10,7 @@
   --orders-text: #1a1a1a;
   --orders-muted: #a08070;
   --orders-row-height: 35px;
+  --orders-button-text: #fff;
   width: 100%;
   max-width: none;
   min-width: 0;
@@ -548,16 +549,38 @@ body.orders-tools-open{overflow:hidden}
 .orders-page .orders-grid-cell--status .board-label { width:100%; height:35px; min-height:35px; border:0; border-radius:0; margin:0; }
 .orders-page [data-order-status="complete"],
 .orders-page [data-order-status="completed"] { background:#D83A52; color:#fff; }
-.orders-page [data-order-status="in-progress"] { background:#FDAB3D; color:#1A1A1A; }
-.orders-page [data-fulfilment-mode="collection"] { background:#CD9282; color:#1A1A1A; }
+.orders-page [data-order-status="in-progress"] { background:#FDAB3D; color:#fff; }
+.orders-page [data-fulfilment-mode="collection"] { background:#CD9282; color:#fff; }
 .orders-page [data-fulfilment-mode="courier"] { background:#7F5347; color:#fff; }
-.orders-page [data-fulfilment-mode="delivery"] { background:#BCA58A; color:#1A1A1A; }
+.orders-page [data-fulfilment-mode="delivery"] { background:#BCA58A; color:#fff; }
 .orders-page [data-order-status="complete"]:hover,
 .orders-page [data-order-status="completed"]:hover,
 .orders-page [data-order-status="in-progress"]:hover,
 .orders-page [data-fulfilment-mode="collection"]:hover,
 .orders-page [data-fulfilment-mode="courier"]:hover,
 .orders-page [data-fulfilment-mode="delivery"]:hover { filter:none; }
+.orders-page .orders-grid-cell--mode .board-label,
+.orders-page .orders-grid-cell--status .board-label,
+.orders-page .orders-grid-cell--mode .board-label:hover,
+.orders-page .orders-grid-cell--status .board-label:hover,
+.orders-page .orders-grid-cell--mode .board-label:focus,
+.orders-page .orders-grid-cell--status .board-label:focus,
+.orders-page .orders-grid-cell--mode .board-label:focus-visible,
+.orders-page .orders-grid-cell--status .board-label:focus-visible,
+.orders-page .orders-grid-cell--mode .board-label:active,
+.orders-page .orders-grid-cell--status .board-label:active,
+.orders-page .orders-grid-cell--mode .board-label[aria-expanded="true"],
+.orders-page .orders-grid-cell--status .board-label[aria-expanded="true"],
+.orders-page .orders-grid-cell--payment .payment-badge__segment {
+  color:var(--orders-button-text);
+  -webkit-text-fill-color:var(--orders-button-text);
+}
+.orders-page .orders-grid-cell--mode .board-label > span,
+.orders-page .orders-grid-cell--status .board-label > span,
+.orders-page .orders-grid-cell--payment .payment-badge__segment > span {
+  color:inherit;
+  -webkit-text-fill-color:inherit;
+}
 .orders-page .orders-grid-row > .orders-grid-cell--status > .status-label {
   font-weight:400 !important;
 }
@@ -993,7 +1016,7 @@ body > .orders-label-popup .mode-label-name-input { width:100%; height:32px; min
 .payment-editor__dialog #payment-editor-title{font-weight:600}
 .payment-editor__type{display:grid;gap:5px;margin-bottom:12px;color:#6B4C3B;font:700 10px/1.2 Figtree,sans-serif;text-transform:uppercase}.payment-editor__type select{width:100%;height:36px;padding:0 9px;border:1px solid #EDE3D8;border-radius:9px;background:#fff;color:#1a1a1a;font:12px Figtree,sans-serif;text-transform:none}
 @media(max-width:600px){.payment-badge{flex-wrap:wrap}.payment-badge__segment{min-height:28px}.payment-editor__row{grid-template-columns:1fr 1fr 30px}.payment-editor__dialog{padding:14px}.payment-editor__dialog footer{position:sticky;bottom:-14px;padding:10px 0;background:#fff}}
-.payment-badge__segment[data-payment-method=cash],.payment-badge__segment[data-payment-method=fnb-ewallet],.payment-badge__segment[data-payment-method=fnb-e-wallet],.payment-badge__segment[data-payment-method=pay2cell],.payment-badge__segment[data-payment-method=pay-2-cell],.payment-badge__segment[data-payment-method=paytoday],.payment-badge__segment[data-payment-method=pay-today]{color:#1A1A1A}
+.payment-badge__segment[data-payment-method=cash],.payment-badge__segment[data-payment-method=fnb-ewallet],.payment-badge__segment[data-payment-method=fnb-e-wallet],.payment-badge__segment[data-payment-method=pay2cell],.payment-badge__segment[data-payment-method=pay-2-cell],.payment-badge__segment[data-payment-method=paytoday],.payment-badge__segment[data-payment-method=pay-today]{color:#fff}
 body:has(.orders-page) .ps-notification-badge,body:has(.orders-page) .portal-notification-button__badge{font-weight:400}
 .workspace.module.orders-page .orders-tools-bar [data-toolbar-action] svg{color:#AB3619!important;stroke:currentColor!important}
 .orders-page #toolbar-popover .packing-sort-fields .portal-theme-select__trigger{height:34px!important;min-height:34px!important;max-height:34px!important;padding:0 12px!important;font-family:Figtree,sans-serif!important;font-size:12px!important;font-weight:400!important;line-height:1!important}
