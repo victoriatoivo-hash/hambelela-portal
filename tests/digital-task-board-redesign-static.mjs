@@ -49,6 +49,7 @@ assert.match(css, /\.task-trash-confirm \{[^}]*z-index:60040/);
 assert.match(page, /document\.body\.appendChild\(actionMenu\)/);
 assert.match(page, /actionMenu\.dataset\.taskId = actionTaskId/);
 assert.match(css, /\.task-trash-confirm \.task-trash-confirm__delete \{[^}]*background:#BB1B21/);
+assert.match(css, /\.task-tools-card-list\[data-task-trash-list\] \.task-tools-card-copy > span,[\s\S]*\.task-tools-card-copy > small \{ color:#323338; \}/);
 assert.doesNotMatch(page, /<th>Days<\/th>/);
 assert.match(page, /<th>When Due<\/th>/);
 assert.match(page, /data-task-due-state/);
@@ -74,6 +75,8 @@ assert.match(css, /\.task-section\.is-collapsed \{[^}]*width: 100%[^}]*max-width
 assert.match(page, /classList\.toggle\('is-collapsed', expanded\)/);
 assert.match(viewBar, /type !== 'packing' && type !== 'tasks'/);
 assert.match(page, /<h1 class="dtb-page-title">Task Management<\/h1>/);
+assert.match(css, /\.task-tools-timeline \.portal-activity-description \{[^}]*color:#323338 !important/);
+assert.match(css, /\.task-tools-timeline \.task-tools-actor \{ color:#323338 !important; \}/);
 assert.match(css, /\.digital-task-page \.task-tools-panel \.task-tools-bulk > p \{[^}]*font-size:10px !important;/);
 assert.match(css, /\.digital-task-page \.task-tools-panel \.packing-tools-title \{[^}]*font-weight:600;/);
 assert.match(css, /\.digital-task-page \.task-tools-panel p\.packing-tools-subtitle \{[^}]*font-size:10px !important;/);
