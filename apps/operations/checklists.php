@@ -2444,6 +2444,7 @@ function initialiseTaskSections() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  initialiseTaskDueStates();
   initialiseTaskAttachments();
   initialiseTaskTools();
   initialiseTaskRowMenus();
