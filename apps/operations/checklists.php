@@ -2418,6 +2418,7 @@ function initialiseTaskDueStates() {
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
   refresh();
 }
+initialiseTaskDueStates();
 
 function initialiseTaskSections() {
   const page = document.querySelector('.digital-task-page');
