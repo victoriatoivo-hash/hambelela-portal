@@ -25,6 +25,7 @@ assert.match(viewCss, /body:has\(\.packing-item-panel\.is-open\) \.portal-header
 assert.match(viewCss, /body:has\(\.task-details-panel\.is-open\) \.portal-header-status/, 'Task detail slide-out must cover shared header controls');
 assert.match(viewCss, /visibility:hidden!important;opacity:0!important;pointer-events:none!important/, 'Covered header controls must not remain visible or clickable');
 assert.match(errors, /name="search"/, 'Error Log must expose search');
+assert.match(viewBar, /type !== 'tasks' && type !== 'errors'/, 'Error Log must not expose the shared Hide columns control');
 for (const [name, source] of Object.entries({ Bookkeeping: bookkeeping, Packing: packing, Tasks: tasks, ErrorLog: errors, OrdersReport: ordersReport })) {
   assert.match(source, /data-portal-view-filter/, `${name} must explicitly opt in to the shared filter bar`);
 }
