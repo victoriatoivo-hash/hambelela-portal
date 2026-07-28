@@ -27811,6 +27811,7 @@ body.task-confirm-open { overflow: hidden; }
 .portal-tools-tab.is-active::after,
 .portal-tools-tab[aria-selected="true"]::after { transform:scaleX(1); }
 .portal-tools-tab:focus-visible { outline:2px solid rgba(171,54,25,.22);outline-offset:-3px; }
+.workspace.module .portal-tools-tab { font-size:12px; }
 
 /* Shared navigation contract for every multi-section panel and popup. */
 .portal-panel-tabs {

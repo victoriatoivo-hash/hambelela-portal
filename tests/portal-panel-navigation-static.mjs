@@ -26,6 +26,7 @@ const portalToolsTabCss = portalCss.match(/\.portal-tools-tab \{([^}]*)\}/)?.[1]
 for (const declaration of ['border:0;', 'border-radius:0;', 'background:transparent;', 'font:400 12px/1 Figtree,Inter,sans-serif;']) {
   assert.ok(portalToolsTabCss.includes(declaration), `shared tools tabs must include ${declaration}`);
 }
+assert.match(portalCss, /\.workspace\.module \.portal-tools-tab \{ font-size:12px; \}/, 'workspace typography must not override the shared 12px tools tabs');
 assert.match(portalCss, /\.portal-tools-tab\.is-active::after,[\s\S]*?transform:scaleX\(1\)/, 'active tools tabs need a tab-width underline');
 assert.match(ordersCss, /\.orders-tools-record\{[^}]*min-height:70px[^}]*border-bottom:1px/, 'Orders Trash must render as compact list rows');
 assert.match(packingCss, /\.packing-trash-list\{display:flex;flex-direction:column;gap:0\}/, 'Packing Trash must render as a compact list');
