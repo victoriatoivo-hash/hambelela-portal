@@ -61,5 +61,10 @@ assert.match(viewBar, /type !== 'packing' && type !== 'tasks'/);
 assert.match(page, /<h1 class="dtb-page-title">Task Management<\/h1>/);
 assert.doesNotMatch(page, /<p class="dtb-page-kicker">/);
 assert.doesNotMatch(page, /Digital Task Board|My Tasks/);
+assert.match(page, /<button type="button" class="task-section-tab/);
+assert.doesNotMatch(page, /<a class="task-section-tab/);
+assert.match(page, /data-task-view-content/);
+assert.match(page, /function initialiseTaskViewTabs\(/);
+assert.doesNotMatch(page, /window\.location\.(?:href|assign|reload)/);
 
 console.log('Digital Task Board redesign checks passed.');

@@ -988,6 +988,7 @@ $filters = [
     'task_view' => trim((string) ($_GET['task_view'] ?? 'active')),
     'search' => trim((string) ($_GET['search'] ?? '')),
 ];
+$filters['task_view'] = $filters['task_view'] === 'tasks' ? 'active' : $filters['task_view'];
 $requestedTaskView = $filters['task_view'];
 if (in_array($filters['task_view'], ['recurring', 'manual'], true)) $filters['task_view'] = 'active';
 if (!in_array($filters['task_view'], ['active', 'completed', 'history'], true)) $filters['task_view'] = 'active';
@@ -1186,14 +1187,12 @@ include BASE_PATH . '/shared/sidebar.php';
 
     <nav class="task-section-tabs task-board-navigation" aria-label="Task views" data-task-view-tabs>
         <?php
-        $tabLabels = ['active' => 'Tasks', 'completed' => 'Completed Tasks', 'history' => 'Task History'];
-        $tabIcons = ['active' => 'clipboard-list', 'completed' => 'check-circle-2', 'history' => 'history'];
+        $tabLabels = ['tasks' => 'Tasks', 'completed' => 'Completed Tasks', 'history' => 'Task History'];
+        $tabIcons = ['tasks' => 'clipboard-list', 'completed' => 'check-circle-2', 'history' => 'history'];
         foreach ($tabLabels as $tabKey => $tabLabel):
-            $tabQuery = array_merge($_GET, ['task_view' => $tabKey]);
-            $tabUrl = 'checklists.php?' . http_build_query($tabQuery);
-            $tabActive = $filters['task_view'] === $tabKey;
+            $tabActive = ($tabKey === 'tasks' ? 'active' : $tabKey) === $filters['task_view'];
         ?>
-            <a class="task-section-tab<?= $tabActive ? ' is-active' : '' ?>" href="<?= htmlspecialchars($tabUrl, ENT_QUOTES, 'UTF-8') ?>" data-task-view="<?= htmlspecialchars($tabKey, ENT_QUOTES, 'UTF-8') ?>" aria-selected="<?= $tabActive ? 'true' : 'false' ?>"><span class="task-section-tab__icon" aria-hidden="true"><i data-lucide="<?= htmlspecialchars($tabIcons[$tabKey], ENT_QUOTES, 'UTF-8') ?>"></i></span><span><?= htmlspecialchars($tabLabel, ENT_QUOTES, 'UTF-8') ?></span></a>
+            <button type="button" class="task-section-tab<?= $tabActive ? ' is-active' : '' ?>" data-task-view="<?= htmlspecialchars($tabKey, ENT_QUOTES, 'UTF-8') ?>" role="tab" aria-selected="<?= $tabActive ? 'true' : 'false' ?>" tabindex="<?= $tabActive ? '0' : '-1' ?>"><span class="task-section-tab__icon" aria-hidden="true"><i data-lucide="<?= htmlspecialchars($tabIcons[$tabKey], ENT_QUOTES, 'UTF-8') ?>"></i></span><span><?= htmlspecialchars($tabLabel, ENT_QUOTES, 'UTF-8') ?></span></button>
         <?php endforeach; ?>
     </nav>
 
@@ -1275,6 +1274,11 @@ include BASE_PATH . '/shared/sidebar.php';
         </aside>
     <?php endif; ?>
 
+    <div class="task-status-popup" data-task-status-popup hidden role="menu">
+        <?php foreach ($statuses as $statusKey => $statusLabel): ?><button type="button" data-status-key="<?= htmlspecialchars($statusKey, ENT_QUOTES, 'UTF-8') ?>" role="menuitem"><?= htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8') ?></button><?php endforeach; ?>
+    </div>
+
+    <div class="task-view-content" data-task-view-content>
     <?php if ($filters['task_view'] === 'active'): ?>
     <div class="task-management-page" data-task-management-sections>
         <?php foreach ([
@@ -1294,9 +1298,6 @@ include BASE_PATH . '/shared/sidebar.php';
                 </div>
             </section>
         <?php endforeach; ?>
-    </div>
-    <div class="task-status-popup" data-task-status-popup hidden role="menu">
-        <?php foreach ($statuses as $statusKey => $statusLabel): ?><button type="button" data-status-key="<?= htmlspecialchars($statusKey, ENT_QUOTES, 'UTF-8') ?>" role="menuitem"><?= htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8') ?></button><?php endforeach; ?>
     </div>
     <?php endif; ?>
 
@@ -1338,9 +1339,6 @@ include BASE_PATH . '/shared/sidebar.php';
         </table>
         </div>
     </section>
-    <div class="task-status-popup" data-task-status-popup hidden role="menu">
-        <?php foreach ($statuses as $statusKey => $statusLabel): ?><button type="button" data-status-key="<?= htmlspecialchars($statusKey, ENT_QUOTES, 'UTF-8') ?>" role="menuitem"><?= htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8') ?></button><?php endforeach; ?>
-    </div>
     <?php endif; ?>
 
     <div class="dtb-bulk-action-bar" data-task-bulk-bar hidden>
@@ -1481,17 +1479,22 @@ include BASE_PATH . '/shared/sidebar.php';
         <div class="task-complete-confirm__backdrop"></div>
         <section><h2 id="task-complete-confirm-title">Complete this task?</h2><p data-task-complete-confirm-copy>All required checklist items are complete. Completion will be recorded under your name and time.</p><div><button type="button" data-task-complete-cancel>Cancel</button><button type="button" data-task-complete-accept>Complete Task</button></div></section>
     </div>
+    </div>
 </main>
 <script>
-document.querySelectorAll('[data-urgent-control]').forEach((control) => {
-  const toggle = control.querySelector('[data-urgent-toggle]');
-  const options = control.querySelector('[data-urgent-options]');
-  if (toggle && options) {
-    const sync = () => { options.hidden = !toggle.checked; };
-    toggle.addEventListener('change', sync);
-    sync();
-  }
-});
+function initialiseTaskUrgentControls(root = document) {
+  root.querySelectorAll('[data-urgent-control]:not([data-urgent-initialised])').forEach((control) => {
+    control.dataset.urgentInitialised = 'true';
+    const toggle = control.querySelector('[data-urgent-toggle]');
+    const options = control.querySelector('[data-urgent-options]');
+    if (toggle && options) {
+      const sync = () => { options.hidden = !toggle.checked; };
+      toggle.addEventListener('change', sync);
+      sync();
+    }
+  });
+}
+initialiseTaskUrgentControls();
 
 function initialiseTaskCreateForm() {
   const form = document.querySelector('[data-task-create-form]');
@@ -1769,7 +1772,7 @@ function initialiseTaskAttachments(root = document) {
           try {
             const data = new FormData();
             data.append('action', 'task_attachment_upload'); data.append('task_id', taskId); data.append('csrf_token', csrfToken); data.append('attachment', file, file.name);
-            const response = await fetch(window.location.href, {method:'POST',body:data,credentials:'same-origin',headers:{Accept:'application/json'}});
+            const response = await fetch(document.URL, {method:'POST',body:data,credentials:'same-origin',headers:{Accept:'application/json'}});
             const result = await response.json();
             if (!response.ok || result.success !== true) throw new Error(result.message || 'Upload failed.');
             pending.outerHTML = attachmentMarkup(result.attachment);
@@ -1791,7 +1794,7 @@ function initialiseTaskAttachments(root = document) {
       try {
         const data = new FormData();
         data.append('action', 'task_attachment_remove'); data.append('task_id', taskId); data.append('attachment_id', row.dataset.taskAttachmentId); data.append('csrf_token', csrfToken);
-        const response = await fetch(window.location.href, {method:'POST',body:data,credentials:'same-origin',headers:{Accept:'application/json'}});
+        const response = await fetch(document.URL, {method:'POST',body:data,credentials:'same-origin',headers:{Accept:'application/json'}});
         const result = await response.json();
         if (!response.ok || result.success !== true) throw new Error(result.message || 'Unable to remove this attachment.');
         row.remove();
@@ -1817,7 +1820,7 @@ function showTaskUndo(taskIds, label = 'Task updated') {
         const form = new FormData();
         form.append('action', 'task_restore');
         form.append('task_id', taskId);
-        const response = await fetch(window.location.href, { method:'POST', body:form, credentials:'same-origin', headers:{ Accept:'application/json' } });
+        const response = await fetch(document.URL, { method:'POST', body:form, credentials:'same-origin', headers:{ Accept:'application/json' } });
         const result = await response.json();
         if (!response.ok || result.success !== true) throw new Error(result.message || 'Unable to undo task action.');
       }
@@ -1855,14 +1858,14 @@ function initialiseTaskTools() {
       if (Array.isArray(value)) value.forEach((item) => form.append(`${key}[]`, item));
       else form.append(key, value);
     });
-    const response = await fetch(window.location.href, { method:'POST', body:form, credentials:'same-origin', headers:{ Accept:'application/json' } });
+    const response = await fetch(document.URL, { method:'POST', body:form, credentials:'same-origin', headers:{ Accept:'application/json' } });
     const result = await response.json();
     if (!response.ok || result.success !== true) throw new Error(result.message || 'Task tools action failed.');
     return result;
   };
   const refreshBoard = async () => {
     const y = window.scrollY;
-    const response = await fetch(window.location.href, { credentials:'same-origin', headers:{ Accept:'text/html' }, cache:'no-store' });
+    const response = await fetch(document.URL, { credentials:'same-origin', headers:{ Accept:'text/html' }, cache:'no-store' });
     const html = await response.text();
     const parsed = new DOMParser().parseFromString(html, 'text/html');
     const replacements = [
@@ -2031,7 +2034,7 @@ function initialiseTaskBulkSelection() {
     actionButton.disabled = true;
     bar.classList.add('is-saving');
     try {
-      const response = await fetch(window.location.href, { method: 'POST', body: formData, credentials: 'same-origin', headers: { Accept: 'application/json' } });
+      const response = await fetch(document.URL, { method: 'POST', body: formData, credentials: 'same-origin', headers: { Accept: 'application/json' } });
       const result = await response.json();
       if (!response.ok || result.success !== true) throw new Error(result.message || 'Unable to update selected tasks.');
       rows.forEach((row) => row.remove());
@@ -2144,7 +2147,7 @@ function initialiseTaskCompletionEnforcement() {
       try {
         const data = new FormData(form);
         data.set('action', 'update_task_progress');
-        const response = await fetch(window.location.href, {method:'POST',body:data,credentials:'same-origin',headers:{Accept:'application/json'}});
+        const response = await fetch(document.URL, {method:'POST',body:data,credentials:'same-origin',headers:{Accept:'application/json'}});
         const result = await response.json();
         if (!response.ok || result.success !== true) throw new Error(result.message || 'Unable to save task progress.');
         const note = form.querySelector('[name="completion_note"]');
@@ -2172,7 +2175,7 @@ async function acknowledgeTaskOpen(taskId, panel) {
   data.append('action', 'acknowledge_task');
   data.append('task_id', taskId);
   try {
-    const response = await fetch(window.location.href, { method:'POST', body:data, credentials:'same-origin', headers:{Accept:'application/json'} });
+    const response = await fetch(document.URL, { method:'POST', body:data, credentials:'same-origin', headers:{Accept:'application/json'} });
     const result = await response.json();
     if (!response.ok || result.success !== true) throw new Error(result.message || 'Unable to acknowledge task.');
     if (row) row.dataset.savedStatus = result.status;
@@ -2254,7 +2257,7 @@ function initialiseTaskStatusWorkflow() {
         formData.append('task_id', row.dataset.taskId);
         formData.append('status', nextStatus);
         formData.append('completion_note', progressNote);
-        const response = await fetch(window.location.href, { method:'POST', body:formData, credentials:'same-origin', headers:{ Accept:'application/json' } });
+        const response = await fetch(document.URL, { method:'POST', body:formData, credentials:'same-origin', headers:{ Accept:'application/json' } });
         const result = await response.json();
         if (!response.ok || result.success !== true) {
           const saveError = new Error(result.message || 'Unable to save status.');
@@ -2406,7 +2409,111 @@ function initialiseTaskSections() {
   }
 }
 
+let taskViewRequest = null;
+
+function updateTaskViewTabs(root, activeView) {
+  root.querySelectorAll('[data-task-view-tabs] [data-task-view]').forEach((tab) => {
+    const active = tab.dataset.taskView === activeView;
+    tab.classList.toggle('is-active', active);
+    tab.setAttribute('aria-selected', String(active));
+    tab.tabIndex = active ? 0 : -1;
+  });
+  root.dataset.activeTaskView = activeView;
+}
+
+function initialiseLoadedTaskView(content) {
+  initialiseTaskUrgentControls(content);
+  initialiseTaskAttachments(content);
+  initialiseTaskBulkSelection();
+  initialiseTaskCompletionEnforcement();
+  initialiseTaskColumnResizing();
+  initializePortalCustomSelects(content);
+  window.taskDueStateController?.refresh?.();
+  window.lucide?.createIcons?.();
+}
+
+async function openTaskView(view, context) {
+  const { root, content, selectedTab } = context;
+  if (!['tasks', 'completed', 'history'].includes(view) || root.dataset.activeTaskView === view) return;
+
+  taskViewRequest?.abort();
+  const request = new AbortController();
+  taskViewRequest = request;
+  const previousView = root.dataset.renderedTaskView || 'tasks';
+  const scrollLeft = window.scrollX;
+  const scrollTop = window.scrollY;
+  const requestUrl = new URL(document.URL);
+  requestUrl.searchParams.set('task_view', view);
+  requestUrl.searchParams.delete('verify');
+  updateTaskViewTabs(root, view);
+  content.setAttribute('aria-busy', 'true');
+  selectedTab.disabled = true;
+  const loader = document.createElement('span');
+  loader.className = 'task-view-loader';
+  loader.setAttribute('role', 'status');
+  loader.textContent = 'Loading view…';
+  content.append(loader);
+
+  try {
+    const response = await fetch(requestUrl, {
+      method: 'GET',
+      credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      signal: request.signal
+    });
+    if (!response.ok) throw new Error(`Unable to load ${view}`);
+    const parsed = new DOMParser().parseFromString(await response.text(), 'text/html');
+    const nextContent = parsed.querySelector('[data-task-view-content]');
+    if (!nextContent) throw new Error(`Unable to render ${view}`);
+    content.innerHTML = nextContent.innerHTML;
+    const backendView = view === 'tasks' ? 'active' : view;
+    root.dataset.taskView = backendView;
+    root.dataset.requestedTaskView = view;
+    const filterViewInput = document.querySelector('form.dtb-filter-body input[name="task_view"]');
+    if (filterViewInput) filterViewInput.value = backendView;
+    initialiseLoadedTaskView(content);
+    root.dataset.renderedTaskView = view;
+    const nextUrl = new URL(document.URL);
+    nextUrl.searchParams.set('task_view', view);
+    nextUrl.searchParams.delete('verify');
+    history.replaceState({ taskView: view }, '', `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
+    window.scrollTo(scrollLeft, scrollTop);
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      loader.remove();
+    } else if (taskViewRequest === request) {
+      updateTaskViewTabs(root, previousView);
+      loader.textContent = 'This task view could not be loaded. Please try again.';
+      window.setTimeout(() => loader.remove(), 3500);
+    }
+  } finally {
+    selectedTab.disabled = false;
+    if (taskViewRequest === request) {
+      content.removeAttribute('aria-busy');
+      taskViewRequest = null;
+    }
+  }
+}
+
+function initialiseTaskViewTabs(taskRoot = document.querySelector('.digital-task-page')) {
+  const tabs = taskRoot?.querySelector('[data-task-view-tabs]');
+  const content = taskRoot?.querySelector('[data-task-view-content]');
+  if (!tabs || !content || tabs.dataset.initialised === 'true') return;
+  tabs.dataset.initialised = 'true';
+  const initialView = tabs.querySelector('[data-task-view].is-active')?.dataset.taskView || 'tasks';
+  updateTaskViewTabs(taskRoot, initialView);
+  taskRoot.dataset.renderedTaskView = initialView;
+  tabs.addEventListener('click', async (event) => {
+    const selectedTab = event.target.closest('[data-task-view]');
+    if (!selectedTab || selectedTab.disabled) return;
+    event.preventDefault();
+    event.stopPropagation();
+    await openTaskView(selectedTab.dataset.taskView, { root: taskRoot, content, selectedTab });
+  });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+  initialiseTaskViewTabs();
   initialiseTaskDueStates();
   initialiseTaskAttachments();
   initialiseTaskTools();

@@ -4348,6 +4348,9 @@ textarea {
 .task-section-tab.is-active::after,.task-section-tab[aria-selected="true"]::after{transform:scaleX(1)}
 .task-section-tab:active{transform:scale(.98)}
 .task-section-tab:focus{outline:none}.task-section-tab:focus-visible{color:#AB3619;outline:2px solid rgba(171,54,25,.24);outline-offset:-3px}
+.task-view-content { position: relative; width: 100%; min-width: 0; }
+.task-view-content[aria-busy="true"] { min-height: 80px; }
+.task-view-loader { position: absolute; z-index: 30; top: 8px; right: 8px; min-height: 28px; padding: 0 10px; display: inline-flex; align-items: center; gap: 7px; color: #721B1A; background: #FFFFFF; border: 1px solid #EDE3D8; border-radius: 8px; box-shadow: 0 7px 16px rgba(171,54,25,.14); font: 500 10px/1 Figtree,Inter,sans-serif; }
 
 .task-management-page { display: grid; grid-template-columns: minmax(0, 1fr); align-items: stretch; gap: 18px; width: 100%; max-width: none; min-width: 0; box-sizing: border-box; }
 .task-section { display: block; align-self: stretch; width: 100%; max-width: none; min-width: 0; overflow: hidden; background: #FFFFFF; border: 1px solid #EDE3D8; border-radius: 14px; box-shadow: 0 10px 26px rgba(114, 27, 26, .06); box-sizing: border-box; }
