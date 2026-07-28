@@ -1164,14 +1164,16 @@ include BASE_PATH . '/shared/sidebar.php';
         <a class="dtb-stat-card" data-stat="complete" href="checklists.php?task_view=completed"><span class="dtb-stat-icon"><i data-lucide="check-circle-2"></i></span><div><p class="dtb-stat-label">Completed This Month</p><strong class="dtb-stat-value"><?= number_format($metrics['completed_month']) ?></strong></div></a>
     </section>
 
-    <nav class="dtb-tabs task-board-navigation" aria-label="Task views">
+    <nav class="task-section-tabs task-board-navigation" aria-label="Task views" data-task-view-tabs>
         <?php
         $tabLabels = ['active' => 'Tasks', 'completed' => 'Completed Tasks', 'history' => 'Task History'];
+        $tabIcons = ['active' => 'clipboard-list', 'completed' => 'check-circle-2', 'history' => 'history'];
         foreach ($tabLabels as $tabKey => $tabLabel):
             $tabQuery = array_merge($_GET, ['task_view' => $tabKey]);
             $tabUrl = 'checklists.php?' . http_build_query($tabQuery);
+            $tabActive = $filters['task_view'] === $tabKey;
         ?>
-            <a class="dtb-tab <?= $filters['task_view'] === $tabKey ? 'is-active' : '' ?>" href="<?= htmlspecialchars($tabUrl, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($tabLabel, ENT_QUOTES, 'UTF-8') ?></a>
+            <a class="task-section-tab<?= $tabActive ? ' is-active' : '' ?>" href="<?= htmlspecialchars($tabUrl, ENT_QUOTES, 'UTF-8') ?>" data-task-view="<?= htmlspecialchars($tabKey, ENT_QUOTES, 'UTF-8') ?>" aria-selected="<?= $tabActive ? 'true' : 'false' ?>"><span class="task-section-tab__icon" aria-hidden="true"><i data-lucide="<?= htmlspecialchars($tabIcons[$tabKey], ENT_QUOTES, 'UTF-8') ?>"></i></span><span><?= htmlspecialchars($tabLabel, ENT_QUOTES, 'UTF-8') ?></span></a>
         <?php endforeach; ?>
     </nav>
 
