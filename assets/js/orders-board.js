@@ -1564,8 +1564,7 @@
       <div class="orders-trash-order" role="cell"><strong>${esc(formatOrderInvoiceReference(record.order_number || `Order #${record.id}`))}</strong><small>${record.woo_order_id ? 'WooCommerce portal record' : 'Portal-created record'}</small><span>N$${Number(record.total_amount || 0).toLocaleString(undefined,{maximumFractionDigits:2})}</span></div>
       <div class="orders-trash-details" role="cell"><span>${esc(record.customer_name || 'No customer')}</span><small>${esc(record.status || '')}</small><span>${esc(date)}</span><small>${esc(actor)} · ${esc(reason)}</small></div>
       <div class="portal-trash-action-cell orders-trash-actions orders-tools-record-actions" role="cell">
-        <button type="button" class="orders-tools-button" data-orders-tools-action="restore-trash" data-order-id="${esc(record.id)}"><i data-lucide="rotate-ccw"></i>Restore</button>
-        ${isTrash && ordersToolsData?.permissions?.can_delete_forever ? `<button type="button" class="orders-tools-button orders-tools-button--danger" data-orders-tools-action="delete-forever" data-order-id="${esc(record.id)}"><i data-lucide="trash-2"></i>Delete forever</button>` : ''}
+        <button type="button" class="portal-row-actions__trigger" data-orders-trash-menu-trigger data-order-id="${esc(record.id)}" data-order-reference="${esc(formatOrderInvoiceReference(record.order_number || `Order #${record.id}`))}" aria-label="Actions for order ${esc(formatOrderInvoiceReference(record.order_number || `Order #${record.id}`))}" aria-haspopup="menu" aria-expanded="false"><span class="portal-row-actions__dots" aria-hidden="true"><span></span><span></span><span></span></span></button>
       </div>
     </article>`;
     return `<article class="orders-tools-record orders-trash-row">
@@ -1583,6 +1582,7 @@
 
   function renderOrdersTools() {
     if (!ordersToolsContent || !ordersToolsData) return;
+    if (toolbarPopover?.dataset.ordersTrashMenuTriggerId) closeToolbar();
     if (ordersToolsTab === 'trash') {
       ordersToolsContent.innerHTML = ordersToolsData.trash?.length
         ? `<div class="orders-tools-list orders-trash-list" role="table" aria-label="Deleted orders"><div class="orders-trash-grid orders-trash-grid--header" role="row"><div role="columnheader">Order details</div><div role="columnheader">Customer / Activity</div><div role="columnheader">Action</div></div>${ordersToolsData.trash.map((row) => ordersToolsRecord(row, 'trash')).join('')}</div>`
@@ -1640,6 +1640,7 @@
 
   function closeOrdersTools() {
     if (!ordersToolsPanel) return;
+    if (toolbarPopover?.dataset.ordersTrashMenuTriggerId) closeToolbar();
     ordersToolsPanel.classList.remove('is-open');
     ordersToolsBackdrop?.classList.remove('is-open');
     ordersToolsPanel.setAttribute('aria-hidden', 'true');
@@ -3061,12 +3062,18 @@
       if (triggerId) {
         document.querySelector(`[data-order-row-menu][data-order-id="${selectorEsc(triggerId)}"]`)?.setAttribute('aria-expanded', 'false');
       }
+      const trashTriggerId = toolbarPopover.dataset.ordersTrashMenuTriggerId;
+      if (trashTriggerId) {
+        document.querySelector(`[data-orders-trash-menu-trigger][data-order-id="${selectorEsc(trashTriggerId)}"]`)?.setAttribute('aria-expanded', 'false');
+      }
       toolbarPopover.classList.remove('orders-row-actions-menu');
+      toolbarPopover.classList.remove('portal-row-actions__menu');
       toolbarPopover.classList.remove('portal-view-bar__popover');
       toolbarPopover.classList.remove('packing-filter-popup', 'orders-compact-filter-popup');
       toolbarPopover.removeAttribute('role');
       toolbarPopover.removeAttribute('aria-label');
       delete toolbarPopover.dataset.orderMenuTriggerId;
+      delete toolbarPopover.dataset.ordersTrashMenuTriggerId;
       toolbarPopover.hidden = true;
       toolbarPopover.style.transform = '';
     }
@@ -3074,6 +3081,39 @@
       toolbarTrigger.setAttribute('aria-expanded', 'false');
       toolbarTrigger = null;
     }
+  }
+
+  function openOrdersTrashMenu(anchor, orderId, orderReference) {
+    if (!toolbarPopover || !anchor || !orderId) return;
+    const isSameMenu = toolbarPopover.dataset.ordersTrashMenuTriggerId === String(orderId) && !toolbarPopover.hidden;
+    closeToolbar();
+    if (isSameMenu) {
+      anchor.focus({ preventScroll: true });
+      return;
+    }
+    const canDeleteForever = Boolean(ordersToolsData?.permissions?.can_delete_forever);
+    toolbarPopover.hidden = false;
+    toolbarPopover.classList.add('orders-row-actions-menu', 'portal-row-actions__menu');
+    toolbarPopover.setAttribute('role', 'menu');
+    toolbarPopover.setAttribute('aria-label', `Actions for order ${orderReference || orderId}`);
+    toolbarPopover.style.width = 'auto';
+    toolbarPopover.style.transform = '';
+    toolbarPopover.innerHTML = `<div class="orders-row-actions portal-row-actions" data-row-action-menu>
+      <button type="button" class="portal-row-actions__item" data-orders-tools-action="restore-trash" data-order-id="${esc(orderId)}" role="menuitem"><i data-lucide="rotate-ccw"></i><span>Restore</span></button>
+      ${canDeleteForever ? `<button type="button" class="portal-row-actions__item portal-row-actions__item--danger" data-orders-tools-action="delete-forever" data-order-id="${esc(orderId)}" role="menuitem"><i data-lucide="trash-2"></i><span>Delete Forever</span></button>` : ''}
+    </div>`;
+    const rect = anchor.getBoundingClientRect();
+    const menuWidth = Math.max(145, toolbarPopover.offsetWidth || 145);
+    const menuHeight = toolbarPopover.offsetHeight || (canDeleteForever ? 74 : 39);
+    const gap = 4;
+    const edge = 8;
+    const openAbove = window.innerHeight - rect.bottom < menuHeight + gap && rect.top > menuHeight + gap;
+    toolbarPopover.style.left = `${Math.max(edge, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - edge))}px`;
+    toolbarPopover.style.top = `${Math.max(edge, Math.min(openAbove ? rect.top - menuHeight - gap : rect.bottom + gap, window.innerHeight - menuHeight - edge))}px`;
+    toolbarPopover.dataset.ordersTrashMenuTriggerId = String(orderId);
+    anchor.setAttribute('aria-expanded', 'true');
+    if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+    toolbarPopover.querySelector('[role="menuitem"]')?.focus({ preventScroll: true });
   }
 
   function openOrderRowMenu(anchor, orderId) {
@@ -4380,6 +4420,14 @@
       return;
     }
 
+    const ordersTrashMenuTrigger = event.target.closest('[data-orders-trash-menu-trigger][data-order-id]');
+    if (ordersTrashMenuTrigger) {
+      event.preventDefault();
+      event.stopPropagation();
+      openOrdersTrashMenu(ordersTrashMenuTrigger, ordersTrashMenuTrigger.dataset.orderId, ordersTrashMenuTrigger.dataset.orderReference || '');
+      return;
+    }
+
     const orderRowAction = event.target.closest('[data-order-row-action][data-order-id]');
     if (orderRowAction) {
       event.preventDefault();
@@ -4737,6 +4785,7 @@
       if (ordersToolsAction) {
         const action = ordersToolsAction.dataset.ordersToolsAction;
         const ids = action.endsWith('-selected') ? [...selectedOrders] : [ordersToolsAction.dataset.orderId];
+        if (ordersToolsAction.closest('#toolbar-popover')) closeToolbar();
         await runOrdersToolsAction(action, ids);
         return;
       }
@@ -4967,7 +5016,7 @@
 
   document.addEventListener('click', (event) => {
     if (!event.target.closest('#board-label-menu') && !event.target.closest('[data-label-field]')) closeLabelMenu();
-    if (!event.target.closest('#toolbar-popover') && !event.target.closest('[data-toolbar]') && !event.target.closest('#orders-filter-menu')) closeToolbar();
+    if (!event.target.closest('#toolbar-popover') && !event.target.closest('[data-toolbar], [data-order-row-menu], [data-orders-trash-menu-trigger]') && !event.target.closest('#orders-filter-menu')) closeToolbar();
     if (!event.target.closest('#orders-filter-menu') && !event.target.closest('[data-orders-filter-select]')) closeOrdersFilterMenu();
     if (activeDateSortGroup && !event.target.closest('[data-date-sort-cell]')) closeDateSortPopover();
     if (event.target.closest('.order-update-composer')) {
@@ -5044,6 +5093,18 @@
     if (event.key === 'Escape') {
       if (morePanel?.classList.contains('is-open')) {
         setMorePanelOpen(false);
+        return;
+      }
+      if (toolbarPopover && !toolbarPopover.hidden) {
+        const trashTriggerId = toolbarPopover.dataset.ordersTrashMenuTriggerId;
+        const rowTriggerId = toolbarPopover.dataset.orderMenuTriggerId;
+        const returnTrigger = trashTriggerId
+          ? document.querySelector(`[data-orders-trash-menu-trigger][data-order-id="${selectorEsc(trashTriggerId)}"]`)
+          : rowTriggerId
+            ? document.querySelector(`[data-order-row-menu][data-order-id="${selectorEsc(rowTriggerId)}"]`)
+            : toolbarTrigger;
+        closeToolbar();
+        returnTrigger?.focus({ preventScroll: true });
         return;
       }
       if (ordersToolsPanel?.classList.contains('is-open')) {
