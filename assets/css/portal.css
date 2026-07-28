@@ -6112,8 +6112,9 @@ textarea {
   transition: background .15s, transform .1s;
 }
 
-.incident-form .incident-btn-primary:hover {
-  background: var(--bk-burgundy);
+.incident-form .incident-btn-primary:hover,
+.incident-form .incident-btn-primary:active {
+  background: #F07420 !important;
 }
 
 @media (max-width: 760px) {
