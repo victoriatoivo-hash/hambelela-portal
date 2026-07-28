@@ -37,6 +37,7 @@ function notifications_schema_ready(): bool
                 read_at DATETIME NULL,
                 cleared_at DATETIME NULL,
                 delivered_at DATETIME NULL,
+                next_reminder_at DATETIME NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE KEY uniq_notification_employee (notification_id, employee_id),
                 INDEX idx_notification_employee_state (employee_id, cleared_at, read_at, created_at),
@@ -45,6 +46,7 @@ function notifications_schema_ready(): bool
                     ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
         );
+        try { db()->exec('ALTER TABLE notification_recipients ADD COLUMN next_reminder_at DATETIME NULL AFTER delivered_at'); } catch (Throwable $e) {}
         db()->exec(
             "CREATE TABLE IF NOT EXISTS notification_preferences (
                 employee_id INT PRIMARY KEY,
@@ -303,34 +305,68 @@ function notifications_urgent_tasks_for_current_user(int $limit = 20): array
         $limit = max(1, min(50, $limit));
         $canViewAllTasks = user_has_role('owner_admin');
         $stmt = db()->prepare(
-            "SELECT n.id AS alert_id, n.related_id AS task_id, n.title, n.message,
-                    n.created_at, nr.delivered_at, e.full_name AS assigned_by,
-                    t.deadline AS due_at
+            "SELECT n.id AS alert_id, n.related_id AS task_id, t.task_name AS title,
+                    t.instructions, t.priority, t.checklist_items, t.checked_items,
+                    n.created_at, nr.delivered_at, e.full_name AS assigned_by, t.deadline AS due_at
              FROM notification_recipients nr
              JOIN notifications n ON n.id = nr.notification_id
-             LEFT JOIN ops_checklist_tasks t ON t.id = n.related_id
+             JOIN ops_checklist_tasks t ON t.id = n.related_id
              LEFT JOIN ops_employees e ON e.id = n.created_by
              WHERE nr.employee_id = ? AND n.module = 'tasks' AND n.priority = 'urgent'
                AND n.related_type = 'checklist_task' AND nr.read_at IS NULL AND nr.cleared_at IS NULL
-               AND (t.id IS NULL OR t.status NOT IN ('complete','completed','approved'))
-               AND (t.id IS NULL OR ? = 1 OR t.assigned_employee_id = ?)
+               AND (nr.next_reminder_at IS NULL OR nr.next_reminder_at <= NOW())
+               AND t.status NOT IN ('complete','completed','approved','cancelled')
+               AND t.archived_at IS NULL AND t.deleted_at IS NULL
+               AND (? = 1 OR t.assigned_employee_id = ?)
              ORDER BY n.created_at ASC, n.id ASC LIMIT {$limit}"
         );
         $stmt->execute([$employeeId, $canViewAllTasks ? 1 : 0, $employeeId]);
         $rows = $stmt->fetchAll();
         $stmt->closeCursor();
-        return array_map(static function (array $row): array {
+        return array_map(static function (array $row) use ($employeeId): array {
+            $items = json_decode((string) ($row['checklist_items'] ?? ''), true);
+            $checked = json_decode((string) ($row['checked_items'] ?? ''), true);
+            $items = is_array($items) ? $items : [];
+            $checked = is_array($checked) ? $checked : [];
+            $summaryStmt = db()->prepare(
+                "SELECT SUM(deadline < NOW()) AS overdue_count,
+                        SUM(DATE(deadline) = CURDATE() AND deadline >= NOW()) AS due_today_count,
+                        SUM(status = 'in_progress') AS in_progress_count
+                 FROM ops_checklist_tasks
+                 WHERE assigned_employee_id = ? AND id <> ?
+                   AND status NOT IN ('complete','completed','approved','cancelled')
+                   AND archived_at IS NULL AND deleted_at IS NULL"
+            );
+            $summaryStmt->execute([$employeeId, (int) $row['task_id']]);
+            $summary = $summaryStmt->fetch() ?: [];
             return [
                 'alertId' => (int) $row['alert_id'], 'taskId' => (int) $row['task_id'],
-                'title' => (string) $row['title'], 'message' => (string) $row['message'],
-                'priority' => 'urgent', 'assignedBy' => (string) ($row['assigned_by'] ?: 'Management'),
-                'dueAt' => $row['due_at'], 'createdAt' => $row['created_at'],
-                'deliveredAt' => $row['delivered_at'],
+                'title' => (string) $row['title'], 'instructions' => (string) ($row['instructions'] ?? ''),
+                'priority' => (string) ($row['priority'] ?: 'urgent'),
+                'assignedBy' => (string) ($row['assigned_by'] ?: 'Management'),
+                'dueAt' => $row['due_at'], 'createdAt' => $row['created_at'], 'deliveredAt' => $row['delivered_at'],
+                'checklistCompleted' => count(array_intersect($items, $checked)), 'checklistTotal' => count($items),
+                'summary' => ['overdueCount' => (int) ($summary['overdue_count'] ?? 0), 'dueTodayCount' => (int) ($summary['due_today_count'] ?? 0), 'inProgressCount' => (int) ($summary['in_progress_count'] ?? 0)],
             ];
         }, $rows);
     } catch (Throwable $e) {
         return [];
     }
+}
+
+function notifications_remind_urgent_later(int $notificationId, int $minutes): bool
+{
+    $employeeId = notifications_current_employee_id();
+    if (!$employeeId || $notificationId <= 0 || !in_array($minutes, [10, 30, 60], true) || !notifications_schema_ready()) return false;
+    $stmt = db()->prepare(
+        "UPDATE notification_recipients nr JOIN notifications n ON n.id = nr.notification_id
+         JOIN ops_checklist_tasks t ON t.id = n.related_id AND n.related_type = 'checklist_task'
+         SET nr.next_reminder_at = DATE_ADD(NOW(), INTERVAL {$minutes} MINUTE), nr.delivered_at = COALESCE(nr.delivered_at, NOW())
+         WHERE nr.notification_id = ? AND nr.employee_id = ? AND n.module = 'tasks' AND n.priority = 'urgent'
+           AND nr.read_at IS NULL AND nr.cleared_at IS NULL AND (t.assigned_employee_id = ? OR ? = 1)"
+    );
+    $stmt->execute([$notificationId, $employeeId, $employeeId, user_has_role('owner_admin') ? 1 : 0]);
+    return $stmt->rowCount() > 0;
 }
 
 function notifications_mark_urgent_state(int $notificationId, string $state): bool

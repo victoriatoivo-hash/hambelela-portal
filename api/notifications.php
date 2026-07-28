@@ -23,6 +23,13 @@ try {
             exit;
         }
         $alertId = (int) ($_POST['alert_id'] ?? 0);
+        if ($action === 'urgent_remind' && $alertId > 0) {
+            $minutes = (int) ($_POST['minutes'] ?? 0);
+            $updated = notifications_remind_urgent_later($alertId, $minutes);
+            if (!$updated) http_response_code(422);
+            echo json_encode(['ok' => $updated, 'nextReminderMinutes' => $updated ? $minutes : null]);
+            exit;
+        }
         if (!in_array($action, ['urgent_delivered', 'urgent_viewed', 'urgent_dismissed'], true) || $alertId <= 0) {
             http_response_code(400);
             echo json_encode(['ok' => false, 'message' => 'Invalid urgent alert action.']);

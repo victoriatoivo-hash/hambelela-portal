@@ -596,9 +596,9 @@ window.addEventListener('DOMContentLoaded', () => {
 
     const createModal = () => {
       const root = document.createElement('div');
-      root.className = 'urgent-task-alert';
+      root.className = 'urgent-task-alert task-alert-overlay';
       root.hidden = true;
-      root.innerHTML = '<div class="urgent-task-alert__backdrop" aria-hidden="true"></div><section class="urgent-task-alert__dialog" role="alertdialog" aria-modal="true" aria-labelledby="urgentTaskTitle" aria-describedby="urgentTaskMessage"><button type="button" class="urgent-task-alert__close" aria-label="Close urgent task notification">&times;</button><div class="urgent-task-alert__icon" aria-hidden="true">!</div><span class="urgent-task-alert__eyebrow">Urgent task</span><h2 id="urgentTaskTitle"></h2><p class="urgent-task-alert__message" id="urgentTaskMessage"></p><div class="urgent-task-alert__meta"><span data-alert-assigned-by></span><span data-alert-due></span></div><div class="urgent-task-alert__position" aria-live="polite"></div><div class="urgent-task-alert__actions"><button type="button" class="urgent-task-alert__dismiss">Dismiss</button><button type="button" class="urgent-task-alert__view">View Task</button></div></section>';
+      root.innerHTML = '<div class="urgent-task-alert__backdrop" aria-hidden="true"></div><section class="urgent-task-alert__dialog task-alert" role="alertdialog" aria-modal="true" aria-labelledby="urgentTaskTitle" aria-describedby="urgentTaskInstructions"><button type="button" class="urgent-task-alert__close" aria-label="Remind me about this task later">&times;</button><div class="urgent-task-alert__icon" aria-hidden="true">!</div><span class="urgent-task-alert__eyebrow">Urgent task</span><h2 id="urgentTaskTitle"></h2><p class="urgent-task-alert__message" id="urgentTaskInstructions"></p><div class="urgent-task-alert__meta"><span data-alert-due></span><span data-alert-assigned-by></span><span data-alert-checklist></span></div><section class="urgent-task-alert__summary" aria-labelledby="urgentTaskSummaryTitle"><div><strong id="urgentTaskSummaryTitle">Your other tasks</strong><button type="button" class="urgent-task-alert__all">View All Tasks</button></div><ul data-alert-summary></ul></section><div class="urgent-task-alert__reminder" hidden><strong>Remind me again in</strong><div><button type="button" data-reminder-minutes="10">10 min</button><button type="button" data-reminder-minutes="30">30 min</button><button type="button" data-reminder-minutes="60">1 hour</button></div></div><div class="urgent-task-alert__actions"><button type="button" class="urgent-task-alert__remind">Remind Me Later</button><button type="button" class="urgent-task-alert__view">View Task</button></div></section>';
       document.body.appendChild(root);
       return root;
     };
@@ -606,6 +606,9 @@ window.addEventListener('DOMContentLoaded', () => {
     const dialog = modal.querySelector('.urgent-task-alert__dialog');
     const postState = async (alertId, state) => {
       try { await fetch(endpoint, { method: 'POST', credentials: 'same-origin', headers: {'Content-Type':'application/x-www-form-urlencoded'}, body: new URLSearchParams({action:`urgent_${state}`, alert_id:String(alertId)}) }); } catch (_) {}
+    };
+    const postReminder = async (alertId, minutes) => {
+      try { await fetch(endpoint, { method: 'POST', credentials: 'same-origin', headers: {'Content-Type':'application/x-www-form-urlencoded'}, body: new URLSearchParams({action:'urgent_remind', alert_id:String(alertId), minutes:String(minutes)}) }); } catch (_) {}
     };
     const unlockAudio = () => { audioUnlocked = true; };
     ['pointerdown', 'keydown', 'touchstart'].forEach((name) => window.addEventListener(name, unlockAudio, {once:true, passive:true}));
@@ -626,29 +629,47 @@ window.addEventListener('DOMContentLoaded', () => {
     const formatDue = (value) => {
       if (!value) return '';
       const date = new Date(String(value).replace(' ', 'T'));
-      return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString([], {dateStyle:'medium', timeStyle:'short'});
+      if (Number.isNaN(date.getTime())) return String(value);
+      const now = new Date();
+      const day = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const difference = Math.round((day - today) / 86400000);
+      const label = difference === 0 ? 'Today' : difference === 1 ? 'Tomorrow' : date.toLocaleDateString([], {day:'numeric', month:'short'});
+      return `${label}, ${date.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`;
     };
     const showNext = async () => {
       if (active || !queue.length) return;
       active = queue.shift();
       previousFocus = document.activeElement;
       modal.querySelector('#urgentTaskTitle').textContent = active.title || 'Urgent task';
-      modal.querySelector('#urgentTaskMessage').textContent = active.message || 'Please review this task immediately.';
+      const instructions = String(active.instructions || '').trim();
+      const instructionsNode = modal.querySelector('#urgentTaskInstructions');
+      instructionsNode.textContent = instructions || 'Open the task to review its required steps.';
+      instructionsNode.hidden = !instructions;
       modal.querySelector('[data-alert-assigned-by]').textContent = `Assigned by: ${active.assignedBy || 'Management'}`;
-      modal.querySelector('[data-alert-due]').textContent = active.dueAt ? `Due: ${formatDue(active.dueAt)}` : '';
-      modal.querySelector('.urgent-task-alert__position').textContent = `1 of ${queue.length + 1} urgent task${queue.length ? 's' : ''}`;
+      modal.querySelector('[data-alert-due]').textContent = active.dueAt ? `Due: ${formatDue(active.dueAt)}` : 'No due date';
+      modal.querySelector('[data-alert-checklist]').textContent = `Checklist: ${Number(active.checklistCompleted || 0)} of ${Number(active.checklistTotal || 0)} complete`;
+      const summary = active.summary || {};
+      const summaryItems = [[Number(summary.overdueCount || 0), 'overdue'], [Number(summary.dueTodayCount || 0), 'due today'], [Number(summary.inProgressCount || 0), 'in progress']].filter(([count]) => count > 0);
+      modal.querySelector('[data-alert-summary]').innerHTML = summaryItems.length
+        ? summaryItems.map(([count, label]) => `<li><strong>${count}</strong><span>${label}</span></li>`).join('')
+        : '<li class="is-clear">No other outstanding tasks.</li>';
+      modal.querySelector('.urgent-task-alert__reminder').hidden = true;
       modal.hidden = false;
       document.body.classList.add('urgent-task-alert-open');
       modal.querySelector('.urgent-task-alert__view').focus();
       if (!active.deliveredAt) { await postState(active.alertId, 'delivered'); playSound(); }
     };
-    const finish = async (state) => {
+    const finish = async (state, reminderMinutes = 30) => {
       if (!active) return;
       const finished = active;
       active = null;
       modal.hidden = true;
       document.body.classList.remove('urgent-task-alert-open');
-      await postState(finished.alertId, state);
+      if (state === 'remind') {
+        known.delete(String(finished.alertId));
+        await postReminder(finished.alertId, reminderMinutes);
+      } else await postState(finished.alertId, state);
       if (state === 'viewed') {
         const target = `/apps/operations/checklists.php?task_view=active&task_id=${encodeURIComponent(finished.taskId)}`;
         const onManualTasks = /\/apps\/operations\/checklists\.php$/.test(window.location.pathname)
@@ -661,11 +682,17 @@ window.addEventListener('DOMContentLoaded', () => {
       if (previousFocus instanceof HTMLElement) previousFocus.focus();
       showNext();
     };
-    modal.querySelector('.urgent-task-alert__close').addEventListener('click', () => finish('dismissed'));
-    modal.querySelector('.urgent-task-alert__dismiss').addEventListener('click', () => finish('dismissed'));
+    modal.querySelector('.urgent-task-alert__close').addEventListener('click', () => finish('remind', 30));
+    modal.querySelector('.urgent-task-alert__remind').addEventListener('click', () => { modal.querySelector('.urgent-task-alert__reminder').hidden = false; });
+    modal.querySelectorAll('[data-reminder-minutes]').forEach((button) => button.addEventListener('click', () => finish('remind', Number(button.dataset.reminderMinutes))));
     modal.querySelector('.urgent-task-alert__view').addEventListener('click', () => finish('viewed'));
+    modal.querySelector('.urgent-task-alert__all').addEventListener('click', async () => {
+      if (!active) return;
+      await postState(active.alertId, 'viewed');
+      window.location.assign('/apps/operations/checklists.php?task_view=active&outstanding=1');
+    });
     modal.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') { event.preventDefault(); finish('dismissed'); return; }
+      if (event.key === 'Escape') { event.preventDefault(); finish('remind', 30); return; }
       if (event.key !== 'Tab') return;
       const focusable = Array.from(dialog.querySelectorAll('button:not([disabled])'));
       if (!focusable.length) return;
