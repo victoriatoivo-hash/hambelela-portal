@@ -182,11 +182,11 @@ include BASE_PATH . '/shared/sidebar.php';
             <div><span>ORDERS</span><h2 id="orders-tools-title">Orders tools</h2><p>Review deleted orders, restore archived records and track changes made to the Orders Board.</p></div>
             <button type="button" class="orders-tools-close" data-orders-tools-close aria-label="Close Orders tools"><i data-lucide="x"></i></button>
         </header>
-        <nav class="orders-tools-tabs portal-panel-tabs" role="tablist" aria-label="Orders tools sections">
-            <button type="button" class="orders-tools-tab portal-panel-tab is-active" role="tab" aria-selected="true" data-orders-tools-tab="trash"><i data-lucide="trash-2" aria-hidden="true"></i><span>Trash</span></button>
-            <button type="button" class="orders-tools-tab portal-panel-tab" role="tab" aria-selected="false" data-orders-tools-tab="activity"><i data-lucide="history" aria-hidden="true"></i><span>Activity</span></button>
-            <button type="button" class="orders-tools-tab portal-panel-tab" role="tab" aria-selected="false" data-orders-tools-tab="archived"><i data-lucide="archive" aria-hidden="true"></i><span>Archived</span></button>
-            <button type="button" class="orders-tools-tab portal-panel-tab" role="tab" aria-selected="false" data-orders-tools-tab="bulk"><i data-lucide="list-checks" aria-hidden="true"></i><span>Bulk actions</span></button>
+        <nav class="orders-tools-tabs portal-tools-tabs" role="tablist" aria-label="Orders tools sections">
+            <button type="button" class="orders-tools-tab portal-tools-tab is-active" role="tab" aria-selected="true" data-orders-tools-tab="trash"><i data-lucide="trash-2" aria-hidden="true"></i><span>Trash</span></button>
+            <button type="button" class="orders-tools-tab portal-tools-tab" role="tab" aria-selected="false" data-orders-tools-tab="activity"><i data-lucide="history" aria-hidden="true"></i><span>Activity</span></button>
+            <button type="button" class="orders-tools-tab portal-tools-tab" role="tab" aria-selected="false" data-orders-tools-tab="archived"><i data-lucide="archive" aria-hidden="true"></i><span>Archived</span></button>
+            <button type="button" class="orders-tools-tab portal-tools-tab" role="tab" aria-selected="false" data-orders-tools-tab="bulk"><i data-lucide="list-checks" aria-hidden="true"></i><span>Bulk actions</span></button>
         </nav>
         <div class="orders-tools-content" data-orders-tools-content><div class="orders-tools-loading">Loading Orders tools…</div></div>
     </aside>

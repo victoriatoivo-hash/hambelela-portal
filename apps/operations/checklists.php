@@ -1068,11 +1068,11 @@ include BASE_PATH . '/shared/sidebar.php';
             <div><p class="packing-tools-kicker">Task Management</p><h2 class="packing-tools-title">Task tools</h2><p class="packing-tools-subtitle">Review deleted tasks, restore archived tasks and track task activity.</p></div>
             <button type="button" class="packing-tools-close" data-task-tools-close aria-label="Close Task tools"><i data-lucide="x"></i></button>
         </header>
-        <nav class="packing-tools-tabs portal-panel-tabs" role="tablist" aria-label="Task tools">
-            <button type="button" class="packing-tools-tab portal-panel-tab is-active" role="tab" aria-selected="true" data-task-tools-tab="trash"><i data-lucide="trash-2" aria-hidden="true"></i><span>Trash</span></button>
-            <button type="button" class="packing-tools-tab portal-panel-tab" role="tab" aria-selected="false" data-task-tools-tab="activity"><i data-lucide="history" aria-hidden="true"></i><span>Activity</span></button>
-            <button type="button" class="packing-tools-tab portal-panel-tab" role="tab" aria-selected="false" data-task-tools-tab="archived"><i data-lucide="archive" aria-hidden="true"></i><span>Archived</span></button>
-            <?php if ($canManage): ?><button type="button" class="packing-tools-tab portal-panel-tab" role="tab" aria-selected="false" data-task-tools-tab="bulk"><i data-lucide="list-checks" aria-hidden="true"></i><span>Bulk actions</span></button><?php endif; ?>
+        <nav class="task-tools-tabs portal-tools-tabs" role="tablist" aria-label="Task tools">
+            <button type="button" class="portal-tools-tab is-active" role="tab" aria-selected="true" data-task-tools-tab="trash"><i data-lucide="trash-2" aria-hidden="true"></i><span>Trash</span></button>
+            <button type="button" class="portal-tools-tab" role="tab" aria-selected="false" data-task-tools-tab="activity"><i data-lucide="history" aria-hidden="true"></i><span>Activity</span></button>
+            <button type="button" class="portal-tools-tab" role="tab" aria-selected="false" data-task-tools-tab="archived"><i data-lucide="archive" aria-hidden="true"></i><span>Archived</span></button>
+            <?php if ($canManage): ?><button type="button" class="portal-tools-tab" role="tab" aria-selected="false" data-task-tools-tab="bulk"><i data-lucide="list-checks" aria-hidden="true"></i><span>Bulk actions</span></button><?php endif; ?>
         </nav>
         <div class="packing-tools-body task-tools-body" data-task-tools-body><div class="task-tools-loading">Loading Task tools…</div></div>
     </aside>
