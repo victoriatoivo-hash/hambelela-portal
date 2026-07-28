@@ -467,6 +467,54 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  window.showPortalToast = ({
+    type = 'success',
+    title = 'Notification',
+    message = '',
+    duration = 5000,
+    actionsHtml = '',
+    onDismiss = null,
+  } = {}) => {
+    let container = document.querySelector('.portal-toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.className = 'portal-toast-container';
+      container.setAttribute('aria-live', 'polite');
+      container.setAttribute('aria-atomic', 'true');
+      document.body.appendChild(container);
+    }
+    const toast = document.createElement('article');
+    toast.className = `portal-toast is-${type}`;
+    toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.className = 'portal-toast-close';
+    closeButton.setAttribute('aria-label', 'Close notification');
+    closeButton.textContent = '×';
+    const titleNode = document.createElement('p');
+    titleNode.className = 'portal-toast-title';
+    titleNode.textContent = String(title || 'Notification');
+    const messageNode = document.createElement('p');
+    messageNode.className = 'portal-toast-message';
+    messageNode.textContent = String(message || '');
+    toast.append(closeButton, titleNode, messageNode);
+    if (actionsHtml) toast.insertAdjacentHTML('beforeend', actionsHtml);
+    let closeTimer = 0;
+    const close = () => {
+      if (!toast.isConnected || toast.classList.contains('is-leaving')) return;
+      window.clearTimeout(closeTimer);
+      toast.classList.add('is-leaving');
+      window.setTimeout(() => toast.remove(), 220);
+    };
+    closeButton.addEventListener('click', () => {
+      if (typeof onDismiss === 'function') onDismiss();
+      close();
+    }, { once:true });
+    container.prepend(toast);
+    closeTimer = window.setTimeout(close, Math.max(1000, Number(duration) || 5000));
+    return { toast, close };
+  };
+
   const portalNotificationPoller = (() => {
     const apiUrl = '/api/notifications.php';
     const portalUser = window.HambelelaPortalUser || { id: 0, role: 'guest' };

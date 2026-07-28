@@ -414,25 +414,13 @@
   }
 
   function showOrdersToast(message, type = 'success') {
-    let container = document.querySelector('.portal-toast-container');
-    if (!container) {
-      container = document.createElement('div');
-      container.className = 'portal-toast-container';
-      container.setAttribute('aria-live', 'polite');
-      document.body.appendChild(container);
-    }
-    const toast = document.createElement('article');
-    toast.className = `portal-toast orders-sync-toast is-${type}`;
-    toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
-    toast.innerHTML = `<button type="button" class="portal-toast-close" aria-label="Close notification">×</button><p class="portal-toast-title">${type === 'error' ? 'Orders sync failed' : 'Orders updated'}</p><p class="portal-toast-message">${esc(message)}</p>`;
-    container.appendChild(toast);
-    const close = () => {
-      if (!toast.isConnected) return;
-      toast.classList.add('is-leaving');
-      window.setTimeout(() => toast.remove(), 220);
-    };
-    toast.querySelector('.portal-toast-close')?.addEventListener('click', close, { once:true });
-    window.setTimeout(close, 4200);
+    if (typeof window.showPortalToast !== 'function') return;
+    window.showPortalToast({
+      type,
+      title: type === 'error' ? 'Sync failed' : 'Orders synced',
+      message,
+      duration: 5000,
+    });
   }
 
   function columnHeader(definition) {
