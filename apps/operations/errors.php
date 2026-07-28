@@ -561,7 +561,6 @@ include BASE_PATH . '/shared/sidebar.php';
             ['icon' => 'info', 'label' => 'Medium Severity', 'value' => number_format($metrics['medium']), 'colour' => 'var(--bk-orange-red)'],
             ['icon' => 'badge-check', 'label' => 'Low Severity', 'value' => number_format($metrics['low']), 'colour' => 'var(--bk-olive)'],
             ['icon' => 'repeat-2', 'label' => 'Repeat Errors', 'value' => number_format($metrics['repeat']), 'colour' => 'var(--bk-burgundy)'],
-            ['icon' => 'message-circle-warning', 'label' => 'Customer Impacting', 'value' => number_format($metrics['customer']), 'colour' => 'var(--bk-amber)'],
             ['icon' => 'check-circle-2', 'label' => 'Errors Resolved', 'value' => number_format($metrics['resolved']), 'colour' => 'var(--bk-olive)'],
             ['icon' => 'layers', 'label' => 'Most Common Category', 'value' => (string) $metrics['common_category'], 'colour' => 'var(--bk-orange-red)'],
             ['icon' => 'user-round-x', 'label' => 'Employee With Most Logged Errors', 'value' => (string) $metrics['top_employee'], 'colour' => 'var(--bk-burgundy)'],
