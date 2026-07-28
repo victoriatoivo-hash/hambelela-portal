@@ -2395,6 +2395,7 @@ function initialiseTaskSections() {
     if (!content) return;
     const expanded = toggle.getAttribute('aria-expanded') === 'true';
     toggle.setAttribute('aria-expanded', String(!expanded));
+    header.closest('.task-section')?.classList.toggle('is-collapsed', expanded);
     content.hidden = expanded;
     const sectionName = header.querySelector('h2')?.textContent?.trim() || 'section';
     toggle.setAttribute('aria-label', `${expanded ? 'Expand' : 'Collapse'} ${sectionName}`);

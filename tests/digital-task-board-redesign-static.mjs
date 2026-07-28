@@ -52,5 +52,9 @@ assert.match(css, /\.digital-task-page \.task-board-table tbody tr \{[^}]*height
 assert.doesNotMatch(page, /data-task-row-menu|data-task-row-action|task-row-menu-trigger/);
 assert.doesNotMatch(taskTable, /data-task-row-menu|task-row-menu-trigger/);
 assert.doesNotMatch(css, /\.task-row-menu(?:-trigger)?\b/);
+assert.match(css, /\.task-management-page \{[^}]*grid-template-columns: minmax\(0, 1fr\)[^}]*width: 100%[^}]*max-width: none[^}]*min-width: 0/);
+assert.match(css, /\.task-section \{[^}]*align-self: stretch[^}]*width: 100%[^}]*max-width: none[^}]*min-width: 0/);
+assert.match(css, /\.task-section\.is-collapsed \{[^}]*width: 100%[^}]*max-width: none[^}]*min-width: 0/);
+assert.match(page, /classList\.toggle\('is-collapsed', expanded\)/);
 
 console.log('Digital Task Board redesign checks passed.');
