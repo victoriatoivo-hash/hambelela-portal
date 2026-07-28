@@ -15,6 +15,9 @@ assert.match(board, /showOrdersToast\('Orders synced successfully\.', 'success'\
 assert.match(board, /showOrdersToast\('Orders could not be synced\. Please try again\.', 'error'\)/);
 assert.match(board, /refreshOrders\(\{ source:'background', syncSource:shouldSyncSource, background:true \}\)/);
 assert.match(board, /button\.classList\.toggle\('is-syncing', busy\);[\s\S]*button\.setAttribute\('aria-busy', busy \? 'true' : 'false'\);/);
+assert.match(board, /label\.textContent = busy \? 'Syncing…' : 'Sync'/);
+assert.match(board, /remainingFeedbackTime = 700 - \(performance\.now\(\) - feedbackStartedAt\)/);
+assert.match(css, /\.orders-toolbar__sync\.is-syncing \.orders-toolbar__sync-icon \{[\s\S]*animation:portal-toolbar-sync 650ms linear infinite/);
 assert.match(board, /window\.showPortalToast\(\{[\s\S]*title: type === 'error' \? 'Sync failed' : 'Orders synced'/);
 assert.doesNotMatch(board, /document\.createElement\('article'\)[\s\S]*orders-sync-toast/);
 assert.match(sharedJs, /window\.showPortalToast = \(\{/);

@@ -413,8 +413,10 @@
     if (!button) return;
     button.classList.toggle('is-loading', busy);
     if (button.matches('[data-orders-sync]')) {
+      const label = button.querySelector('span');
       button.classList.toggle('is-syncing', busy);
       button.setAttribute('aria-busy', busy ? 'true' : 'false');
+      if (label) label.textContent = busy ? 'Syncing…' : 'Sync';
     }
     button.disabled = busy;
   }
@@ -4151,6 +4153,7 @@
     if (manual && manualOrdersSyncInFlight) return manualOrdersSyncInFlight;
     const run = async () => {
       let sourceError = null;
+      const feedbackStartedAt = performance.now();
       setButtonBusy(trigger, true);
       try {
         if (refreshInFlight) await refreshInFlight.catch(() => {});
@@ -4171,6 +4174,10 @@
         if (manual) showOrdersToast('Orders could not be synced. Please try again.', 'error');
         throw error;
       } finally {
+        if (manual) {
+          const remainingFeedbackTime = 700 - (performance.now() - feedbackStartedAt);
+          if (remainingFeedbackTime > 0) await new Promise((resolve) => window.setTimeout(resolve, remainingFeedbackTime));
+        }
         setButtonBusy(trigger, false);
       }
     };

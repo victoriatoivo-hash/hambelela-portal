@@ -100,6 +100,14 @@
 }
 .orders-page .monday-board-head-actions svg { width:15px; height:15px; }
 .orders-page .monday-board-head-actions button:disabled { opacity: .45; cursor: default; }
+.orders-page .orders-toolbar__sync.is-syncing .orders-toolbar__sync-icon {
+  animation:portal-toolbar-sync 650ms linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .orders-page .orders-toolbar__sync.is-syncing .orders-toolbar__sync-icon {
+    animation:portal-toolbar-sync 1.4s linear infinite !important;
+  }
+}
 
 .orders-stat-grid {
   display: grid;
