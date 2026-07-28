@@ -13,7 +13,7 @@ assert.match(css, /\.task-section-tab\{[^}]*border:0;[^}]*border-radius:0;[^}]*b
 assert.match(css, /\.task-section-tab::after\{[^}]*height:1px;[^}]*background:#AB3619;[^}]*scaleX\(0\)/);
 assert.match(css, /\.task-section-tab\.is-active::after[^}]*scaleX\(1\)/);
 assert.match(css, /\.task-section-tab:hover \.task-section-tab__icon\{transform:translateY\(-1px\)\}/);
-assert.match(css, /\.workspace\.module\.digital-task-page \.task-section-tab\{box-shadow:none\}/);
+assert.match(css, /\.task-section-tab\{[^}]*box-shadow:none/);
 assert.match(css, /@media \(max-width:600px\).*\.task-section-tab/s);
 
 console.log('Task Management main tab presentation checks passed.');
