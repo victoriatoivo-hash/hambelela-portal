@@ -17,10 +17,10 @@ $emptyTaskMessage = $emptyTaskMessage ?? ($canManage ? 'No tasks match this view
                 $effective = checklist_effective_status($task);
                 $priorityKey = (string) ($task['priority'] ?? 'medium');
                 $statusKey = str_replace('_', '-', $effective);
-                $savedStatus = checklist_normalize_status((string) ($task['status'] ?? 'pending'));
+                $savedStatus = checklist_normalize_status((string) ($task['status'] ?? 'new'));
                 $rowItems = checklist_json_items((string) ($task['checklist_items'] ?? ''));
                 $rowChecked = checklist_json_items((string) ($task['checked_items'] ?? ''));
-                $progress = $rowItems ? (int) round(count($rowChecked) / max(1, count($rowItems)) * 100) : ($savedStatus === 'complete' ? 100 : 0);
+                $progress = $savedStatus === 'complete' ? 100 : ($savedStatus === 'new' ? 0 : ($rowItems ? (int) round(count($rowChecked) / max(1, count($rowItems)) * 100) : 0));
                 $taskId = (int) $task['id'];
                 ?>
                 <tr class="dtb-task-row task-grid-row" data-task-row data-task-id="<?= $taskId ?>" data-saved-status="<?= htmlspecialchars($savedStatus, ENT_QUOTES, 'UTF-8') ?>" data-display-status="<?= htmlspecialchars($effective, ENT_QUOTES, 'UTF-8') ?>" data-task-name="<?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?>" data-task-assigned="<?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?>" data-task-priority="<?= htmlspecialchars($priorities[$priorityKey] ?? 'Medium', ENT_QUOTES, 'UTF-8') ?>" data-task-status="<?= htmlspecialchars($groups[$effective] ?? ($statuses[$effective] ?? $effective), ENT_QUOTES, 'UTF-8') ?>">

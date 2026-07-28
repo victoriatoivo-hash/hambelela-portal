@@ -315,7 +315,7 @@ function notifications_urgent_tasks_for_current_user(int $limit = 20): array
              WHERE nr.employee_id = ? AND n.module = 'tasks' AND n.priority = 'urgent'
                AND n.related_type = 'checklist_task' AND nr.read_at IS NULL AND nr.cleared_at IS NULL
                AND (nr.next_reminder_at IS NULL OR nr.next_reminder_at <= NOW())
-               AND t.status NOT IN ('complete','completed','approved','cancelled')
+               AND t.status <> 'complete'
                AND t.archived_at IS NULL AND t.deleted_at IS NULL
                AND (? = 1 OR t.assigned_employee_id = ?)
              ORDER BY n.created_at ASC, n.id ASC LIMIT {$limit}"
@@ -334,7 +334,7 @@ function notifications_urgent_tasks_for_current_user(int $limit = 20): array
                         SUM(status = 'in_progress') AS in_progress_count
                  FROM ops_checklist_tasks
                  WHERE assigned_employee_id = ? AND id <> ?
-                   AND status NOT IN ('complete','completed','approved','cancelled')
+                   AND status <> 'complete'
                    AND archived_at IS NULL AND deleted_at IS NULL"
             );
             $summaryStmt->execute([$employeeId, (int) $row['task_id']]);

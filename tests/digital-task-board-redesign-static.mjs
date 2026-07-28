@@ -4,8 +4,11 @@ import { readFileSync } from 'node:fs';
 const page = readFileSync(new URL('../apps/operations/checklists.php', import.meta.url), 'utf8');
 const css = readFileSync(new URL('../assets/css/portal.css', import.meta.url), 'utf8');
 
-assert.match(page, /\$statuses = \['new' => 'New', 'pending' => 'Pending', 'in_progress' => 'In Progress', 'blocked' => 'Blocked', 'complete' => 'Complete', 'cancelled' => 'Cancelled'\]/);
-assert.match(page, /Legacy Started status consolidated into In Progress/);
+assert.match(page, /\$statuses = \['new' => 'New', 'in_progress' => 'In Progress', 'complete' => 'Complete'\]/);
+assert.doesNotMatch(page, /data-status-key="(?:pending|blocked|cancelled)"/);
+assert.match(page, /function checklist_requested_status\(\): string/);
+assert.match(page, /\['new', 'in_progress', 'complete'\]/);
+assert.match(page, /Legacy task status migrated to the three-stage workflow/);
 assert.match(page, /if \(\$action === 'update_task_status'\)/);
 assert.match(page, /checklist_require_completion\(\$beforeRows\[0\], null, \$completionNote\)/);
 assert.match(page, /Complete tasks individually so each task has its own completion note/);
