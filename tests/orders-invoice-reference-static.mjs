@@ -6,7 +6,12 @@ const board = readFileSync(new URL('../assets/js/orders-board.js', import.meta.u
 assert.match(board, /function formatOrderInvoiceReference\(orderReference = ''\)/);
 assert.match(board, /rawReference\.match\(\/\^WEB\[-_\\s\]\*#\?\\s\*\(\.\+\)\$\/i\)/);
 assert.match(board, /return orderNumber \? `INV-\$\{orderNumber\}` : rawReference/);
-assert.match(board, /formatOrderInvoiceReference\(order\.order_number\), order\.customer_name/);
+assert.match(board, /function getTaskOrderNumber\(orderReference = ''\)/);
+assert.match(board, /function buildOrderTaskName\(order = \{\}\)/);
+assert.match(board, /rawReference\.match\(\/\^\(\?:INV\|WEB\)/);
+assert.match(board, /if \(field === 'customer_name'\) return buildOrderTaskName\(order\)/);
+assert.match(board, /data-order-reference>\$\{esc\(buildOrderTaskName\(order\)\)\}/);
+assert.doesNotMatch(board, /data-order-reference>\$\{esc\(formatOrderInvoiceReference\(order\.order_number\)\)\}/);
 assert.match(board, /data-payment-order-reference>\$\{esc\(formatOrderInvoiceReference\(order\.order_number \|\| order\.id\)\)\}/);
 assert.match(board, /modal\.dataset\.orderId = String\(order\.id\)/);
 assert.match(board, /post\('save_payment_allocations',\{order_id:order\.id/);

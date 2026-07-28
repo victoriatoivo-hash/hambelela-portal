@@ -285,6 +285,21 @@
       .replace(/^#\s*/, '');
     return orderNumber ? `INV-${orderNumber}` : rawReference;
   }
+  function getTaskOrderNumber(orderReference = '') {
+    const rawReference = String(orderReference).trim();
+    if (!rawReference) return '';
+    const prefixedMatch = rawReference.match(/^(?:INV|WEB)[-_\s]*#?\s*(\d+)\b/i);
+    if (prefixedMatch) return prefixedMatch[1];
+    const numberMatch = rawReference.match(/^#?\s*(\d+)\b/);
+    return numberMatch ? numberMatch[1] : rawReference;
+  }
+  function buildOrderTaskName(order = {}) {
+    const orderNumber = getTaskOrderNumber(
+      order.order_number ?? order.invoice_number ?? order.reference ?? order.id
+    );
+    const customerName = String(order.customer_name ?? 'HO Customer').trim();
+    return [orderNumber, customerName].filter(Boolean).join(' ');
+  }
   const normaliseOrderColourKey = (value = '') => String(value)
     .trim()
     .toLowerCase()
@@ -597,7 +612,7 @@
 
   function editableDisplayValue(order, field) {
     if (!order) return '';
-    if (field === 'customer_name') return `${formatOrderInvoiceReference(order.order_number)} ${order.customer_name || ''}`.trim();
+    if (field === 'customer_name') return buildOrderTaskName(order);
     if (field === 'customer_contact') return order.customer_contact || '';
     if (field === 'total_amount') return money(order.total_amount);
     if (field === 'assigned_packer_id') return order.packer_name || 'Unassigned';
@@ -2415,7 +2430,7 @@
       return `
         <div data-order-id="${esc(order.id)}" data-group-row="${esc(key)}" data-group-date="${esc(key)}" class="orders-grid-row monday-grid monday-order-row board-row ob-data-row order-row ${stripClass} ${!previousOrderIds.has(String(order.id)) && hasRenderedOnce ? 'row-new' : ''} ${selectedOrders.has(String(order.id)) ? 'is-selected' : ''}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
           <div class="orders-grid-cell orders-grid-cell--select monday-cell check-cell col-checkbox"><label class="portal-grid-checkbox"><input class="portal-grid-checkbox-input orders-row-checkbox" type="checkbox" data-row-select="${esc(order.id)}" ${selectedOrders.has(String(order.id)) ? 'checked' : ''} aria-label="Select order"><span class="portal-grid-checkbox-box" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="m2.2 6.1 2.2 2.2 5.4-5.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span></label></div>
-          <div class="orders-grid-cell orders-grid-cell--task monday-cell task-cell editable-cell col-task" data-editable-order-field="customer_name" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_name || '')}" tabindex="0"><span class="orders-inline-cell-trigger task-name" data-order-reference>${esc(formatOrderInvoiceReference(order.order_number))} ${esc(order.customer_name)}</span></div>
+          <div class="orders-grid-cell orders-grid-cell--task monday-cell task-cell editable-cell col-task" data-editable-order-field="customer_name" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_name || '')}" tabindex="0"><span class="orders-inline-cell-trigger task-name" data-order-reference>${esc(buildOrderTaskName(order))}</span></div>
           <div class="orders-grid-cell orders-grid-cell--notes monday-cell comment-cell col-task-icon update-icon-cell">${renderUpdateIconCell(order)}</div>
           <div class="orders-grid-cell orders-grid-cell--date monday-cell col-date order-date-cell portal-date-cell" data-order-id="${esc(order.id)}" title="Edit order date/time"><input type="datetime-local" class="orders-date-trigger" data-orders-date-input data-order-id="${esc(order.id)}" value="${esc(orderDisplayDateTime(order).replace(' ', 'T').slice(0, 16))}" aria-label="Order date and time"></div>
           <div class="orders-grid-cell orders-grid-cell--mobile monday-cell editable-cell col-mobile" data-editable-order-field="customer_contact" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_contact || '')}" tabindex="0"><span class="orders-inline-cell-trigger">${esc(order.customer_contact || '')}</span></div>
