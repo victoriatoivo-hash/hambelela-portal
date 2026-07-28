@@ -27613,7 +27613,29 @@ button.task-tools-trigger,
 .workspace.module.digital-task-page
 .dtb-page-actions
 button.dtb-btn.dtb-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   font-weight: 400;
+  text-align: center;
+}
+
+.workspace.module.digital-task-page
+.dtb-page-actions
+button.dtb-btn.dtb-btn-primary svg {
+  flex: 0 0 auto;
+}
+
+.workspace.module.digital-task-page
+.dtb-page-actions
+button.dtb-btn.dtb-btn-primary:hover,
+.workspace.module.digital-task-page
+.dtb-page-actions
+button.dtb-btn.dtb-btn-primary:active {
+  color: #FFFFFF;
+  background-color: #F07420;
+  border-color: #F07420;
 }
 
 .workspace.module.digital-task-page
