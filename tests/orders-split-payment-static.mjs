@@ -36,7 +36,7 @@ assert.match(board, /A payment method cannot appear twice/);
 assert.match(board, /data-payment-due/);
 assert.match(board, /data-payment-type/);
 assert.match(board, /Save Payment/);
-assert.match(css, /--payment-dpo:#2563EB/);
+assert.match(css, /--payment-dpo:#007EB5/);
 assert.match(css, /data-payment-method=dpo/);
 
 const allocations = [{method:'cash',amount_cents:25000},{method:'eft',amount_cents:31600}];

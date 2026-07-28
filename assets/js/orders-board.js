@@ -274,6 +274,12 @@
     })}`;
   };
   const normalize = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  const normaliseOrderColourKey = (value = '') => String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
   const labelText = (value) => String(value || '').replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
   const dateKey = (value) => String(value || '').slice(0, 10);
   const windhoekDateParts = (date = new Date()) => Object.fromEntries(
@@ -1666,7 +1672,12 @@
   function renderLabelCell(order, field, value, options, cssClass) {
     const color = findColor(options, value);
     const text = findText(options, value);
-    return `<button type="button" class="board-label ${cssClass}" style="--label-color:${esc(color)}" aria-haspopup="menu" aria-expanded="false" data-label-field="${field}" data-label-value-current="${esc(value || '')}" data-order-id="${esc(order.id)}"><span class="orders-label-trigger-text">${esc(text)}</span></button>`;
+    const colourAttribute = field === 'status'
+      ? ` data-order-status="${esc(normaliseOrderColourKey(text))}"`
+      : field === 'order_type'
+        ? ` data-fulfilment-mode="${esc(normaliseOrderColourKey(text))}"`
+        : '';
+    return `<button type="button" class="board-label ${cssClass}" style="--label-color:${esc(color)}"${colourAttribute} aria-haspopup="menu" aria-expanded="false" data-label-field="${field}" data-label-value-current="${esc(value || '')}" data-order-id="${esc(order.id)}"><span class="orders-label-trigger-text">${esc(text)}</span></button>`;
   }
 
   function legacyPaymentCode(value) {
@@ -1683,7 +1694,7 @@
     }
     const canEdit = Boolean(order.can_edit_payment);
     const title = payments.length ? payments.map((payment) => `${payment.label || PAYMENT_METHODS.find(([code])=>code===payment.method)?.[1] || payment.method} ${money(Number(payment.amount_cents||0)/100)}`).join(' and ') : 'Payment not allocated';
-    const segments = payments.length ? payments.map((payment, index) => `${index ? '<span class="payment-badge__separator" aria-hidden="true">/</span>' : ''}<span class="payment-badge__segment" data-payment-method="${esc(payment.method)}">${esc(payment.label || PAYMENT_METHODS.find(([code])=>code===payment.method)?.[1] || payment.method)}</span>`).join('') : '<span class="payment-badge__segment" data-payment-method="unknown">Not set</span>';
+    const segments = payments.length ? payments.map((payment, index) => `${index ? '<span class="payment-badge__separator" aria-hidden="true">/</span>' : ''}<span class="payment-badge__segment" data-payment-method="${esc(normaliseOrderColourKey(payment.method))}">${esc(payment.label || PAYMENT_METHODS.find(([code])=>code===payment.method)?.[1] || payment.method)}</span>`).join('') : '<span class="payment-badge__segment" data-payment-method="unknown">Not set</span>';
     return `<button type="button" class="payment-badge${payments.length>1?' payment-badge--split':''}" data-order-payment-edit data-order-id="${esc(order.id)}" aria-label="${esc(canEdit?'Edit payment: '+title:'View payment: '+title)}">${segments}</button>`;
   }
 
