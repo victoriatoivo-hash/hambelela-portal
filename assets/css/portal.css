@@ -3474,7 +3474,7 @@ textarea {
 .task-details-badge--recurring { background: rgba(168,202,25,.16); color: #526800; }
 .task-details-badge--manual { background: rgba(171,54,25,.10); color: var(--task-orange-red); }
 .task-details-title { margin: 0; color: var(--task-burgundy); font-size: 20px; line-height: 1.2; font-weight: 700; }
-.task-details-body { padding: 18px 22px 30px; background: #FFFFFF; }
+.task-details-body { display:grid; gap:14px; padding:16px 18px 24px; overflow-y:auto; overflow-x:hidden; background:#FFFFFF; }
 .task-details-section { margin-top: 16px; }
 .task-details-section:first-child { margin-top: 0; }
 .task-edit-card,
@@ -3544,6 +3544,7 @@ textarea {
 .digital-task-page .task-details-panel .task-history-action { margin: 0 0 4px; color: var(--task-burgundy); font-size: 12px; font-weight: 600; }
 .digital-task-page .task-details-panel .task-history-meta { margin: 0; color: var(--task-text-light); font-size: 10px; line-height: 1.4; font-weight: 400; }
 .digital-task-page .task-details-panel .task-history-empty { margin: 0; color: var(--task-text-light); font-size: 12px; font-weight: 400; }
+.task-progress-label .required-marker{margin-left:2px;color:#BB1B21;font-weight:700}.task-progress-note-error,.task-files__error{margin:6px 0 0;color:#BB1B21;font-size:10px;font-weight:600}.task-progress-note-error[hidden],.task-files__error[hidden]{display:none}.task-files{padding:14px 16px;border:1px solid #EDE3D8;border-radius:11px;background:#fff}.task-files__heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.task-files__heading h3{margin:0;color:#721B1A;font:600 13px/1.3 Figtree,Inter,sans-serif}.task-files__heading p{margin:4px 0 0;color:#83675C;font:400 11px/1.4 Figtree,Inter,sans-serif}.task-files__add{display:inline-flex;flex:0 0 auto;min-height:32px;padding:0 11px;align-items:center;gap:6px;color:#fff;background:#AB3619;border:1px solid #AB3619;border-radius:8px;font:500 11px/1 Figtree,Inter,sans-serif;cursor:pointer;appearance:none}.task-files__add svg{width:14px;height:14px}.task-files__add:hover{background:#922D16;border-color:#922D16}.task-files__list{display:grid;gap:8px;margin-top:12px}.task-file{display:flex;min-width:0;padding:9px;align-items:center;gap:10px;border:1px solid #EDE3D8;border-radius:9px;background:#fff}.task-file.is-uploading{opacity:.68}.task-file__thumbnail{width:42px;height:42px;flex:0 0 42px;display:grid;place-items:center;overflow:hidden;color:#AB3619;background:#FDF6EE;border:1px solid #EDE3D8;border-radius:8px}.task-file__thumbnail img{width:100%;height:100%;object-fit:contain}.task-file__thumbnail svg{width:18px;height:18px}.task-file__information{min-width:0;flex:1 1 auto}.task-file__name{overflow:hidden;color:#1A1A1A;font-size:12px;font-weight:500;text-overflow:ellipsis;white-space:nowrap}.task-file__meta{margin-top:3px;color:#8A746B;font-size:10px}.task-file__actions{display:inline-flex;flex:0 0 auto;align-items:center;gap:7px}.task-file__action{padding:2px;color:#AB3619;background:transparent;border:0;font:500 10px/1.2 Figtree,Inter,sans-serif;text-decoration:none;cursor:pointer}.task-files__empty{margin:12px 0 0;padding:14px;color:#8A746B;background:#FDF6EE;border-radius:8px;font-size:11px;text-align:center}.task-files__empty[hidden]{display:none}
 .digital-task-page .task-create-panel .create-task-field .portal-date-input,
 .digital-task-page .task-details-panel .task-field .portal-date-input { height: 32px; min-height: 32px; }
 .task-details-panel .portal-custom-select { margin: 0; }
@@ -3561,6 +3562,7 @@ textarea {
   .task-edit-actions .task-btn,
   .task-progress-actions .task-btn { width: 100%; }
   .task-details-title { font-size: 18px; }
+  .task-files__heading{flex-direction:column}.task-files__add{width:100%;justify-content:center}.task-file{align-items:flex-start}.task-file__actions{flex-direction:column;align-items:flex-end}
 }
 
 .task-history-panel {
@@ -27507,9 +27509,6 @@ body.dark-mode .portal-dark-toggle {
   border-color:rgba(171,54,25,.55); transform:translateY(-1px);
 }
 .digital-task-page .dtb-overdue-filter:active .task-overdue-check { transform:scale(.94); }
-.digital-task-page .task-panel-tabs { display:flex; gap:7px; padding:10px 18px; overflow-x:auto; border-bottom:1px solid #EDE3D8; background:#fff; }
-.digital-task-page .task-panel-tabs button { height:30px; padding:0 12px; border:1px solid rgba(171,54,25,.24); border-radius:999px; background:#fff; color:#6B4C3B; font:400 11px/1 Figtree,system-ui,sans-serif; white-space:nowrap; cursor:pointer; }
-.digital-task-page .task-panel-tabs button:hover { border-color:#F07420; color:#AB3619; background:rgba(240,116,32,.06); }
 .digital-task-page .dtb-task-row.is-completing { opacity:0; transform:translateY(-4px); transition:opacity .3s,transform .3s; }
 @media (max-width:900px) { .digital-task-page .dtb-stats-grid { display:flex; overflow-x:auto; } .digital-task-page .dtb-stat-card { min-width:180px; } .digital-task-page .task-details-panel { width:100vw; } }
 

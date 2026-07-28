@@ -26,6 +26,8 @@ $currentEmployeeId = $taskScope['employee_id'] ?? ops_current_employee_id();
 // Task visibility is deliberately stricter than general operations management:
 // only the actual owner role may view or administer every employee's tasks.
 $canManage = $taskScope['type'] === 'all';
+if (empty($_SESSION['task_attachment_csrf'])) $_SESSION['task_attachment_csrf'] = bin2hex(random_bytes(24));
+$taskAttachmentCsrf = (string) $_SESSION['task_attachment_csrf'];
 
 $types = [
     'opening' => 'Opening',
@@ -138,6 +140,22 @@ function checklist_bootstrap_schema(): void
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         )"
     );
+    db()->exec(
+        "CREATE TABLE IF NOT EXISTS ops_checklist_attachments (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            task_id INT NOT NULL,
+            original_filename VARCHAR(255) NOT NULL,
+            stored_filename VARCHAR(255) NOT NULL,
+            mime_type VARCHAR(120) NOT NULL,
+            file_size INT UNSIGNED NOT NULL,
+            uploaded_by INT NULL,
+            uploaded_by_name VARCHAR(190) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            removed_at DATETIME NULL,
+            removed_by INT NULL,
+            INDEX idx_task_attachment (task_id, removed_at, created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+    );
     $legacyStatuses = ops_rows("SELECT id, status FROM ops_checklist_tasks WHERE status NOT IN ('new', 'in_progress', 'complete')");
     foreach ($legacyStatuses as $legacyTask) {
         $previousStatus = strtolower(trim((string) $legacyTask['status']));
@@ -152,6 +170,30 @@ function checklist_bootstrap_schema(): void
             ]);
         }
     }
+}
+
+function checklist_attachment_types(): array
+{
+    return [
+        'image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp',
+        'application/pdf' => 'pdf', 'application/msword' => 'doc',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => 'docx',
+        'application/vnd.ms-excel' => 'xls',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => 'xlsx',
+    ];
+}
+
+function checklist_attachment_payload(array $row, bool $canRemove): array
+{
+    $id = (int) $row['id'];
+    return [
+        'id' => $id, 'taskId' => (int) $row['task_id'],
+        'name' => (string) $row['original_filename'], 'mime' => (string) $row['mime_type'],
+        'size' => (int) $row['file_size'], 'uploadedBy' => (string) $row['uploaded_by_name'],
+        'uploadedAt' => (string) $row['created_at'], 'canRemove' => $canRemove,
+        'viewUrl' => BASE_URL . '/apps/operations/task-attachment.php?id=' . $id . '&mode=view',
+        'downloadUrl' => BASE_URL . '/apps/operations/task-attachment.php?id=' . $id . '&mode=download',
+    ];
 }
 
 function checklist_urgent_recipient_ids(array $values, int $assignedId): array
@@ -224,6 +266,19 @@ function checklist_require_completion(array $task, ?array $checkedOverride = nul
 {
     $validation = checklist_completion_validation($task, $checkedOverride, $noteOverride, $newEvidence);
     if (!$validation['valid']) throw new RuntimeException(json_encode($validation, JSON_UNESCAPED_SLASHES));
+}
+
+function checklist_require_progress_note(?string $note): string
+{
+    $note = trim((string) $note);
+    $length = function_exists('mb_strlen') ? mb_strlen($note) : strlen($note);
+    if ($length < 5) throw new RuntimeException(json_encode([
+        'valid' => false,
+        'code' => 'task_progress_note_required',
+        'message' => 'Enter a note explaining the progress or work completed.',
+        'incomplete_items' => [],
+    ], JSON_UNESCAPED_SLASHES));
+    return $note;
 }
 
 function checklist_items_from_text(string $value): string
@@ -425,6 +480,69 @@ if ($ready) {
 if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $action = ops_post_string('action', 40);
+        if (in_array($action, ['task_attachment_upload', 'task_attachment_remove'], true)) {
+            header('Content-Type: application/json; charset=utf-8');
+            $submittedToken = (string) ($_POST['csrf_token'] ?? '');
+            if ($submittedToken === '' || !hash_equals($taskAttachmentCsrf, $submittedToken)) {
+                http_response_code(403);
+                throw new RuntimeException('Your session token expired. Refresh the page and try again.');
+            }
+            $taskId = (int) ($_POST['task_id'] ?? 0);
+            $taskRows = ops_rows('SELECT id, task_name, assigned_employee_id, status, archived_at, deleted_at FROM ops_checklist_tasks WHERE id = ? LIMIT 1', [$taskId]);
+            if (!$taskRows) throw new RuntimeException('Task not found.');
+            $attachmentTask = $taskRows[0];
+            $isAssignedEmployee = $currentEmployeeId > 0 && (int) $attachmentTask['assigned_employee_id'] === (int) $currentEmployeeId;
+            if (!$canManage && !$isAssignedEmployee) {
+                http_response_code(403);
+                throw new RuntimeException('You do not have permission to manage files for this task.');
+            }
+            if ($action === 'task_attachment_upload') {
+                if (!empty($attachmentTask['archived_at']) || !empty($attachmentTask['deleted_at'])) throw new RuntimeException('Archived or deleted tasks cannot accept files.');
+                if (!$canManage && checklist_normalize_status((string) $attachmentTask['status']) === 'complete') throw new RuntimeException('Completed task files are read-only.');
+                $countRows = ops_rows('SELECT COUNT(*) AS total FROM ops_checklist_attachments WHERE task_id = ? AND removed_at IS NULL', [$taskId]);
+                if ((int) ($countRows[0]['total'] ?? 0) >= 10) throw new RuntimeException('This task already has the maximum of 10 attachments.');
+                $file = $_FILES['attachment'] ?? null;
+                if (!is_array($file) || (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || !is_uploaded_file((string) ($file['tmp_name'] ?? ''))) throw new RuntimeException('Choose a file to upload.');
+                $size = (int) ($file['size'] ?? 0);
+                if ($size <= 0 || $size > 10 * 1024 * 1024) throw new RuntimeException('Each file must be smaller than 10 MB.');
+                $mime = (string) (new finfo(FILEINFO_MIME_TYPE))->file((string) $file['tmp_name']);
+                $allowed = checklist_attachment_types();
+                if (!isset($allowed[$mime])) throw new RuntimeException('This file type is not allowed. Upload an image, PDF, Word or Excel file.');
+                $original = trim(preg_replace('/[\x00-\x1F\x7F]+/', '', basename((string) ($file['name'] ?? 'attachment'))) ?? 'attachment');
+                if ($original === '') $original = 'attachment.' . $allowed[$mime];
+                $stored = 'task-' . $taskId . '-' . bin2hex(random_bytes(16)) . '.' . $allowed[$mime];
+                $uploadDir = BASE_PATH . '/uploads/checklist-attachments';
+                if (!is_dir($uploadDir) && !mkdir($uploadDir, 0775, true) && !is_dir($uploadDir)) throw new RuntimeException('File storage is unavailable.');
+                $target = $uploadDir . '/' . $stored;
+                if (!move_uploaded_file((string) $file['tmp_name'], $target)) throw new RuntimeException('The file could not be stored.');
+                try {
+                    $actorName = trim((string) (current_user()['name'] ?? 'Employee')) ?: 'Employee';
+                    $stmt = db()->prepare('INSERT INTO ops_checklist_attachments (task_id, original_filename, stored_filename, mime_type, file_size, uploaded_by, uploaded_by_name) VALUES (?, ?, ?, ?, ?, ?, ?)');
+                    $stmt->execute([$taskId, $original, $stored, $mime, $size, $currentEmployeeId ?: null, $actorName]);
+                    $attachmentId = (int) db()->lastInsertId();
+                    ops_activity_log('task_attachment_uploaded', 'checklist_task', $taskId, ['attachment_id' => $attachmentId, 'filename' => $original, 'size' => $size, 'mime_type' => $mime]);
+                    $row = ops_rows('SELECT * FROM ops_checklist_attachments WHERE id = ? LIMIT 1', [$attachmentId])[0];
+                    echo json_encode(['success' => true, 'attachment' => checklist_attachment_payload($row, true)]);
+                } catch (Throwable $uploadError) {
+                    if (is_file($target)) unlink($target);
+                    throw $uploadError;
+                }
+                exit;
+            }
+            $attachmentId = (int) ($_POST['attachment_id'] ?? 0);
+            $attachmentRows = ops_rows('SELECT * FROM ops_checklist_attachments WHERE id = ? AND task_id = ? AND removed_at IS NULL LIMIT 1', [$attachmentId, $taskId]);
+            if (!$attachmentRows) throw new RuntimeException('Attachment not found.');
+            $attachment = $attachmentRows[0];
+            $employeeMayRemove = $isAssignedEmployee && checklist_normalize_status((string) $attachmentTask['status']) !== 'complete' && (int) ($attachment['uploaded_by'] ?? 0) === (int) $currentEmployeeId;
+            if (!$canManage && !$employeeMayRemove) {
+                http_response_code(403);
+                throw new RuntimeException('You cannot remove another employee’s evidence or evidence from a completed task.');
+            }
+            db()->prepare('UPDATE ops_checklist_attachments SET removed_at = NOW(), removed_by = ? WHERE id = ? AND removed_at IS NULL')->execute([$currentEmployeeId ?: null, $attachmentId]);
+            ops_activity_log('task_attachment_removed', 'checklist_task', $taskId, ['attachment_id' => $attachmentId, 'filename' => $attachment['original_filename']]);
+            echo json_encode(['success' => true, 'attachment_id' => $attachmentId]);
+            exit;
+        }
         if ($action === 'task_cancel_recurrence') {
             if (!$canManage) { http_response_code(403); throw new RuntimeException('Only management can change recurring schedules.'); }
             $taskId = (int) ($_POST['task_id'] ?? 0);
@@ -556,19 +674,19 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $beforeRows = ops_rows("SELECT * FROM ops_checklist_tasks WHERE {$scope} LIMIT 1", $scopeParams);
             if (!$beforeRows) throw new RuntimeException('Task was not found or is not assigned to you.');
             $previousStatus = checklist_normalize_status((string) $beforeRows[0]['status']);
+            $progressNote = checklist_require_progress_note(ops_post_string('completion_note', 1500));
             if (!$canManage && $previousStatus === 'complete' && $status !== 'complete') {
                 http_response_code(403);
                 throw new RuntimeException('Only management can reopen a completed task.');
             }
             if ($status === 'complete') {
-                $completionNote = ops_post_string('completion_note', 1500);
+                $completionNote = $progressNote;
                 checklist_require_completion($beforeRows[0], null, $completionNote);
                 $set = 'status = ?, completion_note = ?, completed_at = COALESCE(completed_at, NOW()), date_completed = COALESCE(date_completed, NOW()), completed_by = COALESCE(completed_by, ?)';
                 $updateParams = [$status, trim($completionNote), $currentEmployeeId];
             } else {
-                $set = 'status = ?, completed_at = NULL, date_completed = NULL, completed_by = NULL';
-                $updateParams = [$status];
-                if ($previousStatus === 'complete') $set .= ', completion_note = NULL';
+                $set = 'status = ?, completion_note = ?, completed_at = NULL, date_completed = NULL, completed_by = NULL';
+                $updateParams = [$status, $progressNote];
             }
             if ($status === 'in_progress') $set .= ', started_at = COALESCE(started_at, NOW())';
             $stmt = db()->prepare("UPDATE ops_checklist_tasks SET {$set} WHERE {$scope}");
@@ -579,7 +697,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 'previous_status' => $previousStatus,
                 'status' => $status,
                 'changed_by' => current_user()['name'] ?? 'Unknown',
-                'completion_note' => $status === 'complete' ? trim($completionNote ?? '') : null,
+                'completion_note' => $progressNote,
                 'previous_completion_note' => $previousStatus === 'complete' ? (string) ($beforeRows[0]['completion_note'] ?? '') : null,
             ]);
             $afterRows = ops_rows("SELECT t.status, t.deadline, t.date_completed, t.completed_by, e.full_name AS completed_by_name FROM ops_checklist_tasks t LEFT JOIN ops_employees e ON e.id = t.completed_by WHERE t.id = ? LIMIT 1", [$taskId]);
@@ -789,25 +907,8 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $checked = array_values(array_filter(array_map('strval', $_POST['checked_items'] ?? [])));
             $taskRows = ops_rows("SELECT * FROM ops_checklist_tasks WHERE {$scope} LIMIT 1", $scopeParams);
             if (!$taskRows) throw new RuntimeException('Task was not found or is not assigned to you.');
-            $taskTypeForProof = (string) ($taskRows[0]['checklist_type'] ?? '');
-            $note = ops_post_string('completion_note', 1500);
-            $photoPath = null;
-            if (isset($_FILES['photo_proof']) && (int) ($_FILES['photo_proof']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
-                if (!checklist_allows_photo($taskTypeForProof)) throw new RuntimeException('Photo proof is only available for cleaning, shelf stocking and bottle/container tasks.');
-                if ((int) $_FILES['photo_proof']['error'] !== UPLOAD_ERR_OK) throw new RuntimeException('Photo upload failed.');
-                if ((int) $_FILES['photo_proof']['size'] > 10 * 1024 * 1024) throw new RuntimeException('The image must be smaller than 10 MB.');
-                if (!is_uploaded_file($_FILES['photo_proof']['tmp_name'])) throw new RuntimeException('Photo upload failed.');
-                $allowedPhotoTypes = ['image/png' => 'png', 'image/jpeg' => 'jpg', 'image/webp' => 'webp'];
-                $photoInfo = new finfo(FILEINFO_MIME_TYPE);
-                $photoMime = (string) $photoInfo->file($_FILES['photo_proof']['tmp_name']);
-                if (!isset($allowedPhotoTypes[$photoMime])) throw new RuntimeException('Only PNG, JPG and WebP images are allowed.');
-                $uploadDir = BASE_PATH . '/uploads/checklist-proofs';
-                if (!is_dir($uploadDir)) mkdir($uploadDir, 0775, true);
-                $extension = $allowedPhotoTypes[$photoMime];
-                $fileName = 'task-' . $taskId . '-' . date('YmdHis') . '-' . bin2hex(random_bytes(4)) . '.' . $extension;
-                if (move_uploaded_file($_FILES['photo_proof']['tmp_name'], $uploadDir . '/' . $fileName)) $photoPath = 'uploads/checklist-proofs/' . $fileName;
-            }
-            if ($status === 'complete') checklist_require_completion($taskRows[0], $checked, $note, $photoPath !== null);
+            $note = checklist_require_progress_note(ops_post_string('completion_note', 1500));
+            if ($status === 'complete') checklist_require_completion($taskRows[0], $checked, $note);
             if ($status === 'complete') {
                 $set = 'status = ?, checked_items = ?, completion_note = ?, completed_at = COALESCE(completed_at, NOW()), date_completed = COALESCE(date_completed, NOW()), completed_by = COALESCE(completed_by, ?)';
                 $params = [$status, json_encode($checked, JSON_UNESCAPED_SLASHES), $note, $currentEmployeeId];
@@ -816,10 +917,6 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $params = [$status, json_encode($checked, JSON_UNESCAPED_SLASHES), $note];
             }
             if ($status === 'in_progress') $set .= ', started_at = COALESCE(started_at, NOW())';
-            if ($photoPath !== null) {
-                $set .= ', photo_path = ?';
-                $params[] = $photoPath;
-            }
             $stmt = db()->prepare("UPDATE ops_checklist_tasks SET {$set} WHERE {$scope}");
             $stmt->execute([...$params, ...$scopeParams]);
             checklist_kpi_status_event($taskId, (string) ($taskRows[0]['status'] ?? ''), $status, $currentEmployeeId);
@@ -830,13 +927,18 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 'completed_by' => $status === 'complete' ? $currentEmployeeId : null,
                 'completed_at' => $status === 'complete' ? date('Y-m-d H:i:s') : null,
             ]);
+            if (strpos((string) ($_SERVER['HTTP_ACCEPT'] ?? ''), 'application/json') !== false) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => true, 'message' => 'Task saved.', 'task_id' => $taskId, 'status' => $status]);
+                exit;
+            }
             $message = 'Task saved.';
         }
     } catch (Throwable $e) {
         $validationPayload = json_decode($e->getMessage(), true);
         $errorMessage = is_array($validationPayload) && !empty($validationPayload['message']) ? (string) $validationPayload['message'] : $e->getMessage();
-        if (in_array(($action ?? ''), ['acknowledge_task', 'update_task_status', 'bulk_task_action', 'task_tools_data', 'task_archive', 'task_trash', 'task_restore', 'task_delete_forever', 'task_cancel_recurrence'], true)) {
-            http_response_code(422);
+        if (in_array(($action ?? ''), ['acknowledge_task', 'update_task_status', 'update_task_progress', 'bulk_task_action', 'task_tools_data', 'task_archive', 'task_trash', 'task_restore', 'task_delete_forever', 'task_cancel_recurrence', 'task_attachment_upload', 'task_attachment_remove'], true)) {
+            if (http_response_code() < 400) http_response_code(422);
             echo json_encode(array_merge(['success' => false, 'message' => $errorMessage], is_array($validationPayload) ? $validationPayload : []));
             exit;
         }
@@ -985,6 +1087,13 @@ $historyTasks = $ready ? ops_rows(
      LIMIT 120",
     $historyParams
 ) : [];
+$attachmentsByTask = [];
+$visibleTaskIds = array_values(array_unique(array_filter(array_map(static fn (array $task): int => (int) $task['id'], array_merge($tasks, $historyTasks)))));
+if ($visibleTaskIds && ops_table_exists('ops_checklist_attachments')) {
+    $attachmentMarks = implode(',', array_fill(0, count($visibleTaskIds), '?'));
+    $attachmentRows = ops_rows("SELECT * FROM ops_checklist_attachments WHERE removed_at IS NULL AND task_id IN ({$attachmentMarks}) ORDER BY created_at DESC, id DESC", $visibleTaskIds);
+    foreach ($attachmentRows as $attachmentRow) $attachmentsByTask[(int) $attachmentRow['task_id']][] = $attachmentRow;
+}
 
 $tasksByGroup = array_fill_keys(array_keys($statuses), []);
 foreach ($tasks as $task) {
@@ -1270,15 +1379,6 @@ include BASE_PATH . '/shared/sidebar.php';
                 </div>
             </header>
 
-            <nav class="task-panel-tabs portal-panel-tabs" aria-label="Task detail sections">
-                <button type="button" class="portal-panel-tab is-active" aria-selected="true" data-task-panel-jump="task-details-<?= $panelId ?>"><i data-lucide="layout-list" aria-hidden="true"></i><span>Details</span></button>
-                <button type="button" class="portal-panel-tab" aria-selected="false" data-task-panel-jump="task-checklist-<?= $panelId ?>"><i data-lucide="list-checks" aria-hidden="true"></i><span>Checklist</span></button>
-                <button type="button" class="portal-panel-tab" aria-selected="false" data-task-panel-jump="task-notes-<?= $panelId ?>"><i data-lucide="notebook-pen" aria-hidden="true"></i><span>Notes</span></button>
-                <button type="button" class="portal-panel-tab" aria-selected="false" data-task-panel-jump="task-files-<?= $panelId ?>"><i data-lucide="paperclip" aria-hidden="true"></i><span>Files</span></button>
-                <button type="button" class="portal-panel-tab" aria-selected="false" data-task-panel-jump="task-activity-<?= $panelId ?>"><i data-lucide="history" aria-hidden="true"></i><span>Activity</span></button>
-                <?php if ($taskKind === 'recurring'): ?><button type="button" class="portal-panel-tab" aria-selected="false" data-task-panel-jump="task-details-<?= $panelId ?>"><i data-lucide="repeat-2" aria-hidden="true"></i><span>Schedule</span></button><?php endif; ?>
-            </nav>
-
             <div class="task-details-body" id="task-details-<?= $panelId ?>">
                 <?php if ($canManage): ?>
                     <form method="post" class="task-details-section task-edit-card">
@@ -1326,30 +1426,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         <section class="task-details-section task-progress-card">
                             <h3 class="task-section-title">Progress update</h3>
                             <div class="task-field"><label for="task-progress-status-<?= $panelId ?>">Status</label><select id="task-progress-status-<?= $panelId ?>" name="status" data-portal-custom-select><?php ops_select_options($statuses, checklist_normalize_status((string) ($task['status'] ?? 'new'))); ?></select></div>
-                            <div class="task-field" id="task-notes-<?= $panelId ?>"><label for="task-progress-note-<?= $panelId ?>">Completion note</label><textarea id="task-progress-note-<?= $panelId ?>" name="completion_note" minlength="5" placeholder="Explain what was completed."><?= htmlspecialchars((string) ($task['completion_note'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea></div>
-                            <?php if (checklist_allows_photo((string) $task['checklist_type'])): ?>
-                                <div class="task-field">
-                                    <span class="task-field-label">Attachments</span>
-                                    <div class="task-proof-upload" data-task-proof-upload>
-                                        <input id="task-proof-<?= $panelId ?>" class="task-proof-input" type="file" name="photo_proof" accept="image/png,image/jpeg,image/webp">
-                                        <div class="task-proof-controls">
-                                            <label for="task-proof-<?= $panelId ?>" class="task-proof-button task-proof-button--choose">
-                                                <i class="task-proof-icon task-proof-icon--paperclip" data-lucide="paperclip" aria-hidden="true"></i><span>Add photo or file — optional</span>
-                                            </label>
-                                            <button type="button" class="task-proof-button task-proof-button--paste" data-paste-screenshot>
-                                                <i class="task-proof-icon" data-lucide="clipboard-paste" aria-hidden="true"></i><span>Paste Screenshot</span>
-                                            </button>
-                                            <span class="task-proof-file-name" data-proof-file-name>No file selected</span>
-                                        </div>
-                                        <div class="task-proof-paste-hint">You can also press Ctrl + V or Cmd + V to paste a screenshot.</div>
-                                        <div class="task-proof-preview is-hidden" data-proof-preview>
-                                            <img class="task-proof-preview-image" data-proof-preview-image alt="Photo proof preview">
-                                            <div class="task-proof-preview-actions"><button type="button" class="task-proof-preview-remove" data-remove-proof>Remove</button></div>
-                                        </div>
-                                        <p class="task-proof-error is-hidden" data-proof-error></p>
-                                    </div>
-                                </div>
-                            <?php endif; ?>
+                            <div class="task-field" id="task-notes-<?= $panelId ?>"><label class="task-progress-label" for="task-progress-note-<?= $panelId ?>">Note <span class="required-marker" aria-hidden="true">*</span></label><textarea id="task-progress-note-<?= $panelId ?>" name="completion_note" required minlength="5" aria-required="true" placeholder="Explain what was completed or provide a progress update."><?= htmlspecialchars((string) ($task['completion_note'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea><p class="task-progress-note-error" data-task-note-error hidden>Enter a note explaining the progress or work completed.</p></div>
                             <div class="task-progress-actions"><button class="task-btn task-btn--primary" type="submit" name="action" value="update_task_progress">Save progress</button></div>
                         </section>
                     <?php else: ?>
@@ -1357,15 +1434,23 @@ include BASE_PATH . '/shared/sidebar.php';
                     <?php endif; ?>
                 </form>
 
-                <section class="task-details-section task-content-card" id="task-files-<?= $panelId ?>"><h3 class="task-content-heading">Files / proof</h3><?php if (!empty($task['photo_path'])): ?><a class="task-btn task-btn--secondary" href="<?= BASE_URL ?>/apps/operations/task-proof.php?task_id=<?= $panelId ?>" target="_blank" rel="noopener">Open proof</a><?php else: ?><p class="task-history-empty">No files uploaded.</p><?php endif; ?></section>
-                <section class="task-details-section task-content-card" id="task-activity-<?= $panelId ?>">
-                    <h3 class="task-content-heading">Task history</h3>
-                    <div class="task-history-list">
-                        <?php foreach (($activityByTask[$panelId] ?? []) as $activity): ?>
-                            <article class="task-history-item"><p class="task-history-action"><?= htmlspecialchars((string) $activity['action'], ENT_QUOTES, 'UTF-8') ?></p><p class="task-history-meta"><?= htmlspecialchars((string) ($activity['employee_name'] ?? 'System'), ENT_QUOTES, 'UTF-8') ?> - <?= htmlspecialchars((string) $activity['created_at'], ENT_QUOTES, 'UTF-8') ?></p></article>
+                <?php
+                $panelAttachments = $attachmentsByTask[$panelId] ?? [];
+                $taskIsComplete = checklist_normalize_status((string) ($task['status'] ?? 'pending')) === 'complete';
+                $taskAcceptsFiles = empty($task['archived_at']) && empty($task['deleted_at']) && ($canManage || !$taskIsComplete);
+                ?>
+                <section class="task-details-section task-files" data-task-files data-task-id="<?= $panelId ?>" data-csrf-token="<?= htmlspecialchars($taskAttachmentCsrf, ENT_QUOTES, 'UTF-8') ?>">
+                    <div class="task-files__heading"><div><h3>Files / proof</h3><p>Upload a photo, document or other proof of work.</p></div><?php if ($taskAcceptsFiles): ?><button type="button" class="task-files__add" data-add-task-file><i data-lucide="paperclip" aria-hidden="true"></i><span>Add photo or file</span></button><?php endif; ?></div>
+                    <?php if ($taskAcceptsFiles): ?><input type="file" data-task-file-input multiple hidden accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx"><?php endif; ?>
+                    <p class="task-files__error" data-task-files-error hidden></p>
+                    <div class="task-files__list" data-task-file-list>
+                        <?php foreach ($panelAttachments as $attachment): ?>
+                            <?php $canRemoveAttachment = $canManage || (!$taskIsComplete && (int) ($attachment['uploaded_by'] ?? 0) === (int) $currentEmployeeId); $attachmentPayload = checklist_attachment_payload($attachment, $canRemoveAttachment); ?>
+                            <article class="task-file" data-task-attachment-id="<?= (int) $attachment['id'] ?>"><a class="task-file__thumbnail" href="<?= htmlspecialchars($attachmentPayload['viewUrl'], ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener"><?php if (strpos((string) $attachment['mime_type'], 'image/') === 0): ?><img src="<?= htmlspecialchars($attachmentPayload['viewUrl'], ENT_QUOTES, 'UTF-8') ?>" alt=""><?php else: ?><i data-lucide="file-text" aria-hidden="true"></i><?php endif; ?></a><div class="task-file__information"><div class="task-file__name"><?= htmlspecialchars((string) $attachment['original_filename'], ENT_QUOTES, 'UTF-8') ?></div><div class="task-file__meta"><?= number_format(((int) $attachment['file_size']) / 1024, 1) ?> KB · <?= htmlspecialchars((string) $attachment['uploaded_by_name'], ENT_QUOTES, 'UTF-8') ?> · <?= htmlspecialchars(checklist_date_label((string) $attachment['created_at']), ENT_QUOTES, 'UTF-8') ?></div></div><div class="task-file__actions"><a class="task-file__action" href="<?= htmlspecialchars($attachmentPayload['viewUrl'], ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">View</a><a class="task-file__action" href="<?= htmlspecialchars($attachmentPayload['downloadUrl'], ENT_QUOTES, 'UTF-8') ?>">Download</a><?php if ($canRemoveAttachment): ?><button type="button" class="task-file__action" data-remove-task-file>Remove</button><?php endif; ?></div></article>
                         <?php endforeach; ?>
-                        <?php if (empty($activityByTask[$panelId])): ?><p class="task-history-empty">No activity history yet.</p><?php endif; ?>
+                        <?php if (!$panelAttachments && !empty($task['photo_path'])): ?><article class="task-file task-file--legacy"><span class="task-file__thumbnail"><i data-lucide="image" aria-hidden="true"></i></span><div class="task-file__information"><div class="task-file__name">Legacy photo proof</div><div class="task-file__meta">Previously uploaded evidence</div></div><div class="task-file__actions"><a class="task-file__action" href="<?= BASE_URL ?>/apps/operations/task-proof.php?task_id=<?= $panelId ?>" target="_blank" rel="noopener">View</a></div></article><?php endif; ?>
                     </div>
+                    <p class="task-files__empty" data-task-files-empty <?= ($panelAttachments || !empty($task['photo_path'])) ? 'hidden' : '' ?>>No files uploaded yet.</p>
                 </section>
             </div>
         </aside>
@@ -1627,132 +1712,71 @@ document.addEventListener('change', (event) => {
   }
 });
 
-function initialiseTaskProofUpload(root = document) {
-  root.querySelectorAll('[data-task-proof-upload]:not([data-proof-initialised])').forEach((upload) => {
-    upload.dataset.proofInitialised = 'true';
-    const input = upload.querySelector('.task-proof-input');
-    const chooseButton = upload.querySelector('.task-proof-button--choose');
-    const pasteButton = upload.querySelector('[data-paste-screenshot]');
-    const fileName = upload.querySelector('[data-proof-file-name]');
-    const preview = upload.querySelector('[data-proof-preview]');
-    const previewImage = upload.querySelector('[data-proof-preview-image]');
-    const removeButton = upload.querySelector('[data-remove-proof]');
-    const errorMessage = upload.querySelector('[data-proof-error]');
-    const acceptedTypes = ['image/png', 'image/jpeg', 'image/webp'];
-    const maxFileSize = 10 * 1024 * 1024;
-    let currentObjectUrl = null;
-
-    const clearError = () => {
-      errorMessage.textContent = '';
-      errorMessage.classList.add('is-hidden');
-    };
-    const showError = (message) => {
-      errorMessage.textContent = message;
-      errorMessage.classList.remove('is-hidden');
-    };
-    const revokePreviewUrl = () => {
-      if (!currentObjectUrl) return;
-      URL.revokeObjectURL(currentObjectUrl);
-      currentObjectUrl = null;
-    };
-    const validateImageFile = (file) => {
-      if (!file) return false;
-      if (!acceptedTypes.includes(file.type)) {
-        showError('Please upload a PNG, JPG or WebP image.');
-        return false;
-      }
-      if (file.size > maxFileSize) {
-        showError('The image must be smaller than 10 MB.');
-        return false;
-      }
-      clearError();
-      return true;
-    };
-    const showPreview = (file) => {
-      revokePreviewUrl();
-      currentObjectUrl = URL.createObjectURL(file);
-      previewImage.src = currentObjectUrl;
-      preview.classList.remove('is-hidden');
-      fileName.textContent = file.name;
-    };
-    const updateInputWithFile = (file) => {
-      const transfer = new DataTransfer();
-      transfer.items.add(file);
-      input.files = transfer.files;
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-    };
-    const handleFile = (file, updateInput = true) => {
-      if (!validateImageFile(file)) {
-        input.value = '';
-        fileName.textContent = 'No file selected';
-        revokePreviewUrl();
-        previewImage.removeAttribute('src');
-        preview.classList.add('is-hidden');
-        return;
-      }
-      if (updateInput) updateInputWithFile(file);
-      else showPreview(file);
-    };
-    const clearSelectedFile = () => {
+function initialiseTaskAttachments(root = document) {
+  root.querySelectorAll('[data-task-files]:not([data-attachments-initialised])').forEach((section) => {
+    section.dataset.attachmentsInitialised = 'true';
+    const input = section.querySelector('[data-task-file-input]');
+    const addButton = section.querySelector('[data-add-task-file]');
+    const list = section.querySelector('[data-task-file-list]');
+    const empty = section.querySelector('[data-task-files-empty]');
+    const errorNode = section.querySelector('[data-task-files-error]');
+    const taskId = section.dataset.taskId;
+    const csrfToken = section.dataset.csrfToken;
+    let uploading = false;
+    const allowedTypes = ['image/jpeg','image/png','image/webp','application/pdf','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+    const escape = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[character]));
+    const showError = (message = '') => { if (!errorNode) return; errorNode.textContent = message; errorNode.hidden = !message; };
+    const formatSize = (bytes) => bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.max(0.1, bytes / 1024).toFixed(1)} KB`;
+    const formatDate = (value) => { const date = new Date(String(value).replace(' ', 'T')); return Number.isNaN(date.getTime()) ? value : date.toLocaleString('en-NA', {timeZone:'Africa/Windhoek',dateStyle:'medium',timeStyle:'short'}); };
+    const attachmentMarkup = (file) => `<article class="task-file" data-task-attachment-id="${Number(file.id)}"><a class="task-file__thumbnail" href="${escape(file.viewUrl)}" target="_blank" rel="noopener">${String(file.mime).startsWith('image/') ? `<img src="${escape(file.viewUrl)}" alt="">` : '<i data-lucide="file-text" aria-hidden="true"></i>'}</a><div class="task-file__information"><div class="task-file__name">${escape(file.name)}</div><div class="task-file__meta">${escape(formatSize(Number(file.size)))} · ${escape(file.uploadedBy)} · ${escape(formatDate(file.uploadedAt))}</div></div><div class="task-file__actions"><a class="task-file__action" href="${escape(file.viewUrl)}" target="_blank" rel="noopener">View</a><a class="task-file__action" href="${escape(file.downloadUrl)}">Download</a>${file.canRemove ? '<button type="button" class="task-file__action" data-remove-task-file>Remove</button>' : ''}</div></article>`;
+    addButton?.addEventListener('click', () => input?.click());
+    input?.addEventListener('change', async () => {
+      if (uploading) return;
+      const files = [...(input.files || [])];
       input.value = '';
-      fileName.textContent = 'No file selected';
-      revokePreviewUrl();
-      previewImage.removeAttribute('src');
-      preview.classList.add('is-hidden');
-      clearError();
-    };
-    const clipboardFile = (blob, type) => {
-      const extensions = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
-      return new File([blob], `task-screenshot-${Date.now()}.${extensions[type] || 'png'}`, { type, lastModified: Date.now() });
-    };
-    const handleClipboardItems = (items) => {
-      const imageItem = [...items].find((item) => item.kind === 'file' && acceptedTypes.includes(item.type));
-      const file = imageItem?.getAsFile();
-      if (!file) return false;
-      handleFile(clipboardFile(file, file.type));
-      return true;
-    };
-
-    chooseButton.addEventListener('click', () => {
-      chooseButton.classList.remove('is-animating');
-      void chooseButton.offsetWidth;
-      chooseButton.classList.add('is-animating');
-      window.setTimeout(() => chooseButton.classList.remove('is-animating'), 450);
-    });
-    input.addEventListener('change', () => {
-      const file = input.files?.[0];
-      if (!file) return;
-      handleFile(file, false);
-    });
-    removeButton.addEventListener('click', clearSelectedFile);
-    pasteButton.addEventListener('click', async () => {
-      if (!navigator.clipboard?.read) {
-        showError('Clipboard image access is not supported here. Press Ctrl + V or Cmd + V instead.');
-        return;
-      }
+      if (!files.length) return;
+      uploading = true;
+      if (addButton) addButton.disabled = true;
+      showError('');
       try {
-        const clipboardItems = await navigator.clipboard.read();
-        for (const item of clipboardItems) {
-          const type = item.types.find((candidate) => acceptedTypes.includes(candidate));
-          if (!type) continue;
-          const blob = await item.getType(type);
-          handleFile(clipboardFile(blob, type));
-          return;
+        for (const file of files) {
+          if (!allowedTypes.includes(file.type) || file.size > 10 * 1024 * 1024) { showError(`${file.name}: use an approved image, PDF, Word or Excel file smaller than 10 MB.`); continue; }
+          const pending = document.createElement('article');
+          pending.className = 'task-file is-uploading';
+          pending.innerHTML = `<div class="task-file__information"><div class="task-file__name">${escape(file.name)}</div><div class="task-file__meta">Uploading…</div></div>`;
+          list?.prepend(pending);
+          try {
+            const data = new FormData();
+            data.append('action', 'task_attachment_upload'); data.append('task_id', taskId); data.append('csrf_token', csrfToken); data.append('attachment', file, file.name);
+            const response = await fetch(window.location.href, {method:'POST',body:data,credentials:'same-origin',headers:{Accept:'application/json'}});
+            const result = await response.json();
+            if (!response.ok || result.success !== true) throw new Error(result.message || 'Upload failed.');
+            pending.outerHTML = attachmentMarkup(result.attachment);
+            if (empty) empty.hidden = true;
+            if (window.lucide) window.lucide.createIcons({strokeWidth:2});
+          } catch (error) { pending.remove(); showError(`${file.name}: ${error.message || 'Upload failed.'}`); }
         }
-        showError('No image was found in the clipboard.');
-      } catch (error) {
-        showError('Clipboard access was blocked. Click inside the panel and press Ctrl + V or Cmd + V.');
+      } finally {
+        uploading = false;
+        if (addButton) addButton.disabled = false;
       }
     });
-
-    const panel = upload.closest('.task-detail-panel');
-    if (panel && panel.dataset.proofPasteInitialised !== 'true') {
-      panel.dataset.proofPasteInitialised = 'true';
-      panel.addEventListener('paste', (event) => {
-        if (!handleClipboardItems(event.clipboardData?.items || [])) return;
-        event.preventDefault();
-      });
-    }
+    section.addEventListener('click', async (event) => {
+      const remove = event.target.closest('[data-remove-task-file]');
+      if (!remove) return;
+      const row = remove.closest('[data-task-attachment-id]');
+      if (!row || !window.confirm('Remove this task attachment? This action will be recorded.')) return;
+      remove.disabled = true;
+      try {
+        const data = new FormData();
+        data.append('action', 'task_attachment_remove'); data.append('task_id', taskId); data.append('attachment_id', row.dataset.taskAttachmentId); data.append('csrf_token', csrfToken);
+        const response = await fetch(window.location.href, {method:'POST',body:data,credentials:'same-origin',headers:{Accept:'application/json'}});
+        const result = await response.json();
+        if (!response.ok || result.success !== true) throw new Error(result.message || 'Unable to remove this attachment.');
+        row.remove();
+        if (empty && !list?.querySelector('[data-task-attachment-id], .task-file--legacy')) empty.hidden = false;
+      } catch (error) { showError(error.message); remove.disabled = false; }
+    });
   });
 }
 
@@ -2051,18 +2075,30 @@ function showTaskCompletionError(taskId, message, incompleteItems = []) {
     const blocked = incomplete.size ? incomplete.has(input?.value || '') : !input?.checked;
     label.classList.toggle('is-incomplete', blocked);
   });
-  const first = panel.querySelector('[data-required-checklist-item].is-incomplete') || box;
+  const note = panel.querySelector('[name="completion_note"]');
+  const noteError = panel.querySelector('[data-task-note-error]');
+  const noteInvalid = !incomplete.size && validateTaskProgressNote(note?.value).valid === false;
+  if (noteError) noteError.hidden = !noteInvalid;
+  if (note) note.setAttribute('aria-invalid', noteInvalid ? 'true' : 'false');
+  const first = panel.querySelector('[data-required-checklist-item].is-incomplete') || (noteInvalid ? note : box);
   first?.scrollIntoView({ behavior:'smooth', block:'center' });
+  if (noteInvalid) note?.focus();
+}
+
+function validateTaskProgressNote(value) {
+  const note = String(value || '').trim();
+  if (note.length < 5) return { valid:false, message:'Enter a note explaining the progress or work completed.' };
+  return { valid:true, value:note };
 }
 
 function validateTaskProgressForm(form) {
   const status = form.querySelector('[name="status"]')?.value;
-  if (status !== 'complete') return { valid:true, incomplete:[] };
+  const noteValidation = validateTaskProgressNote(form.querySelector('[name="completion_note"]')?.value);
+  if (!noteValidation.valid) return { valid:false, incomplete:[], message:noteValidation.message };
+  if (status !== 'complete') return { valid:true, incomplete:[], note:noteValidation.value };
   const incomplete = [...form.querySelectorAll('[data-required-checklist-item] input:not(:checked)')].map((input) => input.value);
   if (incomplete.length) return { valid:false, incomplete, message:`${incomplete.length} required checklist ${incomplete.length === 1 ? 'item is' : 'items are'} incomplete.` };
-  const completionNote = String(form.querySelector('[name="completion_note"]')?.value || '').trim();
-  if (completionNote.length < 5) return { valid:false, incomplete:[], message:'Enter a completion note explaining what was completed.' };
-  return { valid:true, incomplete:[] };
+  return { valid:true, incomplete:[], note:noteValidation.value };
 }
 
 function confirmTaskCompletion(requiredCount) {
@@ -2098,21 +2134,44 @@ function initialiseTaskCompletionEnforcement() {
       const item = event.target.closest('[data-required-checklist-item]');
       if (item) item.classList.toggle('is-complete', event.target.checked);
     });
+    form.querySelector('[name="completion_note"]')?.addEventListener('input', (event) => {
+      const validation = validateTaskProgressNote(event.target.value);
+      event.target.setAttribute('aria-invalid', validation.valid ? 'false' : 'true');
+      const noteError = form.querySelector('[data-task-note-error]');
+      if (noteError) noteError.hidden = validation.valid;
+    });
     form.addEventListener('submit', async (event) => {
+      event.preventDefault();
       const validation = validateTaskProgressForm(form);
       if (!validation.valid) {
-        event.preventDefault();
         showTaskCompletionError(form.dataset.taskId, validation.message, validation.incomplete);
         return;
       }
       if (form.querySelector('[name="status"]')?.value === 'complete' && form.dataset.completionConfirmed !== 'true') {
-        event.preventDefault();
         const requiredCount = form.querySelectorAll('[data-required-checklist-item]').length;
-        if (await confirmTaskCompletion(requiredCount)) {
-          form.dataset.completionConfirmed = 'true';
-          form.requestSubmit(event.submitter || undefined);
-        }
+        if (!await confirmTaskCompletion(requiredCount)) return;
+        form.dataset.completionConfirmed = 'true';
       }
+      const submit = event.submitter || form.querySelector('[type="submit"]');
+      if (submit?.disabled) return;
+      if (submit) submit.disabled = true;
+      try {
+        const data = new FormData(form);
+        data.set('action', 'update_task_progress');
+        const response = await fetch(window.location.href, {method:'POST',body:data,credentials:'same-origin',headers:{Accept:'application/json'}});
+        const result = await response.json();
+        if (!response.ok || result.success !== true) throw new Error(result.message || 'Unable to save task progress.');
+        const note = form.querySelector('[name="completion_note"]');
+        if (note) { note.value = ''; note.setAttribute('aria-invalid', 'false'); }
+        const noteError = form.querySelector('[data-task-note-error]');
+        if (noteError) noteError.hidden = true;
+        const completionError = form.querySelector('[data-task-completion-error]');
+        if (completionError) completionError.hidden = true;
+        form.dataset.completionConfirmed = 'false';
+        if (submit) { submit.textContent = 'Saved'; window.setTimeout(() => { submit.textContent = 'Save progress'; }, 1400); }
+      } catch (error) {
+        showTaskCompletionError(form.dataset.taskId, error.message, []);
+      } finally { if (submit) submit.disabled = false; }
     });
   });
 }
@@ -2180,8 +2239,9 @@ function initialiseTaskStatusWorkflow() {
       const previousDisplay = row?.dataset.displayStatus || previousSaved;
       const nextStatus = option.dataset.statusKey;
       if (!row || !['new', 'in_progress', 'complete'].includes(nextStatus)) return;
+      const completionForm = document.querySelector(`[data-task-progress-form][data-task-id="${row.dataset.taskId}"]`);
+      let progressNote = '';
       if (nextStatus === 'complete') {
-        const completionForm = document.querySelector(`[data-task-progress-form][data-task-id="${row.dataset.taskId}"]`);
         const validation = completionForm ? validateTaskProgressForm(completionForm) : { valid:true, incomplete:[] };
         if (!validation.valid) {
           close();
@@ -2190,6 +2250,13 @@ function initialiseTaskStatusWorkflow() {
         }
         const requiredCount = completionForm?.querySelectorAll('[data-required-checklist-item]').length || 0;
         if (!await confirmTaskCompletion(requiredCount)) { close(); return; }
+        progressNote = validation.note || '';
+      } else {
+        const enteredNote = window.prompt('Enter a note explaining the progress or work completed:');
+        if (enteredNote === null) { close(); return; }
+        const noteValidation = validateTaskProgressNote(enteredNote);
+        if (!noteValidation.valid) { window.alert(noteValidation.message); close(); return; }
+        progressNote = noteValidation.value;
       }
       const triggerForSave = activeTrigger;
       close();
@@ -2200,6 +2267,7 @@ function initialiseTaskStatusWorkflow() {
         formData.append('action', 'update_task_status');
         formData.append('task_id', row.dataset.taskId);
         formData.append('status', nextStatus);
+        formData.append('completion_note', progressNote);
         const response = await fetch(window.location.href, { method:'POST', body:formData, credentials:'same-origin', headers:{ Accept:'application/json' } });
         const result = await response.json();
         if (!response.ok || result.success !== true) {
@@ -2315,6 +2383,7 @@ function initialiseTaskSections() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  initialiseTaskAttachments();
   initialiseTaskTools();
   initialiseTaskRowMenus();
   initialiseTaskBulkSelection();
@@ -2326,18 +2395,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 document.addEventListener('click', (event) => {
-  const panelJump = event.target.closest('[data-task-panel-jump]');
-  if (panelJump) {
-    const tabs = panelJump.closest('.task-panel-tabs')?.querySelectorAll('[data-task-panel-jump]') || [];
-    tabs.forEach((tab) => {
-      const selected = tab === panelJump;
-      tab.classList.toggle('is-active', selected);
-      tab.setAttribute('aria-selected', selected ? 'true' : 'false');
-    });
-    const target = document.getElementById(panelJump.dataset.taskPanelJump);
-    target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    return;
-  }
   const viewButton = event.target.closest('.task-view-btn');
   if (viewButton) {
     viewButton.classList.remove('is-clicked');
@@ -2364,7 +2421,7 @@ document.addEventListener('click', (event) => {
     const panel = document.querySelector(`[data-task-panel="${open.dataset.taskOpen}"]`);
     if (panel) {
       initializePortalCustomSelects(panel);
-      initialiseTaskProofUpload(panel);
+      initialiseTaskAttachments(panel);
       acknowledgeTaskOpen(open.dataset.taskOpen, panel);
       panel.classList.add('open');
       panel.setAttribute('aria-hidden', 'false');
@@ -2444,7 +2501,7 @@ window.openTaskPanel = function (taskId) {
   const panel = document.querySelector(`[data-task-panel="${String(taskId).replace(/[^0-9]/g, '')}"]`);
   if (!panel) return false;
   initializePortalCustomSelects(panel);
-  initialiseTaskProofUpload(panel);
+  initialiseTaskAttachments(panel);
   acknowledgeTaskOpen(taskId, panel);
   panel.classList.add('open');
   panel.setAttribute('aria-hidden', 'false');
