@@ -84,6 +84,9 @@ const portalCustomSelectOverlay = (() => {
     popupElement.replaceChildren();
     popupElement.scrollTop = 0;
     if (!activeControl) return;
+    const selectVariant = activeControl.nativeSelect.dataset.portalSelectVariant || '';
+    if (selectVariant) popupElement.dataset.portalSelectVariant = selectVariant;
+    else delete popupElement.dataset.portalSelectVariant;
     Array.from(activeControl.nativeSelect.options).forEach((option, optionIndex) => {
       const button = document.createElement('button');
       button.type = 'button';
@@ -92,6 +95,7 @@ const portalCustomSelectOverlay = (() => {
       button.setAttribute('aria-selected', optionIndex === activeControl.nativeSelect.selectedIndex ? 'true' : 'false');
       button.classList.toggle('is-selected', optionIndex === activeControl.nativeSelect.selectedIndex);
       button.dataset.optionIndex = String(optionIndex);
+      if (option.dataset.paymentOption) button.dataset.paymentOption = option.dataset.paymentOption;
       button.textContent = option.textContent;
       button.disabled = option.disabled;
       button.tabIndex = -1;
@@ -221,6 +225,7 @@ const portalCustomSelectOverlay = (() => {
       popup.setAttribute('aria-hidden', 'true');
       popup.removeAttribute('aria-labelledby');
       delete popup.dataset.placement;
+      delete popup.dataset.portalSelectVariant;
     }
     if (returnFocus && control.trigger.isConnected) {
       control.trigger.focus({ preventScroll: true });
@@ -332,9 +337,22 @@ function initialisePortalCustomSelects(root = document) {
     nativeSelect.insertAdjacentElement('afterend', customSelect);
     const trigger = customSelect.querySelector('.portal-custom-select-trigger');
     const valueLabel = customSelect.querySelector('.portal-custom-select-value');
+    const selectVariant = nativeSelect.dataset.portalSelectVariant || '';
+    if (selectVariant) customSelect.dataset.portalSelectVariant = selectVariant;
+    if (selectVariant === 'payment-method') {
+      customSelect.dataset.paymentMethodControl = '';
+      trigger.dataset.paymentMethodTrigger = '';
+      trigger.classList.add('payment-method-trigger');
+      valueLabel.dataset.paymentMethodLabel = '';
+      nativeSelect.dataset.paymentMethodInput = '';
+    }
     const sync = () => {
-      const selectedText = nativeSelect.selectedOptions[0]?.textContent?.trim() || '';
+      const selectedOption = nativeSelect.selectedOptions[0];
+      const selectedText = selectedOption?.textContent?.trim() || '';
       valueLabel.textContent = selectedText;
+      if (selectVariant === 'payment-method') {
+        customSelect.dataset.paymentValue = selectedOption?.dataset.paymentOption || '';
+      }
       trigger.setAttribute(
         'aria-label',
         accessibleLabel ? `${accessibleLabel}: ${selectedText}` : selectedText,
