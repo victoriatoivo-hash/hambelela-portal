@@ -441,7 +441,7 @@
     controls.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button portal-toolbar-action" data-view-action="filter" data-toolbar-action="filter" aria-expanded="false">${icon('filter')}<span>Filter</span><strong class="portal-toolbar-filter-count" data-filter-count hidden>0</strong></button>`);
     if (surface) {
       controls.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button portal-toolbar-action" data-view-action="sort" data-toolbar-action="sort" aria-expanded="false">${icon('arrow-up-down')}<span>Sort</span></button>`);
-      if (type !== 'tasks') controls.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button portal-toolbar-action" data-view-action="hide" data-toolbar-action="hide" aria-expanded="false">${icon('eye-off')}<span>Hide</span></button>`);
+      if (type !== 'tasks' && type !== 'errors') controls.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button portal-toolbar-action" data-view-action="hide" data-toolbar-action="hide" aria-expanded="false">${icon('eye-off')}<span>Hide</span></button>`);
     }
     if (group || surface) controls.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button portal-toolbar-action" data-view-action="group" data-toolbar-action="group" aria-expanded="false">${icon('columns-3')}<span>Group by</span></button>`);
     if (type === 'packing') {
