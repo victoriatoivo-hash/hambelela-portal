@@ -65,6 +65,7 @@
   let panelSelectedFiles = [];
   let syncInFlight = null;
   let syncInFlightForced = false;
+  let manualOrdersSyncInFlight = null;
   let refreshInFlight = null;
   let liveCursor = '';
   let liveFailures = 0;
@@ -405,7 +406,33 @@
   function setButtonBusy(button, busy) {
     if (!button) return;
     button.classList.toggle('is-loading', busy);
+    if (button.matches('[data-orders-sync]')) {
+      button.classList.toggle('is-syncing', busy);
+      button.setAttribute('aria-busy', busy ? 'true' : 'false');
+    }
     button.disabled = busy;
+  }
+
+  function showOrdersToast(message, type = 'success') {
+    let container = document.querySelector('.portal-toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.className = 'portal-toast-container';
+      container.setAttribute('aria-live', 'polite');
+      document.body.appendChild(container);
+    }
+    const toast = document.createElement('article');
+    toast.className = `portal-toast orders-sync-toast is-${type}`;
+    toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+    toast.innerHTML = `<button type="button" class="portal-toast-close" aria-label="Close notification">×</button><p class="portal-toast-title">${type === 'error' ? 'Orders sync failed' : 'Orders updated'}</p><p class="portal-toast-message">${esc(message)}</p>`;
+    container.appendChild(toast);
+    const close = () => {
+      if (!toast.isConnected) return;
+      toast.classList.add('is-leaving');
+      window.setTimeout(() => toast.remove(), 220);
+    };
+    toast.querySelector('.portal-toast-close')?.addEventListener('click', close, { once:true });
+    window.setTimeout(close, 4200);
   }
 
   function columnHeader(definition) {
@@ -4117,6 +4144,44 @@
     }
   }
 
+  async function refreshOrders({ source = 'manual', trigger = null, syncSource = true, background = false } = {}) {
+    const manual = source === 'manual';
+    if (manual && manualOrdersSyncInFlight) return manualOrdersSyncInFlight;
+    const run = async () => {
+      let sourceError = null;
+      setButtonBusy(trigger, true);
+      try {
+        if (refreshInFlight) await refreshInFlight.catch(() => {});
+        if (syncSource) {
+          try {
+            await syncWebsite(!manual, null, manual);
+          } catch (error) {
+            sourceError = error;
+            if (manual) throw error;
+          }
+        }
+        await refresh(null, { background, preservePosition:true });
+        if (sourceError) throw sourceError;
+        page.dataset.lastSyncedAt = new Date().toISOString();
+        if (manual) showOrdersToast('Orders synced successfully.', 'success');
+      } catch (error) {
+        showError(error);
+        if (manual) showOrdersToast('Orders could not be synced. Please try again.', 'error');
+        throw error;
+      } finally {
+        setButtonBusy(trigger, false);
+      }
+    };
+    const request = run();
+    if (!manual) return request;
+    manualOrdersSyncInFlight = request;
+    try {
+      return await request;
+    } finally {
+      if (manualOrdersSyncInFlight === request) manualOrdersSyncInFlight = null;
+    }
+  }
+
   function showError(error) {
     const message = String(error?.message || error || 'Something went wrong');
     if (syncState) {
@@ -4661,7 +4726,11 @@
 
       if (toolbarAction) {
         const action = toolbarAction.dataset.toolbarAction;
-        if (action === 'sync') await syncWebsite(false, toolbarAction, true).then(refresh);
+        if (action === 'sync') {
+          event.preventDefault();
+          event.stopPropagation();
+          await refreshOrders({ source:'manual', trigger:toolbarAction }).catch(() => {});
+        }
         else if (action === 'theme') {
           const next = page.dataset.boardTheme === 'dark' ? 'light' : 'dark';
           page.dataset.boardTheme = next;
@@ -4749,9 +4818,7 @@
         await refresh();
       }
 
-      if (sync) {
-        await syncWebsite(false, sync, true).then(refresh);
-      }
+      if (sync) await refreshOrders({ source:'manual', trigger:sync }).catch(() => {});
       if (refreshButton) {
         lastSyncMessage = '';
         setButtonBusy(refreshButton, true);
@@ -5085,21 +5152,13 @@
   async function runLivePoll() {
     if (livePollInFlight) return;
     livePollInFlight = true;
-    let recoveryError = null;
     try {
-      if (
+      const shouldSyncSource = (
         document.visibilityState !== 'hidden'
         && Date.now() - lastRecoverySyncAt >= sourceRecoveryInterval
-      ) {
-        lastRecoverySyncAt = Date.now();
-        try {
-          await syncWebsite(true);
-        } catch (error) {
-          recoveryError = error;
-        }
-      }
-      await refresh(null, { background:true });
-      if (recoveryError) showError(recoveryError);
+      );
+      if (shouldSyncSource) lastRecoverySyncAt = Date.now();
+      await refreshOrders({ source:'background', syncSource:shouldSyncSource, background:true });
     } catch (error) {
       showError(error);
     } finally {
@@ -5124,8 +5183,7 @@
           if (document.visibilityState !== 'hidden') {
             lastRecoverySyncAt = Date.now();
             try {
-              await syncWebsite(true);
-              await refresh(null, { background:true });
+              await refreshOrders({ source:'background', syncSource:true, background:true });
             } catch (error) {
               if (syncState) syncState.textContent = `Sync issue: ${error.message}`;
             }

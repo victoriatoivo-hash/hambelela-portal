@@ -85,7 +85,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 <button type="button" class="portal-toolbar-action" data-toolbar="filter" data-toolbar-action="filter" aria-expanded="false"><i data-lucide="filter"></i> Filter</button>
                 <button type="button" class="portal-toolbar-action" data-toolbar="sort" data-toolbar-action="sort" aria-expanded="false"><i data-lucide="arrow-up-down"></i> Sort</button>
                 <button type="button" class="portal-toolbar-action" data-toolbar="group" data-toolbar-action="group" aria-expanded="false"><i data-lucide="columns-3"></i> Group by</button>
-                <button type="button" class="ob-new-task portal-toolbar-action" data-board-action="sync" data-toolbar-action="sync"><i data-lucide="refresh-cw"></i><span>Sync</span></button>
+                <button type="button" class="ob-new-task portal-toolbar-action orders-toolbar__sync" data-board-action="sync" data-toolbar-action="sync" data-orders-sync aria-label="Sync orders" aria-busy="false"><i class="orders-toolbar__sync-icon" data-lucide="refresh-cw" aria-hidden="true"></i><span>Sync</span></button>
             </div>
             <button type="button" class="portal-toolbar-action portal-toolbar-action--more" data-toolbar="more" data-toolbar-action="tools" aria-label="More tools" aria-expanded="false"><i data-lucide="ellipsis"></i></button>
         </section>
