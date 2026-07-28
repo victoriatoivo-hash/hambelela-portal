@@ -26,6 +26,8 @@ $showFullErrorLog = $isOwnerErrorUser;
 
 $severityLabels = ['critical' => 'Critical', 'high' => 'High', 'medium' => 'Medium', 'low' => 'Low'];
 $statusLabels = ['open' => 'Not Resolved', 'resolved' => 'Resolved'];
+$severityChoiceColours = ['critical' => ['#BB1B21', '#FFFFFF'], 'high' => ['#F07420', '#FFFFFF'], 'medium' => ['#AB3619', '#FFFFFF'], 'low' => ['#A8CA19', '#263400']];
+$statusChoiceColours = ['open' => ['#BB1B21', '#FFFFFF'], 'resolved' => ['#A8CA19', '#263400']];
 $errorCategories = [
     'wrong_product_packed' => 'Wrong Product Packed',
     'wrong_quantity_packed' => 'Wrong Quantity Packed',
@@ -731,24 +733,30 @@ include BASE_PATH . '/shared/sidebar.php';
                             </div>
                         </div>
                     </div>
-                    <div class="incident-field incident-pill-field severity-choice severity-group" id="severity-group">
-                        <label class="incident-pill-label" for="severityValue">Severity <span class="required">*</span></label>
-                        <input type="hidden" name="severity" id="severityValue" required>
-                        <div class="incident-pill-group">
+                    <fieldset class="incident-choice-field" id="severity-group">
+                        <legend class="incident-choice-field__label">Severity <span aria-hidden="true">*</span></legend>
+                        <div class="incident-choice-control incident-choice-control--severity" data-incident-choice="severity">
                             <?php foreach ($severityLabels as $value => $label): ?>
-                                <button class="pill-option severity-btn severity-<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?>" type="button" data-severity="<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></button>
+                                <?php [$choiceColour, $choiceText] = $severityChoiceColours[$value]; ?>
+                                <label class="incident-choice" style="--choice-color:<?= $choiceColour ?>;--choice-text:<?= $choiceText ?>">
+                                    <input class="incident-choice__input" type="radio" name="severity" value="<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?>" required>
+                                    <span class="incident-choice__content"><span class="incident-choice__indicator" aria-hidden="true"></span><span><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></span><span class="incident-choice__check" aria-hidden="true">&#10003;</span></span>
+                                </label>
                             <?php endforeach; ?>
                         </div>
-                    </div>
-                    <div class="incident-field incident-pill-field status-choice status-group" id="status-group">
-                        <label class="incident-pill-label" for="statusValue">Status <span class="required">*</span></label>
-                        <input type="hidden" name="status" id="statusValue" value="open" required>
-                        <div class="incident-pill-group">
+                    </fieldset>
+                    <fieldset class="incident-choice-field" id="status-group">
+                        <legend class="incident-choice-field__label">Status <span aria-hidden="true">*</span></legend>
+                        <div class="incident-choice-control incident-choice-control--status" data-incident-choice="status">
                             <?php foreach ($statusLabels as $value => $label): ?>
-                                <button class="pill-option status-btn status-<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?> <?= $value === 'open' ? 'active' : '' ?>" type="button" data-status="<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></button>
+                                <?php [$choiceColour, $choiceText] = $statusChoiceColours[$value]; ?>
+                                <label class="incident-choice" style="--choice-color:<?= $choiceColour ?>;--choice-text:<?= $choiceText ?>">
+                                    <input class="incident-choice__input" type="radio" name="status" value="<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?>" <?= $value === 'open' ? 'checked' : '' ?> required>
+                                    <span class="incident-choice__content"><span class="incident-choice__indicator" aria-hidden="true"></span><span><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></span><span class="incident-choice__check" aria-hidden="true">&#10003;</span></span>
+                                </label>
                             <?php endforeach; ?>
                         </div>
-                    </div>
+                    </fieldset>
                 </section>
 
                 <section class="error-form-section incident-section">
@@ -763,10 +771,12 @@ include BASE_PATH . '/shared/sidebar.php';
                             <label><input type="checkbox" name="people_involved[]" value="<?= (int) $employee['id'] ?>"><span><?= htmlspecialchars(ucwords(strtolower((string) $employee['full_name'])), ENT_QUOTES, 'UTF-8') ?></span></label>
                         <?php endforeach; ?>
                     </div>
-                    <fieldset class="repeat-choice">
-                        <legend>Is this a repeat error?</legend>
-                        <label><input type="radio" name="repeat_issue" value="0" checked><span>No</span></label>
-                        <label><input type="radio" name="repeat_issue" value="1"><span>Yes</span></label>
+                    <fieldset class="incident-choice-field">
+                        <legend class="incident-choice-field__label">Is this a repeat error?</legend>
+                        <div class="incident-choice-control incident-choice-control--repeat" data-incident-choice="repeat">
+                            <label class="incident-choice" style="--choice-color:#A8CA19;--choice-text:#263400"><input class="incident-choice__input" type="radio" name="repeat_issue" value="0" checked><span class="incident-choice__content"><span class="incident-choice__indicator" aria-hidden="true"></span><span>No</span><span class="incident-choice__check" aria-hidden="true">&#10003;</span></span></label>
+                            <label class="incident-choice" style="--choice-color:#F07420;--choice-text:#FFFFFF"><input class="incident-choice__input" type="radio" name="repeat_issue" value="1"><span class="incident-choice__content"><span class="incident-choice__indicator" aria-hidden="true"></span><span>Yes</span><span class="incident-choice__check" aria-hidden="true">&#10003;</span></span></label>
+                        </div>
                     </fieldset>
                 </section>
 
@@ -901,9 +911,10 @@ include BASE_PATH . '/shared/sidebar.php';
 <script>
 let pendingDeleteForm = null;
 
-function setIncidentPillValue(selector, dataAttr, value) {
-  document.querySelectorAll(`#logErrorForm ${selector}`).forEach((button) => {
-    button.classList.toggle('active', button.dataset[dataAttr] === value);
+function setIncidentRadioValue(name, value) {
+  document.querySelectorAll(`#logErrorForm [name="${name}"]`).forEach((input) => {
+    input.checked = input.value === String(value);
+    input.setCustomValidity('');
   });
 }
 
@@ -956,13 +967,9 @@ function openIncidentForm(mode = 'create', data = {}) {
   }
 
   setIncidentCategoryValue(mode === 'edit' ? (data.category || '') : '', mode === 'edit' ? (data.other_category || '') : '');
-  setIncidentPillValue('.severity-btn', 'severity', mode === 'edit' ? (data.severity || '') : '');
-  setIncidentPillValue('.status-btn', 'status', mode === 'edit' ? (data.status || 'open') : 'open');
-
-  const severityValue = document.getElementById('severityValue');
-  const statusValue = document.getElementById('statusValue');
-  if (severityValue) severityValue.value = mode === 'edit' ? (data.severity || '') : '';
-  if (statusValue) statusValue.value = mode === 'edit' ? (data.status || 'open') : 'open';
+  setIncidentRadioValue('severity', mode === 'edit' ? (data.severity || '') : '');
+  setIncidentRadioValue('status', mode === 'edit' ? (data.status || 'open') : 'open');
+  setIncidentRadioValue('repeat_issue', mode === 'edit' ? Number(data.repeat_issue || 0) : 0);
 
   if (mode === 'edit') {
     form.elements.error_title.value = data.error_title || '';
@@ -973,8 +980,6 @@ function openIncidentForm(mode = 'create', data = {}) {
     form.querySelectorAll('[name="people_involved[]"]').forEach((checkbox) => {
       checkbox.checked = (data.people_involved || []).map(String).includes(String(checkbox.value));
     });
-    const repeat = form.querySelector(`[name="repeat_issue"][value="${Number(data.repeat_issue || 0)}"]`);
-    if (repeat) repeat.checked = true;
   }
 
   document.querySelectorAll('.error-detail-panel.open').forEach((openPanel) => openPanel.classList.remove('open'));
@@ -1105,8 +1110,6 @@ document.querySelectorAll('.incident-details-panel').forEach((panel) => {
 });
 
 document.addEventListener('click', (event) => {
-  const severityButton = event.target.closest('#logErrorForm .severity-btn');
-  const statusButton = event.target.closest('#logErrorForm .status-btn');
   const modalOpen = event.target.closest('[data-error-modal-open]');
   const modalClose = event.target.closest('[data-error-modal-close]');
   const detailOpen = event.target.closest('[data-error-open]');
@@ -1121,28 +1124,6 @@ document.addEventListener('click', (event) => {
     void uploadZone.offsetWidth;
     uploadZone.classList.add('is-clicking');
     window.setTimeout(() => uploadZone.classList.remove('is-clicking'), 460);
-  }
-  if (severityButton) {
-    document.querySelectorAll('#logErrorForm .severity-btn').forEach((button) => button.classList.remove('active'));
-    severityButton.classList.add('active');
-    const severityValue = document.getElementById('severityValue');
-    if (severityValue) {
-      severityValue.value = severityButton.dataset.severity || '';
-      severityValue.setCustomValidity('');
-    }
-    const error = document.getElementById('severity-group-error');
-    if (error) error.remove();
-  }
-  if (statusButton) {
-    document.querySelectorAll('#logErrorForm .status-btn').forEach((button) => button.classList.remove('active'));
-    statusButton.classList.add('active');
-    const statusValue = document.getElementById('statusValue');
-    if (statusValue) {
-      statusValue.value = statusButton.dataset.status || 'open';
-      statusValue.setCustomValidity('');
-    }
-    const error = document.getElementById('status-group-error');
-    if (error) error.remove();
   }
   if (modalOpen) {
     openIncidentForm('create');
@@ -1320,9 +1301,19 @@ document.querySelectorAll('[data-custom-select]').forEach((select) => {
   });
 });
 
+document.getElementById('logErrorForm')?.addEventListener('change', function(event) {
+  const input = event.target.closest('.incident-choice__input');
+  if (!input) return;
+  this.querySelectorAll(`[name="${input.name}"]`).forEach((choice) => choice.setCustomValidity(''));
+  if (input.name === 'severity') document.getElementById('severity-group-error')?.remove();
+  if (input.name === 'status') document.getElementById('status-group-error')?.remove();
+});
+
 document.getElementById('logErrorForm')?.addEventListener('submit', function(event) {
-  const severityValue = document.getElementById('severityValue');
-  const statusValue = document.getElementById('statusValue');
+  const severityValue = this.querySelector('[name="severity"]:checked');
+  const severityControl = this.querySelector('[name="severity"]');
+  const statusValue = this.querySelector('[name="status"]:checked');
+  const statusControl = this.querySelector('[name="status"]');
   const categoryValue = document.getElementById('error-category-value');
   const otherCategoryInput = document.getElementById('incident-other-category');
   const description = this.querySelector('[name="description"]');
@@ -1352,12 +1343,12 @@ document.getElementById('logErrorForm')?.addEventListener('submit', function(eve
   }
   if (!severity) {
     hasError = true;
-    severityValue?.setCustomValidity('Please select a severity level.');
+    severityControl?.setCustomValidity('Please select a severity level.');
     showFieldError('severity-group', 'Please select a severity level.');
   }
   if (!status) {
     hasError = true;
-    statusValue?.setCustomValidity('Please select a status.');
+    statusControl?.setCustomValidity('Please select a status.');
     showFieldError('status-group', 'Please select a status.');
   }
   if (!descriptionText) {
@@ -1373,9 +1364,9 @@ document.getElementById('logErrorForm')?.addEventListener('submit', function(eve
       otherCategoryInput?.reportValidity();
       otherCategoryInput?.focus();
     } else if (!severity) {
-      this.querySelector('.severity-btn')?.focus();
+      severityControl?.focus();
     } else if (!status) {
-      this.querySelector('.status-btn')?.focus();
+      statusControl?.focus();
     } else {
       description?.focus();
     }
