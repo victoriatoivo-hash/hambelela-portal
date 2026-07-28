@@ -35,7 +35,7 @@ $types = [
     'saturday' => 'Saturday',
     'stock_refill' => 'Stock refill',
 ];
-$priorities = ['low' => 'Low', 'medium' => 'Medium', 'high' => 'High', 'top_critical' => 'Top Critical'];
+$priorities = ['normal' => 'Normal', 'important' => 'Important', 'urgent' => 'Urgent'];
 $statuses = ['new' => 'New', 'pending' => 'Pending', 'in_progress' => 'In Progress', 'blocked' => 'Blocked', 'complete' => 'Complete', 'cancelled' => 'Cancelled'];
 $groups = [
     'new' => 'New',
@@ -81,7 +81,7 @@ function checklist_bootstrap_schema(): void
     checklist_try_sql("ALTER TABLE ops_checklist_tasks MODIFY status VARCHAR(40) NOT NULL DEFAULT 'pending'");
     checklist_try_sql("ALTER TABLE ops_checklist_tasks MODIFY checklist_type VARCHAR(40) NOT NULL DEFAULT 'opening'");
     $columns = [
-        'priority' => "ALTER TABLE ops_checklist_tasks ADD COLUMN priority VARCHAR(30) NOT NULL DEFAULT 'medium' AFTER task_name",
+        'priority' => "ALTER TABLE ops_checklist_tasks ADD COLUMN priority VARCHAR(30) NOT NULL DEFAULT 'normal' AFTER task_name",
         'date_assigned' => "ALTER TABLE ops_checklist_tasks ADD COLUMN date_assigned DATETIME NULL AFTER assigned_employee_id",
         'instructions' => "ALTER TABLE ops_checklist_tasks ADD COLUMN instructions TEXT NULL AFTER notes",
         'checklist_items' => "ALTER TABLE ops_checklist_tasks ADD COLUMN checklist_items TEXT NULL AFTER instructions",
@@ -120,13 +120,15 @@ function checklist_bootstrap_schema(): void
     checklist_try_sql("ALTER TABLE ops_checklist_tasks MODIFY performance_scored TINYINT(1) NOT NULL DEFAULT 1");
     checklist_try_sql("UPDATE ops_checklist_tasks SET completion_note_required = 1, employee_visible = 1 WHERE status NOT IN ('complete', 'completed', 'cancelled') AND deleted_at IS NULL");
     checklist_try_sql("UPDATE ops_checklist_tasks SET performance_scored = 1 WHERE assigned_employee_id IS NOT NULL AND status NOT IN ('cancelled', 'deleted', 'trashed') AND deleted_at IS NULL AND archived_at IS NULL");
+    checklist_try_sql("UPDATE ops_checklist_tasks SET priority = CASE WHEN priority IN ('top_critical') THEN 'urgent' WHEN priority IN ('high') THEN 'important' ELSE 'normal' END WHERE priority NOT IN ('normal', 'important', 'urgent')");
+    checklist_try_sql("UPDATE ops_checklist_recurring_templates SET priority = CASE WHEN priority IN ('top_critical') THEN 'urgent' WHEN priority IN ('high') THEN 'important' ELSE 'normal' END WHERE priority NOT IN ('normal', 'important', 'urgent')");
     db()->exec(
         "CREATE TABLE IF NOT EXISTS ops_checklist_recurring_templates (
             id INT AUTO_INCREMENT PRIMARY KEY,
             template_key VARCHAR(120) NULL UNIQUE,
             task_name VARCHAR(190) NOT NULL,
             checklist_type VARCHAR(40) NOT NULL DEFAULT 'opening',
-            priority VARCHAR(30) NOT NULL DEFAULT 'medium',
+            priority VARCHAR(30) NOT NULL DEFAULT 'normal',
             assigned_employee_id INT NULL,
             recurring_rule VARCHAR(80) NOT NULL,
             due_time TIME NOT NULL DEFAULT '09:00:00',
@@ -338,9 +340,9 @@ function checklist_seed_default_recurring_templates(): void
 {
     if (!ops_table_exists('ops_checklist_recurring_templates')) return;
     $defaults = [
-        ['daily-stock', 'Stock up shelves before opening', 'stock_refill', 'top_critical', 'daily_business_day', '08:00:00', 'Stock all shelves before opening and note any low-stock products.', checklist_shelf_template_items()],
-        ['cleaning-twice-weekly', 'Packing area cleaning', 'cleaning', 'high', 'twice_weekly', '16:30:00', 'Complete the scheduled packing-area cleaning checklist.', checklist_cleaning_template_items()],
-        ['saturday-bottle-wash', 'Saturday bottle/container washing', 'saturday', 'top_critical', 'weekly_saturday', '13:00:00', 'Wash reusable bottles and containers, then reset the packing area.', ['Wash dishes/containers', 'Clean tables', 'Clean workspace', 'Organize packing area']],
+        ['daily-stock', 'Stock up shelves before opening', 'stock_refill', 'urgent', 'daily_business_day', '08:00:00', 'Stock all shelves before opening and note any low-stock products.', checklist_shelf_template_items()],
+        ['cleaning-twice-weekly', 'Packing area cleaning', 'cleaning', 'important', 'twice_weekly', '16:30:00', 'Complete the scheduled packing-area cleaning checklist.', checklist_cleaning_template_items()],
+        ['saturday-bottle-wash', 'Saturday bottle/container washing', 'saturday', 'urgent', 'weekly_saturday', '13:00:00', 'Wash reusable bottles and containers, then reset the packing area.', ['Wash dishes/containers', 'Clean tables', 'Clean workspace', 'Organize packing area']],
     ];
     $stmt = db()->prepare(
         "INSERT INTO ops_checklist_recurring_templates
@@ -672,7 +674,8 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                      (task_name, checklist_type, priority, assigned_employee_id, recurring_rule, due_time, instructions, checklist_items, employee_visible, is_active, created_by)
                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)"
                 );
-                $templateStmt->execute([$taskName, ops_post_string('checklist_type', 30) ?: 'opening', ops_post_string('priority', 30) ?: 'medium', $assignedId > 0 ? $assignedId : null, $recurringRule, $dueTime, ops_post_string('instructions', 1500), checklist_items_from_text((string) ($_POST['checklist_items_text'] ?? '')), $employeeVisible, $currentEmployeeId]);
+                $submittedPriority = ops_post_string('priority', 30);
+                $templateStmt->execute([$taskName, 'opening', array_key_exists($submittedPriority, $priorities) ? $submittedPriority : 'normal', $assignedId > 0 ? $assignedId : null, $recurringRule, $dueTime, ops_post_string('instructions', 1500), checklist_items_from_text((string) ($_POST['checklist_items_text'] ?? '')), $employeeVisible, $currentEmployeeId]);
                 $templateId = (int) db()->lastInsertId();
               }
             $stmt = $taskDb->prepare(
@@ -681,9 +684,9 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                  VALUES (?, ?, ?, ?, NOW(), ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             );
             $stmt->execute([
-                ops_post_string('checklist_type', 30) ?: 'opening',
+                'opening',
                 $taskName,
-                ops_post_string('priority', 30) ?: 'medium',
+                array_key_exists(ops_post_string('priority', 30), $priorities) ? ops_post_string('priority', 30) : 'normal',
                 $assignedId > 0 ? $assignedId : null,
                 $deadline ?: null,
                 ops_post_string('instructions', 1500),
@@ -730,7 +733,8 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $taskDb->beginTransaction();
             try {
                 $stmt = $taskDb->prepare("UPDATE ops_checklist_tasks SET assigned_employee_id = ?, deadline = ?, priority = ?, status = ?, employee_visible = 1, completion_note_required = 1, completion_evidence_required = 0, performance_scored = 1 WHERE id = ?");
-                $stmt->execute([$assignedId > 0 ? $assignedId : null, $deadline ?: null, ops_post_string('priority', 30) ?: 'medium', $status, $taskId]);
+                $submittedPriority = ops_post_string('priority', 30);
+                $stmt->execute([$assignedId > 0 ? $assignedId : null, $deadline ?: null, array_key_exists($submittedPriority, $priorities) ? $submittedPriority : 'normal', $status, $taskId]);
                 checklist_kpi_status_event($taskId, $oldStatus, $status, $currentEmployeeId);
                 ops_activity_log('task_admin_updated', 'checklist_task', $taskId, ['status' => $status, 'previous_assigned_employee_id' => $oldAssignedId ?: null, 'assigned_employee_id' => $assignedId ?: null]);
                 if ($assignedId > 0 && $assignedId !== $oldAssignedId && !notifications_notify_task_assigned($taskId, $assignedId, (string) ($oldRows[0]['task_name'] ?? 'Checklist task'))) {
@@ -1086,38 +1090,45 @@ include BASE_PATH . '/shared/sidebar.php';
 
     <?php if ($canManage): ?>
         <aside class="task-create-panel create-task-panel" data-task-create-panel aria-hidden="true">
-            <header class="create-task-header">
+            <header class="create-task-header task-create-heading">
                 <button class="create-task-close" type="button" data-task-create-close aria-label="Close create task"><i data-lucide="x"></i></button>
-                <div><span class="create-task-type-badge">Manual task</span><h2 class="create-task-title">Create task</h2></div>
+                <div class="task-create-heading__copy"><span class="create-task-type-badge">Manual task</span><h2 class="create-task-title">Create task</h2></div>
+                <button type="button" class="task-template-trigger" data-task-template-trigger>Use template</button>
+                <div class="task-template-menu" data-task-template-menu hidden>
+                    <label for="task-template-search">Search templates</label><input id="task-template-search" type="search" placeholder="Search templates" data-task-template-search>
+                    <button type="button" data-task-template="cleaning">Cleaning</button><button type="button" data-task-template="opening">Opening routine</button><button type="button" data-task-template="closing">Closing routine</button><button type="button" data-task-template="courier">Courier preparation</button><button type="button" data-task-template="stock">Stock update</button>
+                </div>
             </header>
-            <div class="create-task-body">
-                <form class="create-task-form-card checklist-create-form" method="post">
+            <div class="create-task-body task-create-shell">
+                <form class="task-create-form checklist-create-form" method="post" data-task-create-form novalidate>
                     <input type="hidden" name="action" value="create_task">
-                    <div class="create-task-grid">
-                        <div class="create-task-field"><label for="create-task-type">Task type</label><select id="create-task-type" name="checklist_type" data-portal-custom-select><?php ops_select_options($types); ?></select></div>
-                        <div class="create-task-field"><label for="create-task-assignee">Assigned person</label><select id="create-task-assignee" name="assigned_employee_id" required data-portal-custom-select><option value="">Choose employee</option><?php foreach ($employees as $employee): ?><option value="<?= (int) $employee['id'] ?>"><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></div>
-                        <div class="create-task-field"><label for="create-task-priority">Priority</label><select id="create-task-priority" name="priority" data-portal-custom-select><?php ops_select_options($priorities, 'medium'); ?></select></div>
-                        <div class="create-task-field"><label for="create-task-deadline-display">Due date</label><div class="portal-date-field" data-portal-date-field><input id="create-task-deadline-display" type="text" class="portal-date-input" data-enable-time="true" data-submit-target="#create-task-deadline" placeholder="dd/mm/yyyy --:--" autocomplete="off"><input id="create-task-deadline" type="hidden" name="deadline"><button type="button" class="portal-date-trigger" aria-label="Open Due Date calendar"><i data-lucide="calendar-clock" aria-hidden="true"></i></button></div></div>
-                        <div class="create-task-field create-task-field--task-name"><label for="create-task-name">Task name</label><input id="create-task-name" name="task_name" required placeholder="Clean packing table"></div>
-                        <div class="create-task-field create-task-field--full"><label for="create-task-instructions">Task instructions</label><textarea id="create-task-instructions" name="instructions" required></textarea></div>
-                        <div class="create-task-field create-task-field--full"><label for="create-task-items">Required checklist items</label><textarea id="create-task-items" name="checklist_items_text" placeholder="One item per line"></textarea></div>
-                        <div class="create-task-field"><label for="create-task-recurrence">Automatic recurrence</label><select id="create-task-recurrence" name="recurring_rule" data-portal-custom-select><option value="">One-time task</option><option value="daily_business_day">Every business day</option><option value="twice_weekly">Every Tuesday and Thursday</option><option value="weekly_1">Every Monday</option><option value="weekly_2">Every Tuesday</option><option value="weekly_3">Every Wednesday</option><option value="weekly_4">Every Thursday</option><option value="weekly_5">Every Friday</option><option value="weekly_saturday">Every Saturday</option></select></div>
-                        <section class="task-urgent-control create-task-field--full" data-urgent-control>
-                            <label class="task-urgent-toggle"><input type="checkbox" name="send_urgent_alert" value="1" data-urgent-toggle><span class="task-urgent-toggle__track" aria-hidden="true"><span class="task-urgent-toggle__thumb"></span></span><span class="task-urgent-toggle__copy"><strong>Send urgent alert</strong><small>Notify employees immediately with a popup and sound.</small></span></label>
+                    <div class="task-create-form__body">
+                      <section class="task-form-section"><div class="task-form-grid">
+                        <label class="task-form-field task-form-field--full"><span class="task-form-label">Task name <span aria-hidden="true">*</span></span><input id="create-task-name" name="task_name" maxlength="120" required placeholder="What needs to be done?" autocomplete="off"></label>
+                        <div class="task-form-grid__row task-form-grid__row--assignment">
+                          <label class="task-form-field"><span class="task-form-label">Assigned employee *</span><select id="create-task-assignee" name="assigned_employee_id" required data-portal-custom-select><option value="">Choose employee</option><?php foreach ($employees as $employee): ?><option value="<?= (int) $employee['id'] ?>"><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></label>
+                          <label class="task-form-field"><span class="task-form-label">Due date *</span><input id="create-task-date" type="date" required data-task-due-date></label>
+                          <label class="task-form-field"><span class="task-form-label">Due time *</span><input id="create-task-time" type="time" required data-task-due-time></label>
+                        </div>
+                        <input id="create-task-deadline" type="hidden" name="deadline"><p class="task-due-summary" data-task-due-summary aria-live="polite"></p>
+                        <fieldset class="task-form-field task-priority-field"><legend class="task-form-label">Priority *</legend><div class="task-priority-options" role="radiogroup" aria-label="Priority"><label><input type="radio" name="priority" value="normal" checked><span>Normal</span></label><label><input type="radio" name="priority" value="important"><span>Important</span></label><label><input type="radio" name="priority" value="urgent"><span>Urgent</span></label></div></fieldset>
+                        <label class="task-form-field task-form-field--full"><span class="task-form-label">Instructions *</span><textarea id="create-task-instructions" name="instructions" required placeholder="Explain what must be done and what the finished result should look like."></textarea></label>
+                      </div></section>
+                      <section class="task-form-section task-checklist-builder" data-task-checklist-builder><span class="task-form-label">Required checklist</span><div class="task-checklist-add"><input type="text" data-task-checklist-input placeholder="Enter a checklist item"><button type="button" data-task-checklist-add>Add</button></div><p class="task-checklist-warning" data-task-checklist-warning hidden></p><ol data-task-checklist-list></ol><input id="create-task-items" type="hidden" name="checklist_items_text"><small>All checklist items must be completed before the task can be marked complete.</small></section>
+                      <section class="task-form-options">
+                        <div class="task-form-option"><label class="task-option-toggle"><input type="checkbox" data-task-repeat-toggle><span>Repeat this task</span></label><div class="task-option-details" data-task-repeat-options hidden><label class="task-form-field"><span class="task-form-label">Frequency</span><select id="create-task-recurrence" data-task-recurrence-select><option value="daily_business_day">Every business day</option><option value="twice_weekly">Every Tuesday and Thursday</option><option value="weekly_1">Every Monday</option><option value="weekly_2">Every Tuesday</option><option value="weekly_3">Every Wednesday</option><option value="weekly_4">Every Thursday</option><option value="weekly_5">Every Friday</option><option value="weekly_saturday">Every Saturday</option></select></label></div><input type="hidden" name="recurring_rule" value="" data-task-recurrence-default></div>
+                        <section class="task-form-option task-urgent-control" data-urgent-control>
+                            <label class="task-option-toggle task-urgent-toggle"><input type="checkbox" name="send_urgent_alert" value="1" data-urgent-toggle><span class="task-urgent-toggle__track" aria-hidden="true"><span class="task-urgent-toggle__thumb"></span></span><span>Send popup notification</span></label>
                             <div class="task-urgent-options" data-urgent-options hidden>
                                 <span class="task-field-label">Notify</span>
-                                <div class="task-urgent-recipients"><label><input type="checkbox" name="urgent_alert_recipients[]" value="assigned"> Assigned employee</label><label><input type="checkbox" name="urgent_alert_recipients[]" value="role:front_desk"> Front desk</label><label><input type="checkbox" name="urgent_alert_recipients[]" value="role:packers"> Packers</label><label><input type="checkbox" name="urgent_alert_recipients[]" value="role:all_relevant"> All relevant employees</label></div>
+                                <div class="task-urgent-recipients"><label><input type="checkbox" name="urgent_alert_recipients[]" value="assigned" checked> Assigned employee</label><label><input type="checkbox" name="urgent_alert_recipients[]" value="role:front_desk"> Front desk</label><label><input type="checkbox" name="urgent_alert_recipients[]" value="role:packers"> Packers</label><label><input type="checkbox" name="urgent_alert_recipients[]" value="role:all_relevant"> All relevant employees</label></div>
                                 <label for="create-urgent-message">Alert message</label><textarea id="create-urgent-message" name="urgent_alert_message" maxlength="240" placeholder="Enter a short urgent instruction"></textarea><small>The task title is included automatically.</small>
                             </div>
                         </section>
+                      </section>
                     </div>
-                    <div class="create-task-actions"><button class="create-task-submit btn-assign-task" type="submit">Assign task</button></div>
+                    <footer class="task-create-form__footer"><button type="button" class="task-form-cancel" data-task-create-close>Cancel</button><button class="task-form-submit btn-assign-task" type="submit">Assign Task</button></footer>
                 </form>
-                <section class="task-template-card">
-                    <h3 class="task-template-title">Reusable cleaning template</h3>
-                    <p class="task-template-description">Weekly cleaning tasks use this checklist automatically.</p>
-                    <ul class="task-template-list"><?php foreach (checklist_cleaning_template_items() as $templateItem): ?><li><?= htmlspecialchars($templateItem, ENT_QUOTES, 'UTF-8') ?></li><?php endforeach; ?></ul>
-                </section>
             </div>
         </aside>
     <?php endif; ?>
@@ -1158,7 +1169,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 <?php foreach ($tasks as $task): ?>
                     <?php
                     $effective = checklist_effective_status($task);
-                    $priorityKey = (string) ($task['priority'] ?? 'medium');
+                    $priorityKey = (string) ($task['priority'] ?? 'normal');
                     $statusKey = str_replace('_', '-', $effective);
                     $savedStatus = checklist_normalize_status((string) ($task['status'] ?? 'pending'));
                     $rowItems = checklist_json_items((string) ($task['checklist_items'] ?? ''));
@@ -1171,7 +1182,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         <td><button type="button" class="task-name-trigger" data-task-open="<?= $taskId ?>"><?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?></button></td>
                         <td><div class="task-row-actions"><button class="task-detail-icon" type="button" data-task-open="<?= $taskId ?>" aria-label="Open task details"><i data-lucide="panel-right-open"></i></button><?php if ($canManage): ?><button class="task-row-menu-trigger" type="button" data-task-row-menu="<?= $taskId ?>" aria-label="Task actions" aria-expanded="false"><i data-lucide="ellipsis"></i></button><?php endif; ?></div></td>
                         <td><?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?></td>
-                        <td class="task-priority-cell"><div class="task-priority-fill" data-priority="<?= htmlspecialchars(str_replace('_', '-', $priorityKey), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($priorities[$priorityKey] ?? 'Medium', ENT_QUOTES, 'UTF-8') ?></div></td>
+                        <td class="task-priority-cell"><div class="task-priority-fill" data-priority="<?= htmlspecialchars(str_replace('_', '-', $priorityKey), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($priorities[$priorityKey] ?? 'Normal', ENT_QUOTES, 'UTF-8') ?></div></td>
                         <td><?= checklist_date_label((string) ($task['deadline'] ?? '')) ?></td>
                         <td><?= htmlspecialchars(checklist_days_remaining((string) ($task['deadline'] ?? ''), $effective), ENT_QUOTES, 'UTF-8') ?></td>
                         <td class="task-status-cell"><button type="button" class="task-status-trigger" data-task-status-trigger data-status="<?= htmlspecialchars($statusKey, ENT_QUOTES, 'UTF-8') ?>" aria-haspopup="menu" aria-expanded="false"><?= htmlspecialchars($groups[$effective] ?? ($statuses[$effective] ?? $effective), ENT_QUOTES, 'UTF-8') ?></button></td>
@@ -1266,7 +1277,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         <div class="task-edit-grid">
                             <div class="task-field"><label for="task-assignee-<?= $panelId ?>">Assigned person</label><select id="task-assignee-<?= $panelId ?>" name="assigned_employee_id" data-portal-custom-select><?php foreach ($employees as $employee): ?><option value="<?= (int) $employee['id'] ?>" <?= (int) ($task['assigned_employee_id'] ?? 0) === (int) $employee['id'] ? 'selected' : '' ?>><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></div>
                             <div class="task-field"><label for="task-admin-status-<?= $panelId ?>">Status</label><select id="task-admin-status-<?= $panelId ?>" name="status" data-portal-custom-select><?php ops_select_options($statuses, checklist_normalize_status((string) ($task['status'] ?? 'pending'))); ?></select></div>
-                            <div class="task-field"><label for="task-priority-<?= $panelId ?>">Priority</label><select id="task-priority-<?= $panelId ?>" name="priority" data-portal-custom-select><?php ops_select_options($priorities, (string) ($task['priority'] ?? 'medium')); ?></select></div>
+                            <div class="task-field"><label for="task-priority-<?= $panelId ?>">Priority</label><select id="task-priority-<?= $panelId ?>" name="priority" data-portal-custom-select><?php ops_select_options($priorities, (string) ($task['priority'] ?? 'normal')); ?></select></div>
                             <div class="task-field"><label for="task-deadline-display-<?= $panelId ?>">Due date</label><div class="portal-date-field" data-portal-date-field><input id="task-deadline-display-<?= $panelId ?>" type="text" class="portal-date-input" data-enable-time="true" data-submit-target="#task-deadline-<?= $panelId ?>" placeholder="dd/mm/yyyy --:--" autocomplete="off"><input id="task-deadline-<?= $panelId ?>" type="hidden" name="deadline" value="<?= htmlspecialchars($deadlineValue, ENT_QUOTES, 'UTF-8') ?>"><button type="button" class="portal-date-trigger" aria-label="Open Due Date calendar"><i data-lucide="calendar-clock" aria-hidden="true"></i></button></div></div>
                         </div>
                         <section class="task-urgent-control" data-urgent-control>
@@ -1364,6 +1375,102 @@ document.querySelectorAll('[data-urgent-control]').forEach((control) => {
     sync();
   }
 });
+
+function initialiseTaskCreateForm() {
+  const form = document.querySelector('[data-task-create-form]');
+  if (!form || form.dataset.initialised === 'true') return;
+  form.dataset.initialised = 'true';
+  const dateInput = form.querySelector('[data-task-due-date]');
+  const timeInput = form.querySelector('[data-task-due-time]');
+  const deadlineInput = form.querySelector('[name="deadline"]');
+  const dueSummary = form.querySelector('[data-task-due-summary]');
+  const repeatToggle = form.querySelector('[data-task-repeat-toggle]');
+  const repeatOptions = form.querySelector('[data-task-repeat-options]');
+  const recurrenceSelect = form.querySelector('[data-task-recurrence-select]');
+  const recurrenceValue = form.querySelector('[data-task-recurrence-default]');
+  const checklistInput = form.querySelector('[data-task-checklist-input]');
+  const checklistList = form.querySelector('[data-task-checklist-list]');
+  const checklistValue = form.querySelector('[name="checklist_items_text"]');
+  const checklistWarning = form.querySelector('[data-task-checklist-warning]');
+  let saving = false;
+
+  const syncDeadline = () => {
+    deadlineInput.value = dateInput.value && timeInput.value ? `${dateInput.value}T${timeInput.value}` : '';
+    if (!deadlineInput.value) { dueSummary.textContent = ''; return; }
+    const due = new Date(`${dateInput.value}T${timeInput.value}:00`);
+    const now = new Date();
+    const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
+    const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+    const day = sameDay(due, now) ? 'today' : sameDay(due, tomorrow) ? 'tomorrow' : new Intl.DateTimeFormat('en-NA', { weekday:'long', day:'numeric', month:'long', timeZone:'Africa/Windhoek' }).format(due);
+    dueSummary.textContent = `Due ${day} at ${timeInput.value}`;
+  };
+  dateInput.addEventListener('change', syncDeadline); timeInput.addEventListener('change', syncDeadline);
+
+  const syncRecurrence = () => {
+    repeatOptions.hidden = !repeatToggle.checked;
+    recurrenceValue.value = repeatToggle.checked ? recurrenceSelect.value : '';
+  };
+  repeatToggle.addEventListener('change', syncRecurrence); recurrenceSelect.addEventListener('change', syncRecurrence); syncRecurrence();
+
+  const syncChecklist = () => { checklistValue.value = [...checklistList.querySelectorAll('input')].map((input) => input.value.trim()).filter(Boolean).join('\n'); };
+  const addChecklistItem = (label) => {
+    label = String(label || '').trim();
+    if (!label) return;
+    const duplicate = [...checklistList.querySelectorAll('input')].some((input) => input.value.trim().toLowerCase() === label.toLowerCase());
+    if (duplicate) { checklistWarning.textContent = 'That checklist item has already been added.'; checklistWarning.hidden = false; return; }
+    checklistWarning.hidden = true;
+    const item = document.createElement('li');
+    item.innerHTML = '<span class="task-checklist-drag" aria-hidden="true">☰</span><input type="text" maxlength="190"><button type="button" data-checklist-up aria-label="Move item up">↑</button><button type="button" data-checklist-down aria-label="Move item down">↓</button><button type="button" data-checklist-remove aria-label="Remove checklist item">×</button>';
+    item.querySelector('input').value = label;
+    checklistList.appendChild(item); checklistInput.value = ''; syncChecklist();
+  };
+  form.querySelector('[data-task-checklist-add]').addEventListener('click', () => addChecklistItem(checklistInput.value));
+  checklistInput.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); addChecklistItem(checklistInput.value); } });
+  checklistList.addEventListener('input', syncChecklist);
+  checklistList.addEventListener('click', (event) => {
+    const item = event.target.closest('li'); if (!item) return;
+    if (event.target.closest('[data-checklist-remove]')) item.remove();
+    if (event.target.closest('[data-checklist-up]') && item.previousElementSibling) checklistList.insertBefore(item, item.previousElementSibling);
+    if (event.target.closest('[data-checklist-down]') && item.nextElementSibling) checklistList.insertBefore(item.nextElementSibling, item);
+    syncChecklist();
+  });
+
+  const templateData = {
+    cleaning:{name:'Clean and organise the packing area', instructions:'Clean, disinfect and organise the work area, then return all equipment to its correct place.', priority:'important', items:['Organise products','Wipe and disinfect the table','Return equipment to its correct place']},
+    opening:{name:'Complete the opening routine', instructions:'Prepare the work area and confirm everything is ready before opening.', priority:'normal', items:['Open and inspect the work area','Prepare required equipment','Confirm the area is ready']},
+    closing:{name:'Complete the closing routine', instructions:'Close, clean and secure the work area for the next business day.', priority:'normal', items:['Clean the work area','Return equipment','Secure the area']},
+    courier:{name:'Prepare courier collection', instructions:'Prepare and verify all parcels required for courier collection.', priority:'important', items:['Verify parcels','Confirm labels','Move parcels to collection area']},
+    stock:{name:'Complete stock update', instructions:'Check stock quantities and record all required updates.', priority:'important', items:['Count stock','Record differences','Report low stock']}
+  };
+  document.querySelectorAll('[data-task-template]').forEach((button) => button.addEventListener('click', () => {
+    const data = templateData[button.dataset.taskTemplate]; if (!data) return;
+    const taskNameField = form.querySelector('[name="task_name"]');
+    const instructionsField = form.querySelector('[name="instructions"]');
+    const hasContent = taskNameField.value.trim() || instructionsField.value.trim() || checklistList.children.length;
+    if (hasContent && !window.confirm('Replace the information already entered with this template?')) return;
+    taskNameField.value = data.name; instructionsField.value = data.instructions;
+    checklistList.innerHTML = ''; data.items.forEach(addChecklistItem);
+    form.querySelector(`[name="priority"][value="${data.priority}"]`).checked = true;
+    document.querySelector('[data-task-template-menu]').hidden = true;
+  }));
+  const templateTrigger = document.querySelector('[data-task-template-trigger]');
+  const templateMenu = document.querySelector('[data-task-template-menu]');
+  templateTrigger?.addEventListener('click', () => { templateMenu.hidden = !templateMenu.hidden; });
+  document.querySelector('[data-task-template-search]')?.addEventListener('input', (event) => document.querySelectorAll('[data-task-template]').forEach((button) => { button.hidden = !button.textContent.toLowerCase().includes(event.target.value.toLowerCase()); }));
+
+  form.addEventListener('submit', (event) => {
+    syncDeadline(); syncChecklist(); syncRecurrence();
+    const required = [...form.querySelectorAll('[required]')];
+    const invalid = required.find((field) => !String(field.value || '').trim());
+    if (invalid) { event.preventDefault(); invalid.focus(); invalid.setAttribute('aria-invalid', 'true'); return; }
+    const due = new Date(`${dateInput.value}T${timeInput.value}:00`);
+    if (due < new Date() && !window.confirm('This due time has already passed. Assign the task anyway?')) { event.preventDefault(); timeInput.focus(); return; }
+    if (saving) { event.preventDefault(); return; }
+    saving = true;
+    const submit = form.querySelector('[type="submit"]'); submit.disabled = true; submit.textContent = 'Assigning…';
+  });
+}
+initialiseTaskCreateForm();
 document.querySelectorAll('[data-resend-urgent]').forEach((button) => button.addEventListener('click', (event) => {
   if (!window.confirm('Send this urgent task alert again to employees who have not completed the task?')) event.preventDefault();
 }));
@@ -1714,7 +1821,7 @@ function initialiseTaskTools() {
     if (!data) { body.innerHTML = '<div class="task-tools-loading">Loading Task tools…</div>'; return; }
     if (tab === 'trash') {
       const rows = data.trash || [];
-      body.innerHTML = rows.length ? `<div class="task-tools-card-list">${rows.map((row) => `<article class="task-tools-card"><div class="task-tools-card-copy"><strong>${taskToolsEsc(row.task_name)}</strong><span>${taskToolsEsc(row.assigned_name || 'Unassigned')} · ${taskToolsEsc(row.priority || 'medium')} · ${taskToolsEsc(row.status || 'pending')}</span><span>Due ${taskToolsEsc(formatDate(row.deadline))}</span><small>Deleted by ${taskToolsEsc(row.deleted_by_name || 'Unknown')} · ${taskToolsEsc(formatDate(row.deleted_at))}</small></div>${data.permissions.can_manage ? `<div class="packing-trash-actions"><button type="button" class="packing-trash-action packing-trash-action--restore" data-task-tools-action="restore" data-task-id="${taskToolsEsc(row.id)}"><span>Restore</span></button>${data.permissions.can_delete_forever ? `<button type="button" class="packing-trash-action packing-trash-action--delete" data-task-tools-action="delete_forever" data-task-id="${taskToolsEsc(row.id)}"><span>Delete forever</span></button>` : ''}</div>` : ''}</article>`).join('')}</div>` : '<div class="task-tools-empty"><i data-lucide="trash-2"></i><strong>Trash is empty</strong><span>Deleted tasks will appear here.</span></div>';
+      body.innerHTML = rows.length ? `<div class="task-tools-card-list">${rows.map((row) => `<article class="task-tools-card"><div class="task-tools-card-copy"><strong>${taskToolsEsc(row.task_name)}</strong><span>${taskToolsEsc(row.assigned_name || 'Unassigned')} · ${taskToolsEsc(row.priority || 'normal')} · ${taskToolsEsc(row.status || 'pending')}</span><span>Due ${taskToolsEsc(formatDate(row.deadline))}</span><small>Deleted by ${taskToolsEsc(row.deleted_by_name || 'Unknown')} · ${taskToolsEsc(formatDate(row.deleted_at))}</small></div>${data.permissions.can_manage ? `<div class="packing-trash-actions"><button type="button" class="packing-trash-action packing-trash-action--restore" data-task-tools-action="restore" data-task-id="${taskToolsEsc(row.id)}"><span>Restore</span></button>${data.permissions.can_delete_forever ? `<button type="button" class="packing-trash-action packing-trash-action--delete" data-task-tools-action="delete_forever" data-task-id="${taskToolsEsc(row.id)}"><span>Delete forever</span></button>` : ''}</div>` : ''}</article>`).join('')}</div>` : '<div class="task-tools-empty"><i data-lucide="trash-2"></i><strong>Trash is empty</strong><span>Deleted tasks will appear here.</span></div>';
     } else if (tab === 'archived') {
       const rows = data.archived || [];
       body.innerHTML = rows.length ? `<div class="task-tools-card-list">${rows.map((row) => `<article class="task-tools-card"><div class="task-tools-card-copy"><strong>${taskToolsEsc(row.task_name)}</strong><span>${taskToolsEsc(row.assigned_name || 'Unassigned')} · ${taskToolsEsc(row.status || 'pending')}</span><small>Archived by ${taskToolsEsc(row.archived_by_name || 'Unknown')} · ${taskToolsEsc(formatDate(row.archived_at))}</small></div><div class="packing-trash-actions">${data.permissions.can_manage ? `<button type="button" class="packing-trash-action packing-trash-action--restore" data-task-tools-action="restore" data-task-id="${taskToolsEsc(row.id)}"><span>Restore</span></button>` : ''}<button type="button" class="pk-btn pk-btn--secondary" data-task-open="${taskToolsEsc(row.id)}">Open task</button></div></article>`).join('')}</div>` : '<div class="task-tools-empty"><i data-lucide="archive"></i><strong>No archived tasks</strong><span>Archived tasks will appear here.</span></div>';
@@ -1781,7 +1888,7 @@ function initialiseTaskTools() {
       let action = bulk.dataset.taskToolsBulk;
       let value = '';
       if (action === 'status') value = window.prompt('Status: pending, in_progress, or complete', 'pending') || '';
-      if (action === 'priority') value = window.prompt('Priority: low, medium, high, or top_critical', 'medium') || '';
+      if (action === 'priority') value = window.prompt('Priority: normal, important, or urgent', 'normal') || '';
       if (action === 'assign') value = window.prompt('Employee ID (leave 0 for unassigned)', '0') || '0';
       bulk.disabled = true;
       try {
@@ -2244,12 +2351,15 @@ document.addEventListener('click', (event) => {
   if (createOpen) {
     const panel = document.querySelector('[data-task-create-panel]');
     const recurringSelect = panel?.querySelector('#create-task-recurrence');
+    const recurringToggle = panel?.querySelector('[data-task-repeat-toggle]');
+    const recurringValue = panel?.querySelector('[data-task-recurrence-default]');
+    const recurringOptions = panel?.querySelector('[data-task-repeat-options]');
     const createKind = createOpen.dataset.taskCreateKind === 'recurring' ? 'recurring' : 'manual';
     if (recurringSelect) {
-      recurringSelect.value = createKind === 'recurring' ? 'daily_business_day' : '';
-      const selectedLabel = recurringSelect.options[recurringSelect.selectedIndex]?.textContent || '';
-      const customValue = recurringSelect.closest('.portal-custom-select')?.querySelector('.portal-custom-select-value');
-      if (customValue) customValue.textContent = selectedLabel;
+      recurringSelect.value = 'daily_business_day';
+      if (recurringToggle) recurringToggle.checked = createKind === 'recurring';
+      if (recurringValue) recurringValue.value = createKind === 'recurring' ? recurringSelect.value : '';
+      if (recurringOptions) recurringOptions.hidden = createKind !== 'recurring';
     }
     const badge = panel?.querySelector('.create-task-type-badge');
     if (badge) badge.textContent = createKind === 'recurring' ? 'Recurring task' : 'Manual task';
