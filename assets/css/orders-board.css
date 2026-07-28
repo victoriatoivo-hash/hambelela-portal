@@ -260,7 +260,8 @@ body.orders-tools-open{overflow:hidden}
 .orders-grid-scroll { width: 100%; min-width: 0; overflow: visible; }
 .orders-grid-root { width: 100%; min-width: 0; display: grid; gap: 12px; }
 .orders-page .orders-board-v2 {
-  --orders-col-select:34px;
+  --orders-selection-column-width:56px;
+  --orders-col-select:var(--orders-selection-column-width);
   --orders-col-task:280px;
   --orders-col-updates:58px;
   --orders-col-date:180px;
@@ -274,7 +275,7 @@ body.orders-tools-open{overflow:hidden}
   --orders-col-text:260px;
   --orders-col-add:42px;
   --orders-columns:
-    var(--orders-col-select,34px)
+    var(--orders-col-select,var(--orders-selection-column-width,56px))
     var(--orders-col-task,280px)
     var(--orders-col-updates,58px)
     var(--orders-col-date,180px)

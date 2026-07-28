@@ -1834,7 +1834,7 @@
   function syncOrdersGridColumns() {
     if (!body) return;
     const fixed = [
-      'var(--orders-col-select,34px)', 'var(--orders-col-task,280px)', 'var(--orders-col-updates,58px)',
+      'var(--orders-col-select,var(--orders-selection-column-width,56px))', 'var(--orders-col-task,280px)', 'var(--orders-col-updates,58px)',
       'var(--orders-col-date,180px)', 'var(--orders-col-mobile,190px)', 'var(--orders-col-mode,150px)',
       'var(--orders-col-amount,160px)', 'var(--orders-col-payment,190px)', 'var(--orders-col-paid,90px)',
       'var(--orders-col-status,160px)', 'var(--orders-col-packed-by,180px)', 'var(--orders-col-text,260px)'
