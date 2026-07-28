@@ -4232,7 +4232,7 @@ textarea {
   color: var(--task-burgundy);
   font-size: 22px;
   line-height: 1.15;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .digital-task-page .dtb-page-header p.dtb-page-description {
