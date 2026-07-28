@@ -14,6 +14,7 @@ const errorLog = read('apps/operations/errors.php');
 const presence = read('assets/js/portal-presence.js');
 const css = read('assets/css/portal-header-account.css');
 const portalCss = read('assets/css/portal.css');
+const viewBarCss = read('assets/css/portal-view-bar.css');
 
 assert.match(
   header,
@@ -72,6 +73,7 @@ assert.match(css, /\.portal-header-account\s*\{[\s\S]*display:\s*flex;/);
 assert.match(css, /\.portal-header-logout\s*\{[\s\S]*height:\s*32px;/);
 assert.match(css, /\.portal-header-logout:hover\s*\{[\s\S]*rgba\(240,\s*116,\s*32,\s*\.06\)/);
 assert.match(portalCss, /\.error-log-page \.error-log-title \{[^}]*font-weight:\s*600 !important;/);
+assert.match(viewBarCss, /\.error-log-page \.portal-table-toolbar \.portal-toolbar-action svg\{color:#ab3619!important;stroke:#ab3619!important\}/);
 assert.match(portalCss, /\.error-log-page \.error-log-btn-primary:hover,[\s\S]*\.error-log-btn-primary:active \{[^}]*background:\s*#f07420 !important;/);
 assert.match(
   css,
