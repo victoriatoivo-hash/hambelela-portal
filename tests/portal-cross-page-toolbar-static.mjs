@@ -41,5 +41,6 @@ assert.match(viewBar, /querySelectorAll\('\[data-portal-view-filter\], \[data-wa
 assert.doesNotMatch(viewBar, /details\.dtb-filter-card, details\.error-filter-card/, 'Shared filter discovery must not depend on a partial legacy class list');
 assert.match(errors, /el\.error_title LIKE \? OR el\.description LIKE \?/, 'Error Log search must filter its dataset');
 assert.match(viewCss, /\.workspace\.module\.digital-task-page.*width:100%!important/s, 'Task Management must fill the workspace');
-assert.match(viewCss, /main\.workspace\.module\.digital-task-page\{width:auto!important;max-width:none!important/, 'Task Management must stretch through the shell grid');
+assert.match(viewCss, /main\.workspace\.module\.digital-task-page\{flex:1 1 0!important;width:auto!important;max-width:none!important/, 'Task Management must grow through all available shell width');
+assert.match(viewCss, /\.digital-task-page \.task-view-content,\.digital-task-page \.task-management-page,\.digital-task-page \.task-sections,\.digital-task-page \.task-section/, 'Task Management view and section wrappers must remain full width');
 console.log('cross-page toolbar and panel layering contract passed');

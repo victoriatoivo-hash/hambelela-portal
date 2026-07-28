@@ -973,8 +973,8 @@ body.portal-panel-open .portal-header-status{visibility:hidden!important;opacity
 }
 
 /* Task sections use every available workspace pixel. */
-.shell:has(.portal-sidebar)>main.workspace.module.digital-task-page{width:auto!important;max-width:none!important;min-width:0!important;justify-self:stretch!important;align-self:stretch!important}
-.workspace.module.digital-task-page,.digital-task-page .task-board,.digital-task-page .dtb-sections,.digital-task-page .dtb-status-section,.digital-task-page .dtb-table-wrap{width:100%!important;max-width:none!important;min-width:0!important;box-sizing:border-box!important}
+.shell:has(.portal-sidebar)>main.workspace.module.digital-task-page{flex:1 1 0!important;width:auto!important;max-width:none!important;min-width:0!important;box-sizing:border-box!important;justify-self:stretch!important;align-self:stretch!important}
+.workspace.module.digital-task-page,.digital-task-page .task-view-content,.digital-task-page .task-management-page,.digital-task-page .task-sections,.digital-task-page .task-section,.digital-task-page .task-board,.digital-task-page .dtb-sections,.digital-task-page .dtb-status-section,.digital-task-page .dtb-table-wrap{width:100%!important;max-width:none!important;min-width:0!important;box-sizing:border-box!important}
 @media(max-width:900px){.courier-wrap .stat-cards{grid-template-columns:repeat(2,minmax(0,1fr))!important}}@media(max-width:700px){.courier-wrap .stat-cards,.courier-wrap .upload-form{grid-template-columns:1fr!important}.courier-wrap .section-card,.courier-wrap .courier-section{padding:16px!important}}
 
 /* Shared portal filter toolbar — the single visual contract for every module. */
