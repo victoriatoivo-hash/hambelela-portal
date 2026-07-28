@@ -2442,6 +2442,7 @@ function initialiseTaskSections() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  initialiseTaskDueStates();
   initialiseTaskAttachments();
   initialiseTaskTools();
   initialiseTaskRowMenus();
@@ -2451,7 +2452,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initialiseTaskColumnResizing();
   initialiseTaskOverdueFilter();
   initialiseTaskSections();
-  initialiseTaskDueStates();
 });
 
 document.addEventListener('click', (event) => {
