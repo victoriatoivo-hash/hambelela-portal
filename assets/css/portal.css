@@ -27362,7 +27362,7 @@ body.dark-mode .portal-dark-toggle {
 .task-tools-card-copy { min-width:0; display:flex; flex-direction:column; gap:4px; color:#6B4C3B; font:400 12px/1.3 Figtree,Inter,system-ui,sans-serif; }
 .task-tools-card-copy strong { overflow:hidden; color:#1A1A1A; font-size:12px; text-overflow:ellipsis; white-space:nowrap; }
 .task-tools-card-copy small { color:#A08070; font-size:10px; }
-.task-tools-card-list[data-task-trash-list] .task-tools-card-copy > span,
+.task-tools-card-list[data-task-trash-list] .task-tools-card-copy > span:nth-of-type(2),
 .task-tools-card-list[data-task-trash-list] .task-tools-card-copy > small { color:#323338; }
 .task-tools-card .packing-trash-actions { flex:0 0 auto; display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:7px; }
 .task-tools-card .packing-trash-action { min-width:78px; height:32px; min-height:32px; padding:0 12px; display:inline-flex; align-items:center; justify-content:center; border:1px solid rgba(171,54,25,.24); border-radius:9px; background:#fff; color:#1A1A1A; box-shadow:0 5px 14px rgba(114,27,26,.07); font:600 11px/1 Figtree,Inter,system-ui,sans-serif; cursor:pointer; transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease,background-color .16s ease,color .16s ease; }

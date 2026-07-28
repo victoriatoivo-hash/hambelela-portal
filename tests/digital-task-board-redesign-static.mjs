@@ -47,7 +47,7 @@ assert.match(css, /\.task-action-menu \{[^}]*position:fixed[^}]*z-index:31040[^}
 assert.match(page, /document\.body\.appendChild\(actionMenu\)/);
 assert.match(page, /actionMenu\.dataset\.taskId = actionTaskId/);
 assert.match(css, /\.task-trash-confirm \.task-trash-confirm__delete \{[^}]*background:#BB1B21/);
-assert.match(css, /\.task-tools-card-list\[data-task-trash-list\] \.task-tools-card-copy > span,[\s\S]*\.task-tools-card-copy > small \{ color:#323338; \}/);
+assert.match(css, /\.task-tools-card-list\[data-task-trash-list\] \.task-tools-card-copy > span:nth-of-type\(2\),[\s\S]*\.task-tools-card-copy > small \{ color:#323338; \}/);
 assert.doesNotMatch(page, /<th>Days<\/th>/);
 assert.match(page, /<th>When Due<\/th>/);
 assert.match(page, /data-task-due-state/);
