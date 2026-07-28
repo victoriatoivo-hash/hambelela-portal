@@ -1006,7 +1006,6 @@ document.addEventListener('click', (event) => {
     '.courier-tools-panel.is-open'
   ].join(',');
   const fixedBottomSelector = [
-    '.orders-packing-bulk-bar.is-visible',
     '.packing-bulk-bar.is-visible',
     '.dtb-bulk-action-bar.is-visible',
     '.courier-bulk-bar.is-visible'
@@ -1015,6 +1014,7 @@ document.addEventListener('click', (event) => {
   const mirror = document.createElement('div');
   mirror.className = 'portal-sticky-horizontal-scrollbar';
   mirror.dataset.portalHorizontalScrollMirror = '';
+  mirror.dataset.ordersBottomSlider = '';
   mirror.setAttribute('role', 'region');
   mirror.setAttribute('aria-label', 'Horizontal table scroll');
   mirror.hidden = true;
