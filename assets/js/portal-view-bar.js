@@ -467,7 +467,7 @@
       }
     }
     controls.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button portal-toolbar-action" data-view-action="sync" data-toolbar-action="sync" aria-label="Synchronize this view">${icon('refresh-cw')}<span>Sync</span></button>`);
-    if (type !== 'packing' && type !== 'tasks') {
+    if (type !== 'packing' && type !== 'tasks' && type !== 'errors') {
       bar.insertAdjacentHTML('beforeend', `<button type="button" class="portal-view-bar__button portal-view-bar__overflow portal-toolbar-action portal-toolbar-action--more" data-view-action="more" data-toolbar-action="tools" aria-label="More tools" aria-expanded="false">${icon('ellipsis')}</button>`);
     }
     source.before(bar);
