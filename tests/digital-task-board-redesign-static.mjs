@@ -7,8 +7,16 @@ const css = readFileSync(new URL('../assets/css/portal.css', import.meta.url), '
 assert.match(page, /\$statuses = \['new' => 'New', 'pending' => 'Pending', 'in_progress' => 'In Progress', 'blocked' => 'Blocked', 'complete' => 'Complete', 'cancelled' => 'Cancelled'\]/);
 assert.match(page, /Legacy Started status consolidated into In Progress/);
 assert.match(page, /if \(\$action === 'update_task_status'\)/);
-assert.match(page, /checklist_require_completion\(\$beforeRows\[0\]\)/);
-assert.match(page, /foreach \(\$beforeBulkStatuses as \$bulkTask\) checklist_require_completion/);
+assert.match(page, /checklist_require_completion\(\$beforeRows\[0\], null, \$completionNote\)/);
+assert.match(page, /Complete tasks individually so each task has its own completion note/);
+assert.match(page, /completionNote\.length < 5/);
+assert.match(page, /Enter a completion note explaining what was completed/);
+assert.doesNotMatch(page, /name="completion_note_required"/);
+assert.doesNotMatch(page, /name="completion_evidence_required"/);
+assert.doesNotMatch(page, /name="performance_scored"/);
+assert.doesNotMatch(page, /name="employee_visible"/);
+assert.doesNotMatch(page, /Upload the required completion evidence/);
+assert.match(page, /completion_note_required = 1, completion_evidence_required = 0, performance_scored = 1/);
 assert.match(page, /data-task-completion-error/);
 assert.match(page, /data-task-complete-confirm/);
 assert.match(page, /class="task-board" data-task-board/);
