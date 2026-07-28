@@ -739,7 +739,7 @@ include BASE_PATH . '/shared/sidebar.php';
                             <?php foreach ($severityLabels as $value => $label): ?>
                                 <?php [$choiceColour, $choiceText] = $severityChoiceColours[$value]; ?>
                                 <label class="incident-choice" style="--choice-color:<?= $choiceColour ?>;--choice-text:<?= $choiceText ?>">
-                                    <input class="incident-choice__input" type="radio" name="severity" value="<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?>" required>
+                                    <input class="incident-choice__input" type="radio" name="severity" value="<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?>" required>
                                     <span class="incident-choice__content"><span class="incident-choice__indicator" aria-hidden="true"></span><span><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></span><span class="incident-choice__check" aria-hidden="true">&#10003;</span></span>
                                 </label>
                             <?php endforeach; ?>
@@ -751,7 +751,7 @@ include BASE_PATH . '/shared/sidebar.php';
                             <?php foreach ($statusLabels as $value => $label): ?>
                                 <?php [$choiceColour, $choiceText] = $statusChoiceColours[$value]; ?>
                                 <label class="incident-choice" style="--choice-color:<?= $choiceColour ?>;--choice-text:<?= $choiceText ?>">
-                                    <input class="incident-choice__input" type="radio" name="status" value="<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?>" <?= $value === 'open' ? 'checked' : '' ?> required>
+                                    <input class="incident-choice__input" type="radio" name="status" value="<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?>" <?= $value === 'open' ? 'checked' : '' ?> required>
                                     <span class="incident-choice__content"><span class="incident-choice__indicator" aria-hidden="true"></span><span><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></span><span class="incident-choice__check" aria-hidden="true">&#10003;</span></span>
                                 </label>
                             <?php endforeach; ?>
@@ -774,8 +774,8 @@ include BASE_PATH . '/shared/sidebar.php';
                     <fieldset class="incident-choice-field">
                         <legend class="incident-choice-field__label">Is this a repeat error?</legend>
                         <div class="incident-choice-control incident-choice-control--repeat" data-incident-choice="repeat">
-                            <label class="incident-choice" style="--choice-color:#A8CA19;--choice-text:#263400"><input class="incident-choice__input" type="radio" name="repeat_issue" value="0" checked><span class="incident-choice__content"><span class="incident-choice__indicator" aria-hidden="true"></span><span>No</span><span class="incident-choice__check" aria-hidden="true">&#10003;</span></span></label>
-                            <label class="incident-choice" style="--choice-color:#F07420;--choice-text:#FFFFFF"><input class="incident-choice__input" type="radio" name="repeat_issue" value="1"><span class="incident-choice__content"><span class="incident-choice__indicator" aria-hidden="true"></span><span>Yes</span><span class="incident-choice__check" aria-hidden="true">&#10003;</span></span></label>
+                            <label class="incident-choice" style="--choice-color:#A8CA19;--choice-text:#263400"><input class="incident-choice__input" type="radio" name="repeat_issue" value="0" aria-label="No" checked><span class="incident-choice__content"><span class="incident-choice__indicator" aria-hidden="true"></span><span>No</span><span class="incident-choice__check" aria-hidden="true">&#10003;</span></span></label>
+                            <label class="incident-choice" style="--choice-color:#F07420;--choice-text:#FFFFFF"><input class="incident-choice__input" type="radio" name="repeat_issue" value="1" aria-label="Yes"><span class="incident-choice__content"><span class="incident-choice__indicator" aria-hidden="true"></span><span>Yes</span><span class="incident-choice__check" aria-hidden="true">&#10003;</span></span></label>
                         </div>
                     </fieldset>
                 </section>

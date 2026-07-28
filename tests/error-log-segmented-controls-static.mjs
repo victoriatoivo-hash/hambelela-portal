@@ -7,7 +7,10 @@ const form = page.slice(page.indexOf('<form id="logErrorForm"'), page.indexOf('<
 
 assert.match(form, /name="severity"[^\n]*required/);
 assert.match(form, /name="status"[^\n]*checked[^\n]*required/);
-assert.match(form, /name="repeat_issue"\s+value="0"\s+checked/);
+assert.match(form, /name="repeat_issue"\s+value="0"[^\n]*checked/);
+assert.match(form, /name="severity"[^\n]*aria-label=/);
+assert.match(form, /name="status"[^\n]*aria-label=/);
+assert.match(form, /name="repeat_issue"[^\n]*aria-label="No"/);
 assert.match(page, /incident-choice-control--severity/);
 assert.match(page, /incident-choice-control--status/);
 assert.match(page, /incident-choice-control--repeat/);
