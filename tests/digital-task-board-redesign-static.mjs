@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const page = readFileSync(new URL('../apps/operations/checklists.php', import.meta.url), 'utf8');
+const taskTable = readFileSync(new URL('../apps/operations/partials/checklist-task-table.php', import.meta.url), 'utf8');
 const css = readFileSync(new URL('../assets/css/portal.css', import.meta.url), 'utf8');
 
 assert.match(page, /\$statuses = \['new' => 'New', 'in_progress' => 'In Progress', 'complete' => 'Complete'\]/);
@@ -48,5 +49,8 @@ assert.doesNotMatch(page, /data-status-key="overdue"/);
 assert.doesNotMatch(page, /data-status-key="started"/);
 assert.match(css, /\.digital-task-page \.task-status-trigger \{[^}]*height:35px/);
 assert.match(css, /\.digital-task-page \.task-board-table tbody tr \{[^}]*height:35px/);
+assert.doesNotMatch(page, /data-task-row-menu|data-task-row-action|task-row-menu-trigger/);
+assert.doesNotMatch(taskTable, /data-task-row-menu|task-row-menu-trigger/);
+assert.doesNotMatch(css, /\.task-row-menu(?:-trigger)?\b/);
 
 console.log('Digital Task Board redesign checks passed.');

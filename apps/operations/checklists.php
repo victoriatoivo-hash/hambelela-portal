@@ -1299,7 +1299,6 @@ include BASE_PATH . '/shared/sidebar.php';
     <div class="task-status-popup" data-task-status-popup hidden role="menu">
         <?php foreach ($statuses as $statusKey => $statusLabel): ?><button type="button" data-status-key="<?= htmlspecialchars($statusKey, ENT_QUOTES, 'UTF-8') ?>" role="menuitem"><?= htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8') ?></button><?php endforeach; ?>
     </div>
-    <div class="task-row-menu" data-task-row-menu-popup hidden role="menu"><button type="button" data-task-row-action="open">Open task</button><button type="button" data-task-row-action="archive">Archive</button><button type="button" data-task-row-action="trash">Move to Trash</button></div>
     <?php endif; ?>
 
     <?php if ($filters['task_view'] === 'completed'): ?>
@@ -1324,7 +1323,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     <tr class="dtb-task-row task-grid-row" data-task-row data-task-id="<?= $taskId ?>" data-saved-status="<?= htmlspecialchars($savedStatus, ENT_QUOTES, 'UTF-8') ?>" data-display-status="<?= htmlspecialchars($effective, ENT_QUOTES, 'UTF-8') ?>" data-task-name="<?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?>" data-task-assigned="<?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?>" data-task-priority="<?= htmlspecialchars($priorities[$priorityKey] ?? 'Medium', ENT_QUOTES, 'UTF-8') ?>" data-task-status="<?= htmlspecialchars($groups[$effective] ?? ($statuses[$effective] ?? $effective), ENT_QUOTES, 'UTF-8') ?>">
                         <td class="dtb-select-cell"><input class="dtb-task-check" type="checkbox" value="<?= $taskId ?>" aria-label="Select <?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?>"></td>
                         <td><button type="button" class="task-name-trigger" data-task-open="<?= $taskId ?>"><?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?></button></td>
-                        <td><div class="task-row-actions"><button class="task-detail-icon" type="button" data-task-open="<?= $taskId ?>" aria-label="Open task details"><i data-lucide="panel-right-open"></i></button><?php if ($canManage): ?><button class="task-row-menu-trigger" type="button" data-task-row-menu="<?= $taskId ?>" aria-label="Task actions" aria-expanded="false"><i data-lucide="ellipsis"></i></button><?php endif; ?></div></td>
+                        <td><div class="task-row-actions"><button class="task-detail-icon" type="button" data-task-open="<?= $taskId ?>" aria-label="Open task details"><i data-lucide="panel-right-open"></i></button></div></td>
                         <td><?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?></td>
                         <td class="task-priority-cell"><div class="task-priority-fill" data-priority="<?= htmlspecialchars(str_replace('_', '-', $priorityKey), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($priorities[$priorityKey] ?? 'Normal', ENT_QUOTES, 'UTF-8') ?></div></td>
                         <td><?= checklist_date_label((string) ($task['deadline'] ?? '')) ?></td>
@@ -1343,7 +1342,6 @@ include BASE_PATH . '/shared/sidebar.php';
     <div class="task-status-popup" data-task-status-popup hidden role="menu">
         <?php foreach ($statuses as $statusKey => $statusLabel): ?><button type="button" data-status-key="<?= htmlspecialchars($statusKey, ENT_QUOTES, 'UTF-8') ?>" role="menuitem"><?= htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8') ?></button><?php endforeach; ?>
     </div>
-    <div class="task-row-menu" data-task-row-menu-popup hidden role="menu"><button type="button" data-task-row-action="open">Open task</button><button type="button" data-task-row-action="archive">Archive</button><button type="button" data-task-row-action="trash">Move to Trash</button></div>
     <?php endif; ?>
 
     <div class="dtb-bulk-action-bar" data-task-bulk-bar hidden>
@@ -1975,42 +1973,6 @@ function initialiseTaskTools() {
   });
 }
 
-function initialiseTaskRowMenus() {
-  const popup = document.querySelector('[data-task-row-menu-popup]');
-  if (!popup || popup.dataset.initialised === 'true') return;
-  popup.dataset.initialised = 'true';
-  let taskId = '';
-  const close = () => { popup.hidden = true; taskId = ''; };
-  document.addEventListener('click', async (event) => {
-    const trigger = event.target.closest('[data-task-row-menu]');
-    if (trigger) {
-      event.stopPropagation();
-      taskId = trigger.dataset.taskRowMenu;
-      const rect = trigger.getBoundingClientRect();
-      popup.style.left = `${Math.max(8, rect.right - 155)}px`;
-      popup.style.top = `${rect.bottom + 5}px`;
-      popup.hidden = false;
-      return;
-    }
-    const action = event.target.closest('[data-task-row-action]');
-    if (action && taskId) {
-      const selectedId = taskId;
-      close();
-      if (action.dataset.taskRowAction === 'open') { document.querySelector(`[data-task-open="${CSS.escape(selectedId)}"]`)?.click(); return; }
-      const form = new FormData();
-      form.append('action', action.dataset.taskRowAction === 'archive' ? 'task_archive' : 'task_trash');
-      form.append('task_id', selectedId);
-      const response = await fetch(window.location.href, { method:'POST', body:form, credentials:'same-origin', headers:{ Accept:'application/json' } });
-      const result = await response.json();
-      if (!response.ok || result.success !== true) { window.alert(result.message || 'Unable to update task.'); return; }
-      document.querySelector(`[data-task-row][data-task-id="${CSS.escape(selectedId)}"]`)?.remove();
-      showTaskUndo([selectedId], action.dataset.taskRowAction === 'archive' ? 'Task archived' : 'Task moved to Trash');
-      return;
-    }
-    if (!event.target.closest('[data-task-row-menu-popup]')) close();
-  });
-}
-
 function initialiseTaskBulkSelection() {
   const bar = document.querySelector('[data-task-bulk-bar]');
   if (!bar || bar.dataset.initialised === 'true') return;
@@ -2448,7 +2410,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initialiseTaskDueStates();
   initialiseTaskAttachments();
   initialiseTaskTools();
-  initialiseTaskRowMenus();
   initialiseTaskBulkSelection();
   initialiseTaskStatusWorkflow();
   initialiseTaskCompletionEnforcement();
