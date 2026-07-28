@@ -6228,6 +6228,11 @@ main.error-log-page {
   box-shadow: 0 8px 18px rgba(171,54,25,.12) !important;
 }
 
+.error-log-page .error-log-btn-primary:hover,
+.error-log-page .error-log-btn-primary:active {
+  background: #f07420 !important;
+}
+
 .error-log-page .error-log-btn-primary svg {
   width: 16px !important;
   height: 16px !important;

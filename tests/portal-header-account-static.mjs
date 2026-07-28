@@ -72,6 +72,7 @@ assert.match(css, /\.portal-header-account\s*\{[\s\S]*display:\s*flex;/);
 assert.match(css, /\.portal-header-logout\s*\{[\s\S]*height:\s*32px;/);
 assert.match(css, /\.portal-header-logout:hover\s*\{[\s\S]*rgba\(240,\s*116,\s*32,\s*\.06\)/);
 assert.match(portalCss, /\.error-log-page \.error-log-title \{[^}]*font-weight:\s*600 !important;/);
+assert.match(portalCss, /\.error-log-page \.error-log-btn-primary:hover,[\s\S]*\.error-log-btn-primary:active \{[^}]*background:\s*#f07420 !important;/);
 assert.match(
   css,
   /@media \(max-width:\s*700px\)[\s\S]*\.portal-header-account \.portal-header-user\s*\{[\s\S]*display:\s*flex;/,
