@@ -168,7 +168,7 @@ $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bo
 </style>
 <?php $portalMobileTitle = 'Hambelela'; foreach ($portalNavItems as $portalMobileItem) { if ($isActiveItem($portalMobileItem)) { $portalMobileTitle = (string) $portalMobileItem['label']; break; } } ?>
 <header class="portal-mobile-header" data-portal-mobile-header>
-<button class="portal-mobile-nav-toggle" type="button" aria-controls="portalSidebar" aria-expanded="false" aria-label="Open portal menu">
+<button class="portal-mobile-nav-toggle portal-mobile-menu" type="button" data-sidebar-open aria-controls="portalSidebar" aria-expanded="false" aria-label="Open navigation menu">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
         <line x1="4" y1="7" x2="20" y2="7"></line>
         <line x1="4" y1="12" x2="20" y2="12"></line>
@@ -176,11 +176,11 @@ $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bo
     </svg>
 </button>
 <strong class="portal-mobile-page-title"><?= htmlspecialchars($portalMobileTitle, ENT_QUOTES, 'UTF-8') ?></strong>
-<span class="portal-mobile-header-actions"><a class="portal-mobile-notifications" href="<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/notifications.php" aria-label="Notifications, <?= $notificationUnread ?> unread"><?= getSidebarIcon('notifications') ?><span class="portal-mobile-notification-count<?= $notificationUnread ? '' : ' is-hidden' ?>" data-notification-count><?= $notificationUnread ? htmlspecialchars($notificationUnreadLabel, ENT_QUOTES, 'UTF-8') : '' ?></span></a><span class="portal-mobile-user" title="<?= htmlspecialchars($sidebarUserName, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($sidebarUserInitial, ENT_QUOTES, 'UTF-8') ?></span></span>
+<span class="portal-mobile-header-actions portal-mobile-actions"><a class="portal-mobile-notifications" href="<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/notifications.php" aria-label="Notifications, <?= $notificationUnread ?> unread"><?= getSidebarIcon('notifications') ?><span class="portal-mobile-notification-count<?= $notificationUnread ? '' : ' is-hidden' ?>" data-notification-count><?= $notificationUnread ? htmlspecialchars($notificationUnreadLabel, ENT_QUOTES, 'UTF-8') : '' ?></span></a><a class="portal-mobile-user" href="<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/apps/operations/my-account.php" aria-label="Open profile for <?= htmlspecialchars($sidebarUserName, ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars($sidebarUserName, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($sidebarUserInitial, ENT_QUOTES, 'UTF-8') ?></a></span>
 </header>
-<button class="portal-sidebar-backdrop" type="button" aria-label="Close portal menu" tabindex="-1"></button>
-<aside class="portal-sidebar" id="portalSidebar" aria-label="Portal navigation" aria-hidden="false">
-    <div class="ps-header">
+<button class="portal-sidebar-backdrop" type="button" data-sidebar-backdrop aria-label="Close navigation menu" tabindex="-1"></button>
+<aside class="portal-sidebar" id="portalSidebar" data-portal-sidebar aria-label="Portal navigation" aria-hidden="false">
+    <div class="ps-header portal-sidebar-mobile-heading">
         <div class="ps-logo">
             <div class="ps-logo-mark">H</div>
             <div class="ps-logo-text">
@@ -190,6 +190,9 @@ $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bo
         </div>
         <button class="ps-collapse-btn" id="psCollapseBtn" onclick="toggleSidebar()" aria-label="Collapse sidebar" type="button">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <button class="portal-sidebar-close" type="button" data-sidebar-close aria-label="Close navigation menu">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>
         </button>
     </div>
 
@@ -239,32 +242,36 @@ $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bo
 </aside>
 <script>
 function toggleSidebar(){const sidebar=document.getElementById('portalSidebar');if(!sidebar)return;if(window.matchMedia('(max-width: 1023px)').matches){window.portalSidebarNavigation?.open();return}const collapsed=sidebar.classList.toggle('collapsed');localStorage.setItem('sidebarCollapsed',collapsed?'1':'0');document.body.classList.toggle('sidebar-collapsed',collapsed)}
-(function(){
-    const sidebar=document.getElementById('portalSidebar');
-    if(!sidebar)return;
+(function initialisePortalMobileSidebar(){
+    const sidebar=document.querySelector('[data-portal-sidebar]');
+    const mobileToggle=document.querySelector('[data-sidebar-open]');
+    const mobileClose=document.querySelector('[data-sidebar-close]');
+    const mobileBackdrop=document.querySelector('[data-sidebar-backdrop]');
+    if(!sidebar||!mobileToggle||sidebar.dataset.mobileDrawerInitialised==='true')return;
+    sidebar.dataset.mobileDrawerInitialised='true';
     const mobileQuery=window.matchMedia('(max-width: 1023px)');
-    const mobileToggle=document.querySelector('.portal-mobile-nav-toggle[aria-controls="portalSidebar"]');
-    const mobileBackdrop=document.querySelector('.portal-sidebar-backdrop');
     let lastFocused=null;
     const focusable=()=>Array.from(sidebar.querySelectorAll('a[href],button:not([disabled]),[tabindex]:not([tabindex="-1"])'));
     const setOpen=(open)=>{
         if(!mobileQuery.matches)open=false;
-        sidebar.classList.toggle('mobile-open',open);
-        document.body.classList.toggle('portal-mobile-nav-open',open);
+        const wasOpen=sidebar.classList.contains('is-mobile-open');
+        sidebar.classList.toggle('is-mobile-open',open);
+        mobileBackdrop?.classList.toggle('is-visible',open);
+        document.body.classList.toggle('portal-mobile-sidebar-open',open);
         sidebar.setAttribute('aria-hidden',mobileQuery.matches&&!open?'true':'false');
         mobileToggle?.setAttribute('aria-expanded',open?'true':'false');
-        mobileToggle?.setAttribute('aria-label',open?'Close portal menu':'Open portal menu');
         if(mobileBackdrop)mobileBackdrop.tabIndex=open?0:-1;
-        if(open){lastFocused=document.activeElement;requestAnimationFrame(()=>focusable()[0]?.focus())}
-        else if(lastFocused instanceof HTMLElement){lastFocused.focus();lastFocused=null}
+        if(open){lastFocused=document.activeElement;requestAnimationFrame(()=>mobileClose?.focus({preventScroll:true}))}
+        else if(wasOpen&&lastFocused instanceof HTMLElement){lastFocused.focus({preventScroll:true});lastFocused=null}
     };
     window.portalSidebarNavigation={open:()=>setOpen(true),close:()=>setOpen(false)};
-    mobileToggle?.addEventListener('click',()=>setOpen(!sidebar.classList.contains('mobile-open')));
+    mobileToggle.addEventListener('click',()=>setOpen(!sidebar.classList.contains('is-mobile-open')));
+    mobileClose?.addEventListener('click',()=>setOpen(false));
     mobileBackdrop?.addEventListener('click',()=>setOpen(false));
     if(!mobileQuery.matches&&localStorage.getItem('sidebarCollapsed')==='1'){sidebar.classList.add('collapsed');document.body.classList.add('sidebar-collapsed')}
-    sidebar.querySelectorAll('a[href]').forEach(link=>link.addEventListener('click',()=>{if(mobileQuery.matches)setOpen(false)}));
+    sidebar.addEventListener('click',(event)=>{if(mobileQuery.matches&&event.target.closest('a[href]'))setOpen(false)});
     document.addEventListener('keydown',(event)=>{
-        if(!sidebar.classList.contains('mobile-open'))return;
+        if(!sidebar.classList.contains('is-mobile-open'))return;
         if(event.key==='Escape'){event.preventDefault();setOpen(false);return}
         if(event.key!=='Tab')return;
         const items=focusable();if(!items.length)return;
@@ -274,7 +281,7 @@ function toggleSidebar(){const sidebar=document.getElementById('portalSidebar');
     });
     const syncViewport=()=>{
         if(!mobileQuery.matches){setOpen(false);sidebar.setAttribute('aria-hidden','false')}
-        else{sidebar.classList.remove('collapsed');document.body.classList.remove('sidebar-collapsed');sidebar.setAttribute('aria-hidden',sidebar.classList.contains('mobile-open')?'false':'true')}
+        else{sidebar.classList.remove('collapsed');document.body.classList.remove('sidebar-collapsed');sidebar.setAttribute('aria-hidden',sidebar.classList.contains('is-mobile-open')?'false':'true')}
     };
     mobileQuery.addEventListener?.('change',syncViewport);
     syncViewport();
