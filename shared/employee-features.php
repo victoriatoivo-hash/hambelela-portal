@@ -31,6 +31,26 @@ function portal_feature_permissions(): array
     ];
 }
 
+function portal_role_capabilities(): array
+{
+    return [
+        'owner_admin' => ['manage_hr'],
+    ];
+}
+
+function portal_role_has_capability(string $roleKey, string $capability): bool
+{
+    $capabilities = portal_role_capabilities();
+    $roleKey = normalise_portal_role($roleKey);
+
+    return isset($capabilities[$roleKey]) && in_array($capability, $capabilities[$roleKey], true);
+}
+
+function current_user_has_capability(string $capability): bool
+{
+    return portal_role_has_capability(current_role_key(), $capability);
+}
+
 function portal_role_can_access_feature(string $roleKey, string $featureKey): bool
 {
     $permissions = portal_feature_permissions();

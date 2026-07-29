@@ -34,6 +34,9 @@ function navItem($href, $icon, $label, $badge=0, $current='') {
     <div class="nav-section">Overview</div>
     <?= navItem('../../index.php','fa-solid fa-arrow-left','Back to Portal',0,$currentPage) ?>
     <?= navItem('dashboard.php','fa-solid fa-house','Dashboard',0,$currentPage) ?>
+    <?php if ((int)($user['emp_id'] ?? 0) > 0): ?>
+      <?= navItem('self-service.php','fa-solid fa-user','My HR Profile',0,$currentPage) ?>
+    <?php endif ?>
     <div class="nav-section">HR Management</div>
     <?= navItem('employees.php','fa-solid fa-users','Employees',0,$currentPage) ?>
     <?= navItem('leave.php','fa-solid fa-calendar-xmark','Leave Management',(int)$pendingLeave,$currentPage) ?>
