@@ -2286,45 +2286,78 @@
     }
   }
 
-  function uploadPackingItemFiles(itemId, files) {
-    if (!itemId || !files.length || packingFilesUploading) return Promise.resolve();
-    packingFilesUploading = true;
-    packingFileDrop?.classList.add('is-uploading');
-    if (packingFileInput) packingFileInput.disabled = true;
-    packingFileProgress.hidden = false;
-    packingFileProgress.textContent = `Uploading 1 of ${files.length}… 0%`;
-    const data = new FormData();
-    data.append('action', 'upload'); data.append('item_id', String(itemId)); data.append('csrf_token', String(config.filesCsrf || ''));
-    files.forEach((file) => data.append('files[]', file, file.name));
+  function packingFileKey(file) { return `${file.name}:${file.size}:${file.lastModified}`; }
+
+  function validatePackingFiles(files) {
+    const allowed = /\.(pdf|jpe?g|png|webp)$/i;
+    return files.map((file) => {
+      if (file.size <= 0) return {file, message:'The file is empty.'};
+      if (file.size > 10 * 1024 * 1024) return {file, message:'The file exceeds the 10 MB limit.'};
+      if (!allowed.test(file.name)) return {file, message:'Only PDF, JPG, PNG and WebP files are allowed.'};
+      return null;
+    }).filter(Boolean);
+  }
+
+  function uploadOnePackingItemFile(itemId, file, onProgress) {
     return new Promise((resolve) => {
+      const data = new FormData();
+      data.append('action', 'upload'); data.append('item_id', String(itemId));
+      data.append('csrf_token', String(config.filesCsrf || '')); data.append('file', file, file.name);
       const request = new XMLHttpRequest();
       request.open('POST', config.filesUrl);
-      request.responseType = 'json';
-      request.upload.addEventListener('progress', (event) => {
-        if (!event.lengthComputable) return;
-        const percent = Math.round(event.loaded / event.total * 100);
-        const current = Math.min(files.length, Math.max(1, Math.ceil(percent / Math.max(1, 100 / files.length))));
-        packingFileProgress.textContent = `Uploading ${current} of ${files.length}… ${percent}%`;
+      request.upload.addEventListener('progress', (event) => { if (event.lengthComputable) onProgress(Math.round(event.loaded / event.total * 100)); });
+      request.addEventListener('load', () => {
+        let result = null;
+        try { result = JSON.parse(request.responseText || '{}'); } catch (_) {}
+        const uploaded = Array.isArray(result?.uploaded) ? result.uploaded : [];
+        const failure = Array.isArray(result?.failed) ? result.failed[0] : null;
+        resolve({file, uploaded, status:request.status,
+          success:request.status >= 200 && request.status < 300 && result?.success === true && uploaded.length > 0,
+          message:failure?.message || result?.message || (!result ? 'The server returned an invalid response.' : `Upload failed with status ${request.status}.`)});
       });
-      request.addEventListener('loadend', async () => {
-        const result = request.response || {};
-        failedPackingFiles.clear();
-        (result.failed || []).forEach((failure) => {
-          const file = files.find((candidate) => candidate.name === failure.name);
-          if (file) failedPackingFiles.set(failure.name, file);
-        });
-        const failures = (result.failed || []).map((failure) => `<div class="packing-item-upload-result is-error"><span>${esc(failure.name)} could not be uploaded.</span>${failedPackingFiles.has(failure.name) ? `<button type="button" data-retry-packing-file="${esc(failure.name)}">Retry</button>` : ''}<small>${esc(failure.message || '')}</small></div>`).join('');
-        const successful = (result.uploaded || []).map((file) => `<div class="packing-item-upload-result is-success"><span>${esc(file.name)} — Uploaded successfully</span></div>`).join('');
-        const successCount = (result.uploaded || []).length;
-        packingFileProgress.innerHTML = `${successful}${failures || (!successCount ? `<div class="packing-item-upload-result is-error">${esc(result.message || 'Files could not be uploaded.')}</div>` : '')}`;
-        packingFilesUploading = false;
-        packingFileDrop?.classList.remove('is-uploading');
-        if (packingFileInput) { packingFileInput.disabled = false; packingFileInput.value = ''; }
-        await loadPackingItemFiles(itemId);
-        resolve(result);
-      });
+      request.addEventListener('error', () => resolve({file, uploaded:[], status:0, success:false, message:'The upload request failed.'}));
       request.send(data);
     });
+  }
+
+  async function runPackingUploadQueue(itemId, files, concurrency, onProgress) {
+    const results = new Array(files.length); let next = 0;
+    async function worker() { while (next < files.length) { const index = next++; results[index] = await uploadOnePackingItemFile(itemId, files[index], (percent) => onProgress(index, percent)); } }
+    await Promise.all(Array.from({length:Math.min(concurrency, files.length)}, () => worker()));
+    return results;
+  }
+
+  async function uploadPackingItemFiles(itemId, files, initialFailures = []) {
+    if (!itemId || (!files.length && !initialFailures.length) || packingFilesUploading) return [];
+    if (!files.length) {
+      failedPackingFiles.clear();
+      initialFailures.forEach((result) => failedPackingFiles.set(packingFileKey(result.file), result.file));
+      packingFileProgress.hidden = false;
+      packingFileProgress.innerHTML = initialFailures.map((result) => `<div class="packing-item-upload-result is-error"><span>${esc(result.file.name)} — ${esc(result.message)}</span></div>`).join('');
+      if (packingFileInput) packingFileInput.value = '';
+      return initialFailures;
+    }
+    packingFilesUploading = true; packingFileDrop?.classList.add('is-uploading');
+    if (packingFileInput) packingFileInput.disabled = true;
+    packingFileProgress.hidden = false; packingFileProgress.textContent = `Uploading 1 of ${files.length}… 0%`;
+    const progress = files.map(() => 0); failedPackingFiles.clear();
+    try {
+      const uploadedResults = await runPackingUploadQueue(itemId, files, 2, (index, percent) => {
+        progress[index] = percent;
+        const current = Math.min(files.length, progress.filter((value) => value >= 100).length + 1);
+        const overall = Math.round(progress.reduce((sum, value) => sum + value, 0) / files.length);
+        packingFileProgress.textContent = `Uploading ${current} of ${files.length}… ${overall}%`;
+      });
+      const results = [...uploadedResults, ...initialFailures.map((result) => ({...result, success:false, uploaded:[], status:422}))];
+      results.filter((result) => !result.success).forEach((result) => failedPackingFiles.set(packingFileKey(result.file), result.file));
+      const successful = results.filter((result) => result.success).flatMap((result) => result.uploaded).map((file) => `<div class="packing-item-upload-result is-success"><span>${esc(file.name)} — Uploaded successfully</span></div>`).join('');
+      const failures = results.filter((result) => !result.success).map((result) => { const key=packingFileKey(result.file); return `<div class="packing-item-upload-result is-error"><span>${esc(result.file.name)} — ${esc(result.message)}</span><button type="button" data-retry-packing-file="${esc(key)}">Retry</button></div>`; }).join('');
+      packingFileProgress.innerHTML = successful + failures;
+      await loadPackingItemFiles(itemId); return results;
+    } finally {
+      packingFilesUploading = false; packingFileDrop?.classList.remove('is-uploading');
+      if (packingFileInput) { packingFileInput.disabled = false; packingFileInput.value = ''; }
+    }
   }
 
   function handleSelectedPackingFiles(fileList) {
@@ -2336,7 +2369,9 @@
       if (packingFileInput) packingFileInput.value = '';
       return;
     }
-    uploadPackingItemFiles(currentTask.id, files);
+    const invalid = validatePackingFiles(files);
+    const invalidFiles = new Set(invalid.map((result) => result.file));
+    uploadPackingItemFiles(currentTask.id, files.filter((file) => !invalidFiles.has(file)), invalid);
   }
 
   packingFileInput?.addEventListener('change', (event) => handleSelectedPackingFiles(event.target.files));

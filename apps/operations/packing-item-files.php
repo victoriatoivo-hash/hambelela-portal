@@ -104,10 +104,17 @@ try {
     }
 
     if ($action !== 'upload' || !packing_files_can_access($item, true)) packing_files_reply(['success' => false, 'message' => 'You cannot upload files to this packing item.'], 403);
-    $names = (array) ($_FILES['files']['name'] ?? []);
-    $tmpNames = (array) ($_FILES['files']['tmp_name'] ?? []);
-    $errors = (array) ($_FILES['files']['error'] ?? []);
-    $sizes = (array) ($_FILES['files']['size'] ?? []);
+    if (isset($_FILES['file'])) {
+        $names = [(string) ($_FILES['file']['name'] ?? '')];
+        $tmpNames = [(string) ($_FILES['file']['tmp_name'] ?? '')];
+        $errors = [(int) ($_FILES['file']['error'] ?? UPLOAD_ERR_NO_FILE)];
+        $sizes = [(int) ($_FILES['file']['size'] ?? 0)];
+    } else {
+        $names = (array) ($_FILES['files']['name'] ?? []);
+        $tmpNames = (array) ($_FILES['files']['tmp_name'] ?? []);
+        $errors = (array) ($_FILES['files']['error'] ?? []);
+        $sizes = (array) ($_FILES['files']['size'] ?? []);
+    }
     if (!$names || count($names) > 10) packing_files_reply(['success' => false, 'message' => 'Select between 1 and 10 files.'], 422);
 
     $allowedMimes = ['application/pdf'=>'pdf', 'image/jpeg'=>'jpg', 'image/png'=>'png', 'image/webp'=>'webp'];
