@@ -5,6 +5,8 @@ declare(strict_types=1);
 require_once __DIR__ . '/operations.php';
 
 require_login();
+if (empty($_SESSION['packing_attachment_csrf'])) $_SESSION['packing_attachment_csrf'] = bin2hex(random_bytes(24));
+$packingAttachmentCsrf = (string) $_SESSION['packing_attachment_csrf'];
 
 $pageTitle = 'Packing List | ' . APP_NAME;
 $activeApp = 'operations-consignments';
@@ -196,8 +198,12 @@ include BASE_PATH . '/shared/sidebar.php';
             <section class="packing-item-section">
                 <h2 class="packing-item-section-title">Files</h2>
                 <p class="packing-item-section-subtitle">Upload invoices, labels or product photos for this packing item.</p>
-                <label class="packing-item-file-drop"><i data-lucide="upload-cloud"></i><span>Choose a file</span><input type="file" accept="image/png,image/jpeg,image/webp,application/pdf"></label>
-                <p class="packing-item-file-note">File storage will be linked in the next storage step.</p>
+                <label class="packing-item-file-drop" data-packing-file-drop tabindex="0">
+                    <i data-lucide="upload-cloud"></i><strong>Choose files</strong><span>or drag and drop files here</span><small>PDF, JPG, PNG or WebP — maximum 10 MB per file</small>
+                    <input type="file" id="packing-item-files" name="files[]" accept=".pdf,.jpg,.jpeg,.png,.webp" multiple hidden data-packing-file-input>
+                </label>
+                <div class="packing-item-file-progress" data-packing-file-progress role="status" aria-live="polite" hidden></div>
+                <div class="packing-item-files-list" data-packing-files-list></div>
             </section>
         </section>
     </aside>
@@ -277,6 +283,8 @@ include BASE_PATH . '/shared/sidebar.php';
 window.HambelelaPacking = {
   dataUrl: 'packing-list-data.php',
   actionUrl: 'packing-list-action.php',
+  filesUrl: 'packing-item-files.php',
+  filesCsrf: <?= json_encode($packingAttachmentCsrf) ?>,
 };
 </script>
 <script defer src="<?= BASE_URL ?>/assets/js/portal-column-resize.js?v=<?= is_file(BASE_PATH . '/assets/js/portal-column-resize.js') ? (string) filemtime(BASE_PATH . '/assets/js/portal-column-resize.js') : (string) time() ?>"></script>

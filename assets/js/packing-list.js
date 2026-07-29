@@ -21,6 +21,10 @@
   const panelSource = document.getElementById('packing-panel-source');
   const panelNotes = document.getElementById('packing-panel-notes');
   const panelActivity = document.getElementById('packing-panel-activity');
+  const packingFileInput = document.querySelector('[data-packing-file-input]');
+  const packingFileDrop = document.querySelector('[data-packing-file-drop]');
+  const packingFilesList = document.querySelector('[data-packing-files-list]');
+  const packingFileProgress = document.querySelector('[data-packing-file-progress]');
   const selectAll = document.querySelector('[data-packing-select-all]');
   const undoButton = document.querySelector('[data-packing-undo]');
   const countLabel = document.querySelector('[data-packing-count]');
@@ -45,6 +49,8 @@
   let lastUndo = null;
   let invoiceDraftRows = [];
   let invoiceImportId = '';
+  let packingFilesUploading = false;
+  const failedPackingFiles = new Map();
 
   function isFrontDeskAdmin() {
     return String(currentUser.role_key || '') === 'front_desk_admin';
@@ -2244,10 +2250,117 @@
     }
     if (typeof window.initialisePortalDatePickers === 'function') window.initialisePortalDatePickers(panelActivity);
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+    loadPackingItemFiles(currentTask.id);
     panel.classList.add('open');
     panel.setAttribute('aria-hidden', 'false');
     backdrop.hidden = false;
   }
+
+  function formatPackingFileSize(bytes) {
+    const size = Number(bytes || 0);
+    if (size < 1024) return `${size} B`;
+    if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+    return `${(size / 1024 / 1024).toFixed(1)} MB`;
+  }
+
+  function packingFileMarkup(file) {
+    const type = String(file.mime_type || '').split('/').pop()?.toUpperCase() || 'FILE';
+    return `<article class="packing-item-file-row" data-packing-attachment-id="${Number(file.id)}">
+      <span class="packing-item-file-icon"><i data-lucide="${String(file.mime_type || '').startsWith('image/') ? 'image' : 'file-text'}"></i></span>
+      <span class="packing-item-file-copy"><strong>${esc(file.name)}</strong><small>${esc(type)} · ${esc(formatPackingFileSize(file.size))} · ${esc(file.uploaded_by)} · ${esc(formatWebsiteDate(file.uploaded_at))}</small></span>
+      <span class="packing-item-file-actions"><a href="${esc(file.view_url)}" target="_blank" rel="noopener">View</a><a href="${esc(file.download_url)}">Download</a>${file.can_delete ? `<details><summary aria-label="File actions">•••</summary><button type="button" data-delete-packing-file="${Number(file.id)}">Delete</button></details>` : ''}</span>
+    </article>`;
+  }
+
+  async function loadPackingItemFiles(itemId) {
+    if (!config.filesUrl || !packingFilesList || !itemId) return;
+    packingFilesList.innerHTML = '<p class="packing-item-files-empty">Loading files…</p>';
+    try {
+      const response = await fetch(`${config.filesUrl}?action=list&item_id=${encodeURIComponent(itemId)}`, {credentials:'same-origin', headers:{Accept:'application/json'}});
+      const result = await response.json();
+      if (!response.ok || result.success !== true) throw new Error(result.message || 'Unable to load files.');
+      packingFilesList.innerHTML = result.attachments.length ? result.attachments.map(packingFileMarkup).join('') : '<p class="packing-item-files-empty">No files uploaded yet.</p>';
+      if (window.lucide) window.lucide.createIcons({strokeWidth:2});
+    } catch (error) {
+      packingFilesList.innerHTML = `<p class="packing-item-file-error">${esc(error.message || 'Unable to load files.')}</p>`;
+    }
+  }
+
+  function uploadPackingItemFiles(itemId, files) {
+    if (!itemId || !files.length || packingFilesUploading) return Promise.resolve();
+    packingFilesUploading = true;
+    packingFileDrop?.classList.add('is-uploading');
+    if (packingFileInput) packingFileInput.disabled = true;
+    packingFileProgress.hidden = false;
+    packingFileProgress.textContent = `Uploading 1 of ${files.length}… 0%`;
+    const data = new FormData();
+    data.append('action', 'upload'); data.append('item_id', String(itemId)); data.append('csrf_token', String(config.filesCsrf || ''));
+    files.forEach((file) => data.append('files[]', file, file.name));
+    return new Promise((resolve) => {
+      const request = new XMLHttpRequest();
+      request.open('POST', config.filesUrl);
+      request.responseType = 'json';
+      request.upload.addEventListener('progress', (event) => {
+        if (!event.lengthComputable) return;
+        const percent = Math.round(event.loaded / event.total * 100);
+        const current = Math.min(files.length, Math.max(1, Math.ceil(percent / Math.max(1, 100 / files.length))));
+        packingFileProgress.textContent = `Uploading ${current} of ${files.length}… ${percent}%`;
+      });
+      request.addEventListener('loadend', async () => {
+        const result = request.response || {};
+        failedPackingFiles.clear();
+        (result.failed || []).forEach((failure) => {
+          const file = files.find((candidate) => candidate.name === failure.name);
+          if (file) failedPackingFiles.set(failure.name, file);
+        });
+        const failures = (result.failed || []).map((failure) => `<div class="packing-item-upload-result is-error"><span>${esc(failure.name)} could not be uploaded.</span>${failedPackingFiles.has(failure.name) ? `<button type="button" data-retry-packing-file="${esc(failure.name)}">Retry</button>` : ''}<small>${esc(failure.message || '')}</small></div>`).join('');
+        const successful = (result.uploaded || []).map((file) => `<div class="packing-item-upload-result is-success"><span>${esc(file.name)} — Uploaded successfully</span></div>`).join('');
+        const successCount = (result.uploaded || []).length;
+        packingFileProgress.innerHTML = `${successful}${failures || (!successCount ? `<div class="packing-item-upload-result is-error">${esc(result.message || 'Files could not be uploaded.')}</div>` : '')}`;
+        packingFilesUploading = false;
+        packingFileDrop?.classList.remove('is-uploading');
+        if (packingFileInput) { packingFileInput.disabled = false; packingFileInput.value = ''; }
+        await loadPackingItemFiles(itemId);
+        resolve(result);
+      });
+      request.send(data);
+    });
+  }
+
+  function handleSelectedPackingFiles(fileList) {
+    const files = Array.from(fileList || []);
+    if (!files.length || !currentTask) return;
+    if (files.length > 10) {
+      packingFileProgress.hidden = false;
+      packingFileProgress.textContent = 'You can upload a maximum of 10 files at a time.';
+      if (packingFileInput) packingFileInput.value = '';
+      return;
+    }
+    uploadPackingItemFiles(currentTask.id, files);
+  }
+
+  packingFileInput?.addEventListener('change', (event) => handleSelectedPackingFiles(event.target.files));
+  packingFileDrop?.addEventListener('dragover', (event) => { event.preventDefault(); if (!packingFilesUploading) packingFileDrop.classList.add('is-dragging'); });
+  packingFileDrop?.addEventListener('dragleave', () => packingFileDrop.classList.remove('is-dragging'));
+  packingFileDrop?.addEventListener('drop', (event) => { event.preventDefault(); packingFileDrop.classList.remove('is-dragging'); handleSelectedPackingFiles(event.dataTransfer?.files); });
+  packingFileDrop?.addEventListener('keydown', (event) => { if ((event.key === 'Enter' || event.key === ' ') && !packingFilesUploading) { event.preventDefault(); packingFileInput?.click(); } });
+  packingFilesList?.addEventListener('click', async (event) => {
+    const retry = event.target.closest('[data-retry-packing-file]');
+    if (retry && currentTask) { const file = failedPackingFiles.get(retry.dataset.retryPackingFile); if (file) uploadPackingItemFiles(currentTask.id, [file]); return; }
+    const remove = event.target.closest('[data-delete-packing-file]');
+    if (!remove || !currentTask || !window.confirm('Delete this file?')) return;
+    const data = new FormData(); data.append('action','delete'); data.append('item_id',String(currentTask.id)); data.append('attachment_id',remove.dataset.deletePackingFile); data.append('csrf_token',String(config.filesCsrf || ''));
+    const response = await fetch(config.filesUrl, {method:'POST', credentials:'same-origin', body:data});
+    const result = await response.json();
+    if (!response.ok || result.success !== true) { packingFileProgress.hidden=false; packingFileProgress.textContent=result.message || 'Unable to delete the file.'; return; }
+    loadPackingItemFiles(currentTask.id);
+  });
+  packingFileProgress?.addEventListener('click', (event) => {
+    const retry = event.target.closest('[data-retry-packing-file]');
+    if (!retry || !currentTask) return;
+    const file = failedPackingFiles.get(retry.dataset.retryPackingFile);
+    if (file) uploadPackingItemFiles(currentTask.id, [file]);
+  });
 
   function packingPanelNumber(value) {
     const match = String(value || '').trim().match(/^(-?\d+(?:\.\d+)?)/);
