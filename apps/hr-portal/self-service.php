@@ -67,6 +67,8 @@ $unreadCount = count(array_filter($notifs, function($n){ return !$n['is_read']; 
 // Pending leave requests
 $pendingLeave = $db->prepare("SELECT * FROM leave_requests WHERE employee_id=? AND status='pending' ORDER BY created_at DESC LIMIT 5");
 $pendingLeave->execute([$empId]); $pendingLeave = $pendingLeave->fetchAll();
+$latestRejectedLeave = $db->prepare("SELECT * FROM leave_requests WHERE employee_id=? AND status='rejected' ORDER BY approved_at DESC, created_at DESC LIMIT 1");
+$latestRejectedLeave->execute([$empId]); $latestRejectedLeave = $latestRejectedLeave->fetch();
 
 // Upcoming Namibia public holidays
 $today = date('Y-m-d');
@@ -259,6 +261,20 @@ $currentPage = 'self-service.php';
         <?php endforeach ?>
         </tbody>
       </table>
+    </div>
+    <?php endif ?>
+
+    <?php if ($latestRejectedLeave): ?>
+    <div class="card">
+      <div class="card-header"><div class="card-title"><i class="fa-solid fa-calendar-xmark" style="color:var(--red)"></i> Latest Leave Decision</div><a class="btn btn-secondary btn-sm" href="my-leave.php?leave_request=<?=$latestRejectedLeave['id']?>#leave-request-<?=$latestRejectedLeave['id']?>">View request</a></div>
+      <div style="padding:16px 20px">
+        <div style="font-size:13px;font-weight:600"><?=htmlspecialchars($latestRejectedLeave['leave_type'])?> · <?=date('d M Y',strtotime($latestRejectedLeave['start_date']))?> - <?=date('d M Y',strtotime($latestRejectedLeave['end_date']))?> <span class="badge badge-red">Rejected</span></div>
+        <section class="leave-decision leave-decision--rejected">
+          <div class="leave-decision__heading"><i class="fa-solid fa-circle-info" aria-hidden="true"></i><h3>Reason for rejection</h3></div>
+          <p class="leave-decision__reason"><?=htmlspecialchars(trim((string)($latestRejectedLeave['reject_reason'] ?? '')) !== '' ? $latestRejectedLeave['reject_reason'] : 'No rejection reason was recorded for this request.', ENT_QUOTES, 'UTF-8')?></p>
+          <div class="leave-decision__meta"><span>Decision date: <?=$latestRejectedLeave['approved_at'] ? date('d F Y \a\t H:i',strtotime($latestRejectedLeave['approved_at'])) : 'Not recorded'?></span><span>Reviewed by: HR Administration</span></div>
+        </section>
+      </div>
     </div>
     <?php endif ?>
 

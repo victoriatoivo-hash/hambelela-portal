@@ -185,7 +185,7 @@ $currentPage = 'my-leave.php';
         <?php foreach ($history as $r):
           $sc = $r['status']==='approved'?'badge-green':($r['status']==='rejected'?'badge-red':'badge-amber');
         ?>
-        <tr>
+        <tr id="leave-request-<?=$r['id']?>">
           <td><?=htmlspecialchars($r['leave_type'])?></td>
           <td><?=date('d M Y',strtotime($r['start_date']))?></td>
           <td><?=date('d M Y',strtotime($r['end_date']))?></td>
@@ -193,9 +193,9 @@ $currentPage = 'my-leave.php';
           <td>
             <div class="leave-status-cell">
               <span class="badge <?=$sc?>"><?=ucfirst($r['status'])?></span>
-            <?php if($r['status']==='rejected' && $r['reject_reason']): ?>
+            <?php if($r['status']==='rejected'): ?>
               <button type="button" class="leave-reason-trigger" data-leave-reason-trigger
-                data-reason="<?=htmlspecialchars($r['reject_reason'], ENT_QUOTES, 'UTF-8')?>"
+                data-reason="<?=htmlspecialchars(trim((string)($r['reject_reason'] ?? '')) !== '' ? $r['reject_reason'] : 'No rejection reason was recorded for this request.', ENT_QUOTES, 'UTF-8')?>"
                 data-decision-date="<?=htmlspecialchars($r['approved_at'] ? date('d F Y \a\t H:i', strtotime($r['approved_at'])) : 'Not recorded', ENT_QUOTES, 'UTF-8')?>"
                 data-reviewed-by="<?=htmlspecialchars($r['reviewer_name'] ?: 'HR Administration', ENT_QUOTES, 'UTF-8')?>"
                 aria-expanded="false" aria-haspopup="dialog" aria-controls="leave-reason-popover">
