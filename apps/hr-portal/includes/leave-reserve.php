@@ -24,6 +24,22 @@ function ensureLeaveShutdownSchema($db) {
             $db->exec("ALTER TABLE leave_requests ADD COLUMN reserve_warning TINYINT(1) DEFAULT 0 AFTER certificate");
         }
     } catch (Exception $e) {}
+
+    // Leave decisions historically reused approved_by/approved_at for the reviewer
+    // and decision timestamp. Keep that existing contract, but ensure the employee-
+    // visible reason and notification deep-link fields exist on upgraded portals.
+    try {
+        $col = $db->query("SHOW COLUMNS FROM leave_requests LIKE 'reject_reason'")->fetch();
+        if (!$col) {
+            $db->exec("ALTER TABLE leave_requests ADD COLUMN reject_reason TEXT NULL AFTER approved_at");
+        }
+        $col = $db->query("SHOW COLUMNS FROM notifications LIKE 'action_url'")->fetch();
+        if (!$col) {
+            $db->exec("ALTER TABLE notifications ADD COLUMN action_url VARCHAR(255) NULL AFTER type");
+        }
+    } catch (Exception $e) {
+        error_log('Leave decision schema check failed: ' . $e->getMessage());
+    }
 }
 
 function shutdownSettings($db) {

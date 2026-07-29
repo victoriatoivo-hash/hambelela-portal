@@ -6,6 +6,8 @@ require_once __DIR__ . '/includes/leave-reserve.php';
 $user = currentUser();
 $db   = db();
 ensureLeaveShutdownSchema($db);
+$leaveCsrfToken = $_SESSION['leave_csrf_token'] ?? bin2hex(random_bytes(32));
+$_SESSION['leave_csrf_token'] = $leaveCsrfToken;
 
 // ── Actions ──────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -26,11 +28,111 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // Approve / Reject
-    if ($action === 'approve' || $action === 'reject') {
+    // Reject through the existing leave decision path, with a mandatory employee-visible reason.
+    if ($action === 'reject') {
+        $wantsJson = strpos((string)($_SERVER['HTTP_ACCEPT'] ?? ''), 'application/json') !== false;
+        $respond = static function (array $payload, int $status = 200) use ($wantsJson): void {
+            if ($wantsJson) {
+                jsonResponse($payload, $status);
+            }
+            if (!empty($payload['success'])) {
+                header('Location: leave.php?msg=rejected');
+            } else {
+                header('Location: leave.php?msg=reject_error&error=' . rawurlencode((string)($payload['message'] ?? 'Could not reject leave request.')));
+            }
+            exit;
+        };
+
+        $id = (int)($_POST['request_id'] ?? 0);
+        $reason = trim(strip_tags((string)($_POST['reject_reason'] ?? '')));
+        $reasonLength = function_exists('mb_strlen') ? mb_strlen($reason, 'UTF-8') : strlen($reason);
+        $csrf = (string)($_POST['csrf_token'] ?? '');
+
+        if (!hash_equals($leaveCsrfToken, $csrf)) {
+            $respond(['success' => false, 'message' => 'Your session expired. Refresh the page and try again.'], 403);
+        }
+        if ($id < 1) {
+            $respond(['success' => false, 'message' => 'The leave request could not be found.'], 404);
+        }
+        if ($reason === '') {
+            $respond(['success' => false, 'message' => 'Please enter a reason for rejecting this leave request.'], 422);
+        }
+        if ($reasonLength > 1000) {
+            $respond(['success' => false, 'message' => 'The rejection reason may not exceed 1,000 characters.'], 422);
+        }
+
+        try {
+            $db->beginTransaction();
+            $reqStmt = $db->prepare("SELECT lr.*, CONCAT(e.first_name,' ',e.last_name) AS employee_name FROM leave_requests lr JOIN employees e ON e.id=lr.employee_id WHERE lr.id=? FOR UPDATE");
+            $reqStmt->execute([$id]);
+            $req = $reqStmt->fetch();
+            if (!$req) {
+                $db->rollBack();
+                $respond(['success' => false, 'message' => 'The leave request could not be found.'], 404);
+            }
+            if ($req['status'] !== 'pending') {
+                $db->rollBack();
+                $respond(['success' => false, 'message' => 'This leave request has already been reviewed.'], 409);
+            }
+            if ((int)$req['employee_id'] === (int)($user['emp_id'] ?? 0) && !empty($user['emp_id'])) {
+                $db->rollBack();
+                $respond(['success' => false, 'message' => 'You cannot reject your own leave request.'], 403);
+            }
+
+            $update = $db->prepare("UPDATE leave_requests SET status='rejected', approved_by=?, approved_at=NOW(), reject_reason=? WHERE id=? AND status='pending'");
+            $update->execute([(int)$user['id'], $reason, $id]);
+            if ($update->rowCount() !== 1) {
+                $db->rollBack();
+                $respond(['success' => false, 'message' => 'This leave request has already been reviewed.'], 409);
+            }
+
+            $empContact = $db->prepare("SELECT u.id AS user_id, u.email AS user_email, u.name AS user_name, e.email AS employee_email, CONCAT(e.first_name,' ',e.last_name) AS employee_name FROM employees e LEFT JOIN users u ON u.employee_id=e.id WHERE e.id=? LIMIT 1");
+            $empContact->execute([$req['employee_id']]);
+            $empContact = $empContact->fetch();
+            if ($empContact && $empContact['user_id']) {
+                $dates = date('d M Y', strtotime($req['start_date'])) . ' - ' . date('d M Y', strtotime($req['end_date']));
+                $db->prepare("INSERT INTO notifications (user_id,title,message,type,action_url) VALUES (?,?,?,'error',?)")
+                   ->execute([(int)$empContact['user_id'], 'Leave request rejected', 'Your ' . $req['leave_type'] . ' request for ' . $dates . ' was rejected. View the reason.', 'my-leave.php?leave_request=' . $id . '#leave-request-' . $id]);
+            }
+
+            $auditDescription = 'Leave request #' . $id . ' rejected for ' . $req['employee_name'] . '. Reason: ' . $reason;
+            $db->prepare("INSERT INTO audit_log (user_id,action,description,ip_address) VALUES (?,'leave_rejected',?,?)")
+               ->execute([(int)$user['id'], $auditDescription, (string)($_SERVER['REMOTE_ADDR'] ?? '')]);
+            $db->commit();
+
+            if ($empContact) {
+                $toEmail = trim((string)($empContact['user_email'] ?: $empContact['employee_email']));
+                $toName = $empContact['user_name'] ?: $empContact['employee_name'];
+                if ($toEmail !== '') {
+                    emailLeaveRejected($toEmail, $toName, $req['leave_type'], $reason);
+                }
+            }
+
+            $respond([
+                'success' => true,
+                'message' => 'Leave request rejected and the employee has been notified.',
+                'leave_request' => [
+                    'id' => $id,
+                    'status' => 'rejected',
+                    'rejection_reason' => $reason,
+                    'rejected_at' => date(DATE_ATOM),
+                    'rejected_by' => ['id' => (int)$user['id'], 'name' => 'HR Administration'],
+                ],
+            ]);
+        } catch (Throwable $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            error_log('Leave rejection failed: ' . $e->getMessage());
+            $respond(['success' => false, 'message' => 'Could not reject the leave request. Please try again.'], 500);
+        }
+    }
+
+    // Approve (existing balance and notification flow).
+    if ($action === 'approve') {
         $id     = (int)($_POST['request_id'] ?? 0);
-        $status = $action === 'approve' ? 'approved' : 'rejected';
-        $reason = clean($_POST['reject_reason'] ?? '');
+        $status = 'approved';
+        $reason = '';
         if ($id) {
             $req = $db->prepare("SELECT * FROM leave_requests WHERE id=?");
             $req->execute([$id]); $req = $req->fetch();
@@ -54,23 +156,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $toName = $empContact['user_name'] ?: $empContact['employee_name'];
                         if ($toEmail !== '') emailLeaveApproved($toEmail, $toName, $req['leave_type'], $req['days'], $req['start_date'], $req['end_date']);
                     }
-                } else {
-                    // Notify rejection
-                    $empContact = $db->prepare("SELECT u.id AS user_id, u.email AS user_email, u.name AS user_name, e.email AS employee_email, CONCAT(e.first_name,' ',e.last_name) AS employee_name FROM employees e LEFT JOIN users u ON u.employee_id=e.id WHERE e.id=? LIMIT 1");
-                    $empContact->execute([$req['employee_id']]); $empContact = $empContact->fetch();
-                    if ($empContact && $empContact['user_id']) {
-                        $db->prepare("INSERT INTO notifications (user_id,title,message,type) VALUES (?,?,?,'error')")
-                           ->execute([$empContact['user_id'],'Leave Request Rejected','Your '.$req['leave_type'].' request has been rejected.'.($reason?' Reason: '.$reason:'')]);
-                    }
-                    if ($empContact) {
-                        $toEmail = trim((string)($empContact['user_email'] ?: $empContact['employee_email']));
-                        $toName = $empContact['user_name'] ?: $empContact['employee_name'];
-                        if ($toEmail !== '') emailLeaveRejected($toEmail, $toName, $req['leave_type'], $reason);
-                    }
                 }
             }
         }
-        header('Location: leave.php?msg='.$action.'d'); exit;
+        header('Location: leave.php?msg=approved'); exit;
     }
 
     // Back-capture
@@ -157,7 +246,8 @@ $msg = $_GET['msg'] ?? '';
   <div class="content">
     <?php if ($msg === 'approved'): ?><div class="toast"><i class="fa-solid fa-check"></i> Leave request approved.</div>
     <?php elseif ($msg === 'leave_deleted'): ?><div class="toast no-print error"><i class="fa-solid fa-trash"></i> Leave deleted, balance restored.</div>
-    <?php elseif ($msg === 'rejected'): ?><div class="toast error"><i class="fa-solid fa-xmark"></i> Leave request rejected.</div>
+    <?php elseif ($msg === 'rejected'): ?><div class="toast"><i class="fa-solid fa-check"></i> Leave request rejected and the employee has been notified.</div>
+    <?php elseif ($msg === 'reject_error'): ?><div class="toast error"><i class="fa-solid fa-xmark"></i> <?=htmlspecialchars((string)($_GET['error'] ?? 'Could not reject the leave request.'), ENT_QUOTES, 'UTF-8')?></div>
     <?php elseif ($msg === 'captured'): ?><div class="toast"><i class="fa-solid fa-check"></i> Past leave captured successfully.</div>
     <?php elseif ($msg === 'adjusted'): ?><div class="toast"><i class="fa-solid fa-check"></i> Leave balance adjusted.</div>
     <?php elseif ($msg === 'shutdown_saved'): ?><div class="toast"><i class="fa-solid fa-check"></i> Shutdown shortfall handling saved.</div>
@@ -222,7 +312,15 @@ $msg = $_GET['msg'] ?? '';
               <input type="hidden" name="request_id" value="<?=$r['id']?>">
               <button class="btn btn-success btn-sm"><i class="fa-solid fa-check"></i> Approve</button>
             </form>
-            <button class="btn btn-danger btn-sm" onclick="openReject(<?=$r['id']?>)"><i class="fa-solid fa-xmark"></i> Reject</button>
+            <button
+              type="button"
+              class="btn btn-danger btn-sm js-reject-leave"
+              data-request-id="<?=$r['id']?>"
+              data-employee="<?=htmlspecialchars($r['emp_name'], ENT_QUOTES, 'UTF-8')?>"
+              data-leave-type="<?=htmlspecialchars($r['leave_type'], ENT_QUOTES, 'UTF-8')?>"
+              data-dates="<?=date('d M Y',strtotime($r['start_date']))?> - <?=date('d M Y',strtotime($r['end_date']))?>"
+              data-days="<?=number_format((float)$r['days'],1)?>"
+            ><i class="fa-solid fa-xmark"></i> Reject</button>
             <form method="POST" style="display:inline" onsubmit="return confirm('Delete this leave permanently?')"><input type="hidden" name="action" value="delete_leave"><input type="hidden" name="delete_id" value="<?=$r['id']?>"><button type="submit" class="btn btn-danger btn-sm" title="Delete"><i class="fa-solid fa-trash"></i></button></form>
           </td>
         </tr>
@@ -321,7 +419,16 @@ $msg = $_GET['msg'] ?? '';
           <td><?=htmlspecialchars($r['leave_type'])?></td>
           <td style="font-size:12px"><?=date('d M Y',strtotime($r['start_date']))?> – <?=date('d M Y',strtotime($r['end_date']))?></td>
           <td><?=$r['days']?></td>
-          <td><span class="badge <?=$sc?>"><?=ucfirst($r['status'])?></span></td>
+          <td>
+            <span class="badge <?=$sc?>"><?=ucfirst($r['status'])?></span>
+            <?php if ($r['status']==='rejected'): ?>
+            <div class="leave-decision leave-decision--rejected">
+              <div class="leave-decision__heading"><i class="fa-solid fa-circle-info" aria-hidden="true"></i><h3>Reason for rejection</h3></div>
+              <p class="leave-decision__reason"><?=htmlspecialchars(trim((string)($r['reject_reason'] ?? '')) !== '' ? $r['reject_reason'] : 'No rejection reason was recorded for this request.', ENT_QUOTES, 'UTF-8')?></p>
+              <div class="leave-decision__meta"><span>Decision date: <?=$r['approved_at'] ? date('d F Y \a\t H:i',strtotime($r['approved_at'])) : 'Not recorded'?></span><span>Reviewed by: HR Administration</span></div>
+            </div>
+            <?php endif ?>
+          </td>
           <td><?=$r['back_capture'] ? '<span class="badge badge-gray">Back-Captured</span>' : '—'?></td>
           <td style="white-space:nowrap">
             <form method="POST" style="display:inline" onsubmit="return confirm('Delete this <?=strtolower($r['status'])?> leave request? This cannot be undone.')">
@@ -342,21 +449,35 @@ $msg = $_GET['msg'] ?? '';
 </div>
 
 <!-- REJECT MODAL -->
-<div class="overlay" id="rejectModal">
-  <div class="modal" style="max-width:440px">
-    <div class="modal-header"><div class="modal-title">Reject Leave Request</div><button class="modal-close" onclick="var m=document.getElementById('rejectModal');if(m){m.style.display='none';m.classList.remove('open');}void(0)"><i class="fa-solid fa-xmark"></i></button></div>
-    <form method="POST">
+<div class="overlay leave-rejection-overlay" id="rejectModal" role="dialog" aria-modal="true" aria-labelledby="reject-leave-title" hidden>
+  <div class="modal leave-rejection-modal">
+    <div class="modal-header">
+      <div><div class="leave-rejection-eyebrow">Leave management</div><div class="modal-title" id="reject-leave-title">Reject Leave Request</div></div>
+      <button type="button" class="modal-close" data-close-rejection-modal aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <form method="POST" id="rejectLeaveForm" novalidate>
       <input type="hidden" name="action" value="reject">
       <input type="hidden" name="request_id" id="rejectId">
+      <input type="hidden" name="csrf_token" value="<?=htmlspecialchars($leaveCsrfToken, ENT_QUOTES, 'UTF-8')?>">
       <div class="modal-body">
+        <div class="leave-rejection-summary">
+          <div><span>Employee</span><strong data-rejection-employee></strong></div>
+          <div><span>Leave type</span><strong data-rejection-type></strong></div>
+          <div><span>Dates</span><strong data-rejection-dates></strong></div>
+          <div><span>Days requested</span><strong data-rejection-days></strong></div>
+        </div>
         <div class="form-group">
-          <label class="form-label">Reason for Rejection (optional)</label>
-          <textarea class="form-textarea" name="reject_reason" placeholder="Let the employee know why..."></textarea>
+          <label class="form-label" for="leaveRejectionReason">Reason for rejection <span aria-hidden="true">*</span></label>
+          <textarea class="form-textarea" id="leaveRejectionReason" name="reject_reason" rows="5" maxlength="1000" required placeholder="Explain why this leave request is being rejected."></textarea>
+          <div class="leave-rejection-field-footer">
+            <span class="leave-rejection-error" data-rejection-error role="alert"></span>
+            <span class="leave-rejection-counter"><span data-rejection-character-count>0</span>/1000</span>
+          </div>
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" onclick="var m=document.getElementById('rejectModal');if(m){m.style.display='none';m.classList.remove('open');}void(0)">Cancel</button>
-        <button type="submit" class="btn btn-danger"><i class="fa-solid fa-xmark"></i> Confirm Reject</button>
+        <button type="button" class="btn btn-secondary" data-close-rejection-modal>Cancel</button>
+        <button type="submit" class="btn btn-danger" data-confirm-leave-rejection><i class="fa-solid fa-xmark"></i> Reject Leave</button>
       </div>
     </form>
   </div>
@@ -434,10 +555,77 @@ $msg = $_GET['msg'] ?? '';
 <script>
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
-function openReject(id) { document.getElementById('rejectId').value = id; var m=document.getElementById('rejectModal'); if(m){m.style.display='flex';m.classList.add('open');} }
-document.querySelectorAll('.overlay').forEach(o => {
-  o.addEventListener('click', e => { if (e.target===o) o.classList.remove('open'); });
+const rejectModal = document.getElementById('rejectModal');
+const rejectForm = document.getElementById('rejectLeaveForm');
+const rejectReason = document.getElementById('leaveRejectionReason');
+let rejectingLeave = false;
+
+function setRejectModalOpen(open, trigger) {
+  if (!rejectModal || (rejectingLeave && !open)) return;
+  rejectModal.hidden = !open;
+  rejectModal.classList.toggle('open', open);
+  if (open && trigger) {
+    document.getElementById('rejectId').value = trigger.dataset.requestId || '';
+    rejectModal.querySelector('[data-rejection-employee]').textContent = trigger.dataset.employee || '—';
+    rejectModal.querySelector('[data-rejection-type]').textContent = trigger.dataset.leaveType || '—';
+    rejectModal.querySelector('[data-rejection-dates]').textContent = trigger.dataset.dates || '—';
+    rejectModal.querySelector('[data-rejection-days]').textContent = trigger.dataset.days || '—';
+    rejectReason.value = '';
+    rejectReason.setAttribute('aria-invalid', 'false');
+    rejectModal.querySelector('[data-rejection-error]').textContent = '';
+    rejectModal.querySelector('[data-rejection-character-count]').textContent = '0';
+    requestAnimationFrame(() => rejectReason.focus());
+  }
+}
+
+document.querySelectorAll('.js-reject-leave').forEach(button => button.addEventListener('click', () => setRejectModalOpen(true, button)));
+document.querySelectorAll('[data-close-rejection-modal]').forEach(button => button.addEventListener('click', () => setRejectModalOpen(false)));
+rejectReason?.addEventListener('input', () => {
+  rejectModal.querySelector('[data-rejection-character-count]').textContent = String(rejectReason.value.length);
+  if (rejectReason.value.trim()) {
+    rejectReason.setAttribute('aria-invalid', 'false');
+    rejectModal.querySelector('[data-rejection-error]').textContent = '';
+  }
 });
+rejectForm?.addEventListener('submit', async event => {
+  event.preventDefault();
+  if (rejectingLeave) return;
+  const reason = rejectReason.value.trim();
+  const error = rejectModal.querySelector('[data-rejection-error]');
+  if (!reason) {
+    rejectReason.setAttribute('aria-invalid', 'true');
+    error.textContent = 'Please enter a reason for rejecting this leave request.';
+    rejectReason.focus();
+    return;
+  }
+  rejectingLeave = true;
+  const submit = rejectForm.querySelector('[data-confirm-leave-rejection]');
+  submit.disabled = true;
+  submit.setAttribute('aria-busy', 'true');
+  const originalHtml = submit.innerHTML;
+  submit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Rejecting…';
+  try {
+    const response = await fetch('leave.php', {method:'POST', body:new FormData(rejectForm), headers:{Accept:'application/json'}});
+    const payload = await response.json();
+    if (!response.ok || !payload.success) throw new Error(payload.message || 'Could not reject the leave request.');
+    setRejectModalOpen(false);
+    window.location.assign('leave.php?msg=rejected');
+  } catch (requestError) {
+    error.textContent = requestError.message || 'Could not reject the leave request. Please try again.';
+  } finally {
+    rejectingLeave = false;
+    submit.disabled = false;
+    submit.removeAttribute('aria-busy');
+    submit.innerHTML = originalHtml;
+  }
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && rejectModal?.classList.contains('open')) setRejectModalOpen(false);
+});
+document.querySelectorAll('.overlay').forEach(o => {
+  o.addEventListener('click', e => { if (e.target===o && o !== rejectModal) o.classList.remove('open'); });
+});
+rejectModal?.addEventListener('click', event => { if (event.target === rejectModal) setRejectModalOpen(false); });
 </script>
 </body>
 </html>

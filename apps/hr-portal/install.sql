@@ -280,6 +280,7 @@ CREATE TABLE IF NOT EXISTS `notifications` (
   `title`       VARCHAR(200) NOT NULL,
   `message`     TEXT,
   `type`        ENUM('info','success','warning','error') DEFAULT 'info',
+  `action_url`  VARCHAR(255) NULL,
   `is_read`     TINYINT(1) DEFAULT 0,
   `created_at`  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE

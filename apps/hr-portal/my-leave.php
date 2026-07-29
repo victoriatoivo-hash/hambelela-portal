@@ -181,15 +181,15 @@ $currentPage = 'my-leave.php';
         <?php foreach ($history as $r):
           $sc = $r['status']==='approved'?'badge-green':($r['status']==='rejected'?'badge-red':'badge-amber');
         ?>
-        <tr>
+        <tr id="leave-request-<?=$r['id']?>">
           <td><?=htmlspecialchars($r['leave_type'])?></td>
           <td><?=date('d M Y',strtotime($r['start_date']))?></td>
           <td><?=date('d M Y',strtotime($r['end_date']))?></td>
           <td><strong><?=number_format((float)$r['days'],1)?></strong></td>
           <td>
             <span class="badge <?=$sc?>"><?=ucfirst($r['status'])?></span>
-            <?php if($r['status']==='rejected' && $r['reject_reason']): ?>
-            <div style="font-size:10px;color:var(--red);margin-top:2px"><?=htmlspecialchars($r['reject_reason'])?></div>
+            <?php if($r['status']==='rejected'): ?>
+            <button type="button" class="leave-reason-toggle" aria-expanded="false" aria-controls="leave-reason-<?=$r['id']?>">View reason</button>
             <?php endif ?>
           </td>
           <td>
@@ -202,6 +202,20 @@ $currentPage = 'my-leave.php';
             <?php endif; ?>
           </td>
         </tr>
+        <?php if($r['status']==='rejected'): ?>
+        <tr id="leave-reason-<?=$r['id']?>" class="leave-reason-row" hidden>
+          <td colspan="6">
+            <section class="leave-decision leave-decision--rejected" aria-labelledby="leave-rejection-heading-<?=$r['id']?>">
+              <div class="leave-decision__heading"><i class="fa-solid fa-circle-info" aria-hidden="true"></i><h3 id="leave-rejection-heading-<?=$r['id']?>">Reason for rejection</h3></div>
+              <p class="leave-decision__reason"><?=htmlspecialchars(trim((string)($r['reject_reason'] ?? '')) !== '' ? $r['reject_reason'] : 'No rejection reason was recorded for this request.', ENT_QUOTES, 'UTF-8')?></p>
+              <div class="leave-decision__meta">
+                <span>Decision date: <?=$r['approved_at'] ? date('d F Y \a\t H:i', strtotime($r['approved_at'])) : 'Not recorded'?></span>
+                <span>Reviewed by: HR Administration</span>
+              </div>
+            </section>
+          </td>
+        </tr>
+        <?php endif ?>
         <?php endforeach ?>
         </tbody>
       </table>
@@ -210,6 +224,27 @@ $currentPage = 'my-leave.php';
 
   </div>
 </div>
+
+<script>
+document.querySelectorAll('.leave-reason-toggle').forEach(function(button){
+  button.addEventListener('click',function(){
+    var details=document.getElementById(button.getAttribute('aria-controls'));
+    if(!details)return;
+    var open=details.hidden;
+    details.hidden=!open;
+    button.setAttribute('aria-expanded',String(open));
+    button.textContent=open?'Hide reason':'View reason';
+  });
+});
+(function(){
+  var params=new URLSearchParams(window.location.search);
+  var id=params.get('leave_request');
+  if(!id)return;
+  var row=document.getElementById('leave-request-'+id);
+  var toggle=row&&row.querySelector('.leave-reason-toggle');
+  if(toggle){toggle.click();row.scrollIntoView({block:'center'});}
+})();
+</script>
 
 <!-- LEAVE REQUEST MODAL -->
 <div class="overlay" id="leaveModal">

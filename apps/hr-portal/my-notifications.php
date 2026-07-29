@@ -1,8 +1,10 @@
 <?php
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/includes/leave-reserve.php';
 requireLogin();
 $user = currentUser();
 $db   = db();
+ensureLeaveShutdownSchema($db);
 
 // Mark all as read when visiting page
 $db->prepare("UPDATE notifications SET is_read=1 WHERE user_id=?")->execute([$user['id']]);
@@ -49,15 +51,17 @@ $currentPage = 'my-notifications.php';
         elseif ($diff < 3600) $ago = floor($diff/60).' min ago';
         elseif ($diff < 86400) $ago = floor($diff/3600).' hr ago';
         else $ago = date('d M Y', strtotime($n['created_at']));
+        $actionUrl = trim((string)($n['action_url'] ?? ''));
+        $safeActionUrl = preg_match('/^[a-z0-9][a-z0-9._-]*\.php(?:[?#][^\s]*)?$/i', $actionUrl) ? $actionUrl : '';
       ?>
-      <div style="display:flex;align-items:flex-start;gap:14px;padding:14px 20px;border-bottom:1px solid var(--border)">
+      <?php if ($safeActionUrl): ?><a href="<?=htmlspecialchars($safeActionUrl, ENT_QUOTES, 'UTF-8')?>" style="display:flex;align-items:flex-start;gap:14px;padding:14px 20px;border-bottom:1px solid var(--border);color:inherit;text-decoration:none"><?php else: ?><div style="display:flex;align-items:flex-start;gap:14px;padding:14px 20px;border-bottom:1px solid var(--border)"><?php endif ?>
         <i class="<?=$icon?>" style="font-size:18px;color:<?=$color?>;margin-top:2px;flex-shrink:0"></i>
         <div style="flex:1">
           <div style="font-weight:600;font-size:13px;margin-bottom:2px"><?=htmlspecialchars($n['title'])?></div>
           <div style="font-size:13px;color:var(--text-mid)"><?=htmlspecialchars($n['message'])?></div>
         </div>
         <div style="font-size:11px;color:var(--text-light);white-space:nowrap;flex-shrink:0"><?=$ago?></div>
-      </div>
+      <?php if ($safeActionUrl): ?></a><?php else: ?></div><?php endif ?>
       <?php endforeach ?>
     </div>
     <?php endif ?>
