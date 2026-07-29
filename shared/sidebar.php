@@ -238,7 +238,7 @@ $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bo
     </div>
 </aside>
 <script>
-function toggleSidebar(){const sidebar=document.getElementById('portalSidebar');if(!sidebar)return;if(window.matchMedia('(max-width: 1023px)').matches){window.portalSidebarNavigation?.open();return}const collapsed=sidebar.classList.toggle('collapsed');localStorage.setItem('sidebarCollapsed',collapsed?'1':'0');document.body.classList.toggle('sidebar-collapsed',collapsed)}
+function toggleSidebar(){const sidebar=document.getElementById('portalSidebar');if(!sidebar)return;if(window.matchMedia('(max-width: 1023px)').matches){window.portalSidebarNavigation?.toggle();return}const collapsed=sidebar.classList.toggle('collapsed');localStorage.setItem('sidebarCollapsed',collapsed?'1':'0');document.body.classList.toggle('sidebar-collapsed',collapsed)}
 (function initialisePortalMobileSidebar(){
     const sidebar=document.querySelector('[data-portal-sidebar]');
     const mobileToggle=document.querySelector('[data-sidebar-open]');
@@ -260,7 +260,7 @@ function toggleSidebar(){const sidebar=document.getElementById('portalSidebar');
         if(open){lastFocused=document.activeElement;requestAnimationFrame(()=>focusable()[0]?.focus({preventScroll:true}))}
         else if(wasOpen&&lastFocused instanceof HTMLElement){lastFocused.focus({preventScroll:true});lastFocused=null}
     };
-    window.portalSidebarNavigation={open:()=>setOpen(true),close:()=>setOpen(false)};
+    window.portalSidebarNavigation={open:()=>setOpen(true),close:()=>setOpen(false),toggle:()=>setOpen(!sidebar.classList.contains('is-mobile-open'))};
     mobileToggle.addEventListener('click',()=>setOpen(!sidebar.classList.contains('is-mobile-open')));
     mobileBackdrop?.addEventListener('click',()=>setOpen(false));
     if(!mobileQuery.matches&&localStorage.getItem('sidebarCollapsed')==='1'){sidebar.classList.add('collapsed');document.body.classList.add('sidebar-collapsed')}
