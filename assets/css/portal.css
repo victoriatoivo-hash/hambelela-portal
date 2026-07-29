@@ -26477,7 +26477,7 @@ body:has(.ob-wrap) .ob-wrap .orders-board-v2 .monday-group.collapsed .monday-gro
   margin: 0;
   color: var(--bk-burgundy);
   font-size: 22px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .bk-wrap .ledger-subtitle {
