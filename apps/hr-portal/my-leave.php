@@ -89,7 +89,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Get leave history
-$history = $db->prepare("SELECT * FROM leave_requests WHERE employee_id=? ORDER BY created_at DESC");
+$history = $db->prepare("SELECT lr.*, u.name AS reviewer_name
+                         FROM leave_requests lr
+                         LEFT JOIN users u ON u.id=lr.approved_by
+                         WHERE lr.employee_id=?
+                         ORDER BY lr.created_at DESC");
 $history->execute([$empId]); $history = $history->fetchAll();
 
 $msg = $_GET['msg'] ?? '';
@@ -170,7 +174,7 @@ $currentPage = 'my-leave.php';
     </div>
 
     <!-- Leave History -->
-    <div class="card">
+    <div class="card" data-leave-history>
       <div class="card-header"><div class="card-title"><i class="fa-solid fa-list"></i> My Leave History</div></div>
       <?php if (empty($history)): ?>
         <div class="empty-state"><i class="fa-solid fa-calendar-xmark"></i><div>No leave requests yet.</div></div>
@@ -187,10 +191,19 @@ $currentPage = 'my-leave.php';
           <td><?=date('d M Y',strtotime($r['end_date']))?></td>
           <td><strong><?=number_format((float)$r['days'],1)?></strong></td>
           <td>
-            <span class="badge <?=$sc?>"><?=ucfirst($r['status'])?></span>
+            <div class="leave-status-cell">
+              <span class="badge <?=$sc?>"><?=ucfirst($r['status'])?></span>
             <?php if($r['status']==='rejected' && $r['reject_reason']): ?>
-            <div style="font-size:10px;color:var(--red);margin-top:2px"><?=htmlspecialchars($r['reject_reason'])?></div>
+              <button type="button" class="leave-reason-trigger" data-leave-reason-trigger
+                data-reason="<?=htmlspecialchars($r['reject_reason'], ENT_QUOTES, 'UTF-8')?>"
+                data-decision-date="<?=htmlspecialchars($r['approved_at'] ? date('d F Y \a\t H:i', strtotime($r['approved_at'])) : 'Not recorded', ENT_QUOTES, 'UTF-8')?>"
+                data-reviewed-by="<?=htmlspecialchars($r['reviewer_name'] ?: 'HR Administration', ENT_QUOTES, 'UTF-8')?>"
+                aria-expanded="false" aria-haspopup="dialog" aria-controls="leave-reason-popover">
+                <span>View reason</span>
+                <svg class="leave-reason-trigger__arrow" viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 7.5L10 12l4.5-4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
             <?php endif ?>
+            </div>
           </td>
           <td>
             <?php if ($r['certificate']): ?>
@@ -360,5 +373,6 @@ function confirmReserveWarning(){
   return true;
 }
 </script>
+<script src="includes/leave-reason-popover.js"></script>
 </body>
 </html>
