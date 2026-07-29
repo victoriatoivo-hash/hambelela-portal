@@ -191,9 +191,6 @@ $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bo
         <button class="ps-collapse-btn" id="psCollapseBtn" onclick="toggleSidebar()" aria-label="Collapse sidebar" type="button">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
-        <button class="portal-sidebar-close" type="button" data-sidebar-close aria-label="Close navigation menu">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>
-        </button>
     </div>
 
     <nav class="ps-nav" aria-label="Main navigation">
@@ -245,7 +242,6 @@ function toggleSidebar(){const sidebar=document.getElementById('portalSidebar');
 (function initialisePortalMobileSidebar(){
     const sidebar=document.querySelector('[data-portal-sidebar]');
     const mobileToggle=document.querySelector('[data-sidebar-open]');
-    const mobileClose=document.querySelector('[data-sidebar-close]');
     const mobileBackdrop=document.querySelector('[data-sidebar-backdrop]');
     if(!sidebar||!mobileToggle||sidebar.dataset.mobileDrawerInitialised==='true')return;
     sidebar.dataset.mobileDrawerInitialised='true';
@@ -261,12 +257,11 @@ function toggleSidebar(){const sidebar=document.getElementById('portalSidebar');
         sidebar.setAttribute('aria-hidden',mobileQuery.matches&&!open?'true':'false');
         mobileToggle?.setAttribute('aria-expanded',open?'true':'false');
         if(mobileBackdrop)mobileBackdrop.tabIndex=open?0:-1;
-        if(open){lastFocused=document.activeElement;requestAnimationFrame(()=>mobileClose?.focus({preventScroll:true}))}
+        if(open){lastFocused=document.activeElement;requestAnimationFrame(()=>focusable()[0]?.focus({preventScroll:true}))}
         else if(wasOpen&&lastFocused instanceof HTMLElement){lastFocused.focus({preventScroll:true});lastFocused=null}
     };
     window.portalSidebarNavigation={open:()=>setOpen(true),close:()=>setOpen(false)};
     mobileToggle.addEventListener('click',()=>setOpen(!sidebar.classList.contains('is-mobile-open')));
-    mobileClose?.addEventListener('click',()=>setOpen(false));
     mobileBackdrop?.addEventListener('click',()=>setOpen(false));
     if(!mobileQuery.matches&&localStorage.getItem('sidebarCollapsed')==='1'){sidebar.classList.add('collapsed');document.body.classList.add('sidebar-collapsed')}
     sidebar.addEventListener('click',(event)=>{if(mobileQuery.matches&&event.target.closest('a[href]'))setOpen(false)});

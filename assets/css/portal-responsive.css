@@ -1170,7 +1170,7 @@ html body.sidebar-collapsed .portal-sidebar {
 
 /* Portal-wide responsive shell: keep navigation and content on one breakpoint.
    The desktop hide is duplicated inline in shared/sidebar.php as a fail-safe. */
-.portal-mobile-header,.portal-sidebar-close,.portal-sidebar-backdrop{display:none}
+.portal-mobile-header,.portal-sidebar-backdrop{display:none}
 @media(max-width:1023px){
   html,body{width:100%;max-width:100%;margin:0}body{overflow-x:clip}
   html body .shell:has(.portal-sidebar),html body .shell:has(.portal-sidebar.collapsed),html body.sidebar-collapsed .shell:has(.portal-sidebar){display:block;width:100%;max-width:100%;min-height:100dvh;padding-left:0!important;transform:none!important}
@@ -1180,8 +1180,8 @@ html body.sidebar-collapsed .portal-sidebar {
   .portal-sidebar-backdrop{position:fixed;z-index:1290;inset:0;display:block;width:100%;height:100%;padding:0;border:0;visibility:hidden;opacity:0;pointer-events:none;background:rgba(26,26,26,.44);transition:opacity 180ms ease,visibility 180ms ease}
   .portal-sidebar-backdrop.is-visible{visibility:visible;opacity:1;pointer-events:auto}
   .portal-mobile-header{position:sticky;z-index:1050;top:0;display:grid;grid-template-columns:40px minmax(0,1fr) auto;align-items:center;width:100%;min-height:52px;padding:max(6px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) 6px max(10px,env(safe-area-inset-left));background:#fff;border-bottom:1px solid #ede3d8;box-shadow:0 3px 10px rgba(114,27,26,.06)}
-  .portal-mobile-nav-toggle,.portal-sidebar-close{position:static!important;display:inline-flex!important;width:38px!important;height:38px!important;padding:0!important;align-items:center;justify-content:center;color:#721b1a;background:#fdf6ee;border:1px solid #ede3d8;border-radius:8px;cursor:pointer}
-  .portal-mobile-nav-toggle svg,.portal-sidebar-close svg{width:17px;height:17px}
+  .portal-mobile-nav-toggle{position:static!important;display:inline-flex!important;width:38px!important;height:38px!important;padding:0!important;align-items:center;justify-content:center;color:#721b1a;background:#fdf6ee;border:1px solid #ede3d8;border-radius:8px;cursor:pointer}
+  .portal-mobile-nav-toggle svg{width:17px;height:17px}
   .portal-mobile-page-title{min-width:0;margin:0;padding:0 8px;overflow:hidden;color:#1a1a1a;font-size:14px;font-weight:700;line-height:1.2;text-overflow:ellipsis;white-space:nowrap}
   .portal-mobile-header-actions{display:flex;align-items:center;justify-content:flex-end;gap:4px}.portal-mobile-notifications{position:relative;display:grid;width:38px;height:38px;place-items:center;color:var(--portal-burgundy)}.portal-mobile-notification-count{position:absolute;top:0;right:0;min-width:15px;height:15px;padding:0 3px;border-radius:999px;background:var(--portal-orange-red);color:#fff;font-size:8px;line-height:15px;text-align:center}.portal-mobile-notification-count.is-hidden{display:none}.portal-mobile-user{display:grid;width:30px;height:30px;place-items:center;border-radius:50%;background:var(--portal-orange-red);color:#fff;font-size:11px;font-weight:700;text-decoration:none}
   .portal-sidebar-mobile-heading{position:sticky;z-index:2;top:0;min-height:58px;padding:8px 12px;background:#fff;border-bottom:1px solid #ede3d8}
