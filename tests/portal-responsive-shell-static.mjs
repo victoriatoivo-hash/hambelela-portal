@@ -8,7 +8,7 @@ assert.match(sidebar,/max-width: 1023px/);
 assert.match(sidebar,/portal-mobile-header/);
 assert.match(sidebar,/portal-mobile-page-title/);
 assert.match(sidebar,/data-sidebar-open/);
-assert.match(sidebar,/data-sidebar-close/);
+assert.doesNotMatch(sidebar,/data-sidebar-close/);
 assert.match(sidebar,/data-sidebar-backdrop/);
 assert.match(sidebar,/mobileDrawerInitialised/);
 assert.match(sidebar,/is-mobile-open/);
