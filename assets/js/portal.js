@@ -1114,6 +1114,17 @@ document.addEventListener('click', (event) => {
   mirrorInner.className = 'portal-sticky-horizontal-scrollbar-inner';
   mirror.appendChild(mirrorInner);
   document.body.appendChild(mirror);
+  if (document.querySelector('.packing-list-page') && !mirror.dataset.expandBound) {
+    mirror.dataset.expandBound = 'true';
+    mirror.classList.add('packing-bottom-scrollbar');
+    mirror.addEventListener('pointerdown', (event) => {
+      if (event.button === 0) mirror.classList.add('is-scrollbar-active');
+    });
+    const releasePackingScrollbar = () => mirror.classList.remove('is-scrollbar-active');
+    window.addEventListener('pointerup', releasePackingScrollbar);
+    window.addEventListener('pointercancel', releasePackingScrollbar);
+    window.addEventListener('blur', releasePackingScrollbar);
+  }
 
   const boundSources = new WeakSet();
   const visibleSources = new Set();

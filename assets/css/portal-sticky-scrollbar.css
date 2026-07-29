@@ -78,3 +78,26 @@ body.dark-mode .portal-sticky-horizontal-scrollbar {
     padding-bottom: env(safe-area-inset-bottom);
   }
 }
+
+/* Packing List: reserve a stable shell and expand only the native visual track. */
+body:has(.packing-list-page) .portal-sticky-horizontal-scrollbar.packing-bottom-scrollbar {
+  display: flex;
+  align-items: center;
+  height: 12px !important;
+  min-height: 12px;
+  padding-bottom: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #CBAEA5 #FDF6EE;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+}
+body:has(.packing-list-page) .packing-bottom-scrollbar::-webkit-scrollbar { height:5px;transition:height 160ms ease; }
+body:has(.packing-list-page) .packing-bottom-scrollbar:hover::-webkit-scrollbar,
+body:has(.packing-list-page) .packing-bottom-scrollbar.is-scrollbar-active::-webkit-scrollbar { height: 9px; }
+body:has(.packing-list-page) .packing-bottom-scrollbar::-webkit-scrollbar-track { background:#FDF6EE;border-radius:999px; }
+body:has(.packing-list-page) .packing-bottom-scrollbar::-webkit-scrollbar-thumb { min-width:42px;background:#CBAEA5;border:0;border-radius:999px;cursor:grab;transition:background-color 160ms ease; }
+body:has(.packing-list-page) .packing-bottom-scrollbar:hover::-webkit-scrollbar-thumb { background:#AB7668; }
+body:has(.packing-list-page) .packing-bottom-scrollbar.is-scrollbar-active::-webkit-scrollbar-thumb,
+body:has(.packing-list-page) .packing-bottom-scrollbar::-webkit-scrollbar-thumb:active { background:#721B1A;cursor:grabbing; }
