@@ -1040,8 +1040,15 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
         .bk-wrap .bk-opening-btn:hover { background: #721B1A; }
         .bk-wrap .bk-opening-btn:active { transform: scale(.97); }
         .ledger-board {
+            display: block;
             width: 100%;
+            min-width: 0;
+            max-width: 100%;
             overflow-x: auto;
+            overflow-y: visible;
+            overscroll-behavior-inline: contain;
+            scrollbar-gutter: stable;
+            -webkit-overflow-scrolling: touch;
             background: var(--ledger-white);
             padding-bottom: 8px;
         }
@@ -2252,7 +2259,7 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             .ledger-page { padding: 18px; }
             .ledger-top { flex-direction: column; }
             .stat-grid { grid-template-columns: 1fr; }
-            .ledger-board-inner { min-width: 980px; }
+            .ledger-board-inner { min-width: max(100%, var(--ledger-grid-width)); }
             .closing-card { align-items: flex-start; flex-direction: column; }
         }
         @media (max-width: 600px) {

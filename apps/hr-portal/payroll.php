@@ -436,15 +436,38 @@ if (isset($_GET['payslip'])) {
 .medical-paid-toggle input{width:17px;height:17px;accent-color:var(--green)}
 .medical-payment-row .form-input{height:40px}
 @media(max-width:1100px){.medical-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.medical-payment-row{grid-template-columns:1fr}}
+.hr-payroll-header,.hr-payroll-actions,.hr-payroll-layout,.hr-payroll-periods,.hr-payroll-details{min-width:0;max-width:100%;box-sizing:border-box}
+.hr-payroll-header{flex-wrap:wrap;gap:10px}
+.hr-payroll-actions{display:flex;flex-wrap:wrap;gap:8px}
+.hr-payroll-layout{display:grid;grid-template-columns:minmax(180px,200px) minmax(0,1fr);align-items:start;gap:20px;width:100%}
+.hr-payroll-periods,.hr-payroll-details{width:100%}
+.hr-payroll-period-row{display:grid;grid-template-columns:minmax(0,1fr) 34px;align-items:center;gap:6px;width:100%;min-width:0;margin-bottom:6px}
+.hr-payroll-period-row__content{display:block;min-width:0;padding:10px 14px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;overflow-wrap:anywhere}
+.hr-payroll-period-row form{width:34px;min-width:0}
+.hr-payroll-period-row__delete{display:inline-flex;width:34px;height:34px;align-items:center;justify-content:center;padding:0}
+.hr-payroll-details>.grid-4>*{min-width:0;width:100%}
+.hr-payroll-details .card,.hr-payroll-details .medical-summary-grid{min-width:0;max-width:100%}
+@media(max-width:767px){
+  .hr-payroll-layout{grid-template-columns:minmax(0,1fr);gap:12px}
+  .hr-payroll-periods,.hr-payroll-details{grid-column:1/-1}
+  .hr-payroll-details>.grid-4{grid-template-columns:minmax(0,1fr);gap:10px}
+  .medical-summary-grid{grid-template-columns:minmax(0,1fr)}
+  .hr-payroll-header{align-items:flex-start}
+  .hr-payroll-actions{width:auto}
+}
+@media(max-width:359px){
+  .hr-payroll-actions{display:grid;grid-template-columns:minmax(0,1fr);width:100%}
+  .hr-payroll-actions>.btn{width:100%;justify-content:center}
+}
 </style>
 </head>
 <body>
 <?php include __DIR__ . '/includes/sidebar.php'; ?>
 
 <div class="main">
-  <div class="topbar no-print">
+  <div class="topbar no-print hr-payroll-header">
     <div class="topbar-title">Payroll &amp; Payslips</div>
-    <div style="display:flex;gap:8px">
+    <div class="hr-payroll-actions">
       <?php if ($viewPayslip): ?>
         <button class="btn btn-secondary" onclick="window.print()"><i class="fa-solid fa-print"></i> Print Payslip</button>
         <a href="payroll.php?run=<?=$runId?>" class="btn btn-secondary"><i class="fa-solid fa-arrow-left"></i> Back</a>
@@ -623,17 +646,17 @@ if (isset($_GET['payslip'])) {
   <?php endif ?>
   <?php if ($msg === 'settings_saved'): ?><div class="toast no-print"><i class="fa-solid fa-check"></i> Company details saved.</div><?php endif ?>
 
-  <div style="display:flex;gap:20px;align-items:flex-start">
+  <div class="hr-payroll-layout">
 
     <!-- Run Selector -->
-    <div style="width:200px;flex-shrink:0" class="no-print">
+    <div class="hr-payroll-periods no-print">
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-mid);margin-bottom:10px">Payroll Periods</div>
       <?php if (empty($runs)): ?>
         <div style="font-size:13px;color:var(--text-mid);padding:10px 0">No payroll runs yet.<br>Click Generate to start.</div>
       <?php else: ?>
       <?php foreach ($runs as $r): ?>
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-          <a href="payroll.php?run=<?=$r['id']?>" style="flex:1;display:block;padding:10px 14px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;<?=$r['id']==$runId?'background:var(--green);color:#fff':'background:var(--card);color:var(--text);border:1px solid var(--border)'?>">
+        <div class="hr-payroll-period-row">
+          <a class="hr-payroll-period-row__content" href="payroll.php?run=<?=$r['id']?>" style="<?=$r['id']==$runId?'background:var(--green);color:#fff':'background:var(--card);color:var(--text);border:1px solid var(--border)'?>">
             <?=htmlspecialchars($r['period_label'])?>
             <?php if ($r['status']==='finalised'): ?>
               <span style="font-size:10px;opacity:.7;display:block;font-weight:400">Finalised</span>
@@ -642,7 +665,7 @@ if (isset($_GET['payslip'])) {
           <form method="POST" onsubmit="return confirm('Delete entire <?=htmlspecialchars($r['period_label'])?> payroll run? This cannot be undone.')">
             <input type="hidden" name="action" value="delete_run">
             <input type="hidden" name="run_id" value="<?=$r['id']?>">
-            <button type="submit" class="btn btn-danger btn-sm no-print" title="Delete this payroll run" style="padding:8px 10px"><i class="fa-solid fa-trash"></i></button>
+            <button type="submit" class="btn btn-danger btn-sm no-print hr-payroll-period-row__delete" title="Delete this payroll run"><i class="fa-solid fa-trash"></i></button>
           </form>
         </div>
       <?php endforeach ?>
@@ -650,7 +673,7 @@ if (isset($_GET['payslip'])) {
     </div>
 
     <!-- Payroll Details -->
-    <div style="flex:1">
+    <div class="hr-payroll-details">
       <?php if ($currentRun): ?>
       <!-- Summary Cards -->
       <div class="grid-4" style="margin-bottom:20px">
