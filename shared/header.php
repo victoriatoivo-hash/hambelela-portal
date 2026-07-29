@@ -38,10 +38,12 @@ $pageUsesPortalSidebar = (bool) ($pageUsesPortalSidebar ?? true);
 $showPortalHeaderAccount = $showPortalHeaderStatus && !$pageUsesPortalSidebar;
 $headerNotificationUnread = 0;
 $headerNotificationLatest = [];
+$headerNotificationPreferences = ['desktop_enabled' => 1, 'sound_enabled' => 0, 'sound_volume' => 65];
 if ($showPortalHeaderStatus && function_exists('notifications_summary_for_current_user')) {
     $headerNotificationSummary = notifications_summary_for_current_user(3);
     $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ?? 0);
     $headerNotificationLatest = array_slice((array) ($headerNotificationSummary['latest'] ?? []), 0, 3);
+    $headerNotificationPreferences = (array) ($headerNotificationSummary['preferences'] ?? $headerNotificationPreferences);
 }
 $headerUserName = trim((string) ($headerUser['name'] ?? 'User'));
 $headerUserInitials = '';
@@ -59,7 +61,7 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title><?= htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') ?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -124,6 +126,23 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
                     <div class="portal-notification-preview__empty"><strong>No new notifications</strong><span>You are all caught up.</span></div>
                 <?php endif; ?>
                 </div>
+                <form class="portal-notification-preview__settings notification-sound-settings" data-notification-sound-settings>
+                    <div class="notification-sound-settings__toggles">
+                        <label class="notification-sound-toggle" for="notification-sounds-enabled">
+                            <span>Sounds</span>
+                            <input type="checkbox" id="notification-sounds-enabled" name="sound_enabled" value="1" aria-label="Enable notification sounds" <?= !empty($headerNotificationPreferences['sound_enabled']) ? 'checked' : '' ?>>
+                        </label>
+                        <label class="notification-sound-toggle" for="desktop-notifications-enabled">
+                            <span>Desktop alerts</span>
+                            <input type="checkbox" id="desktop-notifications-enabled" name="desktop_enabled" value="1" aria-label="Enable desktop notifications" <?= !empty($headerNotificationPreferences['desktop_enabled']) ? 'checked' : '' ?>>
+                        </label>
+                    </div>
+                    <div class="notification-volume-row">
+                        <label for="notification-volume">Volume</label>
+                        <input type="range" id="notification-volume" name="sound_volume" min="0" max="100" step="1" value="<?= (int) ($headerNotificationPreferences['sound_volume'] ?? 65) ?>" aria-label="Notification volume">
+                        <button type="button" class="notification-test-sound" data-notification-test-sound <?= empty($headerNotificationPreferences['sound_enabled']) ? 'disabled' : '' ?>>Test</button>
+                    </div>
+                </form>
                 <a class="portal-notification-preview__footer" href="<?= htmlspecialchars(BASE_URL . '/notifications.php', ENT_QUOTES, 'UTF-8') ?>">View all notifications →</a>
             </div>
             </div>

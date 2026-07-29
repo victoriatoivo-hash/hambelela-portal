@@ -223,7 +223,7 @@ function checklist_send_urgent_alert(int $taskId, array $recipientIds, bool $res
     if (!$taskRows) return null;
     $title = (string) $taskRows[0]['task_name'];
     $notificationId = notifications_create([
-        'title' => $title, 'message' => 'Urgent task assigned.', 'module' => 'tasks', 'priority' => 'urgent',
+        'title' => $title, 'message' => 'Urgent task assigned.', 'module' => 'tasks', 'priority' => 'urgent', 'sound_key' => 'urgent',
         'related_type' => 'checklist_task', 'related_id' => $taskId,
         'action_link' => BASE_URL . '/apps/operations/checklists.php?task_view=active&task_id=' . $taskId,
     ], $recipientIds);
@@ -332,7 +332,7 @@ function checklist_due_state(?string $deadline, string $status): ?array
     if (!$deadline || $status === 'complete') return null;
     $timezone = new DateTimeZone('Africa/Windhoek');
     try {
-        $due = new DateTimeImmutable($deadline, $timezone);
+        $due = new DateTimeImmutable(preg_match('/^\d{4}-\d{2}-\d{2}$/', trim($deadline)) ? trim($deadline) . ' 23:59:59' : $deadline, $timezone);
         $now = new DateTimeImmutable('now', $timezone);
     } catch (Throwable $e) {
         return null;
@@ -1320,7 +1320,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     $dueState = checklist_due_state((string) ($task['deadline'] ?? ''), $savedStatus);
                     ?>
                     <?php $taskId = (int) $task['id']; ?>
-                    <tr class="dtb-task-row task-grid-row" data-task-row data-task-id="<?= $taskId ?>" data-saved-status="<?= htmlspecialchars($savedStatus, ENT_QUOTES, 'UTF-8') ?>" data-display-status="<?= htmlspecialchars($effective, ENT_QUOTES, 'UTF-8') ?>" data-task-name="<?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?>" data-task-assigned="<?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?>" data-task-priority="<?= htmlspecialchars($priorities[$priorityKey] ?? 'Medium', ENT_QUOTES, 'UTF-8') ?>" data-task-status="<?= htmlspecialchars($groups[$effective] ?? ($statuses[$effective] ?? $effective), ENT_QUOTES, 'UTF-8') ?>">
+                    <tr class="dtb-task-row task-grid-row" data-task-row data-task-id="<?= $taskId ?>" data-deadline-state="<?= htmlspecialchars((string) ($dueState['value'] ?? 'normal'), ENT_QUOTES, 'UTF-8') ?>" data-saved-status="<?= htmlspecialchars($savedStatus, ENT_QUOTES, 'UTF-8') ?>" data-display-status="<?= htmlspecialchars($effective, ENT_QUOTES, 'UTF-8') ?>" data-task-name="<?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?>" data-task-assigned="<?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?>" data-task-priority="<?= htmlspecialchars($priorities[$priorityKey] ?? 'Medium', ENT_QUOTES, 'UTF-8') ?>" data-task-status="<?= htmlspecialchars($groups[$effective] ?? ($statuses[$effective] ?? $effective), ENT_QUOTES, 'UTF-8') ?>">
                         <td class="dtb-select-cell"><input class="dtb-task-check" type="checkbox" value="<?= $taskId ?>" aria-label="Select <?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?>"></td>
                         <td><button type="button" class="task-name-trigger" data-task-open="<?= $taskId ?>"><?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?></button></td>
                         <td><div class="task-row-actions"><button class="task-detail-icon" type="button" data-task-open="<?= $taskId ?>" aria-label="Open task details"><i data-lucide="panel-right-open"></i></button></div></td>
@@ -1385,14 +1385,16 @@ include BASE_PATH . '/shared/sidebar.php';
         $deadlineValue = $task['deadline'] ? substr((string) $task['deadline'], 0, 16) : '';
         $taskKind = checklist_task_kind($task);
         $statusClass = str_replace('_', '-', $effective);
+        $panelDueState = checklist_due_state((string) ($task['deadline'] ?? ''), checklist_normalize_status((string) ($task['status'] ?? 'new')));
         ?>
-        <aside class="task-detail-panel task-details-panel" data-task-panel="<?= $panelId ?>" aria-hidden="true">
+        <aside class="task-detail-panel task-details-panel" data-task-panel="<?= $panelId ?>" data-deadline-state="<?= htmlspecialchars((string) ($panelDueState['value'] ?? 'normal'), ENT_QUOTES, 'UTF-8') ?>" aria-hidden="true">
             <header class="task-details-header">
                 <button type="button" class="task-details-close" data-task-close aria-label="Close task details"><i data-lucide="x"></i></button>
                 <div class="task-details-heading">
                     <div class="task-details-badges">
                         <span class="task-details-badge task-details-badge--status task-details-badge--<?= htmlspecialchars($statusClass, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($groups[$effective] ?? ($statuses[$effective] ?? $effective), ENT_QUOTES, 'UTF-8') ?></span>
                         <span class="task-details-badge task-details-badge--<?= $taskKind === 'recurring' ? 'recurring' : 'manual' ?>"><i data-lucide="<?= $taskKind === 'recurring' ? 'repeat-2' : 'square-pen' ?>"></i><?= $taskKind === 'recurring' ? 'Recurring' : 'Manual' ?></span>
+                        <?php if ($panelDueState): ?><span class="task-details-badge task-details-badge--deadline task-details-badge--<?= htmlspecialchars(str_replace('_', '-', $panelDueState['value']), ENT_QUOTES, 'UTF-8') ?>"><i data-lucide="clock-3"></i><?= htmlspecialchars($panelDueState['label'], ENT_QUOTES, 'UTF-8') ?></span><?php endif; ?>
                     </div>
                     <h2 class="task-details-title"><?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?></h2>
                 </div>
@@ -2481,6 +2483,7 @@ function initialiseTaskDueStates() {
     const due = new Date(indicator.dataset.taskDueAt || '');
     if (Number.isNaN(due.getTime())) return null;
     const value = due.getTime() < now.getTime() ? 'overdue' : (dateKey(due) === dateKey(now) ? 'due_today' : 'upcoming');
+    if (row) row.dataset.deadlineState = value;
     indicator.classList.remove('task-due-state--upcoming', 'task-due-state--due-today', 'task-due-state--overdue');
     indicator.classList.add(`task-due-state--${value.replace('_', '-')}`);
     indicator.textContent = labels[value];

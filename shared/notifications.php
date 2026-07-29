@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/database.php';
+require_once __DIR__ . '/task-reminders.php';
 
 function notifications_schema_ready(): bool
 {
@@ -57,7 +58,7 @@ function notifications_schema_ready(): bool
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
         );
-        $ready = true;
+        $ready = notifications_task_reminder_migrate();
     } catch (Throwable $e) {
         $ready = false;
     }
@@ -130,11 +131,14 @@ function notifications_role_key_for_employee(?int $employeeId): string
 
 function notifications_preferences(?int $employeeId = null): array
 {
+    notifications_task_reminder_migrate();
     $employeeId = $employeeId ?: notifications_current_employee_id();
     $roleKey = notifications_role_key_for_employee($employeeId);
     $defaults = [
         'desktop_enabled' => 1,
-        'sound_enabled' => 1,
+        'sound_enabled' => 0,
+        'sound_volume' => 65,
+        'sound_prompt_seen' => 0,
         'muted_when_unavailable' => 0,
         'modules' => notifications_default_modules_for_role($roleKey),
     ];
@@ -157,7 +161,9 @@ function notifications_preferences(?int $employeeId = null): array
 
         return [
             'desktop_enabled' => (int) ($row['desktop_enabled'] ?? 1),
-            'sound_enabled' => (int) ($row['sound_enabled'] ?? 1),
+            'sound_enabled' => (int) ($row['sound_enabled'] ?? 0),
+            'sound_volume' => max(0, min(100, (int) ($row['sound_volume'] ?? 65))),
+            'sound_prompt_seen' => (int) ($row['sound_prompt_seen'] ?? 0),
             'muted_when_unavailable' => (int) ($row['muted_when_unavailable'] ?? 0),
             'modules' => array_values(array_filter(array_map('strval', $modules))),
         ];
@@ -175,11 +181,13 @@ function notifications_save_preferences(int $employeeId, array $preferences): vo
     $modules = array_values(array_unique(array_filter(array_map('strval', $preferences['modules'] ?? []))));
     $stmt = db()->prepare(
         "INSERT INTO notification_preferences
-         (employee_id, desktop_enabled, sound_enabled, muted_when_unavailable, modules_json)
-         VALUES (?, ?, ?, ?, ?)
+         (employee_id, desktop_enabled, sound_enabled, sound_volume, sound_prompt_seen, muted_when_unavailable, modules_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE
             desktop_enabled = VALUES(desktop_enabled),
             sound_enabled = VALUES(sound_enabled),
+            sound_volume = VALUES(sound_volume),
+            sound_prompt_seen = VALUES(sound_prompt_seen),
             muted_when_unavailable = VALUES(muted_when_unavailable),
             modules_json = VALUES(modules_json)"
     );
@@ -187,6 +195,8 @@ function notifications_save_preferences(int $employeeId, array $preferences): vo
         $employeeId,
         !empty($preferences['desktop_enabled']) ? 1 : 0,
         !empty($preferences['sound_enabled']) ? 1 : 0,
+        max(0, min(100, (int) ($preferences['sound_volume'] ?? 65))),
+        !empty($preferences['sound_prompt_seen']) ? 1 : 0,
         !empty($preferences['muted_when_unavailable']) ? 1 : 0,
         json_encode($modules, JSON_UNESCAPED_SLASHES),
     ]);
@@ -266,9 +276,9 @@ function notifications_create(array $data, array $recipientIds): ?int
 
     try {
         $stmt = db()->prepare(
-            "INSERT INTO notifications
-             (title, message, module, related_type, related_id, priority, action_link, created_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT IGNORE INTO notifications
+             (title, message, module, related_type, related_id, priority, deadline_state, sound_key, scheduled_at, deduplication_key, action_link, created_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         );
         $stmt->execute([
             (string) ($data['title'] ?? 'Notification'),
@@ -277,9 +287,14 @@ function notifications_create(array $data, array $recipientIds): ?int
             $data['related_type'] ?? null,
             isset($data['related_id']) ? (int) $data['related_id'] : null,
             (string) ($data['priority'] ?? 'normal'),
+            $data['deadline_state'] ?? null,
+            $data['sound_key'] ?? null,
+            $data['scheduled_at'] ?? null,
+            $data['deduplication_key'] ?? null,
             $data['action_link'] ?? null,
             notifications_current_employee_id(),
         ]);
+        if ($stmt->rowCount() < 1) return null;
         $notificationId = (int) db()->lastInsertId();
         $recipientStmt = db()->prepare('INSERT IGNORE INTO notification_recipients (notification_id, employee_id) VALUES (?, ?)');
         foreach ($recipientIds as $employeeId) {
@@ -405,6 +420,26 @@ function notifications_mark_task_state(int $notificationId, string $state): bool
     return $stmt->rowCount() > 0;
 }
 
+function notifications_claim_task_delivery(int $notificationId): bool
+{
+    $employeeId = notifications_current_employee_id();
+    if (!$employeeId || $notificationId <= 0 || !notifications_schema_ready()) return false;
+    $stmt = db()->prepare(
+        "UPDATE notification_recipients nr
+         JOIN notifications n ON n.id = nr.notification_id
+         JOIN ops_checklist_tasks t ON t.id = n.related_id AND n.related_type = 'checklist_task'
+         SET nr.delivered_at = NOW()
+         WHERE nr.notification_id = ? AND nr.employee_id = ? AND nr.delivered_at IS NULL
+           AND nr.read_at IS NULL AND nr.cleared_at IS NULL AND t.status NOT IN ('complete','completed','done','archived','deleted')
+           AND t.archived_at IS NULL AND t.deleted_at IS NULL"
+    );
+    $stmt->execute([$notificationId, $employeeId]);
+    if ($stmt->rowCount() < 1) return false;
+    $row = ops_rows('SELECT related_id, deadline_state FROM notifications WHERE id = ? LIMIT 1', [$notificationId])[0] ?? [];
+    notifications_task_reminder_log('task_reminder_delivered', (int) ($row['related_id'] ?? 0), $employeeId, (string) ($row['deadline_state'] ?? 'normal'), 'portal');
+    return true;
+}
+
 function notifications_payload_for_current_user(int $limit = 12): array
 {
     return notifications_for_current_user($limit);
@@ -493,6 +528,8 @@ function notifications_notify_task_assigned(int $taskId, ?int $employeeId, strin
         'message' => $taskName . ' has been assigned to you.',
         'module' => 'tasks',
         'priority' => 'normal',
+        'sound_key' => 'assigned',
+        'deduplication_key' => 'task:' . $taskId . ':user:' . $employeeId . ':type:assigned',
         'required_delivery' => true,
         'related_type' => 'checklist_task',
         'related_id' => $taskId,
@@ -508,6 +545,7 @@ function notifications_for_current_user(int $limit = 10): array
     }
 
     try {
+        notifications_schedule_task_reminders($employeeId, true);
         $canViewAllTasks = user_has_role('owner_admin');
         $taskScope = " AND (n.related_type IS NULL OR n.related_type <> 'checklist_task' OR n.related_id IS NULL OR ? = 1 OR t.assigned_employee_id = ?)";
         $countStmt = db()->prepare(
@@ -521,13 +559,15 @@ function notifications_for_current_user(int $limit = 10): array
         $countStmt->closeCursor();
 
         $stmt = db()->prepare(
-            "SELECT n.*, nr.read_at, nr.cleared_at
+            "SELECT n.*, nr.read_at, nr.cleared_at, nr.delivered_at, nr.snoozed_until,
+                    t.task_name, t.deadline AS due_at, e.full_name AS assigned_name
              FROM notification_recipients nr
              JOIN notifications n ON n.id = nr.notification_id
              LEFT JOIN ops_checklist_tasks t ON t.id = n.related_id AND n.related_type = 'checklist_task'
+             LEFT JOIN ops_employees e ON e.id = t.assigned_employee_id
              WHERE nr.employee_id = ? AND nr.cleared_at IS NULL
-               {$taskScope}
-             ORDER BY n.created_at DESC
+               {$taskScope} AND (nr.snoozed_until IS NULL OR nr.snoozed_until <= NOW())
+             ORDER BY CASE WHEN n.deadline_state='overdue' THEN 1 WHEN n.priority='urgent' THEN 2 WHEN n.deadline_state='due_today' THEN 3 WHEN n.deadline_state='upcoming' THEN 4 ELSE 5 END, n.created_at DESC
              LIMIT {$limit}"
         );
         $stmt->execute([$employeeId, $canViewAllTasks ? 1 : 0, $employeeId]);
@@ -548,6 +588,7 @@ function notifications_summary_for_current_user(int $limit = 5): array
     }
 
     try {
+        notifications_schedule_task_reminders($employeeId, true);
         $canViewAllTasks = user_has_role('owner_admin');
         $taskScope = " AND (n.related_type IS NULL OR n.related_type <> 'checklist_task' OR n.related_id IS NULL OR ? = 1 OR t.assigned_employee_id = ?)";
         $countStmt = db()->prepare(
@@ -562,22 +603,25 @@ function notifications_summary_for_current_user(int $limit = 5): array
 
         $limit = max(1, min(20, $limit));
         $stmt = db()->prepare(
-            "SELECT n.id, n.title, n.message, n.created_at, n.action_link
+            "SELECT n.id, n.title, n.message, n.created_at, n.action_link, n.related_type, n.related_id,
+                    n.deadline_state, n.sound_key, n.priority, nr.delivered_at, t.task_name,
+                    t.deadline AS due_at, e.full_name AS assigned_name
              FROM notification_recipients nr
              JOIN notifications n ON n.id = nr.notification_id
              LEFT JOIN ops_checklist_tasks t ON t.id = n.related_id AND n.related_type = 'checklist_task'
+             LEFT JOIN ops_employees e ON e.id = t.assigned_employee_id
              WHERE nr.employee_id = ? AND nr.read_at IS NULL AND nr.cleared_at IS NULL
-               {$taskScope}
-             ORDER BY n.created_at DESC, n.id DESC
+               {$taskScope} AND (nr.snoozed_until IS NULL OR nr.snoozed_until <= NOW())
+             ORDER BY CASE WHEN n.deadline_state='overdue' THEN 1 WHEN n.priority='urgent' THEN 2 WHEN n.deadline_state='due_today' THEN 3 WHEN n.deadline_state='upcoming' THEN 4 ELSE 5 END, n.created_at DESC, n.id DESC
              LIMIT {$limit}"
         );
         $stmt->execute([$employeeId, $canViewAllTasks ? 1 : 0, $employeeId]);
         $rows = $stmt->fetchAll();
         $stmt->closeCursor();
 
-        return ['unread_count' => $unread, 'latest' => $rows];
+        return ['unread_count' => $unread, 'latest' => $rows, 'preferences' => notifications_preferences($employeeId)];
     } catch (Throwable $e) {
-        return ['unread_count' => 0, 'latest' => []];
+        return ['unread_count' => 0, 'latest' => [], 'preferences' => notifications_preferences($employeeId)];
     }
 }
 

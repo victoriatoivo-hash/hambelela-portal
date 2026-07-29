@@ -14,6 +14,16 @@ try {
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = (string) ($_POST['action'] ?? '');
+        if ($action === 'notification_claim') {
+            echo json_encode(['ok' => true, 'claimed' => notifications_claim_task_delivery((int) ($_POST['notification_id'] ?? 0))]);
+            exit;
+        }
+        if ($action === 'notification_snooze') {
+            $updated = notifications_snooze_task((int) ($_POST['notification_id'] ?? 0), (string) ($_POST['duration'] ?? ''));
+            if (!$updated) http_response_code(422);
+            echo json_encode(['ok' => $updated]);
+            exit;
+        }
         if (in_array($action, ['notification_delivered', 'notification_viewed', 'notification_dismissed'], true)) {
             $notificationId = (int) ($_POST['notification_id'] ?? 0);
             if ($notificationId <= 0) { http_response_code(400); echo json_encode(['ok' => false]); exit; }

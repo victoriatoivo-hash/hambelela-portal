@@ -75,7 +75,7 @@
     header.append(title, element('span', 'notification-filter-state', 'Collapsed'));
     const form = element('form', 'notification-filter-body');
     const grid = element('div', 'notification-filter-grid');
-    const definitions = [['read','Read status',['All','Unread','Read']],['category','Category',['All categories','Orders','Packing','Tasks','Bookkeeping','Errors','System']],['priority','Priority',['All priorities','High','Normal']],['search','Search',null]];
+    const definitions = [['state','Task state',['All','Urgent','Due Today','Overdue','Read']],['category','Category',['All categories','Orders','Packing','Tasks','Bookkeeping','Errors','System']],['search','Search',null]];
     definitions.forEach(([name, label, options]) => {
       const field = element('div', 'notification-filter-field'); field.append(element('label', '', label));
       if (options) { const select = element('select'); select.name = name; select.dataset.portalCustomSelect = ''; options.forEach((text, index) => { const option = element('option', '', text); option.value = index ? text.toLowerCase().replace(' categories','').replace(' priorities','') : ''; select.append(option); }); field.append(select); }
@@ -90,15 +90,16 @@
   }
 
   function filteredNotifications(formData) {
-    const read = String(formData.get('read') || ''); const category = String(formData.get('category') || ''); const priority = String(formData.get('priority') || ''); const search = String(formData.get('search') || '').toLowerCase().trim();
+    const state = String(formData.get('state') || '').replace(' ', '_'); const category = String(formData.get('category') || ''); const search = String(formData.get('search') || '').toLowerCase().trim();
     return currentData.notifications.filter((item) => {
-      const itemRead = Boolean(item.read_at); const itemCategory = categoryFor(item.module); const itemPriority = String(item.priority || 'normal').toLowerCase(); const haystack = `${item.title || ''} ${item.message || ''} ${item.module || ''}`.toLowerCase();
-      return (!read || (read === 'read' ? itemRead : !itemRead)) && (!category || itemCategory === category) && (!priority || itemPriority === priority) && (!search || haystack.includes(search));
+      const itemRead = Boolean(item.read_at); const itemCategory = categoryFor(item.module); const itemPriority = String(item.priority || 'normal').toLowerCase(); const deadlineState = String(item.deadline_state || 'normal'); const haystack = `${item.title || ''} ${item.message || ''} ${item.module || ''}`.toLowerCase();
+      const stateMatches = !state || (state === 'read' ? itemRead : state === 'urgent' ? itemPriority === 'urgent' : deadlineState === state);
+      return stateMatches && (!category || itemCategory === category) && (!search || haystack.includes(search));
     });
   }
 
   function createRow(item) {
-    const row = element('article', `notification-row ${item.read_at ? 'is-read' : 'is-unread'}`); row.dataset.notificationRow = ''; row.dataset.notificationId = String(item.id || ''); row.dataset.category = categoryFor(item.module); row.dataset.targetUrl = String(item.action_link || '');
+    const row = element('article', `notification-row ${item.read_at ? 'is-read' : 'is-unread'}`); row.dataset.notificationRow = ''; row.dataset.notificationId = String(item.id || ''); row.dataset.category = categoryFor(item.module); row.dataset.deadlineState = String(item.deadline_state || 'normal'); row.dataset.targetUrl = String(item.action_link || '');
     row.append(element('span', 'notification-row-indicator'));
     const iconBox = element('span', 'notification-row-icon'); const icon = element('i'); icon.dataset.lucide = iconFor(row.dataset.category); iconBox.append(icon); row.append(iconBox);
     const content = element('span', 'notification-row-content'); const heading = element('span', 'notification-row-heading'); heading.append(element('strong', 'notification-row-title', item.title || 'Notification'), element('time', 'notification-row-time', formatTime(item.created_at)));

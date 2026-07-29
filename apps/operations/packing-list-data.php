@@ -256,6 +256,12 @@ foreach ($tasks as &$task) {
 }
 unset($task);
 
+$packingUnreadByItem = packing_unread_updates_for_employee((int) ($currentEmployeeId ?: 0));
+foreach ($tasks as &$task) {
+    $task['unread_updates'] = $packingUnreadByItem[(int) $task['id']] ?? ['total'=>0, 'notes'=>0, 'files'=>0];
+}
+unset($task);
+
 echo json_encode([
     'ok' => true,
     'tasks' => $tasks,

@@ -21,6 +21,10 @@
   const panelSource = document.getElementById('packing-panel-source');
   const panelNotes = document.getElementById('packing-panel-notes');
   const panelActivity = document.getElementById('packing-panel-activity');
+  const packingFileInput = document.querySelector('[data-packing-file-input]');
+  const packingFileDrop = document.querySelector('[data-packing-file-drop]');
+  const packingFilesList = document.querySelector('[data-packing-files-list]');
+  const packingFileProgress = document.querySelector('[data-packing-file-progress]');
   const selectAll = document.querySelector('[data-packing-select-all]');
   const undoButton = document.querySelector('[data-packing-undo]');
   const countLabel = document.querySelector('[data-packing-count]');
@@ -42,9 +46,15 @@
   let currentUser = {};
   let totalRows = 0;
   let currentTask = null;
+  let activePackingFileItemId = '';
+  let packingFileListController = null;
+  let packingFileRequestVersion = 0;
   let lastUndo = null;
   let invoiceDraftRows = [];
   let invoiceImportId = '';
+  let packingFilesUploading = false;
+  let packingFileUploadVersion = 0;
+  const failedPackingFiles = new Map();
 
   function isFrontDeskAdmin() {
     return String(currentUser.role_key || '') === 'front_desk_admin';
@@ -666,8 +676,11 @@
   }
 
   function renderItemCell(task) {
+    const unread = task.unread_updates || {};
+    const noteIcon = Number(unread.notes || 0) > 0 ? `<span class="packing-item-update-icon packing-item-update-icon--note" aria-label="${Number(unread.notes)} unread note updates" title="New note"><i data-lucide="message-square"></i>${Number(unread.notes) > 1 ? `<span class="packing-item-update-count">${Number(unread.notes) > 99 ? '99+' : Number(unread.notes)}</span>` : ''}</span>` : '';
+    const fileIcon = Number(unread.files || 0) > 0 ? `<span class="packing-item-update-icon packing-item-update-icon--file" aria-label="${Number(unread.files)} unread file updates" title="New file uploaded"><i data-lucide="paperclip"></i>${Number(unread.files) > 1 ? `<span class="packing-item-update-count">${Number(unread.files) > 99 ? '99+' : Number(unread.files)}</span>` : ''}</span>` : '';
     return `<div class="packing-item-cell">
-      <button type="button" class="packing-item-main-trigger" data-packing-open-panel="${esc(task.id)}"><span class="packing-item-name">${esc(task.item_name)}</span></button>
+      <button type="button" class="packing-item-main-trigger packing-item-name-wrap" data-packing-open-panel="${esc(task.id)}"><span class="packing-item-name">${esc(task.item_name)}</span>${noteIcon || fileIcon ? `<span class="packing-item-update-icons">${noteIcon}${fileIcon}</span>` : ''}</button>
     </div>`;
   }
 
@@ -1551,6 +1564,8 @@
     const pCounts = priorityCounts(rows);
     const statusCounts = packingStatusCounts(rows);
     const accent = groupAccentPalette[index % groupAccentPalette.length];
+    const groupUnread = rows.reduce((sum, task) => sum + Number(task.unread_updates?.total || 0), 0);
+    const unreadBadge = groupUnread > 0 ? `<span class="packing-section-unread-badge" aria-label="${groupUnread} unread packing-list updates">${groupUnread > 99 ? '99+' : groupUnread}</span>` : '';
     const bodyRows = rows.map((task) => {
       const canEditOwn = canEditTask(task);
       const manageOnly = currentUser.can_manage ? '' : 'disabled';
@@ -1610,14 +1625,14 @@
           <button type="button" class="packing-month-toggle packing-month-open-toggle" data-packing-collapse aria-label="Collapse ${esc(groupLabel(key))}" aria-expanded="true">
             <i class="packing-month-chevron" data-lucide="chevron-down"></i>
           </button>
-          <strong class="packing-month-open-title">${esc(groupLabel(key))}</strong>
+          <strong class="packing-month-open-title packing-section-title">${esc(groupLabel(key))}${unreadBadge}</strong>
         </div>
         <button type="button" class="packing-date-header packing-month-header packing-month-summary packing-month-closed-summary" data-packing-collapse aria-label="Expand ${esc(groupLabel(key))}" aria-expanded="false">
           <div class="packing-date-cell packing-date-cell--toggle packing-month-toggle-cell packing-month-summary-toggle">
             <i class="packing-month-chevron group-chevron chevron" data-lucide="chevron-right"></i>
           </div>
           <div class="packing-date-cell packing-date-cell--title packing-month-title-cell packing-month-summary-title">
-            <strong>${esc(groupLabel(key))}</strong>
+            <strong class="packing-section-title">${esc(groupLabel(key))}${unreadBadge}</strong>
             <span>${rows.length} items</span>
           </div>
           <div class="packing-date-cell packing-date-cell--priority packing-month-priority-cell packing-month-summary-priority">
@@ -2204,6 +2219,16 @@
   function openPanel(taskId, preferredTab = '') {
     currentTask = tasks.find((task) => String(task.id) === String(taskId));
     if (!currentTask) return;
+    activePackingFileItemId = String(currentTask.id);
+    packingFileUploadVersion += 1;
+    packingFilesUploading = false;
+    packingFileRequestVersion += 1;
+    packingFileListController?.abort();
+    packingFileListController = null;
+    failedPackingFiles.clear();
+    if (packingFileInput) { packingFileInput.value = ''; packingFileInput.disabled = false; }
+    if (packingFileProgress) { packingFileProgress.replaceChildren(); packingFileProgress.hidden = true; }
+    if (packingFilesList) packingFilesList.innerHTML = '<p class="packing-item-files-empty">Loading files…</p>';
     panelTitle.textContent = currentTask.item_name;
     if (panelItemId) panelItemId.textContent = `Portal item #${currentTask.id}`;
     if (panelSource) panelSource.textContent = currentTask.monday_item_id ? 'Imported from legacy Monday data' : 'Created in the portal';
@@ -2244,10 +2269,186 @@
     }
     if (typeof window.initialisePortalDatePickers === 'function') window.initialisePortalDatePickers(panelActivity);
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+    loadPackingItemFiles(currentTask.id);
     panel.classList.add('open');
     panel.setAttribute('aria-hidden', 'false');
     backdrop.hidden = false;
+    if (defaultPanelTab === 'details') markPackingItemUpdatesRead(currentTask.id, ['note_added']);
+    if (defaultPanelTab === 'files') markPackingItemUpdatesRead(currentTask.id, ['file_uploaded']);
   }
+
+  async function markPackingItemUpdatesRead(itemId, types) {
+    const requestedItemId = String(itemId || '');
+    if (!config.notificationsUrl || !requestedItemId || requestedItemId !== activePackingFileItemId) return;
+    const data = new FormData(); data.append('item_id', requestedItemId); data.append('csrf_token', String(config.filesCsrf || ''));
+    (types || []).forEach((type) => data.append('types[]', type));
+    try {
+      const response = await fetch(config.notificationsUrl, {method:'POST', credentials:'same-origin', body:data, headers:{Accept:'application/json'}});
+      const result = await response.json();
+      if (!response.ok || result.success !== true || requestedItemId !== activePackingFileItemId) return;
+      const task = tasks.find((entry) => String(entry.id) === requestedItemId);
+      if (task) task.unread_updates = result.unread_updates || {total:0,notes:0,files:0};
+      render();
+    } catch (_) {}
+  }
+
+  function formatPackingFileSize(bytes) {
+    const size = Number(bytes || 0);
+    if (size < 1024) return `${size} B`;
+    if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+    return `${(size / 1024 / 1024).toFixed(1)} MB`;
+  }
+
+  function packingFileMarkup(file) {
+    const type = String(file.mime_type || '').split('/').pop()?.toUpperCase() || 'FILE';
+    return `<article class="packing-item-file-row" data-packing-attachment-id="${Number(file.id)}">
+      <span class="packing-item-file-icon"><i data-lucide="${String(file.mime_type || '').startsWith('image/') ? 'image' : 'file-text'}"></i></span>
+      <span class="packing-item-file-copy"><strong>${esc(file.name)}</strong><small>${esc(type)} · ${esc(formatPackingFileSize(file.size))} · ${esc(file.uploaded_by)} · ${esc(formatWebsiteDate(file.uploaded_at))}</small></span>
+      <span class="packing-item-file-actions"><a href="${esc(file.view_url)}" target="_blank" rel="noopener">View</a><a href="${esc(file.download_url)}">Download</a>${file.can_delete ? `<details><summary aria-label="File actions">•••</summary><button type="button" data-delete-packing-file="${Number(file.id)}">Delete</button></details>` : ''}</span>
+    </article>`;
+  }
+
+  async function loadPackingItemFiles(itemId) {
+    if (!config.filesUrl || !packingFilesList || !itemId) return;
+    const requestedItemId = String(itemId);
+    const requestVersion = ++packingFileRequestVersion;
+    activePackingFileItemId = requestedItemId;
+    packingFileListController?.abort();
+    packingFileListController = new AbortController();
+    packingFilesList.innerHTML = '<p class="packing-item-files-empty">Loading files…</p>';
+    try {
+      const response = await fetch(`${config.filesUrl}?action=list&item_id=${encodeURIComponent(requestedItemId)}`, {credentials:'same-origin', headers:{Accept:'application/json'}, signal:packingFileListController.signal});
+      const result = await response.json();
+      if (requestVersion !== packingFileRequestVersion || requestedItemId !== activePackingFileItemId) return;
+      if (!response.ok || result.success !== true) throw new Error(result.message || 'Unable to load files.');
+      const attachments = (result.attachments || []).filter((file) => String(file.item_id) === requestedItemId);
+      packingFilesList.innerHTML = attachments.length ? attachments.map(packingFileMarkup).join('') : '<p class="packing-item-files-empty">No files uploaded yet.</p>';
+      if (window.lucide) window.lucide.createIcons({strokeWidth:2});
+    } catch (error) {
+      if (error.name === 'AbortError' || requestVersion !== packingFileRequestVersion || requestedItemId !== activePackingFileItemId) return;
+      packingFilesList.innerHTML = `<p class="packing-item-file-error">${esc(error.message || 'Unable to load files.')}</p>`;
+    }
+  }
+
+  function packingFileKey(file) { return `${file.name}:${file.size}:${file.lastModified}`; }
+
+  function validatePackingFiles(files) {
+    const allowed = /\.(pdf|jpe?g|png|webp)$/i;
+    return files.map((file) => {
+      if (file.size <= 0) return {file, message:'The file is empty.'};
+      if (file.size > 10 * 1024 * 1024) return {file, message:'The file exceeds the 10 MB limit.'};
+      if (!allowed.test(file.name)) return {file, message:'Only PDF, JPG, PNG and WebP files are allowed.'};
+      return null;
+    }).filter(Boolean);
+  }
+
+  function uploadOnePackingItemFile(itemId, file, onProgress) {
+    return new Promise((resolve) => {
+      const data = new FormData();
+      data.append('action', 'upload'); data.append('item_id', String(itemId));
+      data.append('csrf_token', String(config.filesCsrf || '')); data.append('file', file, file.name);
+      const request = new XMLHttpRequest();
+      request.open('POST', config.filesUrl);
+      request.upload.addEventListener('progress', (event) => { if (event.lengthComputable) onProgress(Math.round(event.loaded / event.total * 100)); });
+      request.addEventListener('load', () => {
+        let result = null;
+        try { result = JSON.parse(request.responseText || '{}'); } catch (_) {}
+        const uploaded = Array.isArray(result?.uploaded) ? result.uploaded : [];
+        const failure = Array.isArray(result?.failed) ? result.failed[0] : null;
+        resolve({file, uploaded, status:request.status,
+          success:request.status >= 200 && request.status < 300 && result?.success === true && uploaded.length > 0,
+          message:failure?.message || result?.message || (!result ? 'The server returned an invalid response.' : `Upload failed with status ${request.status}.`)});
+      });
+      request.addEventListener('error', () => resolve({file, uploaded:[], status:0, success:false, message:'The upload request failed.'}));
+      request.send(data);
+    });
+  }
+
+  async function runPackingUploadQueue(itemId, files, concurrency, onProgress) {
+    const results = new Array(files.length); let next = 0;
+    async function worker() { while (next < files.length) { const index = next++; results[index] = await uploadOnePackingItemFile(itemId, files[index], (percent) => onProgress(index, percent)); } }
+    await Promise.all(Array.from({length:Math.min(concurrency, files.length)}, () => worker()));
+    return results;
+  }
+
+  async function uploadPackingItemFiles(itemId, files, initialFailures = []) {
+    const uploadItemId = String(itemId);
+    if (!itemId || (!files.length && !initialFailures.length) || packingFilesUploading) return [];
+    if (!files.length) {
+      failedPackingFiles.clear();
+      initialFailures.forEach((result) => failedPackingFiles.set(packingFileKey(result.file), result.file));
+      if (uploadItemId !== activePackingFileItemId) return initialFailures;
+      packingFileProgress.hidden = false;
+      packingFileProgress.innerHTML = initialFailures.map((result) => `<div class="packing-item-upload-result is-error" data-packing-item-id="${esc(uploadItemId)}"><span>${esc(result.file.name)} — ${esc(result.message)}</span></div>`).join('');
+      if (packingFileInput) packingFileInput.value = '';
+      return initialFailures;
+    }
+    const uploadVersion = ++packingFileUploadVersion;
+    packingFilesUploading = true; packingFileDrop?.classList.add('is-uploading');
+    if (packingFileInput) packingFileInput.disabled = true;
+    packingFileProgress.hidden = false; packingFileProgress.textContent = `Uploading 1 of ${files.length}… 0%`;
+    const progress = files.map(() => 0); failedPackingFiles.clear();
+    try {
+      const uploadedResults = await runPackingUploadQueue(uploadItemId, files, 2, (index, percent) => {
+        if (uploadItemId !== activePackingFileItemId) return;
+        progress[index] = percent;
+        const current = Math.min(files.length, progress.filter((value) => value >= 100).length + 1);
+        const overall = Math.round(progress.reduce((sum, value) => sum + value, 0) / files.length);
+        packingFileProgress.textContent = `Uploading ${current} of ${files.length}… ${overall}%`;
+      });
+      const results = [...uploadedResults, ...initialFailures.map((result) => ({...result, success:false, uploaded:[], status:422}))];
+      results.filter((result) => !result.success).forEach((result) => failedPackingFiles.set(packingFileKey(result.file), result.file));
+      if (uploadItemId !== activePackingFileItemId) return results;
+      const successful = results.filter((result) => result.success).flatMap((result) => result.uploaded).filter((file) => String(file.item_id) === uploadItemId).map((file) => `<div class="packing-item-upload-result is-success" data-packing-item-id="${esc(uploadItemId)}"><span>${esc(file.name)} — Uploaded successfully</span></div>`).join('');
+      const failures = results.filter((result) => !result.success).map((result) => { const key=packingFileKey(result.file); return `<div class="packing-item-upload-result is-error" data-packing-item-id="${esc(uploadItemId)}"><span>${esc(result.file.name)} — ${esc(result.message)}</span><button type="button" data-retry-packing-file="${esc(key)}">Retry</button></div>`; }).join('');
+      packingFileProgress.innerHTML = successful + failures;
+      await loadPackingItemFiles(uploadItemId); return results;
+    } finally {
+      if (uploadVersion === packingFileUploadVersion && uploadItemId === activePackingFileItemId) {
+        packingFilesUploading = false; packingFileDrop?.classList.remove('is-uploading');
+        if (packingFileInput) { packingFileInput.disabled = false; packingFileInput.value = ''; }
+      }
+    }
+  }
+
+  function handleSelectedPackingFiles(fileList) {
+    const files = Array.from(fileList || []);
+    const uploadItemId = String(activePackingFileItemId || '');
+    if (!files.length || !uploadItemId) return;
+    if (files.length > 10) {
+      packingFileProgress.hidden = false;
+      packingFileProgress.textContent = 'You can upload a maximum of 10 files at a time.';
+      if (packingFileInput) packingFileInput.value = '';
+      return;
+    }
+    const invalid = validatePackingFiles(files);
+    const invalidFiles = new Set(invalid.map((result) => result.file));
+    uploadPackingItemFiles(uploadItemId, files.filter((file) => !invalidFiles.has(file)), invalid);
+  }
+
+  packingFileInput?.addEventListener('change', (event) => handleSelectedPackingFiles(event.target.files));
+  packingFileDrop?.addEventListener('dragover', (event) => { event.preventDefault(); if (!packingFilesUploading) packingFileDrop.classList.add('is-dragging'); });
+  packingFileDrop?.addEventListener('dragleave', () => packingFileDrop.classList.remove('is-dragging'));
+  packingFileDrop?.addEventListener('drop', (event) => { event.preventDefault(); packingFileDrop.classList.remove('is-dragging'); handleSelectedPackingFiles(event.dataTransfer?.files); });
+  packingFileDrop?.addEventListener('keydown', (event) => { if ((event.key === 'Enter' || event.key === ' ') && !packingFilesUploading) { event.preventDefault(); packingFileInput?.click(); } });
+  packingFilesList?.addEventListener('click', async (event) => {
+    const retry = event.target.closest('[data-retry-packing-file]');
+    if (retry && activePackingFileItemId) { const file = failedPackingFiles.get(retry.dataset.retryPackingFile); if (file) uploadPackingItemFiles(activePackingFileItemId, [file]); return; }
+    const remove = event.target.closest('[data-delete-packing-file]');
+    if (!remove || !activePackingFileItemId || !window.confirm('Delete this file?')) return;
+    const deleteItemId = String(activePackingFileItemId);
+    const data = new FormData(); data.append('action','delete'); data.append('item_id',deleteItemId); data.append('attachment_id',remove.dataset.deletePackingFile); data.append('csrf_token',String(config.filesCsrf || ''));
+    const response = await fetch(config.filesUrl, {method:'POST', credentials:'same-origin', body:data});
+    const result = await response.json();
+    if (!response.ok || result.success !== true) { packingFileProgress.hidden=false; packingFileProgress.textContent=result.message || 'Unable to delete the file.'; return; }
+    if (deleteItemId === activePackingFileItemId) loadPackingItemFiles(deleteItemId);
+  });
+  packingFileProgress?.addEventListener('click', (event) => {
+    const retry = event.target.closest('[data-retry-packing-file]');
+    if (!retry || !activePackingFileItemId) return;
+    const file = failedPackingFiles.get(retry.dataset.retryPackingFile);
+    if (file) uploadPackingItemFiles(activePackingFileItemId, [file]);
+  });
 
   function packingPanelNumber(value) {
     const match = String(value || '').trim().match(/^(-?\d+(?:\.\d+)?)/);
@@ -3366,6 +3567,8 @@
         tab.classList.add('active', 'is-active');
         tab.setAttribute('aria-selected', 'true');
         document.querySelector(`[data-packing-panel-name="${tab.dataset.packingPanelTab}"]`)?.classList.add('active');
+        if (currentTask && tab.dataset.packingPanelTab === 'details') markPackingItemUpdatesRead(currentTask.id, ['note_added']);
+        if (currentTask && tab.dataset.packingPanelTab === 'files') markPackingItemUpdatesRead(currentTask.id, ['file_uploaded']);
         return;
       }
       if (saveNotes && currentTask) {

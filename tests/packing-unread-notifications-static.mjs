@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const helper=fs.readFileSync(new URL('../shared/packing-notifications.php',import.meta.url),'utf8');
+const data=fs.readFileSync(new URL('../apps/operations/packing-list-data.php',import.meta.url),'utf8');
+const action=fs.readFileSync(new URL('../apps/operations/packing-list-action.php',import.meta.url),'utf8');
+const files=fs.readFileSync(new URL('../apps/operations/packing-item-files.php',import.meta.url),'utf8');
+const js=fs.readFileSync(new URL('../assets/js/packing-list.js',import.meta.url),'utf8');
+assert.match(helper,/notification_recipients nr/);assert.match(helper,/nr\.employee_id=\?/);assert.match(helper,/nr\.read_at IS NULL/);
+assert.match(helper,/packing-item:\{\$itemId\}:user:\{\$recipientId\}/);assert.match(action,/packing_create_update_notifications/);assert.match(files,/packing_create_update_notifications/);
+assert.match(data,/unread_updates/);assert.match(js,/packing-section-unread-badge/);assert.match(js,/packing-item-update-icon--note/);assert.match(js,/packing-item-update-icon--file/);assert.match(js,/markPackingItemUpdatesRead/);
+console.log('Packing per-employee unread notification checks passed.');
