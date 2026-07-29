@@ -14,6 +14,7 @@ function navItem($href, $icon, $label, $badge=0, $current='') {
     return "<a href='$href' class='nav-item$active'><i class='$icon'></i> ".htmlspecialchars($label)."$b</a>";
 }
 ?>
+<link rel="stylesheet" href="includes/styles.css?v=<?= rawurlencode((string) filemtime(__DIR__ . '/styles.css')) ?>">
 <link rel="stylesheet" href="../../assets/css/portal-date-picker.css?v=<?= rawurlencode((string) filemtime(__DIR__ . '/../../../assets/css/portal-date-picker.css')) ?>">
 <script defer src="../../assets/js/portal-date-picker.js?v=<?= rawurlencode((string) filemtime(__DIR__ . '/../../../assets/js/portal-date-picker.js')) ?>"></script>
 <button type="button" class="hr-mobile-menu-toggle" data-hr-menu-open aria-label="Open HR navigation" aria-controls="hrPortalSidebar" aria-expanded="false">
