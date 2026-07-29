@@ -1168,7 +1168,8 @@ html body.sidebar-collapsed .portal-sidebar {
   .portal-header-actions .portal-notification-button { width:30px !important;min-width:30px !important;height:30px !important; }
 }
 
-/* Portal-wide responsive shell: keep navigation and content on one breakpoint. */
+/* Portal-wide responsive shell: keep navigation and content on one breakpoint.
+   The desktop hide is duplicated inline in shared/sidebar.php as a fail-safe. */
 .portal-mobile-header{display:none}
 @media(max-width:1023px){
   html body .shell:has(.portal-sidebar),html body .shell:has(.portal-sidebar.collapsed),html body.sidebar-collapsed .shell:has(.portal-sidebar){display:block;width:100%;max-width:100%;padding-left:0!important}

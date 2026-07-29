@@ -7,6 +7,8 @@ assert.match(header,/viewport-fit=cover/);
 assert.match(sidebar,/max-width: 1023px/);
 assert.match(sidebar,/portal-mobile-header/);
 assert.match(sidebar,/portal-mobile-page-title/);
+assert.match(sidebar,/\.portal-mobile-header\{display:none\}/);
+assert.match(sidebar,/@media \(max-width:1023px\)\{\.portal-mobile-header\{display:grid\}\}/);
 assert.match(css,/@media\(max-width:1023px\)/);
 assert.match(css,/width:min\(86vw,320px\)/);
 assert.match(css,/portal-mobile-nav-open/);

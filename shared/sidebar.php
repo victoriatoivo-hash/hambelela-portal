@@ -155,6 +155,7 @@ $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bo
 .ps-notification-badge{margin-left:auto;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:#AB3619;color:#fff;font-size:11px;font-weight:400;line-height:20px;text-align:center;box-shadow:0 6px 14px rgba(171,54,25,.18);box-sizing:border-box;flex-shrink:0}.ps-notification-badge.is-hidden{display:none}.portal-sidebar.collapsed .ps-nav-item--notify{position:relative;width:44px;height:44px;padding:0;margin:0 auto;justify-content:center;overflow:visible}.portal-sidebar.collapsed .ps-nav-item--notify .ps-notification-badge{display:inline-flex;align-items:center;justify-content:center;position:absolute;top:4px;right:6px;min-width:15px;width:auto;height:15px;padding:0 4px;border-radius:999px;font-size:9px;line-height:15px;z-index:5;opacity:1;transform:translate(35%,-20%);pointer-events:none}.portal-sidebar.collapsed .ps-nav-item--notify .ps-notification-badge.is-hidden,.portal-sidebar.collapsed .ps-nav-item--notify .ps-notification-badge:empty{display:none}
 </style>
 <style id="portal-shared-full-width-layout">
+.portal-mobile-header{display:none}
 .shell:has(.portal-sidebar){width:100%;max-width:none;box-sizing:border-box}
 .shell:has(.portal-sidebar)>main.workspace:not(.digital-task-page),
 .shell:has(.portal-sidebar)>main.ledger-page,
@@ -162,6 +163,7 @@ $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bo
 .shell:has(.portal-sidebar)>.ledger-page{flex:1 1 auto;width:100%;max-width:none!important;min-width:0;margin-left:0!important;padding:28px;box-sizing:border-box}
 .shell:has(.portal-sidebar)>main.workspace.module{align-content:start}
 .shell:has(.portal-sidebar)>main.workspace.module>.module-header{width:100%;max-width:none}
+@media (max-width:1023px){.portal-mobile-header{display:grid}}
 @media (max-width:760px){.shell:has(.portal-sidebar)>main.workspace:not(.digital-task-page),.shell:has(.portal-sidebar)>main.ledger-page,.shell:has(.portal-sidebar)>.workspace:not(.digital-task-page),.shell:has(.portal-sidebar)>.ledger-page{padding:18px}}
 </style>
 <?php $portalMobileTitle = 'Hambelela'; foreach ($portalNavItems as $portalMobileItem) { if ($isActiveItem($portalMobileItem)) { $portalMobileTitle = (string) $portalMobileItem['label']; break; } } ?>
