@@ -126,11 +126,22 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
                     <div class="portal-notification-preview__empty"><strong>No new notifications</strong><span>You are all caught up.</span></div>
                 <?php endif; ?>
                 </div>
-                <form class="portal-notification-preview__settings" data-notification-sound-settings>
-                    <label><span>Notification sounds</span><input type="checkbox" name="sound_enabled" value="1" <?= !empty($headerNotificationPreferences['sound_enabled']) ? 'checked' : '' ?>></label>
-                    <label><span>Volume</span><input type="range" name="sound_volume" min="0" max="100" value="<?= (int) ($headerNotificationPreferences['sound_volume'] ?? 65) ?>"></label>
-                    <label><span>Desktop notifications</span><input type="checkbox" name="desktop_enabled" value="1" <?= !empty($headerNotificationPreferences['desktop_enabled']) ? 'checked' : '' ?>></label>
-                    <button type="button" data-notification-test-sound>Test sound</button>
+                <form class="portal-notification-preview__settings notification-sound-settings" data-notification-sound-settings>
+                    <div class="notification-sound-settings__toggles">
+                        <label class="notification-sound-toggle" for="notification-sounds-enabled">
+                            <span>Sounds</span>
+                            <input type="checkbox" id="notification-sounds-enabled" name="sound_enabled" value="1" aria-label="Enable notification sounds" <?= !empty($headerNotificationPreferences['sound_enabled']) ? 'checked' : '' ?>>
+                        </label>
+                        <label class="notification-sound-toggle" for="desktop-notifications-enabled">
+                            <span>Desktop alerts</span>
+                            <input type="checkbox" id="desktop-notifications-enabled" name="desktop_enabled" value="1" aria-label="Enable desktop notifications" <?= !empty($headerNotificationPreferences['desktop_enabled']) ? 'checked' : '' ?>>
+                        </label>
+                    </div>
+                    <div class="notification-volume-row">
+                        <label for="notification-volume">Volume</label>
+                        <input type="range" id="notification-volume" name="sound_volume" min="0" max="100" step="1" value="<?= (int) ($headerNotificationPreferences['sound_volume'] ?? 65) ?>" aria-label="Notification volume">
+                        <button type="button" class="notification-test-sound" data-notification-test-sound <?= empty($headerNotificationPreferences['sound_enabled']) ? 'disabled' : '' ?>>Test</button>
+                    </div>
                 </form>
                 <a class="portal-notification-preview__footer" href="<?= htmlspecialchars(BASE_URL . '/notifications.php', ENT_QUOTES, 'UTF-8') ?>">View all notifications →</a>
             </div>

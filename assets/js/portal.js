@@ -575,15 +575,22 @@ window.addEventListener('DOMContentLoaded', () => {
     };
     const settings = document.querySelector('[data-notification-sound-settings]');
     if (settings) {
-      const save = async () => {
+      const testButton = settings.querySelector('[data-notification-test-sound]');
+      const save = async (requestDesktopPermission = false) => {
         const data = new FormData(settings);
         enabled = data.get('sound_enabled') === '1';
         volume = Math.max(0, Math.min(1, Number(data.get('sound_volume') || 65) / 100));
+        if (testButton) testButton.disabled = !enabled;
         await fetch('/notifications-api.php', {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({action:'save_preferences', sound_enabled:enabled?'1':'0', sound_volume:String(Math.round(volume*100)), sound_prompt_seen:'1', desktop_enabled:data.get('desktop_enabled')==='1'?'1':'0'})}).catch(()=>{});
-        if (data.get('desktop_enabled') === '1' && 'Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(()=>{});
+        if (requestDesktopPermission && data.get('desktop_enabled') === '1' && 'Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(()=>{});
       };
-      settings.addEventListener('change', save);
-      settings.querySelector('[data-notification-test-sound]')?.addEventListener('click', async () => { await save(); play('assigned'); });
+      settings.addEventListener('change', (event) => {
+        const desktopWasEnabled = event.target instanceof HTMLInputElement
+          && event.target.name === 'desktop_enabled'
+          && event.target.checked;
+        save(desktopWasEnabled);
+      });
+      testButton?.addEventListener('click', async () => { await save(false); play('assigned'); });
     }
     return { configure, play };
   })();
