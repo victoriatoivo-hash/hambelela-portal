@@ -926,31 +926,59 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($action === 'update_task_progress') {
             $status = checklist_requested_status();
             $checked = array_values(array_filter(array_map('strval', $_POST['checked_items'] ?? [])));
-            $taskRows = ops_rows("SELECT * FROM ops_checklist_tasks WHERE {$scope} LIMIT 1", $scopeParams);
-            if (!$taskRows) throw new RuntimeException('Task was not found or is not assigned to you.');
             $note = checklist_require_progress_note(ops_post_string('completion_note', 1500));
-            if ($status === 'complete') checklist_require_completion($taskRows[0], $checked, $note);
-            if ($status === 'complete') {
-                $set = 'status = ?, checked_items = ?, completion_note = ?, completed_at = COALESCE(completed_at, NOW()), date_completed = COALESCE(date_completed, NOW()), completed_by = COALESCE(completed_by, ?)';
-                $params = [$status, json_encode($checked, JSON_UNESCAPED_SLASHES), $note, $currentEmployeeId];
-            } else {
-                $set = 'status = ?, checked_items = ?, completion_note = ?, completed_at = NULL, date_completed = NULL, completed_by = NULL';
-                $params = [$status, json_encode($checked, JSON_UNESCAPED_SLASHES), $note];
+            $taskDb = db();
+            $taskDb->beginTransaction();
+            try {
+                $lockStmt = $taskDb->prepare("SELECT * FROM ops_checklist_tasks WHERE {$scope} LIMIT 1 FOR UPDATE");
+                $lockStmt->execute($scopeParams);
+                $task = $lockStmt->fetch(PDO::FETCH_ASSOC);
+                if (!$task) {
+                    http_response_code(403);
+                    throw new RuntimeException('This task is not assigned to your account.');
+                }
+                $previousStatus = checklist_normalize_status((string) ($task['status'] ?? 'new'));
+                if ($status === 'complete' && $previousStatus === 'complete') {
+                    http_response_code(409);
+                    throw new RuntimeException('This task has already been completed.');
+                }
+                if ($status === 'complete') checklist_require_completion($task, $checked, $note);
+                if ($status === 'complete') {
+                    $set = 'status = ?, checked_items = ?, completion_note = ?, completed_at = NOW(), date_completed = NOW(), completed_by = ?';
+                    $params = [$status, json_encode($checked, JSON_UNESCAPED_SLASHES), trim($note), $currentEmployeeId];
+                } else {
+                    $set = 'status = ?, checked_items = ?, completion_note = ?, completed_at = NULL, date_completed = NULL, completed_by = NULL';
+                    $params = [$status, json_encode($checked, JSON_UNESCAPED_SLASHES), trim($note)];
+                }
+                if ($status === 'in_progress') $set .= ', started_at = COALESCE(started_at, NOW())';
+                $stmt = $taskDb->prepare("UPDATE ops_checklist_tasks SET {$set} WHERE {$scope}");
+                $stmt->execute([...$params, ...$scopeParams]);
+                ops_activity_log($status === 'complete' ? 'task_completed' : 'task_progress_updated', 'checklist_task', $taskId, [
+                    'previous_status' => $previousStatus,
+                    'status' => $status,
+                    'checked_items' => $checked,
+                    'completion_note' => trim($note),
+                    'completed_by' => $status === 'complete' ? $currentEmployeeId : null,
+                    'completed_at' => $status === 'complete' ? date('Y-m-d H:i:s') : null,
+                ]);
+                $taskDb->commit();
+            } catch (Throwable $saveError) {
+                if ($taskDb->inTransaction()) $taskDb->rollBack();
+                throw $saveError;
             }
-            if ($status === 'in_progress') $set .= ', started_at = COALESCE(started_at, NOW())';
-            $stmt = db()->prepare("UPDATE ops_checklist_tasks SET {$set} WHERE {$scope}");
-            $stmt->execute([...$params, ...$scopeParams]);
-            checklist_kpi_status_event($taskId, (string) ($taskRows[0]['status'] ?? ''), $status, $currentEmployeeId);
-            ops_activity_log('task_progress_updated', 'checklist_task', $taskId, [
-                'status' => $status,
-                'checked_items' => $checked,
-                'completion_note' => $status === 'complete' ? trim($note) : null,
-                'completed_by' => $status === 'complete' ? $currentEmployeeId : null,
-                'completed_at' => $status === 'complete' ? date('Y-m-d H:i:s') : null,
-            ]);
+            checklist_kpi_status_event($taskId, $previousStatus, $status, $currentEmployeeId);
+            $savedRows = ops_rows('SELECT t.id, t.status, t.checked_items, t.completion_note, t.date_completed, t.completed_by, e.full_name AS completed_by_name FROM ops_checklist_tasks t LEFT JOIN ops_employees e ON e.id = t.completed_by WHERE t.id = ? LIMIT 1', [$taskId]);
+            $savedTask = $savedRows[0] ?? [];
             if (strpos((string) ($_SERVER['HTTP_ACCEPT'] ?? ''), 'application/json') !== false) {
                 header('Content-Type: application/json; charset=utf-8');
-                echo json_encode(['success' => true, 'message' => 'Task saved.', 'task_id' => $taskId, 'status' => $status]);
+                echo json_encode(['success' => true, 'message' => $status === 'complete' ? 'Task completed and saved successfully.' : 'Task progress saved successfully.', 'task' => [
+                    'id' => $taskId,
+                    'status' => checklist_normalize_status((string) ($savedTask['status'] ?? $status)),
+                    'checked_items' => checklist_json_items((string) ($savedTask['checked_items'] ?? '')),
+                    'completion_note' => (string) ($savedTask['completion_note'] ?? ''),
+                    'completed_at' => $savedTask['date_completed'] ?? null,
+                    'completed_by' => ['id' => (int) ($savedTask['completed_by'] ?? 0), 'name' => (string) ($savedTask['completed_by_name'] ?? '')],
+                ]]);
                 exit;
             }
             $message = 'Task saved.';
@@ -1446,9 +1474,9 @@ include BASE_PATH . '/shared/sidebar.php';
                     <?php if ($effective !== 'complete'): ?>
                         <section class="task-details-section task-progress-card">
                             <h3 class="task-section-title task-progress__heading">Progress Update</h3>
-                            <div class="task-field"><label for="task-progress-status-<?= $panelId ?>">Status</label><select id="task-progress-status-<?= $panelId ?>" name="status" data-portal-custom-select><?php ops_select_options($statuses, checklist_normalize_status((string) ($task['status'] ?? 'new'))); ?></select></div>
-                            <div class="task-field" id="task-notes-<?= $panelId ?>"><label class="task-progress-label" for="task-progress-note-<?= $panelId ?>">Note <span class="required-marker" aria-hidden="true">*</span></label><textarea id="task-progress-note-<?= $panelId ?>" name="completion_note" required minlength="5" aria-required="true" placeholder="Explain what was completed or provide a progress update."><?= htmlspecialchars((string) ($task['completion_note'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea><p class="task-progress-note-error" data-task-note-error hidden>Enter a note explaining the progress or work completed.</p></div>
-                            <div class="task-progress-actions"><button class="task-btn task-btn--primary" type="submit" name="action" value="update_task_progress">Save progress</button></div>
+                            <?php if ($canManage): ?><div class="task-field"><label for="task-progress-status-<?= $panelId ?>">Status</label><select id="task-progress-status-<?= $panelId ?>" name="status" data-portal-custom-select><?php ops_select_options($statuses, checklist_normalize_status((string) ($task['status'] ?? 'new'))); ?></select></div><?php else: ?><input type="hidden" name="status" value="complete"><?php endif; ?>
+                            <div class="task-field" id="task-notes-<?= $panelId ?>"><label class="task-progress-label" for="task-progress-note-<?= $panelId ?>">Completion note <span class="required-marker" aria-hidden="true">*</span></label><textarea id="task-progress-note-<?= $panelId ?>" name="completion_note" required minlength="5" aria-required="true" maxlength="1000" data-completion-note placeholder="Explain what was completed."><?= htmlspecialchars((string) ($task['completion_note'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea><p class="task-progress-note-error" data-task-note-error role="alert" hidden>Enter a completion note before saving.</p></div>
+                            <div class="task-progress-actions"><button class="task-btn task-btn--primary" type="submit" name="action" value="update_task_progress" data-save-task><?= $canManage ? 'Save progress' : 'Save Task' ?></button></div>
                         </section>
                     <?php else: ?>
                         <section class="task-details-section task-content-card"><h3 class="task-content-heading">Completion note</h3><p class="task-content-text"><?= htmlspecialchars((string) ($task['completion_note'] ?? 'No completion note added.'), ENT_QUOTES, 'UTF-8') ?></p></section>
@@ -2259,25 +2287,50 @@ function initialiseTaskCompletionEnforcement() {
         form.dataset.completionConfirmed = 'true';
       }
       const submit = event.submitter || form.querySelector('[type="submit"]');
-      if (submit?.disabled) return;
-      if (submit) submit.disabled = true;
+      if (form.dataset.submitting === 'true' || submit?.disabled) return;
+      form.dataset.submitting = 'true';
+      const originalLabel = submit?.textContent || 'Save Task';
+      let completedSuccessfully = false;
+      if (submit) { submit.disabled = true; submit.setAttribute('aria-busy', 'true'); submit.textContent = 'Saving…'; }
       try {
         const data = new FormData(form);
         data.set('action', 'update_task_progress');
         const response = await fetch(document.URL, {method:'POST',body:data,credentials:'same-origin',headers:{Accept:'application/json'}});
         const result = await response.json();
         if (!response.ok || result.success !== true) throw new Error(result.message || 'Unable to save task progress.');
+        const savedTask = result.task || {};
         const note = form.querySelector('[name="completion_note"]');
-        if (note) { note.value = ''; note.setAttribute('aria-invalid', 'false'); }
+        if (note) note.setAttribute('aria-invalid', 'false');
         const noteError = form.querySelector('[data-task-note-error]');
         if (noteError) noteError.hidden = true;
         const completionError = form.querySelector('[data-task-completion-error]');
         if (completionError) completionError.hidden = true;
         form.dataset.completionConfirmed = 'false';
-        if (submit) { submit.textContent = 'Saved'; window.setTimeout(() => { submit.textContent = 'Save progress'; }, 1400); }
+        window.showPortalToast?.({ title:'Task Management', message:result.message || 'Task completed and saved successfully.', type:'success' });
+        if (savedTask.status === 'complete') {
+          completedSuccessfully = true;
+          const row = document.querySelector(`[data-task-row][data-task-id="${form.dataset.taskId}"]`);
+          row?.classList.add('is-completing');
+          window.setTimeout(() => row?.remove(), 360);
+          form.querySelectorAll('input, textarea, select').forEach((field) => { field.disabled = true; });
+          if (submit) { submit.textContent = 'Completed'; submit.disabled = true; }
+          const page = document.querySelector('.digital-task-page');
+          const previousStatus = row?.dataset.savedStatus === 'in_progress' ? 'in-progress' : 'new';
+          const previousValue = document.querySelector(`[data-stat="${previousStatus}"] .dtb-stat-value`);
+          if (previousValue) previousValue.textContent = String(Math.max(0, Number(previousValue.textContent.replace(/,/g, '')) - 1));
+          const completedValue = document.querySelector('[data-stat="complete"] .dtb-stat-value');
+          if (completedValue) completedValue.textContent = String(Number(completedValue.textContent.replace(/,/g, '')) + 1);
+          if (page) page.dataset.lastCompletedTask = String(savedTask.id || form.dataset.taskId);
+        } else if (submit) {
+          submit.textContent = 'Saved';
+          window.setTimeout(() => { submit.textContent = originalLabel; }, 1400);
+        }
       } catch (error) {
         showTaskCompletionError(form.dataset.taskId, error.message, []);
-      } finally { if (submit) submit.disabled = false; }
+      } finally {
+        form.dataset.submitting = 'false';
+        if (submit) { submit.removeAttribute('aria-busy'); if (!completedSuccessfully) submit.disabled = false; if (submit.textContent === 'Saving…') submit.textContent = originalLabel; }
+      }
     });
   });
 }
