@@ -9,8 +9,11 @@ $attachmentId = (int) ($_GET['id'] ?? 0);
 $itemId = (int) ($_GET['item_id'] ?? 0);
 $mode = (string) ($_GET['mode'] ?? 'view');
 if ($attachmentId <= 0 || $itemId <= 0 || !ops_table_exists('ops_packing_attachments')) { http_response_code(404); exit('File not found.'); }
-$row = ops_rows("SELECT a.*, t.archived_at AS item_archived_at, t.deleted_at AS item_deleted_at FROM ops_packing_attachments a JOIN ops_packing_tasks t ON t.id=a.packing_item_id WHERE a.id=? AND a.packing_item_id=? AND a.deleted_at IS NULL LIMIT 1", [$attachmentId, $itemId])[0] ?? null;
-if (!$row || !empty($row['item_archived_at']) || !empty($row['item_deleted_at'])) { http_response_code(404); exit('File not found.'); }
+$taskWhere = '';
+if (ops_column_exists('ops_packing_tasks', 'archived_at')) $taskWhere .= ' AND t.archived_at IS NULL';
+if (ops_column_exists('ops_packing_tasks', 'deleted_at')) $taskWhere .= ' AND t.deleted_at IS NULL';
+$row = ops_rows("SELECT a.* FROM ops_packing_attachments a JOIN ops_packing_tasks t ON t.id=a.packing_item_id WHERE a.id=? AND a.packing_item_id=? AND a.deleted_at IS NULL{$taskWhere} LIMIT 1", [$attachmentId, $itemId])[0] ?? null;
+if (!$row) { http_response_code(404); exit('File not found.'); }
 $stored = basename((string) $row['stored_filename']);
 $path = BASE_PATH . '/uploads/packing-item-attachments/' . $stored;
 if ($stored === '' || !is_file($path)) { http_response_code(404); exit('File not found.'); }

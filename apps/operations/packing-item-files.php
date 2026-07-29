@@ -44,12 +44,14 @@ function packing_files_schema_ready(): bool
 function packing_files_item(int $itemId): ?array
 {
     if ($itemId <= 0) return null;
-    return ops_rows("SELECT id, assigned_employee_id, archived_at, deleted_at FROM ops_packing_tasks WHERE id = ? LIMIT 1", [$itemId])[0] ?? null;
+    $where = ['id = ?'];
+    if (ops_column_exists('ops_packing_tasks', 'archived_at')) $where[] = 'archived_at IS NULL';
+    if (ops_column_exists('ops_packing_tasks', 'deleted_at')) $where[] = 'deleted_at IS NULL';
+    return ops_rows('SELECT id, assigned_employee_id FROM ops_packing_tasks WHERE ' . implode(' AND ', $where) . ' LIMIT 1', [$itemId])[0] ?? null;
 }
 
 function packing_files_can_access(array $item, bool $write = false): bool
 {
-    if (!empty($item['archived_at']) || !empty($item['deleted_at'])) return false;
     if (!$write) return true;
     return user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager')
         || (int) ($item['assigned_employee_id'] ?? 0) === (int) ops_current_employee_id();
