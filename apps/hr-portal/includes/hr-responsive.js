@@ -6,6 +6,8 @@
   sidebar.dataset.hrResponsiveReady = 'true';
 
   const mobileQuery = window.matchMedia('(max-width: 1023px)');
+  const openButton = document.querySelector('[data-hr-menu-open]');
+  const closeButton = sidebar.querySelector('[data-hr-menu-close]');
   const backdrop = document.createElement('button');
   backdrop.type = 'button';
   backdrop.className = 'hr-nav-backdrop';
@@ -22,15 +24,18 @@
     backdrop.classList.toggle('is-open', open);
     document.body.classList.toggle('hr-nav-open', open);
     sidebar.setAttribute('aria-hidden', mobileQuery.matches && !open ? 'true' : 'false');
+    openButton?.setAttribute('aria-expanded', String(open));
     if (open) {
       lastFocused = document.activeElement;
-      requestAnimationFrame(() => focusable()[0]?.focus({ preventScroll: true }));
+      requestAnimationFrame(() => closeButton?.focus({ preventScroll: true }));
     } else if (wasOpen && lastFocused instanceof HTMLElement) {
       lastFocused.focus({ preventScroll: true });
       lastFocused = null;
     }
   };
 
+  openButton?.addEventListener('click', () => setOpen(true));
+  closeButton?.addEventListener('click', () => setOpen(false));
   backdrop.addEventListener('click', () => setOpen(false));
   sidebar.addEventListener('click', (event) => {
     if (mobileQuery.matches && event.target.closest('a[href]')) setOpen(false);

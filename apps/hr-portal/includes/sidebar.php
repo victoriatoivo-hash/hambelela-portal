@@ -16,7 +16,14 @@ function navItem($href, $icon, $label, $badge=0, $current='') {
 ?>
 <link rel="stylesheet" href="../../assets/css/portal-date-picker.css?v=<?= rawurlencode((string) filemtime(__DIR__ . '/../../../assets/css/portal-date-picker.css')) ?>">
 <script defer src="../../assets/js/portal-date-picker.js?v=<?= rawurlencode((string) filemtime(__DIR__ . '/../../../assets/js/portal-date-picker.js')) ?>"></script>
+<button type="button" class="hr-mobile-menu-toggle" data-hr-menu-open aria-label="Open HR navigation" aria-controls="hrPortalSidebar" aria-expanded="false">
+  <span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span>
+</button>
 <nav class="sidebar" id="hrPortalSidebar" data-hr-sidebar aria-label="HR Portal navigation">
+  <div class="hr-sidebar-mobile-header">
+    <span>HR Portal</span>
+    <button type="button" class="hr-sidebar-close" data-hr-menu-close aria-label="Close HR navigation">&times;</button>
+  </div>
   <div class="sidebar-logo">
     <img src="data:image/jpeg;base64,YOUR_EXISTING_BASE64_HERE" alt="Hambelela Organic" style="width:160px;height:auto;display:block;filter:invert(1) brightness(2);">
     <div style="font-size:9px;color:rgba(255,255,255,0.28);margin-top:6px;letter-spacing:.1em;font-family:'Century Gothic','Futura',Arial,sans-serif;text-transform:uppercase">HR Portal</div>

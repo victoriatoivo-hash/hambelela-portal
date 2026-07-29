@@ -188,7 +188,7 @@ tr:hover td{background:#f8faf9}
 @media (max-width:479px){.leave-status-cell{gap:5px}.leave-reason-popover{width:calc(100vw - 20px);max-height:min(420px,calc(100dvh - 20px))}}
 @media (prefers-reduced-motion:reduce){.leave-reason-trigger,.leave-reason-trigger__arrow{transition-duration:1ms}}
 /* Shared responsive HR shell */
-.hr-nav-backdrop{display:none}
+.hr-mobile-menu-toggle,.hr-sidebar-mobile-header,.hr-nav-backdrop{display:none}
 @media (max-width:1439px){
   .content{padding:22px}
   .grid-4{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -203,9 +203,17 @@ tr:hover td{background:#f8faf9}
   body.hr-nav-open{overflow:hidden;touch-action:none}
   .main{min-height:100dvh;overflow:visible}
   .content{overflow:visible;padding:20px}
-  .topbar{height:auto;min-height:58px;padding:10px 20px;flex-wrap:wrap;gap:8px}
-  .sidebar{position:fixed;inset:0 auto 0 0;z-index:200;width:min(86vw,320px);height:100dvh;transform:translateX(-102%);transition:transform .2s ease;box-shadow:18px 0 42px rgba(0,0,0,.22);overscroll-behavior:contain}
-  .sidebar.is-open{transform:translateX(0)}
+  .topbar{height:auto;min-height:58px;padding:10px 20px 10px 56px;flex-wrap:wrap;gap:8px}
+  .hr-mobile-menu-toggle{appearance:none;position:fixed;top:13px;left:12px;z-index:190;display:inline-flex;width:32px;height:32px;flex:0 0 32px;flex-direction:column;align-items:center;justify-content:center;gap:3px;margin:0;padding:7px;color:#721B1A;background:#fff;border:1px solid #EDE3D8;border-radius:7px;box-shadow:0 4px 12px rgba(114,27,26,.08);cursor:pointer}
+  .hr-mobile-menu-toggle span{display:block;width:15px;height:1.5px;background:currentColor;border-radius:999px;transition:transform .16s ease,opacity .16s ease}
+  .hr-mobile-menu-toggle:hover,.hr-mobile-menu-toggle:focus-visible{color:#AB3619;background:#FDF6EE}
+  .hr-mobile-menu-toggle:focus-visible{outline:2px solid rgba(171,54,25,.24);outline-offset:2px}
+  .sidebar[data-hr-sidebar]{position:fixed;inset:0 auto 0 0;z-index:200;width:min(280px,86vw);max-width:calc(100vw - 40px);height:100dvh;visibility:hidden;pointer-events:none;transform:translate3d(-105%,0,0);transition:transform .2s ease,visibility .2s ease;box-shadow:18px 0 42px rgba(0,0,0,.22);overscroll-behavior:contain}
+  .sidebar[data-hr-sidebar].is-open{visibility:visible;pointer-events:auto;transform:translate3d(0,0,0)}
+  .hr-sidebar-mobile-header{position:sticky;top:0;z-index:3;display:flex;min-height:48px;align-items:center;justify-content:space-between;padding:8px 10px 8px 14px;color:#fff;background:var(--sidebar);border-bottom:1px solid rgba(255,255,255,.1);font-size:13px;font-weight:700}
+  .hr-sidebar-close{appearance:none;display:inline-flex;width:30px;height:30px;align-items:center;justify-content:center;padding:0;color:#fff;background:transparent;border:0;border-radius:6px;font:400 21px/1 inherit;cursor:pointer}
+  .hr-sidebar-close:hover,.hr-sidebar-close:focus-visible{color:#fff;background:rgba(240,116,32,.18)}
+  .hr-sidebar-close:focus-visible{outline:2px solid rgba(255,255,255,.35);outline-offset:1px}
   .sidebar-logo{padding-right:58px}
   .hr-nav-backdrop{position:fixed;inset:0;z-index:195;display:block;visibility:hidden;padding:0;background:rgba(7,18,12,.46);border:0;opacity:0;pointer-events:none;transition:opacity .2s ease,visibility .2s ease}
   .hr-nav-backdrop.is-open{visibility:visible;opacity:1;pointer-events:auto}
@@ -214,7 +222,7 @@ tr:hover td{background:#f8faf9}
 }
 @media (max-width:767px){
   .content{padding:16px}
-  .topbar{padding-left:16px}
+  .topbar{padding-left:56px}
   .grid-4,.grid-3,.grid-2{grid-template-columns:minmax(0,1fr);gap:12px;margin-bottom:16px}
   .form-grid{grid-template-columns:minmax(0,1fr)}
   .form-group.full,.section-divider{grid-column:auto}
@@ -229,7 +237,7 @@ tr:hover td{background:#f8faf9}
 }
 @media (max-width:479px){
   .content{padding:12px}
-  .topbar{padding-left:12px}
+  .topbar{padding-left:56px}
   .section-title{font-size:18px}
   .stat-card{padding:16px}
   .btn{max-width:100%;white-space:normal}
@@ -237,5 +245,5 @@ tr:hover td{background:#f8faf9}
   .modal-footer .btn{justify-content:center;width:100%}
 }
 @media (prefers-reduced-motion:reduce){
-  .sidebar,.hr-nav-backdrop,.modal{transition-duration:1ms}
+  .sidebar,.hr-nav-backdrop,.hr-mobile-menu-toggle span,.modal{transition-duration:1ms}
 }
