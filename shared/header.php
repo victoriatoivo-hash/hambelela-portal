@@ -38,10 +38,12 @@ $pageUsesPortalSidebar = (bool) ($pageUsesPortalSidebar ?? true);
 $showPortalHeaderAccount = $showPortalHeaderStatus && !$pageUsesPortalSidebar;
 $headerNotificationUnread = 0;
 $headerNotificationLatest = [];
+$headerNotificationPreferences = ['desktop_enabled' => 1, 'sound_enabled' => 0, 'sound_volume' => 65];
 if ($showPortalHeaderStatus && function_exists('notifications_summary_for_current_user')) {
     $headerNotificationSummary = notifications_summary_for_current_user(3);
     $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ?? 0);
     $headerNotificationLatest = array_slice((array) ($headerNotificationSummary['latest'] ?? []), 0, 3);
+    $headerNotificationPreferences = (array) ($headerNotificationSummary['preferences'] ?? $headerNotificationPreferences);
 }
 $headerUserName = trim((string) ($headerUser['name'] ?? 'User'));
 $headerUserInitials = '';
@@ -124,6 +126,12 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
                     <div class="portal-notification-preview__empty"><strong>No new notifications</strong><span>You are all caught up.</span></div>
                 <?php endif; ?>
                 </div>
+                <form class="portal-notification-preview__settings" data-notification-sound-settings>
+                    <label><span>Notification sounds</span><input type="checkbox" name="sound_enabled" value="1" <?= !empty($headerNotificationPreferences['sound_enabled']) ? 'checked' : '' ?>></label>
+                    <label><span>Volume</span><input type="range" name="sound_volume" min="0" max="100" value="<?= (int) ($headerNotificationPreferences['sound_volume'] ?? 65) ?>"></label>
+                    <label><span>Desktop notifications</span><input type="checkbox" name="desktop_enabled" value="1" <?= !empty($headerNotificationPreferences['desktop_enabled']) ? 'checked' : '' ?>></label>
+                    <button type="button" data-notification-test-sound>Test sound</button>
+                </form>
                 <a class="portal-notification-preview__footer" href="<?= htmlspecialchars(BASE_URL . '/notifications.php', ENT_QUOTES, 'UTF-8') ?>">View all notifications →</a>
             </div>
             </div>

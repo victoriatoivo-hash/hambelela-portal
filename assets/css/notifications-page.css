@@ -119,6 +119,9 @@
 .notification-row[data-category="bookkeeping"] { --notification-colour: #AB3619; }
 .notification-row[data-category="errors"] { --notification-colour: #BB1B21; }
 .notification-row[data-category="system"] { --notification-colour: #6B4C3B; }
+.notification-row[data-deadline-state="due_today"] { --notification-colour:#F07420; background:rgba(240,116,32,.12); }
+.notification-row[data-deadline-state="overdue"] { --notification-colour:#BB1B21; background:rgba(187,27,33,.11); }
+.notification-row[data-deadline-state="upcoming"] { --notification-colour:#A8CA19; background:rgba(168,202,25,.09); }
 .notification-row-indicator { width: 4px; height: 36px; border-radius: 999px; background: var(--notification-colour); }
 .notification-row-icon { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; background: rgba(240, 116, 32, .08); color: var(--notification-colour); }
 .notification-row-icon svg { width: 16px; height: 16px; }

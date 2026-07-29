@@ -538,6 +538,56 @@ window.addEventListener('DOMContentLoaded', () => {
     return { toast, close };
   };
 
+  const taskReminderSound = (() => {
+    const sounds = {
+      due_today: '/assets/audio/task-due-today.mp3',
+      overdue: '/assets/audio/task-overdue.mp3',
+      urgent: '/assets/audio/task-urgent.mp3',
+      assigned: '/assets/audio/task-assigned.mp3',
+    };
+    let enabled = false;
+    let volume = .65;
+    let prompted = false;
+    const configure = (preferences = {}) => {
+      enabled = Number(preferences.sound_enabled || 0) === 1;
+      volume = Math.max(0, Math.min(1, Number(preferences.sound_volume ?? 65) / 100));
+      if (!prompted && Number(preferences.sound_prompt_seen || 0) !== 1) {
+        prompted = true;
+        const prompt = document.createElement('div');
+        prompt.className = 'portal-toast portal-sound-permission';
+        prompt.innerHTML = '<p class="portal-toast-title">Enable task reminder sounds?</p><p class="portal-toast-message">You can change this later in notification settings.</p><div class="portal-toast-actions"><button type="button" data-sound-no>Not now</button><button type="button" data-sound-yes>Enable sounds</button></div>';
+        document.body.appendChild(prompt);
+        const save = async (allow) => {
+          enabled = allow;
+          await fetch('/notifications-api.php', {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({action:'save_preferences', desktop_enabled:'1', sound_enabled:allow?'1':'0', sound_volume:String(Math.round(volume*100)), sound_prompt_seen:'1'})}).catch(()=>{});
+          prompt.remove();
+          if (allow) play('assigned');
+        };
+        prompt.querySelector('[data-sound-yes]').addEventListener('click', () => save(true));
+        prompt.querySelector('[data-sound-no]').addEventListener('click', () => save(false));
+      }
+    };
+    const play = (key) => {
+      if (!enabled || !sounds[key]) return;
+      const audio = new Audio(sounds[key]);
+      audio.volume = volume;
+      audio.play().catch(() => {});
+    };
+    const settings = document.querySelector('[data-notification-sound-settings]');
+    if (settings) {
+      const save = async () => {
+        const data = new FormData(settings);
+        enabled = data.get('sound_enabled') === '1';
+        volume = Math.max(0, Math.min(1, Number(data.get('sound_volume') || 65) / 100));
+        await fetch('/notifications-api.php', {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({action:'save_preferences', sound_enabled:enabled?'1':'0', sound_volume:String(Math.round(volume*100)), sound_prompt_seen:'1', desktop_enabled:data.get('desktop_enabled')==='1'?'1':'0'})}).catch(()=>{});
+        if (data.get('desktop_enabled') === '1' && 'Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(()=>{});
+      };
+      settings.addEventListener('change', save);
+      settings.querySelector('[data-notification-test-sound]')?.addEventListener('click', async () => { await save(); play('assigned'); });
+    }
+    return { configure, play };
+  })();
+
   const portalNotificationPoller = (() => {
     const apiUrl = '/api/notifications.php';
     const portalUser = window.HambelelaPortalUser || { id: 0, role: 'guest' };
@@ -567,15 +617,24 @@ window.addEventListener('DOMContentLoaded', () => {
       return container;
     };
 
-    const showPortalToast = (notification) => {
+    const showPortalToast = async (notification) => {
       const container = ensureToastContainer();
       const toast = document.createElement('div');
       toast.className = 'portal-toast';
+      const state = notification.deadline_state && notification.deadline_state !== 'normal' ? notification.deadline_state : (notification.priority === 'urgent' ? 'urgent' : 'normal');
+      const stateLabel = ({due_today:'Due Today', overdue:'Overdue', upcoming:'Upcoming', urgent:'Urgent', normal:'Task'})[state] || 'Task';
+      const stateIcon = ({due_today:'◷', overdue:'⚠', upcoming:'◷', urgent:'!', normal:'✓'})[state] || '•';
+      toast.dataset.deadlineState = state;
+      toast.setAttribute('role', state === 'urgent' ? 'alert' : 'status');
+      toast.setAttribute('aria-live', state === 'urgent' ? 'assertive' : 'polite');
       toast.innerHTML = `<button type="button" class="portal-toast-close" aria-label="Close notification">×</button>
+        <span class="portal-notification__status"><span aria-hidden="true">${stateIcon}</span> ${escapeHtml(stateLabel)}</span>
         <p class="portal-toast-title">${escapeHtml(notification.title || 'New notification')}</p>
-        <p class="portal-toast-message">${escapeHtml(notification.message || '')}</p>`;
+        <p class="portal-toast-message">${escapeHtml(notification.message || '')}</p>
+        ${notification.assigned_name ? `<span class="portal-toast-assignee">Assigned to ${escapeHtml(notification.assigned_name)}</span>` : ''}
+        ${notification.due_at ? `<span class="portal-toast-due">Due ${escapeHtml(notification.due_at)}</span>` : ''}`;
       const isTask = notification.related_type === 'checklist_task' && Number(notification.related_id || 0) > 0;
-      if (isTask) toast.insertAdjacentHTML('beforeend', '<div class="portal-toast-actions"><button type="button" data-toast-dismiss>Dismiss</button><button type="button" data-toast-view>View Task</button></div>');
+      if (isTask) toast.insertAdjacentHTML('beforeend', '<div class="portal-toast-actions"><select data-toast-snooze aria-label="Snooze reminder"><option value="">Snooze</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="tomorrow">Tomorrow</option></select><button type="button" data-toast-read>Mark Read</button><button type="button" data-toast-view>View Task</button></div>');
       const markState = (state) => fetch(apiUrl, { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({action:`notification_${state}`, notification_id:String(notification.id)}) }).catch(() => {});
 
       const close = () => {
@@ -585,6 +644,12 @@ window.addEventListener('DOMContentLoaded', () => {
 
       toast.querySelector('.portal-toast-close')?.addEventListener('click', () => { markState('dismissed'); close(); });
       toast.querySelector('[data-toast-dismiss]')?.addEventListener('click', () => { markState('dismissed'); close(); });
+      toast.querySelector('[data-toast-read]')?.addEventListener('click', () => { markState('viewed'); close(); });
+      toast.querySelector('[data-toast-snooze]')?.addEventListener('change', async (event) => {
+        if (!event.target.value) return;
+        await fetch(apiUrl, {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({action:'notification_snooze', notification_id:String(notification.id), duration:event.target.value})}).catch(()=>{});
+        close();
+      });
       toast.querySelector('[data-toast-view]')?.addEventListener('click', async () => {
         await markState('viewed');
         const taskId = Number(notification.related_id || 0);
@@ -592,7 +657,18 @@ window.addEventListener('DOMContentLoaded', () => {
         else window.location.assign(notification.action_link || `/apps/operations/checklists.php?task_view=active&task_id=${encodeURIComponent(taskId)}`);
       });
       container.prepend(toast);
-      markState('delivered');
+      let claimed = !isTask;
+      if (isTask) {
+        try {
+          const response = await fetch(apiUrl, {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({action:'notification_claim', notification_id:String(notification.id)})});
+          claimed = Boolean((await response.json()).claimed);
+        } catch (_) { claimed = false; }
+      }
+      if (claimed && notification.sound_key) taskReminderSound.play(notification.sound_key);
+      if (claimed && document.visibilityState === 'hidden' && 'Notification' in window && Notification.permission === 'granted') {
+        const desktop = new Notification(notification.title || stateLabel, {body:notification.message || '', tag:`task-${notification.related_id}-${state}`, renotify:false, silent:true});
+        desktop.onclick = () => { window.focus(); window.location.assign(notification.action_link); desktop.close(); };
+      }
       if (isTask) window.dispatchEvent(new CustomEvent('portal:task-update', { detail: notification }));
       window.setTimeout(close, 5000);
     };
@@ -628,6 +704,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
         const data = await response.json();
         updateSidebarNotificationBadges(data.unread_count || 0);
+        taskReminderSound.configure(data.preferences || {});
 
         const latest = Array.isArray(data.latest) ? data.latest : [];
         const latestIds = latest.map((notification) => Number(notification.id || 0)).filter(Boolean);
@@ -661,7 +738,6 @@ window.addEventListener('DOMContentLoaded', () => {
     const queue = [];
     const known = new Set();
     let active = null;
-    let audioUnlocked = false;
     let soundEnabled = true;
     let previousFocus = null;
 
@@ -681,21 +757,14 @@ window.addEventListener('DOMContentLoaded', () => {
     const postReminder = async (alertId, minutes) => {
       try { await fetch(endpoint, { method: 'POST', credentials: 'same-origin', headers: {'Content-Type':'application/x-www-form-urlencoded'}, body: new URLSearchParams({action:'urgent_remind', alert_id:String(alertId), minutes:String(minutes)}) }); } catch (_) {}
     };
-    const unlockAudio = () => { audioUnlocked = true; };
-    ['pointerdown', 'keydown', 'touchstart'].forEach((name) => window.addEventListener(name, unlockAudio, {once:true, passive:true}));
-    const playSound = () => {
-      if (!audioUnlocked || !soundEnabled) return;
+    const claimDelivery = async (alertId) => {
       try {
-        const Context = window.AudioContext || window.webkitAudioContext;
-        if (!Context) return;
-        const context = new Context();
-        const gain = context.createGain();
-        gain.gain.setValueAtTime(0.0001, context.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.11, context.currentTime + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.42);
-        gain.connect(context.destination);
-        [620, 820].forEach((frequency, index) => { const tone = context.createOscillator(); tone.type='sine'; tone.frequency.value=frequency; tone.connect(gain); tone.start(context.currentTime + index * .1); tone.stop(context.currentTime + .36 + index * .1); });
-      } catch (_) {}
+        const response = await fetch(endpoint, { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({action:'notification_claim', notification_id:String(alertId)}) });
+        return response.ok && Boolean((await response.json()).claimed);
+      } catch (_) { return false; }
+    };
+    const playSound = () => {
+      if (soundEnabled) taskReminderSound.play('urgent');
     };
     const formatDue = (value) => {
       if (!value) return '';
@@ -729,7 +798,7 @@ window.addEventListener('DOMContentLoaded', () => {
       modal.hidden = false;
       document.body.classList.add('urgent-task-alert-open');
       modal.querySelector('.urgent-task-alert__view').focus();
-      if (!active.deliveredAt) { await postState(active.alertId, 'delivered'); playSound(); }
+      if (!active.deliveredAt && await claimDelivery(active.alertId)) playSound();
     };
     const finish = async (state, reminderMinutes = 30) => {
       if (!active) return;

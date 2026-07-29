@@ -24,14 +24,26 @@ try {
         if (!$employeeId) {
             throw new RuntimeException('Could not identify the employee account.');
         }
+        $existingPreferences = notifications_preferences($employeeId);
         notifications_save_preferences($employeeId, [
             'desktop_enabled' => (int) ($_POST['desktop_enabled'] ?? 0) === 1,
             'sound_enabled' => (int) ($_POST['sound_enabled'] ?? 0) === 1,
+            'sound_volume' => (int) ($_POST['sound_volume'] ?? 65),
+            'sound_prompt_seen' => (int) ($_POST['sound_prompt_seen'] ?? 0) === 1,
             'muted_when_unavailable' => (int) ($_POST['muted_when_unavailable'] ?? 0) === 1,
-            'modules' => array_values(array_filter(array_map('strval', $_POST['modules'] ?? []))),
+            'modules' => isset($_POST['modules']) ? array_values(array_filter(array_map('strval', $_POST['modules']))) : $existingPreferences['modules'],
         ]);
-    } elseif ($action === 'permission_seen') {
-        // Reserved for future auditing of browser permission prompts.
+        if (function_exists('ops_activity_log')) {
+            ops_activity_log('notification_sound_' . (((int) ($_POST['sound_enabled'] ?? 0) === 1) ? 'enabled' : 'disabled'), 'employee', $employeeId, ['employee_id' => $employeeId, 'delivery_channel' => 'portal', 'timestamp' => gmdate(DATE_ATOM)]);
+        }
+    } elseif ($action === 'snooze') {
+        if (!notifications_snooze_task((int) ($_POST['notification_id'] ?? 0), (string) ($_POST['duration'] ?? ''))) {
+            http_response_code(422);
+            throw new RuntimeException('This reminder could not be snoozed.');
+        }
+    } elseif ($action === 'claim_delivery') {
+        echo json_encode(['ok' => true, 'claimed' => notifications_claim_task_delivery((int) ($_POST['notification_id'] ?? 0))]);
+        exit;
     }
 
     $payload = notifications_for_current_user(12);
