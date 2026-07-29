@@ -221,8 +221,17 @@ include BASE_PATH . '/shared/sidebar.php';
             <div id="panel-updates-list" class="order-updates-list"></div>
         </section>
         <section class="order-panel-section updates-tab-panel" data-panel-name="files">
-            <div class="order-file-dropzone is-disabled" aria-disabled="true"><i data-lucide="paperclip"></i><strong>Order file storage is coming soon</strong><span>Uploads are unavailable until secure order storage is connected.</span></div>
-            <div class="order-panel-empty" id="panel-files-list"><strong>No files uploaded</strong><span>Files attached to updates are listed inside the update entry.</span></div>
+            <input type="file" id="order-files-input" hidden multiple accept="application/pdf,image/jpeg,image/png,image/webp,.pdf,.jpg,.jpeg,.png,.webp">
+            <button type="button" class="order-file-dropzone" id="order-file-dropzone" data-order-files-choose>
+                <i data-lucide="upload-cloud" aria-hidden="true"></i>
+                <strong>Drop files here or choose files</strong>
+                <span>PDF, JPG, PNG or WEBP · up to 5 files · 10 MB each</span>
+            </button>
+            <div class="order-file-upload-status" id="order-file-upload-status" hidden aria-live="polite">
+                <span id="order-file-upload-message">Uploading files…</span>
+                <div class="order-file-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div>
+            </div>
+            <div id="panel-files-list" class="order-files-list" aria-live="polite"></div>
         </section>
         <section class="order-panel-section order-activity-tab updates-tab-panel" data-panel-name="activity">
             <header><h3 class="order-activity-heading">Activity</h3><p class="order-activity-subheading">Operational changes made to this order.</p></header>

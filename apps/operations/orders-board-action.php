@@ -218,6 +218,67 @@ function ops_board_can_move_to_trash(): bool
     return user_has_role('owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager', 'packer', 'packer_production_staff');
 }
 
+function ops_board_verify_csrf(): void
+{
+    $submitted = (string) ($_POST['csrf_token'] ?? '');
+    $session = (string) ($_SESSION['orders_csrf_token'] ?? '');
+    if ($session === '' || !hash_equals($session, $submitted)) {
+        http_response_code(419);
+        throw new RuntimeException('Your session token is invalid. Refresh Orders and try again.');
+    }
+}
+
+function ops_board_ensure_order_files_schema(): void
+{
+    db()->exec(
+        "CREATE TABLE IF NOT EXISTS ops_order_files (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            order_id INT NOT NULL,
+            original_filename VARCHAR(255) NOT NULL,
+            stored_filename VARCHAR(160) NOT NULL,
+            mime_type VARCHAR(100) NOT NULL,
+            file_size BIGINT UNSIGNED NOT NULL,
+            checksum_sha256 CHAR(64) NOT NULL,
+            uploaded_by INT NULL,
+            uploaded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            deleted_at DATETIME NULL,
+            deleted_by INT NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY uq_ops_order_files_stored (stored_filename),
+            KEY idx_ops_order_files_order (order_id, deleted_at),
+            KEY idx_ops_order_files_uploader (uploaded_by)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+}
+
+function ops_board_order_files_dir(): string
+{
+    $dir = BASE_PATH . '/storage/order-files';
+    if (!is_dir($dir) && !@mkdir($dir, 0750, true) && !is_dir($dir)) {
+        throw new RuntimeException('Secure order file storage is unavailable.');
+    }
+    return $dir;
+}
+
+function ops_board_order_file_row(array $row): array
+{
+    $id = (int) $row['id'];
+    $orderId = (int) $row['order_id'];
+    $base = 'orders-board-file.php?order_id=' . $orderId . '&file_id=' . $id;
+    return [
+        'id' => $id,
+        'order_id' => $orderId,
+        'name' => (string) $row['original_filename'],
+        'mime_type' => (string) $row['mime_type'],
+        'size' => (int) $row['file_size'],
+        'uploaded_at' => (string) $row['uploaded_at'],
+        'uploaded_by' => (string) ($row['uploaded_by_name'] ?? 'Portal user'),
+        'view_url' => $base . '&disposition=inline',
+        'download_url' => $base . '&disposition=attachment',
+        'can_delete' => ops_board_tools_can_manage(),
+    ];
+}
+
 function ops_board_label_store_path(): string
 {
     $dir = BASE_PATH . '/storage/cache';
@@ -726,6 +787,78 @@ try {
     }
 
     $action = ops_post_string('action', 40);
+
+    if (in_array($action, ['list_order_files', 'upload_order_files', 'delete_order_file'], true)) {
+        ops_board_ensure_order_files_schema();
+        $orderId = (int) ($_POST['order_id'] ?? 0);
+        $order = $orderId > 0 ? ops_row('SELECT id, order_number FROM ops_orders WHERE id = ? AND deleted_at IS NULL LIMIT 1', [$orderId]) : null;
+        if (!$order) throw new RuntimeException('Order not found.');
+
+        if ($action === 'list_order_files') {
+            $rows = ops_rows(
+                "SELECT f.*, e.full_name AS uploaded_by_name
+                 FROM ops_order_files f
+                 LEFT JOIN ops_employees e ON e.id = f.uploaded_by
+                 WHERE f.order_id = ? AND f.deleted_at IS NULL
+                 ORDER BY f.uploaded_at DESC, f.id DESC",
+                [$orderId]
+            );
+            echo json_encode(['ok' => true, 'files' => array_map('ops_board_order_file_row', $rows)]);
+            exit;
+        }
+
+        if (!ops_board_tools_can_manage()) throw new RuntimeException('You do not have permission to manage order files.');
+        ops_board_verify_csrf();
+
+        if ($action === 'upload_order_files') {
+            $uploads = $_FILES['files'] ?? null;
+            if (!is_array($uploads) || !isset($uploads['name']) || !is_array($uploads['name'])) {
+                throw new RuntimeException('Choose one or more files to upload.');
+            }
+            $count = count($uploads['name']);
+            if ($count < 1 || $count > 5) throw new RuntimeException('Upload between 1 and 5 files at a time.');
+            $mimeMap = ['application/pdf' => 'pdf', 'image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
+            $finfo = new finfo(FILEINFO_MIME_TYPE);
+            $saved = [];
+            foreach (range(0, $count - 1) as $index) {
+                $error = (int) ($uploads['error'][$index] ?? UPLOAD_ERR_NO_FILE);
+                $tmp = (string) ($uploads['tmp_name'][$index] ?? '');
+                $size = (int) ($uploads['size'][$index] ?? 0);
+                if ($error !== UPLOAD_ERR_OK || !is_uploaded_file($tmp)) throw new RuntimeException('One of the selected files could not be uploaded.');
+                if ($size < 1 || $size > 10 * 1024 * 1024) throw new RuntimeException('Each file must be no larger than 10 MB.');
+                $mime = (string) $finfo->file($tmp);
+                if (!isset($mimeMap[$mime])) throw new RuntimeException('Only PDF, JPG, PNG and WEBP files are allowed.');
+                $original = trim((string) ($uploads['name'][$index] ?? 'file'));
+                $original = preg_replace('/[\x00-\x1F\x7F]+/', '', basename(str_replace('\\', '/', $original))) ?: 'file.' . $mimeMap[$mime];
+                $original = function_exists('mb_substr') ? mb_substr($original, 0, 255) : substr($original, 0, 255);
+                $stored = bin2hex(random_bytes(24)) . '.' . $mimeMap[$mime];
+                $target = ops_board_order_files_dir() . DIRECTORY_SEPARATOR . $stored;
+                if (!move_uploaded_file($tmp, $target)) throw new RuntimeException('The file could not be stored securely.');
+                try {
+                    $stmt = db()->prepare('INSERT INTO ops_order_files (order_id, original_filename, stored_filename, mime_type, file_size, checksum_sha256, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?)');
+                    $stmt->execute([$orderId, $original, $stored, $mime, (int) filesize($target), hash_file('sha256', $target), ops_current_employee_id() ?: null]);
+                    $fileId = (int) db()->lastInsertId();
+                    ops_activity_log('order_file_uploaded', 'order', $orderId, ['file_id' => $fileId, 'filename' => $original, 'size' => $size, 'changed_by' => current_user()['name'] ?? 'Unknown']);
+                    $row = ops_row("SELECT f.*, e.full_name AS uploaded_by_name FROM ops_order_files f LEFT JOIN ops_employees e ON e.id = f.uploaded_by WHERE f.id = ?", [$fileId]);
+                    if ($row) $saved[] = ops_board_order_file_row($row);
+                } catch (Throwable $storeError) {
+                    @unlink($target);
+                    throw $storeError;
+                }
+            }
+            echo json_encode(['ok' => true, 'message' => count($saved) . ' file(s) uploaded.', 'files' => $saved]);
+            exit;
+        }
+
+        $fileId = (int) ($_POST['file_id'] ?? 0);
+        $file = $fileId > 0 ? ops_row('SELECT * FROM ops_order_files WHERE id = ? AND order_id = ? AND deleted_at IS NULL LIMIT 1', [$fileId, $orderId]) : null;
+        if (!$file) throw new RuntimeException('File not found.');
+        $stmt = db()->prepare('UPDATE ops_order_files SET deleted_at = NOW(), deleted_by = ? WHERE id = ? AND order_id = ? AND deleted_at IS NULL');
+        $stmt->execute([ops_current_employee_id() ?: null, $fileId, $orderId]);
+        ops_activity_log('order_file_deleted', 'order', $orderId, ['file_id' => $fileId, 'filename' => $file['original_filename'], 'changed_by' => current_user()['name'] ?? 'Unknown']);
+        echo json_encode(['ok' => true, 'message' => 'File removed.']);
+        exit;
+    }
 
     if ($action === 'save_payment_allocations') {
         if (!ops_can_update_order_payment_method()) throw new RuntimeException('You do not have permission to edit order payments.');

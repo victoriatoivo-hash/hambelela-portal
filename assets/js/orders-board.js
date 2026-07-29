@@ -30,6 +30,11 @@
   const schedulePopover = document.getElementById('order-schedule-popover');
   const panelActivity = document.getElementById('panel-activity-log');
   const panelDetails = document.getElementById('panel-order-details');
+  const orderFilesInput = document.getElementById('order-files-input');
+  const orderFileDropzone = document.getElementById('order-file-dropzone');
+  const orderFilesList = document.getElementById('panel-files-list');
+  const orderFileUploadStatus = document.getElementById('order-file-upload-status');
+  const orderFileUploadMessage = document.getElementById('order-file-upload-message');
   const undoButton = document.querySelector('[data-undo-board]');
   const ordersToolsPanel = document.querySelector('[data-orders-tools-panel]');
   const ordersToolsBackdrop = document.querySelector('[data-orders-tools-backdrop]');
@@ -3998,6 +4003,83 @@
     if (window.lucide) window.lucide.createIcons({ strokeWidth:2 });
   }
 
+  function orderFileSize(bytes) {
+    const size = Number(bytes) || 0;
+    if (size < 1024) return `${size} B`;
+    if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+    return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  function renderOrderFiles(files) {
+    if (!orderFilesList) return;
+    if (!Array.isArray(files) || files.length === 0) {
+      orderFilesList.innerHTML = '<div class="order-panel-empty"><i data-lucide="file"></i><strong>No files uploaded</strong><span>Files uploaded for this order will appear here.</span></div>';
+    } else {
+      orderFilesList.innerHTML = files.map((file) => `<article class="order-file-row" data-order-file-id="${esc(file.id)}">
+        <span class="order-file-row__icon"><i data-lucide="${String(file.mime_type).includes('pdf') ? 'file-text' : 'image'}"></i></span>
+        <span class="order-file-row__details"><strong title="${esc(file.name)}">${esc(file.name)}</strong><small>${esc(orderFileSize(file.size))} · ${esc(file.uploaded_by)} · ${esc(orderActivityDate(file.uploaded_at))}</small></span>
+        <span class="order-file-row__actions">
+          <a href="${esc(file.view_url)}" target="_blank" rel="noopener" aria-label="View ${esc(file.name)}"><i data-lucide="eye"></i><span>View</span></a>
+          <a href="${esc(file.download_url)}" aria-label="Download ${esc(file.name)}"><i data-lucide="download"></i><span>Download</span></a>
+          ${file.can_delete ? `<button type="button" class="order-file-menu-trigger" data-order-file-menu aria-label="More actions for ${esc(file.name)}" aria-expanded="false"><i data-lucide="more-horizontal"></i></button><button type="button" class="order-file-delete" data-order-file-delete="${esc(file.id)}" data-file-name="${esc(file.name)}" hidden>Delete</button>` : ''}
+        </span>
+      </article>`).join('');
+    }
+    if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+  }
+
+  async function loadOrderFiles() {
+    if (!currentOrder || !orderFilesList) return;
+    orderFilesList.innerHTML = '<div class="order-files-loading">Loading files…</div>';
+    try {
+      const data = await post('list_order_files', { order_id: currentOrder.id });
+      renderOrderFiles(data.files || []);
+    } catch (error) {
+      orderFilesList.innerHTML = `<div class="order-files-error" role="alert">${esc(error.message || 'Could not load files.')}</div>`;
+    }
+  }
+
+  function setOrderFileProgress(percent, message = 'Uploading files…') {
+    if (!orderFileUploadStatus) return;
+    orderFileUploadStatus.hidden = false;
+    if (orderFileUploadMessage) orderFileUploadMessage.textContent = message;
+    const bar = orderFileUploadStatus.querySelector('.order-file-progress');
+    const value = Math.max(0, Math.min(100, Number(percent) || 0));
+    bar?.setAttribute('aria-valuenow', String(value));
+    const fill = bar?.querySelector('span');
+    if (fill) fill.style.width = `${value}%`;
+  }
+
+  function uploadOrderFiles(fileList) {
+    if (!currentOrder || !fileList?.length) return;
+    const files = Array.from(fileList);
+    if (files.length > 5) { setOrderFileProgress(0, 'Choose no more than 5 files at once.'); return; }
+    const allowed = new Set(['application/pdf', 'image/jpeg', 'image/png', 'image/webp']);
+    const invalid = files.find((file) => !allowed.has(file.type) || file.size > 10 * 1024 * 1024 || file.size < 1);
+    if (invalid) { setOrderFileProgress(0, `${invalid.name} is not an allowed file or exceeds 10 MB.`); return; }
+    const form = new FormData();
+    form.set('action', 'upload_order_files');
+    form.set('csrf_token', config.csrfToken || '');
+    form.set('order_id', currentOrder.id);
+    files.forEach((file) => form.append('files[]', file, file.name));
+    const xhr = new XMLHttpRequest();
+    orderFileDropzone?.setAttribute('aria-busy', 'true');
+    if (orderFilesInput) orderFilesInput.disabled = true;
+    setOrderFileProgress(0);
+    xhr.upload.addEventListener('progress', (event) => { if (event.lengthComputable) setOrderFileProgress(Math.round((event.loaded / event.total) * 100)); });
+    xhr.addEventListener('load', async () => {
+      let data = null;
+      try { data = JSON.parse(xhr.responseText); } catch (_) {}
+      if (xhr.status < 200 || xhr.status >= 300 || !data?.ok) setOrderFileProgress(0, data?.message || 'Upload failed. Please try again.');
+      else { setOrderFileProgress(100, data.message || 'Upload complete.'); await loadOrderFiles(); renderPanelActivity(); }
+    });
+    xhr.addEventListener('error', () => setOrderFileProgress(0, 'Upload failed. Check your connection and try again.'));
+    xhr.addEventListener('loadend', () => { orderFileDropzone?.removeAttribute('aria-busy'); if (orderFilesInput) { orderFilesInput.disabled = false; orderFilesInput.value = ''; } });
+    xhr.open('POST', config.actionUrl);
+    xhr.withCredentials = true;
+    xhr.send(form);
+  }
+
   function openPanel(orderId, initialTab = 'details', sourceElement = document.activeElement) {
     currentOrder = ordersCache.find((order) => String(order.id) === String(orderId));
     if (!currentOrder) return;
@@ -4023,6 +4105,7 @@
       panelItems.innerHTML = `<h3>Order items</h3>${items.length ? `<div class="order-items-grid"><div class="order-items-head"><span>Item</span><span>Qty</span><span>Packed</span></div>${items.map((item) => `<div class="order-item-row"><span><strong>${esc(item.product_name || 'Item')}</strong><small>${esc(item.sku || '')}</small></span><span>${esc(item.quantity ?? 0)}</span><span>${esc(item.packed_quantity ?? 0)}</span></div>`).join('')}</div>` : '<div class="order-panel-empty"><strong>No item lines available</strong><span>This order has no linked item records.</span></div>'}`;
     }
     renderPanelActivity();
+    if (requestedTab === 'files') loadOrderFiles();
     panel.classList.add('open', 'is-open');
     panel.setAttribute('aria-hidden', 'false');
     backdrop.hidden = false;
@@ -4893,6 +4976,43 @@
         tab.classList.add('active', 'is-active');
         tab.setAttribute('aria-selected', 'true');
         panel?.querySelector(`[data-panel-name="${tab.dataset.panelTab}"]`)?.classList.add('active');
+        if (tab.dataset.panelTab === 'files') loadOrderFiles();
+      }
+
+      const chooseFiles = event.target.closest('[data-order-files-choose]');
+      if (chooseFiles) {
+        event.preventDefault();
+        orderFilesInput?.click();
+        return;
+      }
+
+      const fileMenu = event.target.closest('[data-order-file-menu]');
+      if (fileMenu) {
+        event.preventDefault();
+        const row = fileMenu.closest('[data-order-file-id]');
+        const deleteButton = row?.querySelector('[data-order-file-delete]');
+        const opening = Boolean(deleteButton?.hidden);
+        orderFilesList?.querySelectorAll('[data-order-file-delete]').forEach((button) => { button.hidden = true; });
+        orderFilesList?.querySelectorAll('[data-order-file-menu]').forEach((button) => button.setAttribute('aria-expanded', 'false'));
+        if (deleteButton) deleteButton.hidden = !opening;
+        fileMenu.setAttribute('aria-expanded', String(opening));
+        return;
+      }
+
+      const deleteFile = event.target.closest('[data-order-file-delete]');
+      if (deleteFile && currentOrder) {
+        event.preventDefault();
+        if (!window.confirm(`Delete ${deleteFile.dataset.fileName || 'this file'}? The file will be removed from this order.`)) return;
+        deleteFile.disabled = true;
+        try {
+          await post('delete_order_file', { order_id: currentOrder.id, file_id: deleteFile.dataset.orderFileDelete });
+          await loadOrderFiles();
+          renderPanelActivity();
+        } catch (error) {
+          setOrderFileProgress(0, error.message || 'Could not delete the file.');
+          deleteFile.disabled = false;
+        }
+        return;
       }
 
       if (collapse) {
@@ -5013,6 +5133,17 @@
       showError(error);
     }
   });
+
+  orderFilesInput?.addEventListener('change', () => uploadOrderFiles(orderFilesInput.files));
+  ['dragenter', 'dragover'].forEach((type) => orderFileDropzone?.addEventListener(type, (event) => {
+    event.preventDefault();
+    orderFileDropzone.classList.add('is-dragover');
+  }));
+  ['dragleave', 'drop'].forEach((type) => orderFileDropzone?.addEventListener(type, (event) => {
+    event.preventDefault();
+    orderFileDropzone.classList.remove('is-dragover');
+    if (type === 'drop') uploadOrderFiles(event.dataTransfer?.files);
+  }));
 
   document.addEventListener('click', (event) => {
     if (!event.target.closest('#board-label-menu') && !event.target.closest('[data-label-field]')) closeLabelMenu();
