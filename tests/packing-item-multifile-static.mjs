@@ -17,11 +17,15 @@ assert.match(api, /packing_item_id = \?/);
 assert.match(api, /hash_equals/);
 assert.match(file, /a\.packing_item_id=\?/);
 assert.match(js, /Array\.from\(fileList \|\| \[\]\)/);
-assert.match(js, /runPackingUploadQueue\(itemId, files, 2/);
+assert.match(js, /runPackingUploadQueue\(uploadItemId, files, 2/);
 assert.match(js, /data\.append\('file', file, file\.name\)/);
 assert.doesNotMatch(js, /files\.forEach\(\(file\) => data\.append\('files\[\]'/);
 assert.match(api, /isset\(\$_FILES\['file'\]\)/);
 assert.match(js, /packingFileInput\.value = ''/);
 assert.match(js, /data-retry-packing-file/);
+assert.match(js, /activePackingFileItemId/);
+assert.match(js, /new AbortController\(\)/);
+assert.match(js, /requestVersion !== packingFileRequestVersion/);
+assert.match(js, /data-packing-item-id/);
 
 console.log('Packing item multi-file checks passed.');

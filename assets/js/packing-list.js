@@ -46,10 +46,14 @@
   let currentUser = {};
   let totalRows = 0;
   let currentTask = null;
+  let activePackingFileItemId = '';
+  let packingFileListController = null;
+  let packingFileRequestVersion = 0;
   let lastUndo = null;
   let invoiceDraftRows = [];
   let invoiceImportId = '';
   let packingFilesUploading = false;
+  let packingFileUploadVersion = 0;
   const failedPackingFiles = new Map();
 
   function isFrontDeskAdmin() {
@@ -2210,6 +2214,16 @@
   function openPanel(taskId, preferredTab = '') {
     currentTask = tasks.find((task) => String(task.id) === String(taskId));
     if (!currentTask) return;
+    activePackingFileItemId = String(currentTask.id);
+    packingFileUploadVersion += 1;
+    packingFilesUploading = false;
+    packingFileRequestVersion += 1;
+    packingFileListController?.abort();
+    packingFileListController = null;
+    failedPackingFiles.clear();
+    if (packingFileInput) { packingFileInput.value = ''; packingFileInput.disabled = false; }
+    if (packingFileProgress) { packingFileProgress.replaceChildren(); packingFileProgress.hidden = true; }
+    if (packingFilesList) packingFilesList.innerHTML = '<p class="packing-item-files-empty">Loading files…</p>';
     panelTitle.textContent = currentTask.item_name;
     if (panelItemId) panelItemId.textContent = `Portal item #${currentTask.id}`;
     if (panelSource) panelSource.textContent = currentTask.monday_item_id ? 'Imported from legacy Monday data' : 'Created in the portal';
@@ -2274,14 +2288,22 @@
 
   async function loadPackingItemFiles(itemId) {
     if (!config.filesUrl || !packingFilesList || !itemId) return;
+    const requestedItemId = String(itemId);
+    const requestVersion = ++packingFileRequestVersion;
+    activePackingFileItemId = requestedItemId;
+    packingFileListController?.abort();
+    packingFileListController = new AbortController();
     packingFilesList.innerHTML = '<p class="packing-item-files-empty">Loading files…</p>';
     try {
-      const response = await fetch(`${config.filesUrl}?action=list&item_id=${encodeURIComponent(itemId)}`, {credentials:'same-origin', headers:{Accept:'application/json'}});
+      const response = await fetch(`${config.filesUrl}?action=list&item_id=${encodeURIComponent(requestedItemId)}`, {credentials:'same-origin', headers:{Accept:'application/json'}, signal:packingFileListController.signal});
       const result = await response.json();
+      if (requestVersion !== packingFileRequestVersion || requestedItemId !== activePackingFileItemId) return;
       if (!response.ok || result.success !== true) throw new Error(result.message || 'Unable to load files.');
-      packingFilesList.innerHTML = result.attachments.length ? result.attachments.map(packingFileMarkup).join('') : '<p class="packing-item-files-empty">No files uploaded yet.</p>';
+      const attachments = (result.attachments || []).filter((file) => String(file.item_id) === requestedItemId);
+      packingFilesList.innerHTML = attachments.length ? attachments.map(packingFileMarkup).join('') : '<p class="packing-item-files-empty">No files uploaded yet.</p>';
       if (window.lucide) window.lucide.createIcons({strokeWidth:2});
     } catch (error) {
+      if (error.name === 'AbortError' || requestVersion !== packingFileRequestVersion || requestedItemId !== activePackingFileItemId) return;
       packingFilesList.innerHTML = `<p class="packing-item-file-error">${esc(error.message || 'Unable to load files.')}</p>`;
     }
   }
@@ -2328,21 +2350,25 @@
   }
 
   async function uploadPackingItemFiles(itemId, files, initialFailures = []) {
+    const uploadItemId = String(itemId);
     if (!itemId || (!files.length && !initialFailures.length) || packingFilesUploading) return [];
     if (!files.length) {
       failedPackingFiles.clear();
       initialFailures.forEach((result) => failedPackingFiles.set(packingFileKey(result.file), result.file));
+      if (uploadItemId !== activePackingFileItemId) return initialFailures;
       packingFileProgress.hidden = false;
-      packingFileProgress.innerHTML = initialFailures.map((result) => `<div class="packing-item-upload-result is-error"><span>${esc(result.file.name)} — ${esc(result.message)}</span></div>`).join('');
+      packingFileProgress.innerHTML = initialFailures.map((result) => `<div class="packing-item-upload-result is-error" data-packing-item-id="${esc(uploadItemId)}"><span>${esc(result.file.name)} — ${esc(result.message)}</span></div>`).join('');
       if (packingFileInput) packingFileInput.value = '';
       return initialFailures;
     }
+    const uploadVersion = ++packingFileUploadVersion;
     packingFilesUploading = true; packingFileDrop?.classList.add('is-uploading');
     if (packingFileInput) packingFileInput.disabled = true;
     packingFileProgress.hidden = false; packingFileProgress.textContent = `Uploading 1 of ${files.length}… 0%`;
     const progress = files.map(() => 0); failedPackingFiles.clear();
     try {
-      const uploadedResults = await runPackingUploadQueue(itemId, files, 2, (index, percent) => {
+      const uploadedResults = await runPackingUploadQueue(uploadItemId, files, 2, (index, percent) => {
+        if (uploadItemId !== activePackingFileItemId) return;
         progress[index] = percent;
         const current = Math.min(files.length, progress.filter((value) => value >= 100).length + 1);
         const overall = Math.round(progress.reduce((sum, value) => sum + value, 0) / files.length);
@@ -2350,19 +2376,23 @@
       });
       const results = [...uploadedResults, ...initialFailures.map((result) => ({...result, success:false, uploaded:[], status:422}))];
       results.filter((result) => !result.success).forEach((result) => failedPackingFiles.set(packingFileKey(result.file), result.file));
-      const successful = results.filter((result) => result.success).flatMap((result) => result.uploaded).map((file) => `<div class="packing-item-upload-result is-success"><span>${esc(file.name)} — Uploaded successfully</span></div>`).join('');
-      const failures = results.filter((result) => !result.success).map((result) => { const key=packingFileKey(result.file); return `<div class="packing-item-upload-result is-error"><span>${esc(result.file.name)} — ${esc(result.message)}</span><button type="button" data-retry-packing-file="${esc(key)}">Retry</button></div>`; }).join('');
+      if (uploadItemId !== activePackingFileItemId) return results;
+      const successful = results.filter((result) => result.success).flatMap((result) => result.uploaded).filter((file) => String(file.item_id) === uploadItemId).map((file) => `<div class="packing-item-upload-result is-success" data-packing-item-id="${esc(uploadItemId)}"><span>${esc(file.name)} — Uploaded successfully</span></div>`).join('');
+      const failures = results.filter((result) => !result.success).map((result) => { const key=packingFileKey(result.file); return `<div class="packing-item-upload-result is-error" data-packing-item-id="${esc(uploadItemId)}"><span>${esc(result.file.name)} — ${esc(result.message)}</span><button type="button" data-retry-packing-file="${esc(key)}">Retry</button></div>`; }).join('');
       packingFileProgress.innerHTML = successful + failures;
-      await loadPackingItemFiles(itemId); return results;
+      await loadPackingItemFiles(uploadItemId); return results;
     } finally {
-      packingFilesUploading = false; packingFileDrop?.classList.remove('is-uploading');
-      if (packingFileInput) { packingFileInput.disabled = false; packingFileInput.value = ''; }
+      if (uploadVersion === packingFileUploadVersion && uploadItemId === activePackingFileItemId) {
+        packingFilesUploading = false; packingFileDrop?.classList.remove('is-uploading');
+        if (packingFileInput) { packingFileInput.disabled = false; packingFileInput.value = ''; }
+      }
     }
   }
 
   function handleSelectedPackingFiles(fileList) {
     const files = Array.from(fileList || []);
-    if (!files.length || !currentTask) return;
+    const uploadItemId = String(activePackingFileItemId || '');
+    if (!files.length || !uploadItemId) return;
     if (files.length > 10) {
       packingFileProgress.hidden = false;
       packingFileProgress.textContent = 'You can upload a maximum of 10 files at a time.';
@@ -2371,7 +2401,7 @@
     }
     const invalid = validatePackingFiles(files);
     const invalidFiles = new Set(invalid.map((result) => result.file));
-    uploadPackingItemFiles(currentTask.id, files.filter((file) => !invalidFiles.has(file)), invalid);
+    uploadPackingItemFiles(uploadItemId, files.filter((file) => !invalidFiles.has(file)), invalid);
   }
 
   packingFileInput?.addEventListener('change', (event) => handleSelectedPackingFiles(event.target.files));
@@ -2381,20 +2411,21 @@
   packingFileDrop?.addEventListener('keydown', (event) => { if ((event.key === 'Enter' || event.key === ' ') && !packingFilesUploading) { event.preventDefault(); packingFileInput?.click(); } });
   packingFilesList?.addEventListener('click', async (event) => {
     const retry = event.target.closest('[data-retry-packing-file]');
-    if (retry && currentTask) { const file = failedPackingFiles.get(retry.dataset.retryPackingFile); if (file) uploadPackingItemFiles(currentTask.id, [file]); return; }
+    if (retry && activePackingFileItemId) { const file = failedPackingFiles.get(retry.dataset.retryPackingFile); if (file) uploadPackingItemFiles(activePackingFileItemId, [file]); return; }
     const remove = event.target.closest('[data-delete-packing-file]');
-    if (!remove || !currentTask || !window.confirm('Delete this file?')) return;
-    const data = new FormData(); data.append('action','delete'); data.append('item_id',String(currentTask.id)); data.append('attachment_id',remove.dataset.deletePackingFile); data.append('csrf_token',String(config.filesCsrf || ''));
+    if (!remove || !activePackingFileItemId || !window.confirm('Delete this file?')) return;
+    const deleteItemId = String(activePackingFileItemId);
+    const data = new FormData(); data.append('action','delete'); data.append('item_id',deleteItemId); data.append('attachment_id',remove.dataset.deletePackingFile); data.append('csrf_token',String(config.filesCsrf || ''));
     const response = await fetch(config.filesUrl, {method:'POST', credentials:'same-origin', body:data});
     const result = await response.json();
     if (!response.ok || result.success !== true) { packingFileProgress.hidden=false; packingFileProgress.textContent=result.message || 'Unable to delete the file.'; return; }
-    loadPackingItemFiles(currentTask.id);
+    if (deleteItemId === activePackingFileItemId) loadPackingItemFiles(deleteItemId);
   });
   packingFileProgress?.addEventListener('click', (event) => {
     const retry = event.target.closest('[data-retry-packing-file]');
-    if (!retry || !currentTask) return;
+    if (!retry || !activePackingFileItemId) return;
     const file = failedPackingFiles.get(retry.dataset.retryPackingFile);
-    if (file) uploadPackingItemFiles(currentTask.id, [file]);
+    if (file) uploadPackingItemFiles(activePackingFileItemId, [file]);
   });
 
   function packingPanelNumber(value) {
