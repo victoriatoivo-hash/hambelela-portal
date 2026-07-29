@@ -81,8 +81,6 @@ body.dark-mode .portal-sticky-horizontal-scrollbar {
 
 /* Packing List: reserve a stable shell and expand only the native visual track. */
 body:has(.packing-list-page) .portal-sticky-horizontal-scrollbar.packing-bottom-scrollbar {
-  display: flex;
-  align-items: center;
   height: 12px !important;
   min-height: 12px;
   padding-bottom: 0;
@@ -90,9 +88,13 @@ body:has(.packing-list-page) .portal-sticky-horizontal-scrollbar.packing-bottom-
   overflow-y: hidden;
   scrollbar-width: thin;
   scrollbar-color: #CBAEA5 #FDF6EE;
+  direction: ltr;
+  pointer-events: auto;
+  touch-action: pan-x;
   overscroll-behavior-inline: contain;
   -webkit-overflow-scrolling: touch;
 }
+body:has(.packing-list-page) .packing-bottom-scrollbar .portal-sticky-horizontal-scrollbar-inner { display:block; max-width:none; min-width:0; }
 body:has(.packing-list-page) .packing-bottom-scrollbar::-webkit-scrollbar { height:5px;transition:height 160ms ease; }
 body:has(.packing-list-page) .packing-bottom-scrollbar:hover::-webkit-scrollbar,
 body:has(.packing-list-page) .packing-bottom-scrollbar.is-scrollbar-active::-webkit-scrollbar { height: 9px; }

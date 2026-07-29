@@ -1166,6 +1166,17 @@ document.addEventListener('click', (event) => {
   };
 
   const hasOverflow = (source) => source.scrollWidth > source.clientWidth + 1;
+  const maximumScroll = (element) => Math.max(0, element.scrollWidth - element.clientWidth);
+  const scrollRatio = (element) => {
+    const maximum = maximumScroll(element);
+    return maximum > 0 ? Math.max(0, Math.min(1, element.scrollLeft / maximum)) : 0;
+  };
+  const setScrollRatio = (element, ratio) => {
+    element.scrollLeft = Math.max(0, Math.min(1, ratio)) * maximumScroll(element);
+  };
+  const syncMirrorFromSource = (source) => setScrollRatio(mirror, scrollRatio(source));
+  const syncSourceFromMirror = (source) => setScrollRatio(source, scrollRatio(mirror));
+  const observedContent = (source) => source.querySelector('table') || source.firstElementChild;
 
   const intersectsViewport = (source) => {
     const rect = source.getBoundingClientRect();
@@ -1217,8 +1228,8 @@ document.addEventListener('click', (event) => {
     mirror.style.left = `${left}px`;
     mirror.style.right = `${right}px`;
     mirror.style.setProperty('--portal-sticky-scroll-bottom', `${bottom}px`);
-    mirrorInner.style.width = `${Math.ceil(source.scrollWidth)}px`;
-    if (!syncing) mirror.scrollLeft = source.scrollLeft;
+    mirrorInner.style.width = `${Math.ceil(Math.max(source.scrollWidth, source.clientWidth))}px`;
+    if (!syncing) syncMirrorFromSource(source);
     mirror.hidden = false;
     document.body.classList.add('portal-sticky-horizontal-scroll-active');
   };
@@ -1260,14 +1271,14 @@ document.addEventListener('click', (event) => {
       activeSource = source;
       if (!syncing) {
         syncing = true;
-        mirror.scrollLeft = source.scrollLeft;
+        syncMirrorFromSource(source);
         requestAnimationFrame(() => { syncing = false; });
       }
       requestUpdate();
     }, { passive: true });
     intersectionObserver?.observe(source);
     resizeObserver?.observe(source);
-    const content = source.firstElementChild;
+    const content = observedContent(source);
     if (content) resizeObserver?.observe(content);
   };
 
@@ -1278,7 +1289,8 @@ document.addEventListener('click', (event) => {
     });
     sources.forEach((source) => {
       bindSource(source);
-      if (source.firstElementChild) resizeObserver?.observe(source.firstElementChild);
+      const content = observedContent(source);
+      if (content) resizeObserver?.observe(content);
     });
     if (activeSource && !sources.includes(activeSource)) activeSource = null;
     requestUpdate();
@@ -1287,7 +1299,7 @@ document.addEventListener('click', (event) => {
   mirror.addEventListener('scroll', () => {
     if (!activeSource || syncing) return;
     syncing = true;
-    activeSource.scrollLeft = mirror.scrollLeft;
+    syncSourceFromMirror(activeSource);
     requestAnimationFrame(() => { syncing = false; });
   }, { passive: true });
 
