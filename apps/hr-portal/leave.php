@@ -233,7 +233,7 @@ $msg = $_GET['msg'] ?? '';
 <title>Leave Management — Hambelela HR</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-<link rel="stylesheet" href="includes/styles.css">
+<link rel="stylesheet" href="includes/styles.css?v=20260729-1">
 </head>
 <body>
 <?php include __DIR__ . '/includes/sidebar.php'; ?>
@@ -636,6 +636,6 @@ document.querySelectorAll('.overlay').forEach(o => {
 });
 rejectModal?.addEventListener('click', event => { if (event.target === rejectModal) setRejectModalOpen(false); });
 </script>
-<script src="includes/leave-reason-popover.js"></script>
+<script src="includes/leave-reason-popover.js?v=20260729-1"></script>
 </body>
 </html>

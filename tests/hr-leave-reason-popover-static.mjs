@@ -10,6 +10,8 @@ for (const page of [employee, admin]) {
   assert.match(page, /data-leave-history/);
   assert.match(page, /data-leave-reason-trigger/);
   assert.match(page, />View reason</);
+  assert.match(page, /styles\.css\?v=20260729-1/);
+  assert.match(page, /leave-reason-popover\.js\?v=20260729-1/);
   assert.match(page, /htmlspecialchars\(trim\(\(string\)\(\$r\['reject_reason'\]/);
   assert.match(page, /u\.name AS reviewer_name/);
   assert.doesNotMatch(page, /font-size:10px;color:var\(--red\);margin-top:2px/);
