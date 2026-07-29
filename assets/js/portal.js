@@ -576,6 +576,17 @@ window.addEventListener('DOMContentLoaded', () => {
     const settings = document.querySelector('[data-notification-sound-settings]');
     if (settings) {
       const testButton = settings.querySelector('[data-notification-test-sound]');
+      const volumeSlider = settings.querySelector('input[name="sound_volume"]');
+      const updateVolumeProgress = (slider) => {
+        if (!(slider instanceof HTMLInputElement)) return;
+        const minimum = Number(slider.min || 0);
+        const maximum = Number(slider.max || 100);
+        const current = Number(slider.value);
+        const range = maximum - minimum;
+        const percentage = range > 0 ? ((current - minimum) / range) * 100 : 0;
+        slider.style.setProperty('--volume-progress', `${Math.max(0, Math.min(100, percentage))}%`);
+      };
+      updateVolumeProgress(volumeSlider);
       const save = async (requestDesktopPermission = false) => {
         const data = new FormData(settings);
         enabled = data.get('sound_enabled') === '1';
@@ -585,10 +596,14 @@ window.addEventListener('DOMContentLoaded', () => {
         if (requestDesktopPermission && data.get('desktop_enabled') === '1' && 'Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(()=>{});
       };
       settings.addEventListener('change', (event) => {
+        if (event.target === volumeSlider) updateVolumeProgress(volumeSlider);
         const desktopWasEnabled = event.target instanceof HTMLInputElement
           && event.target.name === 'desktop_enabled'
           && event.target.checked;
         save(desktopWasEnabled);
+      });
+      settings.addEventListener('input', (event) => {
+        if (event.target === volumeSlider) updateVolumeProgress(volumeSlider);
       });
       testButton?.addEventListener('click', async () => { await save(false); play('assigned'); });
     }

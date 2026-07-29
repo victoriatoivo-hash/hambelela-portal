@@ -230,7 +230,7 @@ CREATE TABLE IF NOT EXISTS ops_packing_tasks (
   item_name VARCHAR(190) NOT NULL,
   priority ENUM('top_critical', 'high', 'medium', 'low') NOT NULL DEFAULT 'medium',
   date_loaded DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  quantity_planned VARCHAR(190) NOT NULL,
+  quantity_planned VARCHAR(255) NULL,
   assigned_employee_id INT NULL,
   quantity_packed VARCHAR(190),
   date_completed DATETIME NULL,

@@ -618,9 +618,9 @@
     } else if (packingToolsTab === 'activity' || packingToolsTab === 'import-history') {
       const rows = packingToolsTab === 'activity' ? packingToolsData.activity || [] : packingToolsData.syncHistory || [];
       /* Legacy inline renderer retained as a comment for this replacement.
-      holder.innerHTML = `<div class="packing-tools-list-head"><strong>${packingToolsTab === 'activity' ? 'Activity log' : 'Import / sync history'}</strong>${packingToolsTab === 'activity' ? '<button type="button" class="pk-btn pk-btn--secondary" data-export-packing-activity>Export CSV</button>' : ''}</div>${rows.length ? `<div class="packing-activity-list">${rows.map((row) => { let meta={}; try{meta=typeof row.metadata==='string'?JSON.parse(row.metadata):row.metadata||{}}catch{} return `<article class="packing-activity-row"><div class="packing-activity-icon"><i data-lucide="history"></i></div><div class="packing-activity-content"><div class="packing-activity-heading"><strong>${esc(String(row.action || '').replace(/_/g, ' '))}</strong><time>${esc(formatToolDate(row.created_at))}</time></div><p>${esc(row.item_name || `Packing item #${row.packing_item_id || ''}`)}${meta.field ? ` · ${esc(meta.field)}: ${esc(meta.old_value || '')} → ${esc(meta.new_value || '')}` : ''}</p><div class="packing-activity-meta">${esc(row.performed_by || 'System')} · Packing List</div></div></article>`; }).join('')}</div>` : '<div class="packing-tools-empty"><strong>No activity found</strong><span>Meaningful Packing List changes will appear here.</span></div>';
+      holder.innerHTML = `<div class="packing-tools-list-head"><strong>${packingToolsTab === 'activity' ? 'Activity log' : 'Import / sync history'}</strong></div>${rows.length ? `<div class="packing-activity-list">${rows.map((row) => { let meta={}; try{meta=typeof row.metadata==='string'?JSON.parse(row.metadata):row.metadata||{}}catch{} return `<article class="packing-activity-row"><div class="packing-activity-icon"><i data-lucide="history"></i></div><div class="packing-activity-content"><div class="packing-activity-heading"><strong>${esc(String(row.action || '').replace(/_/g, ' '))}</strong><time>${esc(formatToolDate(row.created_at))}</time></div><p>${esc(row.item_name || `Packing item #${row.packing_item_id || ''}`)}${meta.field ? ` · ${esc(meta.field)}: ${esc(meta.old_value || '')} → ${esc(meta.new_value || '')}` : ''}</p><div class="packing-activity-meta">${esc(row.performed_by || 'System')} · Packing List</div></div></article>`; }).join('')}</div>` : '<div class="packing-tools-empty"><strong>No activity found</strong><span>Meaningful Packing List changes will appear here.</span></div>';
       */
-      holder.innerHTML = `<div class="packing-tools-list-head"><strong>${packingToolsTab === 'activity' ? 'Activity log' : 'Import history'}</strong>${packingToolsTab === 'activity' ? '<button type="button" class="pk-btn pk-btn--secondary" data-export-packing-activity>Export CSV</button>' : ''}</div>${rows.length ? `<div class="packing-activity-list">${rows.map(packingActivityMarkup).join('')}</div>` : '<div class="packing-tools-empty"><strong>No activity found</strong><span>Meaningful Packing List changes will appear here.</span></div>'}`;
+      holder.innerHTML = `<div class="packing-tools-list-head"><strong>${packingToolsTab === 'activity' ? 'Activity log' : 'Import history'}</strong></div>${rows.length ? `<div class="packing-activity-list">${rows.map(packingActivityMarkup).join('')}</div>` : '<div class="packing-tools-empty"><strong>No activity found</strong><span>Meaningful Packing List changes will appear here.</span></div>'}`;
     } else if (packingToolsTab === 'columns') {
       holder.innerHTML = `<section class="packing-tools-column-settings"><div class="packing-tools-column-settings-icon"><i data-lucide="columns-3"></i></div><div class="packing-tools-column-settings-copy"><h3>Column widths</h3><p>Restore the Packing List columns to their original widths for this account and device.</p></div><button type="button" class="pk-btn pk-btn--secondary" data-reset-packing-columns><i data-lucide="rotate-ccw"></i><span>Reset column widths</span></button></section>`;
     } else {
@@ -671,7 +671,7 @@
     const emptyDisplay = ['notes', 'quantity_packed'].includes(field) ? '' : esc(placeholder || '—');
     return `<div class="packing-editable-cell${field === 'notes' ? ' packing-editable-cell--notes' : ''}${['notes', 'quantity_packed'].includes(field) && !value ? ' is-empty' : ''}" data-packing-editable-cell data-item-id="${esc(task.id)}" data-field="${esc(field)}" data-value="${esc(value)}" tabindex="0" role="button" aria-label="Edit ${esc(label)}" title="${esc(value)}">
       <span class="packing-editable-display">${value ? esc(value) : emptyDisplay}</span>
-      <input type="text" class="packing-editable-input" value="${esc(value)}" aria-label="${esc(label)}" placeholder="${esc(placeholder)}">
+      <input type="text" class="packing-editable-input${field === 'quantity_planned' ? ' packing-quantity-input' : ''}" value="${esc(value)}" aria-label="${esc(label)}" placeholder="${esc(field === 'quantity_planned' ? 'Enter quantity or packing note' : placeholder)}"${field === 'quantity_planned' ? ' maxlength="255" autocomplete="off"' : ''}>
     </div>`;
   }
 
@@ -1516,7 +1516,7 @@
           <td class="task-cell col-item">${renderItemCell(task)}</td>
           <td class="col-dateloaded">${esc(formatDate(task.date_loaded))}</td>
           <td class="col-priority">${priorityCell}</td>
-          <td class="col-qty"><input class="board-inline-input" data-packing-text="quantity_planned" data-task-id="${esc(task.id)}" value="${esc(task.quantity_planned || '')}" ${manageOnly}></td>
+          <td class="col-qty"><input type="text" class="board-inline-input packing-quantity-input" data-packing-text="quantity_planned" data-task-id="${esc(task.id)}" value="${esc(task.quantity_planned || '')}" maxlength="255" autocomplete="off" placeholder="Enter quantity or packing note" ${manageOnly}></td>
           <td class="col-person">${renderPerson(task)}</td>
           <td class="col-qtypacked"><input class="board-inline-input" data-packing-text="quantity_packed" data-task-id="${esc(task.id)}" value="${esc(task.quantity_packed || '')}" placeholder="Actual" ${ownOnly}></td>
           <td class="col-datecompleted">${esc(task.date_completed ? formatDate(task.date_completed) : '')}</td>
@@ -2460,7 +2460,7 @@
     const field = card.dataset.packingInfoField;
     const label = card.querySelector('.packing-item-info-label')?.textContent || 'Value';
     card.classList.add('is-editing');
-    card.innerHTML = `<span class="packing-item-info-label">${esc(label)}</span><input class="packing-item-info-input" data-packing-info-input value="${esc(currentTask[field] || '')}" aria-label="${esc(label)}"><span class="packing-item-info-actions"><button type="button" data-packing-info-save>Save</button><button type="button" data-packing-info-cancel>Cancel</button></span><span class="packing-item-info-error" data-packing-info-error role="alert"></span>`;
+    card.innerHTML = `<span class="packing-item-info-label">${esc(label)}</span><input type="text" class="packing-item-info-input${field === 'quantity_planned' ? ' packing-quantity-input' : ''}" data-packing-info-input value="${esc(currentTask[field] || '')}" aria-label="${esc(label)}"${field === 'quantity_planned' ? ' maxlength="255" autocomplete="off" placeholder="Enter quantity or packing note"' : ''}><span class="packing-item-info-actions"><button type="button" data-packing-info-save>Save</button><button type="button" data-packing-info-cancel>Cancel</button></span><span class="packing-item-info-error" data-packing-info-error role="alert"></span>`;
     const input = card.querySelector('[data-packing-info-input]');
     input?.focus();
     input?.select();
@@ -2472,9 +2472,11 @@
     const input = card.querySelector('[data-packing-info-input]');
     const errorNode = card.querySelector('[data-packing-info-error]');
     let value = String(input?.value || '').trim();
+    if (field === 'quantity_planned') value = value.replace(/\s+/g, ' ');
     if (field === 'item_name' && !value) { errorNode.textContent = 'Item is required.'; return; }
     if (field === 'received_weight') value = value.replace(/\s+/g, '').toUpperCase();
-    if (['quantity_planned', 'quantity_packed'].includes(field)) {
+    if (field === 'quantity_planned' && value.length > 255) { errorNode.textContent = 'Quantity must be 255 characters or fewer.'; return; }
+    if (field === 'quantity_packed') {
       const numeric = packingPanelNumber(value);
       if (!value || !Number.isFinite(numeric) || numeric < 0) { errorNode.textContent = 'Enter a quantity of 0 or more.'; return; }
     }
@@ -2689,7 +2691,15 @@
       };
       const commit = async () => {
         if (saving || cancelling || !cell.classList.contains('is-editing')) return;
-        const nextValue = input.value.trim();
+        const nextValue = cell.dataset.field === 'quantity_planned'
+          ? String(input.value || '').trim().replace(/\s+/g, ' ')
+          : input.value.trim();
+        if (cell.dataset.field === 'quantity_planned' && nextValue.length > 255) {
+          cell.classList.add('has-error');
+          setCount('Quantity must be 255 characters or fewer.');
+          input.focus();
+          return;
+        }
         if (nextValue === originalValue) { cell.classList.remove('is-editing'); return; }
         saving = true;
         cell.classList.add('is-saving');
@@ -2984,7 +2994,6 @@
     const deleteForever = event.target.closest('[data-delete-packing-item-permanently]');
     const restoreArchived = event.target.closest('[data-restore-archived-item]');
     const toolsBulk = event.target.closest('[data-tools-bulk]');
-    const exportActivity = event.target.closest('[data-export-packing-activity]');
     const trashSelect = event.target.closest('[data-trash-select]');
     const trashSelectAll = event.target.closest('[data-trash-select-all]');
     const trashBulk = event.target.closest('[data-trash-bulk]');
@@ -3085,16 +3094,6 @@
     if (toolsBulk) {
       await runPackingBulkAction(toolsBulk.dataset.toolsBulk);
       await loadPackingTools();
-      return;
-    }
-    if (exportActivity) {
-      const rows = packingToolsData?.activity || [];
-      const csv = [['Date and time','Item','Action','Performed by','Source'], ...rows.map((row) => [row.created_at,row.item_name || '',row.action,row.performed_by || 'System','Packing List'])].map((row) => row.map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-      link.download = `packing-activity-${new Date().toISOString().slice(0,10)}.csv`;
-      link.click();
-      URL.revokeObjectURL(link.href);
       return;
     }
     const summarySegment = event.target.closest('.packing-summary-segment');
@@ -3718,9 +3717,12 @@
     const text = event.target.closest('[data-packing-text]');
     if (text) {
       const task = tasks.find((item) => String(item.id) === String(text.dataset.taskId));
-      if (task && String(task[text.dataset.packingText] || '') !== text.value) {
+      const nextValue = text.dataset.packingText === 'quantity_planned'
+        ? String(text.value || '').trim().replace(/\s+/g, ' ')
+        : text.value;
+      if (task && String(task[text.dataset.packingText] || '') !== nextValue) {
         try {
-          await updateTasksField(selectedIdsFor(text.dataset.taskId), text.dataset.packingText, text.value);
+          await updateTasksField(selectedIdsFor(text.dataset.taskId), text.dataset.packingText, nextValue);
           render();
         } catch (error) {
           body.innerHTML = `<tr><td colspan="${totalColumnCount()}">${esc(error.message)}</td></tr>`;

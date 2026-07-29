@@ -885,7 +885,7 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             font-size: 14px;
             letter-spacing: 0;
             line-height: 1;
-            font-weight: 900;
+            font-weight: 600;
         }
         .ledger-subtitle {
             margin: 8px 0 0;
