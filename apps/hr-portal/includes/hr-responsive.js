@@ -6,13 +6,6 @@
   sidebar.dataset.hrResponsiveReady = 'true';
 
   const mobileQuery = window.matchMedia('(max-width: 1023px)');
-  const close = document.createElement('button');
-  close.type = 'button';
-  close.className = 'hr-nav-close';
-  close.setAttribute('aria-label', 'Close HR navigation');
-  close.innerHTML = '<i class="fa-solid fa-xmark" aria-hidden="true"></i>';
-  sidebar.prepend(close);
-
   const backdrop = document.createElement('button');
   backdrop.type = 'button';
   backdrop.className = 'hr-nav-backdrop';
@@ -38,7 +31,6 @@
     }
   };
 
-  close.addEventListener('click', () => setOpen(false));
   backdrop.addEventListener('click', () => setOpen(false));
   sidebar.addEventListener('click', (event) => {
     if (mobileQuery.matches && event.target.closest('a[href]')) setOpen(false);
