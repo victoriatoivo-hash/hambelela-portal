@@ -7,6 +7,7 @@ require_once BASE_PATH . '/shared/auth.php';
 require_once BASE_PATH . '/shared/database.php';
 require_once BASE_PATH . '/shared/notifications.php';
 require_once BASE_PATH . '/shared/employee-features.php';
+require_once BASE_PATH . '/shared/packing-notifications.php';
 
 const OPS_ORDER_STATUSES = [
     'new_order' => 'New Order',

@@ -676,8 +676,11 @@
   }
 
   function renderItemCell(task) {
+    const unread = task.unread_updates || {};
+    const noteIcon = Number(unread.notes || 0) > 0 ? `<span class="packing-item-update-icon packing-item-update-icon--note" aria-label="${Number(unread.notes)} unread note updates" title="New note"><i data-lucide="message-square"></i>${Number(unread.notes) > 1 ? `<span class="packing-item-update-count">${Number(unread.notes) > 99 ? '99+' : Number(unread.notes)}</span>` : ''}</span>` : '';
+    const fileIcon = Number(unread.files || 0) > 0 ? `<span class="packing-item-update-icon packing-item-update-icon--file" aria-label="${Number(unread.files)} unread file updates" title="New file uploaded"><i data-lucide="paperclip"></i>${Number(unread.files) > 1 ? `<span class="packing-item-update-count">${Number(unread.files) > 99 ? '99+' : Number(unread.files)}</span>` : ''}</span>` : '';
     return `<div class="packing-item-cell">
-      <button type="button" class="packing-item-main-trigger" data-packing-open-panel="${esc(task.id)}"><span class="packing-item-name">${esc(task.item_name)}</span></button>
+      <button type="button" class="packing-item-main-trigger packing-item-name-wrap" data-packing-open-panel="${esc(task.id)}"><span class="packing-item-name">${esc(task.item_name)}</span>${noteIcon || fileIcon ? `<span class="packing-item-update-icons">${noteIcon}${fileIcon}</span>` : ''}</button>
     </div>`;
   }
 
@@ -1561,6 +1564,8 @@
     const pCounts = priorityCounts(rows);
     const statusCounts = packingStatusCounts(rows);
     const accent = groupAccentPalette[index % groupAccentPalette.length];
+    const groupUnread = rows.reduce((sum, task) => sum + Number(task.unread_updates?.total || 0), 0);
+    const unreadBadge = groupUnread > 0 ? `<span class="packing-section-unread-badge" aria-label="${groupUnread} unread packing-list updates">${groupUnread > 99 ? '99+' : groupUnread}</span>` : '';
     const bodyRows = rows.map((task) => {
       const canEditOwn = canEditTask(task);
       const manageOnly = currentUser.can_manage ? '' : 'disabled';
@@ -1620,14 +1625,14 @@
           <button type="button" class="packing-month-toggle packing-month-open-toggle" data-packing-collapse aria-label="Collapse ${esc(groupLabel(key))}" aria-expanded="true">
             <i class="packing-month-chevron" data-lucide="chevron-down"></i>
           </button>
-          <strong class="packing-month-open-title">${esc(groupLabel(key))}</strong>
+          <strong class="packing-month-open-title packing-section-title">${esc(groupLabel(key))}${unreadBadge}</strong>
         </div>
         <button type="button" class="packing-date-header packing-month-header packing-month-summary packing-month-closed-summary" data-packing-collapse aria-label="Expand ${esc(groupLabel(key))}" aria-expanded="false">
           <div class="packing-date-cell packing-date-cell--toggle packing-month-toggle-cell packing-month-summary-toggle">
             <i class="packing-month-chevron group-chevron chevron" data-lucide="chevron-right"></i>
           </div>
           <div class="packing-date-cell packing-date-cell--title packing-month-title-cell packing-month-summary-title">
-            <strong>${esc(groupLabel(key))}</strong>
+            <strong class="packing-section-title">${esc(groupLabel(key))}${unreadBadge}</strong>
             <span>${rows.length} items</span>
           </div>
           <div class="packing-date-cell packing-date-cell--priority packing-month-priority-cell packing-month-summary-priority">
@@ -2268,6 +2273,23 @@
     panel.classList.add('open');
     panel.setAttribute('aria-hidden', 'false');
     backdrop.hidden = false;
+    if (defaultPanelTab === 'details') markPackingItemUpdatesRead(currentTask.id, ['note_added']);
+    if (defaultPanelTab === 'files') markPackingItemUpdatesRead(currentTask.id, ['file_uploaded']);
+  }
+
+  async function markPackingItemUpdatesRead(itemId, types) {
+    const requestedItemId = String(itemId || '');
+    if (!config.notificationsUrl || !requestedItemId || requestedItemId !== activePackingFileItemId) return;
+    const data = new FormData(); data.append('item_id', requestedItemId); data.append('csrf_token', String(config.filesCsrf || ''));
+    (types || []).forEach((type) => data.append('types[]', type));
+    try {
+      const response = await fetch(config.notificationsUrl, {method:'POST', credentials:'same-origin', body:data, headers:{Accept:'application/json'}});
+      const result = await response.json();
+      if (!response.ok || result.success !== true || requestedItemId !== activePackingFileItemId) return;
+      const task = tasks.find((entry) => String(entry.id) === requestedItemId);
+      if (task) task.unread_updates = result.unread_updates || {total:0,notes:0,files:0};
+      render();
+    } catch (_) {}
   }
 
   function formatPackingFileSize(bytes) {
@@ -3546,6 +3568,8 @@
         tab.classList.add('active', 'is-active');
         tab.setAttribute('aria-selected', 'true');
         document.querySelector(`[data-packing-panel-name="${tab.dataset.packingPanelTab}"]`)?.classList.add('active');
+        if (currentTask && tab.dataset.packingPanelTab === 'details') markPackingItemUpdatesRead(currentTask.id, ['note_added']);
+        if (currentTask && tab.dataset.packingPanelTab === 'files') markPackingItemUpdatesRead(currentTask.id, ['file_uploaded']);
         return;
       }
       if (saveNotes && currentTask) {

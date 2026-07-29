@@ -284,6 +284,7 @@ window.HambelelaPacking = {
   dataUrl: 'packing-list-data.php',
   actionUrl: 'packing-list-action.php',
   filesUrl: 'packing-item-files.php',
+  notificationsUrl: 'packing-item-notifications.php',
   filesCsrf: <?= json_encode($packingAttachmentCsrf) ?>,
 };
 </script>

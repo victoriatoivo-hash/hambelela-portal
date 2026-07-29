@@ -143,6 +143,7 @@ try {
             $row = ops_rows('SELECT * FROM ops_packing_attachments WHERE id = ? AND packing_item_id = ? LIMIT 1', [$attachmentId, $itemId])[0];
             $uploaded[] = packing_files_payload($row);
             ops_activity_log('packing_attachment_uploaded', 'packing_task', $itemId, ['attachment_id' => $attachmentId, 'filename' => $original, 'size' => $size, 'mime_type' => $mime]);
+            packing_create_update_notifications($itemId, 'file_uploaded', $attachmentId, (int) (ops_current_employee_id() ?: 0));
         } catch (Throwable $error) {
             $failed[] = ['name' => $original ?: 'Unnamed file', 'message' => $error->getMessage()];
         }

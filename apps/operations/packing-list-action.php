@@ -2731,6 +2731,9 @@ try {
                 $activityMeta['packing_website_completed_by'] = $after['packing_website_completed_by'] ?? null;
             }
             ops_activity_log('packing_' . $field . '_updated', 'packing_task', $id, $activityMeta);
+            if ($field === 'notes' && $value !== '' && (string) ($previousValueRows[(int) $id] ?? '') !== $value) {
+                packing_create_update_notifications((int) $id, 'note_added', abs(crc32($value . '|' . $id)) + 1, (int) ($currentEmployeeId ?: 0));
+            }
             if ($field === 'assigned_employee_id') {
                 notifications_notify_packing_assigned($id, $value === null ? null : (int) $value);
             } elseif ($field === 'packing_status' && in_array($value, ['packed_label_needed', 'label_created', 'website'], true)) {
