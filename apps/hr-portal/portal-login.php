@@ -46,22 +46,10 @@ function hr_bridge_fail(string $message, int $status = 503): void
 try {
     $portalUserId = (int) ($_SESSION['user']['id'] ?? 0);
     $portalRoleKey = current_role_key();
+    $portalUserEmail = strtolower(trim((string) ($_SESSION['user']['email'] ?? '')));
+    $canManageHr = current_user_has_capability('manage_hr');
     if ($portalUserId < 1) {
         throw new HrBridgeUserException('Your portal session does not contain a valid employee account.');
-    }
-
-    $link = db()->prepare(
-        'SELECT hr_employee_id
-         FROM employee_user_links
-         WHERE portal_user_id = ? AND active = 1
-         LIMIT 1'
-    );
-    $link->execute([$portalUserId]);
-    $hrEmployeeId = (int) $link->fetchColumn();
-    $link->closeCursor();
-
-    if ($hrEmployeeId < 1) {
-        throw new HrBridgeUserException('Your employee account is not linked to an HR profile. Ask an Owner/Admin to add the link in Employees & Roles.');
     }
 
     $local = isset($localSecrets) && is_array($localSecrets) ? $localSecrets : [];
@@ -91,22 +79,54 @@ try {
         ]
     );
 
-    $accountStmt = $hrDb->prepare(
-        'SELECT id, name, email, role, employee_id
-         FROM users
-         WHERE employee_id = ? AND active = 1
-         LIMIT 1'
-    );
-    $accountStmt->execute([$hrEmployeeId]);
+    if ($canManageHr) {
+        if ($portalUserEmail === '') {
+            throw new HrBridgeUserException('Your Owner/Admin account needs a verified email address before HR Administration can be opened.');
+        }
+        $accountStmt = $hrDb->prepare(
+            "SELECT id, name, email, role, employee_id
+             FROM users
+             WHERE LOWER(email) = ? AND active = 1 AND role = 'admin'
+             LIMIT 1"
+        );
+        $accountStmt->execute([$portalUserEmail]);
+    } else {
+        $link = db()->prepare(
+            'SELECT hr_employee_id
+             FROM employee_user_links
+             WHERE portal_user_id = ? AND active = 1
+             LIMIT 1'
+        );
+        $link->execute([$portalUserId]);
+        $hrEmployeeId = (int) $link->fetchColumn();
+        $link->closeCursor();
+
+        if ($hrEmployeeId < 1) {
+            throw new HrBridgeUserException('Your employee account is not linked to an HR profile. Ask an Owner/Admin to add the link in Employees & Roles.');
+        }
+
+        $accountStmt = $hrDb->prepare(
+            "SELECT id, name, email, role, employee_id
+             FROM users
+             WHERE employee_id = ? AND active = 1 AND role = 'employee'
+             LIMIT 1"
+        );
+        $accountStmt->execute([$hrEmployeeId]);
+    }
     $account = $accountStmt->fetch();
     $accountStmt->closeCursor();
 
     if (!$account) {
-        throw new HrBridgeUserException('The linked HR profile does not have an active HR Portal account.');
+        throw new HrBridgeUserException($canManageHr
+            ? 'No active HR administrator account matches your authenticated Owner/Admin email address.'
+            : 'The linked HR profile does not have an active HR Portal employee account.');
     }
 
     session_write_close();
     session_name('hambelela_hr_test_session');
+    // Do not reuse or regenerate the Business Portal session ID under the HR
+    // cookie name. A fresh ID keeps both authenticated sessions independent.
+    session_id('');
     session_start();
     session_regenerate_id(true);
     $_SESSION['user_id'] = (int) $account['id'];
@@ -116,15 +136,14 @@ try {
         'email' => (string) $account['email'],
         'role' => (string) $account['role'],
         'emp_id' => (int) $account['employee_id'],
+        'portal_user_id' => $portalUserId,
+        'portal_role_key' => $portalRoleKey,
+        'capabilities' => $canManageHr ? ['manage_hr'] : [],
     ];
     $_SESSION['portal_return_to'] = (BASE_URL ?: '') . '/index.php';
     session_write_close();
 
-    // Portal operational roles never imply HR administration. Only the portal
-    // Owner/Admin retains the HR account's administrative destination.
-    $destination = $portalRoleKey === 'owner_admin' && (string) $account['role'] !== 'employee'
-        ? 'dashboard.php'
-        : 'self-service.php';
+    $destination = $canManageHr ? 'dashboard.php' : 'self-service.php';
     header('Location: ' . (BASE_URL ?: '') . '/apps/hr-portal/' . $destination, true, 303);
     exit;
 } catch (Throwable $error) {
