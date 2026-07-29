@@ -124,6 +124,9 @@ try {
 
     session_write_close();
     session_name('hambelela_hr_test_session');
+    // Do not reuse or regenerate the Business Portal session ID under the HR
+    // cookie name. A fresh ID keeps both authenticated sessions independent.
+    session_id('');
     session_start();
     session_regenerate_id(true);
     $_SESSION['user_id'] = (int) $account['id'];

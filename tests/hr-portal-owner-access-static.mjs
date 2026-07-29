@@ -13,6 +13,8 @@ assert.ok(bridge.indexOf("if ($canManageHr)") < bridge.indexOf("FROM employee_us
 assert.match(bridge,/LOWER\(email\) = \? AND active = 1 AND role = 'admin'/);
 assert.match(bridge,/WHERE employee_id = \? AND active = 1 AND role = 'employee'/);
 assert.match(bridge,/\$destination = \$canManageHr \? 'dashboard\.php' : 'self-service\.php'/);
+assert.ok(bridge.indexOf("session_name('hambelela_hr_test_session')") < bridge.indexOf("session_id('')"));
+assert.ok(bridge.indexOf("session_id('')") < bridge.indexOf('session_start()'));
 assert.doesNotMatch(bridge,/\$_GET\[[^\]]*(?:role|employee|user)/i);
 assert.match(dashboard,/HR Portal[^\n]*portal-login\.php/);
 assert.match(sidebar,/HR Portal[^\n]*portal-login\.php/);
