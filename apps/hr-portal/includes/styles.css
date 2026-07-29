@@ -170,7 +170,7 @@ tr:hover td{background:#f8faf9}
 .empty-state i{font-size:40px;margin-bottom:14px;display:block;color:#b7e4c7}
 
 /* Shared responsive HR shell */
-.hr-nav-toggle,.hr-nav-close,.hr-nav-backdrop{display:none}
+.hr-nav-close,.hr-nav-backdrop{display:none}
 @media (max-width:1439px){
   .content{padding:22px}
   .grid-4{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -185,8 +185,7 @@ tr:hover td{background:#f8faf9}
   body.hr-nav-open{overflow:hidden;touch-action:none}
   .main{min-height:100dvh;overflow:visible}
   .content{overflow:visible;padding:20px}
-  .topbar{height:auto;min-height:58px;padding:10px 64px 10px 20px;flex-wrap:wrap;gap:8px}
-  .hr-nav-toggle{position:fixed;top:10px;right:12px;z-index:191;display:inline-flex;align-items:center;justify-content:center;gap:7px;min-width:44px;height:38px;padding:0 11px;color:#fff;background:var(--sidebar);border:0;border-radius:9px;font:600 12px/1 inherit;cursor:pointer;box-shadow:var(--shadow)}
+  .topbar{height:auto;min-height:58px;padding:10px 20px;flex-wrap:wrap;gap:8px}
   .hr-nav-close{position:absolute;top:10px;right:10px;z-index:2;display:grid;place-items:center;width:36px;height:36px;color:#fff;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);border-radius:9px;cursor:pointer}
   .sidebar{position:fixed;inset:0 auto 0 0;z-index:200;width:min(86vw,320px);height:100dvh;transform:translateX(-102%);transition:transform .2s ease;box-shadow:18px 0 42px rgba(0,0,0,.22);overscroll-behavior:contain}
   .sidebar.is-open{transform:translateX(0)}

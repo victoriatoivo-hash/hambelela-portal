@@ -6,14 +6,6 @@
   sidebar.dataset.hrResponsiveReady = 'true';
 
   const mobileQuery = window.matchMedia('(max-width: 1023px)');
-  const toggle = document.createElement('button');
-  toggle.type = 'button';
-  toggle.className = 'hr-nav-toggle';
-  toggle.setAttribute('aria-controls', sidebar.id || 'hrPortalSidebar');
-  toggle.setAttribute('aria-expanded', 'false');
-  toggle.setAttribute('aria-label', 'Open HR navigation');
-  toggle.innerHTML = '<i class="fa-solid fa-bars" aria-hidden="true"></i><span>Menu</span>';
-
   const close = document.createElement('button');
   close.type = 'button';
   close.className = 'hr-nav-close';
@@ -27,7 +19,6 @@
   backdrop.tabIndex = -1;
   backdrop.setAttribute('aria-label', 'Close HR navigation');
   sidebar.parentNode.insertBefore(backdrop, sidebar.nextSibling);
-  sidebar.parentNode.insertBefore(toggle, sidebar);
 
   let lastFocused = null;
   const focusable = () => Array.from(sidebar.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),[tabindex]:not([tabindex="-1"])'));
@@ -38,8 +29,6 @@
     backdrop.classList.toggle('is-open', open);
     document.body.classList.toggle('hr-nav-open', open);
     sidebar.setAttribute('aria-hidden', mobileQuery.matches && !open ? 'true' : 'false');
-    toggle.setAttribute('aria-expanded', String(open));
-    toggle.setAttribute('aria-label', open ? 'Close HR navigation' : 'Open HR navigation');
     if (open) {
       lastFocused = document.activeElement;
       requestAnimationFrame(() => focusable()[0]?.focus({ preventScroll: true }));
@@ -49,7 +38,6 @@
     }
   };
 
-  toggle.addEventListener('click', () => setOpen(!sidebar.classList.contains('is-open')));
   close.addEventListener('click', () => setOpen(false));
   backdrop.addEventListener('click', () => setOpen(false));
   sidebar.addEventListener('click', (event) => {
