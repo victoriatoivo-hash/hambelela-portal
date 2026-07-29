@@ -128,8 +128,6 @@ tr:hover td{background:#f8faf9}
 .leave-decision__heading i{color:#AB3619;font-size:14px}
 .leave-decision__reason{margin:0;color:#765047;font-size:12px;font-weight:400;line-height:1.55;overflow-wrap:anywhere;white-space:pre-wrap}
 .leave-decision__meta{display:flex;flex-wrap:wrap;gap:5px 14px;margin-top:9px;color:#A4776D;font-size:10px;font-weight:500}
-.leave-reason-toggle{margin-top:6px;padding:0;border:0;background:transparent;color:#AB3619;font:600 11px/1.4 inherit;cursor:pointer}
-
 @media (max-width:480px){
   .leave-rejection-modal{width:calc(100vw - 20px)}
   .leave-rejection-summary{grid-template-columns:1fr}
@@ -162,13 +160,13 @@ tr:hover td{background:#f8faf9}
 .empty-state{text-align:center;padding:60px 20px;color:var(--text-mid)}
 .empty-state i{font-size:40px;margin-bottom:14px;display:block;color:#b7e4c7}
 /* Compact leave-history rejection reasons. The popover is appended to body so table overflow cannot clip it. */
-.leave-status-cell{display:flex;align-items:center;flex-wrap:nowrap;gap:8px;min-width:0;white-space:nowrap}
-.leave-reason-trigger{display:inline-flex;align-items:center;gap:3px;min-height:26px;padding:3px 5px;color:#ab3619;font-family:inherit;font-size:11px;font-weight:600;line-height:1;white-space:nowrap;background:transparent;border:0;border-radius:5px;cursor:pointer;transition:color 160ms ease,background-color 160ms ease}
+.leave-status-cell{display:flex;align-items:center;flex-wrap:wrap;gap:6px;min-width:0}
+.leave-reason-trigger{display:inline-flex;align-items:center;gap:3px;min-height:24px;padding:2px 5px;color:#ab3619;font-family:inherit;font-size:10px;font-weight:600;line-height:1;white-space:nowrap;background:transparent;border:0;border-radius:5px;cursor:pointer;transition:color 160ms ease,background-color 160ms ease}
 .leave-reason-trigger:hover,.leave-reason-trigger:focus-visible{color:#721b1a;background:rgba(240,116,32,.08)}
 .leave-reason-trigger:focus-visible{outline:2px solid rgba(171,54,25,.22);outline-offset:1px}
 .leave-reason-trigger__arrow{width:13px;height:13px;flex:0 0 13px;transition:transform 160ms ease}
 .leave-reason-trigger[aria-expanded="true"] .leave-reason-trigger__arrow{transform:rotate(180deg)}
-.leave-reason-popover{position:fixed;z-index:1000;width:min(360px,calc(100vw - 24px));max-height:min(360px,calc(100dvh - 24px));overflow-y:auto;color:#1a1a1a;background:#fff;border:1px solid #ede3d8;border-left:3px solid #bb1b21;border-radius:9px;box-shadow:0 16px 38px rgba(114,27,26,.14),0 3px 10px rgba(26,26,26,.06)}
+.leave-reason-popover{position:fixed;z-index:10000;width:min(340px,calc(100vw - 20px));max-height:calc(100dvh - 20px);overflow-y:auto;color:#1a1a1a;background:#fff;border:1px solid #ede3d8;border-left:3px solid #bb1b21;border-radius:9px;box-shadow:0 14px 34px rgba(114,27,26,.16)}
 .leave-reason-popover[hidden]{display:none}
 .leave-reason-popover__header{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:38px;padding:8px 10px 7px 12px;background:#fdf6ee;border-bottom:1px solid #ede3d8}
 .leave-reason-popover__header h4{margin:0;color:#721b1a;font-size:12px;font-weight:700;line-height:1.3}
@@ -180,5 +178,5 @@ tr:hover td{background:#f8faf9}
 .leave-reason-popover__details div{display:grid;grid-template-columns:82px minmax(0,1fr);gap:8px}
 .leave-reason-popover__details dt{color:#6f625b;font-size:10px;font-weight:600}
 .leave-reason-popover__details dd{min-width:0;margin:0;color:#1a1a1a;font-size:10px;line-height:1.4}
-@media (max-width:479px){.leave-status-cell{gap:5px}.leave-reason-trigger{font-size:10px}.leave-reason-popover{width:calc(100vw - 20px);max-height:min(420px,calc(100dvh - 20px))}}
+@media (max-width:479px){.leave-status-cell{gap:5px}.leave-reason-popover{width:calc(100vw - 20px);max-height:min(420px,calc(100dvh - 20px))}}
 @media (prefers-reduced-motion:reduce){.leave-reason-trigger,.leave-reason-trigger__arrow{transition-duration:1ms}}

@@ -13,6 +13,9 @@ for (const page of [employee, admin]) {
   assert.match(page, /htmlspecialchars\(trim\(\(string\)\(\$r\['reject_reason'\]/);
   assert.match(page, /u\.name AS reviewer_name/);
   assert.doesNotMatch(page, /font-size:10px;color:var\(--red\);margin-top:2px/);
+  assert.doesNotMatch(page, /class="leave-decision leave-decision--rejected"/);
+  assert.doesNotMatch(page, /class="leave-reason-row"/);
+  assert.doesNotMatch(page, /class="leave-reason-toggle"/);
 }
 
 assert.match(employee, /WHERE lr\.employee_id=\?/);
@@ -23,6 +26,7 @@ assert.match(controller, /event\.key === 'Escape'/);
 assert.match(controller, /window\.addEventListener\('scroll', positionPopover, true\)/);
 assert.match(controller, /documentElement\.dataset\.leaveReasonPopoversInitialised/);
 assert.match(styles, /\.leave-reason-popover\{position:fixed/);
+assert.match(styles, /z-index:10000/);
 assert.match(styles, /white-space:pre-wrap/);
 assert.match(styles, /@media \(max-width:479px\)/);
 
