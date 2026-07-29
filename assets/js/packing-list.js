@@ -608,9 +608,9 @@
     } else if (packingToolsTab === 'activity' || packingToolsTab === 'import-history') {
       const rows = packingToolsTab === 'activity' ? packingToolsData.activity || [] : packingToolsData.syncHistory || [];
       /* Legacy inline renderer retained as a comment for this replacement.
-      holder.innerHTML = `<div class="packing-tools-list-head"><strong>${packingToolsTab === 'activity' ? 'Activity log' : 'Import / sync history'}</strong>${packingToolsTab === 'activity' ? '<button type="button" class="pk-btn pk-btn--secondary" data-export-packing-activity>Export CSV</button>' : ''}</div>${rows.length ? `<div class="packing-activity-list">${rows.map((row) => { let meta={}; try{meta=typeof row.metadata==='string'?JSON.parse(row.metadata):row.metadata||{}}catch{} return `<article class="packing-activity-row"><div class="packing-activity-icon"><i data-lucide="history"></i></div><div class="packing-activity-content"><div class="packing-activity-heading"><strong>${esc(String(row.action || '').replace(/_/g, ' '))}</strong><time>${esc(formatToolDate(row.created_at))}</time></div><p>${esc(row.item_name || `Packing item #${row.packing_item_id || ''}`)}${meta.field ? ` · ${esc(meta.field)}: ${esc(meta.old_value || '')} → ${esc(meta.new_value || '')}` : ''}</p><div class="packing-activity-meta">${esc(row.performed_by || 'System')} · Packing List</div></div></article>`; }).join('')}</div>` : '<div class="packing-tools-empty"><strong>No activity found</strong><span>Meaningful Packing List changes will appear here.</span></div>';
+      holder.innerHTML = `<div class="packing-tools-list-head"><strong>${packingToolsTab === 'activity' ? 'Activity log' : 'Import / sync history'}</strong></div>${rows.length ? `<div class="packing-activity-list">${rows.map((row) => { let meta={}; try{meta=typeof row.metadata==='string'?JSON.parse(row.metadata):row.metadata||{}}catch{} return `<article class="packing-activity-row"><div class="packing-activity-icon"><i data-lucide="history"></i></div><div class="packing-activity-content"><div class="packing-activity-heading"><strong>${esc(String(row.action || '').replace(/_/g, ' '))}</strong><time>${esc(formatToolDate(row.created_at))}</time></div><p>${esc(row.item_name || `Packing item #${row.packing_item_id || ''}`)}${meta.field ? ` · ${esc(meta.field)}: ${esc(meta.old_value || '')} → ${esc(meta.new_value || '')}` : ''}</p><div class="packing-activity-meta">${esc(row.performed_by || 'System')} · Packing List</div></div></article>`; }).join('')}</div>` : '<div class="packing-tools-empty"><strong>No activity found</strong><span>Meaningful Packing List changes will appear here.</span></div>';
       */
-      holder.innerHTML = `<div class="packing-tools-list-head"><strong>${packingToolsTab === 'activity' ? 'Activity log' : 'Import history'}</strong>${packingToolsTab === 'activity' ? '<button type="button" class="pk-btn pk-btn--secondary" data-export-packing-activity>Export CSV</button>' : ''}</div>${rows.length ? `<div class="packing-activity-list">${rows.map(packingActivityMarkup).join('')}</div>` : '<div class="packing-tools-empty"><strong>No activity found</strong><span>Meaningful Packing List changes will appear here.</span></div>'}`;
+      holder.innerHTML = `<div class="packing-tools-list-head"><strong>${packingToolsTab === 'activity' ? 'Activity log' : 'Import history'}</strong></div>${rows.length ? `<div class="packing-activity-list">${rows.map(packingActivityMarkup).join('')}</div>` : '<div class="packing-tools-empty"><strong>No activity found</strong><span>Meaningful Packing List changes will appear here.</span></div>'}`;
     } else if (packingToolsTab === 'columns') {
       holder.innerHTML = `<section class="packing-tools-column-settings"><div class="packing-tools-column-settings-icon"><i data-lucide="columns-3"></i></div><div class="packing-tools-column-settings-copy"><h3>Column widths</h3><p>Restore the Packing List columns to their original widths for this account and device.</p></div><button type="button" class="pk-btn pk-btn--secondary" data-reset-packing-columns><i data-lucide="rotate-ccw"></i><span>Reset column widths</span></button></section>`;
     } else {
@@ -2793,7 +2793,6 @@
     const deleteForever = event.target.closest('[data-delete-packing-item-permanently]');
     const restoreArchived = event.target.closest('[data-restore-archived-item]');
     const toolsBulk = event.target.closest('[data-tools-bulk]');
-    const exportActivity = event.target.closest('[data-export-packing-activity]');
     const trashSelect = event.target.closest('[data-trash-select]');
     const trashSelectAll = event.target.closest('[data-trash-select-all]');
     const trashBulk = event.target.closest('[data-trash-bulk]');
@@ -2894,16 +2893,6 @@
     if (toolsBulk) {
       await runPackingBulkAction(toolsBulk.dataset.toolsBulk);
       await loadPackingTools();
-      return;
-    }
-    if (exportActivity) {
-      const rows = packingToolsData?.activity || [];
-      const csv = [['Date and time','Item','Action','Performed by','Source'], ...rows.map((row) => [row.created_at,row.item_name || '',row.action,row.performed_by || 'System','Packing List'])].map((row) => row.map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-      link.download = `packing-activity-${new Date().toISOString().slice(0,10)}.csv`;
-      link.click();
-      URL.revokeObjectURL(link.href);
       return;
     }
     const summarySegment = event.target.closest('.packing-summary-segment');
