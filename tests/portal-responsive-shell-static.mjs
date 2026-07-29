@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const sidebar=fs.readFileSync(new URL('../shared/sidebar.php',import.meta.url),'utf8');
+const header=fs.readFileSync(new URL('../shared/header.php',import.meta.url),'utf8');
+const css=fs.readFileSync(new URL('../assets/css/portal-responsive.css',import.meta.url),'utf8');
+assert.match(header,/viewport-fit=cover/);
+assert.match(sidebar,/max-width: 1023px/);
+assert.match(sidebar,/portal-mobile-header/);
+assert.match(sidebar,/portal-mobile-page-title/);
+assert.match(css,/@media\(max-width:1023px\)/);
+assert.match(css,/width:min\(86vw,320px\)/);
+assert.match(css,/portal-mobile-nav-open/);
+assert.match(css,/packing-month-scroll/);
+assert.match(css,/height:100dvh/);
+console.log('Portal responsive shell checks passed.');

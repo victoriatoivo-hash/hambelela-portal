@@ -1167,3 +1167,28 @@ html body.sidebar-collapsed .portal-sidebar {
   .portal-header-actions .portal-header-clock strong { font-size:10px !important; }
   .portal-header-actions .portal-notification-button { width:30px !important;min-width:30px !important;height:30px !important; }
 }
+
+/* Portal-wide responsive shell: keep navigation and content on one breakpoint. */
+.portal-mobile-header{display:none}
+@media(max-width:1023px){
+  html body .shell:has(.portal-sidebar),html body .shell:has(.portal-sidebar.collapsed),html body.sidebar-collapsed .shell:has(.portal-sidebar){display:block;width:100%;max-width:100%;padding-left:0!important}
+  html body .portal-sidebar,html body .portal-sidebar.collapsed,html body.sidebar-collapsed .portal-sidebar{position:fixed;z-index:30000;inset:0 auto 0 0;width:min(86vw,320px)!important;min-width:0!important;max-width:320px!important;height:100dvh;min-height:100dvh;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);overflow-y:auto;overscroll-behavior:contain;transform:translateX(-105%);box-shadow:12px 0 30px rgba(26,26,26,.18)}
+  html body .portal-sidebar.mobile-open{transform:translateX(0)}
+  body.portal-mobile-nav-open{overflow:hidden;touch-action:none}
+  .portal-sidebar-backdrop{position:fixed;z-index:29990;inset:0;display:block;visibility:hidden;opacity:0;background:rgba(26,26,26,.42);transition:opacity .18s ease,visibility .18s ease}
+  body.portal-mobile-nav-open .portal-sidebar-backdrop{visibility:visible;opacity:1}
+  .portal-mobile-header{position:fixed;z-index:900;top:0;right:0;left:0;display:grid;grid-template-columns:40px minmax(0,1fr) auto;align-items:center;min-height:52px;padding:max(6px,env(safe-area-inset-top)) 10px 6px;background:#fff;border-bottom:1px solid var(--portal-border)}
+  .portal-mobile-nav-toggle{position:static!important;display:inline-flex!important;width:40px!important;height:40px!important;align-items:center;justify-content:center}
+  .portal-mobile-page-title{min-width:0;overflow:hidden;color:var(--portal-text);font-size:14px;font-weight:700;text-overflow:ellipsis;white-space:nowrap}
+  .portal-mobile-header-actions{display:flex;align-items:center;gap:7px}.portal-mobile-notifications{position:relative;display:grid;width:38px;height:38px;place-items:center;color:var(--portal-burgundy)}.portal-mobile-notification-count{position:absolute;top:0;right:0;min-width:15px;height:15px;padding:0 3px;border-radius:999px;background:var(--portal-orange-red);color:#fff;font-size:8px;line-height:15px;text-align:center}.portal-mobile-notification-count.is-hidden{display:none}.portal-mobile-user{display:grid;width:30px;height:30px;place-items:center;border-radius:50%;background:var(--portal-orange-red);color:#fff;font-size:11px;font-weight:700}
+  .shell:has(.portal-sidebar)>main,.shell:has(.portal-sidebar)>main.workspace,.shell:has(.portal-sidebar)>main.ledger-page{width:100%!important;max-width:100%!important;min-width:0!important;margin:0!important;padding-top:calc(62px + env(safe-area-inset-top))!important}
+  .portal-page-header,.module-header,.monday-board-head,.packing-header,.ledger-top,.dtb-page-header,.error-log-header{min-width:0;max-width:100%}
+}
+@media(max-width:767px){
+  .portal-view-bar,.portal-toolbar,.portal-filter-toolbar,.work-filter-bar,.orders-tools-bar{width:100%;max-width:100%;min-width:0;flex-wrap:wrap}
+  .portal-table-toolbar__controls,.portal-toolbar-actions,.work-filter-actions{min-width:0;max-width:100%;overflow-x:auto;overscroll-behavior-inline:contain}
+  .portal-table-scroll,.packing-month-scroll,.orders-board-scroll,.ledger-table-wrap,.courier-table-wrap,.dtb-table-wrap,.error-table-wrap{width:100%;max-width:100%;min-width:0;overflow-x:auto;overscroll-behavior-inline:contain;-webkit-overflow-scrolling:touch}
+  .portal-table-scroll>table,.packing-month-scroll table,.orders-board-scroll table,.ledger-table-wrap table,.courier-table-wrap table,.dtb-table-wrap table,.error-table-wrap table{width:max-content;min-width:100%}
+  .portal-detail-panel,.orders-tools-panel,.orders-details-panel,.order-panel,.packing-tools-panel,.packing-item-panel,.task-tools-panel,.task-details-panel,.task-create-panel,.courier-tools-panel,.error-log-panel,.error-detail-panel,.bk-drawer{inset:0!important;width:100%!important;height:100dvh!important;max-height:100dvh!important;border-radius:0!important}
+  .portal-form-grid,.packing-item-form-grid,.bk-form-grid,.error-log-form,.courier-form-grid{grid-template-columns:minmax(0,1fr)!important}
+}

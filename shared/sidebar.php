@@ -164,6 +164,8 @@ $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bo
 .shell:has(.portal-sidebar)>main.workspace.module>.module-header{width:100%;max-width:none}
 @media (max-width:760px){.shell:has(.portal-sidebar)>main.workspace:not(.digital-task-page),.shell:has(.portal-sidebar)>main.ledger-page,.shell:has(.portal-sidebar)>.workspace:not(.digital-task-page),.shell:has(.portal-sidebar)>.ledger-page{padding:18px}}
 </style>
+<?php $portalMobileTitle = 'Hambelela'; foreach ($portalNavItems as $portalMobileItem) { if ($isActiveItem($portalMobileItem)) { $portalMobileTitle = (string) $portalMobileItem['label']; break; } } ?>
+<header class="portal-mobile-header" data-portal-mobile-header>
 <button class="portal-mobile-nav-toggle" type="button" aria-controls="portalSidebar" aria-expanded="false" aria-label="Open portal menu">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
         <line x1="4" y1="7" x2="20" y2="7"></line>
@@ -171,6 +173,9 @@ $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bo
         <line x1="4" y1="17" x2="20" y2="17"></line>
     </svg>
 </button>
+<strong class="portal-mobile-page-title"><?= htmlspecialchars($portalMobileTitle, ENT_QUOTES, 'UTF-8') ?></strong>
+<span class="portal-mobile-header-actions"><a class="portal-mobile-notifications" href="<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/notifications.php" aria-label="Notifications, <?= $notificationUnread ?> unread"><?= getSidebarIcon('notifications') ?><span class="portal-mobile-notification-count<?= $notificationUnread ? '' : ' is-hidden' ?>" data-notification-count><?= $notificationUnread ? htmlspecialchars($notificationUnreadLabel, ENT_QUOTES, 'UTF-8') : '' ?></span></a><span class="portal-mobile-user" title="<?= htmlspecialchars($sidebarUserName, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($sidebarUserInitial, ENT_QUOTES, 'UTF-8') ?></span></span>
+</header>
 <button class="portal-sidebar-backdrop" type="button" aria-label="Close portal menu" tabindex="-1"></button>
 <aside class="portal-sidebar" id="portalSidebar" aria-label="Portal navigation" aria-hidden="false">
     <div class="ps-header">
@@ -231,11 +236,11 @@ $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bo
     </div>
 </aside>
 <script>
-function toggleSidebar(){const sidebar=document.getElementById('portalSidebar');if(!sidebar)return;if(window.matchMedia('(max-width: 900px)').matches){window.portalSidebarNavigation?.open();return}const collapsed=sidebar.classList.toggle('collapsed');localStorage.setItem('sidebarCollapsed',collapsed?'1':'0');document.body.classList.toggle('sidebar-collapsed',collapsed)}
+function toggleSidebar(){const sidebar=document.getElementById('portalSidebar');if(!sidebar)return;if(window.matchMedia('(max-width: 1023px)').matches){window.portalSidebarNavigation?.open();return}const collapsed=sidebar.classList.toggle('collapsed');localStorage.setItem('sidebarCollapsed',collapsed?'1':'0');document.body.classList.toggle('sidebar-collapsed',collapsed)}
 (function(){
     const sidebar=document.getElementById('portalSidebar');
     if(!sidebar)return;
-    const mobileQuery=window.matchMedia('(max-width: 900px)');
+    const mobileQuery=window.matchMedia('(max-width: 1023px)');
     const mobileToggle=document.querySelector('.portal-mobile-nav-toggle[aria-controls="portalSidebar"]');
     const mobileBackdrop=document.querySelector('.portal-sidebar-backdrop');
     let lastFocused=null;
