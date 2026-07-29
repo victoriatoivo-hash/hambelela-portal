@@ -1097,7 +1097,6 @@ document.addEventListener('click', (event) => {
     '[data-portal-horizontal-scroll-source]',
     '.ops-board-scroll',
     '.orders-table-scroll',
-    '.ledger-board',
     '.courier-table-scroll',
     '.dtb-table-wrap',
     '.error-board-table-wrap',
