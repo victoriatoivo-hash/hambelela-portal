@@ -117,6 +117,26 @@ function packing_quantity_warning(string $receivedWeight, string $quantityPlan):
     return '';
 }
 
+function packing_ensure_quantity_text_column(): void
+{
+    $column = ops_row(
+        "SELECT DATA_TYPE, CHARACTER_MAXIMUM_LENGTH
+         FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'ops_packing_tasks'
+           AND COLUMN_NAME = 'quantity_planned'
+         LIMIT 1"
+    );
+    if (!$column) {
+        throw new RuntimeException('Packing quantity storage is unavailable.');
+    }
+    $type = strtolower((string) ($column['DATA_TYPE'] ?? ''));
+    $length = (int) ($column['CHARACTER_MAXIMUM_LENGTH'] ?? 0);
+    if (!in_array($type, ['varchar', 'text', 'tinytext', 'mediumtext', 'longtext'], true) || ($type === 'varchar' && $length < 255)) {
+        db()->exec('ALTER TABLE ops_packing_tasks MODIFY quantity_planned VARCHAR(255) NULL');
+    }
+}
+
 function packing_extract_lines_from_text(string $text): array
 {
     $rows = [];
@@ -1310,6 +1330,7 @@ try {
         if (!$canManage) {
             throw new RuntimeException('Only admin/front desk can create packing rows.');
         }
+        packing_ensure_quantity_text_column();
 
         if (
             !ops_column_exists('ops_packing_tasks', 'received_weight')
@@ -2536,7 +2557,14 @@ try {
         if ($field === 'received_weight') {
             $value = strtoupper((string) preg_replace('/\s+/', '', $value));
         }
-        if (in_array($field, ['quantity_planned', 'quantity_packed'], true) && !preg_match('/^\d+(?:\.\d+)?/', $value)) {
+        if ($field === 'quantity_planned') {
+            packing_ensure_quantity_text_column();
+            $value = preg_replace('/\s+/', ' ', $value) ?? '';
+            if ((function_exists('mb_strlen') ? mb_strlen($value) : strlen($value)) > 255) {
+                throw new RuntimeException('Quantity must be 255 characters or fewer.');
+            }
+        }
+        if ($field === 'quantity_packed' && !preg_match('/^\d+(?:\.\d+)?/', $value)) {
             throw new RuntimeException('Enter a quantity of 0 or more using the existing unit format.');
         }
 
