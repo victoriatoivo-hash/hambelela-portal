@@ -4,6 +4,8 @@ deployment:
     - export DEPLOYPATH=/home/hambele1/portal.hambelelaorganic.com/
     - /bin/cp -R apps $DEPLOYPATH
     - /bin/cp -R assets $DEPLOYPATH
+    - /bin/cp assets/css/portal.css $DEPLOYPATH/assets/css/portal.css.deploying
+    - /bin/mv $DEPLOYPATH/assets/css/portal.css.deploying $DEPLOYPATH/assets/css/portal.css
     - /bin/cp -R shared $DEPLOYPATH
     - /bin/cp .htaccess $DEPLOYPATH
     - /bin/cp *.php $DEPLOYPATH
