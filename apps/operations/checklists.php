@@ -180,7 +180,59 @@ function checklist_attachment_types(): array
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => 'docx',
         'application/vnd.ms-excel' => 'xls',
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => 'xlsx',
+        'video/mp4' => 'mp4',
     ];
+}
+
+function checklist_create_attachment_files(): array
+{
+    $field = $_FILES['task_attachments'] ?? null;
+    if (!is_array($field) || !is_array($field['name'] ?? null)) return [];
+    $files = [];
+    foreach ($field['name'] as $index => $name) {
+        $error = (int) ($field['error'][$index] ?? UPLOAD_ERR_NO_FILE);
+        if ($error === UPLOAD_ERR_NO_FILE && trim((string) $name) === '') continue;
+        $files[] = [
+            'name' => (string) $name,
+            'type' => (string) ($field['type'][$index] ?? ''),
+            'tmp_name' => (string) ($field['tmp_name'][$index] ?? ''),
+            'error' => $error,
+            'size' => (int) ($field['size'][$index] ?? 0),
+        ];
+    }
+    if (count($files) > 10) throw new RuntimeException('Attach no more than 10 files to one task.');
+    return $files;
+}
+
+function checklist_store_attachment(int $taskId, array $file, int $actorId, string $actorName): array
+{
+    $countRows = ops_rows('SELECT COUNT(*) AS total FROM ops_checklist_attachments WHERE task_id = ? AND removed_at IS NULL', [$taskId]);
+    if ((int) ($countRows[0]['total'] ?? 0) >= 10) throw new RuntimeException('This task already has the maximum of 10 attachments.');
+    if ((int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || !is_uploaded_file((string) ($file['tmp_name'] ?? ''))) {
+        throw new RuntimeException('Choose a valid file to upload.');
+    }
+    $size = (int) ($file['size'] ?? 0);
+    if ($size <= 0 || $size > 10 * 1024 * 1024) throw new RuntimeException('Each file must be smaller than 10 MB.');
+    $mime = (string) (new finfo(FILEINFO_MIME_TYPE))->file((string) $file['tmp_name']);
+    $allowed = checklist_attachment_types();
+    if (!isset($allowed[$mime])) throw new RuntimeException('This file type is not allowed. Upload an image, MP4 video, PDF, Word or Excel file.');
+    $original = trim(preg_replace('/[\x00-\x1F\x7F]+/', '', basename((string) ($file['name'] ?? 'attachment'))) ?? 'attachment');
+    if ($original === '') $original = 'attachment.' . $allowed[$mime];
+    $stored = 'task-' . $taskId . '-' . bin2hex(random_bytes(16)) . '.' . $allowed[$mime];
+    $uploadDir = BASE_PATH . '/uploads/checklist-attachments';
+    if (!is_dir($uploadDir) && !mkdir($uploadDir, 0775, true) && !is_dir($uploadDir)) throw new RuntimeException('File storage is unavailable.');
+    $target = $uploadDir . '/' . $stored;
+    if (!move_uploaded_file((string) $file['tmp_name'], $target)) throw new RuntimeException('The file could not be stored.');
+    try {
+        $stmt = db()->prepare('INSERT INTO ops_checklist_attachments (task_id, original_filename, stored_filename, mime_type, file_size, uploaded_by, uploaded_by_name) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        $stmt->execute([$taskId, $original, $stored, $mime, $size, $actorId ?: null, $actorName]);
+        $attachmentId = (int) db()->lastInsertId();
+        ops_activity_log('task_attachment_uploaded', 'checklist_task', $taskId, ['attachment_id' => $attachmentId, 'filename' => $original, 'size' => $size, 'mime_type' => $mime]);
+        return ops_rows('SELECT * FROM ops_checklist_attachments WHERE id = ? LIMIT 1', [$attachmentId])[0];
+    } catch (Throwable $uploadError) {
+        if (is_file($target)) unlink($target);
+        throw $uploadError;
+    }
 }
 
 function checklist_attachment_payload(array $row, bool $canRemove): array
@@ -520,34 +572,11 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($action === 'task_attachment_upload') {
                 if (!empty($attachmentTask['archived_at']) || !empty($attachmentTask['deleted_at'])) throw new RuntimeException('Archived or deleted tasks cannot accept files.');
                 if (!$canManage && checklist_normalize_status((string) $attachmentTask['status']) === 'complete') throw new RuntimeException('Completed task files are read-only.');
-                $countRows = ops_rows('SELECT COUNT(*) AS total FROM ops_checklist_attachments WHERE task_id = ? AND removed_at IS NULL', [$taskId]);
-                if ((int) ($countRows[0]['total'] ?? 0) >= 10) throw new RuntimeException('This task already has the maximum of 10 attachments.');
                 $file = $_FILES['attachment'] ?? null;
-                if (!is_array($file) || (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || !is_uploaded_file((string) ($file['tmp_name'] ?? ''))) throw new RuntimeException('Choose a file to upload.');
-                $size = (int) ($file['size'] ?? 0);
-                if ($size <= 0 || $size > 10 * 1024 * 1024) throw new RuntimeException('Each file must be smaller than 10 MB.');
-                $mime = (string) (new finfo(FILEINFO_MIME_TYPE))->file((string) $file['tmp_name']);
-                $allowed = checklist_attachment_types();
-                if (!isset($allowed[$mime])) throw new RuntimeException('This file type is not allowed. Upload an image, PDF, Word or Excel file.');
-                $original = trim(preg_replace('/[\x00-\x1F\x7F]+/', '', basename((string) ($file['name'] ?? 'attachment'))) ?? 'attachment');
-                if ($original === '') $original = 'attachment.' . $allowed[$mime];
-                $stored = 'task-' . $taskId . '-' . bin2hex(random_bytes(16)) . '.' . $allowed[$mime];
-                $uploadDir = BASE_PATH . '/uploads/checklist-attachments';
-                if (!is_dir($uploadDir) && !mkdir($uploadDir, 0775, true) && !is_dir($uploadDir)) throw new RuntimeException('File storage is unavailable.');
-                $target = $uploadDir . '/' . $stored;
-                if (!move_uploaded_file((string) $file['tmp_name'], $target)) throw new RuntimeException('The file could not be stored.');
-                try {
-                    $actorName = trim((string) (current_user()['name'] ?? 'Employee')) ?: 'Employee';
-                    $stmt = db()->prepare('INSERT INTO ops_checklist_attachments (task_id, original_filename, stored_filename, mime_type, file_size, uploaded_by, uploaded_by_name) VALUES (?, ?, ?, ?, ?, ?, ?)');
-                    $stmt->execute([$taskId, $original, $stored, $mime, $size, $currentEmployeeId ?: null, $actorName]);
-                    $attachmentId = (int) db()->lastInsertId();
-                    ops_activity_log('task_attachment_uploaded', 'checklist_task', $taskId, ['attachment_id' => $attachmentId, 'filename' => $original, 'size' => $size, 'mime_type' => $mime]);
-                    $row = ops_rows('SELECT * FROM ops_checklist_attachments WHERE id = ? LIMIT 1', [$attachmentId])[0];
-                    echo json_encode(['success' => true, 'attachment' => checklist_attachment_payload($row, true)]);
-                } catch (Throwable $uploadError) {
-                    if (is_file($target)) unlink($target);
-                    throw $uploadError;
-                }
+                if (!is_array($file)) throw new RuntimeException('Choose a file to upload.');
+                $actorName = trim((string) (current_user()['name'] ?? 'Employee')) ?: 'Employee';
+                $row = checklist_store_attachment($taskId, $file, $currentEmployeeId ?: 0, $actorName);
+                echo json_encode(['success' => true, 'attachment' => checklist_attachment_payload($row, true)]);
                 exit;
             }
             $attachmentId = (int) ($_POST['attachment_id'] ?? 0);
@@ -819,6 +848,9 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!in_array($recurringRule, $allowedRecurringRules, true)) {
                 throw new RuntimeException('Choose a valid task recurrence.');
             }
+            $createAttachmentFiles = checklist_create_attachment_files();
+            $createdAttachments = [];
+            $attachmentActorName = trim((string) (current_user()['name'] ?? 'Owner')) ?: 'Owner';
             $templateId = null;
             $taskDb = db();
             $taskDb->beginTransaction();
@@ -858,13 +890,24 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $currentEmployeeId,
             ]);
             $createdTaskId = (int) db()->lastInsertId();
-            ops_activity_log('task_created', 'checklist_task', $createdTaskId, ['assigned_employee_id' => $assignedId]);
+            foreach ($createAttachmentFiles as $createAttachmentFile) {
+                $createdAttachments[] = checklist_store_attachment($createdTaskId, $createAttachmentFile, $currentEmployeeId ?: 0, $attachmentActorName);
+            }
+            ops_activity_log('task_created', 'checklist_task', $createdTaskId, [
+                'assigned_employee_id' => $assignedId,
+                'attachment_count' => count($createdAttachments),
+            ]);
             if ($assignedId > 0 && !notifications_notify_task_assigned($createdTaskId, $assignedId, $taskName)) {
                 throw new RuntimeException('The task assignment notification could not be saved.');
             }
             $taskDb->commit();
             } catch (Throwable $taskCreateError) {
                 if ($taskDb->inTransaction()) $taskDb->rollBack();
+                foreach ($createdAttachments as $createdAttachment) {
+                    $storedFilename = basename((string) ($createdAttachment['stored_filename'] ?? ''));
+                    $storedPath = BASE_PATH . '/uploads/checklist-attachments/' . $storedFilename;
+                    if ($storedFilename !== '' && is_file($storedPath)) unlink($storedPath);
+                }
                 throw $taskCreateError;
             }
             if ($urgentRequested) {
@@ -872,7 +915,9 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     throw new RuntimeException('The task was saved, but its urgent alert could not be sent.');
                 }
             }
-            $message = 'Task created and assigned.';
+            $message = $createdAttachments
+                ? 'Task created with ' . count($createdAttachments) . ' file' . (count($createdAttachments) === 1 ? '' : 's') . ' and assigned.'
+                : 'Task created and assigned.';
         }
 
         if ($action === 'admin_update_task' && $canManage) {
@@ -1270,7 +1315,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 </div>
             </header>
             <div class="create-task-body task-create-shell">
-                <form class="task-create-form checklist-create-form" method="post" data-task-create-form novalidate>
+                <form class="task-create-form checklist-create-form" method="post" enctype="multipart/form-data" data-task-create-form novalidate>
                     <input type="hidden" name="action" value="create_task">
                     <div class="task-create-form__body">
                       <section class="task-form-section"><div class="task-form-grid">
@@ -1284,6 +1329,13 @@ include BASE_PATH . '/shared/sidebar.php';
                         <label class="task-form-field task-form-field--full"><span class="task-form-label">Instructions *</span><textarea id="create-task-instructions" name="instructions" required placeholder="Explain what must be done and what the finished result should look like."></textarea></label>
                       </div></section>
                       <section class="task-form-section task-checklist-builder" data-task-checklist-builder><span class="task-form-label">Required checklist</span><div class="task-checklist-add"><input type="text" data-task-checklist-input placeholder="Enter a checklist item"><button type="button" data-task-checklist-add>Add</button></div><p class="task-checklist-warning" data-task-checklist-warning hidden></p><ol data-task-checklist-list></ol><input id="create-task-items" type="hidden" name="checklist_items_text"><small>All checklist items must be completed before the task can be marked complete.</small></section>
+                      <section class="task-form-section task-create-attachments" data-task-create-attachments>
+                        <div class="task-create-attachments__heading"><div><span class="task-form-label">Files for the employee</span><p>Attach the posts, images, videos or documents the employee needs to complete this task.</p></div><button type="button" class="task-files__add" data-select-create-task-files><i data-lucide="paperclip" aria-hidden="true"></i><span>Choose files</span></button></div>
+                        <input type="file" name="task_attachments[]" multiple hidden data-create-task-file-input accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.mp4">
+                        <p class="task-files__error" data-create-task-files-error hidden></p>
+                        <div class="task-create-attachments__list" data-create-task-files-list></div>
+                        <p class="task-create-attachments__empty" data-create-task-files-empty>No files selected. You can add up to 10 files, 10 MB each.</p>
+                      </section>
                       <section class="task-form-options">
                         <div class="task-form-option"><label class="task-option-toggle"><input type="checkbox" data-task-repeat-toggle><span>Repeat this task</span></label><div class="task-option-details" data-task-repeat-options hidden><label class="task-form-field"><span class="task-form-label">Frequency</span><select id="create-task-recurrence" data-task-recurrence-select><option value="daily_business_day">Every business day</option><option value="twice_weekly">Every Tuesday and Thursday</option><option value="weekly_1">Every Monday</option><option value="weekly_2">Every Tuesday</option><option value="weekly_3">Every Wednesday</option><option value="weekly_4">Every Thursday</option><option value="weekly_5">Every Friday</option><option value="weekly_saturday">Every Saturday</option></select></label></div><input type="hidden" name="recurring_rule" value="" data-task-recurrence-default></div>
                         <section class="task-form-option task-urgent-control" data-urgent-control>
@@ -1490,7 +1542,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 ?>
                 <section class="task-details-section task-files" data-task-files data-task-id="<?= $panelId ?>" data-csrf-token="<?= htmlspecialchars($taskAttachmentCsrf, ENT_QUOTES, 'UTF-8') ?>">
                     <div class="task-files__heading"><div><h3>Files / proof</h3><p>Upload a photo, document or other proof of work.</p></div><?php if ($taskAcceptsFiles): ?><button type="button" class="task-files__add" data-add-task-file><i data-lucide="paperclip" aria-hidden="true"></i><span>Add photo or file</span></button><?php endif; ?></div>
-                    <?php if ($taskAcceptsFiles): ?><input type="file" data-task-file-input multiple hidden accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx"><?php endif; ?>
+                    <?php if ($taskAcceptsFiles): ?><input type="file" data-task-file-input multiple hidden accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.mp4"><?php endif; ?>
                     <p class="task-files__error" data-task-files-error hidden></p>
                     <div class="task-files__list" data-task-file-list>
                         <?php foreach ($panelAttachments as $attachment): ?>
@@ -1549,6 +1601,14 @@ function initialiseTaskCreateForm() {
   const checklistList = form.querySelector('[data-task-checklist-list]');
   const checklistValue = form.querySelector('[name="checklist_items_text"]');
   const checklistWarning = form.querySelector('[data-task-checklist-warning]');
+  const attachmentInput = form.querySelector('[data-create-task-file-input]');
+  const attachmentSelect = form.querySelector('[data-select-create-task-files]');
+  const attachmentList = form.querySelector('[data-create-task-files-list]');
+  const attachmentEmpty = form.querySelector('[data-create-task-files-empty]');
+  const attachmentError = form.querySelector('[data-create-task-files-error]');
+  const acceptedAttachmentTypes = ['image/jpeg','image/png','image/webp','application/pdf','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','video/mp4'];
+  const acceptedAttachmentExtensions = ['jpg','jpeg','png','webp','pdf','doc','docx','xls','xlsx','mp4'];
+  let selectedAttachments = [];
   let saving = false;
 
   const parseDueAt = () => dueAtInput.value ? new Date(dueAtInput.value.replace(' ', 'T') + (dueAtInput.value.length === 16 ? ':00' : '')) : null;
@@ -1605,6 +1665,70 @@ function initialiseTaskCreateForm() {
     if (event.target.closest('[data-checklist-up]') && item.previousElementSibling) checklistList.insertBefore(item, item.previousElementSibling);
     if (event.target.closest('[data-checklist-down]') && item.nextElementSibling) checklistList.insertBefore(item.nextElementSibling, item);
     syncChecklist();
+  });
+
+  const syncAttachmentInput = () => {
+    const transfer = new DataTransfer();
+    selectedAttachments.forEach((file) => transfer.items.add(file));
+    attachmentInput.files = transfer.files;
+  };
+  const renderAttachments = () => {
+    attachmentList.replaceChildren(...selectedAttachments.map((file, index) => {
+      const row = document.createElement('article');
+      row.className = 'task-create-file';
+      const icon = document.createElement('span');
+      icon.className = 'task-create-file__icon';
+      icon.innerHTML = `<i data-lucide="${file.type === 'video/mp4' ? 'video' : (file.type.startsWith('image/') ? 'image' : 'file-text')}" aria-hidden="true"></i>`;
+      const information = document.createElement('span');
+      information.className = 'task-create-file__information';
+      const name = document.createElement('strong');
+      name.textContent = file.name;
+      const size = document.createElement('small');
+      size.textContent = file.size >= 1048576 ? `${(file.size / 1048576).toFixed(1)} MB` : `${Math.max(0.1, file.size / 1024).toFixed(1)} KB`;
+      information.append(name, size);
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.dataset.removeCreateTaskFile = String(index);
+      remove.setAttribute('aria-label', `Remove ${file.name}`);
+      remove.innerHTML = '<i data-lucide="x" aria-hidden="true"></i>';
+      row.append(icon, information, remove);
+      return row;
+    }));
+    attachmentEmpty.hidden = selectedAttachments.length > 0;
+    window.lucide?.createIcons?.({ strokeWidth:2 });
+  };
+  const showAttachmentError = (message = '') => {
+    attachmentError.textContent = message;
+    attachmentError.hidden = !message;
+  };
+  attachmentSelect?.addEventListener('click', () => attachmentInput?.click());
+  attachmentInput?.addEventListener('change', () => {
+    showAttachmentError('');
+    const additions = [...(attachmentInput.files || [])];
+    const rejected = [];
+    let limitReached = false;
+    additions.forEach((file) => {
+      const extension = file.name.includes('.') ? file.name.split('.').pop().toLowerCase() : '';
+      if ((!acceptedAttachmentTypes.includes(file.type) && !acceptedAttachmentExtensions.includes(extension)) || file.size <= 0 || file.size > 10 * 1024 * 1024) {
+        rejected.push(file.name);
+        return;
+      }
+      const duplicate = selectedAttachments.some((selected) => selected.name === file.name && selected.size === file.size && selected.lastModified === file.lastModified);
+      if (!duplicate && selectedAttachments.length < 10) selectedAttachments.push(file);
+      else if (!duplicate) limitReached = true;
+    });
+    if (limitReached) showAttachmentError('You can attach no more than 10 files.');
+    else if (rejected.length) showAttachmentError(`${rejected.join(', ')}: use an approved file smaller than 10 MB.`);
+    syncAttachmentInput();
+    renderAttachments();
+  });
+  attachmentList?.addEventListener('click', (event) => {
+    const remove = event.target.closest('[data-remove-create-task-file]');
+    if (!remove) return;
+    selectedAttachments.splice(Number(remove.dataset.removeCreateTaskFile), 1);
+    syncAttachmentInput();
+    renderAttachments();
+    showAttachmentError('');
   });
 
   const templateData = {
@@ -1784,7 +1908,7 @@ function initialiseTaskAttachments(root = document) {
     const taskId = section.dataset.taskId;
     const csrfToken = section.dataset.csrfToken;
     let uploading = false;
-    const allowedTypes = ['image/jpeg','image/png','image/webp','application/pdf','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+    const allowedTypes = ['image/jpeg','image/png','image/webp','application/pdf','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','video/mp4'];
     const escape = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[character]));
     const showError = (message = '') => { if (!errorNode) return; errorNode.textContent = message; errorNode.hidden = !message; };
     const formatSize = (bytes) => bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.max(0.1, bytes / 1024).toFixed(1)} KB`;
@@ -1801,7 +1925,7 @@ function initialiseTaskAttachments(root = document) {
       showError('');
       try {
         for (const file of files) {
-          if (!allowedTypes.includes(file.type) || file.size > 10 * 1024 * 1024) { showError(`${file.name}: use an approved image, PDF, Word or Excel file smaller than 10 MB.`); continue; }
+          if (!allowedTypes.includes(file.type) || file.size > 10 * 1024 * 1024) { showError(`${file.name}: use an approved image, MP4 video, PDF, Word or Excel file smaller than 10 MB.`); continue; }
           const pending = document.createElement('article');
           pending.className = 'task-file is-uploading';
           pending.innerHTML = `<div class="task-file__information"><div class="task-file__name">${escape(file.name)}</div><div class="task-file__meta">Uploading…</div></div>`;
