@@ -9,6 +9,7 @@ const sections = read('apps/operations/reports-section-data.php');
 const employees = read('apps/operations/reports-employees-data.php');
 const employee = read('apps/operations/kpi-employee-data.php');
 const ordersAction = read('apps/operations/orders-board-action.php');
+const ordersReport = read('apps/operations/orders.php');
 const packingAction = read('apps/operations/packing-list-action.php');
 const errorsPage = read('apps/operations/errors.php');
 
@@ -25,6 +26,8 @@ assert.match(business, /kpi_paid_revenue_condition/, 'Business Health must use t
 assert.match(sections, /kpi_paid_revenue_condition/, 'Orders detail must use the shared paid-revenue definition');
 assert.match(reporting, /payment_status\s*=\s*'paid'/, 'revenue must mean paid orders');
 assert.match(reporting, /refunded/, 'revenue must exclude refunded orders');
+assert.match(ordersReport, /kpi_paid_revenue_condition/, 'the Orders report must share the Business Health revenue definition');
+assert.match(ordersReport, /status IN \('completed','packed','verified'\)/, 'the Orders report must share the completed-order definition');
 
 for (const source of [employees, employee]) {
   assert.match(source, /assigned_packer_id/, 'packer credit must use the authoritative Packed By assignment');

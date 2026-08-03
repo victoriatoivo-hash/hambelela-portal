@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/operations.php';
+require_once __DIR__ . '/kpi-reporting.php';
 require_once BASE_PATH . '/shared/woocommerce.php';
 
 require_login();
@@ -1360,15 +1361,16 @@ if ($ready && (string) ($_GET['inventory_ajax'] ?? '') === '1') {
 if ($ready) {
     $params = [];
     $where = cor_filtered_where($filters, $params);
+    $paidRevenueCondition = kpi_paid_revenue_condition('o');
     $summaryRow = cor_query_one(
         "SELECT COUNT(*) AS total_orders,
-                SUM(CASE WHEN COALESCE(payment_status, '') <> 'refunded' AND COALESCE(status, '') NOT IN ('cancelled','canceled','failed') THEN 1 ELSE 0 END) AS revenue_orders,
-                COALESCE(SUM(CASE WHEN COALESCE(payment_status, '') <> 'refunded' AND COALESCE(status, '') NOT IN ('cancelled','canceled','failed') THEN COALESCE(total_amount, 0) ELSE 0 END), 0) AS total_revenue,
-                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed,
+                COUNT(DISTINCT CASE WHEN {$paidRevenueCondition} THEN o.id END) AS revenue_orders,
+                COALESCE(SUM(CASE WHEN {$paidRevenueCondition} THEN COALESCE(total_amount, 0) ELSE 0 END), 0) AS total_revenue,
+                COUNT(DISTINCT CASE WHEN status IN ('completed','packed','verified') THEN o.id END) AS completed,
                 SUM(CASE WHEN status IN ('in_progress','packed','verified','ready_for_collection','ready_for_courier','ready_for_delivery') THEN 1 ELSE 0 END) AS processing,
                 SUM(CASE WHEN status IN ('new_order','assigned') THEN 1 ELSE 0 END) AS pending,
-                COALESCE(SUM(CASE WHEN COALESCE(payment_status, '') <> 'refunded' AND COALESCE(status, '') NOT IN ('cancelled','canceled','failed') THEN COALESCE(tax_total, 0) + COALESCE(shipping_tax_total, 0) ELSE 0 END), 0) AS tax_collected,
-                COALESCE(SUM(CASE WHEN COALESCE(payment_status, '') <> 'refunded' AND COALESCE(status, '') NOT IN ('cancelled','canceled','failed') THEN COALESCE(discount_total, 0) ELSE 0 END), 0) AS discounts
+                COALESCE(SUM(CASE WHEN {$paidRevenueCondition} THEN COALESCE(tax_total, 0) + COALESCE(shipping_tax_total, 0) ELSE 0 END), 0) AS tax_collected,
+                COALESCE(SUM(CASE WHEN {$paidRevenueCondition} THEN COALESCE(discount_total, 0) ELSE 0 END), 0) AS discounts
          FROM ops_orders o
          WHERE {$where}",
         $params
