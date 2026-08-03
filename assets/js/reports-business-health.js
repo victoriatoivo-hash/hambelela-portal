@@ -17,6 +17,21 @@
   let packingMode = 'raw';
 
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character]));
+  async function readKpiJson(response) {
+    const raw = await response.text();
+    if (!raw.trim()) throw new Error(`The KPI server returned an empty response (${response.status}).`);
+    if (!(response.headers.get('content-type') || '').toLowerCase().includes('application/json')) {
+      console.error('KPI response was not JSON:', raw.slice(0, 500));
+      throw new Error('The KPI server returned an invalid response.');
+    }
+    let data;
+    try { data = JSON.parse(raw); } catch (error) {
+      console.error('KPI response could not be parsed:', raw.slice(0, 500), error);
+      throw new Error('The KPI server returned incomplete data.');
+    }
+    if (!response.ok || data.ok !== true) throw new Error(data.message || `KPI request failed (${response.status}).`);
+    return data;
+  }
   const display = (metric) => {
     if (!metric || metric.value === null) return '<span class="kpi-unmeasured" title="Not enough measured records in this period">—</span>';
     if (metric.format === 'currency') return `N$${Number(metric.value).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
@@ -100,14 +115,14 @@
     if (refresh) params.set('refresh', String(Date.now()));
     try {
       const response = await fetch(`reports-data.php?${params}`, { headers: { Accept: 'application/json' } });
-      const data = await response.json();
-      if (!response.ok || !data.ok) throw new Error(data.message || 'Business Health could not be loaded.');
+      const data = await readKpiJson(response);
       latest = data;
       q('[data-kpi-caption]').textContent = `${data.period.from} to ${data.period.to}`;
       q('[data-kpi-adoption]').textContent = `Averages calculated from ${new Date(`${data.period.adoption_date}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} (system adoption date).`;
       q('[data-kpi-adoption]').hidden = !data.period.show_adoption_banner;
       renderCards(data.cards); renderScores(data.scores, data.scores_disabled ? data.scores_message : ''); renderAttention(data.attention); renderTeam(data.team); renderCharts(data);
     } catch (error) {
+      root.querySelectorAll('.is-loading').forEach((node) => node.classList.remove('is-loading'));
       q('[data-kpi-error]').textContent = error.message;
       q('[data-kpi-error]').hidden = false;
     }

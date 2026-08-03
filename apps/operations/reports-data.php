@@ -9,9 +9,7 @@ header('Content-Type: application/json; charset=utf-8');
 
 function kpi_json(array $payload, int $status = 200): void
 {
-    http_response_code($status);
-    echo json_encode($payload, JSON_UNESCAPED_SLASHES);
-    exit;
+    kpi_send_json($payload, $status);
 }
 
 function kpi_scalar_row(string $sql, array $params = []): array

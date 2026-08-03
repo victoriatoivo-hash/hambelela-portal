@@ -35,8 +35,8 @@ try {
         [$fromSql,$toSql,$fromSql,$toSql,$fromSql,$toSql,$fromSql,$toSql]
     );
     $spark = ops_rows("SELECT assigned_employee_id employee_id, DATE(date_completed) day, COALESCE(SUM(workload_points),0) points FROM ops_packing_tasks WHERE date_completed>=DATE_SUB(CURDATE(),INTERVAL 13 DAY) AND deleted_at IS NULL GROUP BY assigned_employee_id,DATE(date_completed) ORDER BY day");
-    echo json_encode(['ok'=>true,'period'=>kpi_period_response($resolvedPeriod,$adoption,$effective),'employees'=>$employees,'spark'=>$spark,'scores_disabled'=>true,'last_refreshed_at'=>(new DateTimeImmutable('now',$zone))->format(DATE_ATOM)], JSON_UNESCAPED_SLASHES);
+    kpi_send_json(['ok'=>true,'period'=>kpi_period_response($resolvedPeriod,$adoption,$effective),'employees'=>$employees,'spark'=>$spark,'scores_disabled'=>true,'last_refreshed_at'=>(new DateTimeImmutable('now',$zone))->format(DATE_ATOM)]);
 } catch (Throwable $error) {
     error_log(date(DATE_ATOM).' employee index: '.$error->getMessage().PHP_EOL,3,BASE_PATH.'/logs/kpi_errors.log');
-    http_response_code(500); echo json_encode(['ok'=>false,'message'=>'Employee performance is temporarily unavailable.']);
+    kpi_send_json(['ok'=>false,'success'=>false,'data'=>null,'message'=>'Employee performance is temporarily unavailable.','error_code'=>'KPI_EMPLOYEE_INDEX_FAILED'],500);
 }

@@ -223,3 +223,26 @@ function kpi_business_minutes(DateTimeImmutable $start, DateTimeImmutable $end, 
     }
     return (int) floor($seconds / 60);
 }
+
+/** Encode KPI payloads without allowing invalid database text to produce an empty response. */
+function kpi_encode_json(array $payload): string
+{
+    return json_encode($payload, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE | JSON_UNESCAPED_SLASHES);
+}
+
+/** Send one complete JSON response for both successful and failed KPI requests. */
+function kpi_send_json(array $payload, int $status = 200): void
+{
+    header('Content-Type: application/json; charset=utf-8');
+    http_response_code($status);
+    if (!array_key_exists('ok', $payload)) $payload['ok'] = $status >= 200 && $status < 300;
+    if (!array_key_exists('success', $payload)) $payload['success'] = (bool) $payload['ok'];
+    try {
+        echo kpi_encode_json($payload);
+    } catch (Throwable $error) {
+        error_log(date(DATE_ATOM).' KPI JSON encoding failed: '.$error->getMessage().PHP_EOL,3,BASE_PATH.'/logs/kpi_errors.log');
+        http_response_code(500);
+        echo '{"ok":false,"success":false,"data":null,"message":"KPI data could not be loaded.","error_code":"KPI_JSON_ENCODING_FAILED"}';
+    }
+    exit;
+}
