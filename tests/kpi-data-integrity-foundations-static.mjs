@@ -56,6 +56,8 @@ assert.match(sections, /Completed late/, 'task reports must distinguish complete
 assert.match(sections, /Open overdue/, 'task reports must distinguish currently overdue work');
 assert.match(sections, /Sent late/, 'waybill reports must distinguish late-sent work');
 assert.match(sections, /Currently overdue/, 'waybill reports must distinguish currently overdue work');
+assert.match(reporting, /function kpi_business_minutes/, 'business-hours duration must use one shared calendar calculation');
+assert.match(sections, /Median business-hours handling time/, 'waybill reports must expose business-hours handling separately from elapsed time');
 assert.match(sections, /Portal active time/, 'session-derived time must be labelled as portal active time');
 assert.match(reporting, /kpi_merge_presence_rows/, 'attendance must merge overlapping portal-presence sessions');
 assert.match(sections, /kpi_merge_presence_rows/, 'team attendance must use merged presence intervals');
