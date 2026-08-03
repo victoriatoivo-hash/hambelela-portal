@@ -1,6 +1,7 @@
 <?php
-
 declare(strict_types=1);
+
+require_once __DIR__ . '/kpi-event-reporting.php';
 
 /**
  * Resolve one reporting period for every KPI endpoint.
