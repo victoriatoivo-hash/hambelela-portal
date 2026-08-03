@@ -20,6 +20,13 @@ assert.match(page,/Start Meeting Mode/,'Performance Reports must expose Meeting 
 assert.match(js,/requestFullscreen/,'Meeting Mode must support fullscreen presentation');
 assert.match(page,/Hide sensitive information/,'Meeting Mode must expose sensitive-information controls');
 assert.match(js,/reports-performance-reports-data\.php/,'portal and exports must use the same report service');
-assert.match(js,/action=export_csv/,'underlying report data must be exportable');
+assert.match(js,/action=export_bundle/,'underlying report data must be exportable as a multi-file bundle');
+assert.match(api,/ZipArchive/,'evidence export must provide separate files in one archive');
+for(const evidence of ['orders','packing','tasks','website','waybills','errors'])assert.match(api,new RegExp(`'${evidence}'\\s*=>`),`API must expose ${evidence} source evidence`);
+assert.match(api,/\$charts\s*=/,'report API must return chart-ready role comparisons');
+assert.match(js,/performance-observation/,'meeting observations must be editable');
+assert.match(js,/localStorage\.setItem/,'meeting observation edits must persist locally');
+assert.match(js,/showEvidence/,'report metrics must open matching source evidence');
+assert.match(js,/performance-chart-table/,'charts must include a matching evidence table');
 assert.match(js,/window\.print\(\)/,'print/PDF workflow must be available');
 console.log('KPI Performance Reports checks passed.');
