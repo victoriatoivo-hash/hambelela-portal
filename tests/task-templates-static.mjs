@@ -14,7 +14,7 @@ assert.match(page, /name="source_template_id"/);
 assert.match(page, /name="template_attachment_ids"/);
 assert.match(page, /name="task_attachments\[\]"/);
 assert.match(page, /checklist_copy_template_attachments_to_task/);
-assert.match(page, /checklist_store_new_task_uploads/);
+assert.match(page, /checklist_store_attachment\(\$createdTaskId, \$createAttachmentFile/);
 assert.match(page, /deadline, status,[\s\S]*'new'/, 'Created tasks must continue to begin as New.');
 assert.match(backend, /user_has_role\('owner_admin'\)/, 'Template endpoints must require the owner role.');
 assert.match(backend, /hash_equals\(\$csrfToken, \$submitted\)/, 'Template endpoints must validate CSRF.');

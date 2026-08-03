@@ -12,7 +12,7 @@ assert.ok((page.match(/checklist_require_progress_note\(/g) || []).length >= 3, 
 assert.match(page, /CREATE TABLE IF NOT EXISTS ops_checklist_attachments/);
 assert.match(page, /task_attachment_upload/);
 assert.match(page, /task_attachment_remove/);
-assert.match(page, /multiple hidden accept="\.jpg,\.jpeg,\.png,\.webp,\.pdf,\.doc,\.docx,\.xls,\.xlsx"/);
+assert.match(page, /multiple hidden accept="\.jpg,\.jpeg,\.png,\.webp,\.pdf,\.doc,\.docx,\.xls,\.xlsx,\.mp4"/);
 assert.match(page, /10 \* 1024 \* 1024/);
 assert.match(page, /maximum of 10 attachments/);
 assert.match(page, /hash_equals\(\$taskAttachmentCsrf/);
