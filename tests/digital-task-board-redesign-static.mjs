@@ -26,7 +26,9 @@ assert.match(page, /completion_note_required = 1, completion_evidence_required =
 assert.match(page, /\$priorities = \['normal' => 'Normal', 'important' => 'Important', 'urgent' => 'Urgent'\]/);
 assert.match(page, /data-task-checklist-builder/);
 assert.match(page, /data-task-repeat-toggle/);
-assert.match(page, /data-task-template-trigger/);
+assert.match(page, /data-template-load-open/);
+assert.match(page, /data-template-save/);
+assert.match(page, /data-template-manage/);
 assert.match(page, /class="task-create-form__footer"/);
 assert.match(page, /Assigning…/);
 assert.match(css, /\.task-form-grid__row--assignment/);

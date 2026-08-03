@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/operations.php';
+require_once __DIR__ . '/task-templates.php';
 
 function checklist_kpi_status_event(int $taskId, ?string $oldStatus, string $newStatus, ?int $actorId): void
 {
@@ -495,12 +496,14 @@ function checklist_seed_recurring_tasks(): void
 
 if ($ready) {
     checklist_bootstrap_schema();
+    checklist_template_bootstrap_schema();
     checklist_seed_recurring_tasks();
 }
 
 if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $action = ops_post_string('action', 40);
+        checklist_handle_template_action($action, $canManage, $taskAttachmentCsrf, (int) ($currentEmployeeId ?: 0));
         if (in_array($action, ['task_attachment_upload', 'task_attachment_remove'], true)) {
             header('Content-Type: application/json; charset=utf-8');
             $submittedToken = (string) ($_POST['csrf_token'] ?? '');
@@ -820,6 +823,10 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('Choose a valid task recurrence.');
             }
             $templateId = null;
+            $sourceTemplateId = (int) ($_POST['source_template_id'] ?? 0);
+            if ($sourceTemplateId > 0 && !checklist_template_row($sourceTemplateId)) {
+                throw new RuntimeException('The selected task template is no longer available.');
+            }
             $taskDb = db();
             $taskDb->beginTransaction();
             try {
@@ -836,8 +843,8 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
               }
             $stmt = $taskDb->prepare(
                 "INSERT INTO ops_checklist_tasks
-                 (checklist_type, task_name, priority, assigned_employee_id, date_assigned, deadline, status, notes, instructions, checklist_items, completion_note_required, completion_evidence_required, performance_scored, recurrence_key, recurring_rule, recurring_template_id, employee_visible, created_by)
-                 VALUES (?, ?, ?, ?, NOW(), ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                 (checklist_type, task_name, priority, assigned_employee_id, date_assigned, deadline, status, notes, instructions, checklist_items, completion_note_required, completion_evidence_required, performance_scored, recurrence_key, recurring_rule, recurring_template_id, source_template_id, employee_visible, created_by)
+                 VALUES (?, ?, ?, ?, NOW(), ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             );
             $stmt->execute([
                 'opening',
@@ -854,10 +861,16 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $templateId ? 'template-' . $templateId . '-' . date('Y-m-d') . '-' . max(0, $assignedId) : null,
                 $recurringRule ?: null,
                 $templateId,
+                $sourceTemplateId > 0 ? $sourceTemplateId : null,
                 $employeeVisible,
                 $currentEmployeeId,
             ]);
             $createdTaskId = (int) db()->lastInsertId();
+            $selectedTemplateAttachments = json_decode((string) ($_POST['template_attachment_ids'] ?? '[]'), true);
+            if ($sourceTemplateId > 0 && is_array($selectedTemplateAttachments)) {
+                checklist_copy_template_attachments_to_task($sourceTemplateId, $selectedTemplateAttachments, $createdTaskId, (int) $currentEmployeeId);
+            }
+            checklist_store_new_task_uploads($createdTaskId, (int) $currentEmployeeId);
             ops_activity_log('task_created', 'checklist_task', $createdTaskId, ['assigned_employee_id' => $assignedId]);
             if ($assignedId > 0 && !notifications_notify_task_assigned($createdTaskId, $assignedId, $taskName)) {
                 throw new RuntimeException('The task assignment notification could not be saved.');
@@ -1263,16 +1276,17 @@ include BASE_PATH . '/shared/sidebar.php';
             <header class="create-task-header task-create-heading">
                 <button class="create-task-close" type="button" data-task-create-close aria-label="Close create task"><i data-lucide="x"></i></button>
                 <div class="task-create-heading__copy"><span class="create-task-type-badge">Manual task</span><h2 class="create-task-title">Create task</h2></div>
-                <button type="button" class="task-template-trigger" data-task-template-trigger>Use template</button>
-                <div class="task-template-menu" data-task-template-menu hidden>
-                    <label for="task-template-search">Search templates</label><input id="task-template-search" type="search" placeholder="Search templates" data-task-template-search>
-                    <button type="button" data-task-template="cleaning">Cleaning</button><button type="button" data-task-template="opening">Opening routine</button><button type="button" data-task-template="closing">Closing routine</button><button type="button" data-task-template="courier">Courier preparation</button><button type="button" data-task-template="stock">Stock update</button>
-                </div>
             </header>
             <div class="create-task-body task-create-shell">
-                <form class="task-create-form checklist-create-form" method="post" data-task-create-form novalidate>
+                <form class="task-create-form checklist-create-form" method="post" enctype="multipart/form-data" data-task-create-form novalidate>
                     <input type="hidden" name="action" value="create_task">
+                    <input type="hidden" name="source_template_id" value="" data-source-template-id>
+                    <input type="hidden" name="template_attachment_ids" value="[]" data-template-attachment-ids>
                     <div class="task-create-form__body">
+                      <section class="task-template-toolbar" aria-label="Task Templates">
+                        <div class="task-template-toolbar__heading"><span class="task-template-toolbar__label">Task Templates</span><span class="task-template-toolbar__loaded" data-loaded-template-label hidden></span></div>
+                        <div class="task-template-toolbar__actions"><button type="button" class="task-template-button" data-template-load-open>Load Template</button><button type="button" class="task-template-button" data-template-save>Save as Template</button><button type="button" class="task-template-button" data-template-manage>Manage Templates</button></div>
+                      </section>
                       <section class="task-form-section"><div class="task-form-grid">
                         <label class="task-form-field task-form-field--full"><span class="task-form-label">Task name <span aria-hidden="true">*</span></span><input id="create-task-name" name="task_name" maxlength="120" required placeholder="What needs to be done?" autocomplete="off"></label>
                         <div class="task-form-grid__row task-form-grid__row--assignment">
@@ -1295,9 +1309,14 @@ include BASE_PATH . '/shared/sidebar.php';
                             </div>
                         </section>
                       </section>
+                      <section class="task-form-section task-template-attachments"><span class="task-form-label">Owner attachments</span><input type="file" name="task_attachments[]" data-task-create-attachments multiple accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx"><small>Optional. Up to 10 files, 10 MB each. Template files can be removed before the task is created.</small><div class="task-template-attachment-list" data-loaded-template-attachments></div></section>
                     </div>
                     <footer class="task-create-form__footer"><button type="button" class="task-form-cancel" data-task-create-close>Cancel</button><button class="task-form-submit btn-assign-task" type="submit">Assign Task</button></footer>
                 </form>
+            </div>
+            <div class="task-template-dialog" data-task-template-dialog hidden role="dialog" aria-modal="true" aria-labelledby="task-template-dialog-title">
+              <div class="task-template-dialog__backdrop" data-template-dialog-close></div>
+              <section class="task-template-dialog__card"><header><div><span>Task Templates</span><h3 id="task-template-dialog-title" data-template-dialog-title>Load Template</h3></div><button type="button" data-template-dialog-close aria-label="Close template library">×</button></header><label class="task-template-search"><span>Search templates</span><input type="search" data-template-search placeholder="Search saved templates"></label><div class="task-template-list" data-template-list></div><p class="task-template-message" data-template-message hidden></p></section>
             </div>
         </aside>
     <?php endif; ?>
@@ -1426,6 +1445,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     </div>
                     <h2 class="task-details-title"><?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?></h2>
                 </div>
+                <?php if ($canManage): ?><button type="button" class="task-details-template-action" data-save-task-template="<?= $panelId ?>">Save as template</button><?php endif; ?>
             </header>
 
             <div class="task-details-body" id="task-details-<?= $panelId ?>">
@@ -1607,28 +1627,89 @@ function initialiseTaskCreateForm() {
     syncChecklist();
   });
 
-  const templateData = {
-    cleaning:{name:'Clean and organise the packing area', instructions:'Clean, disinfect and organise the work area, then return all equipment to its correct place.', priority:'important', items:['Organise products','Wipe and disinfect the table','Return equipment to its correct place']},
-    opening:{name:'Complete the opening routine', instructions:'Prepare the work area and confirm everything is ready before opening.', priority:'normal', items:['Open and inspect the work area','Prepare required equipment','Confirm the area is ready']},
-    closing:{name:'Complete the closing routine', instructions:'Close, clean and secure the work area for the next business day.', priority:'normal', items:['Clean the work area','Return equipment','Secure the area']},
-    courier:{name:'Prepare courier collection', instructions:'Prepare and verify all parcels required for courier collection.', priority:'important', items:['Verify parcels','Confirm labels','Move parcels to collection area']},
-    stock:{name:'Complete stock update', instructions:'Check stock quantities and record all required updates.', priority:'important', items:['Count stock','Record differences','Report low stock']}
+  const templateDialog = document.querySelector('[data-task-template-dialog]');
+  const templateList = templateDialog?.querySelector('[data-template-list]');
+  const templateMessage = templateDialog?.querySelector('[data-template-message]');
+  const templateSearch = templateDialog?.querySelector('[data-template-search]');
+  const loadedLabel = form.querySelector('[data-loaded-template-label]');
+  const sourceTemplateId = form.querySelector('[data-source-template-id]');
+  const templateAttachmentIds = form.querySelector('[data-template-attachment-ids]');
+  const loadedAttachments = form.querySelector('[data-loaded-template-attachments]');
+  const csrfToken = <?= json_encode($taskAttachmentCsrf) ?>;
+  let templateMode = 'load';
+  const templateApi = async (action, values = {}) => {
+    const body = values instanceof FormData ? values : new FormData();
+    if (!(values instanceof FormData)) Object.entries(values).forEach(([key, value]) => body.append(key, value));
+    body.set('action', action); body.set('csrf_token', csrfToken);
+    const response = await fetch(`${window.location.pathname}${window.location.search}`, {method:'POST', body, headers:{'X-Requested-With':'XMLHttpRequest'}});
+    const result = await response.json().catch(() => ({success:false,message:'The template response was invalid.'}));
+    if (!response.ok || result.success !== true) { const error = new Error(result.message || 'Unable to complete the template action.'); error.code = result.code; error.status = response.status; throw error; }
+    return result;
   };
-  document.querySelectorAll('[data-task-template]').forEach((button) => button.addEventListener('click', () => {
-    const data = templateData[button.dataset.taskTemplate]; if (!data) return;
-    const taskNameField = form.querySelector('[name="task_name"]');
-    const instructionsField = form.querySelector('[name="instructions"]');
-    const hasContent = taskNameField.value.trim() || instructionsField.value.trim() || checklistList.children.length;
-    if (hasContent && !window.confirm('Replace the information already entered with this template?')) return;
-    taskNameField.value = data.name; instructionsField.value = data.instructions;
-    checklistList.innerHTML = ''; data.items.forEach(addChecklistItem);
-    form.querySelector(`[name="priority"][value="${data.priority}"]`).checked = true;
-    document.querySelector('[data-task-template-menu]').hidden = true;
-  }));
-  const templateTrigger = document.querySelector('[data-task-template-trigger]');
-  const templateMenu = document.querySelector('[data-task-template-menu]');
-  templateTrigger?.addEventListener('click', () => { templateMenu.hidden = !templateMenu.hidden; });
-  document.querySelector('[data-task-template-search]')?.addEventListener('input', (event) => document.querySelectorAll('[data-task-template]').forEach((button) => { button.hidden = !button.textContent.toLowerCase().includes(event.target.value.toLowerCase()); }));
+  const formHasWork = () => !!(form.querySelector('[name="task_name"]').value.trim() || form.querySelector('[name="instructions"]').value.trim() || checklistList.children.length || form.querySelector('[name="assigned_employee_id"]').value || dueAtInput.value || form.querySelector('[data-task-create-attachments]')?.files?.length);
+  const setNativeValue = (selector, value) => { const field = form.querySelector(selector); if (!field) return; field.value = value ?? ''; field.dispatchEvent(new Event('change', {bubbles:true})); };
+  const syncLoadedAttachmentIds = () => { templateAttachmentIds.value = JSON.stringify([...loadedAttachments.querySelectorAll('[data-template-attachment-id]')].map((row) => Number(row.dataset.templateAttachmentId))); };
+  const clearLoadedTemplate = (blankForm = false) => {
+    sourceTemplateId.value = ''; templateAttachmentIds.value = '[]'; loadedAttachments.innerHTML = '';
+    loadedLabel.hidden = true; loadedLabel.textContent = '';
+    if (blankForm) { form.reset(); checklistList.innerHTML = ''; dueAtInput.value = ''; const dueDisplay = form.querySelector('[data-task-due-trigger]'); if (dueDisplay) dueDisplay.value = ''; syncChecklist(); syncRecurrence(); syncDueAt(); form.querySelectorAll('select').forEach((field) => field.dispatchEvent(new Event('change', {bubbles:true}))); }
+  };
+  const loadTemplate = async (id) => {
+    if (formHasWork() && !window.confirm('Loading this template will replace the information currently entered in the New Task form.')) return;
+    const {template} = await templateApi('task_template_get', {template_id:id});
+    clearLoadedTemplate(true);
+    setNativeValue('[name="task_name"]', template.task_name); setNativeValue('[name="instructions"]', template.instructions);
+    setNativeValue('[name="assigned_employee_id"]', template.assigned_employee_id || '');
+    const priority = form.querySelector(`[name="priority"][value="${CSS.escape(template.priority || 'normal')}"]`); if (priority) priority.checked = true;
+    checklistList.innerHTML = ''; (template.checklist_items || []).forEach(addChecklistItem);
+    repeatToggle.checked = !!template.recurring_rule; if (template.recurring_rule) recurrenceSelect.value = template.recurring_rule; syncRecurrence();
+    const urgent = form.querySelector('[data-urgent-toggle]'); if (urgent) { urgent.checked = !!template.urgent_alert_enabled; urgent.dispatchEvent(new Event('change', {bubbles:true})); }
+    form.querySelectorAll('[name="urgent_alert_recipients[]"]').forEach((input) => { input.checked = (template.urgent_recipients || []).includes(input.value); });
+    dueAtInput.value = ''; const dueDisplay = form.querySelector('[data-task-due-trigger]'); if (dueDisplay) dueDisplay.value = ''; syncDueAt();
+    sourceTemplateId.value = String(template.id); loadedLabel.hidden = false; loadedLabel.textContent = `Template loaded: ${template.template_name}`;
+    (template.attachments || []).forEach((attachment) => { const row = document.createElement('div'); row.className = 'task-template-attachment'; row.dataset.templateAttachmentId = String(attachment.id); const name = document.createElement('span'); name.textContent = attachment.name; const remove = document.createElement('button'); remove.type='button'; remove.textContent='Remove'; remove.addEventListener('click', async () => { if (templateMode === 'manage' && window.confirm(`Remove “${attachment.name}” from the reusable template? Existing tasks will not be changed.`)) { try { await templateApi('task_template_attachment_delete',{template_id:template.id,attachment_id:attachment.id}); } catch(error) { window.alert(error.message); return; } } row.remove(); syncLoadedAttachmentIds(); }); row.append(name, remove); loadedAttachments.appendChild(row); });
+    syncLoadedAttachmentIds(); templateDialog.hidden = true;
+    if (template.employee_unavailable) window.alert('The employee previously saved with this template is no longer available. Please select another employee.');
+    form.scrollIntoView({behavior:'smooth', block:'start'});
+  };
+  const renderTemplates = async () => {
+    templateList.textContent = 'Loading templates…';
+    try {
+      const {templates} = await templateApi('task_template_list', {search:templateSearch?.value || ''});
+      templateList.textContent = '';
+      if (!templates.length) { templateList.textContent = 'No task templates found.'; return; }
+      templates.forEach((template) => {
+        const row = document.createElement('article'); row.className='task-template-row'; row.dataset.templateId=template.id;
+        const content=document.createElement('div'); content.className='task-template-row__content'; const name=document.createElement('h4'); name.className='task-template-row__name'; name.textContent=template.template_name;
+        const meta=document.createElement('p'); meta.className='task-template-row__meta'; const updated = new Date(String(template.updated_at).replace(' ', 'T')); meta.textContent=`${template.assigned_name ? `Assigned to: ${template.assigned_name} · ` : ''}${template.checklist_count} checklist items · ${template.task_mode === 'recurring' ? 'Recurring' : 'Manual'} · Updated: ${Number.isNaN(updated.getTime()) ? template.updated_at : updated.toLocaleDateString('en-NA', {dateStyle:'medium'})}`;
+        const actions=document.createElement('div'); actions.className='task-template-row__actions';
+        const load=document.createElement('button'); load.type='button'; load.className='task-template-button'; load.textContent=templateMode === 'manage' ? 'Edit / Load' : 'Load'; load.addEventListener('click', () => loadTemplate(template.id).catch((error) => window.alert(error.message)));
+        actions.appendChild(load);
+        if (templateMode === 'manage') [['Rename','rename'],['Duplicate','duplicate'],['Delete','delete']].forEach(([label, action]) => { const button=document.createElement('button'); button.type='button'; button.className='task-template-row__menu'; button.textContent=label; button.addEventListener('click', async () => { try { if (action === 'rename') { const value=window.prompt('Rename template', template.template_name); if (!value) return; await templateApi('task_template_rename',{template_id:template.id,template_name:value}); } if (action === 'duplicate') { const value=window.prompt('Name for the duplicate template', `${template.template_name} Copy`); if (!value) return; await templateApi('task_template_duplicate',{template_id:template.id,template_name:value}); } if (action === 'delete') { if (!window.confirm(`Delete “${template.template_name}”?\n\nThis will delete the template only. Tasks previously created from it will not be changed.`)) return; await templateApi('task_template_delete',{template_id:template.id}); } await renderTemplates(); } catch(error) { window.alert(error.message); } }); actions.appendChild(button); });
+        content.append(name,meta); row.append(content,actions); templateList.appendChild(row);
+      });
+    } catch(error) { templateList.textContent=''; templateMessage.textContent=error.message; templateMessage.hidden=false; }
+  };
+  const openTemplateDialog = (mode) => { templateMode=mode; templateDialog.hidden=false; templateDialog.querySelector('[data-template-dialog-title]').textContent=mode==='manage'?'Manage Templates':'Load Template'; templateSearch.value=''; templateMessage.hidden=true; renderTemplates(); templateSearch.focus(); };
+  form.querySelector('[data-template-load-open]')?.addEventListener('click', () => openTemplateDialog('load'));
+  form.querySelector('[data-template-manage]')?.addEventListener('click', () => openTemplateDialog('manage'));
+  templateDialog?.querySelectorAll('[data-template-dialog-close]').forEach((button) => button.addEventListener('click', () => { templateDialog.hidden=true; }));
+  let templateSearchTimer; templateSearch?.addEventListener('input', () => { clearTimeout(templateSearchTimer); templateSearchTimer=setTimeout(renderTemplates,180); });
+  form.querySelector('[data-template-save]')?.addEventListener('click', async () => {
+    syncChecklist(); syncRecurrence();
+    const name=window.prompt('Save Task Template\n\nTemplate name *', loadedLabel.hidden ? '' : loadedLabel.textContent.replace('Template loaded: ','')); if (!name) return;
+    const data=new FormData(form); data.set('template_name',name); data.set('save_assignee',window.confirm('Save the currently selected employee in this template?')?'1':'');
+    const files=form.querySelector('[data-task-create-attachments]')?.files || []; data.set('include_attachments',files.length && window.confirm('Include the current owner attachments in this template?')?'1':'');
+    try { const result=await templateApi('task_template_save',data); loadedLabel.hidden=false; loadedLabel.textContent=`Template loaded: ${result.template.template_name}`; sourceTemplateId.value=String(result.template.id); window.alert(result.message); }
+    catch(error) { if (error.code === 'duplicate_name') { const update=sourceTemplateId.value && window.confirm('A template with this name already exists.\n\nOK: Update the currently loaded template.\nCancel: Save as a copy.'); if (update) { data.set('template_id',sourceTemplateId.value); try { const result=await templateApi('task_template_save',data); window.alert(result.message); } catch(nextError){window.alert(nextError.message);} } else { const copy=window.prompt('Save as Copy', `${name} Copy`); if(copy){data.set('template_name',copy); try{const result=await templateApi('task_template_save',data); window.alert(result.message);}catch(nextError){window.alert(nextError.message);}} } } else window.alert(error.message); }
+  });
+  loadedLabel?.addEventListener('click', () => { if (window.confirm('Clear the loaded template and reset the New Task form?')) clearLoadedTemplate(true); });
+  document.addEventListener('click', async (event) => {
+    const button=event.target.closest('[data-save-task-template]'); if (!button) return;
+    const name=window.prompt('Save Task Template\n\nTemplate name *'); if (!name) return;
+    const include=window.confirm('Include owner-uploaded attachments from this task?\n\nEmployee completion attachments are never included.');
+    try { const result=await templateApi('task_template_from_task',{task_id:button.dataset.saveTaskTemplate,template_name:name,save_assignee:'1',include_attachments:include?'1':''}); window.alert(result.message); } catch(error){window.alert(error.message);}
+  });
 
   form.addEventListener('submit', (event) => {
     syncDueAt(); syncChecklist(); syncRecurrence();
