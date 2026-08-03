@@ -64,13 +64,34 @@ if ($ready && $tab === 'settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $workingDays = ops_post_string('working_days', 30);
             $shiftStart = ops_post_string('shift_start', 5);
             $shiftEnd = ops_post_string('shift_end', 5);
+            $saturdayStart = ops_post_string('saturday_shift_start', 5);
+            $saturdayEnd = ops_post_string('saturday_shift_end', 5);
             $grace = max(0, (int) ($_POST['late_grace_minutes'] ?? 10));
             if ($employeeId <= 0) throw new RuntimeException('Choose an employee.');
             if ($hireDate !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $hireDate)) throw new RuntimeException('Enter a valid hire date.');
             if ($workingDays !== '' && !preg_match('/^[1-7](,[1-7])*$/', $workingDays)) throw new RuntimeException('Working days must use weekday numbers 1 to 7, separated by commas.');
             if (($shiftStart !== '' && !preg_match('/^\d{2}:\d{2}$/', $shiftStart)) || ($shiftEnd !== '' && !preg_match('/^\d{2}:\d{2}$/', $shiftEnd))) throw new RuntimeException('Enter valid shift times.');
-            db()->prepare('UPDATE ops_employees SET hire_date = ?, working_days = ?, shift_start = ?, shift_end = ?, late_grace_minutes = ? WHERE id = ?')->execute([$hireDate ?: null, $workingDays ?: null, $shiftStart ?: null, $shiftEnd ?: null, $grace, $employeeId]);
-            ops_activity_log('kpi_employee_schedule_updated', 'employee', $employeeId, ['working_days' => $workingDays, 'shift_start' => $shiftStart, 'shift_end' => $shiftEnd, 'late_grace_minutes' => $grace, 'changed_by' => current_user()['name'] ?? 'Unknown']);
+            if (($saturdayStart !== '' && !preg_match('/^\d{2}:\d{2}$/', $saturdayStart)) || ($saturdayEnd !== '' && !preg_match('/^\d{2}:\d{2}$/', $saturdayEnd))) throw new RuntimeException('Enter valid Saturday shift times.');
+            if (($shiftStart === '') !== ($shiftEnd === '') || ($saturdayStart === '') !== ($saturdayEnd === '')) throw new RuntimeException('Enter both the start and end for each configured shift.');
+            $workingDayNumbers = $workingDays === '' ? [] : array_map('intval', explode(',', $workingDays));
+            $database = db();
+            $database->beginTransaction();
+            try {
+                $database->prepare('UPDATE ops_employees SET hire_date = ?, working_days = ?, shift_start = ?, shift_end = ?, late_grace_minutes = ? WHERE id = ?')->execute([$hireDate ?: null, $workingDays ?: null, $shiftStart ?: null, $shiftEnd ?: null, $grace, $employeeId]);
+                $database->prepare('DELETE FROM kpi_employee_schedules WHERE employee_id = ?')->execute([$employeeId]);
+                $scheduleInsert = $database->prepare('INSERT INTO kpi_employee_schedules (employee_id, weekday, is_working, shift_start, shift_end) VALUES (?, ?, 1, ?, ?)');
+                foreach ($workingDayNumbers as $weekday) {
+                    $dayStart = $weekday === 6 ? $saturdayStart : $shiftStart;
+                    $dayEnd = $weekday === 6 ? $saturdayEnd : $shiftEnd;
+                    if ($dayStart === '' || $dayEnd === '') throw new RuntimeException($weekday === 6 ? 'Enter the Saturday shift times.' : 'Enter the weekday shift times.');
+                    $scheduleInsert->execute([$employeeId, $weekday, $dayStart, $dayEnd]);
+                }
+                $database->commit();
+            } catch (Throwable $scheduleError) {
+                if ($database->inTransaction()) $database->rollBack();
+                throw $scheduleError;
+            }
+            ops_activity_log('kpi_employee_schedule_updated', 'employee', $employeeId, ['working_days' => $workingDays, 'weekday_shift' => [$shiftStart, $shiftEnd], 'saturday_shift' => [$saturdayStart, $saturdayEnd], 'late_grace_minutes' => $grace, 'changed_by' => current_user()['name'] ?? 'Unknown']);
             $message = 'Employee schedule saved.';
         } elseif ($action === 'save_holiday') {
             $holidayDate = ops_post_string('holiday_date', 10);
@@ -94,12 +115,14 @@ if ($ready && $tab === 'settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $settings = [];
 $employees = [];
+$employeeSchedules = [];
 $holidays = [];
 $recentEvents = [];
 $recentSessions = [];
 if ($ready && $tab === 'settings') {
     foreach (ops_rows('SELECT setting_key, setting_value FROM kpi_settings') as $row) $settings[(string) $row['setting_key']] = (string) $row['setting_value'];
     $employees = ops_rows("SELECT e.id, e.full_name, e.hire_date, e.working_days, e.shift_start, e.shift_end, e.late_grace_minutes, r.name AS role_name FROM ops_employees e JOIN ops_roles r ON r.id = e.role_id WHERE e.status = 'active' ORDER BY e.full_name");
+    foreach (ops_rows('SELECT employee_id, weekday, shift_start, shift_end FROM kpi_employee_schedules WHERE is_working = 1 ORDER BY employee_id, weekday') as $scheduleRow) $employeeSchedules[(int) $scheduleRow['employee_id']][(int) $scheduleRow['weekday']] = $scheduleRow;
     $holidays = ops_rows('SELECT holiday_date, COALESCE(NULLIF(name, \'\'), holiday_name) AS holiday_name FROM kpi_holidays WHERE active = 1 ORDER BY holiday_date');
     $recentEvents = ops_rows('SELECT se.module, se.record_id, se.old_status, se.new_status, se.changed_at, e.full_name FROM kpi_status_events se LEFT JOIN ops_employees e ON e.id = se.changed_by ORDER BY se.id DESC LIMIT 30');
     $recentSessions = ops_rows('SELECT s.login_at, s.last_seen_at, s.logout_at, e.full_name FROM kpi_sessions s LEFT JOIN ops_employees e ON e.id = s.user_id ORDER BY s.id DESC LIMIT 20');
@@ -178,8 +201,8 @@ include BASE_PATH . '/shared/sidebar.php';
 
         <section class="panel">
             <div class="section-row"><div><p class="eyebrow">Fair attendance</p><h2>Employee schedules</h2></div></div>
-            <div class="table-scroll"><table class="data-table"><thead><tr><th>Employee</th><th>Role</th><th>Hire date</th><th>Working days</th><th>Shift</th><th>Grace</th><th>Action</th></tr></thead><tbody>
-            <?php foreach ($employees as $employee): $scheduleFormId = 'employee-schedule-' . (int) $employee['id']; ?><tr><td><strong><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></strong></td><td><?= htmlspecialchars((string) $employee['role_name'], ENT_QUOTES, 'UTF-8') ?></td><td><input form="<?= $scheduleFormId ?>" type="date" name="hire_date" value="<?= htmlspecialchars((string) ($employee['hire_date'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"></td><td><input form="<?= $scheduleFormId ?>" name="working_days" value="<?= htmlspecialchars((string) ($employee['working_days'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" placeholder="1,2,3,4,5"></td><td><input form="<?= $scheduleFormId ?>" type="time" name="shift_start" value="<?= htmlspecialchars(substr((string) ($employee['shift_start'] ?? ''), 0, 5), ENT_QUOTES, 'UTF-8') ?>"> <input form="<?= $scheduleFormId ?>" type="time" name="shift_end" value="<?= htmlspecialchars(substr((string) ($employee['shift_end'] ?? ''), 0, 5), ENT_QUOTES, 'UTF-8') ?>"></td><td><input form="<?= $scheduleFormId ?>" type="number" min="0" name="late_grace_minutes" value="<?= (int) ($employee['late_grace_minutes'] ?? 10) ?>"></td><td><form id="<?= $scheduleFormId ?>" method="post"><input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>"><input type="hidden" name="kpi_action" value="save_employee_schedule"><input type="hidden" name="employee_id" value="<?= (int) $employee['id'] ?>"><button class="btn-secondary" type="submit">Save</button></form></td></tr><?php endforeach; ?>
+            <div class="table-scroll"><table class="data-table"><thead><tr><th>Employee</th><th>Role</th><th>Hire date</th><th>Working days</th><th>Mon–Fri shift</th><th>Saturday shift</th><th>Grace</th><th>Action</th></tr></thead><tbody>
+            <?php foreach ($employees as $employee): $scheduleFormId = 'employee-schedule-' . (int) $employee['id']; $savedSchedule=$employeeSchedules[(int)$employee['id']]??[]; $weekdaySchedule=$savedSchedule[1]??null; $saturdaySchedule=$savedSchedule[6]??null; ?><tr><td><strong><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></strong></td><td><?= htmlspecialchars((string) $employee['role_name'], ENT_QUOTES, 'UTF-8') ?></td><td><input form="<?= $scheduleFormId ?>" type="date" name="hire_date" value="<?= htmlspecialchars((string) ($employee['hire_date'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"></td><td><input form="<?= $scheduleFormId ?>" name="working_days" value="<?= htmlspecialchars((string) ($employee['working_days'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" placeholder="1,2,3,4,5,6"></td><td><input form="<?= $scheduleFormId ?>" type="time" name="shift_start" value="<?= htmlspecialchars(substr((string) ($weekdaySchedule['shift_start']??$employee['shift_start'] ?? ''), 0, 5), ENT_QUOTES, 'UTF-8') ?>"> <input form="<?= $scheduleFormId ?>" type="time" name="shift_end" value="<?= htmlspecialchars(substr((string) ($weekdaySchedule['shift_end']??$employee['shift_end'] ?? ''), 0, 5), ENT_QUOTES, 'UTF-8') ?>"></td><td><input form="<?= $scheduleFormId ?>" type="time" name="saturday_shift_start" value="<?= htmlspecialchars(substr((string)($saturdaySchedule['shift_start']??''),0,5),ENT_QUOTES,'UTF-8') ?>"> <input form="<?= $scheduleFormId ?>" type="time" name="saturday_shift_end" value="<?= htmlspecialchars(substr((string)($saturdaySchedule['shift_end']??''),0,5),ENT_QUOTES,'UTF-8') ?>"></td><td><input form="<?= $scheduleFormId ?>" type="number" min="0" name="late_grace_minutes" value="<?= (int) ($employee['late_grace_minutes'] ?? 10) ?>"></td><td><form id="<?= $scheduleFormId ?>" method="post"><input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>"><input type="hidden" name="kpi_action" value="save_employee_schedule"><input type="hidden" name="employee_id" value="<?= (int) $employee['id'] ?>"><button class="btn-secondary" type="submit">Save</button></form></td></tr><?php endforeach; ?>
             </tbody></table></div>
         </section>
 

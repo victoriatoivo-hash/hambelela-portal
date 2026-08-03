@@ -12,6 +12,7 @@ const ordersAction = read('apps/operations/orders-board-action.php');
 const ordersReport = read('apps/operations/orders.php');
 const packingAction = read('apps/operations/packing-list-action.php');
 const errorsPage = read('apps/operations/errors.php');
+const reportsPage = read('apps/operations/reports.php');
 
 for (const period of ['today', 'yesterday', 'this_week', 'last_week', 'this_month', 'last_month', 'custom']) {
   assert.match(reporting, new RegExp(`'${period}'`), `central resolver must support ${period}`);
@@ -61,6 +62,10 @@ assert.match(sections, /kpi_merge_presence_rows/, 'team attendance must use merg
 assert.match(employee, /kpi_merge_presence_rows/, 'employee attendance must use merged presence intervals');
 assert.doesNotMatch(sections, /\['label'=>'Total hours'/, 'session-derived time must not be labelled as attendance hours');
 assert.match(employee, /scheduleConfigured/, 'lateness must require an employee schedule');
+assert.match(employee, /kpi_employee_schedules/, 'attendance must load per-weekday employee schedules');
+assert.match(employee, /\$employeeSchedule\[\$weekday\]/, 'lateness must resolve the schedule for the actual weekday');
+assert.match(reportsPage, /saturday_shift_start/, 'KPI Settings must support a distinct Saturday shift');
+assert.match(reportsPage, /weekday === 6/, 'Saturday must use its own configured shift');
 assert.match(sections, /ops_cash_book_entries/, 'Bookkeeping KPI evidence must use the live ledger entries table');
 assert.match(sections, /Missing cash-ups/, 'Bookkeeping must report missing cash-ups instead of treating zero reconciliations as success');
 assert.match(sections, /ops_hr_rows/, 'leave reporting must use the authoritative HR data source');
