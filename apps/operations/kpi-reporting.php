@@ -252,3 +252,47 @@ function kpi_send_json(array $payload, int $status = 200): void
     }
     exit;
 }
+
+/**
+ * Calculate a disclosed role score without converting missing evidence to zero.
+ * Measured components are renormalised and the result remains provisional.
+ */
+function kpi_calculate_role_score(array $components): array
+{
+    $measuredWeight = 0.0;
+    $weightedPoints = 0.0;
+    $rows = [];
+    foreach ($components as $component) {
+        $result = isset($component['result']) && is_numeric($component['result'])
+            ? max(0.0, min(100.0, (float) $component['result']))
+            : null;
+        $weight = max(0.0, (float) ($component['weight'] ?? 0));
+        $contribution = $result === null ? null : round($result * $weight / 100, 2);
+        if ($result !== null) {
+            $measuredWeight += $weight;
+            $weightedPoints += (float) $contribution;
+        }
+        $rows[] = [
+            'key' => (string) ($component['key'] ?? ''),
+            'label' => (string) ($component['label'] ?? ''),
+            'result' => $result,
+            'weight' => $weight,
+            'contribution' => $contribution,
+            'status' => $result === null ? 'not_measured' : 'measured',
+            'evidence' => (string) ($component['evidence'] ?? ''),
+        ];
+    }
+    $score = $measuredWeight > 0 ? round($weightedPoints * 100 / $measuredWeight, 1) : null;
+    $band = $score === null ? 'Not Measured' : ($score >= 90 ? 'Gold' : ($score >= 85 ? 'Silver' : ($score >= 75 ? 'Bronze' : 'No Bonus')));
+    return [
+        'score' => $score,
+        'band' => $band,
+        'measured_weight' => round($measuredWeight, 1),
+        'provisional' => $measuredWeight < 100,
+        'renormalised' => $measuredWeight > 0 && $measuredWeight < 100,
+        'message' => $measuredWeight < 100
+            ? 'Provisional score — insufficient timestamp coverage for a final performance decision. Measured components are renormalised and missing data is not scored as zero.'
+            : 'Final score based on complete measured components.',
+        'components' => $rows,
+    ];
+}

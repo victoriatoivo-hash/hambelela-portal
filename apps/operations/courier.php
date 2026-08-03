@@ -1178,6 +1178,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach ($rows as $row) {
                 try {
                     db()->prepare('INSERT INTO kpi_status_events (module, record_id, old_status, new_status, changed_by, changed_at) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())')->execute(['waybill', (int) $row['id'], (string) ($row['status'] ?? 'pending'), 'sent', $currentEmployeeId]);
+                    ops_kpi_record_event('courier_waybills', 'waybill', (int) $row['id'], 'sent', (string) ($row['status'] ?? 'pending'), 'sent', $currentEmployeeId, ['due_at' => $row['due_by'] ?? null, 'completed_at' => $sentAt, 'related_reference' => $row['waybill_reference'] ?? null]);
                 } catch (Throwable $kpiError) {
                     error_log(date(DATE_ATOM) . ' waybill status: ' . $kpiError->getMessage() . PHP_EOL, 3, BASE_PATH . '/logs/kpi_errors.log');
                 }

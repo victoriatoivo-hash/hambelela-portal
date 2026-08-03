@@ -2593,6 +2593,7 @@ try {
 
         try {
             db()->prepare('INSERT INTO kpi_status_events (module, record_id, old_status, new_status, changed_by, changed_at) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())')->execute(['website_update', $taskId, 'pending', 'complete', $employeeId]);
+            ops_kpi_record_event('website_updates', 'packing_item', $taskId, 'website_updated', 'pending', 'complete', $employeeId, ['completed_at' => $confirmedAt]);
         } catch (Throwable $kpiError) {
             error_log(date(DATE_ATOM) . ' website update status: ' . $kpiError->getMessage() . PHP_EOL, 3, BASE_PATH . '/logs/kpi_errors.log');
         }
@@ -2869,6 +2870,7 @@ try {
                     $newKpiStatus = (string) ($after['packing_status'] ?? $value);
                     if ($newKpiStatus !== '' && $oldKpiStatus !== $newKpiStatus) {
                         db()->prepare('INSERT INTO kpi_status_events (module, record_id, old_status, new_status, changed_by, changed_at) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())')->execute(['packing', (int) $id, $oldKpiStatus, $newKpiStatus, $currentEmployeeId ?: null]);
+                        ops_kpi_record_event('packing_list', 'packing_item', (int) $id, 'status_changed', $oldKpiStatus, $newKpiStatus, $currentEmployeeId ?: null, ['completed_at' => $after['date_completed'] ?? null]);
                     }
                 } catch (Throwable $kpiError) {
                     error_log(date(DATE_ATOM) . ' packing status: ' . $kpiError->getMessage() . PHP_EOL, 3, BASE_PATH . '/logs/kpi_errors.log');

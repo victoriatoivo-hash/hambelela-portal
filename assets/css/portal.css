@@ -28171,3 +28171,4 @@ html:has(body.login-page),body.login-page{min-height:100%;background:#FFFFFF!imp
 [data-packing-app-unread-badge]:empty {
     display: none !important;
 }
+.kpi-info-button{display:inline-grid;place-items:center;width:18px;height:18px;margin-left:4px;padding:0;border:1px solid currentColor;border-radius:50%;background:transparent;color:inherit;font:600 10px/1 Figtree,system-ui,sans-serif;cursor:help;vertical-align:middle}.kpi-info-button:focus-visible{outline:2px solid #ab3619;outline-offset:2px}.employee-kpi-measurement-dates{margin:0 0 12px;color:#5f6368;font-size:11px;line-height:1.5;text-transform:capitalize}

@@ -440,6 +440,77 @@ function ops_database_ready(): bool
     }
 }
 
+/** Ensure the append-only KPI evidence store exists without rewriting history. */
+function ops_ensure_kpi_activity_events(): bool
+{
+    static $ready = null;
+    if ($ready !== null) return $ready;
+    try {
+        db()->exec(
+            "CREATE TABLE IF NOT EXISTS kpi_activity_events (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                portal_section VARCHAR(80) NOT NULL,
+                record_type VARCHAR(80) NOT NULL,
+                record_id BIGINT NOT NULL,
+                employee_id INT NULL,
+                employee_name VARCHAR(160) NULL,
+                action_key VARCHAR(120) NOT NULL,
+                previous_status VARCHAR(120) NULL,
+                new_status VARCHAR(120) NULL,
+                occurred_at DATETIME NOT NULL,
+                due_at DATETIME NULL,
+                assigned_at DATETIME NULL,
+                started_at DATETIME NULL,
+                completed_at DATETIME NULL,
+                related_reference VARCHAR(190) NULL,
+                source_page VARCHAR(190) NOT NULL,
+                reason_note TEXT NULL,
+                metadata_json LONGTEXT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                KEY idx_kpi_activity_record (portal_section, record_type, record_id, occurred_at),
+                KEY idx_kpi_activity_employee (employee_id, occurred_at),
+                KEY idx_kpi_activity_action (action_key, occurred_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+        $ready = ops_table_exists('kpi_activity_events');
+    } catch (Throwable $error) {
+        error_log(date(DATE_ATOM) . ' KPI activity schema: ' . $error->getMessage() . PHP_EOL, 3, BASE_PATH . '/logs/kpi_errors.log');
+        $ready = false;
+    }
+    return $ready;
+}
+
+/** Record one immutable, server-timestamped workflow action. */
+function ops_kpi_record_event(string $section, string $recordType, int $recordId, string $action, ?string $previousStatus, ?string $newStatus, ?int $employeeId = null, array $context = []): void
+{
+    if ($recordId <= 0 || $section === '' || $recordType === '' || $action === '' || !ops_ensure_kpi_activity_events()) return;
+    $employeeId = $employeeId ?: (function_exists('ops_current_employee_id') ? (ops_current_employee_id() ?: null) : null);
+    $employeeName = null;
+    if ($employeeId) {
+        $employee = ops_row('SELECT full_name FROM ops_employees WHERE id = ? LIMIT 1', [$employeeId]);
+        $employeeName = $employee ? (string) $employee['full_name'] : null;
+    }
+    $sourcePage = substr((string) ($context['source_page'] ?? ($_SERVER['PHP_SELF'] ?? 'server')), 0, 190);
+    $metadata = $context['metadata'] ?? null;
+    try {
+        db()->prepare(
+            'INSERT INTO kpi_activity_events
+             (portal_section,record_type,record_id,employee_id,employee_name,action_key,previous_status,new_status,occurred_at,due_at,assigned_at,started_at,completed_at,related_reference,source_page,reason_note,metadata_json)
+             VALUES (?,?,?,?,?,?,?,?,UTC_TIMESTAMP(),?,?,?,?,?,?,?,?)'
+        )->execute([
+            substr($section, 0, 80), substr($recordType, 0, 80), $recordId, $employeeId, $employeeName,
+            substr($action, 0, 120), $previousStatus, $newStatus,
+            $context['due_at'] ?? null, $context['assigned_at'] ?? null, $context['started_at'] ?? null,
+            $context['completed_at'] ?? null, isset($context['related_reference']) ? substr((string) $context['related_reference'], 0, 190) : null,
+            $sourcePage, $context['reason_note'] ?? null,
+            $metadata === null ? null : json_encode($metadata, JSON_INVALID_UTF8_SUBSTITUTE | JSON_UNESCAPED_SLASHES),
+        ]);
+    } catch (Throwable $error) {
+        error_log(date(DATE_ATOM) . ' KPI activity event: ' . $error->getMessage() . PHP_EOL, 3, BASE_PATH . '/logs/kpi_errors.log');
+    }
+}
+
 function ops_setup_notice(): void
 {
     echo '<section class="ops-alert"><strong>Database setup needed.</strong> Import <code>operations-migration.sql</code> into the portal database to activate saved orders, checklists, barcode logs, consignments, KPIs, petty cash and reports. The screens are ready, but live data is paused until the tables exist.</section>';

@@ -1582,6 +1582,7 @@ try {
             $stmt->execute([$value, $orderId]);
             try {
                 db()->prepare('INSERT INTO kpi_status_events (module, record_id, old_status, new_status, changed_by, changed_at) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())')->execute(['order', $orderId, $oldKpiStatus, $value, ops_current_employee_id() ?: null]);
+                ops_kpi_record_event('orders', 'order', $orderId, 'status_changed', $oldKpiStatus, $value, ops_current_employee_id() ?: null);
             } catch (Throwable $kpiError) {
                 error_log(date(DATE_ATOM) . ' order status: ' . $kpiError->getMessage() . PHP_EOL, 3, BASE_PATH . '/logs/kpi_errors.log');
             }
@@ -1645,6 +1646,7 @@ try {
                 'source' => 'manual_orders_board',
                 'message' => 'Paid changed from ' . ($oldPaid ? 'Yes' : 'No') . ' to ' . ($newPaid ? 'Yes' : 'No') . ' by ' . ($actor['name'] ?? 'Unknown') . '.',
             ]);
+            ops_kpi_record_event('orders', 'order', $orderId, 'payment_status_updated', (string) ($previousOrder['payment_status'] ?? ''), $value, ops_current_employee_id() ?: null, ['related_reference' => $previousOrder['order_number'] ?? null]);
         } else {
             $stmt = db()->prepare('UPDATE ops_orders SET ' . $allowed[$field] . ' = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
             $stmt->execute([$value, $orderId]);
@@ -1663,6 +1665,7 @@ try {
                     'new_value' => $value,
                     'changed_by' => current_user()['name'] ?? 'Unknown',
                 ]);
+                ops_kpi_record_event('orders', 'order', $orderId, $activityActions[$field], (string) ($previousOrder[$field] ?? ''), $value, ops_current_employee_id() ?: null, ['related_reference' => $previousOrder['order_number'] ?? null]);
             }
         }
 
@@ -1828,6 +1831,7 @@ try {
                 }
                 try {
                     db()->prepare('INSERT INTO kpi_status_events (module, record_id, old_status, new_status, changed_by, changed_at) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())')->execute(['order', (int) $id, $oldKpiStatus, (string) $value, ops_current_employee_id() ?: null]);
+                    ops_kpi_record_event('orders', 'order', (int) $id, 'status_changed', $oldKpiStatus, (string) $value, ops_current_employee_id() ?: null);
                 } catch (Throwable $kpiError) {
                     error_log(date(DATE_ATOM) . ' order bulk status: ' . $kpiError->getMessage() . PHP_EOL, 3, BASE_PATH . '/logs/kpi_errors.log');
                 }

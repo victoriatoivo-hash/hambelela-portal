@@ -181,6 +181,7 @@ function ledger_kpi_status_event(int $entryId, ?string $oldStatus, string $newSt
     if ($entryId <= 0 || $newStatus === '' || $oldStatus === $newStatus) return;
     try {
         db()->prepare('INSERT INTO kpi_status_events (module, record_id, old_status, new_status, changed_by, changed_at) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())')->execute(['bookkeeping', $entryId, $oldStatus, $newStatus, $actorId ?: null]);
+        ops_kpi_record_event('bookkeeping', 'cash_book_entry', $entryId, 'status_changed', $oldStatus, $newStatus, $actorId);
     } catch (Throwable $kpiError) {
         error_log(date(DATE_ATOM) . ' bookkeeping status: ' . $kpiError->getMessage() . PHP_EOL, 3, BASE_PATH . '/logs/kpi_errors.log');
     }

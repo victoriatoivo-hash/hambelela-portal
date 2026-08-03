@@ -10,6 +10,7 @@ function checklist_kpi_status_event(int $taskId, ?string $oldStatus, string $new
     if ($taskId <= 0 || $newStatus === '' || $oldStatus === $newStatus) return;
     try {
         db()->prepare('INSERT INTO kpi_status_events (module, record_id, old_status, new_status, changed_by, changed_at) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())')->execute(['task', $taskId, $oldStatus, $newStatus, $actorId ?: null]);
+        ops_kpi_record_event('tasks', 'task', $taskId, 'status_changed', $oldStatus, $newStatus, $actorId);
     } catch (Throwable $kpiError) {
         error_log(date(DATE_ATOM) . ' checklist status: ' . $kpiError->getMessage() . PHP_EOL, 3, BASE_PATH . '/logs/kpi_errors.log');
     }
