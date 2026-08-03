@@ -1563,6 +1563,11 @@ try {
             ]);
             notifications_notify_order_assigned($orderId, $packerId);
         } elseif ($field === 'status') {
+            $oldKpiStatus = (string) ($previousOrder['status'] ?? '');
+            if ($oldKpiStatus === $value) {
+                echo json_encode(['ok' => true, 'message' => 'Order status is already up to date.', 'updated' => 0]);
+                exit;
+            }
             $set = 'status = ?, updated_at = CURRENT_TIMESTAMP';
             if ($value === 'in_progress' && ops_column_exists('ops_orders', 'packing_started_at')) {
                 $set .= ', packing_started_at = COALESCE(packing_started_at, NOW())';
@@ -1576,10 +1581,7 @@ try {
             $stmt = db()->prepare('UPDATE ops_orders SET ' . $set . ' WHERE id = ?');
             $stmt->execute([$value, $orderId]);
             try {
-                $oldKpiStatus = (string) ($previousOrder['status'] ?? '');
-                if ($oldKpiStatus !== $value) {
-                    db()->prepare('INSERT INTO kpi_status_events (module, record_id, old_status, new_status, changed_by, changed_at) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())')->execute(['order', $orderId, $oldKpiStatus, $value, ops_current_employee_id() ?: null]);
-                }
+                db()->prepare('INSERT INTO kpi_status_events (module, record_id, old_status, new_status, changed_by, changed_at) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())')->execute(['order', $orderId, $oldKpiStatus, $value, ops_current_employee_id() ?: null]);
             } catch (Throwable $kpiError) {
                 error_log(date(DATE_ATOM) . ' order status: ' . $kpiError->getMessage() . PHP_EOL, 3, BASE_PATH . '/logs/kpi_errors.log');
             }
@@ -1820,11 +1822,12 @@ try {
 
         foreach ($ids as $id) {
             if ($field === 'status') {
+                $oldKpiStatus = $previousKpiStatuses[(int) $id] ?? '';
+                if ($oldKpiStatus === (string) $value) {
+                    continue;
+                }
                 try {
-                    $oldKpiStatus = $previousKpiStatuses[(int) $id] ?? '';
-                    if ($oldKpiStatus !== (string) $value) {
-                        db()->prepare('INSERT INTO kpi_status_events (module, record_id, old_status, new_status, changed_by, changed_at) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())')->execute(['order', (int) $id, $oldKpiStatus, (string) $value, ops_current_employee_id() ?: null]);
-                    }
+                    db()->prepare('INSERT INTO kpi_status_events (module, record_id, old_status, new_status, changed_by, changed_at) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())')->execute(['order', (int) $id, $oldKpiStatus, (string) $value, ops_current_employee_id() ?: null]);
                 } catch (Throwable $kpiError) {
                     error_log(date(DATE_ATOM) . ' order bulk status: ' . $kpiError->getMessage() . PHP_EOL, 3, BASE_PATH . '/logs/kpi_errors.log');
                 }

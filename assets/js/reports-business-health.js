@@ -8,7 +8,7 @@
   const from = q('[data-kpi-from]');
   const to = q('[data-kpi-to]');
   const custom = root.querySelectorAll('[data-kpi-custom]');
-  const labels = { orders: 'Orders received', fulfilment: 'Average fulfilment', dispatch: 'On-time dispatch', pack_speed: 'Average packing speed', revenue: 'Revenue', attendance: 'Attendance today' };
+  const labels = { orders: 'Orders received', fulfilment: 'Average fulfilment', dispatch: 'On-time dispatch', pack_speed: 'Average elapsed packing time', revenue: 'Paid order revenue', attendance: 'Portal presence coverage' };
   const palette = getComputedStyle(root);
   const colour = (name) => palette.getPropertyValue(name).trim();
   let ordersChart;
@@ -24,13 +24,28 @@
     if (metric.format === 'minutes') return `${Math.round(Number(metric.value))} min`;
     return Number(metric.value).toLocaleString(undefined, { maximumFractionDigits: 1 });
   };
-  const persist = () => localStorage.setItem('kpiBusinessHealthPeriod', JSON.stringify({ period: period.value, from: from.value, to: to.value }));
+  const persist = () => {
+    localStorage.setItem('kpiBusinessHealthPeriod', JSON.stringify({ period: period.value, from: from.value, to: to.value }));
+    const url = new URL(window.location.href);
+    url.searchParams.set('period', period.value);
+    if (period.value === 'custom') {
+      url.searchParams.set('date_from', from.value);
+      url.searchParams.set('date_to', to.value);
+    } else {
+      url.searchParams.delete('date_from');
+      url.searchParams.delete('date_to');
+    }
+    history.replaceState(null, '', url);
+  };
   const restore = () => {
     try {
+      const query = new URLSearchParams(window.location.search);
+      const queryPeriod = query.get('period');
       const saved = JSON.parse(localStorage.getItem('kpiBusinessHealthPeriod') || '{}');
-      if ([...period.options].some((option) => option.value === saved.period)) period.value = saved.period;
-      from.value = saved.from || '';
-      to.value = saved.to || '';
+      const selected = queryPeriod || saved.period;
+      if ([...period.options].some((option) => option.value === selected)) period.value = selected;
+      from.value = query.get('date_from') || saved.from || '';
+      to.value = query.get('date_to') || saved.to || '';
     } catch (_) { /* Invalid local preference is safely ignored. */ }
   };
   const toggleCustom = () => custom.forEach((node) => { node.hidden = period.value !== 'custom'; });
@@ -44,9 +59,9 @@
     }).join('');
   }
 
-  function renderScores(scores) {
+  function renderScores(scores, disabledMessage = '') {
     const routes = { orders: 'reports.php?tab=orders', packing: 'reports.php?tab=packing-performance', waybills: 'reports.php?tab=waybills', tasks: 'reports.php?tab=task-management', bookkeeping: 'reports.php?tab=bookkeeping', website: 'reports.php?tab=website-updates', attendance: 'reports.php?tab=attendance' };
-    q('[data-kpi-scores]').innerHTML = scores.map((score) => {
+    q('[data-kpi-scores]').innerHTML = disabledMessage ? `<div class="kpi-empty-state">${escapeHtml(disabledMessage)}</div>` : scores.map((score) => {
       const separator = routes[score.key].includes('?') ? '&' : '?';
       const href = `${routes[score.key]}${separator}period=${encodeURIComponent(period.value)}&date_from=${encodeURIComponent(from.value)}&date_to=${encodeURIComponent(to.value)}`;
       return `<a class="kpi-score-row" href="${href}"><div><strong>${escapeHtml(score.label)}</strong><small>${escapeHtml(score.reason)}</small></div><div class="kpi-score-value"><b>${score.score === null ? '<span title="Fewer than 5 measured records">—</span>' : `${score.score}%`}</b>${score.sample < 5 ? `<em>Low data · n=${score.sample}</em>` : ''}</div><span class="kpi-score-track"><i style="width:${score.score === null ? 0 : Math.max(0, Math.min(100, score.score))}%"></i></span></a>`;
@@ -91,7 +106,7 @@
       q('[data-kpi-caption]').textContent = `${data.period.from} to ${data.period.to}`;
       q('[data-kpi-adoption]').textContent = `Averages calculated from ${new Date(`${data.period.adoption_date}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} (system adoption date).`;
       q('[data-kpi-adoption]').hidden = !data.period.show_adoption_banner;
-      renderCards(data.cards); renderScores(data.scores); renderAttention(data.attention); renderTeam(data.team); renderCharts(data);
+      renderCards(data.cards); renderScores(data.scores, data.scores_disabled ? data.scores_message : ''); renderAttention(data.attention); renderTeam(data.team); renderCharts(data);
     } catch (error) {
       q('[data-kpi-error]').textContent = error.message;
       q('[data-kpi-error]').hidden = false;

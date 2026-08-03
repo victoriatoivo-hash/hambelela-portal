@@ -1,0 +1,55 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+
+const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
+
+const reporting = read('apps/operations/kpi-reporting.php');
+const business = read('apps/operations/reports-data.php');
+const sections = read('apps/operations/reports-section-data.php');
+const employees = read('apps/operations/reports-employees-data.php');
+const employee = read('apps/operations/kpi-employee-data.php');
+const ordersAction = read('apps/operations/orders-board-action.php');
+
+for (const period of ['today', 'yesterday', 'this_week', 'last_week', 'this_month', 'last_month', 'custom']) {
+  assert.match(reporting, new RegExp(`'${period}'`), `central resolver must support ${period}`);
+}
+
+for (const source of [business, sections, employees, employee]) {
+  assert.match(source, /kpi-reporting\.php/, 'every KPI endpoint must load the shared reporting definitions');
+  assert.match(source, /kpi_resolve_reporting_period/, 'every KPI endpoint must use the central period resolver');
+}
+
+assert.match(business, /kpi_paid_revenue_condition/, 'Business Health must use the shared paid-revenue definition');
+assert.match(sections, /kpi_paid_revenue_condition/, 'Orders detail must use the shared paid-revenue definition');
+assert.match(reporting, /payment_status\s*=\s*'paid'/, 'revenue must mean paid orders');
+assert.match(reporting, /refunded/, 'revenue must exclude refunded orders');
+
+for (const source of [employees, employee]) {
+  assert.match(source, /assigned_packer_id/, 'packer credit must use the authoritative Packed By assignment');
+  assert.match(source, /COUNT\(DISTINCT id\)/, 'order-board pack credit must count distinct orders');
+}
+
+assert.match(ordersAction, /\$oldKpiStatus === \$value/, 'repeated single-order status saves must short-circuit');
+assert.match(ordersAction, /\$oldKpiStatus === \(string\) \$value/, 'repeated bulk status saves must not write KPI events');
+
+assert.match(sections, /date_completed BETWEEN/, 'packing output must be selected by completion date');
+assert.match(sections, /date_loaded<=p\.date_started AND p\.date_started<=p\.date_completed/, 'packing timings must enforce a valid timestamp sequence');
+assert.match(sections, /Median elapsed packing time/, 'packing timing must expose a median');
+assert.match(sections, /coverage_percent/, 'packing timing must expose coverage');
+
+assert.match(sections, /TIMESTAMPDIFF\(MINUTE,p\.date_loaded,p\.frontdesk_website_updated_at\)/, 'website lag must start at date loaded');
+assert.match(sections, /frontdesk_website_updated_at>=p\.date_loaded/, 'negative website lag must be excluded');
+assert.match(sections, /Completed late/, 'task reports must distinguish completed-late work');
+assert.match(sections, /Open overdue/, 'task reports must distinguish currently overdue work');
+assert.match(sections, /Sent late/, 'waybill reports must distinguish late-sent work');
+assert.match(sections, /Currently overdue/, 'waybill reports must distinguish currently overdue work');
+assert.match(sections, /Portal active time/, 'session-derived time must be labelled as portal active time');
+assert.doesNotMatch(sections, /\['label'=>'Total hours'/, 'session-derived time must not be labelled as attendance hours');
+assert.match(employee, /scheduleConfigured/, 'lateness must require an employee schedule');
+assert.match(sections, /ops_cash_book_entries/, 'Bookkeeping KPI evidence must use the live ledger entries table');
+assert.match(sections, /Missing cash-ups/, 'Bookkeeping must report missing cash-ups instead of treating zero reconciliations as success');
+assert.match(sections, /ops_hr_rows/, 'leave reporting must use the authoritative HR data source');
+assert.match(business, /scores_disabled'=>true/, 'Business Health rankings must remain disabled');
+assert.match(employee, /'visible'=>false/, 'employee composite scores must remain hidden');
+
+console.log('KPI data-integrity foundation checks passed.');
