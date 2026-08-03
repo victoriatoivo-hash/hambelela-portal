@@ -36,11 +36,20 @@ $settingFields = [
     'default_shift_start' => ['Default shift start', 'time', '08:00'],
     'default_shift_end' => ['Default shift end', 'time', '17:00'],
     'late_grace_minutes' => ['Late grace period (minutes)', 'number', '10'],
-    'composite_score_enabled' => ['Composite score enabled (0 or 1)', 'number', '0'],
-    'composite_weight_attendance' => ['Composite attendance weight', 'number', '25'],
-    'composite_weight_output' => ['Composite output weight', 'number', '35'],
-    'composite_weight_accuracy' => ['Composite accuracy weight', 'number', '25'],
-    'composite_weight_tasks' => ['Composite tasks weight', 'number', '15'],
+    'packer_weight_productivity' => ['Packer: productivity weight', 'number', '30'],
+    'packer_weight_accuracy' => ['Packer: accuracy weight', 'number', '25'],
+    'packer_weight_speed' => ['Packer: speed weight', 'number', '15'],
+    'packer_weight_attendance' => ['Packer: attendance and reliability weight', 'number', '10'],
+    'packer_weight_compliance' => ['Packer: process compliance weight', 'number', '10'],
+    'packer_weight_team' => ['Packer: team contribution weight', 'number', '10'],
+    'frontdesk_weight_orders' => ['Front desk: orders finalised weight', 'number', '20'],
+    'frontdesk_weight_payments' => ['Front desk: payment updates weight', 'number', '10'],
+    'frontdesk_weight_website' => ['Front desk: website updates and speed weight', 'number', '15'],
+    'frontdesk_weight_waybills' => ['Front desk: waybill output and timeliness weight', 'number', '15'],
+    'frontdesk_weight_bookkeeping' => ['Front desk: bookkeeping compliance weight', 'number', '15'],
+    'frontdesk_weight_tasks' => ['Front desk: task compliance weight', 'number', '10'],
+    'frontdesk_weight_quality' => ['Front desk: errors and corrections weight', 'number', '5'],
+    'frontdesk_weight_attendance' => ['Front desk: attendance and reliability weight', 'number', '10'],
 ];
 
 if ($ready && $tab === 'settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -48,13 +57,27 @@ if ($ready && $tab === 'settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!hash_equals($csrf, (string) ($_POST['csrf_token'] ?? ''))) throw new RuntimeException('Your session token is invalid.');
         $action = ops_post_string('kpi_action', 40);
         if ($action === 'save_settings') {
-            $stmt = db()->prepare('INSERT INTO kpi_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
+            $validatedSettings = [];
             foreach ($settingFields as $key => $definition) {
                 $value = substr(trim((string) ($_POST[$key] ?? $definition[2])), 0, 255);
                 if ($definition[1] === 'date' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) throw new RuntimeException('Enter valid KPI dates.');
                 if ($definition[1] === 'time' && !preg_match('/^\d{2}:\d{2}$/', $value)) throw new RuntimeException('Enter valid shift times.');
                 if ($definition[1] === 'number' && (!is_numeric($value) || (float) $value < 0)) throw new RuntimeException($definition[0] . ' must be zero or more.');
-                $stmt->execute([$key, $value]);
+                $validatedSettings[$key] = $value;
+            }
+            $packerWeight = array_sum(array_map(static fn(string $key): float => (float) $validatedSettings[$key], ['packer_weight_productivity','packer_weight_accuracy','packer_weight_speed','packer_weight_attendance','packer_weight_compliance','packer_weight_team']));
+            $frontdeskWeight = array_sum(array_map(static fn(string $key): float => (float) $validatedSettings[$key], ['frontdesk_weight_orders','frontdesk_weight_payments','frontdesk_weight_website','frontdesk_weight_waybills','frontdesk_weight_bookkeeping','frontdesk_weight_tasks','frontdesk_weight_quality','frontdesk_weight_attendance']));
+            if (abs($packerWeight - 100) > 0.001 || abs($frontdeskWeight - 100) > 0.001) throw new RuntimeException('Packer and front-desk weights must each total 100. Scores remain disabled until the integrity review is complete.');
+            $database = db();
+            $database->beginTransaction();
+            try {
+                $stmt = $database->prepare('INSERT INTO kpi_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
+                foreach ($validatedSettings as $key => $value) $stmt->execute([$key, $value]);
+                $stmt->execute(['composite_score_enabled', '0']);
+                $database->commit();
+            } catch (Throwable $settingsError) {
+                if ($database->inTransaction()) $database->rollBack();
+                throw $settingsError;
             }
             ops_activity_log('kpi_settings_updated', 'kpi_settings', 0, ['changed_by' => current_user()['name'] ?? 'Unknown']);
             $message = 'KPI settings saved.';
@@ -188,7 +211,7 @@ include BASE_PATH . '/shared/sidebar.php';
         <?php if ($message !== ''): ?><div class="ops-alert <?= $messageType === 'error' ? 'error' : 'success' ?>" role="status"><?= htmlspecialchars($message, ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
 
         <section class="panel">
-            <div class="section-row"><div><p class="eyebrow">Calculation controls</p><h2>Global KPI settings</h2></div></div>
+            <div class="section-row"><div><p class="eyebrow">Calculation controls</p><h2>Global KPI settings</h2><p>Role-specific weights are stored for owner review only. Composite scores, bonus bands and rankings remain disabled until every required data-integrity test passes.</p></div></div>
             <form method="post" class="form-grid">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
                 <input type="hidden" name="kpi_action" value="save_settings">

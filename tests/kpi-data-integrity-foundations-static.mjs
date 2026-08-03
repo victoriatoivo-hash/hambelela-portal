@@ -66,6 +66,9 @@ assert.match(employee, /kpi_employee_schedules/, 'attendance must load per-weekd
 assert.match(employee, /\$employeeSchedule\[\$weekday\]/, 'lateness must resolve the schedule for the actual weekday');
 assert.match(reportsPage, /saturday_shift_start/, 'KPI Settings must support a distinct Saturday shift');
 assert.match(reportsPage, /weekday === 6/, 'Saturday must use its own configured shift');
+assert.match(reportsPage, /frontdesk_weight_website/, 'KPI Settings must expose role-specific front-desk weights');
+assert.match(reportsPage, /packer_weight_productivity/, 'KPI Settings must preserve the approved packer weight model');
+assert.match(reportsPage, /composite_score_enabled', '0'/, 'saving weights must keep composite scoring disabled');
 assert.match(sections, /ops_cash_book_entries/, 'Bookkeeping KPI evidence must use the live ledger entries table');
 assert.match(sections, /Missing cash-ups/, 'Bookkeeping must report missing cash-ups instead of treating zero reconciliations as success');
 assert.match(sections, /ops_hr_rows/, 'leave reporting must use the authoritative HR data source');
