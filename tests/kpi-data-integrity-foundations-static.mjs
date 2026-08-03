@@ -59,6 +59,10 @@ assert.match(packingJs, /data-save-workload-override/, 'Packing details must pro
 
 assert.match(sections, /TIMESTAMPDIFF\(MINUTE,p\.date_loaded,p\.frontdesk_website_updated_at\)/, 'website lag must start at date loaded');
 assert.match(sections, /frontdesk_website_updated_at>=p\.date_loaded/, 'negative website lag must be excluded');
+assert.match(sections, /Median loaded-to-update lag/, 'website update reporting must expose a median lag');
+assert.match(sections, /Pending website updates/, 'website update reporting must expose outstanding work');
+assert.match(sections, /Oldest pending update/, 'website update reporting must expose pending age evidence');
+assert.match(sections, /website_update_lag_target_minutes/, 'website update reporting must use its configured lag target');
 assert.match(sections, /Completed late/, 'task reports must distinguish completed-late work');
 assert.match(sections, /Open overdue/, 'task reports must distinguish currently overdue work');
 assert.match(sections, /Sent late/, 'waybill reports must distinguish late-sent work');
@@ -82,6 +86,7 @@ assert.match(sections, /ops_cash_book_entries/, 'Bookkeeping KPI evidence must u
 assert.match(sections, /Missing cash-ups/, 'Bookkeeping must report missing cash-ups instead of treating zero reconciliations as success');
 assert.match(sections, /ops_hr_rows/, 'leave reporting must use the authoritative HR data source');
 assert.match(sections, /workload_points_override,p\.workload_points/, 'packing breakdowns must use stored workload evidence, including approved overrides');
+assert.doesNotMatch(sections, /CASE weight_class/, 'no KPI reporting fallback may translate obsolete workload size classes');
 assert.match(employee, /workload_points_override,workload_points/, 'employee packing trends must use stored workload evidence');
 assert.match(errorsPage, /responsible_employee_id/, 'error attribution must store a responsible employee separately from the logger');
 assert.match(errorsPage, /affects_kpi_accuracy/, 'error attribution must explicitly control personal accuracy impact');
