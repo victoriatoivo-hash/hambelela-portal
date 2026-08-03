@@ -16,7 +16,7 @@ try {
     $to = $resolvedPeriod['to'];
     $settings = [];
     foreach (ops_rows('SELECT setting_key, setting_value FROM kpi_settings') as $row) $settings[(string) $row['setting_key']] = (string) $row['setting_value'];
-    $dataStart = new DateTimeImmutable($settings['data_start_date'] ?? '2026-07-01', $zone);
+    $dataStart = new DateTimeImmutable($settings['trusted_performance_start_date'] ?? '2026-07-10', $zone);
     $adoption = new DateTimeImmutable($settings['adoption_date'] ?? '2026-07-14', $zone);
     $effective = $from < $dataStart ? $dataStart : $from;
     $fromSql = $effective->format('Y-m-d 00:00:00'); $toSql = $to->format('Y-m-d 23:59:59');

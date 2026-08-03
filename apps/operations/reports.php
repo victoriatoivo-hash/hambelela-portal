@@ -21,8 +21,13 @@ if ($csrf === '') {
 }
 
 $settingFields = [
-    'data_start_date' => ['Data start date', 'date', '2026-07-01'],
+    'trusted_performance_start_date' => ['Trusted performance data start date', 'date', '2026-07-10'],
+    'data_start_date' => ['Imported data floor', 'date', '2026-07-01'],
     'adoption_date' => ['System adoption date', 'date', '2026-07-14'],
+    'orders_attribution_adoption_date' => ['Orders attribution valid from', 'date', '2026-07-10'],
+    'packing_timing_adoption_date' => ['Packing timing valid from', 'date', '2026-07-14'],
+    'website_timing_adoption_date' => ['Website timing valid from', 'date', '2026-07-10'],
+    'attendance_adoption_date' => ['Attendance sessions valid from', 'date', '2026-07-14'],
     'target_fulfilment_hours' => ['Fulfilment target (hours)', 'number', '6'],
     'on_time_dispatch_hours' => ['On-time dispatch (hours)', 'number', '6'],
     'waybill_overdue_hours' => ['Waybill overdue threshold (hours)', 'number', '24'],
@@ -203,6 +208,20 @@ include BASE_PATH . '/shared/sidebar.php';
         <div class="kpi-adoption-banner" data-kpi-adoption hidden></div><div class="ops-alert error" data-kpi-error hidden role="alert"></div>
         <section class="kpi-employee-index" data-kpi-employees><?php foreach (range(1, 3) as $placeholder): ?><article class="kpi-team-card is-loading"><header><span></span><div><strong></strong><small></small></div></header></article><?php endforeach; ?></section>
         <script src="<?= BASE_URL ?>/assets/js/reports-employees.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/reports-employees.js') ?>"></script>
+    <?php elseif ($tab === 'performance-reports'): ?>
+        <section class="performance-report-controls" aria-label="Performance report filters">
+            <label><span>Reporting period</span><select data-performance-period><option value="today">Today</option><option value="this_week">This week</option><option value="last_week">Last week</option><option value="this_month">This month</option><option value="last_month">Last month</option><option value="since_trusted">Since trusted start date</option><option value="custom">Custom date range</option></select></label>
+            <label data-performance-custom hidden><span>From</span><input type="date" data-performance-from></label><label data-performance-custom hidden><span>To</span><input type="date" data-performance-to></label>
+            <label><span>Employee</span><select data-performance-employee><option value="0">All employees</option></select></label>
+            <label><span>Role</span><select data-performance-role><option value="all">All roles</option><option value="packer">Packers</option><option value="front_desk">Front desk</option></select></label>
+            <label><span>View</span><select data-performance-section><option value="summary">Summary</option><option value="evidence">Evidence</option></select></label>
+            <div class="performance-report-actions"><button type="button" class="btn-secondary" data-performance-compare>Compare Employees</button><button type="button" class="btn-primary" data-performance-meeting>Start Meeting Mode</button><button type="button" class="btn-secondary" data-performance-print>Print</button><button type="button" class="btn-secondary" data-performance-pdf>Export PDF</button><button type="button" class="btn-secondary" data-performance-csv>Export Excel/CSV</button></div>
+        </section>
+        <div class="performance-report-meta"><span data-performance-period-caption>Loading period…</span><span data-performance-refreshed></span><span class="performance-quality-badge" data-performance-quality>Checking data quality…</span></div>
+        <div class="ops-alert error" data-performance-error hidden role="alert"></div>
+        <section class="performance-report-output" data-performance-output aria-live="polite"><div class="kpi-health-grid"><?php foreach(range(1,4)as$i): ?><article class="kpi-health-card is-loading"><span></span><strong></strong><small></small></article><?php endforeach; ?></div></section>
+        <div class="performance-meeting" data-performance-meeting-view hidden><header><div><p>Hambelela Organic</p><h1>Performance Meeting</h1><span data-meeting-period></span></div><div><button type="button" data-meeting-sensitive>Hide sensitive information</button><button type="button" data-meeting-summary>Summary / Evidence</button><button type="button" data-meeting-exit>Exit Meeting Mode</button></div></header><nav data-meeting-nav></nav><main data-meeting-content></main></div>
+        <script src="<?= BASE_URL ?>/assets/js/reports-performance.js?v=<?= (int)@filemtime(BASE_PATH.'/assets/js/reports-performance.js') ?>"></script>
     <?php elseif (isset($phaseThreeTabs[$tab])): ?>
         <section class="kpi-period-panel" aria-label="Reporting period"><label><span>Period</span><select data-kpi-period><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="this_week">This week</option><option value="last_week">Last week</option><option value="this_month">This month</option><option value="last_month">Last month</option><option value="custom">Custom</option></select></label><label data-kpi-custom hidden><span>From</span><input type="date" data-kpi-from></label><label data-kpi-custom hidden><span>To</span><input type="date" data-kpi-to></label><span class="kpi-period-caption" data-kpi-caption>Loading…</span><button class="btn-secondary" type="button" data-kpi-refresh>Refresh</button><?php if($tab==='performance-reports'): ?><button class="btn-secondary" type="button" onclick="window.print()">Print report</button><?php endif; ?></section>
         <div class="kpi-adoption-banner" data-kpi-adoption hidden></div><div class="ops-alert error" data-kpi-error hidden role="alert"></div><section data-kpi-section-content><div class="kpi-health-grid"><?php foreach(range(1,6)as$i): ?><article class="kpi-health-card is-loading"><span></span><strong></strong><small></small></article><?php endforeach; ?></div></section><dialog class="kpi-timeline-dialog" data-kpi-timeline><button type="button" class="kpi-timeline-close" data-kpi-timeline-close aria-label="Close timeline">×</button><div data-kpi-timeline-content></div></dialog>

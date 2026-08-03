@@ -18,6 +18,12 @@ function kpi_resolve_reporting_period(array $input, ?DateTimeImmutable $today = 
     $key = strtolower(trim((string) ($input['period'] ?? 'today')));
 
     switch ($key) {
+        case 'since_trusted':
+            $trusted = trim((string) ($input['trusted_start_date'] ?? '2026-07-10'));
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $trusted)) $trusted = '2026-07-10';
+            $from = new DateTimeImmutable($trusted, $zone);
+            $to = $today;
+            break;
         case 'yesterday':
             $from = $today->modify('-1 day');
             $to = $from;

@@ -1,1 +1,53 @@
-<?php $kpiSection='performance-reports'; require __DIR__.'/reports-section-data.php';
+<?php
+
+declare(strict_types=1);
+require_once __DIR__ . '/operations.php';
+require_once __DIR__ . '/kpi-reporting.php';
+require_role('owner_admin');
+
+try {
+    if (!ops_database_ready()) throw new RuntimeException('The operations database is unavailable.');
+    $zone = new DateTimeZone('Africa/Windhoek');
+    $settings = [];
+    foreach (ops_rows('SELECT setting_key,setting_value FROM kpi_settings') as $row) $settings[(string)$row['setting_key']] = (string)$row['setting_value'];
+    $trusted = new DateTimeImmutable($settings['trusted_performance_start_date'] ?? '2026-07-10', $zone);
+    $input = $_GET;
+    $input['trusted_start_date'] = $trusted->format('Y-m-d');
+    $resolved = kpi_resolve_reporting_period($input);
+    $from = $resolved['from'] < $trusted ? $trusted : $resolved['from'];
+    $to = $resolved['to'];
+    $fromSql = $from->format('Y-m-d 00:00:00');
+    $toSql = $to->format('Y-m-d 23:59:59');
+    $employeeId = max(0, (int)($_GET['employee_id'] ?? 0));
+    $role = trim((string)($_GET['role'] ?? 'all'));
+
+    $employees = ops_rows("SELECT e.id,e.full_name,r.name role_name,r.role_key FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE e.status='active' AND r.role_key<>'owner_admin' ORDER BY r.role_key,e.full_name");
+    $reports = [];
+    foreach ($employees as $person) {
+        $id = (int)$person['id'];
+        if ($employeeId && $employeeId !== $id) continue;
+        $personRole=(string)$person['role_key'];
+        if ($role==='packer' && strpos($personRole,'packer')===false) continue;
+        if ($role==='front_desk' && strpos($personRole,'front_desk')===false) continue;
+        if (!in_array($role,['all','packer','front_desk'],true) && $role!==$personRole) continue;
+        $packing = ops_rows("SELECT COUNT(*) product_rows,COALESCE(SUM(workload_package_count),0) packages,COALESCE(SUM(CASE WHEN workload_parse_status='parsed' OR workload_points_override IS NOT NULL THEN COALESCE(workload_points_override,workload_points) ELSE 0 END),0) points,SUM(workload_parse_status='pending_review') review_rows,SUM(COALESCE(workload_weight_grams,0)) grams,SUM(COALESCE(workload_volume_ml,0)) millilitres,AVG(CASE WHEN date_loaded<=date_started AND date_started<=date_completed THEN TIMESTAMPDIFF(MINUTE,date_started,date_completed) END) avg_minutes,SUM(date_loaded<=date_started AND date_started<=date_completed) valid_timing FROM ops_packing_tasks WHERE assigned_employee_id=? AND date_completed BETWEEN ? AND ? AND deleted_at IS NULL",[$id,$fromSql,$toSql])[0]??[];
+        $orders = ops_rows("SELECT COUNT(DISTINCT id) packed_orders FROM ops_orders WHERE assigned_packer_id=? AND status IN ('completed','packed','verified') AND completed_at BETWEEN ? AND ?",[$id,$fromSql,$toSql])[0]??[];
+        $tasks = ops_rows("SELECT COUNT(*) assigned,SUM(status='complete') completed,SUM(status='complete' AND completed_at<=deadline) on_time,SUM(status='complete' AND completed_at>deadline) completed_late,SUM(status<>'complete' AND deadline<NOW()) open_overdue FROM ops_checklist_tasks WHERE assigned_employee_id=? AND date_assigned BETWEEN ? AND ? AND deleted_at IS NULL",[$id,$fromSql,$toSql])[0]??[];
+        $website = ops_rows("SELECT COUNT(*) updates,AVG(CASE WHEN frontdesk_website_updated_at>=date_loaded THEN TIMESTAMPDIFF(MINUTE,date_loaded,frontdesk_website_updated_at) END) avg_minutes FROM ops_packing_tasks WHERE frontdesk_website_updated_by=? AND frontdesk_website_updated_at BETWEEN ? AND ? AND deleted_at IS NULL",[$id,$fromSql,$toSql])[0]??[];
+        $waybills = ops_rows("SELECT SUM(uploaded_by=?) uploaded,SUM(sent_by=?) sent,SUM(sent_by=? AND status='sent' AND sent_at<=due_by) sent_on_time,SUM(sent_by=? AND status='sent' AND sent_at>due_by) sent_late FROM hambelela_waybills WHERE (uploaded_at BETWEEN ? AND ? OR sent_at BETWEEN ? AND ?) AND deleted_at IS NULL",[$id,$id,$id,$id,$fromSql,$toSql,$fromSql,$toSql])[0]??[];
+        $errors = ops_rows("SELECT COUNT(*) attributable_errors FROM ops_error_logs WHERE responsible_employee_id=? AND affects_kpi_accuracy=1 AND accuracy_verified_by IS NOT NULL AND logged_at BETWEEN ? AND ? AND deleted_at IS NULL",[$id,$fromSql,$toSql])[0]??[];
+        $eligible = (int)($packing['product_rows']??0) + (int)($orders['packed_orders']??0) + (int)($tasks['completed']??0);
+        $errorCount = (int)($errors['attributable_errors']??0);
+        $reports[] = ['id'=>$id,'name'=>$person['full_name'],'role'=>$person['role_name'],'role_key'=>$person['role_key'],'packing'=>['product_rows'=>(int)($packing['product_rows']??0),'packages'=>(int)($packing['packages']??0),'workload_points'=>round((float)($packing['points']??0),1),'weight_grams'=>(float)($packing['grams']??0),'volume_ml'=>(float)($packing['millilitres']??0),'average_minutes'=>$packing['avg_minutes']===null?null:round((float)$packing['avg_minutes'],1),'timing_coverage'=>['numerator'=>(int)($packing['valid_timing']??0),'denominator'=>(int)($packing['product_rows']??0)],'requires_review'=>(int)($packing['review_rows']??0)],'orders'=>['packed'=>(int)($orders['packed_orders']??0)],'tasks'=>array_map('intval',$tasks),'website'=>['updates'=>(int)($website['updates']??0),'average_minutes'=>$website['avg_minutes']===null?null:round((float)$website['avg_minutes'],1)],'waybills'=>array_map('intval',$waybills),'quality'=>['eligible_work'=>$eligible,'verified_errors'=>$errorCount,'accuracy'=>$eligible>0?round(max(0,100-(100*$errorCount/$eligible)),1):null]];
+    }
+    $quality = ['status'=>'partial_data','trusted_start_date'=>$trusted->format('Y-m-d'),'metric_adoption_dates'=>['orders'=>$settings['orders_attribution_adoption_date']??'2026-07-10','packing_timing'=>$settings['packing_timing_adoption_date']??'2026-07-14','website_timing'=>$settings['website_timing_adoption_date']??'2026-07-10','attendance'=>$settings['attendance_adoption_date']??null],'warnings'=>['Composite rankings remain disabled. Attendance is shown only as portal activity until schedules and sessions are verified.']];
+    if ((string)($_GET['action']??'') === 'export_csv') {
+        header('Content-Type: text/csv; charset=utf-8'); header('Content-Disposition: attachment; filename="performance-report-'.$from->format('Ymd').'-'.$to->format('Ymd').'.csv"');
+        $out=fopen('php://output','wb');fputcsv($out,['Employee','Role','Orders packed','Packing rows','Packages','Workload points','Timing coverage','Tasks completed','Tasks on time','Open overdue','Website updates','Waybills sent','Verified errors','Accuracy']);
+        foreach($reports as $r)fputcsv($out,[$r['name'],$r['role'],$r['orders']['packed'],$r['packing']['product_rows'],$r['packing']['packages'],$r['packing']['workload_points'],$r['packing']['timing_coverage']['numerator'].'/'.$r['packing']['timing_coverage']['denominator'],$r['tasks']['completed'],$r['tasks']['on_time'],$r['tasks']['open_overdue'],$r['website']['updates'],$r['waybills']['sent'],$r['quality']['verified_errors'],$r['quality']['accuracy']??'—']);fclose($out);exit;
+    }
+    kpi_send_json(['ok'=>true,'period'=>['key'=>$resolved['key'],'from'=>$resolved['from']->format('Y-m-d'),'to'=>$to->format('Y-m-d'),'effective_from'=>$from->format('Y-m-d')],'employees'=>$employees,'reports'=>$reports,'data_quality'=>$quality,'last_refreshed_at'=>(new DateTimeImmutable('now',$zone))->format(DATE_ATOM)]);
+} catch(Throwable $error) {
+    error_log(date(DATE_ATOM).' performance reports: '.$error->getMessage().' in '.$error->getFile().':'.$error->getLine().PHP_EOL,3,BASE_PATH.'/logs/kpi_errors.log');
+    kpi_send_json(['ok'=>false,'success'=>false,'data'=>null,'message'=>'Performance reports are temporarily unavailable.','error_code'=>'KPI_PERFORMANCE_REPORT_FAILED'],500);
+}

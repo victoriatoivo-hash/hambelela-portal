@@ -37,7 +37,7 @@ try {
     $periodKey = $resolvedPeriod['key'];
     $requestedFrom = $resolvedPeriod['from'];
     $requestedTo = $resolvedPeriod['to'];
-    $dataStart = new DateTimeImmutable($settings['data_start_date'] ?? '2026-07-01', new DateTimeZone('Africa/Windhoek'));
+    $dataStart = new DateTimeImmutable($settings['trusted_performance_start_date'] ?? '2026-07-10', new DateTimeZone('Africa/Windhoek'));
     $adoption = new DateTimeImmutable($settings['adoption_date'] ?? '2026-07-14', new DateTimeZone('Africa/Windhoek'));
     $from = $requestedFrom < $dataStart ? $dataStart : $requestedFrom;
     $to = $requestedTo;
