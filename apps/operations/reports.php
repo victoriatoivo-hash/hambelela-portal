@@ -5,22 +5,6 @@ declare(strict_types=1);
 require_once __DIR__ . '/operations.php';
 require_role('owner_admin');
 
-if ((string) ($_GET['runtime_status'] ?? '') === '1') {
-    header('Content-Type: text/html; charset=utf-8');
-    header('Cache-Control: no-store');
-    try {
-        require_once __DIR__ . '/kpi-reporting.php';
-        $runtimeStatus = 'Loaded successfully';
-    } catch (Throwable $error) {
-        $runtimeStatus = get_class($error) . ': ' . $error->getMessage();
-        error_log(date(DATE_ATOM) . ' KPI diagnostic: ' . $runtimeStatus . PHP_EOL, 3, BASE_PATH . '/logs/kpi_errors.log');
-    }
-    echo '<!doctype html><meta charset="utf-8"><title>KPI runtime status</title><pre>'
-        . htmlspecialchars('PHP ' . PHP_VERSION . PHP_EOL . $runtimeStatus, ENT_QUOTES, 'UTF-8')
-        . '</pre>';
-    exit;
-}
-
 $phaseThreeTabs = ['attendance'=>'Attendance','orders'=>'Orders','packing-performance'=>'Packing Performance','bookkeeping'=>'Bookkeeping','waybills'=>'Waybills','task-management'=>'Task Management','hr-leave'=>'HR and Leave','website-updates'=>'Website Updates','errors-quality'=>'Errors and Quality','performance-reports'=>'Performance Reports','audit-log'=>'Audit Log'];
 $tab = (string) ($_GET['tab'] ?? 'business-health');
 if (!in_array($tab, array_merge(['business-health','employees','settings'],array_keys($phaseThreeTabs)), true)) $tab = 'business-health';

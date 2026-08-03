@@ -102,7 +102,7 @@ function kpi_period_response(array $period, DateTimeImmutable $adoption, ?DateTi
  * Build the evidence envelope used by KPI cards and drill-downs.
  */
 function kpi_metric(
-    mixed $value,
+    $value,
     string $unit,
     ?int $numerator,
     ?int $denominator,
@@ -148,7 +148,7 @@ function kpi_merge_presence_rows(array $rawRows, int $mergeGapSeconds = 90): arr
         try {
             $start = new DateTimeImmutable($startRaw, $utc);
             $end = new DateTimeImmutable($endRaw, $utc);
-        } catch (Throwable) {
+        } catch (Throwable $error) {
             continue;
         }
         if ($end <= $start) {

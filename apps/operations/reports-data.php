@@ -18,7 +18,7 @@ function kpi_scalar_row(string $sql, array $params = []): array
     return $rows[0] ?? [];
 }
 
-function kpi_metric($value, int $sample, ?float $previous, bool $lowerIsBetter = false, string $format = 'number'): array
+function kpi_business_health_metric($value, int $sample, ?float $previous, bool $lowerIsBetter = false, string $format = 'number'): array
 {
     $measured = $value !== null;
     $low = $measured && $sample < 5;
@@ -68,12 +68,12 @@ try {
     $attendance = kpi_scalar_row("SELECT COUNT(DISTINCT user_id) present FROM kpi_sessions WHERE DATE(DATE_ADD(login_at, INTERVAL 2 HOUR)) = CURDATE()");
     $completedOrders = (int) ($orders['completed_n'] ?? 0);
     $healthCards = [
-        'orders' => kpi_metric((float) ($orders['total'] ?? 0), (int) ($orders['total'] ?? 0), (float) ($previousOrders['total'] ?? 0)),
-        'fulfilment' => kpi_metric($orders['avg_minutes'] !== null ? (float) $orders['avg_minutes'] : null, $completedOrders, null, true, 'minutes'),
-        'dispatch' => kpi_metric($completedOrders > 0 ? 100 * (int) ($orders['on_time_n'] ?? 0) / $completedOrders : null, $completedOrders, null, false, 'percent'),
-        'pack_speed' => kpi_metric($packing['avg_minutes'] !== null ? (float) $packing['avg_minutes'] : null, (int) ($packing['completed_n'] ?? 0), $previousPacking['avg_minutes'] !== null ? (float) $previousPacking['avg_minutes'] : null, true, 'minutes'),
-        'revenue' => kpi_metric((float) ($orders['revenue'] ?? 0), (int) ($orders['total'] ?? 0), (float) ($previousOrders['revenue'] ?? 0), false, 'currency'),
-        'attendance' => kpi_metric((int) ($staff['scheduled'] ?? 0) > 0 ? 100 * (int) ($attendance['present'] ?? 0) / (int) $staff['scheduled'] : null, (int) ($staff['scheduled'] ?? 0), null, false, 'percent'),
+        'orders' => kpi_business_health_metric((float) ($orders['total'] ?? 0), (int) ($orders['total'] ?? 0), (float) ($previousOrders['total'] ?? 0)),
+        'fulfilment' => kpi_business_health_metric($orders['avg_minutes'] !== null ? (float) $orders['avg_minutes'] : null, $completedOrders, null, true, 'minutes'),
+        'dispatch' => kpi_business_health_metric($completedOrders > 0 ? 100 * (int) ($orders['on_time_n'] ?? 0) / $completedOrders : null, $completedOrders, null, false, 'percent'),
+        'pack_speed' => kpi_business_health_metric($packing['avg_minutes'] !== null ? (float) $packing['avg_minutes'] : null, (int) ($packing['completed_n'] ?? 0), $previousPacking['avg_minutes'] !== null ? (float) $previousPacking['avg_minutes'] : null, true, 'minutes'),
+        'revenue' => kpi_business_health_metric((float) ($orders['revenue'] ?? 0), (int) ($orders['total'] ?? 0), (float) ($previousOrders['revenue'] ?? 0), false, 'currency'),
+        'attendance' => kpi_business_health_metric((int) ($staff['scheduled'] ?? 0) > 0 ? 100 * (int) ($attendance['present'] ?? 0) / (int) $staff['scheduled'] : null, (int) ($staff['scheduled'] ?? 0), null, false, 'percent'),
     ];
 
     $errorRow = kpi_scalar_row("SELECT COUNT(*) employee_errors FROM ops_error_logs WHERE affects_kpi_accuracy=1 AND accuracy_verified_by IS NOT NULL AND logged_at BETWEEN ? AND ? AND deleted_at IS NULL", [$rateFromSql, $toSql]);
