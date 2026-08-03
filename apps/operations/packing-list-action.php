@@ -50,6 +50,8 @@ function packing_quantity_plan_stats(string $quantityPlan): array
     $stats = [
         'totals' => ['weight' => 0.0, 'volume' => 0.0, 'count' => 0.0],
         'size_count' => 0,
+        'package_count' => 0.0,
+        'matched_text' => '',
     ];
     preg_match_all(
         '/(\d+(?:\.\d+)?)\s*(kg|kgs|g|gram|grams|ml|l|lt|liter|litre|liters|litres|pcs?|pieces?|units?)\s*(?:[x*]\s*)?\(?\s*(\d+)?\s*\)?/i',
@@ -65,7 +67,18 @@ function packing_quantity_plan_stats(string $quantityPlan): array
         $amount = (float) ($match[1] ?? 0);
         $count = max(1, (int) ($match[3] ?? 1));
         $stats['totals'][$meta['dimension']] += $amount * (float) $meta['factor'] * $count;
+        $stats['package_count'] += $count;
+        $stats['matched_text'] .= ' ' . (string) ($match[0] ?? '');
         $stats['size_count']++;
+    }
+
+    if ($stats['size_count'] === 0 && preg_match('/^\s*(\d+(?:\.\d+)?)(?:\s*[x*]\s*\(?\s*(\d+(?:\.\d+)?)\s*\)?)?/i', $quantityPlan, $countMatch)) {
+        $left = (float) ($countMatch[1] ?? 0);
+        $right = isset($countMatch[2]) ? (float) $countMatch[2] : 1.0;
+        $stats['package_count'] = $left * $right;
+        $stats['totals']['count'] = $stats['package_count'];
+        $stats['size_count'] = 1;
+        $stats['matched_text'] = (string) ($countMatch[0] ?? '');
     }
 
     return $stats;
@@ -93,15 +106,72 @@ function packing_received_stock_base(string $receivedWeight, array $planStats): 
     ];
 }
 
-function packing_workload_score(string $receivedWeight, string $quantityPlan, string $priority): float
+function packing_workload_components(string $receivedWeight, string $quantityPlan, string $priority): array
 {
     $planStats = packing_quantity_plan_stats($quantityPlan);
-    $received = packing_received_stock_base($receivedWeight, $planStats);
-    $baseAmount = $received['dimension'] === 'count' ? (float) $received['base'] : (float) $received['base'] / 1000;
+    $hasPlan = (int) ($planStats['size_count'] ?? 0) > 0;
+    $packageCount = (float) ($planStats['package_count'] ?? 0);
+    $weightGrams = (float) ($planStats['totals']['weight'] ?? 0);
+    $volumeMl = (float) ($planStats['totals']['volume'] ?? 0);
+    $unitCount = (float) ($planStats['totals']['count'] ?? 0);
     $sizeComplexity = min(2.0, max(0, (int) $planStats['size_count'] - 1) * 0.5);
     $priorityBoost = ['top_critical' => 1.6, 'high' => 1.3, 'medium' => 1.0, 'low' => 0.8][$priority] ?? 1.0;
 
-    return round((max(1.0, $baseAmount) + 1.5 + $sizeComplexity) * $priorityBoost, 2);
+    if (!$hasPlan) {
+        return [
+            'points' => 0.0,
+            'package_count' => null,
+            'weight_grams' => null,
+            'volume_ml' => null,
+            'unit_count' => null,
+            'parse_status' => 'pending_review',
+            'breakdown' => ['reason' => 'Quantity plan could not be parsed', 'quantity_plan' => $quantityPlan],
+        ];
+    }
+
+    $packageEffort = max(1.0, $packageCount / 20.0);
+    $bulkEffort = max($weightGrams / 5000.0, $volumeMl / 5000.0, $unitCount / 50.0);
+    $points = round(($packageEffort + $bulkEffort + 1.5 + $sizeComplexity) * $priorityBoost, 2);
+
+    return [
+        'points' => $points,
+        'package_count' => $packageCount,
+        'weight_grams' => $weightGrams,
+        'volume_ml' => $volumeMl,
+        'unit_count' => $unitCount,
+        'parse_status' => 'parsed',
+        'breakdown' => [
+            'package_effort' => round($packageEffort, 2),
+            'bulk_effort' => round($bulkEffort, 2),
+            'size_complexity' => $sizeComplexity,
+            'priority_multiplier' => $priorityBoost,
+        ],
+    ];
+}
+
+function packing_workload_score(string $receivedWeight, string $quantityPlan, string $priority): float
+{
+    return (float) packing_workload_components($receivedWeight, $quantityPlan, $priority)['points'];
+}
+
+function packing_store_workload_components(int $taskId, string $receivedWeight, string $quantityPlan, string $priority): void
+{
+    if ($taskId <= 0 || !ops_column_exists('ops_packing_tasks', 'workload_parse_status')) {
+        return;
+    }
+    $workload = packing_workload_components($receivedWeight, $quantityPlan, $priority);
+    db()->prepare(
+        'UPDATE ops_packing_tasks SET workload_points = ?, workload_package_count = ?, workload_weight_grams = ?, workload_volume_ml = ?, workload_unit_count = ?, workload_parse_status = ?, workload_breakdown_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+    )->execute([
+        $workload['points'],
+        $workload['package_count'],
+        $workload['weight_grams'],
+        $workload['volume_ml'],
+        $workload['unit_count'],
+        $workload['parse_status'],
+        json_encode($workload['breakdown'], JSON_UNESCAPED_SLASHES),
+        $taskId,
+    ]);
 }
 
 function packing_quantity_warning(string $receivedWeight, string $quantityPlan): string
@@ -999,6 +1069,7 @@ function packing_import_monday_row(array $row, int $employeeId): int
 
     db()->prepare('INSERT INTO ops_packing_tasks (' . implode(', ', $columns) . ') VALUES (' . implode(', ', $placeholders) . ')')->execute($params);
     $newId = (int) db()->lastInsertId();
+    packing_store_workload_components($newId, (string) ($row['received_weight'] ?? ''), (string) ($row['quantity_planned'] ?? ''), (string) ($row['priority'] ?? 'high'));
     packing_publish_assignment($newId, null, !empty($row['assigned_employee_id']) ? (int) $row['assigned_employee_id'] : null, $employeeId);
     notifications_notify_packing_loaded($newId);
     return $newId;
@@ -1425,6 +1496,7 @@ try {
         );
         $stmt->execute($params);
         $newId = (int) db()->lastInsertId();
+        packing_store_workload_components($newId, $receivedWeight, $quantityPlan, $priority);
         packing_publish_assignment($newId, null, $assignedId > 0 ? $assignedId : null, $currentEmployeeId ?: null);
         notifications_notify_packing_loaded($newId);
 
@@ -1608,6 +1680,7 @@ try {
                 $currentEmployeeId,
             ]);
             $importedId = (int) db()->lastInsertId();
+            packing_store_workload_components($importedId, $receivedWeight, $quantityPlan, $priority);
             packing_publish_assignment($importedId, null, (int) ($row['assigned_employee_id'] ?: 0) ?: null, $currentEmployeeId ?: null);
             notifications_notify_packing_loaded($importedId);
             $imported++;
@@ -2298,6 +2371,7 @@ try {
                 db()->prepare('UPDATE ops_packing_tasks SET ' . implode(', ', $updateSet) . ', updated_at = CURRENT_TIMESTAMP WHERE id = ?')->execute($updateParams);
                 $updated++;
                 $newId = (int) $existingRow['id'];
+                packing_store_workload_components($newId, $receivedWeight, $quantityPlan, $priority);
                 $audit[] = "Updated existing row: {$itemName}";
             } else {
 
@@ -2320,6 +2394,7 @@ try {
             );
             $stmt->execute($params);
             $newId = (int) db()->lastInsertId();
+            packing_store_workload_components($newId, $receivedWeight, $quantityPlan, $priority);
             packing_publish_assignment($newId, null, $assignedId > 0 ? $assignedId : null, $currentEmployeeId ?: null);
             notifications_notify_packing_loaded($newId);
             $insertedIds[] = $newId;
@@ -2717,12 +2792,13 @@ try {
                 'SELECT id, received_weight, quantity_planned, priority FROM ops_packing_tasks WHERE id IN (' . $placeholders . ')' . $scope,
                 $scope === '' ? $ids : [...$ids, $currentEmployeeId ?: 0]
             );
-            $workloadStmt = db()->prepare('UPDATE ops_packing_tasks SET workload_points = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
             foreach ($rowsForWorkload as $workloadRow) {
-                $workloadStmt->execute([
-                    packing_workload_score((string) ($workloadRow['received_weight'] ?? ''), (string) ($workloadRow['quantity_planned'] ?? ''), (string) ($workloadRow['priority'] ?? 'medium')),
+                packing_store_workload_components(
                     (int) $workloadRow['id'],
-                ]);
+                    (string) ($workloadRow['received_weight'] ?? ''),
+                    (string) ($workloadRow['quantity_planned'] ?? ''),
+                    (string) ($workloadRow['priority'] ?? 'medium')
+                );
             }
         }
 
@@ -2873,6 +2949,7 @@ try {
                     $currentEmployeeId,
                 ]);
                 $copyId = (int) db()->lastInsertId();
+                packing_store_workload_components($copyId, (string) ($row['received_weight'] ?? ''), (string) ($row['quantity_planned'] ?? ''), (string) ($row['priority'] ?? 'high'));
                 packing_publish_assignment($copyId, null, (int) ($row['assigned_employee_id'] ?? 0) ?: null, $currentEmployeeId ?: null);
                 $created++;
             }

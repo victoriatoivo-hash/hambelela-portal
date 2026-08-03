@@ -97,6 +97,11 @@ function error_bootstrap_schema(): void
         'error_title' => "ALTER TABLE ops_error_logs ADD COLUMN error_title VARCHAR(190) NULL AFTER id",
         'order_reference' => "ALTER TABLE ops_error_logs ADD COLUMN order_reference VARCHAR(60) NULL AFTER order_id",
         'people_involved' => "ALTER TABLE ops_error_logs ADD COLUMN people_involved TEXT NULL AFTER employee_id",
+        'responsible_employee_id' => "ALTER TABLE ops_error_logs ADD COLUMN responsible_employee_id INT NULL AFTER employee_id",
+        'packing_task_id' => "ALTER TABLE ops_error_logs ADD COLUMN packing_task_id INT NULL AFTER order_id",
+        'affects_kpi_accuracy' => "ALTER TABLE ops_error_logs ADD COLUMN affects_kpi_accuracy TINYINT(1) NOT NULL DEFAULT 0 AFTER packing_task_id",
+        'accuracy_verified_by' => "ALTER TABLE ops_error_logs ADD COLUMN accuracy_verified_by INT NULL AFTER affects_kpi_accuracy",
+        'accuracy_verified_at' => "ALTER TABLE ops_error_logs ADD COLUMN accuracy_verified_at DATETIME NULL AFTER accuracy_verified_by",
         'status' => "ALTER TABLE ops_error_logs ADD COLUMN status VARCHAR(30) NOT NULL DEFAULT 'open' AFTER repeat_issue",
         'repeat_note' => "ALTER TABLE ops_error_logs ADD COLUMN repeat_note TEXT NULL AFTER repeat_issue",
         'attachment_paths' => "ALTER TABLE ops_error_logs ADD COLUMN attachment_paths TEXT NULL AFTER resolution",
@@ -215,19 +220,29 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$people) throw new RuntimeException('Select at least one person involved.');
 
             $primaryEmployeeId = $people[0] ?? null;
+            $responsibleEmployeeId = max(0, (int) ($_POST['responsible_employee_id'] ?? 0)) ?: null;
+            if ($responsibleEmployeeId !== null && !isset($employeeMap[$responsibleEmployeeId])) throw new RuntimeException('Choose a valid responsible employee.');
+            $packingTaskId = max(0, (int) ($_POST['packing_task_id'] ?? 0)) ?: null;
+            $affectsAccuracy = (int) ($_POST['affects_kpi_accuracy'] ?? 0) === 1 ? 1 : 0;
+            $accuracyVerified = $isOwnerErrorUser && (int) ($_POST['accuracy_verified'] ?? 0) === 1 && $responsibleEmployeeId && $affectsAccuracy;
             $orderReference = ops_post_string('order_reference', 60);
             $status = ops_post_string('status', 30) ?: 'open';
             if (!array_key_exists($status, $statusLabels)) $status = 'open';
             $stmt = db()->prepare(
                 "INSERT INTO ops_error_logs
-                 (error_title, employee_id, people_involved, order_id, order_reference, category, severity, description, customer_impact, financial_impact, resolution, repeat_issue, repeat_note, status, logged_by)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                 (error_title, employee_id, responsible_employee_id, people_involved, order_id, packing_task_id, affects_kpi_accuracy, accuracy_verified_by, accuracy_verified_at, order_reference, category, severity, description, customer_impact, financial_impact, resolution, repeat_issue, repeat_note, status, logged_by)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             );
             $stmt->execute([
                 $title,
                 $primaryEmployeeId,
+                $responsibleEmployeeId,
                 json_encode($people, JSON_UNESCAPED_SLASHES),
                 null,
+                $packingTaskId,
+                $affectsAccuracy,
+                $accuracyVerified ? $currentEmployeeId : null,
+                $accuracyVerified ? date('Y-m-d H:i:s') : null,
                 $orderReference ?: null,
                 $category,
                 $severity,
@@ -246,7 +261,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = db()->prepare('UPDATE ops_error_logs SET attachment_paths = ? WHERE id = ?');
                 $stmt->execute([json_encode($paths, JSON_UNESCAPED_SLASHES), $errorId]);
             }
-            ops_activity_log('error_logged', 'error_log', $errorId, ['severity' => $severity, 'category' => $category, 'people_involved' => $people]);
+            ops_activity_log('error_logged', 'error_log', $errorId, ['severity' => $severity, 'category' => $category, 'people_involved' => $people, 'responsible_employee_id' => $responsibleEmployeeId, 'packing_task_id' => $packingTaskId, 'affects_kpi_accuracy' => $affectsAccuracy, 'accuracy_verified' => $accuracyVerified]);
             notifications_create_for_roles([
                 'title' => $severity === 'critical' ? 'Critical error logged' : 'New error logged',
                 'message' => $title,
@@ -291,12 +306,20 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $status = ops_post_string('status', 30) ?: 'open';
             if (!array_key_exists($status, $statusLabels)) $status = 'open';
+            $responsibleEmployeeId = max(0, (int) ($_POST['responsible_employee_id'] ?? 0)) ?: null;
+            if ($responsibleEmployeeId !== null && !isset($employeeMap[$responsibleEmployeeId])) throw new RuntimeException('Choose a valid responsible employee.');
+            $packingTaskId = max(0, (int) ($_POST['packing_task_id'] ?? 0)) ?: null;
+            $affectsAccuracy = (int) ($_POST['affects_kpi_accuracy'] ?? 0) === 1 ? 1 : 0;
+            $accuracyVerified = $isOwnerErrorUser && (int) ($_POST['accuracy_verified'] ?? 0) === 1 && $responsibleEmployeeId && $affectsAccuracy;
             $newData = [
                 'error_title' => $title,
                 'order_reference' => ops_post_string('order_reference', 60) ?: null,
                 'category' => $category,
                 'severity' => $severity,
                 'people_involved' => $people,
+                'responsible_employee_id' => $responsibleEmployeeId,
+                'packing_task_id' => $packingTaskId,
+                'affects_kpi_accuracy' => $affectsAccuracy,
                 'description' => $description,
                 'financial_impact' => (float) ($_POST['financial_impact'] ?? 0),
                 'resolution' => ops_post_string('resolution', 1500),
@@ -315,13 +338,18 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $stmt = db()->prepare(
                 "UPDATE ops_error_logs
-                 SET error_title = ?, employee_id = ?, people_involved = ?, order_reference = ?, category = ?, severity = ?, description = ?, financial_impact = ?, resolution = ?, repeat_issue = ?, status = ?
+                 SET error_title = ?, employee_id = ?, responsible_employee_id = ?, people_involved = ?, packing_task_id = ?, affects_kpi_accuracy = ?, accuracy_verified_by = ?, accuracy_verified_at = ?, order_reference = ?, category = ?, severity = ?, description = ?, financial_impact = ?, resolution = ?, repeat_issue = ?, status = ?
                  WHERE id = ? AND deleted_at IS NULL"
             );
             $stmt->execute([
                 $newData['error_title'],
                 $people[0] ?? null,
+                $responsibleEmployeeId,
                 json_encode($people, JSON_UNESCAPED_SLASHES),
+                $packingTaskId,
+                $affectsAccuracy,
+                $accuracyVerified ? $currentEmployeeId : null,
+                $accuracyVerified ? date('Y-m-d H:i:s') : null,
                 $newData['order_reference'],
                 $newData['category'],
                 $newData['severity'],
@@ -766,6 +794,18 @@ include BASE_PATH . '/shared/sidebar.php';
 
                 <section class="error-form-section incident-section">
                     <h3><i data-lucide="users-round"></i> Responsibility</h3>
+                    <div class="form-grid compact">
+                        <label>Responsible employee
+                            <select name="responsible_employee_id">
+                                <option value="">Not yet attributed</option>
+                                <?php foreach ($employees as $employee): ?><option value="<?= (int) $employee['id'] ?>"><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?>
+                            </select>
+                        </label>
+                        <label>Related Packing List row ID<input type="number" min="1" name="packing_task_id" placeholder="Optional"></label>
+                    </div>
+                    <label><input type="checkbox" name="affects_kpi_accuracy" value="1"> This verified error affects personal accuracy</label>
+                    <?php if ($isOwnerErrorUser): ?><label><input type="checkbox" name="accuracy_verified" value="1"> Owner/admin verified the attribution</label><?php endif; ?>
+                    <p class="incident-field-help">The employee who logs the error is never treated automatically as the responsible employee.</p>
                     <div class="people-chip-grid">
                         <?php foreach ($employees as $employee): ?>
                             <label><input type="checkbox" name="people_involved[]" value="<?= (int) $employee['id'] ?>"><span><?= htmlspecialchars(ucwords(strtolower((string) $employee['full_name'])), ENT_QUOTES, 'UTF-8') ?></span></label>
@@ -830,6 +870,10 @@ include BASE_PATH . '/shared/sidebar.php';
             'status' => $status,
             'description' => (string) ($error['description'] ?? ''),
             'people_involved' => $peopleIds,
+            'responsible_employee_id' => (int) ($error['responsible_employee_id'] ?? 0),
+            'packing_task_id' => (int) ($error['packing_task_id'] ?? 0),
+            'affects_kpi_accuracy' => (int) ($error['affects_kpi_accuracy'] ?? 0),
+            'accuracy_verified' => !empty($error['accuracy_verified_by']),
             'repeat_issue' => (int) ($error['repeat_issue'] ?? 0),
             'resolution' => (string) ($error['resolution'] ?? ''),
             'financial_impact' => (string) ($error['financial_impact'] ?? 0),
@@ -880,6 +924,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 <?php endif; ?>
                 <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="align-left"></i> Description</h3><p class="incident-content-text"><?= nl2br(htmlspecialchars((string) ($error['description'] ?? ''), ENT_QUOTES, 'UTF-8')) ?></p></section>
                 <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="user-round-check"></i> Customer impact</h3><p class="incident-content-text<?= empty($error['customer_impact']) ? ' incident-empty-text' : '' ?>"><?= nl2br(htmlspecialchars((string) ($error['customer_impact'] ?: 'No customer impact recorded.'), ENT_QUOTES, 'UTF-8')) ?></p></section>
+                <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="badge-check"></i> KPI responsibility</h3><p class="incident-content-text"><?= !empty($error['responsible_employee_id']) ? htmlspecialchars((string) ($employeeMap[(int) $error['responsible_employee_id']] ?? 'Unknown employee'), ENT_QUOTES, 'UTF-8') : 'Not attributed' ?> · <?= !empty($error['affects_kpi_accuracy']) && !empty($error['accuracy_verified_by']) ? 'Verified for accuracy' : 'Not counted in personal accuracy' ?></p></section>
                 <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="circle-check"></i> Resolution</h3><p class="incident-content-text<?= empty($error['resolution']) ? ' incident-empty-text' : '' ?>"><?= nl2br(htmlspecialchars((string) ($error['resolution'] ?: 'No resolution recorded yet.'), ENT_QUOTES, 'UTF-8')) ?></p></section>
                 <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="banknote"></i> Financial impact</h3><p class="incident-content-text">N$<?= number_format((float) ($error['financial_impact'] ?? 0), 2) ?></p></section>
                 <?php if (!empty($error['repeat_note'])): ?><section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="repeat-2"></i> Repeat note</h3><p class="incident-content-text"><?= nl2br(htmlspecialchars((string) $error['repeat_note'], ENT_QUOTES, 'UTF-8')) ?></p></section><?php endif; ?>
@@ -977,9 +1022,18 @@ function openIncidentForm(mode = 'create', data = {}) {
     form.elements.description.value = data.description || '';
     form.elements.resolution.value = data.resolution || '';
     form.elements.financial_impact.value = data.financial_impact || '0';
+    form.elements.responsible_employee_id.value = data.responsible_employee_id || '';
+    form.elements.packing_task_id.value = data.packing_task_id || '';
+    form.elements.affects_kpi_accuracy.checked = Number(data.affects_kpi_accuracy || 0) === 1;
+    if (form.elements.accuracy_verified) form.elements.accuracy_verified.checked = Boolean(data.accuracy_verified);
     form.querySelectorAll('[name="people_involved[]"]').forEach((checkbox) => {
       checkbox.checked = (data.people_involved || []).map(String).includes(String(checkbox.value));
     });
+  } else {
+    form.elements.responsible_employee_id.value = '';
+    form.elements.packing_task_id.value = '';
+    form.elements.affects_kpi_accuracy.checked = false;
+    if (form.elements.accuracy_verified) form.elements.accuracy_verified.checked = false;
   }
 
   document.querySelectorAll('.error-detail-panel.open').forEach((openPanel) => openPanel.classList.remove('open'));

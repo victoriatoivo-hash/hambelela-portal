@@ -9,6 +9,8 @@ const sections = read('apps/operations/reports-section-data.php');
 const employees = read('apps/operations/reports-employees-data.php');
 const employee = read('apps/operations/kpi-employee-data.php');
 const ordersAction = read('apps/operations/orders-board-action.php');
+const packingAction = read('apps/operations/packing-list-action.php');
+const errorsPage = read('apps/operations/errors.php');
 
 for (const period of ['today', 'yesterday', 'this_week', 'last_week', 'this_month', 'last_month', 'custom']) {
   assert.match(reporting, new RegExp(`'${period}'`), `central resolver must support ${period}`);
@@ -36,6 +38,12 @@ assert.match(sections, /date_completed BETWEEN/, 'packing output must be selecte
 assert.match(sections, /date_loaded<=p\.date_started AND p\.date_started<=p\.date_completed/, 'packing timings must enforce a valid timestamp sequence');
 assert.match(sections, /Median elapsed packing time/, 'packing timing must expose a median');
 assert.match(sections, /coverage_percent/, 'packing timing must expose coverage');
+assert.match(packingAction, /workload_package_count/, 'workload calculation must store package count');
+assert.match(packingAction, /workload_weight_grams/, 'workload calculation must store normalized weight');
+assert.match(packingAction, /workload_volume_ml/, 'workload calculation must store normalized volume');
+assert.match(packingAction, /pending_review/, 'unparseable workload must be flagged for review');
+assert.match(packingAction, /packageEffort/, 'workload points must vary by package count');
+assert.match(packingAction, /bulkEffort/, 'workload points must vary by weight or volume');
 
 assert.match(sections, /TIMESTAMPDIFF\(MINUTE,p\.date_loaded,p\.frontdesk_website_updated_at\)/, 'website lag must start at date loaded');
 assert.match(sections, /frontdesk_website_updated_at>=p\.date_loaded/, 'negative website lag must be excluded');
@@ -49,6 +57,10 @@ assert.match(employee, /scheduleConfigured/, 'lateness must require an employee 
 assert.match(sections, /ops_cash_book_entries/, 'Bookkeeping KPI evidence must use the live ledger entries table');
 assert.match(sections, /Missing cash-ups/, 'Bookkeeping must report missing cash-ups instead of treating zero reconciliations as success');
 assert.match(sections, /ops_hr_rows/, 'leave reporting must use the authoritative HR data source');
+assert.match(errorsPage, /responsible_employee_id/, 'error attribution must store a responsible employee separately from the logger');
+assert.match(errorsPage, /affects_kpi_accuracy/, 'error attribution must explicitly control personal accuracy impact');
+assert.match(errorsPage, /accuracy_verified_by/, 'personal accuracy attribution must require owner verification');
+assert.match(sections, /l\.responsible_employee_id/, 'quality reports must use the responsible employee, not the logger');
 assert.match(business, /scores_disabled'=>true/, 'Business Health rankings must remain disabled');
 assert.match(employee, /'visible'=>false/, 'employee composite scores must remain hidden');
 
