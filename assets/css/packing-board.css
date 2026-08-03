@@ -1690,6 +1690,11 @@ body.is-resizing-packing-column .packing-page-v2 .packing-column-resizer::after 
 .packing-item-info-actions [data-packing-info-cancel] { color: #676879; background: #edeef3; }
 .packing-item-info-error { min-height: 12px; margin-top: 3px; color: #bb1b21; font-size: 10px; font-weight: 700; }
 .packing-item-info-card.is-saving { opacity: .72; pointer-events: none; }
+.packing-workload-override { display: grid; grid-template-columns: minmax(120px,.7fr) minmax(220px,1.3fr) auto; gap: 10px; align-items: end; margin-top: 12px; padding-top: 12px; border-top: 1px solid #ede3d8; }
+.packing-workload-override label { display: grid; gap: 5px; color: #721b1a; font-size: 10px; font-weight: 600; }
+.packing-workload-override input { width: 100%; min-height: 34px; padding: 6px 9px; border: 1px solid rgba(171,54,25,.24); border-radius: 8px; box-sizing: border-box; font: 400 12px/1.2 Figtree,sans-serif; }
+.packing-workload-override [data-workload-override-error] { grid-column: 1/-1; color: #b91c1c; font-size: 11px; }
+@media (max-width: 700px) { .packing-workload-override { grid-template-columns: 1fr; } }
 .packing-list-page .packing-item-info-card:nth-child(5n+2) { --info-accent: var(--pk-amber); }
 .packing-list-page .packing-item-info-card:nth-child(5n+3) { --info-accent: var(--pk-olive); }
 

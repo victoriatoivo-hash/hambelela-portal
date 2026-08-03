@@ -2263,6 +2263,12 @@
     document.querySelectorAll('[data-packing-panel-name]').forEach((section) => section.classList.toggle('active', section.dataset.packingPanelName === defaultPanelTab));
     const infoCard = (label, value) => `<article class="packing-item-info-card"><span class="packing-item-info-label">${esc(label)}</span><span class="packing-item-info-value">${esc(value || 'Not entered')}</span></article>`;
     const editableInfoCard = (field, label, value, allowed) => `<div class="packing-item-info-card${allowed ? ' packing-item-info-card--editable' : ''}" data-packing-info-field="${esc(field)}" role="button" tabindex="${allowed ? '0' : '-1'}" aria-disabled="${allowed ? 'false' : 'true'}" aria-label="${allowed ? `Edit ${esc(label.toLowerCase())}` : esc(label)}"><span class="packing-item-info-label">${esc(label)}</span><span class="packing-item-info-value">${esc(value || 'Not entered')}</span>${allowed ? '<span class="packing-item-info-edit-icon" aria-hidden="true">&#9998;</span>' : ''}</div>`;
+    const calculatedWorkload = Number(currentTask.workload_points || 0);
+    const hasWorkloadOverride = currentTask.workload_points_override !== null && currentTask.workload_points_override !== '' && currentTask.workload_points_override !== undefined;
+    const effectiveWorkload = hasWorkloadOverride ? Number(currentTask.workload_points_override) : calculatedWorkload;
+    const workloadEvidence = currentTask.workload_parse_status === 'pending_review'
+      ? 'Quantity could not be parsed — owner review required.'
+      : `${Number(currentTask.workload_package_count || 0)} packages · ${Number(currentTask.workload_weight_grams || 0)} g · ${Number(currentTask.workload_volume_ml || 0)} ml · ${Number(currentTask.workload_unit_count || 0)} units`;
     panelActivity.innerHTML = `
       <section class="packing-item-section"><h2 class="packing-item-section-title">Packing information</h2><div class="packing-item-info-grid">
         ${editableInfoCard('item_name', 'Item', currentTask.item_name, Boolean(currentUser.can_manage))}${editableInfoCard('received_weight', 'Received', currentTask.received_weight, Boolean(currentUser.can_manage))}${editableInfoCard('quantity_planned', 'Quantity to pack', currentTask.quantity_planned, Boolean(currentUser.can_manage))}${editableInfoCard('quantity_packed', 'Quantity packed', currentTask.quantity_packed, canEditOwn)}
@@ -2279,8 +2285,8 @@
         ${infoCard('Website completed by', currentTask.packing_website_completed_by_name || 'Not complete')}
       </div></section>
       <section class="packing-item-section"><h2 class="packing-item-section-title">Performance</h2><div class="packing-item-info-grid">
-        ${infoCard('Time taken', duration(currentTask.date_started || currentTask.date_loaded, currentTask.date_completed) || 'Not complete')}${infoCard('Workload', currentTask.workload_points)}
-      </div></section>`;
+        ${infoCard('Time taken', duration(currentTask.date_started || currentTask.date_loaded, currentTask.date_completed) || 'Not complete')}${infoCard('Effective workload', effectiveWorkload.toFixed(2))}${infoCard('Calculated workload', calculatedWorkload.toFixed(2))}${infoCard('Workload evidence', workloadEvidence)}
+      </div>${currentUser.role_key === 'owner_admin' ? `<div class="packing-workload-override" data-packing-workload-override><label>Owner workload override <input type="number" min="0" step="0.01" data-workload-override-points value="${hasWorkloadOverride ? esc(currentTask.workload_points_override) : ''}" placeholder="Leave blank to clear"></label><label>Reason <input maxlength="500" data-workload-override-reason value="${esc(currentTask.workload_override_reason || '')}" required></label><button type="button" class="pk-btn pk-btn--secondary" data-save-workload-override>Save workload override</button><span role="alert" data-workload-override-error></span></div>` : ''}</section>`;
     if (currentUser.can_view_front_website) {
       renderWebsiteConfirmation(currentTask);
     }
@@ -3146,6 +3152,7 @@
     const panelWebsite = event.target.closest('[data-packing-panel-website]');
     const panelButton = event.target.closest('[data-packing-open-panel]');
     const panelClose = event.target.closest('[data-packing-panel-close]');
+    const saveWorkloadOverride = event.target.closest('[data-save-workload-override]');
     const tab = event.target.closest('[data-packing-panel-tab]');
     const saveNotes = event.target.closest('[data-packing-save-notes]');
     const expandNote = event.target.closest('[data-packing-expand-note]');
@@ -3576,6 +3583,28 @@
         return;
       }
       if (panelButton) { openPanel(panelButton.dataset.packingOpenPanel); return; }
+      if (saveWorkloadOverride && currentTask) {
+        const holder = saveWorkloadOverride.closest('[data-packing-workload-override]');
+        const points = holder?.querySelector('[data-workload-override-points]')?.value ?? '';
+        const reason = String(holder?.querySelector('[data-workload-override-reason]')?.value || '').trim();
+        const errorNode = holder?.querySelector('[data-workload-override-error]');
+        if (!reason) { if (errorNode) errorNode.textContent = 'Enter a reason for this override.'; return; }
+        saveWorkloadOverride.disabled = true;
+        if (errorNode) errorNode.textContent = '';
+        try {
+          const result = await post('save_workload_override', { task_id: String(currentTask.id), points, reason });
+          Object.assign(currentTask, result.data || {});
+          const task = tasks.find((row) => String(row.id) === String(currentTask.id));
+          if (task) Object.assign(task, result.data || {});
+          setCount(result.message || 'Workload override saved.');
+          openPanel(currentTask.id, 'details');
+        } catch (error) {
+          if (errorNode) errorNode.textContent = error.message || 'Unable to save the workload override.';
+        } finally {
+          saveWorkloadOverride.disabled = false;
+        }
+        return;
+      }
       const packingInfoCard = event.target.closest('[data-packing-info-field]');
       if (packingInfoCard) {
         if (event.target.closest('[data-packing-info-cancel]')) { openPanel(currentTask.id); return; }

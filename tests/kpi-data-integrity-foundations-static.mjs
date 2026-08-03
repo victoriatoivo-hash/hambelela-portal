@@ -11,6 +11,8 @@ const employee = read('apps/operations/kpi-employee-data.php');
 const ordersAction = read('apps/operations/orders-board-action.php');
 const ordersReport = read('apps/operations/orders.php');
 const packingAction = read('apps/operations/packing-list-action.php');
+const packingData = read('apps/operations/packing-list-data.php');
+const packingJs = read('assets/js/packing-list.js');
 const errorsPage = read('apps/operations/errors.php');
 const reportsPage = read('apps/operations/reports.php');
 
@@ -49,6 +51,11 @@ assert.match(packingAction, /workload_volume_ml/, 'workload calculation must sto
 assert.match(packingAction, /pending_review/, 'unparseable workload must be flagged for review');
 assert.match(packingAction, /packageEffort/, 'workload points must vary by package count');
 assert.match(packingAction, /bulkEffort/, 'workload points must vary by weight or volume');
+assert.match(packingAction, /save_workload_override/, 'owners must be able to override exceptional workload evidence');
+assert.match(packingAction, /Only the owner\/admin may override workload points/, 'workload overrides must remain owner-only');
+assert.match(packingAction, /Enter a reason for this workload override/, 'workload overrides must require an audit reason');
+assert.match(packingData, /workload_breakdown_json/, 'Packing details must expose the stored workload evidence');
+assert.match(packingJs, /data-save-workload-override/, 'Packing details must provide the owner override control');
 
 assert.match(sections, /TIMESTAMPDIFF\(MINUTE,p\.date_loaded,p\.frontdesk_website_updated_at\)/, 'website lag must start at date loaded');
 assert.match(sections, /frontdesk_website_updated_at>=p\.date_loaded/, 'negative website lag must be excluded');

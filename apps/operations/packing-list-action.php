@@ -2623,6 +2623,31 @@ try {
         exit;
     }
 
+    if ($action === 'save_workload_override') {
+        if (!user_has_role('owner_admin')) throw new RuntimeException('Only the owner/admin may override workload points.');
+        $taskId = (int) ($_POST['task_id'] ?? 0);
+        $pointsRaw = trim((string) ($_POST['points'] ?? ''));
+        $reason = ops_post_string('reason', 500);
+        if ($taskId <= 0) throw new RuntimeException('Choose a packing item.');
+        if ($reason === '') throw new RuntimeException('Enter a reason for this workload override.');
+        if ($pointsRaw !== '' && (!is_numeric($pointsRaw) || (float) $pointsRaw < 0)) throw new RuntimeException('Workload points must be zero or more.');
+        $existing = ops_rows('SELECT item_name,workload_points,workload_points_override,workload_override_reason FROM ops_packing_tasks WHERE id=? AND deleted_at IS NULL LIMIT 1', [$taskId])[0] ?? null;
+        if (!$existing) throw new RuntimeException('Packing item not found.');
+        $points = $pointsRaw === '' ? null : round((float) $pointsRaw, 2);
+        db()->prepare('UPDATE ops_packing_tasks SET workload_points_override=?,workload_override_reason=?,workload_override_by=?,workload_override_at=NOW(),updated_at=CURRENT_TIMESTAMP WHERE id=?')->execute([$points,$reason,$currentEmployeeId,$taskId]);
+        ops_activity_log('packing_workload_override_updated', 'packing_task', $taskId, [
+            'item' => $existing['item_name'],
+            'previous_points' => $existing['workload_points_override'],
+            'calculated_points' => $existing['workload_points'],
+            'new_override_points' => $points,
+            'previous_reason' => $existing['workload_override_reason'],
+            'reason' => $reason,
+            'changed_by' => current_user()['name'] ?? 'Unknown',
+        ]);
+        echo json_encode(['ok'=>true,'message'=>$points===null?'Workload override cleared.':'Workload override saved.','data'=>['workload_points_override'=>$points,'workload_override_reason'=>$reason,'effective_workload_points'=>$points??(float)$existing['workload_points']]]);
+        exit;
+    }
+
     if ($action === 'update_field' || $action === 'bulk_update') {
         $ids = $action === 'bulk_update'
             ? array_values(array_filter(array_map('intval', explode(',', (string) ($_POST['task_ids'] ?? '')))))

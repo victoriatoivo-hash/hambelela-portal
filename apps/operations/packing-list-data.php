@@ -166,7 +166,10 @@ $tasks = ops_rows(
         pt.id, pt.item_name, {$receivedSelect}, pt.priority, pt.date_loaded, {$startedSelect},
         pt.quantity_planned, pt.assigned_employee_id, e.full_name AS assigned_name,
         pt.quantity_packed, pt.date_completed, {$confirmedSelect}, {$packingWebsiteAuditSelect}, {$frontdeskWebsiteSelect},
-        pt.packing_status, pt.notes, {$packerNotesSelect}, pt.workload_points, {$invoiceSelect}, {$labelSelect},
+        pt.packing_status, pt.notes, {$packerNotesSelect}, pt.workload_points, pt.workload_package_count,
+        pt.workload_weight_grams, pt.workload_volume_ml, pt.workload_unit_count, pt.workload_parse_status,
+        pt.workload_breakdown_json, pt.workload_points_override, pt.workload_override_reason, pt.workload_override_at,
+        {$invoiceSelect}, {$labelSelect},
         {$mondayIdSelect}, {$mondayBoardIdSelect}, {$mondayStatusSelect}, {$mondayErrorSelect}, {$packingRowKeySelect}
      FROM ops_packing_tasks pt
      LEFT JOIN ops_employees e ON e.id = pt.assigned_employee_id
