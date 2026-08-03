@@ -40,7 +40,8 @@ assert.match(ordersAction, /\$oldKpiStatus === \(string\) \$value/, 'repeated bu
 assert.match(sections, /date_completed BETWEEN/, 'packing output must be selected by completion date');
 assert.match(sections, /date_loaded<=p\.date_started AND p\.date_started<=p\.date_completed/, 'packing timings must enforce a valid timestamp sequence');
 assert.match(sections, /Median elapsed packing time/, 'packing timing must expose a median');
-assert.match(sections, /coverage_percent/, 'packing timing must expose coverage');
+assert.match(reporting, /coverage_percent/, 'shared KPI evidence envelopes must expose coverage');
+assert.match(sections, /kpi_metric\(\$validCount/, 'packing timing must use the shared evidence envelope');
 assert.match(packingAction, /workload_package_count/, 'workload calculation must store package count');
 assert.match(packingAction, /workload_weight_grams/, 'workload calculation must store normalized weight');
 assert.match(packingAction, /workload_volume_ml/, 'workload calculation must store normalized volume');
@@ -55,11 +56,16 @@ assert.match(sections, /Open overdue/, 'task reports must distinguish currently 
 assert.match(sections, /Sent late/, 'waybill reports must distinguish late-sent work');
 assert.match(sections, /Currently overdue/, 'waybill reports must distinguish currently overdue work');
 assert.match(sections, /Portal active time/, 'session-derived time must be labelled as portal active time');
+assert.match(reporting, /kpi_merge_presence_rows/, 'attendance must merge overlapping portal-presence sessions');
+assert.match(sections, /kpi_merge_presence_rows/, 'team attendance must use merged presence intervals');
+assert.match(employee, /kpi_merge_presence_rows/, 'employee attendance must use merged presence intervals');
 assert.doesNotMatch(sections, /\['label'=>'Total hours'/, 'session-derived time must not be labelled as attendance hours');
 assert.match(employee, /scheduleConfigured/, 'lateness must require an employee schedule');
 assert.match(sections, /ops_cash_book_entries/, 'Bookkeeping KPI evidence must use the live ledger entries table');
 assert.match(sections, /Missing cash-ups/, 'Bookkeeping must report missing cash-ups instead of treating zero reconciliations as success');
 assert.match(sections, /ops_hr_rows/, 'leave reporting must use the authoritative HR data source');
+assert.match(sections, /workload_points_override,p\.workload_points/, 'packing breakdowns must use stored workload evidence, including approved overrides');
+assert.match(employee, /workload_points_override,workload_points/, 'employee packing trends must use stored workload evidence');
 assert.match(errorsPage, /responsible_employee_id/, 'error attribution must store a responsible employee separately from the logger');
 assert.match(errorsPage, /affects_kpi_accuracy/, 'error attribution must explicitly control personal accuracy impact');
 assert.match(errorsPage, /accuracy_verified_by/, 'personal accuracy attribution must require owner verification');
