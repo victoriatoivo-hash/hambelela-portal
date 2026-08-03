@@ -8,6 +8,8 @@ const business = read('apps/operations/reports-data.php');
 const sections = read('apps/operations/reports-section-data.php');
 const employees = read('apps/operations/reports-employees-data.php');
 const employee = read('apps/operations/kpi-employee-data.php');
+const employeePage = read('apps/operations/kpi-employee.php');
+const employeeJs = read('assets/js/kpi-employee.js');
 const ordersAction = read('apps/operations/orders-board-action.php');
 const ordersReport = read('apps/operations/orders.php');
 const packingAction = read('apps/operations/packing-list-action.php');
@@ -94,5 +96,12 @@ assert.match(errorsPage, /accuracy_verified_by/, 'personal accuracy attribution 
 assert.match(sections, /l\.responsible_employee_id/, 'quality reports must use the responsible employee, not the logger');
 assert.match(business, /scores_disabled'=>true/, 'Business Health rankings must remain disabled');
 assert.match(employee, /'visible'=>false/, 'employee composite scores must remain hidden');
+assert.match(employee, /\$section==='all'/, 'employee pages must load all performance sections in one response');
+assert.match(employee, /'website_updates'=>/, 'the grouped employee response must include website evidence');
+assert.match(employee, /'score_breakdown'=>\['enabled'=>false/, 'the unified employee page must keep composite scoring disabled');
+assert.doesNotMatch(employeePage, /kpi-employee-tabs/, 'employee pages must not render fragmented sub-tabs');
+assert.match(employeePage, /employee-kpi-jump-nav/, 'employee pages must use same-page jump navigation');
+assert.match(employeeJs, /section:'all'/, 'the client must fetch all employee sections together');
+assert.doesNotMatch(employeeJs, /\{S:1,M:3,L:6,XL:10\}/, 'the client must not recalculate obsolete workload classes');
 
 console.log('KPI data-integrity foundation checks passed.');
