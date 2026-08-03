@@ -708,6 +708,16 @@ window.addEventListener('DOMContentLoaded', () => {
       });
     };
 
+    window.updatePackingListUnreadCount = (unreadCount) => {
+      const countValue = Number(unreadCount || 0);
+      document.querySelectorAll('[data-packing-unread-badge]').forEach((badge) => {
+        badge.hidden = countValue <= 0;
+        badge.classList.toggle('is-hidden', countValue <= 0);
+        badge.textContent = countValue > 0 ? (countValue > 99 ? '99+' : String(countValue)) : '';
+        badge.setAttribute('aria-label', `${countValue} new packing assignments`);
+      });
+    };
+
     const persistLastSeen = () => {
       try {
         window.localStorage?.setItem(storageKey, String(lastSeenLatestId));
@@ -726,6 +736,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
         const data = await response.json();
         updateSidebarNotificationBadges(data.unread_count || 0);
+        window.updatePackingListUnreadCount(data.packing_list_unread_count || 0);
         taskReminderSound.configure(data.preferences || {});
 
         const latest = Array.isArray(data.latest) ? data.latest : [];

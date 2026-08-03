@@ -495,26 +495,93 @@ function notifications_notify_order_assigned(int $orderId, ?int $packerId): void
     ], [$packerId]);
 }
 
-function notifications_notify_packing_assigned(int $taskId, ?int $employeeId): void
+function notifications_close_packing_assignments(int $taskId, ?int $exceptEmployeeId = null): void
 {
-    if (!$employeeId) {
-        return;
-    }
+    if ($taskId <= 0 || !notifications_schema_ready()) return;
+    try {
+        $sql = "UPDATE notification_recipients nr
+                JOIN notifications n ON n.id = nr.notification_id
+                SET nr.cleared_at = COALESCE(nr.cleared_at, NOW())
+                WHERE n.related_type = 'packing_assignment' AND n.related_id = ?
+                  AND nr.read_at IS NULL AND nr.cleared_at IS NULL";
+        $params = [$taskId];
+        if ($exceptEmployeeId) {
+            $sql .= ' AND nr.employee_id <> ?';
+            $params[] = $exceptEmployeeId;
+        }
+        db()->prepare($sql)->execute($params);
+    } catch (Throwable $e) {}
+}
+
+function notifications_notify_packing_assigned(int $taskId, ?int $employeeId, ?int $assignmentVersion = null): ?int
+{
+    notifications_close_packing_assignments($taskId, $employeeId);
+    if (!$employeeId) return null;
 
     $task = notifications_packing_summary($taskId);
-    if (!$task) {
-        return;
-    }
+    if (!$task || (int) ($task['assigned_employee_id'] ?? 0) !== $employeeId) return null;
 
-    notifications_create([
+    if (!$assignmentVersion && ops_table_exists('ops_packing_assignment_log')) {
+        $rows = ops_rows('SELECT id FROM ops_packing_assignment_log WHERE packing_task_id = ? AND new_employee_id = ? ORDER BY id DESC LIMIT 1', [$taskId, $employeeId]);
+        $assignmentVersion = (int) ($rows[0]['id'] ?? 0) ?: null;
+    }
+    $assignmentVersion = $assignmentVersion ?: (int) sprintf('%u', crc32($taskId . '|' . $employeeId . '|' . microtime(true)));
+
+    return notifications_create([
         'title' => 'Packing item assigned',
         'message' => (string) ($task['item_name'] ?? 'A packing item') . ' has been assigned to you.',
         'module' => 'packing',
         'priority' => 'normal',
-        'related_type' => 'packing_task',
+        'related_type' => 'packing_assignment',
         'related_id' => $taskId,
-        'action_link' => BASE_URL . '/apps/operations/consignments.php?task_id=' . $taskId,
+        'deduplication_key' => 'packing-assignment:' . $taskId . ':employee:' . $employeeId . ':event:' . $assignmentVersion,
+        'required_delivery' => true,
+        'action_link' => BASE_URL . '/apps/operations/consignments.php?assigned=me&unread=1&task_id=' . $taskId,
     ], [$employeeId]);
+}
+
+function notifications_packing_assignment_unread_ids(?int $employeeId = null, int $limit = 200): array
+{
+    $employeeId = $employeeId ?: notifications_current_employee_id();
+    if (!$employeeId || !notifications_schema_ready() || !ops_table_exists('ops_packing_tasks')) return [];
+    try {
+        $limit = max(1, min(500, $limit));
+        $stmt = db()->prepare(
+            "SELECT DISTINCT n.related_id
+             FROM notification_recipients nr
+             JOIN notifications n ON n.id = nr.notification_id
+             JOIN ops_packing_tasks pt ON pt.id = n.related_id
+             WHERE nr.employee_id = ? AND n.related_type = 'packing_assignment'
+               AND nr.read_at IS NULL AND nr.cleared_at IS NULL
+               AND pt.assigned_employee_id = ? AND pt.deleted_at IS NULL AND pt.archived_at IS NULL
+             ORDER BY n.id ASC LIMIT {$limit}"
+        );
+        $stmt->execute([$employeeId, $employeeId]);
+        return array_values(array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN)));
+    } catch (Throwable $e) { return []; }
+}
+
+function notifications_packing_assignment_unread_count(?int $employeeId = null): int
+{
+    return count(notifications_packing_assignment_unread_ids($employeeId, 500));
+}
+
+function notifications_mark_packing_assignment_viewed(int $taskId, ?int $employeeId = null): bool
+{
+    $employeeId = $employeeId ?: notifications_current_employee_id();
+    if (!$employeeId || $taskId <= 0 || !notifications_schema_ready()) return false;
+    try {
+        $stmt = db()->prepare(
+            "UPDATE notification_recipients nr
+             JOIN notifications n ON n.id = nr.notification_id
+             JOIN ops_packing_tasks pt ON pt.id = n.related_id
+             SET nr.read_at = COALESCE(nr.read_at, NOW())
+             WHERE nr.employee_id = ? AND n.related_type = 'packing_assignment' AND n.related_id = ?
+               AND pt.assigned_employee_id = ? AND nr.read_at IS NULL AND nr.cleared_at IS NULL"
+        );
+        $stmt->execute([$employeeId, $taskId, $employeeId]);
+        return $stmt->rowCount() > 0;
+    } catch (Throwable $e) { return false; }
 }
 
 function notifications_notify_task_assigned(int $taskId, ?int $employeeId, string $taskName): ?int

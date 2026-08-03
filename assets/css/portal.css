@@ -27315,6 +27315,8 @@ body.dark-mode .portal-dark-toggle {
 .dtb-bulk-close:hover { background: rgba(240, 116, 32, .08); }
 @media (max-width: 700px) { .dtb-bulk-action-bar { max-width: calc(100vw - 20px); overflow-x: auto; } .dtb-bulk-action { min-width: 56px; } }
 /* Digital Task Board unified Packing List-style grid */
+.packing-list-page tr.is-new-assignment{animation:packing-assignment-highlight 2.4s ease both}
+@keyframes packing-assignment-highlight{0%,65%{background:#fff3e8}100%{background:transparent}}
 
 /* Task Tools uses the shared right-side portal tools architecture. */
 .digital-task-page .dtb-page-actions { display:flex; flex:0 0 auto; align-items:center; justify-content:flex-end; gap:8px; margin-left:auto; }

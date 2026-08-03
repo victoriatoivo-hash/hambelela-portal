@@ -998,8 +998,9 @@ function packing_import_monday_row(array $row, int $employeeId): int
     }
 
     db()->prepare('INSERT INTO ops_packing_tasks (' . implode(', ', $columns) . ') VALUES (' . implode(', ', $placeholders) . ')')->execute($params);
-
-    return (int) db()->lastInsertId();
+    $newId = (int) db()->lastInsertId();
+    packing_publish_assignment($newId, null, !empty($row['assigned_employee_id']) ? (int) $row['assigned_employee_id'] : null, $employeeId);
+    return $newId;
 }
 
 function packing_best_duplicate_row(array $rows): array
@@ -1129,6 +1130,18 @@ function packing_ensure_kpi_audit_schema(): void
     );
 }
 
+function packing_publish_assignment(int $taskId, ?int $oldEmployeeId, ?int $newEmployeeId, ?int $changedBy): void
+{
+    if ($taskId <= 0 || $oldEmployeeId === $newEmployeeId) return;
+    $logId = null;
+    if (ops_table_exists('ops_packing_assignment_log')) {
+        $stmt = db()->prepare('INSERT INTO ops_packing_assignment_log (packing_task_id, old_employee_id, new_employee_id, changed_by) VALUES (?, ?, ?, ?)');
+        $stmt->execute([$taskId, $oldEmployeeId, $newEmployeeId, $changedBy]);
+        $logId = (int) db()->lastInsertId();
+    }
+    notifications_notify_packing_assigned($taskId, $newEmployeeId, $logId);
+}
+
 try {
     if (!ops_database_ready() || !ops_table_exists('ops_packing_tasks')) {
         throw new RuntimeException('Packing database is not ready.');
@@ -1142,6 +1155,14 @@ try {
     // who can access Packing List may use its recovery tools.
     $canViewPackingTools = true;
     $currentEmployeeId = ops_current_employee_id();
+
+    if ($action === 'mark_assignment_viewed') {
+        $taskId = (int) ($_POST['task_id'] ?? 0);
+        if ($taskId <= 0) throw new RuntimeException('Select a packing item.');
+        notifications_mark_packing_assignment_viewed($taskId, (int) ($currentEmployeeId ?: 0));
+        echo json_encode(['ok' => true, 'assignmentUnreadCount' => notifications_packing_assignment_unread_count((int) ($currentEmployeeId ?: 0))]);
+        exit;
+    }
 
     if (in_array($action, ['tools_data', 'trash_restore', 'trash_delete_forever', 'trash_bulk_restore', 'trash_bulk_delete_forever', 'archive_restore', 'bulk_delete'], true)) {
         if (!ops_column_exists('ops_packing_tasks', 'deleted_at')) db()->exec('ALTER TABLE ops_packing_tasks ADD COLUMN deleted_at DATETIME NULL');
@@ -1214,6 +1235,7 @@ try {
                     'bulk_action_reference' => $bulkReference,
                 ];
                 if ($isPermanentDelete) {
+                    notifications_close_packing_assignments($id);
                     ops_activity_log('packing_row_permanently_deleted', 'packing_task', $id, $metadata);
                     $stmt = db()->prepare('DELETE FROM ops_packing_tasks WHERE id = ? AND deleted_at IS NOT NULL');
                 } else {
@@ -1402,6 +1424,7 @@ try {
         );
         $stmt->execute($params);
         $newId = (int) db()->lastInsertId();
+        packing_publish_assignment($newId, null, $assignedId > 0 ? $assignedId : null, $currentEmployeeId ?: null);
 
         echo json_encode(['ok' => true, 'message' => $quantityWarning !== '' ? 'Packing item created. Quantity-to-pack warning added.' : 'Packing item created.', 'warning' => $quantityWarning]);
         exit;
@@ -1582,6 +1605,8 @@ try {
                 $notes,
                 $currentEmployeeId,
             ]);
+            $importedId = (int) db()->lastInsertId();
+            packing_publish_assignment($importedId, null, (int) ($row['assigned_employee_id'] ?: 0) ?: null, $currentEmployeeId ?: null);
             $imported++;
         }
 
@@ -2032,6 +2057,7 @@ try {
         }
 
         $stmt = db()->prepare("DELETE FROM ops_packing_tasks WHERE id IN ({$placeholders})");
+        foreach ($ids as $id) notifications_close_packing_assignments((int) $id);
         $stmt->execute($ids);
 
         echo json_encode(['ok' => true, 'message' => 'Deleted ' . $stmt->rowCount() . ' duplicate packing rows.']);
@@ -2291,6 +2317,7 @@ try {
             );
             $stmt->execute($params);
             $newId = (int) db()->lastInsertId();
+            packing_publish_assignment($newId, null, $assignedId > 0 ? $assignedId : null, $currentEmployeeId ?: null);
             $insertedIds[] = $newId;
             $acceptedIds[] = $newId;
             $matchedExistingIds[] = $newId;
@@ -2673,14 +2700,11 @@ try {
             $updatedRows = [];
         }
 
-        if ($field === 'assigned_employee_id' && $previousAssignmentRows && ops_table_exists('ops_packing_assignment_log')) {
-            $logStmt = db()->prepare('INSERT INTO ops_packing_assignment_log (packing_task_id, old_employee_id, new_employee_id, changed_by) VALUES (?, ?, ?, ?)');
+        if ($field === 'assigned_employee_id' && $previousAssignmentRows) {
             foreach ($ids as $id) {
                 $oldEmployeeId = $previousAssignmentRows[(int) $id] ?? null;
                 $newEmployeeId = $value === null ? null : (int) $value;
-                if ($oldEmployeeId !== $newEmployeeId) {
-                    $logStmt->execute([(int) $id, $oldEmployeeId, $newEmployeeId, $currentEmployeeId ?: null]);
-                }
+                packing_publish_assignment((int) $id, $oldEmployeeId, $newEmployeeId, $currentEmployeeId ?: null);
             }
         }
 
@@ -2762,9 +2786,7 @@ try {
             if ($field === 'notes' && $value !== '' && (string) ($previousValueRows[(int) $id] ?? '') !== $value) {
                 packing_create_update_notifications((int) $id, 'note_added', abs(crc32($value . '|' . $id)) + 1, (int) ($currentEmployeeId ?: 0));
             }
-            if ($field === 'assigned_employee_id') {
-                notifications_notify_packing_assigned($id, $value === null ? null : (int) $value);
-            } elseif ($field === 'packing_status' && in_array($value, ['packed_label_needed', 'label_created', 'website'], true)) {
+            if ($field === 'packing_status' && in_array($value, ['packed_label_needed', 'label_created', 'website'], true)) {
                 $task = notifications_packing_summary($id);
                 $title = $value === 'packed_label_needed' ? 'Packing label needed' : 'Packing item updated';
                 notifications_create_for_roles([
@@ -2807,6 +2829,7 @@ try {
             $params = array_merge([$currentEmployeeId], $ids);
             $stmt = db()->prepare("UPDATE ops_packing_tasks SET archived_at = NOW(), archived_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders})");
             $stmt->execute($params);
+            foreach ($ids as $id) notifications_close_packing_assignments((int) $id);
             foreach ($ids as $id) {
                 ops_activity_log('packing_row_archived', 'packing_task', $id, ['changed_by' => current_user()['name'] ?? 'Unknown']);
             }
@@ -2818,6 +2841,7 @@ try {
             $params = array_merge([$currentEmployeeId], $ids);
             $stmt = db()->prepare("UPDATE ops_packing_tasks SET deleted_at = NOW(), deleted_by = ?, delete_reason = 'Moved to Trash from bulk action', updated_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders}) AND deleted_at IS NULL");
             $stmt->execute($params);
+            foreach ($ids as $id) notifications_close_packing_assignments((int) $id);
             foreach ($ids as $id) ops_activity_log('packing_row_deleted', 'packing_task', $id, ['source' => 'bulk_action']);
             echo json_encode(['ok' => true, 'message' => 'Moved ' . $stmt->rowCount() . ' packing rows to Trash.']);
             exit;
@@ -2844,6 +2868,8 @@ try {
                     trim('Duplicated from packing row #' . (int) $row['id'] . "\n" . (string) ($row['notes'] ?? '')),
                     $currentEmployeeId,
                 ]);
+                $copyId = (int) db()->lastInsertId();
+                packing_publish_assignment($copyId, null, (int) ($row['assigned_employee_id'] ?? 0) ?: null, $currentEmployeeId ?: null);
                 $created++;
             }
             echo json_encode(['ok' => true, 'message' => 'Duplicated ' . $created . ' packing rows.']);

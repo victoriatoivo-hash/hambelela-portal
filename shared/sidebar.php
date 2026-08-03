@@ -32,6 +32,7 @@ $sidebarUserName = trim((string) ($sidebarUser['name'] ?? ($_SESSION['user']['na
 $sidebarUserRole = trim((string) ($sidebarUser['role'] ?? ($_SESSION['user']['role'] ?? ($_SESSION['user_role'] ?? ''))));
 $sidebarUserInitial = strtoupper(substr($sidebarUserName !== '' ? $sidebarUserName : 'U', 0, 1));
 $taskOutstandingCount = 0;
+$packingAssignmentUnread = function_exists('notifications_packing_assignment_unread_count') ? notifications_packing_assignment_unread_count() : 0;
 try {
     if (function_exists('ops_database_ready') && ops_database_ready() && function_exists('ops_table_exists') && ops_table_exists('ops_checklist_tasks')) {
         $taskScope = function_exists('ops_task_scope_for_current_user') ? ops_task_scope_for_current_user() : ['type' => 'assigned', 'employee_id' => function_exists('ops_current_employee_id') ? ops_current_employee_id() : null];
@@ -51,7 +52,7 @@ $portalNavItems = [
     ['id' => 'portal-dashboard', 'label' => 'Dashboard', 'icon' => 'dashboard', 'href' => '/index.php', 'match' => ['/index.php']],
     ['id' => 'operations-orders', 'label' => 'Orders', 'icon' => 'orders', 'href' => BASE_URL . '/apps/operations/orders-board.php', 'match' => ['/apps/operations/orders-board.php']],
     ['id' => 'operations-bookkeeping', 'label' => 'Bookkeeping', 'icon' => 'bookkeeping', 'href' => BASE_URL . '/apps/operations/bookkeeping.php', 'match' => ['/apps/operations/bookkeeping.php']],
-    ['id' => 'operations-consignments', 'label' => 'Packing List', 'icon' => 'packing', 'href' => BASE_URL . '/apps/operations/consignments.php', 'match' => ['/apps/operations/consignments.php']],
+    ['id' => 'operations-consignments', 'label' => 'Packing List', 'icon' => 'packing', 'href' => BASE_URL . '/apps/operations/consignments.php?assigned=me&unread=1', 'match' => ['/apps/operations/consignments.php'], 'badge' => $packingAssignmentUnread, 'badge_label' => $packingAssignmentUnread > 99 ? '99+' : (string) $packingAssignmentUnread, 'badge_kind' => 'packing'],
     ['id' => 'operations-courier', 'label' => 'Courier Waybills', 'icon' => 'courier', 'href' => BASE_URL . '/apps/operations/courier.php', 'match' => ['/apps/operations/courier.php']],
     ['id' => 'hr-portal', 'label' => 'HR Portal', 'icon' => 'hr', 'href' => BASE_URL . '/apps/hr-portal/portal-login.php', 'match' => ['/apps/hr-portal/portal-login.php', '/apps/hr-portal/index.php']],
     ['id' => 'operations-inventory', 'label' => 'Inventory', 'icon' => 'inventory', 'href' => BASE_URL . '/apps/operations/orders.php?tab=inventory', 'match' => ['/apps/operations/orders.php']],
@@ -150,6 +151,8 @@ $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bo
 <style id="portal-sidebar-task-badge">
 .portal-sidebar.collapsed .ps-nav-item[data-nav-id="operations-checklists"] { overflow: visible; }
 .portal-sidebar.collapsed .ps-nav-item[data-nav-id="operations-checklists"] .ps-nav-badge { position: absolute; top: 3px; right: 7px; width: auto; min-width: 15px; height: 15px; padding: 0 4px; opacity: 1; font-size: 9px; font-weight: 400; line-height: 15px; pointer-events: none; }
+.portal-sidebar.collapsed .ps-nav-item[data-nav-id="operations-consignments"] { overflow: visible; }
+.portal-sidebar.collapsed .ps-nav-item[data-nav-id="operations-consignments"] .ps-nav-badge { position:absolute;top:3px;right:7px;width:auto;min-width:15px;height:15px;padding:0 4px;opacity:1;font-size:9px;font-weight:400;line-height:15px;pointer-events:none; }
 </style>
 <style id="portal-sidebar-notification-badge">
 .ps-notification-badge{margin-left:auto;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:#AB3619;color:#fff;font-size:11px;font-weight:400;line-height:20px;text-align:center;box-shadow:0 6px 14px rgba(171,54,25,.18);box-sizing:border-box;flex-shrink:0}.ps-notification-badge.is-hidden{display:none}.portal-sidebar.collapsed .ps-nav-item--notify{position:relative;width:44px;height:44px;padding:0;margin:0 auto;justify-content:center;overflow:visible}.portal-sidebar.collapsed .ps-nav-item--notify .ps-notification-badge{display:inline-flex;align-items:center;justify-content:center;position:absolute;top:4px;right:6px;min-width:15px;width:auto;height:15px;padding:0 4px;border-radius:999px;font-size:9px;line-height:15px;z-index:5;opacity:1;transform:translate(35%,-20%);pointer-events:none}.portal-sidebar.collapsed .ps-nav-item--notify .ps-notification-badge.is-hidden,.portal-sidebar.collapsed .ps-nav-item--notify .ps-notification-badge:empty{display:none}
@@ -200,8 +203,8 @@ $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bo
                 <a href="<?= htmlspecialchars((string) $item['href'], ENT_QUOTES, 'UTF-8') ?>" class="ps-nav-item<?= $isActive ? ' ps-nav-item--active' : '' ?>" data-nav-id="<?= htmlspecialchars((string) $item['id'], ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars((string) $item['label'], ENT_QUOTES, 'UTF-8') ?>">
                     <span class="ps-nav-icon"><?= getSidebarIcon((string) $item['id']) ?></span>
                     <span class="ps-nav-label"><?= htmlspecialchars((string) $item['label'], ENT_QUOTES, 'UTF-8') ?></span>
-                    <?php if (!empty($item['badge'])): ?>
-                        <span class="ps-nav-badge" aria-label="<?= (int) $item['badge'] ?> outstanding tasks"><?= htmlspecialchars((string) ($item['badge_label'] ?? $item['badge']), ENT_QUOTES, 'UTF-8') ?></span>
+                    <?php if (!empty($item['badge']) || ($item['badge_kind'] ?? '') === 'packing'): ?>
+                        <span class="ps-nav-badge<?= empty($item['badge']) ? ' is-hidden' : '' ?>"<?= ($item['badge_kind'] ?? '') === 'packing' ? ' data-packing-unread-badge' : '' ?><?= empty($item['badge']) ? ' hidden' : '' ?> aria-label="<?= (int) $item['badge'] ?> <?= ($item['badge_kind'] ?? '') === 'packing' ? 'new packing assignments' : 'outstanding tasks' ?>"><?= !empty($item['badge']) ? htmlspecialchars((string) ($item['badge_label'] ?? $item['badge']), ENT_QUOTES, 'UTF-8') : '' ?></span>
                     <?php endif; ?>
                 </a>
             <?php endforeach; ?>

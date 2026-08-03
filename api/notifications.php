@@ -63,6 +63,8 @@ try {
     }
 
     $summary = notifications_summary_for_current_user(5);
+    $summary['packing_list_unread_count'] = notifications_packing_assignment_unread_count();
+    $summary['packing_list_unread_ids'] = notifications_packing_assignment_unread_ids();
     echo json_encode(['ok' => true] + $summary, JSON_UNESCAPED_SLASHES);
 } catch (Throwable $e) {
     http_response_code(500);

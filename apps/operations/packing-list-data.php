@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/operations.php';
+require_once BASE_PATH . '/shared/notifications.php';
 
 header('Content-Type: application/json');
 
@@ -265,6 +266,8 @@ unset($task);
 echo json_encode([
     'ok' => true,
     'tasks' => $tasks,
+    'assignmentUnreadCount' => notifications_packing_assignment_unread_count((int) ($currentEmployeeId ?: 0)),
+    'assignmentUnreadIds' => notifications_packing_assignment_unread_ids((int) ($currentEmployeeId ?: 0)),
     'totalRows' => $totalRows,
     'packers' => $packers,
     'priorityLabels' => $priorityLabels,

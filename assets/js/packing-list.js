@@ -46,6 +46,7 @@
   let currentUser = {};
   let totalRows = 0;
   let currentTask = null;
+  let assignmentUnreadIds = new Set();
   let activePackingFileItemId = '';
   let packingFileListController = null;
   let packingFileRequestVersion = 0;
@@ -1764,12 +1765,16 @@
       totalRows = Number(data.totalRows || tasks.length || 0);
       packers = data.packers || [];
       currentUser = data.currentUser || {};
+      assignmentUnreadIds = new Set((data.assignmentUnreadIds || []).map(Number));
+      window.updatePackingListUnreadCount?.(data.assignmentUnreadCount || 0);
       applyPackingToolbarAccess();
       loadPackingColumnWidths();
       if (!defaultPersonFilterApplied && !currentUser.can_manage && currentUser.id) {
         state.person = '__mine';
         defaultPersonFilterApplied = true;
       }
+      const packingUrlParams = new URLSearchParams(window.location.search);
+      if (packingUrlParams.get('assigned') === 'me') state.person = '__mine';
       fillPackerSelects();
       if (!data.migrationReady) {
         body.innerHTML = renderBoardMessage('Import operations-packing-list-migration.sql first.');
@@ -1778,6 +1783,17 @@
         return;
       }
       render();
+      if (packingUrlParams.get('unread') === '1') {
+        const requestedTaskId = Number(packingUrlParams.get('task_id') || 0);
+        const firstUnread = tasks.find((task) => Number(task.id) === requestedTaskId && assignmentUnreadIds.has(Number(task.id)))
+          || tasks.find((task) => assignmentUnreadIds.has(Number(task.id)));
+        if (firstUnread) window.setTimeout(() => {
+          const trigger = document.querySelector(`[data-packing-open-panel="${CSS.escape(String(firstUnread.id))}"]`);
+          trigger?.closest('tr')?.classList.add('is-new-assignment');
+          trigger?.scrollIntoView({behavior:'smooth', block:'center'});
+          openPanel(firstUnread.id);
+        }, 0);
+      }
     } finally {
       refreshButton?.classList.remove('is-loading');
     }
@@ -2273,6 +2289,12 @@
     panel.classList.add('open');
     panel.setAttribute('aria-hidden', 'false');
     backdrop.hidden = false;
+    if (assignmentUnreadIds.has(Number(currentTask.id))) {
+      post('mark_assignment_viewed', { task_id: currentTask.id }).then((result) => {
+        assignmentUnreadIds.delete(Number(currentTask.id));
+        window.updatePackingListUnreadCount?.(result.assignmentUnreadCount || 0);
+      }).catch(() => {});
+    }
     if (defaultPanelTab === 'details') markPackingItemUpdatesRead(currentTask.id, ['note_added']);
     if (defaultPanelTab === 'files') markPackingItemUpdatesRead(currentTask.id, ['file_uploaded']);
   }
