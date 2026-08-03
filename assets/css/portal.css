@@ -28157,3 +28157,11 @@ html:has(body.login-page),body.login-page{min-height:100%;background:#FFFFFF!imp
   .notification-sound-settings__toggles { column-gap:10px; }
   .notification-volume-row { grid-template-columns:42px minmax(80px,1fr) 42px; gap:6px; }
 }
+.portal-unread-badge[hidden],
+.portal-unread-badge:empty,
+[data-packing-unread-badge][hidden],
+[data-packing-unread-badge]:empty,
+[data-packing-app-unread-badge][hidden],
+[data-packing-app-unread-badge]:empty {
+    display: none !important;
+}

@@ -361,7 +361,24 @@
     const type = viewType(source);
     if (type === 'packing') source.classList.add('packing-filter-grid');
     try {
-      if (type === 'courier') {
+      if (type === 'packing') {
+        const existing = source.closest('main')?.querySelector('[data-packing-refresh]');
+        if (!existing) throw new Error('Packing List refresh is unavailable.');
+        existing.click();
+        await new Promise((resolve, reject) => {
+          const started = Date.now();
+          const timer = window.setInterval(() => {
+            const loading = existing.classList.contains('is-loading');
+            if (!loading && Date.now() - started > 150) {
+              window.clearInterval(timer);
+              resolve();
+            } else if (Date.now() - started > 15000) {
+              window.clearInterval(timer);
+              reject(new Error('Packing List synchronization timed out.'));
+            }
+          }, 100);
+        });
+      } else if (type === 'courier') {
         const existing = source.closest('main').querySelector('[data-refresh-waybills]');
         if (!existing) throw new Error('Courier refresh is unavailable.');
         existing.click();
@@ -383,16 +400,21 @@
         const parsed = new DOMParser().parseFromString(await response.text(), 'text/html');
         const selectors = type === 'tasks'
           ? ['.dtb-stats-grid', '[data-task-management-sections]', '[data-task-board]']
-          : ['.bk-stats', '.ledger-board'];
+          : ['.stat-grid', '.ledger-board'];
         let replaced = 0;
         selectors.forEach((selector) => {
           const current = document.querySelector(selector);
           const next = parsed.querySelector(selector);
-          if (current && next) { current.replaceWith(next); replaced += 1; }
+          if (current && next) {
+            // Keep the enhanced Bookkeeping surface node alive so its existing
+            // filter/sort controller continues to target the refreshed rows.
+            current.innerHTML = next.innerHTML;
+            replaced += 1;
+          }
         });
         if (!replaced) throw new Error('No refreshed records were returned.');
       }
-      announce(type === 'courier' ? 'Waybills synchronized.' : type === 'tasks' ? 'Tasks synchronized.' : 'Bookkeeping synchronized.');
+      announce(type === 'packing' ? 'Packing List synchronized.' : type === 'courier' ? 'Waybills synchronized.' : type === 'tasks' ? 'Tasks synchronized.' : 'Bookkeeping synchronized.');
     } catch (error) {
       announce(error.message || 'Synchronization failed.', true);
     } finally {

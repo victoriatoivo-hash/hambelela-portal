@@ -714,7 +714,7 @@ window.addEventListener('DOMContentLoaded', () => {
         badge.hidden = countValue <= 0;
         badge.classList.toggle('is-hidden', countValue <= 0);
         badge.textContent = countValue > 0 ? (countValue > 99 ? '99+' : String(countValue)) : '';
-        badge.setAttribute('aria-label', `${countValue} new packing assignments`);
+        badge.setAttribute('aria-label', countValue === 1 ? '1 unread Packing List item' : `${countValue} unread Packing List items`);
       });
     };
 

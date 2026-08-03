@@ -45,8 +45,14 @@ if ($roleKey === 'owner_admin') {
         ['name' => 'Courier', 'desc' => 'upload waybills, alert front desk and track customer sends', 'icon' => 'truck', 'href' => BASE_URL . '/apps/operations/courier.php', 'active' => true, 'tone' => 'green'],
     ];
 } else {
+    $dashboardPackingHref = BASE_URL . '/apps/operations/consignments.php?unread=1';
+    $dashboardPackingDescription = 'newly loaded products, website updates and packing progress';
+    if (!in_array($roleKey, ['front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager'], true)) {
+        $dashboardPackingHref .= '&assigned=me';
+        $dashboardPackingDescription = 'assigned consignment packing quantities and completion status';
+    }
     $apps = [
-        ['name' => 'Packing List', 'desc' => 'assigned consignment packing quantities and completion status', 'icon' => 'package-open', 'href' => BASE_URL . '/apps/operations/consignments.php?assigned=me&unread=1', 'active' => true, 'tone' => 'green'],
+        ['name' => 'Packing List', 'desc' => $dashboardPackingDescription, 'icon' => 'package-open', 'href' => $dashboardPackingHref, 'active' => true, 'tone' => 'green'],
         ['name' => 'Courier Waybills', 'desc' => 'courier labels and customer follow-up', 'icon' => 'truck', 'href' => BASE_URL . '/apps/operations/courier.php', 'active' => true, 'tone' => 'green'],
         ['name' => 'HR Portal', 'desc' => 'leave, payslips and employee self-service', 'icon' => 'shield-check', 'href' => BASE_URL . '/apps/hr-portal/portal-login.php', 'active' => true, 'tone' => 'green'],
         ['name' => 'Orders', 'desc' => 'website orders, payments and daily status', 'icon' => 'table-2', 'href' => BASE_URL . '/apps/operations/orders-board.php', 'active' => true, 'tone' => 'pink'],
@@ -80,7 +86,7 @@ include __DIR__ . '/shared/sidebar.php';
                 <strong><?= htmlspecialchars($app['name'], ENT_QUOTES, 'UTF-8') ?></strong>
                 <small><?= htmlspecialchars($app['desc'], ENT_QUOTES, 'UTF-8') ?></small>
                 <?php if ($app['name'] === 'Tasks' && $dashboardTaskCount > 0): ?><span class="employee-task-count" aria-label="<?= $dashboardTaskCount ?> incomplete tasks"><?= $dashboardTaskCount > 99 ? '99+' : $dashboardTaskCount ?></span><?php endif; ?>
-                <?php if ($app['name'] === 'Packing List'): ?><span class="employee-task-count<?= $dashboardPackingUnread > 0 ? '' : ' is-hidden' ?>" data-packing-unread-badge<?= $dashboardPackingUnread > 0 ? '' : ' hidden' ?> aria-label="<?= $dashboardPackingUnread ?> new packing assignments"><?= $dashboardPackingUnread > 0 ? ($dashboardPackingUnread > 99 ? '99+' : $dashboardPackingUnread) : '' ?></span><?php endif; ?>
+                <?php if ($app['name'] === 'Packing List'): ?><span class="employee-task-count<?= $dashboardPackingUnread > 0 ? '' : ' is-hidden' ?>" data-packing-unread-badge<?= $dashboardPackingUnread > 0 ? '' : ' hidden' ?> aria-label="<?= $dashboardPackingUnread ?> unread Packing List items"><?= $dashboardPackingUnread > 0 ? ($dashboardPackingUnread > 99 ? '99+' : $dashboardPackingUnread) : '' ?></span><?php endif; ?>
             </a>
         <?php endforeach; ?>
     </section>

@@ -48,6 +48,14 @@ $packingRowKeySelect = $hasPackingRowKey ? 'pt.packing_row_key' : 'NULL AS packi
 $packerNotesSelect = $hasPackerNotes ? 'pt.packer_notes' : "'' AS packer_notes";
 
 $currentEmployeeId = ops_current_employee_id();
+$currentRoleKey = current_role_key();
+$canViewAllPackingItems = in_array($currentRoleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager'], true);
+$canViewAssignedPackingItems = in_array($currentRoleKey, ['packer', 'packer_production_staff'], true);
+if (!$canViewAllPackingItems && !$canViewAssignedPackingItems) {
+    http_response_code(403);
+    echo json_encode(['ok' => false, 'message' => 'You do not have permission to view the Packing List.']);
+    exit;
+}
 $canManage = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
 $canViewFrontdeskWebsite = user_has_role('owner_admin', 'front_desk_admin', 'front_desk_admin_employee');
 $canConfirmFrontdeskWebsite = user_has_role('front_desk_admin', 'front_desk_admin_employee');
@@ -147,6 +155,10 @@ if ($hasArchivedAt) {
 if ($hasDeletedAt) {
     $whereParts[] = 'pt.deleted_at IS NULL';
 }
+if (!$canViewAllPackingItems) {
+    $whereParts[] = 'pt.assigned_employee_id = ?';
+    $params[] = (int) ($currentEmployeeId ?: 0);
+}
 $where = $whereParts ? 'WHERE ' . implode(' AND ', $whereParts) : '';
 
 $tasks = ops_rows(
@@ -166,7 +178,9 @@ $tasks = ops_rows(
 );
 
 $archiveWhere = implode(' AND ', array_filter([$hasArchivedAt ? 'archived_at IS NULL' : '1=1', $hasDeletedAt ? 'deleted_at IS NULL' : '1=1']));
-$totalRows = (int) ops_count('ops_packing_tasks', $archiveWhere);
+$totalRows = $canViewAllPackingItems
+    ? (int) ops_count('ops_packing_tasks', $archiveWhere)
+    : count($tasks);
 
 $packingEligibilityWhere = $hasPackingAssignable
     ? 'e.packing_assignable = 1'
@@ -276,6 +290,7 @@ echo json_encode([
         'id' => $currentEmployeeId,
         'role_key' => current_role_key(),
         'can_manage' => $canManage,
+        'can_view_all_items' => $canViewAllPackingItems,
         'can_bulk_manage' => $canManage,
         'can_delete' => user_has_role('owner_admin', 'supervisor_manager'),
         'can_view_front_website' => $canViewFrontdeskWebsite,

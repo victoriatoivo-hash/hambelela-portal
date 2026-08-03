@@ -513,6 +513,42 @@ function notifications_close_packing_assignments(int $taskId, ?int $exceptEmploy
     } catch (Throwable $e) {}
 }
 
+function notifications_close_packing_item_notifications(int $taskId): void
+{
+    if ($taskId <= 0 || !notifications_schema_ready()) return;
+    try {
+        db()->prepare(
+            "UPDATE notification_recipients nr
+             JOIN notifications n ON n.id = nr.notification_id
+             SET nr.cleared_at = COALESCE(nr.cleared_at, NOW())
+             WHERE n.related_id = ?
+               AND n.related_type IN ('packing_assignment', 'packing_loaded')
+               AND nr.read_at IS NULL AND nr.cleared_at IS NULL"
+        )->execute([$taskId]);
+    } catch (Throwable $e) {}
+}
+
+function notifications_notify_packing_loaded(int $taskId): ?int
+{
+    if ($taskId <= 0) return null;
+    $task = notifications_packing_summary($taskId);
+    if (!$task) return null;
+    $recipients = notifications_role_recipients(['front_desk_admin', 'front_desk_admin_employee']);
+    if (!$recipients) return null;
+
+    return notifications_create([
+        'title' => 'New Packing List item loaded',
+        'message' => (string) ($task['item_name'] ?? 'A packing item') . ' was loaded and may require a website update.',
+        'module' => 'packing',
+        'priority' => 'normal',
+        'related_type' => 'packing_loaded',
+        'related_id' => $taskId,
+        'deduplication_key' => 'packing-loaded:' . $taskId,
+        'required_delivery' => true,
+        'action_link' => BASE_URL . '/apps/operations/consignments.php?unread=1&task_id=' . $taskId,
+    ], $recipients);
+}
+
 function notifications_notify_packing_assigned(int $taskId, ?int $employeeId, ?int $assignmentVersion = null): ?int
 {
     notifications_close_packing_assignments($taskId, $employeeId);
@@ -551,9 +587,13 @@ function notifications_packing_assignment_unread_ids(?int $employeeId = null, in
              FROM notification_recipients nr
              JOIN notifications n ON n.id = nr.notification_id
              JOIN ops_packing_tasks pt ON pt.id = n.related_id
-             WHERE nr.employee_id = ? AND n.related_type = 'packing_assignment'
+             WHERE nr.employee_id = ?
+               AND (
+                    (n.related_type = 'packing_assignment' AND pt.assigned_employee_id = ?)
+                    OR n.related_type = 'packing_loaded'
+               )
                AND nr.read_at IS NULL AND nr.cleared_at IS NULL
-               AND pt.assigned_employee_id = ? AND pt.deleted_at IS NULL AND pt.archived_at IS NULL
+               AND pt.deleted_at IS NULL AND pt.archived_at IS NULL
              ORDER BY n.id ASC LIMIT {$limit}"
         );
         $stmt->execute([$employeeId, $employeeId]);
@@ -576,8 +616,12 @@ function notifications_mark_packing_assignment_viewed(int $taskId, ?int $employe
              JOIN notifications n ON n.id = nr.notification_id
              JOIN ops_packing_tasks pt ON pt.id = n.related_id
              SET nr.read_at = COALESCE(nr.read_at, NOW())
-             WHERE nr.employee_id = ? AND n.related_type = 'packing_assignment' AND n.related_id = ?
-               AND pt.assigned_employee_id = ? AND nr.read_at IS NULL AND nr.cleared_at IS NULL"
+             WHERE nr.employee_id = ? AND n.related_id = ?
+               AND (
+                    (n.related_type = 'packing_assignment' AND pt.assigned_employee_id = ?)
+                    OR n.related_type = 'packing_loaded'
+               )
+               AND nr.read_at IS NULL AND nr.cleared_at IS NULL"
         );
         $stmt->execute([$employeeId, $taskId, $employeeId]);
         return $stmt->rowCount() > 0;

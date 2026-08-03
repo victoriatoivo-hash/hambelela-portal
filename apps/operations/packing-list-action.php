@@ -1000,6 +1000,7 @@ function packing_import_monday_row(array $row, int $employeeId): int
     db()->prepare('INSERT INTO ops_packing_tasks (' . implode(', ', $columns) . ') VALUES (' . implode(', ', $placeholders) . ')')->execute($params);
     $newId = (int) db()->lastInsertId();
     packing_publish_assignment($newId, null, !empty($row['assigned_employee_id']) ? (int) $row['assigned_employee_id'] : null, $employeeId);
+    notifications_notify_packing_loaded($newId);
     return $newId;
 }
 
@@ -1235,7 +1236,7 @@ try {
                     'bulk_action_reference' => $bulkReference,
                 ];
                 if ($isPermanentDelete) {
-                    notifications_close_packing_assignments($id);
+                    notifications_close_packing_item_notifications($id);
                     ops_activity_log('packing_row_permanently_deleted', 'packing_task', $id, $metadata);
                     $stmt = db()->prepare('DELETE FROM ops_packing_tasks WHERE id = ? AND deleted_at IS NOT NULL');
                 } else {
@@ -1425,6 +1426,7 @@ try {
         $stmt->execute($params);
         $newId = (int) db()->lastInsertId();
         packing_publish_assignment($newId, null, $assignedId > 0 ? $assignedId : null, $currentEmployeeId ?: null);
+        notifications_notify_packing_loaded($newId);
 
         echo json_encode(['ok' => true, 'message' => $quantityWarning !== '' ? 'Packing item created. Quantity-to-pack warning added.' : 'Packing item created.', 'warning' => $quantityWarning]);
         exit;
@@ -1607,6 +1609,7 @@ try {
             ]);
             $importedId = (int) db()->lastInsertId();
             packing_publish_assignment($importedId, null, (int) ($row['assigned_employee_id'] ?: 0) ?: null, $currentEmployeeId ?: null);
+            notifications_notify_packing_loaded($importedId);
             $imported++;
         }
 
@@ -2057,7 +2060,7 @@ try {
         }
 
         $stmt = db()->prepare("DELETE FROM ops_packing_tasks WHERE id IN ({$placeholders})");
-        foreach ($ids as $id) notifications_close_packing_assignments((int) $id);
+        foreach ($ids as $id) notifications_close_packing_item_notifications((int) $id);
         $stmt->execute($ids);
 
         echo json_encode(['ok' => true, 'message' => 'Deleted ' . $stmt->rowCount() . ' duplicate packing rows.']);
@@ -2318,6 +2321,7 @@ try {
             $stmt->execute($params);
             $newId = (int) db()->lastInsertId();
             packing_publish_assignment($newId, null, $assignedId > 0 ? $assignedId : null, $currentEmployeeId ?: null);
+            notifications_notify_packing_loaded($newId);
             $insertedIds[] = $newId;
             $acceptedIds[] = $newId;
             $matchedExistingIds[] = $newId;
@@ -2829,7 +2833,7 @@ try {
             $params = array_merge([$currentEmployeeId], $ids);
             $stmt = db()->prepare("UPDATE ops_packing_tasks SET archived_at = NOW(), archived_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders})");
             $stmt->execute($params);
-            foreach ($ids as $id) notifications_close_packing_assignments((int) $id);
+            foreach ($ids as $id) notifications_close_packing_item_notifications((int) $id);
             foreach ($ids as $id) {
                 ops_activity_log('packing_row_archived', 'packing_task', $id, ['changed_by' => current_user()['name'] ?? 'Unknown']);
             }
@@ -2841,7 +2845,7 @@ try {
             $params = array_merge([$currentEmployeeId], $ids);
             $stmt = db()->prepare("UPDATE ops_packing_tasks SET deleted_at = NOW(), deleted_by = ?, delete_reason = 'Moved to Trash from bulk action', updated_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders}) AND deleted_at IS NULL");
             $stmt->execute($params);
-            foreach ($ids as $id) notifications_close_packing_assignments((int) $id);
+            foreach ($ids as $id) notifications_close_packing_item_notifications((int) $id);
             foreach ($ids as $id) ops_activity_log('packing_row_deleted', 'packing_task', $id, ['source' => 'bulk_action']);
             echo json_encode(['ok' => true, 'message' => 'Moved ' . $stmt->rowCount() . ' packing rows to Trash.']);
             exit;

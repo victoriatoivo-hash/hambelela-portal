@@ -58,7 +58,7 @@
   const failedPackingFiles = new Map();
 
   function isFrontDeskAdmin() {
-    return String(currentUser.role_key || '') === 'front_desk_admin';
+    return ['front_desk_admin', 'front_desk_admin_employee'].includes(String(currentUser.role_key || ''));
   }
 
   function applyPackingToolbarAccess() {
@@ -1769,7 +1769,8 @@
       window.updatePackingListUnreadCount?.(data.assignmentUnreadCount || 0);
       applyPackingToolbarAccess();
       loadPackingColumnWidths();
-      if (!defaultPersonFilterApplied && !currentUser.can_manage && currentUser.id) {
+      const restrictToOwnItems = !currentUser.can_view_all_items && currentUser.id;
+      if (!defaultPersonFilterApplied && restrictToOwnItems) {
         state.person = '__mine';
         defaultPersonFilterApplied = true;
       }
@@ -1804,7 +1805,7 @@
     document.querySelectorAll('[data-create-person]').forEach((select) => { select.innerHTML = options; });
     document.querySelectorAll('[data-packing-filter="person"]').forEach((select) => {
       const current = state.person || select.value;
-      const mineOption = (!currentUser.can_manage && currentUser.id) ? '<option value="__mine">My Items</option>' : '';
+      const mineOption = currentUser.id ? '<option value="__mine">My Items</option>' : '';
       select.innerHTML = `${mineOption}<option value="">All Items</option>` + packers.map((packer) => `<option value="${esc(packer.id)}">${esc(packer.full_name)}</option>`).join('') + '<option value="__unassigned">Unassigned</option>';
       select.value = current;
     });
