@@ -67,6 +67,9 @@ $settingFields = [
     'front_orders_walkin_weight' => ['Front orders: walk-in compliance share', 'number', '50'],
     'front_orders_nonwalk_weight' => ['Front orders: non-walk-in finalisation share', 'number', '50'],
     'minimum_courier_packing_lead_minutes' => ['Minimum courier packing lead time (minutes)', 'number', '30'],
+    'courier_following_applicable_day_rule' => ['Courier KPI following day rule (calendar_day, business_day, courier_service_day or not_configured)', 'text', 'not_configured'],
+    'courier_morning_inference_enabled' => ['Courier KPI morning inference (0 disabled, 1 enabled)', 'number', '0'],
+    'courier_late_response_target_minutes' => ['Courier KPI response target after late upload (0 means no automatic target)', 'number', '0'],
 ];
 
 if ($ready && $tab === 'settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
