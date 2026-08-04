@@ -291,10 +291,11 @@ function kpi_calculate_role_score(array $components): array
     $weightedPoints = 0.0;
     $rows = [];
     foreach ($components as $component) {
-        $result = isset($component['result']) && is_numeric($component['result'])
+        $applicable = !array_key_exists('applicable',$component) || (bool)$component['applicable'];
+        $result = $applicable && isset($component['result']) && is_numeric($component['result'])
             ? max(0.0, min(100.0, (float) $component['result']))
             : null;
-        $weight = max(0.0, (float) ($component['weight'] ?? 0));
+        $weight = $applicable ? max(0.0, (float) ($component['weight'] ?? 0)) : 0.0;
         $contribution = $result === null ? null : round($result * $weight / 100, 2);
         if ($result !== null) {
             $measuredWeight += $weight;
@@ -306,21 +307,42 @@ function kpi_calculate_role_score(array $components): array
             'result' => $result,
             'weight' => $weight,
             'contribution' => $contribution,
-            'status' => $result === null ? 'not_measured' : 'measured',
+            'status' => !$applicable ? 'not_applicable' : (string)($component['status'] ?? ($result === null ? 'system_evidence_unavailable' : 'measured')),
             'evidence' => (string) ($component['evidence'] ?? ''),
+            'numerator' => $component['numerator'] ?? null,
+            'denominator' => $component['denominator'] ?? null,
+            'evidence_count' => (int)($component['evidence_count'] ?? ($component['denominator'] ?? 0)),
         ];
     }
-    $score = $measuredWeight > 0 ? round($weightedPoints * 100 / $measuredWeight, 1) : null;
-    $band = $score === null ? 'Not Measured' : ($score >= 90 ? 'Gold' : ($score >= 85 ? 'Silver' : ($score >= 75 ? 'Bronze' : 'No Bonus')));
+    $rawScore = $measuredWeight > 0 ? $weightedPoints * 100 / $measuredWeight : null;
+    $score = $rawScore === null ? null : round($rawScore, 1);
+    $band = $rawScore === null ? 'Not Measured' : ($rawScore >= 90 ? 'Gold' : ($rawScore >= 85 ? 'Silver' : ($rawScore >= 75 ? 'Bronze' : 'No Bonus')));
+    $confidence=$measuredWeight>=90?'High confidence':($measuredWeight>=70?'Moderate confidence':($measuredWeight>=40?'Low confidence':'Insufficient evidence'));
     return [
         'score' => $score,
         'band' => $band,
         'measured_weight' => round($measuredWeight, 1),
         'provisional' => $measuredWeight < 100,
         'renormalised' => $measuredWeight > 0 && $measuredWeight < 100,
+        'earned_points' => round($weightedPoints,2),
+        'configured_weight' => round(array_sum(array_map(static function(array $component):float{return (!array_key_exists('applicable',$component)||(bool)$component['applicable'])?(float)($component['weight']??0):0.0;},$components)),1),
+        'evidence_confidence'=>$confidence,
         'message' => $measuredWeight < 100
             ? 'Provisional score — insufficient timestamp coverage for a final performance decision. Measured components are renormalised and missing data is not scored as zero.'
             : 'Final score based on complete measured components.',
         'components' => $rows,
     ];
+}
+
+function kpi_weighted_subscore(array $parts): ?float
+{
+    $weight=0.0;$points=0.0;
+    foreach($parts as$part){if(!isset($part['score'])||!is_numeric($part['score']))continue;$share=max(0.0,(float)($part['share']??0));$weight+=$share;$points+=max(0.0,min(100.0,(float)$part['score']))*$share;}
+    return $weight>0?round($points/$weight,1):null;
+}
+
+function kpi_role_weight_template(string $roleKey): array
+{
+    if(strpos($roleKey,'packer')!==false)return['version'=>'packer-v1-2026-08-04','role'=>'packer','effective_from'=>'2026-08-04','components'=>['productivity'=>20,'accuracy'=>20,'speed'=>15,'process'=>10,'notes_evidence'=>5,'tasks'=>10,'courier_upload'=>5,'attendance'=>10,'teamwork'=>5]];
+    return['version'=>'front-v1-2026-08-04','role'=>'front_person','effective_from'=>'2026-08-04','components'=>['orders_productivity'=>15,'order_accuracy'=>15,'website_speed'=>10,'courier_sending'=>10,'error_reporting'=>10,'bookkeeping'=>15,'notes_process'=>5,'tasks'=>10,'attendance'=>10]];
 }
