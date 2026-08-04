@@ -13,10 +13,14 @@ function ops_order_attribution_evidence(int $orderId): array
     if(!$order)return ['classification'=>'unable_to_confirm','sources'=>[],'actors'=>[]];
     if(in_array(strtolower((string)$order['status']),['cancelled','canceled','refunded','failed'],true))return ['classification'=>'not_applicable','sources'=>['order status'],'actors'=>[],'order'=>$order];
     $events=[];
-    if(ops_table_exists('ops_order_stage_events'))foreach(ops_rows("SELECT 'ops_order_stage_events' source,stage_key action,employee_id actor_id,created_at occurred_at,metadata FROM ops_order_stage_events WHERE order_id=? AND stage_key IN ('in_progress','completed','packed','verified') ORDER BY created_at,id",[$orderId])as$row)$events[]=$row;
+    if(ops_table_exists('ops_order_stage_events'))foreach(ops_rows("SELECT 'ops_order_stage_events' source,stage_key action,employee_id actor_id,occurred_at,metadata FROM ops_order_stage_events WHERE order_id=? AND stage_key IN ('in_progress','completed','packed','verified') ORDER BY occurred_at,id",[$orderId])as$row)$events[]=$row;
     if(ops_table_exists('kpi_status_events'))foreach(ops_rows("SELECT 'kpi_status_events' source,new_status action,changed_by actor_id,changed_at occurred_at,NULL metadata FROM kpi_status_events WHERE module='order' AND record_id=? AND new_status IN ('in_progress','completed','packed','verified') ORDER BY changed_at,id",[$orderId])as$row)$events[]=$row;
     if(ops_table_exists('ops_activity_logs'))foreach(ops_rows("SELECT 'ops_activity_logs' source,action,employee_id actor_id,created_at occurred_at,metadata FROM ops_activity_logs WHERE entity_type='order' AND entity_id=? AND action IN ('status_changed','order_completed','packed_by_changed','order_packed') ORDER BY created_at,id",[$orderId])as$row)$events[]=$row;
-    $itemActors=ops_table_exists('ops_order_items')&&ops_column_exists('ops_order_items','packed_by')?ops_rows('SELECT DISTINCT packed_by actor_id,MIN(packed_at) occurred_at FROM ops_order_items WHERE order_id=? AND packed_by IS NOT NULL GROUP BY packed_by',[$orderId]):[];
+    $itemActors=[];
+    if(ops_table_exists('ops_order_items')&&ops_column_exists('ops_order_items','packed_by')){
+        $itemTime=ops_column_exists('ops_order_items','packed_at')?'MIN(packed_at)':'NULL';
+        $itemActors=ops_rows("SELECT packed_by actor_id,{$itemTime} occurred_at FROM ops_order_items WHERE order_id=? AND packed_by IS NOT NULL GROUP BY packed_by",[$orderId]);
+    }
     foreach($itemActors as$row)$events[]=['source'=>'ops_order_items.packed_by','action'=>'item_packed','actor_id'=>$row['actor_id'],'occurred_at'=>$row['occurred_at'],'metadata'=>null];
     $actorIds=[];$firstPacking=null;$completion=null;$sources=[];
     foreach($events as$event){$actor=(int)($event['actor_id']??0);if($actor>0)$actorIds[$actor]=true;$sources[(string)$event['source']]=true;if($firstPacking===null&&in_array((string)$event['action'],['in_progress','item_packed','order_packed'],true)&&$actor>0)$firstPacking=$event;if($completion===null&&in_array((string)$event['action'],['completed','packed','verified','order_completed'],true)&&$actor>0)$completion=$event;}
