@@ -64,6 +64,7 @@ $settingFields = [
     'frontdesk_weight_attendance' => ['Front desk: attendance and reliability weight', 'number', '10'],
     'front_orders_walkin_weight' => ['Front orders: walk-in compliance share', 'number', '50'],
     'front_orders_nonwalk_weight' => ['Front orders: non-walk-in finalisation share', 'number', '50'],
+    'minimum_courier_packing_lead_minutes' => ['Minimum courier packing lead time (minutes)', 'number', '30'],
 ];
 
 if ($ready && $tab === 'settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
