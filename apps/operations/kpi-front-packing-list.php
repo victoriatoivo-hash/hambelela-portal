@@ -1,0 +1,43 @@
+<?php
+
+declare(strict_types=1);
+
+function kpi_front_packing_next_workday(DateTimeImmutable $date,array $holidays):DateTimeImmutable
+{
+    do{$date=$date->modify('+1 day')->setTime(0,0);}while((int)$date->format('N')===7||in_array($date->format('Y-m-d'),$holidays,true));return $date;
+}
+
+function kpi_front_packing_deadline(DateTimeImmutable $loaded,array $holidays,array $settings):DateTimeImmutable
+{
+    $weekdayCutoff=(string)($settings['frontdesk_website_weekday_cutoff']??'15:00');$weekdayClose=(string)($settings['frontdesk_website_weekday_close']??'17:00');$saturdayCutoff=(string)($settings['frontdesk_website_saturday_cutoff']??'11:00');$saturdayClose=(string)($settings['frontdesk_website_saturday_close']??'13:00');$day=(int)$loaded->format('N');$holiday=in_array($loaded->format('Y-m-d'),$holidays,true);
+    if($day===7||$holiday)return kpi_front_packing_next_workday($loaded,$holidays)->setTime((int)substr($weekdayClose,0,2),(int)substr($weekdayClose,3,2));
+    $cutoff=$day===6?$saturdayCutoff:$weekdayCutoff;$close=$day===6?$saturdayClose:$weekdayClose;$cutoffAt=$loaded->setTime((int)substr($cutoff,0,2),(int)substr($cutoff,3,2));
+    if($loaded<$cutoffAt)return $loaded->setTime((int)substr($close,0,2),(int)substr($close,3,2));
+    return kpi_front_packing_next_workday($loaded,$holidays)->setTime((int)substr($weekdayClose,0,2),(int)substr($weekdayClose,3,2));
+}
+
+function kpi_front_packing_list_kpi(array $employee,string $fromSql,string $toSql,array $holidays,array $leave,array $settings):array
+{
+    $zone=new DateTimeZone('Africa/Windhoek');$employeeId=(int)$employee['id'];$now=new DateTimeImmutable('now',$zone);
+    $rows=ops_rows("SELECT p.id,p.item_name,p.received_weight variation,p.quantity_planned,p.date_loaded operational_date_loaded,p.created_at portal_loaded_at,p.created_by,p.frontdesk_website_updated,p.frontdesk_website_updated_at,p.frontdesk_website_updated_by,loader.full_name loaded_by,actor.full_name confirmed_by_name,role.role_key confirmed_by_role FROM ops_packing_tasks p LEFT JOIN ops_employees loader ON loader.id=p.created_by LEFT JOIN ops_employees actor ON actor.id=p.frontdesk_website_updated_by LEFT JOIN ops_roles role ON role.id=actor.role_id WHERE p.created_at BETWEEN ? AND ? AND p.deleted_at IS NULL ORDER BY p.created_at DESC,p.id DESC LIMIT 1000",[$fromSql,$toSql]);
+    $events=[];$eventFrom=$fromSql;$eventTo=$now->format('Y-m-d H:i:s');foreach(kpi_unified_events($eventFrom,$eventTo,null,null,null,null)as$event){if((int)$event['record_id']<=0)continue;$action=strtolower((string)$event['action']);$section=strtolower((string)$event['section']);if(!in_array($action,['frontdesk_website_update_confirmed','website_updated'],true)&&$section!=='website_updates')continue;$events[(int)$event['record_id']][]=$event;}
+    $leaveDays=[];foreach($leave as$absence){$start=substr((string)($absence['start_date']??''),0,10);$end=substr((string)($absence['end_date']??$start),0,10);if(!$start)continue;for($d=new DateTimeImmutable($start,$zone),$last=new DateTimeImmutable($end,$zone);$d<=$last;$d=$d->modify('+1 day'))$leaveDays[$d->format('Y-m-d')]=true;}
+    $counts=['required'=>count($rows),'on_time'=>0,'late'=>0,'pending'=>0,'overdue'=>0,'substitute'=>0,'review'=>0,'due'=>0,'same_day_due'=>0,'same_day_on_time'=>0,'excluded'=>0];$turnarounds=[];$evidence=[];
+    foreach($rows as$row){$loadedRaw=(string)($row['portal_loaded_at']??'');$loaded=$loadedRaw!==''?new DateTimeImmutable($loadedRaw,$zone):null;$deadline=$loaded?kpi_front_packing_deadline($loaded,$holidays,$settings):null;$itemEvents=$events[(int)$row['id']]??[];$confirmEvents=[];$reverseEvents=[];foreach($itemEvents as$event){$action=strtolower((string)$event['action']);$new=strtolower((string)($event['new_status']??''));if(in_array($action,['frontdesk_website_update_confirmed','website_updated'],true)&&in_array($new,['','1','complete','confirmed'],true))$confirmEvents[]=$event;if(strpos($action,'revers')!==false||in_array($new,['0','pending','unconfirmed'],true))$reverseEvents[]=$event;}
+        $audited=array_values(array_filter($confirmEvents,static fn($event):bool=>strtolower((string)$event['action'])==='frontdesk_website_update_confirmed'));if($audited)$confirmEvents=$audited;usort($confirmEvents,static fn($a,$b)=>strcmp((string)$a['occurred_at'],(string)$b['occurred_at']));$first=$confirmEvents[0]??null;$confirmed=$first?new DateTimeImmutable((string)$first['occurred_at'],$zone):null;$actorId=(int)($first['actor_user_id']??0);$actorName=(string)($first['actor_name']??$row['confirmed_by_name']??'Evidence unavailable');$historicalTick=(int)$row['frontdesk_website_updated']===1&&!$first;$leaveExclusion=$loaded&&isset($leaveDays[$loaded->format('Y-m-d')]);$invalid=$loaded&&$confirmed&&$confirmed<$loaded;$result='Pending within deadline';$scoreEligible=true;
+        if(!$loaded||$historicalTick){$result='Evidence unavailable';$scoreEligible=false;$counts['review']++;$counts['excluded']++;}
+        elseif($invalid){$result='Invalid timestamp sequence';$scoreEligible=false;$counts['review']++;$counts['excluded']++;}
+        elseif($reverseEvents){$result='Confirmation reversed';$scoreEligible=false;$counts['review']++;$counts['excluded']++;}
+        elseif($leaveExclusion&&$actorId!==$employeeId){$result='Confirmed by approved substitute';$scoreEligible=false;$counts['substitute']++;$counts['excluded']++;}
+        elseif($confirmed&&$actorId!==$employeeId){$result='Confirmed by another employee';$scoreEligible=false;$counts['review']++;$counts['excluded']++;}
+        elseif($confirmed&&$confirmed<=$deadline){$result='Updated on time';$counts['on_time']++;}
+        elseif($confirmed){$result='Updated late';$counts['late']++;}
+        elseif($deadline&&$now<=$deadline){$counts['pending']++;}
+        else{$result='Overdue';$counts['overdue']++;}
+        if($deadline&&$deadline<=$now&&$scoreEligible)$counts['due']++;if($loaded&&$deadline&&$loaded->format('Y-m-d')===$deadline->format('Y-m-d')){$counts['same_day_due']++;if($result==='Updated on time')$counts['same_day_on_time']++;}
+        $elapsed=$loaded&&$confirmed&&!$invalid?round(($confirmed->getTimestamp()-$loaded->getTimestamp())/60,1):null;$business=$loaded&&$confirmed&&!$invalid?kpi_business_minutes($loaded,$confirmed,$holidays):null;if($business!==null)$turnarounds[]=$business;
+        $evidence[]=$row+['timeline_module'=>'packing_list','loaded'=>$loadedRaw,'deadline'=>$deadline?$deadline->format('Y-m-d H:i:s'):null,'website_confirmed'=>$confirmed?'Yes':'No','confirmed_at'=>$confirmed?$confirmed->format('Y-m-d H:i:s'):null,'turnaround_minutes'=>$business,'elapsed_minutes'=>$elapsed,'responsible_employee'=>(string)$employee['full_name'],'confirmed_by'=>$actorName,'confirmation_actor_id'=>$actorId?:null,'result'=>$result,'activity_event_id'=>$first['event_id']??null,'activity_source'=>$first['source_log']??null,'event_count'=>count($itemEvents),'score_eligible'=>$scoreEligible];
+    }
+    sort($turnarounds,SORT_NUMERIC);$median=null;if($turnarounds){$mid=intdiv(count($turnarounds),2);$median=count($turnarounds)%2?$turnarounds[$mid]:($turnarounds[$mid-1]+$turnarounds[$mid])/2;}$compliance=$counts['due']>0?round(100*$counts['on_time']/$counts['due'],1):null;$sameDay=$counts['same_day_due']>0?round(100*$counts['same_day_on_time']/$counts['same_day_due'],1):null;
+    return['metrics'=>[['label'=>'Website Updates Required','value'=>$counts['required']],['label'=>'Updated On Time','value'=>$counts['on_time']],['label'=>'Updated Late','value'=>$counts['late']],['label'=>'Pending Within Deadline','value'=>$counts['pending']],['label'=>'Currently Overdue','value'=>$counts['overdue']],['label'=>'Same-Day Compliance','value'=>$sameDay,'format'=>'percent'],['label'=>'Average Update Turnaround','value'=>$turnarounds?round(array_sum($turnarounds)/count($turnarounds),1):null,'format'=>'minutes'],['label'=>'Median Update Turnaround','value'=>$median,'format'=>'minutes'],['label'=>'Completed by Substitute','value'=>$counts['substitute']],['label'=>'Items Requiring Review','value'=>$counts['review']]],'rows'=>$evidence,'counts'=>$counts,'score'=>$compliance,'score_evidence'=>$counts['due']?($counts['on_time'].' of '.$counts['due'].' eligible due website updates were confirmed on time; '.$counts['excluded'].' excluded from scoring.'):'No eligible website updates. No score calculated.','front_packing_list_kpi'=>true,'date_basis'=>'Authoritative portal-loaded timestamp (ops_packing_tasks.created_at)','provisional_label'=>$counts['review']?'Evidence-led — '.$counts['review'].' item(s) require review':'Evidence for selected loaded-date cohort'];
+}
