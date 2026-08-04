@@ -11,6 +11,7 @@
     'Valid timing records':'Shows completed records with a valid start and completion timestamp. Missing or impossible timestamps are excluded from speed calculations and reduce data coverage.',
     'Accuracy':'Uses only owner-verified errors attributed to this employee. Errors merely reported by the employee do not reduce the result.',
     'Portal Active Time':'Measures merged authenticated portal sessions. It is not the same as hours worked and does not affect attendance unless schedules and coverage are complete.',
+    'Portal Schedule Compliance':'Measures on-time first portal login only on scheduled portal-activity days, excluding approved leave and public holidays. It is reference evidence, not attendance, and is excluded from the score.',
     'Within target':'Shows completed records that met the configured deadline. Missing timestamps are excluded rather than treated as on time.',
     'Completed late':'Completed tasks whose recorded completion timestamp is after the recorded deadline. They remain separate from currently overdue open tasks.',
     'Sent late':'Sent waybills whose sent timestamp is after the configured due time. Closed hours require business-hours evidence.',
