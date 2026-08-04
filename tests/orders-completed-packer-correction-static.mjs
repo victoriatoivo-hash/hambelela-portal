@@ -18,5 +18,10 @@ assert.ok(!/UPDATE ops_orders SET assigned_packer_id[^;]+completed_at/s.test(php
 assert.match(js, /showCompletedPackerCorrection/, 'completed rows must use the compact correction popup');
 assert.match(js, /correction_reason: reason, correction_note: note/, 'client must submit correction evidence');
 assert.match(js, /cell\.innerHTML = renderPackerCell\(order\)/, 'visible Packed By cell must update without a page reload');
+assert.match(js, /const packerUpdatesInProgress = new Set\(\)/, 'Packed By locks must be scoped per order');
+assert.match(js, /finally \{\s*setPackerUpdateState\(orderId, false\)/, 'Packed By locks must clear after every request outcome');
+assert.match(js, /personPopup\.remove\(\);\s*personPopup = null;/, 'closing a correction must discard its transient popup markup');
+assert.match(js, /response\.packed_by\?\.name/, 'the row cache must use the authoritative returned packer name');
+assert.match(php, /'activity_log_created' => true/, 'backend response must confirm Activity Log creation');
 
 console.log('Completed-order Packed By correction static checks passed.');

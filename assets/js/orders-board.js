@@ -96,6 +96,7 @@
   const selectedOrders = new Set();
   let bulkTrashInProgress = false;
   const paidUpdatesInProgress = new Set();
+  const packerUpdatesInProgress = new Set();
   const boardState = {
     search: '',
     person: '',
@@ -1007,6 +1008,9 @@
       if (field === 'status' && response?.auto_assigned_packer) {
         updateOrderCacheField(change.id, 'assigned_packer_id', String(response.assigned_packer_id || ''));
         order.packer_name = response.packer_name || order.packer_name || '';
+      }
+      if (field === 'assigned_packer_id' && response) {
+        order.packer_name = response.packed_by?.name || response.packer_name || order.packer_name || 'Unassigned';
       }
       prependLocalOrderActivity(order, field, change.value, value);
     });
@@ -2364,7 +2368,24 @@
     trigger?.closest('[data-orders-person-component]')?.classList.remove('is-open', 'is-saving');
     personPopupTrigger = null;
     personPopupOrderId = '';
+    personPopup.remove();
+    personPopup = null;
     if (restoreFocus) trigger?.focus({ preventScroll: true });
+  }
+
+  function setPackerUpdateState(orderId, saving) {
+    const id = String(orderId || '');
+    if (!id) return;
+    if (saving) packerUpdatesInProgress.add(id);
+    else packerUpdatesInProgress.delete(id);
+    const row = body.querySelector(`.monday-order-row[data-order-id="${selectorEsc(id)}"]`);
+    row?.classList.toggle('is-saving-packer', saving);
+    const trigger = row?.querySelector('[data-orders-person-trigger]');
+    if (trigger) {
+      trigger.disabled = saving;
+      if (saving) trigger.setAttribute('aria-busy', 'true');
+      else trigger.removeAttribute('aria-busy');
+    }
   }
 
   function renderPaidCell(order) {
@@ -4711,7 +4732,7 @@
         event.stopPropagation();
         const orderId = personPopupOrderId;
         const employeeId = String(personOption.dataset.employeeId || '');
-        const sourceTrigger = personPopupTrigger;
+        if (!orderId || packerUpdatesInProgress.has(String(orderId))) return;
         const order = ordersCache.find((item) => String(item.id) === String(orderId));
         const isCompletedCorrection = normalize(order?.status || '') === 'completed'
           && String(order?.assigned_packer_id || '') !== employeeId;
@@ -4719,13 +4740,15 @@
           showCompletedPackerCorrection(orderId, employeeId);
           return;
         }
-        sourceTrigger?.closest('[data-orders-person-component]')?.classList.add('is-saving');
+        setPackerUpdateState(orderId, true);
         try {
           await updateRichLabelValue(orderId, 'assigned_packer_id', employeeId);
+          if (syncState) syncState.textContent = 'Packed By updated.';
           closePersonPopup();
         } catch (error) {
-          sourceTrigger?.closest('[data-orders-person-component]')?.classList.remove('is-saving');
           throw error;
+        } finally {
+          setPackerUpdateState(orderId, false);
         }
         return;
       }
@@ -4747,9 +4770,22 @@
           if (errorNode) { errorNode.textContent = errorMessage; errorNode.hidden = false; }
           return;
         }
-        personPopupTrigger?.closest('[data-orders-person-component]')?.classList.add('is-saving');
-        await updateRichLabelValue(personPopupOrderId, 'assigned_packer_id', employeeId, { correction_reason: reason, correction_note: note });
-        closePersonPopup();
+        const orderId = String(personPopupOrderId || '');
+        if (!orderId || packerUpdatesInProgress.has(orderId)) return;
+        const saveButton = packerCorrectionForm.querySelector('[data-packer-correction-save]');
+        setPackerUpdateState(orderId, true);
+        if (saveButton) { saveButton.disabled = true; saveButton.setAttribute('aria-busy', 'true'); }
+        try {
+          await updateRichLabelValue(orderId, 'assigned_packer_id', employeeId, { correction_reason: reason, correction_note: note });
+          if (syncState) syncState.textContent = 'Packed By updated.';
+          closePersonPopup();
+        } catch (error) {
+          if (errorNode) { errorNode.textContent = error?.message || 'Packed By could not be updated. Please try again.'; errorNode.hidden = false; }
+          throw error;
+        } finally {
+          setPackerUpdateState(orderId, false);
+          if (saveButton?.isConnected) { saveButton.disabled = false; saveButton.removeAttribute('aria-busy'); }
+        }
         return;
       }
 

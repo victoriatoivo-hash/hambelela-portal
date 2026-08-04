@@ -1678,11 +1678,20 @@ try {
             }
             echo json_encode([
                 'ok' => true,
+                'success' => true,
                 'message' => $isCompletedCorrection ? 'Completed order packer corrected.' : 'Packed By updated.',
+                'order_id' => $orderId,
                 'assigned_packer_id' => $packerId,
                 'packer_name' => $packerName,
+                'packed_by' => [
+                    'employee_id' => $packerId,
+                    'name' => $packerName,
+                    'avatar' => '',
+                ],
                 'status' => (string) ($previousOrder['status'] ?? ''),
                 'completed_at' => $previousOrder['completed_at'] ?? null,
+                'completion_timestamp' => $previousOrder['completed_at'] ?? null,
+                'activity_log_created' => true,
                 'attribution_corrected' => $isCompletedCorrection,
             ]);
             exit;
