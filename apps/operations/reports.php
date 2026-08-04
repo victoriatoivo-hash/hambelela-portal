@@ -102,17 +102,43 @@ if ($ready && $tab === 'settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $saturdayStart = ops_post_string('saturday_shift_start', 5);
             $saturdayEnd = ops_post_string('saturday_shift_end', 5);
             $grace = max(0, (int) ($_POST['late_grace_minutes'] ?? 10));
+            $effectiveFrom = ops_post_string('effective_from', 10);
+            $effectiveTo = ops_post_string('effective_to', 10);
+            $timezone = ops_post_string('schedule_timezone', 64) ?: 'Africa/Windhoek';
+            $lunchStart = ops_post_string('lunch_start', 5);
+            $lunchEnd = ops_post_string('lunch_end', 5);
+            $changeReason = ops_post_string('change_reason', 255);
             if ($employeeId <= 0) throw new RuntimeException('Choose an employee.');
             if ($hireDate !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $hireDate)) throw new RuntimeException('Enter a valid hire date.');
             if ($workingDays !== '' && !preg_match('/^[1-7](,[1-7])*$/', $workingDays)) throw new RuntimeException('Working days must use weekday numbers 1 to 7, separated by commas.');
             if (($shiftStart !== '' && !preg_match('/^\d{2}:\d{2}$/', $shiftStart)) || ($shiftEnd !== '' && !preg_match('/^\d{2}:\d{2}$/', $shiftEnd))) throw new RuntimeException('Enter valid shift times.');
             if (($saturdayStart !== '' && !preg_match('/^\d{2}:\d{2}$/', $saturdayStart)) || ($saturdayEnd !== '' && !preg_match('/^\d{2}:\d{2}$/', $saturdayEnd))) throw new RuntimeException('Enter valid Saturday shift times.');
             if (($shiftStart === '') !== ($shiftEnd === '') || ($saturdayStart === '') !== ($saturdayEnd === '')) throw new RuntimeException('Enter both the start and end for each configured shift.');
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $effectiveFrom) || ($effectiveTo !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $effectiveTo))) throw new RuntimeException('Enter valid schedule effective dates.');
+            if ($effectiveTo !== '' && $effectiveTo < $effectiveFrom) throw new RuntimeException('The schedule end date cannot precede its start date.');
+            if (!in_array($timezone, timezone_identifiers_list(), true)) throw new RuntimeException('Choose a valid schedule timezone.');
+            if (($lunchStart === '') !== ($lunchEnd === '') || ($lunchStart !== '' && (!preg_match('/^\d{2}:\d{2}$/', $lunchStart) || !preg_match('/^\d{2}:\d{2}$/', $lunchEnd)))) throw new RuntimeException('Enter both lunch times in a valid format.');
+            if ($changeReason === '') throw new RuntimeException('Enter a reason for this schedule version.');
             $workingDayNumbers = $workingDays === '' ? [] : array_map('intval', explode(',', $workingDays));
             $database = db();
             $database->beginTransaction();
             try {
                 $database->prepare('UPDATE ops_employees SET hire_date = ?, working_days = ?, shift_start = ?, shift_end = ?, late_grace_minutes = ? WHERE id = ?')->execute([$hireDate ?: null, $workingDays ?: null, $shiftStart ?: null, $shiftEnd ?: null, $grace, $employeeId]);
+                $previous = $database->prepare('SELECT id,effective_from FROM kpi_employee_schedule_versions WHERE employee_id=? AND effective_to IS NULL AND effective_from<? ORDER BY effective_from DESC,id DESC LIMIT 1 FOR UPDATE');
+                $previous->execute([$employeeId, $effectiveFrom]);
+                $previousVersion = $previous->fetch(PDO::FETCH_ASSOC);
+                if ($previousVersion) $database->prepare('UPDATE kpi_employee_schedule_versions SET effective_to=DATE_SUB(?,INTERVAL 1 DAY) WHERE id=?')->execute([$effectiveFrom, (int) $previousVersion['id']]);
+                $versionInsert = $database->prepare('INSERT INTO kpi_employee_schedule_versions (employee_id,effective_from,effective_to,timezone,lunch_start,lunch_end,grace_minutes,change_reason,created_by) VALUES (?,?,?,?,?,?,?,?,?)');
+                $versionInsert->execute([$employeeId,$effectiveFrom,$effectiveTo ?: null,$timezone,$lunchStart ?: null,$lunchEnd ?: null,$grace,$changeReason,(int) (current_user()['id'] ?? 0) ?: null]);
+                $versionId = (int) $database->lastInsertId();
+                $dayInsert = $database->prepare('INSERT INTO kpi_employee_schedule_days (schedule_version_id,weekday,is_working,shift_start,shift_end) VALUES (?,?,?,?,?)');
+                for ($weekday=1; $weekday<=7; $weekday++) {
+                    $working = in_array($weekday, $workingDayNumbers, true);
+                    $dayStart = $weekday === 6 ? $saturdayStart : $shiftStart;
+                    $dayEnd = $weekday === 6 ? $saturdayEnd : $shiftEnd;
+                    if ($working && ($dayStart === '' || $dayEnd === '')) throw new RuntimeException($weekday === 6 ? 'Enter the Saturday shift times.' : 'Enter the weekday shift times.');
+                    $dayInsert->execute([$versionId,$weekday,$working ? 1 : 0,$working ? $dayStart : null,$working ? $dayEnd : null]);
+                }
                 $database->prepare('DELETE FROM kpi_employee_schedules WHERE employee_id = ?')->execute([$employeeId]);
                 $scheduleInsert = $database->prepare('INSERT INTO kpi_employee_schedules (employee_id, weekday, is_working, shift_start, shift_end) VALUES (?, ?, 1, ?, ?)');
                 foreach ($workingDayNumbers as $weekday) {
@@ -126,8 +152,8 @@ if ($ready && $tab === 'settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($database->inTransaction()) $database->rollBack();
                 throw $scheduleError;
             }
-            ops_activity_log('kpi_employee_schedule_updated', 'employee', $employeeId, ['working_days' => $workingDays, 'weekday_shift' => [$shiftStart, $shiftEnd], 'saturday_shift' => [$saturdayStart, $saturdayEnd], 'late_grace_minutes' => $grace, 'changed_by' => current_user()['name'] ?? 'Unknown']);
-            $message = 'Employee schedule saved.';
+            ops_activity_log('kpi_employee_schedule_version_created', 'employee', $employeeId, ['effective_from'=>$effectiveFrom,'effective_to'=>$effectiveTo ?: null,'timezone'=>$timezone,'lunch'=>[$lunchStart,$lunchEnd],'working_days' => $workingDays, 'weekday_shift' => [$shiftStart, $shiftEnd], 'saturday_shift' => [$saturdayStart, $saturdayEnd], 'late_grace_minutes' => $grace, 'reason'=>$changeReason,'changed_by' => current_user()['name'] ?? 'Unknown']);
+            $message = 'New employee schedule version saved.';
         } elseif ($action === 'save_holiday') {
             $holidayDate = ops_post_string('holiday_date', 10);
             $holidayName = ops_post_string('holiday_name', 100);
@@ -151,6 +177,7 @@ if ($ready && $tab === 'settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 $settings = [];
 $employees = [];
 $employeeSchedules = [];
+$employeeScheduleVersions = [];
 $holidays = [];
 $recentEvents = [];
 $recentSessions = [];
@@ -158,6 +185,7 @@ if ($ready && $tab === 'settings') {
     foreach (ops_rows('SELECT setting_key, setting_value FROM kpi_settings') as $row) $settings[(string) $row['setting_key']] = (string) $row['setting_value'];
     $employees = ops_rows("SELECT e.id, e.full_name, e.hire_date, e.working_days, e.shift_start, e.shift_end, e.late_grace_minutes, r.name AS role_name FROM ops_employees e JOIN ops_roles r ON r.id = e.role_id WHERE e.status = 'active' ORDER BY e.full_name");
     foreach (ops_rows('SELECT employee_id, weekday, shift_start, shift_end FROM kpi_employee_schedules WHERE is_working = 1 ORDER BY employee_id, weekday') as $scheduleRow) $employeeSchedules[(int) $scheduleRow['employee_id']][(int) $scheduleRow['weekday']] = $scheduleRow;
+    foreach (ops_rows('SELECT employee_id,effective_from,effective_to,timezone,lunch_start,lunch_end,grace_minutes,change_reason,created_at FROM kpi_employee_schedule_versions ORDER BY employee_id,effective_from DESC,id DESC') as $versionRow) $employeeScheduleVersions[(int) $versionRow['employee_id']][] = $versionRow;
     $holidays = ops_rows('SELECT holiday_date, COALESCE(NULLIF(name, \'\'), holiday_name) AS holiday_name FROM kpi_holidays WHERE active = 1 ORDER BY holiday_date');
     $recentEvents = ops_rows('SELECT se.module, se.record_id, se.old_status, se.new_status, se.changed_at, e.full_name FROM kpi_status_events se LEFT JOIN ops_employees e ON e.id = se.changed_by ORDER BY se.id DESC LIMIT 30');
     $recentSessions = ops_rows('SELECT s.login_at, s.last_seen_at, s.logout_at, e.full_name FROM kpi_sessions s LEFT JOIN ops_employees e ON e.id = s.user_id ORDER BY s.id DESC LIMIT 20');
@@ -251,7 +279,7 @@ include BASE_PATH . '/shared/sidebar.php';
         <section class="panel">
             <div class="section-row"><div><p class="eyebrow">Fair attendance</p><h2>Employee schedules</h2></div></div>
             <div class="table-scroll"><table class="data-table"><thead><tr><th>Employee</th><th>Role</th><th>Hire date</th><th>Working days</th><th>Mon–Fri shift</th><th>Saturday shift</th><th>Grace</th><th>Action</th></tr></thead><tbody>
-            <?php foreach ($employees as $employee): $scheduleFormId = 'employee-schedule-' . (int) $employee['id']; $savedSchedule=$employeeSchedules[(int)$employee['id']]??[]; $weekdaySchedule=$savedSchedule[1]??null; $saturdaySchedule=$savedSchedule[6]??null; ?><tr><td><strong><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></strong></td><td><?= htmlspecialchars((string) $employee['role_name'], ENT_QUOTES, 'UTF-8') ?></td><td><input form="<?= $scheduleFormId ?>" type="date" name="hire_date" value="<?= htmlspecialchars((string) ($employee['hire_date'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"></td><td><input form="<?= $scheduleFormId ?>" name="working_days" value="<?= htmlspecialchars((string) ($employee['working_days'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" placeholder="1,2,3,4,5,6"></td><td><input form="<?= $scheduleFormId ?>" type="time" name="shift_start" value="<?= htmlspecialchars(substr((string) ($weekdaySchedule['shift_start']??$employee['shift_start'] ?? ''), 0, 5), ENT_QUOTES, 'UTF-8') ?>"> <input form="<?= $scheduleFormId ?>" type="time" name="shift_end" value="<?= htmlspecialchars(substr((string) ($weekdaySchedule['shift_end']??$employee['shift_end'] ?? ''), 0, 5), ENT_QUOTES, 'UTF-8') ?>"></td><td><input form="<?= $scheduleFormId ?>" type="time" name="saturday_shift_start" value="<?= htmlspecialchars(substr((string)($saturdaySchedule['shift_start']??''),0,5),ENT_QUOTES,'UTF-8') ?>"> <input form="<?= $scheduleFormId ?>" type="time" name="saturday_shift_end" value="<?= htmlspecialchars(substr((string)($saturdaySchedule['shift_end']??''),0,5),ENT_QUOTES,'UTF-8') ?>"></td><td><input form="<?= $scheduleFormId ?>" type="number" min="0" name="late_grace_minutes" value="<?= (int) ($employee['late_grace_minutes'] ?? 10) ?>"></td><td><form id="<?= $scheduleFormId ?>" method="post"><input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>"><input type="hidden" name="kpi_action" value="save_employee_schedule"><input type="hidden" name="employee_id" value="<?= (int) $employee['id'] ?>"><button class="btn-secondary" type="submit">Save</button></form></td></tr><?php endforeach; ?>
+            <?php foreach ($employees as $employee): $scheduleFormId = 'employee-schedule-' . (int) $employee['id']; $savedSchedule=$employeeSchedules[(int)$employee['id']]??[]; $weekdaySchedule=$savedSchedule[1]??null; $saturdaySchedule=$savedSchedule[6]??null; $latestVersion=$employeeScheduleVersions[(int)$employee['id']][0]??[]; ?><tr><td><strong><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></strong><small><?= count($employeeScheduleVersions[(int)$employee['id']]??[]) ?> version(s)</small></td><td><?= htmlspecialchars((string) $employee['role_name'], ENT_QUOTES, 'UTF-8') ?></td><td><input form="<?= $scheduleFormId ?>" type="date" name="hire_date" value="<?= htmlspecialchars((string) ($employee['hire_date'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"><input form="<?= $scheduleFormId ?>" type="date" name="effective_from" value="<?= date('Y-m-d') ?>" required aria-label="Effective from"><input form="<?= $scheduleFormId ?>" type="date" name="effective_to" aria-label="Effective to"></td><td><input form="<?= $scheduleFormId ?>" name="working_days" value="<?= htmlspecialchars((string) ($employee['working_days'] ?? '1,2,3,4,5'), ENT_QUOTES, 'UTF-8') ?>" placeholder="1,2,3,4,5"></td><td><input form="<?= $scheduleFormId ?>" type="time" name="shift_start" value="<?= htmlspecialchars(substr((string) ($weekdaySchedule['shift_start']??$employee['shift_start'] ?? '08:00'), 0, 5), ENT_QUOTES, 'UTF-8') ?>"> <input form="<?= $scheduleFormId ?>" type="time" name="shift_end" value="<?= htmlspecialchars(substr((string) ($weekdaySchedule['shift_end']??$employee['shift_end'] ?? '17:00'), 0, 5), ENT_QUOTES, 'UTF-8') ?>"><input form="<?= $scheduleFormId ?>" type="time" name="lunch_start" value="<?= htmlspecialchars(substr((string)($latestVersion['lunch_start']??'12:00'),0,5),ENT_QUOTES,'UTF-8') ?>" aria-label="Lunch start"><input form="<?= $scheduleFormId ?>" type="time" name="lunch_end" value="<?= htmlspecialchars(substr((string)($latestVersion['lunch_end']??'13:00'),0,5),ENT_QUOTES,'UTF-8') ?>" aria-label="Lunch end"></td><td><input form="<?= $scheduleFormId ?>" type="time" name="saturday_shift_start" value="<?= htmlspecialchars(substr((string)($saturdaySchedule['shift_start']??'09:00'),0,5),ENT_QUOTES,'UTF-8') ?>"> <input form="<?= $scheduleFormId ?>" type="time" name="saturday_shift_end" value="<?= htmlspecialchars(substr((string)($saturdaySchedule['shift_end']??'13:30'),0,5),ENT_QUOTES,'UTF-8') ?>"></td><td><input form="<?= $scheduleFormId ?>" type="number" min="0" name="late_grace_minutes" value="<?= (int) ($employee['late_grace_minutes'] ?? 10) ?>"><input form="<?= $scheduleFormId ?>" name="schedule_timezone" value="<?= htmlspecialchars((string)($latestVersion['timezone']??'Africa/Windhoek'),ENT_QUOTES,'UTF-8') ?>" aria-label="Timezone"><input form="<?= $scheduleFormId ?>" name="change_reason" required placeholder="Reason for schedule version" aria-label="Change reason"></td><td><form id="<?= $scheduleFormId ?>" method="post"><input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>"><input type="hidden" name="kpi_action" value="save_employee_schedule"><input type="hidden" name="employee_id" value="<?= (int) $employee['id'] ?>"><button class="btn-secondary" type="submit">Save new version</button></form></td></tr><?php endforeach; ?>
             </tbody></table></div>
         </section>
 

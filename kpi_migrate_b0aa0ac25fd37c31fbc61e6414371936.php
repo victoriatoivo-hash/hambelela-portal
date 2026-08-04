@@ -34,5 +34,15 @@ try {
       $count=(int)db()->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=".db()->quote($table))->fetchColumn();
       echo $table.': '.($count===1?'TABLE_OK':'TABLE_MISSING')."\n";
     }
+    $employees=db()->query("SELECT id,full_name FROM ops_employees WHERE status='active' AND full_name IN ('Secilia Shiweda','Klaudia Averinus','Ndinelao Kalola') ORDER BY full_name")->fetchAll(PDO::FETCH_ASSOC);
+    $versionFind=db()->prepare('SELECT id FROM kpi_employee_schedule_versions WHERE employee_id=? AND effective_from=? LIMIT 1');
+    $versionInsert=db()->prepare("INSERT INTO kpi_employee_schedule_versions (employee_id,effective_from,effective_to,timezone,lunch_start,lunch_end,grace_minutes,change_reason,created_by) VALUES (?,'2026-08-04',NULL,'Africa/Windhoek','12:00:00','13:00:00',10,'Initial verified business schedule; Saturday rotation pending individual confirmation',NULL)");
+    $dayInsert=db()->prepare('INSERT INTO kpi_employee_schedule_days (schedule_version_id,weekday,is_working,shift_start,shift_end) VALUES (?,?,?,?,?)');
+    foreach($employees as $employee){
+      $versionFind->execute([(int)$employee['id'],'2026-08-04']);$versionId=(int)$versionFind->fetchColumn();
+      if($versionId===0){$versionInsert->execute([(int)$employee['id']]);$versionId=(int)db()->lastInsertId();for($weekday=1;$weekday<=7;$weekday++)$dayInsert->execute([$versionId,$weekday,$weekday<=5?1:0,$weekday<=5?'08:00:00':null,$weekday<=5?'17:00:00':null]);}
+      echo 'SCHEDULE_OK: '.$employee['full_name']." (Mon-Fri 08:00-17:00; Sat/Sun rest)\n";
+    }
+    if(count($employees)!==3)throw new RuntimeException('Expected all three active employees; found '.count($employees));
     echo "MIGRATION_OK\n";
 } catch (Throwable $error) { http_response_code(500); echo 'MIGRATION_FAILED: '.$error->getMessage()."\n"; }
