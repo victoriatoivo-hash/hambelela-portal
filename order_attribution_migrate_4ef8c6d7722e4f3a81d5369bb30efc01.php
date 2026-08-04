@@ -28,5 +28,7 @@ db()->exec("CREATE TABLE IF NOT EXISTS ops_order_attribution_reviews (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 db()->exec("INSERT INTO kpi_settings(setting_key,setting_value) VALUES ('packed_by_compliance_effective_date','2026-08-04') ON DUPLICATE KEY UPDATE setting_value=setting_value");
 foreach(['ops_order_attribution_reviews','ops_orders','ops_order_stage_events','ops_activity_logs','kpi_status_events','kpi_activity_events']as$table){$ok=(int)db()->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=".db()->quote($table))->fetchColumn();echo $table.': '.($ok?'TABLE_OK':'TABLE_MISSING')."\n";}
+$summary=db()->query("SELECT COUNT(*) total,SUM(classification='system_confirmed') system_confirmed,SUM(classification='staff_confirmation_required') staff_confirmation_required,SUM(classification='unable_to_confirm') unable_to_confirm,SUM(classification='not_applicable') not_applicable,SUM(restored_at IS NOT NULL) restored,SUM(compliance_result='excluded') excluded FROM ops_order_attribution_reviews")->fetch(PDO::FETCH_ASSOC);echo 'SUMMARY: '.json_encode($summary,JSON_UNESCAPED_SLASHES)."\n";
+foreach([__DIR__.'/error_log',__DIR__.'/apps/operations/error_log',__DIR__.'/includes/error_log']as$log){if(!is_readable($log))continue;$lines=file($log,FILE_IGNORE_NEW_LINES);echo "LOG {$log}:\n".implode("\n",array_slice($lines?:[],-30))."\n";}
 echo "MIGRATION_OK\n";
 }catch(Throwable $e){http_response_code(500);echo 'MIGRATION_FAILED: '.$e->getMessage()."\n";}
