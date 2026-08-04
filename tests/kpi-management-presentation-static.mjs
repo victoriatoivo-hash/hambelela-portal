@@ -20,6 +20,7 @@ assert.match(management, /ArrowRight/, 'management presentation must support key
 assert.match(reports, /showMeetingSlide/, 'Performance Reports must present one meeting section at a time');
 assert.match(reports, /data-meeting-previous/, 'meeting presentation must support previous navigation');
 assert.match(reports, /data-meeting-next/, 'meeting presentation must support next navigation');
+assert.match(reports, /typeof entry==='number'\?value\(entry\)/, 'comparison tables must preserve employee names instead of formatting them as numbers');
 assert.match(timeline, /activityTimeline/, 'Business Activity must use a grouped timeline instead of the generic table');
 assert.match(timeline, /Africa\/Windhoek/, 'Business Activity timestamps must use Africa/Windhoek');
 assert.match(timeline, /slice\(0, 6\)/, 'Business Activity must limit primary summary cards to six');
