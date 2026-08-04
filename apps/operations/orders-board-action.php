@@ -231,7 +231,7 @@ function ops_board_current_packing_employee(): ?array
 
 function ops_board_can_manage_packer_assignment(): bool
 {
-    return user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
+    return user_has_role('owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager', 'packer', 'packer_production_staff');
 }
 
 function ops_board_log_automatic_packer_assignment(int $orderId, array $packer, string $targetStatus): void
@@ -1554,7 +1554,7 @@ try {
         }
 
         $previousRows = ops_rows(
-            'SELECT order_number, customer_name, customer_contact, payment_method, order_type, fulfilment_mode, total_amount, status, payment_status, notes, assigned_packer_id FROM ops_orders WHERE id = ? LIMIT 1',
+            'SELECT order_number, customer_name, customer_contact, payment_method, order_type, fulfilment_mode, total_amount, status, payment_status, notes, assigned_packer_id, completed_at FROM ops_orders WHERE id = ? LIMIT 1',
             [$orderId]
         );
         if (!$previousRows) {
@@ -1564,16 +1564,27 @@ try {
 
         if ($field === 'assigned_packer_id') {
             $user = current_user();
-            $roleKey = (string) ($user['role_key'] ?? '');
             $canManageAssignment = ops_board_can_manage_packer_assignment();
             $currentPackingEmployee = ops_board_current_packing_employee();
             if (!$canManageAssignment && !$currentPackingEmployee) {
                 throw new RuntimeException('You do not have permission to change Packed by.');
             }
+            ops_ensure_kpi_activity_events();
+            $hasPackingAssignable = ops_ensure_packing_assignable_column();
+            $db = db();
+            $db->beginTransaction();
+            try {
+                $lockedOrderStatement = $db->prepare('SELECT order_number,status,assigned_packer_id,completed_at FROM ops_orders WHERE id = ? FOR UPDATE');
+                $lockedOrderStatement->execute([$orderId]);
+                $lockedOrder = $lockedOrderStatement->fetch(PDO::FETCH_ASSOC);
+                $lockedOrderStatement->closeCursor();
+                if (!$lockedOrder) {
+                    throw new RuntimeException('Order not found. Refresh and try again.');
+                }
+                $previousOrder = array_merge($previousOrder, $lockedOrder);
             $packerId = $value === '' ? null : (int) $value;
             if ($packerId) {
-                $hasPackingAssignable = ops_ensure_packing_assignable_column();
-                $eligibilityWhere = $hasPackingAssignable ? "(e.packing_assignable = 1 OR r.role_key = 'front_desk_admin')" : "r.role_key IN ('packer', 'supervisor_manager', 'front_desk_admin')";
+                $eligibilityWhere = $hasPackingAssignable ? "(e.packing_assignable = 1 OR r.role_key IN ('packer','packer_production_staff','front_desk_admin','front_desk_admin_employee'))" : "r.role_key IN ('packer','packer_production_staff','supervisor_manager','front_desk_admin','front_desk_admin_employee')";
                 $eligible = ops_rows(
                     "SELECT e.id FROM ops_employees e JOIN ops_roles r ON r.id = e.role_id WHERE e.id = ? AND e.status = 'active' AND {$eligibilityWhere} LIMIT 1",
                     [$packerId]
@@ -1602,9 +1613,24 @@ try {
             }
             $previousPackerName = $previousPackerId ? ($packerNames[$previousPackerId] ?? ('Employee ' . $previousPackerId)) : 'Unassigned';
             $packerName = $packerId ? ($packerNames[$packerId] ?? ('Employee ' . $packerId)) : 'Unassigned';
+            $isCompletedCorrection = (string) ($previousOrder['status'] ?? '') === 'completed' && $previousPackerId !== ($packerId ?: 0);
+            $correctionReason = trim(ops_post_string('correction_reason', 80));
+            $correctionNote = trim(ops_post_string('correction_note', 500));
+            $allowedCorrectionReasons = [
+                'packer_assisted_front_person' => 'Packer assisted front person',
+                'incorrect_employee_selected' => 'Incorrect employee selected',
+                'historical_correction' => 'Historical correction',
+                'other' => 'Other',
+            ];
+            if ($isCompletedCorrection && !isset($allowedCorrectionReasons[$correctionReason])) {
+                throw new RuntimeException('Choose a reason for correcting the completed order packer.');
+            }
+            if ($isCompletedCorrection && $correctionReason === 'other' && $correctionNote === '') {
+                throw new RuntimeException('Add a note when the correction reason is Other.');
+            }
             $assignedAt = ops_column_exists('ops_orders', 'assigned_at') ? ', assigned_at = CASE WHEN ? IS NULL THEN NULL ELSE COALESCE(assigned_at, NOW()) END' : '';
             $assignmentGuard = $canManageAssignment ? '' : ' AND (assigned_packer_id IS NULL OR assigned_packer_id=0)';
-            $stmt = db()->prepare('UPDATE ops_orders SET assigned_packer_id = ?' . $assignedAt . ', updated_at = CURRENT_TIMESTAMP WHERE id = ?' . $assignmentGuard);
+            $stmt = $db->prepare('UPDATE ops_orders SET assigned_packer_id = ?' . $assignedAt . ', updated_at = CURRENT_TIMESTAMP WHERE id = ?' . $assignmentGuard);
             if ($assignedAt !== '') {
                 $stmt->execute([$packerId, $packerId, $orderId]);
             } else {
@@ -1613,27 +1639,53 @@ try {
             if (!$canManageAssignment && $stmt->rowCount() !== 1) {
                 throw new RuntimeException('This order was assigned by another employee. Refresh to see the current Packed By value.');
             }
-            ops_log_order_stage_event($orderId, $packerId ? 'assigned' : 'assignment_cleared', [
+            $activityAction = $isCompletedCorrection ? 'packer_attribution_corrected' : ($packerId ? 'assigned' : 'assignment_cleared');
+            $activityMetadata = [
                 'source' => 'orders_board_field',
+                'source_label' => 'Order List',
+                'order_number' => (string) ($previousOrder['order_number'] ?? $orderId),
                 'previous_packer_id' => $previousPackerId ?: null,
+                'previous_packer_name' => $previousPackerName,
                 'assigned_packer_id' => $packerId,
+                'new_packer_name' => $packerName,
                 'previous_value' => $previousPackerName,
                 'new_value' => $packerName,
                 'changed_by' => current_user()['name'] ?? 'Unknown',
+                'changed_by_user_id' => (int) ($user['id'] ?? 0),
+                'correction_reason' => $isCompletedCorrection ? $allowedCorrectionReasons[$correctionReason] : null,
+                'correction_reason_key' => $isCompletedCorrection ? $correctionReason : null,
+                'correction_note' => $isCompletedCorrection ? $correctionNote : null,
+                'original_completion_timestamp' => $previousOrder['completed_at'] ?? null,
+                'correction_timestamp' => date('Y-m-d H:i:s'),
+                'status' => (string) ($previousOrder['status'] ?? ''),
                 'message' => 'Packed By changed from ' . $previousPackerName . ' to ' . $packerName . '.',
-            ]);
-            ops_activity_log($packerId ? 'packed_by_changed' : 'packed_by_cleared', 'order', $orderId, [
-                'previous_packer_id' => $previousPackerId ?: null,
-                'assigned_packer_id' => $packerId,
-                'previous_value' => $previousPackerName,
-                'new_value' => $packerName,
-                'changed_by' => current_user()['name'] ?? 'Unknown',
-                'message' => 'Packed By changed from ' . $previousPackerName . ' to ' . $packerName . '.',
-            ]);
+            ];
+            ops_log_order_stage_event($orderId, $activityAction, $activityMetadata, ops_current_employee_id() ?: null);
+            ops_activity_log($isCompletedCorrection ? 'packer_attribution_corrected' : ($packerId ? 'packed_by_changed' : 'packed_by_cleared'), 'order', $orderId, $activityMetadata);
+            if ($isCompletedCorrection) {
+                ops_kpi_record_event('orders', 'order', $orderId, 'packer_attribution_corrected', $previousPackerName, $packerName, $packerId, $activityMetadata);
+            }
             notifications_notify_order_assigned($orderId, $packerId);
             if (!$previousPackerId && $packerId && !in_array((string) ($previousOrder['status'] ?? ''), ['in_progress', 'completed'], true)) {
                 ops_record_timely_packer_assignment($orderId, $packerId, ops_current_employee_id());
             }
+            $db->commit();
+            } catch (Throwable $e) {
+                if ($db->inTransaction()) {
+                    $db->rollBack();
+                }
+                throw $e;
+            }
+            echo json_encode([
+                'ok' => true,
+                'message' => $isCompletedCorrection ? 'Completed order packer corrected.' : 'Packed By updated.',
+                'assigned_packer_id' => $packerId,
+                'packer_name' => $packerName,
+                'status' => (string) ($previousOrder['status'] ?? ''),
+                'completed_at' => $previousOrder['completed_at'] ?? null,
+                'attribution_corrected' => $isCompletedCorrection,
+            ]);
+            exit;
         } elseif ($field === 'status') {
             $db = db();
             $autoAssignedPacker = null;

@@ -927,7 +927,7 @@
     control.setSelectionRange(end, end);
   }
 
-  async function updateOrdersField(orderIds, field, value) {
+  async function updateOrdersField(orderIds, field, value, requestMetadata = {}) {
     const ids = orderIds.map(String);
     const sourceRow = ids[0] ? document.querySelector(`.monday-order-row[data-order-id="${selectorEsc(ids[0])}"]`) : null;
     const position = ordersTablePosition(sourceRow, ids[0] || '');
@@ -947,7 +947,7 @@
 
     const postSingleUpdate = (id) => field === 'created_at'
       ? post('update_order_datetime', { order_id: id, date_time: value })
-      : post('update_field', { order_id: id, field, value });
+      : post('update_field', { order_id: id, field, value, ...requestMetadata });
 
     let savedIds = ids;
     const mutationResponses = new Map();
@@ -1048,9 +1048,9 @@
       .forEach((change) => playCompleteConfetti(statusCellForOrder(change.id)));
   }
 
-  async function updateRichLabelValue(orderId, field, value) {
-    const orderIds = currentSelectedIdsFor(orderId);
-    const changes = await updateOrdersField(orderIds, field, value);
+  async function updateRichLabelValue(orderId, field, value, requestMetadata = {}) {
+    const orderIds = requestMetadata.correction_reason ? [String(orderId)] : currentSelectedIdsFor(orderId);
+    const changes = await updateOrdersField(orderIds, field, value, requestMetadata);
     closeLabelMenu();
     const groupingField = { status: 'status', order_type: 'mode', assigned_packer_id: 'packer' }[field];
     if (groupingField && boardState.groupBy === groupingField) {
@@ -2249,7 +2249,7 @@
     const name = order.packer_name || 'Unassigned';
     const initials = employeeId ? employeeInitials(name) : '&mdash;';
     const content = `<span class="packing-person-avatar">${initials}</span><span class="packing-person-trigger-label">${esc(name)}</span><svg class="packing-person-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 8l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-    if (!currentUser.can_edit_packed_by || (!currentUser.can_manage_packer_assignment && employeeId)) return `<div class="packing-person-component orders-packed-by-selector is-static" data-orders-person-component data-employee-id="${esc(employeeId)}"><span class="packing-person-trigger is-static">${content}</span></div>`;
+    if (!currentUser.can_edit_packed_by) return `<div class="packing-person-component orders-packed-by-selector is-static" data-orders-person-component data-employee-id="${esc(employeeId)}"><span class="packing-person-trigger is-static">${content}</span></div>`;
     return `<div class="packing-person-component orders-packed-by-selector" data-orders-person-component data-employee-id="${esc(employeeId)}"><button type="button" class="packing-person-trigger" data-orders-person-trigger data-order-id="${esc(order.id)}" aria-haspopup="listbox" aria-expanded="false">${content}</button></div>`;
   }
 
@@ -2288,7 +2288,9 @@
     const container = popup.querySelector('[data-orders-person-options]');
     const selectedId = String(ordersCache.find((order) => String(order.id) === personPopupOrderId)?.assigned_packer_id || '');
     const needle = String(query || '').trim().toLowerCase();
-    const availablePeople = currentUser.can_manage_packer_assignment ? [{ id: '', full_name: 'Unassigned', role_key: '' }, ...packersCache] : packersCache.filter((employee) => String(employee.id) === String(currentUser.id || ''));
+    const selectedOrder = ordersCache.find((order) => String(order.id) === personPopupOrderId);
+    const packingStarted = ['in_progress', 'completed'].includes(normalize(selectedOrder?.status || ''));
+    const availablePeople = currentUser.can_manage_packer_assignment ? [...(packingStarted ? [] : [{ id: '', full_name: 'Unassigned', role_key: '' }]), ...packersCache] : packersCache.filter((employee) => String(employee.id) === String(currentUser.id || ''));
     const options = availablePeople.filter((employee) => !needle || `${employee.full_name || ''} ${employee.role_name || employee.role_key || ''}`.toLowerCase().includes(needle));
     container.innerHTML = options.length ? options.map((employee) => {
       const id = String(employee.id || '');
@@ -2296,6 +2298,30 @@
       const role = employee.role_name || String(employee.role_key || '').replace(/_/g, ' ');
       return `<button type="button" class="packing-person-option" role="option" aria-selected="${selected ? 'true' : 'false'}" data-orders-person-option data-employee-id="${esc(id)}"><span class="packing-person-option-avatar">${id ? employeeInitials(employee.full_name) : '&mdash;'}</span><span class="packing-person-option-copy"><strong>${esc(employee.full_name)}</strong>${role ? `<small>${esc(role)}</small>` : ''}</span><span class="packing-person-option-check" aria-hidden="true">${selected ? '&check;' : ''}</span></button>`;
     }).join('') : '<p class="packing-person-empty">No eligible employees found.</p>';
+  }
+
+  function showCompletedPackerCorrection(orderId, employeeId) {
+    const popup = ensurePersonPopup();
+    const order = ordersCache.find((item) => String(item.id) === String(orderId));
+    const employee = packersCache.find((item) => String(item.id) === String(employeeId));
+    if (!order || !employee) return;
+    popup.innerHTML = `<form class="orders-packer-correction" data-packer-correction-form>
+      <strong>Correct packer</strong>
+      <div class="orders-packer-correction-person"><span class="packing-person-option-avatar">${employeeInitials(employee.full_name)}</span><span>${esc(employee.full_name)}</span></div>
+      <label>Reason<select data-packer-correction-reason required>
+        <option value="">Select reason</option>
+        <option value="packer_assisted_front_person">Packer assisted front person</option>
+        <option value="incorrect_employee_selected">Incorrect employee selected</option>
+        <option value="historical_correction">Historical correction</option>
+        <option value="other">Other</option>
+      </select></label>
+      <label>Additional note<textarea data-packer-correction-note rows="2" placeholder="Optional unless Other is selected"></textarea></label>
+      <p class="packing-person-empty" data-packer-correction-error hidden></p>
+      <div class="orders-packer-correction-actions"><button type="button" data-packer-correction-cancel>Cancel</button><button type="button" data-packer-correction-save>Save correction</button></div>
+      <input type="hidden" data-packer-correction-employee value="${esc(employeeId)}">
+    </form>`;
+    positionPersonPopup();
+    popup.querySelector('[data-packer-correction-reason]')?.focus({ preventScroll: true });
   }
 
   function positionPersonPopup() {
@@ -4628,6 +4654,8 @@
     const editOrderPeople = event.target.closest('[data-edit-order-people]');
     const personTrigger = event.target.closest('[data-orders-person-trigger]');
     const personOption = event.target.closest('[data-orders-person-option]');
+    const packerCorrectionForm = event.target.closest('[data-packer-correction-form]');
+    const packerCorrectionCancel = event.target.closest('[data-packer-correction-cancel]');
     const filterTrigger = event.target.closest('[data-orders-filter-trigger]');
     const filterOption = event.target.closest('[data-orders-filter-option]');
 
@@ -4684,6 +4712,13 @@
         const orderId = personPopupOrderId;
         const employeeId = String(personOption.dataset.employeeId || '');
         const sourceTrigger = personPopupTrigger;
+        const order = ordersCache.find((item) => String(item.id) === String(orderId));
+        const isCompletedCorrection = normalize(order?.status || '') === 'completed'
+          && String(order?.assigned_packer_id || '') !== employeeId;
+        if (isCompletedCorrection) {
+          showCompletedPackerCorrection(orderId, employeeId);
+          return;
+        }
         sourceTrigger?.closest('[data-orders-person-component]')?.classList.add('is-saving');
         try {
           await updateRichLabelValue(orderId, 'assigned_packer_id', employeeId);
@@ -4692,6 +4727,29 @@
           sourceTrigger?.closest('[data-orders-person-component]')?.classList.remove('is-saving');
           throw error;
         }
+        return;
+      }
+
+      if (packerCorrectionCancel) {
+        event.preventDefault();
+        closePersonPopup(true);
+        return;
+      }
+
+      if (packerCorrectionForm && event.type === 'click' && event.target.closest('[data-packer-correction-save]')) {
+        event.preventDefault();
+        const reason = packerCorrectionForm.querySelector('[data-packer-correction-reason]')?.value || '';
+        const note = packerCorrectionForm.querySelector('[data-packer-correction-note]')?.value.trim() || '';
+        const employeeId = packerCorrectionForm.querySelector('[data-packer-correction-employee]')?.value || '';
+        const errorNode = packerCorrectionForm.querySelector('[data-packer-correction-error]');
+        const errorMessage = !reason ? 'Choose a correction reason.' : reason === 'other' && !note ? 'Add a note for Other.' : '';
+        if (errorMessage) {
+          if (errorNode) { errorNode.textContent = errorMessage; errorNode.hidden = false; }
+          return;
+        }
+        personPopupTrigger?.closest('[data-orders-person-component]')?.classList.add('is-saving');
+        await updateRichLabelValue(personPopupOrderId, 'assigned_packer_id', employeeId, { correction_reason: reason, correction_note: note });
+        closePersonPopup();
         return;
       }
 
