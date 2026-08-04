@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const helper=fs.readFileSync(new URL('../apps/operations/kpi-front-packing-list.php',import.meta.url),'utf8');
+const endpoint=fs.readFileSync(new URL('../apps/operations/kpi-employee-data.php',import.meta.url),'utf8');
+const client=fs.readFileSync(new URL('../assets/js/kpi-employee.js',import.meta.url),'utf8');
+assert.match(helper,/frontdesk_website_updated/);
+assert.match(helper,/portal_loaded_at/);
+assert.match(helper,/p\.created_at BETWEEN/);
+assert.match(helper,/frontdesk_website_update_confirmed/);
+assert.match(helper,/website_updated/);
+assert.match(helper,/15:00/);assert.match(helper,/17:00/);assert.match(helper,/11:00/);assert.match(helper,/13:00/);
+assert.match(helper,/Pending within deadline/);assert.match(helper,/Confirmation reversed/);assert.match(helper,/Evidence unavailable/);
+assert.doesNotMatch(helper,/packing_website_confirmed/);
+assert.match(endpoint,/kpi_front_packing_list_kpi/);
+assert.match(client,/Front-person responsibility only/);
+assert.match(client,/Operational date loaded/);
+console.log('Front-person Packing List KPI static checks passed.');
