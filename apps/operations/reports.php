@@ -62,6 +62,8 @@ $settingFields = [
     'frontdesk_weight_tasks' => ['Front desk: task compliance weight', 'number', '10'],
     'frontdesk_weight_quality' => ['Front desk: errors and corrections weight', 'number', '5'],
     'frontdesk_weight_attendance' => ['Front desk: attendance and reliability weight', 'number', '10'],
+    'front_orders_walkin_weight' => ['Front orders: walk-in compliance share', 'number', '50'],
+    'front_orders_nonwalk_weight' => ['Front orders: non-walk-in finalisation share', 'number', '50'],
 ];
 
 if ($ready && $tab === 'settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -80,6 +82,7 @@ if ($ready && $tab === 'settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $packerWeight = array_sum(array_map(static fn(string $key): float => (float) $validatedSettings[$key], ['packer_weight_productivity','packer_weight_accuracy','packer_weight_speed','packer_weight_attendance','packer_weight_compliance','packer_weight_team']));
             $frontdeskWeight = array_sum(array_map(static fn(string $key): float => (float) $validatedSettings[$key], ['frontdesk_weight_orders','frontdesk_weight_payments','frontdesk_weight_website','frontdesk_weight_waybills','frontdesk_weight_bookkeeping','frontdesk_weight_tasks','frontdesk_weight_quality','frontdesk_weight_attendance']));
             if (abs($packerWeight - 100) > 0.001 || abs($frontdeskWeight - 100) > 0.001) throw new RuntimeException('Packer and front-desk weights must each total 100. Scores remain disabled until the integrity review is complete.');
+            if (abs((float) $validatedSettings['front_orders_walkin_weight'] + (float) $validatedSettings['front_orders_nonwalk_weight'] - 100) > 0.001) throw new RuntimeException('The two front-orders component shares must total 100.');
             $database = db();
             $database->beginTransaction();
             try {
