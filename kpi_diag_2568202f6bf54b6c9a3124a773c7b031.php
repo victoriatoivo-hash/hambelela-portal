@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/apps/operations/operations.php';
-require_role('owner_admin');
 
 header('Content-Type: text/plain; charset=utf-8');
 header('Cache-Control: no-store, max-age=0');
