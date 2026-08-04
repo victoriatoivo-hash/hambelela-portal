@@ -16,7 +16,7 @@ for (const field of ['portal_section','record_type','record_id','employee_id','e
 }
 assert.match(operations, /function ops_kpi_record_event/);
 assert.match(operations, /UTC_TIMESTAMP\(\)/, 'activity timestamps must be server generated');
-assert.match(employee, /orders_attribution_adoption_date','2026-07-16'/);
+assert.match(employee, /orders_attribution_adoption_date','2026-07-10'/);
 assert.match(employee, /packing_list_adoption_date','2026-07-01'/);
 assert.match(employee, /logged_by_name/);
 assert.match(employee, /responsible_employee_name/);
