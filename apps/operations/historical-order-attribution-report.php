@@ -1,8 +1,14 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/operations.php';
-require_once __DIR__.'/order-attribution-service.php';
 if(!user_has_role('owner_admin','front_desk_admin','front_desk_admin_employee')){http_response_code(403);exit('Forbidden');}
+register_shutdown_function(static function():void{
+    $fatal=error_get_last();
+    if(!$fatal||!in_array((int)$fatal['type'],[E_ERROR,E_PARSE,E_CORE_ERROR,E_COMPILE_ERROR],true))return;
+    if(!headers_sent())http_response_code(200);
+    echo '<main class="workspace module"><div class="ops-alert error">Historical attribution report could not load: '.htmlspecialchars((string)$fatal['message'],ENT_QUOTES,'UTF-8').'</div></main>';
+});
+require_once __DIR__.'/order-attribution-service.php';
 $isOwner=user_has_role('owner_admin');
 if(empty($_SESSION['order_attribution_csrf']))$_SESSION['order_attribution_csrf']=bin2hex(random_bytes(32));
 $csrf=(string)$_SESSION['order_attribution_csrf'];$message='';$error='';
