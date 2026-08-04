@@ -20,7 +20,7 @@ assert.match(employee, /orders_attribution_adoption_date','2026-07-10'/);
 assert.match(employee, /packing_list_adoption_date','2026-07-01'/);
 assert.match(employee, /logged_by_name/);
 assert.match(employee, /responsible_employee_name/);
-assert.match(employee, /Errors reported by employee/);
+assert.match(employee, /kpi_error_quality_performance/);
 assert.match(employee, /activity_timeline/);
 assert.match(reporting, /function kpi_calculate_role_score/);
 assert.match(reporting, /missing data is not scored as zero/);
