@@ -26,5 +26,9 @@ try {
       $count=(int)db()->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=".db()->quote($table))->fetchColumn();
       echo $table.': '.($count===1?'TABLE_OK':'TABLE_MISSING')."\n";
     }
+    $coverage=db()->query("SELECT MIN(login_at) first_session,MAX(COALESCE(logout_at,last_seen_at)) last_session,COUNT(*) session_rows,COUNT(DISTINCT user_id) mapped_employees FROM kpi_sessions")->fetch(PDO::FETCH_ASSOC);
+    echo 'COVERAGE: '.json_encode($coverage,JSON_UNESCAPED_SLASHES)."\n";
+    $people=db()->query("SELECT s.user_id,e.full_name,COUNT(*) session_rows,MIN(s.login_at) first_session,MAX(COALESCE(s.logout_at,s.last_seen_at)) last_session FROM kpi_sessions s LEFT JOIN ops_employees e ON e.id=s.user_id GROUP BY s.user_id,e.full_name ORDER BY s.user_id")->fetchAll(PDO::FETCH_ASSOC);
+    echo 'IDENTITY_MAP: '.json_encode($people,JSON_UNESCAPED_SLASHES)."\n";
     echo "MIGRATION_OK\n";
 } catch (Throwable $error) { http_response_code(500); echo 'MIGRATION_FAILED: '.$error->getMessage()."\n"; }
