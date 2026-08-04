@@ -77,6 +77,18 @@ try {
           'quality'=>['metrics'=>[['label'=>'Employee-attributable errors','value'=>$attributable],['label'=>'Accuracy','value'=>$accuracy,'format'=>'percent','numerator'=>$accuracy===null?null:max(0,$eligible-$attributable),'denominator'=>$accuracy===null?null:$eligible,'status'=>$accuracy===null?'unmeasured':'partial_data'],['label'=>'Eligible completed work','value'=>$eligible],['label'=>'Errors reported by employee','value'=>count(array_filter($quality,static fn($row):bool=>(int)($row['logged_by']??0)===$employeeId))]],'rows'=>$quality],
           'score_breakdown'=>['enabled'=>false,'message'=>'Composite scores, performance bands, rankings and bonuses remain disabled until source coverage is complete.','rows'=>[]]
         ];
+        $attributionRows=ops_table_exists('ops_order_attribution_reviews')?ops_rows("SELECT r.order_id,o.order_number,o.completed_at,r.assignment_method,r.compliance_result,r.policy_applies,r.restored_at FROM ops_order_attribution_reviews r JOIN ops_orders o ON o.id=r.order_id WHERE r.confirmed_packer_id=? AND o.completed_at BETWEEN ? AND ? ORDER BY o.completed_at DESC",[$employeeId,$ordersFromSql,$toSql]):[];
+        $attributionEligible=array_values(array_filter($attributionRows,static fn($row):bool=>in_array((string)$row['compliance_result'],['compliant','missed_attribution'],true)));
+        $attributionCompliant=count(array_filter($attributionEligible,static fn($row):bool=>(string)$row['compliance_result']==='compliant'));
+        $attributionExcluded=count(array_filter($attributionRows,static fn($row):bool=>(string)$row['compliance_result']==='excluded'));
+        $attributionRate=count($attributionEligible)>0?100*$attributionCompliant/count($attributionEligible):null;
+        $payload['sections']['orders']['attribution']=['title'=>'Packed By attribution compliance','metrics'=>[
+            ['label'=>'Confirmed attributed orders','value'=>count($attributionRows)],
+            ['label'=>'Manual and timely','value'=>$attributionCompliant],
+            ['label'=>'Automatic or late historical recovery','value'=>count($attributionEligible)-$attributionCompliant],
+            ['label'=>'Excluded from individual scoring','value'=>$attributionExcluded],
+            ['label'=>'Compliance rate','value'=>$attributionRate,'format'=>'percent','numerator'=>$attributionCompliant,'denominator'=>count($attributionEligible)]
+        ],'rows'=>$attributionRows,'note'=>'Historical recovered assignments receive productivity credit. Unable-to-confirm and unresolved orders remain excluded from individual scoring.'];
         $taskCompleted=count(array_filter($tasks,static fn($row):bool=>in_array((string)$row['status'],['complete','completed','approved'],true)));
         $taskRate=count($tasks)>0?100*$taskCompleted/count($tasks):null;
         $timingCoverage=count($packing)>0?100*count($validPacking)/count($packing):null;
@@ -91,7 +103,8 @@ try {
                 ['key'=>'accuracy','label'=>'Packing accuracy','weight'=>25,'result'=>$accuracy,'evidence'=>$attributable.' verified attributable errors across '.$eligible.' eligible records.'],
                 ['key'=>'speed','label'=>'Packing speed','weight'=>15,'result'=>$speedResult,'evidence'=>count($validPacking).' valid timing records of '.count($packing).'.'],
                 ['key'=>'portal_schedule_compliance','label'=>'Portal Schedule Compliance (limited contribution)','weight'=>1.5,'result'=>$portalScheduleCompliance,'evidence'=>$presenceCoverageDays.' of '.$presenceScheduledDays.' eligible scheduled days have positive or owner-reviewed evidence; maximum contribution 1.5 overall points.'],
-                ['key'=>'compliance','label'=>'Process compliance','weight'=>10,'result'=>$timingCoverage,'evidence'=>count($validPacking).' of '.count($packing).' packing rows have valid timing.'],
+                ['key'=>'compliance','label'=>'Process compliance','weight'=>8,'result'=>$timingCoverage,'evidence'=>count($validPacking).' of '.count($packing).' packing rows have valid timing.'],
+                ['key'=>'packed_by_attribution','label'=>'Packed By attribution compliance','weight'=>2,'result'=>$attributionRate,'evidence'=>$attributionCompliant.' of '.count($attributionEligible).' eligible orders were assigned manually before packing; '.$attributionExcluded.' excluded. Maximum contribution 2 overall points.'],
                 ['key'=>'tasks','label'=>'Tasks and team contribution','weight'=>10,'result'=>$taskRate,'evidence'=>$taskCompleted.' of '.count($tasks).' assigned tasks completed.'],
             ];
         }else{

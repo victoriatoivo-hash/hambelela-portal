@@ -28195,3 +28195,58 @@ html:has(body.login-page),body.login-page{min-height:100%;background:#FFFFFF!imp
     color: #721b1a;
     white-space: normal;
 }
+/* Historical Orders attribution verification */
+.historical-attribution-report .module-header-actions,
+.historical-attribution-report .module-header > div:last-child {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.historical-attribution-report .attribution-summary {
+    margin-bottom: 18px;
+}
+
+.historical-attribution-report .attribution-review-list {
+    display: grid;
+    gap: 14px;
+}
+
+.historical-attribution-report .attribution-review-card {
+    padding: 16px;
+    border: 1px solid #ede3d8;
+    border-radius: 14px;
+    background: #fff;
+}
+
+.historical-attribution-report .attribution-review-card form {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.historical-attribution-report .attribution-review-card label {
+    display: grid;
+    gap: 5px;
+    font-size: 12px;
+}
+
+.historical-attribution-report .attribution-review-card textarea {
+    min-height: 82px;
+}
+
+@media (max-width: 720px) {
+    .historical-attribution-report .attribution-review-card form {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media print {
+    .historical-attribution-report form,
+    .historical-attribution-report .module-header > div:last-child,
+    .historical-attribution-report .sidebar {
+        display: none !important;
+    }
+}

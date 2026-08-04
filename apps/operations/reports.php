@@ -201,7 +201,10 @@ include BASE_PATH . '/shared/sidebar.php';
             <h1><?= htmlspecialchars($currentKpiTitle,ENT_QUOTES,'UTF-8') ?></h1>
             <p><?= $tab === 'settings' ? 'Control data windows, fairness thresholds, working calendars and employee schedules.' : ($tab === 'employees' ? 'Role-relative performance evidence, workload and attendance for each employee.' : 'A fair, evidence-led view of operational health and the work needing attention.') ?></p>
         </div>
-        <?php if ($tab === 'business-health'): ?><button class="btn-secondary" type="button" data-kpi-refresh>Refresh</button><?php endif; ?>
+        <div class="module-header-actions">
+            <a class="btn-secondary" href="historical-order-attribution-report.php">Historical Packed By Audit</a>
+            <?php if ($tab === 'business-health'): ?><button class="btn-secondary" type="button" data-kpi-refresh>Refresh</button><?php endif; ?>
+        </div>
     </section>
 
     <nav class="kpi-health-tabs" aria-label="KPI sections">

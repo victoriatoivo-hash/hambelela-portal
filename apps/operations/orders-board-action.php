@@ -6,6 +6,7 @@ require_once __DIR__ . '/operations.php';
 require_once BASE_PATH . '/shared/woocommerce.php';
 require_once BASE_PATH . '/shared/board-columns.php';
 require_once __DIR__ . '/lib/orders-documents.php';
+require_once __DIR__ . '/order-attribution-service.php';
 
 header('Content-Type: application/json');
 
@@ -1337,19 +1338,7 @@ try {
             throw new RuntimeException('Invalid order status update.');
         }
 
-        $set = 'status = ?, updated_at = CURRENT_TIMESTAMP';
-        if ($status === 'in_progress' && ops_column_exists('ops_orders', 'packing_started_at')) {
-            $set .= ', packing_started_at = COALESCE(packing_started_at, NOW())';
-        }
-        if ($status === 'completed') {
-            if (ops_column_exists('ops_orders', 'packing_started_at')) {
-                $set .= ', packing_started_at = COALESCE(packing_started_at, NOW())';
-            }
-            $set .= ', packed_at = COALESCE(packed_at, NOW()), completed_at = COALESCE(completed_at, NOW())';
-        }
-
-        $stmt = db()->prepare('UPDATE ops_orders SET ' . $set . ' WHERE id = ?');
-        $stmt->execute([$status, $orderId]);
+        $attributionResult = ops_update_order_status_with_attribution($orderId, $status, 'orders_board_status');
         ops_log_order_stage_event($orderId, $status, [
             'source' => 'orders_board_status',
             'status' => $status,
@@ -1378,7 +1367,7 @@ try {
             ], [(int) ($order['assigned_packer_id'] ?? 0)]);
         }
 
-        echo json_encode(['ok' => true, 'message' => 'Order status updated.']);
+        echo json_encode(['ok' => true, 'message' => 'Order status updated.', 'auto_assigned_packer_id' => $attributionResult['auto_assigned_packer_id']]);
         exit;
     }
 
@@ -1642,6 +1631,9 @@ try {
                 'message' => 'Packed By changed from ' . $previousPackerName . ' to ' . $packerName . '.',
             ]);
             notifications_notify_order_assigned($orderId, $packerId);
+            if (!$previousPackerId && $packerId && !in_array((string) ($previousOrder['status'] ?? ''), ['in_progress', 'completed'], true)) {
+                ops_record_timely_packer_assignment($orderId, $packerId, ops_current_employee_id());
+            }
         } elseif ($field === 'status') {
             $db = db();
             $autoAssignedPacker = null;
@@ -1952,11 +1944,20 @@ try {
             $params[] = ops_current_employee_id();
         }
 
-        array_unshift($params, $value);
-        $params = array_merge($params, $ids);
-        $stmt = db()->prepare("UPDATE ops_orders SET {$set}, updated_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders})");
-        $stmt->execute($params);
-        $changed = $stmt->rowCount();
+        if ($field === 'status') {
+            $changed = 0;
+            foreach ($ids as $statusOrderId) {
+                if (($previousKpiStatuses[(int) $statusOrderId] ?? '') === (string) $value) continue;
+                ops_update_order_status_with_attribution((int) $statusOrderId, (string) $value, 'orders_board_bulk');
+                $changed++;
+            }
+        } else {
+            array_unshift($params, $value);
+            $params = array_merge($params, $ids);
+            $stmt = db()->prepare("UPDATE ops_orders SET {$set}, updated_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders})");
+            $stmt->execute($params);
+            $changed = $stmt->rowCount();
+        }
 
         foreach ($ids as $id) {
             if ($field === 'status') {
