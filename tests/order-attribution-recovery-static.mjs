@@ -15,6 +15,8 @@ assert.match(service, /historical_packed_by_recovered/);
 assert.match(service, /packed_by_auto_assigned_after_status_change/);
 assert.match(action, /ops_update_order_status_with_attribution/);
 assert.match(report, /Save this order review/);
+assert.match(report, /user_has_role\('owner_admin'\)/);
+assert.match(report, /staff_csv/);
 assert.match(report, /Possible packers are never preselected/);
 assert.doesNotMatch(report, /bulk assignment/i);
 assert.match(kpi, /'weight'=>2,'result'=>\$attributionRate/);
