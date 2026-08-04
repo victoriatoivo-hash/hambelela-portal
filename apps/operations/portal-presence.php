@@ -45,7 +45,7 @@ try {
             if ($kpiSessionToken !== '') {
                 db()->prepare('UPDATE kpi_sessions SET last_seen_at = UTC_TIMESTAMP() WHERE session_token = ? AND user_id = ? AND logout_at IS NULL')->execute([$kpiSessionToken, $employeeId]);
             }
-            db()->exec('UPDATE kpi_sessions SET logout_at = DATE_ADD(last_seen_at, INTERVAL 30 SECOND) WHERE logout_at IS NULL AND last_seen_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 SECOND)');
+            db()->exec("UPDATE kpi_sessions SET logout_at = DATE_ADD(last_seen_at, INTERVAL 30 SECOND), session_expired_at = DATE_ADD(last_seen_at, INTERVAL 30 SECOND), end_reason = 'inactive_expiry' WHERE logout_at IS NULL AND last_seen_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 SECOND)");
         } catch (Throwable $kpiError) {
             error_log(date(DATE_ATOM) . ' presence heartbeat: ' . $kpiError->getMessage() . PHP_EOL, 3, BASE_PATH . '/logs/kpi_errors.log');
         }

@@ -12,7 +12,7 @@ if (($_GET['action'] ?? '') === 'logout') {
     try {
         $kpiSessionToken = (string) ($_SESSION['kpi_session_token'] ?? '');
         if ($kpiSessionToken !== '') {
-            db()->prepare('UPDATE kpi_sessions SET last_seen_at = UTC_TIMESTAMP(), logout_at = UTC_TIMESTAMP() WHERE session_token = ? AND logout_at IS NULL')->execute([$kpiSessionToken]);
+            db()->prepare("UPDATE kpi_sessions SET last_seen_at = UTC_TIMESTAMP(), logout_at = UTC_TIMESTAMP(), explicit_logout_at = UTC_TIMESTAMP(), end_reason = 'explicit_logout' WHERE session_token = ? AND logout_at IS NULL")->execute([$kpiSessionToken]);
         }
     } catch (Throwable $kpiError) {
         error_log(date(DATE_ATOM) . ' logout: ' . $kpiError->getMessage() . PHP_EOL, 3, __DIR__ . '/logs/kpi_errors.log');

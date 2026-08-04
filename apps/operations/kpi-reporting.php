@@ -163,7 +163,7 @@ function kpi_merge_presence_rows(array $rawRows, int $mergeGapSeconds = 90): arr
         $grouped[$key]['employee'] = (string) ($row['employee'] ?? '');
         $grouped[$key]['user_id'] = $employeeId;
         $grouped[$key]['day'] = $day;
-        $grouped[$key]['intervals'][] = [$startLocal, $endLocal];
+        $grouped[$key]['intervals'][] = [$startLocal, $endLocal, (string) ($row['end_reason'] ?? '')];
     }
 
     $result = [];
@@ -182,8 +182,15 @@ function kpi_merge_presence_rows(array $rawRows, int $mergeGapSeconds = 90): arr
             $merged[] = [$start, $end];
         }
         $seconds = 0;
-        foreach ($merged as [$start, $end]) {
+        $activePeriods = [];
+        $inactiveGaps = [];
+        foreach ($merged as $periodIndex => [$start, $end]) {
             $seconds += $end->getTimestamp() - $start->getTimestamp();
+            $activePeriods[] = ['start'=>$start->format('Y-m-d H:i:s'),'end'=>$end->format('Y-m-d H:i:s'),'minutes'=>round(($end->getTimestamp()-$start->getTimestamp())/60,1)];
+            if ($periodIndex > 0) {
+                $previousEnd = $merged[$periodIndex - 1][1];
+                $inactiveGaps[] = ['start'=>$previousEnd->format('Y-m-d H:i:s'),'end'=>$start->format('Y-m-d H:i:s'),'minutes'=>round(($start->getTimestamp()-$previousEnd->getTimestamp())/60,1)];
+            }
         }
         $result[] = [
             'user_id' => $group['user_id'],
@@ -194,6 +201,11 @@ function kpi_merge_presence_rows(array $rawRows, int $mergeGapSeconds = 90): arr
             'portal_active_hours' => round($seconds / 3600, 2),
             'sessions' => count($intervals),
             'merged_intervals' => count($merged),
+            'active_periods' => $activePeriods,
+            'inactive_gaps' => $inactiveGaps,
+            'explicit_logouts' => count(array_filter($intervals, static fn(array $interval): bool => ($interval[2] ?? '') === 'explicit_logout')),
+            'inactive_expiries' => count(array_filter($intervals, static fn(array $interval): bool => ($interval[2] ?? '') === 'inactive_expiry')),
+            'source' => 'kpi_sessions',
         ];
     }
     usort($result, static fn(array $a, array $b): int => [$b['day'], $a['employee']] <=> [$a['day'], $b['employee']]);
