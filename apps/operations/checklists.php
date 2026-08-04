@@ -817,8 +817,19 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([$value, ...$taskIds]);
             } elseif ($bulkAction === 'assign') {
                 $value = max(0, (int) ($_POST['value'] ?? 0));
-                $stmt = db()->prepare("UPDATE ops_checklist_tasks SET assigned_employee_id = ? WHERE id IN ({$placeholders}) AND deleted_at IS NULL");
-                $stmt->execute([$value ?: null, ...$taskIds]);
+                $beforeAssignments = ops_rows("SELECT id, assigned_employee_id FROM ops_checklist_tasks WHERE id IN ({$placeholders}) AND deleted_at IS NULL", $taskIds);
+                $stmt = db()->prepare("UPDATE ops_checklist_tasks SET assigned_employee_id = ?, date_assigned = CASE WHEN COALESCE(assigned_employee_id,0) <> ? THEN NOW() ELSE date_assigned END, employee_visible = CASE WHEN ? > 0 THEN 1 ELSE employee_visible END WHERE id IN ({$placeholders}) AND deleted_at IS NULL");
+                $stmt->execute([$value ?: null, $value, $value, ...$taskIds]);
+                foreach ($beforeAssignments as $beforeAssignment) {
+                    $previousEmployeeId = (int) ($beforeAssignment['assigned_employee_id'] ?? 0);
+                    if ($previousEmployeeId === $value) continue;
+                    ops_activity_log($value > 0 ? ($previousEmployeeId > 0 ? 'task_reassigned' : 'task_assigned') : 'task_unassigned', 'checklist_task', (int) $beforeAssignment['id'], [
+                        'previous_assigned_employee_id' => $previousEmployeeId ?: null,
+                        'assigned_employee_id' => $value ?: null,
+                        'assignment_visible' => $value > 0,
+                        'assignment_source' => 'bulk_action',
+                    ]);
+                }
             } elseif ($bulkAction === 'archive') {
                 $stmt = db()->prepare("UPDATE ops_checklist_tasks SET archived_at = NOW(), archived_by = ?, deleted_at = NULL, deleted_by = NULL WHERE id IN ({$placeholders})");
                 $stmt->execute([$currentEmployeeId, ...$taskIds]);
@@ -847,6 +858,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $urgentRecipients = $urgentRequested ? checklist_urgent_recipient_ids((array) ($_POST['urgent_alert_recipients'] ?? []), $assignedId) : [];
             if ($urgentRequested && !$urgentRecipients) throw new RuntimeException('Choose at least one valid urgent alert recipient.');
             $employeeVisible = 1;
+            $proofRequired = !empty($_POST['completion_evidence_required']) ? 1 : 0;
             $recurringRule = ops_post_string('recurring_rule', 80);
             $allowedRecurringRules = ['', 'daily_business_day', 'twice_weekly', 'weekly_1', 'weekly_2', 'weekly_3', 'weekly_4', 'weekly_5', 'weekly_saturday'];
             if (!in_array($recurringRule, $allowedRecurringRules, true)) {
@@ -889,7 +901,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 ops_post_string('instructions', 1500),
                 checklist_items_from_text((string) ($_POST['checklist_items_text'] ?? '')),
                 1,
-                0,
+                $proofRequired,
                 1,
                 $templateId ? 'template-' . $templateId . '-' . date('Y-m-d') . '-' . max(0, $assignedId) : null,
                 $recurringRule ?: null,
@@ -910,6 +922,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 'assigned_employee_id' => $assignedId,
                 'attachment_count' => count($createdAttachments),
                 'source_template_id' => $sourceTemplateId > 0 ? $sourceTemplateId : null,
+                'proof_required' => $proofRequired,
             ]);
             if ($assignedId > 0 && !notifications_notify_task_assigned($createdTaskId, $assignedId, $taskName)) {
                 throw new RuntimeException('The task assignment notification could not be saved.');
@@ -946,11 +959,18 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $taskDb = db();
             $taskDb->beginTransaction();
             try {
-                $stmt = $taskDb->prepare("UPDATE ops_checklist_tasks SET assigned_employee_id = ?, deadline = ?, priority = ?, status = ?, employee_visible = 1, completion_note_required = 1, completion_evidence_required = 0, performance_scored = 1 WHERE id = ?");
+                $stmt = $taskDb->prepare("UPDATE ops_checklist_tasks SET assigned_employee_id = ?, date_assigned = CASE WHEN COALESCE(assigned_employee_id,0) <> ? THEN NOW() ELSE date_assigned END, deadline = ?, priority = ?, status = ?, employee_visible = 1, completion_note_required = 1, completion_evidence_required = ?, performance_scored = 1 WHERE id = ?");
                 $submittedPriority = ops_post_string('priority', 30);
-                $stmt->execute([$assignedId > 0 ? $assignedId : null, $deadline ?: null, array_key_exists($submittedPriority, $priorities) ? $submittedPriority : 'normal', $status, $taskId]);
+                $proofRequired = !empty($_POST['completion_evidence_required']) ? 1 : 0;
+                $stmt->execute([$assignedId > 0 ? $assignedId : null, $assignedId, $deadline ?: null, array_key_exists($submittedPriority, $priorities) ? $submittedPriority : 'normal', $status, $proofRequired, $taskId]);
                 checklist_kpi_status_event($taskId, $oldStatus, $status, $currentEmployeeId);
-                ops_activity_log('task_admin_updated', 'checklist_task', $taskId, ['status' => $status, 'previous_assigned_employee_id' => $oldAssignedId ?: null, 'assigned_employee_id' => $assignedId ?: null]);
+                ops_activity_log('task_admin_updated', 'checklist_task', $taskId, ['status' => $status, 'previous_assigned_employee_id' => $oldAssignedId ?: null, 'assigned_employee_id' => $assignedId ?: null, 'proof_required' => $proofRequired]);
+                if ($assignedId !== $oldAssignedId) ops_activity_log($assignedId > 0 ? ($oldAssignedId > 0 ? 'task_reassigned' : 'task_assigned') : 'task_unassigned', 'checklist_task', $taskId, [
+                    'previous_assigned_employee_id' => $oldAssignedId ?: null,
+                    'assigned_employee_id' => $assignedId ?: null,
+                    'assignment_visible' => $assignedId > 0,
+                    'assignment_source' => 'admin_update',
+                ]);
                 if ($assignedId > 0 && $assignedId !== $oldAssignedId && !notifications_notify_task_assigned($taskId, $assignedId, (string) ($oldRows[0]['task_name'] ?? 'Checklist task'))) {
                     throw new RuntimeException('The reassignment notification could not be saved.');
                 }
@@ -1342,6 +1362,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         <p class="task-due-summary" data-task-due-summary aria-live="polite"></p>
                         <fieldset class="task-form-field task-priority-field"><legend class="task-form-label">Priority *</legend><div class="task-priority-options" role="radiogroup" aria-label="Priority"><label><input type="radio" name="priority" value="normal" checked><span>Normal</span></label><label><input type="radio" name="priority" value="important"><span>Important</span></label><label><input type="radio" name="priority" value="urgent"><span>Urgent</span></label></div></fieldset>
                         <label class="task-form-field task-form-field--full"><span class="task-form-label">Instructions *</span><textarea id="create-task-instructions" name="instructions" required placeholder="Explain what must be done and what the finished result should look like."></textarea></label>
+                        <label class="task-urgent-toggle"><input type="checkbox" name="completion_evidence_required" value="1"><span class="task-urgent-toggle__track" aria-hidden="true"><span class="task-urgent-toggle__thumb"></span></span><span class="task-urgent-toggle__copy"><strong>Proof required</strong><small>The assigned employee must upload proof before this task can count as proof-compliant.</small></span></label>
                       </div></section>
                       <section class="task-form-section task-checklist-builder" data-task-checklist-builder><span class="task-form-label">Required checklist</span><div class="task-checklist-add"><input type="text" data-task-checklist-input placeholder="Enter a checklist item"><button type="button" data-task-checklist-add>Add</button></div><p class="task-checklist-warning" data-task-checklist-warning hidden></p><ol data-task-checklist-list></ol><input id="create-task-items" type="hidden" name="checklist_items_text"><small>All checklist items must be completed before the task can be marked complete.</small></section>
                       <section class="task-form-section task-create-attachments" data-task-create-attachments>
@@ -1513,6 +1534,7 @@ include BASE_PATH . '/shared/sidebar.php';
                             <div class="task-field"><label for="task-priority-<?= $panelId ?>">Priority</label><select id="task-priority-<?= $panelId ?>" name="priority" data-portal-custom-select><?php ops_select_options($priorities, (string) ($task['priority'] ?? 'normal')); ?></select></div>
                             <div class="task-field"><label for="task-deadline-display-<?= $panelId ?>">Due date</label><div class="portal-date-field" data-portal-date-field><input id="task-deadline-display-<?= $panelId ?>" type="text" class="portal-date-input" data-enable-time="true" data-submit-target="#task-deadline-<?= $panelId ?>" placeholder="dd/mm/yyyy --:--" autocomplete="off"><input id="task-deadline-<?= $panelId ?>" type="hidden" name="deadline" value="<?= htmlspecialchars($deadlineValue, ENT_QUOTES, 'UTF-8') ?>"><button type="button" class="portal-date-trigger" aria-label="Open Due Date calendar"><i data-lucide="calendar-clock" aria-hidden="true"></i></button></div></div>
                         </div>
+                        <label class="task-urgent-toggle"><input type="checkbox" name="completion_evidence_required" value="1" <?= !empty($task['completion_evidence_required']) ? 'checked' : '' ?>><span class="task-urgent-toggle__track" aria-hidden="true"><span class="task-urgent-toggle__thumb"></span></span><span class="task-urgent-toggle__copy"><strong>Proof required</strong><small>Optional uploads remain evidence only and do not earn bonus points.</small></span></label>
                         <section class="task-urgent-control" data-urgent-control>
                             <?php if (empty($task['urgent_alert_sent_at'])): ?>
                                 <label class="task-urgent-toggle"><input type="checkbox" name="send_urgent_alert" value="1" data-urgent-toggle><span class="task-urgent-toggle__track" aria-hidden="true"><span class="task-urgent-toggle__thumb"></span></span><span class="task-urgent-toggle__copy"><strong>Send urgent alert</strong><small>Notify employees after this task update saves.</small></span></label>
