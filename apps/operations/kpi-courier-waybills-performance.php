@@ -195,7 +195,7 @@ function kpi_courier_waybills_performance(?array $employee, string $fromSql, str
             ['label'=>'Overall customer deadline','value'=>$customerRate,'format'=>'percent','numerator'=>$counts['customer_on_time'],'denominator'=>$counts['customer_eligible']],
             ['label'=>'Blocked by late upload','value'=>$counts['blocked_late_upload']],
             ['label'=>'Pending','value'=>$counts['pending']],
-            ['label'=>'Median upload time','value'=>kpi_courier_time_label(kpi_courier_percentile($uploadTimes,50))],
+            ['label'=>'Median upload time','value'=>kpi_courier_time_label(kpi_courier_percentile($uploadTimes,50)),'format'=>'time'],
             ['label'=>'Median upload-to-send','value'=>kpi_courier_percentile($turnaround,50),'format'=>'minutes','sample'=>count($turnaround)],
             ['label'=>'Average upload-to-send','value'=>$turnaround?round(array_sum($turnaround)/count($turnaround),1):null,'format'=>'minutes','sample'=>count($turnaround)],
             ['label'=>'90th percentile turnaround','value'=>count($turnaround)>=10?kpi_courier_percentile($turnaround,90):null,'format'=>'minutes','sample'=>count($turnaround)],
