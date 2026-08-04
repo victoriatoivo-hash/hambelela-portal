@@ -25,6 +25,7 @@ function ops_order_attribution_evidence(int $orderId): array
     $actorIds=[];$firstPacking=null;$completion=null;$sources=[];
     foreach($events as$event){$actor=(int)($event['actor_id']??0);if($actor>0)$actorIds[$actor]=true;$sources[(string)$event['source']]=true;if($firstPacking===null&&in_array((string)$event['action'],['in_progress','item_packed','order_packed'],true)&&$actor>0)$firstPacking=$event;if($completion===null&&in_array((string)$event['action'],['completed','packed','verified','order_completed'],true)&&$actor>0)$completion=$event;}
     $ids=array_keys($actorIds);$confirmed=null;$method=null;
+    if($ids){$marks=implode(',',array_fill(0,count($ids),'?'));$names=[];foreach(ops_rows("SELECT id,full_name FROM ops_employees WHERE id IN ({$marks})",$ids)as$person)$names[(int)$person['id']]=(string)$person['full_name'];foreach($events as&$event){$event['actor_name']=$names[(int)($event['actor_id']??0)]??null;}unset($event);if($firstPacking)$firstPacking['actor_name']=$names[(int)$firstPacking['actor_id']]??null;if($completion)$completion['actor_name']=$names[(int)$completion['actor_id']]??null;}
     if(count($itemActors)===1){$confirmed=(int)$itemActors[0]['actor_id'];$method='Order item packing actor';}
     elseif($firstPacking&&$completion&&(int)$firstPacking['actor_id']===(int)$completion['actor_id']){$confirmed=(int)$firstPacking['actor_id'];$method='Matching packing-start and completion actor';}
     elseif($firstPacking&&count($ids)===1){$confirmed=(int)$firstPacking['actor_id'];$method='Single packing-related actor';}
