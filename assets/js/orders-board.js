@@ -950,17 +950,19 @@
       : post('update_field', { order_id: id, field, value });
 
     let savedIds = ids;
+    const mutationResponses = new Map();
     try {
       if (field === 'created_at') {
         if (ids.length > 1) {
           await post('bulk_update', { order_ids: ids.join(','), field, value });
         } else {
-          await postSingleUpdate(ids[0]);
+          mutationResponses.set(ids[0], await postSingleUpdate(ids[0]));
         }
       } else if (ids.length > 1) {
-        await post('bulk_update', { order_ids: ids.join(','), field, value });
+        const bulkResponse = await post('bulk_update', { order_ids: ids.join(','), field, value });
+        Object.entries(bulkResponse.auto_assignments || {}).forEach(([id, assignment]) => mutationResponses.set(String(id), { auto_assigned_packer:true, ...assignment }));
       } else {
-        await postSingleUpdate(ids[0]);
+        mutationResponses.set(ids[0], await postSingleUpdate(ids[0]));
       }
     } catch (error) {
       if (ids.length <= 1) {
@@ -972,7 +974,7 @@
       const failed = [];
       for (const id of ids) {
         try {
-          await postSingleUpdate(id);
+          mutationResponses.set(id, await postSingleUpdate(id));
           succeeded.push(id);
         } catch (innerError) {
           failed.push(id);
@@ -1001,6 +1003,11 @@
     savedChanges.forEach((change) => {
       const order = ordersCache.find((item) => String(item.id) === String(change.id));
       updateOrderCacheField(change.id, field, value);
+      const response = mutationResponses.get(String(change.id));
+      if (field === 'status' && response?.auto_assigned_packer) {
+        updateOrderCacheField(change.id, 'assigned_packer_id', String(response.assigned_packer_id || ''));
+        order.packer_name = response.packer_name || order.packer_name || '';
+      }
       prependLocalOrderActivity(order, field, change.value, value);
     });
     if (currentOrder && savedIds.includes(String(currentOrder.id))) renderPanelActivity();
@@ -1064,6 +1071,10 @@
         if (!cell) return;
         cell.style.setProperty('--cell-fill-color', findColor(options, value));
         cell.innerHTML = field === 'payment_method' ? renderPaymentBadge(order) : renderLabelCell(order, field, value, options, field === 'order_type' ? 'mode-label' : 'status-label');
+        if (field === 'status') {
+          const packerCell = row.querySelector('.col-packedby');
+          if (packerCell) packerCell.innerHTML = renderPackerCell(order);
+        }
       });
       const groupKeys = orderIds.map((id) => {
         const order = ordersCache.find((item) => String(item.id) === String(id));
@@ -1604,6 +1615,9 @@
         const action = String(event.action || '').replaceAll('_', ' ');
         return `<article class="orders-tools-event"><strong>${esc(action)}</strong> · ${esc(formatOrderInvoiceReference(event.order_number || `Order #${event.order_id}`))}<div>${esc(event.customer_name || '')}</div><small>${esc(event.actor_name || metadata.changed_by || 'System')} · ${esc(event.actor_role || '')} · ${esc(event.created_at || '')}</small></article>`;
       }).join('')}</div>` : ordersToolsEmpty('No activity found', 'Try changing the selected filters.');
+    } else if (ordersToolsTab === 'attribution') {
+      const review = ordersToolsData.attribution_review || [];
+      ordersToolsContent.innerHTML = review.length ? `<div class="orders-tools-activity"><div class="ops-alert warning"><strong>Packing attribution requires review</strong><br>Only correct a record when the displayed Activity Log evidence identifies the real packer. Ambiguous records must remain unassigned.</div>${review.map((record) => `<article class="orders-tools-event"><strong>${esc(formatOrderInvoiceReference(record.order_number || `Order #${record.id}`))}</strong><div>${esc(record.customer_name || '')} · ${esc(record.status || '')}</div><small>${record.evidence_actor_count==1?`Suggested from one reliable actor: ${esc(record.suggested_packer_name || `Employee #${record.suggested_packer_id}`)}`:'No single reliable employee'} · ${esc(record.first_reliable_event || 'No reliable event timestamp')}</small><small>Evidence: ${esc(record.evidence_sources || 'None')}</small></article>`).join('')}</div>` : ordersToolsEmpty('No attribution reviews', 'No completed unassigned orders require review.');
     } else {
       const ids = [...selectedOrders];
       ordersToolsContent.innerHTML = `<section class="orders-tools-bulk-summary"><span>Selected orders</span><strong>${ids.length}</strong><p>${ids.length ? esc(ids.slice(0,12).map((id) => formatOrderInvoiceReference(ordersCache.find((order) => String(order.id) === id)?.order_number || `#${id}`)).join(', ')) : 'Select rows on the Orders Board to use bulk actions.'}</p><div class="orders-tools-bulk-actions"><button type="button" class="orders-tools-button" data-orders-tools-action="archive-selected" ${ids.length ? '' : 'disabled'}><i data-lucide="archive"></i>Archive selected</button><button type="button" class="orders-tools-button orders-tools-button--danger" data-orders-tools-action="trash-selected" ${ids.length ? '' : 'disabled'}><i data-lucide="trash-2"></i>Move selected to Trash</button><button type="button" class="orders-tools-button" data-orders-tools-action="export-selected" ${ids.length ? '' : 'disabled'}><i data-lucide="download"></i>Export selected</button></div></section>`;
@@ -2235,7 +2249,7 @@
     const name = order.packer_name || 'Unassigned';
     const initials = employeeId ? employeeInitials(name) : '&mdash;';
     const content = `<span class="packing-person-avatar">${initials}</span><span class="packing-person-trigger-label">${esc(name)}</span><svg class="packing-person-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 8l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-    if (!currentUser.can_edit_packed_by) return `<div class="packing-person-component orders-packed-by-selector is-static" data-orders-person-component data-employee-id="${esc(employeeId)}"><span class="packing-person-trigger is-static">${content}</span></div>`;
+    if (!currentUser.can_edit_packed_by || (!currentUser.can_manage_packer_assignment && employeeId)) return `<div class="packing-person-component orders-packed-by-selector is-static" data-orders-person-component data-employee-id="${esc(employeeId)}"><span class="packing-person-trigger is-static">${content}</span></div>`;
     return `<div class="packing-person-component orders-packed-by-selector" data-orders-person-component data-employee-id="${esc(employeeId)}"><button type="button" class="packing-person-trigger" data-orders-person-trigger data-order-id="${esc(order.id)}" aria-haspopup="listbox" aria-expanded="false">${content}</button></div>`;
   }
 
@@ -2274,7 +2288,8 @@
     const container = popup.querySelector('[data-orders-person-options]');
     const selectedId = String(ordersCache.find((order) => String(order.id) === personPopupOrderId)?.assigned_packer_id || '');
     const needle = String(query || '').trim().toLowerCase();
-    const options = [{ id: '', full_name: 'Unassigned', role_key: '' }, ...packersCache].filter((employee) => !needle || `${employee.full_name || ''} ${employee.role_name || employee.role_key || ''}`.toLowerCase().includes(needle));
+    const availablePeople = currentUser.can_manage_packer_assignment ? [{ id: '', full_name: 'Unassigned', role_key: '' }, ...packersCache] : packersCache.filter((employee) => String(employee.id) === String(currentUser.id || ''));
+    const options = availablePeople.filter((employee) => !needle || `${employee.full_name || ''} ${employee.role_name || employee.role_key || ''}`.toLowerCase().includes(needle));
     container.innerHTML = options.length ? options.map((employee) => {
       const id = String(employee.id || '');
       const selected = id === selectedId;
@@ -4360,6 +4375,12 @@
     const message = String(error?.message || error || 'Something went wrong');
     if (syncState) {
       syncState.textContent = message;
+    }
+    if (message === 'Please select who packed this order before marking it Complete.') {
+      window.requestAnimationFrame(() => {
+        const trigger = body.querySelector('[data-orders-person-component][data-employee-id=""] [data-orders-person-trigger]');
+        trigger?.focus({ preventScroll: false });
+      });
     }
   }
 

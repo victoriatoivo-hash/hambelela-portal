@@ -185,6 +185,7 @@ include BASE_PATH . '/shared/sidebar.php';
         <nav class="orders-tools-tabs portal-tools-tabs" role="tablist" aria-label="Orders tools sections">
             <button type="button" class="orders-tools-tab portal-tools-tab is-active" role="tab" aria-selected="true" data-orders-tools-tab="trash"><i data-lucide="trash-2" aria-hidden="true"></i><span>Trash</span></button>
             <button type="button" class="orders-tools-tab portal-tools-tab" role="tab" aria-selected="false" data-orders-tools-tab="activity"><i data-lucide="history" aria-hidden="true"></i><span>Activity</span></button>
+            <?php if (user_has_role('owner_admin')): ?><button type="button" class="orders-tools-tab portal-tools-tab" role="tab" aria-selected="false" data-orders-tools-tab="attribution"><i data-lucide="user-search" aria-hidden="true"></i><span>Attribution review</span></button><?php endif; ?>
             <button type="button" class="orders-tools-tab portal-tools-tab" role="tab" aria-selected="false" data-orders-tools-tab="archived"><i data-lucide="archive" aria-hidden="true"></i><span>Archived</span></button>
             <button type="button" class="orders-tools-tab portal-tools-tab" role="tab" aria-selected="false" data-orders-tools-tab="bulk"><i data-lucide="list-checks" aria-hidden="true"></i><span>Bulk actions</span></button>
         </nav>

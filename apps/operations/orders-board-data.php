@@ -345,11 +345,39 @@ $ordersPermissions = [
     'can_edit_paid' => ops_can_update_order_paid_status(),
     'can_edit_payment' => ops_can_update_order_payment_method(),
     'can_manage_people' => $roleKey === 'owner_admin',
+    'can_manage_packer_assignment' => in_array($roleKey, ['owner_admin','front_desk_admin','supervisor_manager'], true),
     'can_bulk_manage' => in_array($roleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager'], true),
     'can_move_to_trash' => in_array($roleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager', 'packer', 'packer_production_staff'], true),
     'can_delete' => in_array($roleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager', 'packer', 'packer_production_staff'], true),
 ];
 $responseData['permissions'] = $ordersPermissions;
+
+$packingAttributionReview = [];
+if ($roleKey === 'owner_admin' && ops_table_exists('ops_activity_logs') && ops_table_exists('kpi_status_events')) {
+    $packingAttributionReview = ops_rows(
+        "SELECT o.id,o.order_number,o.status,o.completed_at,
+                COUNT(DISTINCT evidence.employee_id) evidence_actor_count,
+                CASE WHEN COUNT(DISTINCT evidence.employee_id)=1 THEN MIN(evidence.employee_id) ELSE NULL END suggested_packer_id,
+                CASE WHEN COUNT(DISTINCT evidence.employee_id)=1 THEN MIN(e.full_name) ELSE NULL END suggested_packer_name,
+                MIN(evidence.occurred_at) first_reliable_event,
+                GROUP_CONCAT(DISTINCT CONCAT(evidence.source_log,'#',evidence.source_event_id) ORDER BY evidence.occurred_at SEPARATOR ', ') evidence_sources
+         FROM ops_orders o
+         LEFT JOIN (
+             SELECT entity_id order_id,employee_id,created_at occurred_at,'ops_activity_logs' source_log,id source_event_id
+             FROM ops_activity_logs
+             WHERE entity_type='order' AND action IN ('status_changed','order_completed') AND employee_id IS NOT NULL
+             UNION ALL
+             SELECT record_id order_id,changed_by employee_id,changed_at occurred_at,'kpi_status_events' source_log,id source_event_id
+             FROM kpi_status_events
+             WHERE module='order' AND new_status IN ('in_progress','completed') AND changed_by IS NOT NULL
+         ) evidence ON evidence.order_id=o.id
+         LEFT JOIN ops_employees e ON e.id=evidence.employee_id
+         WHERE o.status IN ('completed','packed','verified') AND (o.assigned_packer_id IS NULL OR o.assigned_packer_id=0)
+         GROUP BY o.id,o.order_number,o.status,o.completed_at
+         ORDER BY o.completed_at DESC,o.id DESC
+         LIMIT 500"
+    );
+}
 
 echo json_encode([
     'ok' => true,
@@ -362,6 +390,7 @@ echo json_encode([
     'metrics' => $metrics,
     'packers' => $packers,
     'permissions' => $ordersPermissions,
+    'packingAttributionReview' => $packingAttributionReview,
     'currentEmployeeId' => ops_current_employee_id(),
     'currentUser' => array_merge([
         'id' => ops_current_employee_id(),

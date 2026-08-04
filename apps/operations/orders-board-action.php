@@ -213,6 +213,49 @@ function ops_board_tools_can_manage(): bool
     return user_has_role('owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager', 'packer', 'packer_production_staff');
 }
 
+function ops_board_current_packing_employee(): ?array
+{
+    $employeeId = ops_current_employee_id();
+    if (!$employeeId) return null;
+    $hasPackingAssignable = ops_ensure_packing_assignable_column();
+    $eligibility = $hasPackingAssignable
+        ? "(e.packing_assignable = 1 OR r.role_key IN ('packer','packer_production_staff'))"
+        : "r.role_key IN ('packer','packer_production_staff')";
+    $rows = ops_rows(
+        "SELECT e.id,e.full_name,r.role_key FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE e.id=? AND e.status='active' AND {$eligibility} LIMIT 1",
+        [$employeeId]
+    );
+    return $rows[0] ?? null;
+}
+
+function ops_board_can_manage_packer_assignment(): bool
+{
+    return user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
+}
+
+function ops_board_log_automatic_packer_assignment(int $orderId, array $packer, string $targetStatus): void
+{
+    $actorId = (int) ($packer['id'] ?? 0);
+    $packerName = (string) ($packer['full_name'] ?? ('Employee ' . $actorId));
+    $metadata = [
+        'field' => 'assigned_packer_id',
+        'previous_packer_id' => null,
+        'assigned_packer_id' => $actorId,
+        'previous_value' => 'Unassigned',
+        'new_value' => $packerName,
+        'assignment_method' => 'automatic_self_assignment',
+        'triggered_by_status' => $targetStatus,
+        'source' => 'orders_board_status_change',
+        'message' => 'Packer automatically assigned from Unassigned to ' . $packerName . ' (#' . $actorId . ') when status changed to ' . $targetStatus . '.',
+    ];
+    ops_activity_log('packer_automatically_assigned', 'order', $orderId, $metadata);
+    ops_log_order_stage_event($orderId, 'packer_automatically_assigned', $metadata, $actorId);
+    ops_kpi_record_event('orders', 'order', $orderId, 'packer_automatically_assigned', 'Unassigned', $packerName . ' (#' . $actorId . ')', $actorId, [
+        'source_page' => 'orders-board.php',
+        'metadata' => $metadata,
+    ]);
+}
+
 function ops_board_can_move_to_trash(): bool
 {
     return user_has_role('owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager', 'packer', 'packer_production_staff');
@@ -960,11 +1003,33 @@ try {
              WHERE al.entity_type = 'order'
              ORDER BY al.created_at DESC, al.id DESC LIMIT 250"
         ) : [];
+        $attributionReview = [];
+        if (user_has_role('owner_admin') && ops_table_exists('ops_activity_logs') && ops_table_exists('kpi_status_events')) {
+            $attributionReview = ops_rows(
+                "SELECT o.id,o.order_number,o.customer_name,o.status,o.completed_at,
+                        COUNT(DISTINCT evidence.employee_id) evidence_actor_count,
+                        CASE WHEN COUNT(DISTINCT evidence.employee_id)=1 THEN MIN(evidence.employee_id) ELSE NULL END suggested_packer_id,
+                        CASE WHEN COUNT(DISTINCT evidence.employee_id)=1 THEN MIN(e.full_name) ELSE NULL END suggested_packer_name,
+                        MIN(evidence.occurred_at) first_reliable_event,
+                        GROUP_CONCAT(DISTINCT CONCAT(evidence.source_log,'#',evidence.source_event_id) ORDER BY evidence.occurred_at SEPARATOR ', ') evidence_sources
+                 FROM ops_orders o
+                 LEFT JOIN (
+                    SELECT entity_id order_id,employee_id,created_at occurred_at,'ops_activity_logs' source_log,id source_event_id FROM ops_activity_logs WHERE entity_type='order' AND action IN ('status_changed','order_completed') AND employee_id IS NOT NULL
+                    UNION ALL
+                    SELECT record_id order_id,changed_by employee_id,changed_at occurred_at,'kpi_status_events' source_log,id source_event_id FROM kpi_status_events WHERE module='order' AND new_status IN ('in_progress','completed') AND changed_by IS NOT NULL
+                 ) evidence ON evidence.order_id=o.id
+                 LEFT JOIN ops_employees e ON e.id=evidence.employee_id
+                 WHERE o.status IN ('completed','packed','verified') AND (o.assigned_packer_id IS NULL OR o.assigned_packer_id=0)
+                 GROUP BY o.id,o.order_number,o.customer_name,o.status,o.completed_at
+                 ORDER BY o.completed_at DESC,o.id DESC LIMIT 500"
+            );
+        }
         echo json_encode([
             'ok' => true,
             'trash' => $trash,
             'archived' => $archived,
             'activity' => $activity,
+            'attribution_review' => $attributionReview,
             'permissions' => [
                 'can_manage' => true,
                 'can_delete_forever' => user_has_role('owner_admin'),
@@ -1500,7 +1565,7 @@ try {
         }
 
         $previousRows = ops_rows(
-            'SELECT customer_name, customer_contact, payment_method, order_type, fulfilment_mode, total_amount, status, payment_status, notes, assigned_packer_id FROM ops_orders WHERE id = ? LIMIT 1',
+            'SELECT order_number, customer_name, customer_contact, payment_method, order_type, fulfilment_mode, total_amount, status, payment_status, notes, assigned_packer_id FROM ops_orders WHERE id = ? LIMIT 1',
             [$orderId]
         );
         if (!$previousRows) {
@@ -1511,7 +1576,9 @@ try {
         if ($field === 'assigned_packer_id') {
             $user = current_user();
             $roleKey = (string) ($user['role_key'] ?? '');
-            if (!in_array($roleKey, ['owner_admin', 'front_desk_admin', 'supervisor_manager', 'packer'], true)) {
+            $canManageAssignment = ops_board_can_manage_packer_assignment();
+            $currentPackingEmployee = ops_board_current_packing_employee();
+            if (!$canManageAssignment && !$currentPackingEmployee) {
                 throw new RuntimeException('You do not have permission to change Packed by.');
             }
             $packerId = $value === '' ? null : (int) $value;
@@ -1527,6 +1594,15 @@ try {
                 }
             }
             $previousPackerId = (int) ($previousOrder['assigned_packer_id'] ?? 0);
+            if (!$canManageAssignment) {
+                $selfId = (int) ($currentPackingEmployee['id'] ?? 0);
+                if (!$packerId || $packerId !== $selfId || ($previousPackerId > 0 && $previousPackerId !== $selfId)) {
+                    throw new RuntimeException('Packing employees may assign an unassigned order only to themselves.');
+                }
+            }
+            if (!$packerId && in_array((string) ($previousOrder['status'] ?? ''), ['in_progress','completed'], true)) {
+                throw new RuntimeException('Packed By cannot be cleared after packing has started.');
+            }
             $nameRows = ops_rows('SELECT id, full_name FROM ops_employees WHERE id IN (?, ?)', [
                 $previousPackerId ?: -1,
                 $packerId ?: -1,
@@ -1538,11 +1614,15 @@ try {
             $previousPackerName = $previousPackerId ? ($packerNames[$previousPackerId] ?? ('Employee ' . $previousPackerId)) : 'Unassigned';
             $packerName = $packerId ? ($packerNames[$packerId] ?? ('Employee ' . $packerId)) : 'Unassigned';
             $assignedAt = ops_column_exists('ops_orders', 'assigned_at') ? ', assigned_at = CASE WHEN ? IS NULL THEN NULL ELSE COALESCE(assigned_at, NOW()) END' : '';
-            $stmt = db()->prepare('UPDATE ops_orders SET assigned_packer_id = ?' . $assignedAt . ', updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+            $assignmentGuard = $canManageAssignment ? '' : ' AND (assigned_packer_id IS NULL OR assigned_packer_id=0)';
+            $stmt = db()->prepare('UPDATE ops_orders SET assigned_packer_id = ?' . $assignedAt . ', updated_at = CURRENT_TIMESTAMP WHERE id = ?' . $assignmentGuard);
             if ($assignedAt !== '') {
                 $stmt->execute([$packerId, $packerId, $orderId]);
             } else {
                 $stmt->execute([$packerId, $orderId]);
+            }
+            if (!$canManageAssignment && $stmt->rowCount() !== 1) {
+                throw new RuntimeException('This order was assigned by another employee. Refresh to see the current Packed By value.');
             }
             ops_log_order_stage_event($orderId, $packerId ? 'assigned' : 'assignment_cleared', [
                 'source' => 'orders_board_field',
@@ -1563,39 +1643,65 @@ try {
             ]);
             notifications_notify_order_assigned($orderId, $packerId);
         } elseif ($field === 'status') {
-            $oldKpiStatus = (string) ($previousOrder['status'] ?? '');
-            if ($oldKpiStatus === $value) {
-                echo json_encode(['ok' => true, 'message' => 'Order status is already up to date.', 'updated' => 0]);
-                exit;
-            }
-            $set = 'status = ?, updated_at = CURRENT_TIMESTAMP';
-            if ($value === 'in_progress' && ops_column_exists('ops_orders', 'packing_started_at')) {
-                $set .= ', packing_started_at = COALESCE(packing_started_at, NOW())';
-            }
-            if ($value === 'completed') {
-                if (ops_column_exists('ops_orders', 'packing_started_at')) {
-                    $set .= ', packing_started_at = COALESCE(packing_started_at, NOW())';
-                }
-                $set .= ', packed_at = COALESCE(packed_at, NOW()), completed_at = COALESCE(completed_at, NOW())';
-            }
-            $stmt = db()->prepare('UPDATE ops_orders SET ' . $set . ' WHERE id = ?');
-            $stmt->execute([$value, $orderId]);
+            $db = db();
+            $autoAssignedPacker = null;
+            $currentPackingEmployeeCandidate = ops_board_current_packing_employee();
+            ops_ensure_kpi_activity_events();
+            $db->beginTransaction();
             try {
-                db()->prepare('INSERT INTO kpi_status_events (module, record_id, old_status, new_status, changed_by, changed_at) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())')->execute(['order', $orderId, $oldKpiStatus, $value, ops_current_employee_id() ?: null]);
-                ops_kpi_record_event('orders', 'order', $orderId, 'status_changed', $oldKpiStatus, $value, ops_current_employee_id() ?: null);
+                $locked = $db->prepare('SELECT order_number,status,assigned_packer_id FROM ops_orders WHERE id=? FOR UPDATE');
+                $locked->execute([$orderId]);
+                $lockedOrder = $locked->fetch(PDO::FETCH_ASSOC);
+                $locked->closeCursor();
+                if (!$lockedOrder) throw new RuntimeException('Order not found. Refresh and try again.');
+                $oldKpiStatus = (string) ($lockedOrder['status'] ?? '');
+                $lockedPackerId = (int) ($lockedOrder['assigned_packer_id'] ?? 0);
+                if ($oldKpiStatus === $value) {
+                    $db->rollBack();
+                    echo json_encode(['ok' => true, 'message' => 'Order status is already up to date.', 'updated' => 0]);
+                    exit;
+                }
+                if (!$lockedPackerId && in_array($value, ['in_progress','completed'], true)) {
+                    $currentPackingEmployee = $currentPackingEmployeeCandidate;
+                    if ($currentPackingEmployee) {
+                        $autoAssignedPacker = $currentPackingEmployee;
+                        $lockedPackerId = (int) $currentPackingEmployee['id'];
+                    } elseif ($value === 'completed') {
+                        throw new RuntimeException('Please select who packed this order before marking it Complete.');
+                    }
+                }
+                if ($value === 'completed' && !$lockedPackerId) {
+                    throw new RuntimeException('Please select who packed this order before marking it Complete.');
+                }
+                $set = 'status = ?, updated_at = CURRENT_TIMESTAMP';
+                $params = [$value];
+                if ($autoAssignedPacker) {
+                    $set .= ', assigned_packer_id = ?';
+                    $params[] = $lockedPackerId;
+                    if (ops_column_exists('ops_orders', 'assigned_at')) $set .= ', assigned_at = COALESCE(assigned_at, NOW())';
+                }
+                if ($value === 'in_progress' && ops_column_exists('ops_orders', 'packing_started_at')) $set .= ', packing_started_at = COALESCE(packing_started_at, NOW())';
+                if ($value === 'completed') {
+                    if (ops_column_exists('ops_orders', 'packing_started_at')) $set .= ', packing_started_at = COALESCE(packing_started_at, NOW())';
+                    $set .= ', packed_at = COALESCE(packed_at, NOW()), completed_at = COALESCE(completed_at, NOW())';
+                }
+                $params[] = $orderId;
+                $stmt = $db->prepare('UPDATE ops_orders SET ' . $set . ' WHERE id = ?');
+                $stmt->execute($params);
+                $db->commit();
+            } catch (Throwable $statusError) {
+                if ($db->inTransaction()) $db->rollBack();
+                throw $statusError;
+            }
+            if ($autoAssignedPacker) ops_board_log_automatic_packer_assignment($orderId, $autoAssignedPacker, $value);
+            try {
+                $db->prepare('INSERT INTO kpi_status_events (module, record_id, old_status, new_status, changed_by, changed_at) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())')->execute(['order', $orderId, $oldKpiStatus, $value, ops_current_employee_id() ?: null]);
+                ops_kpi_record_event('orders', 'order', $orderId, 'status_changed', $oldKpiStatus, $value, ops_current_employee_id() ?: null, ['related_reference'=>$lockedOrder['order_number']??null]);
             } catch (Throwable $kpiError) {
                 error_log(date(DATE_ATOM) . ' order status: ' . $kpiError->getMessage() . PHP_EOL, 3, BASE_PATH . '/logs/kpi_errors.log');
             }
-            ops_activity_log($value === 'completed' ? 'order_completed' : 'status_changed', 'order', $orderId, [
-                'field' => 'status',
-                'old_value' => (string) ($previousOrder['status'] ?? ''),
-                'new_value' => $value,
-                'changed_by' => current_user()['name'] ?? 'Unknown',
-            ]);
-            ops_log_order_stage_event($orderId, $value, [
-                'source' => 'orders_board_field',
-                'status' => $value,
-            ]);
+            ops_activity_log($value === 'completed' ? 'order_completed' : 'status_changed', 'order', $orderId, ['field'=>'status','old_value'=>$oldKpiStatus,'new_value'=>$value,'changed_by'=>current_user()['name']??'Unknown']);
+            ops_log_order_stage_event($orderId, $value, ['source'=>'orders_board_field','status'=>$value]);
             if ($value === 'completed') {
                 $order = notifications_order_summary($orderId);
                 notifications_create_for_roles([
@@ -1608,6 +1714,7 @@ try {
                     'action_link' => BASE_URL . '/apps/operations/orders-board.php?order_id=' . $orderId,
                 ], ['owner_admin', 'front_desk_admin', 'supervisor_manager']);
             }
+            $previousOrder['assigned_packer_id'] = $lockedPackerId;
         } elseif ($field === 'payment_status') {
             $submittedCsrf = (string) ($_POST['csrf_token'] ?? '');
             $sessionCsrf = (string) ($_SESSION['orders_csrf_token'] ?? '');
@@ -1670,6 +1777,14 @@ try {
         }
 
         $response = ['ok' => true, 'message' => 'Order updated.'];
+        if (!empty($autoAssignedPacker)) {
+            $response['message'] = 'Order assigned to you.';
+            $response += [
+                'auto_assigned_packer' => true,
+                'assigned_packer_id' => (int) $autoAssignedPacker['id'],
+                'packer_name' => (string) $autoAssignedPacker['full_name'],
+            ];
+        }
         if ($field === 'order_type') {
             $current = ops_rows('SELECT fulfilment_mode, order_type, updated_at FROM ops_orders WHERE id = ? LIMIT 1', [$orderId])[0] ?? [];
             $resolved = ops_resolve_order_fulfilment($current);
@@ -1762,6 +1877,26 @@ try {
         }
 
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        if ($field === 'status' && in_array($value, ['in_progress','completed'], true)) {
+            $db = db();$autoAssignments=[];$currentPackingEmployeeCandidate=ops_board_current_packing_employee();ops_ensure_kpi_activity_events();$db->beginTransaction();
+            try {
+                $lockedStmt=$db->prepare("SELECT id,order_number,status,assigned_packer_id FROM ops_orders WHERE id IN ({$placeholders}) FOR UPDATE");$lockedStmt->execute($ids);$lockedRows=$lockedStmt->fetchAll(PDO::FETCH_ASSOC);$lockedStmt->closeCursor();
+                if(count($lockedRows)!==count(array_unique($ids)))throw new RuntimeException('One or more selected orders could not be found. Refresh and try again.');
+                $currentPackingEmployee=$currentPackingEmployeeCandidate;$missing=[];
+                foreach($lockedRows as$lockedRow)if(!(int)($lockedRow['assigned_packer_id']??0))$missing[]=(int)$lockedRow['id'];
+                if($missing&&$currentPackingEmployee){
+                    $missingPlaceholders=implode(',',array_fill(0,count($missing),'?'));$assignmentSet='assigned_packer_id=?';if(ops_column_exists('ops_orders','assigned_at'))$assignmentSet.=', assigned_at=COALESCE(assigned_at,NOW())';
+                    $db->prepare("UPDATE ops_orders SET {$assignmentSet} WHERE id IN ({$missingPlaceholders}) AND (assigned_packer_id IS NULL OR assigned_packer_id=0)")->execute(array_merge([(int)$currentPackingEmployee['id']],$missing));
+                    foreach($missing as$missingId){$autoAssignments[(string)$missingId]=['assigned_packer_id'=>(int)$currentPackingEmployee['id'],'packer_name'=>(string)$currentPackingEmployee['full_name']];ops_board_log_automatic_packer_assignment($missingId,$currentPackingEmployee,$value);}
+                }elseif($missing&&$value==='completed')throw new RuntimeException('Please select who packed every selected order before marking it Complete.');
+                $previousKpiStatuses=[];foreach($lockedRows as$lockedRow)$previousKpiStatuses[(int)$lockedRow['id']]=(string)($lockedRow['status']??'');
+                $set='status=?';if(ops_column_exists('ops_orders','packing_started_at'))$set.=', packing_started_at=COALESCE(packing_started_at,NOW())';if($value==='completed')$set.=', packed_at=COALESCE(packed_at,NOW()), completed_at=COALESCE(completed_at,NOW())';
+                $stmt=$db->prepare("UPDATE ops_orders SET {$set}, updated_at=CURRENT_TIMESTAMP WHERE id IN ({$placeholders})");$stmt->execute(array_merge([$value],$ids));$changed=$stmt->rowCount();
+                foreach($ids as$id){$old=$previousKpiStatuses[(int)$id]??'';if($old===$value)continue;$db->prepare('INSERT INTO kpi_status_events (module,record_id,old_status,new_status,changed_by,changed_at) VALUES (?,?,?,?,?,UTC_TIMESTAMP())')->execute(['order',(int)$id,$old,$value,ops_current_employee_id()?:null]);ops_kpi_record_event('orders','order',(int)$id,'status_changed',$old,$value,ops_current_employee_id()?:null);ops_activity_log($value==='completed'?'order_completed':'status_changed','order',(int)$id,['field'=>'status','old_value'=>$old,'new_value'=>$value,'source'=>'orders_board_bulk']);ops_log_order_stage_event((int)$id,$value,['source'=>'orders_board_bulk','status'=>$value]);}
+                $db->commit();
+            }catch(Throwable$bulkStatusError){if($db->inTransaction())$db->rollBack();throw$bulkStatusError;}
+            echo json_encode(['ok'=>true,'message'=>$autoAssignments?'Selected orders assigned to you.':'Updated selected orders.','updated'=>$changed,'auto_assignments'=>$autoAssignments]);exit;
+        }
         if ($field === 'payment_status' && $value === 'paid' && ops_ensure_order_payment_schema()) {
             $underAllocated = ops_rows(
                 "SELECT o.id
