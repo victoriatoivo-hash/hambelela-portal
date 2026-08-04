@@ -12,6 +12,8 @@ assert.match(employee, /Schedule not configured/, 'missing schedules must not be
 assert.match(employee, /kpi_unified_events\(\$fromSql,\$toSql,\$employeeId\)/, 'daily workflow counts must use the shared audit source');
 assert.match(employee, /Historical evidence unavailable|historical_evidence_available/, 'missing history must be explicit');
 assert.match(employee, /INTERVAL 120 SECOND/, 'online status must use the shared 120-second timeout');
+assert.match(employee, /portal_activity_window_seconds/, 'productive active time must use a configurable evidence window');
+assert.match(employee, /authenticatedHours-\$portalActiveHours/, 'inactive and productive time must remain separate');
 assert.match(reporting, /authenticated_session_hours/, 'session presence must remain separately available');
 assert.match(reporting, /session_end_reason/, 'logout and expiry evidence must be retained');
 assert.match(presence, /INTERVAL 120 SECOND/, 'live presence and attendance must share the timeout');
