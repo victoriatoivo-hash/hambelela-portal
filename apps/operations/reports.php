@@ -207,7 +207,7 @@ if ($ready && $tab === 'settings') {
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
-<main class="workspace module kpi-health-page" data-kpi-tab="<?= htmlspecialchars($tab, ENT_QUOTES, 'UTF-8') ?>">
+<main id="<?= $tab === 'business-health' ? 'kpi-management' : ($tab === 'performance-reports' ? 'kpi-reports' : ($tab === 'business-activity' ? 'kpi-business-timeline-page' : 'kpi-management')) ?>" class="workspace module kpi-health-page" data-kpi-tab="<?= htmlspecialchars($tab, ENT_QUOTES, 'UTF-8') ?>">
     <section class="module-header">
         <div>
             <p class="eyebrow">KPI &amp; Performance Management</p>
