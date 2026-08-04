@@ -7,6 +7,29 @@ require_role('owner_admin');
 header('Content-Type: application/json; charset=utf-8');
 
 try{
+    if((string)($_GET['action']??'')==='timeline'){
+        $timelineModule=trim((string)($_GET['module']??''));
+        $recordId=max(0,(int)($_GET['record_id']??0));
+        if($timelineModule===''||!$recordId)throw new RuntimeException('Invalid timeline record.');
+        $timelineEvents=kpi_unified_events('2000-01-01 00:00:00','2099-12-31 23:59:59',null,$timelineModule,null,$recordId);
+        $evidence=[];
+        foreach($timelineEvents as$timelineEvent)$evidence[]=[
+            'old_status'=>$timelineEvent['previous_status'],
+            'new_status'=>$timelineEvent['new_status'],
+            'changed_at'=>$timelineEvent['occurred_at'],
+            'changed_by_name'=>$timelineEvent['actor_name']?:'System',
+            'action_key'=>$timelineEvent['action'],
+            'related_reference'=>$timelineEvent['related_reference'],
+            'source_log'=>$timelineEvent['source_log'],
+            'source_event_id'=>$timelineEvent['source_event_id'],
+            'evidence_quality'=>$timelineEvent['evidence_quality'],
+        ];
+        foreach($evidence as$evidenceIndex=>$timelineEvent){
+            $next=$evidence[$evidenceIndex+1]['changed_at']??null;
+            $evidence[$evidenceIndex]['duration_minutes']=$next?max(0,(int)((strtotime((string)$next)-strtotime((string)$timelineEvent['changed_at']))/60)):null;
+        }
+        kpi_send_json(['ok'=>true,'module'=>$timelineModule,'record_id'=>$recordId,'events'=>$evidence,'empty_message'=>'No matching Activity Log or authoritative record event was found.']);
+    }
     $zone=new DateTimeZone('Africa/Windhoek');$resolved=kpi_resolve_reporting_period($_GET);$from=$resolved['from'];$to=$resolved['to'];
     $fromSql=$from->format('Y-m-d 00:00:00');$toSql=$to->format('Y-m-d 23:59:59');
     $page=max(1,(int)($_GET['page']??1));$perPage=max(20,min(100,(int)($_GET['per_page']??50)));
