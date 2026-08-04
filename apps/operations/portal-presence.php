@@ -51,7 +51,7 @@ try {
         }
     }
 
-    $where = ["e.status = 'active'", "bp.last_seen_at >= DATE_SUB(NOW(), INTERVAL 10 MINUTE)"];
+    $where = ["e.status = 'active'", "bp.last_seen_at >= DATE_SUB(NOW(), INTERVAL 120 SECOND)"];
     if (current_role_key() !== 'owner_admin') {
         $where[] = "r.role_key <> 'owner_admin'";
     }
@@ -59,10 +59,17 @@ try {
     $rows = ops_rows(
         "SELECT e.id, e.full_name, r.name AS role_name, r.role_key,
                 bp.page, bp.path, bp.last_seen_at,
+                DATE_ADD(s.login_at, INTERVAL 2 HOUR) AS session_started_at,
+                TIMESTAMPDIFF(SECOND, s.login_at, UTC_TIMESTAMP()) AS session_duration_seconds,
                 TIMESTAMPDIFF(SECOND, bp.last_seen_at, NOW()) AS seconds_since_activity
          FROM ops_board_presence bp
          JOIN ops_employees e ON e.id = bp.employee_id
          JOIN ops_roles r ON r.id = e.role_id
+         LEFT JOIN kpi_sessions s ON s.id = (
+             SELECT latest.id FROM kpi_sessions latest
+             WHERE latest.user_id = bp.employee_id AND latest.logout_at IS NULL
+             ORDER BY latest.login_at DESC, latest.id DESC LIMIT 1
+         )
          WHERE " . implode(' AND ', $where) . "
          ORDER BY bp.last_seen_at DESC, e.full_name ASC"
     );
@@ -75,8 +82,10 @@ try {
             'role' => (string) $row['role_name'],
             'page' => (string) ($row['page'] ?: 'Business Portal'),
             'path' => (string) ($row['path'] ?? ''),
-            'presence' => $seconds <= 120 ? 'online' : 'away',
+            'presence' => 'online',
             'seconds_since_activity' => $seconds,
+            'session_started_at' => $row['session_started_at'] ?? null,
+            'session_duration_seconds' => max(0, (int) ($row['session_duration_seconds'] ?? 0)),
         ];
     }, $rows);
 

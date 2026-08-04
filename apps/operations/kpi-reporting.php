@@ -163,7 +163,12 @@ function kpi_merge_presence_rows(array $rawRows, int $mergeGapSeconds = 90): arr
         $grouped[$key]['employee'] = (string) ($row['employee'] ?? '');
         $grouped[$key]['user_id'] = $employeeId;
         $grouped[$key]['day'] = $day;
-        $grouped[$key]['intervals'][] = [$startLocal, $endLocal, (string) ($row['end_reason'] ?? '')];
+        $grouped[$key]['intervals'][] = [
+            $startLocal,
+            $endLocal,
+            (string) ($row['end_reason'] ?? ''),
+            empty($row['logout_at']),
+        ];
     }
 
     $result = [];
@@ -198,6 +203,16 @@ function kpi_merge_presence_rows(array $rawRows, int $mergeGapSeconds = 90): arr
             'day' => $group['day'],
             'first_login' => $merged[0][0]->format('Y-m-d H:i:s'),
             'last_activity' => $merged[count($merged) - 1][1]->format('Y-m-d H:i:s'),
+            'session_end' => count(array_filter($intervals, static fn(array $interval): bool => !empty($interval[3])))
+                ? null
+                : $merged[count($merged) - 1][1]->format('Y-m-d H:i:s'),
+            'session_end_reason' => count(array_filter($intervals, static fn(array $interval): bool => !empty($interval[3])))
+                ? 'still_online'
+                : ((count(array_filter($intervals, static fn(array $interval): bool => ($interval[2] ?? '') === 'explicit_logout')) > 0)
+                    ? 'explicit_logout'
+                    : 'inactive_expiry'),
+            'currently_online' => count(array_filter($intervals, static fn(array $interval): bool => !empty($interval[3]))) > 0,
+            'authenticated_session_hours' => round($seconds / 3600, 2),
             'portal_active_hours' => round($seconds / 3600, 2),
             'sessions' => count($intervals),
             'merged_intervals' => count($merged),

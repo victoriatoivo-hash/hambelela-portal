@@ -98,6 +98,13 @@
     return `${Math.floor(value / 60)} min ago`;
   };
 
+  const durationLabel = (seconds) => {
+    const value = Math.max(0, Number(seconds || 0));
+    const hours = Math.floor(value / 3600);
+    const minutes = Math.floor((value % 3600) / 60);
+    return `Current session: ${hours ? `${hours}h ` : ''}${minutes}m`;
+  };
+
   const renderPresence = (employees) => {
     const visible = Array.isArray(employees) ? employees : [];
     const online = visible.filter((employee) => employee.presence === 'online');
@@ -107,6 +114,8 @@
       employee.role,
       employee.page,
       employee.presence,
+      employee.session_started_at,
+      Math.floor(Number(employee.session_duration_seconds || 0) / 60),
       Math.floor(Number(employee.seconds_since_activity || 0) / 60)
     ]));
     if (nextSignature === presenceSignature) return;
@@ -135,6 +144,7 @@
         <span>
           <strong>${escapeHtml(employee.name)}</strong>
           <small>${escapeHtml(employee.role || 'Staff')}</small>
+          <em>Online since ${escapeHtml(employee.session_started_at ? String(employee.session_started_at).slice(11,16) : '—')} · ${escapeHtml(durationLabel(employee.session_duration_seconds))}</em>
           <em>${escapeHtml(employee.page || 'Business Portal')} · ${escapeHtml(lastActivity(employee.seconds_since_activity))}</em>
         </span>
       </article>
