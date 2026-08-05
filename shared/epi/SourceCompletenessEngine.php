@@ -10,7 +10,7 @@ use PDO;
 final class SourceCompletenessEngine
 {
     private $pdo;
-    private $version = 'EPI Step 3C Version 1.0';
+    private $version = 'EPI Step 3C Version 1.1';
 
     public function __construct(PDO $pdo) { $this->pdo = $pdo; }
 

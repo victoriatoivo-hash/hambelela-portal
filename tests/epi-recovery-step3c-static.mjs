@@ -18,7 +18,7 @@ assert.match(recovery,/rollBack/);
 assert.match(recovery,/Support::uuidFromHash/);
 assert.match(recovery,/historical_backfill','legacy:/);
 assert.match(recovery,/Session history begins partway through July/);
-assert.match(source,/EPI Step 3C Version 1\.0/);
+assert.match(source,/EPI Step 3C Version 1\.1/);
 assert.match(source,/historicalAudit/);
 assert.match(source,/must not conceal a known gap/);
 assert.match(source,/quality_attribution_review_required/);
