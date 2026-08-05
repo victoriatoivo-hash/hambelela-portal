@@ -21,6 +21,8 @@ assert.match(recovery,/Session history begins partway through July/);
 assert.match(source,/EPI Step 3C Version 1\.0/);
 assert.match(source,/historicalAudit/);
 assert.match(source,/must not conceal a known gap/);
+assert.match(source,/quality_attribution_review_required/);
+assert.match(source,/Error Log activity is not proof of employee responsibility/);
 assert.match(source,/sourceStatus=.*partial/);
 assert.match(flags,/Production EPI cannot be enabled/);
 assert.match(flags,/MODE_DISABLED/);

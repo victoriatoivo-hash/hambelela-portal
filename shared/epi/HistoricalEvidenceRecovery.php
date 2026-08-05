@@ -121,7 +121,7 @@ final class HistoricalEvidenceRecovery
         $sql="SELECT id,order_id,error_title,category,severity,status,attributed_employee_id,responsible_employee_id,attribution_type,logged_at,accuracy_verified_by,attribution_verified_by FROM ops_error_logs WHERE (attributed_employee_id IN(2,6,7) OR (attribution_type='employee' AND responsible_employee_id IN(2,6,7))) AND logged_at>=? AND logged_at<? ORDER BY id";
         foreach($this->rows($sql,[$from.' 00:00:00',date('Y-m-d',strtotime($to.' +1 day')).' 00:00:00']) as $r){
             $id=(int)($r['attributed_employee_id']?:$r['responsible_employee_id']);$verified=!empty($r['accuracy_verified_by'])&&!empty($r['attribution_verified_by']);
-            $this->record('ops_error_logs',(string)$r['id'],'Error Log',$id,'error-'.$r['id'],'quality_error_recorded',(string)($r['error_title'].' '.$r['category']),(string)$r['logged_at'],['status_after'=>$r['status'],'priority'=>$r['severity'],'verified'=>$verified,'verified_by'=>$r['attribution_verified_by']?:null]);
+            $this->record('ops_error_logs',(string)$r['id'],'Error Log',$id,'error-'.$r['id'],'quality_error_recorded',(string)($r['error_title'].' '.$r['category']),(string)$r['logged_at'],['status_after'=>$r['status'],'priority'=>$r['severity'],'verified'=>$verified,'verified_by'=>$r['attribution_verified_by']?:null,'responsibility_confirmed'=>$verified]);
         }
     }
 
@@ -129,7 +129,7 @@ final class HistoricalEvidenceRecovery
     {
         if(!isset($this->employees[$employeeId])||$at==='')return;
         $key=hash('sha256','step3c|'.$table.'|'.$sourceId.'|'.$employeeId.'|'.$action);
-        $uuid=Support::uuidFromHash($key);$meta=['historical_backfill'=>true,'legacy_source'=>$table,'legacy_id'=>$sourceId,'original_timestamp'=>$at,'employee_attribution_source'=>$table,'backfilled_at'=>date('c'),'evidence_confidence'=>$extra['confidence']??'high']+($extra['legacy_metadata']??[]);
+        $uuid=Support::uuidFromHash($key);$meta=['historical_backfill'=>true,'legacy_source'=>$table,'legacy_id'=>$sourceId,'original_timestamp'=>$at,'employee_attribution_source'=>$table,'backfilled_at'=>date('c'),'evidence_confidence'=>$extra['confidence']??'high','responsibility_confirmed'=>!empty($extra['responsibility_confirmed'])]+($extra['legacy_metadata']??[]);
         $stmt=$this->pdo->prepare("INSERT IGNORE INTO epi_employee_evidence(evidence_uuid,deduplication_key,module,reference_number,employee_id,employee_name,department,action,action_description,previous_value,new_value,status_before,status_after,priority,occurred_at,business_date,recording_mode,activity_source,verified,verified_by,metadata_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
         $stmt->execute([$uuid,$key,$module,$reference,$employeeId,$this->employees[$employeeId],$employeeId===2?'Front Desk':'Packing',$action,$description,Support::json($extra['previous_value']??null),Support::json($extra['new_value']??null),$extra['status_before']??null,$extra['status_after']??null,$extra['priority']??null,$at,substr($at,0,10),'historical_backfill','legacy:'.$table,!empty($extra['verified'])?1:0,$extra['verified_by']??null,Support::json($meta)]);
         if($stmt->rowCount())$this->inserted++;else$this->duplicates++;
