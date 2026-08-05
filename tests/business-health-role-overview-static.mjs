@@ -30,6 +30,7 @@ assert.match(client, /Packer Operational Index/);
 assert.match(client, /Front Desk Order Completion Compliance/);
 assert.match(client, /100% = all applicable work completed/);
 assert.match(client, /View Evidence/);
+assert.match(client, /reports\.php\?tab=orders/, 'Orders evidence actions must navigate to the existing evidence view');
 assert.match(css, /\.kpi-orders-overview-grid/);
 assert.match(css, /@media \(max-width: 460px\)/, 'the new overview must collapse on narrow screens');
 
