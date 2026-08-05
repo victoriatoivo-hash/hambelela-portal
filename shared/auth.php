@@ -2,8 +2,125 @@
 
 declare(strict_types=1);
 
+const PORTAL_SESSION_MAX_SECONDS = 36000;
+const PORTAL_SESSION_TIMEZONE = 'Africa/Windhoek';
+
 if (session_status() !== PHP_SESSION_ACTIVE) {
+    // Keep the server-side session available for the full working-day window.
+    // Application metadata below remains authoritative; this is not a rolling timeout.
+    ini_set('session.gc_maxlifetime', (string) PORTAL_SESSION_MAX_SECONDS);
+    ini_set('session.cookie_lifetime', (string) PORTAL_SESSION_MAX_SECONDS);
+    ini_set('session.use_strict_mode', '1');
+    ini_set('session.use_only_cookies', '1');
+    session_set_cookie_params([
+        'lifetime' => PORTAL_SESSION_MAX_SECONDS,
+        'path' => '/',
+        'secure' => portal_request_is_https(),
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
     session_start();
+}
+
+function portal_request_is_https(): bool
+{
+    if (!empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off') return true;
+    return strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
+}
+
+function portal_session_now(): DateTimeImmutable
+{
+    return new DateTimeImmutable('now', new DateTimeZone(PORTAL_SESSION_TIMEZONE));
+}
+
+function portal_calculate_absolute_expiry(DateTimeImmutable $authenticatedAt): DateTimeImmutable
+{
+    $login = $authenticatedAt->setTimezone(new DateTimeZone(PORTAL_SESSION_TIMEZONE));
+    $tenHours = $login->modify('+' . PORTAL_SESSION_MAX_SECONDS . ' seconds');
+    $nextDay = $login->modify('tomorrow')->setTime(0, 0, 0);
+    return $tenHours < $nextDay ? $tenHours : $nextDay;
+}
+
+function portal_set_session_cookie(int $expiresAt): void
+{
+    if (headers_sent() || session_status() !== PHP_SESSION_ACTIVE) return;
+    setcookie(session_name(), session_id(), [
+        'expires' => $expiresAt,
+        'path' => '/',
+        'secure' => portal_request_is_https(),
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+}
+
+function portal_initialize_authenticated_session(array $user, ?DateTimeImmutable $now = null): void
+{
+    $now = ($now ?? portal_session_now())->setTimezone(new DateTimeZone(PORTAL_SESSION_TIMEZONE));
+    $expiry = portal_calculate_absolute_expiry($now);
+    $_SESSION['authenticated_at'] = $now->format(DateTimeInterface::ATOM);
+    $_SESSION['absolute_expires_at'] = $expiry->getTimestamp();
+    $_SESSION['last_activity_at'] = $now->format(DateTimeInterface::ATOM);
+    $_SESSION['login_date'] = $now->format('Y-m-d');
+    $_SESSION['session_user_id'] = (int) ($user['id'] ?? 0);
+    $_SESSION['session_identifier'] = hash('sha256', session_id());
+    portal_set_session_cookie($expiry->getTimestamp());
+}
+
+function portal_send_private_cache_headers(): void
+{
+    if (headers_sent()) return;
+    header('Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+    header('Vary: Cookie', false);
+}
+
+function portal_safe_return_path($candidate): string
+{
+    if ($candidate !== null && !is_string($candidate)) return BASE_URL . '/index.php';
+    $candidate = trim((string) $candidate);
+    if ($candidate === '' || $candidate[0] !== '/' || strpos($candidate, '//') === 0 || preg_match('/[\r\n]/', $candidate)) {
+        return BASE_URL . '/index.php';
+    }
+    return $candidate;
+}
+
+function portal_expire_session(): void
+{
+    logout_user();
+}
+
+function portal_validate_authenticated_session(): bool
+{
+    if (!isset($_SESSION['user']) || !is_array($_SESSION['user'])) return false;
+    $userId = (int) ($_SESSION['user']['id'] ?? 0);
+    if ($userId <= 0) return false;
+
+    // Give already-authenticated pre-deployment sessions a bounded working-day
+    // lifetime instead of invalidating every user at deployment time.
+    if (empty($_SESSION['absolute_expires_at'])) {
+        portal_initialize_authenticated_session($_SESSION['user']);
+    }
+
+    $now = portal_session_now();
+    $expiry = (int) ($_SESSION['absolute_expires_at'] ?? 0);
+    $loginDate = (string) ($_SESSION['login_date'] ?? '');
+    $boundUserId = (int) ($_SESSION['session_user_id'] ?? 0);
+    $identifier = (string) ($_SESSION['session_identifier'] ?? '');
+    if (
+        $expiry <= $now->getTimestamp()
+        || $loginDate === ''
+        || $loginDate !== $now->format('Y-m-d')
+        || $boundUserId !== $userId
+        || !hash_equals(hash('sha256', session_id()), $identifier)
+    ) {
+        portal_expire_session();
+        return false;
+    }
+
+    $_SESSION['last_activity_at'] = $now->format(DateTimeInterface::ATOM);
+    portal_send_private_cache_headers();
+    return true;
 }
 
 function current_user(): array
@@ -61,21 +178,26 @@ function refresh_logged_in_user(): void
             'source' => 'database',
         ];
     } catch (Throwable $e) {
-        logout_user();
+        // A temporary database or network failure must not revoke a still-valid
+        // authenticated session. Authorization is rechecked on the next request.
+        error_log('Unable to refresh authenticated portal user: ' . $e->getMessage());
     }
 }
 
 function require_login(): void
 {
-    if (!isset($_SESSION['user']) || !is_array($_SESSION['user'])) {
-        header('Location: ' . BASE_URL . '/login.php');
+    $requestedPath = portal_safe_return_path((string) ($_SERVER['REQUEST_URI'] ?? (BASE_URL . '/index.php')));
+    $hadUser = isset($_SESSION['user']) && is_array($_SESSION['user']);
+    if (!$hadUser || !portal_validate_authenticated_session()) {
+        $reason = $hadUser ? '&reason=session_expired' : '';
+        header('Location: ' . BASE_URL . '/login.php?return=' . rawurlencode($requestedPath) . $reason, true, 303);
         exit;
     }
 
     refresh_logged_in_user();
 
     if (!isset($_SESSION['user']) || !is_array($_SESSION['user'])) {
-        header('Location: ' . BASE_URL . '/login.php');
+        header('Location: ' . BASE_URL . '/login.php?return=' . rawurlencode($requestedPath), true, 303);
         exit;
     }
 
@@ -95,7 +217,21 @@ function require_login(): void
 function logout_user(): void
 {
     $_SESSION = [];
-    session_destroy();
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        if (ini_get('session.use_cookies')) {
+            $params = session_get_cookie_params();
+            setcookie(session_name(), '', [
+                'expires' => time() - 42000,
+                'path' => (string) ($params['path'] ?? '/'),
+                'domain' => (string) ($params['domain'] ?? ''),
+                'secure' => (bool) ($params['secure'] ?? portal_request_is_https()),
+                'httponly' => true,
+                'samesite' => 'Lax',
+            ]);
+        }
+        session_destroy();
+    }
+    portal_send_private_cache_headers();
 }
 
 function user_has_role(string ...$roles): bool
