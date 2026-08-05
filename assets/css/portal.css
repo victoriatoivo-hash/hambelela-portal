@@ -3677,6 +3677,14 @@ textarea {
 }
 
 .kpi-health-page .eyebrow { color: var(--t-orange-red); }
+#kpi-management > .module-header h1 {
+  display: inline-flex;
+  column-gap: 8px;
+  color: rgb(114, 27, 26);
+  font-family: Figtree, system-ui, sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+}
 .kpi-health-tabs { display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--t-border); }
 .kpi-health-tabs a { padding: 10px 14px; color: var(--t-text-mid); font-weight: 700; text-decoration: none; border-bottom: 3px solid transparent; }
 .kpi-health-tabs a.active { color: var(--t-burgundy); border-bottom-color: var(--t-orange-red); }
