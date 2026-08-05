@@ -48,11 +48,11 @@ final class HistoricalEvidenceRecovery
 
     private function recoverActivityLogs(string $from,string $to):void
     {
-        $sql="SELECT id,actor_user_id,actor_name,section,entity_type,entity_id,action,description,metadata_json,created_at FROM ops_activity_logs WHERE actor_user_id IN(2,6,7) AND created_at>=? AND created_at<? ORDER BY id";
+        $sql="SELECT id,employee_id,entity_type,entity_id,action,metadata,created_at FROM ops_activity_logs WHERE employee_id IN(2,6,7) AND created_at>=? AND created_at<? ORDER BY id";
         foreach($this->rows($sql,[$from.' 00:00:00',date('Y-m-d',strtotime($to.' +1 day')).' 00:00:00']) as $r){
-            $module=$this->module((string)($r['section']?:$r['entity_type']));
-            $meta=$this->json($r['metadata_json']??null);
-            $this->record('ops_activity_logs',(string)$r['id'],$module,(int)$r['actor_user_id'],(string)($r['entity_type'].'-'.($r['entity_id']?:$r['id'])),(string)$r['action'],(string)$r['description'],(string)$r['created_at'],[
+            $module=$this->module((string)$r['entity_type']);
+            $meta=$this->json($r['metadata']??null);
+            $this->record('ops_activity_logs',(string)$r['id'],$module,(int)$r['employee_id'],(string)($r['entity_type'].'-'.($r['entity_id']?:$r['id'])),(string)$r['action'],str_replace('_',' ',(string)$r['action']),(string)$r['created_at'],[
                 'previous_value'=>$meta['previous_value']??$meta['old_value']??null,'new_value'=>$meta['new_value']??null,
                 'status_before'=>$meta['status_before']??$meta['old_status']??null,'status_after'=>$meta['status_after']??$meta['new_status']??null,'legacy_metadata'=>$meta
             ]);
@@ -61,10 +61,10 @@ final class HistoricalEvidenceRecovery
 
     private function recoverStatusEvents(string $from,string $to):void
     {
-        $sql="SELECT id,entity_type,entity_id,from_status,to_status,changed_by,changed_by_name,changed_at,metadata_json FROM kpi_status_events WHERE changed_by IN(2,6,7) AND changed_at>=? AND changed_at<? ORDER BY id";
+        $sql="SELECT id,module,record_id,old_status,new_status,changed_by,changed_at FROM kpi_status_events WHERE changed_by IN(2,6,7) AND changed_at>=? AND changed_at<? ORDER BY id";
         foreach($this->rows($sql,[$from.' 00:00:00',date('Y-m-d',strtotime($to.' +1 day')).' 00:00:00']) as $r){
-            $entity=(string)$r['entity_type'];
-            $this->record('kpi_status_events',(string)$r['id'],$this->module($entity),(int)$r['changed_by'],$entity.'-'.$r['entity_id'],$entity.'_status_changed','Status changed from '.$r['from_status'].' to '.$r['to_status'],(string)$r['changed_at'],['status_before'=>$r['from_status'],'status_after'=>$r['to_status'],'legacy_metadata'=>$this->json($r['metadata_json']??null)]);
+            $entity=(string)$r['module'];
+            $this->record('kpi_status_events',(string)$r['id'],$this->module($entity),(int)$r['changed_by'],$entity.'-'.$r['record_id'],$entity.'_status_changed','Status changed from '.$r['old_status'].' to '.$r['new_status'],(string)$r['changed_at'],['status_before'=>$r['old_status'],'status_after'=>$r['new_status']]);
         }
     }
 
@@ -77,7 +77,7 @@ final class HistoricalEvidenceRecovery
 
     private function recoverSessions(string $from,string $to):void
     {
-        $sql="SELECT id,user_id,login_at,logout_at,session_date FROM kpi_sessions WHERE user_id IN(2,6,7) AND login_at>=? AND login_at<? ORDER BY id";
+        $sql="SELECT id,user_id,login_at,last_seen_at,logout_at FROM kpi_sessions WHERE user_id IN(2,6,7) AND login_at>=? AND login_at<? ORDER BY id";
         foreach($this->rows($sql,[$from.' 00:00:00',date('Y-m-d',strtotime($to.' +1 day')).' 00:00:00']) as $r){
             $this->record('kpi_sessions',$r['id'].'-login','Portal Activity',(int)$r['user_id'],'session-'.$r['id'],'login','Portal login',(string)$r['login_at'],['status_before'=>'offline','status_after'=>'online']);
             if(!empty($r['logout_at']))$this->record('kpi_sessions',$r['id'].'-logout','Portal Activity',(int)$r['user_id'],'session-'.$r['id'],'logout','Portal logout',(string)$r['logout_at'],['status_before'=>'online','status_after'=>'offline']);
@@ -86,9 +86,9 @@ final class HistoricalEvidenceRecovery
 
     private function recoverCashbook(string $from,string $to):void
     {
-        $sql="SELECT id,user_id,entry_id,action,old_values,new_values,created_at FROM hambelela_cashbook_log WHERE user_id IN(2,6,7) AND created_at>=? AND created_at<? ORDER BY id";
+        $sql="SELECT id,user_id,entry_id,action,field,old_value,new_value,description,created_at FROM hambelela_cashbook_log WHERE user_id IN(2,6,7) AND created_at>=? AND created_at<? ORDER BY id";
         foreach($this->rows($sql,[$from.' 00:00:00',date('Y-m-d',strtotime($to.' +1 day')).' 00:00:00']) as $r)
-            $this->record('hambelela_cashbook_log',(string)$r['id'],'Bookkeeping',(int)$r['user_id'],'cashbook-'.$r['entry_id'],(string)$r['action'],'Bookkeeping '.$r['action'],(string)$r['created_at'],['previous_value'=>$this->json($r['old_values']??null),'new_value'=>$this->json($r['new_values']??null),'status_after'=>$r['action']]);
+            $this->record('hambelela_cashbook_log',(string)$r['id'],'Bookkeeping',(int)$r['user_id'],'cashbook-'.$r['entry_id'],(string)$r['action'],(string)($r['description']?:'Bookkeeping '.$r['action']),(string)$r['created_at'],['previous_value'=>$r['old_value'],'new_value'=>$r['new_value'],'status_after'=>$r['action'],'legacy_metadata'=>['field'=>$r['field']]]);
     }
 
     private function recoverCourier(string $from,string $to):void
