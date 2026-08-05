@@ -15,6 +15,7 @@ assert.match(page, /Evidence-based employee performance, accountability and oper
 assert.match(sidebar, /'label' => 'Performance'/);
 assert.match(api, /business_date>='2026-07-01'/, 'EPI reporting must retain the July 2026 baseline');
 assert.match(score, /karina\|kaarina\|test\|preview/i, 'test and preview identities must be excluded centrally');
+assert.match(score, /role_key,''\)<>'owner_admin'/, 'owner account must not inflate the three-employee workforce');
 assert.match(js, /Business Risk and Management Insights/);
 assert.match(js, /Workload Distribution and Activity Heatmap/);
 assert.match(js, /type:'radar'/);
