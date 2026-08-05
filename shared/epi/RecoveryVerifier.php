@@ -179,7 +179,7 @@ final class RecoveryVerifier
     {
         $engine = new BusinessTimeEngine($this->pdo);
         $cases = [
-            ['friday_to_monday', '2026-08-07 16:55:00', '2026-08-10 08:10:00', 15, 'Weekday 08:00-17:00; weekend excluded'],
+            ['friday_to_monday', '2026-08-07 16:55:00', '2026-08-10 08:10:00', 255, 'Friday 5 minutes + Saturday 240 minutes + Monday 10 minutes; Sunday excluded'],
             ['saturday_exact', '2026-08-08 09:00:00', '2026-08-08 13:00:00', 240, 'Saturday 09:00-13:00'],
             ['saturday_bounded', '2026-08-08 08:00:00', '2026-08-08 14:00:00', 240, 'Only Saturday 09:00-13:00'],
             ['sunday', '2026-08-09 08:00:00', '2026-08-09 17:00:00', 0, 'Sunday closed'],
