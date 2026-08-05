@@ -828,6 +828,15 @@ function ops_activity_log(string $action, string $entityType, int $entityId, arr
             // Packing remains operational even if background EPI recording is unavailable.
         }
     }
+
+    // Explicit Task Management bridge. It runs only for saved task activity and is always fail-safe.
+    if ($entityType === 'checklist_task') {
+        try {
+            \Hambelela\EPI\TaskActivityBridge::record(db(), $action, $entityId, $metadata);
+        } catch (Throwable $e) {
+            // Task Management must remain operational if background EPI recording is unavailable.
+        }
+    }
 }
 
 function ops_log_order_stage_event(int $orderId, string $stageKey, array $metadata = [], ?int $employeeId = null): void
