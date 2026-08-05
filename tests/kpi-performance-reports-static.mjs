@@ -27,6 +27,24 @@ assert.match(api,/\$charts\s*=/,'report API must return chart-ready role compari
 assert.match(js,/performance-observation/,'meeting observations must be editable');
 assert.match(js,/localStorage\.setItem/,'meeting observation edits must persist locally');
 assert.match(js,/showEvidence/,'report metrics must open matching source evidence');
+for(const required of [
+  'Module-table counts honour the requested period',
+  'performance_task_metrics',
+  'teamWaybillUploads',
+  'contribution_component',
+  'quantity_variances',
+  'completion_duty',
+  'status_compliance',
+  'metric_sources',
+  'spot_reconciliations',
+]) assert.match(api,new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')),
+  `defect correction must expose ${required}`);
+assert.match(api,/\.5\*\(float\)\$contribution\+\.4\*\$handling\+\.1\*\$noneOverdue/,
+  'G6-1a waybill scoring must use 50/40/10 weighting');
+assert.match(api,/completed_without_in_progress/,
+  'status compliance must identify orders completed without In Progress');
+assert.match(js,/Mappings and metric sources/,
+  'owner report must display the metric source table');
 assert.match(js,/performance-chart-table/,'charts must include a matching evidence table');
 assert.match(js,/window\.print\(\)/,'print/PDF workflow must be available');
 console.log('KPI Performance Reports checks passed.');
