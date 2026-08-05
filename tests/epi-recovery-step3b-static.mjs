@@ -33,6 +33,7 @@ assert.match(source, /subjective_review_required/);
 assert.match(source, /Objective timestamped and attributed system evidence/);
 assert.match(source, /criticalMissing/);
 assert.match(source, /coreMissingLimit/);
+assert.match(source, /if \(\$missingCritical \|\| \$missingCore\) \$status = 'insufficient_data'/);
 assert.match(source, /source_status/);
 assert.match(source, /ownership_coverage_hundredths/);
 assert.match(source, /timestamp_coverage_hundredths/);
