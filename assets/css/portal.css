@@ -27749,6 +27749,15 @@ body.dark-mode .portal-dark-toggle {
 .digital-task-page .task-board-table .dtb-col-days { width:100px; }
 .digital-task-page .task-board-table .dtb-col-status { width:145px; }
 .digital-task-page .task-board-table .dtb-col-progress { width:100px; }
+
+#completed-tasks-section .completed-employee-group{width:100%;margin:0 0 22px}
+#completed-tasks-section .completed-employee-heading{margin:0 0 8px;color:#721B1A;font-family:Figtree,Inter,sans-serif;font-size:13px;font-weight:600;line-height:1.3}
+#completed-tasks-section .completed-employee-table-wrap{width:100%;min-width:0;overflow-x:auto}
+.digital-task-page .task-timing-outcome{display:grid;gap:2px;min-width:0;line-height:1.25}
+.digital-task-page .task-timing-outcome strong{font-size:10px;font-weight:500}
+.digital-task-page .task-timing-outcome small,.digital-task-page .task-progress-outcome{display:block;margin-top:3px;font-size:9px;line-height:1.25;white-space:normal}
+.digital-task-page .task-timing-outcome.is-overdue,.digital-task-page .task-progress-value.is-overdue,.digital-task-page .task-progress-outcome.is-overdue{color:#BB1B21}
+@media(max-width:600px){#completed-tasks-section .completed-employee-heading{position:sticky;left:0}.digital-task-page .task-table__due-cell{min-width:130px}}
 .digital-task-page .task-board-table .dtb-col-completed { width:155px; }
 .digital-task-page .task-board-table .dtb-col-notes { width:240px; }
 .digital-task-page .task-board-table td.task-status-cell,
