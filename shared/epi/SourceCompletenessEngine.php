@@ -68,10 +68,11 @@ final class SourceCompletenessEngine
         if (!$sources) return ['status'=>'insufficient_data','confidence'=>'Insufficient Historical Data','missing'=>['role_source_mapping_missing']];
         $missingCritical = array_values(array_filter($sources, static function (array $r): bool { return $r['importance'] === 'critical' && $r['source_status'] !== 'complete'; }));
         $missingCore = array_values(array_filter($sources, static function (array $r): bool { return $r['importance'] === 'core' && $r['source_status'] === 'missing'; }));
+        $allSourcesMissing = count(array_filter($sources, static function (array $r): bool { return $r['source_status'] === 'missing'; })) === count($sources);
         // A category cannot earn a numeric score when its own critical or core
         // source is entirely absent. The multi-source threshold applies only to
         // the overall monthly result, never to an individual category.
-        if ($missingCritical || $missingCore) $status = 'insufficient_data';
+        if ($allSourcesMissing || $missingCritical || $missingCore) $status = 'insufficient_data';
         elseif (count(array_filter($sources, static function (array $r): bool { return $r['source_status'] !== 'complete'; }))) $status = 'provisional';
         else $status = 'calculated';
         return ['status'=>$status,'confidence'=>$status === 'calculated' ? 'High' : ($status === 'provisional' ? 'Moderate' : 'Insufficient Historical Data'),'missing'=>array_column(array_filter($sources, static function (array $r): bool { return $r['source_status'] !== 'complete'; }), 'source_key')];
