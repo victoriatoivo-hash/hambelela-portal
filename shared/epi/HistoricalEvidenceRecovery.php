@@ -100,9 +100,9 @@ final class HistoricalEvidenceRecovery
 
     private function recoverPackingSnapshots(string $from,string $to):void
     {
-        $sql="SELECT id,assigned_to,assigned_name,date_loaded,date_started,date_completed,priority,quantity_packed,packing_status,packing_website_confirmed,packing_website_completed_at,packing_website_completed_by,frontdesk_website_updated_at,frontdesk_website_updated_by FROM ops_packing_tasks WHERE assigned_to IN(6,7) AND date_loaded>=? AND date_loaded<? ORDER BY id";
+        $sql="SELECT id,assigned_employee_id,date_loaded,date_started,date_completed,priority,quantity_packed,packing_status,packing_website_confirmed,packing_website_completed_at,packing_website_completed_by,frontdesk_website_updated_at,frontdesk_website_updated_by FROM ops_packing_tasks WHERE assigned_employee_id IN(6,7) AND date_loaded>=? AND date_loaded<? ORDER BY id";
         foreach($this->rows($sql,[$from.' 00:00:00',date('Y-m-d',strtotime($to.' +1 day')).' 00:00:00']) as $r){
-            $id=(int)$r['assigned_to'];$ref='packing-'.$r['id'];
+            $id=(int)$r['assigned_employee_id'];$ref='packing-'.$r['id'];
             $this->record('ops_packing_tasks',$r['id'].'-assignment','Packing List',$id,$ref,'packing_assignment','Historical packing assignment',(string)$r['date_loaded'],['status_after'=>'assigned','priority'=>$r['priority'],'confidence'=>'moderate_snapshot']);
             if(!empty($r['date_started']))$this->record('ops_packing_tasks',$r['id'].'-started','Packing List',$id,$ref,'packing_started','Packing started',(string)$r['date_started'],['status_before'=>'assigned','status_after'=>'packing']);
             if(!empty($r['date_completed'])){
