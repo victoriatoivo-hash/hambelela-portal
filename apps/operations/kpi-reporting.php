@@ -45,6 +45,10 @@ function kpi_resolve_reporting_period(array $input, ?DateTimeImmutable $today = 
             $from = $today->modify('first day of last month');
             $to = $from->modify('last day of this month');
             break;
+        case 'last_3_months':
+            $from = $today->modify('first day of this month')->modify('-2 months');
+            $to = $today;
+            break;
         case 'custom':
             $customFrom = trim((string) ($input['date_from'] ?? ''));
             $customTo = trim((string) ($input['date_to'] ?? ''));

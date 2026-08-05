@@ -10,7 +10,7 @@ const sources=read('docs/kpi-management-data-source-map.md');
 assert.match(page,/id="kpi-employee-profile"/,'employee report must use a scoped KPI presentation root');
 assert.match(page,/Presentation Mode/,'employee report must expose presentation mode');
 assert.match(page,/Chart\.js\/4\.4\.0/,'KPI must reuse the existing pinned Chart.js version');
-assert.match(js,/metrics\.slice\(0,6\)/,'headline cards must be limited to six');
+assert.match(js,/metrics\.map\(/,'all auditable historical KPI cards must be available');
 assert.match(js,/data-kpi-evidence-section/,'operational evidence must open on demand');
 assert.match(js,/slice\(0,12\)/,'initial timeline must remain a significant-event summary');
 assert.match(js,/timeZone:'Africa\/Windhoek'/,'ordinary timestamps must use Africa/Windhoek');
