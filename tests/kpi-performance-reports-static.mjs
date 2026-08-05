@@ -47,4 +47,12 @@ assert.match(js,/Mappings and metric sources/,
   'owner report must display the metric source table');
 assert.match(js,/performance-chart-table/,'charts must include a matching evidence table');
 assert.match(js,/window\.print\(\)/,'print/PDF workflow must be available');
+for(const tab of ['Overview','Packing','Website Updates','Orders','Bookkeeping','Courier','Tasks','Errors','Attendance','Scores','Suggestions'])
+  assert.match(js,new RegExp(tab.replace(' ','\\s')),`approved report must include the ${tab} tab`);
+assert.match(js,/performance-presentation/,'report must use the approved presentation shell');
+assert.match(js,/Not measured/,'unavailable report fields must not be estimated');
+const css=read('assets/css/portal.css'),presentationSource=css+js;
+for(const token of ['#0E0F14','#D4622A','#2A7DD4','#27AE60','Bebas Neue','DM Mono'])
+  assert.match(presentationSource,new RegExp(token.replace('#','\\#')),`approved February report token ${token} must be present`);
+assert.match(css,/@media print[\s\S]*epi-report-page/,'each presentation section must have print-page treatment');
 console.log('KPI Performance Reports checks passed.');
