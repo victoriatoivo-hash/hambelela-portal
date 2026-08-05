@@ -23,7 +23,7 @@ final class EvidenceEngine
 
     public function record(array $evidence): ?string
     {
-        if (!$this->flags->isEnabled()) {
+        if (!$this->flags->allowsRecording($evidence)) {
             return null;
         }
         $module = Support::requireModule((string) ($evidence['module'] ?? ''));

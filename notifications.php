@@ -18,7 +18,7 @@ include BASE_PATH . '/shared/sidebar.php';
 <?php if (is_file($notificationsCssPath)): ?>
 <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/notifications-page.css?v=<?= (int) filemtime($notificationsCssPath) ?>">
 <?php endif; ?>
-<main class="notifications-page" data-notifications-page
+<main class="workspace module notifications-page" data-notifications-page
       data-feed-endpoint="<?= htmlspecialchars(BASE_URL . '/api/notifications-feed.php', ENT_QUOTES, 'UTF-8') ?>"
       data-action-endpoint="<?= htmlspecialchars(BASE_URL . '/notifications-api.php', ENT_QUOTES, 'UTF-8') ?>">
     <header class="notifications-header">
