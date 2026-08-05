@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/config.php';
+require_once BASE_PATH . '/apps/operations/operations.php';
 require_once BASE_PATH . '/shared/notifications.php';
 
 require_login();

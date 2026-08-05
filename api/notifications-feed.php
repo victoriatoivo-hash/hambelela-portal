@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/config.php';
 require_once BASE_PATH . '/shared/auth.php';
+require_once BASE_PATH . '/apps/operations/operations.php';
 require_once BASE_PATH . '/shared/notifications.php';
 
 header('Content-Type: application/json; charset=utf-8');
