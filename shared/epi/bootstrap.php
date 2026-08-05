@@ -12,4 +12,5 @@ require_once __DIR__ . '/ActivityEngine.php';
 require_once __DIR__ . '/OwnershipEngine.php';
 require_once __DIR__ . '/PerformanceEngine.php';
 require_once __DIR__ . '/Performance.php';
-
+require_once __DIR__ . '/OrdersActivityBridge.php';
+require_once __DIR__ . '/OrdersPerformance.php';

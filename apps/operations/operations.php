@@ -8,6 +8,7 @@ require_once BASE_PATH . '/shared/database.php';
 require_once BASE_PATH . '/shared/notifications.php';
 require_once BASE_PATH . '/shared/employee-features.php';
 require_once BASE_PATH . '/shared/packing-notifications.php';
+require_once BASE_PATH . '/shared/epi/bootstrap.php';
 
 const OPS_ORDER_STATUSES = [
     'new_order' => 'New Order',
@@ -791,25 +792,32 @@ function ops_post_string(string $key, int $max = 255): string
 
 function ops_activity_log(string $action, string $entityType, int $entityId, array $metadata = []): void
 {
-    if (!ops_table_exists('ops_activity_logs')) {
-        return;
+    if (ops_table_exists('ops_activity_logs')) {
+        try {
+            $stmt = db()->prepare(
+                "INSERT INTO ops_activity_logs (employee_id, action, entity_type, entity_id, metadata, ip_address)
+                 VALUES (?, ?, ?, ?, ?, ?)"
+            );
+            $stmt->execute([
+                ops_current_employee_id(),
+                $action,
+                $entityType,
+                $entityId,
+                json_encode($metadata, JSON_UNESCAPED_SLASHES),
+                $_SERVER['REMOTE_ADDR'] ?? null,
+            ]);
+        } catch (Throwable $e) {
+            // Activity logging should never block the operational workflow.
+        }
     }
 
-    try {
-        $stmt = db()->prepare(
-            "INSERT INTO ops_activity_logs (employee_id, action, entity_type, entity_id, metadata, ip_address)
-             VALUES (?, ?, ?, ?, ?, ?)"
-        );
-        $stmt->execute([
-            ops_current_employee_id(),
-            $action,
-            $entityType,
-            $entityId,
-            json_encode($metadata, JSON_UNESCAPED_SLASHES),
-            $_SERVER['REMOTE_ADDR'] ?? null,
-        ]);
-    } catch (Throwable $e) {
-        // Activity logging should never block the operational workflow.
+    // Explicit Orders-module bridge only. EPI remains opt-in and can never block Orders.
+    if ($entityType === 'order') {
+        try {
+            \Hambelela\EPI\OrdersActivityBridge::record(db(), $action, $entityId, $metadata);
+        } catch (Throwable $e) {
+            // Orders remains operational even if the background EPI subsystem is unavailable.
+        }
     }
 }
 
