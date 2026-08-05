@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/operations.php';
 if (current_role_key() === 'guest') { header('Location: ' . BASE_URL . '/login.php'); exit; }
 
+\Hambelela\EPI\Performance::configure(db());
 $service = new \Hambelela\EPI\OrdersPerformance(db());
 $canReviewAll = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
 $employeeId = $canReviewAll ? max(0, (int) ($_GET['employee_id'] ?? 0)) : ops_current_employee_id();
