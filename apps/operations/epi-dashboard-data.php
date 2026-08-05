@@ -73,7 +73,11 @@ function epiDashboardPublicScore(array $score, bool $owner): array
 }
 
 try {
-    $service = new \Hambelela\EPI\PerformanceScore(db());
+    $pdo = db();
+    // Each HTTP request has isolated PHP state; configure the shared EPI
+    // facade in this API request before reading its feature flag.
+    \Hambelela\EPI\Performance::configure($pdo);
+    $service = new \Hambelela\EPI\PerformanceScore($pdo);
     $kind = (string) ($_GET['kind'] ?? 'dashboard');
     $employeeId = (int) ($_GET['employee_id'] ?? $viewerId);
     if (!$owner) $employeeId = $viewerId;
@@ -84,7 +88,7 @@ try {
         if (!$owner) throw new RuntimeException('Owner access required.');
         $score = $service->getMonthlyScore($employeeId, $year, $month);
         header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename="epi-performance-' . $year . '-' . sprintf('%02d', $month) . '.csv"');
+        header('Content-Disposition: attachment; filename="employee-performance-' . $year . '-' . sprintf('%02d', $month) . '.csv"');
         $out = fopen('php://output', 'w');
         fputcsv($out, ['Employee', 'Period', 'Category', 'Weight', 'Category score', 'Contribution', 'Deductions', 'Positive evidence']);
         foreach (($score['categories'] ?? []) as $row) {

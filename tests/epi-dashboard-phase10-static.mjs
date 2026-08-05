@@ -10,6 +10,8 @@ const sidebar = fs.readFileSync('shared/sidebar.php','utf8');
 assert.match(page,/<h1>Employee Performance<\/h1>/);
 assert.match(page,/Owner preview only/);
 assert.match(api,/PerformanceScore/);
+assert.match(api,/Performance::configure\(\$pdo\)/);
+assert.match(api,/employee-performance-/);
 assert.match(api,/locked/);
 assert.match(api,/Owner access required/);
 assert.match(js,/Insufficient Historical Data/);
