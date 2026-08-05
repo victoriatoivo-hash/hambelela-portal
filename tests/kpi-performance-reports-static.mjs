@@ -51,6 +51,17 @@ for(const tab of ['Overview','Packing','Website Updates','Orders','Bookkeeping',
   assert.match(js,new RegExp(tab.replace(' ','\\s')),`approved report must include the ${tab} tab`);
 assert.match(js,/performance-presentation/,'report must use the approved presentation shell');
 assert.match(js,/Not measured/,'unavailable report fields must not be estimated');
+for(const source of ['frontdesk_website_updated','frontdesk_website_updated_at','frontdesk_website_updated_by','packing_packing_website_confirmed_updated','ops_activity_logs'])
+  assert.match(api,new RegExp(source),`Website Updates must query ${source}`);
+assert.match(api,/website_update_lag_target_minutes/,'Website Updates must use the configured lag target');
+assert.match(api,/website_tick_weight_percent'\]=5/,'packer Packing score must disclose the 5% board-tick component');
+assert.match(api,/website_frontdesk_confirmed/,'verification must expose two front-desk confirmation samples');
+assert.match(api,/website_frontdesk_unconfirmed/,'verification must expose an unconfirmed sample');
+assert.match(api,/website_board_ticks/,'verification must expose two attributable board-tick samples');
+assert.match(js,/Source 1 · Front Desk confirmation/,'Website Updates must label the popup-confirmation duty');
+assert.match(js,/Source 2 · Packer board tick/,'Website Updates must label the board-tick duty');
+assert.match(js,/unconfirmed_items/,'front-desk card must provide the expandable unconfirmed list');
+assert.match(js,/weekly_confirmations/,'front-desk card must chart weekly confirmations');
 const css=read('assets/css/portal.css'),presentationSource=css+js;
 for(const token of ['#0E0F14','#D4622A','#2A7DD4','#27AE60','Bebas Neue','DM Mono'])
   assert.match(presentationSource,new RegExp(token.replace('#','\\#')),`approved February report token ${token} must be present`);
