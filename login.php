@@ -9,6 +9,8 @@ require_once __DIR__ . '/shared/login-security.php';
 require_once __DIR__ . '/shared/temporary-access-codes.php';
 
 if (($_GET['action'] ?? '') === 'logout') {
+    $epiLogoutUser = isset($_SESSION['user']) && is_array($_SESSION['user']) ? $_SESSION['user'] : [];
+    $epiLogoutSession = (string) ($_SESSION['kpi_session_token'] ?? '');
     try {
         $kpiSessionToken = (string) ($_SESSION['kpi_session_token'] ?? '');
         if ($kpiSessionToken !== '') {
@@ -17,6 +19,7 @@ if (($_GET['action'] ?? '') === 'logout') {
     } catch (Throwable $kpiError) {
         error_log(date(DATE_ATOM) . ' logout: ' . $kpiError->getMessage() . PHP_EOL, 3, __DIR__ . '/logs/kpi_errors.log');
     }
+    record_epi_attendance_event('logout', $epiLogoutUser, 'explicit_logout', $epiLogoutSession);
     logout_user();
 }
 
@@ -117,6 +120,20 @@ function record_kpi_login_session(int $userId): void
         $_SESSION['kpi_session_token'] = $token;
     } catch (Throwable $kpiError) {
         error_log(date(DATE_ATOM) . ' login: ' . $kpiError->getMessage() . PHP_EOL, 3, __DIR__ . '/logs/kpi_errors.log');
+    }
+}
+
+function record_epi_attendance_event(string $event, array $user, string $source, string $sessionReference = ''): void
+{
+    try {
+        require_once __DIR__ . '/shared/epi/bootstrap.php';
+        if ($event === 'login') {
+            \Hambelela\EPI\AttendanceActivityBridge::recordLogin($user, $source, $sessionReference);
+        } else {
+            \Hambelela\EPI\AttendanceActivityBridge::recordLogout($user, $source, $sessionReference);
+        }
+    } catch (Throwable $epiError) {
+        error_log(date(DATE_ATOM) . ' attendance ' . $event . ': ' . $epiError->getMessage() . PHP_EOL, 3, __DIR__ . '/logs/epi-attendance.log');
     }
 }
 
@@ -226,6 +243,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 portal_initialize_authenticated_session($_SESSION['user']);
                 record_login_event($_SESSION['user'], 'database');
                 record_kpi_login_session((int) $_SESSION['user']['id']);
+                record_epi_attendance_event('login', $_SESSION['user'], 'database', (string) ($_SESSION['kpi_session_token'] ?? ''));
                 header('Location: ' . portal_safe_return_path($_GET['return'] ?? null), true, 303);
                 exit;
             }
@@ -257,6 +275,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['must_change_access_code'] = true;
                 record_login_event($_SESSION['user'], 'temporary_code');
                 record_kpi_login_session((int) $_SESSION['user']['id']);
+                record_epi_attendance_event('login', $_SESSION['user'], 'temporary_code', (string) ($_SESSION['kpi_session_token'] ?? ''));
                 record_security_event('temporary_access_code_used', (int) $employee['id']);
                 header('Location: change-access-code.php', true, 303);
                 exit;
