@@ -10,6 +10,8 @@ const ownership = read('shared/epi/OwnershipEngine.php');
 const verifier = read('shared/epi/RecoveryVerifier.php');
 const settings = read('apps/operations/my-account.php');
 const scoring = read('shared/epi/PerformanceScore.php');
+const header = read('shared/header.php');
+const sidebar = read('shared/sidebar.php');
 
 assert.match(notifications, /class="workspace module notifications-page"/);
 assert.match(flags, /MODE_DISABLED = 'disabled'/);
@@ -28,5 +30,7 @@ assert.match(settings, /Recording Test Mode/);
 assert.match(settings, /Enabled — reserved for later approval/);
 assert.match(settings, /Only Owner\/Admin can manage EPI recovery settings/);
 assert.match(scoring, /recording_mode<>'test'/);
+assert.match(header, /Notification header summary failed/);
+assert.match(sidebar, /Notification sidebar summary failed/);
 
 console.log('EPI Recovery Step 1 static checks passed.');
