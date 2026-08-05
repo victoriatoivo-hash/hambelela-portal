@@ -14,6 +14,7 @@ const header = read('shared/header.php');
 const sidebar = read('shared/sidebar.php');
 
 assert.match(notifications, /class="workspace module notifications-page"/);
+assert.match(notifications, /apps\/operations\/operations\.php/);
 assert.match(flags, /MODE_DISABLED = 'disabled'/);
 assert.match(flags, /MODE_TEST = 'test'/);
 assert.match(flags, /MODE_ENABLED = 'enabled'/);
