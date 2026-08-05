@@ -2,9 +2,8 @@
 declare(strict_types=1);
 header('Content-Type: text/plain; charset=utf-8');
 if (!hash_equals('23e1ec8d18fb43c19facc4a3462b6d8e', (string) ($_GET['token'] ?? ''))) { http_response_code(404); exit('Not found'); }
-require_once __DIR__ . '/shared/config.php';
-require_once __DIR__ . '/shared/database.php';
 try {
+    require_once __DIR__ . '/shared/database.php';
     $sql = (string) file_get_contents(__DIR__ . '/operations-epi-quality-migration.sql');
     $sql = preg_replace('/^\s*--.*$/m', '', $sql);
     foreach (array_filter(array_map('trim', explode(';', $sql))) as $statement) db()->exec($statement);
