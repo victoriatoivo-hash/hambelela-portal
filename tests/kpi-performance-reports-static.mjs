@@ -33,7 +33,7 @@ for(const required of [
   'teamWaybillUploads',
   'contribution_component',
   'quantity_variances',
-  'completion_duty',
+  'performance_orders_analysis',
   'status_compliance',
   'metric_sources',
   'spot_reconciliations',
@@ -43,6 +43,18 @@ assert.match(api,/\.5\*\(float\)\$contribution\+\.4\*\$handling\+\.1\*\$noneOver
   'G6-1a waybill scoring must use 50/40/10 weighting');
 assert.match(api,/completed_without_in_progress/,
   'status compliance must identify orders completed without In Progress');
+for(const source of ['ops_order_display_datetime_expr','assigned_packer_id','customer_contact','kpi_unified_events'])
+  assert.match(api,new RegExp(source),`Orders analysis must use ${source}`);
+for(const marker of ['walk in customer','working customer'])
+  assert.match(api,new RegExp(marker),`walk-in identification must include exact normalized Mobile value ${marker}`);
+assert.match(api,/loaded_to_in_progress.*Packer order packing speed/,
+  'Orders semantics must define loaded to In Progress as packer speed');
+assert.match(api,/in_progress_to_complete.*Front-desk completion step/,
+  'Orders semantics must define In Progress to Complete as front-desk completion');
+for(const label of ['Employee status reconciliation','Mode Ã— Packed By','Packer head-to-head','Weekly orders packed'])
+  assert.match(js,new RegExp(label),`Orders tab must render ${label}`);
+assert.match(js,/speed_measured.*speed_total/,
+  'Orders timing must disclose measured coverage');
 assert.match(js,/Mappings and metric sources/,
   'owner report must display the metric source table');
 assert.match(js,/performance-chart-table/,'charts must include a matching evidence table');
