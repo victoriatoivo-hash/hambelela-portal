@@ -27,6 +27,43 @@ assert.match(api,/\$charts\s*=/,'report API must return chart-ready role compari
 assert.match(js,/performance-observation/,'meeting observations must be editable');
 assert.match(js,/localStorage\.setItem/,'meeting observation edits must persist locally');
 assert.match(js,/showEvidence/,'report metrics must open matching source evidence');
+for(const required of [
+  'Module-table counts honour the requested period',
+  'performance_task_metrics',
+  'teamWaybillUploads',
+  'contribution_component',
+  'quantity_variances',
+  'completion_duty',
+  'status_compliance',
+  'metric_sources',
+  'spot_reconciliations',
+]) assert.match(api,new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')),
+  `defect correction must expose ${required}`);
+assert.match(api,/\.5\*\(float\)\$contribution\+\.4\*\$handling\+\.1\*\$noneOverdue/,
+  'G6-1a waybill scoring must use 50/40/10 weighting');
+assert.match(api,/completed_without_in_progress/,
+  'status compliance must identify orders completed without In Progress');
+assert.match(js,/Mappings and metric sources/,
+  'owner report must display the metric source table');
 assert.match(js,/performance-chart-table/,'charts must include a matching evidence table');
 assert.match(js,/window\.print\(\)/,'print/PDF workflow must be available');
+for(const tab of ['Overview','Packing','Website Updates','Orders','Bookkeeping','Courier','Tasks','Errors','Attendance','Scores','Suggestions'])
+  assert.match(js,new RegExp(tab.replace(' ','\\s')),`approved report must include the ${tab} tab`);
+assert.match(js,/performance-presentation/,'report must use the approved presentation shell');
+assert.match(js,/Not measured/,'unavailable report fields must not be estimated');
+for(const source of ['frontdesk_website_updated','frontdesk_website_updated_at','frontdesk_website_updated_by','packing_packing_website_confirmed_updated','ops_activity_logs'])
+  assert.match(api,new RegExp(source),`Website Updates must query ${source}`);
+assert.match(api,/website_update_lag_target_minutes/,'Website Updates must use the configured lag target');
+assert.match(api,/website_tick_weight_percent'\]=5/,'packer Packing score must disclose the 5% board-tick component');
+assert.match(api,/website_frontdesk_confirmed/,'verification must expose two front-desk confirmation samples');
+assert.match(api,/website_frontdesk_unconfirmed/,'verification must expose an unconfirmed sample');
+assert.match(api,/website_board_ticks/,'verification must expose two attributable board-tick samples');
+assert.match(js,/Source 1 · Front Desk confirmation/,'Website Updates must label the popup-confirmation duty');
+assert.match(js,/Source 2 · Packer board tick/,'Website Updates must label the board-tick duty');
+assert.match(js,/unconfirmed_items/,'front-desk card must provide the expandable unconfirmed list');
+assert.match(js,/weekly_confirmations/,'front-desk card must chart weekly confirmations');
+const css=read('assets/css/portal.css'),presentationSource=css+js;
+for(const token of ['#0E0F14','#D4622A','#2A7DD4','#27AE60','Bebas Neue','DM Mono'])
+  assert.match(presentationSource,new RegExp(token.replace('#','\\#')),`approved February report token ${token} must be present`);
+assert.match(css,/@media print[\s\S]*epi-report-page/,'each presentation section must have print-page treatment');
 console.log('KPI Performance Reports checks passed.');
