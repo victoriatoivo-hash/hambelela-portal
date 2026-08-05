@@ -13,6 +13,8 @@ $activeApp = 'operations';
 $ready = ops_database_ready();
 $message = null;
 $messageType = 'success';
+$epiMode = 'disabled';
+$epiTestResult = null;
 $employeeFormValues = ['full_name' => '', 'email' => '', 'phone' => '', 'role_id' => '', 'status' => 'active'];
 $employee = null;
 $notificationPrefs = notifications_preferences();
@@ -132,6 +134,12 @@ if ($ready && $canManagePortal) {
 }
 
 if ($ready) {
+    try {
+        \Hambelela\EPI\Performance::configure(db());
+        $epiMode = \Hambelela\EPI\Performance::mode();
+    } catch (Throwable $epiSetupError) {
+        $epiMode = 'disabled';
+    }
     $employeeId = ops_current_employee_id();
     if ($employeeId) {
         $rows = ops_rows(
@@ -161,7 +169,23 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $action = ops_post_string('action', 40) ?: 'change_code';
 
-        if (in_array($action, ['reset_code', 'delete_employee', 'save_hr_link', 'save_employee', 'save_packing_eligibility'], true)) {
+        if (in_array($action, ['save_epi_mode', 'run_epi_recovery_test'], true)) {
+            if (!$canManagePortal) {
+                throw new RuntimeException('Only Owner/Admin can manage EPI recovery settings.');
+            }
+            $activeSettingsSection = 'portal';
+            if ($action === 'save_epi_mode') {
+                $requestedMode = ops_post_string('epi_mode', 20);
+                $reason = ops_post_string('epi_reason', 500);
+                \Hambelela\EPI\Performance::setMode($requestedMode, (int) $employee['id'], $reason);
+                $epiMode = \Hambelela\EPI\Performance::mode();
+                $message = 'EPI recording mode updated to ' . ($epiMode === 'test' ? 'Recording Test Mode' : 'Disabled') . '.';
+            } else {
+                $verifier = new \Hambelela\EPI\RecoveryVerifier(db());
+                $epiTestResult = $verifier->run((int) $employee['id'], (string) $employee['full_name']);
+                $message = 'Controlled EPI verification completed. All records are marked TEST DATA and excluded from scoring.';
+            }
+        } elseif (in_array($action, ['reset_code', 'delete_employee', 'save_hr_link', 'save_employee', 'save_packing_eligibility'], true)) {
             if (!$canManagePortal) {
                 throw new RuntimeException('Only Owner/Admin can manage employee accounts.');
             }
@@ -805,6 +829,39 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
 
             <div id="section-portal" class="settings-section <?= $activeSettingsSection === 'portal' ? 'active' : '' ?>">
                 <?php if ($canManagePortal): ?>
+                    <div class="settings-card">
+                        <h2>Employee Performance Intelligence</h2>
+                        <p class="card-sub">Owner-only Recovery Step 1 control. Production recording remains unavailable until a later approval.</p>
+                        <form method="post">
+                            <input type="hidden" name="action" value="save_epi_mode">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="epi-mode">Recording mode</label>
+                                    <select id="epi-mode" name="epi_mode">
+                                        <option value="disabled" <?= $epiMode === 'disabled' ? 'selected' : '' ?>>Disabled</option>
+                                        <option value="test" <?= $epiMode === 'test' ? 'selected' : '' ?>>Recording Test Mode</option>
+                                        <option value="enabled" disabled>Enabled — reserved for later approval</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="epi-reason">Reason for change</label>
+                                    <input id="epi-reason" name="epi_reason" type="text" maxlength="500" required placeholder="Required audit reason">
+                                </div>
+                            </div>
+                            <p class="settings-note">Current state: <strong><?= htmlspecialchars($epiMode === 'test' ? 'Recording Test Mode' : 'Disabled', ENT_QUOTES, 'UTF-8') ?></strong>. Test Mode accepts only explicitly marked TEST DATA; ordinary portal actions remain blocked.</p>
+                            <div class="btn-row"><button class="btn-secondary" type="submit">Save EPI mode</button></div>
+                        </form>
+                        <form method="post" style="margin-top:12px">
+                            <input type="hidden" name="action" value="run_epi_recovery_test">
+                            <button class="btn-secondary" type="submit" <?= $epiMode !== 'test' ? 'disabled' : '' ?>>Run controlled foundation test</button>
+                        </form>
+                        <?php if (is_array($epiTestResult)): ?>
+                            <div class="settings-note" style="margin-top:12px">
+                                <strong>TEST DATA run <?= htmlspecialchars((string) $epiTestResult['run_id'], ENT_QUOTES, 'UTF-8') ?></strong><br>
+                                Evidence: <?= (int) $epiTestResult['evidence_rows'] ?> · Activity: <?= (int) $epiTestResult['activity_rows'] ?> · Ownership: <?= !empty($epiTestResult['ownership_uuid']) ? 'recorded' : 'failed' ?> · Business minutes: <?= htmlspecialchars((string) $epiTestResult['business_minutes'], ENT_QUOTES, 'UTF-8') ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
                     <div class="settings-card">
                         <h2>Portal Settings</h2>
                         <p class="card-sub">System-wide settings. Visible to Owner/Admin only.</p>

@@ -36,6 +36,18 @@ final class Performance
         return self::$flags->isEnabled();
     }
 
+    public static function mode(): string
+    {
+        self::ready();
+        return self::$flags->mode();
+    }
+
+    public static function setMode(string $mode, ?int $updatedBy, string $reason): void
+    {
+        self::ready();
+        self::$flags->setMode($mode, $updatedBy, $reason);
+    }
+
     public static function recordEvidence(array $evidence): ?string
     {
         self::ready();

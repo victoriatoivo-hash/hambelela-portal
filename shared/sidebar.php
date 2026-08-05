@@ -21,8 +21,12 @@ if (!function_exists('notifications_summary_for_current_user')) {
 
 $notificationUnread = max(0, (int) ($notificationUnread ?? 0));
 if (function_exists('notifications_summary_for_current_user')) {
-    $notificationSummary = notifications_summary_for_current_user(1);
-    $notificationUnread = (int) ($notificationSummary['unread_count'] ?? $notificationUnread);
+    try {
+        $notificationSummary = notifications_summary_for_current_user(1);
+        $notificationUnread = (int) ($notificationSummary['unread_count'] ?? $notificationUnread);
+    } catch (Throwable $sidebarNotificationError) {
+        error_log('Notification sidebar summary failed: ' . $sidebarNotificationError->getMessage());
+    }
 }
 $notificationUnreadLabel = $notificationUnread > 99 ? '99+' : (string) $notificationUnread;
 $sidebarUser = isset($user) && is_array($user)

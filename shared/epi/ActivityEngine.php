@@ -21,7 +21,7 @@ final class ActivityEngine
 
     public function record(array $activity): ?string
     {
-        if (!$this->flags->isEnabled()) {
+        if (!$this->flags->allowsRecording($activity)) {
             return null;
         }
         $module = Support::requireModule((string) ($activity['module'] ?? ''));
@@ -59,6 +59,11 @@ final class ActivityEngine
             return ($existing = $lookup->fetchColumn()) ? (string) $existing : null;
         } catch (Throwable $error) {
             error_log('EPI activity recording failed: ' . $error->getMessage());
+            try {
+                $stmt = $this->pdo->prepare('INSERT INTO epi_performance_logs (level, component, message, context_json) VALUES (?,?,?,?)');
+                $stmt->execute(['error', 'activity', $error->getMessage(), Support::json(['module' => $module, 'activity_type' => $type])]);
+            } catch (Throwable $ignored) {
+            }
             return null;
         }
     }

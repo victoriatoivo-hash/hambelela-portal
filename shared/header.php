@@ -40,10 +40,14 @@ $headerNotificationUnread = 0;
 $headerNotificationLatest = [];
 $headerNotificationPreferences = ['desktop_enabled' => 1, 'sound_enabled' => 0, 'sound_volume' => 65];
 if ($showPortalHeaderStatus && function_exists('notifications_summary_for_current_user')) {
-    $headerNotificationSummary = notifications_summary_for_current_user(3);
-    $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ?? 0);
-    $headerNotificationLatest = array_slice((array) ($headerNotificationSummary['latest'] ?? []), 0, 3);
-    $headerNotificationPreferences = (array) ($headerNotificationSummary['preferences'] ?? $headerNotificationPreferences);
+    try {
+        $headerNotificationSummary = notifications_summary_for_current_user(3);
+        $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ?? 0);
+        $headerNotificationLatest = array_slice((array) ($headerNotificationSummary['latest'] ?? []), 0, 3);
+        $headerNotificationPreferences = (array) ($headerNotificationSummary['preferences'] ?? $headerNotificationPreferences);
+    } catch (Throwable $headerNotificationError) {
+        error_log('Notification header summary failed: ' . $headerNotificationError->getMessage());
+    }
 }
 $headerUserName = trim((string) ($headerUser['name'] ?? 'User'));
 $headerUserInitials = '';

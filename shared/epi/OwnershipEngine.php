@@ -6,6 +6,7 @@ namespace Hambelela\EPI;
 
 use InvalidArgumentException;
 use PDO;
+use Throwable;
 
 final class OwnershipEngine
 {
@@ -20,7 +21,7 @@ final class OwnershipEngine
 
     public function record(array $ownership): ?string
     {
-        if (!$this->flags->isEnabled()) {
+        if (!$this->flags->allowsRecording($ownership)) {
             return null;
         }
         $module = Support::requireModule((string) ($ownership['module'] ?? ''));
@@ -31,6 +32,7 @@ final class OwnershipEngine
         $previous = $this->current($module, $reference);
         $uuid = Support::uuid();
         $effective = Support::timestamp($ownership['effective_at'] ?? null);
+        try {
         $stmt = $this->pdo->prepare(
             'INSERT INTO epi_employee_ownership_history
              (ownership_uuid, module, reference_number, original_owner_id, original_owner_name,
@@ -52,6 +54,15 @@ final class OwnershipEngine
             $effective->format('Y-m-d H:i:s'),
         ]);
         return $uuid;
+        } catch (Throwable $error) {
+            error_log('EPI ownership recording failed: ' . $error->getMessage());
+            try {
+                $stmt = $this->pdo->prepare('INSERT INTO epi_performance_logs (level, component, message, context_json) VALUES (?,?,?,?)');
+                $stmt->execute(['error', 'ownership', $error->getMessage(), Support::json(['module' => $module, 'reference' => $reference])]);
+            } catch (Throwable $ignored) {
+            }
+            return null;
+        }
     }
 
     public function current(string $module, string $reference): ?array
