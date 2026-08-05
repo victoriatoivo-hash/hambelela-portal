@@ -51,7 +51,7 @@ assert.match(api,/loaded_to_in_progress.*Packer order packing speed/,
   'Orders semantics must define loaded to In Progress as packer speed');
 assert.match(api,/in_progress_to_complete.*Front-desk completion step/,
   'Orders semantics must define In Progress to Complete as front-desk completion');
-for(const label of ['Employee status reconciliation','Mode Ã— Packed By','Packer head-to-head','Weekly orders packed'])
+for(const label of ['Employee status reconciliation','Mode × Packed By','Packer head-to-head','Weekly orders packed'])
   assert.match(js,new RegExp(label),`Orders tab must render ${label}`);
 assert.match(js,/speed_measured.*speed_total/,
   'Orders timing must disclose measured coverage');
