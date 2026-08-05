@@ -14,6 +14,7 @@ const businessHealthJs = read('assets/js/reports-business-health.js');
 const performanceJs = read('assets/js/reports-performance.js');
 const exportApi = read('apps/operations/reports-performance-reports-data.php');
 const epiDashboard = read('apps/operations/epi-dashboard.php');
+const portalCss = read('assets/css/portal.css');
 
 assert.match(sidebar, /'label' => 'Employee Performance'/);
 assert.match(features, /'Employee Performance'/);
@@ -27,6 +28,7 @@ assert.match(employeeJs, /Performance evidence/);
 assert.match(exportApi, /employee-performance-evidence-/);
 assert.match(epiDashboard, /<h1>Employee Performance<\/h1>/);
 assert.match(epiDashboard, /Monitor employee performance, scores, progress and supporting evidence\./);
+assert.match(portalCss, /#kpi-management > \.module-header h1\s*\{[^}]*display:\s*inline-flex;[^}]*column-gap:\s*8px;[^}]*color:\s*rgb\(114, 27, 26\);[^}]*font-family:\s*Figtree, system-ui, sans-serif;[^}]*font-size:\s*22px;[^}]*font-weight:\s*600;/s);
 
 for (const [name, source] of Object.entries({ sidebar, features, dashboard, reports, employee, employeeJs, employeesJs, businessHealthJs, performanceJs, epiDashboard })) {
   assert.doesNotMatch(source, />[^<]*\bKPI\b[^<]*</, `${name} contains visible KPI text`);
