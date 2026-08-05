@@ -16,3 +16,5 @@ require_once __DIR__ . '/OrdersActivityBridge.php';
 require_once __DIR__ . '/OrdersPerformance.php';
 require_once __DIR__ . '/PackingActivityBridge.php';
 require_once __DIR__ . '/PackingPerformance.php';
+require_once __DIR__ . '/TaskActivityBridge.php';
+require_once __DIR__ . '/TaskPerformance.php';
