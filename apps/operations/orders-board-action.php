@@ -752,6 +752,12 @@ function ops_board_sync_website_orders(?string $date = null): array
             }
 
             if ($affected === 1) {
+                ops_activity_log('order_created', 'order', $orderId, [
+                    'source' => 'woocommerce_sync',
+                    'order_number' => $orderNumber,
+                    'new_value' => 'new_order',
+                    'recording_mode' => 'automatic',
+                ]);
                 ops_log_order_stage_event($orderId, 'order_received', [
                     'source' => 'orders_board_woocommerce_sync',
                     'woo_order_id' => $wooOrderId,
@@ -968,6 +974,13 @@ try {
             if (db()->inTransaction()) db()->rollBack();
             throw $paymentError;
         }
+        ops_activity_log('payment_changed', 'order', $orderId, [
+            'field' => 'payment_allocations',
+            'old_value' => $currentAllocations,
+            'new_value' => $allocations,
+            'source' => 'orders_payment_editor',
+            'changed_by' => current_user()['name'] ?? 'Unknown',
+        ]);
         $saved = ops_order_payment_allocations($orderId);
         $savedOrder = ops_row('SELECT payment_method, payment_status, updated_at FROM ops_orders WHERE id = ? LIMIT 1', [$orderId]);
         echo json_encode(['ok'=>true, 'message'=>'Payment saved.', 'payments'=>$saved, 'payment_method'=>$savedOrder['payment_method'], 'payment_status'=>$savedOrder['payment_status'], 'total_cents'=>$totalCents, 'collected_cents'=>$collectedCents, 'due_cents'=>max(0, $totalCents-$collectedCents), 'paid'=>$collectedCents >= $totalCents, 'source'=>'order_list', 'version'=>$version, 'updated_at'=>$savedOrder['updated_at']], JSON_UNESCAPED_SLASHES);
@@ -1280,6 +1293,10 @@ try {
         }
 
         $packerId = (int) $packer['id'];
+        $previousStatusRow = ops_row('SELECT status FROM ops_orders WHERE id = ? LIMIT 1', [$orderId]);
+        if (!$previousStatusRow) {
+            throw new RuntimeException('Order not found.');
+        }
         $set = 'assigned_packer_id = ?, status = ?, updated_at = CURRENT_TIMESTAMP';
         if (ops_column_exists('ops_orders', 'assigned_at')) {
             $set .= ', assigned_at = COALESCE(assigned_at, NOW())';
@@ -1289,6 +1306,14 @@ try {
         }
         $stmt = db()->prepare('UPDATE ops_orders SET ' . $set . ' WHERE id = ?');
         $stmt->execute([$packerId, 'in_progress', $orderId]);
+
+        ops_activity_log('status_changed', 'order', $orderId, [
+            'field' => 'status',
+            'old_value' => (string) ($previousStatusRow['status'] ?? ''),
+            'new_value' => 'in_progress',
+            'source' => 'packer_kpi_modal',
+            'assigned_packer_id' => $packerId,
+        ]);
 
         ops_log_order_stage_event($orderId, 'in_progress', [
             'source' => 'packer_kpi_modal',

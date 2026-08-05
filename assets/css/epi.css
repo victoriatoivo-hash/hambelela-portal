@@ -1,0 +1,14 @@
+:root {
+    --epi-primary: #AB3619;
+    --epi-secondary: #F07420;
+    --epi-success: #A8CA19;
+    --epi-danger: #BB1B21;
+    --epi-background: #FDF6EE;
+    --epi-card: #FFFFFF;
+    --epi-border: #EDE3D8;
+    --epi-text: #1A1A1A;
+    --epi-muted: #6B6B6B;
+    --epi-radius: 18px;
+    --epi-shadow: 0 8px 25px rgba(0, 0, 0, .05);
+    --epi-transition: .25s;
+}
