@@ -36,3 +36,13 @@ CREATE TABLE IF NOT EXISTS epi_bookkeeping_exceptions (
  PRIMARY KEY(id), KEY idx_epi_bk_exception_record(related_record_type,related_record_id),
  KEY idx_epi_bk_exception_date(business_date,review_decision)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Append-only owner decisions for individual evidence records. The source
+-- evidence remains immutable; repeated reviews form a complete audit trail.
+CREATE TABLE IF NOT EXISTS epi_bookkeeping_reviews (
+ id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, evidence_uuid CHAR(36) NOT NULL,
+ reviewer_id INT NOT NULL, decision VARCHAR(60) NOT NULL, reason TEXT NOT NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ PRIMARY KEY(id), KEY idx_epi_bk_review_evidence(evidence_uuid),
+ KEY idx_epi_bk_review_reviewer(reviewer_id,created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
