@@ -394,6 +394,16 @@ function checklist_duration_label(int $minutes): string
     return implode(' ', $parts);
 }
 
+function checklist_elapsed_duration_label(int $seconds): string
+{
+    if ($seconds > 0 && $seconds < 60) return 'less than 1 min';
+    $minutes = intdiv(max(0, $seconds), 60); $days = intdiv($minutes, 1440); $hours = intdiv($minutes % 1440, 60); $mins = $minutes % 60; $parts = [];
+    if ($days) $parts[] = $days . ' day' . ($days === 1 ? '' : 's');
+    if ($hours) $parts[] = $hours . ' hr' . ($hours === 1 ? '' : 's');
+    if ($mins || !$parts) $parts[] = $mins . ' min';
+    return implode(' ', $parts);
+}
+
 function checklist_task_timing(array $task, ?DateTimeImmutable $now = null): array
 {
     $timezone = new DateTimeZone('Africa/Windhoek'); $now = $now ?: new DateTimeImmutable('now', $timezone);
@@ -406,14 +416,16 @@ function checklist_task_timing(array $task, ?DateTimeImmutable $now = null): arr
     if (!$due) { $result['outcome'] = $status === 'complete' && !$completed ? 'Completion time unavailable' : 'No due date'; return $result; }
     if ($status === 'complete') {
         if (!$completed) { $result['outcome'] = 'Completion time unavailable'; return $result; }
-        if ($completed <= $due) { $early = checklist_working_minutes($completed, $due); $result['outcome'] = $early > 0 ? 'Completed ' . checklist_duration_label($early) . ' early' : 'Completed on time'; return $result; }
-        $result['overdue'] = true; $result['overdue_minutes'] = checklist_working_minutes($due, $completed); $result['outcome'] = 'Completed overdue · Overdue by ' . checklist_duration_label($result['overdue_minutes']); return $result;
+        if ($completed <= $due) { $result['outcome'] = 'On time'; return $result; }
+        $elapsed = $completed->getTimestamp() - $due->getTimestamp(); $result['overdue'] = true; $result['overdue_minutes'] = (int) ceil($elapsed / 60); $result['outcome'] = 'Overdue by ' . checklist_elapsed_duration_label($elapsed); return $result;
     }
-    if ($now > $due) { $result['overdue'] = true; $result['overdue_minutes'] = checklist_working_minutes($due, $now); $result['progress'] = $status === 'in_progress' ? 99 : 0; $result['outcome'] = $status === 'new' ? 'Overdue — not started · Overdue by ' . checklist_duration_label($result['overdue_minutes']) : 'Overdue by ' . checklist_duration_label($result['overdue_minutes']); return $result; }
+    if ($now > $due) { $elapsed=$now->getTimestamp()-$due->getTimestamp();$result['overdue'] = true; $result['overdue_minutes'] = (int)ceil($elapsed/60); $result['progress'] = $status === 'in_progress' ? 99 : 0; $result['outcome'] = 'Overdue by ' . checklist_elapsed_duration_label($elapsed); return $result; }
     if ($status === 'in_progress' && $started) {
         $available = checklist_working_minutes($started, $due); $used = checklist_working_minutes($started, $now);
         $result['progress'] = $available > 0 ? max(1, min(99, (int) floor(($used / $available) * 100))) : 1;
-        $result['outcome'] = 'Time used';
+        $result['outcome'] = 'Due in ' . checklist_elapsed_duration_label($due->getTimestamp()-$now->getTimestamp());
+    } elseif ($status === 'new') {
+        $result['outcome'] = 'Due in ' . checklist_elapsed_duration_label($due->getTimestamp()-$now->getTimestamp());
     }
     return $result;
 }
@@ -1525,7 +1537,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         <td><?= htmlspecialchars($timing['due_label'], ENT_QUOTES, 'UTF-8') ?></td>
                         <td class="task-table__due-cell"><?php if ($dueState): ?><span class="task-due-state task-due-state--<?= htmlspecialchars(str_replace('_', '-', $dueState['value']), ENT_QUOTES, 'UTF-8') ?>" data-task-due-state data-task-due-at="<?= htmlspecialchars($dueState['iso'], ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars($dueState['title'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($dueState['label'], ENT_QUOTES, 'UTF-8') ?></span><?php elseif ($savedStatus !== 'complete'): ?><span class="task-due-state task-due-state--missing" data-task-due-state>Set due date</span><?php else: ?>—<?php endif; ?></td>
                         <td class="task-status-cell"><button type="button" class="task-status-trigger" data-task-status-trigger data-status="<?= htmlspecialchars($statusKey, ENT_QUOTES, 'UTF-8') ?>" aria-haspopup="menu" aria-expanded="false"><?= htmlspecialchars($groups[$effective] ?? ($statuses[$effective] ?? $effective), ENT_QUOTES, 'UTF-8') ?></button></td>
-                        <td><span class="task-progress-value<?= $timing['overdue']?' is-overdue':'' ?>" title="Percentage of the available working time used since this task was started."><?= $progress ?>%</span></td>
+                        <td><div class="task-progress-track<?= $timing['overdue']?' is-overdue':'' ?> is-complete" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<?= $progress ?>" title="Percentage of the available working time used since this task was started."><div class="task-progress-fill" style="width:<?= $progress ?>%"></div><span class="task-progress-value"><?= $progress ?>%</span></div></td>
                         <td data-task-completed><?= ($task['date_completed'] ?: $task['completed_at']) ? htmlspecialchars(checklist_date_label((string) ($task['date_completed'] ?: $task['completed_at'])), ENT_QUOTES, 'UTF-8') : 'Completion time unavailable' ?></td>
                         <td><span class="task-notes-preview"><?= htmlspecialchars((string) ($task['completion_note'] ?: $task['notes'] ?: '—'), ENT_QUOTES, 'UTF-8') ?></span></td>
                     </tr>
@@ -1584,7 +1596,8 @@ include BASE_PATH . '/shared/sidebar.php';
         $deadlineValue = $task['deadline'] ? substr((string) $task['deadline'], 0, 16) : '';
         $taskKind = checklist_task_kind($task);
         $statusClass = str_replace('_', '-', $effective);
-        $panelDueState = checklist_due_state((string) ($task['deadline'] ?? ''), checklist_normalize_status((string) ($task['status'] ?? 'new')));
+        $panelTiming = checklist_task_timing($task);
+        $panelDueState = ['value'=>$panelTiming['overdue']?'overdue':(checklist_normalize_status((string)($task['status']??'new'))==='complete'?'complete':'upcoming'),'label'=>$panelTiming['outcome']];
         ?>
         <aside class="task-detail-panel task-details-panel" data-task-panel="<?= $panelId ?>" data-deadline-state="<?= htmlspecialchars((string) ($panelDueState['value'] ?? 'normal'), ENT_QUOTES, 'UTF-8') ?>" aria-hidden="true">
             <header class="task-details-header">
@@ -2855,7 +2868,7 @@ function initialiseTaskDueStates() {
     if (document.hidden || Date.now() - lastTimingSync < 59000) return;
     const rows=[...root.querySelectorAll('[data-task-row]')],ids=rows.map(row=>row.dataset.taskId).filter(Boolean);if(!ids.length)return;lastTimingSync=Date.now();
     const body=new FormData();body.set('action','task_timing_snapshot');body.set('csrf_token',timingCsrfToken);body.set('task_ids',ids.join(','));
-    try{const response=await fetch(`${window.location.pathname}${window.location.search}`,{method:'POST',body,headers:{'X-Requested-With':'XMLHttpRequest'}});const result=await response.json();if(!response.ok||result.success!==true)return;rows.forEach(row=>{const timing=result.tasks?.[row.dataset.taskId];if(!timing)return;const progress=row.querySelector('[data-task-progress-value]');const outcome=row.querySelector('[data-task-timing-outcome]');if(progress){progress.textContent=`${Math.max(0,Math.min(100,Number(timing.progress)||0))}%`;progress.classList.toggle('is-overdue',Boolean(timing.overdue));}if(outcome){outcome.textContent=timing.outcome||'';outcome.classList.toggle('is-overdue',Boolean(timing.overdue));}});}catch(error){/* Retry through the next safe minute refresh. */}
+    try{const response=await fetch(`${window.location.pathname}${window.location.search}`,{method:'POST',body,headers:{'X-Requested-With':'XMLHttpRequest'}});const result=await response.json();if(!response.ok||result.success!==true)return;rows.forEach(row=>{const timing=result.tasks?.[row.dataset.taskId];if(!timing)return;const value=Math.max(0,Math.min(100,Number(timing.progress)||0)),track=row.querySelector('[data-task-progress-track]'),fill=row.querySelector('[data-task-progress-fill]'),progress=row.querySelector('[data-task-progress-value]'),outcome=row.querySelector('[data-task-timing-outcome],[data-task-due-state]');if(track){track.setAttribute('aria-valuenow',String(value));track.classList.toggle('is-overdue',Boolean(timing.overdue));}if(fill)fill.style.width=`${value}%`;if(progress)progress.textContent=`${value}%`;if(outcome){outcome.textContent=timing.outcome||'';outcome.classList.toggle('task-due-state--overdue',Boolean(timing.overdue));}});}catch(error){/* Retry through the next safe minute refresh. */}
   };
   const refresh = () => {
     if (timer) window.clearTimeout(timer);
