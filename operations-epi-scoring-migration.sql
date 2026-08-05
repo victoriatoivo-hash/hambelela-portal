@@ -45,7 +45,12 @@ CREATE TABLE IF NOT EXISTS epi_performance_rule_versions(
  maximum_per_event_hundredths INT UNSIGNED NULL, maximum_per_day_hundredths INT UNSIGNED NULL,
  maximum_per_month_hundredths INT UNSIGNED NULL, maximum_occurrences_per_day INT UNSIGNED NULL,
  maximum_occurrences_per_month INT UNSIGNED NULL, grace_rule VARCHAR(120) NULL,
- owner_confirmation_required TINYINT(1) NOT NULL DEFAULT 1, effective_from DATE NOT NULL,
+ automatic_application TINYINT(1) NOT NULL DEFAULT 1,
+ minimum_confidence VARCHAR(20) NOT NULL DEFAULT 'high',
+ owner_review_required TINYINT(1) NOT NULL DEFAULT 0,
+ exclusion_conditions_json LONGTEXT NULL, grace_period_minutes INT UNSIGNED NOT NULL DEFAULT 0,
+ root_incident_grouping VARCHAR(80) NOT NULL DEFAULT 'module_reference',
+ owner_confirmation_required TINYINT(1) NOT NULL DEFAULT 0, effective_from DATE NOT NULL,
  effective_to DATE NULL, approved_by INT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
  UNIQUE KEY uq_epi_rule_version(rule_id,version), KEY idx_epi_rule_effective(rule_id,effective_from,effective_to)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -62,6 +67,9 @@ CREATE TABLE IF NOT EXISTS epi_performance_score_events(
  responsibility_basis INT UNSIGNED NOT NULL DEFAULT 10000, final_impact_hundredths INT UNSIGNED NOT NULL,
  confirmation_status VARCHAR(40) NOT NULL DEFAULT 'pending', confirmed_by INT NULL,
  confirmed_at DATETIME NULL, reviewer_note TEXT NULL, applied_at DATETIME NULL,
+ automatic_status VARCHAR(40) NOT NULL DEFAULT 'needs_review', confidence_level VARCHAR(20) NOT NULL DEFAULT 'insufficient',
+ exception_status VARCHAR(40) NULL, expected_result TEXT NULL, actual_result TEXT NULL,
+ exception_id BIGINT UNSIGNED NULL, supersedes_event_id BIGINT UNSIGNED NULL,
  reversed TINYINT(1) NOT NULL DEFAULT 0, reversal_event_id BIGINT UNSIGNED NULL,
  reversal_reason TEXT NULL, audit_id BIGINT UNSIGNED NULL, manual TINYINT(1) NOT NULL DEFAULT 0,
  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -70,6 +78,8 @@ CREATE TABLE IF NOT EXISTS epi_performance_score_events(
  KEY idx_epi_score_event_period(employee_id,period_start,period_end,confirmation_status,reversed),
  KEY idx_epi_root_incident(root_incident_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Existing installations are upgraded idempotently by PerformanceScore::ensureAutomaticScoringSchema().
 
 CREATE TABLE IF NOT EXISTS epi_scoring_monthly_scores(
  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, employee_id INT NOT NULL, employee_name VARCHAR(160) NOT NULL,

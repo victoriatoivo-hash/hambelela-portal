@@ -11,10 +11,12 @@ try{
         $payload=json_decode((string)file_get_contents('php://input'),true);if(!is_array($payload))$payload=$_POST;
         $token=(string)($payload['csrf']??'');if(empty($_SESSION['epi_scoring_csrf'])||!hash_equals((string)$_SESSION['epi_scoring_csrf'],$token))throw new RuntimeException('Invalid request token.');
         $action=(string)($payload['action']??'');$employee=(int)($payload['employee_id']??0);$year=(int)($payload['year']??date('Y'));$month=(int)($payload['month']??date('n'));$data=null;
-        if($action==='sync')$data=['created'=>$service->syncEvidenceEvents($employee,$year,$month)];
+        if($action==='sync'){$created=$service->syncEvidenceEvents($employee,$year,$month);$data=['created'=>$created,'classification'=>$service->eventStatusSummary($employee,$year,$month)];}
+        elseif($action==='reclassify')$data=$service->reclassifyPeriod($employee,$year,$month);
         elseif($action==='calculate')$data=$service->calculateMonthly($employee,$year,$month,$viewer,'owner_recalculation',(string)($payload['reason']??''));
         elseif($action==='review'){$service->reviewEvent((int)$payload['event_id'],(string)$payload['status'],$viewer,(string)($payload['note']??''));$data=['reviewed'=>true];}
         elseif($action==='reverse')$data=['reversal_event_id'=>$service->reverseEvent((int)$payload['event_id'],$viewer,(string)($payload['reason']??''))];
+        elseif($action==='override')$data=['superseding_event_id'=>$service->overrideEvent((int)$payload['event_id'],(string)$payload['override_action'],$viewer,(string)($payload['reason']??''))];
         elseif($action==='lock'){$service->lockMonth($employee,$year,$month,$viewer,(string)($payload['note']??''),!empty($payload['override']));$data=['locked'=>true];}
         elseif($action==='unlock'){$service->unlockMonth($employee,$year,$month,$viewer,(string)($payload['reason']??''));$data=['unlocked'=>true];}
         else throw new RuntimeException('Unknown scoring action.');
