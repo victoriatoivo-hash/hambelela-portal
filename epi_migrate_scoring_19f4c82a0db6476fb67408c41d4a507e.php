@@ -1,6 +1,0 @@
-<?php
-declare(strict_types=1);
-header('Content-Type: text/plain; charset=utf-8');
-if(!hash_equals('66f97aa57ca244b893370805fed65edf',(string)($_GET['token']??''))){http_response_code(403);exit('Forbidden');}
-require_once __DIR__.'/config.php';require_once __DIR__.'/shared/database.php';
-try{$sql=file_get_contents(__DIR__.'/operations-epi-scoring-migration.sql');if($sql===false)throw new RuntimeException('Migration missing.');foreach(array_filter(array_map('trim',preg_split('/;\s*(?:\r?\n|$)/',$sql)))as$statement){if(strpos($statement,'--')===0){$statement=preg_replace('/^(?:--[^\r\n]*\r?\n)+/','',$statement);}if(trim($statement)!=='')db()->exec($statement);}foreach(['epi_scorecards','epi_scorecard_categories','epi_performance_rules','epi_performance_rule_versions','epi_performance_score_events','epi_scoring_monthly_scores','epi_employee_monthly_category_scores','epi_employee_score_audits','epi_employee_month_locks','epi_performance_manual_adjustments','epi_performance_award_eligibility']as$t){$s=db()->prepare('SELECT table_name FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name=? LIMIT 1');$s->execute([$t]);echo$t.'='.($s->fetchColumn()?:'MISSING')."\n";}echo'MIGRATION_OK';}catch(Throwable$e){http_response_code(500);echo'ERROR: '.$e->getMessage();}
