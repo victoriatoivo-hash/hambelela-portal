@@ -20,7 +20,8 @@ $emptyTaskMessage = $emptyTaskMessage ?? ($canManage ? 'No tasks match this view
                 $savedStatus = checklist_normalize_status((string) ($task['status'] ?? 'new'));
                 $timing = checklist_task_timing($task);
                 $progress = (int) $timing['progress'];
-                $dueState = ['value'=>$timing['overdue']?'overdue':($savedStatus==='complete'?'complete':'upcoming'),'iso'=>'','title'=>$timing['due_label'].' — '.$timing['outcome'],'label'=>$timing['outcome']];
+                $whenDueOutcome = $savedStatus === 'complete' ? $timing['outcome'] : $timing['active_outcome'];
+                $dueState = ['value'=>$timing['overdue']?'overdue':($savedStatus==='complete'?'complete':'upcoming'),'iso'=>'','title'=>$timing['due_label'].' — '.$whenDueOutcome,'label'=>$whenDueOutcome];
                 $taskId = (int) $task['id'];
                 ?>
                 <tr class="dtb-task-row task-grid-row" data-task-row data-task-id="<?= $taskId ?>" data-deadline-state="<?= htmlspecialchars((string) ($dueState['value'] ?? 'normal'), ENT_QUOTES, 'UTF-8') ?>" data-saved-status="<?= htmlspecialchars($savedStatus, ENT_QUOTES, 'UTF-8') ?>" data-display-status="<?= htmlspecialchars($effective, ENT_QUOTES, 'UTF-8') ?>" data-task-name="<?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?>" data-task-assigned="<?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?>" data-task-priority="<?= htmlspecialchars($priorities[$priorityKey] ?? 'Medium', ENT_QUOTES, 'UTF-8') ?>" data-task-status="<?= htmlspecialchars($groups[$effective] ?? ($statuses[$effective] ?? $effective), ENT_QUOTES, 'UTF-8') ?>">

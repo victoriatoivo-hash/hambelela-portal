@@ -5,6 +5,9 @@ const table=fs.readFileSync(new URL('../apps/operations/partials/checklist-task-
 const css=fs.readFileSync(new URL('../assets/css/portal.css',import.meta.url),'utf8');
 const bridge=fs.readFileSync(new URL('../shared/epi/TaskActivityBridge.php',import.meta.url),'utf8');
 for(const source of ['checklist_task_timing','BusinessTimeEngine','started_at','date_completed','completed_at','task_timing_snapshot','Math.min(100','59000','visibilitychange'])assert.ok(page.includes(source),`missing ${source}`);
+assert.match(page,/'active_outcome'=>\$due \? \(\$now > \$due \? 'Overdue' : 'Coming up'\) : 'No due date'/);
+assert.match(table,/\$savedStatus === 'complete' \? \$timing\['outcome'\] : \$timing\['active_outcome'\]/);
+assert.match(page,/row\.dataset\.savedStatus==='complete'\?timing\.outcome:timing\.active_outcome/);
 assert.match(page,/COALESCE\(t\.date_completed,t\.completed_at\) IS NULL/);
 assert.match(page,/COALESCE\(t\.date_completed,t\.completed_at\) ASC/);
 assert.match(page,/COALESCE\(t\.deadline,'9999-12-31 23:59:59'\) ASC, t\.id ASC/);

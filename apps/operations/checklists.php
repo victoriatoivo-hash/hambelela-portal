@@ -412,7 +412,7 @@ function checklist_task_timing(array $task, ?DateTimeImmutable $now = null): arr
     $completed = null; $started = null;
     try { if (!empty($task['date_completed']) || !empty($task['completed_at'])) $completed = new DateTimeImmutable((string) ($task['date_completed'] ?: $task['completed_at']), $timezone); } catch (Throwable $e) {}
     try { if (!empty($task['started_at'])) $started = new DateTimeImmutable((string) $task['started_at'], $timezone); } catch (Throwable $e) {}
-    $result = ['progress'=>$status === 'complete' ? 100 : 0, 'overdue'=>false, 'outcome'=>'', 'overdue_minutes'=>0, 'due_label'=>$due ? $due->format('d M Y · H:i') : 'No due date'];
+    $result = ['progress'=>$status === 'complete' ? 100 : 0, 'overdue'=>false, 'outcome'=>'', 'active_outcome'=>$due ? ($now > $due ? 'Overdue' : 'Coming up') : 'No due date', 'overdue_minutes'=>0, 'due_label'=>$due ? $due->format('d M Y · H:i') : 'No due date'];
     if (!$due) { $result['outcome'] = $status === 'complete' && !$completed ? 'Completion time unavailable' : 'No due date'; return $result; }
     if ($status === 'complete') {
         if (!$completed) { $result['outcome'] = 'Completion time unavailable'; return $result; }
@@ -1597,7 +1597,8 @@ include BASE_PATH . '/shared/sidebar.php';
         $taskKind = checklist_task_kind($task);
         $statusClass = str_replace('_', '-', $effective);
         $panelTiming = checklist_task_timing($task);
-        $panelDueState = ['value'=>$panelTiming['overdue']?'overdue':(checklist_normalize_status((string)($task['status']??'new'))==='complete'?'complete':'upcoming'),'label'=>$panelTiming['outcome']];
+        $panelSavedStatus = checklist_normalize_status((string)($task['status']??'new'));
+        $panelDueState = ['value'=>$panelTiming['overdue']?'overdue':($panelSavedStatus==='complete'?'complete':'upcoming'),'label'=>$panelSavedStatus==='complete'?$panelTiming['outcome']:$panelTiming['active_outcome']];
         ?>
         <aside class="task-detail-panel task-details-panel" data-task-panel="<?= $panelId ?>" data-deadline-state="<?= htmlspecialchars((string) ($panelDueState['value'] ?? 'normal'), ENT_QUOTES, 'UTF-8') ?>" aria-hidden="true">
             <header class="task-details-header">
@@ -2868,7 +2869,7 @@ function initialiseTaskDueStates() {
     if (document.hidden || Date.now() - lastTimingSync < 59000) return;
     const rows=[...root.querySelectorAll('[data-task-row]')],ids=rows.map(row=>row.dataset.taskId).filter(Boolean);if(!ids.length)return;lastTimingSync=Date.now();
     const body=new FormData();body.set('action','task_timing_snapshot');body.set('csrf_token',timingCsrfToken);body.set('task_ids',ids.join(','));
-    try{const response=await fetch(`${window.location.pathname}${window.location.search}`,{method:'POST',body,headers:{'X-Requested-With':'XMLHttpRequest'}});const result=await response.json();if(!response.ok||result.success!==true)return;rows.forEach(row=>{const timing=result.tasks?.[row.dataset.taskId];if(!timing)return;const value=Math.max(0,Math.min(100,Number(timing.progress)||0)),track=row.querySelector('[data-task-progress-track]'),fill=row.querySelector('[data-task-progress-fill]'),progress=row.querySelector('[data-task-progress-value]'),outcome=row.querySelector('[data-task-timing-outcome],[data-task-due-state]');if(track){track.setAttribute('aria-valuenow',String(value));track.classList.toggle('is-overdue',Boolean(timing.overdue));}if(fill)fill.style.width=`${value}%`;if(progress)progress.textContent=`${value}%`;if(outcome){outcome.textContent=timing.outcome||'';outcome.classList.toggle('task-due-state--overdue',Boolean(timing.overdue));}});}catch(error){/* Retry through the next safe minute refresh. */}
+    try{const response=await fetch(`${window.location.pathname}${window.location.search}`,{method:'POST',body,headers:{'X-Requested-With':'XMLHttpRequest'}});const result=await response.json();if(!response.ok||result.success!==true)return;rows.forEach(row=>{const timing=result.tasks?.[row.dataset.taskId];if(!timing)return;const value=Math.max(0,Math.min(100,Number(timing.progress)||0)),track=row.querySelector('[data-task-progress-track]'),fill=row.querySelector('[data-task-progress-fill]'),progress=row.querySelector('[data-task-progress-value]'),outcome=row.querySelector('[data-task-timing-outcome],[data-task-due-state]'),label=row.dataset.savedStatus==='complete'?timing.outcome:timing.active_outcome;if(track){track.setAttribute('aria-valuenow',String(value));track.classList.toggle('is-overdue',Boolean(timing.overdue));}if(fill)fill.style.width=`${value}%`;if(progress)progress.textContent=`${value}%`;if(outcome){outcome.textContent=label||'';outcome.classList.toggle('task-due-state--overdue',Boolean(timing.overdue));}});}catch(error){/* Retry through the next safe minute refresh. */}
   };
   const refresh = () => {
     if (timer) window.clearTimeout(timer);
