@@ -20,7 +20,17 @@ if (($_GET['action'] ?? '') === 'logout') {
     logout_user();
 }
 
-$error = null;
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_SESSION['user']) && is_array($_SESSION['user']) && portal_validate_authenticated_session()) {
+    $destination = !empty($_SESSION['must_change_access_code'])
+        ? BASE_URL . '/change-access-code.php'
+        : portal_safe_return_path($_GET['return'] ?? null);
+    header('Location: ' . $destination, true, 303);
+    exit;
+}
+
+$error = ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['reason'] ?? '') === 'session_expired')
+    ? 'Your working-day session has expired. Please log in again.'
+    : null;
 $setupWarning = null;
 $opsLoginReady = false;
 
@@ -213,9 +223,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'role_key' => $employee['role_key'],
                     'source' => 'database',
                 ];
+                portal_initialize_authenticated_session($_SESSION['user']);
                 record_login_event($_SESSION['user'], 'database');
                 record_kpi_login_session((int) $_SESSION['user']['id']);
-                header('Location: index.php');
+                header('Location: ' . portal_safe_return_path($_GET['return'] ?? null), true, 303);
                 exit;
             }
 
@@ -241,6 +252,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'role_key' => $employee['role_key'],
                     'source' => 'database',
                 ];
+                portal_initialize_authenticated_session($_SESSION['user']);
                 $_SESSION['login_type'] = 'temporary_code';
                 $_SESSION['must_change_access_code'] = true;
                 record_login_event($_SESSION['user'], 'temporary_code');
