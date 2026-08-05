@@ -112,6 +112,16 @@
     q('[data-kpi-orders-overview]').innerHTML = `<div class="kpi-orders-overview-grid">${metrics.map(([label, value]) => `<article><small>${escapeHtml(label)}</small><strong>${escapeHtml(value ?? '—')}</strong><a href="${evidenceHref}" title="Evidence: ${Number(overview?.evidence_count || 0)} normalized order events">View Evidence</a></article>`).join('')}</div><div class="kpi-order-timing"><section><h3>Packer flow · New → In Progress</h3>${Object.entries(timing.packer || {}).map(([key, value]) => `<span><small>${escapeHtml(key.replaceAll('_', ' '))}</small><b>${escapeHtml(value || 'Not calculated')}</b></span>`).join('')}</section><section><h3>Front Desk flow · New → Complete</h3>${Object.entries(timing.front_desk || {}).map(([key, value]) => `<span><small>${escapeHtml(key.replaceAll('_', ' '))}</small><b>${escapeHtml(value || 'Not calculated')}</b></span>`).join('')}<span><small>In Progress → Complete average</small><b>${escapeHtml(timing.in_progress_to_complete || 'Not calculated')}</b></span></section></div>`;
   }
 
+  function renderRecognition(recognition) {
+    const periodLabel = `${recognition?.period?.from || ''} to ${recognition?.period?.to || ''}`;
+    const award = (item, risk = false) => {
+      if (item.status === 'not_determined') return `<article class="kpi-recognition-card is-undetermined"><small>${escapeHtml(item.title)}</small><strong>Not determined</strong><p>${escapeHtml(item.message || 'Insufficient comparable evidence.')}</p><em>${escapeHtml(item.confidence || 'Insufficient evidence')}</em></article>`;
+      const winners = item.winners || [];
+      return `<article class="kpi-recognition-card ${risk ? 'is-risk' : 'is-strength'}"><small>${escapeHtml(item.title)}${item.tie ? ' · Tie' : ''}</small>${winners.map((winner) => `<div><strong>${escapeHtml(winner.employee)}</strong><span>${escapeHtml(winner.role)}</span><b>${escapeHtml(winner.metric)}: ${escapeHtml(winner.display)}</b><p>Numerator: ${escapeHtml(winner.numerator)} · Denominator: ${escapeHtml(winner.denominator)} · ${escapeHtml(periodLabel)}</p><em>Confidence: ${escapeHtml(item.confidence || 'Calculated')}</em><a href="kpi-employee.php?id=${Number(winner.employee_id)}&period=${encodeURIComponent(period.value)}">View Evidence</a></div>`).join('')}</article>`;
+    };
+    q('[data-kpi-recognition]').innerHTML = `<section><header><p class="eyebrow">Overall Recognition</p><h2>Evidence-qualified results</h2></header><div>${(recognition?.overall || []).map((item) => award(item)).join('')}</div></section><section><header><p class="eyebrow">Role-Specific Strengths</p><h2>Individual operational strengths</h2></header><div>${(recognition?.strengths || []).map((item) => award(item)).join('')}</div></section><section class="is-priorities"><header><p class="eyebrow">Current Improvement Priorities</p><h2>Operational risk indicators</h2></header><div>${(recognition?.risks || []).map((item) => award(item, true)).join('')}</div></section>`;
+  }
+
   function renderManagementStory(data) {
     const cards = data.cards || {};
     const measured = Object.values(cards).filter((metric) => metric && metric.value !== null);
@@ -140,7 +150,7 @@
   }
 
   function presentationSections() {
-    return [...root.querySelectorAll('[data-kpi-management-story], [data-kpi-cards], [data-kpi-management-flow], .kpi-health-columns, .kpi-management-comparison, .kpi-chart-grid')];
+    return [...root.querySelectorAll('[data-kpi-management-story], [data-kpi-recognition], [data-kpi-cards], [data-kpi-management-flow], .kpi-health-columns, .kpi-management-comparison, .kpi-chart-grid')];
   }
 
   function showPresentationSection(index) {
@@ -188,7 +198,7 @@
       q('[data-kpi-caption]').textContent = `${data.period.from} to ${data.period.to}`;
       q('[data-kpi-adoption]').textContent = `Averages calculated from ${new Date(`${data.period.adoption_date}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} (system adoption date).`;
       q('[data-kpi-adoption]').hidden = !data.period.show_adoption_banner;
-      renderCards(data.cards); renderManagementStory(data); renderOperationalFlow(data); renderOrdersOverview(data.orders_overview, data.operational_score, data.operational_score_message); renderScores(data.scores, data.scores_disabled ? data.scores_message : ''); renderAttention(data.attention); renderTeam(data.team); renderManagementComparison(data.team); renderCharts(data);
+      renderCards(data.cards); renderManagementStory(data); renderRecognition(data.recognition); renderOperationalFlow(data); renderOrdersOverview(data.orders_overview, data.operational_score, data.operational_score_message); renderScores(data.scores, data.scores_disabled ? data.scores_message : ''); renderAttention(data.attention); renderTeam(data.team); renderManagementComparison(data.team); renderCharts(data);
     } catch (error) {
       root.querySelectorAll('.is-loading').forEach((node) => node.classList.remove('is-loading'));
       q('[data-kpi-error]').textContent = error.message;
