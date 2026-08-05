@@ -28,7 +28,7 @@ $metricLabels = [
     'average_completion_minutes'=>'Average completion (business min)','evidence_count'=>'Evidence records','activity_count'=>'Activity records',
 ];
 ?>
-<main class="workspace module">
+<main class="workspace module epi-page">
   <section class="module-header">
     <div><p class="eyebrow">Employee Performance Intelligence · Phase 2 verification</p><h1>Front Desk &amp; Orders Performance</h1><p>Plain verification view. No score is calculated and no existing Employee Performance page is changed.</p></div>
   </section>
