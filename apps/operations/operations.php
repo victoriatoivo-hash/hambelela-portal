@@ -819,6 +819,15 @@ function ops_activity_log(string $action, string $entityType, int $entityId, arr
             // Orders remains operational even if the background EPI subsystem is unavailable.
         }
     }
+
+    // Explicit Packing-module bridge only. It is fail-safe, feature-flagged and runs on saves, never page load.
+    if ($entityType === 'packing_task') {
+        try {
+            \Hambelela\EPI\PackingActivityBridge::record(db(), $action, $entityId, $metadata);
+        } catch (Throwable $e) {
+            // Packing remains operational even if background EPI recording is unavailable.
+        }
+    }
 }
 
 function ops_log_order_stage_event(int $orderId, string $stageKey, array $metadata = [], ?int $employeeId = null): void

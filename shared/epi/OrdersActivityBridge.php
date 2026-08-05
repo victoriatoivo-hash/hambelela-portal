@@ -58,6 +58,7 @@ final class OrdersActivityBridge
                 'order_id' => $orderId,
                 'customer' => (string) ($order['customer_name'] ?? ''),
                 'customer_contact' => (string) ($order['customer_contact'] ?? ''),
+                'order_created_at' => (string) ($order['created_at'] ?? ''),
                 'order_type' => $orderType,
                 'is_walk_in' => $walkIn,
                 'payment_method' => (string) ($order['payment_method'] ?? ''),
@@ -106,6 +107,7 @@ final class OrdersActivityBridge
 
             self::recordOwnership($reference, $actor, $action, $activityMetadata, $occurredAt);
             self::recordCandidateEvidence($pdo, $reference, $actor, $action, $occurredAt, $metadata, $overdue, $workingMinutes, $evidenceUuid);
+            self::recordPackingCompletion($pdo, $reference, $actor, $occurredAt, $statusBefore, $statusAfter, $metadata, $workingMinutes, $evidenceUuid);
         } catch (Throwable $error) {
             self::logFailure($error, $legacyAction, $orderId);
         }
@@ -255,6 +257,60 @@ final class OrdersActivityBridge
             'deduplication_key' => Support::dedupe(['orders-candidate', $reference, $candidate, $occurredAt->format('Y-m-d H:i:s')]),
             'metadata' => array_merge($metadata, ['source_evidence_uuid' => $sourceEvidence, 'candidate_only' => true]),
         ]);
+    }
+
+    /** Phase 3: In Progress is the existing Orders-board signal that packing is ready for the next stage. */
+    private static function recordPackingCompletion(PDO $pdo, string $reference, array $actor, DateTimeImmutable $occurredAt, string $before, string $after, array $metadata, ?float $workingMinutes, ?string $sourceEvidence): void
+    {
+        if ($after !== 'in_progress' || $before === 'in_progress') return;
+        try {
+            $flag = $pdo->query("SELECT setting_value FROM epi_employee_performance_settings WHERE setting_key='packing_module_enabled' LIMIT 1")->fetchColumn();
+            if ($flag !== false && !in_array(strtolower(trim((string)$flag)), ['1','true','yes','on'], true)) return;
+        } catch (Throwable $error) { return; }
+        $mode = (string)($metadata['order_type'] ?? 'unknown');
+        $walkIn = !empty($metadata['is_walk_in']);
+        $dueAt = $mode === 'courier' ? self::courierPackingDueAt($pdo, (string)($metadata['created_at'] ?? $metadata['order_created_at'] ?? '')) : null;
+        $missed = $dueAt instanceof DateTimeImmutable && $occurredAt > $dueAt;
+        $packingMetadata = array_merge($metadata, [
+            'packing_stage_semantics'=>'Orders In Progress means packed and ready for next stage',
+            'packing_classification'=>$walkIn ? 'walk_in_assistance' : $mode,
+            'courier_due_at'=>$dueAt ? $dueAt->format('Y-m-d H:i:s') : null,
+            'courier_cutoff_missed'=>$missed,
+            'source_evidence_uuid'=>$sourceEvidence,
+        ]);
+        $packingUuid = Performance::recordEvidence([
+            'module'=>'Packing','reference_number'=>$reference,'employee_id'=>$actor['id'] ?? null,'employee_name'=>$actor['name'] ?? null,
+            'department'=>'Packing','action'=>'order_packed','action_description'=>'Order packing completed for '.$reference,
+            'status_before'=>$before ?: null,'status_after'=>$after,'timestamp'=>$occurredAt,'working_minutes'=>$workingMinutes,
+            'manual'=>true,'activity_source'=>'orders_status_transition:in_progress',
+            'deduplication_key'=>Support::dedupe(['packing-order',$reference,$actor['id'] ?? '',$occurredAt->format('Y-m-d H:i:s')]),'metadata'=>$packingMetadata,
+        ]);
+        if ($missed) Performance::recordEvidence([
+            'module'=>'Packing','reference_number'=>$reference,'employee_id'=>$actor['id'] ?? null,'employee_name'=>$actor['name'] ?? null,'department'=>'Packing',
+            'action'=>'deduction_candidate_courier_cutoff_missed','action_description'=>'Potential deduction: courier packing cut-off missed',
+            'timestamp'=>$occurredAt,'working_minutes'=>$workingMinutes,'manual'=>false,'activity_source'=>'packing_epi_candidate_engine',
+            'deduplication_key'=>Support::dedupe(['packing-courier-missed',$reference,$occurredAt->format('Y-m-d H:i:s')]),
+            'metadata'=>array_merge($packingMetadata,['candidate_only'=>true,'review_status'=>'pending_owner_review','source_evidence_uuid'=>$packingUuid]),
+        ]);
+        elseif ($mode === 'courier') Performance::recordEvidence([
+            'module'=>'Packing','reference_number'=>$reference,'employee_id'=>$actor['id'] ?? null,'employee_name'=>$actor['name'] ?? null,'department'=>'Packing',
+            'action'=>'bonus_candidate_courier_ready_before_cutoff','action_description'=>'Positive evidence: courier ready before cut-off',
+            'timestamp'=>$occurredAt,'manual'=>false,'activity_source'=>'packing_epi_candidate_engine',
+            'deduplication_key'=>Support::dedupe(['packing-courier-ontime',$reference,$occurredAt->format('Y-m-d H:i:s')]),
+            'metadata'=>array_merge($packingMetadata,['candidate_only'=>true,'source_evidence_uuid'=>$packingUuid]),
+        ]);
+    }
+
+    private static function courierPackingDueAt(PDO $pdo, string $loadedAt): ?DateTimeImmutable
+    {
+        if (trim($loadedAt)==='') return null;
+        try {
+            $cutoff='14:00';$stmt=$pdo->prepare("SELECT setting_value FROM epi_employee_performance_settings WHERE setting_key='packing_courier_cutoff' LIMIT 1");$stmt->execute();$saved=(string)$stmt->fetchColumn();if(preg_match('/^\d{2}:\d{2}$/',$saved))$cutoff=$saved;
+            list($hour,$minute)=array_map('intval',explode(':',$cutoff));$engine=new BusinessTimeEngine($pdo);$loaded=Support::timestamp($loadedAt);$window=$engine->windowForDate($loaded);
+            if($window!==null){$same=$loaded->setTime($hour,$minute);if($loaded<$same&&$same<=$window[1])return Performance::graceDueAt('packing_courier_cutoff',$same);}
+            $cursor=$loaded->modify('+1 day')->setTime(0,0);for($i=0;$i<370;$i++,$cursor=$cursor->modify('+1 day')){$next=$engine->windowForDate($cursor);if($next!==null){$due=$cursor->setTime($hour,$minute);if($due>$next[1])$due=$next[1];return Performance::graceDueAt('packing_courier_cutoff',$due);}}
+        } catch(Throwable $error) {}
+        return null;
     }
 
     private static function isAutomatic(string $action, array $metadata): bool
