@@ -22,3 +22,6 @@ require_once __DIR__ . '/CourierActivityBridge.php';
 require_once __DIR__ . '/CourierPerformance.php';
 require_once __DIR__ . '/BookkeepingActivityBridge.php';
 require_once __DIR__ . '/BookkeepingPerformance.php';
+require_once __DIR__ . '/AttendanceActivityBridge.php';
+require_once __DIR__ . '/AttendancePerformance.php';
+require_once __DIR__ . '/PerformanceScore.php';

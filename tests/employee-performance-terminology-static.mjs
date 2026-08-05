@@ -13,6 +13,7 @@ const employeesJs = read('assets/js/reports-employees.js');
 const businessHealthJs = read('assets/js/reports-business-health.js');
 const performanceJs = read('assets/js/reports-performance.js');
 const exportApi = read('apps/operations/reports-performance-reports-data.php');
+const epiDashboard = read('apps/operations/epi-dashboard.php');
 
 assert.match(sidebar, /'label' => 'Employee Performance'/);
 assert.match(features, /'Employee Performance'/);
@@ -24,8 +25,10 @@ assert.match(employee, /’s Performance Profile<\/h1>/);
 assert.match(employee, /aria-label="Employee Performance sections"/);
 assert.match(employeeJs, /Performance evidence/);
 assert.match(exportApi, /employee-performance-evidence-/);
+assert.match(epiDashboard, /<h1>Employee Performance<\/h1>/);
+assert.match(epiDashboard, /Monitor employee performance, scores, progress and supporting evidence\./);
 
-for (const [name, source] of Object.entries({ sidebar, features, dashboard, reports, employee, employeeJs, employeesJs, businessHealthJs, performanceJs })) {
+for (const [name, source] of Object.entries({ sidebar, features, dashboard, reports, employee, employeeJs, employeesJs, businessHealthJs, performanceJs, epiDashboard })) {
   assert.doesNotMatch(source, />[^<]*\bKPI\b[^<]*</, `${name} contains visible KPI text`);
   assert.doesNotMatch(source, /['"`]KPI (?:data|server|request|response|settings|sections|evidence)/, `${name} contains generated KPI interface text`);
 }

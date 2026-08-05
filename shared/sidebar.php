@@ -55,6 +55,14 @@ try {
     $taskOutstandingCount = 0;
 }
 
+$epiNavigationEnabled = false;
+try {
+    $epiNavigationEnabled = class_exists('Hambelela\\EPI\\Performance')
+        && \Hambelela\EPI\Performance::enabled();
+} catch (Throwable $epiNavigationError) {
+    $epiNavigationEnabled = false;
+}
+
 $portalNavItems = [
     ['id' => 'portal-dashboard', 'label' => 'Dashboard', 'icon' => 'dashboard', 'href' => '/index.php', 'match' => ['/index.php']],
     ['id' => 'operations-orders', 'label' => 'Orders', 'icon' => 'orders', 'href' => BASE_URL . '/apps/operations/orders-board.php', 'match' => ['/apps/operations/orders-board.php']],
@@ -64,7 +72,7 @@ $portalNavItems = [
     ['id' => 'hr-portal', 'label' => 'HR Portal', 'icon' => 'hr', 'href' => BASE_URL . '/apps/hr-portal/portal-login.php', 'match' => ['/apps/hr-portal/portal-login.php', '/apps/hr-portal/index.php']],
     ['id' => 'operations-inventory', 'label' => 'Inventory', 'icon' => 'inventory', 'href' => BASE_URL . '/apps/operations/orders.php?tab=inventory', 'match' => ['/apps/operations/orders.php']],
     ['id' => 'operations-pos-reports', 'label' => 'POS Reports', 'icon' => 'reports', 'href' => BASE_URL . '/apps/operations/orders.php', 'match' => ['/apps/operations/orders.php']],
-    ['id' => 'kpi', 'label' => 'Employee Performance', 'icon' => 'kpi', 'href' => BASE_URL . '/apps/operations/reports.php', 'match' => ['/apps/operations/reports.php']],
+    ['id' => 'kpi', 'label' => 'Employee Performance', 'icon' => 'kpi', 'href' => BASE_URL . ($epiNavigationEnabled ? '/apps/operations/epi-dashboard.php' : '/apps/operations/reports.php'), 'match' => $epiNavigationEnabled ? ['/apps/operations/epi-dashboard.php'] : ['/apps/operations/reports.php']],
     ['id' => 'operations-checklists', 'label' => 'Task Management', 'icon' => 'tasks', 'href' => BASE_URL . '/apps/operations/checklists.php', 'match' => ['/apps/operations/checklists.php'], 'badge' => $taskOutstandingCount, 'badge_label' => $taskOutstandingCount > 99 ? '99+' : (string) $taskOutstandingCount],
     ['id' => 'operations-errors', 'label' => 'Error Log', 'icon' => 'errors', 'href' => BASE_URL . '/apps/operations/errors.php', 'match' => ['/apps/operations/errors.php']],
     ['id' => 'settings', 'label' => 'Settings', 'icon' => 'settings', 'href' => BASE_URL . '/apps/operations/my-account.php', 'match' => ['/apps/operations/my-account.php']],
