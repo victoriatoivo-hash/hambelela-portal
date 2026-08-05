@@ -78,6 +78,12 @@ $settingFields = [
     'courier_following_applicable_day_rule' => ['Courier performance following day rule (calendar_day, business_day, courier_service_day or not_configured)', 'text', 'not_configured'],
     'courier_morning_inference_enabled' => ['Courier performance morning inference (0 disabled, 1 enabled)', 'number', '0'],
     'courier_late_response_target_minutes' => ['Courier performance response target after late upload (0 means no automatic target)', 'number', '0'],
+    'courier_sameday_cutoff' => ['Performance reports: same-day courier cutoff', 'time', '17:00'],
+    'courier_nextday_cutoff' => ['Performance reports: next-working-day courier cutoff', 'time', '09:00'],
+    'walkin_mode_value' => ['Performance reports: stored walk-in mode value', 'text', 'walk_in'],
+    'cash_payment_values' => ['Performance reports: cash payment values', 'text', 'cash'],
+    'walkin_completion_target_minutes' => ['Performance reports: walk-in completion target (minutes)', 'number', '60'],
+    'report_weights' => ['Performance reports: role section weights (JSON)', 'text', '{"packer":{"packing":35,"orders":20,"tasks":15,"waybills":10,"quality":10,"attendance":10},"front_desk":{"bookkeeping":30,"orders":25,"tasks":15,"waybills":10,"quality":10,"attendance":10}}'],
 ];
 
 if ($ready && $tab === 'settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -272,7 +278,7 @@ include BASE_PATH . '/shared/sidebar.php';
         <script src="<?= BASE_URL ?>/assets/js/reports-employees.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/reports-employees.js') ?>"></script>
     <?php elseif ($tab === 'performance-reports'): ?>
         <section class="performance-report-controls" aria-label="Performance report filters">
-            <label><span>Reporting period</span><select data-performance-period><option value="today">Today</option><option value="this_week">This week</option><option value="last_week">Last week</option><option value="this_month">This month</option><option value="last_month">Last month</option><option value="since_trusted">Since trusted start date</option><option value="custom">Custom date range</option></select></label>
+            <label><span>Reporting period</span><select data-performance-period><option value="since_adoption">Since adoption (14 Jul 2026)</option><option value="today">Today</option><option value="this_week">This week</option><option value="last_week">Last week</option><option value="this_month">This month</option><option value="last_month">Last month</option><option value="custom">Custom date range</option></select></label>
             <label data-performance-custom hidden><span>From</span><input type="date" data-performance-from></label><label data-performance-custom hidden><span>To</span><input type="date" data-performance-to></label>
             <label><span>Employee</span><select data-performance-employee><option value="0">All employees</option></select></label>
             <label><span>Role</span><select data-performance-role><option value="all">All roles</option><option value="packer">Packers</option><option value="front_desk">Front desk</option></select></label>
