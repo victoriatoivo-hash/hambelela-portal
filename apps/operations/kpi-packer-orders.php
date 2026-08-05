@@ -58,7 +58,13 @@ function kpi_packer_orders_evidence(array $employee, string $fromSql, string $to
         [$employeeId, $fromSql, $toSql]
     );
 
-    $session = ops_rows('SELECT COALESCE(SUM(TIMESTAMPDIFF(SECOND,login_at,COALESCE(explicit_logout_at,logout_at,last_seen_at))),0) seconds FROM kpi_sessions WHERE user_id=? AND login_at BETWEEN ? AND ?', [$employeeId,$fromSql,$toSql])[0] ?? [];
+    // Older live schemas do not have explicit_logout_at yet. Build the
+    // aggregate from columns that actually exist instead of failing the whole
+    // Orders report for an optional productivity metric.
+    $sessionEnd = ops_column_exists('kpi_sessions', 'explicit_logout_at')
+        ? 'COALESCE(explicit_logout_at,logout_at,last_seen_at)'
+        : 'COALESCE(logout_at,last_seen_at)';
+    $session = ops_rows("SELECT COALESCE(SUM(TIMESTAMPDIFF(SECOND,login_at,{$sessionEnd})),0) seconds FROM kpi_sessions WHERE user_id=? AND login_at BETWEEN ? AND ?", [$employeeId,$fromSql,$toSql])[0] ?? [];
     $hours = max(0.0, (float) ($session['seconds'] ?? 0) / 3600);
     $qualityRows = ops_rows("SELECT category,customer_impact FROM ops_error_logs WHERE responsible_employee_id=? AND affects_kpi_accuracy=1 AND accuracy_verified_by IS NOT NULL AND logged_at BETWEEN ? AND ? AND deleted_at IS NULL", [$employeeId,$fromSql,$toSql]);
 
@@ -114,5 +120,10 @@ function kpi_packer_orders_evidence(array $employee, string $fromSql, string $to
         $metric('Heavy Orders Packed',$heavy,null,'Threshold: '.number_format($heavyThreshold,1).' kg.'),$metric('Light Orders Packed',$light),
         $metric('Packing Errors',$packingErrors),$metric('Missing Items',$missing),$metric('Wrong Items',$wrong),$metric('Returns Caused by Packing',$returns),$metric('Customer Complaints',$complaints),
     ];
-    return ['rows'=>$rows,'metrics'=>$metrics,'counts'=>$counts,'lead_minutes'=>0,'historical'=>true,'timestamp_coverage'=>['complete'=>$counts['total']-$counts['incomplete_timing'],'incomplete'=>$counts['incomplete_timing']],'weight_threshold_kg'=>$heavyThreshold];
+    // Keep the owner Orders report contract in sync with the richer employee
+    // evidence response. These aliases are derived from the same single-pass
+    // order set; they do not trigger per-order activity-log queries.
+    $counts['courier_ready']=$counts['before_14'];
+    $counts['review']=$counts['incomplete_timing'];
+    return ['rows'=>$rows,'metrics'=>$metrics,'counts'=>$counts,'average_minutes'=>kpi_packer_average($turnaround),'lead_minutes'=>0,'historical'=>true,'timestamp_coverage'=>['complete'=>$counts['total']-$counts['incomplete_timing'],'incomplete'=>$counts['incomplete_timing']],'weight_threshold_kg'=>$heavyThreshold];
 }
