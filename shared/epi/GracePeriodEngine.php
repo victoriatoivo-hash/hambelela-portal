@@ -39,4 +39,22 @@ final class GracePeriodEngine
         }
         return Support::timestamp($start)->modify('+' . $minutes . ' minutes');
     }
+
+    public function resolve(string $globalKey, ?string $moduleKey = null, ?array $recordOverride = null, ?DateTimeImmutable $at = null): array
+    {
+        $at = $at ?: new DateTimeImmutable('now');
+        if ($recordOverride && !empty($recordOverride['is_active'])) {
+            $expires = !empty($recordOverride['expires_at']) ? new DateTimeImmutable((string) $recordOverride['expires_at']) : null;
+            if ($expires === null || $expires > $at) {
+                return $recordOverride + ['source' => 'record'];
+            }
+        }
+        if ($moduleKey !== null) {
+            try {
+                return $this->get($moduleKey) + ['source' => 'module'];
+            } catch (RuntimeException $ignored) {
+            }
+        }
+        return $this->get($globalKey) + ['source' => 'global'];
+    }
 }

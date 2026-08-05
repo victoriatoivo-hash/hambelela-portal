@@ -27,7 +27,16 @@ assert.match(verifier, /'Orders', 'Packing List', 'Tasks', 'Courier', 'Bookkeepi
 assert.match(verifier, /'test_data' => true/);
 assert.match(verifier, /'excluded_from_scoring' => true/);
 assert.match(verifier, /deduplicated/);
+assert.match(verifier, /friday_to_monday/);
+assert.match(verifier, /saturday_exact/);
+assert.match(verifier, /public_holiday/);
+assert.match(verifier, /status_correction/);
+assert.match(verifier, /ownership_correction/);
+assert.match(verifier, /reference_correction/);
+assert.match(verifier, /controlled_failure/);
+assert.match(verifier, /Urgent notification verification/);
 assert.match(settings, /Recording Test Mode/);
+assert.match(settings, /View structured verification evidence/);
 assert.match(settings, /Enabled — reserved for later approval/);
 assert.match(settings, /Only Owner\/Admin can manage EPI recovery settings/);
 assert.match(scoring, /recording_mode<>'test'/);
