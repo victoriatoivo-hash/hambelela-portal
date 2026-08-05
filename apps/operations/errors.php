@@ -98,6 +98,15 @@ function error_bootstrap_schema(): void
         'order_reference' => "ALTER TABLE ops_error_logs ADD COLUMN order_reference VARCHAR(60) NULL AFTER order_id",
         'people_involved' => "ALTER TABLE ops_error_logs ADD COLUMN people_involved TEXT NULL AFTER employee_id",
         'responsible_employee_id' => "ALTER TABLE ops_error_logs ADD COLUMN responsible_employee_id INT NULL AFTER employee_id",
+        'attribution_type' => "ALTER TABLE ops_error_logs ADD COLUMN attribution_type VARCHAR(30) NULL AFTER responsible_employee_id",
+        'attributed_employee_id' => "ALTER TABLE ops_error_logs ADD COLUMN attributed_employee_id INT NULL AFTER attribution_type",
+        'original_attribution_type' => "ALTER TABLE ops_error_logs ADD COLUMN original_attribution_type VARCHAR(30) NULL AFTER attributed_employee_id",
+        'original_attributed_employee_id' => "ALTER TABLE ops_error_logs ADD COLUMN original_attributed_employee_id INT NULL AFTER original_attribution_type",
+        'logged_by_user_id' => "ALTER TABLE ops_error_logs ADD COLUMN logged_by_user_id INT NULL AFTER logged_by",
+        'has_financial_impact' => "ALTER TABLE ops_error_logs ADD COLUMN has_financial_impact TINYINT(1) NULL AFTER financial_impact",
+        'financial_impact_notes' => "ALTER TABLE ops_error_logs ADD COLUMN financial_impact_notes TEXT NULL AFTER has_financial_impact",
+        'attribution_verified_by' => "ALTER TABLE ops_error_logs ADD COLUMN attribution_verified_by INT NULL AFTER accuracy_verified_at",
+        'attribution_verified_at' => "ALTER TABLE ops_error_logs ADD COLUMN attribution_verified_at DATETIME NULL AFTER attribution_verified_by",
         'packing_task_id' => "ALTER TABLE ops_error_logs ADD COLUMN packing_task_id INT NULL AFTER order_id",
         'affects_kpi_accuracy' => "ALTER TABLE ops_error_logs ADD COLUMN affects_kpi_accuracy TINYINT(1) NOT NULL DEFAULT 0 AFTER packing_task_id",
         'accuracy_verified_by' => "ALTER TABLE ops_error_logs ADD COLUMN accuracy_verified_by INT NULL AFTER affects_kpi_accuracy",
@@ -115,6 +124,37 @@ function error_bootstrap_schema(): void
     error_try_sql("UPDATE ops_error_logs SET error_title = category WHERE error_title IS NULL OR error_title = ''");
     error_try_sql("UPDATE ops_error_logs SET status = 'open' WHERE status IS NULL OR status = ''");
     error_try_sql("UPDATE ops_error_logs SET status = 'open' WHERE status = 'in_review'");
+    error_try_sql("UPDATE ops_error_logs SET attribution_type='employee', attributed_employee_id=responsible_employee_id, original_attribution_type='employee', original_attributed_employee_id=responsible_employee_id WHERE attribution_type IS NULL AND responsible_employee_id IS NOT NULL");
+}
+
+function error_parse_attribution(array $employeeMap): array
+{
+    $type=trim((string)($_POST['attribution_type']??''));
+    if(!in_array($type,['employee','delivery_driver','business'],true))throw new RuntimeException('Please select who this error is being logged for.');
+    $employeeId=max(0,(int)($_POST['attributed_employee_id']??0))?:null;
+    if($type==='employee'&&(!$employeeId||!isset($employeeMap[$employeeId])))throw new RuntimeException('Select a valid employee.');
+    if($type!=='employee')$employeeId=null;
+    return[$type,$employeeId];
+}
+
+function error_parse_financial_impact(): array
+{
+    $choice=(string)($_POST['has_financial_impact']??'');
+    if(!in_array($choice,['0','1'],true))throw new RuntimeException('Please indicate whether this error has a financial impact.');
+    if($choice==='0')return[0,'0.00',''];
+    $amount=trim((string)($_POST['financial_impact_amount']??''));
+    if(!preg_match('/^(?:0|[1-9]\d{0,9})(?:\.\d{1,2})?$/',$amount))throw new RuntimeException('Enter the financial impact amount.');
+    [$whole,$fraction]=array_pad(explode('.',$amount,2),2,'');$fraction=str_pad($fraction,2,'0');
+    if(trim($whole,'0')===''&&(int)$fraction===0)throw new RuntimeException('Enter the financial impact amount.');
+    $whole=ltrim($whole,'0')?:'0';return[1,$whole.'.'.$fraction,ops_post_string('financial_impact_notes',1000)];
+}
+
+function error_attribution_label(array $row,array $employeeMap): string
+{
+    $type=(string)($row['attribution_type']??'');$employeeId=(int)($row['attributed_employee_id']??$row['responsible_employee_id']??0);
+    if($type==='delivery_driver')return'Delivery Driver';if($type==='business')return'Business Error';
+    if(($type==='employee'||$type==='')&&$employeeId>0)return(string)($employeeMap[$employeeId]??'Unknown employee');
+    return'Awaiting owner review';
 }
 
 function error_json_array(?string $value): array
@@ -207,7 +247,9 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $category = ops_post_string('category', 100);
             $otherCategory = ops_post_string('other_category', 100);
             $severity = ops_post_string('severity', 20);
-            $people = array_values(array_filter(array_map('intval', $_POST['people_involved'] ?? [])));
+            [$attributionType,$responsibleEmployeeId]=error_parse_attribution($employeeMap);
+            [$hasFinancialImpact,$financialImpact,$financialImpactNotes]=error_parse_financial_impact();
+            $people=$responsibleEmployeeId?[$responsibleEmployeeId]:[];
             if ($title === '') throw new RuntimeException('Error title is required.');
             if ($description === '') throw new RuntimeException('Description is required.');
             if ($category === 'other') {
@@ -217,25 +259,25 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('Choose an error category.');
             }
             if (!array_key_exists($severity, $severityLabels)) throw new RuntimeException('Choose a severity.');
-            if (!$people) throw new RuntimeException('Select at least one person involved.');
-
             $primaryEmployeeId = $people[0] ?? null;
-            $responsibleEmployeeId = max(0, (int) ($_POST['responsible_employee_id'] ?? 0)) ?: null;
-            if ($responsibleEmployeeId !== null && !isset($employeeMap[$responsibleEmployeeId])) throw new RuntimeException('Choose a valid responsible employee.');
             $packingTaskId = max(0, (int) ($_POST['packing_task_id'] ?? 0)) ?: null;
-            $affectsAccuracy = (int) ($_POST['affects_kpi_accuracy'] ?? 0) === 1 ? 1 : 0;
+            $affectsAccuracy = $attributionType==='employee'&&(int) ($_POST['affects_kpi_accuracy'] ?? 0) === 1 ? 1 : 0;
             $accuracyVerified = $isOwnerErrorUser && (int) ($_POST['accuracy_verified'] ?? 0) === 1 && $responsibleEmployeeId && $affectsAccuracy;
             $orderReference = ops_post_string('order_reference', 60);
             $status = ops_post_string('status', 30) ?: 'open';
             if (!array_key_exists($status, $statusLabels)) $status = 'open';
             $stmt = db()->prepare(
                 "INSERT INTO ops_error_logs
-                 (error_title, employee_id, responsible_employee_id, people_involved, order_id, packing_task_id, affects_kpi_accuracy, accuracy_verified_by, accuracy_verified_at, order_reference, category, severity, description, customer_impact, financial_impact, resolution, repeat_issue, repeat_note, status, logged_by)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                 (error_title, employee_id, responsible_employee_id, attribution_type, attributed_employee_id, original_attribution_type, original_attributed_employee_id, people_involved, order_id, packing_task_id, affects_kpi_accuracy, accuracy_verified_by, accuracy_verified_at, attribution_verified_by, attribution_verified_at, order_reference, category, severity, description, customer_impact, financial_impact, has_financial_impact, financial_impact_notes, resolution, repeat_issue, repeat_note, status, logged_by, logged_by_user_id)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             );
             $stmt->execute([
                 $title,
                 $primaryEmployeeId,
+                $responsibleEmployeeId,
+                $attributionType,
+                $responsibleEmployeeId,
+                $attributionType,
                 $responsibleEmployeeId,
                 json_encode($people, JSON_UNESCAPED_SLASHES),
                 null,
@@ -243,17 +285,22 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $affectsAccuracy,
                 $accuracyVerified ? $currentEmployeeId : null,
                 $accuracyVerified ? date('Y-m-d H:i:s') : null,
+                $accuracyVerified ? $currentEmployeeId : null,
+                $accuracyVerified ? date('Y-m-d H:i:s') : null,
                 $orderReference ?: null,
                 $category,
                 $severity,
                 $description,
                 '',
-                (float) ($_POST['financial_impact'] ?? 0),
+                $financialImpact,
+                $hasFinancialImpact,
+                $financialImpactNotes?:null,
                 ops_post_string('resolution', 1500),
                 (int) ($_POST['repeat_issue'] ?? 0) === 1 ? 1 : 0,
                 '',
                 $status,
                 $currentEmployeeId,
+                (int)(current_user()['id']??0)?:null,
             ]);
             $errorId = (int) db()->lastInsertId();
             $paths = error_upload_files($errorId);
@@ -261,7 +308,8 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = db()->prepare('UPDATE ops_error_logs SET attachment_paths = ? WHERE id = ?');
                 $stmt->execute([json_encode($paths, JSON_UNESCAPED_SLASHES), $errorId]);
             }
-            ops_activity_log('error_logged', 'error_log', $errorId, ['severity' => $severity, 'category' => $category, 'people_involved' => $people, 'responsible_employee_id' => $responsibleEmployeeId, 'packing_task_id' => $packingTaskId, 'affects_kpi_accuracy' => $affectsAccuracy, 'accuracy_verified' => $accuracyVerified]);
+            $eventMeta=['severity'=>$severity,'category'=>$category,'logged_by_user_id'=>(int)(current_user()['id']??0),'logged_by_employee_id'=>$currentEmployeeId,'attribution_type'=>$attributionType,'attributed_employee_id'=>$responsibleEmployeeId,'has_financial_impact'=>$hasFinancialImpact,'financial_impact_amount'=>$financialImpact,'kpi_eligible'=>$attributionType==='employee'&&$accuracyVerified,'business_health_eligible'=>true];
+            ops_activity_log('error_logged','error_log',$errorId,$eventMeta);ops_kpi_record_event('error_log','error',$errorId,'error_created',null,$attributionType,$currentEmployeeId,['metadata'=>$eventMeta]);ops_kpi_record_event('error_log','error',$errorId,'attribution_selected',null,$attributionType,$currentEmployeeId,['metadata'=>$eventMeta]);ops_kpi_record_event('error_log','error',$errorId,'financial_impact_selected',null,$hasFinancialImpact?'yes':'no',$currentEmployeeId,['metadata'=>$eventMeta]);
             notifications_create_for_roles([
                 'title' => $severity === 'critical' ? 'Critical error logged' : 'New error logged',
                 'message' => $title,
@@ -292,7 +340,9 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $category = ops_post_string('category', 100);
             $otherCategory = ops_post_string('other_category', 100);
             $severity = ops_post_string('severity', 20);
-            $people = array_values(array_filter(array_map('intval', $_POST['people_involved'] ?? [])));
+            [$attributionType,$responsibleEmployeeId]=error_parse_attribution($employeeMap);
+            [$hasFinancialImpact,$financialImpact,$financialImpactNotes]=error_parse_financial_impact();
+            $people=$responsibleEmployeeId?[$responsibleEmployeeId]:[];
             if ($title === '') throw new RuntimeException('Error title is required.');
             if ($description === '') throw new RuntimeException('Description is required.');
             if ($category === 'other') {
@@ -302,14 +352,15 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('Choose an error category.');
             }
             if (!array_key_exists($severity, $severityLabels)) throw new RuntimeException('Choose a severity.');
-            if (!$people) throw new RuntimeException('Select at least one person involved.');
-
             $status = ops_post_string('status', 30) ?: 'open';
             if (!array_key_exists($status, $statusLabels)) $status = 'open';
-            $responsibleEmployeeId = max(0, (int) ($_POST['responsible_employee_id'] ?? 0)) ?: null;
-            if ($responsibleEmployeeId !== null && !isset($employeeMap[$responsibleEmployeeId])) throw new RuntimeException('Choose a valid responsible employee.');
+            $oldAttribution=(string)($existing['attribution_type']??'');$oldAttributedEmployee=(int)($existing['attributed_employee_id']??$existing['responsible_employee_id']??0)?:null;
+            $attributionChanged=$oldAttribution!==$attributionType||$oldAttributedEmployee!==$responsibleEmployeeId;
+            $attributionNote=ops_post_string('attribution_change_note',1000);
+            if($attributionChanged&&!$isOwnerErrorUser)throw new RuntimeException('Only an owner/admin may correct error attribution.');
+            if($attributionChanged&&$attributionNote==='')throw new RuntimeException('An owner/admin note is required to change attribution.');
             $packingTaskId = max(0, (int) ($_POST['packing_task_id'] ?? 0)) ?: null;
-            $affectsAccuracy = (int) ($_POST['affects_kpi_accuracy'] ?? 0) === 1 ? 1 : 0;
+            $affectsAccuracy = $attributionType==='employee'&&(int) ($_POST['affects_kpi_accuracy'] ?? 0) === 1 ? 1 : 0;
             $accuracyVerified = $isOwnerErrorUser && (int) ($_POST['accuracy_verified'] ?? 0) === 1 && $responsibleEmployeeId && $affectsAccuracy;
             $newData = [
                 'error_title' => $title,
@@ -318,10 +369,14 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 'severity' => $severity,
                 'people_involved' => $people,
                 'responsible_employee_id' => $responsibleEmployeeId,
+                'attribution_type'=>$attributionType,
+                'attributed_employee_id'=>$responsibleEmployeeId,
                 'packing_task_id' => $packingTaskId,
                 'affects_kpi_accuracy' => $affectsAccuracy,
                 'description' => $description,
-                'financial_impact' => (float) ($_POST['financial_impact'] ?? 0),
+                'financial_impact'=>$financialImpact,
+                'has_financial_impact'=>$hasFinancialImpact,
+                'financial_impact_notes'=>$financialImpactNotes,
                 'resolution' => ops_post_string('resolution', 1500),
                 'repeat_issue' => (int) ($_POST['repeat_issue'] ?? 0) === 1 ? 1 : 0,
                 'status' => $status,
@@ -338,28 +393,36 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $stmt = db()->prepare(
                 "UPDATE ops_error_logs
-                 SET error_title = ?, employee_id = ?, responsible_employee_id = ?, people_involved = ?, packing_task_id = ?, affects_kpi_accuracy = ?, accuracy_verified_by = ?, accuracy_verified_at = ?, order_reference = ?, category = ?, severity = ?, description = ?, financial_impact = ?, resolution = ?, repeat_issue = ?, status = ?
+                 SET error_title = ?, employee_id = ?, responsible_employee_id = ?, attribution_type=?, attributed_employee_id=?, people_involved = ?, packing_task_id = ?, affects_kpi_accuracy = ?, accuracy_verified_by = ?, accuracy_verified_at = ?, attribution_verified_by=?, attribution_verified_at=?, order_reference = ?, category = ?, severity = ?, description = ?, financial_impact = ?, has_financial_impact=?, financial_impact_notes=?, resolution = ?, repeat_issue = ?, status = ?
                  WHERE id = ? AND deleted_at IS NULL"
             );
             $stmt->execute([
                 $newData['error_title'],
                 $people[0] ?? null,
                 $responsibleEmployeeId,
+                $attributionType,
+                $responsibleEmployeeId,
                 json_encode($people, JSON_UNESCAPED_SLASHES),
                 $packingTaskId,
                 $affectsAccuracy,
                 $accuracyVerified ? $currentEmployeeId : null,
                 $accuracyVerified ? date('Y-m-d H:i:s') : null,
+                ($accuracyVerified||$attributionChanged)?$currentEmployeeId:null,
+                ($accuracyVerified||$attributionChanged)?date('Y-m-d H:i:s'):null,
                 $newData['order_reference'],
                 $newData['category'],
                 $newData['severity'],
                 $newData['description'],
                 $newData['financial_impact'],
+                $hasFinancialImpact,
+                $financialImpactNotes?:null,
                 $newData['resolution'],
                 $newData['repeat_issue'],
                 $newData['status'],
                 $errorId,
             ]);
+            if($attributionChanged){$audit=['previous_attribution_type'=>$oldAttribution?:'awaiting_owner_review','previous_attributed_employee_id'=>$oldAttributedEmployee,'new_attribution_type'=>$attributionType,'new_attributed_employee_id'=>$responsibleEmployeeId,'reason'=>$attributionNote,'actor_employee_id'=>$currentEmployeeId,'kpi_eligible'=>$attributionType==='employee'&&$accuracyVerified,'business_health_eligible'=>true];ops_activity_log('error_attribution_corrected','error_log',$errorId,$audit);ops_kpi_record_event('error_log','error',$errorId,'attribution_corrected',$oldAttribution?:null,$attributionType,$currentEmployeeId,['reason_note'=>$attributionNote,'metadata'=>$audit]);}
+            if(isset($changes['financial_impact'])||isset($changes['has_financial_impact'])){$financialAudit=['has_financial_impact'=>$hasFinancialImpact,'previous_financial_amount'=>(string)($existing['financial_impact']??''),'new_financial_amount'=>$financialImpact,'actor_employee_id'=>$currentEmployeeId,'business_health_eligible'=>true];ops_activity_log('error_financial_impact_changed','error_log',$errorId,$financialAudit);ops_kpi_record_event('error_log','error',$errorId,'financial_impact_changed',(string)($existing['financial_impact']??''),$financialImpact,$currentEmployeeId,['metadata'=>$financialAudit]);}
 
             $paths = error_upload_files($errorId);
             if ($paths) {
@@ -418,13 +481,15 @@ $filters = [
     'severity' => trim((string) ($_GET['severity'] ?? '')),
     'category' => trim((string) ($_GET['category'] ?? '')),
     'employee_id' => trim((string) ($_GET['employee_id'] ?? '')),
+    'logged_for'=>trim((string)($_GET['logged_for']??'')),
+    'financial_impact_filter'=>trim((string)($_GET['financial_impact_filter']??'')),
     'repeat_issue' => trim((string) ($_GET['repeat_issue'] ?? '')),
     'customer_impacted' => trim((string) ($_GET['customer_impacted'] ?? '')),
     'order_reference' => trim((string) ($_GET['order_reference'] ?? '')),
     'status' => trim((string) ($_GET['status'] ?? '')),
     'search' => trim((string) ($_GET['search'] ?? '')),
 ];
-$filtersAreActive = $filters['date_from'] !== '' || $filters['date_to'] !== '' || $filters['severity'] !== '' || $filters['category'] !== '' || $filters['employee_id'] !== '' || $filters['repeat_issue'] !== '' || $filters['customer_impacted'] !== '' || $filters['order_reference'] !== '' || $filters['status'] !== '' || $filters['search'] !== '';
+$filtersAreActive = $filters['date_from'] !== '' || $filters['date_to'] !== '' || $filters['severity'] !== '' || $filters['category'] !== '' || $filters['employee_id'] !== '' || $filters['logged_for']!=='' || $filters['financial_impact_filter']!=='' || $filters['repeat_issue'] !== '' || $filters['customer_impacted'] !== '' || $filters['order_reference'] !== '' || $filters['status'] !== '' || $filters['search'] !== '';
 
 $where = ['el.deleted_at IS NULL'];
 $params = [];
@@ -454,6 +519,8 @@ if ((int) $filters['employee_id'] > 0) {
     $where[] = $personSql;
     array_push($params, ...$personParams);
 }
+if(in_array($filters['logged_for'],['employee','delivery_driver','business'],true)){$where[]=$filters['logged_for']==='employee'?"(el.attribution_type='employee' OR (el.attribution_type IS NULL AND el.responsible_employee_id IS NOT NULL))":'el.attribution_type=?';if($filters['logged_for']!=='employee')$params[]=$filters['logged_for'];}
+if($filters['financial_impact_filter']==='yes')$where[]='el.has_financial_impact=1';elseif($filters['financial_impact_filter']==='no')$where[]='el.has_financial_impact=0';
 if ($isFrontDeskErrorUser && !$isOwnerErrorUser) {
     [$frontPersonSql, $frontPersonParams] = error_person_filter_sql('el', (int) $currentEmployeeId);
     $where[] = $frontPersonSql;
@@ -622,6 +689,8 @@ include BASE_PATH . '/shared/sidebar.php';
                 <label>Severity<select name="severity" data-portal-custom-select><option value="">All severity</option><?php ops_select_options($severityLabels, $filters['severity']); ?></select></label>
                 <label>Category<select name="category" data-portal-custom-select><option value="">All categories</option><?php ops_select_options($errorCategories, $filters['category']); ?></select></label>
                 <?php if ($showFullErrorLog): ?><label>Person involved<select name="employee_id" data-portal-custom-select><option value="">All people</option><?php foreach ($employees as $employee): ?><option value="<?= (int) $employee['id'] ?>" <?= (string) $employee['id'] === $filters['employee_id'] ? 'selected' : '' ?>><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></label><?php endif; ?>
+                <label>Logged for<select name="logged_for" data-portal-custom-select><?php ops_select_options([''=>'All','employee'=>'Employee','delivery_driver'=>'Delivery Driver','business'=>'Business Error'],$filters['logged_for']); ?></select></label>
+                <label>Financial impact<select name="financial_impact_filter" data-portal-custom-select><?php ops_select_options([''=>'All','yes'=>'Has financial impact','no'=>'No financial impact'],$filters['financial_impact_filter']); ?></select></label>
                 <label>Repeat error<select name="repeat_issue" data-portal-custom-select><?php ops_select_options(['' => 'All', '1' => 'Yes', '0' => 'No'], $filters['repeat_issue']); ?></select></label>
                 <label>Customer impacted<select name="customer_impacted" data-portal-custom-select><?php ops_select_options(['' => 'All', '1' => 'Yes', '0' => 'No'], $filters['customer_impacted']); ?></select></label>
                 <label>Order ID<input name="order_reference" value="<?= htmlspecialchars($filters['order_reference'], ENT_QUOTES, 'UTF-8') ?>" placeholder="#33863 or WEB-33780"></label>
@@ -650,6 +719,8 @@ include BASE_PATH . '/shared/sidebar.php';
                 <col class="col-severity">
                 <?php if ($showFullErrorLog): ?>
                     <col class="col-person">
+                    <col class="col-person">
+                    <col class="col-impact">
                     <col class="col-impact">
                 <?php endif; ?>
                 <col class="col-status">
@@ -669,6 +740,8 @@ include BASE_PATH . '/shared/sidebar.php';
                     <th scope="col">Severity</th>
                     <?php if ($showFullErrorLog): ?>
                         <th scope="col">Person Involved</th>
+                        <th scope="col">Logged For</th>
+                        <th scope="col">Financial Impact</th>
                         <th scope="col">Customer Impact</th>
                     <?php endif; ?>
                     <th scope="col">Status</th>
@@ -696,6 +769,8 @@ include BASE_PATH . '/shared/sidebar.php';
                         <td><?= htmlspecialchars($errorCategories[(string) $error['category']] ?? (string) $error['category'], ENT_QUOTES, 'UTF-8') ?></td>
                         <td><span class="error-board-severity severity-<?= htmlspecialchars($severity, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($severityLabels[$severity] ?? $severity, ENT_QUOTES, 'UTF-8') ?></span></td>
                         <td><?= htmlspecialchars($peopleText, ENT_QUOTES, 'UTF-8') ?></td>
+                        <td><?= htmlspecialchars(error_attribution_label($error,$employeeMap),ENT_QUOTES,'UTF-8') ?></td>
+                        <td><?= $error['has_financial_impact']===null?'Not historically captured':((int)$error['has_financial_impact']===1?'N$'.number_format((float)$error['financial_impact'],2):'No impact') ?></td>
                         <td><?= trim((string) ($error['customer_impact'] ?? '')) !== '' ? 'Yes' : 'No' ?></td>
                         <td><span class="error-board-status status-<?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($statusLabels[$status] ?? $status, ENT_QUOTES, 'UTF-8') ?></span></td>
                         <td><?= (int) ($error['repeat_issue'] ?? 0) === 1 ? 'Yes' : 'No' ?></td>
@@ -709,7 +784,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     <?php endif; ?>
                 </tr>
             <?php endforeach; ?>
-            <?php if (!$sectionErrors): ?><tr class="error-board-empty"><td colspan="<?= $showFullErrorLog ? 10 : 5 ?>">No <?= strtolower(htmlspecialchars($sectionTitle, ENT_QUOTES, 'UTF-8')) ?> found for the selected filters.</td></tr><?php endif; ?>
+            <?php if (!$sectionErrors): ?><tr class="error-board-empty"><td colspan="<?= $showFullErrorLog ? 12 : 5 ?>">No <?= strtolower(htmlspecialchars($sectionTitle, ENT_QUOTES, 'UTF-8')) ?> found for the selected filters.</td></tr><?php endif; ?>
             </tbody>
         </table>
         </div>
@@ -794,23 +869,20 @@ include BASE_PATH . '/shared/sidebar.php';
 
                 <section class="error-form-section incident-section">
                     <h3><i data-lucide="users-round"></i> Responsibility</h3>
-                    <div class="form-grid compact">
-                        <label>Responsible employee
-                            <select name="responsible_employee_id">
-                                <option value="">Not yet attributed</option>
-                                <?php foreach ($employees as $employee): ?><option value="<?= (int) $employee['id'] ?>"><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?>
-                            </select>
-                        </label>
-                        <label>Related Packing List row ID<input type="number" min="1" name="packing_task_id" placeholder="Optional"></label>
-                    </div>
+                    <fieldset class="error-attribution-field" id="error-attribution-group">
+                        <legend>WHO IS THIS ERROR BEING LOGGED FOR? <span class="error-required-mark" aria-hidden="true">*</span></legend>
+                        <p>Select the employee or business area responsible for the error. The person submitting the error must never be selected automatically as the responsible party.</p>
+                        <div class="error-attribution-options">
+                            <?php foreach ($employees as $employee): ?><label class="error-attribution-option" data-attribution-type="employee"><input type="radio" name="error_attribution" value="employee:<?= (int)$employee['id'] ?>" required><span><?= htmlspecialchars(ops_staff_display_name($employee),ENT_QUOTES,'UTF-8') ?></span></label><?php endforeach; ?>
+                            <label class="error-attribution-option" data-attribution-type="delivery_driver"><input type="radio" name="error_attribution" value="delivery_driver"><span>Delivery Driver</span></label>
+                            <label class="error-attribution-option" data-attribution-type="business"><input type="radio" name="error_attribution" value="business"><span>Business Error</span></label>
+                        </div>
+                        <input type="hidden" name="attribution_type" value=""><input type="hidden" name="attributed_employee_id" value="">
+                    </fieldset>
+                    <div class="form-grid compact"><label>Related Packing List row ID<input type="number" min="1" name="packing_task_id" placeholder="Optional"></label><?php if($isOwnerErrorUser): ?><label>Attribution change note<textarea name="attribution_change_note" placeholder="Required only when correcting attribution"></textarea></label><?php endif; ?></div>
                     <label><input type="checkbox" name="affects_kpi_accuracy" value="1"> This verified error affects personal accuracy</label>
                     <?php if ($isOwnerErrorUser): ?><label><input type="checkbox" name="accuracy_verified" value="1"> Owner/admin verified the attribution</label><?php endif; ?>
                     <p class="incident-field-help">The employee who logs the error is never treated automatically as the responsible employee.</p>
-                    <div class="people-chip-grid">
-                        <?php foreach ($employees as $employee): ?>
-                            <label><input type="checkbox" name="people_involved[]" value="<?= (int) $employee['id'] ?>"><span><?= htmlspecialchars(ucwords(strtolower((string) $employee['full_name'])), ENT_QUOTES, 'UTF-8') ?></span></label>
-                        <?php endforeach; ?>
-                    </div>
                     <fieldset class="incident-choice-field">
                         <legend class="incident-choice-field__label">Is this a repeat error?</legend>
                         <div class="incident-choice-control incident-choice-control--repeat" data-incident-choice="repeat">
@@ -827,10 +899,9 @@ include BASE_PATH . '/shared/sidebar.php';
                             <label for="resolution">Resolution</label>
                             <textarea id="resolution" name="resolution" placeholder="customer contacted, stock updated, product replaced"></textarea>
                         </div>
-                        <div class="incident-field incident-financial-field">
-                            <label for="financial-impact">Financial impact</label>
-                            <input id="financial-impact" type="number" min="0" step="0.01" name="financial_impact" value="0">
-                        </div>
+                        <fieldset class="error-financial-impact-field" id="error-financial-impact-group"><legend>DOES THIS ERROR HAVE A FINANCIAL IMPACT? <span class="error-required-mark" aria-hidden="true">*</span></legend><div class="error-financial-impact-options"><label><input type="radio" name="has_financial_impact" value="0" required><span>No</span></label><label><input type="radio" name="has_financial_impact" value="1"><span>Yes</span></label></div></fieldset>
+                        <div class="incident-field error-financial-impact-amount" hidden><label for="financial-impact">FINANCIAL IMPACT AMOUNT (N$) <span class="error-required-mark" aria-hidden="true">*</span></label><div class="error-money-input"><span>N$</span><input id="financial-impact" inputmode="decimal" name="financial_impact_amount" pattern="^(?:0|[1-9]\d{0,9})(?:\.\d{1,2})?$" disabled></div></div>
+                        <div class="incident-field error-financial-impact-notes" hidden><label for="financial-impact-notes">FINANCIAL IMPACT NOTES</label><textarea id="financial-impact-notes" name="financial_impact_notes" placeholder="Briefly explain the cost, replacement, refund, damaged stock or other financial effect."></textarea></div>
                     </div>
                 </section>
 
@@ -871,12 +942,16 @@ include BASE_PATH . '/shared/sidebar.php';
             'description' => (string) ($error['description'] ?? ''),
             'people_involved' => $peopleIds,
             'responsible_employee_id' => (int) ($error['responsible_employee_id'] ?? 0),
+            'attribution_type'=>(string)($error['attribution_type']??((int)($error['responsible_employee_id']??0)>0?'employee':'')),
+            'attributed_employee_id'=>(int)($error['attributed_employee_id']??$error['responsible_employee_id']??0),
             'packing_task_id' => (int) ($error['packing_task_id'] ?? 0),
             'affects_kpi_accuracy' => (int) ($error['affects_kpi_accuracy'] ?? 0),
             'accuracy_verified' => !empty($error['accuracy_verified_by']),
             'repeat_issue' => (int) ($error['repeat_issue'] ?? 0),
             'resolution' => (string) ($error['resolution'] ?? ''),
-            'financial_impact' => (string) ($error['financial_impact'] ?? 0),
+            'has_financial_impact'=>$error['has_financial_impact']===null?null:(int)$error['has_financial_impact'],
+            'financial_impact_amount'=>(string)($error['financial_impact']??''),
+            'financial_impact_notes'=>(string)($error['financial_impact_notes']??''),
         ];
         ?>
         <aside class="error-detail-panel incident-details-panel" data-error-panel="<?= $errorId ?>" aria-hidden="true">
@@ -924,9 +999,9 @@ include BASE_PATH . '/shared/sidebar.php';
                 <?php endif; ?>
                 <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="align-left"></i> Description</h3><p class="incident-content-text"><?= nl2br(htmlspecialchars((string) ($error['description'] ?? ''), ENT_QUOTES, 'UTF-8')) ?></p></section>
                 <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="user-round-check"></i> Customer impact</h3><p class="incident-content-text<?= empty($error['customer_impact']) ? ' incident-empty-text' : '' ?>"><?= nl2br(htmlspecialchars((string) ($error['customer_impact'] ?: 'No customer impact recorded.'), ENT_QUOTES, 'UTF-8')) ?></p></section>
-                <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="badge-check"></i> KPI responsibility</h3><p class="incident-content-text"><?= !empty($error['responsible_employee_id']) ? htmlspecialchars((string) ($employeeMap[(int) $error['responsible_employee_id']] ?? 'Unknown employee'), ENT_QUOTES, 'UTF-8') : 'Not attributed' ?> · <?= !empty($error['affects_kpi_accuracy']) && !empty($error['accuracy_verified_by']) ? 'Verified for accuracy' : 'Not counted in personal accuracy' ?></p></section>
+                <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="badge-check"></i> Logged for</h3><p class="incident-content-text"><?= htmlspecialchars(error_attribution_label($error,$employeeMap),ENT_QUOTES,'UTF-8') ?> · <?= (string)($error['attribution_type']??'')==='employee'&&!empty($error['affects_kpi_accuracy'])&&!empty($error['accuracy_verified_by'])?'Verified for accuracy':'Not counted in personal accuracy' ?></p></section>
                 <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="circle-check"></i> Resolution</h3><p class="incident-content-text<?= empty($error['resolution']) ? ' incident-empty-text' : '' ?>"><?= nl2br(htmlspecialchars((string) ($error['resolution'] ?: 'No resolution recorded yet.'), ENT_QUOTES, 'UTF-8')) ?></p></section>
-                <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="banknote"></i> Financial impact</h3><p class="incident-content-text">N$<?= number_format((float) ($error['financial_impact'] ?? 0), 2) ?></p></section>
+                <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="banknote"></i> Financial impact</h3><p class="incident-content-text"><?= $error['has_financial_impact']===null?'Not historically captured':((int)$error['has_financial_impact']===1?'N$'.number_format((float)$error['financial_impact'],2):'No impact') ?></p><?php if(!empty($error['financial_impact_notes'])): ?><p class="incident-content-text"><?= nl2br(htmlspecialchars((string)$error['financial_impact_notes'],ENT_QUOTES,'UTF-8')) ?></p><?php endif; ?></section>
                 <?php if (!empty($error['repeat_note'])): ?><section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="repeat-2"></i> Repeat note</h3><p class="incident-content-text"><?= nl2br(htmlspecialchars((string) $error['repeat_note'], ENT_QUOTES, 'UTF-8')) ?></p></section><?php endif; ?>
                 <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="paperclip"></i> Attachments</h3><div class="incident-attachments-list">
                     <?php foreach ($attachments as $path): ?><div class="incident-attachment"><span><?= htmlspecialchars(basename((string) $path), ENT_QUOTES, 'UTF-8') ?></span><a class="incident-attachment-link" href="<?= BASE_URL . '/' . htmlspecialchars((string) $path, ENT_QUOTES, 'UTF-8') ?>" target="_blank">Open</a></div><?php endforeach; ?>
@@ -961,6 +1036,18 @@ function setIncidentRadioValue(name, value) {
     input.checked = input.value === String(value);
     input.setCustomValidity('');
   });
+}
+
+function setErrorAttribution(type='',employeeId=''){
+  const form=document.getElementById('logErrorForm');if(!form)return;const value=type==='employee'?`employee:${employeeId}`:type;
+  form.querySelectorAll('[name="error_attribution"]').forEach(input=>{input.checked=input.value===value;});
+  form.elements.attribution_type.value=type||'';form.elements.attributed_employee_id.value=type==='employee'?String(employeeId||''):'';
+}
+
+function setFinancialImpactChoice(choice,amount='',notes=''){
+  const form=document.getElementById('logErrorForm');if(!form)return;setIncidentRadioValue('has_financial_impact',choice===null?'':String(choice));
+  const wrap=form.querySelector('.error-financial-impact-amount'),notesWrap=form.querySelector('.error-financial-impact-notes'),input=form.elements.financial_impact_amount;
+  const yes=String(choice)==='1';wrap.hidden=!yes;notesWrap.hidden=!yes;input.disabled=!yes;input.required=yes;input.value=yes?String(amount||''):'';form.elements.financial_impact_notes.value=yes?(notes||''):'';
 }
 
 function setIncidentCategoryValue(value, otherValue = '') {
@@ -1021,16 +1108,13 @@ function openIncidentForm(mode = 'create', data = {}) {
     form.elements.order_reference.value = data.order_reference || '';
     form.elements.description.value = data.description || '';
     form.elements.resolution.value = data.resolution || '';
-    form.elements.financial_impact.value = data.financial_impact || '0';
-    form.elements.responsible_employee_id.value = data.responsible_employee_id || '';
+    setFinancialImpactChoice(data.has_financial_impact,data.financial_impact_amount,data.financial_impact_notes);
+    setErrorAttribution(data.attribution_type||'',data.attributed_employee_id||'');
     form.elements.packing_task_id.value = data.packing_task_id || '';
     form.elements.affects_kpi_accuracy.checked = Number(data.affects_kpi_accuracy || 0) === 1;
     if (form.elements.accuracy_verified) form.elements.accuracy_verified.checked = Boolean(data.accuracy_verified);
-    form.querySelectorAll('[name="people_involved[]"]').forEach((checkbox) => {
-      checkbox.checked = (data.people_involved || []).map(String).includes(String(checkbox.value));
-    });
   } else {
-    form.elements.responsible_employee_id.value = '';
+    setErrorAttribution('','');setFinancialImpactChoice(null,'','');
     form.elements.packing_task_id.value = '';
     form.elements.affects_kpi_accuracy.checked = false;
     if (form.elements.accuracy_verified) form.elements.accuracy_verified.checked = false;
@@ -1356,6 +1440,9 @@ document.querySelectorAll('[data-custom-select]').forEach((select) => {
 });
 
 document.getElementById('logErrorForm')?.addEventListener('change', function(event) {
+  const attribution=event.target.closest('[name="error_attribution"]');
+  if(attribution){const [type,employeeId='']=String(attribution.value).split(':');this.elements.attribution_type.value=type;this.elements.attributed_employee_id.value=type==='employee'?employeeId:'';document.getElementById('error-attribution-group-error')?.remove();}
+  if(event.target.matches('[name="has_financial_impact"]')){setFinancialImpactChoice(event.target.value,this.elements.financial_impact_amount.value,this.elements.financial_impact_notes.value);document.getElementById('error-financial-impact-group-error')?.remove();}
   const input = event.target.closest('.incident-choice__input');
   if (!input) return;
   this.querySelectorAll(`[name="${input.name}"]`).forEach((choice) => choice.setCustomValidity(''));
@@ -1376,20 +1463,29 @@ document.getElementById('logErrorForm')?.addEventListener('submit', function(eve
   const category = String(categoryValue?.value || '').trim();
   const otherCategory = String(otherCategoryInput?.value || '').trim();
   const descriptionText = String(description?.value || '').trim();
+  const attribution=this.querySelector('[name="error_attribution"]:checked');
+  const financialChoice=this.querySelector('[name="has_financial_impact"]:checked');
+  const financialAmount=this.elements.financial_impact_amount;
 
   document.getElementById('severity-group-error')?.remove();
   document.getElementById('status-group-error')?.remove();
   document.getElementById('error-category-value-error')?.remove();
   document.getElementById('description-error')?.remove();
+  document.getElementById('error-attribution-group-error')?.remove();document.getElementById('error-financial-impact-group-error')?.remove();document.getElementById('financial-impact-error')?.remove();
   otherCategoryInput?.classList.remove('is-invalid');
   otherCategoryInput?.setCustomValidity('');
 
   let hasError = false;
+  let firstInvalid=null;
   if (!category) {
     hasError = true;
+    firstInvalid=firstInvalid||this.querySelector('.custom-select-trigger');
     categoryValue?.setCustomValidity('Please choose an error category.');
     showFieldError('error-category-value', 'Choose an error category.');
   }
+  if(!attribution){hasError=true;showFieldError('error-attribution-group','Please select who this error is being logged for.');firstInvalid=firstInvalid||this.querySelector('[name="error_attribution"]');}
+  if(!financialChoice){hasError=true;showFieldError('error-financial-impact-group','Please indicate whether this error has a financial impact.');firstInvalid=firstInvalid||this.querySelector('[name="has_financial_impact"]');}
+  if(financialChoice?.value==='1'&&(!/^(?:0|[1-9]\d{0,9})(?:\.\d{1,2})?$/.test(financialAmount.value.trim())||Number(financialAmount.value)<=0)){hasError=true;financialAmount.setCustomValidity('Enter the financial impact amount.');showFieldError('financial-impact','Enter the financial impact amount.');firstInvalid=firstInvalid||financialAmount;}
   if (category === 'other' && !otherCategory) {
     hasError = true;
     otherCategoryInput?.classList.add('is-invalid');
@@ -1412,7 +1508,7 @@ document.getElementById('logErrorForm')?.addEventListener('submit', function(eve
 
   if (hasError) {
     event.preventDefault();
-    if (!category) {
+    if(firstInvalid){firstInvalid.focus();firstInvalid.reportValidity?.();} else if (!category) {
       this.querySelector('.custom-select-trigger')?.focus();
     } else if (category === 'other' && !otherCategory) {
       otherCategoryInput?.reportValidity();
@@ -1444,7 +1540,7 @@ function showFieldError(fieldId, message) {
 
   const err = document.createElement('p');
   err.id = fieldId + '-error';
-  err.style.cssText = 'color:#BB1B21; font-size:11px; margin:4px 0 0; font-weight:500;';
+  err.className='error-field-error';
   err.textContent = message;
   el.parentNode.appendChild(err);
 }
