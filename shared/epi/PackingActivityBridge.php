@@ -56,7 +56,12 @@ final class PackingActivityBridge
                 'packer_website_confirmed'=>(bool)($item['packing_website_confirmed'] ?? false),
                 'packer_website_confirmed_at'=>$item['packing_website_completed_at'] ?? null,
                 'packer_website_confirmed_by'=>$item['packing_website_completed_by'] ?? null,
-                'website_confirmation_type'=>'Packer Website Update Confirmation',
+                'frontdesk_website_updated'=>(bool)($item['frontdesk_website_updated'] ?? false),
+                'frontdesk_website_updated_at'=>$item['frontdesk_website_updated_at'] ?? null,
+                'frontdesk_website_updated_by'=>$item['frontdesk_website_updated_by'] ?? null,
+                'website_confirmation_type'=>$legacyAction==='frontdesk_website_update_confirmed'
+                    ? 'Front Desk Live Website Inventory Update' : 'Packer Website Update Confirmation',
+                'inventory_responsibility'=>$legacyAction==='frontdesk_website_update_confirmed' ? 'front_desk' : 'packer',
             ]);
             $dedupe = Support::dedupe(['packing-activity',$itemId,$legacyAction,$actor['id'] ?? '',$at->format('Y-m-d H:i:s'),$input]);
             Performance::recordActivity([
@@ -97,6 +102,7 @@ final class PackingActivityBridge
 
     private static function action(string $legacy, string $field, string $before, string $after, string $value): string
     {
+        if ($legacy==='frontdesk_website_update_confirmed') return 'front_desk_website_inventory_confirmed';
         if ($field==='packing_status') {
             if (self::done($after)) return 'packing_item_completed';
             if (self::done($before) && !self::done($after)) return 'packing_item_reopened';

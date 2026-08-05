@@ -846,6 +846,22 @@ function ops_activity_log(string $action, string $entityType, int $entityId, arr
             // Courier operations must never depend on background EPI recording.
         }
     }
+
+    // Error/Quality bridge. Reporter and responsible employee remain distinct and every call is fail-safe.
+    if ($entityType === 'error_log') {
+        try {
+            \Hambelela\EPI\QualityActivityBridge::record(db(), $action, $entityId, $metadata);
+        } catch (Throwable $e) {
+            // Error Log saves must never depend on background EPI recording.
+        }
+    }
+
+    // Narrow fallback for meaningful entities not already covered by a module bridge.
+    try {
+        \Hambelela\EPI\GeneralActivityBridge::record(db(), $action, $entityType, $entityId, $metadata);
+    } catch (Throwable $e) {
+        // Operational activity logging must never depend on EPI.
+    }
 }
 
 function ops_log_order_stage_event(int $orderId, string $stageKey, array $metadata = [], ?int $employeeId = null): void

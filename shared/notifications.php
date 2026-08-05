@@ -299,6 +299,13 @@ function notifications_create(array $data, array $recipientIds): ?int
         $recipientStmt = db()->prepare('INSERT IGNORE INTO notification_recipients (notification_id, employee_id) VALUES (?, ?)');
         foreach ($recipientIds as $employeeId) {
             $recipientStmt->execute([$notificationId, $employeeId]);
+            try {
+                require_once __DIR__ . '/epi/bootstrap.php';
+                \Hambelela\EPI\NotificationActivityBridge::record(db(), 'notification_created', $notificationId, $employeeId, [
+                    'required_delivery' => !empty($data['required_delivery']),
+                    'correlation_id' => $data['deduplication_key'] ?? null,
+                ]);
+            } catch (Throwable $ignored) {}
         }
 
         return $notificationId;
@@ -744,8 +751,12 @@ function notifications_mark_read(array $ids = []): void
     }
 
     if (!$ids) {
+        $lookup = db()->prepare('SELECT notification_id FROM notification_recipients WHERE employee_id=? AND cleared_at IS NULL AND read_at IS NULL');
+        $lookup->execute([$employeeId]);
+        $changedIds = array_map('intval', $lookup->fetchAll(PDO::FETCH_COLUMN));
         $stmt = db()->prepare('UPDATE notification_recipients SET read_at = COALESCE(read_at, NOW()) WHERE employee_id = ? AND cleared_at IS NULL');
         $stmt->execute([$employeeId]);
+        foreach ($changedIds as $id) { try { require_once __DIR__ . '/epi/bootstrap.php'; \Hambelela\EPI\NotificationActivityBridge::record(db(), 'notification_marked_read', $id, $employeeId); } catch (Throwable $ignored) {} }
         return;
     }
 
@@ -756,6 +767,7 @@ function notifications_mark_read(array $ids = []): void
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
     $stmt = db()->prepare("UPDATE notification_recipients SET read_at = COALESCE(read_at, NOW()) WHERE employee_id = ? AND notification_id IN ({$placeholders})");
     $stmt->execute(array_merge([$employeeId], $ids));
+    foreach ($ids as $id) { try { require_once __DIR__ . '/epi/bootstrap.php'; \Hambelela\EPI\NotificationActivityBridge::record(db(), 'notification_marked_read', $id, $employeeId); } catch (Throwable $ignored) {} }
 }
 
 function notifications_clear(array $ids = []): void
@@ -766,8 +778,12 @@ function notifications_clear(array $ids = []): void
     }
 
     if (!$ids) {
+        $lookup = db()->prepare('SELECT notification_id FROM notification_recipients WHERE employee_id=? AND cleared_at IS NULL');
+        $lookup->execute([$employeeId]);
+        $changedIds = array_map('intval', $lookup->fetchAll(PDO::FETCH_COLUMN));
         $stmt = db()->prepare('UPDATE notification_recipients SET cleared_at = COALESCE(cleared_at, NOW()) WHERE employee_id = ? AND cleared_at IS NULL');
         $stmt->execute([$employeeId]);
+        foreach ($changedIds as $id) { try { require_once __DIR__ . '/epi/bootstrap.php'; \Hambelela\EPI\NotificationActivityBridge::record(db(), 'notification_dismissed', $id, $employeeId); } catch (Throwable $ignored) {} }
         return;
     }
 
@@ -778,4 +794,5 @@ function notifications_clear(array $ids = []): void
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
     $stmt = db()->prepare("UPDATE notification_recipients SET cleared_at = COALESCE(cleared_at, NOW()) WHERE employee_id = ? AND notification_id IN ({$placeholders})");
     $stmt->execute(array_merge([$employeeId], $ids));
+    foreach ($ids as $id) { try { require_once __DIR__ . '/epi/bootstrap.php'; \Hambelela\EPI\NotificationActivityBridge::record(db(), 'notification_dismissed', $id, $employeeId); } catch (Throwable $ignored) {} }
 }

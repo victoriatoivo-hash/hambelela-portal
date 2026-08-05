@@ -26,3 +26,7 @@ require_once __DIR__ . '/BookkeepingPerformance.php';
 require_once __DIR__ . '/AttendanceActivityBridge.php';
 require_once __DIR__ . '/AttendancePerformance.php';
 require_once __DIR__ . '/PerformanceScore.php';
+require_once __DIR__ . '/QualityActivityBridge.php';
+require_once __DIR__ . '/QualityPerformance.php';
+require_once __DIR__ . '/NotificationActivityBridge.php';
+require_once __DIR__ . '/GeneralActivityBridge.php';

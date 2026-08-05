@@ -35,6 +35,13 @@ final class Support
             . '-' . substr($hex, 16, 4) . '-' . substr($hex, 20);
     }
 
+    public static function uuidFromHash(string $hash): string
+    {
+        $hex = substr(hash('sha256', $hash), 0, 32);
+        return substr($hex, 0, 8) . '-' . substr($hex, 8, 4) . '-4' . substr($hex, 13, 3)
+            . '-a' . substr($hex, 17, 3) . '-' . substr($hex, 20, 12);
+    }
+
     public static function timestamp($value = null, string $timezone = 'Africa/Windhoek'): DateTimeImmutable
     {
         $zone = new DateTimeZone($timezone);

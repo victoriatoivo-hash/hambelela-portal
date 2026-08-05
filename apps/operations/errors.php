@@ -466,14 +466,21 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $errorId = (int) ($_POST['error_id'] ?? 0);
             $status = ops_post_string('status', 30);
             if (!array_key_exists($status, $statusLabels)) throw new RuntimeException('Choose a valid status.');
-            $permissionRows = ops_rows('SELECT logged_by FROM ops_error_logs WHERE id = ? AND deleted_at IS NULL LIMIT 1', [$errorId]);
+            $permissionRows = ops_rows('SELECT logged_by, status FROM ops_error_logs WHERE id = ? AND deleted_at IS NULL LIMIT 1', [$errorId]);
             $loggedBy = (int) ($permissionRows[0]['logged_by'] ?? 0);
+            $previousStatus = (string) ($permissionRows[0]['status'] ?? '');
             if (!$isOwnerErrorUser && !($isFrontDeskErrorUser && $loggedBy === (int) $currentEmployeeId)) {
                 throw new RuntimeException('You can only update errors you logged yourself.');
             }
             $stmt = db()->prepare('UPDATE ops_error_logs SET status = ? WHERE id = ? AND deleted_at IS NULL');
             $stmt->execute([$status, $errorId]);
-            ops_activity_log('error_status_updated', 'error_log', $errorId, ['status' => $status]);
+            ops_activity_log('error_status_updated', 'error_log', $errorId, [
+                'previous_status' => $previousStatus,
+                'new_status' => $status,
+                'previous_value' => $previousStatus,
+                'new_value' => $status,
+                'reason' => ops_post_string('status_reason', 1000),
+            ]);
             error_log_redirect('Error status updated.', 'success', '?status_updated=1');
         }
     } catch (Throwable $e) {
