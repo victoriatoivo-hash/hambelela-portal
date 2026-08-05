@@ -238,6 +238,7 @@ include BASE_PATH . '/shared/sidebar.php';
             <label><span>Period</span><select data-kpi-period><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="this_week">This week</option><option value="last_week">Last week</option><option value="this_month">This month</option><option value="last_month">Last month</option><option value="custom">Custom</option></select></label>
             <label data-kpi-custom hidden><span>From</span><input type="date" data-kpi-from></label>
             <label data-kpi-custom hidden><span>To</span><input type="date" data-kpi-to></label>
+            <label class="kpi-historical-toggle"><input type="checkbox" data-kpi-include-historical><span>Include Pre-EPI Historical Records</span></label>
             <span class="kpi-period-caption" data-kpi-caption aria-live="polite">Loading reporting period…</span>
         </section>
         <div class="kpi-adoption-banner" data-kpi-adoption hidden></div>
@@ -245,15 +246,16 @@ include BASE_PATH . '/shared/sidebar.php';
         <section class="kpi-health-grid" data-kpi-cards aria-label="Business health summary"><?php foreach (range(1, 6) as $placeholder): ?><article class="kpi-health-card is-loading"><span></span><strong></strong><small></small></article><?php endforeach; ?></section>
         <section class="kpi-management-story" data-kpi-management-story aria-live="polite"></section>
         <section class="kpi-management-flow" data-kpi-management-flow aria-label="Operational flow"></section>
+        <section class="kpi-health-panel kpi-orders-first"><div class="kpi-panel-heading"><div><p class="eyebrow">Primary operational flow</p><h2>Orders</h2></div><small>Workflow stages and values are based on authoritative order records and status history</small></div><div data-kpi-orders-overview></div></section>
         <section class="kpi-health-columns">
             <article class="kpi-health-panel"><div class="kpi-panel-heading"><div><p class="eyebrow">Seven operating areas</p><h2>Operational scores</h2></div><small>Dash means unmeasured · fewer than 5 records is low data</small></div><div class="kpi-score-list" data-kpi-scores></div></article>
             <article class="kpi-health-panel"><div class="kpi-panel-heading"><div><p class="eyebrow">Prioritised exceptions</p><h2>Needs attention</h2></div></div><div class="kpi-attention-list" data-kpi-attention></div></article>
         </section>
-        <section class="kpi-health-panel"><div class="kpi-panel-heading"><div><p class="eyebrow">People and workload</p><h2>Team today</h2></div></div><div class="kpi-team-grid" data-kpi-team></div></section>
+        <section class="kpi-health-panel"><div class="kpi-panel-heading"><div><p class="eyebrow">Role-specific operational summaries</p><h2>Operations Team Overview</h2></div></div><div class="kpi-team-grid" data-kpi-team></div></section>
         <section class="kpi-health-panel kpi-management-comparison"><div class="kpi-panel-heading"><div><p class="eyebrow">Role-relative comparison</p><h2>Employee comparison</h2></div><small>Workload context only · open an employee for evidence</small></div><div data-kpi-management-comparison></div></section>
         <section class="kpi-chart-grid">
             <article class="kpi-health-panel"><div class="kpi-panel-heading"><div><p class="eyebrow">Volume and value</p><h2>Orders and revenue</h2></div></div><div class="kpi-chart-frame"><canvas data-kpi-orders-chart></canvas></div></article>
-            <article class="kpi-health-panel"><div class="kpi-panel-heading"><div><p class="eyebrow">Fair workload view</p><h2>Packing output</h2></div><div class="kpi-chart-toggle"><button type="button" class="active" data-kpi-chart-mode="raw">Items</button><button type="button" data-kpi-chart-mode="weighted">Weighted</button></div></div><div class="kpi-chart-frame"><canvas data-kpi-packing-chart></canvas></div></article>
+            <article class="kpi-health-panel"><div class="kpi-panel-heading"><div><p class="eyebrow">Fair workload view</p><h2>Packing output</h2></div><div class="kpi-chart-toggle"><button type="button" class="active" data-kpi-chart-mode="raw">Packing items</button><button type="button" data-kpi-chart-mode="weighted">Workload Units</button></div></div><div class="kpi-chart-frame"><canvas data-kpi-packing-chart></canvas></div></article>
         </section>
         <div class="kpi-presentation-controls" data-kpi-management-controls hidden><button type="button" data-kpi-management-previous>Previous</button><span data-kpi-management-position>1 / 1</span><button type="button" data-kpi-management-next>Next</button><button type="button" data-kpi-management-exit>Exit presentation</button></div>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>

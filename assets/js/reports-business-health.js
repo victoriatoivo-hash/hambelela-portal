@@ -8,6 +8,7 @@
   const from = q('[data-kpi-from]');
   const to = q('[data-kpi-to]');
   const custom = root.querySelectorAll('[data-kpi-custom]');
+  const includeHistorical = q('[data-kpi-include-historical]');
   const labels = { orders: 'Orders received', fulfilment: 'Average fulfilment', dispatch: 'On-time dispatch', pack_speed: 'Average elapsed packing time', revenue: 'Paid order revenue', attendance: 'Portal presence coverage' };
   const palette = getComputedStyle(root);
   const colour = (name) => palette.getPropertyValue(name).trim();
@@ -37,11 +38,19 @@
     if (!metric || metric.value === null) return '<span class="kpi-unmeasured" title="Not enough measured records in this period">—</span>';
     if (metric.format === 'currency') return `N$${Number(metric.value).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
     if (metric.format === 'percent') return `${Number(metric.value).toFixed(1)}%`;
-    if (metric.format === 'minutes') return `${Math.round(Number(metric.value))} min`;
+    if (metric.format === 'minutes') return formatDuration(Number(metric.value));
     return Number(metric.value).toLocaleString(undefined, { maximumFractionDigits: 1 });
   };
+  const formatDuration = (rawMinutes) => {
+    const total = Math.max(0, Math.round(Number(rawMinutes) || 0));
+    const months = Math.floor(total / 43200), days = Math.floor((total % 43200) / 1440), hours = Math.floor((total % 1440) / 60), minutes = total % 60;
+    if (months) return `${months} mo${days ? ` ${days} d` : ''}`;
+    if (days) return `${days} d${hours ? ` ${hours} h` : ''}`;
+    if (hours) return `${hours} h${minutes ? ` ${minutes} min` : ''}`;
+    return `${minutes} min`;
+  };
   const persist = () => {
-    localStorage.setItem('kpiBusinessHealthPeriod', JSON.stringify({ period: period.value, from: from.value, to: to.value }));
+    localStorage.setItem('kpiBusinessHealthPeriod', JSON.stringify({ period: period.value, from: from.value, to: to.value, includeHistorical: includeHistorical.checked }));
     const url = new URL(window.location.href);
     url.searchParams.set('period', period.value);
     if (period.value === 'custom') {
@@ -51,6 +60,8 @@
       url.searchParams.delete('date_from');
       url.searchParams.delete('date_to');
     }
+    if (includeHistorical.checked) url.searchParams.set('include_historical', '1');
+    else url.searchParams.delete('include_historical');
     history.replaceState(null, '', url);
   };
   const restore = () => {
@@ -62,6 +73,7 @@
       if ([...period.options].some((option) => option.value === selected)) period.value = selected;
       from.value = query.get('date_from') || saved.from || '';
       to.value = query.get('date_to') || saved.to || '';
+      includeHistorical.checked = query.get('include_historical') === '1' || saved.includeHistorical === true;
     } catch (_) { /* Invalid local preference is safely ignored. */ }
   };
   const toggleCustom = () => custom.forEach((node) => { node.hidden = period.value !== 'custom'; });
@@ -85,11 +97,18 @@
   }
 
   function renderAttention(items) {
-    q('[data-kpi-attention]').innerHTML = items.length ? items.map((item) => `<a class="kpi-attention-row" href="${escapeHtml(item.href)}"><span><strong>${escapeHtml(item.description)}</strong><small>${Math.max(0, item.age_hours)} hours old</small></span><b>View</b></a>`).join('') : '<div class="kpi-empty-state">Nothing currently needs attention.</div>';
+    q('[data-kpi-attention]').innerHTML = items.length ? items.map((item) => `<a class="kpi-attention-row is-${escapeHtml(item.severity || 'normal')}" href="${escapeHtml(item.href)}"><span><strong>${escapeHtml(item.description)}</strong><small>${escapeHtml(item.severity || 'Normal')} · Due: ${escapeHtml(item.due_at || 'Not recorded')} · Overdue: ${escapeHtml(item.overdue || 'Not recorded')}</small></span><b>View Evidence</b></a>`).join('') : '<div class="kpi-empty-state">Nothing currently needs attention from 1 July 2026 onward.</div>';
   }
 
   function renderTeam(team) {
-    q('[data-kpi-team]').innerHTML = team.map((person) => `<a class="kpi-team-card" href="kpi-employee.php?id=${Number(person.id)}&period=${encodeURIComponent(period.value)}"><header><span class="kpi-person-dot ${person.online ? 'online' : ''}"></span><div><strong>${escapeHtml(person.name)}</strong><small>${escapeHtml(person.role)} · ${person.online ? 'Online' : 'Offline'}</small></div><b>${person.hours_today === null ? '—' : `${Number(person.hours_today).toFixed(1)}h`}</b></header><div>${person.metrics.map((metric) => `<span><small>${escapeHtml(metric.label)}</small><strong>${metric.value === null ? '<i title="Not measured yet">—</i>' : escapeHtml(metric.value)}</strong></span>`).join('')}</div></a>`).join('');
+    q('[data-kpi-team]').innerHTML = team.map((person) => `<article class="kpi-team-card is-${escapeHtml(person.card_type || 'employee')}"><a href="kpi-employee.php?id=${Number(person.id)}&period=${encodeURIComponent(period.value)}"><header><span class="kpi-person-dot ${person.online ? 'online' : ''}"></span><div><strong>${escapeHtml(person.name)}</strong><small>${escapeHtml(person.role)} · ${person.online ? 'Online' : 'Offline'}</small></div><b>${person.hours_today === null ? '—' : `${Number(person.hours_today).toFixed(1)} h`}</b></header><div>${person.metrics.map((metric) => `<span title="${escapeHtml(metric.tooltip || metric.evidence || '')}"><small>${escapeHtml(metric.label)}</small><strong>${metric.value === null ? '<i title="Not measured yet">—</i>' : escapeHtml(metric.value)}</strong><em>View Evidence</em></span>`).join('')}</div></a></article>`).join('');
+  }
+
+  function renderOrdersOverview(overview, operationalScore, operationalScoreMessage) {
+    const counts = overview?.counts || {};
+    const metrics = [['Overall Operational Score', operationalScore == null ? (operationalScoreMessage || 'Not calculated — insufficient operational data since 1 July 2026') : `${operationalScore}%`], ['Orders Received', counts.received], ['Orders Still New', counts.new], ['Orders Packed / In Progress', counts.in_progress], ['Orders Completed', counts.completed], ['Orders Outstanding', counts.outstanding], ['Orders Reopened', counts.reopened], ['Collection Orders', counts.collection], ['Delivery Orders', counts.delivery], ['Courier Orders', counts.courier], ['Walk-in Orders', counts.walk_in], ['Courier Ready by 14:00', counts.courier_ready_by_1400], ['Packing Completion', overview?.packing_completion_percent == null ? 'Not calculated' : `${overview.packing_completion_percent}%`], ['Final Completion', overview?.final_completion_percent == null ? 'Not calculated' : `${overview.final_completion_percent}%`], ['Completed Order Value', `N$${Number(counts.completed_value || 0).toLocaleString()}`], ['Outstanding Order Value', `N$${Number(counts.outstanding_value || 0).toLocaleString()}`]];
+    const timing = overview?.timing || {};
+    q('[data-kpi-orders-overview]').innerHTML = `<div class="kpi-orders-overview-grid">${metrics.map(([label, value]) => `<article><small>${escapeHtml(label)}</small><strong>${escapeHtml(value ?? '—')}</strong><button type="button" title="Evidence: ${Number(overview?.evidence_count || 0)} normalized order events">View Evidence</button></article>`).join('')}</div><div class="kpi-order-timing"><section><h3>Packer flow · New → In Progress</h3>${Object.entries(timing.packer || {}).map(([key, value]) => `<span><small>${escapeHtml(key.replaceAll('_', ' '))}</small><b>${escapeHtml(value || 'Not calculated')}</b></span>`).join('')}</section><section><h3>Front Desk flow · New → Complete</h3>${Object.entries(timing.front_desk || {}).map(([key, value]) => `<span><small>${escapeHtml(key.replaceAll('_', ' '))}</small><b>${escapeHtml(value || 'Not calculated')}</b></span>`).join('')}<span><small>In Progress → Complete average</small><b>${escapeHtml(timing.in_progress_to_complete || 'Not calculated')}</b></span></section></div>`;
   }
 
   function renderManagementStory(data) {
@@ -115,12 +134,8 @@
   }
 
   function renderManagementComparison(team) {
-    const rows = (team || []).map((person) => {
-      const numeric = (person.metrics || []).map((metric) => Number(metric.value)).filter(Number.isFinite);
-      return { ...person, context: numeric.reduce((sum, value) => sum + value, 0) };
-    });
-    const max = Math.max(1, ...rows.map((person) => person.context));
-    q('[data-kpi-management-comparison]').innerHTML = rows.length ? `<div class="kpi-management-compare-list">${rows.map((person) => `<a href="kpi-employee.php?id=${Number(person.id)}&period=${encodeURIComponent(period.value)}"><div><strong>${escapeHtml(person.name)}</strong><small>${escapeHtml(person.role)} · ${person.online ? 'Online' : 'Offline'}</small></div><span><i style="width:${Math.max(3, person.context / max * 100)}%"></i></span><b>${(person.metrics || []).map((metric) => `${escapeHtml(metric.label)} ${metric.value === null ? '—' : escapeHtml(metric.value)}`).join(' · ')}</b></a>`).join('')}</div>` : '<div class="kpi-empty-state">No comparable employee evidence is available.</div>';
+    const rows = (team || []).map((person) => { const ratio = (person.metrics || []).find((metric) => metric.denominator); const percent = ratio?.denominator ? Math.min(100, 100 * Number(ratio.numerator) / Number(ratio.denominator)) : null; return { ...person, percent }; });
+    q('[data-kpi-management-comparison]').innerHTML = rows.length ? `<div class="kpi-management-compare-list">${rows.map((person) => `<a href="kpi-employee.php?id=${Number(person.id)}&period=${encodeURIComponent(period.value)}"><div><strong>${escapeHtml(person.name)}</strong><small>${person.card_type === 'packer' ? 'Packer Operational Index · completion against assigned packing workload' : 'Front Desk Order Completion Compliance · completed against applicable orders'}</small></div><span title="100% means every eligible assigned/applicable record was completed"><i style="width:${person.percent === null ? 0 : person.percent}%"></i></span><b>${person.percent === null ? 'Not calculated — denominator unavailable' : `${person.percent.toFixed(1)}% · 100% = all applicable work completed`}</b></a>`).join('')}</div>` : '<div class="kpi-empty-state">No role-relative employee evidence is available.</div>';
   }
 
   function presentationSections() {
@@ -163,6 +178,7 @@
     q('[data-kpi-error]').hidden = true;
     const params = new URLSearchParams({ period: period.value });
     if (period.value === 'custom') { params.set('date_from', from.value); params.set('date_to', to.value); }
+    if (includeHistorical.checked) params.set('include_historical', '1');
     if (refresh) params.set('refresh', String(Date.now()));
     try {
       const response = await fetch(`reports-data.php?${params}`, { headers: { Accept: 'application/json' } });
@@ -171,7 +187,7 @@
       q('[data-kpi-caption]').textContent = `${data.period.from} to ${data.period.to}`;
       q('[data-kpi-adoption]').textContent = `Averages calculated from ${new Date(`${data.period.adoption_date}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} (system adoption date).`;
       q('[data-kpi-adoption]').hidden = !data.period.show_adoption_banner;
-      renderCards(data.cards); renderManagementStory(data); renderOperationalFlow(data); renderScores(data.scores, data.scores_disabled ? data.scores_message : ''); renderAttention(data.attention); renderTeam(data.team); renderManagementComparison(data.team); renderCharts(data);
+      renderCards(data.cards); renderManagementStory(data); renderOperationalFlow(data); renderOrdersOverview(data.orders_overview, data.operational_score, data.operational_score_message); renderScores(data.scores, data.scores_disabled ? data.scores_message : ''); renderAttention(data.attention); renderTeam(data.team); renderManagementComparison(data.team); renderCharts(data);
     } catch (error) {
       root.querySelectorAll('.is-loading').forEach((node) => node.classList.remove('is-loading'));
       q('[data-kpi-error]').textContent = error.message;
@@ -182,6 +198,7 @@
   restore(); toggleCustom();
   period.addEventListener('change', () => { toggleCustom(); persist(); if (period.value !== 'custom') load(); });
   [from, to].forEach((input) => input.addEventListener('change', () => { persist(); if (from.value && to.value) load(); }));
+  includeHistorical.addEventListener('change', () => { persist(); load(true); });
   q('[data-kpi-refresh]').addEventListener('click', () => load(true));
   q('[data-kpi-management-present]').addEventListener('click', () => setPresentationMode(true));
   q('[data-kpi-management-print]').addEventListener('click', () => window.print());
