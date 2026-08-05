@@ -16,6 +16,8 @@ assert.match(data, /Best Front Desk Order Completion/);
 assert.match(data, /Operational Risk/);
 assert.match(data, /count\(\$winners\)>1\?'tie':'awarded'/, 'equal valid results must produce a tie');
 assert.match(data, /\(int\)\$speed\['denominator'\]>=5/, 'speed awards require a meaningful evidence sample');
+assert.match(data, /array_filter\(\$workload.*denominator.*>=5/, 'workload awards require at least five eligible records');
+assert.match(data, /\$candidate\['numerator'\]=\(int\)\$candidate\['denominator'\]/, 'Most Orders Packed must use exact status-history evidence consistently');
 assert.match(client, /Overall Recognition/);
 assert.match(client, /Role-Specific Strengths/);
 assert.match(client, /Current Improvement Priorities/);
