@@ -275,12 +275,21 @@ function kpi_send_json(array $payload, int $status = 200): void
     http_response_code($status);
     if (!array_key_exists('ok', $payload)) $payload['ok'] = $status >= 200 && $status < 300;
     if (!array_key_exists('success', $payload)) $payload['success'] = (bool) $payload['ok'];
+    // Technical KPI identifiers remain stable, while API messages use the
+    // portal's current user-facing Employee Performance terminology.
+    if (isset($payload['message']) && is_string($payload['message'])) {
+        $payload['message'] = str_replace(
+            ['KPI data', 'KPI section', 'your own KPI', 'KPI settings', 'KPI dates'],
+            ['Performance data', 'performance section', 'your own performance', 'performance settings', 'reporting dates'],
+            $payload['message']
+        );
+    }
     try {
         echo kpi_encode_json($payload);
     } catch (Throwable $error) {
         error_log(date(DATE_ATOM).' KPI JSON encoding failed: '.$error->getMessage().PHP_EOL,3,BASE_PATH.'/logs/kpi_errors.log');
         http_response_code(500);
-        echo '{"ok":false,"success":false,"data":null,"message":"KPI data could not be loaded.","error_code":"KPI_JSON_ENCODING_FAILED"}';
+        echo '{"ok":false,"success":false,"data":null,"message":"Performance data could not be loaded.","error_code":"KPI_JSON_ENCODING_FAILED"}';
     }
     exit;
 }

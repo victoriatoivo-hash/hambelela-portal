@@ -645,7 +645,7 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                             </div>
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label>KPI role note</label>
+                                    <label>Performance role note</label>
                                     <input name="link_role" placeholder="Packer, Front Desk/Admin, Owner/Admin">
                                 </div>
                                 <div class="settings-inline-action">

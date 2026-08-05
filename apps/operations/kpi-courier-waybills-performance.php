@@ -189,7 +189,7 @@ function kpi_courier_waybills_performance(?array $employee, string $fromSql, str
         'title'=>'Courier Waybills Performance','role_view'=>$roleView,'settings'=>['following_applicable_day_rule'=>$followingRule,'morning_inference_enabled'=>$morningInference,'late_response_target_minutes'=>$lateTarget?:null,'timezone'=>'Africa/Windhoek'],
         'counts'=>$counts,'packer_on_time_rate'=>$packerRate,'front_on_time_rate'=>$frontRate,'customer_on_time_rate'=>$customerRate,
         'metrics'=>[
-            ['label'=>'Distinct waybills / batches','value'=>$counts['distinct'],'explanation'=>'One batch is one KPI unit only when it represents one identifiable customer waybill.'],
+            ['label'=>'Distinct waybills / batches','value'=>$counts['distinct'],'explanation'=>'One batch is one performance unit only when it represents one identifiable customer waybill.'],
             ['label'=>'Packer on-time uploads','value'=>$packerRate,'format'=>'percent','numerator'=>$counts['packer_on_time'],'denominator'=>$counts['packer_eligible']],
             ['label'=>'Front-person on-time sends','value'=>$frontRate,'format'=>'percent','numerator'=>$counts['front_on_time'],'denominator'=>$counts['front_eligible'],'explanation'=>'Late-availability waybills are excluded from this denominator.'],
             ['label'=>'Overall customer deadline','value'=>$customerRate,'format'=>'percent','numerator'=>$counts['customer_on_time'],'denominator'=>$counts['customer_eligible']],

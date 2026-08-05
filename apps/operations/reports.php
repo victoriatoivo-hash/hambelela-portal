@@ -8,7 +8,7 @@ require_role('owner_admin');
 $phaseThreeTabs = ['attendance'=>'Attendance','orders'=>'Orders','packing-performance'=>'Packing Performance','bookkeeping'=>'Bookkeeping','waybills'=>'Waybills','task-management'=>'Task Management','hr-leave'=>'HR and Leave','website-updates'=>'Website Updates','errors-quality'=>'Errors and Quality','performance-reports'=>'Performance Reports','business-activity'=>'Business Activity Timeline','audit-log'=>'Audit Log'];
 $tab = (string) ($_GET['tab'] ?? 'business-health');
 if (!in_array($tab, array_merge(['business-health','employees','settings'],array_keys($phaseThreeTabs)), true)) $tab = 'business-health';
-$currentKpiTitle = $tab === 'settings' ? 'KPI Settings' : ($tab === 'employees' ? 'Employees' : ($phaseThreeTabs[$tab] ?? 'Business Health'));
+$currentKpiTitle = $tab === 'settings' ? 'Performance Settings' : ($tab === 'employees' ? 'Employees' : ($phaseThreeTabs[$tab] ?? 'Business Health'));
 $pageTitle = $currentKpiTitle . ' | ' . APP_NAME;
 $activeApp = 'kpi';
 $ready = ops_database_ready();
@@ -71,9 +71,9 @@ $settingFields = [
     'front_orders_walkin_weight' => ['Front orders: walk-in compliance share', 'number', '50'],
     'front_orders_nonwalk_weight' => ['Front orders: non-walk-in finalisation share', 'number', '50'],
     'minimum_courier_packing_lead_minutes' => ['Minimum courier packing lead time (minutes)', 'number', '30'],
-    'courier_following_applicable_day_rule' => ['Courier KPI following day rule (calendar_day, business_day, courier_service_day or not_configured)', 'text', 'not_configured'],
-    'courier_morning_inference_enabled' => ['Courier KPI morning inference (0 disabled, 1 enabled)', 'number', '0'],
-    'courier_late_response_target_minutes' => ['Courier KPI response target after late upload (0 means no automatic target)', 'number', '0'],
+    'courier_following_applicable_day_rule' => ['Courier performance following day rule (calendar_day, business_day, courier_service_day or not_configured)', 'text', 'not_configured'],
+    'courier_morning_inference_enabled' => ['Courier performance morning inference (0 disabled, 1 enabled)', 'number', '0'],
+    'courier_late_response_target_minutes' => ['Courier performance response target after late upload (0 means no automatic target)', 'number', '0'],
 ];
 
 if ($ready && $tab === 'settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -84,7 +84,7 @@ if ($ready && $tab === 'settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $validatedSettings = [];
             foreach ($settingFields as $key => $definition) {
                 $value = substr(trim((string) ($_POST[$key] ?? $definition[2])), 0, 255);
-                if ($definition[1] === 'date' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) throw new RuntimeException('Enter valid KPI dates.');
+                if ($definition[1] === 'date' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) throw new RuntimeException('Enter valid reporting dates.');
                 if ($definition[1] === 'time' && !preg_match('/^\d{2}:\d{2}$/', $value)) throw new RuntimeException('Enter valid shift times.');
                 if ($definition[1] === 'number' && (!is_numeric($value) || (float) $value < 0)) throw new RuntimeException($definition[0] . ' must be zero or more.');
                 $validatedSettings[$key] = $value;
@@ -105,7 +105,7 @@ if ($ready && $tab === 'settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw $settingsError;
             }
             ops_activity_log('kpi_settings_updated', 'kpi_settings', 0, ['changed_by' => current_user()['name'] ?? 'Unknown']);
-            $message = 'KPI settings saved.';
+            $message = 'Performance settings saved.';
         } elseif ($action === 'save_employee_schedule') {
             $employeeId = (int) ($_POST['employee_id'] ?? 0);
             $hireDate = ops_post_string('hire_date', 10);
@@ -179,7 +179,7 @@ if ($ready && $tab === 'settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             db()->prepare('UPDATE kpi_holidays SET active = 0 WHERE holiday_date = ?')->execute([$holidayDate]);
             $message = 'Holiday removed.';
         } else {
-            throw new RuntimeException('Unknown KPI settings action.');
+            throw new RuntimeException('Unknown performance settings action.');
         }
     } catch (Throwable $error) {
         $message = $error->getMessage();
@@ -210,7 +210,7 @@ include BASE_PATH . '/shared/sidebar.php';
 <main id="<?= $tab === 'business-health' ? 'kpi-management' : ($tab === 'performance-reports' ? 'kpi-reports' : ($tab === 'business-activity' ? 'kpi-business-timeline-page' : 'kpi-management')) ?>" class="workspace module kpi-health-page" data-kpi-tab="<?= htmlspecialchars($tab, ENT_QUOTES, 'UTF-8') ?>">
     <section class="module-header">
         <div>
-            <p class="eyebrow">KPI &amp; Performance Management</p>
+            <p class="eyebrow">Employee Performance</p>
             <h1><?= htmlspecialchars($currentKpiTitle,ENT_QUOTES,'UTF-8') ?></h1>
             <p><?= $tab === 'settings' ? 'Control data windows, fairness thresholds, working calendars and employee schedules.' : ($tab === 'employees' ? 'Role-relative performance evidence, workload and attendance for each employee.' : 'A fair, evidence-led view of operational health and the work needing attention.') ?></p>
         </div>
@@ -220,11 +220,11 @@ include BASE_PATH . '/shared/sidebar.php';
         </div>
     </section>
 
-    <nav class="kpi-health-tabs" aria-label="KPI sections">
+    <nav class="kpi-health-tabs" aria-label="Employee Performance sections">
         <a href="reports.php?tab=business-health" class="<?= $tab === 'business-health' ? 'active' : '' ?>">Business Health</a>
         <a href="reports.php?tab=employees" class="<?= $tab === 'employees' ? 'active' : '' ?>">Employees</a>
         <?php foreach($phaseThreeTabs as $tabKey=>$tabLabel): ?><a href="reports.php?tab=<?= $tabKey ?>" class="<?= $tab===$tabKey?'active':'' ?>"><?= htmlspecialchars($tabLabel,ENT_QUOTES,'UTF-8') ?></a><?php endforeach; ?>
-        <a href="reports.php?tab=settings" class="<?= $tab === 'settings' ? 'active' : '' ?>">KPI Settings</a>
+        <a href="reports.php?tab=settings" class="<?= $tab === 'settings' ? 'active' : '' ?>">Performance Settings</a>
     </nav>
 
     <?php if (!$ready): ?>
@@ -286,14 +286,14 @@ include BASE_PATH . '/shared/sidebar.php';
         <?php if ($message !== ''): ?><div class="ops-alert <?= $messageType === 'error' ? 'error' : 'success' ?>" role="status"><?= htmlspecialchars($message, ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
 
         <section class="panel">
-            <div class="section-row"><div><p class="eyebrow">Calculation controls</p><h2>Global KPI settings</h2><p>Role-specific weights are stored for owner review only. Composite scores, bonus bands and rankings remain disabled until every required data-integrity test passes.</p></div></div>
+            <div class="section-row"><div><p class="eyebrow">Calculation controls</p><h2>Global performance settings</h2><p>Role-specific weights are stored for owner review only. Composite scores, bonus bands and rankings remain disabled until every required data-integrity test passes.</p></div></div>
             <form method="post" class="form-grid">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
                 <input type="hidden" name="kpi_action" value="save_settings">
                 <?php foreach ($settingFields as $key => [$label, $type, $default]): ?>
                     <label class="field"><span><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></span><input type="<?= $type ?>" name="<?= htmlspecialchars($key, ENT_QUOTES, 'UTF-8') ?>" value="<?= htmlspecialchars($settings[$key] ?? $default, ENT_QUOTES, 'UTF-8') ?>" <?= $type === 'number' ? 'min="0" step="any"' : '' ?> required></label>
                 <?php endforeach; ?>
-                <div class="form-actions"><button class="btn-primary" type="submit">Save KPI settings</button></div>
+                <div class="form-actions"><button class="btn-primary" type="submit">Save performance settings</button></div>
             </form>
         </section>
 

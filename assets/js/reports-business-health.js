@@ -20,17 +20,17 @@
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character]));
   async function readKpiJson(response) {
     const raw = await response.text();
-    if (!raw.trim()) throw new Error(`The KPI server returned an empty response (${response.status}).`);
+    if (!raw.trim()) throw new Error(`The performance server returned an empty response (${response.status}).`);
     if (!(response.headers.get('content-type') || '').toLowerCase().includes('application/json')) {
-      console.error('KPI response was not JSON:', raw.slice(0, 500));
-      throw new Error('The KPI server returned an invalid response.');
+      console.error('Performance response was not JSON:', raw.slice(0, 500));
+      throw new Error('The performance server returned an invalid response.');
     }
     let data;
     try { data = JSON.parse(raw); } catch (error) {
-      console.error('KPI response could not be parsed:', raw.slice(0, 500), error);
-      throw new Error('The KPI server returned incomplete data.');
+      console.error('Performance response could not be parsed:', raw.slice(0, 500), error);
+      throw new Error('The performance server returned incomplete data.');
     }
-    if (!response.ok || data.ok !== true) throw new Error(data.message || `KPI request failed (${response.status}).`);
+    if (!response.ok || data.ok !== true) throw new Error(data.message || `Performance request failed (${response.status}).`);
     return data;
   }
   const display = (metric) => {

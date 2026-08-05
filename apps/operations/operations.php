@@ -514,7 +514,7 @@ function ops_kpi_record_event(string $section, string $recordType, int $recordId
 
 function ops_setup_notice(): void
 {
-    echo '<section class="ops-alert"><strong>Database setup needed.</strong> Import <code>operations-migration.sql</code> into the portal database to activate saved orders, checklists, barcode logs, consignments, KPIs, petty cash and reports. The screens are ready, but live data is paused until the tables exist.</section>';
+    echo '<section class="ops-alert"><strong>Database setup needed.</strong> Import <code>operations-migration.sql</code> into the portal database to activate saved orders, checklists, barcode logs, consignments, employee performance, petty cash and reports. The screens are ready, but live data is paused until the tables exist.</section>';
 }
 
 function ops_count(string $table, string $where = '1=1'): int

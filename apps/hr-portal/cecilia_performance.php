@@ -516,7 +516,7 @@ $monthNav = '<div class="month-nav"><a class="month-btn" href="' . hp_e(hp_month
         </div>
       </div>
       <div class="profile-actions">
-        <a class="btn btn-outline btn-sm" href="<?= hp_e(BASE_URL . '/apps/operations/reports.php') ?>">KPI Reports</a>
+        <a class="btn btn-outline btn-sm" href="<?= hp_e(BASE_URL . '/apps/operations/reports.php') ?>">Employee Performance Reports</a>
         <a class="btn btn-primary btn-sm" href="<?= hp_e(BASE_URL . '/apps/operations/my-account.php#section-employees') ?>">Employee File</a>
       </div>
     </div>

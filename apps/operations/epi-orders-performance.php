@@ -30,7 +30,7 @@ $metricLabels = [
 ?>
 <main class="workspace module">
   <section class="module-header">
-    <div><p class="eyebrow">Employee Performance Intelligence · Phase 2 verification</p><h1>Front Desk &amp; Orders Performance</h1><p>Plain verification view. No score is calculated and no existing KPI page is changed.</p></div>
+    <div><p class="eyebrow">Employee Performance Intelligence · Phase 2 verification</p><h1>Front Desk &amp; Orders Performance</h1><p>Plain verification view. No score is calculated and no existing Employee Performance page is changed.</p></div>
   </section>
   <?php if (!\Hambelela\EPI\Performance::enabled()): ?><section class="ops-alert">EPI background recording is currently disabled by its master feature flag. Existing evidence remains readable.</section><?php endif; ?>
   <form method="get" class="section-card" style="padding:16px;display:flex;gap:12px;flex-wrap:wrap;align-items:end">

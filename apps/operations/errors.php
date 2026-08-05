@@ -332,7 +332,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 'action_link' => BASE_URL . '/apps/operations/errors.php?error_id=' . $errorId,
             ], ['owner_admin', 'front_desk_admin', 'supervisor_manager']);
             unset($_SESSION['incident_submission_token']);
-            error_log_redirect('Error logged and added to KPI tracking.', 'success', '?saved=1');
+            error_log_redirect('Error logged and added to performance tracking.', 'success', '?saved=1');
         }
 
         if ($action === 'update_error') {

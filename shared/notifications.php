@@ -99,7 +99,7 @@ function notifications_modules(): array
         'bookkeeping' => 'Bookkeeping',
         'tasks' => 'Task Management',
         'errors' => 'Error Log',
-        'whatsapp' => 'WhatsApp KPI',
+        'whatsapp' => 'WhatsApp Performance',
         'cost_workbook' => 'Cost Workbook',
         'system' => 'System',
     ];
