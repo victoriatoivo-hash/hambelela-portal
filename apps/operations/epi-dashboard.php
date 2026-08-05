@@ -13,7 +13,7 @@ $activeApp = 'kpi';
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
-<link rel="stylesheet" href="<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/assets/css/epi.css?v=10.4.0">
+<link rel="stylesheet" href="<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/assets/css/epi.css?v=10.4.1">
 <main class="workspace module epi-dashboard" data-epi-dashboard data-owner="<?= $owner ? '1' : '0' ?>" data-viewer="<?= (int) ($user['id'] ?? 0) ?>" data-default-year="<?= $default->format('Y') ?>" data-default-month="<?= $default->format('n') ?>">
   <header class="epi-dashboard__header portal-header-with-status">
     <div><p class="eyebrow">Performance</p><h1>Employee Performance Intelligence</h1><p>Evidence-based employee performance, accountability and operational insight.</p></div>
@@ -33,5 +33,5 @@ include BASE_PATH . '/shared/sidebar.php';
   <div class="epi-presentation-controls" data-epi-presentation-controls hidden><button type="button" data-epi-slide-nav="previous">Previous</button><span data-epi-slide-status></span><button type="button" data-epi-slide-nav="next">Next</button><button type="button" data-epi-presentation-exit>Exit</button></div>
 </main>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
-<script src="<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/assets/js/epi-dashboard.js?v=10.4.0" defer></script>
+<script src="<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/assets/js/epi-dashboard.js?v=10.4.1" defer></script>
 <?php include BASE_PATH . '/shared/footer.php'; ?>
