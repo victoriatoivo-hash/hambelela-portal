@@ -837,6 +837,15 @@ function ops_activity_log(string $action, string $entityType, int $entityId, arr
             // Task Management must remain operational if background EPI recording is unavailable.
         }
     }
+
+    // Explicit Courier bridge. Runs only for saved Courier activity and is fully fail-safe.
+    if ($entityType === 'courier_waybill' || $entityType === 'courier_waybill_batch') {
+        try {
+            \Hambelela\EPI\CourierActivityBridge::record(db(), $action, $entityId, $metadata);
+        } catch (Throwable $e) {
+            // Courier operations must never depend on background EPI recording.
+        }
+    }
 }
 
 function ops_log_order_stage_event(int $orderId, string $stageKey, array $metadata = [], ?int $employeeId = null): void
