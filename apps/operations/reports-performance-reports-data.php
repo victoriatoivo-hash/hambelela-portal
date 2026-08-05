@@ -80,7 +80,7 @@ try {
     $employeeId = max(0, (int)($_GET['employee_id'] ?? 0));
     $role = trim((string)($_GET['role'] ?? 'all'));
 
-    $employees = ops_rows("SELECT e.id,e.full_name,r.name role_name,r.role_key FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE e.status='active' AND r.role_key<>'owner_admin' AND LOWER(e.full_name) NOT LIKE '%karina%' ORDER BY r.role_key,e.full_name");
+    $employees = ops_rows("SELECT e.id,e.full_name,r.name role_name,r.role_key FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE e.status='active' AND r.role_key<>'owner_admin' AND LOWER(e.full_name) NOT LIKE '%karina%' AND LOWER(e.full_name) NOT LIKE '%kaarina%' ORDER BY r.role_key,e.full_name");
     $reports = [];
     foreach ($employees as $person) {
         $id = (int)$person['id'];
