@@ -10,7 +10,7 @@ use PDO;
 final class SourceCompletenessEngine
 {
     private $pdo;
-    private $version = 'EPI Step 3B Version 1.0';
+    private $version = 'EPI Step 3C Version 1.1';
 
     public function __construct(PDO $pdo) { $this->pdo = $pdo; }
 
@@ -88,6 +88,7 @@ final class SourceCompletenessEngine
         foreach (['system_error','business_error'] as $exception) if (!empty($meta[$exception]) || strpos($text, str_replace('_',' ',$exception)) !== false) return $this->decision($exception,$exception,'Business and System Errors are excluded from employee scoring.');
         foreach (['approved_leave','approved_exception','external_dependency','system_outage','internet_outage','device_failure','supplier_delay','courier_delay','customer_delay','approved_role_coverage'] as $exception) if (!empty($meta[$exception])) return $this->decision('excluded',$exception,'A confirmed exception excludes this evidence from employee scoring.');
         if (empty($row['employee_id']) || empty($row['occurred_at']) || empty($row['reference_number']) || empty($row['action'])) return $this->decision('invalid','missing_required_fields','Attribution, timestamp, reference and action are required.');
+        if ((string)($row['module']??'')==='Error Log'&&!empty($meta['historical_backfill'])&&empty($meta['responsibility_confirmed'])) return $this->decision('needs_review','quality_attribution_review_required','Error Log activity is not proof of employee responsibility.');
         $subjective = (bool) preg_match('/wrong product|missing product|customer complaint|financial loss|shared responsibility|repeat error|critical error|owner intervention|supplier|courier fault|conflicting attribution/', $text);
         if ($subjective) return !empty($row['verified']) ? $this->decision('verified_eligible','owner_verified','Subjective evidence was verified.') : $this->decision('needs_review','subjective_review_required','Subjective or responsibility-sensitive evidence requires review.');
         return $this->decision('automatically_eligible','objective_system_event','Objective timestamped and attributed system evidence.');
@@ -110,6 +111,17 @@ final class SourceCompletenessEngine
         $completeness=$parts?(int)round(array_sum($parts)/count($parts)):0;
         $sourceStatus=$expected===0?'missing':($completeness>=9000?'complete':'partial');
         $reason=$expected===0?'No matching historical source records were found.':($sourceStatus==='partial'?'Some records lack eligible evidence, ownership, timestamps or status history.':null);
+        // A perfect ratio among recovered records must not conceal a known gap in
+        // the underlying July source history (for example sessions starting 21 July).
+        $audit=$this->historicalAudit($employeeId,$from,$to,(string)$source['source_key']);
+        if($audit){
+            $expected=max($expected,(int)$audit['legacy_records_found']+(int)$audit['unresolved_records']);
+            if((int)$audit['unresolved_records']>0||in_array((string)$audit['source_reliability'],['moderate','low','insufficient'],true)){
+                $sourceStatus=$expected===0?'missing':'partial';
+                $reason=(string)($audit['limitation_note']?:'Historical source audit identified unresolved coverage.');
+                $completeness=$expected?(int)round(($available/$expected)*10000):0;
+            }
+        }
         $reliability=$sourceStatus==='complete'?'high':($sourceStatus==='partial'?'moderate':'insufficient');
         $row=['source_id'=>(int)$source['id'],'source_key'=>$source['source_key'],'source_name'=>$source['source_name'],'category_key'=>$source['category_key'],'importance'=>$source['importance'],'records_expected'=>$expected,'records_available'=>$available,'ownership_coverage_hundredths'=>$ownership,'timestamp_coverage_hundredths'=>$timestamp,'status_history_coverage_hundredths'=>$status,'completeness_hundredths'=>$completeness,'source_status'=>$sourceStatus,'source_reliability'=>$reliability,'reason_missing'=>$reason];
         $this->storeSource($employeeId,$from,$to,$source,$row);
@@ -127,4 +139,5 @@ final class SourceCompletenessEngine
     private function importanceCoverage(array $rows,string $importance):int{$selected=array_values(array_filter($rows,static function(array$r)use($importance):bool{return$r['importance']===$importance;}));return$selected?(int)round(array_sum(array_column($selected,'completeness_hundredths'))/count($selected)):10000;}
     private function decision(string$state,string$reason,string$explanation):array{return['state'=>$state,'reason'=>$reason,'explanation'=>$explanation];}
     private function settingInt(string$key,int$default):int{$s=$this->pdo->prepare('SELECT setting_value FROM epi_employee_performance_settings WHERE setting_key=?');$s->execute([$key]);$v=$s->fetchColumn();return$v===false?$default:(int)$v;}
+    private function historicalAudit(int$employeeId,string$from,string$to,string$sourceKey):?array{try{$s=$this->pdo->prepare('SELECT * FROM epi_historical_source_audits WHERE employee_id=? AND period_start=? AND period_end=? AND source_key=? LIMIT 1');$s->execute([$employeeId,$from,$to,$sourceKey]);$r=$s->fetch(PDO::FETCH_ASSOC);return$r?:null;}catch(\Throwable$error){return null;}}
 }
