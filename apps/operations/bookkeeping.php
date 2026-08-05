@@ -207,7 +207,14 @@ function cashbook_log(
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)"
     );
     $stmt->execute([$entryId, $action, $field, $oldValue, $newValue, $description, $userId, $userName, $sessionReference, $deviceReference]);
+    $auditId = (int) db()->lastInsertId();
     $stmt->closeCursor();
+    // EPI is best-effort and must never interrupt Bookkeeping.
+    try {
+        \Hambelela\EPI\BookkeepingActivityBridge::record(db(), $auditId);
+    } catch (Throwable $epiError) {
+        error_log('Bookkeeping EPI bridge failed: ' . $epiError->getMessage());
+    }
 }
 
 function ledger_bootstrap_schema(): void
