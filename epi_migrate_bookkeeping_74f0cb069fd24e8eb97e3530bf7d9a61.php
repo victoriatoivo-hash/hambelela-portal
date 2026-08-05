@@ -7,7 +7,7 @@ try{
  $sql=(string)file_get_contents(__DIR__.'/operations-epi-bookkeeping-performance-migration.sql');
  foreach(array_filter(array_map('trim',preg_split('/;\s*(?:\r?\n|$)/',$sql)?:[]))as$statement){if($statement===''||(strpos(ltrim($statement),'--')===0&&strpos($statement,"\n")===false))continue;db()->exec($statement);}
  foreach(['bookkeeping_module_enabled','bookkeeping_cash_entry_grace_minutes','bookkeeping_cash_entry_deadline','bookkeeping_deposit_deadline','bookkeeping_deposit_schedule','bookkeeping_variance_tolerance_cents']as$key){$s=db()->prepare('SELECT setting_value FROM epi_employee_performance_settings WHERE setting_key=?');$s->execute([$key]);echo$key.'='.(string)$s->fetchColumn()."\n";}
- foreach(['epi_bookkeeping_match_reviews','epi_bookkeeping_exceptions']as$table){$s=db()->prepare('SHOW TABLES LIKE ?');$s->execute([$table]);echo$table.'='.(string)$s->fetchColumn()."\n";}
+ foreach(['epi_bookkeeping_match_reviews','epi_bookkeeping_exceptions']as$table){$s=db()->query("SHOW TABLES LIKE ".db()->quote($table));echo$table.'='.(string)$s->fetchColumn()."\n";}
  $s=db()->query("SELECT grace_key,minutes FROM epi_employee_grace_periods WHERE module='Bookkeeping' ORDER BY grace_key");foreach($s->fetchAll(PDO::FETCH_ASSOC)as$row)echo$row['grace_key'].'='.$row['minutes']."\n";
  echo"MIGRATION_OK\n";
 }catch(Throwable$e){http_response_code(500);echo'ERROR: '.$e->getMessage();}
