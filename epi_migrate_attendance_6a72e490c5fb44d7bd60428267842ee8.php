@@ -1,5 +1,0 @@
-<?php
-declare(strict_types=1);header('Content-Type: text/plain; charset=utf-8');
-if(!hash_equals('6a72e490c5fb44d7bd60428267842ee8',(string)($_GET['token']??''))){http_response_code(404);exit('Not found');}
-require_once __DIR__.'/config.php';require_once BASE_PATH.'/shared/database.php';
-try{$sql=(string)file_get_contents(__DIR__.'/operations-epi-attendance-performance-migration.sql');foreach(array_filter(array_map('trim',preg_split('/;\s*(?:\r?\n|$)/',$sql)?:[]))as$q){if($q==='')continue;db()->exec($q);}foreach(['attendance_module_enabled','attendance_idle_threshold_minutes','attendance_late_grace_minutes','attendance_poll_seconds']as$k){$s=db()->prepare('SELECT setting_value FROM epi_employee_performance_settings WHERE setting_key=?');$s->execute([$k]);echo$k.'='.(string)$s->fetchColumn()."\n";}foreach(['epi_attendance_schedules','epi_attendance_exceptions','epi_attendance_coverage','epi_attendance_monthly_summaries']as$t){$s=db()->query('SHOW TABLES LIKE '.db()->quote($t));echo$t.'='.(string)$s->fetchColumn()."\n";}echo'MIGRATION_OK'."\n";}catch(Throwable$e){http_response_code(500);echo'ERROR: '.$e->getMessage();}
