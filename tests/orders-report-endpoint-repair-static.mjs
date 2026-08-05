@@ -3,6 +3,7 @@ import fs from 'node:fs';
 
 const endpoint = fs.readFileSync('apps/operations/reports-section-data.php', 'utf8');
 const evidence = fs.readFileSync('apps/operations/kpi-packer-orders.php', 'utf8');
+const wrapper = fs.readFileSync('apps/operations/reports-orders-data.php', 'utf8');
 
 assert.match(endpoint, /'error'=>null/);
 assert.match(endpoint, /'error'=>'KPI_SECTION_FAILED'/);
@@ -12,5 +13,8 @@ assert.doesNotMatch(endpoint, /SELECT weekday,is_working,shift_start,shift_end F
 assert.match(evidence, /ops_column_exists\('kpi_sessions', 'explicit_logout_at'\)/);
 assert.match(evidence, /\$counts\['courier_ready'\]=\$counts\['before_14'\]/);
 assert.match(evidence, /'average_minutes'=>kpi_packer_average\(\$turnaround\)/);
+assert.match(wrapper, /require_role\('owner_admin'\)/);
+assert.match(wrapper, /'error' => 'ORDERS_REPORT_FAILED'/);
+assert.match(wrapper, /\$_GET\['diagnose'\]/);
 
 console.log('Orders report endpoint repair checks passed.');
