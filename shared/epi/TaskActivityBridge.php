@@ -29,6 +29,7 @@ final class TaskActivityBridge
             $task = self::task($pdo, $taskId);
             if (!$task) return;
             $actor = self::actor($pdo, isset($input['employee_id']) ? (int)$input['employee_id'] : null);
+            $responsible = self::actor($pdo, isset($task['assigned_employee_id']) ? (int)$task['assigned_employee_id'] : null);
             $at = Support::timestamp($input['changed_at'] ?? $input['occurred_at'] ?? null);
             $reference = 'TASK-' . $taskId;
             $action = self::action($legacyAction, $input);
@@ -87,7 +88,7 @@ final class TaskActivityBridge
                 'deduplication_key'=>Support::dedupe(['task-evidence',$dedupe]),'metadata'=>$metadata,
             ]);
             self::ownership($reference, $task, $actor, $action, $at, $input);
-            self::candidates($pdo, $reference, $task, $actor, $action, $at, $metadata, $uuid);
+            if ((int)($task['assigned_employee_id'] ?? 0) > 0) self::candidates($pdo, $reference, $task, $responsible, $action, $at, $metadata, $uuid);
         } catch (Throwable $error) {
             self::logFailure($error, $legacyAction, $taskId);
         }
@@ -181,6 +182,7 @@ final class TaskActivityBridge
         $rules=[];$priority=strtolower((string)($m['priority']??'normal'));
         $response=self::jsonSetting($pdo,'task_response_minutes',['urgent'=>30,'important'=>90,'normal'=>240]);
         if($action==='task_started'&&is_numeric($m['created_to_started_minutes']??null)&&(float)$m['created_to_started_minutes']>(float)($response[$priority]??$response['normal']))$rules[]=['deduction','late_start'];
+        if($action==='task_started'&&($m['due_result']??'')==='overdue_still_open')$rules[]=['deduction','currently_overdue'];
         if($action==='task_completed'&&($m['due_result']??'')==='completed_late')$rules[]=['deduction','late_completion'];
         if($action==='task_completed'&&!$m['checklist_complete'])$rules[]=['deduction','incomplete_checklist'];
         if($action==='task_completed'&&!empty($m['completion_note_required'])&&empty($m['completion_note_present']))$rules[]=['deduction','missing_mandatory_note'];

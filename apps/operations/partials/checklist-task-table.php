@@ -18,10 +18,10 @@ $emptyTaskMessage = $emptyTaskMessage ?? ($canManage ? 'No tasks match this view
                 $priorityKey = (string) ($task['priority'] ?? 'medium');
                 $statusKey = str_replace('_', '-', $effective);
                 $savedStatus = checklist_normalize_status((string) ($task['status'] ?? 'new'));
-                $rowItems = checklist_json_items((string) ($task['checklist_items'] ?? ''));
-                $rowChecked = checklist_json_items((string) ($task['checked_items'] ?? ''));
-                $progress = $savedStatus === 'complete' ? 100 : ($savedStatus === 'new' ? 0 : ($rowItems ? (int) round(count($rowChecked) / max(1, count($rowItems)) * 100) : 0));
-                $dueState = checklist_due_state((string) ($task['deadline'] ?? ''), $savedStatus);
+                $timing = checklist_task_timing($task);
+                $progress = (int) $timing['progress'];
+                $whenDueOutcome = $savedStatus === 'complete' ? $timing['outcome'] : $timing['active_outcome'];
+                $dueState = ['value'=>$timing['overdue']?'overdue':($savedStatus==='complete'?'complete':'upcoming'),'iso'=>'','title'=>$timing['due_label'].' — '.$whenDueOutcome,'label'=>$whenDueOutcome];
                 $taskId = (int) $task['id'];
                 ?>
                 <tr class="dtb-task-row task-grid-row" data-task-row data-task-id="<?= $taskId ?>" data-deadline-state="<?= htmlspecialchars((string) ($dueState['value'] ?? 'normal'), ENT_QUOTES, 'UTF-8') ?>" data-saved-status="<?= htmlspecialchars($savedStatus, ENT_QUOTES, 'UTF-8') ?>" data-display-status="<?= htmlspecialchars($effective, ENT_QUOTES, 'UTF-8') ?>" data-task-name="<?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?>" data-task-assigned="<?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?>" data-task-priority="<?= htmlspecialchars($priorities[$priorityKey] ?? 'Medium', ENT_QUOTES, 'UTF-8') ?>" data-task-status="<?= htmlspecialchars($groups[$effective] ?? ($statuses[$effective] ?? $effective), ENT_QUOTES, 'UTF-8') ?>">
@@ -30,11 +30,11 @@ $emptyTaskMessage = $emptyTaskMessage ?? ($canManage ? 'No tasks match this view
                     <td><div class="task-row-actions"><button class="task-detail-icon" type="button" data-task-open="<?= $taskId ?>" aria-label="Open task details"><i data-lucide="panel-right-open"></i></button></div></td>
                     <td><?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?></td>
                     <td class="task-priority-cell"><div class="task-priority-fill" data-priority="<?= htmlspecialchars(str_replace('_', '-', $priorityKey), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($priorities[$priorityKey] ?? 'Medium', ENT_QUOTES, 'UTF-8') ?></div></td>
-                    <td><?= checklist_date_label((string) ($task['deadline'] ?? '')) ?></td>
+                    <td><?= htmlspecialchars($timing['due_label'], ENT_QUOTES, 'UTF-8') ?></td>
                     <td class="task-table__due-cell"><?php if ($dueState): ?><span class="task-due-state task-due-state--<?= htmlspecialchars(str_replace('_', '-', $dueState['value']), ENT_QUOTES, 'UTF-8') ?>" data-task-due-state data-task-due-at="<?= htmlspecialchars($dueState['iso'], ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars($dueState['title'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($dueState['label'], ENT_QUOTES, 'UTF-8') ?></span><?php elseif ($savedStatus !== 'complete'): ?><span class="task-due-state task-due-state--missing" data-task-due-state>Set due date</span><?php else: ?>—<?php endif; ?></td>
                     <td class="task-status-cell"><button type="button" class="task-status-trigger" data-task-status-trigger data-status="<?= htmlspecialchars($statusKey, ENT_QUOTES, 'UTF-8') ?>" aria-haspopup="menu" aria-expanded="false"><?= htmlspecialchars($groups[$effective] ?? ($statuses[$effective] ?? $effective), ENT_QUOTES, 'UTF-8') ?></button></td>
-                    <td><span class="task-progress-value"><?= $progress ?>%</span></td>
-                    <td data-task-completed><?= htmlspecialchars(checklist_date_label((string) ($task['date_completed'] ?: $task['completed_at'])), ENT_QUOTES, 'UTF-8') ?></td>
+                    <td><div class="task-progress-track<?= $timing['overdue']?' is-overdue':'' ?><?= $savedStatus==='complete'?' is-complete':'' ?>" data-task-progress-track role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<?= $progress ?>" title="Percentage of the available working time used since this task was started."><div class="task-progress-fill" data-task-progress-fill style="width:<?= $progress ?>%"></div><span class="task-progress-value" data-task-progress-value><?= $progress ?>%</span></div></td>
+                    <td data-task-completed><?= ($task['date_completed'] ?: $task['completed_at']) ? htmlspecialchars(checklist_date_label((string) ($task['date_completed'] ?: $task['completed_at'])), ENT_QUOTES, 'UTF-8') : ($savedStatus === 'complete' ? 'Completion time unavailable' : '-') ?></td>
                     <td><span class="task-notes-preview"><?= htmlspecialchars((string) ($task['completion_note'] ?: $task['notes'] ?: '—'), ENT_QUOTES, 'UTF-8') ?></span></td>
                 </tr>
             <?php endforeach; ?>

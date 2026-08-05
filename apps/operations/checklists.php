@@ -366,6 +366,70 @@ function checklist_date_label(?string $value): string
     try { return (new DateTimeImmutable($value))->format('M j, H:i'); } catch (Throwable $e) { return $value; }
 }
 
+function checklist_authoritative_deadline(?string $value): ?DateTimeImmutable
+{
+    $raw = trim((string) $value);
+    if ($raw === '') return null;
+    try {
+        $due = new DateTimeImmutable($raw, new DateTimeZone('Africa/Windhoek'));
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw) || preg_match('/ 00:00(?::00)?$/', $raw)) $due = $due->setTime(17, 0);
+        return $due;
+    } catch (Throwable $e) { return null; }
+}
+
+function checklist_working_minutes(DateTimeImmutable $from, DateTimeImmutable $to): int
+{
+    if ($to <= $from) return 0;
+    static $engine = null;
+    try { if (!$engine) $engine = new \Hambelela\EPI\BusinessTimeEngine(db()); return (int) round($engine->workingMinutes($from, $to)); }
+    catch (Throwable $e) { return 0; }
+}
+
+function checklist_duration_label(int $minutes): string
+{
+    $minutes = max(0, $minutes); $days = intdiv($minutes, 540); $hours = intdiv($minutes % 540, 60); $mins = $minutes % 60; $parts = [];
+    if ($days) $parts[] = $days . ' working day' . ($days === 1 ? '' : 's');
+    if ($hours) $parts[] = $hours . ' hr' . ($hours === 1 ? '' : 's');
+    if ($mins || !$parts) $parts[] = $mins . ' min';
+    return implode(' ', $parts);
+}
+
+function checklist_elapsed_duration_label(int $seconds): string
+{
+    if ($seconds > 0 && $seconds < 60) return 'less than 1 min';
+    $minutes = intdiv(max(0, $seconds), 60); $days = intdiv($minutes, 1440); $hours = intdiv($minutes % 1440, 60); $mins = $minutes % 60; $parts = [];
+    if ($days) $parts[] = $days . ' day' . ($days === 1 ? '' : 's');
+    if ($hours) $parts[] = $hours . ' hr' . ($hours === 1 ? '' : 's');
+    if ($mins || !$parts) $parts[] = $mins . ' min';
+    return implode(' ', $parts);
+}
+
+function checklist_task_timing(array $task, ?DateTimeImmutable $now = null): array
+{
+    $timezone = new DateTimeZone('Africa/Windhoek'); $now = $now ?: new DateTimeImmutable('now', $timezone);
+    $status = checklist_normalize_status((string) ($task['status'] ?? 'new'));
+    $due = checklist_authoritative_deadline($task['deadline'] ?? null);
+    $completed = null; $started = null;
+    try { if (!empty($task['date_completed']) || !empty($task['completed_at'])) $completed = new DateTimeImmutable((string) ($task['date_completed'] ?: $task['completed_at']), $timezone); } catch (Throwable $e) {}
+    try { if (!empty($task['started_at'])) $started = new DateTimeImmutable((string) $task['started_at'], $timezone); } catch (Throwable $e) {}
+    $result = ['progress'=>$status === 'complete' ? 100 : 0, 'overdue'=>false, 'outcome'=>'', 'active_outcome'=>$due ? ($now > $due ? 'Overdue' : 'Coming up') : 'No due date', 'overdue_minutes'=>0, 'due_label'=>$due ? $due->format('d M Y · H:i') : 'No due date'];
+    if (!$due) { $result['outcome'] = $status === 'complete' && !$completed ? 'Completion time unavailable' : 'No due date'; return $result; }
+    if ($status === 'complete') {
+        if (!$completed) { $result['outcome'] = 'Completion time unavailable'; return $result; }
+        if ($completed <= $due) { $result['outcome'] = 'On time'; return $result; }
+        $elapsed = $completed->getTimestamp() - $due->getTimestamp(); $result['overdue'] = true; $result['overdue_minutes'] = (int) ceil($elapsed / 60); $result['outcome'] = 'Overdue by ' . checklist_elapsed_duration_label($elapsed); return $result;
+    }
+    if ($now > $due) { $elapsed=$now->getTimestamp()-$due->getTimestamp();$result['overdue'] = true; $result['overdue_minutes'] = (int)ceil($elapsed/60); $result['progress'] = $status === 'in_progress' ? 99 : 0; $result['outcome'] = 'Overdue by ' . checklist_elapsed_duration_label($elapsed); return $result; }
+    if ($status === 'in_progress' && $started) {
+        $available = checklist_working_minutes($started, $due); $used = checklist_working_minutes($started, $now);
+        $result['progress'] = $available > 0 ? max(1, min(99, (int) floor(($used / $available) * 100))) : 1;
+        $result['outcome'] = 'Due in ' . checklist_elapsed_duration_label($due->getTimestamp()-$now->getTimestamp());
+    } elseif ($status === 'new') {
+        $result['outcome'] = 'Due in ' . checklist_elapsed_duration_label($due->getTimestamp()-$now->getTimestamp());
+    }
+    return $result;
+}
+
 function checklist_days_remaining(?string $deadline, string $status): string
 {
     if (!$deadline) return 'No due date';
@@ -556,6 +620,13 @@ if ($ready) {
 if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $action = ops_post_string('action', 40);
+        if ($action === 'task_timing_snapshot') {
+            header('Content-Type: application/json; charset=utf-8');
+            $submittedToken=(string)($_POST['csrf_token']??'');if($submittedToken===''||!hash_equals($taskAttachmentCsrf,$submittedToken)){http_response_code(403);throw new RuntimeException('Your session token expired. Refresh the page and try again.');}
+            $ids=array_values(array_unique(array_filter(array_map('intval',explode(',',(string)($_POST['task_ids']??''))))));$ids=array_slice($ids,0,500);$rows=[];
+            if($ids){$marks=implode(',',array_fill(0,count($ids),'?'));$timingWhere=$canManage?'':" AND assigned_employee_id=? AND employee_visible=1";$timingParams=$ids;if(!$canManage)$timingParams[]=(int)($currentEmployeeId?:0);$rows=ops_rows("SELECT * FROM ops_checklist_tasks WHERE id IN ({$marks}) AND archived_at IS NULL AND deleted_at IS NULL{$timingWhere}",$timingParams);}
+            $snapshot=[];foreach($rows as$row)$snapshot[(int)$row['id']]=checklist_task_timing($row);echo json_encode(['success'=>true,'server_time'=>(new DateTimeImmutable('now',new DateTimeZone('Africa/Windhoek')))->format(DateTimeInterface::ATOM),'tasks'=>$snapshot]);exit;
+        }
         checklist_handle_template_action($action, $canManage, $taskAttachmentCsrf, (int) ($currentEmployeeId ?: 0));
         if (in_array($action, ['task_attachment_upload', 'task_attachment_remove'], true)) {
             header('Content-Type: application/json; charset=utf-8');
@@ -1155,6 +1226,9 @@ if ($filters['status'] !== '') {
     }
 }
 $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+$taskOrderSql = $filters['task_view'] === 'completed'
+    ? "CASE WHEN COALESCE(t.date_completed,t.completed_at) IS NULL THEN 1 ELSE 0 END ASC, COALESCE(t.date_completed,t.completed_at) ASC, COALESCE(t.deadline,'9999-12-31 23:59:59') ASC, t.id ASC"
+    : "CASE WHEN t.status = 'complete' THEN 2 ELSE 1 END, COALESCE(t.deadline, t.created_at) ASC, t.created_at DESC";
 
 $tasks = $ready ? ops_rows(
     "SELECT t.*, e.full_name AS assigned_name, cb.full_name AS completed_by_name
@@ -1162,12 +1236,21 @@ $tasks = $ready ? ops_rows(
      LEFT JOIN ops_employees e ON e.id = t.assigned_employee_id
      LEFT JOIN ops_employees cb ON cb.id = t.completed_by
      {$whereSql}
-     ORDER BY CASE WHEN t.status = 'complete' THEN 2 ELSE 1 END, COALESCE(t.deadline, t.created_at) ASC, t.created_at DESC
+     ORDER BY {$taskOrderSql}
      LIMIT 500",
     $params
 ) : [];
 $manualTasks = array_values(array_filter($tasks, static fn (array $task): bool => checklist_task_kind($task) === 'manual'));
 $recurringTasks = array_values(array_filter($tasks, static fn (array $task): bool => checklist_task_kind($task) === 'recurring'));
+$completedEmployeeGroups = [];
+if ($filters['task_view'] === 'completed') {
+    foreach ($employees as $employee) $completedEmployeeGroups['employee:' . (int) $employee['id']] = ['id'=>(int)$employee['id'],'name'=>(string)$employee['full_name'],'tasks'=>[]];
+    foreach ($tasks as $completedTask) {
+        $employeeId = (int) ($completedTask['assigned_employee_id'] ?? 0); $key = $employeeId > 0 ? 'employee:' . $employeeId : 'unassigned';
+        if (!isset($completedEmployeeGroups[$key])) $completedEmployeeGroups[$key] = ['id'=>$employeeId ?: null,'name'=>$employeeId > 0 ? ((string)($completedTask['assigned_name'] ?? '') ?: 'Former employee #' . $employeeId) : 'Unassigned Historical Tasks','tasks'=>[]];
+        $completedEmployeeGroups[$key]['tasks'][] = $completedTask;
+    }
+}
 
 $historyWhere = ["t.status = 'complete'", 't.archived_at IS NULL', 't.deleted_at IS NULL'];
 $historyParams = [];
@@ -1423,22 +1506,26 @@ include BASE_PATH . '/shared/sidebar.php';
     <?php endif; ?>
 
     <?php if ($filters['task_view'] === 'completed'): ?>
-    <section class="task-board" data-task-board>
+    <section id="completed-tasks-section" aria-label="Completed tasks grouped by assigned employee">
+    <?php foreach ($completedEmployeeGroups as $completedGroup): ?>
+    <?php if ($filtersAreActive && !$completedGroup['tasks'] && (int)$filters['employee_id'] !== (int)($completedGroup['id'] ?? 0)) continue; ?>
+    <section class="completed-employee-group" data-completed-employee-group data-employee-id="<?= htmlspecialchars((string)($completedGroup['id'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+        <h2 class="completed-employee-heading"><?= htmlspecialchars((string)$completedGroup['name'], ENT_QUOTES, 'UTF-8') ?></h2>
+        <div class="completed-employee-table-wrap"><section class="task-board" data-task-board>
         <div class="dtb-table-wrap">
         <table class="dtb-board-table task-board-table">
             <colgroup><col class="dtb-col-select"><col class="dtb-col-name"><col class="dtb-col-actions"><col class="dtb-col-assigned"><col class="dtb-col-priority"><col class="dtb-col-due"><col class="dtb-col-days"><col class="dtb-col-status"><col class="dtb-col-progress"><col class="dtb-col-completed"><col class="dtb-col-notes"></colgroup>
             <thead><tr><th class="dtb-select-cell"><input class="dtb-task-check dtb-task-check-all" type="checkbox" aria-label="Select all visible tasks"></th><th>Task</th><th>Details</th><th>Assigned</th><th>Priority</th><th>Due</th><th>When Due</th><th>Status</th><th>Progress</th><th>Completed</th><th>Notes</th></tr></thead>
             <tbody>
-                <?php foreach ($tasks as $task): ?>
+                <?php foreach ($completedGroup['tasks'] as $task): ?>
                     <?php
                     $effective = checklist_effective_status($task);
                     $priorityKey = (string) ($task['priority'] ?? 'normal');
                     $statusKey = str_replace('_', '-', $effective);
                     $savedStatus = checklist_normalize_status((string) ($task['status'] ?? 'new'));
-                    $rowItems = checklist_json_items((string) ($task['checklist_items'] ?? ''));
-                    $rowChecked = checklist_json_items((string) ($task['checked_items'] ?? ''));
-                    $progress = $savedStatus === 'complete' ? 100 : ($savedStatus === 'new' ? 0 : ($rowItems ? (int) round(count($rowChecked) / max(1, count($rowItems)) * 100) : 0));
-                    $dueState = checklist_due_state((string) ($task['deadline'] ?? ''), $savedStatus);
+                    $timing = checklist_task_timing($task);
+                    $progress = (int) $timing['progress'];
+                    $dueState = ['value'=>$timing['overdue']?'overdue':'complete','iso'=>'','title'=>$timing['due_label'].' — '.$timing['outcome'],'label'=>$timing['outcome']];
                     ?>
                     <?php $taskId = (int) $task['id']; ?>
                     <tr class="dtb-task-row task-grid-row" data-task-row data-task-id="<?= $taskId ?>" data-deadline-state="<?= htmlspecialchars((string) ($dueState['value'] ?? 'normal'), ENT_QUOTES, 'UTF-8') ?>" data-saved-status="<?= htmlspecialchars($savedStatus, ENT_QUOTES, 'UTF-8') ?>" data-display-status="<?= htmlspecialchars($effective, ENT_QUOTES, 'UTF-8') ?>" data-task-name="<?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?>" data-task-assigned="<?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?>" data-task-priority="<?= htmlspecialchars($priorities[$priorityKey] ?? 'Medium', ENT_QUOTES, 'UTF-8') ?>" data-task-status="<?= htmlspecialchars($groups[$effective] ?? ($statuses[$effective] ?? $effective), ENT_QUOTES, 'UTF-8') ?>">
@@ -1447,18 +1534,21 @@ include BASE_PATH . '/shared/sidebar.php';
                         <td><div class="task-row-actions"><button class="task-detail-icon" type="button" data-task-open="<?= $taskId ?>" aria-label="Open task details"><i data-lucide="panel-right-open"></i></button></div></td>
                         <td><?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?></td>
                         <td class="task-priority-cell"><div class="task-priority-fill" data-priority="<?= htmlspecialchars(str_replace('_', '-', $priorityKey), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($priorities[$priorityKey] ?? 'Normal', ENT_QUOTES, 'UTF-8') ?></div></td>
-                        <td><?= checklist_date_label((string) ($task['deadline'] ?? '')) ?></td>
+                        <td><?= htmlspecialchars($timing['due_label'], ENT_QUOTES, 'UTF-8') ?></td>
                         <td class="task-table__due-cell"><?php if ($dueState): ?><span class="task-due-state task-due-state--<?= htmlspecialchars(str_replace('_', '-', $dueState['value']), ENT_QUOTES, 'UTF-8') ?>" data-task-due-state data-task-due-at="<?= htmlspecialchars($dueState['iso'], ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars($dueState['title'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($dueState['label'], ENT_QUOTES, 'UTF-8') ?></span><?php elseif ($savedStatus !== 'complete'): ?><span class="task-due-state task-due-state--missing" data-task-due-state>Set due date</span><?php else: ?>—<?php endif; ?></td>
                         <td class="task-status-cell"><button type="button" class="task-status-trigger" data-task-status-trigger data-status="<?= htmlspecialchars($statusKey, ENT_QUOTES, 'UTF-8') ?>" aria-haspopup="menu" aria-expanded="false"><?= htmlspecialchars($groups[$effective] ?? ($statuses[$effective] ?? $effective), ENT_QUOTES, 'UTF-8') ?></button></td>
-                        <td><span class="task-progress-value"><?= $progress ?>%</span></td>
-                        <td data-task-completed><?= htmlspecialchars(checklist_date_label((string) ($task['date_completed'] ?: $task['completed_at'])), ENT_QUOTES, 'UTF-8') ?></td>
+                        <td><div class="task-progress-track<?= $timing['overdue']?' is-overdue':'' ?> is-complete" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<?= $progress ?>" title="Percentage of the available working time used since this task was started."><div class="task-progress-fill" style="width:<?= $progress ?>%"></div><span class="task-progress-value"><?= $progress ?>%</span></div></td>
+                        <td data-task-completed><?= ($task['date_completed'] ?: $task['completed_at']) ? htmlspecialchars(checklist_date_label((string) ($task['date_completed'] ?: $task['completed_at'])), ENT_QUOTES, 'UTF-8') : 'Completion time unavailable' ?></td>
                         <td><span class="task-notes-preview"><?= htmlspecialchars((string) ($task['completion_note'] ?: $task['notes'] ?: '—'), ENT_QUOTES, 'UTF-8') ?></span></td>
                     </tr>
                 <?php endforeach; ?>
-                <?php if (!$tasks): ?><tr class="dtb-empty-row"><td colspan="11"><?= $canManage ? 'No tasks match this view and its filters.' : 'No tasks are currently assigned to you.' ?></td></tr><?php endif; ?>
+                <?php if (!$completedGroup['tasks']): ?><tr class="dtb-empty-row"><td colspan="11">No completed tasks found for this employee.</td></tr><?php endif; ?>
             </tbody>
         </table>
         </div>
+        </section></div>
+    </section>
+    <?php endforeach; ?>
     </section>
     <?php endif; ?>
 
@@ -1506,7 +1596,9 @@ include BASE_PATH . '/shared/sidebar.php';
         $deadlineValue = $task['deadline'] ? substr((string) $task['deadline'], 0, 16) : '';
         $taskKind = checklist_task_kind($task);
         $statusClass = str_replace('_', '-', $effective);
-        $panelDueState = checklist_due_state((string) ($task['deadline'] ?? ''), checklist_normalize_status((string) ($task['status'] ?? 'new')));
+        $panelTiming = checklist_task_timing($task);
+        $panelSavedStatus = checklist_normalize_status((string)($task['status']??'new'));
+        $panelDueState = ['value'=>$panelTiming['overdue']?'overdue':($panelSavedStatus==='complete'?'complete':'upcoming'),'label'=>$panelSavedStatus==='complete'?$panelTiming['outcome']:$panelTiming['active_outcome']];
         ?>
         <aside class="task-detail-panel task-details-panel" data-task-panel="<?= $panelId ?>" data-deadline-state="<?= htmlspecialchars((string) ($panelDueState['value'] ?? 'normal'), ENT_QUOTES, 'UTF-8') ?>" aria-hidden="true">
             <header class="task-details-header">
@@ -2752,13 +2844,15 @@ function initialiseTaskDueStates() {
   if (!root || window.taskDueStateController) return;
   const TASK_TIMEZONE = 'Africa/Windhoek';
   const labels = { upcoming:'Upcoming', due_today:'Due Today', overdue:'Overdue' };
-  let timer = null;
+  const timingCsrfToken = <?= json_encode($taskAttachmentCsrf) ?>;
+  let timer = null, lastTimingSync = 0;
   const dateKey = (date) => new Intl.DateTimeFormat('en-CA', {
     timeZone:TASK_TIMEZONE, year:'numeric', month:'2-digit', day:'2-digit'
   }).formatToParts(date).filter((part) => part.type !== 'literal').map((part) => part.value).join('-');
   const update = (indicator, now) => {
     const row = indicator.closest('[data-task-row]');
-    if (row?.dataset.savedStatus === 'complete') {
+    if (row?.dataset.savedStatus === 'complete') return null;
+    if (false) {
       indicator.replaceWith(document.createTextNode('—'));
       return null;
     }
@@ -2771,11 +2865,18 @@ function initialiseTaskDueStates() {
     indicator.textContent = labels[value];
     return due.getTime() > now.getTime() ? due.getTime() - now.getTime() : null;
   };
+  const syncTimings = async () => {
+    if (document.hidden || Date.now() - lastTimingSync < 59000) return;
+    const rows=[...root.querySelectorAll('[data-task-row]')],ids=rows.map(row=>row.dataset.taskId).filter(Boolean);if(!ids.length)return;lastTimingSync=Date.now();
+    const body=new FormData();body.set('action','task_timing_snapshot');body.set('csrf_token',timingCsrfToken);body.set('task_ids',ids.join(','));
+    try{const response=await fetch(`${window.location.pathname}${window.location.search}`,{method:'POST',body,headers:{'X-Requested-With':'XMLHttpRequest'}});const result=await response.json();if(!response.ok||result.success!==true)return;rows.forEach(row=>{const timing=result.tasks?.[row.dataset.taskId];if(!timing)return;const value=Math.max(0,Math.min(100,Number(timing.progress)||0)),track=row.querySelector('[data-task-progress-track]'),fill=row.querySelector('[data-task-progress-fill]'),progress=row.querySelector('[data-task-progress-value]'),outcome=row.querySelector('[data-task-timing-outcome],[data-task-due-state]'),label=row.dataset.savedStatus==='complete'?timing.outcome:timing.active_outcome;if(track){track.setAttribute('aria-valuenow',String(value));track.classList.toggle('is-overdue',Boolean(timing.overdue));}if(fill)fill.style.width=`${value}%`;if(progress)progress.textContent=`${value}%`;if(outcome){outcome.textContent=label||'';outcome.classList.toggle('task-due-state--overdue',Boolean(timing.overdue));}});}catch(error){/* Retry through the next safe minute refresh. */}
+  };
   const refresh = () => {
     if (timer) window.clearTimeout(timer);
     const now = new Date();
     const waits = [...root.querySelectorAll('[data-task-due-state][data-task-due-at]')].map((indicator) => update(indicator, now)).filter((wait) => wait !== null);
     const nextDelay = Math.max(250, Math.min(60000, waits.length ? Math.min(...waits) + 50 : 60000));
+    syncTimings();
     timer = window.setTimeout(refresh, nextDelay);
   };
   window.taskDueStateController = { refresh };
