@@ -18,6 +18,7 @@ assert.match(score, /karina\|kaarina\|test\|preview/i, 'test and preview identit
 assert.match(js, /Business Risk and Management Insights/);
 assert.match(js, /Workload Distribution and Activity Heatmap/);
 assert.match(js, /type:'radar'/);
+assert.match(js, /scoreCalculated[\s\S]*score:\s*null/, 'uncalculated periods must not display calculated category scores');
 assert.match(js, /pageSize = 25/);
 assert.match(js, /data-epi-slide-nav/);
 assert.doesNotMatch(js, /Math\.random\(/, 'dashboard must not fabricate values');

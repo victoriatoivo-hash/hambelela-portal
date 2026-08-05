@@ -36,7 +36,8 @@
     if (!score) return `<section class="epi-empty" data-epi-slide><h2>Insufficient Historical Data</h2><p>No approved Phase 9 monthly score exists for ${esc(data.period.label)}. The dashboard will not estimate or fabricate a score.</p>${root.dataset.owner === '1' ? '<a class="btn-secondary" href="epi-scoring-performance.php">Open scoring verification</a>' : ''}</section>`;
     const previous = data.previous_score;
     const change = previous === null ? null : Number(score.score) - Number(previous);
-    const categories = score.categories || [];
+    const scoreCalculated = score.score !== null && score.score !== undefined;
+    const categories = (score.categories || []).map((category) => scoreCalculated ? category : {...category, score: null, contribution: null});
     const deductions = (score.events || []).filter((event) => event.kind === 'deduction' && event.status === 'confirmed');
     const automatic = deductions.filter((event) => event.automatic_status === 'automatically_applied');
     const positive = (score.events || []).filter((event) => event.kind === 'positive' && event.status === 'confirmed');
@@ -68,7 +69,7 @@
 
   function renderCharts(data) {
     scoreChart?.destroy(); categoryChart?.destroy(); scoreChart = categoryChart = null;
-    if (!data.score || !window.Chart) return;
+    if (!data.score || data.score.score === null || data.score.score === undefined || !window.Chart) return;
     const categoryCanvas = q('[data-epi-category-chart]');
     const trendCanvas = q('[data-epi-trend-chart]');
     const options = {responsive:true,maintainAspectRatio:false,animation:matchMedia('(prefers-reduced-motion: reduce)').matches?false:{duration:700},scales:{y:{beginAtZero:true,max:100}},plugins:{legend:{display:false}}};
