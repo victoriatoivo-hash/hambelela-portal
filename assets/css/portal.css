@@ -28440,3 +28440,24 @@ html:has(body.login-page),body.login-page{min-height:100%;background:#FFFFFF!imp
 @media(max-width:1024px){#kpi-employee-profile .employee-kpi-page{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}#kpi-employee-profile .employee-kpi-section{grid-column:span 1}#kpi-employee-profile .kpi-presentation-hero,#kpi-employee-profile #kpi-score-breakdown,#kpi-employee-profile #activity-timeline{grid-column:1/-1}}
 @media(max-width:640px){#kpi-employee-profile .employee-kpi-page{grid-template-columns:1fr;gap:10px}#kpi-employee-profile .employee-kpi-section{grid-column:1;padding:12px;border-radius:11px}#kpi-employee-profile .kpi-presentation-hero{grid-template-columns:1fr}#kpi-employee-profile .kpi-presentation-hero .kpi-score-executive{grid-column:1}#kpi-employee-profile .employee-kpi-metrics{grid-template-columns:1fr}.kpi-significant-events{grid-template-columns:1fr}.kpi-component-bars article{grid-template-columns:1fr}.kpi-component-bars strong,.kpi-component-bars small{text-align:left}.kpi-distribution__row{grid-template-columns:90px minmax(80px,1fr) 64px}#kpi-employee-profile .kpi-evidence-drawer{inset:auto 0 0;width:100%;height:88dvh}}
 @media print{#kpi-employee-profile .kpi-presentation-controls,#kpi-employee-profile .kpi-view-evidence,#kpi-employee-profile .kpi-panel__actions button{display:none!important}#kpi-employee-profile .employee-kpi-page{display:block}#kpi-employee-profile .employee-kpi-section{break-inside:avoid;margin-bottom:14px;box-shadow:none}}
+/* Immutable owner instructions inside Error Log task details. */
+#error-task-details .owner-instruction-panel{margin-top:12px;padding:14px;background:#FDF6EE;border:1px solid #EDE3D8;border-left:3px solid #721B1A;border-radius:10px;box-shadow:0 10px 26px rgba(114,27,26,.06);box-sizing:border-box;overflow-wrap:anywhere}
+#error-task-details .owner-instruction-title{margin:0 0 6px;color:#721B1A;font-family:"Figtree","Inter",sans-serif;font-size:13px;font-weight:600;line-height:1.3}
+#error-task-details .owner-instruction-help,#error-task-details .owner-instruction-empty{margin:0 0 10px;color:#6F675F;font-size:11px;line-height:1.45}
+#error-task-details .owner-instruction-history{display:grid;gap:8px;margin-bottom:10px}
+#error-task-details .owner-instruction-item{padding:10px 11px;background:#fff;border:1px solid #EDE3D8;border-radius:8px}
+#error-task-details .owner-instruction-item.is-latest{border-left:3px solid #AB3619}
+#error-task-details .owner-instruction-item-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 10px;color:#721B1A;font-size:11px}
+#error-task-details .owner-instruction-copy{margin:8px 0 0;color:#1A1A1A;font-size:12px;line-height:1.5;white-space:normal;overflow-wrap:anywhere}
+#error-task-details .owner-instruction-meta{margin-top:7px;color:#6F675F;font-size:11px;font-variant-numeric:tabular-nums}
+#error-task-details .owner-instruction-read-state{display:grid;gap:2px;margin-top:8px;color:#6F675F;font-size:10px}
+#error-task-details .owner-instruction-form{display:grid;min-width:0}
+#error-task-details .owner-instruction-form>label{margin-bottom:5px;color:#721B1A;font-size:11px;font-weight:600}
+#error-task-details .owner-instruction-textarea{width:100%;min-height:90px;padding:10px 12px;color:#1A1A1A;background:#FFFFFF;border:1px solid #EDE3D8;border-radius:8px;font-family:"Figtree","Inter",sans-serif;font-size:12px;line-height:1.5;resize:vertical;box-sizing:border-box}
+#error-task-details .owner-instruction-textarea:focus{border-color:#AB3619;outline:2px solid rgba(171,54,25,.15);outline-offset:1px}
+#error-task-details .owner-instruction-send{min-height:36px;margin-top:8px;padding:0 14px;color:#FFFFFF;background:#721B1A;border:1px solid #721B1A;border-radius:7px;font-family:"Figtree","Inter",sans-serif;font-size:12px;font-weight:600;cursor:pointer}
+#error-task-details .owner-instruction-send:hover{background:#AB3619;border-color:#AB3619}
+#error-task-details .owner-instruction-send:disabled{cursor:wait;opacity:.65}
+#error-task-details .owner-instruction-feedback{margin:7px 0 0;font-size:11px}#error-task-details .owner-instruction-feedback.is-success{color:#527000}#error-task-details .owner-instruction-feedback.is-error{color:#BB1B21}
+#error-task-details .owner-instruction-unread{display:inline-flex;align-items:center;min-height:18px;margin-left:6px;padding:0 6px;border-radius:999px;background:#AB3619;color:#fff;font-size:9px;font-weight:600;vertical-align:middle}
+@media(max-width:768px){#error-task-details .owner-instruction-panel{width:100%;padding:12px}#error-task-details .owner-instruction-send{width:100%}#error-task-details .owner-instruction-item-head{align-items:flex-start;flex-direction:column}}

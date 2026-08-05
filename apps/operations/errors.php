@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/operations.php';
+require_once BASE_PATH . '/shared/error-instructions.php';
 
 require_role('owner_admin', 'front_desk_admin', 'front_desk_admin_employee');
 
@@ -17,6 +18,10 @@ if (is_array($errorLogFlash)) {
     $messageType = (string) ($errorLogFlash['type'] ?? 'success');
 }
 unset($_SESSION['error_log_flash']);
+if (($_GET['instruction_sent'] ?? '') === '1') {
+    $message = 'Instruction sent successfully.';
+    $messageType = 'success';
+}
 $currentEmployeeId = ops_current_employee_id();
 $currentRoleKey = current_role_key();
 $isOwnerErrorUser = user_has_role('owner_admin');
@@ -157,6 +162,12 @@ function error_attribution_label(array $row,array $employeeMap): string
     return'Awaiting owner review';
 }
 
+function error_instruction_date_label(string $value): string
+{
+    $timestamp = strtotime($value);
+    return $timestamp ? date('d M Y · H:i', $timestamp) : $value;
+}
+
 function error_json_array(?string $value): array
 {
     if (!$value) return [];
@@ -219,6 +230,7 @@ function error_person_filter_sql(string $alias, int $personId): array
 
 if ($ready) {
     error_bootstrap_schema();
+    error_instructions_schema_ready();
 }
 
 $employees = $ready ? ops_rows(
@@ -473,6 +485,10 @@ if ($ready && empty($_SESSION['incident_submission_token'])) {
     $_SESSION['incident_submission_token'] = bin2hex(random_bytes(32));
 }
 $incidentSubmissionToken = (string) ($_SESSION['incident_submission_token'] ?? '');
+if (empty($_SESSION['error_instruction_csrf_token'])) $_SESSION['error_instruction_csrf_token'] = bin2hex(random_bytes(32));
+if (empty($_SESSION['error_instruction_submission_token'])) $_SESSION['error_instruction_submission_token'] = bin2hex(random_bytes(32));
+$errorInstructionCsrfToken = (string) $_SESSION['error_instruction_csrf_token'];
+$errorInstructionSubmissionToken = (string) $_SESSION['error_instruction_submission_token'];
 
 $filters = [
     'month' => trim((string) ($_GET['month'] ?? date('Y-m'))),
@@ -493,7 +509,11 @@ $filtersAreActive = $filters['date_from'] !== '' || $filters['date_to'] !== '' |
 
 $where = ['el.deleted_at IS NULL'];
 $params = [];
-if ($filters['date_from'] !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['date_from'])) {
+$requestedErrorId = max(0, (int) ($_GET['error_id'] ?? 0));
+if ($requestedErrorId > 0) {
+    $where[] = 'el.id = ?';
+    $params[] = $requestedErrorId;
+} elseif ($filters['date_from'] !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['date_from'])) {
     $where[] = 'DATE(el.logged_at) >= ?';
     $params[] = $filters['date_from'];
 }
@@ -501,7 +521,7 @@ if ($filters['date_to'] !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['
     $where[] = 'DATE(el.logged_at) <= ?';
     $params[] = $filters['date_to'];
 }
-if (!$filters['date_from'] && !$filters['date_to'] && preg_match('/^\d{4}-\d{2}$/', $filters['month'])) {
+if ($requestedErrorId <= 0 && !$filters['date_from'] && !$filters['date_to'] && preg_match('/^\d{4}-\d{2}$/', $filters['month'])) {
     $where[] = "DATE_FORMAT(el.logged_at, '%Y-%m') = ?";
     $params[] = $filters['month'];
 }
@@ -523,8 +543,14 @@ if(in_array($filters['logged_for'],['employee','delivery_driver','business'],tru
 if($filters['financial_impact_filter']==='yes')$where[]='el.has_financial_impact=1';elseif($filters['financial_impact_filter']==='no')$where[]='el.has_financial_impact=0';
 if ($isFrontDeskErrorUser && !$isOwnerErrorUser) {
     [$frontPersonSql, $frontPersonParams] = error_person_filter_sql('el', (int) $currentEmployeeId);
-    $where[] = $frontPersonSql;
+    $where[] = "({$frontPersonSql} OR el.logged_by = ? OR EXISTS (
+        SELECT 1 FROM ops_error_instruction_reads instruction_read
+        JOIN ops_error_instructions instruction ON instruction.id=instruction_read.instruction_id
+        WHERE instruction.error_id=el.id AND instruction_read.recipient_user_id=?
+    ))";
     array_push($params, ...$frontPersonParams);
+    $params[] = (int) $currentEmployeeId;
+    $params[] = (int) $currentEmployeeId;
 }
 if (in_array($filters['repeat_issue'], ['0', '1'], true)) {
     $where[] = 'el.repeat_issue = ?';
@@ -617,6 +643,10 @@ foreach ($errors as $error) {
     $errorsByResolution[$sectionKey][] = $error;
 }
 
+$errorIds = array_map(static fn(array $row): int => (int) $row['id'], $errors);
+$instructionsByError = error_instructions_for_errors($errorIds);
+$instructionUnreadByError = $isOwnerErrorUser ? [] : error_instruction_unread_counts((int) $currentEmployeeId);
+
 $activityByError = [];
 if ($ready && $errors && ops_table_exists('ops_activity_logs')) {
     $ids = array_map(static fn (array $row): int => (int) $row['id'], $errors);
@@ -636,7 +666,7 @@ if ($ready && $errors && ops_table_exists('ops_activity_logs')) {
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
-<main class="workspace module error-log-page">
+<main class="workspace module error-log-page" id="error-task-details">
     <section class="error-log-header">
         <div>
             <p class="error-log-kicker">Operations</p>
@@ -764,7 +794,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 <tr class="error-board-row" data-error-open="<?= (int) $error['id'] ?>" tabindex="0" aria-label="View incident <?= htmlspecialchars($errorTitle, ENT_QUOTES, 'UTF-8') ?>">
                     <?php if ($showFullErrorLog): ?>
                         <td><?= error_date_label((string) ($error['logged_at'] ?? '')) ?></td>
-                        <td><span class="error-board-title-link"><?= htmlspecialchars($errorTitle, ENT_QUOTES, 'UTF-8') ?></span></td>
+                        <td><span class="error-board-title-link"><?= htmlspecialchars($errorTitle, ENT_QUOTES, 'UTF-8') ?></span><?php if (($instructionUnreadByError[(int)$error['id']] ?? 0) > 0): ?><span class="owner-instruction-unread" aria-label="<?= (int)$instructionUnreadByError[(int)$error['id']] ?> unread owner instructions"><?= (int)$instructionUnreadByError[(int)$error['id']] ?> new</span><?php endif; ?></td>
                         <td><?= htmlspecialchars((string) ($error['order_reference'] ?: $error['order_id'] ?: '-'), ENT_QUOTES, 'UTF-8') ?></td>
                         <td><?= htmlspecialchars($errorCategories[(string) $error['category']] ?? (string) $error['category'], ENT_QUOTES, 'UTF-8') ?></td>
                         <td><span class="error-board-severity severity-<?= htmlspecialchars($severity, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($severityLabels[$severity] ?? $severity, ENT_QUOTES, 'UTF-8') ?></span></td>
@@ -777,7 +807,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         <td><?= htmlspecialchars((string) ($error['logged_by_name'] ?? 'System'), ENT_QUOTES, 'UTF-8') ?></td>
                     <?php else: ?>
                         <td><?= error_date_label((string) ($error['logged_at'] ?? '')) ?></td>
-                        <td><span class="error-board-title-link"><?= htmlspecialchars($errorTitle, ENT_QUOTES, 'UTF-8') ?></span></td>
+                        <td><span class="error-board-title-link"><?= htmlspecialchars($errorTitle, ENT_QUOTES, 'UTF-8') ?></span><?php if (($instructionUnreadByError[(int)$error['id']] ?? 0) > 0): ?><span class="owner-instruction-unread" aria-label="<?= (int)$instructionUnreadByError[(int)$error['id']] ?> unread owner instructions"><?= (int)$instructionUnreadByError[(int)$error['id']] ?> new</span><?php endif; ?></td>
                         <td><?= htmlspecialchars((string) ($error['order_reference'] ?: $error['order_id'] ?: '-'), ENT_QUOTES, 'UTF-8') ?></td>
                         <td><span class="error-board-severity severity-<?= htmlspecialchars($severity, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($severityLabels[$severity] ?? $severity, ENT_QUOTES, 'UTF-8') ?></span></td>
                         <td><span class="error-board-status status-<?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($statusLabels[$status] ?? $status, ENT_QUOTES, 'UTF-8') ?></span></td>
@@ -953,6 +983,9 @@ include BASE_PATH . '/shared/sidebar.php';
             'financial_impact_amount'=>(string)($error['financial_impact']??''),
             'financial_impact_notes'=>(string)($error['financial_impact_notes']??''),
         ];
+        $ownerInstructions = $instructionsByError[$errorId] ?? [];
+        $latestInstruction = $ownerInstructions ? $ownerInstructions[count($ownerInstructions) - 1] : [];
+        $latestInstructionId = (int) ($latestInstruction['id'] ?? 0);
         ?>
         <aside class="error-detail-panel incident-details-panel" data-error-panel="<?= $errorId ?>" aria-hidden="true">
             <script type="application/json" id="incident-edit-data-<?= $errorId ?>"><?= json_encode($editData, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?></script>
@@ -997,6 +1030,39 @@ include BASE_PATH . '/shared/sidebar.php';
                         </div>
                     </form>
                 <?php endif; ?>
+                <section class="owner-instruction-panel" id="owner-instructions-<?= $errorId ?>" tabindex="-1" data-owner-instructions data-error-id="<?= $errorId ?>" data-unread="<?= (int)($instructionUnreadByError[$errorId] ?? 0) ?>" data-csrf="<?= htmlspecialchars($errorInstructionCsrfToken, ENT_QUOTES, 'UTF-8') ?>">
+                    <h3 class="owner-instruction-title">OWNER INSTRUCTIONS</h3>
+                    <?php if ($isOwnerErrorUser): ?><p class="owner-instruction-help">Give the front person instructions for resolving this error.</p><?php endif; ?>
+                    <div class="owner-instruction-history" aria-live="polite">
+                        <?php foreach ($ownerInstructions as $instruction): ?>
+                            <article class="owner-instruction-item<?= (int)$instruction['id'] === $latestInstructionId ? ' is-latest' : '' ?>">
+                                <div class="owner-instruction-item-head"><strong>Owner Instruction<?= (int)$instruction['id'] === $latestInstructionId ? ' · Latest' : '' ?></strong><span><?= htmlspecialchars((string)($instruction['created_by_name'] ?? 'Owner/Admin'), ENT_QUOTES, 'UTF-8') ?></span></div>
+                                <p class="owner-instruction-meta"><?= htmlspecialchars(error_instruction_date_label((string)$instruction['created_at']), ENT_QUOTES, 'UTF-8') ?></p>
+                                <p class="owner-instruction-copy"><?= nl2br(htmlspecialchars((string)$instruction['instruction_text'], ENT_QUOTES, 'UTF-8')) ?></p>
+                                <?php if ($isOwnerErrorUser): ?>
+                                    <div class="owner-instruction-read-state">
+                                    <?php foreach (($instruction['recipients'] ?? []) as $recipient): ?>
+                                        <?php if (!empty($recipient['read_at'])): ?><span>Viewed by <?= htmlspecialchars((string)($recipient['recipient_name'] ?? 'Front person'), ENT_QUOTES, 'UTF-8') ?> · <?= htmlspecialchars(error_instruction_date_label((string)$recipient['read_at']), ENT_QUOTES, 'UTF-8') ?></span><?php else: ?><span>Not yet viewed by <?= htmlspecialchars((string)($recipient['recipient_name'] ?? 'front person'), ENT_QUOTES, 'UTF-8') ?></span><?php endif; ?>
+                                    <?php endforeach; ?>
+                                    </div>
+                                <?php endif; ?>
+                            </article>
+                        <?php endforeach; ?>
+                        <?php if (!$ownerInstructions): ?><p class="owner-instruction-empty">No owner instructions have been sent.</p><?php endif; ?>
+                    </div>
+                    <?php if ($isOwnerErrorUser && $status !== 'resolved'): ?>
+                        <form class="owner-instruction-form" data-owner-instruction-form method="post" action="<?= BASE_URL ?>/apps/operations/error-instructions.php">
+                            <input type="hidden" name="action" value="send_instruction">
+                            <input type="hidden" name="error_id" value="<?= $errorId ?>">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($errorInstructionCsrfToken, ENT_QUOTES, 'UTF-8') ?>">
+                            <input type="hidden" name="submission_token" value="<?= htmlspecialchars($errorInstructionSubmissionToken, ENT_QUOTES, 'UTF-8') ?>">
+                            <label for="owner-instruction-text-<?= $errorId ?>">Instruction</label>
+                            <textarea class="owner-instruction-textarea" id="owner-instruction-text-<?= $errorId ?>" name="instruction_text" maxlength="4000" required placeholder="Explain what must be checked, corrected or communicated before this error can be resolved."></textarea>
+                            <button class="owner-instruction-send" type="submit">Send Instruction</button>
+                            <p class="owner-instruction-feedback" data-owner-instruction-feedback hidden></p>
+                        </form>
+                    <?php endif; ?>
+                </section>
                 <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="align-left"></i> Description</h3><p class="incident-content-text"><?= nl2br(htmlspecialchars((string) ($error['description'] ?? ''), ENT_QUOTES, 'UTF-8')) ?></p></section>
                 <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="user-round-check"></i> Customer impact</h3><p class="incident-content-text<?= empty($error['customer_impact']) ? ' incident-empty-text' : '' ?>"><?= nl2br(htmlspecialchars((string) ($error['customer_impact'] ?: 'No customer impact recorded.'), ENT_QUOTES, 'UTF-8')) ?></p></section>
                 <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="badge-check"></i> Logged for</h3><p class="incident-content-text"><?= htmlspecialchars(error_attribution_label($error,$employeeMap),ENT_QUOTES,'UTF-8') ?> · <?= (string)($error['attribution_type']??'')==='employee'&&!empty($error['affects_kpi_accuracy'])&&!empty($error['accuracy_verified_by'])?'Verified for accuracy':'Not counted in personal accuracy' ?></p></section>
@@ -1030,6 +1096,58 @@ include BASE_PATH . '/shared/sidebar.php';
 </main>
 <script>
 let pendingDeleteForm = null;
+
+async function markOwnerInstructionsRead(panel) {
+  const section = panel?.querySelector('[data-owner-instructions]');
+  if (!section || Number(section.dataset.unread || 0) < 1 || section.dataset.markingRead === '1') return;
+  section.dataset.markingRead = '1';
+  const body = new URLSearchParams({action:'mark_read', error_id:section.dataset.errorId || '', csrf_token:section.dataset.csrf || ''});
+  try {
+    const response = await fetch('<?= BASE_URL ?>/apps/operations/error-instructions.php', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8','X-Requested-With':'XMLHttpRequest'}, body:body.toString(), credentials:'same-origin'});
+    const result = await response.json();
+    if (response.ok && result.ok) {
+      section.dataset.unread = '0';
+      document.querySelector(`[data-error-open="${section.dataset.errorId}"] .owner-instruction-unread`)?.remove();
+    }
+  } catch (error) {
+    // A temporary network failure must not falsely mark an instruction as read.
+  } finally {
+    section.dataset.markingRead = '0';
+  }
+}
+
+const errorTaskDetails = document.getElementById('error-task-details');
+errorTaskDetails?.querySelectorAll('[data-owner-instruction-form]').forEach((form) => {
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const textarea = form.querySelector('.owner-instruction-textarea');
+    const button = form.querySelector('.owner-instruction-send');
+    const feedback = form.querySelector('[data-owner-instruction-feedback]');
+    const instruction = textarea?.value.trim() || '';
+    if (!instruction) {
+      textarea?.setCustomValidity('Enter an instruction before sending.');
+      textarea?.reportValidity();
+      return;
+    }
+    textarea.setCustomValidity('');
+    button.disabled = true;
+    feedback.hidden = true;
+    try {
+      const response = await fetch(form.action, {method:'POST', body:new FormData(form), credentials:'same-origin', headers:{'X-Requested-With':'XMLHttpRequest'}});
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.message || 'Unable to send the instruction.');
+      feedback.textContent = 'Instruction sent successfully.';
+      feedback.className = 'owner-instruction-feedback is-success';
+      feedback.hidden = false;
+      window.location.assign(`<?= BASE_URL ?>/apps/operations/errors.php?error_id=${encodeURIComponent(result.error_id)}&instruction=1&instruction_sent=1#owner-instructions-${encodeURIComponent(result.error_id)}`);
+    } catch (error) {
+      feedback.textContent = `${error.message || 'Unable to send the instruction.'} Retry.`;
+      feedback.className = 'owner-instruction-feedback is-error';
+      feedback.hidden = false;
+      button.disabled = false;
+    }
+  });
+});
 
 function setIncidentRadioValue(name, value) {
   document.querySelectorAll(`#logErrorForm [name="${name}"]`).forEach((input) => {
@@ -1300,6 +1418,7 @@ document.addEventListener('click', (event) => {
     if (panel) {
       initIncidentStatusDropdown(panel);
       panel.classList.add('open');
+      markOwnerInstructionsRead(panel);
     }
     const backdrop = document.querySelector('.error-panel-backdrop');
     if (backdrop) backdrop.hidden = false;
@@ -1322,6 +1441,18 @@ document.addEventListener('keydown', (event) => {
   event.preventDefault();
   errorRow.click();
 });
+
+(() => {
+  const parameters = new URLSearchParams(window.location.search);
+  const requestedErrorId = parameters.get('error_id');
+  if (!requestedErrorId || !/^\d+$/.test(requestedErrorId) || parameters.get('instruction') !== '1') return;
+  const row = errorTaskDetails?.querySelector(`[data-error-open="${requestedErrorId}"]`);
+  const panel = errorTaskDetails?.querySelector(`[data-error-panel="${requestedErrorId}"]`);
+  if (!row || !panel) return;
+  row.click();
+  const instructionSection = panel.querySelector('[data-owner-instructions]');
+  window.setTimeout(() => instructionSection?.focus({preventScroll:false}), 0);
+})();
 
 document.querySelectorAll('[data-custom-select]').forEach((select) => {
   const trigger = select.querySelector('.custom-select-trigger');
