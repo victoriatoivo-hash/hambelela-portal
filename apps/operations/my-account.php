@@ -858,7 +858,11 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                         <?php if (is_array($epiTestResult)): ?>
                             <div class="settings-note" style="margin-top:12px">
                                 <strong>TEST DATA run <?= htmlspecialchars((string) $epiTestResult['run_id'], ENT_QUOTES, 'UTF-8') ?></strong><br>
-                                Evidence: <?= (int) $epiTestResult['evidence_rows'] ?> · Activity: <?= (int) $epiTestResult['activity_rows'] ?> · Ownership: <?= !empty($epiTestResult['ownership_uuid']) ? 'recorded' : 'failed' ?> · Weekday minutes: <?= htmlspecialchars((string) $epiTestResult['business_minutes'], ENT_QUOTES, 'UTF-8') ?> · Sunday minutes: <?= htmlspecialchars((string) $epiTestResult['weekend_minutes'], ENT_QUOTES, 'UTF-8') ?> · Task grace due: <?= htmlspecialchars((string) $epiTestResult['grace_due_at'], ENT_QUOTES, 'UTF-8') ?>
+                                Evidence: <?= (int) $epiTestResult['evidence_rows'] ?> · Activity: <?= (int) $epiTestResult['activity_rows'] ?> · Ownership: <?= !empty($epiTestResult['ownership']['passed']) ? 'passed' : 'failed' ?> · Corrections: <?= !empty($epiTestResult['corrections']['status']['passed']) && !empty($epiTestResult['corrections']['ownership']['passed']) && !empty($epiTestResult['corrections']['reference']['passed']) ? 'passed' : 'failed' ?> · Business-time cases: <?= count(array_filter($epiTestResult['business_time'], static fn (array $case): bool => !empty($case['passed']))) ?>/<?= count($epiTestResult['business_time']) ?> · Grace precedence: <?= !empty($epiTestResult['grace']['passed']) ? 'passed' : 'failed' ?> · Controlled failure log: #<?= (int) ($epiTestResult['failure']['log']['id'] ?? 0) ?> · Urgent notification: <?= !empty($epiTestResult['urgent_notification']['created']) ? '#' . (int) $epiTestResult['urgent_notification']['notification_id'] : 'failed' ?>
+                                <details style="margin-top:8px">
+                                    <summary>View structured verification evidence</summary>
+                                    <pre style="white-space:pre-wrap;word-break:break-word;font-size:11px"><?= htmlspecialchars((string) json_encode($epiTestResult, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), ENT_QUOTES, 'UTF-8') ?></pre>
+                                </details>
                             </div>
                         <?php endif; ?>
                     </div>
