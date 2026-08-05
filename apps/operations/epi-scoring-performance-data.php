@@ -14,6 +14,8 @@ try{
         if($action==='sync'){$created=$service->syncEvidenceEvents($employee,$year,$month);$data=['created'=>$created,'classification'=>$service->eventStatusSummary($employee,$year,$month)];}
         elseif($action==='reclassify')$data=$service->reclassifyPeriod($employee,$year,$month);
         elseif($action==='calculate')$data=$service->calculateMonthly($employee,$year,$month,$viewer,'owner_recalculation',(string)($payload['reason']??''));
+        elseif($action==='classify')$data=['eligibility'=>$service->eligibilityTotals($employee,$year,$month),'coverage'=>$service->getSourceCoverage($employee,$year,$month)];
+        elseif($action==='supersede_invalid')$data=$service->supersedeInvalidHundreds($viewer);
         elseif($action==='review'){$service->reviewEvent((int)$payload['event_id'],(string)$payload['status'],$viewer,(string)($payload['note']??''));$data=['reviewed'=>true];}
         elseif($action==='reverse')$data=['reversal_event_id'=>$service->reverseEvent((int)$payload['event_id'],$viewer,(string)($payload['reason']??''))];
         elseif($action==='override')$data=['superseding_event_id'=>$service->overrideEvent((int)$payload['event_id'],(string)$payload['override_action'],$viewer,(string)($payload['reason']??''))];
@@ -29,6 +31,8 @@ try{
     elseif($kind==='audit'){if(!$owner)throw new RuntimeException('Owner access required.');$data=$service->getAudit($employee,(int)($_GET['limit']??100));}
     elseif($kind==='rules'){if(!$owner)throw new RuntimeException('Owner access required.');$data=$service->rules();}
     elseif($kind==='scorecards'){if(!$owner)throw new RuntimeException('Owner access required.');$data=$service->scorecards();}
+    elseif($kind==='coverage'){if(!$owner)throw new RuntimeException('Owner access required.');$data=$service->getSourceCoverage($employee,$year,$month);}
+    elseif($kind==='eligibility'){if(!$owner)throw new RuntimeException('Owner access required.');$data=$service->eligibilityTotals($employee,$year,$month);}
     elseif($kind==='aggregate')$data=$service->aggregate($employee,(string)($_GET['from']??$year.'-01-01'),(string)($_GET['to']??$year.'-12-31'));
     else throw new RuntimeException('Unknown data kind.');
     if(!$owner&&!empty($data)&&isset($data['locked'])&&(int)$data['locked']!==1)$data=[];

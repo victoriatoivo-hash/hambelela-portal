@@ -5,7 +5,7 @@ INSERT INTO epi_employee_performance_settings(setting_key,setting_value,value_ty
 ('epi_source_core_missing_limit','2','integer','Core sources missing at or above this count make a score insufficient.'),
 ('epi_source_high_confidence_core_basis','9000','integer','Minimum Core source coverage for High confidence.'),
 ('epi_source_moderate_confidence_core_basis','6500','integer','Minimum Core source coverage for Moderate confidence.'),
-('epi_provisional_weight_redistribution','0','boolean','Owner-controlled; missing category weights are not redistributed by default.'),
+('epi_provisional_weight_redistribution','0','boolean','Owner-controlled setting. Missing category weights are not redistributed by default.'),
 ('epi_step3b_calculation_version','EPI Step 3B Version 1.0','string','Source-completeness and evidence-eligibility calculation version.')
 ON DUPLICATE KEY UPDATE description=VALUES(description);
 
