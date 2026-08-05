@@ -858,7 +858,7 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                         <?php if (is_array($epiTestResult)): ?>
                             <div class="settings-note" style="margin-top:12px">
                                 <strong>TEST DATA run <?= htmlspecialchars((string) $epiTestResult['run_id'], ENT_QUOTES, 'UTF-8') ?></strong><br>
-                                Evidence: <?= (int) $epiTestResult['evidence_rows'] ?> · Activity: <?= (int) $epiTestResult['activity_rows'] ?> · Ownership: <?= !empty($epiTestResult['ownership_uuid']) ? 'recorded' : 'failed' ?> · Business minutes: <?= htmlspecialchars((string) $epiTestResult['business_minutes'], ENT_QUOTES, 'UTF-8') ?>
+                                Evidence: <?= (int) $epiTestResult['evidence_rows'] ?> · Activity: <?= (int) $epiTestResult['activity_rows'] ?> · Ownership: <?= !empty($epiTestResult['ownership_uuid']) ? 'recorded' : 'failed' ?> · Weekday minutes: <?= htmlspecialchars((string) $epiTestResult['business_minutes'], ENT_QUOTES, 'UTF-8') ?> · Sunday minutes: <?= htmlspecialchars((string) $epiTestResult['weekend_minutes'], ENT_QUOTES, 'UTF-8') ?> · Task grace due: <?= htmlspecialchars((string) $epiTestResult['grace_due_at'], ENT_QUOTES, 'UTF-8') ?>
                             </div>
                         <?php endif; ?>
                     </div>
