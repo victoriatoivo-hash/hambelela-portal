@@ -245,6 +245,7 @@ include BASE_PATH . '/shared/sidebar.php';
         <div class="ops-alert error" data-kpi-error hidden role="alert"></div>
         <section class="kpi-health-grid" data-kpi-cards aria-label="Business health summary"><?php foreach (range(1, 6) as $placeholder): ?><article class="kpi-health-card is-loading"><span></span><strong></strong><small></small></article><?php endforeach; ?></section>
         <section class="kpi-management-story" data-kpi-management-story aria-live="polite"></section>
+        <section class="kpi-recognition" data-kpi-recognition aria-label="Employee awards and recognition"></section>
         <section class="kpi-management-flow" data-kpi-management-flow aria-label="Operational flow"></section>
         <section class="kpi-health-panel kpi-orders-first"><div class="kpi-panel-heading"><div><p class="eyebrow">Primary operational flow</p><h2>Orders</h2></div><small>Workflow stages and values are based on authoritative order records and status history</small></div><div data-kpi-orders-overview></div></section>
         <section class="kpi-health-columns">
