@@ -12,6 +12,11 @@ if ($viewerId <= 0) {
     echo json_encode(['ok' => false, 'error' => 'Authentication required.']);
     exit;
 }
+if (!$owner) {
+    http_response_code(403);
+    echo json_encode(['ok' => false, 'error' => 'Owner access required.']);
+    exit;
+}
 
 function epiDashboardPercent($value): ?float
 {
@@ -29,7 +34,16 @@ function epiDashboardPublicScore(array $score, bool $owner): array
             'kind' => (string) $event['event_kind'],
             'impact' => epiDashboardPercent($event['final_impact_hundredths']),
             'status' => (string) $event['confirmation_status'],
+            'automatic_status' => (string) ($event['automatic_status'] ?? 'needs_review'),
+            'confidence' => (string) ($event['confidence_level'] ?? 'insufficient'),
             'evidence_uuid' => (string) ($event['evidence_uuid'] ?? ''),
+            'module' => (string) ($event['evidence_module'] ?? ''),
+            'reference' => (string) ($event['reference_number'] ?? ''),
+            'rule' => (string) ($event['rule_name'] ?? ''),
+            'description' => (string) ($event['action_description'] ?? ''),
+            'expected_result' => (string) ($event['expected_result'] ?? ''),
+            'actual_result' => (string) ($event['actual_result'] ?? ''),
+            'occurred_at' => (string) ($event['evidence_occurred_at'] ?? $event['created_at']),
             'note' => $owner ? (string) ($event['reviewer_note'] ?? '') : '',
             'created_at' => (string) $event['created_at'],
         ];
@@ -81,8 +95,11 @@ try {
     \Hambelela\EPI\Performance::configure($pdo);
     $service = new \Hambelela\EPI\PerformanceScore($pdo);
     $kind = (string) ($_GET['kind'] ?? 'dashboard');
-    $employeeId = (int) ($_GET['employee_id'] ?? $viewerId);
-    if (!$owner) $employeeId = $viewerId;
+    $employees = $service->employeeOptions();
+    $employeeIds = array_map('intval', array_column($employees, 'id'));
+    $employeeId = (int) ($_GET['employee_id'] ?? ($employeeIds[0] ?? 0));
+    if (!in_array($employeeId, $employeeIds, true)) $employeeId = (int) ($employeeIds[0] ?? 0);
+    if ($employeeId <= 0) throw new RuntimeException('No eligible employee is available for performance reporting.');
     $year = max(2020, min(2100, (int) ($_GET['year'] ?? date('Y'))));
     $month = max(1, min(12, (int) ($_GET['month'] ?? date('n'))));
 
@@ -100,7 +117,6 @@ try {
         exit;
     }
 
-    $employees = $owner ? $service->employeeOptions() : [['id' => $viewerId, 'full_name' => (string) ($user['name'] ?? 'Employee'), 'role_key' => (string) ($user['role_key'] ?? '')]];
     $score = $service->getMonthlyScore($employeeId, $year, $month);
     if (!$owner && (!empty($score) && (int) ($score['locked'] ?? 0) !== 1)) $score = [];
     $previousDate = (new DateTimeImmutable(sprintf('%04d-%02d-01', $year, $month)))->modify('-1 month');
@@ -126,6 +142,39 @@ try {
         }
     }
 
+    $periodStart = sprintf('%04d-%02d-01', $year, $month);
+    $periodEnd = (new DateTimeImmutable($periodStart))->modify('last day of this month')->format('Y-m-d');
+    $activityStatement = $pdo->prepare("SELECT module,COUNT(*) total FROM epi_employee_evidence WHERE employee_id=? AND business_date BETWEEN ? AND ? AND business_date>='2026-07-01' AND recording_mode<>'test' GROUP BY module ORDER BY total DESC,module");
+    $activityStatement->execute([$employeeId, $periodStart, $periodEnd]);
+    $workloadDistribution = $activityStatement->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $heatmapStatement = $pdo->prepare("SELECT business_date,COUNT(*) meaningful_activity,SUM(eligibility_state='needs_review') needs_review,SUM(action LIKE '%overdue%' OR action LIKE '%late%' OR action LIKE '%missed%') overdue_events FROM epi_employee_evidence WHERE employee_id=? AND business_date BETWEEN ? AND ? AND business_date>='2026-07-01' AND recording_mode<>'test' GROUP BY business_date ORDER BY business_date");
+    $heatmapStatement->execute([$employeeId, $periodStart, $periodEnd]);
+    $heatmap = $heatmapStatement->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $currentRisks = [];
+    $riskQueries = [
+        ['Orders outstanding', "SELECT COUNT(*) FROM ops_orders WHERE created_at>='2026-07-01' AND LOWER(status) NOT IN ('completed','complete','packed','verified','cancelled','canceled','refunded','failed') AND (assigned_packer_id=? OR ? IN (SELECT e.id FROM ops_employees e LEFT JOIN ops_roles r ON r.id=e.role_id WHERE e.id=? AND r.role_key LIKE 'front_desk%'))"],
+        ['Packing List items outstanding', "SELECT COUNT(*) FROM ops_packing_tasks WHERE date_loaded>='2026-07-01' AND deleted_at IS NULL AND assigned_employee_id=? AND packing_status NOT IN ('done','website','packed_label_needed','done_needs_label','label_created')"],
+        ['Tasks overdue', "SELECT COUNT(*) FROM ops_checklist_tasks WHERE created_at>='2026-07-01' AND deleted_at IS NULL AND assigned_employee_id=? AND status NOT IN ('completed','complete','approved') AND deadline<NOW()"],
+        ['Unresolved quality records', "SELECT COUNT(*) FROM ops_error_logs WHERE logged_at>='2026-07-01' AND deleted_at IS NULL AND employee_id=? AND status<>'resolved'"],
+    ];
+    foreach ($riskQueries as [$label, $sql]) {
+        try {
+            $statement = $pdo->prepare($sql);
+            $parameterCount = substr_count($sql, '?');
+            $statement->execute(array_fill(0, $parameterCount, $employeeId));
+            $count = (int) $statement->fetchColumn();
+            $currentRisks[] = ['label' => $label, 'count' => $count, 'status' => $count > 0 ? 'attention' : 'clear'];
+        } catch (Throwable $riskError) {
+            $currentRisks[] = ['label' => $label, 'count' => null, 'status' => 'unavailable'];
+        }
+    }
+    $insights = [];
+    foreach ($currentRisks as $risk) if (($risk['count'] ?? 0) > 0) $insights[] = $risk['count'] . ' ' . strtolower($risk['label']) . ' currently require attention.';
+    if ($score) {
+        if ((int) ($score['pending_review_count'] ?? 0) > 0) $insights[] = (int) $score['pending_review_count'] . ' ambiguous score event(s) require owner review before month lock.';
+        if (($score['official_score_hundredths'] ?? null) === null) $insights[] = 'The operational result is not calculated because verified source coverage is insufficient.';
+    }
+
     echo json_encode([
         'ok' => true,
         'owner' => $owner,
@@ -136,6 +185,11 @@ try {
         'previous_score' => $previous ? epiDashboardPercent($previous['official_score_hundredths'] ?? null) : null,
         'trend' => array_map(static function (array $row): array { return ['label' => sprintf('%04d-%02d', $row['score_year'], $row['score_month']), 'score' => epiDashboardPercent($row['official_score_hundredths'] ?? null), 'level' => $row['official_performance_level'] ?? 'Not Available', 'result_type' => $row['result_type'] ?? 'legacy', 'locked' => (int) $row['locked'] === 1]; }, $trend),
         'workforce' => $workforce,
+        'workload_distribution' => array_map(static function (array $row): array { return ['label' => (string) $row['module'], 'value' => (int) $row['total']]; }, $workloadDistribution),
+        'heatmap' => array_map(static function (array $row): array { return ['date' => (string) $row['business_date'], 'activity' => (int) $row['meaningful_activity'], 'needs_review' => (int) $row['needs_review'], 'overdue' => (int) $row['overdue_events']]; }, $heatmap),
+        'current_risks' => $currentRisks,
+        'management_insights' => $insights,
+        'excluded_accounts' => [['classification' => 'Test / Preview Account', 'name_match' => 'Karina / Kaarina', 'included_in_calculations' => false]],
         'generated_at' => date(DATE_ATOM),
     ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 } catch (Throwable $error) {

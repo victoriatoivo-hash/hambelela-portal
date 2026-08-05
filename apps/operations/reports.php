@@ -220,9 +220,9 @@ include BASE_PATH . '/shared/sidebar.php';
 <main id="<?= $tab === 'business-health' ? 'kpi-management' : ($tab === 'performance-reports' ? 'kpi-reports' : ($tab === 'business-activity' ? 'kpi-business-timeline-page' : 'kpi-management')) ?>" class="workspace module kpi-health-page" data-kpi-tab="<?= htmlspecialchars($tab, ENT_QUOTES, 'UTF-8') ?>">
     <section class="module-header">
         <div>
-            <p class="eyebrow">Employee Performance</p>
+            <p class="eyebrow">Performance</p>
             <h1><?= htmlspecialchars($currentKpiTitle,ENT_QUOTES,'UTF-8') ?></h1>
-            <p><?= $tab === 'settings' ? 'Control data windows, fairness thresholds, working calendars and employee schedules.' : ($tab === 'employees' ? 'Role-relative performance evidence, workload and attendance for each employee.' : 'A fair, evidence-led view of operational health and the work needing attention.') ?></p>
+            <p><?= $tab === 'settings' ? 'Control data windows, fairness thresholds, working calendars and employee schedules.' : ($tab === 'employees' ? 'Role-relative performance evidence, workload and attendance for each employee.' : 'Evidence-based employee performance, accountability and operational insight.') ?></p>
         </div>
         <div class="module-header-actions">
             <?php if (user_has_role('owner_admin')): ?><a class="btn-secondary" href="historical-order-attribution-report.php">Historical Packed By Audit</a><?php endif; ?>
