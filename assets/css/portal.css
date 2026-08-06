@@ -28667,7 +28667,7 @@ body.performance-meeting-open .performance-meeting .epi-report-page.is-meeting-c
 @media(max-width:760px){#kpi-reports .epi-highlight-strip{align-items:flex-start;flex-direction:column;gap:4px}#kpi-reports .epi-highlight-card.is-audit-pending{align-items:flex-start;flex-wrap:wrap}}
 @media print{#kpi-reports .epi-highlight-grid{grid-template-columns:repeat(3,1fr)}#kpi-reports .epi-highlight-card{break-inside:avoid}}
 /* Task Performance evidence, timing and risk analysis */
-.kpi-task-performance{grid-column:1/-1}
+.kpi-employee-page>.kpi-task-performance{grid-column:1/-1!important}
 .kpi-task-timing-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:18px 0}
 .kpi-task-timing{padding:16px;border:1px solid var(--line,#eadbd0);border-radius:12px;background:var(--surface,#fff)}
 .kpi-task-timing>span,.kpi-task-timing small{display:block;color:var(--muted,#866f64)}
