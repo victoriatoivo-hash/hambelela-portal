@@ -28666,3 +28666,19 @@ body.performance-meeting-open .performance-meeting .epi-report-page.is-meeting-c
 @media print{#kpi-reports .performance-report-redesign{background:#fff!important}.performance-report-redesign .epi-redesign-block{break-inside:avoid;box-shadow:none}.performance-report-redesign .epi-score-matrix{overflow:visible}.performance-report-redesign .epi-score-matrix table{min-width:0;font-size:7pt}.performance-report-redesign [data-score-working]{display:none!important}.performance-report-redesign .epi-team-cards{grid-template-columns:repeat(4,1fr)}}
 @media(max-width:760px){#kpi-reports .epi-highlight-strip{align-items:flex-start;flex-direction:column;gap:4px}#kpi-reports .epi-highlight-card.is-audit-pending{align-items:flex-start;flex-wrap:wrap}}
 @media print{#kpi-reports .epi-highlight-grid{grid-template-columns:repeat(3,1fr)}#kpi-reports .epi-highlight-card{break-inside:avoid}}
+/* Task Performance evidence, timing and risk analysis */
+.kpi-task-timing-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:18px 0}
+.kpi-task-timing{padding:16px;border:1px solid var(--line,#eadbd0);border-radius:12px;background:var(--surface,#fff)}
+.kpi-task-timing>span,.kpi-task-timing small{display:block;color:var(--muted,#866f64)}
+.kpi-task-timing>strong{display:block;margin:8px 0;font-size:22px;color:#721b1a}
+.kpi-task-timing>div{display:grid;gap:4px;margin-top:10px;font-size:12px}
+.kpi-task-breakdown,.kpi-task-score,.kpi-task-risks{margin-top:20px;padding:18px;border:1px solid var(--line,#eadbd0);border-radius:14px;background:var(--surface,#fff)}
+.kpi-task-breakdown-row{display:grid;grid-template-columns:minmax(150px,1fr) minmax(180px,3fr) auto auto;align-items:center;gap:10px;padding:8px 0}
+.kpi-task-breakdown-row>div{height:9px;overflow:hidden;border-radius:99px;background:#f3e9df}
+.kpi-task-breakdown-row i{display:block;height:100%;background:#ab3619}
+.kpi-task-score{display:grid;grid-template-columns:180px minmax(0,1fr);align-items:center;gap:22px}
+.kpi-task-score .kpi-score-gauge{margin:auto}
+.kpi-task-risks .employee-kpi-evidence{margin-top:12px}
+@media(max-width:760px){.kpi-task-timing-grid{grid-template-columns:1fr}.kpi-task-score{grid-template-columns:1fr}.kpi-task-breakdown-row{grid-template-columns:1fr auto}.kpi-task-breakdown-row>div{grid-column:1/-1}.kpi-task-breakdown-row .kpi-view-evidence{justify-self:start}.kpi-task-risks{overflow:hidden}.kpi-task-risks .employee-kpi-evidence{overflow-x:auto}}
+@media(prefers-reduced-motion:reduce){.kpi-task-breakdown-row i{transition:none!important}}
+@media print{.kpi-task-performance .kpi-view-evidence{display:none}.kpi-task-timing-grid{grid-template-columns:repeat(3,1fr)}.kpi-task-risks{break-inside:avoid}}
