@@ -7,6 +7,24 @@ function kpi_front_order_normalize(string $value): string
     return preg_replace('/[^a-z0-9]+/', '', strtolower(trim($value))) ?? '';
 }
 
+function kpi_front_orders_dashboard(array $employee, string $fromSql, string $toSql, array $schedule, array $holidays, array $settings, array $leave = []): array
+{
+    $base = kpi_front_orders_evidence($employee, $fromSql, $toSql, $schedule, $holidays, $settings, $leave);
+    $zone = new DateTimeZone('Africa/Windhoek'); $now = new DateTimeImmutable('now', $zone); $eventsByOrder=[];
+    foreach(kpi_unified_events((new DateTimeImmutable($fromSql,$zone))->modify('-14 days')->format('Y-m-d H:i:s'),$toSql,null,null,null,null) as $event){if((string)($event['record_type']??'')!=='order'&&(string)($event['section']??'')!=='orders')continue;$eventsByOrder[(int)$event['record_id']][]=$event;}
+    $risks=['pending'=>0,'overdue'=>0,'paid_status_exceptions'=>0,'reopened'=>0,'conflicting_completion_actors'=>0,'unclear_responsibility'=>0];$pendingBreakdown=['new'=>0,'in_progress_ready'=>0,'other'=>0];$modeCounts=[];$modePerformance=[];$paymentExceptions=[];
+    foreach($base['rows'] as $index=>$row){$events=$eventsByOrder[(int)$row['id']]??[];$walkIn=(string)$row['walk_in']==='Yes';$created=!empty($row['new_order_at'])?new DateTimeImmutable((string)$row['new_order_at'],$zone):null;$readyEvent=kpi_front_order_ready_event($events,$created,$zone);$readyAt=$readyEvent&&!empty($readyEvent['occurred_at'])?new DateTimeImmutable((string)$readyEvent['occurred_at'],$zone):null;$completed=!empty($row['completed_at'])?new DateTimeImmutable((string)$row['completed_at'],$zone):null;$clockStart=$walkIn?$created:$readyAt;$duration=$clockStart&&$completed&&$completed>=$clockStart?kpi_business_minutes($clockStart,$completed,$holidays):null;
+        $base['rows'][$index]['ready_at']=$readyAt?$readyAt->format('Y-m-d H:i:s'):null;$base['rows'][$index]['clock_start']=$clockStart?$clockStart->format('Y-m-d H:i:s'):null;$base['rows'][$index]['clock_basis']=$walkIn?'New → Complete':'Ready/In Progress → Complete';$base['rows'][$index]['duration_minutes']=$duration;$base['rows'][$index]['pending_age_minutes']=$clockStart&&!$completed?kpi_business_minutes($clockStart,$now,$holidays):null;
+        if(!$walkIn&&!$readyAt){$base['rows'][$index]['unresolved_attribution']=true;$base['rows'][$index]['result']='Orders With Unclear Historical Responsibility';$base['rows'][$index]['attribution_source']='Ready/In Progress transition not recorded';}elseif(!empty($base['rows'][$index]['unresolved_attribution']))$base['rows'][$index]['result']='Orders With Unclear Historical Responsibility';
+        $complete=in_array(kpi_front_order_normalize((string)$row['status']),['complete','completed','packed','verified'],true)||$completed!==null;$paid=kpi_front_order_normalize((string)($row['payment_status']??''))==='paid';$exception=$complete&&!$paid?'Complete but not paid':($paid&&!$complete?'Paid but not complete':null);$base['rows'][$index]['paid_status']=$paid?'Paid':'Not paid';$base['rows'][$index]['exception_type']=$exception;if($exception){$risks['paid_status_exceptions']++;$paymentExceptions[]=$base['rows'][$index];}
+        if(!$completed){$risks['pending']++;$status=kpi_front_order_normalize((string)$row['status']);if($status==='new')$pendingBreakdown['new']++;elseif(in_array($status,['inprogress','ready','packed'],true))$pendingBreakdown['in_progress_ready']++;else$pendingBreakdown['other']++;if(strpos((string)$row['result'],'overdue')!==false)$risks['overdue']++;}if(!empty($base['rows'][$index]['unresolved_attribution']))$risks['unclear_responsibility']++;
+        $actors=[];$seenComplete=false;foreach($events as$event){$new=kpi_front_order_normalize((string)($event['new_status']??''));if(in_array($new,['complete','completed'],true)){$seenComplete=true;if((int)($event['actor_user_id']??0)>0)$actors[(int)$event['actor_user_id']]=true;}elseif($seenComplete&&$new!==''&&!in_array($new,['complete','completed'],true))$risks['reopened']++;}if(count($actors)>1)$risks['conflicting_completion_actors']++;
+        $mode=trim((string)($row['mode']??''))?:'Unspecified';$modeCounts[$mode]=($modeCounts[$mode]??0)+1;if(!isset($modePerformance[$mode]))$modePerformance[$mode]=['mode'=>$mode,'on_time'=>0,'late'=>0,'pending'=>0];if($base['rows'][$index]['result']==='Completed on time')$modePerformance[$mode]['on_time']++;elseif($base['rows'][$index]['result']==='Completed late')$modePerformance[$mode]['late']++;elseif(!$completed)$modePerformance[$mode]['pending']++;}
+    $walk=kpi_front_order_stats($base['rows'],'Walk-in');$other=kpi_front_order_stats($base['rows'],'Other Front Desk');$onTime=$walk['on_time']+$other['on_time'];$late=$walk['late']+$other['late'];$denominator=$onTime+$late;$compliance=$denominator?round(100*$onTime/$denominator,1):null;$walkWeight=max(0,(float)($settings['front_orders_walkin_weight']??50));$otherWeight=max(0,(float)($settings['front_orders_nonwalk_weight']??50));$weighted=0.0;$available=0.0;if($walk['compliance_rate']!==null){$weighted+=$walk['compliance_rate']*$walkWeight;$available+=$walkWeight;}if($other['compliance_rate']!==null){$weighted+=$other['compliance_rate']*$otherWeight;$available+=$otherWeight;}$score=$available?round($weighted/$available,1):null;arsort($modeCounts);$modeMix=[];$totalModes=array_sum($modeCounts);foreach($modeCounts as$mode=>$count)$modeMix[]=['mode'=>$mode,'count'=>$count,'share'=>$totalModes?round(100*$count/$totalModes,1):0];
+    $base['metrics']=[['label'=>'Total Applicable Orders','value'=>count($base['rows'])],['label'=>'Walk-in Orders','value'=>$walk['total']],['label'=>'Other Front Desk Orders','value'=>$other['total']],['label'=>'Completed Orders','value'=>$walk['completed']+$other['completed']],['label'=>'Completed On Time','value'=>$onTime],['label'=>'Completed Late','value'=>$late],['label'=>'Orders Still Pending Completion','value'=>$risks['pending'],'explanation'=>$pendingBreakdown['new'].' New · '.$pendingBreakdown['in_progress_ready'].' In Progress/Ready · '.$pendingBreakdown['other'].' other'],['label'=>'Completion Compliance','value'=>$compliance,'format'=>'percent','status'=>$compliance===null?'unmeasured':'provisional','numerator'=>$onTime,'denominator'=>$denominator,'explanation'=>$onTime.' on time of '.$denominator.' completed eligible orders; '.$risks['unclear_responsibility'].' unclear-responsibility orders excluded.'],['label'=>'Orders With Unclear Historical Responsibility','value'=>$risks['unclear_responsibility']],['label'=>'Paid and Status Exceptions','value'=>$risks['paid_status_exceptions'],'explanation'=>'Uses the Orders Paid status only; bookkeeping is not used.']];
+    $base['walk_in_rate']=$walk['compliance_rate'];$base['non_walk_rate']=$other['compliance_rate'];$base['walk_eligible']=$walk['compliance_denominator'];$base['non_walk_eligible']=$other['compliance_denominator'];$base['orders_score']=$score;$base['duty_analysis']=['walk_in'=>$walk,'other_front_desk'=>$other,'overall'=>['total'=>$walk['total']+$other['total'],'completed'=>$walk['completed']+$other['completed'],'on_time'=>$onTime,'late'=>$late,'pending'=>$walk['pending']+$other['pending'],'compliance_rate'=>$compliance,'compliance_numerator'=>$onTime,'compliance_denominator'=>$denominator]];$base['pending_breakdown']=$pendingBreakdown;$base['mode_mix']=$modeMix;$base['mode_performance']=array_values($modePerformance);$base['payment_exceptions']=$paymentExceptions;$base['risk_flags']=$risks;$base['review_count']=$risks['unclear_responsibility'];$base['counts']=array_merge($base['counts'],$risks);$base['methodology']='Walk-ins use New → Complete. Other Front Desk orders use the first Ready/In Progress event → Complete. The central Orders component combines the configured duty weights; unclear historical responsibility is excluded.';return $base;
+}
+
 function kpi_front_order_shift_for_day(string $day, array $schedule): ?array
 {
     $weekday = (int) (new DateTimeImmutable($day, new DateTimeZone('Africa/Windhoek')))->format('N');
@@ -79,6 +97,35 @@ function kpi_front_order_completion_event(array $events, ?DateTimeImmutable $cre
         if ((int) ($event['actor_user_id'] ?? 0) > 0) return $event;
     }
     return $fallback;
+}
+
+function kpi_front_order_ready_event(array $events, ?DateTimeImmutable $created, DateTimeZone $zone): ?array
+{
+    usort($events, static fn(array $a, array $b): int => strcmp((string) ($a['occurred_at'] ?? ''), (string) ($b['occurred_at'] ?? '')));
+    foreach ($events as $event) {
+        $status = kpi_front_order_normalize((string) ($event['new_status'] ?? ''));
+        $action = kpi_front_order_normalize((string) ($event['action'] ?? ''));
+        if (!in_array($status, ['inprogress','ready','readyforcompletion','packed'], true)
+            && !in_array($action, ['inprogress','ready','readyforcompletion','orderinprogress','orderready','packed'], true)) continue;
+        if (empty($event['occurred_at'])) continue;
+        $at = new DateTimeImmutable((string) $event['occurred_at'], $zone);
+        if (!$created || $at >= $created) return $event;
+    }
+    return null;
+}
+
+function kpi_front_order_stats(array $rows, string $category): array
+{
+    $eligible = array_values(array_filter($rows, static fn(array $row): bool => $row['front_desk_category'] === $category && !$row['unresolved_attribution']));
+    $completed = array_values(array_filter($eligible, static fn(array $row): bool => !empty($row['completed_at'])));
+    $durations = array_values(array_filter(array_map(static fn(array $row) => $row['duration_minutes'], $completed), static fn($value): bool => $value !== null));
+    sort($durations, SORT_NUMERIC); $mid = intdiv(count($durations), 2);
+    $median = !$durations ? null : (count($durations) % 2 ? $durations[$mid] : ($durations[$mid - 1] + $durations[$mid]) / 2);
+    $onTime = count(array_filter($completed, static fn(array $row): bool => $row['result'] === 'Completed on time'));
+    $late = count(array_filter($completed, static fn(array $row): bool => $row['result'] === 'Completed late'));
+    $pending = array_values(array_filter($eligible, static fn(array $row): bool => empty($row['completed_at'])));
+    usort($pending, static fn(array $a, array $b): int => (float) ($b['pending_age_minutes'] ?? 0) <=> (float) ($a['pending_age_minutes'] ?? 0));
+    return ['total'=>count($eligible),'completed'=>count($completed),'on_time'=>$onTime,'late'=>$late,'pending'=>count($pending),'average_minutes'=>$durations?round(array_sum($durations)/count($durations),1):null,'median_minutes'=>$median,'fastest_minutes'=>$durations?$durations[0]:null,'slowest_minutes'=>$durations?$durations[count($durations)-1]:null,'oldest_pending_minutes'=>$pending?($pending[0]['pending_age_minutes']??null):null,'compliance_rate'=>($onTime+$late)>0?round(100*$onTime/($onTime+$late),1):null,'compliance_numerator'=>$onTime,'compliance_denominator'=>$onTime+$late];
 }
 
 function kpi_front_orders_evidence(array $employee, string $fromSql, string $toSql, array $schedule, array $holidays, array $settings, array $leave = []): array
