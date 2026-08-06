@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/operations.php';
+require_once dirname(__DIR__, 2) . '/shared/portal-presence-source.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -51,7 +52,7 @@ try {
         }
     }
 
-    $where = ["e.status = 'active'", "bp.last_seen_at >= DATE_SUB(NOW(), INTERVAL 120 SECOND)"];
+    $where = ["e.status = 'active'", "bp.last_seen_at >= DATE_SUB(NOW(), INTERVAL " . portal_presence_online_seconds() . " SECOND)"];
     if (current_role_key() !== 'owner_admin') {
         $where[] = "r.role_key <> 'owner_admin'";
     }
