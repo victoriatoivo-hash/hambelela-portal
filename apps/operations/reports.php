@@ -30,7 +30,7 @@ $settingFields = [
     'website_timing_adoption_date' => ['Website timing valid from', 'date', '2026-07-15'],
     'tasks_adoption_date' => ['Task history valid from', 'date', '2026-07-14'],
     'waybills_adoption_date' => ['Waybill timing valid from', 'date', '2026-07-14'],
-    'bookkeeping_adoption_date' => ['Bookkeeping attribution valid from', 'date', '2026-07-14'],
+    'bookkeeping_adoption_date' => ['Bookkeeping module adoption date', 'date', '2026-07-20'],
     'bookkeeping_cash_deadline' => ['Bookkeeping: cash entry deadline', 'time', '17:00'],
     'bookkeeping_deposit_schedule' => ['Bookkeeping: deposit schedule', 'text', 'not_configured'],
     'error_log_adoption_date' => ['Error responsibility valid from', 'date', '2026-07-14'],
@@ -236,6 +236,7 @@ $recentEvents = [];
 $recentSessions = [];
 if ($ready && $tab === 'settings') {
     foreach (ops_rows('SELECT setting_key, setting_value FROM kpi_settings') as $row) $settings[(string) $row['setting_key']] = (string) $row['setting_value'];
+    if (!isset($settings['bookkeeping_adoption_date']) || $settings['bookkeeping_adoption_date'] === '2026-07-14') $settings['bookkeeping_adoption_date'] = '2026-07-20';
     $employees = ops_rows("SELECT e.id, e.full_name, e.hire_date, e.working_days, e.shift_start, e.shift_end, e.late_grace_minutes, r.name AS role_name FROM ops_employees e JOIN ops_roles r ON r.id = e.role_id WHERE e.status = 'active' ORDER BY e.full_name");
     foreach (ops_rows('SELECT employee_id, weekday, shift_start, shift_end FROM kpi_employee_schedules WHERE is_working = 1 ORDER BY employee_id, weekday') as $scheduleRow) $employeeSchedules[(int) $scheduleRow['employee_id']][(int) $scheduleRow['weekday']] = $scheduleRow;
     foreach (ops_rows('SELECT employee_id,effective_from,effective_to,timezone,lunch_start,lunch_end,grace_minutes,change_reason,created_at FROM kpi_employee_schedule_versions ORDER BY employee_id,effective_from DESC,id DESC') as $versionRow) $employeeScheduleVersions[(int) $versionRow['employee_id']][] = $versionRow;
