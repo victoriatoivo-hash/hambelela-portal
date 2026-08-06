@@ -143,6 +143,13 @@ assert.match(api,/accuracy_scored/,'Packing accuracy must be controlled by the a
 assert.match(api,/60% × on-time share \+ 20% × \(1 − pending-overdue share\) \+ 20% × verified overdue-duration compliance/,'Tasks scoring must include completed-late, pending-overdue, and verified overdue durations');
 assert.match(js,/Provisional —.*sections measured/,'Scores headline must gate the percentage on core-section coverage');
 assert.match(js,/Show the working/,'every section score must expose its formula inputs');
+assert.match(api,/best_overall_min_role_average_percent/,'best-overall accolade must use the configurable role-average volume gate');
+assert.match(api,/fastest_accurate_min_volume_share/,'fastest-accurate accolade must use the configurable team-volume floor');
+assert.match(api,/fastest_accurate_min_accuracy/,'fastest-accurate accolade must use the configurable accuracy floor');
+assert.match(api,/best_overall_eligible.*overall_score.*status/s,'best overall must require fully measured core sections');
+assert.match(js,/No qualifier this period/,'highlight cards must not lower their eligibility criteria');
+assert.match(js,/Most work completed/,'Rewards and Scores must celebrate highest verified duty output');
+assert.match(js,/Pace greyed.*low volume/,'head-to-head pace must flag packers below the volume floor');
 const css=read('assets/css/portal.css'),presentationSource=css+js;
 assert.match(css,/epi-score-working-print/,'score workings must remain visible in print');
 for(const token of ['#0E0F14','#D4622A','#2A7DD4','#27AE60','Bebas Neue','DM Mono'])

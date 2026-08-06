@@ -28596,3 +28596,16 @@ body.performance-meeting-open .performance-meeting .epi-report-page.is-meeting-c
 #error-task-details .owner-instruction-feedback{margin:7px 0 0;font-size:11px}#error-task-details .owner-instruction-feedback.is-success{color:#527000}#error-task-details .owner-instruction-feedback.is-error{color:#BB1B21}
 #error-task-details .owner-instruction-unread{display:inline-flex;align-items:center;min-height:18px;margin-left:6px;padding:0 6px;border-radius:999px;background:#AB3619;color:#fff;font-size:9px;font-weight:600;vertical-align:middle}
 @media(max-width:768px){#error-task-details .owner-instruction-panel{width:100%;padding:12px}#error-task-details .owner-instruction-send{width:100%}#error-task-details .owner-instruction-item-head{align-items:flex-start;flex-direction:column}}
+
+/* Performance accolades: coverage and volume qualified highlights. */
+#kpi-reports .epi-highlight-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:18px}
+#kpi-reports .epi-highlight-card{padding:16px;border:1px solid var(--epi-border,#EDE3D8);border-radius:14px;background:#fff}
+#kpi-reports .epi-highlight-card>span,#kpi-reports .epi-highlight-card>small{display:block;color:#6B6B6B}
+#kpi-reports .epi-highlight-card>strong{display:block;margin:5px 0;color:#721B1A;font-size:17px}
+#kpi-reports .epi-highlight-card dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:12px 0 8px}
+#kpi-reports .epi-highlight-card dl div{padding:7px;border-radius:8px;background:#FDF6EE}
+#kpi-reports .epi-highlight-card dt{color:#6B6B6B;font-size:10px}#kpi-reports .epi-highlight-card dd{margin:2px 0 0;font-weight:600}
+#kpi-reports .epi-highlight-card p{margin:8px 0 0;color:#6B6B6B;font-size:11px}#kpi-reports .epi-highlight-card.is-empty{background:#FAFAFA}#kpi-reports .epi-highlight-card.is-empty>strong{color:#6B6B6B}
+#kpi-reports .epi-score-breakdown [data-head-percentages].is-low-volume{color:#8A8A8A;filter:grayscale(1)}
+@media(max-width:760px){#kpi-reports .epi-highlight-grid{grid-template-columns:1fr}}
+@media print{#kpi-reports .epi-highlight-grid{grid-template-columns:repeat(3,1fr)}#kpi-reports .epi-highlight-card{break-inside:avoid}}
