@@ -84,6 +84,9 @@ $settingFields = [
     'cash_payment_values' => ['Performance reports: cash payment values', 'text', 'cash'],
     'walkin_completion_target_minutes' => ['Performance reports: walk-in completion target (minutes)', 'number', '60'],
     'task_note_min_chars' => ['Performance reports: substantive task note minimum characters', 'number', '25'],
+    'bonus_threshold' => ['Rewards: default qualification threshold (%)', 'number', '75'],
+    'bonus_threshold_packer' => ['Rewards: packer threshold override (%) (0 uses default)', 'number', '0'],
+    'bonus_threshold_front_desk' => ['Rewards: front-desk threshold override (%) (0 uses default)', 'number', '0'],
     'report_weights' => ['Performance reports: role section weights (JSON)', 'text', '{"packer":{"packing":35,"orders":20,"tasks":15,"waybills":10,"quality":10,"attendance":10},"front_desk":{"bookkeeping":30,"orders":25,"tasks":15,"waybills":10,"quality":10,"attendance":10}}'],
 ];
 

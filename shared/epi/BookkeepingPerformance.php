@@ -57,7 +57,7 @@ final class BookkeepingPerformance
     private function depositConfigured():bool{$v=trim((string)($this->settings['bookkeeping_deposit_schedule']??''));return$v!==''&&$v!=='not_configured';}
     private function cents($v):int{return(int)round(((float)$v)*100);}
     private function extractOrderNumbers(string$value):array{preg_match_all('/\d{3,}/',$value,$matches);$numbers=[];foreach($matches[0]??[]as$digits){$normal=(string)(int)$digits;if($normal!=='0')$numbers[$normal]=true;}return array_keys($numbers);}
-    private function extractSingleOrderNumber(string$value):?string{$numbers=$this->extractOrderNumbers($value);return count($numbers)===1?$numbers[0]:null;}
+    private function extractSingleOrderNumber(string$value):?string{$numbers=$this->extractOrderNumbers($value);return count($numbers)===1?(string)$numbers[0]:null;}
     private function entryReferenceText(array$entry):string{$parts=[];foreach(['related_order_number','description','notes']as$key){$value=trim((string)($entry[$key]??''));if($value!=='')$parts[]=$value;}return implode(' | ',$parts);}
     private function normalRef(string$v):string{$v=trim($v);if(preg_match('/(?:WEB|INV)?[-_\s]*#?\s*(\d{3,})/i',$v,$m))return(string)(int)$m[1];return strtolower($v);}
     private function median(array$v){if(!$v)return null;$n=count($v);$m=intdiv($n,2);return$n%2?$v[$m]:round(($v[$m-1]+$v[$m])/2,2);}
