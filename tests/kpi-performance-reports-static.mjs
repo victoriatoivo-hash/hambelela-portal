@@ -79,6 +79,14 @@ assert.match(api,/task_progress_updated/,
   'Task timing must include the activity-log event emitted by the task progress workflow');
 for(const label of ['Task completion patterns','Pending overdue','Avg overdue','Substantive notes','In Progress → Complete'])
   assert.match(js,new RegExp(label),`Tasks tab must render ${label}`);
+assert.match(api,/function performance_error_analysis/,
+  'Errors report must use a dedicated Error Log analysis');
+assert.match(api,/allocation=json_decode\(people_involved\)/,
+  'Error allocation must use the person-involved field');
+for(const token of ['resolved_against','resolved_logged','financial_impact','average_days_between','days_since_last','verification_examples'])
+  assert.match(api,new RegExp(token),`Errors payload must expose ${token}`);
+for(const label of ['Error types','Error frequency','Resolved against employee','Resolved logged by employee','Packing List · variances'])
+  assert.match(js,new RegExp(label),`Errors tab must render ${label}`);
 assert.match(api,/completed_without_in_progress/,
   'status compliance must identify orders completed without In Progress');
 for(const source of ['ops_order_display_datetime_expr','assigned_packer_id','customer_contact','kpi_unified_events'])
