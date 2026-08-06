@@ -96,7 +96,7 @@ function performance_error_analysis(array $employees, string $fromSql, string $t
     foreach($employees as$employee){$id=(int)$employee['id'];$employeeNames[$id]=(string)$employee['full_name'];$per[$id]=['total'=>0,'critical'=>0,'high'=>0,'medium'=>0,'low'=>0,'customer_impacting'=>0,'financial_impact'=>0.0,'resolved_against'=>0,'resolved_logged'=>0,'types'=>[],'frequency'=>['average_days_between'=>null,'days_since_last'=>null,'events'=>0]];}
     $weekly=[];$overallDates=[];$datesByEmployee=[];$examples=[];$exampleIds=[];$eligible=[];$excluded=[];$rootGroups=[];
     foreach($rows as$row){
-        $loggedAt=(string)$row['logged_at'];$loggedTs=strtotime($loggedAt)?:0;if($loggedTs){$overallDates[]=$loggedTs;$week=date('o-\WW',$loggedTs);$weekly[$week]=($weekly[$week]??0)+1;}
+        $loggedAt=(string)$row['logged_at'];$loggedTs=strtotime($loggedAt)?:0;
         $responsible=(int)($row['current_responsible_employee_id']??$row['attributed_employee_id']??0);
         $attribution=strtolower(trim((string)($row['attribution_type']??'')));$responsibility=strtolower(trim((string)($row['responsibility_type']??'')));
         $statusKey=strtolower(trim((string)($row['status']??'')));
@@ -104,6 +104,7 @@ function performance_error_analysis(array $employees, string $fromSql, string $t
         $eligibleStatus=!in_array($statusKey,['dismissed','excused','duplicate','pending_responsibility','pending responsibility'],true);
         $sharedUnconfirmed=strpos($responsibility,'shared')!==false&&strpos($responsibility,'confirmed')===false;
         if(!$confirmed||!$eligibleStatus||$sharedUnconfirmed){$excluded[]=['record_id'=>(int)$row['id'],'reason'=>!$confirmed?'Responsibility not confirmed':(!$eligibleStatus?'Dismissed, excused, duplicate or pending responsibility':'Shared responsibility not confirmed')];continue;}
+        if($loggedTs){$overallDates[]=$loggedTs;$week=date('o-\WW',$loggedTs);$weekly[$week]=($weekly[$week]??0)+1;}
         $severity=strtolower(trim((string)$row['severity']));if(!in_array($severity,['critical','high','medium','low'],true))$severity='low';
         $resolved=in_array(strtolower(trim((string)$row['status'])),['resolved','complete','completed','closed'],true)||trim((string)($row['resolution']??''))!=='';
         $impact=trim((string)($row['customer_impact']??''));$customerImpact=$impact!==''&&!in_array(strtolower($impact),['none','no','no impact'],true);
