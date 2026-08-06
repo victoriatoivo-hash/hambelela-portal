@@ -113,7 +113,7 @@ assert.match(js,/Mappings and metric sources/,
   'owner report must display the metric source table');
 assert.match(js,/performance-chart-table/,'charts must include a matching evidence table');
 assert.match(js,/window\.print\(\)/,'print/PDF workflow must be available');
-assert.match(js,/Promise\.all\(requests\)/,'report sections must load independently');
+assert.match(js,/Promise\.all\(tabIds\.filter/,'report sections must load independently after the selected section renders');
 assert.match(js,/sectionError/,'failed sections must render an error card');
 for(const tab of ['Overview','Packing','Website Updates','Orders','Bookkeeping','Courier','Tasks','Errors','Attendance','Scores','Suggestions'])
   assert.match(js,new RegExp(tab.replace(' ','\\s')),`approved report must include the ${tab} tab`);
