@@ -5,6 +5,7 @@ const page=read('apps/operations/reports.php');
 const api=read('apps/operations/reports-performance-reports-data.php');
 const js=read('assets/js/reports-performance.js');
 const reporting=read('apps/operations/kpi-reporting.php');
+const packingPerformance=read('apps/operations/kpi-packing-list-performance.php');
 const sectionIds=['overview','packing','website-updates','orders','bookkeeping','courier','tasks','errors','attendance','scores','suggestions'];
 assert.match(page,/trusted_performance_start_date[^\n]+2026-07-10/,'owner settings must expose the trusted start date');
 for(const key of ['orders_attribution_adoption_date','packing_timing_adoption_date','website_timing_adoption_date','attendance_adoption_date'])assert.match(page,new RegExp(key),`settings must expose ${key}`);
@@ -13,7 +14,7 @@ assert.match(api,/require_role\('owner_admin'\)/,'report API must enforce owner 
 assert.match(api,/assigned_packer_id=\?/,'order credit must use authoritative Packed By');
 assert.match(api,/workload_package_count/,'reports must include package quantities');
 assert.match(api,/workload_points_override/,'reports must respect owner workload overrides');
-assert.match(api,/date_loaded<=date_started AND date_started<=date_completed/,'invalid packing timings must be excluded');
+assert.match(packingPerformance,/\$invalid=!\$loaded\|\|\(\$started&&\$started<\$loaded\)\|\|\(\$done&&\(!\$started\|\|\$done<\$started\)\)/,'invalid packing timings must be excluded');
 assert.match(api,/responsible_employee_id=\?/,'accuracy must use responsible employee attribution');
 assert.match(api,/accuracy_verified_by IS NOT NULL/,'accuracy errors must be owner verified');
 assert.match(api,/kpi_send_json/,'API failures and successes must use safe JSON responses');
@@ -107,11 +108,15 @@ assert.match(api,/status==='complete'\)\$per\[\$packer\]\['completed'\]\+\+/,
   'Complete orders must increment the employee completed counter');
 assert.match(api,/walk_ins_excluded_from_mode_counts.*true/,
   'Mobile-field walk-ins must be excluded from Mode counts');
-assert.match(api,/Loaded to Complete for own Packed By orders/,
-  'front-desk own Packed By orders must use loaded-to-complete timing');
+assert.match(api,/kpi_front_orders_report/,
+  'front-desk orders must use the evidence-first report with separate Walk-in and Ready-to-Complete timing');
+assert.match(js,/Orders Still Pending Completion/,
+  'Front Desk Orders must use the clarified pending-order label');
+assert.match(js,/Paid and Status Exceptions/,
+  'Front Desk Orders must render Orders Paid/status exceptions separately from Bookkeeping');
 assert.match(js,/Walk-ins by Mobile field/,
   'Orders tab must render a separate Mobile-field walk-ins table');
-assert.match(js,/Mappings and metric sources/,
+assert.match(js,/Mappings, inclusions and metric sources/,
   'owner report must display the metric source table');
 assert.match(js,/performance-chart-table/,'charts must include a matching evidence table');
 assert.match(js,/window\.print\(\)/,'print/PDF workflow must be available');
@@ -124,7 +129,7 @@ assert.match(js,/Not measured/,'unavailable report fields must not be estimated'
 for(const source of ['frontdesk_website_updated','frontdesk_website_updated_at','frontdesk_website_updated_by','packing_packing_website_confirmed_updated','ops_activity_logs'])
   assert.match(api,new RegExp(source),`Website Updates must query ${source}`);
 assert.match(api,/website_update_lag_target_minutes/,'Website Updates must use the configured lag target');
-assert.match(api,/website_tick_weight_percent'\]=5/,'packer Packing score must disclose the 5% board-tick component');
+assert.match(api,/website_tick_weight_percent'\]=\d+/,'packer Packing score must disclose its configured board-tick component');
 assert.match(api,/website_frontdesk_confirmed/,'verification must expose two front-desk confirmation samples');
 assert.match(api,/website_frontdesk_unconfirmed/,'verification must expose an unconfirmed sample');
 assert.match(api,/website_board_ticks/,'verification must expose two attributable board-tick samples');
