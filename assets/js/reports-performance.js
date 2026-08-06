@@ -11,7 +11,8 @@
   const tabs = ['Overview','Packing','Website Updates','Orders','Bookkeeping','Courier','Tasks','Errors','Attendance','Scores','Suggestions'];
   const tabIds = tabs.map(x => x.toLowerCase().replaceAll(' ', '-'));
   const people = { klaudia:'#D4622A', ndinelao:'#2A7DD4', secilia:'#27AE60' };
-  let latest = null, charts = [], activeTab = 'overview', meetingIndex = 0;
+  let latest = null, charts = [], activeTab = new URLSearchParams(location.search).get('report_section') || 'overview', meetingIndex = 0;
+  if(!tabIds.includes(activeTab))activeTab='overview';
   const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
   const num = v => v === null || v === undefined || v === '' ? 'Not measured' : Number(v).toLocaleString(undefined,{maximumFractionDigits:1});
   const pct = v => v === null || v === undefined ? 'Not measured' : `${num(v)}%`;
