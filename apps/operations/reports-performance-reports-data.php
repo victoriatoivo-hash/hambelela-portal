@@ -324,11 +324,37 @@ try {
     $errorsFromSql=$sectionFrom('error_log_adoption_date','2026-07-14');
     $employeeId = max(0, (int)($_GET['employee_id'] ?? 0));
     $role = trim((string)($_GET['role'] ?? 'all'));
+    $requestedSection=(string)($_GET['report_section']??'complete');
     $websiteLagTarget = isset($settings['website_update_lag_target_minutes']) && is_numeric($settings['website_update_lag_target_minutes']) ? max(0.0,(float)$settings['website_update_lag_target_minutes']) : null;
 
     $employees = ops_rows("SELECT e.id,e.full_name,r.name role_name,r.role_key FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE e.status='active' AND r.role_key<>'owner_admin' AND LOWER(e.full_name) NOT LIKE '%karina%' AND LOWER(e.full_name) NOT LIKE '%kaarina%' ORDER BY r.role_key,e.full_name");
     $errorsAnalysis=performance_section_attempt($sectionErrors,'errors',static fn()=>performance_error_analysis($employees,$errorsFromSql,$toSql,new DateTimeImmutable('now',$zone)),['source_query'=>'Unavailable','total_rows'=>0,'per_employee'=>[],'weekly'=>[],'frequency'=>['average_days_between'=>null,'days_since_last'=>null,'events'=>0],'verification_examples'=>[]]);
     $attendanceActivity=performance_section_attempt($sectionErrors,'attendance',static fn()=>performance_attendance_activity($employees,$fromSql,$toSql),['per_employee'=>[],'coverage'=>[],'source'=>'Unavailable','event_count'=>0]);
+    if ($requestedSection === 'attendance') {
+        $attendanceEngine = new \Hambelela\EPI\AttendancePerformance(db());
+        $attendanceReports = [];
+        $epiFilters = ['period'=>'custom','date_from'=>$from->format('Y-m-d'),'date_to'=>$to->format('Y-m-d')];
+        foreach ($employees as $person) {
+            $id=(int)$person['id'];
+            if ($employeeId && $employeeId !== $id) continue;
+            $personRole=(string)$person['role_key'];
+            if ($role==='packer' && strpos($personRole,'packer')===false) continue;
+            if ($role==='front_desk' && strpos($personRole,'front_desk')===false) continue;
+            if (!in_array($role,['all','packer','front_desk'],true) && $role!==$personRole) continue;
+            $local=$epiFilters+['employee_id'=>$id];
+            $attendance=performance_section_attempt($sectionErrors,'attendance',static fn()=>$attendanceEngine->getSummary($local),['scheduled_days'=>0,'approved_leave_days'=>0,'present_days'=>0,'on_time_days'=>0,'within_grace_days'=>0,'late_days'=>0,'portal_active_minutes'=>0]);
+            $punctualN=(int)$attendance['on_time_days']+(int)$attendance['within_grace_days']+(int)$attendance['late_days'];
+            $punctual=$punctualN?round(100*((int)$attendance['on_time_days']+(int)$attendance['within_grace_days'])/$punctualN,1):null;
+            $presence=$attendanceActivity['per_employee'][$id]??['sessions'=>0,'minutes'=>0,'hours'=>0,'activity_count'=>0,'modules'=>[],'busiest_day'=>null,'busiest_hour_band'=>null,'session_samples'=>[]];
+            $presentDays=(int)$attendance['present_days'];
+            $presence['average_minutes_per_present_day']=$presentDays?round((float)$presence['minutes']/$presentDays,1):null;
+            $presence['average_actions_per_present_day']=$presentDays?round((int)$presence['activity_count']/$presentDays,1):0.0;
+            $attendanceReports[]=['id'=>$id,'name'=>(string)$person['full_name'],'role'=>(string)$person['role_name'],'role_key'=>$personRole,'evidence_count'=>(int)$presence['activity_count'],'attendance'=>array_merge($presence,['expected_days'=>max(0,(int)$attendance['scheduled_days']-(int)$attendance['approved_leave_days']),'present_days'=>$presentDays,'on_time_percent'=>$punctual]),'activity_count'=>(int)$presence['activity_count'],'scored_sections'=>[],'overall_score'=>['score'=>null]];
+        }
+        $attendanceWarnings=[];
+        foreach($sectionErrors as$sectionName=>$sectionError)$attendanceWarnings[]='The '.str_replace('_',' ',$sectionName).' section is temporarily unavailable: '.$sectionError;
+        kpi_send_json(['ok'=>true,'error'=>null,'requested_section'=>'attendance','section_errors'=>$sectionErrors,'warnings'=>$attendanceWarnings,'report'=>['name'=>'Employee Performance Analysis Report','status'=>'provisional','baseline'=>$trusted->format('Y-m-d'),'minimum_sample'=>5],'period'=>['key'=>$resolved['key'],'from'=>$resolved['from']->format('Y-m-d'),'to'=>$to->format('Y-m-d'),'effective_from'=>$from->format('Y-m-d'),'adoption_date'=>$trusted->format('Y-m-d'),'working_days'=>$workingDays],'employees'=>$employees,'reports'=>$attendanceReports,'attendance_activity'=>$attendanceActivity,'data_quality'=>['status'=>'partial_data','trusted_start_date'=>$trusted->format('Y-m-d'),'warnings'=>$attendanceWarnings],'last_refreshed_at'=>(new DateTimeImmutable('now',$zone))->format(DATE_ATOM)]);
+    }
     $reports = [];
     foreach ($employees as $person) {
         $id = (int)$person['id'];
@@ -501,7 +527,6 @@ try {
         $out=fopen('php://output','wb');fputcsv($out,['Employee','Role','Orders packed','Packing rows','Packages','Workload points','Timing coverage','Tasks completed','Tasks on time','Open overdue','Website updates','Waybills sent','Verified errors','Accuracy']);
         foreach($reports as $r)fputcsv($out,[$r['name'],$r['role'],$r['orders']['packed'],$r['packing']['product_rows'],$r['packing']['packages'],$r['packing']['workload_points'],$r['packing']['timing_coverage']['numerator'].'/'.$r['packing']['timing_coverage']['denominator'],$r['tasks']['completed'],$r['tasks']['on_time'],$r['tasks']['open_overdue'],$r['website']['updates'],$r['waybills']['sent'],$r['quality']['verified_errors'],$r['quality']['accuracy']??'—']);fclose($out);exit;
     }
-    $requestedSection=(string)($_GET['report_section']??'complete');
     $lateCouriers=performance_section_attempt($sectionErrors,'courier',static fn()=>array_slice(array_values(array_filter($courierEngine->getEvidence($epiFilters,1000),static fn(array$x):bool=>in_array($x['send_result'],['late','overdue','late_after_availability'],true))),0,100),[]);
     $responseWarnings=$quality['warnings'];
     foreach($sectionErrors as $sectionName=>$sectionError){

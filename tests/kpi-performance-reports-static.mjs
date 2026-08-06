@@ -19,6 +19,7 @@ assert.match(api,/accuracy_verified_by IS NOT NULL/,'accuracy errors must be own
 assert.match(api,/kpi_send_json/,'API failures and successes must use safe JSON responses');
 assert.match(api,/performance_section_attempt/,'each report section query must be isolated');
 assert.match(api,/section_errors/,'section errors must be returned without failing the whole report');
+assert.match(api,/if \(\$requestedSection === 'attendance'\)[\s\S]+?kpi_send_json\(\['ok'=>true[\s\S]+?\$reports = \[\];/,'attendance must return before the full multi-section report loop');
 for(const sectionId of sectionIds){
   const wrapper=read(`apps/operations/reports-performance-${sectionId}-data.php`);
   assert.match(wrapper,new RegExp(`report_section'\]\\?='${sectionId}`.replace('\\?','')),
