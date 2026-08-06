@@ -28613,9 +28613,19 @@ body.performance-meeting-open .performance-meeting .epi-report-page.is-meeting-c
 #kpi-reports .epi-highlight-card.is-empty{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;min-height:42px}
 #kpi-reports .epi-highlight-card.is-empty>span,#kpi-reports .epi-highlight-card.is-empty>strong,#kpi-reports .epi-highlight-card.is-empty>small{margin:0}
 #kpi-reports .epi-highlight-card.is-empty>small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:46%}
+#kpi-reports .epi-highlight-compact{display:grid;gap:8px;margin:0 0 14px}
+#kpi-reports .epi-highlight-strip{display:flex;align-items:center;gap:18px;min-height:28px;padding:0;color:#B9C4DE;font-size:11px;line-height:1.35}
+#kpi-reports .epi-highlight-strip span{min-width:0}
+#kpi-reports .epi-highlight-strip b{color:#FFFFFF;font-weight:600}
+#kpi-reports .epi-highlight-card.is-audit-pending{display:flex;align-items:center;gap:10px;min-height:34px;margin:0;padding:7px 11px;border:1px solid #303545;border-radius:8px;background:#171922;box-shadow:none}
+#kpi-reports .epi-highlight-card.is-audit-pending>span,#kpi-reports .epi-highlight-card.is-audit-pending>strong,#kpi-reports .epi-highlight-card.is-audit-pending>small{display:inline;margin:0}
+#kpi-reports .epi-highlight-card.is-audit-pending>span{color:#B9C4DE}
+#kpi-reports .epi-highlight-card.is-audit-pending>strong{color:#FFFFFF;font-size:12px}
+#kpi-reports .epi-highlight-card.is-audit-pending>small{color:#8793AE;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #kpi-reports .epi-score-breakdown>header{align-items:flex-start;gap:12px;flex-wrap:wrap}
 #kpi-reports .epi-score-breakdown>header small{flex-basis:100%;color:var(--epi-muted);font-size:10px}
 #kpi-reports .epi-score-row>b{display:inline-flex;align-items:center;justify-content:flex-end;gap:3px;white-space:nowrap}
 #kpi-reports [data-report-page="scores"] .performance-chart-table td>strong+small::before{content:" · "}
 @media(max-width:760px){#kpi-reports .epi-highlight-grid{grid-template-columns:1fr}}
+@media(max-width:760px){#kpi-reports .epi-highlight-strip{align-items:flex-start;flex-direction:column;gap:4px}#kpi-reports .epi-highlight-card.is-audit-pending{align-items:flex-start;flex-wrap:wrap}}
 @media print{#kpi-reports .epi-highlight-grid{grid-template-columns:repeat(3,1fr)}#kpi-reports .epi-highlight-card{break-inside:avoid}}
