@@ -60,8 +60,36 @@
   q('[data-performance-compare]').addEventListener('click',()=>{controls.employee.value='0';controls.role.value='packer';load();});
   q('[data-performance-print]').addEventListener('click',()=>window.print()); q('[data-performance-pdf]').addEventListener('click',()=>window.print());
   q('[data-performance-csv]').addEventListener('click',()=>{location.href=`reports-performance-reports-data.php?${params()}&action=export_bundle`;});
-  q('[data-performance-meeting]').addEventListener('click',()=>{controls.meeting.hidden=false; q('[data-meeting-content]').innerHTML=controls.output.innerHTML; document.body.classList.add('performance-meeting-open'); controls.meeting.requestFullscreen?.().catch(()=>{});});
-  q('[data-meeting-exit]').addEventListener('click',()=>{controls.meeting.hidden=true;document.body.classList.remove('performance-meeting-open');if(document.fullscreenElement)document.exitFullscreen();});
+  function updateMeeting(index){
+    const pages=[...controls.meeting.querySelectorAll('[data-report-page]')],nav=q('[data-meeting-nav]');
+    if(!pages.length)return;
+    meetingIndex=(index+pages.length)%pages.length;
+    pages.forEach((page,i)=>page.classList.toggle('is-meeting-current',i===meetingIndex));
+    nav.querySelectorAll('button').forEach((button,i)=>button.classList.toggle('active',i===meetingIndex));
+    q('[data-meeting-position]').textContent=`${meetingIndex+1} / ${pages.length}`;
+    q('[data-meeting-content]').scrollTop=0;
+  }
+  function closeMeeting(){
+    controls.meeting.hidden=true;
+    document.body.classList.remove('performance-meeting-open');
+    if(document.fullscreenElement)document.exitFullscreen?.().catch(()=>{});
+  }
+  q('[data-performance-meeting]').addEventListener('click',()=>{
+    controls.meeting.hidden=false;
+    q('[data-meeting-content]').innerHTML=controls.output.innerHTML;
+    q('[data-meeting-period]').textContent=latest?`${latest.period.effective_from} to ${latest.period.to}`:'';
+    const pages=[...controls.meeting.querySelectorAll('[data-report-page]')];
+    q('[data-meeting-nav]').innerHTML=pages.map((page,i)=>`<button type="button" data-meeting-page="${i}">${esc(page.querySelector('h2')?.textContent||`Section ${i+1}`)}</button>`).join('');
+    document.body.classList.add('performance-meeting-open');
+    updateMeeting(Math.max(0,pages.findIndex(page=>page.classList.contains('is-active'))));
+    controls.meeting.requestFullscreen?.().catch(()=>{});
+  });
+  q('[data-meeting-exit]').addEventListener('click',closeMeeting);
+  q('[data-meeting-previous]').addEventListener('click',()=>updateMeeting(meetingIndex-1));
+  q('[data-meeting-next]').addEventListener('click',()=>updateMeeting(meetingIndex+1));
+  q('[data-meeting-nav]').addEventListener('click',event=>{const button=event.target.closest('[data-meeting-page]');if(button)updateMeeting(Number(button.dataset.meetingPage));});
+  document.addEventListener('keydown',event=>{if(controls.meeting.hidden)return;if(event.key==='ArrowRight'||event.key==='PageDown')updateMeeting(meetingIndex+1);if(event.key==='ArrowLeft'||event.key==='PageUp')updateMeeting(meetingIndex-1);if(event.key==='Escape')closeMeeting();});
+  document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement&&!controls.meeting.hidden)closeMeeting();});
   function website(data){
     const reports=data.reports||[],front=reports.filter(p=>get(p,'website.source_type')==='frontdesk_confirmation'),packers=reports.filter(p=>get(p,'website.source_type')==='board_tick');
     const lag=v=>v===null||v===undefined?'Not measured':`${num(v)} min`;
