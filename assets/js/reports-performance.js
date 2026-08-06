@@ -49,7 +49,7 @@
     const query=params();
     const requests=tabIds.map(async id=>{const started=performance.now();try{const data=await readJson(await fetch(`${sectionEndpoints[id]}?${query}`,{headers:{Accept:'application/json'}}));return{id,data,elapsed:Math.round(performance.now()-started),error:null};}catch(error){return{id,data:null,elapsed:Math.round(performance.now()-started),error:error.message};}});
     const results=await Promise.all(requests),base=results.find(result=>result.data)?.data;
-    if(base){render(base);for(const result of results){const reason=result.error||result.data?.section_errors?.[result.id]||null;replaceSection(result.id,reason?sectionError(result.id,reason):sectionRenderers[result.id](result.data));}q('[data-performance-error]').hidden=true;latest.section_response_times=Object.fromEntries(results.map(result=>[result.id,result.elapsed]));}
+    if(base){render(base);for(const result of results){const reason=result.error||result.data?.section_errors?.[result.id]||null;replaceSection(result.id,reason?sectionError(result.id,reason):sectionRenderers[result.id](result.data));}q('[data-performance-error]').hidden=true;latest.section_response_times=Object.fromEntries(results.map(result=>[result.id,result.elapsed]));controls.output.dataset.sectionResponseTimes=JSON.stringify(latest.section_response_times);}
     else{controls.output.innerHTML=`<article class="performance-presentation">${nav()}<main>${results.map(result=>sectionError(result.id,result.error)).join('')}</main></article>`;q('[data-performance-error]').textContent='No performance section could be loaded.';q('[data-performance-error]').hidden=false;}
     setTab(activeTab);controls.output.removeAttribute('aria-busy');
   }
