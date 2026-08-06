@@ -100,6 +100,8 @@ $settingFields = [
     'frontdesk_reward_weights_approved' => ['Rewards: front-desk weights approved (0 pending, 1 approved)', 'number', '0'],
     'packing_speed_target_minutes_per_point' => ['Packer: packing-list speed target (minutes per weighted point; 0 = current evidence median)', 'number', '0'],
     'order_speed_target_minutes_per_point' => ['Packer: order-picking speed target (minutes per weighted point; 0 = current evidence median)', 'number', '0'],
+    'speed_targets_confirmed' => ['Packer: speed targets owner-confirmed (0 auto-derived/pending, 1 confirmed)', 'number', '0'],
+    'provisional_headline_mode' => ['Performance reports: provisional headline mode (1 component bars first, 0 score first)', 'number', '1'],
     'report_weights' => ['Performance reports: role section weights (JSON)', 'text', '{"packer":{"packing":30,"quality":25,"orders":15,"attendance":10,"tasks":10,"waybills":10},"front_desk":{"bookkeeping":30,"orders":25,"tasks":15,"waybills":10,"quality":10,"attendance":10}}'],
 ];
 
