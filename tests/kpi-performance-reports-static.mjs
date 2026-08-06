@@ -135,7 +135,14 @@ assert.match(api,/kpi_merge_presence_rows/,'attendance session hours must merge 
 assert.match(api,/average_actions_per_present_day/,'attendance must report actions per present day');
 assert.match(js,/Activity log coverage/,'attendance renderer must disclose included and excluded log sources');
 assert.match(js,/Total session time/,'attendance renderer must show session-derived duration');
+assert.match(api,/weights_renormalised'=>false/,'overall scores must never renormalise around unmeasured core sections');
+assert.match(api,/measured_sections.*core_sections.*coverage_label/,'overall score must expose role-core measurement coverage');
+assert.match(api,/accuracy_scored/,'Packing accuracy must be controlled by the accuracy_scored setting');
+assert.match(api,/70% × on-time share \+ 30% × \(1 − pending-overdue share\)/,'Tasks scoring must include completed-late and pending-overdue work');
+assert.match(js,/Provisional —.*sections measured/,'Scores headline must gate the percentage on core-section coverage');
+assert.match(js,/Show the working/,'every section score must expose its formula inputs');
 const css=read('assets/css/portal.css'),presentationSource=css+js;
+assert.match(css,/epi-score-working-print/,'score workings must remain visible in print');
 for(const token of ['#0E0F14','#D4622A','#2A7DD4','#27AE60','Bebas Neue','DM Mono'])
   assert.match(presentationSource,new RegExp(token.replace('#','\\#')),`approved February report token ${token} must be present`);
 assert.match(css,/@media print[\s\S]*epi-report-page/,'each presentation section must have print-page treatment');
