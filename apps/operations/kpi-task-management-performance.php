@@ -86,7 +86,7 @@ function kpi_task_management_performance(array $employee, string $fromSql, strin
                 $completionSnapshot = $metadata;
             }
             if ($completeEvent && in_array($old, $completeStatuses, true) && !in_array($new, $completeStatuses, true)) $reopened = true;
-            if (str_contains($new, 'return') || str_contains($action, 'return')) $returned = true;
+            if (strpos($new, 'return') !== false || strpos($action, 'return') !== false) $returned = true;
         }
 
         $assigned = !empty($task['date_assigned']) ? new DateTimeImmutable((string) $task['date_assigned'], $zone) : null;
@@ -184,7 +184,7 @@ function kpi_task_management_performance(array $employee, string $fromSql, strin
         $rows[] = $task + [
             'category'=>trim((string) $task['checklist_type']) ?: 'Uncategorised','assigned_at'=>$task['date_assigned'],
             'assignment_evidence'=>$assignmentEvent ? $assignmentEvent['source_log'].' #'.$assignmentEvent['source_event_id'] : 'Authoritative task date_assigned',
-            'started_at_evidence'=>$started?->format('Y-m-d H:i:s'),'completed_at_evidence'=>$completed?->format('Y-m-d H:i:s'),
+            'started_at_evidence'=>$started ? $started->format('Y-m-d H:i:s') : null,'completed_at_evidence'=>$completed ? $completed->format('Y-m-d H:i:s') : null,
             'started_by'=>$startEvent['actor_name'] ?? ($started ? $task['assigned_to'] : '—'),'completed_by_evidence'=>$completeEvent['actor_name'] ?? $task['completed_by_name'] ?? '—',
             'acknowledgement_minutes'=>$ackMinutes,'active_minutes'=>$activeMinutes,'turnaround_minutes'=>$turnaroundMinutes,
             'early_minutes'=>$earlyMinutes,'late_minutes'=>$lateMinutes,'current_overdue_minutes'=>$currentOverdueMinutes,
@@ -193,7 +193,7 @@ function kpi_task_management_performance(array $employee, string $fromSql, strin
             'completion_note_result'=>$noteRequired?($noteValid?'Meaningful required note':'Required detailed note missing'):'Not required','note_meaningful'=>$noteValid,'notes_state'=>trim($noteText)!==''?'Present':'Missing',
             'proof_result'=>$proofRequired?($validProof?'Required proof supplied':'Required proof missing'):($proofCount?'Optional proof — evidence only':'Proof not required'),'proof_valid'=>$validProof,'proof_required'=>$proofRequired,
             'attribution'=>$attribution?'Attribution conflict':($completed?'Personally completed':'Assigned employee'),'result'=>$requiresReview?'Requires owner review':'Reliable evidence','evidence_count'=>count($events),
-            'last_activity_at'=>$events ? end($events)['occurred_at'] : ($completed?->format('Y-m-d H:i:s') ?? $started?->format('Y-m-d H:i:s') ?? $assigned?->format('Y-m-d H:i:s')),
+            'last_activity_at'=>$events ? end($events)['occurred_at'] : ($completed ? $completed->format('Y-m-d H:i:s') : ($started ? $started->format('Y-m-d H:i:s') : ($assigned ? $assigned->format('Y-m-d H:i:s') : null))),
         ];
     }
 
@@ -233,7 +233,7 @@ function kpi_task_management_performance(array $employee, string $fromSql, strin
         ['label'=>'In Progress','count'=>$counts['in_progress'],'denominator'=>$counts['assigned']],['label'=>'Overdue Open','count'=>$counts['overdue'],'denominator'=>$counts['assigned']],
         ['label'=>'Reopened','count'=>$counts['reopened'],'denominator'=>$counts['assigned']],['label'=>'Returned for Correction','count'=>$counts['returned'],'denominator'=>$counts['assigned']],
     ];
-    $riskRows = array_values(array_filter($rows, static fn(array $row): bool => $row['current_overdue_minutes'] !== null || $row['deadline_result']==='Completed late' || $row['missing_checklist'] || ($row['proof_required'] && !$row['proof_valid']) || str_contains($row['completion_note_result'],'missing') || $row['status_process']!=='Expected sequence' || $row['attribution']==='Attribution conflict'));
+    $riskRows = array_values(array_filter($rows, static fn(array $row): bool => $row['current_overdue_minutes'] !== null || $row['deadline_result']==='Completed late' || $row['missing_checklist'] || ($row['proof_required'] && !$row['proof_valid']) || strpos($row['completion_note_result'],'missing') !== false || $row['status_process']!=='Expected sequence' || $row['attribution']==='Attribution conflict'));
     return ['rows'=>$rows,'metrics'=>$metrics,'counts'=>$counts,'duration_stats'=>$stats,'status_breakdown'=>$breakdown,'overdue_by_status'=>$byStatus,'risk_rows'=>$riskRows,
         'median_ack'=>$stats['ack']['median'],'median_active'=>$stats['active']['median'],'median_turnaround'=>$stats['turnaround']['median'],'completion_rate'=>$completionRate,'on_time_rate'=>$onTime,
         'task_score'=>$score,'score_detail'=>['on_time'=>$onTime,'completion'=>$completionRate,'checklist'=>$checklistRate,'notes'=>$noteRate,'rework'=>$reworkRate,'weights'=>['on_time'=>40,'completion'=>25,'checklist'=>15,'notes'=>10,'rework'=>10],'coverage'=>['assigned'=>$counts['assigned'],'deadline_eligible'=>$counts['deadline_eligible'],'timing_ack'=>$stats['ack']['n'],'timing_active'=>$stats['active']['n'],'timing_turnaround'=>$stats['turnaround']['n']]],
