@@ -65,6 +65,14 @@ for(const label of ['Employee status reconciliation','Mode × Packed By','Packer
   assert.match(js,new RegExp(label),`Orders tab must render ${label}`);
 assert.match(js,/speed_measured.*speed_total/,
   'Orders timing must disclose measured coverage');
+assert.match(api,/status==='complete'\)\$per\[\$packer\]\['completed'\]\+\+/,
+  'Complete orders must increment the employee completed counter');
+assert.match(api,/walk_ins_excluded_from_mode_counts.*true/,
+  'Mobile-field walk-ins must be excluded from Mode counts');
+assert.match(api,/Loaded to Complete for own Packed By orders/,
+  'front-desk own Packed By orders must use loaded-to-complete timing');
+assert.match(js,/Walk-ins by Mobile field/,
+  'Orders tab must render a separate Mobile-field walk-ins table');
 assert.match(js,/Mappings and metric sources/,
   'owner report must display the metric source table');
 assert.match(js,/performance-chart-table/,'charts must include a matching evidence table');
