@@ -28614,5 +28614,6 @@ body.performance-meeting-open .performance-meeting .epi-report-page.is-meeting-c
 #kpi-reports .epi-score-breakdown>header{align-items:flex-start;gap:12px;flex-wrap:wrap}
 #kpi-reports .epi-score-breakdown>header small{flex-basis:100%;color:var(--epi-muted);font-size:10px}
 #kpi-reports .epi-score-row>b{display:inline-flex;align-items:center;justify-content:flex-end;gap:3px;white-space:nowrap}
+#kpi-reports [data-report-page="scores"] .performance-chart-table td>strong+small::before{content:" · "}
 @media(max-width:760px){#kpi-reports .epi-highlight-grid{grid-template-columns:1fr}}
 @media print{#kpi-reports .epi-highlight-grid{grid-template-columns:repeat(3,1fr)}#kpi-reports .epi-highlight-card{break-inside:avoid}}
