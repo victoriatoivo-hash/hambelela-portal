@@ -28664,6 +28664,33 @@ body.performance-meeting-open .performance-meeting .epi-report-page.is-meeting-c
 @media(max-width:620px){#kpi-reports .performance-report-redesign .epi-redesign-block{padding:12px;border-radius:10px}.performance-report-redesign .epi-redesign-block>header{align-items:flex-start;flex-direction:column}.performance-report-redesign .epi-redesign-block>header small{text-align:left}.performance-report-redesign .epi-team-grid{grid-template-columns:1fr}.performance-report-redesign .epi-score-ring{margin:auto}.performance-report-redesign .epi-team-cards{grid-template-columns:1fr 1fr}.performance-report-redesign .epi-recognition-grid{grid-template-columns:1fr}.performance-report-redesign .epi-employee-summary-grid dl{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){#kpi-reports .performance-report-redesign *{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
 @media print{#kpi-reports .performance-report-redesign{background:#fff!important}.performance-report-redesign .epi-redesign-block{break-inside:avoid;box-shadow:none}.performance-report-redesign .epi-score-matrix{overflow:visible}.performance-report-redesign .epi-score-matrix table{min-width:0;font-size:7pt}.performance-report-redesign [data-score-working]{display:none!important}.performance-report-redesign .epi-team-cards{grid-template-columns:repeat(4,1fr)}}
+
+/* Error & Quality report: presentation-first vertical evidence layout. */
+#kpi-reports .epi-quality-vertical{display:grid;grid-template-columns:minmax(0,1fr);gap:22px;width:100%;min-width:0}
+#kpi-reports .epi-quality-block{position:relative;display:block;width:100%;min-width:0;padding:20px;background:#171820;border:1px solid #30323d;border-radius:12px;box-sizing:border-box;overflow:hidden}
+#kpi-reports .epi-quality-block::before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:#f07420}
+#kpi-reports .epi-quality-block>header{display:flex;justify-content:space-between;gap:14px;margin:0 0 16px;padding:0 0 12px 2px;border-bottom:1px solid #30323d}
+#kpi-reports .epi-quality-block>header h3{margin:0;color:#fff;font:600 18px/1.25 Figtree,Inter,sans-serif}
+#kpi-reports .epi-quality-block>header p{margin:5px 0 0;color:#9da1b5;font:400 11px/1.45 Figtree,Inter,sans-serif}
+#kpi-reports .epi-quality-rings{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+#kpi-reports .epi-quality-rings article{display:grid;place-items:center;min-height:170px}
+#kpi-reports .epi-quality-rings article>div{display:grid;place-content:center;width:132px;aspect-ratio:1;text-align:center;border-radius:50%;background:radial-gradient(circle,#171820 57%,transparent 58%),conic-gradient(#f07420 calc(var(--score)*1%),#30323d 0)}
+#kpi-reports .epi-quality-rings strong{color:#fff;font:600 21px/1.1 "DM Mono",monospace}
+#kpi-reports .epi-quality-rings span{max-width:100px;margin-top:6px;color:#9da1b5;font-size:9px}
+#kpi-reports .epi-root-rank{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px;color:#9da1b5;font-size:10px}
+#kpi-reports .epi-root-rank label{display:flex;align-items:center;gap:8px}
+#kpi-reports .epi-root-rank select{height:34px;padding:0 28px 0 9px;color:#fff;background:#111218;border:1px solid #454754;border-radius:7px}
+#kpi-reports .epi-root-visuals{display:grid;grid-template-columns:1fr;gap:14px;margin-top:18px}
+#kpi-reports .epi-root-chart{padding:15px;background:#111218;border:1px solid #30323d;border-radius:9px}
+#kpi-reports .epi-root-chart h4,#kpi-reports .epi-quality-block>h4{margin:0 0 12px;color:#fff;font:600 13px/1.3 Figtree,Inter,sans-serif}
+#kpi-reports .epi-root-chart>div{display:grid;grid-template-columns:minmax(120px,1fr) minmax(160px,3fr) 90px 58px;gap:9px;align-items:center;margin:9px 0;color:#d7d9e2;font-size:10px}
+#kpi-reports .epi-root-chart i{height:10px;background:#292b35;border-radius:999px;overflow:hidden}
+#kpi-reports .epi-root-chart em{display:block;height:100%;background:linear-gradient(90deg,#f07420,#ab3619)}
+#kpi-reports .epi-root-chart button,.epi-link-button,#kpi-reports .epi-quality-summary button{padding:0;color:#f6a36e;background:transparent;border:0;font:600 9px/1.2 Figtree,Inter,sans-serif;text-decoration:underline;cursor:pointer}
+#kpi-reports .epi-quality-summary{display:grid;gap:6px;margin:16px 0 0;padding:14px 14px 14px 30px;background:#111218;border-radius:8px}
+@media(max-width:900px){#kpi-reports .epi-quality-block{padding:16px}#kpi-reports .epi-quality-rings{grid-template-columns:repeat(2,minmax(0,1fr))}#kpi-reports .epi-root-chart>div{grid-template-columns:110px minmax(120px,1fr) 80px 52px}}
+@media(max-width:560px){#kpi-reports .epi-quality-vertical{gap:14px}#kpi-reports .epi-quality-block{padding:13px;border-radius:9px}#kpi-reports .epi-quality-rings{grid-template-columns:1fr}#kpi-reports .epi-root-rank{align-items:flex-start;flex-direction:column}#kpi-reports .epi-root-chart>div{grid-template-columns:1fr 60px}#kpi-reports .epi-root-chart i{grid-column:1/-1;grid-row:2}#kpi-reports .epi-root-chart b,#kpi-reports .epi-root-chart button{grid-row:1}}
+@media print{#kpi-reports .epi-quality-vertical{display:block}#kpi-reports .epi-quality-block{margin:0 0 8mm;padding:5mm;color:#1a1a1a!important;background:#fff!important;border:1px solid #bbb!important;break-inside:avoid;box-shadow:none}#kpi-reports .epi-quality-block>header{break-after:avoid;border-color:#ddd}#kpi-reports .epi-quality-block>header h3,#kpi-reports .epi-root-chart h4,#kpi-reports .epi-quality-block>h4{color:#1a1a1a!important}#kpi-reports .epi-top-root-causes{break-inside:auto}#kpi-reports .epi-top-root-causes .epi-table-wrap{break-inside:avoid}#kpi-reports .epi-quality-block thead{display:table-header-group}#kpi-reports .epi-root-chart{color:#1a1a1a!important;background:#fff!important;border-color:#bbb}#kpi-reports .epi-quality-rings article>div{background:none!important;border:5px solid #f07420}}
 @media(max-width:760px){#kpi-reports .epi-highlight-strip{align-items:flex-start;flex-direction:column;gap:4px}#kpi-reports .epi-highlight-card.is-audit-pending{align-items:flex-start;flex-wrap:wrap}}
 @media print{#kpi-reports .epi-highlight-grid{grid-template-columns:repeat(3,1fr)}#kpi-reports .epi-highlight-card{break-inside:avoid}}
 /* Task Performance evidence, timing and risk analysis */
