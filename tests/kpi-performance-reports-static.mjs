@@ -71,6 +71,14 @@ assert.match(js,/before_cutoff/,
   'Courier report must render cutoff counts');
 assert.match(js,/cutoff_samples/,
   'Courier report must show real cutoff verification samples');
+assert.match(page,/task_note_min_chars[^\n]+25/,
+  'Performance Settings must expose the substantive task-note threshold');
+for(const token of ['pending_overdue_details','completed_overdue_average_minutes','completed_overdue_total_minutes','checklist_checked','checklist_total','substantive_notes','in_progress_to_complete_minutes','transition_coverage'])
+  assert.match(api,new RegExp(token),`Tasks payload must expose ${token}`);
+assert.match(api,/task_progress_updated/,
+  'Task timing must include the activity-log event emitted by the task progress workflow');
+for(const label of ['Task completion patterns','Pending overdue','Avg overdue','Substantive notes','In Progress → Complete'])
+  assert.match(js,new RegExp(label),`Tasks tab must render ${label}`);
 assert.match(api,/completed_without_in_progress/,
   'status compliance must identify orders completed without In Progress');
 for(const source of ['ops_order_display_datetime_expr','assigned_packer_id','customer_contact','kpi_unified_events'])
