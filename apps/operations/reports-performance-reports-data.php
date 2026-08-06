@@ -213,7 +213,7 @@ try {
     foreach (ops_rows('SELECT setting_key,setting_value FROM kpi_settings') as $row) $settings[(string)$row['setting_key']] = (string)$row['setting_value'];
     $trusted = new DateTimeImmutable($settings['adoption_date'] ?? '2026-07-14', $zone);
     $input = $_GET;
-    if((string)($input['period']??'since_adoption')==='since_adoption'){$input['period']='custom';$input['date_from']=$trusted->format('Y-m-d');$input['date_to']=(new DateTimeImmutable('today',$zone))->format('Y-m-d');}
+    if(in_array((string)($input['period']??'since_adoption'), ['since_adoption', 'since-adoption'], true)){$input['period']='custom';$input['date_from']=$trusted->format('Y-m-d');$input['date_to']=(new DateTimeImmutable('today',$zone))->format('Y-m-d');}
     $input['trusted_start_date'] = $trusted->format('Y-m-d');
     $resolved = kpi_resolve_reporting_period($input);
     // Module-table counts honour the requested period. Adoption dates apply only
@@ -259,7 +259,16 @@ try {
     foreach($reports as$reportIndex=>$report){$id=(int)$report['id'];if(isset($ordersAnalysis['per_employee'][$id]))$reports[$reportIndex]['orders']=array_merge($reports[$reportIndex]['orders'],$ordersAnalysis['per_employee'][$id]);$reports[$reportIndex]['orders']['outstanding']=(int)$reports[$reportIndex]['orders']['new']+(int)$reports[$reportIndex]['orders']['in_progress'];}
     $defaultWeights=['packer'=>['packing'=>35,'orders'=>20,'tasks'=>15,'waybills'=>10,'quality'=>10,'attendance'=>10],'front_desk'=>['website'=>15,'bookkeeping'=>25,'orders'=>20,'tasks'=>10,'waybills'=>10,'quality'=>10,'attendance'=>10]];
     $configuredWeights=json_decode((string)($settings['report_weights']??''),true);if(!is_array($configuredWeights))$configuredWeights=$defaultWeights;
-    if(!isset($configuredWeights['front_desk']['website'])){$existing=$configuredWeights['front_desk']??[];$existingTotal=array_sum($existing);if($existingTotal>0)foreach($existing as$key=>$value)$existing[$key]=85*(float)$value/$existingTotal;$configuredWeights['front_desk']=['website'=>15]+$existing;else$configuredWeights['front_desk']=$defaultWeights['front_desk'];}
+    if(!isset($configuredWeights['front_desk']['website'])){
+        $existing=$configuredWeights['front_desk']??[];
+        $existingTotal=array_sum($existing);
+        if($existingTotal>0){
+            foreach($existing as$key=>$value)$existing[$key]=85*(float)$value/$existingTotal;
+            $configuredWeights['front_desk']=['website'=>15]+$existing;
+        }else{
+            $configuredWeights['front_desk']=$defaultWeights['front_desk'];
+        }
+    }
     $epiFilters=['period'=>'custom','date_from'=>$from->format('Y-m-d'),'date_to'=>$to->format('Y-m-d')];
     $ordersEngine=new \Hambelela\EPI\OrdersPerformance(db());$packingEngine=new \Hambelela\EPI\PackingPerformance(db());$taskEngine=new \Hambelela\EPI\TaskPerformance(db());$courierEngine=new \Hambelela\EPI\CourierPerformance(db());$bookkeepingEngine=new \Hambelela\EPI\BookkeepingPerformance(db());$attendanceEngine=new \Hambelela\EPI\AttendancePerformance(db());
     $bookkeepingRows=performance_section_attempt($sectionErrors,'bookkeeping',static fn()=>$bookkeepingEngine->getOrderReconciliation($epiFilters),[]);$bookkeepingDaily=performance_section_attempt($sectionErrors,'bookkeeping',static fn()=>$bookkeepingEngine->getDailyReconciliation($epiFilters),['summary'=>[]]);$cashTotal=count($bookkeepingRows);$cashMatched=count(array_filter($bookkeepingRows,static fn(array$x):bool=>in_array((string)$x['match_status'],['exact_match','date_mismatch'],true)));$cashupDays=(int)($bookkeepingDaily['summary']['days_with_entries']??0);$cashupDone=(int)($bookkeepingDaily['summary']['fully_reconciled']??0);
@@ -381,5 +390,5 @@ try {
     kpi_send_json(['ok'=>true,'error'=>null,'requested_section'=>$requestedSection,'section_errors'=>$sectionErrors,'report'=>['name'=>'Employee Performance Analysis Report','status'=>'provisional','baseline'=>$trusted->format('Y-m-d'),'minimum_sample'=>5,'weights'=>$configuredWeights],'period'=>['key'=>$resolved['key'],'from'=>$resolved['from']->format('Y-m-d'),'to'=>$to->format('Y-m-d'),'effective_from'=>$from->format('Y-m-d'),'working_days'=>$workingDays],'employees'=>$employees,'reports'=>$reports,'charts'=>$charts,'team_summary'=>$teamSummary,'orders_analysis'=>$ordersAnalysis,'operational_risks'=>$risks,'cross_checks'=>['bookkeeping'=>['cash_orders_total'=>$cashTotal,'matched'=>$cashMatched,'missing'=>count($missingCash),'missing_orders'=>$missingCash,'sample_examples'=>array_slice($bookkeepingRows,0,3)],'late_couriers'=>performance_section_attempt($sectionErrors,'courier',static fn()=>array_slice(array_values(array_filter($courierEngine->getEvidence($epiFilters,1000),static fn(array$x):bool=>in_array($x['send_result'],['late','overdue','late_after_availability'],true))),0,100),[]),'spot_reconciliations'=>$spotReconciliations],'metric_sources'=>$metricSources,'field_mappings'=>$fieldMappings,'data_quality'=>$quality,'last_refreshed_at'=>(new DateTimeImmutable('now',$zone))->format(DATE_ATOM)]);
 } catch(Throwable $error) {
     error_log(date(DATE_ATOM).' performance reports: '.$error->getMessage().' in '.$error->getFile().':'.$error->getLine().PHP_EOL,3,BASE_PATH.'/logs/kpi_errors.log');
-    kpi_send_json(['ok'=>false,'success'=>false,'data'=>null,'message'=>'Performance reports are temporarily unavailable.','error'=>'KPI_PERFORMANCE_REPORT_FAILED','error_code'=>'KPI_PERFORMANCE_REPORT_FAILED'],500);
+    kpi_send_json(['ok'=>false,'success'=>false,'data'=>null,'message'=>'Performance reports are temporarily unavailable.','error'=>$error->getMessage()!==''?$error->getMessage():'Unknown server error.','error_code'=>'KPI_PERFORMANCE_REPORT_FAILED'],500);
 }
