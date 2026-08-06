@@ -13,7 +13,7 @@ function portal_feature_permissions(): array
 {
     $employeeModules = [
         'dashboard', 'packing_list', 'courier', 'hr', 'orders', 'task_management',
-        'bookkeeping', 'cash_tools', 'notifications',
+        'bookkeeping', 'cash_tools', 'notifications', 'system_issues',
     ];
 
     return [
@@ -21,7 +21,7 @@ function portal_feature_permissions(): array
             'dashboard', 'orders', 'bookkeeping', 'cash_tools', 'packing_list',
             'inventory', 'pos_reports', 'kpi_dashboard', 'task_management',
             'error_log', 'settings', 'notifications', 'courier', 'hr',
-            'operations', 'barcode',
+            'operations', 'barcode', 'system_issues',
         ],
         'front_desk_admin' => [...$employeeModules, 'error_log'],
         'front_desk_admin_employee' => [...$employeeModules, 'error_log'],
@@ -60,7 +60,7 @@ function portal_role_can_access_feature(string $roleKey, string $featureKey): bo
     // Error Log remains explicitly restricted to front desk and owner/admin.
     $employeeModules = [
         'dashboard', 'packing_list', 'courier', 'hr', 'orders', 'task_management',
-        'bookkeeping', 'cash_tools', 'notifications',
+        'bookkeeping', 'cash_tools', 'notifications', 'system_issues',
     ];
     if ($roleKey !== 'guest' && $roleKey !== 'owner_admin' && in_array($featureKey, $employeeModules, true)) {
         return true;
@@ -87,6 +87,8 @@ function employee_feature_for_request(string $scriptName): ?array
         '/apps/operations/consignments.php' => ['packing_list', 'Packing List'],
         '/apps/operations/courier.php' => ['courier', 'Courier Waybills'],
         '/apps/operations/errors.php' => ['error_log', 'Error Log'],
+        '/apps/operations/system-issues.php' => ['system_issues', 'System Issues Log'],
+        '/apps/operations/system-issue-attachment.php' => ['system_issues', 'System Issues Log'],
         '/apps/operations/reports.php' => ['kpi_dashboard', 'Employee Performance'],
         '/apps/operations/my-account.php' => ['settings', 'Settings'],
         '/apps/operations/index.php' => ['operations', 'Operations'],

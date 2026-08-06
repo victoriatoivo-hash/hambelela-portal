@@ -36,6 +36,7 @@ $sidebarUserName = trim((string) ($sidebarUser['name'] ?? ($_SESSION['user']['na
 $sidebarUserRole = trim((string) ($sidebarUser['role'] ?? ($_SESSION['user']['role'] ?? ($_SESSION['user_role'] ?? ''))));
 $sidebarUserInitial = strtoupper(substr($sidebarUserName !== '' ? $sidebarUserName : 'U', 0, 1));
 $taskOutstandingCount = 0;
+$systemIssueOpenCount = 0;
 $packingAssignmentUnread = function_exists('notifications_packing_assignment_unread_count') ? notifications_packing_assignment_unread_count() : 0;
 $packingSidebarRoleKey = function_exists('normalise_portal_role')
     ? normalise_portal_role((string) ($sidebarUser['role_key'] ?? $sidebarUserRole))
@@ -58,6 +59,18 @@ try {
 } catch (Throwable $taskBadgeError) {
     $taskOutstandingCount = 0;
 }
+try {
+    if (function_exists('ops_database_ready') && ops_database_ready() && function_exists('ops_table_exists') && ops_table_exists('system_issues')) {
+        $systemIssueEmployeeId = function_exists('ops_current_employee_id') ? (int) (ops_current_employee_id() ?? 0) : 0;
+        if (user_has_role('owner_admin', 'supervisor_manager')) {
+            $systemIssueOpenCount = (int) (db()->query("SELECT COUNT(*) FROM system_issues WHERE internal_status NOT IN ('done','deferred','duplicate')")->fetchColumn() ?: 0);
+        } elseif ($systemIssueEmployeeId > 0) {
+            $systemIssueCountStmt = db()->prepare("SELECT COUNT(*) FROM system_issues WHERE reporter_employee_id=? AND internal_status NOT IN ('done','deferred','duplicate')");
+            $systemIssueCountStmt->execute([$systemIssueEmployeeId]);
+            $systemIssueOpenCount = (int) ($systemIssueCountStmt->fetchColumn() ?: 0);
+        }
+    }
+} catch (Throwable $systemIssueBadgeError) { $systemIssueOpenCount = 0; }
 
 $epiNavigationEnabled = false;
 try {
@@ -79,6 +92,7 @@ $portalNavItems = [
     ['id' => 'kpi', 'label' => 'Performance', 'icon' => 'kpi', 'href' => BASE_URL . ($epiNavigationEnabled ? '/apps/operations/epi-dashboard.php' : '/apps/operations/reports.php'), 'match' => $epiNavigationEnabled ? ['/apps/operations/epi-dashboard.php'] : ['/apps/operations/reports.php']],
     ['id' => 'operations-checklists', 'label' => 'Task Management', 'icon' => 'tasks', 'href' => BASE_URL . '/apps/operations/checklists.php', 'match' => ['/apps/operations/checklists.php'], 'badge' => $taskOutstandingCount, 'badge_label' => $taskOutstandingCount > 99 ? '99+' : (string) $taskOutstandingCount],
     ['id' => 'operations-errors', 'label' => 'Error Log', 'icon' => 'errors', 'href' => BASE_URL . '/apps/operations/errors.php', 'match' => ['/apps/operations/errors.php']],
+    ['id' => 'system-issues', 'label' => 'System Issues Log', 'icon' => 'system-issues', 'href' => BASE_URL . '/apps/operations/system-issues.php', 'match' => ['/apps/operations/system-issues.php'], 'badge' => $systemIssueOpenCount, 'badge_label' => $systemIssueOpenCount > 99 ? '99+' : (string) $systemIssueOpenCount, 'badge_kind' => 'system-issues'],
     ['id' => 'settings', 'label' => 'Settings', 'icon' => 'settings', 'href' => BASE_URL . '/apps/operations/my-account.php', 'match' => ['/apps/operations/my-account.php']],
 ];
 
@@ -94,6 +108,7 @@ $featureByNavId = [
     'kpi' => 'kpi_dashboard',
     'operations-checklists' => 'task_management',
     'operations-errors' => 'error_log',
+    'system-issues' => 'system_issues',
     'settings' => 'settings',
 ];
 $sidebarRoleKey = normalise_portal_role((string) ($sidebarUser['role_key'] ?? $sidebarUserRole));
@@ -117,6 +132,7 @@ if ($isEmployeeSidebar) {
         'operations-bookkeeping' => 60,
         'notifications' => 80,
         'operations-errors' => 90,
+        'system-issues' => 95,
     ];
     usort($portalNavItems, static fn(array $left, array $right): int =>
         ($employeeNavOrder[$left['id']] ?? 999) <=> ($employeeNavOrder[$right['id']] ?? 999)
@@ -137,6 +153,7 @@ function getSidebarIcon(string $id): string
         'kpi' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
         'operations-checklists' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
         'operations-errors' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+        'system-issues' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m8 2 1.5 2h5L16 2"/><rect x="5" y="4" width="14" height="16" rx="3"/><path d="M9 9h6M9 13h6M9 17h3"/></svg>',
         'hr-portal' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></svg>',
         'notifications' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>',
         'settings' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
@@ -223,7 +240,7 @@ $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bo
                     <span class="ps-nav-icon"><?= getSidebarIcon((string) $item['id']) ?></span>
                     <span class="ps-nav-label"><?= htmlspecialchars((string) $item['label'], ENT_QUOTES, 'UTF-8') ?></span>
                     <?php if (!empty($item['badge']) || ($item['badge_kind'] ?? '') === 'packing'): ?>
-                        <span class="ps-nav-badge<?= empty($item['badge']) ? ' is-hidden' : '' ?>"<?= ($item['badge_kind'] ?? '') === 'packing' ? ' data-packing-unread-badge' : '' ?><?= empty($item['badge']) ? ' hidden' : '' ?> aria-label="<?= (int) $item['badge'] ?> <?= ($item['badge_kind'] ?? '') === 'packing' ? 'unread Packing List items' : 'outstanding tasks' ?>"><?= !empty($item['badge']) ? htmlspecialchars((string) ($item['badge_label'] ?? $item['badge']), ENT_QUOTES, 'UTF-8') : '' ?></span>
+                        <span class="ps-nav-badge<?= empty($item['badge']) ? ' is-hidden' : '' ?>"<?= ($item['badge_kind'] ?? '') === 'packing' ? ' data-packing-unread-badge' : '' ?><?= empty($item['badge']) ? ' hidden' : '' ?> aria-label="<?= (int) $item['badge'] ?> <?= ($item['badge_kind'] ?? '') === 'packing' ? 'unread Packing List items' : (($item['badge_kind'] ?? '') === 'system-issues' ? 'open system issues' : 'outstanding tasks') ?>"><?= !empty($item['badge']) ? htmlspecialchars((string) ($item['badge_label'] ?? $item['badge']), ENT_QUOTES, 'UTF-8') : '' ?></span>
                     <?php endif; ?>
                 </a>
             <?php endforeach; ?>

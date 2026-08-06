@@ -11,6 +11,9 @@ return [
 
     'openai_api_key' => 'paste-your-new-openai-api-key-here',
     'openai_model' => 'gpt-4o',
+    'system_issues_openai_model' => 'gpt-5.6-sol',
+    'system_issues_workflow_webhook' => '',
+    'system_issues_workflow_secret' => '',
 
     'wc_store_url' => 'https://www.hambelelaorganic.com',
     'wc_consumer_key' => 'paste-new-read-only-consumer-key-here',
