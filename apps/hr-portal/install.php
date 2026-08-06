@@ -86,6 +86,21 @@ $tables_sql = [
   FOREIGN KEY (`employee_id`) REFERENCES `employees`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
 
+'leave_accrual_ledger' => "CREATE TABLE IF NOT EXISTS `leave_accrual_ledger` (
+  `id`             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `employee_id`    INT UNSIGNED NOT NULL,
+  `leave_type`     VARCHAR(50) NOT NULL DEFAULT 'Annual Leave',
+  `accrual_year`   INT NOT NULL,
+  `accrual_month`  TINYINT UNSIGNED NOT NULL,
+  `accrued_total`  DECIMAL(5,1) NOT NULL,
+  `source`         VARCHAR(40) NOT NULL,
+  `actor_user_id`  INT UNSIGNED NULL,
+  `applied_at`     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY `employee_type_period` (`employee_id`, `leave_type`, `accrual_year`, `accrual_month`),
+  KEY `accrual_period` (`accrual_year`, `accrual_month`),
+  FOREIGN KEY (`employee_id`) REFERENCES `employees`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+
 'leave_requests' => "CREATE TABLE IF NOT EXISTS `leave_requests` (
   `id`              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `employee_id`     INT UNSIGNED NOT NULL,

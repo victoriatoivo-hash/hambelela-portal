@@ -3,6 +3,7 @@ require_once __DIR__ . '/config.php';
 requireAdmin();
 require_once __DIR__ . '/includes/email.php';
 require_once __DIR__ . '/includes/leave-reserve.php';
+require_once __DIR__ . '/includes/leave-balance-service.php';
 $user = currentUser();
 $db   = db();
 ensureLeaveShutdownSchema($db);
@@ -13,17 +14,55 @@ $_SESSION['leave_csrf_token'] = $leaveCsrfToken;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
+    if (in_array($action, ['approve', 'reject', 'delete_leave', 'back_capture', 'adjust_balance'], true) && hrLeaveRecoveryLocked($db)) {
+        $wantsJson = strpos((string)($_SERVER['HTTP_ACCEPT'] ?? ''), 'application/json') !== false;
+        if ($wantsJson) {
+            jsonResponse(['success' => false, 'message' => 'This leave-balance action is temporarily unavailable while the HR records are being verified.'], 423);
+        }
+        header('Location: leave.php?msg=recovery_locked');
+        exit;
+    }
+
+    if (in_array($action, ['approve', 'delete_leave', 'back_capture', 'adjust_balance'], true)) {
+        $csrf = (string)($_POST['csrf_token'] ?? '');
+        if (!hash_equals($leaveCsrfToken, $csrf)) {
+            header('Location: leave.php?msg=session_expired');
+            exit;
+        }
+    }
+
 
     if ($action === 'delete_leave') {
         $did = (int)($_POST['delete_id'] ?? 0);
         if ($did) {
-            $lr = $db->prepare("SELECT employee_id,leave_type,days,YEAR(start_date) as yr FROM leave_requests WHERE id=?");
-            $lr->execute([$did]); $lr = $lr->fetch();
-            if ($lr) {
-                $db->prepare("DELETE FROM leave_requests WHERE id=?")->execute([$did]);
-                $db->prepare("UPDATE leave_balances SET used_days=GREATEST(0,used_days-?),balance_days=balance_days+? WHERE employee_id=? AND leave_type=? AND year=?")
-                   ->execute([(float)$lr['days'],(float)$lr['days'],$lr['employee_id'],$lr['leave_type'],$lr['yr']]);
-                $msg = 'leave_deleted';
+            try {
+                $db->beginTransaction();
+                $lr = $db->prepare("SELECT id,employee_id,leave_type,status FROM leave_requests WHERE id=? FOR UPDATE");
+                $lr->execute([$did]);
+                $lr = $lr->fetch();
+                if (!$lr) {
+                    $db->rollBack();
+                    header('Location: leave.php?msg=leave_not_found');
+                    exit;
+                }
+                if ($lr['status'] === 'approved') {
+                    $db->rollBack();
+                    header('Location: leave.php?msg=approved_delete_blocked');
+                    exit;
+                }
+                $db->prepare("DELETE FROM leave_requests WHERE id=? AND status<>'approved'")->execute([$did]);
+                $db->prepare("INSERT INTO audit_log (user_id,action,description,ip_address) VALUES (?,'leave_deleted',?,?)")
+                   ->execute([(int)$user['id'], 'Non-approved leave request #' . $did . ' deleted.', (string)($_SERVER['REMOTE_ADDR'] ?? '')]);
+                $db->commit();
+                header('Location: leave.php?msg=leave_deleted');
+                exit;
+            } catch (Throwable $e) {
+                if ($db->inTransaction()) {
+                    $db->rollBack();
+                }
+                error_log('Leave deletion failed: ' . $e->getMessage());
+                header('Location: leave.php?msg=leave_delete_failed');
+                exit;
             }
         }
     }
@@ -128,35 +167,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // Approve (existing balance and notification flow).
+    // Approve once, atomically, and synchronize usage from authoritative requests.
     if ($action === 'approve') {
-        $id     = (int)($_POST['request_id'] ?? 0);
-        $status = 'approved';
-        $reason = '';
-        if ($id) {
-            $req = $db->prepare("SELECT * FROM leave_requests WHERE id=?");
-            $req->execute([$id]); $req = $req->fetch();
-            if ($req) {
-                $db->prepare("UPDATE leave_requests SET status=?, approved_by=?, approved_at=NOW(), reject_reason=? WHERE id=?")
-                   ->execute([$status, $user['id'], $reason, $id]);
-                // Deduct from balance if approved
-                if ($status === 'approved') {
-                    $year = date('Y', strtotime($req['start_date']));
-                    $db->prepare("UPDATE leave_balances SET used_days=used_days+? WHERE employee_id=? AND leave_type=? AND year=?")
-                       ->execute([$req['days'], $req['employee_id'], $req['leave_type'], $year]);
-                    // Notify employee in the portal and by email.
-                    $empContact = $db->prepare("SELECT u.id AS user_id, u.email AS user_email, u.name AS user_name, e.email AS employee_email, CONCAT(e.first_name,' ',e.last_name) AS employee_name FROM employees e LEFT JOIN users u ON u.employee_id=e.id WHERE e.id=? LIMIT 1");
-                    $empContact->execute([$req['employee_id']]); $empContact = $empContact->fetch();
-                    if ($empContact && $empContact['user_id']) {
-                        $db->prepare("INSERT INTO notifications (user_id,title,message,type) VALUES (?,?,?,'success')")
-                           ->execute([$empContact['user_id'],'Leave Approved','Your '.$req['leave_type'].' request for '.$req['days'].' day(s) has been approved.']);
-                    }
-                    if ($empContact) {
-                        $toEmail = trim((string)($empContact['user_email'] ?: $empContact['employee_email']));
-                        $toName = $empContact['user_name'] ?: $empContact['employee_name'];
-                        if ($toEmail !== '') emailLeaveApproved($toEmail, $toName, $req['leave_type'], $req['days'], $req['start_date'], $req['end_date']);
-                    }
-                }
+        $id = (int)($_POST['request_id'] ?? 0);
+        if ($id < 1) {
+            header('Location: leave.php?msg=leave_not_found');
+            exit;
+        }
+        $empContact = null;
+        try {
+            $db->beginTransaction();
+            $reqStmt = $db->prepare("SELECT * FROM leave_requests WHERE id=? FOR UPDATE");
+            $reqStmt->execute([$id]);
+            $req = $reqStmt->fetch();
+            if (!$req) {
+                $db->rollBack();
+                header('Location: leave.php?msg=leave_not_found');
+                exit;
+            }
+            if ($req['status'] !== 'pending') {
+                $db->rollBack();
+                header('Location: leave.php?msg=already_reviewed');
+                exit;
+            }
+
+            $update = $db->prepare("UPDATE leave_requests SET status='approved',approved_by=?,approved_at=NOW(),reject_reason='' WHERE id=? AND status='pending'");
+            $update->execute([(int)$user['id'], $id]);
+            if ($update->rowCount() !== 1) {
+                $db->rollBack();
+                header('Location: leave.php?msg=already_reviewed');
+                exit;
+            }
+
+            $year = (int)date('Y', strtotime($req['start_date']));
+            $used = hrRefreshUsedLeave($db, (int)$req['employee_id'], (string)$req['leave_type'], $year);
+            $empContactStmt = $db->prepare("SELECT u.id AS user_id,u.email AS user_email,u.name AS user_name,e.email AS employee_email,CONCAT(e.first_name,' ',e.last_name) AS employee_name FROM employees e LEFT JOIN users u ON u.employee_id=e.id WHERE e.id=? LIMIT 1");
+            $empContactStmt->execute([$req['employee_id']]);
+            $empContact = $empContactStmt->fetch();
+            if ($empContact && $empContact['user_id']) {
+                $db->prepare("INSERT INTO notifications (user_id,title,message,type) VALUES (?,?,?,'success')")
+                   ->execute([$empContact['user_id'], 'Leave Approved', 'Your ' . $req['leave_type'] . ' request for ' . $req['days'] . ' day(s) has been approved.']);
+            }
+            $db->prepare("INSERT INTO audit_log (user_id,action,description,ip_address) VALUES (?,'leave_approved',?,?)")
+               ->execute([(int)$user['id'], 'Leave request #' . $id . ' approved once; authoritative used total is ' . number_format($used, 1) . ' day(s).', (string)($_SERVER['REMOTE_ADDR'] ?? '')]);
+            $db->commit();
+        } catch (Throwable $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            error_log('Leave approval failed: ' . $e->getMessage());
+            header('Location: leave.php?msg=approval_failed');
+            exit;
+        }
+
+        if ($empContact) {
+            $toEmail = trim((string)($empContact['user_email'] ?: $empContact['employee_email']));
+            $toName = $empContact['user_name'] ?: $empContact['employee_name'];
+            if ($toEmail !== '') {
+                emailLeaveApproved($toEmail, $toName, $req['leave_type'], $req['days'], $req['start_date'], $req['end_date']);
             }
         }
         header('Location: leave.php?msg=approved'); exit;
@@ -170,11 +238,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $end        = $_POST['bc_end_date']   ?? '';
         $days       = (float)($_POST['bc_days'] ?? 0);
         if ($emp_id && $leave_type && $start && $end && $days > 0) {
-            $db->prepare("INSERT INTO leave_requests (employee_id,leave_type,start_date,end_date,days,status,back_capture,approved_by,approved_at) VALUES (?,?,?,?,?,'approved',1,?,NOW())")
-               ->execute([$emp_id,$leave_type,$start,$end,$days,$user['id']]);
-            $year = date('Y',strtotime($start));
-            $db->prepare("UPDATE leave_balances SET used_days=used_days+? WHERE employee_id=? AND leave_type=? AND year=?")
-               ->execute([$days,$emp_id,$leave_type,$year]);
+            try {
+                $db->beginTransaction();
+                $db->prepare("INSERT INTO leave_requests (employee_id,leave_type,start_date,end_date,days,status,back_capture,approved_by,approved_at) VALUES (?,?,?,?,?,'approved',1,?,NOW())")
+                   ->execute([$emp_id,$leave_type,$start,$end,$days,$user['id']]);
+                $requestId = (int)$db->lastInsertId();
+                $year = (int)date('Y',strtotime($start));
+                $used = hrRefreshUsedLeave($db, $emp_id, $leave_type, $year);
+                $db->prepare("INSERT INTO audit_log (user_id,action,description,ip_address) VALUES (?,'leave_back_captured',?,?)")
+                   ->execute([(int)$user['id'], 'Leave request #' . $requestId . ' back-captured; authoritative used total is ' . number_format($used, 1) . ' day(s).', (string)($_SERVER['REMOTE_ADDR'] ?? '')]);
+                $db->commit();
+            } catch (Throwable $e) {
+                if ($db->inTransaction()) {
+                    $db->rollBack();
+                }
+                error_log('Leave back-capture failed: ' . $e->getMessage());
+                header('Location: leave.php?msg=back_capture_failed');
+                exit;
+            }
         }
         header('Location: leave.php?msg=captured'); exit;
     }
@@ -186,8 +267,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $new_bal    = (float)($_POST['adj_balance'] ?? 0);
         $year       = (int)($_POST['adj_year'] ?? date('Y'));
         if ($emp_id && $leave_type) {
-            $db->prepare("INSERT INTO leave_balances (employee_id,leave_type,balance_days,used_days,year) VALUES (?,?,?,0,?) ON DUPLICATE KEY UPDATE balance_days=?")
-               ->execute([$emp_id,$leave_type,$new_bal,$year,$new_bal]);
+            try {
+                $db->beginTransaction();
+                $before = $db->prepare("SELECT balance_days,used_days FROM leave_balances WHERE employee_id=? AND leave_type=? AND year=? FOR UPDATE");
+                $before->execute([$emp_id,$leave_type,$year]);
+                $before = $before->fetch();
+                $used = hrApprovedLeaveUsed($db, $emp_id, $leave_type, $year);
+                $db->prepare("INSERT INTO leave_balances (employee_id,leave_type,balance_days,used_days,year) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE balance_days=VALUES(balance_days),used_days=VALUES(used_days)")
+                   ->execute([$emp_id,$leave_type,$new_bal,$used,$year]);
+                $description = sprintf(
+                    'Leave entitlement adjusted for employee %d, %s, %d: balance %.1f to %.1f; authoritative used %.1f.',
+                    $emp_id,
+                    $leave_type,
+                    $year,
+                    $before ? (float)$before['balance_days'] : 0.0,
+                    $new_bal,
+                    $used
+                );
+                $db->prepare("INSERT INTO audit_log (user_id,action,description,ip_address) VALUES (?,'leave_balance_adjusted',?,?)")
+                   ->execute([(int)$user['id'], $description, (string)($_SERVER['REMOTE_ADDR'] ?? '')]);
+                $db->commit();
+            } catch (Throwable $e) {
+                if ($db->inTransaction()) {
+                    $db->rollBack();
+                }
+                error_log('Leave balance adjustment failed: ' . $e->getMessage());
+                header('Location: leave.php?msg=adjustment_failed');
+                exit;
+            }
         }
         header('Location: leave.php?msg=adjusted'); exit;
     }
@@ -249,7 +356,12 @@ $msg = $_GET['msg'] ?? '';
 
   <div class="content">
     <?php if ($msg === 'approved'): ?><div class="toast"><i class="fa-solid fa-check"></i> Leave request approved.</div>
-    <?php elseif ($msg === 'leave_deleted'): ?><div class="toast no-print error"><i class="fa-solid fa-trash"></i> Leave deleted, balance restored.</div>
+    <?php elseif ($msg === 'leave_deleted'): ?><div class="toast no-print"><i class="fa-solid fa-trash"></i> Non-approved leave request deleted.</div>
+    <?php elseif ($msg === 'approved_delete_blocked'): ?><div class="toast no-print error"><i class="fa-solid fa-lock"></i> Approved leave is protected and cannot be deleted. Use an audited reversal workflow.</div>
+    <?php elseif ($msg === 'recovery_locked'): ?><div class="toast no-print error"><i class="fa-solid fa-lock"></i> This leave-balance action is temporarily unavailable while the HR records are being verified.</div>
+    <?php elseif ($msg === 'already_reviewed'): ?><div class="toast no-print error"><i class="fa-solid fa-circle-info"></i> This leave request has already been reviewed. No balance was changed.</div>
+    <?php elseif ($msg === 'session_expired'): ?><div class="toast no-print error"><i class="fa-solid fa-shield-halved"></i> Your session expired. Refresh and try again.</div>
+    <?php elseif (in_array($msg, ['approval_failed','leave_delete_failed','back_capture_failed','adjustment_failed'], true)): ?><div class="toast no-print error"><i class="fa-solid fa-triangle-exclamation"></i> The leave action failed. No partial balance change was saved.</div>
     <?php elseif ($msg === 'rejected'): ?><div class="toast"><i class="fa-solid fa-check"></i> Leave request rejected and the employee has been notified.</div>
     <?php elseif ($msg === 'reject_error'): ?><div class="toast error"><i class="fa-solid fa-xmark"></i> <?=htmlspecialchars((string)($_GET['error'] ?? 'Could not reject the leave request.'), ENT_QUOTES, 'UTF-8')?></div>
     <?php elseif ($msg === 'captured'): ?><div class="toast"><i class="fa-solid fa-check"></i> Past leave captured successfully.</div>
@@ -314,6 +426,7 @@ $msg = $_GET['msg'] ?? '';
             <form method="POST" style="display:inline">
               <input type="hidden" name="action" value="approve">
               <input type="hidden" name="request_id" value="<?=$r['id']?>">
+              <input type="hidden" name="csrf_token" value="<?=htmlspecialchars($leaveCsrfToken, ENT_QUOTES, 'UTF-8')?>">
               <button class="btn btn-success btn-sm"><i class="fa-solid fa-check"></i> Approve</button>
             </form>
             <button
@@ -325,7 +438,7 @@ $msg = $_GET['msg'] ?? '';
               data-dates="<?=date('d M Y',strtotime($r['start_date']))?> - <?=date('d M Y',strtotime($r['end_date']))?>"
               data-days="<?=number_format((float)$r['days'],1)?>"
             ><i class="fa-solid fa-xmark"></i> Reject</button>
-            <form method="POST" style="display:inline" onsubmit="return confirm('Delete this leave permanently?')"><input type="hidden" name="action" value="delete_leave"><input type="hidden" name="delete_id" value="<?=$r['id']?>"><button type="submit" class="btn btn-danger btn-sm" title="Delete"><i class="fa-solid fa-trash"></i></button></form>
+            <form method="POST" style="display:inline" onsubmit="return confirm('Delete this pending leave request?')"><input type="hidden" name="action" value="delete_leave"><input type="hidden" name="delete_id" value="<?=$r['id']?>"><input type="hidden" name="csrf_token" value="<?=htmlspecialchars($leaveCsrfToken, ENT_QUOTES, 'UTF-8')?>"><button type="submit" class="btn btn-danger btn-sm" title="Delete"><i class="fa-solid fa-trash"></i></button></form>
           </td>
         </tr>
         <?php endforeach ?>
@@ -440,13 +553,16 @@ $msg = $_GET['msg'] ?? '';
           </td>
           <td><?=$r['back_capture'] ? '<span class="badge badge-gray">Back-Captured</span>' : '—'?></td>
           <td style="white-space:nowrap">
+            <?php if($r['status']!=='approved'): ?>
             <form method="POST" style="display:inline" onsubmit="return confirm('Delete this <?=strtolower($r['status'])?> leave request? This cannot be undone.')">
               <input type="hidden" name="action" value="delete_leave">
               <input type="hidden" name="delete_id" value="<?=$r['id']?>">
+              <input type="hidden" name="csrf_token" value="<?=htmlspecialchars($leaveCsrfToken, ENT_QUOTES, 'UTF-8')?>">
               <button type="submit" class="btn btn-danger btn-sm" title="Delete">
                 <i class="fa-solid fa-trash"></i> Delete
               </button>
             </form>
+            <?php else: ?><span style="font-size:11px;color:var(--text-mid)"><i class="fa-solid fa-lock"></i> Approved record protected</span><?php endif ?>
           </td>
         </tr>
         <?php endforeach ?>
@@ -498,6 +614,7 @@ $msg = $_GET['msg'] ?? '';
     <div class="modal-header"><div class="modal-title"><i class="fa-solid fa-clock-rotate-left"></i> Back-Capture Past Leave</div><button class="modal-close" onclick="var m=document.getElementById('backCaptureModal');if(m){m.style.display='none';m.classList.remove('open');}void(0)"><i class="fa-solid fa-xmark"></i></button></div>
     <form method="POST">
       <input type="hidden" name="action" value="back_capture">
+      <input type="hidden" name="csrf_token" value="<?=htmlspecialchars($leaveCsrfToken, ENT_QUOTES, 'UTF-8')?>">
       <div class="modal-body">
         <p style="font-size:13px;color:var(--text-mid);margin-bottom:18px">Record leave that was already taken before the system was set up. This will be saved as Approved and deducted from the employee's balance.</p>
         <div class="form-grid">
@@ -533,6 +650,7 @@ $msg = $_GET['msg'] ?? '';
     <div class="modal-header"><div class="modal-title"><i class="fa-solid fa-sliders"></i> Adjust Leave Balance</div><button class="modal-close" onclick="var m=document.getElementById('adjustModal');if(m){m.style.display='none';m.classList.remove('open');}void(0)"><i class="fa-solid fa-xmark"></i></button></div>
     <form method="POST">
       <input type="hidden" name="action" value="adjust_balance">
+      <input type="hidden" name="csrf_token" value="<?=htmlspecialchars($leaveCsrfToken, ENT_QUOTES, 'UTF-8')?>">
       <div class="modal-body">
         <p style="font-size:13px;color:var(--text-mid);margin-bottom:18px">Manually set a leave balance for an employee. Use this to correct balances or add carried-over days.</p>
         <div class="form-grid">
