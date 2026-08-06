@@ -98,7 +98,8 @@ $settingFields = [
     'reward_gold_description' => ['Rewards: Gold description', 'text', 'Employee of the Month, voucher, cash reward, or driving-lesson sponsorship up to N$800'],
     'accuracy_scored' => ['Rewards: verified packing variance attribution enabled (0/1)', 'number', '0'],
     'frontdesk_reward_weights_approved' => ['Rewards: front-desk weights approved (0 pending, 1 approved)', 'number', '0'],
-    'report_weights' => ['Performance reports: role section weights (JSON)', 'text', '{"packer":{"packing":35,"orders":20,"tasks":15,"waybills":10,"quality":10,"attendance":10},"front_desk":{"bookkeeping":30,"orders":25,"tasks":15,"waybills":10,"quality":10,"attendance":10}}'],
+    'speed_target_minutes_per_point' => ['Packer: speed target (minutes per weighted order point)', 'number', '60'],
+    'report_weights' => ['Performance reports: role section weights (JSON)', 'text', '{"packer":{"packing":30,"quality":25,"orders":15,"attendance":10,"tasks":10,"waybills":10},"front_desk":{"bookkeeping":30,"orders":25,"tasks":15,"waybills":10,"quality":10,"attendance":10}}'],
 ];
 
 if ($ready && $tab === 'settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -117,6 +118,17 @@ if ($ready && $tab === 'settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $packerWeight = array_sum(array_map(static fn(string $key): float => (float) $validatedSettings[$key], ['packer_weight_productivity','packer_weight_accuracy','packer_weight_speed','packer_weight_attendance','packer_weight_compliance','packer_weight_team']));
             $frontdeskWeight = array_sum(array_map(static fn(string $key): float => (float) $validatedSettings[$key], ['frontdesk_weight_orders','frontdesk_weight_payments','frontdesk_weight_website','frontdesk_weight_waybills','frontdesk_weight_bookkeeping','frontdesk_weight_tasks','frontdesk_weight_quality','frontdesk_weight_attendance']));
             if (abs($packerWeight - 100) > 0.001 || abs($frontdeskWeight - 100) > 0.001) throw new RuntimeException('Packer and front-desk weights must each total 100. Scores remain disabled until the integrity review is complete.');
+            $existingReportWeights = json_decode((string) ($validatedSettings['report_weights'] ?? ''), true);
+            if (!is_array($existingReportWeights)) $existingReportWeights = [];
+            $existingReportWeights['packer'] = [
+                'packing' => (float) $validatedSettings['packer_weight_productivity'],
+                'quality' => (float) $validatedSettings['packer_weight_accuracy'],
+                'orders' => (float) $validatedSettings['packer_weight_speed'],
+                'attendance' => (float) $validatedSettings['packer_weight_attendance'],
+                'tasks' => (float) $validatedSettings['packer_weight_compliance'],
+                'waybills' => (float) $validatedSettings['packer_weight_team'],
+            ];
+            $validatedSettings['report_weights'] = json_encode($existingReportWeights, JSON_UNESCAPED_SLASHES);
             if (abs((float) $validatedSettings['front_orders_walkin_weight'] + (float) $validatedSettings['front_orders_nonwalk_weight'] - 100) > 0.001) throw new RuntimeException('The two front-orders component shares must total 100.');
             $database = db();
             $database->beginTransaction();
