@@ -116,7 +116,7 @@ function kpi_front_order_ready_event(array $events, ?DateTimeImmutable $created,
 
 function kpi_front_order_stats(array $rows, string $category): array
 {
-    $eligible = array_values(array_filter($rows, static fn(array $row): bool => $row['front_desk_category'] === $category && !$row['unresolved_attribution']));
+    $eligible = array_values(array_filter($rows, static fn(array $row): bool => ($category === '*' || $row['front_desk_category'] === $category) && !$row['unresolved_attribution']));
     $completed = array_values(array_filter($eligible, static fn(array $row): bool => !empty($row['completed_at'])));
     $durations = array_values(array_filter(array_map(static fn(array $row) => $row['duration_minutes'], $completed), static fn($value): bool => $value !== null));
     sort($durations, SORT_NUMERIC); $mid = intdiv(count($durations), 2);
