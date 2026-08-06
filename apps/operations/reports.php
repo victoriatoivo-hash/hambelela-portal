@@ -87,6 +87,17 @@ $settingFields = [
     'bonus_threshold' => ['Rewards: default qualification threshold (%)', 'number', '75'],
     'bonus_threshold_packer' => ['Rewards: packer threshold override (%) (0 uses default)', 'number', '0'],
     'bonus_threshold_front_desk' => ['Rewards: front-desk threshold override (%) (0 uses default)', 'number', '0'],
+    'reward_bronze_min' => ['Rewards: Bronze minimum score (%)', 'number', '75'],
+    'reward_silver_min' => ['Rewards: Silver minimum score (%)', 'number', '85'],
+    'reward_gold_min' => ['Rewards: Gold minimum score (%)', 'number', '90'],
+    'reward_bronze_value' => ['Rewards: Bronze value (blank until confirmed)', 'text', ''],
+    'reward_silver_value' => ['Rewards: Silver value (blank until confirmed)', 'text', ''],
+    'reward_gold_value' => ['Rewards: Gold value (blank until confirmed)', 'text', ''],
+    'reward_bronze_description' => ['Rewards: Bronze description', 'text', 'Recognition + small benefit'],
+    'reward_silver_description' => ['Rewards: Silver description', 'text', 'Recognition + moderate voucher or cash reward'],
+    'reward_gold_description' => ['Rewards: Gold description', 'text', 'Employee of the Month, voucher, cash reward, or driving-lesson sponsorship up to N$800'],
+    'accuracy_scored' => ['Rewards: verified packing variance attribution enabled (0/1)', 'number', '0'],
+    'frontdesk_reward_weights_approved' => ['Rewards: front-desk weights approved (0 pending, 1 approved)', 'number', '0'],
     'report_weights' => ['Performance reports: role section weights (JSON)', 'text', '{"packer":{"packing":35,"orders":20,"tasks":15,"waybills":10,"quality":10,"attendance":10},"front_desk":{"bookkeeping":30,"orders":25,"tasks":15,"waybills":10,"quality":10,"attendance":10}}'],
 ];
 
@@ -291,7 +302,7 @@ include BASE_PATH . '/shared/sidebar.php';
         </section>
         <div class="performance-report-meta"><span data-performance-period-caption>Loading period…</span><span data-performance-refreshed></span><span class="performance-quality-badge" data-performance-quality>Checking data quality…</span></div>
         <div class="ops-alert error" data-performance-error hidden role="alert"></div>
-        <section class="performance-report-output" data-performance-output aria-live="polite"><div class="kpi-health-grid"><?php foreach(range(1,4)as$i): ?><article class="kpi-health-card is-loading"><span></span><strong></strong><small></small></article><?php endforeach; ?></div></section>
+        <section class="performance-report-output" data-performance-output data-reward-csrf="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>" aria-live="polite"><div class="kpi-health-grid"><?php foreach(range(1,4)as$i): ?><article class="kpi-health-card is-loading"><span></span><strong></strong><small></small></article><?php endforeach; ?></div></section>
         <div class="performance-meeting" data-performance-meeting-view hidden><header><div><p>Hambelela Organic</p><h1>Performance Meeting</h1><span data-meeting-period></span></div><div><button type="button" data-meeting-previous>Previous</button><span data-meeting-position>1 / 1</span><button type="button" data-meeting-next>Next</button><button type="button" data-meeting-sensitive>Hide sensitive information</button><button type="button" data-meeting-summary>Summary / Evidence</button><button type="button" data-meeting-exit>Exit Meeting Mode</button></div></header><nav data-meeting-nav></nav><main data-meeting-content></main></div>
         <script src="<?= BASE_URL ?>/assets/js/reports-performance.js?v=<?= htmlspecialchars(substr((string)@hash_file('sha256',BASE_PATH.'/assets/js/reports-performance.js'),0,12),ENT_QUOTES,'UTF-8') ?>"></script>
     <?php elseif (isset($phaseThreeTabs[$tab])): ?>
