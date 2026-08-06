@@ -5,6 +5,7 @@ const page=read('apps/operations/reports.php');
 const api=read('apps/operations/reports-performance-reports-data.php');
 const js=read('assets/js/reports-performance.js');
 const reporting=read('apps/operations/kpi-reporting.php');
+const sectionIds=['overview','packing','website-updates','orders','bookkeeping','courier','tasks','errors','attendance','scores','suggestions'];
 assert.match(page,/trusted_performance_start_date[^\n]+2026-07-10/,'owner settings must expose the trusted start date');
 for(const key of ['orders_attribution_adoption_date','packing_timing_adoption_date','website_timing_adoption_date','attendance_adoption_date'])assert.match(page,new RegExp(key),`settings must expose ${key}`);
 assert.match(reporting,/case 'since_trusted'/,'shared period resolver must support since-trusted reports');
@@ -16,10 +17,19 @@ assert.match(api,/date_loaded<=date_started AND date_started<=date_completed/,'i
 assert.match(api,/responsible_employee_id=\?/,'accuracy must use responsible employee attribution');
 assert.match(api,/accuracy_verified_by IS NOT NULL/,'accuracy errors must be owner verified');
 assert.match(api,/kpi_send_json/,'API failures and successes must use safe JSON responses');
+assert.match(api,/performance_section_attempt/,'each report section query must be isolated');
+assert.match(api,/section_errors/,'section errors must be returned without failing the whole report');
+for(const sectionId of sectionIds){
+  const wrapper=read(`apps/operations/reports-performance-${sectionId}-data.php`);
+  assert.match(wrapper,new RegExp(`report_section'\]\\?='${sectionId}`.replace('\\?','')),
+    `${sectionId} must have an independent endpoint`);
+  assert.match(js,new RegExp(`reports-performance-\\$\\{id\\}-data\\.php`),
+    'client must request independent report section endpoints');
+}
 assert.match(page,/Start Meeting Mode/,'Performance Reports must expose Meeting Mode');
 assert.match(js,/requestFullscreen/,'Meeting Mode must support fullscreen presentation');
 assert.match(page,/Hide sensitive information/,'Meeting Mode must expose sensitive-information controls');
-assert.match(js,/reports-performance-reports-data\.php/,'portal and exports must use the same report service');
+assert.match(js,/reports-performance-reports-data\.php/,'exports must use the shared report service');
 assert.match(js,/action=export_bundle/,'underlying report data must be exportable as a multi-file bundle');
 assert.match(api,/ZipArchive/,'evidence export must provide separate files in one archive');
 for(const evidence of ['orders','packing','tasks','website','waybills','errors'])assert.match(api,new RegExp(`'${evidence}'\\s*=>`),`API must expose ${evidence} source evidence`);
@@ -59,6 +69,8 @@ assert.match(js,/Mappings and metric sources/,
   'owner report must display the metric source table');
 assert.match(js,/performance-chart-table/,'charts must include a matching evidence table');
 assert.match(js,/window\.print\(\)/,'print/PDF workflow must be available');
+assert.match(js,/Promise\.all\(requests\)/,'report sections must load independently');
+assert.match(js,/sectionError/,'failed sections must render an error card');
 for(const tab of ['Overview','Packing','Website Updates','Orders','Bookkeeping','Courier','Tasks','Errors','Attendance','Scores','Suggestions'])
   assert.match(js,new RegExp(tab.replace(' ','\\s')),`approved report must include the ${tab} tab`);
 assert.match(js,/performance-presentation/,'report must use the approved presentation shell');
