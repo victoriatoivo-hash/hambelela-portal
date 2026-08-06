@@ -17,7 +17,7 @@
   const pct = v => v === null || v === undefined ? 'Not measured' : `${num(v)}%`;
   const get = (o, path, fallback = null) => path.split('.').reduce((v,k) => v?.[k], o) ?? fallback;
   const params = () => { const p = new URLSearchParams({period:controls.period.value,employee_id:controls.employee.value,role:controls.role.value}); if(controls.period.value==='custom'){p.set('date_from',controls.from.value);p.set('date_to',controls.to.value);} return p; };
-  async function readJson(r){ const raw=await r.text(); let d; try{d=JSON.parse(raw);}catch(_){throw new Error(`Invalid JSON (${r.status}; ${raw.length} bytes).`);} if(!r.ok||d.ok!==true)throw new Error(d.message||d.error||`Performance endpoint failed (${r.status}).`); return d; }
+  async function readJson(r){ const raw=await r.text(); let d; try{d=JSON.parse(raw);}catch(_){throw new Error(`Invalid JSON (${r.status}; ${raw.length} bytes).`);} if(!r.ok||d.ok!==true){const endpointError=d&&typeof d.error==='object'?d.error:null;const message=d.message||endpointError?.message||(typeof d.error==='string'?d.error:'')||`Performance endpoint failed (${r.status}).`;const reference=endpointError?.technical_reference?` Reference: ${endpointError.technical_reference}.`:'';throw new Error(`${message}${reference}`);} return d; }
   const color = p => people[String(p.name||'').split(' ')[0].toLowerCase()] || '#D4622A';
   function score(p){ const s=p.scored_sections||{}, vals=Object.values(s).filter(x=>Number.isFinite(x.score)); return {value:p.overall_score?.score??null, measured:vals.length,total:Object.keys(s).length}; }
   function card(label,value,note='',tone=''){ return `<article class="epi-stat-card ${tone}"><span>${esc(label)}</span><strong>${esc(value)}</strong><small>${esc(note)}</small></article>`; }
