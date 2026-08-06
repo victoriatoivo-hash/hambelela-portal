@@ -51,6 +51,26 @@ for(const required of [
   `defect correction must expose ${required}`);
 assert.match(api,/\.5\*\(float\)\$contribution\+\.4\*\$handling\+\.1\*\$noneOverdue/,
   'G6-1a waybill scoring must use 50/40/10 weighting');
+assert.match(api,/function performance_waybill_send_result/,
+  'Performance Reports must classify waybill sends from upload and sent timestamps');
+assert.match(api,/17:00:00/,
+  'same-day waybill sends must use the 17:00 cutoff');
+assert.match(api,/09:00:00/,
+  'next-working-day waybill sends must use the 09:00 cutoff');
+assert.match(api,/sent_on_time.*sent_late/,
+  'waybill payload must preserve the on-time plus late reconciliation');
+assert.match(api,/cutoff_reconciles/,
+  'waybill payload must verify on-time plus late equals total sent');
+assert.match(api,/avg_upload_time/,
+  'waybill payload must expose average upload time for packers');
+assert.match(js,/Avg Upload Time/,
+  'Courier report must replace Contribution Share with Avg Upload Time');
+assert.match(js,/Sent Late/,
+  'Courier report must render late over total');
+assert.match(js,/before_cutoff/,
+  'Courier report must render cutoff counts');
+assert.match(js,/cutoff_samples/,
+  'Courier report must show real cutoff verification samples');
 assert.match(api,/completed_without_in_progress/,
   'status compliance must identify orders completed without In Progress');
 for(const source of ['ops_order_display_datetime_expr','assigned_packer_id','customer_contact','kpi_unified_events'])
