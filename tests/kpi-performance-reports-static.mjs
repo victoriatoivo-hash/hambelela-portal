@@ -130,6 +130,11 @@ assert.match(js,/Source 1 · Front Desk confirmation/,'Website Updates must labe
 assert.match(js,/Source 2 · Packer board tick/,'Website Updates must label the board-tick duty');
 assert.match(js,/unconfirmed_items/,'front-desk card must provide the expandable unconfirmed list');
 assert.match(js,/weekly_confirmations/,'front-desk card must chart weekly confirmations');
+assert.match(api,/performance_attendance_activity/,'attendance must aggregate sessions and portal-wide attributable activity');
+assert.match(api,/kpi_merge_presence_rows/,'attendance session hours must merge overlapping session intervals');
+assert.match(api,/average_actions_per_present_day/,'attendance must report actions per present day');
+assert.match(js,/Activity log coverage/,'attendance renderer must disclose included and excluded log sources');
+assert.match(js,/Total session time/,'attendance renderer must show session-derived duration');
 const css=read('assets/css/portal.css'),presentationSource=css+js;
 for(const token of ['#0E0F14','#D4622A','#2A7DD4','#27AE60','Bebas Neue','DM Mono'])
   assert.match(presentationSource,new RegExp(token.replace('#','\\#')),`approved February report token ${token} must be present`);
