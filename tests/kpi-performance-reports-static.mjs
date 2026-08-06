@@ -140,7 +140,7 @@ assert.match(js,/Total session time/,'attendance renderer must show session-deri
 assert.match(api,/weights_renormalised'=>false/,'overall scores must never renormalise around unmeasured core sections');
 assert.match(api,/measured_sections.*core_sections.*coverage_label/,'overall score must expose role-core measurement coverage');
 assert.match(api,/accuracy_scored/,'Packing accuracy must be controlled by the accuracy_scored setting');
-assert.match(api,/70% × on-time share \+ 30% × \(1 − pending-overdue share\)/,'Tasks scoring must include completed-late and pending-overdue work');
+assert.match(api,/60% × on-time share \+ 20% × \(1 − pending-overdue share\) \+ 20% × verified overdue-duration compliance/,'Tasks scoring must include completed-late, pending-overdue, and verified overdue durations');
 assert.match(js,/Provisional —.*sections measured/,'Scores headline must gate the percentage on core-section coverage');
 assert.match(js,/Show the working/,'every section score must expose its formula inputs');
 const css=read('assets/css/portal.css'),presentationSource=css+js;
