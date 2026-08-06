@@ -18,6 +18,7 @@
   const pct = v => v === null || v === undefined ? 'Not measured' : `${num(v)}%`;
   const duration = value => { if(value===null||value===undefined||value==='')return 'Not measured';let minutes=Math.max(0,Math.round(Number(value)||0)),days=Math.floor(minutes/1440);minutes-=days*1440;let hours=Math.floor(minutes/60);minutes-=hours*60;return[days?`${days}d`:'',hours?`${hours}h`:'',minutes||(!days&&!hours)?`${minutes}m`:''].filter(Boolean).join(' '); };
   const get = (o, path, fallback = null) => path.split('.').reduce((v,k) => v?.[k], o) ?? fallback;
+  const filtered = data => data.reports || [];
   const params = () => { const p = new URLSearchParams({period:controls.period.value,employee_id:controls.employee.value,role:controls.role.value}); if(controls.period.value==='custom'){p.set('date_from',controls.from.value);p.set('date_to',controls.to.value);} return p; };
   async function readJson(r){ const raw=await r.text(); let d; try{d=JSON.parse(raw);}catch(_){throw new Error(`Invalid JSON (${r.status}; ${raw.length} bytes).`);} if(!r.ok||d.ok!==true){const endpointError=d&&typeof d.error==='object'?d.error:null;const message=d.message||endpointError?.message||(typeof d.error==='string'?d.error:'')||`Performance endpoint failed (${r.status}).`;const reference=endpointError?.technical_reference?` Reference: ${endpointError.technical_reference}.`:'';throw new Error(`${message}${reference}`);} return d; }
   const color = p => people[String(p.name||'').split(' ')[0].toLowerCase()] || '#D4622A';

@@ -31,6 +31,7 @@ assert.match(page,/Start Meeting Mode/,'Performance Reports must expose Meeting 
 assert.match(js,/requestFullscreen/,'Meeting Mode must support fullscreen presentation');
 assert.match(page,/Hide sensitive information/,'Meeting Mode must expose sensitive-information controls');
 assert.match(js,/reports-performance-reports-data\.php/,'exports must use the shared report service');
+assert.match(js,/const filtered = data => data\.reports \|\| \[\]/,'section renderers must share a defined report filter helper');
 assert.match(js,/action=export_bundle/,'underlying report data must be exportable as a multi-file bundle');
 assert.match(api,/ZipArchive/,'evidence export must provide separate files in one archive');
 for(const evidence of ['orders','packing','tasks','website','waybills','errors'])assert.match(api,new RegExp(`'${evidence}'\\s*=>`),`API must expose ${evidence} source evidence`);
