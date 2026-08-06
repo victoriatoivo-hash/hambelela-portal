@@ -276,6 +276,7 @@ if ($ready && $hasWooColumns && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $paymentVersion = (string) (($order['date_modified_gmt'] ?? '') ?: ($order['date_modified'] ?? '') ?: date(DATE_ATOM));
                 ops_sync_order_payment_allocations($orderId, $paymentAllocations, ops_wc_payment_source($order), $paymentVersion);
             }
+            if ($affected === 1) ops_apply_initial_portal_paid_confirmation($orderId, $order, $customerContact);
             if (ops_column_exists('ops_orders', 'fulfilment_mode')) {
                 $pdo->prepare('UPDATE ops_orders SET fulfilment_mode = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')->execute([$orderType, $orderId]);
             }

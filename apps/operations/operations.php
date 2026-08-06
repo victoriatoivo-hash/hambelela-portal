@@ -236,6 +236,10 @@ function ops_ensure_order_payment_schema(): bool
             'payment_updated_at' => 'DATETIME NULL',
             'payment_updated_by_employee_id' => 'INT NULL',
             'payment_version' => 'VARCHAR(80) NULL',
+            'portal_paid_confirmed' => 'TINYINT(1) NULL',
+            'portal_paid_source' => 'VARCHAR(40) NULL',
+            'portal_paid_decided_at' => 'DATETIME NULL',
+            'portal_paid_decided_by_employee_id' => 'INT NULL',
         ];
         foreach ($orderColumns as $column => $definition) {
             if (!ops_column_exists('ops_orders', $column)) db()->exec("ALTER TABLE ops_orders ADD COLUMN {$column} {$definition}");
@@ -258,6 +262,35 @@ function ops_ensure_order_payment_schema(): bool
         return $ready = false;
     }
     return $ready = ops_table_exists('order_payment_allocations') && ops_table_exists('order_payment_allocation_audit');
+}
+
+function ops_portal_paid_status(array $order): string
+{
+    if (array_key_exists('portal_paid_confirmed', $order) && $order['portal_paid_confirmed'] !== null) {
+        return (int) $order['portal_paid_confirmed'] === 1 ? 'paid' : 'unpaid';
+    }
+    return (string) ($order['payment_status'] ?? 'unpaid') === 'paid' ? 'paid' : 'unpaid';
+}
+
+function ops_set_portal_paid_confirmation(int $orderId, bool $confirmed, string $source, ?int $employeeId = null): void
+{
+    if (!ops_ensure_order_payment_schema()) throw new RuntimeException('Paid confirmation storage is unavailable.');
+    db()->prepare('UPDATE ops_orders SET portal_paid_confirmed = ?, portal_paid_source = ?, portal_paid_decided_at = UTC_TIMESTAMP(), portal_paid_decided_by_employee_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+        ->execute([$confirmed ? 1 : 0, $source, $employeeId, $orderId]);
+}
+
+function ops_apply_initial_portal_paid_confirmation(int $orderId, array $wcOrder, ?string $customerContact): void
+{
+    if ($orderId <= 0 || !ops_ensure_order_payment_schema()) return;
+    $current = ops_row('SELECT portal_paid_confirmed FROM ops_orders WHERE id = ? LIMIT 1', [$orderId]);
+    if (!$current || $current['portal_paid_confirmed'] !== null) return; // manual and earlier automatic choices are immutable to sync
+    $normalisedContact = strtolower(trim(preg_replace('/[^a-z0-9]+/i', ' ', (string) $customerContact) ?? ''));
+    $isWalkIn = $normalisedContact === 'walk in customer';
+    $allocations = ops_wc_payment_allocations($wcOrder);
+    $isConfirmedSwipe = ops_wc_payment_source($wcOrder) === 'pos'
+        && count($allocations) === 1
+        && (string) ($allocations[0]['method'] ?? '') === 'card_swipe';
+    ops_set_portal_paid_confirmation($orderId, $isWalkIn || $isConfirmedSwipe, $isWalkIn ? 'auto_walk_in' : ($isConfirmedSwipe ? 'auto_pos_card_swipe' : 'auto_not_confirmed'));
 }
 
 function ops_order_payment_allocations(int $orderId): array
@@ -347,6 +380,9 @@ function ops_replace_order_payment_allocations(int $orderId, array $allocations,
     $totalCents = array_sum(array_column($allocations, 'amount_cents'));
     $order = ops_row('SELECT total_amount FROM ops_orders WHERE id = ? LIMIT 1', [$orderId]);
     $paid = $order && $totalCents >= (int) round((float) $order['total_amount'] * 100) ? 'paid' : ($totalCents > 0 ? 'partial' : 'unpaid');
+    // Financial settlement belongs to WooCommerce/payment allocations. The portal
+    // packing confirmation is deliberately stored separately and must never be
+    // changed by a method edit or background sync.
     db()->prepare('UPDATE ops_orders SET payment_method = ?, payment_status = ?, payment_source = ?, payment_updated_at = CURRENT_TIMESTAMP, payment_updated_by_employee_id = ?, payment_version = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')->execute([$summary, $paid, $source, $employeeId, $version, $orderId]);
     db()->prepare('INSERT INTO order_payment_allocation_audit (order_id, previous_allocations_json, new_allocations_json, changed_by_employee_id, source) VALUES (?, ?, ?, ?, ?)')->execute([$orderId, json_encode($previous, JSON_UNESCAPED_SLASHES), json_encode($allocations, JSON_UNESCAPED_SLASHES), $employeeId, $source]);
 }

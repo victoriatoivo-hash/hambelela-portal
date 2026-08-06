@@ -1768,7 +1768,7 @@
     const editable = Boolean(order.can_edit_payment);
     const payments = Array.isArray(order.payments) && order.payments.length
       ? order.payments.map((payment) => ({...payment}))
-      : [{method:legacyPaymentCode(order.payment_method||'') || 'cash',amount_cents:order.payment_status==='paid'?Math.round(Number(order.total_amount||0)*100):0}];
+      : [{method:legacyPaymentCode(order.payment_method||'') || 'cash',amount_cents:order.financial_payment_status==='paid'?Math.round(Number(order.total_amount||0)*100):0}];
     const modal = document.createElement('div');
     modal.id = 'order-payment-editor';
     modal.className = 'payment-editor orders-payment-modal';
@@ -1800,7 +1800,7 @@
       if(payments.some(p=>Number(p.amount_cents)<=0)){errorNode.textContent='Every payment amount must be greater than zero.';return;}
       if(payments.reduce((sum,p)=>sum+Number(p.amount_cents||0),0)>Math.round(Number(order.total_amount||0)*100)){errorNode.textContent='Collected payment cannot exceed the order total.';return;}
       save.disabled=true;save.textContent='Saving…';
-      try{const data=await post('save_payment_allocations',{order_id:order.id,payments:JSON.stringify(payments),version:order.payment_version||''});order.payments=data.payments;order.payment_version=data.version;order.payment_source_of_truth=data.source;order.payment_method=data.payment_method;order.payment_status=data.payment_status;const row=body.querySelector(`.monday-order-row[data-order-id="${selectorEsc(order.id)}"]`);if(row){row.querySelector('.col-payment').innerHTML=renderPaymentBadge(order);row.querySelector('.col-paid').innerHTML=renderPaidCell(order);}closePaymentEditor();if(syncState)syncState.textContent='Payment saved.';}catch(error){errorNode.textContent=error.message;save.disabled=false;save.textContent='Save Payment';}
+      try{const data=await post('save_payment_allocations',{order_id:order.id,payments:JSON.stringify(payments),version:order.payment_version||''});order.payments=data.payments;order.payment_version=data.version;order.payment_source_of_truth=data.source;order.payment_method=data.payment_method;order.financial_payment_status=data.financial_payment_status;const row=body.querySelector(`.monday-order-row[data-order-id="${selectorEsc(order.id)}"]`);if(row)row.querySelector('.col-payment').innerHTML=renderPaymentBadge(order);closePaymentEditor();if(syncState)syncState.textContent=data.sync_warning?`Payment saved locally. ${data.sync_warning}`:'Payment saved.';}catch(error){errorNode.textContent=error.message;save.disabled=false;save.textContent='Save Payment';}
     });
   }
 

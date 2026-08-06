@@ -747,6 +747,7 @@ function ops_board_sync_website_orders(?string $date = null): array
                 $paymentVersion = (string) (($order['date_modified_gmt'] ?? '') ?: ($order['date_modified'] ?? '') ?: date(DATE_ATOM));
                 ops_sync_order_payment_allocations($orderId, $paymentAllocations, ops_wc_payment_source($order), $paymentVersion);
             }
+            if ($affected === 1) ops_apply_initial_portal_paid_confirmation($orderId, $order, $customerContact);
             if (ops_column_exists('ops_orders', 'fulfilment_mode')) {
                 $pdo->prepare('UPDATE ops_orders SET fulfilment_mode = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')->execute([$orderType, $orderId]);
             }
@@ -950,7 +951,15 @@ try {
         $version = gmdate('Y-m-d\TH:i:s\Z') . '-' . bin2hex(random_bytes(4));
         db()->beginTransaction();
         try {
-            if ((int) ($order['woo_order_id'] ?? 0) > 0) {
+            ops_replace_order_payment_allocations($orderId, $allocations, 'order_list', $version, ops_current_employee_id());
+            db()->commit();
+        } catch (Throwable $paymentError) {
+            if (db()->inTransaction()) db()->rollBack();
+            throw $paymentError;
+        }
+        $syncWarning = null;
+        if ((int) ($order['woo_order_id'] ?? 0) > 0) {
+            try {
                 $primary = $allocations[0]['method'];
                 $posSplit = array_map(static fn(array $allocation): array => [
                     'method' => $allocation['method'],
@@ -967,12 +976,10 @@ try {
                         ['key'=>'_hpos_payment_updated_by_employee_id', 'value'=>ops_current_employee_id()],
                     ],
                 ]);
+            } catch (Throwable $syncError) {
+                $syncWarning = 'WooCommerce sync is temporarily unavailable; the portal saved your change and will retain it.';
+                ops_activity_log('payment_sync_failed', 'order', $orderId, ['version'=>$version, 'error'=>$syncError->getMessage(), 'changed_by'=>current_user()['name'] ?? 'Unknown']);
             }
-            ops_replace_order_payment_allocations($orderId, $allocations, 'order_list', $version, ops_current_employee_id());
-            db()->commit();
-        } catch (Throwable $paymentError) {
-            if (db()->inTransaction()) db()->rollBack();
-            throw $paymentError;
         }
         ops_activity_log('payment_changed', 'order', $orderId, [
             'field' => 'payment_allocations',
@@ -983,7 +990,7 @@ try {
         ]);
         $saved = ops_order_payment_allocations($orderId);
         $savedOrder = ops_row('SELECT payment_method, payment_status, updated_at FROM ops_orders WHERE id = ? LIMIT 1', [$orderId]);
-        echo json_encode(['ok'=>true, 'message'=>'Payment saved.', 'payments'=>$saved, 'payment_method'=>$savedOrder['payment_method'], 'payment_status'=>$savedOrder['payment_status'], 'total_cents'=>$totalCents, 'collected_cents'=>$collectedCents, 'due_cents'=>max(0, $totalCents-$collectedCents), 'paid'=>$collectedCents >= $totalCents, 'source'=>'order_list', 'version'=>$version, 'updated_at'=>$savedOrder['updated_at']], JSON_UNESCAPED_SLASHES);
+        echo json_encode(['ok'=>true, 'message'=>'Payment saved.', 'payments'=>$saved, 'payment_method'=>$savedOrder['payment_method'], 'financial_payment_status'=>$savedOrder['payment_status'], 'total_cents'=>$totalCents, 'collected_cents'=>$collectedCents, 'due_cents'=>max(0, $totalCents-$collectedCents), 'paid'=>$collectedCents >= $totalCents, 'source'=>'order_list', 'version'=>$version, 'updated_at'=>$savedOrder['updated_at'], 'sync_warning'=>$syncWarning], JSON_UNESCAPED_SLASHES);
         exit;
     }
 
@@ -1579,7 +1586,7 @@ try {
         }
 
         $previousRows = ops_rows(
-            'SELECT order_number, customer_name, customer_contact, payment_method, order_type, fulfilment_mode, total_amount, status, payment_status, notes, assigned_packer_id, completed_at FROM ops_orders WHERE id = ? LIMIT 1',
+                'SELECT order_number, customer_name, customer_contact, payment_method, order_type, fulfilment_mode, total_amount, status, payment_status, portal_paid_confirmed, notes, assigned_packer_id, completed_at FROM ops_orders WHERE id = ? LIMIT 1',
             [$orderId]
         );
         if (!$previousRows) {
@@ -1813,17 +1820,13 @@ try {
             }
             $paidAuditSet = ops_column_exists('ops_orders', 'paid_updated_at') && ops_column_exists('ops_orders', 'paid_updated_by_employee_id')
                 ? ', paid_updated_at = CURRENT_TIMESTAMP, paid_updated_by_employee_id = ?' : '';
-            $stmt = db()->prepare('UPDATE ops_orders SET payment_status = ?, updated_at = CURRENT_TIMESTAMP' . $paidAuditSet . ' WHERE id = ?');
-            $paidParams = [$value];
-            if ($paidAuditSet !== '') $paidParams[] = ops_current_employee_id();
-            $paidParams[] = $orderId;
-            $stmt->execute($paidParams);
+            ops_set_portal_paid_confirmation($orderId, $value === 'paid', 'manual_orders_board', ops_current_employee_id() ?: null);
             $actor = current_user();
-            $oldPaid = (string) ($previousOrder['payment_status'] ?? 'unpaid') === 'paid';
+            $oldPaid = ops_portal_paid_status($previousOrder) === 'paid';
             $newPaid = $value === 'paid';
             ops_activity_log('payment_status_updated', 'order', $orderId, [
-                'field' => 'payment_status',
-                'old_value' => (string) ($previousOrder['payment_status'] ?? ''),
+                'field' => 'portal_paid_confirmation',
+                'old_value' => $oldPaid ? 'paid' : 'unpaid',
                 'new_value' => $value,
                 'previous_value' => $oldPaid ? 'Yes' : 'No',
                 'changed_by' => $actor['name'] ?? 'Unknown',
@@ -1831,7 +1834,7 @@ try {
                 'source' => 'manual_orders_board',
                 'message' => 'Paid changed from ' . ($oldPaid ? 'Yes' : 'No') . ' to ' . ($newPaid ? 'Yes' : 'No') . ' by ' . ($actor['name'] ?? 'Unknown') . '.',
             ]);
-            ops_kpi_record_event('orders', 'order', $orderId, 'payment_status_updated', (string) ($previousOrder['payment_status'] ?? ''), $value, ops_current_employee_id() ?: null, ['related_reference' => $previousOrder['order_number'] ?? null]);
+            ops_kpi_record_event('orders', 'order', $orderId, 'portal_paid_confirmation_updated', $oldPaid ? 'paid' : 'unpaid', $value, ops_current_employee_id() ?: null, ['related_reference' => $previousOrder['order_number'] ?? null]);
         } else {
             $stmt = db()->prepare('UPDATE ops_orders SET ' . $allowed[$field] . ' = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
             $stmt->execute([$value, $orderId]);
@@ -1889,7 +1892,7 @@ try {
             'customer_name' => 'customer_name',
             'customer_contact' => 'customer_contact',
             'total_amount' => 'total_amount',
-            'payment_status' => 'payment_status',
+            'payment_status' => ops_column_exists('ops_orders', 'portal_paid_confirmed') ? 'portal_paid_confirmed' : 'payment_status',
             'order_type' => ops_column_exists('ops_orders', 'fulfilment_mode') ? 'fulfilment_mode' : 'order_type',
             'payment_method' => 'payment_method',
             'status' => 'status',
@@ -2025,6 +2028,10 @@ try {
                 }
                 $set .= ', packed_at = COALESCE(packed_at, NOW()), completed_at = COALESCE(completed_at, NOW())';
             }
+        } elseif ($field === 'payment_status' && ops_column_exists('ops_orders', 'portal_paid_confirmed')) {
+            $value = $value === 'paid' ? 1 : 0;
+            $set .= ", portal_paid_source = 'manual_orders_board_bulk', portal_paid_decided_at = UTC_TIMESTAMP(), portal_paid_decided_by_employee_id = ?";
+            $params[] = ops_current_employee_id();
         } elseif ($field === 'payment_status' && ops_column_exists('ops_orders', 'paid_updated_at') && ops_column_exists('ops_orders', 'paid_updated_by_employee_id')) {
             $set .= ', paid_updated_at = CURRENT_TIMESTAMP, paid_updated_by_employee_id = ?';
             $params[] = ops_current_employee_id();

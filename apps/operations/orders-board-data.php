@@ -17,6 +17,7 @@ if (!$ready) {
     echo json_encode(['ok' => false, 'message' => 'Operations database is not ready.']);
     exit;
 }
+ops_ensure_order_payment_schema();
 
 $user = current_user();
 $roleKey = (string) ($user['role_key'] ?? '');
@@ -114,9 +115,12 @@ if ($incremental) {
 }
 $where = $whereParts ? 'WHERE ' . implode(' AND ', $whereParts) : '';
 
+$portalPaidSelect = ops_column_exists('ops_orders', 'portal_paid_confirmed')
+    ? "CASE WHEN o.portal_paid_confirmed IS NULL THEN CASE WHEN o.payment_status = 'paid' THEN 'paid' ELSE 'unpaid' END WHEN o.portal_paid_confirmed = 1 THEN 'paid' ELSE 'unpaid' END"
+    : "CASE WHEN o.payment_status = 'paid' THEN 'paid' ELSE 'unpaid' END";
 $orders = ops_rows(
     "SELECT
-        o.id, o.order_number, {$wooOrderIdSelect}, o.customer_name, o.customer_contact, o.payment_method, {$amountSelect}, o.payment_status,
+        o.id, o.order_number, {$wooOrderIdSelect}, o.customer_name, o.customer_contact, o.payment_method, {$amountSelect}, o.payment_status AS financial_payment_status, {$portalPaidSelect} AS payment_status,
         COALESCE(NULLIF(o.fulfilment_mode, ''), o.order_type) AS order_type, o.fulfilment_mode, o.status, o.workload_score, {$displayDateTimeExpr} AS displayed_order_datetime,
         {$displayDateTimeExpr} AS created_at, o.created_at AS source_created_at, {$assignedAtSelect}, {$startedAtSelect}, o.packed_at, o.completed_at, o.notes,
         o.assigned_packer_id, e.full_name AS packer_name, o.updated_at, {$manualOrderSelect}
