@@ -28607,5 +28607,12 @@ body.performance-meeting-open .performance-meeting .epi-report-page.is-meeting-c
 #kpi-reports .epi-highlight-card dt{color:#6B6B6B;font-size:10px}#kpi-reports .epi-highlight-card dd{margin:2px 0 0;font-weight:600}
 #kpi-reports .epi-highlight-card p{margin:8px 0 0;color:#6B6B6B;font-size:11px}#kpi-reports .epi-highlight-card.is-empty{background:#FAFAFA}#kpi-reports .epi-highlight-card.is-empty>strong{color:#6B6B6B}
 #kpi-reports .epi-score-breakdown [data-head-percentages].is-low-volume{color:#8A8A8A;filter:grayscale(1)}
+#kpi-reports .epi-highlight-card dd,#kpi-reports .epi-highlight-card dl strong{color:#2D2421}
+#kpi-reports .epi-highlight-card.is-empty{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;min-height:42px}
+#kpi-reports .epi-highlight-card.is-empty>span,#kpi-reports .epi-highlight-card.is-empty>strong,#kpi-reports .epi-highlight-card.is-empty>small{margin:0}
+#kpi-reports .epi-highlight-card.is-empty>small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:46%}
+#kpi-reports .epi-score-breakdown>header{align-items:flex-start;gap:12px;flex-wrap:wrap}
+#kpi-reports .epi-score-breakdown>header small{flex-basis:100%;color:var(--epi-muted);font-size:10px}
+#kpi-reports .epi-score-row>b{display:inline-flex;align-items:center;justify-content:flex-end;gap:3px;white-space:nowrap}
 @media(max-width:760px){#kpi-reports .epi-highlight-grid{grid-template-columns:1fr}}
 @media print{#kpi-reports .epi-highlight-grid{grid-template-columns:repeat(3,1fr)}#kpi-reports .epi-highlight-card{break-inside:avoid}}
