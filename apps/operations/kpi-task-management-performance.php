@@ -36,7 +36,8 @@ function kpi_task_duration_stats(array $values): array
 function kpi_task_meaningful_note(string $note): bool
 {
     $note = trim(preg_replace('/\s+/', ' ', $note) ?? '');
-    if (mb_strlen($note) < 26) return false;
+    $length = function_exists('mb_strlen') ? mb_strlen($note) : strlen($note);
+    if ($length < 26) return false;
     return !in_array(strtolower(rtrim($note, '.!')), ['done', 'completed', 'complete', 'finished', 'task done', 'all done'], true);
 }
 
