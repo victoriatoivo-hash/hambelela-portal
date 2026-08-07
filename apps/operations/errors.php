@@ -28,6 +28,8 @@ $isOwnerErrorUser = user_has_role('owner_admin');
 $isFrontDeskErrorUser = user_has_role('front_desk_admin', 'front_desk_admin_employee');
 $canManageStatus = $isOwnerErrorUser;
 $showFullErrorLog = $isOwnerErrorUser;
+if (empty($_SESSION['error_attachment_csrf'])) $_SESSION['error_attachment_csrf'] = bin2hex(random_bytes(32));
+$errorAttachmentCsrf = (string) $_SESSION['error_attachment_csrf'];
 
 $severityLabels = ['critical' => 'Critical', 'high' => 'High', 'medium' => 'Medium', 'low' => 'Low'];
 $statusLabels = ['open' => 'Not Resolved', 'resolved' => 'Resolved'];
@@ -235,22 +237,79 @@ function error_json_array(?string $value): array
     return is_array($decoded) ? array_values(array_filter($decoded)) : [];
 }
 
-function error_upload_files(int $errorId): array
+function error_attachment_records(?string $value): array
 {
-    if (empty($_FILES['attachments']['name']) || !is_array($_FILES['attachments']['name'])) return [];
-    $uploadDir = BASE_PATH . '/uploads/error-log';
-    if (!is_dir($uploadDir)) mkdir($uploadDir, 0775, true);
-    $paths = [];
-    foreach ($_FILES['attachments']['name'] as $index => $name) {
-        if (($name ?? '') === '' || !is_uploaded_file($_FILES['attachments']['tmp_name'][$index])) continue;
-        $extension = strtolower(pathinfo((string) $name, PATHINFO_EXTENSION));
-        if (!in_array($extension, ['jpg', 'jpeg', 'png', 'webp', 'pdf', 'doc', 'docx'], true)) continue;
-        $fileName = 'error-' . $errorId . '-' . date('YmdHis') . '-' . ($index + 1) . '.' . $extension;
-        if (move_uploaded_file($_FILES['attachments']['tmp_name'][$index], $uploadDir . '/' . $fileName)) {
-            $paths[] = 'uploads/error-log/' . $fileName;
+    $records = [];
+    foreach (error_json_array($value) as $entry) {
+        if (is_string($entry) && $entry !== '') {
+            $records[] = ['path' => $entry, 'name' => basename($entry), 'mime' => '', 'size' => null];
+        } elseif (is_array($entry) && !empty($entry['path'])) {
+            $records[] = [
+                'path' => (string) $entry['path'],
+                'name' => (string) ($entry['name'] ?? basename((string) $entry['path'])),
+                'mime' => (string) ($entry['mime'] ?? ''),
+                'size' => isset($entry['size']) ? (int) $entry['size'] : null,
+            ];
         }
     }
-    return $paths;
+    return $records;
+}
+
+function error_ini_bytes(string $value): int
+{
+    $value = trim($value);
+    if ($value === '') return 0;
+    $unit = strtolower(substr($value, -1));
+    $number = (float) $value;
+    return (int) ($number * match ($unit) { 'g' => 1073741824, 'm' => 1048576, 'k' => 1024, default => 1 });
+}
+
+function error_upload_files(int $errorId): array
+{
+    if (empty($_FILES['attachments']['name'])) return [];
+    if (!is_array($_FILES['attachments']['name'])) throw new RuntimeException('The attachment request was malformed. Select the files again.');
+    if (count($_FILES['attachments']['name']) > 10) throw new RuntimeException('Upload no more than 10 evidence files at a time.');
+    $uploadDir = BASE_PATH . '/uploads/error-log';
+    if (!is_dir($uploadDir) && !mkdir($uploadDir, 0775, true) && !is_dir($uploadDir)) throw new RuntimeException('The evidence storage folder is unavailable.');
+    if (!is_writable($uploadDir)) throw new RuntimeException('The evidence storage folder is not writable.');
+    $allowed = [
+        'jpg' => ['image/jpeg'], 'jpeg' => ['image/jpeg'], 'png' => ['image/png'], 'webp' => ['image/webp'],
+        'pdf' => ['application/pdf'], 'doc' => ['application/msword', 'application/CDFV2'],
+        'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/zip'],
+        'xls' => ['application/vnd.ms-excel', 'application/CDFV2'],
+        'xlsx' => ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/zip'],
+        'csv' => ['text/csv', 'text/plain', 'application/csv', 'application/vnd.ms-excel'],
+        'txt' => ['text/plain'],
+    ];
+    $validated = [];
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    foreach ($_FILES['attachments']['name'] as $index => $name) {
+        if (($name ?? '') === '') continue;
+        $uploadError = (int) ($_FILES['attachments']['error'][$index] ?? UPLOAD_ERR_NO_FILE);
+        if ($uploadError !== UPLOAD_ERR_OK) throw new RuntimeException('Could not upload "' . basename((string) $name) . '" (upload error ' . $uploadError . ').');
+        $size = (int) ($_FILES['attachments']['size'][$index] ?? 0);
+        if ($size <= 0 || $size > 10 * 1024 * 1024) throw new RuntimeException('"' . basename((string) $name) . '" must be between 1 byte and 10 MB.');
+        $tmpName = (string) ($_FILES['attachments']['tmp_name'][$index] ?? '');
+        if ($tmpName === '' || !is_uploaded_file($tmpName)) throw new RuntimeException('The temporary upload for "' . basename((string) $name) . '" is unavailable.');
+        $extension = strtolower(pathinfo((string) $name, PATHINFO_EXTENSION));
+        if (!isset($allowed[$extension])) throw new RuntimeException('"' . basename((string) $name) . '" is not an approved evidence file type.');
+        $mime = (string) $finfo->file($tmpName);
+        if (!in_array($mime, $allowed[$extension], true)) throw new RuntimeException('"' . basename((string) $name) . '" does not match its file extension.');
+        $validated[] = ['tmp' => $tmpName, 'extension' => $extension, 'name' => basename((string) $name), 'mime' => $mime, 'size' => $size];
+    }
+    $records = [];
+    $movedFiles = [];
+    foreach ($validated as $file) {
+        $fileName = 'error-' . $errorId . '-' . bin2hex(random_bytes(12)) . '.' . $file['extension'];
+        $absolutePath = $uploadDir . '/' . $fileName;
+        if (!move_uploaded_file($file['tmp'], $absolutePath)) {
+            foreach ($movedFiles as $movedFile) @unlink($movedFile);
+            throw new RuntimeException('The server could not store "' . $file['name'] . '". Try again.');
+        }
+        $movedFiles[] = $absolutePath;
+        $records[] = ['path' => 'uploads/error-log/' . $fileName, 'name' => $file['name'], 'mime' => $file['mime'], 'size' => $file['size']];
+    }
+    return $records;
 }
 
 function error_date_label(?string $value): string
@@ -305,7 +364,12 @@ $employeeMap = [];
 foreach ($employees as $employee) $employeeMap[(int) $employee['id']] = ops_staff_display_name($employee);
 
 if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $errorPostTransaction = false;
+    $errorPostUploadedFiles = [];
     try {
+        $requestBytes = (int) ($_SERVER['CONTENT_LENGTH'] ?? 0);
+        $postLimitBytes = error_ini_bytes((string) ini_get('post_max_size'));
+        if ($postLimitBytes > 0 && $requestBytes > $postLimitBytes) throw new RuntimeException('The selected evidence exceeds the server request limit of ' . ini_get('post_max_size') . '. Choose fewer or smaller files.');
         $action = ops_post_string('action', 40);
         if ($action === 'create_error') {
             $submittedToken = (string) ($_POST['submission_token'] ?? '');
@@ -341,6 +405,8 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $orderReference = ops_post_string('order_reference', 60);
             $status = ops_post_string('status', 30) ?: 'open';
             if (!array_key_exists($status, $statusLabels)) $status = 'open';
+            db()->beginTransaction();
+            $errorPostTransaction = true;
             $stmt = db()->prepare(
                 "INSERT INTO ops_error_logs
                  (error_title, employee_id, responsible_employee_id, attribution_type, attributed_employee_id, original_attribution_type, original_attributed_employee_id, people_involved, order_id, packing_task_id, affects_kpi_accuracy, accuracy_verified_by, accuracy_verified_at, attribution_verified_by, attribution_verified_at, order_reference, category, severity, description, customer_impact, financial_impact, has_financial_impact, financial_impact_notes, resolution, repeat_issue, repeat_note, status, logged_by, logged_by_user_id, occurred_at, occurred_on, occurred_on_source, created_at)
@@ -380,11 +446,15 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $occurredOn,
             ]);
             $errorId = (int) db()->lastInsertId();
-            $paths = error_upload_files($errorId);
-            if ($paths) {
+            $attachments = error_upload_files($errorId);
+            $errorPostUploadedFiles = array_column($attachments, 'path');
+            if ($attachments) {
                 $stmt = db()->prepare('UPDATE ops_error_logs SET attachment_paths = ? WHERE id = ?');
-                $stmt->execute([json_encode($paths, JSON_UNESCAPED_SLASHES), $errorId]);
+                $stmt->execute([json_encode($attachments, JSON_UNESCAPED_SLASHES), $errorId]);
             }
+            db()->commit();
+            $errorPostTransaction = false;
+            $errorPostUploadedFiles = [];
             $eventMeta=['severity'=>$severity,'category'=>$category,'occurred_on'=>$occurredOn,'occurred_at'=>$occurredAt,'created_at'=>gmdate('Y-m-d H:i:s'),'logged_by_user_id'=>(int)(current_user()['id']??0),'logged_by_employee_id'=>$currentEmployeeId,'attribution_type'=>$attributionType,'attributed_employee_id'=>$responsibleEmployeeId,'has_financial_impact'=>$hasFinancialImpact,'financial_impact_amount'=>$financialImpact,'kpi_eligible'=>$attributionType==='employee'&&$accuracyVerified,'business_health_eligible'=>true];
             ops_activity_log('error_logged','error_log',$errorId,$eventMeta);ops_kpi_record_event('error_log','error',$errorId,'error_created',null,$attributionType,$currentEmployeeId,['metadata'=>$eventMeta]);ops_kpi_record_event('error_log','error',$errorId,'attribution_selected',null,$attributionType,$currentEmployeeId,['metadata'=>$eventMeta]);ops_kpi_record_event('error_log','error',$errorId,'financial_impact_selected',null,$hasFinancialImpact?'yes':'no',$currentEmployeeId,['metadata'=>$eventMeta]);
             notifications_create_for_roles([
@@ -478,6 +548,8 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
+            db()->beginTransaction();
+            $errorPostTransaction = true;
             $stmt = db()->prepare(
                 "UPDATE ops_error_logs
                  SET error_title = ?, employee_id = ?, responsible_employee_id = ?, attribution_type=?, attributed_employee_id=?, people_involved = ?, packing_task_id = ?, affects_kpi_accuracy = ?, accuracy_verified_by = ?, accuracy_verified_at = ?, attribution_verified_by=?, attribution_verified_at=?, order_reference = ?, category = ?, severity = ?, description = ?, financial_impact = ?, has_financial_impact=?, financial_impact_notes=?, resolution = ?, repeat_issue = ?, status = ?, occurred_at = ?, occurred_on=?, occurred_on_source='corrected_by_owner'
@@ -510,21 +582,49 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $submittedOccurredOn,
                 $errorId,
             ]);
+            $attachments = error_upload_files($errorId);
+            $errorPostUploadedFiles = array_column($attachments, 'path');
+            if ($attachments) {
+                $existingAttachments = error_attachment_records((string) ($existing['attachment_paths'] ?? ''));
+                $mergedAttachments = array_merge($existingAttachments, $attachments);
+                $stmt = db()->prepare('UPDATE ops_error_logs SET attachment_paths = ? WHERE id = ? AND deleted_at IS NULL');
+                $stmt->execute([json_encode($mergedAttachments, JSON_UNESCAPED_SLASHES), $errorId]);
+                $changes['attachments'] = ['added' => array_column($attachments, 'path')];
+            }
+            db()->commit();
+            $errorPostTransaction = false;
+            $errorPostUploadedFiles = [];
             if ($occurrenceChanged) ops_activity_log('error_occurrence_date_changed', 'error_log', $errorId, ['previous_value'=>$existingOccurredAt, 'new_value'=>$submittedOccurredAt, 'previous_date'=>$existingOccurredOn, 'new_date'=>$submittedOccurredOn, 'reason'=>$occurrenceChangeReason, 'actor_employee_id'=>$currentEmployeeId, 'timezone'=>'Africa/Windhoek']);
             if($attributionChanged){$audit=['previous_attribution_type'=>$oldAttribution?:'awaiting_owner_review','previous_attributed_employee_id'=>$oldAttributedEmployee,'new_attribution_type'=>$attributionType,'new_attributed_employee_id'=>$responsibleEmployeeId,'reason'=>$attributionNote,'actor_employee_id'=>$currentEmployeeId,'kpi_eligible'=>$attributionType==='employee'&&$accuracyVerified,'business_health_eligible'=>true];ops_activity_log('error_attribution_corrected','error_log',$errorId,$audit);ops_kpi_record_event('error_log','error',$errorId,'attribution_corrected',$oldAttribution?:null,$attributionType,$currentEmployeeId,['reason_note'=>$attributionNote,'metadata'=>$audit]);}
             if(isset($changes['financial_impact'])||isset($changes['has_financial_impact'])){$financialAudit=['has_financial_impact'=>$hasFinancialImpact,'previous_financial_amount'=>(string)($existing['financial_impact']??''),'new_financial_amount'=>$financialImpact,'actor_employee_id'=>$currentEmployeeId,'business_health_eligible'=>true];ops_activity_log('error_financial_impact_changed','error_log',$errorId,$financialAudit);ops_kpi_record_event('error_log','error',$errorId,'financial_impact_changed',(string)($existing['financial_impact']??''),$financialImpact,$currentEmployeeId,['metadata'=>$financialAudit]);}
-
-            $paths = error_upload_files($errorId);
-            if ($paths) {
-                $existingPaths = error_json_array((string) ($existing['attachment_paths'] ?? ''));
-                $mergedPaths = array_values(array_unique(array_merge($existingPaths, $paths)));
-                $stmt = db()->prepare('UPDATE ops_error_logs SET attachment_paths = ? WHERE id = ? AND deleted_at IS NULL');
-                $stmt->execute([json_encode($mergedPaths, JSON_UNESCAPED_SLASHES), $errorId]);
-                $changes['attachments'] = ['added' => $paths];
-            }
-
             ops_activity_log('error_updated', 'error_log', $errorId, ['fields_changed' => array_keys($changes), 'changes' => $changes]);
             error_log_redirect('Error updated.', 'success', '?updated=1&error_id=' . $errorId);
+        }
+
+        if ($action === 'remove_attachment') {
+            if (!$isOwnerErrorUser) throw new RuntimeException('Only an owner/admin may remove error evidence.');
+            $submittedToken = (string) ($_POST['csrf_token'] ?? '');
+            if ($submittedToken === '' || !hash_equals($errorAttachmentCsrf, $submittedToken)) throw new RuntimeException('Your session expired. Refresh and try again.');
+            $errorId = max(0, (int) ($_POST['error_id'] ?? 0));
+            $attachmentPath = trim((string) ($_POST['attachment_path'] ?? ''));
+            $rows = ops_rows('SELECT attachment_paths FROM ops_error_logs WHERE id = ? AND deleted_at IS NULL LIMIT 1', [$errorId]);
+            if (!$rows) throw new RuntimeException('Incident not found.');
+            $attachments = error_attachment_records((string) ($rows[0]['attachment_paths'] ?? ''));
+            $remaining = [];
+            $matched = false;
+            foreach ($attachments as $attachment) {
+                if (!$matched && hash_equals((string) $attachment['path'], $attachmentPath)) { $matched = true; continue; }
+                $remaining[] = $attachment;
+            }
+            if (!$matched) throw new RuntimeException('Attachment not found.');
+            $uploadRoot = realpath(BASE_PATH . '/uploads/error-log');
+            $absolutePath = realpath(BASE_PATH . '/' . ltrim($attachmentPath, '/'));
+            if ($uploadRoot && $absolutePath && str_starts_with($absolutePath, $uploadRoot . DIRECTORY_SEPARATOR) && is_file($absolutePath) && !unlink($absolutePath)) {
+                throw new RuntimeException('The attachment could not be removed from storage.');
+            }
+            db()->prepare('UPDATE ops_error_logs SET attachment_paths = ? WHERE id = ? AND deleted_at IS NULL')->execute([json_encode($remaining, JSON_UNESCAPED_SLASHES), $errorId]);
+            ops_activity_log('error_attachment_removed', 'error_log', $errorId, ['attachment_path' => $attachmentPath, 'actor_employee_id' => $currentEmployeeId]);
+            error_log_redirect('Attachment removed.', 'success', '?error_id=' . $errorId);
         }
 
         if ($action === 'delete_error') {
@@ -563,6 +663,11 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             error_log_redirect('Error status updated.', 'success', '?status_updated=1');
         }
     } catch (Throwable $e) {
+        if ($errorPostTransaction && db()->inTransaction()) db()->rollBack();
+        foreach ($errorPostUploadedFiles as $uploadedPath) {
+            $absoluteUploadedPath = BASE_PATH . '/' . ltrim((string) $uploadedPath, '/');
+            if (is_file($absoluteUploadedPath)) @unlink($absoluteUploadedPath);
+        }
         error_log_redirect($e->getMessage(), 'error', '?form_error=1');
     }
 }
@@ -1037,11 +1142,15 @@ include BASE_PATH . '/shared/sidebar.php';
                 <section class="error-form-section incident-section">
                     <h3><i data-lucide="paperclip"></i> Attachments</h3>
                     <label class="error-upload-zone">
-                        <input type="file" name="attachments[]" multiple accept="image/*,.pdf,.doc,.docx">
+                        <input type="file" name="attachments[]" multiple accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" data-error-file-input>
                         <span><i data-lucide="upload-cloud"></i></span>
-                        <strong>Drag files here or upload screenshot</strong>
-                        <small>Images, PDFs, screenshots and proof files</small>
+                        <strong>Drag files here or choose evidence files</strong>
+                        <small>JPG, PNG, WEBP, PDF, Word, Excel, CSV or TXT · up to 10 MB each</small>
                     </label>
+                    <div class="error-selected-files" data-error-selected-files hidden>
+                        <div class="error-selected-files__heading"><strong>Evidence files</strong><span data-error-selected-count></span></div>
+                        <ol data-error-selected-list></ol>
+                    </div>
                 </section>
 
                 <div class="ops-form-actions error-panel-actions incident-footer"><button class="button incident-btn-secondary" type="button" data-error-modal-close>Cancel</button><button class="button primary incident-btn-primary" type="submit">Save Issue</button></div>
@@ -1054,7 +1163,7 @@ include BASE_PATH . '/shared/sidebar.php';
         $peopleIds = error_json_array((string) ($error['people_involved'] ?? ''));
         if (!$peopleIds && !empty($error['employee_id'])) $peopleIds = [(int) $error['employee_id']];
         $peopleText = error_people_names($peopleIds, $employeeMap, (string) ($error['primary_employee_name'] ?? ''));
-        $attachments = error_json_array((string) ($error['attachment_paths'] ?? ''));
+        $attachments = error_attachment_records((string) ($error['attachment_paths'] ?? ''));
         $severity = (string) ($error['severity'] ?? 'low');
         $status = (string) ($error['status'] ?? 'open');
         $canUpdateThisError = $isOwnerErrorUser;
@@ -1173,7 +1282,12 @@ include BASE_PATH . '/shared/sidebar.php';
                 <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="banknote"></i> Financial impact</h3><p class="incident-content-text" data-error-finance-detail="<?= $errorId ?>"><?= $error['financial_impact']===null?'Not recorded':'N$'.number_format((float)$error['financial_impact'],2) ?></p><?php if(!empty($error['financial_impact_notes'])): ?><p class="incident-content-text"><?= nl2br(htmlspecialchars((string)$error['financial_impact_notes'],ENT_QUOTES,'UTF-8')) ?></p><?php endif; ?></section>
                 <?php if (!empty($error['repeat_note'])): ?><section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="repeat-2"></i> Repeat note</h3><p class="incident-content-text"><?= nl2br(htmlspecialchars((string) $error['repeat_note'], ENT_QUOTES, 'UTF-8')) ?></p></section><?php endif; ?>
                 <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="paperclip"></i> Attachments</h3><div class="incident-attachments-list">
-                    <?php foreach ($attachments as $path): ?><div class="incident-attachment"><span><?= htmlspecialchars(basename((string) $path), ENT_QUOTES, 'UTF-8') ?></span><a class="incident-attachment-link" href="<?= BASE_URL . '/' . htmlspecialchars((string) $path, ENT_QUOTES, 'UTF-8') ?>" target="_blank">Open</a></div><?php endforeach; ?>
+                    <?php foreach ($attachments as $attachment): ?><?php $attachmentPath=(string)$attachment['path'];$attachmentName=(string)$attachment['name'];$attachmentMime=(string)$attachment['mime'];$isImage=str_starts_with($attachmentMime,'image/')||preg_match('/\.(?:jpe?g|png|webp)$/i',$attachmentName);$attachmentUrl=BASE_URL.'/apps/operations/error-attachment.php?error_id='.$errorId.'&attachment='.rawurlencode($attachmentPath); ?><div class="incident-attachment">
+                        <?php if($isImage): ?><a href="<?= htmlspecialchars($attachmentUrl,ENT_QUOTES,'UTF-8') ?>" target="_blank" rel="noopener" class="incident-attachment-preview"><img src="<?= htmlspecialchars($attachmentUrl,ENT_QUOTES,'UTF-8') ?>" alt="Preview of <?= htmlspecialchars($attachmentName,ENT_QUOTES,'UTF-8') ?>" loading="lazy"></a><?php endif; ?>
+                        <span><strong><?= htmlspecialchars($attachmentName, ENT_QUOTES, 'UTF-8') ?></strong><?php if($attachment['size']!==null): ?><small><?= htmlspecialchars(number_format(((int)$attachment['size'])/1048576,2).' MB',ENT_QUOTES,'UTF-8') ?></small><?php endif; ?></span>
+                        <div class="incident-attachment-actions"><a class="incident-attachment-link" href="<?= htmlspecialchars($attachmentUrl,ENT_QUOTES,'UTF-8') ?>" target="_blank" rel="noopener"><?= $isImage?'Preview':'Download' ?></a>
+                        <?php if($isOwnerErrorUser): ?><form method="post" onsubmit="return confirm('Remove this attachment?');"><input type="hidden" name="action" value="remove_attachment"><input type="hidden" name="csrf_token" value="<?= htmlspecialchars($errorAttachmentCsrf,ENT_QUOTES,'UTF-8') ?>"><input type="hidden" name="error_id" value="<?= $errorId ?>"><input type="hidden" name="attachment_path" value="<?= htmlspecialchars($attachmentPath,ENT_QUOTES,'UTF-8') ?>"><button type="submit" class="incident-attachment-remove">Remove</button></form><?php endif; ?></div>
+                    </div><?php endforeach; ?>
                     <?php if (!$attachments): ?><p class="incident-content-text incident-empty-text">No attachments uploaded.</p><?php endif; ?>
                 </div></section>
                 <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="history"></i> Edit history</h3><div class="incident-history-list">
@@ -1272,6 +1386,67 @@ function setFinancialImpactChoice(choice,amount='',notes=''){
   const yes=String(choice)==='1';wrap.hidden=!yes;notesWrap.hidden=!yes;input.disabled=!yes;input.required=yes;input.value=yes?String(amount||''):'';form.elements.financial_impact_notes.value=yes?(notes||''):'';
 }
 
+const errorEvidenceState = { files: [], previewUrls: [] };
+function errorEvidenceKey(file) { return `${file.name}\u0000${file.size}\u0000${file.lastModified}`; }
+function resetErrorEvidenceFiles() {
+  errorEvidenceState.previewUrls.forEach((url) => URL.revokeObjectURL(url));
+  errorEvidenceState.previewUrls = [];
+  errorEvidenceState.files = [];
+  const input = document.querySelector('[data-error-file-input]');
+  if (input) input.value = '';
+  renderErrorEvidenceFiles();
+}
+function syncErrorEvidenceInput() {
+  const input = document.querySelector('[data-error-file-input]');
+  if (!input) return;
+  const transfer = new DataTransfer();
+  errorEvidenceState.files.forEach((file) => transfer.items.add(file));
+  input.files = transfer.files;
+}
+function formatEvidenceSize(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1048576).toFixed(2)} MB`;
+}
+function renderErrorEvidenceFiles() {
+  errorEvidenceState.previewUrls.forEach((url) => URL.revokeObjectURL(url));
+  errorEvidenceState.previewUrls = [];
+  const wrapper = document.querySelector('[data-error-selected-files]');
+  const list = document.querySelector('[data-error-selected-list]');
+  const count = document.querySelector('[data-error-selected-count]');
+  if (!wrapper || !list || !count) return;
+  list.replaceChildren();
+  wrapper.hidden = errorEvidenceState.files.length === 0;
+  count.textContent = `${errorEvidenceState.files.length} selected`;
+  errorEvidenceState.files.forEach((file, index) => {
+    const item = document.createElement('li');
+    item.className = 'error-selected-file';
+    if (file.type.startsWith('image/')) {
+      const image = document.createElement('img');
+      const previewUrl = URL.createObjectURL(file);
+      errorEvidenceState.previewUrls.push(previewUrl);
+      image.src = previewUrl; image.alt = ''; item.appendChild(image);
+    } else {
+      const icon = document.createElement('span'); icon.className = 'error-selected-file__icon'; icon.textContent = file.name.split('.').pop()?.toUpperCase() || 'FILE'; item.appendChild(icon);
+    }
+    const details = document.createElement('span');
+    const name = document.createElement('strong'); name.textContent = file.name;
+    const meta = document.createElement('small'); meta.textContent = `${file.type || 'Unknown type'} · ${formatEvidenceSize(file.size)}`;
+    details.append(name, meta); item.appendChild(details);
+    const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = 'Remove'; remove.dataset.removeErrorFile = String(index); remove.setAttribute('aria-label', `Remove ${file.name}`); item.appendChild(remove);
+    list.appendChild(item);
+  });
+}
+function addErrorEvidenceFiles(files) {
+  const existing = new Set(errorEvidenceState.files.map(errorEvidenceKey));
+  Array.from(files || []).forEach((file) => { if (!existing.has(errorEvidenceKey(file))) { errorEvidenceState.files.push(file); existing.add(errorEvidenceKey(file)); } });
+  if (errorEvidenceState.files.length > 10) {
+    errorEvidenceState.files = errorEvidenceState.files.slice(0, 10);
+    window.alert('Only the first 10 evidence files were retained.');
+  }
+  syncErrorEvidenceInput(); renderErrorEvidenceFiles();
+}
+
 function setIncidentCategoryValue(value, otherValue = '') {
   const hiddenInput = document.getElementById('error-category-value');
   const valueLabel = document.querySelector('#logErrorForm .custom-select-value');
@@ -1306,6 +1481,7 @@ function openIncidentForm(mode = 'create', data = {}) {
   if (!panel || !form || !actionInput || !incidentIdInput) return;
 
   form.reset();
+  resetErrorEvidenceFiles();
   document.querySelectorAll('#logErrorForm .field-error').forEach((error) => error.remove());
   document.getElementById('severity-group-error')?.remove();
   document.getElementById('status-group-error')?.remove();
@@ -1676,6 +1852,20 @@ document.querySelectorAll('[data-custom-select]').forEach((select) => {
       otherCategoryInput.setCustomValidity('');
     }
   });
+});
+
+document.querySelector('[data-error-file-input]')?.addEventListener('change', function() {
+  addErrorEvidenceFiles(this.files);
+});
+const errorUploadZone = document.querySelector('.error-upload-zone');
+errorUploadZone?.addEventListener('dragover', (event) => { event.preventDefault(); errorUploadZone.classList.add('is-dragover'); });
+errorUploadZone?.addEventListener('dragleave', () => errorUploadZone.classList.remove('is-dragover'));
+errorUploadZone?.addEventListener('drop', (event) => { event.preventDefault(); errorUploadZone.classList.remove('is-dragover'); addErrorEvidenceFiles(event.dataTransfer?.files); });
+document.querySelector('[data-error-selected-list]')?.addEventListener('click', (event) => {
+  const remove = event.target.closest('[data-remove-error-file]');
+  if (!remove) return;
+  errorEvidenceState.files.splice(Number(remove.dataset.removeErrorFile), 1);
+  syncErrorEvidenceInput(); renderErrorEvidenceFiles();
 });
 
 document.getElementById('logErrorForm')?.addEventListener('change', function(event) {
