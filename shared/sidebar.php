@@ -39,6 +39,7 @@ $taskOutstandingCount = 0;
 $systemIssueOpenCount = 0;
 $systemIssueNeedsInformation = 0;
 $packingAssignmentUnread = function_exists('notifications_packing_assignment_unread_count') ? notifications_packing_assignment_unread_count() : 0;
+$sidebarNotificationCounts = function_exists('notifications_sidebar_counts_for_current_user') ? notifications_sidebar_counts_for_current_user() : [];
 $packingSidebarRoleKey = function_exists('normalise_portal_role')
     ? normalise_portal_role((string) ($sidebarUser['role_key'] ?? $sidebarUserRole))
     : (string) ($sidebarUser['role_key'] ?? $sidebarUserRole);
@@ -108,6 +109,25 @@ $featureByNavId = [
 ];
 $sidebarRoleKey = normalise_portal_role((string) ($sidebarUser['role_key'] ?? $sidebarUserRole));
 $isEmployeeSidebar = !in_array($sidebarRoleKey, ['owner_admin', 'guest'], true);
+$employeeBadgeByNavId = [
+    'operations-orders' => 'orders', 'operations-bookkeeping' => 'bookkeeping',
+    'operations-consignments' => 'packing_list', 'operations-courier' => 'courier_waybills',
+    'hr-portal' => 'hr_portal', 'operations-inventory' => 'inventory',
+    'operations-checklists' => 'task_management', 'operations-errors' => 'error_log',
+    'system-issues' => 'system_issues',
+];
+if ($isEmployeeSidebar) {
+    foreach ($portalNavItems as &$portalNavItem) {
+        $moduleKey = $employeeBadgeByNavId[$portalNavItem['id']] ?? null;
+        if ($moduleKey === null) continue;
+        $count = max(0, (int) ($sidebarNotificationCounts[$moduleKey] ?? 0));
+        $portalNavItem['badge'] = $count;
+        $portalNavItem['badge_label'] = $count > 99 ? '99+' : (string) $count;
+        $portalNavItem['badge_kind'] = 'notification';
+        $portalNavItem['badge_module'] = $moduleKey;
+    }
+    unset($portalNavItem);
+}
 $employeePortalNavItems = [];
 foreach ($portalNavItems as $portalNavItem) {
     $featureKey = $featureByNavId[$portalNavItem['id']] ?? '';
@@ -182,8 +202,8 @@ $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bo
 <style id="portal-sidebar-task-badge">
 .portal-sidebar.collapsed .ps-nav-item[data-nav-id="operations-checklists"] { overflow: visible; }
 .portal-sidebar.collapsed .ps-nav-item[data-nav-id="operations-checklists"] .ps-nav-badge { position: absolute; top: 3px; right: 7px; width: auto; min-width: 15px; height: 15px; padding: 0 4px; opacity: 1; font-size: 9px; font-weight: 400; line-height: 15px; pointer-events: none; }
-.portal-sidebar.collapsed .ps-nav-item[data-nav-id="operations-consignments"] { overflow: visible; }
-.portal-sidebar.collapsed .ps-nav-item[data-nav-id="operations-consignments"] .ps-nav-badge { position:absolute;top:3px;right:7px;width:auto;min-width:15px;height:15px;padding:0 4px;opacity:1;font-size:9px;font-weight:400;line-height:15px;pointer-events:none; }
+.portal-sidebar.collapsed .ps-nav-item[data-sidebar-module] { overflow: visible; }
+.portal-sidebar.collapsed .ps-nav-item[data-sidebar-module] .ps-nav-badge { position:absolute;top:3px;right:7px;width:auto;min-width:15px;height:15px;padding:0 4px;opacity:1;font-size:9px;font-weight:400;line-height:15px;pointer-events:none; }
 .ps-nav-badge.is-information-requested{background:#BB1B21;box-shadow:0 0 0 2px rgba(187,27,33,.16)}
 </style>
 <style id="portal-sidebar-notification-badge">
@@ -232,11 +252,11 @@ $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bo
         <div class="ps-nav-group">
             <?php foreach ($portalNavItems as $item): ?>
                 <?php $isActive = $isActiveItem($item); ?>
-                <a href="<?= htmlspecialchars((string) $item['href'], ENT_QUOTES, 'UTF-8') ?>" class="ps-nav-item<?= $isActive ? ' ps-nav-item--active' : '' ?>" data-nav-id="<?= htmlspecialchars((string) $item['id'], ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars((string) $item['label'], ENT_QUOTES, 'UTF-8') ?>">
+                <a href="<?= htmlspecialchars((string) $item['href'], ENT_QUOTES, 'UTF-8') ?>" class="ps-nav-item<?= $isActive ? ' ps-nav-item--active' : '' ?>" data-nav-id="<?= htmlspecialchars((string) $item['id'], ENT_QUOTES, 'UTF-8') ?>"<?= !empty($item['badge_module']) ? ' data-sidebar-module="'.htmlspecialchars((string)$item['badge_module'], ENT_QUOTES, 'UTF-8').'"' : '' ?> title="<?= htmlspecialchars((string) $item['label'], ENT_QUOTES, 'UTF-8') ?>">
                     <span class="ps-nav-icon"><?= getSidebarIcon((string) $item['id']) ?></span>
                     <span class="ps-nav-label"><?= htmlspecialchars((string) $item['label'], ENT_QUOTES, 'UTF-8') ?></span>
-                    <?php if (!empty($item['badge']) || ($item['badge_kind'] ?? '') === 'packing'): ?>
-                        <span class="ps-nav-badge<?= empty($item['badge']) ? ' is-hidden' : '' ?><?= !empty($item['needs_information']) ? ' is-information-requested' : '' ?>"<?= ($item['badge_kind'] ?? '') === 'packing' ? ' data-packing-unread-badge' : '' ?><?= empty($item['badge']) ? ' hidden' : '' ?> aria-label="<?= (int) $item['badge'] ?> <?= ($item['badge_kind'] ?? '') === 'packing' ? 'unread Packing List items' : (($item['badge_kind'] ?? '') === 'system-issues' ? ('open system issues' . (!empty($item['needs_information']) ? ', information requested' : '')) : 'outstanding tasks') ?>"><?= !empty($item['badge']) ? htmlspecialchars((string) ($item['badge_label'] ?? $item['badge']), ENT_QUOTES, 'UTF-8') : '' ?></span>
+                    <?php if (!empty($item['badge']) || !empty($item['badge_module']) || ($item['badge_kind'] ?? '') === 'packing'): ?>
+                        <span class="ps-nav-badge<?= empty($item['badge']) ? ' is-hidden' : '' ?><?= !empty($item['needs_information']) ? ' is-information-requested' : '' ?>"<?= !empty($item['badge_module']) ? ' data-sidebar-notification-badge="'.htmlspecialchars((string)$item['badge_module'], ENT_QUOTES, 'UTF-8').'" data-count="'.(int)$item['badge'].'"' : (($item['badge_kind'] ?? '') === 'packing' ? ' data-packing-unread-badge' : '') ?><?= empty($item['badge']) ? ' hidden' : '' ?> aria-label="<?= (int) $item['badge'] ?> <?= !empty($item['badge_module']) ? 'unread '.htmlspecialchars((string)$item['label'], ENT_QUOTES, 'UTF-8').' '.((int)$item['badge']===1?'notification':'notifications') : (($item['badge_kind'] ?? '') === 'packing' ? 'unread Packing List items' : (($item['badge_kind'] ?? '') === 'system-issues' ? ('open system issues' . (!empty($item['needs_information']) ? ', information requested' : '')) : 'outstanding tasks')) ?>"><?= !empty($item['badge']) ? htmlspecialchars((string) ($item['badge_label'] ?? $item['badge']), ENT_QUOTES, 'UTF-8') : '' ?></span>
                     <?php endif; ?>
                 </a>
             <?php endforeach; ?>

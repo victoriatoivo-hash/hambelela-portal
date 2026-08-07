@@ -708,6 +708,23 @@ window.addEventListener('DOMContentLoaded', () => {
       });
     };
 
+    const sidebarModuleLabels = {orders:'Orders',bookkeeping:'Bookkeeping',packing_list:'Packing List',courier_waybills:'Courier Waybills',hr_portal:'HR Portal',inventory:'Inventory',task_management:'Task Management',error_log:'Error Log',system_issues:'System Issues Log'};
+    const updateSidebarModuleBadges = (counts = {}) => {
+      document.querySelectorAll('[data-sidebar-notification-badge]').forEach((badge) => {
+        const moduleKey = badge.dataset.sidebarNotificationBadge;
+        if (!Object.prototype.hasOwnProperty.call(sidebarModuleLabels, moduleKey)) return;
+        const previousCount = Math.max(0, Number.parseInt(badge.dataset.count || '0', 10) || 0);
+        const nextCount = Math.max(0, Number.parseInt(counts[moduleKey] || '0', 10) || 0);
+        badge.dataset.count = String(nextCount);
+        badge.hidden = nextCount < 1;
+        badge.classList.toggle('is-hidden', nextCount < 1);
+        badge.textContent = nextCount < 1 ? '' : (nextCount > 99 ? '99+' : String(nextCount));
+        const label = sidebarModuleLabels[moduleKey];
+        badge.setAttribute('aria-label', nextCount < 1 ? `No unread ${label} notifications` : `${nextCount} unread ${label} ${nextCount === 1 ? 'notification' : 'notifications'}`);
+        badge.classList.toggle('is-new', nextCount > previousCount);
+      });
+    };
+
     window.updatePackingListUnreadCount = (unreadCount) => {
       const countValue = Number(unreadCount || 0);
       document.querySelectorAll('[data-packing-unread-badge]').forEach((badge) => {
@@ -736,6 +753,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
         const data = await response.json();
         updateSidebarNotificationBadges(data.unread_count || 0);
+        updateSidebarModuleBadges(data.sidebar_counts || {});
         window.updatePackingListUnreadCount(data.packing_list_unread_count || 0);
         taskReminderSound.configure(data.preferences || {});
 

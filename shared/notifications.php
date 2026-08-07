@@ -613,6 +613,82 @@ function notifications_packing_assignment_unread_count(?int $employeeId = null):
     return count(notifications_packing_assignment_unread_ids($employeeId, 500));
 }
 
+function notifications_sidebar_module_keys(): array
+{
+    return [
+        'orders' => 'Orders',
+        'bookkeeping' => 'Bookkeeping',
+        'packing_list' => 'Packing List',
+        'courier_waybills' => 'Courier Waybills',
+        'hr_portal' => 'HR Portal',
+        'inventory' => 'Inventory',
+        'task_management' => 'Task Management',
+        'error_log' => 'Error Log',
+        'system_issues' => 'System Issues Log',
+    ];
+}
+
+function notifications_sidebar_module_map(): array
+{
+    return [
+        'orders' => 'orders',
+        'bookkeeping' => 'bookkeeping',
+        'packing' => 'packing_list',
+        'packing_list' => 'packing_list',
+        'courier' => 'courier_waybills',
+        'courier_waybills' => 'courier_waybills',
+        'hr' => 'hr_portal',
+        'hr_portal' => 'hr_portal',
+        'inventory' => 'inventory',
+        'tasks' => 'task_management',
+        'task_management' => 'task_management',
+        'errors' => 'error_log',
+        'error_log' => 'error_log',
+        'system_issues' => 'system_issues',
+    ];
+}
+
+function notifications_sidebar_key_for_event(string $module, string $relatedType): ?string
+{
+    if ($module === 'operations') {
+        if (in_array($relatedType, ['order', 'order_sync'], true)) return 'orders';
+        if ($relatedType === 'courier_waybill') return 'courier_waybills';
+        if (in_array($relatedType, ['inventory', 'stock_count', 'stock_correction'], true)) return 'inventory';
+        return null;
+    }
+    return notifications_sidebar_module_map()[$module] ?? null;
+}
+
+function notifications_sidebar_counts_for_current_user(): array
+{
+    $counts = array_fill_keys(array_keys(notifications_sidebar_module_keys()), 0);
+    $employeeId = notifications_current_employee_id();
+    if (!$employeeId || !notifications_schema_ready()) return $counts;
+
+    try {
+        $stmt = db()->prepare(
+            "SELECT n.module, n.related_type, COUNT(*) unread_count
+             FROM notification_recipients nr
+             JOIN notifications n ON n.id = nr.notification_id
+             LEFT JOIN ops_checklist_tasks task ON task.id = n.related_id AND n.related_type = 'checklist_task'
+             LEFT JOIN ops_packing_tasks packing ON packing.id = n.related_id AND n.related_type IN ('packing_assignment','packing_loaded')
+             WHERE nr.employee_id = ? AND nr.read_at IS NULL AND nr.cleared_at IS NULL
+               AND (n.related_type <> 'checklist_task' OR n.related_id IS NULL OR (task.assigned_employee_id = ? AND task.status NOT IN ('complete','completed','done','archived','deleted') AND task.archived_at IS NULL AND task.deleted_at IS NULL))
+               AND (n.related_type NOT IN ('packing_assignment','packing_loaded') OR n.related_id IS NULL OR (packing.assigned_employee_id = ? AND packing.archived_at IS NULL AND packing.deleted_at IS NULL))
+             GROUP BY n.module, n.related_type"
+        );
+        $stmt->execute([$employeeId, $employeeId, $employeeId]);
+        foreach ($stmt->fetchAll() as $row) {
+            $moduleKey = notifications_sidebar_key_for_event((string) ($row['module'] ?? ''), (string) ($row['related_type'] ?? ''));
+            if ($moduleKey !== null) $counts[$moduleKey] += max(0, (int) ($row['unread_count'] ?? 0));
+        }
+        $stmt->closeCursor();
+    } catch (Throwable $e) {
+        error_log('Sidebar notification counts failed: ' . $e->getMessage());
+    }
+    return $counts;
+}
+
 function notifications_mark_packing_assignment_viewed(int $taskId, ?int $employeeId = null): bool
 {
     $employeeId = $employeeId ?: notifications_current_employee_id();
