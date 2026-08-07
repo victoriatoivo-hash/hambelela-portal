@@ -14,6 +14,9 @@ return [
     'system_issues_openai_model' => 'gpt-5.6-sol',
     'system_issues_workflow_webhook' => '',
     'system_issues_workflow_secret' => '',
+    // Shared only with the GitHub Actions repair worker. Generate a separate,
+    // random value; do not reuse the database, FTP, OpenAI, or login secrets.
+    'system_issues_worker_secret' => '',
 
     'wc_store_url' => 'https://www.hambelelaorganic.com',
     'wc_consumer_key' => 'paste-new-read-only-consumer-key-here',

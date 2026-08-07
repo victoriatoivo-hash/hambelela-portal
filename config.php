@@ -30,6 +30,7 @@ define('OPENAI_MODEL', getenv('OPENAI_MODEL') ?: ($localSecrets['openai_model'] 
 define('SYSTEM_ISSUES_OPENAI_MODEL', getenv('SYSTEM_ISSUES_OPENAI_MODEL') ?: ($localSecrets['system_issues_openai_model'] ?? 'gpt-5.6-sol'));
 define('SYSTEM_ISSUES_WORKFLOW_WEBHOOK', getenv('SYSTEM_ISSUES_WORKFLOW_WEBHOOK') ?: ($localSecrets['system_issues_workflow_webhook'] ?? ''));
 define('SYSTEM_ISSUES_WORKFLOW_SECRET', getenv('SYSTEM_ISSUES_WORKFLOW_SECRET') ?: ($localSecrets['system_issues_workflow_secret'] ?? ''));
+define('SYSTEM_ISSUES_WORKER_SECRET', getenv('SYSTEM_ISSUES_WORKER_SECRET') ?: ($localSecrets['system_issues_worker_secret'] ?? ''));
 define('WC_STORE_URL', rtrim(getenv('WC_STORE_URL') ?: ($localSecrets['wc_store_url'] ?? ''), '/'));
 define('WC_CONSUMER_KEY', getenv('WC_CONSUMER_KEY') ?: ($localSecrets['wc_consumer_key'] ?? ''));
 define('WC_CONSUMER_SECRET', getenv('WC_CONSUMER_SECRET') ?: ($localSecrets['wc_consumer_secret'] ?? ''));

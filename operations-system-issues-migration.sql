@@ -66,6 +66,37 @@ CREATE TABLE IF NOT EXISTS system_issue_workflow_outbox (
   CONSTRAINT fk_system_issue_outbox_issue FOREIGN KEY (issue_id) REFERENCES system_issues(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+ALTER TABLE system_issue_workflow_outbox ADD COLUMN IF NOT EXISTS approved_brief_id BIGINT UNSIGNED NULL AFTER issue_id;
+ALTER TABLE system_issue_workflow_outbox ADD COLUMN IF NOT EXISTS approved_brief_version INT UNSIGNED NULL AFTER approved_brief_id;
+ALTER TABLE system_issue_workflow_outbox ADD COLUMN IF NOT EXISTS deduplication_key VARCHAR(190) NULL AFTER event_type;
+ALTER TABLE system_issue_workflow_outbox ADD COLUMN IF NOT EXISTS claimed_by VARCHAR(120) NULL AFTER attempts;
+ALTER TABLE system_issue_workflow_outbox ADD COLUMN IF NOT EXISTS worker_run_id VARCHAR(120) NULL AFTER claimed_by;
+ALTER TABLE system_issue_workflow_outbox ADD COLUMN IF NOT EXISTS started_at DATETIME NULL AFTER available_at;
+ALTER TABLE system_issue_workflow_outbox ADD COLUMN IF NOT EXISTS completed_at DATETIME NULL AFTER started_at;
+ALTER TABLE system_issue_workflow_outbox ADD UNIQUE INDEX IF NOT EXISTS uq_system_issue_outbox_deduplication (deduplication_key);
+
+CREATE TABLE IF NOT EXISTS system_issue_worker_nonces (
+  nonce_hash CHAR(64) PRIMARY KEY,
+  worker_identifier VARCHAR(120) NOT NULL,
+  request_timestamp BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_system_issue_worker_nonce_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS system_issue_provider_events (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  provider_event_id VARCHAR(190) NOT NULL,
+  issue_id BIGINT UNSIGNED NOT NULL,
+  job_id BIGINT UNSIGNED NOT NULL,
+  attempt_number INT UNSIGNED NOT NULL,
+  event_type VARCHAR(60) NOT NULL,
+  received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_system_issue_provider_event (provider_event_id),
+  INDEX idx_system_issue_provider_job (job_id,attempt_number),
+  CONSTRAINT fk_system_issue_provider_issue FOREIGN KEY (issue_id) REFERENCES system_issues(id) ON DELETE CASCADE,
+  CONSTRAINT fk_system_issue_provider_job FOREIGN KEY (job_id) REFERENCES system_issue_workflow_outbox(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS system_issue_events (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   issue_id BIGINT UNSIGNED NOT NULL,
@@ -183,6 +214,15 @@ CREATE TABLE IF NOT EXISTS system_issue_integrations (
   INDEX idx_system_issue_integrations_issue (issue_id, provider),
   CONSTRAINT fk_system_issue_integrations_issue FOREIGN KEY (issue_id) REFERENCES system_issues(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+ALTER TABLE system_issue_integrations ADD COLUMN IF NOT EXISTS job_id BIGINT UNSIGNED NULL AFTER issue_id;
+ALTER TABLE system_issue_integrations ADD COLUMN IF NOT EXISTS attempt_number INT UNSIGNED NULL AFTER job_id;
+ALTER TABLE system_issue_integrations ADD COLUMN IF NOT EXISTS worker_run_id VARCHAR(120) NULL AFTER attempt_number;
+ALTER TABLE system_issue_integrations ADD COLUMN IF NOT EXISTS base_commit_sha CHAR(40) NULL AFTER branch_name;
+ALTER TABLE system_issue_integrations ADD COLUMN IF NOT EXISTS patch_commit_sha CHAR(40) NULL AFTER base_commit_sha;
+ALTER TABLE system_issue_integrations ADD COLUMN IF NOT EXISTS tested_commit_sha CHAR(40) NULL AFTER patch_commit_sha;
+ALTER TABLE system_issue_integrations ADD COLUMN IF NOT EXISTS test_summary TEXT NULL AFTER last_error;
+ALTER TABLE system_issue_integrations ADD UNIQUE INDEX IF NOT EXISTS uq_system_issue_integration_job_attempt (job_id,attempt_number);
 
 ALTER TABLE system_issue_information_requests ADD COLUMN IF NOT EXISTS audience VARCHAR(20) NOT NULL DEFAULT 'employee' AFTER request_text;
 ALTER TABLE system_issue_information_requests ADD COLUMN IF NOT EXISTS is_blocking TINYINT(1) NOT NULL DEFAULT 1 AFTER audience;
