@@ -206,6 +206,8 @@ CREATE TABLE IF NOT EXISTS ops_error_field_audit (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_error_field_audit_error (error_id, created_at)
 );
+ALTER TABLE ops_error_field_audit ADD COLUMN IF NOT EXISTS changed_by_user_id INT NULL AFTER changed_by_employee_id;
+ALTER TABLE ops_error_field_audit ADD COLUMN IF NOT EXISTS changed_by_name VARCHAR(190) NULL AFTER changed_by_user_id;
 
 CREATE TABLE IF NOT EXISTS ops_consignments (
   id INT AUTO_INCREMENT PRIMARY KEY,

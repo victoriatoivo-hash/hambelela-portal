@@ -28745,6 +28745,12 @@ body.performance-meeting-open .performance-meeting .epi-report-page.is-meeting-c
 #error-task-details .error-limited-edit__field input{width:100%;min-height:34px;padding:7px 10px;border:1px solid #ede3d8;border-radius:7px;background:#fff;color:#1a1a1a;box-sizing:border-box}
 #error-task-details .error-limited-edit__actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
 #error-task-details .error-limited-edit__feedback{min-height:18px;color:#721b1a;font-size:12px}
+#error-task-details [data-error-log-save]{min-width:108px;min-height:32px;transition:background-color 160ms ease,color 160ms ease,opacity 160ms ease}
+#error-task-details [data-error-log-save].is-saving{cursor:wait;opacity:.72}
+#error-task-details [data-error-log-save].is-saved{background:#a8ca19;color:#263400}
+#error-task-details [data-error-log-save].has-error{background:#bb1b21;color:#fff}
+#error-task-details [data-error-log-save]:disabled{cursor:not-allowed;opacity:.58}
+#error-task-details .error-log-field-save-note{margin:2px 0 0;line-height:1.4}
 @media(max-width:430px){#error-task-details .error-limited-edit__context{grid-template-columns:1fr}#error-task-details .error-limited-edit__actions{display:grid;grid-template-columns:1fr}#error-task-details .error-limited-edit__actions button{width:100%}}
 /* System Issues Log: owner-controlled employee information requests */
 #system-issues-page .sil-next-step,#system-issues-page .sil-employee-info-request,#system-issues-page .sil-owner-info-request{width:100%;padding:14px;border:1px solid #ede3d8;border-radius:10px;background:#fdf6ee;box-sizing:border-box}
