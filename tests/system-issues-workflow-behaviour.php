@@ -14,6 +14,7 @@ throws('tests_not_confirmed',fn()=>siw_decision_transition('record_deployment',[
 check(siw_decision_transition('record_deployment',['deployment_required'=>1,'status'=>'tests_passed','testing_completed_at'=>'2026-01-01','deployment_result'=>'failed'])==='reopened','failed deployment reopens');
 check(siw_decision_transition('record_deployment',['deployment_required'=>1,'status'=>'tests_passed','testing_completed_at'=>'2026-01-01','deployment_result'=>'failed'])!=='ready_for_verification','failed deployment cannot verify');
 check(siw_decision_transition('testing_passed',['deployment_required'=>0])==='ready_for_verification','no-deploy verification');
+check(siw_decision_transition('testing_passed',['deployment_required'=>1])==='testing','deployment-required test advances to deployment form mode');
 check(siw_decision_transition('record_deployment',['deployment_required'=>1,'status'=>'tests_passed','testing_completed_at'=>'2026-01-01','deployment_result'=>'success'])==='ready_for_verification','successful deploy verification');
 check(!siw_decision_done_allowed(['deployment_required'=>0,'status'=>'tests_passed']),'done needs testing evidence');
 check(siw_decision_done_allowed(['deployment_required'=>1,'status'=>'deployed','testing_completed_at'=>'x','testing_completed_by_user_id'=>2,'deployment_time'=>'x','deployment_method'=>'FTP','deployment_result'=>'success','deployment_recorded_by_user_id'=>2]),'deployment done invariant');
