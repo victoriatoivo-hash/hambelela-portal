@@ -10,7 +10,7 @@ const migration=fs.readFileSync('operations-system-issues-migration.sql','utf8')
 const webhook=fs.readFileSync('apps/operations/system-issues-webhook.php','utf8');
 const docs=fs.readFileSync('docs/system-issues-workflow.md','utf8');
 
-for(const stage of ['reported','ai_processing','needs_information','under_review','brief_ready','approved_for_codex','fix_in_progress','testing','ready_for_verification','done','reopened','deferred'])assert.match(workflow,new RegExp(`'${stage}'`));
+for(const stage of ['reported','ai_processing','needs_information','under_review','brief_ready','approved_for_codex','fix_in_progress','testing','deployment','ready_for_verification','done','reopened','deferred'])assert.match(workflow,new RegExp(`'${stage}'`));
 for(const command of ['approve_brief','mark_sent_to_codex','record_codex_result','testing_passed','record_deployment','confirm_fixed','still_not_fixed'])assert.match(workflow,new RegExp(`'${command}'`));
 assert.match(workflow,/approved_brief_id/);
 assert.match(workflow,/brief_not_copied/);

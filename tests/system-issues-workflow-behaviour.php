@@ -14,7 +14,7 @@ throws('tests_not_confirmed',fn()=>siw_decision_transition('record_deployment',[
 check(siw_decision_transition('record_deployment',['deployment_required'=>1,'status'=>'tests_passed','testing_completed_at'=>'2026-01-01','deployment_result'=>'failed'])==='reopened','failed deployment reopens');
 check(siw_decision_transition('record_deployment',['deployment_required'=>1,'status'=>'tests_passed','testing_completed_at'=>'2026-01-01','deployment_result'=>'failed'])!=='ready_for_verification','failed deployment cannot verify');
 check(siw_decision_transition('testing_passed',['deployment_required'=>0])==='ready_for_verification','no-deploy verification');
-check(siw_decision_transition('testing_passed',['deployment_required'=>1])==='testing','deployment-required test advances to deployment form mode');
+check(siw_decision_transition('testing_passed',['deployment_required'=>1])==='deployment','deployment-required test advances to deployment stage');
 check(siw_decision_transition('record_deployment',['deployment_required'=>1,'status'=>'tests_passed','testing_completed_at'=>'2026-01-01','deployment_result'=>'success'])==='ready_for_verification','successful deploy verification');
 check(!siw_decision_done_allowed(['deployment_required'=>0,'status'=>'tests_passed']),'done needs testing evidence');
 check(siw_decision_done_allowed(['deployment_required'=>1,'status'=>'deployed','testing_completed_at'=>'x','testing_completed_by_user_id'=>2,'deployment_time'=>'x','deployment_method'=>'FTP','deployment_result'=>'success','deployment_recorded_by_user_id'=>2]),'deployment done invariant');
@@ -30,5 +30,5 @@ $employee=events(siw_decision_notification_plan('request_information','brief_rea
 $ready=siw_decision_notification_plan('testing_passed','testing','ready_for_verification');check(count($ready)===2&&in_array('employee',array_column($ready,'audience'),true)&&in_array('owner',array_column($ready,'audience'),true),'ready notification audiences');
 $reopened=siw_decision_notification_plan('testing_failed','testing','reopened');check(in_array('issue_reopened',array_column($reopened,'event'),true)&&in_array('testing_failed',array_column($reopened,'event'),true),'failure notification plan');
 check(siw_decision_form_mode('testing',['testing_completed_at'=>null])==='testing_decision','pre-test mode');
-check(siw_decision_form_mode('testing',['testing_completed_at'=>'x','deployment_required'=>1])==='record_deployment','deployment mode');
+check(siw_decision_form_mode('deployment',['testing_completed_at'=>'x','deployment_required'=>1])==='record_deployment','deployment mode');
 echo "System Issues workflow behavioural tests passed: {$passed}\n";

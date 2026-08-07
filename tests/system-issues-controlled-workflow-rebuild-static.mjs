@@ -8,3 +8,8 @@ assert.match(js,/attributeFilter:\['data-workflow-stage','data-workflow-version'
 assert.match(js,/syncFields\(root\);syncCopyVersion\(root\);\}/);
 assert.match(js,/data-workflow-transition/);
 assert.match(w,/Testing recorded \u2014 moved to/);
+assert.match(w,/'deployment'=>\['label'=>'Deployment'/);
+assert.match(w,/'record_deployment'=>\['from'=>\['deployment'\]/);
+assert.match(w,/deployment_required'\]\s*\?\?\s*0\)\s*===\s*1\s*\?\s*'deployment'\s*:\s*'ready_for_verification'/);
+assert.doesNotMatch(w,/\bmatch\s*\(/);
+assert.match(js,/5\. Deployment/);
