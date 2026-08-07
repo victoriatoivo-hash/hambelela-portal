@@ -28745,3 +28745,18 @@ body.performance-meeting-open .performance-meeting .epi-report-page.is-meeting-c
 #error-task-details .error-limited-edit__actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
 #error-task-details .error-limited-edit__feedback{min-height:18px;color:#721b1a;font-size:12px}
 @media(max-width:430px){#error-task-details .error-limited-edit__context{grid-template-columns:1fr}#error-task-details .error-limited-edit__actions{display:grid;grid-template-columns:1fr}#error-task-details .error-limited-edit__actions button{width:100%}}
+/* System Issues Log: owner-controlled employee information requests */
+#system-issues-page .sil-next-step,#system-issues-page .sil-employee-info-request,#system-issues-page .sil-owner-info-request{width:100%;padding:14px;border:1px solid #ede3d8;border-radius:10px;background:#fdf6ee;box-sizing:border-box}
+#system-issues-page .sil-next-step h3,#system-issues-page .sil-employee-info-request h3,#system-issues-page .sil-owner-info-request h3{margin:0 0 7px;color:#721b1a;font:600 13px/1.3 Figtree,Inter,sans-serif}
+#system-issues-page .sil-next-step p,#system-issues-page .sil-employee-info-request__question{margin:0;color:#1a1a1a;font:400 12px/1.5 Figtree,Inter,sans-serif}
+#system-issues-page .sil-employee-info-request__header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}
+#system-issues-page .sil-employee-info-request__question{padding:10px 12px;margin-bottom:12px;border-left:3px solid #ab3619;border-radius:6px;background:#fff;white-space:pre-wrap}
+#system-issues-page .sil-employee-info-request label,#system-issues-page .sil-owner-info-request label{display:block;margin-bottom:6px;color:#721b1a;font:600 12px/1.3 Figtree,Inter,sans-serif}
+#system-issues-page .sil-employee-info-request textarea,#system-issues-page .sil-owner-info-request textarea{width:100%;min-height:90px;padding:10px 12px;border:1px solid #ede3d8;border-radius:8px;background:#fff;color:#1a1a1a;font:400 12px/1.5 Figtree,Inter,sans-serif;box-sizing:border-box;resize:vertical}
+#system-issues-page .sil-employee-info-request textarea:focus,#system-issues-page .sil-owner-info-request textarea:focus{border-color:#ab3619;outline:2px solid rgba(171,54,25,.12);outline-offset:1px}
+#system-issues-page .sil-send-information{min-height:32px;margin-top:10px;padding:7px 12px;border:0;border-radius:7px;background:#721b1a;color:#fff;font:600 12px/1.2 Figtree,Inter,sans-serif;cursor:pointer}
+#system-issues-page .sil-send-information:hover{background:#ab3619}#system-issues-page .sil-send-information:disabled{cursor:wait;opacity:.65}
+#system-issues-page .sil-attachment-toggle{display:flex;align-items:center;gap:7px;margin-top:9px}#system-issues-page .sil-attachment-toggle input{width:auto}
+#system-issues-page .sil-pending-request{padding:10px 12px;border-left:3px solid #ab3619;background:#fff}#system-issues-page .sil-pending-request p{font-size:12px;white-space:pre-wrap}
+#system-issues-page .sil-information-history{padding:12px 14px;border:1px solid #ede3d8;border-radius:10px;background:#fff}#system-issues-page .sil-information-history article{padding:10px 0;border-top:1px solid #f1e9e2}#system-issues-page .sil-information-history p,#system-issues-page .sil-information-history blockquote{margin:5px 0;font-size:12px;line-height:1.5}
+@media(max-width:430px){#system-issues-page .sil-next-step,#system-issues-page .sil-employee-info-request,#system-issues-page .sil-owner-info-request{padding:12px}#system-issues-page .sil-send-information{width:100%}}
