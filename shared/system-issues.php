@@ -31,35 +31,6 @@ function system_issue_find_visible(int $issueId,?int $userId=null,?bool $owner=n
 function system_issue_log_access_denied(int $issueId,string $action): void {
     error_log('system_issue_access_denied user_id='.(int)(current_user()['id']??0).' issue_id='.$issueId.' action='.preg_replace('/[^a-z0-9_.-]/i','',$action));
 }
-function system_issue_workflow_definitions(): array {return[
-    'awaiting_approval'=>['label'=>'Awaiting owner approval','internal'=>'brief_ready','employee'=>'under_review','badge'=>'Owner approval required'],
-    'approved'=>['label'=>'Approved for repair','internal'=>'codex_queued','employee'=>'fix_in_progress','badge'=>'Repair approved'],
-    'repair_queued'=>['label'=>'Repair queued','internal'=>'codex_queued','employee'=>'fix_in_progress','badge'=>'Repair approved'],
-    'repair_in_progress'=>['label'=>'Repair in progress','internal'=>'codex_running','employee'=>'fix_in_progress','badge'=>'Repair in progress'],
-    'pr_open'=>['label'=>'Pull request open','internal'=>'pr_open','employee'=>'fix_in_progress','badge'=>'Repair in progress'],
-    'testing'=>['label'=>'Testing in progress','internal'=>'testing','employee'=>'testing','badge'=>'Testing in progress'],
-    'tests_passed'=>['label'=>'Tests passed','internal'=>'testing','employee'=>'testing','badge'=>'Tests passed'],
-    'tests_failed'=>['label'=>'Tests failed','internal'=>'testing_failed','employee'=>'fix_in_progress','badge'=>'Owner attention required'],
-    'deploying'=>['label'=>'Deployment in progress','internal'=>'deploying','employee'=>'testing','badge'=>'Deployment in progress'],
-    'deployed'=>['label'=>'Deployed — verification required','internal'=>'deployed','employee'=>'testing','badge'=>'Live verification required'],
-    'deployment_failed'=>['label'=>'Deployment failed','internal'=>'deployment_failed','employee'=>'fix_in_progress','badge'=>'Owner attention required'],
-    'verified'=>['label'=>'Live verification passed','internal'=>'verified','employee'=>'done','badge'=>'Done'],
-    'done'=>['label'=>'Done','internal'=>'done','employee'=>'done','badge'=>'Done'],
-    'reopened'=>['label'=>'Reopened','internal'=>'reopened','employee'=>'reopened','badge'=>'Owner attention required'],
-    'deferred'=>['label'=>'Deferred','internal'=>'deferred','employee'=>'deferred','badge'=>'Deferred'],
-];}
-function system_issue_workflow_stage(array $issue): string {$stage=(string)($issue['workflow_stage']??'');if(isset(system_issue_workflow_definitions()[$stage]))return$stage;$legacy=['brief_ready'=>'awaiting_approval','codex_queued'=>'repair_queued','codex_running'=>'repair_in_progress','pr_open'=>'pr_open','testing'=>'testing','deployed'=>'deployed','verified'=>'verified','done'=>'done','reopened'=>'reopened','deferred'=>'deferred'];return$legacy[(string)($issue['internal_status']??'')]??'awaiting_approval';}
-function system_issue_workflow_allowed(): array {return[
-    'awaiting_approval'=>['approved','deferred'],'approved'=>['repair_queued','repair_in_progress','deferred'],
-    'repair_queued'=>['repair_in_progress','testing','tests_failed','deferred'],'repair_in_progress'=>['pr_open','testing','tests_failed','deferred'],
-    'pr_open'=>['testing','tests_failed','deferred'],'testing'=>['tests_passed','tests_failed'],
-    'tests_passed'=>['deploying'],'tests_failed'=>['repair_in_progress','deferred'],
-    'deploying'=>['deployed','deployment_failed'],'deployed'=>['verified','deployment_failed'],
-    'deployment_failed'=>['deploying','repair_in_progress','deferred'],'verified'=>['done','reopened'],
-    'done'=>['reopened'],'reopened'=>['approved','repair_in_progress','deferred'],'deferred'=>['reopened'],
-];}
-function system_issue_workflow_permitted(string $stage): array {$definitions=system_issue_workflow_definitions();$labels=['approved'=>'Approve repair','repair_queued'=>'Queue repair','repair_in_progress'=>'Start repair','pr_open'=>'Record pull request','testing'=>'Start testing','tests_passed'=>'Confirm tests passed','tests_failed'=>'Record tests failed','deploying'=>'Start deployment','deployed'=>'Confirm deployed','deployment_failed'=>'Record deployment failed','verified'=>'Confirm live verification','reopened'=>'Reopen issue','deferred'=>'Defer issue'];$result=[];foreach(system_issue_workflow_allowed()[$stage]??[]as$value)$result[]=['value'=>$value,'label'=>$labels[$value]??($definitions[$value]['label']??$value)];return$result;}
-function system_issue_workflow_next_action(string $stage): string {$actions=['tests_passed'=>'Confirm deployment after the repair is released.','deployed'=>'Complete live verification on the production portal.','verified'=>'Mark the verified issue Done.','done'=>'No further action is required.','tests_failed'=>'Resolve the failure, then move the repair forward.','deployment_failed'=>'Resolve the failure, then move the repair forward.','reopened'=>'Resolve the failure, then move the repair forward.'];return$actions[$stage]??'Select the next completed workflow stage.';}
 function system_issue_attention_summary(?int $userId=null,?string $roleKey=null): array {
     $summary=['count'=>0,'needs_information'=>0];
     try {
@@ -104,11 +75,11 @@ function system_issue_triage(int $issueId): array {
     $risk=in_array($brief['risk_level'],['low','medium','high','prohibited'],true)?$brief['risk_level']:'high';$missing=array_values(array_filter((array)$brief['missing_information']));$internal='brief_ready';$employee='reported';
     $version=(int)(ops_rows('SELECT COALESCE(MAX(version_number),0)+1 next_version FROM system_issue_ai_briefs WHERE issue_id=? AND ai_brief_json IS NOT NULL',[$issueId])[0]['next_version']??1);
     db()->beginTransaction();try{db()->prepare('UPDATE system_issue_ai_briefs SET is_current=0 WHERE issue_id=? AND ai_brief_json IS NOT NULL')->execute([$issueId]);$s=db()->prepare('INSERT INTO system_issue_ai_briefs(issue_id,ai_brief_json,ai_risk_level,ai_missing_info_requests,model,response_id,version_number,is_current,source_report_version) VALUES(?,?,?,?,?,?,?,1,1)');$s->execute([$issueId,json_encode($brief,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE),$risk,json_encode($missing,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE),$model,$response['id']??null,$version]);db()->commit();}catch(Throwable $e){if(db()->inTransaction())db()->rollBack();throw$e;}
-    db()->prepare('UPDATE system_issues SET title=?,ai_risk_level=?,internal_status=?,employee_status=? WHERE id=?')->execute([mb_substr((string)$brief['title'],0,190),$risk,$internal,$employee,$issueId]);system_issue_event($issueId,'ai_triage_completed','ai_processing',$internal,$missing?'AI identified information that the owner may choose to request.':'Structured repair brief ready.',['risk'=>$risk,'ai_missing_information'=>$missing]);
+    db()->prepare("UPDATE system_issues SET title=?,ai_risk_level=?,internal_status=?,employee_status='under_review',workflow_stage='awaiting_owner_approval',workflow_version=workflow_version+1 WHERE id=?")->execute([mb_substr((string)$brief['title'],0,190),$risk,$internal,$issueId]);system_issue_event($issueId,'ai_triage_completed','ai_processing','awaiting_owner_approval',$missing?'AI identified employee-observable information that the owner may choose to request.':'Structured repair brief ready.',['risk'=>$risk,'ai_missing_information'=>$missing]);
     system_issue_notify(['title'=>'System issue ready for review','message'=>$issue['issue_key'].' has a structured technical brief.','priority'=>$risk==='prohibited'?'urgent':'normal','action_link'=>BASE_URL.'/apps/operations/system-issues.php?issue='.$issueId],system_issue_owner_ids());
     return['ok'=>true,'brief'=>$brief,'duplicates'=>$duplicates];
 }
-function system_issue_store_ai_failure(int $issueId,string $model,string $error): void {db()->prepare('INSERT INTO system_issue_ai_briefs(issue_id,model,error_message) VALUES(?,?,?)')->execute([$issueId,$model,$error]);db()->prepare("UPDATE system_issues SET internal_status='new',employee_status='reported' WHERE id=?")->execute([$issueId]);system_issue_event($issueId,'ai_triage_failed','ai_processing','new','Issue saved — AI temporarily unavailable');}
+function system_issue_store_ai_failure(int $issueId,string $model,string $error): void {db()->prepare('INSERT INTO system_issue_ai_briefs(issue_id,model,error_message) VALUES(?,?,?)')->execute([$issueId,$model,$error]);db()->prepare("UPDATE system_issues SET internal_status='ai_failed',employee_status='reported',workflow_stage='ai_failed',workflow_version=workflow_version+1 WHERE id=?")->execute([$issueId]);system_issue_event($issueId,'ai_triage_failed','ai_processing','ai_failed','Issue saved — AI temporarily unavailable');}
 function system_issue_owner_recommendations(int $issueId): array {return ops_rows('SELECT r.*,e.full_name created_by_name FROM system_issue_owner_recommendations r LEFT JOIN ops_employees e ON e.id=r.created_by WHERE r.issue_id=? ORDER BY r.created_at ASC,r.id ASC',[$issueId]);}
 function system_issue_save_owner_recommendation(int $issueId,string $text): int {
     $text=trim($text);if($text==='')throw new RuntimeException('Enter a recommendation before saving.');if(mb_strlen($text)>6000)throw new RuntimeException('Recommendations must be 6,000 characters or fewer.');

@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS system_issues (
   issue_key VARCHAR(20) NULL UNIQUE,
   reporter_employee_id INT NOT NULL,
   reported_by_user_id INT NULL,
-  workflow_stage VARCHAR(40) NOT NULL DEFAULT 'awaiting_approval',
+  workflow_stage VARCHAR(40) NOT NULL DEFAULT 'reported',
   title VARCHAR(190) NOT NULL,
   problem TEXT NOT NULL,
   location VARCHAR(255) NOT NULL,
@@ -31,9 +31,40 @@ CREATE TABLE IF NOT EXISTS system_issues (
 
 ALTER TABLE system_issues ADD COLUMN IF NOT EXISTS reported_by_user_id INT NULL AFTER reporter_employee_id;
 ALTER TABLE system_issues ADD COLUMN IF NOT EXISTS workflow_stage VARCHAR(40) NOT NULL DEFAULT 'awaiting_approval' AFTER reported_by_user_id;
+ALTER TABLE system_issues ADD COLUMN IF NOT EXISTS workflow_version INT UNSIGNED NOT NULL DEFAULT 1 AFTER workflow_stage;
+ALTER TABLE system_issues ADD COLUMN IF NOT EXISTS approved_at DATETIME NULL AFTER deferred_reason;
+ALTER TABLE system_issues ADD COLUMN IF NOT EXISTS approved_by INT NULL AFTER approved_at;
+ALTER TABLE system_issues ADD COLUMN IF NOT EXISTS done_at DATETIME NULL AFTER verified_by;
 ALTER TABLE system_issues ADD INDEX IF NOT EXISTS idx_system_issues_reported_by_user (reported_by_user_id, created_at);
 UPDATE system_issues SET reported_by_user_id=reporter_employee_id WHERE reported_by_user_id IS NULL AND reporter_employee_id IS NOT NULL AND reporter_employee_id>0;
 UPDATE system_issues SET workflow_stage=CASE internal_status WHEN 'brief_ready' THEN 'awaiting_approval' WHEN 'codex_queued' THEN 'repair_queued' WHEN 'codex_running' THEN 'repair_in_progress' WHEN 'pr_open' THEN 'pr_open' WHEN 'testing' THEN 'testing' WHEN 'deployed' THEN 'deployed' WHEN 'verified' THEN 'verified' WHEN 'done' THEN 'done' WHEN 'deferred' THEN 'deferred' WHEN 'reopened' THEN 'reopened' ELSE workflow_stage END WHERE workflow_stage='awaiting_approval' AND internal_status<>'brief_ready';
+UPDATE system_issues SET workflow_stage=CASE workflow_stage WHEN 'awaiting_approval' THEN 'awaiting_owner_approval' WHEN 'owner_approval_required' THEN 'awaiting_owner_approval' WHEN 'approved_for_repair' THEN 'approved' WHEN 'repair_queued' THEN 'codex_queued' WHEN 'repair_in_progress' THEN 'codex_running' WHEN 'pr_open' THEN 'pr_ready' WHEN 'tests_passed' THEN 'ready_to_deploy' WHEN 'deployed' THEN 'verification_pending' WHEN 'verified' THEN IF(verified_at IS NULL,'verification_pending','done') ELSE workflow_stage END;
+
+CREATE TABLE IF NOT EXISTS system_issue_workflow_actions (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  issue_id BIGINT UNSIGNED NOT NULL,
+  idempotency_key VARCHAR(80) NOT NULL,
+  command VARCHAR(50) NOT NULL,
+  response_json JSON NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_system_issue_workflow_action (issue_id,idempotency_key),
+  CONSTRAINT fk_system_issue_workflow_action_issue FOREIGN KEY (issue_id) REFERENCES system_issues(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS system_issue_workflow_outbox (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  issue_id BIGINT UNSIGNED NOT NULL,
+  event_type VARCHAR(50) NOT NULL,
+  payload_json JSON NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending',
+  attempts INT UNSIGNED NOT NULL DEFAULT 0,
+  last_error TEXT NULL,
+  available_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  processed_at DATETIME NULL,
+  INDEX idx_system_issue_outbox_pending (status,available_at),
+  CONSTRAINT fk_system_issue_outbox_issue FOREIGN KEY (issue_id) REFERENCES system_issues(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS system_issue_events (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -152,6 +183,9 @@ CREATE TABLE IF NOT EXISTS system_issue_integrations (
   INDEX idx_system_issue_integrations_issue (issue_id, provider),
   CONSTRAINT fk_system_issue_integrations_issue FOREIGN KEY (issue_id) REFERENCES system_issues(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+UPDATE system_issues i SET workflow_stage='needs_information',workflow_version=workflow_version+1 WHERE i.internal_status='needs_information' AND EXISTS(SELECT 1 FROM system_issue_information_requests r WHERE r.issue_id=i.id AND r.status='pending') AND i.workflow_stage<>'needs_information';
+UPDATE system_issues i SET workflow_stage='awaiting_owner_approval',workflow_version=workflow_version+1,internal_status='brief_ready',employee_status='under_review' WHERE i.workflow_stage='needs_information' AND NOT EXISTS(SELECT 1 FROM system_issue_information_requests r WHERE r.issue_id=i.id AND r.status='pending');
 
 ALTER TABLE system_issue_integrations ADD COLUMN IF NOT EXISTS tests_confirmed_by_user_id INT NULL AFTER tests_passed_at;
 ALTER TABLE system_issue_integrations ADD COLUMN IF NOT EXISTS test_confirmation_note TEXT NULL AFTER tests_confirmed_by_user_id;

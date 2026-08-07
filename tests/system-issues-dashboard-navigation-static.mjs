@@ -14,7 +14,7 @@ assert.match(sidebar, /'id' => 'system-issues'/);
 assert.match(sidebar, /is-information-requested/);
 assert.match(sidebar, /information requested/);
 assert.match(features, /'system_issues'/);
-assert.match(issues, /reporter_employee_id=\?/);
+assert.match(issues, /reported_by_user_id=\?/);
 assert.match(issues, /duplicate_of_id IS NULL/);
 assert.match(issues, /employee_status NOT IN \('done','deferred'\)/);
 assert.match(issues, /employee_status IN \('reported','needs_information','under_review','fix_in_progress','testing','reopened'\)/);
