@@ -89,7 +89,17 @@ function error_parse_occurred_at(string $value): string
     return $local->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
 }
 
-function error_occurrence_expression(string $alias = 'el'): string { return "COALESCE({$alias}.occurred_at, {$alias}.created_at, {$alias}.logged_at)"; }
+function error_parse_occurred_on(string $value): string
+{
+    $value=trim($value);$timezone=new DateTimeZone('Africa/Windhoek');$date=DateTimeImmutable::createFromFormat('!Y-m-d',$value,$timezone);$errors=DateTimeImmutable::getLastErrors();
+    if(!$date||(is_array($errors)&&(($errors['warning_count']??0)||($errors['error_count']??0)))||$date->format('Y-m-d')!==$value)throw new RuntimeException('Please select the date the error occurred.');
+    if($date>new DateTimeImmutable('today',$timezone))throw new RuntimeException('The error occurrence date cannot be in the future.');
+    return$value;
+}
+
+function error_occurrence_expression(string $alias = 'el'): string { return "COALESCE({$alias}.occurred_on, DATE({$alias}.occurred_at), DATE({$alias}.created_at), DATE({$alias}.logged_at))"; }
+function error_occurred_on_label(?string $value): string {if(!$value)return'—';$time=strtotime($value);return$time?date('j M Y',$time):$value;}
+function error_logged_label(?string $value): string {if(!$value)return'—';try{return(new DateTimeImmutable($value,new DateTimeZone('UTC')))->setTimezone(new DateTimeZone('Africa/Windhoek'))->format('j M Y · H:i');}catch(Throwable){return$value;}}
 function error_occurrence_input(?string $utc): string
 {
     if (!$utc) return '';
@@ -142,6 +152,8 @@ function error_bootstrap_schema(): void
         'updated_at' => "ALTER TABLE ops_error_logs ADD COLUMN updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER logged_at",
         'created_at' => "ALTER TABLE ops_error_logs ADD COLUMN created_at DATETIME NULL AFTER logged_at",
         'occurred_at' => "ALTER TABLE ops_error_logs ADD COLUMN occurred_at DATETIME NULL AFTER created_at",
+        'occurred_on' => "ALTER TABLE ops_error_logs ADD COLUMN occurred_on DATE NULL AFTER occurred_at",
+        'occurred_on_source' => "ALTER TABLE ops_error_logs ADD COLUMN occurred_on_source VARCHAR(40) NULL AFTER occurred_on",
         'deleted_at' => "ALTER TABLE ops_error_logs ADD COLUMN deleted_at DATETIME NULL AFTER updated_at",
         'deleted_by' => "ALTER TABLE ops_error_logs ADD COLUMN deleted_by INT NULL AFTER deleted_at",
     ];
@@ -152,6 +164,11 @@ function error_bootstrap_schema(): void
     error_try_sql("UPDATE ops_error_logs SET status = 'open' WHERE status IS NULL OR status = ''");
     error_try_sql("UPDATE ops_error_logs SET status = 'open' WHERE status = 'in_review'");
     error_try_sql("UPDATE ops_error_logs SET created_at = logged_at WHERE created_at IS NULL");
+    error_try_sql("ALTER TABLE ops_error_logs MODIFY financial_impact DECIMAL(12,2) NULL DEFAULT NULL");
+    error_try_sql("CREATE TABLE IF NOT EXISTS ops_error_field_audit (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,error_id INT NOT NULL,field_name VARCHAR(60) NOT NULL,previous_value TEXT NULL,new_value TEXT NULL,changed_by_employee_id INT NULL,changed_by_role VARCHAR(80) NOT NULL,change_source VARCHAR(60) NOT NULL,created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,INDEX idx_error_field_audit_error(error_id,created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    error_try_sql("INSERT INTO ops_error_field_audit(error_id,field_name,previous_value,new_value,changed_by_employee_id,changed_by_role,change_source) SELECT id,'occurred_on',NULL,DATE(COALESCE(occurred_at,created_at,logged_at)),NULL,'system','migrated_from_logged_date' FROM ops_error_logs WHERE occurred_on IS NULL");
+    error_try_sql("UPDATE ops_error_logs SET occurred_on=DATE(COALESCE(occurred_at,created_at,logged_at)),occurred_on_source='migrated_from_logged_date' WHERE occurred_on IS NULL");
+    error_try_sql("CREATE INDEX idx_error_occurred_on ON ops_error_logs (occurred_on)");
     error_try_sql("CREATE INDEX idx_error_occurred_at ON ops_error_logs (occurred_at)");
     error_try_sql("UPDATE ops_error_logs SET attribution_type='employee', attributed_employee_id=responsible_employee_id, original_attribution_type='employee', original_attributed_employee_id=responsible_employee_id WHERE attribution_type IS NULL AND responsible_employee_id IS NOT NULL");
 }
@@ -169,7 +186,8 @@ function error_parse_attribution(array $employeeMap): array
 function error_parse_financial_impact(): array
 {
     $choice=(string)($_POST['has_financial_impact']??'');
-    if(!in_array($choice,['0','1'],true))throw new RuntimeException('Please indicate whether this error has a financial impact.');
+    if(!in_array($choice,['unknown','0','1'],true))throw new RuntimeException('Please indicate whether this error has a financial impact.');
+    if($choice==='unknown')return[null,null,''];
     if($choice==='0')return[0,'0.00',''];
     $amount=trim((string)($_POST['financial_impact_amount']??''));
     if(!preg_match('/^(?:0|[1-9]\d{0,9})(?:\.\d{1,2})?$/',$amount))throw new RuntimeException('Enter the financial impact amount.');
@@ -283,7 +301,8 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $category = ops_post_string('category', 100);
             $otherCategory = ops_post_string('other_category', 100);
             $severity = ops_post_string('severity', 20);
-            $occurredAt = error_parse_occurred_at((string) ($_POST['occurred_at'] ?? ''));
+            $occurredOn = error_parse_occurred_on((string) ($_POST['occurred_on'] ?? ''));
+            $occurredAt = $occurredOn.' 00:00:00';
             [$attributionType,$responsibleEmployeeId]=error_parse_attribution($employeeMap);
             [$hasFinancialImpact,$financialImpact,$financialImpactNotes]=error_parse_financial_impact();
             $people=$responsibleEmployeeId?[$responsibleEmployeeId]:[];
@@ -305,8 +324,8 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!array_key_exists($status, $statusLabels)) $status = 'open';
             $stmt = db()->prepare(
                 "INSERT INTO ops_error_logs
-                 (error_title, employee_id, responsible_employee_id, attribution_type, attributed_employee_id, original_attribution_type, original_attributed_employee_id, people_involved, order_id, packing_task_id, affects_kpi_accuracy, accuracy_verified_by, accuracy_verified_at, attribution_verified_by, attribution_verified_at, order_reference, category, severity, description, customer_impact, financial_impact, has_financial_impact, financial_impact_notes, resolution, repeat_issue, repeat_note, status, logged_by, logged_by_user_id, occurred_at, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())"
+                 (error_title, employee_id, responsible_employee_id, attribution_type, attributed_employee_id, original_attribution_type, original_attributed_employee_id, people_involved, order_id, packing_task_id, affects_kpi_accuracy, accuracy_verified_by, accuracy_verified_at, attribution_verified_by, attribution_verified_at, order_reference, category, severity, description, customer_impact, financial_impact, has_financial_impact, financial_impact_notes, resolution, repeat_issue, repeat_note, status, logged_by, logged_by_user_id, occurred_at, occurred_on, occurred_on_source, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'reported', UTC_TIMESTAMP())"
             );
             $stmt->execute([
                 $title,
@@ -339,6 +358,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $currentEmployeeId,
                 (int)(current_user()['id']??0)?:null,
                 $occurredAt,
+                $occurredOn,
             ]);
             $errorId = (int) db()->lastInsertId();
             $paths = error_upload_files($errorId);
@@ -346,7 +366,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = db()->prepare('UPDATE ops_error_logs SET attachment_paths = ? WHERE id = ?');
                 $stmt->execute([json_encode($paths, JSON_UNESCAPED_SLASHES), $errorId]);
             }
-            $eventMeta=['severity'=>$severity,'category'=>$category,'occurred_at'=>$occurredAt,'created_at'=>gmdate('Y-m-d H:i:s'),'logged_by_user_id'=>(int)(current_user()['id']??0),'logged_by_employee_id'=>$currentEmployeeId,'attribution_type'=>$attributionType,'attributed_employee_id'=>$responsibleEmployeeId,'has_financial_impact'=>$hasFinancialImpact,'financial_impact_amount'=>$financialImpact,'kpi_eligible'=>$attributionType==='employee'&&$accuracyVerified,'business_health_eligible'=>true];
+            $eventMeta=['severity'=>$severity,'category'=>$category,'occurred_on'=>$occurredOn,'occurred_at'=>$occurredAt,'created_at'=>gmdate('Y-m-d H:i:s'),'logged_by_user_id'=>(int)(current_user()['id']??0),'logged_by_employee_id'=>$currentEmployeeId,'attribution_type'=>$attributionType,'attributed_employee_id'=>$responsibleEmployeeId,'has_financial_impact'=>$hasFinancialImpact,'financial_impact_amount'=>$financialImpact,'kpi_eligible'=>$attributionType==='employee'&&$accuracyVerified,'business_health_eligible'=>true];
             ops_activity_log('error_logged','error_log',$errorId,$eventMeta);ops_kpi_record_event('error_log','error',$errorId,'error_created',null,$attributionType,$currentEmployeeId,['metadata'=>$eventMeta]);ops_kpi_record_event('error_log','error',$errorId,'attribution_selected',null,$attributionType,$currentEmployeeId,['metadata'=>$eventMeta]);ops_kpi_record_event('error_log','error',$errorId,'financial_impact_selected',null,$hasFinancialImpact?'yes':'no',$currentEmployeeId,['metadata'=>$eventMeta]);
             notifications_create_for_roles([
                 'title' => $severity === 'critical' ? 'Critical error logged' : 'New error logged',
@@ -362,6 +382,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($action === 'update_error') {
+            if (!$isOwnerErrorUser) throw new RuntimeException('Only the owner can perform a full error edit.');
             $errorId = (int) ($_POST['incident_id'] ?? 0);
             if ($errorId <= 0) throw new RuntimeException('Invalid incident.');
 
@@ -378,7 +399,8 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $category = ops_post_string('category', 100);
             $otherCategory = ops_post_string('other_category', 100);
             $severity = ops_post_string('severity', 20);
-            $submittedOccurredAt = error_parse_occurred_at((string) ($_POST['occurred_at'] ?? ''));
+            $submittedOccurredOn = error_parse_occurred_on((string) ($_POST['occurred_on'] ?? ''));
+            $submittedOccurredAt = $submittedOccurredOn.' 00:00:00';
             [$attributionType,$responsibleEmployeeId]=error_parse_attribution($employeeMap);
             [$hasFinancialImpact,$financialImpact,$financialImpactNotes]=error_parse_financial_impact();
             $people=$responsibleEmployeeId?[$responsibleEmployeeId]:[];
@@ -392,7 +414,8 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             if (!array_key_exists($severity, $severityLabels)) throw new RuntimeException('Choose a severity.');
             $existingOccurredAt = (string) (($existing['occurred_at'] ?? null) ?: ($existing['created_at'] ?? null) ?: ($existing['logged_at'] ?? ''));
-            $occurrenceChanged = $existingOccurredAt !== $submittedOccurredAt;
+            $existingOccurredOn = (string)($existing['occurred_on']??substr($existingOccurredAt,0,10));
+            $occurrenceChanged = $existingOccurredOn !== $submittedOccurredOn;
             $occurrenceChangeReason = ops_post_string('occurred_at_change_reason', 1000);
             if ($occurrenceChanged && !$isOwnerErrorUser) throw new RuntimeException('Only an owner/admin may correct when an error occurred.');
             if ($occurrenceChanged && $occurrenceChangeReason === '') throw new RuntimeException('An owner/admin reason is required to change the occurrence time.');
@@ -437,7 +460,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $stmt = db()->prepare(
                 "UPDATE ops_error_logs
-                 SET error_title = ?, employee_id = ?, responsible_employee_id = ?, attribution_type=?, attributed_employee_id=?, people_involved = ?, packing_task_id = ?, affects_kpi_accuracy = ?, accuracy_verified_by = ?, accuracy_verified_at = ?, attribution_verified_by=?, attribution_verified_at=?, order_reference = ?, category = ?, severity = ?, description = ?, financial_impact = ?, has_financial_impact=?, financial_impact_notes=?, resolution = ?, repeat_issue = ?, status = ?, occurred_at = ?
+                 SET error_title = ?, employee_id = ?, responsible_employee_id = ?, attribution_type=?, attributed_employee_id=?, people_involved = ?, packing_task_id = ?, affects_kpi_accuracy = ?, accuracy_verified_by = ?, accuracy_verified_at = ?, attribution_verified_by=?, attribution_verified_at=?, order_reference = ?, category = ?, severity = ?, description = ?, financial_impact = ?, has_financial_impact=?, financial_impact_notes=?, resolution = ?, repeat_issue = ?, status = ?, occurred_at = ?, occurred_on=?, occurred_on_source='corrected_by_owner'
                  WHERE id = ? AND deleted_at IS NULL"
             );
             $stmt->execute([
@@ -464,9 +487,10 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $newData['repeat_issue'],
                 $newData['status'],
                 $submittedOccurredAt,
+                $submittedOccurredOn,
                 $errorId,
             ]);
-            if ($occurrenceChanged) ops_activity_log('error_occurrence_corrected', 'error_log', $errorId, ['previous_occurred_at'=>$existingOccurredAt, 'new_occurred_at'=>$submittedOccurredAt, 'reason'=>$occurrenceChangeReason, 'actor_employee_id'=>$currentEmployeeId]);
+            if ($occurrenceChanged) ops_activity_log('error_occurrence_date_changed', 'error_log', $errorId, ['previous_value'=>$existingOccurredOn, 'new_value'=>$submittedOccurredOn, 'reason'=>$occurrenceChangeReason, 'actor_employee_id'=>$currentEmployeeId]);
             if($attributionChanged){$audit=['previous_attribution_type'=>$oldAttribution?:'awaiting_owner_review','previous_attributed_employee_id'=>$oldAttributedEmployee,'new_attribution_type'=>$attributionType,'new_attributed_employee_id'=>$responsibleEmployeeId,'reason'=>$attributionNote,'actor_employee_id'=>$currentEmployeeId,'kpi_eligible'=>$attributionType==='employee'&&$accuracyVerified,'business_health_eligible'=>true];ops_activity_log('error_attribution_corrected','error_log',$errorId,$audit);ops_kpi_record_event('error_log','error',$errorId,'attribution_corrected',$oldAttribution?:null,$attributionType,$currentEmployeeId,['reason_note'=>$attributionNote,'metadata'=>$audit]);}
             if(isset($changes['financial_impact'])||isset($changes['has_financial_impact'])){$financialAudit=['has_financial_impact'=>$hasFinancialImpact,'previous_financial_amount'=>(string)($existing['financial_impact']??''),'new_financial_amount'=>$financialImpact,'actor_employee_id'=>$currentEmployeeId,'business_health_eligible'=>true];ops_activity_log('error_financial_impact_changed','error_log',$errorId,$financialAudit);ops_kpi_record_event('error_log','error',$errorId,'financial_impact_changed',(string)($existing['financial_impact']??''),$financialImpact,$currentEmployeeId,['metadata'=>$financialAudit]);}
 
@@ -497,6 +521,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($action === 'update_status') {
+            if (!$isOwnerErrorUser) throw new RuntimeException('Only the owner can change error status.');
             $errorId = (int) ($_POST['error_id'] ?? 0);
             $status = ops_post_string('status', 30);
             if (!array_key_exists($status, $statusLabels)) throw new RuntimeException('Choose a valid status.');
@@ -528,13 +553,17 @@ if ($ready && empty($_SESSION['incident_submission_token'])) {
 $incidentSubmissionToken = (string) ($_SESSION['incident_submission_token'] ?? '');
 if (empty($_SESSION['error_instruction_csrf_token'])) $_SESSION['error_instruction_csrf_token'] = bin2hex(random_bytes(32));
 if (empty($_SESSION['error_instruction_submission_token'])) $_SESSION['error_instruction_submission_token'] = bin2hex(random_bytes(32));
+if (empty($_SESSION['error_limited_edit_csrf'])) $_SESSION['error_limited_edit_csrf'] = bin2hex(random_bytes(32));
 $errorInstructionCsrfToken = (string) $_SESSION['error_instruction_csrf_token'];
 $errorInstructionSubmissionToken = (string) $_SESSION['error_instruction_submission_token'];
+$errorLimitedEditCsrf=(string)$_SESSION['error_limited_edit_csrf'];
 
 $filters = [
     'month' => trim((string) ($_GET['month'] ?? date('Y-m'))),
     'date_from' => trim((string) ($_GET['date_from'] ?? '')),
     'date_to' => trim((string) ($_GET['date_to'] ?? '')),
+    'date_basis'=>trim((string)($_GET['date_basis']??'occurred')),
+    'sort'=>trim((string)($_GET['sort']??'occurred_newest')),
     'severity' => trim((string) ($_GET['severity'] ?? '')),
     'category' => trim((string) ($_GET['category'] ?? '')),
     'employee_id' => trim((string) ($_GET['employee_id'] ?? '')),
@@ -546,24 +575,25 @@ $filters = [
     'status' => trim((string) ($_GET['status'] ?? '')),
     'search' => trim((string) ($_GET['search'] ?? '')),
 ];
-$filtersAreActive = $filters['date_from'] !== '' || $filters['date_to'] !== '' || $filters['severity'] !== '' || $filters['category'] !== '' || $filters['employee_id'] !== '' || $filters['logged_for']!=='' || $filters['financial_impact_filter']!=='' || $filters['repeat_issue'] !== '' || $filters['customer_impacted'] !== '' || $filters['order_reference'] !== '' || $filters['status'] !== '' || $filters['search'] !== '';
+$filtersAreActive = $filters['date_from'] !== '' || $filters['date_to'] !== '' || $filters['date_basis']!=='occurred' || $filters['sort']!=='occurred_newest' || $filters['severity'] !== '' || $filters['category'] !== '' || $filters['employee_id'] !== '' || $filters['logged_for']!=='' || $filters['financial_impact_filter']!=='' || $filters['repeat_issue'] !== '' || $filters['customer_impacted'] !== '' || $filters['order_reference'] !== '' || $filters['status'] !== '' || $filters['search'] !== '';
 
 $where = ['el.deleted_at IS NULL'];
 $params = [];
 $requestedErrorId = max(0, (int) ($_GET['error_id'] ?? 0));
+$dateExpression=$filters['date_basis']==='logged'?'DATE(COALESCE(el.created_at,el.logged_at))':error_occurrence_expression('el');
 if ($requestedErrorId > 0) {
     $where[] = 'el.id = ?';
     $params[] = $requestedErrorId;
 } elseif ($filters['date_from'] !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['date_from'])) {
-    $where[] = 'DATE(' . error_occurrence_expression('el') . ') >= ?';
+    $where[] = 'DATE(' . $dateExpression . ') >= ?';
     $params[] = $filters['date_from'];
 }
 if ($filters['date_to'] !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['date_to'])) {
-    $where[] = 'DATE(' . error_occurrence_expression('el') . ') <= ?';
+    $where[] = 'DATE(' . $dateExpression . ') <= ?';
     $params[] = $filters['date_to'];
 }
 if ($requestedErrorId <= 0 && !$filters['date_from'] && !$filters['date_to'] && preg_match('/^\d{4}-\d{2}$/', $filters['month'])) {
-    $where[] = "DATE_FORMAT(" . error_occurrence_expression('el') . ", '%Y-%m') = ?";
+    $where[] = "DATE_FORMAT(" . $dateExpression . ", '%Y-%m') = ?";
     $params[] = $filters['month'];
 }
 if (array_key_exists($filters['severity'], $severityLabels)) {
@@ -616,13 +646,14 @@ if (array_key_exists($filters['status'], $statusLabels)) {
 }
 $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
+$sortSql=['occurred_newest'=>error_occurrence_expression('el').' DESC','occurred_oldest'=>error_occurrence_expression('el').' ASC','logged_newest'=>'COALESCE(el.created_at,el.logged_at) DESC','logged_oldest'=>'COALESCE(el.created_at,el.logged_at) ASC','financial_highest'=>'el.financial_impact DESC','financial_lowest'=>'el.financial_impact ASC'][$filters['sort']]??error_occurrence_expression('el').' DESC';
 $errors = $ready ? ops_rows(
     "SELECT el.*, e.full_name AS primary_employee_name, lb.full_name AS logged_by_name
      FROM ops_error_logs el
      LEFT JOIN ops_employees e ON e.id = el.employee_id
      LEFT JOIN ops_employees lb ON lb.id = el.logged_by
      {$whereSql}
-     ORDER BY " . error_occurrence_expression('el') . " DESC
+     ORDER BY {$sortSql},el.id DESC
      LIMIT 300",
     $params
 ) : [];
@@ -757,6 +788,8 @@ include BASE_PATH . '/shared/sidebar.php';
                 <label>Month<input type="month" name="month" value="<?= htmlspecialchars($filters['month'], ENT_QUOTES, 'UTF-8') ?>"></label>
                 <label>Date from<input type="date" name="date_from" value="<?= htmlspecialchars($filters['date_from'], ENT_QUOTES, 'UTF-8') ?>"></label>
                 <label>Date to<input type="date" name="date_to" value="<?= htmlspecialchars($filters['date_to'], ENT_QUOTES, 'UTF-8') ?>"></label>
+                <label>Date filter<select name="date_basis" data-portal-custom-select><?php ops_select_options(['occurred'=>'Date Error Occurred','logged'=>'Date Logged'],$filters['date_basis']);?></select></label>
+                <label>Sort<select name="sort" data-portal-custom-select><?php ops_select_options(['occurred_newest'=>'Error Occurred — Newest','occurred_oldest'=>'Error Occurred — Oldest','logged_newest'=>'Date Logged — Newest','logged_oldest'=>'Date Logged — Oldest','financial_highest'=>'Financial Impact — Highest','financial_lowest'=>'Financial Impact — Lowest'],$filters['sort']);?></select></label>
                 <label>Severity<select name="severity" data-portal-custom-select><option value="">All severity</option><?php ops_select_options($severityLabels, $filters['severity']); ?></select></label>
                 <label>Category<select name="category" data-portal-custom-select><option value="">All categories</option><?php ops_select_options($errorCategories, $filters['category']); ?></select></label>
                 <?php if ($showFullErrorLog): ?><label>Person involved<select name="employee_id" data-portal-custom-select><option value="">All people</option><?php foreach ($employees as $employee): ?><option value="<?= (int) $employee['id'] ?>" <?= (string) $employee['id'] === $filters['employee_id'] ? 'selected' : '' ?>><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></label><?php endif; ?>
@@ -782,6 +815,7 @@ include BASE_PATH . '/shared/sidebar.php';
         <table class="error-board-table<?= $showFullErrorLog ? '' : ' error-board-table--simple' ?>">
             <colgroup>
                 <col class="col-date">
+                <col class="col-date">
                 <col class="col-title">
                 <col class="col-order">
                 <?php if ($showFullErrorLog): ?>
@@ -802,7 +836,8 @@ include BASE_PATH . '/shared/sidebar.php';
             </colgroup>
             <thead>
                 <tr>
-                    <th scope="col">Date</th>
+                    <th scope="col">Date Error Occurred</th>
+                    <th scope="col">Date Logged</th>
                     <th scope="col">Error Title</th>
                     <th scope="col">Order ID</th>
                     <?php if ($showFullErrorLog): ?>
@@ -834,20 +869,22 @@ include BASE_PATH . '/shared/sidebar.php';
                 <?php $errorTitle = (string) ($error['error_title'] ?: ($errorCategories[(string) $error['category']] ?? $error['category'])); ?>
                 <tr class="error-board-row" data-error-open="<?= (int) $error['id'] ?>" tabindex="0" aria-label="View incident <?= htmlspecialchars($errorTitle, ENT_QUOTES, 'UTF-8') ?>">
                     <?php if ($showFullErrorLog): ?>
-                        <td><?= error_date_label((string) (($error['occurred_at'] ?? null) ?: ($error['created_at'] ?? null) ?: ($error['logged_at'] ?? ''))) ?></td>
+                        <td data-error-occurred-cell="<?= (int)$error['id'] ?>"><?= htmlspecialchars(error_occurred_on_label((string)($error['occurred_on']??'')),ENT_QUOTES,'UTF-8') ?><?php if(($error['occurred_on_source']??'')==='migrated_from_logged_date'):?><small class="error-date-source">Estimated from Date Logged</small><?php endif;?></td>
+                        <td><?= htmlspecialchars(error_logged_label((string)(($error['created_at']??null)?:($error['logged_at']??''))),ENT_QUOTES,'UTF-8') ?></td>
                         <td><span class="error-board-title-link"><?= htmlspecialchars($errorTitle, ENT_QUOTES, 'UTF-8') ?></span><?php if (($instructionUnreadByError[(int)$error['id']] ?? 0) > 0): ?><span class="owner-instruction-unread" aria-label="<?= (int)$instructionUnreadByError[(int)$error['id']] ?> unread owner instructions"><?= (int)$instructionUnreadByError[(int)$error['id']] ?> new</span><?php endif; ?></td>
                         <td><?= htmlspecialchars((string) ($error['order_reference'] ?: $error['order_id'] ?: '-'), ENT_QUOTES, 'UTF-8') ?></td>
                         <td><?= htmlspecialchars($errorCategories[(string) $error['category']] ?? (string) $error['category'], ENT_QUOTES, 'UTF-8') ?></td>
                         <td><span class="error-board-severity severity-<?= htmlspecialchars($severity, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($severityLabels[$severity] ?? $severity, ENT_QUOTES, 'UTF-8') ?></span></td>
                         <td><?= htmlspecialchars($peopleText, ENT_QUOTES, 'UTF-8') ?></td>
                         <td><?= htmlspecialchars(error_attribution_label($error,$employeeMap),ENT_QUOTES,'UTF-8') ?></td>
-                        <td><?= $error['has_financial_impact']===null?'Not historically captured':((int)$error['has_financial_impact']===1?'N$'.number_format((float)$error['financial_impact'],2):'No impact') ?></td>
+                        <td data-error-finance-cell="<?= (int)$error['id'] ?>"><?= $error['financial_impact']===null?'Not recorded':'N$'.number_format((float)$error['financial_impact'],2) ?></td>
                         <td><?= trim((string) ($error['customer_impact'] ?? '')) !== '' ? 'Yes' : 'No' ?></td>
                         <td><span class="error-board-status status-<?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($statusLabels[$status] ?? $status, ENT_QUOTES, 'UTF-8') ?></span></td>
                         <td><?= (int) ($error['repeat_issue'] ?? 0) === 1 ? 'Yes' : 'No' ?></td>
                         <td><?= htmlspecialchars((string) ($error['logged_by_name'] ?? 'System'), ENT_QUOTES, 'UTF-8') ?></td>
                     <?php else: ?>
-                        <td><?= error_date_label((string) (($error['occurred_at'] ?? null) ?: ($error['created_at'] ?? null) ?: ($error['logged_at'] ?? ''))) ?></td>
+                        <td>Occurred: <?= htmlspecialchars(error_occurred_on_label((string)($error['occurred_on']??'')),ENT_QUOTES,'UTF-8') ?></td>
+                        <td>Logged: <?= htmlspecialchars(error_logged_label((string)(($error['created_at']??null)?:($error['logged_at']??''))),ENT_QUOTES,'UTF-8') ?></td>
                         <td><span class="error-board-title-link"><?= htmlspecialchars($errorTitle, ENT_QUOTES, 'UTF-8') ?></span><?php if (($instructionUnreadByError[(int)$error['id']] ?? 0) > 0): ?><span class="owner-instruction-unread" aria-label="<?= (int)$instructionUnreadByError[(int)$error['id']] ?> unread owner instructions"><?= (int)$instructionUnreadByError[(int)$error['id']] ?> new</span><?php endif; ?></td>
                         <td><?= htmlspecialchars((string) ($error['order_reference'] ?: $error['order_id'] ?: '-'), ENT_QUOTES, 'UTF-8') ?></td>
                         <td><span class="error-board-severity severity-<?= htmlspecialchars($severity, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($severityLabels[$severity] ?? $severity, ENT_QUOTES, 'UTF-8') ?></span></td>
@@ -855,7 +892,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     <?php endif; ?>
                 </tr>
             <?php endforeach; ?>
-            <?php if (!$sectionErrors): ?><tr class="error-board-empty"><td colspan="<?= $showFullErrorLog ? 12 : 5 ?>">No <?= strtolower(htmlspecialchars($sectionTitle, ENT_QUOTES, 'UTF-8')) ?> found for the selected filters.</td></tr><?php endif; ?>
+            <?php if (!$sectionErrors): ?><tr class="error-board-empty"><td colspan="<?= $showFullErrorLog ? 13 : 6 ?>">No <?= strtolower(htmlspecialchars($sectionTitle, ENT_QUOTES, 'UTF-8')) ?> found for the selected filters.</td></tr><?php endif; ?>
             </tbody>
         </table>
         </div>
@@ -878,8 +915,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     <h3><i data-lucide="file-warning"></i> Error Information</h3>
                     <div class="form-grid compact">
                         <label class="span-2">Error Title<input name="error_title" required placeholder="Wrong product packed"></label>
-                        <label>Date and time the error occurred<input type="datetime-local" name="occurred_at" required value="<?= htmlspecialchars((new DateTimeImmutable('now', new DateTimeZone('Africa/Windhoek')))->format('Y-m-d\TH:i'), ENT_QUOTES, 'UTF-8') ?>"></label>
-                        <?php if ($isOwnerErrorUser): ?><label>Reason for changing occurrence time<input name="occurred_at_change_reason" maxlength="1000" placeholder="Required only when correcting an existing error"></label><?php endif; ?>
+                        <label>Date Error Occurred *<input type="date" name="occurred_on" required max="<?= (new DateTimeImmutable('today',new DateTimeZone('Africa/Windhoek')))->format('Y-m-d') ?>" value="<?= (new DateTimeImmutable('today',new DateTimeZone('Africa/Windhoek')))->format('Y-m-d') ?>"><small>Select the date the error actually happened, even if you are reporting it today.</small></label><?php if($isOwnerErrorUser):?><label>Reason for changing occurrence date<input name="occurred_at_change_reason" maxlength="1000" placeholder="Required only when correcting an existing error"></label><?php endif;?>
                         <label>Order ID if applicable<input name="order_reference" placeholder="#33863 or WEB-33780"></label>
                         <div class="incident-category-field">
                             <label class="incident-category-label" for="error-category-value">Category</label>
@@ -972,7 +1008,7 @@ include BASE_PATH . '/shared/sidebar.php';
                             <label for="resolution">Resolution</label>
                             <textarea id="resolution" name="resolution" placeholder="customer contacted, stock updated, product replaced"></textarea>
                         </div>
-                        <fieldset class="error-financial-impact-field" id="error-financial-impact-group"><legend>DOES THIS ERROR HAVE A FINANCIAL IMPACT? <span class="error-required-mark" aria-hidden="true">*</span></legend><div class="error-financial-impact-options"><label><input type="radio" name="has_financial_impact" value="0" required><span>No</span></label><label><input type="radio" name="has_financial_impact" value="1"><span>Yes</span></label></div></fieldset>
+                        <fieldset class="error-financial-impact-field" id="error-financial-impact-group"><legend>DOES THIS ERROR HAVE A FINANCIAL IMPACT? <span class="error-required-mark" aria-hidden="true">*</span></legend><div class="error-financial-impact-options"><label><input type="radio" name="has_financial_impact" value="unknown" required><span>Not recorded</span></label><label><input type="radio" name="has_financial_impact" value="0"><span>N$0.00</span></label><label><input type="radio" name="has_financial_impact" value="1"><span>Yes</span></label></div></fieldset>
                         <div class="incident-field error-financial-impact-amount" hidden><label for="financial-impact">FINANCIAL IMPACT AMOUNT (N$) <span class="error-required-mark" aria-hidden="true">*</span></label><div class="error-money-input"><span>N$</span><input id="financial-impact" inputmode="decimal" name="financial_impact_amount" pattern="^(?:0|[1-9]\d{0,9})(?:\.\d{1,2})?$" disabled></div></div>
                         <div class="incident-field error-financial-impact-notes" hidden><label for="financial-impact-notes">FINANCIAL IMPACT NOTES</label><textarea id="financial-impact-notes" name="financial_impact_notes" placeholder="Briefly explain the cost, replacement, refund, damaged stock or other financial effect."></textarea></div>
                     </div>
@@ -1001,13 +1037,14 @@ include BASE_PATH . '/shared/sidebar.php';
         $attachments = error_json_array((string) ($error['attachment_paths'] ?? ''));
         $severity = (string) ($error['severity'] ?? 'low');
         $status = (string) ($error['status'] ?? 'open');
-        $canUpdateThisError = $isOwnerErrorUser || ($isFrontDeskErrorUser && (int) ($error['logged_by'] ?? 0) === (int) $currentEmployeeId);
+        $canUpdateThisError = $isOwnerErrorUser;
+        $canLimitedEditThisError = $isOwnerErrorUser || $isFrontDeskErrorUser;
         $canDeleteThisError = in_array($currentRoleKey, ['owner_admin', 'owner', 'admin'], true);
         $storedCategory = (string) ($error['category'] ?? '');
         $editData = [
             'id' => $errorId,
             'error_title' => (string) ($error['error_title'] ?? ''),
-            'occurred_at' => error_occurrence_input((string) (($error['occurred_at'] ?? null) ?: ($error['created_at'] ?? null) ?: ($error['logged_at'] ?? ''))),
+            'occurred_on' => (string)($error['occurred_on']??''),
             'order_reference' => (string) ($error['order_reference'] ?? ''),
             'category' => array_key_exists($storedCategory, $errorCategories) ? $storedCategory : 'other',
             'other_category' => array_key_exists($storedCategory, $errorCategories) ? '' : $storedCategory,
@@ -1042,11 +1079,12 @@ include BASE_PATH . '/shared/sidebar.php';
                 <button class="incident-details-close" type="button" data-error-close aria-label="Close error details"><i data-lucide="x"></i></button>
             </div>
             <div class="incident-details-body">
-                <?php if ($canUpdateThisError || $canDeleteThisError): ?>
+                <?php if ($canUpdateThisError || $canLimitedEditThisError || $canDeleteThisError): ?>
                     <div class="incident-panel-actions">
                         <?php if ($canUpdateThisError): ?>
                             <button type="button" class="incident-action-btn incident-action-btn--edit" data-edit-incident="<?= $errorId ?>">Edit error</button>
                         <?php endif; ?>
+                        <?php if ($canLimitedEditThisError): ?><button type="button" class="incident-action-btn incident-action-btn--edit" data-limited-error-edit data-error-id="<?= $errorId ?>" data-occurred-on="<?= htmlspecialchars((string)($error['occurred_on']??''),ENT_QUOTES,'UTF-8') ?>" data-financial-impact="<?= $error['financial_impact']===null?'':htmlspecialchars((string)$error['financial_impact'],ENT_QUOTES,'UTF-8') ?>" data-title="<?= htmlspecialchars((string)($error['error_title']??''),ENT_QUOTES,'UTF-8') ?>" data-employee="<?= htmlspecialchars(error_attribution_label($error,$employeeMap),ENT_QUOTES,'UTF-8') ?>" data-logged="<?= htmlspecialchars(error_date_label((string)(($error['created_at']??null)?:($error['logged_at']??''))),ENT_QUOTES,'UTF-8') ?>" data-status="<?= htmlspecialchars($statusLabels[$status]??$status,ENT_QUOTES,'UTF-8') ?>">Edit Date &amp; Financial Impact</button><?php endif; ?>
                         <?php if ($canDeleteThisError): ?>
                             <form method="post" class="incident-delete-form" data-delete-incident-form>
                                 <input type="hidden" name="action" value="delete_error">
@@ -1108,11 +1146,11 @@ include BASE_PATH . '/shared/sidebar.php';
                     <?php endif; ?>
                 </section>
                 <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="align-left"></i> Description</h3><p class="incident-content-text"><?= nl2br(htmlspecialchars((string) ($error['description'] ?? ''), ENT_QUOTES, 'UTF-8')) ?></p></section>
-                <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="calendar-clock"></i> Timeline</h3><p class="incident-content-text">Occurred: <?= htmlspecialchars(error_date_label((string) (($error['occurred_at'] ?? null) ?: ($error['created_at'] ?? null) ?: ($error['logged_at'] ?? ''))), ENT_QUOTES, 'UTF-8') ?><br>Submitted: <?= htmlspecialchars(error_date_label((string) (($error['created_at'] ?? null) ?: ($error['logged_at'] ?? ''))), ENT_QUOTES, 'UTF-8') ?></p></section>
+                <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="calendar-clock"></i> Timeline</h3><p class="incident-content-text">Date Error Occurred: <?= htmlspecialchars(error_occurred_on_label((string)($error['occurred_on']??'')),ENT_QUOTES,'UTF-8') ?><?php if(($error['occurred_on_source']??'')==='migrated_from_logged_date'):?> <small class="error-date-source">Estimated from Date Logged</small><?php else:?><small class="error-date-source">Confirmed</small><?php endif;?><br>Date Logged: <?= htmlspecialchars(error_logged_label((string)(($error['created_at']??null)?:($error['logged_at']??''))),ENT_QUOTES,'UTF-8') ?></p></section>
                 <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="user-round-check"></i> Customer impact</h3><p class="incident-content-text<?= empty($error['customer_impact']) ? ' incident-empty-text' : '' ?>"><?= nl2br(htmlspecialchars((string) ($error['customer_impact'] ?: 'No customer impact recorded.'), ENT_QUOTES, 'UTF-8')) ?></p></section>
                 <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="badge-check"></i> Logged for</h3><p class="incident-content-text"><?= htmlspecialchars(error_attribution_label($error,$employeeMap),ENT_QUOTES,'UTF-8') ?> · <?= (string)($error['attribution_type']??'')==='employee'&&!empty($error['affects_kpi_accuracy'])&&!empty($error['accuracy_verified_by'])?'Verified for accuracy':'Not counted in personal accuracy' ?></p></section>
                 <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="circle-check"></i> Resolution</h3><p class="incident-content-text<?= empty($error['resolution']) ? ' incident-empty-text' : '' ?>"><?= nl2br(htmlspecialchars((string) ($error['resolution'] ?: 'No resolution recorded yet.'), ENT_QUOTES, 'UTF-8')) ?></p></section>
-                <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="banknote"></i> Financial impact</h3><p class="incident-content-text"><?= $error['has_financial_impact']===null?'Not historically captured':((int)$error['has_financial_impact']===1?'N$'.number_format((float)$error['financial_impact'],2):'No impact') ?></p><?php if(!empty($error['financial_impact_notes'])): ?><p class="incident-content-text"><?= nl2br(htmlspecialchars((string)$error['financial_impact_notes'],ENT_QUOTES,'UTF-8')) ?></p><?php endif; ?></section>
+                <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="banknote"></i> Financial impact</h3><p class="incident-content-text"><?= $error['financial_impact']===null?'Not recorded':'N$'.number_format((float)$error['financial_impact'],2) ?></p><?php if(!empty($error['financial_impact_notes'])): ?><p class="incident-content-text"><?= nl2br(htmlspecialchars((string)$error['financial_impact_notes'],ENT_QUOTES,'UTF-8')) ?></p><?php endif; ?></section>
                 <?php if (!empty($error['repeat_note'])): ?><section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="repeat-2"></i> Repeat note</h3><p class="incident-content-text"><?= nl2br(htmlspecialchars((string) $error['repeat_note'], ENT_QUOTES, 'UTF-8')) ?></p></section><?php endif; ?>
                 <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="paperclip"></i> Attachments</h3><div class="incident-attachments-list">
                     <?php foreach ($attachments as $path): ?><div class="incident-attachment"><span><?= htmlspecialchars(basename((string) $path), ENT_QUOTES, 'UTF-8') ?></span><a class="incident-attachment-link" href="<?= BASE_URL . '/' . htmlspecialchars((string) $path, ENT_QUOTES, 'UTF-8') ?>" target="_blank">Open</a></div><?php endforeach; ?>
@@ -1138,6 +1176,7 @@ include BASE_PATH . '/shared/sidebar.php';
             </div>
         </div>
     </div>
+    <dialog class="error-limited-edit" data-error-limited-dialog><form method="dialog" data-error-limited-form data-endpoint="<?= BASE_URL ?>/apps/operations/error-limited-edit.php"><input type="hidden" name="csrf" value="<?= htmlspecialchars($errorLimitedEditCsrf,ENT_QUOTES,'UTF-8') ?>"><input type="hidden" name="error_id"><header><div><span>Restricted correction</span><h2>Edit Date &amp; Financial Impact</h2></div><button type="button" data-error-limited-close aria-label="Close"><i data-lucide="x"></i></button></header><div class="error-limited-edit__context"><div><span>Error ID</span><strong data-limited-context="id"></strong></div><div><span>Employee responsible</span><strong data-limited-context="employee"></strong></div><div><span>Error title/type</span><strong data-limited-context="title"></strong></div><div><span>Date Logged</span><strong data-limited-context="logged"></strong></div><div><span>Current status</span><strong data-limited-context="status"></strong></div></div><div class="error-limited-edit__field"><label for="limited-occurred-on">Date Error Occurred</label><input id="limited-occurred-on" name="occurred_on" type="date" max="<?= (new DateTimeImmutable('today',new DateTimeZone('Africa/Windhoek')))->format('Y-m-d') ?>" required><small class="error-date-source" data-limited-source></small></div><div class="error-limited-edit__field"><label for="limited-financial-impact">Financial Impact</label><div class="error-money-input"><span aria-hidden="true">N$</span><input id="limited-financial-impact" name="financial_impact" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Not recorded"></div><small>Leave blank when the impact is not yet determined.</small></div><p class="error-limited-edit__feedback" data-limited-feedback role="status" aria-live="polite"></p><div class="error-limited-edit__actions"><button class="button" type="button" data-error-limited-close>Cancel</button><button class="button primary" type="submit">Save Changes</button></div></form></dialog>
 </main>
 <script>
 let pendingDeleteForm = null;
@@ -1268,8 +1307,8 @@ function openIncidentForm(mode = 'create', data = {}) {
 
   if (mode === 'edit') {
     form.elements.error_title.value = data.error_title || '';
-    form.elements.occurred_at.value = data.occurred_at || '';
-    form.elements.occurred_at.readOnly = <?= $isOwnerErrorUser ? 'false' : 'true' ?>;
+    form.elements.occurred_on.value = data.occurred_on || '';
+    form.elements.occurred_on.readOnly = <?= $isOwnerErrorUser ? 'false' : 'true' ?>;
     form.elements.order_reference.value = data.order_reference || '';
     form.elements.description.value = data.description || '';
     form.elements.resolution.value = data.resolution || '';
@@ -1279,8 +1318,8 @@ function openIncidentForm(mode = 'create', data = {}) {
     form.elements.affects_kpi_accuracy.checked = Number(data.affects_kpi_accuracy || 0) === 1;
     if (form.elements.accuracy_verified) form.elements.accuracy_verified.checked = Boolean(data.accuracy_verified);
   } else {
-    form.elements.occurred_at.readOnly = false;
-    form.elements.occurred_at.value = new Intl.DateTimeFormat('sv-SE',{timeZone:'Africa/Windhoek',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date()).replace(' ','T');
+    form.elements.occurred_on.readOnly = false;
+    form.elements.occurred_on.value = new Intl.DateTimeFormat('sv-SE',{timeZone:'Africa/Windhoek',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
     setErrorAttribution('','');setFinancialImpactChoice(null,'','');
     form.elements.packing_task_id.value = '';
     form.elements.affects_kpi_accuracy.checked = false;
@@ -1724,6 +1763,10 @@ function showFieldError(fieldId, message) {
   err.textContent = message;
   el.parentNode.appendChild(err);
 }
+const limitedDialog=errorTaskDetails?.querySelector('[data-error-limited-dialog]');
+const limitedForm=limitedDialog?.querySelector('[data-error-limited-form]');
+errorTaskDetails?.addEventListener('click',(event)=>{const open=event.target.closest('[data-limited-error-edit]');if(open&&limitedDialog){limitedForm.reset();limitedForm.elements.error_id.value=open.dataset.errorId||'';limitedForm.elements.occurred_on.value=open.dataset.occurredOn||'';limitedForm.elements.financial_impact.value=open.dataset.financialImpact||'';for(const key of ['id','employee','title','logged','status']){const node=limitedForm.querySelector(`[data-limited-context="${key}"]`);if(node)node.textContent=key==='id'?`ERROR-${open.dataset.errorId}`:(open.dataset[key]||'—')}const source=limitedForm.querySelector('[data-limited-source]');if(source)source.textContent=open.dataset.occurredOn?'Confirmed or migrated occurrence date':'Estimated from Date Logged';limitedForm.querySelector('[data-limited-feedback]').textContent='';limitedDialog.showModal()}if(event.target.closest('[data-error-limited-close]'))limitedDialog?.close()});
+limitedForm?.addEventListener('submit',async(event)=>{event.preventDefault();if(limitedForm.dataset.saving==='1')return;const submit=limitedForm.querySelector('[type="submit"]'),feedback=limitedForm.querySelector('[data-limited-feedback]');limitedForm.dataset.saving='1';submit.disabled=true;const original=submit.textContent;submit.textContent='Saving…';feedback.textContent='';try{const payload={csrf:limitedForm.elements.csrf.value,error_id:Number(limitedForm.elements.error_id.value),occurred_on:limitedForm.elements.occurred_on.value,financial_impact:limitedForm.elements.financial_impact.value===''?null:limitedForm.elements.financial_impact.value};const response=await fetch(limitedForm.dataset.endpoint,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify(payload)});const result=await response.json();if(!response.ok||!result.ok)throw new Error(result.error||'The changes could not be saved. Please try again.');const id=String(payload.error_id),dateCell=document.querySelector(`[data-error-occurred-cell="${id}"]`),financeCell=document.querySelector(`[data-error-finance-cell="${id}"]`),button=document.querySelector(`[data-limited-error-edit][data-error-id="${id}"]`);if(dateCell)dateCell.textContent=new Intl.DateTimeFormat('en-NA',{day:'numeric',month:'short',year:'numeric',timeZone:'Africa/Windhoek'}).format(new Date(`${payload.occurred_on}T00:00:00+02:00`));if(financeCell)financeCell.textContent=payload.financial_impact===null?'Not recorded':`N$${Number(payload.financial_impact).toLocaleString('en-NA',{minimumFractionDigits:2,maximumFractionDigits:2})}`;if(button){button.dataset.occurredOn=payload.occurred_on;button.dataset.financialImpact=payload.financial_impact??''}feedback.textContent='Error details updated.';submit.disabled=false;submit.textContent=original;limitedForm.dataset.saving='0';setTimeout(()=>limitedDialog?.close(),500)}catch(error){feedback.textContent=error.message||'The changes could not be saved. Please try again.';submit.disabled=false;submit.textContent=original;limitedForm.dataset.saving='0'}});
 
 document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;

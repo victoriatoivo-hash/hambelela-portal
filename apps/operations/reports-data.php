@@ -121,7 +121,7 @@ try {
         'attendance' => kpi_business_health_metric((int) ($staff['scheduled'] ?? 0) > 0 ? 100 * (int) ($attendance['present'] ?? 0) / (int) $staff['scheduled'] : null, (int) ($staff['scheduled'] ?? 0), null, false, 'percent'),
     ];
 
-    $errorRow = kpi_scalar_row("SELECT COUNT(*) employee_errors FROM ops_error_logs WHERE affects_kpi_accuracy=1 AND accuracy_verified_by IS NOT NULL AND logged_at BETWEEN ? AND ? AND deleted_at IS NULL", [$rateFromSql, $toSql]);
+    $errorRow = kpi_scalar_row("SELECT COUNT(*) employee_errors FROM ops_error_logs WHERE affects_kpi_accuracy=1 AND accuracy_verified_by IS NOT NULL AND COALESCE(occurred_on,DATE(occurred_at),DATE(created_at),DATE(logged_at)) BETWEEN DATE(?) AND DATE(?) AND deleted_at IS NULL", [$rateFromSql, $toSql]);
     $packingCompleted = (int) ($packing['completed_n'] ?? 0);
     $packingAccuracy = $packingCompleted > 0 ? max(0, 100 * (1 - (int) ($errorRow['employee_errors'] ?? 0) / $packingCompleted)) : null;
     $waybills = kpi_scalar_row("SELECT COUNT(*) total, SUM(status='sent') sent_n, SUM(status='sent' AND sent_at <= due_by) on_time_n, SUM(status IN ('pending','overdue') AND due_by < NOW()) overdue_n FROM hambelela_waybills WHERE uploaded_at BETWEEN ? AND ? AND deleted_at IS NULL", [$rateFromSql, $toSql]);
