@@ -35,10 +35,18 @@ ALTER TABLE system_issues ADD COLUMN IF NOT EXISTS workflow_version INT UNSIGNED
 ALTER TABLE system_issues ADD COLUMN IF NOT EXISTS approved_at DATETIME NULL AFTER deferred_reason;
 ALTER TABLE system_issues ADD COLUMN IF NOT EXISTS approved_by INT NULL AFTER approved_at;
 ALTER TABLE system_issues ADD COLUMN IF NOT EXISTS done_at DATETIME NULL AFTER verified_by;
+ALTER TABLE system_issues ADD COLUMN IF NOT EXISTS approved_brief_id BIGINT UNSIGNED NULL AFTER approved_by;
+ALTER TABLE system_issues ADD COLUMN IF NOT EXISTS approved_brief_version INT UNSIGNED NULL AFTER approved_brief_id;
+ALTER TABLE system_issues ADD COLUMN IF NOT EXISTS brief_copied_at DATETIME NULL AFTER approved_brief_version;
+ALTER TABLE system_issues ADD COLUMN IF NOT EXISTS brief_copied_by INT NULL AFTER brief_copied_at;
+ALTER TABLE system_issues ADD COLUMN IF NOT EXISTS codex_sent_at DATETIME NULL AFTER brief_copied_by;
+ALTER TABLE system_issues ADD COLUMN IF NOT EXISTS codex_sent_by INT NULL AFTER codex_sent_at;
+ALTER TABLE system_issues ADD COLUMN IF NOT EXISTS verification_status VARCHAR(20) NULL AFTER verified_by;
 ALTER TABLE system_issues ADD INDEX IF NOT EXISTS idx_system_issues_reported_by_user (reported_by_user_id, created_at);
 UPDATE system_issues SET reported_by_user_id=reporter_employee_id WHERE reported_by_user_id IS NULL AND reporter_employee_id IS NOT NULL AND reporter_employee_id>0;
 UPDATE system_issues SET workflow_stage=CASE internal_status WHEN 'brief_ready' THEN 'awaiting_approval' WHEN 'codex_queued' THEN 'repair_queued' WHEN 'codex_running' THEN 'repair_in_progress' WHEN 'pr_open' THEN 'pr_open' WHEN 'testing' THEN 'testing' WHEN 'deployed' THEN 'deployed' WHEN 'verified' THEN 'verified' WHEN 'done' THEN 'done' WHEN 'deferred' THEN 'deferred' WHEN 'reopened' THEN 'reopened' ELSE workflow_stage END WHERE workflow_stage='awaiting_approval' AND internal_status<>'brief_ready';
 UPDATE system_issues SET workflow_stage=CASE workflow_stage WHEN 'awaiting_approval' THEN 'awaiting_owner_approval' WHEN 'owner_approval_required' THEN 'awaiting_owner_approval' WHEN 'approved_for_repair' THEN 'approved' WHEN 'repair_queued' THEN 'codex_queued' WHEN 'repair_in_progress' THEN 'codex_running' WHEN 'pr_open' THEN 'pr_ready' WHEN 'tests_passed' THEN 'ready_to_deploy' WHEN 'deployed' THEN 'verification_pending' WHEN 'verified' THEN IF(verified_at IS NULL,'verification_pending','done') ELSE workflow_stage END;
+UPDATE system_issues SET workflow_stage=CASE workflow_stage WHEN 'awaiting_owner_approval' THEN 'brief_ready' WHEN 'approved' THEN 'approved_for_codex' WHEN 'repair_queue_failed' THEN 'approved_for_codex' WHEN 'codex_queued' THEN 'approved_for_codex' WHEN 'codex_running' THEN 'fix_in_progress' WHEN 'repair_failed' THEN 'reopened' WHEN 'pr_ready' THEN 'fix_in_progress' WHEN 'tests_failed' THEN 'reopened' WHEN 'ready_to_deploy' THEN 'testing' WHEN 'awaiting_deployment_approval' THEN 'testing' WHEN 'deploying' THEN 'testing' WHEN 'deployment_failed' THEN 'reopened' WHEN 'verification_pending' THEN 'ready_for_verification' WHEN 'verification_failed' THEN 'reopened' ELSE workflow_stage END;
 
 CREATE TABLE IF NOT EXISTS system_issue_workflow_actions (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -197,3 +205,32 @@ ALTER TABLE system_issue_integrations ADD COLUMN IF NOT EXISTS deployment_note T
 ALTER TABLE system_issue_integrations ADD COLUMN IF NOT EXISTS verification_confirmed_by_user_id INT NULL AFTER live_verified_at;
 ALTER TABLE system_issue_integrations ADD COLUMN IF NOT EXISTS verification_note TEXT NULL AFTER verification_confirmed_by_user_id;
 ALTER TABLE system_issue_integrations ADD COLUMN IF NOT EXISTS rollback_active TINYINT(1) NOT NULL DEFAULT 0 AFTER verification_note;
+
+CREATE TABLE IF NOT EXISTS system_issue_repair_attempts (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  issue_id BIGINT UNSIGNED NOT NULL,
+  attempt_number INT UNSIGNED NOT NULL,
+  approved_brief_version INT UNSIGNED NOT NULL,
+  repair_summary TEXT NOT NULL,
+  branch_name VARCHAR(255) NULL,
+  commit_hash VARCHAR(64) NULL,
+  pull_request_url VARCHAR(500) NULL,
+  files_changed TEXT NULL,
+  tests_performed TEXT NOT NULL,
+  tests_passed TEXT NULL,
+  tests_unavailable TEXT NULL,
+  known_limitations TEXT NULL,
+  deployment_required TINYINT(1) NOT NULL DEFAULT 0,
+  deployment_method VARCHAR(255) NULL,
+  deployment_time DATETIME NULL,
+  deployed_commit VARCHAR(64) NULL,
+  deployment_result TEXT NULL,
+  deployment_notes TEXT NULL,
+  status VARCHAR(30) NOT NULL DEFAULT 'recorded',
+  recorded_by_user_id INT NOT NULL,
+  recorded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  testing_completed_at DATETIME NULL,
+  UNIQUE KEY uq_system_issue_repair_attempt (issue_id,attempt_number),
+  INDEX idx_system_issue_repair_issue (issue_id,recorded_at),
+  CONSTRAINT fk_system_issue_repair_attempt_issue FOREIGN KEY (issue_id) REFERENCES system_issues(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
