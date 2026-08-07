@@ -1,0 +1,39 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+
+const read = (path) => fs.readFileSync(path, 'utf8');
+const page = read('apps/operations/system-issues.php');
+const endpoint = read('apps/operations/system-issue-brief-copy.php');
+const service = read('shared/system-issues.php');
+const migration = read('operations-system-issues-migration.sql');
+const css = read('assets/css/portal.css');
+const features = read('shared/employee-features.php');
+
+assert.match(migration, /CREATE TABLE IF NOT EXISTS system_issue_owner_recommendations/);
+for (const field of ['version_number', 'is_current', 'source_report_version', 'owner_recommendations_json']) assert.match(migration, new RegExp(field));
+assert.match(page, /Owner Recommendations &amp; Additional Information/);
+assert.match(page, /The employee's original report will remain unchanged/);
+assert.match(page, /name="action" value="save_owner_recommendation"/);
+assert.match(page, /name="action" value="update_ai_brief"/);
+assert.match(page, /AI Technical Brief/);
+assert.match(page, /Copy technical brief for Codex/);
+assert.match(page, /brief_version/);
+assert.match(page, /navigator\.clipboard\?\.writeText/);
+assert.match(page, /document\.execCommand\('copy'\)/);
+assert.match(page, /Unable to copy the brief\. Please try again\./);
+assert.match(service, /UPDATE system_issue_ai_briefs SET is_current=0/);
+assert.match(service, /ai_brief_generation_failed/);
+assert.match(service, /previous brief remains available/i);
+assert.match(service, /owner suggestions cannot disable security/i);
+assert.match(service, /SYSTEM ISSUE REPAIR BRIEF/);
+assert.match(service, /OWNER RECOMMENDATIONS/);
+assert.match(service, /\[REDACTED\]/);
+assert.match(endpoint, /user_has_role\('owner_admin','supervisor_manager'\)/);
+assert.match(endpoint, /system_issue_verify_csrf/);
+assert.match(endpoint, /brief_copied/);
+assert.doesNotMatch(endpoint, /system_issue_queue_repair|system_issue_dispatch_workflow|SYSTEM_ISSUES_WORKFLOW_WEBHOOK/);
+assert.match(features, /system-issue-brief-copy\.php/);
+assert.match(css, /#system-issues-page \.sil-copy-brief/);
+assert.match(css, /@media\(max-width:430px\)/);
+
+console.log('System Issues owner brief versioning and copy safeguards passed.');

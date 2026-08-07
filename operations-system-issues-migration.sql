@@ -63,9 +63,35 @@ CREATE TABLE IF NOT EXISTS system_issue_ai_briefs (
   model VARCHAR(80) NULL,
   response_id VARCHAR(120) NULL,
   error_message TEXT NULL,
+  version_number INT UNSIGNED NULL,
+  is_current TINYINT(1) NOT NULL DEFAULT 0,
+  source_report_version INT UNSIGNED NOT NULL DEFAULT 1,
+  owner_recommendations_json JSON NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_system_issue_ai_issue (issue_id, created_at),
   CONSTRAINT fk_system_issue_ai_issue FOREIGN KEY (issue_id) REFERENCES system_issues(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+ALTER TABLE system_issue_ai_briefs ADD COLUMN IF NOT EXISTS version_number INT UNSIGNED NULL AFTER error_message;
+ALTER TABLE system_issue_ai_briefs ADD COLUMN IF NOT EXISTS is_current TINYINT(1) NOT NULL DEFAULT 0 AFTER version_number;
+ALTER TABLE system_issue_ai_briefs ADD COLUMN IF NOT EXISTS source_report_version INT UNSIGNED NOT NULL DEFAULT 1 AFTER is_current;
+ALTER TABLE system_issue_ai_briefs ADD COLUMN IF NOT EXISTS owner_recommendations_json JSON NULL AFTER source_report_version;
+UPDATE system_issue_ai_briefs SET version_number=1 WHERE ai_brief_json IS NOT NULL AND version_number IS NULL;
+UPDATE system_issue_ai_briefs SET is_current=0 WHERE ai_brief_json IS NOT NULL;
+UPDATE system_issue_ai_briefs b JOIN (SELECT issue_id,MAX(id) id FROM system_issue_ai_briefs WHERE ai_brief_json IS NOT NULL GROUP BY issue_id) latest ON latest.id=b.id SET b.is_current=1;
+
+CREATE TABLE IF NOT EXISTS system_issue_owner_recommendations (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  issue_id BIGINT UNSIGNED NOT NULL,
+  recommendation_text TEXT NOT NULL,
+  created_by INT NOT NULL,
+  related_brief_version INT UNSIGNED NULL,
+  supersedes_id BIGINT UNSIGNED NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  superseded_at DATETIME NULL,
+  INDEX idx_system_issue_owner_recommendations (issue_id, created_at),
+  CONSTRAINT fk_system_issue_owner_recommendation_issue FOREIGN KEY (issue_id) REFERENCES system_issues(id) ON DELETE CASCADE,
+  CONSTRAINT fk_system_issue_owner_recommendation_previous FOREIGN KEY (supersedes_id) REFERENCES system_issue_owner_recommendations(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS system_issue_integrations (
