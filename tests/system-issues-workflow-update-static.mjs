@@ -28,6 +28,9 @@ assert.ok(!endpoint.includes(': never'),'Workflow endpoint must remain compatibl
 assert.match(endpoint,/This issue cannot be marked Done yet\. Owner approval, repair, testing, deployment and live verification must be completed first\./);
 assert.match(endpoint,/current_stage/);
 assert.match(endpoint,/permitted_transitions/);
+assert.match(endpoint,/system_issue_information_requests WHERE issue_id=\? AND status='pending'/);
+assert.match(endpoint,/No workflow change was selected\./);
+assert.match(endpoint,/repair_approved/);
 assert.match(endpoint,/tests_passed_at/);
 assert.match(endpoint,/deployed_at/);
 assert.match(endpoint,/live_verified_at/);
@@ -37,11 +40,16 @@ assert.match(endpoint,/system_issue_notify/);
 assert.match(page,/data-system-issue-workflow-update/);
 assert.match(page,/data-current-workflow-stage/);
 assert.match(page,/system_issue_workflow_permitted\(\$workflowStage\)/);
+assert.match(page,/data-system-issue-approve>Approve Repair/);
+assert.match(page,/data-system-issue-approval-confirmation hidden/);
+assert.match(page,/Approve and Queue Repair/);
 assert.match(page,/type="button" class="button" data-system-issue-workflow-update/);
 assert.match(page,/fetch\(section\.dataset\.updateUrl/);
-assert.match(page,/button\.textContent='Updating…'/);
+assert.match(page,/Approving…/);
+assert.match(page,/'Updating…'/);
 assert.match(page,/data-system-issue-activity/);
 assert.doesNotMatch(page,/option\.textContent='Tests passed'/);
 assert.match(css,/#system-issues-page \.sil-controlled-workflow/);
+assert.match(css,/#system-issues-page \.system-issue-approval-button/);
 
 console.log('System Issues controlled workflow update safeguards passed.');

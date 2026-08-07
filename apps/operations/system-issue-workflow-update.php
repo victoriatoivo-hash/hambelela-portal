@@ -26,17 +26,19 @@ try {
     if(!$issue)sil_workflow_reject('This system issue is unavailable.',404);
     $fromStage=system_issue_workflow_stage($issue);
     if($submittedStage!==''&&$submittedStage!==$fromStage)sil_workflow_reject('This workflow was updated elsewhere. Refresh the issue to load the latest status.',409);
-    if($requested===$fromStage)sil_workflow_reject('That workflow stage is already saved.',409);
+    if($requested===$fromStage)sil_workflow_reject('No workflow change was selected.',409);
     if(!in_array($requested,$allowed[$fromStage]??[],true)){
         if($requested==='done')sil_workflow_reject('This issue cannot be marked Done yet. Owner approval, repair, testing, deployment and live verification must be completed first.',422);
         sil_workflow_reject('The selected workflow stage is no longer available. Refresh the issue and try again.',409);
     }
+    if($fromStage==='awaiting_approval'&&$requested==='approved'&&ops_rows("SELECT id FROM system_issue_information_requests WHERE issue_id=? AND status='pending' LIMIT 1 FOR UPDATE",[$issueId]))sil_workflow_reject('This repair cannot be approved while employee information is still requested.',422);
     $integration=ops_rows('SELECT * FROM system_issue_integrations WHERE issue_id=? ORDER BY id DESC LIMIT 1 FOR UPDATE',[$issueId])[0]??null;
     if(!$integration){$s=db()->prepare("INSERT INTO system_issue_integrations(issue_id,provider,status,requires_approval,approved_by,approved_at) VALUES(?,'manual','manual',1,?,NOW())");$s->execute([$issueId,(int)(current_user()['id']??0)]);$integration=ops_rows('SELECT * FROM system_issue_integrations WHERE id=?',[(int)db()->lastInsertId()])[0];}
     $now=date('Y-m-d H:i:s');$actor=(int)(current_user()['id']??0);
     $eventType='workflow_stage_updated';$eventMessage='The controlled repair workflow was updated.';
     if(in_array($requested,['tests_passed','deployed','verified'],true)&&!$confirmed)throw new RuntimeException('Confirm this completed stage before saving it.');
-    if($requested==='tests_passed'){$eventType='tests_confirmed';$eventMessage='The required repair tests were confirmed as passed.';db()->prepare("UPDATE system_issue_integrations SET status='tests_passed',tests_passed_at=?,tests_confirmed_by_user_id=?,test_confirmation_note=? WHERE id=?")->execute([$now,$actor,$note?:null,$integration['id']]);$integration['tests_passed_at']=$now;}
+    if($requested==='approved'){$eventType='repair_approved';$eventMessage=(string)(current_user()['name']??'The owner').' approved this issue for controlled repair.';db()->prepare("UPDATE system_issue_integrations SET status='approved',approved_by=?,approved_at=? WHERE id=?")->execute([$actor,$now,$integration['id']]);}
+    elseif($requested==='tests_passed'){$eventType='tests_confirmed';$eventMessage='The required repair tests were confirmed as passed.';db()->prepare("UPDATE system_issue_integrations SET status='tests_passed',tests_passed_at=?,tests_confirmed_by_user_id=?,test_confirmation_note=? WHERE id=?")->execute([$now,$actor,$note?:null,$integration['id']]);$integration['tests_passed_at']=$now;}
     elseif($requested==='tests_failed'){$eventType='tests_failed';$eventMessage='The repair tests were recorded as failed.';db()->prepare("UPDATE system_issue_integrations SET status='tests_failed',last_error=? WHERE id=?")->execute([$note?:'Tests failed.',$integration['id']]);}
     elseif($requested==='deployed'){$eventType='deployment_confirmed';$eventMessage='Deployment was confirmed successfully. Live verification is still required.';if(empty($integration['tests_passed_at']))throw new RuntimeException('Tests must be confirmed before deployment.');db()->prepare("UPDATE system_issue_integrations SET status='deployed',deployed_at=?,deployment_confirmed_by_user_id=?,deployment_note=? WHERE id=?")->execute([$now,$actor,$note?:null,$integration['id']]);$integration['deployed_at']=$now;}
     elseif($requested==='deployment_failed'){$eventType='deployment_failed';$eventMessage='The deployment was recorded as failed.';db()->prepare("UPDATE system_issue_integrations SET status='deployment_failed',last_error=? WHERE id=?")->execute([$note?:'Deployment failed.',$integration['id']]);}
