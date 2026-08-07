@@ -2,3 +2,8 @@
   Require all denied
 </FilesMatch>
 
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule ^uploads/cost-workbook(?:/|$) - [F,L,NC]
+</IfModule>
+
