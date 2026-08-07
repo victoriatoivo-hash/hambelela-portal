@@ -49,6 +49,16 @@ function system_issue_workflow_definitions(): array {return[
     'deferred'=>['label'=>'Deferred','internal'=>'deferred','employee'=>'deferred','badge'=>'Deferred'],
 ];}
 function system_issue_workflow_stage(array $issue): string {$stage=(string)($issue['workflow_stage']??'');if(isset(system_issue_workflow_definitions()[$stage]))return$stage;$legacy=['brief_ready'=>'awaiting_approval','codex_queued'=>'repair_queued','codex_running'=>'repair_in_progress','pr_open'=>'pr_open','testing'=>'testing','deployed'=>'deployed','verified'=>'verified','done'=>'done','reopened'=>'reopened','deferred'=>'deferred'];return$legacy[(string)($issue['internal_status']??'')]??'awaiting_approval';}
+function system_issue_workflow_allowed(): array {return[
+    'awaiting_approval'=>['approved','deferred'],'approved'=>['repair_queued','repair_in_progress','deferred'],
+    'repair_queued'=>['repair_in_progress','testing','tests_failed','deferred'],'repair_in_progress'=>['pr_open','testing','tests_failed','deferred'],
+    'pr_open'=>['testing','tests_failed','deferred'],'testing'=>['tests_passed','tests_failed'],
+    'tests_passed'=>['deploying'],'tests_failed'=>['repair_in_progress','deferred'],
+    'deploying'=>['deployed','deployment_failed'],'deployed'=>['verified','deployment_failed'],
+    'deployment_failed'=>['deploying','repair_in_progress','deferred'],'verified'=>['done','reopened'],
+    'done'=>['reopened'],'reopened'=>['approved','repair_in_progress','deferred'],'deferred'=>['reopened'],
+];}
+function system_issue_workflow_permitted(string $stage): array {$definitions=system_issue_workflow_definitions();$labels=['approved'=>'Approve repair','repair_queued'=>'Queue repair','repair_in_progress'=>'Start repair','pr_open'=>'Record pull request','testing'=>'Start testing','tests_passed'=>'Confirm tests passed','tests_failed'=>'Record tests failed','deploying'=>'Start deployment','deployed'=>'Confirm deployed','deployment_failed'=>'Record deployment failed','verified'=>'Confirm live verification','reopened'=>'Reopen issue','deferred'=>'Defer issue'];$result=[];foreach(system_issue_workflow_allowed()[$stage]??[]as$value)$result[]=['value'=>$value,'label'=>$labels[$value]??($definitions[$value]['label']??$value)];return$result;}
 function system_issue_workflow_next_action(string $stage): string {$actions=['tests_passed'=>'Confirm deployment after the repair is released.','deployed'=>'Complete live verification on the production portal.','verified'=>'Mark the verified issue Done.','done'=>'No further action is required.','tests_failed'=>'Resolve the failure, then move the repair forward.','deployment_failed'=>'Resolve the failure, then move the repair forward.','reopened'=>'Resolve the failure, then move the repair forward.'];return$actions[$stage]??'Select the next completed workflow stage.';}
 function system_issue_attention_summary(?int $userId=null,?string $roleKey=null): array {
     $summary=['count'=>0,'needs_information'=>0];
