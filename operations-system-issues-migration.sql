@@ -54,6 +54,25 @@ CREATE TABLE IF NOT EXISTS system_issue_attachments (
   CONSTRAINT fk_system_issue_attachments_issue FOREIGN KEY (issue_id) REFERENCES system_issues(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+ALTER TABLE system_issue_attachments ADD COLUMN IF NOT EXISTS information_request_id BIGINT UNSIGNED NULL AFTER issue_id;
+
+CREATE TABLE IF NOT EXISTS system_issue_information_requests (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  issue_id BIGINT UNSIGNED NOT NULL,
+  request_text TEXT NOT NULL,
+  response_text TEXT NULL,
+  attachment_allowed TINYINT(1) NOT NULL DEFAULT 0,
+  requested_by_user_id INT NOT NULL,
+  requested_at DATETIME NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'draft',
+  answered_at DATETIME NULL,
+  cancelled_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_system_issue_info_active (issue_id,status,requested_at),
+  CONSTRAINT fk_system_issue_info_issue FOREIGN KEY (issue_id) REFERENCES system_issues(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS system_issue_ai_briefs (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   issue_id BIGINT UNSIGNED NOT NULL,
