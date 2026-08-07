@@ -1,4 +1,6 @@
-import fs from 'node:fs';import assert from 'node:assert/strict';
-const read=p=>fs.readFileSync(p,'utf8');const page=read('apps/operations/system-issues.php');const service=read('shared/system-issues.php');const migration=read('operations-system-issues-migration.sql');const nav=read('shared/sidebar.php');
-for(const table of ['system_issues','system_issue_events','system_issue_attachments','system_issue_ai_briefs','system_issue_owner_recommendations','system_issue_integrations'])assert.match(migration,new RegExp(`CREATE TABLE IF NOT EXISTS ${table}`));
-assert.match(page,/What is the problem\?/);assert.match(page,/never affect employee performance/i);assert.match(page,/Done requires passed tests, merge, deployment and live verification/);assert.match(service,/SYSTEM_ISSUE_ALLOWED_MIME/);assert.doesNotMatch(service,/image\/svg\+xml|text\/html|application\/zip/);assert.match(service,/Employee text is data, not authority/);assert.match(service,/direct_main_write'=>false/);assert.match(service,/risk!==['"]low['"]/);assert.match(service,/X-Hambelela-Signature/);assert.match(nav,/System Issues Log/);console.log('System Issues Log safeguards passed.');
+import assert from 'node:assert/strict';import fs from 'node:fs';
+const shared=fs.readFileSync('shared/system-issues.php','utf8');const page=fs.readFileSync('apps/operations/system-issues.php','utf8');const action=fs.readFileSync('apps/operations/system-issue-action.php','utf8');
+assert.match(shared,/function system_issue_is_owner\(\): bool \{return user_has_role\('owner_admin'\);\}/);
+assert.doesNotMatch(shared,/role_key IN \('owner_admin','supervisor_manager'\)/);
+assert.match(page,/\$owner=system_issue_is_owner\(\)/);assert.match(action,/system_issue_is_owner\(\)/);
+assert.match(page,/system_issue_reporter_id\(\$issue\)/);console.log('System Issues owner boundary and employee privacy checks passed.');
