@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/system-issue-workflow-decisions.php';
 
 const SYSTEM_ISSUE_ALLOWED_MIME = [
     'image/png'=>'png','image/jpeg'=>'jpg','image/webp'=>'webp','video/mp4'=>'mp4','application/pdf'=>'pdf',
@@ -36,7 +37,7 @@ function system_issue_attention_summary(?int $userId=null,?string $roleKey=null)
     try {
         if(!function_exists('ops_database_ready')||!ops_database_ready()||!function_exists('ops_table_exists')||!ops_table_exists('system_issues'))return$summary;
         $role=normalise_portal_role((string)($roleKey??current_role_key()));
-        $owner=in_array($role,['owner_admin','supervisor_manager'],true);
+        $owner=siw_decision_is_owner_role($role);
         if($owner){
             $row=ops_rows("SELECT COUNT(DISTINCT i.id) issue_count,COALESCE(SUM(CASE WHEN i.employee_status='needs_information' OR i.internal_status IN ('needs_information','approval_required','fix_failed','tests_failed','deployment_failed') OR EXISTS(SELECT 1 FROM system_issue_integrations x WHERE x.issue_id=i.id AND x.status IN ('dispatch_failed','fix_failed','tests_failed','deployment_failed')) THEN 1 ELSE 0 END),0) needs_information FROM system_issues i WHERE i.duplicate_of_id IS NULL AND i.employee_status NOT IN ('done','deferred') AND i.internal_status NOT IN ('done','deferred')")[0]??[];
         }else{
@@ -51,7 +52,13 @@ function system_issue_event(int $issueId,string $type,?string $from=null,?string
     $s->execute([$issueId,ops_current_employee_id(),$type,$from,$to,$message,$meta?json_encode($meta,JSON_UNESCAPED_SLASHES):null]);
 }
 function system_issue_owner_ids(): array {return array_map('intval',array_column(ops_rows("SELECT e.id FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE e.status='active' AND r.role_key='owner_admin'"),'id'));}
-function system_issue_notify(array $data,array $ids): void {notifications_create($data+['module'=>'system_issues','related_type'=>'system_issue','priority'=>'normal','required_delivery'=>true],$ids);}
+function system_issue_notify(array $data,array $ids): void {
+    $ids=array_values(array_unique(array_filter(array_map('intval',$ids),fn($id)=>$id>0)));if(!$ids)return;
+    $issueId=(int)($data['related_id']??0);if($issueId<1&&preg_match('/[?&]issue=(\d+)/',(string)($data['action_link']??''),$match))$issueId=(int)$match[1];
+    if($issueId>0&&!isset($data['related_id']))$data['related_id']=$issueId;
+    if($issueId>0&&empty($data['deduplication_key'])){$version=(int)(ops_rows('SELECT workflow_version FROM system_issues WHERE id=?',[$issueId])[0]['workflow_version']??1);$event=preg_replace('/[^a-z0-9]+/','_',strtolower((string)($data['title']??'milestone')));$audience=count(array_intersect($ids,system_issue_owner_ids()))===count($ids)?'owner':'employee';$data['deduplication_key']='system-issue:'.$issueId.':'.$version.':'.trim((string)$event,'_').':'.$audience;}
+    notifications_create($data+['module'=>'system_issues','related_type'=>'system_issue','priority'=>'normal','required_delivery'=>true],$ids);
+}
 function system_issue_generate_key(int $id): string {$key='SYS-'.str_pad((string)$id,4,'0',STR_PAD_LEFT);$s=db()->prepare('UPDATE system_issues SET issue_key=? WHERE id=?');$s->execute([$key,$id]);return$key;}
 function system_issue_duplicate_candidates(array $issue,int $limit=5): array {
     $words=array_values(array_filter(preg_split('/\W+/u',strtolower($issue['problem'].' '.$issue['observed_behaviour']))?:[],fn($v)=>strlen($v)>3));
