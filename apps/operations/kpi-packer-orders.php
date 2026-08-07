@@ -66,7 +66,7 @@ function kpi_packer_orders_evidence(array $employee, string $fromSql, string $to
         : 'COALESCE(logout_at,last_seen_at)';
     $session = ops_rows("SELECT COALESCE(SUM(TIMESTAMPDIFF(SECOND,login_at,{$sessionEnd})),0) seconds FROM kpi_sessions WHERE user_id=? AND login_at BETWEEN ? AND ?", [$employeeId,$fromSql,$toSql])[0] ?? [];
     $hours = max(0.0, (float) ($session['seconds'] ?? 0) / 3600);
-    $qualityRows = ops_rows("SELECT category,customer_impact FROM ops_error_logs WHERE responsible_employee_id=? AND affects_kpi_accuracy=1 AND accuracy_verified_by IS NOT NULL AND logged_at BETWEEN ? AND ? AND deleted_at IS NULL", [$employeeId,$fromSql,$toSql]);
+    $qualityRows = ops_rows("SELECT category,customer_impact FROM ops_error_logs WHERE responsible_employee_id=? AND affects_kpi_accuracy=1 AND accuracy_verified_by IS NOT NULL AND COALESCE(occurred_on,DATE(occurred_at),DATE(created_at),DATE(logged_at)) BETWEEN DATE(?) AND DATE(?) AND deleted_at IS NULL", [$employeeId,$fromSql,$toSql]);
 
     $turnaround=[];$assignment=[];$packing=[];$courierTimes=[];$rows=[];
     $counts=['total'=>0,'items'=>0.0,'collection'=>0,'delivery'=>0,'courier'=>0,'before_12'=>0,'before_14'=>0,'missed_14'=>0,'incomplete_timing'=>0];
