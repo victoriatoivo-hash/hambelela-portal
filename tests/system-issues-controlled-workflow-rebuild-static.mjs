@@ -3,3 +3,8 @@ const w=fs.readFileSync('shared/system-issue-workflow.php','utf8')+fs.readFileSy
 assert.match(w,/testing_completed_at=NOW\(\),testing_completed_by_user_id=\?/);assert.doesNotMatch(w,/COALESCE\(testing_completed_at,NOW\(\)\)/);
 assert.match(w,/\['success','failed'\]/);assert.match(w,/tests_not_confirmed/);assert.match(w,/done_invariant_failed/);
 assert.match(w,/deployment_result'\]\s*\?\?[^\n]+===\s*'success'|deployment_result'\]\s*===\s*'success'/);console.log('Controlled workflow testing, deployment and Done invariants passed.');
+const js=fs.readFileSync('assets/js/system-issue-workflow.js','utf8');
+assert.match(js,/attributeFilter:\['data-workflow-stage','data-workflow-version','data-form-mode'\]/);
+assert.match(js,/syncFields\(root\);syncCopyVersion\(root\);\}/);
+assert.match(js,/data-workflow-transition/);
+assert.match(w,/Testing recorded \u2014 moved to/);
