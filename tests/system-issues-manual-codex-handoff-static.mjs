@@ -26,5 +26,6 @@ assert.doesNotMatch(client,/Queue status|Automation not configured|approve_repai
 assert.match(client,/data-workflow-field/);
 assert.match(migration,/CREATE TABLE IF NOT EXISTS system_issue_repair_attempts/);
 assert.match(webhook,/http_response_code\(410\)/);
-assert.match(docs,/does not create GitHub issues, invoke Codex/);
+assert.match(docs,/does not claim jobs, create GitHub Issues or pull requests/);
+assert.match(docs,/## 18\. Core principle/);
 console.log('System Issues manual Codex handoff static checks passed.');
