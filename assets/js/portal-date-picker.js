@@ -54,6 +54,14 @@
     return popup;
   }
 
+  function mountPopupFor(control) {
+    const openDialog = control?.wrapper?.closest('dialog[open]');
+    const host = openDialog || document.body;
+    const datePopup = ensurePopup();
+    if (datePopup.parentElement !== host) host.appendChild(datePopup);
+    return datePopup;
+  }
+
   function sameDay(a, b) {
     return !!a && !!b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
   }
@@ -100,7 +108,7 @@
     active = control;
     draftDate = parseValue(control.target.value, control.mode) || (control.mode === 'datetime' ? new Date() : null);
     viewDate = new Date(draftDate || new Date());
-    ensurePopup();
+    mountPopupFor(control);
     renderPopup();
     positionPopup();
     popup.classList.add('is-open');
