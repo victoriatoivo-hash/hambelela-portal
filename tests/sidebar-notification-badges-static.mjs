@@ -16,6 +16,7 @@ assert.match(notifications, /task\.assigned_employee_id = \?/);
 assert.match(notifications, /packing\.assigned_employee_id = \?/);
 assert.match(api, /\$summary\['sidebar_counts'\] = notifications_sidebar_counts_for_current_user\(\)/);
 assert.match(sidebar, /data-sidebar-notification-badge=/);
+assert.match(sidebar, /\.ps-nav-badge\[hidden\],\.ps-nav-badge\.is-hidden,\.ps-nav-badge:empty\{display:none!important\}/);
 assert.match(sidebar, /\$isEmployeeSidebar/);
 assert.match(sidebar, /'kpi' => 'kpi_dashboard'/);
 assert.doesNotMatch(sidebar, /'kpi' => 'performance'/);
