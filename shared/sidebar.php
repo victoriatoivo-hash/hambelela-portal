@@ -38,7 +38,14 @@ $sidebarUserInitial = strtoupper(substr($sidebarUserName !== '' ? $sidebarUserNa
 $taskOutstandingCount = 0;
 $systemIssueOpenCount = 0;
 $systemIssueNeedsInformation = 0;
-$packingAssignmentUnread = function_exists('notifications_packing_assignment_unread_count') ? notifications_packing_assignment_unread_count() : 0;
+$packingAssignmentUnread = 0;
+try {
+    if (function_exists('notifications_packing_assignment_unread_count')) {
+        $packingAssignmentUnread = notifications_packing_assignment_unread_count();
+    }
+} catch (Throwable $packingBadgeError) {
+    error_log('Packing assignment sidebar badge failed: ' . $packingBadgeError->getMessage());
+}
 $sidebarNotificationCounts = function_exists('notifications_sidebar_counts_for_current_user') ? notifications_sidebar_counts_for_current_user() : [];
 $packingSidebarRoleKey = function_exists('normalise_portal_role')
     ? normalise_portal_role((string) ($sidebarUser['role_key'] ?? $sidebarUserRole))
