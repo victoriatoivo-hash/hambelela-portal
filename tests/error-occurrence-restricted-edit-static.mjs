@@ -1,0 +1,15 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const page=fs.readFileSync('apps/operations/errors.php','utf8');
+const api=fs.readFileSync('apps/operations/error-limited-edit.php','utf8');
+const migration=fs.readFileSync('operations-migration.sql','utf8');
+const css=fs.readFileSync('assets/css/portal.css','utf8');
+const routes=fs.readFileSync('shared/employee-features.php','utf8');
+for(const needle of ['occurred_on DATE NULL','occurred_on_source','ops_error_field_audit'])assert.ok(migration.includes(needle),needle);
+for(const needle of ['Date Error Occurred','Date Logged','Edit Date &amp; Financial Impact','data-error-limited-dialog','migrated_from_logged_date'])assert.ok(page.includes(needle),needle);
+for(const needle of ["require_role('owner_admin','front_desk_admin','front_desk_admin_employee')","$allowed=['csrf','error_id','occurred_on','financial_impact']",'hash_equals','db()->beginTransaction()','error_occurrence_date_changed','error_financial_impact_changed'])assert.ok(api.includes(needle),needle);
+assert.ok(!api.includes('status=?'),'restricted endpoint must not update status');
+assert.ok(!api.includes('employee_id=?'),'restricted endpoint must not update employee attribution');
+assert.ok(routes.includes("'/apps/operations/error-limited-edit.php' => ['error_log', 'Error Log']"));
+assert.ok(css.includes('#error-task-details .error-limited-edit'));
+console.log('Error occurrence date and restricted edit safeguards passed.');

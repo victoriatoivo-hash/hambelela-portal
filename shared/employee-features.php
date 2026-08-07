@@ -87,6 +87,7 @@ function employee_feature_for_request(string $scriptName): ?array
         '/apps/operations/consignments.php' => ['packing_list', 'Packing List'],
         '/apps/operations/courier.php' => ['courier', 'Courier Waybills'],
         '/apps/operations/errors.php' => ['error_log', 'Error Log'],
+        '/apps/operations/error-limited-edit.php' => ['error_log', 'Error Log'],
         '/apps/operations/system-issues.php' => ['system_issues', 'System Issues Log'],
         '/apps/operations/system-issue-attachment.php' => ['system_issues', 'System Issues Log'],
         '/apps/operations/reports.php' => ['kpi_dashboard', 'Employee Performance'],

@@ -182,14 +182,29 @@ CREATE TABLE IF NOT EXISTS ops_error_logs (
   severity ENUM('low', 'medium', 'high', 'critical') NOT NULL DEFAULT 'low',
   description TEXT NOT NULL,
   customer_impact TEXT,
-  financial_impact DECIMAL(12,2) NOT NULL DEFAULT 0,
+  financial_impact DECIMAL(12,2) NULL DEFAULT NULL,
   resolution TEXT,
   repeat_issue TINYINT(1) NOT NULL DEFAULT 0,
   logged_by INT NULL,
   logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  occurred_on DATE NULL,
+  occurred_on_source VARCHAR(40) NULL,
   FOREIGN KEY (employee_id) REFERENCES ops_employees(id),
   FOREIGN KEY (order_id) REFERENCES ops_orders(id),
   FOREIGN KEY (logged_by) REFERENCES ops_employees(id)
+);
+
+CREATE TABLE IF NOT EXISTS ops_error_field_audit (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  error_id INT NOT NULL,
+  field_name VARCHAR(60) NOT NULL,
+  previous_value TEXT NULL,
+  new_value TEXT NULL,
+  changed_by_employee_id INT NULL,
+  changed_by_role VARCHAR(80) NOT NULL,
+  change_source VARCHAR(60) NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_error_field_audit_error (error_id, created_at)
 );
 
 CREATE TABLE IF NOT EXISTS ops_consignments (
