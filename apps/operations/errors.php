@@ -99,7 +99,7 @@ function error_parse_occurred_on(string $value): string
 
 function error_occurrence_expression(string $alias = 'el'): string { return "COALESCE({$alias}.occurred_on, DATE({$alias}.occurred_at), DATE({$alias}.created_at), DATE({$alias}.logged_at))"; }
 function error_occurred_on_label(?string $value): string {if(!$value)return'—';$time=strtotime($value);return$time?date('j M Y',$time):$value;}
-function error_logged_label(?string $value): string {if(!$value)return'—';try{return(new DateTimeImmutable($value,new DateTimeZone('UTC')))->setTimezone(new DateTimeZone('Africa/Windhoek'))->format('j M Y · H:i');}catch(Throwable){return$value;}}
+function error_logged_label(?string $value): string {if(!$value)return'—';try{return(new DateTimeImmutable($value,new DateTimeZone('UTC')))->setTimezone(new DateTimeZone('Africa/Windhoek'))->format('j M Y · H:i');}catch(Throwable $dateLabelError){return$value;}}
 function error_occurrence_input(?string $utc): string
 {
     if (!$utc) return '';
