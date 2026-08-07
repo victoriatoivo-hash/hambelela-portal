@@ -6870,9 +6870,13 @@ main.error-log-page {
 }
 
 .error-board-table td:nth-child(1) {
-  overflow: visible;
-  text-overflow: clip;
   white-space: nowrap;
+}
+
+.error-board-table .error-board-date-cell {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .error-board-table .error-board-status,
