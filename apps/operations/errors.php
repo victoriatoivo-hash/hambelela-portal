@@ -889,8 +889,8 @@ include BASE_PATH . '/shared/sidebar.php';
                 <?php $errorTitle = (string) ($error['error_title'] ?: ($errorCategories[(string) $error['category']] ?? $error['category'])); ?>
                 <tr class="error-board-row" data-error-open="<?= (int) $error['id'] ?>" tabindex="0" aria-label="View incident <?= htmlspecialchars($errorTitle, ENT_QUOTES, 'UTF-8') ?>">
                     <?php if ($showFullErrorLog): ?>
-                        <td data-error-occurred-cell="<?= (int)$error['id'] ?>"><?= htmlspecialchars(error_occurred_at_label((string)($error['occurred_at']??''),(string)($error['occurred_on']??'')),ENT_QUOTES,'UTF-8') ?><?php if(($error['occurred_on_source']??'')==='migrated_from_logged_date'):?><small class="error-date-source">Estimated from Date Logged</small><?php endif;?></td>
-                        <td><?= htmlspecialchars(error_logged_label((string)(($error['created_at']??null)?:($error['logged_at']??''))),ENT_QUOTES,'UTF-8') ?></td>
+                        <td class="error-board-date-cell" data-error-occurred-cell="<?= (int)$error['id'] ?>"><?= htmlspecialchars(error_occurred_at_label((string)($error['occurred_at']??''),(string)($error['occurred_on']??'')),ENT_QUOTES,'UTF-8') ?></td>
+                        <td class="error-board-date-cell"><?= htmlspecialchars(error_logged_label((string)(($error['created_at']??null)?:($error['logged_at']??''))),ENT_QUOTES,'UTF-8') ?></td>
                         <td><span class="error-board-title-link"><?= htmlspecialchars($errorTitle, ENT_QUOTES, 'UTF-8') ?></span><?php if (($instructionUnreadByError[(int)$error['id']] ?? 0) > 0): ?><span class="owner-instruction-unread" aria-label="<?= (int)$instructionUnreadByError[(int)$error['id']] ?> unread owner instructions"><?= (int)$instructionUnreadByError[(int)$error['id']] ?> new</span><?php endif; ?></td>
                         <td><?= htmlspecialchars((string) ($error['order_reference'] ?: $error['order_id'] ?: '-'), ENT_QUOTES, 'UTF-8') ?></td>
                         <td><?= htmlspecialchars($errorCategories[(string) $error['category']] ?? (string) $error['category'], ENT_QUOTES, 'UTF-8') ?></td>
@@ -903,8 +903,8 @@ include BASE_PATH . '/shared/sidebar.php';
                         <td><?= (int) ($error['repeat_issue'] ?? 0) === 1 ? 'Yes' : 'No' ?></td>
                         <td><?= htmlspecialchars((string) ($error['logged_by_name'] ?? 'System'), ENT_QUOTES, 'UTF-8') ?></td>
                     <?php else: ?>
-                        <td>Occurred: <?= htmlspecialchars(error_occurred_at_label((string)($error['occurred_at']??''),(string)($error['occurred_on']??'')),ENT_QUOTES,'UTF-8') ?></td>
-                        <td>Logged: <?= htmlspecialchars(error_logged_label((string)(($error['created_at']??null)?:($error['logged_at']??''))),ENT_QUOTES,'UTF-8') ?></td>
+                        <td class="error-board-date-cell"><?= htmlspecialchars(error_occurred_at_label((string)($error['occurred_at']??''),(string)($error['occurred_on']??'')),ENT_QUOTES,'UTF-8') ?></td>
+                        <td class="error-board-date-cell"><?= htmlspecialchars(error_logged_label((string)(($error['created_at']??null)?:($error['logged_at']??''))),ENT_QUOTES,'UTF-8') ?></td>
                         <td><span class="error-board-title-link"><?= htmlspecialchars($errorTitle, ENT_QUOTES, 'UTF-8') ?></span><?php if (($instructionUnreadByError[(int)$error['id']] ?? 0) > 0): ?><span class="owner-instruction-unread" aria-label="<?= (int)$instructionUnreadByError[(int)$error['id']] ?> unread owner instructions"><?= (int)$instructionUnreadByError[(int)$error['id']] ?> new</span><?php endif; ?></td>
                         <td><?= htmlspecialchars((string) ($error['order_reference'] ?: $error['order_id'] ?: '-'), ENT_QUOTES, 'UTF-8') ?></td>
                         <td><span class="error-board-severity severity-<?= htmlspecialchars($severity, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($severityLabels[$severity] ?? $severity, ENT_QUOTES, 'UTF-8') ?></span></td>

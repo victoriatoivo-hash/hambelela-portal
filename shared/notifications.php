@@ -586,7 +586,14 @@ function notifications_notify_packing_assigned(int $taskId, ?int $employeeId, ?i
 function notifications_packing_assignment_unread_ids(?int $employeeId = null, int $limit = 200): array
 {
     $employeeId = $employeeId ?: notifications_current_employee_id();
-    if (!$employeeId || !notifications_schema_ready() || !ops_table_exists('ops_packing_tasks')) return [];
+    if (
+        !$employeeId
+        || !notifications_schema_ready()
+        || !function_exists('ops_table_exists')
+        || !ops_table_exists('ops_packing_tasks')
+    ) {
+        return [];
+    }
     try {
         $limit = max(1, min(500, $limit));
         $stmt = db()->prepare(
