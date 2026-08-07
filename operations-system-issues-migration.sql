@@ -2,6 +2,7 @@ CREATE TABLE IF NOT EXISTS system_issues (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   issue_key VARCHAR(20) NULL UNIQUE,
   reporter_employee_id INT NOT NULL,
+  reported_by_user_id INT NULL,
   title VARCHAR(190) NOT NULL,
   problem TEXT NOT NULL,
   location VARCHAR(255) NOT NULL,
@@ -22,9 +23,14 @@ CREATE TABLE IF NOT EXISTS system_issues (
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_system_issues_status (internal_status, updated_at),
   INDEX idx_system_issues_reporter (reporter_employee_id, created_at),
+  INDEX idx_system_issues_reported_by_user (reported_by_user_id, created_at),
   INDEX idx_system_issues_module (location, created_at),
   CONSTRAINT fk_system_issues_duplicate FOREIGN KEY (duplicate_of_id) REFERENCES system_issues(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+ALTER TABLE system_issues ADD COLUMN IF NOT EXISTS reported_by_user_id INT NULL AFTER reporter_employee_id;
+ALTER TABLE system_issues ADD INDEX IF NOT EXISTS idx_system_issues_reported_by_user (reported_by_user_id, created_at);
+UPDATE system_issues SET reported_by_user_id=reporter_employee_id WHERE reported_by_user_id IS NULL AND reporter_employee_id IS NOT NULL AND reporter_employee_id>0;
 
 CREATE TABLE IF NOT EXISTS system_issue_events (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

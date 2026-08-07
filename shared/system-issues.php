@@ -16,7 +16,22 @@ function system_issues_schema_ready(): bool {
 function system_issue_csrf(): string {if(empty($_SESSION['system_issue_csrf']))$_SESSION['system_issue_csrf']=bin2hex(random_bytes(24));return(string)$_SESSION['system_issue_csrf'];}
 function system_issue_verify_csrf(string $token): void {if($token===''||!hash_equals(system_issue_csrf(),$token))throw new RuntimeException('This form expired. Refresh and try again.');}
 function system_issue_status_label(string $status): string {return ['reported'=>'Reported','needs_information'=>'Needs Information','under_review'=>'Under Review','fix_in_progress'=>'Fix in Progress','testing'=>'Testing','done'=>'Done','reopened'=>'Reopened','deferred'=>'Deferred'][$status]??'Reported';}
-function system_issue_attention_summary(?int $employeeId=null,?string $roleKey=null): array {
+function system_issue_is_owner(): bool {return user_has_role('owner_admin','supervisor_manager');}
+function system_issue_reporter_id(array $issue): int {return (int)($issue['reported_by_user_id']??0);}
+function can_view_system_issue(array $issue,?int $userId=null,?bool $owner=null): bool {
+    $owner=$owner??system_issue_is_owner();if($owner)return true;
+    $userId=(int)($userId??(current_user()['id']??0));
+    return $userId>0&&system_issue_reporter_id($issue)===$userId;
+}
+function system_issue_find_visible(int $issueId,?int $userId=null,?bool $owner=null): ?array {
+    $issue=ops_rows('SELECT * FROM system_issues WHERE id=? LIMIT 1',[$issueId])[0]??null;
+    if(!$issue||!can_view_system_issue($issue,$userId,$owner))return null;
+    return $issue;
+}
+function system_issue_log_access_denied(int $issueId,string $action): void {
+    error_log('system_issue_access_denied user_id='.(int)(current_user()['id']??0).' issue_id='.$issueId.' action='.preg_replace('/[^a-z0-9_.-]/i','',$action));
+}
+function system_issue_attention_summary(?int $userId=null,?string $roleKey=null): array {
     $summary=['count'=>0,'needs_information'=>0];
     try {
         if(!function_exists('ops_database_ready')||!ops_database_ready()||!function_exists('ops_table_exists')||!ops_table_exists('system_issues'))return$summary;
@@ -25,8 +40,8 @@ function system_issue_attention_summary(?int $employeeId=null,?string $roleKey=n
         if($owner){
             $row=ops_rows("SELECT COUNT(DISTINCT i.id) issue_count,COALESCE(SUM(CASE WHEN i.employee_status='needs_information' OR i.internal_status IN ('needs_information','approval_required','fix_failed','tests_failed','deployment_failed') OR EXISTS(SELECT 1 FROM system_issue_integrations x WHERE x.issue_id=i.id AND x.status IN ('dispatch_failed','fix_failed','tests_failed','deployment_failed')) THEN 1 ELSE 0 END),0) needs_information FROM system_issues i WHERE i.duplicate_of_id IS NULL AND i.employee_status NOT IN ('done','deferred') AND i.internal_status NOT IN ('done','deferred')")[0]??[];
         }else{
-            $id=(int)($employeeId??(ops_current_employee_id()??0));if($id<1)return$summary;
-            $row=ops_rows("SELECT COUNT(*) issue_count,COALESCE(SUM(employee_status='needs_information'),0) needs_information FROM system_issues WHERE reporter_employee_id=? AND duplicate_of_id IS NULL AND employee_status IN ('reported','needs_information','under_review','fix_in_progress','testing','reopened')",[$id])[0]??[];
+            $id=(int)($userId??(current_user()['id']??0));if($id<1)return$summary;
+            $row=ops_rows("SELECT COUNT(*) issue_count,COALESCE(SUM(employee_status='needs_information'),0) needs_information FROM system_issues WHERE reported_by_user_id=? AND employee_status IN ('reported','needs_information','under_review','fix_in_progress','testing','reopened')",[$id])[0]??[];
         }
         return['count'=>(int)($row['issue_count']??0),'needs_information'=>(int)($row['needs_information']??0)];
     }catch(Throwable $error){error_log('System Issues attention summary failed: '.$error->getMessage());return$summary;}
