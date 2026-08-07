@@ -16,6 +16,21 @@ function system_issues_schema_ready(): bool {
 function system_issue_csrf(): string {if(empty($_SESSION['system_issue_csrf']))$_SESSION['system_issue_csrf']=bin2hex(random_bytes(24));return(string)$_SESSION['system_issue_csrf'];}
 function system_issue_verify_csrf(string $token): void {if($token===''||!hash_equals(system_issue_csrf(),$token))throw new RuntimeException('This form expired. Refresh and try again.');}
 function system_issue_status_label(string $status): string {return ['reported'=>'Reported','needs_information'=>'Needs Information','under_review'=>'Under Review','fix_in_progress'=>'Fix in Progress','testing'=>'Testing','done'=>'Done','reopened'=>'Reopened','deferred'=>'Deferred'][$status]??'Reported';}
+function system_issue_attention_summary(?int $employeeId=null,?string $roleKey=null): array {
+    $summary=['count'=>0,'needs_information'=>0];
+    try {
+        if(!function_exists('ops_database_ready')||!ops_database_ready()||!function_exists('ops_table_exists')||!ops_table_exists('system_issues'))return$summary;
+        $role=normalise_portal_role((string)($roleKey??current_role_key()));
+        $owner=in_array($role,['owner_admin','supervisor_manager'],true);
+        if($owner){
+            $row=ops_rows("SELECT COUNT(DISTINCT i.id) issue_count,COALESCE(SUM(CASE WHEN i.employee_status='needs_information' OR i.internal_status IN ('needs_information','approval_required','fix_failed','tests_failed','deployment_failed') OR EXISTS(SELECT 1 FROM system_issue_integrations x WHERE x.issue_id=i.id AND x.status IN ('dispatch_failed','fix_failed','tests_failed','deployment_failed')) THEN 1 ELSE 0 END),0) needs_information FROM system_issues i WHERE i.duplicate_of_id IS NULL AND i.employee_status NOT IN ('done','deferred') AND i.internal_status NOT IN ('done','deferred')")[0]??[];
+        }else{
+            $id=(int)($employeeId??(ops_current_employee_id()??0));if($id<1)return$summary;
+            $row=ops_rows("SELECT COUNT(*) issue_count,COALESCE(SUM(employee_status='needs_information'),0) needs_information FROM system_issues WHERE reporter_employee_id=? AND duplicate_of_id IS NULL AND employee_status IN ('reported','needs_information','under_review','fix_in_progress','testing','reopened')",[$id])[0]??[];
+        }
+        return['count'=>(int)($row['issue_count']??0),'needs_information'=>(int)($row['needs_information']??0)];
+    }catch(Throwable $error){error_log('System Issues attention summary failed: '.$error->getMessage());return$summary;}
+}
 function system_issue_event(int $issueId,string $type,?string $from=null,?string $to=null,string $message='',array $meta=[]): void {
     $s=db()->prepare('INSERT INTO system_issue_events(issue_id,actor_employee_id,event_type,from_status,to_status,message,metadata_json) VALUES(?,?,?,?,?,?,?)');
     $s->execute([$issueId,ops_current_employee_id(),$type,$from,$to,$message,$meta?json_encode($meta,JSON_UNESCAPED_SLASHES):null]);

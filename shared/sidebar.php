@@ -37,6 +37,7 @@ $sidebarUserRole = trim((string) ($sidebarUser['role'] ?? ($_SESSION['user']['ro
 $sidebarUserInitial = strtoupper(substr($sidebarUserName !== '' ? $sidebarUserName : 'U', 0, 1));
 $taskOutstandingCount = 0;
 $systemIssueOpenCount = 0;
+$systemIssueNeedsInformation = 0;
 $packingAssignmentUnread = function_exists('notifications_packing_assignment_unread_count') ? notifications_packing_assignment_unread_count() : 0;
 $packingSidebarRoleKey = function_exists('normalise_portal_role')
     ? normalise_portal_role((string) ($sidebarUser['role_key'] ?? $sidebarUserRole))
@@ -60,17 +61,11 @@ try {
     $taskOutstandingCount = 0;
 }
 try {
-    if (function_exists('ops_database_ready') && ops_database_ready() && function_exists('ops_table_exists') && ops_table_exists('system_issues')) {
-        $systemIssueEmployeeId = function_exists('ops_current_employee_id') ? (int) (ops_current_employee_id() ?? 0) : 0;
-        if (user_has_role('owner_admin', 'supervisor_manager')) {
-            $systemIssueOpenCount = (int) (db()->query("SELECT COUNT(*) FROM system_issues WHERE internal_status NOT IN ('done','deferred','duplicate')")->fetchColumn() ?: 0);
-        } elseif ($systemIssueEmployeeId > 0) {
-            $systemIssueCountStmt = db()->prepare("SELECT COUNT(*) FROM system_issues WHERE reporter_employee_id=? AND internal_status NOT IN ('done','deferred','duplicate')");
-            $systemIssueCountStmt->execute([$systemIssueEmployeeId]);
-            $systemIssueOpenCount = (int) ($systemIssueCountStmt->fetchColumn() ?: 0);
-        }
-    }
-} catch (Throwable $systemIssueBadgeError) { $systemIssueOpenCount = 0; }
+    if (!function_exists('system_issue_attention_summary')) require_once __DIR__ . '/system-issues.php';
+    $systemIssueSummary = system_issue_attention_summary();
+    $systemIssueOpenCount = (int) ($systemIssueSummary['count'] ?? 0);
+    $systemIssueNeedsInformation = (int) ($systemIssueSummary['needs_information'] ?? 0);
+} catch (Throwable $systemIssueBadgeError) { $systemIssueOpenCount = 0; $systemIssueNeedsInformation = 0; }
 
 $epiNavigationEnabled = false;
 try {
@@ -92,7 +87,7 @@ $portalNavItems = [
     ['id' => 'kpi', 'label' => 'Performance', 'icon' => 'kpi', 'href' => BASE_URL . ($epiNavigationEnabled ? '/apps/operations/epi-dashboard.php' : '/apps/operations/reports.php'), 'match' => $epiNavigationEnabled ? ['/apps/operations/epi-dashboard.php'] : ['/apps/operations/reports.php']],
     ['id' => 'operations-checklists', 'label' => 'Task Management', 'icon' => 'tasks', 'href' => BASE_URL . '/apps/operations/checklists.php', 'match' => ['/apps/operations/checklists.php'], 'badge' => $taskOutstandingCount, 'badge_label' => $taskOutstandingCount > 99 ? '99+' : (string) $taskOutstandingCount],
     ['id' => 'operations-errors', 'label' => 'Error Log', 'icon' => 'errors', 'href' => BASE_URL . '/apps/operations/errors.php', 'match' => ['/apps/operations/errors.php']],
-    ['id' => 'system-issues', 'label' => 'System Issues Log', 'icon' => 'system-issues', 'href' => BASE_URL . '/apps/operations/system-issues.php', 'match' => ['/apps/operations/system-issues.php'], 'badge' => $systemIssueOpenCount, 'badge_label' => $systemIssueOpenCount > 99 ? '99+' : (string) $systemIssueOpenCount, 'badge_kind' => 'system-issues'],
+    ['id' => 'system-issues', 'label' => 'System Issues Log', 'icon' => 'system-issues', 'href' => BASE_URL . '/apps/operations/system-issues.php', 'match' => ['/apps/operations/system-issues.php'], 'badge' => $systemIssueOpenCount, 'badge_label' => $systemIssueOpenCount > 99 ? '99+' : (string) $systemIssueOpenCount, 'badge_kind' => 'system-issues', 'needs_information' => $systemIssueNeedsInformation],
     ['id' => 'settings', 'label' => 'Settings', 'icon' => 'settings', 'href' => BASE_URL . '/apps/operations/my-account.php', 'match' => ['/apps/operations/my-account.php']],
 ];
 
@@ -189,6 +184,7 @@ $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bo
 .portal-sidebar.collapsed .ps-nav-item[data-nav-id="operations-checklists"] .ps-nav-badge { position: absolute; top: 3px; right: 7px; width: auto; min-width: 15px; height: 15px; padding: 0 4px; opacity: 1; font-size: 9px; font-weight: 400; line-height: 15px; pointer-events: none; }
 .portal-sidebar.collapsed .ps-nav-item[data-nav-id="operations-consignments"] { overflow: visible; }
 .portal-sidebar.collapsed .ps-nav-item[data-nav-id="operations-consignments"] .ps-nav-badge { position:absolute;top:3px;right:7px;width:auto;min-width:15px;height:15px;padding:0 4px;opacity:1;font-size:9px;font-weight:400;line-height:15px;pointer-events:none; }
+.ps-nav-badge.is-information-requested{background:#BB1B21;box-shadow:0 0 0 2px rgba(187,27,33,.16)}
 </style>
 <style id="portal-sidebar-notification-badge">
 .ps-notification-badge{margin-left:auto;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:#AB3619;color:#fff;font-size:11px;font-weight:400;line-height:20px;text-align:center;box-shadow:0 6px 14px rgba(171,54,25,.18);box-sizing:border-box;flex-shrink:0}.ps-notification-badge.is-hidden{display:none}.portal-sidebar.collapsed .ps-nav-item--notify{position:relative;width:44px;height:44px;padding:0;margin:0 auto;justify-content:center;overflow:visible}.portal-sidebar.collapsed .ps-nav-item--notify .ps-notification-badge{display:inline-flex;align-items:center;justify-content:center;position:absolute;top:4px;right:6px;min-width:15px;width:auto;height:15px;padding:0 4px;border-radius:999px;font-size:9px;line-height:15px;z-index:5;opacity:1;transform:translate(35%,-20%);pointer-events:none}.portal-sidebar.collapsed .ps-nav-item--notify .ps-notification-badge.is-hidden,.portal-sidebar.collapsed .ps-nav-item--notify .ps-notification-badge:empty{display:none}
@@ -240,7 +236,7 @@ $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bo
                     <span class="ps-nav-icon"><?= getSidebarIcon((string) $item['id']) ?></span>
                     <span class="ps-nav-label"><?= htmlspecialchars((string) $item['label'], ENT_QUOTES, 'UTF-8') ?></span>
                     <?php if (!empty($item['badge']) || ($item['badge_kind'] ?? '') === 'packing'): ?>
-                        <span class="ps-nav-badge<?= empty($item['badge']) ? ' is-hidden' : '' ?>"<?= ($item['badge_kind'] ?? '') === 'packing' ? ' data-packing-unread-badge' : '' ?><?= empty($item['badge']) ? ' hidden' : '' ?> aria-label="<?= (int) $item['badge'] ?> <?= ($item['badge_kind'] ?? '') === 'packing' ? 'unread Packing List items' : (($item['badge_kind'] ?? '') === 'system-issues' ? 'open system issues' : 'outstanding tasks') ?>"><?= !empty($item['badge']) ? htmlspecialchars((string) ($item['badge_label'] ?? $item['badge']), ENT_QUOTES, 'UTF-8') : '' ?></span>
+                        <span class="ps-nav-badge<?= empty($item['badge']) ? ' is-hidden' : '' ?><?= !empty($item['needs_information']) ? ' is-information-requested' : '' ?>"<?= ($item['badge_kind'] ?? '') === 'packing' ? ' data-packing-unread-badge' : '' ?><?= empty($item['badge']) ? ' hidden' : '' ?> aria-label="<?= (int) $item['badge'] ?> <?= ($item['badge_kind'] ?? '') === 'packing' ? 'unread Packing List items' : (($item['badge_kind'] ?? '') === 'system-issues' ? ('open system issues' . (!empty($item['needs_information']) ? ', information requested' : '')) : 'outstanding tasks') ?>"><?= !empty($item['badge']) ? htmlspecialchars((string) ($item['badge_label'] ?? $item['badge']), ENT_QUOTES, 'UTF-8') : '' ?></span>
                     <?php endif; ?>
                 </a>
             <?php endforeach; ?>
