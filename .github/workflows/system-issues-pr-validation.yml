@@ -25,7 +25,7 @@ jobs:
       - name: JavaScript syntax
         run: node --check assets/js/system-issue-workflow.js
       - name: Static checks
-        run: for test in tests/system-issues-*-static.mjs; do node "$test"; done
+        run: for test in tests/system-issues-static.mjs tests/system-issues-*-static.mjs; do node "$test"; done
       - name: Behavioural checks
         run: php tests/system-issues-workflow-behaviour.php
       - name: Diff check
