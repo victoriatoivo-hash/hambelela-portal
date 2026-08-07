@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 const page=fs.readFileSync('apps/operations/system-issues.php','utf8');
 const endpoint=fs.readFileSync('apps/operations/system-issue-workflow-update.php','utf8');
 const shared=fs.readFileSync('shared/system-issues.php','utf8');
+assert.ok(!shared.includes('return match('),'System Issues shared bootstrap must remain compatible with the live PHP runtime');
 const migration=fs.readFileSync('operations-system-issues-migration.sql','utf8');
 const css=fs.readFileSync('assets/css/portal.css','utf8');
 
