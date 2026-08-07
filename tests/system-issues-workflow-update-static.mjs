@@ -1,0 +1,39 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+
+const page=fs.readFileSync('apps/operations/system-issues.php','utf8');
+const endpoint=fs.readFileSync('apps/operations/system-issue-workflow-update.php','utf8');
+const shared=fs.readFileSync('shared/system-issues.php','utf8');
+const migration=fs.readFileSync('operations-system-issues-migration.sql','utf8');
+const css=fs.readFileSync('assets/css/portal.css','utf8');
+
+assert.match(migration,/workflow_stage VARCHAR\(40\)/);
+assert.match(migration,/tests_confirmed_by_user_id/);
+assert.match(migration,/deployment_confirmed_by_user_id/);
+assert.match(migration,/verification_confirmed_by_user_id/);
+assert.match(migration,/rollback_active/);
+assert.match(shared,/function system_issue_workflow_definitions\(\)/);
+assert.match(shared,/'tests_passed'=>\['label'=>'Tests passed','internal'=>'testing','employee'=>'testing'/);
+assert.match(shared,/'verified'=>\['label'=>'Live verification passed','internal'=>'verified','employee'=>'done'/);
+assert.match(endpoint,/system_issue_verify_csrf/);
+assert.match(endpoint,/system_issue_is_owner/);
+assert.match(endpoint,/FOR UPDATE/);
+assert.match(endpoint,/db\(\)->beginTransaction\(\)/);
+assert.match(endpoint,/db\(\)->commit\(\)/);
+assert.match(endpoint,/db\(\)->rollBack\(\)/);
+assert.match(endpoint,/This issue cannot be marked Done yet\. Outstanding:/);
+assert.match(endpoint,/tests_passed_at/);
+assert.match(endpoint,/deployed_at/);
+assert.match(endpoint,/live_verified_at/);
+assert.match(endpoint,/rollback_active/);
+assert.match(endpoint,/authenticated_actor_user_id/);
+assert.match(endpoint,/system_issue_notify/);
+assert.match(page,/data-system-issue-workflow-update/);
+assert.match(page,/type="button" class="button" data-system-issue-workflow-update/);
+assert.match(page,/fetch\(section\.dataset\.updateUrl/);
+assert.match(page,/button\.textContent='Updating…'/);
+assert.match(page,/data-system-issue-activity/);
+assert.doesNotMatch(page,/option\.textContent='Tests passed'/);
+assert.match(css,/#system-issues-page \.sil-controlled-workflow/);
+
+console.log('System Issues controlled workflow update safeguards passed.');

@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS system_issues (
   issue_key VARCHAR(20) NULL UNIQUE,
   reporter_employee_id INT NOT NULL,
   reported_by_user_id INT NULL,
+  workflow_stage VARCHAR(40) NOT NULL DEFAULT 'awaiting_approval',
   title VARCHAR(190) NOT NULL,
   problem TEXT NOT NULL,
   location VARCHAR(255) NOT NULL,
@@ -29,8 +30,10 @@ CREATE TABLE IF NOT EXISTS system_issues (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 ALTER TABLE system_issues ADD COLUMN IF NOT EXISTS reported_by_user_id INT NULL AFTER reporter_employee_id;
+ALTER TABLE system_issues ADD COLUMN IF NOT EXISTS workflow_stage VARCHAR(40) NOT NULL DEFAULT 'awaiting_approval' AFTER reported_by_user_id;
 ALTER TABLE system_issues ADD INDEX IF NOT EXISTS idx_system_issues_reported_by_user (reported_by_user_id, created_at);
 UPDATE system_issues SET reported_by_user_id=reporter_employee_id WHERE reported_by_user_id IS NULL AND reporter_employee_id IS NOT NULL AND reporter_employee_id>0;
+UPDATE system_issues SET workflow_stage=CASE internal_status WHEN 'brief_ready' THEN 'awaiting_approval' WHEN 'codex_queued' THEN 'repair_queued' WHEN 'codex_running' THEN 'repair_in_progress' WHEN 'pr_open' THEN 'pr_open' WHEN 'testing' THEN 'testing' WHEN 'deployed' THEN 'deployed' WHEN 'verified' THEN 'verified' WHEN 'done' THEN 'done' WHEN 'deferred' THEN 'deferred' WHEN 'reopened' THEN 'reopened' ELSE workflow_stage END WHERE workflow_stage='awaiting_approval' AND internal_status<>'brief_ready';
 
 CREATE TABLE IF NOT EXISTS system_issue_events (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -137,8 +140,23 @@ CREATE TABLE IF NOT EXISTS system_issue_integrations (
   merged_at DATETIME NULL,
   deployed_at DATETIME NULL,
   live_verified_at DATETIME NULL,
+  tests_confirmed_by_user_id INT NULL,
+  test_confirmation_note TEXT NULL,
+  deployment_confirmed_by_user_id INT NULL,
+  deployment_note TEXT NULL,
+  verification_confirmed_by_user_id INT NULL,
+  verification_note TEXT NULL,
+  rollback_active TINYINT(1) NOT NULL DEFAULT 0,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_system_issue_integrations_issue (issue_id, provider),
   CONSTRAINT fk_system_issue_integrations_issue FOREIGN KEY (issue_id) REFERENCES system_issues(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+ALTER TABLE system_issue_integrations ADD COLUMN IF NOT EXISTS tests_confirmed_by_user_id INT NULL AFTER tests_passed_at;
+ALTER TABLE system_issue_integrations ADD COLUMN IF NOT EXISTS test_confirmation_note TEXT NULL AFTER tests_confirmed_by_user_id;
+ALTER TABLE system_issue_integrations ADD COLUMN IF NOT EXISTS deployment_confirmed_by_user_id INT NULL AFTER deployed_at;
+ALTER TABLE system_issue_integrations ADD COLUMN IF NOT EXISTS deployment_note TEXT NULL AFTER deployment_confirmed_by_user_id;
+ALTER TABLE system_issue_integrations ADD COLUMN IF NOT EXISTS verification_confirmed_by_user_id INT NULL AFTER live_verified_at;
+ALTER TABLE system_issue_integrations ADD COLUMN IF NOT EXISTS verification_note TEXT NULL AFTER verification_confirmed_by_user_id;
+ALTER TABLE system_issue_integrations ADD COLUMN IF NOT EXISTS rollback_active TINYINT(1) NOT NULL DEFAULT 0 AFTER verification_note;

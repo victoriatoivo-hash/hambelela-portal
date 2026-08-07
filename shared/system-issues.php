@@ -31,6 +31,25 @@ function system_issue_find_visible(int $issueId,?int $userId=null,?bool $owner=n
 function system_issue_log_access_denied(int $issueId,string $action): void {
     error_log('system_issue_access_denied user_id='.(int)(current_user()['id']??0).' issue_id='.$issueId.' action='.preg_replace('/[^a-z0-9_.-]/i','',$action));
 }
+function system_issue_workflow_definitions(): array {return[
+    'awaiting_approval'=>['label'=>'Awaiting owner approval','internal'=>'brief_ready','employee'=>'under_review','badge'=>'Owner approval required'],
+    'approved'=>['label'=>'Approved for repair','internal'=>'codex_queued','employee'=>'fix_in_progress','badge'=>'Repair approved'],
+    'repair_queued'=>['label'=>'Repair queued','internal'=>'codex_queued','employee'=>'fix_in_progress','badge'=>'Repair approved'],
+    'repair_in_progress'=>['label'=>'Repair in progress','internal'=>'codex_running','employee'=>'fix_in_progress','badge'=>'Repair in progress'],
+    'pr_open'=>['label'=>'Pull request open','internal'=>'pr_open','employee'=>'fix_in_progress','badge'=>'Repair in progress'],
+    'testing'=>['label'=>'Testing in progress','internal'=>'testing','employee'=>'testing','badge'=>'Testing in progress'],
+    'tests_passed'=>['label'=>'Tests passed','internal'=>'testing','employee'=>'testing','badge'=>'Tests passed'],
+    'tests_failed'=>['label'=>'Tests failed','internal'=>'testing_failed','employee'=>'fix_in_progress','badge'=>'Owner attention required'],
+    'deploying'=>['label'=>'Deployment in progress','internal'=>'deploying','employee'=>'testing','badge'=>'Deployment in progress'],
+    'deployed'=>['label'=>'Deployed — verification required','internal'=>'deployed','employee'=>'testing','badge'=>'Live verification required'],
+    'deployment_failed'=>['label'=>'Deployment failed','internal'=>'deployment_failed','employee'=>'fix_in_progress','badge'=>'Owner attention required'],
+    'verified'=>['label'=>'Live verification passed','internal'=>'verified','employee'=>'done','badge'=>'Done'],
+    'done'=>['label'=>'Done','internal'=>'done','employee'=>'done','badge'=>'Done'],
+    'reopened'=>['label'=>'Reopened','internal'=>'reopened','employee'=>'reopened','badge'=>'Owner attention required'],
+    'deferred'=>['label'=>'Deferred','internal'=>'deferred','employee'=>'deferred','badge'=>'Deferred'],
+];}
+function system_issue_workflow_stage(array $issue): string {$stage=(string)($issue['workflow_stage']??'');if(isset(system_issue_workflow_definitions()[$stage]))return$stage;return match((string)($issue['internal_status']??'')){'brief_ready'=>'awaiting_approval','codex_queued'=>'repair_queued','codex_running'=>'repair_in_progress','pr_open'=>'pr_open','testing'=>'testing','deployed'=>'deployed','verified'=>'verified','done'=>'done','reopened'=>'reopened','deferred'=>'deferred',default=>'awaiting_approval'};}
+function system_issue_workflow_next_action(string $stage): string {return match($stage){'tests_passed'=>'Confirm deployment after the repair is released.','deployed'=>'Complete live verification on the production portal.','verified'=>'Mark the verified issue Done.','done'=>'No further action is required.','tests_failed','deployment_failed','reopened'=>'Resolve the failure, then move the repair forward.',default=>'Select the next completed workflow stage.'};}
 function system_issue_attention_summary(?int $userId=null,?string $roleKey=null): array {
     $summary=['count'=>0,'needs_information'=>0];
     try {
