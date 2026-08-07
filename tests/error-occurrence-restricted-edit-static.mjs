@@ -9,6 +9,9 @@ for(const needle of ['occurred_on DATE NULL','occurred_on_source','ops_error_fie
 for(const needle of ['Date Error Occurred','Date Logged','Edit Date &amp; Financial Impact','data-error-limited-dialog','migrated_from_logged_date'])assert.ok(page.includes(needle),needle);
 for(const needle of ["require_role('owner_admin','front_desk_admin','front_desk_admin_employee')","$allowed=['csrf','error_id','occurred_on','financial_impact']",'hash_equals','db()->beginTransaction()','error_log_financial_details_updated','changed_by_user_id','changed_by_name','visibilitySql'])assert.ok(api.includes(needle),needle);
 assert.ok(!api.includes('status=?'),'restricted endpoint must not update status');
+assert.ok(!page.includes('catch(Throwable){'),'Error Log page must remain compatible with PHP versions that require a catch variable');
+assert.ok(!api.includes(':never'),'restricted endpoint must not require PHP 8.1');
+assert.ok(api.includes("function_exists('mb_substr')"),'restricted endpoint must work without mbstring');
 const update=api.match(/UPDATE ops_error_logs SET ([^']+)/)?.[1]||'';
 assert.ok(update.includes('occurred_on=?')&&update.includes('financial_impact=?'),'allowed fields must be updated');
 assert.ok(!update.includes('employee_id=?'),'restricted endpoint must not update employee attribution');
