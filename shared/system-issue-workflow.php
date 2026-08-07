@@ -42,7 +42,19 @@ function siw_command_registry(): array {return [
 ];}
 
 function siw_permitted_actions(string $stage): array {$result=[];foreach(siw_command_registry() as $command=>$rule)if(in_array($stage,$rule['from'],true))$result[]=['command'=>$command,'label'=>$rule['label'],'pending_label'=>$rule['pending'],'primary'=>(bool)($rule['primary']??false)];return $result;}
-function siw_view(array $issue): array {$stage=siw_normalise_stage($issue);$definition=siw_stages()[$stage];return ['workflow_stage'=>$stage,'workflow_version'=>(int)($issue['workflow_version']??1),'workflow_label'=>$definition['label'],'employee_status'=>$definition['employee'],'employee_status_label'=>system_issue_status_label($definition['employee']),'message'=>'Workflow state loaded.','next_step'=>$definition['next'],'progress_step'=>$definition['step'],'permitted_actions'=>siw_permitted_actions($stage)];}
+function siw_has_blocking_employee_request(array $issue,bool $lock=false): bool {
+ if(array_key_exists('blocking_request_count',$issue))return (int)$issue['blocking_request_count']>0;
+ $issueId=(int)($issue['id']??0);if($issueId<1)return !empty($issue['has_blocking_employee_request']);
+ $suffix=$lock?' FOR UPDATE':'';
+ return (bool)ops_rows("SELECT id FROM system_issue_information_requests WHERE issue_id=? AND audience='employee' AND is_blocking=1 AND status='pending' LIMIT 1".$suffix,[$issueId]);
+}
+function siw_view(array $issue): array {
+ $stage=siw_normalise_stage($issue);$blocking=siw_has_blocking_employee_request($issue);
+ if($blocking&&in_array($stage,['reported','ai_processing','needs_information','brief_ready','awaiting_owner_approval'],true)){$stage='needs_information';}
+ elseif(!$blocking&&$stage==='needs_information'){$stage='awaiting_owner_approval';}
+ $definition=siw_stages()[$stage];$actions=$blocking?array_values(array_filter(siw_permitted_actions($stage),fn(array $action):bool=>$action['command']!=='approve_repair')):siw_permitted_actions($stage);
+ return ['issue_id'=>(int)($issue['id']??0),'internal_status'=>$blocking?'needs_information':($stage==='awaiting_owner_approval'?'brief_ready':$stage),'workflow_stage'=>$stage,'workflow_version'=>(int)($issue['workflow_version']??1),'workflow_label'=>$blocking?'Waiting for employee information':$definition['label'],'employee_status'=>$blocking?'needs_information':$definition['employee'],'employee_status_label'=>system_issue_status_label($blocking?'needs_information':$definition['employee']),'approval_allowed'=>!$blocking&&$stage==='awaiting_owner_approval','message'=>'Workflow state loaded.','next_step'=>$blocking?'Approval becomes available after the required information is received.':$definition['next'],'next_required_action'=>$blocking?'Wait for the requested employee information.':$definition['next'],'progress_step'=>$definition['step'],'permitted_actions'=>$actions,'blocking_employee_request'=>$blocking];
+}
 
 function siw_execute(int $issueId,string $command,string $expectedStage,int $expectedVersion,string $idempotencyKey,string $note=''): array {
  if(!isset(siw_command_registry()[$command]))throw new DomainException('invalid_command');if(!preg_match('/^[A-Za-z0-9._:-]{16,80}$/',$idempotencyKey))throw new InvalidArgumentException('invalid_idempotency_key');
@@ -50,7 +62,7 @@ function siw_execute(int $issueId,string $command,string $expectedStage,int $exp
   $existing=ops_rows('SELECT response_json FROM system_issue_workflow_actions WHERE issue_id=? AND idempotency_key=? FOR UPDATE',[$issueId,$idempotencyKey])[0]??null;if($existing&&$existing['response_json']){db()->commit();return (array)json_decode((string)$existing['response_json'],true);}
   $issue=ops_rows('SELECT * FROM system_issues WHERE id=? FOR UPDATE',[$issueId])[0]??null;if(!$issue)throw new OutOfBoundsException('issue_not_found');$stage=siw_normalise_stage($issue);$version=(int)($issue['workflow_version']??1);
   if($stage!==$expectedStage||$version!==$expectedVersion)throw new UnexpectedValueException('stale_workflow');if(!in_array($stage,$rule['from'],true))throw new DomainException('invalid_transition');
-  if($command==='approve_repair'&&ops_rows("SELECT id FROM system_issue_information_requests WHERE issue_id=? AND status='pending' LIMIT 1 FOR UPDATE",[$issueId]))throw new LogicException('pending_information');
+  if($command==='approve_repair'&&siw_has_blocking_employee_request($issue,true))throw new LogicException('pending_information');
   if($command==='confirm_fixed'){$integration=ops_rows('SELECT * FROM system_issue_integrations WHERE issue_id=? ORDER BY id DESC LIMIT 1 FOR UPDATE',[$issueId])[0]??null;if(!$integration||empty($integration['tests_passed_at'])||empty($integration['deployed_at'])||!empty($integration['rollback_active']))throw new LogicException('verification_prerequisite');}
   $to=$rule['to'];$target=siw_stages()[$to];$newVersion=$version+1;$now=date('Y-m-d H:i:s');$approvedAt=$command==='approve_repair'?$now:($issue['approved_at']??null);$approvedBy=$command==='approve_repair'?$actor:($issue['approved_by']??null);$verifiedAt=$command==='confirm_fixed'?$now:($issue['verified_at']??null);$verifiedBy=$command==='confirm_fixed'?$actor:($issue['verified_by']??null);$doneAt=$command==='confirm_fixed'?$now:($issue['done_at']??null);
   db()->prepare('UPDATE system_issues SET workflow_stage=?,workflow_version=?,employee_status=?,internal_status=?,approved_at=?,approved_by=?,verified_at=?,verified_by=?,done_at=? WHERE id=?')->execute([$to,$newVersion,$target['employee'],$to,$approvedAt,$approvedBy,$verifiedAt,$verifiedBy,$doneAt,$issueId]);

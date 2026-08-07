@@ -184,8 +184,11 @@ CREATE TABLE IF NOT EXISTS system_issue_integrations (
   CONSTRAINT fk_system_issue_integrations_issue FOREIGN KEY (issue_id) REFERENCES system_issues(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-UPDATE system_issues i SET workflow_stage='needs_information',workflow_version=workflow_version+1 WHERE i.internal_status='needs_information' AND EXISTS(SELECT 1 FROM system_issue_information_requests r WHERE r.issue_id=i.id AND r.status='pending') AND i.workflow_stage<>'needs_information';
-UPDATE system_issues i SET workflow_stage='awaiting_owner_approval',workflow_version=workflow_version+1,internal_status='brief_ready',employee_status='under_review' WHERE i.workflow_stage='needs_information' AND NOT EXISTS(SELECT 1 FROM system_issue_information_requests r WHERE r.issue_id=i.id AND r.status='pending');
+ALTER TABLE system_issue_information_requests ADD COLUMN IF NOT EXISTS audience VARCHAR(20) NOT NULL DEFAULT 'employee' AFTER request_text;
+ALTER TABLE system_issue_information_requests ADD COLUMN IF NOT EXISTS is_blocking TINYINT(1) NOT NULL DEFAULT 1 AFTER audience;
+
+-- Existing records are resolved at read/action time. Persistent reconciliation is
+-- deliberately performed only through the protected dry-run/apply tool after review.
 
 ALTER TABLE system_issue_integrations ADD COLUMN IF NOT EXISTS tests_confirmed_by_user_id INT NULL AFTER tests_passed_at;
 ALTER TABLE system_issue_integrations ADD COLUMN IF NOT EXISTS test_confirmation_note TEXT NULL AFTER tests_confirmed_by_user_id;

@@ -12,7 +12,7 @@ assert.match(migration,/system_issue_workflow_outbox/);
 assert.match(workflow,/function siw_command_registry/);
 assert.match(workflow,/awaiting_owner_approval/);
 assert.match(workflow,/verification_pending/);
-assert.match(workflow,/system_issue_information_requests WHERE issue_id=\? AND status='pending'/);
+assert.match(workflow,/system_issue_information_requests WHERE issue_id=\? AND audience='employee' AND is_blocking=1 AND status='pending'/);
 assert.match(workflow,/db\(\)->beginTransaction\(\)/);
 assert.match(workflow,/db\(\)->rollBack\(\)/);
 assert.match(endpoint,/system_issue_verify_csrf/);
