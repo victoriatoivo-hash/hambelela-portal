@@ -1,2 +1,3 @@
-// The automatic repair queue is deliberately deferred. Validate its manual replacement.
-import './system-issues-manual-codex-handoff-static.mjs';
+import assert from 'node:assert/strict';import fs from 'node:fs';
+const workflow=fs.readFileSync('shared/system-issue-workflow.php','utf8');const copy=fs.readFileSync('apps/operations/system-issue-brief-copy.php','utf8');const docs=fs.readFileSync('docs/system-issues-workflow.md','utf8');
+assert.doesNotMatch(workflow,/claim_job|dispatch_webhook|create_pull_request/);assert.match(workflow,/mark_sent_to_codex/);assert.match(copy,/SELECT \* FROM system_issues WHERE id=\? FOR UPDATE/);assert.match(copy,/stale_workflow/);assert.match(docs,/does not claim jobs, create GitHub Issues or pull requests/);console.log('Manual handoff safeguards passed.');

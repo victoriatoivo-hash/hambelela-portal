@@ -230,7 +230,14 @@ CREATE TABLE IF NOT EXISTS system_issue_repair_attempts (
   recorded_by_user_id INT NOT NULL,
   recorded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   testing_completed_at DATETIME NULL,
+  testing_completed_by_user_id INT NULL,
+  deployment_recorded_by_user_id INT NULL,
+  failure_reason TEXT NULL,
   UNIQUE KEY uq_system_issue_repair_attempt (issue_id,attempt_number),
   INDEX idx_system_issue_repair_issue (issue_id,recorded_at),
   CONSTRAINT fk_system_issue_repair_attempt_issue FOREIGN KEY (issue_id) REFERENCES system_issues(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+ALTER TABLE system_issue_repair_attempts ADD COLUMN IF NOT EXISTS testing_completed_by_user_id INT NULL AFTER testing_completed_at;
+ALTER TABLE system_issue_repair_attempts ADD COLUMN IF NOT EXISTS deployment_recorded_by_user_id INT NULL AFTER testing_completed_by_user_id;
+ALTER TABLE system_issue_repair_attempts ADD COLUMN IF NOT EXISTS failure_reason TEXT NULL AFTER deployment_recorded_by_user_id;

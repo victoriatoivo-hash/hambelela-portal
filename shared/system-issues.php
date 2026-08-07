@@ -16,7 +16,7 @@ function system_issues_schema_ready(): bool {
 function system_issue_csrf(): string {if(empty($_SESSION['system_issue_csrf']))$_SESSION['system_issue_csrf']=bin2hex(random_bytes(24));return(string)$_SESSION['system_issue_csrf'];}
 function system_issue_verify_csrf(string $token): void {if($token===''||!hash_equals(system_issue_csrf(),$token))throw new RuntimeException('This form expired. Refresh and try again.');}
 function system_issue_status_label(string $status): string {return ['reported'=>'Reported','needs_information'=>'Needs Information','under_review'=>'Under Review','fix_in_progress'=>'Fix in Progress','testing'=>'Testing','done'=>'Done','reopened'=>'Reopened','deferred'=>'Deferred'][$status]??'Reported';}
-function system_issue_is_owner(): bool {return user_has_role('owner_admin','supervisor_manager');}
+function system_issue_is_owner(): bool {return user_has_role('owner_admin');}
 function system_issue_reporter_id(array $issue): int {return (int)($issue['reported_by_user_id']??0);}
 function can_view_system_issue(array $issue,?int $userId=null,?bool $owner=null): bool {
     $owner=$owner??system_issue_is_owner();if($owner)return true;
@@ -50,7 +50,7 @@ function system_issue_event(int $issueId,string $type,?string $from=null,?string
     $s=db()->prepare('INSERT INTO system_issue_events(issue_id,actor_employee_id,event_type,from_status,to_status,message,metadata_json) VALUES(?,?,?,?,?,?,?)');
     $s->execute([$issueId,ops_current_employee_id(),$type,$from,$to,$message,$meta?json_encode($meta,JSON_UNESCAPED_SLASHES):null]);
 }
-function system_issue_owner_ids(): array {return array_map('intval',array_column(ops_rows("SELECT e.id FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE e.status='active' AND r.role_key IN ('owner_admin','supervisor_manager')"),'id'));}
+function system_issue_owner_ids(): array {return array_map('intval',array_column(ops_rows("SELECT e.id FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE e.status='active' AND r.role_key='owner_admin'"),'id'));}
 function system_issue_notify(array $data,array $ids): void {notifications_create($data+['module'=>'system_issues','related_type'=>'system_issue','priority'=>'normal','required_delivery'=>true],$ids);}
 function system_issue_generate_key(int $id): string {$key='SYS-'.str_pad((string)$id,4,'0',STR_PAD_LEFT);$s=db()->prepare('UPDATE system_issues SET issue_key=? WHERE id=?');$s->execute([$key,$id]);return$key;}
 function system_issue_duplicate_candidates(array $issue,int $limit=5): array {

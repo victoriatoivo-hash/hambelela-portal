@@ -50,6 +50,9 @@ try {
         'repair_result_required'=>[422,'unmet_prerequisite','Record the Codex repair result before completing testing.'],
         'deployment_record_required'=>[422,'unmet_prerequisite','Record the successful deployment before owner verification.'],
         'deployment_not_required'=>[422,'unmet_prerequisite','This attempt does not require a deployment record.'],
+        'tests_not_confirmed'=>[422,'unmet_prerequisite','Testing must be explicitly passed before deployment or verification.'],
+        'invalid_deployment_result'=>[422,'unmet_prerequisite','Choose deployment success or failed.'],
+        'done_invariant_failed'=>[422,'unmet_prerequisite','The latest repair attempt has not satisfied every testing and deployment requirement.'],
     ];
     [$status,$code,$message] = $map[$error->getMessage()] ?? ($error instanceof RuntimeException && $error->getMessage() === 'This form expired. Refresh and try again.' ? [403,'csrf_failed','Your session expired. Refresh the page and try again.'] : [500,'server_error','The workflow action could not be completed. Reference: '.$reference]);
     $current = [];
