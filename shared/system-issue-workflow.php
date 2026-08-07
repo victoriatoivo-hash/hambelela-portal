@@ -53,8 +53,8 @@ function siw_require_text(array $details,string $key,string $message): string {$
 
 function siw_transition_summary(string $stage,string $formMode): string {
     $current=siw_stages()[$stage]['label']??ucwords(str_replace('_',' ',$stage));
-    $labels=['record_codex_result'=>'Testing','testing_decision'=>'Testing decision','record_deployment'=>'Verification','verification'=>'Done','reopened'=>'Repair'];
-    $next=$labels[$formMode]??$current;
+    $nextMap=['record_codex_result'=>'Testing','testing_decision'=>'Testing decision','record_deployment'=>'Verification','verification'=>'Done','reopened'=>'Repair'];
+    $next=$nextMap[$formMode]??$current;
     return 'Current stage: '.$current.' → Next stage: '.$next;
 }
 
