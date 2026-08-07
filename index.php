@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/shared/auth.php';
 require_once __DIR__ . '/apps/operations/operations.php';
+require_once __DIR__ . '/shared/system-issues.php';
 
 require_login();
 
@@ -16,6 +17,7 @@ $roleKey = current_role_key();
 $dashboardTaskRows = [];
 $dashboardTaskCount = 0;
 $dashboardPackingUnread = function_exists('notifications_packing_assignment_unread_count') ? notifications_packing_assignment_unread_count() : 0;
+$dashboardSystemIssues = system_issue_attention_summary();
 if ($roleKey !== 'owner_admin' && ops_table_exists('ops_checklist_tasks')) {
     $employeeId = ops_current_employee_id() ?: 0;
     $visibilityWhere = ops_column_exists('ops_checklist_tasks', 'employee_visible') ? ' AND employee_visible = 1' : '';
@@ -64,6 +66,9 @@ if ($roleKey === 'owner_admin') {
         $apps[] = ['name' => 'Error Log', 'desc' => 'operational issue tracking', 'icon' => 'triangle-alert', 'href' => BASE_URL . '/apps/operations/errors.php', 'active' => true, 'tone' => 'pink'];
     }
 }
+if (portal_role_can_access_feature($roleKey, 'system_issues')) {
+    $apps[] = ['name' => 'System Issues Log', 'desc' => 'Report and track portal problems', 'icon' => 'bug', 'href' => BASE_URL . '/apps/operations/system-issues.php', 'active' => true, 'tone' => 'violet', 'badge' => (int) ($dashboardSystemIssues['count'] ?? 0), 'needs_information' => (int) ($dashboardSystemIssues['needs_information'] ?? 0)];
+}
 
 include __DIR__ . '/shared/header.php';
 include __DIR__ . '/shared/sidebar.php';
@@ -78,7 +83,7 @@ include __DIR__ . '/shared/sidebar.php';
 
     <section class="app-grid role-app-grid" aria-label="Business apps">
         <?php foreach ($apps as $app): ?>
-            <a class="app-card is-active employee-app-tile--available" href="<?= htmlspecialchars($app['href'], ENT_QUOTES, 'UTF-8') ?>">
+            <a class="app-card is-active employee-app-tile--available" href="<?= htmlspecialchars($app['href'], ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars($app['name'] . ' — ' . $app['desc'], ENT_QUOTES, 'UTF-8') ?>">
                 <?php if ($roleKey !== 'owner_admin'): ?><span class="employee-app-status">Available</span><?php endif; ?>
                 <span class="app-icon <?= htmlspecialchars($app['tone'], ENT_QUOTES, 'UTF-8') ?>">
                     <i data-lucide="<?= htmlspecialchars($app['icon'], ENT_QUOTES, 'UTF-8') ?>"></i>
@@ -87,6 +92,7 @@ include __DIR__ . '/shared/sidebar.php';
                 <small><?= htmlspecialchars($app['desc'], ENT_QUOTES, 'UTF-8') ?></small>
                 <?php if ($app['name'] === 'Tasks' && $dashboardTaskCount > 0): ?><span class="employee-task-count" aria-label="<?= $dashboardTaskCount ?> incomplete tasks"><?= $dashboardTaskCount > 99 ? '99+' : $dashboardTaskCount ?></span><?php endif; ?>
                 <?php if ($app['name'] === 'Packing List'): ?><span class="employee-task-count<?= $dashboardPackingUnread > 0 ? '' : ' is-hidden' ?>" data-packing-unread-badge<?= $dashboardPackingUnread > 0 ? '' : ' hidden' ?> aria-label="<?= $dashboardPackingUnread ?> unread Packing List items"><?= $dashboardPackingUnread > 0 ? ($dashboardPackingUnread > 99 ? '99+' : $dashboardPackingUnread) : '' ?></span><?php endif; ?>
+                <?php if ($app['name'] === 'System Issues Log' && !empty($app['badge'])): ?><span class="employee-task-count<?= !empty($app['needs_information']) ? ' system-issues-needs-info' : '' ?>" aria-label="<?= (int) $app['badge'] ?> open system issues<?= !empty($app['needs_information']) ? ', information requested' : '' ?>"><?= (int) $app['badge'] > 99 ? '99+' : (int) $app['badge'] ?></span><?php endif; ?>
             </a>
         <?php endforeach; ?>
     </section>
