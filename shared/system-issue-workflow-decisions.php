@@ -5,17 +5,17 @@ function siw_decision_is_owner_role(string $role): bool { return $role === 'owne
 function siw_decision_can_view(string $role, int $viewerId, int $reporterId): bool { return siw_decision_is_owner_role($role) || ($viewerId > 0 && $viewerId === $reporterId); }
 function siw_decision_form_mode(string $stage, ?array $attempt): string {
     if ($stage === 'fix_in_progress') return 'record_codex_result';
+    if ($stage === 'deployment') return 'record_deployment';
     if ($stage === 'ready_for_verification') return 'verification';
     if ($stage === 'reopened') return 'reopened';
-    if ($stage !== 'testing') return 'none';
-    if (!$attempt || empty($attempt['testing_completed_at'])) return 'testing_decision';
-    return (int)($attempt['deployment_required'] ?? 0) === 1 ? 'record_deployment' : 'none';
+    if ($stage === 'testing') return 'testing_decision';
+    return 'none';
 }
 function siw_decision_transition(string $command, ?array $attempt): string {
     if ($command === 'testing_passed') {
         if (!$attempt) throw new LogicException('repair_result_required');
         if (!empty($attempt['testing_completed_at'])) throw new LogicException('invalid_transition');
-        return (int)($attempt['deployment_required'] ?? 0) === 1 ? 'testing' : 'ready_for_verification';
+        return (int)($attempt['deployment_required'] ?? 0) === 1 ? 'deployment' : 'ready_for_verification';
     }
     if ($command === 'record_deployment') {
         if (!$attempt || (int)($attempt['deployment_required'] ?? 0) !== 1) throw new LogicException('deployment_not_required');
