@@ -65,5 +65,8 @@ try {
         $row = ops_rows('SELECT * FROM system_issues WHERE id=? LIMIT 1', [$issueId])[0] ?? null;
         if ($row) $current = siw_view($row);
     }
-    siw_json($status, false, array_merge(['code'=>$code, 'message'=>$message], $current));
+    // Keep the authoritative workflow state for an in-place refresh, but never
+    // allow its generic "Workflow state loaded" message to hide the action
+    // failure and diagnostic reference returned above.
+    siw_json($status, false, array_merge($current, ['code'=>$code, 'message'=>$message]));
 }
