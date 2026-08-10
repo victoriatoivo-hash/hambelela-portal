@@ -28793,3 +28793,9 @@ body.performance-meeting-open .performance-meeting .epi-report-page.is-meeting-c
 #system-issues-page .system-issue-attempt-card dt{font-size:11px;font-weight:700;text-transform:uppercase}
 #system-issues-page .system-issue-attempt-card dd{margin:3px 0 0;overflow-wrap:anywhere}
 @media(max-width:700px){#system-issues-page .system-issue-attempt-card dl{grid-template-columns:1fr}#system-issues-page .system-issue-attempt-card header small{width:100%;margin-left:0}}
+
+/* System Issues owner recommendation AJAX saved state. */
+#system-issues-page .sil-recommendation-saved{display:grid;gap:3px;margin-top:9px;padding:9px 10px;border-left:3px solid #A8CA19;border-radius:6px;background:#F7FBEA;color:#2B1B16}
+#system-issues-page .sil-recommendation-saved[hidden]{display:none}
+#system-issues-page .sil-recommendation-saved strong{font-size:11px}
+#system-issues-page .sil-recommendation-saved small{color:#6F625C;font-size:10px}
