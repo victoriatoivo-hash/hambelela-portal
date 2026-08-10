@@ -15,6 +15,18 @@ function system_issue_recommendation_json(array $payload, int $status = 200): vo
     exit;
 }
 
+function system_issue_recommendation_brief_html(array $brief): string
+{
+    $fields = ['summary'=>'Summary','owner_recommendations'=>'Owner Recommendations & Business Context','observed_behaviour'=>'Observed behaviour','expected_behaviour'=>'Expected behaviour','steps_to_reproduce'=>'Steps to reproduce','affected_module'=>'Affected module','likely_root_cause'=>'Likely root cause','scope_of_fix'=>'Scope of fix','do_not_change'=>'Do not change','acceptance_criteria'=>'Acceptance criteria','required_tests'=>'Required tests','deployment_and_live_verification_requirements'=>'Deployment and live verification requirements','missing_information'=>'Missing information or uncertainties'];
+    $html = '';
+    foreach ($fields as $key => $label) {
+        $value = $brief[$key] ?? '—';
+        if (is_array($value)) $value = implode("\n", $value);
+        $html .= '<div><strong>'.htmlspecialchars($label, ENT_QUOTES, 'UTF-8').'</strong><p>'.nl2br(htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8')).'</p></div>';
+    }
+    return $html;
+}
+
 try {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         throw new RuntimeException('Method not allowed.');
@@ -104,6 +116,8 @@ try {
             'issue_id' => $issueId,
             'brief_version' => (int) $briefRow['version_number'],
             'brief' => $brief,
+            'brief_html' => system_issue_recommendation_brief_html($brief),
+            'recommendation' => (string) $latest['recommendation_text'],
             'risk_level' => (string) ($briefRow['ai_risk_level'] ?? $issue['ai_risk_level'] ?? 'high'),
             'updated_at' => (string) $briefRow['created_at'],
             'updated_by' => (string) $updatedBy,

@@ -49,7 +49,7 @@
   const renderSavedState = (data) => {
     if (!savedState) return;
     savedState.hidden = false;
-    savedState.innerHTML = `<strong>Saved owner recommendation</strong><small>Last updated: ${escapeHtml(displayDate(data.updated_at || data.saved_at))} · Saved by: ${escapeHtml(data.saved_by || 'Owner')}</small>`;
+    savedState.innerHTML = `<strong>Saved recommendation</strong><small>Last updated: ${escapeHtml(displayDate(data.updated_at || data.saved_at))} · Saved by: ${escapeHtml(data.saved_by || 'Owner')}</small>`;
     textarea.value = data.recommendation || textarea.value;
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
   };
@@ -77,11 +77,15 @@
     const header = briefSection.querySelector('.sil-brief-header');
     const selector = briefSection.querySelector('.sil-brief-selector');
     briefSection.querySelectorAll(':scope > div:not(.sil-brief-header)').forEach((node) => node.remove());
-    fields.forEach(([key, label]) => {
-      const row = document.createElement('div');
-      row.innerHTML = `<strong>${escapeHtml(label)}</strong><p>${valueHtml(data.brief[key])}</p>`;
-      briefSection.appendChild(row);
-    });
+    if (data.brief_html) {
+      briefSection.insertAdjacentHTML('beforeend', data.brief_html);
+    } else {
+      fields.forEach(([key, label]) => {
+        const row = document.createElement('div');
+        row.innerHTML = `<strong>${escapeHtml(label)}</strong><p>${valueHtml(data.brief[key])}</p>`;
+        briefSection.appendChild(row);
+      });
+    }
     const version = header?.querySelector('.sil-brief-version');
     if (version) version.textContent = `Version ${data.brief_version} · Current · ${String(data.risk_level || '').toUpperCase()} risk · Updated ${displayDate(data.updated_at)} by ${data.updated_by || 'Owner'} · Recommendation incorporated: ${data.recommendation_incorporated ? 'Yes' : 'No'}`;
     const copyButton = header?.querySelector('[data-copy-brief]');
@@ -100,6 +104,9 @@
       label.textContent = 'Owner Recommendations & Business Context';
     }
   });
+
+  const initialSavedLabel = savedState?.querySelector('strong');
+  if (initialSavedLabel) initialSavedLabel.textContent = 'Saved recommendation';
 
   if (savedState && !String(textarea.value || '').trim()) {
     savedState.hidden = false;
