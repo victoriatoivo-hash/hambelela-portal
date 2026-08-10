@@ -21,7 +21,7 @@ assert.match(page, /Only an owner\/admin may remove error evidence/);
 assert.match(page, /error_attachment_removed/);
 assert.match(endpoint, /require_role\('owner_admin', 'front_desk_admin', 'front_desk_admin_employee'\)/);
 assert.match(endpoint, /hash_equals\(\$path, \$requestedPath\)/);
-assert.match(endpoint, /str_starts_with\(\$absolutePath, \$uploadRoot \. DIRECTORY_SEPARATOR\)/);
+assert.match(endpoint, /error_attachment_path_starts_with\(\$absolutePath, \$uploadRoot \. DIRECTORY_SEPARATOR\)/);
 assert.match(endpoint, /X-Content-Type-Options: nosniff/);
 assert.match(endpoint, /Content-Disposition:/);
 assert.match(css, /\.error-selected-file\{/);
