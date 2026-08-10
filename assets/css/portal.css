@@ -28800,3 +28800,9 @@ body.performance-meeting-open .performance-meeting .epi-report-page.is-meeting-c
 .sil-report-feedback.is-error{border-color:#c54c3d;background:#fff0ed}
 .sil-report-feedback div{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 @media(max-width:640px){.sil-delete-issue{width:100%;margin:8px 0 0}.sil-report-feedback div>*{width:100%}}
+
+/* System Issues owner recommendation AJAX saved state. */
+#system-issues-page .sil-recommendation-saved{display:grid;gap:3px;margin-top:9px;padding:9px 10px;border-left:3px solid #A8CA19;border-radius:6px;background:#F7FBEA;color:#2B1B16}
+#system-issues-page .sil-recommendation-saved[hidden]{display:none}
+#system-issues-page .sil-recommendation-saved strong{font-size:11px}
+#system-issues-page .sil-recommendation-saved small{color:#6F625C;font-size:10px}
