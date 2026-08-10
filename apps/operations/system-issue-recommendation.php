@@ -33,6 +33,10 @@ try {
     $currentUserId = (int) (current_user()['id'] ?? 0);
     $issue = system_issue_find_visible($issueId, $currentUserId, true);
     if (!$issue) {
+        $deleted = ops_rows('SELECT deleted_at FROM system_issues WHERE id=? LIMIT 1', [$issueId])[0] ?? null;
+        if ($deleted && !empty($deleted['deleted_at'])) {
+            system_issue_recommendation_json(['ok' => false, 'issue_id' => $issueId, 'error' => ['code' => 'ISSUE_DELETED', 'message' => 'This System Issue has been deleted. Select another issue.', 'technical_reference' => 'ISSUE-'.$issueId]], 410);
+        }
         system_issue_log_access_denied($issueId, 'recommendation.ajax');
         throw new RuntimeException('Issue not found.');
     }
@@ -79,7 +83,7 @@ try {
                 'ok' => false,
                 'issue_id' => $issueId,
                 'recommendation_saved' => true,
-                'message' => (string) ($result['message'] ?? 'Recommendation saved, but AI Brief update failed.'),
+                'error' => ['code' => (string) ($result['error_code'] ?? 'AI_BRIEF_UPDATE_FAILED'), 'message' => (string) ($result['message'] ?? 'Recommendation saved, but AI Brief update failed.'), 'technical_reference' => (string) ($result['technical_reference'] ?? 'AI-BRIEF-'.$issueId)],
             ], 502);
         }
 
@@ -104,7 +108,7 @@ try {
             'updated_at' => (string) $briefRow['created_at'],
             'updated_by' => (string) $updatedBy,
             'recommendation_incorporated' => true,
-            'message' => 'AI Brief updated.',
+            'message' => 'AI Brief updated successfully.',
         ]);
     }
 
@@ -112,5 +116,5 @@ try {
 } catch (Throwable $error) {
     $message = trim($error->getMessage()) ?: 'Server error while saving.';
     $status = $message === 'Permission denied.' ? 403 : ($message === 'Method not allowed.' ? 405 : 422);
-    system_issue_recommendation_json(['ok' => false, 'message' => $message], $status);
+    system_issue_recommendation_json(['ok' => false, 'error' => ['code' => 'RECOMMENDATION_REQUEST_FAILED', 'message' => $message, 'technical_reference' => 'RECOMMENDATION-'.date('YmdHis')]], $status);
 }

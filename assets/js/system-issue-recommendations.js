@@ -35,7 +35,7 @@
     buttons.forEach((button) => {
       button.disabled = active;
       button.textContent = active && button === submitter
-        ? (button.value === 'update_ai_brief' ? 'Updating Brief…' : 'Saving…')
+        ? (button.value === 'update_ai_brief' ? 'Updating AI Brief...' : 'Saving...')
         : labels.get(button);
     });
     form.setAttribute('aria-busy', String(active));
@@ -51,6 +51,7 @@
     savedState.hidden = false;
     savedState.innerHTML = `<strong>Saved owner recommendation</strong><small>Last updated: ${escapeHtml(displayDate(data.updated_at || data.saved_at))} · Saved by: ${escapeHtml(data.saved_by || 'Owner')}</small>`;
     textarea.value = data.recommendation || textarea.value;
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
   };
   const valueHtml = (value) => {
     const text = Array.isArray(value) ? value.join('\n') : String(value ?? '—');
@@ -100,6 +101,11 @@
     }
   });
 
+  if (savedState && !String(textarea.value || '').trim()) {
+    savedState.hidden = false;
+    savedState.innerHTML = '<small>No owner recommendation saved yet.</small>';
+  }
+
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (!endpoint || form.getAttribute('aria-busy') === 'true') return;
@@ -119,10 +125,10 @@
       const contentType = String(response.headers.get('content-type') || '').toLowerCase();
       if (!contentType.includes('application/json')) throw new Error('The server returned an invalid response.');
       const data = await response.json();
-      if (!response.ok || !data.ok) throw new Error(data.message || 'The request could not be completed.');
+      if (!response.ok || !data.ok) throw new Error(data.error?.message || data.message || 'The request could not be completed.');
       if (action === 'save_owner_recommendation') renderSavedState(data);
       if (action === 'update_ai_brief') renderBrief(data);
-      notify(data.message || (action === 'update_ai_brief' ? 'AI Brief updated.' : 'Recommendation saved.'));
+      notify(data.message || (action === 'update_ai_brief' ? 'AI Brief updated successfully.' : 'Recommendation saved.'));
       setBusy(false);
       submitter.textContent = action === 'update_ai_brief' ? 'Updated' : 'Saved';
       window.setTimeout(() => { submitter.textContent = labels.get(submitter); }, 900);
