@@ -60,19 +60,23 @@
   const renderBrief = (data) => {
     if (!briefSection || !data.brief) return;
     const fields = [
-      ['summary', 'Summary'],
-      ['owner_recommendations', 'Owner Recommendations & Business Context'],
-      ['observed_behaviour', 'Observed behaviour'],
-      ['expected_behaviour', 'Expected behaviour'],
-      ['steps_to_reproduce', 'Steps to reproduce'],
-      ['affected_module', 'Affected module'],
-      ['likely_root_cause', 'Likely root cause'],
-      ['scope_of_fix', 'Scope of fix'],
-      ['do_not_change', 'Do not change'],
-      ['acceptance_criteria', 'Acceptance criteria'],
-      ['required_tests', 'Required tests'],
-      ['deployment_and_live_verification_requirements', 'Deployment and live verification requirements'],
-      ['missing_information', 'Missing information or uncertainties']
+      ['issue_summary', 'Issue Summary'],
+      ['employee_reported_problem', 'Employee-Reported Problem'],
+      ['owner_requirements_business_context', 'Owner Requirements & Business Context'],
+      ['expected_behaviour', 'Expected Behaviour'],
+      ['known_technical_context', 'Known Technical Context'],
+      ['codex_investigation', 'Codex Investigation'],
+      ['implementation_requirements', 'Implementation Requirements'],
+      ['data_field_mapping', 'Data / Field Mapping'],
+      ['do_not_change', 'Do Not Change'],
+      ['error_edge_cases', 'Error & Edge Cases'],
+      ['required_tests', 'Required Tests'],
+      ['regression_tests', 'Regression Tests'],
+      ['acceptance_criteria', 'Acceptance Criteria'],
+      ['implementation_authority', 'Implementation Authority'],
+      ['deployment_requirements', 'Deployment Requirements'],
+      ['owner_decision_required', 'Owner Decision Required'],
+      ['completion_report_required', 'Completion Report Required']
     ];
     const header = briefSection.querySelector('.sil-brief-header');
     const selector = briefSection.querySelector('.sil-brief-selector');
