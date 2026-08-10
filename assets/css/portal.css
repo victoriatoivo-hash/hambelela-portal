@@ -28814,6 +28814,19 @@ body.performance-meeting-open .performance-meeting .epi-report-page.is-meeting-c
 #system-issues-page .sil-recommendation-saved[hidden]{display:none}
 #system-issues-page .sil-recommendation-saved strong{font-size:11px}
 #system-issues-page .sil-recommendation-saved small{color:#6F625C;font-size:10px}
+
+/* System Issues: execution-ready Codex Repair Brief document. */
+#system-issues-page .system-issue-detail:has(.sil-ai-brief.is-repair-brief)>.sil-ai-brief:not(.is-repair-brief){display:none}
+#system-issues-page .sil-ai-brief.is-repair-brief{display:block;margin:0 16px 16px;padding:0;border:1px solid #E8DED5;border-radius:12px;overflow:hidden;background:#fff}
+#system-issues-page .sil-ai-brief.is-repair-brief .sil-brief-header{margin:0;padding:16px 18px;border-bottom:1px solid #E8DED5;background:#FBF6F1}
+#system-issues-page .sil-ai-brief.is-repair-brief .sil-brief-kind{display:inline-flex;margin:6px 0 0;padding:3px 7px;border-radius:999px;background:#F1E4D8;color:#721B1A;font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+#system-issues-page .sil-ai-brief.is-repair-brief .sil-brief-version{max-width:760px;line-height:1.5}
+#system-issues-page .sil-ai-brief.is-repair-brief .sil-brief-selector{margin:12px 18px}
+#system-issues-page .sil-ai-brief.is-repair-brief .sil-brief-section{padding:15px 18px;border-top:1px solid #F0E8E1}
+#system-issues-page .sil-ai-brief.is-repair-brief .sil-brief-section>strong{display:block;color:#721B1A;font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase}
+#system-issues-page .sil-ai-brief.is-repair-brief .sil-brief-section>p{max-width:900px;margin:7px 0 0;color:#2B1B16;font-size:12px;line-height:1.65;white-space:normal}
+#system-issues-page .sil-ai-brief.is-repair-brief .sil-brief-section--title p{font-size:16px;font-weight:700;line-height:1.35}
+@media(max-width:430px){#system-issues-page .sil-ai-brief.is-repair-brief{margin:0 10px 12px}#system-issues-page .sil-ai-brief.is-repair-brief .sil-brief-header{align-items:flex-start;padding:14px}#system-issues-page .sil-ai-brief.is-repair-brief .sil-brief-section{padding:13px 14px}#system-issues-page .sil-ai-brief.is-repair-brief .sil-copy-label{display:inline}#system-issues-page .sil-ai-brief.is-repair-brief .sil-copy-brief{width:auto;min-width:32px}}
 /* System Issues approved-brief handoff */
 #system-issues-page .system-issue-approved-brief{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0;padding:10px 12px;border:1px solid var(--border-color,#d9d9d9);border-radius:10px;background:var(--surface-subtle,#f7f7f7)}
 #system-issues-page .system-issue-approved-brief strong{font-size:13px}

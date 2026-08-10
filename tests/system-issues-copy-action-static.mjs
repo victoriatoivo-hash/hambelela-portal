@@ -19,7 +19,7 @@ assert.match(copy, /Copy failed/);
 assert.match(copy, /Copy Codex Brief/);
 assert.match(copy, /data\.error/);
 assert.match(endpoint, /Only the immutable approved brief may be copied/);
-assert.match(service, /# SYSTEM ISSUE IMPLEMENTATION BRIEF/);
+assert.match(service, /# SYSTEM ISSUE REPAIR BRIEF/);
 assert.match(service, /'acceptance_criteria'=>'Acceptance Criteria'/);
 
 console.log('System Issues copy action safeguards passed.');
