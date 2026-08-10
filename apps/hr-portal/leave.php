@@ -381,7 +381,7 @@ $msg = $_GET['msg'] ?? '';
     </div>
     <!-- Stats -->
     <div class="grid-4">
-      <div class="stat-card"><div class="stat-icon amber"><i class="fa-solid fa-hourglass-half"></i></div><div class="stat-value"><?=count($pending)?></div><div class="stat-label">Pending Requests</div></div>
+      <div class="stat-card"><div class="stat-icon amber"><i class="fa-solid fa-hourglass-half"></i></div><div class="stat-value" id="pendingLeaveCount"><?=count($pending)?></div><div class="stat-label">Pending Requests</div></div>
       <?php
       $approved = array_filter($all, function($r) { return $r['status']==='approved'; });
       $rejected = array_filter($all, function($r) { return $r['status']==='rejected'; });
@@ -394,7 +394,7 @@ $msg = $_GET['msg'] ?? '';
 
     <!-- Pending Requests -->
     <?php if (!empty($pending)): ?>
-    <div class="card">
+    <div class="card" id="pending-requests">
       <div class="card-header">
         <div class="card-title"><i class="fa-solid fa-hourglass-half" style="color:var(--amber)"></i> Pending Requests</div>
         <span class="badge badge-amber"><?=count($pending)?> Pending</span>
@@ -753,6 +753,31 @@ document.querySelectorAll('.overlay').forEach(o => {
   o.addEventListener('click', e => { if (e.target===o && o !== rejectModal) o.classList.remove('open'); });
 });
 rejectModal?.addEventListener('click', event => { if (event.target === rejectModal) setRejectModalOpen(false); });
+
+// Check for employee submissions while the owner keeps Leave Management open.
+// Reload only when the authoritative pending count changes so the existing
+// server-rendered actions, CSRF tokens and permission checks remain the source of truth.
+(function monitorPendingLeaveRequests(){
+  const countNode = document.getElementById('pendingLeaveCount');
+  if (!countNode || typeof fetch !== 'function') return;
+  const initialCount = Number(countNode.textContent.trim()) || 0;
+  let checking = false;
+  async function check(){
+    if (checking || document.hidden) return;
+    checking = true;
+    try {
+      const response = await fetch('leave-pending-count.php', {credentials:'same-origin', cache:'no-store', headers:{Accept:'application/json'}});
+      const payload = await response.json();
+      if (response.ok && payload.success && Number(payload.pending_count) !== initialCount) window.location.reload();
+    } catch (error) {
+      // Leave the current verified server-rendered state intact on a transient poll failure.
+    } finally {
+      checking = false;
+    }
+  }
+  window.setInterval(check, 30000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+})();
 </script>
 <script src="includes/leave-reason-popover.js?v=20260729-1"></script>
 </body>
