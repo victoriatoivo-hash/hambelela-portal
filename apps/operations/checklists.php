@@ -2845,7 +2845,7 @@ function initialiseTaskDueStates() {
   const TASK_TIMEZONE = 'Africa/Windhoek';
   const labels = { upcoming:'Upcoming', due_today:'Due Today', overdue:'Overdue' };
   const timingCsrfToken = <?= json_encode($taskAttachmentCsrf) ?>;
-  let timer = null, lastTimingSync = 0;
+  let timer = null, lastTimingSync = 0, timingRequest = null, timingVersion = 0;
   const dateKey = (date) => new Intl.DateTimeFormat('en-CA', {
     timeZone:TASK_TIMEZONE, year:'numeric', month:'2-digit', day:'2-digit'
   }).formatToParts(date).filter((part) => part.type !== 'literal').map((part) => part.value).join('-');
@@ -2866,10 +2866,12 @@ function initialiseTaskDueStates() {
     return due.getTime() > now.getTime() ? due.getTime() - now.getTime() : null;
   };
   const syncTimings = async () => {
-    if (document.hidden || Date.now() - lastTimingSync < 59000) return;
+    if (document.hidden || timingRequest || Date.now() - lastTimingSync < 59000) return timingRequest;
     const rows=[...root.querySelectorAll('[data-task-row]')],ids=rows.map(row=>row.dataset.taskId).filter(Boolean);if(!ids.length)return;lastTimingSync=Date.now();
     const body=new FormData();body.set('action','task_timing_snapshot');body.set('csrf_token',timingCsrfToken);body.set('task_ids',ids.join(','));
-    try{const response=await fetch(`${window.location.pathname}${window.location.search}`,{method:'POST',body,headers:{'X-Requested-With':'XMLHttpRequest'}});const result=await response.json();if(!response.ok||result.success!==true)return;rows.forEach(row=>{const timing=result.tasks?.[row.dataset.taskId];if(!timing)return;const value=Math.max(0,Math.min(100,Number(timing.progress)||0)),track=row.querySelector('[data-task-progress-track]'),fill=row.querySelector('[data-task-progress-fill]'),progress=row.querySelector('[data-task-progress-value]'),outcome=row.querySelector('[data-task-timing-outcome],[data-task-due-state]'),label=row.dataset.savedStatus==='complete'?timing.outcome:timing.active_outcome;if(track){track.setAttribute('aria-valuenow',String(value));track.classList.toggle('is-overdue',Boolean(timing.overdue));}if(fill)fill.style.width=`${value}%`;if(progress)progress.textContent=`${value}%`;if(outcome){outcome.textContent=label||'';outcome.classList.toggle('task-due-state--overdue',Boolean(timing.overdue));}});}catch(error){/* Retry through the next safe minute refresh. */}
+    const version=++timingVersion;
+    timingRequest=(async()=>{try{const response=await fetch(`${window.location.pathname}${window.location.search}`,{method:'POST',body,headers:{'X-Requested-With':'XMLHttpRequest'}});const result=await response.json();if(version!==timingVersion||!response.ok||result.success!==true)return;rows.forEach(row=>{const timing=result.tasks?.[row.dataset.taskId];if(!timing)return;const value=Math.max(0,Math.min(100,Number(timing.progress)||0)),track=row.querySelector('[data-task-progress-track]'),fill=row.querySelector('[data-task-progress-fill]'),progress=row.querySelector('[data-task-progress-value]'),outcome=row.querySelector('[data-task-timing-outcome],[data-task-due-state]'),label=row.dataset.savedStatus==='complete'?timing.outcome:timing.active_outcome;if(track){track.setAttribute('aria-valuenow',String(value));track.classList.toggle('is-overdue',Boolean(timing.overdue));}if(fill)fill.style.width=`${value}%`;if(progress)progress.textContent=`${value}%`;if(outcome){outcome.textContent=label||'';outcome.classList.toggle('task-due-state--overdue',Boolean(timing.overdue));}});}catch(error){/* Retry through the next safe minute refresh. */}finally{timingRequest=null}})();
+    return timingRequest;
   };
   const refresh = () => {
     if (timer) window.clearTimeout(timer);
@@ -2881,6 +2883,7 @@ function initialiseTaskDueStates() {
   };
   window.taskDueStateController = { refresh };
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+  window.addEventListener('online', refresh);
   refresh();
 }
 initialiseTaskDueStates();

@@ -8,6 +8,9 @@
   const markAllButton = page.querySelector('[data-page-mark-all-read]');
   const clearAllButton = page.querySelector('[data-page-clear-all]');
   let currentData = { summary: {}, notifications: [] };
+  let loadRequest = null;
+  let loadVersion = 0;
+  let refreshTimer = null;
 
   const element = (tag, className, text) => {
     const node = document.createElement(tag);
@@ -240,7 +243,40 @@
     }
   }
 
-  async function load() { root.replaceChildren(element('div', 'notifications-loading', 'Loading notifications...')); markAllButton.disabled = true; clearAllButton.disabled = true; try { renderPage(await fetchData()); } catch (error) { console.error('Unable to initialise Notifications:', error); renderError(error.message); } }
+  function filterState() {
+    const form = root.querySelector('.notification-filter-body');
+    return form ? Object.fromEntries(new FormData(form).entries()) : {};
+  }
+  function restoreFilterState(state) {
+    const form = root.querySelector('.notification-filter-body');
+    if (!form) return;
+    Object.entries(state || {}).forEach(([name, value]) => { if (form.elements[name]) form.elements[name].value = value; });
+    renderGroups(filteredNotifications(new FormData(form)));
+  }
+  async function load({ background = false } = {}) {
+    if (loadRequest) return loadRequest;
+    if (background && document.hidden) return null;
+    const version = ++loadVersion;
+    const savedFilters = filterState();
+    if (!background) { root.replaceChildren(element('div', 'notifications-loading', 'Loading notifications...')); markAllButton.disabled = true; clearAllButton.disabled = true; }
+    loadRequest = (async () => {
+      try {
+        const data = await fetchData();
+        if (version !== loadVersion) return null;
+        renderPage(data);
+        restoreFilterState(savedFilters);
+        return data;
+      } catch (error) {
+        if (!background) { console.error('Unable to initialise Notifications:', error); renderError(error.message); }
+        return null;
+      }
+    })();
+    try { return await loadRequest; } finally { loadRequest = null; }
+  }
+  function scheduleRefresh(delay = 30000) {
+    if (refreshTimer) clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(async () => { await load({ background: true }); scheduleRefresh(document.hidden ? 120000 : 30000); }, delay);
+  }
   async function runAction(action) { markAllButton.disabled = true; clearAllButton.disabled = true; try { await action(); await load(); } catch (error) { renderError(error.message); } }
 
   page.addEventListener('click', (event) => {
@@ -256,4 +292,7 @@
   });
 
   load();
+  scheduleRefresh();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) load({ background: true }); });
+  window.addEventListener('online', () => load({ background: true }));
 })();

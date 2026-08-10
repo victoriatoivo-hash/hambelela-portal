@@ -1819,6 +1819,31 @@ include BASE_PATH . '/shared/sidebar.php';
         return 'courier.php?' + params.toString();
     }
 
+    let courierRefreshRequest = null;
+    let courierRefreshTimer = null;
+    let courierRefreshVersion = 0;
+    function courierHasActiveEditor() {
+        return Boolean(document.querySelector('[data-waybill-upload] input:focus, [data-waybill-upload] textarea:focus, [data-courier-confirm]:not([hidden]), [data-courier-tools-panel].is-open'));
+    }
+    async function refreshCourierQueue(background = false) {
+        if (courierRefreshRequest) return courierRefreshRequest;
+        if (background && (document.hidden || courierHasActiveEditor())) return null;
+        const version = ++courierRefreshVersion;
+        courierRefreshRequest = fetchJson(filteredRefreshUrl()).then((data) => {
+            if (version !== courierRefreshVersion) return null;
+            renderPayload(data);
+            return data;
+        }).finally(() => { courierRefreshRequest = null; });
+        return courierRefreshRequest;
+    }
+    function scheduleCourierRefresh(delay = 30000) {
+        if (courierRefreshTimer) clearTimeout(courierRefreshTimer);
+        courierRefreshTimer = setTimeout(async () => {
+            try { await refreshCourierQueue(true); } catch (_) { /* Manual refresh remains available. */ }
+            scheduleCourierRefresh(document.hidden ? 120000 : 30000);
+        }, delay);
+    }
+
     const uploadForm = document.querySelector('[data-waybill-upload]');
     if (uploadForm) {
         const fileInput = uploadForm.querySelector('input[type="file"]');
@@ -2054,10 +2079,9 @@ include BASE_PATH . '/shared/sidebar.php';
         const refreshButton = event.target.closest('[data-refresh-waybills]');
         if (refreshButton) {
             refreshButton.disabled = true;
-            fetchJson(filteredRefreshUrl())
+            refreshCourierQueue(false)
                 .then((data) => {
-                    renderPayload(data);
-                    showToast('Waybill queue refreshed.');
+                    if (data) showToast('Waybill queue refreshed.');
                 })
                 .catch((error) => showToast(error.message))
                 .finally(() => {
@@ -2093,11 +2117,9 @@ include BASE_PATH . '/shared/sidebar.php';
         if (toolsPanel?.classList.contains('is-open')) closeTools();
     });
 
-    setInterval(() => {
-        fetchJson(filteredRefreshUrl())
-            .then(renderPayload)
-            .catch(() => {});
-    }, 60000);
+    scheduleCourierRefresh();
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshCourierQueue(true).catch(() => {}); });
+    window.addEventListener('online', () => refreshCourierQueue(true).catch(() => {}));
     initialiseCourierColumnResize();
     app.dataset.courierController = 'ready';
     document.documentElement.classList.add('courier-js-ready');
