@@ -18,12 +18,12 @@ function system_issue_recommendation_json(array $payload, int $status = 200): vo
 
 function system_issue_recommendation_brief_html(array $brief): string
 {
-    $fields = ['issue_summary'=>'Issue Summary','employee_reported_problem'=>'Employee-Reported Problem','owner_requirements_business_context'=>'Owner Requirements & Business Context','expected_behaviour'=>'Expected Behaviour','known_technical_context'=>'Known Technical Context','codex_investigation'=>'Codex Investigation','implementation_requirements'=>'Implementation Requirements','data_field_mapping'=>'Data / Field Mapping','do_not_change'=>'Do Not Change','error_edge_cases'=>'Error & Edge Cases','required_tests'=>'Required Tests','regression_tests'=>'Regression Tests','acceptance_criteria'=>'Acceptance Criteria','implementation_authority'=>'Implementation Authority','deployment_requirements'=>'Deployment Requirements','owner_decision_required'=>'Owner Decision Required','completion_report_required'=>'Completion Report Required'];
+    $fields = system_issue_brief_is_repair($brief) ? system_issue_brief_sections() : ['issue_summary'=>'Issue Summary','employee_reported_problem'=>'Employee-Reported Problem','owner_requirements_business_context'=>'Owner Requirements & Business Context','expected_behaviour'=>'Expected Behaviour','known_technical_context'=>'Known Technical Context','codex_investigation'=>'Codex Investigation','implementation_requirements'=>'Implementation Requirements','data_field_mapping'=>'Data / Field Mapping','do_not_change'=>'Do Not Change','error_edge_cases'=>'Error & Edge Cases','required_tests'=>'Required Tests','regression_tests'=>'Regression Tests','acceptance_criteria'=>'Acceptance Criteria','implementation_authority'=>'Implementation Authority','deployment_requirements'=>'Deployment Requirements','owner_decision_required'=>'Owner Decision Required','completion_report_required'=>'Completion Report Required'];
     $html = '';
     foreach ($fields as $key => $label) {
         $value = $brief[$key] ?? '—';
         if (is_array($value)) $value = implode("\n", $value);
-        $html .= '<div><strong>'.htmlspecialchars($label, ENT_QUOTES, 'UTF-8').'</strong><p>'.nl2br(htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8')).'</p></div>';
+        $html .= '<div class="sil-brief-section sil-brief-section--'.htmlspecialchars(str_replace('_', '-', $key), ENT_QUOTES, 'UTF-8').'"><strong>'.htmlspecialchars($label, ENT_QUOTES, 'UTF-8').'</strong><p>'.nl2br(htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8')).'</p></div>';
     }
     return $html;
 }

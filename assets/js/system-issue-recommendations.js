@@ -7,9 +7,14 @@
   const textarea = form.querySelector('textarea[name="owner_recommendation"]');
   const buttons = [...form.querySelectorAll('button[type="submit"]')];
   const savedState = form.querySelector('[data-recommendation-saved]');
-  const briefSection = document.querySelector('.sil-ai-brief');
+  const briefSection = document.querySelector('.sil-ai-brief.is-repair-brief') || document.querySelector('.sil-ai-brief');
   const endpoint = form.dataset.recommendationUrl || '';
   const labels = new Map(buttons.map((button) => [button, button.textContent]));
+  document.querySelectorAll('.sil-ai-brief:not(.is-repair-brief)').forEach((legacyBrief) => {
+    if (document.querySelector('.sil-ai-brief.is-repair-brief')) return;
+    const heading = legacyBrief.querySelector('.sil-brief-header > div');
+    if (heading && !heading.querySelector('.sil-brief-kind')) heading.insertAdjacentHTML('beforeend', '<span class="sil-brief-kind">Legacy Triage Brief</span>');
+  });
 
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
@@ -60,21 +65,23 @@
   const renderBrief = (data) => {
     if (!briefSection || !data.brief) return;
     const fields = [
-      ['issue_summary', 'Issue Summary'],
-      ['employee_reported_problem', 'Employee-Reported Problem'],
+      ['title', 'Title'],
+      ['summary', 'Summary'],
+      ['employee_report', 'Employee Report'],
       ['owner_requirements_business_context', 'Owner Requirements & Business Context'],
+      ['observed_behaviour', 'Observed Behaviour'],
       ['expected_behaviour', 'Expected Behaviour'],
       ['known_technical_context', 'Known Technical Context'],
-      ['codex_investigation', 'Codex Investigation'],
+      ['codex_must_investigate', 'Codex Must Investigate'],
+      ['affected_modules_routes', 'Affected Modules and Routes'],
       ['implementation_requirements', 'Implementation Requirements'],
       ['data_field_mapping', 'Data / Field Mapping'],
       ['do_not_change', 'Do Not Change'],
       ['error_edge_cases', 'Error & Edge Cases'],
       ['required_tests', 'Required Tests'],
-      ['regression_tests', 'Regression Tests'],
       ['acceptance_criteria', 'Acceptance Criteria'],
       ['implementation_authority', 'Implementation Authority'],
-      ['deployment_requirements', 'Deployment Requirements'],
+      ['deployment_live_verification', 'Deployment and Live Verification'],
       ['owner_decision_required', 'Owner Decision Required'],
       ['completion_report_required', 'Completion Report Required']
     ];
