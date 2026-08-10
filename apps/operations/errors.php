@@ -261,7 +261,16 @@ function error_ini_bytes(string $value): int
     if ($value === '') return 0;
     $unit = strtolower(substr($value, -1));
     $number = (float) $value;
-    return (int) ($number * match ($unit) { 'g' => 1073741824, 'm' => 1048576, 'k' => 1024, default => 1 });
+    $multiplier = 1;
+    if ($unit === 'g') $multiplier = 1073741824;
+    elseif ($unit === 'm') $multiplier = 1048576;
+    elseif ($unit === 'k') $multiplier = 1024;
+    return (int) ($number * $multiplier);
+}
+
+function error_path_starts_with(string $path, string $prefix): bool
+{
+    return $prefix === '' || strncmp($path, $prefix, strlen($prefix)) === 0;
 }
 
 function error_upload_files(int $errorId): array
@@ -619,7 +628,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$matched) throw new RuntimeException('Attachment not found.');
             $uploadRoot = realpath(BASE_PATH . '/uploads/error-log');
             $absolutePath = realpath(BASE_PATH . '/' . ltrim($attachmentPath, '/'));
-            if ($uploadRoot && $absolutePath && str_starts_with($absolutePath, $uploadRoot . DIRECTORY_SEPARATOR) && is_file($absolutePath) && !unlink($absolutePath)) {
+            if ($uploadRoot && $absolutePath && error_path_starts_with($absolutePath, $uploadRoot . DIRECTORY_SEPARATOR) && is_file($absolutePath) && !unlink($absolutePath)) {
                 throw new RuntimeException('The attachment could not be removed from storage.');
             }
             db()->prepare('UPDATE ops_error_logs SET attachment_paths = ? WHERE id = ? AND deleted_at IS NULL')->execute([json_encode($remaining, JSON_UNESCAPED_SLASHES), $errorId]);
@@ -1282,7 +1291,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="banknote"></i> Financial impact</h3><p class="incident-content-text" data-error-finance-detail="<?= $errorId ?>"><?= $error['financial_impact']===null?'Not recorded':'N$'.number_format((float)$error['financial_impact'],2) ?></p><?php if(!empty($error['financial_impact_notes'])): ?><p class="incident-content-text"><?= nl2br(htmlspecialchars((string)$error['financial_impact_notes'],ENT_QUOTES,'UTF-8')) ?></p><?php endif; ?></section>
                 <?php if (!empty($error['repeat_note'])): ?><section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="repeat-2"></i> Repeat note</h3><p class="incident-content-text"><?= nl2br(htmlspecialchars((string) $error['repeat_note'], ENT_QUOTES, 'UTF-8')) ?></p></section><?php endif; ?>
                 <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="paperclip"></i> Attachments</h3><div class="incident-attachments-list">
-                    <?php foreach ($attachments as $attachment): ?><?php $attachmentPath=(string)$attachment['path'];$attachmentName=(string)$attachment['name'];$attachmentMime=(string)$attachment['mime'];$isImage=str_starts_with($attachmentMime,'image/')||preg_match('/\.(?:jpe?g|png|webp)$/i',$attachmentName);$attachmentUrl=BASE_URL.'/apps/operations/error-attachment.php?error_id='.$errorId.'&attachment='.rawurlencode($attachmentPath); ?><div class="incident-attachment">
+                    <?php foreach ($attachments as $attachment): ?><?php $attachmentPath=(string)$attachment['path'];$attachmentName=(string)$attachment['name'];$attachmentMime=(string)$attachment['mime'];$isImage=error_path_starts_with($attachmentMime,'image/')||preg_match('/\.(?:jpe?g|png|webp)$/i',$attachmentName);$attachmentUrl=BASE_URL.'/apps/operations/error-attachment.php?error_id='.$errorId.'&attachment='.rawurlencode($attachmentPath); ?><div class="incident-attachment">
                         <?php if($isImage): ?><a href="<?= htmlspecialchars($attachmentUrl,ENT_QUOTES,'UTF-8') ?>" target="_blank" rel="noopener" class="incident-attachment-preview"><img src="<?= htmlspecialchars($attachmentUrl,ENT_QUOTES,'UTF-8') ?>" alt="Preview of <?= htmlspecialchars($attachmentName,ENT_QUOTES,'UTF-8') ?>" loading="lazy"></a><?php endif; ?>
                         <span><strong><?= htmlspecialchars($attachmentName, ENT_QUOTES, 'UTF-8') ?></strong><?php if($attachment['size']!==null): ?><small><?= htmlspecialchars(number_format(((int)$attachment['size'])/1048576,2).' MB',ENT_QUOTES,'UTF-8') ?></small><?php endif; ?></span>
                         <div class="incident-attachment-actions"><a class="incident-attachment-link" href="<?= htmlspecialchars($attachmentUrl,ENT_QUOTES,'UTF-8') ?>" target="_blank" rel="noopener"><?= $isImage?'Preview':'Download' ?></a>
