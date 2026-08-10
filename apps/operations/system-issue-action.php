@@ -65,6 +65,11 @@ try {
         $row = ops_rows('SELECT * FROM system_issues WHERE id=? LIMIT 1', [$issueId])[0] ?? null;
         if ($row) $current = siw_view($row);
     }
+    if ($code === 'stale_workflow') {
+        $actualStage = (string)($current['workflow_stage'] ?? 'unknown');
+        $actualVersion = (int)($current['workflow_version'] ?? 0);
+        $message = 'This workflow changed elsewhere. Expected '.($expectedStage ?? 'unknown').' v'.($expectedVersion ?? 0).', current '.$actualStage.' v'.$actualVersion.'. Refresh the issue and try again.';
+    }
     // Keep the authoritative workflow state for an in-place refresh, but never
     // allow its generic "Workflow state loaded" message to hide the action
     // failure and diagnostic reference returned above.
