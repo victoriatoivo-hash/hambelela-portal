@@ -28793,3 +28793,10 @@ body.performance-meeting-open .performance-meeting .epi-report-page.is-meeting-c
 #system-issues-page .system-issue-attempt-card dt{font-size:11px;font-weight:700;text-transform:uppercase}
 #system-issues-page .system-issue-attempt-card dd{margin:3px 0 0;overflow-wrap:anywhere}
 @media(max-width:700px){#system-issues-page .system-issue-attempt-card dl{grid-template-columns:1fr}#system-issues-page .system-issue-attempt-card header small{width:100%;margin-left:0}}
+/* System Issues duplicate, AJAX and soft-delete feedback */
+.sil-delete-issue{margin-left:auto;color:#9f2f23;border-color:#d7a49d}
+.sil-report-feedback{margin:10px 0;padding:12px;border:1px solid #dbcabc;border-radius:8px;background:#fffaf5;color:#38251e}
+.sil-report-feedback.is-warning{border-color:#e1a65a;background:#fff7e8}
+.sil-report-feedback.is-error{border-color:#c54c3d;background:#fff0ed}
+.sil-report-feedback div{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+@media(max-width:640px){.sil-delete-issue{width:100%;margin:8px 0 0}.sil-report-feedback div>*{width:100%}}

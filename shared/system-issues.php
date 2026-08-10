@@ -25,7 +25,7 @@ function can_view_system_issue(array $issue,?int $userId=null,?bool $owner=null)
     return $userId>0&&system_issue_reporter_id($issue)===$userId;
 }
 function system_issue_find_visible(int $issueId,?int $userId=null,?bool $owner=null): ?array {
-    $issue=ops_rows('SELECT * FROM system_issues WHERE id=? LIMIT 1',[$issueId])[0]??null;
+    $issue=ops_rows('SELECT * FROM system_issues WHERE id=? AND deleted_at IS NULL LIMIT 1',[$issueId])[0]??null;
     if(!$issue||!can_view_system_issue($issue,$userId,$owner))return null;
     return $issue;
 }
@@ -39,10 +39,10 @@ function system_issue_attention_summary(?int $userId=null,?string $roleKey=null)
         $role=normalise_portal_role((string)($roleKey??current_role_key()));
         $owner=siw_decision_is_owner_role($role);
         if($owner){
-            $row=ops_rows("SELECT COUNT(DISTINCT i.id) issue_count,COALESCE(SUM(CASE WHEN i.employee_status='needs_information' OR i.internal_status IN ('needs_information','approval_required','fix_failed','tests_failed','deployment_failed') OR EXISTS(SELECT 1 FROM system_issue_integrations x WHERE x.issue_id=i.id AND x.status IN ('dispatch_failed','fix_failed','tests_failed','deployment_failed')) THEN 1 ELSE 0 END),0) needs_information FROM system_issues i WHERE i.duplicate_of_id IS NULL AND i.employee_status NOT IN ('done','deferred') AND i.internal_status NOT IN ('done','deferred')")[0]??[];
+            $row=ops_rows("SELECT COUNT(DISTINCT i.id) issue_count,COALESCE(SUM(CASE WHEN i.employee_status='needs_information' OR i.internal_status IN ('needs_information','approval_required','fix_failed','tests_failed','deployment_failed') OR EXISTS(SELECT 1 FROM system_issue_integrations x WHERE x.issue_id=i.id AND x.status IN ('dispatch_failed','fix_failed','tests_failed','deployment_failed')) THEN 1 ELSE 0 END),0) needs_information FROM system_issues i WHERE i.deleted_at IS NULL AND i.duplicate_of_id IS NULL AND i.employee_status NOT IN ('done','deferred') AND i.internal_status NOT IN ('done','deferred')")[0]??[];
         }else{
             $id=(int)($userId??(current_user()['id']??0));if($id<1)return$summary;
-            $row=ops_rows("SELECT COUNT(*) issue_count,COALESCE(SUM(employee_status='needs_information'),0) needs_information FROM system_issues WHERE reported_by_user_id=? AND employee_status IN ('reported','needs_information','under_review','fix_in_progress','testing','reopened')",[$id])[0]??[];
+            $row=ops_rows("SELECT COUNT(*) issue_count,COALESCE(SUM(employee_status='needs_information'),0) needs_information FROM system_issues WHERE deleted_at IS NULL AND reported_by_user_id=? AND employee_status IN ('reported','needs_information','under_review','fix_in_progress','testing','reopened')",[$id])[0]??[];
         }
         return['count'=>(int)($row['issue_count']??0),'needs_information'=>(int)($row['needs_information']??0)];
     }catch(Throwable $error){error_log('System Issues attention summary failed: '.$error->getMessage());return$summary;}
@@ -60,9 +60,27 @@ function system_issue_notify(array $data,array $ids): void {
     notifications_create($data+['module'=>'system_issues','related_type'=>'system_issue','priority'=>'normal','required_delivery'=>true],$ids);
 }
 function system_issue_generate_key(int $id): string {$key='SYS-'.str_pad((string)$id,4,'0',STR_PAD_LEFT);$s=db()->prepare('UPDATE system_issues SET issue_key=? WHERE id=?');$s->execute([$key,$id]);return$key;}
+function system_issue_normalise_report_text(string $value): string {
+    $value=mb_strtolower(trim($value),'UTF-8');
+    $value=(string)preg_replace('/[^\p{L}\p{N}]+/u',' ',$value);
+    return trim((string)preg_replace('/\s+/u',' ',$value));
+}
+function system_issue_report_signature(int $userId,array $fields,string $route): string {
+    $parts=[(string)$userId,$fields['location']??'',preg_replace('/\?.*$/','',$route),$fields['problem']??'',$fields['observed_behaviour']??'',$fields['expected_behaviour']??''];
+    return hash('sha256',implode('|',array_map('system_issue_normalise_report_text',$parts)));
+}
+function system_issue_recent_duplicate(int $userId,string $signature): ?array {
+    return ops_rows("SELECT id,issue_key,title,location,created_at FROM system_issues WHERE reported_by_user_id=? AND duplicate_signature=? AND deleted_at IS NULL AND created_at>=DATE_SUB(NOW(),INTERVAL 15 MINUTE) ORDER BY id DESC LIMIT 1",[$userId,$signature])[0]??null;
+}
+function system_issue_similar_recent(int $userId,array $fields,string $route): ?array {
+    $rows=ops_rows("SELECT id,issue_key,title,problem,observed_behaviour,expected_behaviour,location,created_at FROM system_issues WHERE reported_by_user_id=? AND deleted_at IS NULL AND created_at>=DATE_SUB(NOW(),INTERVAL 15 MINUTE) ORDER BY id DESC LIMIT 20",[$userId]);
+    $needle=system_issue_normalise_report_text(($fields['problem']??'').' '.($fields['observed_behaviour']??'').' '.($fields['expected_behaviour']??''));
+    foreach($rows as $row){$candidate=system_issue_normalise_report_text($row['problem'].' '.$row['observed_behaviour'].' '.$row['expected_behaviour']);$score=0.0;similar_text($needle,$candidate,$score);if($score>=78.0)return$row;}
+    return null;
+}
 function system_issue_duplicate_candidates(array $issue,int $limit=5): array {
     $words=array_values(array_filter(preg_split('/\W+/u',strtolower($issue['problem'].' '.$issue['observed_behaviour']))?:[],fn($v)=>strlen($v)>3));
-    $rows=ops_rows("SELECT id,issue_key,title,problem,location,employee_status,affected_count FROM system_issues WHERE duplicate_of_id IS NULL AND internal_status NOT IN ('done','deferred') AND id<>? AND (location=? OR route=?) ORDER BY created_at DESC LIMIT 100",[(int)$issue['id'],$issue['location'],$issue['route']]);
+    $rows=ops_rows("SELECT id,issue_key,title,problem,location,employee_status,affected_count FROM system_issues WHERE deleted_at IS NULL AND duplicate_of_id IS NULL AND internal_status NOT IN ('done','deferred') AND id<>? AND (location=? OR route=?) ORDER BY created_at DESC LIMIT 100",[(int)$issue['id'],$issue['location'],$issue['route']]);
     foreach($rows as &$row){$text=strtolower($row['title'].' '.$row['problem']);$hits=0;foreach(array_unique($words)as$word)if(strpos($text,$word)!==false)$hits++;$row['similarity']=$words?round(100*$hits/count(array_unique($words))):0;}$rows=array_values(array_filter($rows,fn($r)=>(int)$r['similarity']>=25));usort($rows,fn($a,$b)=>$b['similarity']<=>$a['similarity']);return array_slice($rows,0,$limit);
 }
 function system_issue_ai_prompt(array $issue,array $duplicates): string {

@@ -42,6 +42,14 @@ ALTER TABLE system_issues ADD COLUMN IF NOT EXISTS brief_copied_by INT NULL AFTE
 ALTER TABLE system_issues ADD COLUMN IF NOT EXISTS codex_sent_at DATETIME NULL AFTER brief_copied_by;
 ALTER TABLE system_issues ADD COLUMN IF NOT EXISTS codex_sent_by INT NULL AFTER codex_sent_at;
 ALTER TABLE system_issues ADD COLUMN IF NOT EXISTS verification_status VARCHAR(20) NULL AFTER verified_by;
+ALTER TABLE system_issues ADD COLUMN IF NOT EXISTS duplicate_signature CHAR(64) NULL AFTER duplicate_of_id;
+ALTER TABLE system_issues ADD COLUMN IF NOT EXISTS submission_token VARCHAR(80) NULL AFTER duplicate_signature;
+ALTER TABLE system_issues ADD COLUMN IF NOT EXISTS deleted_at DATETIME NULL AFTER updated_at;
+ALTER TABLE system_issues ADD COLUMN IF NOT EXISTS deleted_by INT NULL AFTER deleted_at;
+ALTER TABLE system_issues ADD COLUMN IF NOT EXISTS deletion_reason VARCHAR(500) NULL AFTER deleted_by;
+ALTER TABLE system_issues ADD UNIQUE INDEX IF NOT EXISTS uq_system_issues_submission_token (submission_token);
+ALTER TABLE system_issues ADD INDEX IF NOT EXISTS idx_system_issues_duplicate_guard (reported_by_user_id,duplicate_signature,created_at);
+ALTER TABLE system_issues ADD INDEX IF NOT EXISTS idx_system_issues_deleted (deleted_at);
 ALTER TABLE system_issues ADD INDEX IF NOT EXISTS idx_system_issues_reported_by_user (reported_by_user_id, created_at);
 UPDATE system_issues SET reported_by_user_id=reporter_employee_id WHERE reported_by_user_id IS NULL AND reporter_employee_id IS NOT NULL AND reporter_employee_id>0;
 UPDATE system_issues SET workflow_stage=CASE internal_status WHEN 'brief_ready' THEN 'awaiting_approval' WHEN 'codex_queued' THEN 'repair_queued' WHEN 'codex_running' THEN 'repair_in_progress' WHEN 'pr_open' THEN 'pr_open' WHEN 'testing' THEN 'testing' WHEN 'deployed' THEN 'deployed' WHEN 'verified' THEN 'verified' WHEN 'done' THEN 'done' WHEN 'deferred' THEN 'deferred' WHEN 'reopened' THEN 'reopened' ELSE workflow_stage END WHERE workflow_stage='awaiting_approval' AND internal_status<>'brief_ready';

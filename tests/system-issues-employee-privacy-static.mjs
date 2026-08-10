@@ -16,7 +16,7 @@ assert.match(shared, /WHERE reported_by_user_id=\?/);
 assert.match(page, /INSERT INTO system_issues\(reporter_employee_id,reported_by_user_id/);
 assert.match(page, /\$currentUserId=\(int\)\(current_user\(\)\['id'\]/);
 assert.match(page, /\$s->execute\(\[\$employeeId,\$currentUserId/);
-assert.match(page, /\$where=\$owner\?'1=1':'i\.reported_by_user_id=\?'/);
+assert.match(page, /\$where=\$owner\?'i\.deleted_at IS NULL':'i\.deleted_at IS NULL AND i\.reported_by_user_id=\?'/);
 assert.match(page, /\$params=\$owner\?\[\]:\[\$currentUserId\]/);
 assert.doesNotMatch(page, /OR i\.id IN \(SELECT duplicate_of_id/);
 assert.match(page, /system_issue_find_visible\(\$id,\$currentUserId,\$owner\)/);
