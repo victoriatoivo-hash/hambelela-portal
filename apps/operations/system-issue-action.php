@@ -40,6 +40,7 @@ try {
 } catch (Throwable $error) {
     $reference = bin2hex(random_bytes(6));
     error_log('system_issue_action reference='.$reference.' type='.get_class($error).' message='.$error->getMessage());
+    $errorKey = explode('|', $error->getMessage(), 2)[0];
     $map = [
         'invalid_command'=>[400,'invalid_command','This workflow action is not recognised.'],
         'invalid_idempotency_key'=>[400,'malformed_request','Refresh the page and try again.'],
@@ -59,16 +60,15 @@ try {
         'invalid_deployment_result'=>[422,'unmet_prerequisite','Choose deployment success or failed.'],
         'done_invariant_failed'=>[422,'unmet_prerequisite','The latest repair attempt has not satisfied every testing and deployment requirement.'],
     ];
-    [$status,$code,$message] = $map[$error->getMessage()] ?? ($error instanceof RuntimeException && $error->getMessage() === 'This form expired. Refresh and try again.' ? [403,'csrf_failed','Your session expired. Refresh the page and try again.'] : [500,'server_error','The workflow action could not be completed. Reference: '.$reference]);
+    [$status,$code,$message] = $map[$errorKey] ?? ($error instanceof RuntimeException && $error->getMessage() === 'This form expired. Refresh and try again.' ? [403,'csrf_failed','Your session expired. Refresh the page and try again.'] : [500,'server_error','The workflow action could not be completed. Reference: '.$reference]);
     $current = [];
     if (isset($issueId) && $issueId > 0) {
         $row = ops_rows('SELECT * FROM system_issues WHERE id=? LIMIT 1', [$issueId])[0] ?? null;
         if ($row) $current = siw_view($row);
     }
     if ($code === 'stale_workflow') {
-        $actualStage = (string)($current['workflow_stage'] ?? 'unknown');
-        $actualVersion = (int)($current['workflow_version'] ?? 0);
-        $message = 'This workflow changed elsewhere. Expected '.($expectedStage ?? 'unknown').' v'.($expectedVersion ?? 0).', current '.$actualStage.' v'.$actualVersion.'. Refresh the issue and try again.';
+        $locked = json_decode(explode('|', $error->getMessage(), 2)[1] ?? '', true) ?: [];
+        $message = 'This workflow changed elsewhere. Comparison: '.json_encode($locked, JSON_UNESCAPED_SLASHES).'. Refresh the issue and try again.';
     }
     // Keep the authoritative workflow state for an in-place refresh, but never
     // allow its generic "Workflow state loaded" message to hide the action
