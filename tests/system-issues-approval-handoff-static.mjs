@@ -8,6 +8,7 @@ const endpoint = fs.readFileSync('apps/operations/system-issue-brief-copy.php', 
 const css = fs.readFileSync('assets/css/portal.css', 'utf8');
 
 assert.match(workflow, /'approve_brief'=>\['from'=>\['brief_ready'\],'to'=>'approved_for_codex'/);
+assert.match(workflow, /\$stage==='needs_information'&&!siw_has_blocking_employee_request\(\$issue,true\)\)\$stage='brief_ready'/);
 assert.match(workflow, /approved_brief_id=\?,approved_brief_version=\?,approved_at=NOW\(\),approved_by=\?/);
 for (const field of ['approved_brief_id', 'approved_brief_version', 'approved_at', 'approved_by']) assert.match(workflow, new RegExp(`'${field}'`));
 assert.match(workflow, /'form_mode'=>\$formMode/);
