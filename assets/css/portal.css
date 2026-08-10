@@ -28794,12 +28794,20 @@ body.performance-meeting-open .performance-meeting .epi-report-page.is-meeting-c
 #system-issues-page .system-issue-attempt-card dd{margin:3px 0 0;overflow-wrap:anywhere}
 @media(max-width:700px){#system-issues-page .system-issue-attempt-card dl{grid-template-columns:1fr}#system-issues-page .system-issue-attempt-card header small{width:100%;margin-left:0}}
 /* System Issues duplicate, AJAX and soft-delete feedback */
-.sil-delete-issue{margin-left:auto;color:#9f2f23;border-color:#d7a49d}
+#system-issues-page .sil-issue-detail-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+#system-issues-page .sil-issue-detail-header-main{min-width:0;flex:1}
+#system-issues-page .sil-issue-detail-header-main>span{color:#ab3619;font-size:10px;font-weight:700}
+#system-issues-page .sil-issue-detail-header-main>div{display:flex;align-items:center;gap:8px;margin-top:9px}
+#system-issues-page .sil-delete-issue{display:inline-flex;width:20px;height:20px;min-width:20px;min-height:20px;flex:0 0 20px;align-items:center;justify-content:center;margin:0;padding:0;border:0;border-radius:5px;background:transparent;color:#9f2f23;cursor:pointer;transition:background-color 160ms ease,color 160ms ease}
+#system-issues-page .sil-delete-issue svg{width:17px;height:17px;stroke-width:2}
+#system-issues-page .sil-delete-issue:hover{background:rgba(159,47,35,.09);color:#7f2018}
+#system-issues-page .sil-delete-issue:focus-visible{outline:2px solid #9f2f23;outline-offset:2px}
+#system-issues-page .sil-delete-issue:disabled{cursor:wait;opacity:.55}
 .sil-report-feedback{margin:10px 0;padding:12px;border:1px solid #dbcabc;border-radius:8px;background:#fffaf5;color:#38251e}
 .sil-report-feedback.is-warning{border-color:#e1a65a;background:#fff7e8}
 .sil-report-feedback.is-error{border-color:#c54c3d;background:#fff0ed}
 .sil-report-feedback div{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
-@media(max-width:640px){.sil-delete-issue{width:100%;margin:8px 0 0}.sil-report-feedback div>*{width:100%}}
+@media(max-width:640px){#system-issues-page .sil-issue-detail-header{gap:10px}#system-issues-page .sil-delete-issue{width:20px;height:20px;margin:0}.sil-report-feedback div>*{width:100%}}
 
 /* System Issues owner recommendation AJAX saved state. */
 #system-issues-page .sil-recommendation-saved{display:grid;gap:3px;margin-top:9px;padding:9px 10px;border-left:3px solid #A8CA19;border-radius:6px;background:#F7FBEA;color:#2B1B16}
