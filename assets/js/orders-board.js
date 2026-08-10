@@ -75,8 +75,12 @@
   let liveCursor = '';
   let liveFailures = 0;
   let livePollInFlight = false;
-  let lastRecoverySyncAt = 0;
-  const sourceRecoveryInterval = 45 * 1000;
+  let sourceSyncFailures = 0;
+  let nextSourceSyncAt = 0;
+  let livePollTimer = null;
+  const boardPollInterval = 10 * 1000;
+  const activeSourceSyncInterval = 15 * 1000;
+  const hiddenSourceSyncInterval = 60 * 1000;
   let liveRenderPending = false;
   const livePendingGroupKeys = new Set();
   let refreshSequence = 0;
@@ -4345,15 +4349,20 @@
         const result = data.result || {};
         const warnings = Array.isArray(result.warnings) && result.warnings.length ? ` - warning: ${result.warnings[0]}` : '';
         const skipped = result.skipped ? ' (recent sync reused)' : '';
-        lastSyncMessage = `Website: ${result.website_orders_seen ?? 0} seen, ${result.imported ?? 0} new, ${result.updated ?? 0} updated${skipped}${warnings}`;
-        lastRecoverySyncAt = Date.now();
+        sourceSyncFailures = 0;
+        nextSourceSyncAt = Date.now() + sourceSyncDelay();
+        lastSyncMessage = result.skip_reason === 'sync_in_progress'
+          ? 'Syncing · an existing source import is still running'
+          : `Updated just now · Website: ${result.website_orders_seen ?? 0} seen, ${result.imported ?? 0} new, ${result.updated ?? 0} updated${skipped}${warnings}`;
         if (syncState) {
           syncState.textContent = lastSyncMessage;
         }
         return data;
       } catch (error) {
-        lastSyncMessage = `Sync issue: ${error.message}`;
-        if (syncState) syncState.textContent = `Sync issue: ${error.message}`;
+        sourceSyncFailures += 1;
+        nextSourceSyncAt = Date.now() + sourceSyncDelay();
+        lastSyncMessage = `Source temporarily delayed · ${error.message}`;
+        if (syncState) syncState.textContent = lastSyncMessage;
         throw error;
       } finally {
         if (trigger) {
@@ -5511,17 +5520,47 @@
     if (livePollInFlight) return;
     livePollInFlight = true;
     try {
-      const shouldSyncSource = (
-        document.visibilityState !== 'hidden'
-        && Date.now() - lastRecoverySyncAt >= sourceRecoveryInterval
-      );
-      if (shouldSyncSource) lastRecoverySyncAt = Date.now();
+      const shouldSyncSource = navigator.onLine && Date.now() >= nextSourceSyncAt;
+      if (shouldSyncSource) nextSourceSyncAt = Date.now() + sourceSyncDelay();
+      if (!navigator.onLine && syncState) syncState.textContent = 'Offline';
       await refreshOrders({ source:'background', syncSource:shouldSyncSource, background:true });
     } catch (error) {
-      showError(error);
+      if (syncState && sourceSyncFailures > 0) syncState.textContent = lastSyncMessage;
+      else showError(error);
     } finally {
       livePollInFlight = false;
     }
+  }
+
+  function sourceSyncDelay() {
+    if (document.visibilityState === 'hidden') return hiddenSourceSyncInterval;
+    if (sourceSyncFailures <= 0) return activeSourceSyncInterval;
+    if (sourceSyncFailures === 1) return 30 * 1000;
+    if (sourceSyncFailures === 2) return 45 * 1000;
+    return 60 * 1000;
+  }
+
+  function nextLivePollDelay() {
+    if (!navigator.onLine) return document.visibilityState === 'hidden' ? hiddenSourceSyncInterval : boardPollInterval;
+    if (document.visibilityState === 'hidden') {
+      return Math.max(1000, Math.min(hiddenSourceSyncInterval, nextSourceSyncAt - Date.now()));
+    }
+    return Math.max(1000, Math.min(boardPollInterval, nextSourceSyncAt - Date.now()));
+  }
+
+  function scheduleLivePoll(delay = null) {
+    if (livePollTimer) window.clearTimeout(livePollTimer);
+    livePollTimer = window.setTimeout(async () => {
+      await runLivePoll();
+      scheduleLivePoll();
+    }, delay === null ? nextLivePollDelay() : delay);
+  }
+
+  function refreshLiveSchedule() {
+    nextSourceSyncAt = document.visibilityState === 'visible'
+      ? 0
+      : Date.now() + hiddenSourceSyncInterval;
+    scheduleLivePoll(0);
   }
 
   loadCustomLabels()
@@ -5539,16 +5578,24 @@
         })
         .finally(async () => {
           if (document.visibilityState !== 'hidden') {
-            lastRecoverySyncAt = Date.now();
             try {
               await refreshOrders({ source:'background', syncSource:true, background:true });
             } catch (error) {
               if (syncState) syncState.textContent = `Sync issue: ${error.message}`;
             }
           }
+          if (document.visibilityState === 'hidden' && nextSourceSyncAt === 0) {
+            nextSourceSyncAt = Date.now() + hiddenSourceSyncInterval;
+          }
+          scheduleLivePoll();
         });
     });
-  window.addEventListener('portal:live-tick', runLivePoll);
+  document.addEventListener('visibilitychange', refreshLiveSchedule);
+  window.addEventListener('online', refreshLiveSchedule);
+  window.addEventListener('offline', () => {
+    if (syncState) syncState.textContent = 'Offline';
+    scheduleLivePoll();
+  });
   window.addEventListener('resize', () => { positionPersonPopup(); positionOrdersFilterPopup(); });
   window.addEventListener('scroll', () => { positionPersonPopup(); positionOrdersFilterPopup(); }, true);
 })();

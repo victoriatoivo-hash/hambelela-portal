@@ -54,7 +54,9 @@ function ops_board_recent_sync_result(?string $date, int $maxAgeSeconds): ?array
 
 function ops_board_run_guarded_sync(?string $date, bool $force = false): array
 {
-    $minAge = $force ? 15 : 45;
+    // The visible Orders board schedules source imports every 15 seconds. Keep the
+    // server-side floor as the final duplicate/load guard for every browser.
+    $minAge = 15;
     $recent = ops_board_recent_sync_result($date, $minAge);
     if ($recent) {
         $recent['skipped'] = true;
