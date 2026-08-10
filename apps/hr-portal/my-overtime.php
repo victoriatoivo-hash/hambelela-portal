@@ -10,6 +10,18 @@ $empId = (int)($user['emp_id'] ?? 0);
 $emp   = $db->prepare("SELECT * FROM employees WHERE id=?");
 $emp->execute([$empId]);
 $emp = $emp->fetch();
+$submitError = '';
+
+function overtimeJsonResponse(array $payload, int $status = 200): void {
+    http_response_code($status);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode($payload);
+    exit;
+}
+
+function overtimeIsAjax(): bool {
+    return strtolower((string)($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest';
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $ot_date    = $_POST['ot_date']     ?? '';
@@ -18,35 +30,94 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $day_type   = $_POST['ot_day_type'] ?? 'weekday';
     $notes      = clean($_POST['ot_notes'] ?? '');
 
-    if ($ot_date && $start_time && $end_time) {
+    try {
+        if (!$empId || !$emp || ($emp['status'] ?? '') !== 'active') {
+            throw new RuntimeException('Your employee account is not linked to an active HR employee record. Please contact the owner.');
+        }
+        if (!$ot_date) {
+            throw new RuntimeException('Overtime date is required.');
+        }
+        if (!$start_time) {
+            throw new RuntimeException('Start time is required.');
+        }
+        if (!$end_time) {
+            throw new RuntimeException('End time is required.');
+        }
+        if (!in_array($day_type, ['weekday', 'saturday', 'sunday', 'public_holiday'], true)) {
+            throw new RuntimeException('Select a valid overtime day type.');
+        }
+
         $s = strtotime($ot_date . ' ' . $start_time);
         $e = strtotime($ot_date . ' ' . $end_time);
+        if ($s === false || $e === false) {
+            throw new RuntimeException('Enter a valid overtime date and time range.');
+        }
         if ($e <= $s) { $e += 86400; }
         $hours  = round(($e - $s) / 3600, 2);
+        if ($hours <= 0 || $hours > 24) {
+            throw new RuntimeException('Overtime must be greater than 0 hours and no more than 24 hours.');
+        }
         $rate   = ($day_type === 'sunday' || $day_type === 'public_holiday') ? 2.0 : 1.5;
         $hourly = $emp ? (float)$emp['hourly_rate'] : 0;
         $amount = round($hours * $rate * $hourly, 2);
 
-        $db->prepare("INSERT INTO overtime (employee_id,ot_date,start_time,end_time,hours,day_type,rate,hourly_rate,amount,notes,status) VALUES (?,?,?,?,?,?,?,?,?,?,'pending')")
-           ->execute([$empId,$ot_date,$start_time,$end_time,$hours,$day_type,$rate,$hourly,$amount,$notes]);
-
-        $adminUsers = $db->query("SELECT id FROM users WHERE role='admin'")->fetchAll();
-        foreach ($adminUsers as $admin) {
-            $db->prepare("INSERT INTO notifications (user_id,title,message,type) VALUES (?,?,?,'info')")
-               ->execute([$admin['id'], 'New Overtime Logged', $user['name'] . ' logged ' . $hours . ' hours overtime on ' . date('d M Y', strtotime($ot_date)) . '.']);
+        $db->beginTransaction();
+        $duplicate = $db->prepare("SELECT id FROM overtime WHERE employee_id=? AND ot_date=? AND start_time=? AND end_time=? AND status IN ('pending','approved') LIMIT 1 FOR UPDATE");
+        $duplicate->execute([$empId, $ot_date, $start_time, $end_time]);
+        if ($duplicate->fetchColumn()) {
+            throw new RuntimeException('This overtime request has already been submitted.');
         }
-        emailHRNotice(
-            'New Overtime Logged - ' . $user['name'],
-            '<p>' . htmlspecialchars($user['name']) . ' logged overtime for approval.</p>
-            <div class="highlight">
-              Date: ' . date('d F Y', strtotime($ot_date)) . '<br>
-              Hours: ' . number_format($hours,2) . 'h<br>
-              Amount: N$ ' . number_format((float)$amount,2) . '
-            </div>
-            <a href="' . SITE_URL . '/overtime.php" class="btn">Review Overtime</a>'
-        );
+
+        $insert = $db->prepare("INSERT INTO overtime (employee_id,ot_date,start_time,end_time,hours,day_type,rate,hourly_rate,amount,notes,status) VALUES (?,?,?,?,?,?,?,?,?,?,'pending')");
+        $insert->execute([$empId,$ot_date,$start_time,$end_time,$hours,$day_type,$rate,$hourly,$amount,$notes]);
+        $overtimeId = (int)$db->lastInsertId();
+        $db->commit();
+
+        try {
+            $adminUsers = $db->query("SELECT id FROM users WHERE role='admin' AND active=1")->fetchAll();
+            foreach ($adminUsers as $admin) {
+                $exists = $db->prepare("SELECT id FROM notifications WHERE user_id=? AND title='New Overtime Logged' AND message LIKE ? LIMIT 1");
+                $notificationNeedle = '%' . $user['name'] . '%overtime on ' . date('d M Y', strtotime($ot_date)) . '%';
+                $exists->execute([$admin['id'], $notificationNeedle]);
+                if (!$exists->fetchColumn()) {
+                    $db->prepare("INSERT INTO notifications (user_id,title,message,type) VALUES (?,?,?,'info')")
+                       ->execute([$admin['id'], 'New Overtime Logged', $user['name'] . ' logged ' . $hours . ' hours overtime on ' . date('d M Y', strtotime($ot_date)) . '.']);
+                }
+            }
+            emailHRNotice(
+                'New Overtime Logged - ' . $user['name'],
+                '<p>' . htmlspecialchars($user['name']) . ' logged overtime for approval.</p>
+                <div class="highlight">
+                  Date: ' . date('d F Y', strtotime($ot_date)) . '<br>
+                  Hours: ' . number_format($hours,2) . 'h<br>
+                  Amount: N$ ' . number_format((float)$amount,2) . '
+                </div>
+                <a href="' . SITE_URL . '/overtime.php" class="btn">Review Overtime</a>'
+            );
+        } catch (Throwable $notificationError) {
+            // The durable overtime record is authoritative; notification failure must not undo it.
+        }
+
+        if (overtimeIsAjax()) {
+            overtimeJsonResponse([
+                'ok' => true,
+                'message' => 'Overtime request submitted successfully.',
+                'overtime_id' => $overtimeId,
+                'status' => 'pending',
+            ]);
+        }
         header('Location: my-overtime.php?msg=submitted');
         exit;
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        $submitError = $e instanceof RuntimeException
+            ? $e->getMessage()
+            : 'The overtime request could not be saved. Please try again or contact the owner.';
+        if (overtimeIsAjax()) {
+            overtimeJsonResponse(['ok' => false, 'error' => $submitError], 422);
+        }
     }
 }
 
@@ -91,8 +162,12 @@ $msg = isset($_GET['msg']) ? $_GET['msg'] : '';
   <div class="content">
 
     <?php if ($msg === 'submitted'): ?>
-    <div class="toast"><i class="fa-solid fa-check"></i> Overtime submitted for approval.</div>
+    <div class="toast"><i class="fa-solid fa-check"></i> Overtime request submitted successfully.</div>
     <?php endif ?>
+    <?php if ($submitError !== ''): ?>
+    <div class="toast error"><i class="fa-solid fa-triangle-exclamation"></i> <?php echo htmlspecialchars($submitError); ?></div>
+    <?php endif ?>
+    <div id="overtimeSubmitMessage" aria-live="polite"></div>
 
     <div class="card">
       <div class="card-header">
@@ -157,7 +232,7 @@ $msg = isset($_GET['msg']) ? $_GET['msg'] : '';
         <i class="fa-solid fa-xmark"></i>
       </button>
     </div>
-    <form method="POST">
+    <form method="POST" id="overtimeRequestForm">
       <div class="modal-body">
         <div class="form-grid">
           <div class="form-group">
@@ -195,7 +270,7 @@ $msg = isset($_GET['msg']) ? $_GET['msg'] : '';
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" onclick="document.getElementById('otModal').classList.remove('open')">Cancel</button>
-        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Submit for Approval</button>
+        <button type="submit" class="btn btn-primary" id="overtimeSubmitButton"><i class="fa-solid fa-paper-plane"></i> Submit for Approval</button>
       </div>
     </form>
   </div>
@@ -204,6 +279,43 @@ $msg = isset($_GET['msg']) ? $_GET['msg'] : '';
 <script>
 var publicHolidays = <?php echo json_encode($publicHolidays); ?>;
 var hourlyRate = <?php echo $emp ? (float)$emp['hourly_rate'] : 0; ?>;
+var overtimeForm = document.getElementById('overtimeRequestForm');
+var overtimeSubmitButton = document.getElementById('overtimeSubmitButton');
+var overtimeSubmitMessage = document.getElementById('overtimeSubmitMessage');
+
+if (overtimeForm && window.fetch && window.FormData) {
+    overtimeForm.addEventListener('submit', function(event) {
+        event.preventDefault();
+        if (overtimeSubmitButton.disabled) { return; }
+        overtimeSubmitButton.disabled = true;
+        overtimeSubmitButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Submitting...';
+        overtimeSubmitMessage.innerHTML = '';
+
+        fetch('my-overtime.php', {
+            method: 'POST',
+            headers: {'X-Requested-With': 'XMLHttpRequest'},
+            body: new FormData(overtimeForm),
+            credentials: 'same-origin'
+        }).then(function(response) {
+            return response.json().then(function(payload) {
+                if (!response.ok || !payload.ok) {
+                    throw new Error(payload.error || 'The overtime request could not be saved.');
+                }
+                return payload;
+            });
+        }).then(function() {
+            window.location.href = 'my-overtime.php?msg=submitted';
+        }).catch(function(error) {
+            overtimeSubmitMessage.innerHTML = '<div class="toast error"><i class="fa-solid fa-triangle-exclamation"></i> ' +
+                String(error.message || error).replace(/[&<>"']/g, function(character) {
+                    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[character];
+                }) + '</div>';
+            document.getElementById('otModal').classList.add('open');
+            overtimeSubmitButton.disabled = false;
+            overtimeSubmitButton.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Submit for Approval';
+        });
+    });
+}
 
 document.querySelectorAll('.overlay').forEach(function(o) {
     o.addEventListener('click', function(e) {
