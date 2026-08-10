@@ -133,6 +133,7 @@
       }
       setButtonState(button, 'Copied', 'check');
       notify('Codex brief copied.');
+      document.querySelector('[data-system-issue-workflow]')?._refreshWorkflow?.();
     } catch (error) {
       setButtonState(button, 'Copy failed', 'alert-circle');
       notify(error instanceof Error && error.message ? error.message : 'Unable to copy the brief. Please try again.', 'error');

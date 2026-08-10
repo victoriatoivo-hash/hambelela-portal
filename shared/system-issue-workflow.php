@@ -9,7 +9,7 @@ function siw_stages(): array {
         'needs_information'=>['label'=>'Needs Information','employee'=>'needs_information','step'=>1,'next'=>'The requested information must be supplied before approval.'],
         'under_review'=>['label'=>'Under Review','employee'=>'under_review','step'=>2,'next'=>'The technical brief is being reviewed.'],
         'brief_ready'=>['label'=>'Technical Brief Ready','employee'=>'under_review','step'=>2,'next'=>'Review and approve the current technical brief.'],
-        'approved_for_codex'=>['label'=>'Approved for Codex','employee'=>'under_review','step'=>2,'next'=>'Copy the approved Codex brief and submit it manually.'],
+        'approved_for_codex'=>['label'=>'Approved for Codex','employee'=>'under_review','step'=>3,'next'=>'Copy and send the approved technical brief to Codex.'],
         'fix_in_progress'=>['label'=>'Fix in Progress','employee'=>'fix_in_progress','step'=>3,'next'=>'Record Codex’s result when the repair is complete.'],
         'testing'=>['label'=>'Testing','employee'=>'testing','step'=>4,'next'=>'Explicitly confirm whether testing passed or failed.'],
         'deployment'=>['label'=>'Deployment','employee'=>'testing','step'=>5,'next'=>'Record the production deployment result.'],
@@ -63,7 +63,7 @@ function siw_permitted_actions(string $stage,int $issueId=0): array {
     foreach(siw_command_registry() as $command=>$rule)if(in_array($stage,$rule['from'],true))$allowed[$command]=$rule;
     if($stage==='testing'&&$issueId>0){$attempt=siw_latest_attempt($issueId);if($attempt&&$attempt['testing_completed_at'])unset($allowed['testing_passed']);}
     $result=[];foreach($allowed as $command=>$rule)$result[]=['command'=>$command,'label'=>$rule['label'],'pending_label'=>$rule['pending'],'primary'=>(bool)($rule['primary']??false)];
-    if($stage==='approved_for_codex')array_unshift($result,['command'=>'copy_codex_brief','label'=>'Copy Codex Brief','pending_label'=>'Copying…','primary'=>true]);
+    if($stage==='approved_for_codex')array_unshift($result,['command'=>'copy_codex_brief','label'=>'Copy & Send to Codex','pending_label'=>'Copying…','primary'=>true]);
     return $result;
 }
 
@@ -73,8 +73,8 @@ function siw_view(array $issue): array {
     $actions=siw_permitted_actions($stage,(int)($issue['id']??0));
     if($stage==='approved_for_codex'&&empty($issue['brief_copied_at']))$actions=array_values(array_filter($actions,fn($a)=>$a['command']!=='mark_sent_to_codex'));
     $attempt=(int)($issue['id']??0)>0?siw_latest_attempt((int)$issue['id']):null;
-    $formMode=siw_decision_form_mode($stage,$attempt);
-    return ['issue_id'=>(int)($issue['id']??0),'internal_status'=>$stage,'workflow_stage'=>$stage,'workflow_version'=>(int)($issue['workflow_version']??1),'workflow_label'=>$blocking?'Needs Information':$def['label'],'employee_status'=>$blocking?'needs_information':$def['employee'],'employee_status_label'=>system_issue_status_label($blocking?'needs_information':$def['employee']),'approval_allowed'=>!$blocking&&$stage==='brief_ready','message'=>'Workflow state loaded.','next_step'=>$blocking?'Wait for the requested information.':$def['next'],'next_required_action'=>$blocking?'Wait for the requested information.':$def['next'],'progress_step'=>$def['step'],'permitted_actions'=>$blocking?[]:$actions,'blocking_employee_request'=>$blocking,'brief_copied_at'=>$issue['brief_copied_at']??null,'form_mode'=>$formMode,'transition_summary'=>siw_transition_summary($stage,$formMode)];
+    $formMode=$stage==='approved_for_codex'?'copy_to_codex':siw_decision_form_mode($stage,$attempt);$approvedBy='';if(!empty($issue['approved_by']))$approvedBy=(string)(ops_rows('SELECT full_name FROM ops_employees WHERE id=? LIMIT 1',[(int)$issue['approved_by']])[0]['full_name']??'Owner');
+    return ['issue_id'=>(int)($issue['id']??0),'internal_status'=>$stage,'workflow_stage'=>$stage,'workflow_version'=>(int)($issue['workflow_version']??1),'workflow_label'=>$blocking?'Needs Information':$def['label'],'employee_status'=>$blocking?'needs_information':$def['employee'],'employee_status_label'=>system_issue_status_label($blocking?'needs_information':$def['employee']),'approval_allowed'=>!$blocking&&$stage==='brief_ready','message'=>'Workflow state loaded.','next_step'=>$blocking?'Wait for the requested information.':$def['next'],'next_required_action'=>$blocking?'Wait for the requested information.':$def['next'],'progress_step'=>$def['step'],'permitted_actions'=>$blocking?[]:$actions,'blocking_employee_request'=>$blocking,'approved_brief_id'=>(int)($issue['approved_brief_id']??0),'approved_brief_version'=>(int)($issue['approved_brief_version']??0),'approved_at'=>$issue['approved_at']??null,'approved_by'=>$approvedBy,'brief_copied_at'=>$issue['brief_copied_at']??null,'form_mode'=>$formMode,'transition_summary'=>siw_transition_summary($stage,$formMode)];
 }
 
 function siw_notify_transition(array $issue,string $command,string $from,string $to,int $workflowVersion): void {

@@ -28814,3 +28814,9 @@ body.performance-meeting-open .performance-meeting .epi-report-page.is-meeting-c
 #system-issues-page .sil-recommendation-saved[hidden]{display:none}
 #system-issues-page .sil-recommendation-saved strong{font-size:11px}
 #system-issues-page .sil-recommendation-saved small{color:#6F625C;font-size:10px}
+/* System Issues approved-brief handoff */
+#system-issues-page .system-issue-approved-brief{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0;padding:10px 12px;border:1px solid var(--border-color,#d9d9d9);border-radius:10px;background:var(--surface-subtle,#f7f7f7)}
+#system-issues-page .system-issue-approved-brief strong{font-size:13px}
+#system-issues-page .system-issue-approved-brief span{font-weight:700}
+#system-issues-page .system-issue-approved-brief small{color:var(--text-muted,#6b7280)}
+@media(max-width:430px){#system-issues-page .system-issue-approved-brief{align-items:flex-start;flex-direction:column;gap:4px}#system-issues-page [data-system-issue-command="copy_codex_brief"]{width:100%;min-height:44px}}

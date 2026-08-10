@@ -31,7 +31,12 @@ try {
     $detailKeys = ['repair_summary','branch_name','commit_hash','pull_request_url','files_changed','tests_performed','tests_passed','tests_unavailable','known_limitations','deployment_required','deployment_method','deployment_time','deployed_commit','deployment_result','deployment_notes','reason'];
     $details = [];
     foreach ($detailKeys as $detailKey) $details[$detailKey] = mb_substr(trim((string)($_POST[$detailKey] ?? '')), 0, 12000);
-    siw_json(200, true, siw_execute($issueId, $command, $expectedStage, $expectedVersion, $key, $note, $details));
+    $result = siw_execute($issueId, $command, $expectedStage, $expectedVersion, $key, $note, $details);
+    if ($command === 'approve_brief' && ($result['workflow_stage'] ?? '') === 'approved_for_codex') {
+        $result['next_stage'] = 'fix_in_progress';
+        $result['message'] = 'Technical brief approved — ready to copy and send to Codex.';
+    }
+    siw_json(200, true, $result);
 } catch (Throwable $error) {
     $reference = bin2hex(random_bytes(6));
     error_log('system_issue_action reference='.$reference.' type='.get_class($error).' message='.$error->getMessage());
