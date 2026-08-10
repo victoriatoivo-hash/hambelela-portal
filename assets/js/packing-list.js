@@ -55,6 +55,9 @@
   let invoiceImportId = '';
   let packingFilesUploading = false;
   let packingFileUploadVersion = 0;
+  let packingRefreshRequest = null;
+  let packingRefreshVersion = 0;
+  let packingRefreshTimer = null;
   const failedPackingFiles = new Map();
 
   function isFrontDeskAdmin() {
@@ -1749,14 +1752,27 @@
     updateBulkActionBar();
   }
 
-  async function refresh() {
+  function packingHasActiveEditor() {
+    return packingFilesUploading
+      || Boolean(document.querySelector('.packing-list-page dialog[open], .packing-list-page .is-editing, .packing-list-page [aria-modal="true"]:not([aria-hidden="true"])'))
+      || Boolean(document.activeElement?.closest?.('.packing-list-page input:not([type="checkbox"]), .packing-list-page textarea, .packing-list-page [contenteditable="true"]'));
+  }
+
+  async function refresh({ background = false } = {}) {
+    if (packingRefreshRequest) return packingRefreshRequest;
+    if (background && (document.hidden || packingHasActiveEditor())) return null;
+    const requestVersion = ++packingRefreshVersion;
     const refreshButton = document.querySelector('[data-packing-refresh]');
-    refreshButton?.classList.add('is-loading');
+    if (!background) refreshButton?.classList.add('is-loading');
     if (!hasRenderedOnce) showSkeletonRows();
-    setCount('Refreshing packing list...');
-    try {
+    if (!background) setCount('Refreshing packing list...');
+    packingRefreshRequest = (async () => {
+      let loadedData = null;
+      try {
       const response = await fetch(`${config.dataUrl}?t=${Date.now()}`, { credentials: 'same-origin' });
       const data = await readJson(response);
+      loadedData = data;
+      if (requestVersion !== packingRefreshVersion) return null;
       tasks = data.tasks || [];
       if (Array.isArray(data.priorityLabels) && data.priorityLabels.length) {
         priorities = data.priorityLabels.map((item) => [String(item.key), String(item.label), String(item.color), String(item.textColor || readablePriorityTextColour(item.color))]);
@@ -1783,7 +1799,10 @@
         updateMetrics([]);
         return;
       }
+      const scrollLeft = document.querySelector('.packing-board-scroll')?.scrollLeft || 0;
       render();
+      const boardScroll = document.querySelector('.packing-board-scroll');
+      if (boardScroll) boardScroll.scrollLeft = scrollLeft;
       if (packingUrlParams.get('unread') === '1') {
         const requestedTaskId = Number(packingUrlParams.get('task_id') || 0);
         const firstUnread = tasks.find((task) => Number(task.id) === requestedTaskId && assignmentUnreadIds.has(Number(task.id)))
@@ -1795,9 +1814,21 @@
           openPanel(firstUnread.id);
         }, 0);
       }
-    } finally {
-      refreshButton?.classList.remove('is-loading');
-    }
+      } finally {
+        if (!background) refreshButton?.classList.remove('is-loading');
+      }
+      return loadedData;
+    })();
+    try { return await packingRefreshRequest; }
+    finally { packingRefreshRequest = null; }
+  }
+
+  function schedulePackingRefresh(delay = 30000) {
+    if (packingRefreshTimer) window.clearTimeout(packingRefreshTimer);
+    packingRefreshTimer = window.setTimeout(async () => {
+      try { await refresh({ background: true }); } catch (_) { /* Manual refresh remains available. */ }
+      schedulePackingRefresh(document.hidden ? 120000 : 30000);
+    }, delay);
   }
 
   function fillPackerSelects() {
@@ -3929,5 +3960,10 @@
         setCount('Could not load packing list');
         updateMetrics([]);
       });
+      schedulePackingRefresh();
     });
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) refresh({ background: true }).catch(() => {});
+  });
+  window.addEventListener('online', () => refresh({ background: true }).catch(() => {}));
 })();
