@@ -65,17 +65,36 @@ CREATE TABLE IF NOT EXISTS cw_supplier_invoice_lines (
 
 CREATE TABLE IF NOT EXISTS cw_sync_batches (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  status ENUM('running','complete','failed') NOT NULL DEFAULT 'running',
+  sync_uuid CHAR(36) NOT NULL,
+  status ENUM('queued','running','complete','completed','failed','stale','recovered','cancelled') NOT NULL DEFAULT 'queued',
   started_by BIGINT NULL,
   started_by_name VARCHAR(190) NOT NULL DEFAULT '',
+  queued_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  heartbeat_at DATETIME NULL,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   completed_at DATETIME NULL,
+  failed_at DATETIME NULL,
+  recovered_at DATETIME NULL,
+  cancelled_at DATETIME NULL,
   next_page INT NOT NULL DEFAULT 1,
+  current_batch INT NOT NULL DEFAULT 0,
+  current_offset INT NOT NULL DEFAULT 0,
   total_products INT NOT NULL DEFAULT 0,
+  expected_total INT NULL,
+  processed_count INT NOT NULL DEFAULT 0,
   success_count INT NOT NULL DEFAULT 0,
   error_count INT NOT NULL DEFAULT 0,
   error_message TEXT NULL,
-  KEY idx_cw_sync_status (status, started_at)
+  failure_reason VARCHAR(500) NULL,
+  recovery_count INT NOT NULL DEFAULT 0,
+  recovery_reason VARCHAR(500) NULL,
+  is_successful_snapshot TINYINT(1) NOT NULL DEFAULT 0,
+  previous_successful_batch_id BIGINT UNSIGNED NULL,
+  last_batch_started_at DATETIME NULL,
+  UNIQUE KEY uniq_cw_sync_uuid (sync_uuid),
+  KEY idx_cw_sync_status (status, heartbeat_at),
+  KEY idx_cw_sync_successful (is_successful_snapshot, completed_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS cw_product_snapshots (
@@ -132,4 +151,4 @@ INSERT IGNORE INTO cw_settings (setting_key, setting_value) VALUES
 ('base_currency','NAD'),('vat_rate','15'),('retail_target_margin',NULL),
 ('wholesale_target_margin',NULL),('reseller_target_margin',NULL),
 ('low_margin_threshold',NULL),('default_allocation_method','invoice_value'),
-('last_website_sync',NULL),('schema_version','1');
+('last_website_sync',NULL),('schema_version','2');
