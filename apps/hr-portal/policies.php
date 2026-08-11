@@ -7,7 +7,7 @@ $policies=$db->query("SELECT p.*,v.version_number FROM hr_policies p LEFT JOIN h
 $acks=array(); if(!$isAdmin&&$eid){$s=$db->prepare("SELECT * FROM hr_policy_acknowledgements WHERE employee_id=?");$s->execute(array($eid));foreach($s as $a)$acks[$a['version_id']]=$a;}
 ?>
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Documents & Policies — Hambelela HR</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"><link rel="stylesheet" href="includes/styles.css"><link rel="stylesheet" href="includes/policies.css"></head>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"><link rel="stylesheet" href="includes/styles.css"><link rel="stylesheet" href="includes/policies.css?v=20260811-digital"></head>
 <body class="policy-shell"><?php include __DIR__.'/includes/'.($isAdmin?'sidebar.php':'emp-sidebar.php'); ?>
 <main class="policy-main"><header class="policy-page-head"><div><span class="eyebrow">HR Portal</span><h1>Documents & Policies</h1><p>Company policies, version history and secure acknowledgements.</p></div><?php if($isAdmin):?><button class="primary-btn" type="button" data-open-draft><i class="fa-solid fa-plus"></i> Add policy version</button><?php endif;?></header>
 <?php if($success):?><div class="notice success"><?=htmlspecialchars($success)?></div><?php endif;?><?php if($error):?><div class="notice error"><?=htmlspecialchars($error)?></div><?php endif;?>
