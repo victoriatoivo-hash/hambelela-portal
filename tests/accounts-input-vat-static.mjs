@@ -1,0 +1,9 @@
+import fs from 'node:fs';import assert from 'node:assert/strict';
+const read=p=>fs.readFileSync(new URL('../'+p,import.meta.url),'utf8');
+const service=read('shared/accounts-input-vat.php'),api=read('apps/accounts/input-vat-api.php'),page=read('apps/accounts/input-vat.php'),features=read('shared/employee-features.php'),sidebar=read('shared/sidebar.php'),js=read('assets/js/input-vat.js');
+assert.match(service,/accounts_input_vat_purchases/);assert.match(service,/accounts_input_vat_audit/);assert.match(service,/amount_incl_vat/);assert.match(service,/\$inclusive \* \$rate \/ \(100 \+ \$rate\)/);
+assert.match(features,/'front_desk_admin'.*'accounts'/);assert.doesNotMatch(features,/'packer'.*'accounts'/);assert.match(sidebar,/'label' => 'Accounts'/);
+assert.match(page,/multiple/);assert.match(page,/Standard rate/);assert.match(page,/Zero Rated/);assert.match(page,/No VAT \/ Non-VAT/);assert.match(page,/Manual VAT/);assert.match(page,/Review Required/);
+assert.match(api,/Only the owner can review purchases/);assert.match(api,/Existing records were not recalculated/);assert.match(api,/text\/csv/);assert.match(api,/deleted_at=NOW/);assert.match(js,/setInterval\(.*60000/s);
+const inclusive=944.85,rate=15,vat=Math.round(inclusive*rate/(100+rate)*100)/100,exclusive=Math.round((inclusive-vat)*100)/100;assert.equal(vat,123.24);assert.equal(exclusive,821.61);
+console.log('Accounts/Input VAT static checks passed.');
