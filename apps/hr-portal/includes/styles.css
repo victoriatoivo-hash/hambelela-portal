@@ -244,6 +244,26 @@ tr:hover td{background:#f8faf9}
   .modal-footer{display:grid;grid-template-columns:minmax(0,1fr)}
   .modal-footer .btn{justify-content:center;width:100%}
 }
+
+/* Shared HR phone contract: compact surrounding space while preserving
+   44px primary touch targets and keeping wide records inside local scrollers. */
+@media (max-width:767px){
+  .content{padding:12px}
+  .page-header,.section-header,.card-header{min-width:0;max-width:100%;gap:10px}
+  .card,.panel,.stat-card{min-width:0;max-width:100%;padding:14px}
+  .grid,.form-grid,.filter-grid,.stats-grid{grid-template-columns:minmax(0,1fr)}
+  .hr-table-viewport{position:relative;overscroll-behavior-inline:contain}
+  .modal label,.modal input:not([type=checkbox]):not([type=radio]),.modal select,.modal textarea{max-width:100%}
+  .modal textarea{min-height:110px;max-height:45dvh;resize:vertical}
+  .modal-actions,.form-actions{display:flex;flex-wrap:wrap;gap:8px}
+  .modal-actions button,.modal-actions .btn,.form-actions button,.form-actions .btn{min-height:44px;flex:1 1 140px}
+}
+
+@media (max-width:430px){
+  .content{padding:10px}
+  .card,.panel,.stat-card{padding:12px;border-radius:12px}
+  .empty-state{min-height:0;padding:24px 14px}
+}
 @media (prefers-reduced-motion:reduce){
   .sidebar,.hr-nav-backdrop,.hr-mobile-menu-toggle span,.modal{transition-duration:1ms}
 }
