@@ -23,15 +23,17 @@ function cw_install_schema(PDO $pdo): void
 
 const CW_SYNC_STALE_SECONDS = 600; // Ten minutes: safely above normal batch time, short enough for abandoned-tab recovery.
 const CW_SYNC_LOCK_NAME = 'hambelela_cost_workbook_website_sync';
-// WooCommerce v3 returns the complete product payload. Ten parents keeps each request comfortably below the production 12-second HTTP timeout.
+// WooCommerce v3 returns the complete product payload. Keep reads small and give
+// this administrator-triggered snapshot enough time for occasional slow pages.
 const CW_SYNC_BATCH_SIZE = 10;
 const CW_SYNC_READ_ATTEMPTS = 2;
+const CW_SYNC_READ_TIMEOUT = 25;
 
 function cw_sync_wc_get(string $path, array $query): array
 {
     $lastError = null;
     for ($attempt = 1; $attempt <= CW_SYNC_READ_ATTEMPTS; $attempt++) {
-        try { return wc_get($path, $query); }
+        try { return wc_get($path, $query, CW_SYNC_READ_TIMEOUT); }
         catch (Throwable $e) { $lastError = $e; if ($attempt < CW_SYNC_READ_ATTEMPTS) usleep(250000); }
     }
     throw new RuntimeException('Website catalogue read failed after a bounded retry.', 0, $lastError);
