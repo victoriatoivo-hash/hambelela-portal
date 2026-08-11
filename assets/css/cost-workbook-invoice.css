@@ -11,6 +11,51 @@
   color: #5f5148;
 }
 
+.cw .cw-upload-selection {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.cw .cw-upload-file {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #d9e5bd;
+  border-radius: 10px;
+  background: #f7fbea;
+}
+
+.cw .cw-upload-file strong,
+.cw .cw-upload-file span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.cw .cw-upload-file span,
+.cw .cw-upload-empty,
+.cw .cw-upload-progress {
+  margin: 3px 0 0;
+  color: #6b4c3b;
+  font-size: 12px;
+}
+
+.cw .cw-upload-rejected {
+  border-color: #e7b6b8;
+  background: #fff1f1;
+}
+
+.cw .cw-upload-rejected span {
+  color: #8a1c20;
+}
+
+.cw .cw-upload-progress {
+  margin: 10px 0;
+  font-weight: 600;
+}
+
 .cw .cw-match-dialog {
   width: min(1050px, calc(100vw - 24px));
 }
