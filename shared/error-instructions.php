@@ -31,9 +31,10 @@ function error_instructions_schema_ready(): bool
             'completed_at' => "ALTER TABLE ops_error_instructions ADD COLUMN completed_at DATETIME NULL AFTER completion_note",
         ];
         foreach ($instructionColumns as $column => $alterSql) {
-            $check = db()->prepare("SHOW COLUMNS FROM ops_error_instructions LIKE ?");
+            $check = db()->prepare("SELECT COUNT(*) FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ops_error_instructions' AND COLUMN_NAME=?");
             $check->execute([$column]);
-            $exists = (bool) $check->fetchColumn();
+            $exists = (int) $check->fetchColumn() > 0;
             $check->closeCursor();
             if (!$exists) db()->exec($alterSql);
         }

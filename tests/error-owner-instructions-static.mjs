@@ -41,6 +41,8 @@ assert.match(service,/CREATE TABLE IF NOT EXISTS ops_error_instruction_reads/);
 assert.match(service,/UNIQUE KEY uniq_error_instruction_recipient/);
 assert.match(service,/recipient_user_id/);
 assert.match(service,/completion_note TEXT NULL/);
+assert.match(service,/information_schema\.COLUMNS/);
+assert.doesNotMatch(service,/SHOW COLUMNS FROM ops_error_instructions LIKE \?/);
 assert.match(css,/#error-task-details \.owner-instruction-panel/);
 assert.match(css,/#error-task-details \.owner-instruction-textarea/);
 assert.match(css,/#error-task-details \.owner-instruction-send\{min-height:36px/);
