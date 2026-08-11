@@ -18,6 +18,8 @@ assert.match(page,/data-owner-instruction-complete-form/);
 assert.match(page,/Mark Instruction Complete/);
 assert.match(page,/application\/x-www-form-urlencoded;charset=UTF-8/);
 assert.match(page,/new URLSearchParams\(new FormData\(form\)\)\.toString\(\)/);
+assert.match(page,/fetch\(form\.getAttribute\('action'\)/);
+assert.doesNotMatch(page,/fetch\(form\.action/);
 assert.match(page,/el\.logged_by = \?/);
 assert.match(endpoint,/Only an owner\/admin may send instructions\./);
 assert.match(endpoint,/Instructions can only be sent while the error is unresolved\./);
