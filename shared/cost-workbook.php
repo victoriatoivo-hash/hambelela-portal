@@ -171,6 +171,54 @@ function cw_decimal($value): ?string
     return number_format((float) $value, 6, '.', '');
 }
 
+function cw_nonnegative_amount_cents($value, string $label): int
+{
+    $raw = trim((string) $value);
+    if ($raw === '' || !preg_match('/^\d+(?:\.\d{1,6})?$/', $raw)) {
+        throw new InvalidArgumentException($label . ' must be a valid non-negative number.');
+    }
+    return (int) round((float) $raw * 100, 0, PHP_ROUND_HALF_UP);
+}
+
+function cw_calculate_invoice_line($quantity, $unitPrice, $discount, $vatAmount, string $vatTreatment): array
+{
+    $quantityRaw = trim((string) $quantity);
+    if ($quantityRaw === '' || !preg_match('/^\d+(?:\.\d{1,6})?$/', $quantityRaw) || (float) $quantityRaw <= 0) {
+        throw new InvalidArgumentException('Quantity must be greater than zero.');
+    }
+    $unitPriceRaw = trim((string) $unitPrice);
+    if ($unitPriceRaw === '' || !preg_match('/^\d+(?:\.\d{1,6})?$/', $unitPriceRaw)) {
+        throw new InvalidArgumentException('Unit cost must be a valid non-negative number.');
+    }
+    $grossCents = (int) round((float) $quantityRaw * (float) $unitPriceRaw * 100, 0, PHP_ROUND_HALF_UP);
+    $discountCents = cw_nonnegative_amount_cents($discount === null || $discount === '' ? '0' : $discount, 'Discount');
+    if ($discountCents > $grossCents) {
+        throw new InvalidArgumentException('Discount cannot exceed the gross line amount.');
+    }
+    $vatCents = cw_nonnegative_amount_cents($vatAmount === null || $vatAmount === '' ? '0' : $vatAmount, 'VAT amount');
+    $discountedCents = $grossCents - $discountCents;
+    if ($vatTreatment === 'inclusive') {
+        if ($vatCents > $discountedCents) throw new InvalidArgumentException('VAT amount cannot exceed the discounted VAT-inclusive line amount.');
+        $subtotalCents = $discountedCents - $vatCents;
+        $totalCents = $discountedCents;
+    } elseif ($vatTreatment === 'exempt') {
+        if ($vatCents !== 0) throw new InvalidArgumentException('VAT amount must be zero for VAT-exempt invoices.');
+        $subtotalCents = $discountedCents;
+        $totalCents = $discountedCents;
+    } else {
+        $subtotalCents = $discountedCents;
+        $totalCents = $discountedCents + $vatCents;
+    }
+    $money = static function (int $cents): string { return number_format($cents / 100, 2, '.', ''); };
+    return [
+        'gross' => $money($grossCents),
+        'discount' => $money($discountCents),
+        'line_subtotal' => $money($subtotalCents),
+        'vat_amount' => $money($vatCents),
+        'line_total' => $money($totalCents),
+    ];
+}
+
 function cw_normalize_quantity($quantity, string $unit, $packSize = null): array
 {
     $q = cw_decimal($quantity);

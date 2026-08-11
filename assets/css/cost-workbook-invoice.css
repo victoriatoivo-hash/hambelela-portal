@@ -1,0 +1,58 @@
+.cw .cw-product-filters {
+  display: grid;
+  grid-template-columns: minmax(220px, 2fr) minmax(180px, 1fr);
+  gap: 12px;
+  max-width: 720px;
+  margin-top: 12px;
+}
+
+.cw input[readonly] {
+  background: #f6f1eb;
+  color: #5f5148;
+}
+
+.cw .cw-match-dialog {
+  width: min(1050px, calc(100vw - 24px));
+}
+
+.cw .cw-line-table input,
+.cw .cw-line-table select {
+  min-width: 112px;
+}
+
+.cw .cw-line-table [data-k="raw_description"],
+.cw .cw-line-table [data-k="product_description"] {
+  min-width: 180px;
+}
+
+@media (max-width: 600px) {
+  .cw .cw-product-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .cw .cw-dialog {
+    width: calc(100vw - 12px);
+    padding: 16px 12px;
+  }
+
+  .cw .cw-line-table {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .cw input,
+  .cw select,
+  .cw textarea,
+  .cw .cw-btn,
+  .cw .cw-actions button,
+  .cw .cw-actions a {
+    min-height: 40px;
+  }
+
+  .cw .cw-dialog-actions {
+    position: sticky;
+    bottom: -16px;
+    padding: 10px 0;
+    background: #fff;
+  }
+}

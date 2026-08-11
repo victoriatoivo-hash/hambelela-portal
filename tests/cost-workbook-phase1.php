@@ -23,4 +23,12 @@ check('markup is 66.67%', $c['markup']===66.67);
 check('margin and markup differ', $c['gross_margin']!==$c['markup']);
 $missing=cw_calculate(null,null,15); check('missing values do not become Infinity or NaN', !in_array(INF,$missing,true) && !in_array(NAN,$missing,true));
 
+$line=cw_calculate_invoice_line(2,'10.005','1.25','2.81','exclusive');
+check('decimal discount is preserved', $line['discount']==='1.25');
+check('exclusive subtotal is gross less discount', $line['line_subtotal']==='18.76');
+check('exclusive VAT is added after discount', $line['line_total']==='21.57');
+$zero=cw_calculate_invoice_line(1,'100','0','15','exclusive');check('zero discount saves', $zero['discount']==='0.00'&&$zero['line_total']==='115.00');
+$inclusive=cw_calculate_invoice_line(1,'115','15','15','inclusive');check('inclusive VAT is not added twice', $inclusive['line_subtotal']==='85.00'&&$inclusive['line_total']==='100.00');
+foreach([['-1','Discount must reject negatives'],['oops','Discount must reject malformed values'],['101','Discount must not exceed gross']] as [$discount,$name]){try{cw_calculate_invoice_line(1,'100',$discount,'0','exclusive');check($name,false);}catch(InvalidArgumentException $e){check($name,true);}}
+
 exit($failures ? 1 : 0);
