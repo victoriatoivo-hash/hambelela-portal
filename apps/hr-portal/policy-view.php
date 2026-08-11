@@ -14,7 +14,7 @@ elseif(!$isAdmin){
 }
 $toc=array();if(preg_match_all('/<h2 id="([^"]+)">(.*?)<\/h2>/s',$v['digital_html'],$matches,PREG_SET_ORDER))foreach($matches as $m)$toc[]=array('id'=>$m[1],'text'=>html_entity_decode(strip_tags($m[2]),ENT_QUOTES,'UTF-8'));
 $signed=$ack&&!empty($ack['signed_at']);$readPercent=$ack?(float)$ack['reading_percent']:0;$employeeExperience=!$isAdmin||$preview;
-$displayHtml=$v['digital_html'];if($employeeExperience)$displayHtml=preg_replace('/<h2[^>]*>\s*Portal acknowledgement record\s*<\/h2>.*$/is','',$displayHtml);
+$displayHtml=$v['digital_html'];if($employeeExperience)$displayHtml=preg_replace('/<h3[^>]*>\s*Portal acknowledgement record\s*<\/h3>\s*<div class="policy-digital-table">.*?<\/div>/is','',$displayHtml);
 ?>
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title><?=htmlspecialchars($v['title'])?></title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet"><link rel="stylesheet" href="includes/policies.css?v=20260811-wide"></head>
 <body class="viewer-body <?=$preview?'policy-preview-body':''?>"><div class="reading-progress" aria-hidden="true"><span id="readingProgressBar" style="width:<?=$readPercent?>%"></span></div><main class="viewer" id="policyViewer"><a href="policies.php" class="back-link" data-policy-exit>← Documents &amp; Policies</a>
