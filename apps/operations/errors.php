@@ -1403,7 +1403,7 @@ errorTaskDetails?.querySelectorAll('[data-owner-instruction-form]').forEach((for
     button.disabled = true;
     feedback.hidden = true;
     try {
-      const response = await fetch(form.action, {method:'POST', body:new FormData(form), credentials:'same-origin', headers:{'X-Requested-With':'XMLHttpRequest'}});
+      const response = await fetch(form.action, {method:'POST', body:new URLSearchParams(new FormData(form)).toString(), credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8','X-Requested-With':'XMLHttpRequest','Accept':'application/json'}});
       const result = await readOwnerInstructionResponse(response);
       if (!response.ok || !result.ok) throw new Error(result.message || 'Unable to send the instruction.');
       const section = form.closest('[data-owner-instructions]');
@@ -1442,7 +1442,7 @@ errorTaskDetails?.addEventListener('submit', async (event) => {
   if (note.length < 10) { textarea?.setCustomValidity('The completion note must be at least 10 characters.'); textarea?.reportValidity(); return; }
   textarea.setCustomValidity(''); button.disabled = true; feedback.hidden = true;
   try {
-    const response = await fetch(form.action, {method:'POST', body:new FormData(form), credentials:'same-origin', headers:{'X-Requested-With':'XMLHttpRequest','Accept':'application/json'}});
+    const response = await fetch(form.action, {method:'POST', body:new URLSearchParams(new FormData(form)).toString(), credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8','X-Requested-With':'XMLHttpRequest','Accept':'application/json'}});
     const result = await readOwnerInstructionResponse(response);
     if (!response.ok || !result.ok) throw new Error(result.message || 'Unable to complete the instruction.');
     const article = form.closest('[data-owner-instruction-item]');
