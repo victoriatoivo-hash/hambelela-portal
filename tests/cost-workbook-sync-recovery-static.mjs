@@ -23,7 +23,7 @@ assert.match(api, /recovered_by=\?,recovered_by_name=\?/u, 'recovery must record
 assert.match(api, /heartbeat_at=UTC_TIMESTAMP\(\)/u);
 assert.match(api, /status='completed'.*is_successful_snapshot=1/us, 'only a completed attempt may be promoted');
 assert.match(api, /UPDATE cw_sync_batches SET is_successful_snapshot=0 WHERE is_successful_snapshot=1/u);
-assert.match(api, /WHERE status='completed' AND is_successful_snapshot=1/u, 'product reads must use only the promoted snapshot');
+assert.match(api, /cw_sync_successful_id\(\$pdo\).*s\.sync_batch_id=\?/us, 'product reads must use only the promoted snapshot');
 assert.doesNotMatch(api, /wc_(?:post|put|delete)\s*\(/u, 'WooCommerce synchronization must remain strictly read-only');
 assert.match(library, /CW_SYNC_BATCH_SIZE = 10/u, 'production product reads must remain below the observed timeout threshold');
 assert.match(library, /CW_SYNC_READ_ATTEMPTS = 2/u, 'catalogue retries must remain bounded');
