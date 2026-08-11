@@ -11,13 +11,110 @@
   color: #5f5148;
 }
 
-.cw .cw-upload-selection {
+#uploadDialog.cw-upload-dialog {
+  --cw-primary: #721b1a;
+  --cw-accent: #ab3619;
+  --cw-orange: #f07420;
+  --cw-lime: #a8ca19;
+  --cw-soft: #fdf6ee;
+  --cw-border: #ede3d8;
+  --cw-text: #1a1a1a;
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  width: 100vw;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  padding: 16px;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: var(--cw-text);
+  font-size: 12px;
+  box-sizing: border-box;
+}
+
+#uploadDialog.cw-upload-dialog[open] {
+  display: grid;
+  place-items: center;
+}
+
+#uploadDialog.cw-upload-dialog *,
+#uploadDialog.cw-upload-dialog *::before,
+#uploadDialog.cw-upload-dialog *::after {
+  box-sizing: border-box;
+}
+
+#uploadDialog.cw-upload-dialog .cw-upload-dialog__panel {
+  display: flex;
+  flex-direction: column;
+  width: min(720px, 100%);
+  max-height: calc(100dvh - 32px);
+  overflow: hidden;
+  border: 1px solid var(--cw-border);
+  border-radius: 13px;
+  background: #fff;
+  box-shadow: 0 28px 90px rgba(42, 22, 15, .3);
+}
+
+#uploadDialog.cw-upload-dialog .cw-upload-dialog__header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 20px 12px;
+}
+
+#uploadDialog.cw-upload-dialog .cw-upload-dialog__header h2,
+#uploadDialog.cw-upload-dialog .cw-upload-dialog__header p {
+  margin: 0;
+}
+
+#uploadDialog.cw-upload-dialog .cw-upload-dialog__header p {
+  margin-top: 8px;
+  color: #6f625a;
+}
+
+#uploadDialog.cw-upload-dialog .cw-upload-dialog__form {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+}
+
+#uploadDialog.cw-upload-dialog .cw-upload-dialog__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 20px 20px;
+}
+
+#uploadDialog.cw-upload-dialog .cw-upload-dialog__footer {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid rgba(114, 27, 26, .12);
+  background: #fff;
+}
+
+#uploadDialog.cw-upload-dialog .cw-upload-dialog__submit,
+#uploadDialog.cw-upload-dialog .cw-upload-dialog__cancel {
+  min-height: 40px;
+}
+
+#uploadDialog.cw-upload-dialog .cw-upload-selection {
   display: grid;
   gap: 8px;
   margin: 12px 0;
 }
 
-.cw .cw-upload-file {
+#uploadDialog.cw-upload-dialog .cw-upload-file {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -28,32 +125,66 @@
   background: #f7fbea;
 }
 
-.cw .cw-upload-file strong,
-.cw .cw-upload-file span {
+#uploadDialog.cw-upload-dialog .cw-upload-file strong,
+#uploadDialog.cw-upload-dialog .cw-upload-file span {
   display: block;
   overflow-wrap: anywhere;
 }
 
-.cw .cw-upload-file span,
-.cw .cw-upload-empty,
-.cw .cw-upload-progress {
+#uploadDialog.cw-upload-dialog .cw-upload-file span,
+#uploadDialog.cw-upload-dialog .cw-upload-empty,
+#uploadDialog.cw-upload-dialog .cw-upload-progress {
   margin: 3px 0 0;
   color: #6b4c3b;
   font-size: 12px;
 }
 
-.cw .cw-upload-rejected {
+#uploadDialog.cw-upload-dialog .cw-upload-rejected {
   border-color: #e7b6b8;
   background: #fff1f1;
 }
 
-.cw .cw-upload-rejected span {
+#uploadDialog.cw-upload-dialog .cw-upload-rejected span {
   color: #8a1c20;
 }
 
-.cw .cw-upload-progress {
+#uploadDialog.cw-upload-dialog .cw-upload-progress {
   margin: 10px 0;
   font-weight: 600;
+}
+
+#uploadDialog.cw-upload-dialog .cw-selected-file {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 40px;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+#uploadDialog.cw-upload-dialog .cw-selected-file__details {
+  min-width: 0;
+}
+
+#uploadDialog.cw-upload-dialog .cw-selected-file__name {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+#uploadDialog.cw-upload-dialog .cw-selected-file__meta {
+  display: block;
+  margin-top: 4px;
+  color: #6b625f;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+#uploadDialog.cw-upload-dialog .cw-selected-file__remove {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  padding: 0;
 }
 
 .cw .cw-match-dialog {
@@ -71,6 +202,23 @@
 }
 
 @media (max-width: 600px) {
+  #uploadDialog.cw-upload-dialog {
+    padding: 8px;
+  }
+
+  #uploadDialog.cw-upload-dialog .cw-upload-dialog__panel {
+    max-height: calc(100dvh - 16px);
+  }
+
+  #uploadDialog.cw-upload-dialog .cw-upload-dialog__footer {
+    flex-direction: column-reverse;
+  }
+
+  #uploadDialog.cw-upload-dialog .cw-upload-dialog__submit,
+  #uploadDialog.cw-upload-dialog .cw-upload-dialog__cancel {
+    width: 100%;
+  }
+
   .cw .cw-product-filters {
     grid-template-columns: 1fr;
   }

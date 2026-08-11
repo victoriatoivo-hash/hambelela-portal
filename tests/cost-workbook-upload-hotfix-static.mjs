@@ -9,7 +9,8 @@ assert.match(page, /id="invoiceFiles"[^>]*name="invoice_files\[\]"[^>]*multiple[
 assert.match(page, /id="uploadSelection"[^>]*aria-live="polite"/u, 'selected files have a visible live region');
 assert.match(page, /id="uploadProgress"[^>]*role="status"/u, 'upload progress has a visible status region');
 assert.match(page, /type="submit" disabled>Upload selected files/u, 'upload starts disabled');
-assert.match(page, /cost-workbook\.js\?v=5/u, 'the corrected asset has a new cache version');
+assert.match(page, /cost-workbook\.js\?v=6/u, 'the corrected asset has a new cache version');
+assert.match(page, /cost-workbook-invoice\.css\?v=2/u, 'the corrected modal CSS has a new cache version');
 
 assert.match(client, /uploadInput\.addEventListener\('change'/u, 'the live input owns one explicit change handler');
 assert.equal((client.match(/uploadInput\.addEventListener\('change'/gu) || []).length, 1, 'the change handler is bound exactly once');
@@ -27,7 +28,7 @@ assert.match(client, /uploadProgress\.textContent='Upload failed\.'/u, 'request 
 assert.match(client, /File must be 15 MB or smaller/u, 'oversized files are rejected visibly');
 assert.match(client, /Unsupported file type/u, 'unsupported files are rejected visibly');
 assert.doesNotMatch(client, /window\.(?:onchange|onsubmit)\s*=/u, 'the fix does not install global portal handlers');
-assert.match(css, /\.cw \.cw-upload-selection/u, 'all new upload CSS remains Cost Workbook scoped');
+assert.match(css, /#uploadDialog\.cw-upload-dialog \.cw-upload-selection/u, 'all new upload CSS remains scoped to the Cost Workbook dialog');
 assert.doesNotMatch(css, /(^|\n)body\b/u, 'the hotfix does not add global body styles');
 
 console.log('Cost Workbook upload hotfix checks passed.');
