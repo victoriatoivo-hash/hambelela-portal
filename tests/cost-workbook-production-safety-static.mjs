@@ -16,7 +16,7 @@ for (const source of [api, page, library]) {
 assert.match(api, /require_role\('owner_admin', 'supervisor_manager'\)/u);
 assert.match(page, /require_role\('owner_admin', 'supervisor_manager'\)/u);
 assert.match(api, /cw_require_csrf\(\)/u);
-assert.match(api, /wc_get\('products',\['page'=>\$page,'per_page'=>CW_SYNC_BATCH_SIZE/u, 'Product sync requests must remain batched');
+assert.match(api, /cw_sync_wc_get\('products',\['page'=>\$page,'per_page'=>CW_SYNC_BATCH_SIZE/u, 'Product sync requests must remain batched');
 assert.doesNotMatch(api, /wc_(?:post|put|delete)\s*\(/u, 'WooCommerce sync must remain read-only');
 assert.match(rootHtaccess, /RewriteRule \^uploads\/cost-workbook/u, 'Root deployment must block direct invoice URLs');
 assert.match(client, /^\(\(\) => \{/u, 'Cost Workbook JavaScript must remain isolated in an IIFE');
