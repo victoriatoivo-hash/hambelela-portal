@@ -49,7 +49,9 @@ function cw_upgrade_sync_schema_v2(PDO $pdo): void
         'failure_reason' => "ADD COLUMN failure_reason VARCHAR(500) NULL AFTER error_message",
         'recovery_count' => "ADD COLUMN recovery_count INT NOT NULL DEFAULT 0 AFTER failure_reason",
         'recovery_reason' => "ADD COLUMN recovery_reason VARCHAR(500) NULL AFTER recovery_count",
-        'is_successful_snapshot' => "ADD COLUMN is_successful_snapshot TINYINT(1) NOT NULL DEFAULT 0 AFTER recovery_reason",
+        'recovered_by' => "ADD COLUMN recovered_by BIGINT NULL AFTER recovery_reason",
+        'recovered_by_name' => "ADD COLUMN recovered_by_name VARCHAR(190) NOT NULL DEFAULT '' AFTER recovered_by",
+        'is_successful_snapshot' => "ADD COLUMN is_successful_snapshot TINYINT(1) NOT NULL DEFAULT 0 AFTER recovered_by_name",
         'previous_successful_batch_id' => "ADD COLUMN previous_successful_batch_id BIGINT UNSIGNED NULL AFTER is_successful_snapshot",
         'last_batch_started_at' => "ADD COLUMN last_batch_started_at DATETIME NULL AFTER previous_successful_batch_id",
     ];
@@ -115,7 +117,7 @@ function cw_sync_public(array $sync): array
         'current_offset'=>(int)($sync['current_offset']??0),'processed_count'=>(int)($sync['processed_count']??0),
         'success_count'=>(int)($sync['success_count']??0),'error_count'=>(int)($sync['error_count']??0),
         'failure_reason'=>$sync['failure_reason']??null,'recovery_reason'=>$sync['recovery_reason']??null,
-        'recovery_count'=>(int)($sync['recovery_count']??0),'is_stale'=>cw_sync_is_stale($sync),
+        'recovery_count'=>(int)($sync['recovery_count']??0),'recovered_by_name'=>$sync['recovered_by_name']??null,'is_stale'=>cw_sync_is_stale($sync),
         'is_successful_snapshot'=>(bool)($sync['is_successful_snapshot']??false),
     ];
 }

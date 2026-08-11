@@ -7,7 +7,7 @@ const migration = await readFile(new URL('../apps/cost-manager/cost-workbook-mig
 const client = await readFile(new URL('../assets/js/cost-workbook.js', import.meta.url), 'utf8');
 const page = await readFile(new URL('../apps/cost-manager/workbook.php', import.meta.url), 'utf8');
 
-for (const field of ['sync_uuid','heartbeat_at','current_batch','current_offset','processed_count','failure_reason','recovery_count','recovery_reason','is_successful_snapshot','previous_successful_batch_id']) {
+for (const field of ['sync_uuid','heartbeat_at','current_batch','current_offset','processed_count','failure_reason','recovery_count','recovery_reason','recovered_by','recovered_by_name','is_successful_snapshot','previous_successful_batch_id']) {
   assert.match(migration, new RegExp(`\\b${field}\\b`, 'u'), `migration must persist ${field}`);
   assert.match(library, new RegExp(`['\"]${field}['\"]`, 'u'), `upgrade must account for ${field}`);
 }
@@ -19,6 +19,7 @@ assert.match(library, /SELECT RELEASE_LOCK\(\?\)/u);
 assert.match(api, /FOR UPDATE/u, 'sync state transitions must lock their database row');
 assert.match(api, /action === 'sync-status'/u);
 assert.match(api, /action === 'sync-recover'/u);
+assert.match(api, /recovered_by=\?,recovered_by_name=\?/u, 'recovery must record the authorized operator');
 assert.match(api, /heartbeat_at=UTC_TIMESTAMP\(\)/u);
 assert.match(api, /status='completed'.*is_successful_snapshot=1/us, 'only a completed attempt may be promoted');
 assert.match(api, /UPDATE cw_sync_batches SET is_successful_snapshot=0 WHERE is_successful_snapshot=1/u);
@@ -32,6 +33,7 @@ assert.doesNotMatch(client, /setInterval/u, 'polling must not accumulate interva
 assert.match(client, /s\.restored/u, 'a start request must restore the server-authoritative attempt');
 assert.match(client, /setTimeout\(\(\)=>driveSync\(d\.current\.id\),0\)/u, 'a page reload must continue a healthy active attempt');
 assert.match(client, /\['stale','failed'\]\.includes/u, 'recovery must only be offered for recoverable states');
+assert.match(client, /sync\.success_count.*sync\.error_count/u, 'the panel must report successful and failed record counts');
 assert.match(page, /id="syncStatus"/u);
 assert.match(page, /id="recoverSync" hidden/u);
 

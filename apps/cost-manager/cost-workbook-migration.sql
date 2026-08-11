@@ -89,6 +89,8 @@ CREATE TABLE IF NOT EXISTS cw_sync_batches (
   failure_reason VARCHAR(500) NULL,
   recovery_count INT NOT NULL DEFAULT 0,
   recovery_reason VARCHAR(500) NULL,
+  recovered_by BIGINT NULL,
+  recovered_by_name VARCHAR(190) NOT NULL DEFAULT '',
   is_successful_snapshot TINYINT(1) NOT NULL DEFAULT 0,
   previous_successful_batch_id BIGINT UNSIGNED NULL,
   last_batch_started_at DATETIME NULL,
