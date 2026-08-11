@@ -45,6 +45,7 @@ if ($roleKey === 'owner_admin') {
         ['name' => 'Employee Performance', 'desc' => 'packing speed, checklist compliance, accuracy and bonus support', 'icon' => 'chart-no-axes-combined', 'href' => BASE_URL . '/apps/operations/reports.php', 'active' => true, 'tone' => 'violet'],
         ['name' => 'Packing List', 'desc' => 'consignment breakdowns, fair packer assignments and actual quantities', 'icon' => 'package-open', 'href' => BASE_URL . '/apps/operations/consignments.php', 'active' => true, 'tone' => 'blue'],
         ['name' => 'Courier', 'desc' => 'upload waybills, alert front desk and track customer sends', 'icon' => 'truck', 'href' => BASE_URL . '/apps/operations/courier.php', 'active' => true, 'tone' => 'green'],
+        ['name' => 'Accounts', 'desc' => 'accounting, VAT and financial administration', 'icon' => 'landmark', 'href' => BASE_URL . '/apps/accounts/index.php', 'active' => true, 'tone' => 'pink'],
     ];
 } else {
     $dashboardPackingHref = BASE_URL . '/apps/operations/consignments.php?unread=1';
@@ -63,6 +64,7 @@ if ($roleKey === 'owner_admin') {
         ['name' => 'Notifications', 'desc' => 'your account alerts and updates', 'icon' => 'bell', 'href' => BASE_URL . '/notifications.php', 'active' => true, 'tone' => 'green'],
     ];
     if (in_array($roleKey, ['front_desk_admin', 'front_desk_admin_employee'], true)) {
+        $apps[] = ['name' => 'Accounts', 'desc' => 'accounting, VAT and financial administration', 'icon' => 'landmark', 'href' => BASE_URL . '/apps/accounts/index.php', 'active' => true, 'tone' => 'green'];
         $apps[] = ['name' => 'Error Log', 'desc' => 'operational issue tracking', 'icon' => 'triangle-alert', 'href' => BASE_URL . '/apps/operations/errors.php', 'active' => true, 'tone' => 'pink'];
     }
 }

@@ -1,0 +1,74 @@
+.accounts-app-section {
+    display: grid;
+    gap: 14px;
+}
+
+.accounts-app-section > header h2 {
+    margin: 2px 0 0;
+    color: #721b1a;
+    font-size: 20px;
+}
+
+.accounts-app-card h3 {
+    margin: 0 0 5px;
+    font-size: 18px;
+}
+
+.accounts-app-card small {
+    display: block;
+    margin-bottom: 3px;
+    color: #80695e;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.accounts-app-icon i {
+    width: 26px;
+    height: 26px;
+}
+
+.accounts-future-note {
+    margin: 0;
+    color: #80695e;
+    font-size: 11px;
+}
+
+.accounts-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #80695e;
+    font-size: 11px;
+}
+
+.accounts-breadcrumb a {
+    color: #ab3619;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.accounts-month-step {
+    white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+    .accounts-workspace .accounts-app-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .accounts-workspace .accounts-app-card {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .accounts-month-step {
+        flex: 1 1 calc(50% - 5px);
+    }
+}
+
+@media (max-width: 420px) {
+    .accounts-summary {
+        grid-template-columns: 1fr;
+    }
+}
