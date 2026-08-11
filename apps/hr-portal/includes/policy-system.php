@@ -221,6 +221,18 @@ function hrPolicyDisplayStatus(array $v): string {
     return date('Y-m-d') < $v['effective_date'] ? 'Published — Effective ' . date('j F Y', strtotime($v['effective_date'])) : 'Current — In Force';
 }
 
+function hrPolicyMetadataMismatches(array $v): array {
+    $issues=array(); $html=(string)($v['digital_html']??''); $plain=html_entity_decode(strip_tags($html),ENT_QUOTES,'UTF-8');
+    if (stripos($plain,'Effective Date Pending owner approval')!==false || stripos($plain,'Pending owner approval')!==false) {
+        $issues[]='Original rendered cover says “Effective Date: Pending owner approval”; portal metadata says “Effective Date: '.date('j F Y',strtotime($v['effective_date'])).'”.';
+    }
+    if ($v['version_number']==='' || stripos($plain,'Version '.$v['version_number'])===false) $issues[]='Digital policy version does not match portal Version '.$v['version_number'].'.';
+    if (empty($v['document_hash']) || !preg_match('/^[a-f0-9]{64}$/i',(string)$v['document_hash'])) $issues[]='Original source document hash is missing or invalid.';
+    if (empty($v['digital_hash']) || !preg_match('/^[a-f0-9]{64}$/i',(string)$v['digital_hash'])) $issues[]='Rendered digital document hash is missing or invalid.';
+    if (!empty($v['acknowledgement_required']) && empty($v['acknowledgement_deadline'])) $issues[]='Acknowledgement is required but no deadline is set.';
+    return $issues;
+}
+
 function hrPolicyPending(PDO $db, int $employeeId): array {
     $s=$db->prepare("SELECT v.*,p.title AS policy_title,a.opened_at,a.signed_at
       FROM hr_policy_versions v JOIN hr_policies p ON p.id=v.policy_id

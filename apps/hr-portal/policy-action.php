@@ -67,6 +67,8 @@ try {
         $lock->execute(array($id)); $v=$lock->fetch(PDO::FETCH_ASSOC);
         if (!$v) throw new RuntimeException('Policy version not found.');
         if ($v['status']!=='ready_to_publish') throw new RuntimeException('Only a policy marked Ready to Publish can be published.');
+        $metadataIssues=hrPolicyMetadataMismatches($v);
+        if ($metadataIssues) throw new RuntimeException('Policy metadata requires review before publication. '.implode(' ',$metadataIssues));
         $db->prepare("UPDATE hr_policy_versions SET status='superseded',superseded_at=NOW() WHERE policy_id=? AND status='published'")->execute(array($v['policy_id']));
         $publisher=trim((string)($user['name']??$user['full_name']??$user['username']??$user['email']??'Owner/Admin'));
         $publish=$db->prepare("UPDATE hr_policy_versions SET status='published',published_by=?,published_by_name=?,published_at=NOW() WHERE id=? AND status='ready_to_publish'");
