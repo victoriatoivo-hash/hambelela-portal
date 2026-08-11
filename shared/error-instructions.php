@@ -16,10 +16,27 @@ function error_instructions_schema_ready(): bool
             error_id INT NOT NULL,
             instruction_text TEXT NOT NULL,
             created_by_user_id INT NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'pending',
+            completed_by_user_id INT NULL,
+            completion_note TEXT NULL,
+            completed_at DATETIME NULL,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME NULL,
             INDEX idx_error_instruction_history (error_id, created_at, id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        $instructionColumns = [
+            'status' => "ALTER TABLE ops_error_instructions ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'pending' AFTER created_by_user_id",
+            'completed_by_user_id' => "ALTER TABLE ops_error_instructions ADD COLUMN completed_by_user_id INT NULL AFTER status",
+            'completion_note' => "ALTER TABLE ops_error_instructions ADD COLUMN completion_note TEXT NULL AFTER completed_by_user_id",
+            'completed_at' => "ALTER TABLE ops_error_instructions ADD COLUMN completed_at DATETIME NULL AFTER completion_note",
+        ];
+        foreach ($instructionColumns as $column => $alterSql) {
+            $check = db()->prepare("SHOW COLUMNS FROM ops_error_instructions LIKE ?");
+            $check->execute([$column]);
+            $exists = (bool) $check->fetchColumn();
+            $check->closeCursor();
+            if (!$exists) db()->exec($alterSql);
+        }
         db()->exec("CREATE TABLE IF NOT EXISTS ops_error_instruction_reads (
             id BIGINT AUTO_INCREMENT PRIMARY KEY,
             instruction_id BIGINT NOT NULL,
@@ -90,9 +107,10 @@ function error_instructions_for_errors(array $errorIds): array
     $errorIds = array_values(array_unique(array_filter(array_map('intval', $errorIds))));
     if (!$errorIds || !error_instructions_schema_ready()) return $result;
     $placeholders = implode(',', array_fill(0, count($errorIds), '?'));
-    $rows = db()->prepare("SELECT i.*, creator.full_name created_by_name
+    $rows = db()->prepare("SELECT i.*, creator.full_name created_by_name, completer.full_name completed_by_name
         FROM ops_error_instructions i
         LEFT JOIN ops_employees creator ON creator.id=i.created_by_user_id
+        LEFT JOIN ops_employees completer ON completer.id=i.completed_by_user_id
         WHERE i.error_id IN ({$placeholders}) ORDER BY i.error_id, i.created_at, i.id");
     $rows->execute($errorIds);
     $instructions = $rows->fetchAll();

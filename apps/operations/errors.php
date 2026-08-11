@@ -1255,10 +1255,19 @@ include BASE_PATH . '/shared/sidebar.php';
                     <?php if ($isOwnerErrorUser): ?><p class="owner-instruction-help">Give the front person instructions for resolving this error.</p><?php endif; ?>
                     <div class="owner-instruction-history" aria-live="polite">
                         <?php foreach ($ownerInstructions as $instruction): ?>
-                            <article class="owner-instruction-item<?= (int)$instruction['id'] === $latestInstructionId ? ' is-latest' : '' ?>">
-                                <div class="owner-instruction-item-head"><strong>Owner Instruction<?= (int)$instruction['id'] === $latestInstructionId ? ' · Latest' : '' ?></strong><span><?= htmlspecialchars((string)($instruction['created_by_name'] ?? 'Owner/Admin'), ENT_QUOTES, 'UTF-8') ?></span></div>
+                            <article class="owner-instruction-item<?= (int)$instruction['id'] === $latestInstructionId ? ' is-latest' : '' ?>" data-owner-instruction-item="<?= (int)$instruction['id'] ?>">
+                                <div class="owner-instruction-item-head"><strong>Owner Instruction<?= (int)$instruction['id'] === $latestInstructionId ? ' · Latest' : '' ?></strong><span class="owner-instruction-status is-<?= htmlspecialchars((string)($instruction['status'] ?? 'pending'), ENT_QUOTES, 'UTF-8') ?>"><?= (string)($instruction['status'] ?? 'pending') === 'completed' ? 'Completed' : 'Pending' ?></span></div>
+                                <p class="owner-instruction-author"><?= htmlspecialchars((string)($instruction['created_by_name'] ?? 'Owner/Admin'), ENT_QUOTES, 'UTF-8') ?></p>
                                 <p class="owner-instruction-meta"><?= htmlspecialchars(error_instruction_date_label((string)$instruction['created_at']), ENT_QUOTES, 'UTF-8') ?></p>
                                 <p class="owner-instruction-copy"><?= nl2br(htmlspecialchars((string)$instruction['instruction_text'], ENT_QUOTES, 'UTF-8')) ?></p>
+                                <?php if ((string)($instruction['status'] ?? 'pending') === 'completed'): ?>
+                                    <div class="owner-instruction-completion"><strong>Completion note</strong><p><?= nl2br(htmlspecialchars((string)($instruction['completion_note'] ?? ''), ENT_QUOTES, 'UTF-8')) ?></p><small><?= htmlspecialchars((string)($instruction['completed_by_name'] ?? 'Employee'), ENT_QUOTES, 'UTF-8') ?> · <?= htmlspecialchars(error_instruction_date_label((string)($instruction['completed_at'] ?? '')), ENT_QUOTES, 'UTF-8') ?></small></div>
+                                <?php elseif (!$isOwnerErrorUser): ?>
+                                    <form class="owner-instruction-complete-form" data-owner-instruction-complete-form method="post" action="<?= BASE_URL ?>/apps/operations/error-instructions.php">
+                                        <input type="hidden" name="action" value="complete_instruction"><input type="hidden" name="error_id" value="<?= $errorId ?>"><input type="hidden" name="instruction_id" value="<?= (int)$instruction['id'] ?>"><input type="hidden" name="csrf_token" value="<?= htmlspecialchars($errorInstructionCsrfToken, ENT_QUOTES, 'UTF-8') ?>">
+                                        <label>Completion note</label><textarea name="completion_note" maxlength="4000" required placeholder="Explain what you completed and the outcome."></textarea><button type="submit">Mark Instruction Complete</button><p class="owner-instruction-feedback" data-owner-instruction-feedback hidden></p>
+                                    </form>
+                                <?php endif; ?>
                                 <?php if ($isOwnerErrorUser): ?>
                                     <div class="owner-instruction-read-state">
                                     <?php foreach (($instruction['recipients'] ?? []) as $recipient): ?>
@@ -1343,6 +1352,40 @@ async function markOwnerInstructionsRead(panel) {
   }
 }
 
+async function readOwnerInstructionResponse(response) {
+  const raw = await response.text();
+  try { return JSON.parse(raw); }
+  catch (parseError) {
+    throw new Error(response.ok ? 'The server returned an invalid response. Retry.' : `The server could not process the request (HTTP ${response.status}).`);
+  }
+}
+
+function ownerInstructionNode(data, isOwner) {
+  const article = document.createElement('article');
+  article.className = 'owner-instruction-item is-latest';
+  article.dataset.ownerInstructionItem = String(data.id || '');
+  const head = document.createElement('div'); head.className = 'owner-instruction-item-head';
+  const title = document.createElement('strong'); title.textContent = 'Owner Instruction · Latest';
+  const status = document.createElement('span'); status.className = `owner-instruction-status is-${data.status || 'pending'}`; status.textContent = data.status === 'completed' ? 'Completed' : 'Pending';
+  head.append(title, status); article.append(head);
+  const author = document.createElement('p'); author.className = 'owner-instruction-author'; author.textContent = data.created_by_name || 'Owner/Admin'; article.append(author);
+  const meta = document.createElement('p'); meta.className = 'owner-instruction-meta'; meta.textContent = data.created_at || ''; article.append(meta);
+  const copy = document.createElement('p'); copy.className = 'owner-instruction-copy'; copy.textContent = data.instruction_text || ''; article.append(copy);
+  if (data.status === 'completed') appendOwnerInstructionCompletion(article, data);
+  return article;
+}
+
+function appendOwnerInstructionCompletion(article, data) {
+  article.querySelector('[data-owner-instruction-complete-form]')?.remove();
+  const status = article.querySelector('.owner-instruction-status');
+  if (status) { status.className = 'owner-instruction-status is-completed'; status.textContent = 'Completed'; }
+  const completion = document.createElement('div'); completion.className = 'owner-instruction-completion';
+  const heading = document.createElement('strong'); heading.textContent = 'Completion note';
+  const note = document.createElement('p'); note.textContent = data.completion_note || '';
+  const byline = document.createElement('small'); byline.textContent = `${data.completed_by_name || 'Employee'} · ${data.completed_at || ''}`;
+  completion.append(heading, note, byline); article.append(completion);
+}
+
 const errorTaskDetails = document.getElementById('error-task-details');
 errorTaskDetails?.querySelectorAll('[data-owner-instruction-form]').forEach((form) => {
   form.addEventListener('submit', async (event) => {
@@ -1361,12 +1404,23 @@ errorTaskDetails?.querySelectorAll('[data-owner-instruction-form]').forEach((for
     feedback.hidden = true;
     try {
       const response = await fetch(form.action, {method:'POST', body:new FormData(form), credentials:'same-origin', headers:{'X-Requested-With':'XMLHttpRequest'}});
-      const result = await response.json();
+      const result = await readOwnerInstructionResponse(response);
       if (!response.ok || !result.ok) throw new Error(result.message || 'Unable to send the instruction.');
-      feedback.textContent = 'Instruction sent successfully.';
+      const section = form.closest('[data-owner-instructions]');
+      const history = section?.querySelector('.owner-instruction-history');
+      history?.querySelectorAll('.owner-instruction-item').forEach((item) => {
+        item.classList.remove('is-latest');
+        const label = item.querySelector('.owner-instruction-item-head strong');
+        if (label) label.textContent = 'Owner Instruction';
+      });
+      history?.querySelector('.owner-instruction-empty')?.remove();
+      if (history && result.instruction) history.append(ownerInstructionNode(result.instruction, true));
+      if (result.submission_token) document.querySelectorAll('[data-owner-instruction-form] [name="submission_token"]').forEach((input) => { input.value = result.submission_token; });
+      textarea.value = '';
+      feedback.textContent = result.message || 'Instruction sent successfully.';
       feedback.className = 'owner-instruction-feedback is-success';
       feedback.hidden = false;
-      window.location.assign(`<?= BASE_URL ?>/apps/operations/errors.php?error_id=${encodeURIComponent(result.error_id)}&instruction=1&instruction_sent=1#owner-instructions-${encodeURIComponent(result.error_id)}`);
+      button.disabled = false;
     } catch (error) {
       feedback.textContent = `${error.message || 'Unable to send the instruction.'} Retry.`;
       feedback.className = 'owner-instruction-feedback is-error';
@@ -1374,6 +1428,29 @@ errorTaskDetails?.querySelectorAll('[data-owner-instruction-form]').forEach((for
       button.disabled = false;
     }
   });
+});
+
+errorTaskDetails?.addEventListener('submit', async (event) => {
+  const form = event.target.closest('[data-owner-instruction-complete-form]');
+  if (!form) return;
+  event.preventDefault();
+  const textarea = form.querySelector('[name="completion_note"]');
+  const button = form.querySelector('button[type="submit"]');
+  const feedback = form.querySelector('[data-owner-instruction-feedback]');
+  const note = textarea?.value.trim() || '';
+  if (!note) { textarea?.setCustomValidity('Enter a completion note before marking this instruction complete.'); textarea?.reportValidity(); return; }
+  if (note.length < 10) { textarea?.setCustomValidity('The completion note must be at least 10 characters.'); textarea?.reportValidity(); return; }
+  textarea.setCustomValidity(''); button.disabled = true; feedback.hidden = true;
+  try {
+    const response = await fetch(form.action, {method:'POST', body:new FormData(form), credentials:'same-origin', headers:{'X-Requested-With':'XMLHttpRequest','Accept':'application/json'}});
+    const result = await readOwnerInstructionResponse(response);
+    if (!response.ok || !result.ok) throw new Error(result.message || 'Unable to complete the instruction.');
+    const article = form.closest('[data-owner-instruction-item]');
+    if (article && result.instruction) appendOwnerInstructionCompletion(article, result.instruction);
+  } catch (error) {
+    feedback.textContent = `${error.message || 'Unable to complete the instruction.'} Retry.`;
+    feedback.className = 'owner-instruction-feedback is-error'; feedback.hidden = false; button.disabled = false;
+  }
 });
 
 function setIncidentRadioValue(name, value) {

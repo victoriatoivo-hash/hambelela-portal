@@ -28595,9 +28595,16 @@ body.performance-meeting-open .performance-meeting .epi-report-page.is-meeting-c
 #error-task-details .owner-instruction-item{padding:10px 11px;background:#fff;border:1px solid #EDE3D8;border-radius:8px}
 #error-task-details .owner-instruction-item.is-latest{border-left:3px solid #AB3619}
 #error-task-details .owner-instruction-item-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 10px;color:#721B1A;font-size:11px}
+#error-task-details .owner-instruction-status{display:inline-flex;align-items:center;min-height:20px;padding:0 7px;border-radius:999px;background:#F4E2D5;color:#721B1A;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+#error-task-details .owner-instruction-status.is-completed{background:#EAF3D5;color:#527000}
+#error-task-details .owner-instruction-author{margin:5px 0 0;color:#6F675F;font-size:10px}
 #error-task-details .owner-instruction-copy{margin:8px 0 0;color:#1A1A1A;font-size:12px;line-height:1.5;white-space:normal;overflow-wrap:anywhere}
 #error-task-details .owner-instruction-meta{margin-top:7px;color:#6F675F;font-size:11px;font-variant-numeric:tabular-nums}
 #error-task-details .owner-instruction-read-state{display:grid;gap:2px;margin-top:8px;color:#6F675F;font-size:10px}
+#error-task-details .owner-instruction-completion{margin-top:10px;padding:9px 10px;border-left:3px solid #8FC31F;border-radius:6px;background:#F4F8E8;color:#273112}
+#error-task-details .owner-instruction-completion p{margin:5px 0;font-size:11px;line-height:1.45}#error-task-details .owner-instruction-completion small{color:#667148;font-size:9px}
+#error-task-details .owner-instruction-complete-form{display:grid;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid #EDE3D8}
+#error-task-details .owner-instruction-complete-form label{color:#721B1A;font-size:10px;font-weight:600}#error-task-details .owner-instruction-complete-form textarea{min-height:72px;padding:9px 10px;border:1px solid #EDE3D8;border-radius:7px;font:11px/1.45 "Figtree","Inter",sans-serif;resize:vertical}#error-task-details .owner-instruction-complete-form button{min-height:34px;color:#fff;background:#527000;border:0;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer}#error-task-details .owner-instruction-complete-form button:disabled{cursor:wait;opacity:.65}
 #error-task-details .owner-instruction-form{display:grid;min-width:0}
 #error-task-details .owner-instruction-form>label{margin-bottom:5px;color:#721B1A;font-size:11px;font-weight:600}
 #error-task-details .owner-instruction-textarea{width:100%;min-height:90px;padding:10px 12px;color:#1A1A1A;background:#FFFFFF;border:1px solid #EDE3D8;border-radius:8px;font-family:"Figtree","Inter",sans-serif;font-size:12px;line-height:1.5;resize:vertical;box-sizing:border-box}
