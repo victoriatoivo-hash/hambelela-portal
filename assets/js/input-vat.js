@@ -1,29 +1,439 @@
-(() => {
-  const page=document.querySelector('#inputVatPage');if(!page)return;
-  const api=page.dataset.api,csrf=page.dataset.csrf,owner=page.dataset.owner==='1',$=s=>page.querySelector(s);
-  const money=n=>'N$ '+Number(n||0).toLocaleString('en-NA',{minimumFractionDigits:2,maximumFractionDigits:2});
-  const rateLabel=n=>Number(n||0).toLocaleString('en-NA',{maximumFractionDigits:2})+'%';
-  const dateLabel=v=>{const p=String(v||'').split('-');return p.length===3?`${p[2]}.${p[1]}.${p[0]}`:String(v||'—')};
-  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  let rows=[],sort='purchase_date',direction='desc',timer;
-  async function request(action,data){const body=new FormData();body.set('action',action);body.set('csrf',csrf);Object.entries(data||{}).forEach(([k,v])=>{if(k==='files')Array.from(v).forEach(f=>body.append('files[]',f));else body.set(k,v)});const r=await fetch(api,{method:'POST',credentials:'same-origin',body}),j=await r.json();if(!r.ok||!j.ok)throw new Error(j.error||'Request failed.');return j}
-  function params(){return new URLSearchParams({action:'list',month:$('[data-month]').value,period:$('[data-period]').value,search:$('[data-search]').value,status:$('[data-status]').value,sort,direction})}
-  function syncRate(rate){page.dataset.rate=rate;page.querySelectorAll('[data-rate-display]').forEach(x=>x.textContent=rateLabel(rate));const current=$('[data-current-rate]'),option=$('[data-standard-rate-option]');if(current)current.textContent=rateLabel(rate);if(option)option.textContent='Standard VAT '+rateLabel(rate)}
-  async function load(silent=false){try{const r=await fetch(api+'?'+params(),{credentials:'same-origin',cache:'no-store'}),j=await r.json();if(!j.ok)throw new Error(j.error);rows=j.rows;syncRate(j.standard_vat_rate);render(j);$('[data-export]').href=api+'?action=export&month='+encodeURIComponent($('[data-month]').value)+'&period='+encodeURIComponent($('[data-period]').value)}catch(e){if(!silent)$('[data-rows]').innerHTML='<tr><td class="empty-row" colspan="10">'+esc(e.message)+'</td></tr>'}}
-  function lines(obj){return Object.entries(obj||{}).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,v])=>'<div class="summary-line"><span>'+esc(k.replaceAll('_',' '))+'</span><strong>'+money(v)+'</strong></div>').join('')||'<div class="analysis-empty"><span aria-hidden="true">—</span><p>No VAT records for this period.</p></div>'}
-  function render(j){const s=j.summary;$('[data-summary]').innerHTML=[['Purchase Records',s.count,'Records in the selected period'],['Amount incl VAT',money(s.inclusive),'Gross purchase value'],['Input VAT',money(s.vat),'Claimable VAT recorded'],['Amount excl VAT',money(s.exclusive),'Net purchase value']].map(x=>'<article><small>'+x[0]+'</small><strong>'+x[1]+'</strong><span>'+x[2]+'</span></article>').join('');$('[data-treatment-summary]').innerHTML=lines(s.treatments);$('[data-supplier-summary]').innerHTML=lines(s.suppliers);$('[data-description-summary]').innerHTML=lines(s.descriptions);$('[data-totals]').innerHTML='<tr><td colspan="3">Totals</td><td>'+money(s.inclusive)+'</td><td>'+money(s.vat)+'</td><td>'+money(s.exclusive)+'</td><td colspan="4"></td></tr>';
-    $('[data-rows]').innerHTML=rows.length?rows.map(r=>'<tr><td><time datetime="'+esc(r.purchase_date)+'">'+esc(dateLabel(r.purchase_date))+'</time></td><td>'+esc(r.supplier)+'</td><td>'+esc(r.description)+'</td><td class="money">'+money(r.inclusive)+'</td><td class="money vat-money">'+money(r.vat)+'</td><td class="money">'+money(r.exclusive)+'</td><td><div class="attachment-list">'+(r.attachments.map(a=>'<span><a href="'+esc(a.view_url)+'" target="_blank">'+esc(a.name)+'</a> <a href="'+esc(a.download_url)+'" title="Download">↓</a>'+(a.can_delete?' <button data-delete-file="'+a.id+'" type="button" aria-label="Remove attachment">×</button>':'')+'</span>').join('')||'—')+'</div></td><td>'+esc(r.entered_by)+'</td><td><span class="status-pill '+esc(r.review_status)+'">'+esc(r.review_status.replaceAll('_',' '))+'</span>'+(r.review_note?'<small title="'+esc(r.review_note)+'"> · note</small>':'')+'</td><td><div class="row-actions">'+(r.can_edit?'<button type="button" data-edit="'+r.id+'" title="Edit" aria-label="Edit purchase">✎</button>':'')+(r.can_review?'<button type="button" data-review="'+r.id+'" title="Review" aria-label="Review purchase">✓</button>':'')+(r.can_review?'<button type="button" data-audit="'+r.id+'" title="History" aria-label="View history">↺</button>':'')+(r.can_delete?'<button type="button" data-delete="'+r.id+'" title="Delete" aria-label="Delete purchase">⌫</button>':'')+'</div></td></tr>').join(''):'<tr><td class="empty-row" colspan="10"><div class="table-empty-state"><span aria-hidden="true">▤</span><strong>No purchases found</strong><p>Try another period or add the first purchase record.</p></div></td></tr>'}
-  function stepMonth(delta){const input=$('[data-month]'),parts=input.value.split('-').map(Number),date=new Date(parts[0],parts[1]-1+delta,1);input.value=date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0');$('[data-period]').value='current';load()}
-  $('[data-previous-month]').onclick=()=>stepMonth(-1);$('[data-next-month]').onclick=()=>stepMonth(1);
-  const dialog=$('[data-dialog]'),form=$('[data-form]'),fileInput=form.elements['files[]'];let pending=[];
-  function preview(){const incl=Number(form.elements.inclusive.value||0),t=form.elements.vat_treatment.value,rate=Number(page.dataset.rate||15),manual=Number(form.elements.manual_vat.value||0),vat=['zero_rated','no_vat'].includes(t)?0:(['manual_vat','review_required'].includes(t)?manual:incl*rate/(100+rate));$('[data-manual-wrap]').hidden=!['manual_vat','review_required'].includes(t);$('[data-vat-preview]').innerHTML='<span><small>Incl VAT</small><strong>'+money(incl)+'</strong></span><span><small>Input VAT</small><strong>'+money(vat)+'</strong></span><span><small>Excl VAT</small><strong>'+money(incl-vat)+'</strong></span>'}
-  function pendingRender(){$('[data-pending-files]').innerHTML=pending.map((f,i)=>'<div class="pending-file"><span>'+esc(f.name)+' · '+(f.size/1024).toFixed(1)+' KB</span><button type="button" data-remove-pending="'+i+'">Remove</button></div>').join('')}
-  $('[data-add-purchase]').onclick=()=>{form.reset();form.elements.id.value='';form.elements.purchase_date.value=new Date().toISOString().slice(0,10);pending=[];pendingRender();$('[data-form-title]').textContent='Add Purchase';preview();dialog.showModal()};
-  form.addEventListener('input',preview);fileInput.addEventListener('change',()=>{pending=[...pending,...Array.from(fileInput.files)];fileInput.value='';pendingRender()});$('[data-pending-files]').onclick=e=>{const b=e.target.closest('[data-remove-pending]');if(b){pending.splice(Number(b.dataset.removePending),1);pendingRender()}};
-  form.addEventListener('submit',async e=>{e.preventDefault();const b=$('[data-save]'),label=b.textContent;b.disabled=true;b.textContent='Saving…';$('[data-form-message]').textContent='';try{const d=Object.fromEntries(new FormData(form));d.files=pending;await request('save',d);dialog.close();await load()}catch(x){$('[data-form-message]').textContent=x.message}finally{b.disabled=false;b.textContent=label}});
-  page.addEventListener('click',async e=>{const edit=e.target.closest('[data-edit]'),review=e.target.closest('[data-review]'),audit=e.target.closest('[data-audit]'),del=e.target.closest('[data-delete]'),df=e.target.closest('[data-delete-file]');if(edit){const r=rows.find(x=>x.id===Number(edit.dataset.edit));form.reset();Object.entries({id:r.id,purchase_date:r.purchase_date,supplier:r.supplier,description:r.description,inclusive:r.inclusive,vat_treatment:r.vat_treatment,manual_vat:r.vat}).forEach(([k,v])=>form.elements[k].value=v);pending=[];pendingRender();$('[data-form-title]').textContent='Edit Purchase';preview();dialog.showModal()}if(review){const r=rows.find(x=>x.id===Number(review.dataset.review)),f=$('[data-review-form]');f.elements.id.value=r.id;f.elements.review_status.value=r.review_status;f.elements.review_note.value=r.review_note;$('[data-review-dialog]').showModal()}if(audit){const r=await fetch(api+'?action=audit&id='+audit.dataset.audit,{credentials:'same-origin'}),j=await r.json();$('[data-audit-history]').innerHTML=(j.history||[]).map(h=>'<article class="summary-line"><span><strong>'+esc(h.action_key)+'</strong><br>'+esc(h.actor_name)+'</span><time>'+esc(h.created_at)+'</time></article>').join('')||'<p>No history.</p>';$('[data-audit-dialog]').showModal()}if(del&&confirm('Move this purchase to audit history?')){await request('delete',{id:del.dataset.delete});load()}if(df&&confirm('Remove this attachment?')){await request('delete_attachment',{attachment_id:df.dataset.deleteFile});load()}});
-  $('[data-review-form]').addEventListener('submit',async e=>{e.preventDefault();try{await request('review',Object.fromEntries(new FormData(e.currentTarget)));$('[data-review-dialog]').close();load()}catch(x){$('[data-review-message]').textContent=x.message}});
-  page.querySelectorAll('[data-sort]').forEach(h=>h.onclick=()=>{direction=sort===h.dataset.sort&&direction==='desc'?'asc':'desc';sort=h.dataset.sort;load()});page.querySelectorAll('[data-period],[data-month],[data-status]').forEach(x=>x.onchange=()=>load());$('[data-search]').oninput=()=>{clearTimeout(timer);timer=setTimeout(load,250)};$('[data-print]').onclick=()=>print();
-  if(owner){const rateDialog=$('[data-rate-dialog]'),rateForm=$('[data-rate-form]');$('[data-open-rate-settings]').onclick=()=>{$('[data-rate-setting]').value=page.dataset.rate;$('[data-rate-message]').textContent='';rateDialog.showModal()};rateForm.addEventListener('submit',async e=>{e.preventDefault();const b=$('[data-save-rate]'),label=b.textContent;b.disabled=true;b.textContent='Updating…';$('[data-rate-message]').textContent='';try{const j=await request('save_rate',{rate:$('[data-rate-setting]').value});syncRate(j.rate);rateDialog.close()}catch(x){$('[data-rate-message]').textContent=x.message}finally{b.disabled=false;b.textContent=label}})}
-  load();setInterval(()=>{if(!dialog.open&&!$('[data-review-dialog]').open&&(!owner||!$('[data-rate-dialog]').open))load(true)},60000);
+﻿(() => {
+  const page = document.querySelector('#inputVatPage');
+  if (!page) return;
+
+  const api = page.dataset.api;
+  const csrf = page.dataset.csrf;
+  const owner = page.dataset.owner === '1';
+  const $ = (s) => page.querySelector(s);
+
+  const money = (n) => `N$ ${Number(n || 0).toLocaleString('en-NA', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+  const rateLabel = (n) => Number(n || 0).toLocaleString('en-NA', {maximumFractionDigits: 2}) + '%';
+  const dateLabel = (v) => {
+    const parts = String(v || '').split('-');
+    return parts.length === 3 ? `${parts[2]}.${parts[1]}.${parts[0]}` : String(v || '—');
+  };
+  const monthLabel = (value) => {
+    const [year, month] = String(value || '').split('-');
+    const formatter = new Intl.DateTimeFormat('en-NA', {month: 'long', year: 'numeric'});
+    return formatter.format(new Date(Number(year), Number(month) - 1, 1));
+  };
+  const selectedMonthLabel = () => monthLabel($('[data-month]').value || '');
+  const esc = (v) => String(v ?? '').replace(/[&<>\"']/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+
+  let rows = [];
+  let sort = 'purchase_date';
+  let direction = 'desc';
+  let timer;
+
+  function activePeriodValue() {
+    const value = $('[data-period]').value;
+    return value === 'all' ? '' : $('[data-month]').value;
+  }
+
+  function activePeriodLabel() {
+    const value = $('[data-period]').value;
+    return value === 'all' ? 'ALL PERIODS' : selectedMonthLabel().toUpperCase();
+  }
+
+  function updateActivePeriodLabel() {
+    const label = $('[data-active-period-label]');
+    const container = $('[data-active-period]');
+    if (!label || !container) return;
+
+    label.textContent = activePeriodLabel();
+    container.setAttribute('data-period-mode', $('[data-period]').value === 'all' ? 'all' : 'month');
+  }
+
+  function formatSortValue(value) {
+    const normalized = String(value || '');
+    if (/^\d{4}-\d{2}$/.test(normalized)) return normalized;
+    return activePeriodValue() || new Date().toISOString().slice(0, 7);
+  }
+
+  function params() {
+    return new URLSearchParams({
+      action: 'list',
+      month: formatSortValue($('[data-month]').value),
+      period: $('[data-period]').value,
+      search: $('[data-search]').value,
+      status: $('[data-status]').value,
+      sort,
+      direction,
+    });
+  }
+
+  function request(action, data) {
+    const body = new FormData();
+    body.set('action', action);
+    body.set('csrf', csrf);
+    Object.entries(data || {}).forEach(([k, v]) => {
+      if (k === 'files') Array.from(v).forEach((f) => body.append('files[]', f));
+      else body.set(k, v);
+    });
+    return fetch(api, {
+      method: 'POST',
+      credentials: 'same-origin',
+      body,
+    }).then((response) => response.json().then((payload) => ({response, payload})))
+      .then(({response, payload}) => {
+        if (!response.ok || !payload.ok) throw new Error(payload.error || 'Request failed.');
+        return payload;
+      });
+  }
+
+  function monthWarningMessage(purchaseDateValue) {
+    const inputValue = String(purchaseDateValue || '').slice(0, 7);
+    const activeMonth = $('[data-month]').value;
+    if (!inputValue || !activeMonth) return '';
+
+    if (inputValue === activeMonth) return '';
+
+    const purchaseLabel = monthLabel(inputValue);
+    const activeLabel = monthLabel(activeMonth);
+    const future = purchaseDateValue > new Date().toISOString().slice(0, 10);
+
+    if (future) {
+      return `This purchase date is in the future (${purchaseLabel}). Please change it or confirm to save anyway.`;
+    }
+
+    return `This purchase date belongs to ${purchaseLabel}, while you are currently viewing ${activeLabel}.`; 
+  }
+
+  function updateMonthWarning() {
+    const notice = $('[data-month-warning]');
+    if (!notice) return;
+    notice.textContent = monthWarningMessage(form.elements.purchase_date.value);
+  }
+
+  function syncRate(rate) {
+    page.dataset.rate = String(rate);
+    page.querySelectorAll('[data-rate-display]').forEach((x) => {
+      x.textContent = rateLabel(rate);
+    });
+    const current = $('[data-current-rate]');
+    const option = $('[data-standard-rate-option]');
+    if (current) current.textContent = rateLabel(rate);
+    if (option) option.textContent = `Standard VAT ${rateLabel(rate)}`;
+  }
+
+  function formatSummaryLineRows(obj) {
+    return Object.entries(obj || {})
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([k, v]) => `<div class="summary-line"><span>${esc(k.replaceAll('_', ' '))}</span><strong>${money(v)}</strong></div>`)
+      .join('') || '<div class="analysis-empty"><span aria-hidden="true">—</span><p>No VAT records for this period.</p></div>';
+  }
+
+  function render(j) {
+    const s = j.summary;
+    const selected = $('[data-period]').value === 'all' ? 'All periods' : selectedMonthLabel();
+    const rowsMessage = $('[data-active-period-label]');
+    if (rowsMessage) rowsMessage.textContent = selected.toUpperCase();
+
+    $('[data-summary]').innerHTML = [
+      ['Purchase Records', s.count, 'Records in the selected period'],
+      ['Amount incl VAT', money(s.inclusive), 'Gross purchase value'],
+      ['Input VAT', money(s.vat), 'Claimable VAT recorded'],
+      ['Amount excl VAT', money(s.exclusive), 'Net purchase value'],
+    ].map((x) => `<article><small>${x[0]}</small><strong>${x[1]}</strong><span>${x[2]}</span></article>`).join('');
+
+    $('[data-treatment-summary]').innerHTML = formatSummaryLineRows(s.treatments);
+    $('[data-supplier-summary]').innerHTML = formatSummaryLineRows(s.suppliers);
+    $('[data-description-summary]').innerHTML = formatSummaryLineRows(s.descriptions);
+
+    $('[data-totals]').innerHTML = `<tr><td colspan="3">Totals</td><td>${money(s.inclusive)}</td><td>${money(s.vat)}</td><td>${money(s.exclusive)}</td><td colspan="4"></td></tr>`;
+
+    $('[data-rows]').innerHTML = rows.length
+      ? rows.map((r) => `<tr><td><time datetime="${esc(r.purchase_date)}">${esc(dateLabel(r.purchase_date))}</time></td><td>${esc(r.supplier)}</td><td>${esc(r.description)}</td><td class="money">${money(r.inclusive)}</td><td class="money vat-money">${money(r.vat)}</td><td class="money">${money(r.exclusive)}</td><td><div class="attachment-list">${(r.attachments.map((a) => `<span><a href="${esc(a.view_url)}" target="_blank">${esc(a.name)}</a> <a href="${esc(a.download_url)}" title="Download">⇩</a>${a.can_delete ? ` <button data-delete-file="${a.id}" type="button" aria-label="Remove attachment">×</button>` : ''}</span>`).join('')) || '—'}</div></td><td>${esc(r.entered_by)}</td><td><span class="status-pill ${esc(r.review_status)}">${esc(r.review_status.replaceAll('_', ' '))}</span>${r.review_note ? `<small title="${esc(r.review_note)}"> · note</small>` : ''}</td><td><div class="row-actions">${r.can_edit ? '<button type="button" data-edit="' + r.id + '" title="Edit" aria-label="Edit purchase">✎</button>' : ''}${r.can_review ? '<button type="button" data-review="' + r.id + '" title="Review" aria-label="Review purchase">✓</button>' : ''}${r.can_review ? '<button type="button" data-audit="' + r.id + '" title="History" aria-label="View history">↳</button>' : ''}${r.can_delete ? '<button type="button" data-delete="' + r.id + '" title="Delete" aria-label="Delete purchase">−</button>' : ''}</div></td></tr>`).join('')
+      : `<tr><td class="empty-row" colspan="10"><div class="table-empty-state"><span aria-hidden="true">□</span><strong>No Input VAT records for ${esc(selectedMonthLabel())}.</strong><p>Switch the month or start capturing with Add Purchase.</p><button type="button" class="btn-primary iv-btn iv-btn--primary" data-add-purchase>+ Add Purchase</button></div></td></tr>`;
+
+    updateActivePeriodLabel();
+    $('[data-export]').href = api + '?action=export&month=' + encodeURIComponent(formatSortValue($('[data-month]').value)) + '&period=' + encodeURIComponent($('[data-period]').value);
+  }
+
+  function setControlsDisabled(disabled) {
+    const controls = page.querySelectorAll('[data-previous-month],[data-next-month],[data-period],[data-month],[data-search],[data-status],[data-sort],[data-add-purchase],[data-export],[data-print]');
+    controls.forEach((control) => {
+      if ('disabled' in control) control.disabled = disabled;
+    });
+  }
+
+  function lineItemSort() {
+    const options = ['supplier', 'purchase_date'];
+    if (options.includes(sort)) return;
+    sort = 'purchase_date';
+  }
+
+  function stepMonth(delta) {
+    const input = $('[data-month]');
+    const [year, month] = input.value.split('-').map(Number);
+    const next = new Date(year, (month || 1) - 1 + delta, 1);
+    input.value = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`;
+    $('[data-period]').value = 'current';
+    load();
+  }
+
+  function printCurrentPeriod() {
+    const isAll = $('[data-period]').value === 'all';
+    const period = isAll ? 'ALL PERIODS' : selectedMonthLabel();
+    document.body.classList.add('input-vat-printing');
+    document.title = `Input VAT Register - ${period}`;
+    window.print();
+    document.body.classList.remove('input-vat-printing');
+  }
+
+  async function load(silent = false) {
+    try {
+      setControlsDisabled(true);
+      const response = await fetch(`${api}?${params()}`, {credentials: 'same-origin', cache: 'no-store'});
+      const j = await response.json();
+      if (!j.ok) throw new Error(j.error);
+      rows = j.rows;
+      syncRate(j.standard_vat_rate);
+      render(j);
+      updateActivePeriodLabel();
+    } catch (error) {
+      if (!silent) $('[data-rows]').innerHTML = `<tr><td class="empty-row" colspan="10">${esc(error.message)}</td></tr>`;
+    } finally {
+      setControlsDisabled(false);
+    }
+  }
+
+  function buildPreview() {
+    const inclusive = Number(form.elements.inclusive.value || 0);
+    const treatment = form.elements.vat_treatment.value;
+    const rate = Number(page.dataset.rate || 15);
+    const manual = Number(form.elements.manual_vat.value || 0);
+    const vat = ['zero_rated', 'no_vat'].includes(treatment) ? 0 : (['manual_vat', 'review_required'].includes(treatment) ? manual : inclusive * rate / (100 + rate));
+    $('[data-manual-wrap]').hidden = !['manual_vat', 'review_required'].includes(treatment);
+    $('[data-vat-preview]').innerHTML = `<span><small>Incl VAT</small><strong>${money(inclusive)}</strong></span><span><small>Input VAT</small><strong>${money(vat)}</strong></span><span><small>Excl VAT</small><strong>${money(inclusive - vat)}</strong></span>`;
+  }
+
+  function pendingRender() {
+    $('[data-pending-files]').innerHTML = pending.map((file, i) => `<div class="pending-file"><span>${esc(file.name)} · ${(file.size / 1024).toFixed(1)} KB</span><button type="button" data-remove-pending="${i}">Remove</button></div>`).join('');
+  }
+
+  $('[data-previous-month]').onclick = () => stepMonth(-1);
+  $('[data-next-month]').onclick = () => stepMonth(1);
+
+  const dialog = $('[data-dialog]');
+  const form = $('[data-form]');
+  const fileInput = form.elements['files[]'];
+  let pending = [];
+
+  form.addEventListener('input', buildPreview);
+  form.addEventListener('change', updateMonthWarning);
+  form.elements.purchase_date.addEventListener('change', updateMonthWarning);
+  fileInput.addEventListener('change', () => {
+    pending = [...pending, ...Array.from(fileInput.files)];
+    fileInput.value = '';
+    pendingRender();
+  });
+
+  $('[data-pending-files]').onclick = (e) => {
+    const remove = e.target.closest('[data-remove-pending]');
+    if (!remove) return;
+    pending.splice(Number(remove.dataset.removePending), 1);
+    pendingRender();
+  };
+
+  $('[data-add-purchase]').onclick = () => {
+    form.reset();
+    form.elements.id.value = '';
+    form.elements.purchase_date.value = new Date().toISOString().slice(0, 10);
+    pending = [];
+    pendingRender();
+    $('[data-form-title]').textContent = 'Add Purchase';
+    $('[data-month-warning]').textContent = '';
+    buildPreview();
+    updateMonthWarning();
+    dialog.showModal();
+  };
+
+  page.addEventListener('click', async (event) => {
+    const edit = event.target.closest('[data-edit]');
+    const review = event.target.closest('[data-review]');
+    const audit = event.target.closest('[data-audit]');
+    const del = event.target.closest('[data-delete]');
+    const deleteFile = event.target.closest('[data-delete-file]');
+
+    if (edit) {
+      const row = rows.find((x) => x.id === Number(edit.dataset.edit));
+      if (!row) return;
+      form.reset();
+      Object.entries({id: row.id, purchase_date: row.purchase_date, supplier: row.supplier, description: row.description, inclusive: row.inclusive, vat_treatment: row.vat_treatment, manual_vat: row.vat}).forEach(([field, value]) => {
+        if (form.elements[field]) form.elements[field].value = value;
+      });
+      pending = [];
+      pendingRender();
+      $('[data-form-title]').textContent = 'Edit Purchase';
+      buildPreview();
+      updateMonthWarning();
+      dialog.showModal();
+      return;
+    }
+
+    if (review) {
+      const row = rows.find((x) => x.id === Number(review.dataset.review));
+      if (!row) return;
+      const reviewForm = $('[data-review-form]');
+      reviewForm.elements.id.value = row.id;
+      reviewForm.elements.review_status.value = row.review_status;
+      reviewForm.elements.review_note.value = row.review_note;
+      $('[data-review-dialog]').showModal();
+      return;
+    }
+
+    if (audit) {
+      const row = rows.find((x) => x.id === Number(audit.dataset.audit));
+      if (!row) return;
+      const historyResponse = await fetch(`${api}?action=audit&id=${row.id}`, {credentials: 'same-origin'});
+      const j = await historyResponse.json();
+      $('[data-audit-history]').innerHTML = (j.history || []).map((h) => `<article class="summary-line"><span><strong>${esc(h.action_key)}</strong><br>${esc(h.actor_name)}</span><time>${esc(h.created_at)}</time></article>`).join('') || '<p>No history.</p>';
+      $('[data-audit-dialog]').showModal();
+      return;
+    }
+
+    if (del) {
+      if (!confirm('Move this purchase to audit history?')) return;
+      await request('delete', {id: del.dataset.delete});
+      await load();
+      return;
+    }
+
+    if (deleteFile) {
+      if (!confirm('Remove this attachment?')) return;
+      await request('delete_attachment', {attachment_id: deleteFile.dataset.deleteFile});
+      await load();
+      return;
+    }
+
+    if (event.target.closest('[data-add-purchase]')) {
+      form.reset();
+      form.elements.id.value = '';
+      form.elements.purchase_date.value = new Date().toISOString().slice(0, 10);
+      pending = [];
+      pendingRender();
+      $('[data-form-title]').textContent = 'Add Purchase';
+      $('[data-month-warning]').textContent = '';
+      buildPreview();
+      updateMonthWarning();
+      dialog.showModal();
+    }
+  });
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const saveButton = $('[data-save]');
+    const originalText = saveButton.textContent;
+    const activeLabel = selectedMonthLabel();
+    const enteredDate = String(form.elements.purchase_date.value || '').slice(0, 10);
+    const enteredMonth = enteredDate.slice(0, 7);
+    const warning = monthWarningMessage(enteredDate);
+    const isFutureDate = enteredDate > new Date().toISOString().slice(0, 10);
+
+    if (warning) {
+      if (isFutureDate) {
+        if (!confirm(`${warning} Do you still want to save this future-dated purchase?`)) return;
+      } else {
+        if (!confirm(`${warning} Do you want to save this purchase to ${monthLabel(enteredMonth)}?`)) return;
+      }
+    }
+
+    saveButton.disabled = true;
+    saveButton.textContent = 'Saving...';
+    $('[data-form-message]').textContent = '';
+
+    try {
+      const payload = Object.fromEntries(new FormData(form));
+      payload.files = pending;
+      const result = await request('save', payload);
+      dialog.close();
+      await load();
+      if (enteredDate.slice(0, 7) !== $('[data-month]').value) {
+        $('[data-form-message]').textContent = `Saved to ${monthLabel(enteredMonth)} while you are still viewing ${activeLabel}.`;
+      }
+    } catch (error) {
+      $('[data-form-message]').textContent = error.message;
+    } finally {
+      saveButton.disabled = false;
+      saveButton.textContent = originalText;
+      pending = [];
+      pendingRender();
+    }
+  });
+
+  page.addEventListener('click', async (event) => {
+    const sortHead = event.target.closest('[data-sort]');
+    if (!sortHead) return;
+    const nextDirection = sort === sortHead.dataset.sort && direction === 'desc' ? 'asc' : 'desc';
+    sort = sortHead.dataset.sort;
+    direction = nextDirection;
+    await load();
+  });
+
+  $('[data-search]').oninput = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => load(), 250);
+  };
+
+  page.querySelectorAll('[data-period], [data-month], [data-status]').forEach((element) => {
+    element.onchange = () => load();
+  });
+
+  $('[data-print]').onclick = () => printCurrentPeriod();
+
+  if (owner) {
+    const rateDialog = $('[data-rate-dialog]');
+    const rateForm = $('[data-rate-form]');
+
+    $('[data-open-rate-settings]').onclick = () => {
+      $('[data-rate-setting]').value = page.dataset.rate;
+      $('[data-rate-message]').textContent = '';
+      rateDialog.showModal();
+    };
+
+    rateForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const rateButton = $('[data-save-rate]');
+      const label = rateButton.textContent;
+      rateButton.disabled = true;
+      rateButton.textContent = 'Updating...';
+      $('[data-rate-message]').textContent = '';
+
+      try {
+        const result = await request('save_rate', {rate: $('[data-rate-setting]').value});
+        syncRate(result.rate);
+        rateDialog.close();
+      } catch (error) {
+        $('[data-rate-message]').textContent = error.message;
+      } finally {
+        rateButton.disabled = false;
+        rateButton.textContent = label;
+      }
+    });
+  }
+
+  $('[data-review-form]').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    try {
+      await request('review', Object.fromEntries(new FormData(event.currentTarget)));
+      $('[data-review-dialog]').close();
+      await load();
+    } catch (error) {
+      $('[data-review-message]').textContent = error.message;
+    }
+  });
+
+  buildPreview();
+  updateActivePeriodLabel();
+  load();
+  setInterval(() => {
+    if (dialog.open) return;
+    if (owner && $('[data-rate-dialog]')?.open) return;
+    if ($('[data-review-dialog]')?.open) return;
+    load(true);
+  }, 60000);
 })();
+
