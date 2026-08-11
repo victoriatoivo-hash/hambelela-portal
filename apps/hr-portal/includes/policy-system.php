@@ -46,6 +46,9 @@ function hrPolicyEnsureSchema(PDO $db): void {
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         published_by INT UNSIGNED NULL,
         published_at DATETIME NULL,
+        published_by_name VARCHAR(190) NULL,
+        employees_assigned INT UNSIGNED NULL,
+        notifications_created INT UNSIGNED NULL,
         superseded_at DATETIME NULL,
         digital_html MEDIUMTEXT NULL,
         digital_hash CHAR(64) NULL,
@@ -102,9 +105,23 @@ function hrPolicyEnsureSchema(PDO $db): void {
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         UNIQUE KEY version_user (version_id, user_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $db->exec("CREATE TABLE IF NOT EXISTS hr_policy_assignments (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        policy_id INT UNSIGNED NOT NULL,
+        version_id INT UNSIGNED NOT NULL,
+        employee_id INT UNSIGNED NOT NULL,
+        user_id INT UNSIGNED NOT NULL,
+        assigned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        status VARCHAR(30) NOT NULL DEFAULT 'assigned',
+        UNIQUE KEY employee_version (employee_id, version_id),
+        KEY version_status (version_id, status)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     hrPolicyAddColumn($db, 'hr_policy_versions', 'digital_html', 'MEDIUMTEXT NULL');
     hrPolicyAddColumn($db, 'hr_policy_versions', 'digital_hash', 'CHAR(64) NULL');
     hrPolicyAddColumn($db, 'hr_policy_versions', 'digital_generated_at', 'DATETIME NULL');
+    hrPolicyAddColumn($db, 'hr_policy_versions', 'published_by_name', 'VARCHAR(190) NULL');
+    hrPolicyAddColumn($db, 'hr_policy_versions', 'employees_assigned', 'INT UNSIGNED NULL');
+    hrPolicyAddColumn($db, 'hr_policy_versions', 'notifications_created', 'INT UNSIGNED NULL');
     hrPolicyAddColumn($db, 'hr_policy_acknowledgements', 'last_opened_at', 'DATETIME NULL');
     hrPolicyAddColumn($db, 'hr_policy_acknowledgements', 'reading_percent', 'DECIMAL(5,2) NOT NULL DEFAULT 0');
     hrPolicyAddColumn($db, 'hr_policy_acknowledgements', 'reading_position', 'INT UNSIGNED NOT NULL DEFAULT 0');
@@ -198,6 +215,7 @@ function hrPolicyVersion(PDO $db, int $id): ?array {
 
 function hrPolicyDisplayStatus(array $v): string {
     if ($v['status']==='draft') return 'Draft';
+    if ($v['status']==='ready_to_publish') return 'Ready to Publish';
     if ($v['status']==='superseded') return 'Superseded';
     if ($v['status']==='archived') return 'Archived';
     return date('Y-m-d') < $v['effective_date'] ? 'Published — Effective ' . date('j F Y', strtotime($v['effective_date'])) : 'Current — In Force';

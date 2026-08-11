@@ -46,27 +46,50 @@ try {
         $versionId=(int)$db->lastInsertId(); hrPolicyAudit($db,'draft_created',$policyId,$versionId,null,array('hash'=>$hash)); $db->commit();
         policyBack('Policy draft saved. Review it before publishing.',true);
     }
-    if ($action==='publish') {
+    if ($action==='mark_ready' || $action==='return_draft') {
         if ($user['role']==='employee') throw new RuntimeException('Owner or administrator access is required.');
         $id=(int)($_POST['version_id']??0); $v=hrPolicyVersion($db,$id);
         if (!$v) throw new RuntimeException('Policy version not found.');
-        if ($v['status']!=='draft') throw new RuntimeException('Published policy versions cannot be overwritten. Create a new version instead.');
+        $from=$action==='mark_ready'?'draft':'ready_to_publish';
+        $to=$action==='mark_ready'?'ready_to_publish':'draft';
+        if ($v['status']!==$from) throw new RuntimeException('The policy state changed. Refresh the page and try again.');
+        $q=$db->prepare("UPDATE hr_policy_versions SET status=? WHERE id=? AND status=?");
+        $q->execute(array($to,$id,$from));
+        if ($q->rowCount()!==1) throw new RuntimeException('The policy state changed. Refresh the page and try again.');
+        hrPolicyAudit($db,$action==='mark_ready'?'version_marked_ready':'version_returned_to_draft',(int)$v['policy_id'],$id,null);
+        policyBack($action==='mark_ready'?'Policy marked Ready to Publish. Employees have not been notified.':'Policy returned to Draft. Employees have not been notified.',true);
+    }
+    if ($action==='publish') {
+        if ($user['role']==='employee') throw new RuntimeException('Owner or administrator access is required.');
+        $id=(int)($_POST['version_id']??0);
         $db->beginTransaction();
+        $lock=$db->prepare("SELECT v.*,p.policy_type,p.current_version_id FROM hr_policy_versions v JOIN hr_policies p ON p.id=v.policy_id WHERE v.id=? FOR UPDATE");
+        $lock->execute(array($id)); $v=$lock->fetch(PDO::FETCH_ASSOC);
+        if (!$v) throw new RuntimeException('Policy version not found.');
+        if ($v['status']!=='ready_to_publish') throw new RuntimeException('Only a policy marked Ready to Publish can be published.');
         $db->prepare("UPDATE hr_policy_versions SET status='superseded',superseded_at=NOW() WHERE policy_id=? AND status='published'")->execute(array($v['policy_id']));
-        $db->prepare("UPDATE hr_policy_versions SET status='published',published_by=?,published_at=NOW() WHERE id=? AND status='draft'")->execute(array((int)$user['id'],$id));
+        $publisher=trim((string)($user['name']??$user['full_name']??$user['username']??$user['email']??'Owner/Admin'));
+        $publish=$db->prepare("UPDATE hr_policy_versions SET status='published',published_by=?,published_by_name=?,published_at=NOW() WHERE id=? AND status='ready_to_publish'");
+        $publish->execute(array((int)$user['id'],$publisher,$id));
+        if ($publish->rowCount()!==1) throw new RuntimeException('This policy has already been published or its state changed.');
         $db->prepare("UPDATE hr_policies SET current_version_id=?,status='published' WHERE id=?")->execute(array($id,$v['policy_id']));
+        $assigned=0; $notified=0;
         if ((int)$v['acknowledgement_required']===1) {
-            $emps=$db->query("SELECT u.id AS user_id FROM users u JOIN employees e ON e.id=u.employee_id WHERE e.status='active' AND u.role='employee'")->fetchAll(PDO::FETCH_ASSOC);
+            $emps=$db->query("SELECT u.id AS user_id,e.id AS employee_id FROM users u JOIN employees e ON e.id=u.employee_id WHERE e.status='active' AND u.role='employee'")->fetchAll(PDO::FETCH_ASSOC);
             foreach($emps as $emp){
+                $a=$db->prepare("INSERT IGNORE INTO hr_policy_assignments (policy_id,version_id,employee_id,user_id) VALUES (?,?,?,?)");
+                $a->execute(array($v['policy_id'],$id,$emp['employee_id'],$emp['user_id'])); $assigned+=$a->rowCount();
                 $q=$db->prepare("INSERT IGNORE INTO hr_policy_notifications (version_id,user_id) VALUES (?,?)"); $q->execute(array($id,$emp['user_id']));
                 if ($q->rowCount()>0 && hrTableExists($db,'notifications')) {
                     $n=$db->prepare("INSERT INTO notifications (user_id,title,message,type,action_url) VALUES (?,?,?,'info',?)");
                     $n->execute(array($emp['user_id'],'New Policy Requires Digital Acknowledgement',$v['title'].' Version '.$v['version_number'].'. Please read and sign by '.date('j F Y',strtotime($v['acknowledgement_deadline'])).'.','policies.php'));
                     $db->prepare("UPDATE hr_policy_notifications SET notification_id=? WHERE version_id=? AND user_id=?")->execute(array($db->lastInsertId(),$id,$emp['user_id']));
+                    $notified++;
                 }
             }
         }
-        hrPolicyAudit($db,'version_published',(int)$v['policy_id'],$id,null,array('hash'=>$v['document_hash'])); $db->commit();
+        $db->prepare("UPDATE hr_policy_versions SET employees_assigned=?,notifications_created=? WHERE id=?")->execute(array($assigned,$notified,$id));
+        hrPolicyAudit($db,'version_published',(int)$v['policy_id'],$id,null,array('hash'=>$v['document_hash'],'employees_assigned'=>$assigned,'notifications_created'=>$notified)); $db->commit();
         policyBack('Policy published. Required employees have been notified.',true);
     }
     if ($action==='mark_end') {
