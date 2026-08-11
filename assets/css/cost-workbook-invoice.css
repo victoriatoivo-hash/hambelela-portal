@@ -36,6 +36,25 @@
   box-sizing: border-box;
 }
 
+#reviewDialog .cw-manual-review-notice {
+  display: grid;
+  gap: 4px;
+  margin: 12px 0 16px;
+  padding: 11px 13px;
+  border: 1px solid #dfbd78;
+  border-radius: 8px;
+  background: #fff8dc;
+  color: #6b4c3b;
+}
+
+#reviewDialog .cw-manual-review-notice[hidden] {
+  display: none;
+}
+
+#reviewDialog .cw-manual-review-notice strong {
+  color: #721b1a;
+}
+
 #uploadDialog.cw-upload-dialog[open] {
   display: grid;
   place-items: center;
