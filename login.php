@@ -325,13 +325,18 @@ $assetVersion = is_file(BASE_PATH . '/assets/css/portal.css') ? (string) filemti
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#721b1a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Hambelela">
+    <link rel="apple-touch-icon" sizes="180x180" href="<?= BASE_URL ?>/assets/pwa/hambelela-180.png?v=1">
     <title><?= htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') ?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal.css?v=<?= htmlspecialchars($assetVersion, ENT_QUOTES, 'UTF-8') ?>">
-    <style>.login-notice{margin:18px 0 0;padding:12px 14px;border:1px dashed rgba(171,54,25,.28);border-radius:11px;background:rgba(240,116,32,.04);color:var(--login-text-mid);font-size:12px;line-height:1.45;font-weight:400}</style>
+    <style>.login-notice{margin:18px 0 0;padding:12px 14px;border:1px dashed rgba(171,54,25,.28);border-radius:11px;background:rgba(240,116,32,.04);color:var(--login-text-mid);font-size:12px;line-height:1.45;font-weight:400}@media(max-width:600px){body.login-page{padding:max(18px,env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) max(18px,env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left))}.login-card{width:100%;max-width:440px}.login-form input,.portal-custom-select-trigger,.login-submit{min-height:48px}.login-submit{margin-bottom:max(0px,env(safe-area-inset-bottom))}}</style>
 </head>
 <body class="login-page">
     <main class="login-card">

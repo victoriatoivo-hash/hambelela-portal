@@ -2,6 +2,14 @@
   Require all denied
 </FilesMatch>
 
+AddType application/manifest+json .webmanifest
+
+<Files "service-worker.js">
+  <IfModule mod_headers.c>
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+  </IfModule>
+</Files>
+
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteRule ^uploads/cost-workbook(?:/|$) - [F,L,NC]
