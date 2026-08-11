@@ -83,11 +83,15 @@ try {
     $epiNavigationEnabled = false;
 }
 
+$accountsNavItem = in_array($packingSidebarRoleKey, ['front_desk_admin', 'front_desk_admin_employee'], true)
+    ? ['id' => 'input-vat', 'label' => 'Input VAT', 'icon' => 'accounts', 'href' => BASE_URL . '/apps/accounts/input-vat.php', 'match' => ['/apps/accounts/input-vat.php']]
+    : ['id' => 'accounts', 'label' => 'Accounts', 'icon' => 'accounts', 'href' => BASE_URL . '/apps/accounts/index.php', 'match' => ['/apps/accounts/index.php', '/apps/accounts/input-vat.php']];
+
 $portalNavItems = [
     ['id' => 'portal-dashboard', 'label' => 'Dashboard', 'icon' => 'dashboard', 'href' => '/index.php', 'match' => ['/index.php']],
     ['id' => 'operations-orders', 'label' => 'Orders', 'icon' => 'orders', 'href' => BASE_URL . '/apps/operations/orders-board.php', 'match' => ['/apps/operations/orders-board.php']],
     ['id' => 'operations-bookkeeping', 'label' => 'Bookkeeping', 'icon' => 'bookkeeping', 'href' => BASE_URL . '/apps/operations/bookkeeping.php', 'match' => ['/apps/operations/bookkeeping.php']],
-    ['id' => 'accounts', 'label' => 'Accounts', 'icon' => 'accounts', 'href' => BASE_URL . '/apps/accounts/index.php', 'match' => ['/apps/accounts/index.php', '/apps/accounts/input-vat.php']],
+    $accountsNavItem,
     ['id' => 'operations-consignments', 'label' => 'Packing List', 'icon' => 'packing', 'href' => $packingSidebarHref, 'match' => ['/apps/operations/consignments.php'], 'badge' => $packingAssignmentUnread, 'badge_label' => $packingAssignmentUnread > 99 ? '99+' : (string) $packingAssignmentUnread, 'badge_kind' => 'packing'],
     ['id' => 'operations-courier', 'label' => 'Courier Waybills', 'icon' => 'courier', 'href' => BASE_URL . '/apps/operations/courier.php', 'match' => ['/apps/operations/courier.php']],
     ['id' => 'hr-portal', 'label' => 'HR Portal', 'icon' => 'hr', 'href' => BASE_URL . '/apps/hr-portal/portal-login.php', 'match' => ['/apps/hr-portal/portal-login.php', '/apps/hr-portal/index.php']],
@@ -105,6 +109,7 @@ $featureByNavId = [
     'operations-orders' => 'orders',
     'operations-bookkeeping' => 'bookkeeping',
     'accounts' => 'accounts',
+    'input-vat' => 'input_vat',
     'operations-consignments' => 'packing_list',
     'operations-courier' => 'courier',
     'hr-portal' => 'hr',
@@ -155,6 +160,7 @@ if ($isEmployeeSidebar) {
         'operations-checklists' => 50,
         'operations-bookkeeping' => 60,
         'accounts' => 65,
+        'input-vat' => 65,
         'notifications' => 80,
         'operations-errors' => 90,
         'system-issues' => 95,

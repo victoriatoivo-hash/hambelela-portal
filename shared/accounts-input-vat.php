@@ -8,8 +8,10 @@ require_once BASE_PATH . '/shared/auth.php';
 function accounts_role_key(): string { return normalise_portal_role(current_role_key()); }
 function accounts_is_owner(): bool { return accounts_role_key() === 'owner_admin'; }
 function accounts_is_front_desk(): bool { return in_array(accounts_role_key(), ['front_desk_admin', 'front_desk_admin_employee'], true); }
-function accounts_can_access(): bool { return accounts_is_owner() || accounts_is_front_desk(); }
-function accounts_require_access(): void { require_login(); if (!accounts_can_access()) { http_response_code(403); exit('You do not have access to Accounts.'); } }
+function accounts_can_access_workspace(): bool { return accounts_is_owner(); }
+function accounts_can_access_input_vat(): bool { return accounts_is_owner() || accounts_is_front_desk(); }
+function accounts_require_workspace_access(): void { require_login(); if (!accounts_can_access_workspace()) { http_response_code(403); exit('You do not have access to the Accounts workspace.'); } }
+function accounts_require_input_vat_access(): void { require_login(); if (!accounts_can_access_input_vat()) { http_response_code(403); exit('You do not have access to Input VAT.'); } }
 
 function accounts_input_vat_schema_ready(): bool
 {

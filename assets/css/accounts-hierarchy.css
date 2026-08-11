@@ -23,6 +23,34 @@
     text-transform: uppercase;
 }
 
+.accounts-app-card.is-coming-soon {
+    cursor: default;
+    opacity: .62;
+    filter: saturate(.45);
+}
+
+.accounts-app-card.is-coming-soon:hover {
+    transform: none;
+    box-shadow: none;
+}
+
+.accounts-app-status.is-available {
+    color: #287a45;
+}
+
+.accounts-coming-soon-control {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    margin-top: 8px;
+    padding: 0 10px;
+    border: 1px solid rgba(128, 105, 94, .28);
+    border-radius: 8px;
+    color: #80695e;
+    font-size: 10px;
+    font-weight: 700;
+}
+
 .accounts-app-icon i {
     width: 26px;
     height: 26px;

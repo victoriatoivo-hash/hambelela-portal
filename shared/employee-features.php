@@ -21,10 +21,10 @@ function portal_feature_permissions(): array
             'dashboard', 'orders', 'bookkeeping', 'cash_tools', 'packing_list',
             'inventory', 'pos_reports', 'kpi_dashboard', 'task_management',
             'error_log', 'settings', 'notifications', 'courier', 'hr',
-            'operations', 'barcode', 'system_issues', 'accounts',
+            'operations', 'barcode', 'system_issues', 'accounts', 'input_vat',
         ],
-        'front_desk_admin' => [...$employeeModules, 'error_log', 'accounts'],
-        'front_desk_admin_employee' => [...$employeeModules, 'error_log', 'accounts'],
+        'front_desk_admin' => [...$employeeModules, 'error_log', 'input_vat'],
+        'front_desk_admin_employee' => [...$employeeModules, 'error_log', 'input_vat'],
         'packer' => $employeeModules,
         'packer_production_staff' => $employeeModules,
         'supervisor_manager' => $employeeModules,
@@ -84,9 +84,9 @@ function employee_feature_for_request(string $scriptName): ?array
         '/apps/operations/checklists.php' => ['task_management', 'Task Management'],
         '/apps/operations/bookkeeping.php' => ['bookkeeping', 'Bookkeeping'],
         '/apps/accounts/index.php' => ['accounts', 'Accounts'],
-        '/apps/accounts/input-vat.php' => ['accounts', 'Input VAT'],
-        '/apps/accounts/input-vat-api.php' => ['accounts', 'Input VAT'],
-        '/apps/accounts/input-vat-file.php' => ['accounts', 'Input VAT'],
+        '/apps/accounts/input-vat.php' => ['input_vat', 'Input VAT'],
+        '/apps/accounts/input-vat-api.php' => ['input_vat', 'Input VAT'],
+        '/apps/accounts/input-vat-file.php' => ['input_vat', 'Input VAT'],
         '/apps/operations/bank-statement-processor.php' => ['cash_tools', 'Cash Tools'],
         '/apps/operations/consignments.php' => ['packing_list', 'Packing List'],
         '/apps/operations/courier.php' => ['courier', 'Courier Waybills'],
@@ -128,6 +128,10 @@ function enforce_employee_feature_for_current_request(): void
     }
     $feature = employee_feature_for_request((string) ($_SERVER['SCRIPT_NAME'] ?? ''));
     if ($feature !== null && !portal_role_can_access_feature(current_role_key(), $feature[0])) {
+        if (in_array($feature[0], ['accounts', 'input_vat'], true)) {
+            http_response_code(403);
+            exit('You do not have access to ' . $feature[1] . '.');
+        }
         render_employee_coming_soon_page($feature[1]);
     }
 }

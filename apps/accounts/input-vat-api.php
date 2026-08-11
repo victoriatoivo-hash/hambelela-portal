@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-require_once dirname(__DIR__,2).'/config.php';require_once BASE_PATH.'/shared/auth.php';require_once BASE_PATH.'/shared/employee-features.php';require_once BASE_PATH.'/shared/accounts-input-vat.php';accounts_require_access();accounts_input_vat_schema_ready();header('Cache-Control: no-store');
+require_once dirname(__DIR__,2).'/config.php';require_once BASE_PATH.'/shared/auth.php';require_once BASE_PATH.'/shared/employee-features.php';require_once BASE_PATH.'/shared/accounts-input-vat.php';accounts_require_input_vat_access();accounts_input_vat_schema_ready();header('Cache-Control: no-store');
 function iv_reply(array $data,int $status=200):void{http_response_code($status);header('Content-Type: application/json; charset=utf-8');echo json_encode($data,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);exit;}
 function iv_uploads(int $purchaseId):array{
  if(empty($_FILES['files']['name']))return[];$names=(array)$_FILES['files']['name'];if(count($names)>10)throw new RuntimeException('Upload no more than 10 files at once.');
