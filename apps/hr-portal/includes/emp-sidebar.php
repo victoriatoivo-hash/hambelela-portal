@@ -1,9 +1,17 @@
 <?php
 // Employee sidebar — included on every employee page
 $empUnread = 0;
+$empPolicyPending = array();
 if (isset($user['id'])) {
     $nr = db()->prepare("SELECT COUNT(*) FROM notifications WHERE user_id=? AND is_read=0");
     $nr->execute([$user['id']]); $empUnread = (int)$nr->fetchColumn();
+    try {
+        require_once __DIR__ . '/policy-system.php';
+        hrPolicyEnsureSchema(db());
+        $empPolicyPending = hrPolicyPending(db(), hrPolicyEmployeeId($user));
+    } catch (Throwable $ignored) {
+        $empPolicyPending = array();
+    }
 }
 $currentPage = isset($currentPage) ? $currentPage : basename($_SERVER['PHP_SELF']);
 $showBusinessPortalLink = strpos((string)($_SERVER['SCRIPT_NAME'] ?? ''), '/apps/hr-portal/') !== false;
@@ -51,7 +59,14 @@ function empNavItem($href, $icon, $label, $badge=0, $current='') {
     <?= empNavItem('my-payslips.php','fa-solid fa-file-lines','My Payslips',0,$currentPage) ?>
     <?= empNavItem('my-documents.php','fa-solid fa-folder-open','My Documents',0,$currentPage) ?>
     <?= empNavItem('my-loans.php','fa-solid fa-hand-holding-dollar','My Loans',0,$currentPage) ?>
-    <?= empNavItem('company-policies.php','fa-solid fa-book-open','Company Policies',0,$currentPage) ?>
+    <?= empNavItem('policies.php','fa-solid fa-book-open','Company Policies',count($empPolicyPending),$currentPage) ?>
+    <?php if ($empPolicyPending): $policyReminder = $empPolicyPending[0]; ?>
+      <a href="policy-view.php?id=<?=(int)$policyReminder['id']?>" style="display:block;margin:12px;padding:12px;border-radius:10px;background:#fff7d6;color:#4b3b00;text-decoration:none;font-size:11px;line-height:1.45">
+        <strong style="display:block">Policy signature required</strong>
+        <?=htmlspecialchars($policyReminder['policy_title'])?><br>
+        Version <?=htmlspecialchars($policyReminder['version_number'])?> · Due <?=date('j M Y', strtotime($policyReminder['acknowledgement_deadline']))?>
+      </a>
+    <?php endif; ?>
   </div>
 
   <div class="sidebar-footer">
