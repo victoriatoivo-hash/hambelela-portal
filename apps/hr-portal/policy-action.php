@@ -15,11 +15,11 @@ try {
     $action=(string)($_POST['action']??'');
     if ($action==='save_draft') {
         if ($user['role']==='employee') throw new RuntimeException('Owner or administrator access is required.');
-        if (empty($_FILES['policy_file']) || $_FILES['policy_file']['error']!==UPLOAD_ERR_OK) throw new RuntimeException('Select a DOC, DOCX or PDF policy file.');
+        if (empty($_FILES['policy_file']) || $_FILES['policy_file']['error']!==UPLOAD_ERR_OK) throw new RuntimeException('Select the approved DOCX policy file.');
         $f=$_FILES['policy_file'];
         if ((int)$f['size']>20971520) throw new RuntimeException('Policy files may not exceed 20 MB.');
         $ext=strtolower(pathinfo($f['name'],PATHINFO_EXTENSION));
-        if (!in_array($ext,array('doc','docx','pdf'),true)) throw new RuntimeException('Only DOC, DOCX and PDF policy files are allowed.');
+        if ($ext!=='docx') throw new RuntimeException('Only DOCX policy files can be converted into the required digital viewer.');
         $allowed=array('application/pdf','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/zip','application/octet-stream');
         $mime=(new finfo(FILEINFO_MIME_TYPE))->file($f['tmp_name']);
         if (!in_array($mime,$allowed,true)) throw new RuntimeException('The uploaded file type is not permitted.');
@@ -31,11 +31,18 @@ try {
         $stored=bin2hex(random_bytes(16)).'.'.$ext; $target=$dir.DIRECTORY_SEPARATOR.$stored;
         if (!move_uploaded_file($f['tmp_name'],$target)) throw new RuntimeException('The policy file could not be stored.');
         $hash=hash_file('sha256',$target);
+        try {
+            if ($ext!=='docx') throw new RuntimeException('Digital policy viewing currently requires the approved DOCX format.');
+            $digital=hrPolicyDocxDigitalHtml($target);
+        } catch (Throwable $conversionError) {
+            @unlink($target);
+            throw $conversionError;
+        }
         $db->beginTransaction();
         $policyId=(int)($_POST['policy_id']??0);
         if (!$policyId) { $s=$db->prepare("INSERT INTO hr_policies (title,policy_type,created_by) VALUES (?,?,?)"); $s->execute(array($title,(string)($_POST['policy_type']??'mandatory_policy'),(int)$user['id'])); $policyId=(int)$db->lastInsertId(); }
-        $s=$db->prepare("INSERT INTO hr_policy_versions (policy_id,version_number,title,created_date,effective_date,acknowledgement_deadline,next_review,file_path,original_filename,mime_type,file_size,document_hash,acknowledgement_required,acknowledgement_text_version,changes_summary,created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
-        $s->execute(array($policyId,$ver,$title,$created,$effective,($_POST['acknowledgement_deadline']??null)?:null,trim((string)($_POST['next_review']??'')),$stored,$f['name'],$mime,(int)$f['size'],$hash,!empty($_POST['acknowledgement_required'])?1:0,HR_POLICY_ACK_TEXT_VERSION,trim((string)($_POST['changes_summary']??'')),(int)$user['id']));
+        $s=$db->prepare("INSERT INTO hr_policy_versions (policy_id,version_number,title,created_date,effective_date,acknowledgement_deadline,next_review,file_path,original_filename,mime_type,file_size,document_hash,digital_html,digital_hash,digital_generated_at,acknowledgement_required,acknowledgement_text_version,changes_summary,created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),?,?,?,?)");
+        $s->execute(array($policyId,$ver,$title,$created,$effective,($_POST['acknowledgement_deadline']??null)?:null,trim((string)($_POST['next_review']??'')),$stored,$f['name'],$mime,(int)$f['size'],$hash,$digital['html'],$digital['hash'],!empty($_POST['acknowledgement_required'])?1:0,HR_POLICY_ACK_TEXT_VERSION,trim((string)($_POST['changes_summary']??'')),(int)$user['id']));
         $versionId=(int)$db->lastInsertId(); hrPolicyAudit($db,'draft_created',$policyId,$versionId,null,array('hash'=>$hash)); $db->commit();
         policyBack('Policy draft saved. Review it before publishing.',true);
     }
@@ -70,6 +77,15 @@ try {
         $s->execute(array($v['policy_id'],$id,$eid,$user['id'])); hrPolicyAudit($db,'acknowledgement_reached',$v['policy_id'],$id,$eid);
         header('Content-Type: application/json'); echo json_encode(array('ok'=>true)); exit;
     }
+    if ($action==='save_progress') {
+        if ($user['role']!=='employee') throw new RuntimeException('Employee access is required.');
+        $id=(int)($_POST['version_id']??0); $v=hrPolicyVersion($db,$id); $eid=hrPolicyEmployeeId($user);
+        if (!$v||!in_array($v['status'],array('published','superseded'),true)||!$eid) throw new RuntimeException('Policy is not available.');
+        $percent=max(0,min(100,(float)($_POST['reading_percent']??0))); $position=max(0,(int)($_POST['reading_position']??0));
+        $s=$db->prepare("INSERT INTO hr_policy_acknowledgements (policy_id,version_id,employee_id,user_id,opened_at,last_opened_at,reading_percent,reading_position) VALUES (?,?,?,?,NOW(),NOW(),?,?) ON DUPLICATE KEY UPDATE last_opened_at=NOW(),reading_percent=GREATEST(reading_percent,VALUES(reading_percent)),reading_position=VALUES(reading_position)");
+        $s->execute(array($v['policy_id'],$id,$eid,$user['id'],$percent,$position));
+        header('Content-Type: application/json'); echo json_encode(array('ok'=>true,'reading_percent'=>$percent,'reading_position'=>$position)); exit;
+    }
     if ($action==='sign') {
         if ($user['role']!=='employee') throw new RuntimeException('Employees must sign through their own authenticated account.');
         $id=(int)($_POST['version_id']??0); $v=hrPolicyVersion($db,$id); $eid=hrPolicyEmployeeId($user);
@@ -90,11 +106,12 @@ try {
         $s=$db->prepare("UPDATE hr_policy_acknowledgements SET legal_name=?,signed_at=NOW(),acknowledged_at=NOW(),acknowledgement_text=?,acknowledgement_text_version=?,signature_method=?,signature_data=?,document_hash=?,evidence_metadata=?,acknowledgement_reference=?,status='signed' WHERE id=? AND signed_at IS NULL");
         $s->execute(array($given,hrPolicyAcknowledgementText(),HR_POLICY_ACK_TEXT_VERSION,$method,$method==='drawn'?$data:$given,$v['document_hash'],$meta,$ref,$ack['id']));
         hrPolicyAudit($db,'policy_signed',$v['policy_id'],$id,$eid,array('reference'=>$ref,'method'=>$method)); $db->commit();
+        if (!empty($_POST['ajax'])) { header('Content-Type: application/json'); echo json_encode(array('ok'=>true,'status'=>'Signed & Acknowledged','signed_at'=>date('c'),'receipt_url'=>'policy-receipt.php?id='.$ack['id'])); exit; }
         header('Location: policy-receipt.php?id='.$ack['id']); exit;
     }
     throw new RuntimeException('Unknown policy action.');
 } catch (Throwable $e) {
     if ($db->inTransaction()) $db->rollBack();
-    if (($action??'')==='mark_end') { http_response_code(422); header('Content-Type: application/json'); echo json_encode(array('ok'=>false,'error'=>$e->getMessage())); exit; }
+    if (in_array(($action??''),array('mark_end','save_progress'),true) || !empty($_POST['ajax'])) { http_response_code(422); header('Content-Type: application/json'); echo json_encode(array('ok'=>false,'error'=>$e->getMessage())); exit; }
     policyBack($e->getMessage());
 }

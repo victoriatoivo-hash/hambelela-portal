@@ -47,6 +47,9 @@ function hrPolicyEnsureSchema(PDO $db): void {
         published_by INT UNSIGNED NULL,
         published_at DATETIME NULL,
         superseded_at DATETIME NULL,
+        digital_html MEDIUMTEXT NULL,
+        digital_hash CHAR(64) NULL,
+        digital_generated_at DATETIME NULL,
         UNIQUE KEY policy_version (policy_id, version_number),
         KEY policy_status (policy_id, status),
         KEY effective_date (effective_date)
@@ -59,6 +62,9 @@ function hrPolicyEnsureSchema(PDO $db): void {
         user_id INT UNSIGNED NOT NULL,
         legal_name VARCHAR(190) NULL,
         opened_at DATETIME NULL,
+        last_opened_at DATETIME NULL,
+        reading_percent DECIMAL(5,2) NOT NULL DEFAULT 0,
+        reading_position INT UNSIGNED NOT NULL DEFAULT 0,
         reached_end_at DATETIME NULL,
         signed_at DATETIME NULL,
         acknowledged_at DATETIME NULL,
@@ -96,6 +102,64 @@ function hrPolicyEnsureSchema(PDO $db): void {
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         UNIQUE KEY version_user (version_id, user_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    hrPolicyAddColumn($db, 'hr_policy_versions', 'digital_html', 'MEDIUMTEXT NULL');
+    hrPolicyAddColumn($db, 'hr_policy_versions', 'digital_hash', 'CHAR(64) NULL');
+    hrPolicyAddColumn($db, 'hr_policy_versions', 'digital_generated_at', 'DATETIME NULL');
+    hrPolicyAddColumn($db, 'hr_policy_acknowledgements', 'last_opened_at', 'DATETIME NULL');
+    hrPolicyAddColumn($db, 'hr_policy_acknowledgements', 'reading_percent', 'DECIMAL(5,2) NOT NULL DEFAULT 0');
+    hrPolicyAddColumn($db, 'hr_policy_acknowledgements', 'reading_position', 'INT UNSIGNED NOT NULL DEFAULT 0');
+}
+
+function hrPolicyAddColumn(PDO $db, string $table, string $column, string $definition): void {
+    $q=$db->prepare("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?");
+    $q->execute(array($table,$column));
+    if (!(int)$q->fetchColumn()) $db->exec("ALTER TABLE `{$table}` ADD COLUMN `{$column}` {$definition}");
+}
+
+function hrPolicyXmlText(DOMNode $node): string {
+    $value='';
+    foreach ($node->childNodes as $child) $value.=$child->nodeType===XML_TEXT_NODE ? $child->nodeValue : hrPolicyXmlText($child);
+    return trim(preg_replace('/\s+/u',' ',$value));
+}
+
+function hrPolicyDocxDigitalHtml(string $path): array {
+    if (!class_exists('ZipArchive') || !class_exists('DOMDocument')) throw new RuntimeException('The server cannot create the required digital policy viewer from this DOCX file.');
+    $zip=new ZipArchive();
+    if ($zip->open($path)!==true) throw new RuntimeException('The approved DOCX file could not be opened for digital conversion.');
+    $xml=$zip->getFromName('word/document.xml'); $zip->close();
+    if ($xml===false) throw new RuntimeException('The approved DOCX file has no readable document body.');
+    $dom=new DOMDocument();
+    if (!@$dom->loadXML($xml,LIBXML_NONET|LIBXML_COMPACT)) throw new RuntimeException('The approved DOCX body could not be parsed.');
+    $xp=new DOMXPath($dom); $xp->registerNamespace('w','http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+    $body=$xp->query('//w:body')->item(0); $html=''; $toc=array(); $listOpen=false; $headingIndex=0;
+    foreach ($body->childNodes as $node) {
+        if ($node->localName==='p') {
+            $text=hrPolicyXmlText($node); if ($text==='') continue;
+            $styleNode=$xp->query('./w:pPr/w:pStyle',$node)->item(0); $style=$styleNode ? (string)$styleNode->getAttributeNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main','val') : '';
+            $isList=stripos($style,'List')!==false;
+            if ($isList && !$listOpen) {$html.='<ul>'; $listOpen=true;}
+            if (!$isList && $listOpen) {$html.='</ul>'; $listOpen=false;}
+            $safe=htmlspecialchars($text,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');
+            if (stripos($style,'Title')!==false) $html.='<h1 class="policy-document-title">'.$safe.'</h1>';
+            elseif (preg_match('/Heading\s*1|Heading1/i',$style)) { $headingIndex++; $id='policy-section-'.$headingIndex; $toc[]=array('id'=>$id,'text'=>$text); $html.='<h2 id="'.$id.'">'.$safe.'</h2>'; }
+            elseif (preg_match('/Heading\s*2|Heading2/i',$style)) $html.='<h3>'.$safe.'</h3>';
+            elseif ($isList) $html.='<li>'.$safe.'</li>';
+            elseif ($text==='HAMBELELA ORGANIC') $html.='<p class="policy-brand">'.$safe.'</p>';
+            else $html.='<p>'.$safe.'</p>';
+        } elseif ($node->localName==='tbl') {
+            if ($listOpen) {$html.='</ul>'; $listOpen=false;}
+            $html.='<div class="policy-digital-table"><table><tbody>';
+            foreach ($xp->query('./w:tr',$node) as $row) {
+                $html.='<tr>';
+                foreach ($xp->query('./w:tc',$row) as $cell) $html.='<td>'.htmlspecialchars(hrPolicyXmlText($cell),ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8').'</td>';
+                $html.='</tr>';
+            }
+            $html.='</tbody></table></div>';
+        }
+    }
+    if ($listOpen) $html.='</ul>';
+    if (!$toc || strlen(strip_tags($html))<1000) throw new RuntimeException('Digital policy conversion produced incomplete content. The draft was not saved.');
+    return array('html'=>$html,'toc'=>$toc,'hash'=>hash('sha256',$html));
 }
 
 function hrPolicyCsrf(): string {
@@ -150,7 +214,7 @@ function hrPolicyPending(PDO $db, int $employeeId): array {
 
 function hrPolicyAckStatus(array $version, ?array $ack): string {
     if ($ack && !empty($ack['signed_at'])) return 'Signed & Acknowledged';
-    if (!empty($version['acknowledgement_deadline']) && date('Y-m-d') > $version['acknowledgement_deadline']) return 'Overdue';
-    if ($ack && !empty($ack['opened_at'])) return 'Opened — Signature Pending';
+    if (!empty($version['acknowledgement_deadline']) && date('Y-m-d') > $version['acknowledgement_deadline']) return 'Overdue — Acknowledgement Required';
+    if ($ack && !empty($ack['opened_at'])) return 'In Progress — Signature Pending';
     return 'Not Opened';
 }
