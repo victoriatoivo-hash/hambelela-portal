@@ -225,9 +225,9 @@ function require_login(): void
         exit;
     }
 
-    if ((string) ($_SESSION['user']['role_key'] ?? '') !== 'owner_admin' && portal_request_is_phone_or_tablet()) {
-        portal_render_employee_desktop_required();
-    }
+    require_once BASE_PATH . '/shared/database.php';
+    require_once BASE_PATH . '/shared/workplace-access.php';
+    portal_enforce_employee_workplace_access($_SESSION['user']);
 
     $scriptName = basename((string) ($_SERVER['SCRIPT_NAME'] ?? ''));
     if (
