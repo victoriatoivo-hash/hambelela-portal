@@ -37,6 +37,8 @@ assert.match(client, /setTimeout\(\(\)=>driveSync\(d\.current\.id\),0\)/u, 'a pa
 assert.match(client, /\['stale','failed'\]\.includes/u, 'recovery must only be offered for recoverable states');
 assert.match(client, /sync\.success_count.*sync\.error_count/u, 'the panel must report successful and failed record counts');
 assert.match(page, /id="syncStatus"/u);
+assert.match(page, /id="snapshotStats"/u);
+assert.match(api, /simple_products.*variable_parents.*variations.*missing_skus.*missing_prices.*missing_stock_quantity.*unmanaged_stock/us, 'successful snapshot quality counts must be server-derived');
 assert.match(page, /id="recoverSync" hidden/u);
 
 console.log('Cost Workbook sync recovery checks passed.');

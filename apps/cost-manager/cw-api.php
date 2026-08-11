@@ -24,14 +24,14 @@ try {
         $counts['active_invoices']=(int)$pdo->query("SELECT COUNT(*) FROM cw_supplier_invoices WHERE approval_status<>'archived'")->fetchColumn();
         $counts['needs_review']=(int)$pdo->query("SELECT COUNT(*) FROM cw_supplier_invoices WHERE approval_status='draft' AND review_status='needs_review'")->fetchColumn();
         $counts['approved']=(int)$pdo->query("SELECT COUNT(*) FROM cw_supplier_invoices WHERE approval_status='approved'")->fetchColumn();
-        $successfulId=cw_sync_successful_id($pdo);
-        if($successfulId){$st=$pdo->prepare('SELECT COUNT(*) FROM cw_product_snapshots WHERE sync_batch_id=?');$st->execute([$successfulId]);$counts['website_items']=(int)$st->fetchColumn();}
+        $successfulId=cw_sync_successful_id($pdo);$snapshotStats=null;
+        if($successfulId){$st=$pdo->prepare("SELECT SUM(variation_id=0 AND product_type='simple') simple_products,SUM(variation_id=0 AND product_type='variable') variable_parents,SUM(variation_id>0) variations,COUNT(*) total_records,SUM(sku IS NULL OR sku='') missing_skus,SUM(active_price_inc_vat IS NULL) missing_prices,SUM(stock_quantity IS NULL) missing_stock_quantity,SUM(manage_stock=0) unmanaged_stock FROM cw_product_snapshots WHERE sync_batch_id=?");$st->execute([$successfulId]);$snapshotStats=$st->fetch() ?: null;if($snapshotStats){$st=$pdo->prepare("SELECT COALESCE(SUM(duplicate_count),0) FROM (SELECT COUNT(*) duplicate_count FROM cw_product_snapshots WHERE sync_batch_id=? AND sku IS NOT NULL AND sku<>'' GROUP BY sku HAVING COUNT(*)>1) duplicates");$st->execute([$successfulId]);$snapshotStats['duplicate_skus']=(int)$st->fetchColumn();$counts['website_items']=(int)$snapshotStats['total_records'];}}
         $invoices=$pdo->query("SELECT i.*, (SELECT COUNT(*) FROM cw_supplier_invoice_lines l WHERE l.supplier_invoice_id=i.id) line_count FROM cw_supplier_invoices i WHERE i.approval_status<>'archived' ORDER BY i.uploaded_at DESC LIMIT 100")->fetchAll();
         $settings=[]; foreach($pdo->query('SELECT setting_key,setting_value FROM cw_settings')->fetchAll() as $r) $settings[$r['setting_key']]=$r['setting_value'];
         $last=$successfulId?cw_sync_find($pdo,$successfulId):null;
         $current=$pdo->query("SELECT * FROM cw_sync_batches ORDER BY id DESC LIMIT 1")->fetch() ?: null;
         $last=$last?cw_sync_public($last):null;$current=$current?cw_sync_public($current):null;
-        cw_json(compact('counts','invoices','settings','last','current'));
+        cw_json(compact('counts','invoices','settings','last','current','snapshotStats'));
     }
 
     if ($action === 'upload') {
