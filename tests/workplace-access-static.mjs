@@ -8,6 +8,7 @@ const settings = fs.readFileSync('apps/operations/my-account.php','utf8');
 assert.match(auth,/refresh_logged_in_user\(\);[\s\S]*portal_enforce_employee_workplace_access\(\$_SESSION\['user'\]\)/,'role is refreshed before workplace evaluation');
 assert.match(access,/policy_mode VARCHAR\(20\) NOT NULL DEFAULT 'audit'/,'initial deployment defaults to audit');
 assert.match(access,/if \(\(string\)\(\$user\['role_key'\].*=== 'owner_admin'\) return;/s,'owner is exempt');
+assert.match(access,/static \$checked = false;[\s\S]*if \(\$checked\) return;[\s\S]*\$checked = true;/,'each request is audited only once');
 assert.match(access,/portal_cloudflare_proxy_ranges\(\)/,'trusted proxy ranges are explicit');
 assert.match(access,/\$trustedProxy && \$cf/,'CF header is accepted only from a trusted proxy');
 assert.doesNotMatch(access,/HTTP_X_FORWARDED_FOR/,'arbitrary forwarded-for is not trusted');

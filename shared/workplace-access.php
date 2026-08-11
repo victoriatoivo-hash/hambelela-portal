@@ -105,6 +105,9 @@ function portal_render_workplace_required(string $reason): void
 function portal_enforce_employee_workplace_access(array $user): void
 {
     if ((string)($user['role_key']??'') === 'owner_admin') return;
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
     try {
         $decision = portal_workplace_evaluate($user);
         portal_workplace_record($user, $decision);
