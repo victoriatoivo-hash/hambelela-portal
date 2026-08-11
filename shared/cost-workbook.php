@@ -28,6 +28,7 @@ const CW_SYNC_LOCK_NAME = 'hambelela_cost_workbook_website_sync';
 const CW_SYNC_BATCH_SIZE = 10;
 const CW_SYNC_READ_ATTEMPTS = 2;
 const CW_SYNC_READ_TIMEOUT = 25;
+const CW_SYNC_FIELDS = 'id,name,type,sku,categories,attributes,regular_price,sale_price,price,stock_quantity,stock_status,manage_stock,status,permalink';
 
 function cw_sync_wc_get(string $path, array $query): array
 {
