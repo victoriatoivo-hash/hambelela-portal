@@ -84,7 +84,7 @@ try {
                 $q=$db->prepare("INSERT IGNORE INTO hr_policy_notifications (version_id,user_id) VALUES (?,?)"); $q->execute(array($id,$emp['user_id']));
                 if ($q->rowCount()>0 && hrTableExists($db,'notifications')) {
                     $n=$db->prepare("INSERT INTO notifications (user_id,title,message,type,action_url) VALUES (?,?,?,'info',?)");
-                    $n->execute(array($emp['user_id'],'New Policy Requires Digital Acknowledgement',$v['title'].' Version '.$v['version_number'].'. Please read and sign by '.date('j F Y',strtotime($v['acknowledgement_deadline'])).'.','policies.php'));
+                    $n->execute(array($emp['user_id'],'HR Policy — Acknowledgement Required',$v['title'].' Version '.$v['version_number'].'. Complete by '.date('j F Y',strtotime($v['acknowledgement_deadline'])).'.','policy-view.php?id='.$id));
                     $db->prepare("UPDATE hr_policy_notifications SET notification_id=? WHERE version_id=? AND user_id=?")->execute(array($db->lastInsertId(),$id,$emp['user_id']));
                     $notified++;
                 }
@@ -111,6 +111,19 @@ try {
         $s->execute(array($v['policy_id'],$id,$eid,$user['id'],$percent,$position));
         header('Content-Type: application/json'); echo json_encode(array('ok'=>true,'reading_percent'=>$percent,'reading_position'=>$position)); exit;
     }
+    if ($action==='policy_notification') {
+        if ($user['role']!=='employee') throw new RuntimeException('Employee access is required.');
+        $id=(int)($_POST['notification_requirement_id']??0);$mode=(string)($_POST['notification_action']??'open');
+        $s=$db->prepare("SELECT pn.*,v.acknowledgement_deadline FROM hr_policy_notifications pn JOIN hr_policy_versions v ON v.id=pn.version_id WHERE pn.id=? AND pn.user_id=? AND pn.resolved_at IS NULL LIMIT 1");
+        $s->execute(array($id,(int)$user['id']));$row=$s->fetch(PDO::FETCH_ASSOC);if(!$row)throw new RuntimeException('Policy notification is no longer pending.');
+        if($mode==='remind'){
+            if(date('Y-m-d')>$row['acknowledgement_deadline'])throw new RuntimeException('This acknowledgement is overdue and cannot be deferred.');
+            $db->prepare("UPDATE hr_policy_notifications SET delivered_at=COALESCE(delivered_at,NOW()),opened_at=COALESCE(opened_at,NOW()),remind_after=DATE_ADD(NOW(),INTERVAL 12 HOUR) WHERE id=?")->execute(array($id));
+        }else{
+            $db->prepare("UPDATE hr_policy_notifications SET delivered_at=COALESCE(delivered_at,NOW()),opened_at=COALESCE(opened_at,NOW()),remind_after=NULL WHERE id=?")->execute(array($id));
+        }
+        header('Content-Type: application/json');echo json_encode(array('ok'=>true));exit;
+    }
     if ($action==='sign') {
         if ($user['role']!=='employee') throw new RuntimeException('Employees must sign through their own authenticated account.');
         $id=(int)($_POST['version_id']??0); $v=hrPolicyVersion($db,$id); $eid=hrPolicyEmployeeId($user);
@@ -130,6 +143,8 @@ try {
         $meta=json_encode(array('ip'=>$_SERVER['REMOTE_ADDR']??null,'user_agent'=>substr((string)($_SERVER['HTTP_USER_AGENT']??''),0,500),'session_user_id'=>(int)$user['id']));
         $s=$db->prepare("UPDATE hr_policy_acknowledgements SET legal_name=?,signed_at=NOW(),acknowledged_at=NOW(),acknowledgement_text=?,acknowledgement_text_version=?,signature_method=?,signature_data=?,document_hash=?,evidence_metadata=?,acknowledgement_reference=?,status='signed' WHERE id=? AND signed_at IS NULL");
         $s->execute(array($given,hrPolicyAcknowledgementText(),HR_POLICY_ACK_TEXT_VERSION,$method,$method==='drawn'?$data:$given,$v['document_hash'],$meta,$ref,$ack['id']));
+        $db->prepare("UPDATE hr_policy_assignments SET status='acknowledged' WHERE version_id=? AND user_id=?")->execute(array($id,(int)$user['id']));
+        $db->prepare("UPDATE hr_policy_notifications SET resolved_at=COALESCE(resolved_at,NOW()),remind_after=NULL WHERE version_id=? AND user_id=?")->execute(array($id,(int)$user['id']));
         hrPolicyAudit($db,'policy_signed',$v['policy_id'],$id,$eid,array('reference'=>$ref,'method'=>$method)); $db->commit();
         if (!empty($_POST['ajax'])) { header('Content-Type: application/json'); echo json_encode(array('ok'=>true,'status'=>'Signed & Acknowledged','signed_at'=>date('c'),'receipt_url'=>'policy-receipt.php?id='.$ack['id'])); exit; }
         header('Location: policy-receipt.php?id='.$ack['id']); exit;

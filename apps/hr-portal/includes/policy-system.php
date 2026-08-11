@@ -102,6 +102,10 @@ function hrPolicyEnsureSchema(PDO $db): void {
         version_id INT UNSIGNED NOT NULL,
         user_id INT UNSIGNED NOT NULL,
         notification_id BIGINT UNSIGNED NULL,
+        delivered_at DATETIME NULL,
+        opened_at DATETIME NULL,
+        remind_after DATETIME NULL,
+        resolved_at DATETIME NULL,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         UNIQUE KEY version_user (version_id, user_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
@@ -125,6 +129,10 @@ function hrPolicyEnsureSchema(PDO $db): void {
     hrPolicyAddColumn($db, 'hr_policy_acknowledgements', 'last_opened_at', 'DATETIME NULL');
     hrPolicyAddColumn($db, 'hr_policy_acknowledgements', 'reading_percent', 'DECIMAL(5,2) NOT NULL DEFAULT 0');
     hrPolicyAddColumn($db, 'hr_policy_acknowledgements', 'reading_position', 'INT UNSIGNED NOT NULL DEFAULT 0');
+    hrPolicyAddColumn($db, 'hr_policy_notifications', 'delivered_at', 'DATETIME NULL');
+    hrPolicyAddColumn($db, 'hr_policy_notifications', 'opened_at', 'DATETIME NULL');
+    hrPolicyAddColumn($db, 'hr_policy_notifications', 'remind_after', 'DATETIME NULL');
+    hrPolicyAddColumn($db, 'hr_policy_notifications', 'resolved_at', 'DATETIME NULL');
 }
 
 function hrPolicyAddColumn(PDO $db, string $table, string $column, string $definition): void {
@@ -231,6 +239,20 @@ function hrPolicyMetadataMismatches(array $v): array {
     if (empty($v['digital_hash']) || !preg_match('/^[a-f0-9]{64}$/i',(string)$v['digital_hash'])) $issues[]='Rendered digital document hash is missing or invalid.';
     if (!empty($v['acknowledgement_required']) && empty($v['acknowledgement_deadline'])) $issues[]='Acknowledgement is required but no deadline is set.';
     return $issues;
+}
+
+function hrPolicyPopupForUser(PDO $db, int $userId): ?array {
+    if ($userId<=0) return null;
+    $s=$db->prepare("SELECT pn.id notification_requirement_id,pn.opened_at notification_opened_at,pn.remind_after,
+        v.id version_id,v.policy_id,v.version_number,v.title,v.effective_date,v.acknowledgement_deadline
+        FROM hr_policy_notifications pn JOIN hr_policy_versions v ON v.id=pn.version_id
+        LEFT JOIN hr_policy_acknowledgements a ON a.version_id=v.id AND a.user_id=pn.user_id
+        WHERE pn.user_id=? AND v.status='published' AND v.acknowledgement_required=1
+          AND pn.resolved_at IS NULL AND a.signed_at IS NULL
+          AND (pn.remind_after IS NULL OR pn.remind_after<=NOW())
+        ORDER BY v.acknowledgement_deadline ASC,pn.created_at ASC LIMIT 1");
+    $s->execute(array($userId));$row=$s->fetch(PDO::FETCH_ASSOC);
+    return $row?:null;
 }
 
 function hrPolicyPending(PDO $db, int $employeeId): array {

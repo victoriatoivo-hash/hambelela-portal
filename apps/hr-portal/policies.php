@@ -12,7 +12,7 @@ $acks=array(); if(!$isAdmin&&$eid){$s=$db->prepare("SELECT * FROM hr_policy_ackn
 <body class="policy-shell"><?php include __DIR__.'/includes/'.($isAdmin?'sidebar.php':'emp-sidebar.php'); ?>
 <main class="policy-main"><header class="policy-page-head"><div><span class="eyebrow">HR Portal</span><h1>Documents & Policies</h1><p>Company policies, version history and secure acknowledgements.</p></div><?php if($isAdmin):?><button class="primary-btn" type="button" data-open-draft><i class="fa-solid fa-plus"></i> Add policy version</button><?php endif;?></header>
 <?php if($success):?><div class="notice success"><?=htmlspecialchars($success)?></div><?php endif;?><?php if($error):?><div class="notice error"><?=htmlspecialchars($error)?></div><?php endif;?>
-<section><div class="section-head"><div><span class="eyebrow">Company Policies</span><h2>Policy library</h2></div></div>
+<section><div class="section-head"><div><span class="eyebrow">Company Policies</span><h2>Policy library</h2></div><?php if($isAdmin&&$versions):?><a class="secondary-btn" href="policy-notification-preview.php?id=<?=(int)$versions[0]['id']?>">Preview Employee Notification</a><?php endif;?></div>
 <div class="policy-grid">
 <?php if(!$versions):?><div class="empty-state"><i class="fa-solid fa-book-open"></i><h3>No policies published yet</h3><p>Published company policies will appear here.</p></div><?php endif;?>
 <?php foreach($versions as $v): $ack=$acks[$v['id']]??null; $status=$isAdmin?hrPolicyDisplayStatus($v):hrPolicyAckStatus($v,$ack); $metadataIssues=$isAdmin?hrPolicyMetadataMismatches($v):array(); ?>
