@@ -8,7 +8,7 @@ require_once BASE_PATH . '/shared/database.php';
 require_once BASE_PATH . '/shared/units.php';
 require_once BASE_PATH . '/shared/costing.php';
 
-require_login();
+require_role('owner_admin');
 
 $pageTitle = 'Recipe Cost | ' . APP_NAME;
 $activeApp = 'cost-manager';

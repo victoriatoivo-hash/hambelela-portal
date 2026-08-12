@@ -6,7 +6,7 @@ require_once BASE_PATH . '/shared/database.php';
 require_once BASE_PATH . '/shared/woocommerce.php';
 require_once BASE_PATH . '/shared/cost-workbook.php';
 require_once BASE_PATH . '/shared/cost-workbook-phase2.php';
-require_role('owner_admin', 'supervisor_manager');
+require_role('owner_admin');
 header('Content-Type: application/json; charset=utf-8');
 
 function cw_json(array $data, int $status = 200): void { http_response_code($status); echo json_encode($data, JSON_UNESCAPED_SLASHES); exit; }

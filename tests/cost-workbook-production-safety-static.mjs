@@ -13,8 +13,10 @@ for (const source of [api, page, library]) {
   assert.doesNotMatch(source, /\bstr_(?:contains|starts_with|ends_with)\s*\(/u, 'Cost Workbook must not require PHP 8 string helpers');
 }
 
-assert.match(api, /require_role\('owner_admin', 'supervisor_manager'\)/u);
-assert.match(page, /require_role\('owner_admin', 'supervisor_manager'\)/u);
+assert.match(api, /require_role\('owner_admin'\)/u);
+assert.match(page, /require_role\('owner_admin'\)/u);
+assert.doesNotMatch(api, /supervisor_manager/u, 'Cost Workbook API must not permit supervisors');
+assert.doesNotMatch(page, /supervisor_manager/u, 'Cost Workbook page must not permit supervisors');
 assert.match(api, /cw_require_csrf\(\)/u);
 assert.match(api, /cw_sync_wc_get\('products',\['page'=>\$page,'per_page'=>CW_SYNC_BATCH_SIZE/u, 'Product sync requests must remain batched');
 assert.match(api, /'_fields'=>CW_SYNC_FIELDS/u, 'WooCommerce reads must request only snapshot fields');

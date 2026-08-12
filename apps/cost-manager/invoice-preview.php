@@ -7,7 +7,7 @@ require_once BASE_PATH . '/shared/auth.php';
 require_once BASE_PATH . '/shared/pdf-extractor.php';
 require_once BASE_PATH . '/shared/openai-extractor.php';
 
-require_login();
+require_role('owner_admin');
 
 $pageTitle = 'Supplier Invoice Extraction Preview | ' . APP_NAME;
 $activeApp = 'cost-manager';
