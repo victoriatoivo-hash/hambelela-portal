@@ -180,11 +180,17 @@ try {
         if (!accounts_is_owner()) throw new RuntimeException('Only the owner can change the VAT rate.');
         $raw = trim((string) ($_POST['rate'] ?? ''));
         if ($raw === '' || !is_numeric($raw)) throw new RuntimeException('Enter a valid VAT rate.');
-        $rate = (float) $raw;
+        $rate = round((float) $raw, 2);
         if ($rate < 0 || $rate > 100) throw new RuntimeException('VAT rate must be between 0% and 100%.');
 
         $old = accounts_standard_vat_rate();
+        if ((float) number_format((float) $old, 2, '.', '') === $rate) {
+            $effectiveFrom = date(DATE_ATOM);
+            iv_reply(['ok' => true, 'rate' => $rate, 'old_rate' => $old, 'effective_from' => $effectiveFrom, 'message' => 'Standard VAT rate is already set to this value.']);
+        }
+
         $user = current_user();
+        $effectiveFrom = date(DATE_ATOM);
         db()->beginTransaction();
         try {
             db()->prepare("INSERT INTO accounts_settings(setting_key,setting_value,updated_by)VALUES('standard_vat_rate',?,?) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value),updated_by=VALUES(updated_by)")->execute([(string) $rate, (int) ($user['id'] ?? 0)]);

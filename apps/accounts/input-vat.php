@@ -57,19 +57,21 @@ include BASE_PATH.'/shared/sidebar.php';
   <?php if(accounts_is_owner()): ?>
   <section class="input-vat-settings-card" aria-labelledby="vatSettingsTitle">
     <div class="input-vat-settings-copy">
-      <span class="input-vat-settings-icon" aria-hidden="true">&#9881;</span>
+      <span class="input-vat-settings-icon" aria-hidden="true">⚙️</span>
       <div>
-        <p class="eyebrow">Accounting setting</p>
+        <p class="eyebrow">Configuration</p>
         <h2 id="vatSettingsTitle">Input VAT Settings</h2>
-        <p>Used automatically for new Standard VAT purchase records.</p>
+        <p>Update once and apply to new Standard VAT records only.</p>
       </div>
     </div>
     <div class="input-vat-settings-value">
-      <span>Standard VAT Rate</span><strong data-rate-display><?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%</strong><button type="button" class="btn-secondary iv-btn iv-btn--secondary" data-open-rate-settings>Edit</button>
+      <span>Standard VAT Rate</span><strong data-rate-display><?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%</strong><button type="button" class="btn-secondary iv-btn iv-btn--secondary" data-open-rate-settings>Input VAT Settings</button>
     </div>
   </section>
   <?php else: ?>
-  <div class="input-vat-rate-indicator" role="note"><span>Standard VAT Rate</span><strong data-rate-display><?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%</strong></div>
+  <div class="input-vat-rate-indicator" role="note">
+    <span>Standard VAT Rate</span><strong data-rate-display><?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%</strong>
+  </div>
   <?php endif; ?>
 
   <section class="accounts-summary" data-summary aria-live="polite"></section>
@@ -103,7 +105,7 @@ include BASE_PATH.'/shared/sidebar.php';
         <label>Supplier<input name="supplier" maxlength="190" required></label>
         <label class="span-2">Description<textarea name="description" required></textarea></label>
         <label>Amount incl VAT (N$)<input name="inclusive" type="number" min="0" step="0.01" required></label>
-        <label>VAT treatment<select name="vat_treatment" required><option value="standard" data-standard-rate-option>Standard VAT <?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%</option><option value="zero_rated">Zero Rated</option><option value="no_vat">No VAT / Non-VAT</option><option value="manual_vat">Manual VAT</option><option value="review_required">Review Required</option></select><small class="field-help">The configured standard rate is applied automatically.</small></label>
+        <label>VAT treatment<select name="vat_treatment" required><option value="standard" data-standard-rate-option>Standard VAT <?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%</option><option value="zero_rated">Zero Rated</option><option value="no_vat">No VAT / Non-VAT</option><option value="manual_vat">Manual VAT</option><option value="review_required">Review Required</option></select><small class="field-help" data-standard-rate-hint>The configured standard VAT rate is <?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%.</small></label>
         <label data-manual-wrap hidden>Manual VAT (N$)<input name="manual_vat" type="number" min="0" step="0.01"></label>
         <div class="vat-preview span-2" data-vat-preview></div>
         <p class="field-help" data-month-warning aria-live="polite"></p>
@@ -171,3 +173,4 @@ include BASE_PATH.'/shared/sidebar.php';
 </main>
 <script defer src="<?=BASE_URL?>/assets/js/input-vat.js?v=<?=filemtime(BASE_PATH.'/assets/js/input-vat.js')?>"></script>
 <?php include BASE_PATH.'/shared/footer.php'; ?>
+

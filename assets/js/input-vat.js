@@ -107,16 +107,22 @@
   }
 
   function syncRate(rate) {
-    page.dataset.rate = String(rate);
+    const safeRate = Number(rate || 0);
+    const safeRateText = rateLabel(safeRate);
+    page.dataset.rate = String(safeRate);
     page.querySelectorAll('[data-rate-display]').forEach((x) => {
-      x.textContent = rateLabel(rate);
+      x.textContent = safeRateText;
     });
-    const current = $('[data-current-rate]');
-    const option = $('[data-standard-rate-option]');
-    if (current) current.textContent = rateLabel(rate);
-    if (option) option.textContent = `Standard VAT ${rateLabel(rate)}`;
-  }
 
+    const current = $('[data-current-rate]');
+    if (current) current.textContent = safeRateText;
+
+    const option = $('[data-standard-rate-option]');
+    if (option) option.textContent = `Standard VAT ${safeRateText}`;
+
+    const standardRateHint = $('[data-standard-rate-hint]');
+    if (standardRateHint) standardRateHint.textContent = `The configured standard VAT rate is ${safeRateText}.`;
+  }
   function formatSummaryLineRows(obj) {
     return Object.entries(obj || {})
       .sort((a, b) => b[1] - a[1])
