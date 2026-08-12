@@ -49,11 +49,12 @@
   let rows = [];
   let sort = 'purchase_date';
   let direction = 'desc';
+  let currentView = 'monthly';
   let timer;
   let refreshRowId = null;
 
   function activePeriodLabel() {
-    return selectedMonthLabel().toUpperCase();
+    return currentView === 'history' ? 'TRANSACTION HISTORY' : selectedMonthLabel().toUpperCase();
   }
 
   function updateActivePeriodLabel() {
@@ -62,7 +63,7 @@
     if (!label || !container) return;
 
     label.textContent = activePeriodLabel();
-    container.setAttribute('data-period-mode', 'month');
+    container.setAttribute('data-period-mode', currentView);
   }
 
   function formatSortValue(value) {
@@ -72,6 +73,19 @@
   }
 
   function params() {
+    if (currentView === 'history') return new URLSearchParams({
+      action: 'list',
+      period: 'history',
+      history_month: $('[data-history-month]')?.value || '',
+      date_from: $('[data-history-from]')?.value || '',
+      date_to: $('[data-history-to]')?.value || '',
+      search: $('[data-history-search]')?.value || '',
+      entered_by: $('[data-history-entered-by]')?.value || '',
+      status: $('[data-history-status]')?.value || '',
+      manual: $('[data-history-manual]')?.value || '',
+      sort,
+      direction,
+    });
     return new URLSearchParams({
       action: 'list',
       month: formatSortValue($('[data-month]').value),
@@ -196,7 +210,39 @@
   }
 
   function emptyTableRow() {
-    return `<tr><td class="empty-row" colspan="10"><div class="table-empty-state"><i data-lucide="notebook-tabs" aria-hidden="true"></i><strong>No Input VAT records for ${esc(selectedMonthLabel())}</strong><p>You have not captured any purchases for this period yet.</p><button type="button" class="portal-button portal-button--primary" data-add-purchase><span class="portal-button__icon" aria-hidden="true">+</span> Add Purchase</button></div></td></tr>`;
+    const label = currentView === 'history' ? 'these history filters' : selectedMonthLabel();
+    return `<tr><td class="empty-row" colspan="10"><div class="table-empty-state"><i data-lucide="notebook-tabs" aria-hidden="true"></i><strong>No Input VAT records for ${esc(label)}</strong><p>${currentView === 'history' ? 'Adjust the filters to broaden the transaction history.' : 'You have not captured any purchases for this period yet.'}</p>${currentView === 'monthly' ? '<button type="button" class="portal-button portal-button--primary" data-add-purchase><span class="portal-button__icon" aria-hidden="true">+</span> Add Purchase</button>' : ''}</div></td></tr>`;
+  }
+
+  function syncView() {
+    page.querySelectorAll('[data-vat-view]').forEach((button) => {
+      const active = button.dataset.vatView === currentView;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    $('[data-month-workspace]').hidden = currentView !== 'monthly';
+    $('[data-monthly-toolbar]').hidden = currentView !== 'monthly';
+    if ($('[data-history-toolbar]')) $('[data-history-toolbar]').hidden = currentView !== 'history';
+    page.querySelectorAll('[data-monthly-section]').forEach((section) => { section.hidden = currentView !== 'monthly'; });
+    $('[data-month-display]').textContent = selectedMonthLabel();
+    updateActivePeriodLabel();
+  }
+
+  function renderMonthWorkspace(progress) {
+    const tabs = $('[data-month-tabs]');
+    const status = $('[data-active-capture-status]');
+    if (!tabs || !status) return;
+    const activeMonth = $('[data-month]').value;
+    const items = Array.isArray(progress) ? progress : [];
+    tabs.innerHTML = items.map((item) => {
+      const active = item.month === activeMonth;
+      const state = item.capture_status || (item.complete ? 'complete' : (item.count ? 'in_progress' : 'not_started'));
+      const badge = state === 'complete' ? 'Complete' : (state === 'in_progress' ? 'In Progress' : 'Not Started');
+      return `<button type="button" class="input-vat-month-tab ${active ? 'is-active' : ''}" data-select-month="${esc(item.month)}" aria-current="${active ? 'true' : 'false'}"><span>${esc(monthLabel(item.month).replace(' 20', ' ’'))}</span><small class="${esc(state)}">${badge}</small></button>`;
+    }).join('');
+    const active = items.find((item) => item.month === activeMonth) || {month: activeMonth, count: 0, vat: 0, complete: false, capture_status: 'not_started'};
+    const badge = active.complete ? 'Capture Complete' : (active.count ? 'Capture In Progress' : 'Capture Not Started');
+    status.innerHTML = `<div><span class="input-vat-capture-badge ${esc(active.capture_status || 'not_started')}">${badge}</span><strong>${esc(monthLabel(active.month))}</strong><small>${Number(active.count || 0)} records &middot; ${money(active.vat)} Input VAT</small></div>${owner ? `<button type="button" class="portal-button portal-button--ghost" data-month-complete="${esc(active.month)}" data-complete="${active.complete ? '1' : '0'}">${active.complete ? 'Reopen Month' : 'Mark Capture Complete'}</button>` : ''}`;
   }
 
   function premiumAnalysisRows(obj, icon) {
@@ -213,7 +259,7 @@
   function premiumPurchaseRow(r) {
     const attachments = r.attachments.map((a) => `<span><a href="${esc(a.view_url)}" target="_blank">${esc(a.name)}</a> <a href="${esc(a.download_url)}" title="Download" aria-label="Download ${esc(a.name)}"><i data-lucide="download" aria-hidden="true"></i></a>${a.can_delete ? ` <button data-delete-file="${a.id}" type="button" aria-label="Remove attachment"><i data-lucide="x" aria-hidden="true"></i></button>` : ''}</span>`).join('') || '&mdash;';
     const actions = `${r.can_edit ? `<button type="button" data-edit="${r.id}" title="Edit" aria-label="Edit purchase"><i data-lucide="pencil" aria-hidden="true"></i></button>` : ''}${r.can_review ? `<button type="button" data-review="${r.id}" title="Review" aria-label="Review purchase"><i data-lucide="circle-check" aria-hidden="true"></i></button><button type="button" data-audit="${r.id}" title="History" aria-label="View history"><i data-lucide="history" aria-hidden="true"></i></button>` : ''}${r.can_delete ? `<button type="button" data-delete="${r.id}" title="Delete" aria-label="Delete purchase"><i data-lucide="trash-2" aria-hidden="true"></i></button>` : ''}`;
-    return `<tr class="${Number(r.id) === Number(refreshRowId) ? 'input-vat-row-highlight' : ''}"><td><time datetime="${esc(r.purchase_date)}">${esc(dateLabel(r.purchase_date))}</time></td><td>${esc(r.supplier)}</td><td>${esc(r.description)}</td><td class="money">${money(r.inclusive)}</td><td class="money vat-money">${money(r.vat)}</td><td class="money">${money(r.exclusive)}</td><td><div class="attachment-list">${attachments}</div></td><td>${esc(r.entered_by)}</td><td><span class="status-pill ${esc(r.review_status)}">${esc(r.review_status.replaceAll('_', ' '))}</span>${r.review_note ? `<small title="${esc(r.review_note)}"> &middot; note</small>` : ''}</td><td><div class="row-actions">${actions}</div></td></tr>`;
+    return `<tr class="${Number(r.id) === Number(refreshRowId) ? 'input-vat-row-highlight' : ''}"><td><time datetime="${esc(r.purchase_date)}">${esc(dateLabel(r.purchase_date))}</time></td><td>${esc(r.supplier)}${r.invoice_reference ? `<small class="input-vat-cell-meta">Ref: ${esc(r.invoice_reference)}</small>` : ''}</td><td>${esc(r.description)}</td><td class="money">${money(r.inclusive)}</td><td class="money vat-money">${money(r.vat)}</td><td class="money">${money(r.exclusive)}</td><td><div class="attachment-list">${attachments}</div></td><td>${esc(r.entered_by)}${currentView === 'history' ? `<small class="input-vat-cell-meta">Captured ${esc(r.captured_at)}</small>` : ''}</td><td><span class="status-pill ${esc(r.review_status)}">${esc(r.review_status.replaceAll('_', ' '))}</span>${r.review_note ? `<small title="${esc(r.review_note)}"> &middot; note</small>` : ''}</td><td><div class="row-actions">${actions}</div></td></tr>`;
   }
 
   function render(j) {
@@ -239,17 +285,17 @@
       ? rows.map((r) => `<tr class="${Number(r.id) === Number(refreshRowId) ? 'input-vat-row-highlight' : ''}"><td><time datetime="${esc(r.purchase_date)}">${esc(dateLabel(r.purchase_date))}</time></td><td>${esc(r.supplier)}</td><td>${esc(r.description)}</td><td class="money">${money(r.inclusive)}</td><td class="money vat-money">${money(r.vat)}</td><td class="money">${money(r.exclusive)}</td><td><div class="attachment-list">${(r.attachments.map((a) => `<span><a href="${esc(a.view_url)}" target="_blank">${esc(a.name)}</a> <a href="${esc(a.download_url)}" title="Download">?</a>${a.can_delete ? ` <button data-delete-file="${a.id}" type="button" aria-label="Remove attachment">×</button>` : ''}</span>`).join('')) || '—'}</div></td><td>${esc(r.entered_by)}</td><td><span class="status-pill ${esc(r.review_status)}">${esc(r.review_status.replaceAll('_', ' '))}</span>${r.review_note ? `<small title="${esc(r.review_note)}"> · note</small>` : ''}</td><td><div class="row-actions">${r.can_edit ? '<button type="button" data-edit="' + r.id + '" title="Edit" aria-label="Edit purchase">?</button>' : ''}${r.can_review ? '<button type="button" data-review="' + r.id + '" title="Review" aria-label="Review purchase">?</button>' : ''}${r.can_review ? '<button type="button" data-audit="' + r.id + '" title="History" aria-label="View history">?</button>' : ''}${r.can_delete ? '<button type="button" data-delete="' + r.id + '" title="Delete" aria-label="Delete purchase">-</button>' : ''}</div></td></tr>`).join('')
       : `<tr><td class="empty-row" colspan="10"><div class="table-empty-state"><span aria-hidden="true">?</span><strong>No Input VAT records for ${esc(selectedMonthLabel())}.</strong><p>Switch the month or start capturing with Add Purchase.</p><button type="button" class="portal-button portal-button--primary" data-add-purchase><span class="portal-button__icon" aria-hidden="true">+</span> Add Purchase</button></div></td></tr>`;
 
-    $('[data-export]').href = api + '?action=export&month=' + encodeURIComponent(formatSortValue($('[data-month]').value)) + '&period=current';
+    const exportParams = params(); exportParams.set('action', 'export');
+    $('[data-export]').href = api + '?' + exportParams.toString();
     $('[data-rows]').innerHTML = rows.length ? rows.map(premiumPurchaseRow).join('') : emptyTableRow();
-    const progress = $('[data-capture-progress]');
-    if (progress) progress.innerHTML = (j.capture_progress || []).map((m) => `<article><div><strong>${esc(monthLabel(m.month))}</strong><span>${m.count} records &middot; ${money(m.vat)} VAT</span></div><button type="button" class="portal-button portal-button--ghost" data-month-complete="${esc(m.month)}" data-complete="${m.complete ? '1' : '0'}">${m.complete ? 'Capture Complete · Reopen' : 'Mark Capture Complete'}</button></article>`).join('');
+    renderMonthWorkspace(j.capture_progress || []);
     if (j.historical_capture_start_date) { page.dataset.captureStart = j.historical_capture_start_date; form.elements.purchase_date.min = j.historical_capture_start_date; }
-    updateActivePeriodLabel();
+    syncView();
     if (window.lucide) window.lucide.createIcons();
   }
 
   function setControlsDisabled(disabled) {
-    const controls = page.querySelectorAll('[data-previous-month],[data-next-month],[data-month],[data-search],[data-status],[data-sort],[data-add-purchase],[data-export],[data-print]');
+    const controls = page.querySelectorAll('[data-previous-month],[data-next-month],[data-month],[data-search],[data-status],[data-sort],[data-add-purchase],[data-export],[data-print],[data-vat-view],[data-select-month],[data-history-month],[data-history-from],[data-history-to],[data-history-search],[data-history-entered-by],[data-history-status],[data-history-manual]');
     controls.forEach((control) => {
       if ('disabled' in control) control.disabled = disabled;
     });
@@ -270,12 +316,13 @@
     const [year, month] = input.value.split('-').map(Number);
     const next = new Date(year, (month || 1) - 1 + delta, 1);
     input.value = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`;
+    $('[data-month-display]').textContent = selectedMonthLabel();
     page.classList.add('is-refreshing');
     load();
   }
 
   function printCurrentPeriod() {
-    const period = selectedMonthLabel();
+    const period = currentView === 'history' ? 'Transaction History' : selectedMonthLabel();
     document.body.classList.add('input-vat-printing');
     document.title = `Input VAT Register - ${period}`;
     window.print();
@@ -567,6 +614,10 @@
   });
 
   page.addEventListener('click', async (event) => {
+    const view=event.target.closest('[data-vat-view]');
+    if(view){ currentView=view.dataset.vatView==='history'&&owner?'history':'monthly'; syncView(); page.classList.add('is-refreshing'); await load(); return; }
+    const monthTab=event.target.closest('[data-select-month]');
+    if(monthTab){ $('[data-month]').value=monthTab.dataset.selectMonth; $('[data-month-display]').textContent=selectedMonthLabel(); page.classList.add('is-refreshing'); await load(); return; }
     const control=event.target.closest('[data-month-complete]'); if(!control) return;
     await request('set_month_complete',{month:control.dataset.monthComplete,complete:control.dataset.complete==='1'?'0':'1'}); await load(); showToast('Month capture status updated.');
   });
@@ -598,6 +649,11 @@
     clearTimeout(timer);
     timer = setTimeout(() => load(), 250);
   };
+
+  page.querySelectorAll('[data-history-month],[data-history-from],[data-history-to],[data-history-search],[data-history-entered-by],[data-history-status],[data-history-manual]').forEach((element) => {
+    const refresh=()=>{ clearTimeout(timer); timer=setTimeout(()=>load(), element.matches('input')?250:0); };
+    element.addEventListener(element.matches('input')?'input':'change',refresh);
+  });
 
   page.querySelectorAll('[data-month], [data-status]').forEach((element) => {
     element.onchange = () => load();

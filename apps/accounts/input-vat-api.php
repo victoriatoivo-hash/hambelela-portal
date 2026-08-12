@@ -104,7 +104,8 @@ function iv_capture_progress(): array
     $statuses=db()->query('SELECT * FROM accounts_input_vat_month_status')->fetchAll(); $statusMap=[]; foreach($statuses as $row) $statusMap[(string)$row['month_key']]=$row;
     while ($cursor <= $end) {
         $row=$countMap[$cursor]??[]; $status=$statusMap[$cursor]??[];
-        $result[]=['month'=>$cursor,'count'=>(int)($row['record_count']??0),'inclusive'=>(float)($row['total_incl']??0),'vat'=>(float)($row['total_vat']??0),'complete'=>(bool)($status['capture_complete']??false),'updated_by'=>(string)($status['updated_by_name']??'')];
+        $complete=(bool)($status['capture_complete']??false); $count=(int)($row['record_count']??0);
+        $result[]=['month'=>$cursor,'count'=>$count,'inclusive'=>(float)($row['total_incl']??0),'vat'=>(float)($row['total_vat']??0),'complete'=>$complete,'capture_status'=>$complete?'complete':($count>0?'in_progress':'not_started'),'updated_by'=>(string)($status['updated_by_name']??'')];
         $cursor=date('Y-m', strtotime($cursor.'-01 +1 month'));
     }
     return $result;
@@ -115,25 +116,42 @@ try {
 
     if ($action === 'export') {
         $month = iv_month_from_request((string) ($_GET['month'] ?? ''));
+        $history = accounts_is_owner() && ($_GET['period'] ?? '') === 'history';
         $all = accounts_is_owner() && ($_GET['period'] ?? '') === 'all';
         $where = 'deleted_at IS NULL';
         $params = [];
 
-        if (!$all) {
+        if ($history) {
+            $dateFrom=trim((string)($_GET['date_from']??'')); $dateTo=trim((string)($_GET['date_to']??''));
+            $historyMonth=trim((string)($_GET['history_month']??''));
+            if (preg_match('/^\d{4}-\d{2}$/',$historyMonth)) { $monthFrom=$historyMonth.'-01'; $where.=' AND purchase_date>=? AND purchase_date<?'; $params[]=$monthFrom; $params[]=date('Y-m-d',strtotime($monthFrom.' +1 month')); }
+            if (iv_valid_purchase_date($dateFrom)) { $where.=' AND purchase_date>=?'; $params[]=$dateFrom; }
+            if (iv_valid_purchase_date($dateTo)) { $where.=' AND purchase_date<=?'; $params[]=$dateTo; }
+        } elseif (!$all) {
             $where .= ' AND purchase_date>=? AND purchase_date<?';
             $from = $month.'-01';
             $params = [$from, date('Y-m-d', strtotime($from.' +1 month'))];
         }
 
-        $stmt = db()->prepare('SELECT purchase_date,supplier,description,amount_incl_vat,vat_amount,amount_excl_vat,vat_treatment,review_status,created_by_name FROM accounts_input_vat_purchases WHERE '.$where.' ORDER BY purchase_date,id');
+        $search=trim((string)($_GET['search']??''));
+        if ($search!=='') { $where.=' AND (supplier LIKE ? OR description LIKE ? OR invoice_reference LIKE ?)'; $params[]='%'.$search.'%'; $params[]='%'.$search.'%'; $params[]='%'.$search.'%'; }
+        $status=trim((string)($_GET['status']??''));
+        if (in_array($status,['captured','reviewed','needs_correction'],true)) { $where.=' AND review_status=?'; $params[]=$status; }
+        if ($history) {
+            $enteredBy=trim((string)($_GET['entered_by']??''));
+            if ($enteredBy!=='') { $where.=' AND created_by_name LIKE ?'; $params[]='%'.$enteredBy.'%'; }
+            $manual=(string)($_GET['manual']??'');
+            if ($manual==='0'||$manual==='1') { $where.=' AND manual_override=?'; $params[]=(int)$manual; }
+        }
+        $stmt = db()->prepare('SELECT purchase_date,supplier,invoice_reference,description,amount_incl_vat,vat_amount,amount_excl_vat,vat_treatment,review_status,created_by_name,created_at FROM accounts_input_vat_purchases WHERE '.$where.' ORDER BY purchase_date,id');
         $stmt->execute($params);
 
         header('Content-Type: text/csv; charset=utf-8');
-        $filename = $all ? 'input-vat-all-periods' : 'hambelela-input-vat-'.$month;
+        $filename = ($all||$history) ? 'input-vat-transaction-history' : 'hambelela-input-vat-'.$month;
         header('Content-Disposition: attachment; filename="'.$filename.'.csv"');
 
         $out = fopen('php://output', 'wb');
-        fputcsv($out, ['Date', 'Supplier', 'Description', 'Incl VAT', 'Input VAT', 'Excl VAT', 'VAT Treatment', 'Review Status', 'Entered By']);
+        fputcsv($out, ['Purchase Date', 'Supplier', 'Reference', 'Description', 'Incl VAT', 'Input VAT', 'Excl VAT', 'VAT Treatment', 'Review Status', 'Entered By', 'Captured At']);
         foreach ($stmt->fetchAll() as $r) fputcsv($out, $r);
         fclose($out);
         exit;
@@ -149,11 +167,18 @@ try {
 
     if ($action === 'list') {
         $month = iv_month_from_request((string) ($_GET['month'] ?? ''));
+        $history = accounts_is_owner() && ($_GET['period'] ?? '') === 'history';
         $all = accounts_is_owner() && ($_GET['period'] ?? '') === 'all';
         $where = ['deleted_at IS NULL'];
         $params = [];
 
-        if (!$all) {
+        if ($history) {
+            $dateFrom=trim((string)($_GET['date_from']??'')); $dateTo=trim((string)($_GET['date_to']??''));
+            $historyMonth=trim((string)($_GET['history_month']??''));
+            if (preg_match('/^\d{4}-\d{2}$/',$historyMonth)) { $monthFrom=$historyMonth.'-01'; $where[]='purchase_date>=? AND purchase_date<?'; $params[]=$monthFrom; $params[]=date('Y-m-d',strtotime($monthFrom.' +1 month')); }
+            if (iv_valid_purchase_date($dateFrom)) { $where[]='purchase_date>=?'; $params[]=$dateFrom; }
+            if (iv_valid_purchase_date($dateTo)) { $where[]='purchase_date<=?'; $params[]=$dateTo; }
+        } elseif (!$all) {
             $where[] = 'purchase_date>=? AND purchase_date<?';
             $from = $month.'-01';
             $params = [$from, date('Y-m-d', strtotime($from.' +1 month'))];
@@ -171,6 +196,13 @@ try {
         if (in_array($status, ['captured', 'reviewed', 'needs_correction'], true)) {
             $where[] = 'review_status=?';
             $params[] = $status;
+        }
+
+        if ($history) {
+            $enteredBy=trim((string)($_GET['entered_by']??''));
+            if ($enteredBy!=='') { $where[]='created_by_name LIKE ?'; $params[]='%'.$enteredBy.'%'; }
+            $manual=(string)($_GET['manual']??'');
+            if ($manual==='0'||$manual==='1') { $where[]='manual_override=?'; $params[]=(int)$manual; }
         }
 
         $sort = in_array($_GET['sort'] ?? '', ['supplier', 'purchase_date'], true) ? (string) $_GET['sort'] : 'purchase_date';
@@ -200,7 +232,7 @@ try {
             $summary['descriptions'][$key] = ($summary['descriptions'][$key] ?? 0) + $r['inclusive'];
         }
 
-        iv_reply(['ok' => true, 'rows' => $rows, 'summary' => $summary, 'standard_vat_rate' => accounts_standard_vat_rate(), 'historical_capture_start_date'=>accounts_historical_capture_start_date(), 'capture_progress'=>accounts_is_owner()?iv_capture_progress():[], 'refreshed_at' => date(DATE_ATOM)]);
+        iv_reply(['ok' => true, 'view'=>$history?'history':'monthly', 'rows' => $rows, 'summary' => $summary, 'standard_vat_rate' => accounts_standard_vat_rate(), 'historical_capture_start_date'=>accounts_historical_capture_start_date(), 'capture_progress'=>iv_capture_progress(), 'refreshed_at' => date(DATE_ATOM)]);
     }
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') throw new RuntimeException('POST required.');

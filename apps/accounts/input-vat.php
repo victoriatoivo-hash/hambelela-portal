@@ -40,27 +40,43 @@ include BASE_PATH.'/shared/sidebar.php';
     </div>
   </header>
 
-  <section class="accounts-toolbar" aria-label="Input VAT working filters">
+  <nav class="input-vat-primary-tabs" role="tablist" aria-label="Input VAT views">
+    <button type="button" class="is-active" role="tab" aria-selected="true" data-vat-view="monthly"><i data-lucide="calendar-range" aria-hidden="true"></i><span>Monthly Input VAT</span></button>
+    <?php if(accounts_is_owner()): ?><button type="button" role="tab" aria-selected="false" data-vat-view="history"><i data-lucide="history" aria-hidden="true"></i><span>Transaction History</span></button><?php endif; ?>
+  </nav>
+
+  <section class="input-vat-month-workspace" data-month-workspace>
+    <nav class="input-vat-month-tabs" aria-label="Input VAT months" data-month-tabs></nav>
+    <div class="input-vat-month-status" data-active-capture-status></div>
+  </section>
+
+  <section class="accounts-toolbar" aria-label="Input VAT working filters" data-monthly-toolbar>
     <div class="accounts-filter-group accounts-period-group">
       <span class="accounts-control-label">PERIOD</span>
       <div class="accounts-period-controls">
         <button type="button" class="portal-button portal-button--nav accounts-month-step" data-previous-month aria-label="Previous month"><span class="portal-button__icon" aria-hidden="true">&#8592;</span><span>Previous</span></button>
-        <label class="accounts-input-date-label"><span>Month</span><input type="month" data-month value="<?=date('Y-m')?>"></label>
+        <label class="accounts-input-date-label"><span>Month</span><input type="hidden" data-month value="<?=date('Y-m')?>"><span class="input-vat-selected-month" data-month-display><?=htmlspecialchars(date('F Y'), ENT_QUOTES, 'UTF-8')?></span></label>
         <button type="button" class="portal-button portal-button--nav accounts-month-step" data-next-month aria-label="Next month"><span>Next</span><span class="portal-button__icon" aria-hidden="true">&#8594;</span></button>
       </div>
     </div>
     <label class="accounts-search-control"><span>SEARCH</span><input type="search" data-search placeholder="Search supplier or description"></label>
     <label class="accounts-status-control"><span>STATUS</span><select data-status><option value="">All statuses</option><option value="captured">Captured</option><option value="reviewed">Reviewed</option><option value="needs_correction">Needs Correction</option></select></label>
   </section>
+
   <?php if(accounts_is_owner()): ?>
-  <section class="input-vat-capture-progress" aria-labelledby="captureProgressTitle">
-    <div><p class="eyebrow">Historical back-capture</p><h2 id="captureProgressTitle">Capture progress by month</h2><p>Purchase date controls the reporting month. Historical entries are not treated as late work.</p></div>
-    <div data-capture-progress></div>
+  <section class="accounts-toolbar input-vat-history-toolbar" data-history-toolbar hidden aria-label="Transaction History filters">
+    <label><span>MONTH</span><input type="month" data-history-month min="<?=htmlspecialchars(substr(accounts_historical_capture_start_date(),0,7), ENT_QUOTES, 'UTF-8')?>" max="<?=htmlspecialchars(date('Y-m'), ENT_QUOTES, 'UTF-8')?>"></label>
+    <label><span>FROM</span><input type="date" data-history-from min="<?=htmlspecialchars(accounts_historical_capture_start_date(), ENT_QUOTES, 'UTF-8')?>"></label>
+    <label><span>TO</span><input type="date" data-history-to max="<?=htmlspecialchars(date('Y-m-d'), ENT_QUOTES, 'UTF-8')?>"></label>
+    <label class="accounts-search-control"><span>SEARCH</span><input type="search" data-history-search placeholder="Supplier, description or reference"></label>
+    <label><span>ENTERED BY</span><input type="search" data-history-entered-by placeholder="Employee name"></label>
+    <label><span>STATUS</span><select data-history-status><option value="">All statuses</option><option value="captured">Captured</option><option value="reviewed">Reviewed</option><option value="needs_correction">Needs Correction</option></select></label>
+    <label><span>ADJUSTMENT</span><select data-history-manual><option value="">All records</option><option value="1">Manual adjustments</option><option value="0">Automatic calculations</option></select></label>
   </section>
   <?php endif; ?>
 
   <?php if(accounts_is_owner()): ?>
-  <section class="input-vat-settings-card" aria-labelledby="vatSettingsTitle">
+  <section class="input-vat-settings-card" aria-labelledby="vatSettingsTitle" data-monthly-section>
     <div class="input-vat-settings-copy">
       <span class="input-vat-settings-icon" aria-hidden="true"><i data-lucide="settings"></i></span>
       <div>
@@ -79,13 +95,13 @@ include BASE_PATH.'/shared/sidebar.php';
     <button type="button" class="portal-button portal-button--secondary" data-view-saved-month>View period</button>
   </aside>
   <?php else: ?>
-  <div class="input-vat-rate-indicator" role="note">
+  <div class="input-vat-rate-indicator" role="note" data-monthly-section>
     <span>Standard VAT Rate</span><strong data-rate-display><?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%</strong>
   </div>
   <?php endif; ?>
 
-  <section class="accounts-summary" data-summary aria-live="polite"></section>
-  <section class="accounts-breakdowns">
+  <section class="accounts-summary" data-summary aria-live="polite" data-monthly-section></section>
+  <section class="accounts-breakdowns" data-monthly-section>
     <article><h2>VAT treatment</h2><div data-treatment-summary></div></article>
     <article><h2>Suppliers</h2><div data-supplier-summary></div></article>
     <article><h2>Descriptions</h2><div data-description-summary></div></article>
