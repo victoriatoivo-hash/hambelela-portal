@@ -245,7 +245,7 @@
       const badge = state === 'complete' ? 'Complete' : (state === 'in_progress' ? 'In Progress' : 'Not Started');
       const shortMonth = monthLabel(item.month).split(' ')[0].slice(0, 3).toUpperCase();
       const monthNumber = Number(String(item.month).slice(5, 7));
-      return `<button type="button" class="input-vat-month-tab ${active ? 'is-active' : ''}" data-select-month="${esc(item.month)}" data-month-number="${monthNumber}" aria-selected="${active ? 'true' : 'false'}"><span>${esc(shortMonth)}</span><small class="${esc(state)}">${badge}</small></button>`;
+      return `<button type="button" class="input-vat-month-tab ${active ? 'is-active' : ''}" data-select-month="${esc(item.month)}" data-month-number="${monthNumber}" aria-selected="${active ? 'true' : 'false'}"${active ? ' aria-current="date"' : ''}><span>${esc(shortMonth)}</span><small class="${esc(state)}">${badge}</small></button>`;
     }).join('');
 
     const active = items.find((item) => item.month === activeMonth) || {month: activeMonth, count: 0, vat: 0, complete: false, capture_status: 'not_started'};
