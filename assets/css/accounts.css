@@ -452,7 +452,7 @@ body.input-vat-dialog-open{overflow:hidden!important}
 /* Input VAT Add Purchase final flow and compact evidence control. */
 #inputVatPage .input-vat-purchase-dialog .vat-preview{grid-template-columns:repeat(3,minmax(0,1fr));min-height:54px;margin:0;padding:1px;overflow:hidden}
 #inputVatPage .input-vat-purchase-dialog .vat-preview>span{min-width:0;min-height:52px;align-content:center;padding:7px 9px}
-#inputVatPage .input-vat-purchase-dialog .vat-preview strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#inputVatPage .input-vat-purchase-dialog .vat-preview strong{overflow:hidden;font-size:12px;text-overflow:ellipsis;white-space:nowrap}
 #inputVatPage .input-vat-purchase-dialog .vat-preview+.input-vat-form-section-title{margin:18px 0 0;padding:0 0 7px;border-bottom:1px solid #ede3d8;transform:none}
 #inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__area{display:flex;min-height:58px;align-items:center;padding:10px 13px;text-align:left}
 #inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__content{display:flex;min-height:0;align-items:center;gap:8px;flex-wrap:nowrap}
