@@ -5,6 +5,8 @@
   const pad = (value) => String(value).padStart(2, '0');
   const calendarIcon = '<svg class="portal-date-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M8 3v4M16 3v4M4 9h16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
   const clockIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 7v5l3 2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const previousIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6-6 6 6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const nextIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   let active = null;
   let popup = null;
   let viewDate = new Date();
@@ -81,11 +83,13 @@
       const date = new Date(gridStart);
       date.setDate(gridStart.getDate() + index);
       const outside = date.getMonth() !== viewDate.getMonth();
-      return `<button type="button" class="portal-date-day${outside ? ' is-outside-month' : ''}${sameDay(date, today) ? ' is-today' : ''}${sameDay(date, draftDate) ? ' is-selected' : ''}" data-portal-day="${storageValue(date, 'date')}" aria-label="${date.toLocaleDateString(undefined, { dateStyle: 'long' })}" aria-selected="${sameDay(date, draftDate)}">${date.getDate()}</button>`;
+      const value = storageValue(date, 'date');
+      const disabled = (active.min && value < active.min) || (active.max && value > active.max);
+      return `<button type="button" class="portal-date-day${outside ? ' is-outside-month' : ''}${sameDay(date, today) ? ' is-today' : ''}${sameDay(date, draftDate) ? ' is-selected' : ''}" data-portal-day="${value}" aria-label="${date.toLocaleDateString(undefined, { dateStyle: 'long' })}" aria-selected="${sameDay(date, draftDate)}"${disabled ? ' disabled aria-disabled="true"' : ''}>${date.getDate()}</button>`;
     }).join('');
     const time = draftDate || new Date();
     const clearAction = '<button type="button" class="portal-date-clear" data-portal-date-clear>Clear</button>';
-    popup.innerHTML = `<div class="portal-date-popup-header"><button type="button" class="portal-date-nav" data-date-nav="-1" aria-label="Previous month">‹</button><div class="portal-date-heading">${viewDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</div><button type="button" class="portal-date-nav" data-date-nav="1" aria-label="Next month">›</button></div><div class="portal-date-weekdays">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((day) => `<span class="portal-date-weekday">${day}</span>`).join('')}</div><div class="portal-date-grid">${days}</div>${mode === 'datetime' ? `<div class="portal-time-section"><div class="portal-time-controls"><button type="button" class="portal-time-part" data-time-hour>${pad(time.getHours() % 12 || 12)}</button><span class="portal-time-separator">:</span><button type="button" class="portal-time-part" data-time-minute>${pad(time.getMinutes())}</button><button type="button" class="portal-time-meridiem" data-time-meridiem>${time.getHours() >= 12 ? 'PM' : 'AM'}</button></div><button type="button" class="portal-date-now" data-portal-date-now>${clockIcon}<span>Now</span></button></div>` : ''}<div class="portal-date-actions">${clearAction}<div><button type="button" class="portal-date-cancel" data-portal-date-cancel>Cancel</button>${mode === 'datetime' ? '<button type="button" class="portal-date-apply" data-portal-date-apply>Apply</button>' : ''}</div></div>`;
+    popup.innerHTML = `<div class="portal-date-popup-header"><button type="button" class="portal-date-nav" data-date-nav="-1" aria-label="Previous month">${previousIcon}</button><div class="portal-date-heading">${viewDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</div><button type="button" class="portal-date-nav" data-date-nav="1" aria-label="Next month">${nextIcon}</button></div><div class="portal-date-weekdays">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((day) => `<span class="portal-date-weekday">${day}</span>`).join('')}</div><div class="portal-date-grid">${days}</div>${mode === 'datetime' ? `<div class="portal-time-section"><div class="portal-time-controls"><button type="button" class="portal-time-part" data-time-hour>${pad(time.getHours() % 12 || 12)}</button><span class="portal-time-separator">:</span><button type="button" class="portal-time-part" data-time-minute>${pad(time.getMinutes())}</button><button type="button" class="portal-time-meridiem" data-time-meridiem>${time.getHours() >= 12 ? 'PM' : 'AM'}</button></div><button type="button" class="portal-date-now" data-portal-date-now>${clockIcon}<span>Now</span></button></div>` : ''}<div class="portal-date-actions">${clearAction}${mode === 'datetime' ? '<div><button type="button" class="portal-date-cancel" data-portal-date-cancel>Cancel</button><button type="button" class="portal-date-apply" data-portal-date-apply>Apply</button></div>' : ''}</div>`;
     requestAnimationFrame(positionPopup);
   }
 
@@ -274,7 +278,7 @@
     timezoneInput.name = target.name ? `${target.name}_client_timezone` : 'client_timezone';
     timezoneInput.value = clientTimezone;
     if (!wrapper.querySelector(`[name="${CSS.escape(timezoneInput.name)}"]`)) wrapper.appendChild(timezoneInput);
-    const control = { wrapper, trigger, display, target, mode, placeholder, nativeInput: !isPortalDisplay ? input : null, dateTimeSeparator: nativeType === 'datetime-local' ? 'T' : ' ', cell: wrapper.closest('td,.ledger-cell,.packing-editable-date-cell,.portal-date-cell') };
+    const control = { wrapper, trigger, display, target, mode, placeholder, min: target.min || '', max: target.max || '', nativeInput: !isPortalDisplay ? input : null, dateTimeSeparator: nativeType === 'datetime-local' ? 'T' : ' ', cell: wrapper.closest('td,.ledger-cell,.packing-editable-date-cell,.portal-date-cell') };
     controls.set(input, control);
     targetControls.set(target, control);
     input.dataset.portalDateReady = 'true';

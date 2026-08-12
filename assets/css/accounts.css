@@ -596,7 +596,9 @@ body.input-vat-dialog-open{overflow:hidden!important}
 #inputVatPage .input-vat-month-status .input-vat-capture-complete:hover{border-color:#ab3619;background:#fdf6ee;color:#ab3619}
 #inputVatPage .input-vat-month-status .input-vat-capture-complete:active{transform:translateY(1px)}
 #inputVatPage .input-vat-purchase-dialog .portal-date-picker>.portal-date-field{height:32px;min-height:32px;max-height:32px;padding:0 34px 0 11px;border-radius:8px;font-size:12px}
-.portal-date-popup.is-input-vat-popup{position:fixed;z-index:70000;width:300px;max-width:calc(100vw - 24px);overflow:visible;border-radius:12px}
+.portal-date-popup.is-input-vat-popup{position:fixed;inset:auto;margin:0;z-index:var(--portal-z-date-picker,70000);width:300px;max-width:calc(100vw - 24px);overflow:visible;border-radius:12px}
+.portal-date-popup.is-input-vat-popup .portal-date-nav svg{width:15px;height:15px}
+.portal-date-popup.is-input-vat-popup .portal-date-actions:has(> .portal-date-clear:only-child){justify-content:flex-start}
 .portal-date-popup.is-input-vat-popup .portal-date-day{height:32px;min-height:32px;border-radius:8px;font-size:12px}
 .portal-date-popup.is-input-vat-popup .portal-date-day:hover{background:#fdf6ee;color:#ab3619;transform:none}
 .portal-date-popup.is-input-vat-popup .portal-date-day.is-selected{border-color:#f07420;background:rgba(240,116,32,.10);color:#721b1a;font-weight:600}

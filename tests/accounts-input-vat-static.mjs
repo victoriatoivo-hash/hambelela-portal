@@ -207,8 +207,12 @@ assert.match(css, /input-vat-active-period\{[^}]*height:var\(--iv-control-height
 assert.match(css, /input-vat-month-arrow\{[^}]*width:32px;height:32px/);
 assert.match(css, /input-vat-capture-complete\{[^}]*height:32px;min-height:32px/);
 assert.doesNotMatch(css, /input-vat-month-tab\[data-month-number=[^}]*--month-accent/, 'month tabs must not use per-month card colours');
-assert.match(css, /portal-date-popup\.is-input-vat-popup\{position:fixed;z-index:70000/);
+assert.match(css, /portal-date-popup\.is-input-vat-popup\{position:fixed;inset:auto;margin:0;z-index:var\(--portal-z-date-picker,70000\)/);
 assert.match(css, /portal-date-popup\.is-input-vat-popup \.portal-date-day\.is-selected\{border-color:#f07420/);
+assert.match(datePickerJs, /if \(active\.mode === 'date'\) \{ commit\(draftDate\); return; \}/);
+assert.match(datePickerJs, /const disabled = \(active\.min && value < active\.min\) \|\| \(active\.max && value > active\.max\)/);
+assert.match(datePickerJs, /const previousIcon = '<svg/);
+assert.doesNotMatch(datePickerJs, /aria-label="Previous month">‹/);
 assert.match(datePickerJs, /const isInputVat = Boolean\(control\?\.wrapper\?\.closest\('#inputVatPage'\)\)/);
 assert.match(datePickerJs, /const host = isInputVat \? document\.body/);
 assert.match(datePickerJs, /rect\.bottom < clip\.top \|\| rect\.top > clip\.bottom/);
