@@ -243,7 +243,7 @@
 /* Input VAT monthly workspace and owner transaction history. */
 #inputVatPage [hidden]{display:none!important}
 #inputVatPage .input-vat-primary-tabs{display:flex;align-items:center;gap:3px;margin:0 0 14px;padding:3px;border:1px solid #e4d7cf;border-radius:11px;background:#f6eee9;width:max-content;max-width:100%}
-#inputVatPage .input-vat-primary-tabs button{height:34px;display:inline-flex;align-items:center;gap:7px;padding:0 13px;border:0;border-radius:8px;background:transparent;color:#765b50;font:600 12px/1 var(--portal-font,"Poppins",sans-serif);cursor:pointer}
+#inputVatPage .input-vat-primary-tabs button{height:34px;display:inline-flex;align-items:center;gap:7px;padding:0 13px;border:0;border-radius:8px;background:transparent;color:#765b50;font:600 12px/1 Figtree,system-ui,sans-serif;cursor:pointer}
 #inputVatPage .input-vat-primary-tabs button svg{width:15px;height:15px}
 #inputVatPage .input-vat-primary-tabs button.is-active{background:#641f24;color:#fff;box-shadow:0 2px 8px rgba(65,22,25,.16)}
 #inputVatPage .input-vat-primary-tabs button:focus-visible,#inputVatPage .input-vat-month-tab:focus-visible{outline:3px solid rgba(113,31,34,.22);outline-offset:2px}
@@ -381,3 +381,68 @@
 @media(max-width:760px){#inputVatPage .accounts-actions{display:grid;grid-template-columns:1fr 1fr}#inputVatPage .accounts-toolbar{grid-template-columns:1fr 180px}#inputVatPage .input-vat-month-nav{grid-template-columns:34px minmax(0,1fr) 34px}#inputVatPage .input-vat-year-select{grid-column:1/-1;grid-row:1}#inputVatPage .input-vat-year-select select{width:100%}#inputVatPage .input-vat-month-arrow:first-child{grid-column:1;grid-row:2}#inputVatPage .input-vat-month-tabs{grid-column:2;grid-row:2}#inputVatPage .input-vat-month-arrow:last-child{grid-column:3;grid-row:2}}
 @media(max-width:600px){#inputVatPage .input-vat-purchase-dialog{inset:0;width:100vw;max-width:none;height:100dvh;max-height:none;margin:0;border:0;border-radius:0}#inputVatPage .input-vat-purchase-dialog>form{height:100dvh;max-height:none}#inputVatPage .input-vat-purchase-dialog .accounts-form-grid{grid-template-columns:1fr}#inputVatPage .input-vat-purchase-dialog .span-2{grid-column:auto}#inputVatPage .input-vat-purchase-dialog .input-vat-financial-grid,#inputVatPage .vat-preview{grid-template-columns:1fr}#inputVatPage .input-vat-purchase-dialog input,#inputVatPage .input-vat-purchase-dialog select,#inputVatPage .input-vat-purchase-dialog textarea{font-size:16px!important}}
 @media(max-width:480px){#inputVatPage .input-vat-primary-tabs{gap:14px}#inputVatPage .input-vat-primary-tabs button{justify-content:flex-start}#inputVatPage .accounts-toolbar{grid-template-columns:1fr}#inputVatPage .input-vat-month-status{align-items:stretch}#inputVatPage .accounts-summary{grid-template-columns:1fr 1fr}#inputVatPage .accounts-summary article{min-height:92px;padding:11px}#inputVatPage .input-vat-history-toolbar{grid-template-columns:1fr}}
+
+/* Input VAT modal, upload, header and scrolling correction. */
+#inputVatPage .accounts-hero>.accounts-actions{align-items:center;justify-content:flex-end}
+#inputVatPage .accounts-actions>.portal-header-status{margin-left:4px}
+#inputVatPage .accounts-summary{order:initial;margin-top:4px}
+#inputVatPage .accounts-form-grid{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;gap:12px;margin:0}
+#inputVatPage .input-vat-purchase-dialog .accounts-form-grid>label{min-width:0;align-self:start}
+#inputVatPage .input-vat-purchase-dialog .accounts-form-grid>label>input,
+#inputVatPage .input-vat-purchase-dialog .accounts-form-grid>label>select{width:100%;box-sizing:border-box}
+#inputVatPage .input-vat-purchase-dialog .field-help{min-height:15px;margin:0;font-size:10px;line-height:1.35}
+#inputVatPage .input-vat-purchase-dialog textarea[name="description"]{height:96px;min-height:96px}
+#inputVatPage .input-vat-purchase-dialog textarea[name="notes"]{height:64px;min-height:64px}
+#inputVatPage .input-vat-form-section-title{margin:4px 0 0;padding-bottom:7px;font-size:16px;font-weight:600;letter-spacing:0;text-transform:none}
+#inputVatPage .input-vat-override-toggle{min-height:54px;padding:10px 12px;border:1px solid var(--iv-border)}
+#inputVatPage .input-vat-override-toggle input[type="checkbox"]{appearance:none;-webkit-appearance:none;width:18px!important;height:18px!important;min-height:18px!important;margin:1px 0 0;padding:0;border:1px solid #cbb8aa;border-radius:5px;background:#fff;display:grid;place-items:center;cursor:pointer;transition:background-color 120ms ease,border-color 120ms ease}
+#inputVatPage .input-vat-override-toggle input[type="checkbox"]::after{content:"";width:8px;height:4px;border:0 solid #fff;border-width:0 0 2px 2px;opacity:0;transform:translateY(-1px) rotate(-45deg) scale(.7);transition:opacity 120ms ease,transform 120ms ease}
+#inputVatPage .input-vat-override-toggle input[type="checkbox"]:checked{border-color:var(--iv-burgundy);background:var(--iv-burgundy)}
+#inputVatPage .input-vat-override-toggle input[type="checkbox"]:checked::after{opacity:1;transform:translateY(-1px) rotate(-45deg) scale(1)}
+#inputVatPage .input-vat-override-toggle input[type="checkbox"]:focus-visible{outline:2px solid rgba(171,54,25,.25);outline-offset:2px}
+#inputVatPage .input-vat-manual-wrap{grid-template-columns:repeat(2,minmax(0,1fr));animation:input-vat-expand 180ms var(--iv-ease)}
+#inputVatPage .input-vat-manual-wrap label:last-child{grid-column:1/-1}
+@keyframes input-vat-expand{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+#inputVatPage .vat-preview{background:#dbe7c7}
+#inputVatPage .input-vat-file-upload{width:100%}
+#inputVatPage .input-vat-file-upload__area{width:100%;min-height:144px;display:grid;place-items:center;padding:17px;border:1px dashed #d5bba9;border-radius:12px;background:var(--iv-hover);box-sizing:border-box;text-align:center}
+#inputVatPage .input-vat-file-upload__area.is-dragover{border-color:var(--iv-action);background:var(--iv-soft);transform:none}
+#inputVatPage .input-vat-file-upload__content{min-height:0;display:grid;place-items:center;gap:7px}
+#inputVatPage .input-vat-file-upload__icon{width:34px;height:34px;display:grid;place-items:center;border-radius:50%;background:#fff;color:var(--iv-action);font-size:17px}
+#inputVatPage .input-vat-file-upload__text{min-width:0;place-items:center;gap:2px;color:var(--iv-mid);font-size:12px}
+#inputVatPage .input-vat-file-upload__text strong{font-size:13px;font-weight:600;color:var(--iv-burgundy)}
+#inputVatPage .input-vat-file-upload__text>span:not(.input-vat-file-upload__hint){font-size:10px;color:var(--iv-light)}
+#inputVatPage .input-vat-file-upload .input-vat-choose-files{height:34px;min-height:34px;margin:3px 0 0;padding-inline:13px}
+#inputVatPage .pending-files{gap:7px}
+#inputVatPage .pending-file{min-height:40px;gap:10px;padding:7px 9px;border:1px solid var(--iv-border);border-radius:8px;background:var(--iv-soft);animation:input-vat-file-in 160ms var(--iv-ease)}
+#inputVatPage .pending-file>span{min-width:0;display:grid;gap:2px}
+#inputVatPage .pending-file strong{overflow:hidden;font-size:11px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
+#inputVatPage .pending-file small{font-size:9px;color:var(--iv-light)}
+#inputVatPage .pending-file button{height:28px;padding:0 8px;border:0;border-radius:6px;background:transparent;color:var(--iv-action);font:600 10px Figtree,sans-serif}
+#inputVatPage .pending-file button:hover{background:#fff0ea}
+@keyframes input-vat-file-in{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+#inputVatPage .input-vat-purchase-dialog>form{overflow:hidden}
+#inputVatPage .input-vat-purchase-dialog .accounts-form-grid{min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+#inputVatPage .input-vat-purchase-dialog>form>footer{position:sticky;bottom:0;z-index:2}
+#inputVatPage .input-vat-rate-dialog{width:min(520px,calc(100vw - 28px));max-height:82vh;overflow:hidden;border:1px solid var(--iv-border);border-radius:14px}
+#inputVatPage .input-vat-rate-dialog>form{max-height:82vh;display:grid;grid-template-rows:auto minmax(0,1fr) auto;padding:0;overflow:hidden;background:#fff}
+#inputVatPage .input-vat-rate-dialog>form>header{padding:15px 17px;border-bottom:1px solid var(--iv-border)}
+#inputVatPage .input-vat-rate-dialog .eyebrow{font-size:10px;font-weight:600;color:var(--iv-action)}
+#inputVatPage .input-vat-rate-dialog h2{font-size:18px;font-weight:600;color:var(--iv-burgundy)}
+#inputVatPage .input-vat-rate-dialog-body{min-height:0;padding:15px 17px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+#inputVatPage .input-vat-rate-dialog .rate-change-grid{grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch;margin:0 0 12px}
+#inputVatPage .input-vat-rate-card{min-height:88px;display:grid!important;align-content:center;gap:7px;padding:12px!important;box-sizing:border-box}
+#inputVatPage .input-vat-rate-card>span{font-size:10px;font-weight:600;color:var(--iv-light)}
+#inputVatPage .input-vat-rate-card strong{margin:0;font-size:22px;font-weight:600;color:var(--iv-burgundy)}
+#inputVatPage .input-vat-rate-card .rate-input-wrap{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:7px}
+#inputVatPage .input-vat-rate-card input,#inputVatPage .input-vat-rate-dialog-body>label input{height:36px;min-height:36px;font-size:12px}
+#inputVatPage .input-vat-rate-dialog-body>label{display:grid;gap:5px;font-size:11px;font-weight:600;color:var(--iv-mid)}
+#inputVatPage .input-vat-rate-dialog .settings-warning{margin-top:12px;margin-bottom:10px;padding:9px 11px;border-left:3px solid var(--iv-amber);border-radius:6px;background:#fff8e8;font-size:11px}
+#inputVatPage .input-vat-rate-dialog>form>footer{padding:11px 17px;border-top:1px solid var(--iv-border);background:#fff}
+#inputVatPage .input-vat-rate-dialog>form>footer .portal-button{height:34px;min-height:34px;font-size:12px;font-weight:600}
+body.input-vat-dialog-open{overflow:hidden!important}
+@media(max-width:900px){#inputVatPage .accounts-hero>.accounts-actions{width:100%;justify-content:flex-start}#inputVatPage .accounts-actions>.portal-header-status{width:100%;margin:4px 0 0;justify-content:flex-end}}
+@media(max-width:768px){#inputVatPage .accounts-summary{grid-template-columns:repeat(2,minmax(0,1fr))}#inputVatPage .input-vat-purchase-dialog{width:calc(100vw - 24px)}}
+@media(max-width:600px){#inputVatPage .accounts-form-grid,#inputVatPage .input-vat-manual-wrap{grid-template-columns:1fr}#inputVatPage .input-vat-manual-wrap label:last-child{grid-column:auto}#inputVatPage .input-vat-file-upload__area{min-height:132px;padding:15px}#inputVatPage .input-vat-rate-dialog{inset:0;width:100vw;max-width:none;height:100dvh;max-height:none;margin:0;border:0;border-radius:0}#inputVatPage .input-vat-rate-dialog>form{height:100dvh;max-height:none;grid-template-rows:auto minmax(0,1fr) auto;overflow-y:auto}#inputVatPage .input-vat-rate-dialog .rate-change-grid{grid-template-columns:1fr}}
+@media(max-width:430px){#inputVatPage .accounts-summary{grid-template-columns:1fr}#inputVatPage .accounts-actions>.portal-header-status{justify-content:flex-start;overflow-x:auto}}
+@media(prefers-reduced-motion:reduce){#inputVatPage .input-vat-override-toggle input[type="checkbox"],#inputVatPage .input-vat-override-toggle input[type="checkbox"]::after,#inputVatPage .input-vat-manual-wrap,#inputVatPage .pending-file{animation:none!important;transition:none!important}}

@@ -33,7 +33,7 @@ include BASE_PATH.'/shared/sidebar.php';
       <p>Record local VAT purchases and calculate Input VAT for the selected period.</p>
       <p class="input-vat-active-period" data-active-period><i data-lucide="calendar-days" aria-hidden="true"></i><span class="input-vat-active-period-label" data-active-period-kicker>ACTIVE PERIOD</span><strong data-active-period-value><?=htmlspecialchars(date('F Y'), ENT_QUOTES, 'UTF-8')?></strong></p>
     </div>
-    <div class="accounts-actions">
+    <div class="accounts-actions" data-portal-header-status-target>
       <button class="portal-button portal-button--primary" type="button" data-add-purchase><span class="portal-button__icon" aria-hidden="true">+</span> Add Purchase</button>
       <button type="button" class="portal-button portal-button--secondary" data-print><span class="portal-button__icon" aria-hidden="true">&#128438;</span> Print</button>
       <a class="portal-button portal-button--ghost" data-export href="input-vat-api.php?action=export"><span class="portal-button__icon" aria-hidden="true">&#8595;</span> Export CSV</a>
@@ -75,16 +75,10 @@ include BASE_PATH.'/shared/sidebar.php';
   <?php endif; ?>
 
   <?php if(accounts_is_owner()): ?>
-  <div class="input-vat-rate-indicator" role="note" data-monthly-section><span>Standard VAT Rate</span><strong data-rate-display><?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%</strong></div>
-
   <aside class="input-vat-period-notice" data-period-notice role="status" aria-live="polite" hidden>
     <div><strong data-period-notice-title></strong><span data-period-notice-copy></span></div>
     <button type="button" class="portal-button portal-button--secondary" data-view-saved-month>View period</button>
   </aside>
-  <?php else: ?>
-  <div class="input-vat-rate-indicator" role="note" data-monthly-section>
-    <span>Standard VAT Rate</span><strong data-rate-display><?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%</strong>
-  </div>
   <?php endif; ?>
 
   <section class="accounts-summary" data-summary aria-live="polite" data-monthly-section></section>
@@ -121,14 +115,12 @@ include BASE_PATH.'/shared/sidebar.php';
         <label class="span-2">Description<textarea name="description" required></textarea></label>
         <h3 class="input-vat-form-section-title span-2">VAT calculation</h3>
         <label>Calculation source<select name="calculation_source"><option value="inclusive">Amount incl VAT</option><option value="exclusive">Amount excl VAT</option></select></label>
-        <div class="input-vat-financial-grid">
-          <label data-inclusive-source class="input-vat-financial-field">Amount incl VAT (N$)<input name="inclusive" type="number" min="0" step="0.01"></label>
-          <label data-exclusive-source hidden class="input-vat-financial-field">Amount excl VAT (N$)<input name="exclusive_source" type="number" min="0" step="0.01"></label>
-          <label class="input-vat-financial-field">VAT treatment<select name="vat_treatment" required><option value="standard" data-standard-rate-option>Standard VAT <?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%</option><option value="zero_rated">Zero Rated</option><option value="no_vat">No VAT / Non-VAT</option><option value="manual_vat">Manual VAT</option><option value="review_required">Review Required</option></select><small class="field-help" data-standard-rate-hint>The configured standard VAT rate is <?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%.</small></label>
-          <label class="input-vat-financial-field" data-manual-vat-wrap hidden>Manual VAT (N$)<input name="manual_vat" type="number" min="0" step="0.01"></label>
-        </div>
+        <label>VAT treatment<select name="vat_treatment" required><option value="standard" data-standard-rate-option>Standard VAT <?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%</option><option value="zero_rated">Zero Rated</option><option value="no_vat">No VAT / Non-VAT</option><option value="manual_vat">Manual VAT</option><option value="review_required">Review Required</option></select><small class="field-help" data-standard-rate-hint>The configured standard VAT rate is <?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%.</small></label>
+        <label data-inclusive-source>Amount incl VAT (N$)<input name="inclusive" type="number" min="0" step="0.01"></label>
+        <label data-exclusive-source hidden>Amount excl VAT (N$)<input name="exclusive_source" type="number" min="0" step="0.01"></label>
         <label class="span-2 input-vat-override-toggle"><input name="manual_override" type="checkbox" value="1"><span>Edit calculated amounts</span><small>Use only when the supplier document differs from the automatic calculation.</small></label>
         <div class="span-2 input-vat-manual-wrap" data-manual-wrap hidden>
+          <label data-manual-vat-wrap>Input VAT (N$)<input name="manual_vat" type="number" min="0" step="0.01"></label>
           <label>Adjusted excl VAT (N$)<input name="manual_exclusive" type="number" min="0" step="0.01"></label>
           <label class="span-2">Reason for adjustment<select name="override_reason"><option value="">Select reason</option><option>Supplier invoice adjustment</option><option>Mixed VAT treatment</option><option>Rounding correction</option><option>Special accounting treatment</option></select></label>
         </div>
@@ -141,17 +133,18 @@ include BASE_PATH.'/shared/sidebar.php';
           <div><button type="button" class="portal-button portal-button--ghost" data-month-warning-cancel>Cancel</button><button type="button" class="portal-button portal-button--primary" data-month-warning-confirm>Save to period</button></div>
         </div>
         <div class="span-2 input-vat-file-upload">
-          <label for="inputVatEvidenceFiles" class="input-vat-file-upload__area" data-upload-area>
+          <div class="input-vat-file-upload__area" data-upload-area>
             <div class="input-vat-file-upload__content">
               <span class="input-vat-file-upload__icon" aria-hidden="true">&#x1F4E4;</span>
               <div class="input-vat-file-upload__text">
-                <strong>Drag and drop files here or</strong>
+                <strong>Drag &amp; drop invoice or receipt here</strong>
+                <span>PDF, JPG or PNG</span>
                 <span class="input-vat-file-upload__hint" data-file-upload-hint>No files selected</span>
               </div>
               <button type="button" class="portal-button portal-button--secondary input-vat-choose-files" data-choose-files>Choose Files</button>
             </div>
             <input id="inputVatEvidenceFiles" name="files[]" type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt">
-          </label>
+          </div>
         </div>
         <div class="pending-files span-2" data-pending-files></div>
       </div>
@@ -170,13 +163,15 @@ include BASE_PATH.'/shared/sidebar.php';
         <div><p class="eyebrow">Input VAT Settings</p><h2>Update Standard VAT Rate?</h2></div>
         <button type="button" data-close-rate aria-label="Close">&times;</button>
       </header>
-      <div class="rate-change-grid">
-        <div><span>Current</span><strong data-current-rate><?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%</strong></div>
-        <label>New rate<div class="rate-input-wrap"><input data-rate-setting type="number" min="0" max="100" step="0.01" value="<?=htmlspecialchars((string)$rate, ENT_QUOTES, 'UTF-8')?>"><span>%</span></div></label>
+      <div class="input-vat-rate-dialog-body">
+        <div class="rate-change-grid">
+          <div class="input-vat-rate-card"><span>Current rate</span><strong data-current-rate><?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%</strong></div>
+          <label class="input-vat-rate-card"><span>New rate</span><div class="rate-input-wrap"><input data-rate-setting type="number" min="0" max="100" step="0.01" value="<?=htmlspecialchars((string)$rate, ENT_QUOTES, 'UTF-8')?>"><span>%</span></div></label>
+        </div>
+        <label>Historical capture start date<input data-capture-start-setting type="date" max="<?=htmlspecialchars(date('Y-m-d'), ENT_QUOTES, 'UTF-8')?>" value="<?=htmlspecialchars(accounts_historical_capture_start_date(), ENT_QUOTES, 'UTF-8')?>"></label>
+        <p class="settings-warning">This change applies to <strong>new Standard VAT records only</strong>. Existing saved Input VAT records will not be recalculated.</p>
+        <p class="form-message" data-rate-message></p>
       </div>
-      <label>Historical capture start date<input data-capture-start-setting type="date" max="<?=htmlspecialchars(date('Y-m-d'), ENT_QUOTES, 'UTF-8')?>" value="<?=htmlspecialchars(accounts_historical_capture_start_date(), ENT_QUOTES, 'UTF-8')?>"></label>
-      <p class="settings-warning">This change applies to <strong>new Standard VAT records only</strong>. Existing saved Input VAT records will not be recalculated.</p>
-      <p class="form-message" data-rate-message></p>
       <footer>
         <button type="button" data-close-rate class="portal-button portal-button--ghost">Cancel</button>
         <button type="submit" class="portal-button portal-button--primary" data-save-rate>Update Rate</button>

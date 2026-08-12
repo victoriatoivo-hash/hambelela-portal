@@ -378,7 +378,11 @@
   }
 
   function pendingRender() {
-    $('[data-pending-files]').innerHTML = pending.map((file, i) => `<div class="pending-file"><span>${esc(file.name)} · ${(file.size / 1024).toFixed(1)} KB</span><button type="button" data-remove-pending="${i}">Remove</button></div>`).join('');
+    $('[data-pending-files]').innerHTML = pending.map((file, i) => {
+      const type = String(file.type || file.name.split('.').pop() || 'file').replace('application/', '').replace('image/', '').toUpperCase();
+      const size = file.size >= 1024 * 1024 ? `${(file.size / 1024 / 1024).toFixed(1)} MB` : `${(file.size / 1024).toFixed(1)} KB`;
+      return `<div class="pending-file"><span><strong>${esc(file.name)}</strong><small>${esc(type)} · ${size}</small></span><button type="button" data-remove-pending="${i}" aria-label="Remove ${esc(file.name)}">Remove</button></div>`;
+    }).join('');
     const uploadHint = $('[data-file-upload-hint]');
     if (uploadHint) {
       uploadHint.textContent = pending.length ? `${pending.length} file${pending.length === 1 ? '' : 's'} selected` : 'No files selected';
@@ -387,8 +391,37 @@
 
   function appendPendingFiles(files) {
     if (!files.length) return;
-    pending = [...pending, ...Array.from(files)];
+    const next = [...pending, ...Array.from(files)];
+    if (next.length > 10) {
+      $('[data-form-message]').textContent = 'Upload no more than 10 files at once.';
+      return;
+    }
+    pending = next;
+    $('[data-form-message]').textContent = '';
     pendingRender();
+  }
+
+  let modalScrollState = null;
+  function lockPageScroll() {
+    if (modalScrollState) return;
+    modalScrollState = {
+      y: window.scrollY,
+      bodyOverflow: document.body.style.overflow,
+      htmlOverflow: document.documentElement.style.overflow,
+    };
+    document.body.classList.add('input-vat-dialog-open');
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+  }
+
+  function restorePageScroll() {
+    if (!modalScrollState || document.querySelector('.accounts-dialog[open]')) return;
+    const state = modalScrollState;
+    modalScrollState = null;
+    document.body.classList.remove('input-vat-dialog-open');
+    document.body.style.overflow = state.bodyOverflow;
+    document.documentElement.style.overflow = state.htmlOverflow;
+    window.scrollTo({top: state.y, left: 0, behavior: 'auto'});
   }
 
   function closePurchaseModal() {
@@ -407,6 +440,7 @@
 
   function openPurchaseModal() {
     dialog.classList.remove('is-closing');
+    lockPageScroll();
     dialog.showModal();
   }
 
@@ -593,6 +627,8 @@
       } else {
         showToast(`Purchase added. The ${monthLabel(enteredMonth)} Input VAT register has been updated.`);
       }
+      pending = [];
+      pendingRender();
       closePurchaseModal();
       delete form.dataset.duplicateConfirmed;
       await load();
@@ -617,8 +653,6 @@
     } finally {
       saveButton.disabled = false;
       saveButton.textContent = originalText;
-      pending = [];
-      pendingRender();
     }
   });
 
@@ -635,6 +669,7 @@
     event.preventDefault();
     closePurchaseModal();
   });
+  dialog.addEventListener('close', () => window.requestAnimationFrame(restorePageScroll));
 
   $('[data-view-saved-month]').addEventListener('click', () => {
     const month = $('[data-view-saved-month]').dataset.month;
@@ -677,11 +712,13 @@
     page.querySelectorAll('[data-close-rate]').forEach((button) => {
       button.addEventListener('click', () => rateDialog.close());
     });
+    rateDialog.addEventListener('close', () => window.requestAnimationFrame(restorePageScroll));
 
     $('[data-open-rate-settings]').onclick = () => {
       $('[data-rate-setting]').value = page.dataset.rate;
       $('[data-capture-start-setting]').value = page.dataset.captureStart;
       $('[data-rate-message]').textContent = '';
+      lockPageScroll();
       rateDialog.showModal();
     };
 
