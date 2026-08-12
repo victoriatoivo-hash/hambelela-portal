@@ -161,6 +161,7 @@ assert.match(css, /input-vat-rate-card\{min-height:88px/);
 assert.match(css, /portal-select-popup\[data-portal-select-variant="input-vat"\]/);
 assert.match(portalJs, /popup\.setAttribute\('popover', 'manual'\)/, 'portal dropdown popup must enter the browser top layer above native dialogs');
 assert.match(portalJs, /popupElement\.showPopover\(\)/, 'portal dropdown popup must open through the Popover API');
+assert.match(portalJs, /nativeSelect\.closest\('dialog\[open\]'\) \|\| document\.body/, 'modal dropdown options must remain interactive inside the active dialog');
 assert.doesNotMatch(css, /Poppins/);
 
 const inclusive = 944.85;
