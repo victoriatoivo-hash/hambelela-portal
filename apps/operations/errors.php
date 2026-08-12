@@ -1415,7 +1415,16 @@ function replaceErrorFilterResults(nextDocument) {
     if (currentBody && nextBody) currentBody.innerHTML = nextBody.innerHTML;
   });
   document.querySelector('[data-error-filter-failure]')?.remove();
+  bindErrorFilterChips();
   window.lucide?.createIcons({ attrs: { 'aria-hidden': 'true' }, strokeWidth: 1.7 });
+}
+
+function bindErrorFilterChips() {
+  document.querySelectorAll('[data-error-filter-chip], [data-error-filter-clear-link]').forEach((chip) => {
+    if (chip.dataset.filterBound === '1') return;
+    chip.dataset.filterBound = '1';
+    chip.addEventListener('click', () => loadErrorFilterView(chip.dataset.filterUrl || 'errors.php'));
+  });
 }
 
 function updateErrorFilterToolbar(nextDocument) {
@@ -1492,12 +1501,7 @@ errorFilterForm?.addEventListener('submit', (event) => {
   loadErrorFilterView(`errors.php?${parameters.toString()}`);
 });
 errorFilterForm?.querySelector('[data-error-filter-clear]')?.addEventListener('click', () => loadErrorFilterView('errors.php'));
-document.addEventListener('click', (event) => {
-  const chip = event.target.closest('[data-error-filter-chip], [data-error-filter-clear-link]');
-  if (!chip) return;
-  event.preventDefault();
-  loadErrorFilterView(chip.dataset.filterUrl || 'errors.php');
-});
+bindErrorFilterChips();
 window.addEventListener('popstate', () => loadErrorFilterView(location.href, { push: false }));
 
 async function markOwnerInstructionsRead(panel) {
