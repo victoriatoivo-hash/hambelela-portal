@@ -78,14 +78,15 @@
 #inputVatPage .accounts-toolbar input,#inputVatPage .accounts-toolbar select,#inputVatPage .accounts-toolbar button,#inputVatPage .accounts-period-controls label,#inputVatPage .accounts-input-date-label{height:34px;min-height:34px}
 #inputVatPage .accounts-toolbar input,#inputVatPage .accounts-toolbar select,#inputVatPage .accounts-input-date-label input{height:34px;min-height:34px;max-height:34px;border:1px solid #d6c6ba;border-radius:8px;padding:0 12px;background:#fff;box-shadow:none;outline:0;color:var(--iv-muted);font:400 12px inherit;appearance:none;-webkit-appearance:none}
 #inputVatPage .accounts-toolbar input:focus,#inputVatPage .accounts-toolbar select:focus{border-color:var(--iv-accent);box-shadow:0 0 0 2px rgba(171,54,25,.12)}
-#inputVatPage .accounts-toolbar button,#inputVatPage .accounts-filter-group .iv-btn,#inputVatPage .accounts-period-controls .iv-btn,#inputVatPage .accounts-month-step{appearance:none;-webkit-appearance:none;font:500 12px inherit;line-height:1;height:34px;min-height:34px;padding:0 13px;box-shadow:none;text-shadow:none;outline-offset:2px;border-radius:8px}
+#inputVatPage .portal-action-btn{appearance:none;-webkit-appearance:none;font:500 12px inherit;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:7px;height:34px;min-height:34px;padding:0 13px;border-radius:8px;box-shadow:none;text-shadow:none;outline-offset:2px;border:1px solid transparent;text-decoration:none;transition:background-color .16s ease,border-color .16s ease,color .16s ease,transform .12s ease,box-shadow .16s ease}
+#inputVatPage .portal-action-btn--primary,#inputVatPage .portal-action-btn--secondary,#inputVatPage .portal-action-btn--tertiary{font-weight:500}
 #inputVatPage .iv-btn{font:500 12px inherit}
-#inputVatPage .iv-btn--primary{background:var(--iv-primary);color:#fff;border:1px solid var(--iv-primary);box-shadow:none;transition:background-color .16s ease,border-color .16s ease,transform .12s ease,box-shadow .16s ease}
-#inputVatPage .iv-btn--primary:hover{background:#5f1716;transform:translateY(-1px);box-shadow:0 6px 14px rgba(95,23,22,.16)}
-#inputVatPage .iv-btn--secondary{background:#fff;color:#6a4437;border:1px solid var(--iv-border)}
-#inputVatPage .iv-btn--secondary:hover{border-color:var(--iv-accent);background:var(--iv-soft)}
-#inputVatPage .iv-btn--tertiary{background:transparent;border:1px solid transparent}
-#inputVatPage .iv-btn--tertiary:hover{background:var(--iv-soft);border-color:var(--iv-accent);color:var(--iv-accent)}
+#inputVatPage .iv-btn--primary.portal-action-btn{background:var(--iv-primary);color:#fff;border-color:var(--iv-primary)}
+#inputVatPage .iv-btn--primary.portal-action-btn:hover{background:#5f1716;transform:translateY(-1px);box-shadow:0 6px 14px rgba(95,23,22,.16)}
+#inputVatPage .iv-btn--secondary.portal-action-btn{background:#fff;color:#6a4437;border-color:var(--iv-border)}
+#inputVatPage .iv-btn--secondary.portal-action-btn:hover{border-color:var(--iv-accent);background:var(--iv-soft)}
+#inputVatPage .iv-btn--tertiary.portal-action-btn{background:transparent;border-color:transparent}
+#inputVatPage .iv-btn--tertiary.portal-action-btn:hover{background:var(--iv-soft);border-color:var(--iv-accent);color:var(--iv-accent)}
 #inputVatPage .accounts-actions > *{height:34px;min-height:34px}
 #inputVatPage .accounts-toolbar input[type='search']{padding-left:38px;background-image:radial-gradient(circle at 11px 50%,transparent 5px,#8d7569 5.5px,#8d7569 6.5px,transparent 7px),linear-gradient(45deg,transparent 48%,#8d7569 49%,#8d7569 55%,transparent 56%);background-position:0 0,16px 50%;background-size:auto,8px 8px;background-repeat:no-repeat}
 #inputVatPage .accounts-form-grid label{font-size:11px}

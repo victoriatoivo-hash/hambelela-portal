@@ -6,6 +6,7 @@
   const csrf = page.dataset.csrf;
   const owner = page.dataset.owner === '1';
   const $ = (s) => page.querySelector(s);
+  const actionButtons = page.querySelectorAll('.portal-action-btn[data-add-purchase], .portal-action-btn[data-print], .portal-action-btn[data-export]');
 
   const money = (n) => `N$ ${Number(n || 0).toLocaleString('en-NA', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
   const rateLabel = (n) => Number(n || 0).toLocaleString('en-NA', {maximumFractionDigits: 2}) + '%';
@@ -156,6 +157,10 @@
     const controls = page.querySelectorAll('[data-previous-month],[data-next-month],[data-month],[data-search],[data-status],[data-sort],[data-add-purchase],[data-export],[data-print]');
     controls.forEach((control) => {
       if ('disabled' in control) control.disabled = disabled;
+    });
+
+    actionButtons.forEach((button) => {
+      button.disabled = disabled;
     });
   }
 
