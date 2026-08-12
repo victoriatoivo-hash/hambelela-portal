@@ -32,7 +32,7 @@
 #inputVatPage .analysis-empty p{margin:3px 0;font-size:11px}
 #inputVatPage .accounts-table-card{position:relative;border-color:var(--iv-border);box-shadow:0 10px 30px rgba(74,35,20,.05)}
 #inputVatPage .accounts-scroll-hint{display:none;margin:0;padding:8px 12px;background:var(--iv-soft);color:var(--iv-muted);font-size:10px;text-align:right}
-#inputVatPage .accounts-table-card th{position:sticky;top:0;z-index:1;padding-block:12px;background:#f7f0ea;letter-spacing:.06em}
+#inputVatPage .accounts-table-card th{position:sticky;top:0;z-index:1;height:34px;min-height:34px;padding-block:0;background:#f7f0ea;letter-spacing:.06em;font-size:12px;font-weight:400;line-height:34px}
 #inputVatPage .accounts-table-card tbody tr:hover{background:#fffaf6}
 #inputVatPage .accounts-table-card td.money{text-align:right;white-space:nowrap}
 #inputVatPage .accounts-table-card td.vat-money{color:var(--iv-primary)}
