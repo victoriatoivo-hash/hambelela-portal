@@ -6,7 +6,8 @@ define('BASE_PATH', dirname(__DIR__));
 require_once BASE_PATH . '/shared/cost-workbook.php';
 
 $failures = [];
-function check(string $name, bool $ok): void { global $failures; echo ($ok ? 'PASS ' : 'FAIL ') . $name . PHP_EOL; if (!$ok) $failures[]=$name; }
+$assertions = 0;
+function check(string $name, bool $ok): void { global $failures,$assertions; $assertions++; echo ($ok ? 'PASS ' : 'FAIL ') . $name . PHP_EOL; if (!$ok) $failures[]=$name; }
 function numeric_close($actual,float $expected,float $epsilon=0.000001):bool{return !is_bool($actual)&&$actual!==null&&is_numeric($actual)&&is_finite((float)$actual)&&abs((float)$actual-$expected)<=$epsilon;}
 function check_close(string $name,$actual,float $expected,float $epsilon=0.000001):void{check($name,numeric_close($actual,$expected,$epsilon));}
 
@@ -49,4 +50,5 @@ $zero=cw_calculate_invoice_line(1,'100','0','15','exclusive');check('zero discou
 $inclusive=cw_calculate_invoice_line(1,'115','15','15','inclusive');check('inclusive VAT is not added twice', $inclusive['line_subtotal']==='85.00'&&$inclusive['line_total']==='100.00');
 foreach([['-1','Discount must reject negatives'],['oops','Discount must reject malformed values'],['101','Discount must not exceed gross']] as [$discount,$name]){try{cw_calculate_invoice_line(1,'100',$discount,'0','exclusive');check($name,false);}catch(InvalidArgumentException $e){check($name,true);}}
 
+echo sprintf("Phase 1 assertions: %d/%d passed.%s",$assertions-count($failures),$assertions,PHP_EOL);
 exit($failures ? 1 : 0);
