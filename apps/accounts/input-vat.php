@@ -21,7 +21,7 @@ include BASE_PATH.'/shared/header.php';
 include BASE_PATH.'/shared/sidebar.php';
 ?>
 
-<main class="workspace module accounts-page" id="inputVatPage" data-api="input-vat-api.php" data-csrf="<?=htmlspecialchars(accounts_csrf_token(), ENT_QUOTES, 'UTF-8')?>" data-owner="<?=accounts_is_owner() ? '1' : '0'?>" data-rate="<?=htmlspecialchars((string)$rate, ENT_QUOTES, 'UTF-8')?>">
+<main class="workspace module accounts-page" id="inputVatPage" data-api="input-vat-api.php" data-csrf="<?=htmlspecialchars(accounts_csrf_token(), ENT_QUOTES, 'UTF-8')?>" data-owner="<?=accounts_is_owner() ? '1' : '0'?>" data-rate="<?=htmlspecialchars((string)$rate, ENT_QUOTES, 'UTF-8')?>" data-business-today="<?=htmlspecialchars(date('Y-m-d'), ENT_QUOTES, 'UTF-8')?>" data-business-timezone="Africa/Windhoek">
   <?php if(accounts_is_owner()): ?>
   <nav class="accounts-breadcrumb" aria-label="Breadcrumb"><a href="index.php">Accounts</a><span aria-hidden="true">&rsaquo;</span><strong>Input VAT</strong></nav>
   <?php endif; ?>
@@ -31,7 +31,7 @@ include BASE_PATH.'/shared/sidebar.php';
       <p class="eyebrow">Accounts application</p>
       <h1>Input VAT</h1>
       <p>Record local VAT purchases and calculate Input VAT for the selected period.</p>
-      <p class="input-vat-active-period" data-active-period><span class="input-vat-active-period-label">ACTIVE PERIOD</span> <strong data-active-period-label><?=htmlspecialchars(date('F Y'), ENT_QUOTES, 'UTF-8')?></strong></p>
+      <p class="input-vat-active-period" data-active-period><i data-lucide="calendar-days" aria-hidden="true"></i><span class="input-vat-active-period-label">Active period</span> <strong data-active-period-label><?=htmlspecialchars(date('F Y'), ENT_QUOTES, 'UTF-8')?></strong></p>
     </div>
     <div class="accounts-actions">
       <button class="portal-button portal-button--primary" type="button" data-add-purchase><span class="portal-button__icon" aria-hidden="true">+</span> Add Purchase</button>
@@ -56,7 +56,7 @@ include BASE_PATH.'/shared/sidebar.php';
   <?php if(accounts_is_owner()): ?>
   <section class="input-vat-settings-card" aria-labelledby="vatSettingsTitle">
     <div class="input-vat-settings-copy">
-      <span class="input-vat-settings-icon" aria-hidden="true">⚙️</span>
+      <span class="input-vat-settings-icon" aria-hidden="true"><i data-lucide="settings"></i></span>
       <div>
         <p class="eyebrow">Configuration</p>
         <h2 id="vatSettingsTitle">Input VAT Settings</h2>
@@ -67,6 +67,11 @@ include BASE_PATH.'/shared/sidebar.php';
       <span>Standard VAT Rate</span><strong data-rate-display><?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%</strong><button type="button" class="portal-button portal-button--ghost" data-open-rate-settings>Input VAT Settings</button>
     </div>
   </section>
+
+  <aside class="input-vat-period-notice" data-period-notice role="status" aria-live="polite" hidden>
+    <div><strong data-period-notice-title></strong><span data-period-notice-copy></span></div>
+    <button type="button" class="portal-button portal-button--secondary" data-view-saved-month>View period</button>
+  </aside>
   <?php else: ?>
   <div class="input-vat-rate-indicator" role="note">
     <span>Standard VAT Rate</span><strong data-rate-display><?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%</strong>
@@ -107,7 +112,11 @@ include BASE_PATH.'/shared/sidebar.php';
         <label>VAT treatment<select name="vat_treatment" required><option value="standard" data-standard-rate-option>Standard VAT <?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%</option><option value="zero_rated">Zero Rated</option><option value="no_vat">No VAT / Non-VAT</option><option value="manual_vat">Manual VAT</option><option value="review_required">Review Required</option></select><small class="field-help" data-standard-rate-hint>The configured standard VAT rate is <?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%.</small></label>
         <label data-manual-wrap hidden>Manual VAT (N$)<input name="manual_vat" type="number" min="0" step="0.01"></label>
         <div class="vat-preview span-2" data-vat-preview></div>
-        <p class="field-help" data-month-warning aria-live="polite"></p>
+        <div class="input-vat-month-warning" data-month-warning-panel hidden>
+          <i data-lucide="calendar-clock" aria-hidden="true"></i>
+          <p data-month-warning aria-live="polite"></p>
+          <div><button type="button" class="portal-button portal-button--ghost" data-month-warning-cancel>Cancel</button><button type="button" class="portal-button portal-button--primary" data-month-warning-confirm>Save to period</button></div>
+        </div>
         <label class="span-2">Evidence files<input name="files[]" type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"></label>
         <div class="pending-files span-2" data-pending-files></div>
       </div>

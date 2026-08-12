@@ -26,13 +26,15 @@
     const parsed = new Date(y, mo - 1, d);
     return Number.isNaN(parsed.getTime()) ? null : parsed;
   };
-  const todayLocal = () => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  };
+  const todayLocal = () => /^\d{4}-\d{2}-\d{2}$/.test(page.dataset.businessToday || '')
+    ? page.dataset.businessToday
+    : new Intl.DateTimeFormat('en-CA', {
+      timeZone: page.dataset.businessTimezone || 'Africa/Windhoek',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(new Date());
   const dateLabel = (v) => {
     const parsed = localDate(v);
-    return parsed ? dateFormatter.format(parsed) : String(v || '�');
+    return parsed ? dateFormatter.format(parsed) : String(v || '—');
   };
   const monthLabel = (value) => {
     const raw = String(value || '');
@@ -120,8 +122,15 @@
 
   function updateMonthWarning() {
     const notice = $('[data-month-warning]');
-    if (!notice) return;
-    notice.textContent = monthWarningMessage(form.elements.purchase_date.value);
+    const panel = $('[data-month-warning-panel]');
+    const confirmButton = $('[data-month-warning-confirm]');
+    if (!notice || !panel || !confirmButton) return;
+    const message = monthWarningMessage(form.elements.purchase_date.value);
+    notice.textContent = message;
+    panel.hidden = !message;
+    const enteredMonth = String(form.elements.purchase_date.value || '').slice(0, 7);
+    confirmButton.textContent = form.elements.purchase_date.value > todayLocal() ? 'Save anyway' : `Save to ${monthLabel(enteredMonth)}`;
+    if (window.lucide) window.lucide.createIcons();
   }
 
   function syncRate(rate) {
@@ -142,12 +151,14 @@
     if (standardRateHint) standardRateHint.textContent = `The configured standard VAT rate is ${safeRateText}.`;
   }
 
-  function formatSummaryLineRows(obj) {
-    return Object.entries(obj || {})
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 8)
-      .map(([k, v]) => `<div class="summary-line"><span>${esc(k.replaceAll('_', ' '))}</span><strong>${money(v)}</strong></div>`)
-      .join('') || '<div class="analysis-empty"><span aria-hidden="true">�</span><p>No VAT records for this period.</p></div>';
+  function formatSummaryLineRows(obj, icon) {
+    const entries = Object.entries(obj || {}).sort((a, b) => b[1] - a[1]).slice(0, 8);
+    const total = entries.reduce((sum, entry) => sum + Number(entry[1] || 0), 0);
+    return entries.map(([key, value]) => {
+      const percent = total > 0 ? Math.round((Number(value) / total) * 1000) / 10 : 0;
+      const label = key.replaceAll('_', ' ');
+      return `<div class="summary-line" title="${esc(label)} · ${money(value)} · ${percent}%"><div><span>${esc(label)}</span><small>${money(value)} · ${percent}%</small></div><strong aria-label="${percent}%" style="--iv-bar:${percent}%"><i></i></strong></div>`;
+    }).join('') || `<div class="analysis-empty"><i data-lucide="${icon}" aria-hidden="true"></i><strong>No VAT records for ${esc(selectedMonthLabel())}.</strong><p>Add purchases to begin building this analysis.</p></div>`;
   }
 
   function showToast(message, type = 'success') {
@@ -166,6 +177,44 @@
     setControlsDisabled(Boolean(loading));
   }
 
+  function analysisRows(obj, icon) {
+    const entries = Object.entries(obj || {}).sort((a, b) => b[1] - a[1]).slice(0, 8);
+    const total = entries.reduce((sum, entry) => sum + Number(entry[1] || 0), 0);
+    if (!entries.length) return `<div class="analysis-empty"><i data-lucide="${icon}" aria-hidden="true"></i><strong>No VAT records for ${esc(selectedMonthLabel())}.</strong><p>Add purchases to begin building this analysis.</p></div>`;
+    return entries.map(([key, value]) => {
+      const label = key.replaceAll('_', ' ');
+      const percent = total > 0 ? Math.round((Number(value) / total) * 1000) / 10 : 0;
+      return `<div class="summary-line" title="${esc(label)} · ${money(value)} · ${percent}%"><div><span>${esc(label)}</span><small>${money(value)} · ${percent}%</small></div><strong aria-label="${percent}%" style="--iv-bar:${percent}%"><i></i></strong></div>`;
+    }).join('');
+  }
+
+  function purchaseRow(r) {
+    const attachments = r.attachments.map((a) => `<span><a href="${esc(a.view_url)}" target="_blank">${esc(a.name)}</a> <a href="${esc(a.download_url)}" title="Download" aria-label="Download ${esc(a.name)}"><i data-lucide="download" aria-hidden="true"></i></a>${a.can_delete ? ` <button data-delete-file="${a.id}" type="button" aria-label="Remove attachment"><i data-lucide="x" aria-hidden="true"></i></button>` : ''}</span>`).join('') || '—';
+    const actions = `${r.can_edit ? `<button type="button" data-edit="${r.id}" title="Edit" aria-label="Edit purchase"><i data-lucide="pencil" aria-hidden="true"></i></button>` : ''}${r.can_review ? `<button type="button" data-review="${r.id}" title="Review" aria-label="Review purchase"><i data-lucide="circle-check" aria-hidden="true"></i></button><button type="button" data-audit="${r.id}" title="History" aria-label="View history"><i data-lucide="history" aria-hidden="true"></i></button>` : ''}${r.can_delete ? `<button type="button" data-delete="${r.id}" title="Delete" aria-label="Delete purchase"><i data-lucide="trash-2" aria-hidden="true"></i></button>` : ''}`;
+    return `<tr class="${Number(r.id) === Number(refreshRowId) ? 'input-vat-row-highlight' : ''}"><td><time datetime="${esc(r.purchase_date)}">${esc(dateLabel(r.purchase_date))}</time></td><td>${esc(r.supplier)}</td><td>${esc(r.description)}</td><td class="money">${money(r.inclusive)}</td><td class="money vat-money">${money(r.vat)}</td><td class="money">${money(r.exclusive)}</td><td><div class="attachment-list">${attachments}</div></td><td>${esc(r.entered_by)}</td><td><span class="status-pill ${esc(r.review_status)}">${esc(r.review_status.replaceAll('_', ' '))}</span>${r.review_note ? `<small title="${esc(r.review_note)}"> · note</small>` : ''}</td><td><div class="row-actions">${actions}</div></td></tr>`;
+  }
+
+  function emptyTableRow() {
+    return `<tr><td class="empty-row" colspan="10"><div class="table-empty-state"><i data-lucide="notebook-tabs" aria-hidden="true"></i><strong>No Input VAT records for ${esc(selectedMonthLabel())}</strong><p>You have not captured any purchases for this period yet.</p><button type="button" class="portal-button portal-button--primary" data-add-purchase><span class="portal-button__icon" aria-hidden="true">+</span> Add Purchase</button></div></td></tr>`;
+  }
+
+  function premiumAnalysisRows(obj, icon) {
+    const entries = Object.entries(obj || {}).sort((a, b) => b[1] - a[1]).slice(0, 8);
+    const total = entries.reduce((sum, entry) => sum + Number(entry[1] || 0), 0);
+    if (!entries.length) return `<div class="analysis-empty"><i data-lucide="${icon}" aria-hidden="true"></i><strong>No VAT records for ${esc(selectedMonthLabel())}.</strong><p>Add purchases to begin building this analysis.</p></div>`;
+    return entries.map(([key, value]) => {
+      const label = key.replaceAll('_', ' ');
+      const percent = total > 0 ? Math.round((Number(value) / total) * 1000) / 10 : 0;
+      return `<div class="summary-line" title="${esc(label)} &middot; ${money(value)} &middot; ${percent}%"><div><span>${esc(label)}</span><small>${money(value)} &middot; ${percent}%</small></div><strong>${percent}%</strong><span class="analysis-bar-track" aria-label="${percent}%"><span class="analysis-bar-fill" style="--iv-bar:${percent}%"></span></span></div>`;
+    }).join('');
+  }
+
+  function premiumPurchaseRow(r) {
+    const attachments = r.attachments.map((a) => `<span><a href="${esc(a.view_url)}" target="_blank">${esc(a.name)}</a> <a href="${esc(a.download_url)}" title="Download" aria-label="Download ${esc(a.name)}"><i data-lucide="download" aria-hidden="true"></i></a>${a.can_delete ? ` <button data-delete-file="${a.id}" type="button" aria-label="Remove attachment"><i data-lucide="x" aria-hidden="true"></i></button>` : ''}</span>`).join('') || '&mdash;';
+    const actions = `${r.can_edit ? `<button type="button" data-edit="${r.id}" title="Edit" aria-label="Edit purchase"><i data-lucide="pencil" aria-hidden="true"></i></button>` : ''}${r.can_review ? `<button type="button" data-review="${r.id}" title="Review" aria-label="Review purchase"><i data-lucide="circle-check" aria-hidden="true"></i></button><button type="button" data-audit="${r.id}" title="History" aria-label="View history"><i data-lucide="history" aria-hidden="true"></i></button>` : ''}${r.can_delete ? `<button type="button" data-delete="${r.id}" title="Delete" aria-label="Delete purchase"><i data-lucide="trash-2" aria-hidden="true"></i></button>` : ''}`;
+    return `<tr class="${Number(r.id) === Number(refreshRowId) ? 'input-vat-row-highlight' : ''}"><td><time datetime="${esc(r.purchase_date)}">${esc(dateLabel(r.purchase_date))}</time></td><td>${esc(r.supplier)}</td><td>${esc(r.description)}</td><td class="money">${money(r.inclusive)}</td><td class="money vat-money">${money(r.vat)}</td><td class="money">${money(r.exclusive)}</td><td><div class="attachment-list">${attachments}</div></td><td>${esc(r.entered_by)}</td><td><span class="status-pill ${esc(r.review_status)}">${esc(r.review_status.replaceAll('_', ' '))}</span>${r.review_note ? `<small title="${esc(r.review_note)}"> &middot; note</small>` : ''}</td><td><div class="row-actions">${actions}</div></td></tr>`;
+  }
+
   function render(j) {
     const s = j.summary;
     const selected = selectedMonthLabel();
@@ -177,20 +226,22 @@
       ['Amount incl VAT', money(s.inclusive), 'Gross purchase value'],
       ['Input VAT', money(s.vat), 'Claimable VAT recorded'],
       ['Amount excl VAT', money(s.exclusive), 'Net purchase value'],
-    ].map((x) => `<article><small>${x[0]}</small><strong>${x[1]}</strong><span>${x[2]}</span></article>`).join('');
+    ].map((x, index) => `<article class="${index === 2 ? 'is-primary-metric' : ''}">${index === 2 ? '<i data-lucide="receipt-text" aria-hidden="true"></i>' : ''}<small>${x[0]}</small><strong>${x[1]}</strong><span>${x[2]}</span></article>`).join('');
 
-    $('[data-treatment-summary]').innerHTML = formatSummaryLineRows(s.treatments);
-    $('[data-supplier-summary]').innerHTML = formatSummaryLineRows(s.suppliers);
-    $('[data-description-summary]').innerHTML = formatSummaryLineRows(s.descriptions);
+    $('[data-treatment-summary]').innerHTML = premiumAnalysisRows(s.treatments, 'percent');
+    $('[data-supplier-summary]').innerHTML = premiumAnalysisRows(s.suppliers, 'building-2');
+    $('[data-description-summary]').innerHTML = premiumAnalysisRows(s.descriptions, 'tags');
 
     $('[data-totals]').innerHTML = `<tr><td colspan="3">Totals</td><td>${money(s.inclusive)}</td><td>${money(s.vat)}</td><td>${money(s.exclusive)}</td><td colspan="4"></td></tr>`;
 
     $('[data-rows]').innerHTML = rows.length
-      ? rows.map((r) => `<tr class="${Number(r.id) === Number(refreshRowId) ? 'input-vat-row-highlight' : ''}"><td><time datetime="${esc(r.purchase_date)}">${esc(dateLabel(r.purchase_date))}</time></td><td>${esc(r.supplier)}</td><td>${esc(r.description)}</td><td class="money">${money(r.inclusive)}</td><td class="money vat-money">${money(r.vat)}</td><td class="money">${money(r.exclusive)}</td><td><div class="attachment-list">${(r.attachments.map((a) => `<span><a href="${esc(a.view_url)}" target="_blank">${esc(a.name)}</a> <a href="${esc(a.download_url)}" title="Download">?</a>${a.can_delete ? ` <button data-delete-file="${a.id}" type="button" aria-label="Remove attachment">�</button>` : ''}</span>`).join('')) || '�'}</div></td><td>${esc(r.entered_by)}</td><td><span class="status-pill ${esc(r.review_status)}">${esc(r.review_status.replaceAll('_', ' '))}</span>${r.review_note ? `<small title="${esc(r.review_note)}"> � note</small>` : ''}</td><td><div class="row-actions">${r.can_edit ? '<button type="button" data-edit="' + r.id + '" title="Edit" aria-label="Edit purchase">?</button>' : ''}${r.can_review ? '<button type="button" data-review="' + r.id + '" title="Review" aria-label="Review purchase">?</button>' : ''}${r.can_review ? '<button type="button" data-audit="' + r.id + '" title="History" aria-label="View history">?</button>' : ''}${r.can_delete ? '<button type="button" data-delete="' + r.id + '" title="Delete" aria-label="Delete purchase">-</button>' : ''}</div></td></tr>`).join('')
+      ? rows.map((r) => `<tr class="${Number(r.id) === Number(refreshRowId) ? 'input-vat-row-highlight' : ''}"><td><time datetime="${esc(r.purchase_date)}">${esc(dateLabel(r.purchase_date))}</time></td><td>${esc(r.supplier)}</td><td>${esc(r.description)}</td><td class="money">${money(r.inclusive)}</td><td class="money vat-money">${money(r.vat)}</td><td class="money">${money(r.exclusive)}</td><td><div class="attachment-list">${(r.attachments.map((a) => `<span><a href="${esc(a.view_url)}" target="_blank">${esc(a.name)}</a> <a href="${esc(a.download_url)}" title="Download">?</a>${a.can_delete ? ` <button data-delete-file="${a.id}" type="button" aria-label="Remove attachment">×</button>` : ''}</span>`).join('')) || '—'}</div></td><td>${esc(r.entered_by)}</td><td><span class="status-pill ${esc(r.review_status)}">${esc(r.review_status.replaceAll('_', ' '))}</span>${r.review_note ? `<small title="${esc(r.review_note)}"> · note</small>` : ''}</td><td><div class="row-actions">${r.can_edit ? '<button type="button" data-edit="' + r.id + '" title="Edit" aria-label="Edit purchase">?</button>' : ''}${r.can_review ? '<button type="button" data-review="' + r.id + '" title="Review" aria-label="Review purchase">?</button>' : ''}${r.can_review ? '<button type="button" data-audit="' + r.id + '" title="History" aria-label="View history">?</button>' : ''}${r.can_delete ? '<button type="button" data-delete="' + r.id + '" title="Delete" aria-label="Delete purchase">-</button>' : ''}</div></td></tr>`).join('')
       : `<tr><td class="empty-row" colspan="10"><div class="table-empty-state"><span aria-hidden="true">?</span><strong>No Input VAT records for ${esc(selectedMonthLabel())}.</strong><p>Switch the month or start capturing with Add Purchase.</p><button type="button" class="portal-button portal-button--primary" data-add-purchase><span class="portal-button__icon" aria-hidden="true">+</span> Add Purchase</button></div></td></tr>`;
 
     $('[data-export]').href = api + '?action=export&month=' + encodeURIComponent(formatSortValue($('[data-month]').value)) + '&period=current';
+    $('[data-rows]').innerHTML = rows.length ? rows.map(premiumPurchaseRow).join('') : emptyTableRow();
     updateActivePeriodLabel();
+    if (window.lucide) window.lucide.createIcons();
   }
 
   function setControlsDisabled(disabled) {
@@ -264,7 +315,7 @@
   }
 
   function pendingRender() {
-    $('[data-pending-files]').innerHTML = pending.map((file, i) => `<div class="pending-file"><span>${esc(file.name)} � ${(file.size / 1024).toFixed(1)} KB</span><button type="button" data-remove-pending="${i}">Remove</button></div>`).join('');
+    $('[data-pending-files]').innerHTML = pending.map((file, i) => `<div class="pending-file"><span>${esc(file.name)} · ${(file.size / 1024).toFixed(1)} KB</span><button type="button" data-remove-pending="${i}">Remove</button></div>`).join('');
   }
 
   $('[data-previous-month]').onclick = () => stepMonth(-1);
@@ -274,10 +325,19 @@
   const form = $('[data-form]');
   const fileInput = form.elements['files[]'];
   let pending = [];
+  let warningConfirmed = false;
 
   form.addEventListener('input', buildPreview);
   form.addEventListener('change', updateMonthWarning);
   form.elements.purchase_date.addEventListener('change', updateMonthWarning);
+  $('[data-month-warning-cancel]').addEventListener('click', () => {
+    form.elements.purchase_date.focus();
+    $('[data-month-warning-panel]').hidden = true;
+  });
+  $('[data-month-warning-confirm]').addEventListener('click', () => {
+    warningConfirmed = true;
+    form.requestSubmit();
+  });
   fileInput.addEventListener('change', () => {
     pending = [...pending, ...Array.from(fileInput.files)];
     fileInput.value = '';
@@ -296,6 +356,7 @@
     form.elements.id.value = '';
     form.elements.purchase_date.value = todayLocal();
     pending = [];
+    warningConfirmed = false;
     pendingRender();
     $('[data-form-title]').textContent = 'Add Purchase';
     $('[data-month-warning]').textContent = '';
@@ -319,6 +380,7 @@
         if (form.elements[field]) form.elements[field].value = value;
       });
       pending = [];
+      warningConfirmed = false;
       pendingRender();
       $('[data-form-title]').textContent = 'Edit Purchase';
       buildPreview();
@@ -369,6 +431,7 @@
       form.elements.id.value = '';
       form.elements.purchase_date.value = todayLocal();
       pending = [];
+      warningConfirmed = false;
       pendingRender();
       $('[data-form-title]').textContent = 'Add Purchase';
       $('[data-month-warning]').textContent = '';
@@ -386,16 +449,12 @@
     const enteredDate = String(form.elements.purchase_date.value || '').slice(0, 10);
     const enteredMonth = enteredDate.slice(0, 7);
     const warning = monthWarningMessage(enteredDate);
-    const today = todayLocal();
-    const isFutureDate = enteredDate > today;
-
-    if (warning) {
-      if (isFutureDate) {
-        if (!confirm(`${warning} Do you still want to save this future-dated purchase?`)) return;
-      } else {
-        if (!confirm(`${warning} Do you want to save this purchase to ${monthLabel(enteredMonth)}?`)) return;
-      }
+    if (warning && !warningConfirmed) {
+      updateMonthWarning();
+      $('[data-month-warning-panel]').scrollIntoView({block: 'nearest', behavior: 'smooth'});
+      return;
     }
+    warningConfirmed = false;
 
     saveButton.disabled = true;
     saveButton.textContent = 'Saving...';
@@ -410,12 +469,17 @@
       if (form.elements.id.value) {
         showToast('Purchase updated.');
       } else {
-        showToast('Purchase added.');
+        showToast(`Purchase added. The ${monthLabel(enteredMonth)} Input VAT register has been updated.`);
       }
       dialog.close();
       await load();
       if (enteredDate.slice(0, 7) !== $('[data-month]').value) {
-        $('[data-form-message]').textContent = `Saved to ${monthLabel(enteredMonth)} while you are still viewing ${activeLabel}.`;
+        const periodNotice = $('[data-period-notice]');
+        $('[data-period-notice-title]').textContent = `Purchase saved to ${monthLabel(enteredMonth)}`;
+        $('[data-period-notice-copy]').textContent = `You are still viewing ${activeLabel}.`;
+        $('[data-view-saved-month]').dataset.month = enteredMonth;
+        $('[data-view-saved-month]').textContent = `View ${monthLabel(enteredMonth)}`;
+        periodNotice.hidden = false;
       }
     } catch (error) {
       $('[data-form-message]').textContent = error.message;
@@ -426,6 +490,15 @@
       pending = [];
       pendingRender();
     }
+  });
+
+  $('[data-view-saved-month]').addEventListener('click', () => {
+    const month = $('[data-view-saved-month]').dataset.month;
+    if (!/^\d{4}-\d{2}$/.test(month || '')) return;
+    $('[data-month]').value = month;
+    $('[data-period-notice]').hidden = true;
+    page.classList.add('is-refreshing');
+    load();
   });
 
   page.addEventListener('click', async (event) => {
