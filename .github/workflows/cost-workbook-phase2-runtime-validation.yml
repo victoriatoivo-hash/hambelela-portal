@@ -1,0 +1,64 @@
+name: Cost Workbook Phase 2 Runtime Validation
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'apps/cost-manager/**'
+      - 'shared/cost-workbook*.php'
+      - 'assets/js/cost-workbook*.js'
+      - 'assets/css/cost-workbook*.css'
+      - 'tests/cost-workbook*'
+      - '.github/workflows/cost-workbook-phase2-runtime-validation.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_DATABASE: cw_phase2_test
+          MARIADB_USER: cw_test
+          MARIADB_PASSWORD: cw_test_password
+          MARIADB_ROOT_PASSWORD: cw_root_test_password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      CW_TEST_DSN: mysql:host=127.0.0.1;port=3306;dbname=cw_phase2_test;charset=utf8mb4
+      CW_TEST_DB_USER: cw_test
+      CW_TEST_DB_PASSWORD: cw_test_password
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_mysql
+          coverage: none
+      - name: PHP version and syntax
+        run: |
+          php --version
+          find apps/cost-manager shared tests -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Phase 2 calculation runtime assertions
+        run: php tests/cost-workbook-phase2.php
+      - name: Phase 2 migration, idempotency and Phase 1 preservation
+        run: php tests/cost-workbook-phase2-migration.php
+      - name: Permission, private-file and WooCommerce boundary assertions
+        run: php tests/cost-workbook-phase2-security.php
+      - name: Existing Cost Workbook static suites
+        run: for test in tests/cost-workbook*.mjs; do node "$test"; done
+      - name: JavaScript syntax
+        run: |
+          node --check assets/js/cost-workbook.js
+          node --check assets/js/cost-workbook-phase2.js
+      - name: Whitespace
+        run: git diff --check origin/${{ github.base_ref }}...HEAD
