@@ -6563,6 +6563,20 @@ main.error-log-page {
   font-weight: 700 !important;
 }
 
+.error-log-page .error-filter-header span > span {
+  display: grid !important;
+  gap: 1px !important;
+}
+
+.error-log-page .error-filter-header small {
+  color: var(--bk-text-mid) !important;
+  font-size: 10px !important;
+  font-weight: 500 !important;
+  line-height: 1.2 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
 .error-log-page .error-filter-header svg {
   width: 16px !important;
   height: 16px !important;
@@ -6602,7 +6616,7 @@ main.error-log-page {
   display: grid !important;
   gap: 4px !important;
   color: #721b1a !important;
-  font-size: 10px !important;
+  font-size: 11px !important;
   font-weight: 700 !important;
   letter-spacing: .05em !important;
   text-transform: uppercase !important;
@@ -6627,9 +6641,10 @@ main.error-log-page {
 
 .error-log-page .error-filter-grid input,
 .error-log-page .error-filter-grid select:not(.portal-custom-select-native) {
-  height: 30px !important;
-  min-height: 30px !important;
-  padding: 0 8px !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  padding: 0 10px !important;
+  border-radius: 8px !important;
 }
 
 .error-log-page .error-filter-grid select:not(.portal-custom-select-native) {
@@ -6657,14 +6672,42 @@ main.error-log-page {
 
 .error-log-page .error-filter-grid .portal-custom-select-trigger {
   width: 100%;
-  height: 32px;
-  min-height: 32px;
+  height: 36px;
+  min-height: 36px;
   padding: 0 12px;
   border: 1px solid rgba(171, 54, 25, .24);
   border-radius: 10px;
   background: #fff;
   color: #1a1a1a;
   font: 400 12px/1 Figtree, Inter, system-ui, sans-serif;
+}
+
+.error-log-page .error-filter-grid [hidden] {
+  display: none !important;
+}
+
+.error-log-page .error-filter-date-basis {
+  display: grid !important;
+  min-height: 36px !important;
+  padding: 6px 10px !important;
+  align-content: center !important;
+  gap: 1px !important;
+  border: 1px solid var(--bk-border) !important;
+  border-radius: 8px !important;
+  background: var(--bk-cream) !important;
+}
+
+.error-log-page .error-filter-date-basis span,
+.error-log-page .error-filter-date-basis small {
+  color: var(--bk-text-mid) !important;
+  font-size: 9px !important;
+  line-height: 1.15 !important;
+}
+
+.error-log-page .error-filter-date-basis strong {
+  color: var(--bk-burgundy) !important;
+  font-size: 11px !important;
+  line-height: 1.2 !important;
 }
 
 .error-log-page .error-filter-grid .portal-custom-select-menu {
@@ -6689,6 +6732,80 @@ main.error-log-page {
   justify-content: flex-end !important;
   gap: 8px !important;
   padding-top: 14px !important;
+  position: sticky !important;
+  bottom: -16px !important;
+  z-index: 3 !important;
+  grid-column: 1 / -1 !important;
+  margin: 8px -16px -16px !important;
+  padding: 12px 16px !important;
+  border-top: 1px solid var(--bk-border) !important;
+  background: rgba(255, 255, 255, .97) !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+.error-log-page .error-filter-feedback {
+  min-height: 14px !important;
+  margin: 8px 0 0 !important;
+  grid-column: 1 / -1 !important;
+  color: var(--bk-text-mid) !important;
+  font: 500 11px/1.25 Figtree, system-ui, sans-serif !important;
+}
+
+.error-log-page .error-filter-chips-shell:empty {
+  display: none !important;
+}
+
+.error-log-page .error-filter-chips {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 7px !important;
+  margin: 0 0 12px !important;
+}
+
+.error-log-page .error-filter-chips a {
+  display: inline-flex !important;
+  min-height: 28px !important;
+  padding: 0 9px !important;
+  align-items: center !important;
+  gap: 5px !important;
+  border: 1px solid rgba(171, 54, 25, .18) !important;
+  border-radius: 999px !important;
+  background: var(--bk-cream) !important;
+  color: var(--bk-burgundy) !important;
+  font: 600 11px/1 Figtree, system-ui, sans-serif !important;
+  text-decoration: none !important;
+}
+
+.error-log-page .error-filter-chips a:hover {
+  border-color: rgba(171, 54, 25, .38) !important;
+  background: #fff !important;
+}
+
+.error-log-page .error-filter-chips svg {
+  width: 13px !important;
+  height: 13px !important;
+  color: var(--bk-orange-red) !important;
+}
+
+.error-log-page .error-filter-chips .error-filter-clear-link {
+  border-color: transparent !important;
+  background: transparent !important;
+  color: var(--bk-orange-red) !important;
+}
+
+.error-log-page .error-filter-failure {
+  display: flex !important;
+  margin: 0 0 12px !important;
+  padding: 11px 13px !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  border: 1px solid rgba(187, 27, 33, .25) !important;
+  border-radius: 10px !important;
+  background: rgba(187, 27, 33, .06) !important;
+  color: var(--bk-burgundy) !important;
+  font: 500 12px/1.35 Figtree, system-ui, sans-serif !important;
 }
 
 .error-log-page .error-filter-actions .button {

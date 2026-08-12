@@ -100,7 +100,7 @@ function error_parse_occurred_on(string $value): string
     return$value;
 }
 
-function error_occurrence_expression(string $alias = 'el'): string { return "COALESCE({$alias}.occurred_on, DATE({$alias}.occurred_at), DATE({$alias}.created_at), DATE({$alias}.logged_at))"; }
+function error_occurrence_expression(string $alias = 'el'): string { return "{$alias}.occurred_on"; }
 function error_occurred_on_label(?string $value): string {if(!$value)return'—';$time=strtotime($value);return$time?date('j M Y',$time):$value;}
 function error_occurred_at_label(?string $value, ?string $dateFallback = null): string
 {
@@ -692,11 +692,18 @@ $errorInstructionCsrfToken = (string) $_SESSION['error_instruction_csrf_token'];
 $errorInstructionSubmissionToken = (string) $_SESSION['error_instruction_submission_token'];
 $errorLimitedEditCsrf=(string)$_SESSION['error_limited_edit_csrf'];
 
+$defaultErrorMonth = date('Y-m');
+$requestedDateMode = trim((string) ($_GET['date_mode'] ?? ''));
+if ($requestedDateMode === '') {
+    $requestedDateMode = (!empty($_GET['date_from']) || !empty($_GET['date_to'])) ? 'custom' : 'month';
+}
+if (!in_array($requestedDateMode, ['month', 'custom'], true)) $requestedDateMode = 'month';
 $filters = [
-    'month' => trim((string) ($_GET['month'] ?? date('Y-m'))),
+    'date_mode' => $requestedDateMode,
+    'month' => trim((string) ($_GET['month'] ?? $defaultErrorMonth)),
     'date_from' => trim((string) ($_GET['date_from'] ?? '')),
     'date_to' => trim((string) ($_GET['date_to'] ?? '')),
-    'date_basis'=>trim((string)($_GET['date_basis']??'occurred')),
+    'date_basis'=>'occurred',
     'sort'=>trim((string)($_GET['sort']??'occurred_newest')),
     'severity' => trim((string) ($_GET['severity'] ?? '')),
     'category' => trim((string) ($_GET['category'] ?? '')),
@@ -709,26 +716,29 @@ $filters = [
     'status' => trim((string) ($_GET['status'] ?? '')),
     'search' => trim((string) ($_GET['search'] ?? '')),
 ];
-$filtersAreActive = $filters['date_from'] !== '' || $filters['date_to'] !== '' || $filters['date_basis']!=='occurred' || $filters['sort']!=='occurred_newest' || $filters['severity'] !== '' || $filters['category'] !== '' || $filters['employee_id'] !== '' || $filters['logged_for']!=='' || $filters['financial_impact_filter']!=='' || $filters['repeat_issue'] !== '' || $filters['customer_impacted'] !== '' || $filters['order_reference'] !== '' || $filters['status'] !== '' || $filters['search'] !== '';
+$filtersAreActive = ($filters['date_mode'] === 'custom' && ($filters['date_from'] !== '' || $filters['date_to'] !== '')) || ($filters['date_mode'] === 'month' && $filters['month'] !== $defaultErrorMonth) || $filters['sort']!=='occurred_newest' || $filters['severity'] !== '' || $filters['category'] !== '' || $filters['employee_id'] !== '' || $filters['logged_for']!=='' || $filters['financial_impact_filter']!=='' || $filters['repeat_issue'] !== '' || $filters['customer_impacted'] !== '' || $filters['order_reference'] !== '' || $filters['status'] !== '' || $filters['search'] !== '';
 
 $where = ['el.deleted_at IS NULL'];
 $params = [];
 $requestedErrorId = max(0, (int) ($_GET['error_id'] ?? 0));
-$dateExpression=$filters['date_basis']==='logged'?'DATE(COALESCE(el.created_at,el.logged_at))':error_occurrence_expression('el');
+$dateExpression=error_occurrence_expression('el');
 if ($requestedErrorId > 0) {
     $where[] = 'el.id = ?';
     $params[] = $requestedErrorId;
-} elseif ($filters['date_from'] !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['date_from'])) {
-    $where[] = 'DATE(' . $dateExpression . ') >= ?';
-    $params[] = $filters['date_from'];
-}
-if ($filters['date_to'] !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['date_to'])) {
-    $where[] = 'DATE(' . $dateExpression . ') <= ?';
-    $params[] = $filters['date_to'];
-}
-if ($requestedErrorId <= 0 && !$filters['date_from'] && !$filters['date_to'] && preg_match('/^\d{4}-\d{2}$/', $filters['month'])) {
-    $where[] = "DATE_FORMAT(" . $dateExpression . ", '%Y-%m') = ?";
-    $params[] = $filters['month'];
+} elseif ($filters['date_mode'] === 'custom') {
+    if ($filters['date_from'] !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['date_from'])) {
+        $where[] = $dateExpression . ' >= ?';
+        $params[] = $filters['date_from'];
+    }
+    if ($filters['date_to'] !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['date_to'])) {
+        $where[] = $dateExpression . ' <= ?';
+        $params[] = $filters['date_to'];
+    }
+} elseif (preg_match('/^\d{4}-\d{2}$/', $filters['month'])) {
+    $monthStart = $filters['month'] . '-01';
+    $monthEnd = (new DateTimeImmutable($monthStart, new DateTimeZone('Africa/Windhoek')))->modify('last day of this month')->format('Y-m-d');
+    $where[] = $dateExpression . ' BETWEEN ? AND ?';
+    array_push($params, $monthStart, $monthEnd);
 }
 if (array_key_exists($filters['severity'], $severityLabels)) {
     $where[] = 'el.severity = ?';
@@ -792,23 +802,8 @@ $errors = $ready ? ops_rows(
     $params
 ) : [];
 
-$monthWhere = ['el.deleted_at IS NULL', "DATE_FORMAT(" . error_occurrence_expression('el') . ", '%Y-%m') = ?"];
-$monthParams = [$filters['month'] ?: date('Y-m')];
-if ($isFrontDeskErrorUser && !$isOwnerErrorUser) {
-    [$frontMonthSql, $frontMonthParams] = error_person_filter_sql('el', (int) $currentEmployeeId);
-    $monthWhere[] = $frontMonthSql;
-    array_push($monthParams, ...$frontMonthParams);
-}
-$monthRows = $ready ? ops_rows(
-    "SELECT el.*, e.full_name AS primary_employee_name
-     FROM ops_error_logs el
-     LEFT JOIN ops_employees e ON e.id = el.employee_id
-     WHERE " . implode(' AND ', $monthWhere),
-    $monthParams
-) : [];
-
 $metrics = [
-    'month_total' => count($monthRows),
+    'month_total' => count($errors),
     'critical' => 0,
     'high' => 0,
     'medium' => 0,
@@ -821,7 +816,7 @@ $metrics = [
 ];
 $categoryCounts = [];
 $employeeCounts = [];
-foreach ($monthRows as $row) {
+foreach ($errors as $row) {
     $severity = (string) ($row['severity'] ?? 'low');
     if (isset($metrics[$severity])) $metrics[$severity]++;
     if ((int) ($row['repeat_issue'] ?? 0) === 1) $metrics['repeat']++;
@@ -848,6 +843,32 @@ foreach ($errors as $error) {
     $sectionKey = (string) ($error['status'] ?? 'open') === 'resolved' ? 'resolved' : 'open';
     $errorsByResolution[$sectionKey][] = $error;
 }
+
+$activeFilterChips = [];
+$addErrorFilterChip = static function (string $key, string $label, array $removeKeys = []) use (&$activeFilterChips): void {
+    $query = $_GET;
+    unset($query['error_id']);
+    foreach (array_merge([$key], $removeKeys) as $removeKey) unset($query[$removeKey]);
+    $activeFilterChips[] = ['key' => $key, 'label' => $label, 'url' => 'errors.php' . ($query ? '?' . http_build_query($query) : '')];
+};
+if ($filters['date_mode'] === 'custom' && ($filters['date_from'] !== '' || $filters['date_to'] !== '')) {
+    $addErrorFilterChip('date_mode', 'Occurred: ' . ($filters['date_from'] ?: 'Any date') . ' to ' . ($filters['date_to'] ?: 'Today'), ['date_from', 'date_to']);
+} elseif ($filters['date_mode'] === 'month' && $filters['month'] !== $defaultErrorMonth) {
+    $monthLabel = DateTimeImmutable::createFromFormat('!Y-m', $filters['month'], new DateTimeZone('Africa/Windhoek'));
+    $addErrorFilterChip('month', $monthLabel ? $monthLabel->format('F Y') : $filters['month'], ['date_mode']);
+}
+if ($filters['sort'] !== 'occurred_newest') $addErrorFilterChip('sort', 'Sort: ' . str_replace('_', ' ', $filters['sort']));
+if ($filters['severity'] !== '') $addErrorFilterChip('severity', 'Severity: ' . ($severityLabels[$filters['severity']] ?? $filters['severity']));
+if ($filters['category'] !== '') $addErrorFilterChip('category', 'Category: ' . ($errorCategories[$filters['category']] ?? $filters['category']));
+if ((int) $filters['employee_id'] > 0) $addErrorFilterChip('employee_id', 'Person: ' . ($employeeMap[(int) $filters['employee_id']] ?? 'Employee'));
+if ($filters['logged_for'] !== '') $addErrorFilterChip('logged_for', 'Logged for: ' . ucwords(str_replace('_', ' ', $filters['logged_for'])));
+if ($filters['financial_impact_filter'] !== '') $addErrorFilterChip('financial_impact_filter', $filters['financial_impact_filter'] === 'yes' ? 'Has financial impact' : 'No financial impact');
+if ($filters['repeat_issue'] !== '') $addErrorFilterChip('repeat_issue', 'Repeat: ' . ($filters['repeat_issue'] === '1' ? 'Yes' : 'No'));
+if ($filters['customer_impacted'] !== '') $addErrorFilterChip('customer_impacted', 'Customer impacted: ' . ($filters['customer_impacted'] === '1' ? 'Yes' : 'No'));
+if ($filters['order_reference'] !== '') $addErrorFilterChip('order_reference', 'Order: ' . $filters['order_reference']);
+if ($filters['status'] !== '') $addErrorFilterChip('status', 'Status: ' . ($statusLabels[$filters['status']] ?? $filters['status']));
+if ($filters['search'] !== '') $addErrorFilterChip('search', 'Search: ' . $filters['search']);
+$activeFilterCount = count($activeFilterChips);
 
 $errorIds = array_map(static fn(array $row): int => (int) $row['id'], $errors);
 $instructionsByError = error_instructions_for_errors($errorIds);
@@ -888,7 +909,7 @@ include BASE_PATH . '/shared/sidebar.php';
     <?php if ($showFullErrorLog): ?>
         <?php
         $errorStats = [
-            ['icon' => 'calendar-days', 'label' => 'Total Errors This Month', 'value' => number_format($metrics['month_total']), 'colour' => 'var(--bk-orange-red)'],
+            ['icon' => 'calendar-days', 'label' => 'Errors in Selected View', 'value' => number_format($metrics['month_total']), 'colour' => 'var(--bk-orange-red)'],
             ['icon' => 'siren', 'label' => 'Critical Errors', 'value' => number_format($metrics['critical']), 'colour' => 'var(--bk-red)'],
             ['icon' => 'triangle-alert', 'label' => 'High Severity', 'value' => number_format($metrics['high']), 'colour' => 'var(--bk-amber)'],
             ['icon' => 'info', 'label' => 'Medium Severity', 'value' => number_format($metrics['medium']), 'colour' => 'var(--bk-orange-red)'],
@@ -899,7 +920,7 @@ include BASE_PATH . '/shared/sidebar.php';
             ['icon' => 'user-round-x', 'label' => 'Employee With Most Logged Errors', 'value' => (string) $metrics['top_employee'], 'colour' => 'var(--bk-burgundy)'],
         ];
         ?>
-        <section class="error-stats-shell" aria-label="Error log metrics">
+        <section class="error-stats-shell" aria-label="Error log metrics" data-error-filter-metrics>
             <div class="error-stats-grid">
                 <?php foreach ($errorStats as $stat): ?>
                     <article class="error-stat-card" style="--stat-colour: <?= htmlspecialchars($stat['colour'], ENT_QUOTES, 'UTF-8') ?>">
@@ -915,14 +936,15 @@ include BASE_PATH . '/shared/sidebar.php';
     <?php endif; ?>
 
     <details class="error-filter-card" data-portal-view-filter <?= $filtersAreActive ? 'open' : '' ?>>
-        <summary class="error-filter-header"><span><i data-lucide="sliders-horizontal"></i> Filters</span><strong><?= $filtersAreActive ? 'Active' : 'Collapsed' ?></strong></summary>
-        <form class="error-filter-body" method="get">
+        <summary class="error-filter-header"><span><i data-lucide="sliders-horizontal"></i><span>Filters<small><?= $activeFilterCount ? $activeFilterCount . ' filter' . ($activeFilterCount === 1 ? '' : 's') . ' active' : 'No additional filters active' ?></small></span></span><strong data-error-filter-summary><?= $activeFilterCount ? (string) $activeFilterCount : 'Clear' ?></strong></summary>
+        <form class="error-filter-body" method="get" data-error-filter-form>
             <div class="error-filter-grid">
                 <label class="span-2">Search<input type="search" name="search" value="<?= htmlspecialchars($filters['search'], ENT_QUOTES, 'UTF-8') ?>" placeholder="Search errors, descriptions, categories or orders"></label>
-                <label>Month<input type="month" name="month" value="<?= htmlspecialchars($filters['month'], ENT_QUOTES, 'UTF-8') ?>"></label>
-                <label>Date from<input type="date" name="date_from" value="<?= htmlspecialchars($filters['date_from'], ENT_QUOTES, 'UTF-8') ?>"></label>
-                <label>Date to<input type="date" name="date_to" value="<?= htmlspecialchars($filters['date_to'], ENT_QUOTES, 'UTF-8') ?>"></label>
-                <label>Date filter<select name="date_basis" data-portal-custom-select><?php ops_select_options(['occurred'=>'Date Error Occurred','logged'=>'Date Logged'],$filters['date_basis']);?></select></label>
+                <label>Date period<select name="date_mode" data-portal-custom-select data-error-date-mode><?php ops_select_options(['month'=>'Selected Month','custom'=>'Custom Date Range'],$filters['date_mode']);?></select></label>
+                <label data-error-month-field <?= $filters['date_mode'] === 'custom' ? 'hidden' : '' ?>>Month<input type="month" name="month" value="<?= htmlspecialchars($filters['month'], ENT_QUOTES, 'UTF-8') ?>"></label>
+                <label data-error-custom-date <?= $filters['date_mode'] === 'month' ? 'hidden' : '' ?>>Date from<input type="date" name="date_from" value="<?= htmlspecialchars($filters['date_from'], ENT_QUOTES, 'UTF-8') ?>"></label>
+                <label data-error-custom-date <?= $filters['date_mode'] === 'month' ? 'hidden' : '' ?>>Date to<input type="date" name="date_to" value="<?= htmlspecialchars($filters['date_to'], ENT_QUOTES, 'UTF-8') ?>"></label>
+                <div class="error-filter-date-basis"><span>Date field</span><strong>Date Error Occurred</strong><small>Africa/Windhoek boundaries</small></div>
                 <label>Sort<select name="sort" data-portal-custom-select><?php ops_select_options(['occurred_newest'=>'Error Occurred — Newest','occurred_oldest'=>'Error Occurred — Oldest','logged_newest'=>'Date Logged — Newest','logged_oldest'=>'Date Logged — Oldest','financial_highest'=>'Financial Impact — Highest','financial_lowest'=>'Financial Impact — Lowest'],$filters['sort']);?></select></label>
                 <label>Severity<select name="severity" data-portal-custom-select><option value="">All severity</option><?php ops_select_options($severityLabels, $filters['severity']); ?></select></label>
                 <label>Category<select name="category" data-portal-custom-select><option value="">All categories</option><?php ops_select_options($errorCategories, $filters['category']); ?></select></label>
@@ -934,9 +956,20 @@ include BASE_PATH . '/shared/sidebar.php';
                 <label>Order ID<input name="order_reference" value="<?= htmlspecialchars($filters['order_reference'], ENT_QUOTES, 'UTF-8') ?>" placeholder="#33863 or WEB-33780"></label>
                 <label>Resolution status<select name="status" data-portal-custom-select><option value="">All statuses</option><?php ops_select_options($statusLabels, $filters['status']); ?></select></label>
             </div>
-            <div class="ops-form-actions error-filter-actions"><a class="button" href="errors.php">Clear</a><button class="button primary" type="submit">Apply filters</button></div>
+            <p class="error-filter-feedback" data-error-filter-feedback role="status" aria-live="polite"></p>
+            <div class="ops-form-actions error-filter-actions"><button class="button" type="button" data-error-filter-clear>Clear All</button><button class="button primary" type="submit">Apply Filters</button></div>
         </form>
     </details>
+
+    <div data-error-results>
+    <div class="error-filter-chips-shell" data-error-filter-chips-shell>
+    <?php if ($activeFilterChips): ?>
+        <nav class="error-filter-chips" aria-label="Active Error Log filters">
+            <?php foreach ($activeFilterChips as $chip): ?><a href="<?= htmlspecialchars($chip['url'], ENT_QUOTES, 'UTF-8') ?>" data-error-filter-chip><?= htmlspecialchars($chip['label'], ENT_QUOTES, 'UTF-8') ?><i data-lucide="x" aria-hidden="true"></i></a><?php endforeach; ?>
+            <a class="error-filter-clear-link" href="errors.php" data-error-filter-clear-link>Clear all</a>
+        </nav>
+    <?php endif; ?>
+    </div>
 
     <?php foreach (['open' => 'Not Resolved Errors', 'resolved' => 'Resolved Errors'] as $sectionStatus => $sectionTitle): ?>
     <?php $sectionErrors = $errorsByResolution[$sectionStatus] ?? []; ?>
@@ -1026,12 +1059,13 @@ include BASE_PATH . '/shared/sidebar.php';
                     <?php endif; ?>
                 </tr>
             <?php endforeach; ?>
-            <?php if (!$sectionErrors): ?><tr class="error-board-empty"><td colspan="<?= $showFullErrorLog ? 13 : 6 ?>">No <?= strtolower(htmlspecialchars($sectionTitle, ENT_QUOTES, 'UTF-8')) ?> found for the selected filters.</td></tr><?php endif; ?>
+            <?php if (!$sectionErrors): ?><tr class="error-board-empty"><td colspan="<?= $showFullErrorLog ? 13 : 6 ?>">No Error Log records match these filters.</td></tr><?php endif; ?>
             </tbody>
         </table>
         </div>
     </section>
     <?php endforeach; ?>
+    </div>
 
     <aside class="error-log-panel incident-modal" data-error-modal-panel aria-hidden="true" role="dialog" aria-modal="true" aria-label="Log error">
             <div class="error-log-panel-head incident-header">
@@ -1332,6 +1366,139 @@ include BASE_PATH . '/shared/sidebar.php';
 </main>
 <script>
 let pendingDeleteForm = null;
+
+const errorFilterForm = document.querySelector('[data-error-filter-form]');
+let errorFilterRequest = null;
+let errorFilterSequence = 0;
+
+function syncErrorDateMode() {
+  if (!errorFilterForm) return;
+  const mode = errorFilterForm.elements.date_mode?.value || 'month';
+  errorFilterForm.querySelectorAll('[data-error-month-field]').forEach((field) => { field.hidden = mode !== 'month'; });
+  errorFilterForm.querySelectorAll('[data-error-custom-date]').forEach((field) => { field.hidden = mode !== 'custom'; });
+}
+
+function syncErrorFilterControls(nextDocument) {
+  if (!errorFilterForm) return;
+  const nextForm = nextDocument.querySelector('[data-error-filter-form]');
+  if (!nextForm) return;
+  [...errorFilterForm.elements].forEach((control) => {
+    if (!control.name) return;
+    const nextControl = nextForm.elements.namedItem(control.name);
+    if (!nextControl) return;
+    if (control.type === 'checkbox' || control.type === 'radio') control.checked = nextControl.checked;
+    else control.value = nextControl.value;
+    control.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  syncErrorDateMode();
+  const currentSummary = document.querySelector('.error-filter-header');
+  const nextSummary = nextDocument.querySelector('.error-filter-header');
+  if (currentSummary && nextSummary) currentSummary.innerHTML = nextSummary.innerHTML;
+}
+
+function replaceErrorFilterResults(nextDocument) {
+  const currentMetrics = document.querySelector('[data-error-filter-metrics]');
+  const nextMetrics = nextDocument.querySelector('[data-error-filter-metrics]');
+  if (currentMetrics && nextMetrics) currentMetrics.innerHTML = nextMetrics.innerHTML;
+  const currentChips = document.querySelector('[data-error-filter-chips-shell]');
+  const nextChips = nextDocument.querySelector('[data-error-filter-chips-shell]');
+  if (currentChips && nextChips) currentChips.innerHTML = nextChips.innerHTML;
+  ['open', 'resolved'].forEach((status) => {
+    const currentSection = document.querySelector(`.error-section-${status}`);
+    const nextSection = nextDocument.querySelector(`.error-section-${status}`);
+    if (!currentSection || !nextSection) return;
+    const currentCount = currentSection.querySelector('.error-board-count');
+    const nextCount = nextSection.querySelector('.error-board-count');
+    const currentBody = currentSection.querySelector('tbody');
+    const nextBody = nextSection.querySelector('tbody');
+    if (currentCount && nextCount) currentCount.textContent = nextCount.textContent;
+    if (currentBody && nextBody) currentBody.innerHTML = nextBody.innerHTML;
+  });
+  document.querySelector('[data-error-filter-failure]')?.remove();
+  window.lucide?.createIcons({ attrs: { 'aria-hidden': 'true' }, strokeWidth: 1.7 });
+}
+
+function updateErrorFilterToolbar(nextDocument) {
+  const count = nextDocument.querySelectorAll('[data-error-filter-chip]').length;
+  const badge = document.querySelector('[data-filter-toolbar] [data-filter-count]');
+  const button = document.querySelector('[data-filter-toolbar] [data-view-action="filter"]');
+  if (badge) { badge.textContent = String(count); badge.hidden = count === 0; }
+  button?.classList.toggle('is-active', count > 0);
+}
+
+async function loadErrorFilterView(url, options = {}) {
+  const sequence = ++errorFilterSequence;
+  errorFilterRequest?.abort();
+  errorFilterRequest = new AbortController();
+  const feedback = errorFilterForm?.querySelector('[data-error-filter-feedback]');
+  const applyButton = errorFilterForm?.querySelector('[type="submit"]');
+  if (feedback) feedback.textContent = 'Loading filtered Error Log records...';
+  if (applyButton) { applyButton.disabled = true; applyButton.setAttribute('aria-busy', 'true'); }
+  try {
+    const response = await fetch(url, {
+      credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'text/html' },
+      signal: errorFilterRequest.signal
+    });
+    if (!response.ok) throw new Error(`Request failed (HTTP ${response.status}).`);
+    const html = await response.text();
+    if (sequence !== errorFilterSequence) return;
+    const nextDocument = new DOMParser().parseFromString(html, 'text/html');
+    if (!nextDocument.querySelector('[data-error-results]')) throw new Error('The filtered response was incomplete.');
+    replaceErrorFilterResults(nextDocument);
+    syncErrorFilterControls(nextDocument);
+    updateErrorFilterToolbar(nextDocument);
+    if (options.push !== false) history.pushState({ errorFilters: true }, '', url);
+    if (feedback) feedback.textContent = 'Filters applied.';
+  } catch (error) {
+    if (error?.name === 'AbortError') return;
+    const results = document.querySelector('[data-error-results]');
+    let failure = document.querySelector('[data-error-filter-failure]');
+    if (!failure && results) {
+      failure = document.createElement('div');
+      failure.className = 'error-filter-failure';
+      failure.dataset.errorFilterFailure = '';
+      results.prepend(failure);
+    }
+    if (failure) failure.innerHTML = '<strong>Could not load filtered Error Log records.</strong><span>Retry or clear the filters.</span>';
+    if (feedback) feedback.textContent = error?.message || 'Could not load filtered Error Log records. Retry.';
+  } finally {
+    if (sequence === errorFilterSequence && applyButton) { applyButton.disabled = false; applyButton.removeAttribute('aria-busy'); }
+  }
+}
+
+errorFilterForm?.querySelector('[name="date_mode"]')?.addEventListener('change', syncErrorDateMode);
+errorFilterForm?.addEventListener('change', () => queueMicrotask(() => updateErrorFilterToolbar(document)));
+window.addEventListener('load', () => window.setTimeout(() => updateErrorFilterToolbar(document), 0));
+syncErrorDateMode();
+errorFilterForm?.addEventListener('submit', (event) => {
+  event.preventDefault();
+  const parameters = new URLSearchParams(new FormData(errorFilterForm));
+  if ((parameters.get('date_mode') || 'month') === 'month') {
+    parameters.delete('date_from');
+    parameters.delete('date_to');
+  } else {
+    parameters.delete('month');
+    const from = parameters.get('date_from') || '';
+    const to = parameters.get('date_to') || '';
+    if (from && to && from > to) {
+      const feedback = errorFilterForm.querySelector('[data-error-filter-feedback]');
+      if (feedback) feedback.textContent = 'Date From must be on or before Date To.';
+      errorFilterForm.elements.date_from?.focus();
+      return;
+    }
+  }
+  [...parameters.entries()].forEach(([key, value]) => { if (value === '') parameters.delete(key); });
+  loadErrorFilterView(`errors.php?${parameters.toString()}`);
+});
+errorFilterForm?.querySelector('[data-error-filter-clear]')?.addEventListener('click', () => loadErrorFilterView('errors.php'));
+document.addEventListener('click', (event) => {
+  const chip = event.target.closest('[data-error-filter-chip], [data-error-filter-clear-link]');
+  if (!chip) return;
+  event.preventDefault();
+  loadErrorFilterView(chip.getAttribute('href') || 'errors.php');
+});
+window.addEventListener('popstate', () => loadErrorFilterView(location.href, { push: false }));
 
 async function markOwnerInstructionsRead(panel) {
   const section = panel?.querySelector('[data-owner-instructions]');
@@ -1785,11 +1952,15 @@ document.addEventListener('click', (event) => {
   if (detailOpen) {
     document.querySelectorAll('.error-detail-panel.open').forEach((panel) => panel.classList.remove('open'));
     const panel = document.querySelector(`[data-error-panel="${detailOpen.dataset.errorOpen}"]`);
-    if (panel) {
-      initIncidentStatusDropdown(panel);
-      panel.classList.add('open');
-      markOwnerInstructionsRead(panel);
+    if (!panel) {
+      const detailUrl = new URL(window.location.href);
+      detailUrl.searchParams.set('error_id', detailOpen.dataset.errorOpen);
+      window.location.assign(detailUrl.toString());
+      return;
     }
+    initIncidentStatusDropdown(panel);
+    panel.classList.add('open');
+    markOwnerInstructionsRead(panel);
     const backdrop = document.querySelector('.error-panel-backdrop');
     if (backdrop) backdrop.hidden = false;
     document.body.classList.add('error-panel-open');
