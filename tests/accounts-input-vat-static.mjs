@@ -111,10 +111,14 @@ assert.doesNotMatch(liveEntry, /eval\(/, 'cache-safe live entry point must not e
 assert.match(liveEntry, /Cache-Control: no-store/, 'live entry point must prevent stale page responses');
 assert.match(accountsHtaccess, /RewriteRule \^input-vat\\\.php\$ input-vat-live\.php \[L,QSA\]/, 'Input VAT route must use the cache-safe live entry point');
 assert.match(page, /data-vat-view="history"/);
-assert.doesNotMatch(page, /if\(accounts_is_owner\(\)\): \?><button[^>]*data-vat-view="history"/);
-assert.doesNotMatch(liveEntry, /if\(accounts_is_owner\(\)\): \?><button[^>]*data-vat-view="history"/);
+assert.match(page, /if\(accounts_is_owner\(\)\):[\s\S]*data-vat-view="history"[\s\S]*<\?php endif; \?>/);
+assert.match(liveEntry, /if\(accounts_is_owner\(\)\):[\s\S]*data-vat-view="history"[\s\S]*<\?php endif; \?>/);
 assert.match(api, /\$history = \(\$_GET\['period'\] \?\? ''\) === 'history'/);
-assert.doesNotMatch(js, /view\.dataset\.vatView==='history'&&owner/);
+assert.match(api, /if \(\$history\) iv_require_history_access\(\)/);
+assert.match(api, /Transaction History is available to Owner\/Admin only/);
+assert.match(page, /!accounts_is_owner\(\)[\s\S]*\['history', 'transaction-history'\]/);
+assert.match(liveEntry, /!accounts_is_owner\(\)[\s\S]*\['history', 'transaction-history'\]/);
+assert.match(js, /requestedView === 'history' && !owner \? 'monthly' : requestedView/);
 assert.match(page, /portal-theme-tabs/);
 assert.match(page, /data-active-period-kicker/);
 assert.match(page, /data-active-period-value/);

@@ -87,6 +87,12 @@ function iv_valid_purchase_date(string $value): bool
     return checkdate((int) $parts[2], (int) $parts[3], (int) $parts[1]);
 }
 
+function iv_require_history_access(): void
+{
+    if (accounts_is_owner()) return;
+    iv_reply(['ok' => false, 'error' => 'Transaction History is available to Owner/Admin only.'], 403);
+}
+
 function iv_duplicate_matches(int $id, string $date, string $supplier, float $inclusive, string $reference): array
 {
     $sql = 'SELECT * FROM accounts_input_vat_purchases WHERE deleted_at IS NULL AND id<>? AND purchase_date=? AND LOWER(TRIM(supplier))=LOWER(TRIM(?)) AND amount_incl_vat=?';
@@ -117,6 +123,7 @@ try {
     if ($action === 'export') {
         $month = iv_month_from_request((string) ($_GET['month'] ?? ''));
         $history = ($_GET['period'] ?? '') === 'history';
+        if ($history) iv_require_history_access();
         $all = accounts_is_owner() && ($_GET['period'] ?? '') === 'all';
         $where = 'deleted_at IS NULL';
         $params = [];
@@ -168,6 +175,7 @@ try {
     if ($action === 'list') {
         $month = iv_month_from_request((string) ($_GET['month'] ?? ''));
         $history = ($_GET['period'] ?? '') === 'history';
+        if ($history) iv_require_history_access();
         $all = accounts_is_owner() && ($_GET['period'] ?? '') === 'all';
         $where = ['deleted_at IS NULL'];
         $params = [];
