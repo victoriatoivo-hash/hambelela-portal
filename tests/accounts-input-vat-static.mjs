@@ -194,6 +194,8 @@ assert.match(css, /portal-button\[data-add-purchase\]:hover,[\s\S]*background:#f
 assert.doesNotMatch(css, /accounts-search-control input\{[^}]*radial-gradient/, 'Input VAT must not draw the search icon with CSS gradients');
 assert.match(css, /input-vat-search-field>svg\{[^}]*width:15px;height:15px/);
 assert.match(css, /accounts-toolbar \.input-vat-search-field>input\{[^}]*height:var\(--iv-control-height\)/);
+assert.match(css, /accounts-status-control \.portal-custom-select-trigger\{[^}]*font-weight:400;[^}]*text-transform:none/);
+assert.match(css, /accounts-status-control \.portal-custom-select-value\{font-weight:400;text-transform:none\}/);
 assert.match(css, /input-vat-active-period\{[^}]*height:var\(--iv-control-height\)/);
 assert.match(css, /input-vat-month-arrow\{[^}]*width:32px;height:32px/);
 assert.match(css, /input-vat-capture-complete\{[^}]*height:32px;min-height:32px/);
