@@ -17,6 +17,7 @@ const portalCustomSelectOverlay = (() => {
     popup = document.createElement('div');
     popup.id = popupId;
     popup.className = 'portal-select-popup';
+    popup.setAttribute('popover', 'manual');
     popup.setAttribute('role', 'listbox');
     popup.setAttribute('aria-hidden', 'true');
     document.body.appendChild(popup);
@@ -81,8 +82,6 @@ const portalCustomSelectOverlay = (() => {
 
   const renderOptions = () => {
     const popupElement = ensurePopup();
-    const popupHost = activeControl?.nativeSelect.closest('dialog[open]') || document.body;
-    if (popupElement.parentElement !== popupHost) popupHost.appendChild(popupElement);
     popupElement.replaceChildren();
     popupElement.scrollTop = 0;
     if (!activeControl) return;
@@ -208,6 +207,9 @@ const portalCustomSelectOverlay = (() => {
     popupElement.setAttribute('aria-hidden', 'false');
     popupElement.setAttribute('aria-labelledby', control.trigger.id);
     renderOptions();
+    if (typeof popupElement.showPopover === 'function' && !popupElement.matches(':popover-open')) {
+      popupElement.showPopover();
+    }
     popupElement.classList.add('is-open');
     position();
     window.requestAnimationFrame(() => {
@@ -229,6 +231,7 @@ const portalCustomSelectOverlay = (() => {
     control.trigger.setAttribute('aria-expanded', 'false');
     if (popup) {
       popup.classList.remove('is-open');
+      if (typeof popup.hidePopover === 'function' && popup.matches(':popover-open')) popup.hidePopover();
       popup.setAttribute('aria-hidden', 'true');
       popup.removeAttribute('aria-labelledby');
       delete popup.dataset.placement;

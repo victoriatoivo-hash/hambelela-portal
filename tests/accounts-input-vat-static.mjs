@@ -159,7 +159,8 @@ assert.match(css, /input-vat-override-toggle input\[type="checkbox"\]:checked/);
 assert.match(css, /input-vat-file-upload__area\{width:100%/);
 assert.match(css, /input-vat-rate-card\{min-height:88px/);
 assert.match(css, /portal-select-popup\[data-portal-select-variant="input-vat"\]/);
-assert.match(portalJs, /nativeSelect\.closest\('dialog\[open\]'\) \|\| document\.body/, 'portal dropdown popup must remain visible inside native dialogs');
+assert.match(portalJs, /popup\.setAttribute\('popover', 'manual'\)/, 'portal dropdown popup must enter the browser top layer above native dialogs');
+assert.match(portalJs, /popupElement\.showPopover\(\)/, 'portal dropdown popup must open through the Popover API');
 assert.doesNotMatch(css, /Poppins/);
 
 const inclusive = 944.85;

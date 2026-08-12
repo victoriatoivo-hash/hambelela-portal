@@ -3012,6 +3012,7 @@ textarea {
 .portal-custom-select-menu::-webkit-scrollbar-thumb:hover { background: rgba(171, 54, 25, .36); }
 .portal-select-popup {
   position: fixed;
+  margin: 0;
   z-index: 52000;
   max-width: calc(100vw - 16px);
   max-height: min(280px, calc(100vh - 16px));
