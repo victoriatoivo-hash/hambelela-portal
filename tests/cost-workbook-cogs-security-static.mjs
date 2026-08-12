@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-const root=new URL('../',import.meta.url);const api=fs.readFileSync(new URL('apps/cost-manager/cw-cogs-api.php',root),'utf8');const handler=fs.readFileSync(new URL('shared/cost-workbook-cogs-endpoint.php',root),'utf8');const adapter=fs.readFileSync(new URL('shared/cost-workbook-cogs.php',root),'utf8');const page=fs.readFileSync(new URL('apps/cost-manager/landing-cost-engine.php',root),'utf8');
+const root=new URL('../',import.meta.url);const api=fs.readFileSync(new URL('apps/cost-manager/cw-cogs-api.php',root),'utf8');const handler=fs.readFileSync(new URL('shared/cost-workbook-cogs-endpoint.php',root),'utf8');const adapter=fs.readFileSync(new URL('shared/cost-workbook-cogs.php',root),'utf8');const retiredPage=fs.readFileSync(new URL('apps/cost-manager/landing-cost-engine.php',root),'utf8');const canonicalPage=fs.readFileSync(new URL('apps/cost-manager/workbook.php',root),'utf8');
 const ok=(v,m)=>{if(!v)throw new Error(m)};
 ok(/require_role\('owner_admin'\)/.test(api),'Endpoint must be Owner-only.');
 ok(/'verify_nonce'\s*=>[^\n]*cw_require_csrf/.test(api)&&/\$method === 'POST'\) \(\$dependencies\['verify_nonce'\]\)\(\)/.test(handler),'POST must require nonce.');
@@ -15,6 +15,6 @@ ok(!/meta_data|_cogs_value|\bUPDATE\s+wp_|\bINSERT\s+INTO\s+wp_/i.test(api+handl
 ok(!/retry|for\s*\([^)]*attempt/i.test(adapter),'Mutation retry found.');
 ok(/CostWorkbookNativeCogs::safeError\(\$error\)/.test(handler),'Raw remote errors are not normalized.');
 ok(/Cache-Control: no-store, private/.test(api),'Financial response cache control missing.');
-ok(/require_role\('owner_admin'\)/.test(page),'Profitability page must not expose financial fields to employees.');
-ok(/WooCommerce Cost of Goods Sold is not enabled\. Cost publishing is unavailable\./.test(page),'Disabled-feature notice missing.');
+ok(/require_role\('owner_admin'\)/.test(retiredPage),'Retired profitability route must not expose financial fields to employees.');
+ok(/WooCommerce Cost of Goods Sold is not enabled\. Cost publishing is unavailable\./.test(canonicalPage),'Disabled-feature notice missing from canonical workbook.');
 console.log('Cost Workbook Phase 3 endpoint security checks passed.');
