@@ -111,6 +111,9 @@
     top = Math.max(margin, Math.min(top, window.innerHeight - popupRect.height - margin));
     popup.style.left = `${Math.round(left)}px`;
     popup.style.top = `${Math.round(top)}px`;
+    const positionedRect = popup.getBoundingClientRect();
+    if (Math.abs(positionedRect.left - left) > 1) popup.style.left = `${Math.round(left + left - positionedRect.left)}px`;
+    if (Math.abs(positionedRect.top - top) > 1) popup.style.top = `${Math.round(top + top - positionedRect.top)}px`;
     popup.classList.remove('is-positioning');
     popup.style.visibility = '';
   }

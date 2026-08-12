@@ -218,6 +218,8 @@ assert.match(datePickerJs, /const host = openDialog \|\| document\.body/);
 assert.match(datePickerJs, /datePopup\.removeAttribute\('popover'\)/);
 assert.doesNotMatch(datePickerJs, /showPopover\(\)/);
 assert.match(datePickerJs, /rect\.bottom < clip\.top \|\| rect\.top > clip\.bottom/);
+assert.match(datePickerJs, /const positionedRect = popup\.getBoundingClientRect\(\)/);
+assert.match(datePickerJs, /left \+ left - positionedRect\.left/);
 assert.match(portalJs, /popup\.setAttribute\('popover', 'manual'\)/, 'portal dropdown popup must enter the browser top layer above native dialogs');
 assert.match(portalJs, /popupElement\.showPopover\(\)/, 'portal dropdown popup must open through the Popover API');
 assert.match(portalJs, /nativeSelect\.closest\('dialog\[open\]'\) \|\| document\.body/, 'modal dropdown options must remain interactive inside the active dialog');
