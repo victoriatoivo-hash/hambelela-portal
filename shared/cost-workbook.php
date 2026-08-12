@@ -294,6 +294,6 @@ function cw_calculate($priceIncVat, $cost, $vatRate, $targetMargin = null): arra
 function cw_round_divide(int $numerator, int $denominator): int
 {
     if ($denominator === 0) throw new InvalidArgumentException('Cannot divide by zero.');
-    $sign = ($numerator < 0) xor ($denominator < 0) ? -1 : 1;
+    $sign = (($numerator < 0) !== ($denominator < 0)) ? -1 : 1;
     return $sign * intdiv(abs($numerator) + intdiv(abs($denominator), 2), abs($denominator));
 }
