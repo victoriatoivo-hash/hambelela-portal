@@ -32,9 +32,9 @@ assert.match(boundary, /historical-cost-records\.php/, 'archive redirect target 
 assert.match(history, /require_role\('owner_admin'\)/, 'archive must require owner/admin');
 assert.match(history, /cw_history_require_read_only_request\(\)/, 'archive must enforce read-only requests');
 assert.match(history, /htmlspecialchars/g, 'archive output must be escaped');
-assert.match(history, /\$datasets\[\$selected\]/, 'dataset must be selected from an allowlist');
-assert.match(history, /array_intersect/, 'search fields must be verified against schema');
-assert.match(history, /LIMIT ' \. \$perPage/, 'archive must paginate');
+assert.match(history, /cw_history_fetch\(\$pdo,\$datasets/, 'archive must use the tested allowlisted query layer');
+assert.match(boundary, /array_intersect/, 'search fields must be verified against schema');
+assert.match(boundary, /LIMIT '\.\$perPage\.' OFFSET '\.\$offset/, 'archive must paginate');
 for (const forbidden of ['wc_put(', 'wc_get(', 'INSERT INTO ', 'UPDATE `', 'DELETE FROM ', 'REPLACE INTO ', 'move_uploaded_file(', 'cw_install_schema(']) {
   assert.ok(!history.includes(forbidden), `archive contains forbidden operation: ${forbidden}`);
 }

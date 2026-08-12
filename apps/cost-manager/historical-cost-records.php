@@ -40,33 +40,8 @@ $error = null;
 
 try {
     $pdo = db();
-    $tableCheck = $pdo->prepare('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?');
-    $tableCheck->execute([$selected]);
-    if ((int) $tableCheck->fetchColumn() === 1) {
-        $schemaRows = $pdo->query('SHOW COLUMNS FROM `' . $selected . '`')->fetchAll(PDO::FETCH_ASSOC);
-        $actualColumns = array_column($schemaRows, 'Field');
-        $columns = array_values(array_filter($actualColumns, static function (string $column) use ($sensitiveColumns): bool {
-            $normalized = strtolower($column);
-            return !in_array($normalized, $sensitiveColumns, true)
-                && !preg_match('/password|secret|token|credential/', $normalized);
-        }));
-        $searchColumns = array_values(array_intersect($datasets[$selected]['search'], $actualColumns));
-        $where = '';
-        $params = [];
-        if ($search !== '' && $searchColumns) {
-            $where = ' WHERE ' . implode(' OR ', array_map(static fn (string $column): string => '`' . $column . '` LIKE ?', $searchColumns));
-            $params = array_fill(0, count($searchColumns), '%' . $search . '%');
-        }
-        $count = $pdo->prepare('SELECT COUNT(*) FROM `' . $selected . '`' . $where);
-        $count->execute($params);
-        $total = (int) $count->fetchColumn();
-        $maxPage = max(1, (int) ceil($total / $perPage));
-        $page = min($page, $maxPage);
-        $offset = ($page - 1) * $perPage;
-        $statement = $pdo->prepare('SELECT * FROM `' . $selected . '`' . $where . ' ORDER BY `' . $datasets[$selected]['order'] . '` ' . $direction . ' LIMIT ' . $perPage . ' OFFSET ' . $offset);
-        $statement->execute($params);
-        $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
-    }
+    $result=cw_history_fetch($pdo,$datasets,$selected,$search,$direction,$page,$perPage);
+    $selected=$result['dataset'];$search=$result['search'];$direction=$result['direction'];$page=$result['page'];$columns=$result['columns'];$total=$result['total'];$rows=$result['rows'];
 } catch (Throwable $exception) {
     error_log('Historical Cost Records read failed: ' . get_class($exception));
     $error = 'Historical records could not be loaded safely.';

@@ -60,6 +60,8 @@ jobs:
         run: php tests/cost-workbook-phase2-security.php
       - name: Phase 3 COGS endpoint runtime assertions
         run: php tests/cost-workbook-cogs-endpoint-runtime.php
+      - name: Historical archive disposable database assertions
+        run: php tests/cost-workbook-history-runtime.php
       - name: Existing Cost Workbook static suites
         run: for test in tests/cost-workbook*.mjs; do node "$test"; done
       - name: JavaScript syntax
