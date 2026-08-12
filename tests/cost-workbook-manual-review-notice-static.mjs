@@ -12,7 +12,7 @@ assert.match(client, /hasExtractedLines=d\.lines\.length>0/u, 'the notice follow
 assert.match(client, /\$\('#reviewExtractionNotice'\)\.hidden=hasExtractedLines/u, 'zero-line drafts display the notice and populated drafts hide it');
 assert.match(client, /hasExtractedLines\?d\.lines\.forEach\(addLine\):addLine\(\)/u, 'the existing blank manual-entry row fallback is preserved');
 assert.equal((client.match(/uploadForm\.addEventListener\('submit'/gu) || []).length, 1, 'upload behavior is not duplicated or redesigned');
-assert.match(page, /cost-workbook\.js\?v=7/u, 'the corrected script has a fresh cache version');
+assert.match(page, /cost-workbook\.js\?v=8/u, 'the corrected script has a fresh cache version');
 assert.match(page, /cost-workbook-invoice\.css\?v=3/u, 'the corrected notice CSS has a fresh cache version');
 assert.match(css, /#reviewDialog \.cw-manual-review-notice/u, 'notice styling is exclusive to the Cost Workbook review dialog');
 assert.doesNotMatch(css, /(^|\n)(?:body|\.modal|\.dialog|\[role="dialog"\])\s/u, 'notice styling does not affect other dialogs or modules');

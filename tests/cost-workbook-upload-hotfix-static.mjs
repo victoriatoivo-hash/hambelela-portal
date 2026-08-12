@@ -9,7 +9,7 @@ assert.match(page, /id="invoiceFiles"[^>]*name="invoice_files\[\]"[^>]*multiple[
 assert.match(page, /id="uploadSelection"[^>]*aria-live="polite"/u, 'selected files have a visible live region');
 assert.match(page, /id="uploadProgress"[^>]*role="status"/u, 'upload progress has a visible status region');
 assert.match(page, /type="submit" disabled>Upload selected files/u, 'upload starts disabled');
-assert.match(page, /cost-workbook\.js\?v=7/u, 'the corrected asset has a new cache version');
+assert.match(page, /cost-workbook\.js\?v=8/u, 'the corrected asset has a new cache version');
 assert.match(page, /cost-workbook-invoice\.css\?v=3/u, 'the corrected modal CSS has a new cache version');
 
 assert.match(client, /uploadInput\.addEventListener\('change'/u, 'the live input owns one explicit change handler');
