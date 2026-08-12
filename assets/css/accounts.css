@@ -258,8 +258,9 @@
 #inputVatPage .input-vat-month-status{min-height:58px;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 12px;border:1px solid #e4d4ca;border-radius:11px;background:linear-gradient(110deg,#fff,#faf2ed)}
 #inputVatPage .input-vat-month-status>div{display:grid;grid-template-columns:auto auto;align-items:center;gap:3px 9px;min-width:0}
 #inputVatPage .input-vat-month-status strong{font-size:13px}.input-vat-month-status small{grid-column:1/-1;color:#80695f;font-size:11px}
-#inputVatPage .input-vat-selected-month{height:34px;display:flex;align-items:center;justify-content:center;padding:0 12px;border:1px solid #d8c9c0;border-radius:8px;background:#fff;color:#49372f;font-size:13px;font-weight:600;white-space:nowrap}
-#inputVatPage .accounts-input-date-label{min-width:0}
+#inputVatPage .input-vat-selected-month{height:34px;display:flex;align-items:center;justify-content:center;padding:0 12px;border:1px solid #d8c9c0;border-radius:8px;background:#fff;color:#49372f;font-size:13px!important;font-weight:600;white-space:nowrap}
+#inputVatPage .accounts-input-date-label{min-width:0;align-self:end}
+#inputVatPage .accounts-input-date-label>span:first-child{display:none}
 #inputVatPage .input-vat-history-toolbar{grid-template-columns:repeat(7,minmax(0,1fr));gap:10px}
 #inputVatPage .input-vat-history-toolbar label{display:grid;gap:5px;min-width:0;color:#765b50;font-size:10px;font-weight:700;letter-spacing:.04em}
 #inputVatPage .input-vat-history-toolbar input,#inputVatPage .input-vat-history-toolbar select,#inputVatPage .accounts-toolbar input,#inputVatPage .accounts-toolbar select{height:34px;min-height:34px;border-radius:8px;font-size:13px}
