@@ -513,4 +513,5 @@ body.input-vat-dialog-open{overflow:hidden!important}
 #inputVatPage .input-vat-purchase-dialog .accounts-form-grid input[type="number"]{font-variant-numeric:tabular-nums;text-align:left}
 #inputVatPage .input-vat-purchase-dialog .accounts-form-grid>label{gap:6px;font-size:11px;font-weight:600}
 #inputVatPage .input-vat-purchase-dialog .field-help{margin:0;color:#a08070;font-size:10px;font-weight:400;line-height:1.35}
+#inputVatPage .input-vat-purchase-dialog .portal-date-picker .portal-date-field{box-sizing:border-box;height:32px;min-height:32px;max-height:32px;padding-block:0;font-size:12px;font-weight:400;line-height:1.2}
 @media(max-width:600px){#inputVatPage .input-vat-purchase-dialog .accounts-form-grid input:not([type="checkbox"]):not([type="file"]),#inputVatPage .input-vat-purchase-dialog .accounts-form-grid select{font-size:16px}}
