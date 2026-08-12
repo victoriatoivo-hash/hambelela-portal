@@ -76,7 +76,13 @@ jobs:
           path: artifacts/historical-cost-records/*.png
           if-no-files-found: error
       - name: Existing Cost Workbook static suites
-        run: for test in tests/cost-workbook*.mjs; do node "$test"; done
+        run: |
+          for test in tests/cost-workbook*.mjs; do
+            case "$test" in
+              *history-http.mjs|*history-visual.mjs) continue ;;
+            esac
+            node "$test"
+          done
       - name: JavaScript syntax
         run: |
           node --check assets/js/cost-workbook.js
