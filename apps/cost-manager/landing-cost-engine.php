@@ -9,7 +9,7 @@ require_once BASE_PATH . '/shared/woocommerce.php';
 require_once BASE_PATH . '/shared/engines/cost-engine.php';
 require_once BASE_PATH . '/shared/engines/pricing-engine.php';
 
-require_login();
+require_role('owner_admin');
 
 $pageTitle = 'Cost Workbook / Landing Cost Engine | ' . APP_NAME;
 $activeApp = 'cost-manager';
@@ -1118,6 +1118,7 @@ include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
 <main class="workspace module cost-workbook-exact">
+    <div class="notice notice-warning" role="status">WooCommerce Cost of Goods Sold is not enabled. Cost publishing is unavailable. Profitability figures below are private Cost Workbook previews and are not published to WooCommerce.</div>
     <section class="module-header cost-workbook-hero">
         <div>
             <p class="eyebrow">Cost Workbook / Landing Cost Engine</p>

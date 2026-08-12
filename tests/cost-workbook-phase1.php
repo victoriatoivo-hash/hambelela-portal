@@ -7,6 +7,16 @@ require_once BASE_PATH . '/shared/cost-workbook.php';
 
 $failures = [];
 function check(string $name, bool $ok): void { global $failures; echo ($ok ? 'PASS ' : 'FAIL ') . $name . PHP_EOL; if (!$ok) $failures[]=$name; }
+function numeric_close($actual,float $expected,float $epsilon=0.000001):bool{return !is_bool($actual)&&$actual!==null&&is_numeric($actual)&&is_finite((float)$actual)&&abs((float)$actual-$expected)<=$epsilon;}
+function check_close(string $name,$actual,float $expected,float $epsilon=0.000001):void{check($name,numeric_close($actual,$expected,$epsilon));}
+
+check('numeric comparison accepts integer for float expectation',numeric_close(100,100.0));
+check('numeric comparison accepts epsilon-equivalent result',numeric_close(100.0000005,100.0));
+check('numeric comparison rejects material difference',!numeric_close(100.000002,100.0));
+check('numeric comparison rejects non-numeric string',!numeric_close('not-a-number',100.0));
+check('numeric comparison rejects null',!numeric_close(null,100.0));
+check('numeric comparison rejects booleans',!numeric_close(true,1.0)&&!numeric_close(false,0.0));
+check('numeric comparison rejects non-finite values',!numeric_close(INF,100.0)&&!numeric_close(NAN,100.0));
 
 [$q,$u,$e]=cw_normalize_quantity(1,'kg'); check('1kg becomes 1000g', (float)$q===1000.0 && $u==='g' && $e===null);
 [$q,$u,$e]=cw_normalize_quantity(500,'g'); check('500g remains 500g', (float)$q===500.0 && $u==='g');
@@ -15,12 +25,20 @@ function check(string $name, bool $ok): void { global $failures; echo ($ok ? 'PA
 [$q,$u,$e]=cw_normalize_quantity(2,'pack'); check('unknown pack remains unresolved', $q===null && $u==='pack' && $e!==null);
 
 $c=cw_calculate(115,60,15);
-check('selling price excluding VAT', $c['selling_ex_vat']===100.0);
-check('output VAT', $c['output_vat']===15.0);
-check('gross profit', $c['gross_profit']===40.0);
-check('gross margin is 40%', $c['gross_margin']===40.0);
-check('markup is 66.67%', $c['markup']===66.67);
+check_close('selling price excluding VAT',$c['selling_ex_vat'],100.0);
+check_close('output VAT',$c['output_vat'],15.0);
+check_close('gross profit',$c['gross_profit'],40.0);
+check_close('gross margin is 40%',$c['gross_margin'],40.0);
+check_close('markup is 66.67%',$c['markup'],66.67);
 check('margin and markup differ', $c['gross_margin']!==$c['markup']);
+$fractional=cw_calculate(99.99,42.37,15);
+check_close('fractional selling price excluding VAT',$fractional['selling_ex_vat'],86.95);
+check_close('fractional output VAT cross-check',$fractional['output_vat'],round(99.99*15/115,2));
+check_close('fractional gross profit uses VAT-exclusive selling price',$fractional['gross_profit'],86.95-42.37);
+check_close('fractional markup uses landed cost denominator',$fractional['markup'],round((86.95-42.37)/42.37*100,2));
+check_close('fractional margin uses VAT-exclusive denominator',$fractional['gross_margin'],round((86.95-42.37)/86.95*100,2));
+check('incorrect VAT result is rejected',!numeric_close($fractional['output_vat'],99.99-42.37));
+check('incorrect margin denominator is rejected',!numeric_close($fractional['gross_margin'],round((86.95-42.37)/42.37*100,2)));
 $missing=cw_calculate(null,null,15); check('missing values do not become Infinity or NaN', !in_array(INF,$missing,true) && !in_array(NAN,$missing,true));
 
 $line=cw_calculate_invoice_line(2,'10.005','1.25','2.81','exclusive');
