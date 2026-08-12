@@ -478,7 +478,7 @@ body.input-vat-dialog-open{overflow:hidden!important}
 
 /* Input VAT Add Purchase compact portal control system. */
 #inputVatPage .input-vat-purchase-dialog .accounts-form-grid input:not([type="checkbox"]):not([type="file"]),
-#inputVatPage .input-vat-purchase-dialog .accounts-form-grid select{
+#inputVatPage .input-vat-purchase-dialog .portal-custom-select-trigger{
   box-sizing:border-box;
   width:100%;
   height:32px;
@@ -495,23 +495,29 @@ body.input-vat-dialog-open{overflow:hidden!important}
   font-weight:400;
   line-height:1.2;
 }
-#inputVatPage .input-vat-purchase-dialog .accounts-form-grid select{
-  appearance:none;
-  -webkit-appearance:none;
-  padding:0 32px 0 11px;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23721B1A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E");
-  background-position:right 10px center;
-  background-repeat:no-repeat;
-  background-size:14px 14px;
-}
 #inputVatPage .input-vat-purchase-dialog .accounts-form-grid input:not([type="checkbox"]):not([type="file"]):hover,
-#inputVatPage .input-vat-purchase-dialog .accounts-form-grid select:hover{border-color:rgba(171,54,25,.42);background-color:rgba(253,246,238,.28)}
+#inputVatPage .input-vat-purchase-dialog .portal-custom-select-trigger:hover{border-color:rgba(171,54,25,.42);background-color:rgba(253,246,238,.28)}
 #inputVatPage .input-vat-purchase-dialog .accounts-form-grid input:not([type="checkbox"]):not([type="file"]):focus,
-#inputVatPage .input-vat-purchase-dialog .accounts-form-grid select:focus{border-color:#ab3619;outline:0;box-shadow:0 0 0 3px rgba(171,54,25,.12)}
+#inputVatPage .input-vat-purchase-dialog .portal-custom-select-trigger:focus-visible,
+#inputVatPage .input-vat-purchase-dialog .portal-custom-select.is-open .portal-custom-select-trigger{border-color:#ab3619;outline:0;box-shadow:0 0 0 3px rgba(171,54,25,.12)}
 #inputVatPage .input-vat-purchase-dialog .accounts-form-grid input[type="date"]{padding-right:8px}
 #inputVatPage .input-vat-purchase-dialog .accounts-form-grid input[type="date"]::-webkit-calendar-picker-indicator{width:14px;height:14px;margin:0;padding:0;cursor:pointer}
 #inputVatPage .input-vat-purchase-dialog .accounts-form-grid input[type="number"]{font-variant-numeric:tabular-nums;text-align:left}
 #inputVatPage .input-vat-purchase-dialog .accounts-form-grid>label{gap:6px;font-size:11px;font-weight:600}
 #inputVatPage .input-vat-purchase-dialog .field-help{margin:0;color:#a08070;font-size:10px;font-weight:400;line-height:1.35}
 #inputVatPage .input-vat-purchase-dialog .portal-date-picker .portal-date-field{box-sizing:border-box;height:32px;min-height:32px;max-height:32px;padding-block:0;font-size:12px;font-weight:400;line-height:1.2}
-@media(max-width:600px){#inputVatPage .input-vat-purchase-dialog .accounts-form-grid input:not([type="checkbox"]):not([type="file"]),#inputVatPage .input-vat-purchase-dialog .accounts-form-grid select{font-size:16px}}
+/* Canonical portal dropdowns throughout Input VAT. The native selects remain the
+   authoritative form controls; portal.js supplies the themeable trigger/listbox. */
+#inputVatPage .portal-custom-select-trigger{height:32px;min-height:32px;padding:0 11px;border-color:rgba(171,54,25,.24);border-radius:8px;background:#fff;color:#1a1a1a;font-family:Figtree,system-ui,sans-serif;font-size:12px;font-weight:400;box-shadow:none}
+#inputVatPage .portal-custom-select-trigger:hover{border-color:rgba(171,54,25,.42);background:rgba(253,246,238,.28)}
+#inputVatPage .portal-custom-select.is-open .portal-custom-select-trigger,
+#inputVatPage .portal-custom-select-trigger:focus-visible{border-color:#ab3619;box-shadow:0 0 0 3px rgba(171,54,25,.12)}
+#inputVatPage .portal-custom-select-value{font-size:12px;font-weight:400}
+#inputVatPage .portal-custom-select-chevron{width:14px;height:14px;color:#721b1a}
+.portal-select-popup[data-portal-select-variant="input-vat"]{border-color:#ede3d8;border-radius:10px;background:#fff;box-shadow:0 16px 34px rgba(114,27,26,.16)}
+.portal-select-popup[data-portal-select-variant="input-vat"] .portal-select-option:hover,
+.portal-select-popup[data-portal-select-variant="input-vat"] .portal-select-option.is-active,
+.portal-select-popup[data-portal-select-variant="input-vat"] .portal-select-option:focus-visible{background:rgba(240,116,32,.06);color:#721b1a}
+.portal-select-popup[data-portal-select-variant="input-vat"] .portal-select-option.is-selected,
+.portal-select-popup[data-portal-select-variant="input-vat"] .portal-select-option[aria-selected="true"]{background:rgba(171,54,25,.08);color:#721b1a}
+@media(max-width:600px){#inputVatPage .input-vat-purchase-dialog .accounts-form-grid input:not([type="checkbox"]):not([type="file"]){font-size:16px}}

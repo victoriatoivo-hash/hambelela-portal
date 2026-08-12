@@ -49,7 +49,7 @@ include BASE_PATH.'/shared/sidebar.php';
   <section class="input-vat-month-workspace" data-month-workspace>
     <div class="input-vat-month-nav">
       <button type="button" class="input-vat-month-arrow" data-previous-month aria-label="Previous month"><i data-lucide="chevron-left" aria-hidden="true"></i></button>
-      <label class="input-vat-year-select"><span>Year</span><select data-month-year aria-label="Input VAT year"></select></label>
+      <label class="input-vat-year-select"><span>Year</span><select data-month-year data-portal-custom-select data-portal-select-variant="input-vat" aria-label="Input VAT year"></select></label>
       <nav class="input-vat-month-tabs" aria-label="Input VAT months" data-month-tabs></nav>
       <button type="button" class="input-vat-month-arrow" data-next-month aria-label="Next month"><i data-lucide="chevron-right" aria-hidden="true"></i></button>
     </div>
@@ -59,7 +59,7 @@ include BASE_PATH.'/shared/sidebar.php';
   <section class="accounts-toolbar" aria-label="Input VAT working filters" data-monthly-toolbar>
     <input type="hidden" data-month value="<?=date('Y-m')?>">
     <label class="accounts-search-control"><span>SEARCH</span><input type="search" data-search placeholder="Search supplier, description or reference"></label>
-    <label class="accounts-status-control"><span>STATUS</span><select data-status><option value="">All statuses</option><option value="captured">Captured</option><option value="reviewed">Reviewed</option><option value="needs_correction">Needs Correction</option></select></label>
+    <label class="accounts-status-control"><span>STATUS</span><select data-status data-portal-custom-select data-portal-select-variant="input-vat"><option value="">All statuses</option><option value="captured">Captured</option><option value="reviewed">Reviewed</option><option value="needs_correction">Needs Correction</option></select></label>
   </section>
 
   <?php if(accounts_is_owner()): ?>
@@ -69,8 +69,8 @@ include BASE_PATH.'/shared/sidebar.php';
     <label><span>TO</span><input type="date" data-history-to max="<?=htmlspecialchars(date('Y-m-d'), ENT_QUOTES, 'UTF-8')?>"></label>
     <label class="accounts-search-control"><span>SEARCH</span><input type="search" data-history-search placeholder="Supplier, description or reference"></label>
     <label><span>ENTERED BY</span><input type="search" data-history-entered-by placeholder="Employee name"></label>
-    <label><span>STATUS</span><select data-history-status><option value="">All statuses</option><option value="captured">Captured</option><option value="reviewed">Reviewed</option><option value="needs_correction">Needs Correction</option></select></label>
-    <label><span>ADJUSTMENT</span><select data-history-manual><option value="">All records</option><option value="1">Manual adjustments</option><option value="0">Automatic calculations</option></select></label>
+    <label><span>STATUS</span><select data-history-status data-portal-custom-select data-portal-select-variant="input-vat"><option value="">All statuses</option><option value="captured">Captured</option><option value="reviewed">Reviewed</option><option value="needs_correction">Needs Correction</option></select></label>
+    <label><span>ADJUSTMENT</span><select data-history-manual data-portal-custom-select data-portal-select-variant="input-vat"><option value="">All records</option><option value="1">Manual adjustments</option><option value="0">Automatic calculations</option></select></label>
   </section>
   <?php endif; ?>
 
@@ -113,15 +113,15 @@ include BASE_PATH.'/shared/sidebar.php';
         <label>Invoice / Receipt Number<input name="invoice_reference" maxlength="190"></label>
         <label class="span-2">Description<textarea name="description" required></textarea></label>
         <h3 class="input-vat-form-section-title span-2">VAT calculation</h3>
-        <label>Calculation source<select name="calculation_source"><option value="inclusive">Amount incl VAT</option><option value="exclusive">Amount excl VAT</option></select></label>
-        <label>VAT treatment<select name="vat_treatment" required><option value="standard" data-standard-rate-option>Standard VAT <?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%</option><option value="zero_rated">Zero Rated</option><option value="no_vat">No VAT / Non-VAT</option><option value="manual_vat">Manual VAT</option><option value="review_required">Review Required</option></select><small class="field-help" data-standard-rate-hint>The configured standard VAT rate is <?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%.</small></label>
+        <label>Calculation source<select name="calculation_source" data-portal-custom-select data-portal-select-variant="input-vat"><option value="inclusive">Amount incl VAT</option><option value="exclusive">Amount excl VAT</option></select></label>
+        <label>VAT treatment<select name="vat_treatment" data-portal-custom-select data-portal-select-variant="input-vat" required><option value="standard" data-standard-rate-option>Standard VAT <?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%</option><option value="zero_rated">Zero Rated</option><option value="no_vat">No VAT / Non-VAT</option><option value="manual_vat">Manual VAT</option><option value="review_required">Review Required</option></select><small class="field-help" data-standard-rate-hint>The configured standard VAT rate is <?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%.</small></label>
         <label data-inclusive-source>Amount incl VAT (N$)<input name="inclusive" type="number" min="0" step="0.01"></label>
         <label data-exclusive-source hidden>Amount excl VAT (N$)<input name="exclusive_source" type="number" min="0" step="0.01"></label>
         <label class="span-2 input-vat-override-toggle"><input name="manual_override" type="checkbox" value="1"><span>Edit calculated amounts</span><small>Use only when the supplier document differs from the automatic calculation.</small></label>
         <div class="span-2 input-vat-manual-wrap" data-manual-wrap hidden>
           <label data-manual-vat-wrap>Input VAT (N$)<input name="manual_vat" type="number" min="0" step="0.01"></label>
           <label>Adjusted excl VAT (N$)<input name="manual_exclusive" type="number" min="0" step="0.01"></label>
-          <label class="span-2">Reason for adjustment<select name="override_reason"><option value="">Select reason</option><option>Supplier invoice adjustment</option><option>Mixed VAT treatment</option><option>Rounding correction</option><option>Special accounting treatment</option></select></label>
+          <label class="span-2">Reason for adjustment<select name="override_reason" data-portal-custom-select data-portal-select-variant="input-vat"><option value="">Select reason</option><option>Supplier invoice adjustment</option><option>Mixed VAT treatment</option><option>Rounding correction</option><option>Special accounting treatment</option></select></label>
         </div>
         <div class="vat-preview span-2" data-vat-preview></div>
         <h3 class="input-vat-form-section-title span-2">Notes &amp; evidence</h3>
@@ -190,7 +190,7 @@ include BASE_PATH.'/shared/sidebar.php';
         <button value="cancel" aria-label="Close">&times;</button>
       </header>
       <input type="hidden" name="id">
-      <label>Status<select name="review_status"><option value="reviewed">Reviewed</option><option value="needs_correction">Needs Correction</option><option value="captured">Captured</option></select></label>
+      <label>Status<select name="review_status" data-portal-custom-select data-portal-select-variant="input-vat"><option value="reviewed">Reviewed</option><option value="needs_correction">Needs Correction</option><option value="captured">Captured</option></select></label>
       <label>Reason / note<textarea name="review_note"></textarea></label>
       <p data-review-message></p>
       <footer>

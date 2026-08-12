@@ -119,6 +119,9 @@ assert.match(page, /input-vat-rate-card/);
 assert.match(page, /data-month-tabs/);
 assert.match(page, /data-active-capture-status/);
 assert.match(page, /data-history-toolbar/);
+assert.equal((page.match(/<select\b/g) || []).length, 8, 'Input VAT select inventory must stay explicit');
+assert.equal((page.match(/data-portal-custom-select\b/g) || []).length, 8, 'every Input VAT dropdown must use the canonical portal component');
+assert.equal((page.match(/data-portal-select-variant="input-vat"/g) || []).length, 8, 'every Input VAT dropdown must use the Input VAT theme variant');
 assert.doesNotMatch(page, /data-capture-progress/);
 assert.match(js, /data-month-complete/);
 assert.match(js, /period: 'history'/);
@@ -151,6 +154,7 @@ assert.match(css, /@media\(max-width:600px\).*height:100dvh/s);
 assert.match(css, /input-vat-override-toggle input\[type="checkbox"\]:checked/);
 assert.match(css, /input-vat-file-upload__area\{width:100%/);
 assert.match(css, /input-vat-rate-card\{min-height:88px/);
+assert.match(css, /portal-select-popup\[data-portal-select-variant="input-vat"\]/);
 assert.doesNotMatch(css, /Poppins/);
 
 const inclusive = 944.85;
