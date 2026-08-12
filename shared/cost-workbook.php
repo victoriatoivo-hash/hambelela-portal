@@ -184,9 +184,9 @@ function cw_require_csrf(): void
 
 function cw_require_admin(): void
 {
-    if (!user_has_role('owner_admin', 'supervisor_manager')) {
+    if (!user_has_role('owner_admin')) {
         http_response_code(403);
-        throw new RuntimeException('Owner or admin permission is required.');
+        throw new RuntimeException('Owner/Admin permission is required.');
     }
 }
 

@@ -4,7 +4,7 @@ require_once dirname(__DIR__,2).'/config.php';
 require_once BASE_PATH.'/shared/auth.php';
 require_once BASE_PATH.'/shared/database.php';
 require_once BASE_PATH.'/shared/cost-workbook.php';
-require_role('owner_admin', 'supervisor_manager');
+require_role('owner_admin');
 $pageTitle='Cost Workbook | '.APP_NAME; $activeApp='cost-manager'; $bootError=null;
 try { cw_install_schema(db()); } catch(Throwable $e) { $bootError=$e->getMessage(); }
 include BASE_PATH.'/shared/header.php'; include BASE_PATH.'/shared/sidebar.php';
