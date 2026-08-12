@@ -11,6 +11,7 @@ const dashboard = read('index.php');
 const features = read('shared/employee-features.php');
 const sidebar = read('shared/sidebar.php');
 const js = read('assets/js/input-vat.js');
+const css = read('assets/css/accounts.css');
 
 assert.match(service, /accounts_input_vat_purchases/);
 assert.match(service, /accounts_input_vat_audit/);
@@ -49,7 +50,8 @@ for (const planned of ['Output VAT', 'Import VAT', 'Expenses', 'Supplier Stateme
 assert.match(workspace, /class="accounts-app-card is-coming-soon" aria-disabled="true"/);
 assert.doesNotMatch(workspace, /accounts_input_vat_purchases|This month records|Amount incl VAT/);
 
-assert.match(page, /accounts_is_owner\(\).*aria-label="Breadcrumb"/);
+assert.match(page, /if\(accounts_is_owner\(\)\):/);
+assert.match(page, /aria-label="Breadcrumb"/);
 assert.match(page, /data-previous-month/);
 assert.match(page, /data-next-month/);
 assert.match(js, /Purchase Records/);
@@ -69,10 +71,27 @@ assert.doesNotMatch(page, /accounts-toolbar[^\n]*data-rate-setting/);
 assert.match(service, /accounts_settings_audit/);
 assert.match(api, /INSERT INTO accounts_settings_audit/);
 assert.match(api, /Only the owner can change the VAT rate/);
-assert.match(js, /Standard VAT.*rateLabel/);
+assert.match(js, /Standard VAT \$\{safeRateText\}/);
 assert.match(api, /text\/csv/);
 assert.match(api, /deleted_at=NOW/);
 assert.match(js, /setInterval\(.*60000/s);
+assert.match(page, /data-business-today=.*date\('Y-m-d'\)/);
+assert.match(page, /data-business-timezone="Africa\/Windhoek"/);
+assert.match(page, /name="purchase_date"[^>]*value="<\?=htmlspecialchars\(date\('Y-m-d'\)/);
+assert.match(page, /data-close-purchase/);
+assert.match(js, /data-close-purchase[\s\S]*dialog\.close\(\)/);
+assert.match(api, /function iv_valid_purchase_date/);
+assert.match(api, /checkdate\(\(int\) \$parts\[2\], \(int\) \$parts\[3\], \(int\) \$parts\[1\]\)/);
+assert.match(api, /purchase_date>=\? AND purchase_date<\?/);
+assert.match(js, /businessTimezone \|\| 'Africa\/Windhoek'/);
+assert.match(js, /data-month-warning-panel/);
+assert.match(js, /data-view-saved-month/);
+assert.match(js, /Purchase added\. The .* Input VAT register has been updated\./);
+assert.match(js, /function analysisRows/);
+assert.match(js, /function purchaseRow/);
+assert.doesNotMatch(js, /new Date\(value\)/);
+assert.match(css, /Input VAT premium layout/);
+assert.match(css, /prefers-reduced-motion:reduce/);
 
 const inclusive = 944.85;
 const rate = 15;

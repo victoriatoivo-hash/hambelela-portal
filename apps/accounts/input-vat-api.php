@@ -81,6 +81,12 @@ function iv_month_from_request(string $value): string
     return preg_match('/^\d{4}-\d{2}$/', $value) ? $value : date('Y-m');
 }
 
+function iv_valid_purchase_date(string $value): bool
+{
+    if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $value, $parts)) return false;
+    return checkdate((int) $parts[2], (int) $parts[3], (int) $parts[1]);
+}
+
 try {
     $action = (string) ($_REQUEST['action'] ?? 'list');
 
@@ -215,7 +221,7 @@ try {
         $date = (string) ($_POST['purchase_date'] ?? '');
         $supplier = trim((string) ($_POST['supplier'] ?? ''));
         $description = trim((string) ($_POST['description'] ?? ''));
-        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || $supplier === '' || $description === '') {
+        if (!iv_valid_purchase_date($date) || $supplier === '' || $description === '') {
             throw new RuntimeException('Date, supplier and description are required.');
         }
 
