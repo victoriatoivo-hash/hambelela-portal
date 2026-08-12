@@ -1,4 +1,4 @@
-﻿(() => {
+(() => {
   const page = document.querySelector('#inputVatPage');
   if (!page) return;
 
