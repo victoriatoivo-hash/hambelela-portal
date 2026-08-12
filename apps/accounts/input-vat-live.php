@@ -39,8 +39,6 @@ include BASE_PATH.'/shared/sidebar.php';
     </div>
     <div class="accounts-actions" data-portal-header-status-target>
       <button class="portal-button portal-button--primary" type="button" data-add-purchase><span class="portal-button__icon" aria-hidden="true">+</span> Add Purchase</button>
-      <button type="button" class="portal-button portal-button--secondary" data-print><span class="portal-button__icon" aria-hidden="true">&#128438;</span> Print</button>
-      <a class="portal-button portal-button--ghost" data-export href="input-vat-api.php?action=export"><span class="portal-button__icon" aria-hidden="true">&#8595;</span> Export CSV</a>
       <?php if(accounts_is_owner()): ?><button type="button" class="portal-button portal-button--ghost input-vat-settings-action" data-open-rate-settings><i data-lucide="settings" aria-hidden="true"></i><span>Settings</span></button><?php endif; ?>
     </div>
   </header>

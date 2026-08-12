@@ -448,3 +448,8 @@ body.input-vat-dialog-open{overflow:hidden!important}
 @media(max-width:600px){#inputVatPage .accounts-form-grid,#inputVatPage .input-vat-manual-wrap{grid-template-columns:1fr}#inputVatPage .input-vat-manual-wrap label:last-child{grid-column:auto}#inputVatPage .input-vat-file-upload__area{min-height:132px;padding:15px}#inputVatPage .input-vat-rate-dialog{inset:0;width:100vw;max-width:none;height:100dvh;max-height:none;margin:0;border:0;border-radius:0}#inputVatPage .input-vat-rate-dialog>form{height:100dvh;max-height:none;grid-template-rows:auto minmax(0,1fr) auto;overflow-y:auto}#inputVatPage .input-vat-rate-dialog .rate-change-grid{grid-template-columns:1fr}}
 @media(max-width:430px){#inputVatPage .accounts-summary{grid-template-columns:1fr}#inputVatPage .accounts-actions>.portal-header-status{justify-content:flex-start;overflow-x:auto}}
 @media(prefers-reduced-motion:reduce){#inputVatPage .input-vat-override-toggle input[type="checkbox"],#inputVatPage .input-vat-override-toggle input[type="checkbox"]::after,#inputVatPage .input-vat-manual-wrap,#inputVatPage .pending-file{animation:none!important;transition:none!important}}
+
+/* Input VAT owner-requested header and type scale. */
+#inputVatPage .accounts-hero-copy>p:not(.eyebrow):not(.input-vat-active-period){font-size:11px}
+#inputVatPage .accounts-summary article strong{font-size:12px}
+#inputVatPage .accounts-breakdowns h2{font-size:16px}
