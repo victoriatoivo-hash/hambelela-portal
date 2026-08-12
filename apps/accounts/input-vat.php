@@ -21,7 +21,7 @@ include BASE_PATH.'/shared/header.php';
 include BASE_PATH.'/shared/sidebar.php';
 ?>
 
-<main class="workspace module accounts-page" id="inputVatPage" data-api="input-vat-api.php" data-csrf="<?=htmlspecialchars(accounts_csrf_token(), ENT_QUOTES, 'UTF-8')?>" data-owner="<?=accounts_is_owner() ? '1' : '0'?>" data-rate="<?=htmlspecialchars((string)$rate, ENT_QUOTES, 'UTF-8')?>" data-business-today="<?=htmlspecialchars(date('Y-m-d'), ENT_QUOTES, 'UTF-8')?>" data-business-timezone="Africa/Windhoek">
+<main class="workspace module accounts-page" id="inputVatPage" data-api="input-vat-api.php" data-csrf="<?=htmlspecialchars(accounts_csrf_token(), ENT_QUOTES, 'UTF-8')?>" data-owner="<?=accounts_is_owner() ? '1' : '0'?>" data-rate="<?=htmlspecialchars((string)$rate, ENT_QUOTES, 'UTF-8')?>" data-capture-start="<?=htmlspecialchars(accounts_historical_capture_start_date(), ENT_QUOTES, 'UTF-8')?>" data-business-today="<?=htmlspecialchars(date('Y-m-d'), ENT_QUOTES, 'UTF-8')?>" data-business-timezone="Africa/Windhoek">
   <?php if(accounts_is_owner()): ?>
   <nav class="accounts-breadcrumb" aria-label="Breadcrumb"><a href="index.php">Accounts</a><span aria-hidden="true">&rsaquo;</span><strong>Input VAT</strong></nav>
   <?php endif; ?>
@@ -52,6 +52,12 @@ include BASE_PATH.'/shared/sidebar.php';
     <label class="accounts-search-control"><span>SEARCH</span><input type="search" data-search placeholder="Search supplier or description"></label>
     <label class="accounts-status-control"><span>STATUS</span><select data-status><option value="">All statuses</option><option value="captured">Captured</option><option value="reviewed">Reviewed</option><option value="needs_correction">Needs Correction</option></select></label>
   </section>
+  <?php if(accounts_is_owner()): ?>
+  <section class="input-vat-capture-progress" aria-labelledby="captureProgressTitle">
+    <div><p class="eyebrow">Historical back-capture</p><h2 id="captureProgressTitle">Capture progress by month</h2><p>Purchase date controls the reporting month. Historical entries are not treated as late work.</p></div>
+    <div data-capture-progress></div>
+  </section>
+  <?php endif; ?>
 
   <?php if(accounts_is_owner()): ?>
   <section class="input-vat-settings-card" aria-labelledby="vatSettingsTitle">
@@ -105,13 +111,18 @@ include BASE_PATH.'/shared/sidebar.php';
       </header>
       <input type="hidden" name="id">
       <div class="accounts-form-grid">
-        <label>Date<input name="purchase_date" type="date" value="<?=htmlspecialchars(date('Y-m-d'), ENT_QUOTES, 'UTF-8')?>" required></label>
+        <label>Purchase date<input name="purchase_date" type="date" min="<?=htmlspecialchars(accounts_historical_capture_start_date(), ENT_QUOTES, 'UTF-8')?>" max="<?=htmlspecialchars(date('Y-m-d'), ENT_QUOTES, 'UTF-8')?>" value="<?=htmlspecialchars(date('Y-m-d'), ENT_QUOTES, 'UTF-8')?>" required><small class="field-help">Use the actual invoice or receipt date.</small></label>
         <label>Supplier<input name="supplier" maxlength="190" required></label>
+        <label>Invoice / Receipt Number<input name="invoice_reference" maxlength="190"></label>
         <label class="span-2">Description<textarea name="description" required></textarea></label>
-        <label>Amount incl VAT (N$)<input name="inclusive" type="number" min="0" step="0.01" required></label>
+        <label>Calculation source<select name="calculation_source"><option value="inclusive">Amount incl VAT</option><option value="exclusive">Amount excl VAT</option></select></label>
+        <label data-inclusive-source>Amount incl VAT (N$)<input name="inclusive" type="number" min="0" step="0.01"></label>
+        <label data-exclusive-source hidden>Amount excl VAT (N$)<input name="exclusive_source" type="number" min="0" step="0.01"></label>
         <label>VAT treatment<select name="vat_treatment" required><option value="standard" data-standard-rate-option>Standard VAT <?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%</option><option value="zero_rated">Zero Rated</option><option value="no_vat">No VAT / Non-VAT</option><option value="manual_vat">Manual VAT</option><option value="review_required">Review Required</option></select><small class="field-help" data-standard-rate-hint>The configured standard VAT rate is <?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%.</small></label>
-        <label data-manual-wrap hidden>Manual VAT (N$)<input name="manual_vat" type="number" min="0" step="0.01"></label>
+        <label class="span-2 input-vat-override-toggle"><input name="manual_override" type="checkbox" value="1"> Edit calculated amounts</label>
+        <div class="span-2 accounts-form-grid" data-manual-wrap hidden><label>Adjusted VAT (N$)<input name="manual_vat" type="number" min="0" step="0.01"></label><label>Adjusted excl VAT (N$)<input name="manual_exclusive" type="number" min="0" step="0.01"></label><label class="span-2">Reason for adjustment<select name="override_reason"><option value="">Select reason</option><option>Supplier invoice adjustment</option><option>Mixed VAT treatment</option><option>Rounding correction</option><option>Special accounting treatment</option></select></label></div>
         <div class="vat-preview span-2" data-vat-preview></div>
+        <label class="span-2">Notes (optional)<textarea name="notes"></textarea></label>
         <div class="input-vat-month-warning" data-month-warning-panel hidden>
           <i data-lucide="calendar-clock" aria-hidden="true"></i>
           <p data-month-warning aria-live="polite"></p>
@@ -139,6 +150,7 @@ include BASE_PATH.'/shared/sidebar.php';
         <div><span>Current</span><strong data-current-rate><?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%</strong></div>
         <label>New rate<div class="rate-input-wrap"><input data-rate-setting type="number" min="0" max="100" step="0.01" value="<?=htmlspecialchars((string)$rate, ENT_QUOTES, 'UTF-8')?>"><span>%</span></div></label>
       </div>
+      <label>Historical capture start date<input data-capture-start-setting type="date" max="<?=htmlspecialchars(date('Y-m-d'), ENT_QUOTES, 'UTF-8')?>" value="<?=htmlspecialchars(accounts_historical_capture_start_date(), ENT_QUOTES, 'UTF-8')?>"></label>
       <p class="settings-warning">This change applies to <strong>new Standard VAT records only</strong>. Existing saved Input VAT records will not be recalculated.</p>
       <p class="form-message" data-rate-message></p>
       <footer>
@@ -148,6 +160,10 @@ include BASE_PATH.'/shared/sidebar.php';
     </form>
   </dialog>
   <?php endif; ?>
+
+  <dialog class="accounts-dialog" data-duplicate-dialog>
+    <form method="dialog"><header><div><p class="eyebrow">Duplicate check</p><h2>Possible duplicate purchase</h2></div><button value="cancel" aria-label="Close">&times;</button></header><p>The same date, supplier and amount already exist. Review before saving again.</p><div data-duplicate-matches></div><footer><button value="cancel" class="portal-button portal-button--ghost">Cancel</button><button type="button" class="portal-button portal-button--primary" data-save-duplicate>Save Anyway</button></footer></form>
+  </dialog>
 
   <dialog class="accounts-dialog accounts-review-dialog" data-review-dialog>
     <form method="dialog" data-review-form>
