@@ -34,9 +34,9 @@ include BASE_PATH.'/shared/sidebar.php';
       <p class="input-vat-active-period" data-active-period><span>Active period</span> <strong data-active-period-label><?=htmlspecialchars(date('F Y'), ENT_QUOTES, 'UTF-8')?></strong></p>
     </div>
     <div class="accounts-actions">
-      <button class="portal-action-btn portal-action-btn--primary iv-btn iv-btn--primary" type="button" data-add-purchase><span class="iv-btn-icon" aria-hidden="true">+</span> Add Purchase</button>
-      <button type="button" class="portal-action-btn portal-action-btn--secondary iv-btn iv-btn--secondary" data-print><span class="iv-btn-icon" aria-hidden="true">&#128438;</span> Print</button>
-      <a class="portal-action-btn portal-action-btn--tertiary iv-btn iv-btn--tertiary" data-export href="input-vat-api.php?action=export"><span class="iv-btn-icon" aria-hidden="true">&#8595;</span> Export CSV</a>
+      <button class="portal-button portal-button--primary" type="button" data-add-purchase><span class="portal-button__icon" aria-hidden="true">+</span> Add Purchase</button>
+      <button type="button" class="portal-button portal-button--secondary" data-print><span class="portal-button__icon" aria-hidden="true">&#128438;</span> Print</button>
+      <a class="portal-button portal-button--ghost" data-export href="input-vat-api.php?action=export"><span class="portal-button__icon" aria-hidden="true">&#8595;</span> Export CSV</a>
     </div>
   </header>
 
@@ -44,9 +44,9 @@ include BASE_PATH.'/shared/sidebar.php';
     <div class="accounts-filter-group accounts-period-group">
       <span class="accounts-control-label">PERIOD</span>
       <div class="accounts-period-controls">
-        <button type="button" class="portal-action-btn portal-action-btn--tertiary iv-btn iv-btn--tertiary accounts-month-step" data-previous-month aria-label="Previous month"><span class="iv-btn-icon" aria-hidden="true">&#8592;</span><span>Previous</span></button>
+        <button type="button" class="portal-button portal-button--nav accounts-month-step" data-previous-month aria-label="Previous month"><span class="portal-button__icon" aria-hidden="true">&#8592;</span><span>Previous</span></button>
         <label class="accounts-input-date-label"><span>MONTH</span><input type="month" data-month value="<?=date('Y-m')?>"></label>
-        <button type="button" class="portal-action-btn portal-action-btn--tertiary iv-btn iv-btn--tertiary accounts-month-step" data-next-month aria-label="Next month"><span>Next</span><span class="iv-btn-icon" aria-hidden="true">&#8594;</span></button>
+        <button type="button" class="portal-button portal-button--nav accounts-month-step" data-next-month aria-label="Next month"><span>Next</span><span class="portal-button__icon" aria-hidden="true">&#8594;</span></button>
       </div>
     </div>
     <label class="accounts-search-control"><span>SEARCH</span><input type="search" data-search placeholder="Search supplier or description"></label>
@@ -64,7 +64,7 @@ include BASE_PATH.'/shared/sidebar.php';
       </div>
     </div>
     <div class="input-vat-settings-value">
-      <span>Standard VAT Rate</span><strong data-rate-display><?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%</strong><button type="button" class="portal-action-btn portal-action-btn--tertiary iv-btn iv-btn--tertiary" data-open-rate-settings>Input VAT Settings</button>
+      <span>Standard VAT Rate</span><strong data-rate-display><?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%</strong><button type="button" class="portal-button portal-button--ghost" data-open-rate-settings>Input VAT Settings</button>
     </div>
   </section>
   <?php else: ?>
@@ -172,4 +172,3 @@ include BASE_PATH.'/shared/sidebar.php';
 </main>
 <script defer src="<?=BASE_URL?>/assets/js/input-vat.js?v=<?=filemtime(BASE_PATH.'/assets/js/input-vat.js')?>"></script>
 <?php include BASE_PATH.'/shared/footer.php'; ?>
-
