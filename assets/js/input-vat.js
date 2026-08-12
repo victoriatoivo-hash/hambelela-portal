@@ -326,7 +326,6 @@
   const fileInput = form.elements['files[]'];
   let pending = [];
   let warningConfirmed = false;
-
   page.querySelectorAll('[data-close-purchase]').forEach((button) => {
     button.addEventListener('click', () => dialog.close());
   });
