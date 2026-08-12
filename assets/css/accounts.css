@@ -522,3 +522,23 @@ body.input-vat-dialog-open{overflow:hidden!important}
 .portal-select-popup[data-portal-select-variant="input-vat"] .portal-select-option.is-selected,
 .portal-select-popup[data-portal-select-variant="input-vat"] .portal-select-option[aria-selected="true"]{background:rgba(171,54,25,.08);color:#721b1a}
 @media(max-width:600px){#inputVatPage .input-vat-purchase-dialog .accounts-form-grid input:not([type="checkbox"]):not([type="file"]){font-size:16px}}
+
+/* Input VAT approved summary placement and compact reporting hierarchy. */
+#inputVatPage .accounts-summary{gap:10px;margin:4px 0 12px}
+#inputVatPage .accounts-summary article{display:flex;min-height:82px;padding:11px 13px;justify-content:space-between;border-radius:11px}
+#inputVatPage .accounts-summary-heading{display:flex;align-items:center;gap:7px;min-width:0}
+#inputVatPage .accounts-summary-heading svg{width:18px;height:18px;flex:0 0 18px;margin:0;color:var(--iv-action);stroke-width:1.8}
+#inputVatPage .accounts-summary article:nth-child(1) .accounts-summary-heading svg{color:var(--iv-olive)}
+#inputVatPage .accounts-summary article:nth-child(3) .accounts-summary-heading svg{color:var(--iv-amber)}
+#inputVatPage .accounts-summary article:nth-child(4) .accounts-summary-heading svg{color:var(--iv-burgundy)}
+#inputVatPage .accounts-summary-heading small{display:block;margin:0;color:var(--iv-mid);font-size:10px;font-weight:700;line-height:1.25}
+#inputVatPage .accounts-summary-value{display:grid;gap:2px;align-content:end}
+#inputVatPage .accounts-summary-value strong{display:block;margin:0;color:var(--iv-text);font-size:18px;font-weight:600;line-height:1.15}
+#inputVatPage .accounts-summary-value span{display:block;margin:0;color:var(--iv-light);font-size:10px;font-weight:500;line-height:1.3}
+#inputVatPage .accounts-breakdowns h2{font-size:14px}
+#inputVatPage .accounts-table-card thead th{font-weight:700}
+#inputVatPage .accounts-table-card tfoot td{font-size:11px}
+#inputVatPage .portal-button[data-add-purchase]:hover,
+#inputVatPage .portal-button[data-add-purchase]:active{border-color:#f07420;background:#f07420}
+@media(max-width:480px){#inputVatPage .accounts-summary{grid-template-columns:repeat(2,minmax(0,1fr))}#inputVatPage .accounts-summary article{min-height:80px;padding:10px 11px}#inputVatPage .accounts-summary-value strong{font-size:17px}}
+@media(max-width:340px){#inputVatPage .accounts-summary{grid-template-columns:1fr}}

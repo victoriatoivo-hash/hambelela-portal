@@ -58,6 +58,12 @@ assert.match(page, /aria-label="Breadcrumb"/);
 assert.match(page, /data-previous-month/);
 assert.match(page, /data-next-month/);
 assert.match(js, /Purchase Records/);
+for (const template of [page, liveEntry]) {
+  assert.ok(template.indexOf('class="accounts-summary"') > template.indexOf('</header>'), 'summary cards must follow the active-period header');
+  assert.ok(template.indexOf('class="accounts-summary"') < template.indexOf('class="input-vat-primary-tabs'), 'summary cards must precede Input VAT navigation and working filters');
+}
+assert.match(js, /accounts-summary-heading/);
+for (const icon of ['file-text', 'banknote', 'receipt-text', 'calculator']) assert.match(js, new RegExp(`data-lucide="\\$\\{x\\[0\\]\\}"|${icon}`));
 assert.match(js, /function stepMonth/);
 assert.match(page, /multiple/);
 assert.match(page, /Standard VAT/);
@@ -165,6 +171,11 @@ assert.match(css, /@keyframes inputVatUploadFloat/);
 assert.match(css, /prefers-reduced-motion:reduce[^}]*input-vat-file-upload__icon\{animation:none!important/s);
 assert.match(css, /input-vat-rate-card\{min-height:88px/);
 assert.match(css, /portal-select-popup\[data-portal-select-variant="input-vat"\]/);
+assert.match(css, /accounts-summary-heading svg\{width:18px;height:18px/);
+assert.match(css, /accounts-breakdowns h2\{font-size:14px\}/);
+assert.match(css, /accounts-table-card thead th\{font-weight:700\}/);
+assert.match(css, /accounts-table-card tfoot td\{font-size:11px\}/);
+assert.match(css, /portal-button\[data-add-purchase\]:hover,[\s\S]*background:#f07420/);
 assert.match(portalJs, /popup\.setAttribute\('popover', 'manual'\)/, 'portal dropdown popup must enter the browser top layer above native dialogs');
 assert.match(portalJs, /popupElement\.showPopover\(\)/, 'portal dropdown popup must open through the Popover API');
 assert.match(portalJs, /nativeSelect\.closest\('dialog\[open\]'\) \|\| document\.body/, 'modal dropdown options must remain interactive inside the active dialog');

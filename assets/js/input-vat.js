@@ -274,11 +274,11 @@
     updateActivePeriodLabel();
 
     $('[data-summary]').innerHTML = [
-      ['Purchase Records', s.count, 'Records in the selected period'],
-      ['Amount incl VAT', money(s.inclusive), 'Gross purchase value'],
-      ['Input VAT', money(s.vat), 'Claimable VAT recorded'],
-      ['Amount excl VAT', money(s.exclusive), 'Net purchase value'],
-    ].map((x, index) => `<article class="${index === 2 ? 'is-primary-metric' : ''}">${index === 2 ? '<i data-lucide="receipt-text" aria-hidden="true"></i>' : ''}<small>${x[0]}</small><strong>${x[1]}</strong><span>${x[2]}</span></article>`).join('');
+      ['file-text', 'Purchase Records', s.count, 'Records in the selected period'],
+      ['banknote', 'Amount incl VAT', money(s.inclusive), 'Gross purchase value'],
+      ['receipt-text', 'Input VAT', money(s.vat), 'Claimable VAT recorded'],
+      ['calculator', 'Amount excl VAT', money(s.exclusive), 'Net purchase value'],
+    ].map((x, index) => `<article class="${index === 2 ? 'is-primary-metric' : ''}"><div class="accounts-summary-heading"><i data-lucide="${x[0]}" aria-hidden="true"></i><small>${x[1]}</small></div><div class="accounts-summary-value"><strong>${x[2]}</strong><span>${x[3]}</span></div></article>`).join('');
 
     $('[data-treatment-summary]').innerHTML = premiumAnalysisRows(s.treatments, 'percent');
     $('[data-supplier-summary]').innerHTML = premiumAnalysisRows(s.suppliers, 'building-2');
