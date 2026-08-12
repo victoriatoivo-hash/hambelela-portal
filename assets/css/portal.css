@@ -6763,7 +6763,8 @@ main.error-log-page {
   margin: 0 0 12px !important;
 }
 
-.error-log-page .error-filter-chips a {
+.error-log-page .error-filter-chips a,
+.error-log-page .error-filter-chips button {
   display: inline-flex !important;
   min-height: 28px !important;
   padding: 0 9px !important;
@@ -6775,9 +6776,11 @@ main.error-log-page {
   color: var(--bk-burgundy) !important;
   font: 600 11px/1 Figtree, system-ui, sans-serif !important;
   text-decoration: none !important;
+  cursor: pointer !important;
 }
 
-.error-log-page .error-filter-chips a:hover {
+.error-log-page .error-filter-chips a:hover,
+.error-log-page .error-filter-chips button:hover {
   border-color: rgba(171, 54, 25, .38) !important;
   background: #fff !important;
 }

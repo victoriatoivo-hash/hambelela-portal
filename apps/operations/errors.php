@@ -965,8 +965,8 @@ include BASE_PATH . '/shared/sidebar.php';
     <div class="error-filter-chips-shell" data-error-filter-chips-shell>
     <?php if ($activeFilterChips): ?>
         <nav class="error-filter-chips" aria-label="Active Error Log filters">
-            <?php foreach ($activeFilterChips as $chip): ?><a href="<?= htmlspecialchars($chip['url'], ENT_QUOTES, 'UTF-8') ?>" data-error-filter-chip><?= htmlspecialchars($chip['label'], ENT_QUOTES, 'UTF-8') ?><i data-lucide="x" aria-hidden="true"></i></a><?php endforeach; ?>
-            <a class="error-filter-clear-link" href="errors.php" data-error-filter-clear-link>Clear all</a>
+            <?php foreach ($activeFilterChips as $chip): ?><button type="button" data-filter-url="<?= htmlspecialchars($chip['url'], ENT_QUOTES, 'UTF-8') ?>" data-error-filter-chip><?= htmlspecialchars($chip['label'], ENT_QUOTES, 'UTF-8') ?><i data-lucide="x" aria-hidden="true"></i></button><?php endforeach; ?>
+            <button type="button" class="error-filter-clear-link" data-filter-url="errors.php" data-error-filter-clear-link>Clear all</button>
         </nav>
     <?php endif; ?>
     </div>
@@ -1496,7 +1496,7 @@ document.addEventListener('click', (event) => {
   const chip = event.target.closest('[data-error-filter-chip], [data-error-filter-clear-link]');
   if (!chip) return;
   event.preventDefault();
-  loadErrorFilterView(chip.getAttribute('href') || 'errors.php');
+  loadErrorFilterView(chip.dataset.filterUrl || 'errors.php');
 });
 window.addEventListener('popstate', () => loadErrorFilterView(location.href, { push: false }));
 

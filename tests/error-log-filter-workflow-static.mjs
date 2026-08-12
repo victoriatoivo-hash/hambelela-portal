@@ -12,6 +12,7 @@ assert.match(page, /\$dateExpression \. ' BETWEEN \? AND \?'/, 'Selected month m
 assert.match(page, /data-error-filter-clear>Clear All/, 'Clear All action must be visible.');
 assert.match(page, /type="submit">Apply Filters/, 'Apply Filters action must be explicit.');
 assert.match(page, /data-error-filter-chip/, 'Applied filters must render removable chips.');
+assert.match(page, /data-filter-url=.*data-error-filter-chip/, 'Filter chips must use an explicit scoped removal action.');
 assert.match(page, /new AbortController\(\)/, 'Stale filter requests must be cancelled.');
 assert.match(page, /history\.pushState/, 'Filtering must update without a full-page navigation.');
 assert.match(page, /Could not load filtered Error Log records/, 'Request failures must differ from empty results.');
