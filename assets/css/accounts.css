@@ -440,6 +440,8 @@
 #inputVatPage .input-vat-rate-dialog .settings-warning{margin-top:12px;margin-bottom:10px;padding:9px 11px;border-left:3px solid var(--iv-amber);border-radius:6px;background:#fff8e8;font-size:11px}
 #inputVatPage .input-vat-rate-dialog>form>footer{padding:11px 17px;border-top:1px solid var(--iv-border);background:#fff}
 #inputVatPage .input-vat-rate-dialog>form>footer .portal-button{height:34px;min-height:34px;font-size:12px;font-weight:600}
+#inputVatPage .input-vat-purchase-dialog .portal-button,#inputVatPage .input-vat-rate-dialog .portal-button{font-size:12px;font-weight:600}
+#inputVatPage .input-vat-purchase-dialog .portal-date-field,#inputVatPage .input-vat-rate-dialog .portal-date-field{height:36px;min-height:36px;box-sizing:border-box;font-size:12px}
 body.input-vat-dialog-open{overflow:hidden!important}
 @media(max-width:900px){#inputVatPage .accounts-hero>.accounts-actions{width:100%;justify-content:flex-start}#inputVatPage .accounts-actions>.portal-header-status{width:100%;margin:4px 0 0;justify-content:flex-end}}
 @media(max-width:768px){#inputVatPage .accounts-summary{grid-template-columns:repeat(2,minmax(0,1fr))}#inputVatPage .input-vat-purchase-dialog{width:calc(100vw - 24px)}}

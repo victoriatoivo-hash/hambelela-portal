@@ -160,7 +160,7 @@ include BASE_PATH.'/shared/sidebar.php';
   <dialog class="accounts-dialog input-vat-rate-dialog" data-rate-dialog>
     <form method="dialog" data-rate-form>
       <header>
-        <div><p class="eyebrow">Input VAT Settings</p><h2>Update Standard VAT Rate?</h2></div>
+        <div><p class="eyebrow">Input VAT Settings</p><h2>Update Standard VAT Rate</h2></div>
         <button type="button" data-close-rate aria-label="Close">&times;</button>
       </header>
       <div class="input-vat-rate-dialog-body">
