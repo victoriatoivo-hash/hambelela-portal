@@ -5,7 +5,7 @@ const api = await readFile(new URL('../apps/cost-manager/cw-api.php', import.met
 const library = await readFile(new URL('../shared/cost-workbook.php', import.meta.url), 'utf8');
 const migration = await readFile(new URL('../apps/cost-manager/cost-workbook-migration.sql', import.meta.url), 'utf8');
 const client = await readFile(new URL('../assets/js/cost-workbook.js', import.meta.url), 'utf8');
-const page = await readFile(new URL('../apps/cost-manager/workbook.php', import.meta.url), 'utf8');
+const page = await readFile(new URL('../shared/cost-workbook-sections.php', import.meta.url), 'utf8');
 
 for (const field of ['sync_uuid','heartbeat_at','current_batch','current_offset','processed_count','failure_reason','recovery_count','recovery_reason','recovered_by','recovered_by_name','is_successful_snapshot','previous_successful_batch_id']) {
   assert.match(migration, new RegExp(`\\b${field}\\b`, 'u'), `migration must persist ${field}`);

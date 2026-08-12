@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const api=fs.readFileSync(new URL('../apps/cost-manager/cw-api.php',import.meta.url),'utf8');
-const page=fs.readFileSync(new URL('../apps/cost-manager/workbook.php',import.meta.url),'utf8');
-const js=fs.readFileSync(new URL('../assets/js/cost-workbook.js',import.meta.url),'utf8');
+const page=fs.readFileSync(new URL('../shared/cost-workbook-sections.php',import.meta.url),'utf8');
+const js=fs.readFileSync(new URL('../assets/js/cost-workbook-pages.js',import.meta.url),'utf8');
 const css=fs.readFileSync(new URL('../assets/css/cost-workbook-invoice.css',import.meta.url),'utf8');
 const library=fs.readFileSync(new URL('../shared/cost-workbook.php',import.meta.url),'utf8');
 const migration=fs.readFileSync(new URL('../apps/cost-manager/cost-workbook-migration.sql',import.meta.url),'utf8');
@@ -27,7 +27,7 @@ assert.match(api,/DELETE FROM cw_product_matches WHERE supplier_invoice_line_id/
 
 assert.match(page,/id="productCategory"/,'snapshot browsing exposes a category control');
 assert.match(page,/id="matchCategory"/,'manual matching exposes a category control');
-assert.match(js,/category=\$\{encodeURIComponent\(\$\('#matchCategory'\)\.value\)\}/,'manual match requests send the selected category');
+assert.match(js,/category=\$\{encodeURIComponent\(\$\('#matchCategory'\)\?\.value\|\|''\)\}/,'manual match requests send the selected category');
 assert.match(api,/cw_snapshot_categories/,'categories are validated against the successful snapshot');
 assert.match(api,/in_array\(\$category,\$categories,true\)/,'unknown categories are rejected exactly');
 assert.match(api,/FIND_IN_SET\(\?,REPLACE\(COALESCE\(s\.category,''\),', ',','\)\)>0/,'category filtering uses exact delimited membership');
@@ -35,7 +35,7 @@ assert.match(api,/s\.sync_batch_id=\?/,'search remains tied to the successful sn
 assert.match(api,/LIMIT 200/,'search results remain bounded');
 assert.match(api,/\$st->execute\(\$params\)/,'all search values remain prepared parameters');
 assert.match(api,/variation_id=\?/,'manual matching validates the selected variation against the snapshot');
-assert.match(js,/No website products match this search and category/,'empty category results are explained');
+assert.match(js,/No matching website items/,'empty category results are explained');
 assert.doesNotMatch(api,/wc_(?:post|put|delete)\s*\(/,'invoice matching performs no WooCommerce writes');
 
 assert.match(api,/cw_require_admin\(\)/,'writes retain owner or manager capability enforcement');

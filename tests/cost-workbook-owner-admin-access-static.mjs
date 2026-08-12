@@ -5,13 +5,14 @@ const root = new URL('../', import.meta.url);
 const names = (await readdir(new URL('apps/cost-manager/', root))).filter(name => name.endsWith('.php'));
 const protectedWrappers = new Set([
   'index.php', 'inventory-profit.php', 'pricing-manager.php', 'product-database.php', 'products.php',
-  'profit-calculator.php', 'settings.php', 'system-dashboard.php',
+  'profit-calculator.php', 'settings.php', 'system-dashboard.php', 'workbook.php', 'purchases.php',
+  'invoice-review.php', 'shipments.php', 'landed-costs.php', 'product-matching.php', 'profitability.php', 'cogs-publishing.php',
 ]);
 
 for (const name of names) {
   const source = await readFile(new URL(`apps/cost-manager/${name}`, root), 'utf8');
   if (protectedWrappers.has(name)) {
-    assert.match(source, /(?:workbook|module-placeholder|recipes|landing-cost-engine)\.php/, `${name} must delegate only to a protected route`);
+    assert.match(source, /(?:workbook-page|workbook|module-placeholder|recipes|landing-cost-engine)\.php/, `${name} must delegate only to a protected route`);
     continue;
   }
   assert.match(source, /require_role\('owner_admin'\)/, `${name} must require owner_admin before financial processing`);

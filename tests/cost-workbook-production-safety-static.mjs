@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const api = await readFile(new URL('../apps/cost-manager/cw-api.php', import.meta.url), 'utf8');
-const page = await readFile(new URL('../apps/cost-manager/workbook.php', import.meta.url), 'utf8');
+const page = (await readFile(new URL('../apps/cost-manager/workbook-page.php', import.meta.url), 'utf8'))+(await readFile(new URL('../shared/cost-workbook-page-shell.php', import.meta.url), 'utf8'));
 const library = await readFile(new URL('../shared/cost-workbook.php', import.meta.url), 'utf8');
 const client = await readFile(new URL('../assets/js/cost-workbook.js', import.meta.url), 'utf8');
 const rootHtaccess = await readFile(new URL('../.htaccess', import.meta.url), 'utf8');
