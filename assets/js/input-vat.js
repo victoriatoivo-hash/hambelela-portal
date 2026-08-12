@@ -53,16 +53,14 @@
   let timer;
   let refreshRowId = null;
 
-  function activePeriodLabel() {
-    return currentView === 'history' ? 'TRANSACTION HISTORY' : selectedMonthLabel().toUpperCase();
-  }
-
   function updateActivePeriodLabel() {
-    const label = $('[data-active-period-label]');
+    const kicker = $('[data-active-period-kicker]');
+    const value = $('[data-active-period-value]');
     const container = $('[data-active-period]');
-    if (!label || !container) return;
+    if (!kicker || !value || !container) return;
 
-    label.textContent = activePeriodLabel();
+    kicker.textContent = currentView === 'history' ? 'CURRENT VIEW' : 'ACTIVE PERIOD';
+    value.textContent = currentView === 'history' ? 'Transaction History' : selectedMonthLabel();
     container.setAttribute('data-period-mode', currentView);
   }
 
@@ -211,7 +209,7 @@
 
   function emptyTableRow() {
     const label = currentView === 'history' ? 'these history filters' : selectedMonthLabel();
-    return `<tr><td class="empty-row" colspan="10"><div class="table-empty-state"><i data-lucide="notebook-tabs" aria-hidden="true"></i><strong>No Input VAT records for ${esc(label)}</strong><p>${currentView === 'history' ? 'Adjust the filters to broaden the transaction history.' : 'You have not captured any purchases for this period yet.'}</p>${currentView === 'monthly' ? '<button type="button" class="portal-button portal-button--primary" data-add-purchase><span class="portal-button__icon" aria-hidden="true">+</span> Add Purchase</button>' : ''}</div></td></tr>`;
+    return `<tr><td class="empty-row" colspan="10"><div class="table-empty-state"><i data-lucide="notebook-tabs" aria-hidden="true"></i><strong>No Input VAT purchases for ${esc(label)}</strong><p>${currentView === 'history' ? 'Adjust the filters to broaden the transaction history.' : 'You have not captured any purchases for this period yet.'}</p>${currentView === 'monthly' ? '<button type="button" class="portal-button portal-button--primary" data-add-purchase><span class="portal-button__icon" aria-hidden="true">+</span> Add Purchase</button>' : ''}</div></td></tr>`;
   }
 
   function syncView() {
@@ -224,7 +222,6 @@
     $('[data-monthly-toolbar]').hidden = currentView !== 'monthly';
     if ($('[data-history-toolbar]')) $('[data-history-toolbar]').hidden = currentView !== 'history';
     page.querySelectorAll('[data-monthly-section]').forEach((section) => { section.hidden = currentView !== 'monthly'; });
-    $('[data-month-display]').textContent = selectedMonthLabel();
     updateActivePeriodLabel();
   }
 
@@ -234,15 +231,25 @@
     if (!tabs || !status) return;
     const activeMonth = $('[data-month]').value;
     const items = Array.isArray(progress) ? progress : [];
-    tabs.innerHTML = items.map((item) => {
+    const activeYear = activeMonth.slice(0, 4);
+    const yearSelect = $('[data-month-year]');
+    const years = [...new Set(items.map((item) => String(item.month).slice(0, 4)))];
+
+    if (yearSelect) {
+      yearSelect.innerHTML = years.map((year) => `<option value="${esc(year)}"${year === activeYear ? ' selected' : ''}>${esc(year)}</option>`).join('');
+    }
+
+    tabs.innerHTML = items.filter((item) => String(item.month).startsWith(`${activeYear}-`)).map((item) => {
       const active = item.month === activeMonth;
       const state = item.capture_status || (item.complete ? 'complete' : (item.count ? 'in_progress' : 'not_started'));
       const badge = state === 'complete' ? 'Complete' : (state === 'in_progress' ? 'In Progress' : 'Not Started');
-      return `<button type="button" class="input-vat-month-tab ${active ? 'is-active' : ''}" data-select-month="${esc(item.month)}" aria-current="${active ? 'true' : 'false'}"><span>${esc(monthLabel(item.month).replace(' 20', ' ’'))}</span><small class="${esc(state)}">${badge}</small></button>`;
+      const shortMonth = monthLabel(item.month).split(' ')[0].slice(0, 3).toUpperCase();
+      return `<button type="button" class="input-vat-month-tab ${active ? 'is-active' : ''}" data-select-month="${esc(item.month)}" aria-current="${active ? 'true' : 'false'}"><span>${esc(shortMonth)}</span><small class="${esc(state)}">${badge}</small></button>`;
     }).join('');
+
     const active = items.find((item) => item.month === activeMonth) || {month: activeMonth, count: 0, vat: 0, complete: false, capture_status: 'not_started'};
     const badge = active.complete ? 'Capture Complete' : (active.count ? 'Capture In Progress' : 'Capture Not Started');
-    status.innerHTML = `<div><span class="input-vat-capture-badge ${esc(active.capture_status || 'not_started')}">${badge}</span><strong>${esc(monthLabel(active.month))}</strong><small>${Number(active.count || 0)} records &middot; ${money(active.vat)} Input VAT</small></div>${owner ? `<button type="button" class="portal-button portal-button--ghost" data-month-complete="${esc(active.month)}" data-complete="${active.complete ? '1' : '0'}">${active.complete ? 'Reopen Month' : 'Mark Capture Complete'}</button>` : ''}`;
+    status.innerHTML = `<div class="input-vat-month-status-copy"><strong>${esc(monthLabel(active.month).toUpperCase())}</strong><span>Capture Status <b class="input-vat-capture-badge ${esc(active.capture_status || 'not_started')}">${badge.replace('Capture ', '')}</b></span><small>${Number(active.count || 0)} purchase records &middot; ${money(active.vat)} Input VAT</small></div>${owner ? `<button type="button" class="portal-button portal-button--secondary" data-month-complete="${esc(active.month)}" data-complete="${active.complete ? '1' : '0'}">${active.complete ? 'Reopen Month' : 'Mark Capture Complete'}</button>` : ''}`;
   }
 
   function premiumAnalysisRows(obj, icon) {
@@ -264,9 +271,7 @@
 
   function render(j) {
     const s = j.summary;
-    const selected = selectedMonthLabel();
-    const rowsMessage = $('[data-active-period-label]');
-    if (rowsMessage) rowsMessage.textContent = selected.toUpperCase();
+    updateActivePeriodLabel();
 
     $('[data-summary]').innerHTML = [
       ['Purchase Records', s.count, 'Records in the selected period'],
@@ -283,7 +288,7 @@
 
     $('[data-rows]').innerHTML = rows.length
       ? rows.map((r) => `<tr class="${Number(r.id) === Number(refreshRowId) ? 'input-vat-row-highlight' : ''}"><td><time datetime="${esc(r.purchase_date)}">${esc(dateLabel(r.purchase_date))}</time></td><td>${esc(r.supplier)}</td><td>${esc(r.description)}</td><td class="money">${money(r.inclusive)}</td><td class="money vat-money">${money(r.vat)}</td><td class="money">${money(r.exclusive)}</td><td><div class="attachment-list">${(r.attachments.map((a) => `<span><a href="${esc(a.view_url)}" target="_blank">${esc(a.name)}</a> <a href="${esc(a.download_url)}" title="Download">?</a>${a.can_delete ? ` <button data-delete-file="${a.id}" type="button" aria-label="Remove attachment">×</button>` : ''}</span>`).join('')) || '—'}</div></td><td>${esc(r.entered_by)}</td><td><span class="status-pill ${esc(r.review_status)}">${esc(r.review_status.replaceAll('_', ' '))}</span>${r.review_note ? `<small title="${esc(r.review_note)}"> · note</small>` : ''}</td><td><div class="row-actions">${r.can_edit ? '<button type="button" data-edit="' + r.id + '" title="Edit" aria-label="Edit purchase">?</button>' : ''}${r.can_review ? '<button type="button" data-review="' + r.id + '" title="Review" aria-label="Review purchase">?</button>' : ''}${r.can_review ? '<button type="button" data-audit="' + r.id + '" title="History" aria-label="View history">?</button>' : ''}${r.can_delete ? '<button type="button" data-delete="' + r.id + '" title="Delete" aria-label="Delete purchase">-</button>' : ''}</div></td></tr>`).join('')
-      : `<tr><td class="empty-row" colspan="10"><div class="table-empty-state"><span aria-hidden="true">?</span><strong>No Input VAT records for ${esc(selectedMonthLabel())}.</strong><p>Switch the month or start capturing with Add Purchase.</p><button type="button" class="portal-button portal-button--primary" data-add-purchase><span class="portal-button__icon" aria-hidden="true">+</span> Add Purchase</button></div></td></tr>`;
+      : `<tr><td class="empty-row" colspan="10"><div class="table-empty-state"><span aria-hidden="true">?</span><strong>No Input VAT purchases for ${esc(selectedMonthLabel())}.</strong><p>Switch the month or start capturing with Add Purchase.</p><button type="button" class="portal-button portal-button--primary" data-add-purchase><span class="portal-button__icon" aria-hidden="true">+</span> Add Purchase</button></div></td></tr>`;
 
     const exportParams = params(); exportParams.set('action', 'export');
     $('[data-export]').href = api + '?' + exportParams.toString();
@@ -316,7 +321,6 @@
     const [year, month] = input.value.split('-').map(Number);
     const next = new Date(year, (month || 1) - 1 + delta, 1);
     input.value = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`;
-    $('[data-month-display]').textContent = selectedMonthLabel();
     page.classList.add('is-refreshing');
     load();
   }
@@ -406,8 +410,13 @@
     dialog.showModal();
   }
 
-  $('[data-previous-month]').onclick = () => stepMonth(-1);
-  $('[data-next-month]').onclick = () => stepMonth(1);
+  page.querySelectorAll('[data-previous-month]').forEach((button) => { button.onclick = () => stepMonth(-1); });
+  page.querySelectorAll('[data-next-month]').forEach((button) => { button.onclick = () => stepMonth(1); });
+  $('[data-month-year]')?.addEventListener('change', (event) => {
+    const month = $('[data-month]').value.slice(5);
+    $('[data-month]').value = `${event.target.value}-${month}`;
+    load();
+  });
 
   const dialog = $('[data-dialog]');
   const form = $('[data-form]');
@@ -617,7 +626,7 @@
     const view=event.target.closest('[data-vat-view]');
     if(view){ currentView=view.dataset.vatView==='history'&&owner?'history':'monthly'; syncView(); page.classList.add('is-refreshing'); await load(); return; }
     const monthTab=event.target.closest('[data-select-month]');
-    if(monthTab){ $('[data-month]').value=monthTab.dataset.selectMonth; $('[data-month-display]').textContent=selectedMonthLabel(); page.classList.add('is-refreshing'); await load(); return; }
+    if(monthTab){ $('[data-month]').value=monthTab.dataset.selectMonth; page.classList.add('is-refreshing'); await load(); return; }
     const control=event.target.closest('[data-month-complete]'); if(!control) return;
     await request('set_month_complete',{month:control.dataset.monthComplete,complete:control.dataset.complete==='1'?'0':'1'}); await load(); showToast('Month capture status updated.');
   });
