@@ -55,9 +55,11 @@
   }
 
   function mountPopupFor(control) {
+    const isInputVat = Boolean(control?.wrapper?.closest('#inputVatPage'));
     const openDialog = control?.wrapper?.closest('dialog[open]');
-    const host = openDialog || document.body;
+    const host = isInputVat ? document.body : (openDialog || document.body);
     const datePopup = ensurePopup();
+    datePopup.classList.toggle('is-input-vat-popup', isInputVat);
     if (datePopup.parentElement !== host) host.appendChild(datePopup);
     return datePopup;
   }
@@ -88,6 +90,11 @@
   function positionPopup() {
     if (!active || !popup) return;
     const rect = active.trigger.getBoundingClientRect();
+    const inputVatScroller = active.wrapper.closest('#inputVatPage') ? active.wrapper.closest('.accounts-form-grid') : null;
+    if (inputVatScroller) {
+      const clip = inputVatScroller.getBoundingClientRect();
+      if (rect.bottom < clip.top || rect.top > clip.bottom) { close(false); return; }
+    }
     popup.classList.add('is-positioning');
     popup.style.visibility = 'hidden';
     const popupRect = popup.getBoundingClientRect();

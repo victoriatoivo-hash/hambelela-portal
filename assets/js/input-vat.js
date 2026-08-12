@@ -244,12 +244,13 @@
       const state = item.capture_status || (item.complete ? 'complete' : (item.count ? 'in_progress' : 'not_started'));
       const badge = state === 'complete' ? 'Complete' : (state === 'in_progress' ? 'In Progress' : 'Not Started');
       const shortMonth = monthLabel(item.month).split(' ')[0].slice(0, 3).toUpperCase();
-      return `<button type="button" class="input-vat-month-tab ${active ? 'is-active' : ''}" data-select-month="${esc(item.month)}" aria-current="${active ? 'true' : 'false'}"><span>${esc(shortMonth)}</span><small class="${esc(state)}">${badge}</small></button>`;
+      const monthNumber = Number(String(item.month).slice(5, 7));
+      return `<button type="button" class="input-vat-month-tab ${active ? 'is-active' : ''}" data-select-month="${esc(item.month)}" data-month-number="${monthNumber}" aria-selected="${active ? 'true' : 'false'}"><span>${esc(shortMonth)}</span><small class="${esc(state)}">${badge}</small></button>`;
     }).join('');
 
     const active = items.find((item) => item.month === activeMonth) || {month: activeMonth, count: 0, vat: 0, complete: false, capture_status: 'not_started'};
     const badge = active.complete ? 'Capture Complete' : (active.count ? 'Capture In Progress' : 'Capture Not Started');
-    status.innerHTML = `<div class="input-vat-month-status-copy"><strong>${esc(monthLabel(active.month).toUpperCase())}</strong><span>Capture Status <b class="input-vat-capture-badge ${esc(active.capture_status || 'not_started')}">${badge.replace('Capture ', '')}</b></span><small>${Number(active.count || 0)} purchase records &middot; ${money(active.vat)} Input VAT</small></div>${owner ? `<button type="button" class="portal-button portal-button--secondary" data-month-complete="${esc(active.month)}" data-complete="${active.complete ? '1' : '0'}">${active.complete ? 'Reopen Month' : 'Mark Capture Complete'}</button>` : ''}`;
+    status.innerHTML = `<div class="input-vat-month-status-copy"><strong>${esc(monthLabel(active.month).toUpperCase())}</strong><span>Capture Status <b class="input-vat-capture-badge ${esc(active.capture_status || 'not_started')}">${badge.replace('Capture ', '')}</b></span><small>${Number(active.count || 0)} purchase records &middot; ${money(active.vat)} Input VAT</small></div>${owner ? `<button type="button" class="portal-button portal-button--secondary input-vat-capture-complete" data-month-complete="${esc(active.month)}" data-complete="${active.complete ? '1' : '0'}">${active.complete ? 'Reopen Month' : 'Mark Capture Complete'}</button>` : ''}`;
   }
 
   function premiumAnalysisRows(obj, icon) {

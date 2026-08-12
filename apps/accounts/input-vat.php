@@ -31,7 +31,7 @@ include BASE_PATH.'/shared/sidebar.php';
       <p class="eyebrow">Accounts application</p>
       <h1>Input VAT</h1>
       <p>Record local VAT purchases and calculate Input VAT for the selected period.</p>
-      <p class="input-vat-active-period" data-active-period><i data-lucide="calendar-days" aria-hidden="true"></i><span class="input-vat-active-period-label" data-active-period-kicker>ACTIVE PERIOD</span><strong data-active-period-value><?=htmlspecialchars(date('F Y'), ENT_QUOTES, 'UTF-8')?></strong></p>
+      <p class="input-vat-active-period" data-active-period><i data-lucide="calendar-days" aria-hidden="true"></i><span class="input-vat-active-period-label" data-active-period-kicker>Active period</span><strong data-active-period-value><?=htmlspecialchars(date('F Y'), ENT_QUOTES, 'UTF-8')?></strong></p>
     </div>
     <div class="accounts-actions" data-portal-header-status-target>
       <button class="portal-button portal-button--primary" type="button" data-add-purchase><span class="portal-button__icon" aria-hidden="true">+</span> Add Purchase</button>
@@ -58,8 +58,8 @@ include BASE_PATH.'/shared/sidebar.php';
 
   <section class="accounts-toolbar" aria-label="Input VAT working filters" data-monthly-toolbar>
     <input type="hidden" data-month value="<?=date('Y-m')?>">
-    <label class="accounts-search-control"><span>SEARCH</span><input type="search" data-search placeholder="Search supplier, description or reference"></label>
-    <label class="accounts-status-control"><span>STATUS</span><select data-status data-portal-custom-select data-portal-select-variant="input-vat"><option value="">All statuses</option><option value="captured">Captured</option><option value="reviewed">Reviewed</option><option value="needs_correction">Needs Correction</option></select></label>
+    <label class="accounts-search-control"><span>Search</span><span class="input-vat-search-field"><i data-lucide="search" aria-hidden="true"></i><input type="search" data-search placeholder="Search supplier, description or reference"></span></label>
+    <label class="accounts-status-control"><span>Status</span><select data-status data-portal-custom-select data-portal-select-variant="input-vat"><option value="">All statuses</option><option value="captured">Captured</option><option value="reviewed">Reviewed</option><option value="needs_correction">Needs Correction</option></select></label>
   </section>
 
   <?php if(accounts_is_owner()): ?>
@@ -67,7 +67,7 @@ include BASE_PATH.'/shared/sidebar.php';
     <label><span>MONTH</span><input type="month" data-history-month min="<?=htmlspecialchars(substr(accounts_historical_capture_start_date(),0,7), ENT_QUOTES, 'UTF-8')?>" max="<?=htmlspecialchars(date('Y-m'), ENT_QUOTES, 'UTF-8')?>"></label>
     <label><span>FROM</span><input type="date" data-history-from min="<?=htmlspecialchars(accounts_historical_capture_start_date(), ENT_QUOTES, 'UTF-8')?>"></label>
     <label><span>TO</span><input type="date" data-history-to max="<?=htmlspecialchars(date('Y-m-d'), ENT_QUOTES, 'UTF-8')?>"></label>
-    <label class="accounts-search-control"><span>SEARCH</span><input type="search" data-history-search placeholder="Supplier, description or reference"></label>
+    <label class="accounts-search-control"><span>Search</span><span class="input-vat-search-field"><i data-lucide="search" aria-hidden="true"></i><input type="search" data-history-search placeholder="Supplier, description or reference"></span></label>
     <label><span>ENTERED BY</span><input type="search" data-history-entered-by placeholder="Employee name"></label>
     <label><span>STATUS</span><select data-history-status data-portal-custom-select data-portal-select-variant="input-vat"><option value="">All statuses</option><option value="captured">Captured</option><option value="reviewed">Reviewed</option><option value="needs_correction">Needs Correction</option></select></label>
     <label><span>ADJUSTMENT</span><select data-history-manual data-portal-custom-select data-portal-select-variant="input-vat"><option value="">All records</option><option value="1">Manual adjustments</option><option value="0">Automatic calculations</option></select></label>
