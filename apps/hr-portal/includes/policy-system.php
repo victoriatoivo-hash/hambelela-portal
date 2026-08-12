@@ -200,6 +200,95 @@ function hrPolicyPrivateDir(): string {
     return dirname(__DIR__) . DIRECTORY_SEPARATOR . 'private' . DIRECTORY_SEPARATOR . 'policies';
 }
 
+function hrPolicyAuthorizedV1CorrectionTemplate(): string {
+    return dirname(__DIR__) . DIRECTORY_SEPARATOR . 'private' . DIRECTORY_SEPARATOR . 'policy-upgrades'
+        . DIRECTORY_SEPARATOR . 'Hambelela_Organic_Employee_Handbook_HR_Policy_v1.0.docx';
+}
+
+function hrPolicyApplyAuthorizedV1DraftCorrection(PDO $db, array $user): array {
+    $result=array('corrected'=>false,'previous_source_hash'=>null,'new_source_hash'=>null,'previous_digital_hash'=>null,'new_digital_hash'=>null);
+    if (($user['role']??'employee')==='employee') return $result;
+
+    $find=$db->prepare("SELECT v.*,p.policy_type FROM hr_policy_versions v JOIN hr_policies p ON p.id=v.policy_id
+        WHERE v.version_number='1.0' AND v.title='Employee Handbook & HR Policy'
+          AND v.status IN ('draft','ready_to_publish') AND v.effective_date='2026-09-01'
+          AND v.digital_html LIKE '%Pending owner approval%'
+        ORDER BY v.id DESC LIMIT 1");
+    $find->execute(); $version=$find->fetch(PDO::FETCH_ASSOC);
+    if (!$version) return $result;
+
+    $versionId=(int)$version['id']; $policyId=(int)$version['policy_id'];
+    $counts=$db->prepare("SELECT
+        (SELECT COUNT(*) FROM hr_policy_acknowledgements WHERE version_id=?) acknowledgements,
+        (SELECT COUNT(*) FROM hr_policy_assignments WHERE version_id=?) assignments,
+        (SELECT COUNT(*) FROM hr_policy_notifications WHERE version_id=?) notifications");
+    $counts->execute(array($versionId,$versionId,$versionId)); $usage=$counts->fetch(PDO::FETCH_ASSOC);
+    if ((int)$usage['acknowledgements']>0 || (int)$usage['assignments']>0 || (int)$usage['notifications']>0) {
+        throw new RuntimeException('Version 1.0 already has employee records and cannot be corrected in place.');
+    }
+
+    $template=hrPolicyAuthorizedV1CorrectionTemplate();
+    if (!is_file($template)) throw new RuntimeException('The approved corrected Version 1.0 source document is not available.');
+    $digital=hrPolicyDocxDigitalHtml($template);
+    $digitalPlain=html_entity_decode(strip_tags($digital['html']),ENT_QUOTES,'UTF-8');
+    if (stripos($digitalPlain,'Pending owner approval')!==false || stripos($digitalPlain,'1 September 2026')===false) {
+        throw new RuntimeException('The corrected Version 1.0 source document failed its effective-date validation.');
+    }
+
+    $current=hrPolicyPrivateDir().DIRECTORY_SEPARATOR.basename((string)$version['file_path']);
+    if (!is_file($current)) throw new RuntimeException('The current Version 1.0 source document could not be found.');
+    $previousSourceHash=hash_file('sha256',$current);
+    if (!hash_equals(strtolower((string)$version['document_hash']),strtolower($previousSourceHash))) {
+        throw new RuntimeException('The current Version 1.0 source file does not match its stored hash. No correction was applied.');
+    }
+    $newSourceHash=hash_file('sha256',$template);
+    $previousDigitalHash=(string)($version['digital_hash']??'');
+    $historyDir=hrPolicyPrivateDir().DIRECTORY_SEPARATOR.'draft-history';
+    if (!is_dir($historyDir) && !mkdir($historyDir,0750,true)) throw new RuntimeException('The policy draft history directory could not be created.');
+    $historyFile=$historyDir.DIRECTORY_SEPARATOR.'version-1.0-'.$previousSourceHash.'.docx';
+    if (!is_file($historyFile) && !copy($current,$historyFile)) throw new RuntimeException('The previous Version 1.0 draft could not be preserved.');
+    $pending=$current.'.metadata-fix-'.bin2hex(random_bytes(6));
+    if (!copy($template,$pending)) throw new RuntimeException('The corrected Version 1.0 source document could not be staged.');
+
+    $replaced=false;
+    try {
+        $db->beginTransaction();
+        $lock=$db->prepare("SELECT status,document_hash,digital_html FROM hr_policy_versions WHERE id=? FOR UPDATE");
+        $lock->execute(array($versionId)); $locked=$lock->fetch(PDO::FETCH_ASSOC);
+        if (!$locked || !in_array($locked['status'],array('draft','ready_to_publish'),true)
+            || stripos((string)$locked['digital_html'],'Pending owner approval')===false
+            || !hash_equals(strtolower((string)$locked['document_hash']),strtolower($previousSourceHash))) {
+            throw new RuntimeException('The Version 1.0 draft changed while the correction was being prepared. Refresh and review the policy.');
+        }
+        if (!copy($pending,$current)) throw new RuntimeException('The corrected Version 1.0 source document could not replace the current draft.');
+        $replaced=true;
+        $update=$db->prepare("UPDATE hr_policy_versions SET created_date='2026-08-11',effective_date='2026-09-01',
+            acknowledgement_deadline='2026-08-31',next_review='August 2027',acknowledgement_required=1,
+            file_size=?,document_hash=?,digital_html=?,digital_hash=?,digital_generated_at=NOW()
+            WHERE id=? AND status IN ('draft','ready_to_publish')");
+        $update->execute(array(filesize($current),$newSourceHash,$digital['html'],$digital['hash'],$versionId));
+        if ($update->rowCount()!==1) throw new RuntimeException('The Version 1.0 metadata correction could not be saved.');
+        $correctedBy=trim((string)($user['name']??$user['full_name']??$user['username']??$user['email']??'Owner/Admin'));
+        hrPolicyAudit($db,'version_1_0_draft_metadata_corrected',$policyId,$versionId,null,array(
+            'previous_effective_date'=>'Pending owner approval','new_effective_date'=>'1 September 2026',
+            'reason'=>'Owner approved Effective Date before publication.','corrected_by'=>$correctedBy,
+            'corrected_at'=>date('c'),
+            'previous_source_hash'=>$previousSourceHash,'new_source_hash'=>$newSourceHash,
+            'previous_digital_hash'=>$previousDigitalHash,'new_digital_hash'=>$digital['hash'],
+            'previous_draft_archive'=>basename($historyFile)
+        ));
+        $db->commit();
+    } catch (Throwable $error) {
+        if ($db->inTransaction()) $db->rollBack();
+        if ($replaced) @copy($historyFile,$current);
+        @unlink($pending);
+        throw $error;
+    }
+    @unlink($pending);
+    return array('corrected'=>true,'previous_source_hash'=>$previousSourceHash,'new_source_hash'=>$newSourceHash,
+        'previous_digital_hash'=>$previousDigitalHash,'new_digital_hash'=>$digital['hash']);
+}
+
 function hrPolicyAudit(PDO $db, string $action, ?int $policyId, ?int $versionId, ?int $employeeId, array $details = array()): void {
     $u = currentUser();
     $stmt = $db->prepare("INSERT INTO hr_policy_audit (actor_user_id,actor_employee_id,policy_id,version_id,subject_employee_id,action,details) VALUES (?,?,?,?,?,?,?)");
@@ -231,12 +320,18 @@ function hrPolicyDisplayStatus(array $v): string {
 
 function hrPolicyMetadataMismatches(array $v): array {
     $issues=array(); $html=(string)($v['digital_html']??''); $plain=html_entity_decode(strip_tags($html),ENT_QUOTES,'UTF-8');
+    $effectiveLabel=date('j F Y',strtotime($v['effective_date']));
     if (stripos($plain,'Effective Date Pending owner approval')!==false || stripos($plain,'Pending owner approval')!==false) {
-        $issues[]='Original rendered cover says “Effective Date: Pending owner approval”; portal metadata says “Effective Date: '.date('j F Y',strtotime($v['effective_date'])).'”.';
+        $issues[]='Original rendered cover says “Effective Date: Pending owner approval”; portal metadata says “Effective Date: '.$effectiveLabel.'”.';
     }
+    if (!preg_match('/Effective Date\s*'.preg_quote($effectiveLabel,'/').'/i',$plain)) $issues[]='Digital policy effective date does not match portal Effective Date '.$effectiveLabel.'.';
     if ($v['version_number']==='' || stripos($plain,'Version '.$v['version_number'])===false) $issues[]='Digital policy version does not match portal Version '.$v['version_number'].'.';
     if (empty($v['document_hash']) || !preg_match('/^[a-f0-9]{64}$/i',(string)$v['document_hash'])) $issues[]='Original source document hash is missing or invalid.';
     if (empty($v['digital_hash']) || !preg_match('/^[a-f0-9]{64}$/i',(string)$v['digital_hash'])) $issues[]='Rendered digital document hash is missing or invalid.';
+    if (!empty($v['digital_hash']) && !hash_equals(strtolower((string)$v['digital_hash']),hash('sha256',$html))) $issues[]='Rendered digital document does not match its stored integrity hash.';
+    $sourcePath=hrPolicyPrivateDir().DIRECTORY_SEPARATOR.basename((string)($v['file_path']??''));
+    if (!is_file($sourcePath)) $issues[]='Original source document is unavailable.';
+    elseif (!empty($v['document_hash']) && !hash_equals(strtolower((string)$v['document_hash']),hash_file('sha256',$sourcePath))) $issues[]='Original source document does not match its stored integrity hash.';
     if (!empty($v['acknowledgement_required']) && empty($v['acknowledgement_deadline'])) $issues[]='Acknowledgement is required but no deadline is set.';
     return $issues;
 }
