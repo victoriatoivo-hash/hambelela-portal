@@ -43,7 +43,7 @@ include BASE_PATH.'/shared/sidebar.php';
 
   <nav class="input-vat-primary-tabs portal-theme-tabs" role="tablist" aria-label="Input VAT views">
     <button type="button" class="portal-theme-tab is-active" role="tab" aria-selected="true" data-vat-view="monthly"><i data-lucide="calendar-range" aria-hidden="true"></i><span>Monthly Input VAT</span></button>
-    <?php if(accounts_is_owner()): ?><button type="button" class="portal-theme-tab" role="tab" aria-selected="false" data-vat-view="history"><i data-lucide="history" aria-hidden="true"></i><span>Transaction History</span></button><?php endif; ?>
+    <button type="button" class="portal-theme-tab" role="tab" aria-selected="false" data-vat-view="history"><i data-lucide="history" aria-hidden="true"></i><span>Transaction History</span></button>
   </nav>
 
   <section class="input-vat-month-workspace" data-month-workspace>
@@ -62,7 +62,6 @@ include BASE_PATH.'/shared/sidebar.php';
     <label class="accounts-status-control"><span>Status</span><select data-status data-portal-custom-select data-portal-select-variant="input-vat"><option value="">All statuses</option><option value="captured">Captured</option><option value="reviewed">Reviewed</option><option value="needs_correction">Needs Correction</option></select></label>
   </section>
 
-  <?php if(accounts_is_owner()): ?>
   <section class="accounts-toolbar input-vat-history-toolbar" data-history-toolbar hidden aria-label="Transaction History filters">
     <label><span>MONTH</span><input type="month" data-history-month min="<?=htmlspecialchars(substr(accounts_historical_capture_start_date(),0,7), ENT_QUOTES, 'UTF-8')?>" max="<?=htmlspecialchars(date('Y-m'), ENT_QUOTES, 'UTF-8')?>"></label>
     <label><span>FROM</span><input type="date" data-history-from min="<?=htmlspecialchars(accounts_historical_capture_start_date(), ENT_QUOTES, 'UTF-8')?>"></label>
@@ -72,7 +71,6 @@ include BASE_PATH.'/shared/sidebar.php';
     <label><span>STATUS</span><select data-history-status data-portal-custom-select data-portal-select-variant="input-vat"><option value="">All statuses</option><option value="captured">Captured</option><option value="reviewed">Reviewed</option><option value="needs_correction">Needs Correction</option></select></label>
     <label><span>ADJUSTMENT</span><select data-history-manual data-portal-custom-select data-portal-select-variant="input-vat"><option value="">All records</option><option value="1">Manual adjustments</option><option value="0">Automatic calculations</option></select></label>
   </section>
-  <?php endif; ?>
 
   <?php if(accounts_is_owner()): ?>
   <aside class="input-vat-period-notice" data-period-notice role="status" aria-live="polite" hidden>

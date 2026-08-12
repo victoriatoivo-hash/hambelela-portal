@@ -116,7 +116,7 @@ try {
 
     if ($action === 'export') {
         $month = iv_month_from_request((string) ($_GET['month'] ?? ''));
-        $history = accounts_is_owner() && ($_GET['period'] ?? '') === 'history';
+        $history = ($_GET['period'] ?? '') === 'history';
         $all = accounts_is_owner() && ($_GET['period'] ?? '') === 'all';
         $where = 'deleted_at IS NULL';
         $params = [];
@@ -167,7 +167,7 @@ try {
 
     if ($action === 'list') {
         $month = iv_month_from_request((string) ($_GET['month'] ?? ''));
-        $history = accounts_is_owner() && ($_GET['period'] ?? '') === 'history';
+        $history = ($_GET['period'] ?? '') === 'history';
         $all = accounts_is_owner() && ($_GET['period'] ?? '') === 'all';
         $where = ['deleted_at IS NULL'];
         $params = [];

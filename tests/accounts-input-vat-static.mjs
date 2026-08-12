@@ -44,6 +44,8 @@ assert.match(sidebar, /'label' => 'Input VAT'.*\/apps\/accounts\/input-vat\.php/
 assert.match(sidebar, /'input-vat' => 'input_vat'/);
 assert.match(dashboard, /'name' => 'Accounts'.*\/apps\/accounts\/index\.php/);
 assert.match(dashboard, /'name' => 'Input VAT'.*\/apps\/accounts\/input-vat\.php/);
+assert.match(dashboard, /Capture local purchase invoices and Input VAT records\./);
+assert.match(dashboard, /'action' => 'Open Input VAT'/);
 
 assert.match(workspace, /Accounting Apps/);
 assert.match(workspace, /Open Input VAT/);
@@ -109,6 +111,10 @@ assert.doesNotMatch(liveEntry, /eval\(/, 'cache-safe live entry point must not e
 assert.match(liveEntry, /Cache-Control: no-store/, 'live entry point must prevent stale page responses');
 assert.match(accountsHtaccess, /RewriteRule \^input-vat\\\.php\$ input-vat-live\.php \[L,QSA\]/, 'Input VAT route must use the cache-safe live entry point');
 assert.match(page, /data-vat-view="history"/);
+assert.doesNotMatch(page, /if\(accounts_is_owner\(\)\): \?><button[^>]*data-vat-view="history"/);
+assert.doesNotMatch(liveEntry, /if\(accounts_is_owner\(\)\): \?><button[^>]*data-vat-view="history"/);
+assert.match(api, /\$history = \(\$_GET\['period'\] \?\? ''\) === 'history'/);
+assert.doesNotMatch(js, /view\.dataset\.vatView==='history'&&owner/);
 assert.match(page, /portal-theme-tabs/);
 assert.match(page, /data-active-period-kicker/);
 assert.match(page, /data-active-period-value/);

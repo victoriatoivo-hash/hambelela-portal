@@ -667,7 +667,7 @@
 
   page.addEventListener('click', async (event) => {
     const view=event.target.closest('[data-vat-view]');
-    if(view){ currentView=view.dataset.vatView==='history'&&owner?'history':'monthly'; syncView(); page.classList.add('is-refreshing'); await load(); return; }
+    if(view){ currentView=view.dataset.vatView==='history'?'history':'monthly'; syncView(); page.classList.add('is-refreshing'); await load(); return; }
     const monthTab=event.target.closest('[data-select-month]');
     if(monthTab){ $('[data-month]').value=monthTab.dataset.selectMonth; page.classList.add('is-refreshing'); await load(); return; }
     const control=event.target.closest('[data-month-complete]'); if(!control) return;
