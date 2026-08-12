@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 const notifications = read('shared/notifications.php');
 const sidebar = read('shared/sidebar.php');
-const workbook = read('apps/cost-manager/landing-cost-engine.php');
+const workbook = read('apps/cost-manager/workbook.php');
 
 assert.doesNotMatch(workbook, /apps\/operations\/operations\.php/);
 assert.match(
