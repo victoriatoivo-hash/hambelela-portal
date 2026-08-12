@@ -87,6 +87,29 @@ function iv_valid_purchase_date(string $value): bool
     return checkdate((int) $parts[2], (int) $parts[3], (int) $parts[1]);
 }
 
+function iv_duplicate_matches(int $id, string $date, string $supplier, float $inclusive, string $reference): array
+{
+    $sql = 'SELECT * FROM accounts_input_vat_purchases WHERE deleted_at IS NULL AND id<>? AND purchase_date=? AND LOWER(TRIM(supplier))=LOWER(TRIM(?)) AND amount_incl_vat=?';
+    $params = [$id, $date, $supplier, round($inclusive, 2)];
+    if ($reference !== '') { $sql .= ' AND LOWER(TRIM(COALESCE(invoice_reference,\'\')))=LOWER(TRIM(?))'; $params[] = $reference; }
+    $stmt = db()->prepare($sql.' ORDER BY id DESC LIMIT 10'); $stmt->execute($params);
+    return array_map('accounts_purchase_payload', $stmt->fetchAll());
+}
+
+function iv_capture_progress(): array
+{
+    $start = accounts_historical_capture_start_date(); $cursor = substr($start, 0, 7); $end = date('Y-m'); $result = [];
+    $counts = db()->query("SELECT DATE_FORMAT(purchase_date,'%Y-%m') month_key,COUNT(*) record_count,SUM(amount_incl_vat) total_incl,SUM(vat_amount) total_vat FROM accounts_input_vat_purchases WHERE deleted_at IS NULL GROUP BY DATE_FORMAT(purchase_date,'%Y-%m')")->fetchAll();
+    $countMap=[]; foreach($counts as $row) $countMap[(string)$row['month_key']]=$row;
+    $statuses=db()->query('SELECT * FROM accounts_input_vat_month_status')->fetchAll(); $statusMap=[]; foreach($statuses as $row) $statusMap[(string)$row['month_key']]=$row;
+    while ($cursor <= $end) {
+        $row=$countMap[$cursor]??[]; $status=$statusMap[$cursor]??[];
+        $result[]=['month'=>$cursor,'count'=>(int)($row['record_count']??0),'inclusive'=>(float)($row['total_incl']??0),'vat'=>(float)($row['total_vat']??0),'complete'=>(bool)($status['capture_complete']??false),'updated_by'=>(string)($status['updated_by_name']??'')];
+        $cursor=date('Y-m', strtotime($cursor.'-01 +1 month'));
+    }
+    return $result;
+}
+
 try {
     $action = (string) ($_REQUEST['action'] ?? 'list');
 
@@ -138,7 +161,8 @@ try {
 
         $search = trim((string) ($_GET['search'] ?? ''));
         if ($search !== '') {
-            $where[] = '(supplier LIKE ? OR description LIKE ?)';
+            $where[] = '(supplier LIKE ? OR description LIKE ? OR invoice_reference LIKE ?)';
+            $params[] = '%'.$search.'%';
             $params[] = '%'.$search.'%';
             $params[] = '%'.$search.'%';
         }
@@ -176,7 +200,7 @@ try {
             $summary['descriptions'][$key] = ($summary['descriptions'][$key] ?? 0) + $r['inclusive'];
         }
 
-        iv_reply(['ok' => true, 'rows' => $rows, 'summary' => $summary, 'standard_vat_rate' => accounts_standard_vat_rate(), 'refreshed_at' => date(DATE_ATOM)]);
+        iv_reply(['ok' => true, 'rows' => $rows, 'summary' => $summary, 'standard_vat_rate' => accounts_standard_vat_rate(), 'historical_capture_start_date'=>accounts_historical_capture_start_date(), 'capture_progress'=>accounts_is_owner()?iv_capture_progress():[], 'refreshed_at' => date(DATE_ATOM)]);
     }
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') throw new RuntimeException('POST required.');
@@ -216,22 +240,51 @@ try {
         iv_reply(['ok' => true, 'rate' => $rate, 'old_rate' => $old, 'effective_from' => date(DATE_ATOM), 'message' => 'Standard VAT rate updated. Existing records were not recalculated.']);
     }
 
+    if ($action === 'save_capture_settings') {
+        if (!accounts_is_owner()) throw new RuntimeException('Only the owner can change historical capture settings.');
+        $date=(string)($_POST['historical_capture_start_date']??'');
+        if (!iv_valid_purchase_date($date) || $date>date('Y-m-d')) throw new RuntimeException('Choose a valid historical capture start date on or before today.');
+        $old=accounts_historical_capture_start_date(); $user=current_user();
+        db()->prepare("INSERT INTO accounts_settings(setting_key,setting_value,updated_by)VALUES('historical_capture_start_date',?,?) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value),updated_by=VALUES(updated_by)")->execute([$date,(int)($user['id']??0)]);
+        db()->prepare('INSERT INTO accounts_settings_audit(setting_key,old_value,new_value,changed_by,changed_by_name,effective_from)VALUES(?,?,?,?,?,NOW())')->execute(['historical_capture_start_date',$old,$date,(int)($user['id']??0),(string)($user['name']??'Owner')]);
+        iv_reply(['ok'=>true,'historical_capture_start_date'=>$date,'message'=>'Historical capture start date updated.']);
+    }
+
+    if ($action === 'set_month_complete') {
+        if (!accounts_is_owner()) throw new RuntimeException('Only the owner can change month capture status.');
+        $month=iv_month_from_request((string)($_POST['month']??'')); $complete=(int)($_POST['complete']??0)===1; $user=current_user();
+        db()->prepare('INSERT INTO accounts_input_vat_month_status(month_key,capture_complete,updated_by,updated_by_name)VALUES(?,?,?,?) ON DUPLICATE KEY UPDATE capture_complete=VALUES(capture_complete),updated_by=VALUES(updated_by),updated_by_name=VALUES(updated_by_name)')->execute([$month,$complete?1:0,(int)($user['id']??0),(string)($user['name']??'Owner')]);
+        iv_reply(['ok'=>true,'message'=>$complete?'Month marked Capture Complete.':'Month reopened for capture.']);
+    }
+
     if ($action === 'save') {
         $id = (int) ($_POST['id'] ?? 0);
         $date = (string) ($_POST['purchase_date'] ?? '');
         $supplier = trim((string) ($_POST['supplier'] ?? ''));
+        $reference = trim((string) ($_POST['invoice_reference'] ?? ''));
         $description = trim((string) ($_POST['description'] ?? ''));
         if (!iv_valid_purchase_date($date) || $supplier === '' || $description === '') {
             throw new RuntimeException('Date, supplier and description are required.');
         }
 
-        $calc = accounts_vat_calculate(
-            (float) ($_POST['inclusive'] ?? 0),
-            (string) ($_POST['vat_treatment'] ?? 'standard'),
-            isset($_POST['manual_vat']) ? (float) $_POST['manual_vat'] : null,
-        );
+        $start=accounts_historical_capture_start_date();
+        if ($date<$start) throw new RuntimeException('Purchase date cannot be earlier than the historical capture start date ('.$start.').');
+        if ($date>date('Y-m-d')) throw new RuntimeException('Future purchase dates are not allowed.');
+        $source=in_array($_POST['calculation_source']??'', ['inclusive','exclusive'], true)?(string)$_POST['calculation_source']:'inclusive';
+        $amount=(float)($source==='exclusive'?($_POST['exclusive_source']??0):($_POST['inclusive']??0));
+        $treatment=in_array($_POST['vat_treatment']??'', ['standard','zero_rated','no_vat','manual_vat','review_required'], true)?(string)$_POST['vat_treatment']:'standard';
+        $baseline=accounts_vat_calculate_from_source($amount,$source,$treatment);
+        $calc=$baseline; $manualOverride=(int)($_POST['manual_override']??0)===1; $overrideReason=trim((string)($_POST['override_reason']??''));
+        if ($manualOverride) {
+            if ($overrideReason==='') throw new RuntimeException('Select or enter a reason for the manual VAT adjustment.');
+            $manualVat=round((float)($_POST['manual_vat']??-1),2); $manualExclusive=round((float)($_POST['manual_exclusive']??-1),2);
+            if ($manualVat<0 || $manualExclusive<0) throw new RuntimeException('Enter valid adjusted VAT and excl VAT amounts.');
+            $calc['vat']=$manualVat; $calc['exclusive']=$manualExclusive; $calc['inclusive']=round($manualVat+$manualExclusive,2);
+        }
 
         if ($calc['inclusive'] <= 0) throw new RuntimeException('Amount incl VAT must be greater than zero.');
+        $duplicates=iv_duplicate_matches($id,$date,$supplier,$calc['inclusive'],$reference);
+        if ($duplicates && (int)($_POST['duplicate_confirmed']??0)!==1) iv_reply(['ok'=>false,'code'=>'possible_duplicate','error'=>'Possible duplicate purchase found. Review it before saving.','matches'=>$duplicates],409);
 
         $user = current_user();
         $before = null;
@@ -241,32 +294,14 @@ try {
             if ($id) {
                 $before = accounts_purchase($id);
                 if (!$before || !accounts_can_edit_purchase($before)) throw new RuntimeException('You cannot edit this purchase.');
-                $stmt = db()->prepare('UPDATE accounts_input_vat_purchases SET purchase_date=?,supplier=?,description=?,amount_incl_vat=?,vat_rate=?,vat_amount=?,amount_excl_vat=?,vat_treatment=?,updated_by=? WHERE id=?');
+                $stmt = db()->prepare('UPDATE accounts_input_vat_purchases SET purchase_date=?,supplier=?,invoice_reference=?,description=?,notes=?,amount_incl_vat=?,vat_rate=?,vat_rate_used=?,vat_amount=?,automatic_vat_amount=?,amount_excl_vat=?,automatic_excl_vat=?,vat_treatment=?,calculation_source=?,manual_override=?,override_reason=?,override_by=?,override_by_name=?,override_at=?,historical_back_capture=?,updated_by=? WHERE id=?');
                 $stmt->execute([
-                    $date,
-                    $supplier,
-                    $description,
-                    $calc['inclusive'],
-                    $calc['rate'],
-                    $calc['vat'],
-                    $calc['exclusive'],
-                    $calc['treatment'],
-                    (int) $user['id'],
-                    $id,
+                    $date,$supplier,$reference,$description,trim((string)($_POST['notes']??'')),$calc['inclusive'],$baseline['rate'],$baseline['rate'],$calc['vat'],$baseline['vat'],$calc['exclusive'],$baseline['exclusive'],$baseline['treatment'],$source,$manualOverride?1:0,$manualOverride?$overrideReason:null,$manualOverride?(int)$user['id']:null,$manualOverride?(string)$user['name']:null,$manualOverride?date('Y-m-d H:i:s'):null,$date<date('Y-m-01')?1:0,(int)$user['id'],$id,
                 ]);
             } else {
-                $stmt = db()->prepare('INSERT INTO accounts_input_vat_purchases(purchase_date,supplier,description,amount_incl_vat,vat_rate,vat_amount,amount_excl_vat,vat_treatment,created_by,created_by_name)VALUES(?,?,?,?,?,?,?,?,?,?)');
+                $stmt = db()->prepare('INSERT INTO accounts_input_vat_purchases(purchase_date,supplier,invoice_reference,description,notes,amount_incl_vat,vat_rate,vat_rate_used,vat_amount,automatic_vat_amount,amount_excl_vat,automatic_excl_vat,vat_treatment,calculation_source,manual_override,override_reason,override_by,override_by_name,override_at,historical_back_capture,created_by,created_by_name)VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
                 $stmt->execute([
-                    $date,
-                    $supplier,
-                    $description,
-                    $calc['inclusive'],
-                    $calc['rate'],
-                    $calc['vat'],
-                    $calc['exclusive'],
-                    $calc['treatment'],
-                    (int) $user['id'],
-                    (string) $user['name'],
+                    $date,$supplier,$reference,$description,trim((string)($_POST['notes']??'')),$calc['inclusive'],$baseline['rate'],$baseline['rate'],$calc['vat'],$baseline['vat'],$calc['exclusive'],$baseline['exclusive'],$baseline['treatment'],$source,$manualOverride?1:0,$manualOverride?$overrideReason:null,$manualOverride?(int)$user['id']:null,$manualOverride?(string)$user['name']:null,$manualOverride?date('Y-m-d H:i:s'):null,$date<date('Y-m-01')?1:0,(int)$user['id'],(string)$user['name'],
                 ]);
                 $id = (int) db()->lastInsertId();
             }

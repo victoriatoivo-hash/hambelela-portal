@@ -96,7 +96,7 @@
       body,
     }).then((response) => response.json().then((payload) => ({response, payload})))
       .then(({response, payload}) => {
-        if (!response.ok || !payload.ok) throw new Error(payload.error || 'Request failed.');
+        if (!response.ok || !payload.ok) { const error = new Error(payload.error || 'Request failed.'); error.payload = payload; throw error; }
         return payload;
       });
   }
@@ -240,6 +240,9 @@
 
     $('[data-export]').href = api + '?action=export&month=' + encodeURIComponent(formatSortValue($('[data-month]').value)) + '&period=current';
     $('[data-rows]').innerHTML = rows.length ? rows.map(premiumPurchaseRow).join('') : emptyTableRow();
+    const progress = $('[data-capture-progress]');
+    if (progress) progress.innerHTML = (j.capture_progress || []).map((m) => `<article><div><strong>${esc(monthLabel(m.month))}</strong><span>${m.count} records &middot; ${money(m.vat)} VAT</span></div><button type="button" class="portal-button portal-button--ghost" data-month-complete="${esc(m.month)}" data-complete="${m.complete ? '1' : '0'}">${m.complete ? 'Capture Complete · Reopen' : 'Mark Capture Complete'}</button></article>`).join('');
+    if (j.historical_capture_start_date) { page.dataset.captureStart = j.historical_capture_start_date; form.elements.purchase_date.min = j.historical_capture_start_date; }
     updateActivePeriodLabel();
     if (window.lucide) window.lucide.createIcons();
   }
@@ -305,12 +308,19 @@
   }
 
   function buildPreview() {
-    const inclusive = Number(form.elements.inclusive.value || 0);
+    const source = form.elements.calculation_source.value;
+    const sourceAmount = Number(source === 'exclusive' ? form.elements.exclusive_source.value : form.elements.inclusive.value || 0);
     const treatment = form.elements.vat_treatment.value;
     const rate = Number(page.dataset.rate || 15);
-    const manual = Number(form.elements.manual_vat.value || 0);
-    const vat = ['zero_rated', 'no_vat'].includes(treatment) ? 0 : (['manual_vat', 'review_required'].includes(treatment) ? manual : inclusive * rate / (100 + rate));
-    $('[data-manual-wrap]').hidden = !['manual_vat', 'review_required'].includes(treatment);
+    const taxable = !['zero_rated', 'no_vat'].includes(treatment);
+    let inclusive = source === 'exclusive' ? sourceAmount + (taxable ? sourceAmount * rate / 100 : 0) : sourceAmount;
+    let vat = taxable ? (source === 'exclusive' ? sourceAmount * rate / 100 : inclusive * rate / (100 + rate)) : 0;
+    let exclusive = source === 'exclusive' ? sourceAmount : inclusive - vat;
+    const manual = form.elements.manual_override.checked;
+    if (manual) { vat = Number(form.elements.manual_vat.value || vat); exclusive = Number(form.elements.manual_exclusive.value || exclusive); inclusive = vat + exclusive; }
+    $('[data-manual-wrap]').hidden = !manual;
+    $('[data-inclusive-source]').hidden = source !== 'inclusive';
+    $('[data-exclusive-source]').hidden = source !== 'exclusive';
     $('[data-vat-preview]').innerHTML = `<span><small>Incl VAT</small><strong>${money(inclusive)}</strong></span><span><small>Input VAT</small><strong>${money(vat)}</strong></span><span><small>Excl VAT</small><strong>${money(inclusive - vat)}</strong></span>`;
   }
 
@@ -357,7 +367,7 @@
   $('[data-add-purchase]').onclick = () => {
     form.reset();
     form.elements.id.value = '';
-    form.elements.purchase_date.value = todayLocal();
+    form.elements.purchase_date.value = $('[data-month]').value === todayLocal().slice(0, 7) ? todayLocal() : '';
     pending = [];
     warningConfirmed = false;
     pendingRender();
@@ -379,9 +389,10 @@
       const row = rows.find((x) => x.id === Number(edit.dataset.edit));
       if (!row) return;
       form.reset();
-      Object.entries({id: row.id, purchase_date: row.purchase_date, supplier: row.supplier, description: row.description, inclusive: row.inclusive, vat_treatment: row.vat_treatment, manual_vat: row.vat}).forEach(([field, value]) => {
+      Object.entries({id: row.id, purchase_date: row.purchase_date, supplier: row.supplier, invoice_reference: row.invoice_reference, description: row.description, notes: row.notes, inclusive: row.inclusive, vat_treatment: row.vat_treatment, calculation_source: row.calculation_source, manual_override: row.manual_override ? '1' : '', manual_vat: row.vat, manual_exclusive: row.exclusive}).forEach(([field, value]) => {
         if (form.elements[field]) form.elements[field].value = value;
       });
+      form.elements.manual_override.checked = Boolean(row.manual_override);
       pending = [];
       warningConfirmed = false;
       pendingRender();
@@ -432,7 +443,7 @@
     if (event.target.closest('[data-add-purchase]')) {
       form.reset();
       form.elements.id.value = '';
-      form.elements.purchase_date.value = todayLocal();
+      form.elements.purchase_date.value = $('[data-month]').value === todayLocal().slice(0, 7) ? todayLocal() : '';
       pending = [];
       warningConfirmed = false;
       pendingRender();
@@ -465,6 +476,7 @@
 
     try {
       const payload = Object.fromEntries(new FormData(form));
+      if (form.dataset.duplicateConfirmed === '1') payload.duplicate_confirmed = '1';
       payload.files = pending;
       const result = await request('save', payload);
       refreshRowId = Number(result.row?.id || 0);
@@ -475,6 +487,7 @@
         showToast(`Purchase added. The ${monthLabel(enteredMonth)} Input VAT register has been updated.`);
       }
       dialog.close();
+      delete form.dataset.duplicateConfirmed;
       await load();
       if (enteredDate.slice(0, 7) !== $('[data-month]').value) {
         const periodNotice = $('[data-period-notice]');
@@ -485,6 +498,13 @@
         periodNotice.hidden = false;
       }
     } catch (error) {
+      if (error.payload?.code === 'possible_duplicate') {
+        $('[data-duplicate-matches]').innerHTML = (error.payload.matches || []).map((m) => `<article class="summary-line"><span><strong>${esc(m.supplier)}</strong><br>${esc(m.purchase_date)} &middot; ${money(m.inclusive)}${m.invoice_reference ? ` &middot; ${esc(m.invoice_reference)}` : ''}</span><a href="#" data-view-existing="${m.id}">View Existing</a></article>`).join('');
+        $('[data-duplicate-dialog]').showModal();
+        $('[data-save-duplicate]').onclick = () => { form.dataset.duplicateConfirmed = '1'; $('[data-duplicate-dialog]').close(); form.requestSubmit(); };
+        $('[data-form-message]').textContent = error.message;
+        return;
+      }
       $('[data-form-message]').textContent = error.message;
       showToast(error.message, 'error');
     } finally {
@@ -493,6 +513,11 @@
       pending = [];
       pendingRender();
     }
+  });
+
+  page.addEventListener('click', async (event) => {
+    const control=event.target.closest('[data-month-complete]'); if(!control) return;
+    await request('set_month_complete',{month:control.dataset.monthComplete,complete:control.dataset.complete==='1'?'0':'1'}); await load(); showToast('Month capture status updated.');
   });
 
   $('[data-view-saved-month]').addEventListener('click', () => {
@@ -534,6 +559,7 @@
 
     $('[data-open-rate-settings]').onclick = () => {
       $('[data-rate-setting]').value = page.dataset.rate;
+      $('[data-capture-start-setting]').value = page.dataset.captureStart;
       $('[data-rate-message]').textContent = '';
       rateDialog.showModal();
     };
@@ -549,6 +575,9 @@
       try {
         const result = await request('save_rate', {rate: $('[data-rate-setting]').value});
         syncRate(result.rate);
+        const captureResult = await request('save_capture_settings', {historical_capture_start_date: $('[data-capture-start-setting]').value});
+        page.dataset.captureStart = captureResult.historical_capture_start_date;
+        form.elements.purchase_date.min = captureResult.historical_capture_start_date;
         rateDialog.close();
         showToast('Standard VAT rate updated.');
       } catch (error) {
