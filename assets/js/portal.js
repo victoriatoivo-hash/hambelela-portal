@@ -81,6 +81,8 @@ const portalCustomSelectOverlay = (() => {
 
   const renderOptions = () => {
     const popupElement = ensurePopup();
+    const popupHost = activeControl?.nativeSelect.closest('dialog[open]') || document.body;
+    if (popupElement.parentElement !== popupHost) popupHost.appendChild(popupElement);
     popupElement.replaceChildren();
     popupElement.scrollTop = 0;
     if (!activeControl) return;

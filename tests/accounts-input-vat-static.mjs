@@ -13,6 +13,7 @@ const dashboard = read('index.php');
 const features = read('shared/employee-features.php');
 const sidebar = read('shared/sidebar.php');
 const js = read('assets/js/input-vat.js');
+const portalJs = read('assets/js/portal.js');
 const css = read('assets/css/accounts.css');
 
 assert.match(service, /accounts_input_vat_purchases/);
@@ -158,6 +159,7 @@ assert.match(css, /input-vat-override-toggle input\[type="checkbox"\]:checked/);
 assert.match(css, /input-vat-file-upload__area\{width:100%/);
 assert.match(css, /input-vat-rate-card\{min-height:88px/);
 assert.match(css, /portal-select-popup\[data-portal-select-variant="input-vat"\]/);
+assert.match(portalJs, /nativeSelect\.closest\('dialog\[open\]'\) \|\| document\.body/, 'portal dropdown popup must remain visible inside native dialogs');
 assert.doesNotMatch(css, /Poppins/);
 
 const inclusive = 944.85;
