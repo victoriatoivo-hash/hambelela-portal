@@ -106,3 +106,28 @@
 #inputVatPage .accounts-period-controls{grid-template-columns:auto minmax(165px,1fr) auto}
 #inputVatPage .accounts-actions{flex-wrap:nowrap}
 @media (max-width:760px){#inputVatPage .accounts-toolbar{grid-template-columns:1fr}#inputVatPage .accounts-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}#inputVatPage .accounts-actions [data-add-purchase]{grid-column:1/-1}#inputVatPage .accounts-period-controls{grid-template-columns:40px 1fr 40px}#inputVatPage .accounts-toolbar{grid-template-columns:1fr}#inputVatPage .accounts-summary,#inputVatPage .accounts-breakdowns{grid-template-columns:1fr}}
+/* Input VAT premium interaction refinements */
+#inputVatPage{--iv-row-transition:150ms}
+#inputVatPage .accounts-table-card th:first-child,#inputVatPage .accounts-table-card td:first-child{min-width:112px;max-width:112px}
+#inputVatPage .accounts-table-card td:first-child{white-space:nowrap}
+#inputVatPage .accounts-table-card td.money{text-align:right;white-space:nowrap}
+#inputVatPage .accounts-table-card tfoot td{font-weight:700}
+#inputVatPage .input-vat-row-highlight{animation:input-vat-row-highlight 1200ms ease-out forwards}
+#inputVatPage .input-vat-row-highlight td{position:relative}
+#inputVatPage .input-vat-row-highlight td::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,rgba(130,82,64,.16),rgba(130,82,64,0));opacity:.45;pointer-events:none;animation:input-vat-row-shine 1200ms ease-out}
+#inputVatPage.is-loading .accounts-summary article,#inputVatPage.is-loading .accounts-breakdowns article,#inputVatPage.is-loading .accounts-table-card{opacity:.8;filter:saturate(.95)}
+#inputVatPage.is-loading #inputVatPage .accounts-summary strong{animation:input-vat-pill-pulse 900ms ease-in-out infinite alternate}
+#inputVatPage.is-refreshing .accounts-summary article,#inputVatPage.is-refreshing .accounts-breakdowns article,#inputVatPage.is-refreshing .accounts-table-card{transition:opacity 180ms ease;opacity:.75}
+#inputVatPage .accounts-table-wrap{scrollbar-width:thin}
+#inputVatPage .accounts-dialog{animation:input-vat-dialog-enter 180ms cubic-bezier(.16,1,.3,1)}
+#inputVatPage .summary-line,#inputVatPage .analysis-empty,#inputVatPage .table-empty-state{transition:opacity 220ms ease, transform 220ms ease}
+#inputVatPage .empty-row,.input-vat-loading{animation:input-vat-fade-up 240ms ease-out}
+@media (prefers-reduced-motion: reduce){
+  #inputVatPage,.accounts-table-wrap,.portal-button,#inputVatPage .accounts-table-card th,#inputVatPage .accounts-table-card td,#inputVatPage .input-vat-row-highlight,#inputVatPage .accounts-table-wrap{transition:none!important;animation:none!important}
+}
+@keyframes input-vat-row-highlight{0%{background-color:rgba(113,27,26,.12)}50%{background-color:rgba(113,27,26,.08)}100%{background-color:transparent}}
+@keyframes input-vat-row-shine{0%{transform:translateX(-100%)}100%{transform:translateX(120%)}}
+@keyframes input-vat-pill-pulse{0%{opacity:.65}100%{opacity:1}}
+@keyframes input-vat-fade-up{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+@keyframes input-vat-dialog-enter{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes input-vat-dialog-exit{to{opacity:0;transform:translateY(6px) scale(.985)}}
