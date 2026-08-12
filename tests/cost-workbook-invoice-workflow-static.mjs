@@ -8,10 +8,10 @@ const css=fs.readFileSync(new URL('../assets/css/cost-workbook-invoice.css',impo
 const library=fs.readFileSync(new URL('../shared/cost-workbook.php',import.meta.url),'utf8');
 const migration=fs.readFileSync(new URL('../apps/cost-manager/cost-workbook-migration.sql',import.meta.url),'utf8');
 
-assert.match(migration,/discount DECIMAL\(14,2\) NULL/,'the canonical discount remains a fixed monetary amount');
-assert.match(page,/data-k="discount"[^>]*type="number"[^>]*step="0\.01"[^>]*min="0"/,'every editable line exposes a non-negative decimal discount');
-assert.match(page,/Discount is a fixed monetary amount/,'the editor explains the discount type');
-assert.match(js,/el\.dataset\.k==='discount'.*'0\.00'/,'older empty discounts load safely as zero');
+assert.match(migration,/discount DECIMAL\(14,2\) NULL/,'the legacy calculated discount column remains available');
+assert.match(page,/data-k="discount_type"/,'every editable line exposes fixed or percentage discount type');
+assert.match(page,/data-k="discount_value"[^>]*type="number"[^>]*step="0\.01"[^>]*min="0"/,'every editable line exposes a non-negative discount value');
+assert.match(js,/el\.dataset\.k==='discount_value'.*data\.discount/,'older fixed discounts load safely into the new value control');
 assert.match(js,/id:Number\(r\.dataset\.lineId\)\|\|null/,'saved line IDs are returned so edits preserve line identity');
 assert.match(library,/cw_nonnegative_amount_cents/,'money inputs use strict server-side validation');
 assert.match(library,/Discount cannot exceed the gross line amount/,'discount cannot exceed gross value');
@@ -19,7 +19,7 @@ assert.match(library,/PHP_ROUND_HALF_UP/,'line money uses the established half-u
 assert.match(library,/\$discountedCents = \$grossCents - \$discountCents/,'discount is applied before VAT');
 assert.match(library,/\$totalCents = \$discountedCents \+ \$vatCents/,'exclusive VAT is added after discount');
 assert.match(library,/\$totalCents = \$discountedCents;/,'VAT-inclusive totals do not add VAT twice');
-assert.match(api,/cw_calculate_invoice_line/,'the server recalculates every saved line');
+assert.match(api,/cw2_invoice_line/,'the server recalculates every saved line with the Phase 2 VAT and discount rules');
 assert.match(api,/owner_corrections/,'discount changes participate in existing line correction audit data');
 assert.match(api,/\['approval_status'\]!=='draft'/,'approved and archived invoices cannot be edited');
 assert.match(api,/id=\? AND supplier_invoice_id=\? FOR UPDATE/,'line edits verify invoice ownership');

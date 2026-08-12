@@ -18,7 +18,40 @@ function cw_install_schema(PDO $pdo): void
         }
         $version = 2;
     }
-    if ($version < 2) cw_upgrade_sync_schema_v2($pdo);
+    if ($version < 2) { cw_upgrade_sync_schema_v2($pdo); $version = 2; }
+    if ($version < 3) cw_upgrade_phase2_schema_v3($pdo);
+}
+
+function cw_upgrade_phase2_schema_v3(PDO $pdo): void
+{
+    $lineColumns = [
+        'discount_type' => "ADD COLUMN discount_type ENUM('fixed','percentage') NOT NULL DEFAULT 'fixed' AFTER discount",
+        'discount_value' => 'ADD COLUMN discount_value DECIMAL(14,4) NULL AFTER discount_type',
+        'vat_rate' => 'ADD COLUMN vat_rate DECIMAL(7,4) NULL AFTER discount_value',
+        'line_vat_treatment' => "ADD COLUMN line_vat_treatment ENUM('unconfirmed','inclusive','exclusive','exempt') NULL AFTER vat_rate",
+        'calculated_vat_amount' => 'ADD COLUMN calculated_vat_amount DECIMAL(14,2) NULL AFTER line_vat_treatment',
+        'vat_override_amount' => 'ADD COLUMN vat_override_amount DECIMAL(14,2) NULL AFTER calculated_vat_amount',
+        'vat_override_reason' => 'ADD COLUMN vat_override_reason VARCHAR(500) NULL AFTER vat_override_amount',
+        'vat_overridden_by' => 'ADD COLUMN vat_overridden_by BIGINT NULL AFTER vat_override_reason',
+        'vat_overridden_by_name' => 'ADD COLUMN vat_overridden_by_name VARCHAR(190) NULL AFTER vat_overridden_by',
+        'vat_overridden_at' => 'ADD COLUMN vat_overridden_at DATETIME NULL AFTER vat_overridden_by_name',
+        'vat_source' => "ADD COLUMN vat_source ENUM('automatic','override','legacy_manual') NOT NULL DEFAULT 'legacy_manual' AFTER vat_overridden_at",
+        'purchase_cost_in_landed' => 'ADD COLUMN purchase_cost_in_landed DECIMAL(14,2) NULL AFTER vat_source',
+        'base_unit_cost' => 'ADD COLUMN base_unit_cost DECIMAL(18,6) NULL AFTER purchase_cost_in_landed',
+        'calculation_version' => 'ADD COLUMN calculation_version SMALLINT UNSIGNED NOT NULL DEFAULT 1 AFTER base_unit_cost',
+    ];
+    foreach ($lineColumns as $column => $definition) {
+        if (!cw_column_exists($pdo, 'cw_supplier_invoice_lines', $column)) $pdo->exec('ALTER TABLE cw_supplier_invoice_lines ' . $definition);
+    }
+    $sql = file_get_contents(BASE_PATH . '/apps/cost-manager/cost-workbook-phase2-migration.sql');
+    if ($sql === false) throw new RuntimeException('Cost Workbook Phase 2 migration file is unavailable.');
+    foreach (preg_split('/;\s*(?:\r?\n|$)/', $sql) as $statement) {
+        $statement = trim(preg_replace('/^\s*--.*$/m', '', $statement));
+        if ($statement !== '') $pdo->exec($statement);
+    }
+    $pdo->exec("UPDATE cw_supplier_invoice_lines SET discount_type='fixed',discount_value=COALESCE(discount,0),calculated_vat_amount=COALESCE(vat_amount,0),vat_source='legacy_manual' WHERE discount_value IS NULL");
+    $stmt = $pdo->prepare("INSERT INTO cw_settings(setting_key,setting_value,updated_by_name) VALUES('schema_version','3','system') ON DUPLICATE KEY UPDATE setting_value='3'");
+    $stmt->execute();
 }
 
 const CW_SYNC_STALE_SECONDS = 600; // Ten minutes: safely above normal batch time, short enough for abandoned-tab recovery.
