@@ -550,7 +550,8 @@ body.input-vat-dialog-open{overflow:hidden!important}
   --iv-radius:8px;
   --iv-motion-fast:120ms;
   --iv-motion:180ms;
-  --iv-ease:cubic-bezier(.4,0,.2,1)
+  --iv-ease:cubic-bezier(.4,0,.2,1);
+  overflow-x:hidden
 }
 #inputVatPage .accounts-toolbar{grid-template-columns:minmax(0,1fr) minmax(180px,260px);align-items:end;gap:12px}
 #inputVatPage .accounts-toolbar .accounts-search-control,
@@ -564,10 +565,11 @@ body.input-vat-dialog-open{overflow:hidden!important}
 #inputVatPage .accounts-toolbar .input-vat-search-field>input{box-sizing:border-box;width:100%;height:var(--iv-control-height);min-height:var(--iv-control-height);max-height:var(--iv-control-height);padding:0 11px 0 34px;border:1px solid rgba(171,54,25,.24);border-radius:var(--iv-radius);background:#fff;color:#1a1a1a;box-shadow:none;font:400 12px/1.2 Figtree,system-ui,sans-serif;transition:border-color var(--iv-motion-fast) ease,background-color var(--iv-motion-fast) ease,box-shadow var(--iv-motion-fast) ease}
 #inputVatPage .accounts-toolbar .input-vat-search-field>input:hover{border-color:rgba(171,54,25,.42);background:rgba(253,246,238,.28)}
 #inputVatPage .accounts-toolbar .input-vat-search-field>input:focus{border-color:#ab3619;outline:0;background:#fff;box-shadow:0 0 0 3px rgba(171,54,25,.12)}
-#inputVatPage .accounts-status-control .portal-custom-select-trigger{box-sizing:border-box;width:100%;height:var(--iv-control-height);min-height:var(--iv-control-height);max-height:var(--iv-control-height);border-width:1px;border-radius:var(--iv-radius);font-size:12px;font-weight:400}
+#inputVatPage .accounts-status-control .portal-custom-select-trigger{box-sizing:border-box;width:100%;height:var(--iv-control-height);min-height:var(--iv-control-height);max-height:var(--iv-control-height);border:1px solid rgba(171,54,25,.24);border-radius:var(--iv-radius);font-size:12px;font-weight:400}
 #inputVatPage .input-vat-active-period{box-sizing:border-box;display:inline-flex;width:max-content;height:var(--iv-control-height);min-height:var(--iv-control-height);align-items:center;gap:7px;padding:0 10px;border:1px solid #ede3d8;border-radius:var(--iv-radius);background:#fffaf5;color:#6b4c3b}
 #inputVatPage .input-vat-active-period svg{grid-row:auto;width:14px;height:14px;flex:0 0 14px;color:#ab3619}
 #inputVatPage .input-vat-active-period span{font-size:11px;font-weight:600;letter-spacing:0;color:#6b4c3b;text-transform:none}
+#inputVatPage .accounts-hero p.input-vat-active-period .input-vat-active-period-label{font:600 11px/1.2 Figtree,system-ui,sans-serif;letter-spacing:0;color:#6b4c3b;text-transform:none}
 #inputVatPage .input-vat-active-period strong{display:inline;margin:0;padding:0;border:0;background:transparent;color:#721b1a;font:600 11px/1.2 Figtree,system-ui,sans-serif;white-space:nowrap}
 #inputVatPage .input-vat-month-nav{grid-template-columns:32px auto minmax(0,1fr) 32px;align-items:center;gap:6px}
 #inputVatPage .input-vat-month-arrow{position:relative;box-sizing:border-box;display:inline-flex;width:32px;height:32px;min-width:32px;min-height:32px;margin:0;align-items:center;justify-content:center;border:1px solid #ede3d8;border-radius:var(--iv-radius);background:#fff;color:#721b1a;transition:color var(--iv-motion-fast) ease,background-color var(--iv-motion-fast) ease,border-color var(--iv-motion-fast) ease,transform 80ms ease}
