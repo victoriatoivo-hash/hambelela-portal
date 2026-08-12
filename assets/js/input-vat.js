@@ -617,6 +617,10 @@
 
     try {
       const payload = Object.fromEntries(new FormData(form));
+      // The picker is only an intake surface. `pending` is the authoritative
+      // attachment list (including removals and add-more selections), so never
+      // serialize the native input a second time.
+      delete payload['files[]'];
       if (form.dataset.duplicateConfirmed === '1') payload.duplicate_confirmed = '1';
       payload.files = pending;
       const result = await request('save', payload);

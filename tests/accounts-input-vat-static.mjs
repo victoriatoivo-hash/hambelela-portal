@@ -136,6 +136,7 @@ assert.match(js, /activeYear/);
 assert.match(js, /function lockPageScroll/);
 assert.match(js, /function restorePageScroll/);
 assert.match(js, /Upload no more than 10 files at once/);
+assert.match(js, /delete payload\['files\[\]'\][\s\S]*payload\.files = pending/);
 assert.match(js, /pending = \[\][\s\S]*pendingRender\(\)[\s\S]*closePurchaseModal/);
 assert.match(js, /function analysisRows/);
 assert.match(js, /function purchaseRow/);
