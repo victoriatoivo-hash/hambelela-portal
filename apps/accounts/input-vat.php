@@ -39,6 +39,8 @@ include BASE_PATH.'/shared/sidebar.php';
     </div>
   </header>
 
+  <section class="accounts-summary" data-summary aria-live="polite" data-monthly-section></section>
+
   <nav class="input-vat-primary-tabs portal-theme-tabs" role="tablist" aria-label="Input VAT views">
     <button type="button" class="portal-theme-tab is-active" role="tab" aria-selected="true" data-vat-view="monthly"><i data-lucide="calendar-range" aria-hidden="true"></i><span>Monthly Input VAT</span></button>
     <?php if(accounts_is_owner()): ?><button type="button" class="portal-theme-tab" role="tab" aria-selected="false" data-vat-view="history"><i data-lucide="history" aria-hidden="true"></i><span>Transaction History</span></button><?php endif; ?>
@@ -79,7 +81,6 @@ include BASE_PATH.'/shared/sidebar.php';
   </aside>
   <?php endif; ?>
 
-  <section class="accounts-summary" data-summary aria-live="polite" data-monthly-section></section>
   <section class="accounts-breakdowns" data-monthly-section>
     <article><h2>VAT treatment</h2><div data-treatment-summary></div></article>
     <article><h2>Suppliers</h2><div data-supplier-summary></div></article>
