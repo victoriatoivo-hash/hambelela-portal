@@ -582,7 +582,7 @@ body.input-vat-dialog-open{overflow:hidden!important}
 #inputVatPage .input-vat-year-select{margin:0}
 #inputVatPage .input-vat-year-select .portal-custom-select-trigger{height:32px;min-height:32px}
 #inputVatPage .input-vat-month-tabs{display:flex;min-width:0;flex:1;align-items:flex-end;gap:6px;padding:0;overflow-x:auto;overflow-y:hidden;border:0;border-radius:0;outline:0;background:transparent;box-shadow:none;scrollbar-width:thin;-webkit-overflow-scrolling:touch}
-#inputVatPage .input-vat-month-tab{box-sizing:border-box;position:relative;display:inline-grid;min-width:86px;min-height:52px;flex:0 0 auto;place-items:initial;align-content:center;gap:3px;padding:8px 14px 7px;border:0;border-radius:0;background:transparent;box-shadow:none;color:#6b4c3b;font:600 11px/1.2 Figtree,system-ui,sans-serif;text-align:left;transition:background-color 180ms ease,color 180ms ease,box-shadow 180ms ease}
+#inputVatPage .input-vat-month-tab{box-sizing:border-box;position:relative;display:inline-grid;min-width:86px;min-height:52px;flex:0 0 auto;place-items:center;align-content:center;gap:3px;padding:8px 14px 7px;border:0;border-radius:0;background:transparent;box-shadow:none;color:#6b4c3b;font:600 11px/1.2 Figtree,system-ui,sans-serif;text-align:center;transition:background-color 180ms ease,color 180ms ease,box-shadow 180ms ease}
 #inputVatPage .input-vat-month-tab::after{display:none}
 #inputVatPage .input-vat-month-tab:not(.is-active):hover,
 #inputVatPage .input-vat-month-tab[aria-selected="false"]:hover{background:rgba(171,54,25,.04);color:#ab3619}

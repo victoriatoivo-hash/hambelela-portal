@@ -145,6 +145,7 @@ assert.match(js, /active = item\.month === activeMonth/);
 assert.match(js, /active \? ' aria-current="date"' : ''/);
 assert.match(css, /#inputVatPage \.input-vat-month-nav\{[^}]*border:0;[^}]*border-radius:0;[^}]*background:transparent;[^}]*box-shadow:none/);
 assert.match(css, /#inputVatPage \.input-vat-month-tab\{[^}]*min-height:52px;[^}]*flex:0 0 auto;[^}]*border:0;[^}]*border-radius:0;[^}]*background:transparent;[^}]*box-shadow:none/);
+assert.match(css, /#inputVatPage \.input-vat-month-tab\{[^}]*place-items:center;[^}]*text-align:center/);
 assert.match(css, /#inputVatPage \.input-vat-month-tab\[aria-selected="true"\]\{[^}]*background:rgba\(240,116,32,\.08\);[^}]*box-shadow:inset 0 -2px 0 #ab3619/);
 assert.match(css, /#inputVatPage \.input-vat-month-tab>span\{[^}]*font:700 12px\/1\.2 Figtree/);
 assert.match(css, /#inputVatPage \.input-vat-month-tab small,#inputVatPage \.input-vat-capture-badge\{[^}]*background:#f3ece8;[^}]*color:#8c5e4b;[^}]*font:600 8px\/1 Figtree/);
