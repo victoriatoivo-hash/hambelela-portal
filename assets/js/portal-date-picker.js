@@ -83,8 +83,11 @@
       date.setDate(gridStart.getDate() + index);
       const outside = date.getMonth() !== viewDate.getMonth();
       const value = storageValue(date, 'date');
-      const disabled = (active.min && value < active.min) || (active.max && value > active.max);
-      return `<button type="button" class="portal-date-day${outside ? ' is-outside-month' : ''}${sameDay(date, today) ? ' is-today' : ''}${sameDay(date, draftDate) ? ' is-selected' : ''}" data-portal-day="${value}" aria-label="${date.toLocaleDateString(undefined, { dateStyle: 'long' })}" aria-selected="${sameDay(date, draftDate)}"${disabled ? ' disabled aria-disabled="true"' : ''}>${date.getDate()}</button>`;
+      const beforeMinimum = active.min && value < active.min;
+      const afterMaximum = active.max && value > active.max;
+      const disabled = beforeMinimum || afterMaximum;
+      const disabledReason = afterMaximum ? 'Future dates are unavailable' : beforeMinimum ? 'Date is before the permitted capture period' : '';
+      return `<button type="button" class="portal-date-day${outside ? ' is-outside-month' : ''}${sameDay(date, today) ? ' is-today' : ''}${sameDay(date, draftDate) ? ' is-selected' : ''}" data-portal-day="${value}" aria-label="${date.toLocaleDateString(undefined, { dateStyle: 'long' })}${disabledReason ? `. ${disabledReason}.` : ''}" aria-selected="${sameDay(date, draftDate)}"${disabled ? ` disabled aria-disabled="true" title="${disabledReason}"` : ''}>${date.getDate()}</button>`;
     }).join('');
     const time = draftDate || new Date();
     const clearAction = '<button type="button" class="portal-date-clear" data-portal-date-clear>Clear</button>';

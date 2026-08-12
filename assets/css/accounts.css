@@ -601,6 +601,8 @@ body.input-vat-dialog-open{overflow:hidden!important}
 .portal-date-popup.is-input-vat-popup .portal-date-actions:has(> .portal-date-clear:only-child){justify-content:flex-start}
 .portal-date-popup.is-input-vat-popup .portal-date-day{height:32px;min-height:32px;border-radius:8px;font-size:12px}
 .portal-date-popup.is-input-vat-popup .portal-date-day:hover{background:#fdf6ee;color:#ab3619;transform:none}
+.portal-date-popup.is-input-vat-popup .portal-date-day:disabled{cursor:not-allowed;opacity:.34;background:transparent;color:#8b8b8b;text-decoration:line-through;text-decoration-thickness:1px}
+.portal-date-popup.is-input-vat-popup .portal-date-day:disabled:hover{background:transparent;color:#8b8b8b}
 .portal-date-popup.is-input-vat-popup .portal-date-day.is-selected{border-color:#f07420;background:rgba(240,116,32,.10);color:#721b1a;font-weight:600}
 @media(max-width:760px){#inputVatPage .input-vat-month-nav{grid-template-columns:32px minmax(0,1fr) 32px}#inputVatPage .input-vat-year-select{grid-column:1/-1;grid-row:1}#inputVatPage .input-vat-month-arrow:first-child{grid-column:1;grid-row:2}#inputVatPage .input-vat-month-tabs{grid-column:2;grid-row:2}#inputVatPage .input-vat-month-arrow:last-child{grid-column:3;grid-row:2}}
 @media(max-width:600px){#inputVatPage .accounts-toolbar{grid-template-columns:1fr}#inputVatPage .input-vat-month-arrow::before{content:"";position:absolute;inset:-6px}}

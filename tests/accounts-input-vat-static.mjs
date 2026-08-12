@@ -210,7 +210,8 @@ assert.doesNotMatch(css, /input-vat-month-tab\[data-month-number=[^}]*--month-ac
 assert.match(css, /portal-date-popup\.is-input-vat-popup\{position:fixed;inset:auto;margin:0;z-index:var\(--portal-z-date-picker,70000\)/);
 assert.match(css, /portal-date-popup\.is-input-vat-popup \.portal-date-day\.is-selected\{border-color:#f07420/);
 assert.match(datePickerJs, /if \(active\.mode === 'date'\) \{ commit\(draftDate\); return; \}/);
-assert.match(datePickerJs, /const disabled = \(active\.min && value < active\.min\) \|\| \(active\.max && value > active\.max\)/);
+assert.match(datePickerJs, /const disabledReason = afterMaximum \? 'Future dates are unavailable'/);
+assert.match(css, /portal-date-day:disabled\{cursor:not-allowed;opacity:\.34/);
 assert.match(datePickerJs, /const previousIcon = '<svg/);
 assert.doesNotMatch(datePickerJs, /aria-label="Previous month">‹/);
 assert.match(datePickerJs, /const isInputVat = Boolean\(control\?\.wrapper\?\.closest\('#inputVatPage'\)\)/);
