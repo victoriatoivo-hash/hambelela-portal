@@ -62,6 +62,19 @@ jobs:
         run: php tests/cost-workbook-cogs-endpoint-runtime.php
       - name: Historical archive disposable database assertions
         run: php tests/cost-workbook-history-runtime.php
+      - name: Install isolated browser runtime
+        run: npm install --no-save playwright@1.55.0 && npx playwright install --with-deps chromium
+      - name: Authenticated archive HTTP and visual assertions
+        env:
+          CW_SCREENSHOT_DIR: artifacts/historical-cost-records
+        run: bash tests/run-cost-workbook-history-http-ci.sh
+      - name: Upload historical archive screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: historical-cost-records-screenshots
+          path: artifacts/historical-cost-records/*.png
+          if-no-files-found: error
       - name: Existing Cost Workbook static suites
         run: for test in tests/cost-workbook*.mjs; do node "$test"; done
       - name: JavaScript syntax

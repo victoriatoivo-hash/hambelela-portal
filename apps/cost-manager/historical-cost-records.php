@@ -7,8 +7,8 @@ require_once BASE_PATH . '/shared/auth.php';
 require_once BASE_PATH . '/shared/database.php';
 require_once BASE_PATH . '/shared/cost-workbook-history.php';
 
-require_role('owner_admin');
 cw_history_require_read_only_request();
+require_role('owner_admin');
 
 $datasets = [
     'supplier_invoices' => ['label' => 'Supplier invoices', 'order' => 'id', 'search' => ['invoice_number']],
