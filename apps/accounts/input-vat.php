@@ -31,7 +31,7 @@ include BASE_PATH.'/shared/sidebar.php';
       <p class="eyebrow">Accounts application</p>
       <h1>Input VAT</h1>
       <p>Record local VAT purchases and calculate Input VAT for the selected period.</p>
-      <p class="input-vat-active-period" data-active-period><span>Active period</span> <strong data-active-period-label><?=htmlspecialchars(date('F Y'), ENT_QUOTES, 'UTF-8')?></strong></p>
+      <p class="input-vat-active-period" data-active-period><span class="input-vat-active-period-label">ACTIVE PERIOD</span> <strong data-active-period-label><?=htmlspecialchars(date('F Y'), ENT_QUOTES, 'UTF-8')?></strong></p>
     </div>
     <div class="accounts-actions">
       <button class="portal-button portal-button--primary" type="button" data-add-purchase><span class="portal-button__icon" aria-hidden="true">+</span> Add Purchase</button>
@@ -45,7 +45,7 @@ include BASE_PATH.'/shared/sidebar.php';
       <span class="accounts-control-label">PERIOD</span>
       <div class="accounts-period-controls">
         <button type="button" class="portal-button portal-button--nav accounts-month-step" data-previous-month aria-label="Previous month"><span class="portal-button__icon" aria-hidden="true">&#8592;</span><span>Previous</span></button>
-        <label class="accounts-input-date-label"><span>MONTH</span><input type="month" data-month value="<?=date('Y-m')?>"></label>
+        <label class="accounts-input-date-label"><span>Month</span><input type="month" data-month value="<?=date('Y-m')?>"></label>
         <button type="button" class="portal-button portal-button--nav accounts-month-step" data-next-month aria-label="Next month"><span>Next</span><span class="portal-button__icon" aria-hidden="true">&#8594;</span></button>
       </div>
     </div>
@@ -113,8 +113,8 @@ include BASE_PATH.'/shared/sidebar.php';
       </div>
       <p class="form-message" data-form-message></p>
       <footer>
-        <button value="cancel" class="btn-secondary iv-btn iv-btn--secondary">Cancel</button>
-        <button type="submit" class="btn-primary iv-btn iv-btn--primary" data-save>Save Purchase</button>
+        <button value="cancel" class="portal-button portal-button--ghost">Cancel</button>
+        <button type="submit" class="portal-button portal-button--primary" data-save>Save Purchase</button>
       </footer>
     </form>
   </dialog>
@@ -133,8 +133,8 @@ include BASE_PATH.'/shared/sidebar.php';
       <p class="settings-warning">This change applies to <strong>new Standard VAT records only</strong>. Existing saved Input VAT records will not be recalculated.</p>
       <p class="form-message" data-rate-message></p>
       <footer>
-        <button value="cancel" class="btn-secondary iv-btn iv-btn--secondary">Cancel</button>
-        <button type="submit" class="btn-primary iv-btn iv-btn--primary" data-save-rate>Update Rate</button>
+        <button value="cancel" class="portal-button portal-button--ghost">Cancel</button>
+        <button type="submit" class="portal-button portal-button--primary" data-save-rate>Update Rate</button>
       </footer>
     </form>
   </dialog>
@@ -151,8 +151,8 @@ include BASE_PATH.'/shared/sidebar.php';
       <label>Reason / note<textarea name="review_note"></textarea></label>
       <p data-review-message></p>
       <footer>
-        <button value="cancel" class="btn-secondary iv-btn iv-btn--secondary">Cancel</button>
-        <button type="submit" class="btn-primary iv-btn iv-btn--primary">Save Review</button>
+        <button value="cancel" class="portal-button portal-button--ghost">Cancel</button>
+        <button type="submit" class="portal-button portal-button--primary">Save Review</button>
       </footer>
     </form>
   </dialog>
@@ -165,7 +165,7 @@ include BASE_PATH.'/shared/sidebar.php';
       </header>
       <div data-audit-history></div>
       <footer>
-        <button value="cancel" class="btn-secondary iv-btn iv-btn--secondary">Close</button>
+        <button value="cancel" class="portal-button portal-button--ghost">Close</button>
       </footer>
     </form>
   </dialog>
