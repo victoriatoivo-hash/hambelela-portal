@@ -456,7 +456,7 @@ body.input-vat-dialog-open{overflow:hidden!important}
 #inputVatPage .input-vat-purchase-dialog .vat-preview+.input-vat-form-section-title{margin:18px 0 0;padding:0 0 7px;border-bottom:1px solid #ede3d8;transform:none}
 #inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__area{display:flex;min-height:58px;align-items:center;padding:10px 13px;text-align:left}
 #inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__content{display:flex;min-height:0;align-items:center;gap:8px;flex-wrap:nowrap}
-#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__icon{display:block;width:24px;height:24px;flex:0 0 24px;border-radius:0;background:transparent;color:#ab3619;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round;stroke-width:1.7}
+#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__icon{display:block;width:24px;height:24px;flex:0 0 24px;border-radius:0;background:transparent;color:#ab3619;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round;stroke-width:1.7;animation:inputVatUploadFloat 2.8s ease-in-out infinite;will-change:transform}
 #inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__arrow{transform-origin:center;transition:transform .22s,opacity .22s}
 #inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__area:hover .input-vat-file-upload__arrow,#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__area.is-dragover .input-vat-file-upload__arrow{transform:translateY(-3px)}
 #inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__area.is-dragover{border-color:#ab3619;background:#fffaf5}
@@ -469,7 +469,8 @@ body.input-vat-dialog-open{overflow:hidden!important}
 #inputVatPage .input-vat-purchase-dialog>form>footer .portal-button--primary:hover{background:#721b1a;border-color:#721b1a}
 @media(max-width:700px){#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__content{flex-wrap:wrap}#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__text{flex-wrap:wrap;white-space:normal}#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload .input-vat-choose-files{margin-left:auto}}
 @media(max-width:520px){#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload .input-vat-choose-files{width:100%;min-height:40px}#inputVatPage .input-vat-purchase-dialog>form>footer .portal-button{min-height:44px;height:44px}}
-@media(prefers-reduced-motion:reduce){#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__arrow{transition:none!important}}
+@keyframes inputVatUploadFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+@media(prefers-reduced-motion:reduce){#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__icon{animation:none!important;will-change:auto}#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__arrow{transition:none!important}}
 
 /* Input VAT owner-requested header and type scale. */
 #inputVatPage .accounts-hero-copy>p:not(.eyebrow):not(.input-vat-active-period){font-size:11px}
