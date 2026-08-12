@@ -26,14 +26,8 @@
   let direction = 'desc';
   let timer;
 
-  function activePeriodValue() {
-    const value = $('[data-period]').value;
-    return value === 'all' ? '' : $('[data-month]').value;
-  }
-
   function activePeriodLabel() {
-    const value = $('[data-period]').value;
-    return value === 'all' ? 'ALL PERIODS' : selectedMonthLabel().toUpperCase();
+    return selectedMonthLabel().toUpperCase();
   }
 
   function updateActivePeriodLabel() {
@@ -42,20 +36,20 @@
     if (!label || !container) return;
 
     label.textContent = activePeriodLabel();
-    container.setAttribute('data-period-mode', $('[data-period]').value === 'all' ? 'all' : 'month');
+    container.setAttribute('data-period-mode', 'month');
   }
 
   function formatSortValue(value) {
     const normalized = String(value || '');
     if (/^\d{4}-\d{2}$/.test(normalized)) return normalized;
-    return activePeriodValue() || new Date().toISOString().slice(0, 7);
+    return new Date().toISOString().slice(0, 7);
   }
 
   function params() {
     return new URLSearchParams({
       action: 'list',
       month: formatSortValue($('[data-month]').value),
-      period: $('[data-period]').value,
+      period: 'current',
       search: $('[data-search]').value,
       status: $('[data-status]').value,
       sort,
@@ -133,7 +127,7 @@
 
   function render(j) {
     const s = j.summary;
-    const selected = $('[data-period]').value === 'all' ? 'All periods' : selectedMonthLabel();
+    const selected = selectedMonthLabel();
     const rowsMessage = $('[data-active-period-label]');
     if (rowsMessage) rowsMessage.textContent = selected.toUpperCase();
 
@@ -155,11 +149,11 @@
       : `<tr><td class="empty-row" colspan="10"><div class="table-empty-state"><span aria-hidden="true">□</span><strong>No Input VAT records for ${esc(selectedMonthLabel())}.</strong><p>Switch the month or start capturing with Add Purchase.</p><button type="button" class="btn-primary iv-btn iv-btn--primary" data-add-purchase>+ Add Purchase</button></div></td></tr>`;
 
     updateActivePeriodLabel();
-    $('[data-export]').href = api + '?action=export&month=' + encodeURIComponent(formatSortValue($('[data-month]').value)) + '&period=' + encodeURIComponent($('[data-period]').value);
+    $('[data-export]').href = api + '?action=export&month=' + encodeURIComponent(formatSortValue($('[data-month]').value)) + '&period=current';
   }
 
   function setControlsDisabled(disabled) {
-    const controls = page.querySelectorAll('[data-previous-month],[data-next-month],[data-period],[data-month],[data-search],[data-status],[data-sort],[data-add-purchase],[data-export],[data-print]');
+    const controls = page.querySelectorAll('[data-previous-month],[data-next-month],[data-month],[data-search],[data-status],[data-sort],[data-add-purchase],[data-export],[data-print]');
     controls.forEach((control) => {
       if ('disabled' in control) control.disabled = disabled;
     });
@@ -176,13 +170,11 @@
     const [year, month] = input.value.split('-').map(Number);
     const next = new Date(year, (month || 1) - 1 + delta, 1);
     input.value = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`;
-    $('[data-period]').value = 'current';
     load();
   }
 
   function printCurrentPeriod() {
-    const isAll = $('[data-period]').value === 'all';
-    const period = isAll ? 'ALL PERIODS' : selectedMonthLabel();
+    const period = selectedMonthLabel();
     document.body.classList.add('input-vat-printing');
     document.title = `Input VAT Register - ${period}`;
     window.print();
@@ -384,7 +376,7 @@
     timer = setTimeout(() => load(), 250);
   };
 
-  page.querySelectorAll('[data-period], [data-month], [data-status]').forEach((element) => {
+  page.querySelectorAll('[data-month], [data-status]').forEach((element) => {
     element.onchange = () => load();
   });
 

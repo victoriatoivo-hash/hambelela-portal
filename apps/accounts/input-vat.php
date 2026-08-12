@@ -45,8 +45,7 @@ include BASE_PATH.'/shared/sidebar.php';
       <span class="accounts-control-label">PERIOD</span>
       <div class="accounts-period-controls">
         <button type="button" class="btn-secondary iv-btn iv-btn--secondary accounts-month-step" data-previous-month aria-label="Previous month"><span class="iv-btn-icon" aria-hidden="true">&#8592;</span><span>Previous</span></button>
-        <label><span>PERIOD RANGE</span><select data-period><option value="current">Selected Month</option><?php if(accounts_is_owner()): ?><option value="all">All Periods</option><?php endif; ?></select></label>
-        <label><span>MONTH</span><input type="month" data-month value="<?=date('Y-m')?>"></label>
+        <label class="accounts-input-date-label"><span>MONTH</span><input type="month" data-month value="<?=date('Y-m')?>"></label>
         <button type="button" class="btn-secondary iv-btn iv-btn--secondary accounts-month-step" data-next-month aria-label="Next month"><span>Next</span><span class="iv-btn-icon" aria-hidden="true">&#8594;</span></button>
       </div>
     </div>
