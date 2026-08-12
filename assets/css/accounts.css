@@ -304,7 +304,7 @@
 #inputVatPage .input-vat-month-arrow svg{width:15px;height:15px}
 #inputVatPage .input-vat-year-select{display:grid;gap:3px;margin-bottom:5px}
 #inputVatPage .input-vat-year-select>span{font-size:9px;font-weight:600;color:var(--iv-light);text-transform:uppercase}
-#inputVatPage .input-vat-year-select select{width:76px;height:34px;padding:0 24px 0 9px;border:1px solid var(--iv-border);border-radius:8px;background:#fff;color:var(--iv-burgundy);font:600 12px Figtree,sans-serif}
+#inputVatPage .input-vat-year-select select{width:92px;min-width:92px;height:34px;box-sizing:border-box;padding:0 30px 0 11px;border:1px solid var(--iv-border);border-radius:8px;background:#fff;color:var(--iv-burgundy);font:600 12px Figtree,sans-serif;font-variant-numeric:tabular-nums}
 #inputVatPage .input-vat-month-tabs{gap:14px;padding:0;scrollbar-width:none}
 #inputVatPage .input-vat-month-tabs::-webkit-scrollbar{display:none}
 #inputVatPage .input-vat-month-tab{position:relative;min-width:72px;min-height:52px;display:grid;place-items:center;align-content:center;gap:3px;padding:5px 7px 7px;border:0;border-radius:8px 8px 0 0;background:transparent;color:var(--iv-mid);text-align:center;transition:background var(--iv-normal) var(--iv-ease),color var(--iv-normal) var(--iv-ease)}
