@@ -134,10 +134,10 @@ include BASE_PATH.'/shared/sidebar.php';
         <div class="span-2 input-vat-file-upload">
           <div class="input-vat-file-upload__area" data-upload-area>
             <div class="input-vat-file-upload__content">
-              <span class="input-vat-file-upload__icon" aria-hidden="true">&#x1F4E4;</span>
+              <svg class="input-vat-file-upload__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18h10a4 4 0 0 0 .7-7.94A6 6 0 0 0 6.2 8.4 4.8 4.8 0 0 0 7 18Z"/><path class="input-vat-file-upload__arrow" d="M12 15V8m0 0-3 3m3-3 3 3"/></svg>
               <div class="input-vat-file-upload__text">
-                <strong>Drag &amp; drop invoice or receipt here</strong>
-                <span>PDF, JPG or PNG</span>
+                <strong data-upload-instruction>Drag &amp; drop invoice or receipt here</strong><span aria-hidden="true">&middot;</span>
+                <span>PDF, JPG or PNG</span><span aria-hidden="true">&middot;</span>
                 <span class="input-vat-file-upload__hint" data-file-upload-hint>No files selected</span>
               </div>
               <button type="button" class="portal-button portal-button--secondary input-vat-choose-files" data-choose-files>Choose Files</button>

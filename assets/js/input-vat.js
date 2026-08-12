@@ -456,6 +456,7 @@
   const fileHintTarget = $('[data-file-upload-hint]');
   const fileChooseButton = $('[data-choose-files]');
   const fileUploadArea = form.querySelector('[data-upload-area]');
+  const fileUploadInstruction = form.querySelector('[data-upload-instruction]');
   let pending = [];
   let warningConfirmed = false;
   page.querySelectorAll('[data-close-purchase]').forEach((button) => {
@@ -471,11 +472,16 @@
     fileUploadArea.addEventListener('dragover', (event) => {
       event.preventDefault();
       fileUploadArea.classList.add('is-dragover');
+      if (fileUploadInstruction) fileUploadInstruction.textContent = 'Drop files to attach';
     });
-    fileUploadArea.addEventListener('dragleave', () => fileUploadArea.classList.remove('is-dragover'));
+    fileUploadArea.addEventListener('dragleave', () => {
+      fileUploadArea.classList.remove('is-dragover');
+      if (fileUploadInstruction) fileUploadInstruction.textContent = 'Drag & drop invoice or receipt here';
+    });
     fileUploadArea.addEventListener('drop', (event) => {
       event.preventDefault();
       fileUploadArea.classList.remove('is-dragover');
+      if (fileUploadInstruction) fileUploadInstruction.textContent = 'Drag & drop invoice or receipt here';
       appendPendingFiles(event.dataTransfer?.files || []);
     });
   }

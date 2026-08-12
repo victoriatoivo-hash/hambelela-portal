@@ -449,6 +449,28 @@ body.input-vat-dialog-open{overflow:hidden!important}
 @media(max-width:430px){#inputVatPage .accounts-summary{grid-template-columns:1fr}#inputVatPage .accounts-actions>.portal-header-status{justify-content:flex-start;overflow-x:auto}}
 @media(prefers-reduced-motion:reduce){#inputVatPage .input-vat-override-toggle input[type="checkbox"],#inputVatPage .input-vat-override-toggle input[type="checkbox"]::after,#inputVatPage .input-vat-manual-wrap,#inputVatPage .pending-file{animation:none!important;transition:none!important}}
 
+/* Input VAT Add Purchase final flow and compact evidence control. */
+#inputVatPage .input-vat-purchase-dialog .vat-preview{grid-template-columns:repeat(3,minmax(0,1fr));min-height:54px;margin:0;padding:1px;overflow:hidden}
+#inputVatPage .input-vat-purchase-dialog .vat-preview>span{min-width:0;min-height:52px;align-content:center;padding:7px 9px}
+#inputVatPage .input-vat-purchase-dialog .vat-preview strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#inputVatPage .input-vat-purchase-dialog .vat-preview+.input-vat-form-section-title{margin:18px 0 0;padding:0 0 7px;border-bottom:1px solid #ede3d8;transform:none}
+#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__area{display:flex;min-height:58px;align-items:center;padding:10px 13px;text-align:left}
+#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__content{display:flex;min-height:0;align-items:center;gap:8px;flex-wrap:nowrap}
+#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__icon{display:block;width:24px;height:24px;flex:0 0 24px;border-radius:0;background:transparent;color:#ab3619;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round;stroke-width:1.7}
+#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__arrow{transform-origin:center;transition:transform .22s,opacity .22s}
+#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__area:hover .input-vat-file-upload__arrow,#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__area.is-dragover .input-vat-file-upload__arrow{transform:translateY(-3px)}
+#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__area.is-dragover{border-color:#ab3619;background:#fffaf5}
+#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__text{display:flex;min-width:0;flex:1;align-items:center;gap:6px;white-space:nowrap}
+#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__text strong{font-size:12px;font-weight:600}
+#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__text>span{font-size:11px!important;color:var(--iv-light)}
+#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload .input-vat-choose-files{height:32px;min-height:32px;margin:0 0 0 auto;padding:0 10px;border-radius:8px;font-size:11px;font-weight:600}
+#inputVatPage .input-vat-purchase-dialog>form>footer .portal-button{height:32px;min-height:32px;padding:0 12px;border-radius:8px;font-size:11px}
+#inputVatPage .input-vat-purchase-dialog>form>footer .portal-button--primary{background:#ab3619;border-color:#ab3619}
+#inputVatPage .input-vat-purchase-dialog>form>footer .portal-button--primary:hover{background:#721b1a;border-color:#721b1a}
+@media(max-width:700px){#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__content{flex-wrap:wrap}#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__text{flex-wrap:wrap;white-space:normal}#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload .input-vat-choose-files{margin-left:auto}}
+@media(max-width:520px){#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload .input-vat-choose-files{width:100%;min-height:40px}#inputVatPage .input-vat-purchase-dialog>form>footer .portal-button{min-height:44px;height:44px}}
+@media(prefers-reduced-motion:reduce){#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__arrow{transition:none!important}}
+
 /* Input VAT owner-requested header and type scale. */
 #inputVatPage .accounts-hero-copy>p:not(.eyebrow):not(.input-vat-active-period){font-size:11px}
 #inputVatPage .accounts-summary article strong{font-size:12px}
