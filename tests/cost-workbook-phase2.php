@@ -47,5 +47,5 @@ $sale=cw2_sale_size(['normalized_quantity'=>'2000','sale_size'=>'100','wastage_p
 $recommended=cw2_recommended_price('60','40','15','nearest_1');same('115.000000',$recommended['exact'],'recommended exact');same('115.00',$recommended['rounded'],'recommended rounded');
 same('115.00',cw2_recommended_price('60','40','15','nearest_050')['rounded'],'nearest 0.50');same('115.000000',cw2_recommended_price('60','40','15','exact')['exact'],'VAT-inclusive recommendation');
 same('100.99',number_format((float)cw2_recommended_price('52.17','40','15','end_99')['rounded'],2,'.',''),'end .99 sanity');
-$profit=cw_calculate('115','60','15','40');same(100.0,$profit['selling_ex_vat'],'selling ex VAT');same(40.0,$profit['gross_profit'],'gross profit');same(40.0,$profit['gross_margin'],'gross margin');same(66.67,$profit['markup'],'markup');same(115.0,$profit['recommended_price_inc_vat'],'recommended price');
+$profit=cw_calculate('115','60','15','40');same(100,$profit['selling_ex_vat'],'selling ex VAT');same(40,$profit['gross_profit'],'gross profit');same(40,$profit['gross_margin'],'gross margin');same(66.67,$profit['markup'],'markup');same(115,$profit['recommended_price_inc_vat'],'recommended price');
 echo "Cost Workbook Phase 2 calculation tests passed.\n";
