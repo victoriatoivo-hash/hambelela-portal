@@ -16,6 +16,7 @@
   });
   const $ = (s) => page.querySelector(s);
   const actionButtons = page.querySelectorAll('.portal-button[data-add-purchase], .portal-button[data-print], .portal-button[data-export]');
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const money = (n) => `N$ ${Number(n || 0).toLocaleString('en-NA', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
   const rateLabel = (n) => Number(n || 0).toLocaleString('en-NA', {maximumFractionDigits: 2}) + '%';
@@ -319,6 +320,7 @@
     const manual = form.elements.manual_override.checked;
     if (manual) { vat = Number(form.elements.manual_vat.value || vat); exclusive = Number(form.elements.manual_exclusive.value || exclusive); inclusive = vat + exclusive; }
     $('[data-manual-wrap]').hidden = !manual;
+    $('[data-manual-vat-wrap]').hidden = !manual;
     $('[data-inclusive-source]').hidden = source !== 'inclusive';
     $('[data-exclusive-source]').hidden = source !== 'exclusive';
     $('[data-vat-preview]').innerHTML = `<span><small>Incl VAT</small><strong>${money(inclusive)}</strong></span><span><small>Input VAT</small><strong>${money(vat)}</strong></span><span><small>Excl VAT</small><strong>${money(inclusive - vat)}</strong></span>`;
@@ -326,6 +328,35 @@
 
   function pendingRender() {
     $('[data-pending-files]').innerHTML = pending.map((file, i) => `<div class="pending-file"><span>${esc(file.name)} · ${(file.size / 1024).toFixed(1)} KB</span><button type="button" data-remove-pending="${i}">Remove</button></div>`).join('');
+    const uploadHint = $('[data-file-upload-hint]');
+    if (uploadHint) {
+      uploadHint.textContent = pending.length ? `${pending.length} file${pending.length === 1 ? '' : 's'} selected` : 'No files selected';
+    }
+  }
+
+  function appendPendingFiles(files) {
+    if (!files.length) return;
+    pending = [...pending, ...Array.from(files)];
+    pendingRender();
+  }
+
+  function closePurchaseModal() {
+    if (!dialog.open) return;
+    if (prefersReducedMotion) {
+      dialog.classList.remove('is-closing');
+      dialog.close();
+      return;
+    }
+    dialog.classList.add('is-closing');
+    window.setTimeout(() => {
+      dialog.classList.remove('is-closing');
+      dialog.close();
+    }, 180);
+  }
+
+  function openPurchaseModal() {
+    dialog.classList.remove('is-closing');
+    dialog.showModal();
   }
 
   $('[data-previous-month]').onclick = () => stepMonth(-1);
@@ -334,11 +365,32 @@
   const dialog = $('[data-dialog]');
   const form = $('[data-form]');
   const fileInput = form.elements['files[]'];
+  const fileHintTarget = $('[data-file-upload-hint]');
+  const fileChooseButton = $('[data-choose-files]');
+  const fileUploadArea = form.querySelector('[data-upload-area]');
   let pending = [];
   let warningConfirmed = false;
   page.querySelectorAll('[data-close-purchase]').forEach((button) => {
-    button.addEventListener('click', () => dialog.close());
+    button.addEventListener('click', closePurchaseModal);
   });
+  if (fileChooseButton) {
+    fileChooseButton.onclick = (event) => {
+      event.preventDefault();
+      fileInput.click();
+    };
+  }
+  if (fileUploadArea) {
+    fileUploadArea.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      fileUploadArea.classList.add('is-dragover');
+    });
+    fileUploadArea.addEventListener('dragleave', () => fileUploadArea.classList.remove('is-dragover'));
+    fileUploadArea.addEventListener('drop', (event) => {
+      event.preventDefault();
+      fileUploadArea.classList.remove('is-dragover');
+      appendPendingFiles(event.dataTransfer?.files || []);
+    });
+  }
 
   form.addEventListener('input', buildPreview);
   form.addEventListener('change', updateMonthWarning);
@@ -352,9 +404,8 @@
     form.requestSubmit();
   });
   fileInput.addEventListener('change', () => {
-    pending = [...pending, ...Array.from(fileInput.files)];
+    appendPendingFiles(fileInput.files);
     fileInput.value = '';
-    pendingRender();
   });
 
   $('[data-pending-files]').onclick = (e) => {
@@ -375,7 +426,7 @@
     $('[data-month-warning]').textContent = '';
     buildPreview();
     updateMonthWarning();
-    dialog.showModal();
+    openPurchaseModal();
   };
 
   page.addEventListener('click', async (event) => {
@@ -399,7 +450,7 @@
       $('[data-form-title]').textContent = 'Edit Purchase';
       buildPreview();
       updateMonthWarning();
-      dialog.showModal();
+      openPurchaseModal();
       return;
     }
 
@@ -451,7 +502,7 @@
       $('[data-month-warning]').textContent = '';
       buildPreview();
       updateMonthWarning();
-      dialog.showModal();
+      openPurchaseModal();
     }
   });
 
@@ -486,7 +537,7 @@
       } else {
         showToast(`Purchase added. The ${monthLabel(enteredMonth)} Input VAT register has been updated.`);
       }
-      dialog.close();
+      closePurchaseModal();
       delete form.dataset.duplicateConfirmed;
       await load();
       if (enteredDate.slice(0, 7) !== $('[data-month]').value) {
@@ -518,6 +569,11 @@
   page.addEventListener('click', async (event) => {
     const control=event.target.closest('[data-month-complete]'); if(!control) return;
     await request('set_month_complete',{month:control.dataset.monthComplete,complete:control.dataset.complete==='1'?'0':'1'}); await load(); showToast('Month capture status updated.');
+  });
+
+  dialog.addEventListener('cancel', (event) => {
+    event.preventDefault();
+    closePurchaseModal();
   });
 
   $('[data-view-saved-month]').addEventListener('click', () => {

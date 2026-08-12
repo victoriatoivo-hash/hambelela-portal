@@ -196,3 +196,53 @@
 .input-vat-override-toggle{display:flex!important;align-items:center;gap:8px;padding:10px 12px;border:1px dashed var(--portal-border,#dfe3e8);border-radius:10px}
 .input-vat-override-toggle input{width:auto!important}
 @media(max-width:640px){.input-vat-capture-progress article{align-items:flex-start;flex-direction:column}.input-vat-capture-progress article .portal-button{width:100%}}
+
+/* Input VAT purchase modal visual refinement */
+#inputVatPage .input-vat-purchase-dialog .eyebrow{color:var(--iv-primary);font-weight:400}
+#inputVatPage .input-vat-purchase-dialog h2{color:var(--iv-primary);font-weight:400;line-height:1.25}
+#inputVatPage .input-vat-purchase-dialog .accounts-dialog{animation:none}
+#inputVatPage .input-vat-purchase-dialog[open]{animation:input-vat-purchase-open .19s cubic-bezier(.16,1,.3,1) forwards}
+#inputVatPage .input-vat-purchase-dialog .accounts-form-grid input,
+#inputVatPage .input-vat-purchase-dialog .accounts-form-grid select{height:42px;min-height:42px;max-height:42px;padding:0 12px}
+#inputVatPage .input-vat-purchase-dialog .accounts-form-grid label{display:grid;align-items:stretch;gap:6px}
+#input-vat-purchase-dialog .accounts-form-grid>label,
+#input-vat-purchase-dialog .accounts-form-grid>div{width:100%}
+#inputVatPage .input-vat-purchase-dialog .input-vat-financial-grid{display:grid;grid-template-columns:minmax(210px,1.35fr) minmax(170px,.9fr) minmax(170px,.95fr);gap:12px;grid-column:1/-1;align-items:end}
+#inputVatPage .input-vat-purchase-dialog .input-vat-financial-field{display:grid}
+#inputVatPage .input-vat-purchase-dialog .input-vat-manual-wrap{display:grid;gap:12px}
+#inputVatPage .input-vat-purchase-dialog .input-vat-manual-wrap label{display:grid}
+#inputVatPage .input-vat-purchase-dialog textarea[name="description"]{min-height:120px}
+#inputVatPage .input-vat-purchase-dialog textarea[name="description"],
+#inputVatPage .input-vat-purchase-dialog textarea[name="notes"]{border-radius:10px;min-height:90px;border:1px solid #d6c6ba;padding:10px 12px}
+#inputVatPage .input-vat-purchase-dialog .portal-button--secondary{background:#fff;border-color:var(--iv-primary);color:var(--iv-primary);height:42px;min-height:42px}
+#inputVatPage .input-vat-purchase-dialog .portal-button--secondary:hover{background:#fff5f1;border-color:var(--iv-accent)}
+#inputVatPage .input-vat-purchase-dialog .portal-button--secondary:focus-visible,
+#inputVatPage .input-vat-purchase-dialog .portal-button--primary:focus-visible,
+#inputVatPage .input-vat-purchase-dialog .input-vat-choose-files:focus-visible,
+#inputVatPage .input-vat-purchase-dialog .row-button:focus-visible,
+#inputVatPage .input-vat-purchase-dialog [data-choose-files]:focus-visible{outline:2px solid rgba(171,54,25,.2);outline-offset:2px}
+#inputVatPage .input-vat-purchase-dialog .portal-button{transition:transform .15s ease,background-color .15s ease,border-color .15s ease,color .15s ease,box-shadow .15s ease}
+#inputVatPage .input-vat-purchase-dialog .portal-button:hover{transform:translateY(-1px)}
+#inputVatPage .input-vat-purchase-dialog[open]::backdrop{animation:input-vat-purchase-backdrop .19s ease forwards;background:rgba(32,18,13,.52)}
+#inputVatPage .input-vat-purchase-dialog::backdrop{background:rgba(32,18,13,.0)}
+#inputVatPage .input-vat-purchase-dialog.is-closing{animation:input-vat-purchase-close .16s ease forwards}
+#input-vat-purchase-dialog.is-closing::backdrop{animation:input-vat-purchase-backdrop-out .16s ease forwards}
+#inputVatPage .input-vat-purchase-dialog footer{align-items:stretch}
+#inputVatPage .input-vat-file-upload{display:flex}
+#inputVatPage .input-vat-file-upload__area{display:flex;position:relative;gap:12px;border:1px dashed #d6c6ba;border-radius:12px;background:linear-gradient(180deg,#fff,#fffaf6);padding:14px;transition:background .15s ease,border-color .15s ease,transform .15s ease;cursor:pointer}
+#inputVatPage .input-vat-file-upload__area.is-dragover{border-color:var(--iv-accent);background:#fff0ea;transform:translateY(-1px)}
+#inputVatPage .input-vat-file-upload__area input{position:absolute;inset:0;width:1px;height:1px;opacity:0;overflow:hidden}
+#inputVatPage .input-vat-file-upload__content{display:flex;align-items:center;gap:12px;flex-wrap:wrap;min-height:58px;width:100%}
+#inputVatPage .input-vat-file-upload__icon{font-size:18px}
+#inputVatPage .input-vat-file-upload__text{display:grid;gap:2px;min-width:170px;color:var(--iv-muted);font-size:12px;line-height:1.25}
+#inputVatPage .input-vat-file-upload__hint{font-size:11px;color:#81695c}
+#inputVatPage .input-vat-file-upload .input-vat-choose-files{margin-left:auto}
+
+@keyframes input-vat-purchase-open{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes input-vat-purchase-close{to{opacity:0;transform:translateY(8px) scale(.99)}}
+@keyframes input-vat-purchase-backdrop{from{opacity:0}to{opacity:1}}
+@keyframes input-vat-purchase-backdrop-out{to{opacity:0}}
+
+@media (max-width:760px){#inputVatPage .input-vat-purchase-dialog .input-vat-financial-grid{grid-template-columns:1fr}}
+@media (max-width:640px){#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload{margin-top:2px}}
+@media (prefers-reduced-motion: reduce){#inputVatPage .input-vat-purchase-dialog,#inputVatPage .input-vat-purchase-dialog::backdrop,#inputVatPage .input-vat-purchase-dialog .portal-button,#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__area{animation:none!important;transition:none!important}#inputVatPage .input-vat-purchase-dialog .input-vat-financial-grid{gap:8px}}

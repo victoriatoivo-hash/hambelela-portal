@@ -103,7 +103,7 @@ include BASE_PATH.'/shared/sidebar.php';
     </div>
   </section>
 
-  <dialog class="accounts-dialog" data-dialog>
+  <dialog class="accounts-dialog input-vat-purchase-dialog" data-dialog>
     <form method="dialog" data-form enctype="multipart/form-data">
       <header>
         <div><p class="eyebrow">Input VAT</p><h2 data-form-title>Add Purchase</h2></div>
@@ -116,11 +116,17 @@ include BASE_PATH.'/shared/sidebar.php';
         <label>Invoice / Receipt Number<input name="invoice_reference" maxlength="190"></label>
         <label class="span-2">Description<textarea name="description" required></textarea></label>
         <label>Calculation source<select name="calculation_source"><option value="inclusive">Amount incl VAT</option><option value="exclusive">Amount excl VAT</option></select></label>
-        <label data-inclusive-source>Amount incl VAT (N$)<input name="inclusive" type="number" min="0" step="0.01"></label>
-        <label data-exclusive-source hidden>Amount excl VAT (N$)<input name="exclusive_source" type="number" min="0" step="0.01"></label>
-        <label>VAT treatment<select name="vat_treatment" required><option value="standard" data-standard-rate-option>Standard VAT <?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%</option><option value="zero_rated">Zero Rated</option><option value="no_vat">No VAT / Non-VAT</option><option value="manual_vat">Manual VAT</option><option value="review_required">Review Required</option></select><small class="field-help" data-standard-rate-hint>The configured standard VAT rate is <?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%.</small></label>
+        <div class="input-vat-financial-grid">
+          <label data-inclusive-source class="input-vat-financial-field">Amount incl VAT (N$)<input name="inclusive" type="number" min="0" step="0.01"></label>
+          <label data-exclusive-source hidden class="input-vat-financial-field">Amount excl VAT (N$)<input name="exclusive_source" type="number" min="0" step="0.01"></label>
+          <label class="input-vat-financial-field">VAT treatment<select name="vat_treatment" required><option value="standard" data-standard-rate-option>Standard VAT <?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%</option><option value="zero_rated">Zero Rated</option><option value="no_vat">No VAT / Non-VAT</option><option value="manual_vat">Manual VAT</option><option value="review_required">Review Required</option></select><small class="field-help" data-standard-rate-hint>The configured standard VAT rate is <?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%.</small></label>
+          <label class="input-vat-financial-field" data-manual-vat-wrap hidden>Manual VAT (N$)<input name="manual_vat" type="number" min="0" step="0.01"></label>
+        </div>
         <label class="span-2 input-vat-override-toggle"><input name="manual_override" type="checkbox" value="1"> Edit calculated amounts</label>
-        <div class="span-2 accounts-form-grid" data-manual-wrap hidden><label>Adjusted VAT (N$)<input name="manual_vat" type="number" min="0" step="0.01"></label><label>Adjusted excl VAT (N$)<input name="manual_exclusive" type="number" min="0" step="0.01"></label><label class="span-2">Reason for adjustment<select name="override_reason"><option value="">Select reason</option><option>Supplier invoice adjustment</option><option>Mixed VAT treatment</option><option>Rounding correction</option><option>Special accounting treatment</option></select></label></div>
+        <div class="span-2 input-vat-manual-wrap" data-manual-wrap hidden>
+          <label>Adjusted excl VAT (N$)<input name="manual_exclusive" type="number" min="0" step="0.01"></label>
+          <label class="span-2">Reason for adjustment<select name="override_reason"><option value="">Select reason</option><option>Supplier invoice adjustment</option><option>Mixed VAT treatment</option><option>Rounding correction</option><option>Special accounting treatment</option></select></label>
+        </div>
         <div class="vat-preview span-2" data-vat-preview></div>
         <label class="span-2">Notes (optional)<textarea name="notes"></textarea></label>
         <div class="input-vat-month-warning" data-month-warning-panel hidden>
@@ -128,12 +134,24 @@ include BASE_PATH.'/shared/sidebar.php';
           <p data-month-warning aria-live="polite"></p>
           <div><button type="button" class="portal-button portal-button--ghost" data-month-warning-cancel>Cancel</button><button type="button" class="portal-button portal-button--primary" data-month-warning-confirm>Save to period</button></div>
         </div>
-        <label class="span-2">Evidence files<input name="files[]" type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"></label>
+        <div class="span-2 input-vat-file-upload">
+          <label for="inputVatEvidenceFiles" class="input-vat-file-upload__area" data-upload-area>
+            <div class="input-vat-file-upload__content">
+              <span class="input-vat-file-upload__icon" aria-hidden="true">&#x1F4E4;</span>
+              <div class="input-vat-file-upload__text">
+                <strong>Drag and drop files here or</strong>
+                <span class="input-vat-file-upload__hint" data-file-upload-hint>No files selected</span>
+              </div>
+              <button type="button" class="portal-button portal-button--secondary input-vat-choose-files" data-choose-files>Choose Files</button>
+            </div>
+            <input id="inputVatEvidenceFiles" name="files[]" type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt">
+          </label>
+        </div>
         <div class="pending-files span-2" data-pending-files></div>
       </div>
       <p class="form-message" data-form-message></p>
       <footer>
-        <button type="button" data-close-purchase class="portal-button portal-button--ghost">Cancel</button>
+        <button type="button" data-close-purchase class="portal-button portal-button--secondary">Cancel</button>
         <button type="submit" class="portal-button portal-button--primary" data-save>Save Purchase</button>
       </footer>
     </form>
