@@ -196,6 +196,9 @@ assert.match(css, /portal-date-popup\.is-input-vat-popup \.portal-date-day\.is-s
 assert.match(datePickerJs, /const isInputVat = Boolean\(control\?\.wrapper\?\.closest\('#inputVatPage'\)\)/);
 assert.match(datePickerJs, /const host = isInputVat \? document\.body/);
 assert.match(datePickerJs, /rect\.bottom < clip\.top \|\| rect\.top > clip\.bottom/);
+assert.match(datePickerJs, /if \(isInputVat\) datePopup\.setAttribute\('popover', 'manual'\)/);
+assert.match(datePickerJs, /popup\.showPopover\(\)/);
+assert.match(datePickerJs, /popup\.hidePopover\(\)/);
 assert.match(portalJs, /popup\.setAttribute\('popover', 'manual'\)/, 'portal dropdown popup must enter the browser top layer above native dialogs');
 assert.match(portalJs, /popupElement\.showPopover\(\)/, 'portal dropdown popup must open through the Popover API');
 assert.match(portalJs, /nativeSelect\.closest\('dialog\[open\]'\) \|\| document\.body/, 'modal dropdown options must remain interactive inside the active dialog');

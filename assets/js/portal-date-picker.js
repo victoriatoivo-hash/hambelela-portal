@@ -60,6 +60,8 @@
     const host = isInputVat ? document.body : (openDialog || document.body);
     const datePopup = ensurePopup();
     datePopup.classList.toggle('is-input-vat-popup', isInputVat);
+    if (isInputVat) datePopup.setAttribute('popover', 'manual');
+    else datePopup.removeAttribute('popover');
     if (datePopup.parentElement !== host) host.appendChild(datePopup);
     return datePopup;
   }
@@ -117,6 +119,7 @@
     viewDate = new Date(draftDate || new Date());
     mountPopupFor(control);
     renderPopup();
+    if (popup.matches('[popover]') && typeof popup.showPopover === 'function' && !popup.matches(':popover-open')) popup.showPopover();
     positionPopup();
     popup.classList.add('is-open');
     popup.setAttribute('aria-hidden', 'false');
@@ -140,6 +143,7 @@
     const control = active;
     popup?.classList.remove('is-open');
     popup?.setAttribute('aria-hidden', 'true');
+    if (popup?.matches?.(':popover-open')) popup.hidePopover();
     control.wrapper.classList.remove('is-open');
     control.cell?.classList.remove('is-editing');
     control.trigger.classList.remove('is-open');
