@@ -55,6 +55,14 @@ assert.match(client, /year=\$\{encodeURIComponent\(root\.dataset\.year\)\}.*mont
 assert.match(theme, /--portal-primary/, 'Phase 4 theme must reuse canonical portal tokens');
 assert.match(theme, /font-family:\s*Figtree/, 'Phase 4 pages must use Figtree');
 assert.match(theme, /\.cw-steps a\.is-active::after/, 'active navigation must use a flat underline');
+assert.match(theme, /--cw-primary:\s*#721b1a/, 'Cost Workbook must use the Input VAT burgundy');
+assert.match(theme, /--cw-accent:\s*#ab3619/, 'Cost Workbook must use the Input VAT action colour');
+assert.match(theme, /--cw-soft:\s*#fdf6ee/, 'Cost Workbook must use the Input VAT cream surface');
+assert.match(theme, /\.cw-hero h1[\s\S]*?font-size:\s*22px[\s\S]*?font-weight:\s*600/, 'page headings must match the Input VAT hierarchy');
+assert.match(theme, /\.cw-overview-grid a[\s\S]*?border-left:\s*4px solid/, 'overview metrics must use the Input VAT card treatment');
+assert.match(theme, /@media \(prefers-reduced-motion:\s*reduce\)/, 'theme motion must respect reduced-motion preferences');
+assert.match(shell, /cost-workbook-pages\.css\?v=2/, 'operational pages must load the refreshed theme asset');
+assert.match(history, /cost-workbook-pages\.css\?v=2/, 'Historical Records must load the refreshed theme asset');
 assert.doesNotMatch(controller + shell + sections + history, /wc_put\s*\(/, 'page routing must not introduce WooCommerce writes');
 assert.doesNotMatch(controller + shell + sections + history, /CREATE TABLE|ALTER TABLE|DROP TABLE/i, 'page routing must not introduce schema changes');
 

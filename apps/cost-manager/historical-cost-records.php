@@ -76,7 +76,7 @@ include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
 <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/cost-workbook-history.css?v=1">
-<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/cost-workbook-pages.css?v=1">
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/cost-workbook-pages.css?v=2">
 <main class="workspace cw-history-page cost-workbook-page" id="historicalCostRecords">
     <header class="cw-history-header cw-hero">
         <div><p class="cw-history-eyebrow">Previous Landing Cost system · Read-only archive</p><h1>Historical Cost Records</h1><p>These records were created in the previous Landing Cost system. They are preserved for reference only and are not part of the current Cost Workbook. Historical records cannot be edited, recalculated, approved, synchronized or published.</p></div>
