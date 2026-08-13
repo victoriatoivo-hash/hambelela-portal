@@ -155,6 +155,8 @@
 #inputVatPage .accounts-breakdowns article{min-height:180px;border-color:#eadbd2;overflow:hidden}
 #inputVatPage .summary-line{display:grid;grid-template-columns:minmax(90px,1fr) auto;align-items:center;gap:4px 12px;padding:8px 0;border-bottom:1px solid #f1e6df}
 #inputVatPage .summary-line:last-child{border-bottom:0}
+#inputVatPage .analysis-line-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#inputVatPage .analysis-line-total{justify-self:end;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;font-weight:600}
 #inputVatPage .analysis-bar-track{grid-column:1/-1;height:5px;overflow:hidden;border-radius:999px;background:#f1e4dd}
 #inputVatPage .analysis-bar-fill{display:block;width:var(--iv-bar,0%);height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--iv-primary),var(--iv-accent));transform-origin:left;animation:input-vat-bar-grow 520ms cubic-bezier(.2,.8,.2,1)}
 #inputVatPage .summary-line svg{width:13px;height:13px;margin-right:5px;vertical-align:-2px;color:#9b6755}

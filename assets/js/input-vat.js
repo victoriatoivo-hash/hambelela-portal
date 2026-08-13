@@ -350,7 +350,7 @@
     return entries.map(([key, value]) => {
       const label = key.replaceAll('_', ' ');
       const percent = total > 0 ? Math.round((Number(value) / total) * 1000) / 10 : 0;
-      return `<div class="summary-line" title="${esc(label)} &middot; ${money(value)} &middot; ${percent}%"><div><span>${esc(label)}</span><small>${money(value)} &middot; ${percent}%</small></div><strong>${percent}%</strong><span class="analysis-bar-track" aria-label="${percent}%"><span class="analysis-bar-fill" style="--iv-bar:${percent}%"></span></span></div>`;
+      return `<div class="summary-line" title="${esc(label)} &middot; ${money(value)} &middot; ${percent}%"><span class="analysis-line-label">${esc(label)}</span><span class="analysis-line-total">${money(value)} &middot; ${percent}%</span><span class="analysis-bar-track" aria-label="${percent}%"><span class="analysis-bar-fill" style="--iv-bar:${percent}%"></span></span></div>`;
     }).join('');
   }
 
