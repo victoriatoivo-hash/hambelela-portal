@@ -158,7 +158,7 @@
 #inputVatPage .accounts-table-card{border-color:#e7d8cf;box-shadow:0 12px 30px rgba(67,35,25,.055);overflow:hidden}
 #inputVatPage .accounts-table-wrap{max-width:100%;overflow:auto;overscroll-behavior-inline:contain}
 #inputVatPage .accounts-table-card table{min-width:980px;border-collapse:separate;border-spacing:0}
-#inputVatPage .accounts-table-card thead th{position:sticky;top:0;z-index:1;background:#f8f1ed;color:#6c4e43;font-size:10px;letter-spacing:.06em;text-transform:uppercase}
+#inputVatPage .accounts-table-card thead th{position:sticky;top:0;z-index:1;background:#721b1a;color:#fff;font-size:10px;letter-spacing:.06em;text-transform:uppercase}
 #inputVatPage .accounts-table-card th,#inputVatPage .accounts-table-card td{padding:11px 12px;border-bottom:1px solid #f0e6e0;vertical-align:middle}
 #inputVatPage .accounts-table-card tbody tr{transition:background-color 150ms ease}
 #inputVatPage .accounts-table-card tbody tr:hover{background:#fff9f5}
