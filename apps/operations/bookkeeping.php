@@ -1588,9 +1588,9 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             letter-spacing: .05em;
         }
         .closing-card strong {
-            color: var(--ledger-red);
-            font-size: 14px;
-            font-weight: 900;
+            color: #721b1a;
+            font-size: 13px;
+            font-weight: 400;
         }
         .bk-page-layout {
             display: block;
