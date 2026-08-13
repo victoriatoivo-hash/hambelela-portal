@@ -546,8 +546,10 @@ body.input-vat-dialog-open{overflow:hidden!important}
 @media(max-width:480px){#inputVatPage .accounts-summary{grid-template-columns:repeat(2,minmax(0,1fr))}#inputVatPage .accounts-summary article{min-height:80px;padding:10px 11px}#inputVatPage .accounts-summary-value strong{font-size:17px}}
 @media(max-width:340px){#inputVatPage .accounts-summary{grid-template-columns:1fr}}
 
-/* Owner-approved vertical rhythm: 12px header-to-summary and 20px summary-to-tabs. */
+/* Owner-approved vertical rhythm: 12px header-to-summary, 20px summary-to-tabs,
+   and 15px tabs-to-month navigation. */
 #inputVatPage .accounts-hero+.accounts-summary{margin-top:-6px;margin-bottom:2px}
+#inputVatPage .input-vat-primary-tabs{margin-bottom:-3px}
 
 /* Input VAT canonical 32px control system. These rules target the existing
    components after removing the obsolete generated search glyph above. */
