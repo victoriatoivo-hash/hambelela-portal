@@ -2296,10 +2296,6 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             <?php endif; ?>
             <section class="portal-header-status" data-portal-header-status
                      data-presence-endpoint="<?= htmlspecialchars(BASE_URL . '/apps/operations/portal-presence.php', ENT_QUOTES, 'UTF-8') ?>">
-                <div class="portal-header-clock" aria-label="Current Namibia time">
-                    <span data-portal-date>---</span>
-                    <strong data-portal-time>--:-- --</strong>
-                </div>
                 <div class="portal-online-widget" data-portal-online-widget tabindex="0"
                      aria-label="Online employees" aria-expanded="false">
                     <div class="portal-online-avatars" data-portal-online-avatars></div>
@@ -2319,6 +2315,10 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
                         <span><?= htmlspecialchars($headerNotificationUnread > 99 ? '99+' : (string) $headerNotificationUnread, ENT_QUOTES, 'UTF-8') ?></span>
                     <?php endif; ?>
                 </a>
+                <div class="portal-header-clock" aria-label="Current Namibia time">
+                    <span data-portal-date>---</span>
+                    <strong data-portal-time>--:-- --</strong>
+                </div>
             </section>
         </div>
     </header>
