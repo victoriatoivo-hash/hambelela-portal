@@ -568,6 +568,8 @@ body.input-vat-dialog-open{overflow:hidden!important}
 #inputVatPage .accounts-toolbar .accounts-search-control>span:first-child,
 #inputVatPage .accounts-toolbar .accounts-status-control>span:first-child,
 #inputVatPage .input-vat-active-period-label{margin:0;color:#6b4c3b;font:600 11px/1.2 Figtree,system-ui,sans-serif;letter-spacing:0;text-transform:none}
+#inputVatPage .accounts-toolbar .accounts-search-control>span:first-child,
+#inputVatPage .accounts-toolbar .accounts-status-control>span:first-child{color:#721b1a}
 #inputVatPage .input-vat-search-field{position:relative;display:block;min-width:0;width:100%}
 #inputVatPage .input-vat-search-field>svg{position:absolute;z-index:1;top:50%;left:11px;width:15px;height:15px;color:#6b4c3b;pointer-events:none;transform:translateY(-50%);transition:color var(--iv-motion-fast) ease}
 #inputVatPage .input-vat-search-field:focus-within>svg{color:#ab3619}
