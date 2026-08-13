@@ -138,7 +138,21 @@ try {
         $a=$db->prepare("SELECT * FROM hr_policy_acknowledgements WHERE version_id=? AND employee_id=? FOR UPDATE");
         $db->beginTransaction(); $a->execute(array($id,$eid)); $ack=$a->fetch(PDO::FETCH_ASSOC);
         if (!$ack||empty($ack['opened_at'])||empty($ack['reached_end_at'])) throw new RuntimeException('Open the policy and reach the acknowledgement section before signing.');
-        if (!empty($ack['signed_at'])) { $db->rollBack(); header('Location: policy-receipt.php?id='.$ack['id']); exit; }
+        if (!empty($ack['signed_at'])) {
+            $db->rollBack();
+            if (!empty($_POST['ajax'])) {
+                header('Content-Type: application/json');
+                echo json_encode(array(
+                    'ok'=>true,
+                    'status'=>'Signed & Acknowledged',
+                    'signed_at'=>date('c', strtotime((string)$ack['signed_at'])),
+                    'receipt_url'=>'policy-receipt.php?id='.$ack['id'],
+                    'already_signed'=>true,
+                ));
+                exit;
+            }
+            header('Location: policy-receipt.php?id='.$ack['id']); exit;
+        }
         $ref='HOP-ACK-'.date('Ymd').'-'.$id.'-'.$eid.'-'.strtoupper(bin2hex(random_bytes(3)));
         $meta=json_encode(array('ip'=>$_SERVER['REMOTE_ADDR']??null,'user_agent'=>substr((string)($_SERVER['HTTP_USER_AGENT']??''),0,500),'session_user_id'=>(int)$user['id']));
         $s=$db->prepare("UPDATE hr_policy_acknowledgements SET legal_name=?,signed_at=NOW(),acknowledged_at=NOW(),acknowledgement_text=?,acknowledgement_text_version=?,signature_method=?,signature_data=?,document_hash=?,evidence_metadata=?,acknowledgement_reference=?,status='signed' WHERE id=? AND signed_at IS NULL");
