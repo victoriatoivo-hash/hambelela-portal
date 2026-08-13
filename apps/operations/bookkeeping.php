@@ -1656,8 +1656,14 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             z-index: 1;
         }
         #tab-counter .denom-card > .bk-side-head .bk-denom-reset {
-            float: right;
+            float: none;
+            margin-left: auto;
             margin-top: 3px;
+        }
+        #tab-counter .denom-card > .bk-side-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
         }
         .bk-side-toggle {
             width: 24px;
