@@ -42,7 +42,7 @@
 #inputVatPage .table-empty-state{display:grid;place-items:center;gap:5px;min-height:145px}
 #inputVatPage .table-empty-state>span{font-size:26px;color:#a9958a}
 #inputVatPage .table-empty-state strong{color:var(--iv-primary);font-size:13px}
-#inputVatPage .table-empty-state p{margin:0}
+#inputVatPage .table-empty-state p{margin:0;font-size:11px}
 #inputVatPage .accounts-dialog input,#inputVatPage .accounts-dialog select,#inputVatPage .accounts-dialog textarea{min-height:42px}
 #inputVatPage .field-help{color:#8a756a;font-size:10px;font-weight:500}
 #inputVatPage .rate-change-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:18px 0}
