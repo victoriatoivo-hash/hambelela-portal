@@ -63,7 +63,7 @@ for(const [width,height] of sizes)for(const route of phase4){
 const context=await browser.newContext({viewport:{width:1440,height:1000}});
 const page=await context.newPage();
 await page.goto('http://127.0.0.1:8811/apps/cost-manager/workbook.php');
-ok(await page.getByRole('link',{name:'Historical Records'}).isVisible(),'shared history link');
+ok(await page.locator('.cw-steps').getByRole('link',{name:'Historical Records'}).isVisible(),'shared history link');
 await page.screenshot({path:`${out}/cost-workbook-historical-link-1440.png`,fullPage:false});
 await context.close();
 await browser.close();
