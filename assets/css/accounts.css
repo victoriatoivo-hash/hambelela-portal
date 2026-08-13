@@ -651,3 +651,28 @@ body.input-vat-dialog-open{overflow:hidden!important}
 @media(prefers-reduced-motion:reduce){#inputVatPage *,#inputVatPage *::before,#inputVatPage *::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}.portal-date-popup.is-input-vat-popup,.portal-date-popup.is-input-vat-popup *{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 #inputVatPage .portal-button:not(:disabled):hover,
 #inputVatPage .portal-button:not(:disabled):active{border-color:#f07420!important;background:#f07420!important;color:#fff!important}
+
+/* Keep the owner Settings action in step with Add Purchase motion. */
+#inputVatPage .input-vat-settings-action{
+  transition:background-color .16s ease,border-color .16s ease,color .16s ease,transform .12s ease,box-shadow .16s ease;
+}
+#inputVatPage .input-vat-settings-action:not(:disabled):hover,
+#inputVatPage .input-vat-settings-action:not(:disabled):focus-visible{
+  transform:translateY(-1px);
+  box-shadow:0 6px 14px rgba(95,23,22,.16);
+}
+#inputVatPage .input-vat-settings-action:not(:disabled):active{
+  transform:translateY(0);
+  box-shadow:0 3px 8px rgba(95,23,22,.14);
+}
+#inputVatPage .input-vat-settings-action svg{
+  transform-origin:center;
+  transition:transform .38s ease;
+}
+#inputVatPage .input-vat-settings-action:hover svg,
+#inputVatPage .input-vat-settings-action:focus-visible svg{
+  transform:rotate(180deg);
+}
+#inputVatPage .input-vat-settings-action:active svg{
+  transform:rotate(360deg) scale(.92);
+}
