@@ -1802,6 +1802,16 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
         .recon-card .bk-side-button {
             font-weight: 400;
         }
+        #tab-recon .recon-card .bk-side-button[data-save-recon] {
+            width: 118.469px;
+            margin-right: auto;
+            margin-left: auto;
+            transition-property: background-color, border-color, color, transform, box-shadow;
+            transition-duration: .16s, .16s, .16s, .12s, .16s;
+            transition-timing-function: ease, ease, ease, ease, ease;
+            transition-delay: 0s, 0s, 0s, 0s, 0s;
+            transition-behavior: normal, normal, normal, normal, normal;
+        }
         .bk-history-list {
             display: grid;
             gap: 7px;
