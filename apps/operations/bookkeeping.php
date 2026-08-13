@@ -1209,6 +1209,13 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
         .add-row .ledger-cell {
             font-size: 12px;
         }
+        .bk-wrap .entry-row {
+            height: 34px;
+        }
+        .bk-wrap .entry-row .ledger-cell {
+            height: 34px;
+            min-height: 34px;
+        }
         .ledger-cell:last-child {
             border-right: 0;
         }
