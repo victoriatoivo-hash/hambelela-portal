@@ -2539,22 +2539,6 @@
               <div class="orders-grid-cell orders-grid-cell--add orders-grid-header-cell monday-cell column-header add-column-cell"><button type="button" data-add-column>+</button></div>
             </div>
             <div class="orders-grid-body">${rows}</div>
-            <div class="orders-add-row monday-grid add-task-row" data-group-row="${esc(key)}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
-              <div class="orders-grid-cell orders-grid-cell--select monday-cell col-checkbox"></div>
-              <div class="orders-grid-cell orders-grid-cell--task monday-cell col-task"><button type="button" data-add-task="${esc(key)}">+ Add task</button></div>
-              <div class="orders-grid-cell orders-grid-cell--notes monday-cell col-task-icon"></div>
-              <div class="orders-grid-cell orders-grid-cell--date monday-cell col-date"></div>
-              <div class="orders-grid-cell orders-grid-cell--mobile monday-cell col-mobile"></div>
-              <div class="orders-grid-cell orders-grid-cell--mode monday-cell col-mode"></div>
-              <div class="orders-grid-cell orders-grid-cell--amount monday-cell col-amount"></div>
-              <div class="orders-grid-cell orders-grid-cell--payment monday-cell col-payment"></div>
-              <div class="orders-grid-cell orders-grid-cell--paid monday-cell col-paid"></div>
-              <div class="orders-grid-cell orders-grid-cell--status monday-cell col-status"></div>
-              <div class="orders-grid-cell orders-grid-cell--packer monday-cell col-packedby"></div>
-              <div class="orders-grid-cell orders-grid-cell--text monday-cell col-text"></div>
-              ${customColumns.map(() => '<div class="orders-grid-cell orders-grid-cell--custom monday-cell col-custom"></div>').join('')}
-              <div class="orders-grid-cell orders-grid-cell--add monday-cell add-column-cell"></div>
-            </div>
             ${footerRow}
               </div>
             </div>
@@ -4671,7 +4655,6 @@
     const colType = event.target.closest('[data-col-type]');
     const colBack = event.target.closest('[data-col-back]');
     const colCreate = event.target.closest('[data-col-create]');
-    const addTask = event.target.closest('[data-add-task]');
     const dateAll = event.target.closest('[data-date-all]');
     const clearFilters = event.target.closest('[data-clear-board-filters]');
     const toolbar = event.target.closest('[data-toolbar]');
@@ -5251,7 +5234,6 @@
         }
       }
 
-      if (addTask) window.location.href = `orders.php?date=${encodeURIComponent(addTask.dataset.addTask)}`;
     } catch (error) {
       showError(error);
     }
