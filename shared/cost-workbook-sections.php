@@ -1,8 +1,17 @@
 <?php
 declare(strict_types=1);
 
-function cw_render_overview(): void { ?>
-<section class="cw-section"><div class="cw-section-body"><div class="cw-metrics"><article><span>Active invoices</span><strong id="metricInvoices">—</strong></article><article><span>Needs review</span><strong id="metricReview">—</strong></article><article><span>Approved invoices</span><strong id="metricApproved">—</strong></article><article><span>Website items</span><strong id="metricWebsite">—</strong></article></div><div class="cw-empty-state cw-page-guidance"><strong>Selected period overview</strong><p>Open a section above to work with its records. Each section now has a stable URL and retains this month.</p></div></div></section>
+function cw_render_overview(array $period): void { ?>
+<section class="cw-section"><div class="cw-section-body"><div class="cw-overview-grid">
+<a href="<?= cw_page_url('purchases.php',$period) ?>"><span>Purchases &amp; Invoices</span><strong id="metricInvoices">—</strong><small id="metricPurchaseNote">Loading selected month…</small></a>
+<a href="<?= cw_page_url('shipments.php',$period) ?>"><span>Shipments</span><strong id="metricShipments">—</strong><small>Active in selected month</small></a>
+<a href="<?= cw_page_url('landed-costs.php',$period) ?>"><span>Landed Costs</span><strong id="metricLanded">—</strong><small>Confirmed calculations</small></a>
+<a href="<?= cw_page_url('product-matching.php',$period) ?>"><span>Product Matching</span><strong id="metricMatches">—</strong><small>Saved product matches</small></a>
+<a href="<?= cw_page_url('profitability.php',$period) ?>"><span>Profitability</span><strong id="metricWebsite">—</strong><small>Read-only snapshot items</small></a>
+<a href="<?= cw_page_url('cogs-publishing.php',$period) ?>"><span>COGS Publishing</span><strong>Unavailable</strong><small>No WooCommerce write on load</small></a>
+<a href="<?= cw_page_url('settings.php',$period) ?>"><span>Settings</span><strong id="metricSettings">—</strong><small>Configured workbook values</small></a>
+<a href="<?= cw_page_url('historical-cost-records.php',$period) ?>"><span>Historical Records</span><strong>Read only</strong><small>9 preserved datasets</small></a>
+</div></div></section>
 <?php }
 
 function cw_render_purchases(bool $reviewOnly=false): void { ?>

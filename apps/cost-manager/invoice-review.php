@@ -1,1 +1,1 @@
-<?php $cwPageKey='invoice-review'; require __DIR__.'/workbook-page.php';
+<?php $cwPageKey='purchases'; require __DIR__.'/workbook-page.php';

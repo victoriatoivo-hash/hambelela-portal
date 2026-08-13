@@ -28,21 +28,29 @@ try {
 
     if ($action === 'summary') {
         $view=(string)($_GET['view']??'overview');
-        $allowedViews=['overview','purchases','invoice-review','profitability','settings'];
+        $allowedViews=['overview','purchases','profitability','settings'];
         if(!in_array($view,$allowedViews,true))cw_json(['error'=>'Unknown Cost Workbook view.'],400);
-        $counts=['active_invoices'=>0,'needs_review'=>0,'approved'=>0,'website_items'=>0];
+        $counts=['active_invoices'=>0,'needs_review'=>0,'approved'=>0,'website_items'=>0,'shipments'=>0,'confirmed_calculations'=>0,'product_matches'=>0,'configured_settings'=>0];
         $dateWhere=$period?' AND COALESCE(invoice_date,DATE(uploaded_at))>=? AND COALESCE(invoice_date,DATE(uploaded_at))<?':'';$dateParams=$period?:[];
         $countQuery=static function(string $where)use($pdo,$dateWhere,$dateParams):int{$st=$pdo->prepare('SELECT COUNT(*) FROM cw_supplier_invoices WHERE '.$where.$dateWhere);$st->execute($dateParams);return(int)$st->fetchColumn();};
-        if(in_array($view,['overview','purchases','invoice-review'],true)){
+        if(in_array($view,['overview','purchases'],true)){
             $counts['active_invoices']=$countQuery("approval_status<>'archived'");
             $counts['needs_review']=$countQuery("approval_status='draft' AND review_status='needs_review'");
             $counts['approved']=$countQuery("approval_status='approved'");
         }
+        if($view==='overview'){
+            $shipmentWhere=$period?' AND shipment_date>=? AND shipment_date<?':'';
+            $st=$pdo->prepare("SELECT COUNT(*) FROM cw_shipments WHERE status<>'archived'".$shipmentWhere);$st->execute($period?:[]);$counts['shipments']=(int)$st->fetchColumn();
+            $periodJoin=$period?' AND s.shipment_date>=? AND s.shipment_date<?':'';
+            $st=$pdo->prepare("SELECT COUNT(*) FROM cw_landed_calculation_versions v JOIN cw_landed_calculations c ON c.id=v.calculation_id JOIN cw_shipments s ON s.id=c.shipment_id WHERE v.status='confirmed'".$periodJoin);$st->execute($period?:[]);$counts['confirmed_calculations']=(int)$st->fetchColumn();
+            $st=$pdo->prepare("SELECT COUNT(*) FROM cw_calculation_product_matches m JOIN cw_sale_size_costs ss ON ss.id=m.sale_size_cost_id JOIN cw_landed_calculation_lines l ON l.id=ss.calculation_line_id JOIN cw_landed_calculation_versions v ON v.id=l.calculation_version_id JOIN cw_landed_calculations c ON c.id=v.calculation_id JOIN cw_shipments s ON s.id=c.shipment_id WHERE 1=1".$periodJoin);$st->execute($period?:[]);$counts['product_matches']=(int)$st->fetchColumn();
+            $counts['configured_settings']=(int)$pdo->query("SELECT COUNT(*) FROM cw_settings WHERE setting_value IS NOT NULL AND setting_value<>''")->fetchColumn();
+        }
         $successfulId=in_array($view,['overview','profitability'],true)?cw_sync_successful_id($pdo):null;$snapshotStats=null;
         if($successfulId){$st=$pdo->prepare("SELECT SUM(variation_id=0 AND product_type='simple') simple_products,SUM(variation_id=0 AND product_type='variable') variable_parents,SUM(variation_id>0) variations,COUNT(*) total_records,SUM(sku IS NULL OR sku='') missing_skus,SUM(active_price_inc_vat IS NULL) missing_prices,SUM(stock_quantity IS NULL) missing_stock_quantity,SUM(manage_stock=0) unmanaged_stock FROM cw_product_snapshots WHERE sync_batch_id=?");$st->execute([$successfulId]);$snapshotStats=$st->fetch() ?: null;if($snapshotStats){$st=$pdo->prepare("SELECT COALESCE(SUM(duplicate_count),0) FROM (SELECT COUNT(*) duplicate_count FROM cw_product_snapshots WHERE sync_batch_id=? AND sku IS NOT NULL AND sku<>'' GROUP BY sku HAVING COUNT(*)>1) duplicates");$st->execute([$successfulId]);$snapshotStats['duplicate_skus']=(int)$st->fetchColumn();$counts['website_items']=(int)$snapshotStats['total_records'];}}
-        $invoices=[];if(in_array($view,['purchases','invoice-review'],true)){$invoiceStmt=$pdo->prepare("SELECT i.*, (SELECT COUNT(*) FROM cw_supplier_invoice_lines l WHERE l.supplier_invoice_id=i.id) line_count FROM cw_supplier_invoices i WHERE i.approval_status<>'archived'".($period?' AND COALESCE(i.invoice_date,DATE(i.uploaded_at))>=? AND COALESCE(i.invoice_date,DATE(i.uploaded_at))<?':'')." ORDER BY i.uploaded_at DESC LIMIT 100");$invoiceStmt->execute($period?:[]);$invoices=$invoiceStmt->fetchAll();}
+        $invoices=[];if($view==='purchases'){$invoiceStmt=$pdo->prepare("SELECT i.*, (SELECT COUNT(*) FROM cw_supplier_invoice_lines l WHERE l.supplier_invoice_id=i.id) line_count FROM cw_supplier_invoices i WHERE i.approval_status<>'archived'".($period?' AND COALESCE(i.invoice_date,DATE(i.uploaded_at))>=? AND COALESCE(i.invoice_date,DATE(i.uploaded_at))<?':'')." ORDER BY i.uploaded_at DESC LIMIT 100");$invoiceStmt->execute($period?:[]);$invoices=$invoiceStmt->fetchAll();}
         foreach($invoices as &$invoice){$invoice['approved_at_display']=cw2_windhoek_time($invoice['approved_at']??null);}unset($invoice);
-        $settings=[];if(in_array($view,['purchases','invoice-review','settings'],true)){foreach($pdo->query('SELECT setting_key,setting_value FROM cw_settings')->fetchAll() as $r)$settings[$r['setting_key']]=$r['setting_value'];}
+        $settings=[];if(in_array($view,['purchases','settings'],true)){foreach($pdo->query('SELECT setting_key,setting_value FROM cw_settings')->fetchAll() as $r)$settings[$r['setting_key']]=$r['setting_value'];}
         $last=$successfulId?cw_sync_find($pdo,$successfulId):null;
         $current=$view==='profitability'?($pdo->query("SELECT * FROM cw_sync_batches ORDER BY id DESC LIMIT 1")->fetch() ?: null):null;
         $last=$last?cw_sync_public($last):null;$current=$current?cw_sync_public($current):null;
