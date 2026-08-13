@@ -21,6 +21,17 @@
   --portal-shadow: 0 10px 26px rgba(114, 27, 26, .06);
 }
 
+@media (max-width: 640px) {
+  .ledger-page.bk-wrap .stat-grid[aria-label="Cash ledger summary"] > .stat-card {
+    min-height: 82px !important;
+    padding: 10px 11px !important;
+  }
+
+  .ledger-page.bk-wrap .stat-grid[aria-label="Cash ledger summary"] .stat-value {
+    font-size: 17px !important;
+  }
+}
+
 *,
 *::before,
 *::after {

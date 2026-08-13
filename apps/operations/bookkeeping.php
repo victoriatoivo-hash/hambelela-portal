@@ -2325,10 +2325,22 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
         <section class="stat-card" style="--accent: #721B1A;"><span class="stat-label">Database</span><strong class="stat-value">Not ready</strong></section>
     <?php else: ?>
         <section class="stat-grid" aria-label="Cash ledger summary">
-            <article class="stat-card" style="--accent: #AB3619;"><span class="stat-label">Cash In Today</span><strong class="stat-value" data-stat-cash-in><?= ledger_money($cashInToday) ?></strong></article>
-            <article class="stat-card" style="--accent: #F07420;"><span class="stat-label">Cash Out Today</span><strong class="stat-value" data-stat-cash-out><?= ledger_money($cashOutToday) ?></strong></article>
-            <article class="stat-card" style="--accent: #721B1A;"><span class="stat-label">Net Balance Today</span><strong class="stat-value" data-stat-net><?= ledger_money($netToday) ?></strong></article>
-            <article class="stat-card" style="--accent: #A8CA19;"><span class="stat-label">Entries Today</span><strong class="stat-value" data-stat-count><?= number_format($entriesToday) ?></strong></article>
+            <article class="stat-card" style="--accent: #A8CA19;">
+                <div class="stat-heading"><i data-lucide="circle-arrow-down" aria-hidden="true"></i><span class="stat-label">Cash In Today</span></div>
+                <div class="stat-content"><strong class="stat-value" data-stat-cash-in><?= ledger_money($cashInToday) ?></strong><span class="stat-help">Cash received today</span></div>
+            </article>
+            <article class="stat-card" style="--accent: #F07420;">
+                <div class="stat-heading"><i data-lucide="circle-arrow-up" aria-hidden="true"></i><span class="stat-label">Cash Out Today</span></div>
+                <div class="stat-content"><strong class="stat-value" data-stat-cash-out><?= ledger_money($cashOutToday) ?></strong><span class="stat-help">Cash paid out today</span></div>
+            </article>
+            <article class="stat-card" style="--accent: #721B1A;">
+                <div class="stat-heading"><i data-lucide="scale" aria-hidden="true"></i><span class="stat-label">Net Balance Today</span></div>
+                <div class="stat-content"><strong class="stat-value" data-stat-net><?= ledger_money($netToday) ?></strong><span class="stat-help">Today's net cash movement</span></div>
+            </article>
+            <article class="stat-card" style="--accent: #AB3619;">
+                <div class="stat-heading"><i data-lucide="notebook-tabs" aria-hidden="true"></i><span class="stat-label">Entries Today</span></div>
+                <div class="stat-content"><strong class="stat-value" data-stat-count><?= number_format($entriesToday) ?></strong><span class="stat-help">Ledger entries recorded today</span></div>
+            </article>
         </section>
 
         <?php if (!$hasOpening && $canOperateBookkeeping): ?>
