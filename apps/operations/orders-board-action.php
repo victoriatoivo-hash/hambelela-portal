@@ -57,11 +57,13 @@ function ops_board_run_guarded_sync(?string $date, bool $force = false): array
     // The visible Orders board schedules source imports every 15 seconds. Keep the
     // server-side floor as the final duplicate/load guard for every browser.
     $minAge = 15;
-    $recent = ops_board_recent_sync_result($date, $minAge);
-    if ($recent) {
-        $recent['skipped'] = true;
-        $recent['skip_reason'] = 'recent_sync';
-        return $recent;
+    if (!$force) {
+        $recent = ops_board_recent_sync_result($date, $minAge);
+        if ($recent) {
+            $recent['skipped'] = true;
+            $recent['skip_reason'] = 'recent_sync';
+            return $recent;
+        }
     }
 
     $dir = ops_board_sync_runtime_dir();
@@ -539,13 +541,23 @@ function ops_board_sync_website_orders(?string $date = null): array
             ->setTimezone($utc);
         $baseQuery['after'] = $windowStart->format('Y-m-d\TH:i:s\Z');
         $baseQuery['before'] = $windowEnd->format('Y-m-d\TH:i:s\Z');
+    } else {
+        // The live board needs a complete, bounded recovery window rather than a
+        // fixed number of all-time orders. This guarantees that every order from
+        // the last 24 hours is eligible even on a high-volume store.
+        $windhoek = new DateTimeZone('Africa/Windhoek');
+        $utc = new DateTimeZone('UTC');
+        $windowStart = (new DateTimeImmutable('now', $windhoek))->modify('-2 days')->setTime(0, 0)->setTimezone($utc);
+        $windowEnd = (new DateTimeImmutable('now', $windhoek))->modify('+1 day')->setTime(0, 0)->setTimezone($utc);
+        $baseQuery['after'] = $windowStart->format('Y-m-d\TH:i:s\Z');
+        $baseQuery['before'] = $windowEnd->format('Y-m-d\TH:i:s\Z');
     }
 
     $ordersById = [];
     $syncWarnings = [];
     $statuses = ['processing', 'on-hold', 'pending', 'completed', 'cancelled', 'refunded', 'failed'];
     $collectOrders = static function (array $query) use (&$ordersById): void {
-        for ($page = 1; $page <= 5; $page++) {
+        for ($page = 1; $page <= 20; $page++) {
             $batch = wc_get('orders', $query + ['page' => $page]);
             if (!is_array($batch) || !$batch) {
                 break;
@@ -840,6 +852,10 @@ try {
     }
 
     $action = ops_post_string('action', 40);
+    if (!portal_role_can_access_feature(current_role_key(), 'orders')) {
+        throw new RuntimeException('You do not have permission to access Orders.');
+    }
+    ops_board_verify_csrf();
 
     if (in_array($action, ['list_order_files', 'upload_order_files', 'delete_order_file'], true)) {
         ops_board_ensure_order_files_schema();

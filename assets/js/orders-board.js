@@ -4398,7 +4398,6 @@
             await syncWebsite(!manual, null, manual);
           } catch (error) {
             sourceError = error;
-            if (manual) throw error;
           }
         }
         await refresh(null, { background, preservePosition:true });

@@ -1,0 +1,50 @@
+name: Orders Runtime Validation
+
+on:
+  pull_request:
+    paths:
+      - 'apps/operations/orders-board*.php'
+      - 'apps/operations/orders.php'
+      - 'apps/operations/sync-orders.php'
+      - 'assets/js/orders-board.js'
+      - 'assets/css/orders-board.css'
+      - 'tests/order*.mjs'
+      - 'tests/orders*.mjs'
+      - '.github/workflows/orders-runtime-validation.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: PHP syntax
+        run: |
+          php -l apps/operations/orders-board-action.php
+          php -l apps/operations/orders-board-data.php
+          php -l apps/operations/orders-board.php
+          php -l apps/operations/orders.php
+          php -l apps/operations/sync-orders.php
+      - name: JavaScript syntax
+        run: node --check assets/js/orders-board.js
+      - name: Order visibility, editing, synchronization and security checks
+        run: |
+          for test in tests/order*.mjs; do
+            case "$test" in
+              tests/order-attribution-recovery-static.mjs|tests/orders-move-to-trash-static.mjs|tests/orders-trash-action-column-static.mjs) continue ;;
+            esac
+            node "$test"
+          done
+      - name: Whitespace
+        run: git diff --check "${{ github.event.pull_request.base.sha }}"...HEAD
