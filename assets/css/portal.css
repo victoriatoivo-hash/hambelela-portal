@@ -26951,6 +26951,12 @@ body:has(.ob-wrap) .ob-wrap .orders-board-v2 .monday-group.collapsed .monday-gro
   font-size: 12px;
 }
 
+.bk-wrap .ledger-header {
+  background-color: rgb(253, 246, 238);
+  background-image: none;
+  border-bottom: 1px solid rgb(240, 230, 224);
+}
+
 .bk-wrap .ledger-header .ledger-cell {
   box-sizing: border-box;
   height: 35px;
