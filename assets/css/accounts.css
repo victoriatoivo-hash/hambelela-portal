@@ -294,6 +294,9 @@
 #inputVatPage .accounts-actions .portal-button{height:34px;min-height:34px;border-radius:8px;font-size:12px;font-weight:500}
 #inputVatPage .accounts-actions .portal-button--primary{background:var(--iv-action);border-color:var(--iv-action)}
 #inputVatPage .accounts-actions .portal-button--primary:hover{background:var(--iv-burgundy);border-color:var(--iv-burgundy)}
+#inputVatPage .accounts-actions .input-vat-settings-action{background:#f07420;border:1px solid #f07420;color:#fff}
+#inputVatPage .accounts-actions .input-vat-settings-action svg{color:#fff;stroke:currentColor}
+#inputVatPage .accounts-actions .input-vat-settings-action:hover,#inputVatPage .accounts-actions .input-vat-settings-action:focus-visible{background:#f07420;border-color:#f07420;color:#fff}
 #inputVatPage .input-vat-settings-action svg{width:14px;height:14px}
 #inputVatPage .input-vat-active-period{display:inline-grid;grid-template-columns:auto auto;gap:2px 8px;align-items:center;padding:7px 10px;border-color:var(--iv-border);border-radius:8px;background:var(--iv-soft)}
 #inputVatPage .input-vat-active-period svg{grid-row:1/3;color:var(--iv-action)}
