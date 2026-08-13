@@ -643,4 +643,4 @@ body.input-vat-dialog-open{overflow:hidden!important}
 @media(max-width:600px){#inputVatPage .accounts-toolbar{grid-template-columns:1fr}#inputVatPage .input-vat-month-arrow::before{content:"";position:absolute;inset:-6px}}
 @media(prefers-reduced-motion:reduce){#inputVatPage *,#inputVatPage *::before,#inputVatPage *::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}.portal-date-popup.is-input-vat-popup,.portal-date-popup.is-input-vat-popup *{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 #inputVatPage .portal-button:not(:disabled):hover,
-#inputVatPage .portal-button:not(:disabled):active{border-color:#f07420;background:#f07420;color:#fff}
+#inputVatPage .portal-button:not(:disabled):active{border-color:#f07420!important;background:#f07420!important;color:#fff!important}
