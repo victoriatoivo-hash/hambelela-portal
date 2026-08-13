@@ -887,6 +887,17 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             gap: 10px;
             min-width: 0;
         }
+        #bkDrawerBtn.bookkeeping-cash-tools-button {
+            width: 118.469px !important;
+            min-width: 118.469px !important;
+            max-width: 118.469px !important;
+            flex: 0 0 118.469px;
+            transition: background-color 0.16s ease,
+                        border-color 0.16s ease,
+                        color 0.16s ease,
+                        transform 0.12s ease,
+                        box-shadow 0.16s ease !important;
+        }
         h1 {
             margin: 0;
             color: var(--ledger-red);
