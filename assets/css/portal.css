@@ -29084,3 +29084,7 @@ body.performance-meeting-open .performance-meeting .epi-report-page.is-meeting-c
 #system-issues-page .system-issue-approved-brief span{font-weight:700}
 #system-issues-page .system-issue-approved-brief small{color:var(--text-muted,#6b7280)}
 @media(max-width:430px){#system-issues-page .system-issue-approved-brief{align-items:flex-start;flex-direction:column;gap:4px}#system-issues-page [data-system-issue-command="copy_codex_brief"]{width:100%;min-height:44px}}
+/* System Issues authoritative in-place stage transition feedback. */
+#system-issues-page [data-workflow-actions]{transition:opacity 160ms ease}
+#system-issues-page [data-workflow-actions].is-transitioning{opacity:.55}
+@media(prefers-reduced-motion:reduce){#system-issues-page [data-workflow-actions]{transition:none}}
