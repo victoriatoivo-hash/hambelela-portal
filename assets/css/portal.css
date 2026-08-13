@@ -26885,6 +26885,15 @@ body:has(.ob-wrap) .ob-wrap .orders-board-v2 .monday-group.collapsed .monday-gro
   font-weight: 400;
 }
 
+.bk-wrap .bookkeeping-cash-tools-button {
+  width: 118.469px;
+  transition: background-color 0.16s ease,
+              border-color 0.16s ease,
+              color 0.16s ease,
+              transform 0.12s ease,
+              box-shadow 0.16s ease;
+}
+
 .bk-wrap .stat-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
