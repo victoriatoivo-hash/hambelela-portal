@@ -342,7 +342,7 @@
 #inputVatPage .analysis-empty p{margin:3px 0 0;font-size:11px;color:var(--iv-light)}
 #inputVatPage .analysis-bar-fill{animation-duration:var(--iv-slow);background:linear-gradient(90deg,var(--iv-action),var(--iv-amber))}
 #inputVatPage .accounts-table-card{border-color:var(--iv-border);border-radius:14px;box-shadow:none}
-#inputVatPage .accounts-table-card thead th{height:35px;padding:0 10px;background:var(--iv-soft);color:var(--iv-mid);font-size:10px;font-weight:600}
+#inputVatPage .accounts-table-card thead th{height:35px;padding:0 10px;background:var(--iv-soft);color:#721b1a;font-size:10px;font-weight:600}
 #inputVatPage .accounts-table-card tbody td{height:35px;padding:5px 10px;font-size:12px}
 #inputVatPage .accounts-table-card th.money,#inputVatPage .accounts-table-card td.money,#inputVatPage .accounts-table-card tfoot td:nth-child(4),#inputVatPage .accounts-table-card tfoot td:nth-child(5),#inputVatPage .accounts-table-card tfoot td:nth-child(6){text-align:right;font-variant-numeric:tabular-nums}
 #inputVatPage .table-empty-state{min-height:112px;padding:16px}
