@@ -1115,8 +1115,8 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             line-height: 1;
         }
         .day-name {
-            color: #1a1a1a;
-            font-size: 14px;
+            color: #721b1a;
+            font-size: 13px;
             font-weight: 600;
         }
         .day-count {
