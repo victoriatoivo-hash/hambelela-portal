@@ -50,7 +50,7 @@ function cw_page_begin(string $key, array $period, ?string $bootError): void
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/cost-workbook.css?v=3">
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/cost-workbook-invoice.css?v=3">
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/cost-workbook-phase2.css?v=2">
-    <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/cost-workbook-pages.css?v=1">
+    <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/cost-workbook-pages.css?v=2">
     <main class="workspace cw cw-page cost-workbook-page" id="costWorkbook" data-page="<?= htmlspecialchars($key, ENT_QUOTES, 'UTF-8') ?>" data-api="cw-api.php" data-phase2-api="cw-phase2-api.php" data-csrf="<?= htmlspecialchars(cw_csrf_token(), ENT_QUOTES, 'UTF-8') ?>" data-year="<?= (int) $period['year'] ?>" data-month="<?= (int) $period['month'] ?>">
       <header class="cw-hero"><div><p class="cw-eyebrow">Hambelela Organic · <?= htmlspecialchars($period['id'], ENT_QUOTES, 'UTF-8') ?></p><h1><?= htmlspecialchars($page['title'], ENT_QUOTES, 'UTF-8') ?></h1><p><?= htmlspecialchars($page['description'], ENT_QUOTES, 'UTF-8') ?></p></div><?php if($key==='purchases'): ?><div class="cw-hero-actions"><button class="cw-btn cw-primary" data-open-upload>Upload invoice</button></div><?php endif; ?></header>
       <?php if ($bootError): ?><div class="cw-alert cw-error" role="alert"><strong>Cost Workbook setup needs attention.</strong> The workbook could not be prepared safely.</div><?php endif; ?>
