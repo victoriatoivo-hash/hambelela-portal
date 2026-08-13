@@ -82,12 +82,10 @@ include BASE_PATH.'/shared/sidebar.php';
   </section>
   <?php endif; ?>
 
-  <?php if(accounts_is_owner()): ?>
   <aside class="input-vat-period-notice" data-period-notice role="status" aria-live="polite" hidden>
     <div><strong data-period-notice-title></strong><span data-period-notice-copy></span></div>
     <button type="button" class="portal-button portal-button--secondary" data-view-saved-month>View period</button>
   </aside>
-  <?php endif; ?>
 
   <section class="accounts-breakdowns" data-monthly-section>
     <article><h2>VAT treatment</h2><div data-treatment-summary></div></article>

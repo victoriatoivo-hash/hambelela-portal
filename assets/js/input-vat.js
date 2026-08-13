@@ -190,6 +190,25 @@
     setControlsDisabled(Boolean(loading));
   }
 
+  function renderMonthlyLoading() {
+    $('[data-summary]').innerHTML = '<article><small>Loading Input VAT records...</small></article>';
+    $('[data-treatment-summary]').innerHTML = '<div class="analysis-empty"><p>Loading VAT treatment...</p></div>';
+    $('[data-supplier-summary]').innerHTML = '<div class="analysis-empty"><p>Loading suppliers...</p></div>';
+    $('[data-description-summary]').innerHTML = '<div class="analysis-empty"><p>Loading descriptions...</p></div>';
+    $('[data-active-capture-status]').innerHTML = '<div class="input-vat-month-status-copy"><span>Loading capture status...</span></div>';
+    $('[data-rows]').innerHTML = '<tr><td class="empty-row" colspan="10">Loading Input VAT records...</td></tr>';
+  }
+
+  function renderLoadFailure(message) {
+    const copy = esc(message || 'Could not load Input VAT records. Retry.');
+    $('[data-summary]').innerHTML = `<article><small>${copy}</small></article>`;
+    $('[data-treatment-summary]').innerHTML = `<div class="analysis-empty"><p>${copy}</p></div>`;
+    $('[data-supplier-summary]').innerHTML = `<div class="analysis-empty"><p>${copy}</p></div>`;
+    $('[data-description-summary]').innerHTML = `<div class="analysis-empty"><p>${copy}</p></div>`;
+    $('[data-active-capture-status]').innerHTML = `<div class="input-vat-month-status-copy"><span>${copy}</span></div>`;
+    $('[data-rows]').innerHTML = `<tr><td class="empty-row" colspan="10">${copy}</td></tr>`;
+  }
+
   function analysisRows(obj, icon) {
     const entries = Object.entries(obj || {}).sort((a, b) => b[1] - a[1]).slice(0, 8);
     const total = entries.reduce((sum, entry) => sum + Number(entry[1] || 0), 0);
@@ -335,10 +354,13 @@
 
   async function load(silent = false) {
     try {
-      if (!silent) setLoadingState(true);
+      if (!silent) {
+        setLoadingState(true);
+        if (!rows.length) renderMonthlyLoading();
+      }
       const response = await fetch(`${api}?${params()}`, {credentials: 'same-origin', cache: 'no-store'});
-      const j = await response.json();
-      if (!j.ok) throw new Error(j.error);
+      const j = await response.json().catch(() => { throw new Error('Could not load Input VAT records. Retry.'); });
+      if (!response.ok || !j.ok) throw new Error(j.error || 'Could not load Input VAT records. Retry.');
       rows = j.rows;
       syncRate(j.standard_vat_rate);
       render(j);
@@ -351,7 +373,7 @@
       page.classList.remove('is-refreshing');
     } catch (error) {
       if (!silent) {
-        $('[data-rows]').innerHTML = `<tr><td class="empty-row" colspan="10">${esc(error.message)}</td></tr>`;
+        renderLoadFailure(error.message);
         showToast(error.message, 'error');
       }
     } finally {
@@ -676,14 +698,17 @@
   });
   dialog.addEventListener('close', () => window.requestAnimationFrame(restorePageScroll));
 
-  $('[data-view-saved-month]').addEventListener('click', () => {
-    const month = $('[data-view-saved-month]').dataset.month;
-    if (!/^\d{4}-\d{2}$/.test(month || '')) return;
-    $('[data-month]').value = month;
-    $('[data-period-notice]').hidden = true;
-    page.classList.add('is-refreshing');
-    load();
-  });
+  const savedMonthButton = $('[data-view-saved-month]');
+  if (savedMonthButton) {
+    savedMonthButton.addEventListener('click', () => {
+      const month = savedMonthButton.dataset.month;
+      if (!/^\d{4}-\d{2}$/.test(month || '')) return;
+      $('[data-month]').value = month;
+      $('[data-period-notice]').hidden = true;
+      page.classList.add('is-refreshing');
+      load();
+    });
+  }
 
   page.addEventListener('click', async (event) => {
     const sortHead = event.target.closest('[data-sort]');
@@ -754,6 +779,7 @@
 
   buildPreview();
   updateActivePeriodLabel();
+  renderMonthlyLoading();
   load();
   setInterval(() => {
     if (dialog.open) return;

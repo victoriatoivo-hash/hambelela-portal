@@ -126,6 +126,16 @@ assert.match(api, /Transaction History is available to Owner\/Admin only/);
 assert.match(page, /!accounts_is_owner\(\)[\s\S]*\['history', 'transaction-history'\]/);
 assert.match(liveEntry, /!accounts_is_owner\(\)[\s\S]*\['history', 'transaction-history'\]/);
 assert.match(js, /requestedView === 'history' && !owner \? 'monthly' : requestedView/);
+assert.match(js, /const savedMonthButton = \$\('\[data-view-saved-month\]'\);[\s\S]*if \(savedMonthButton\)/);
+assert.match(js, /function renderMonthlyLoading\(\)/);
+assert.match(js, /function renderLoadFailure\(message\)/);
+assert.match(js, /Could not load Input VAT records\. Retry\./);
+for (const template of [page, liveEntry]) {
+  const periodNoticeIndex = template.indexOf('data-period-notice');
+  const nextOwnerBlockIndex = template.indexOf('<?php if(accounts_is_owner()): ?>', periodNoticeIndex);
+  assert.ok(periodNoticeIndex > -1, 'saved-period notice must render for every authorised Input VAT role');
+  assert.ok(nextOwnerBlockIndex > periodNoticeIndex, 'saved-period notice must not be wrapped in an owner-only block');
+}
 assert.match(page, /portal-theme-tabs/);
 assert.match(page, /data-active-period-kicker/);
 assert.match(page, /data-active-period-value/);
