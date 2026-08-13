@@ -9,7 +9,7 @@ require_once BASE_PATH . '/shared/costing.php';
 require_once BASE_PATH . '/shared/woocommerce.php';
 require_once BASE_PATH . '/shared/engines/pricing-engine.php';
 
-require_login();
+require_role('owner_admin');
 
 $pageTitle = 'Pricing Planner | ' . APP_NAME;
 $activeApp = 'cost-manager';
