@@ -1624,6 +1624,39 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             font-size: 14px;
             font-weight: 700;
         }
+        #tab-counter .denom-card > .bk-side-head {
+            width: 100%;
+            height: 35px;
+            min-height: 34px;
+            box-sizing: border-box;
+            display: table-cell;
+            padding: 0 10px;
+            border-bottom: 1px solid rgb(240, 230, 224);
+            border-collapse: separate;
+            background-color: rgb(253, 246, 238);
+            background-image: none;
+            background-position: 0% 0%;
+            background-repeat: repeat;
+            background-size: auto;
+            background-origin: padding-box;
+            background-clip: border-box;
+            color: rgb(114, 27, 26);
+            font-family: Figtree, system-ui, sans-serif;
+            font-size: 10px;
+            font-weight: 700;
+            line-height: 34px;
+            letter-spacing: .6px;
+            text-align: left;
+            text-indent: 0;
+            text-transform: uppercase;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+        #tab-counter .denom-card > .bk-side-head .bk-denom-reset {
+            float: right;
+            margin-top: 3px;
+        }
         .bk-side-toggle {
             width: 24px;
             height: 24px;
