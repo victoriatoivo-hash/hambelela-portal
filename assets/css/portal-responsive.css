@@ -28,7 +28,7 @@
   }
 
   .ledger-page.bk-wrap .stat-grid[aria-label="Cash ledger summary"] .stat-value {
-    font-size: 17px !important;
+    font-size: 12px !important;
   }
 }
 

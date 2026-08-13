@@ -26382,11 +26382,12 @@ body:has(.ob-wrap) .ob-wrap .orders-board-v2 .monday-group.collapsed .monday-gro
 }
 
 .ledger-page.bk-wrap .stat-grid[aria-label="Cash ledger summary"] .stat-value {
-  display: block;
+  display: block !important;
   margin: 0;
-  color: var(--bk-text);
-  font-size: 18px !important;
-  font-weight: 600;
+  color: rgb(26, 26, 26) !important;
+  font-family: Figtree, system-ui, sans-serif !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
   line-height: 1.15;
   font-variant-numeric: tabular-nums;
 }
