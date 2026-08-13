@@ -15,7 +15,6 @@
     year: 'numeric',
   });
   const $ = (s) => page.querySelector(s);
-  const actionButtons = page.querySelectorAll('.portal-button[data-add-purchase], .portal-button[data-print], .portal-button[data-export]');
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const money = (n) => `N$ ${Number(n || 0).toLocaleString('en-NA', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
@@ -53,6 +52,11 @@
   let timer;
   let refreshRowId = null;
   let historyMutationInProgress = false;
+  let hasRenderedData = false;
+  let listRequestController = null;
+  let listRequestSequence = 0;
+  let refreshDeferredWhileEditing = false;
+  let lastRefreshFailureToastAt = 0;
   const historyFilters = [
     {key: 'search', selector: '[data-history-search]', label: 'Search'},
     {key: 'month', selector: '[data-history-month]', label: 'Month', format: monthLabel},
@@ -248,7 +252,11 @@
 
   function setLoadingState(loading) {
     page.classList.toggle('is-loading', Boolean(loading));
-    setControlsDisabled(Boolean(loading));
+  }
+
+  function setUpdatingState(updating) {
+    page.classList.toggle('is-updating', Boolean(updating));
+    $('[data-active-period]')?.setAttribute('aria-busy', updating ? 'true' : 'false');
   }
 
   function renderMonthlyLoading() {
@@ -381,17 +389,6 @@
     if (window.lucide) window.lucide.createIcons();
   }
 
-  function setControlsDisabled(disabled) {
-    const controls = page.querySelectorAll('[data-previous-month],[data-next-month],[data-month],[data-search],[data-status],[data-sort],[data-add-purchase],[data-export],[data-print],[data-vat-view],[data-select-month],[data-history-month],[data-history-from],[data-history-to],[data-history-search],[data-history-entered-by],[data-history-status],[data-history-manual]');
-    controls.forEach((control) => {
-      if ('disabled' in control) control.disabled = disabled;
-    });
-
-    actionButtons.forEach((button) => {
-      button.disabled = disabled;
-    });
-  }
-
   function lineItemSort() {
     const options = ['supplier', 'purchase_date'];
     if (options.includes(sort)) return;
@@ -403,8 +400,20 @@
     const [year, month] = input.value.split('-').map(Number);
     const next = new Date(year, (month || 1) - 1 + delta, 1);
     input.value = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`;
-    page.classList.add('is-refreshing');
+    syncSelectedMonthUi();
     load();
+  }
+
+  function syncSelectedMonthUi() {
+    const selected = $('[data-month]').value;
+    page.querySelectorAll('[data-select-month]').forEach((button) => {
+      const active = button.dataset.selectMonth === selected;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-selected', active ? 'true' : 'false');
+      if (active) button.setAttribute('aria-current', 'date');
+      else button.removeAttribute('aria-current');
+    });
+    updateActivePeriodLabel();
   }
 
   function printCurrentPeriod() {
@@ -416,31 +425,50 @@
   }
 
   async function load(silent = false) {
+    const initialLoad = !hasRenderedData;
+    const sequence = ++listRequestSequence;
+    if (listRequestController) listRequestController.abort();
+    const controller = new AbortController();
+    listRequestController = controller;
+
     try {
-      if (!silent) {
+      if (initialLoad) {
         setLoadingState(true);
-        if (!rows.length) renderMonthlyLoading();
+      } else {
+        setUpdatingState(true);
       }
-      const response = await fetch(`${api}?${params()}`, {credentials: 'same-origin', cache: 'no-store'});
+      const response = await fetch(`${api}?${params()}`, {credentials: 'same-origin', cache: 'no-store', signal: controller.signal});
       const j = await response.json().catch(() => { throw new Error('Could not load Input VAT records. Retry.'); });
       if (!response.ok || !j.ok) throw new Error(j.error || 'Could not load Input VAT records. Retry.');
+      if (sequence !== listRequestSequence) return;
       rows = j.rows;
       syncRate(j.standard_vat_rate);
-      render(j);
-      updateActivePeriodLabel();
+      await new Promise((resolve) => window.requestAnimationFrame(() => {
+        render(j);
+        updateActivePeriodLabel();
+        resolve();
+      }));
+      hasRenderedData = true;
       if (refreshRowId) {
         requestAnimationFrame(() => {
           refreshRowId = null;
         });
       }
-      page.classList.remove('is-refreshing');
     } catch (error) {
-      if (!silent) {
+      if (error?.name === 'AbortError' || sequence !== listRequestSequence) return;
+      if (!hasRenderedData) {
         renderLoadFailure(error.message);
         showToast(error.message, 'error');
+      } else if (!silent || Date.now() - lastRefreshFailureToastAt > 60000) {
+        lastRefreshFailureToastAt = Date.now();
+        showToast('Could not refresh Input VAT. Existing data remains displayed.', 'error');
       }
     } finally {
-      if (!silent) setLoadingState(false);
+      if (sequence === listRequestSequence) {
+        setLoadingState(false);
+        setUpdatingState(false);
+        if (listRequestController === controller) listRequestController = null;
+      }
     }
   }
 
@@ -534,6 +562,7 @@
   $('[data-month-year]')?.addEventListener('change', (event) => {
     const month = $('[data-month]').value.slice(5);
     $('[data-month]').value = `${event.target.value}-${month}`;
+    syncSelectedMonthUi();
     load();
   });
 
@@ -745,12 +774,11 @@
       const requestedView = view.dataset.vatView === 'history' ? 'history' : 'monthly';
       currentView = requestedView === 'history' && !owner ? 'monthly' : requestedView;
       syncView();
-      page.classList.add('is-refreshing');
       await load();
       return;
     }
     const monthTab=event.target.closest('[data-select-month]');
-    if(monthTab){ $('[data-month]').value=monthTab.dataset.selectMonth; page.classList.add('is-refreshing'); await load(); return; }
+    if(monthTab){ $('[data-month]').value=monthTab.dataset.selectMonth; syncSelectedMonthUi(); await load(); return; }
     const control=event.target.closest('[data-month-complete]'); if(!control) return;
     await request('set_month_complete',{month:control.dataset.monthComplete,complete:control.dataset.complete==='1'?'0':'1'}); await load(); showToast('Month capture status updated.');
   });
@@ -759,7 +787,13 @@
     event.preventDefault();
     closePurchaseModal();
   });
-  dialog.addEventListener('close', () => window.requestAnimationFrame(restorePageScroll));
+  dialog.addEventListener('close', () => {
+    window.requestAnimationFrame(restorePageScroll);
+    if (refreshDeferredWhileEditing) {
+      refreshDeferredWhileEditing = false;
+      load(true);
+    }
+  });
 
   const savedMonthButton = $('[data-view-saved-month]');
   if (savedMonthButton) {
@@ -768,7 +802,7 @@
       if (!/^\d{4}-\d{2}$/.test(month || '')) return;
       $('[data-month]').value = month;
       $('[data-period-notice]').hidden = true;
-      page.classList.add('is-refreshing');
+      syncSelectedMonthUi();
       load();
     });
   }
@@ -878,7 +912,7 @@
   renderMonthlyLoading();
   load();
   setInterval(() => {
-    if (dialog.open) return;
+    if (dialog.open) { refreshDeferredWhileEditing = true; return; }
     if (owner && $('[data-rate-dialog]')?.open) return;
     load(true);
   }, 60000);
