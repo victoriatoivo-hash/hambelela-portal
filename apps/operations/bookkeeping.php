@@ -1625,7 +1625,8 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             font-weight: 700;
         }
         #tab-counter .denom-card > .bk-side-head,
-        #tab-recon .recon-card > .bk-side-head {
+        #tab-recon .recon-card > .bk-side-head,
+        #tab-activity > .bk-side-section > .bk-side-head {
             width: 100%;
             height: 35px;
             min-height: 34px;
