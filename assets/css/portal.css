@@ -26328,7 +26328,14 @@ body:has(.ob-wrap) .ob-wrap .orders-board-v2 .monday-group.collapsed .monday-gro
   background: var(--bk-deep-teal) !important;
 }
 
-.bookkeeping-page .bk-widget .metric-title,
+.bookkeeping-page .bk-widget .metric-title {
+  display: block !important;
+  color: rgb(107, 76, 59) !important;
+  font-family: Figtree, system-ui, sans-serif !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+}
+
 .bookkeeping-page .bk-widget small {
   color: var(--bk-muted) !important;
 }
