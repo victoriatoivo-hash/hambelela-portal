@@ -352,6 +352,7 @@
 #inputVatPage .accounts-table-card thead th{height:35px;padding:0 10px;background:var(--iv-soft);color:#721b1a;font-size:10px;font-weight:600}
 #inputVatPage .accounts-table-card tbody td{height:35px;padding:5px 10px;font-size:12px}
 #inputVatPage .accounts-table-card th.money,#inputVatPage .accounts-table-card td.money,#inputVatPage .accounts-table-card tfoot td:nth-child(4),#inputVatPage .accounts-table-card tfoot td:nth-child(5),#inputVatPage .accounts-table-card tfoot td:nth-child(6){text-align:right;font-variant-numeric:tabular-nums}
+#inputVatPage .accounts-table-card .status-pill{font-weight:400}
 #inputVatPage .table-empty-state{min-height:112px;padding:16px}
 #inputVatPage .table-empty-state strong{font-size:13px;font-weight:600;color:var(--iv-burgundy)}
 #inputVatPage .input-vat-history-toolbar{position:relative;display:block;margin-bottom:10px;padding:10px 12px;border:1px solid var(--iv-border);border-radius:12px;background:#fff}
