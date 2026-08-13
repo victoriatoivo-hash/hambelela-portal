@@ -1669,6 +1669,10 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             display: block;
             width: 100%;
         }
+        #tab-activity > .bk-side-section > .bk-side-head {
+            display: block;
+            width: 100%;
+        }
         .bk-side-toggle {
             width: 24px;
             height: 24px;
