@@ -2043,7 +2043,7 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             font-family: Figtree, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             font-size: 12px;
             font-weight: 400;
-            width: 180px;
+            width: 118.469px;
             height: 32px;
             display: flex;
             align-items: center;
@@ -2054,7 +2054,11 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             border: none;
             border-radius: 8px;
             cursor: pointer;
-            transition: background .2s ease;
+            transition-property: background-color, border-color, color, transform, box-shadow;
+            transition-duration: .16s, .16s, .16s, .12s, .16s;
+            transition-timing-function: ease, ease, ease, ease, ease;
+            transition-delay: 0s, 0s, 0s, 0s, 0s;
+            transition-behavior: normal, normal, normal, normal, normal;
         }
         #copyTotalBtn:active,
         #copyTotalBtn.copied {
