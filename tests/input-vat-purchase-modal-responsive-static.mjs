@@ -7,7 +7,7 @@ assert.match(css, /\.accounts-dialog\.input-vat-purchase-dialog\{[^}]*height:aut
 assert.match(css, /\.input-vat-purchase-dialog>form\{display:flex;[^}]*max-height:calc\(100dvh - 32px\);[^}]*flex-direction:column/, 'The purchase form must use a content-sized header/body/footer column.');
 assert.doesNotMatch(css, /\.input-vat-purchase-dialog>form\{height:min\(82vh,760px\)/, 'The old forced desktop form height must not return.');
 assert.match(css, /\.input-vat-purchase-dialog \.accounts-form-grid\{[^}]*flex:0 1 auto;[^}]*min-height:0;[^}]*overflow-y:auto/, 'The form body must be the single desktop overflow owner and shrink only when necessary.');
-assert.match(css, /@media\(max-width:600px\)\{[^}]*\.input-vat-purchase-dialog\{[^}]*height:100dvh;[^}]*max-height:100dvh/, 'Mobile may use the full dynamic viewport.');
+assert.match(css, /@media\(max-width:600px\)\{#inputVatPage \.accounts-dialog\.input-vat-purchase-dialog\{[^}]*height:100dvh;[^}]*max-height:100dvh/, 'The mobile override must equal the desktop selector specificity and use the full dynamic viewport.');
 assert.match(css, /@media\(max-width:600px\)[\s\S]*\.input-vat-purchase-dialog \.accounts-form-grid\{flex:1 1 auto;/, 'The mobile form body must receive the remaining viewport height.');
 assert.match(css, /\.input-vat-purchase-dialog>form>footer\{position:sticky;bottom:0;/, 'The footer must remain reachable when the form body scrolls.');
 
