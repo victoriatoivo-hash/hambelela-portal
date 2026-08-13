@@ -184,10 +184,20 @@ function cw_require_csrf(): void
 
 function cw_require_admin(): void
 {
-    if (!user_has_role('owner_admin', 'supervisor_manager')) {
+    if (!user_has_role('owner_admin')) {
         http_response_code(403);
-        throw new RuntimeException('Owner or admin permission is required.');
+        throw new RuntimeException('Owner/Admin permission is required.');
     }
+}
+
+function cw_request_period_bounds(): ?array
+{
+    if (!isset($_GET['year']) && !isset($_GET['month'])) return null;
+    $yearRaw=(string)($_GET['year']??'');$monthRaw=(string)($_GET['month']??'');
+    $year=preg_match('/^\d{4}$/',$yearRaw)?(int)$yearRaw:0;$month=preg_match('/^\d{1,2}$/',$monthRaw)?(int)$monthRaw:0;
+    if ($year < 2020 || $year > 2100 || $month < 1 || $month > 12) throw new DomainException('Invalid Cost Workbook period.');
+    $start = sprintf('%04d-%02d-01', $year, $month);
+    return [$start, (new DateTimeImmutable($start))->modify('+1 month')->format('Y-m-d')];
 }
 
 function cw_user(): array

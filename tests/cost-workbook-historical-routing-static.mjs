@@ -3,7 +3,7 @@ import {readFile} from 'node:fs/promises';
 
 const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 const [dashboard, workbook, legacy, systemAlias, profitAlias, packaging, history, boundary] = await Promise.all([
-  read('index.php'), read('apps/cost-manager/workbook.php'), read('apps/cost-manager/landing-cost-engine.php'),
+  read('index.php'), Promise.all([read('apps/cost-manager/workbook.php'),read('apps/cost-manager/workbook-page.php'),read('shared/cost-workbook-page-shell.php'),read('shared/cost-workbook-sections.php')]).then(parts=>parts.join('\n')), read('apps/cost-manager/landing-cost-engine.php'),
   read('apps/cost-manager/system-dashboard.php'), read('apps/cost-manager/profit-calculator.php'),
   read('apps/cost-manager/packaging-manager.php'), read('apps/cost-manager/historical-cost-records.php'),
   read('shared/cost-workbook-history.php'),
@@ -16,7 +16,7 @@ for (const marker of ['STEP 1 OF 8', 'Supplier Invoice workspace', 'Move step by
   assert.ok(!workbook.includes(marker), `canonical workbook contains legacy marker: ${marker}`);
 }
 assert.match(workbook, /historical-cost-records\.php/, 'owner archive link missing');
-assert.match(workbook, /user_has_role\('owner_admin'\)/, 'archive link must be role-gated');
+assert.match(workbook, /require_role\('owner_admin'\)/, 'the entire rebuilt workbook, including its archive link, must be owner-gated');
 assert.match(packaging, /href="workbook\.php"/, 'Packaging Manager must return to canonical workbook');
 assert.ok(!packaging.includes('href="landing-cost-engine.php"'), 'Packaging Manager still links to legacy renderer');
 assert.match(systemAlias, /landing-cost-engine\.php/, 'system alias must use protected compatibility entry');

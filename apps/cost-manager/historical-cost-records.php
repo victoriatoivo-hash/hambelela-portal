@@ -6,6 +6,7 @@ require_once dirname(__DIR__, 2) . '/config.php';
 require_once BASE_PATH . '/shared/auth.php';
 require_once BASE_PATH . '/shared/database.php';
 require_once BASE_PATH . '/shared/cost-workbook-history.php';
+require_once BASE_PATH . '/shared/cost-workbook-page-shell.php';
 
 cw_history_require_read_only_request();
 require_role('owner_admin');
@@ -33,6 +34,7 @@ if (strlen($search) > 100) {
 $direction = strtolower((string) ($_GET['direction'] ?? 'desc')) === 'asc' ? 'ASC' : 'DESC';
 $page = max(1, min(1000000, (int) ($_GET['page'] ?? 1)));
 $perPage = 50;
+$period = cw_page_period();
 $rows = [];
 $columns = [];
 $total = 0;
@@ -58,6 +60,8 @@ function cw_history_value(mixed $value): string
 function cw_history_query(array $changes = []): string
 {
     $query = array_merge([
+        'year' => (int) ($_GET['year'] ?? date('Y')),
+        'month' => (int) ($_GET['month'] ?? date('n')),
         'dataset' => (string) ($_GET['dataset'] ?? 'supplier_invoices'),
         'search' => trim((string) ($_GET['search'] ?? '')),
         'direction' => strtolower((string) ($_GET['direction'] ?? 'desc')) === 'asc' ? 'asc' : 'desc',
@@ -72,12 +76,15 @@ include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
 <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/cost-workbook-history.css?v=1">
-<main class="workspace cw-history-page" id="historicalCostRecords">
-    <header class="cw-history-header">
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/cost-workbook-pages.css?v=1">
+<main class="workspace cw-history-page cost-workbook-page" id="historicalCostRecords">
+    <header class="cw-history-header cw-hero">
         <div><p class="cw-history-eyebrow">Previous Landing Cost system · Read-only archive</p><h1>Historical Cost Records</h1><p>These records were created in the previous Landing Cost system. They are preserved for reference only and are not part of the current Cost Workbook. Historical records cannot be edited, recalculated, approved, synchronized or published.</p></div>
-        <div class="cw-history-header-actions"><span class="cw-history-readonly-badge">Read only</span><a class="cw-history-button" href="<?= BASE_URL ?>/apps/cost-manager/workbook.php">Return to Cost Workbook</a></div>
+        <div class="cw-history-header-actions"><span class="cw-history-readonly-badge">READ ONLY</span></div>
     </header>
+    <nav class="cw-steps" aria-label="Workbook sections"><?php foreach(cw_page_routes() as $routeKey=>$item): ?><a class="cw-section-link <?= $routeKey==='historical'?'is-active':'' ?>" <?= $routeKey==='historical'?'aria-current="page"':'' ?> href="<?= cw_page_url($item['route'],$period) ?>"><?= htmlspecialchars($item['label'],ENT_QUOTES,'UTF-8') ?></a><?php endforeach; ?></nav>
     <form class="cw-history-filters" method="get">
+        <input type="hidden" name="year" value="<?= (int) $period['year'] ?>"><input type="hidden" name="month" value="<?= (int) $period['month'] ?>">
         <label>Record type<select name="dataset"><?php foreach ($datasets as $value => $config): ?><option value="<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?>"<?= $selected === $value ? ' selected' : '' ?>><?= htmlspecialchars($config['label'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></label>
         <label>Search<input name="search" value="<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8') ?>" maxlength="100" placeholder="Search this historical section"></label>
         <label>Order<select name="direction"><option value="desc"<?= $direction === 'DESC' ? ' selected' : '' ?>>Newest first</option><option value="asc"<?= $direction === 'ASC' ? ' selected' : '' ?>>Oldest first</option></select></label>

@@ -13,7 +13,8 @@ require_pattern('/Confirmed shipments are immutable/',$api,'Confirmed shipment m
 require_pattern('/Only a confirmed calculation can be revised/',$api,'Revision source guard is missing.');
 require_pattern('/status=\'confirmed\'/',$api,'Calculation confirmation state is missing.');
 require_pattern('/unallocated_difference/',$api,'Confirmation reconciliation guard is missing.');
-require_pattern('/require_role\(\'owner_admin\', \'supervisor_manager\'\)/',$invoiceApi,'Invoice API role boundary changed unexpectedly.');
+require_pattern('/require_role\(\'owner_admin\'\)/',$invoiceApi,'Invoice API is not owner/admin-only.');
+reject_pattern('/require_role\(\'owner_admin\', \'supervisor_manager\'\)/',$invoiceApi,'Invoice API still permits supervisors.');
 reject_pattern('/wc_(?:post|put|delete)\s*\(/i',$api,'WooCommerce write helper found in Phase 2 API.');
 reject_pattern('/CURLOPT_CUSTOMREQUEST.{0,40}(?:POST|PUT|PATCH|DELETE)/is',$api,'HTTP write request found in Phase 2 API.');
 reject_pattern('/(?:UPDATE|INSERT INTO|DELETE FROM)\s+cw_product_snapshots/i',$api,'Snapshot mutation found in Phase 2 API.');
