@@ -1569,9 +1569,9 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             display: none;
         }
         .closing-card {
-            border: 1px solid var(--ledger-border);
+            border: 1px solid #f0e6e0;
             border-radius: 20px;
-            background: linear-gradient(135deg, rgba(114, 27, 26, .06), rgba(240, 116, 32, .08)), var(--ledger-white);
+            background: #fdf6ee;
             box-shadow: 0 14px 30px rgba(114, 27, 26, .08);
             padding: 22px;
             display: flex;
