@@ -1959,7 +1959,11 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
         .bk-drawer-body .bk-denom-row span {
             font-family: Figtree, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             font-size: 12px;
+            font-weight: 400;
             white-space: nowrap;
+        }
+        #tab-counter .denom-card > .bk-side-body .bk-counter-total strong {
+            font-weight: 400;
         }
         .bk-drawer-body .bk-denom-row input {
             width: 100%;
