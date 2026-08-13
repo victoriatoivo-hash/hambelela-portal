@@ -82,6 +82,7 @@ assert.match(viewer, /PREVIEW MODE/);
 assert.match(viewer, /\$isAdmin&&!\$preview/);
 assert.match(viewer, /Portal acknowledgement record/);
 assert.match(viewer, /EMPLOYEE ACKNOWLEDGEMENT/);
+assert.match(viewer, /policy-signature\.js\?v=20260813-json-response/);
 assert.match(signatureJs, /if\(cfg\.preview\)return/);
 assert.match(signatureJs, /PREVIEW COMPLETE/);
 assert.match(signatureJs, /No acknowledgement record was saved/);
