@@ -569,6 +569,7 @@ body.input-vat-dialog-open{overflow:hidden!important}
 #inputVatPage .accounts-status-control .portal-custom-select-value{font-weight:400;text-transform:none}
 #inputVatPage select.portal-custom-select-native{position:absolute;width:1px;height:1px;min-width:1px;min-height:1px;max-width:1px;max-height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 #inputVatPage .input-vat-active-period{box-sizing:border-box;display:inline-flex;width:max-content;height:var(--iv-control-height);min-height:var(--iv-control-height);align-items:center;gap:7px;padding:0 10px;border:1px solid #ede3d8;border-radius:var(--iv-radius);background:#fffaf5;color:#6b4c3b}
+#inputVatPage .input-vat-active-period{margin-top:8px}
 #inputVatPage .input-vat-active-period svg{grid-row:auto;width:14px;height:14px;flex:0 0 14px;color:#ab3619}
 #inputVatPage .input-vat-active-period span{font-size:11px;font-weight:600;letter-spacing:0;color:#6b4c3b;text-transform:none}
 #inputVatPage .accounts-hero p.input-vat-active-period .input-vat-active-period-label{font:600 11px/1.2 Figtree,system-ui,sans-serif;letter-spacing:0;color:#6b4c3b;text-transform:none}
