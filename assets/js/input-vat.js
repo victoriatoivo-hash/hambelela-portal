@@ -554,6 +554,8 @@
   function openPurchaseModal() {
     dialog.classList.remove('is-closing');
     lockPageScroll();
+    const modalBody = dialog.querySelector('.accounts-form-grid');
+    if (modalBody) modalBody.scrollTop = 0;
     dialog.showModal();
   }
 
