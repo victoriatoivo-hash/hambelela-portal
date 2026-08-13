@@ -94,6 +94,7 @@
   let ordersToolsBoardPositions = null;
   let ordersToolsWindowPosition = null;
   let hasRenderedOnce = false;
+  let hasInitialOrdersLoadCompleted = false;
   let previousOrderIds = new Set();
   let customColumns = [];
   let rowDragState = null;
@@ -1825,6 +1826,24 @@
     `).join('');
   }
 
+  function initialLoadingMarkup() {
+    return '<div class="orders-loading-state" role="status" aria-live="polite"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v6h-6"/></svg><strong>Loading orders...</strong><span>Getting the latest Orders Board data.</span></div>';
+  }
+
+  function showInitialLoadingState() {
+    if (body) body.innerHTML = initialLoadingMarkup();
+  }
+
+  function hasClientFilters() {
+    return [boardState.search, boardState.person, boardState.mode, boardState.payment, boardState.status, boardState.paid, boardState.minAmount, boardState.maxAmount, boardState.createdAfter, boardState.createdBefore]
+      .some((value) => String(value || '') !== '');
+  }
+
+  function renderInitialLoadError(error) {
+    if (!body) return;
+    body.innerHTML = `<div class="board-empty-state orders-load-error"><strong>Could not load orders.</strong><p>${esc(error?.message || 'Please try again.')}</p><div class="board-empty-actions"><button type="button" data-orders-retry>Retry</button></div></div>`;
+  }
+
   function animateBoardRows() {
     body.querySelectorAll('[data-order-id], [data-packing-id]').forEach((row) => {
       row.style.opacity = '';
@@ -2562,9 +2581,13 @@
     updateFilterBadge();
     renderMoreFilterChips();
     if (!visible.length) {
-      body.innerHTML = '<div class="board-empty-state"><p>Try adjusting your filters or date range.</p><div class="board-empty-actions"><button type="button" data-clear-board-filters>Clear Filters</button></div></div>';
+      body.innerHTML = hasClientFilters()
+        ? '<div class="board-empty-state orders-filter-empty"><strong>No orders match these filters.</strong><p>Try adjusting or clearing your filters.</p><div class="board-empty-actions"><button type="button" data-clear-board-filters>Clear filters</button></div></div>'
+        : '<div class="board-empty-state orders-data-empty"><strong>No orders found.</strong><p>There are currently no orders in this view.</p></div>';
       renderMobileCards([]);
       updateSelectionBar();
+      previousOrderIds = new Set(ordersCache.map((order) => String(order.id)));
+      hasRenderedOnce = true;
       return;
     }
 
@@ -4182,12 +4205,13 @@
   async function refresh(trigger = null, options = {}) {
     if (refreshInFlight) return refreshInFlight;
     const requestSequence = ++refreshSequence;
+    const background = options.background === true;
     const run = async () => {
     setButtonBusy(trigger, true);
+    if (!hasInitialOrdersLoadCompleted) showInitialLoadingState();
+    if (background && hasInitialOrdersLoadCompleted) page.classList.add('is-background-updating');
     try {
-      if (!hasRenderedOnce) showSkeletonRows();
       const params = boardDataParams();
-      const background = options.background === true;
       if (background && hasRenderedOnce && liveCursor) params.set('since', liveCursor);
       const response = await fetch(`${config.dataUrl}?${params.toString()}`, {
         credentials: 'same-origin',
@@ -4279,6 +4303,7 @@
       } else if (responseMode === 'snapshot') {
         const snapshotOrders = Array.isArray(payload.orders) ? payload.orders : data.orders;
         if (!Array.isArray(snapshotOrders)) throw new Error('Board snapshot is missing its orders array.');
+        hasInitialOrdersLoadCompleted = true;
         renderOrders(snapshotOrders);
       } else {
         throw new Error(`Board returned an unsupported response mode: ${responseMode || 'unknown'}.`);
@@ -4294,8 +4319,14 @@
       return data;
     } catch (error) {
       liveFailures += 1;
+      if (!hasInitialOrdersLoadCompleted) {
+        renderInitialLoadError(error);
+      } else if (syncState) {
+        syncState.textContent = 'Orders could not refresh. Existing data remains displayed.';
+      }
       throw error;
     } finally {
+      page.classList.remove('is-background-updating');
       setButtonBusy(trigger, false);
     }
     };
@@ -4657,6 +4688,7 @@
     const colCreate = event.target.closest('[data-col-create]');
     const dateAll = event.target.closest('[data-date-all]');
     const clearFilters = event.target.closest('[data-clear-board-filters]');
+    const retryOrders = event.target.closest('[data-orders-retry]');
     const toolbar = event.target.closest('[data-toolbar]');
     const toolbarAction = event.target.closest('[data-toolbar-action]');
     const editLabels = event.target.closest('[data-edit-labels]');
@@ -4672,6 +4704,11 @@
     const filterOption = event.target.closest('[data-orders-filter-option]');
 
     try {
+      if (retryOrders) {
+        event.preventDefault();
+        await refresh(retryOrders).catch(showError);
+        return;
+      }
       if (event.target === moreBackdrop || event.target.closest('[data-orders-more-close], [data-orders-more-cancel]')) {
         event.preventDefault();
         setMorePanelOpen(false);
@@ -5553,9 +5590,7 @@
     .finally(() => {
       refresh()
         .catch((error) => {
-          if (!hasRenderedOnce) {
-            body.innerHTML = `<div class="board-empty-state"><p>${esc(error.message)}</p></div>`;
-          }
+          if (!hasInitialOrdersLoadCompleted) renderInitialLoadError(error);
         })
         .finally(async () => {
           if (document.visibilityState !== 'hidden') {

@@ -17172,6 +17172,19 @@ button.hr-section-tab {
   font-weight: var(--font-weight-semibold);
 }
 
+/* Orders Board loading and non-destructive refresh states. */
+.ops-board-page .orders-loading-state{display:grid;min-height:110px;place-items:center;align-content:center;gap:7px;padding:32px 20px;color:#6b4c3b;text-align:center}
+.ops-board-page .orders-loading-state svg{width:24px;height:24px;fill:none;stroke:#ab3619;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;animation:orders-loading-spin .8s linear infinite}
+.ops-board-page .orders-loading-state strong{color:#721b1a;font-size:14px;font-weight:650}
+.ops-board-page .orders-loading-state span{color:#8b7163;font-size:11px;font-weight:450}
+.ops-board-page .orders-filter-empty::before,.ops-board-page .orders-data-empty::before,.ops-board-page .orders-load-error::before{content:none}
+.ops-board-page .board-empty-state>strong{display:block;color:var(--color-text-primary);font-size:15px;font-weight:var(--font-weight-semibold)}
+.ops-board-page.is-background-updating .orders-toolbar__sync-icon{animation:orders-loading-spin .8s linear infinite}
+.ops-board-page .monday-order-row.row-new{animation:orders-new-row 1.1s ease-out}
+@keyframes orders-loading-spin{to{transform:rotate(360deg)}}
+@keyframes orders-new-row{from{background:#f1f8ed}to{background:inherit}}
+@media(prefers-reduced-motion:reduce){.ops-board-page .orders-loading-state svg,.ops-board-page.is-background-updating .orders-toolbar__sync-icon,.ops-board-page .monday-order-row.row-new{animation:none!important}}
+
 .board-card-list {
   display: none;
 }
