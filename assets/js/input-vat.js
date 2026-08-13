@@ -203,7 +203,7 @@
 
   function purchaseRow(r) {
     const attachments = r.attachments.map((a) => `<span><a href="${esc(a.view_url)}" target="_blank">${esc(a.name)}</a> <a href="${esc(a.download_url)}" title="Download" aria-label="Download ${esc(a.name)}"><i data-lucide="download" aria-hidden="true"></i></a>${a.can_delete ? ` <button data-delete-file="${a.id}" type="button" aria-label="Remove attachment"><i data-lucide="x" aria-hidden="true"></i></button>` : ''}</span>`).join('') || '—';
-    const actions = `${r.can_edit ? `<button type="button" data-edit="${r.id}" title="Edit" aria-label="Edit purchase"><i data-lucide="pencil" aria-hidden="true"></i></button>` : ''}${r.can_review ? `<button type="button" data-review="${r.id}" title="Review" aria-label="Review purchase"><i data-lucide="circle-check" aria-hidden="true"></i></button><button type="button" data-audit="${r.id}" title="History" aria-label="View history"><i data-lucide="history" aria-hidden="true"></i></button>` : ''}${r.can_delete ? `<button type="button" data-delete="${r.id}" title="Delete" aria-label="Delete purchase"><i data-lucide="trash-2" aria-hidden="true"></i></button>` : ''}`;
+    const actions = `${r.can_edit ? `<button type="button" data-edit="${r.id}" title="Edit" aria-label="Edit purchase"><i data-lucide="pencil" aria-hidden="true"></i></button>` : ''}${r.can_view_audit ? `<button type="button" data-audit="${r.id}" title="History" aria-label="View history"><i data-lucide="history" aria-hidden="true"></i></button>` : ''}${r.can_delete ? `<button type="button" data-delete="${r.id}" title="Delete" aria-label="Delete purchase"><i data-lucide="trash-2" aria-hidden="true"></i></button>` : ''}`;
     return `<tr class="${Number(r.id) === Number(refreshRowId) ? 'input-vat-row-highlight' : ''}"><td><time datetime="${esc(r.purchase_date)}">${esc(dateLabel(r.purchase_date))}</time></td><td>${esc(r.supplier)}</td><td>${esc(r.description)}</td><td class="money">${money(r.inclusive)}</td><td class="money vat-money">${money(r.vat)}</td><td class="money">${money(r.exclusive)}</td><td><div class="attachment-list">${attachments}</div></td><td>${esc(r.entered_by)}</td><td><span class="status-pill ${esc(r.review_status)}">${esc(r.review_status.replaceAll('_', ' '))}</span>${r.review_note ? `<small title="${esc(r.review_note)}"> · note</small>` : ''}</td><td><div class="row-actions">${actions}</div></td></tr>`;
   }
 
@@ -267,7 +267,7 @@
 
   function premiumPurchaseRow(r) {
     const attachments = r.attachments.map((a) => `<span><a href="${esc(a.view_url)}" target="_blank">${esc(a.name)}</a> <a href="${esc(a.download_url)}" title="Download" aria-label="Download ${esc(a.name)}"><i data-lucide="download" aria-hidden="true"></i></a>${a.can_delete ? ` <button data-delete-file="${a.id}" type="button" aria-label="Remove attachment"><i data-lucide="x" aria-hidden="true"></i></button>` : ''}</span>`).join('') || '&mdash;';
-    const actions = `${r.can_edit ? `<button type="button" data-edit="${r.id}" title="Edit" aria-label="Edit purchase"><i data-lucide="pencil" aria-hidden="true"></i></button>` : ''}${r.can_review ? `<button type="button" data-review="${r.id}" title="Review" aria-label="Review purchase"><i data-lucide="circle-check" aria-hidden="true"></i></button><button type="button" data-audit="${r.id}" title="History" aria-label="View history"><i data-lucide="history" aria-hidden="true"></i></button>` : ''}${r.can_delete ? `<button type="button" data-delete="${r.id}" title="Delete" aria-label="Delete purchase"><i data-lucide="trash-2" aria-hidden="true"></i></button>` : ''}`;
+    const actions = `${r.can_edit ? `<button type="button" data-edit="${r.id}" title="Edit" aria-label="Edit purchase"><i data-lucide="pencil" aria-hidden="true"></i></button>` : ''}${r.can_view_audit ? `<button type="button" data-audit="${r.id}" title="History" aria-label="View history"><i data-lucide="history" aria-hidden="true"></i></button>` : ''}${r.can_delete ? `<button type="button" data-delete="${r.id}" title="Delete" aria-label="Delete purchase"><i data-lucide="trash-2" aria-hidden="true"></i></button>` : ''}`;
     return `<tr class="${Number(r.id) === Number(refreshRowId) ? 'input-vat-row-highlight' : ''}"><td><time datetime="${esc(r.purchase_date)}">${esc(dateLabel(r.purchase_date))}</time></td><td>${esc(r.supplier)}${r.invoice_reference ? `<small class="input-vat-cell-meta">Ref: ${esc(r.invoice_reference)}</small>` : ''}</td><td>${esc(r.description)}</td><td class="money">${money(r.inclusive)}</td><td class="money vat-money">${money(r.vat)}</td><td class="money">${money(r.exclusive)}</td><td><div class="attachment-list">${attachments}</div></td><td>${esc(r.entered_by)}${currentView === 'history' ? `<small class="input-vat-cell-meta">Captured ${esc(r.captured_at)}</small>` : ''}</td><td><span class="status-pill ${esc(r.review_status)}">${esc(r.review_status.replaceAll('_', ' '))}</span>${r.review_note ? `<small title="${esc(r.review_note)}"> &middot; note</small>` : ''}</td><td><div class="row-actions">${actions}</div></td></tr>`;
   }
 
@@ -289,7 +289,7 @@
     $('[data-totals]').innerHTML = `<tr><td colspan="3">Totals</td><td>${money(s.inclusive)}</td><td>${money(s.vat)}</td><td>${money(s.exclusive)}</td><td colspan="4"></td></tr>`;
 
     $('[data-rows]').innerHTML = rows.length
-      ? rows.map((r) => `<tr class="${Number(r.id) === Number(refreshRowId) ? 'input-vat-row-highlight' : ''}"><td><time datetime="${esc(r.purchase_date)}">${esc(dateLabel(r.purchase_date))}</time></td><td>${esc(r.supplier)}</td><td>${esc(r.description)}</td><td class="money">${money(r.inclusive)}</td><td class="money vat-money">${money(r.vat)}</td><td class="money">${money(r.exclusive)}</td><td><div class="attachment-list">${(r.attachments.map((a) => `<span><a href="${esc(a.view_url)}" target="_blank">${esc(a.name)}</a> <a href="${esc(a.download_url)}" title="Download">?</a>${a.can_delete ? ` <button data-delete-file="${a.id}" type="button" aria-label="Remove attachment">×</button>` : ''}</span>`).join('')) || '—'}</div></td><td>${esc(r.entered_by)}</td><td><span class="status-pill ${esc(r.review_status)}">${esc(r.review_status.replaceAll('_', ' '))}</span>${r.review_note ? `<small title="${esc(r.review_note)}"> · note</small>` : ''}</td><td><div class="row-actions">${r.can_edit ? '<button type="button" data-edit="' + r.id + '" title="Edit" aria-label="Edit purchase">?</button>' : ''}${r.can_review ? '<button type="button" data-review="' + r.id + '" title="Review" aria-label="Review purchase">?</button>' : ''}${r.can_review ? '<button type="button" data-audit="' + r.id + '" title="History" aria-label="View history">?</button>' : ''}${r.can_delete ? '<button type="button" data-delete="' + r.id + '" title="Delete" aria-label="Delete purchase">-</button>' : ''}</div></td></tr>`).join('')
+      ? rows.map((r) => `<tr class="${Number(r.id) === Number(refreshRowId) ? 'input-vat-row-highlight' : ''}"><td><time datetime="${esc(r.purchase_date)}">${esc(dateLabel(r.purchase_date))}</time></td><td>${esc(r.supplier)}</td><td>${esc(r.description)}</td><td class="money">${money(r.inclusive)}</td><td class="money vat-money">${money(r.vat)}</td><td class="money">${money(r.exclusive)}</td><td><div class="attachment-list">${(r.attachments.map((a) => `<span><a href="${esc(a.view_url)}" target="_blank">${esc(a.name)}</a> <a href="${esc(a.download_url)}" title="Download">?</a>${a.can_delete ? ` <button data-delete-file="${a.id}" type="button" aria-label="Remove attachment">×</button>` : ''}</span>`).join('')) || '—'}</div></td><td>${esc(r.entered_by)}</td><td><span class="status-pill ${esc(r.review_status)}">${esc(r.review_status.replaceAll('_', ' '))}</span>${r.review_note ? `<small title="${esc(r.review_note)}"> · note</small>` : ''}</td><td><div class="row-actions">${r.can_edit ? '<button type="button" data-edit="' + r.id + '" title="Edit" aria-label="Edit purchase">?</button>' : ''}${r.can_view_audit ? '<button type="button" data-audit="' + r.id + '" title="History" aria-label="View history">?</button>' : ''}${r.can_delete ? '<button type="button" data-delete="' + r.id + '" title="Delete" aria-label="Delete purchase">-</button>' : ''}</div></td></tr>`).join('')
       : `<tr><td class="empty-row" colspan="10"><div class="table-empty-state"><span aria-hidden="true">?</span><strong>No Input VAT purchases for ${esc(selectedMonthLabel())}.</strong><p>Switch the month or start capturing with Add Purchase.</p><button type="button" class="portal-button portal-button--primary" data-add-purchase><span class="portal-button__icon" aria-hidden="true">+</span> Add Purchase</button></div></td></tr>`;
 
     $('[data-rows]').innerHTML = rows.length ? rows.map(premiumPurchaseRow).join('') : emptyTableRow();
@@ -527,7 +527,6 @@
 
   page.addEventListener('click', async (event) => {
     const edit = event.target.closest('[data-edit]');
-    const review = event.target.closest('[data-review]');
     const audit = event.target.closest('[data-audit]');
     const del = event.target.closest('[data-delete]');
     const deleteFile = event.target.closest('[data-delete-file]');
@@ -547,17 +546,6 @@
       buildPreview();
       updateMonthWarning();
       openPurchaseModal();
-      return;
-    }
-
-    if (review) {
-      const row = rows.find((x) => x.id === Number(review.dataset.review));
-      if (!row) return;
-      const reviewForm = $('[data-review-form]');
-      reviewForm.elements.id.value = row.id;
-      reviewForm.elements.review_status.value = row.review_status;
-      reviewForm.elements.review_note.value = row.review_note;
-      $('[data-review-dialog]').showModal();
       return;
     }
 
@@ -764,26 +752,12 @@
     });
   }
 
-  $('[data-review-form]').addEventListener('submit', async (event) => {
-    event.preventDefault();
-    try {
-      await request('review', Object.fromEntries(new FormData(event.currentTarget)));
-      $('[data-review-dialog]').close();
-      await load();
-      showToast('Review saved.');
-    } catch (error) {
-      $('[data-review-message]').textContent = error.message;
-      showToast(error.message, 'error');
-    }
-  });
-
   buildPreview();
   updateActivePeriodLabel();
   load();
   setInterval(() => {
     if (dialog.open) return;
     if (owner && $('[data-rate-dialog]')?.open) return;
-    if ($('[data-review-dialog]')?.open) return;
     load(true);
   }, 60000);
 })();

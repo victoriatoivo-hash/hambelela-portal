@@ -67,7 +67,7 @@ include BASE_PATH.'/shared/sidebar.php';
   <section class="accounts-toolbar" aria-label="Input VAT working filters" data-monthly-toolbar>
     <input type="hidden" data-month value="<?=date('Y-m')?>">
     <label class="accounts-search-control"><span>Search</span><span class="input-vat-search-field"><i data-lucide="search" aria-hidden="true"></i><input type="search" data-search placeholder="Search supplier, description or reference"></span></label>
-    <label class="accounts-status-control"><span>Status</span><select data-status data-portal-custom-select data-portal-select-variant="input-vat"><option value="">All statuses</option><option value="captured">Captured</option><option value="reviewed">Reviewed</option><option value="needs_correction">Needs Correction</option></select></label>
+    <label class="accounts-status-control"><span>Status</span><select data-status data-portal-custom-select data-portal-select-variant="input-vat"><option value="">All records</option><option value="captured">Captured</option><option value="needs_correction">Needs Correction</option></select></label>
   </section>
 
   <?php if(accounts_is_owner()): ?>
@@ -189,23 +189,6 @@ include BASE_PATH.'/shared/sidebar.php';
 
   <dialog class="accounts-dialog" data-duplicate-dialog>
     <form method="dialog"><header><div><p class="eyebrow">Duplicate check</p><h2>Possible duplicate purchase</h2></div><button value="cancel" aria-label="Close">&times;</button></header><p>The same date, supplier and amount already exist. Review before saving again.</p><div data-duplicate-matches></div><footer><button value="cancel" class="portal-button portal-button--ghost">Cancel</button><button type="button" class="portal-button portal-button--primary" data-save-duplicate>Save Anyway</button></footer></form>
-  </dialog>
-
-  <dialog class="accounts-dialog accounts-review-dialog" data-review-dialog>
-    <form method="dialog" data-review-form>
-      <header>
-        <h2>Review purchase</h2>
-        <button value="cancel" aria-label="Close">&times;</button>
-      </header>
-      <input type="hidden" name="id">
-      <label>Status<select name="review_status" data-portal-custom-select data-portal-select-variant="input-vat"><option value="reviewed">Reviewed</option><option value="needs_correction">Needs Correction</option><option value="captured">Captured</option></select></label>
-      <label>Reason / note<textarea name="review_note"></textarea></label>
-      <p data-review-message></p>
-      <footer>
-        <button value="cancel" class="portal-button portal-button--ghost">Cancel</button>
-        <button type="submit" class="portal-button portal-button--primary">Save Review</button>
-      </footer>
-    </form>
   </dialog>
 
   <dialog class="accounts-dialog" data-audit-dialog>

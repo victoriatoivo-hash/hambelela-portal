@@ -357,28 +357,6 @@ try {
         }
     }
 
-    if ($action === 'review') {
-        if (!accounts_is_owner()) throw new RuntimeException('Only the owner can review purchases.');
-        $id = (int) ($_POST['id'] ?? 0);
-        $before = accounts_purchase($id);
-        $status = (string) ($_POST['review_status'] ?? '');
-        $note = trim((string) ($_POST['review_note'] ?? ''));
-
-        if (!$before || !in_array($status, ['captured', 'reviewed', 'needs_correction'], true)) throw new RuntimeException('Choose a valid review status.');
-        if ($status === 'needs_correction' && $note === '') throw new RuntimeException('A correction reason is required.');
-
-        db()->prepare('UPDATE accounts_input_vat_purchases SET review_status=?,review_note=?,reviewed_by=?,reviewed_at=NOW() WHERE id=?')->execute([
-            $status,
-            $note,
-            (int) (current_user()['id'] ?? 0),
-            $id,
-        ]);
-
-        $after = accounts_purchase($id);
-        accounts_audit($id, 'reviewed', $before, $after);
-        iv_reply(['ok' => true, 'row' => accounts_purchase_payload($after), 'message' => 'Review saved.']);
-    }
-
     if ($action === 'delete') {
         if (!accounts_is_owner()) throw new RuntimeException('Only the owner can delete purchases.');
         $id = (int) ($_POST['id'] ?? 0);
