@@ -475,6 +475,8 @@ body.input-vat-dialog-open{overflow:hidden!important}
 /* Input VAT owner-requested header and type scale. */
 #inputVatPage .accounts-hero-copy>p:not(.eyebrow):not(.input-vat-active-period){font-size:11px}
 #inputVatPage .accounts-hero-copy>.input-vat-active-period{margin-top:10px}
+#inputVatPage .accounts-hero{margin-bottom:0}
+#inputVatPage .accounts-hero+.accounts-summary{margin-top:-6px}
 #inputVatPage .accounts-summary article strong{font-size:12px}
 #inputVatPage .accounts-breakdowns h2{font-size:16px}
 
