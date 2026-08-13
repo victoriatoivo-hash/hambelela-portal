@@ -4704,6 +4704,18 @@ textarea {
 .portal-toast-actions button { min-height: 28px; padding: 0 10px; border: 1px solid rgba(171,54,25,.22); border-radius: 8px; background: #FFFFFF; color: #AB3619; font: 600 10px/1 Figtree,sans-serif; cursor: pointer; }
 .portal-toast-actions button:last-child { border-color: #AB3619; background: #AB3619; color: #FFFFFF; }
 
+/* Error Log: make a newly saved record easy to locate after the targeted refresh. */
+.error-log-page .error-board-row--just-saved {
+  animation: error-log-saved-row 3.4s ease-out both;
+}
+@keyframes error-log-saved-row {
+  0%, 28% { background: #f7fbea; box-shadow: inset 4px 0 0 #a8ca19; }
+  100% { background: transparent; box-shadow: inset 4px 0 0 transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .error-board-row--just-saved { animation: none !important; background: #f7fbea; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .task-section__toggle svg { transition: none; }
 }

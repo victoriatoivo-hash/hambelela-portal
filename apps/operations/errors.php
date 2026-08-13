@@ -64,6 +64,15 @@ function error_try_sql(string $sql): void
 
 function error_log_redirect(string $message, string $type = 'success', string $query = ''): void
 {
+    if (strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest') {
+        http_response_code($type === 'error' ? 422 : 200);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'success' => $type !== 'error',
+            'message' => $message,
+        ], JSON_UNESCAPED_SLASHES);
+        exit;
+    }
     $_SESSION['error_log_flash'] = [
         'type' => $type,
         'message' => $message,
@@ -72,6 +81,27 @@ function error_log_redirect(string $message, string $type = 'success', string $q
     $location = BASE_URL . '/apps/operations/errors.php' . $query;
     header('Location: ' . $location, true, 303);
     exit;
+}
+
+function error_log_created_response(int $errorId, string $status, string $occurredAt, string $occurredOn, string $submissionToken, array $warnings = []): void
+{
+    $payload = [
+        'success' => true,
+        'message' => 'Error logged successfully',
+        'error_id' => $errorId,
+        'status' => $status,
+        'occurred_at' => $occurredAt,
+        'occurred_on' => $occurredOn,
+        'submission_token' => $submissionToken,
+        'saved_url' => BASE_URL . '/apps/operations/errors.php?error_id=' . $errorId,
+        'warnings' => array_values($warnings),
+    ];
+    if (strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest') {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode($payload, JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+    error_log_redirect('Error logged and added to performance tracking.', 'success', '?saved=1&error_id=' . $errorId);
 }
 
 function error_column_exists(string $column): bool
@@ -464,19 +494,35 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             db()->commit();
             $errorPostTransaction = false;
             $errorPostUploadedFiles = [];
-            $eventMeta=['severity'=>$severity,'category'=>$category,'occurred_on'=>$occurredOn,'occurred_at'=>$occurredAt,'created_at'=>gmdate('Y-m-d H:i:s'),'logged_by_user_id'=>(int)(current_user()['id']??0),'logged_by_employee_id'=>$currentEmployeeId,'attribution_type'=>$attributionType,'attributed_employee_id'=>$responsibleEmployeeId,'has_financial_impact'=>$hasFinancialImpact,'financial_impact_amount'=>$financialImpact,'kpi_eligible'=>$attributionType==='employee'&&$accuracyVerified,'business_health_eligible'=>true];
-            ops_activity_log('error_logged','error_log',$errorId,$eventMeta);ops_kpi_record_event('error_log','error',$errorId,'error_created',null,$attributionType,$currentEmployeeId,['metadata'=>$eventMeta]);ops_kpi_record_event('error_log','error',$errorId,'attribution_selected',null,$attributionType,$currentEmployeeId,['metadata'=>$eventMeta]);ops_kpi_record_event('error_log','error',$errorId,'financial_impact_selected',null,$hasFinancialImpact?'yes':'no',$currentEmployeeId,['metadata'=>$eventMeta]);
-            notifications_create_for_roles([
-                'title' => $severity === 'critical' ? 'Critical error logged' : 'New error logged',
-                'message' => $title,
-                'module' => 'errors',
-                'priority' => $severity === 'critical' ? 'urgent' : ($severity === 'high' ? 'important' : 'normal'),
-                'related_type' => 'error_log',
-                'related_id' => $errorId,
-                'action_link' => BASE_URL . '/apps/operations/errors.php?error_id=' . $errorId,
-            ], ['owner_admin', 'front_desk_admin', 'supervisor_manager']);
             unset($_SESSION['incident_submission_token']);
-            error_log_redirect('Error logged and added to performance tracking.', 'success', '?saved=1');
+            $_SESSION['incident_submission_token'] = bin2hex(random_bytes(32));
+            $nextSubmissionToken = (string) $_SESSION['incident_submission_token'];
+            $eventMeta=['severity'=>$severity,'category'=>$category,'occurred_on'=>$occurredOn,'occurred_at'=>$occurredAt,'created_at'=>gmdate('Y-m-d H:i:s'),'logged_by_user_id'=>(int)(current_user()['id']??0),'logged_by_employee_id'=>$currentEmployeeId,'attribution_type'=>$attributionType,'attributed_employee_id'=>$responsibleEmployeeId,'has_financial_impact'=>$hasFinancialImpact,'financial_impact_amount'=>$financialImpact,'kpi_eligible'=>$attributionType==='employee'&&$accuracyVerified,'business_health_eligible'=>true];
+            $postCommitWarnings = [];
+            try {
+                ops_activity_log('error_logged','error_log',$errorId,$eventMeta);
+                ops_kpi_record_event('error_log','error',$errorId,'error_created',null,$attributionType,$currentEmployeeId,['metadata'=>$eventMeta]);
+                ops_kpi_record_event('error_log','error',$errorId,'attribution_selected',null,$attributionType,$currentEmployeeId,['metadata'=>$eventMeta]);
+                ops_kpi_record_event('error_log','error',$errorId,'financial_impact_selected',null,$hasFinancialImpact?'yes':'no',$currentEmployeeId,['metadata'=>$eventMeta]);
+            } catch (Throwable $evidenceError) {
+                error_log('Error Log post-commit evidence failure for error ' . $errorId . ': ' . $evidenceError->getMessage());
+                $postCommitWarnings[] = 'The error was saved, but supporting activity evidence needs owner review.';
+            }
+            try {
+                notifications_create_for_roles([
+                    'title' => $severity === 'critical' ? 'Critical error logged' : 'New error logged',
+                    'message' => $title,
+                    'module' => 'errors',
+                    'priority' => $severity === 'critical' ? 'urgent' : ($severity === 'high' ? 'important' : 'normal'),
+                    'related_type' => 'error_log',
+                    'related_id' => $errorId,
+                    'action_link' => BASE_URL . '/apps/operations/errors.php?error_id=' . $errorId,
+                ], ['owner_admin', 'front_desk_admin', 'supervisor_manager']);
+            } catch (Throwable $notificationError) {
+                error_log('Error Log post-commit notification failure for error ' . $errorId . ': ' . $notificationError->getMessage());
+                $postCommitWarnings[] = 'The error was saved, but its notification needs owner review.';
+            }
+            error_log_created_response($errorId, $status, $occurredAt, $occurredOn, $nextSubmissionToken, $postCommitWarnings);
         }
 
         if ($action === 'update_error') {
@@ -677,7 +723,11 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $absoluteUploadedPath = BASE_PATH . '/' . ltrim((string) $uploadedPath, '/');
             if (is_file($absoluteUploadedPath)) @unlink($absoluteUploadedPath);
         }
-        error_log_redirect($e->getMessage(), 'error', '?form_error=1');
+        error_log('Error Log request failed: ' . get_class($e) . ': ' . $e->getMessage());
+        $publicMessage = $e instanceof RuntimeException && !($e instanceof PDOException)
+            ? $e->getMessage()
+            : 'Error could not be saved. Please try again or ask the owner to review the Error Log server log.';
+        error_log_redirect($publicMessage, 'error', '?form_error=1');
     }
 }
 
@@ -1459,6 +1509,7 @@ async function loadErrorFilterView(url, options = {}) {
     updateErrorFilterToolbar(nextDocument);
     if (options.push !== false) history.pushState({ errorFilters: true }, '', url);
     if (feedback) feedback.textContent = 'Filters applied.';
+    return true;
   } catch (error) {
     if (error?.name === 'AbortError') return;
     const results = document.querySelector('[data-error-results]');
@@ -1471,6 +1522,7 @@ async function loadErrorFilterView(url, options = {}) {
     }
     if (failure) failure.innerHTML = '<strong>Could not load filtered Error Log records.</strong><span>Retry or clear the filters.</span>';
     if (feedback) feedback.textContent = error?.message || 'Could not load filtered Error Log records. Retry.';
+    return false;
   } finally {
     if (sequence === errorFilterSequence && applyButton) { applyButton.disabled = false; applyButton.removeAttribute('aria-busy'); }
   }
@@ -2140,7 +2192,7 @@ document.getElementById('logErrorForm')?.addEventListener('change', function(eve
   if (input.name === 'status') document.getElementById('status-group-error')?.remove();
 });
 
-document.getElementById('logErrorForm')?.addEventListener('submit', function(event) {
+document.getElementById('logErrorForm')?.addEventListener('submit', async function(event) {
   const severityValue = this.querySelector('[name="severity"]:checked');
   const severityControl = this.querySelector('[name="severity"]');
   const statusValue = this.querySelector('[name="status"]:checked');
@@ -2214,10 +2266,80 @@ document.getElementById('logErrorForm')?.addEventListener('submit', function(eve
   }
 
   const saveButton = this.querySelector('[type="submit"]');
+  if (this.elements.action?.value !== 'create_error') {
+    if (saveButton) {
+      saveButton.disabled = true;
+      saveButton.dataset.originalText = saveButton.textContent;
+      saveButton.textContent = 'Saving...';
+    }
+    return;
+  }
+
+  event.preventDefault();
+  if (this.dataset.saving === '1') return;
+  this.dataset.saving = '1';
   if (saveButton) {
     saveButton.disabled = true;
     saveButton.dataset.originalText = saveButton.textContent;
     saveButton.textContent = 'Saving...';
+  }
+
+  try {
+    const response = await fetch(this.getAttribute('action') || window.location.href, {
+      method: 'POST',
+      body: new FormData(this),
+      credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+    });
+    const result = await response.json().catch(() => null);
+    if (!response.ok || result?.success !== true) {
+      throw new Error(result?.message || 'Error could not be saved. Please try again.');
+    }
+
+    const savedId = String(result.error_id || '');
+    const panel = document.querySelector('[data-error-modal-panel]');
+    const backdrop = document.querySelector('.error-panel-backdrop');
+    panel?.classList.remove('open');
+    if (backdrop) backdrop.hidden = true;
+    document.body.classList.remove('error-panel-open');
+    this.reset();
+    if (result.submission_token) this.elements.submission_token.value = result.submission_token;
+    resetErrorEvidenceFiles();
+    setIncidentCategoryValue('');
+    setErrorAttribution('', '');
+    setFinancialImpactChoice(null, '', '');
+    setIncidentRadioValue('status', 'open');
+    setIncidentRadioValue('repeat_issue', 0);
+
+    const refreshed = await loadErrorFilterView(window.location.href, { push: false });
+    const savedRow = savedId ? document.querySelector(`[data-error-open="${savedId}"]`) : null;
+    if (savedRow) {
+      savedRow.classList.add('error-board-row--just-saved');
+      savedRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      window.setTimeout(() => savedRow.classList.remove('error-board-row--just-saved'), 3600);
+      window.showPortalToast?.({ title: 'Error Log', message: 'Error logged successfully', type: 'success' });
+    } else {
+      const toastResult = window.showPortalToast?.({
+        title: 'Error logged successfully',
+        message: refreshed === false ? 'The error was saved, but the list could not refresh.' : 'The saved error is hidden by the current filters.',
+        type: 'success',
+        duration: 9000,
+        actionsHtml: '<div class="portal-toast-actions"><button type="button" data-error-clear-after-save>Clear filters</button><button type="button" data-error-view-after-save>View saved error</button></div>'
+      });
+      toastResult?.toast?.querySelector('[data-error-clear-after-save]')?.addEventListener('click', () => loadErrorFilterView('errors.php'));
+      toastResult?.toast?.querySelector('[data-error-view-after-save]')?.addEventListener('click', () => {
+        if (result.saved_url) window.location.assign(result.saved_url);
+      });
+    }
+    (result.warnings || []).forEach((warning) => window.showPortalToast?.({ title: 'Owner review needed', message: warning, type: 'warning', duration: 8000 }));
+  } catch (error) {
+    window.showPortalToast?.({ title: 'Error Log', message: error?.message || 'Error could not be saved. Please try again.', type: 'error', duration: 8000 });
+  } finally {
+    this.dataset.saving = '0';
+    if (saveButton) {
+      saveButton.disabled = false;
+      saveButton.textContent = saveButton.dataset.originalText || 'Save Issue';
+    }
   }
 });
 
