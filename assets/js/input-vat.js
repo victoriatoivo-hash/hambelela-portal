@@ -52,6 +52,67 @@
   let currentView = 'monthly';
   let timer;
   let refreshRowId = null;
+  let historyMutationInProgress = false;
+  const historyFilters = [
+    {key: 'search', selector: '[data-history-search]', label: 'Search'},
+    {key: 'month', selector: '[data-history-month]', label: 'Month', format: monthLabel},
+    {key: 'status', selector: '[data-history-status]', label: 'Status', option: true},
+    {key: 'from', selector: '[data-history-from]', label: 'From', format: dateLabel, advanced: true},
+    {key: 'to', selector: '[data-history-to]', label: 'To', format: dateLabel, advanced: true},
+    {key: 'entered_by', selector: '[data-history-entered-by]', label: 'Entered by', advanced: true},
+    {key: 'manual', selector: '[data-history-manual]', label: 'Adjustment', option: true, advanced: true},
+  ];
+
+  function historyFilterValue(definition) {
+    const control = $(definition.selector);
+    const value = String(control?.value || '').trim();
+    if (!value) return '';
+    if (definition.option) return control.options[control.selectedIndex]?.text || value;
+    return definition.format ? definition.format(value) : value;
+  }
+
+  function activeHistoryFilters() {
+    return historyFilters.map((definition) => ({definition, value: historyFilterValue(definition)})).filter((item) => item.value);
+  }
+
+  function renderHistoryFilterState() {
+    const active = activeHistoryFilters();
+    const advancedCount = active.filter((item) => item.definition.advanced).length;
+    const count = $('[data-history-filter-count]');
+    const chips = $('[data-history-chips]');
+    if (count) {
+      count.textContent = String(advancedCount);
+      count.hidden = advancedCount === 0;
+    }
+    if (!chips) return;
+    chips.hidden = active.length === 0;
+    chips.innerHTML = active.length ? `${active.map(({definition, value}) => `<button type="button" class="input-vat-history-chip" data-history-remove="${esc(definition.key)}" aria-label="Remove ${esc(definition.label)} filter"><span>${esc(definition.label)}: ${esc(value)}</span><i data-lucide="x" aria-hidden="true"></i></button>`).join('')}<button type="button" class="input-vat-history-clear-link" data-history-clear>Clear all</button>` : '';
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  function setHistoryFilter(key, value = '') {
+    const definition = historyFilters.find((item) => item.key === key);
+    const control = definition ? $(definition.selector) : null;
+    if (!control) return;
+    historyMutationInProgress = true;
+    control.value = value;
+    control.dispatchEvent(new Event('change', {bubbles: true}));
+    historyMutationInProgress = false;
+  }
+
+  function clearHistoryFilters() {
+    historyFilters.forEach((definition) => setHistoryFilter(definition.key));
+    renderHistoryFilterState();
+  }
+
+  function setHistoryAdvancedOpen(open) {
+    const panel = $('[data-history-advanced]');
+    const button = $('[data-history-more]');
+    if (!panel || !button) return;
+    panel.hidden = !open;
+    button.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) panel.querySelector('input,select,button')?.focus({preventScroll: true});
+  }
 
   function updateActivePeriodLabel() {
     const kicker = $('[data-active-period-kicker]');
@@ -227,8 +288,8 @@
   }
 
   function emptyTableRow() {
-    const label = currentView === 'history' ? 'these history filters' : selectedMonthLabel();
-    return `<tr><td class="empty-row" colspan="10"><div class="table-empty-state"><i data-lucide="notebook-tabs" aria-hidden="true"></i><strong>No Input VAT purchases for ${esc(label)}</strong><p>${currentView === 'history' ? 'Adjust the filters to broaden the transaction history.' : 'You have not captured any purchases for this period yet.'}</p>${currentView === 'monthly' ? '<button type="button" class="portal-button portal-button--primary" data-add-purchase><span class="portal-button__icon" aria-hidden="true">+</span> Add Purchase</button>' : ''}</div></td></tr>`;
+    if (currentView === 'history') return '<tr><td class="empty-row" colspan="10"><div class="table-empty-state"><i data-lucide="notebook-tabs" aria-hidden="true"></i><strong>No Input VAT records match these filters.</strong><p>Adjust or clear the filters to broaden Transaction History.</p><button type="button" class="portal-button portal-button--secondary" data-history-clear>Clear filters</button></div></td></tr>';
+    return `<tr><td class="empty-row" colspan="10"><div class="table-empty-state"><i data-lucide="notebook-tabs" aria-hidden="true"></i><strong>No Input VAT purchases for ${esc(selectedMonthLabel())}</strong><p>You have not captured any purchases for this period yet.</p><button type="button" class="portal-button portal-button--primary" data-add-purchase><span class="portal-button__icon" aria-hidden="true">+</span> Add Purchase</button></div></td></tr>`;
   }
 
   function syncView() {
@@ -241,6 +302,7 @@
     $('[data-month-workspace]').hidden = currentView !== 'monthly';
     $('[data-monthly-toolbar]').hidden = currentView !== 'monthly';
     if ($('[data-history-toolbar]')) $('[data-history-toolbar]').hidden = currentView !== 'history';
+    if (currentView !== 'history') setHistoryAdvancedOpen(false);
     page.querySelectorAll('[data-monthly-section]').forEach((section) => { section.hidden = currentView !== 'monthly'; });
     updateActivePeriodLabel();
   }
@@ -315,6 +377,7 @@
     renderMonthWorkspace(j.capture_progress || []);
     if (j.historical_capture_start_date) { page.dataset.captureStart = j.historical_capture_start_date; form.elements.purchase_date.min = j.historical_capture_start_date; }
     syncView();
+    renderHistoryFilterState();
     if (window.lucide) window.lucide.createIcons();
   }
 
@@ -724,9 +787,42 @@
     timer = setTimeout(() => load(), 250);
   };
 
-  page.querySelectorAll('[data-history-month],[data-history-from],[data-history-to],[data-history-search],[data-history-entered-by],[data-history-status],[data-history-manual]').forEach((element) => {
-    const refresh=()=>{ clearTimeout(timer); timer=setTimeout(()=>load(), element.matches('input')?250:0); };
+  page.querySelectorAll('[data-history-month],[data-history-search],[data-history-status]').forEach((element) => {
+    const refresh=()=>{ if (historyMutationInProgress) return; clearTimeout(timer); timer=setTimeout(()=>load(), element.matches('input')?250:0); };
     element.addEventListener(element.matches('input')?'input':'change',refresh);
+    element.addEventListener(element.matches('input')?'input':'change',renderHistoryFilterState);
+  });
+
+  page.addEventListener('click', (event) => {
+    const more = event.target.closest('[data-history-more]');
+    if (more) {
+      setHistoryAdvancedOpen(more.getAttribute('aria-expanded') !== 'true');
+      return;
+    }
+    const apply = event.target.closest('[data-history-apply]');
+    if (apply) {
+      setHistoryAdvancedOpen(false);
+      renderHistoryFilterState();
+      load();
+      return;
+    }
+    const remove = event.target.closest('[data-history-remove]');
+    if (remove) {
+      setHistoryFilter(remove.dataset.historyRemove);
+      renderHistoryFilterState();
+      load();
+      return;
+    }
+    const clear = event.target.closest('[data-history-clear]');
+    if (clear) {
+      clearHistoryFilters();
+      setHistoryAdvancedOpen(false);
+      load();
+    }
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !$('[data-history-advanced]')?.hidden) setHistoryAdvancedOpen(false);
   });
 
   page.querySelectorAll('[data-month], [data-status]').forEach((element) => {

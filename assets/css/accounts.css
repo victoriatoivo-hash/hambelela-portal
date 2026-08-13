@@ -347,10 +347,27 @@
 #inputVatPage .accounts-table-card th.money,#inputVatPage .accounts-table-card td.money,#inputVatPage .accounts-table-card tfoot td:nth-child(4),#inputVatPage .accounts-table-card tfoot td:nth-child(5),#inputVatPage .accounts-table-card tfoot td:nth-child(6){text-align:right;font-variant-numeric:tabular-nums}
 #inputVatPage .table-empty-state{min-height:112px;padding:16px}
 #inputVatPage .table-empty-state strong{font-size:13px;font-weight:600;color:var(--iv-burgundy)}
-#inputVatPage .input-vat-history-toolbar{grid-template-columns:minmax(135px,.8fr) minmax(135px,.8fr) minmax(135px,.8fr) minmax(220px,1.4fr) minmax(160px,1fr) minmax(145px,.8fr);gap:10px;padding:12px}
+#inputVatPage .input-vat-history-toolbar{position:relative;display:block;margin-bottom:10px;padding:10px 12px;border:1px solid var(--iv-border);border-radius:12px;background:#fff}
+#inputVatPage .input-vat-history-primary{display:grid;grid-template-columns:minmax(280px,1fr) 170px 160px auto;align-items:end;gap:10px}
+#inputVatPage .input-vat-history-toolbar label{display:grid;gap:5px;min-width:0;color:#6b4c3b;font:600 11px Figtree,sans-serif;letter-spacing:0;text-transform:none}
 #inputVatPage .input-vat-history-toolbar .accounts-search-control{grid-column:auto}
-#inputVatPage .input-vat-history-toolbar label:last-child{grid-column:1/2}
-#inputVatPage .input-vat-history-toolbar label{gap:5px;font-size:11px;font-weight:600}
+#inputVatPage .input-vat-history-toolbar input,#inputVatPage .input-vat-history-toolbar select,#inputVatPage .input-vat-history-toolbar .portal-select__trigger{height:32px;min-height:32px;max-height:32px;border-color:var(--iv-border);border-radius:8px;color:var(--iv-text);font:400 12px Figtree,sans-serif;text-transform:none}
+#inputVatPage .input-vat-history-toolbar .input-vat-search-field>svg{width:15px;height:15px}
+#inputVatPage .input-vat-history-more{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:32px;min-height:32px;padding:0 11px;border-color:#d8b9aa;color:var(--iv-burgundy);font:500 12px Figtree,sans-serif;white-space:nowrap}
+#inputVatPage .input-vat-history-more svg{width:15px;height:15px}
+#inputVatPage .input-vat-history-more b{display:inline-grid;place-items:center;min-width:17px;height:17px;padding:0 4px;border-radius:999px;background:var(--iv-action);color:#fff;font-size:10px;font-weight:600}
+#inputVatPage .input-vat-history-advanced{position:absolute;z-index:40;top:calc(100% + 6px);right:12px;width:min(580px,calc(100vw - 48px));padding:14px;border:1px solid var(--iv-border);border-radius:12px;background:#fff;box-shadow:0 14px 34px rgba(82,45,28,.16);animation:input-vat-filter-in 180ms var(--iv-ease)}
+#inputVatPage .input-vat-history-advanced[hidden],#inputVatPage .input-vat-history-chips[hidden],#inputVatPage .input-vat-history-more b[hidden]{display:none!important}
+#inputVatPage .input-vat-history-advanced-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px 12px}
+#inputVatPage .input-vat-history-advanced footer{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid var(--iv-border)}
+#inputVatPage .input-vat-history-advanced footer .portal-button{height:32px;min-height:32px;font-size:12px}
+#inputVatPage .input-vat-history-chips{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:9px;padding-top:9px;border-top:1px solid var(--iv-border)}
+#inputVatPage .input-vat-history-chip{display:inline-flex;align-items:center;gap:5px;min-height:25px;padding:3px 7px;border:1px solid #e4d3c7;border-radius:999px;background:var(--iv-soft);color:var(--iv-burgundy);font:500 11px Figtree,sans-serif;cursor:pointer}
+#inputVatPage .input-vat-history-chip:hover{border-color:#d1aa95;background:var(--iv-hover)}
+#inputVatPage .input-vat-history-chip svg{width:12px;height:12px}
+#inputVatPage .input-vat-history-clear-link{min-height:25px;padding:2px 4px;border:0;background:transparent;color:var(--iv-action);font:600 11px Figtree,sans-serif;cursor:pointer}
+#inputVatPage .input-vat-history-clear-link:hover{text-decoration:underline}
+@keyframes input-vat-filter-in{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)}}
 #inputVatPage .accounts-dialog.input-vat-purchase-dialog{width:min(700px,calc(100vw - 28px));max-height:82vh;padding:0;overflow:hidden;border-color:var(--iv-border);border-radius:14px}
 #inputVatPage .input-vat-purchase-dialog>form{height:min(82vh,760px);display:grid;grid-template-rows:auto minmax(0,1fr) auto auto;background:#fff}
 #inputVatPage .input-vat-purchase-dialog>form>header{padding:16px 18px;border-bottom:1px solid var(--iv-border);background:#fff}
@@ -377,10 +394,11 @@
 #inputVatPage .input-vat-purchase-dialog>form>footer .portal-button{height:34px;min-height:34px}
 #inputVatPage .input-vat-purchase-dialog>form>footer .portal-button--primary{margin-left:auto;background:var(--iv-action);border-color:var(--iv-action)}
 #inputVatPage .input-vat-purchase-dialog>form>footer .portal-button--primary:hover{background:var(--iv-burgundy);border-color:var(--iv-burgundy)}
-@media(max-width:1100px){#inputVatPage .input-vat-history-toolbar{grid-template-columns:repeat(3,minmax(0,1fr))}#inputVatPage .input-vat-history-toolbar label:last-child{grid-column:auto}}
-@media(max-width:760px){#inputVatPage .accounts-actions{display:grid;grid-template-columns:1fr 1fr}#inputVatPage .accounts-toolbar{grid-template-columns:1fr 180px}#inputVatPage .input-vat-month-nav{grid-template-columns:34px minmax(0,1fr) 34px}#inputVatPage .input-vat-year-select{grid-column:1/-1;grid-row:1}#inputVatPage .input-vat-year-select select{width:100%}#inputVatPage .input-vat-month-arrow:first-child{grid-column:1;grid-row:2}#inputVatPage .input-vat-month-tabs{grid-column:2;grid-row:2}#inputVatPage .input-vat-month-arrow:last-child{grid-column:3;grid-row:2}}
+@media(max-width:1100px){#inputVatPage .input-vat-history-primary{grid-template-columns:minmax(240px,1fr) 155px 150px auto}}
+@media(max-width:760px){#inputVatPage .accounts-actions{display:grid;grid-template-columns:1fr 1fr}#inputVatPage .accounts-toolbar{grid-template-columns:1fr 180px}#inputVatPage .input-vat-history-primary{grid-template-columns:1fr 1fr auto}#inputVatPage .input-vat-history-search{grid-column:1/-1}#inputVatPage .input-vat-month-nav{grid-template-columns:34px minmax(0,1fr) 34px}#inputVatPage .input-vat-year-select{grid-column:1/-1;grid-row:1}#inputVatPage .input-vat-year-select select{width:100%}#inputVatPage .input-vat-month-arrow:first-child{grid-column:1;grid-row:2}#inputVatPage .input-vat-month-tabs{grid-column:2;grid-row:2}#inputVatPage .input-vat-month-arrow:last-child{grid-column:3;grid-row:2}}
 @media(max-width:600px){#inputVatPage .input-vat-purchase-dialog{inset:0;width:100vw;max-width:none;height:100dvh;max-height:none;margin:0;border:0;border-radius:0}#inputVatPage .input-vat-purchase-dialog>form{height:100dvh;max-height:none}#inputVatPage .input-vat-purchase-dialog .accounts-form-grid{grid-template-columns:1fr}#inputVatPage .input-vat-purchase-dialog .span-2{grid-column:auto}#inputVatPage .input-vat-purchase-dialog .input-vat-financial-grid,#inputVatPage .vat-preview{grid-template-columns:1fr}#inputVatPage .input-vat-purchase-dialog input,#inputVatPage .input-vat-purchase-dialog select,#inputVatPage .input-vat-purchase-dialog textarea{font-size:16px!important}}
-@media(max-width:480px){#inputVatPage .input-vat-primary-tabs{gap:14px}#inputVatPage .input-vat-primary-tabs button{justify-content:flex-start}#inputVatPage .accounts-toolbar{grid-template-columns:1fr}#inputVatPage .input-vat-month-status{align-items:stretch}#inputVatPage .accounts-summary{grid-template-columns:1fr 1fr}#inputVatPage .accounts-summary article{min-height:92px;padding:11px}#inputVatPage .input-vat-history-toolbar{grid-template-columns:1fr}}
+@media(max-width:480px){#inputVatPage .input-vat-primary-tabs{gap:14px}#inputVatPage .input-vat-primary-tabs button{justify-content:flex-start}#inputVatPage .accounts-toolbar{grid-template-columns:1fr}#inputVatPage .input-vat-month-status{align-items:stretch}#inputVatPage .accounts-summary{grid-template-columns:1fr 1fr}#inputVatPage .accounts-summary article{min-height:92px;padding:11px}#inputVatPage .input-vat-history-primary{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}#inputVatPage .input-vat-history-search{grid-column:1/-1}#inputVatPage .input-vat-history-more{width:100%}#inputVatPage .input-vat-history-advanced{position:fixed;top:auto;right:12px;bottom:12px;left:12px;width:auto;max-height:calc(100dvh - 24px);overflow:auto}#inputVatPage .input-vat-history-advanced-grid{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){#inputVatPage .input-vat-history-advanced{animation:none}}
 
 /* Input VAT modal, upload, header and scrolling correction. */
 #inputVatPage .accounts-hero>.accounts-actions{align-items:center;justify-content:flex-end}

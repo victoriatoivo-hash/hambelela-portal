@@ -158,6 +158,26 @@ assert.match(page, /input-vat-rate-card/);
 assert.match(page, /data-month-tabs/);
 assert.match(page, /data-active-capture-status/);
 assert.match(page, /data-history-toolbar/);
+for (const template of [page, liveEntry]) {
+  assert.match(template, /input-vat-history-primary/);
+  assert.match(template, /data-history-more[^>]*aria-expanded="false"[^>]*aria-controls="inputVatHistoryAdvanced"/);
+  assert.match(template, /data-history-advanced hidden/);
+  assert.match(template, /data-history-clear>Clear all/);
+  assert.match(template, /data-history-apply>Apply filters/);
+  assert.match(template, /data-history-chips hidden/);
+  assert.ok(template.indexOf('data-history-search') < template.indexOf('data-history-from'), 'primary Transaction History controls must render before advanced controls');
+}
+assert.match(js, /function activeHistoryFilters/);
+assert.match(js, /function renderHistoryFilterState/);
+assert.match(js, /data-history-remove/);
+assert.match(js, /No Input VAT records match these filters\./);
+assert.match(js, /Adjust or clear the filters to broaden Transaction History\./);
+assert.match(js, /page\.querySelectorAll\('\[data-history-month\],\[data-history-search\],\[data-history-status\]'\)/);
+assert.doesNotMatch(js, /page\.querySelectorAll\('\[data-history-month\],\[data-history-from\]/, 'advanced Transaction History filters must wait for Apply');
+assert.match(css, /\.input-vat-history-primary\{[^}]*grid-template-columns:minmax\(280px,1fr\) 170px 160px auto/);
+assert.match(css, /\.input-vat-history-toolbar input,[^}]*height:32px;min-height:32px;max-height:32px/);
+assert.match(css, /\.input-vat-history-advanced\{[^}]*position:absolute;[^}]*box-shadow:/);
+assert.match(css, /@media\(max-width:480px\)[^\n]*\.input-vat-history-advanced\{position:fixed/s);
 assert.equal((page.match(/<select\b/g) || []).length, 7, 'Input VAT select inventory must stay explicit');
 assert.equal((page.match(/data-portal-custom-select\b/g) || []).length, 7, 'every Input VAT dropdown must use the canonical portal component');
 assert.equal((page.match(/data-portal-select-variant="input-vat"/g) || []).length, 7, 'every Input VAT dropdown must use the Input VAT theme variant');

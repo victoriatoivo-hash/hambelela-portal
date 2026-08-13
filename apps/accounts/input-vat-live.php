@@ -76,13 +76,22 @@ include BASE_PATH.'/shared/sidebar.php';
 
   <?php if(accounts_is_owner()): ?>
   <section class="accounts-toolbar input-vat-history-toolbar" data-history-toolbar hidden aria-label="Transaction History filters">
-    <label><span>MONTH</span><input type="month" data-history-month min="<?=htmlspecialchars(substr(accounts_historical_capture_start_date(),0,7), ENT_QUOTES, 'UTF-8')?>" max="<?=htmlspecialchars(date('Y-m'), ENT_QUOTES, 'UTF-8')?>"></label>
-    <label><span>FROM</span><input type="date" data-history-from min="<?=htmlspecialchars(accounts_historical_capture_start_date(), ENT_QUOTES, 'UTF-8')?>"></label>
-    <label><span>TO</span><input type="date" data-history-to max="<?=htmlspecialchars(date('Y-m-d'), ENT_QUOTES, 'UTF-8')?>"></label>
-    <label class="accounts-search-control"><span>Search</span><span class="input-vat-search-field"><i data-lucide="search" aria-hidden="true"></i><input type="search" data-history-search placeholder="Supplier, description or reference"></span></label>
-    <label><span>ENTERED BY</span><input type="search" data-history-entered-by placeholder="Employee name"></label>
-    <label><span>STATUS</span><select data-history-status data-portal-custom-select data-portal-select-variant="input-vat"><option value="">All statuses</option><option value="captured">Captured</option><option value="reviewed">Reviewed</option><option value="needs_correction">Needs Correction</option></select></label>
-    <label><span>ADJUSTMENT</span><select data-history-manual data-portal-custom-select data-portal-select-variant="input-vat"><option value="">All records</option><option value="1">Manual adjustments</option><option value="0">Automatic calculations</option></select></label>
+    <div class="input-vat-history-primary">
+      <label class="accounts-search-control input-vat-history-search"><span>Search</span><span class="input-vat-search-field"><i data-lucide="search" aria-hidden="true"></i><input type="search" data-history-search placeholder="Search supplier, description or reference"></span></label>
+      <label><span>Month</span><input type="month" data-history-month min="<?=htmlspecialchars(substr(accounts_historical_capture_start_date(),0,7), ENT_QUOTES, 'UTF-8')?>" max="<?=htmlspecialchars(date('Y-m'), ENT_QUOTES, 'UTF-8')?>"></label>
+      <label><span>Status</span><select data-history-status data-portal-custom-select data-portal-select-variant="input-vat"><option value="">All statuses</option><option value="captured">Captured</option><option value="reviewed">Reviewed</option><option value="needs_correction">Needs Correction</option></select></label>
+      <button type="button" class="portal-button portal-button--secondary input-vat-history-more" data-history-more aria-expanded="false" aria-controls="inputVatHistoryAdvanced"><i data-lucide="list-filter" aria-hidden="true"></i><span>More filters</span><b data-history-filter-count hidden></b></button>
+    </div>
+    <div class="input-vat-history-advanced" id="inputVatHistoryAdvanced" data-history-advanced hidden>
+      <div class="input-vat-history-advanced-grid">
+        <label><span>From</span><input type="date" data-history-from min="<?=htmlspecialchars(accounts_historical_capture_start_date(), ENT_QUOTES, 'UTF-8')?>"></label>
+        <label><span>To</span><input type="date" data-history-to max="<?=htmlspecialchars(date('Y-m-d'), ENT_QUOTES, 'UTF-8')?>"></label>
+        <label><span>Entered by</span><span class="input-vat-search-field"><i data-lucide="user" aria-hidden="true"></i><input type="search" data-history-entered-by placeholder="Employee name"></span></label>
+        <label><span>Adjustment</span><select data-history-manual data-portal-custom-select data-portal-select-variant="input-vat"><option value="">All records</option><option value="1">Manual adjustments</option><option value="0">Automatic calculations</option></select></label>
+      </div>
+      <footer><button type="button" class="portal-button portal-button--secondary" data-history-clear>Clear all</button><button type="button" class="portal-button portal-button--primary" data-history-apply>Apply filters</button></footer>
+    </div>
+    <div class="input-vat-history-chips" data-history-chips hidden></div>
   </section>
   <?php endif; ?>
 
