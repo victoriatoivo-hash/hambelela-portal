@@ -26881,7 +26881,7 @@ body:has(.ob-wrap) .ob-wrap .orders-board-v2 .monday-group.collapsed .monday-gro
 .bk-wrap .ledger-subtitle {
   margin: 4px 0 0;
   color: var(--bk-text-mid);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 400;
 }
 
