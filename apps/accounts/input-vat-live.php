@@ -133,9 +133,14 @@ include BASE_PATH.'/shared/sidebar.php';
         <label class="span-2">Description<textarea name="description" required></textarea></label>
         <h3 class="input-vat-form-section-title span-2">VAT calculation</h3>
         <label>Calculation source<select name="calculation_source" data-portal-custom-select data-portal-select-variant="input-vat"><option value="inclusive">Amount incl VAT</option><option value="exclusive">Amount excl VAT</option></select></label>
-        <label>VAT treatment<select name="vat_treatment" data-portal-custom-select data-portal-select-variant="input-vat" required><option value="standard" data-standard-rate-option>Standard VAT <?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%</option><option value="zero_rated">Zero Rated</option><option value="no_vat">No VAT / Non-VAT</option><option value="manual_vat">Manual VAT</option><option value="review_required">Review Required</option></select><small class="field-help" data-standard-rate-hint>The configured standard VAT rate is <?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%.</small></label>
-        <label data-inclusive-source>Amount incl VAT (N$)<input name="inclusive" type="number" min="0" step="0.01"></label>
-        <label data-exclusive-source hidden>Amount excl VAT (N$)<input name="exclusive_source" type="number" min="0" step="0.01"></label>
+        <label>VAT treatment<select name="vat_treatment" data-portal-custom-select data-portal-select-variant="input-vat" required><option value="standard" data-standard-rate-option>Standard VAT <?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%</option><option value="zero_rated">Zero Rated 0%</option><option value="no_vat">No VAT / Non-VAT</option><option value="mixed" data-mixed-rate-option>Mixed VAT (<?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>% + 0%)</option><option value="manual_vat">Manual VAT</option><option value="review_required">Review Required</option></select><small class="field-help" data-standard-rate-hint>The configured standard VAT rate is <?=htmlspecialchars($rateLabel, ENT_QUOTES, 'UTF-8')?>%.</small></label>
+        <label data-inclusive-source><span data-inclusive-label>Amount incl VAT (N$)</span><input name="inclusive" type="number" min="0" step="0.01"></label>
+        <label data-exclusive-source hidden><span data-exclusive-label>Amount excl VAT (N$)</span><input name="exclusive_source" type="number" min="0" step="0.01"></label>
+        <div class="span-2 input-vat-mixed-breakdown" data-mixed-wrap hidden>
+          <p class="input-vat-mixed-breakdown__title">Mixed VAT breakdown</p>
+          <label>Zero-rated amount (N$)<input name="zero_rated_amount" type="number" min="0" step="0.01" value="0.00"><small class="field-help" data-mixed-guidance aria-live="polite"></small></label>
+          <div class="input-vat-mixed-breakdown__values" aria-live="polite"><span>Standard VAT portion <strong data-mixed-standard>N$ 0.00</strong></span><span>Zero-rated portion <strong data-mixed-zero>N$ 0.00</strong></span></div>
+        </div>
         <label class="span-2 input-vat-override-toggle"><input name="manual_override" type="checkbox" value="1"><span>Edit calculated amounts</span><small>Use only when the supplier document differs from the automatic calculation.</small></label>
         <div class="span-2 input-vat-manual-wrap" data-manual-wrap hidden>
           <label data-manual-vat-wrap>Input VAT (N$)<input name="manual_vat" type="number" min="0" step="0.01"></label>

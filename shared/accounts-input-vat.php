@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once BASE_PATH . '/shared/database.php';
 require_once BASE_PATH . '/shared/auth.php';
+require_once BASE_PATH . '/shared/accounts-input-vat-calculator.php';
 
 function accounts_role_key(): string { return normalise_portal_role(current_role_key()); }
 function accounts_is_owner(): bool { return accounts_role_key() === 'owner_admin'; }
@@ -35,6 +36,9 @@ function accounts_input_vat_schema_ready(): bool
         'vat_rate_used' => "DECIMAL(7,4) NULL AFTER vat_rate",
         'automatic_vat_amount' => "DECIMAL(13,2) NULL AFTER vat_amount",
         'automatic_excl_vat' => "DECIMAL(13,2) NULL AFTER amount_excl_vat",
+        'standard_rated_incl_vat' => "DECIMAL(13,2) NULL AFTER automatic_excl_vat",
+        'standard_rated_excl_vat' => "DECIMAL(13,2) NULL AFTER standard_rated_incl_vat",
+        'zero_rated_amount' => "DECIMAL(13,2) NULL AFTER standard_rated_excl_vat",
         'manual_override' => "TINYINT(1) NOT NULL DEFAULT 0 AFTER calculation_source",
         'override_reason' => "VARCHAR(500) NULL AFTER manual_override",
         'override_by' => "INT NULL AFTER override_reason",
@@ -73,16 +77,9 @@ function accounts_historical_capture_start_date(): string
     $value = (string) ($stmt->fetchColumn() ?: '2026-03-01');
     return preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) ? $value : '2026-03-01';
 }
-function accounts_vat_calculate_from_source(float $amount, string $source, string $treatment): array
+function accounts_vat_calculate_from_source(float $amount, string $source, string $treatment, float $zeroRatedAmount = 0.0): array
 {
-    $amount = round(max(0, $amount), 2); $rate = accounts_standard_vat_rate();
-    $taxable = !in_array($treatment, ['zero_rated', 'no_vat'], true);
-    if ($source === 'exclusive') {
-        $exclusive = $amount; $vat = $taxable ? round($exclusive * $rate / 100, 2) : 0.0; $inclusive = round($exclusive + $vat, 2);
-    } else {
-        $source = 'inclusive'; $inclusive = $amount; $vat = $taxable ? round($inclusive * $rate / (100 + $rate), 2) : 0.0; $exclusive = round($inclusive - $vat, 2);
-    }
-    return ['inclusive'=>$inclusive,'vat'=>$vat,'exclusive'=>$exclusive,'rate'=>$taxable ? $rate : 0.0,'treatment'=>$treatment,'source'=>$source];
+    return accounts_vat_calculate_values($amount, $source, $treatment, accounts_standard_vat_rate(), $zeroRatedAmount);
 }
 function accounts_vat_calculate(float $inclusive, string $treatment, ?float $manualVat = null): array
 {
@@ -113,5 +110,5 @@ function accounts_attachment_payload(array $row): array
 function accounts_purchase_payload(array $row): array
 {
     $stmt=db()->prepare('SELECT * FROM accounts_input_vat_attachments WHERE purchase_id=? AND deleted_at IS NULL ORDER BY id');$stmt->execute([(int)$row['id']]);
-    return ['id'=>(int)$row['id'],'purchase_date'=>(string)$row['purchase_date'],'supplier'=>(string)$row['supplier'],'invoice_reference'=>(string)($row['invoice_reference']??''),'description'=>(string)$row['description'],'notes'=>(string)($row['notes']??''),'inclusive'=>(float)$row['amount_incl_vat'],'vat'=>(float)$row['vat_amount'],'exclusive'=>(float)$row['amount_excl_vat'],'vat_rate'=>(float)($row['vat_rate_used']??$row['vat_rate']),'vat_treatment'=>(string)$row['vat_treatment'],'calculation_source'=>(string)($row['calculation_source']??'inclusive'),'automatic_vat'=>(float)($row['automatic_vat_amount']??$row['vat_amount']),'automatic_exclusive'=>(float)($row['automatic_excl_vat']??$row['amount_excl_vat']),'manual_override'=>(bool)($row['manual_override']??false),'override_reason'=>(string)($row['override_reason']??''),'historical_back_capture'=>(bool)($row['historical_back_capture']??false),'review_status'=>(string)$row['review_status'],'review_note'=>(string)($row['review_note']??''),'entered_by'=>(string)$row['created_by_name'],'created_by'=>(int)$row['created_by'],'captured_at'=>(string)$row['created_at'],'updated_at'=>(string)$row['updated_at'],'can_edit'=>accounts_can_edit_purchase($row),'can_view_audit'=>accounts_is_owner(),'can_delete'=>accounts_is_owner(),'attachments'=>array_map('accounts_attachment_payload',$stmt->fetchAll())];
+    return ['id'=>(int)$row['id'],'purchase_date'=>(string)$row['purchase_date'],'supplier'=>(string)$row['supplier'],'invoice_reference'=>(string)($row['invoice_reference']??''),'description'=>(string)$row['description'],'notes'=>(string)($row['notes']??''),'inclusive'=>(float)$row['amount_incl_vat'],'vat'=>(float)$row['vat_amount'],'exclusive'=>(float)$row['amount_excl_vat'],'vat_rate'=>(float)($row['vat_rate_used']??$row['vat_rate']),'vat_treatment'=>(string)$row['vat_treatment'],'calculation_source'=>(string)($row['calculation_source']??'inclusive'),'automatic_vat'=>(float)($row['automatic_vat_amount']??$row['vat_amount']),'automatic_exclusive'=>(float)($row['automatic_excl_vat']??$row['amount_excl_vat']),'standard_rated_inclusive'=>(float)($row['standard_rated_incl_vat']??0),'standard_rated_exclusive'=>(float)($row['standard_rated_excl_vat']??0),'zero_rated_amount'=>(float)($row['zero_rated_amount']??0),'manual_override'=>(bool)($row['manual_override']??false),'override_reason'=>(string)($row['override_reason']??''),'historical_back_capture'=>(bool)($row['historical_back_capture']??false),'review_status'=>(string)$row['review_status'],'review_note'=>(string)($row['review_note']??''),'entered_by'=>(string)$row['created_by_name'],'created_by'=>(int)$row['created_by'],'captured_at'=>(string)$row['created_at'],'updated_at'=>(string)$row['updated_at'],'can_edit'=>accounts_can_edit_purchase($row),'can_view_audit'=>accounts_is_owner(),'can_delete'=>accounts_is_owner(),'attachments'=>array_map('accounts_attachment_payload',$stmt->fetchAll())];
 }
