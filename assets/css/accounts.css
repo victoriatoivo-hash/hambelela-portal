@@ -483,7 +483,16 @@ body.input-vat-dialog-open{overflow:hidden!important}
 #inputVatPage .input-vat-purchase-dialog .vat-preview{grid-template-columns:repeat(3,minmax(0,1fr));min-height:54px;margin:0;padding:1px;overflow:hidden}
 #inputVatPage .input-vat-purchase-dialog .vat-preview>span{min-width:0;min-height:52px;align-content:center;padding:7px 9px}
 #inputVatPage .input-vat-purchase-dialog .vat-preview strong{overflow:hidden;font-size:12px;text-overflow:ellipsis;white-space:nowrap}
+#inputVatPage .input-vat-mixed-breakdown{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px 12px;padding:10px 12px;border:1px solid #eadfd5;border-radius:9px;background:#fffaf5}
+#inputVatPage .input-vat-mixed-breakdown[hidden]{display:none}
+#inputVatPage .input-vat-mixed-breakdown__title{grid-column:1/-1;margin:0;color:var(--iv-burgundy);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+#inputVatPage .input-vat-mixed-breakdown__values{display:grid;gap:5px;align-content:center;padding-top:17px}
+#inputVatPage .input-vat-mixed-breakdown__values span{display:flex;justify-content:space-between;gap:10px;color:var(--iv-mid);font-size:10px}
+#inputVatPage .input-vat-mixed-breakdown__values strong{color:var(--iv-burgundy);font-variant-numeric:tabular-nums}
+#inputVatPage .input-vat-mixed-breakdown [data-mixed-guidance]:not(:empty){color:#8a5414}
+#inputVatPage .input-vat-treatment-badge{display:inline-flex;margin-top:4px;padding:2px 6px;border:1px solid #e5c8a5;border-radius:999px;background:#fff7e9;color:#7a3f16;font-size:9px;font-weight:600;white-space:nowrap}
 #inputVatPage .input-vat-purchase-dialog .vat-preview+.input-vat-form-section-title{margin:18px 0 0;padding:0 0 7px;border-bottom:1px solid #ede3d8;transform:none}
+@media(max-width:600px){#inputVatPage .input-vat-mixed-breakdown{grid-template-columns:1fr}#inputVatPage .input-vat-mixed-breakdown__values{padding-top:0}}
 #inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__area{display:flex;min-height:58px;align-items:center;padding:10px 13px;text-align:left}
 #inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__content{display:flex;min-height:0;align-items:center;gap:8px;flex-wrap:nowrap}
 #inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__icon{display:block;width:24px;height:24px;flex:0 0 24px;border-radius:0;background:transparent;color:#ab3619;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round;stroke-width:1.7;animation:inputVatUploadFloat 2.8s ease-in-out infinite;will-change:transform}

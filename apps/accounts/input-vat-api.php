@@ -234,7 +234,16 @@ try {
             $summary['inclusive'] += $r['inclusive'];
             $summary['vat'] += $r['vat'];
             $summary['exclusive'] += $r['exclusive'];
-            $summary['treatments'][$r['vat_treatment']] = ($summary['treatments'][$r['vat_treatment']] ?? 0) + $r['vat'];
+            if ($r['vat_treatment'] === 'mixed') {
+                $summary['treatments']['standard_rated_value'] = ($summary['treatments']['standard_rated_value'] ?? 0) + $r['standard_rated_exclusive'];
+                $summary['treatments']['zero_rated_value'] = ($summary['treatments']['zero_rated_value'] ?? 0) + $r['zero_rated_amount'];
+            } elseif ($r['vat_treatment'] === 'standard' || $r['vat_treatment'] === 'manual_vat' || $r['vat_treatment'] === 'review_required') {
+                $summary['treatments']['standard_rated_value'] = ($summary['treatments']['standard_rated_value'] ?? 0) + $r['exclusive'];
+            } elseif ($r['vat_treatment'] === 'zero_rated') {
+                $summary['treatments']['zero_rated_value'] = ($summary['treatments']['zero_rated_value'] ?? 0) + $r['exclusive'];
+            } else {
+                $summary['treatments']['no_vat_non_vat_value'] = ($summary['treatments']['no_vat_non_vat_value'] ?? 0) + $r['exclusive'];
+            }
             $summary['suppliers'][$r['supplier']] = ($summary['suppliers'][$r['supplier']] ?? 0) + $r['inclusive'];
             $key = mb_substr($r['description'], 0, 50);
             $summary['descriptions'][$key] = ($summary['descriptions'][$key] ?? 0) + $r['inclusive'];
@@ -312,8 +321,10 @@ try {
         if ($date>date('Y-m-d')) throw new RuntimeException('Future purchase dates are not allowed.');
         $source=in_array($_POST['calculation_source']??'', ['inclusive','exclusive'], true)?(string)$_POST['calculation_source']:'inclusive';
         $amount=(float)($source==='exclusive'?($_POST['exclusive_source']??0):($_POST['inclusive']??0));
-        $treatment=in_array($_POST['vat_treatment']??'', ['standard','zero_rated','no_vat','manual_vat','review_required'], true)?(string)$_POST['vat_treatment']:'standard';
-        $baseline=accounts_vat_calculate_from_source($amount,$source,$treatment);
+        $treatment=in_array($_POST['vat_treatment']??'', ['standard','zero_rated','no_vat','mixed','manual_vat','review_required'], true)?(string)$_POST['vat_treatment']:'standard';
+        $zeroRatedAmount=round((float)($_POST['zero_rated_amount']??0),2);
+        if ($zeroRatedAmount < 0) throw new RuntimeException('Zero-rated amount must be zero or greater.');
+        $baseline=accounts_vat_calculate_from_source($amount,$source,$treatment,$zeroRatedAmount);
         $calc=$baseline; $manualOverride=(int)($_POST['manual_override']??0)===1; $overrideReason=trim((string)($_POST['override_reason']??''));
         if ($manualOverride) {
             if ($overrideReason==='') throw new RuntimeException('Select or enter a reason for the manual VAT adjustment.');
@@ -334,14 +345,14 @@ try {
             if ($id) {
                 $before = accounts_purchase($id);
                 if (!$before || !accounts_can_edit_purchase($before)) throw new RuntimeException('You cannot edit this purchase.');
-                $stmt = db()->prepare('UPDATE accounts_input_vat_purchases SET purchase_date=?,supplier=?,invoice_reference=?,description=?,notes=?,amount_incl_vat=?,vat_rate=?,vat_rate_used=?,vat_amount=?,automatic_vat_amount=?,amount_excl_vat=?,automatic_excl_vat=?,vat_treatment=?,calculation_source=?,manual_override=?,override_reason=?,override_by=?,override_by_name=?,override_at=?,historical_back_capture=?,updated_by=? WHERE id=?');
+                $stmt = db()->prepare('UPDATE accounts_input_vat_purchases SET purchase_date=?,supplier=?,invoice_reference=?,description=?,notes=?,amount_incl_vat=?,vat_rate=?,vat_rate_used=?,vat_amount=?,automatic_vat_amount=?,amount_excl_vat=?,automatic_excl_vat=?,standard_rated_incl_vat=?,standard_rated_excl_vat=?,zero_rated_amount=?,vat_treatment=?,calculation_source=?,manual_override=?,override_reason=?,override_by=?,override_by_name=?,override_at=?,historical_back_capture=?,updated_by=? WHERE id=?');
                 $stmt->execute([
-                    $date,$supplier,$reference,$description,trim((string)($_POST['notes']??'')),$calc['inclusive'],$baseline['rate'],$baseline['rate'],$calc['vat'],$baseline['vat'],$calc['exclusive'],$baseline['exclusive'],$baseline['treatment'],$source,$manualOverride?1:0,$manualOverride?$overrideReason:null,$manualOverride?(int)$user['id']:null,$manualOverride?(string)$user['name']:null,$manualOverride?date('Y-m-d H:i:s'):null,$date<date('Y-m-01')?1:0,(int)$user['id'],$id,
+                    $date,$supplier,$reference,$description,trim((string)($_POST['notes']??'')),$calc['inclusive'],$baseline['rate'],$baseline['rate'],$calc['vat'],$baseline['vat'],$calc['exclusive'],$baseline['exclusive'],$baseline['standard_rated_inclusive'],$baseline['standard_rated_exclusive'],$baseline['zero_rated_amount'],$baseline['treatment'],$source,$manualOverride?1:0,$manualOverride?$overrideReason:null,$manualOverride?(int)$user['id']:null,$manualOverride?(string)$user['name']:null,$manualOverride?date('Y-m-d H:i:s'):null,$date<date('Y-m-01')?1:0,(int)$user['id'],$id,
                 ]);
             } else {
-                $stmt = db()->prepare('INSERT INTO accounts_input_vat_purchases(purchase_date,supplier,invoice_reference,description,notes,amount_incl_vat,vat_rate,vat_rate_used,vat_amount,automatic_vat_amount,amount_excl_vat,automatic_excl_vat,vat_treatment,calculation_source,manual_override,override_reason,override_by,override_by_name,override_at,historical_back_capture,created_by,created_by_name)VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+                $stmt = db()->prepare('INSERT INTO accounts_input_vat_purchases(purchase_date,supplier,invoice_reference,description,notes,amount_incl_vat,vat_rate,vat_rate_used,vat_amount,automatic_vat_amount,amount_excl_vat,automatic_excl_vat,standard_rated_incl_vat,standard_rated_excl_vat,zero_rated_amount,vat_treatment,calculation_source,manual_override,override_reason,override_by,override_by_name,override_at,historical_back_capture,created_by,created_by_name)VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
                 $stmt->execute([
-                    $date,$supplier,$reference,$description,trim((string)($_POST['notes']??'')),$calc['inclusive'],$baseline['rate'],$baseline['rate'],$calc['vat'],$baseline['vat'],$calc['exclusive'],$baseline['exclusive'],$baseline['treatment'],$source,$manualOverride?1:0,$manualOverride?$overrideReason:null,$manualOverride?(int)$user['id']:null,$manualOverride?(string)$user['name']:null,$manualOverride?date('Y-m-d H:i:s'):null,$date<date('Y-m-01')?1:0,(int)$user['id'],(string)$user['name'],
+                    $date,$supplier,$reference,$description,trim((string)($_POST['notes']??'')),$calc['inclusive'],$baseline['rate'],$baseline['rate'],$calc['vat'],$baseline['vat'],$calc['exclusive'],$baseline['exclusive'],$baseline['standard_rated_inclusive'],$baseline['standard_rated_exclusive'],$baseline['zero_rated_amount'],$baseline['treatment'],$source,$manualOverride?1:0,$manualOverride?$overrideReason:null,$manualOverride?(int)$user['id']:null,$manualOverride?(string)$user['name']:null,$manualOverride?date('Y-m-d H:i:s'):null,$date<date('Y-m-01')?1:0,(int)$user['id'],(string)$user['name'],
                 ]);
                 $id = (int) db()->lastInsertId();
             }

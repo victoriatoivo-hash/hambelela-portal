@@ -224,6 +224,8 @@
 
     const option = $('[data-standard-rate-option]');
     if (option) option.textContent = `Standard VAT ${safeRateText}`;
+    const mixedOption = $('[data-mixed-rate-option]');
+    if (mixedOption) mixedOption.textContent = `Mixed VAT (${safeRateText} + 0%)`;
 
     const standardRateHint = $('[data-standard-rate-hint]');
     if (standardRateHint) standardRateHint.textContent = `The configured standard VAT rate is ${safeRateText}.`;
@@ -357,7 +359,8 @@
   function premiumPurchaseRow(r) {
     const attachments = r.attachments.map((a) => `<span><a href="${esc(a.view_url)}" target="_blank">${esc(a.name)}</a> <a href="${esc(a.download_url)}" title="Download" aria-label="Download ${esc(a.name)}"><i data-lucide="download" aria-hidden="true"></i></a>${a.can_delete ? ` <button data-delete-file="${a.id}" type="button" aria-label="Remove attachment"><i data-lucide="x" aria-hidden="true"></i></button>` : ''}</span>`).join('') || '&mdash;';
     const actions = `${r.can_edit ? `<button type="button" data-edit="${r.id}" title="Edit" aria-label="Edit purchase"><i data-lucide="pencil" aria-hidden="true"></i></button>` : ''}${r.can_view_audit ? `<button type="button" data-audit="${r.id}" title="History" aria-label="View history"><i data-lucide="history" aria-hidden="true"></i></button>` : ''}${r.can_delete ? `<button type="button" data-delete="${r.id}" title="Delete" aria-label="Delete purchase"><i data-lucide="trash-2" aria-hidden="true"></i></button>` : ''}`;
-    return `<tr class="${Number(r.id) === Number(refreshRowId) ? 'input-vat-row-highlight' : ''}"><td><time datetime="${esc(r.purchase_date)}">${esc(dateLabel(r.purchase_date))}</time></td><td>${esc(r.supplier)}${r.invoice_reference ? `<small class="input-vat-cell-meta">Ref: ${esc(r.invoice_reference)}</small>` : ''}</td><td>${esc(r.description)}</td><td class="money">${money(r.inclusive)}</td><td class="money vat-money">${money(r.vat)}</td><td class="money">${money(r.exclusive)}</td><td><div class="attachment-list">${attachments}</div></td><td>${esc(r.entered_by)}${currentView === 'history' ? `<small class="input-vat-cell-meta">Captured ${esc(r.captured_at)}</small>` : ''}</td><td><span class="status-pill ${esc(r.review_status)}">${esc(r.review_status.replaceAll('_', ' '))}</span>${r.review_note ? `<small title="${esc(r.review_note)}"> &middot; note</small>` : ''}</td><td><div class="row-actions">${actions}</div></td></tr>`;
+    const treatmentBadge = r.vat_treatment === 'mixed' ? '<small class="input-vat-treatment-badge">Mixed VAT · 15% + 0%</small>' : '';
+    return `<tr class="${Number(r.id) === Number(refreshRowId) ? 'input-vat-row-highlight' : ''}"><td><time datetime="${esc(r.purchase_date)}">${esc(dateLabel(r.purchase_date))}</time></td><td>${esc(r.supplier)}${r.invoice_reference ? `<small class="input-vat-cell-meta">Ref: ${esc(r.invoice_reference)}</small>` : ''}</td><td>${esc(r.description)}${treatmentBadge}</td><td class="money">${money(r.inclusive)}</td><td class="money vat-money">${money(r.vat)}</td><td class="money">${money(r.exclusive)}</td><td><div class="attachment-list">${attachments}</div></td><td>${esc(r.entered_by)}${currentView === 'history' ? `<small class="input-vat-cell-meta">Captured ${esc(r.captured_at)}</small>` : ''}</td><td><span class="status-pill ${esc(r.review_status)}">${esc(r.review_status.replaceAll('_', ' '))}</span>${r.review_note ? `<small title="${esc(r.review_note)}"> &middot; note</small>` : ''}</td><td><div class="row-actions">${actions}</div></td></tr>`;
   }
 
   function render(j) {
@@ -474,20 +477,39 @@
 
   function buildPreview() {
     const source = form.elements.calculation_source.value;
-    const sourceAmount = Number(source === 'exclusive' ? form.elements.exclusive_source.value : form.elements.inclusive.value || 0);
+    const sourceAmount = Number((source === 'exclusive' ? form.elements.exclusive_source.value : form.elements.inclusive.value) || 0);
     const treatment = form.elements.vat_treatment.value;
     const rate = Number(page.dataset.rate || 15);
     const taxable = !['zero_rated', 'no_vat'].includes(treatment);
-    let inclusive = source === 'exclusive' ? sourceAmount + (taxable ? sourceAmount * rate / 100 : 0) : sourceAmount;
-    let vat = taxable ? (source === 'exclusive' ? sourceAmount * rate / 100 : inclusive * rate / (100 + rate)) : 0;
+    const mixed = treatment === 'mixed';
+    const zeroInput = form.elements.zero_rated_amount;
+    const zeroRated = Math.max(0, Number(zeroInput?.value || 0));
+    const standardSource = mixed ? Math.max(0, sourceAmount - zeroRated) : sourceAmount;
+    let inclusive = source === 'exclusive' ? sourceAmount + (taxable ? standardSource * rate / 100 : 0) : sourceAmount;
+    let vat = taxable ? (source === 'exclusive' ? standardSource * rate / 100 : standardSource * rate / (100 + rate)) : 0;
     let exclusive = source === 'exclusive' ? sourceAmount : inclusive - vat;
+    inclusive = Math.round(inclusive * 100) / 100;
+    vat = Math.round(vat * 100) / 100;
+    exclusive = Math.round(exclusive * 100) / 100;
+    $('[data-mixed-wrap]').hidden = !mixed;
+    $('[data-inclusive-label]').textContent = mixed ? 'Invoice total incl VAT (N$)' : 'Amount incl VAT (N$)';
+    $('[data-exclusive-label]').textContent = mixed ? 'Invoice total excl VAT (N$)' : 'Amount excl VAT (N$)';
+    zeroInput.required = mixed;
+    zeroInput.setCustomValidity(mixed && zeroRated > sourceAmount ? 'Zero-rated amount cannot be greater than the invoice total.' : '');
+    const guidance = $('[data-mixed-guidance]');
+    if (mixed && zeroRated > sourceAmount) guidance.textContent = 'Zero-rated amount cannot be greater than the invoice total.';
+    else if (mixed && sourceAmount > 0 && zeroRated === 0) guidance.textContent = `No zero-rated amount has been entered. Use Standard VAT ${rateLabel(rate)} if this invoice contains only standard-rated purchases.`;
+    else if (mixed && sourceAmount > 0 && zeroRated === sourceAmount) guidance.textContent = 'The full invoice is zero-rated. Use Zero Rated 0% instead.';
+    else guidance.textContent = '';
+    $('[data-mixed-standard]').textContent = money(standardSource);
+    $('[data-mixed-zero]').textContent = money(zeroRated);
     const manual = form.elements.manual_override.checked;
     if (manual) { vat = Number(form.elements.manual_vat.value || vat); exclusive = Number(form.elements.manual_exclusive.value || exclusive); inclusive = vat + exclusive; }
     $('[data-manual-wrap]').hidden = !manual;
     $('[data-manual-vat-wrap]').hidden = !manual;
     $('[data-inclusive-source]').hidden = source !== 'inclusive';
     $('[data-exclusive-source]').hidden = source !== 'exclusive';
-    $('[data-vat-preview]').innerHTML = `<span><small>Incl VAT</small><strong>${money(inclusive)}</strong></span><span><small>Input VAT</small><strong>${money(vat)}</strong></span><span><small>Excl VAT</small><strong>${money(inclusive - vat)}</strong></span>`;
+    $('[data-vat-preview]').innerHTML = `<span><small>Incl VAT</small><strong>${money(inclusive)}</strong></span><span><small>Input VAT</small><strong>${money(vat)}</strong></span><span><small>Excl VAT</small><strong>${money(exclusive)}</strong></span>`;
   }
 
   function pendingRender() {
@@ -651,7 +673,7 @@
       const row = rows.find((x) => x.id === Number(edit.dataset.edit));
       if (!row) return;
       form.reset();
-      Object.entries({id: row.id, purchase_date: row.purchase_date, supplier: row.supplier, invoice_reference: row.invoice_reference, description: row.description, notes: row.notes, inclusive: row.inclusive, vat_treatment: row.vat_treatment, calculation_source: row.calculation_source, manual_override: row.manual_override ? '1' : '', manual_vat: row.vat, manual_exclusive: row.exclusive}).forEach(([field, value]) => {
+      Object.entries({id: row.id, purchase_date: row.purchase_date, supplier: row.supplier, invoice_reference: row.invoice_reference, description: row.description, notes: row.notes, inclusive: row.inclusive, exclusive_source: row.calculation_source === 'exclusive' ? row.automatic_exclusive : '', zero_rated_amount: row.zero_rated_amount, vat_treatment: row.vat_treatment, calculation_source: row.calculation_source, manual_override: row.manual_override ? '1' : '', manual_vat: row.vat, manual_exclusive: row.exclusive}).forEach(([field, value]) => {
         if (form.elements[field]) form.elements[field].value = value;
       });
       form.elements.manual_override.checked = Boolean(row.manual_override);
