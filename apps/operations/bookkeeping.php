@@ -1581,10 +1581,10 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             margin-top: 18px;
         }
         .closing-card span {
-            color: var(--ledger-muted);
-            font-weight: 800;
+            color: #721b1a;
+            font-weight: 600;
             text-transform: uppercase;
-            font-size: 12px;
+            font-size: 13px;
             letter-spacing: .05em;
         }
         .closing-card strong {
