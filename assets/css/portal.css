@@ -26952,12 +26952,34 @@ body:has(.ob-wrap) .ob-wrap .orders-board-v2 .monday-group.collapsed .monday-gro
 }
 
 .bk-wrap .ledger-header .ledger-cell {
-  color: var(--bk-burgundy);
+  box-sizing: border-box;
+  height: 35px;
+  min-height: 34px;
+  padding: 0 10px;
+  border-bottom: 1px solid rgb(240, 230, 224);
+  background-color: rgb(253, 246, 238);
+  background-image: none;
+  background-position: 0% 0%;
+  background-repeat: repeat;
+  background-size: auto;
+  background-origin: padding-box;
+  background-clip: border-box;
+  color: rgb(114, 27, 26);
+  font-family: Figtree, system-ui, sans-serif;
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: .05em;
+  line-height: 34px;
+  letter-spacing: .6px;
+  text-align: left;
+  text-indent: 0;
   text-transform: uppercase;
-  background: #fafafa;
+  position: sticky;
+  top: 0;
+}
+
+.bk-wrap .ledger-header .ledger-cell.check-cell {
+  padding: 0;
+  text-align: center;
 }
 
 .bk-wrap .money-in  { color: #3d5c00; font-weight: 600; }
