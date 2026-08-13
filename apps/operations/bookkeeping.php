@@ -1142,6 +1142,7 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             color: #1a1a1a;
             font-size: 10px;
             font-weight: 700;
+            border-bottom: 1px solid var(--ledger-border);
             text-transform: uppercase;
             letter-spacing: .05em;
         }

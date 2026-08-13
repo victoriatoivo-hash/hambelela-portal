@@ -26941,7 +26941,7 @@ body:has(.ob-wrap) .ob-wrap .orders-board-v2 .monday-group.collapsed .monday-gro
   position: relative;
   margin-bottom: 10px;
   border: 1px solid var(--bk-border);
-  border-left: 1px solid var(--bk-orange-red);
+  border-left: 6px solid var(--bk-orange-red);
   border-radius: 18px;
   background: var(--bk-surface);
   box-shadow: 0 10px 26px rgba(114, 27, 26, .06);
