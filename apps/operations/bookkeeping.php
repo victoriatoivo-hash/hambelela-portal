@@ -1665,6 +1665,10 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             align-items: center;
             justify-content: space-between;
         }
+        #tab-recon .recon-card > .bk-side-head {
+            display: block;
+            width: 100%;
+        }
         .bk-side-toggle {
             width: 24px;
             height: 24px;
