@@ -19,9 +19,11 @@ function cw_page_routes(): array
 function cw_page_period(): array
 {
     $now = new DateTimeImmutable('now', new DateTimeZone('Africa/Windhoek'));
-    $year = filter_input(INPUT_GET, 'year', FILTER_VALIDATE_INT, ['options' => ['min_range' => 2020, 'max_range' => 2100]]);
-    $month = filter_input(INPUT_GET, 'month', FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 12]]);
-    if (isset($_GET['year']) && $year === false || isset($_GET['month']) && $month === false) {
+    $yearRaw = isset($_GET['year']) ? (string) $_GET['year'] : '';
+    $monthRaw = isset($_GET['month']) ? (string) $_GET['month'] : '';
+    $year = $yearRaw !== '' && preg_match('/^\d{4}$/', $yearRaw) ? (int) $yearRaw : null;
+    $month = $monthRaw !== '' && preg_match('/^\d{1,2}$/', $monthRaw) ? (int) $monthRaw : null;
+    if ((isset($_GET['year']) && ($year === null || $year < 2020 || $year > 2100)) || (isset($_GET['month']) && ($month === null || $month < 1 || $month > 12))) {
         http_response_code(400);
         exit('The selected Cost Workbook period is invalid.');
     }

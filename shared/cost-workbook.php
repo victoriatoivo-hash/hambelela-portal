@@ -193,9 +193,9 @@ function cw_require_admin(): void
 function cw_request_period_bounds(): ?array
 {
     if (!isset($_GET['year']) && !isset($_GET['month'])) return null;
-    $year = filter_input(INPUT_GET, 'year', FILTER_VALIDATE_INT, ['options' => ['min_range' => 2020, 'max_range' => 2100]]);
-    $month = filter_input(INPUT_GET, 'month', FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 12]]);
-    if ($year === false || $year === null || $month === false || $month === null) throw new DomainException('Invalid Cost Workbook period.');
+    $yearRaw=(string)($_GET['year']??'');$monthRaw=(string)($_GET['month']??'');
+    $year=preg_match('/^\d{4}$/',$yearRaw)?(int)$yearRaw:0;$month=preg_match('/^\d{1,2}$/',$monthRaw)?(int)$monthRaw:0;
+    if ($year < 2020 || $year > 2100 || $month < 1 || $month > 12) throw new DomainException('Invalid Cost Workbook period.');
     $start = sprintf('%04d-%02d-01', $year, $month);
     return [$start, (new DateTimeImmutable($start))->modify('+1 month')->format('Y-m-d')];
 }

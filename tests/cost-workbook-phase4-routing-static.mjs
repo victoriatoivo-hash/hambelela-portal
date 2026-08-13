@@ -35,6 +35,8 @@ assert.doesNotMatch(shell, /href="#cw-section-/, 'primary navigation must not us
 assert.match(shell, /aria-current="page"/, 'the current section must be exposed accessibly');
 assert.match(shell, /year.*month/s, 'navigation must preserve the selected reporting period');
 assert.match(shell, /2020.*2100/s, 'server-side year bounds must be explicit');
+assert.match(shell, /\\d\{1,2\}/, 'page period validation must accept zero-padded months');
+assert.match(library, /\\d\{1,2\}/, 'API period validation must accept zero-padded months');
 assert.doesNotMatch(shell, /Cost of Goods Sold is not enabled/, 'COGS warning must not appear globally');
 assert.match(sections, /WooCommerce Cost of Goods Sold is not enabled\. Cost publishing is unavailable/, 'COGS publishing must stay disabled on its own page');
 assert.match(sections, /cw-overview-grid/, 'overview must render summary cards instead of full datasets');
