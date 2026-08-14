@@ -9,6 +9,11 @@ assert.ok(page.includes('Monthly Imports')&&page.includes('Payment Tracker')&&pa
 assert.ok(page.includes('Upload NamRA Statement')&&page.includes('NamRA Statement History')&&page.includes('Confirm Import'),'statement workflow UI');
 assert.ok(api.includes('upload_statement')&&api.includes('update_statement_row')&&api.includes('confirm_statement'),'statement API actions');
 assert.ok(api.includes('sha256')&&api.includes('beginTransaction')&&api.includes('source_statement_row_id'),'duplicate-safe transactional posting');
-assert.ok(shared.includes('The CSV headings do not expose a reliable'),'conservative heading parser');
+assert.ok(shared.includes('confirmed NamRA Transaction Records format'),'conservative heading parser');
+for(const field of ['Tax Type','Transaction Type','Liability Type','Doc No.','Tax Year','Tax Period','Due Date','Effective Date','Action Date','Transaction Amount'])assert.ok(shared.toLowerCase().includes(field.toLowerCase().replace('doc no.','doc no'))||shared.includes(field),`NamRA heading ${field}`);
+for(const mapping of ["'201'=>'assessment'","'204'=>'revision'","'129'=>'payment'","'481'=>'ignored_penalty'","'304'=>'ignored_interest'"])assert.ok(shared.includes(mapping),`NamRA mapping ${mapping}`);
+assert.ok(shared.includes("included_in_payable")&&shared.includes("pending_waiver")&&shared.includes("penalty_interest_review_date"),'excluded charges remain auditable and configurable');
+assert.ok(api.includes("$reference='NAMRA-'")&&api.includes("201 + 204")&&api.includes("Tax Year + Tax Period"),'period principal and payment matching');
+assert.ok(page.includes('Penalty/interest exclusion rule'),'owner review setting UI');
 assert.ok(index.includes('href="import-vat.php"'),'Accounts card');
 console.log('Import VAT static contract passed');
