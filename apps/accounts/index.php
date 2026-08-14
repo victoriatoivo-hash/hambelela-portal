@@ -18,8 +18,8 @@ include BASE_PATH . '/shared/sidebar.php';
     <div class="accounts-app-grid">
       <a class="accounts-app-card" href="input-vat.php"><span class="accounts-app-icon" aria-hidden="true"><i data-lucide="receipt-text"></i></span><div><small class="accounts-app-status is-available">Available</small><h3>Input VAT</h3><p>Record local VAT purchases, supporting invoices and monthly Input VAT.</p><strong>Open Input VAT <span aria-hidden="true">&rarr;</span></strong></div></a>
       <a class="accounts-app-card" href="output-vat.php"><span class="accounts-app-icon" aria-hidden="true"><i data-lucide="badge-dollar-sign"></i></span><div><small class="accounts-app-status is-available">Available · Owner only</small><h3>Output VAT</h3><p>Automatically reconcile WooCommerce sales and calculate Output VAT by tax period.</p><strong>Open Output VAT <span aria-hidden="true">&rarr;</span></strong></div></a>
+      <a class="accounts-app-card" href="import-vat.php"><span class="accounts-app-icon" aria-hidden="true"><i data-lucide="ship-wheel"></i></span><div><small class="accounts-app-status is-available">Available · Owner only</small><h3>Import VAT</h3><p>Track imported goods, NamRA Import VAT amounts, due dates and payments.</p><strong>Open Import VAT <span aria-hidden="true">&rarr;</span></strong></div></a>
       <?php foreach ([
-        ['Import VAT', 'Import VAT documents and customs tax records.', 'ship'],
         ['Expenses', 'Expense capture and cost administration.', 'wallet-cards'],
         ['Supplier Statements', 'Supplier balances and statement review.', 'file-text'],
         ['Asset Register', 'Business assets and depreciation records.', 'boxes'],

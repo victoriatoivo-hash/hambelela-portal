@@ -732,6 +732,15 @@ body.input-vat-dialog-open{overflow:hidden!important}
 @keyframes output-vat-refresh{to{transform:rotate(360deg)}}
 @media(max-width:1100px){#inputVatPage.output-vat-page .output-vat-reconcile-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){#inputVatPage.output-vat-page .output-vat-reconcile-grid{grid-template-columns:1fr}#inputVatPage.output-vat-page .output-vat-reconciliation>footer{align-items:flex-start;flex-direction:column}#inputVatPage.output-vat-page .output-vat-reconciliation>footer>div{width:100%;display:grid;grid-template-columns:1fr 1fr}}
+
+/* Import VAT reuses the Input VAT accounting family. */
+#inputVatPage.import-vat-page .accounts-toolbar{grid-template-columns:minmax(260px,1fr) minmax(180px,260px)}
+#inputVatPage.import-vat-page .status-pill.overdue,#inputVatPage.import-vat-page .status-pill.overpayment{color:#bb1b21;background:#fff0eb}
+#inputVatPage.import-vat-page .status-pill.due_soon{color:#ab3619;background:#fdf6ee}
+#inputVatPage.import-vat-page .status-pill.paid{color:#526600;background:#f2f7df}
+#inputVatPage.import-vat-page .status-pill.partially_paid{color:#ab3619;background:#fff7e8}
+#inputVatPage.import-vat-page .accounts-table-wrap table{min-width:1260px}
+@media(max-width:760px){#inputVatPage.import-vat-page .accounts-toolbar{grid-template-columns:1fr}}
 @media(max-width:1024px){#inputVatPage.output-vat-page .accounts-hero{grid-template-columns:1fr}#inputVatPage.output-vat-page .accounts-hero>.accounts-actions{width:100%;justify-content:flex-start}#inputVatPage.output-vat-page .accounts-actions>.portal-header-status{margin-left:auto}}
 @media(max-width:768px){#inputVatPage.output-vat-page .accounts-hero>.accounts-actions{display:flex;flex-wrap:wrap}#inputVatPage.output-vat-page .accounts-actions>.portal-header-status{width:100%;margin-left:0;justify-content:flex-start}}
 @media(max-width:430px){#inputVatPage.output-vat-page .accounts-hero>.accounts-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}#inputVatPage.output-vat-page .accounts-hero>.accounts-actions>.portal-button{padding-inline:8px}#inputVatPage.output-vat-page .accounts-actions>.portal-header-status{grid-column:1/-1;width:100%;overflow-x:auto}}
