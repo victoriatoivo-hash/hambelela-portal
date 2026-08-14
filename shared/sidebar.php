@@ -85,7 +85,7 @@ try {
 
 $accountsNavItem = in_array($packingSidebarRoleKey, ['front_desk_admin', 'front_desk_admin_employee'], true)
     ? ['id' => 'input-vat', 'label' => 'Input VAT', 'icon' => 'accounts', 'href' => BASE_URL . '/apps/accounts/input-vat.php', 'match' => ['/apps/accounts/input-vat.php']]
-    : ['id' => 'accounts', 'label' => 'Accounts', 'icon' => 'accounts', 'href' => BASE_URL . '/apps/accounts/index.php', 'match' => ['/apps/accounts/index.php', '/apps/accounts/input-vat.php']];
+    : ['id' => 'accounts', 'label' => 'Accounts', 'icon' => 'accounts', 'href' => BASE_URL . '/apps/accounts/index.php', 'match' => ['/apps/accounts/index.php', '/apps/accounts/input-vat.php', '/apps/accounts/output-vat.php', '/apps/accounts/import-vat.php', '/apps/accounts/vat-reconciliation.php']];
 
 $portalNavItems = [
     ['id' => 'portal-dashboard', 'label' => 'Dashboard', 'icon' => 'dashboard', 'href' => '/index.php', 'match' => ['/index.php']],
