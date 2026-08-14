@@ -710,8 +710,8 @@ body.input-vat-dialog-open{overflow:hidden!important}
 #inputVatPage.output-vat-page .output-vat-table-heading p{margin:0}
 #inputVatPage.output-vat-page .output-vat-table-heading>span{color:#a08070;font-size:11px}
 #inputVatPage.output-vat-page .status-pill{text-transform:capitalize}
-#inputVatPage.output-vat-page .status-pill.reconciled{background:#f2f7df;color:#526600}
-#inputVatPage.output-vat-page .status-pill.review_required,#inputVatPage.output-vat-page .status-pill.excluded{background:#fff0eb;color:#721b1a}
+#inputVatPage.output-vat-page .status-pill.reconciled{background:#fdf6ee;color:#721b1a;box-shadow:inset 3px 0 #a8ca19}
+#inputVatPage.output-vat-page .status-pill.review_required,#inputVatPage.output-vat-page .status-pill.excluded{background:#fdf6ee;color:#bb1b21}
 #inputVatPage.output-vat-page .status-pill.adjusted{background:#fdf6ee;color:#ab3619}
 #inputVatPage.output-vat-page .input-vat-month-tab small.in_progress{background:#fff7e8;color:#ab3619}
 #inputVatPage.output-vat-page .input-vat-month-tab small.reconciled{background:#f2f7df;color:#526600}
@@ -721,9 +721,17 @@ body.input-vat-dialog-open{overflow:hidden!important}
 #inputVatPage.output-vat-page .portal-button--primary:not(:disabled):hover{border-color:#f07420;background:#f07420;color:#fff}
 #inputVatPage.output-vat-page tbody tr.is-excluded{opacity:.64}
 #inputVatPage.output-vat-page.is-loading{cursor:progress}
-#inputVatPage.output-vat-page.is-loading [data-sync] svg{animation:output-vat-refresh 1s linear infinite}
+#inputVatPage.output-vat-page.is-loading [data-sync] svg,#inputVatPage.output-vat-page.is-updating [data-sync] svg{animation:output-vat-refresh 1s linear infinite}
+#inputVatPage.output-vat-page .output-vat-reconciliation .eyebrow,#inputVatPage.output-vat-page .output-vat-table-heading .eyebrow{color:#ab3619}
+#inputVatPage.output-vat-page .accounts-hero>.accounts-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px}
+#inputVatPage.output-vat-page .accounts-actions>.portal-header-status{margin-left:2px}
+#inputVatPage.output-vat-page [data-sync][aria-busy="true"]{color:#721b1a;background:#fdf6ee}
 @keyframes output-vat-refresh{to{transform:rotate(360deg)}}
 @media(max-width:1100px){#inputVatPage.output-vat-page .output-vat-reconcile-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){#inputVatPage.output-vat-page .output-vat-reconcile-grid{grid-template-columns:1fr}#inputVatPage.output-vat-page .output-vat-reconciliation>footer{align-items:flex-start;flex-direction:column}#inputVatPage.output-vat-page .output-vat-reconciliation>footer>div{width:100%;display:grid;grid-template-columns:1fr 1fr}}
+@media(max-width:1024px){#inputVatPage.output-vat-page .accounts-hero{grid-template-columns:1fr}#inputVatPage.output-vat-page .accounts-hero>.accounts-actions{width:100%;justify-content:flex-start}#inputVatPage.output-vat-page .accounts-actions>.portal-header-status{margin-left:auto}}
+@media(max-width:768px){#inputVatPage.output-vat-page .accounts-hero>.accounts-actions{display:flex;flex-wrap:wrap}#inputVatPage.output-vat-page .accounts-actions>.portal-header-status{width:100%;margin-left:0;justify-content:flex-start}}
+@media(max-width:430px){#inputVatPage.output-vat-page .accounts-hero>.accounts-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}#inputVatPage.output-vat-page .accounts-hero>.accounts-actions>.portal-button{padding-inline:8px}#inputVatPage.output-vat-page .accounts-actions>.portal-header-status{grid-column:1/-1;width:100%;overflow-x:auto}}
+@media(prefers-reduced-motion:reduce){#inputVatPage.output-vat-page.is-loading [data-sync] svg,#inputVatPage.output-vat-page.is-updating [data-sync] svg{animation:none}}
 @media(max-width:480px){#inputVatPage.output-vat-page .output-vat-filters .input-vat-history-primary{grid-template-columns:1fr}#inputVatPage.output-vat-page .output-vat-filters label{grid-column:auto}}
 @media print{#inputVatPage.output-vat-page .input-vat-month-workspace,#inputVatPage.output-vat-page .output-vat-source-note,#inputVatPage.output-vat-page .accounts-actions,#inputVatPage.output-vat-page .accounts-toolbar,#inputVatPage.output-vat-page .output-vat-reconciliation footer{display:none!important}}

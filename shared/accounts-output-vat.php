@@ -142,12 +142,17 @@ function output_vat_map_order(array $order, string $month): array
     return $row;
 }
 
-function output_vat_fetch_month(string $month): array
+function output_vat_fetch_month(string $month, ?array &$metrics=null): array
 {
+    $metrics=['woo_requests'=>0,'woo_ms'=>0.0,'woo_pages'=>0];
     $start = new DateTimeImmutable($month . '-01 00:00:00', new DateTimeZone('Africa/Windhoek'));
     $end = $start->modify('+1 month'); $orders = [];
     for ($page = 1; $page <= 50; $page++) {
+        $requestStarted=microtime(true);
         $batch = wc_get('orders', ['after'=>$start->format(DateTime::ATOM),'before'=>$end->format(DateTime::ATOM),'status'=>'any','per_page'=>100,'page'=>$page,'orderby'=>'date','order'=>'asc'], 25);
+        $metrics['woo_requests']++;
+        $metrics['woo_pages']++;
+        $metrics['woo_ms']+=round((microtime(true)-$requestStarted)*1000,1);
         foreach ($batch as $order) $orders[] = output_vat_map_order($order, $month);
         if (count($batch) < 100) break;
     }
@@ -186,7 +191,7 @@ function output_vat_period(string $month): array
 
 function output_vat_sync(string $month): array
 {
-    output_vat_schema_ready(); $rows=output_vat_fetch_month($month); $summary=output_vat_summary_from_rows($rows);
+    $syncStarted=microtime(true); output_vat_schema_ready(); $fetchMetrics=[]; $rows=output_vat_fetch_month($month,$fetchMetrics); $summary=output_vat_summary_from_rows($rows);
     $hash=hash('sha256',json_encode([$summary,array_column($rows,'source_hash')],JSON_UNESCAPED_SLASHES));
     $period=output_vat_period($month); $historical=!empty($period['snapshot_hash']) && !hash_equals((string)$period['snapshot_hash'],$hash);
     db()->beginTransaction();
@@ -198,11 +203,43 @@ function output_vat_sync(string $month): array
         $change=$historical?['snapshot_hash'=>$period['snapshot_hash'],'current_hash'=>$hash,'detected_at'=>date('c')]:null;
         $upsert->execute([$month,$hash,json_encode($summary,JSON_UNESCAPED_SLASHES),$historical?1:0,$change?json_encode($change,JSON_UNESCAPED_SLASHES):null]); db()->commit();
     } catch(Throwable $e){db()->rollBack();throw $e;}
-    return output_vat_payload($month);
+    $payload=output_vat_payload($month);
+    $payload['timing']['sync_ms']=round((microtime(true)-$syncStarted)*1000,1);
+    $payload['timing']['woo_ms']=round((float)($fetchMetrics['woo_ms']??0),1);
+    $payload['timing']['woo_requests']=(int)($fetchMetrics['woo_requests']??0);
+    $payload['timing']['woo_pages']=(int)($fetchMetrics['woo_pages']??0);
+    return $payload;
+}
+
+function output_vat_source_stale(array $period, string $month): bool
+{
+    if (empty($period['source_synced_at'])) return true;
+    $syncedAt=strtotime((string)$period['source_synced_at']);
+    if ($syncedAt===false) return true;
+    return time()-$syncedAt>(($month===date('Y-m'))?300:3600);
+}
+
+function output_vat_sync_single_flight(string $month): array
+{
+    $lockName='output-vat-sync-'.preg_replace('/[^0-9-]/','',$month);
+    $lockStmt=db()->prepare('SELECT GET_LOCK(?,0)');
+    $lockStmt->execute([$lockName]);
+    if ((int)$lockStmt->fetchColumn()!==1) {
+        $payload=output_vat_payload($month);
+        $payload['sync_in_progress']=true;
+        return $payload;
+    }
+    try {
+        return output_vat_sync($month);
+    } finally {
+        $releaseStmt=db()->prepare('SELECT RELEASE_LOCK(?)');
+        $releaseStmt->execute([$lockName]);
+    }
 }
 
 function output_vat_payload(string $month, string $search='', string $status='', string $treatment=''): array
 {
+    $payloadStarted=microtime(true);
     $period=output_vat_period($month); $summary=(array)($period['source_summary']??output_vat_summary_from_rows([]));
     $sql='SELECT * FROM accounts_output_vat_orders WHERE month_key=?';$args=[$month];
     if($search!==''){$sql.=' AND order_number LIKE ?';$args[]='%'.$search.'%';}
@@ -216,5 +253,6 @@ function output_vat_payload(string $month, string $search='', string $status='',
     if(empty($period['completed_at'])) $statusKey=$adjustment!=0.0?'adjusted':(abs($difference)<=$tolerance?'reconciled':'review_required');
     $year=substr($month,0,4);$progress=[];$progressStmt=db()->prepare("SELECT p.month_key,p.reconciliation_status,p.completed_at,p.adjustment_amount,COUNT(CASE WHEN o.included=1 THEN 1 END) order_count FROM accounts_output_vat_periods p LEFT JOIN accounts_output_vat_orders o ON o.month_key=p.month_key WHERE p.month_key>=? AND p.month_key<? GROUP BY p.month_key,p.reconciliation_status,p.completed_at,p.adjustment_amount");$progressStmt->execute([$year.'-01',((int)$year+1).'-01']);$progressMap=[];foreach($progressStmt->fetchAll() as $item)$progressMap[(string)$item['month_key']]=$item;
     for($number=1;$number<=12;$number++){$key=$year.'-'.str_pad((string)$number,2,'0',STR_PAD_LEFT);$item=$progressMap[$key]??[];$count=(int)($item['order_count']??0);$progressStatus=$count===0?'not_started':((float)($item['adjustment_amount']??0)!==0.0?'adjusted':((string)($item['reconciliation_status']??'in_progress')));$progress[]=['month'=>$key,'count'=>$count,'status'=>$progressStatus,'complete'=>!empty($item['completed_at'])];}
-    return ['month'=>$month,'summary'=>$summary,'orders'=>$rows,'period'=>['status'=>$statusKey,'adjustment'=>$adjustment,'adjustment_reason'=>(string)($period['adjustment_reason']??''),'adjustment_note'=>(string)($period['adjustment_note']??''),'final_output_vat'=>$final,'completed_at'=>$period['completed_at']??null,'historical_change'=>(bool)($period['historical_change']??false),'change'=>$period['change_json']??null,'synced_at'=>$period['source_synced_at']??null],'period_progress'=>$progress];
+    $syncedAt=$period['source_synced_at']??null;
+    return ['month'=>$month,'summary'=>$summary,'orders'=>$rows,'period'=>['status'=>$statusKey,'adjustment'=>$adjustment,'adjustment_reason'=>(string)($period['adjustment_reason']??''),'adjustment_note'=>(string)($period['adjustment_note']??''),'final_output_vat'=>$final,'completed_at'=>$period['completed_at']??null,'historical_change'=>(bool)($period['historical_change']??false),'change'=>$period['change_json']??null,'synced_at'=>$syncedAt],'period_progress'=>$progress,'source_stale'=>output_vat_source_stale($period,$month),'source_synced_at'=>$syncedAt,'source_has_data'=>!empty($syncedAt)||count($rows)>0,'sync_in_progress'=>false,'timing'=>['payload_ms'=>round((microtime(true)-$payloadStarted)*1000,1)]];
 }

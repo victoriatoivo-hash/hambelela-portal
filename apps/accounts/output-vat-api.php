@@ -16,7 +16,7 @@ try {
     }
     if($_SERVER['REQUEST_METHOD']==='POST'){
         output_vat_verify_csrf((string)($_POST['csrf']??''));
-        if($action==='sync'){output_vat_json(['ok'=>true,'data'=>output_vat_sync($month)]);}
+        if($action==='sync'){output_vat_json(['ok'=>true,'data'=>output_vat_sync_single_flight($month)]);}
         if($action==='adjust'){
             $amount=round((float)($_POST['amount']??0),2);$reason=trim((string)($_POST['reason']??''));$note=trim((string)($_POST['note']??''));if($reason==='')throw new RuntimeException('Enter the reason for this adjustment.');
             $before=output_vat_period($month);$stmt=db()->prepare("INSERT INTO accounts_output_vat_periods(month_key,adjustment_amount,adjustment_reason,adjustment_note,reconciliation_status) VALUES(?,?,?,?,?) ON DUPLICATE KEY UPDATE adjustment_amount=VALUES(adjustment_amount),adjustment_reason=VALUES(adjustment_reason),adjustment_note=VALUES(adjustment_note),reconciliation_status=VALUES(reconciliation_status)");$stmt->execute([$month,$amount,$reason,$note,'adjusted']);$after=output_vat_period($month);output_vat_audit($month,'adjustment',$before,$after);output_vat_json(['ok'=>true,'message'=>'Output VAT adjustment recorded.','data'=>output_vat_payload($month)]);
@@ -28,8 +28,6 @@ try {
         }
         throw new RuntimeException('Unsupported Output VAT action.');
     }
-    $period=output_vat_period($month);$stale=empty($period['source_synced_at'])||(time()-strtotime((string)$period['source_synced_at'])>(($month===date('Y-m'))?300:3600));
-    if($stale){try{$data=output_vat_sync($month);}catch(Throwable $syncError){$stmt=db()->prepare("INSERT INTO accounts_output_vat_periods(month_key,sync_error) VALUES(?,?) ON DUPLICATE KEY UPDATE sync_error=VALUES(sync_error)");$stmt->execute([$month,$syncError->getMessage()]);$data=output_vat_payload($month);$data['sync_warning']=$syncError->getMessage();}}
-    else $data=output_vat_payload($month,(string)($_GET['search']??''),(string)($_GET['status']??''),(string)($_GET['treatment']??''));
+    $data=output_vat_payload($month,(string)($_GET['search']??''),(string)($_GET['status']??''),(string)($_GET['treatment']??''));
     output_vat_json(['ok'=>true,'data'=>$data]);
 }catch(Throwable $e){output_vat_json(['ok'=>false,'message'=>$e->getMessage()],400);}
