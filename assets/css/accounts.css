@@ -713,6 +713,12 @@ body.input-vat-dialog-open{overflow:hidden!important}
 #inputVatPage.output-vat-page .status-pill.reconciled{background:#f2f7df;color:#526600}
 #inputVatPage.output-vat-page .status-pill.review_required,#inputVatPage.output-vat-page .status-pill.excluded{background:#fff0eb;color:#721b1a}
 #inputVatPage.output-vat-page .status-pill.adjusted{background:#fdf6ee;color:#ab3619}
+#inputVatPage.output-vat-page .input-vat-month-tab small.in_progress{background:#fff7e8;color:#ab3619}
+#inputVatPage.output-vat-page .input-vat-month-tab small.reconciled{background:#f2f7df;color:#526600}
+#inputVatPage.output-vat-page .input-vat-month-tab small.review_required{background:#fff0eb;color:#721b1a}
+#inputVatPage.output-vat-page .input-vat-month-tab small.adjusted{background:#fdf6ee;color:#ab3619}
+#inputVatPage.output-vat-page .accounts-actions .portal-button,#inputVatPage.output-vat-page .output-vat-reconciliation .portal-button,#inputVatPage.output-vat-page .accounts-dialog .portal-button{height:34px;min-height:34px;font:600 11px/1 Figtree,system-ui,sans-serif}
+#inputVatPage.output-vat-page .portal-button--primary:not(:disabled):hover{border-color:#f07420;background:#f07420;color:#fff}
 #inputVatPage.output-vat-page tbody tr.is-excluded{opacity:.64}
 #inputVatPage.output-vat-page.is-loading{cursor:progress}
 #inputVatPage.output-vat-page.is-loading [data-sync] svg{animation:output-vat-refresh 1s linear infinite}

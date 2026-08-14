@@ -57,6 +57,8 @@
   let listRequestSequence = 0;
   let refreshDeferredWhileEditing = false;
   let lastRefreshFailureToastAt = 0;
+  const monthlyResponseCache = new Map();
+  const monthlyCacheTtl = 30000;
   const historyFilters = [
     {key: 'search', selector: '[data-history-search]', label: 'Search'},
     {key: 'month', selector: '[data-history-month]', label: 'Month', format: monthLabel},
@@ -429,6 +431,16 @@
 
   async function load(silent = false) {
     const initialLoad = !hasRenderedData;
+    const requestKey = params().toString();
+    const cached = currentView === 'monthly' ? monthlyResponseCache.get(requestKey) : null;
+    if (cached && Date.now() - cached.storedAt < monthlyCacheTtl) {
+      rows = cached.payload.rows;
+      syncRate(cached.payload.standard_vat_rate);
+      render(cached.payload);
+      updateActivePeriodLabel();
+      hasRenderedData = true;
+      silent = true;
+    }
     const sequence = ++listRequestSequence;
     if (listRequestController) listRequestController.abort();
     const controller = new AbortController();
@@ -440,11 +452,12 @@
       } else {
         setUpdatingState(true);
       }
-      const response = await fetch(`${api}?${params()}`, {credentials: 'same-origin', cache: 'no-store', signal: controller.signal});
+      const response = await fetch(`${api}?${requestKey}`, {credentials: 'same-origin', cache: 'no-store', signal: controller.signal});
       const j = await response.json().catch(() => { throw new Error('Could not load Input VAT records. Retry.'); });
       if (!response.ok || !j.ok) throw new Error(j.error || 'Could not load Input VAT records. Retry.');
       if (sequence !== listRequestSequence) return;
       rows = j.rows;
+      if (currentView === 'monthly') monthlyResponseCache.set(requestKey, {payload: j, storedAt: Date.now()});
       syncRate(j.standard_vat_rate);
       await new Promise((resolve) => window.requestAnimationFrame(() => {
         render(j);
@@ -699,7 +712,7 @@
 
     if (del) {
       if (!confirm('Move this purchase to audit history?')) return;
-      await request('delete', {id: del.dataset.delete});
+      await request('delete', {id: del.dataset.delete}); monthlyResponseCache.clear();
       await load();
       showToast('Purchase moved to audit history.', 'success');
       return;
@@ -707,7 +720,7 @@
 
     if (deleteFile) {
       if (!confirm('Remove this attachment?')) return;
-      await request('delete_attachment', {attachment_id: deleteFile.dataset.deleteFile});
+      await request('delete_attachment', {attachment_id: deleteFile.dataset.deleteFile}); monthlyResponseCache.clear();
       await load();
       showToast('Attachment removed.', 'success');
       return;
@@ -756,6 +769,7 @@
       if (form.dataset.duplicateConfirmed === '1') payload.duplicate_confirmed = '1';
       payload.files = pending;
       const result = await request('save', payload);
+      monthlyResponseCache.clear();
       refreshRowId = Number(result.row?.id || 0);
       if (!result.row) throw new Error('No response row from server.');
       if (form.elements.id.value) {
@@ -804,7 +818,7 @@
     const monthTab=event.target.closest('[data-select-month]');
     if(monthTab){ $('[data-month]').value=monthTab.dataset.selectMonth; syncSelectedMonthUi(); await load(); return; }
     const control=event.target.closest('[data-month-complete]'); if(!control) return;
-    await request('set_month_complete',{month:control.dataset.monthComplete,complete:control.dataset.complete==='1'?'0':'1'}); await load(); showToast('Month capture status updated.');
+    await request('set_month_complete',{month:control.dataset.monthComplete,complete:control.dataset.complete==='1'?'0':'1'}); monthlyResponseCache.clear(); await load(); showToast('Month capture status updated.');
   });
 
   dialog.addEventListener('cancel', (event) => {

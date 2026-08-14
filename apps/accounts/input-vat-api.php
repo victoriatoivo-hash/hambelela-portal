@@ -105,7 +105,8 @@ function iv_duplicate_matches(int $id, string $date, string $supplier, float $in
 function iv_capture_progress(): array
 {
     $start = accounts_historical_capture_start_date(); $cursor = substr($start, 0, 7); $end = date('Y-m'); $result = [];
-    $counts = db()->query("SELECT DATE_FORMAT(purchase_date,'%Y-%m') month_key,COUNT(*) record_count,SUM(amount_incl_vat) total_incl,SUM(vat_amount) total_vat FROM accounts_input_vat_purchases WHERE deleted_at IS NULL GROUP BY DATE_FORMAT(purchase_date,'%Y-%m')")->fetchAll();
+    $countStmt=db()->prepare("SELECT DATE_FORMAT(purchase_date,'%Y-%m') month_key,COUNT(*) record_count,SUM(amount_incl_vat) total_incl,SUM(vat_amount) total_vat FROM accounts_input_vat_purchases WHERE deleted_at IS NULL AND purchase_date>=? AND purchase_date<? GROUP BY DATE_FORMAT(purchase_date,'%Y-%m')");
+    $countStmt->execute([$start,date('Y-m-d',strtotime($end.'-01 +1 month'))]);$counts=$countStmt->fetchAll();
     $countMap=[]; foreach($counts as $row) $countMap[(string)$row['month_key']]=$row;
     $statuses=db()->query('SELECT * FROM accounts_input_vat_month_status')->fetchAll(); $statusMap=[]; foreach($statuses as $row) $statusMap[(string)$row['month_key']]=$row;
     while ($cursor <= $end) {
@@ -218,7 +219,9 @@ try {
         $stmt = db()->prepare('SELECT * FROM accounts_input_vat_purchases WHERE '.implode(' AND ', $where).' ORDER BY '.$sort.' '.$direction.',id DESC');
         $stmt->execute($params);
 
-        $rows = array_map('accounts_purchase_payload', $stmt->fetchAll());
+        $rawRows=$stmt->fetchAll();$attachmentsByPurchase=[];$ids=array_map(static function(array $row): int{return (int)$row['id'];},$rawRows);
+        if($ids){$placeholders=implode(',',array_fill(0,count($ids),'?'));$attachmentStmt=db()->prepare('SELECT * FROM accounts_input_vat_attachments WHERE deleted_at IS NULL AND purchase_id IN ('.$placeholders.') ORDER BY purchase_id,id');$attachmentStmt->execute($ids);foreach($attachmentStmt->fetchAll() as $attachment)$attachmentsByPurchase[(int)$attachment['purchase_id']][]=$attachment;}
+        $rows=[];foreach($rawRows as $row)$rows[]=accounts_purchase_payload($row,$attachmentsByPurchase[(int)$row['id']]??[]);
 
         $summary = [
             'count' => count($rows),

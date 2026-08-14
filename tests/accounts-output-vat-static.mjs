@@ -30,5 +30,9 @@ assert.match(page, /input-vat-history-toolbar/);
 assert.match(page, /data-portal-custom-select/);
 assert.match(client, /#inputVatPage\[data-output-vat\]/);
 assert.doesNotMatch(page + client, /#outputVatPage/);
+assert.match(client, /input-vat-month-tab/);
+assert.match(client, /period_progress/);
+assert.match(client, /new AbortController\(\)/);
+assert.match(client, /responseCache=new Map\(\)/);
 
 console.log('Output VAT static security and workflow checks passed.');
