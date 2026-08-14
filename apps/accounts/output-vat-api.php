@@ -8,6 +8,11 @@ function output_vat_json(array $payload,int $status=200): void { http_response_c
 
 try {
     $action=(string)($_REQUEST['action']??'list'); $month=output_vat_month((string)($_REQUEST['month']??date('Y-m')));
+    if($action==='source_report'){
+        $start=new DateTimeImmutable($month.'-01',new DateTimeZone('Africa/Windhoek'));
+        $report=wc_get('reports/sales',['date_min'=>$start->format('Y-m-d'),'date_max'=>$start->modify('+1 month -1 day')->format('Y-m-d')],30);
+        output_vat_json(['ok'=>true,'data'=>['month'=>$month,'report'=>$report]]);
+    }
     if($action==='export'){
         $data=output_vat_payload($month,(string)($_GET['search']??''),(string)($_GET['status']??''),(string)($_GET['treatment']??''));
         header('Content-Type: text/csv; charset=utf-8');header('Content-Disposition: attachment; filename="output-vat-'.$month.'.csv"');
