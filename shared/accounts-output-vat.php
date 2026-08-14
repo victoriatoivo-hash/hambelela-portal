@@ -114,10 +114,11 @@ function output_vat_map_order(array $order, string $month): array
     foreach ((array) ($order['shipping_lines'] ?? []) as $line) {
         $net = (float) ($line['total'] ?? 0); $tax = (float) ($line['total_tax'] ?? 0); $shipping += $net; $shippingTax += $tax;
         $class = output_vat_tax_class((string) ($line['tax_class'] ?? ''), $tax);
-        if ($class === 'standard') $standard += $net + $tax;
+        /* Shipping follows the tax actually recorded by WooCommerce. A blank
+           class with zero stored tax is not evidence that shipping was taxable. */
+        if ($tax > 0.00001) $standard += $net + $tax;
         elseif ($class === 'zero_rated') $zero += $net;
-        elseif ($class === 'exempt' || $tax == 0.0) $exempt += $net;
-        else $review += $net;
+        else $exempt += $net;
     }
     list($refundAmount, $refundTax, $refundStandard, $refundZero, $refundExempt, $refundAllocated) = output_vat_refund_totals((int) ($order['id'] ?? 0), $order);
     if ($refundAmount > 0 && !$refundAllocated) {

@@ -17,6 +17,7 @@ assert.doesNotMatch(helper + api, /wc_put\s*\(/);
 assert.doesNotMatch(helper + api, /CURLOPT_CUSTOMREQUEST\s*=>\s*'PUT'/);
 assert.match(helper, /snapshot_hash/);
 assert.match(helper, /historical_change/);
+assert.match(helper, /Shipping follows the tax actually recorded by WooCommerce/);
 assert.match(api, /period_completed/);
 assert.match(api, /Content-Disposition: attachment/);
 assert.match(accounts, /href="output-vat\.php"/);
