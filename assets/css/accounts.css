@@ -2,39 +2,6 @@
 @media(max-width:760px){.accounts-page{padding:14px}.accounts-hero{flex-direction:column}.accounts-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.accounts-breakdowns{grid-template-columns:1fr}.accounts-toolbar>*{flex:1 1 145px}.accounts-form-grid{grid-template-columns:1fr}.span-2{grid-column:span 1}.accounts-dialog footer button{min-height:44px}.vat-preview{grid-template-columns:1fr}.accounts-actions{width:100%}.accounts-actions>*{flex:1}}
 
 /* Output VAT — owner-only WooCommerce accounting reconciliation */
-#outputVatPage{--ov-primary:#721b1a;--ov-accent:#b94722;--ov-olive:#94ba00;--ov-cream:#fbf6ef;--ov-border:#e8d9cd;max-width:1600px;margin-inline:auto;gap:20px}
-#outputVatPage .accounts-hero h1{font-size:32px;font-weight:600;letter-spacing:-.03em}
-#outputVatPage .accounts-actions>*{display:inline-flex;align-items:center;gap:7px;min-height:34px;text-decoration:none}
-#outputVatPage .output-vat-active{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12px}
-#outputVatPage .output-vat-active svg{width:15px}.output-vat-active strong{padding:4px 9px;border:1px solid var(--ov-border);border-radius:999px;background:var(--ov-cream);color:var(--ov-primary)}
-#outputVatPage .output-vat-source-note{display:flex;align-items:center;gap:9px;margin:0;padding:10px 12px;border:1px solid #dce6c5;border-radius:10px;background:#f7fbea;color:#536132;font-size:12px}
-#outputVatPage .output-vat-source-note svg{width:18px;flex:0 0 18px}
-#outputVatPage .accounts-summary article{position:relative;min-height:112px;border-top:3px solid var(--ov-accent);box-shadow:0 8px 24px rgba(74,35,20,.045)}
-#outputVatPage .accounts-summary article>svg{position:absolute;right:15px;top:15px;width:20px;color:var(--ov-accent)}
-#outputVatPage .accounts-summary strong{font-size:24px}.output-vat-month-nav{display:grid;grid-template-columns:34px 100px 1fr 34px;align-items:end;gap:8px;padding:12px;border:1px solid var(--ov-border);border-radius:12px;background:#fff}
-#outputVatPage .output-vat-month-nav>button{display:grid;place-items:center;width:34px;height:34px;border:1px solid var(--ov-border);border-radius:8px;background:#fff;color:var(--ov-primary)}
-#outputVatPage .output-vat-month-nav label{display:grid;gap:3px;color:#765d50;font-size:9px;text-transform:uppercase}.output-vat-month-nav select{height:34px;border:1px solid var(--ov-border);border-radius:8px;background:#fff;padding:0 8px}
-#outputVatPage [data-month-tabs]{display:grid;grid-template-columns:repeat(12,minmax(42px,1fr));gap:5px;overflow:auto}
-#outputVatPage [data-month-tabs] button{height:34px;border:1px solid transparent;border-radius:8px;background:#fcf8f4;color:#765d50;font:600 11px Figtree,sans-serif;text-transform:uppercase}
-#outputVatPage [data-month-tabs] button.is-active{border-color:var(--ov-accent);background:#fff3eb;color:var(--ov-primary);box-shadow:inset 0 -2px var(--ov-accent)}
-#outputVatPage .output-vat-reconciliation{padding:18px;border:1px solid var(--ov-border);border-radius:14px;background:linear-gradient(135deg,#fff,#fbf6ef)}
-#outputVatPage .output-vat-reconciliation>header,#outputVatPage .output-vat-reconciliation>footer,#outputVatPage .output-vat-table-heading{display:flex;align-items:center;justify-content:space-between;gap:14px}
-#outputVatPage .output-vat-reconciliation h2,#outputVatPage .output-vat-table-heading h2{margin:2px 0;color:var(--ov-primary);font-size:18px}
-#outputVatPage .output-vat-reconcile-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px;margin:14px 0}
-#outputVatPage .output-vat-reconcile-grid article{padding:13px;border:1px solid var(--ov-border);border-radius:10px;background:#fff}.output-vat-reconcile-grid article.is-final{border-color:#cbdba4;background:#f7fbea}
-#outputVatPage .output-vat-reconcile-grid span,#outputVatPage .output-vat-reconcile-grid small{display:block;color:#80695e;font-size:10px}.output-vat-reconcile-grid strong{display:block;margin:5px 0;color:var(--ov-primary);font-size:18px}
-#outputVatPage .output-vat-reconciliation>footer{color:#80695e;font-size:10px}.output-vat-reconciliation>footer div{display:flex;gap:7px}.output-vat-change{display:flex;gap:8px;padding:10px;border-radius:8px;background:#fff0e8;color:#8d301e;font-size:11px}
-#outputVatPage .accounts-breakdowns article{min-height:0}.output-vat-help{color:#80695e;font-size:10px;line-height:1.5}
-#outputVatPage .accounts-toolbar{display:grid;grid-template-columns:2fr repeat(3,1fr)}#outputVatPage .accounts-toolbar input,#outputVatPage .accounts-toolbar select{height:34px;min-height:34px}
-#outputVatPage .output-vat-table-heading{padding:14px 16px;border-bottom:1px solid var(--ov-border)}#outputVatPage .output-vat-table-heading p{margin:0}#outputVatPage .output-vat-table-heading>span{color:#80695e;font-size:11px}
-#outputVatPage .status-pill{text-transform:capitalize}.status-pill.reconciled{background:#edf7df;color:#486800}.status-pill.review_required,.status-pill.excluded{background:#fff0eb;color:#8d301e}.status-pill.adjusted{background:#fff4d9;color:#7a5610}
-#outputVatPage tbody tr.is-excluded{opacity:.63}#outputVatPage.is-loading{cursor:progress}#outputVatPage.is-loading [data-sync] svg{animation:ov-spin 1s linear infinite}@keyframes ov-spin{to{transform:rotate(360deg)}}
-@media(max-width:1050px){#outputVatPage .output-vat-reconcile-grid{grid-template-columns:repeat(2,1fr)}#outputVatPage .accounts-toolbar{grid-template-columns:1fr 1fr}}
-@media(max-width:760px){#outputVatPage .output-vat-month-nav{grid-template-columns:34px 90px 1fr 34px}#outputVatPage [data-month-tabs]{grid-template-columns:repeat(12,56px)}#outputVatPage .output-vat-reconcile-grid{grid-template-columns:1fr}#outputVatPage .output-vat-reconciliation>footer{align-items:flex-start;flex-direction:column}#outputVatPage .accounts-toolbar{grid-template-columns:1fr}#outputVatPage .accounts-actions{display:grid;grid-template-columns:1fr 1fr}#outputVatPage .accounts-actions [data-sync]{grid-column:1/-1}}
-@media(max-width:480px){#outputVatPage .output-vat-month-nav{grid-template-columns:34px 1fr 34px}#outputVatPage .output-vat-month-nav label{display:none}#outputVatPage .accounts-summary{grid-template-columns:1fr}}
-@media(prefers-reduced-motion:reduce){#outputVatPage *{scroll-behavior:auto!important;animation:none!important}}
-@media print{#outputVatPage .output-vat-month-nav,#outputVatPage .output-vat-source-note,#outputVatPage .accounts-actions,#outputVatPage .accounts-toolbar,#outputVatPage .output-vat-reconciliation footer{display:none!important}}
-
 /* Input VAT working controls and accounting settings */
 #inputVatPage{--iv-primary:#721b1a;--iv-accent:#ab3619;--iv-border:#e6d9cf;--iv-muted:#765d50;--iv-soft:#fbf7f3;gap:20px;max-width:1600px;margin-inline:auto}
 #inputVatPage .accounts-hero{padding-bottom:4px}
@@ -719,3 +686,38 @@ body.input-vat-dialog-open{overflow:hidden!important}
 #inputVatPage .input-vat-settings-action:active svg{
   transform:rotate(360deg) scale(.92);
 }
+
+/* Output VAT only needs layout for concepts that Input VAT does not have. */
+#inputVatPage.output-vat-page .output-vat-source-note{display:flex;align-items:center;gap:8px;margin:0;padding:9px 11px;border:1px solid #ede3d8;border-radius:8px;background:#fdf6ee;color:#6b4c3b;font:400 11px/1.4 Figtree,system-ui,sans-serif}
+#inputVatPage.output-vat-page .output-vat-source-note svg{width:16px;height:16px;flex:0 0 16px;color:#a8ca19}
+#inputVatPage.output-vat-page .output-vat-reconciliation{padding:13px;border:1px solid #ede3d8;border-radius:12px;background:#fff}
+#inputVatPage.output-vat-page .output-vat-reconciliation>header,#inputVatPage.output-vat-page .output-vat-reconciliation>footer,#inputVatPage.output-vat-page .output-vat-table-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+#inputVatPage.output-vat-page .output-vat-reconciliation h2,#inputVatPage.output-vat-page .output-vat-table-heading h2{margin:2px 0;color:#721b1a;font-size:14px;font-weight:600}
+#inputVatPage.output-vat-page .output-vat-reconcile-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:11px 0}
+#inputVatPage.output-vat-page .output-vat-reconcile-grid article{min-width:0;padding:11px 12px;border:1px solid #ede3d8;border-left:4px solid #ab3619;border-radius:11px;background:#fff}
+#inputVatPage.output-vat-page .output-vat-reconcile-grid article:nth-child(2){border-left-color:#f07420}
+#inputVatPage.output-vat-page .output-vat-reconcile-grid article:nth-child(3){border-left-color:#bb1b21}
+#inputVatPage.output-vat-page .output-vat-reconcile-grid article:nth-child(4){border-left-color:#6b4c3b}
+#inputVatPage.output-vat-page .output-vat-reconcile-grid article.is-final{border-left-color:#a8ca19;background:#fdf6ee}
+#inputVatPage.output-vat-page .output-vat-reconcile-grid span,#inputVatPage.output-vat-page .output-vat-reconcile-grid small{display:block;color:#a08070;font-size:10px;line-height:1.35}
+#inputVatPage.output-vat-page .output-vat-reconcile-grid strong{display:block;margin:5px 0;color:#1a1a1a;font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}
+#inputVatPage.output-vat-page .output-vat-reconciliation>footer{color:#a08070;font-size:10px}
+#inputVatPage.output-vat-page .output-vat-reconciliation>footer>div{display:flex;gap:7px}
+#inputVatPage.output-vat-page .output-vat-change{display:flex;align-items:flex-start;gap:7px;padding:9px;border-radius:8px;background:#fdf6ee;color:#721b1a;font-size:11px}
+#inputVatPage.output-vat-page .output-vat-help{margin:8px 0 0;color:#a08070;font-size:10px;line-height:1.5}
+#inputVatPage.output-vat-page .output-vat-filters{margin:0 0 10px}
+#inputVatPage.output-vat-page .output-vat-table-heading{padding:11px 13px;border-bottom:1px solid #ede3d8}
+#inputVatPage.output-vat-page .output-vat-table-heading p{margin:0}
+#inputVatPage.output-vat-page .output-vat-table-heading>span{color:#a08070;font-size:11px}
+#inputVatPage.output-vat-page .status-pill{text-transform:capitalize}
+#inputVatPage.output-vat-page .status-pill.reconciled{background:#f2f7df;color:#526600}
+#inputVatPage.output-vat-page .status-pill.review_required,#inputVatPage.output-vat-page .status-pill.excluded{background:#fff0eb;color:#721b1a}
+#inputVatPage.output-vat-page .status-pill.adjusted{background:#fdf6ee;color:#ab3619}
+#inputVatPage.output-vat-page tbody tr.is-excluded{opacity:.64}
+#inputVatPage.output-vat-page.is-loading{cursor:progress}
+#inputVatPage.output-vat-page.is-loading [data-sync] svg{animation:output-vat-refresh 1s linear infinite}
+@keyframes output-vat-refresh{to{transform:rotate(360deg)}}
+@media(max-width:1100px){#inputVatPage.output-vat-page .output-vat-reconcile-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){#inputVatPage.output-vat-page .output-vat-reconcile-grid{grid-template-columns:1fr}#inputVatPage.output-vat-page .output-vat-reconciliation>footer{align-items:flex-start;flex-direction:column}#inputVatPage.output-vat-page .output-vat-reconciliation>footer>div{width:100%;display:grid;grid-template-columns:1fr 1fr}}
+@media(max-width:480px){#inputVatPage.output-vat-page .output-vat-filters .input-vat-history-primary{grid-template-columns:1fr}#inputVatPage.output-vat-page .output-vat-filters label{grid-column:auto}}
+@media print{#inputVatPage.output-vat-page .input-vat-month-workspace,#inputVatPage.output-vat-page .output-vat-source-note,#inputVatPage.output-vat-page .accounts-actions,#inputVatPage.output-vat-page .accounts-toolbar,#inputVatPage.output-vat-page .output-vat-reconciliation footer{display:none!important}}

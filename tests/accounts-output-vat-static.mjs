@@ -24,5 +24,11 @@ assert.match(accounts, /href="output-vat\.php"/);
 assert.match(page, /Read-only WooCommerce source/);
 assert.match(page, /data-adjust-form/);
 assert.match(client, /data-complete/);
+assert.match(page, /id="inputVatPage"[^>]*data-output-vat/);
+assert.match(page, /input-vat-month-workspace/);
+assert.match(page, /input-vat-history-toolbar/);
+assert.match(page, /data-portal-custom-select/);
+assert.match(client, /#inputVatPage\[data-output-vat\]/);
+assert.doesNotMatch(page + client, /#outputVatPage/);
 
 console.log('Output VAT static security and workflow checks passed.');
