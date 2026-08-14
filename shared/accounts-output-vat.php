@@ -164,6 +164,7 @@ function output_vat_summary_from_rows(array $rows): array
     }
     foreach ($summary as $key=>$value) if (is_float($value)) $summary[$key] = output_vat_money($value);
     $summary['difference'] = output_vat_money($summary['expected_vat'] - $summary['woo_vat']);
+    $summary['rounding_tolerance'] = output_vat_money(max(0.02, $summary['orders'] * 0.01));
     return $summary;
 }
 
@@ -211,6 +212,7 @@ function output_vat_payload(string $month, string $search='', string $status='',
     $adjustment=(float)($period['adjustment_amount']??0);$final=output_vat_money((float)($summary['expected_vat']??0)+$adjustment);
     $difference=output_vat_money((float)($summary['difference']??0));
     $statusKey=(string)($period['reconciliation_status']??'in_progress');
-    if(empty($period['completed_at'])) $statusKey=$adjustment!=0.0?'adjusted':(abs($difference)<=0.02?'reconciled':'review_required');
+    $tolerance=(float)($summary['rounding_tolerance']??0.02);
+    if(empty($period['completed_at'])) $statusKey=$adjustment!=0.0?'adjusted':(abs($difference)<=$tolerance?'reconciled':'review_required');
     return ['month'=>$month,'summary'=>$summary,'orders'=>$rows,'period'=>['status'=>$statusKey,'adjustment'=>$adjustment,'adjustment_reason'=>(string)($period['adjustment_reason']??''),'adjustment_note'=>(string)($period['adjustment_note']??''),'final_output_vat'=>$final,'completed_at'=>$period['completed_at']??null,'historical_change'=>(bool)($period['historical_change']??false),'change'=>$period['change_json']??null,'synced_at'=>$period['source_synced_at']??null]];
 }
