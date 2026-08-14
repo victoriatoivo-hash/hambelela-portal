@@ -1,10 +1,14 @@
 import fs from 'node:fs';import assert from 'node:assert/strict';
 const shared=fs.readFileSync('shared/accounts-import-vat.php','utf8'),api=fs.readFileSync('apps/accounts/import-vat-api.php','utf8'),page=fs.readFileSync('apps/accounts/import-vat.php','utf8'),index=fs.readFileSync('apps/accounts/index.php','utf8');
-for(const table of ['accounts_import_vat_liabilities','accounts_import_vat_payments','accounts_import_vat_documents','accounts_import_vat_audit'])assert.ok(shared.includes(table),table);
+for(const table of ['accounts_import_vat_liabilities','accounts_import_vat_payments','accounts_import_vat_documents','accounts_import_vat_audit','accounts_import_vat_statements','accounts_import_vat_statement_rows','accounts_import_vat_statement_audit'])assert.ok(shared.includes(table),table);
 assert.ok(shared.includes("SUM(CASE WHEN p.reversed_at IS NULL THEN p.amount ELSE 0 END)"),'ledger totals derive paid amount');
 assert.ok(shared.includes("return'partially_paid'")&&shared.includes("return'overdue'")&&shared.includes("return'overpayment'"),'payment states');
 assert.ok(api.includes('Payment exceeds the outstanding amount'),'overpayment gate');
 assert.ok(api.includes('payment_recorded')&&api.includes('Imports with payment history cannot be deleted'),'audit safeguards');
 assert.ok(page.includes('Monthly Imports')&&page.includes('Payment Tracker')&&page.includes('Proof of payment'),'required UI');
+assert.ok(page.includes('Upload NamRA Statement')&&page.includes('NamRA Statement History')&&page.includes('Confirm Import'),'statement workflow UI');
+assert.ok(api.includes('upload_statement')&&api.includes('update_statement_row')&&api.includes('confirm_statement'),'statement API actions');
+assert.ok(api.includes('sha256')&&api.includes('beginTransaction')&&api.includes('source_statement_row_id'),'duplicate-safe transactional posting');
+assert.ok(shared.includes('The CSV headings do not expose a reliable'),'conservative heading parser');
 assert.ok(index.includes('href="import-vat.php"'),'Accounts card');
 console.log('Import VAT static contract passed');
