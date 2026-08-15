@@ -110,6 +110,10 @@
 }
 #inputVatPage.sage-page .sage-pack th,
 #inputVatPage.sage-page .sage-dual th{font-weight:600}
+#inputVatPage.sage-page .sage-dual>div{min-width:0}
+#inputVatPage.sage-page .sage-dual table{width:100%;min-width:0!important;table-layout:fixed}
+#inputVatPage.sage-page .sage-dual th,
+#inputVatPage.sage-page .sage-dual td{overflow-wrap:anywhere}
 #inputVatPage.sage-page .sage-pack td.money,
 #inputVatPage.sage-page .sage-dual td.money,
 #inputVatPage.sage-page .accounts-table-card td.money{color:#3d3d3d;font:400 12px/1.2 Figtree,system-ui,sans-serif;font-variant-numeric:tabular-nums}
