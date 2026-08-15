@@ -411,6 +411,9 @@
 
   function syncSelectedMonthUi() {
     const selected = $('[data-month]').value;
+    const url = new URL(location.href);
+    url.searchParams.set('month', selected);
+    history.replaceState(null, '', url);
     page.querySelectorAll('[data-select-month]').forEach((button) => {
       const active = button.dataset.selectMonth === selected;
       button.classList.toggle('is-active', active);

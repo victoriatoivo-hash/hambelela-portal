@@ -10,6 +10,7 @@ accounts_require_input_vat_access();
 accounts_input_vat_schema_ready();
 
 $requestedView = strtolower(trim((string) ($_GET['view'] ?? $_GET['period'] ?? '')));
+$requestedMonth = preg_match('/^20\d{2}-(0[1-9]|1[0-2])$/', (string) ($_GET['month'] ?? '')) ? (string) $_GET['month'] : date('Y-m');
 if (!accounts_is_owner() && in_array($requestedView, ['history', 'transaction-history'], true)) {
     header('Location: input-vat.php');
     exit;
@@ -65,7 +66,7 @@ include BASE_PATH.'/shared/sidebar.php';
   </section>
 
   <section class="accounts-toolbar" aria-label="Input VAT working filters" data-monthly-toolbar>
-    <input type="hidden" data-month value="<?=date('Y-m')?>">
+    <input type="hidden" data-month value="<?=htmlspecialchars($requestedMonth, ENT_QUOTES, 'UTF-8')?>">
     <label class="accounts-search-control"><span>Search</span><span class="input-vat-search-field"><i data-lucide="search" aria-hidden="true"></i><input type="search" data-search placeholder="Search supplier, description or reference"></span></label>
     <label class="accounts-status-control"><span>Status</span><select data-status data-portal-custom-select data-portal-select-variant="input-vat"><option value="">All records</option><option value="captured">Captured</option><option value="needs_correction">Needs Correction</option></select></label>
   </section>
