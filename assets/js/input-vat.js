@@ -948,6 +948,10 @@
     });
   }
 
+  const requestedMonth = new URLSearchParams(location.search).get('month');
+  if (/^20\d{2}-(0[1-9]|1[0-2])$/.test(requestedMonth || '')) {
+    $('[data-month]').value = requestedMonth;
+  }
   buildPreview();
   updateActivePeriodLabel();
   renderMonthlyLoading();
