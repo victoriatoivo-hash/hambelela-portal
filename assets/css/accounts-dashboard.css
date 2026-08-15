@@ -1,28 +1,41 @@
-/* Accounts dashboard application identities */
-.accounts-app-section>header h2{margin:2px 0 12px;color:#721b1a;font-size:15px;font-weight:700}
-.accounts-app-grid{grid-template-columns:repeat(2,minmax(0,420px));gap:16px}
-.accounting-app-card{--app-accent:#ab3619;--app-accent-soft:rgba(171,54,25,.08);position:relative;min-height:170px;overflow:hidden;border-left:3px solid var(--app-accent);box-shadow:0 7px 20px rgba(107,76,59,.055);transition:transform 170ms ease,border-color 170ms ease,background-color 170ms ease,box-shadow 170ms ease}
-.accounting-app-card>div{display:flex;min-width:0;flex:1;flex-direction:column;align-items:flex-start}
-.accounting-app-card h3{margin:4px 0 6px;color:#721b1a;font-size:16px}
-.accounting-app-card p{color:#6b4c3b}
-.accounting-app-card strong{margin-top:auto;color:#ab3619}
-.accounting-app-card strong span{display:inline-block;transition:transform 170ms ease}
-.accounting-app-card .accounts-app-icon{background:var(--app-accent-soft);color:var(--app-accent);transition:transform 170ms ease,background-color 170ms ease}
-.accounting-app-card .accounts-app-icon svg{width:24px;height:24px;stroke:currentColor}
-.accounting-app-card:hover{border-color:var(--app-accent);background:var(--app-accent-soft);box-shadow:0 12px 28px rgba(107,76,59,.11);transform:translateY(-2px)}
-.accounting-app-card:hover .accounts-app-icon{transform:scale(1.035)}
-.accounting-app-card:hover strong{color:var(--app-accent)}
-.accounting-app-card:hover strong span{transform:translateX(3px)}
-.accounting-app-card:focus-visible{outline:3px solid var(--app-accent);outline-offset:3px}
-.accounting-app-card--input-vat{--app-accent:#a8ca19;--app-accent-soft:rgba(168,202,25,.10)}
-.accounting-app-card--output-vat{--app-accent:#ab3619;--app-accent-soft:rgba(171,54,25,.08)}
-.accounting-app-card--import-vat{--app-accent:#f07420;--app-accent-soft:rgba(240,116,32,.10)}
-.accounting-app-card--vat-reconciliation{--app-accent:#721b1a;--app-accent-soft:rgba(114,27,26,.07)}
-.accounting-app-card--sage{--app-accent:#6b4c3b;--app-accent-soft:rgba(107,76,59,.08)}
-.accounts-app-status{font-size:11px;font-weight:600}
-.accounts-owner-label{display:inline-flex;margin-left:5px;padding:2px 6px;border-radius:999px;background:rgba(107,76,59,.09);color:#6b4c3b;font-size:9px;font-weight:600;text-transform:none}
-.accounting-app-card--planned{--app-accent:#bdaea4;--app-accent-soft:#f8f4f0;min-height:170px;border-left-color:#d8cdc5;background:#fbf9f7;box-shadow:none;opacity:.68;pointer-events:none}
-.accounting-app-card--planned .accounts-app-icon{background:#f1ebe6;color:#8b7a70}
-.accounting-app-card--planned:hover{background:#fbf9f7;box-shadow:none;transform:none}
-@media (max-width:760px){.accounts-app-grid{grid-template-columns:1fr}.accounting-app-card{min-height:0;padding:18px}}
-@media (prefers-reduced-motion:reduce){.accounting-app-card,.accounting-app-card .accounts-app-icon,.accounting-app-card strong span{transition:none}.accounting-app-card:hover{transform:none}}
+/* Accounts landing page application cards. Input VAT supplies the design language. */
+.accounts-workspace .accounts-app-section>header h2{margin:2px 0 12px;color:#721b1a;font:700 16px/1.25 Figtree,system-ui,sans-serif}
+.accounts-workspace .accounts-app-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.accounts-workspace .accounting-app-card{--app-accent:#ab3619;--app-accent-soft:rgba(171,54,25,.08);position:relative;box-sizing:border-box;display:flex;min-width:0;min-height:184px;gap:15px;overflow:hidden;padding:20px;border:1px solid #e8ddd3;border-left:3px solid var(--app-accent);border-radius:14px;background:#fff;color:#2b1b16;box-shadow:0 7px 20px rgba(107,76,59,.055);text-decoration:none;transition:transform 160ms ease,border-color 160ms ease,background-color 180ms ease,box-shadow 180ms ease}
+.accounts-workspace .accounting-app-card::after{content:"";position:absolute;right:-38px;bottom:-52px;width:132px;height:132px;border:1px solid var(--app-accent);border-radius:50%;opacity:.07;pointer-events:none}
+.accounts-workspace .accounting-app-card__content{display:flex;min-width:0;flex:1;flex-direction:column;align-items:flex-start}
+.accounts-workspace .accounting-app-card__status{display:flex;width:100%;min-height:20px;align-items:center;gap:6px}
+.accounts-workspace .accounting-app-card h3{margin:7px 0 6px;color:#721b1a;font:600 16px/1.25 Figtree,system-ui,sans-serif}
+.accounts-workspace .accounting-app-card p{margin:0 0 14px;color:#6b4c3b;font:400 12px/1.45 Figtree,system-ui,sans-serif}
+.accounts-workspace .accounting-app-card strong{display:inline-flex;align-items:center;gap:5px;margin-top:auto;color:#ab3619;font:600 12px/1.2 Figtree,system-ui,sans-serif}
+.accounts-workspace .accounting-app-card strong span{display:inline-block;transition:transform 170ms ease}
+.accounts-workspace .accounting-app-card .accounts-app-icon{display:grid;width:54px;height:54px;flex:0 0 54px;place-items:center;border:1px solid color-mix(in srgb,var(--app-accent) 18%,transparent);border-radius:13px;background:var(--app-accent-soft);color:var(--app-accent);transition:transform 170ms ease,background-color 170ms ease,border-color 170ms ease}
+.accounts-workspace .accounting-app-card .accounts-app-icon svg{width:23px;height:23px;stroke:currentColor}
+.accounts-workspace .accounts-app-status{display:inline-flex;align-items:center;gap:4px;padding:3px 7px;border-radius:999px;background:#f2f7e7;color:#4e6811;font:600 10px/1 Figtree,system-ui,sans-serif;letter-spacing:.01em;text-transform:none}
+.accounts-workspace .accounts-app-status::before{content:"";width:5px;height:5px;border-radius:50%;background:#86aa05}
+.accounts-workspace .accounts-owner-label{display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:999px;background:rgba(107,76,59,.09);color:#6b4c3b;font:600 9px/1 Figtree,system-ui,sans-serif;white-space:nowrap}
+.accounts-workspace .accounts-owner-label svg{width:10px;height:10px}
+.accounts-workspace .accounting-app-visual{display:flex;height:18px;margin-left:auto;align-items:flex-end;gap:3px;opacity:.62}
+.accounts-workspace .accounting-app-visual i{display:block;width:3px;height:8px;border-radius:3px;background:var(--app-accent);transition:height 170ms ease,transform 170ms ease}
+.accounts-workspace .accounting-app-visual i:nth-child(2){height:14px}.accounts-workspace .accounting-app-visual i:nth-child(3){height:11px}
+.accounts-workspace .accounting-app-card:hover{border-color:var(--app-accent);background:linear-gradient(135deg,#fff 45%,var(--app-accent-soft));box-shadow:0 12px 28px rgba(107,76,59,.12);transform:translateY(-2px)}
+.accounts-workspace .accounting-app-card:hover .accounts-app-icon{border-color:var(--app-accent);background:var(--app-accent-soft);transform:translateY(-1px) rotate(-2deg) scale(1.04)}
+.accounts-workspace .accounting-app-card:hover .accounting-app-visual i:nth-child(1){height:12px}.accounts-workspace .accounting-app-card:hover .accounting-app-visual i:nth-child(2){height:17px}.accounts-workspace .accounting-app-card:hover .accounting-app-visual i:nth-child(3){height:14px}
+.accounts-workspace .accounting-app-card:hover strong{color:var(--app-accent)}.accounts-workspace .accounting-app-card:hover strong span{transform:translateX(3px)}
+.accounts-workspace .accounting-app-card:active{transform:translateY(0) scale(.995)}
+.accounts-workspace .accounting-app-card:focus-visible{outline:3px solid color-mix(in srgb,var(--app-accent) 45%,transparent);outline-offset:3px}
+.accounts-workspace .accounting-app-card--input-vat{--app-accent:#a8ca19;--app-accent-soft:rgba(168,202,25,.10)}
+.accounts-workspace .accounting-app-card--output-vat{--app-accent:#ab3619;--app-accent-soft:rgba(171,54,25,.08)}
+.accounts-workspace .accounting-app-card--import-vat{--app-accent:#f07420;--app-accent-soft:rgba(240,116,32,.10)}
+.accounts-workspace .accounting-app-card--vat-reconciliation{--app-accent:#721b1a;--app-accent-soft:rgba(114,27,26,.07)}
+.accounts-workspace .accounting-app-card--sage{--app-accent:#6b4c3b;--app-accent-soft:rgba(107,76,59,.08)}
+.accounts-workspace .accounting-app-card--input-vat .accounting-app-visual i:nth-child(1){height:14px}.accounts-workspace .accounting-app-card--output-vat .accounting-app-visual{transform:skewX(-12deg)}.accounts-workspace .accounting-app-card--import-vat .accounting-app-visual i{border-radius:50%}
+.accounts-workspace .accounting-app-card--vat-reconciliation .accounting-app-visual{align-items:center}.accounts-workspace .accounting-app-card--vat-reconciliation .accounting-app-visual i{width:10px;height:3px}
+.accounts-workspace .accounting-app-card--sage .accounting-app-visual i{width:12px;height:2px}.accounts-workspace .accounting-app-card--sage .accounting-app-visual{flex-direction:column;justify-content:center;gap:3px}
+.accounts-workspace .accounting-app-card--planned{--app-accent:#bdaea4;--app-accent-soft:#f8f4f0;min-height:184px;border-left-color:#d8cdc5;background:#fbf9f7;box-shadow:none;opacity:.72;cursor:not-allowed;pointer-events:none}
+.accounts-workspace .accounting-app-card--planned::after{display:none}.accounts-workspace .accounting-app-card--planned .accounts-app-icon{border-color:#e5ddd7;background:#f1ebe6;color:#8b7a70}.accounts-workspace .accounting-app-card--planned .accounts-app-status{background:#f1ece8;color:#786b63}.accounts-workspace .accounting-app-card--planned .accounts-app-status::before{background:#a4978f}.accounts-workspace .accounting-app-card--planned .accounting-app-visual{opacity:.3}
+.accounts-workspace .accounting-app-card--planned:hover{border-color:#d8cdc5;background:#fbf9f7;box-shadow:none;transform:none}.accounts-workspace .accounts-coming-soon-control{margin-top:auto;color:#786b63;font:600 12px/1.2 Figtree,system-ui,sans-serif}
+@media(max-width:900px){.accounts-workspace .accounts-app-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.accounts-workspace .accounting-app-card{padding:17px}}
+@media(max-width:680px){.accounts-workspace .accounts-app-grid{grid-template-columns:1fr;gap:14px}.accounts-workspace .accounting-app-card{min-height:170px;padding:18px}}
+@media(max-width:390px){.accounts-workspace .accounting-app-card{gap:12px;padding:16px}.accounts-workspace .accounting-app-card .accounts-app-icon{width:48px;height:48px;flex-basis:48px}.accounts-workspace .accounting-app-card__status{flex-wrap:wrap}.accounts-workspace .accounting-app-visual{margin-left:0}}
+@media(prefers-reduced-motion:reduce){.accounts-workspace .accounting-app-card,.accounts-workspace .accounting-app-card .accounts-app-icon,.accounts-workspace .accounting-app-card strong span,.accounts-workspace .accounting-app-visual i{transition:none}.accounts-workspace .accounting-app-card:hover,.accounts-workspace .accounting-app-card:active{transform:none}.accounts-workspace .accounting-app-card:hover .accounts-app-icon{transform:none}}
