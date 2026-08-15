@@ -110,6 +110,9 @@
 }
 #inputVatPage.sage-page .sage-pack th,
 #inputVatPage.sage-page .sage-dual th{font-weight:600}
+#inputVatPage.sage-page .sage-pack{overflow:hidden}
+#inputVatPage.sage-page .sage-pack table{width:100%;min-width:0!important;table-layout:fixed}
+#inputVatPage.sage-page .sage-pack th{overflow-wrap:anywhere}
 #inputVatPage.sage-page .sage-dual>div{min-width:0}
 #inputVatPage.sage-page .sage-dual table{width:100%;min-width:0!important;table-layout:fixed}
 #inputVatPage.sage-page .sage-dual th,
