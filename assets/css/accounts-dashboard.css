@@ -29,6 +29,7 @@
 .accounts-workspace .accounting-app-card--import-vat{--app-accent:#f07420;--app-accent-soft:rgba(240,116,32,.10)}
 .accounts-workspace .accounting-app-card--vat-reconciliation{--app-accent:#721b1a;--app-accent-soft:rgba(114,27,26,.07)}
 .accounts-workspace .accounting-app-card--sage{--app-accent:#6b4c3b;--app-accent-soft:rgba(107,76,59,.08)}
+.accounts-workspace .accounting-app-card--asset-register{--app-accent:#8c5e4b;--app-accent-soft:rgba(140,94,75,.09)}
 .accounts-workspace .accounting-app-card--input-vat .accounting-app-visual i:nth-child(1){height:14px}.accounts-workspace .accounting-app-card--output-vat .accounting-app-visual{transform:skewX(-12deg)}.accounts-workspace .accounting-app-card--import-vat .accounting-app-visual i{border-radius:50%}
 .accounts-workspace .accounting-app-card--vat-reconciliation .accounting-app-visual{align-items:center}.accounts-workspace .accounting-app-card--vat-reconciliation .accounting-app-visual i{width:10px;height:3px}
 .accounts-workspace .accounting-app-card--sage .accounting-app-visual i{width:12px;height:2px}.accounts-workspace .accounting-app-card--sage .accounting-app-visual{flex-direction:column;justify-content:center;gap:3px}

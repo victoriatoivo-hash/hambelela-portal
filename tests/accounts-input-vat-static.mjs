@@ -50,10 +50,9 @@ assert.match(dashboard, /'action' => 'Open Input VAT'/);
 assert.match(workspace, /Accounting Apps/);
 assert.match(workspace, /Open Input VAT/);
 assert.match(workspace, /Available/);
-for (const planned of ['Output VAT', 'Import VAT', 'Expenses', 'Supplier Statements', 'Asset Register', 'Reconciliations', 'VAT Return Preparation']) {
-  assert.match(workspace, new RegExp(planned));
-}
-assert.match(workspace, /class="accounts-app-card accounting-app-card accounting-app-card--planned is-coming-soon" aria-disabled="true"/);
+for (const active of ['Output VAT', 'Import VAT', 'Asset Register']) assert.match(workspace, new RegExp(active));
+for (const removed of ['Expenses', 'Supplier Statements', 'Coming soon', 'VAT Return Preparation']) assert.doesNotMatch(workspace, new RegExp(removed));
+assert.doesNotMatch(workspace, /accounting-app-card--planned|is-coming-soon/);
 assert.doesNotMatch(workspace, /accounts_input_vat_purchases|This month records|Amount incl VAT/);
 
 assert.match(page, /if\(accounts_is_owner\(\)\):/);

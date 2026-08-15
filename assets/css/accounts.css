@@ -172,8 +172,8 @@
 #inputVatPage .accounts-table-card tbody tr:hover{background:#fff9f5}
 #inputVatPage .accounts-table-card th.money,#inputVatPage .accounts-table-card td.money{text-align:right;font-variant-numeric:tabular-nums}
 #inputVatPage .row-actions{display:flex;justify-content:flex-end;gap:4px}
-#inputVatPage .row-actions button{width:30px;min-width:30px;height:30px;min-height:30px;padding:0;border:0;background:transparent;color:#765b50}
-#inputVatPage .row-actions button:hover{background:#f4e7e0;color:var(--iv-primary)}
+#inputVatPage .row-actions button,#inputVatPage .row-actions a{display:inline-grid;place-items:center;width:30px;min-width:30px;height:30px;min-height:30px;padding:0;border:0;border-radius:8px;background:transparent;color:#765b50;text-decoration:none}
+#inputVatPage .row-actions button:hover,#inputVatPage .row-actions a:hover{background:#f4e7e0;color:var(--iv-primary)}
 #inputVatPage .row-actions svg{width:15px;height:15px}
 #inputVatPage .table-empty-state{min-height:150px;display:grid;place-content:center;text-align:center;color:var(--iv-muted)}
 #inputVatPage .table-empty-state svg{width:28px;height:28px;margin:0 auto 9px;color:#b99789}
