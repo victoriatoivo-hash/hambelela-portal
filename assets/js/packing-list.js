@@ -1402,10 +1402,11 @@
   function updateDraftWorkloadCell(input, row) {
     const cell = input.closest('tr')?.querySelector('[data-draft-workload]');
     if (cell) {
-      const warning = draftValidation(row);
       const accounting = quantityAccounting(row);
-      input.closest('tr')?.classList.toggle('has-draft-warning', !!warning);
-      cell.innerHTML = `<strong>${formatPhysical(accounting.received.dimension || 'count', accounting.plannedBase)}</strong><small>${esc(row.workload || draftWorkload(row))} weighted points</small>${warning ? `<small class="draft-warning-inline">${esc(warning)}</small>` : '<small class="draft-allocation-ok">Fully allocated</small>'}`;
+      const statusClass = accounting.valid ? (row.quantity_confirmed === true ? 'is-confirmed' : 'is-valid') : `is-${accounting.status}`;
+      const statusText = row.quantity_confirmed === true ? '✓ Quantity confirmed' : (accounting.valid ? 'Valid — confirmation required' : accounting.message);
+      input.closest('tr')?.classList.toggle('has-draft-warning', !accounting.valid);
+      cell.innerHTML = `<strong>Allocated: ${formatPhysical(accounting.received.dimension || 'count', accounting.plannedBase)}</strong><small>Remaining: ${formatPhysical(accounting.received.dimension || 'count', Math.max(0, accounting.difference))}</small><small class="quantity-row-status ${statusClass}">${esc(statusText)}</small>`;
     }
   }
 
