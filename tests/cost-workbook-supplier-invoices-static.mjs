@@ -7,7 +7,7 @@ const overview = read('shared/cost-workbook-sections.php');
 const view = read('shared/cost-workbook-supplier-invoices.php');
 const api = read('apps/cost-manager/supplier-invoices-api.php');
 const schema = read('shared/cost-workbook.php');
-const js = read('assets/js/supplier-invoices.js');
+const js = read('assets/js/supplier-invoices-v2.js');
 
 assert.match(shell, /supplier-invoices\.php/);
 assert.match(shell, /Supplier Invoices &amp; Cost Extraction/);
@@ -26,5 +26,7 @@ assert.match(api, /approval_status='draft'/);
 assert.match(schema, /cw_suppliers/);
 assert.match(schema, /schema_version','5'/);
 assert.match(js, /FormData/);
-assert.match(js, /data-si-total-base/);
+assert.match(view, /data-si-total-base/);
+assert.match(js, /data-si-summary/);
+assert.match(js, /Loading supplier invoices/);
 console.log('Cost Workbook Supplier Invoices static checks passed.');

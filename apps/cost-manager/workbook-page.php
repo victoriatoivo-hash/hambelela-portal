@@ -15,7 +15,7 @@ cw_page_begin($cwPageKey,$period,$bootError);
 $scripts=[];
 if($cwPageKey==='overview'){cw_render_overview($period);$scripts[]='cost-workbook-pages.js?v=2';}
 elseif($cwPageKey==='size-conversions'){cw_render_size_conversions($period);$scripts[]='size-conversions.js?v='.(int)filemtime(BASE_PATH.'/assets/js/size-conversions.js');}
-elseif($cwPageKey==='supplier-invoices'){cw_render_supplier_invoices($period);$scripts[]='supplier-invoices.js?v='.(int)filemtime(BASE_PATH.'/assets/js/supplier-invoices.js');}
+elseif($cwPageKey==='supplier-invoices'){cw_render_supplier_invoices($period);$scripts[]='supplier-invoices-v2.js?v='.(int)filemtime(BASE_PATH.'/assets/js/supplier-invoices-v2.js');}
 elseif($cwPageKey==='purchases'){cw_render_purchases(false);$scripts[]='cost-workbook-pages.js?v=1';}
 elseif(in_array($cwPageKey,['shipments','landed-costs','product-matching'],true)){cw_render_phase2($cwPageKey);$scripts[]='cost-workbook-phase2.js?v=2';}
 elseif($cwPageKey==='profitability'){cw_render_profitability();$scripts[]='cost-workbook-pages.js?v=1';}
