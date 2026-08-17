@@ -20,6 +20,7 @@ for (const [name, rule] of [['shell', shell], ['form', form], ['body', body]]) {
 assert.match(panel, /overflow:\s*clip/, 'outer dialog must not retain a hidden programmatic scroll position');
 assert.match(shell, /overflow:\s*clip/, 'dialog shell must not become a second scroll owner');
 assert.match(form, /overflow:\s*clip/, 'form must not become a second scroll owner');
+assert.match(form, /margin:\s*0/, 'form must not leave an inherited spacer below the footer');
 assert.match(body, /overflow-y:\s*auto/, 'form body must remain the single vertical scroll owner');
 assert.match(css, /\.task-create-form__footer \{[^}]*flex:\s*0 0 auto/, 'footer must remain attached and non-scrolling');
 
