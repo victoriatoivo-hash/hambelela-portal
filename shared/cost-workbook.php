@@ -25,7 +25,76 @@ function cw_install_schema(PDO $pdo): void
     if ($version < 6) { cw_upgrade_transport_schema_v6($pdo); $version = 6; }
     if ($version < 7) { cw_upgrade_packaging_schema_v7($pdo); $version = 7; }
     if ($version < 8) { cw_upgrade_landed_product_schema_v8($pdo); $version = 8; }
-    if ($version < 9) cw_upgrade_formulation_schema_v9($pdo);
+    if ($version < 9) { cw_upgrade_formulation_schema_v9($pdo); $version = 9; }
+    if ($version < 10) cw_upgrade_wholesale_pricing_schema_v10($pdo);
+}
+
+function cw_upgrade_wholesale_pricing_schema_v10(PDO $pdo): void
+{
+    $pdo->exec("CREATE TABLE IF NOT EXISTS cw_wholesale_prices (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        product_type ENUM('purchased','manufactured') NOT NULL,
+        product_id BIGINT UNSIGNED NOT NULL,
+        product_name VARCHAR(190) NOT NULL,
+        short_code VARCHAR(40) NOT NULL DEFAULT '',
+        category VARCHAR(120) NOT NULL DEFAULT '',
+        wholesale_size_label VARCHAR(100) NOT NULL,
+        size_conversion_id BIGINT UNSIGNED NULL,
+        quantity DECIMAL(18,6) NOT NULL,
+        unit VARCHAR(30) NOT NULL,
+        moq DECIMAL(18,6) NOT NULL DEFAULT 1,
+        status_key VARCHAR(40) NOT NULL DEFAULT 'draft',
+        current_version INT UNSIGNED NOT NULL DEFAULT 1,
+        effective_date DATE NOT NULL,
+        expiry_date DATE NULL,
+        active TINYINT(1) NOT NULL DEFAULT 1,
+        created_by BIGINT NULL, created_by_name VARCHAR(190) NOT NULL DEFAULT '', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_by BIGINT NULL, updated_by_name VARCHAR(190) NOT NULL DEFAULT '', updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        KEY idx_cw_wholesale_product(product_type,product_id,active), KEY idx_cw_wholesale_current(status_key,effective_date,expiry_date)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS cw_wholesale_price_versions (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        wholesale_price_id BIGINT UNSIGNED NOT NULL,
+        version_no INT UNSIGNED NOT NULL,
+        version_status ENUM('draft','ready','active','future','superseded','archived') NOT NULL DEFAULT 'draft',
+        cost_source_type ENUM('landed','formulation') NOT NULL,
+        cost_source_id BIGINT UNSIGNED NOT NULL,
+        cost_source_version VARCHAR(40) NOT NULL DEFAULT '',
+        source_cost_date DATE NULL,
+        base_cost DECIMAL(18,8) NOT NULL,
+        product_content_cost DECIMAL(18,8) NOT NULL,
+        packaging_source ENUM('setup','manual','none','required') NOT NULL DEFAULT 'required',
+        packaging_setup_id BIGINT UNSIGNED NULL,
+        packaging_cost_used DECIMAL(18,8) NOT NULL DEFAULT 0,
+        pricing_method ENUM('margin','profit','manual') NOT NULL DEFAULT 'margin',
+        target_margin DECIMAL(9,4) NULL,
+        desired_profit DECIMAL(18,8) NULL,
+        manual_price DECIMAL(18,8) NULL,
+        total_cost_ex_vat DECIMAL(18,8) NOT NULL,
+        unrounded_price_ex_vat DECIMAL(18,8) NOT NULL,
+        price_ex_vat DECIMAL(18,8) NOT NULL,
+        output_vat DECIMAL(18,8) NOT NULL,
+        price_inc_vat DECIMAL(18,8) NOT NULL,
+        profit DECIMAL(18,8) NOT NULL,
+        margin_percent DECIMAL(9,4) NOT NULL,
+        markup_percent DECIMAL(9,4) NOT NULL,
+        minimum_price_ex_vat DECIMAL(18,8) NOT NULL,
+        below_minimum_reason VARCHAR(500) NULL,
+        effective_date DATE NOT NULL, expiry_date DATE NULL,
+        payload_json JSON NOT NULL, tiers_json JSON NOT NULL,
+        created_by BIGINT NULL, created_by_name VARCHAR(190) NOT NULL DEFAULT '', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_cw_wholesale_version(wholesale_price_id,version_no), KEY idx_cw_wholesale_history(wholesale_price_id,created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS cw_wholesale_price_audit (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, wholesale_price_id BIGINT UNSIGNED NOT NULL,
+        action_key VARCHAR(60) NOT NULL, before_json JSON NULL, after_json JSON NULL,
+        actor_id BIGINT NULL, actor_name VARCHAR(190) NOT NULL DEFAULT '', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_cw_wholesale_audit(wholesale_price_id,created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    foreach (['wholesale_vat_rate'=>'15','wholesale_minimum_margin'=>'20','wholesale_default_margin'=>'35','wholesale_rounding_rule'=>'0.50'] as $key=>$value) {
+        $pdo->prepare("INSERT IGNORE INTO cw_settings(setting_key,setting_value,updated_by_name) VALUES(?,?,'system')")->execute([$key,$value]);
+    }
+    $pdo->prepare("INSERT INTO cw_settings(setting_key,setting_value,updated_by_name) VALUES('schema_version','10','system') ON DUPLICATE KEY UPDATE setting_value='10',updated_by_name='system'")->execute();
 }
 
 function cw_upgrade_formulation_schema_v9(PDO $pdo): void
