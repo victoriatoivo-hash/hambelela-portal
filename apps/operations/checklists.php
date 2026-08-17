@@ -115,6 +115,8 @@ function checklist_bootstrap_schema(): void
         'completion_evidence_required' => "ALTER TABLE ops_checklist_tasks ADD COLUMN completion_evidence_required TINYINT(1) NOT NULL DEFAULT 0 AFTER completion_note_required",
         'performance_scored' => "ALTER TABLE ops_checklist_tasks ADD COLUMN performance_scored TINYINT(1) NOT NULL DEFAULT 1 AFTER completion_evidence_required",
         'blocked_reason' => "ALTER TABLE ops_checklist_tasks ADD COLUMN blocked_reason TEXT NULL AFTER performance_scored",
+        'batch_id' => "ALTER TABLE ops_checklist_tasks ADD COLUMN batch_id VARCHAR(64) NULL AFTER blocked_reason",
+        'batch_size' => "ALTER TABLE ops_checklist_tasks ADD COLUMN batch_size INT NULL AFTER batch_id",
     ];
     foreach ($columns as $column => $sql) {
         if (!checklist_column_exists($column)) checklist_try_sql($sql);
@@ -125,6 +127,7 @@ function checklist_bootstrap_schema(): void
     checklist_try_sql("UPDATE ops_checklist_tasks SET released_at = COALESCE(released_at, date_assigned, created_at) WHERE scheduled_at IS NULL AND released_at IS NULL");
     checklist_try_sql("UPDATE ops_checklist_tasks SET employee_visible = 0 WHERE scheduled_at IS NOT NULL AND released_at IS NULL");
     checklist_try_sql("CREATE INDEX idx_task_scheduled_release ON ops_checklist_tasks (scheduled_at, released_at, deleted_at)");
+    checklist_try_sql("CREATE INDEX idx_task_batch ON ops_checklist_tasks (batch_id, assigned_employee_id)");
     checklist_try_sql("UPDATE ops_checklist_tasks SET performance_scored = 1 WHERE assigned_employee_id IS NOT NULL AND status NOT IN ('cancelled', 'deleted', 'trashed') AND deleted_at IS NULL AND archived_at IS NULL");
     checklist_try_sql("UPDATE ops_checklist_tasks SET priority = CASE WHEN priority IN ('top_critical') THEN 'urgent' WHEN priority IN ('high') THEN 'important' ELSE 'normal' END WHERE priority NOT IN ('normal', 'important', 'urgent')");
     checklist_try_sql("UPDATE ops_checklist_recurring_templates SET priority = CASE WHEN priority IN ('top_critical') THEN 'urgent' WHEN priority IN ('high') THEN 'important' ELSE 'normal' END WHERE priority NOT IN ('normal', 'important', 'urgent')");
@@ -500,6 +503,35 @@ function checklist_create_due_at(array $request): string
         throw new RuntimeException('This time has already passed. Select a future time.');
     }
     return $dueAt->format('Y-m-d H:i:s');
+}
+
+function checklist_instruction_text_length(string $html): int
+{
+    $text = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    return function_exists('mb_strlen') ? mb_strlen($text, 'UTF-8') : strlen($text);
+}
+
+function checklist_sanitize_instructions(string $html): string
+{
+    $html = trim($html);
+    if ($html === '') return '';
+    if (strlen($html) > 30000) throw new RuntimeException('Task instructions are too large. Keep them under 30 KB.');
+    $html = preg_replace('#<(script|style|iframe|object|embed|form|input|button)[^>]*>.*?</\\1>#is', '', $html) ?? '';
+    $html = strip_tags($html, '<p><br><strong><b><em><i><u><ul><ol><li>');
+    $html = preg_replace('/<([a-z0-9]+)\\b[^>]*>/i', '<$1>', $html) ?? '';
+    $html = str_ireplace(['<b>', '</b>', '<i>', '</i>'], ['<strong>', '</strong>', '<em>', '</em>'], $html);
+    if (!preg_match('/<(p|br|strong|em|u|ul|ol|li)>/i', $html)) {
+        $html = '<p>' . nl2br(htmlspecialchars(html_entity_decode($html, ENT_QUOTES | ENT_HTML5, 'UTF-8'), ENT_QUOTES, 'UTF-8')) . '</p>';
+    }
+    if (checklist_instruction_text_length($html) > 8000) throw new RuntimeException('Enter task instructions of 8,000 characters or fewer.');
+    return trim($html);
+}
+
+function checklist_render_instructions(string $value): string
+{
+    $value = trim($value);
+    if ($value === '') return '<p>No instructions added.</p>';
+    return checklist_sanitize_instructions($value);
 }
 
 function checklist_create_scheduled_at(array $request, string $deadline): ?string
@@ -972,16 +1004,26 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $scopeParams = $canManage ? [$taskId] : [$taskId, $currentEmployeeId ?: 0];
 
         if ($action === 'create_task' && $canManage) {
-            $assignedId = (int) ($_POST['assigned_employee_id'] ?? 0);
+            $assignmentValue = trim((string) ($_POST['assigned_employee_id'] ?? ''));
+            $assignAll = $assignmentValue === 'all';
+            $assignedId = $assignAll ? 0 : (int) $assignmentValue;
+            $eligibleEmployeeRows = $assignAll ? ops_rows(
+                "SELECT e.id, e.full_name FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id
+                 WHERE e.status='active' AND r.role_key <> 'owner_admin' ORDER BY e.full_name"
+            ) : [];
+            $targetEmployeeIds = $assignAll
+                ? array_values(array_unique(array_map(static fn(array $row): int => (int) $row['id'], $eligibleEmployeeRows)))
+                : ($assignedId > 0 ? [$assignedId] : []);
             $deadline = checklist_create_due_at($_POST);
             $scheduledAt = checklist_create_scheduled_at($_POST, $deadline);
             $taskName = ops_post_string('task_name', 190);
             if ($taskName === '') throw new RuntimeException('Task name is required.');
-            if ($assignedId <= 0) throw new RuntimeException('Assigned employee is required.');
-            if (ops_post_string('instructions', 1500) === '') throw new RuntimeException('Task instructions are required.');
+            if (!$targetEmployeeIds) throw new RuntimeException($assignAll ? 'There are no active task-eligible employees.' : 'Assigned employee is required.');
+            $instructions = checklist_sanitize_instructions((string) ($_POST['instructions'] ?? ''));
+            if (checklist_instruction_text_length($instructions) === 0) throw new RuntimeException('Task instructions are required.');
             $urgentRequested = !empty($_POST['send_urgent_alert']);
-            $urgentRecipients = $urgentRequested ? checklist_urgent_recipient_ids((array) ($_POST['urgent_alert_recipients'] ?? []), $assignedId) : [];
-            if ($urgentRequested && !$urgentRecipients) throw new RuntimeException('Choose at least one valid urgent alert recipient.');
+            $urgentRecipients = (!$assignAll && $urgentRequested) ? checklist_urgent_recipient_ids((array) ($_POST['urgent_alert_recipients'] ?? []), $assignedId) : [];
+            if (!$assignAll && $urgentRequested && !$urgentRecipients) throw new RuntimeException('Choose at least one valid urgent alert recipient.');
             $employeeVisible = $scheduledAt === null ? 1 : 0;
             $proofRequired = !empty($_POST['completion_evidence_required']) ? 1 : 0;
             $recurringRule = ops_post_string('recurring_rule', 80);
@@ -989,9 +1031,11 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!in_array($recurringRule, $allowedRecurringRules, true)) {
                 throw new RuntimeException('Choose a valid task recurrence.');
             }
+            if ($assignAll && $recurringRule !== '') throw new RuntimeException('All Employees is available for manual and scheduled tasks. Recurring group assignments are not enabled yet.');
             if ($scheduledAt !== null && $recurringRule !== '') throw new RuntimeException('Scheduled release is available for manual tasks only. Recurring tasks keep their existing schedule.');
             if ($scheduledAt !== null && $urgentRequested) throw new RuntimeException('Popup alerts can only be sent for tasks released now. The employee will be notified automatically at release.');
             $createAttachmentFiles = checklist_create_attachment_files();
+            if ($assignAll && $createAttachmentFiles) throw new RuntimeException('Create the All Employees task first, then add shared files from the group view.');
             $createdAttachments = [];
             $attachmentActorName = trim((string) (current_user()['name'] ?? 'Owner')) ?: 'Owner';
             $templateId = null;
@@ -1000,6 +1044,9 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('The selected task template is no longer available.');
             }
             $taskDb = db();
+            $batchId = $assignAll ? 'task-batch-' . date('YmdHis') . '-' . bin2hex(random_bytes(6)) : null;
+            $batchSize = count($targetEmployeeIds);
+            $createdTaskIds = [];
             $taskDb->beginTransaction();
             try {
               if ($recurringRule !== '' && ops_table_exists('ops_checklist_recurring_templates')) {
@@ -1010,54 +1057,67 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)"
                 );
                 $submittedPriority = ops_post_string('priority', 30);
-                $templateStmt->execute([$taskName, 'opening', array_key_exists($submittedPriority, $priorities) ? $submittedPriority : 'normal', $assignedId > 0 ? $assignedId : null, $recurringRule, $dueTime, ops_post_string('instructions', 1500), checklist_items_from_text((string) ($_POST['checklist_items_text'] ?? '')), $employeeVisible, $currentEmployeeId]);
+                $templateStmt->execute([$taskName, 'opening', array_key_exists($submittedPriority, $priorities) ? $submittedPriority : 'normal', $assignedId > 0 ? $assignedId : null, $recurringRule, $dueTime, $instructions, checklist_items_from_text((string) ($_POST['checklist_items_text'] ?? '')), $employeeVisible, $currentEmployeeId]);
                 $templateId = (int) db()->lastInsertId();
               }
             $stmt = $taskDb->prepare(
                 "INSERT INTO ops_checklist_tasks
-                 (checklist_type, task_name, priority, assigned_employee_id, date_assigned, scheduled_at, released_at, deadline, status, notes, instructions, checklist_items, completion_note_required, completion_evidence_required, performance_scored, recurrence_key, recurring_rule, recurring_template_id, source_template_id, employee_visible, created_by)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                 (checklist_type, task_name, priority, assigned_employee_id, date_assigned, scheduled_at, released_at, deadline, status, notes, instructions, checklist_items, completion_note_required, completion_evidence_required, performance_scored, recurrence_key, recurring_rule, recurring_template_id, source_template_id, employee_visible, created_by, batch_id, batch_size)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             );
-            $stmt->execute([
+            foreach ($targetEmployeeIds as $targetEmployeeId) {
+              $stmt->execute([
                 'opening',
                 $taskName,
                 array_key_exists(ops_post_string('priority', 30), $priorities) ? ops_post_string('priority', 30) : 'normal',
-                $assignedId > 0 ? $assignedId : null,
+                $targetEmployeeId,
                 $scheduledAt === null ? date('Y-m-d H:i:s') : null,
                 $scheduledAt,
                 $scheduledAt === null ? date('Y-m-d H:i:s') : null,
                 $deadline ?: null,
-                ops_post_string('instructions', 1500),
-                ops_post_string('instructions', 1500),
+                trim(strip_tags($instructions)),
+                $instructions,
                 checklist_items_from_text((string) ($_POST['checklist_items_text'] ?? '')),
                 1,
                 $proofRequired,
                 1,
-                $templateId ? 'template-' . $templateId . '-' . date('Y-m-d') . '-' . max(0, $assignedId) : null,
+                $templateId ? 'template-' . $templateId . '-' . date('Y-m-d') . '-' . $targetEmployeeId : null,
                 $recurringRule ?: null,
                 $templateId,
                 $sourceTemplateId > 0 ? $sourceTemplateId : null,
                 $employeeVisible,
                 $currentEmployeeId,
-            ]);
-            $createdTaskId = (int) db()->lastInsertId();
-            $selectedTemplateAttachments = json_decode((string) ($_POST['template_attachment_ids'] ?? '[]'), true);
-            if ($sourceTemplateId > 0 && is_array($selectedTemplateAttachments)) {
-                checklist_copy_template_attachments_to_task($sourceTemplateId, $selectedTemplateAttachments, $createdTaskId, (int) $currentEmployeeId);
-            }
-            foreach ($createAttachmentFiles as $createAttachmentFile) {
-                $createdAttachments[] = checklist_store_attachment($createdTaskId, $createAttachmentFile, $currentEmployeeId ?: 0, $attachmentActorName);
-            }
-            ops_activity_log($scheduledAt === null ? 'task_created' : 'task_scheduled', 'checklist_task', $createdTaskId, [
-                'assigned_employee_id' => $assignedId,
+                $batchId,
+                $assignAll ? $batchSize : null,
+              ]);
+              $createdTaskId = (int) db()->lastInsertId();
+              $createdTaskIds[] = $createdTaskId;
+              $selectedTemplateAttachments = json_decode((string) ($_POST['template_attachment_ids'] ?? '[]'), true);
+              if ($sourceTemplateId > 0 && is_array($selectedTemplateAttachments)) {
+                  checklist_copy_template_attachments_to_task($sourceTemplateId, $selectedTemplateAttachments, $createdTaskId, (int) $currentEmployeeId);
+              }
+              foreach ($createAttachmentFiles as $createAttachmentFile) {
+                  $createdAttachments[] = checklist_store_attachment($createdTaskId, $createAttachmentFile, $currentEmployeeId ?: 0, $attachmentActorName);
+              }
+              ops_activity_log($scheduledAt === null ? 'task_created' : 'task_scheduled', 'checklist_task', $createdTaskId, [
+                'assigned_employee_id' => $targetEmployeeId,
                 'scheduled_at' => $scheduledAt,
                 'attachment_count' => count($createdAttachments),
                 'source_template_id' => $sourceTemplateId > 0 ? $sourceTemplateId : null,
                 'proof_required' => $proofRequired,
-            ]);
-            if ($scheduledAt === null && $assignedId > 0 && !notifications_notify_task_assigned($createdTaskId, $assignedId, $taskName)) {
-                throw new RuntimeException('The task assignment notification could not be saved.');
+                'batch_id' => $batchId,
+                'batch_size' => $assignAll ? $batchSize : null,
+              ]);
+              if ($scheduledAt === null && !notifications_notify_task_assigned($createdTaskId, $targetEmployeeId, $taskName)) {
+                  throw new RuntimeException('The task assignment notification could not be saved.');
+              }
+              if ($urgentRequested && !checklist_send_urgent_alert($createdTaskId, $assignAll ? [$targetEmployeeId] : $urgentRecipients)) {
+                  throw new RuntimeException('The task popup notification could not be saved.');
+              }
             }
+            if ($assignAll) ops_activity_log('task_group_created', 'checklist_task_batch', (int) $createdTaskIds[0], [
+                'batch_id' => $batchId, 'employee_count' => $batchSize, 'child_task_ids' => $createdTaskIds, 'scheduled_at' => $scheduledAt,
+            ]);
             $taskDb->commit();
             } catch (Throwable $taskCreateError) {
                 if ($taskDb->inTransaction()) $taskDb->rollBack();
@@ -1068,14 +1128,11 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 throw $taskCreateError;
             }
-            if ($urgentRequested) {
-                if (!checklist_send_urgent_alert($createdTaskId, $urgentRecipients)) {
-                    throw new RuntimeException('The task was saved, but its urgent alert could not be sent.');
-                }
-            }
-            $message = $scheduledAt !== null ? 'Task scheduled for ' . checklist_date_label($scheduledAt) . '. The employee cannot see it until release.' : ($createdAttachments
+            $message = $assignAll
+                ? ($scheduledAt !== null ? $batchSize . ' individual tasks scheduled for ' . checklist_date_label($scheduledAt) . '.' : $batchSize . ' individual employee tasks created and assigned.')
+                : ($scheduledAt !== null ? 'Task scheduled for ' . checklist_date_label($scheduledAt) . '. The employee cannot see it until release.' : ($createdAttachments
                 ? 'Task created with ' . count($createdAttachments) . ' file' . (count($createdAttachments) === 1 ? '' : 's') . ' and assigned.'
-                : 'Task created and assigned.');
+                : 'Task created and assigned.'));
         }
 
         if ($action === 'admin_update_task' && $canManage) {
@@ -1087,16 +1144,18 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($status === 'complete' && checklist_normalize_status((string) ($oldRows[0]['status'] ?? '')) !== 'complete') checklist_require_completion($oldRows[0], null, '');
             $oldStatus = (string) ($oldRows[0]['status'] ?? '');
             $oldAssignedId = (int) ($oldRows[0]['assigned_employee_id'] ?? 0);
+            $updatedInstructions = checklist_sanitize_instructions((string) ($_POST['instructions'] ?? $oldRows[0]['instructions'] ?? $oldRows[0]['notes'] ?? ''));
+            if (checklist_instruction_text_length($updatedInstructions) === 0) throw new RuntimeException('Task instructions are required.');
             $updatedScheduledAt = !empty($oldRows[0]['scheduled_at']) && empty($oldRows[0]['released_at'])
                 ? checklist_create_scheduled_at(['delivery_mode' => 'scheduled', 'scheduled_at' => (string) ($_POST['scheduled_at'] ?? $oldRows[0]['scheduled_at'])], $deadline)
                 : ($oldRows[0]['scheduled_at'] ?? null);
             $taskDb = db();
             $taskDb->beginTransaction();
             try {
-                $stmt = $taskDb->prepare("UPDATE ops_checklist_tasks SET assigned_employee_id = ?, date_assigned = CASE WHEN released_at IS NOT NULL AND COALESCE(assigned_employee_id,0) <> ? THEN NOW() ELSE date_assigned END, scheduled_at = ?, deadline = ?, priority = ?, status = ?, employee_visible = CASE WHEN scheduled_at IS NOT NULL AND released_at IS NULL THEN 0 ELSE 1 END, completion_note_required = 1, completion_evidence_required = ?, performance_scored = 1 WHERE id = ?");
+                $stmt = $taskDb->prepare("UPDATE ops_checklist_tasks SET assigned_employee_id = ?, date_assigned = CASE WHEN released_at IS NOT NULL AND COALESCE(assigned_employee_id,0) <> ? THEN NOW() ELSE date_assigned END, scheduled_at = ?, deadline = ?, priority = ?, status = ?, instructions = ?, notes = ?, employee_visible = CASE WHEN scheduled_at IS NOT NULL AND released_at IS NULL THEN 0 ELSE 1 END, completion_note_required = 1, completion_evidence_required = ?, performance_scored = 1 WHERE id = ?");
                 $submittedPriority = ops_post_string('priority', 30);
                 $proofRequired = !empty($_POST['completion_evidence_required']) ? 1 : 0;
-                $stmt->execute([$assignedId > 0 ? $assignedId : null, $assignedId, $updatedScheduledAt, $deadline ?: null, array_key_exists($submittedPriority, $priorities) ? $submittedPriority : 'normal', $status, $proofRequired, $taskId]);
+                $stmt->execute([$assignedId > 0 ? $assignedId : null, $assignedId, $updatedScheduledAt, $deadline ?: null, array_key_exists($submittedPriority, $priorities) ? $submittedPriority : 'normal', $status, $updatedInstructions, trim(strip_tags($updatedInstructions)), $proofRequired, $taskId]);
                 checklist_kpi_status_event($taskId, $oldStatus, $status, $currentEmployeeId);
                 ops_activity_log('task_admin_updated', 'checklist_task', $taskId, ['status' => $status, 'previous_assigned_employee_id' => $oldAssignedId ?: null, 'assigned_employee_id' => $assignedId ?: null, 'proof_required' => $proofRequired]);
                 if ($assignedId !== $oldAssignedId) ops_activity_log($assignedId > 0 ? ($oldAssignedId > 0 ? 'task_reassigned' : 'task_assigned') : 'task_unassigned', 'checklist_task', $taskId, [
@@ -1216,6 +1275,7 @@ $employees = $ready ? ops_rows(
      ORDER BY FIELD(r.role_key, 'packer', 'front_desk_admin', 'supervisor_manager', 'owner_admin'), e.full_name"
 ) : [];
 $employees = ops_canonical_employee_rows($employees);
+$eligibleTaskEmployees = array_values(array_filter($employees, static fn(array $employee): bool => (string) ($employee['role_key'] ?? '') !== 'owner_admin'));
 
 $filters = [
     'date_from' => trim((string) ($_GET['date_from'] ?? '')),
@@ -1510,14 +1570,14 @@ include BASE_PATH . '/shared/sidebar.php';
                       <section class="task-form-section"><div class="task-form-grid">
                         <label class="task-form-field task-form-field--full"><span class="task-form-label">Task name <span aria-hidden="true">*</span></span><input id="create-task-name" name="task_name" maxlength="120" required placeholder="What needs to be done?" autocomplete="off"></label>
                         <div class="task-form-grid__row task-form-grid__row--assignment">
-                          <label class="task-form-field"><span class="task-form-label">Assigned employee *</span><select id="create-task-assignee" name="assigned_employee_id" required data-portal-custom-select><option value="">Choose employee</option><?php foreach ($employees as $employee): ?><option value="<?= (int) $employee['id'] ?>"><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></label>
+                          <label class="task-form-field"><span class="task-form-label">Assigned employee *</span><select id="create-task-assignee" name="assigned_employee_id" required data-portal-custom-select data-all-employee-count="<?= count($eligibleTaskEmployees) ?>"><option value="">Choose employee</option><option value="all">All Employees</option><?php foreach ($employees as $employee): ?><option value="<?= (int) $employee['id'] ?>"><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select><small class="task-all-employees-note" data-all-employees-note hidden>This will create an individual task for each active employee. Each employee will complete and be measured separately.</small></label>
                           <div class="task-form-field task-datetime-field"><label class="task-form-label" for="create-task-due-display">Due date and time <span class="required-marker" aria-hidden="true">*</span></label><div class="portal-date-field" data-portal-date-field><input id="create-task-due-display" type="text" class="portal-date-input task-datetime-trigger is-empty" data-enable-time="true" data-submit-target="#create-task-due-at" data-task-due-trigger placeholder="Select due date and time" autocomplete="off" aria-describedby="create-task-due-error"><input id="create-task-due-at" type="hidden" name="due_at" data-task-due-value data-portal-date-required-message="Select the task due date and time." required><button type="button" class="portal-date-trigger" aria-label="Open Due date and time picker"><i data-lucide="calendar-clock" aria-hidden="true"></i></button></div><span id="create-task-due-error" class="task-form-error" data-task-due-error aria-live="polite"></span></div>
                         </div>
                         <fieldset class="task-form-field task-form-field--full task-delivery-options"><legend class="task-form-label">Delivery</legend><div class="task-priority-options"><label><input type="radio" name="delivery_mode" value="now" checked data-task-delivery-mode><span>Send now</span></label><label><input type="radio" name="delivery_mode" value="scheduled" data-task-delivery-mode><span>Schedule task</span></label></div></fieldset>
                         <div class="task-form-field task-datetime-field task-form-field--full" data-task-schedule-field hidden><label class="task-form-label" for="create-task-schedule-display">Release date and time</label><div class="portal-date-field" data-portal-date-field><input id="create-task-schedule-display" type="text" class="portal-date-input task-datetime-trigger is-empty" data-enable-time="true" data-submit-target="#create-task-scheduled-at" placeholder="Select release date and time" autocomplete="off"><input id="create-task-scheduled-at" type="hidden" name="scheduled_at" data-task-scheduled-value><button type="button" class="portal-date-trigger" aria-label="Open release date and time picker"><i data-lucide="calendar-clock" aria-hidden="true"></i></button></div><small>The employee will not see the task or receive notifications before this Windhoek time.</small></div>
                         <p class="task-due-summary" data-task-due-summary aria-live="polite"></p>
                         <fieldset class="task-form-field task-priority-field"><legend class="task-form-label">Priority *</legend><div class="task-priority-options" role="radiogroup" aria-label="Priority"><label><input type="radio" name="priority" value="normal" checked><span>Normal</span></label><label><input type="radio" name="priority" value="important"><span>Important</span></label><label><input type="radio" name="priority" value="urgent"><span>Urgent</span></label></div></fieldset>
-                        <label class="task-form-field task-form-field--full"><span class="task-form-label">Instructions *</span><textarea id="create-task-instructions" name="instructions" required placeholder="Explain what must be done and what the finished result should look like."></textarea></label>
+                        <div class="task-form-field task-form-field--full task-rich-editor" data-task-rich-editor><span class="task-form-label">Instructions *</span><div class="task-rich-editor__toolbar" role="toolbar" aria-label="Instruction formatting"><button type="button" data-rich-command="bold" aria-label="Bold"><strong>B</strong></button><button type="button" data-rich-command="italic" aria-label="Italic"><em>I</em></button><button type="button" data-rich-command="underline" aria-label="Underline"><u>U</u></button><button type="button" data-rich-command="insertUnorderedList" aria-label="Bulleted list">• List</button><button type="button" data-rich-command="insertOrderedList" aria-label="Numbered list">1. List</button><button type="button" data-rich-command="undo" aria-label="Undo">↶</button><button type="button" data-rich-command="redo" aria-label="Redo">↷</button><button type="button" data-rich-expand aria-label="Expand instructions"><i data-lucide="maximize-2" aria-hidden="true"></i><span>Expand</span></button></div><div id="create-task-instructions-editor" class="task-rich-editor__surface" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Explain what must be done and what the finished result should look like."></div><textarea id="create-task-instructions" name="instructions" required hidden></textarea></div>
                         <label class="task-urgent-toggle"><input type="checkbox" name="completion_evidence_required" value="1"><span class="task-urgent-toggle__track" aria-hidden="true"><span class="task-urgent-toggle__thumb"></span></span><span class="task-urgent-toggle__copy"><strong>Proof required</strong><small>The assigned employee must upload proof before this task can count as proof-compliant.</small></span></label>
                       </div></section>
                       <section class="task-form-section task-checklist-builder" data-task-checklist-builder><span class="task-form-label">Required checklist</span><div class="task-checklist-add"><input type="text" data-task-checklist-input placeholder="Enter a checklist item"><button type="button" data-task-checklist-add>Add</button></div><p class="task-checklist-warning" data-task-checklist-warning hidden></p><ol data-task-checklist-list></ol><input id="create-task-items" type="hidden" name="checklist_items_text"><small>All checklist items must be completed before the task can be marked complete.</small></section>
@@ -1706,6 +1766,7 @@ include BASE_PATH . '/shared/sidebar.php';
                             <div class="task-field"><label for="task-deadline-display-<?= $panelId ?>">Due date</label><div class="portal-date-field" data-portal-date-field><input id="task-deadline-display-<?= $panelId ?>" type="text" class="portal-date-input" data-enable-time="true" data-submit-target="#task-deadline-<?= $panelId ?>" placeholder="dd/mm/yyyy --:--" autocomplete="off"><input id="task-deadline-<?= $panelId ?>" type="hidden" name="deadline" value="<?= htmlspecialchars($deadlineValue, ENT_QUOTES, 'UTF-8') ?>"><button type="button" class="portal-date-trigger" aria-label="Open Due Date calendar"><i data-lucide="calendar-clock" aria-hidden="true"></i></button></div></div>
                             <?php if (!empty($task['scheduled_at']) && empty($task['released_at'])): ?><div class="task-field"><label for="task-scheduled-display-<?= $panelId ?>">Release date</label><div class="portal-date-field" data-portal-date-field><input id="task-scheduled-display-<?= $panelId ?>" type="text" class="portal-date-input" data-enable-time="true" data-submit-target="#task-scheduled-<?= $panelId ?>" placeholder="dd/mm/yyyy --:--" autocomplete="off"><input id="task-scheduled-<?= $panelId ?>" type="hidden" name="scheduled_at" value="<?= htmlspecialchars($scheduledValue, ENT_QUOTES, 'UTF-8') ?>"><button type="button" class="portal-date-trigger" aria-label="Open release date calendar"><i data-lucide="calendar-clock" aria-hidden="true"></i></button></div></div><?php endif; ?>
                         </div>
+                        <div class="task-rich-editor task-rich-editor--edit" data-task-edit-rich="<?= $panelId ?>"><span class="task-form-label">Instructions *</span><div class="task-rich-editor__toolbar" role="toolbar" aria-label="Instruction formatting"><button type="button" data-edit-rich-command="bold"><strong>B</strong></button><button type="button" data-edit-rich-command="italic"><em>I</em></button><button type="button" data-edit-rich-command="insertUnorderedList">• List</button><button type="button" data-edit-rich-command="insertOrderedList">1. List</button><button type="button" data-edit-rich-expand><i data-lucide="maximize-2"></i><span>Expand</span></button></div><div class="task-rich-editor__surface" contenteditable="true" role="textbox" aria-multiline="true" data-edit-rich-surface><?= checklist_render_instructions((string) ($task['instructions'] ?: $task['notes'] ?: '')) ?></div><textarea name="instructions" required hidden data-edit-rich-input><?= htmlspecialchars((string) ($task['instructions'] ?: $task['notes'] ?: ''), ENT_QUOTES, 'UTF-8') ?></textarea></div>
                         <label class="task-urgent-toggle"><input type="checkbox" name="completion_evidence_required" value="1" <?= !empty($task['completion_evidence_required']) ? 'checked' : '' ?>><span class="task-urgent-toggle__track" aria-hidden="true"><span class="task-urgent-toggle__thumb"></span></span><span class="task-urgent-toggle__copy"><strong>Proof required</strong><small>Optional uploads remain evidence only and do not earn bonus points.</small></span></label>
                         <section class="task-urgent-control" data-urgent-control>
                             <?php if (empty($task['urgent_alert_sent_at'])): ?>
@@ -1721,7 +1782,9 @@ include BASE_PATH . '/shared/sidebar.php';
 
                 <section class="task-details-section task-content-card">
                     <h3 class="task-content-heading task-instructions__heading">Instructions</h3>
-                    <p class="task-content-text"><?= htmlspecialchars((string) ($task['instructions'] ?: $task['notes'] ?: 'No instructions added.'), ENT_QUOTES, 'UTF-8') ?></p>
+                    <?php $instructionValue = (string) ($task['instructions'] ?: $task['notes'] ?: ''); ?>
+                    <div class="task-content-text task-instructions-rendered<?= checklist_instruction_text_length($instructionValue) > 400 ? ' is-collapsed' : '' ?>" data-readonly-instructions><?= checklist_render_instructions($instructionValue) ?></div>
+                    <?php if (checklist_instruction_text_length($instructionValue) > 400): ?><button type="button" class="task-instructions-read-more" data-instructions-read-more aria-expanded="false">View full instructions</button><?php endif; ?>
                 </section>
 
                 <form method="post" enctype="multipart/form-data" class="task-details-section task-details-progress-form" data-task-progress-form data-task-id="<?= $panelId ?>">
@@ -1771,6 +1834,7 @@ include BASE_PATH . '/shared/sidebar.php';
             </div>
         </aside>
     <?php endforeach; ?>
+    <section class="task-instructions-modal" data-task-instructions-modal hidden role="dialog" aria-modal="true" aria-labelledby="task-instructions-modal-title"><div class="task-instructions-modal__backdrop" data-rich-cancel></div><div class="task-instructions-modal__panel"><header><div><span>Task instructions</span><h2 id="task-instructions-modal-title">Edit instructions</h2></div><button type="button" data-rich-cancel aria-label="Close expanded instructions"><i data-lucide="x"></i></button></header><div class="task-rich-editor__toolbar" role="toolbar" aria-label="Expanded instruction formatting"><button type="button" data-rich-modal-command="bold"><strong>B</strong></button><button type="button" data-rich-modal-command="italic"><em>I</em></button><button type="button" data-rich-modal-command="underline"><u>U</u></button><button type="button" data-rich-modal-command="insertUnorderedList">• List</button><button type="button" data-rich-modal-command="insertOrderedList">1. List</button><button type="button" data-rich-modal-command="undo">↶</button><button type="button" data-rich-modal-command="redo">↷</button></div><div class="task-instructions-modal__body"><div class="task-rich-editor__surface task-rich-editor__surface--expanded" contenteditable="true" role="textbox" aria-multiline="true" data-rich-expanded-surface></div></div><footer><button type="button" class="task-form-cancel" data-rich-cancel>Cancel</button><button type="button" class="task-form-submit" data-rich-save>Save Instructions</button></footer></div></section>
     <div class="panel-backdrop task-panel-backdrop" data-task-close data-task-create-close hidden></div>
     <div class="task-complete-confirm" data-task-complete-confirm role="dialog" aria-modal="true" aria-labelledby="task-complete-confirm-title" hidden>
         <div class="task-complete-confirm__backdrop"></div>
@@ -1824,10 +1888,36 @@ function initialiseTaskCreateForm() {
   const attachmentList = form.querySelector('[data-create-task-files-list]');
   const attachmentEmpty = form.querySelector('[data-create-task-files-empty]');
   const attachmentError = form.querySelector('[data-create-task-files-error]');
+  const assignee = form.querySelector('[name="assigned_employee_id"]');
+  const allEmployeesNote = form.querySelector('[data-all-employees-note]');
+  const instructionInput = form.querySelector('[name="instructions"]');
+  const instructionEditor = form.querySelector('[data-task-rich-editor] .task-rich-editor__surface');
+  const instructionModal = document.querySelector('[data-task-instructions-modal]');
+  const expandedEditor = instructionModal?.querySelector('[data-rich-expanded-surface]');
   const acceptedAttachmentTypes = ['image/jpeg','image/png','image/webp','application/pdf','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','video/mp4'];
   const acceptedAttachmentExtensions = ['jpg','jpeg','png','webp','pdf','doc','docx','xls','xlsx','mp4'];
   let selectedAttachments = [];
   let saving = false;
+
+  const cleanEditorHtml = (html) => {
+    const template = document.createElement('template'); template.innerHTML = String(html || '');
+    template.content.querySelectorAll('script,style,iframe,object,embed,form,input,button').forEach((node) => node.remove());
+    template.content.querySelectorAll('*').forEach((node) => {
+      if (!['P','BR','STRONG','B','EM','I','U','UL','OL','LI'].includes(node.tagName)) node.replaceWith(...node.childNodes);
+      else [...node.attributes].forEach((attribute) => node.removeAttribute(attribute.name));
+    });
+    return template.innerHTML.trim();
+  };
+  const syncInstructions = () => { instructionInput.value = cleanEditorHtml(instructionEditor.innerHTML); };
+  const setInstructionHtml = (value) => { instructionEditor.innerHTML = cleanEditorHtml(value); syncInstructions(); };
+  instructionEditor.addEventListener('input', syncInstructions);
+  instructionEditor.addEventListener('paste', (event) => { event.preventDefault(); const html=event.clipboardData?.getData('text/html'); const text=event.clipboardData?.getData('text/plain') || ''; document.execCommand('insertHTML', false, cleanEditorHtml(html || text.replace(/\n/g,'<br>'))); syncInstructions(); });
+  form.querySelectorAll('[data-rich-command]').forEach((button) => button.addEventListener('click', () => { instructionEditor.focus(); document.execCommand(button.dataset.richCommand, false); syncInstructions(); }));
+  form.querySelector('[data-rich-expand]')?.addEventListener('click', () => { instructionModal.dataset.richTarget='create'; expandedEditor.innerHTML=instructionEditor.innerHTML; instructionModal.hidden=false; document.body.classList.add('task-instructions-expanded'); expandedEditor.focus(); });
+  instructionModal?.querySelectorAll('[data-rich-cancel]').forEach((button) => button.addEventListener('click', () => { instructionModal.hidden=true; document.body.classList.remove('task-instructions-expanded'); }));
+  instructionModal?.querySelector('[data-rich-save]')?.addEventListener('click', () => { if (instructionModal.dataset.richTarget !== 'create') return; setInstructionHtml(expandedEditor.innerHTML); instructionModal.hidden=true; document.body.classList.remove('task-instructions-expanded'); instructionEditor.focus(); });
+  instructionModal?.querySelectorAll('[data-rich-modal-command]').forEach((button) => button.addEventListener('click', () => { expandedEditor.focus(); document.execCommand(button.dataset.richModalCommand, false); }));
+  assignee?.addEventListener('change', () => { if (allEmployeesNote) allEmployeesNote.hidden = assignee.value !== 'all'; });
 
   const parseDueAt = () => dueAtInput.value ? new Date(dueAtInput.value.replace(' ', 'T') + (dueAtInput.value.length === 16 ? ':00' : '')) : null;
   const formatDueTime = (due) => new Intl.DateTimeFormat('en-NA', { hour:'2-digit', minute:'2-digit', hour12:true, timeZone:'Africa/Windhoek' }).format(due).replace(/^0/, '').toUpperCase();
@@ -1972,12 +2062,12 @@ function initialiseTaskCreateForm() {
   });
 
   const formHasWork = () => !!(form.querySelector('[name="task_name"]').value.trim() || form.querySelector('[name="instructions"]').value.trim() || checklistList.children.length || form.querySelector('[name="assigned_employee_id"]').value || dueAtInput.value || attachmentInput?.files?.length);
-  const setNativeValue = (selector, value) => { const field = form.querySelector(selector); if (!field) return; field.value = value ?? ''; field.dispatchEvent(new Event('change', {bubbles:true})); };
+  const setNativeValue = (selector, value) => { if (selector === '[name="instructions"]') { setInstructionHtml(value ?? ''); return; } const field = form.querySelector(selector); if (!field) return; field.value = value ?? ''; field.dispatchEvent(new Event('change', {bubbles:true})); };
   const syncLoadedAttachmentIds = () => { templateAttachmentIds.value = JSON.stringify([...loadedAttachments.querySelectorAll('[data-template-attachment-id]')].map((row) => Number(row.dataset.templateAttachmentId))); };
   const clearLoadedTemplate = (blankForm = false) => {
     sourceTemplateId.value = ''; templateAttachmentIds.value = '[]'; loadedAttachments.innerHTML = '';
     loadedLabel.hidden = true; loadedLabel.textContent = '';
-    if (blankForm) { form.reset(); checklistList.innerHTML = ''; dueAtInput.value = ''; const dueDisplay = form.querySelector('[data-task-due-trigger]'); if (dueDisplay) dueDisplay.value = ''; syncChecklist(); syncRecurrence(); syncDueAt(); form.querySelectorAll('select').forEach((field) => field.dispatchEvent(new Event('change', {bubbles:true}))); }
+    if (blankForm) { form.reset(); setInstructionHtml(''); checklistList.innerHTML = ''; dueAtInput.value = ''; const dueDisplay = form.querySelector('[data-task-due-trigger]'); if (dueDisplay) dueDisplay.value = ''; syncChecklist(); syncRecurrence(); syncDueAt(); form.querySelectorAll('select').forEach((field) => field.dispatchEvent(new Event('change', {bubbles:true}))); }
   };
   const loadTemplate = async (id) => {
     if (formHasWork() && !window.confirm('Loading this template will replace the information currently entered in the New Task form.')) return;
@@ -2021,7 +2111,7 @@ function initialiseTaskCreateForm() {
   templateDialog?.querySelectorAll('[data-template-dialog-close]').forEach((button) => button.addEventListener('click', () => { templateDialog.hidden=true; }));
   let templateSearchTimer; templateSearch?.addEventListener('input', () => { clearTimeout(templateSearchTimer); templateSearchTimer=setTimeout(renderTemplates,180); });
   form.querySelector('[data-template-save]')?.addEventListener('click', async () => {
-    syncChecklist(); syncRecurrence();
+    syncInstructions(); syncChecklist(); syncRecurrence();
     const name=window.prompt('Save Task Template\n\nTemplate name *', loadedLabel.hidden ? '' : loadedLabel.textContent.replace('Template loaded: ','')); if (!name) return;
     const data=new FormData(form); data.set('template_name',name); data.set('save_assignee',window.confirm('Save the currently selected employee in this template?')?'1':'');
     const files=form.querySelector('[data-task-create-attachments]')?.files || []; data.set('include_attachments',files.length && window.confirm('Include the current owner attachments in this template?')?'1':'');
@@ -2037,18 +2127,38 @@ function initialiseTaskCreateForm() {
   });
 
   form.addEventListener('submit', (event) => {
-    syncDueAt(); syncChecklist(); syncRecurrence();
+    syncInstructions(); syncDueAt(); syncChecklist(); syncRecurrence();
     if (!validateDueAt()) { event.preventDefault(); dueTrigger.focus(); return; }
     if (scheduledAtInput.required) { const release = scheduledAtInput.value ? new Date(scheduledAtInput.value.replace(' ', 'T')) : null; const due = parseDueAt(); if (!release || Number.isNaN(release.getTime()) || release <= new Date()) { event.preventDefault(); window.alert('Select a future release date and time.'); return; } if (due && due <= release) { event.preventDefault(); window.alert('The due date must be after the scheduled release time.'); return; } }
     const required = [...form.querySelectorAll('[required]')];
     const invalid = required.find((field) => !String(field.value || '').trim());
-    if (invalid) { event.preventDefault(); invalid.focus(); invalid.setAttribute('aria-invalid', 'true'); return; }
+    if (invalid) { event.preventDefault(); invalid.setAttribute('aria-invalid', 'true'); (invalid === instructionInput ? instructionEditor : invalid).focus(); return; }
+    if (assignee?.value === 'all') {
+      const employeeCount = Number(assignee.dataset.allEmployeeCount || 0);
+      if (!window.confirm(`Assign this task to all ${employeeCount} active employees?`)) { event.preventDefault(); return; }
+    }
     if (saving) { event.preventDefault(); return; }
     saving = true;
-    const submit = form.querySelector('[type="submit"]'); submit.disabled = true; submit.textContent = 'Assigning…';
+    const submit = form.querySelector('[type="submit"]'); submit.disabled = true; submit.textContent = assignee?.value === 'all' ? `Assigning ${assignee.dataset.allEmployeeCount} tasks…` : 'Assigning…';
   });
 }
 initialiseTaskCreateForm();
+document.querySelectorAll('[data-task-edit-rich]').forEach((editorBlock) => {
+  const surface=editorBlock.querySelector('[data-edit-rich-surface]'), input=editorBlock.querySelector('[data-edit-rich-input]');
+  const modal=document.querySelector('[data-task-instructions-modal]'), expanded=modal?.querySelector('[data-rich-expanded-surface]');
+  const sync=()=>{input.value=surface.innerHTML.trim();}; surface.addEventListener('input',sync);
+  editorBlock.querySelectorAll('[data-edit-rich-command]').forEach((button)=>button.addEventListener('click',()=>{surface.focus();document.execCommand(button.dataset.editRichCommand,false);sync();}));
+  editorBlock.querySelector('[data-edit-rich-expand]')?.addEventListener('click',()=>{modal.dataset.richTarget=`edit:${editorBlock.dataset.taskEditRich}`;expanded.innerHTML=surface.innerHTML;modal.hidden=false;document.body.classList.add('task-instructions-expanded');expanded.focus();});
+  modal?.querySelector('[data-rich-save]')?.addEventListener('click',()=>{if(modal.dataset.richTarget!==`edit:${editorBlock.dataset.taskEditRich}`)return;surface.innerHTML=expanded.innerHTML;sync();modal.hidden=true;document.body.classList.remove('task-instructions-expanded');surface.focus();});
+  editorBlock.closest('form')?.addEventListener('submit',sync);
+});
+document.querySelectorAll('[data-instructions-read-more]').forEach((button) => button.addEventListener('click', () => {
+  const instructions = button.previousElementSibling;
+  const expanded = button.getAttribute('aria-expanded') === 'true';
+  instructions?.classList.toggle('is-collapsed', expanded);
+  button.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+  button.textContent = expanded ? 'View full instructions' : 'Collapse instructions';
+}));
 document.querySelectorAll('[data-resend-urgent]').forEach((button) => button.addEventListener('click', (event) => {
   if (!window.confirm('Send this urgent task alert again to employees who have not completed the task?')) event.preventDefault();
 }));

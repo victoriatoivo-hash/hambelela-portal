@@ -137,10 +137,10 @@ function checklist_template_save(int $actorId, ?int $templateId = null): int
 {
     $name = trim((string) ($_POST['template_name'] ?? ''));
     $taskName = trim((string) ($_POST['task_name'] ?? ''));
-    $instructions = trim((string) ($_POST['instructions'] ?? ''));
+    $instructions = checklist_sanitize_instructions((string) ($_POST['instructions'] ?? ''));
     if ($name === '' || checklist_template_length($name) > 120) throw new RuntimeException('Enter a unique template name of 120 characters or fewer.');
     if ($taskName === '' || checklist_template_length($taskName) > 190) throw new RuntimeException('Enter a valid task name.');
-    if ($instructions === '' || checklist_template_length($instructions) > 1500) throw new RuntimeException('Enter task instructions of 1500 characters or fewer.');
+    if (checklist_instruction_text_length($instructions) === 0) throw new RuntimeException('Enter task instructions.');
     $duplicate = ops_rows('SELECT id FROM ops_checklist_task_templates WHERE LOWER(template_name) = LOWER(?) AND id <> ? LIMIT 1', [$name, $templateId ?: 0]);
     if ($duplicate) throw new DomainException('A template with this name already exists.');
     $priority = (string) ($_POST['priority'] ?? 'normal');

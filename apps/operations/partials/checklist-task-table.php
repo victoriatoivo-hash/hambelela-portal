@@ -5,7 +5,27 @@
 /** @var array $groups */
 /** @var array $statuses */
 $emptyTaskMessage = $emptyTaskMessage ?? ($canManage ? 'No tasks match this view and its filters.' : 'No tasks are currently assigned to you.');
+$visibleBatchGroups = [];
+if ($canManage) {
+    foreach ($displayTasks as $batchTask) {
+        $batchId = trim((string) ($batchTask['batch_id'] ?? ''));
+        if ($batchId === '') continue;
+        if (!isset($visibleBatchGroups[$batchId])) $visibleBatchGroups[$batchId] = [
+            'name' => (string) $batchTask['task_name'], 'size' => (int) ($batchTask['batch_size'] ?? 0),
+            'complete' => 0, 'employees' => [], 'scheduled_at' => (string) ($batchTask['scheduled_at'] ?? ''),
+        ];
+        if (checklist_normalize_status((string) ($batchTask['status'] ?? 'new')) === 'complete') $visibleBatchGroups[$batchId]['complete']++;
+        $visibleBatchGroups[$batchId]['employees'][] = [
+            'name' => (string) ($batchTask['assigned_name'] ?? 'Unassigned'),
+            'status' => $groups[checklist_effective_status($batchTask)] ?? ($statuses[checklist_effective_status($batchTask)] ?? checklist_effective_status($batchTask)),
+            'task_id' => (int) $batchTask['id'],
+        ];
+    }
+}
 ?>
+<?php if ($visibleBatchGroups): ?><div class="task-batch-groups" aria-label="All Employees task groups">
+<?php foreach ($visibleBatchGroups as $batchGroup): ?><details class="task-batch-group"><summary><span><strong><?= htmlspecialchars($batchGroup['name'], ENT_QUOTES, 'UTF-8') ?></strong><small>Assigned to: All Employees · <?= count($batchGroup['employees']) ?> employee tasks<?= $batchGroup['scheduled_at'] ? ' · scheduled' : '' ?></small></span><b><?= (int) $batchGroup['complete'] ?> Complete · <?= max(0, count($batchGroup['employees']) - (int) $batchGroup['complete']) ?> Outstanding</b></summary><div class="task-batch-group__employees"><?php foreach ($batchGroup['employees'] as $batchEmployee): ?><button type="button" data-task-open="<?= (int) $batchEmployee['task_id'] ?>"><span><?= htmlspecialchars($batchEmployee['name'], ENT_QUOTES, 'UTF-8') ?></span><b><?= htmlspecialchars($batchEmployee['status'], ENT_QUOTES, 'UTF-8') ?></b></button><?php endforeach; ?></div></details>
+<?php endforeach; ?></div><?php endif; ?>
 <section class="task-board" data-task-board data-task-kind="<?= htmlspecialchars((string) ($displayTaskKind ?? 'all'), ENT_QUOTES, 'UTF-8') ?>">
     <div class="dtb-table-wrap">
     <table class="dtb-board-table task-board-table">
