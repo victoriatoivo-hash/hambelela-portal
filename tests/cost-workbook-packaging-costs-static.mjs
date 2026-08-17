@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
+const api=read('apps/cost-manager/packaging-costs-api.php'),page=read('shared/cost-workbook-packaging-costs.php'),schema=read('shared/cost-workbook.php'),shell=read('shared/cost-workbook-page-shell.php'),cards=read('shared/cost-workbook-sections.php'),js=read('assets/js/packaging-costs.js');
+assert.match(read('apps/cost-manager/packaging-costs.php'),/require_role\('owner_admin'\)/);
+assert.match(api,/require_role\('owner_admin'\)/);assert.match(api,/cw_require_csrf\(\)/);assert.match(api,/accounts_standard_vat_rate\(\)/);
+assert.match(schema,/cw_packaging_item_costs/);assert.match(schema,/cw_packaging_setup_components/);assert.match(schema,/schema_version','7'/);
+assert.match(page,/Packaging Items/);assert.match(page,/Size Setups/);assert.match(page,/Average Packaging Cost/);assert.match(page,/data-pc-item-drawer/);assert.match(page,/data-pc-setup-drawer/);
+assert.ok(cards.indexOf("'packaging-costs.php'")>cards.indexOf("'transport-costs.php'"),'Packaging Costs card must immediately follow Transport Costs');
+assert.match(shell,/Packaging Costs/);assert.match(js,/history\.pushState/);assert.match(js,/popstate/);
+assert.match(api,/Product-specific → Category default → Global default|scope_type/);assert.match(api,/active=1 AND id<>\?/);assert.match(api,/unit_cost_ex_snapshot/);
+assert.doesNotMatch(api,/wc_put|wc_post/,'Packaging Costs must not write to WooCommerce');
+console.log('Cost Workbook Packaging Costs static checks passed.');

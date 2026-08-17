@@ -9,6 +9,7 @@ require_once BASE_PATH.'/shared/cost-workbook-sections.php';
 require_once BASE_PATH.'/shared/cost-workbook-size-conversions.php';
 require_once BASE_PATH.'/shared/cost-workbook-supplier-invoices.php';
 require_once BASE_PATH.'/shared/cost-workbook-transport-costs.php';
+require_once BASE_PATH.'/shared/cost-workbook-packaging-costs.php';
 require_role('owner_admin');
 $cwPageKey=(string)($cwPageKey??'overview');$period=cw_page_period();$bootError=null;
 try{cw_install_schema(db());}catch(Throwable $error){$bootError='setup_failed';error_log('Cost Workbook setup failed: '.get_class($error));}
@@ -18,6 +19,7 @@ if($cwPageKey==='overview'){cw_render_overview($period);$scripts[]='cost-workboo
 elseif($cwPageKey==='size-conversions'){cw_render_size_conversions($period);$scripts[]='size-conversions.js?v='.(int)filemtime(BASE_PATH.'/assets/js/size-conversions.js');}
 elseif($cwPageKey==='supplier-invoices'){cw_render_supplier_invoices($period);$scripts[]='supplier-invoices-v2.js?v='.(int)filemtime(BASE_PATH.'/assets/js/supplier-invoices-v2.js');}
 elseif($cwPageKey==='transport-costs'){cw_render_transport_costs($period);$scripts[]='transport-costs.js?v='.(int)filemtime(BASE_PATH.'/assets/js/transport-costs.js');}
+elseif($cwPageKey==='packaging-costs'){cw_render_packaging_costs($period);$scripts[]='packaging-costs.js?v='.(int)filemtime(BASE_PATH.'/assets/js/packaging-costs.js');}
 elseif($cwPageKey==='purchases'){cw_render_purchases(false);$scripts[]='cost-workbook-pages.js?v=1';}
 elseif(in_array($cwPageKey,['shipments','landed-costs','product-matching'],true)){cw_render_phase2($cwPageKey);$scripts[]='cost-workbook-phase2.js?v=2';}
 elseif($cwPageKey==='profitability'){cw_render_profitability();$scripts[]='cost-workbook-pages.js?v=1';}
