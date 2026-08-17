@@ -107,6 +107,9 @@ function checklist_bootstrap_schema(): void
         'urgent_alert_enabled' => "ALTER TABLE ops_checklist_tasks ADD COLUMN urgent_alert_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER employee_visible",
         'urgent_alert_message' => "ALTER TABLE ops_checklist_tasks ADD COLUMN urgent_alert_message VARCHAR(240) NULL AFTER urgent_alert_enabled",
         'urgent_alert_sent_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN urgent_alert_sent_at DATETIME NULL AFTER urgent_alert_message",
+        'urgent_alert_recipients_json' => "ALTER TABLE ops_checklist_tasks ADD COLUMN urgent_alert_recipients_json TEXT NULL AFTER urgent_alert_message",
+        'urgent_alert_claimed_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN urgent_alert_claimed_at DATETIME NULL AFTER urgent_alert_sent_at",
+        'urgent_alert_last_error' => "ALTER TABLE ops_checklist_tasks ADD COLUMN urgent_alert_last_error VARCHAR(500) NULL AFTER urgent_alert_claimed_at",
         'first_displayed_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN first_displayed_at DATETIME NULL AFTER date_assigned",
         'first_opened_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN first_opened_at DATETIME NULL AFTER first_displayed_at",
         'acknowledged_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN acknowledged_at DATETIME NULL AFTER first_opened_at",
@@ -1023,7 +1026,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if (checklist_instruction_text_length($instructions) === 0) throw new RuntimeException('Task instructions are required.');
             $urgentRequested = !empty($_POST['send_urgent_alert']);
             $urgentRecipients = (!$assignAll && $urgentRequested) ? checklist_urgent_recipient_ids((array) ($_POST['urgent_alert_recipients'] ?? []), $assignedId) : [];
-            if (!$assignAll && $urgentRequested && !$urgentRecipients) throw new RuntimeException('Choose at least one valid urgent alert recipient.');
+            if ($scheduledAt === null && !$assignAll && $urgentRequested && !$urgentRecipients) throw new RuntimeException('Choose at least one valid urgent alert recipient.');
             $employeeVisible = $scheduledAt === null ? 1 : 0;
             $proofRequired = !empty($_POST['completion_evidence_required']) ? 1 : 0;
             $recurringRule = ops_post_string('recurring_rule', 80);
@@ -1033,7 +1036,8 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             if ($assignAll && $recurringRule !== '') throw new RuntimeException('All Employees is available for manual and scheduled tasks. Recurring group assignments are not enabled yet.');
             if ($scheduledAt !== null && $recurringRule !== '') throw new RuntimeException('Scheduled release is available for manual tasks only. Recurring tasks keep their existing schedule.');
-            if ($scheduledAt !== null && $urgentRequested) throw new RuntimeException('Popup alerts can only be sent for tasks released now. The employee will be notified automatically at release.');
+            $urgentRecipientConfig = array_values(array_intersect((array) ($_POST['urgent_alert_recipients'] ?? []), ['assigned', 'role:front_desk', 'role:packers', 'role:all_relevant']));
+            if ($urgentRequested && !$urgentRecipientConfig) throw new RuntimeException('Choose at least one valid urgent alert recipient.');
             $createAttachmentFiles = checklist_create_attachment_files();
             if ($assignAll && $createAttachmentFiles) throw new RuntimeException('Create the All Employees task first, then add shared files from the group view.');
             $createdAttachments = [];
@@ -1062,8 +1066,8 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
               }
             $stmt = $taskDb->prepare(
                 "INSERT INTO ops_checklist_tasks
-                 (checklist_type, task_name, priority, assigned_employee_id, date_assigned, scheduled_at, released_at, deadline, status, notes, instructions, checklist_items, completion_note_required, completion_evidence_required, performance_scored, recurrence_key, recurring_rule, recurring_template_id, source_template_id, employee_visible, created_by, batch_id, batch_size)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                 (checklist_type, task_name, priority, assigned_employee_id, date_assigned, scheduled_at, released_at, deadline, status, notes, instructions, checklist_items, completion_note_required, completion_evidence_required, performance_scored, recurrence_key, recurring_rule, recurring_template_id, source_template_id, employee_visible, urgent_alert_enabled, urgent_alert_recipients_json, created_by, batch_id, batch_size)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             );
             foreach ($targetEmployeeIds as $targetEmployeeId) {
               $stmt->execute([
@@ -1086,6 +1090,8 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $templateId,
                 $sourceTemplateId > 0 ? $sourceTemplateId : null,
                 $employeeVisible,
+                $urgentRequested ? 1 : 0,
+                $urgentRequested ? json_encode($urgentRecipientConfig) : null,
                 $currentEmployeeId,
                 $batchId,
                 $assignAll ? $batchSize : null,
@@ -1107,11 +1113,16 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 'proof_required' => $proofRequired,
                 'batch_id' => $batchId,
                 'batch_size' => $assignAll ? $batchSize : null,
+                'popup_enabled' => $urgentRequested,
+                'popup_recipients' => $urgentRecipientConfig,
+              ]);
+              if ($scheduledAt !== null && $urgentRequested) ops_activity_log('task_popup_configured', 'checklist_task', $createdTaskId, [
+                  'recipients' => $urgentRecipientConfig, 'scheduled_at' => $scheduledAt,
               ]);
               if ($scheduledAt === null && !notifications_notify_task_assigned($createdTaskId, $targetEmployeeId, $taskName)) {
                   throw new RuntimeException('The task assignment notification could not be saved.');
               }
-              if ($urgentRequested && !checklist_send_urgent_alert($createdTaskId, $assignAll ? [$targetEmployeeId] : $urgentRecipients)) {
+              if ($scheduledAt === null && $urgentRequested && !checklist_send_urgent_alert($createdTaskId, $assignAll ? [$targetEmployeeId] : $urgentRecipients)) {
                   throw new RuntimeException('The task popup notification could not be saved.');
               }
             }
@@ -1129,8 +1140,8 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw $taskCreateError;
             }
             $message = $assignAll
-                ? ($scheduledAt !== null ? $batchSize . ' individual tasks scheduled for ' . checklist_date_label($scheduledAt) . '.' : $batchSize . ' individual employee tasks created and assigned.')
-                : ($scheduledAt !== null ? 'Task scheduled for ' . checklist_date_label($scheduledAt) . '. The employee cannot see it until release.' : ($createdAttachments
+                ? ($scheduledAt !== null ? $batchSize . ' individual tasks scheduled for ' . checklist_date_label($scheduledAt) . '.' . ($urgentRequested ? ' Popup notifications will be sent at release.' : '') : $batchSize . ' individual employee tasks created and assigned.')
+                : ($scheduledAt !== null ? 'Task scheduled for ' . checklist_date_label($scheduledAt) . '.' . ($urgentRequested ? ' Popup notification will be sent at release.' : ' The employee cannot see it until release.') : ($createdAttachments
                 ? 'Task created with ' . count($createdAttachments) . ' file' . (count($createdAttachments) === 1 ? '' : 's') . ' and assigned.'
                 : 'Task created and assigned.'));
         }
@@ -1172,7 +1183,13 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($taskDb->inTransaction()) $taskDb->rollBack();
                 throw $taskUpdateError;
             }
-            if (!empty($_POST['send_urgent_alert']) && empty($oldRows[0]['urgent_alert_sent_at'])) {
+            if (!empty($oldRows[0]['scheduled_at']) && empty($oldRows[0]['released_at'])) {
+                $popupEnabled = !empty($_POST['send_urgent_alert']);
+                $popupConfig = array_values(array_intersect((array) ($_POST['urgent_alert_recipients'] ?? []), ['assigned', 'role:front_desk', 'role:packers', 'role:all_relevant']));
+                if ($popupEnabled && !$popupConfig) throw new RuntimeException('Choose at least one valid urgent alert recipient.');
+                db()->prepare('UPDATE ops_checklist_tasks SET urgent_alert_enabled = ?, urgent_alert_recipients_json = ?, urgent_alert_claimed_at = NULL, urgent_alert_last_error = NULL WHERE id = ? AND released_at IS NULL')->execute([$popupEnabled ? 1 : 0, $popupEnabled ? json_encode($popupConfig) : null, $taskId]);
+                ops_activity_log('task_popup_configured', 'checklist_task', $taskId, ['enabled' => $popupEnabled, 'recipients' => $popupConfig, 'scheduled_at' => $updatedScheduledAt]);
+            } elseif (!empty($_POST['send_urgent_alert']) && empty($oldRows[0]['urgent_alert_sent_at'])) {
                 $urgentRecipients = checklist_urgent_recipient_ids((array) ($_POST['urgent_alert_recipients'] ?? []), $assignedId);
                 if (!$urgentRecipients) throw new RuntimeException('Choose at least one valid urgent alert recipient.');
                 if (!checklist_send_urgent_alert($taskId, $urgentRecipients)) {
@@ -1596,7 +1613,7 @@ include BASE_PATH . '/shared/sidebar.php';
                             <div class="task-urgent-options" data-urgent-options hidden>
                                 <span class="task-field-label">Notify</span>
                                 <div class="task-urgent-recipients"><label><input type="checkbox" name="urgent_alert_recipients[]" value="assigned" checked> Assigned employee</label><label><input type="checkbox" name="urgent_alert_recipients[]" value="role:front_desk"> Front desk</label><label><input type="checkbox" name="urgent_alert_recipients[]" value="role:packers"> Packers</label><label><input type="checkbox" name="urgent_alert_recipients[]" value="role:all_relevant"> All relevant employees</label></div>
-                                <small>The popup uses this task's name, instructions, due date, checklist and assignment details automatically.</small>
+                                <small data-task-popup-helper>The popup uses this task's name, instructions, due date, checklist and assignment details automatically.</small>
                             </div>
                         </section>
                       </section>
@@ -1634,7 +1651,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     </div>
                 </header>
                 <div class="task-section__content" id="<?= $sectionKey ?>TasksContent">
-                    <?php $displayTasks = $section['tasks']; $displayTaskKind = $sectionKey; $emptyTaskMessage = $canManage ? 'No ' . strtolower($section['title']) . ' match these filters.' : 'No ' . strtolower($section['title']) . ' are currently assigned to you.'; include __DIR__ . '/partials/checklist-task-table.php'; ?>
+                    <?php $displayTasks = $section['tasks']; $displayTaskKind = $sectionKey; $emptyTaskMessage = $sectionKey === 'scheduled' ? 'No scheduled tasks. Tasks scheduled for a future date/time will appear here.' : ($canManage ? 'No ' . strtolower($section['title']) . ' match these filters.' : 'No ' . strtolower($section['title']) . ' are currently assigned to you.'); include __DIR__ . '/partials/checklist-task-table.php'; ?>
                 </div>
             </section>
         <?php endforeach; ?>
@@ -1769,10 +1786,11 @@ include BASE_PATH . '/shared/sidebar.php';
                         <div class="task-rich-editor task-rich-editor--edit" data-task-edit-rich="<?= $panelId ?>"><span class="task-form-label">Instructions *</span><div class="task-rich-editor__toolbar" role="toolbar" aria-label="Instruction formatting"><button type="button" data-edit-rich-command="bold"><strong>B</strong></button><button type="button" data-edit-rich-command="italic"><em>I</em></button><button type="button" data-edit-rich-command="insertUnorderedList">• List</button><button type="button" data-edit-rich-command="insertOrderedList">1. List</button><button type="button" data-edit-rich-expand><i data-lucide="maximize-2"></i><span>Expand</span></button></div><div class="task-rich-editor__surface" contenteditable="true" role="textbox" aria-multiline="true" data-edit-rich-surface><?= checklist_render_instructions((string) ($task['instructions'] ?: $task['notes'] ?: '')) ?></div><textarea name="instructions" required hidden data-edit-rich-input><?= htmlspecialchars((string) ($task['instructions'] ?: $task['notes'] ?: ''), ENT_QUOTES, 'UTF-8') ?></textarea></div>
                         <label class="task-urgent-toggle"><input type="checkbox" name="completion_evidence_required" value="1" <?= !empty($task['completion_evidence_required']) ? 'checked' : '' ?>><span class="task-urgent-toggle__track" aria-hidden="true"><span class="task-urgent-toggle__thumb"></span></span><span class="task-urgent-toggle__copy"><strong>Proof required</strong><small>Optional uploads remain evidence only and do not earn bonus points.</small></span></label>
                         <section class="task-urgent-control" data-urgent-control>
+                            <?php $savedUrgentRecipients = json_decode((string) ($task['urgent_alert_recipients_json'] ?? '[]'), true); $savedUrgentRecipients = is_array($savedUrgentRecipients) ? $savedUrgentRecipients : ['assigned']; ?>
                             <?php if (empty($task['urgent_alert_sent_at'])): ?>
-                                <label class="task-urgent-toggle"><input type="checkbox" name="send_urgent_alert" value="1" data-urgent-toggle><span class="task-urgent-toggle__track" aria-hidden="true"><span class="task-urgent-toggle__thumb"></span></span><span class="task-urgent-toggle__copy"><strong>Send urgent alert</strong><small>Notify employees after this task update saves.</small></span></label>
+                                <label class="task-urgent-toggle"><input type="checkbox" name="send_urgent_alert" value="1" data-urgent-toggle <?= !empty($task['urgent_alert_enabled']) ? 'checked' : '' ?>><span class="task-urgent-toggle__track" aria-hidden="true"><span class="task-urgent-toggle__thumb"></span></span><span class="task-urgent-toggle__copy"><strong>Send urgent alert</strong><small><?= !empty($task['scheduled_at']) && empty($task['released_at']) ? 'Popup notification will be sent when this task is released.' : 'Notify employees after this task update saves.' ?></small></span></label>
                             <?php else: ?><div class="task-urgent-sent"><strong>Urgent alert sent</strong><small><?= htmlspecialchars(checklist_date_label((string) $task['urgent_alert_sent_at']), ENT_QUOTES, 'UTF-8') ?></small></div><?php endif; ?>
-                            <div class="task-urgent-options" data-urgent-options <?= empty($task['urgent_alert_sent_at']) ? 'hidden' : '' ?>><span class="task-field-label">Notify</span><div class="task-urgent-recipients"><label><input type="checkbox" name="urgent_alert_recipients[]" value="assigned" checked> Assigned employee</label><label><input type="checkbox" name="urgent_alert_recipients[]" value="role:front_desk"> Front desk</label><label><input type="checkbox" name="urgent_alert_recipients[]" value="role:packers"> Packers</label><label><input type="checkbox" name="urgent_alert_recipients[]" value="role:all_relevant"> All relevant employees</label></div><small>The popup uses the saved task details automatically.</small></div>
+                            <div class="task-urgent-options" data-urgent-options <?= empty($task['urgent_alert_enabled']) ? 'hidden' : '' ?>><span class="task-field-label">Notify</span><div class="task-urgent-recipients"><label><input type="checkbox" name="urgent_alert_recipients[]" value="assigned" <?= in_array('assigned', $savedUrgentRecipients, true) ? 'checked' : '' ?>> Assigned employee</label><label><input type="checkbox" name="urgent_alert_recipients[]" value="role:front_desk" <?= in_array('role:front_desk', $savedUrgentRecipients, true) ? 'checked' : '' ?>> Front desk</label><label><input type="checkbox" name="urgent_alert_recipients[]" value="role:packers" <?= in_array('role:packers', $savedUrgentRecipients, true) ? 'checked' : '' ?>> Packers</label><label><input type="checkbox" name="urgent_alert_recipients[]" value="role:all_relevant" <?= in_array('role:all_relevant', $savedUrgentRecipients, true) ? 'checked' : '' ?>> All relevant employees</label></div><small>The popup uses the saved task details automatically.</small></div>
                             <?php if (!empty($task['urgent_alert_sent_at'])): ?><button class="task-btn task-btn--secondary" type="submit" name="action" value="resend_urgent_alert" data-resend-urgent>Resend urgent alert</button><?php endif; ?>
                         </section>
                         <div class="task-edit-actions"><button class="task-btn task-btn--primary" type="submit">Save assignment</button></div>
@@ -1994,8 +2012,19 @@ function initialiseTaskCreateForm() {
   };
   dueAtInput.addEventListener('input', () => { syncDueAt(); validateDueAt(); });
   dueAtInput.addEventListener('change', () => { syncDueAt(); validateDueAt(); });
-  const syncDeliveryMode = () => { const scheduled = form.querySelector('[name="delivery_mode"]:checked')?.value === 'scheduled'; scheduleField.hidden = !scheduled; scheduledAtInput.required = scheduled; if (!scheduled) scheduledAtInput.value = ''; };
+  const popupToggle = form.querySelector('[data-urgent-toggle]');
+  const popupHelper = form.querySelector('[data-task-popup-helper]');
+  const syncDeliveryMode = () => {
+    const scheduled = form.querySelector('[name="delivery_mode"]:checked')?.value === 'scheduled';
+    scheduleField.hidden = !scheduled;
+    scheduledAtInput.required = scheduled;
+    if (!scheduled) scheduledAtInput.value = '';
+    if (popupHelper) popupHelper.textContent = scheduled && popupToggle?.checked
+      ? 'Popup notification will be sent when this task is released.'
+      : 'The popup uses this task\'s name, instructions, due date, checklist and assignment details automatically.';
+  };
   deliveryModes.forEach((input) => input.addEventListener('change', syncDeliveryMode)); syncDeliveryMode();
+  popupToggle?.addEventListener('change', syncDeliveryMode);
 
   const syncRecurrence = () => {
     repeatOptions.hidden = !repeatToggle.checked;
@@ -3184,7 +3213,7 @@ function initialiseLoadedTaskView(content) {
 
 async function openTaskView(view, context) {
   const { root, content, selectedTab } = context;
-  if (!['tasks', 'completed', 'history'].includes(view) || root.dataset.activeTaskView === view) return;
+  if (!['tasks', 'scheduled', 'completed', 'history'].includes(view) || root.dataset.activeTaskView === view) return;
 
   taskViewRequest?.abort();
   const request = new AbortController();
