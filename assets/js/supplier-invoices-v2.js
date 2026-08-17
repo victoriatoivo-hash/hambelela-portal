@@ -23,17 +23,29 @@
     return div.innerHTML;
   }
   function json(url, options) {
-    return fetch(url, Object.assign({ credentials: 'same-origin' }, options || {})).then(function (response) {
-      return response.json().catch(function () { return {}; }).then(function (data) {
-        if (!response.ok) throw new Error(data.error || 'The request failed.');
-        return data;
-      });
+    options = options || {};
+    return new Promise(function (resolve, reject) {
+      var request = new XMLHttpRequest();
+      request.open(options.method || 'GET', url, true);
+      Object.keys(options.headers || {}).forEach(function (name) { request.setRequestHeader(name, options.headers[name]); });
+      request.onreadystatechange = function () {
+        if (request.readyState !== 4) return;
+        var data = {};
+        try { data = JSON.parse(request.responseText || '{}'); } catch (ignore) {}
+        if (request.status >= 200 && request.status < 300) resolve(data);
+        else reject(new Error(data.error || 'The request failed.'));
+      };
+      request.onerror = function () { reject(new Error('The request could not reach the server.')); };
+      request.send(options.body || null);
     });
   }
   function query() {
-    var params = new URLSearchParams(new FormData(filters));
-    params.set('action', 'list'); params.set('page', currentPage); params.set('page_size', pageSize);
-    return params.toString();
+    var values = ['action=list', 'page=' + currentPage, 'page_size=' + pageSize];
+    Array.prototype.forEach.call(filters.elements, function (field) {
+      if (!field.name || field.disabled || ((field.type === 'checkbox' || field.type === 'radio') && !field.checked)) return;
+      values.push(encodeURIComponent(field.name) + '=' + encodeURIComponent(field.value));
+    });
+    return values.join('&');
   }
   function money(value, currency) {
     if (value === null || value === '') return '—';
@@ -111,7 +123,11 @@
     }).catch(function (error) { window.alert(error.message); });
   }
   function reviewPayload() {
-    var payload = Object.fromEntries(new FormData(review).entries());
+    var payload = {};
+    Array.prototype.forEach.call(review.elements, function (field) {
+      if (!field.name || field.disabled || ((field.type === 'checkbox' || field.type === 'radio') && !field.checked)) return;
+      payload[field.name] = field.value;
+    });
     payload.lines = all('.supplier-invoices__line', one('[data-si-lines]')).map(function (node) {
       var line = {}; all('[data-k]', node).forEach(function (input) { line[input.getAttribute('data-k')] = input.value; }); return line;
     });
