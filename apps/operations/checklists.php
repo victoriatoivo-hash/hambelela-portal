@@ -1864,6 +1864,54 @@ function initialiseTaskUrgentControls(root = document) {
 }
 initialiseTaskUrgentControls();
 
+function initialiseTaskInstructionsLayer() {
+  const modal = document.querySelector('[data-task-instructions-modal]');
+  if (!modal || modal.dataset.layerReady === 'true') return window.taskInstructionsLayer || null;
+  modal.dataset.layerReady = 'true';
+  document.body.appendChild(modal);
+  let returnFocus = null;
+  const parentPanels = () => [...document.querySelectorAll('[data-task-create-panel].open, .task-detail-panel.open')];
+  const setParentsInactive = (inactive) => parentPanels().forEach((panel) => {
+    panel.inert = inactive;
+    panel.classList.toggle('is-child-modal-open', inactive);
+  });
+  const focusable = () => [...modal.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [contenteditable="true"], [tabindex]:not([tabindex="-1"])')]
+    .filter((element) => !element.hidden && element.getClientRects().length);
+  const close = () => {
+    if (modal.hidden) return;
+    modal.hidden = true;
+    document.body.classList.remove('task-instructions-expanded');
+    setParentsInactive(false);
+    const target = returnFocus;
+    returnFocus = null;
+    window.requestAnimationFrame(() => target?.isConnected && target.focus());
+  };
+  const open = (trigger) => {
+    returnFocus = trigger || document.activeElement;
+    setParentsInactive(true);
+    modal.hidden = false;
+    document.body.classList.add('task-instructions-expanded');
+    window.requestAnimationFrame(() => modal.querySelector('[data-rich-expanded-surface]')?.focus());
+  };
+  modal.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      close();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const items = focusable();
+    if (!items.length) { event.preventDefault(); return; }
+    const first = items[0], last = items[items.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  }, true);
+  window.taskInstructionsLayer = { modal, open, close };
+  return window.taskInstructionsLayer;
+}
+const taskInstructionsLayer = initialiseTaskInstructionsLayer();
+
 function initialiseTaskCreateForm() {
   const form = document.querySelector('[data-task-create-form]');
   if (!form || form.dataset.initialised === 'true') return;
@@ -1913,9 +1961,10 @@ function initialiseTaskCreateForm() {
   instructionEditor.addEventListener('input', syncInstructions);
   instructionEditor.addEventListener('paste', (event) => { event.preventDefault(); const html=event.clipboardData?.getData('text/html'); const text=event.clipboardData?.getData('text/plain') || ''; document.execCommand('insertHTML', false, cleanEditorHtml(html || text.replace(/\n/g,'<br>'))); syncInstructions(); });
   form.querySelectorAll('[data-rich-command]').forEach((button) => button.addEventListener('click', () => { instructionEditor.focus(); document.execCommand(button.dataset.richCommand, false); syncInstructions(); }));
-  form.querySelector('[data-rich-expand]')?.addEventListener('click', () => { instructionModal.dataset.richTarget='create'; expandedEditor.innerHTML=instructionEditor.innerHTML; instructionModal.hidden=false; document.body.classList.add('task-instructions-expanded'); expandedEditor.focus(); });
-  instructionModal?.querySelectorAll('[data-rich-cancel]').forEach((button) => button.addEventListener('click', () => { instructionModal.hidden=true; document.body.classList.remove('task-instructions-expanded'); }));
-  instructionModal?.querySelector('[data-rich-save]')?.addEventListener('click', () => { if (instructionModal.dataset.richTarget !== 'create') return; setInstructionHtml(expandedEditor.innerHTML); instructionModal.hidden=true; document.body.classList.remove('task-instructions-expanded'); instructionEditor.focus(); });
+  const createExpandButton = form.querySelector('[data-rich-expand]');
+  createExpandButton?.addEventListener('click', () => { instructionModal.dataset.richTarget='create'; expandedEditor.innerHTML=instructionEditor.innerHTML; taskInstructionsLayer?.open(createExpandButton); });
+  instructionModal?.querySelectorAll('[data-rich-cancel]').forEach((button) => button.addEventListener('click', () => taskInstructionsLayer?.close()));
+  instructionModal?.querySelector('[data-rich-save]')?.addEventListener('click', () => { if (instructionModal.dataset.richTarget !== 'create') return; setInstructionHtml(expandedEditor.innerHTML); taskInstructionsLayer?.close(); });
   instructionModal?.querySelectorAll('[data-rich-modal-command]').forEach((button) => button.addEventListener('click', () => { expandedEditor.focus(); document.execCommand(button.dataset.richModalCommand, false); }));
   assignee?.addEventListener('change', () => { if (allEmployeesNote) allEmployeesNote.hidden = assignee.value !== 'all'; });
 
@@ -2148,8 +2197,9 @@ document.querySelectorAll('[data-task-edit-rich]').forEach((editorBlock) => {
   const modal=document.querySelector('[data-task-instructions-modal]'), expanded=modal?.querySelector('[data-rich-expanded-surface]');
   const sync=()=>{input.value=surface.innerHTML.trim();}; surface.addEventListener('input',sync);
   editorBlock.querySelectorAll('[data-edit-rich-command]').forEach((button)=>button.addEventListener('click',()=>{surface.focus();document.execCommand(button.dataset.editRichCommand,false);sync();}));
-  editorBlock.querySelector('[data-edit-rich-expand]')?.addEventListener('click',()=>{modal.dataset.richTarget=`edit:${editorBlock.dataset.taskEditRich}`;expanded.innerHTML=surface.innerHTML;modal.hidden=false;document.body.classList.add('task-instructions-expanded');expanded.focus();});
-  modal?.querySelector('[data-rich-save]')?.addEventListener('click',()=>{if(modal.dataset.richTarget!==`edit:${editorBlock.dataset.taskEditRich}`)return;surface.innerHTML=expanded.innerHTML;sync();modal.hidden=true;document.body.classList.remove('task-instructions-expanded');surface.focus();});
+  const editExpandButton=editorBlock.querySelector('[data-edit-rich-expand]');
+  editExpandButton?.addEventListener('click',()=>{modal.dataset.richTarget=`edit:${editorBlock.dataset.taskEditRich}`;expanded.innerHTML=surface.innerHTML;taskInstructionsLayer?.open(editExpandButton);});
+  modal?.querySelector('[data-rich-save]')?.addEventListener('click',()=>{if(modal.dataset.richTarget!==`edit:${editorBlock.dataset.taskEditRich}`)return;surface.innerHTML=expanded.innerHTML;sync();taskInstructionsLayer?.close();});
   editorBlock.closest('form')?.addEventListener('submit',sync);
 });
 document.querySelectorAll('[data-instructions-read-more]').forEach((button) => button.addEventListener('click', () => {
