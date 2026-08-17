@@ -19,7 +19,18 @@ function cw_install_schema(PDO $pdo): void
         $version = 2;
     }
     if ($version < 2) { cw_upgrade_sync_schema_v2($pdo); $version = 2; }
-    if ($version < 3) cw_upgrade_phase2_schema_v3($pdo);
+    if ($version < 3) { cw_upgrade_phase2_schema_v3($pdo); $version = 3; }
+    if ($version < 4) cw_upgrade_size_conversion_schema_v4($pdo);
+}
+
+function cw_upgrade_size_conversion_schema_v4(PDO $pdo): void
+{
+    require_once BASE_PATH.'/shared/cost-workbook-size-conversions.php';
+    $pdo->exec("CREATE TABLE IF NOT EXISTS cw_size_conversions (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,label VARCHAR(60) NOT NULL,measurement_type ENUM('volume','weight') NOT NULL,quantity DECIMAL(18,6) NOT NULL,unit ENUM('ml','L','g','kg') NOT NULL,base_value DECIMAL(18,6) NOT NULL,base_unit ENUM('L','kg') NOT NULL,active TINYINT(1) NOT NULL DEFAULT 1,created_by BIGINT NULL,created_by_name VARCHAR(190) NOT NULL DEFAULT '',updated_by BIGINT NULL,updated_by_name VARCHAR(190) NOT NULL DEFAULT '',created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,UNIQUE KEY uq_cw_size_conversion_base (measurement_type,base_value),KEY idx_cw_size_conversion_list (measurement_type,active,base_value)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS cw_size_conversion_audit (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,conversion_id BIGINT UNSIGNED NOT NULL,action_key ENUM('created','updated') NOT NULL,before_json JSON NULL,after_json JSON NOT NULL,actor_id BIGINT NULL,actor_name VARCHAR(190) NOT NULL DEFAULT '',created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,KEY idx_cw_size_conversion_audit (conversion_id,created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $seed=$pdo->prepare("INSERT IGNORE INTO cw_size_conversions(label,measurement_type,quantity,unit,base_value,base_unit,created_by_name,updated_by_name) VALUES(?,?,?,?,?,?,'system','system')");
+    foreach(cw_default_size_conversions() as $row)$seed->execute([$row['label'],$row['measurement_type'],$row['quantity'],$row['unit'],$row['base_value'],$row['base_unit']]);
+    $pdo->prepare("INSERT INTO cw_settings(setting_key,setting_value,updated_by_name) VALUES('schema_version','4','system') ON DUPLICATE KEY UPDATE setting_value='4',updated_by_name='system'")->execute();
 }
 
 function cw_upgrade_phase2_schema_v3(PDO $pdo): void
