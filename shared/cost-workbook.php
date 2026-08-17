@@ -20,7 +20,36 @@ function cw_install_schema(PDO $pdo): void
     }
     if ($version < 2) { cw_upgrade_sync_schema_v2($pdo); $version = 2; }
     if ($version < 3) { cw_upgrade_phase2_schema_v3($pdo); $version = 3; }
-    if ($version < 4) cw_upgrade_size_conversion_schema_v4($pdo);
+    if ($version < 4) { cw_upgrade_size_conversion_schema_v4($pdo); $version = 4; }
+    if ($version < 5) cw_upgrade_supplier_invoice_schema_v5($pdo);
+}
+
+function cw_upgrade_supplier_invoice_schema_v5(PDO $pdo): void
+{
+    $pdo->exec("CREATE TABLE IF NOT EXISTS cw_suppliers (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,name VARCHAR(190) NOT NULL,normalized_name VARCHAR(190) NOT NULL,supplier_type ENUM('Raw Materials','Packaging','Equipment & Accessories','Freight & Logistics','Services','Mixed','Uncategorised') NOT NULL DEFAULT 'Uncategorised',type_confirmed TINYINT(1) NOT NULL DEFAULT 0,active TINYINT(1) NOT NULL DEFAULT 1,created_by BIGINT NULL,created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,UNIQUE KEY uq_cw_supplier_normalized(normalized_name),KEY idx_cw_supplier_type(supplier_type,active)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $invoiceColumns=[
+      'supplier_type'=>"ADD COLUMN supplier_type VARCHAR(60) NOT NULL DEFAULT 'Uncategorised' AFTER supplier_name",
+      'invoice_type'=>"ADD COLUMN invoice_type VARCHAR(60) NOT NULL DEFAULT 'Mixed' AFTER supplier_type",
+      'file_hash'=>"ADD COLUMN file_hash CHAR(64) NULL AFTER file_type",
+      'extraction_confidence'=>"ADD COLUMN extraction_confidence VARCHAR(20) NULL AFTER extraction_status",
+      'extraction_message'=>"ADD COLUMN extraction_message VARCHAR(500) NULL AFTER extraction_confidence",
+      'discount_amount'=>"ADD COLUMN discount_amount DECIMAL(14,2) NULL AFTER invoice_total",
+      'shipping_amount'=>"ADD COLUMN shipping_amount DECIMAL(14,2) NULL AFTER discount_amount",
+      'purchase_order_number'=>"ADD COLUMN purchase_order_number VARCHAR(100) NULL AFTER shipping_amount",
+      'last_edited_by'=>"ADD COLUMN last_edited_by BIGINT NULL AFTER notes",
+      'last_edited_by_name'=>"ADD COLUMN last_edited_by_name VARCHAR(190) NULL AFTER last_edited_by",
+    ];
+    foreach($invoiceColumns as $column=>$definition)if(!cw_column_exists($pdo,'cw_supplier_invoices',$column))$pdo->exec('ALTER TABLE cw_supplier_invoices '.$definition);
+    $lineColumns=[
+      'product_category'=>"ADD COLUMN product_category VARCHAR(100) NOT NULL DEFAULT 'Other' AFTER supplier_sku",
+      'line_notes'=>"ADD COLUMN line_notes VARCHAR(500) NULL AFTER owner_corrections",
+      'extraction_confidence'=>"ADD COLUMN extraction_confidence VARCHAR(20) NULL AFTER line_notes",
+    ];
+    foreach($lineColumns as $column=>$definition)if(!cw_column_exists($pdo,'cw_supplier_invoice_lines',$column))$pdo->exec('ALTER TABLE cw_supplier_invoice_lines '.$definition);
+    try{$pdo->exec('ALTER TABLE cw_supplier_invoices ADD UNIQUE KEY uq_cw_invoice_file_hash(file_hash)');}catch(Throwable $e){}
+    $pdo->exec("INSERT IGNORE INTO cw_suppliers(name,normalized_name,supplier_type,type_confirmed) SELECT supplier_name,LOWER(REPLACE(REPLACE(REPLACE(TRIM(supplier_name),'.',''),',',''),' ','')),COALESCE(NULLIF(supplier_type,''),'Uncategorised'),0 FROM cw_supplier_invoices WHERE supplier_name<>''");
+    $pdo->exec("UPDATE cw_supplier_invoices i JOIN cw_suppliers s ON s.normalized_name=LOWER(REPLACE(REPLACE(REPLACE(TRIM(i.supplier_name),'.',''),',',''),' ','')) SET i.supplier_id=s.id WHERE i.supplier_id IS NULL");
+    $pdo->prepare("INSERT INTO cw_settings(setting_key,setting_value,updated_by_name) VALUES('schema_version','5','system') ON DUPLICATE KEY UPDATE setting_value='5',updated_by_name='system'")->execute();
 }
 
 function cw_upgrade_size_conversion_schema_v4(PDO $pdo): void

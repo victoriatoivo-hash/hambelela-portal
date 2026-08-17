@@ -5,7 +5,7 @@ function cw_render_overview(array $period): void { ?>
 <section class="accounts-app-section" aria-labelledby="costing-tools-title"><header><div><p class="eyebrow">Applications</p><h2 id="costing-tools-title">Costing Tools</h2></div></header><div class="accounts-app-grid">
 <a class="accounts-app-card accounting-app-card accounting-app-card--size-conversions" href="<?= cw_page_url('size-conversions.php',$period) ?>"><span class="accounts-app-icon" aria-hidden="true"><i data-lucide="ruler"></i></span><div class="accounting-app-card__content"><div class="accounting-app-card__status"><small class="accounts-app-status is-available">Available</small><span class="accounts-owner-label"><i data-lucide="shield-lock" aria-hidden="true"></i>Owner only</span><span class="accounting-app-visual" aria-hidden="true"><i></i><i></i><i></i></span></div><h3>Size Conversions</h3><p>Manage the standard liquid and weight sizes used in product costing calculations.</p><strong>Open Size Conversions <span aria-hidden="true">&rarr;</span></strong></div></a>
 <?php $cards=[
-['purchases.php','receipt-text','Purchase Costs','Upload, review and approve supplier invoices used by the Cost Workbook.'],
+['supplier-invoices.php','receipt-text','Supplier Invoices','Upload supplier invoices, extract purchased items and review product costs by supplier and date.'],
 ['shipments.php','ship','Shipments','Link approved invoices and record shipment expenses.'],
 ['landed-costs.php','calculator','Landed Costs','Allocate and reconcile landed costs for approved shipments.'],
 ['product-matching.php','scan-search','Product Matching','Match calculated sale sizes to the website product snapshot.'],
