@@ -187,6 +187,39 @@ function packing_quantity_warning(string $receivedWeight, string $quantityPlan):
     return '';
 }
 
+function packing_invoice_allocation_validation(array $row): array
+{
+    $unitText = trim((string) ($row['unit'] ?? ''));
+    $unit = packing_unit_meta($unitText);
+    if (!$unit) {
+        return ['valid' => false, 'message' => 'Unit required.'];
+    }
+    $receivedText = (string) ($row['received_weight'] ?? '');
+    preg_match('/\d+(?:\.\d+)?/', $receivedText, $amountMatch);
+    $receivedAmount = isset($amountMatch[0]) ? (float) $amountMatch[0] : 0.0;
+    if ($receivedAmount <= 0) {
+        return ['valid' => false, 'message' => 'Received quantity must be greater than zero.'];
+    }
+    $plan = packing_quantity_plan_stats((string) ($row['quantity_planned'] ?? ''));
+    if ((int) ($plan['size_count'] ?? 0) <= 0) {
+        return ['valid' => false, 'message' => 'Invalid pack quantity.'];
+    }
+    $dimension = (string) $unit['dimension'];
+    foreach ((array) $plan['totals'] as $planDimension => $value) {
+        if ($planDimension !== $dimension && (float) $value > 0.0) {
+            return ['valid' => false, 'message' => "Unit mismatch. {$dimension}-based received quantity cannot be validated against {$planDimension}-based pack sizes."];
+        }
+    }
+    $receivedBase = $receivedAmount * (float) $unit['factor'];
+    $packedBase = (float) ($plan['totals'][$dimension] ?? 0.0);
+    $bulkBase = max(0.0, (float) ($row['bulk_remainder'] ?? 0.0)) * (float) $unit['factor'];
+    $difference = $receivedBase - $packedBase - $bulkBase;
+    if (abs($difference) > 0.0001) {
+        return ['valid' => false, 'message' => $difference > 0 ? 'Under allocated quantity must be accounted for.' : 'Quantity to pack exceeds the received quantity.'];
+    }
+    return ['valid' => true, 'message' => 'Fully allocated.'];
+}
+
 function packing_ensure_quantity_text_column(): void
 {
     $column = ops_row(
@@ -2226,6 +2259,10 @@ try {
             $validationAssignedId = (int) ($row['assigned_employee_id'] ?? 0);
             if ($validationAssignmentSource === 'manual' && ($validationAssignedId <= 0 || !ops_employee_can_receive_packing($validationAssignedId, false))) {
                 $failedRows[] = ['index' => $rowIndex, 'line_number' => $rowIndex, 'item' => $validationName, 'reason' => 'Choose an active employee eligible for manual Packing assignment.'];
+            }
+            $allocationValidation = packing_invoice_allocation_validation($row);
+            if (!$allocationValidation['valid']) {
+                $failedRows[] = ['index' => $rowIndex, 'line_number' => $rowIndex, 'item' => $validationName, 'reason' => $allocationValidation['message']];
             }
         }
         if ($failedRows) {
