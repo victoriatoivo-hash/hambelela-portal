@@ -4,6 +4,7 @@ declare(strict_types=1);
 function cw_render_formulations(array $period): void
 { ?>
 <section class="fc" data-fc-root data-api="formulations-api.php" data-csrf="<?= htmlspecialchars(cw_csrf_token(),ENT_QUOTES,'UTF-8') ?>">
+  <button type="button" data-fc-new hidden aria-hidden="true"></button>
   <section class="fc-list" data-fc-list-view>
     <div class="fc-summary"><article><span>Formulations</span><strong data-fc-count>0</strong></article><article><span>Active</span><strong data-fc-active>0</strong></article><article><span>Drafts</span><strong data-fc-drafts>0</strong></article></div>
     <div class="fc-filter"><label>Search<input type="search" data-fc-search placeholder="Name, code or category"></label><label>Status<select data-fc-status><option value="">All statuses</option><option value="draft">Draft</option><option value="active">Active</option><option value="archived">Archived</option></select></label></div>
