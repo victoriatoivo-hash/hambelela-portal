@@ -7,6 +7,7 @@ const routes = {
   'landed-costs': 'landed-costs.php', 'product-matching': 'product-matching.php',
   profitability: 'profitability.php', 'cogs-publishing': 'cogs-publishing.php',
   settings: 'settings.php', historical: 'historical-cost-records.php',
+  formulations: 'formulations.php',
 };
 const [controller, shell, sections, api, phase2Api, library, client, phase2Client, history, theme] = await Promise.all([
   read('apps/cost-manager/workbook-page.php'), read('shared/cost-workbook-page-shell.php'),
@@ -29,7 +30,7 @@ assert.match(history, /require_role\('owner_admin'\)/, 'historical records must 
 assert.match(history, /cw_history_require_read_only_request\(\)/, 'historical records must remain GET-only');
 assert.match(history, /READ ONLY/, 'historical page must display a read-only label');
 assert.match(history, /cw_page_routes\(\)/, 'historical records must render the shared navigation');
-assert.equal((shell.match(/'route' =>/g) || []).length, 14, 'shared navigation must include the owner-only Cost Workbook routes');
+assert.equal((shell.match(/'route' =>/g) || []).length, 15, 'shared navigation must include the owner-only Cost Workbook routes');
 assert.doesNotMatch(shell, /'invoice-review'\s*=>/, 'invoice review must be part of Purchases, not a tenth page');
 assert.doesNotMatch(shell, /href="#cw-section-/, 'primary navigation must not use anchor-only sections');
 assert.match(shell, /aria-current="page"/, 'the current section must be exposed accessibly');

@@ -24,7 +24,55 @@ function cw_install_schema(PDO $pdo): void
     if ($version < 5) { cw_upgrade_supplier_invoice_schema_v5($pdo); $version = 5; }
     if ($version < 6) { cw_upgrade_transport_schema_v6($pdo); $version = 6; }
     if ($version < 7) { cw_upgrade_packaging_schema_v7($pdo); $version = 7; }
-    if ($version < 8) cw_upgrade_landed_product_schema_v8($pdo);
+    if ($version < 8) { cw_upgrade_landed_product_schema_v8($pdo); $version = 8; }
+    if ($version < 9) cw_upgrade_formulation_schema_v9($pdo);
+}
+
+function cw_upgrade_formulation_schema_v9(PDO $pdo): void
+{
+    $pdo->exec("CREATE TABLE IF NOT EXISTS cw_formulations (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        formulation_name VARCHAR(190) NOT NULL,
+        formulation_code VARCHAR(40) NOT NULL,
+        category VARCHAR(120) NOT NULL DEFAULT '',
+        formulation_type ENUM('weight','volume','count','mixed') NOT NULL DEFAULT 'weight',
+        status_key ENUM('draft','active','archived') NOT NULL DEFAULT 'draft',
+        current_version INT UNSIGNED NOT NULL DEFAULT 1,
+        effective_date DATE NULL,
+        active TINYINT(1) NOT NULL DEFAULT 1,
+        created_by BIGINT NULL, created_by_name VARCHAR(190) NOT NULL DEFAULT '', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_by BIGINT NULL, updated_by_name VARCHAR(190) NOT NULL DEFAULT '', updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_cw_formulation_code(formulation_code), KEY idx_cw_formulation_list(active,status_key,formulation_name)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS cw_formulation_versions (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        formulation_id BIGINT UNSIGNED NOT NULL,
+        version_no INT UNSIGNED NOT NULL,
+        version_status ENUM('draft','approved','superseded') NOT NULL DEFAULT 'draft',
+        effective_date DATE NULL,
+        mode_key ENUM('quantity','percentage') NOT NULL DEFAULT 'quantity',
+        reference_batch_size DECIMAL(18,6) NOT NULL DEFAULT 1,
+        reference_batch_unit VARCHAR(20) NOT NULL DEFAULT 'kg',
+        expected_yield DECIMAL(18,6) NOT NULL DEFAULT 1,
+        yield_unit VARCHAR(20) NOT NULL DEFAULT 'kg',
+        loss_percent DECIMAL(9,4) NOT NULL DEFAULT 0,
+        vat_rate DECIMAL(7,4) NOT NULL DEFAULT 15,
+        formula_version SMALLINT UNSIGNED NOT NULL DEFAULT 1,
+        header_json JSON NOT NULL, ingredients_json JSON NOT NULL, production_json JSON NOT NULL,
+        batches_json JSON NOT NULL, selling_sizes_json JSON NOT NULL, totals_json JSON NOT NULL,
+        created_by BIGINT NULL, created_by_name VARCHAR(190) NOT NULL DEFAULT '', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_cw_formulation_version(formulation_id,version_no), KEY idx_cw_formulation_history(formulation_id,created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS cw_formulation_audit (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, formulation_id BIGINT UNSIGNED NOT NULL,
+        action_key VARCHAR(60) NOT NULL, before_json JSON NULL, after_json JSON NULL,
+        actor_id BIGINT NULL, actor_name VARCHAR(190) NOT NULL DEFAULT '', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_cw_formulation_audit(formulation_id,created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    foreach (['formulation_margin_defaults'=>'35,45,55','formulation_rounding_rule'=>'0.50','formulation_vat_rate'=>'15'] as $key=>$value) {
+        $pdo->prepare("INSERT IGNORE INTO cw_settings(setting_key,setting_value,updated_by_name) VALUES(?,?,'system')")->execute([$key,$value]);
+    }
+    $pdo->prepare("INSERT INTO cw_settings(setting_key,setting_value,updated_by_name) VALUES('schema_version','9','system') ON DUPLICATE KEY UPDATE setting_value='9',updated_by_name='system'")->execute();
 }
 
 function cw_upgrade_landed_product_schema_v8(PDO $pdo): void

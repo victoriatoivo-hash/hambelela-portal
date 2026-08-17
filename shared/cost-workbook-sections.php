@@ -9,6 +9,7 @@ function cw_render_overview(array $period): void { ?>
 ['transport-costs.php','truck','Transport Costs','Upload or record transport charges, link them to supplier invoices and allocate delivery costs by weight.'],
 ['packaging-costs.php','package-open','Packaging Costs','Record packaging materials, calculate unit costs and assign containers and labels to product sizes.'],
 ['landed-product-costs.php','calculator','Landed Product Costs','Combine supplier and transport costs to calculate each product’s landed cost by kilogram, litre or individual unit.'],
+['formulations.php','flask-conical','Formulation Costing','Build formulations, calculate batch and unit costs, and generate recommended selling prices.'],
 ['shipments.php','ship','Shipments','Link approved invoices and record shipment expenses.'],
 ['landed-costs.php','calculator','Landed Costs','Allocate and reconcile landed costs for approved shipments.'],
 ['product-matching.php','scan-search','Product Matching','Match calculated sale sizes to the website product snapshot.'],
