@@ -54,7 +54,7 @@ function packing_quantity_plan_stats(string $quantityPlan): array
         'matched_text' => '',
     ];
     preg_match_all(
-        '/(\d+(?:\.\d+)?)\s*(kg|kgs|g|gram|grams|ml|l|lt|liter|litre|liters|litres|pcs?|pieces?|units?)\s*(?:[x*]\s*)?\(?\s*(\d+)?\s*\)?/i',
+        '/(\d+(?:\.\d+)?)\s*(kg|kgs|g|gram|grams|ml|l|lt|liter|litre|liters|litres|pcs?|pieces?|units?)\s*(?:[x*]\s*(\d+)|\(\s*(\d+)\s*\))/i',
         $quantityPlan,
         $matches,
         PREG_SET_ORDER
@@ -65,7 +65,7 @@ function packing_quantity_plan_stats(string $quantityPlan): array
             continue;
         }
         $amount = (float) ($match[1] ?? 0);
-        $count = max(1, (int) ($match[3] ?? 1));
+        $count = max(1, (int) (($match[3] ?? '') !== '' ? $match[3] : ($match[4] ?? 0)));
         $stats['totals'][$meta['dimension']] += $amount * (float) $meta['factor'] * $count;
         $stats['package_count'] += $count;
         $stats['matched_text'] .= ' ' . (string) ($match[0] ?? '');
@@ -202,7 +202,8 @@ function packing_invoice_allocation_validation(array $row): array
     }
     $plan = packing_quantity_plan_stats((string) ($row['quantity_planned'] ?? ''));
     if ((int) ($plan['size_count'] ?? 0) <= 0) {
-        return ['valid' => false, 'message' => 'Invalid pack quantity.'];
+        $planText = trim((string) ($row['quantity_planned'] ?? ''));
+        return ['valid' => false, 'message' => $planText === '' ? 'Quantity to pack is required.' : "Could not understand: “{$planText}”. Include a pack-size unit and quantity count, for example 100g(20) or 100g x20."];
     }
     $dimension = (string) $unit['dimension'];
     foreach ((array) $plan['totals'] as $planDimension => $value) {
