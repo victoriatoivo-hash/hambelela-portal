@@ -8,7 +8,7 @@ function cw_si_options(array $values,string $first=''): string { $html=$first!==
 
 function cw_render_supplier_invoices(array $period): void { ?>
 <section class="supplier-invoices" data-si-root data-api="supplier-invoices-api.php" data-csrf="<?= htmlspecialchars(cw_csrf_token(),ENT_QUOTES,'UTF-8') ?>">
-  <section class="supplier-invoices__upload-panel" data-si-upload-panel>
+  <section class="supplier-invoices__upload-panel" id="supplierInvoiceUpload" data-si-upload-panel>
     <div><h2>Upload supplier invoice</h2><p>Upload a supplier invoice to extract the supplier, invoice details, purchased products, quantities and costs.</p></div>
     <label class="supplier-invoices__upload-zone" data-si-drop><input type="file" data-si-file accept=".pdf,.jpg,.jpeg,.png" hidden><svg class="supplier-invoices__upload-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14v5h14v-5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg><strong>Drop an invoice here or choose a file</strong><span>PDF, JPG, JPEG or PNG · maximum 15 MB</span><button type="button" class="supplier-invoices__choose" data-si-choose>Choose File</button></label>
     <div class="supplier-invoices__selected" data-si-selected hidden><span data-si-file-name></span><small data-si-file-size></small><button type="button" data-si-remove aria-label="Remove selected file">Remove</button></div>
