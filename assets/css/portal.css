@@ -27922,7 +27922,18 @@ body.dark-mode .portal-dark-toggle {
 .digital-task-page .create-task-visible input { width:16px; height:16px; accent-color:#AB3619; }
 
 /* Simplified Create Task workflow */
-.digital-task-page .task-create-panel { display:flex; flex-direction:column; }
+.digital-task-page .task-create-panel {
+  inset:16px 16px auto auto;
+  display:flex;
+  flex-direction:column;
+  height:auto;
+  max-height:calc(100vh - 32px);
+  max-height:calc(100dvh - 32px);
+  overflow:hidden;
+  border:1px solid #EDE3D8;
+  border-radius:14px;
+}
+.digital-task-page .task-create-heading { position:relative; flex:0 0 auto; }
 .digital-task-page .task-create-heading { grid-template-columns:38px minmax(0,1fr) auto; align-items:center; }
 .task-create-heading__copy { min-width:0; }
 .task-template-trigger { min-height:32px; padding:0 12px; border:1px solid #EDE3D8; border-radius:9px; background:#fff; color:#AB3619; font:500 11px/1 Figtree,sans-serif; cursor:pointer; }
@@ -27960,9 +27971,11 @@ body.dark-mode .portal-dark-toggle {
 .task-template-attachment-list { display:grid; gap:5px; margin-top:7px; }.task-template-attachment { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 8px; background:#FDF6EE; border:1px solid #EDE3D8; border-radius:7px; font-size:11px; }.task-template-attachment span { min-width:0; overflow-wrap:anywhere; }.task-template-attachment button { min-height:26px; padding:4px 7px; color:#AB3619; background:#fff; border:1px solid #EDE3D8; border-radius:6px; font-size:10px; }
 .task-details-template-action { flex:0 0 auto; min-height:30px; padding:6px 9px; color:#721B1A; background:#fff; border:1px solid #EDE3D8; border-radius:7px; font:600 11px/1.2 Figtree,sans-serif; }
 @media(max-width:479px){.task-template-toolbar{align-items:stretch;padding:8px}.task-template-toolbar__heading,.task-template-toolbar__actions{width:100%}.task-template-toolbar__actions{display:grid;grid-template-columns:minmax(0,1fr)}.task-template-button{width:100%}.task-template-row{grid-template-columns:minmax(0,1fr)}.task-template-row__actions{justify-content:flex-start}.task-template-dialog{padding:8px}.task-template-dialog__card{max-height:calc(100vh - 16px)}}
-.digital-task-page .task-create-shell { flex:1 1 auto; min-height:0; padding:0; overflow:hidden; }
-.digital-task-page .task-create-form { display:flex; flex-direction:column; height:100%; min-height:0; background:#fff; color:#1a1a1a; font-family:Figtree,Inter,sans-serif; }
-.task-create-form__body { flex:1 1 auto; min-height:0; padding:18px; overflow-y:auto; overflow-x:hidden; }
+.digital-task-page .task-create-shell { display:flex; flex:1 1 auto; min-height:0; padding:0; overflow:hidden; }
+.digital-task-page .task-create-form { display:flex; flex:1 1 auto; flex-direction:column; width:100%; height:auto; min-height:0; max-height:100%; overflow:hidden; background:#fff; color:#1a1a1a; font-family:Figtree,Inter,sans-serif; }
+.task-create-form__body { flex:1 1 auto; min-height:0; padding:18px; overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; scrollbar-width:thin; scrollbar-color:#DCCFC4 transparent; }
+.task-create-form__body::-webkit-scrollbar { width:6px; }
+.task-create-form__body::-webkit-scrollbar-thumb { background:#DCCFC4; border-radius:999px; }
 .task-form-section { margin:0 0 18px; }
 .task-form-grid { display:grid; gap:14px; }
 .task-form-grid__row--assignment { display:grid; grid-template-columns:minmax(180px,.8fr) minmax(240px,1.2fr); gap:12px; }
@@ -28024,6 +28037,7 @@ body.dark-mode .portal-dark-toggle {
 .task-priority-fill[data-priority="important"] { background:#F07420; color:#fff; }
 .task-priority-fill[data-priority="normal"] { background:#F7F1EB; color:#6f4034; }
 @media (max-width:700px) {
+  .digital-task-page .task-create-panel { inset:0; width:100vw; height:100vh; height:100dvh; max-height:100vh; max-height:100dvh; border:0; border-radius:0; }
   .digital-task-page .task-create-heading { grid-template-columns:34px minmax(0,1fr); }
   .task-template-trigger { grid-column:2; justify-self:start; }
   .task-form-grid__row--assignment { grid-template-columns:minmax(0,1fr); }
