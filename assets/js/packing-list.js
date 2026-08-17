@@ -1407,6 +1407,11 @@
       const statusText = row.quantity_confirmed === true ? '✓ Quantity confirmed' : (accounting.valid ? 'Valid — confirmation required' : accounting.message);
       input.closest('tr')?.classList.toggle('has-draft-warning', !accounting.valid);
       cell.innerHTML = `<strong>Allocated: ${formatPhysical(accounting.received.dimension || 'count', accounting.plannedBase)}</strong><small>Remaining: ${formatPhysical(accounting.received.dimension || 'count', Math.max(0, accounting.difference))}</small><small class="quantity-row-status ${statusClass}">${esc(statusText)}</small>`;
+      const bulkButton = input.closest('tr')?.querySelector('[data-leave-as-bulk]');
+      if (bulkButton) {
+        bulkButton.hidden = accounting.status !== 'under_allocated';
+        bulkButton.textContent = accounting.status === 'under_allocated' ? `Leave ${formatPhysical(accounting.received.dimension, accounting.difference)} as Bulk` : 'Leave as Bulk';
+      }
     }
   }
 
@@ -1452,7 +1457,7 @@
         <td><input data-draft-field="item_name" value="${esc(row.item_name || '')}"></td>
         <td><input data-draft-field="received_weight" value="${esc(row.received_weight || '')}"></td>
         <td><select data-draft-field="unit" required>${unitOptions}</select></td>
-        <td><input data-draft-field="quantity_planned" value="${esc(row.quantity_planned || '')}" placeholder="100g(20), 250g(8)"><button type="button" class="pack-builder-toggle" data-toggle-pack-builder="${index}">${row.builder_open ? 'Close rows' : 'Edit as rows'}</button>${builder}<label class="draft-bulk-remainder">Bulk remainder <input type="number" min="0" step="0.001" data-draft-field="bulk_remainder" value="${esc(row.bulk_remainder || '')}" placeholder="0"></label>${accounting.status === 'under_allocated' ? `<button type="button" class="leave-as-bulk" data-leave-as-bulk="${index}">Leave ${formatPhysical(accounting.received.dimension, accounting.difference)} as Bulk</button>` : ''}</td>
+        <td><input data-draft-field="quantity_planned" value="${esc(row.quantity_planned || '')}" placeholder="100g(20), 250g(8)"><button type="button" class="pack-builder-toggle" data-toggle-pack-builder="${index}">${row.builder_open ? 'Close rows' : 'Edit as rows'}</button>${builder}<label class="draft-bulk-remainder">Bulk remainder <input type="number" min="0" step="0.001" data-draft-field="bulk_remainder" value="${esc(row.bulk_remainder || '')}" placeholder="0"></label><button type="button" class="leave-as-bulk" data-leave-as-bulk="${index}" ${accounting.status === 'under_allocated' ? '' : 'hidden'}>${accounting.status === 'under_allocated' ? `Leave ${formatPhysical(accounting.received.dimension, accounting.difference)} as Bulk` : 'Leave as Bulk'}</button></td>
         <td><select data-draft-field="priority">${priorityOptions}</select></td>
         <td><select data-draft-field="assigned_employee_id">${personOptions}</select></td>
         <td data-draft-workload><strong>Allocated: ${formatPhysical(accounting.received.dimension || 'count', accounting.plannedBase)}</strong><small>Remaining: ${formatPhysical(accounting.received.dimension || 'count', Math.max(0, accounting.difference))}</small><small class="quantity-row-status ${statusClass}">${row.quantity_confirmed === true ? '✓ Quantity confirmed' : esc(warning)}</small></td>

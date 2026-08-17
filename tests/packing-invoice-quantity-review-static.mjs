@@ -8,6 +8,7 @@ const css = fs.readFileSync(new URL('../assets/css/packing-board.css', import.me
 
 for (const token of ['quantityPlanParts', 'Confirm All Valid Rows', 'Waiting for quantity corrections before redistribution.', 'data-confirm-quantity-row', 'data-leave-as-bulk', 'data-auto-redistribute', 'invoiceCorrectionStorageKey']) assert.match(js, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 assert.match(js, /Allocated:.*Remaining:.*quantity-row-status/s, 'live updater preserves correction accounting layout');
+assert.match(js, /bulkButton\.hidden = accounting\.status !== 'under_allocated'/, 'bulk shortcut follows the live accounting state');
 assert.match(html, /data-confirm-quantities-create disabled/);
 assert.match(css, /\.quantity-review-panel/);
 assert.match(php, /Could not understand:/);
