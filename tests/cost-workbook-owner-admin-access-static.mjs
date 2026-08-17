@@ -7,6 +7,7 @@ const protectedWrappers = new Set([
   'index.php', 'inventory-profit.php', 'pricing-manager.php', 'product-database.php', 'products.php',
   'profit-calculator.php', 'settings.php', 'system-dashboard.php', 'workbook.php', 'purchases.php',
   'invoice-review.php', 'shipments.php', 'landed-costs.php', 'product-matching.php', 'profitability.php', 'cogs-publishing.php',
+  'size-conversions.php',
 ]);
 
 for (const name of names) {

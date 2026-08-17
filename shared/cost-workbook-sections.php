@@ -2,16 +2,27 @@
 declare(strict_types=1);
 
 function cw_render_overview(array $period): void { ?>
-<section class="cw-section"><div class="cw-section-body"><div class="cw-overview-grid">
-<a href="<?= cw_page_url('purchases.php',$period) ?>"><span>Purchases &amp; Invoices</span><strong id="metricInvoices">—</strong><small id="metricPurchaseNote">Loading selected month…</small></a>
-<a href="<?= cw_page_url('shipments.php',$period) ?>"><span>Shipments</span><strong id="metricShipments">—</strong><small>Active in selected month</small></a>
-<a href="<?= cw_page_url('landed-costs.php',$period) ?>"><span>Landed Costs</span><strong id="metricLanded">—</strong><small>Confirmed calculations</small></a>
-<a href="<?= cw_page_url('product-matching.php',$period) ?>"><span>Product Matching</span><strong id="metricMatches">—</strong><small>Saved product matches</small></a>
-<a href="<?= cw_page_url('profitability.php',$period) ?>"><span>Profitability</span><strong id="metricWebsite">—</strong><small>Read-only snapshot items</small></a>
-<a href="<?= cw_page_url('cogs-publishing.php',$period) ?>"><span>COGS Publishing</span><strong>Unavailable</strong><small>No WooCommerce write on load</small></a>
-<a href="<?= cw_page_url('settings.php',$period) ?>"><span>Settings</span><strong id="metricSettings">—</strong><small>Configured workbook values</small></a>
-<a href="<?= cw_page_url('historical-cost-records.php',$period) ?>"><span>Historical Records</span><strong>Read only</strong><small>9 preserved datasets</small></a>
-</div></div></section>
+<section class="accounts-app-section" aria-labelledby="costing-tools-title"><header><div><p class="eyebrow">Applications</p><h2 id="costing-tools-title">Costing Tools</h2></div></header><div class="accounts-app-grid">
+<a class="accounts-app-card accounting-app-card accounting-app-card--size-conversions" href="<?= cw_page_url('size-conversions.php',$period) ?>"><span class="accounts-app-icon" aria-hidden="true"><i data-lucide="ruler"></i></span><div class="accounting-app-card__content"><div class="accounting-app-card__status"><small class="accounts-app-status is-available">Available</small><span class="accounts-owner-label"><i data-lucide="shield-lock" aria-hidden="true"></i>Owner only</span><span class="accounting-app-visual" aria-hidden="true"><i></i><i></i><i></i></span></div><h3>Size Conversions</h3><p>Manage the standard liquid and weight sizes used in product costing calculations.</p><strong>Open Size Conversions <span aria-hidden="true">&rarr;</span></strong></div></a>
+<?php $cards=[
+['purchases.php','receipt-text','Purchase Costs','Upload, review and approve supplier invoices used by the Cost Workbook.'],
+['shipments.php','ship','Shipments','Link approved invoices and record shipment expenses.'],
+['landed-costs.php','calculator','Landed Costs','Allocate and reconcile landed costs for approved shipments.'],
+['product-matching.php','scan-search','Product Matching','Match calculated sale sizes to the website product snapshot.'],
+['profitability.php','chart-no-axes-combined','Pricing & Margins','Review private cost, price, profit, margin and markup previews.'],
+['historical-cost-records.php','history','Historical Records','View preserved, read-only records from the previous costing system.']
+]; foreach($cards as $card): ?><a class="accounts-app-card accounting-app-card" href="<?= cw_page_url($card[0],$period) ?>"><span class="accounts-app-icon" aria-hidden="true"><i data-lucide="<?= htmlspecialchars($card[1],ENT_QUOTES,'UTF-8') ?>"></i></span><div class="accounting-app-card__content"><div class="accounting-app-card__status"><small class="accounts-app-status is-available">Available</small><span class="accounts-owner-label"><i data-lucide="shield-lock" aria-hidden="true"></i>Owner only</span><span class="accounting-app-visual" aria-hidden="true"><i></i><i></i><i></i></span></div><h3><?= htmlspecialchars($card[2],ENT_QUOTES,'UTF-8') ?></h3><p><?= htmlspecialchars($card[3],ENT_QUOTES,'UTF-8') ?></p><strong>Open <?= htmlspecialchars($card[2],ENT_QUOTES,'UTF-8') ?> <span aria-hidden="true">&rarr;</span></strong></div></a><?php endforeach; ?>
+</div></section>
+<?php }
+
+function cw_render_size_conversions(array $period): void
+{
+    $groups = [
+        'volume' => ['title'=>'Liquid volume','description'=>'Millilitres and litres converted to litres.','column'=>'Value in litres'],
+        'weight' => ['title'=>'Product weight','description'=>'Grams and kilograms converted to kilograms.','column'=>'Value in kilograms'],
+    ]; ?>
+<aside class="size-conversions__notice" role="note"><i data-lucide="info" aria-hidden="true"></i><span>Liquid sizes are converted to litres. Weight sizes are converted to kilograms. These conversion values are used by the Cost Workbook when calculating product costs.</span></aside>
+<div class="size-conversions__grid"><?php foreach($groups as $type=>$group): ?><section class="size-conversions__panel" aria-labelledby="size-conversions-<?= $type ?>"><header class="size-conversions__panel-header"><h2 class="size-conversions__panel-title" id="size-conversions-<?= $type ?>"><?= htmlspecialchars($group['title'],ENT_QUOTES,'UTF-8') ?></h2><p class="size-conversions__panel-description"><?= htmlspecialchars($group['description'],ENT_QUOTES,'UTF-8') ?></p></header><div class="size-conversions__table-wrap"><table class="size-conversions__table"><thead><tr><th scope="col">Size</th><th scope="col"><?= htmlspecialchars($group['column'],ENT_QUOTES,'UTF-8') ?></th></tr></thead><tbody><?php foreach(cw_size_conversions_by_type($type) as $row): ?><tr><td><?= htmlspecialchars($row['label'],ENT_QUOTES,'UTF-8') ?></td><td><?= htmlspecialchars((string)$row['base_value'],ENT_QUOTES,'UTF-8') ?></td></tr><?php endforeach; ?></tbody></table></div></section><?php endforeach; ?></div>
 <?php }
 
 function cw_render_purchases(bool $reviewOnly=false): void { ?>

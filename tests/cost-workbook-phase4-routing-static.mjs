@@ -3,7 +3,7 @@ import {readFile} from 'node:fs/promises';
 
 const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 const routes = {
-  overview: 'workbook.php', purchases: 'purchases.php', shipments: 'shipments.php',
+  overview: 'workbook.php', 'size-conversions': 'size-conversions.php', purchases: 'purchases.php', shipments: 'shipments.php',
   'landed-costs': 'landed-costs.php', 'product-matching': 'product-matching.php',
   profitability: 'profitability.php', 'cogs-publishing': 'cogs-publishing.php',
   settings: 'settings.php', historical: 'historical-cost-records.php',
@@ -28,8 +28,8 @@ for (const [key, file] of Object.entries(routes)) {
 assert.match(history, /require_role\('owner_admin'\)/, 'historical records must remain owner-only');
 assert.match(history, /cw_history_require_read_only_request\(\)/, 'historical records must remain GET-only');
 assert.match(history, /READ ONLY/, 'historical page must display a read-only label');
-assert.match(history, /cw_page_routes\(\)/, 'historical records must render the shared nine-page navigation');
-assert.equal((shell.match(/'route' =>/g) || []).length, 9, 'shared navigation must contain exactly nine routes');
+assert.match(history, /cw_page_routes\(\)/, 'historical records must render the shared navigation');
+assert.equal((shell.match(/'route' =>/g) || []).length, 10, 'shared navigation must include the Size Conversions route');
 assert.doesNotMatch(shell, /'invoice-review'\s*=>/, 'invoice review must be part of Purchases, not a tenth page');
 assert.doesNotMatch(shell, /href="#cw-section-/, 'primary navigation must not use anchor-only sections');
 assert.match(shell, /aria-current="page"/, 'the current section must be exposed accessibly');
@@ -39,8 +39,8 @@ assert.match(shell, /\\d\{1,2\}/, 'page period validation must accept zero-padde
 assert.match(library, /\\d\{1,2\}/, 'API period validation must accept zero-padded months');
 assert.doesNotMatch(shell, /Cost of Goods Sold is not enabled/, 'COGS warning must not appear globally');
 assert.match(sections, /WooCommerce Cost of Goods Sold is not enabled\. Cost publishing is unavailable/, 'COGS publishing must stay disabled on its own page');
-assert.match(sections, /cw-overview-grid/, 'overview must render summary cards instead of full datasets');
-assert.doesNotMatch(sections.match(/function cw_render_overview[\s\S]*?function cw_render_purchases/)?.[0] || '', /<table|invoiceRows|productRows/, 'overview must not render operational tables');
+assert.match(sections, /accounts-app-grid/, 'overview must reuse the Accounts workspace application-card system');
+assert.doesNotMatch(sections.match(/function cw_render_overview[\s\S]*?function cw_render_size_conversions/)?.[0] || '', /<table|invoiceRows|productRows/, 'overview must not render operational tables');
 assert.match(library, /cw_request_period_bounds/, 'API period validation must be shared');
 assert.match(api, /Unknown Cost Workbook view/, 'the API must reject unknown page views');
 assert.match(api, /\$view==='purchases'/, 'invoice rows must only load on Purchases');
