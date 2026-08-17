@@ -6,16 +6,16 @@
   var csrf = root.getAttribute('data-csrf');
   var rows = root.querySelector('[data-si-rows]');
   var filters = root.querySelector('[data-si-filters]');
-  var drawer = root.querySelector('[data-si-drawer]');
-  var backdrop = root.querySelector('[data-si-backdrop]');
-  var review = root.querySelector('[data-si-review]');
+  var drawer = document.querySelector('[data-si-drawer]');
+  var backdrop = document.querySelector('[data-si-backdrop]');
+  var review = document.querySelector('[data-si-review]');
   var selectedFile = null;
   var currentPage = 1;
   var pageSize = 25;
   var total = 0;
   var debounce = null;
 
-  function one(selector, node) { return (node || root).querySelector(selector); }
+  function one(selector, node) { return (node || document).querySelector(selector); }
   function all(selector, node) { return Array.prototype.slice.call((node || root).querySelectorAll(selector)); }
   function escapeHtml(value) {
     var div = document.createElement('div');
