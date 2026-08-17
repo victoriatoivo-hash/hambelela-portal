@@ -17,7 +17,7 @@ if ($taskId <= 0 || (!$canViewAll && !$employeeId)) {
 $sql = 'SELECT photo_path FROM ops_checklist_tasks WHERE id = ? AND deleted_at IS NULL';
 $params = [$taskId];
 if (!$canViewAll) {
-    $sql .= ' AND assigned_employee_id = ? AND employee_visible = 1';
+    $sql .= ' AND assigned_employee_id = ? AND employee_visible = 1 AND (scheduled_at IS NULL OR released_at IS NOT NULL)';
     $params[] = $employeeId;
 }
 $task = ops_row($sql . ' LIMIT 1', $params);

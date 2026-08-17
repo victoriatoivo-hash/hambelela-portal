@@ -435,9 +435,10 @@ function owner_dashboard_build(string $fromDate, string $toDate): array
     }
 
     $taskRows = ops_table_exists('ops_checklist_tasks') ? ops_rows(
-        "SELECT id, assigned_employee_id, status, deadline, completed_at, created_at
+        "SELECT id, assigned_employee_id, status, deadline, completed_at, COALESCE(released_at,date_assigned) created_at
          FROM ops_checklist_tasks
-         WHERE created_at >= ? AND created_at < ?",
+         WHERE employee_visible=1 AND (scheduled_at IS NULL OR released_at IS NOT NULL)
+           AND COALESCE(released_at,date_assigned) >= ? AND COALESCE(released_at,date_assigned) < ?",
         [$from, $to]
     ) : [];
     $checklistRows = [];

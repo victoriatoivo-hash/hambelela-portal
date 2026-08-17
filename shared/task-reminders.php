@@ -99,10 +99,13 @@ function notifications_schedule_task_reminders(?int $onlyEmployeeId = null, bool
     try {
         $pdo->exec("UPDATE notification_recipients nr JOIN notifications n ON n.id=nr.notification_id LEFT JOIN ops_checklist_tasks t ON t.id=n.related_id AND n.related_type='checklist_task' SET nr.cleared_at=COALESCE(nr.cleared_at,NOW()) WHERE n.related_type='checklist_task' AND n.deduplication_key LIKE 'task:%' AND (t.id IS NULL OR t.status IN ('complete','completed','done','archived','deleted') OR t.archived_at IS NOT NULL OR t.deleted_at IS NOT NULL OR t.deadline IS NULL OR t.assigned_employee_id<>nr.employee_id)");
     } catch (Throwable $ignored) {}
+    $releaseFilter = function_exists('ops_column_exists') && ops_column_exists('ops_checklist_tasks', 'scheduled_at') && ops_column_exists('ops_checklist_tasks', 'released_at')
+        ? ' AND (t.scheduled_at IS NULL OR t.released_at IS NOT NULL)' : '';
     $sql = "SELECT t.id,t.task_name,t.deadline,t.priority,t.assigned_employee_id,e.full_name AS assigned_name
             FROM ops_checklist_tasks t LEFT JOIN ops_employees e ON e.id=t.assigned_employee_id
             WHERE t.assigned_employee_id IS NOT NULL AND t.deadline IS NOT NULL
               AND t.status NOT IN ('complete','completed','done','archived','deleted')
+              AND t.employee_visible = 1{$releaseFilter}
               AND t.archived_at IS NULL AND t.deleted_at IS NULL";
     $params = [];
     if ($onlyEmployeeId) { $sql .= ' AND t.assigned_employee_id = ?'; $params[] = $onlyEmployeeId; }

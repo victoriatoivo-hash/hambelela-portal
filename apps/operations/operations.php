@@ -6,6 +6,7 @@ require_once dirname(__DIR__, 2) . '/config.php';
 require_once BASE_PATH . '/shared/auth.php';
 require_once BASE_PATH . '/shared/database.php';
 require_once BASE_PATH . '/shared/notifications.php';
+require_once BASE_PATH . '/shared/task-scheduling.php';
 require_once BASE_PATH . '/shared/employee-features.php';
 require_once BASE_PATH . '/shared/packing-notifications.php';
 require_once BASE_PATH . '/shared/epi/bootstrap.php';
@@ -1161,7 +1162,7 @@ function ops_current_user_can_access_task(int $taskId): bool
     $scope = ops_task_scope_for_current_user();
     if ($scope['type'] === 'all') return true;
     if (!$scope['employee_id']) return false;
-    return (bool) ops_row('SELECT id FROM ops_checklist_tasks WHERE id = ? AND assigned_employee_id = ? AND deleted_at IS NULL LIMIT 1', [$taskId, $scope['employee_id']]);
+    return (bool) ops_row("SELECT id FROM ops_checklist_tasks WHERE id = ? AND assigned_employee_id = ? AND employee_visible = 1 AND (scheduled_at IS NULL OR released_at IS NOT NULL) AND deleted_at IS NULL LIMIT 1", [$taskId, $scope['employee_id']]);
 }
 
 function ops_can_update_order_paid_status(): bool

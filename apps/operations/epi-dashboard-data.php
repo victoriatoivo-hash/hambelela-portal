@@ -154,7 +154,7 @@ try {
     $riskQueries = [
         ['Orders outstanding', "SELECT COUNT(*) FROM ops_orders WHERE created_at>='2026-07-01' AND LOWER(status) NOT IN ('completed','complete','packed','verified','cancelled','canceled','refunded','failed') AND (assigned_packer_id=? OR ? IN (SELECT e.id FROM ops_employees e LEFT JOIN ops_roles r ON r.id=e.role_id WHERE e.id=? AND r.role_key LIKE 'front_desk%'))"],
         ['Packing List items outstanding', "SELECT COUNT(*) FROM ops_packing_tasks WHERE date_loaded>='2026-07-01' AND deleted_at IS NULL AND assigned_employee_id=? AND packing_status NOT IN ('done','website','packed_label_needed','done_needs_label','label_created')"],
-        ['Tasks overdue', "SELECT COUNT(*) FROM ops_checklist_tasks WHERE created_at>='2026-07-01' AND deleted_at IS NULL AND assigned_employee_id=? AND status NOT IN ('completed','complete','approved') AND deadline<NOW()"],
+        ['Tasks overdue', "SELECT COUNT(*) FROM ops_checklist_tasks WHERE employee_visible=1 AND (scheduled_at IS NULL OR released_at IS NOT NULL) AND COALESCE(released_at,date_assigned)>='2026-07-01' AND deleted_at IS NULL AND assigned_employee_id=? AND status NOT IN ('completed','complete','approved') AND deadline<NOW()"],
         ['Unresolved quality records', "SELECT COUNT(*) FROM ops_error_logs WHERE logged_at>='2026-07-01' AND deleted_at IS NULL AND employee_id=? AND status<>'resolved'"],
     ];
     foreach ($riskQueries as [$label, $sql]) {

@@ -57,10 +57,11 @@ if (!in_array($packingSidebarRoleKey, ['owner_admin', 'front_desk_admin', 'front
 try {
     if (function_exists('ops_database_ready') && ops_database_ready() && function_exists('ops_table_exists') && ops_table_exists('ops_checklist_tasks')) {
         $taskScope = function_exists('ops_task_scope_for_current_user') ? ops_task_scope_for_current_user() : ['type' => 'assigned', 'employee_id' => function_exists('ops_current_employee_id') ? ops_current_employee_id() : null];
+        $taskReleaseFilter = ops_column_exists('ops_checklist_tasks', 'scheduled_at') && ops_column_exists('ops_checklist_tasks', 'released_at') ? ' AND (scheduled_at IS NULL OR released_at IS NOT NULL)' : '';
         if (($taskScope['type'] ?? '') === 'all') {
-            $taskOutstandingCount = (int) (db()->query("SELECT COUNT(*) FROM ops_checklist_tasks WHERE status <> 'complete' AND archived_at IS NULL AND deleted_at IS NULL")->fetchColumn() ?: 0);
+            $taskOutstandingCount = (int) (db()->query("SELECT COUNT(*) FROM ops_checklist_tasks WHERE status <> 'complete'{$taskReleaseFilter} AND archived_at IS NULL AND deleted_at IS NULL")->fetchColumn() ?: 0);
         } elseif (!empty($taskScope['employee_id'])) {
-            $taskCountStmt = db()->prepare("SELECT COUNT(*) FROM ops_checklist_tasks WHERE assigned_employee_id = ? AND employee_visible = 1 AND status <> 'complete' AND archived_at IS NULL AND deleted_at IS NULL");
+            $taskCountStmt = db()->prepare("SELECT COUNT(*) FROM ops_checklist_tasks WHERE assigned_employee_id = ? AND employee_visible = 1{$taskReleaseFilter} AND status <> 'complete' AND archived_at IS NULL AND deleted_at IS NULL");
             $taskCountStmt->execute([(int) $taskScope['employee_id']]);
             $taskOutstandingCount = (int) ($taskCountStmt->fetchColumn() ?: 0);
         }

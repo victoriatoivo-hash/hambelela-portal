@@ -45,7 +45,7 @@ function kpi_task_management_performance(array $employee, string $fromSql, strin
 {
     $zone = new DateTimeZone('Africa/Windhoek');
     $employeeId = (int) $employee['id'];
-    $tasks = ops_rows("SELECT t.id,'task' timeline_module,t.task_name,t.instructions,t.notes,t.checklist_type,t.priority,t.assigned_employee_id,t.date_assigned,t.employee_visible,t.created_at,t.deadline,t.status,t.started_at,t.completed_at,t.date_completed,t.completed_by,t.checklist_items,t.checked_items,t.completion_note,t.completion_note_required,t.completion_evidence_required,t.performance_scored,t.recurrence_key,t.recurring_template_id,t.source_template_id,t.archived_at,t.deleted_at,assignee.full_name assigned_to,creator.full_name created_by_name,completer.full_name completed_by_name FROM ops_checklist_tasks t LEFT JOIN ops_employees assignee ON assignee.id=t.assigned_employee_id LEFT JOIN ops_employees creator ON creator.id=t.created_by LEFT JOIN ops_employees completer ON completer.id=t.completed_by WHERE t.assigned_employee_id=? AND t.date_assigned BETWEEN ? AND ? AND t.employee_visible=1 AND t.performance_scored=1 AND t.deleted_at IS NULL AND t.archived_at IS NULL AND LOWER(t.status) NOT IN ('cancelled','deleted','trashed') ORDER BY t.date_assigned DESC,t.id DESC LIMIT 500", [$employeeId, $fromSql, $toSql]);
+    $tasks = ops_rows("SELECT t.id,'task' timeline_module,t.task_name,t.instructions,t.notes,t.checklist_type,t.priority,t.assigned_employee_id,t.date_assigned,t.scheduled_at,t.released_at,t.employee_visible,t.created_at,t.deadline,t.status,t.started_at,t.completed_at,t.date_completed,t.completed_by,t.checklist_items,t.checked_items,t.completion_note,t.completion_note_required,t.completion_evidence_required,t.performance_scored,t.recurrence_key,t.recurring_template_id,t.source_template_id,t.archived_at,t.deleted_at,assignee.full_name assigned_to,creator.full_name created_by_name,completer.full_name completed_by_name FROM ops_checklist_tasks t LEFT JOIN ops_employees assignee ON assignee.id=t.assigned_employee_id LEFT JOIN ops_employees creator ON creator.id=t.created_by LEFT JOIN ops_employees completer ON completer.id=t.completed_by WHERE t.assigned_employee_id=? AND COALESCE(t.released_at,t.date_assigned) BETWEEN ? AND ? AND t.employee_visible=1 AND (t.scheduled_at IS NULL OR t.released_at IS NOT NULL) AND t.performance_scored=1 AND t.deleted_at IS NULL AND t.archived_at IS NULL AND LOWER(t.status) NOT IN ('cancelled','deleted','trashed') ORDER BY COALESCE(t.released_at,t.date_assigned) DESC,t.id DESC LIMIT 500", [$employeeId, $fromSql, $toSql]);
 
     $eventsByTask = [];
     foreach (kpi_unified_events((new DateTimeImmutable($fromSql, $zone))->modify('-14 days')->format('Y-m-d H:i:s'), $toSql, null, 'tasks') as $event) {
@@ -78,7 +78,7 @@ function kpi_task_management_performance(array $employee, string $fromSql, strin
             $old = strtolower(trim((string) ($event['previous_status'] ?? '')));
             $new = strtolower(trim((string) ($event['new_status'] ?? '')));
             $metadata = (array) ($event['metadata'] ?? []);
-            if (!$assignmentEvent && in_array($action, ['task_created','task_assigned','task_reassigned','task_admin_updated'], true) && (int) ($metadata['assigned_employee_id'] ?? $employeeId) === $employeeId) $assignmentEvent = $event;
+            if (!$assignmentEvent && in_array($action, ['task_created','task_assigned','task_reassigned','task_admin_updated','task_released'], true) && (int) ($metadata['assigned_employee_id'] ?? $employeeId) === $employeeId) $assignmentEvent = $event;
             if (!$startEvent && in_array($new, ['in_progress','progress','started'], true)) $startEvent = $event;
             if (!$completeEvent && in_array($new, $completeStatuses, true)) {
                 $completeEvent = $event;
@@ -89,7 +89,8 @@ function kpi_task_management_performance(array $employee, string $fromSql, strin
             if (strpos($new, 'return') !== false || strpos($action, 'return') !== false) $returned = true;
         }
 
-        $assigned = !empty($task['date_assigned']) ? new DateTimeImmutable((string) $task['date_assigned'], $zone) : null;
+        $releasedSource = !empty($task['released_at']) ? $task['released_at'] : ($task['date_assigned'] ?? null);
+        $assigned = $releasedSource ? new DateTimeImmutable((string) $releasedSource, $zone) : null;
         $created = !empty($task['created_at']) ? new DateTimeImmutable((string) $task['created_at'], $zone) : null;
         $startedSource = !empty($startEvent['occurred_at']) ? $startEvent['occurred_at'] : (!empty($task['started_at']) ? $task['started_at'] : null);
         $completedSource = !empty($completeEvent['occurred_at']) ? $completeEvent['occurred_at'] : (!empty($task['completed_at']) ? $task['completed_at'] : (!empty($task['date_completed']) ? $task['date_completed'] : null));

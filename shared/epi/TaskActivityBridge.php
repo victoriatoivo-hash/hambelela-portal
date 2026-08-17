@@ -205,7 +205,7 @@ final class TaskActivityBridge
         $rank=['normal'=>1,'important'=>2,'urgent'=>3];$current=$rank[strtolower((string)($task['priority']??'normal'))]??1;
         if($current>=3)return null;
         try{
-            $s=$pdo->prepare("SELECT id,task_name,priority,deadline FROM ops_checklist_tasks WHERE assigned_employee_id=? AND id<>? AND deleted_at IS NULL AND archived_at IS NULL AND LOWER(status) NOT IN ('complete','completed','cancelled') AND LOWER(priority) IN ('urgent','important') ORDER BY deadline ASC,id ASC");
+            $s=$pdo->prepare("SELECT id,task_name,priority,deadline FROM ops_checklist_tasks WHERE assigned_employee_id=? AND id<>? AND employee_visible=1 AND (scheduled_at IS NULL OR released_at IS NOT NULL) AND deleted_at IS NULL AND archived_at IS NULL AND LOWER(status) NOT IN ('complete','completed','cancelled') AND LOWER(priority) IN ('urgent','important') ORDER BY deadline ASC,id ASC");
             $s->execute([$employeeId,(int)$task['id']]);
             foreach($s->fetchAll(PDO::FETCH_ASSOC) as $other){
                 $otherRank=$rank[strtolower((string)$other['priority'])]??1;$deadline=self::deadline($other['deadline']??null);

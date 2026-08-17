@@ -5,7 +5,8 @@ const page = fs.readFileSync(new URL('../apps/operations/checklists.php', import
 const css = fs.readFileSync(new URL('../assets/css/portal.css', import.meta.url), 'utf8');
 
 assert.match(page, /class="task-section-tabs task-board-navigation"[^>]+data-task-view-tabs/);
-assert.match(page, /\$tabIcons = \['tasks' => 'clipboard-list', 'completed' => 'check-circle-2', 'history' => 'history'\]/);
+assert.match(page, /\$tabIcons = \['tasks' => 'clipboard-list', 'scheduled' => 'calendar-clock', 'completed' => 'check-circle-2', 'history' => 'history'\]/);
+assert.match(page, /\$canManage \? \['tasks' => 'Tasks', 'scheduled' => 'Scheduled'/);
 assert.match(page, /<button type="button" class="task-section-tab<\?= \$tabActive \? ' is-active' : '' \?>"/);
 assert.match(page, /aria-selected="<\?= \$tabActive \? 'true' : 'false' \?>"/);
 assert.doesNotMatch(page, /<a class="task-section-tab/);

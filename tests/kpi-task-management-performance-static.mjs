@@ -6,7 +6,7 @@ const endpoint=fs.readFileSync(new URL('../apps/operations/kpi-employee-data.php
 const handlers=fs.readFileSync(new URL('../apps/operations/checklists.php',import.meta.url),'utf8');
 const ui=fs.readFileSync(new URL('../assets/js/kpi-employee.js',import.meta.url),'utf8');
 
-assert.match(service,/t\.date_assigned BETWEEN \? AND \?/,'cohort must use authoritative assignment time');
+assert.match(service,/COALESCE\(t\.released_at,t\.date_assigned\) BETWEEN \? AND \?/,'cohort must start at authoritative release time');
 assert.doesNotMatch(service,/COALESCE\(t\.date_assigned,t\.created_at\)/,'created time must never replace missing assignment evidence');
 assert.match(service,/kpi_business_minutes\(\$assigned,\s*\$started/,'assignment-to-start must use scheduled business time');
 assert.match(service,/\$completed < \$deadline/,'completed early must compare exact completion and due timestamps');
@@ -27,6 +27,6 @@ assert.match(ui,/Task Errors, Overdue Work and Current Risks/,'task risk block m
 assert.match(ui,/How This Task Score Was Calculated/,'task score working must render');
 assert.match(ui,/taskPerformanceHtml/,'dedicated task performance renderer must be used');
 assert.match(handlers,/task_reassigned/,'reassignment must create a specific immutable event');
-assert.match(handlers,/date_assigned = CASE WHEN COALESCE\(assigned_employee_id,0\) <> \? THEN NOW\(\)/,'assignment clock must reset only when responsibility changes');
+assert.match(handlers,/date_assigned = CASE WHEN released_at IS NOT NULL AND COALESCE\(assigned_employee_id,0\) <> \? THEN NOW\(\)/,'assignment clock must reset only after release when responsibility changes');
 
 console.log('Task Management Performance static checks passed.');

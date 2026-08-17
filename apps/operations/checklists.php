@@ -84,6 +84,8 @@ function checklist_bootstrap_schema(): void
     $columns = [
         'priority' => "ALTER TABLE ops_checklist_tasks ADD COLUMN priority VARCHAR(30) NOT NULL DEFAULT 'normal' AFTER task_name",
         'date_assigned' => "ALTER TABLE ops_checklist_tasks ADD COLUMN date_assigned DATETIME NULL AFTER assigned_employee_id",
+        'scheduled_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN scheduled_at DATETIME NULL AFTER date_assigned",
+        'released_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN released_at DATETIME NULL AFTER scheduled_at",
         'instructions' => "ALTER TABLE ops_checklist_tasks ADD COLUMN instructions TEXT NULL AFTER notes",
         'checklist_items' => "ALTER TABLE ops_checklist_tasks ADD COLUMN checklist_items TEXT NULL AFTER instructions",
         'checked_items' => "ALTER TABLE ops_checklist_tasks ADD COLUMN checked_items TEXT NULL AFTER checklist_items",
@@ -119,7 +121,10 @@ function checklist_bootstrap_schema(): void
     }
     checklist_try_sql("ALTER TABLE ops_checklist_tasks MODIFY completion_note_required TINYINT(1) NOT NULL DEFAULT 1");
     checklist_try_sql("ALTER TABLE ops_checklist_tasks MODIFY performance_scored TINYINT(1) NOT NULL DEFAULT 1");
-    checklist_try_sql("UPDATE ops_checklist_tasks SET completion_note_required = 1, employee_visible = 1 WHERE status NOT IN ('complete', 'completed', 'cancelled') AND deleted_at IS NULL");
+    checklist_try_sql("UPDATE ops_checklist_tasks SET completion_note_required = 1 WHERE status NOT IN ('complete', 'completed', 'cancelled') AND deleted_at IS NULL");
+    checklist_try_sql("UPDATE ops_checklist_tasks SET released_at = COALESCE(released_at, date_assigned, created_at) WHERE scheduled_at IS NULL AND released_at IS NULL");
+    checklist_try_sql("UPDATE ops_checklist_tasks SET employee_visible = 0 WHERE scheduled_at IS NOT NULL AND released_at IS NULL");
+    checklist_try_sql("CREATE INDEX idx_task_scheduled_release ON ops_checklist_tasks (scheduled_at, released_at, deleted_at)");
     checklist_try_sql("UPDATE ops_checklist_tasks SET performance_scored = 1 WHERE assigned_employee_id IS NOT NULL AND status NOT IN ('cancelled', 'deleted', 'trashed') AND deleted_at IS NULL AND archived_at IS NULL");
     checklist_try_sql("UPDATE ops_checklist_tasks SET priority = CASE WHEN priority IN ('top_critical') THEN 'urgent' WHEN priority IN ('high') THEN 'important' ELSE 'normal' END WHERE priority NOT IN ('normal', 'important', 'urgent')");
     checklist_try_sql("UPDATE ops_checklist_recurring_templates SET priority = CASE WHEN priority IN ('top_critical') THEN 'urgent' WHEN priority IN ('high') THEN 'important' ELSE 'normal' END WHERE priority NOT IN ('normal', 'important', 'urgent')");
@@ -409,6 +414,16 @@ function checklist_task_timing(array $task, ?DateTimeImmutable $now = null): arr
     $timezone = new DateTimeZone('Africa/Windhoek'); $now = $now ?: new DateTimeImmutable('now', $timezone);
     $status = checklist_normalize_status((string) ($task['status'] ?? 'new'));
     $due = checklist_authoritative_deadline($task['deadline'] ?? null);
+    if (!empty($task['scheduled_at']) && empty($task['released_at'])) {
+        return [
+            'progress' => 0,
+            'overdue' => false,
+            'outcome' => 'Scheduled for release',
+            'active_outcome' => 'Scheduled',
+            'overdue_minutes' => 0,
+            'due_label' => $due ? $due->format('d M Y · H:i') : 'No due date',
+        ];
+    }
     $completed = null; $started = null;
     try { if (!empty($task['date_completed']) || !empty($task['completed_at'])) $completed = new DateTimeImmutable((string) ($task['date_completed'] ?: $task['completed_at']), $timezone); } catch (Throwable $e) {}
     try { if (!empty($task['started_at'])) $started = new DateTimeImmutable((string) $task['started_at'], $timezone); } catch (Throwable $e) {}
@@ -485,6 +500,24 @@ function checklist_create_due_at(array $request): string
         throw new RuntimeException('This time has already passed. Select a future time.');
     }
     return $dueAt->format('Y-m-d H:i:s');
+}
+
+function checklist_create_scheduled_at(array $request, string $deadline): ?string
+{
+    if (strtolower(trim((string) ($request['delivery_mode'] ?? 'now'))) !== 'scheduled') return null;
+    $raw = trim((string) ($request['scheduled_at'] ?? ''));
+    if ($raw === '') throw new RuntimeException('Select when this task should be released.');
+    $timezone = new DateTimeZone('Africa/Windhoek');
+    $scheduled = false;
+    foreach (['Y-m-d H:i:s', 'Y-m-d H:i', 'Y-m-d\TH:i'] as $format) {
+        $candidate = DateTimeImmutable::createFromFormat('!' . $format, $raw, $timezone);
+        $errors = DateTimeImmutable::getLastErrors();
+        if ($candidate && ($errors === false || ((int) $errors['warning_count'] === 0 && (int) $errors['error_count'] === 0))) { $scheduled = $candidate; break; }
+    }
+    if (!$scheduled) throw new RuntimeException('Select a valid release date and time.');
+    if ($scheduled <= new DateTimeImmutable('now', $timezone)) throw new RuntimeException('The release time must be in the future.');
+    if (new DateTimeImmutable($deadline, $timezone) <= $scheduled) throw new RuntimeException('The due date must be after the scheduled release time.');
+    return $scheduled->format('Y-m-d H:i:s');
 }
 
 function checklist_effective_status(array $task): string
@@ -614,6 +647,7 @@ function checklist_seed_recurring_tasks(): void
 if ($ready) {
     checklist_bootstrap_schema();
     checklist_template_bootstrap_schema();
+    task_release_due_scheduled_tasks();
     checklist_seed_recurring_tasks();
 }
 
@@ -624,7 +658,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Content-Type: application/json; charset=utf-8');
             $submittedToken=(string)($_POST['csrf_token']??'');if($submittedToken===''||!hash_equals($taskAttachmentCsrf,$submittedToken)){http_response_code(403);throw new RuntimeException('Your session token expired. Refresh the page and try again.');}
             $ids=array_values(array_unique(array_filter(array_map('intval',explode(',',(string)($_POST['task_ids']??''))))));$ids=array_slice($ids,0,500);$rows=[];
-            if($ids){$marks=implode(',',array_fill(0,count($ids),'?'));$timingWhere=$canManage?'':" AND assigned_employee_id=? AND employee_visible=1";$timingParams=$ids;if(!$canManage)$timingParams[]=(int)($currentEmployeeId?:0);$rows=ops_rows("SELECT * FROM ops_checklist_tasks WHERE id IN ({$marks}) AND archived_at IS NULL AND deleted_at IS NULL{$timingWhere}",$timingParams);}
+            if($ids){$marks=implode(',',array_fill(0,count($ids),'?'));$timingWhere=$canManage?'':" AND assigned_employee_id=? AND employee_visible=1 AND (scheduled_at IS NULL OR released_at IS NOT NULL)";$timingParams=$ids;if(!$canManage)$timingParams[]=(int)($currentEmployeeId?:0);$rows=ops_rows("SELECT * FROM ops_checklist_tasks WHERE id IN ({$marks}) AND archived_at IS NULL AND deleted_at IS NULL{$timingWhere}",$timingParams);}
             $snapshot=[];foreach($rows as$row)$snapshot[(int)$row['id']]=checklist_task_timing($row);echo json_encode(['success'=>true,'server_time'=>(new DateTimeImmutable('now',new DateTimeZone('Africa/Windhoek')))->format(DateTimeInterface::ATOM),'tasks'=>$snapshot]);exit;
         }
         checklist_handle_template_action($action, $canManage, $taskAttachmentCsrf, (int) ($currentEmployeeId ?: 0));
@@ -636,11 +670,11 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('Your session token expired. Refresh the page and try again.');
             }
             $taskId = (int) ($_POST['task_id'] ?? 0);
-            $taskRows = ops_rows('SELECT id, task_name, assigned_employee_id, status, archived_at, deleted_at FROM ops_checklist_tasks WHERE id = ? LIMIT 1', [$taskId]);
+            $taskRows = ops_rows('SELECT id, task_name, assigned_employee_id, status, employee_visible, scheduled_at, released_at, archived_at, deleted_at FROM ops_checklist_tasks WHERE id = ? LIMIT 1', [$taskId]);
             if (!$taskRows) throw new RuntimeException('Task not found.');
             $attachmentTask = $taskRows[0];
             $isAssignedEmployee = $currentEmployeeId > 0 && (int) $attachmentTask['assigned_employee_id'] === (int) $currentEmployeeId;
-            if (!$canManage && !$isAssignedEmployee) {
+            if (!$canManage && (!$isAssignedEmployee || empty($attachmentTask['employee_visible']) || (!empty($attachmentTask['scheduled_at']) && empty($attachmentTask['released_at'])))) {
                 http_response_code(403);
                 throw new RuntimeException('You do not have permission to manage files for this task.');
             }
@@ -684,7 +718,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if ($action === 'task_tools_data') {
             header('Content-Type: application/json; charset=utf-8');
-            $scopeSql = $canManage ? '1=1' : 't.assigned_employee_id = ?';
+            $scopeSql = $canManage ? '1=1' : 't.assigned_employee_id = ? AND t.employee_visible = 1 AND (t.scheduled_at IS NULL OR t.released_at IS NOT NULL)';
             $scopeValues = $canManage ? [] : [$currentEmployeeId ?: 0];
             $trash = ops_rows(
                 "SELECT t.id, t.task_name, t.priority, t.status, t.deadline, e.full_name AS assigned_name,
@@ -708,7 +742,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             );
             $activityWhere = $canManage
                 ? "al.entity_type = 'checklist_task'"
-                : "al.entity_type = 'checklist_task' AND EXISTS (SELECT 1 FROM ops_checklist_tasks st WHERE st.id = al.entity_id AND st.assigned_employee_id = ?)";
+                : "al.entity_type = 'checklist_task' AND EXISTS (SELECT 1 FROM ops_checklist_tasks st WHERE st.id = al.entity_id AND st.assigned_employee_id = ? AND st.employee_visible = 1 AND (st.scheduled_at IS NULL OR st.released_at IS NOT NULL))";
             $activity = ops_rows(
                 "SELECT al.id, al.entity_id AS task_id, al.action, al.metadata, al.created_at,
                     e.full_name AS employee_name, r.name AS role_name, t.task_name
@@ -772,10 +806,29 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             echo json_encode(['success' => true, 'task_id' => $taskId, 'event' => $event]);
             exit;
         }
+        if ($action === 'release_scheduled_task') {
+            if (!$canManage) { http_response_code(403); throw new RuntimeException('Only the owner can release scheduled tasks.'); }
+            $taskId = (int) ($_POST['task_id'] ?? 0);
+            $row = ops_rows('SELECT id, task_name, assigned_employee_id, scheduled_at, released_at FROM ops_checklist_tasks WHERE id = ? AND deleted_at IS NULL LIMIT 1', [$taskId])[0] ?? null;
+            if (!$row || empty($row['scheduled_at']) || !empty($row['released_at'])) throw new RuntimeException('This scheduled task is no longer awaiting release.');
+            db()->prepare('UPDATE ops_checklist_tasks SET scheduled_at = NOW() WHERE id = ? AND released_at IS NULL')->execute([$taskId]);
+            task_release_due_scheduled_tasks();
+            if (!ops_rows('SELECT id FROM ops_checklist_tasks WHERE id = ? AND released_at IS NOT NULL LIMIT 1', [$taskId])) throw new RuntimeException('The task could not be released. Please try again.');
+            $message = 'Task released now. The employee has been notified.';
+        }
+        if ($action === 'cancel_scheduled_task') {
+            if (!$canManage) { http_response_code(403); throw new RuntimeException('Only the owner can cancel scheduled tasks.'); }
+            $taskId = (int) ($_POST['task_id'] ?? 0);
+            $cancelStmt = db()->prepare('UPDATE ops_checklist_tasks SET deleted_at = NOW(), deleted_by = ? WHERE id = ? AND scheduled_at IS NOT NULL AND released_at IS NULL');
+            $cancelStmt->execute([$currentEmployeeId, $taskId]);
+            if ($cancelStmt->rowCount() !== 1) throw new RuntimeException('This scheduled task is no longer available to cancel.');
+            ops_activity_log('scheduled_task_cancelled', 'checklist_task', $taskId, []);
+            $message = 'Scheduled task cancelled.';
+        }
         if ($action === 'acknowledge_task') {
             header('Content-Type: application/json; charset=utf-8');
             $taskId = (int) ($_POST['task_id'] ?? 0);
-            $scope = $canManage ? 'id = ?' : 'id = ? AND assigned_employee_id = ?';
+            $scope = $canManage ? 'id = ?' : 'id = ? AND assigned_employee_id = ? AND employee_visible = 1 AND (scheduled_at IS NULL OR released_at IS NOT NULL)';
             $scopeParams = $canManage ? [$taskId] : [$taskId, $currentEmployeeId ?: 0];
             $taskRows = ops_rows("SELECT id, status FROM ops_checklist_tasks WHERE {$scope} LIMIT 1", $scopeParams);
             if (!$taskRows) throw new RuntimeException('Task was not found or is not assigned to you.');
@@ -794,7 +847,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($taskId <= 0 || !array_key_exists($status, $statuses)) {
                 throw new RuntimeException('Choose a valid task status.');
             }
-            $scope = $canManage ? 'id = ?' : 'id = ? AND assigned_employee_id = ?';
+            $scope = $canManage ? 'id = ?' : 'id = ? AND assigned_employee_id = ? AND employee_visible = 1 AND (scheduled_at IS NULL OR released_at IS NOT NULL)';
             $scopeParams = $canManage ? [$taskId] : [$taskId, $currentEmployeeId ?: 0];
             $beforeRows = ops_rows("SELECT * FROM ops_checklist_tasks WHERE {$scope} LIMIT 1", $scopeParams);
             if (!$beforeRows) throw new RuntimeException('Task was not found or is not assigned to you.');
@@ -915,12 +968,13 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
         $taskId = (int) ($_POST['task_id'] ?? 0);
-        $scope = $canManage ? 'id = ?' : 'id = ? AND assigned_employee_id = ?';
+        $scope = $canManage ? 'id = ?' : 'id = ? AND assigned_employee_id = ? AND employee_visible = 1 AND (scheduled_at IS NULL OR released_at IS NOT NULL)';
         $scopeParams = $canManage ? [$taskId] : [$taskId, $currentEmployeeId ?: 0];
 
         if ($action === 'create_task' && $canManage) {
             $assignedId = (int) ($_POST['assigned_employee_id'] ?? 0);
             $deadline = checklist_create_due_at($_POST);
+            $scheduledAt = checklist_create_scheduled_at($_POST, $deadline);
             $taskName = ops_post_string('task_name', 190);
             if ($taskName === '') throw new RuntimeException('Task name is required.');
             if ($assignedId <= 0) throw new RuntimeException('Assigned employee is required.');
@@ -928,13 +982,15 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $urgentRequested = !empty($_POST['send_urgent_alert']);
             $urgentRecipients = $urgentRequested ? checklist_urgent_recipient_ids((array) ($_POST['urgent_alert_recipients'] ?? []), $assignedId) : [];
             if ($urgentRequested && !$urgentRecipients) throw new RuntimeException('Choose at least one valid urgent alert recipient.');
-            $employeeVisible = 1;
+            $employeeVisible = $scheduledAt === null ? 1 : 0;
             $proofRequired = !empty($_POST['completion_evidence_required']) ? 1 : 0;
             $recurringRule = ops_post_string('recurring_rule', 80);
             $allowedRecurringRules = ['', 'daily_business_day', 'twice_weekly', 'weekly_1', 'weekly_2', 'weekly_3', 'weekly_4', 'weekly_5', 'weekly_saturday'];
             if (!in_array($recurringRule, $allowedRecurringRules, true)) {
                 throw new RuntimeException('Choose a valid task recurrence.');
             }
+            if ($scheduledAt !== null && $recurringRule !== '') throw new RuntimeException('Scheduled release is available for manual tasks only. Recurring tasks keep their existing schedule.');
+            if ($scheduledAt !== null && $urgentRequested) throw new RuntimeException('Popup alerts can only be sent for tasks released now. The employee will be notified automatically at release.');
             $createAttachmentFiles = checklist_create_attachment_files();
             $createdAttachments = [];
             $attachmentActorName = trim((string) (current_user()['name'] ?? 'Owner')) ?: 'Owner';
@@ -959,14 +1015,17 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
               }
             $stmt = $taskDb->prepare(
                 "INSERT INTO ops_checklist_tasks
-                 (checklist_type, task_name, priority, assigned_employee_id, date_assigned, deadline, status, notes, instructions, checklist_items, completion_note_required, completion_evidence_required, performance_scored, recurrence_key, recurring_rule, recurring_template_id, source_template_id, employee_visible, created_by)
-                 VALUES (?, ?, ?, ?, NOW(), ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                 (checklist_type, task_name, priority, assigned_employee_id, date_assigned, scheduled_at, released_at, deadline, status, notes, instructions, checklist_items, completion_note_required, completion_evidence_required, performance_scored, recurrence_key, recurring_rule, recurring_template_id, source_template_id, employee_visible, created_by)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             );
             $stmt->execute([
                 'opening',
                 $taskName,
                 array_key_exists(ops_post_string('priority', 30), $priorities) ? ops_post_string('priority', 30) : 'normal',
                 $assignedId > 0 ? $assignedId : null,
+                $scheduledAt === null ? date('Y-m-d H:i:s') : null,
+                $scheduledAt,
+                $scheduledAt === null ? date('Y-m-d H:i:s') : null,
                 $deadline ?: null,
                 ops_post_string('instructions', 1500),
                 ops_post_string('instructions', 1500),
@@ -989,13 +1048,14 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach ($createAttachmentFiles as $createAttachmentFile) {
                 $createdAttachments[] = checklist_store_attachment($createdTaskId, $createAttachmentFile, $currentEmployeeId ?: 0, $attachmentActorName);
             }
-            ops_activity_log('task_created', 'checklist_task', $createdTaskId, [
+            ops_activity_log($scheduledAt === null ? 'task_created' : 'task_scheduled', 'checklist_task', $createdTaskId, [
                 'assigned_employee_id' => $assignedId,
+                'scheduled_at' => $scheduledAt,
                 'attachment_count' => count($createdAttachments),
                 'source_template_id' => $sourceTemplateId > 0 ? $sourceTemplateId : null,
                 'proof_required' => $proofRequired,
             ]);
-            if ($assignedId > 0 && !notifications_notify_task_assigned($createdTaskId, $assignedId, $taskName)) {
+            if ($scheduledAt === null && $assignedId > 0 && !notifications_notify_task_assigned($createdTaskId, $assignedId, $taskName)) {
                 throw new RuntimeException('The task assignment notification could not be saved.');
             }
             $taskDb->commit();
@@ -1013,9 +1073,9 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     throw new RuntimeException('The task was saved, but its urgent alert could not be sent.');
                 }
             }
-            $message = $createdAttachments
+            $message = $scheduledAt !== null ? 'Task scheduled for ' . checklist_date_label($scheduledAt) . '. The employee cannot see it until release.' : ($createdAttachments
                 ? 'Task created with ' . count($createdAttachments) . ' file' . (count($createdAttachments) === 1 ? '' : 's') . ' and assigned.'
-                : 'Task created and assigned.';
+                : 'Task created and assigned.');
         }
 
         if ($action === 'admin_update_task' && $canManage) {
@@ -1027,13 +1087,16 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($status === 'complete' && checklist_normalize_status((string) ($oldRows[0]['status'] ?? '')) !== 'complete') checklist_require_completion($oldRows[0], null, '');
             $oldStatus = (string) ($oldRows[0]['status'] ?? '');
             $oldAssignedId = (int) ($oldRows[0]['assigned_employee_id'] ?? 0);
+            $updatedScheduledAt = !empty($oldRows[0]['scheduled_at']) && empty($oldRows[0]['released_at'])
+                ? checklist_create_scheduled_at(['delivery_mode' => 'scheduled', 'scheduled_at' => (string) ($_POST['scheduled_at'] ?? $oldRows[0]['scheduled_at'])], $deadline)
+                : ($oldRows[0]['scheduled_at'] ?? null);
             $taskDb = db();
             $taskDb->beginTransaction();
             try {
-                $stmt = $taskDb->prepare("UPDATE ops_checklist_tasks SET assigned_employee_id = ?, date_assigned = CASE WHEN COALESCE(assigned_employee_id,0) <> ? THEN NOW() ELSE date_assigned END, deadline = ?, priority = ?, status = ?, employee_visible = 1, completion_note_required = 1, completion_evidence_required = ?, performance_scored = 1 WHERE id = ?");
+                $stmt = $taskDb->prepare("UPDATE ops_checklist_tasks SET assigned_employee_id = ?, date_assigned = CASE WHEN released_at IS NOT NULL AND COALESCE(assigned_employee_id,0) <> ? THEN NOW() ELSE date_assigned END, scheduled_at = ?, deadline = ?, priority = ?, status = ?, employee_visible = CASE WHEN scheduled_at IS NOT NULL AND released_at IS NULL THEN 0 ELSE 1 END, completion_note_required = 1, completion_evidence_required = ?, performance_scored = 1 WHERE id = ?");
                 $submittedPriority = ops_post_string('priority', 30);
                 $proofRequired = !empty($_POST['completion_evidence_required']) ? 1 : 0;
-                $stmt->execute([$assignedId > 0 ? $assignedId : null, $assignedId, $deadline ?: null, array_key_exists($submittedPriority, $priorities) ? $submittedPriority : 'normal', $status, $proofRequired, $taskId]);
+                $stmt->execute([$assignedId > 0 ? $assignedId : null, $assignedId, $updatedScheduledAt, $deadline ?: null, array_key_exists($submittedPriority, $priorities) ? $submittedPriority : 'normal', $status, $proofRequired, $taskId]);
                 checklist_kpi_status_event($taskId, $oldStatus, $status, $currentEmployeeId);
                 ops_activity_log('task_admin_updated', 'checklist_task', $taskId, ['status' => $status, 'previous_assigned_employee_id' => $oldAssignedId ?: null, 'assigned_employee_id' => $assignedId ?: null, 'proof_required' => $proofRequired]);
                 if ($assignedId !== $oldAssignedId) ops_activity_log($assignedId > 0 ? ($oldAssignedId > 0 ? 'task_reassigned' : 'task_assigned') : 'task_unassigned', 'checklist_task', $taskId, [
@@ -1042,7 +1105,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     'assignment_visible' => $assignedId > 0,
                     'assignment_source' => 'admin_update',
                 ]);
-                if ($assignedId > 0 && $assignedId !== $oldAssignedId && !notifications_notify_task_assigned($taskId, $assignedId, (string) ($oldRows[0]['task_name'] ?? 'Checklist task'))) {
+                if (!empty($oldRows[0]['released_at']) && $assignedId > 0 && $assignedId !== $oldAssignedId && !notifications_notify_task_assigned($taskId, $assignedId, (string) ($oldRows[0]['task_name'] ?? 'Checklist task'))) {
                     throw new RuntimeException('The reassignment notification could not be saved.');
                 }
                 $taskDb->commit();
@@ -1169,7 +1232,7 @@ $filters = [
 $filters['task_view'] = $filters['task_view'] === 'tasks' ? 'active' : $filters['task_view'];
 $requestedTaskView = $filters['task_view'];
 if (in_array($filters['task_view'], ['recurring', 'manual'], true)) $filters['task_view'] = 'active';
-if (!in_array($filters['task_view'], ['active', 'completed', 'history'], true)) $filters['task_view'] = 'active';
+if (!in_array($filters['task_view'], ['active', 'scheduled', 'completed', 'history'], true)) $filters['task_view'] = 'active';
 
 $where = [];
 $params = [];
@@ -1179,7 +1242,10 @@ if (!$canManage) {
     $where[] = 't.assigned_employee_id = ?';
     $params[] = $currentEmployeeId ?: 0;
     $where[] = 't.employee_visible = 1';
+    $where[] = '(t.scheduled_at IS NULL OR t.released_at IS NOT NULL)';
 }
+if ($filters['task_view'] === 'scheduled' && $canManage) $where[] = 't.scheduled_at IS NOT NULL AND t.released_at IS NULL';
+elseif ($canManage) $where[] = '(t.scheduled_at IS NULL OR t.released_at IS NOT NULL)';
 if ($filters['date_from'] !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['date_from'])) {
     $where[] = 'DATE(COALESCE(t.date_assigned, t.created_at)) >= ?';
     $params[] = $filters['date_from'];
@@ -1205,7 +1271,7 @@ if ($filters['task_view'] !== 'active' && $filters['task_kind'] === 'recurring')
 } elseif ($filters['task_view'] !== 'active' && $filters['task_kind'] === 'manual') {
     $where[] = "(t.recurrence_key IS NULL OR t.recurrence_key = '')";
 }
-if ($filters['task_view'] === 'active') {
+if (in_array($filters['task_view'], ['active', 'scheduled'], true)) {
     $where[] = "t.status <> 'complete'";
 } elseif (in_array($filters['task_view'], ['completed', 'history'], true)) {
     $where[] = "t.status = 'complete'";
@@ -1258,6 +1324,7 @@ if (!$canManage) {
     $historyWhere[] = 't.assigned_employee_id = ?';
     $historyParams[] = $currentEmployeeId ?: 0;
     $historyWhere[] = 't.employee_visible = 1';
+    $historyWhere[] = '(t.scheduled_at IS NULL OR t.released_at IS NOT NULL)';
 }
 if ($filters['date_from'] !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['date_from'])) {
     $historyWhere[] = 'DATE(COALESCE(t.date_completed, t.completed_at, t.date_assigned, t.created_at)) >= ?';
@@ -1313,8 +1380,11 @@ foreach ($tasks as $task) {
     if (!isset($tasksByGroup[$effectiveStatus])) $effectiveStatus = 'new';
     $tasksByGroup[$effectiveStatus][] = $task;
 }
-$metrics = ['total' => count($tasks), 'new' => 0, 'overdue' => 0, 'in_progress' => 0, 'completed_today' => 0, 'completed_month' => 0, 'due_today' => 0, 'missed_recurring' => 0];
+$scheduledCount = ($ready && $canManage) ? (int) (ops_rows("SELECT COUNT(*) AS total FROM ops_checklist_tasks WHERE scheduled_at IS NOT NULL AND released_at IS NULL AND archived_at IS NULL AND deleted_at IS NULL")[0]['total'] ?? 0) : 0;
+$metrics = ['total' => 0, 'scheduled' => $scheduledCount, 'new' => 0, 'overdue' => 0, 'in_progress' => 0, 'completed_today' => 0, 'completed_month' => 0, 'due_today' => 0, 'missed_recurring' => 0];
 foreach ($tasks as $task) {
+    if (!empty($task['scheduled_at']) && empty($task['released_at'])) continue;
+    $metrics['total']++;
     $savedStatus = checklist_normalize_status((string) ($task['status'] ?? 'new'));
     if ($savedStatus === 'new') $metrics['new']++;
     if ($savedStatus === 'in_progress') $metrics['in_progress']++;
@@ -1373,12 +1443,13 @@ include BASE_PATH . '/shared/sidebar.php';
         <article class="dtb-stat-card" data-stat="in-progress"><span class="dtb-stat-icon"><i data-lucide="clock-3"></i></span><div><p class="dtb-stat-label">In Progress</p><strong class="dtb-stat-value"><?= number_format($metrics['in_progress']) ?></strong></div></article>
         <a class="dtb-stat-card" data-stat="overdue" href="checklists.php?task_view=active&amp;overdue_only=1"><span class="dtb-stat-icon"><i data-lucide="alert-triangle"></i></span><div><p class="dtb-stat-label">Overdue</p><strong class="dtb-stat-value"><?= number_format($metrics['overdue']) ?></strong></div></a>
         <a class="dtb-stat-card" data-stat="complete" href="checklists.php?task_view=completed"><span class="dtb-stat-icon"><i data-lucide="check-circle-2"></i></span><div><p class="dtb-stat-label">Completed This Month</p><strong class="dtb-stat-value"><?= number_format($metrics['completed_month']) ?></strong></div></a>
+        <?php if ($canManage): ?><a class="dtb-stat-card" data-stat="scheduled" href="checklists.php?task_view=scheduled"><span class="dtb-stat-icon"><i data-lucide="calendar-clock"></i></span><div><p class="dtb-stat-label">Scheduled</p><strong class="dtb-stat-value"><?= number_format($metrics['scheduled']) ?></strong></div></a><?php endif; ?>
     </section>
 
     <nav class="task-section-tabs task-board-navigation" aria-label="Task views" data-task-view-tabs>
         <?php
-        $tabLabels = ['tasks' => 'Tasks', 'completed' => 'Completed Tasks', 'history' => 'Task History'];
-        $tabIcons = ['tasks' => 'clipboard-list', 'completed' => 'check-circle-2', 'history' => 'history'];
+        $tabLabels = $canManage ? ['tasks' => 'Tasks', 'scheduled' => 'Scheduled', 'completed' => 'Completed Tasks', 'history' => 'Task History'] : ['tasks' => 'Tasks', 'completed' => 'Completed Tasks', 'history' => 'Task History'];
+        $tabIcons = ['tasks' => 'clipboard-list', 'scheduled' => 'calendar-clock', 'completed' => 'check-circle-2', 'history' => 'history'];
         foreach ($tabLabels as $tabKey => $tabLabel):
             $tabActive = ($tabKey === 'tasks' ? 'active' : $tabKey) === $filters['task_view'];
         ?>
@@ -1442,6 +1513,8 @@ include BASE_PATH . '/shared/sidebar.php';
                           <label class="task-form-field"><span class="task-form-label">Assigned employee *</span><select id="create-task-assignee" name="assigned_employee_id" required data-portal-custom-select><option value="">Choose employee</option><?php foreach ($employees as $employee): ?><option value="<?= (int) $employee['id'] ?>"><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></label>
                           <div class="task-form-field task-datetime-field"><label class="task-form-label" for="create-task-due-display">Due date and time <span class="required-marker" aria-hidden="true">*</span></label><div class="portal-date-field" data-portal-date-field><input id="create-task-due-display" type="text" class="portal-date-input task-datetime-trigger is-empty" data-enable-time="true" data-submit-target="#create-task-due-at" data-task-due-trigger placeholder="Select due date and time" autocomplete="off" aria-describedby="create-task-due-error"><input id="create-task-due-at" type="hidden" name="due_at" data-task-due-value data-portal-date-required-message="Select the task due date and time." required><button type="button" class="portal-date-trigger" aria-label="Open Due date and time picker"><i data-lucide="calendar-clock" aria-hidden="true"></i></button></div><span id="create-task-due-error" class="task-form-error" data-task-due-error aria-live="polite"></span></div>
                         </div>
+                        <fieldset class="task-form-field task-form-field--full task-delivery-options"><legend class="task-form-label">Delivery</legend><div class="task-priority-options"><label><input type="radio" name="delivery_mode" value="now" checked data-task-delivery-mode><span>Send now</span></label><label><input type="radio" name="delivery_mode" value="scheduled" data-task-delivery-mode><span>Schedule task</span></label></div></fieldset>
+                        <div class="task-form-field task-datetime-field task-form-field--full" data-task-schedule-field hidden><label class="task-form-label" for="create-task-schedule-display">Release date and time</label><div class="portal-date-field" data-portal-date-field><input id="create-task-schedule-display" type="text" class="portal-date-input task-datetime-trigger is-empty" data-enable-time="true" data-submit-target="#create-task-scheduled-at" placeholder="Select release date and time" autocomplete="off"><input id="create-task-scheduled-at" type="hidden" name="scheduled_at" data-task-scheduled-value><button type="button" class="portal-date-trigger" aria-label="Open release date and time picker"><i data-lucide="calendar-clock" aria-hidden="true"></i></button></div><small>The employee will not see the task or receive notifications before this Windhoek time.</small></div>
                         <p class="task-due-summary" data-task-due-summary aria-live="polite"></p>
                         <fieldset class="task-form-field task-priority-field"><legend class="task-form-label">Priority *</legend><div class="task-priority-options" role="radiogroup" aria-label="Priority"><label><input type="radio" name="priority" value="normal" checked><span>Normal</span></label><label><input type="radio" name="priority" value="important"><span>Important</span></label><label><input type="radio" name="priority" value="urgent"><span>Urgent</span></label></div></fieldset>
                         <label class="task-form-field task-form-field--full"><span class="task-form-label">Instructions *</span><textarea id="create-task-instructions" name="instructions" required placeholder="Explain what must be done and what the finished result should look like."></textarea></label>
@@ -1483,12 +1556,15 @@ include BASE_PATH . '/shared/sidebar.php';
     </div>
 
     <div class="task-view-content" data-task-view-content>
-    <?php if ($filters['task_view'] === 'active'): ?>
+    <?php if (in_array($filters['task_view'], ['active', 'scheduled'], true)): ?>
     <div class="task-management-page" data-task-management-sections>
-        <?php foreach ([
-            'manual' => ['title' => 'Manual Tasks', 'description' => 'Tasks created and assigned manually.', 'tasks' => $manualTasks],
-            'recurring' => ['title' => 'Recurring Tasks', 'description' => 'Tasks that repeat according to a schedule.', 'tasks' => $recurringTasks],
-        ] as $sectionKey => $section): ?>
+        <?php $taskDisplaySections = $filters['task_view'] === 'scheduled'
+            ? ['scheduled' => ['title' => 'Scheduled Tasks', 'description' => 'Private tasks awaiting their release time. Edit, release now, or cancel before employees can see them.', 'tasks' => $tasks]]
+            : [
+                'manual' => ['title' => 'Manual Tasks', 'description' => 'Tasks created and assigned manually.', 'tasks' => $manualTasks],
+                'recurring' => ['title' => 'Recurring Tasks', 'description' => 'Tasks that repeat according to a schedule.', 'tasks' => $recurringTasks],
+            ]; ?>
+        <?php foreach ($taskDisplaySections as $sectionKey => $section): ?>
             <section class="task-section task-section--<?= $sectionKey ?>" id="<?= $sectionKey ?>Tasks" aria-labelledby="<?= $sectionKey ?>TasksHeading">
                 <header class="task-section__header" data-task-section-header>
                     <div><h2 id="<?= $sectionKey ?>TasksHeading"><?= $section['title'] ?></h2><p><?= $section['description'] ?></p></div>
@@ -1594,6 +1670,7 @@ include BASE_PATH . '/shared/sidebar.php';
         $checked = checklist_json_items((string) ($task['checked_items'] ?? ''));
         $panelId = (int) $task['id'];
         $deadlineValue = $task['deadline'] ? substr((string) $task['deadline'], 0, 16) : '';
+        $scheduledValue = $task['scheduled_at'] ? substr((string) $task['scheduled_at'], 0, 16) : '';
         $taskKind = checklist_task_kind($task);
         $statusClass = str_replace('_', '-', $effective);
         $panelTiming = checklist_task_timing($task);
@@ -1610,12 +1687,14 @@ include BASE_PATH . '/shared/sidebar.php';
                         <?php if ($panelDueState): ?><span class="task-details-badge task-details-badge--deadline task-details-badge--<?= htmlspecialchars(str_replace('_', '-', $panelDueState['value']), ENT_QUOTES, 'UTF-8') ?>"><i data-lucide="clock-3"></i><?= htmlspecialchars($panelDueState['label'], ENT_QUOTES, 'UTF-8') ?></span><?php endif; ?>
                     </div>
                     <h2 class="task-details-title"><?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?></h2>
+                    <?php if (!empty($task['scheduled_at']) && empty($task['released_at'])): ?><p class="task-scheduled-notice"><strong>Scheduled</strong> · releases <?= htmlspecialchars(checklist_date_label((string) $task['scheduled_at']), ENT_QUOTES, 'UTF-8') ?> · hidden from employee</p><?php endif; ?>
                 </div>
                 <?php if ($canManage): ?><button type="button" class="task-details-template-action" data-save-task-template="<?= $panelId ?>">Save as template</button><?php endif; ?>
             </header>
 
             <div class="task-details-body" id="task-details-<?= $panelId ?>">
                 <?php if ($canManage): ?>
+                    <?php if (!empty($task['scheduled_at']) && empty($task['released_at'])): ?><section class="task-details-section task-scheduled-actions"><h3 class="task-section-title">Scheduled release</h3><p>This task remains private until <?= htmlspecialchars(checklist_date_label((string) $task['scheduled_at']), ENT_QUOTES, 'UTF-8') ?>.</p><div class="ops-form-actions"><form method="post"><input type="hidden" name="action" value="release_scheduled_task"><input type="hidden" name="task_id" value="<?= $panelId ?>"><button class="button primary" type="submit">Release Now</button></form><form method="post" onsubmit="return confirm('Cancel this scheduled task?');"><input type="hidden" name="action" value="cancel_scheduled_task"><input type="hidden" name="task_id" value="<?= $panelId ?>"><button class="button" type="submit">Cancel scheduled task</button></form></div></section><?php endif; ?>
                     <form method="post" class="task-details-section task-edit-card">
                         <input type="hidden" name="action" value="admin_update_task">
                         <input type="hidden" name="task_id" value="<?= $panelId ?>">
@@ -1625,6 +1704,7 @@ include BASE_PATH . '/shared/sidebar.php';
                             <div class="task-field"><label for="task-admin-status-<?= $panelId ?>">Status</label><select id="task-admin-status-<?= $panelId ?>" name="status" data-portal-custom-select><?php ops_select_options($statuses, checklist_normalize_status((string) ($task['status'] ?? 'new'))); ?></select></div>
                             <div class="task-field"><label for="task-priority-<?= $panelId ?>">Priority</label><select id="task-priority-<?= $panelId ?>" name="priority" data-portal-custom-select><?php ops_select_options($priorities, (string) ($task['priority'] ?? 'normal')); ?></select></div>
                             <div class="task-field"><label for="task-deadline-display-<?= $panelId ?>">Due date</label><div class="portal-date-field" data-portal-date-field><input id="task-deadline-display-<?= $panelId ?>" type="text" class="portal-date-input" data-enable-time="true" data-submit-target="#task-deadline-<?= $panelId ?>" placeholder="dd/mm/yyyy --:--" autocomplete="off"><input id="task-deadline-<?= $panelId ?>" type="hidden" name="deadline" value="<?= htmlspecialchars($deadlineValue, ENT_QUOTES, 'UTF-8') ?>"><button type="button" class="portal-date-trigger" aria-label="Open Due Date calendar"><i data-lucide="calendar-clock" aria-hidden="true"></i></button></div></div>
+                            <?php if (!empty($task['scheduled_at']) && empty($task['released_at'])): ?><div class="task-field"><label for="task-scheduled-display-<?= $panelId ?>">Release date</label><div class="portal-date-field" data-portal-date-field><input id="task-scheduled-display-<?= $panelId ?>" type="text" class="portal-date-input" data-enable-time="true" data-submit-target="#task-scheduled-<?= $panelId ?>" placeholder="dd/mm/yyyy --:--" autocomplete="off"><input id="task-scheduled-<?= $panelId ?>" type="hidden" name="scheduled_at" value="<?= htmlspecialchars($scheduledValue, ENT_QUOTES, 'UTF-8') ?>"><button type="button" class="portal-date-trigger" aria-label="Open release date calendar"><i data-lucide="calendar-clock" aria-hidden="true"></i></button></div></div><?php endif; ?>
                         </div>
                         <label class="task-urgent-toggle"><input type="checkbox" name="completion_evidence_required" value="1" <?= !empty($task['completion_evidence_required']) ? 'checked' : '' ?>><span class="task-urgent-toggle__track" aria-hidden="true"><span class="task-urgent-toggle__thumb"></span></span><span class="task-urgent-toggle__copy"><strong>Proof required</strong><small>Optional uploads remain evidence only and do not earn bonus points.</small></span></label>
                         <section class="task-urgent-control" data-urgent-control>
@@ -1728,6 +1808,9 @@ function initialiseTaskCreateForm() {
   const dueTrigger = form.querySelector('[data-task-due-trigger]');
   const dueError = form.querySelector('[data-task-due-error]');
   const dueSummary = form.querySelector('[data-task-due-summary]');
+  const scheduleField = form.querySelector('[data-task-schedule-field]');
+  const scheduledAtInput = form.querySelector('[data-task-scheduled-value]');
+  const deliveryModes = [...form.querySelectorAll('[data-task-delivery-mode]')];
   const repeatToggle = form.querySelector('[data-task-repeat-toggle]');
   const repeatOptions = form.querySelector('[data-task-repeat-options]');
   const recurrenceSelect = form.querySelector('[data-task-recurrence-select]');
@@ -1772,6 +1855,8 @@ function initialiseTaskCreateForm() {
   };
   dueAtInput.addEventListener('input', () => { syncDueAt(); validateDueAt(); });
   dueAtInput.addEventListener('change', () => { syncDueAt(); validateDueAt(); });
+  const syncDeliveryMode = () => { const scheduled = form.querySelector('[name="delivery_mode"]:checked')?.value === 'scheduled'; scheduleField.hidden = !scheduled; scheduledAtInput.required = scheduled; if (!scheduled) scheduledAtInput.value = ''; };
+  deliveryModes.forEach((input) => input.addEventListener('change', syncDeliveryMode)); syncDeliveryMode();
 
   const syncRecurrence = () => {
     repeatOptions.hidden = !repeatToggle.checked;
@@ -1954,6 +2039,7 @@ function initialiseTaskCreateForm() {
   form.addEventListener('submit', (event) => {
     syncDueAt(); syncChecklist(); syncRecurrence();
     if (!validateDueAt()) { event.preventDefault(); dueTrigger.focus(); return; }
+    if (scheduledAtInput.required) { const release = scheduledAtInput.value ? new Date(scheduledAtInput.value.replace(' ', 'T')) : null; const due = parseDueAt(); if (!release || Number.isNaN(release.getTime()) || release <= new Date()) { event.preventDefault(); window.alert('Select a future release date and time.'); return; } if (due && due <= release) { event.preventDefault(); window.alert('The due date must be after the scheduled release time.'); return; } }
     const required = [...form.querySelectorAll('[required]')];
     const invalid = required.find((field) => !String(field.value || '').trim());
     if (invalid) { event.preventDefault(); invalid.focus(); invalid.setAttribute('aria-invalid', 'true'); return; }

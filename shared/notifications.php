@@ -746,9 +746,11 @@ function notifications_for_current_user(int $limit = 10): array
     }
 
     try {
+        if (function_exists('task_release_due_scheduled_tasks')) task_release_due_scheduled_tasks();
         notifications_schedule_task_reminders($employeeId, true);
         $canViewAllTasks = user_has_role('owner_admin');
-        $taskScope = " AND (n.related_type IS NULL OR n.related_type <> 'checklist_task' OR n.related_id IS NULL OR ? = 1 OR t.assigned_employee_id = ?)";
+        $taskReleased = function_exists('ops_column_exists') && ops_column_exists('ops_checklist_tasks', 'scheduled_at') && ops_column_exists('ops_checklist_tasks', 'released_at') ? ' AND (t.scheduled_at IS NULL OR t.released_at IS NOT NULL)' : '';
+        $taskScope = " AND (n.related_type IS NULL OR n.related_type <> 'checklist_task' OR n.related_id IS NULL OR ? = 1 OR (t.assigned_employee_id = ? AND t.employee_visible = 1{$taskReleased}))";
         $countStmt = db()->prepare(
             "SELECT COUNT(*) FROM notification_recipients nr
              JOIN notifications n ON n.id = nr.notification_id
@@ -789,9 +791,11 @@ function notifications_summary_for_current_user(int $limit = 5): array
     }
 
     try {
+        if (function_exists('task_release_due_scheduled_tasks')) task_release_due_scheduled_tasks();
         notifications_schedule_task_reminders($employeeId, true);
         $canViewAllTasks = user_has_role('owner_admin');
-        $taskScope = " AND (n.related_type IS NULL OR n.related_type <> 'checklist_task' OR n.related_id IS NULL OR ? = 1 OR t.assigned_employee_id = ?)";
+        $taskReleased = function_exists('ops_column_exists') && ops_column_exists('ops_checklist_tasks', 'scheduled_at') && ops_column_exists('ops_checklist_tasks', 'released_at') ? ' AND (t.scheduled_at IS NULL OR t.released_at IS NOT NULL)' : '';
+        $taskScope = " AND (n.related_type IS NULL OR n.related_type <> 'checklist_task' OR n.related_id IS NULL OR ? = 1 OR (t.assigned_employee_id = ? AND t.employee_visible = 1{$taskReleased}))";
         $countStmt = db()->prepare(
             "SELECT COUNT(*) FROM notification_recipients nr
              JOIN notifications n ON n.id = nr.notification_id
