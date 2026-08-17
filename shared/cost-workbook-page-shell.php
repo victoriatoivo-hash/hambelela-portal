@@ -70,6 +70,9 @@ function cw_page_begin(string $key, array $period, ?string $bootError): void
 function cw_page_end(array $scripts = []): void
 {
     echo '</main>';
-    foreach ($scripts as $script) echo '<script src="' . htmlspecialchars(BASE_URL . '/assets/js/' . $script, ENT_QUOTES, 'UTF-8') . '" defer></script>';
+    foreach ($scripts as $script) {
+        $defer = strpos($script, 'supplier-invoices-v2.js') === 0 ? '' : ' defer';
+        echo '<script src="' . htmlspecialchars(BASE_URL . '/assets/js/' . $script, ENT_QUOTES, 'UTF-8') . '"' . $defer . '></script>';
+    }
     include BASE_PATH . '/shared/footer.php';
 }
