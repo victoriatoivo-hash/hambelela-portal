@@ -9,7 +9,8 @@ for (const token of ['quantityAccounting', 'draftPhysical', 'formatPhysical', 'w
   assert.ok(js.includes(token), `missing client physical-workload token: ${token}`);
 }
 assert.match(view, /Unit \*/);
-assert.match(view, /Physical \/ weighted workload/);
+assert.match(view, /data-invoice-draft-head/);
+assert.match(view, /Packing review/);
 assert.match(php, /packing_invoice_allocation_validation/);
 assert.match(php, /Unit mismatch/);
 assert.match(php, /Under allocated quantity must be accounted for/);

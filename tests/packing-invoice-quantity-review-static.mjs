@@ -6,10 +6,12 @@ const php = fs.readFileSync(new URL('../apps/operations/packing-list-action.php'
 const html = fs.readFileSync(new URL('../apps/operations/consignments.php', import.meta.url), 'utf8');
 const css = fs.readFileSync(new URL('../assets/css/packing-board.css', import.meta.url), 'utf8');
 
-for (const token of ['quantityPlanParts', 'Confirm All Valid Rows', 'Waiting for quantity corrections before redistribution.', 'data-confirm-quantity-row', 'data-leave-as-bulk', 'data-auto-redistribute', 'invoiceCorrectionStorageKey']) assert.match(js, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+for (const token of ['quantityPlanParts', 'receivedQuantityState', 'receivedReviewComplete', 'Confirm All Valid Rows', 'Waiting for received quantity confirmation.', 'data-confirm-quantity-row', 'data-leave-as-bulk', 'data-auto-redistribute', 'invoiceCorrectionStorageKey']) assert.match(js, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 assert.match(js, /Allocated:.*Remaining:.*quantity-row-status/s, 'live updater preserves correction accounting layout');
 assert.match(js, /bulkButton\.hidden = accounting\.status !== 'under_allocated'/, 'bulk shortcut follows the live accounting state');
 assert.match(html, /data-confirm-quantities-create disabled/);
+assert.match(html, /Confirm Received Quantity/);
+assert.match(html, /Enter Packing Instructions/);
 assert.match(css, /\.quantity-review-panel/);
 assert.match(php, /Could not understand:/);
 

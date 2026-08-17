@@ -1139,6 +1139,18 @@
     return parsePackUnit(match)?.assumedLabel === 'unit' ? 'units' : (parsePackUnit(match)?.assumedLabel || '');
   }
 
+  function receivedQuantityState(row) {
+    const received = parseReceivedStock(row);
+    if (!String(row.received_weight || '').match(/\d+(?:\.\d+)?/)) return { valid: false, status: 'invalid_quantity', message: 'Received quantity missing', received };
+    if (!row.unit || !received.dimension) return { valid: false, status: 'unit_missing', message: 'Unit required', received };
+    if (!(received.amount > 0) || !(received.base > 0)) return { valid: false, status: 'invalid_quantity', message: 'Received quantity must be greater than zero', received };
+    return { valid: true, status: row.quantity_confirmed === true ? 'confirmed' : 'needs_confirmation', message: row.quantity_confirmed === true ? 'Confirmed' : 'Needs confirmation', received };
+  }
+
+  function receivedReviewComplete() {
+    return invoiceDraftRows.length > 0 && invoiceDraftRows.every((row) => receivedQuantityState(row).valid && row.quantity_confirmed === true);
+  }
+
   function quantityAccounting(row) {
     const plan = quantityPlanStats(row.quantity_planned || '');
     const received = parseReceivedStock(row);
@@ -1172,10 +1184,13 @@
 
   function draftPhysical(row) {
     const accounting = quantityAccounting(row);
+    const dimensionsMatch = !Object.entries(accounting.plan.totals).some(([dimension, value]) => dimension !== accounting.received.dimension && value > 0);
+    const usePackingAmount = String(row.quantity_planned || '').trim() && accounting.plan.sizeCount > 0 && dimensionsMatch;
+    const physicalBase = usePackingAmount ? accounting.plannedBase : accounting.received.base;
     return {
-      weight: accounting.received.dimension === 'weight' ? accounting.plannedBase : 0,
-      volume: accounting.received.dimension === 'volume' ? accounting.plannedBase : 0,
-      count: accounting.received.dimension === 'count' ? accounting.plannedBase : 0,
+      weight: accounting.received.dimension === 'weight' ? physicalBase : 0,
+      volume: accounting.received.dimension === 'volume' ? physicalBase : 0,
+      count: accounting.received.dimension === 'count' ? physicalBase : 0,
       packages: accounting.plan.totalUnits,
     };
   }
@@ -1217,16 +1232,16 @@
   }
 
   function assignDraftRows(options = {}) {
-    const unconfirmed = invoiceDraftRows.filter((row) => !quantityAccounting(row).valid || row.quantity_confirmed !== true);
+    const unconfirmed = invoiceDraftRows.filter((row) => !receivedQuantityState(row).valid || row.quantity_confirmed !== true);
     if (unconfirmed.length) {
       invoiceDraftRows.forEach((row) => {
-        row.workload = quantityAccounting(row).valid ? draftWorkload(row) : 0;
+        row.workload = receivedQuantityState(row).valid ? draftWorkload(row) : 0;
         if (row.assignment_source !== 'manual') {
           row.assigned_employee_id = '';
           row.assigned_name = '';
         }
       });
-      return { changed: false, gated: true, message: 'Waiting for quantity corrections before redistribution.' };
+      return { changed: false, gated: true, message: 'Waiting for received quantity confirmation.' };
     }
     const automaticPackers = autoAssignablePackers();
     if (!automaticPackers.length) {
@@ -1308,16 +1323,16 @@
       setInvoiceProgress(true, 'Nothing to redistribute', 'No draft rows are available yet.', 'error');
       return;
     }
-    const waiting = invoiceDraftRows.filter((row) => !quantityAccounting(row).valid || row.quantity_confirmed !== true);
+    const waiting = invoiceDraftRows.filter((row) => !receivedQuantityState(row).valid || row.quantity_confirmed !== true);
     if (waiting.length) {
       setInvoiceStep('review', 'error');
-      setInvoiceStatus(`Waiting for quantity corrections before redistribution. ${waiting.length} row${waiting.length === 1 ? '' : 's'} remaining.`);
-      setInvoiceProgress(true, 'Quantity review required', `${waiting.length} row${waiting.length === 1 ? '' : 's'} must be valid and confirmed first.`, 'error');
+      setInvoiceStatus(`Waiting for received quantity confirmation. ${waiting.length} row${waiting.length === 1 ? '' : 's'} remaining.`);
+      setInvoiceProgress(true, 'Received quantity review required', `${waiting.length} row${waiting.length === 1 ? '' : 's'} need a valid received quantity and unit.`, 'error');
       return;
     }
     button?.classList.add('is-loading');
     if (button) button.disabled = true;
-    setInvoiceProgress(true, 'Redistributing packers...', 'Balancing draft rows by received-weight workload.', 'loading');
+    setInvoiceProgress(true, 'Redistributing packers...', 'Balancing complete product rows by confirmed received workload.', 'loading');
     await new Promise((resolve) => setTimeout(resolve, 80));
     redistributeDraftRows();
     renderInvoiceDraft();
@@ -1353,21 +1368,20 @@
       draftWorkloadSummary.innerHTML = '';
       return;
     }
-    const review = invoiceDraftRows.map((row) => ({ row, accounting: quantityAccounting(row) }));
-    const validRows = review.filter((item) => item.accounting.valid);
-    const confirmedRows = review.filter((item) => item.accounting.valid && item.row.quantity_confirmed === true);
-    const pendingRows = review.filter((item) => !item.accounting.valid || item.row.quantity_confirmed !== true);
+    const review = invoiceDraftRows.map((row) => ({ row, received: receivedQuantityState(row) }));
+    const confirmedRows = review.filter((item) => item.received.valid && item.row.quantity_confirmed === true);
+    const pendingRows = review.filter((item) => !item.received.valid || item.row.quantity_confirmed !== true);
     if (pendingRows.length) {
       draftWorkloadSummary.hidden = false;
       draftWorkloadSummary.innerHTML = `
         <section class="quantity-review-panel">
           <div class="quantity-review-head">
-            <div><span>Quantity review required</span><strong>${confirmedRows.length} of ${invoiceDraftRows.length} rows confirmed</strong><small>${pendingRows.length} remaining before packing workload can be calculated.</small></div>
+            <div><span>Received quantity review</span><strong>${confirmedRows.length} of ${invoiceDraftRows.length} rows confirmed</strong><small>Confirm the physical quantity received and unit before packer distribution.</small></div>
             <button class="invoice-btn invoice-btn--secondary" type="button" data-confirm-all-valid>Confirm All Valid Rows</button>
           </div>
           <div class="quantity-review-progress"><span style="width:${invoiceDraftRows.length ? (confirmedRows.length / invoiceDraftRows.length) * 100 : 0}%"></span></div>
-          <p class="quantity-review-waiting">Waiting for quantity corrections before redistribution.</p>
-          <label class="quantity-auto-redistribute"><input type="checkbox" data-auto-redistribute ${invoiceAutoRedistribute ? 'checked' : ''}> Automatically redistribute when all rows are valid</label>
+          <p class="quantity-review-waiting">${pendingRows.length} remaining. Waiting for received quantity confirmation.</p>
+          <label class="quantity-auto-redistribute"><input type="checkbox" data-auto-redistribute ${invoiceAutoRedistribute ? 'checked' : ''}> Automatically redistribute after all received quantities are confirmed</label>
         </section>`;
       return;
     }
@@ -1377,9 +1391,9 @@
     draftWorkloadSummary.hidden = false;
     draftWorkloadSummary.innerHTML = `
       <div class="draft-summary-head">
-        <strong>Assignment review</strong>
+        <strong>✓ Received quantities confirmed</strong>
         <button class="button small" type="button" data-redistribute-draft>Redistribute again</button>
-        <span>${invoiceDraftRows.length} rows &middot; ${totalWorkload.toFixed(1)} workload points</span>
+        <span>${invoiceDraftRows.length} rows &middot; Packing instructions &middot; ${totalWorkload.toFixed(1)} workload points</span>
       </div>
       <div class="draft-summary-grid">
         ${totals.map((item) => `
@@ -1435,8 +1449,9 @@
   function renderInvoiceDraft() {
     if (!invoiceDraftBody) return;
     assignDraftRows();
+    const head = invoiceDraftBody.closest('table')?.querySelector('[data-invoice-draft-head]');
     if (!invoiceDraftRows.length) {
-      invoiceDraftBody.innerHTML = '<tr class="invoice-empty-row"><td colspan="8"><div class="invoice-empty-state"><i data-lucide="file-text"></i><div><strong>No invoice rows yet</strong><span>Upload and extract an invoice, or add a row manually.</span></div></div></td></tr>';
+      invoiceDraftBody.innerHTML = '<tr class="invoice-empty-row"><td colspan="6"><div class="invoice-empty-state"><i data-lucide="file-text"></i><div><strong>No invoice rows yet</strong><span>Upload and extract an invoice, or add a row manually.</span></div></div></td></tr>';
       if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
       setInvoiceStep('upload');
       renderDraftWorkloadSummary();
@@ -1445,29 +1460,39 @@
     const personOptions = '<option value="">Auto</option>' + packers.map((packer) => `<option value="${esc(packer.id)}">${esc(packer.full_name)}</option>`).join('');
     const priorityOptions = priorities.map(([value, label]) => `<option value="${esc(value)}">${esc(label)}</option>`).join('');
     const unitOptions = [['','Unit required'],['kg','kg'],['g','g'],['L','L'],['ml','ml'],['units','units']].map(([value,label])=>`<option value="${value}">${label}</option>`).join('');
-    invoiceDraftBody.innerHTML = invoiceDraftRows.map((row, index) => {
+    const stageTwo = receivedReviewComplete();
+    document.querySelectorAll('[data-invoice-review-stage]').forEach((step) => step.classList.toggle('is-active', step.dataset.invoiceReviewStage === (stageTwo ? 'instructions' : 'received')));
+    if (head) head.innerHTML = stageTwo
+      ? '<th data-col-key="item">Item</th><th data-col-key="received">Received</th><th data-col-key="unit">Unit</th><th data-col-key="packing">Quantity to pack</th><th data-col-key="allocated">Allocated / remaining</th><th data-col-key="priority">Priority</th><th data-col-key="assigned">Assigned</th><th data-col-key="physical">Physical workload</th><th data-col-key="weighted">Weighted workload</th><th data-col-key="actions">Actions</th>'
+      : '<th data-col-key="item">Item</th><th data-col-key="received">Extracted quantity</th><th data-col-key="unit">Unit *</th><th data-col-key="normalised">Normalised quantity</th><th data-col-key="status">Status</th><th data-col-key="actions">Action</th>';
+    if (!stageTwo) {
+      invoiceDraftBody.innerHTML = invoiceDraftRows.map((row, index) => {
+        const state = receivedQuantityState(row);
+        const statusClass = `is-${state.status}`;
+        return `<tr data-draft-index="${index}" class="${state.valid ? '' : 'has-draft-warning'} ${statusClass}">
+          <td><input data-draft-field="item_name" value="${esc(row.item_name || '')}"></td>
+          <td><input data-draft-field="received_weight" value="${esc(String(row.received_weight || '').match(/\d+(?:\.\d+)?/)?.[0] || '')}" inputmode="decimal" aria-label="Received quantity"></td>
+          <td><select data-draft-field="unit" required>${unitOptions}</select></td>
+          <td><strong>${state.valid ? formatPhysical(state.received.dimension, state.received.base) : '—'}</strong></td>
+          <td><small class="quantity-row-status ${statusClass}">${esc(state.message)}</small></td>
+          <td class="draft-row-actions"><button type="button" class="confirm-quantity-row" title="Confirm received quantity" data-confirm-quantity-row="${index}" ${!state.valid || row.quantity_confirmed === true ? 'disabled' : ''}><i data-lucide="check"></i></button><button type="button" title="Remove row" data-remove-draft-row="${index}"><i data-lucide="trash-2"></i></button></td>
+        </tr>`;
+      }).join('');
+      invoiceDraftBody.querySelectorAll('[data-draft-field="unit"]').forEach((select) => { select.value = String(invoiceDraftRows[Number(select.closest('tr')?.dataset.draftIndex || 0)]?.unit || ''); });
+    } else invoiceDraftBody.innerHTML = invoiceDraftRows.map((row, index) => {
       const accounting = quantityAccounting(row);
-      const warning = accounting.valid && row.quantity_confirmed !== true ? 'Valid — confirmation required' : accounting.message;
-      const parts = Array.isArray(row.pack_parts) ? row.pack_parts : quantityPlanParts(row.quantity_planned || '');
-      row.pack_parts = parts;
-      const statusClass = accounting.valid ? (row.quantity_confirmed === true ? 'is-confirmed' : 'is-valid') : `is-${accounting.status}`;
+      const parts = Array.isArray(row.pack_parts) ? row.pack_parts : quantityPlanParts(row.quantity_planned || ''); row.pack_parts = parts;
+      const statusClass = `is-${accounting.status}`;
       const builder = row.builder_open ? `<div class="pack-size-builder" data-pack-builder="${index}"><div class="pack-size-builder-head"><span>Pack size</span><span>Quantity</span><span></span></div>${parts.map((part, partIndex) => `<div class="pack-size-builder-row"><div><input type="number" min="0" step="0.001" data-pack-part-field="amount" data-pack-part-index="${partIndex}" value="${esc(part.amount)}"><select data-pack-part-field="unit" data-pack-part-index="${partIndex}">${['g','kg','ml','L','units'].map((unit) => `<option value="${unit}" ${unit === part.unit ? 'selected' : ''}>${unit}</option>`).join('')}</select></div><input type="number" min="1" step="1" data-pack-part-field="count" data-pack-part-index="${partIndex}" value="${esc(part.count)}"><button type="button" data-remove-pack-part="${partIndex}" data-row-index="${index}" aria-label="Remove pack size"><i data-lucide="x"></i></button></div>`).join('')}<button type="button" class="pack-size-add" data-add-pack-part="${index}"><i data-lucide="plus"></i> Add Pack Size</button></div>` : '';
-      return `
-      <tr data-draft-index="${index}" class="${accounting.valid ? '' : 'has-draft-warning'} ${statusClass}">
-        <td><input data-draft-field="item_name" value="${esc(row.item_name || '')}"></td>
-        <td><input data-draft-field="received_weight" value="${esc(row.received_weight || '')}"></td>
-        <td><select data-draft-field="unit" required>${unitOptions}</select></td>
+      const physical = draftPhysical(row);
+      return `<tr data-draft-index="${index}" class="${accounting.valid ? '' : 'has-draft-warning'} ${statusClass}">
+        <td>${esc(row.item_name || '')}</td><td>${esc(row.received_weight || '')}</td><td>${esc(row.unit || '')}</td>
         <td><input data-draft-field="quantity_planned" value="${esc(row.quantity_planned || '')}" placeholder="100g(20), 250g(8)"><button type="button" class="pack-builder-toggle" data-toggle-pack-builder="${index}">${row.builder_open ? 'Close rows' : 'Edit as rows'}</button>${builder}<label class="draft-bulk-remainder">Bulk remainder <input type="number" min="0" step="0.001" data-draft-field="bulk_remainder" value="${esc(row.bulk_remainder || '')}" placeholder="0"></label><button type="button" class="leave-as-bulk" data-leave-as-bulk="${index}" ${accounting.status === 'under_allocated' ? '' : 'hidden'}>${accounting.status === 'under_allocated' ? `Leave ${formatPhysical(accounting.received.dimension, accounting.difference)} as Bulk` : 'Leave as Bulk'}</button></td>
-        <td><select data-draft-field="priority">${priorityOptions}</select></td>
-        <td><select data-draft-field="assigned_employee_id">${personOptions}</select></td>
-        <td data-draft-workload><strong>Allocated: ${formatPhysical(accounting.received.dimension || 'count', accounting.plannedBase)}</strong><small>Remaining: ${formatPhysical(accounting.received.dimension || 'count', Math.max(0, accounting.difference))}</small><small class="quantity-row-status ${statusClass}">${row.quantity_confirmed === true ? '✓ Quantity confirmed' : esc(warning)}</small></td>
-        <td class="draft-row-actions">
-          <button type="button" class="confirm-quantity-row" title="Confirm quantity" data-confirm-quantity-row="${index}" ${!accounting.valid || row.quantity_confirmed === true ? 'disabled' : ''}><i data-lucide="check"></i></button>
-          <button type="button" title="Split row" data-split-draft-row="${index}"><i data-lucide="copy-plus"></i></button>
-          <button type="button" title="Remove row" data-remove-draft-row="${index}"><i data-lucide="trash-2"></i></button>
-        </td>
-      </tr>
-    `;
+        <td data-draft-workload><strong>Allocated: ${formatPhysical(accounting.received.dimension || 'count', accounting.plannedBase)}</strong><small>Remaining: ${formatPhysical(accounting.received.dimension || 'count', Math.max(0, accounting.difference))}</small><small class="quantity-row-status ${statusClass}">${esc(accounting.message)}</small></td>
+        <td><select data-draft-field="priority">${priorityOptions}</select></td><td><select data-draft-field="assigned_employee_id">${personOptions}</select></td>
+        <td><strong>${formatPhysical('weight', physical.weight)}</strong><small>${formatPhysical('volume', physical.volume)} · ${formatPhysical('count', physical.count)}</small></td><td><strong>${Number(row.workload || draftWorkload(row)).toFixed(1)} points</strong></td>
+        <td class="draft-row-actions"><button type="button" title="Split row" data-split-draft-row="${index}"><i data-lucide="copy-plus"></i></button><button type="button" title="Remove row" data-remove-draft-row="${index}"><i data-lucide="trash-2"></i></button></td>
+      </tr>`;
     }).join('');
     invoiceDraftBody.querySelectorAll('[data-draft-field="assigned_employee_id"]').forEach((select) => {
       const row = invoiceDraftRows[Number(select.closest('tr')?.dataset.draftIndex || 0)];
@@ -1486,9 +1511,10 @@
     saveInvoiceCorrectionDraft();
     const finalButton = invoiceModal?.querySelector('[data-confirm-quantities-create]');
     if (finalButton) {
-      finalButton.disabled = !allInvoiceQuantitiesConfirmed();
-      finalButton.textContent = allInvoiceQuantitiesConfirmed() ? 'Confirm Quantities & Redistribute Packers' : 'Complete Quantity Review';
+      finalButton.disabled = !allPackingAllocationsComplete();
+      finalButton.textContent = 'Create Packing Items';
     }
+    setupInvoiceColumnResizing();
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
   }
 
@@ -1515,7 +1541,11 @@
   }
 
   function allInvoiceQuantitiesConfirmed() {
-    return invoiceDraftRows.length > 0 && invoiceDraftRows.every((row) => quantityAccounting(row).valid && row.quantity_confirmed === true);
+    return receivedReviewComplete();
+  }
+
+  function allPackingAllocationsComplete() {
+    return receivedReviewComplete() && invoiceDraftRows.every((row) => quantityAccounting(row).valid && String(row.priority || '').trim() && String(row.assigned_employee_id || '').trim());
   }
 
   async function completeQuantityReview() {
@@ -1523,9 +1553,25 @@
     const result = redistributeDraftRows();
     renderInvoiceDraft();
     setInvoiceStep('assign');
-    setInvoiceProgress(true, 'All invoice quantities confirmed', 'Physical and weighted workload recalculated; complete product rows were redistributed.', 'success');
-    setInvoiceStatus(`All invoice quantities confirmed. ${result.message || 'Packers redistributed.'}`);
+    setInvoiceProgress(true, 'All received quantities confirmed', 'Initial physical workload was calculated and complete product rows were redistributed.', 'success');
+    setInvoiceStatus(`All received quantities confirmed. ${result.message || 'Packers redistributed.'} Enter packing instructions next.`);
     return true;
+  }
+
+  function setupInvoiceColumnResizing() {
+    const table = invoiceDraftBody?.closest('table');
+    if (!table || window.matchMedia('(pointer: coarse)').matches) return;
+    table.querySelectorAll('th[data-col-key]').forEach((th) => {
+      if (th.querySelector('.invoice-column-resizer')) return;
+      const handle = document.createElement('span'); handle.className = 'invoice-column-resizer'; handle.setAttribute('aria-hidden', 'true'); th.appendChild(handle);
+      const key = th.dataset.colKey; const saved = Number(sessionStorage.getItem(`packingInvoiceColumn:${key}`) || 0); if (saved) th.style.width = `${saved}px`;
+      handle.addEventListener('pointerdown', (event) => {
+        event.preventDefault(); const startX = event.clientX; const startWidth = th.getBoundingClientRect().width;
+        const move = (moveEvent) => { const width = Math.max(Number(th.dataset.minWidth || 80), startWidth + moveEvent.clientX - startX); th.style.width = `${width}px`; sessionStorage.setItem(`packingInvoiceColumn:${key}`, String(Math.round(width))); };
+        const stop = () => { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', stop); };
+        document.addEventListener('pointermove', move); document.addEventListener('pointerup', stop);
+      });
+    });
   }
 
   function updatePackPart(rowIndex, partIndex, field, value) {
@@ -1535,7 +1581,6 @@
     if (!row.pack_parts[partIndex]) return;
     row.pack_parts[partIndex][field] = field === 'unit' ? value : Number(value || 0);
     row.quantity_planned = quantityPlanFromParts(row.pack_parts);
-    row.quantity_confirmed = false;
     row.workload = draftWorkload(row);
     saveInvoiceCorrectionDraft();
   }
@@ -2985,7 +3030,7 @@
       renderInvoiceDraft();
       setInvoiceStep('review');
       setInvoiceProgress(true, 'Extraction complete', `${invoiceDraftRows.length} draft row${invoiceDraftRows.length === 1 ? '' : 's'} ready for review.`, 'success');
-      setInvoiceStatus(`${data.message} Review rows, enter quantity-to-pack breakdown, then confirm.`);
+      setInvoiceStatus(`${data.message} Confirm each received quantity and unit. Packing instructions follow after redistribution.`);
     } catch (error) {
       setInvoiceStep('extract', 'error');
       setInvoiceProgress(true, 'Extraction failed', error.message || 'Could not extract this invoice. You can still use the manual fallback.', 'error');
@@ -3569,26 +3614,26 @@
       }
       if (addPackPart) {
         const index = Number(addPackPart.dataset.addPackPart); const row = invoiceDraftRows[index];
-        if (row) { row.pack_parts = Array.isArray(row.pack_parts) ? row.pack_parts : []; row.pack_parts.push({ amount: 100, unit: row.unit === 'L' || row.unit === 'ml' ? 'ml' : row.unit === 'units' ? 'units' : 'g', count: 1 }); row.quantity_planned = quantityPlanFromParts(row.pack_parts); row.quantity_confirmed = false; renderInvoiceDraft(); }
+        if (row) { row.pack_parts = Array.isArray(row.pack_parts) ? row.pack_parts : []; row.pack_parts.push({ amount: 100, unit: row.unit === 'L' || row.unit === 'ml' ? 'ml' : row.unit === 'units' ? 'units' : 'g', count: 1 }); row.quantity_planned = quantityPlanFromParts(row.pack_parts); renderInvoiceDraft(); }
         return;
       }
       if (removePackPart) {
         const index = Number(removePackPart.dataset.rowIndex); const row = invoiceDraftRows[index];
-        if (row?.pack_parts) { row.pack_parts.splice(Number(removePackPart.dataset.removePackPart), 1); row.quantity_planned = quantityPlanFromParts(row.pack_parts); row.quantity_confirmed = false; renderInvoiceDraft(); }
+        if (row?.pack_parts) { row.pack_parts.splice(Number(removePackPart.dataset.removePackPart), 1); row.quantity_planned = quantityPlanFromParts(row.pack_parts); renderInvoiceDraft(); }
         return;
       }
       if (leaveAsBulk) {
         const index = Number(leaveAsBulk.dataset.leaveAsBulk); const row = invoiceDraftRows[index]; const accounting = row ? quantityAccounting(row) : null;
-        if (row && accounting?.difference > 0) { row.bulk_remainder = Number((accounting.difference / (parsePackUnit(row.unit)?.factor || 1)).toFixed(3)); row.quantity_confirmed = false; renderInvoiceDraft(); }
+        if (row && accounting?.difference > 0) { row.bulk_remainder = Number((accounting.difference / (parsePackUnit(row.unit)?.factor || 1)).toFixed(3)); renderInvoiceDraft(); }
         return;
       }
       if (confirmQuantityRow) {
         const row = invoiceDraftRows[Number(confirmQuantityRow.dataset.confirmQuantityRow)];
-        if (row && quantityAccounting(row).valid) { row.quantity_confirmed = true; renderInvoiceDraft(); if (invoiceAutoRedistribute) await completeQuantityReview(); }
+        if (row && receivedQuantityState(row).valid) { row.quantity_confirmed = true; row.assignment_stale = false; renderInvoiceDraft(); if (invoiceAutoRedistribute) await completeQuantityReview(); }
         return;
       }
       if (confirmAllValid) {
-        invoiceDraftRows.forEach((row) => { if (quantityAccounting(row).valid) row.quantity_confirmed = true; });
+        invoiceDraftRows.forEach((row) => { if (receivedQuantityState(row).valid) { row.quantity_confirmed = true; row.assignment_stale = false; } });
         renderInvoiceDraft();
         if (invoiceAutoRedistribute) await completeQuantityReview();
         return;
@@ -3967,7 +4012,10 @@
       if (row) {
         const fieldName = draftField.dataset.draftField;
         row[fieldName] = draftField.value;
-        if (['received_weight', 'quantity_planned', 'unit', 'bulk_remainder'].includes(fieldName)) row.quantity_confirmed = false;
+        if (['received_weight', 'unit'].includes(fieldName)) {
+          row.quantity_confirmed = false;
+          row.assignment_stale = true;
+        }
         if (fieldName === 'assigned_employee_id') {
           const packer = packers.find((item) => String(item.id) === String(draftField.value));
           row.assigned_name = packer?.full_name || '';
@@ -3980,11 +4028,15 @@
           }
         }
         row.workload = draftWorkload(row);
-        if (['received_weight', 'quantity_planned', 'unit', 'priority', 'bulk_remainder'].includes(fieldName)) {
+        if (['quantity_planned', 'priority', 'bulk_remainder'].includes(fieldName)) {
           if (fieldName === 'quantity_planned') row.pack_parts = quantityPlanParts(row.quantity_planned || '');
-          const result = assignDraftRows();
           renderInvoiceDraft();
-          setInvoiceStatus(result.message || 'Assignments refreshed after the draft row changed.');
+          setInvoiceStatus(fieldName === 'priority' ? 'Weighted workload updated. Balance changed; use Redistribute Packers if required.' : 'Packing allocation updated in the background.');
+          return;
+        }
+        if (['received_weight', 'unit'].includes(fieldName)) {
+          renderInvoiceDraft();
+          setInvoiceStatus('Received quantity changed. Redistribution required after reconfirmation.');
           return;
         }
         updateDraftWorkloadCell(draftField, row);
@@ -4013,7 +4065,7 @@
       const row = invoiceDraftRows[Number(draftField.closest('tr')?.dataset.draftIndex || 0)];
       if (row) {
         row[draftField.dataset.draftField] = draftField.value;
-        if (['received_weight', 'quantity_planned', 'unit', 'bulk_remainder'].includes(draftField.dataset.draftField)) row.quantity_confirmed = false;
+        if (['received_weight', 'unit'].includes(draftField.dataset.draftField)) { row.quantity_confirmed = false; row.assignment_stale = true; }
         if (draftField.dataset.draftField === 'quantity_planned') row.pack_parts = quantityPlanParts(row.quantity_planned || '');
         row.workload = draftWorkload(row);
         updateDraftWorkloadCell(draftField, row);
