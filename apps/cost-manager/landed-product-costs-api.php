@@ -2,6 +2,12 @@
 declare(strict_types=1);
 require_once dirname(__DIR__,2).'/config.php';require_once BASE_PATH.'/shared/auth.php';require_once BASE_PATH.'/shared/database.php';require_once BASE_PATH.'/shared/cost-workbook.php';
 require_role('owner_admin');header('Content-Type: application/json; charset=utf-8');
+register_shutdown_function(function(){
+    $error=error_get_last();
+    if(!$error||!in_array($error['type'],[E_ERROR,E_PARSE,E_CORE_ERROR,E_COMPILE_ERROR],true))return;
+    if(!headers_sent())http_response_code(500);
+    echo json_encode(['ok'=>false,'message'=>'Landed Product Costs could not load.','diagnostic'=>$error['message']],JSON_UNESCAPED_SLASHES);
+});
 function lpc_reply(array $x,int $s=200):void{http_response_code($s);echo json_encode($x,JSON_UNESCAPED_SLASHES);exit;}
 function lpc_body():array{$raw=file_get_contents('php://input');$x=json_decode((string)$raw,true);return is_array($x)?$x:$_POST;}
 function lpc_norm(string $s):string{$s=strtolower(trim(preg_replace('/[^a-zA-Z0-9]+/',' ',$s)));return trim(preg_replace('/\s+/',' ',$s));}
