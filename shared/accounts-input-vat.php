@@ -18,7 +18,7 @@ function accounts_input_vat_schema_ready(): bool
 {
     static $ready = false;
     if ($ready) return true;
-    $schemaVersion = '2026-08-14.1';
+    $schemaVersion = '2026-08-19.1';
     db()->exec("CREATE TABLE IF NOT EXISTS accounts_settings (setting_key VARCHAR(80) PRIMARY KEY, setting_value VARCHAR(255) NOT NULL, updated_by INT NULL, updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     $versionStmt = db()->prepare("SELECT setting_value FROM accounts_settings WHERE setting_key='input_vat_schema_version'");
     $versionStmt->execute();
@@ -32,7 +32,14 @@ function accounts_input_vat_schema_ready(): bool
     ];
     foreach ($queries as $query) db()->exec($query);
     db()->exec("INSERT IGNORE INTO accounts_settings (setting_key, setting_value) VALUES ('standard_vat_rate', '15')");
-    db()->exec("INSERT IGNORE INTO accounts_settings (setting_key, setting_value) VALUES ('historical_capture_start_date', '2026-03-01')");
+    db()->exec("INSERT IGNORE INTO accounts_settings (setting_key, setting_value) VALUES ('historical_capture_start_date', '2025-03-01')");
+    $captureStartFix = db()->prepare("UPDATE accounts_settings SET setting_value='2025-03-01' WHERE setting_key='historical_capture_start_date' AND setting_value='2026-03-01'");
+    $captureStartFix->execute();
+    if ($captureStartFix->rowCount() > 0) {
+        db()->prepare('INSERT INTO accounts_settings_audit(setting_key,old_value,new_value,changed_by,changed_by_name,effective_from)VALUES(?,?,?,?,?,NOW())')->execute([
+            'historical_capture_start_date', '2026-03-01', '2025-03-01', 0, 'System (schema correction)',
+        ]);
+    }
     $columns = [
         'invoice_reference' => "VARCHAR(190) NULL AFTER supplier",
         'notes' => "TEXT NULL AFTER description",
@@ -79,8 +86,8 @@ function accounts_historical_capture_start_date(): string
 {
     accounts_input_vat_schema_ready();
     $stmt = db()->prepare("SELECT setting_value FROM accounts_settings WHERE setting_key='historical_capture_start_date'"); $stmt->execute();
-    $value = (string) ($stmt->fetchColumn() ?: '2026-03-01');
-    return preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) ? $value : '2026-03-01';
+    $value = (string) ($stmt->fetchColumn() ?: '2025-03-01');
+    return preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) ? $value : '2025-03-01';
 }
 function accounts_vat_calculate_from_source(float $amount, string $source, string $treatment, float $zeroRatedAmount = 0.0): array
 {

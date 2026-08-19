@@ -125,6 +125,14 @@ assert.match(api, /function iv_valid_purchase_date/);
 assert.match(api, /checkdate\(\(int\) \$parts\[2\], \(int\) \$parts\[3\], \(int\) \$parts\[1\]\)/);
 assert.match(api, /purchase_date>=\? AND purchase_date<\?/);
 assert.match(service, /historical_capture_start_date/);
+
+// Historical capture start must allow the 2025/2026 VAT reconstruction (March 2025 onward), not be stuck a year ahead.
+assert.match(service, /INSERT IGNORE INTO accounts_settings \(setting_key, setting_value\) VALUES \('historical_capture_start_date', '2025-03-01'\)/);
+assert.match(service, /UPDATE accounts_settings SET setting_value='2025-03-01' WHERE setting_key='historical_capture_start_date' AND setting_value='2026-03-01'/, 'must self-correct the already-live wrong default in production');
+assert.match(service, /\(string\) \(\$stmt->fetchColumn\(\) \?: '2025-03-01'\)/);
+assert.match(service, /\? \$value : '2025-03-01'/);
+assert.doesNotMatch(service, /fetchColumn\(\) \?: '2026-03-01'|\$value : '2026-03-01'/, 'no fallback should default to the buggy one-year-ahead date');
+
 assert.match(service, /accounts_vat_calculate_from_source/);
 assert.match(service, /automatic_vat_amount/);
 assert.match(service, /vat_rate_used/);
