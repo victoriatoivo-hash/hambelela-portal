@@ -372,10 +372,11 @@ try {
     }
 
     if ($action === 'delete') {
-        if (!accounts_is_owner()) throw new RuntimeException('Only the owner can delete purchases.');
+        if (!accounts_can_manage_input_vat_entries()) throw new RuntimeException('You do not have permission to delete Input VAT entries.');
         $id = (int) ($_POST['id'] ?? 0);
         $before = accounts_purchase($id);
         if (!$before) throw new RuntimeException('Purchase not found.');
+        if (!accounts_can_delete_purchase($before)) throw new RuntimeException('You do not have permission to delete this purchase.');
 
         db()->prepare('UPDATE accounts_input_vat_purchases SET deleted_at=NOW(),deleted_by=? WHERE id=? AND deleted_at IS NULL')->execute([
             (int) (current_user()['id'] ?? 0),
@@ -387,7 +388,7 @@ try {
     }
 
     if ($action === 'delete_attachment') {
-        if (!accounts_is_owner()) throw new RuntimeException('Only the owner can remove attachments.');
+        if (!accounts_can_manage_input_vat_entries()) throw new RuntimeException('You do not have permission to remove attachments.');
         $id = (int) ($_POST['attachment_id'] ?? 0);
         $stmt = db()->prepare('SELECT * FROM accounts_input_vat_attachments WHERE id=? AND deleted_at IS NULL');
         $stmt->execute([$id]);

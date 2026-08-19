@@ -39,6 +39,29 @@ assert.match(features, /\/apps\/accounts\/input-vat-api\.php' => \['input_vat'/)
 assert.match(features, /in_array\(\$feature\[0\], \['accounts', 'input_vat'\], true\)/);
 assert.match(features, /http_response_code\(403\)/);
 
+// Front Desk must be able to add/edit/delete Input VAT entries and attachments (role-based, not per-employee).
+assert.match(service, /function accounts_can_manage_input_vat_entries\(\): bool\s*\{\s*return accounts_is_owner\(\) \|\| accounts_is_front_desk\(\);/);
+assert.match(service, /function accounts_can_edit_purchase\(array \$purchase\): bool\s*\{\s*return accounts_can_manage_input_vat_entries\(\);/);
+assert.match(service, /function accounts_can_delete_purchase\(array \$purchase\): bool\s*\{\s*return accounts_can_manage_input_vat_entries\(\);/);
+assert.doesNotMatch(service, /accounts_can_edit_purchase.*created_by.*review_status/s);
+assert.match(service, /'can_delete'=>accounts_can_manage_input_vat_entries\(\)\]/, 'attachment payload can_delete must not be owner-only');
+assert.match(service, /'can_delete'=>accounts_can_delete_purchase\(\$row\)/, 'purchase payload can_delete must not be owner-only');
+assert.match(service, /'can_view_audit'=>accounts_is_owner\(\)/, 'audit history must remain owner-only');
+assert.match(api, /if \(!accounts_can_manage_input_vat_entries\(\)\) throw new RuntimeException\('You do not have permission to delete Input VAT entries\.'\);/);
+assert.match(api, /if \(!accounts_can_manage_input_vat_entries\(\)\) throw new RuntimeException\('You do not have permission to remove attachments\.'\);/);
+assert.doesNotMatch(api, /Only the owner can delete purchases\.|Only the owner can remove attachments\./);
+assert.match(api, /if \(!accounts_is_owner\(\)\) throw new RuntimeException\('Only the owner can view audit history\.'\);/, 'audit history endpoint must remain owner-only');
+
+const deleteConfirmCopy = "Are you sure you want to delete this Input VAT entry\\? This action will remove the transaction from the active VAT records\\.";
+for (const tpl of [page, liveEntry]) {
+  assert.match(tpl, new RegExp('data-delete-confirm-dialog'));
+  assert.match(tpl, new RegExp(deleteConfirmCopy));
+  assert.match(tpl, /data-confirm-delete>Delete Entry</);
+}
+assert.match(js, /\[data-delete-confirm-dialog\]/);
+assert.match(js, /\[data-confirm-delete\]/);
+assert.doesNotMatch(js, /confirm\('Move this purchase to audit history\?'\)/);
+
 assert.match(sidebar, /'label' => 'Accounts'.*\/apps\/accounts\/index\.php/);
 assert.match(sidebar, /'label' => 'Input VAT'.*\/apps\/accounts\/input-vat\.php/);
 assert.match(sidebar, /'input-vat' => 'input_vat'/);

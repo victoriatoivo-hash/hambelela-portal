@@ -714,10 +714,14 @@
     }
 
     if (del) {
-      if (!confirm('Move this purchase to audit history?')) return;
-      await request('delete', {id: del.dataset.delete}); monthlyResponseCache.clear();
-      await load();
-      showToast('Purchase moved to audit history.', 'success');
+      const deleteDialog = $('[data-delete-confirm-dialog]');
+      deleteDialog.showModal();
+      deleteDialog.querySelector('[data-confirm-delete]').onclick = async () => {
+        deleteDialog.close();
+        await request('delete', {id: del.dataset.delete}); monthlyResponseCache.clear();
+        await load();
+        showToast('Purchase moved to audit history.', 'success');
+      };
       return;
     }
 
