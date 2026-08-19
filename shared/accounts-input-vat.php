@@ -99,9 +99,17 @@ function accounts_purchase(int $id, bool $includeDeleted = false): ?array
     $sql = 'SELECT * FROM accounts_input_vat_purchases WHERE id=?' . ($includeDeleted ? '' : ' AND deleted_at IS NULL') . ' LIMIT 1';
     $stmt = db()->prepare($sql); $stmt->execute([$id]); $row = $stmt->fetch(); return $row ?: null;
 }
+function accounts_can_manage_input_vat_entries(): bool
+{
+    return accounts_is_owner() || accounts_is_front_desk();
+}
 function accounts_can_edit_purchase(array $purchase): bool
 {
-    return accounts_is_owner() || (accounts_is_front_desk() && (int) $purchase['created_by'] === (int) (current_user()['id'] ?? 0) && (string) $purchase['review_status'] !== 'reviewed');
+    return accounts_can_manage_input_vat_entries();
+}
+function accounts_can_delete_purchase(array $purchase): bool
+{
+    return accounts_can_manage_input_vat_entries();
 }
 function accounts_audit(int $id, string $action, ?array $before, ?array $after): void
 {
@@ -110,10 +118,10 @@ function accounts_audit(int $id, string $action, ?array $before, ?array $after):
 }
 function accounts_attachment_payload(array $row): array
 {
-    return ['id'=>(int)$row['id'],'name'=>(string)$row['original_filename'],'mime_type'=>(string)$row['mime_type'],'size'=>(int)$row['file_size'],'view_url'=>'input-vat-file.php?id='.(int)$row['id'].'&mode=view','download_url'=>'input-vat-file.php?id='.(int)$row['id'].'&mode=download','can_delete'=>accounts_is_owner()];
+    return ['id'=>(int)$row['id'],'name'=>(string)$row['original_filename'],'mime_type'=>(string)$row['mime_type'],'size'=>(int)$row['file_size'],'view_url'=>'input-vat-file.php?id='.(int)$row['id'].'&mode=view','download_url'=>'input-vat-file.php?id='.(int)$row['id'].'&mode=download','can_delete'=>accounts_can_manage_input_vat_entries()];
 }
 function accounts_purchase_payload(array $row, ?array $attachments = null): array
 {
     if ($attachments === null) { $stmt=db()->prepare('SELECT * FROM accounts_input_vat_attachments WHERE purchase_id=? AND deleted_at IS NULL ORDER BY id');$stmt->execute([(int)$row['id']]);$attachments=$stmt->fetchAll(); }
-    return ['id'=>(int)$row['id'],'purchase_date'=>(string)$row['purchase_date'],'supplier'=>(string)$row['supplier'],'invoice_reference'=>(string)($row['invoice_reference']??''),'description'=>(string)$row['description'],'notes'=>(string)($row['notes']??''),'inclusive'=>(float)$row['amount_incl_vat'],'vat'=>(float)$row['vat_amount'],'exclusive'=>(float)$row['amount_excl_vat'],'vat_rate'=>(float)($row['vat_rate_used']??$row['vat_rate']),'vat_treatment'=>(string)$row['vat_treatment'],'calculation_source'=>(string)($row['calculation_source']??'inclusive'),'automatic_vat'=>(float)($row['automatic_vat_amount']??$row['vat_amount']),'automatic_exclusive'=>(float)($row['automatic_excl_vat']??$row['amount_excl_vat']),'standard_rated_inclusive'=>(float)($row['standard_rated_incl_vat']??0),'standard_rated_exclusive'=>(float)($row['standard_rated_excl_vat']??0),'zero_rated_amount'=>(float)($row['zero_rated_amount']??0),'manual_override'=>(bool)($row['manual_override']??false),'override_reason'=>(string)($row['override_reason']??''),'historical_back_capture'=>(bool)($row['historical_back_capture']??false),'review_status'=>(string)$row['review_status'],'review_note'=>(string)($row['review_note']??''),'entered_by'=>(string)$row['created_by_name'],'created_by'=>(int)$row['created_by'],'captured_at'=>(string)$row['created_at'],'updated_at'=>(string)$row['updated_at'],'can_edit'=>accounts_can_edit_purchase($row),'can_view_audit'=>accounts_is_owner(),'can_delete'=>accounts_is_owner(),'attachments'=>array_map('accounts_attachment_payload',$attachments)];
+    return ['id'=>(int)$row['id'],'purchase_date'=>(string)$row['purchase_date'],'supplier'=>(string)$row['supplier'],'invoice_reference'=>(string)($row['invoice_reference']??''),'description'=>(string)$row['description'],'notes'=>(string)($row['notes']??''),'inclusive'=>(float)$row['amount_incl_vat'],'vat'=>(float)$row['vat_amount'],'exclusive'=>(float)$row['amount_excl_vat'],'vat_rate'=>(float)($row['vat_rate_used']??$row['vat_rate']),'vat_treatment'=>(string)$row['vat_treatment'],'calculation_source'=>(string)($row['calculation_source']??'inclusive'),'automatic_vat'=>(float)($row['automatic_vat_amount']??$row['vat_amount']),'automatic_exclusive'=>(float)($row['automatic_excl_vat']??$row['amount_excl_vat']),'standard_rated_inclusive'=>(float)($row['standard_rated_incl_vat']??0),'standard_rated_exclusive'=>(float)($row['standard_rated_excl_vat']??0),'zero_rated_amount'=>(float)($row['zero_rated_amount']??0),'manual_override'=>(bool)($row['manual_override']??false),'override_reason'=>(string)($row['override_reason']??''),'historical_back_capture'=>(bool)($row['historical_back_capture']??false),'review_status'=>(string)$row['review_status'],'review_note'=>(string)($row['review_note']??''),'entered_by'=>(string)$row['created_by_name'],'created_by'=>(int)$row['created_by'],'captured_at'=>(string)$row['created_at'],'updated_at'=>(string)$row['updated_at'],'can_edit'=>accounts_can_edit_purchase($row),'can_view_audit'=>accounts_is_owner(),'can_delete'=>accounts_can_delete_purchase($row),'attachments'=>array_map('accounts_attachment_payload',$attachments)];
 }

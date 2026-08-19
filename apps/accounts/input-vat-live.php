@@ -207,6 +207,10 @@ include BASE_PATH.'/shared/sidebar.php';
     <form method="dialog"><header><div><p class="eyebrow">Duplicate check</p><h2>Possible duplicate purchase</h2></div><button value="cancel" aria-label="Close">&times;</button></header><p>The same date, supplier and amount already exist. Review before saving again.</p><div data-duplicate-matches></div><footer><button value="cancel" class="portal-button portal-button--ghost">Cancel</button><button type="button" class="portal-button portal-button--primary" data-save-duplicate>Save Anyway</button></footer></form>
   </dialog>
 
+  <dialog class="accounts-dialog" data-delete-confirm-dialog>
+    <form method="dialog"><header><div><p class="eyebrow">Input VAT</p><h2>Delete purchase</h2></div><button value="cancel" aria-label="Close">&times;</button></header><p>Are you sure you want to delete this Input VAT entry? This action will remove the transaction from the active VAT records.</p><footer><button value="cancel" class="portal-button portal-button--ghost">Cancel</button><button type="button" class="portal-button portal-button--primary" data-confirm-delete>Delete Entry</button></footer></form>
+  </dialog>
+
   <dialog class="accounts-dialog" data-audit-dialog>
     <form method="dialog">
       <header>
