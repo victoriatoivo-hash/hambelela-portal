@@ -1,5 +1,5 @@
 import fs from 'node:fs';import assert from 'node:assert/strict';
-const shared=fs.readFileSync('shared/accounts-import-vat.php','utf8'),api=fs.readFileSync('apps/accounts/import-vat-api.php','utf8'),page=fs.readFileSync('apps/accounts/import-vat.php','utf8'),index=fs.readFileSync('apps/accounts/index.php','utf8');
+const shared=fs.readFileSync('shared/accounts-import-vat.php','utf8'),api=fs.readFileSync('apps/accounts/import-vat-api.php','utf8'),page=fs.readFileSync('apps/accounts/import-vat.php','utf8'),index=fs.readFileSync('apps/accounts/index.php','utf8'),js=fs.readFileSync('assets/js/import-vat.js','utf8');
 for(const table of ['accounts_import_vat_liabilities','accounts_import_vat_payments','accounts_import_vat_documents','accounts_import_vat_audit','accounts_import_vat_statements','accounts_import_vat_statement_rows','accounts_import_vat_statement_audit'])assert.ok(shared.includes(table),table);
 assert.ok(shared.includes("SUM(CASE WHEN p.reversed_at IS NULL THEN p.amount ELSE 0 END)"),'ledger totals derive paid amount');
 assert.ok(shared.includes("return'partially_paid'")&&shared.includes("return'overdue'")&&shared.includes("return'overpayment'"),'payment states');
@@ -9,6 +9,11 @@ assert.ok(page.includes('Monthly Imports')&&page.includes('Payment Tracker')&&pa
 assert.ok(page.includes('Upload NamRA Statement')&&page.includes('NamRA Statement History')&&page.includes('Confirm Import'),'statement workflow UI');
 assert.ok(api.includes('upload_statement')&&api.includes('update_statement_row')&&api.includes('confirm_statement'),'statement API actions');
 assert.ok(api.includes('sha256')&&api.includes('beginTransaction')&&api.includes('source_statement_row_id'),'duplicate-safe transactional posting');
+assert.ok(shared.includes('source_row_number INT NOT NULL')&&shared.includes('UNIQUE KEY uq_import_statement_row(statement_id,source_row_number)'),'row_number column renamed to source_row_number (row_number is a reserved word in newer MariaDB and broke uploads with a 1064 syntax error)');
+assert.ok(shared.includes("CHANGE COLUMN `row_number` source_row_number INT NOT NULL"),'already-live installs get a safe, data-preserving column rename instead of losing the old column');
+assert.ok(api.includes('INSERT INTO accounts_import_vat_statement_rows(statement_id,source_row_number,')&&api.includes("$r['source_row_number']"),'statement row insert/read uses the renamed column');
+assert.ok(!api.includes(',row_number,')&&!api.includes("$r['row_number']"),'API must not reference the old reserved-word column name (regression: forgetting to quote it reintroduces the syntax error)');
+assert.ok(!js.includes('r.row_number')&&js.includes('r.source_row_number'),'review UI renders the renamed field');
 assert.ok(shared.includes('confirmed NamRA Transaction Records format'),'conservative heading parser');
 for(const field of ['Tax Type','Transaction Type','Liability Type','Doc No.','Tax Year','Tax Period','Due Date','Effective Date','Action Date','Transaction Amount'])assert.ok(shared.toLowerCase().includes(field.toLowerCase().replace('doc no.','doc no'))||shared.includes(field),`NamRA heading ${field}`);
 for(const mapping of ["'201'=>'assessment'","'204'=>'revision'","'129'=>'payment'","'481'=>'ignored_penalty'","'304'=>'ignored_interest'"])assert.ok(shared.includes(mapping),`NamRA mapping ${mapping}`);
