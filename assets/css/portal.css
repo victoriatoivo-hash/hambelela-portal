@@ -28071,33 +28071,30 @@ body.dark-mode .portal-dark-toggle {
 .digital-task-page .task-board-table .dtb-col-status { width:145px; }
 .digital-task-page .task-board-table .dtb-col-progress { width:100px; }
 
-#completed-tasks-section{display:grid;grid-template-columns:190px minmax(0,1fr);gap:16px;align-items:start}
-#completed-tasks-section .completed-employee-nav{position:sticky;top:16px;display:grid;gap:3px;padding:10px;border:1px solid #ead8cc;border-radius:12px;background:#fff}
-#completed-tasks-section .completed-employee-nav>p{margin:1px 4px 7px;color:#8a5e48;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
-#completed-tasks-section .completed-employee-nav__item{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;width:100%;min-height:38px;padding:8px 9px;border:0;border-left:3px solid transparent;border-radius:7px;background:transparent;color:#603d30;font-family:Figtree,Inter,sans-serif;font-size:12px;font-weight:500;text-align:left;cursor:pointer;transition:background 160ms ease,color 160ms ease}
-#completed-tasks-section .completed-employee-nav__item:hover{background:#fff5ef;color:#721B1A}
-#completed-tasks-section .completed-employee-nav__item.is-active{border-left-color:#AB3619;background:#fff0e6;color:#721B1A;font-weight:700}
-#completed-tasks-section .completed-employee-nav__item span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#completed-tasks-section .completed-employee-nav__item b{min-width:20px;color:#8a5e48;font-size:10px;font-weight:600;text-align:right}
-#completed-tasks-section .completed-employee-content{min-width:0}
-#completed-tasks-section .completed-employee-panel{display:grid;gap:14px;animation:completed-task-group-in 160ms ease both}
-#completed-tasks-section .completed-employee-panel[hidden]{display:none}
-#completed-tasks-section .completed-employee-panel__header,#completed-tasks-section .completed-all-employee-section>header,#completed-tasks-section .completed-month-section>header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+#completed-tasks-section{display:grid;gap:16px}
+#completed-tasks-section .completed-task-controls{display:grid;gap:9px;padding:13px 15px;border:1px solid #ead8cc;border-radius:12px;background:#fff}
+#completed-tasks-section .completed-task-control-row{display:flex;align-items:center;gap:12px;min-width:0}
+#completed-tasks-section .completed-task-control-row>span{flex:0 0 68px;color:#8a5e48;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+#completed-tasks-section .completed-employee-nav,#completed-tasks-section .completed-month-nav{display:flex;align-items:center;gap:6px;min-width:0;overflow-x:auto}
+#completed-tasks-section .completed-employee-nav__item,#completed-tasks-section .completed-month-nav a,#completed-tasks-section .completed-year-nav a{display:inline-flex;align-items:center;justify-content:center;min-height:30px;padding:6px 10px;border:1px solid #ead8cc;border-radius:7px;background:#fff;color:#603d30;font-family:Figtree,Inter,sans-serif;font-size:12px;font-weight:500;line-height:1;text-decoration:none;white-space:nowrap;transition:background 160ms ease,color 160ms ease,border-color 160ms ease}
+#completed-tasks-section .completed-employee-nav__item:hover,#completed-tasks-section .completed-month-nav a:hover,#completed-tasks-section .completed-year-nav a:hover{border-color:#c68666;background:#fff5ef;color:#721B1A}
+#completed-tasks-section .completed-employee-nav__item.is-active,#completed-tasks-section .completed-month-nav a.is-active{border-color:#AB3619;background:#fff0e6;color:#721B1A;font-weight:700}
+#completed-tasks-section .completed-year-nav{display:inline-grid;grid-template-columns:30px minmax(60px,auto) 30px;align-items:center;border:1px solid #ead8cc;border-radius:7px;overflow:hidden}
+#completed-tasks-section .completed-year-nav a{min-width:30px;padding:0;border:0;border-radius:0;font-size:20px}
+#completed-tasks-section .completed-year-nav strong{padding:0 10px;color:#5f2c25;font-size:12px;text-align:center}
+#completed-tasks-section .completed-employee-panel{display:grid;gap:10px;animation:completed-task-group-in 160ms ease both}
+#completed-tasks-section .completed-employee-panel__header{display:flex;align-items:center;justify-content:space-between;gap:12px}
 #completed-tasks-section .completed-employee-panel__header{padding:2px 2px 10px;border-bottom:1px solid #ead8cc}
 #completed-tasks-section .completed-employee-panel__header p{margin:0 0 3px;color:#8a5e48;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
 #completed-tasks-section .completed-employee-panel__header h2{margin:0;color:#721B1A;font-family:Figtree,Inter,sans-serif;font-size:17px;font-weight:700}
-#completed-tasks-section .completed-employee-panel__header>b,#completed-tasks-section .completed-all-employee-section>header>b,#completed-tasks-section .completed-month-section>header>b{color:#8a5e48;font-size:11px;font-weight:600;white-space:nowrap}
-#completed-tasks-section .completed-all-employee-section{display:grid;gap:10px;padding:12px;border:1px solid #ead8cc;border-radius:10px;background:#fff}
-#completed-tasks-section .completed-all-employee-section>header h3{margin:0;color:#721B1A;font-size:13px}
-#completed-tasks-section .completed-month-section{display:grid;gap:8px;padding:11px;border:1px solid #efdfd5;border-radius:9px;background:#fffcfa}
-#completed-tasks-section .completed-month-section>header h3,#completed-tasks-section .completed-month-section>header h4{margin:0;color:#5f2c25;font-family:Figtree,Inter,sans-serif;font-size:12px;font-weight:700}
+#completed-tasks-section .completed-employee-panel__header>b{color:#8a5e48;font-size:11px;font-weight:600;white-space:nowrap}
 #completed-tasks-section .completed-employee-table-wrap{width:100%;min-width:0;overflow-x:auto}
 #completed-tasks-section .completed-employee-table-wrap .task-board{margin:0}
 #completed-tasks-section .completed-employee-table-wrap .task-board-table .dtb-col-notes{width:300px}
 #completed-tasks-section .completed-empty-state{padding:28px 18px;border:1px dashed #d9bba9;border-radius:12px;color:#7a5745;text-align:center;background:#fffcfa}
 @keyframes completed-task-group-in{from{opacity:.01;transform:translateY(-3px)}to{opacity:1;transform:translateY(0)}}
-@media (max-width:700px){#completed-tasks-section{grid-template-columns:1fr;gap:10px}#completed-tasks-section .completed-employee-nav{position:static;display:flex;align-items:center;gap:6px;overflow-x:auto;padding:7px}#completed-tasks-section .completed-employee-nav>p{display:none}#completed-tasks-section .completed-employee-nav__item{flex:0 0 auto;min-height:34px;padding:7px 9px;border-left:0;border-bottom:3px solid transparent}#completed-tasks-section .completed-employee-nav__item.is-active{border-bottom-color:#AB3619}#completed-tasks-section .completed-employee-panel__header h2{font-size:15px}#completed-tasks-section .completed-month-section{padding:8px}}
-@media (prefers-reduced-motion:reduce){#completed-tasks-section .completed-employee-nav__item{transition:none}#completed-tasks-section .completed-employee-panel{animation:none}}
+@media (max-width:700px){#completed-tasks-section{gap:10px}#completed-tasks-section .completed-task-controls{padding:10px}#completed-tasks-section .completed-task-control-row{align-items:flex-start;flex-direction:column;gap:6px}#completed-tasks-section .completed-task-control-row>span{flex:none}#completed-tasks-section .completed-employee-nav,#completed-tasks-section .completed-month-nav{width:100%;padding-bottom:1px}#completed-tasks-section .completed-employee-panel__header{align-items:flex-start}#completed-tasks-section .completed-employee-panel__header h2{font-size:15px}}
+@media (prefers-reduced-motion:reduce){#completed-tasks-section .completed-employee-nav__item,#completed-tasks-section .completed-month-nav a,#completed-tasks-section .completed-year-nav a{transition:none}#completed-tasks-section .completed-employee-panel{animation:none}}
 .digital-task-page .task-timing-outcome{display:grid;gap:2px;min-width:0;line-height:1.25}
 .digital-task-page .task-timing-outcome strong{font-size:10px;font-weight:500}
 .digital-task-page .task-timing-outcome small,.digital-task-page .task-progress-outcome{display:block;margin-top:3px;font-size:9px;line-height:1.25;white-space:normal}

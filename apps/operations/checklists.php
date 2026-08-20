@@ -1345,6 +1345,8 @@ $employees = $ready ? ops_rows(
 $employees = ops_canonical_employee_rows($employees);
 $eligibleTaskEmployees = array_values(array_filter($employees, static fn(array $employee): bool => (string) ($employee['role_key'] ?? '') !== 'owner_admin'));
 
+$completedYearRequested = array_key_exists('completed_year', $_GET);
+$completedMonthRequested = array_key_exists('completed_month', $_GET);
 $filters = [
     'date_from' => trim((string) ($_GET['date_from'] ?? '')),
     'date_to' => trim((string) ($_GET['date_to'] ?? '')),
@@ -1369,6 +1371,8 @@ if ($filters['task_view'] === 'completed') {
     if ($filters['completed_year'] !== '' && !preg_match('/^\d{4}$/', $filters['completed_year'])) $filters['completed_year'] = '';
     if (!preg_match('/^\d{4}-\d{2}$/', $filters['completed_month'])) $filters['completed_month'] = '';
     if ($filters['completed_employee_id'] !== 'all' && !preg_match('/^\d+$/', $filters['completed_employee_id'])) $filters['completed_employee_id'] = '';
+    if (!$completedYearRequested && $filters['completed_year'] === '') $filters['completed_year'] = date('Y');
+    if (!$completedMonthRequested && $filters['completed_month'] === '') $filters['completed_month'] = date('Y-m');
 }
 
 $completedYearOptions = [];
@@ -1515,6 +1519,7 @@ if ($filters['task_view'] === 'completed') {
     unset($completedEmployeeGroup);
 }
 $selectedCompletedEmployeeId = 'all';
+$selectedCompletedEmployeeGroup = null;
 if ($filters['task_view'] === 'completed') {
     if ($filters['completed_employee_id'] === 'all') {
         $selectedCompletedEmployeeId = 'all';
@@ -1528,6 +1533,7 @@ if ($filters['task_view'] === 'completed') {
             }
         }
     }
+    if ($selectedCompletedEmployeeId !== 'all') $selectedCompletedEmployeeGroup = $completedEmployeeGroups['employee:' . (int) $selectedCompletedEmployeeId] ?? null;
 }
 
 $historyWhere = ["t.status = 'complete'", 't.archived_at IS NULL', 't.deleted_at IS NULL'];
@@ -1685,10 +1691,6 @@ include BASE_PATH . '/shared/sidebar.php';
                         <?php checklist_custom_filter_field('Person', 'employee_id', $employeeFilterOptions, $filters['employee_id']); ?>
                     <?php endif; ?>
                 <?php endif; ?>
-                <?php if ($filters['task_view'] === 'completed'): ?>
-                    <?php checklist_custom_filter_field('Year completed', 'completed_year', ['' => 'All years'] + $completedYearOptions, $filters['completed_year']); ?>
-                    <?php checklist_custom_filter_field('Month completed', 'completed_month', ['' => 'All months'] + $completedMonthOptions, $filters['completed_month']); ?>
-                <?php endif; ?>
                 <label class="span-2">Search<input name="search" value="<?= htmlspecialchars($filters['search'], ENT_QUOTES, 'UTF-8') ?>" placeholder="Search task name, notes or completion note"></label>
             </div>
             <div class="ops-form-actions"><a class="button" href="checklists.php?task_view=<?= htmlspecialchars($filters['task_view'], ENT_QUOTES, 'UTF-8') ?>">Clear</a><button class="button primary" type="submit">Apply filters</button></div>
@@ -1802,40 +1804,26 @@ include BASE_PATH . '/shared/sidebar.php';
 
     <?php if ($filters['task_view'] === 'completed'): ?>
     <section id="completed-tasks-section" data-completed-task-navigation aria-label="Completed tasks by employee">
-        <aside class="completed-employee-nav" aria-label="Completed task employees">
-            <p>Employees</p>
-            <?php $allCompletedTaskCount = count($tasks); ?>
-            <button type="button" class="completed-employee-nav__item<?= $selectedCompletedEmployeeId === 'all' ? ' is-active' : '' ?>" data-completed-employee-select="all" aria-pressed="<?= $selectedCompletedEmployeeId === 'all' ? 'true' : 'false' ?>"><span>All Employees</span><b><?= number_format($allCompletedTaskCount) ?></b></button>
-            <?php foreach ($completedEmployeeGroups as $completedGroup): ?>
-                <?php if (empty($completedGroup['id'])) continue; ?>
-                <?php $completedEmployeeKey = (string) (int) $completedGroup['id']; ?>
-                <button type="button" class="completed-employee-nav__item<?= $selectedCompletedEmployeeId === $completedEmployeeKey ? ' is-active' : '' ?>" data-completed-employee-select="<?= $completedEmployeeKey ?>" aria-pressed="<?= $selectedCompletedEmployeeId === $completedEmployeeKey ? 'true' : 'false' ?>"><span><?= htmlspecialchars((string) $completedGroup['name'], ENT_QUOTES, 'UTF-8') ?></span><b><?= number_format(count($completedGroup['tasks'])) ?></b></button>
-            <?php endforeach; ?>
-        </aside>
-        <div class="completed-employee-content">
-            <section class="completed-employee-panel" data-completed-employee-panel="all" <?= $selectedCompletedEmployeeId === 'all' ? '' : 'hidden' ?>>
-                <header class="completed-employee-panel__header"><div><p>Completed Tasks</p><h2>All Employees</h2></div><b><?= number_format($allCompletedTaskCount) ?> completed</b></header>
-                <?php foreach ($completedEmployeeGroups as $completedGroup): ?>
-                    <?php if (!$completedGroup['tasks']) continue; ?>
-                    <section class="completed-all-employee-section"><header><h3><?= htmlspecialchars((string) $completedGroup['name'], ENT_QUOTES, 'UTF-8') ?></h3><b><?= number_format(count($completedGroup['tasks'])) ?> completed</b></header>
-                    <?php foreach ($completedGroup['months'] as $completedMonth): ?>
-                        <section class="completed-month-section"><header><h4><?= htmlspecialchars((string) $completedMonth['label'], ENT_QUOTES, 'UTF-8') ?></h4><b><?= number_format(count($completedMonth['tasks'])) ?> task<?= count($completedMonth['tasks']) === 1 ? '' : 's' ?></b></header><div class="completed-employee-table-wrap"><?php $displayTasks = $completedMonth['tasks']; $displayTaskKind = 'completed-all'; $hideAssignedColumn = false; $emptyTaskMessage = 'No completed tasks for this month.'; include __DIR__ . '/partials/checklist-task-table.php'; unset($hideAssignedColumn); ?></div></section>
-                    <?php endforeach; ?></section>
-                <?php endforeach; ?>
-                <?php if (!$allCompletedTaskCount): ?><div class="completed-empty-state">No completed tasks for this period.</div><?php endif; ?>
-            </section>
-            <?php foreach ($completedEmployeeGroups as $completedGroup): ?>
-                <?php if (empty($completedGroup['id'])) continue; ?>
-                <?php $completedEmployeeKey = (string) (int) $completedGroup['id']; ?>
-                <section class="completed-employee-panel" data-completed-employee-panel="<?= $completedEmployeeKey ?>" <?= $selectedCompletedEmployeeId === $completedEmployeeKey ? '' : 'hidden' ?>>
-                    <header class="completed-employee-panel__header"><div><p>Completed Tasks</p><h2><?= htmlspecialchars((string) $completedGroup['name'], ENT_QUOTES, 'UTF-8') ?></h2></div><b><?= number_format(count($completedGroup['tasks'])) ?> completed</b></header>
-                    <?php foreach ($completedGroup['months'] as $completedMonth): ?>
-                        <section class="completed-month-section"><header><h3><?= htmlspecialchars((string) $completedMonth['label'], ENT_QUOTES, 'UTF-8') ?></h3><b><?= number_format(count($completedMonth['tasks'])) ?> task<?= count($completedMonth['tasks']) === 1 ? '' : 's' ?></b></header><div class="completed-employee-table-wrap"><?php $displayTasks = $completedMonth['tasks']; $displayTaskKind = 'completed'; $hideAssignedColumn = true; $emptyTaskMessage = 'No completed tasks for this month.'; include __DIR__ . '/partials/checklist-task-table.php'; unset($hideAssignedColumn); ?></div></section>
-                    <?php endforeach; ?>
-                    <?php if (!$completedGroup['tasks']): ?><div class="completed-empty-state">No completed tasks for <?= htmlspecialchars((string) $completedGroup['name'], ENT_QUOTES, 'UTF-8') ?> in this period.</div><?php endif; ?>
-                </section>
-            <?php endforeach; ?>
+        <?php
+        $completedControlQuery = static function (array $changes) use ($filters, $selectedCompletedEmployeeId): string {
+            $query = ['task_view' => 'completed', 'completed_year' => $filters['completed_year'], 'completed_month' => $filters['completed_month'], 'completed_employee_id' => $selectedCompletedEmployeeId];
+            foreach ($changes as $key => $value) $query[$key] = $value;
+            return 'checklists.php?' . http_build_query($query);
+        };
+        $completedPanelTasks = $selectedCompletedEmployeeId === 'all' ? $tasks : (array) ($selectedCompletedEmployeeGroup['tasks'] ?? []);
+        $completedPanelName = $selectedCompletedEmployeeId === 'all' ? 'All Employees' : (string) ($selectedCompletedEmployeeGroup['name'] ?? 'Employee');
+        $completedPeriodLabel = $filters['completed_month'] !== '' ? ($completedMonthOptions[$filters['completed_month']] ?? $filters['completed_month']) : ($filters['completed_year'] !== '' ? $filters['completed_year'] : 'All time');
+        $completedYear = (int) ($filters['completed_year'] ?: date('Y'));
+        ?>
+        <div class="completed-task-controls">
+            <div class="completed-task-control-row"><span>Employee</span><nav class="completed-employee-nav" aria-label="Completed task employees"><a class="completed-employee-nav__item<?= $selectedCompletedEmployeeId === 'all' ? ' is-active' : '' ?>" href="<?= htmlspecialchars($completedControlQuery(['completed_employee_id' => 'all']), ENT_QUOTES, 'UTF-8') ?>"><span>All Employees</span></a><?php foreach ($completedEmployeeGroups as $completedGroup): ?><?php if (empty($completedGroup['id'])) continue; $completedEmployeeKey = (string) (int) $completedGroup['id']; ?><a class="completed-employee-nav__item<?= $selectedCompletedEmployeeId === $completedEmployeeKey ? ' is-active' : '' ?>" href="<?= htmlspecialchars($completedControlQuery(['completed_employee_id' => $completedEmployeeKey]), ENT_QUOTES, 'UTF-8') ?>"><span><?= htmlspecialchars((string) $completedGroup['name'], ENT_QUOTES, 'UTF-8') ?></span></a><?php endforeach; ?></nav></div>
+            <div class="completed-task-control-row"><span>Year</span><nav class="completed-year-nav" aria-label="Completed task year"><a href="<?= htmlspecialchars($completedControlQuery(['completed_year' => (string) ($completedYear - 1), 'completed_month' => '']), ENT_QUOTES, 'UTF-8') ?>" aria-label="Previous year">‹</a><strong><?= $completedYear ?></strong><a href="<?= htmlspecialchars($completedControlQuery(['completed_year' => (string) ($completedYear + 1), 'completed_month' => '']), ENT_QUOTES, 'UTF-8') ?>" aria-label="Next year">›</a></nav></div>
+            <div class="completed-task-control-row"><span>Month</span><nav class="completed-month-nav" aria-label="Completed task month"><a class="<?= $filters['completed_month'] === '' ? 'is-active' : '' ?>" href="<?= htmlspecialchars($completedControlQuery(['completed_month' => '']), ENT_QUOTES, 'UTF-8') ?>">All</a><?php for ($month = 1; $month <= 12; $month++): ?><?php $monthKey = sprintf('%04d-%02d', $completedYear, $month); ?><a class="<?= $filters['completed_month'] === $monthKey ? ' is-active' : '' ?>" href="<?= htmlspecialchars($completedControlQuery(['completed_month' => $monthKey]), ENT_QUOTES, 'UTF-8') ?>"><?= date('M', mktime(0, 0, 0, $month, 1)) ?></a><?php endfor; ?></nav></div>
         </div>
+        <section class="completed-employee-panel">
+            <header class="completed-employee-panel__header"><div><p>Completed Tasks</p><h2><?= htmlspecialchars($completedPanelName, ENT_QUOTES, 'UTF-8') ?> · <?= htmlspecialchars($completedPeriodLabel, ENT_QUOTES, 'UTF-8') ?></h2></div><b><?= number_format(count($completedPanelTasks)) ?> completed task<?= count($completedPanelTasks) === 1 ? '' : 's' ?></b></header>
+            <div class="completed-employee-table-wrap"><?php $displayTasks = $completedPanelTasks; $displayTaskKind = $selectedCompletedEmployeeId === 'all' ? 'completed-all' : 'completed'; $hideAssignedColumn = $selectedCompletedEmployeeId !== 'all'; $emptyTaskMessage = 'No completed tasks for this employee and period.'; include __DIR__ . '/partials/checklist-task-table.php'; unset($hideAssignedColumn); ?></div>
+        </section>
     </section>
     <?php endif; ?>
 
@@ -3322,33 +3310,6 @@ function initialiseTaskSections() {
   }
 }
 
-function initialiseCompletedEmployeeNavigation(root = document) {
-  const navigation = root.querySelector?.('[data-completed-task-navigation]');
-  if (!navigation || navigation.dataset.initialised === 'true') return;
-  navigation.dataset.initialised = 'true';
-
-  const employeeFilter = document.querySelector('[data-completed-employee-filter]');
-  const selectEmployee = (employeeId, persist = true) => {
-    navigation.querySelectorAll('[data-completed-employee-select]').forEach((button) => {
-      const selected = button.dataset.completedEmployeeSelect === employeeId;
-      button.classList.toggle('is-active', selected);
-      button.setAttribute('aria-pressed', selected ? 'true' : 'false');
-    });
-    navigation.querySelectorAll('[data-completed-employee-panel]').forEach((panel) => {
-      panel.hidden = panel.dataset.completedEmployeePanel !== employeeId;
-    });
-    if (employeeFilter) employeeFilter.value = employeeId;
-    if (!persist) return;
-    const url = new URL(window.location.href);
-    url.searchParams.set('completed_employee_id', employeeId);
-    history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
-  };
-
-  navigation.querySelectorAll('[data-completed-employee-select]').forEach((button) => {
-    button.addEventListener('click', () => selectEmployee(button.dataset.completedEmployeeSelect));
-  });
-}
-
 let taskViewRequest = null;
 
 function updateTaskViewTabs(root, activeView) {
@@ -3367,7 +3328,6 @@ function initialiseLoadedTaskView(content) {
   initialiseTaskBulkSelection();
   initialiseTaskCompletionEnforcement();
   initialiseTaskColumnResizing();
-  initialiseCompletedEmployeeNavigation(content);
   initializePortalCustomSelects(content);
   window.taskDueStateController?.refresh?.();
   window.lucide?.createIcons?.();
@@ -3469,7 +3429,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initialiseTaskColumnResizing();
   initialiseTaskOverdueFilter();
   initialiseTaskSections();
-  initialiseCompletedEmployeeNavigation();
   initialiseTaskDueStates();
 });
 
