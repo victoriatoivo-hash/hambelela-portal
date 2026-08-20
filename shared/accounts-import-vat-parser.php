@@ -206,6 +206,32 @@ function import_vat_extract_pdf_text(string $path): array
 
 function import_vat_pdf_rows(string $path): array
 {
-    $extracted = import_vat_extract_pdf_text($path);
-    return ['rows' => import_vat_namra_text_rows($extracted['text']), 'engine' => $extracted['engine']];
+    $attempts = [];
+    $autoload = defined('BASE_PATH') ? BASE_PATH.'/vendor/autoload.php' : dirname(__DIR__).'/vendor/autoload.php';
+    if (is_file($autoload)) require_once $autoload;
+    if (class_exists('Smalot\\PdfParser\\Parser')) {
+        try {
+            $parser = new Smalot\PdfParser\Parser();
+            $text = trim($parser->parseFile($path)->getText());
+            if ($text !== '') $attempts[] = ['text'=>$text,'engine'=>'smalot/pdfparser'];
+        } catch (Throwable $error) {
+            error_log('Import VAT Smalot extraction failed: '.$error->getMessage());
+        }
+    }
+    if (function_exists('shell_exec')) {
+        $output = shell_exec('pdftotext -layout '.escapeshellarg($path).' - 2>&1');
+        if (is_string($output) && trim($output) !== '' && stripos($output, 'not found') === false && stripos($output, 'not recognized') === false) {
+            $attempts[] = ['text'=>trim($output),'engine'=>'pdftotext'];
+        }
+    }
+    $messages = [];
+    foreach ($attempts as $attempt) {
+        try {
+            return ['rows'=>import_vat_namra_text_rows($attempt['text']),'engine'=>$attempt['engine']];
+        } catch (Throwable $error) {
+            $messages[] = $attempt['engine'].': '.$error->getMessage();
+        }
+    }
+    if (!$attempts) throw new RuntimeException('PDF text extraction is unavailable on this server. Upload the NamRA statement as CSV or contact the owner. No records were posted.');
+    throw new RuntimeException('The PDF text was read, but no validated NamRA transaction rows were found. No records were posted. '.implode(' ', $messages));
 }
