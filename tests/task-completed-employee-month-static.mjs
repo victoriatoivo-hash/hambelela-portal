@@ -7,6 +7,7 @@ const stylesheet = fs.readFileSync('assets/css/portal.css', 'utf8');
 
 assert.match(checklistPage, /'completed_year'\s*=>/);
 assert.match(checklistPage, /'completed_month'\s*=>/);
+assert.match(checklistPage, /\['' => 'All years'\] \+ \$completedYearOptions/);
 assert.match(checklistPage, /YEAR\(\{\$completedAtSql\}\) = \?/);
 assert.match(checklistPage, /DATE_FORMAT\(\{\$completedAtSql\}, '%Y-%m'\) = \?/);
 assert.match(checklistPage, /COALESCE\(t\.date_completed,t\.completed_at,t\.created_at\) DESC/);

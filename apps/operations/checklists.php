@@ -1365,7 +1365,7 @@ if (in_array($filters['task_view'], ['recurring', 'manual'], true)) $filters['ta
 if (!in_array($filters['task_view'], ['active', 'scheduled', 'completed', 'history'], true)) $filters['task_view'] = 'active';
 $isScheduledOwnerView = $canManage && $filters['task_view'] === 'scheduled';
 if ($filters['task_view'] === 'completed') {
-    if (!preg_match('/^\d{4}$/', $filters['completed_year'])) $filters['completed_year'] = date('Y');
+    if ($filters['completed_year'] !== '' && !preg_match('/^\d{4}$/', $filters['completed_year'])) $filters['completed_year'] = '';
     if (!preg_match('/^\d{4}-\d{2}$/', $filters['completed_month'])) $filters['completed_month'] = '';
 }
 
@@ -1385,9 +1385,15 @@ if ($ready && $filters['task_view'] === 'completed') {
         $year = (string) ($completedYearRow['completed_year'] ?? '');
         if (preg_match('/^\d{4}$/', $year)) $completedYearOptions[$year] = $year;
     }
-    $completedYearOptions[$filters['completed_year']] = $filters['completed_year'];
+    if ($filters['completed_year'] !== '') $completedYearOptions[$filters['completed_year']] = $filters['completed_year'];
     krsort($completedYearOptions);
-    foreach (ops_rows("SELECT DISTINCT DATE_FORMAT(COALESCE(t.date_completed, t.completed_at, t.created_at), '%Y-%m') AS completed_month FROM ops_checklist_tasks t WHERE {$completedScopeSql} AND YEAR(COALESCE(t.date_completed, t.completed_at, t.created_at)) = ? ORDER BY completed_month DESC", [...$completedScopeParams, (int) $filters['completed_year']]) as $completedMonthRow) {
+    $completedMonthWhere = $completedScopeSql;
+    $completedMonthParams = $completedScopeParams;
+    if ($filters['completed_year'] !== '') {
+        $completedMonthWhere .= ' AND YEAR(COALESCE(t.date_completed, t.completed_at, t.created_at)) = ?';
+        $completedMonthParams[] = (int) $filters['completed_year'];
+    }
+    foreach (ops_rows("SELECT DISTINCT DATE_FORMAT(COALESCE(t.date_completed, t.completed_at, t.created_at), '%Y-%m') AS completed_month FROM ops_checklist_tasks t WHERE {$completedMonthWhere} ORDER BY completed_month DESC", $completedMonthParams) as $completedMonthRow) {
         $month = (string) ($completedMonthRow['completed_month'] ?? '');
         if (!preg_match('/^\d{4}-\d{2}$/', $month)) continue;
         try { $completedMonthOptions[$month] = (new DateTimeImmutable($month . '-01'))->format('F Y'); } catch (Throwable $e) { $completedMonthOptions[$month] = $month; }
@@ -1441,8 +1447,10 @@ if ($filters['task_view'] === 'active') {
 }
 if ($filters['task_view'] === 'completed') {
     $completedAtSql = 'COALESCE(t.date_completed, t.completed_at, t.created_at)';
-    $where[] = "YEAR({$completedAtSql}) = ?";
-    $params[] = (int) $filters['completed_year'];
+    if ($filters['completed_year'] !== '') {
+        $where[] = "YEAR({$completedAtSql}) = ?";
+        $params[] = (int) $filters['completed_year'];
+    }
     if ($filters['completed_month'] !== '') {
         $where[] = "DATE_FORMAT({$completedAtSql}, '%Y-%m') = ?";
         $params[] = $filters['completed_month'];
@@ -1588,7 +1596,7 @@ foreach ($historyTasks as $task) {
 $completedCount = count($tasksByGroup['complete']);
 $metrics['compliance'] = $metrics['total'] > 0 ? (int) round(($completedCount / max(1, $metrics['total'])) * 100) : 0;
 $metrics['active'] = $metrics['new'] + $metrics['in_progress'];
-$filtersAreActive = $filters['date_from'] !== '' || $filters['date_to'] !== '' || $filters['employee_id'] !== '' || $filters['status'] !== '' || $filters['overdue_only'] !== '' || $filters['priority'] !== '' || $filters['checklist_type'] !== '' || $filters['task_kind'] !== '' || $filters['search'] !== '' || ($filters['task_view'] === 'completed' && ($filters['completed_month'] !== '' || $filters['completed_year'] !== date('Y')));
+$filtersAreActive = $filters['date_from'] !== '' || $filters['date_to'] !== '' || $filters['employee_id'] !== '' || $filters['status'] !== '' || $filters['overdue_only'] !== '' || $filters['priority'] !== '' || $filters['checklist_type'] !== '' || $filters['task_kind'] !== '' || $filters['search'] !== '' || ($filters['task_view'] === 'completed' && ($filters['completed_month'] !== '' || $filters['completed_year'] !== ''));
 
 $activityByTask = [];
 if ($ready && ($tasks || $historyTasks) && ops_table_exists('ops_activity_logs')) {
@@ -1658,7 +1666,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     <?php checklist_custom_filter_field('Person', 'employee_id', $employeeFilterOptions, $filters['employee_id']); ?>
                 <?php endif; ?>
                 <?php if ($filters['task_view'] === 'completed'): ?>
-                    <?php checklist_custom_filter_field('Year completed', 'completed_year', $completedYearOptions, $filters['completed_year']); ?>
+                    <?php checklist_custom_filter_field('Year completed', 'completed_year', ['' => 'All years'] + $completedYearOptions, $filters['completed_year']); ?>
                     <?php checklist_custom_filter_field('Month completed', 'completed_month', ['' => 'All months'] + $completedMonthOptions, $filters['completed_month']); ?>
                 <?php endif; ?>
                 <label class="span-2">Search<input name="search" value="<?= htmlspecialchars($filters['search'], ENT_QUOTES, 'UTF-8') ?>" placeholder="Search task name, notes or completion note"></label>
