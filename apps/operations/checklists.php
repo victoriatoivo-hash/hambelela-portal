@@ -399,6 +399,16 @@ function checklist_date_label(?string $value): string
     try { return (new DateTimeImmutable($value))->format('M j, H:i'); } catch (Throwable $e) { return $value; }
 }
 
+function checklist_schedule_date_label(?string $value): string
+{
+    if (!$value) return '-';
+    try {
+        return (new DateTimeImmutable($value, new DateTimeZone('Africa/Windhoek')))->format('D, j M Y · H:i');
+    } catch (Throwable $e) {
+        return $value;
+    }
+}
+
 function checklist_authoritative_deadline(?string $value): ?DateTimeImmutable
 {
     $raw = trim((string) $value);
@@ -1341,6 +1351,7 @@ $filters['task_view'] = $filters['task_view'] === 'tasks' ? 'active' : $filters[
 $requestedTaskView = $filters['task_view'];
 if (in_array($filters['task_view'], ['recurring', 'manual'], true)) $filters['task_view'] = 'active';
 if (!in_array($filters['task_view'], ['active', 'scheduled', 'completed', 'history'], true)) $filters['task_view'] = 'active';
+$isScheduledOwnerView = $canManage && $filters['task_view'] === 'scheduled';
 
 $where = [];
 $params = [];
@@ -1354,11 +1365,14 @@ if (!$canManage) {
 }
 if ($filters['task_view'] === 'scheduled' && $canManage) $where[] = 't.scheduled_at IS NOT NULL AND t.released_at IS NULL';
 elseif ($canManage) $where[] = '(t.scheduled_at IS NULL OR t.released_at IS NOT NULL)';
-if ($filters['date_from'] !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['date_from'])) {
+// A scheduled task has no assignment date until it is released. The Scheduled
+// queue is deliberately independent of active-task filters so a retained Due
+// Today, overdue, status, or date filter cannot hide a saved future task.
+if (!$isScheduledOwnerView && $filters['date_from'] !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['date_from'])) {
     $where[] = 'DATE(COALESCE(t.date_assigned, t.created_at)) >= ?';
     $params[] = $filters['date_from'];
 }
-if ($filters['date_to'] !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['date_to'])) {
+if (!$isScheduledOwnerView && $filters['date_to'] !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['date_to'])) {
     $where[] = 'DATE(COALESCE(t.date_assigned, t.created_at)) <= ?';
     $params[] = $filters['date_to'];
 }
@@ -1379,7 +1393,7 @@ if ($filters['task_view'] !== 'active' && $filters['task_kind'] === 'recurring')
 } elseif ($filters['task_view'] !== 'active' && $filters['task_kind'] === 'manual') {
     $where[] = "(t.recurrence_key IS NULL OR t.recurrence_key = '')";
 }
-if (in_array($filters['task_view'], ['active', 'scheduled'], true)) {
+if ($filters['task_view'] === 'active') {
     $where[] = "t.status <> 'complete'";
 } elseif (in_array($filters['task_view'], ['completed', 'history'], true)) {
     $where[] = "t.status = 'complete'";
@@ -1388,10 +1402,10 @@ if ($filters['search'] !== '') {
     $where[] = '(t.task_name LIKE ? OR t.notes LIKE ? OR t.instructions LIKE ? OR t.completion_note LIKE ?)';
     array_push($params, '%' . $filters['search'] . '%', '%' . $filters['search'] . '%', '%' . $filters['search'] . '%', '%' . $filters['search'] . '%');
 }
-if ($filters['overdue_only'] === '1') {
+if (!$isScheduledOwnerView && $filters['overdue_only'] === '1') {
     $where[] = "t.status <> 'complete' AND t.deadline IS NOT NULL AND t.deadline < NOW()";
 }
-if ($filters['status'] !== '') {
+if (!$isScheduledOwnerView && $filters['status'] !== '') {
     if ($filters['status'] === 'completed') {
         $where[] = "t.status = 'complete'";
     } elseif (array_key_exists($filters['status'], $statuses)) {
@@ -1400,9 +1414,11 @@ if ($filters['status'] !== '') {
     }
 }
 $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
-$taskOrderSql = $filters['task_view'] === 'completed'
-    ? "CASE WHEN COALESCE(t.date_completed,t.completed_at) IS NULL THEN 1 ELSE 0 END ASC, COALESCE(t.date_completed,t.completed_at) ASC, COALESCE(t.deadline,'9999-12-31 23:59:59') ASC, t.id ASC"
-    : "CASE WHEN t.status = 'complete' THEN 2 ELSE 1 END, COALESCE(t.deadline, t.created_at) ASC, t.created_at DESC";
+$taskOrderSql = $filters['task_view'] === 'scheduled'
+    ? 't.scheduled_at ASC, t.id ASC'
+    : ($filters['task_view'] === 'completed'
+        ? "CASE WHEN COALESCE(t.date_completed,t.completed_at) IS NULL THEN 1 ELSE 0 END ASC, COALESCE(t.date_completed,t.completed_at) ASC, COALESCE(t.deadline,'9999-12-31 23:59:59') ASC, t.id ASC"
+        : "CASE WHEN t.status = 'complete' THEN 2 ELSE 1 END, COALESCE(t.deadline, t.created_at) ASC, t.created_at DESC");
 
 $tasks = $ready ? ops_rows(
     "SELECT t.*, e.full_name AS assigned_name, cb.full_name AS completed_by_name
@@ -3255,6 +3271,10 @@ async function openTaskView(view, context) {
   const requestUrl = new URL(document.URL);
   requestUrl.searchParams.set('task_view', view);
   requestUrl.searchParams.delete('verify');
+  if (view === 'scheduled') {
+    // Scheduled is an owner release queue, not an active-task search result.
+    ['date_from', 'date_to', 'overdue_only', 'status'].forEach((name) => requestUrl.searchParams.delete(name));
+  }
   updateTaskViewTabs(root, view);
   content.setAttribute('aria-busy', 'true');
   selectedTab.disabled = true;
@@ -3286,6 +3306,7 @@ async function openTaskView(view, context) {
     const nextUrl = new URL(document.URL);
     nextUrl.searchParams.set('task_view', view);
     nextUrl.searchParams.delete('verify');
+    if (view === 'scheduled') ['date_from', 'date_to', 'overdue_only', 'status'].forEach((name) => nextUrl.searchParams.delete(name));
     history.replaceState({ taskView: view }, '', `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
     window.scrollTo(scrollLeft, scrollTop);
   } catch (error) {

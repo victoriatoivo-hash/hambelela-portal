@@ -38,4 +38,13 @@ assert.match(checklists, /SELECT COUNT\(\*\) AS total FROM ops_checklist_tasks W
 assert.match(taskScheduling, /new DateTimeZone\('Africa\/Windhoek'\)/);
 assert.match(taskScheduling, /WHERE scheduled_at IS NOT NULL AND scheduled_at <= \? AND released_at IS NULL/);
 
+// The owner Scheduled tab is a release queue. It must not inherit an active-task
+// date/status/overdue filter that can hide a correctly saved future task.
+assert.match(checklists, /\$isScheduledOwnerView = \$canManage && \$filters\['task_view'\] === 'scheduled';/);
+assert.match(checklists, /if \(!\$isScheduledOwnerView && \$filters\['date_from'\]/);
+assert.match(checklists, /if \(!\$isScheduledOwnerView && \$filters\['status'\] !== ''\)/);
+assert.match(checklists, /\['date_from', 'date_to', 'overdue_only', 'status'\]\.forEach\(\(name\) => requestUrl\.searchParams\.delete\(name\)\)/);
+assert.match(checklists, /\? 't\.scheduled_at ASC, t\.id ASC'/);
+assert.match(checklists, /function checklist_schedule_date_label/);
+
 console.log('Checklist scheduled-task static checks passed.');
