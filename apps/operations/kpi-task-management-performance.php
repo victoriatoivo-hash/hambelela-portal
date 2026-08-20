@@ -45,7 +45,7 @@ function kpi_task_management_performance(array $employee, string $fromSql, strin
 {
     $zone = new DateTimeZone('Africa/Windhoek');
     $employeeId = (int) $employee['id'];
-    $tasks = ops_rows("SELECT t.id,'task' timeline_module,t.task_name,t.instructions,t.notes,t.checklist_type,t.priority,t.assigned_employee_id,t.date_assigned,t.scheduled_at,t.released_at,t.employee_visible,t.created_at,t.deadline,t.status,t.started_at,t.completed_at,t.date_completed,t.completed_by,t.checklist_items,t.checked_items,t.completion_note,t.completion_note_required,t.completion_evidence_required,t.performance_scored,t.recurrence_key,t.recurring_template_id,t.source_template_id,t.archived_at,t.deleted_at,assignee.full_name assigned_to,creator.full_name created_by_name,completer.full_name completed_by_name FROM ops_checklist_tasks t LEFT JOIN ops_employees assignee ON assignee.id=t.assigned_employee_id LEFT JOIN ops_employees creator ON creator.id=t.created_by LEFT JOIN ops_employees completer ON completer.id=t.completed_by WHERE t.assigned_employee_id=? AND COALESCE(t.released_at,t.date_assigned) BETWEEN ? AND ? AND t.employee_visible=1 AND (t.scheduled_at IS NULL OR t.released_at IS NOT NULL) AND t.performance_scored=1 AND t.deleted_at IS NULL AND t.archived_at IS NULL AND LOWER(t.status) NOT IN ('cancelled','deleted','trashed') ORDER BY COALESCE(t.released_at,t.date_assigned) DESC,t.id DESC LIMIT 500", [$employeeId, $fromSql, $toSql]);
+    $tasks = ops_rows("SELECT t.id,'task' timeline_module,t.task_name,t.instructions,t.notes,t.checklist_type,t.priority,t.assigned_employee_id,t.assignment_mode,t.date_assigned,t.scheduled_at,t.released_at,t.employee_visible,t.created_at,t.deadline,t.status,t.started_at,t.completed_at,t.date_completed,t.completed_by,t.checklist_items,t.checked_items,t.completion_note,t.completion_note_required,t.completion_evidence_required,t.performance_scored,t.recurrence_key,t.recurring_template_id,t.source_template_id,t.archived_at,t.deleted_at,assignee.full_name assigned_to,creator.full_name created_by_name,completer.full_name completed_by_name FROM ops_checklist_tasks t LEFT JOIN ops_employees assignee ON assignee.id=t.assigned_employee_id LEFT JOIN ops_employees creator ON creator.id=t.created_by LEFT JOIN ops_employees completer ON completer.id=t.completed_by WHERE t.assigned_employee_id=? AND COALESCE(t.released_at,t.date_assigned) BETWEEN ? AND ? AND t.employee_visible=1 AND (t.scheduled_at IS NULL OR t.released_at IS NOT NULL) AND t.performance_scored=1 AND t.deleted_at IS NULL AND t.archived_at IS NULL AND LOWER(t.status) NOT IN ('cancelled','deleted','trashed') ORDER BY COALESCE(t.released_at,t.date_assigned) DESC,t.id DESC LIMIT 500", [$employeeId, $fromSql, $toSql]);
 
     $eventsByTask = [];
     foreach (kpi_unified_events((new DateTimeImmutable($fromSql, $zone))->modify('-14 days')->format('Y-m-d H:i:s'), $toSql, null, 'tasks') as $event) {
@@ -67,6 +67,7 @@ function kpi_task_management_performance(array $employee, string $fromSql, strin
     $durations = ['ack'=>[], 'active'=>[], 'turnaround'=>[], 'early'=>[], 'completed_late'=>[], 'current_overdue'=>[]];
     $byStatus = [];
     $rows = [];
+    $floatingReopened = 0;
 
     foreach ($tasks as $task) {
         $events = $eventsByTask[(int) $task['id']] ?? [];
@@ -153,6 +154,7 @@ function kpi_task_management_performance(array $employee, string $fromSql, strin
         if ($personalCompletion) { $counts['completed']++; $counts[$priority . '_completed']++; }
         if ($directComplete) $counts['direct_complete']++;
         if ($reopened) $counts['reopened']++;
+        if ($reopened && ($task['assignment_mode'] ?? 'assigned') === 'floating') $floatingReopened++;
         if ($returned) $counts['returned']++;
         if ($attribution) $counts['attribution_conflict']++;
 
@@ -205,10 +207,22 @@ function kpi_task_management_performance(array $employee, string $fromSql, strin
     $noteRate = $percent($counts['note_compliant'], $counts['note_eligible']);
     $proofRate = $percent($counts['proof_compliant'], $counts['proof_eligible']);
     $reworkRate = $counts['completed'] ? max(0, round(100 - 100 * $counts['reopened'] / $counts['completed'], 1)) : null;
-    $score = kpi_weighted_subscore([['share'=>40,'score'=>$onTime],['share'=>25,'score'=>$completionRate],['share'=>15,'score'=>$checklistRate],['share'=>10,'score'=>$noteRate],['share'=>10,'score'=>$reworkRate]]);
+    $baseTaskScore = kpi_weighted_subscore([['share'=>40,'score'=>$onTime],['share'=>25,'score'=>$completionRate],['share'=>15,'score'=>$checklistRate],['share'=>10,'score'=>$noteRate],['share'=>10,'score'=>$reworkRate]]);
+    $floating = ops_rows("SELECT COUNT(*) assigned,SUM(CASE WHEN status='complete' THEN 1 ELSE 0 END) completed,SUM(CASE WHEN status='complete' AND COALESCE(completed_at,date_completed)<=deadline THEN 1 ELSE 0 END) on_time,SUM(CASE WHEN status='complete' AND COALESCE(completed_at,date_completed)>deadline THEN 1 ELSE 0 END) late,SUM(CASE WHEN status<>'complete' AND deadline<NOW() THEN 1 ELSE 0 END) overdue FROM ops_checklist_tasks WHERE assigned_employee_id=? AND assignment_mode='floating' AND COALESCE(released_at,date_assigned) BETWEEN ? AND ? AND deleted_at IS NULL AND archived_at IS NULL",[$employeeId,$fromSql,$toSql])[0]??[];
+    $floatingAssigned=(int)($floating['assigned']??0);$floatingCompleted=(int)($floating['completed']??0);$floatingOnTime=(int)($floating['on_time']??0);
+    $floatingOutstanding=max(0,$floatingAssigned-$floatingCompleted);$floatingCompletionRate=$percent($floatingCompleted,$floatingAssigned);$floatingOnTimeRate=$percent($floatingOnTime,$floatingCompleted);
+    $floatingQualityRate=$floatingCompleted>0?max(0,round(100-(100*$floatingReopened/$floatingCompleted),1)):null;
+    $floatingContribution=$floatingAssigned>0?kpi_weighted_subscore([['share'=>40,'score'=>$floatingCompletionRate],['share'=>40,'score'=>$floatingOnTimeRate],['share'=>20,'score'=>$floatingQualityRate]]):null;
+    $score=$floatingContribution===null?$baseTaskScore:kpi_weighted_subscore([['share'=>95,'score'=>$baseTaskScore],['share'=>5,'score'=>$floatingContribution]]);
     $stats = array_map('kpi_task_duration_stats', $durations);
     $metrics = [
         ['label'=>'Tasks Assigned','value'=>$counts['assigned']],['label'=>'Tasks Completed','value'=>$counts['completed']],
+        ['label'=>'Floating Tasks Assigned','value'=>$floatingAssigned],['label'=>'Floating Tasks Completed','value'=>$floatingCompleted],
+        ['label'=>'Floating Tasks On Time','value'=>$floatingOnTime,'numerator'=>$floatingOnTime,'denominator'=>$floatingCompleted],
+        ['label'=>'Floating Tasks Late','value'=>(int)($floating['late']??0)],['label'=>'Floating Tasks Outstanding','value'=>$floatingOutstanding],['label'=>'Floating Tasks Overdue','value'=>(int)($floating['overdue']??0)],['label'=>'Floating Tasks Reopened','value'=>$floatingReopened],
+        ['label'=>'Floating Task Completion Rate','value'=>$floatingCompletionRate,'format'=>'percent','numerator'=>$floatingCompleted,'denominator'=>$floatingAssigned],
+        ['label'=>'Floating Task On-Time Rate','value'=>$floatingOnTimeRate,'format'=>'percent','numerator'=>$floatingOnTime,'denominator'=>$floatingCompleted],
+        ['label'=>'Floating Task Contribution','value'=>$floatingContribution,'format'=>'percent','numerator'=>$floatingCompleted,'denominator'=>$floatingAssigned,'explanation'=>'Controlled subcomponent capped at 5% of Task Performance; no Floating Task opportunity is neutral.'],
         ['label'=>'Task Completion Rate','value'=>$completionRate,'format'=>'percent','numerator'=>$counts['completed_eligible'],'denominator'=>$counts['completion_eligible']],
         ['label'=>'Completed Early','value'=>$counts['early'],'numerator'=>$counts['early'],'denominator'=>$counts['deadline_eligible'],'explanation'=>'Exact completed timestamp is before the due timestamp.'],
         ['label'=>'Completed On Time','value'=>$counts['on_time'],'numerator'=>$counts['on_time'],'denominator'=>$counts['deadline_eligible'],'explanation'=>'Includes early and exactly-at-due completions; no double-counting.'],

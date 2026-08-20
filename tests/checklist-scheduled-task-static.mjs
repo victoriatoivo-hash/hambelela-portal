@@ -22,7 +22,7 @@ assert.match(checklists, /The task could not be confirmed as scheduled\. Nothing
 // The scheduled-create INSERT must still write scheduled_at, leave released_at NULL, and hide the
 // task from the employee (employee_visible driven by $employeeVisible, 0 when scheduled).
 assert.match(checklists, /\$employeeVisible = \$scheduledAt === null \? 1 : 0;/);
-assert.match(checklists, /INSERT INTO ops_checklist_tasks\s*\n\s*\(checklist_type, task_name, priority, assigned_employee_id, date_assigned, scheduled_at, released_at, deadline/);
+assert.match(checklists, /INSERT INTO ops_checklist_tasks\s*\n\s*\(checklist_type, task_name, priority, assigned_employee_id,assignment_mode,floating_eligible_group,floating_assigned_at,date_assigned, scheduled_at, released_at, deadline/);
 
 // ops_rows() previously swallowed every query failure with zero trace; it must still degrade to an
 // empty result (many call sites rely on that), but the failure must now be logged so a stat/list

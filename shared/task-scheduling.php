@@ -68,7 +68,7 @@ function task_release_due_scheduled_tasks(): int
         && ops_column_exists('ops_checklist_tasks', 'urgent_alert_last_error');
     $popupColumns = $hasPopupConfig ? ', urgent_alert_enabled, urgent_alert_recipients_json, urgent_alert_sent_at' : '';
     $rows = ops_rows(
-        "SELECT id, assigned_employee_id, task_name, scheduled_at{$popupColumns} FROM ops_checklist_tasks
+        "SELECT id, assigned_employee_id, task_name, scheduled_at,assignment_mode,floating_eligible_group{$popupColumns} FROM ops_checklist_tasks
          WHERE scheduled_at IS NOT NULL AND scheduled_at <= ? AND released_at IS NULL
            AND archived_at IS NULL AND deleted_at IS NULL ORDER BY scheduled_at, id LIMIT 100",
         [$now]
@@ -78,6 +78,10 @@ function task_release_due_scheduled_tasks(): int
         $pdo = db();
         try {
             $pdo->beginTransaction();
+            if (($row['assignment_mode'] ?? 'assigned') === 'floating' && (int)($row['assigned_employee_id'] ?? 0) === 0) {
+                $chosen = floating_task_assign((int)$row['id'], (string)($row['floating_eligible_group'] ?? 'all_employees'), 'automatic_release');
+                $row['assigned_employee_id'] = (int)$chosen['id'];
+            }
             $stmt = $pdo->prepare(
                 "UPDATE ops_checklist_tasks SET released_at = ?, date_assigned = ?, employee_visible = 1
                  WHERE id = ? AND released_at IS NULL AND scheduled_at IS NOT NULL AND scheduled_at <= ?"
