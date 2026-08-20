@@ -532,7 +532,7 @@ function checklist_create_due_at(array $request): string
 
 function checklist_instruction_text_length(string $html): int
 {
-    $text = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $text = task_instructions_plain_text($html);
     return function_exists('mb_strlen') ? mb_strlen($text, 'UTF-8') : strlen($text);
 }
 
@@ -541,22 +541,14 @@ function checklist_sanitize_instructions(string $html): string
     $html = trim($html);
     if ($html === '') return '';
     if (strlen($html) > 30000) throw new RuntimeException('Task instructions are too large. Keep them under 30 KB.');
-    $html = preg_replace('#<(script|style|iframe|object|embed|form|input|button)[^>]*>.*?</\\1>#is', '', $html) ?? '';
-    $html = strip_tags($html, '<p><br><strong><b><em><i><u><ul><ol><li>');
-    $html = preg_replace('/<([a-z0-9]+)\\b[^>]*>/i', '<$1>', $html) ?? '';
-    $html = str_ireplace(['<b>', '</b>', '<i>', '</i>'], ['<strong>', '</strong>', '<em>', '</em>'], $html);
-    if (!preg_match('/<(p|br|strong|em|u|ul|ol|li)>/i', $html)) {
-        $html = '<p>' . nl2br(htmlspecialchars(html_entity_decode($html, ENT_QUOTES | ENT_HTML5, 'UTF-8'), ENT_QUOTES, 'UTF-8')) . '</p>';
-    }
+    $html = task_instructions_sanitize_html($html);
     if (checklist_instruction_text_length($html) > 8000) throw new RuntimeException('Enter task instructions of 8,000 characters or fewer.');
     return trim($html);
 }
 
 function checklist_render_instructions(string $value): string
 {
-    $value = trim($value);
-    if ($value === '') return '<p>No instructions added.</p>';
-    return checklist_sanitize_instructions($value);
+    return task_instructions_render_html($value);
 }
 
 function checklist_create_scheduled_at(array $request, string $deadline): ?string
@@ -632,6 +624,7 @@ function checklist_custom_filter_field(string $label, string $name, array $optio
 function checklist_insert_auto_task(int $employeeId, string $key, string $type, string $name, string $deadline, array $items, string $instructions, string $priority, string $rule): void
 {
     if (ops_rows('SELECT id FROM ops_checklist_tasks WHERE recurrence_key = ? AND assigned_employee_id = ? LIMIT 1', [$key, $employeeId])) return;
+    $instructions = task_instructions_sanitize_html($instructions);
     $stmt = db()->prepare(
         "INSERT INTO ops_checklist_tasks
          (checklist_type, task_name, priority, assigned_employee_id, date_assigned, deadline, status, notes, instructions, checklist_items, completion_note_required, completion_evidence_required, performance_scored, employee_visible, recurrence_key, recurring_rule, created_by)
@@ -696,7 +689,8 @@ function checklist_seed_recurring_tasks(): void
                  VALUES (?, ?, ?, ?, NOW(), ?, 'new', ?, ?, ?, 1, 0, 1, ?, ?, ?, 1, ?)"
             );
             $deadline = $dateKey . ' ' . (string) ($template['due_time'] ?: '09:00:00');
-            $stmt->execute([$template['checklist_type'], $template['task_name'], $template['priority'], $employeeId, $deadline, $template['instructions'], $template['instructions'], $template['checklist_items'], $key, $template['recurring_rule'], $template['id'], $template['created_by']]);
+            $instructions = task_instructions_sanitize_html((string) $template['instructions']);
+            $stmt->execute([$template['checklist_type'], $template['task_name'], $template['priority'], $employeeId, $deadline, $instructions, $instructions, $template['checklist_items'], $key, $template['recurring_rule'], $template['id'], $template['created_by']]);
         }
     }
 }

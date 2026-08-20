@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once dirname(__DIR__) . '/shared/task-instructions.php';
+
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/database.php';
 require_once __DIR__ . '/task-reminders.php';
@@ -363,7 +365,10 @@ function notifications_urgent_tasks_for_current_user(int $limit = 20): array
             $summary = $summaryStmt->fetch() ?: [];
             return [
                 'alertId' => (int) $row['alert_id'], 'taskId' => (int) $row['task_id'],
-                'title' => (string) $row['title'], 'instructions' => (string) ($row['instructions'] ?? ''),
+                // The alert deliberately uses plain text. Rich instructions are
+                // rendered in the task detail view, while alerts must never
+                // reveal literal markup or accept raw HTML in the browser.
+                'title' => (string) $row['title'], 'instructions' => task_instructions_plain_text((string) ($row['instructions'] ?? '')),
                 'priority' => (string) ($row['priority'] ?: 'urgent'),
                 'assignedBy' => (string) ($row['assigned_by'] ?: 'Management'),
                 'dueAt' => $row['due_at'], 'createdAt' => $row['created_at'], 'deliveredAt' => $row['delivered_at'],

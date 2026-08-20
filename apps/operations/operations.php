@@ -7,6 +7,7 @@ require_once BASE_PATH . '/shared/auth.php';
 require_once BASE_PATH . '/shared/database.php';
 require_once BASE_PATH . '/shared/notifications.php';
 require_once BASE_PATH . '/shared/task-scheduling.php';
+require_once BASE_PATH . '/shared/task-instructions.php';
 require_once BASE_PATH . '/shared/employee-features.php';
 require_once BASE_PATH . '/shared/packing-notifications.php';
 require_once BASE_PATH . '/shared/epi/bootstrap.php';
