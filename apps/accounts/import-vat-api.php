@@ -16,6 +16,52 @@ function im2_reply(array $payload, int $status = 200): void
     exit;
 }
 
+function im2_insert_statement_rows(int $statementId, array $rows): void
+{
+    $insert = db()->prepare('INSERT INTO accounts_import_vat_statement_rows(statement_id,source_row_number,transaction_date,due_date,reference,description,debit,credit,import_vat_amount,other_charge_amount,payment_amount,row_kind,confidence,match_status,tax_type,transaction_type,liability_type,doc_number,tax_year,tax_period,effective_date,action_date,transaction_amount,classification,included_in_payable,source_hash,waiver_status,source_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+    $duplicateCheck = db()->prepare('SELECT r.id FROM accounts_import_vat_statement_rows r JOIN accounts_import_vat_statements s ON s.id=r.statement_id WHERE r.source_hash=? AND r.statement_id<>? AND s.status<>\'parse_failed\' LIMIT 1');
+    foreach ($rows as $row) {
+        $duplicateCheck->execute([$row['source_hash'], $statementId]);
+        $matchStatus = $duplicateCheck->fetchColumn() ? 'possible_duplicate' : $row['match_status'];
+        $insert->execute([
+            $statementId, $row['source_row_number'], $row['transaction_date'], $row['due_date'], $row['reference'],
+            $row['description'], $row['debit'], $row['credit'], $row['import_vat_amount'], $row['other_charge_amount'],
+            $row['payment_amount'], $row['row_kind'], $row['confidence'], $matchStatus, $row['tax_type'],
+            $row['transaction_type'], $row['liability_type'], $row['doc_number'], $row['tax_year'], $row['tax_period'],
+            $row['effective_date'], $row['action_date'], $row['transaction_amount'], $row['classification'],
+            $row['included_in_payable'], $row['source_hash'], $row['waiver_status'], $row['source_json'],
+        ]);
+    }
+}
+
+function im2_reparse_existing_statement(int $statementId): array
+{
+    $statement = import_vat_statement($statementId);
+    if (!$statement) throw new RuntimeException('Statement not found.');
+    if ($statement['confirmed_at']) return $statement;
+    $path = BASE_PATH.'/uploads/import-vat-statements/'.basename((string)$statement['stored_filename']);
+    if (!is_file($path)) throw new RuntimeException('The protected source statement is unavailable.');
+    if ((string)$statement['mime_type'] === 'application/pdf') {
+        $parsed = import_vat_pdf_rows($path); $rows = $parsed['rows']; $engine = $parsed['engine'];
+    } else {
+        $rows = import_vat_csv_rows($path); $engine = 'csv';
+    }
+    $counts = ['assessment' => 0, 'revision' => 0, 'payment' => 0, 'ignored_penalty' => 0, 'ignored_interest' => 0, 'needs_review' => 0];
+    foreach ($rows as $row) $counts[$row['classification']] = ($counts[$row['classification']] ?? 0) + 1;
+    $message = count($rows).' NamRA transaction rows detected using '.$engine.'. Review the rows before confirmation. Penalties and interest are retained for audit but excluded from payable totals.';
+    db()->beginTransaction();
+    try {
+        db()->prepare('DELETE FROM accounts_import_vat_statement_rows WHERE statement_id=?')->execute([$statementId]);
+        db()->prepare("UPDATE accounts_import_vat_statements SET status='needs_review',parse_message=?,rows_detected=?,liabilities_detected=?,payments_detected=?,revision_count=?,penalty_count=?,interest_count=?,needs_review=? WHERE id=?")->execute([$message,count($rows),$counts['assessment'],$counts['payment'],$counts['revision'],$counts['ignored_penalty'],$counts['ignored_interest'],$counts['needs_review'],$statementId]);
+        im2_insert_statement_rows($statementId, $rows);
+        import_vat_statement_audit($statementId, 'statement_reparsed', ['rows'=>count($rows),'counts'=>$counts,'extractor'=>$engine]);
+        db()->commit();
+        return import_vat_statement($statementId);
+    } catch (Throwable $error) {
+        db()->rollBack(); throw $error;
+    }
+}
+
 function im2_upload_statement(): array
 {
     if (!isset($_FILES['statement']) || !is_uploaded_file((string)$_FILES['statement']['tmp_name'])) {
@@ -44,6 +90,11 @@ function im2_upload_statement(): array
     $find = db()->prepare('SELECT id FROM accounts_import_vat_statements WHERE sha256=?');
     $find->execute([$hash]);
     if ($existing = (int)$find->fetchColumn()) {
+        $existingStatement = import_vat_statement($existing);
+        if ($existingStatement && !(int)$existingStatement['rows_detected'] && !$existingStatement['confirmed_at']) {
+            $reparsed = im2_reparse_existing_statement($existing);
+            return ['duplicate' => true, 'statement' => $reparsed, 'message' => (string)$reparsed['parse_message']];
+        }
         return [
             'duplicate' => true,
             'statement' => import_vat_statement($existing),
@@ -92,20 +143,7 @@ function im2_upload_statement(): array
             $counts['needs_review'], (int)$user['id'], (string)$user['name'],
         ]);
         $statementId = (int)db()->lastInsertId();
-        $insert = db()->prepare('INSERT INTO accounts_import_vat_statement_rows(statement_id,source_row_number,transaction_date,due_date,reference,description,debit,credit,import_vat_amount,other_charge_amount,payment_amount,row_kind,confidence,match_status,tax_type,transaction_type,liability_type,doc_number,tax_year,tax_period,effective_date,action_date,transaction_amount,classification,included_in_payable,source_hash,waiver_status,source_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
-        $duplicateCheck = db()->prepare('SELECT r.id FROM accounts_import_vat_statement_rows r JOIN accounts_import_vat_statements s ON s.id=r.statement_id WHERE r.source_hash=? AND s.status<>\'parse_failed\' LIMIT 1');
-        foreach ($rows as $row) {
-            $duplicateCheck->execute([$row['source_hash']]);
-            $matchStatus = $duplicateCheck->fetchColumn() ? 'possible_duplicate' : $row['match_status'];
-            $insert->execute([
-                $statementId, $row['source_row_number'], $row['transaction_date'], $row['due_date'], $row['reference'],
-                $row['description'], $row['debit'], $row['credit'], $row['import_vat_amount'], $row['other_charge_amount'],
-                $row['payment_amount'], $row['row_kind'], $row['confidence'], $matchStatus, $row['tax_type'],
-                $row['transaction_type'], $row['liability_type'], $row['doc_number'], $row['tax_year'], $row['tax_period'],
-                $row['effective_date'], $row['action_date'], $row['transaction_amount'], $row['classification'],
-                $row['included_in_payable'], $row['source_hash'], $row['waiver_status'], $row['source_json'],
-            ]);
-        }
+        im2_insert_statement_rows($statementId, $rows);
         import_vat_statement_audit($statementId, 'statement_uploaded', [
             'sha256' => $hash, 'rows' => count($rows), 'counts' => $counts, 'mime' => $mime, 'extractor' => $engine,
         ]);
@@ -260,6 +298,16 @@ function im2_confirm_statement(int $statementId): array
 }
 
 $action = (string)($_REQUEST['action'] ?? 'list');
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'statement') {
+    try {
+        $statement = import_vat_statement((int)($_GET['id'] ?? 0));
+        if ($statement && !(int)$statement['rows_detected'] && !$statement['confirmed_at']) $statement = im2_reparse_existing_statement((int)$statement['id']);
+        if (!$statement) throw new RuntimeException('Statement not found.');
+        im2_reply(['ok' => true, 'data' => $statement]);
+    } catch (Throwable $error) {
+        im2_reply(['ok' => false, 'message' => $error->getMessage()], 400);
+    }
+}
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action, ['upload_statement', 'confirm_statement'], true)) {
     try {
         import_vat_verify((string)($_POST['csrf'] ?? ''));
