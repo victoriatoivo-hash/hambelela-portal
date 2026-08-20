@@ -7,6 +7,7 @@ const css = readFileSync(new URL('../assets/css/portal.css', import.meta.url), '
 assert.match(php, /function checklist_display_task_title\(string \$value\): string/);
 assert.match(php, /preg_replace\('\/\^\\s\*\\\?\\s\*\/u'/);
 assert.match(php, /preg_replace\('\/\\s\+\\\?\\s\*\$\/u'/);
+assert.match(php, /preg_replace\('\/\\s\+\\\?\(\?=\\s\*<\\\/\(\?:p\|li\)>\)\/iu'/);
 assert.match(php, /class="task-detail-panel task-details-panel task-detail-view"/);
 assert.match(php, /checklist_display_task_title\(\(string\) \$task\['task_name'\]\)/);
 assert.match(php, /data-lucide="copy-plus"/);

@@ -573,7 +573,8 @@ function checklist_render_instructions(string $value): string
     $value = str_replace(["\xEF\xBF\xBD", 'Â'], '', $value);
     $value = preg_replace('/(^|<p>|<br\s*\/?\s*>)\s*\?\s*(?=<\/p>|<br\s*\/?\s*>|$)/imu', '$1', $value) ?? $value;
     $value = preg_replace('/\s+\?\s*$/u', '', $value) ?? $value;
-    return task_instructions_render_html($value);
+    $html = task_instructions_render_html($value);
+    return preg_replace('/\s+\?(?=\s*<\/(?:p|li)>)/iu', '', $html) ?? $html;
 }
 
 function checklist_display_task_title(string $value): string
