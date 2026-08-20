@@ -1637,6 +1637,16 @@ if ($ready && ($tasks || $historyTasks) && ops_table_exists('ops_activity_logs')
     foreach ($activityRows as $row) $activityByTask[(int) $row['entity_id']][] = $row;
 }
 
+$isCompletedPartialRequest = $filters['task_view'] === 'completed'
+    && (string) ($_GET['completed_partial'] ?? '') === '1'
+    && strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest';
+if ($isCompletedPartialRequest) {
+    header('Content-Type: text/html; charset=utf-8');
+    header('Cache-Control: no-store, private');
+    include __DIR__ . '/partials/checklist-completed-tasks.php';
+    exit;
+}
+
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
@@ -1803,28 +1813,7 @@ include BASE_PATH . '/shared/sidebar.php';
     <?php endif; ?>
 
     <?php if ($filters['task_view'] === 'completed'): ?>
-    <section id="completed-tasks-section" data-completed-task-navigation aria-label="Completed tasks by employee">
-        <?php
-        $completedControlQuery = static function (array $changes) use ($filters, $selectedCompletedEmployeeId): string {
-            $query = ['task_view' => 'completed', 'completed_year' => $filters['completed_year'], 'completed_month' => $filters['completed_month'], 'completed_employee_id' => $selectedCompletedEmployeeId];
-            foreach ($changes as $key => $value) $query[$key] = $value;
-            return 'checklists.php?' . http_build_query($query);
-        };
-        $completedPanelTasks = $selectedCompletedEmployeeId === 'all' ? $tasks : (array) ($selectedCompletedEmployeeGroup['tasks'] ?? []);
-        $completedPanelName = $selectedCompletedEmployeeId === 'all' ? 'All Employees' : (string) ($selectedCompletedEmployeeGroup['name'] ?? 'Employee');
-        $completedPeriodLabel = $filters['completed_month'] !== '' ? ($completedMonthOptions[$filters['completed_month']] ?? $filters['completed_month']) : ($filters['completed_year'] !== '' ? $filters['completed_year'] : 'All time');
-        $completedYear = (int) ($filters['completed_year'] ?: date('Y'));
-        ?>
-        <div class="completed-task-controls">
-            <div class="completed-task-control-row"><span>Employee</span><nav class="completed-employee-nav" aria-label="Completed task employees"><a class="completed-employee-nav__item<?= $selectedCompletedEmployeeId === 'all' ? ' is-active' : '' ?>" href="<?= htmlspecialchars($completedControlQuery(['completed_employee_id' => 'all']), ENT_QUOTES, 'UTF-8') ?>"><span>All Employees</span></a><?php foreach ($completedEmployeeGroups as $completedGroup): ?><?php if (empty($completedGroup['id'])) continue; $completedEmployeeKey = (string) (int) $completedGroup['id']; ?><a class="completed-employee-nav__item<?= $selectedCompletedEmployeeId === $completedEmployeeKey ? ' is-active' : '' ?>" href="<?= htmlspecialchars($completedControlQuery(['completed_employee_id' => $completedEmployeeKey]), ENT_QUOTES, 'UTF-8') ?>"><span><?= htmlspecialchars((string) $completedGroup['name'], ENT_QUOTES, 'UTF-8') ?></span></a><?php endforeach; ?></nav></div>
-            <div class="completed-task-control-row"><span>Year</span><nav class="completed-year-nav" aria-label="Completed task year"><a href="<?= htmlspecialchars($completedControlQuery(['completed_year' => (string) ($completedYear - 1), 'completed_month' => '']), ENT_QUOTES, 'UTF-8') ?>" aria-label="Previous year">‹</a><strong><?= $completedYear ?></strong><a href="<?= htmlspecialchars($completedControlQuery(['completed_year' => (string) ($completedYear + 1), 'completed_month' => '']), ENT_QUOTES, 'UTF-8') ?>" aria-label="Next year">›</a></nav></div>
-            <div class="completed-task-control-row"><span>Month</span><nav class="completed-month-nav" aria-label="Completed task month"><a class="<?= $filters['completed_month'] === '' ? 'is-active' : '' ?>" href="<?= htmlspecialchars($completedControlQuery(['completed_month' => '']), ENT_QUOTES, 'UTF-8') ?>">All</a><?php for ($month = 1; $month <= 12; $month++): ?><?php $monthKey = sprintf('%04d-%02d', $completedYear, $month); ?><a class="<?= $filters['completed_month'] === $monthKey ? ' is-active' : '' ?>" href="<?= htmlspecialchars($completedControlQuery(['completed_month' => $monthKey]), ENT_QUOTES, 'UTF-8') ?>"><?= date('M', mktime(0, 0, 0, $month, 1)) ?></a><?php endfor; ?></nav></div>
-        </div>
-        <section class="completed-employee-panel">
-            <header class="completed-employee-panel__header"><div><p>Completed Tasks</p><h2><?= htmlspecialchars($completedPanelName, ENT_QUOTES, 'UTF-8') ?> · <?= htmlspecialchars($completedPeriodLabel, ENT_QUOTES, 'UTF-8') ?></h2></div><b><?= number_format(count($completedPanelTasks)) ?> completed task<?= count($completedPanelTasks) === 1 ? '' : 's' ?></b></header>
-            <div class="completed-employee-table-wrap"><?php $displayTasks = $completedPanelTasks; $displayTaskKind = $selectedCompletedEmployeeId === 'all' ? 'completed-all' : 'completed'; $hideAssignedColumn = $selectedCompletedEmployeeId !== 'all'; $emptyTaskMessage = 'No completed tasks for this employee and period.'; include __DIR__ . '/partials/checklist-task-table.php'; unset($hideAssignedColumn); ?></div>
-        </section>
-    </section>
+    <?php include __DIR__ . '/partials/checklist-completed-tasks.php'; ?>
     <?php endif; ?>
 
     <div class="dtb-bulk-action-bar" data-task-bulk-bar hidden>
@@ -3310,6 +3299,139 @@ function initialiseTaskSections() {
   }
 }
 
+let completedTaskWorkspaceRequest = null;
+let completedTaskWorkspaceSequence = 0;
+let completedTaskHistoryInitialised = false;
+
+function initialiseCompletedTaskWorkspace() {
+  const root = document.querySelector('[data-completed-task-navigation]');
+  if (!root || root.dataset.workspaceInitialised === 'true') return;
+  root.dataset.workspaceInitialised = 'true';
+  const stateFromRoot = (node) => ({
+    employeeId: node.dataset.completedEmployeeId || 'all',
+    year: node.dataset.completedYear || '',
+    month: node.dataset.completedMonth || ''
+  });
+  let state = stateFromRoot(root);
+  const status = root.querySelector('[data-completed-update-status]');
+  const setStatus = (message = '', error = false) => {
+    if (!status) return;
+    status.hidden = message === '';
+    status.classList.toggle('is-error', error);
+    status.textContent = message;
+  };
+  const reflectState = (nextState) => {
+    root.querySelectorAll('.completed-employee-nav__item, .completed-month-nav a').forEach((link) => {
+      const url = new URL(link.href, window.location.origin);
+      const employeeMatches = url.searchParams.get('completed_employee_id') === nextState.employeeId;
+      const monthMatches = url.searchParams.get('completed_month') === nextState.month;
+      const active = link.closest('.completed-employee-nav') ? employeeMatches : monthMatches;
+      link.classList.toggle('is-active', active);
+      if (active) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current');
+    });
+  };
+  const updateFilterState = (nextState) => {
+    const form = document.querySelector('form.dtb-filter-body');
+    if (!form) return;
+    const employee = form.querySelector('[data-completed-employee-filter]');
+    if (employee) employee.value = nextState.employeeId;
+  };
+  const requestWorkspace = async (targetUrl, { pushHistory = true } = {}) => {
+    const url = new URL(targetUrl, window.location.origin);
+    url.searchParams.set('task_view', 'completed');
+    const nextState = {
+      employeeId: url.searchParams.get('completed_employee_id') || 'all',
+      year: url.searchParams.get('completed_year') || '',
+      month: url.searchParams.get('completed_month') || ''
+    };
+    state = nextState;
+    reflectState(state);
+    updateFilterState(state);
+    root.classList.add('is-updating');
+    setStatus('Updating completed tasks…');
+    completedTaskWorkspaceRequest?.abort();
+    const request = new AbortController();
+    completedTaskWorkspaceRequest = request;
+    const sequence = ++completedTaskWorkspaceSequence;
+    const requestUrl = new URL(url);
+    requestUrl.searchParams.set('completed_partial', '1');
+    try {
+      const response = await fetch(requestUrl, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' }, signal: request.signal, cache: 'no-store' });
+      if (!response.ok) throw new Error('Could not update completed tasks.');
+      const parsed = new DOMParser().parseFromString(await response.text(), 'text/html');
+      const nextRoot = parsed.querySelector('[data-completed-task-navigation]');
+      if (!nextRoot) throw new Error('Could not update completed tasks.');
+      if (sequence !== completedTaskWorkspaceSequence || completedTaskWorkspaceRequest !== request) return;
+      if (pushHistory) history.pushState({ completedTasks: true }, '', `${url.pathname}${url.search}${url.hash}`);
+      root.replaceWith(nextRoot);
+      completedTaskWorkspaceRequest = null;
+      initialiseCompletedTaskWorkspace();
+      initialiseTaskBulkSelection();
+      initialiseTaskStatusWorkflow();
+      initialiseTaskColumnResizing();
+      window.taskDueStateController?.refresh?.();
+      window.lucide?.createIcons?.();
+    } catch (error) {
+      if (error.name === 'AbortError') return;
+      if (sequence !== completedTaskWorkspaceSequence) return;
+      root.classList.remove('is-updating');
+      if (status) {
+        status.hidden = false;
+        status.classList.add('is-error');
+        status.innerHTML = 'Could not update completed tasks. <button type="button" data-completed-retry>Retry</button>';
+      }
+    } finally {
+      if (completedTaskWorkspaceRequest === request) completedTaskWorkspaceRequest = null;
+    }
+  };
+  window.completedTaskWorkspaceController = { requestWorkspace };
+  root.addEventListener('click', (event) => {
+    const link = event.target.closest('.completed-employee-nav__item, .completed-month-nav a, .completed-year-nav a');
+    if (!link || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || link.target === '_blank') return;
+    event.preventDefault();
+    requestWorkspace(link.href);
+  });
+  root.addEventListener('click', (event) => {
+    if (!event.target.closest('[data-completed-retry]')) return;
+    const url = new URL(window.location.href);
+    requestWorkspace(url, { pushHistory: false });
+  });
+  if (!completedTaskHistoryInitialised) {
+    completedTaskHistoryInitialised = true;
+    window.addEventListener('popstate', () => {
+      if (document.querySelector('.digital-task-page')?.dataset.taskView !== 'completed') return;
+      window.completedTaskWorkspaceController?.requestWorkspace(window.location.href, { pushHistory: false });
+    });
+  }
+  const filterForm = document.querySelector('form.dtb-filter-body');
+  if (filterForm && filterForm.dataset.completedWorkspaceInitialised !== 'true') {
+    filterForm.dataset.completedWorkspaceInitialised = 'true';
+    const submitFilter = () => {
+      if (filterForm.querySelector('[name="task_view"]')?.value !== 'completed') return;
+      const url = new URL(window.location.href);
+      const formData = new FormData(filterForm);
+      formData.forEach((value, key) => url.searchParams.set(key, String(value)));
+      const currentState = stateFromRoot(document.querySelector('[data-completed-task-navigation]'));
+      url.searchParams.set('completed_employee_id', currentState.employeeId);
+      url.searchParams.set('completed_year', currentState.year);
+      url.searchParams.set('completed_month', currentState.month);
+      requestWorkspace(url);
+    };
+    filterForm.addEventListener('submit', (event) => { if (filterForm.querySelector('[name="task_view"]')?.value === 'completed') { event.preventDefault(); submitFilter(); } });
+    const search = filterForm.querySelector('[name="search"]');
+    let searchTimer = null;
+    search?.addEventListener('input', () => {
+      if (filterForm.querySelector('[name="task_view"]')?.value !== 'completed') return;
+      window.clearTimeout(searchTimer);
+      searchTimer = window.setTimeout(submitFilter, 250);
+    });
+    filterForm.addEventListener('change', (event) => {
+      if (event.target === search || filterForm.querySelector('[name="task_view"]')?.value !== 'completed') return;
+      submitFilter();
+    });
+  }
+}
+
 let taskViewRequest = null;
 
 function updateTaskViewTabs(root, activeView) {
@@ -3328,6 +3450,7 @@ function initialiseLoadedTaskView(content) {
   initialiseTaskBulkSelection();
   initialiseTaskCompletionEnforcement();
   initialiseTaskColumnResizing();
+  initialiseCompletedTaskWorkspace();
   initializePortalCustomSelects(content);
   window.taskDueStateController?.refresh?.();
   window.lucide?.createIcons?.();
@@ -3429,6 +3552,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initialiseTaskColumnResizing();
   initialiseTaskOverdueFilter();
   initialiseTaskSections();
+  initialiseCompletedTaskWorkspace();
   initialiseTaskDueStates();
 });
 

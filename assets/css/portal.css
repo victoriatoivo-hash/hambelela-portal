@@ -28092,9 +28092,13 @@ body.dark-mode .portal-dark-toggle {
 #completed-tasks-section .completed-employee-table-wrap .task-board{margin:0}
 #completed-tasks-section .completed-employee-table-wrap .task-board-table .dtb-col-notes{width:300px}
 #completed-tasks-section .completed-empty-state{padding:28px 18px;border:1px dashed #d9bba9;border-radius:12px;color:#7a5745;text-align:center;background:#fffcfa}
+#completed-tasks-section .completed-tasks-update-status{margin:0;color:#7a5745;font-size:12px}
+#completed-tasks-section .completed-tasks-update-status.is-error{color:#9f251b}
+#completed-tasks-section .completed-tasks-update-status button{margin-left:8px;padding:2px 7px;border:1px solid currentColor;border-radius:5px;background:transparent;color:inherit;font:inherit;cursor:pointer}
+#completed-tasks-section.is-updating [data-completed-results]{opacity:.58;transition:opacity 120ms ease}
 @keyframes completed-task-group-in{from{opacity:.01;transform:translateY(-3px)}to{opacity:1;transform:translateY(0)}}
 @media (max-width:700px){#completed-tasks-section{gap:10px}#completed-tasks-section .completed-task-controls{padding:10px}#completed-tasks-section .completed-task-control-row{align-items:flex-start;flex-direction:column;gap:6px}#completed-tasks-section .completed-task-control-row>span{flex:none}#completed-tasks-section .completed-employee-nav,#completed-tasks-section .completed-month-nav{width:100%;padding-bottom:1px}#completed-tasks-section .completed-employee-panel__header{align-items:flex-start}#completed-tasks-section .completed-employee-panel__header h2{font-size:15px}}
-@media (prefers-reduced-motion:reduce){#completed-tasks-section .completed-employee-nav__item,#completed-tasks-section .completed-month-nav a,#completed-tasks-section .completed-year-nav a{transition:none}#completed-tasks-section .completed-employee-panel{animation:none}}
+@media (prefers-reduced-motion:reduce){#completed-tasks-section .completed-employee-nav__item,#completed-tasks-section .completed-month-nav a,#completed-tasks-section .completed-year-nav a,#completed-tasks-section.is-updating [data-completed-results]{transition:none}#completed-tasks-section .completed-employee-panel{animation:none}}
 .digital-task-page .task-timing-outcome{display:grid;gap:2px;min-width:0;line-height:1.25}
 .digital-task-page .task-timing-outcome strong{font-size:10px;font-weight:500}
 .digital-task-page .task-timing-outcome small,.digital-task-page .task-progress-outcome{display:block;margin-top:3px;font-size:9px;line-height:1.25;white-space:normal}
