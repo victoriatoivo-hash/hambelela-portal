@@ -1,5 +1,5 @@
 import fs from 'node:fs';import assert from 'node:assert/strict';
-const shared=fs.readFileSync('shared/accounts-import-vat.php','utf8'),api=fs.readFileSync('apps/accounts/import-vat-api.php','utf8'),page=fs.readFileSync('apps/accounts/import-vat.php','utf8'),index=fs.readFileSync('apps/accounts/index.php','utf8'),js=fs.readFileSync('assets/js/import-vat.js','utf8');
+const parser=fs.readFileSync('shared/accounts-import-vat-parser.php','utf8'),shared=fs.readFileSync('shared/accounts-import-vat.php','utf8')+parser,api=fs.readFileSync('apps/accounts/import-vat-api.php','utf8')+fs.readFileSync('apps/accounts/import-vat-api-legacy.php','utf8'),page=fs.readFileSync('apps/accounts/import-vat.php','utf8'),index=fs.readFileSync('apps/accounts/index.php','utf8'),js=fs.readFileSync('assets/js/import-vat.js','utf8');
 for(const table of ['accounts_import_vat_liabilities','accounts_import_vat_payments','accounts_import_vat_documents','accounts_import_vat_audit','accounts_import_vat_statements','accounts_import_vat_statement_rows','accounts_import_vat_statement_audit'])assert.ok(shared.includes(table),table);
 assert.ok(shared.includes("SUM(CASE WHEN p.reversed_at IS NULL THEN p.amount ELSE 0 END)"),'ledger totals derive paid amount');
 assert.ok(shared.includes("return'partially_paid'")&&shared.includes("return'overdue'")&&shared.includes("return'overpayment'"),'payment states');
@@ -18,7 +18,11 @@ assert.ok(shared.includes('confirmed NamRA Transaction Records format'),'conserv
 for(const field of ['Tax Type','Transaction Type','Liability Type','Doc No.','Tax Year','Tax Period','Due Date','Effective Date','Action Date','Transaction Amount'])assert.ok(shared.toLowerCase().includes(field.toLowerCase().replace('doc no.','doc no'))||shared.includes(field),`NamRA heading ${field}`);
 for(const mapping of ["'201'=>'assessment'","'204'=>'revision'","'129'=>'payment'","'481'=>'ignored_penalty'","'304'=>'ignored_interest'"])assert.ok(shared.includes(mapping),`NamRA mapping ${mapping}`);
 assert.ok(shared.includes("included_in_payable")&&shared.includes("pending_waiver")&&shared.includes("penalty_interest_review_date"),'excluded charges remain auditable and configurable');
-assert.ok(api.includes("$reference='NAMRA-'")&&api.includes("201 + 204")&&api.includes("Tax Year + Tax Period"),'period principal and payment matching');
+assert.ok(api.includes("'NAMRA-'")&&api.includes('unique 201 + 204 rows')&&api.includes('Exact Tax Year + Tax Period'),'period principal and payment matching');
+assert.ok(parser.includes('Smalot\\PdfParser\\Parser')&&parser.includes('pdftotext -layout'),'production PDF extractor with fallback');
+assert.ok(parser.includes('import_vat_tax_period_month')&&api.includes("$period['month']"),'NamRA tax period drives accounting month');
+assert.ok(api.includes("match_status<>'possible_duplicate'")&&api.includes('source_hash'),'overlapping-statement row deduplication');
+assert.ok(api.includes("'481', '304'")&&api.includes('amount was not used as the sole key'),'exclusions and evidence-first payment matching');
 assert.ok(page.includes('Penalty/interest exclusion rule'),'owner review setting UI');
 assert.ok(index.includes('href="import-vat.php"'),'Accounts card');
 console.log('Import VAT static contract passed');

@@ -13,6 +13,24 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up PHP runtime
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          tools: composer:v2
+
+      - name: Install production PHP dependencies
+        run: composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader
+
+      - name: Validate Import VAT parser and PHP syntax
+        run: |
+          php -l shared/accounts-import-vat-parser.php
+          php -l shared/accounts-import-vat.php
+          php -l apps/accounts/import-vat-api.php
+          php -l apps/accounts/import-vat-api-legacy.php
+          php tests/accounts-import-vat-parser.php
+          node tests/accounts-import-vat-static.mjs
+
       - name: Deploy to cPanel FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.4.0
         with:
