@@ -582,12 +582,18 @@ function checklist_sanitize_instructions(string $html): string
 
 function checklist_render_instructions(string $value): string
 {
-    return task_instructions_render_html($value);
+    $value = str_replace(["\xEF\xBF\xBD", 'Â'], '', $value);
+    $value = preg_replace('/(^|<p>|<br\s*\/?\s*>)\s*\?\s*(?=<\/p>|<br\s*\/?\s*>|$)/imu', '$1', $value) ?? $value;
+    $value = preg_replace('/\s+\?\s*$/u', '', $value) ?? $value;
+    $html = task_instructions_render_html($value);
+    return preg_replace('/\s+\?(?=\s*<\/(?:p|li)>)/iu', '', $html) ?? $html;
 }
 
 function checklist_display_task_title(string $value): string
 {
     $value = trim(html_entity_decode(strip_tags($value), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+    $value = preg_replace('/^\s*\?\s*/u', '', $value) ?? $value;
+    $value = preg_replace('/\s*\?\s*$/u', '', $value) ?? $value;
     $value = preg_replace('/^\s{0,3}#{1,6}\s+/u', '', $value) ?? $value;
     $value = preg_replace('/^(?:\*\*|__)(.*)(?:\*\*|__)$/us', '$1', $value) ?? $value;
     $value = str_replace("\xEF\xBF\xBD", '', $value);
