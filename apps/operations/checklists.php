@@ -1727,6 +1727,7 @@ include BASE_PATH . '/shared/sidebar.php';
             <header class="create-task-header task-create-heading">
                 <button class="create-task-close" type="button" data-task-create-close aria-label="Close create task"><i data-lucide="x"></i></button>
                 <div class="task-create-heading__copy"><span class="create-task-type-badge">Manual task</span><h2 class="create-task-title">Create task</h2></div>
+                <button type="button" class="task-import-trigger" data-task-import-open aria-label="Import Task"><i data-lucide="clipboard-plus" aria-hidden="true"></i><span>Import Task</span></button>
             </header>
             <div class="create-task-body task-create-shell">
                 <form class="task-create-form checklist-create-form" method="post" enctype="multipart/form-data" data-task-create-form novalidate>
@@ -1780,6 +1781,20 @@ include BASE_PATH . '/shared/sidebar.php';
               <section class="task-template-dialog__card"><header><div><span>Task Templates</span><h3 id="task-template-dialog-title" data-template-dialog-title>Load Template</h3></div><button type="button" data-template-dialog-close aria-label="Close template library">×</button></header><label class="task-template-search"><span>Search templates</span><input type="search" data-template-search placeholder="Search saved templates"></label><div class="task-template-list" data-template-list></div><p class="task-template-message" data-template-message hidden></p></section>
             </div>
         </aside>
+        <div class="task-import-modal" data-task-import-modal hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="task-import-title">
+            <div class="task-import-modal__backdrop" data-task-import-close></div>
+            <section class="task-import-modal__card">
+                <header class="task-import-modal__header"><div><span>Import Task</span><h2 id="task-import-title">Paste a formatted task</h2></div><button type="button" data-task-import-close aria-label="Close Import Task"><i data-lucide="x" aria-hidden="true"></i></button></header>
+                <div class="task-import-modal__body">
+                    <p>Paste a task prepared in ChatGPT. The title, instructions and checklist will be loaded into the current task form for review.</p>
+                    <label class="task-import-label" for="task-import-content">Task content</label>
+                    <textarea id="task-import-content" class="task-import-modal__textarea" data-task-import-content placeholder="Task Title&#10;&#10;Please organise the Raspberry Leaf tea pouches...&#10;&#10;What to do:&#10;&#10;1. Remove all pouches...&#10;2. Clean the box...&#10;&#10;Quick check before completing:&#10;&#10;[ ] Box cleaned&#10;[ ] Pouches packed upright&#10;[ ] Area left neat"></textarea>
+                    <p class="task-import-error" data-task-import-error role="alert" hidden></p>
+                    <div class="task-import-confirm" data-task-import-confirm hidden><strong>Replace current task content?</strong><p>Importing will replace the current title, instructions and checklist.</p><div><button type="button" data-task-import-keep>Cancel</button><button type="button" data-task-import-replace>Replace &amp; Load</button></div></div>
+                </div>
+                <footer class="task-import-modal__footer"><button type="button" class="task-import-cancel" data-task-import-close>Cancel</button><button type="button" class="task-import-load" data-task-import-load>Load Task</button></footer>
+            </section>
+        </div>
     <?php endif; ?>
 
     <div class="task-status-popup" data-task-status-popup hidden role="menu">
@@ -3701,4 +3716,5 @@ window.addEventListener('portal:task-update', async (event) => {
 const initialTaskId = new URLSearchParams(window.location.search).get('task_id');
 if (initialTaskId) window.openTaskPanel(initialTaskId);
 </script>
+<?php if ($canManage): ?><script src="<?= BASE_URL ?>/assets/js/task-import.js?v=<?= rawurlencode((string) @filemtime(BASE_PATH . '/assets/js/task-import.js')) ?>"></script><?php endif; ?>
 <?php include BASE_PATH . '/shared/footer.php'; ?>
