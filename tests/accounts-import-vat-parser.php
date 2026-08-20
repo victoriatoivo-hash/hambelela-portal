@@ -24,7 +24,7 @@ $fixture = <<<'TEXT'
 Namibia Revenue Agency
 Transaction Records
 Tax Type Transaction Type Liability Type Doc No. Tax Year Tax Period Due Date Effective Date Action Date Transaction Amount
-V Im a p lu o e rt A A d c d c e o d u n T t ax 2 A 0 s 1 se - ssment(original) Tax 29832776 2027 5 20-08-2026 20-08-2026 05-08-2026 12,273.53
+V Im a p lu o e rt A A d c d c e o d u n T t ax 2 A 0 s 1 se - ssment(original) Tax 29832776 2027 520-08-202620-08-202605-08-2026 12,273.53
 Value Added Tax Import Account 204 - Assessment(revision increased debit) Tax 28926769 2026 9 22-12-2025 22-12-2025 02-12-2025 12,747.90
 Value Added Tax Import Account 129 - VIA payment Tax B R 62 K E S V T _ M VA T T - 03112025- 2026 8 20-11-2025 03-11-2025 07-11-2025 6,224.63
 Value Added Tax Import Account 4 P 8 e 1 n a - l L ty ate Payment Late Payment Penalty LPVIA230626001 2027 3 22-06-2026 01-08-2026 01-08-2026 1,069.42

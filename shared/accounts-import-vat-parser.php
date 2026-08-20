@@ -116,7 +116,10 @@ function import_vat_namra_text_rows(string $text): array
     $logical = [];
     $buffer = '';
     $hasTail = function (string $value): bool {
-        return (bool)preg_match('/\b20\d{2}\s+\d{1,2}\s+\d{2}-\d{2}-\d{4}\s+\d{2}-\d{2}-\d{4}\s+\d{2}-\d{2}-\d{4}\s+[\d,]+\.\d{2}\s*$/', $value);
+        // Smalot/pdfparser can concatenate the Tax Period cell with the Due Date
+        // (for example `2027 520-08-2026`). Accept that confirmed extraction
+        // shape while still requiring all three dates and the final amount.
+        return (bool)preg_match('/\b20\d{2}\s+\d{1,2}\s*\d{2}-\d{2}-\d{4}\s*\d{2}-\d{2}-\d{4}\s*\d{2}-\d{2}-\d{4}\s+[\d,]+\.\d{2}\s*$/', $value);
     };
     foreach (preg_split('/\n+/', $text) as $line) {
         $line = trim(preg_replace('/[\x{00A0}\t ]+/u', ' ', (string)$line));
@@ -139,7 +142,7 @@ function import_vat_namra_text_rows(string $text): array
 
     $number = 1;
     foreach ($logical as $line) {
-        if (!preg_match('/^(?<head>.*?)\s+(?<year>20\d{2})\s+(?<period>\d{1,2})\s+(?<due>\d{2}-\d{2}-\d{4})\s+(?<effective>\d{2}-\d{2}-\d{4})\s+(?<action>\d{2}-\d{2}-\d{4})\s+(?<amount>[\d,]+\.\d{2})\s*$/u', $line, $match)) {
+        if (!preg_match('/^(?<head>.*?)\s+(?<year>20\d{2})\s+(?<period>\d{1,2})\s*(?<due>\d{2}-\d{2}-\d{4})\s*(?<effective>\d{2}-\d{2}-\d{4})\s*(?<action>\d{2}-\d{2}-\d{4})\s+(?<amount>[\d,]+\.\d{2})\s*$/u', $line, $match)) {
             continue;
         }
         $code = import_vat_transaction_code($match['head']);
