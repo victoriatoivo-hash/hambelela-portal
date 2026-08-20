@@ -66,7 +66,13 @@ function task_instructions_sanitize_html(string $instructions): string
 
     $safe = '';
     foreach ($root->childNodes as $child) $safe .= $renderNode($child);
-    return trim($safe);
+    $safe = trim($safe);
+    // Plain-text legacy instructions retain their line breaks in the rich-text
+    // surface rather than collapsing into a single sentence.
+    if ($safe !== '' && !preg_match('#<(?:p|ul|ol|li)\b#i', $safe)) {
+        $safe = '<p>' . preg_replace('/\r?\n/', '<br>', $safe) . '</p>';
+    }
+    return $safe;
 }
 
 function task_instructions_render_html(string $instructions, string $fallback = 'No instructions added.'): string

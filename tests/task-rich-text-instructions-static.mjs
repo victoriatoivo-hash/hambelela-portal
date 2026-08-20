@@ -15,6 +15,7 @@ assert.match(helper, /function task_instructions_plain_text/);
 assert.match(helper, /'p', 'br', 'strong', 'b', 'em', 'i', 'u', 'ul', 'ol', 'li', 'a'/);
 assert.match(helper, /'script', 'iframe', 'object', 'embed', 'style', 'form', 'input', 'button', 'video', 'audio'/);
 assert.match(helper, /html_entity_decode/);
+assert.match(helper, /Plain-text legacy instructions retain their line breaks/);
 assert.match(helper, /^(?!.*onclick).*$/ms, 'The allow-list must not preserve event attributes.');
 
 assert.match(page, /\$instructions = checklist_sanitize_instructions/);
