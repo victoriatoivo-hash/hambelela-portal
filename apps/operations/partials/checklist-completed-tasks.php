@@ -7,14 +7,10 @@ $completedControlQuery = static function (array $changes) use ($filters, $select
         'completed_year' => $filters['completed_year'],
         'completed_month' => $filters['completed_month'],
         'completed_employee_id' => $selectedCompletedEmployeeId,
-        'date_from' => $filters['date_from'],
-        'date_to' => $filters['date_to'],
-        'status' => $filters['status'],
-        'priority' => $filters['priority'],
-        'checklist_type' => $filters['checklist_type'],
-        'task_kind' => $filters['task_kind'],
-        'search' => $filters['search'],
     ];
+    foreach (['date_from', 'date_to', 'status', 'priority', 'checklist_type', 'task_kind', 'search'] as $filterKey) {
+        if ($filters[$filterKey] !== '') $query[$filterKey] = $filters[$filterKey];
+    }
     foreach ($changes as $key => $value) $query[$key] = $value;
     return 'checklists.php?' . http_build_query($query);
 };
