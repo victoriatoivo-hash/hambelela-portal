@@ -409,6 +409,16 @@ function checklist_schedule_date_label(?string $value): string
     }
 }
 
+function checklist_completed_date_label(?string $value): string
+{
+    if (!$value) return 'Completion time unavailable';
+    try {
+        return (new DateTimeImmutable($value, new DateTimeZone('Africa/Windhoek')))->format('j M Y · H:i');
+    } catch (Throwable $e) {
+        return $value;
+    }
+}
+
 function checklist_authoritative_deadline(?string $value): ?DateTimeImmutable
 {
     $raw = trim((string) $value);
@@ -1346,12 +1356,43 @@ $filters = [
     'task_kind' => trim((string) ($_GET['task_kind'] ?? '')),
     'task_view' => trim((string) ($_GET['task_view'] ?? 'active')),
     'search' => trim((string) ($_GET['search'] ?? '')),
+    'completed_year' => trim((string) ($_GET['completed_year'] ?? '')),
+    'completed_month' => trim((string) ($_GET['completed_month'] ?? '')),
 ];
 $filters['task_view'] = $filters['task_view'] === 'tasks' ? 'active' : $filters['task_view'];
 $requestedTaskView = $filters['task_view'];
 if (in_array($filters['task_view'], ['recurring', 'manual'], true)) $filters['task_view'] = 'active';
 if (!in_array($filters['task_view'], ['active', 'scheduled', 'completed', 'history'], true)) $filters['task_view'] = 'active';
 $isScheduledOwnerView = $canManage && $filters['task_view'] === 'scheduled';
+if ($filters['task_view'] === 'completed') {
+    if (!preg_match('/^\d{4}$/', $filters['completed_year'])) $filters['completed_year'] = date('Y');
+    if (!preg_match('/^\d{4}-\d{2}$/', $filters['completed_month'])) $filters['completed_month'] = '';
+}
+
+$completedYearOptions = [];
+$completedMonthOptions = [];
+if ($ready && $filters['task_view'] === 'completed') {
+    $completedScopeWhere = ["t.status = 'complete'", 't.archived_at IS NULL', 't.deleted_at IS NULL'];
+    $completedScopeParams = [];
+    if (!$canManage) {
+        $completedScopeWhere[] = 't.assigned_employee_id = ?';
+        $completedScopeParams[] = $currentEmployeeId ?: 0;
+        $completedScopeWhere[] = 't.employee_visible = 1';
+        $completedScopeWhere[] = '(t.scheduled_at IS NULL OR t.released_at IS NOT NULL)';
+    }
+    $completedScopeSql = implode(' AND ', $completedScopeWhere);
+    foreach (ops_rows("SELECT DISTINCT YEAR(COALESCE(t.date_completed, t.completed_at, t.created_at)) AS completed_year FROM ops_checklist_tasks t WHERE {$completedScopeSql} ORDER BY completed_year DESC", $completedScopeParams) as $completedYearRow) {
+        $year = (string) ($completedYearRow['completed_year'] ?? '');
+        if (preg_match('/^\d{4}$/', $year)) $completedYearOptions[$year] = $year;
+    }
+    $completedYearOptions[$filters['completed_year']] = $filters['completed_year'];
+    krsort($completedYearOptions);
+    foreach (ops_rows("SELECT DISTINCT DATE_FORMAT(COALESCE(t.date_completed, t.completed_at, t.created_at), '%Y-%m') AS completed_month FROM ops_checklist_tasks t WHERE {$completedScopeSql} AND YEAR(COALESCE(t.date_completed, t.completed_at, t.created_at)) = ? ORDER BY completed_month DESC", [...$completedScopeParams, (int) $filters['completed_year']]) as $completedMonthRow) {
+        $month = (string) ($completedMonthRow['completed_month'] ?? '');
+        if (!preg_match('/^\d{4}-\d{2}$/', $month)) continue;
+        try { $completedMonthOptions[$month] = (new DateTimeImmutable($month . '-01'))->format('F Y'); } catch (Throwable $e) { $completedMonthOptions[$month] = $month; }
+    }
+}
 
 $where = [];
 $params = [];
@@ -1398,6 +1439,15 @@ if ($filters['task_view'] === 'active') {
 } elseif (in_array($filters['task_view'], ['completed', 'history'], true)) {
     $where[] = "t.status = 'complete'";
 }
+if ($filters['task_view'] === 'completed') {
+    $completedAtSql = 'COALESCE(t.date_completed, t.completed_at, t.created_at)';
+    $where[] = "YEAR({$completedAtSql}) = ?";
+    $params[] = (int) $filters['completed_year'];
+    if ($filters['completed_month'] !== '') {
+        $where[] = "DATE_FORMAT({$completedAtSql}, '%Y-%m') = ?";
+        $params[] = $filters['completed_month'];
+    }
+}
 if ($filters['search'] !== '') {
     $where[] = '(t.task_name LIKE ? OR t.notes LIKE ? OR t.instructions LIKE ? OR t.completion_note LIKE ?)';
     array_push($params, '%' . $filters['search'] . '%', '%' . $filters['search'] . '%', '%' . $filters['search'] . '%', '%' . $filters['search'] . '%');
@@ -1417,7 +1467,7 @@ $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 $taskOrderSql = $filters['task_view'] === 'scheduled'
     ? 't.scheduled_at ASC, t.id ASC'
     : ($filters['task_view'] === 'completed'
-        ? "CASE WHEN COALESCE(t.date_completed,t.completed_at) IS NULL THEN 1 ELSE 0 END ASC, COALESCE(t.date_completed,t.completed_at) ASC, COALESCE(t.deadline,'9999-12-31 23:59:59') ASC, t.id ASC"
+        ? "CASE WHEN COALESCE(t.date_completed,t.completed_at) IS NULL THEN 1 ELSE 0 END ASC, COALESCE(t.date_completed,t.completed_at,t.created_at) DESC, t.id DESC"
         : "CASE WHEN t.status = 'complete' THEN 2 ELSE 1 END, COALESCE(t.deadline, t.created_at) ASC, t.created_at DESC");
 
 $tasks = $ready ? ops_rows(
@@ -1434,12 +1484,25 @@ $manualTasks = array_values(array_filter($tasks, static fn (array $task): bool =
 $recurringTasks = array_values(array_filter($tasks, static fn (array $task): bool => checklist_task_kind($task) === 'recurring'));
 $completedEmployeeGroups = [];
 if ($filters['task_view'] === 'completed') {
-    foreach ($employees as $employee) $completedEmployeeGroups['employee:' . (int) $employee['id']] = ['id'=>(int)$employee['id'],'name'=>(string)$employee['full_name'],'tasks'=>[]];
+    foreach ($employees as $employee) $completedEmployeeGroups['employee:' . (int) $employee['id']] = ['id'=>(int)$employee['id'],'name'=>(string)$employee['full_name'],'tasks'=>[], 'months'=>[]];
     foreach ($tasks as $completedTask) {
         $employeeId = (int) ($completedTask['assigned_employee_id'] ?? 0); $key = $employeeId > 0 ? 'employee:' . $employeeId : 'unassigned';
-        if (!isset($completedEmployeeGroups[$key])) $completedEmployeeGroups[$key] = ['id'=>$employeeId ?: null,'name'=>$employeeId > 0 ? ((string)($completedTask['assigned_name'] ?? '') ?: 'Former employee #' . $employeeId) : 'Unassigned Historical Tasks','tasks'=>[]];
+        if (!isset($completedEmployeeGroups[$key])) $completedEmployeeGroups[$key] = ['id'=>$employeeId ?: null,'name'=>$employeeId > 0 ? ((string)($completedTask['assigned_name'] ?? '') ?: 'Former employee #' . $employeeId) : 'Unassigned Historical Tasks','tasks'=>[], 'months'=>[]];
         $completedEmployeeGroups[$key]['tasks'][] = $completedTask;
+        $completedAt = (string) ($completedTask['date_completed'] ?: $completedTask['completed_at'] ?: $completedTask['created_at'] ?: '');
+        try {
+            $completedDate = new DateTimeImmutable($completedAt, new DateTimeZone('Africa/Windhoek'));
+            $monthKey = $completedDate->format('Y-m');
+            $monthLabel = $completedDate->format('F Y');
+        } catch (Throwable $e) {
+            $monthKey = 'unknown';
+            $monthLabel = 'Completion time unavailable';
+        }
+        if (!isset($completedEmployeeGroups[$key]['months'][$monthKey])) $completedEmployeeGroups[$key]['months'][$monthKey] = ['label' => $monthLabel, 'tasks' => []];
+        $completedEmployeeGroups[$key]['months'][$monthKey]['tasks'][] = $completedTask;
     }
+    foreach ($completedEmployeeGroups as &$completedEmployeeGroup) krsort($completedEmployeeGroup['months']);
+    unset($completedEmployeeGroup);
 }
 
 $historyWhere = ["t.status = 'complete'", 't.archived_at IS NULL', 't.deleted_at IS NULL'];
@@ -1525,7 +1588,7 @@ foreach ($historyTasks as $task) {
 $completedCount = count($tasksByGroup['complete']);
 $metrics['compliance'] = $metrics['total'] > 0 ? (int) round(($completedCount / max(1, $metrics['total'])) * 100) : 0;
 $metrics['active'] = $metrics['new'] + $metrics['in_progress'];
-$filtersAreActive = $filters['date_from'] !== '' || $filters['date_to'] !== '' || $filters['employee_id'] !== '' || $filters['status'] !== '' || $filters['overdue_only'] !== '' || $filters['priority'] !== '' || $filters['checklist_type'] !== '' || $filters['task_kind'] !== '' || $filters['search'] !== '';
+$filtersAreActive = $filters['date_from'] !== '' || $filters['date_to'] !== '' || $filters['employee_id'] !== '' || $filters['status'] !== '' || $filters['overdue_only'] !== '' || $filters['priority'] !== '' || $filters['checklist_type'] !== '' || $filters['task_kind'] !== '' || $filters['search'] !== '' || ($filters['task_view'] === 'completed' && ($filters['completed_month'] !== '' || $filters['completed_year'] !== date('Y')));
 
 $activityByTask = [];
 if ($ready && ($tasks || $historyTasks) && ops_table_exists('ops_activity_logs')) {
@@ -1593,6 +1656,10 @@ include BASE_PATH . '/shared/sidebar.php';
                     <?php checklist_custom_filter_field('Priority', 'priority', ['' => 'All priorities'] + $priorities, $filters['priority']); ?>
                     <?php $employeeFilterOptions = ['' => 'All people']; foreach ($employees as $employee) $employeeFilterOptions[(string) $employee['id']] = (string) $employee['full_name']; ?>
                     <?php checklist_custom_filter_field('Person', 'employee_id', $employeeFilterOptions, $filters['employee_id']); ?>
+                <?php endif; ?>
+                <?php if ($filters['task_view'] === 'completed'): ?>
+                    <?php checklist_custom_filter_field('Year completed', 'completed_year', $completedYearOptions, $filters['completed_year']); ?>
+                    <?php checklist_custom_filter_field('Month completed', 'completed_month', ['' => 'All months'] + $completedMonthOptions, $filters['completed_month']); ?>
                 <?php endif; ?>
                 <label class="span-2">Search<input name="search" value="<?= htmlspecialchars($filters['search'], ENT_QUOTES, 'UTF-8') ?>" placeholder="Search task name, notes or completion note"></label>
             </div>
@@ -1707,48 +1774,27 @@ include BASE_PATH . '/shared/sidebar.php';
 
     <?php if ($filters['task_view'] === 'completed'): ?>
     <section id="completed-tasks-section" aria-label="Completed tasks grouped by assigned employee">
+    <?php $completedGroupsRendered = 0; ?>
     <?php foreach ($completedEmployeeGroups as $completedGroup): ?>
-    <?php if ($filtersAreActive && !$completedGroup['tasks'] && (int)$filters['employee_id'] !== (int)($completedGroup['id'] ?? 0)) continue; ?>
-    <section class="completed-employee-group" data-completed-employee-group data-employee-id="<?= htmlspecialchars((string)($completedGroup['id'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
-        <h2 class="completed-employee-heading"><?= htmlspecialchars((string)$completedGroup['name'], ENT_QUOTES, 'UTF-8') ?></h2>
-        <div class="completed-employee-table-wrap"><section class="task-board" data-task-board>
-        <div class="dtb-table-wrap">
-        <table class="dtb-board-table task-board-table">
-            <colgroup><col class="dtb-col-select"><col class="dtb-col-name"><col class="dtb-col-actions"><col class="dtb-col-assigned"><col class="dtb-col-priority"><col class="dtb-col-due"><col class="dtb-col-days"><col class="dtb-col-status"><col class="dtb-col-progress"><col class="dtb-col-completed"><col class="dtb-col-notes"></colgroup>
-            <thead><tr><th class="dtb-select-cell"><input class="dtb-task-check dtb-task-check-all" type="checkbox" aria-label="Select all visible tasks"></th><th>Task</th><th>Details</th><th>Assigned</th><th>Priority</th><th>Due</th><th>When Due</th><th>Status</th><th>Progress</th><th>Completed</th><th>Notes</th></tr></thead>
-            <tbody>
-                <?php foreach ($completedGroup['tasks'] as $task): ?>
-                    <?php
-                    $effective = checklist_effective_status($task);
-                    $priorityKey = (string) ($task['priority'] ?? 'normal');
-                    $statusKey = str_replace('_', '-', $effective);
-                    $savedStatus = checklist_normalize_status((string) ($task['status'] ?? 'new'));
-                    $timing = checklist_task_timing($task);
-                    $progress = (int) $timing['progress'];
-                    $dueState = ['value'=>$timing['overdue']?'overdue':'complete','iso'=>'','title'=>$timing['due_label'].' — '.$timing['outcome'],'label'=>$timing['outcome']];
-                    ?>
-                    <?php $taskId = (int) $task['id']; ?>
-                    <tr class="dtb-task-row task-grid-row" data-task-row data-task-id="<?= $taskId ?>" data-deadline-state="<?= htmlspecialchars((string) ($dueState['value'] ?? 'normal'), ENT_QUOTES, 'UTF-8') ?>" data-saved-status="<?= htmlspecialchars($savedStatus, ENT_QUOTES, 'UTF-8') ?>" data-display-status="<?= htmlspecialchars($effective, ENT_QUOTES, 'UTF-8') ?>" data-task-name="<?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?>" data-task-assigned="<?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?>" data-task-priority="<?= htmlspecialchars($priorities[$priorityKey] ?? 'Medium', ENT_QUOTES, 'UTF-8') ?>" data-task-status="<?= htmlspecialchars($groups[$effective] ?? ($statuses[$effective] ?? $effective), ENT_QUOTES, 'UTF-8') ?>">
-                        <td class="dtb-select-cell"><input class="dtb-task-check" type="checkbox" value="<?= $taskId ?>" aria-label="Select <?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?>"></td>
-                        <td><button type="button" class="task-name-trigger" data-task-open="<?= $taskId ?>"><?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?></button></td>
-                        <td><div class="task-row-actions"><button class="task-detail-icon" type="button" data-task-open="<?= $taskId ?>" aria-label="Open task details"><i data-lucide="panel-right-open"></i></button></div></td>
-                        <td><?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?></td>
-                        <td class="task-priority-cell"><div class="task-priority-fill" data-priority="<?= htmlspecialchars(str_replace('_', '-', $priorityKey), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($priorities[$priorityKey] ?? 'Normal', ENT_QUOTES, 'UTF-8') ?></div></td>
-                        <td><?= htmlspecialchars($timing['due_label'], ENT_QUOTES, 'UTF-8') ?></td>
-                        <td class="task-table__due-cell"><?php if ($dueState): ?><span class="task-due-state task-due-state--<?= htmlspecialchars(str_replace('_', '-', $dueState['value']), ENT_QUOTES, 'UTF-8') ?>" data-task-due-state data-task-due-at="<?= htmlspecialchars($dueState['iso'], ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars($dueState['title'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($dueState['label'], ENT_QUOTES, 'UTF-8') ?></span><?php elseif ($savedStatus !== 'complete'): ?><span class="task-due-state task-due-state--missing" data-task-due-state>Set due date</span><?php else: ?>—<?php endif; ?></td>
-                        <td class="task-status-cell"><button type="button" class="task-status-trigger" data-task-status-trigger data-status="<?= htmlspecialchars($statusKey, ENT_QUOTES, 'UTF-8') ?>" aria-haspopup="menu" aria-expanded="false"><?= htmlspecialchars($groups[$effective] ?? ($statuses[$effective] ?? $effective), ENT_QUOTES, 'UTF-8') ?></button></td>
-                        <td class="task-progress-cell"><div class="task-progress-track<?= $timing['overdue']?' is-overdue':'' ?> is-complete" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<?= $progress ?>" title="Percentage of the available working time used since this task was started."><div class="task-progress-fill" style="width:<?= $progress ?>%"></div><span class="task-progress-value"><?= $progress ?>%</span></div></td>
-                        <td data-task-completed><?= ($task['date_completed'] ?: $task['completed_at']) ? htmlspecialchars(checklist_date_label((string) ($task['date_completed'] ?: $task['completed_at'])), ENT_QUOTES, 'UTF-8') : 'Completion time unavailable' ?></td>
-                        <td><span class="task-notes-preview"><?= htmlspecialchars((string) ($task['completion_note'] ?: $task['notes'] ?: '—'), ENT_QUOTES, 'UTF-8') ?></span></td>
-                    </tr>
-                <?php endforeach; ?>
-                <?php if (!$completedGroup['tasks']): ?><tr class="dtb-empty-row"><td colspan="11">No completed tasks found for this employee.</td></tr><?php endif; ?>
-            </tbody>
-        </table>
-        </div>
-        </section></div>
-    </section>
+        <?php if (!$completedGroup['tasks']) continue; ?>
+        <?php $completedGroupsRendered++; $forceExpanded = $filters['search'] !== '' || $filters['completed_month'] !== '' || (int) $filters['employee_id'] === (int) ($completedGroup['id'] ?? 0); ?>
+        <details class="completed-employee-group" data-completed-employee-group data-employee-id="<?= htmlspecialchars((string)($completedGroup['id'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" open>
+            <summary class="completed-employee-heading"><span><?= htmlspecialchars((string)$completedGroup['name'], ENT_QUOTES, 'UTF-8') ?></span><b><?= number_format(count($completedGroup['tasks'])) ?> completed</b><i data-lucide="chevron-down" aria-hidden="true"></i></summary>
+            <div class="completed-employee-months">
+            <?php $completedMonthIndex = 0; ?>
+            <?php foreach ($completedGroup['months'] as $completedMonthKey => $completedMonth): ?>
+                <?php $monthOpen = $forceExpanded || $completedMonthIndex === 0; $completedMonthIndex++; ?>
+                <details class="completed-month-group" data-completed-month="<?= htmlspecialchars((string)$completedMonthKey, ENT_QUOTES, 'UTF-8') ?>" <?= $monthOpen ? 'open' : '' ?>>
+                    <summary><span><?= htmlspecialchars((string)$completedMonth['label'], ENT_QUOTES, 'UTF-8') ?></span><b><?= number_format(count($completedMonth['tasks'])) ?> task<?= count($completedMonth['tasks']) === 1 ? '' : 's' ?></b><i data-lucide="chevron-down" aria-hidden="true"></i></summary>
+                    <div class="completed-employee-table-wrap">
+                        <?php $displayTasks = $completedMonth['tasks']; $displayTaskKind = 'completed'; $hideAssignedColumn = true; $emptyTaskMessage = 'No completed tasks for this month.'; include __DIR__ . '/partials/checklist-task-table.php'; unset($hideAssignedColumn); ?>
+                    </div>
+                </details>
+            <?php endforeach; ?>
+            </div>
+        </details>
     <?php endforeach; ?>
+    <?php if ($completedGroupsRendered === 0): ?><div class="completed-empty-state">No completed tasks for this period.</div><?php endif; ?>
     </section>
     <?php endif; ?>
 
