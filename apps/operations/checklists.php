@@ -561,6 +561,8 @@ function checklist_sanitize_instructions(string $html): string
     $html = trim($html);
     if ($html === '') return '';
     if (strlen($html) > 30000) throw new RuntimeException('Task instructions are too large. Keep them under 30 KB.');
+    $html = str_replace(["\xEF\xBF\xBD", 'Â'], '', $html);
+    $html = preg_replace('/(^|<p>|<br\s*\/?\s*>)\s*\?\s*(?=<\/p>|<br\s*\/?\s*>|$)/imu', '$1', $html) ?? $html;
     $html = task_instructions_sanitize_html($html);
     if (checklist_instruction_text_length($html) > 8000) throw new RuntimeException('Enter task instructions of 8,000 characters or fewer.');
     return trim($html);
@@ -569,6 +571,15 @@ function checklist_sanitize_instructions(string $html): string
 function checklist_render_instructions(string $value): string
 {
     return task_instructions_render_html($value);
+}
+
+function checklist_display_task_title(string $value): string
+{
+    $value = trim(html_entity_decode(strip_tags($value), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+    $value = preg_replace('/^\s{0,3}#{1,6}\s+/u', '', $value) ?? $value;
+    $value = preg_replace('/^(?:\*\*|__)(.*)(?:\*\*|__)$/us', '$1', $value) ?? $value;
+    $value = str_replace("\xEF\xBF\xBD", '', $value);
+    return trim($value);
 }
 
 function checklist_create_scheduled_at(array $request, string $deadline): ?string
@@ -1880,7 +1891,7 @@ include BASE_PATH . '/shared/sidebar.php';
         $panelSavedStatus = checklist_normalize_status((string)($task['status']??'new'));
         $panelDueState = ['value'=>$panelTiming['overdue']?'overdue':($panelSavedStatus==='complete'?'complete':'upcoming'),'label'=>$panelSavedStatus==='complete'?$panelTiming['outcome']:$panelTiming['active_outcome']];
         ?>
-        <aside class="task-detail-panel task-details-panel" data-task-panel="<?= $panelId ?>" data-deadline-state="<?= htmlspecialchars((string) ($panelDueState['value'] ?? 'normal'), ENT_QUOTES, 'UTF-8') ?>" aria-hidden="true">
+        <aside class="task-detail-panel task-details-panel task-detail-view" data-task-panel="<?= $panelId ?>" data-deadline-state="<?= htmlspecialchars((string) ($panelDueState['value'] ?? 'normal'), ENT_QUOTES, 'UTF-8') ?>" aria-hidden="true">
             <header class="task-details-header">
                 <button type="button" class="task-details-close" data-task-close aria-label="Close task details"><i data-lucide="x"></i></button>
                 <div class="task-details-heading">
@@ -1889,15 +1900,15 @@ include BASE_PATH . '/shared/sidebar.php';
                         <span class="task-details-badge task-details-badge--<?= $taskKind === 'recurring' ? 'recurring' : 'manual' ?>"><i data-lucide="<?= $taskKind === 'recurring' ? 'repeat-2' : 'square-pen' ?>"></i><?= $taskKind === 'recurring' ? 'Recurring' : 'Manual' ?></span>
                         <?php if ($panelDueState): ?><span class="task-details-badge task-details-badge--deadline task-details-badge--<?= htmlspecialchars(str_replace('_', '-', $panelDueState['value']), ENT_QUOTES, 'UTF-8') ?>"><i data-lucide="clock-3"></i><?= htmlspecialchars($panelDueState['label'], ENT_QUOTES, 'UTF-8') ?></span><?php endif; ?>
                     </div>
-                    <h2 class="task-details-title"><?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?></h2>
+                    <h2 class="task-details-title"><?= htmlspecialchars(checklist_display_task_title((string) $task['task_name']), ENT_QUOTES, 'UTF-8') ?></h2>
                     <?php if (!empty($task['scheduled_at']) && empty($task['released_at'])): ?><p class="task-scheduled-notice"><strong>Scheduled</strong> · releases <?= htmlspecialchars(checklist_date_label((string) $task['scheduled_at']), ENT_QUOTES, 'UTF-8') ?> · hidden from employee</p><?php endif; ?>
                 </div>
-                <?php if ($canManage): ?><button type="button" class="task-details-template-action" data-save-task-template="<?= $panelId ?>">Save as template</button><?php endif; ?>
+                <?php if ($canManage): ?><button type="button" class="task-details-template-action" data-save-task-template="<?= $panelId ?>"><i data-lucide="copy-plus" aria-hidden="true"></i><span>Save as template</span></button><?php endif; ?>
             </header>
 
             <div class="task-details-body" id="task-details-<?= $panelId ?>">
                 <?php if ($canManage): ?>
-                    <?php if (!empty($task['scheduled_at']) && empty($task['released_at'])): ?><section class="task-details-section task-scheduled-actions"><h3 class="task-section-title">Scheduled release</h3><p>This task remains private until <?= htmlspecialchars(checklist_date_label((string) $task['scheduled_at']), ENT_QUOTES, 'UTF-8') ?>.</p><div class="ops-form-actions"><form method="post"><input type="hidden" name="action" value="release_scheduled_task"><input type="hidden" name="task_id" value="<?= $panelId ?>"><button class="button primary" type="submit">Release Now</button></form><form method="post" onsubmit="return confirm('Cancel this scheduled task?');"><input type="hidden" name="action" value="cancel_scheduled_task"><input type="hidden" name="task_id" value="<?= $panelId ?>"><button class="button" type="submit">Cancel scheduled task</button></form></div></section><?php endif; ?>
+                    <?php if (!empty($task['scheduled_at']) && empty($task['released_at'])): ?><section class="task-details-section task-scheduled-actions"><div><h3 class="task-section-title">Scheduled release</h3><p>This task remains private until <strong><?= htmlspecialchars(checklist_date_label((string) $task['scheduled_at']), ENT_QUOTES, 'UTF-8') ?></strong>.</p></div><div class="task-scheduled-actions__buttons"><form method="post"><input type="hidden" name="action" value="release_scheduled_task"><input type="hidden" name="task_id" value="<?= $panelId ?>"><button class="task-schedule-button task-schedule-button--primary" type="submit"><i data-lucide="play" aria-hidden="true"></i><span>Release Now</span></button></form><form method="post" onsubmit="return confirm('Cancel this scheduled task?');"><input type="hidden" name="action" value="cancel_scheduled_task"><input type="hidden" name="task_id" value="<?= $panelId ?>"><button class="task-schedule-button task-schedule-button--secondary" type="submit">Cancel scheduled task</button></form></div></section><?php endif; ?>
                     <form method="post" class="task-details-section task-edit-card">
                         <input type="hidden" name="action" value="admin_update_task">
                         <input type="hidden" name="task_id" value="<?= $panelId ?>">
