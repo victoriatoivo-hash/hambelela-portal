@@ -124,16 +124,38 @@ function checklist_bootstrap_schema(): void
     foreach ($columns as $column => $sql) {
         if (!checklist_column_exists($column)) checklist_try_sql($sql);
     }
-    checklist_try_sql("ALTER TABLE ops_checklist_tasks MODIFY completion_note_required TINYINT(1) NOT NULL DEFAULT 1");
-    checklist_try_sql("ALTER TABLE ops_checklist_tasks MODIFY performance_scored TINYINT(1) NOT NULL DEFAULT 1");
-    checklist_try_sql("UPDATE ops_checklist_tasks SET completion_note_required = 1 WHERE status NOT IN ('complete', 'completed', 'cancelled') AND deleted_at IS NULL");
-    checklist_try_sql("UPDATE ops_checklist_tasks SET released_at = COALESCE(released_at, date_assigned, created_at) WHERE scheduled_at IS NULL AND released_at IS NULL");
-    checklist_try_sql("UPDATE ops_checklist_tasks SET employee_visible = 0 WHERE scheduled_at IS NOT NULL AND released_at IS NULL");
-    checklist_try_sql("CREATE INDEX idx_task_scheduled_release ON ops_checklist_tasks (scheduled_at, released_at, deleted_at)");
-    checklist_try_sql("CREATE INDEX idx_task_batch ON ops_checklist_tasks (batch_id, assigned_employee_id)");
-    checklist_try_sql("UPDATE ops_checklist_tasks SET performance_scored = 1 WHERE assigned_employee_id IS NOT NULL AND status NOT IN ('cancelled', 'deleted', 'trashed') AND deleted_at IS NULL AND archived_at IS NULL");
-    checklist_try_sql("UPDATE ops_checklist_tasks SET priority = CASE WHEN priority IN ('top_critical') THEN 'urgent' WHEN priority IN ('high') THEN 'important' ELSE 'normal' END WHERE priority NOT IN ('normal', 'important', 'urgent')");
-    checklist_try_sql("UPDATE ops_checklist_recurring_templates SET priority = CASE WHEN priority IN ('top_critical') THEN 'urgent' WHEN priority IN ('high') THEN 'important' ELSE 'normal' END WHERE priority NOT IN ('normal', 'important', 'urgent')");
+    // The statements below are one-time backfills/index creations, not ongoing invariants, so they
+    // must only run once (portal_schema_migrations is the shared one-time-migration table also used
+    // by notifications_task_reminder_migrate()) -- running unconditionally on every page load put
+    // broad UPDATEs and always-failing-after-first-run CREATE INDEX statements against
+    // ops_checklist_tasks on every request, risking lock contention with concurrent task creation.
+    checklist_try_sql("CREATE TABLE IF NOT EXISTS portal_schema_migrations (migration_key VARCHAR(190) PRIMARY KEY, applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $checklistMigrationKey = '2026-08-19-checklist-scheduled-task-repair-v1';
+    $checklistMigrationApplied = false;
+    try {
+        $checklistMigrationCheck = db()->prepare('SELECT 1 FROM portal_schema_migrations WHERE migration_key = ? LIMIT 1');
+        $checklistMigrationCheck->execute([$checklistMigrationKey]);
+        $checklistMigrationApplied = (bool) $checklistMigrationCheck->fetchColumn();
+    } catch (Throwable $e) {
+        $checklistMigrationApplied = false;
+    }
+    if (!$checklistMigrationApplied) {
+        checklist_try_sql("ALTER TABLE ops_checklist_tasks MODIFY completion_note_required TINYINT(1) NOT NULL DEFAULT 1");
+        checklist_try_sql("ALTER TABLE ops_checklist_tasks MODIFY performance_scored TINYINT(1) NOT NULL DEFAULT 1");
+        checklist_try_sql("UPDATE ops_checklist_tasks SET completion_note_required = 1 WHERE status NOT IN ('complete', 'completed', 'cancelled') AND deleted_at IS NULL");
+        checklist_try_sql("UPDATE ops_checklist_tasks SET released_at = COALESCE(released_at, date_assigned, created_at) WHERE scheduled_at IS NULL AND released_at IS NULL");
+        checklist_try_sql("UPDATE ops_checklist_tasks SET employee_visible = 0 WHERE scheduled_at IS NOT NULL AND released_at IS NULL");
+        checklist_try_sql("CREATE INDEX idx_task_scheduled_release ON ops_checklist_tasks (scheduled_at, released_at, deleted_at)");
+        checklist_try_sql("CREATE INDEX idx_task_batch ON ops_checklist_tasks (batch_id, assigned_employee_id)");
+        checklist_try_sql("UPDATE ops_checklist_tasks SET performance_scored = 1 WHERE assigned_employee_id IS NOT NULL AND status NOT IN ('cancelled', 'deleted', 'trashed') AND deleted_at IS NULL AND archived_at IS NULL");
+        checklist_try_sql("UPDATE ops_checklist_tasks SET priority = CASE WHEN priority IN ('top_critical') THEN 'urgent' WHEN priority IN ('high') THEN 'important' ELSE 'normal' END WHERE priority NOT IN ('normal', 'important', 'urgent')");
+        checklist_try_sql("UPDATE ops_checklist_recurring_templates SET priority = CASE WHEN priority IN ('top_critical') THEN 'urgent' WHEN priority IN ('high') THEN 'important' ELSE 'normal' END WHERE priority NOT IN ('normal', 'important', 'urgent')");
+        try {
+            db()->prepare('INSERT IGNORE INTO portal_schema_migrations (migration_key) VALUES (?)')->execute([$checklistMigrationKey]);
+        } catch (Throwable $e) {
+            // Duplicate columns and older MySQL enum restrictions should not block the page.
+        }
+    }
     db()->exec(
         "CREATE TABLE IF NOT EXISTS ops_checklist_recurring_templates (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -1098,6 +1120,21 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
               ]);
               $createdTaskId = (int) db()->lastInsertId();
               $createdTaskIds[] = $createdTaskId;
+              if ($scheduledAt !== null) {
+                  // Verify the scheduled state was genuinely persisted before we ever tell the owner
+                  // it was -- read back directly (not via ops_rows(), which swallows query errors) so
+                  // a save that silently failed to stick surfaces as a real error, not a false success.
+                  $persistedCheck = $taskDb->prepare('SELECT scheduled_at, released_at, employee_visible FROM ops_checklist_tasks WHERE id = ?');
+                  $persistedCheck->execute([$createdTaskId]);
+                  $persistedRow = $persistedCheck->fetch();
+                  if (!$persistedRow
+                      || (string) $persistedRow['scheduled_at'] !== $scheduledAt
+                      || $persistedRow['released_at'] !== null
+                      || (int) $persistedRow['employee_visible'] !== 0
+                  ) {
+                      throw new RuntimeException('The task could not be confirmed as scheduled. Nothing was saved -- please try again.');
+                  }
+              }
               $selectedTemplateAttachments = json_decode((string) ($_POST['template_attachment_ids'] ?? '[]'), true);
               if ($sourceTemplateId > 0 && is_array($selectedTemplateAttachments)) {
                   checklist_copy_template_attachments_to_task($sourceTemplateId, $selectedTemplateAttachments, $createdTaskId, (int) $currentEmployeeId);
