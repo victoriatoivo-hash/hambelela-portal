@@ -577,6 +577,10 @@ function ops_rows(string $sql, array $params = []): array
 
         return $rows;
     } catch (Throwable $e) {
+        // Intentionally swallowed so a bad/optional query degrades to an empty result instead of a
+        // fatal page error -- but that previously left failures completely untraceable. Log so a
+        // read that silently returns nothing (e.g. a stat counter or list) can still be diagnosed.
+        error_log('ops_rows query failed: ' . $e->getMessage() . ' | sql: ' . $sql);
         return [];
     }
 }
