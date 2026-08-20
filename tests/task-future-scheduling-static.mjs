@@ -15,7 +15,7 @@ assert.match(page, /The due date must be after the scheduled release time/);
 assert.match(page, /release_scheduled_task/);
 assert.match(page, /cancel_scheduled_task/);
 assert.match(page, /'scheduled' => 'Scheduled'/);
-assert.match(scheduler, /UPDATE ops_checklist_tasks SET released_at = \?, date_assigned = \?, employee_visible = 1/);
+assert.match(scheduler, /UPDATE ops_checklist_tasks SET released_at = \?, date_assigned = CASE WHEN \? = 1 THEN COALESCE\(date_assigned, \?\) ELSE date_assigned END, employee_visible = \?/);
 assert.match(scheduler, /notifications_notify_task_assigned/);
 assert.match(reminders, /releaseFilter[\s\S]*t\.scheduled_at IS NULL OR t\.released_at IS NOT NULL/);
 assert.match(attachment, /t\.employee_visible = 1 AND \(t\.scheduled_at IS NULL OR t\.released_at IS NOT NULL\)/);
