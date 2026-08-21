@@ -36,6 +36,13 @@ assert.match(css, /portal-button\[data-add\].*background:#f07420/);
 assert.match(css, /accounts-table-card thead th\{height:34px/);
 assert.match(css, /accounts-toolbar \.portal-custom-select-trigger\{box-sizing:border-box;width:100%;height:32px/);
 assert.match(css, /import-vat-statement-history>header \[data-refresh-history\]\{border-color:#721b1a;background:#721b1a;color:#fff\}/);
+assert.match(css, /import-vat-statement-dialog>form>header \.eyebrow\{color:#ab3619;font-size:12px;font-weight:800/);
+assert.match(css, /import-vat-statement-dialog>form>header h2\{color:#721b1a;font-size:14px;font-weight:600/);
+assert.match(css, /import-vat-statement-dialog \[name="statement_period"\]\{height:32px;min-height:32px;font-size:12px;font-weight:400/);
+assert.match(css, /import-vat-statement-dialog \.import-vat-statement-steps span\{height:32px;min-height:32px/);
+assert.match(css, /import-vat-statement-dialog \.import-vat-statement-drop svg\{width:20px;height:20px/);
+assert.match(css, /import-vat-statement-dialog>form>p\.output-vat-help\{font-family:Figtree,system-ui,sans-serif;font-size:10px;line-height:15px/);
+assert.match(css, /import-vat-statement-dialog>form>footer \.portal-button--primary svg\{width:18px;height:18px/);
 assert.doesNotMatch(css.slice(css.indexOf('.import-vat-page .import-vat-review-dialog')), /#007bff|#0d6efd|dodgerblue/i);
 
 console.log('Import VAT NamRA review UI static checks passed');
