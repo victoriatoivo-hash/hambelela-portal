@@ -32,6 +32,8 @@ assert.match(css, /@media\(max-width:600px\)[\s\S]*\.namra-review-table thead\{d
 assert.match(css, /accounts-hero-copy>p:nth-of-type\(2\)\{display:none\}/);
 assert.match(css, /import-vat-refresh-spin/);
 assert.match(css, /rgb\(171 54 25 \/ 24%\)/);
+assert.match(css, /portal-button\[data-add\].*background:#f07420/);
+assert.match(css, /accounts-table-card thead th\{height:34px/);
 assert.doesNotMatch(css.slice(css.indexOf('.import-vat-page .import-vat-review-dialog')), /#007bff|#0d6efd|dodgerblue/i);
 
 console.log('Import VAT NamRA review UI static checks passed');

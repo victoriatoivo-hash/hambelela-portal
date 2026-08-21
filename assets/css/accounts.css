@@ -815,6 +815,8 @@ body.input-vat-dialog-open{overflow:hidden!important}
 #inputVatPage.import-vat-page>.accounts-hero .accounts-hero-copy>p:nth-of-type(2){display:none}
 #inputVatPage.import-vat-page>.accounts-hero>.accounts-actions .portal-button{height:34px;min-height:34px;border-width:1px;font-size:12px;font-weight:400}
 #inputVatPage.import-vat-page>.accounts-hero>.accounts-actions .portal-button--primary{border-color:#ab3619;background:#ab3619;color:#fff}
+#inputVatPage.import-vat-page>.accounts-hero>.accounts-actions .portal-button[data-add]{border-color:#f07420;background:#f07420;color:#fff}
+#inputVatPage.import-vat-page>.accounts-hero>.accounts-actions .portal-button[data-export],#inputVatPage.import-vat-page>.accounts-hero>.accounts-actions .portal-button[data-print]{border-color:#ab3619;background:#ab3619;color:#fff}
 #inputVatPage.import-vat-page>.accounts-hero>.accounts-actions .portal-button--secondary:hover,#inputVatPage.import-vat-page>.accounts-hero>.accounts-actions .portal-button--secondary:focus-visible{border-color:#ab3619;background:#ab3619;color:#fff}
 #inputVatPage.import-vat-page>.accounts-hero>.accounts-actions .portal-button[data-add]:hover,#inputVatPage.import-vat-page>.accounts-hero>.accounts-actions .portal-button[data-add]:focus-visible{border-color:#f07420;background:#f07420;color:#fff}
 #inputVatPage.import-vat-page>.accounts-hero>.accounts-actions .portal-button svg{width:18px;height:18px;flex:0 0 18px}
@@ -823,6 +825,7 @@ body.input-vat-dialog-open{overflow:hidden!important}
 #inputVatPage.import-vat-page .accounts-breakdowns .output-vat-help{font-size:12px}
 #inputVatPage.import-vat-page .input-vat-month-status-copy>span{font-size:11px}
 #inputVatPage.import-vat-page .input-vat-month-status-copy strong,#inputVatPage.import-vat-page .input-vat-month-status-copy small{font-size:12px}
+#inputVatPage.import-vat-page .input-vat-month-tab>span{font-size:12px}
 #inputVatPage.import-vat-page .accounts-toolbar select[data-status]{border:1px solid rgb(171 54 25 / 24%)}
 #inputVatPage.import-vat-page .import-vat-statement-history>header .eyebrow{color:#ab3619;font-size:12px;font-weight:800;letter-spacing:1.32px;text-transform:uppercase}
 #inputVatPage.import-vat-page .import-vat-statement-history>header h2{color:#721b1a;font-size:14px;font-weight:600}
@@ -836,4 +839,7 @@ body.input-vat-dialog-open{overflow:hidden!important}
 #inputVatPage.import-vat-page .import-vat-statement-history tfoot th,#inputVatPage.import-vat-page .import-vat-statement-history tfoot td{height:34px;font-size:10px;font-weight:700;letter-spacing:.6px}
 #inputVatPage.import-vat-page .import-vat-statement-history tbody td{font-size:11px;font-weight:600}
 #inputVatPage.import-vat-page .import-vat-statement-history .status-pill{font-size:11px;font-weight:600;color:rgb(171 54 25 / 24%)}
+#inputVatPage.import-vat-page .accounts-table-card thead th{height:34px;padding-block:0;font-size:10px;font-weight:700;letter-spacing:.6px}
+#inputVatPage.import-vat-page .accounts-table-card tfoot th,#inputVatPage.import-vat-page .accounts-table-card tfoot td{height:34px;font-size:10px;font-weight:700;letter-spacing:.6px}
+#inputVatPage.import-vat-page .accounts-table-card tbody td{font-size:11px;font-weight:600}
 @media(prefers-reduced-motion:reduce){#inputVatPage.import-vat-page .import-vat-statement-history>header [data-refresh-history].is-refreshing svg{animation:none}}
