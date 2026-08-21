@@ -819,7 +819,7 @@ body.input-vat-dialog-open{overflow:hidden!important}
 #inputVatPage.import-vat-page>.accounts-hero>.accounts-actions .portal-button[data-export],#inputVatPage.import-vat-page>.accounts-hero>.accounts-actions .portal-button[data-print]{border-color:#ab3619;background:#ab3619;color:#fff}
 #inputVatPage.import-vat-page>.accounts-hero>.accounts-actions .portal-button--secondary:hover,#inputVatPage.import-vat-page>.accounts-hero>.accounts-actions .portal-button--secondary:focus-visible{border-color:#ab3619;background:#ab3619;color:#fff}
 #inputVatPage.import-vat-page>.accounts-hero>.accounts-actions .portal-button[data-add]:hover,#inputVatPage.import-vat-page>.accounts-hero>.accounts-actions .portal-button[data-add]:focus-visible{border-color:#f07420;background:#f07420;color:#fff}
-#inputVatPage.import-vat-page>.accounts-hero>.accounts-actions .portal-button svg{width:18px;height:18px;flex:0 0 18px}
+#inputVatPage.import-vat-page>.accounts-hero>.accounts-actions .portal-button svg{width:15px;height:15px;flex:0 0 15px}
 #inputVatPage.import-vat-page>.accounts-hero>.accounts-actions .portal-button:hover svg,#inputVatPage.import-vat-page>.accounts-hero>.accounts-actions .portal-button:focus-visible svg{color:#fff}
 #inputVatPage.import-vat-page .accounts-breakdowns h2{font-size:14px;font-weight:600}
 #inputVatPage.import-vat-page .accounts-breakdowns .output-vat-help{font-family:Figtree,system-ui,sans-serif;font-size:10px;font-weight:500;line-height:13px;color:rgb(160 128 112)}
