@@ -22,6 +22,8 @@ assert.match(js, /data-save-row/);
 
 assert.match(css, /width:min\(1480px,calc\(100vw - 48px\)\)/);
 assert.match(css, /height:min\(900px,calc\(100dvh - 40px\)\)/);
+assert.match(css, /#inputVatPage\.import-vat-page \.accounts-dialog\.import-vat-review-dialog\{width:min\(1480px/);
+assert.match(css, /#inputVatPage\.import-vat-page \.import-vat-review-toolbar input[\s\S]*min-height:32px/);
 assert.match(css, /\.namra-review-modal__table-wrap\{flex:1 1 auto;min-height:0;overflow:auto/);
 assert.match(css, /\.namra-review-table thead th\{position:sticky/);
 assert.match(css, /@media\(max-width:600px\)[\s\S]*\.namra-review-table thead\{display:none\}/);
