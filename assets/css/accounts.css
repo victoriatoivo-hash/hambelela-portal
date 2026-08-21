@@ -822,7 +822,7 @@ body.input-vat-dialog-open{overflow:hidden!important}
 #inputVatPage.import-vat-page>.accounts-hero>.accounts-actions .portal-button svg{width:18px;height:18px;flex:0 0 18px}
 #inputVatPage.import-vat-page>.accounts-hero>.accounts-actions .portal-button:hover svg,#inputVatPage.import-vat-page>.accounts-hero>.accounts-actions .portal-button:focus-visible svg{color:#fff}
 #inputVatPage.import-vat-page .accounts-breakdowns h2{font-size:14px;font-weight:600}
-#inputVatPage.import-vat-page .accounts-breakdowns .output-vat-help{font-size:12px}
+#inputVatPage.import-vat-page .accounts-breakdowns .output-vat-help{font-family:Figtree,system-ui,sans-serif;font-size:10px;font-weight:500;line-height:13px;color:rgb(160 128 112)}
 #inputVatPage.import-vat-page .input-vat-month-status-copy>span{font-size:11px}
 #inputVatPage.import-vat-page .input-vat-month-status-copy strong,#inputVatPage.import-vat-page .input-vat-month-status-copy small{font-size:12px}
 #inputVatPage.import-vat-page .input-vat-month-tab>span{font-size:12px}
