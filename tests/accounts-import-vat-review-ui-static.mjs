@@ -34,6 +34,8 @@ assert.match(css, /import-vat-refresh-spin/);
 assert.match(css, /rgb\(171 54 25 \/ 24%\)/);
 assert.match(css, /portal-button\[data-add\].*background:#f07420/);
 assert.match(css, /accounts-table-card thead th\{height:34px/);
+assert.match(css, /accounts-toolbar \.portal-custom-select-trigger\{box-sizing:border-box;width:100%;height:32px/);
+assert.match(css, /import-vat-statement-history>header \[data-refresh-history\]\{border-color:#721b1a;background:#721b1a;color:#fff\}/);
 assert.doesNotMatch(css.slice(css.indexOf('.import-vat-page .import-vat-review-dialog')), /#007bff|#0d6efd|dodgerblue/i);
 
 console.log('Import VAT NamRA review UI static checks passed');
