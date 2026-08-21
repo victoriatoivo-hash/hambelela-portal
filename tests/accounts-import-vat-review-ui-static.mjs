@@ -19,6 +19,7 @@ assert.match(js, /taxPeriodName/);
 assert.match(js, /namra-status/);
 assert.match(js, /data-label="Accounting Treatment"/);
 assert.match(js, /data-save-row/);
+assert.match(js, /is-refreshing/);
 
 assert.match(css, /width:min\(1480px,calc\(100vw - 48px\)\)/);
 assert.match(css, /height:min\(900px,calc\(100dvh - 40px\)\)/);
@@ -28,6 +29,9 @@ assert.match(css, /@media\(max-width:600px\)[\s\S]*\.namra-review-table td input
 assert.match(css, /\.namra-review-modal__table-wrap\{flex:1 1 auto;min-height:0;overflow:auto/);
 assert.match(css, /\.namra-review-table thead th\{position:sticky/);
 assert.match(css, /@media\(max-width:600px\)[\s\S]*\.namra-review-table thead\{display:none\}/);
+assert.match(css, /accounts-hero-copy>p:nth-of-type\(2\)\{display:none\}/);
+assert.match(css, /import-vat-refresh-spin/);
+assert.match(css, /rgb\(171 54 25 \/ 24%\)/);
 assert.doesNotMatch(css.slice(css.indexOf('.import-vat-page .import-vat-review-dialog')), /#007bff|#0d6efd|dodgerblue/i);
 
 console.log('Import VAT NamRA review UI static checks passed');
