@@ -1096,26 +1096,54 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $assignmentType = ops_post_string('assignment_type', 20) === 'floating' ? 'floating' : 'specific';
             $floatingRole = $assignmentType === 'floating' ? ops_post_string('floating_eligible_role', 40) : '';
             if ($assignmentType === 'floating' && !task_floating_role_keys($floatingRole)) throw new RuntimeException('Choose Front Desk or Back / Packers for this Floating Task.');
-            $assignmentValue = trim((string) ($_POST['assigned_employee_id'] ?? ''));
-            $assignAll = $assignmentType === 'specific' && $assignmentValue === 'all';
-            $assignedId = $assignmentType === 'floating' ? 0 : ($assignAll ? 0 : (int) $assignmentValue);
-            $eligibleEmployeeRows = $assignAll ? ops_rows(
-                "SELECT e.id, e.full_name FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id
-                 WHERE e.status='active' AND r.role_key <> 'owner_admin' ORDER BY e.full_name"
-            ) : [];
-            $targetEmployeeIds = $assignmentType === 'floating' ? [0] : ($assignAll
-                ? array_values(array_unique(array_map(static fn(array $row): int => (int) $row['id'], $eligibleEmployeeRows)))
-                : ($assignedId > 0 ? [$assignedId] : []));
+            $rawAssignmentValues = $_POST['assigned_employee_id'] ?? [];
+            $assignmentValues = is_array($rawAssignmentValues) ? $rawAssignmentValues : [$rawAssignmentValues];
+            $assignmentValues = array_values(array_unique(array_filter(array_map(static function ($value): string {
+                return trim((string) $value);
+            }, $assignmentValues), static function (string $value): bool {
+                return $value !== '';
+            })));
+            $groupValues = ['all', 'group:front_desk', 'group:back_packers'];
+            $selectedGroups = array_values(array_intersect($assignmentValues, $groupValues));
+            if ($assignmentType === 'specific' && count($selectedGroups) > 1) throw new RuntimeException('Choose one direct-assignment group at a time.');
+            if ($assignmentType === 'specific' && $selectedGroups && count($assignmentValues) > 1) throw new RuntimeException('Choose one group or individual employees, not both.');
+            $groupValue = $selectedGroups[0] ?? '';
+            $assignAll = $assignmentType === 'specific' && $groupValue === 'all';
+            $groupAssignment = $assignmentType === 'specific' && $groupValue !== '';
+            $assignedId = $assignmentType === 'floating' ? 0 : (($groupAssignment || count($assignmentValues) !== 1) ? 0 : (int) $assignmentValues[0]);
+            $eligibleEmployeeRows = [];
+            if ($groupAssignment) {
+                $roleKeys = $groupValue === 'all' ? [] : task_floating_role_keys(substr($groupValue, 6));
+                $roleSql = $roleKeys ? ' AND r.role_key IN (' . implode(',', array_fill(0, count($roleKeys), '?')) . ')' : '';
+                $eligibleEmployeeRows = ops_rows(
+                    "SELECT e.id, e.full_name FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id
+                     WHERE e.status='active' AND r.role_key <> 'owner_admin'{$roleSql} ORDER BY e.full_name",
+                    $roleKeys
+                );
+            }
+            $allEligibleRows = $groupAssignment ? $eligibleEmployeeRows : ops_rows("SELECT e.id FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE e.status='active' AND r.role_key <> 'owner_admin'");
+            $eligibleIds = array_map(static function (array $row): int { return (int) $row['id']; }, $allEligibleRows);
+            if ($assignmentType === 'specific' && !$groupAssignment) {
+                foreach ($assignmentValues as $value) {
+                    $candidateId = (int) $value;
+                    if ($candidateId <= 0 || !in_array($candidateId, $eligibleIds, true)) {
+                        throw new RuntimeException('Choose only active employees for Direct Assignment.');
+                    }
+                }
+            }
+            $targetEmployeeIds = $assignmentType === 'floating' ? [0] : ($groupAssignment
+                ? array_values(array_unique($eligibleIds))
+                : array_values(array_unique(array_map('intval', $assignmentValues))));
             $deadline = checklist_create_due_at($_POST);
             $scheduledAt = checklist_create_scheduled_at($_POST, $deadline);
             $taskName = ops_post_string('task_name', 190);
             if ($taskName === '') throw new RuntimeException('Task name is required.');
-            if (!$targetEmployeeIds) throw new RuntimeException($assignAll ? 'There are no active task-eligible employees.' : 'Assigned employee is required.');
+            if (!$targetEmployeeIds) throw new RuntimeException($groupAssignment ? 'There are no active employees in the selected group.' : 'Assigned employee is required.');
             $instructions = checklist_sanitize_instructions((string) ($_POST['instructions'] ?? ''));
             if (checklist_instruction_text_length($instructions) === 0) throw new RuntimeException('Task instructions are required.');
             $urgentRequested = !empty($_POST['send_urgent_alert']);
-            $urgentRecipients = (!$assignAll && $urgentRequested) ? checklist_urgent_recipient_ids((array) ($_POST['urgent_alert_recipients'] ?? []), $assignedId) : [];
-            if ($scheduledAt === null && !$assignAll && $assignmentType === 'specific' && $urgentRequested && !$urgentRecipients) throw new RuntimeException('Choose at least one valid urgent alert recipient.');
+            $urgentRecipients = (!$groupAssignment && $urgentRequested) ? checklist_urgent_recipient_ids((array) ($_POST['urgent_alert_recipients'] ?? []), $assignedId) : [];
+            if ($scheduledAt === null && !$groupAssignment && count($targetEmployeeIds) === 1 && $assignmentType === 'specific' && $urgentRequested && !$urgentRecipients) throw new RuntimeException('Choose at least one valid urgent alert recipient.');
             $employeeVisible = ($scheduledAt === null && $assignmentType === 'specific') ? 1 : 0;
             $proofRequired = !empty($_POST['completion_evidence_required']) ? 1 : 0;
             $recurringRule = ops_post_string('recurring_rule', 80);
@@ -1123,12 +1151,12 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!in_array($recurringRule, $allowedRecurringRules, true)) {
                 throw new RuntimeException('Choose a valid task recurrence.');
             }
-            if ($assignAll && $recurringRule !== '') throw new RuntimeException('All Employees is available for manual and scheduled tasks. Recurring group assignments are not enabled yet.');
+            if ($groupAssignment && $recurringRule !== '') throw new RuntimeException('Group assignments are available for manual and scheduled tasks. Recurring group assignments are not enabled yet.');
             if ($scheduledAt !== null && $recurringRule !== '') throw new RuntimeException('Scheduled release is available for manual tasks only. Recurring tasks keep their existing schedule.');
             $urgentRecipientConfig = array_values(array_intersect((array) ($_POST['urgent_alert_recipients'] ?? []), ['assigned', 'role:front_desk', 'role:packers', 'role:all_relevant']));
             if ($urgentRequested && !$urgentRecipientConfig) throw new RuntimeException('Choose at least one valid urgent alert recipient.');
             $createAttachmentFiles = checklist_create_attachment_files();
-            if ($assignAll && $createAttachmentFiles) throw new RuntimeException('Create the All Employees task first, then add shared files from the group view.');
+            if ($groupAssignment && $createAttachmentFiles) throw new RuntimeException('Create the direct-assignment group task first, then add shared files from the group view.');
             $createdAttachments = [];
             $attachmentActorName = trim((string) (current_user()['name'] ?? 'Owner')) ?: 'Owner';
             $templateId = null;
@@ -1137,7 +1165,8 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('The selected task template is no longer available.');
             }
             $taskDb = db();
-            $batchId = $assignAll ? 'task-batch-' . date('YmdHis') . '-' . bin2hex(random_bytes(6)) : null;
+            $batchAssignment = $groupAssignment || count($targetEmployeeIds) > 1;
+            $batchId = $batchAssignment ? 'task-batch-' . date('YmdHis') . '-' . bin2hex(random_bytes(6)) : null;
             $batchSize = count($targetEmployeeIds);
             $createdTaskIds = [];
             $taskDb->beginTransaction();
@@ -1186,7 +1215,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $urgentRequested ? json_encode($urgentRecipientConfig) : null,
                 $currentEmployeeId,
                 $batchId,
-                $assignAll ? $batchSize : null,
+                $batchAssignment ? $batchSize : null,
               ]);
               $createdTaskId = (int) db()->lastInsertId();
               $createdTaskIds[] = $createdTaskId;
@@ -1227,7 +1256,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 'source_template_id' => $sourceTemplateId > 0 ? $sourceTemplateId : null,
                 'proof_required' => $proofRequired,
                 'batch_id' => $batchId,
-                'batch_size' => $assignAll ? $batchSize : null,
+                'batch_size' => $batchAssignment ? $batchSize : null,
                 'popup_enabled' => $urgentRequested,
                 'popup_recipients' => $urgentRecipientConfig,
               ]);
@@ -1237,12 +1266,12 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
               if ($scheduledAt === null && $targetEmployeeId > 0 && !notifications_notify_task_assigned($createdTaskId, $targetEmployeeId, $taskName)) {
                   throw new RuntimeException('The task assignment notification could not be saved.');
               }
-              $immediateUrgentRecipients = $assignmentType === 'floating' && $targetEmployeeId > 0 ? checklist_urgent_recipient_ids((array) ($_POST['urgent_alert_recipients'] ?? []), $targetEmployeeId) : ($assignAll ? [$targetEmployeeId] : $urgentRecipients);
+              $immediateUrgentRecipients = $assignmentType === 'floating' && $targetEmployeeId > 0 ? checklist_urgent_recipient_ids((array) ($_POST['urgent_alert_recipients'] ?? []), $targetEmployeeId) : ($batchAssignment ? [$targetEmployeeId] : $urgentRecipients);
               if ($scheduledAt === null && $urgentRequested && $targetEmployeeId > 0 && !checklist_send_urgent_alert($createdTaskId, $immediateUrgentRecipients)) {
                   throw new RuntimeException('The task popup notification could not be saved.');
               }
             }
-            if ($assignAll) ops_activity_log('task_group_created', 'checklist_task_batch', (int) $createdTaskIds[0], [
+            if ($batchAssignment) ops_activity_log('task_group_created', 'checklist_task_batch', (int) $createdTaskIds[0], [
                 'batch_id' => $batchId, 'employee_count' => $batchSize, 'child_task_ids' => $createdTaskIds, 'scheduled_at' => $scheduledAt,
             ]);
             $taskDb->commit();
@@ -1255,7 +1284,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 throw $taskCreateError;
             }
-            $message = $assignAll
+            $message = $batchAssignment
                 ? ($scheduledAt !== null ? $batchSize . ' individual tasks scheduled for ' . checklist_date_label($scheduledAt) . '.' . ($urgentRequested ? ' Popup notifications will be sent at release.' : '') : $batchSize . ' individual employee tasks created and assigned.')
                 : ($scheduledAt !== null ? 'Task scheduled for ' . checklist_date_label($scheduledAt) . '.' . ($urgentRequested ? ' Popup notification will be sent at release.' : ' The employee cannot see it until release.') : ($createdAttachments
                 ? 'Task created with ' . count($createdAttachments) . ' file' . (count($createdAttachments) === 1 ? '' : 's') . ' and assigned.'
@@ -1818,9 +1847,9 @@ include BASE_PATH . '/shared/sidebar.php';
                       </section>
                       <section class="task-form-section"><div class="task-form-grid">
                         <label class="task-form-field task-form-field--full"><span class="task-form-label">Task name <span aria-hidden="true">*</span></span><input id="create-task-name" name="task_name" maxlength="120" required placeholder="What needs to be done?" autocomplete="off"></label>
-                        <fieldset class="task-form-field task-form-field--full task-assignment-type"><legend class="task-form-label">Assignment type</legend><div class="task-assignment-segments"><label><input type="radio" name="assignment_type" value="specific" checked><span>Specific Employee</span></label><label><input type="radio" name="assignment_type" value="floating"><span>Floating Task</span></label></div></fieldset>
+                        <fieldset class="task-form-field task-form-field--full task-assignment-type"><legend class="task-form-label">Assignment type</legend><div class="task-assignment-segments"><label><input type="radio" name="assignment_type" value="specific" checked><span>Direct Assignment</span></label><label><input type="radio" name="assignment_type" value="floating"><span>Floating Task</span></label></div></fieldset>
                         <div class="task-form-grid__row task-form-grid__row--assignment">
-                          <label class="task-form-field" data-specific-assignment><span class="task-form-label">Assigned employee *</span><select id="create-task-assignee" name="assigned_employee_id" required data-portal-custom-select data-all-employee-count="<?= count($eligibleTaskEmployees) ?>"><option value="">Choose employee</option><option value="all">All Employees</option><?php foreach ($employees as $employee): ?><option value="<?= (int) $employee['id'] ?>"><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select><small class="task-all-employees-note" data-all-employees-note hidden>This will create an individual task for each active employee. Each employee will complete and be measured separately.</small></label>
+                          <label class="task-form-field" data-specific-assignment><span class="task-form-label">Assign to *</span><select id="create-task-assignee" name="assigned_employee_id[]" multiple required size="6" data-task-assignee><optgroup label="Groups"><option value="all">All Employees</option><option value="group:front_desk">Front Desk Employees</option><option value="group:back_packers">Packers / Back Employees</option></optgroup><optgroup label="Individual employees"><?php foreach ($eligibleTaskEmployees as $employee): ?><option value="<?= (int) $employee['id'] ?>"><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></optgroup></select><small>Choose one group or one or more individual employees. Hold Ctrl/Cmd to select multiple.</small><small class="task-all-employees-note" data-all-employees-note hidden>This will create an individual task for each active employee in the selected group. Each employee will complete and be measured separately.</small></label>
                           <label class="task-form-field" data-floating-assignment hidden><span class="task-form-label">Eligible role / team *</span><select name="floating_eligible_role" data-portal-custom-select><option value="front_desk">Front Desk</option><option value="back_packers">Back / Packers</option></select><small>Allocation uses active employees, open workload, then least-recent fair rotation.</small></label>
                           <div class="task-form-field task-datetime-field"><label class="task-form-label" for="create-task-due-display">Due date and time <span class="required-marker" aria-hidden="true">*</span></label><div class="portal-date-field" data-portal-date-field><input id="create-task-due-display" type="text" class="portal-date-input task-datetime-trigger is-empty" data-enable-time="true" data-submit-target="#create-task-due-at" data-task-due-trigger placeholder="Select due date and time" autocomplete="off" aria-describedby="create-task-due-error"><input id="create-task-due-at" type="hidden" name="due_at" data-task-due-value data-portal-date-required-message="Select the task due date and time." required><button type="button" class="portal-date-trigger" aria-label="Open Due date and time picker"><i data-lucide="calendar-clock" aria-hidden="true"></i></button></div><span id="create-task-due-error" class="task-form-error" data-task-due-error aria-live="polite"></span></div>
                         </div>
@@ -2163,7 +2192,7 @@ function initialiseTaskCreateForm() {
   const attachmentList = form.querySelector('[data-create-task-files-list]');
   const attachmentEmpty = form.querySelector('[data-create-task-files-empty]');
   const attachmentError = form.querySelector('[data-create-task-files-error]');
-  const assignee = form.querySelector('[name="assigned_employee_id"]');
+  const assignee = form.querySelector('[data-task-assignee]');
   const assignmentTypeInputs = [...form.querySelectorAll('[name="assignment_type"]')];
   const specificAssignment = form.querySelector('[data-specific-assignment]');
   const floatingAssignment = form.querySelector('[data-floating-assignment]');
@@ -2197,14 +2226,27 @@ function initialiseTaskCreateForm() {
   instructionModal?.querySelectorAll('[data-rich-cancel]').forEach((button) => button.addEventListener('click', () => taskInstructionsLayer?.close()));
   instructionModal?.querySelector('[data-rich-save]')?.addEventListener('click', () => { if (instructionModal.dataset.richTarget !== 'create') return; setInstructionHtml(expandedEditor.innerHTML); taskInstructionsLayer?.close(); });
   instructionModal?.querySelectorAll('[data-rich-modal-command]').forEach((button) => button.addEventListener('click', () => { expandedEditor.focus(); document.execCommand(button.dataset.richModalCommand, false); }));
-  assignee?.addEventListener('change', () => { if (allEmployeesNote) allEmployeesNote.hidden = assignee.value !== 'all'; });
+  const selectedAssigneeValues = () => assignee ? [...assignee.selectedOptions].map((option) => option.value) : [];
+  assignee?.addEventListener('change', () => {
+    const values = selectedAssigneeValues();
+    const isGroupValue = (value) => value === 'all' || value.indexOf('group:') === 0;
+    const hasGroup = values.some(isGroupValue);
+    if (hasGroup && values.length > 1) {
+      const keep = values.find(isGroupValue);
+      [...assignee.options].forEach((option) => { option.selected = option.value === keep; });
+    } else if (!hasGroup) {
+      [...assignee.options].filter((option) => isGroupValue(option.value)).forEach((option) => { option.selected = false; });
+    }
+    const current = selectedAssigneeValues();
+    if (allEmployeesNote) allEmployeesNote.hidden = !current.some(isGroupValue);
+  });
   const syncAssignmentType = () => {
     const floating = form.querySelector('[name="assignment_type"]:checked')?.value === 'floating';
     if (specificAssignment) specificAssignment.hidden = floating;
     if (floatingAssignment) floatingAssignment.hidden = !floating;
     if (assignee) {
       assignee.required = !floating;
-      if (floating) { assignee.value = ''; assignee.dispatchEvent(new Event('change', { bubbles: true })); }
+      if (floating) { [...assignee.options].forEach((option) => { option.selected = false; }); assignee.dispatchEvent(new Event('change', { bubbles: true })); }
     }
     if (floatingRole) floatingRole.required = floating;
   };
@@ -2364,8 +2406,8 @@ function initialiseTaskCreateForm() {
     showAttachmentError('');
   });
 
-  const formHasWork = () => !!(form.querySelector('[name="task_name"]').value.trim() || form.querySelector('[name="instructions"]').value.trim() || checklistList.children.length || form.querySelector('[name="assigned_employee_id"]').value || dueAtInput.value || attachmentInput?.files?.length);
-  const setNativeValue = (selector, value) => { if (selector === '[name="instructions"]') { setInstructionHtml(value ?? ''); return; } const field = form.querySelector(selector); if (!field) return; field.value = value ?? ''; field.dispatchEvent(new Event('change', {bubbles:true})); };
+  const formHasWork = () => !!(form.querySelector('[name="task_name"]').value.trim() || form.querySelector('[name="instructions"]').value.trim() || checklistList.children.length || selectedAssigneeValues().length || dueAtInput.value || attachmentInput?.files?.length);
+  const setNativeValue = (selector, value) => { if (selector === '[name="instructions"]') { setInstructionHtml(value ?? ''); return; } const field = form.querySelector(selector); if (!field) return; if (field.multiple) { [...field.options].forEach((option) => { option.selected = String(option.value) === String(value ?? ''); }); } else field.value = value ?? ''; field.dispatchEvent(new Event('change', {bubbles:true})); };
   const syncLoadedAttachmentIds = () => { templateAttachmentIds.value = JSON.stringify([...loadedAttachments.querySelectorAll('[data-template-attachment-id]')].map((row) => Number(row.dataset.templateAttachmentId))); };
   const clearLoadedTemplate = (blankForm = false) => {
     sourceTemplateId.value = ''; templateAttachmentIds.value = '[]'; loadedAttachments.innerHTML = '';
@@ -3844,3 +3886,4 @@ if (initialTaskId) window.openTaskPanel(initialTaskId);
 </script>
 <?php if ($canManage): ?><script src="<?= BASE_URL ?>/assets/js/task-import.js?v=<?= rawurlencode((string) @filemtime(BASE_PATH . '/assets/js/task-import.js')) ?>"></script><?php endif; ?>
 <?php include BASE_PATH . '/shared/footer.php'; ?>
+
