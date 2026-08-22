@@ -1,4 +1,7 @@
 /* Accounts landing page application cards. Input VAT supplies the design language. */
+.accounts-workspace.is-accountant-workspace{gap:20px}
+.accounts-workspace.is-accountant-workspace .accounts-hero h1{margin:0 0 5px;color:#721b1a;font:600 16px/1.25 Figtree,system-ui,sans-serif}
+.accounts-workspace.is-accountant-workspace .accounts-hero>div>p{font-family:Figtree,system-ui,sans-serif}
 .accounts-workspace .accounts-app-section>header h2{margin:2px 0 12px;color:#721b1a;font:700 16px/1.25 Figtree,system-ui,sans-serif}
 .accounts-workspace .accounts-app-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
 .accounts-workspace .accounting-app-card{--app-accent:#ab3619;--app-accent-soft:rgba(171,54,25,.08);position:relative;box-sizing:border-box;display:flex;min-width:0;min-height:184px;gap:15px;overflow:hidden;padding:20px;border:1px solid #e8ddd3;border-left:3px solid var(--app-accent);border-radius:14px;background:#fff;color:#2b1b16;box-shadow:0 7px 20px rgba(107,76,59,.055);text-decoration:none;transition:transform 160ms ease,border-color 160ms ease,background-color 180ms ease,box-shadow 180ms ease}
