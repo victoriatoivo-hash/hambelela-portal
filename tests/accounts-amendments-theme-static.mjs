@@ -13,4 +13,5 @@ assert(css.includes('#721b1a') && css.includes('#ab3619') && css.includes('#f074
 assert(css.includes('min-height:32px') && css.includes('min-height:34px'), 'compact control heights are missing');
 assert(css.includes('prefers-reduced-motion') && css.includes('@media(max-width:760px)'), 'responsive/reduced-motion rules are missing');
 assert(js.includes('data-amendment-files') && js.includes('No amendments yet'), 'empty state/file upload behaviour is missing');
+assert(js.includes("hasAttribute('data-empty-new')"), 'empty-state New amendment button handler is not delegated correctly');
 console.log('accounts-amendments-theme-static: ok');
