@@ -33,10 +33,12 @@
     }
 
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/includes/loan-agreements.php';
 requireAdmin();
 require_once __DIR__ . '/includes/email.php';
 $user = currentUser();
 $db   = db();
+loanAgreementEnsureSchema($db);
 $hasSocialSecurity = hrColumnExists($db, 'employees', 'social_security_number');
 $socialSecuritySelect = $hasSocialSecurity ? "e.social_security_number" : "'' AS social_security_number";
 hrEnsureMedicalAidSchemaSafe($db);
@@ -130,7 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Get active loan deduction for this employee
             try {
-                $loanDed = $db->prepare("SELECT COALESCE(SUM(repayment_amount),0) FROM loans WHERE employee_id=? AND status='active'");
+                $loanDed = $db->prepare("SELECT COALESCE(SUM(l.repayment_amount),0) FROM loans l WHERE l.employee_id=? AND l.status='active' AND EXISTS (SELECT 1 FROM loan_agreements a WHERE a.loan_id=l.id AND a.status IN ('fully_signed','legacy_active'))");
                 $loanDed->execute([$emp['id']]);
                 $loan_deduction = (float)$loanDed->fetchColumn();
             } catch (Exception $e) { $loan_deduction = 0; }

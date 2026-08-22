@@ -296,6 +296,94 @@ CREATE TABLE IF NOT EXISTS `audit_log` (
   `created_at`  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- ── Employee Loans & Agreements ──────────────────────────────
+CREATE TABLE IF NOT EXISTS `loans` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `employee_id` INT UNSIGNED NOT NULL,
+  `amount` DECIMAL(10,2) NOT NULL,
+  `balance` DECIMAL(10,2) NOT NULL,
+  `repayment_amount` DECIMAL(10,2) NOT NULL DEFAULT 0,
+  `repayment_method` ENUM('salary_deduction','cash','other') DEFAULT 'salary_deduction',
+  `loan_date` DATE NOT NULL,
+  `notes` TEXT,
+  `status` ENUM('active','settled') DEFAULT 'active',
+  `created_by` INT UNSIGNED NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `loan_repayments` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `loan_id` INT UNSIGNED NOT NULL,
+  `amount` DECIMAL(10,2) NOT NULL,
+  `notes` TEXT,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `loan_agreements` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `loan_id` INT UNSIGNED NOT NULL,
+  `version_no` INT UNSIGNED NOT NULL DEFAULT 1,
+  `status` VARCHAR(40) NOT NULL DEFAULT 'draft',
+  `agreement_date` DATE NOT NULL,
+  `first_deduction_date` DATE NULL,
+  `deduction_day` TINYINT UNSIGNED NULL,
+  `instalment_amount` DECIMAL(10,2) NOT NULL DEFAULT 0,
+  `number_of_instalments` INT UNSIGNED NOT NULL DEFAULT 0,
+  `final_instalment_amount` DECIMAL(10,2) NOT NULL DEFAULT 0,
+  `purpose` TEXT NULL,
+  `repayment_method` VARCHAR(40) NOT NULL DEFAULT 'salary_deduction',
+  `legal_notes` TEXT NULL,
+  `snapshot_json` MEDIUMTEXT NULL,
+  `document_hash` CHAR(64) NULL,
+  `sent_at` DATETIME NULL,
+  `employee_signed_at` DATETIME NULL,
+  `owner_signed_at` DATETIME NULL,
+  `fully_signed_at` DATETIME NULL,
+  `created_by` INT UNSIGNED NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `loan_agreement_version` (`loan_id`,`version_no`),
+  KEY `loan_agreement_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `loan_agreement_signatures` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `agreement_id` INT UNSIGNED NOT NULL,
+  `signer_role` VARCHAR(20) NOT NULL,
+  `signer_user_id` INT UNSIGNED NULL,
+  `signer_name` VARCHAR(180) NOT NULL,
+  `signature_data` MEDIUMTEXT NOT NULL,
+  `document_hash` CHAR(64) NOT NULL,
+  `ip_address` VARCHAR(64) NULL,
+  `user_agent` VARCHAR(255) NULL,
+  `signed_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY `agreement_signer` (`agreement_id`,`signer_role`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `loan_repayment_schedule` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `agreement_id` INT UNSIGNED NOT NULL,
+  `instalment_no` INT UNSIGNED NOT NULL,
+  `due_date` DATE NOT NULL,
+  `amount` DECIMAL(10,2) NOT NULL,
+  `status` VARCHAR(24) NOT NULL DEFAULT 'scheduled',
+  `paid_amount` DECIMAL(10,2) NOT NULL DEFAULT 0,
+  `paid_at` DATETIME NULL,
+  UNIQUE KEY `agreement_instalment` (`agreement_id`,`instalment_no`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `loan_agreement_events` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `agreement_id` INT UNSIGNED NOT NULL,
+  `loan_id` INT UNSIGNED NOT NULL,
+  `event_type` VARCHAR(60) NOT NULL,
+  `actor_user_id` INT UNSIGNED NULL,
+  `actor_role` VARCHAR(30) NULL,
+  `metadata_json` TEXT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  KEY `loan_agreement_event` (`agreement_id`,`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- ── Default Admin User ───────────────────────────────────────
