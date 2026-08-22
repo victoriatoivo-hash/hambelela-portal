@@ -2242,7 +2242,7 @@ function initialiseTaskCreateForm() {
     [...assignee.children].forEach((group) => {
       if (group.tagName !== 'OPTGROUP') return;
       const heading = document.createElement('div'); heading.className = 'task-assignee-picker__heading'; heading.textContent = group.label; menu.appendChild(heading);
-      Array.from(group.options).forEach((option) => { const label = document.createElement('label'); label.className = 'task-assignee-picker__option'; const input = document.createElement('input'); input.type = 'checkbox'; input.value = option.value; input.dataset.assigneeOption = 'true'; input.addEventListener('change', () => { option.selected = input.checked; assignee.dispatchEvent(new Event('change', {bubbles:true})); render(); }); label.append(input, document.createTextNode(option.textContent)); menu.appendChild(label); });
+      Array.from(group.querySelectorAll('option')).forEach((option) => { const label = document.createElement('label'); label.className = 'task-assignee-picker__option'; const input = document.createElement('input'); input.type = 'checkbox'; input.value = option.value; input.dataset.assigneeOption = 'true'; input.addEventListener('change', () => { option.selected = input.checked; assignee.dispatchEvent(new Event('change', {bubbles:true})); render(); }); label.append(input, document.createTextNode(option.textContent)); menu.appendChild(label); });
     });
     trigger.addEventListener('click', () => { menu.hidden = !menu.hidden; render(); });
     document.addEventListener('click', (event) => { if (!wrapper.contains(event.target)) { menu.hidden = true; render(); } });
