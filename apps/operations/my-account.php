@@ -425,7 +425,20 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$employeeRoles = $ready && $canManagePortal ? ops_rows("SELECT id, name FROM ops_roles WHERE role_key <> 'owner_admin' ORDER BY FIELD(role_key, 'front_desk_admin', 'packer', 'supervisor_manager'), name") : [];
+if ($ready && $canManagePortal) {
+    // Keep the existing portal user-management system aligned with the
+    // Accountant role used by normal portal authentication.  This is
+    // idempotent and does not create an Accountant user automatically.
+    try {
+        db()->prepare(
+            "INSERT IGNORE INTO ops_roles (role_key, name, description)
+             VALUES ('accountant', 'Accountant', 'Restricted Finance Workspace access for VAT accounting and amendments')"
+        )->execute();
+    } catch (Throwable $e) {
+        // The role list can still render whatever roles the database exposes.
+    }
+}
+$employeeRoles = $ready && $canManagePortal ? ops_rows("SELECT id, name FROM ops_roles WHERE role_key <> 'owner_admin' ORDER BY FIELD(role_key, 'front_desk_admin', 'accountant', 'packer', 'supervisor_manager'), name") : [];
 $extraStylesheets = array_merge($extraStylesheets ?? [], [['path' => 'assets/css/settings-access-code.css', 'version' => is_file(BASE_PATH . '/assets/css/settings-access-code.css') ? (string) filemtime(BASE_PATH . '/assets/css/settings-access-code.css') : (string) time()]]);
 $hrEmployees = $ready && $canManagePortal ? ops_hr_employee_options() : [];
 $employeeLinks = [];
