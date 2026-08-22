@@ -55,6 +55,17 @@ const checklistOnly = parser.parse(`CHECKLIST
 assert.equal(checklistOnly.title, '');
 assert.deepEqual(checklistOnly.checklist, ['First check', 'Second check', 'Third check']);
 
+const chatgptVariations = parser.parse(`### **What to do**
+Please **remove** the *old* labels.
+
+* **Pack** each item upright.
+- [ ] **Box** cleaned
+[ ] Label **confirmed**`);
+assert.equal(chatgptVariations.instructionLines[0], 'What to do:');
+assert.ok(chatgptVariations.instructionLines.includes('Please remove the old labels.'));
+assert.ok(chatgptVariations.instructionLines.includes('* Pack each item upright.'));
+assert.deepEqual(chatgptVariations.checklist, ['Box cleaned', 'Label confirmed']);
+
 const explicitTitle = parser.parse(`TASK TITLE
 Clean the dispatch shelf
 STEPS

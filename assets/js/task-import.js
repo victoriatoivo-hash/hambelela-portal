@@ -15,6 +15,12 @@
     .trim()
     .replace(/^#{1,6}\s+/, '')
     .replace(/^(?:\*\*|__)(.*)(?:\*\*|__)$/, '$1')
+    // ChatGPT frequently mixes inline emphasis with otherwise plain text.
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/__(.+?)__/g, '$1')
+    .replace(/(?<!\*)\*(?!\s)(.+?)(?<!\s)\*(?!\*)/g, '$1')
+    .replace(/(?<!_)_(?!\s)(.+?)(?<!\s)_(?!_)/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
     .trim();
 
   const headingKey = (value) => stripMarkdown(value)
@@ -25,7 +31,7 @@
 
   const checkboxText = (value) => {
     const match = String(value || '').match(/^\s*(?:[-*+]\s*)?(?:\[\s*(?:[xX✓])?\s*\]|[☐□☑✓])\s*(.+?)\s*$/u);
-    return match ? match[1].trim() : '';
+    return match ? stripMarkdown(match[1]) : '';
   };
 
   const normaliseLines = (value) => String(value || '')
