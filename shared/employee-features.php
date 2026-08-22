@@ -28,6 +28,10 @@ function portal_feature_permissions(): array
         'packer' => $employeeModules,
         'packer_production_staff' => $employeeModules,
         'supervisor_manager' => $employeeModules,
+        'accountant' => [
+            'dashboard', 'accounts', 'input_vat', 'output_vat', 'import_vat',
+            'vat_reconciliation', 'accounting_amendments', 'notifications',
+        ],
     ];
 }
 
@@ -62,7 +66,7 @@ function portal_role_can_access_feature(string $roleKey, string $featureKey): bo
         'dashboard', 'packing_list', 'courier', 'hr', 'orders', 'task_management',
         'bookkeeping', 'cash_tools', 'notifications', 'system_issues',
     ];
-    if ($roleKey !== 'guest' && $roleKey !== 'owner_admin' && in_array($featureKey, $employeeModules, true)) {
+    if ($roleKey !== 'guest' && $roleKey !== 'owner_admin' && $roleKey !== 'accountant' && in_array($featureKey, $employeeModules, true)) {
         return true;
     }
 
@@ -87,6 +91,16 @@ function employee_feature_for_request(string $scriptName): ?array
         '/apps/accounts/input-vat.php' => ['input_vat', 'Input VAT'],
         '/apps/accounts/input-vat-api.php' => ['input_vat', 'Input VAT'],
         '/apps/accounts/input-vat-file.php' => ['input_vat', 'Input VAT'],
+        '/apps/accounts/output-vat.php' => ['output_vat', 'Output VAT'],
+        '/apps/accounts/output-vat-api.php' => ['output_vat', 'Output VAT'],
+        '/apps/accounts/import-vat.php' => ['import_vat', 'Import VAT'],
+        '/apps/accounts/import-vat-api.php' => ['import_vat', 'Import VAT'],
+        '/apps/accounts/import-vat-file.php' => ['import_vat', 'Import VAT'],
+        '/apps/accounts/vat-reconciliation.php' => ['vat_reconciliation', 'VAT Reconciliation'],
+        '/apps/accounts/vat-reconciliation-api.php' => ['vat_reconciliation', 'VAT Reconciliation'],
+        '/apps/accounts/amendments.php' => ['accounting_amendments', 'Accounting Amendments'],
+        '/apps/accounts/amendments-api.php' => ['accounting_amendments', 'Accounting Amendments'],
+        '/apps/accounts/amendment-file.php' => ['accounting_amendments', 'Accounting Amendments'],
         '/apps/operations/bank-statement-processor.php' => ['cash_tools', 'Cash Tools'],
         '/apps/operations/consignments.php' => ['packing_list', 'Packing List'],
         '/apps/operations/courier.php' => ['courier', 'Courier Waybills'],
@@ -126,9 +140,28 @@ function enforce_employee_feature_for_current_request(): void
     if (!is_employee_session()) {
         return;
     }
+    if (normalise_portal_role(current_role_key()) === 'accountant') {
+        $path = strtolower(str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? '')));
+        $allowed = [
+            '/index.php', '/notifications.php', '/notifications-api.php', '/api/notifications.php',
+            '/api/notifications-feed.php', '/apps/operations/portal-presence.php',
+            '/apps/accounts/index.php', '/apps/accounts/input-vat.php', '/apps/accounts/input-vat-live.php',
+            '/apps/accounts/input-vat-api.php', '/apps/accounts/input-vat-file.php',
+            '/apps/accounts/output-vat.php', '/apps/accounts/output-vat-api.php',
+            '/apps/accounts/import-vat.php', '/apps/accounts/import-vat-api.php', '/apps/accounts/import-vat-file.php',
+            '/apps/accounts/vat-reconciliation.php', '/apps/accounts/vat-reconciliation-api.php',
+            '/apps/accounts/amendments.php', '/apps/accounts/amendments-api.php', '/apps/accounts/amendment-file.php',
+        ];
+        $permitted = false;
+        foreach ($allowed as $suffix) if (substr($path, -strlen($suffix)) === $suffix) { $permitted = true; break; }
+        if (!$permitted) {
+            http_response_code(403);
+            exit('Access denied. This account is restricted to the Finance Workspace.');
+        }
+    }
     $feature = employee_feature_for_request((string) ($_SERVER['SCRIPT_NAME'] ?? ''));
     if ($feature !== null && !portal_role_can_access_feature(current_role_key(), $feature[0])) {
-        if (in_array($feature[0], ['accounts', 'input_vat'], true)) {
+        if (in_array($feature[0], ['accounts', 'input_vat', 'output_vat', 'import_vat', 'vat_reconciliation', 'accounting_amendments'], true)) {
             http_response_code(403);
             exit('You do not have access to ' . $feature[1] . '.');
         }

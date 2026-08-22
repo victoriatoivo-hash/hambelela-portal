@@ -78,7 +78,10 @@ function notifications_current_employee_id(): ?int
 function notifications_default_modules_for_role(string $roleKey): array
 {
     if (in_array($roleKey, ['owner_admin', 'supervisor_manager'], true)) {
-        return ['operations', 'packing', 'bookkeeping', 'tasks', 'errors', 'whatsapp', 'cost_workbook', 'system'];
+        return ['operations', 'packing', 'bookkeeping', 'tasks', 'errors', 'whatsapp', 'cost_workbook', 'accounting_amendments', 'system'];
+    }
+    if ($roleKey === 'accountant') {
+        return ['accounting_amendments', 'system'];
     }
     if (in_array($roleKey, ['front_desk_admin', 'front_desk_admin_employee'], true)) {
         return ['operations', 'packing', 'bookkeeping', 'tasks', 'errors', 'whatsapp', 'system'];
@@ -103,6 +106,7 @@ function notifications_modules(): array
         'errors' => 'Error Log',
         'whatsapp' => 'WhatsApp Performance',
         'cost_workbook' => 'Cost Workbook',
+        'accounting_amendments' => 'Accounting Amendments',
         'system' => 'System',
     ];
 }

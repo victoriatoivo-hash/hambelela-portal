@@ -104,6 +104,15 @@ $portalNavItems = [
     ['id' => 'system-issues', 'label' => 'System Issues Log', 'icon' => 'system-issues', 'href' => BASE_URL . '/apps/operations/system-issues.php', 'match' => ['/apps/operations/system-issues.php'], 'badge' => $systemIssueOpenCount, 'badge_label' => $systemIssueOpenCount > 99 ? '99+' : (string) $systemIssueOpenCount, 'badge_kind' => 'system-issues', 'needs_information' => $systemIssueNeedsInformation],
     ['id' => 'settings', 'label' => 'Settings', 'icon' => 'settings', 'href' => BASE_URL . '/apps/operations/my-account.php', 'match' => ['/apps/operations/my-account.php']],
 ];
+if ($packingSidebarRoleKey === 'accountant') {
+    $portalNavItems = [
+        ['id'=>'accounts','label'=>'Finance Dashboard','icon'=>'accounts','href'=>BASE_URL.'/apps/accounts/index.php','match'=>['/apps/accounts/index.php']],
+        ['id'=>'input-vat','label'=>'Input VAT','icon'=>'accounts','href'=>BASE_URL.'/apps/accounts/input-vat.php','match'=>['/apps/accounts/input-vat.php']],
+        ['id'=>'output-vat','label'=>'Output VAT','icon'=>'accounts','href'=>BASE_URL.'/apps/accounts/output-vat.php','match'=>['/apps/accounts/output-vat.php']],
+        ['id'=>'import-vat','label'=>'Import VAT','icon'=>'accounts','href'=>BASE_URL.'/apps/accounts/import-vat.php','match'=>['/apps/accounts/import-vat.php']],
+        ['id'=>'vat-reconciliation','label'=>'VAT Reconciliation','icon'=>'accounts','href'=>BASE_URL.'/apps/accounts/vat-reconciliation.php','match'=>['/apps/accounts/vat-reconciliation.php']],
+    ];
+}
 
 $featureByNavId = [
     'portal-dashboard' => 'dashboard',
@@ -111,6 +120,9 @@ $featureByNavId = [
     'operations-bookkeeping' => 'bookkeeping',
     'accounts' => 'accounts',
     'input-vat' => 'input_vat',
+    'output-vat' => 'output_vat',
+    'import-vat' => 'import_vat',
+    'vat-reconciliation' => 'vat_reconciliation',
     'operations-consignments' => 'packing_list',
     'operations-courier' => 'courier',
     'hr-portal' => 'hr',

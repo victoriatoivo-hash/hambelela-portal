@@ -11,7 +11,7 @@ accounts_input_vat_schema_ready();
 
 $requestedView = strtolower(trim((string) ($_GET['view'] ?? $_GET['period'] ?? '')));
 $requestedMonth = preg_match('/^20\d{2}-(0[1-9]|1[0-2])$/', (string) ($_GET['month'] ?? '')) ? (string) $_GET['month'] : date('Y-m');
-if (!accounts_is_owner() && in_array($requestedView, ['history', 'transaction-history'], true)) {
+if (!accounts_can('input_vat.history') && in_array($requestedView, ['history', 'transaction-history'], true)) {
     header('Location: input-vat.php');
     exit;
 }
@@ -28,8 +28,8 @@ include BASE_PATH.'/shared/header.php';
 include BASE_PATH.'/shared/sidebar.php';
 ?>
 
-<main class="workspace module accounts-page" id="inputVatPage" data-api="input-vat-api.php" data-csrf="<?=htmlspecialchars(accounts_csrf_token(), ENT_QUOTES, 'UTF-8')?>" data-owner="<?=accounts_is_owner() ? '1' : '0'?>" data-rate="<?=htmlspecialchars((string)$rate, ENT_QUOTES, 'UTF-8')?>" data-capture-start="<?=htmlspecialchars(accounts_historical_capture_start_date(), ENT_QUOTES, 'UTF-8')?>" data-business-today="<?=htmlspecialchars(date('Y-m-d'), ENT_QUOTES, 'UTF-8')?>" data-business-timezone="Africa/Windhoek">
-  <?php if(accounts_is_owner()): ?>
+<main class="workspace module accounts-page" id="inputVatPage" data-api="input-vat-api.php" data-csrf="<?=htmlspecialchars(accounts_csrf_token(), ENT_QUOTES, 'UTF-8')?>" data-owner="<?=accounts_can('input_vat.history') ? '1' : '0'?>" data-rate="<?=htmlspecialchars((string)$rate, ENT_QUOTES, 'UTF-8')?>" data-capture-start="<?=htmlspecialchars(accounts_historical_capture_start_date(), ENT_QUOTES, 'UTF-8')?>" data-business-today="<?=htmlspecialchars(date('Y-m-d'), ENT_QUOTES, 'UTF-8')?>" data-business-timezone="Africa/Windhoek">
+  <?php if(accounts_can_access_workspace()): ?>
   <nav class="accounts-breadcrumb" aria-label="Breadcrumb"><a href="index.php">Accounts</a><span aria-hidden="true">&rsaquo;</span><strong>Input VAT</strong></nav>
   <?php endif; ?>
 
@@ -48,7 +48,7 @@ include BASE_PATH.'/shared/sidebar.php';
 
   <section class="accounts-summary" data-summary aria-live="polite" data-monthly-section></section>
 
-  <?php if(accounts_is_owner()): ?>
+  <?php if(accounts_can('input_vat.history')): ?>
   <nav class="input-vat-primary-tabs portal-theme-tabs" role="tablist" aria-label="Input VAT views">
     <button type="button" class="portal-theme-tab is-active" role="tab" aria-selected="true" data-vat-view="monthly"><i data-lucide="calendar-range" aria-hidden="true"></i><span>Monthly Input VAT</span></button>
     <button type="button" class="portal-theme-tab" role="tab" aria-selected="false" data-vat-view="history"><i data-lucide="history" aria-hidden="true"></i><span>Transaction History</span></button>

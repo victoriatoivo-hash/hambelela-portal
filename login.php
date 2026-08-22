@@ -144,6 +144,7 @@ function ensure_default_ops_accounts(): void
         'front_desk_admin' => ['Front Desk/Admin Employee', 'Customer orders, delivery coordination, supplier requests, petty cash and errors'],
         'packer' => ['Packer/Production Staff', 'Assigned packing tasks, barcode screens, checklists and own performance'],
         'supervisor_manager' => ['Supervisor/Manager', 'Operations supervision and approval role'],
+        'accountant' => ['Accountant', 'Restricted Finance Workspace access for VAT accounting and amendments'],
     ];
 
     $roleStmt = db()->prepare("INSERT IGNORE INTO ops_roles (role_key, name, description) VALUES (?, ?, ?)");

@@ -14,6 +14,10 @@ $activeApp = 'dashboard';
 $pageUsesPortalSidebar = false;
 $hidePortalSidebar = true;
 $roleKey = current_role_key();
+if ($roleKey === 'accountant') {
+    header('Location: ' . BASE_URL . '/apps/accounts/index.php', true, 303);
+    exit;
+}
 $dashboardTaskRows = [];
 $dashboardTaskCount = 0;
 $dashboardPackingUnread = function_exists('notifications_packing_assignment_unread_count') ? notifications_packing_assignment_unread_count() : 0;

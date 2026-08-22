@@ -8,9 +8,32 @@ require_once BASE_PATH . '/shared/accounts-input-vat-calculator.php';
 
 function accounts_role_key(): string { return normalise_portal_role(current_role_key()); }
 function accounts_is_owner(): bool { return accounts_role_key() === 'owner_admin'; }
+function accounts_is_accountant(): bool { return accounts_role_key() === 'accountant'; }
 function accounts_is_front_desk(): bool { return in_array(accounts_role_key(), ['front_desk_admin', 'front_desk_admin_employee'], true); }
-function accounts_can_access_workspace(): bool { return accounts_is_owner(); }
-function accounts_can_access_input_vat(): bool { return accounts_is_owner() || accounts_is_front_desk(); }
+function accounts_permissions_for_role(?string $roleKey = null): array
+{
+    $roleKey = normalise_portal_role($roleKey ?? accounts_role_key());
+    $owner = [
+        'accounts.access','input_vat.view','input_vat.create','input_vat.edit','input_vat.history','input_vat.delete','input_vat.settings',
+        'output_vat.view','output_vat.sync','output_vat.adjust','output_vat.complete','output_vat.export',
+        'import_vat.view','import_vat.upload_statement','import_vat.review_statement','import_vat.confirm_import','import_vat.edit','import_vat.export','import_vat.complete',
+        'vat_reconciliation.view','vat_reconciliation.review','vat_reconciliation.adjust','vat_reconciliation.export','vat_reconciliation.file','vat_reconciliation.lock',
+        'amendments.view','amendments.create','amendments.reply','amendments.resolve','amendments.attach',
+    ];
+    if ($roleKey === 'owner_admin') return $owner;
+    if ($roleKey === 'accountant') return [
+        'accounts.access','input_vat.view','input_vat.create','input_vat.edit','input_vat.history',
+        'output_vat.view','output_vat.sync','output_vat.adjust','output_vat.export',
+        'import_vat.view','import_vat.upload_statement','import_vat.review_statement','import_vat.confirm_import','import_vat.edit','import_vat.export',
+        'vat_reconciliation.view','vat_reconciliation.review','vat_reconciliation.adjust','vat_reconciliation.export',
+        'amendments.view','amendments.create','amendments.reply','amendments.resolve','amendments.attach',
+    ];
+    if (in_array($roleKey, ['front_desk_admin','front_desk_admin_employee'], true)) return ['input_vat.view','input_vat.create','input_vat.edit'];
+    return [];
+}
+function accounts_can(string $permission): bool { return in_array($permission, accounts_permissions_for_role(), true); }
+function accounts_can_access_workspace(): bool { return accounts_can('accounts.access'); }
+function accounts_can_access_input_vat(): bool { return accounts_can('input_vat.view'); }
 function accounts_require_workspace_access(): void { require_login(); if (!accounts_can_access_workspace()) { http_response_code(403); exit('You do not have access to the Accounts workspace.'); } }
 function accounts_require_input_vat_access(): void { require_login(); if (!accounts_can_access_input_vat()) { http_response_code(403); exit('You do not have access to Input VAT.'); } }
 
@@ -108,7 +131,7 @@ function accounts_purchase(int $id, bool $includeDeleted = false): ?array
 }
 function accounts_can_manage_input_vat_entries(): bool
 {
-    return accounts_is_owner() || accounts_is_front_desk();
+    return accounts_can('input_vat.create') || accounts_can('input_vat.edit');
 }
 function accounts_can_edit_purchase(array $purchase): bool
 {
@@ -116,7 +139,7 @@ function accounts_can_edit_purchase(array $purchase): bool
 }
 function accounts_can_delete_purchase(array $purchase): bool
 {
-    return accounts_can_manage_input_vat_entries();
+    return accounts_can('input_vat.delete');
 }
 function accounts_audit(int $id, string $action, ?array $before, ?array $after): void
 {
@@ -130,5 +153,5 @@ function accounts_attachment_payload(array $row): array
 function accounts_purchase_payload(array $row, ?array $attachments = null): array
 {
     if ($attachments === null) { $stmt=db()->prepare('SELECT * FROM accounts_input_vat_attachments WHERE purchase_id=? AND deleted_at IS NULL ORDER BY id');$stmt->execute([(int)$row['id']]);$attachments=$stmt->fetchAll(); }
-    return ['id'=>(int)$row['id'],'purchase_date'=>(string)$row['purchase_date'],'supplier'=>(string)$row['supplier'],'invoice_reference'=>(string)($row['invoice_reference']??''),'description'=>(string)$row['description'],'notes'=>(string)($row['notes']??''),'inclusive'=>(float)$row['amount_incl_vat'],'vat'=>(float)$row['vat_amount'],'exclusive'=>(float)$row['amount_excl_vat'],'vat_rate'=>(float)($row['vat_rate_used']??$row['vat_rate']),'vat_treatment'=>(string)$row['vat_treatment'],'calculation_source'=>(string)($row['calculation_source']??'inclusive'),'automatic_vat'=>(float)($row['automatic_vat_amount']??$row['vat_amount']),'automatic_exclusive'=>(float)($row['automatic_excl_vat']??$row['amount_excl_vat']),'standard_rated_inclusive'=>(float)($row['standard_rated_incl_vat']??0),'standard_rated_exclusive'=>(float)($row['standard_rated_excl_vat']??0),'zero_rated_amount'=>(float)($row['zero_rated_amount']??0),'manual_override'=>(bool)($row['manual_override']??false),'override_reason'=>(string)($row['override_reason']??''),'historical_back_capture'=>(bool)($row['historical_back_capture']??false),'review_status'=>(string)$row['review_status'],'review_note'=>(string)($row['review_note']??''),'entered_by'=>(string)$row['created_by_name'],'created_by'=>(int)$row['created_by'],'captured_at'=>(string)$row['created_at'],'updated_at'=>(string)$row['updated_at'],'can_edit'=>accounts_can_edit_purchase($row),'can_view_audit'=>accounts_is_owner(),'can_delete'=>accounts_can_delete_purchase($row),'attachments'=>array_map('accounts_attachment_payload',$attachments)];
+    return ['id'=>(int)$row['id'],'purchase_date'=>(string)$row['purchase_date'],'supplier'=>(string)$row['supplier'],'invoice_reference'=>(string)($row['invoice_reference']??''),'description'=>(string)$row['description'],'notes'=>(string)($row['notes']??''),'inclusive'=>(float)$row['amount_incl_vat'],'vat'=>(float)$row['vat_amount'],'exclusive'=>(float)$row['amount_excl_vat'],'vat_rate'=>(float)($row['vat_rate_used']??$row['vat_rate']),'vat_treatment'=>(string)$row['vat_treatment'],'calculation_source'=>(string)($row['calculation_source']??'inclusive'),'automatic_vat'=>(float)($row['automatic_vat_amount']??$row['vat_amount']),'automatic_exclusive'=>(float)($row['automatic_excl_vat']??$row['amount_excl_vat']),'standard_rated_inclusive'=>(float)($row['standard_rated_incl_vat']??0),'standard_rated_exclusive'=>(float)($row['standard_rated_excl_vat']??0),'zero_rated_amount'=>(float)($row['zero_rated_amount']??0),'manual_override'=>(bool)($row['manual_override']??false),'override_reason'=>(string)($row['override_reason']??''),'historical_back_capture'=>(bool)($row['historical_back_capture']??false),'review_status'=>(string)$row['review_status'],'review_note'=>(string)($row['review_note']??''),'entered_by'=>(string)$row['created_by_name'],'created_by'=>(int)$row['created_by'],'captured_at'=>(string)$row['created_at'],'updated_at'=>(string)$row['updated_at'],'can_edit'=>accounts_can_edit_purchase($row),'can_view_audit'=>accounts_can('input_vat.history'),'can_delete'=>accounts_can_delete_purchase($row),'attachments'=>array_map('accounts_attachment_payload',$attachments)];
 }

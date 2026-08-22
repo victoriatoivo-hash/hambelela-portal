@@ -10,7 +10,7 @@ require_once BASE_PATH . '/shared/woocommerce.php';
 function output_vat_require_owner(): void
 {
     require_login();
-    if (!accounts_is_owner()) {
+    if (!accounts_can('output_vat.view')) {
         http_response_code(403);
         exit('You do not have access to Output VAT.');
     }

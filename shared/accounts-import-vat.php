@@ -5,7 +5,7 @@ require_once BASE_PATH.'/shared/auth.php';
 require_once BASE_PATH.'/shared/accounts-input-vat.php';
 require_once BASE_PATH.'/shared/accounts-import-vat-parser.php';
 
-function import_vat_require_owner(): void { require_login(); if(!accounts_is_owner()){http_response_code(403);exit('You do not have access to Import VAT.');} }
+function import_vat_require_owner(): void { require_login(); if(!accounts_can('import_vat.view')){http_response_code(403);exit('You do not have access to Import VAT.');} }
 function import_vat_schema_ready(): void {
  static $ready=false;if($ready)return;
  $queries=[

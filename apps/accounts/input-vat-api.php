@@ -89,7 +89,7 @@ function iv_valid_purchase_date(string $value): bool
 
 function iv_require_history_access(): void
 {
-    if (accounts_is_owner()) return;
+    if (accounts_can('input_vat.history')) return;
     iv_reply(['ok' => false, 'error' => 'Transaction History is available to Owner/Admin only.'], 403);
 }
 
@@ -125,7 +125,7 @@ try {
         $month = iv_month_from_request((string) ($_GET['month'] ?? ''));
         $history = ($_GET['period'] ?? '') === 'history';
         if ($history) iv_require_history_access();
-        $all = accounts_is_owner() && ($_GET['period'] ?? '') === 'all';
+        $all = accounts_can('input_vat.history') && ($_GET['period'] ?? '') === 'all';
         $where = 'deleted_at IS NULL';
         $params = [];
 
@@ -166,7 +166,7 @@ try {
     }
 
     if ($action === 'audit') {
-        if (!accounts_is_owner()) throw new RuntimeException('Only the owner can view audit history.');
+        if (!accounts_can('input_vat.history')) throw new RuntimeException('You do not have access to audit history.');
         $id = (int) ($_GET['id'] ?? 0);
         $stmt = db()->prepare('SELECT action_key,actor_name,created_at,before_json,after_json FROM accounts_input_vat_audit WHERE purchase_id=? ORDER BY id DESC');
         $stmt->execute([$id]);
@@ -177,7 +177,7 @@ try {
         $month = iv_month_from_request((string) ($_GET['month'] ?? ''));
         $history = ($_GET['period'] ?? '') === 'history';
         if ($history) iv_require_history_access();
-        $all = accounts_is_owner() && ($_GET['period'] ?? '') === 'all';
+        $all = accounts_can('input_vat.history') && ($_GET['period'] ?? '') === 'all';
         $where = ['deleted_at IS NULL'];
         $params = [];
 
@@ -311,6 +311,8 @@ try {
 
     if ($action === 'save') {
         $id = (int) ($_POST['id'] ?? 0);
+        if ($id > 0 && !accounts_can('input_vat.edit')) throw new RuntimeException('You do not have permission to edit Input VAT purchases.');
+        if ($id <= 0 && !accounts_can('input_vat.create')) throw new RuntimeException('You do not have permission to add Input VAT purchases.');
         $date = (string) ($_POST['purchase_date'] ?? '');
         $supplier = trim((string) ($_POST['supplier'] ?? ''));
         $reference = trim((string) ($_POST['invoice_reference'] ?? ''));

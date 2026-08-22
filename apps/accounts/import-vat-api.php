@@ -312,9 +312,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action, ['upload_statemen
     try {
         import_vat_verify((string)($_POST['csrf'] ?? ''));
         if ($action === 'upload_statement') {
+            if (!accounts_can('import_vat.upload_statement')) throw new RuntimeException('You cannot upload Import VAT statements.');
             $result = im2_upload_statement();
             im2_reply(['ok' => true, 'message' => $result['message'], 'data' => $result]);
         }
+        if (!accounts_can('import_vat.confirm_import')) throw new RuntimeException('You cannot confirm Import VAT statements.');
         $statement = im2_confirm_statement((int)($_POST['id'] ?? 0));
         im2_reply(['ok' => true, 'message' => 'Statement confirmed. Liabilities and VIA payments were posted once.', 'data' => $statement]);
     } catch (Throwable $error) {

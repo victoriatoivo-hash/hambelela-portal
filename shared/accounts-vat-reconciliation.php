@@ -7,7 +7,7 @@ require_once BASE_PATH.'/shared/accounts-input-vat.php';
 require_once BASE_PATH.'/shared/accounts-output-vat.php';
 require_once BASE_PATH.'/shared/accounts-import-vat.php';
 
-function vat_reconciliation_require_owner(): void { require_login(); if (!accounts_is_owner()) { http_response_code(403); exit('You do not have access to VAT Reconciliation.'); } }
+function vat_reconciliation_require_owner(): void { require_login(); if (!accounts_can('vat_reconciliation.view')) { http_response_code(403); exit('You do not have access to VAT Reconciliation.'); } }
 function vat_reconciliation_csrf(): string { if (empty($_SESSION['vat_reconciliation_csrf'])) $_SESSION['vat_reconciliation_csrf']=bin2hex(random_bytes(32)); return (string)$_SESSION['vat_reconciliation_csrf']; }
 function vat_reconciliation_verify(string $token): void { if ($token==='' || !hash_equals(vat_reconciliation_csrf(),$token)) throw new RuntimeException('Your session expired. Refresh and try again.'); }
 function vat_reconciliation_money(float $value): float { return round($value,2); }
