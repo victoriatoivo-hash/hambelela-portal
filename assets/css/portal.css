@@ -27933,6 +27933,7 @@ body.dark-mode .portal-dark-toggle {
   border:1px solid #EDE3D8;
   border-radius:14px;
 }
+.digital-task-page .task-create-panel.open{opacity:1;pointer-events:auto;transform:translate3d(0,0,0);visibility:visible}
 .digital-task-page .task-create-heading { position:relative; flex:0 0 auto; }
 .digital-task-page .task-create-heading { grid-template-columns:38px minmax(0,1fr) auto; align-items:center; }
 .task-create-heading__copy { min-width:0; }
