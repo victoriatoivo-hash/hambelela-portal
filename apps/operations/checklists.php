@@ -2227,6 +2227,28 @@ function initialiseTaskCreateForm() {
   instructionModal?.querySelector('[data-rich-save]')?.addEventListener('click', () => { if (instructionModal.dataset.richTarget !== 'create') return; setInstructionHtml(expandedEditor.innerHTML); taskInstructionsLayer?.close(); });
   instructionModal?.querySelectorAll('[data-rich-modal-command]').forEach((button) => button.addEventListener('click', () => { expandedEditor.focus(); document.execCommand(button.dataset.richModalCommand, false); }));
   const selectedAssigneeValues = () => assignee ? [...assignee.selectedOptions].map((option) => option.value) : [];
+  const assigneeMenu = assignee ? (() => {
+    const wrapper = document.createElement('div'); wrapper.className = 'task-assignee-picker';
+    const trigger = document.createElement('button'); trigger.type = 'button'; trigger.className = 'task-assignee-picker__trigger'; trigger.setAttribute('aria-haspopup', 'listbox'); trigger.setAttribute('aria-expanded', 'false');
+    const menu = document.createElement('div'); menu.className = 'task-assignee-picker__menu'; menu.hidden = true; menu.setAttribute('role', 'listbox'); menu.setAttribute('aria-multiselectable', 'true');
+    const render = () => {
+      const values = selectedAssigneeValues();
+      trigger.innerHTML = '';
+      if (!values.length) { trigger.textContent = 'Choose employee(s) or group'; }
+      else values.forEach((value) => { const option = [...assignee.options].find((item) => item.value === value); if (!option) return; const chip = document.createElement('span'); chip.className = 'task-assignee-chip'; chip.textContent = option.textContent; const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = '×'; remove.setAttribute('aria-label', 'Remove ' + option.textContent); remove.addEventListener('click', (event) => { event.stopPropagation(); option.selected = false; assignee.dispatchEvent(new Event('change', {bubbles:true})); }); chip.appendChild(remove); trigger.appendChild(chip); });
+      trigger.setAttribute('aria-expanded', String(!menu.hidden));
+      menu.querySelectorAll('input[data-assignee-option]').forEach((input) => { input.checked = values.includes(input.value); });
+    };
+    [...assignee.children].forEach((group) => {
+      if (group.tagName !== 'OPTGROUP') return;
+      const heading = document.createElement('div'); heading.className = 'task-assignee-picker__heading'; heading.textContent = group.label; menu.appendChild(heading);
+      [...group.options].forEach((option) => { const label = document.createElement('label'); label.className = 'task-assignee-picker__option'; const input = document.createElement('input'); input.type = 'checkbox'; input.value = option.value; input.dataset.assigneeOption = 'true'; input.addEventListener('change', () => { option.selected = input.checked; assignee.dispatchEvent(new Event('change', {bubbles:true})); render(); }); label.append(input, document.createTextNode(option.textContent)); menu.appendChild(label); });
+    });
+    trigger.addEventListener('click', () => { menu.hidden = !menu.hidden; render(); });
+    document.addEventListener('click', (event) => { if (!wrapper.contains(event.target)) { menu.hidden = true; render(); } });
+    assignee.addEventListener('change', render); assignee.classList.add('task-assignee-picker__native');
+    assignee.parentNode.insertBefore(wrapper, assignee); wrapper.append(trigger, menu, assignee); render(); return {menu, trigger, render};
+  })() : null;
   assignee?.addEventListener('change', () => {
     const values = selectedAssigneeValues();
     const isGroupValue = (value) => value === 'all' || value.indexOf('group:') === 0;
@@ -2239,6 +2261,7 @@ function initialiseTaskCreateForm() {
     }
     const current = selectedAssigneeValues();
     if (allEmployeesNote) allEmployeesNote.hidden = !current.some(isGroupValue);
+    assigneeMenu?.render();
   });
   const syncAssignmentType = () => {
     const floating = form.querySelector('[name="assignment_type"]:checked')?.value === 'floating';
