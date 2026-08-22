@@ -14,7 +14,7 @@ assert(css.includes('min-height:32px') && css.includes('min-height:34px'), 'comp
 assert(css.includes('grid-template-columns:minmax(0,1fr) 220px') && css.includes('gap:10px'), 'desktop filter alignment is missing');
 assert(css.includes('top:50%;transform:translateY(-50%)') && css.includes('padding-left:34px'), 'search icon centering/padding is missing');
 assert(css.includes('border:1px solid #ede3d8;border-radius:8px') && css.includes('rgba(171,54,25,.08)'), 'status control border/focus styling is missing');
-assert(css.includes('.amendment-new-action{font:400 12px') && css.includes('font-size:18px'), 'requested amendment typography is missing');
+assert(css.includes('.portal-button.amendment-new-action') && css.includes('font-weight:400') && css.includes('font-size:18px'), 'requested amendment typography is missing');
 assert(css.includes('prefers-reduced-motion') && css.includes('@media(max-width:760px)'), 'responsive/reduced-motion rules are missing');
 assert(js.includes('data-amendment-files') && js.includes('No amendments yet'), 'empty state/file upload behaviour is missing');
 assert(js.includes("hasAttribute('data-empty-new')"), 'empty-state New amendment button handler is not delegated correctly');
