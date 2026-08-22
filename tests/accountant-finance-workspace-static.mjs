@@ -5,6 +5,7 @@ const features=read('shared/employee-features.php'), perms=read('shared/accounts
 assert.match(login, /'accountant'\s*=>\s*\['Accountant'/);
 for(const feature of ['accounts','input_vat','output_vat','import_vat','vat_reconciliation','accounting_amendments']) assert.match(features,new RegExp("'"+feature+"'"));
 assert.match(features,/roleKey !== 'accountant'/);
+assert.match(features,/['"]\/change-access-code\.php['"]/);
 for(const allowed of ['input_vat.view','output_vat.view','import_vat.view','vat_reconciliation.view','amendments.view']) assert.match(perms,new RegExp(allowed.replace('.','\\.')));
 for(const denied of ['input_vat.delete','input_vat.settings','output_vat.complete','vat_reconciliation.lock']) { const accountant=perms.match(/if \(\$roleKey === 'accountant'\) return \[([\s\S]*?)\];/)[1]; assert.ok(!accountant.includes(denied),denied+' must remain owner-only'); }
 assert.match(sidebar,/\$packingSidebarRoleKey === 'accountant'/);assert.doesNotMatch(sidebar.match(/if \(\$packingSidebarRoleKey === 'accountant'\) \{([\s\S]*?)\n\}/)[1],/orders|bookkeeping|tasks|errors|hr-portal/);

@@ -143,7 +143,7 @@ function enforce_employee_feature_for_current_request(): void
     if (normalise_portal_role(current_role_key()) === 'accountant') {
         $path = strtolower(str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? '')));
         $allowed = [
-            '/index.php', '/notifications.php', '/notifications-api.php', '/api/notifications.php',
+            '/index.php', '/change-access-code.php', '/notifications.php', '/notifications-api.php', '/api/notifications.php',
             '/api/notifications-feed.php', '/apps/operations/portal-presence.php',
             '/apps/accounts/index.php', '/apps/accounts/input-vat.php', '/apps/accounts/input-vat-live.php',
             '/apps/accounts/input-vat-api.php', '/apps/accounts/input-vat-file.php',
