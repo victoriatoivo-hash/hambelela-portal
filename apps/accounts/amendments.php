@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once dirname(__DIR__,2).'/config.php';require_once BASE_PATH.'/shared/auth.php';require_once BASE_PATH.'/shared/accounts-amendments.php';amendments_require_access();amendments_schema_ready();
-$pageTitle='Accounting Amendments | '.APP_NAME;$activeApp='accounts';$extraStylesheets=[['path'=>'assets/css/accounts.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/accounts.css')],['path'=>'assets/css/accounts-amendments.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/accounts-amendments.css')]];include BASE_PATH.'/shared/header.php';include BASE_PATH.'/shared/sidebar.php';
+$pageTitle='Accounting Amendments | '.APP_NAME;$activeApp='accounts';$extraStylesheets=[['path'=>'assets/css/accounts.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/accounts.css')],['path'=>'assets/css/accounts-amendments.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/accounts-amendments.css')],['path'=>'assets/css/accounts-amendments-buttons.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/accounts-amendments-buttons.css')]];include BASE_PATH.'/shared/header.php';include BASE_PATH.'/shared/sidebar.php';
 ?>
 <main class="workspace module accounts-page amendments-page" id="amendmentsPage" data-api="amendments-api.php">
  <header class="accounts-hero"><div><p class="eyebrow">Finance workspace</p><h1>Amendments</h1><p>Shared accounting correction discussions between the accountant and owner.</p></div><button class="portal-button portal-button--primary" id="newAmendment">New amendment</button></header>
