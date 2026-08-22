@@ -67,8 +67,9 @@ function task_release_due_scheduled_tasks(): int
         && ops_column_exists('ops_checklist_tasks', 'urgent_alert_claimed_at')
         && ops_column_exists('ops_checklist_tasks', 'urgent_alert_last_error');
     $popupColumns = $hasPopupConfig ? ', urgent_alert_enabled, urgent_alert_recipients_json, urgent_alert_sent_at' : '';
+    $floatingColumns = ops_column_exists('ops_checklist_tasks', 'assignment_type') ? ', assignment_type, floating_eligible_role, floating_allocation_status' : '';
     $rows = ops_rows(
-        "SELECT id, assigned_employee_id, task_name, scheduled_at{$popupColumns} FROM ops_checklist_tasks
+        "SELECT id, assigned_employee_id, task_name, scheduled_at{$floatingColumns}{$popupColumns} FROM ops_checklist_tasks
          WHERE scheduled_at IS NOT NULL AND scheduled_at <= ? AND released_at IS NULL
            AND archived_at IS NULL AND deleted_at IS NULL ORDER BY scheduled_at, id LIMIT 100",
         [$now]
@@ -78,18 +79,25 @@ function task_release_due_scheduled_tasks(): int
         $pdo = db();
         try {
             $pdo->beginTransaction();
+            $isFloating = (string) ($row['assignment_type'] ?? 'specific') === 'floating';
+            if ($isFloating && function_exists('task_floating_allocate')) {
+                $allocation = task_floating_allocate((int) $row['id'], 'automatic', false);
+                $row['assigned_employee_id'] = (int) ($allocation['employee_id'] ?? 0);
+            }
+            $hasAssignee = (int) ($row['assigned_employee_id'] ?? 0) > 0;
             $stmt = $pdo->prepare(
-                "UPDATE ops_checklist_tasks SET released_at = ?, date_assigned = ?, employee_visible = 1
+                "UPDATE ops_checklist_tasks SET released_at = ?, date_assigned = CASE WHEN ? = 1 THEN COALESCE(date_assigned, ?) ELSE date_assigned END, employee_visible = ?
                  WHERE id = ? AND released_at IS NULL AND scheduled_at IS NOT NULL AND scheduled_at <= ?"
             );
-            $stmt->execute([$now, $now, (int) $row['id'], $now]);
+            $stmt->execute([$now, $hasAssignee ? 1 : 0, $now, $hasAssignee ? 1 : 0, (int) $row['id'], $now]);
             if ($stmt->rowCount() !== 1) { $pdo->rollBack(); continue; }
-            if ((int) ($row['assigned_employee_id'] ?? 0) > 0
+            if ($hasAssignee
                 && !notifications_notify_task_assigned((int) $row['id'], (int) $row['assigned_employee_id'], (string) $row['task_name'])) {
                 throw new RuntimeException('The scheduled task notification could not be saved.');
             }
             if (function_exists('ops_activity_log')) ops_activity_log('task_released', 'checklist_task', (int) $row['id'], [
-                'scheduled_at' => (string) $row['scheduled_at'], 'released_at' => $now, 'assigned_employee_id' => (int) $row['assigned_employee_id'],
+                'scheduled_at' => (string) $row['scheduled_at'], 'released_at' => $now, 'assigned_employee_id' => $hasAssignee ? (int) $row['assigned_employee_id'] : null,
+                'assignment_type' => $isFloating ? 'floating' : 'specific',
             ]);
             $pdo->commit();
             if ($hasPopupConfig) task_deliver_configured_popup($row);

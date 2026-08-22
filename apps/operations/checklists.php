@@ -120,6 +120,14 @@ function checklist_bootstrap_schema(): void
         'blocked_reason' => "ALTER TABLE ops_checklist_tasks ADD COLUMN blocked_reason TEXT NULL AFTER performance_scored",
         'batch_id' => "ALTER TABLE ops_checklist_tasks ADD COLUMN batch_id VARCHAR(64) NULL AFTER blocked_reason",
         'batch_size' => "ALTER TABLE ops_checklist_tasks ADD COLUMN batch_size INT NULL AFTER batch_id",
+        'assignment_type' => "ALTER TABLE ops_checklist_tasks ADD COLUMN assignment_type VARCHAR(20) NOT NULL DEFAULT 'specific' AFTER assigned_employee_id",
+        'floating_eligible_role' => "ALTER TABLE ops_checklist_tasks ADD COLUMN floating_eligible_role VARCHAR(40) NULL AFTER assignment_type",
+        'floating_allocation_status' => "ALTER TABLE ops_checklist_tasks ADD COLUMN floating_allocation_status VARCHAR(40) NULL AFTER floating_eligible_role",
+        'allocated_employee_id' => "ALTER TABLE ops_checklist_tasks ADD COLUMN allocated_employee_id INT NULL AFTER floating_allocation_status",
+        'allocated_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN allocated_at DATETIME NULL AFTER allocated_employee_id",
+        'allocation_method' => "ALTER TABLE ops_checklist_tasks ADD COLUMN allocation_method VARCHAR(40) NULL AFTER allocated_at",
+        'allocation_attempted_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN allocation_attempted_at DATETIME NULL AFTER allocation_method",
+        'allocation_decision_json' => "ALTER TABLE ops_checklist_tasks ADD COLUMN allocation_decision_json TEXT NULL AFTER allocation_attempted_at",
     ];
     foreach ($columns as $column => $sql) {
         if (!checklist_column_exists($column)) checklist_try_sql($sql);
@@ -164,6 +172,8 @@ function checklist_bootstrap_schema(): void
             checklist_type VARCHAR(40) NOT NULL DEFAULT 'opening',
             priority VARCHAR(30) NOT NULL DEFAULT 'normal',
             assigned_employee_id INT NULL,
+            assignment_type VARCHAR(20) NOT NULL DEFAULT 'specific',
+            floating_eligible_role VARCHAR(40) NULL,
             recurring_rule VARCHAR(80) NOT NULL,
             due_time TIME NOT NULL DEFAULT '09:00:00',
             instructions TEXT NULL,
@@ -175,6 +185,8 @@ function checklist_bootstrap_schema(): void
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         )"
     );
+    if (!ops_column_exists('ops_checklist_recurring_templates', 'assignment_type')) checklist_try_sql("ALTER TABLE ops_checklist_recurring_templates ADD COLUMN assignment_type VARCHAR(20) NOT NULL DEFAULT 'specific' AFTER assigned_employee_id");
+    if (!ops_column_exists('ops_checklist_recurring_templates', 'floating_eligible_role')) checklist_try_sql("ALTER TABLE ops_checklist_recurring_templates ADD COLUMN floating_eligible_role VARCHAR(40) NULL AFTER assignment_type");
     db()->exec(
         "CREATE TABLE IF NOT EXISTS ops_checklist_attachments (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -712,22 +724,29 @@ function checklist_seed_recurring_tasks(): void
     $templates = ops_rows('SELECT * FROM ops_checklist_recurring_templates WHERE is_active = 1');
     foreach ($templates as $template) {
         if (!checklist_rule_runs_today((string) $template['recurring_rule'], $dayNumber)) continue;
-        $targets = !empty($template['assigned_employee_id']) ? [['id' => (int) $template['assigned_employee_id']]] : $packers;
+        $templateAssignmentType = (string) ($template['assignment_type'] ?? 'specific') === 'floating' ? 'floating' : 'specific';
+        $targets = $templateAssignmentType === 'floating' ? [['id'=>0]] : (!empty($template['assigned_employee_id']) ? [['id' => (int) $template['assigned_employee_id']]] : $packers);
         foreach ($targets as $target) {
             $employeeId = (int) $target['id'];
-            $key = 'template-' . (int) $template['id'] . '-' . $dateKey . '-' . $employeeId;
+            $key = 'template-' . (int) $template['id'] . '-' . $dateKey . '-' . ($templateAssignmentType === 'floating' ? 'floating' : $employeeId);
             if (ops_rows(
-                'SELECT id FROM ops_checklist_tasks WHERE recurrence_key = ? OR (assigned_employee_id = ? AND task_name = ? AND DATE(deadline) = ?) LIMIT 1',
-                [$key, $employeeId, $template['task_name'], $dateKey]
+                'SELECT id FROM ops_checklist_tasks WHERE recurrence_key = ? LIMIT 1',
+                [$key]
             )) continue;
             $stmt = db()->prepare(
                 "INSERT INTO ops_checklist_tasks
-                 (checklist_type, task_name, priority, assigned_employee_id, date_assigned, deadline, status, notes, instructions, checklist_items, completion_note_required, completion_evidence_required, performance_scored, recurrence_key, recurring_rule, recurring_template_id, employee_visible, created_by)
-                 VALUES (?, ?, ?, ?, NOW(), ?, 'new', ?, ?, ?, 1, 0, 1, ?, ?, ?, 1, ?)"
+                 (checklist_type, task_name, priority, assigned_employee_id, assignment_type, floating_eligible_role, floating_allocation_status, date_assigned, deadline, status, notes, instructions, checklist_items, completion_note_required, completion_evidence_required, performance_scored, recurrence_key, recurring_rule, recurring_template_id, employee_visible, created_by)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, 1, 0, 1, ?, ?, ?, ?, ?)"
             );
             $deadline = $dateKey . ' ' . (string) ($template['due_time'] ?: '09:00:00');
             $instructions = task_instructions_sanitize_html((string) $template['instructions']);
-            $stmt->execute([$template['checklist_type'], $template['task_name'], $template['priority'], $employeeId, $deadline, $instructions, $instructions, $template['checklist_items'], $key, $template['recurring_rule'], $template['id'], $template['created_by']]);
+            $stmt->execute([$template['checklist_type'], $template['task_name'], $template['priority'], $employeeId ?: null, $templateAssignmentType, $templateAssignmentType === 'floating' ? ($template['floating_eligible_role'] ?? null) : null, $templateAssignmentType === 'floating' ? 'pending' : null, $templateAssignmentType === 'specific' ? date('Y-m-d H:i:s') : null, $deadline, $instructions, $instructions, $template['checklist_items'], $key, $template['recurring_rule'], $template['id'], $templateAssignmentType === 'specific' ? 1 : 0, $template['created_by']]);
+            $occurrenceId = (int) db()->lastInsertId();
+            if ($templateAssignmentType === 'floating') {
+                $allocation = task_floating_allocate($occurrenceId, 'automatic', true);
+                $allocatedId = (int) ($allocation['employee_id'] ?? 0);
+                if ($allocatedId > 0) notifications_notify_task_assigned($occurrenceId, $allocatedId, (string) $template['task_name']);
+            }
         }
     }
 }
@@ -750,6 +769,20 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $snapshot=[];foreach($rows as$row)$snapshot[(int)$row['id']]=checklist_task_timing($row);echo json_encode(['success'=>true,'server_time'=>(new DateTimeImmutable('now',new DateTimeZone('Africa/Windhoek')))->format(DateTimeInterface::ATOM),'tasks'=>$snapshot]);exit;
         }
         checklist_handle_template_action($action, $canManage, $taskAttachmentCsrf, (int) ($currentEmployeeId ?: 0));
+        if ($action === 'retry_floating_allocation') {
+            header('Content-Type: application/json; charset=utf-8');
+            if (!$canManage) { http_response_code(403); throw new RuntimeException('You do not have permission to allocate Floating Tasks.'); }
+            $submittedToken = (string) ($_POST['csrf_token'] ?? '');
+            if ($submittedToken === '' || !hash_equals($taskAttachmentCsrf, $submittedToken)) { http_response_code(403); throw new RuntimeException('Your session token expired. Refresh the page and try again.'); }
+            $floatingTaskId = (int) ($_POST['task_id'] ?? 0);
+            $allocation = task_floating_allocate($floatingTaskId, 'automatic_retry', true);
+            if (!empty($allocation['employee_id']) && empty($allocation['already_allocated'])) {
+                $floatingTaskRow = ops_rows('SELECT task_name FROM ops_checklist_tasks WHERE id=? LIMIT 1', [$floatingTaskId]);
+                notifications_notify_task_assigned($floatingTaskId, (int) $allocation['employee_id'], (string) ($floatingTaskRow[0]['task_name'] ?? 'Floating Task'));
+            }
+            echo json_encode(['success'=>true,'message'=>($allocation['status']??'')==='allocated'?'Floating Task allocated successfully.':'No active eligible employee is available yet. The task remains safely queued.','allocation'=>$allocation]);
+            exit;
+        }
         if (in_array($action, ['task_attachment_upload', 'task_attachment_remove'], true)) {
             header('Content-Type: application/json; charset=utf-8');
             $submittedToken = (string) ($_POST['csrf_token'] ?? '');
@@ -1060,16 +1093,19 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $scopeParams = $canManage ? [$taskId] : [$taskId, $currentEmployeeId ?: 0];
 
         if ($action === 'create_task' && $canManage) {
+            $assignmentType = ops_post_string('assignment_type', 20) === 'floating' ? 'floating' : 'specific';
+            $floatingRole = $assignmentType === 'floating' ? ops_post_string('floating_eligible_role', 40) : '';
+            if ($assignmentType === 'floating' && !task_floating_role_keys($floatingRole)) throw new RuntimeException('Choose Front Desk or Back / Packers for this Floating Task.');
             $assignmentValue = trim((string) ($_POST['assigned_employee_id'] ?? ''));
-            $assignAll = $assignmentValue === 'all';
-            $assignedId = $assignAll ? 0 : (int) $assignmentValue;
+            $assignAll = $assignmentType === 'specific' && $assignmentValue === 'all';
+            $assignedId = $assignmentType === 'floating' ? 0 : ($assignAll ? 0 : (int) $assignmentValue);
             $eligibleEmployeeRows = $assignAll ? ops_rows(
                 "SELECT e.id, e.full_name FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id
                  WHERE e.status='active' AND r.role_key <> 'owner_admin' ORDER BY e.full_name"
             ) : [];
-            $targetEmployeeIds = $assignAll
+            $targetEmployeeIds = $assignmentType === 'floating' ? [0] : ($assignAll
                 ? array_values(array_unique(array_map(static fn(array $row): int => (int) $row['id'], $eligibleEmployeeRows)))
-                : ($assignedId > 0 ? [$assignedId] : []);
+                : ($assignedId > 0 ? [$assignedId] : []));
             $deadline = checklist_create_due_at($_POST);
             $scheduledAt = checklist_create_scheduled_at($_POST, $deadline);
             $taskName = ops_post_string('task_name', 190);
@@ -1079,8 +1115,8 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if (checklist_instruction_text_length($instructions) === 0) throw new RuntimeException('Task instructions are required.');
             $urgentRequested = !empty($_POST['send_urgent_alert']);
             $urgentRecipients = (!$assignAll && $urgentRequested) ? checklist_urgent_recipient_ids((array) ($_POST['urgent_alert_recipients'] ?? []), $assignedId) : [];
-            if ($scheduledAt === null && !$assignAll && $urgentRequested && !$urgentRecipients) throw new RuntimeException('Choose at least one valid urgent alert recipient.');
-            $employeeVisible = $scheduledAt === null ? 1 : 0;
+            if ($scheduledAt === null && !$assignAll && $assignmentType === 'specific' && $urgentRequested && !$urgentRecipients) throw new RuntimeException('Choose at least one valid urgent alert recipient.');
+            $employeeVisible = ($scheduledAt === null && $assignmentType === 'specific') ? 1 : 0;
             $proofRequired = !empty($_POST['completion_evidence_required']) ? 1 : 0;
             $recurringRule = ops_post_string('recurring_rule', 80);
             $allowedRecurringRules = ['', 'daily_business_day', 'twice_weekly', 'weekly_1', 'weekly_2', 'weekly_3', 'weekly_4', 'weekly_5', 'weekly_saturday'];
@@ -1110,17 +1146,17 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $dueTime = $deadline ? date('H:i:s', strtotime($deadline)) : '09:00:00';
                 $templateStmt = $taskDb->prepare(
                     "INSERT INTO ops_checklist_recurring_templates
-                     (task_name, checklist_type, priority, assigned_employee_id, recurring_rule, due_time, instructions, checklist_items, employee_visible, is_active, created_by)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)"
+                     (task_name, checklist_type, priority, assigned_employee_id, assignment_type, floating_eligible_role, recurring_rule, due_time, instructions, checklist_items, employee_visible, is_active, created_by)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)"
                 );
                 $submittedPriority = ops_post_string('priority', 30);
-                $templateStmt->execute([$taskName, 'opening', array_key_exists($submittedPriority, $priorities) ? $submittedPriority : 'normal', $assignedId > 0 ? $assignedId : null, $recurringRule, $dueTime, $instructions, checklist_items_from_text((string) ($_POST['checklist_items_text'] ?? '')), $employeeVisible, $currentEmployeeId]);
+                $templateStmt->execute([$taskName, 'opening', array_key_exists($submittedPriority, $priorities) ? $submittedPriority : 'normal', $assignedId > 0 ? $assignedId : null, $assignmentType, $floatingRole ?: null, $recurringRule, $dueTime, $instructions, checklist_items_from_text((string) ($_POST['checklist_items_text'] ?? '')), $employeeVisible, $currentEmployeeId]);
                 $templateId = (int) db()->lastInsertId();
               }
             $stmt = $taskDb->prepare(
                 "INSERT INTO ops_checklist_tasks
-                 (checklist_type, task_name, priority, assigned_employee_id, date_assigned, scheduled_at, released_at, deadline, status, notes, instructions, checklist_items, completion_note_required, completion_evidence_required, performance_scored, recurrence_key, recurring_rule, recurring_template_id, source_template_id, employee_visible, urgent_alert_enabled, urgent_alert_recipients_json, created_by, batch_id, batch_size)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                 (checklist_type, task_name, priority, assigned_employee_id, assignment_type, floating_eligible_role, floating_allocation_status, date_assigned, scheduled_at, released_at, deadline, status, notes, instructions, checklist_items, completion_note_required, completion_evidence_required, performance_scored, recurrence_key, recurring_rule, recurring_template_id, source_template_id, employee_visible, urgent_alert_enabled, urgent_alert_recipients_json, created_by, batch_id, batch_size)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             );
             foreach ($targetEmployeeIds as $targetEmployeeId) {
               $stmt->execute([
@@ -1128,7 +1164,10 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $taskName,
                 array_key_exists(ops_post_string('priority', 30), $priorities) ? ops_post_string('priority', 30) : 'normal',
                 $targetEmployeeId,
-                $scheduledAt === null ? date('Y-m-d H:i:s') : null,
+                $assignmentType,
+                $floatingRole ?: null,
+                $assignmentType === 'floating' ? 'pending' : null,
+                ($scheduledAt === null && $assignmentType === 'specific') ? date('Y-m-d H:i:s') : null,
                 $scheduledAt,
                 $scheduledAt === null ? date('Y-m-d H:i:s') : null,
                 $deadline ?: null,
@@ -1151,6 +1190,11 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
               ]);
               $createdTaskId = (int) db()->lastInsertId();
               $createdTaskIds[] = $createdTaskId;
+              $floatingAllocation = null;
+              if ($assignmentType === 'floating' && $scheduledAt === null) {
+                  $floatingAllocation = task_floating_allocate($createdTaskId, 'automatic', true);
+                  $targetEmployeeId = (int) ($floatingAllocation['employee_id'] ?? 0);
+              }
               if ($scheduledAt !== null) {
                   // Verify the scheduled state was genuinely persisted before we ever tell the owner
                   // it was -- read back directly (not via ops_rows(), which swallows query errors) so
@@ -1175,6 +1219,9 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
               }
               ops_activity_log($scheduledAt === null ? 'task_created' : 'task_scheduled', 'checklist_task', $createdTaskId, [
                 'assigned_employee_id' => $targetEmployeeId,
+                'assignment_type' => $assignmentType,
+                'floating_eligible_role' => $floatingRole ?: null,
+                'floating_allocation_status' => $floatingAllocation['status'] ?? ($assignmentType === 'floating' ? 'pending' : null),
                 'scheduled_at' => $scheduledAt,
                 'attachment_count' => count($createdAttachments),
                 'source_template_id' => $sourceTemplateId > 0 ? $sourceTemplateId : null,
@@ -1187,10 +1234,11 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
               if ($scheduledAt !== null && $urgentRequested) ops_activity_log('task_popup_configured', 'checklist_task', $createdTaskId, [
                   'recipients' => $urgentRecipientConfig, 'scheduled_at' => $scheduledAt,
               ]);
-              if ($scheduledAt === null && !notifications_notify_task_assigned($createdTaskId, $targetEmployeeId, $taskName)) {
+              if ($scheduledAt === null && $targetEmployeeId > 0 && !notifications_notify_task_assigned($createdTaskId, $targetEmployeeId, $taskName)) {
                   throw new RuntimeException('The task assignment notification could not be saved.');
               }
-              if ($scheduledAt === null && $urgentRequested && !checklist_send_urgent_alert($createdTaskId, $assignAll ? [$targetEmployeeId] : $urgentRecipients)) {
+              $immediateUrgentRecipients = $assignmentType === 'floating' && $targetEmployeeId > 0 ? checklist_urgent_recipient_ids((array) ($_POST['urgent_alert_recipients'] ?? []), $targetEmployeeId) : ($assignAll ? [$targetEmployeeId] : $urgentRecipients);
+              if ($scheduledAt === null && $urgentRequested && $targetEmployeeId > 0 && !checklist_send_urgent_alert($createdTaskId, $immediateUrgentRecipients)) {
                   throw new RuntimeException('The task popup notification could not be saved.');
               }
             }
@@ -1343,7 +1391,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
     } catch (Throwable $e) {
         $validationPayload = json_decode($e->getMessage(), true);
         $errorMessage = is_array($validationPayload) && !empty($validationPayload['message']) ? (string) $validationPayload['message'] : $e->getMessage();
-        if (in_array(($action ?? ''), ['acknowledge_task', 'update_task_status', 'update_task_progress', 'bulk_task_action', 'task_tools_data', 'task_archive', 'task_trash', 'task_restore', 'task_delete_forever', 'task_cancel_recurrence', 'task_attachment_upload', 'task_attachment_remove'], true)) {
+        if (in_array(($action ?? ''), ['acknowledge_task', 'update_task_status', 'update_task_progress', 'bulk_task_action', 'task_tools_data', 'task_archive', 'task_trash', 'task_restore', 'task_delete_forever', 'task_cancel_recurrence', 'task_attachment_upload', 'task_attachment_remove', 'retry_floating_allocation'], true)) {
             if (http_response_code() < 400) http_response_code(422);
             echo json_encode(array_merge(['success' => false, 'message' => $errorMessage], is_array($validationPayload) ? $validationPayload : []));
             exit;
@@ -1378,11 +1426,14 @@ $filters = [
     'completed_year' => trim((string) ($_GET['completed_year'] ?? '')),
     'completed_month' => trim((string) ($_GET['completed_month'] ?? '')),
     'completed_employee_id' => trim((string) ($_GET['completed_employee_id'] ?? '')),
+    'floating_role' => trim((string) ($_GET['floating_role'] ?? '')),
+    'allocation_status' => trim((string) ($_GET['allocation_status'] ?? '')),
 ];
 $filters['task_view'] = $filters['task_view'] === 'tasks' ? 'active' : $filters['task_view'];
 $requestedTaskView = $filters['task_view'];
 if (in_array($filters['task_view'], ['recurring', 'manual'], true)) $filters['task_view'] = 'active';
-if (!in_array($filters['task_view'], ['active', 'scheduled', 'completed', 'history'], true)) $filters['task_view'] = 'active';
+if (!in_array($filters['task_view'], ['active', 'scheduled', 'completed', 'history', 'floating'], true)) $filters['task_view'] = 'active';
+$isFloatingOwnerView = $canManage && $filters['task_view'] === 'floating';
 $isScheduledOwnerView = $canManage && $filters['task_view'] === 'scheduled';
 if ($filters['task_view'] === 'completed') {
     if ($filters['completed_year'] !== '' && !preg_match('/^\d{4}$/', $filters['completed_year'])) $filters['completed_year'] = '';
@@ -1434,7 +1485,10 @@ if (!$canManage) {
     $where[] = '(t.scheduled_at IS NULL OR t.released_at IS NOT NULL)';
 }
 if ($filters['task_view'] === 'scheduled' && $canManage) $where[] = 't.scheduled_at IS NOT NULL AND t.released_at IS NULL';
+elseif ($isFloatingOwnerView) $where[] = "t.assignment_type = 'floating'";
 elseif ($canManage) $where[] = '(t.scheduled_at IS NULL OR t.released_at IS NOT NULL)';
+if ($isFloatingOwnerView && task_floating_role_keys($filters['floating_role'])) { $where[]='t.floating_eligible_role=?'; $params[]=$filters['floating_role']; }
+if ($isFloatingOwnerView && in_array($filters['allocation_status'], ['pending','allocated','waiting_eligible_employee'], true)) { $where[]='t.floating_allocation_status=?'; $params[]=$filters['allocation_status']; }
 // A scheduled task has no assignment date until it is released. The Scheduled
 // queue is deliberately independent of active-task filters so a retained Due
 // Today, overdue, status, or date filter cannot hide a saved future task.
@@ -1499,7 +1553,9 @@ $taskOrderSql = $filters['task_view'] === 'scheduled'
     ? 't.scheduled_at ASC, t.id ASC'
     : ($filters['task_view'] === 'completed'
         ? "CASE WHEN COALESCE(t.date_completed,t.completed_at) IS NULL THEN 1 ELSE 0 END ASC, COALESCE(t.date_completed,t.completed_at,t.created_at) DESC, t.id DESC"
-        : "CASE WHEN t.status = 'complete' THEN 2 ELSE 1 END, COALESCE(t.deadline, t.created_at) ASC, t.created_at DESC");
+        : ($filters['task_view'] === 'floating'
+            ? "CASE t.floating_allocation_status WHEN 'waiting_eligible_employee' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END, COALESCE(t.allocated_at,t.scheduled_at,t.created_at) DESC"
+            : "CASE WHEN t.status = 'complete' THEN 2 ELSE 1 END, COALESCE(t.deadline, t.created_at) ASC, t.created_at DESC"));
 
 $tasks = $ready ? ops_rows(
     "SELECT t.*, e.full_name AS assigned_name, cb.full_name AS completed_by_name
@@ -1693,8 +1749,8 @@ include BASE_PATH . '/shared/sidebar.php';
 
     <nav class="task-section-tabs task-board-navigation" aria-label="Task views" data-task-view-tabs>
         <?php
-        $tabLabels = $canManage ? ['tasks' => 'Tasks', 'scheduled' => 'Scheduled', 'completed' => 'Completed Tasks', 'history' => 'Task History'] : ['tasks' => 'Tasks', 'completed' => 'Completed Tasks', 'history' => 'Task History'];
-        $tabIcons = ['tasks' => 'clipboard-list', 'scheduled' => 'calendar-clock', 'completed' => 'check-circle-2', 'history' => 'history'];
+        $tabLabels = $canManage ? ['tasks' => 'Tasks', 'scheduled' => 'Scheduled', 'floating' => 'Floating Tasks', 'completed' => 'Completed Tasks', 'history' => 'Task History'] : ['tasks' => 'Tasks', 'completed' => 'Completed Tasks', 'history' => 'Task History'];
+        $tabIcons = ['tasks' => 'clipboard-list', 'scheduled' => 'calendar-clock', 'floating' => 'users-round', 'completed' => 'check-circle-2', 'history' => 'history'];
         foreach ($tabLabels as $tabKey => $tabLabel):
             $tabActive = ($tabKey === 'tasks' ? 'active' : $tabKey) === $filters['task_view'];
         ?>
@@ -1717,6 +1773,10 @@ include BASE_PATH . '/shared/sidebar.php';
                         <?php $employeeFilterOptions = ['' => 'All people']; foreach ($employees as $employee) $employeeFilterOptions[(string) $employee['id']] = (string) $employee['full_name']; ?>
                         <?php checklist_custom_filter_field('Person', 'employee_id', $employeeFilterOptions, $filters['employee_id']); ?>
                     <?php endif; ?>
+                <?php endif; ?>
+                <?php if ($isFloatingOwnerView): ?>
+                    <?php checklist_custom_filter_field('Eligible team', 'floating_role', [''=>'All teams','front_desk'=>'Front Desk','back_packers'=>'Back / Packers'], $filters['floating_role']); ?>
+                    <?php checklist_custom_filter_field('Allocation', 'allocation_status', [''=>'All allocation states','allocated'=>'Allocated','waiting_eligible_employee'=>'Waiting','pending'=>'Pending release'], $filters['allocation_status']); ?>
                 <?php endif; ?>
                 <label class="span-2">Search<input name="search" value="<?= htmlspecialchars($filters['search'], ENT_QUOTES, 'UTF-8') ?>" placeholder="Search task name, notes or completion note"></label>
             </div>
@@ -1758,8 +1818,10 @@ include BASE_PATH . '/shared/sidebar.php';
                       </section>
                       <section class="task-form-section"><div class="task-form-grid">
                         <label class="task-form-field task-form-field--full"><span class="task-form-label">Task name <span aria-hidden="true">*</span></span><input id="create-task-name" name="task_name" maxlength="120" required placeholder="What needs to be done?" autocomplete="off"></label>
+                        <fieldset class="task-form-field task-form-field--full task-assignment-type"><legend class="task-form-label">Assignment type</legend><div class="task-assignment-segments"><label><input type="radio" name="assignment_type" value="specific" checked><span>Specific Employee</span></label><label><input type="radio" name="assignment_type" value="floating"><span>Floating Task</span></label></div></fieldset>
                         <div class="task-form-grid__row task-form-grid__row--assignment">
-                          <label class="task-form-field"><span class="task-form-label">Assigned employee *</span><select id="create-task-assignee" name="assigned_employee_id" required data-portal-custom-select data-all-employee-count="<?= count($eligibleTaskEmployees) ?>"><option value="">Choose employee</option><option value="all">All Employees</option><?php foreach ($employees as $employee): ?><option value="<?= (int) $employee['id'] ?>"><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select><small class="task-all-employees-note" data-all-employees-note hidden>This will create an individual task for each active employee. Each employee will complete and be measured separately.</small></label>
+                          <label class="task-form-field" data-specific-assignment><span class="task-form-label">Assigned employee *</span><select id="create-task-assignee" name="assigned_employee_id" required data-portal-custom-select data-all-employee-count="<?= count($eligibleTaskEmployees) ?>"><option value="">Choose employee</option><option value="all">All Employees</option><?php foreach ($employees as $employee): ?><option value="<?= (int) $employee['id'] ?>"><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select><small class="task-all-employees-note" data-all-employees-note hidden>This will create an individual task for each active employee. Each employee will complete and be measured separately.</small></label>
+                          <label class="task-form-field" data-floating-assignment hidden><span class="task-form-label">Eligible role / team *</span><select name="floating_eligible_role" data-portal-custom-select><option value="front_desk">Front Desk</option><option value="back_packers">Back / Packers</option></select><small>Allocation uses active employees, open workload, then least-recent fair rotation.</small></label>
                           <div class="task-form-field task-datetime-field"><label class="task-form-label" for="create-task-due-display">Due date and time <span class="required-marker" aria-hidden="true">*</span></label><div class="portal-date-field" data-portal-date-field><input id="create-task-due-display" type="text" class="portal-date-input task-datetime-trigger is-empty" data-enable-time="true" data-submit-target="#create-task-due-at" data-task-due-trigger placeholder="Select due date and time" autocomplete="off" aria-describedby="create-task-due-error"><input id="create-task-due-at" type="hidden" name="due_at" data-task-due-value data-portal-date-required-message="Select the task due date and time." required><button type="button" class="portal-date-trigger" aria-label="Open Due date and time picker"><i data-lucide="calendar-clock" aria-hidden="true"></i></button></div><span id="create-task-due-error" class="task-form-error" data-task-due-error aria-live="polite"></span></div>
                         </div>
                         <fieldset class="task-form-field task-form-field--full task-delivery-options"><legend class="task-form-label">Delivery</legend><div class="task-priority-options"><label><input type="radio" name="delivery_mode" value="now" checked data-task-delivery-mode><span>Send now</span></label><label><input type="radio" name="delivery_mode" value="scheduled" data-task-delivery-mode><span>Schedule task</span></label></div></fieldset>
@@ -1846,6 +1908,10 @@ include BASE_PATH . '/shared/sidebar.php';
 
     <?php if ($filters['task_view'] === 'completed'): ?>
     <?php include __DIR__ . '/partials/checklist-completed-tasks.php'; ?>
+    <?php endif; ?>
+
+    <?php if ($filters['task_view'] === 'floating' && $canManage): ?>
+        <?php include __DIR__ . '/partials/checklist-floating-tasks.php'; ?>
     <?php endif; ?>
 
     <div class="dtb-bulk-action-bar" data-task-bulk-bar hidden>
@@ -2098,6 +2164,10 @@ function initialiseTaskCreateForm() {
   const attachmentEmpty = form.querySelector('[data-create-task-files-empty]');
   const attachmentError = form.querySelector('[data-create-task-files-error]');
   const assignee = form.querySelector('[name="assigned_employee_id"]');
+  const assignmentTypeInputs = [...form.querySelectorAll('[name="assignment_type"]')];
+  const specificAssignment = form.querySelector('[data-specific-assignment]');
+  const floatingAssignment = form.querySelector('[data-floating-assignment]');
+  const floatingRole = form.querySelector('[name="floating_eligible_role"]');
   const allEmployeesNote = form.querySelector('[data-all-employees-note]');
   const instructionInput = form.querySelector('[name="instructions"]');
   const instructionEditor = form.querySelector('[data-task-rich-editor] .task-rich-editor__surface');
@@ -2128,6 +2198,18 @@ function initialiseTaskCreateForm() {
   instructionModal?.querySelector('[data-rich-save]')?.addEventListener('click', () => { if (instructionModal.dataset.richTarget !== 'create') return; setInstructionHtml(expandedEditor.innerHTML); taskInstructionsLayer?.close(); });
   instructionModal?.querySelectorAll('[data-rich-modal-command]').forEach((button) => button.addEventListener('click', () => { expandedEditor.focus(); document.execCommand(button.dataset.richModalCommand, false); }));
   assignee?.addEventListener('change', () => { if (allEmployeesNote) allEmployeesNote.hidden = assignee.value !== 'all'; });
+  const syncAssignmentType = () => {
+    const floating = form.querySelector('[name="assignment_type"]:checked')?.value === 'floating';
+    if (specificAssignment) specificAssignment.hidden = floating;
+    if (floatingAssignment) floatingAssignment.hidden = !floating;
+    if (assignee) {
+      assignee.required = !floating;
+      if (floating) { assignee.value = ''; assignee.dispatchEvent(new Event('change', { bubbles: true })); }
+    }
+    if (floatingRole) floatingRole.required = floating;
+  };
+  assignmentTypeInputs.forEach((input) => input.addEventListener('change', syncAssignmentType));
+  syncAssignmentType();
 
   const parseDueAt = () => dueAtInput.value ? new Date(dueAtInput.value.replace(' ', 'T') + (dueAtInput.value.length === 16 ? ':00' : '')) : null;
   const formatDueTime = (due) => new Intl.DateTimeFormat('en-NA', { hour:'2-digit', minute:'2-digit', hour12:true, timeZone:'Africa/Windhoek' }).format(due).replace(/^0/, '').toUpperCase();
@@ -3466,6 +3548,31 @@ function initialiseCompletedTaskWorkspace() {
 
 let taskViewRequest = null;
 
+function initialiseFloatingTaskView(root = document) {
+  const view = root.querySelector?.('[data-floating-task-view]') || (root.matches?.('[data-floating-task-view]') ? root : null);
+  if (!view || view.dataset.initialised === 'true') return;
+  view.dataset.initialised = 'true';
+  view.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-floating-retry]');
+    if (!button || button.disabled) return;
+    const feedback = view.querySelector('[data-floating-feedback]');
+    button.disabled = true; button.textContent = 'Checking…';
+    const body = new FormData(); body.set('action','retry_floating_allocation'); body.set('task_id',button.dataset.floatingRetry); body.set('csrf_token',view.dataset.csrfToken || '');
+    try {
+      const response = await fetch(window.location.href,{method:'POST',body,headers:{Accept:'application/json','X-Requested-With':'XMLHttpRequest'}});
+      const result = await response.json();
+      if (!response.ok || result.success !== true) throw new Error(result.message || 'Allocation could not be retried.');
+      feedback.hidden=false; feedback.classList.remove('is-error'); feedback.textContent=result.message;
+      const tab=document.querySelector('[data-task-view="floating"]');
+      const taskRoot=document.querySelector('.digital-task-page'); const content=taskRoot?.querySelector('[data-task-view-content]');
+      if (tab && taskRoot && content) { taskRoot.dataset.activeTaskView=''; await openTaskView('floating',{root:taskRoot,content,selectedTab:tab}); }
+    } catch (error) {
+      feedback.hidden=false; feedback.classList.add('is-error'); feedback.textContent=error.message;
+      button.disabled=false; button.textContent='Retry allocation';
+    }
+  });
+}
+
 function updateTaskViewTabs(root, activeView) {
   root.querySelectorAll('[data-task-view-tabs] [data-task-view]').forEach((tab) => {
     const active = tab.dataset.taskView === activeView;
@@ -3483,6 +3590,7 @@ function initialiseLoadedTaskView(content) {
   initialiseTaskCompletionEnforcement();
   initialiseTaskColumnResizing();
   initialiseCompletedTaskWorkspace();
+  initialiseFloatingTaskView(content);
   initializePortalCustomSelects(content);
   window.taskDueStateController?.refresh?.();
   window.lucide?.createIcons?.();
@@ -3490,7 +3598,7 @@ function initialiseLoadedTaskView(content) {
 
 async function openTaskView(view, context) {
   const { root, content, selectedTab } = context;
-  if (!['tasks', 'scheduled', 'completed', 'history'].includes(view) || root.dataset.activeTaskView === view) return;
+  if (!['tasks', 'scheduled', 'floating', 'completed', 'history'].includes(view) || root.dataset.activeTaskView === view) return;
 
   taskViewRequest?.abort();
   const request = new AbortController();
@@ -3585,6 +3693,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initialiseTaskOverdueFilter();
   initialiseTaskSections();
   initialiseCompletedTaskWorkspace();
+  initialiseFloatingTaskView();
   initialiseTaskDueStates();
 });
 

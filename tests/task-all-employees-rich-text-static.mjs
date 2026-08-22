@@ -12,7 +12,7 @@ assert.match(taskPage, /e\.status='active'/, 'batch eligibility requires active 
 assert.match(taskPage, /beginTransaction\(\)[\s\S]+foreach \(\$targetEmployeeIds as \$targetEmployeeId\)[\s\S]+commit\(\)/, 'children are created atomically');
 assert.match(taskPage, /batch_id[\s\S]+batch_size/, 'child tasks retain batch metadata');
 assert.match(taskPage, /notifications_notify_task_assigned\(\$createdTaskId, \$targetEmployeeId/, 'each child receives its own notification');
-assert.match(taskPage, /\$employeeVisible = \$scheduledAt === null \? 1 : 0/, 'scheduled children stay private until release');
+assert.match(taskPage, /\$employeeVisible = \(\$scheduledAt === null && \$assignmentType === 'specific'\) \? 1 : 0/, 'scheduled and waiting floating tasks stay private until release/allocation');
 assert.match(taskPage, /strip_tags\(\$html, '<p><br><strong><b><em><i><u><ul><ol><li>'\)/, 'server allow-list is explicit');
 assert.match(taskPage, /script\|style\|iframe\|object\|embed\|form\|input\|button/, 'unsafe element families are removed');
 assert.match(taskPage, /data-task-rich-editor/, 'rich editor is rendered');

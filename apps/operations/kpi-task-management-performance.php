@@ -46,6 +46,11 @@ function kpi_task_management_performance(array $employee, string $fromSql, strin
     $zone = new DateTimeZone('Africa/Windhoek');
     $employeeId = (int) $employee['id'];
     $tasks = ops_rows("SELECT t.id,'task' timeline_module,t.task_name,t.instructions,t.notes,t.checklist_type,t.priority,t.assigned_employee_id,t.date_assigned,t.scheduled_at,t.released_at,t.employee_visible,t.created_at,t.deadline,t.status,t.started_at,t.completed_at,t.date_completed,t.completed_by,t.checklist_items,t.checked_items,t.completion_note,t.completion_note_required,t.completion_evidence_required,t.performance_scored,t.recurrence_key,t.recurring_template_id,t.source_template_id,t.archived_at,t.deleted_at,assignee.full_name assigned_to,creator.full_name created_by_name,completer.full_name completed_by_name FROM ops_checklist_tasks t LEFT JOIN ops_employees assignee ON assignee.id=t.assigned_employee_id LEFT JOIN ops_employees creator ON creator.id=t.created_by LEFT JOIN ops_employees completer ON completer.id=t.completed_by WHERE t.assigned_employee_id=? AND COALESCE(t.released_at,t.date_assigned) BETWEEN ? AND ? AND t.employee_visible=1 AND (t.scheduled_at IS NULL OR t.released_at IS NOT NULL) AND t.performance_scored=1 AND t.deleted_at IS NULL AND t.archived_at IS NULL AND LOWER(t.status) NOT IN ('cancelled','deleted','trashed') ORDER BY COALESCE(t.released_at,t.date_assigned) DESC,t.id DESC LIMIT 500", [$employeeId, $fromSql, $toSql]);
+    $floatingTaskIds = [];
+    if ($tasks && ops_column_exists('ops_checklist_tasks', 'assignment_type')) {
+        $taskIdMarks = implode(',', array_fill(0, count($tasks), '?'));
+        foreach (ops_rows("SELECT id FROM ops_checklist_tasks WHERE assignment_type='floating' AND id IN ({$taskIdMarks})", array_column($tasks, 'id')) as $floatingIdRow) $floatingTaskIds[(int) $floatingIdRow['id']] = true;
+    }
 
     $eventsByTask = [];
     foreach (kpi_unified_events((new DateTimeImmutable($fromSql, $zone))->modify('-14 days')->format('Y-m-d H:i:s'), $toSql, null, 'tasks') as $event) {
@@ -63,7 +68,7 @@ function kpi_task_management_performance(array $employee, string $fromSql, strin
     $completeStatuses = ['complete', 'completed', 'approved'];
     $openStatuses = ['new', 'not_started', 'pending', 'in_progress', 'progress', 'started', 'awaiting_evidence', 'awaiting evidence', 'blocked'];
     $now = new DateTimeImmutable('now', $zone);
-    $counts = ['assigned'=>count($tasks),'completed'=>0,'completed_eligible'=>0,'completion_eligible'=>0,'early'=>0,'exact_due'=>0,'on_time'=>0,'late'=>0,'deadline_eligible'=>0,'pending'=>0,'pending_upcoming'=>0,'in_progress'=>0,'overdue'=>0,'direct_complete'=>0,'reopened'=>0,'returned'=>0,'attribution_conflict'=>0,'review'=>0,'checklist_eligible'=>0,'checklist_compliant'=>0,'note_eligible'=>0,'note_compliant'=>0,'proof_eligible'=>0,'proof_compliant'=>0,'normal_assigned'=>0,'important_assigned'=>0,'urgent_assigned'=>0,'normal_completed'=>0,'important_completed'=>0,'urgent_completed'=>0];
+    $counts = ['assigned'=>count($tasks),'floating_assigned'=>count($floatingTaskIds),'floating_completed'=>0,'floating_on_time'=>0,'floating_late'=>0,'floating_outstanding'=>0,'floating_overdue'=>0,'completed'=>0,'completed_eligible'=>0,'completion_eligible'=>0,'early'=>0,'exact_due'=>0,'on_time'=>0,'late'=>0,'deadline_eligible'=>0,'pending'=>0,'pending_upcoming'=>0,'in_progress'=>0,'overdue'=>0,'direct_complete'=>0,'reopened'=>0,'returned'=>0,'attribution_conflict'=>0,'review'=>0,'checklist_eligible'=>0,'checklist_compliant'=>0,'note_eligible'=>0,'note_compliant'=>0,'proof_eligible'=>0,'proof_compliant'=>0,'normal_assigned'=>0,'important_assigned'=>0,'urgent_assigned'=>0,'normal_completed'=>0,'important_completed'=>0,'urgent_completed'=>0];
     $durations = ['ack'=>[], 'active'=>[], 'turnaround'=>[], 'early'=>[], 'completed_late'=>[], 'current_overdue'=>[]];
     $byStatus = [];
     $rows = [];
@@ -151,6 +156,16 @@ function kpi_task_management_performance(array $employee, string $fromSql, strin
         }
         if (in_array($status, ['in_progress','progress','started'], true)) $counts['in_progress']++;
         if ($personalCompletion) { $counts['completed']++; $counts[$priority . '_completed']++; }
+        if (isset($floatingTaskIds[(int) $task['id']])) {
+            if ($personalCompletion) {
+                $counts['floating_completed']++;
+                if (in_array($deadlineResult, ['Completed early','Completed on time'], true)) $counts['floating_on_time']++;
+                elseif ($deadlineResult === 'Completed late') $counts['floating_late']++;
+            } else {
+                $counts['floating_outstanding']++;
+                if ($deadlineResult === 'Overdue open') $counts['floating_overdue']++;
+            }
+        }
         if ($directComplete) $counts['direct_complete']++;
         if ($reopened) $counts['reopened']++;
         if ($returned) $counts['returned']++;
@@ -209,6 +224,9 @@ function kpi_task_management_performance(array $employee, string $fromSql, strin
     $stats = array_map('kpi_task_duration_stats', $durations);
     $metrics = [
         ['label'=>'Tasks Assigned','value'=>$counts['assigned']],['label'=>'Tasks Completed','value'=>$counts['completed']],
+        ['label'=>'Floating Tasks Allocated','value'=>$counts['floating_assigned']],['label'=>'Floating Completed','value'=>$counts['floating_completed']],
+        ['label'=>'Floating On Time','value'=>$counts['floating_on_time'],'numerator'=>$counts['floating_on_time'],'denominator'=>$counts['floating_completed']],
+        ['label'=>'Floating Outstanding','value'=>$counts['floating_outstanding']],['label'=>'Floating Overdue','value'=>$counts['floating_overdue']],
         ['label'=>'Task Completion Rate','value'=>$completionRate,'format'=>'percent','numerator'=>$counts['completed_eligible'],'denominator'=>$counts['completion_eligible']],
         ['label'=>'Completed Early','value'=>$counts['early'],'numerator'=>$counts['early'],'denominator'=>$counts['deadline_eligible'],'explanation'=>'Exact completed timestamp is before the due timestamp.'],
         ['label'=>'Completed On Time','value'=>$counts['on_time'],'numerator'=>$counts['on_time'],'denominator'=>$counts['deadline_eligible'],'explanation'=>'Includes early and exactly-at-due completions; no double-counting.'],
@@ -241,7 +259,7 @@ function kpi_task_management_performance(array $employee, string $fromSql, strin
         ['label'=>'Reopened','count'=>$counts['reopened'],'denominator'=>$counts['assigned']],['label'=>'Returned for Correction','count'=>$counts['returned'],'denominator'=>$counts['assigned']],
     ];
     $riskRows = array_values(array_filter($rows, static fn(array $row): bool => $row['current_overdue_minutes'] !== null || $row['deadline_result']==='Completed late' || $row['missing_checklist'] || ($row['proof_required'] && !$row['proof_valid']) || strpos($row['completion_note_result'],'missing') !== false || $row['status_process']!=='Expected sequence' || $row['attribution']==='Attribution conflict'));
-    return ['rows'=>$rows,'metrics'=>$metrics,'counts'=>$counts,'duration_stats'=>$stats,'status_breakdown'=>$breakdown,'overdue_by_status'=>$byStatus,'risk_rows'=>$riskRows,
+    return ['rows'=>$rows,'metrics'=>$metrics,'counts'=>$counts,'floating_tasks'=>['allocated'=>$counts['floating_assigned'],'completed'=>$counts['floating_completed'],'on_time'=>$counts['floating_on_time'],'late'=>$counts['floating_late'],'outstanding'=>$counts['floating_outstanding'],'overdue'=>$counts['floating_overdue']],'duration_stats'=>$stats,'status_breakdown'=>$breakdown,'overdue_by_status'=>$byStatus,'risk_rows'=>$riskRows,
         'median_ack'=>$stats['ack']['median'],'median_active'=>$stats['active']['median'],'median_turnaround'=>$stats['turnaround']['median'],'completion_rate'=>$completionRate,'on_time_rate'=>$onTime,
         'task_score'=>$score,'score_detail'=>['on_time'=>$onTime,'completion'=>$completionRate,'checklist'=>$checklistRate,'notes'=>$noteRate,'rework'=>$reworkRate,'weights'=>['on_time'=>40,'completion'=>25,'checklist'=>15,'notes'=>10,'rework'=>10],'coverage'=>['assigned'=>$counts['assigned'],'deadline_eligible'=>$counts['deadline_eligible'],'timing_ack'=>$stats['ack']['n'],'timing_active'=>$stats['active']['n'],'timing_turnaround'=>$stats['turnaround']['n']]],
         'methodology'=>'Exact due datetime is compared with the authoritative completion timestamp. Assignment → Start, Start → Complete, and Assignment → Complete remain separate business-time measures.'];

@@ -9,7 +9,7 @@ assert.match(css, /\.digital-task-page \.task-board-table \{ width:100%; min-wid
 assert.match(tasks, /CREATE TABLE IF NOT EXISTS ops_checklist_recurring_templates/);
 assert.match(tasks, /'daily-stock'.*'08:00:00'/s);
 assert.match(tasks, /name="recurring_rule"/);
-assert.match(tasks, /name="employee_visible"/);
+assert.match(tasks, /employee_visible TINYINT\(1\) NOT NULL DEFAULT 1/);
 assert.match(tasks, /task_cancel_recurrence/);
 assert.match(tasks, /UPDATE ops_checklist_recurring_templates SET is_active = 0/);
 assert.match(dashboard, /class="employee-task-count"/);
