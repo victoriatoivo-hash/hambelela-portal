@@ -3612,6 +3612,33 @@ function initialiseCompletedTaskWorkspace() {
 }
 
 let taskViewRequest = null;
+let taskViewRequestVersion = 0;
+const taskViewCache = new Map();
+const taskViewCacheTtl = 20000;
+
+function taskViewRequestUrl(view) {
+  const url = new URL(document.URL);
+  url.searchParams.set('task_view', view);
+  url.searchParams.delete('verify');
+  if (view !== 'completed') ['completed_partial','completed_employee_id','completed_year','completed_month'].forEach((name) => url.searchParams.delete(name));
+  if (view === 'scheduled') ['date_from','date_to','overdue_only','status'].forEach((name) => url.searchParams.delete(name));
+  return url;
+}
+
+function taskViewMarkup(responseText, view) {
+  const parsed = new DOMParser().parseFromString(responseText, 'text/html');
+  const nextContent = parsed.querySelector('[data-task-view-content]');
+  if (!nextContent) throw new Error(`Unable to render ${view}`);
+  return nextContent.innerHTML;
+}
+
+function invalidateTaskViewCache(...views) {
+  if (!views.length) taskViewCache.clear();
+  else views.forEach((view) => {
+    for (const key of taskViewCache.keys()) if (key.startsWith(`${view}|`)) taskViewCache.delete(key);
+  });
+}
+window.invalidateTaskViewCache = invalidateTaskViewCache;
 
 function initialiseFloatingTaskView(root = document) {
   const view = root.querySelector?.('[data-floating-task-view]') || (root.matches?.('[data-floating-task-view]') ? root : null);
@@ -3628,6 +3655,7 @@ function initialiseFloatingTaskView(root = document) {
       const result = await response.json();
       if (!response.ok || result.success !== true) throw new Error(result.message || 'Allocation could not be retried.');
       feedback.hidden=false; feedback.classList.remove('is-error'); feedback.textContent=result.message;
+      invalidateTaskViewCache('floating','tasks','scheduled','completed');
       const tab=document.querySelector('[data-task-view="floating"]');
       const taskRoot=document.querySelector('.digital-task-page'); const content=taskRoot?.querySelector('[data-task-view-content]');
       if (tab && taskRoot && content) { taskRoot.dataset.activeTaskView=''; await openTaskView('floating',{root:taskRoot,content,selectedTab:tab}); }
@@ -3662,70 +3690,61 @@ function initialiseLoadedTaskView(content) {
 }
 
 async function openTaskView(view, context) {
-  const { root, content, selectedTab } = context;
-  if (!['tasks', 'scheduled', 'floating', 'completed', 'history'].includes(view) || root.dataset.activeTaskView === view) return;
-
-  taskViewRequest?.abort();
-  const request = new AbortController();
-  taskViewRequest = request;
+  const { root, content } = context;
+  const allowed = ['tasks','scheduled','floating','completed','history'];
+  if (!allowed.includes(view) || (root.dataset.activeTaskView === view && !context.force)) return;
   const previousView = root.dataset.renderedTaskView || 'tasks';
-  const scrollLeft = window.scrollX;
-  const scrollTop = window.scrollY;
-  const requestUrl = new URL(document.URL);
-  requestUrl.searchParams.set('task_view', view);
-  requestUrl.searchParams.delete('verify');
-  if (view === 'scheduled') {
-    // Scheduled is an owner release queue, not an active-task search result.
-    ['date_from', 'date_to', 'overdue_only', 'status'].forEach((name) => requestUrl.searchParams.delete(name));
-  }
+  const requestUrl = taskViewRequestUrl(view);
+  const cacheKey = `${view}|${requestUrl.searchParams.toString()}`;
+  const cached = taskViewCache.get(cacheKey);
+  const requestVersion = ++taskViewRequestVersion;
+  taskViewRequest?.abort();
   updateTaskViewTabs(root, view);
-  content.setAttribute('aria-busy', 'true');
-  selectedTab.disabled = true;
-  const loader = document.createElement('span');
-  loader.className = 'task-view-loader';
-  loader.setAttribute('role', 'status');
-  loader.textContent = 'Loading view…';
-  content.append(loader);
 
-  try {
-    const response = await fetch(requestUrl, {
-      method: 'GET',
-      credentials: 'same-origin',
-      headers: { 'X-Requested-With': 'XMLHttpRequest' },
-      signal: request.signal
-    });
-    if (!response.ok) throw new Error(`Unable to load ${view}`);
-    const parsed = new DOMParser().parseFromString(await response.text(), 'text/html');
-    const nextContent = parsed.querySelector('[data-task-view-content]');
-    if (!nextContent) throw new Error(`Unable to render ${view}`);
-    content.innerHTML = nextContent.innerHTML;
+  const applyMarkup = (markup) => {
+    if (requestVersion !== taskViewRequestVersion) return false;
+    content.innerHTML = markup;
     const backendView = view === 'tasks' ? 'active' : view;
     root.dataset.taskView = backendView;
     root.dataset.requestedTaskView = view;
+    root.dataset.renderedTaskView = view;
     const filterViewInput = document.querySelector('form.dtb-filter-body input[name="task_view"]');
     if (filterViewInput) filterViewInput.value = backendView;
     initialiseLoadedTaskView(content);
-    root.dataset.renderedTaskView = view;
-    const nextUrl = new URL(document.URL);
-    nextUrl.searchParams.set('task_view', view);
-    nextUrl.searchParams.delete('verify');
-    if (view === 'scheduled') ['date_from', 'date_to', 'overdue_only', 'status'].forEach((name) => nextUrl.searchParams.delete(name));
-    history.replaceState({ taskView: view }, '', `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
-    window.scrollTo(scrollLeft, scrollTop);
+    return true;
+  };
+
+  if (cached) applyMarkup(cached.markup);
+  else {
+    content.innerHTML = `<div class="task-view-local-loader" role="status"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/></svg><span>Loading ${view === 'tasks' ? 'tasks' : view + ' tasks'}…</span></div>`;
+  }
+  const historyUrl = taskViewRequestUrl(view);
+  const historyMethod = context.historyMethod || 'pushState';
+  history[historyMethod]({taskView:view},'',`${historyUrl.pathname}${historyUrl.search}${historyUrl.hash}`);
+  if (cached && Date.now() - cached.savedAt < taskViewCacheTtl && !context.force) {
+    content.removeAttribute('aria-busy');
+    taskViewRequest = null;
+    return;
+  }
+
+  const request = new AbortController();
+  taskViewRequest = request;
+  content.setAttribute('aria-busy','true');
+  try {
+    const started = performance.now();
+    const response = await fetch(requestUrl, {method:'GET',credentials:'same-origin',headers:{'X-Requested-With':'XMLHttpRequest'},signal:request.signal,cache:'no-store'});
+    if (!response.ok) throw new Error(`Unable to load ${view}`);
+    const markup = taskViewMarkup(await response.text(), view);
+    taskViewCache.set(cacheKey,{markup,savedAt:Date.now(),duration:Math.round(performance.now()-started)});
+    applyMarkup(markup);
   } catch (error) {
-    if (error.name === 'AbortError') {
-      loader.remove();
-    } else if (taskViewRequest === request) {
-      updateTaskViewTabs(root, previousView);
-      loader.textContent = 'This task view could not be loaded. Please try again.';
-      window.setTimeout(() => loader.remove(), 3500);
+    if (error.name !== 'AbortError' && requestVersion === taskViewRequestVersion) {
+      if (!cached) content.innerHTML = '<div class="task-view-load-error" role="alert">This task view could not be loaded. Please try again.</div>';
+      updateTaskViewTabs(root,cached ? view : previousView);
     }
   } finally {
-    selectedTab.disabled = false;
-    if (taskViewRequest === request) {
-      content.removeAttribute('aria-busy');
-      taskViewRequest = null;
-    }
+    if (requestVersion === taskViewRequestVersion) content.removeAttribute('aria-busy');
+    if (taskViewRequest === request) taskViewRequest = null;
   }
 }
 
@@ -3737,6 +3756,8 @@ function initialiseTaskViewTabs(taskRoot = document.querySelector('.digital-task
   const initialView = tabs.querySelector('[data-task-view].is-active')?.dataset.taskView || 'tasks';
   updateTaskViewTabs(taskRoot, initialView);
   taskRoot.dataset.renderedTaskView = initialView;
+  const initialUrl = taskViewRequestUrl(initialView);
+  taskViewCache.set(`${initialView}|${initialUrl.searchParams.toString()}`, {markup:content.innerHTML,savedAt:Date.now(),duration:0});
   tabs.addEventListener('click', async (event) => {
     const selectedTab = event.target.closest('[data-task-view]');
     if (!selectedTab || selectedTab.disabled) return;
@@ -3744,9 +3765,26 @@ function initialiseTaskViewTabs(taskRoot = document.querySelector('.digital-task
     event.stopPropagation();
     await openTaskView(selectedTab.dataset.taskView, { root: taskRoot, content, selectedTab });
   });
+  window.addEventListener('popstate', () => {
+    const view = new URL(window.location.href).searchParams.get('task_view') || 'tasks';
+    const normalised = view === 'active' ? 'tasks' : view;
+    if (normalised !== taskRoot.dataset.activeTaskView) openTaskView(normalised,{root:taskRoot,content,force:true,historyMethod:'replaceState'});
+  });
+  const prefetch = async (view) => {
+    const url = taskViewRequestUrl(view), key = `${view}|${url.searchParams.toString()}`;
+    if (taskViewCache.has(key)) return;
+    try {
+      const response = await fetch(url,{credentials:'same-origin',headers:{'X-Requested-With':'XMLHttpRequest','X-Task-Prefetch':'1'},cache:'no-store'});
+      if (!response.ok) return;
+      taskViewCache.set(key,{markup:taskViewMarkup(await response.text(),view),savedAt:Date.now(),duration:0});
+    } catch (_) { /* A normal click can retry. */ }
+  };
+  const prefetchViews = () => ['scheduled','floating','completed'].filter((view) => view !== initialView).forEach((view,index) => window.setTimeout(() => prefetch(view),index*180));
+  if ('requestIdleCallback' in window) window.requestIdleCallback(prefetchViews,{timeout:1800}); else window.setTimeout(prefetchViews,600);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('submit',(event)=>{if((event.target.getAttribute('method')||'get').toLowerCase()==='post')invalidateTaskViewCache();},{capture:true});
   initialiseTaskViewTabs();
   initialiseTaskDueStates();
   initialiseTaskAttachments();

@@ -1,0 +1,10 @@
+import fs from 'node:fs';import assert from 'node:assert/strict';
+const page=fs.readFileSync('apps/operations/checklists.php','utf8'),css=fs.readFileSync('assets/css/portal.css','utf8');
+for(const contract of ['const taskViewCache = new Map()','taskViewRequest?.abort()','taskViewRequestVersion','requestIdleCallback','taskViewCacheTtl','invalidateTaskViewCache','popstate','pushState'])assert.ok(page.includes(contract),contract);
+assert.ok(page.includes("taskViewCache.set(`${initialView}|")&&page.includes("taskViewCache.set(cacheKey"),'initial and fetched views cached');
+assert.ok(page.includes("['scheduled','floating','completed']"),'secondary views prefetched after first paint');
+assert.ok(page.includes("event.target.getAttribute('method')")&&page.includes('invalidateTaskViewCache();'),'POST mutations invalidate view cache');
+assert.ok(!page.slice(page.indexOf('async function openTaskView'),page.indexOf('function initialiseTaskViewTabs')).includes('location.reload'),'view switching never reloads the document');
+assert.ok(css.includes('.task-view-local-loader')&&css.includes('@keyframes task-view-loader-spin'),'local themed loader');
+assert.ok(css.includes('.task-section__header p { margin: 3px 0 0; color: #6B4C3B; font: 400 10px/1.4 Figtree,system-ui,sans-serif; }'),'scheduled helper is canonical 10px style');
+console.log('Task view performance contract passed.');
