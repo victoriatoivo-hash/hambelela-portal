@@ -27986,12 +27986,19 @@ body.dark-mode .portal-dark-toggle {
 .task-form-grid { display:grid; gap:14px; }
 .task-form-grid__row--assignment { display:grid; grid-template-columns:minmax(180px,.8fr) minmax(240px,1.2fr); gap:12px; }
 .task-form-field { display:grid; gap:6px; min-width:0; }
-.task-form-label { color:#6f4034; font-size:11px; font-weight:600; line-height:1.2; text-transform:uppercase; letter-spacing:.02em; }
+.task-form-label { color:#6B4C3B; font-size:11px; font-weight:600; line-height:1.2; text-transform:none; letter-spacing:0; }
+.digital-task-page .task-create-form .task-form-field > label:first-child {
+  margin:0;
+  color:#6B4C3B;
+  font:600 11px/1.2 Figtree,system-ui,sans-serif;
+  letter-spacing:0;
+  text-transform:none;
+}
 .task-create-form input:not([type=radio]):not([type=checkbox]), .task-create-form select, .task-create-form textarea { width:100%; min-width:0; border:1px solid #EDE3D8; border-radius:9px; background:#fff; color:#1a1a1a; font:400 12px/1.4 Figtree,Inter,sans-serif; box-sizing:border-box; outline:none; transition:border-color 120ms ease,box-shadow 120ms ease; }
-.task-create-form input:not([type=radio]):not([type=checkbox]), .task-create-form select { height:36px; padding:0 11px; }
+.task-create-form input:not([type=radio]):not([type=checkbox]), .task-create-form select { height:32px; padding:0 10px; }
 .task-create-form textarea[name=instructions] { min-height:88px; max-height:220px; padding:10px 11px; resize:vertical; }
 .task-create-form input:focus, .task-create-form select:focus, .task-create-form textarea:focus { border-color:#AB3619; box-shadow:0 0 0 3px rgba(171,54,25,.1); }
-.task-create-form .task-datetime-trigger { height:36px; min-height:36px; max-height:36px; padding:0 38px 0 11px; color:#1a1a1a; background:#fff; border:1px solid #ede3d8; border-radius:9px; font:400 12px/1.4 Figtree,Inter,sans-serif; text-align:left; cursor:pointer; appearance:none; }
+.task-create-form .task-datetime-trigger { height:32px; min-height:32px; max-height:32px; padding:0 36px 0 10px; color:#1a1a1a; background:#fff; border:1px solid #ede3d8; border-radius:9px; font:400 12px/1.4 Figtree,Inter,sans-serif; text-align:left; cursor:pointer; appearance:none; }
 .task-create-form .task-datetime-trigger:hover { border-color:#dfcbbb; background:#fff; }
 .task-create-form .task-datetime-trigger:focus { outline:none; }
 .task-create-form .task-datetime-trigger:focus-visible,
