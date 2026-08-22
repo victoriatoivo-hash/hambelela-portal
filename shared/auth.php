@@ -85,6 +85,18 @@ function portal_safe_return_path($candidate): string
     return $candidate;
 }
 
+/**
+ * Resolve the first page after normal authentication without sending a
+ * restricted Finance Workspace user through the generic dashboard.
+ */
+function portal_post_login_destination(array $user, $candidate = null): string
+{
+    if (strtolower(trim((string) ($user['role_key'] ?? ''))) === 'accountant') {
+        return BASE_URL . '/apps/accounts/index.php';
+    }
+    return portal_safe_return_path($candidate);
+}
+
 function portal_expire_session(): void
 {
     logout_user();

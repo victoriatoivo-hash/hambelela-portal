@@ -15,7 +15,7 @@ final class ForcedCodeUserException extends RuntimeException
 }
 
 if (empty($_SESSION['must_change_access_code']) || ($_SESSION['login_type'] ?? '') !== 'temporary_code') {
-    header('Location: ' . BASE_URL . '/index.php', true, 303);
+    header('Location: ' . portal_post_login_destination(current_user()), true, 303);
     exit;
 }
 
@@ -83,7 +83,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         unset($_SESSION['must_change_access_code'], $_SESSION['change_access_code_csrf']);
         $_SESSION['login_type'] = 'employee';
         session_regenerate_id(true);
-        header('Location: ' . BASE_URL . '/index.php', true, 303);
+        header('Location: ' . portal_post_login_destination(current_user()), true, 303);
         exit;
     } catch (Throwable $changeError) {
         error_log('Forced access-code change failed: ' . $changeError->getMessage());

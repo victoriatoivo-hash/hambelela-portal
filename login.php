@@ -245,7 +245,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 record_login_event($_SESSION['user'], 'database');
                 record_kpi_login_session((int) $_SESSION['user']['id']);
                 record_epi_attendance_event('login', $_SESSION['user'], 'database', (string) ($_SESSION['kpi_session_token'] ?? ''));
-                header('Location: ' . portal_safe_return_path($_GET['return'] ?? null), true, 303);
+                header('Location: ' . portal_post_login_destination($_SESSION['user'], $_GET['return'] ?? null), true, 303);
                 exit;
             }
 
