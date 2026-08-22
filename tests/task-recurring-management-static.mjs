@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';import{readFileSync}from'node:fs';
+const page=readFileSync(new URL('../apps/operations/checklists.php',import.meta.url),'utf8'),partial=readFileSync(new URL('../apps/operations/partials/checklist-recurring-tasks.php',import.meta.url),'utf8'),css=readFileSync(new URL('../assets/css/portal.css',import.meta.url),'utf8');
+for(const field of ['status','next_run_at','last_run_at','last_error','paused_at','ended_at','version_no'])assert.match(page,new RegExp("'"+field+"' => \"ALTER TABLE ops_checklist_recurring_templates"),field+' lifecycle field');
+assert.match(page,/uq_checklist_recurrence_occurrence/,'database uniqueness safeguard');
+assert.match(page,/SELECT status,is_active FROM ops_checklist_recurring_templates WHERE id=\? FOR UPDATE/,'pause/generator race lock');
+assert.match(page,/recurring_template_id=rt\.id/,'generated occurrence count uses parent linkage');
+assert.match(page,/recurring_occurrences/,'occurrence history loads on demand');
+for(const action of ['recurring_pause','recurring_resume','recurring_end','recurring_update'])assert.match(page,new RegExp(action),action);
+assert.match(page,/Missed runs were not backfilled/,'resume explicitly avoids backfill');
+assert.match(page,/future_occurrences_only/,'edit preserves historical occurrences');
+assert.match(page,/recurring_occurrence_failed/,'generation failures are audited');
+assert.match(page,/Assigned employee inactive\./,'inactive direct assignee blocks generation and is flagged');
+assert.match(page,/\['scheduled','floating','recurring','completed'\]/,'recurring view participates in optimized prefetch');
+assert.match(partial,/data-recurring-task-view/);assert.match(partial,/View Generated|data-recurring-occurrences/);assert.match(partial,/assigned employee inactive/);
+assert.match(css,/@media\(max-width:700px\)[\s\S]*\.recurring-task-table thead\{display:none\}/,'390px card layout');
+console.log('Recurring task management contract passed.');
