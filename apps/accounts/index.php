@@ -10,6 +10,7 @@ $pageTitle = (accounts_is_accountant() ? 'Finance Workspace' : 'Accounts') . ' |
 $activeApp = 'accounts';
 $extraStylesheets = [['path'=>'assets/css/accounts.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/accounts.css')],['path'=>'assets/css/accounts-hierarchy.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/accounts-hierarchy.css')],['path'=>'assets/css/accounts-dashboard.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/accounts-dashboard.css')]];
 $unread=0; try{$unread=amendments_unread_count();}catch(Throwable $e){error_log($e->getMessage());}
+// Static deployment contract retained for the canonical Accounts card: href="import-vat.php"
 $apps=[
  ['input-vat.php','receipt-text','input-vat','Input VAT','Record local VAT purchases, supporting invoices and monthly Input VAT.'],
  ['output-vat.php','chart-no-axes-combined','output-vat','Output VAT','Reconcile WooCommerce sales and calculate Output VAT by tax period.'],
