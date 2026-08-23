@@ -6,6 +6,10 @@ const templates = fs.readFileSync(new URL('../apps/operations/task-templates.php
 const migration = fs.readFileSync(new URL('../operations-task-templates-migration.sql', import.meta.url), 'utf8');
 
 assert.match(page, /monthDayInput\.disabled=!usesMonthDay/, 'hidden day-of-month must be omitted from submission');
+assert.match(page, /floatingRole\.disabled = !floating/, 'inactive eligibility must be omitted from submission');
+assert.match(page, /assignee\.disabled = floating/, 'inactive assignee must be omitted from submission');
+assert.match(page, /const renderTaskFormState = \(\) => \{ syncAssignmentType\(\); syncDeliveryMode\(\); syncRecurrence\(\); \}/, 'one renderer must synchronize all independent conditional state');
+assert.match(page, /recurrenceSelect\.disabled=!recurring/, 'one-time tasks omit recurrence configuration');
 assert.match(page, /recurrence_frequency[^]*=== 'custom'[^]*Choose at least one weekday for a custom recurring task/, 'custom weekdays require a selected weekday');
 assert.match(page, /Choose a valid occurrence time/, 'recurring tasks require a valid occurrence time');
 assert.match(page, /weekly_days:\[1-7\]/, 'server accepts the weekday recurrence rule');
