@@ -14,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'emplo
     $agreementId = (int)($_POST['agreement_id'] ?? 0);
     $typedName = trim((string)($_POST['employee_name'] ?? ''));
     $signature = trim((string)($_POST['employee_signature'] ?? ''));
-    $accepted = isset($_POST['accept_terms']);
+    $accepted = isset($_POST['ack_read'],$_POST['ack_schedule'],$_POST['ack_deduction'],$_POST['ack_termination'],$_POST['ack_questions']);
     $stmt = $db->prepare("SELECT a.*,l.id AS loan_id,l.employee_id,l.amount,e.first_name,e.last_name,e.emp_number FROM loan_agreements a JOIN loans l ON l.id=a.loan_id JOIN employees e ON e.id=l.employee_id WHERE a.id=? AND l.employee_id=? AND a.status IN ('employee_pending','owner_signed')");
     $stmt->execute([$agreementId,$empId]); $agreement = $stmt->fetch();
     $expectedName = $agreement ? trim($agreement['first_name'].' '.$agreement['last_name']) : '';
@@ -31,14 +31,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'emplo
     if ($hasOwner) loanAgreementSchedule($db,$agreementId,$agreement['first_deduction_date'],(float)$agreement['amount'],(float)$agreement['instalment_amount']);
     loanAgreementEvent($db,$agreementId,(int)$agreement['loan_id'],'employee_signed',$user,['fully_signed'=>$hasOwner]);
     $ownerIds = $db->query("SELECT id FROM users WHERE role='admin' AND active=1")->fetchAll(PDO::FETCH_COLUMN);
-    $notify = $db->prepare("INSERT INTO notifications (user_id,title,message,type) VALUES (?,?,?,'info')");
-    foreach ($ownerIds as $ownerId) $notify->execute([(int)$ownerId,'Employee Signed Loan Agreement',$expectedName.' signed loan agreement #'.$agreementId.'.']);
-    header('Location: my-loans.php?msg=signed'); exit;
+    $notify = $db->prepare("INSERT INTO notifications (user_id,title,message,type,action_url) VALUES (?,?,?,'info',?)");
+    foreach ($ownerIds as $ownerId) $notify->execute([(int)$ownerId,'Employee Signed Loan Agreement',$expectedName.' signed loan agreement #'.$agreementId.'.','loan-view.php?loan_id='.(int)$agreement['loan_id'].'&tab=agreement']);
+    header('Location: my-loans.php?loan_id='.(int)$agreement['loan_id'].'&tab=agreement&msg=signed'); exit;
 }
 
 $loans = $db->prepare("SELECT l.*,a.id AS agreement_id,a.version_no,a.status AS agreement_status,a.agreement_date,a.first_deduction_date,a.instalment_amount,a.number_of_instalments,a.final_instalment_amount,a.purpose,a.legal_notes,a.document_hash,a.employee_signed_at,a.owner_signed_at,a.fully_signed_at,(SELECT COALESCE(SUM(amount),0) FROM loan_repayments WHERE loan_id=l.id) as total_repaid FROM loans l LEFT JOIN loan_agreements a ON a.loan_id=l.id AND a.version_no=(SELECT MAX(a2.version_no) FROM loan_agreements a2 WHERE a2.loan_id=l.id) WHERE l.employee_id=? ORDER BY l.status ASC, l.created_at DESC");
 $loans->execute([$empId]);
 $loans = $loans->fetchAll();
+$requestedLoanId=(int)($_GET['loan_id']??0); $requestedTab=(string)($_GET['tab']??'overview');
+if ($requestedLoanId) { $loans=array_values(array_filter($loans,function($row)use($requestedLoanId){return (int)$row['id']===$requestedLoanId;})); if (!$loans){http_response_code(403);exit('You do not have access to this loan.');} }
 $employeeStmt = $db->prepare("SELECT *,CONCAT(first_name,' ',last_name) AS emp_name FROM employees WHERE id=?"); $employeeStmt->execute([$empId]); $employee = $employeeStmt->fetch();
 
 $currentPage = 'my-loans.php';
@@ -123,6 +125,9 @@ $currentPage = 'my-loans.php';
           <?php endif ?>
         </div>
 
+        <nav class="loan-tabs" aria-label="Loan sections"><a href="my-loans.php?loan_id=<?=$l['id']?>&amp;tab=overview">Overview</a><a href="my-loans.php?loan_id=<?=$l['id']?>&amp;tab=schedule">Repayment Schedule</a><a href="my-loans.php?loan_id=<?=$l['id']?>&amp;tab=agreement">Loan Agreement</a><a href="my-loans.php?loan_id=<?=$l['id']?>&amp;tab=history">History</a></nav>
+        <?php if (!$requestedLoanId): ?><a class="btn btn-secondary btn-sm" href="my-loans.php?loan_id=<?=$l['id']?>&amp;tab=agreement"><i class="fa-solid fa-file-signature"></i> View Agreement</a><?php endif ?>
+
         <?php if ($l['agreement_id']): ?>
         <section class="loan-agreement-panel">
           <div class="loan-agreement-heading"><div><span class="loan-eyebrow">Loan agreement · Version <?=intval($l['version_no'])?></span><h2><?=htmlspecialchars(loanAgreementStatusLabel((string)$l['agreement_status']))?></h2></div><span class="badge <?=($l['agreement_status']==='fully_signed'?'badge-green':'badge-amber')?>"><?=htmlspecialchars(loanAgreementStatusLabel((string)$l['agreement_status']))?></span></div>
@@ -141,7 +146,7 @@ $currentPage = 'my-loans.php';
           </div>
 
           <?php if (in_array($l['agreement_status'],['employee_pending','owner_signed'],true)): ?>
-          <form method="POST" class="loan-sign-form" data-signature-form><input type="hidden" name="loan_agreement_csrf" value="<?=htmlspecialchars(loanAgreementCsrfToken())?>"><input type="hidden" name="action" value="employee_sign"><input type="hidden" name="agreement_id" value="<?=$l['agreement_id']?>"><h3>Employee acknowledgement &amp; signature</h3><label class="loan-check"><input type="checkbox" name="accept_terms" required><span>I have read, understood and accept this loan agreement and payroll deduction authorisation.</span></label><div class="form-grid"><div class="form-group"><label class="form-label">Type full name exactly</label><input class="form-input" name="employee_name" autocomplete="name" required placeholder="<?=htmlspecialchars($employee['emp_name'] ?? '')?>"></div><div class="form-group"><label class="form-label">Draw signature</label><canvas class="loan-signature-pad" width="500" height="150" tabindex="0" aria-label="Draw your signature"></canvas><input type="hidden" name="employee_signature" required><button class="loan-clear-signature" type="button">Clear signature</button></div></div><button class="btn btn-primary" type="submit"><i class="fa-solid fa-lock"></i> Sign Agreement</button></form>
+          <form method="POST" class="loan-sign-form" data-signature-form><input type="hidden" name="loan_agreement_csrf" value="<?=htmlspecialchars(loanAgreementCsrfToken())?>"><input type="hidden" name="action" value="employee_sign"><input type="hidden" name="agreement_id" value="<?=$l['agreement_id']?>"><h3>Employee acknowledgement &amp; signature</h3><label class="loan-check"><input type="checkbox" name="ack_read" required><span>I have read and understood the full agreement.</span></label><label class="loan-check"><input type="checkbox" name="ack_schedule" required><span>I have reviewed the repayment schedule.</span></label><label class="loan-check"><input type="checkbox" name="ack_deduction" required><span>I authorise the stated payroll deductions.</span></label><label class="loan-check"><input type="checkbox" name="ack_termination" required><span>I understand the outstanding-balance terms on termination.</span></label><label class="loan-check"><input type="checkbox" name="ack_questions" required><span>I had the opportunity to ask questions before signing.</span></label><div class="form-grid"><div class="form-group"><label class="form-label">Type full name exactly</label><input class="form-input" name="employee_name" autocomplete="name" required placeholder="<?=htmlspecialchars($employee['emp_name'] ?? '')?>"></div><div class="form-group"><label class="form-label">Draw signature</label><canvas class="loan-signature-pad" width="500" height="150" tabindex="0" aria-label="Draw your signature"></canvas><input type="hidden" name="employee_signature" required><button class="loan-clear-signature" type="button">Clear signature</button></div></div><button class="btn btn-primary" type="submit"><i class="fa-solid fa-lock"></i> Sign Agreement</button></form>
           <?php endif ?>
 
           <?php if ($signatures): ?><div class="loan-signatures"><h3>Signature record</h3><?php foreach ($signatures as $sig): ?><div><i class="fa-solid fa-circle-check"></i><span><strong><?=ucfirst(htmlspecialchars($sig['signer_role']))?></strong> · <?=htmlspecialchars($sig['signer_name'])?><small><?=date('d M Y H:i',strtotime($sig['signed_at']))?></small></span></div><?php endforeach ?><p>Document SHA-256: <code><?=htmlspecialchars($l['document_hash'])?></code></p></div><?php endif ?>
@@ -161,6 +166,7 @@ $currentPage = 'my-loans.php';
 @media(max-width:767px){.loan-contract dl{grid-template-columns:1fr 1fr}.loan-progress small{font-size:8px}.loan-signatures span{align-items:flex-start;flex-direction:column}.loan-agreement-heading{flex-direction:column}}
 @media(max-width:430px){.loan-contract dl{grid-template-columns:1fr}.loan-progress{gap:2px}.loan-progress span{width:24px;height:24px}}
 .loan-signature-pad{display:block;width:100%;height:90px;touch-action:none;background:#fff;border:1.5px solid var(--border);border-radius:8px}.loan-signature-pad:focus-visible{outline:2px solid var(--green-light);outline-offset:1px}.loan-clear-signature{align-self:flex-start;padding:3px 0;color:var(--green);font-size:10px;font-weight:700;background:transparent;border:0;cursor:pointer}
+.loan-tabs{display:flex;flex-wrap:wrap;gap:6px;margin:16px 0}.loan-tabs a{padding:7px 10px;border:1px solid var(--border);border-radius:7px;color:var(--green);font-size:11px;font-weight:700;text-decoration:none}.loan-tabs a:hover{background:var(--green-pale)}
 </style>
 <script>
 document.querySelectorAll('[data-signature-form]').forEach(function(form){

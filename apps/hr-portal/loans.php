@@ -32,6 +32,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     loanAgreementRequireCsrf();
     $action = $_POST['action'] ?? '';
 
+    if ($action === 'create_agreement') {
+        $loanId = (int)($_POST['loan_id'] ?? 0);
+        $stmt = $db->prepare("SELECT l.* FROM loans l WHERE l.id=?");
+        $stmt->execute([$loanId]); $loan = $stmt->fetch();
+        if (!$loan) { http_response_code(404); exit('Loan not found.'); }
+        $versionStmt = $db->prepare("SELECT COALESCE(MAX(version_no),0)+1 FROM loan_agreements WHERE loan_id=?");
+        $versionStmt->execute([$loanId]); $version = (int)$versionStmt->fetchColumn();
+        $repay = (float)$loan['repayment_amount'];
+        $count = $repay > 0 ? (int)ceil((float)$loan['amount'] / $repay) : 0;
+        $final = $count > 0 ? round((float)$loan['amount'] - ($repay * max(0,$count-1)),2) : (float)$loan['amount'];
+        $first = date('Y-m-t', strtotime('first day of next month'));
+        $db->prepare("INSERT INTO loan_agreements (loan_id,version_no,status,agreement_date,first_deduction_date,deduction_day,instalment_amount,number_of_instalments,final_instalment_amount,purpose,repayment_method,created_by) VALUES (?,?,'draft',CURDATE(),?,?,?,?,?,?,?,?)")
+           ->execute([$loanId,$version,$first,(int)date('j',strtotime($first)),$repay,$count,$final,$loan['notes'],$loan['repayment_method'],$user['id']]);
+        $agreementId=(int)$db->lastInsertId(); loanAgreementEvent($db,$agreementId,$loanId,'agreement_created',$user,['source'=>'existing_loan']);
+        header('Location: loan-view.php?loan_id='.$loanId.'&tab=agreement&msg=created'); exit;
+    }
+
     if ($action === 'add_loan') {
         $emp_id = (int)($_POST['employee_id'] ?? 0);
         $amount = (float)($_POST['amount'] ?? 0);
@@ -78,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $db->prepare("UPDATE loan_agreements SET status='employee_pending',sent_at=NOW(),snapshot_json=?,document_hash=? WHERE id=? AND status='draft'")
                ->execute([$snapshot,$hash,$agreementId]);
             loanAgreementEvent($db,$agreementId,(int)$agreement['loan_id'],'sent_to_employee',$user);
-            loanAgreementNotify($db,(int)$agreement['employee_id'],'Loan Agreement Ready','Your loan agreement is ready for review and signature.');
+            loanAgreementNotify($db,(int)$agreement['employee_id'],'Loan Agreement requires your signature.','Review and sign your employee loan agreement.','info','my-loans.php?loan_id='.(int)$agreement['loan_id'].'&tab=agreement');
         }
         header('Location: loans.php?msg=sent'); exit;
     }
@@ -99,7 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $db->prepare($sql)->execute([$newStatus,$agreementId]);
             if ($hasEmployee) loanAgreementSchedule($db,$agreementId,$agreement['first_deduction_date'],(float)$agreement['amount'],(float)$agreement['instalment_amount']);
             loanAgreementEvent($db,$agreementId,(int)$agreement['loan_id'],'owner_signed',$user,['fully_signed'=>$hasEmployee]);
-            loanAgreementNotify($db,(int)$agreement['employee_id'],$hasEmployee?'Loan Agreement Fully Signed':'Owner Signed Loan Agreement',$hasEmployee?'Your loan agreement is fully signed and active.':'The owner has signed your loan agreement.');
+            loanAgreementNotify($db,(int)$agreement['employee_id'],$hasEmployee?'Loan Agreement Fully Signed':'Owner Signed Loan Agreement',$hasEmployee?'Your loan agreement is fully signed and active.':'The owner has signed your loan agreement.','info','my-loans.php?loan_id='.(int)$agreement['loan_id'].'&tab=agreement');
         }
         header('Location: loans.php?msg=owner_signed'); exit;
     }
@@ -199,6 +216,8 @@ $currentPage = 'loans.php';
           </td>
           <td><span class="badge <?=$sc?>"><?=ucfirst($l['status'])?></span></td>
           <td>
+            <a class="btn btn-secondary btn-sm" href="loan-view.php?loan_id=<?=$l['id']?>"><i class="fa-solid fa-eye"></i> Open loan</a>
+            <a class="btn btn-secondary btn-sm" href="loan-view.php?loan_id=<?=$l['id']?>&amp;tab=agreement"><i class="fa-solid fa-file-signature"></i> Loan Agreement</a>
             <?php if ($l['status']==='active'): ?>
             <?php if ($l['agreement_status']==='draft'): ?>
             <form method="POST" style="display:inline"><input type="hidden" name="loan_agreement_csrf" value="<?=htmlspecialchars(loanAgreementCsrfToken())?>"><input type="hidden" name="action" value="send_agreement"><input type="hidden" name="agreement_id" value="<?=$l['agreement_id']?>"><button class="btn btn-primary btn-sm" type="submit"><i class="fa-solid fa-paper-plane"></i> Send</button></form>
@@ -207,6 +226,7 @@ $currentPage = 'loans.php';
             <?php elseif ($l['agreement_status']==='fully_signed'): ?>
             <a class="btn btn-secondary btn-sm" href="loan-agreement.php?loan_id=<?=$l['id']?>&download=1"><i class="fa-solid fa-file-pdf"></i> PDF</a>
             <?php endif ?>
+            <?php if (!$l['agreement_id'] || $l['agreement_status']==='legacy_active'): ?><form method="POST" style="display:inline"><input type="hidden" name="loan_agreement_csrf" value="<?=htmlspecialchars(loanAgreementCsrfToken())?>"><input type="hidden" name="action" value="create_agreement"><input type="hidden" name="loan_id" value="<?=$l['id']?>"><button class="btn btn-primary btn-sm" type="submit"><i class="fa-solid fa-file-circle-plus"></i> Create Loan Agreement</button></form><?php endif ?>
             <button class="btn btn-secondary btn-sm" onclick="openRepay(<?=$l['id']?>,'<?=htmlspecialchars($l['emp_name'])?>',<?=$l['balance']?>,<?=$l['repayment_amount']?>)"><i class="fa-solid fa-money-bill"></i> Repay</button>
             <form method="POST" style="display:inline" onsubmit="return confirm('Mark as settled?')">
               <input type="hidden" name="loan_agreement_csrf" value="<?=htmlspecialchars(loanAgreementCsrfToken())?>">

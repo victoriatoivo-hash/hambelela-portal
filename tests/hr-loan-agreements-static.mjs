@@ -8,6 +8,7 @@ const employee = read('apps/hr-portal/my-loans.php');
 const payroll = read('apps/hr-portal/payroll.php');
 const pdf = read('apps/hr-portal/loan-agreement.php');
 const install = read('apps/hr-portal/install.sql');
+const detail = read('apps/hr-portal/loan-view.php');
 
 assert.match(helper, /CREATE TABLE IF NOT EXISTS loan_agreements/);
 assert.match(helper, /CREATE TABLE IF NOT EXISTS loan_agreement_signatures/);
@@ -26,8 +27,14 @@ assert.match(owner, /loan-agreement\.php\?loan_id=/);
 assert.match(employee, /\$user\['role'\] !== 'employee'/);
 assert.match(employee, /l\.employee_id=\?/);
 assert.match(employee, /employee_sign/);
-assert.match(employee, /accept_terms/);
+for (const acknowledgement of ['ack_read','ack_schedule','ack_deduction','ack_termination','ack_questions']) assert.match(employee, new RegExp(acknowledgement));
 assert.doesNotMatch(employee, /download=1/);
+assert.match(employee, /You do not have access to this loan/);
+assert.match(employee, /View Agreement/);
+assert.match(owner, /create_agreement/);
+assert.match(owner, /Loan Agreement requires your signature/);
+for (const tab of ['Overview','Repayment Schedule','Loan Agreement','History']) assert.match(detail, new RegExp(tab));
+assert.match(detail, /requireAdmin\(\)/);
 
 assert.match(pdf, /requireAdmin\(\)/);
 assert.match(pdf, /a\.status='fully_signed'/);
@@ -47,6 +54,8 @@ function schedule(principal, instalment) {
 assert.deepEqual(schedule(1000, 300), [300, 300, 300, 100]);
 assert.deepEqual(schedule(900, 300), [300, 300, 300]);
 assert.deepEqual(schedule(1200, 240), [240, 240, 240, 240, 240]);
+const dates = Array.from({length: 5}, (_, i) => new Date(Date.UTC(2026, 8 + i, 30))).map(d => d.toISOString().slice(0,7));
+assert.deepEqual(dates, ['2026-09','2026-10','2026-11','2026-12','2027-01']);
 assert.equal(schedule(1000, 300).reduce((a,b)=>a+b,0), 1000);
 assert.match(owner, /first_deduction_date/);
 assert.match(helper, /modify\('\+1 month'\)/);

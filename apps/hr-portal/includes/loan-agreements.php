@@ -14,6 +14,8 @@ function loanAgreementRequireCsrf(): void {
 }
 
 function loanAgreementEnsureSchema(PDO $db): void {
+    $notificationAction = $db->query("SHOW COLUMNS FROM notifications LIKE 'action_url'")->fetch();
+    if (!$notificationAction) $db->exec("ALTER TABLE notifications ADD COLUMN action_url VARCHAR(255) NULL AFTER type");
     $db->exec("CREATE TABLE IF NOT EXISTS loan_agreements (
       id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
       loan_id INT UNSIGNED NOT NULL,
@@ -93,11 +95,11 @@ function loanAgreementEnsureSchema(PDO $db): void {
 function loanAgreementStatusLabel(string $status): string {
     $labels = [
         'draft' => 'Draft',
-        'employee_pending' => 'Pending Employee Signature',
-        'employee_signed' => 'Employee Signed',
-        'owner_signed' => 'Owner Signed',
+        'employee_pending' => 'Awaiting Employee Signature',
+        'employee_signed' => 'Awaiting Owner Signature',
+        'owner_signed' => 'Awaiting Employee Signature',
         'fully_signed' => 'Fully Signed / Active',
-        'legacy_active' => 'Legacy Active Loan',
+        'legacy_active' => 'No Agreement',
         'cancelled' => 'Cancelled',
     ];
     return $labels[$status] ?? ucwords(str_replace('_', ' ', $status));
@@ -137,13 +139,13 @@ function loanAgreementEvent(PDO $db, int $agreementId, int $loanId, string $even
     $stmt->execute([$agreementId, $loanId, $event, $user['id'] ?? null, $user['role'] ?? null, $metadata ? json_encode($metadata) : null]);
 }
 
-function loanAgreementNotify(PDO $db, int $employeeId, string $title, string $message, string $type = 'info'): void {
+function loanAgreementNotify(PDO $db, int $employeeId, string $title, string $message, string $type = 'info', string $actionUrl = ''): void {
     $stmt = $db->prepare("SELECT id FROM users WHERE employee_id=? AND active=1 LIMIT 1");
     $stmt->execute([$employeeId]);
     $userId = $stmt->fetchColumn();
     if ($userId) {
-        $db->prepare("INSERT INTO notifications (user_id,title,message,type) VALUES (?,?,?,?)")
-           ->execute([(int)$userId, $title, $message, $type]);
+        $db->prepare("INSERT INTO notifications (user_id,title,message,type,action_url) VALUES (?,?,?,?,?)")
+           ->execute([(int)$userId, $title, $message, $type, $actionUrl ?: null]);
     }
 }
 
