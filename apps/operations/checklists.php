@@ -770,7 +770,7 @@ function checklist_recurrence_next_run(string $rule, string $dueTime, ?string $s
 {
     $zone = new DateTimeZone('Africa/Windhoek');
     $after = ($after ?: new DateTimeImmutable('now', $zone))->setTimezone($zone);
-    $candidate = $after->setTime(0, 0)->modify($after->format('H:i:s') < $dueTime ? '+0 days' : '+1 day');
+    $candidate = $after->setTime(0, 0)->modify($after->format('H:i:s') <= $dueTime ? '+0 days' : '+1 day');
     if ($startDate && $candidate->format('Y-m-d') < $startDate) $candidate = new DateTimeImmutable($startDate . ' 00:00:00', $zone);
     for ($offset = 0; $offset < 370; $offset++, $candidate = $candidate->modify('+1 day')) {
         if ($endDate && $candidate->format('Y-m-d') > $endDate) return null;
@@ -1293,7 +1293,9 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $recurringRule = 'weekly_days:' . implode(',', $repeatDays);
             }
             if ($repeatType === 'recurring' && ops_post_string('recurrence_frequency', 20) === 'monthly') {
-                $monthDay=max(1,min(31,(int)($_POST['recurrence_month_day']??0)));
+                $monthDayRaw = trim((string) ($_POST['recurrence_month_day'] ?? ''));
+                if (!preg_match('/^(?:[1-9]|[12]\\d|3[01])$/', $monthDayRaw)) throw new RuntimeException('Choose a day of month from 1 to 31.');
+                $monthDay=(int)$monthDayRaw;
                 $recurringRule='monthly_day:'.$monthDay;
             }
             $allowedRecurringRules = ['', 'daily_business_day', 'twice_weekly', 'weekly_1', 'weekly_2', 'weekly_3', 'weekly_4', 'weekly_5', 'weekly_saturday'];
@@ -1304,6 +1306,9 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $recurrenceStartDate = ops_post_string('recurrence_start_date', 10);
             $recurrenceEndDate = ops_post_string('recurrence_end_date', 10);
             if ($recurringRule !== '' && $recurrenceStartDate === '') $recurrenceStartDate = $scheduledAt ? substr($scheduledAt,0,10) : date('Y-m-d');
+            foreach ([$recurrenceStartDate, $recurrenceEndDate] as $recurrenceDate) {
+                if ($recurrenceDate !== '' && !preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $recurrenceDate)) throw new RuntimeException('Choose a valid recurrence date.');
+            }
             if ($scheduledAt && $recurrenceStartDate < substr($scheduledAt,0,10)) throw new RuntimeException('The recurrence start date must be on or after the scheduled release date.');
             if ($recurrenceEndDate !== '' && $recurrenceEndDate < $recurrenceStartDate) throw new RuntimeException('The recurrence end date must be on or after its start date.');
             $urgentRecipientConfig = array_values(array_intersect((array) ($_POST['urgent_alert_recipients'] ?? []), ['assigned', 'role:front_desk', 'role:packers', 'role:all_relevant']));
@@ -1326,7 +1331,8 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
               if ($recurringRule !== '' && ops_table_exists('ops_checklist_recurring_templates')) {
                 $recurrenceTime = ops_post_string('recurrence_time', 8);
-                $dueTime = preg_match('/^\d{2}:\d{2}$/', $recurrenceTime) ? $recurrenceTime . ':00' : ($deadline ? date('H:i:s', strtotime($deadline)) : '09:00:00');
+                if (!preg_match('/^(?:[01]\\d|2[0-3]):[0-5]\\d$/', $recurrenceTime)) throw new RuntimeException('Choose a valid occurrence time.');
+                $dueTime = $recurrenceTime . ':00';
                 $initialNextRun = checklist_recurrence_next_run($recurringRule, $dueTime, $recurrenceStartDate ?: null, $recurrenceEndDate ?: null, $scheduledAt ? new DateTimeImmutable($scheduledAt) : null);
                 $templateStmt = $taskDb->prepare(
                     "INSERT INTO ops_checklist_recurring_templates
@@ -2530,8 +2536,16 @@ function initialiseTaskCreateForm() {
     const days = recurrenceWeekdays.filter((input) => input.checked).map((input) => Number(input.value)).sort((a,b) => a-b);
     const usesDays=frequency==='weekly'||frequency==='custom';
     form.querySelector('[data-task-weekdays]').hidden = !recurring || !usesDays;
-    const monthDay=Math.max(1,Math.min(31,Number(form.querySelector('[name="recurrence_month_day"]')?.value)||1));
-    form.querySelector('[data-task-month-day]').hidden=!recurring||frequency!=='monthly';
+    const monthDayInput=form.querySelector('[name="recurrence_month_day"]');
+    const recurrenceTimeInput=form.querySelector('[name="recurrence_time"]');
+    const recurrenceStartInput=form.querySelector('[name="recurrence_start_date"]');
+    const monthDay=Math.max(1,Math.min(31,Number(monthDayInput?.value)||1));
+    const usesMonthDay=recurring&&frequency==='monthly';
+    form.querySelector('[data-task-month-day]').hidden=!usesMonthDay;
+    monthDayInput.disabled=!usesMonthDay;
+    monthDayInput.required=usesMonthDay;
+    recurrenceTimeInput.required=recurring;
+    recurrenceStartInput.required=recurring;
     recurrenceValue.value = !recurring ? '' : (usesDays ? (days.length ? `weekly_days:${days.join(',')}` : '') : (frequency==='monthly'?`monthly_day:${monthDay}`:frequency));
     recurrenceWeekdays.forEach((input) => input.closest('label')?.querySelector('span')?.setAttribute('aria-pressed', input.checked ? 'true' : 'false'));
     if (recurrenceSummary) {
@@ -2665,7 +2679,22 @@ function initialiseTaskCreateForm() {
     setNativeValue('[name="assigned_employee_id"]', template.assigned_employee_id || '');
     const priority = form.querySelector(`[name="priority"][value="${CSS.escape(template.priority || 'normal')}"]`); if (priority) priority.checked = true;
     checklistList.innerHTML = ''; (template.checklist_items || []).forEach(addChecklistItem);
-    repeatToggle.checked = !!template.recurring_rule; if (template.recurring_rule) recurrenceSelect.value = template.recurring_rule; syncRecurrence();
+    const recurringMode=form.querySelector('[name="repeat_type"][value="recurring"]');
+    const oneTimeMode=form.querySelector('[name="repeat_type"][value="one_time"]');
+    if (recurringMode && oneTimeMode) { recurringMode.checked=!!template.recurring_rule; oneTimeMode.checked=!template.recurring_rule; }
+    recurrenceWeekdays.forEach((input)=>{input.checked=false;});
+    if (template.recurring_rule?.startsWith('weekly_days:')) {
+      recurrenceSelect.value='custom';
+      const selectedDays=template.recurring_rule.slice(12).split(',');
+      recurrenceWeekdays.forEach((input)=>{input.checked=selectedDays.includes(input.value);});
+    } else if (template.recurring_rule?.startsWith('monthly_day:')) {
+      recurrenceSelect.value='monthly';
+      const monthInput=form.querySelector('[name="recurrence_month_day"]'); if(monthInput) monthInput.value=template.recurring_rule.slice(12);
+    } else if (template.recurring_rule) recurrenceSelect.value=template.recurring_rule;
+    setNativeValue('[name="recurrence_time"]',template.recurrence_time||'08:00');
+    setNativeValue('[name="recurrence_start_date"]',template.recurrence_start_date||'');
+    setNativeValue('[name="recurrence_end_date"]',template.recurrence_end_date||'');
+    syncRecurrence();
     const urgent = form.querySelector('[data-urgent-toggle]'); if (urgent) { urgent.checked = !!template.urgent_alert_enabled; urgent.dispatchEvent(new Event('change', {bubbles:true})); }
     form.querySelectorAll('[name="urgent_alert_recipients[]"]').forEach((input) => { input.checked = (template.urgent_recipients || []).includes(input.value); });
     dueAtInput.value = ''; const dueDisplay = form.querySelector('[data-task-due-trigger]'); if (dueDisplay) dueDisplay.value = ''; syncDueAt();
