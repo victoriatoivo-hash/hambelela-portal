@@ -10,7 +10,7 @@ const createForm = tasks.match(/<form class="task-create-form[\s\S]*?<\/form>/)?
 assert.match(createForm, /Due date and time/);
 assert.match(createForm, /name="due_at"[^>]*data-task-due-value[^>]*required/);
 assert.match(createForm, /data-enable-time="true"/);
-assert.doesNotMatch(createForm, /data-task-due-date|data-task-due-time|type="date"|type="time"/);
+assert.doesNotMatch(createForm, /data-task-due-date|data-task-due-time/);
 assert.equal((createForm.match(/name="due_at"/g) || []).length, 1, 'New Task must submit exactly one due_at value');
 assert.match(tasks, /function checklist_create_due_at\(array \$request\): string/);
 assert.match(tasks, /new DateTimeZone\('Africa\/Windhoek'\)/);

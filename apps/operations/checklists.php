@@ -178,6 +178,7 @@ function checklist_bootstrap_schema(): void
             due_time TIME NOT NULL DEFAULT '09:00:00',
             instructions TEXT NULL,
             checklist_items TEXT NULL,
+            completion_evidence_required TINYINT(1) NOT NULL DEFAULT 0,
             employee_visible TINYINT(1) NOT NULL DEFAULT 1,
             is_active TINYINT(1) NOT NULL DEFAULT 1,
             created_by INT NULL,
@@ -198,6 +199,7 @@ function checklist_bootstrap_schema(): void
         'paused_at' => "ALTER TABLE ops_checklist_recurring_templates ADD COLUMN paused_at DATETIME NULL AFTER last_error",
         'ended_at' => "ALTER TABLE ops_checklist_recurring_templates ADD COLUMN ended_at DATETIME NULL AFTER paused_at",
         'version_no' => "ALTER TABLE ops_checklist_recurring_templates ADD COLUMN version_no INT NOT NULL DEFAULT 1 AFTER ended_at",
+        'completion_evidence_required' => "ALTER TABLE ops_checklist_recurring_templates ADD COLUMN completion_evidence_required TINYINT(1) NOT NULL DEFAULT 0 AFTER checklist_items",
     ];
     foreach ($recurringTemplateColumns as $column => $sql) {
         if (!ops_column_exists('ops_checklist_recurring_templates', $column)) checklist_try_sql($sql);
@@ -734,8 +736,14 @@ function checklist_seed_default_recurring_templates(): void
     }
 }
 
-function checklist_rule_runs_today(string $rule, int $dayNumber): bool
+function checklist_rule_runs_today(string $rule, int $dayNumber, ?string $dateKey = null): bool
 {
+    if (preg_match('/^monthly_day:(\d{1,2})$/', $rule, $match)) {
+        return (int)($dateKey ? substr($dateKey, 8, 2) : date('j')) === (int)$match[1];
+    }
+    if (preg_match('/^weekly_days:([1-7](?:,[1-7])*)$/', $rule, $match)) {
+        return in_array($dayNumber, array_map('intval', explode(',', $match[1])), true);
+    }
     if ($rule === 'daily_business_day') return $dayNumber >= 1 && $dayNumber <= 6;
     if ($rule === 'twice_weekly') return in_array($dayNumber, [2, 4], true);
     if ($rule === 'weekly_saturday') return $dayNumber === 6;
@@ -745,6 +753,11 @@ function checklist_rule_runs_today(string $rule, int $dayNumber): bool
 
 function checklist_recurrence_label(string $rule): string
 {
+    if (preg_match('/^monthly_day:(\d{1,2})$/', $rule, $match)) return 'Monthly on day ' . (int)$match[1];
+    if (preg_match('/^weekly_days:([1-7](?:,[1-7])*)$/', $rule, $match)) {
+        $names = [1=>'Monday',2=>'Tuesday',3=>'Wednesday',4=>'Thursday',5=>'Friday',6=>'Saturday',7=>'Sunday'];
+        return 'Every ' . implode(', ', array_map(static function ($day) use ($names) { return $names[(int)$day]; }, explode(',', $match[1])));
+    }
     $labels = [
         'daily_business_day' => 'Every business day', 'twice_weekly' => 'Tuesday and Thursday',
         'weekly_1' => 'Every Monday', 'weekly_2' => 'Every Tuesday', 'weekly_3' => 'Every Wednesday',
@@ -761,7 +774,7 @@ function checklist_recurrence_next_run(string $rule, string $dueTime, ?string $s
     if ($startDate && $candidate->format('Y-m-d') < $startDate) $candidate = new DateTimeImmutable($startDate . ' 00:00:00', $zone);
     for ($offset = 0; $offset < 370; $offset++, $candidate = $candidate->modify('+1 day')) {
         if ($endDate && $candidate->format('Y-m-d') > $endDate) return null;
-        if (!checklist_rule_runs_today($rule, (int) $candidate->format('N'))) continue;
+        if (!checklist_rule_runs_today($rule, (int) $candidate->format('N'), $candidate->format('Y-m-d'))) continue;
         return new DateTimeImmutable($candidate->format('Y-m-d') . ' ' . $dueTime, $zone);
     }
     return null;
@@ -785,7 +798,7 @@ function checklist_seed_recurring_tasks(): void
             db()->prepare("UPDATE ops_checklist_recurring_templates SET status='ended', is_active=0, ended_at=COALESCE(ended_at,NOW()), next_run_at=NULL WHERE id=?")->execute([(int)$template['id']]);
             continue;
         }
-        if (!checklist_rule_runs_today((string) $template['recurring_rule'], $dayNumber)) continue;
+        if (!checklist_rule_runs_today((string) $template['recurring_rule'], $dayNumber, $dateKey)) continue;
         $templateAssignmentType = (string) ($template['assignment_type'] ?? 'specific') === 'floating' ? 'floating' : 'specific';
         if($templateAssignmentType==='specific'&&!empty($template['assigned_employee_id'])&&!ops_rows("SELECT id FROM ops_employees WHERE id=? AND status='active' LIMIT 1",[(int)$template['assigned_employee_id']])){
             db()->prepare("UPDATE ops_checklist_recurring_templates SET last_error='Assigned employee inactive.' WHERE id=?")->execute([(int)$template['id']]);
@@ -805,11 +818,11 @@ function checklist_seed_recurring_tasks(): void
             $stmt = $taskDb->prepare(
                 "INSERT INTO ops_checklist_tasks
                  (checklist_type, task_name, priority, assigned_employee_id, assignment_type, floating_eligible_role, floating_allocation_status, date_assigned, deadline, status, notes, instructions, checklist_items, completion_note_required, completion_evidence_required, performance_scored, recurrence_key, recurring_rule, recurring_template_id, employee_visible, created_by)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, 1, 0, 1, ?, ?, ?, ?, ?)"
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, 1, ?, 1, ?, ?, ?, ?, ?)"
             );
             $deadline = $dateKey . ' ' . (string) ($template['due_time'] ?: '09:00:00');
             $instructions = task_instructions_sanitize_html((string) $template['instructions']);
-            $stmt->execute([$template['checklist_type'], $template['task_name'], $template['priority'], $employeeId ?: null, $templateAssignmentType, $templateAssignmentType === 'floating' ? ($template['floating_eligible_role'] ?? null) : null, $templateAssignmentType === 'floating' ? 'pending' : null, $templateAssignmentType === 'specific' ? date('Y-m-d H:i:s') : null, $deadline, $instructions, $instructions, $template['checklist_items'], $key, $template['recurring_rule'], $template['id'], $templateAssignmentType === 'specific' ? 1 : 0, $template['created_by']]);
+            $stmt->execute([$template['checklist_type'], $template['task_name'], $template['priority'], $employeeId ?: null, $templateAssignmentType, $templateAssignmentType === 'floating' ? ($template['floating_eligible_role'] ?? null) : null, $templateAssignmentType === 'floating' ? 'pending' : null, $templateAssignmentType === 'specific' ? date('Y-m-d H:i:s') : null, $deadline, $instructions, $instructions, $template['checklist_items'], (int)($template['completion_evidence_required']??0), $key, $template['recurring_rule'], $template['id'], $templateAssignmentType === 'specific' ? 1 : 0, $template['created_by']]);
             $occurrenceId = (int) $taskDb->lastInsertId();$taskDb->commit();$generatedAny=true;
             }catch(Throwable $generationError){if($taskDb->inTransaction())$taskDb->rollBack();db()->prepare('UPDATE ops_checklist_recurring_templates SET last_error=? WHERE id=?')->execute([substr($generationError->getMessage(),0,500),(int)$template['id']]);ops_activity_log('recurring_occurrence_failed','checklist_recurring_template',(int)$template['id'],['error'=>$generationError->getMessage()]);continue;}
             if ($templateAssignmentType === 'floating') {
@@ -924,9 +937,11 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($expectedVersion !== (int)($template['version_no']??1)) throw new RuntimeException('This recurring task changed in another session. Refresh and review the latest rule.');
                 $taskName=ops_post_string('task_name',190); $instructions=checklist_sanitize_instructions((string)($_POST['instructions']??''));
                 $priority=ops_post_string('priority',30); $rule=ops_post_string('recurring_rule',80); $dueTime=ops_post_string('due_time',8);
+                $editDays=array_values(array_unique(array_filter(array_map('intval',(array)($_POST['repeat_weekdays']??[])),static function($day):bool{return $day>=1&&$day<=7;})));sort($editDays);
+                if($editDays)$rule='weekly_days:'.implode(',',$editDays);
                 $allowed=['daily_business_day','twice_weekly','weekly_1','weekly_2','weekly_3','weekly_4','weekly_5','weekly_saturday'];
                 if($taskName===''||checklist_instruction_text_length($instructions)===0)throw new RuntimeException('Task name and instructions are required.');
-                if(!isset($priorities[$priority])||!in_array($rule,$allowed,true)||!preg_match('/^\d{2}:\d{2}(:\d{2})?$/',$dueTime))throw new RuntimeException('Choose a valid priority, repeat rule and time.');
+                if(!isset($priorities[$priority])||(!in_array($rule,$allowed,true)&&!preg_match('/^weekly_days:[1-7](?:,[1-7])*$/',$rule))||!preg_match('/^\d{2}:\d{2}(:\d{2})?$/',$dueTime))throw new RuntimeException('Choose a valid priority, repeat rule and time.');
                 if(strlen($dueTime)===5)$dueTime.=':00';
                 $startDate=trim((string)($_POST['start_date']??''));$endDate=trim((string)($_POST['end_date']??''));
                 if($startDate!==''&&!preg_match('/^\d{4}-\d{2}-\d{2}$/',$startDate))throw new RuntimeException('Choose a valid start date.');
@@ -1265,13 +1280,32 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($scheduledAt === null && !$groupAssignment && count($targetEmployeeIds) === 1 && $assignmentType === 'specific' && $urgentRequested && !$urgentRecipients) throw new RuntimeException('Choose at least one valid urgent alert recipient.');
             $employeeVisible = ($scheduledAt === null && $assignmentType === 'specific') ? 1 : 0;
             $proofRequired = !empty($_POST['completion_evidence_required']) ? 1 : 0;
-            $recurringRule = ops_post_string('recurring_rule', 80);
+            $repeatType = ops_post_string('repeat_type', 20) === 'recurring' ? 'recurring' : 'one_time';
+            $recurringRule = $repeatType === 'recurring' ? ops_post_string('recurring_rule', 80) : '';
+            $repeatDays = array_values(array_unique(array_filter(array_map('intval', (array)($_POST['repeat_weekdays'] ?? [])), static function ($day): bool { return $day >= 1 && $day <= 7; })));
+            sort($repeatDays);
+            if ($repeatType === 'recurring' && ops_post_string('recurrence_frequency', 20) === 'weekly') {
+                if (!$repeatDays) throw new RuntimeException('Choose at least one weekday for a weekly recurring task.');
+                $recurringRule = 'weekly_days:' . implode(',', $repeatDays);
+            }
+            if ($repeatType === 'recurring' && ops_post_string('recurrence_frequency', 20) === 'custom') {
+                if (!$repeatDays) throw new RuntimeException('Choose at least one weekday for a custom recurring task.');
+                $recurringRule = 'weekly_days:' . implode(',', $repeatDays);
+            }
+            if ($repeatType === 'recurring' && ops_post_string('recurrence_frequency', 20) === 'monthly') {
+                $monthDay=max(1,min(31,(int)($_POST['recurrence_month_day']??0)));
+                $recurringRule='monthly_day:'.$monthDay;
+            }
             $allowedRecurringRules = ['', 'daily_business_day', 'twice_weekly', 'weekly_1', 'weekly_2', 'weekly_3', 'weekly_4', 'weekly_5', 'weekly_saturday'];
-            if (!in_array($recurringRule, $allowedRecurringRules, true)) {
+            if (!in_array($recurringRule, $allowedRecurringRules, true) && !preg_match('/^(?:weekly_days:[1-7](?:,[1-7])*|monthly_day:(?:[1-9]|[12]\d|3[01]))$/', $recurringRule)) {
                 throw new RuntimeException('Choose a valid task recurrence.');
             }
             if ($groupAssignment && $recurringRule !== '') throw new RuntimeException('Group assignments are available for manual and scheduled tasks. Recurring group assignments are not enabled yet.');
-            if ($scheduledAt !== null && $recurringRule !== '') throw new RuntimeException('Scheduled release is available for manual tasks only. Recurring tasks keep their existing schedule.');
+            $recurrenceStartDate = ops_post_string('recurrence_start_date', 10);
+            $recurrenceEndDate = ops_post_string('recurrence_end_date', 10);
+            if ($recurringRule !== '' && $recurrenceStartDate === '') $recurrenceStartDate = $scheduledAt ? substr($scheduledAt,0,10) : date('Y-m-d');
+            if ($scheduledAt && $recurrenceStartDate < substr($scheduledAt,0,10)) throw new RuntimeException('The recurrence start date must be on or after the scheduled release date.');
+            if ($recurrenceEndDate !== '' && $recurrenceEndDate < $recurrenceStartDate) throw new RuntimeException('The recurrence end date must be on or after its start date.');
             $urgentRecipientConfig = array_values(array_intersect((array) ($_POST['urgent_alert_recipients'] ?? []), ['assigned', 'role:front_desk', 'role:packers', 'role:all_relevant']));
             if ($urgentRequested && !$urgentRecipientConfig) throw new RuntimeException('Choose at least one valid urgent alert recipient.');
             $createAttachmentFiles = checklist_create_attachment_files();
@@ -1291,15 +1325,16 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $taskDb->beginTransaction();
             try {
               if ($recurringRule !== '' && ops_table_exists('ops_checklist_recurring_templates')) {
-                $dueTime = $deadline ? date('H:i:s', strtotime($deadline)) : '09:00:00';
-                $initialNextRun = checklist_recurrence_next_run($recurringRule, $dueTime);
+                $recurrenceTime = ops_post_string('recurrence_time', 8);
+                $dueTime = preg_match('/^\d{2}:\d{2}$/', $recurrenceTime) ? $recurrenceTime . ':00' : ($deadline ? date('H:i:s', strtotime($deadline)) : '09:00:00');
+                $initialNextRun = checklist_recurrence_next_run($recurringRule, $dueTime, $recurrenceStartDate ?: null, $recurrenceEndDate ?: null, $scheduledAt ? new DateTimeImmutable($scheduledAt) : null);
                 $templateStmt = $taskDb->prepare(
                     "INSERT INTO ops_checklist_recurring_templates
-                     (task_name, checklist_type, priority, assigned_employee_id, assignment_type, floating_eligible_role, recurring_rule, due_time, next_run_at, instructions, checklist_items, employee_visible, is_active, status, created_by)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'active', ?)"
+                     (task_name, checklist_type, priority, assigned_employee_id, assignment_type, floating_eligible_role, recurring_rule, due_time, start_date, end_date, next_run_at, instructions, checklist_items, completion_evidence_required, employee_visible, is_active, status, created_by)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'active', ?)"
                 );
                 $submittedPriority = ops_post_string('priority', 30);
-                $templateStmt->execute([$taskName, 'opening', array_key_exists($submittedPriority, $priorities) ? $submittedPriority : 'normal', $assignedId > 0 ? $assignedId : null, $assignmentType, $floatingRole ?: null, $recurringRule, $dueTime, $initialNextRun ? $initialNextRun->format('Y-m-d H:i:s') : null, $instructions, checklist_items_from_text((string) ($_POST['checklist_items_text'] ?? '')), $employeeVisible, $currentEmployeeId]);
+                $templateStmt->execute([$taskName, 'opening', array_key_exists($submittedPriority, $priorities) ? $submittedPriority : 'normal', $assignedId > 0 ? $assignedId : null, $assignmentType, $floatingRole ?: null, $recurringRule, $dueTime, $recurrenceStartDate ?: null, $recurrenceEndDate ?: null, $initialNextRun ? $initialNextRun->format('Y-m-d H:i:s') : null, $instructions, checklist_items_from_text((string) ($_POST['checklist_items_text'] ?? '')), $proofRequired, $employeeVisible, $currentEmployeeId]);
                 $templateId = (int) db()->lastInsertId();
               }
             $stmt = $taskDb->prepare(
@@ -1409,6 +1444,14 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 : ($scheduledAt !== null ? 'Task scheduled for ' . checklist_date_label($scheduledAt) . '.' . ($urgentRequested ? ' Popup notification will be sent at release.' : ' The employee cannot see it until release.') : ($createdAttachments
                 ? 'Task created with ' . count($createdAttachments) . ' file' . (count($createdAttachments) === 1 ? '' : 's') . ' and assigned.'
                 : 'Task created and assigned.'));
+            if (strtolower((string)($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest') {
+                header('Content-Type: application/json; charset=utf-8');
+                $successMessage = $recurringRule !== ''
+                    ? ($scheduledAt !== null ? 'Recurring task scheduled.' : 'Recurring task created.')
+                    : ($scheduledAt !== null ? 'Scheduled task created.' : 'Task created.');
+                echo json_encode(['success'=>true,'message'=>$successMessage,'task_ids'=>$createdTaskIds,'recurring_template_id'=>$templateId,'scheduled'=>$scheduledAt!==null,'recurring'=>$recurringRule!=='']);
+                exit;
+            }
         }
 
         if ($action === 'admin_update_task' && $canManage) {
@@ -1540,7 +1583,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
     } catch (Throwable $e) {
         $validationPayload = json_decode($e->getMessage(), true);
         $errorMessage = is_array($validationPayload) && !empty($validationPayload['message']) ? (string) $validationPayload['message'] : $e->getMessage();
-        if (in_array(($action ?? ''), ['acknowledge_task', 'update_task_status', 'update_task_progress', 'bulk_task_action', 'task_tools_data', 'task_archive', 'task_trash', 'task_restore', 'task_delete_forever', 'task_cancel_recurrence', 'task_attachment_upload', 'task_attachment_remove', 'retry_floating_allocation'], true)) {
+        if (in_array(($action ?? ''), ['create_task','acknowledge_task', 'update_task_status', 'update_task_progress', 'bulk_task_action', 'task_tools_data', 'task_archive', 'task_trash', 'task_restore', 'task_delete_forever', 'task_cancel_recurrence', 'task_attachment_upload', 'task_attachment_remove', 'retry_floating_allocation'], true) && strtolower((string)($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest') {
             if (http_response_code() < 400) http_response_code(422);
             echo json_encode(array_merge(['success' => false, 'message' => $errorMessage], is_array($validationPayload) ? $validationPayload : []));
             exit;
@@ -2006,13 +2049,13 @@ include BASE_PATH . '/shared/sidebar.php';
                       </section>
                       <section class="task-form-section"><div class="task-form-grid">
                         <label class="task-form-field task-form-field--full"><span class="task-form-label">Task name <span aria-hidden="true">*</span></span><input id="create-task-name" name="task_name" maxlength="120" required placeholder="What needs to be done?" autocomplete="off"></label>
-                        <fieldset class="task-form-field task-form-field--full task-assignment-type"><legend class="task-form-label">Assignment type</legend><div class="task-assignment-segments"><label><input type="radio" name="assignment_type" value="specific" checked><span>Direct Assignment</span></label><label><input type="radio" name="assignment_type" value="floating"><span>Floating Task</span></label></div></fieldset>
+                        <fieldset class="task-form-field task-form-field--full task-assignment-type"><legend class="task-form-label">Assignment</legend><div class="task-assignment-segments"><label><input type="radio" name="assignment_type" value="specific" checked><span>Specific Employee</span></label><label><input type="radio" name="assignment_type" value="floating"><span>Floating Task</span></label></div></fieldset>
                         <div class="task-form-grid__row task-form-grid__row--assignment">
                           <label class="task-form-field" data-specific-assignment><span class="task-form-label">Assign to *</span><select id="create-task-assignee" name="assigned_employee_id[]" multiple required size="6" data-task-assignee><optgroup label="Groups"><option value="all">All Employees</option><option value="group:front_desk">Front Desk Employees</option><option value="group:back_packers">Packers / Back Employees</option></optgroup><optgroup label="Individual employees"><?php foreach ($eligibleTaskEmployees as $employee): ?><option value="<?= (int) $employee['id'] ?>"><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></optgroup></select><small>Choose a group or one or more employees.</small><small class="task-all-employees-note" data-all-employees-note hidden>Each employee will receive and complete an individual task.</small></label>
                           <label class="task-form-field" data-floating-assignment hidden><span class="task-form-label">Eligible role / team *</span><select name="floating_eligible_role" data-portal-custom-select><option value="" disabled selected>Choose eligible role/team</option><option value="front_desk">Front Desk</option><option value="back_packers">Packers / Back</option></select><small>Automatically assigned by active workload and fair rotation.</small></label>
                         </div>
                         <div class="task-form-field task-datetime-field task-form-field--full"><label class="task-form-label" for="create-task-due-display">Due date and time <span class="required-marker" aria-hidden="true">*</span></label><div class="portal-date-field" data-portal-date-field><input id="create-task-due-display" type="text" class="portal-date-input task-datetime-trigger is-empty" data-enable-time="true" data-submit-target="#create-task-due-at" data-task-due-trigger placeholder="Select due date and time" autocomplete="off" aria-describedby="create-task-due-error"><input id="create-task-due-at" type="hidden" name="due_at" data-task-due-value data-portal-date-required-message="Select the task due date and time." required><button type="button" class="portal-date-trigger" aria-label="Open Due date and time picker"><i data-lucide="calendar-clock" aria-hidden="true"></i></button></div><span id="create-task-due-error" class="task-form-error" data-task-due-error aria-live="polite"></span></div>
-                        <fieldset class="task-form-field task-form-field--full task-delivery-options"><legend class="task-form-label">Delivery</legend><div class="task-priority-options"><label><input type="radio" name="delivery_mode" value="now" checked data-task-delivery-mode><span>Send now</span></label><label><input type="radio" name="delivery_mode" value="scheduled" data-task-delivery-mode><span>Schedule task</span></label></div></fieldset>
+                        <fieldset class="task-form-field task-form-field--full task-delivery-options"><legend class="task-form-label">Timing · Release</legend><div class="task-priority-options"><label><input type="radio" name="delivery_mode" value="now" checked data-task-delivery-mode><span>Send Now</span></label><label><input type="radio" name="delivery_mode" value="scheduled" data-task-delivery-mode><span>Schedule for Later</span></label></div></fieldset>
                         <div class="task-form-field task-datetime-field task-form-field--full" data-task-schedule-field hidden><label class="task-form-label" for="create-task-schedule-display">Release date and time <span class="required-marker" aria-hidden="true">*</span></label><div class="portal-date-field" data-portal-date-field><input id="create-task-schedule-display" type="text" class="portal-date-input task-datetime-trigger is-empty" data-enable-time="true" data-submit-target="#create-task-scheduled-at" placeholder="Select release date and time" autocomplete="off"><input id="create-task-scheduled-at" type="hidden" name="scheduled_at" data-task-scheduled-value><button type="button" class="portal-date-trigger" aria-label="Open release date and time picker"><i data-lucide="calendar-clock" aria-hidden="true"></i></button></div><small>The employee will not see the task or receive notifications before this Windhoek time.</small></div>
                         <p class="task-due-summary" data-task-due-summary aria-live="polite"></p>
                         <fieldset class="task-form-field task-priority-field"><legend class="task-form-label">Priority *</legend><div class="task-priority-options" role="radiogroup" aria-label="Priority"><label><input type="radio" name="priority" value="normal" checked><span>Normal</span></label><label><input type="radio" name="priority" value="important"><span>Important</span></label><label><input type="radio" name="priority" value="urgent"><span>Urgent</span></label></div></fieldset>
@@ -2029,7 +2072,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         <p class="task-create-attachments__empty" data-create-task-files-empty>No files selected. You can add up to 10 files, 10 MB each.</p>
                       </section>
                       <section class="task-form-options">
-                        <div class="task-form-option"><label class="task-option-toggle"><input type="checkbox" data-task-repeat-toggle><span>Repeat this task</span></label><div class="task-option-details" data-task-repeat-options hidden><label class="task-form-field"><span class="task-form-label">Frequency</span><select id="create-task-recurrence" data-task-recurrence-select><option value="daily_business_day">Every business day</option><option value="twice_weekly">Every Tuesday and Thursday</option><option value="weekly_1">Every Monday</option><option value="weekly_2">Every Tuesday</option><option value="weekly_3">Every Wednesday</option><option value="weekly_4">Every Thursday</option><option value="weekly_5">Every Friday</option><option value="weekly_saturday">Every Saturday</option></select></label></div><input type="hidden" name="recurring_rule" value="" data-task-recurrence-default></div>
+                        <div class="task-form-option task-repeat-card"><span class="task-form-label">Repeat</span><div class="task-assignment-segments" role="radiogroup" aria-label="Repeat"><label><input type="radio" name="repeat_type" value="one_time" checked data-task-repeat-mode><span>One-time</span></label><label><input type="radio" name="repeat_type" value="recurring" data-task-repeat-mode><span>Recurring</span></label></div><div class="task-option-details task-repeat-details" data-task-repeat-options hidden><label class="task-form-field"><span class="task-form-label">Frequency</span><select name="recurrence_frequency" data-task-recurrence-select><option value="daily_business_day">Daily / business days</option><option value="weekly" selected>Weekly</option><option value="monthly">Monthly</option><option value="custom">Custom weekdays</option></select></label><fieldset class="task-repeat-weekdays" data-task-weekdays><legend class="task-form-label">Repeat on *</legend><?php foreach([1=>'Mon',2=>'Tue',3=>'Wed',4=>'Thu',5=>'Fri',6=>'Sat',7=>'Sun'] as $day=>$label):?><label><input type="checkbox" name="repeat_weekdays[]" value="<?=$day?>"><span><?=$label?></span></label><?php endforeach;?></fieldset><label class="task-form-field" data-task-month-day hidden><span class="task-form-label">Day of month</span><input type="number" name="recurrence_month_day" min="1" max="31" value="1"></label><div class="task-repeat-dates"><label class="task-form-field"><span class="task-form-label">Occurrence time</span><input type="time" name="recurrence_time" value="08:00"></label><label class="task-form-field"><span class="task-form-label">Start date *</span><input type="date" name="recurrence_start_date" value="<?=date('Y-m-d')?>"></label><label class="task-form-field"><span class="task-form-label">Optional end date</span><input type="date" name="recurrence_end_date"></label></div><p class="task-repeat-summary" data-task-repeat-summary>Choose one or more weekdays.</p></div><input type="hidden" name="recurring_rule" value="" data-task-recurrence-default></div>
                         <section class="task-form-option task-urgent-control" data-urgent-control>
                             <label class="task-option-toggle task-urgent-toggle"><input type="checkbox" name="send_urgent_alert" value="1" data-urgent-toggle><span class="task-urgent-toggle__track" aria-hidden="true"><span class="task-urgent-toggle__thumb"></span></span><span>Send popup notification</span></label>
                             <div class="task-urgent-options" data-urgent-options hidden>
@@ -2341,10 +2384,12 @@ function initialiseTaskCreateForm() {
   const scheduleField = form.querySelector('[data-task-schedule-field]');
   const scheduledAtInput = form.querySelector('[data-task-scheduled-value]');
   const deliveryModes = [...form.querySelectorAll('[data-task-delivery-mode]')];
-  const repeatToggle = form.querySelector('[data-task-repeat-toggle]');
+  const repeatModes = [...form.querySelectorAll('[data-task-repeat-mode]')];
   const repeatOptions = form.querySelector('[data-task-repeat-options]');
   const recurrenceSelect = form.querySelector('[data-task-recurrence-select]');
   const recurrenceValue = form.querySelector('[data-task-recurrence-default]');
+  const recurrenceWeekdays = [...form.querySelectorAll('[name="repeat_weekdays[]"]')];
+  const recurrenceSummary = form.querySelector('[data-task-repeat-summary]');
   const checklistInput = form.querySelector('[data-task-checklist-input]');
   const checklistList = form.querySelector('[data-task-checklist-list]');
   const checklistValue = form.querySelector('[name="checklist_items_text"]');
@@ -2479,10 +2524,23 @@ function initialiseTaskCreateForm() {
   popupToggle?.addEventListener('change', syncDeliveryMode);
 
   const syncRecurrence = () => {
-    repeatOptions.hidden = !repeatToggle.checked;
-    recurrenceValue.value = repeatToggle.checked ? recurrenceSelect.value : '';
+    const recurring = form.querySelector('[name="repeat_type"]:checked')?.value === 'recurring';
+    repeatOptions.hidden = !recurring;
+    const frequency = recurrenceSelect.value;
+    const days = recurrenceWeekdays.filter((input) => input.checked).map((input) => Number(input.value)).sort((a,b) => a-b);
+    const usesDays=frequency==='weekly'||frequency==='custom';
+    form.querySelector('[data-task-weekdays]').hidden = !recurring || !usesDays;
+    const monthDay=Math.max(1,Math.min(31,Number(form.querySelector('[name="recurrence_month_day"]')?.value)||1));
+    form.querySelector('[data-task-month-day]').hidden=!recurring||frequency!=='monthly';
+    recurrenceValue.value = !recurring ? '' : (usesDays ? (days.length ? `weekly_days:${days.join(',')}` : '') : (frequency==='monthly'?`monthly_day:${monthDay}`:frequency));
+    recurrenceWeekdays.forEach((input) => input.closest('label')?.querySelector('span')?.setAttribute('aria-pressed', input.checked ? 'true' : 'false'));
+    if (recurrenceSummary) {
+      const names=['','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+      const time=form.querySelector('[name="recurrence_time"]')?.value || '08:00';
+      recurrenceSummary.textContent = !recurring ? 'This task is created once.' : usesDays && days.length ? `Repeats every ${days.map((day)=>names[day]).join(', ')} at ${time}.` : frequency==='monthly'?`Repeats monthly on day ${monthDay} at ${time}.`:(frequency==='daily_business_day'?`Repeats every business day at ${time}.`:'Choose one or more weekdays.');
+    }
   };
-  repeatToggle.addEventListener('change', syncRecurrence); recurrenceSelect.addEventListener('change', syncRecurrence); syncRecurrence();
+  repeatModes.forEach((input)=>input.addEventListener('change',syncRecurrence)); recurrenceSelect.addEventListener('change', syncRecurrence); recurrenceWeekdays.forEach((input)=>input.addEventListener('change',syncRecurrence)); form.querySelector('[name="recurrence_time"]')?.addEventListener('input',syncRecurrence); form.querySelector('[name="recurrence_month_day"]')?.addEventListener('input',syncRecurrence); syncRecurrence();
 
   const syncChecklist = () => { checklistValue.value = [...checklistList.querySelectorAll('input')].map((input) => input.value.trim()).filter(Boolean).join('\n'); };
   const addChecklistItem = (label) => {
@@ -2656,10 +2714,12 @@ function initialiseTaskCreateForm() {
     try { const result=await templateApi('task_template_from_task',{task_id:button.dataset.saveTaskTemplate,template_name:name,save_assignee:'1',include_attachments:include?'1':''}); window.alert(result.message); } catch(error){window.alert(error.message);}
   });
 
-  form.addEventListener('submit', (event) => {
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
     syncInstructions(); syncDueAt(); syncChecklist(); syncRecurrence();
     if (!validateDueAt()) { event.preventDefault(); dueTrigger.focus(); return; }
     if (scheduledAtInput.required) { const release = scheduledAtInput.value ? new Date(scheduledAtInput.value.replace(' ', 'T')) : null; const due = parseDueAt(); if (!release || Number.isNaN(release.getTime()) || release <= new Date()) { event.preventDefault(); window.alert('Select a future release date and time.'); return; } if (due && due <= release) { event.preventDefault(); window.alert('The due date must be after the scheduled release time.'); return; } }
+    if (form.querySelector('[name="repeat_type"]:checked')?.value === 'recurring' && ['weekly','custom'].includes(recurrenceSelect.value) && !recurrenceWeekdays.some((input)=>input.checked)) { event.preventDefault(); recurrenceSummary.textContent='Choose at least one weekday.'; recurrenceSummary.focus?.(); return; }
     const required = [...form.querySelectorAll('[required]')];
     const invalid = required.find((field) => !String(field.value || '').trim());
     if (invalid) { event.preventDefault(); invalid.setAttribute('aria-invalid', 'true'); (invalid === instructionInput ? instructionEditor : invalid).focus(); return; }
@@ -2667,9 +2727,24 @@ function initialiseTaskCreateForm() {
       const employeeCount = Number(assignee.dataset.allEmployeeCount || 0);
       if (!window.confirm(`Assign this task to all ${employeeCount} active employees?`)) { event.preventDefault(); return; }
     }
-    if (saving) { event.preventDefault(); return; }
+    if (saving) return;
     saving = true;
-    const submit = form.querySelector('[type="submit"]'); submit.disabled = true; submit.textContent = assignee?.value === 'all' ? `Assigning ${assignee.dataset.allEmployeeCount} tasks…` : 'Assigning…';
+    const submit = form.querySelector('[type="submit"]'), originalLabel=submit.textContent; submit.disabled = true; submit.textContent = 'Creating…';
+    try {
+      const response=await fetch(form.action||window.location.href,{method:'POST',body:new FormData(form),credentials:'same-origin',headers:{Accept:'application/json','X-Requested-With':'XMLHttpRequest'}});
+      const result=await response.json();
+      if(!response.ok||result.success!==true)throw new Error(result.message||'The task could not be created.');
+      taskViewCache.clear();
+      const panel=document.querySelector('[data-task-create-panel]');panel?.classList.remove('open');panel?.setAttribute('aria-hidden','true');
+      const backdrop=document.querySelector('.task-panel-backdrop');if(backdrop)backdrop.hidden=true;document.body.classList.remove('task-panel-open');
+      const root=document.querySelector('.digital-task-page'),content=root?.querySelector('[data-task-view-content]');
+      const view=result.recurring?'recurring':(result.scheduled?'scheduled':'tasks');
+      if(root&&content)await openTaskView(view,{root,content,force:true,historyMethod:'replaceState'});
+      form.reset(); syncAssignmentMode(); syncDeliveryMode(); syncRecurrence();
+      if(window.portalToast?.success)window.portalToast.success(result.message);else window.alert(result.message);
+    } catch(error) {
+      window.alert(error.message||'The task could not be created.');
+    } finally { saving=false;submit.disabled=false;submit.textContent=originalLabel; }
   });
 }
 initialiseTaskCreateForm();
@@ -4018,17 +4093,9 @@ document.addEventListener('click', (event) => {
   }
   if (createOpen) {
     const panel = document.querySelector('[data-task-create-panel]');
-    const recurringSelect = panel?.querySelector('#create-task-recurrence');
-    const recurringToggle = panel?.querySelector('[data-task-repeat-toggle]');
-    const recurringValue = panel?.querySelector('[data-task-recurrence-default]');
-    const recurringOptions = panel?.querySelector('[data-task-repeat-options]');
     const createKind = createOpen.dataset.taskCreateKind === 'recurring' ? 'recurring' : 'manual';
-    if (recurringSelect) {
-      recurringSelect.value = 'daily_business_day';
-      if (recurringToggle) recurringToggle.checked = createKind === 'recurring';
-      if (recurringValue) recurringValue.value = createKind === 'recurring' ? recurringSelect.value : '';
-      if (recurringOptions) recurringOptions.hidden = createKind !== 'recurring';
-    }
+    const repeatMode=panel?.querySelector(`[name="repeat_type"][value="${createKind==='recurring'?'recurring':'one_time'}"]`);
+    if(repeatMode){repeatMode.checked=true;repeatMode.dispatchEvent(new Event('change',{bubbles:true}));}
     const badge = panel?.querySelector('.create-task-type-badge');
     if (badge) badge.textContent = createKind === 'recurring' ? 'Recurring task' : 'Manual task';
     if (panel) {
