@@ -62,6 +62,53 @@ function im2_reparse_existing_statement(int $statementId): array
     }
 }
 
+function im2_reprocess_statement(int $statementId): array
+{
+    $statement = import_vat_statement($statementId);
+    if (!$statement) throw new RuntimeException('Statement not found.');
+    if (!$statement['confirmed_at']) return im2_reparse_existing_statement($statementId);
+    $user = current_user();
+    db()->beginTransaction();
+    try {
+        $lock = db()->prepare('SELECT * FROM accounts_import_vat_statements WHERE id=? FOR UPDATE');
+        $lock->execute([$statementId]);
+        $locked = $lock->fetch();
+        if (!$locked) throw new RuntimeException('Statement not found.');
+
+        $liabilityQuery = db()->prepare('SELECT * FROM accounts_import_vat_liabilities WHERE source_statement_id=? AND deleted_at IS NULL FOR UPDATE');
+        $liabilityQuery->execute([$statementId]);
+        $liabilities = $liabilityQuery->fetchAll();
+        $liabilityIds = array_map('intval', array_column($liabilities, 'id'));
+        $paymentQuery = db()->prepare('SELECT * FROM accounts_import_vat_payments WHERE source_statement_id=? AND reversed_at IS NULL FOR UPDATE');
+        $paymentQuery->execute([$statementId]);
+        $payments = $paymentQuery->fetchAll();
+        $backup = [
+            'statement' => ['id'=>$statementId,'status'=>$locked['status'],'confirmed_at'=>$locked['confirmed_at'],'sha256'=>$locked['sha256']],
+            'liabilities' => $liabilities,
+            'payments' => $payments,
+            'rows' => $statement['rows'],
+        ];
+        import_vat_statement_audit($statementId, 'statement_reprocess_snapshot', $backup);
+
+        db()->prepare("UPDATE accounts_import_vat_payments SET reversed_at=NOW(),reversed_by=?,reversal_reason='Accounting-period mapping corrected — reimport required.' WHERE source_statement_id=? AND reversed_at IS NULL")->execute([(int)$user['id'], $statementId]);
+        foreach ($liabilityIds as $liabilityId) {
+            $beforeLiability = null;
+            foreach ($liabilities as $candidate) if ((int)$candidate['id'] === $liabilityId) {$beforeLiability = $candidate; break;}
+            db()->prepare('DELETE FROM accounts_import_vat_credit_eligibility WHERE import_id=?')->execute([$liabilityId]);
+            db()->prepare("UPDATE accounts_import_vat_liabilities SET deleted_at=NOW(),deleted_by=? WHERE id=? AND deleted_at IS NULL")->execute([(int)$user['id'], $liabilityId]);
+            import_vat_audit($liabilityId, 'namra_import_reverted', $beforeLiability, ['statement_id'=>$statementId,'reason'=>'Accounting-period mapping corrected — reimport required.']);
+        }
+        db()->prepare("UPDATE accounts_import_vat_statement_rows SET matched_import_id=NULL,match_status=CASE WHEN excluded=1 THEN 'excluded' WHEN classification='needs_review' THEN 'needs_review' ELSE 'new' END,match_method=NULL WHERE statement_id=?")->execute([$statementId]);
+        db()->prepare("UPDATE accounts_import_vat_statements SET status='needs_review',confirmed_by=NULL,confirmed_by_name=NULL,confirmed_at=NULL,new_records=0,matched_payments=0,duplicates_skipped=0,reprocessed_at=NOW(),reprocessed_by=?,reprocessed_by_name=?,reprocess_reason='Accounting-period mapping corrected — reimport required.' WHERE id=?")->execute([(int)$user['id'], (string)$user['name'], $statementId]);
+        import_vat_statement_audit($statementId, 'statement_reverted_for_reprocess', ['liability_ids'=>$liabilityIds,'payment_ids'=>array_map('intval',array_column($payments,'id')),'reason'=>'Accounting-period mapping corrected — reimport required.']);
+        db()->commit();
+    } catch (Throwable $error) {
+        db()->rollBack();
+        throw $error;
+    }
+    return im2_reparse_existing_statement($statementId);
+}
+
 function im2_upload_statement(): array
 {
     if (!isset($_FILES['statement']) || !is_uploaded_file((string)$_FILES['statement']['tmp_name'])) {
@@ -218,7 +265,7 @@ function im2_confirm_statement(int $statementId): array
 
         foreach ($periods as $period) {
             $reference = im2_period_reference($period['tax_year'], $period['tax_period']);
-            $find = db()->prepare('SELECT * FROM accounts_import_vat_liabilities WHERE reference=? AND deleted_at IS NULL FOR UPDATE');
+            $find = db()->prepare('SELECT * FROM accounts_import_vat_liabilities WHERE reference=? FOR UPDATE');
             $find->execute([$reference]);
             $liability = $find->fetch() ?: null;
 
@@ -240,8 +287,8 @@ function im2_confirm_statement(int $statementId): array
                 if (!$basis || !$basis['due_date'] || !$basis['transaction_date']) {
                     throw new RuntimeException('Tax Year '.$period['tax_year'].' / Tax Period '.$period['tax_period'].' needs an action/effective date and due date.');
                 }
-                db()->prepare('INSERT INTO accounts_import_vat_liabilities(import_date,import_month,supplier,description,reference,source_system,payment_arrangement,import_vat_amount,duty_amount,other_charge_amount,total_due,due_date,notes,created_by,created_by_name,source_statement_id,source_statement_row_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')->execute([
-                    $basis['transaction_date'], $period['month'], '',
+                db()->prepare('INSERT INTO accounts_import_vat_liabilities(import_date,import_month,accounting_period,namra_tax_year,namra_tax_period,effective_date,action_date,supplier,description,reference,source_system,payment_arrangement,import_vat_amount,duty_amount,other_charge_amount,total_due,due_date,notes,created_by,created_by_name,source_statement_id,source_statement_row_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')->execute([
+                    $basis['transaction_date'], $period['month'], $period['month'], (int)$period['tax_year'], (int)$period['tax_period'], $basis['effective_date'], $basis['action_date'], '',
                     'NamRA Import VAT principal for '.$period['tax_year'].' / '.$period['tax_period'], $reference,
                     'NamRA Transaction Records', 'import_vat_account', $principal, 0, 0, $principal,
                     $basis['due_date'], 'Principal uses unique 201 assessments plus 204 increased-debit revisions. Codes 481 and 304 are excluded.',
@@ -251,9 +298,9 @@ function im2_confirm_statement(int $statementId): array
                 $newRecords++;
             } else {
                 $importId = (int)$liability['id'];
-                if ($principal > 0 && abs((float)$liability['total_due'] - $principal) > 0.005) {
-                    db()->prepare('UPDATE accounts_import_vat_liabilities SET import_month=?,import_vat_amount=?,total_due=?,updated_by=? WHERE id=?')->execute([$period['month'], $principal, $principal, (int)$user['id'], $importId]);
-                    import_vat_audit($importId, 'namra_principal_reconciled', $liability, ['total_due' => $principal, 'statement_id' => $statementId]);
+                if ($principal > 0) {
+                    db()->prepare('UPDATE accounts_import_vat_liabilities SET import_month=?,accounting_period=?,namra_tax_year=?,namra_tax_period=?,effective_date=?,action_date=?,import_vat_amount=?,total_due=?,source_statement_id=?,source_statement_row_id=?,deleted_at=NULL,deleted_by=NULL,updated_by=? WHERE id=?')->execute([$period['month'], $period['month'], (int)$period['tax_year'], (int)$period['tax_period'], $basis['effective_date'] ?? null, $basis['action_date'] ?? null, $principal, $principal, $statementId, (int)($basis['id'] ?? 0), (int)$user['id'], $importId]);
+                    import_vat_audit($importId, 'namra_principal_reconciled', $liability, ['total_due'=>$principal,'accounting_period'=>$period['month'],'tax_year'=>$period['tax_year'],'tax_period'=>$period['tax_period'],'statement_id'=>$statementId]);
                 }
             }
 
@@ -308,13 +355,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'statement') {
         im2_reply(['ok' => false, 'message' => $error->getMessage()], 400);
     }
 }
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action, ['upload_statement', 'confirm_statement'], true)) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action, ['upload_statement', 'confirm_statement', 'reprocess_statement'], true)) {
     try {
         import_vat_verify((string)($_POST['csrf'] ?? ''));
         if ($action === 'upload_statement') {
             if (!accounts_can('import_vat.upload_statement')) throw new RuntimeException('You cannot upload Import VAT statements.');
             $result = im2_upload_statement();
             im2_reply(['ok' => true, 'message' => $result['message'], 'data' => $result]);
+        }
+        if ($action === 'reprocess_statement') {
+            if (!accounts_is_owner()) throw new RuntimeException('Owner approval is required to reprocess a confirmed statement.');
+            $statement = im2_reprocess_statement((int)($_POST['id'] ?? 0));
+            im2_reply(['ok'=>true,'message'=>'Incorrect financial posting reverted. Source preserved and statement reprocessed for review.','data'=>$statement]);
         }
         if (!accounts_can('import_vat.confirm_import')) throw new RuntimeException('You cannot confirm Import VAT statements.');
         $statement = im2_confirm_statement((int)($_POST['id'] ?? 0));

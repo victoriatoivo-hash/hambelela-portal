@@ -42,8 +42,22 @@ if (array_column($rows, 'classification') !== $expected) {
 if ($rows[2]['doc_number'] !== 'BR62KESVT_MVATT-03112025-') {
     throw new RuntimeException('Spaced NamRA payment document number was not normalised.');
 }
-if (import_vat_tax_period_month('2027', '5') !== '2026-08' || import_vat_tax_period_month('2026', '12') !== '2026-03') {
-    throw new RuntimeException('NamRA Tax Year/Tax Period month mapping failed.');
+$periodCases = [
+    ['2027', '1', '2026-03'],
+    ['2027', '5', '2026-07'],
+    ['2027', '10', '2026-12'],
+    ['2027', '11', '2027-01'],
+    ['2027', '12', '2027-02'],
+];
+foreach ($periodCases as [$taxYear, $taxPeriod, $expectedMonth]) {
+    if (import_vat_tax_period_month($taxYear, $taxPeriod) !== $expectedMonth) {
+        throw new RuntimeException("NamRA {$taxYear}/P{$taxPeriod} should resolve to {$expectedMonth}.");
+    }
+}
+foreach ([['2027',''],['2027','0'],['2027','13'],['2027','five'],['year','5']] as [$taxYear,$taxPeriod]) {
+    if (import_vat_tax_period_month($taxYear, $taxPeriod) !== null) {
+        throw new RuntimeException('Invalid NamRA Tax Year/Tax Period must require review.');
+    }
 }
 if ((int)$rows[3]['included_in_payable'] !== 0 || (int)$rows[4]['included_in_payable'] !== 0) {
     throw new RuntimeException('Penalty/interest rows must be retained but excluded from payable totals.');

@@ -3,20 +3,27 @@ declare(strict_types=1);
 
 /**
  * Convert a NamRA VAT Import Account tax year/period to its accounting month.
- * NamRA period 1 is April of the preceding calendar year; period 12 is March.
+ * The owner's NamRA tax cycle runs March through February. The Tax Year is the
+ * calendar year in which that cycle ends, so 2027/P1 is March 2026 and
+ * 2027/P12 is February 2027.
  */
 function import_vat_tax_period_month(string $taxYear, string $taxPeriod): ?string
 {
-    $year = (int)trim($taxYear);
-    $period = (int)trim($taxPeriod);
+    $taxYear = trim($taxYear);
+    $taxPeriod = trim($taxPeriod);
+    if (!preg_match('/^\d{4}$/', $taxYear) || !preg_match('/^\d{1,2}$/', $taxPeriod)) {
+        return null;
+    }
+    $year = (int)$taxYear;
+    $period = (int)$taxPeriod;
     if ($year < 2000 || $period < 1 || $period > 12) {
         return null;
     }
-    $month = $period + 3;
-    if ($month > 12) {
-        $month -= 12;
-    } else {
+    if ($period <= 10) {
+        $month = $period + 2;
         $year--;
+    } else {
+        $month = $period - 10;
     }
     return sprintf('%04d-%02d', $year, $month);
 }
@@ -57,6 +64,8 @@ function import_vat_statement_row(array $source, int $rowNumber): array
     $doc = trim((string)($source['doc_number'] ?? ''));
     $taxYear = trim((string)($source['tax_year'] ?? ''));
     $taxPeriod = trim((string)($source['tax_period'] ?? ''));
+    $accountingPeriod = import_vat_tax_period_month($taxYear, $taxPeriod);
+    $periodNeedsReview = $included && $accountingPeriod === null;
     $dueDate = import_vat_normal_date(trim((string)($source['due_date'] ?? '')));
     $effectiveDate = import_vat_normal_date(trim((string)($source['effective_date'] ?? '')));
     $actionDate = import_vat_normal_date(trim((string)($source['action_date'] ?? '')));
@@ -85,8 +94,8 @@ function import_vat_statement_row(array $source, int $rowNumber): array
         'other_charge_amount' => 0,
         'payment_amount' => $classification === 'payment' ? $amount : 0,
         'row_kind' => $kind,
-        'confidence' => $classification === 'needs_review' ? 'low' : 'high',
-        'match_status' => $classification === 'needs_review' ? 'needs_review' : ($included ? 'new' : 'excluded'),
+        'confidence' => ($classification === 'needs_review' || $periodNeedsReview) ? 'low' : 'high',
+        'match_status' => ($classification === 'needs_review' || $periodNeedsReview) ? 'needs_review' : ($included ? 'new' : 'excluded'),
         'tax_type' => trim((string)($source['tax_type'] ?? 'Value Added Tax Import Account')),
         'transaction_type' => preg_replace('/\s+/u', ' ', $transactionType),
         'liability_type' => trim((string)($source['liability_type'] ?? '')),
