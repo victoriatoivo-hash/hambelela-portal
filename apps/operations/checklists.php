@@ -2717,7 +2717,8 @@ function initialiseTaskCreateForm() {
     const mode = currentTaskMode();
     const scheduled = mode === 'scheduled', recurring = mode === 'recurring';
     modeSections.forEach((section) => { section.hidden = section.dataset.taskModeSection !== mode; });
-    form.querySelector('[data-task-mode-badge]').textContent = ({one_off:'One-off task',scheduled:'Scheduled task',recurring:'Recurring task'})[mode];
+    const modeBadge=panel.querySelector('[data-task-mode-badge]');
+    if(modeBadge)modeBadge.textContent=({one_off:'One-off task',scheduled:'Scheduled task',recurring:'Recurring task'})[mode];
     form.querySelector('[data-task-delivery-value]').value = scheduled ? 'scheduled' : 'now';
     form.querySelector('[data-task-repeat-value]').value = recurring ? 'recurring' : 'one_time';
     dueAtInput.disabled = mode !== 'one_off';
