@@ -28,7 +28,7 @@ function task_deliver_configured_popup(array $task): bool
 {
     $taskId = (int) ($task['id'] ?? 0);
     if ($taskId <= 0 || empty($task['urgent_alert_enabled']) || !empty($task['urgent_alert_sent_at'])) return true;
-    $claim = db()->prepare("UPDATE ops_checklist_tasks SET urgent_alert_claimed_at = NOW(), urgent_alert_last_error = NULL WHERE id = ? AND urgent_alert_enabled = 1 AND urgent_alert_sent_at IS NULL AND urgent_alert_claimed_at IS NULL");
+    $claim = db()->prepare("UPDATE ops_checklist_tasks SET urgent_alert_claimed_at = NOW(), urgent_alert_last_error = NULL WHERE id = ? AND urgent_alert_enabled = 1 AND urgent_alert_sent_at IS NULL AND urgent_alert_claimed_at IS NULL AND status NOT IN ('complete','completed','done','archived','deleted','trashed','cancelled') AND archived_at IS NULL AND deleted_at IS NULL AND (recurring_template_id IS NULL OR EXISTS (SELECT 1 FROM ops_checklist_recurring_templates rt WHERE rt.id=ops_checklist_tasks.recurring_template_id AND rt.is_active=1 AND COALESCE(rt.status,'active')='active'))");
     $claim->execute([$taskId]);
     if ($claim->rowCount() !== 1) return true;
     try {
@@ -66,13 +66,15 @@ function task_release_due_scheduled_tasks(): int
     $hasPopupConfig = ops_column_exists('ops_checklist_tasks', 'urgent_alert_recipients_json')
         && ops_column_exists('ops_checklist_tasks', 'urgent_alert_claimed_at')
         && ops_column_exists('ops_checklist_tasks', 'urgent_alert_last_error');
-    $popupColumns = $hasPopupConfig ? ', urgent_alert_enabled, urgent_alert_recipients_json, urgent_alert_sent_at' : '';
-    $floatingColumns = ops_column_exists('ops_checklist_tasks', 'assignment_type') ? ', assignment_type, floating_eligible_role, floating_allocation_status' : '';
+    $popupColumns = $hasPopupConfig ? ', t.urgent_alert_enabled, t.urgent_alert_recipients_json, t.urgent_alert_sent_at' : '';
+    $floatingColumns = ops_column_exists('ops_checklist_tasks', 'assignment_type') ? ', t.assignment_type, t.floating_eligible_role, t.floating_allocation_status' : '';
     $rows = ops_rows(
-        "SELECT id, assigned_employee_id, task_name, scheduled_at{$floatingColumns}{$popupColumns} FROM ops_checklist_tasks
-         WHERE scheduled_at IS NOT NULL AND scheduled_at <= ? AND released_at IS NULL
-           AND status NOT IN ('complete','completed','done','archived','deleted','trashed')
-           AND archived_at IS NULL AND deleted_at IS NULL ORDER BY scheduled_at, id LIMIT 100",
+        "SELECT t.id, t.assigned_employee_id, t.task_name, t.scheduled_at{$floatingColumns}{$popupColumns} FROM ops_checklist_tasks t
+         LEFT JOIN ops_checklist_recurring_templates rt ON rt.id=t.recurring_template_id
+         WHERE t.scheduled_at IS NOT NULL AND t.scheduled_at <= ? AND t.released_at IS NULL
+           AND t.status NOT IN ('complete','completed','done','archived','deleted','trashed','cancelled')
+           AND (t.recurring_template_id IS NULL OR (rt.is_active=1 AND COALESCE(rt.status,'active')='active'))
+           AND t.archived_at IS NULL AND t.deleted_at IS NULL ORDER BY t.scheduled_at, t.id LIMIT 100",
         [$now]
     );
     $released = 0;
@@ -89,7 +91,9 @@ function task_release_due_scheduled_tasks(): int
             $stmt = $pdo->prepare(
                 "UPDATE ops_checklist_tasks SET released_at = ?, date_assigned = CASE WHEN ? = 1 THEN COALESCE(date_assigned, ?) ELSE date_assigned END, employee_visible = ?
                  WHERE id = ? AND released_at IS NULL AND scheduled_at IS NOT NULL AND scheduled_at <= ?
-                   AND status NOT IN ('complete','completed','done','archived','deleted','trashed')"
+                   AND status NOT IN ('complete','completed','done','archived','deleted','trashed','cancelled')
+                   AND archived_at IS NULL AND deleted_at IS NULL
+                   AND (recurring_template_id IS NULL OR EXISTS (SELECT 1 FROM ops_checklist_recurring_templates rt WHERE rt.id=ops_checklist_tasks.recurring_template_id AND rt.is_active=1 AND COALESCE(rt.status,'active')='active'))"
             );
             $stmt->execute([$now, $hasAssignee ? 1 : 0, $now, $hasAssignee ? 1 : 0, (int) $row['id'], $now]);
             if ($stmt->rowCount() !== 1) { $pdo->rollBack(); continue; }
@@ -111,12 +115,13 @@ function task_release_due_scheduled_tasks(): int
     }
     if ($hasPopupConfig) db()->exec("UPDATE ops_checklist_tasks SET urgent_alert_claimed_at = NULL WHERE urgent_alert_sent_at IS NULL AND urgent_alert_claimed_at < DATE_SUB(NOW(), INTERVAL 10 MINUTE)");
     $pendingPopups = $hasPopupConfig ? ops_rows(
-        "SELECT id, assigned_employee_id, task_name, urgent_alert_enabled, urgent_alert_recipients_json, urgent_alert_sent_at
-         FROM ops_checklist_tasks
-         WHERE released_at IS NOT NULL AND urgent_alert_enabled = 1 AND urgent_alert_sent_at IS NULL
-           AND status NOT IN ('complete','completed','done','archived','deleted','trashed')
-           AND urgent_alert_claimed_at IS NULL AND archived_at IS NULL AND deleted_at IS NULL
-         ORDER BY released_at, id LIMIT 100"
+        "SELECT t.id, t.assigned_employee_id, t.task_name, t.urgent_alert_enabled, t.urgent_alert_recipients_json, t.urgent_alert_sent_at
+         FROM ops_checklist_tasks t LEFT JOIN ops_checklist_recurring_templates rt ON rt.id=t.recurring_template_id
+         WHERE t.released_at IS NOT NULL AND t.urgent_alert_enabled = 1 AND t.urgent_alert_sent_at IS NULL
+           AND t.status NOT IN ('complete','completed','done','archived','deleted','trashed','cancelled')
+           AND (t.recurring_template_id IS NULL OR (rt.is_active=1 AND COALESCE(rt.status,'active')='active'))
+           AND t.urgent_alert_claimed_at IS NULL AND t.archived_at IS NULL AND t.deleted_at IS NULL
+         ORDER BY t.released_at, t.id LIMIT 100"
     ) : [];
     foreach ($pendingPopups as $pendingPopup) task_deliver_configured_popup($pendingPopup);
     return $released;

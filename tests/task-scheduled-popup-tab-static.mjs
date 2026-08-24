@@ -13,7 +13,8 @@ assert.match(scheduler, /urgent_alert_claimed_at = NOW\(\)/);
 assert.match(scheduler, /urgent_alert_sent_at IS NULL AND urgent_alert_claimed_at IS NULL/);
 assert.match(scheduler, /task_scheduled_popup_recipient_ids/);
 assert.match(scheduler, /task_urgent_alert_failed/);
-assert.match(scheduler, /released_at IS NOT NULL AND urgent_alert_enabled = 1 AND urgent_alert_sent_at IS NULL/);
+assert.match(scheduler, /t\.released_at IS NOT NULL AND t\.urgent_alert_enabled = 1 AND t\.urgent_alert_sent_at IS NULL/);
+assert.match(scheduler, /t\.recurring_template_id IS NULL OR \(rt\.is_active=1/);
 assert.match(scheduler, /\$pdo->commit\(\);\s*if \(\$hasPopupConfig\) task_deliver_configured_popup\(\$row\)/);
 
 console.log('Scheduled popup delivery and Scheduled tab static checks passed.');

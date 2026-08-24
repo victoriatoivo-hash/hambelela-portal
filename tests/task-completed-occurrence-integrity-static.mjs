@@ -17,9 +17,9 @@ assert.ok((tasks.match(/Only management can reopen a completed task\./g) || []).
 assert.match(tasks, /recurring-duplicate-kpi-exclusion-v1/, 'legacy duplicate occurrences are excluded from KPI scoring once');
 assert.match(tasks, /SET duplicate_occurrence\.performance_scored = 0/, 'duplicate history remains stored but cannot score twice');
 
-assert.ok((notifications.match(/t\.status IS NOT NULL AND t\.status NOT IN \('complete','completed','done','archived','deleted','trashed'\)/g) || []).length >= 2,
+assert.ok((notifications.match(/t\.status IS NOT NULL AND t\.status NOT IN \('complete','completed','done','archived','deleted','trashed','cancelled'\)/g) || []).length >= 2,
   'completed task notifications are absent from full and summary feeds');
-assert.ok((scheduling.match(/status NOT IN \('complete','completed','done','archived','deleted','trashed'\)/g) || []).length >= 3,
+assert.ok((scheduling.match(/status NOT IN \('complete','completed','done','archived','deleted','trashed','cancelled'\)/g) || []).length >= 3,
   'scheduled release, update claim and urgent popup paths ignore completed tasks');
 
 console.log('Completed task occurrence integrity checks passed.');

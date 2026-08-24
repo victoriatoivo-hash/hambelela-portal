@@ -249,6 +249,18 @@ function checklist_bootstrap_schema(): void
         }
         db()->prepare('INSERT IGNORE INTO portal_schema_migrations(migration_key) VALUES(?)')->execute([$legacyRecurringMigration]);
     }
+    $disabledRecurringCleanupMigration='2026-08-24-disabled-recurring-child-cleanup-v1';
+    if(!ops_rows('SELECT 1 FROM portal_schema_migrations WHERE migration_key=? LIMIT 1',[$disabledRecurringCleanupMigration])){
+        try {
+            $inactiveTemplates=ops_rows("SELECT id FROM ops_checklist_recurring_templates WHERE is_active=0 OR COALESCE(status,'active')<>'active'");
+            foreach($inactiveTemplates as$inactiveTemplate){
+                checklist_deactivate_recurring_occurrences((int)$inactiveTemplate['id'],0,'inactive_parent_migration');
+            }
+            db()->prepare('INSERT IGNORE INTO portal_schema_migrations(migration_key) VALUES(?)')->execute([$disabledRecurringCleanupMigration]);
+        } catch (Throwable $e) {
+            error_log('Disabled recurring occurrence cleanup failed: '.$e->getMessage());
+        }
+    }
     db()->exec(
         "CREATE TABLE IF NOT EXISTS ops_checklist_attachments (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -265,7 +277,7 @@ function checklist_bootstrap_schema(): void
             INDEX idx_task_attachment (task_id, removed_at, created_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
     );
-    $legacyStatuses = ops_rows("SELECT id, status FROM ops_checklist_tasks WHERE status NOT IN ('new', 'in_progress', 'complete')");
+    $legacyStatuses = ops_rows("SELECT id, status FROM ops_checklist_tasks WHERE status NOT IN ('new', 'in_progress', 'complete', 'cancelled')");
     foreach ($legacyStatuses as $legacyTask) {
         $previousStatus = strtolower(trim((string) $legacyTask['status']));
         $nextStatus = in_array($previousStatus, ['start', 'started', 'progress'], true) ? 'in_progress'
@@ -778,6 +790,52 @@ function checklist_rule_runs_today(string $rule, int $dayNumber, ?string $dateKe
     return false;
 }
 
+/** Cancel incomplete children of a disabled recurring definition without deleting history. */
+function checklist_deactivate_recurring_occurrences(int $templateId, int $actorId, string $reason): array
+{
+    if ($templateId <= 0 || !ops_table_exists('ops_checklist_tasks')) return ['tasks' => 0, 'notifications' => 0];
+    $rows = ops_rows(
+        "SELECT id, task_name, status FROM ops_checklist_tasks
+         WHERE recurring_template_id = ? AND deleted_at IS NULL AND archived_at IS NULL
+           AND status NOT IN ('complete','completed','done','approved')",
+        [$templateId]
+    );
+    if (!$rows) return ['tasks' => 0, 'notifications' => 0];
+    $ids = array_values(array_map(static function (array $row): int { return (int) $row['id']; }, $rows));
+    $marks = implode(',', array_fill(0, count($ids), '?'));
+    $params = [$actorId ?: null];
+    foreach ($ids as $id) $params[] = $id;
+    $stmt = db()->prepare(
+        "UPDATE ops_checklist_tasks
+         SET status='cancelled', employee_visible=0, performance_scored=0,
+             urgent_alert_enabled=0, urgent_alert_claimed_at=NULL,
+             archived_at=COALESCE(archived_at,NOW()), archived_by=COALESCE(archived_by,?)
+         WHERE id IN ({$marks}) AND deleted_at IS NULL AND archived_at IS NULL
+           AND status NOT IN ('complete','completed','done','approved')"
+    );
+    $stmt->execute($params);
+    $cancelled = $stmt->rowCount();
+    $cleared = 0;
+    if (function_exists('notifications_schema_ready') && notifications_schema_ready()) {
+        $clear = db()->prepare(
+            "UPDATE notification_recipients nr JOIN notifications n ON n.id=nr.notification_id
+             SET nr.read_at=COALESCE(nr.read_at,NOW()), nr.cleared_at=COALESCE(nr.cleared_at,NOW())
+             WHERE n.related_type='checklist_task' AND n.related_id IN ({$marks}) AND nr.cleared_at IS NULL"
+        );
+        $clear->execute($ids);
+        $cleared = $clear->rowCount();
+    }
+    foreach ($rows as $row) {
+        checklist_kpi_status_event((int) $row['id'], (string) $row['status'], 'cancelled', $actorId ?: null);
+        ops_activity_log('recurring_occurrence_cancelled', 'checklist_task', (int) $row['id'], [
+            'task_name' => (string) $row['task_name'], 'previous_status' => (string) $row['status'],
+            'status' => 'cancelled', 'recurring_template_id' => $templateId, 'reason' => $reason,
+            'historical_completed_occurrences_preserved' => true,
+        ]);
+    }
+    return ['tasks' => $cancelled, 'notifications' => $cleared];
+}
+
 function checklist_recurrence_label(string $rule): string
 {
     if (preg_match('/^monthly_day:(\d{1,2})$/', $rule, $match)) return 'Monthly on day ' . (int)$match[1];
@@ -964,9 +1022,14 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $template = $rows[0];
             if ($action === 'recurring_pause') {
                 if ((string)($template['status'] ?? '') !== 'active') throw new RuntimeException('Only an active recurring task can be paused.');
-                db()->prepare("UPDATE ops_checklist_recurring_templates SET status='paused',is_active=0,paused_at=NOW(),version_no=version_no+1 WHERE id=?")->execute([$templateId]);
-                ops_activity_log('recurring_task_paused','checklist_recurring_template',$templateId,['task_name'=>$template['task_name']]);
-                $message='Recurring task paused. Existing occurrences were not changed.';
+                $pdo=db();$pdo->beginTransaction();
+                try{
+                    $pdo->prepare("UPDATE ops_checklist_recurring_templates SET status='paused',is_active=0,paused_at=NOW(),next_run_at=NULL,version_no=version_no+1 WHERE id=?")->execute([$templateId]);
+                    $cleanup=checklist_deactivate_recurring_occurrences($templateId,(int)($currentEmployeeId?:0),'recurring_schedule_paused');
+                    ops_activity_log('recurring_task_paused','checklist_recurring_template',$templateId,['task_name'=>$template['task_name'],'cancelled_incomplete_occurrences'=>$cleanup['tasks'],'cleared_notifications'=>$cleanup['notifications']]);
+                    $pdo->commit();
+                }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+                $message='Recurring task paused. Incomplete occurrences and notifications were cancelled; completed history was preserved.';
             } elseif ($action === 'recurring_resume') {
                 if ((string)($template['status'] ?? '') !== 'paused') throw new RuntimeException('Only a paused recurring task can be resumed.');
                 $next=checklist_recurrence_next_run((string)$template['recurring_rule'],(string)$template['due_time'],$template['start_date']??null,$template['end_date']??null);
@@ -976,9 +1039,14 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $message='Recurring task resumed from the next valid future schedule. Missed runs were not backfilled.';
             } elseif ($action === 'recurring_end') {
                 if (in_array((string)($template['status']??''),['ended','cancelled'],true)) throw new RuntimeException('This recurrence has already ended.');
-                db()->prepare("UPDATE ops_checklist_recurring_templates SET status='ended',is_active=0,ended_at=NOW(),next_run_at=NULL,version_no=version_no+1 WHERE id=?")->execute([$templateId]);
-                ops_activity_log('recurring_task_ended','checklist_recurring_template',$templateId,['task_name'=>$template['task_name']]);
-                $message='Recurrence ended. Historical generated tasks remain unchanged.';
+                $pdo=db();$pdo->beginTransaction();
+                try{
+                    $pdo->prepare("UPDATE ops_checklist_recurring_templates SET status='ended',is_active=0,ended_at=NOW(),next_run_at=NULL,version_no=version_no+1 WHERE id=?")->execute([$templateId]);
+                    $cleanup=checklist_deactivate_recurring_occurrences($templateId,(int)($currentEmployeeId?:0),'recurring_schedule_ended');
+                    ops_activity_log('recurring_task_ended','checklist_recurring_template',$templateId,['task_name'=>$template['task_name'],'cancelled_incomplete_occurrences'=>$cleanup['tasks'],'cleared_notifications'=>$cleanup['notifications']]);
+                    $pdo->commit();
+                }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+                $message='Recurrence ended. Incomplete occurrences and notifications were cancelled; completed history was preserved.';
             } else {
                 $expectedVersion=(int)($_POST['version_no']??0);
                 if ($expectedVersion !== (int)($template['version_no']??1)) throw new RuntimeException('This recurring task changed in another session. Refresh and review the latest rule.');
@@ -1009,12 +1077,21 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $taskId = (int) ($_POST['task_id'] ?? 0);
             $task = ops_rows('SELECT recurring_template_id, recurring_rule, task_name FROM ops_checklist_tasks WHERE id = ? LIMIT 1', [$taskId]);
             if (!$task) throw new RuntimeException('Task not found.');
-            if (!empty($task[0]['recurring_template_id'])) {
-                db()->prepare('UPDATE ops_checklist_recurring_templates SET is_active = 0 WHERE id = ?')->execute([(int) $task[0]['recurring_template_id']]);
-            } else {
-                db()->prepare('UPDATE ops_checklist_recurring_templates SET is_active = 0 WHERE recurring_rule = ?')->execute([(string) $task[0]['recurring_rule']]);
-            }
-            ops_activity_log('task_recurrence_cancelled', 'checklist_task', $taskId, ['task_name' => $task[0]['task_name']]);
+            $templates=!empty($task[0]['recurring_template_id'])
+                ? ops_rows('SELECT id FROM ops_checklist_recurring_templates WHERE id=?',[(int)$task[0]['recurring_template_id']])
+                : ops_rows('SELECT id FROM ops_checklist_recurring_templates WHERE recurring_rule=?',[(string)$task[0]['recurring_rule']]);
+            $pdo=db();$pdo->beginTransaction();
+            try{
+                $cancelled=0;$cleared=0;
+                foreach($templates as$templateRow){
+                    $parentId=(int)$templateRow['id'];
+                    $pdo->prepare("UPDATE ops_checklist_recurring_templates SET status='ended',is_active=0,ended_at=COALESCE(ended_at,NOW()),next_run_at=NULL,version_no=version_no+1 WHERE id=?")->execute([$parentId]);
+                    $cleanup=checklist_deactivate_recurring_occurrences($parentId,(int)($currentEmployeeId?:0),'recurrence_stopped_from_occurrence');
+                    $cancelled+=(int)$cleanup['tasks'];$cleared+=(int)$cleanup['notifications'];
+                }
+                ops_activity_log('task_recurrence_cancelled', 'checklist_task', $taskId, ['task_name' => $task[0]['task_name'],'cancelled_incomplete_occurrences'=>$cancelled,'cleared_notifications'=>$cleared,'completed_history_preserved'=>true]);
+                $pdo->commit();
+            }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
             header('Location: checklists.php?task_view=recurring&recurrence_stopped=1');
             exit;
         }

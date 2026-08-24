@@ -444,10 +444,12 @@ function notifications_claim_task_delivery(int $notificationId): bool
         "UPDATE notification_recipients nr
          JOIN notifications n ON n.id = nr.notification_id
          JOIN ops_checklist_tasks t ON t.id = n.related_id AND n.related_type = 'checklist_task'
+         LEFT JOIN ops_checklist_recurring_templates rt ON rt.id=t.recurring_template_id
          SET nr.delivered_at = NOW()
          WHERE nr.notification_id = ? AND nr.employee_id = ? AND nr.delivered_at IS NULL
-           AND nr.read_at IS NULL AND nr.cleared_at IS NULL AND t.status NOT IN ('complete','completed','done','archived','deleted')
-           AND t.archived_at IS NULL AND t.deleted_at IS NULL"
+           AND nr.read_at IS NULL AND nr.cleared_at IS NULL AND t.status NOT IN ('complete','completed','done','archived','deleted','trashed','cancelled')
+           AND t.archived_at IS NULL AND t.deleted_at IS NULL
+           AND (t.recurring_template_id IS NULL OR (rt.is_active=1 AND COALESCE(rt.status,'active')='active'))"
     );
     $stmt->execute([$notificationId, $employeeId]);
     if ($stmt->rowCount() < 1) return false;
@@ -733,6 +735,25 @@ function notifications_notify_task_assigned(int $taskId, ?int $employeeId, strin
         return null;
     }
 
+    try {
+        $hasRecurringParents = function_exists('ops_table_exists') && ops_table_exists('ops_checklist_recurring_templates');
+        $parentJoin = $hasRecurringParents
+            ? ' LEFT JOIN ops_checklist_recurring_templates rt ON rt.id=t.recurring_template_id' : '';
+        $parentScope = $hasRecurringParents
+            ? " AND (t.recurring_template_id IS NULL OR (rt.is_active=1 AND COALESCE(rt.status,'active')='active'))" : '';
+        $eligible = ops_rows(
+            "SELECT t.id FROM ops_checklist_tasks t{$parentJoin}
+             WHERE t.id=? AND t.assigned_employee_id=? AND t.employee_visible=1
+               AND (t.scheduled_at IS NULL OR t.released_at IS NOT NULL)
+               AND t.status NOT IN ('complete','completed','done','archived','deleted','trashed','cancelled')
+               AND t.archived_at IS NULL AND t.deleted_at IS NULL{$parentScope} LIMIT 1",
+            [$taskId, $employeeId]
+        );
+        if (!$eligible) return null;
+    } catch (Throwable $e) {
+        return null;
+    }
+
     return notifications_create([
         'title' => 'New task assigned',
         'message' => $taskName . ' has been assigned to you.',
@@ -764,11 +785,12 @@ function notifications_for_current_user(int $limit = 10): array
         // eligible for the employee feed.  Keeping this in the shared scope
         // prevents an old unread notification from making a completed task
         // look new again after a refresh.
-        $taskScope = " AND (n.related_type IS NULL OR n.related_type <> 'checklist_task' OR n.related_id IS NULL OR (t.status IS NOT NULL AND t.status NOT IN ('complete','completed','done','archived','deleted','trashed') AND (? = 1 OR (t.assigned_employee_id = ? AND t.employee_visible = 1{$taskReleased}))))";
+        $taskScope = " AND (n.related_type IS NULL OR n.related_type <> 'checklist_task' OR n.related_id IS NULL OR (t.status IS NOT NULL AND t.status NOT IN ('complete','completed','done','archived','deleted','trashed','cancelled') AND (t.recurring_template_id IS NULL OR (rt.is_active=1 AND COALESCE(rt.status,'active')='active')) AND (? = 1 OR (t.assigned_employee_id = ? AND t.employee_visible = 1{$taskReleased}))))";
         $countStmt = db()->prepare(
             "SELECT COUNT(*) FROM notification_recipients nr
              JOIN notifications n ON n.id = nr.notification_id
              LEFT JOIN ops_checklist_tasks t ON t.id = n.related_id AND n.related_type = 'checklist_task'
+             LEFT JOIN ops_checklist_recurring_templates rt ON rt.id=t.recurring_template_id
              WHERE nr.employee_id = ? AND nr.read_at IS NULL AND nr.cleared_at IS NULL{$taskScope}"
         );
         $countStmt->execute([$employeeId, $canViewAllTasks ? 1 : 0, $employeeId]);
@@ -781,6 +803,7 @@ function notifications_for_current_user(int $limit = 10): array
              FROM notification_recipients nr
              JOIN notifications n ON n.id = nr.notification_id
              LEFT JOIN ops_checklist_tasks t ON t.id = n.related_id AND n.related_type = 'checklist_task'
+             LEFT JOIN ops_checklist_recurring_templates rt ON rt.id=t.recurring_template_id
              LEFT JOIN ops_employees e ON e.id = t.assigned_employee_id
              WHERE nr.employee_id = ? AND nr.cleared_at IS NULL
                {$taskScope} AND (nr.snoozed_until IS NULL OR nr.snoozed_until <= NOW())
@@ -812,11 +835,12 @@ function notifications_summary_for_current_user(int $limit = 5): array
         // Keep completed occurrence notifications out of both the badge and
         // the preview list.  The notification is historical evidence, not a
         // new assignment, and must not reopen the employee's work queue.
-        $taskScope = " AND (n.related_type IS NULL OR n.related_type <> 'checklist_task' OR n.related_id IS NULL OR (t.status IS NOT NULL AND t.status NOT IN ('complete','completed','done','archived','deleted','trashed') AND (? = 1 OR (t.assigned_employee_id = ? AND t.employee_visible = 1{$taskReleased}))))";
+        $taskScope = " AND (n.related_type IS NULL OR n.related_type <> 'checklist_task' OR n.related_id IS NULL OR (t.status IS NOT NULL AND t.status NOT IN ('complete','completed','done','archived','deleted','trashed','cancelled') AND (t.recurring_template_id IS NULL OR (rt.is_active=1 AND COALESCE(rt.status,'active')='active')) AND (? = 1 OR (t.assigned_employee_id = ? AND t.employee_visible = 1{$taskReleased}))))";
         $countStmt = db()->prepare(
             "SELECT COUNT(*) FROM notification_recipients nr
              JOIN notifications n ON n.id = nr.notification_id
              LEFT JOIN ops_checklist_tasks t ON t.id = n.related_id AND n.related_type = 'checklist_task'
+             LEFT JOIN ops_checklist_recurring_templates rt ON rt.id=t.recurring_template_id
              WHERE nr.employee_id = ? AND nr.read_at IS NULL AND nr.cleared_at IS NULL{$taskScope}"
         );
         $countStmt->execute([$employeeId, $canViewAllTasks ? 1 : 0, $employeeId]);
@@ -831,6 +855,7 @@ function notifications_summary_for_current_user(int $limit = 5): array
              FROM notification_recipients nr
              JOIN notifications n ON n.id = nr.notification_id
              LEFT JOIN ops_checklist_tasks t ON t.id = n.related_id AND n.related_type = 'checklist_task'
+             LEFT JOIN ops_checklist_recurring_templates rt ON rt.id=t.recurring_template_id
              LEFT JOIN ops_employees e ON e.id = t.assigned_employee_id
              WHERE nr.employee_id = ? AND nr.read_at IS NULL AND nr.cleared_at IS NULL
                {$taskScope} AND (nr.snoozed_until IS NULL OR nr.snoozed_until <= NOW())
