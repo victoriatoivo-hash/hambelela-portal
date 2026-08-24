@@ -159,6 +159,22 @@
     if (restoreFocus) control.trigger.focus({ preventScroll: true });
   }
 
+  function cleanup(scope = document, options = {}) {
+    const root = scope instanceof Element || scope instanceof Document ? scope : document;
+    const restoreFocus = options.restoreFocus === true;
+    const removePopup = options.removePopup !== false;
+    const activeBelongsToRoot = Boolean(active && (
+      root === document || root.contains(active.wrapper) || root.contains(active.target)
+    ));
+    if (activeBelongsToRoot) close(restoreFocus);
+    root.querySelectorAll?.('.portal-date-picker.is-open,[data-portal-date-field].is-open').forEach((wrapper) => wrapper.classList.remove('is-open'));
+    root.querySelectorAll?.('[aria-expanded="true"].portal-date-field').forEach((trigger) => trigger.setAttribute('aria-expanded', 'false'));
+    if (removePopup && popup && (activeBelongsToRoot || !active)) {
+      popup.remove();
+      popup = null;
+    }
+  }
+
   function commit(date) {
     if (!active) return;
     const control = active;
@@ -327,7 +343,7 @@
   document.addEventListener('scroll', positionPopup, true);
   window.portalClientTimezone = clientTimezone;
   window.initialisePortalDatePickers = initialise;
-  window.PortalDatePicker = { initialise, close };
+  window.PortalDatePicker = { initialise, close, cleanup };
   window.addEventListener('DOMContentLoaded', () => {
     initialise(document);
     new MutationObserver((mutations) => mutations.forEach((mutation) => mutation.addedNodes.forEach((node) => {

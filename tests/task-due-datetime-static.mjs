@@ -27,6 +27,10 @@ assert.match(picker, /data-portal-date-clear/);
 assert.match(picker, /data-portal-date-cancel/);
 assert.match(picker, /data-portal-date-apply/);
 assert.equal((picker.match(/popup\.addEventListener\('click', handlePopupClick\)/g) || []).length, 1, 'The shared picker must retain one delegated popup click listener');
+assert.match(tasks, /cleanupTaskCreateTransientState\(\{ closePanel: true \}\)/, 'successful task creation must close body-level pickers before refreshing the view');
+assert.match(tasks, /cleanupTaskCreateTransientState\(\{ reset: true \}\)/, 'successful task creation must reset transient form state');
+assert.match(tasks, /focusSafeTaskControl\(view\)/, 'successful task creation must focus a safe view control');
+assert.match(tasks, /window\.taskCreateLifecycle\?\.cleanup\?\.\(\{ closePanel: true \}\)/, 'Cancel, X, Escape and view switching must use the shared cleanup lifecycle');
 assert.match(portalCss, /task-form-grid__row--assignment \{[^}]*minmax\(180px,\.8fr\)[^}]*minmax\(240px,1\.2fr\)/);
 assert.match(portalCss, /@media \(max-width:700px\)[\s\S]*task-form-grid__row--assignment \{ grid-template-columns:minmax\(0,1fr\)/);
 

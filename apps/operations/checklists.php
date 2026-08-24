@@ -2524,14 +2524,14 @@ function initialiseTaskInstructionsLayer() {
   });
   const focusable = () => [...modal.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [contenteditable="true"], [tabindex]:not([tabindex="-1"])')]
     .filter((element) => !element.hidden && element.getClientRects().length);
-  const close = () => {
+  const close = (restoreFocus = true) => {
     if (modal.hidden) return;
     modal.hidden = true;
     document.body.classList.remove('task-instructions-expanded');
     setParentsInactive(false);
     const target = returnFocus;
     returnFocus = null;
-    window.requestAnimationFrame(() => target?.isConnected && target.focus());
+    if (restoreFocus) window.requestAnimationFrame(() => target?.isConnected && target.focus());
   };
   const open = (trigger) => {
     returnFocus = trigger || document.activeElement;
@@ -2563,6 +2563,7 @@ function initialiseTaskCreateForm() {
   const form = document.querySelector('[data-task-create-form]');
   if (!form || form.dataset.initialised === 'true') return;
   form.dataset.initialised = 'true';
+  const createPanel = form.closest('[data-task-create-panel]');
   const dueAtInput = form.querySelector('[data-task-due-value]');
   const dueTrigger = form.querySelector('[data-task-due-trigger]');
   const dueError = form.querySelector('[data-task-due-error]');
@@ -2774,7 +2775,7 @@ function initialiseTaskCreateForm() {
   };
   const renderTaskFormState = () => { syncAssignmentType(); renderTaskMode(); renderRecurringFields(); };
   assignmentTypeInputs.forEach((input) => input.addEventListener('change', renderTaskFormState));
-  taskModeInputs.forEach((input)=>input.addEventListener('change',renderTaskFormState));
+  taskModeInputs.forEach((input)=>input.addEventListener('change',()=>{window.PortalDatePicker?.cleanup?.(form,{restoreFocus:false,removePopup:true});renderTaskFormState();}));
   recurrenceSelect.addEventListener('change', renderTaskFormState);
   recurrenceWeekdays.forEach((input)=>input.addEventListener('change',renderTaskFormState));
   form.querySelector('[name="recurrence_time"]')?.addEventListener('input',renderTaskFormState);
@@ -2894,6 +2895,52 @@ function initialiseTaskCreateForm() {
     showAttachmentError('');
   });
 
+  const focusSafeTaskControl = (preferredView = '') => {
+    window.requestAnimationFrame(() => {
+      const preferred = preferredView ? document.querySelector(`[data-task-view="${CSS.escape(preferredView)}"]`) : null;
+      const target = preferred || document.querySelector('[data-task-view].is-active') || document.querySelector('[data-task-create-open]');
+      target?.focus({ preventScroll: true });
+    });
+  };
+  const cleanupTaskCreateTransientState = ({ reset = false, closePanel = false, focusView = '' } = {}) => {
+    window.PortalDatePicker?.cleanup?.(form, { restoreFocus: false, removePopup: true });
+    document.querySelectorAll('.portal-custom-select.is-open').forEach((select) => {
+      select.classList.remove('is-open');
+      select.querySelector('.portal-custom-select-trigger')?.setAttribute('aria-expanded', 'false');
+    });
+    if (assigneeMenu) {
+      assigneeMenu.menu.hidden = true;
+      assigneeMenu.trigger.setAttribute('aria-expanded', 'false');
+    }
+    taskInstructionsLayer?.close(false);
+    if (templateDialog) templateDialog.hidden = true;
+    document.body.classList.remove('task-instructions-expanded');
+    if (reset) {
+      form.reset();
+      setInstructionHtml('');
+      checklistList.replaceChildren();
+      syncChecklist();
+      selectedAttachments = [];
+      syncAttachmentInput();
+      renderAttachments();
+      showAttachmentError('');
+      clearLoadedTemplate(false);
+      form.querySelectorAll('.task-form-error').forEach((message) => { message.textContent = ''; });
+      form.querySelectorAll('[aria-invalid="true"]').forEach((field) => field.removeAttribute('aria-invalid'));
+      renderTaskFormState();
+      syncDueAt();
+    }
+    if (closePanel && createPanel) {
+      createPanel.classList.remove('open');
+      createPanel.setAttribute('aria-hidden', 'true');
+      const backdrop = document.querySelector('.task-panel-backdrop');
+      if (!document.querySelector('.task-detail-panel.open') && backdrop) backdrop.hidden = true;
+      if (!document.querySelector('.task-detail-panel.open')) document.body.classList.remove('task-panel-open', 'portal-panel-open');
+    }
+    if (focusView || closePanel) focusSafeTaskControl(focusView);
+  };
+  window.taskCreateLifecycle = { cleanup: cleanupTaskCreateTransientState, focusSafe: focusSafeTaskControl };
+
   const formHasWork = () => !!(form.querySelector('[name="task_name"]').value.trim() || form.querySelector('[name="instructions"]').value.trim() || checklistList.children.length || selectedAssigneeValues().length || dueAtInput.value || attachmentInput?.files?.length);
   const setNativeValue = (selector, value) => { if (selector === '[name="instructions"]') { setInstructionHtml(value ?? ''); return; } const field = form.querySelector(selector); if (!field) return; if (field.multiple) { [...field.options].forEach((option) => { option.selected = String(option.value) === String(value ?? ''); }); } else field.value = value ?? ''; field.dispatchEvent(new Event('change', {bubbles:true})); };
   const syncLoadedAttachmentIds = () => { templateAttachmentIds.value = JSON.stringify([...loadedAttachments.querySelectorAll('[data-template-attachment-id]')].map((row) => Number(row.dataset.templateAttachmentId))); };
@@ -2904,6 +2951,7 @@ function initialiseTaskCreateForm() {
   };
   const loadTemplate = async (id) => {
     if (formHasWork() && !window.confirm('Loading this template will replace the information currently entered in the New Task form.')) return;
+    window.PortalDatePicker?.cleanup?.(form, { restoreFocus: false, removePopup: true });
     const {template} = await templateApi('task_template_get', {template_id:id});
     clearLoadedTemplate(true);
     setNativeValue('[name="task_name"]', template.task_name); setNativeValue('[name="instructions"]', template.instructions);
@@ -3004,12 +3052,12 @@ function initialiseTaskCreateForm() {
       if(!response.ok||result.success!==true)throw new Error(result.message||'The task could not be created.');
       taskWasCreated=true;
       taskViewCache.clear();
-      const panel=document.querySelector('[data-task-create-panel]');panel?.classList.remove('open');panel?.setAttribute('aria-hidden','true');
-      const backdrop=document.querySelector('.task-panel-backdrop');if(backdrop)backdrop.hidden=true;document.body.classList.remove('task-panel-open');
       const root=document.querySelector('.digital-task-page'),content=root?.querySelector('[data-task-view-content]');
       const view=result.recurring?'recurring':(result.scheduled?'scheduled':'tasks');
+      cleanupTaskCreateTransientState({ closePanel: true });
       try{if(root&&content)await openTaskView(view,{root,content,force:true,historyMethod:'replaceState'});}catch(refreshError){console.error('Task created but view refresh failed',refreshError);window.setTimeout(()=>window.location.reload(),150);}
-      form.reset(); renderTaskFormState(); syncDueAt(); syncChecklist();
+      cleanupTaskCreateTransientState({ reset: true });
+      focusSafeTaskControl(view);
       if(window.portalToast?.success)window.portalToast.success(result.message);else window.alert(result.message);
     } catch(error) {
       console.error('Create Task failed',error);
@@ -4287,6 +4335,7 @@ function initialiseTaskViewTabs(taskRoot = document.querySelector('.digital-task
     if (!selectedTab || selectedTab.disabled) return;
     event.preventDefault();
     event.stopPropagation();
+    window.taskCreateLifecycle?.cleanup?.({ closePanel: true });
     await openTaskView(selectedTab.dataset.taskView, { root: taskRoot, content, selectedTab });
   });
   window.addEventListener('popstate', () => {
@@ -4388,6 +4437,7 @@ document.addEventListener('click', (event) => {
     }
   }
   if (createClose) {
+    window.taskCreateLifecycle?.cleanup?.({ closePanel: true });
     const panel = document.querySelector('[data-task-create-panel]');
     if (panel) {
       panel.classList.remove('open');
@@ -4410,6 +4460,7 @@ document.addEventListener('keydown', (event) => {
     return;
   }
   if (event.key !== 'Escape') return;
+  window.taskCreateLifecycle?.cleanup?.({ closePanel: true });
   document.querySelectorAll('.task-detail-panel.open, .task-create-panel.open').forEach((panel) => {
     panel.classList.remove('open');
     panel.setAttribute('aria-hidden', 'true');
