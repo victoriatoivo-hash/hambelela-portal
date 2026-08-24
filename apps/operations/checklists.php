@@ -93,6 +93,7 @@ function checklist_bootstrap_schema(): void
         'date_completed' => "ALTER TABLE ops_checklist_tasks ADD COLUMN date_completed DATETIME NULL AFTER completed_at",
         'completed_by' => "ALTER TABLE ops_checklist_tasks ADD COLUMN completed_by INT NULL AFTER date_completed",
         'recurrence_key' => "ALTER TABLE ops_checklist_tasks ADD COLUMN recurrence_key VARCHAR(120) NULL AFTER completed_by",
+        'occurrence_fingerprint' => "ALTER TABLE ops_checklist_tasks ADD COLUMN occurrence_fingerprint CHAR(64) NULL AFTER recurrence_key",
         'recurring_rule' => "ALTER TABLE ops_checklist_tasks ADD COLUMN recurring_rule VARCHAR(80) NULL AFTER recurrence_key",
         'recurring_template_id' => "ALTER TABLE ops_checklist_tasks ADD COLUMN recurring_template_id INT NULL AFTER recurring_rule",
         'employee_visible' => "ALTER TABLE ops_checklist_tasks ADD COLUMN employee_visible TINYINT(1) NOT NULL DEFAULT 1 AFTER recurring_template_id",
@@ -208,6 +209,32 @@ function checklist_bootstrap_schema(): void
     $recurrenceIndexMigration='2026-08-22-recurring-occurrence-unique-v1';
     if(!ops_rows('SELECT 1 FROM portal_schema_migrations WHERE migration_key=? LIMIT 1',[$recurrenceIndexMigration])){
         try{if(!ops_rows("SHOW INDEX FROM ops_checklist_tasks WHERE Key_name='uq_checklist_recurrence_occurrence'"))db()->exec("CREATE UNIQUE INDEX uq_checklist_recurrence_occurrence ON ops_checklist_tasks (recurring_template_id, recurrence_key)");db()->prepare('INSERT IGNORE INTO portal_schema_migrations(migration_key) VALUES(?)')->execute([$recurrenceIndexMigration]);}catch(Throwable $e){/* Existing duplicate legacy keys remain visible for owner review; generation also checks under row lock. */}
+    }
+    $occurrenceFingerprintMigration='2026-08-24-recurring-occurrence-fingerprint-v1';
+    if(!ops_rows('SELECT 1 FROM portal_schema_migrations WHERE migration_key=? LIMIT 1',[$occurrenceFingerprintMigration])){
+        try{if(!ops_rows("SHOW INDEX FROM ops_checklist_tasks WHERE Key_name='uq_checklist_occurrence_fingerprint'"))db()->exec("CREATE UNIQUE INDEX uq_checklist_occurrence_fingerprint ON ops_checklist_tasks (occurrence_fingerprint)");db()->prepare('INSERT IGNORE INTO portal_schema_migrations(migration_key) VALUES(?)')->execute([$occurrenceFingerprintMigration]);}catch(Throwable $e){/* Legacy rows remain NULL; new recurring occurrences are protected by the canonical fingerprint. */}
+    }
+    $legacyDuplicateKpiMigration='2026-08-24-recurring-duplicate-kpi-exclusion-v1';
+    if(!ops_rows('SELECT 1 FROM portal_schema_migrations WHERE migration_key=? LIMIT 1',[$legacyDuplicateKpiMigration])){
+        // Preserve every historical task and completion record, but ensure a
+        // later duplicate generated for the same employee/title/date cannot
+        // award or penalise performance twice.
+        try {
+            db()->exec("UPDATE ops_checklist_tasks duplicate_occurrence
+            JOIN ops_checklist_tasks keeper_occurrence
+              ON keeper_occurrence.id < duplicate_occurrence.id
+             AND keeper_occurrence.recurring_rule IS NOT NULL AND keeper_occurrence.recurring_rule <> ''
+             AND duplicate_occurrence.recurring_rule IS NOT NULL AND duplicate_occurrence.recurring_rule <> ''
+             AND LOWER(TRIM(keeper_occurrence.task_name)) = LOWER(TRIM(duplicate_occurrence.task_name))
+             AND COALESCE(keeper_occurrence.assigned_employee_id,0) = COALESCE(duplicate_occurrence.assigned_employee_id,0)
+             AND DATE(keeper_occurrence.deadline) = DATE(duplicate_occurrence.deadline)
+             AND keeper_occurrence.deleted_at IS NULL AND duplicate_occurrence.deleted_at IS NULL
+            SET duplicate_occurrence.performance_scored = 0
+            WHERE duplicate_occurrence.performance_scored = 1");
+            db()->prepare('INSERT IGNORE INTO portal_schema_migrations(migration_key) VALUES(?)')->execute([$legacyDuplicateKpiMigration]);
+        } catch (Throwable $e) {
+            error_log('Recurring duplicate KPI repair failed: ' . $e->getMessage());
+        }
     }
     $legacyRecurringMigration='2026-08-22-recurring-definition-backfill-v1';
     $legacyRecurringDone=(bool)(ops_rows('SELECT 1 FROM portal_schema_migrations WHERE migration_key=? LIMIT 1',[$legacyRecurringMigration]));
@@ -793,6 +820,11 @@ function checklist_seed_recurring_tasks(): void
     );
     $templates = ops_rows("SELECT * FROM ops_checklist_recurring_templates WHERE is_active = 1 AND COALESCE(status, 'active') = 'active'");
     foreach ($templates as $template) {
+        // Page loads and notification refreshes can call the seeder many
+        // times per day. Never generate a future date early. Occurrences for
+        // today may be created before their deadline so employees can finish
+        // the work on time.
+        if (!empty($template['next_run_at']) && substr((string) $template['next_run_at'], 0, 10) > $dateKey) continue;
         if (!empty($template['start_date']) && $dateKey < (string) $template['start_date']) continue;
         if (!empty($template['end_date']) && $dateKey > (string) $template['end_date']) {
             db()->prepare("UPDATE ops_checklist_recurring_templates SET status='ended', is_active=0, ended_at=COALESCE(ended_at,NOW()), next_run_at=NULL WHERE id=?")->execute([(int)$template['id']]);
@@ -809,26 +841,41 @@ function checklist_seed_recurring_tasks(): void
         foreach ($targets as $target) {
             $employeeId = (int) $target['id'];
             $key = 'template-' . (int) $template['id'] . '-' . $dateKey . '-' . ($templateAssignmentType === 'floating' ? 'floating' : $employeeId);
+            $occurrenceTarget = $templateAssignmentType === 'floating'
+                ? 'role:' . (string) ($template['floating_eligible_role'] ?? '')
+                : 'employee:' . $employeeId;
+            $normalizedOccurrenceName = strtolower(trim((string) preg_replace('/\s+/u', ' ', (string) $template['task_name'])));
+            $occurrenceFingerprint = hash('sha256', $normalizedOccurrenceName . '|' . $dateKey . '|' . $occurrenceTarget);
             $taskDb=db();$taskDb->beginTransaction();
             try {
             $lock=$taskDb->prepare("SELECT status,is_active FROM ops_checklist_recurring_templates WHERE id=? FOR UPDATE");$lock->execute([(int)$template['id']]);$locked=$lock->fetch();
             if(!$locked||($locked['status']??'active')!=='active'||(int)$locked['is_active']!==1){$taskDb->rollBack();continue;}
-            $existing=$taskDb->prepare('SELECT id FROM ops_checklist_tasks WHERE recurrence_key = ? LIMIT 1');$existing->execute([$key]);
+            $existing=$taskDb->prepare("SELECT id FROM ops_checklist_tasks
+                WHERE occurrence_fingerprint = ? OR (
+                    recurring_rule IS NOT NULL AND recurring_rule <> ''
+                    AND LOWER(TRIM(task_name)) = LOWER(TRIM(?)) AND DATE(deadline) = ?
+                    AND COALESCE(assignment_type,'specific') = ?
+                    AND COALESCE(assigned_employee_id,0) = ?
+                    AND COALESCE(floating_eligible_role,'') = ?
+                ) LIMIT 1");
+            $existing->execute([$occurrenceFingerprint, $template['task_name'], $dateKey, $templateAssignmentType, $employeeId, $templateAssignmentType === 'floating' ? (string)($template['floating_eligible_role'] ?? '') : '']);
             if($existing->fetchColumn()){$taskDb->rollBack();continue;}
             $stmt = $taskDb->prepare(
                 "INSERT INTO ops_checklist_tasks
-                 (checklist_type, task_name, priority, assigned_employee_id, assignment_type, floating_eligible_role, floating_allocation_status, date_assigned, deadline, status, notes, instructions, checklist_items, completion_note_required, completion_evidence_required, performance_scored, recurrence_key, recurring_rule, recurring_template_id, employee_visible, created_by)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, 1, ?, 1, ?, ?, ?, ?, ?)"
+                 (checklist_type, task_name, priority, assigned_employee_id, assignment_type, floating_eligible_role, floating_allocation_status, date_assigned, deadline, status, notes, instructions, checklist_items, completion_note_required, completion_evidence_required, performance_scored, recurrence_key, occurrence_fingerprint, recurring_rule, recurring_template_id, employee_visible, created_by)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, 1, ?, 1, ?, ?, ?, ?, ?, ?)"
             );
             $deadline = $dateKey . ' ' . (string) ($template['due_time'] ?: '09:00:00');
             $instructions = task_instructions_sanitize_html((string) $template['instructions']);
-            $stmt->execute([$template['checklist_type'], $template['task_name'], $template['priority'], $employeeId ?: null, $templateAssignmentType, $templateAssignmentType === 'floating' ? ($template['floating_eligible_role'] ?? null) : null, $templateAssignmentType === 'floating' ? 'pending' : null, $templateAssignmentType === 'specific' ? date('Y-m-d H:i:s') : null, $deadline, $instructions, $instructions, $template['checklist_items'], (int)($template['completion_evidence_required']??0), $key, $template['recurring_rule'], $template['id'], $templateAssignmentType === 'specific' ? 1 : 0, $template['created_by']]);
+            $stmt->execute([$template['checklist_type'], $template['task_name'], $template['priority'], $employeeId ?: null, $templateAssignmentType, $templateAssignmentType === 'floating' ? ($template['floating_eligible_role'] ?? null) : null, $templateAssignmentType === 'floating' ? 'pending' : null, $templateAssignmentType === 'specific' ? date('Y-m-d H:i:s') : null, $deadline, $instructions, $instructions, $template['checklist_items'], (int)($template['completion_evidence_required']??0), $key, $occurrenceFingerprint, $template['recurring_rule'], $template['id'], $templateAssignmentType === 'specific' ? 1 : 0, $template['created_by']]);
             $occurrenceId = (int) $taskDb->lastInsertId();$taskDb->commit();$generatedAny=true;
-            }catch(Throwable $generationError){if($taskDb->inTransaction())$taskDb->rollBack();db()->prepare('UPDATE ops_checklist_recurring_templates SET last_error=? WHERE id=?')->execute([substr($generationError->getMessage(),0,500),(int)$template['id']]);ops_activity_log('recurring_occurrence_failed','checklist_recurring_template',(int)$template['id'],['error'=>$generationError->getMessage()]);continue;}
+            }catch(Throwable $generationError){if($taskDb->inTransaction())$taskDb->rollBack();if($generationError instanceof PDOException&&(string)$generationError->getCode()==='23000')continue;db()->prepare('UPDATE ops_checklist_recurring_templates SET last_error=? WHERE id=?')->execute([substr($generationError->getMessage(),0,500),(int)$template['id']]);ops_activity_log('recurring_occurrence_failed','checklist_recurring_template',(int)$template['id'],['error'=>$generationError->getMessage()]);continue;}
             if ($templateAssignmentType === 'floating') {
                 $allocation = task_floating_allocate($occurrenceId, 'automatic', true);
                 $allocatedId = (int) ($allocation['employee_id'] ?? 0);
                 if ($allocatedId > 0) notifications_notify_task_assigned($occurrenceId, $allocatedId, (string) $template['task_name']);
+            } elseif ($employeeId > 0) {
+                notifications_notify_task_assigned($occurrenceId, $employeeId, (string) $template['task_name']);
             }
         }
         $nextRun = checklist_recurrence_next_run((string)$template['recurring_rule'], (string)($template['due_time'] ?: '09:00:00'), $template['start_date'] ?? null, $template['end_date'] ?? null, new DateTimeImmutable($dateKey . ' ' . (string)($template['due_time'] ?: '09:00:00'), new DateTimeZone('Africa/Windhoek')));
@@ -1342,13 +1389,24 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $submittedPriority = ops_post_string('priority', 30);
                 $templateStmt->execute([$taskName, 'opening', array_key_exists($submittedPriority, $priorities) ? $submittedPriority : 'normal', $assignedId > 0 ? $assignedId : null, $assignmentType, $floatingRole ?: null, $recurringRule, $dueTime, $recurrenceStartDate ?: null, $recurrenceEndDate ?: null, $initialNextRun ? $initialNextRun->format('Y-m-d H:i:s') : null, $instructions, checklist_items_from_text((string) ($_POST['checklist_items_text'] ?? '')), $proofRequired, $employeeVisible, $currentEmployeeId]);
                 $templateId = (int) db()->lastInsertId();
+                ops_activity_log('recurring_task_created', 'checklist_recurring_template', $templateId, [
+                    'assigned_employee_id' => $assignedId > 0 ? $assignedId : null,
+                    'assignment_type' => $assignmentType,
+                    'recurring_rule' => $recurringRule,
+                    'first_occurrence_at' => $initialNextRun ? $initialNextRun->format('Y-m-d H:i:s') : null,
+                ]);
               }
             $stmt = $taskDb->prepare(
                 "INSERT INTO ops_checklist_tasks
                  (checklist_type, task_name, priority, assigned_employee_id, assignment_type, floating_eligible_role, floating_allocation_status, date_assigned, scheduled_at, released_at, deadline, status, notes, instructions, checklist_items, completion_note_required, completion_evidence_required, performance_scored, recurrence_key, recurring_rule, recurring_template_id, source_template_id, employee_visible, urgent_alert_enabled, urgent_alert_recipients_json, created_by, batch_id, batch_size)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             );
-            foreach ($targetEmployeeIds as $targetEmployeeId) {
+            // A recurring submission creates the definition only. The seeder
+            // creates the first child occurrence on the first matching date;
+            // inserting a child here produced a false "today" occurrence even
+            // when the selected weekdays/start date said otherwise.
+            $immediateTargetEmployeeIds = $recurringRule === '' ? $targetEmployeeIds : [];
+            foreach ($immediateTargetEmployeeIds as $targetEmployeeId) {
               $stmt->execute([
                 'opening',
                 $taskName,
@@ -1432,10 +1490,21 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                   throw new RuntimeException('The task popup notification could not be saved.');
               }
             }
-            if ($batchAssignment) ops_activity_log('task_group_created', 'checklist_task_batch', (int) $createdTaskIds[0], [
+            if ($batchAssignment && $createdTaskIds) ops_activity_log('task_group_created', 'checklist_task_batch', (int) $createdTaskIds[0], [
                 'batch_id' => $batchId, 'employee_count' => $batchSize, 'child_task_ids' => $createdTaskIds, 'scheduled_at' => $scheduledAt,
             ]);
             $taskDb->commit();
+            if ($recurringRule !== '') {
+                try {
+                    checklist_seed_recurring_tasks();
+                } catch (Throwable $seedAfterCreateError) {
+                    // The recurrence definition is already committed and is
+                    // the authoritative saved result. A transient generation
+                    // failure is audited by the seeder and retried safely on
+                    // the next request; never tell the owner the save failed.
+                    error_log('Recurring task post-create seed failed: ' . $seedAfterCreateError->getMessage());
+                }
+            }
             } catch (Throwable $taskCreateError) {
                 if ($taskDb->inTransaction()) $taskDb->rollBack();
                 foreach ($createdAttachments as $createdAttachment) {
@@ -1541,6 +1610,10 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     throw new RuntimeException('This task is not assigned to your account.');
                 }
                 $previousStatus = checklist_normalize_status((string) ($task['status'] ?? 'new'));
+                if (!$canManage && $previousStatus === 'complete' && $status !== 'complete') {
+                    http_response_code(403);
+                    throw new RuntimeException('Only management can reopen a completed task.');
+                }
                 if ($status === 'complete' && $previousStatus === 'complete') {
                     http_response_code(409);
                     throw new RuntimeException('This task has already been completed.');

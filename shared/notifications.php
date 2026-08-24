@@ -759,7 +759,12 @@ function notifications_for_current_user(int $limit = 10): array
         notifications_schedule_task_reminders($employeeId, true);
         $canViewAllTasks = user_has_role('owner_admin');
         $taskReleased = function_exists('ops_column_exists') && ops_column_exists('ops_checklist_tasks', 'scheduled_at') && ops_column_exists('ops_checklist_tasks', 'released_at') ? ' AND (t.scheduled_at IS NULL OR t.released_at IS NOT NULL)' : '';
-        $taskScope = " AND (n.related_type IS NULL OR n.related_type <> 'checklist_task' OR n.related_id IS NULL OR ? = 1 OR (t.assigned_employee_id = ? AND t.employee_visible = 1{$taskReleased}))";
+        // A task notification belongs to the current occurrence.  Once that
+        // occurrence is complete (or archived/deleted), it must no longer be
+        // eligible for the employee feed.  Keeping this in the shared scope
+        // prevents an old unread notification from making a completed task
+        // look new again after a refresh.
+        $taskScope = " AND (n.related_type IS NULL OR n.related_type <> 'checklist_task' OR n.related_id IS NULL OR (t.status IS NOT NULL AND t.status NOT IN ('complete','completed','done','archived','deleted','trashed') AND (? = 1 OR (t.assigned_employee_id = ? AND t.employee_visible = 1{$taskReleased}))))";
         $countStmt = db()->prepare(
             "SELECT COUNT(*) FROM notification_recipients nr
              JOIN notifications n ON n.id = nr.notification_id
@@ -804,7 +809,10 @@ function notifications_summary_for_current_user(int $limit = 5): array
         notifications_schedule_task_reminders($employeeId, true);
         $canViewAllTasks = user_has_role('owner_admin');
         $taskReleased = function_exists('ops_column_exists') && ops_column_exists('ops_checklist_tasks', 'scheduled_at') && ops_column_exists('ops_checklist_tasks', 'released_at') ? ' AND (t.scheduled_at IS NULL OR t.released_at IS NOT NULL)' : '';
-        $taskScope = " AND (n.related_type IS NULL OR n.related_type <> 'checklist_task' OR n.related_id IS NULL OR ? = 1 OR (t.assigned_employee_id = ? AND t.employee_visible = 1{$taskReleased}))";
+        // Keep completed occurrence notifications out of both the badge and
+        // the preview list.  The notification is historical evidence, not a
+        // new assignment, and must not reopen the employee's work queue.
+        $taskScope = " AND (n.related_type IS NULL OR n.related_type <> 'checklist_task' OR n.related_id IS NULL OR (t.status IS NOT NULL AND t.status NOT IN ('complete','completed','done','archived','deleted','trashed') AND (? = 1 OR (t.assigned_employee_id = ? AND t.employee_visible = 1{$taskReleased}))))";
         $countStmt = db()->prepare(
             "SELECT COUNT(*) FROM notification_recipients nr
              JOIN notifications n ON n.id = nr.notification_id

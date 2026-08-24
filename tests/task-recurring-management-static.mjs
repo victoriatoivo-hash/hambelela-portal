@@ -9,6 +9,8 @@ for(const action of ['recurring_pause','recurring_resume','recurring_end','recur
 assert.match(page,/Missed runs were not backfilled/,'resume explicitly avoids backfill');
 assert.match(page,/future_occurrences_only/,'edit preserves historical occurrences');
 assert.match(page,/recurring_occurrence_failed/,'generation failures are audited');
+assert.match(page,/Never generate a future date early/,'recurrence generation waits for the occurrence date');
+assert.match(page,/uq_checklist_occurrence_fingerprint/,'duplicate templates share an idempotent occurrence identity');
 assert.match(page,/Assigned employee inactive\./,'inactive direct assignee blocks generation and is flagged');
 assert.match(page,/\['scheduled','floating','recurring','completed'\]/,'recurring view participates in optimized prefetch');
 assert.match(partial,/data-recurring-task-view/);assert.match(partial,/View Generated|data-recurring-occurrences/);assert.match(partial,/assigned employee inactive/);
