@@ -8,7 +8,9 @@ const css=fs.readFileSync(new URL('../assets/css/portal.css',import.meta.url),'u
 
 for(const mode of ['one_off','scheduled','recurring']) assert.match(page,new RegExp(`name="task_mode" value="${mode}"`));
 assert.match(page,/const currentTaskMode = \(\) =>/);
-assert.match(page,/panel\.querySelector\('\[data-task-mode-badge\]'\)/, 'mode badge must be resolved from the panel header, not the nested form');
+assert.match(page,/document\.querySelector\('\[data-task-mode-badge\]'\)/, 'mode badge must be resolved from the page header, not the nested form');
+assert.doesNotMatch(page,/form\.querySelector\('\[data-task-mode-badge\]'\)/);
+assert.doesNotMatch(page,/panel\.querySelector\('\[data-task-mode-badge\]'\)/);
 assert.match(page,/modeSections\.forEach/);
 assert.match(page,/dueAtInput\.disabled = mode !== 'one_off'/);
 assert.match(page,/scheduledAtInput\.disabled = !scheduled/);
