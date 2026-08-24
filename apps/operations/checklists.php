@@ -672,23 +672,31 @@ function checklist_due_state(?string $deadline, string $status): ?array
     ];
 }
 
+function checklist_datetime_validation_error(string $code, string $message, string $field): RuntimeException
+{
+    return new RuntimeException(json_encode(['code' => $code, 'message' => $message, 'field' => $field], JSON_UNESCAPED_SLASHES));
+}
+
+function checklist_parse_windhoek_datetime(string $raw)
+{
+    $timezone = new DateTimeZone('Africa/Windhoek');
+    foreach (['Y-m-d H:i:s', 'Y-m-d H:i', 'Y-m-d\TH:i', 'd/m/Y h:i A'] as $format) {
+        $candidate = DateTimeImmutable::createFromFormat('!' . $format, $raw, $timezone);
+        $errors = DateTimeImmutable::getLastErrors();
+        if ($candidate && ($errors === false || ((int) $errors['warning_count'] === 0 && (int) $errors['error_count'] === 0))) return $candidate;
+    }
+    return false;
+}
+
 function checklist_create_due_at(array $request): string
 {
     $raw = trim((string) ($request['due_at'] ?? ''));
-    if ($raw === '') throw new RuntimeException('Select the task due date and time.');
+    if ($raw === '') throw checklist_datetime_validation_error('required_due_at', 'Select the task due date and time.', 'due_at');
     $timezone = new DateTimeZone('Africa/Windhoek');
-    $dueAt = false;
-    foreach (['Y-m-d H:i:s', 'Y-m-d H:i', 'Y-m-d\TH:i'] as $format) {
-        $candidate = DateTimeImmutable::createFromFormat('!' . $format, $raw, $timezone);
-        $errors = DateTimeImmutable::getLastErrors();
-        if ($candidate && ($errors === false || ((int) $errors['warning_count'] === 0 && (int) $errors['error_count'] === 0))) {
-            $dueAt = $candidate;
-            break;
-        }
-    }
-    if (!$dueAt) throw new RuntimeException('Select a valid task due date and time.');
+    $dueAt = checklist_parse_windhoek_datetime($raw);
+    if (!$dueAt) throw checklist_datetime_validation_error('invalid_due_at', 'Select a valid task due date and time.', 'due_at');
     if ($dueAt <= new DateTimeImmutable('now', $timezone)) {
-        throw new RuntimeException('This time has already passed. Select a future time.');
+        throw checklist_datetime_validation_error('past_due_at', 'This time has already passed. Select a future time.', 'due_at');
     }
     return $dueAt->format('Y-m-d H:i:s');
 }
@@ -738,12 +746,7 @@ function checklist_create_scheduled_at(array $request, string $deadline): ?strin
     $raw = trim((string) ($request['scheduled_at'] ?? ''));
     if ($raw === '') throw new RuntimeException('Select when this task should be released.');
     $timezone = new DateTimeZone('Africa/Windhoek');
-    $scheduled = false;
-    foreach (['Y-m-d H:i:s', 'Y-m-d H:i', 'Y-m-d\TH:i'] as $format) {
-        $candidate = DateTimeImmutable::createFromFormat('!' . $format, $raw, $timezone);
-        $errors = DateTimeImmutable::getLastErrors();
-        if ($candidate && ($errors === false || ((int) $errors['warning_count'] === 0 && (int) $errors['error_count'] === 0))) { $scheduled = $candidate; break; }
-    }
+    $scheduled = checklist_parse_windhoek_datetime($raw);
     if (!$scheduled) throw new RuntimeException('Select a valid release date and time.');
     if ($scheduled <= new DateTimeImmutable('now', $timezone)) throw new RuntimeException('The release time must be in the future.');
     if (new DateTimeImmutable($deadline, $timezone) <= $scheduled) throw new RuntimeException('Due time must be after the task release time.');
@@ -2905,7 +2908,7 @@ function initialiseTaskCreateForm() {
   const parsePortalDateTime = (value) => {
     const match=String(value||'').trim().match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/);
     if(!match)return null;
-    const parts=match.slice(1).map(Number),[year,month,day,hour,minute,second=0]=parts;
+    const [year,month,day,hour,minute]=match.slice(1,6).map(Number),second=match[6]===undefined?0:Number(match[6]);
     if(month<1||month>12||day<1||day>new Date(Date.UTC(year,month,0)).getUTCDate()||hour>23||minute>59||second>59)return null;
     // Namibia is UTC+02:00 year-round; construct the instant explicitly instead of asking Safari to parse a string.
     return new Date(Date.UTC(year,month-1,day,hour-2,minute,second));
@@ -3274,10 +3277,20 @@ function initialiseTaskCreateForm() {
     let taskWasCreated=false;
     try {
       const requestUrl=new URL(window.location.pathname+window.location.search,window.location.origin).href;
-      const response=await fetch(requestUrl,{method:'POST',body:new FormData(form),credentials:'same-origin',headers:{Accept:'application/json','X-Requested-With':'XMLHttpRequest'}});
+      const requestData=new FormData(form);
+      const response=await fetch(requestUrl,{method:'POST',body:requestData,credentials:'same-origin',headers:{Accept:'application/json','X-Requested-With':'XMLHttpRequest'}});
       const responseText=await response.text();
       let result; try{result=JSON.parse(responseText);}catch(parseError){console.error('Create Task returned invalid JSON',{status:response.status,responseText,parseError});throw new Error('The task could not be created because the server response was invalid.');}
-      if(!response.ok||result.success!==true)throw new Error(result.message||'The task could not be created.');
+      if(!response.ok||result.success!==true){
+        if(result.field==='due_at'){
+          dueError.textContent=result.message||'Select a valid task due date and time.';
+          dueTrigger.classList.add('is-invalid');
+          dueTrigger.setAttribute('aria-invalid','true');
+          dueTrigger.setCustomValidity(dueError.textContent);
+          dueTrigger.focus();
+        }
+        const requestError=new Error(result.message||'The task could not be created.');requestError.field=result.field||'';throw requestError;
+      }
       taskWasCreated=true;
       taskViewCache.clear();
       const root=document.querySelector('.digital-task-page'),content=root?.querySelector('[data-task-view-content]');
@@ -3289,7 +3302,7 @@ function initialiseTaskCreateForm() {
       if(window.portalToast?.success)window.portalToast.success(result.message);else window.alert(result.message);
     } catch(error) {
       console.error('Create Task failed',error);
-      if(!taskWasCreated)window.alert(error instanceof Error&&error.message&&!/expected pattern/i.test(error.message)?error.message:'The task could not be created. Please check the dates and assignment, then try again.');
+      if(!taskWasCreated&&error?.field!=='due_at')window.alert(error instanceof Error&&error.message&&!/expected pattern/i.test(error.message)?error.message:'The task could not be created. Please check the dates and assignment, then try again.');
     } finally { saving=false;submit.disabled=false;submit.textContent=originalLabel; }
   });
 }
