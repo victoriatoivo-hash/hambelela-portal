@@ -2492,7 +2492,15 @@ function initialiseTaskCreateForm() {
     }
   };
 
-  const parseDueAt = () => dueAtInput.value ? new Date(dueAtInput.value.replace(' ', 'T') + (dueAtInput.value.length === 16 ? ':00' : '')) : null;
+  const parsePortalDateTime = (value) => {
+    const match=String(value||'').trim().match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/);
+    if(!match)return null;
+    const parts=match.slice(1).map(Number),[year,month,day,hour,minute,second=0]=parts;
+    if(month<1||month>12||day<1||day>new Date(Date.UTC(year,month,0)).getUTCDate()||hour>23||minute>59||second>59)return null;
+    // Namibia is UTC+02:00 year-round; construct the instant explicitly instead of asking Safari to parse a string.
+    return new Date(Date.UTC(year,month-1,day,hour-2,minute,second));
+  };
+  const parseDueAt = () => parsePortalDateTime(dueAtInput.value);
   const formatDueTime = (due) => new Intl.DateTimeFormat('en-NA', { hour:'2-digit', minute:'2-digit', hour12:true, timeZone:'Africa/Windhoek' }).format(due).replace(/^0/, '').toUpperCase();
   const syncDueAt = () => {
     const due = parseDueAt();
@@ -2763,7 +2771,7 @@ function initialiseTaskCreateForm() {
     event.preventDefault();
     syncInstructions(); syncDueAt(); syncChecklist(); syncRecurrence();
     if (!validateDueAt()) { event.preventDefault(); dueTrigger.focus(); return; }
-    if (scheduledAtInput.required) { const release = scheduledAtInput.value ? new Date(scheduledAtInput.value.replace(' ', 'T')) : null; const due = parseDueAt(); if (!release || Number.isNaN(release.getTime()) || release <= new Date()) { event.preventDefault(); window.alert('Select a future release date and time.'); return; } if (due && due <= release) { event.preventDefault(); window.alert('The due date must be after the scheduled release time.'); return; } }
+    if (scheduledAtInput.required) { const release = parsePortalDateTime(scheduledAtInput.value); const due = parseDueAt(); if (!release || release <= new Date()) { event.preventDefault(); window.alert('Select a valid future release date and time.'); return; } if (due && due <= release) { event.preventDefault(); window.alert('The due date must be after the scheduled release time.'); return; } }
     if (form.querySelector('[name="repeat_type"]:checked')?.value === 'recurring' && ['weekly','custom'].includes(recurrenceSelect.value) && !recurrenceWeekdays.some((input)=>input.checked)) { event.preventDefault(); recurrenceSummary.textContent='Choose at least one weekday.'; recurrenceSummary.focus?.(); return; }
     const required = [...form.querySelectorAll('[required]')];
     const invalid = required.find((field) => !String(field.value || '').trim());
@@ -2775,20 +2783,25 @@ function initialiseTaskCreateForm() {
     if (saving) return;
     saving = true;
     const submit = form.querySelector('[type="submit"]'), originalLabel=submit.textContent; submit.disabled = true; submit.textContent = 'Creating…';
+    let taskWasCreated=false;
     try {
-      const response=await fetch(form.action||window.location.href,{method:'POST',body:new FormData(form),credentials:'same-origin',headers:{Accept:'application/json','X-Requested-With':'XMLHttpRequest'}});
-      const result=await response.json();
+      const requestUrl=new URL(window.location.pathname+window.location.search,window.location.origin).href;
+      const response=await fetch(requestUrl,{method:'POST',body:new FormData(form),credentials:'same-origin',headers:{Accept:'application/json','X-Requested-With':'XMLHttpRequest'}});
+      const responseText=await response.text();
+      let result; try{result=JSON.parse(responseText);}catch(parseError){console.error('Create Task returned invalid JSON',{status:response.status,responseText,parseError});throw new Error('The task could not be created because the server response was invalid.');}
       if(!response.ok||result.success!==true)throw new Error(result.message||'The task could not be created.');
+      taskWasCreated=true;
       taskViewCache.clear();
       const panel=document.querySelector('[data-task-create-panel]');panel?.classList.remove('open');panel?.setAttribute('aria-hidden','true');
       const backdrop=document.querySelector('.task-panel-backdrop');if(backdrop)backdrop.hidden=true;document.body.classList.remove('task-panel-open');
       const root=document.querySelector('.digital-task-page'),content=root?.querySelector('[data-task-view-content]');
       const view=result.recurring?'recurring':(result.scheduled?'scheduled':'tasks');
-      if(root&&content)await openTaskView(view,{root,content,force:true,historyMethod:'replaceState'});
-      form.reset(); syncAssignmentMode(); syncDeliveryMode(); syncRecurrence();
+      try{if(root&&content)await openTaskView(view,{root,content,force:true,historyMethod:'replaceState'});}catch(refreshError){console.error('Task created but view refresh failed',refreshError);window.setTimeout(()=>window.location.reload(),150);}
+      form.reset(); renderTaskFormState(); syncDueAt(); syncChecklist();
       if(window.portalToast?.success)window.portalToast.success(result.message);else window.alert(result.message);
     } catch(error) {
-      window.alert(error.message||'The task could not be created.');
+      console.error('Create Task failed',error);
+      if(!taskWasCreated)window.alert(error instanceof Error&&error.message&&!/expected pattern/i.test(error.message)?error.message:'The task could not be created. Please check the dates and assignment, then try again.');
     } finally { saving=false;submit.disabled=false;submit.textContent=originalLabel; }
   });
 }
