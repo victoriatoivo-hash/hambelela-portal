@@ -3382,8 +3382,8 @@ document.querySelectorAll('[data-instructions-read-more]').forEach((button) => b
 document.querySelectorAll('[data-resend-urgent]').forEach((button) => button.addEventListener('click', (event) => {
   if (!window.confirm('Send this urgent task alert again to employees who have not completed the task?')) event.preventDefault();
 }));
-document.querySelectorAll('.checklist-create-form, .task-edit-card').forEach((form) => form.addEventListener('submit', () => {
-  window.setTimeout(() => form.querySelectorAll('button[type="submit"]').forEach((button) => { button.disabled = true; }), 0);
+document.querySelectorAll('.checklist-create-form, .task-edit-card').forEach((form) => form.addEventListener('submit', (event) => {
+  window.setTimeout(() => { if (event.defaultPrevented) return; form.querySelectorAll('button[type="submit"]').forEach((button) => { button.disabled = true; }); }, 0);
 }));
 
 function initializePortalCustomSelects(root = document) {

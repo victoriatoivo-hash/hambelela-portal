@@ -22,5 +22,6 @@ assert.doesNotMatch(tasks,/window\.alert\('Release time must be in the future\.'
 assert.doesNotMatch(tasks,/window\.alert\('Due time must be after the task release time\.'/);
 assert.match(tasks,/function firstRecurringOccurrence\(/,'the summary must calculate the first eligible occurrence');
 assert.match(tasks,/if\(!validateActiveTiming\(\)\)/,'submission must run complete inline timing validation first');
+assert.match(tasks,/if \(event\.defaultPrevented\) return;/,'prevented inline validation must not leave the submit button disabled');
 
 console.log('Task mode date isolation checks passed.');
