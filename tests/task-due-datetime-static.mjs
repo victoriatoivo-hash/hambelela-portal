@@ -15,7 +15,7 @@ assert.equal((createForm.match(/name="due_at"/g) || []).length, 1, 'New Task mus
 assert.match(tasks, /function checklist_create_due_at\(array \$request\): string/);
 assert.match(tasks, /new DateTimeZone\('Africa\/Windhoek'\)/);
 assert.match(tasks, /This time has already passed\. Select a future time\./);
-assert.match(tasks, /\$deadline = checklist_create_due_at\(\$_POST\)/);
+assert.match(tasks, /\$deadline = \$taskMode === 'recurring' \? '' : checklist_create_due_at\(\$_POST\)/);
 assert.match(tasks, /const validateDueAt = \(\) =>/);
 assert.match(tasks, /\.replace\(\/\^0\/, ''\)\.toUpperCase\(\)/, 'The contextual summary must use unpadded 12-hour AM/PM text');
 assert.doesNotMatch(tasks, /Assign the task anyway\?/);

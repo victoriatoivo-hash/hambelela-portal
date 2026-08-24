@@ -8,10 +8,10 @@ const attachment = fs.readFileSync(new URL('../apps/operations/task-attachment.p
 const proof = fs.readFileSync(new URL('../apps/operations/task-proof.php', import.meta.url), 'utf8');
 const kpi = fs.readFileSync(new URL('../apps/operations/kpi-task-management-performance.php', import.meta.url), 'utf8');
 
-assert.match(page, /name="delivery_mode" value="now"/);
-assert.match(page, /name="delivery_mode" value="scheduled"/);
+assert.match(page, /name="task_mode" value="one_off"/);
+assert.match(page, /name="task_mode" value="scheduled"/);
 assert.match(page, /name="scheduled_at"/);
-assert.match(page, /The due date must be after the scheduled release time/);
+assert.match(page, /Due time must be after the task release time/);
 assert.match(page, /release_scheduled_task/);
 assert.match(page, /cancel_scheduled_task/);
 assert.match(page, /'scheduled' => 'Scheduled'/);

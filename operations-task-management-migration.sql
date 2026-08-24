@@ -2,6 +2,7 @@ CREATE TABLE IF NOT EXISTS ops_checklist_tasks (
   id INT AUTO_INCREMENT PRIMARY KEY,
   checklist_type VARCHAR(40) NOT NULL DEFAULT 'opening',
   task_name VARCHAR(190) NOT NULL,
+  task_mode VARCHAR(20) NOT NULL DEFAULT 'one_off',
   priority VARCHAR(30) NOT NULL DEFAULT 'medium',
   assigned_employee_id INT NULL,
   date_assigned DATETIME NULL,

@@ -27989,6 +27989,19 @@ body.dark-mode .portal-dark-toggle {
 .task-create-form__body::-webkit-scrollbar { width:6px; }
 .task-create-form__body::-webkit-scrollbar-thumb { background:#DCCFC4; border-radius:999px; }
 .task-form-section { margin:0 0 18px; }
+.task-mode-control { margin:0 0 16px; padding:0; border:0; }
+.task-mode-segments { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; margin-top:7px; }
+.task-mode-segments label { position:relative; min-width:0; }
+.task-mode-segments input { position:absolute; opacity:0; pointer-events:none; }
+.task-mode-segments span { display:flex; align-items:center; justify-content:center; height:34px; padding:0 10px; border:1px solid #EDE3D8; border-radius:8px; background:#fff; color:#6B4C3B; font:600 12px/1 Figtree,system-ui,sans-serif; cursor:pointer; transition:background-color 170ms ease,border-color 170ms ease,color 170ms ease,transform 170ms ease,box-shadow 170ms ease; }
+.task-mode-segments input:checked+span { border-color:#AB3619; background:#FDF6EE; color:#721B1A; box-shadow:0 0 0 2px rgba(171,54,25,.07); }
+.task-mode-segments span:hover { border-color:#F07420; transform:translateY(-1px); }
+.task-mode-segments input:focus-visible+span { outline:2px solid rgba(171,54,25,.28); outline-offset:2px; }
+.task-timing-section { display:grid; gap:10px; margin:0; padding:12px 14px; border:1px solid #EDE3D8; border-radius:11px; background:#fff; }
+.task-timing-section[hidden] { display:none!important; }
+.task-timing-section>h3 { margin:0; color:#721B1A; font:600 14px/1.25 Figtree,system-ui,sans-serif; }
+.task-timing-grid,.task-recurring-rule-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.task-inline-fields { display:grid; grid-template-columns:minmax(80px,.7fr) minmax(110px,1fr); gap:6px; }
 .task-form-grid { display:grid; gap:14px; }
 .task-form-grid__row--assignment { display:grid; grid-template-columns:minmax(180px,.8fr) minmax(240px,1.2fr); gap:12px; }
 .task-form-field { display:grid; gap:6px; min-width:0; }
@@ -28065,12 +28078,15 @@ body.dark-mode .portal-dark-toggle {
   .task-template-trigger { grid-column:2; justify-self:start; }
   .task-form-grid__row--assignment { grid-template-columns:minmax(0,1fr); }
   .task-repeat-dates{grid-template-columns:minmax(0,1fr)}
+  .task-timing-grid,.task-recurring-rule-grid{grid-template-columns:minmax(0,1fr)}
   .task-create-attachments__heading { flex-direction:column; }
   .task-create-attachments__heading .task-files__add { width:100%; justify-content:center; }
   .task-create-form__body { padding:14px; }
   .task-create-form__footer { padding:10px 14px calc(10px + env(safe-area-inset-bottom)); }
   .task-create-form__footer button { flex:1 1 0; }
 }
+@media (max-width:390px){.task-mode-segments{grid-template-columns:minmax(0,1fr)}.task-mode-segments span{width:100%;box-sizing:border-box}}
+@media (prefers-reduced-motion:reduce){.task-mode-segments span,.task-form-submit,.task-template-button{transition:none!important;transform:none!important}}
 .digital-task-page .task-recurrence-stop-form { margin-top:12px; padding:12px 18px; display:flex; align-items:center; gap:10px; border-top:1px solid #EDE3D8; }
 .digital-task-page .task-recurrence-stop-form small { color:#A08070; font-size:10px; }
 .digital-task-page .task-board-table thead tr,

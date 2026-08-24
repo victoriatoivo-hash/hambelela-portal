@@ -8,13 +8,13 @@ const migration = fs.readFileSync(new URL('../operations-task-templates-migratio
 assert.match(page, /monthDayInput\.disabled=!usesMonthDay/, 'hidden day-of-month must be omitted from submission');
 assert.match(page, /floatingRole\.disabled = !floating/, 'inactive eligibility must be omitted from submission');
 assert.match(page, /assignee\.disabled = floating/, 'inactive assignee must be omitted from submission');
-assert.match(page, /const renderTaskFormState = \(\) => \{ syncAssignmentType\(\); syncDeliveryMode\(\); syncRecurrence\(\); \}/, 'one renderer must synchronize all independent conditional state');
-assert.match(page, /recurrenceSelect\.disabled=!recurring/, 'one-time tasks omit recurrence configuration');
+assert.match(page, /const renderTaskFormState = \(\) => \{ syncAssignmentType\(\); renderTaskMode\(\); renderRecurringFields\(\); \}/, 'one renderer must synchronize authoritative task and assignment state');
+assert.match(page, /recurrenceSelect\.disabled=!recurring/, 'non-recurring tasks omit recurrence configuration');
 assert.doesNotMatch(page, /syncAssignmentMode\(\)/, 'successful creation must not call the removed assignment renderer');
 assert.match(page, /const parsePortalDateTime = \(value\) =>/, 'date-time parsing must use the explicit portal parser');
 assert.match(page, /Date\.UTC\(year,month-1,day,hour-2,minute,second\)/, 'date-time parsing must construct Windhoek instants explicitly');
 assert.match(page, /finally \{ saving=false;submit\.disabled=false;submit\.textContent=originalLabel; \}/, 'submit state must always recover');
-assert.match(page, /recurrence_frequency[^]*=== 'custom'[^]*Choose at least one weekday for a custom recurring task/, 'custom weekdays require a selected weekday');
+assert.match(page, /currentTaskMode\(\)==='recurring'[^]*Choose at least one repeat day/, 'custom weekdays require a selected weekday');
 assert.match(page, /Choose a valid occurrence time/, 'recurring tasks require a valid occurrence time');
 assert.match(page, /weekly_days:\[1-7\]/, 'server accepts the weekday recurrence rule');
 assert.match(page, /Choose a day of month from 1 to 31/, 'monthly recurrence validates the calendar day');
@@ -25,6 +25,8 @@ assert.match(templates, /recurrence_time/, 'templates preserve occurrence time')
 assert.match(templates, /recurrence_start_date/, 'templates preserve optional start-date behaviour');
 assert.match(page, /selectedDays\.includes\(input\.value\)/, 'template reload restores selected weekdays');
 assert.match(migration, /recurrence_time TIME NULL/, 'fresh installs include recurrence template metadata');
+assert.match(page,/release_offset_minutes/,'recurring release rule is stored independently');
+assert.match(page,/occurrence_due_time/,'recurring due rule is stored independently');
 
 // Contract check for the portal algorithm: first matching weekday on/after the boundary.
 function nextWeekday(startIso, afterIso, selected, time) {
