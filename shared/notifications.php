@@ -768,6 +768,40 @@ function notifications_notify_task_assigned(int $taskId, ?int $employeeId, strin
     ], [$employeeId]);
 }
 
+function notifications_notify_task_correction(int $taskId, int $correctionId, int $round, int $employeeId, string $taskName, string $correctionMessage, string $dueAt): ?int
+{
+    if ($taskId <= 0 || $correctionId <= 0 || $employeeId <= 0) return null;
+    try {
+        $eligible = ops_rows(
+            "SELECT t.id FROM ops_checklist_tasks t
+             JOIN ops_checklist_corrections c ON c.id=t.active_correction_id AND c.task_id=t.id
+             WHERE t.id=? AND t.assigned_employee_id=? AND t.employee_visible=1
+               AND t.status IN ('new','in_progress') AND t.correction_required=1
+               AND c.id=? AND c.status IN ('open','in_progress')
+               AND t.archived_at IS NULL AND t.deleted_at IS NULL LIMIT 1",
+            [$taskId,$employeeId,$correctionId]
+        );
+        if (!$eligible) return null;
+    } catch (Throwable $e) {
+        return null;
+    }
+    $plainMessage = trim(preg_replace('/\s+/', ' ', strip_tags($correctionMessage)) ?? '');
+    if (strlen($plainMessage) > 180) $plainMessage = substr($plainMessage, 0, 177) . '…';
+    $dueLabel = $dueAt !== '' ? date('d M Y · H:i', strtotime($dueAt)) : 'New deadline assigned';
+    return notifications_create([
+        'title' => 'Correction required',
+        'message' => $taskName . ' — ' . $plainMessage . ' Due: ' . $dueLabel,
+        'module' => 'tasks',
+        'priority' => 'important',
+        'sound_key' => 'assigned',
+        'deduplication_key' => 'task:' . $taskId . ':correction:' . $correctionId . ':round:' . $round . ':user:' . $employeeId,
+        'required_delivery' => true,
+        'related_type' => 'checklist_task',
+        'related_id' => $taskId,
+        'action_link' => BASE_URL . '/apps/operations/checklists.php?task_view=active&task_id=' . $taskId,
+    ], [$employeeId]);
+}
+
 function notifications_for_current_user(int $limit = 10): array
 {
     $employeeId = notifications_current_employee_id();

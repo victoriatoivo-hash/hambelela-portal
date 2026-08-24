@@ -130,6 +130,12 @@ function checklist_bootstrap_schema(): void
         'allocation_method' => "ALTER TABLE ops_checklist_tasks ADD COLUMN allocation_method VARCHAR(40) NULL AFTER allocated_at",
         'allocation_attempted_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN allocation_attempted_at DATETIME NULL AFTER allocation_method",
         'allocation_decision_json' => "ALTER TABLE ops_checklist_tasks ADD COLUMN allocation_decision_json TEXT NULL AFTER allocation_attempted_at",
+        'active_correction_id' => "ALTER TABLE ops_checklist_tasks ADD COLUMN active_correction_id INT NULL AFTER allocation_decision_json",
+        'correction_round_count' => "ALTER TABLE ops_checklist_tasks ADD COLUMN correction_round_count INT NOT NULL DEFAULT 0 AFTER active_correction_id",
+        'correction_required' => "ALTER TABLE ops_checklist_tasks ADD COLUMN correction_required TINYINT(1) NOT NULL DEFAULT 0 AFTER correction_round_count",
+        'correction_requested_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN correction_requested_at DATETIME NULL AFTER correction_required",
+        'correction_due_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN correction_due_at DATETIME NULL AFTER correction_requested_at",
+        'correction_require_new_proof' => "ALTER TABLE ops_checklist_tasks ADD COLUMN correction_require_new_proof TINYINT(1) NOT NULL DEFAULT 0 AFTER correction_due_at",
     ];
     foreach ($columns as $column => $sql) {
         if (!checklist_column_exists($column)) checklist_try_sql($sql);
@@ -281,6 +287,34 @@ function checklist_bootstrap_schema(): void
             INDEX idx_task_attachment (task_id, removed_at, created_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
     );
+    if (!ops_column_exists('ops_checklist_attachments', 'correction_cycle_id')) checklist_try_sql("ALTER TABLE ops_checklist_attachments ADD COLUMN correction_cycle_id INT NULL AFTER task_id");
+    db()->exec(
+        "CREATE TABLE IF NOT EXISTS ops_checklist_corrections (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            task_id INT NOT NULL,
+            correction_round INT NOT NULL,
+            requested_by INT NOT NULL,
+            requested_at DATETIME NOT NULL,
+            correction_message TEXT NOT NULL,
+            correction_due_at DATETIME NOT NULL,
+            require_new_proof TINYINT(1) NOT NULL DEFAULT 0,
+            status VARCHAR(24) NOT NULL DEFAULT 'open',
+            employee_started_at DATETIME NULL,
+            employee_completed_at DATETIME NULL,
+            employee_completion_note TEXT NULL,
+            resolved_at DATETIME NULL,
+            cancelled_at DATETIME NULL,
+            cancelled_by INT NULL,
+            cancellation_reason TEXT NULL,
+            completion_snapshot_json LONGTEXT NOT NULL,
+            open_token VARCHAR(80) NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_task_correction_round (task_id, correction_round),
+            UNIQUE KEY uq_task_open_correction (open_token),
+            INDEX idx_task_correction_status (task_id, status, correction_due_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+    );
     $legacyStatuses = ops_rows("SELECT id, status FROM ops_checklist_tasks WHERE status NOT IN ('new', 'in_progress', 'complete', 'cancelled')");
     foreach ($legacyStatuses as $legacyTask) {
         $previousStatus = strtolower(trim((string) $legacyTask['status']));
@@ -329,7 +363,7 @@ function checklist_create_attachment_files(): array
     return $files;
 }
 
-function checklist_store_attachment(int $taskId, array $file, int $actorId, string $actorName): array
+function checklist_store_attachment(int $taskId, array $file, int $actorId, string $actorName, ?int $correctionCycleId = null): array
 {
     $countRows = ops_rows('SELECT COUNT(*) AS total FROM ops_checklist_attachments WHERE task_id = ? AND removed_at IS NULL', [$taskId]);
     if ((int) ($countRows[0]['total'] ?? 0) >= 10) throw new RuntimeException('This task already has the maximum of 10 attachments.');
@@ -349,10 +383,14 @@ function checklist_store_attachment(int $taskId, array $file, int $actorId, stri
     $target = $uploadDir . '/' . $stored;
     if (!move_uploaded_file((string) $file['tmp_name'], $target)) throw new RuntimeException('The file could not be stored.');
     try {
-        $stmt = db()->prepare('INSERT INTO ops_checklist_attachments (task_id, original_filename, stored_filename, mime_type, file_size, uploaded_by, uploaded_by_name) VALUES (?, ?, ?, ?, ?, ?, ?)');
-        $stmt->execute([$taskId, $original, $stored, $mime, $size, $actorId ?: null, $actorName]);
+        if ($correctionCycleId === null) {
+            $activeCorrection = ops_rows('SELECT active_correction_id FROM ops_checklist_tasks WHERE id = ? LIMIT 1', [$taskId]);
+            $correctionCycleId = !empty($activeCorrection[0]['active_correction_id']) ? (int) $activeCorrection[0]['active_correction_id'] : null;
+        }
+        $stmt = db()->prepare('INSERT INTO ops_checklist_attachments (task_id, correction_cycle_id, original_filename, stored_filename, mime_type, file_size, uploaded_by, uploaded_by_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+        $stmt->execute([$taskId, $correctionCycleId, $original, $stored, $mime, $size, $actorId ?: null, $actorName]);
         $attachmentId = (int) db()->lastInsertId();
-        ops_activity_log('task_attachment_uploaded', 'checklist_task', $taskId, ['attachment_id' => $attachmentId, 'filename' => $original, 'size' => $size, 'mime_type' => $mime]);
+        ops_activity_log('task_attachment_uploaded', 'checklist_task', $taskId, ['attachment_id' => $attachmentId, 'filename' => $original, 'size' => $size, 'mime_type' => $mime, 'correction_cycle_id' => $correctionCycleId]);
         return ops_rows('SELECT * FROM ops_checklist_attachments WHERE id = ? LIMIT 1', [$attachmentId])[0];
     } catch (Throwable $uploadError) {
         if (is_file($target)) unlink($target);
@@ -435,6 +473,21 @@ function checklist_completion_validation(array $task, ?array $checkedOverride = 
     $noteLength = function_exists('mb_strlen') ? mb_strlen($note) : strlen($note);
     if ($noteLength < 5) {
         return ['valid' => false, 'code' => 'task_completion_note_required', 'message' => 'Enter a completion note explaining what was completed.', 'incomplete_items' => []];
+    }
+    if (!empty($task['completion_evidence_required'])) {
+        $taskId = (int) ($task['id'] ?? 0);
+        $activeCorrectionId = (int) ($task['active_correction_id'] ?? 0);
+        $evidenceSql = 'SELECT COUNT(*) AS total FROM ops_checklist_attachments WHERE task_id = ? AND removed_at IS NULL';
+        $evidenceParams = [$taskId];
+        if ($activeCorrectionId > 0 && !empty($task['correction_require_new_proof'])) {
+            $evidenceSql .= ' AND correction_cycle_id = ? AND uploaded_by = ?';
+            $evidenceParams[] = $activeCorrectionId;
+            $evidenceParams[] = (int)($task['assigned_employee_id'] ?? 0);
+        }
+        $evidenceCount = $taskId > 0 ? (int) (ops_rows($evidenceSql, $evidenceParams)[0]['total'] ?? 0) : 0;
+        if (!$newEvidence && $evidenceCount < 1) {
+            return ['valid' => false, 'code' => 'task_completion_evidence_required', 'message' => $activeCorrectionId > 0 ? 'Upload new proof for this correction before completing the task.' : 'Upload the required proof before completing the task.', 'incomplete_items' => []];
+        }
     }
     return ['valid' => true, 'code' => null, 'message' => '', 'incomplete_items' => []];
 }
@@ -957,6 +1010,82 @@ if ($ready) {
     checklist_seed_recurring_tasks();
 }
 
+function checklist_correction_due_at(string $date, string $time): DateTimeImmutable
+{
+    $date = trim($date);
+    $time = trim($time);
+    if ($time === '' && preg_match('/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})$/', $date, $parts)) { $date = $parts[1]; $time = $parts[2]; }
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || !preg_match('/^\d{2}:\d{2}$/', $time)) throw new RuntimeException('Choose a future date and time for this correction.');
+    $timezone = new DateTimeZone('Africa/Windhoek');
+    $due = DateTimeImmutable::createFromFormat('!Y-m-d H:i', $date . ' ' . $time, $timezone);
+    $errors = DateTimeImmutable::getLastErrors();
+    if (!$due || (is_array($errors) && (($errors['warning_count'] ?? 0) > 0 || ($errors['error_count'] ?? 0) > 0)) || $due <= new DateTimeImmutable('now', $timezone)) {
+        throw new RuntimeException('Choose a future date and time for this correction.');
+    }
+    return $due;
+}
+
+function checklist_correction_history(int $taskId): array
+{
+    if ($taskId <= 0 || !ops_table_exists('ops_checklist_corrections')) return [];
+    return ops_rows(
+        "SELECT c.*, c.correction_message AS message, requester.full_name AS requested_by_name
+         FROM ops_checklist_corrections c
+         LEFT JOIN ops_employees requester ON requester.id = c.requested_by
+         WHERE c.task_id = ? ORDER BY c.correction_round ASC, c.id ASC",
+        [$taskId]
+    );
+}
+
+function checklist_completion_snapshot(array $task): array
+{
+    $taskId = (int) ($task['id'] ?? 0);
+    $attachments = $taskId > 0 && ops_table_exists('ops_checklist_attachments')
+        ? ops_rows('SELECT id, original_filename, mime_type, file_size, uploaded_by, uploaded_by_name, created_at FROM ops_checklist_attachments WHERE task_id = ? AND removed_at IS NULL ORDER BY id', [$taskId])
+        : [];
+    return [
+        'status' => checklist_normalize_status((string) ($task['status'] ?? 'complete')),
+        'completed_at' => $task['date_completed'] ?: ($task['completed_at'] ?? null),
+        'completed_by' => !empty($task['completed_by']) ? (int) $task['completed_by'] : null,
+        'completion_note' => (string) ($task['completion_note'] ?? ''),
+        'checklist_items' => checklist_json_items((string) ($task['checklist_items'] ?? '')),
+        'checked_items' => checklist_json_items((string) ($task['checked_items'] ?? '')),
+        'attachments' => $attachments,
+        'deadline' => $task['deadline'] ?? null,
+        'started_at' => $task['started_at'] ?? null,
+        'completion_evidence_required' => !empty($task['completion_evidence_required']),
+    ];
+}
+
+function checklist_clear_previous_task_notifications(int $taskId, int $employeeId): void
+{
+    if ($taskId <= 0 || $employeeId <= 0 || !function_exists('notifications_schema_ready') || !notifications_schema_ready()) return;
+    db()->prepare(
+        "UPDATE notification_recipients nr JOIN notifications n ON n.id = nr.notification_id
+         SET nr.cleared_at = COALESCE(nr.cleared_at, NOW())
+         WHERE nr.employee_id = ? AND n.related_type = 'checklist_task' AND n.related_id = ?"
+    )->execute([$employeeId, $taskId]);
+}
+
+function checklist_sync_correction_status(array $task, string $status, string $note, int $actorId): void
+{
+    $correctionId = (int) ($task['active_correction_id'] ?? 0);
+    if ($correctionId <= 0) return;
+    if ($status === 'in_progress') {
+        $stmt = db()->prepare("UPDATE ops_checklist_corrections SET status='in_progress', employee_started_at=COALESCE(employee_started_at,NOW()) WHERE id=? AND status='open'");
+        $stmt->execute([$correctionId]);
+        if ($stmt->rowCount() > 0) ops_activity_log('task_correction_started','checklist_task',(int)$task['id'],['correction_id'=>$correctionId,'correction_round'=>(int)($task['correction_round_count']??0),'employee_id'=>$actorId,'status'=>'in_progress']);
+    }
+    if ($status === 'complete') {
+        $stmt = db()->prepare("UPDATE ops_checklist_corrections SET status='completed', employee_completed_at=NOW(), employee_completion_note=?, resolved_at=NOW(), open_token=NULL WHERE id=? AND status IN ('open','in_progress')");
+        $stmt->execute([trim($note),$correctionId]);
+        if ($stmt->rowCount() > 0) {
+            db()->prepare('UPDATE ops_checklist_tasks SET active_correction_id=NULL, correction_required=0 WHERE id=?')->execute([(int)$task['id']]);
+            ops_activity_log('task_correction_completed','checklist_task',(int)$task['id'],['correction_id'=>$correctionId,'correction_round'=>(int)($task['correction_round_count']??0),'employee_id'=>$actorId,'completion_note'=>trim($note),'status'=>'complete']);
+        }
+    }
+}
+
 if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $action = ops_post_string('action', 40);
@@ -968,6 +1097,90 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $snapshot=[];foreach($rows as$row)$snapshot[(int)$row['id']]=checklist_task_timing($row);echo json_encode(['success'=>true,'server_time'=>(new DateTimeImmutable('now',new DateTimeZone('Africa/Windhoek')))->format(DateTimeInterface::ATOM),'tasks'=>$snapshot]);exit;
         }
         checklist_handle_template_action($action, $canManage, $taskAttachmentCsrf, (int) ($currentEmployeeId ?: 0));
+        if (in_array($action, ['request_task_correction', 'update_task_correction', 'cancel_task_correction'], true)) {
+            header('Content-Type: application/json; charset=utf-8');
+            if (!$canManage) { http_response_code(403); throw new RuntimeException('Only the Owner/Admin may request or manage task corrections.'); }
+            $submittedToken = (string) ($_POST['csrf_token'] ?? '');
+            if ($submittedToken === '' || !hash_equals($taskAttachmentCsrf, $submittedToken)) { http_response_code(403); throw new RuntimeException('Your session token expired. Refresh the page and try again.'); }
+            $taskId = (int) ($_POST['task_id'] ?? 0);
+            if ($taskId <= 0) throw new RuntimeException('Task not found.');
+            $correctionDb = db();
+            $correctionDb->beginTransaction();
+            try {
+                $lock = $correctionDb->prepare('SELECT * FROM ops_checklist_tasks WHERE id = ? AND archived_at IS NULL AND deleted_at IS NULL LIMIT 1 FOR UPDATE');
+                $lock->execute([$taskId]);
+                $task = $lock->fetch(PDO::FETCH_ASSOC);
+                if (!$task) throw new RuntimeException('Task not found.');
+                $activeRows = ops_rows("SELECT * FROM ops_checklist_corrections WHERE task_id = ? AND status IN ('open','in_progress') ORDER BY id DESC LIMIT 1 FOR UPDATE", [$taskId]);
+                $activeCorrection = $activeRows[0] ?? null;
+
+                if ($action === 'request_task_correction') {
+                    if (checklist_normalize_status((string) $task['status']) !== 'complete') throw new RuntimeException('Only a completed task can be reopened for correction.');
+                    if ($activeCorrection) { http_response_code(409); throw new RuntimeException('A correction is already pending for this task.'); }
+                    $messageText = trim(ops_post_string('correction_message', 5000));
+                    if ((function_exists('mb_strlen') ? mb_strlen($messageText) : strlen($messageText)) < 5) throw new RuntimeException('Explain what needs to be corrected.');
+                    $due = checklist_correction_due_at(ops_post_string('correction_due_at', 20), '');
+                    $employeeId = (int) ($task['completed_by'] ?: $task['assigned_employee_id'] ?: 0);
+                    if ($employeeId <= 0 || !ops_rows("SELECT id FROM ops_employees WHERE id = ? AND status = 'active' LIMIT 1", [$employeeId])) {
+                        $employeeId = (int) ($_POST['correction_employee_id'] ?? 0);
+                    }
+                    if ($employeeId <= 0 || !ops_rows("SELECT id FROM ops_employees WHERE id = ? AND status = 'active' LIMIT 1", [$employeeId])) throw new RuntimeException('Choose the employee who must complete this correction.');
+                    $round = (int) ($task['correction_round_count'] ?? 0) + 1;
+                    $snapshot = checklist_completion_snapshot($task);
+                    $requireProof = !empty($_POST['require_new_proof']) ? 1 : 0;
+                    $insert = $correctionDb->prepare("INSERT INTO ops_checklist_corrections (task_id, correction_round, requested_by, requested_at, correction_message, correction_due_at, require_new_proof, status, completion_snapshot_json, open_token) VALUES (?, ?, ?, NOW(), ?, ?, ?, 'open', ?, ?)");
+                    $insert->execute([$taskId, $round, $currentEmployeeId, $messageText, $due->format('Y-m-d H:i:s'), $requireProof, json_encode($snapshot, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), 'task:' . $taskId]);
+                    $correctionId = (int) $correctionDb->lastInsertId();
+                    $newProofRule = $requireProof ? 1 : (int) ($task['completion_evidence_required'] ?? 0);
+                    $correctionDb->prepare("UPDATE ops_checklist_tasks SET assigned_employee_id=?, assignment_type='specific', allocated_employee_id=NULL, floating_allocation_status=NULL, status='new', deadline=?, date_assigned=NOW(), released_at=NOW(), employee_visible=1, checked_items='[]', completion_note=NULL, completed_at=NULL, date_completed=NULL, completed_by=NULL, started_at=NULL, active_correction_id=?, correction_round_count=?, correction_required=1, correction_requested_at=NOW(), correction_due_at=?, correction_require_new_proof=?, completion_evidence_required=? WHERE id=?")
+                        ->execute([$employeeId, $due->format('Y-m-d H:i:s'), $correctionId, $round, $due->format('Y-m-d H:i:s'), $requireProof, $newProofRule, $taskId]);
+                    $support = $_FILES['correction_attachment'] ?? null;
+                    if (is_array($support) && (int) ($support['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) checklist_store_attachment($taskId, $support, $currentEmployeeId ?: 0, (string) (current_user()['name'] ?? 'Owner'), $correctionId);
+                    checklist_clear_previous_task_notifications($taskId, $employeeId);
+                    $notificationId = function_exists('notifications_notify_task_correction') ? notifications_notify_task_correction($taskId, $correctionId, $round, $employeeId, (string) $task['task_name'], $messageText, $due->format('Y-m-d H:i:s')) : null;
+                    if (!$notificationId) throw new RuntimeException('The correction could not be sent because its notification was not saved.');
+                    checklist_kpi_status_event($taskId, 'complete', 'new', $currentEmployeeId);
+                    ops_activity_log('task_correction_requested', 'checklist_task', $taskId, ['previous_status'=>'complete','status'=>'new','correction_id'=>$correctionId,'correction_round'=>$round,'employee_id'=>$employeeId,'correction_due_at'=>$due->format('Y-m-d H:i:s'),'require_new_proof'=>(bool)$requireProof,'notification_id'=>$notificationId]);
+                    ops_activity_log('task_correction_notification_sent', 'checklist_task', $taskId, ['correction_id'=>$correctionId,'correction_round'=>$round,'employee_id'=>$employeeId,'notification_id'=>$notificationId]);
+                    $correctionDb->commit();
+                    echo json_encode(['success'=>true,'message'=>'Correction sent — task moved to New.','task_id'=>$taskId,'correction_id'=>$correctionId,'correction_round'=>$round,'status'=>'new']);
+                    exit;
+                }
+
+                if (!$activeCorrection) throw new RuntimeException('There is no open correction for this task.');
+                $correctionId = (int) $activeCorrection['id'];
+                if ($action === 'update_task_correction') {
+                    $messageText = trim(ops_post_string('correction_message', 5000));
+                    if ((function_exists('mb_strlen') ? mb_strlen($messageText) : strlen($messageText)) < 5) throw new RuntimeException('Explain what needs to be corrected.');
+                    $due = checklist_correction_due_at(ops_post_string('correction_due_at', 20), '');
+                    $requireProof = !empty($_POST['require_new_proof']) ? 1 : 0;
+                    $correctionDb->prepare('UPDATE ops_checklist_corrections SET correction_message=?, correction_due_at=?, require_new_proof=? WHERE id=?')->execute([$messageText,$due->format('Y-m-d H:i:s'),$requireProof,$correctionId]);
+                    $snapshot = json_decode((string)($activeCorrection['completion_snapshot_json']??'{}'), true) ?: [];
+                    $originalProofRule = !empty($snapshot['completion_evidence_required']) ? 1 : 0;
+                    $correctionDb->prepare('UPDATE ops_checklist_tasks SET deadline=?, correction_due_at=?, correction_require_new_proof=?, completion_evidence_required=? WHERE id=?')->execute([$due->format('Y-m-d H:i:s'),$due->format('Y-m-d H:i:s'),$requireProof,$requireProof ? 1 : $originalProofRule,$taskId]);
+                    ops_activity_log('task_correction_due_date_changed','checklist_task',$taskId,['correction_id'=>$correctionId,'previous_due_at'=>$activeCorrection['correction_due_at'],'correction_due_at'=>$due->format('Y-m-d H:i:s'),'employee_started_at'=>$activeCorrection['employee_started_at']]);
+                    $correctionDb->commit();
+                    echo json_encode(['success'=>true,'message'=>'Correction request updated.','task_id'=>$taskId]); exit;
+                }
+
+                $reason = trim(ops_post_string('cancel_reason', 1000));
+                if ($reason === '') throw new RuntimeException('Enter a reason for cancelling this correction.');
+                $snapshot = json_decode((string) $activeCorrection['completion_snapshot_json'], true);
+                if (!is_array($snapshot)) throw new RuntimeException('The previous completion snapshot is unavailable.');
+                $correctionDb->prepare("UPDATE ops_checklist_corrections SET status='cancelled', cancelled_at=NOW(), cancelled_by=?, cancellation_reason=?, resolved_at=NOW(), open_token=NULL WHERE id=?")->execute([$currentEmployeeId,$reason,$correctionId]);
+                $correctionDb->prepare("UPDATE ops_checklist_tasks SET status='complete', deadline=?, checked_items=?, completion_note=?, completed_at=?, date_completed=?, completed_by=?, started_at=?, completion_evidence_required=?, active_correction_id=NULL, correction_required=0, correction_due_at=NULL, correction_require_new_proof=0 WHERE id=?")
+                    ->execute([$snapshot['deadline']??null,json_encode($snapshot['checked_items']??[],JSON_UNESCAPED_SLASHES),(string)($snapshot['completion_note']??''),$snapshot['completed_at']??null,$snapshot['completed_at']??null,$snapshot['completed_by']??null,$snapshot['started_at']??null,!empty($snapshot['completion_evidence_required'])?1:0,$taskId]);
+                checklist_clear_previous_task_notifications($taskId, (int) ($task['assigned_employee_id'] ?? 0));
+                checklist_kpi_status_event($taskId, checklist_normalize_status((string)$task['status']), 'complete', $currentEmployeeId);
+                ops_activity_log('task_correction_cancelled','checklist_task',$taskId,['correction_id'=>$correctionId,'correction_round'=>(int)$activeCorrection['correction_round'],'reason'=>$reason,'status'=>'complete']);
+                $correctionDb->commit();
+                echo json_encode(['success'=>true,'message'=>'Correction cancelled. The preserved completion is active again.','task_id'=>$taskId,'status'=>'complete']); exit;
+            } catch (Throwable $correctionError) {
+                if ($correctionDb->inTransaction()) $correctionDb->rollBack();
+                if ($correctionError instanceof PDOException && (string) $correctionError->getCode() === '23000') { http_response_code(409); throw new RuntimeException('A correction is already pending for this task.'); }
+                throw $correctionError;
+            }
+        }
         if ($action === 'retry_floating_allocation') {
             header('Content-Type: application/json; charset=utf-8');
             if (!$canManage) { http_response_code(403); throw new RuntimeException('You do not have permission to allocate Floating Tasks.'); }
@@ -1263,6 +1476,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = db()->prepare("UPDATE ops_checklist_tasks SET {$set} WHERE {$scope}");
             $stmt->execute([...$updateParams, ...$scopeParams]);
             if ($stmt->rowCount() < 1 && $previousStatus !== $status) throw new RuntimeException('The task status could not be saved.');
+            checklist_sync_correction_status($beforeRows[0], $status, $progressNote, (int) ($currentEmployeeId ?: 0));
             checklist_kpi_status_event($taskId, $previousStatus, $status, $currentEmployeeId);
             ops_activity_log($status === 'complete' ? 'task_completed' : ($previousStatus === 'complete' ? 'task_reopened' : 'task_status_changed'), 'checklist_task', $taskId, [
                 'previous_status' => $previousStatus,
@@ -1737,6 +1951,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($status === 'in_progress') $set .= ', started_at = COALESCE(started_at, NOW())';
                 $stmt = $taskDb->prepare("UPDATE ops_checklist_tasks SET {$set} WHERE {$scope}");
                 $stmt->execute([...$params, ...$scopeParams]);
+                checklist_sync_correction_status($task, $status, $note, (int) ($currentEmployeeId ?: 0));
                 ops_activity_log($status === 'complete' ? 'task_completed' : 'task_progress_updated', 'checklist_task', $taskId, [
                     'previous_status' => $previousStatus,
                     'status' => $status,
@@ -1770,7 +1985,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
     } catch (Throwable $e) {
         $validationPayload = json_decode($e->getMessage(), true);
         $errorMessage = is_array($validationPayload) && !empty($validationPayload['message']) ? (string) $validationPayload['message'] : $e->getMessage();
-        if (in_array(($action ?? ''), ['create_task','acknowledge_task', 'update_task_status', 'update_task_progress', 'bulk_task_action', 'task_tools_data', 'task_archive', 'task_trash', 'task_restore', 'task_delete_forever', 'task_cancel_recurrence', 'task_attachment_upload', 'task_attachment_remove', 'retry_floating_allocation'], true) && strtolower((string)($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest') {
+        if (in_array(($action ?? ''), ['create_task','acknowledge_task', 'update_task_status', 'update_task_progress', 'bulk_task_action', 'task_tools_data', 'task_archive', 'task_trash', 'task_restore', 'task_delete_forever', 'task_cancel_recurrence', 'task_attachment_upload', 'task_attachment_remove', 'retry_floating_allocation', 'request_task_correction', 'update_task_correction', 'cancel_task_correction'], true) && strtolower((string)($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest') {
             if (http_response_code() < 400) http_response_code(422);
             echo json_encode(array_merge(['success' => false, 'message' => $errorMessage], is_array($validationPayload) ? $validationPayload : []));
             exit;
@@ -2068,11 +2283,17 @@ $historyTasks = $ready ? ops_rows(
     $historyParams
 ) : [];
 $attachmentsByTask = [];
+$correctionsByTask = [];
 $visibleTaskIds = array_values(array_unique(array_filter(array_map(static fn (array $task): int => (int) $task['id'], array_merge($tasks, $historyTasks)))));
 if ($visibleTaskIds && ops_table_exists('ops_checklist_attachments')) {
     $attachmentMarks = implode(',', array_fill(0, count($visibleTaskIds), '?'));
     $attachmentRows = ops_rows("SELECT * FROM ops_checklist_attachments WHERE removed_at IS NULL AND task_id IN ({$attachmentMarks}) ORDER BY created_at DESC, id DESC", $visibleTaskIds);
     foreach ($attachmentRows as $attachmentRow) $attachmentsByTask[(int) $attachmentRow['task_id']][] = $attachmentRow;
+}
+if ($visibleTaskIds && ops_table_exists('ops_checklist_corrections')) {
+    $correctionMarks = implode(',', array_fill(0, count($visibleTaskIds), '?'));
+    $correctionRows = ops_rows("SELECT c.*, c.correction_message AS message, requester.full_name AS requested_by_name FROM ops_checklist_corrections c LEFT JOIN ops_employees requester ON requester.id=c.requested_by WHERE c.task_id IN ({$correctionMarks}) ORDER BY c.task_id,c.correction_round,c.id", $visibleTaskIds);
+    foreach ($correctionRows as $correctionRow) $correctionsByTask[(int)$correctionRow['task_id']][] = $correctionRow;
 }
 
 $tasksByGroup = array_fill_keys(array_keys($statuses), []);
@@ -2382,6 +2603,9 @@ include BASE_PATH . '/shared/sidebar.php';
         $panelTiming = checklist_task_timing($task);
         $panelSavedStatus = checklist_normalize_status((string)($task['status']??'new'));
         $panelDueState = ['value'=>$panelTiming['overdue']?'overdue':($panelSavedStatus==='complete'?'complete':'upcoming'),'label'=>$panelSavedStatus==='complete'?$panelTiming['outcome']:$panelTiming['active_outcome']];
+        $panelCorrections = $correctionsByTask[$panelId] ?? [];
+        $activeCorrection = null;
+        foreach ($panelCorrections as $panelCorrection) if ((int)($panelCorrection['id']??0)===(int)($task['active_correction_id']??0)) { $activeCorrection=$panelCorrection; break; }
         ?>
         <aside class="task-detail-panel task-details-panel task-detail-view" data-task-panel="<?= $panelId ?>" data-deadline-state="<?= htmlspecialchars((string) ($panelDueState['value'] ?? 'normal'), ENT_QUOTES, 'UTF-8') ?>" aria-hidden="true">
             <header class="task-details-header">
@@ -2399,6 +2623,10 @@ include BASE_PATH . '/shared/sidebar.php';
             </header>
 
             <div class="task-details-body" id="task-details-<?= $panelId ?>">
+                <?php if ($activeCorrection): ?><section class="task-correction-banner"><div><span>Correction required · Round <?= (int)$activeCorrection['correction_round'] ?></span><h3><?= htmlspecialchars((string)$activeCorrection['message'],ENT_QUOTES,'UTF-8') ?></h3><p>Due <?= htmlspecialchars(checklist_date_label((string)$activeCorrection['correction_due_at']),ENT_QUOTES,'UTF-8') ?><?= !empty($activeCorrection['require_new_proof'])?' · New proof required':'' ?></p></div></section><?php endif; ?>
+                <?php if ($canManage && $panelSavedStatus==='complete' && !$activeCorrection): ?><form method="post" enctype="multipart/form-data" class="task-details-section task-correction-card" data-task-correction-form><input type="hidden" name="action" value="request_task_correction"><input type="hidden" name="task_id" value="<?= $panelId ?>"><h3>Request correction</h3><p>Reopen this same completed task for the same employee. The original completion remains in its audit history.</p><label>What needs correcting<textarea name="correction_message" required minlength="5" maxlength="1000"></textarea></label><label>Correction due date and time<input type="datetime-local" name="correction_due_at" required></label><label class="task-correction-check"><input type="checkbox" name="require_new_proof" value="1"> Require new proof for this correction</label><label class="task-correction-file"><span>Supporting file (optional)</span><input type="file" name="correction_attachment" accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx"></label><p data-task-correction-error hidden></p><button class="task-btn task-btn--primary" type="submit">Request correction</button></form><?php endif; ?>
+                <?php if ($canManage && $activeCorrection): ?><section class="task-details-section task-correction-card"><form method="post" data-task-correction-form><input type="hidden" name="action" value="update_task_correction"><input type="hidden" name="task_id" value="<?= $panelId ?>"><h3>Edit correction request</h3><label>Correction message<textarea name="correction_message" required minlength="5"><?= htmlspecialchars((string)$activeCorrection['message'],ENT_QUOTES,'UTF-8') ?></textarea></label><label>Correction due date and time<input type="datetime-local" name="correction_due_at" value="<?= htmlspecialchars(substr((string)$activeCorrection['correction_due_at'],0,16),ENT_QUOTES,'UTF-8') ?>" required></label><label class="task-correction-check"><input type="checkbox" name="require_new_proof" value="1" <?= !empty($activeCorrection['require_new_proof'])?'checked':'' ?>> Require new proof</label><p data-task-correction-error hidden></p><button class="task-btn task-btn--primary" type="submit">Save correction</button></form><form method="post" data-task-correction-form data-correction-cancel><input type="hidden" name="action" value="cancel_task_correction"><input type="hidden" name="task_id" value="<?= $panelId ?>"><label>Cancellation reason<textarea name="cancel_reason" required minlength="5"></textarea></label><p data-task-correction-error hidden></p><button class="task-btn task-btn--danger" type="submit">Cancel correction</button></form></section><?php endif; ?>
+                <?php if ($panelCorrections): ?><details class="task-details-section task-correction-history"><summary>Correction history · <?= count($panelCorrections) ?> round<?= count($panelCorrections)===1?'':'s' ?></summary><?php foreach ($panelCorrections as $cycle): $snapshot=json_decode((string)($cycle['completion_snapshot_json']??'{}'),true)?:[]; ?><article><strong>Round <?= (int)$cycle['correction_round'] ?> · <?= htmlspecialchars(ucfirst((string)$cycle['status']),ENT_QUOTES,'UTF-8') ?></strong><p><?= htmlspecialchars((string)$cycle['message'],ENT_QUOTES,'UTF-8') ?></p><small>Previous completion: <?= htmlspecialchars(checklist_date_label((string)($snapshot['completed_at']??'')),ENT_QUOTES,'UTF-8') ?> · <?= htmlspecialchars((string)($snapshot['completion_note']??'No note'),ENT_QUOTES,'UTF-8') ?></small></article><?php endforeach; ?></details><?php endif; ?>
                 <?php if ($canManage): ?>
                     <?php if (!empty($task['scheduled_at']) && empty($task['released_at'])): ?><section class="task-details-section task-scheduled-actions"><div><h3 class="task-section-title">Scheduled release</h3><p>This task remains private until <strong><?= htmlspecialchars(checklist_date_label((string) $task['scheduled_at']), ENT_QUOTES, 'UTF-8') ?></strong>.</p></div><div class="task-scheduled-actions__buttons"><form method="post"><input type="hidden" name="action" value="release_scheduled_task"><input type="hidden" name="task_id" value="<?= $panelId ?>"><button class="task-schedule-button task-schedule-button--primary" type="submit"><i data-lucide="play" aria-hidden="true"></i><span>Release Now</span></button></form><form method="post" onsubmit="return confirm('Cancel this scheduled task?');"><input type="hidden" name="action" value="cancel_scheduled_task"><input type="hidden" name="task_id" value="<?= $panelId ?>"><button class="task-schedule-button task-schedule-button--secondary" type="submit">Cancel scheduled task</button></form></div></section><?php endif; ?>
                     <form method="post" class="task-details-section task-edit-card">
@@ -4180,6 +4408,38 @@ function taskViewRequestUrl(view) {
   return url;
 }
 
+function initialiseTaskCorrections(root = document) {
+  root.querySelectorAll('[data-task-correction-form]:not([data-correction-initialised])').forEach((form) => {
+    form.dataset.correctionInitialised = 'true';
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (form.dataset.submitting === 'true') return;
+      if (form.matches('[data-correction-cancel]') && !window.confirm('Cancel this correction and restore the preserved completion?')) return;
+      const button = form.querySelector('button[type="submit"]');
+      const errorNode = form.querySelector('[data-task-correction-error]');
+      form.dataset.submitting = 'true'; if (button) button.disabled = true;
+      if (errorNode) { errorNode.hidden = true; errorNode.textContent = ''; }
+      try {
+        const data = new FormData(form);
+        const panel = form.closest('[data-task-panel]');
+        const csrf = panel?.querySelector('[data-task-files]')?.dataset.csrfToken || '';
+        data.set('csrf_token', csrf);
+        const response = await fetch(document.URL, {method:'POST', body:data, credentials:'same-origin', headers:{Accept:'application/json','X-Requested-With':'XMLHttpRequest'}});
+        const result = await response.json();
+        if (!response.ok || result.success !== true) throw new Error(result.message || 'The correction could not be saved.');
+        panel?.querySelector('[data-task-close]')?.click();
+        invalidateTaskViewCache();
+        const nextView = result.status === 'complete' ? 'completed' : 'tasks';
+        const taskRoot=document.querySelector('.digital-task-page'); const content=taskRoot?.querySelector('[data-task-view-content]');
+        if (taskRoot && content) await openTaskView(nextView,{root:taskRoot,content,force:true});
+      } catch (error) {
+        if (errorNode) { errorNode.hidden = false; errorNode.textContent = error.message; }
+        else window.alert(error.message);
+      } finally { form.dataset.submitting = 'false'; if (button) button.disabled = false; }
+    });
+  });
+}
+
 function taskViewMarkup(responseText, view) {
   const parsed = new DOMParser().parseFromString(responseText, 'text/html');
   const nextContent = parsed.querySelector('[data-task-view-content]');
@@ -4240,6 +4500,7 @@ function initialiseLoadedTaskView(content) {
   initialiseCompletedTaskWorkspace();
   initialiseFloatingTaskView(content);
   initialiseRecurringTaskView(content);
+  initialiseTaskCorrections(content);
   initializePortalCustomSelects(content);
   window.taskDueStateController?.refresh?.();
   window.lucide?.createIcons?.();
@@ -4361,6 +4622,9 @@ document.addEventListener('DOMContentLoaded', () => {
   initialiseTaskViewTabs();
   initialiseTaskDueStates();
   initialiseTaskAttachments();
+  initialiseTaskCorrections();
+  const requestedTaskId = new URL(document.URL).searchParams.get('task_id');
+  if (requestedTaskId) window.setTimeout(() => document.querySelector(`[data-task-open="${CSS.escape(requestedTaskId)}"]`)?.click(), 0);
   initialiseTaskTools();
   initialiseTaskBulkSelection();
   initialiseTaskStatusWorkflow();

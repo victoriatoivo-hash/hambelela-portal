@@ -69,6 +69,8 @@ final class TaskActivityBridge
                 'category' => self::category($task),
                 'timing_basis' => 'business_time',
                 'review_status' => 'pending_review',
+                'correction_round_count' => (int)($task['correction_round_count'] ?? 0),
+                'active_correction_id' => $task['active_correction_id'] ?? null,
             ]);
             $dedupe = Support::dedupe(['task-activity',$taskId,$legacyAction,$actor['id'] ?? '',$at->format('Y-m-d H:i:s'),$input]);
             Performance::recordActivity([
@@ -116,7 +118,7 @@ final class TaskActivityBridge
         if(in_array($legacy,['task_assigned','task_reassigned','task_unassigned'],true))return $legacy;
         if($legacy==='task_acknowledged')return 'task_opened';
         if($legacy==='task_completed'||$status==='complete')return 'task_completed';
-        if($legacy==='task_reopened'||($before==='complete'&&$status!=='complete'))return 'task_reopened';
+        if(in_array($legacy,['task_reopened','task_correction_requested'],true)||($before==='complete'&&$status!=='complete'))return 'task_reopened';
         if($status==='in_progress'&&$before!=='in_progress')return 'task_started';
         if($legacy==='task_progress_updated')return 'task_progress_updated';
         if(in_array($legacy,['task_attachment_upload','task_attachment_uploaded'],true))return 'task_evidence_uploaded';
@@ -193,7 +195,7 @@ final class TaskActivityBridge
             $bypass=self::priorityBypass($pdo,$task,$actor['id'],$at);
             if($bypass){$m['priority_bypass']=$bypass;$rules[]=['deduction','priority_bypass'];}
         }
-        if($action==='task_completed'&&($m['due_result']??'')==='completed_on_time'&&!empty($m['checklist_complete'])&&(!$m['completion_note_required']||$m['completion_note_present'])&&(!$m['completion_evidence_required']||$m['evidence_supplied']))$rules[]=['bonus','first_time_right_completion'];
+        if($action==='task_completed'&&(int)($m['correction_round_count']??0)===0&&($m['due_result']??'')==='completed_on_time'&&!empty($m['checklist_complete'])&&(!$m['completion_note_required']||$m['completion_note_present'])&&(!$m['completion_evidence_required']||$m['evidence_supplied']))$rules[]=['bonus','first_time_right_completion'];
         foreach($rules as $rule)Performance::recordEvidence(['module'=>'Tasks','reference_number'=>$reference,'employee_id'=>$actor['id'],'employee_name'=>$actor['name'],'department'=>$actor['department'],
             'action'=>$rule[0].'_candidate_'.$rule[1],'action_description'=>ucwords(str_replace('_',' ',$rule[0].' candidate '.$rule[1])),'timestamp'=>$at,'manual'=>false,
             'activity_source'=>'task_epi_candidate_engine','deduplication_key'=>Support::dedupe(['task-candidate',$reference,$rule[1],$at->format('Y-m-d H:i:s')]),
