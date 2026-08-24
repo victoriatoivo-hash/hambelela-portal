@@ -4411,6 +4411,18 @@ function taskViewRequestUrl(view) {
 function initialiseTaskCorrections(root = document) {
   root.querySelectorAll('[data-task-correction-form]:not([data-correction-initialised])').forEach((form) => {
     form.dataset.correctionInitialised = 'true';
+    const correctionFile = form.querySelector('.task-correction-file input[type="file"]');
+    if (correctionFile) {
+      correctionFile.hidden = true;
+      const picker = document.createElement('button');
+      picker.type = 'button'; picker.className = 'task-correction-file__button';
+      picker.innerHTML = '<i data-lucide="paperclip" aria-hidden="true"></i><span>Add supporting file</span>';
+      const filename = document.createElement('small');
+      filename.className = 'task-correction-file__name'; filename.textContent = 'No file selected';
+      correctionFile.after(picker, filename);
+      picker.addEventListener('click', () => correctionFile.click());
+      correctionFile.addEventListener('change', () => { filename.textContent = correctionFile.files?.[0]?.name || 'No file selected'; });
+    }
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       if (form.dataset.submitting === 'true') return;
