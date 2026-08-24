@@ -18,7 +18,7 @@ assert.match(page,/scheduledDueInput\.disabled = !scheduled/);
 assert.match(page,/recurrenceSelect\.disabled=!recurring/);
 assert.match(page,/monthDayInput\.disabled=!usesMonthDay/);
 assert.match(page,/Due time must be after the task release time\./);
-assert.match(page,/Release time must be in the future\./);
+assert.match(page,/The release time must be in the future\./);
 assert.match(page,/recurrence_release_mode/);
 assert.match(page,/recurrence_due_time/);
 assert.match(page,/recurrence_due_days/);

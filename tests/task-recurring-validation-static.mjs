@@ -8,13 +8,13 @@ const migration = fs.readFileSync(new URL('../operations-task-templates-migratio
 assert.match(page, /monthDayInput\.disabled=!usesMonthDay/, 'hidden day-of-month must be omitted from submission');
 assert.match(page, /floatingRole\.disabled = !floating/, 'inactive eligibility must be omitted from submission');
 assert.match(page, /assignee\.disabled = floating/, 'inactive assignee must be omitted from submission');
-assert.match(page, /const renderTaskFormState = \(\) => \{ syncAssignmentType\(\); renderTaskMode\(\); renderRecurringFields\(\); \}/, 'one renderer must synchronize authoritative task and assignment state');
+assert.match(page, /const renderTaskFormState = \(clearInactive = false\) => \{ syncAssignmentType\(\); setTaskMode\(currentTaskMode\(\),clearInactive\); renderRecurringFields\(\); \}/, 'one renderer must synchronize authoritative task and assignment state');
 assert.match(page, /recurrenceSelect\.disabled=!recurring/, 'non-recurring tasks omit recurrence configuration');
 assert.doesNotMatch(page, /syncAssignmentMode\(\)/, 'successful creation must not call the removed assignment renderer');
 assert.match(page, /const parsePortalDateTime = \(value\) =>/, 'date-time parsing must use the explicit portal parser');
 assert.match(page, /Date\.UTC\(year,month-1,day,hour-2,minute,second\)/, 'date-time parsing must construct Windhoek instants explicitly');
 assert.match(page, /finally \{ saving=false;submit\.disabled=false;submit\.textContent=originalLabel; \}/, 'submit state must always recover');
-assert.match(page, /currentTaskMode\(\)==='recurring'[^]*Choose at least one repeat day/, 'custom weekdays require a selected weekday');
+assert.match(page, /mode==='recurring'[^]*Choose at least one repeat day/, 'custom weekdays require a selected weekday');
 assert.match(page, /Choose a valid occurrence time/, 'recurring tasks require a valid occurrence time');
 assert.match(page, /weekly_days:\[1-7\]/, 'server accepts the weekday recurrence rule');
 assert.match(page, /Choose a day of month from 1 to 31/, 'monthly recurrence validates the calendar day');

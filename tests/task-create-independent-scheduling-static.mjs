@@ -9,7 +9,7 @@ assert.match(page,/name="assignment_type" value="specific"[\s\S]*Specific Employ
 assert.match(page,/data-specific-assignment[\s\S]*data-floating-assignment hidden/);
 assert.match(page,/name="task_mode" value="one_off" checked[\s\S]*name="task_mode" value="scheduled"[\s\S]*name="task_mode" value="recurring"/);
 assert.match(page,/data-task-mode-section="one_off"[\s\S]*data-task-mode-section="scheduled"[\s\S]*data-task-mode-section="recurring"/);
-assert.match(page,/const renderTaskFormState = \(\) => \{ syncAssignmentType\(\); renderTaskMode\(\); renderRecurringFields\(\); \}/);
+assert.match(page,/const renderTaskFormState = \(clearInactive = false\) => \{ syncAssignmentType\(\); setTaskMode\(currentTaskMode\(\),clearInactive\); renderRecurringFields\(\); \}/);
 assert.doesNotMatch(page,/Scheduled release is available for manual tasks only/);
 assert.match(page,/weekly_days:\s*['"`]?\s*\.\s*implode|weekly_days:\$\{days\.join/);
 assert.match(page,/monthly_day:/);

@@ -742,7 +742,7 @@ function checklist_display_task_title(string $value): string
 function checklist_create_scheduled_at(array $request, string $deadline): ?string
 {
     $taskMode = strtolower(trim((string) ($request['task_mode'] ?? '')));
-    if ($taskMode !== 'scheduled' && strtolower(trim((string) ($request['delivery_mode'] ?? 'now'))) !== 'scheduled') return null;
+    if ($taskMode !== 'scheduled') return null;
     $raw = trim((string) ($request['scheduled_at'] ?? ''));
     if ($raw === '') throw new RuntimeException('Select when this task should be released.');
     $timezone = new DateTimeZone('Africa/Windhoek');
@@ -1662,11 +1662,10 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($groupAssignment && $recurringRule !== '') throw new RuntimeException('Choose individual employees for a recurring Direct Assignment.');
             $recurrenceStartDate = ops_post_string('recurrence_start_date', 10);
             $recurrenceEndDate = ops_post_string('recurrence_end_date', 10);
-            if ($recurringRule !== '' && $recurrenceStartDate === '') $recurrenceStartDate = $scheduledAt ? substr($scheduledAt,0,10) : date('Y-m-d');
+            if ($recurringRule !== '' && $recurrenceStartDate === '') $recurrenceStartDate = date('Y-m-d');
             foreach ([$recurrenceStartDate, $recurrenceEndDate] as $recurrenceDate) {
                 if ($recurrenceDate !== '' && !preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $recurrenceDate)) throw new RuntimeException('Choose a valid recurrence date.');
             }
-            if ($scheduledAt && $recurrenceStartDate < substr($scheduledAt,0,10)) throw new RuntimeException('The recurrence start date must be on or after the scheduled release date.');
             if ($recurrenceEndDate !== '' && $recurrenceEndDate < $recurrenceStartDate) throw new RuntimeException('The recurrence end date must be on or after its start date.');
             $urgentRecipientConfig = array_values(array_intersect((array) ($_POST['urgent_alert_recipients'] ?? []), ['assigned', 'role:front_desk', 'role:packers', 'role:all_relevant']));
             if ($urgentRequested && !$urgentRecipientConfig) throw new RuntimeException('Choose at least one valid urgent alert recipient.');
@@ -2493,6 +2492,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         </section>
                       </section>
                     </div>
+                    <div class="task-timing-validation-summary" data-task-timing-errors hidden role="alert" aria-live="polite"></div>
                     <footer class="task-create-form__footer"><button type="button" class="task-form-cancel" data-task-create-close>Cancel</button><button class="task-form-submit btn-assign-task" type="submit">Assign Task</button></footer>
                 </form>
             </div>
@@ -2809,6 +2809,7 @@ function initialiseTaskCreateForm() {
   const recurrenceValue = form.querySelector('[data-task-recurrence-default]');
   const recurrenceWeekdays = [...form.querySelectorAll('[name="repeat_weekdays[]"]')];
   const recurrenceSummary = form.querySelector('[data-task-repeat-summary]');
+  const timingErrors = form.querySelector('[data-task-timing-errors]');
   const checklistInput = form.querySelector('[data-task-checklist-input]');
   const checklistList = form.querySelector('[data-task-checklist-list]');
   const checklistValue = form.querySelector('[name="checklist_items_text"]');
@@ -2945,9 +2946,24 @@ function initialiseTaskCreateForm() {
   scheduledDueInput.addEventListener('change', () => { syncDueAt(); validateDueAt(); });
   const popupToggle = form.querySelector('[data-urgent-toggle]');
   const popupHelper = form.querySelector('[data-task-popup-helper]');
-  const renderTaskMode = () => {
-    const mode = currentTaskMode();
+  let renderedTaskMode = currentTaskMode();
+  const clearDateControl = (valueField, displaySelector) => {
+    if (valueField) { valueField.value=''; valueField.setCustomValidity?.(''); valueField.removeAttribute('aria-invalid'); }
+    const display=form.querySelector(displaySelector);if(display){display.value='';display.setCustomValidity?.('');display.classList.remove('is-invalid');display.removeAttribute('aria-invalid');}
+  };
+  const setTaskMode = (mode, clearInactive = false) => {
     const scheduled = mode === 'scheduled', recurring = mode === 'recurring';
+    if(clearInactive&&mode!==renderedTaskMode){
+      if(!scheduled){clearDateControl(scheduledAtInput,'#create-task-schedule-display');clearDateControl(scheduledDueInput,'#create-task-scheduled-due-display');}
+      if(mode!=='one_off')clearDateControl(dueAtInput,'#create-task-due-display');
+      if(!recurring){
+        recurrenceWeekdays.forEach((input)=>{input.checked=false;});
+        form.querySelector('[name="recurrence_end_date"]').value='';
+        form.querySelector('[name="recurrence_release_mode"]').value='at_occurrence';
+      }
+      if(timingErrors){timingErrors.hidden=true;timingErrors.replaceChildren();}
+      dueError.textContent='';form.querySelector('[data-task-schedule-error]').textContent='';
+    }
     modeSections.forEach((section) => { section.hidden = section.dataset.taskModeSection !== mode; });
     const modeBadge=document.querySelector('[data-task-mode-badge]');
     if(modeBadge)modeBadge.textContent=({one_off:'One-off task',scheduled:'Scheduled task',recurring:'Recurring task'})[mode];
@@ -2962,6 +2978,7 @@ function initialiseTaskCreateForm() {
     if (popupHelper) popupHelper.textContent = scheduled && popupToggle?.checked
       ? 'Popup notification will be sent when this task is released.'
       : 'The popup uses this task\'s name, instructions, due date, checklist and assignment details automatically.';
+    renderedTaskMode=mode;
   };
 
   const renderRecurringFields = () => {
@@ -3001,12 +3018,24 @@ function initialiseTaskCreateForm() {
       const release=releaseEarlier?`${form.querySelector('[name="recurrence_release_value"]').value || 1} ${form.querySelector('[name="recurrence_release_unit"]').value} before`:'at occurrence time';
       const dueTime=form.querySelector('[name="recurrence_due_time"]').value||'16:30',dueDays=Number(form.querySelector('[name="recurrence_due_days"]').value||0);
       const base=usesDays&&days.length?`Repeats every ${days.map((day)=>names[day]).join(', ')} at ${time}`:frequency==='monthly'?`Repeats monthly on day ${monthDay} at ${time}`:(frequency==='daily_business_day'?`Repeats daily at ${time}`:'Choose one or more weekdays');
-      recurrenceSummary.textContent=`${base}. Releases ${release}; due ${dueDays?`${dueDays} day${dueDays===1?'':'s'} later`:'the same day'} at ${dueTime}.`;
+      const start=form.querySelector('[name="recurrence_start_date"]')?.value||'';
+      const first=firstRecurringOccurrence(start,time,frequency,days,monthDay,releaseEarlier);
+      const firstText=first?` First occurrence: ${new Intl.DateTimeFormat('en-NA',{weekday:'long',day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'Africa/Windhoek'}).format(first)}.`:'';
+      recurrenceSummary.textContent=`${base}.${firstText} Releases ${release}; due ${dueDays?`${dueDays} day${dueDays===1?'':'s'} later`:'the same day'} at ${dueTime}.`;
     }
   };
-  const renderTaskFormState = () => { syncAssignmentType(); renderTaskMode(); renderRecurringFields(); };
+  function firstRecurringOccurrence(start,time,frequency,days,monthDay,releaseEarlier){
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(start)||!/^\d{2}:\d{2}$/.test(time))return null;
+    const [year,month,day]=start.split('-').map(Number),[hour,minute]=time.split(':').map(Number);
+    let candidate=new Date(Date.UTC(year,month-1,day,hour-2,minute));
+    const releaseMinutes=releaseEarlier?(Number(form.querySelector('[name="recurrence_release_value"]').value||0)*({minutes:1,hours:60,days:1440}[form.querySelector('[name="recurrence_release_unit"]').value]||0)):0;
+    const valid=(date)=>{const jsDay=date.getUTCDay()||7;if(frequency==='daily_business_day')return jsDay<=5;if(frequency==='monthly')return date.getUTCDate()===monthDay;return days.includes(jsDay);};
+    for(let guard=0;guard<370;guard++){if(valid(candidate)&&candidate.getTime()-releaseMinutes*60000>Date.now())return candidate;candidate=new Date(candidate.getTime()+86400000);if(frequency==='monthly'&&candidate.getUTCDate()===1)candidate.setUTCDate(Math.min(monthDay,new Date(Date.UTC(candidate.getUTCFullYear(),candidate.getUTCMonth()+1,0)).getUTCDate()));}
+    return null;
+  }
+  const renderTaskFormState = (clearInactive = false) => { syncAssignmentType(); setTaskMode(currentTaskMode(),clearInactive); renderRecurringFields(); };
   assignmentTypeInputs.forEach((input) => input.addEventListener('change', renderTaskFormState));
-  taskModeInputs.forEach((input)=>input.addEventListener('change',()=>{window.PortalDatePicker?.cleanup?.(form,{restoreFocus:false,removePopup:true});renderTaskFormState();}));
+  taskModeInputs.forEach((input)=>input.addEventListener('change',()=>{window.PortalDatePicker?.cleanup?.(form,{restoreFocus:false,removePopup:true});renderTaskFormState(true);}));
   recurrenceSelect.addEventListener('change', renderTaskFormState);
   recurrenceWeekdays.forEach((input)=>input.addEventListener('change',renderTaskFormState));
   form.querySelector('[name="recurrence_time"]')?.addEventListener('input',renderTaskFormState);
@@ -3018,6 +3047,33 @@ function initialiseTaskCreateForm() {
   form.querySelector('[name="recurrence_due_days"]')?.addEventListener('change',renderTaskFormState);
   popupToggle?.addEventListener('change', renderTaskFormState);
   renderTaskFormState();
+
+  const showTimingErrors = (errors) => {
+    if(!timingErrors)return errors.length===0;
+    timingErrors.replaceChildren();timingErrors.hidden=errors.length===0;
+    if(errors.length){const heading=document.createElement('strong');heading.textContent=`Please correct ${errors.length} ${errors.length===1?'item':'items'} before creating this task:`;const list=document.createElement('ul');errors.forEach(({message})=>{const item=document.createElement('li');item.textContent=message;list.appendChild(item);});timingErrors.append(heading,list);}
+    return errors.length===0;
+  };
+  const validateActiveTiming = () => {
+    const mode=currentTaskMode(),errors=[];
+    if(mode==='one_off'){if(!validateDueAt())errors.push({field:'due_at',message:dueError.textContent});}
+    if(mode==='scheduled'){
+      const release=parsePortalDateTime(scheduledAtInput.value),due=parsePortalDateTime(scheduledDueInput.value);
+      if(!release)errors.push({field:'scheduled_at',message:'Choose a valid release date and time.'});else if(release<=new Date())errors.push({field:'scheduled_at',message:'The release time must be in the future.'});
+      if(!due)errors.push({field:'due_at',message:'Choose a valid due date and time.'});else if(release&&due<=release)errors.push({field:'due_at',message:'Due time must be after the task release time.'});
+    }
+    if(mode==='recurring'){
+      const frequency=recurrenceSelect.value,start=form.querySelector('[name="recurrence_start_date"]').value,end=form.querySelector('[name="recurrence_end_date"]').value,time=form.querySelector('[name="recurrence_time"]').value,dueTime=form.querySelector('[name="recurrence_due_time"]').value,dueDays=Number(form.querySelector('[name="recurrence_due_days"]').value||0);
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(start))errors.push({field:'recurrence_start_date',message:'Choose a valid recurrence start date.'});
+      if(end&&(!/^\d{4}-\d{2}-\d{2}$/.test(end)||end<start))errors.push({field:'recurrence_end_date',message:'The recurrence end date must be on or after its start date.'});
+      if(['weekly','custom'].includes(frequency)&&!recurrenceWeekdays.some((input)=>input.checked))errors.push({field:'repeat_weekdays',message:'Choose at least one repeat day.'});
+      if(frequency==='monthly'&&!/^(?:[1-9]|[12]\d|3[01])$/.test(form.querySelector('[name="recurrence_month_day"]').value))errors.push({field:'recurrence_month_day',message:'Choose a day of month from 1 to 31.'});
+      if(!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time))errors.push({field:'recurrence_time',message:'Choose a valid occurrence time.'});
+      if(!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(dueTime))errors.push({field:'recurrence_due_time',message:'Choose a valid recurring due time.'});else if(dueDays===0&&dueTime<=time)errors.push({field:'recurrence_due_time',message:'Recurring due time must be after the occurrence time when due the same day.'});
+      if(form.querySelector('[name="recurrence_release_mode"]').value==='earlier'&&Number(form.querySelector('[name="recurrence_release_value"]').value||0)<1)errors.push({field:'recurrence_release_value',message:'Choose how long before the occurrence to release it.'});
+    }
+    return showTimingErrors(errors);
+  };
 
   const syncChecklist = () => { checklistValue.value = [...checklistList.querySelectorAll('input')].map((input) => input.value.trim()).filter(Boolean).join('\n'); };
   const addChecklistItem = (label) => {
@@ -3261,9 +3317,8 @@ function initialiseTaskCreateForm() {
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     syncInstructions(); syncDueAt(); syncChecklist(); renderRecurringFields();
-    if (!validateDueAt()) { (currentTaskMode()==='scheduled'?form.querySelector('#create-task-scheduled-due-display'):dueTrigger).focus(); return; }
-    if (currentTaskMode()==='scheduled') { const release=parsePortalDateTime(scheduledAtInput.value),due=parseDueAt();if(!release||release<=new Date()){window.alert('Release time must be in the future.');return;}if(due&&due<=release){window.alert('Due time must be after the task release time.');return;}dueAtInput.disabled=false;dueAtInput.value=scheduledDueInput.value; }
-    if (currentTaskMode()==='recurring' && ['weekly','custom'].includes(recurrenceSelect.value) && !recurrenceWeekdays.some((input)=>input.checked)) { recurrenceSummary.textContent='Choose at least one repeat day.'; recurrenceSummary.focus?.(); return; }
+    if(!validateActiveTiming()){timingErrors?.scrollIntoView({behavior:'smooth',block:'nearest'});return;}
+    if (currentTaskMode()==='scheduled') { dueAtInput.disabled=false;dueAtInput.value=scheduledDueInput.value; }
     const required = [...form.querySelectorAll('[required]')];
     const invalid = required.find((field) => !String(field.value || '').trim());
     if (invalid) { event.preventDefault(); invalid.setAttribute('aria-invalid', 'true'); (invalid === instructionInput ? instructionEditor : invalid).focus(); return; }
@@ -3302,7 +3357,7 @@ function initialiseTaskCreateForm() {
       if(window.portalToast?.success)window.portalToast.success(result.message);else window.alert(result.message);
     } catch(error) {
       console.error('Create Task failed',error);
-      if(!taskWasCreated&&error?.field!=='due_at')window.alert(error instanceof Error&&error.message&&!/expected pattern/i.test(error.message)?error.message:'The task could not be created. Please check the dates and assignment, then try again.');
+      if(!taskWasCreated&&error?.field!=='due_at')showTimingErrors([{field:error?.field||'form',message:error instanceof Error&&error.message&&!/expected pattern/i.test(error.message)?error.message:'The task could not be created. Please check the dates and assignment, then try again.'}]);
     } finally { saving=false;submit.disabled=false;submit.textContent=originalLabel; }
   });
 }
