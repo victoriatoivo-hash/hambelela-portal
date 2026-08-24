@@ -18,6 +18,24 @@
     return 'date';
   }
 
+  function queryWithin(root, selector) {
+    if (!root || !selector) return null;
+    try { return root.querySelector(selector); } catch (error) { return null; }
+  }
+
+  function resolveSubmitTarget(input) {
+    const selector = input.dataset.submitTarget || '';
+    if (!selector) return null;
+    const wrapper = input.closest('[data-portal-date-field]');
+    const form = input.closest('form');
+    const scoped = queryWithin(wrapper, selector) || queryWithin(form, selector);
+    if (scoped instanceof HTMLInputElement) return scoped;
+    try {
+      const matches = [...document.querySelectorAll(selector)];
+      return matches.length === 1 && matches[0] instanceof HTMLInputElement ? matches[0] : null;
+    } catch (error) { return null; }
+  }
+
   function parseValue(value, mode) {
     const match = String(value || '').match(/^(\d{4})-(\d{2})(?:-(\d{2}))?(?:[ T](\d{2}):(\d{2}))?/);
     if (!match) return null;
@@ -180,6 +198,8 @@
     const control = active;
     const next = storageValue(date, control.mode, control.dateTimeSeparator);
     control.trigger.setCustomValidity?.('');
+    control.trigger.classList.remove('is-invalid');
+    control.trigger.removeAttribute('aria-invalid');
     control.target.value = next;
     if (control.display instanceof HTMLInputElement) control.display.value = displayValue(date, control.mode);
     else control.display.textContent = displayValue(date, control.mode) || control.placeholder;
@@ -248,7 +268,7 @@
     if (!isPortalDisplay && !['date', 'datetime-local', 'month'].includes(nativeType)) return;
     const mode = modeFor(input);
     const existingWrapper = input.closest('[data-portal-date-field]');
-    const target = isPortalDisplay ? document.querySelector(input.dataset.submitTarget || '') : input;
+    const target = isPortalDisplay ? resolveSubmitTarget(input) : input;
     if (!(target instanceof HTMLInputElement)) return;
     const required = target.required;
     target.dataset.portalDateRequired = String(required);
