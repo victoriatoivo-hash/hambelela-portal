@@ -143,7 +143,9 @@ try {
     $_SESSION['portal_return_to'] = (BASE_URL ?: '') . '/index.php';
     session_write_close();
 
-    $destination = $canManageHr ? 'dashboard.php' : 'self-service.php';
+    $requested = trim((string)($_GET['return'] ?? ''));
+    $allowedReturn = preg_match('#^(?:my-loans|loan-view)\.php(?:\?[A-Za-z0-9_=&%-]+)?$#', $requested) ? $requested : '';
+    $destination = $allowedReturn !== '' ? $allowedReturn : ($canManageHr ? 'dashboard.php' : 'self-service.php');
     header('Location: ' . (BASE_URL ?: '') . '/apps/hr-portal/' . $destination, true, 303);
     exit;
 } catch (Throwable $error) {

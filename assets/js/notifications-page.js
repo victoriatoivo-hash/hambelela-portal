@@ -26,10 +26,11 @@
     if (module.includes('task')) return 'tasks';
     if (module.includes('book') || module.includes('cash')) return 'bookkeeping';
     if (module.includes('error')) return 'errors';
+    if (module.includes('hr')) return 'hr';
     return 'system';
   };
 
-  const iconFor = (category) => ({ orders: 'shopping-bag', packing: 'package', tasks: 'list-checks', errors: 'triangle-alert' }[category] || 'bell');
+  const iconFor = (category) => ({ orders: 'shopping-bag', packing: 'package', tasks: 'list-checks', errors: 'triangle-alert', hr: 'file-signature' }[category] || 'bell');
   const isActionRequired = (item) => !item.read_at && ['urgent', 'critical', 'important', 'high'].includes(String(item.priority || '').toLowerCase());
   const isToday = (value) => String(value || '').slice(0, 10) === new Date().toISOString().slice(0, 10);
 

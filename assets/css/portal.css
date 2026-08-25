@@ -28693,6 +28693,10 @@ html:has(body.login-page),body.login-page{min-height:100%;background:#FFFFFF!imp
 .portal-toast[data-deadline-state="overdue"] .portal-notification__status { color:#bb1b21; }
 @media (prefers-reduced-motion:reduce) { .portal-toast { transition:none !important; animation:none !important; } }
 @media (max-width:600px) { .portal-toast { width:calc(100vw - 20px); padding:11px; } .portal-toast-actions { width:100%; justify-content:flex-start; flex-wrap:wrap; } }
+.portal-toast.portal-notification--hr{width:min(400px,calc(100vw - 20px));border:1px solid #B7E4C7;border-left:4px solid #2D6A4F;background:#F8FCF9;box-shadow:0 16px 36px rgba(17,28,22,.16)}
+.portal-notification--hr .portal-notification__status{color:#2D6A4F}.portal-notification--hr .portal-notification__status svg{width:16px;height:16px;flex:0 0 16px}.portal-notification--hr .portal-toast-title{color:#1A2E22;font-size:15px;font-weight:600}.portal-notification--hr .portal-toast-message{color:#4A6355;font-size:12px;line-height:1.5}.portal-toast-hr-action{min-height:34px;padding:0 13px;color:#fff!important;background:#2D6A4F!important;border:1px solid #2D6A4F!important;border-radius:8px;font-size:12px;font-weight:600;transition:background-color .18s ease,transform .18s ease}.portal-toast-hr-action:hover{background:#40916C!important;transform:translateY(-1px)}
+@media(max-width:390px){.portal-toast.portal-notification--hr{right:10px;left:10px;width:auto;max-width:calc(100vw - 20px)}}
+@media(prefers-reduced-motion:reduce){.portal-toast-hr-action{transition:none}.portal-toast-hr-action:hover{transform:none}}
 .portal-toast-assignee, .portal-toast-due { display:block; margin-top:3px; color:#5f6368; font-size:11px; }
 .portal-toast-actions select { min-height:30px; border:1px solid #ead7cf; border-radius:7px; background:#fff; font-size:11px; }
 .notification-popover .notification-sound-settings,

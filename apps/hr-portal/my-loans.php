@@ -21,6 +21,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'emplo
     if (!$agreement || !$accepted || $typedName === '' || $signature === '' || strcasecmp($typedName,$expectedName)!==0) {
         header('Location: my-loans.php?error=signature'); exit;
     }
+    $portalDb = loanAgreementPortalDb();
+    $db->beginTransaction(); $portalDb->beginTransaction();
+    try {
     $hash = $agreement['document_hash'] ?: loanAgreementHash($agreement,$agreement,$agreement);
     $db->prepare("INSERT INTO loan_agreement_signatures (agreement_id,signer_role,signer_user_id,signer_name,signature_data,document_hash,ip_address,user_agent) VALUES (?,'employee',?,?,?,?,?,?) ON DUPLICATE KEY UPDATE signer_name=VALUES(signer_name),signature_data=VALUES(signature_data),document_hash=VALUES(document_hash),signed_at=CURRENT_TIMESTAMP")
        ->execute([$agreementId,$user['id'],$typedName,$signature,$hash,loanAgreementClientIp(),loanAgreementUserAgent()]);
@@ -33,6 +36,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'emplo
     $ownerIds = $db->query("SELECT id FROM users WHERE role='admin' AND active=1")->fetchAll(PDO::FETCH_COLUMN);
     $notify = $db->prepare("INSERT INTO notifications (user_id,title,message,type,action_url) VALUES (?,?,?,'info',?)");
     foreach ($ownerIds as $ownerId) $notify->execute([(int)$ownerId,'Employee Signed Loan Agreement',$expectedName.' signed loan agreement #'.$agreementId.'.','loan-view.php?loan_id='.(int)$agreement['loan_id'].'&tab=agreement']);
+    $agreement['emp_name'] = $expectedName;
+    $portalNotice = loanAgreementPortalNotificationData($agreement,'employee_signed');
+    $portalNotificationId = loanAgreementCreatePortalNotification($portalDb,$portalNotice,loanAgreementPortalOwnerIds($portalDb));
+    loanAgreementEvent($db,$agreementId,(int)$agreement['loan_id'],'owner_notified',$user,['portal_notification_id'=>$portalNotificationId]);
+    if ($hasOwner) {
+        $portalEmployeeId = loanAgreementPortalEmployeeId($portalDb,(int)$agreement['employee_id']);
+        $finalNotice = loanAgreementPortalNotificationData($agreement,'completed');
+        $finalNotificationId = loanAgreementCreatePortalNotification($portalDb,$finalNotice,[$portalEmployeeId]);
+        loanAgreementEvent($db,$agreementId,(int)$agreement['loan_id'],'employee_final_notification_created',$user,['portal_notification_id'=>$finalNotificationId]);
+    }
+    $portalDb->commit(); $db->commit();
+    } catch (Throwable $error) {
+        if ($portalDb->inTransaction()) $portalDb->rollBack();
+        if ($db->inTransaction()) $db->rollBack();
+        error_log('Employee loan signature failed: '.$error->getMessage());
+        header('Location: my-loans.php?error=signature'); exit;
+    }
     header('Location: my-loans.php?loan_id='.(int)$agreement['loan_id'].'&tab=agreement&msg=signed'); exit;
 }
 

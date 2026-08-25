@@ -90,13 +90,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $db->prepare("SELECT a.*,l.employee_id,l.amount,l.id AS loan_id,e.first_name,e.last_name,e.emp_number,e.job_title,CONCAT(e.first_name,' ',e.last_name) AS emp_name FROM loan_agreements a JOIN loans l ON l.id=a.loan_id JOIN employees e ON e.id=l.employee_id WHERE a.id=? AND a.status='draft'");
         $stmt->execute([$agreementId]); $agreement = $stmt->fetch();
         if ($agreement) {
-            $canonical = loanAgreementCanonical($agreement,$agreement,$agreement);
-            $snapshot = json_encode($canonical, JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
-            $hash = hash('sha256', $snapshot);
-            $db->prepare("UPDATE loan_agreements SET status='employee_pending',sent_at=NOW(),snapshot_json=?,document_hash=? WHERE id=? AND status='draft'")
-               ->execute([$snapshot,$hash,$agreementId]);
-            loanAgreementEvent($db,$agreementId,(int)$agreement['loan_id'],'sent_to_employee',$user);
-            loanAgreementNotify($db,(int)$agreement['employee_id'],'Loan Agreement requires your signature.','Review and sign your employee loan agreement.','info','my-loans.php?loan_id='.(int)$agreement['loan_id'].'&tab=agreement');
+            $portalDb = loanAgreementPortalDb();
+            try {
+                $db->beginTransaction(); $portalDb->beginTransaction();
+                $canonical = loanAgreementCanonical($agreement,$agreement,$agreement);
+                $snapshot = json_encode($canonical, JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
+                $hash = hash('sha256', $snapshot);
+                $updated = $db->prepare("UPDATE loan_agreements SET status='employee_pending',sent_at=NOW(),snapshot_json=?,document_hash=? WHERE id=? AND status='draft'");
+                $updated->execute([$snapshot,$hash,$agreementId]);
+                if ($updated->rowCount() !== 1) throw new RuntimeException('The agreement was not sent. Refresh and try again.');
+                $portalEmployeeId = loanAgreementPortalEmployeeId($portalDb,(int)$agreement['employee_id']);
+                $notice = loanAgreementPortalNotificationData($agreement,'sent');
+                $notificationId = loanAgreementCreatePortalNotification($portalDb,$notice,[$portalEmployeeId]);
+                loanAgreementEvent($db,$agreementId,(int)$agreement['loan_id'],'sent_to_employee',$user,['portal_notification_id'=>$notificationId]);
+                loanAgreementEvent($db,$agreementId,(int)$agreement['loan_id'],'agreement_sent_notification_created',$user,['portal_notification_id'=>$notificationId]);
+                loanAgreementNotify($db,(int)$agreement['employee_id'],'Loan Agreement requires your signature.','Review and sign your employee loan agreement.','info','my-loans.php?loan_id='.(int)$agreement['loan_id'].'&tab=agreement');
+                $portalDb->commit(); $db->commit();
+            } catch (Throwable $error) {
+                if ($portalDb->inTransaction()) $portalDb->rollBack();
+                if ($db->inTransaction()) $db->rollBack();
+                error_log('Loan agreement send failed: '.$error->getMessage());
+                http_response_code(500); exit('The agreement was not sent. No employee notification was created.');
+            }
         }
         if (!empty($_POST['return_to_agreement']) && $agreement) {
             header('Location: loan-view.php?loan_id='.(int)$agreement['loan_id'].'&tab=agreement&msg=sent'); exit;
@@ -111,6 +126,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $db->prepare("SELECT a.*,l.employee_id,l.amount,l.id AS loan_id,e.first_name,e.last_name,e.emp_number FROM loan_agreements a JOIN loans l ON l.id=a.loan_id JOIN employees e ON e.id=l.employee_id WHERE a.id=? AND a.status IN ('employee_pending','employee_signed')");
         $stmt->execute([$agreementId]); $agreement = $stmt->fetch();
         if ($agreement && $typedName !== '' && $signature !== '') {
+            $portalDb = loanAgreementPortalDb();
+            $db->beginTransaction(); $portalDb->beginTransaction();
+            try {
             $hash = $agreement['document_hash'] ?: loanAgreementHash($agreement,$agreement,$agreement);
             $db->prepare("INSERT INTO loan_agreement_signatures (agreement_id,signer_role,signer_user_id,signer_name,signature_data,document_hash,ip_address,user_agent) VALUES (?,'owner',?,?,?,?,?,?) ON DUPLICATE KEY UPDATE signer_name=VALUES(signer_name),signature_data=VALUES(signature_data),document_hash=VALUES(document_hash),signed_at=CURRENT_TIMESTAMP")
                ->execute([$agreementId,$user['id'],$typedName,$signature,$hash,loanAgreementClientIp(),loanAgreementUserAgent()]);
@@ -121,8 +139,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($hasEmployee) loanAgreementSchedule($db,$agreementId,$agreement['first_deduction_date'],(float)$agreement['amount'],(float)$agreement['instalment_amount']);
             loanAgreementEvent($db,$agreementId,(int)$agreement['loan_id'],'owner_signed',$user,['fully_signed'=>$hasEmployee]);
             loanAgreementNotify($db,(int)$agreement['employee_id'],$hasEmployee?'Loan Agreement Fully Signed':'Owner Signed Loan Agreement',$hasEmployee?'Your loan agreement is fully signed and active.':'The owner has signed your loan agreement.','info','my-loans.php?loan_id='.(int)$agreement['loan_id'].'&tab=agreement');
+            if ($hasEmployee) {
+                $portalEmployeeId = loanAgreementPortalEmployeeId($portalDb,(int)$agreement['employee_id']);
+                $notice = loanAgreementPortalNotificationData($agreement,'completed');
+                $notificationId = loanAgreementCreatePortalNotification($portalDb,$notice,[$portalEmployeeId]);
+                loanAgreementEvent($db,$agreementId,(int)$agreement['loan_id'],'employee_final_notification_created',$user,['portal_notification_id'=>$notificationId]);
+            }
+            $portalDb->commit(); $db->commit();
+            } catch (Throwable $error) {
+                if ($portalDb->inTransaction()) $portalDb->rollBack();
+                if ($db->inTransaction()) $db->rollBack();
+                error_log('Owner loan signature failed: '.$error->getMessage());
+                http_response_code(500); exit('The owner signature was not saved.');
+            }
         }
         header('Location: loans.php?msg=owner_signed'); exit;
+    }
+
+    if ($action === 'send_agreement_reminder') {
+        $agreementId = (int)($_POST['agreement_id'] ?? 0);
+        $stmt = $db->prepare("SELECT a.*,l.employee_id,l.amount,l.id AS loan_id,e.first_name,e.last_name,CONCAT(e.first_name,' ',e.last_name) AS emp_name FROM loan_agreements a JOIN loans l ON l.id=a.loan_id JOIN employees e ON e.id=l.employee_id WHERE a.id=? AND a.status IN ('employee_pending','owner_signed')");
+        $stmt->execute([$agreementId]); $agreement = $stmt->fetch();
+        if ($agreement) {
+            $portalDb = loanAgreementPortalDb();
+            try {
+                $db->beginTransaction(); $portalDb->beginTransaction();
+                $countStmt = $db->prepare("SELECT COUNT(*) FROM loan_agreement_events WHERE agreement_id=? AND event_type='agreement_reminder_sent'");
+                $countStmt->execute([$agreementId]); $reminderNo = (int)$countStmt->fetchColumn()+1;
+                $notice = loanAgreementPortalNotificationData($agreement,'sent');
+                $notice['title'] = 'Reminder: Loan Agreement requires your signature';
+                $notice['deduplication_key'] = 'hr:loan-agreement:'.$agreementId.':v'.(int)$agreement['version_no'].':reminder:'.$reminderNo;
+                $portalEmployeeId = loanAgreementPortalEmployeeId($portalDb,(int)$agreement['employee_id']);
+                $notificationId = loanAgreementCreatePortalNotification($portalDb,$notice,[$portalEmployeeId]);
+                loanAgreementEvent($db,$agreementId,(int)$agreement['loan_id'],'agreement_reminder_sent',$user,['portal_notification_id'=>$notificationId,'reminder_no'=>$reminderNo]);
+                $portalDb->commit(); $db->commit();
+            } catch (Throwable $error) {
+                if ($portalDb->inTransaction()) $portalDb->rollBack();
+                if ($db->inTransaction()) $db->rollBack();
+                http_response_code(500); exit('The reminder was not sent.');
+            }
+        }
+        header('Location: loan-view.php?loan_id='.(int)($agreement['loan_id']??0).'&tab=agreement&msg=reminded'); exit;
     }
 
     if ($action === 'add_repayment') {

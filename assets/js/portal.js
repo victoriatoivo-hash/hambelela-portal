@@ -647,12 +647,21 @@ window.addEventListener('DOMContentLoaded', () => {
     };
 
     const showPortalToast = async (notification) => {
+      const isTask = notification.related_type === 'checklist_task' && Number(notification.related_id || 0) > 0;
+      const isLoanAgreement = String(notification.related_type || '').startsWith('loan_agreement_');
+      let claimed = false;
+      try {
+        const claimResponse = await fetch(apiUrl, {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({action:'notification_claim', notification_id:String(notification.id)})});
+        claimed = Boolean((await claimResponse.json()).claimed);
+      } catch (_) { claimed = false; }
+      if (!claimed) return;
       const container = ensureToastContainer();
       const toast = document.createElement('div');
       toast.className = 'portal-toast';
       const state = notification.deadline_state && notification.deadline_state !== 'normal' ? notification.deadline_state : (notification.priority === 'urgent' ? 'urgent' : 'normal');
-      const stateLabel = ({due_today:'Due Today', overdue:'Overdue', upcoming:'Upcoming', urgent:'Urgent', normal:'Task'})[state] || 'Task';
-      const stateIcon = ({due_today:'◷', overdue:'⚠', upcoming:'◷', urgent:'!', normal:'✓'})[state] || '•';
+      const stateLabel = isLoanAgreement ? 'Loan Agreement' : (({due_today:'Due Today', overdue:'Overdue', upcoming:'Upcoming', urgent:'Urgent', normal:'Task'})[state] || 'Task');
+      const stateIcon = isLoanAgreement ? '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true"><path d="M6 3h9l3 3v15H6zM14 3v4h4M9 12h6M9 16h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>' : (({due_today:'◷', overdue:'⚠', upcoming:'◷', urgent:'!', normal:'✓'})[state] || '•');
+      if (isLoanAgreement) toast.classList.add('portal-notification--hr');
       toast.dataset.deadlineState = state;
       toast.setAttribute('role', state === 'urgent' ? 'alert' : 'status');
       toast.setAttribute('aria-live', state === 'urgent' ? 'assertive' : 'polite');
@@ -662,8 +671,8 @@ window.addEventListener('DOMContentLoaded', () => {
         <p class="portal-toast-message">${escapeHtml(notification.message || '')}</p>
         ${notification.assigned_name ? `<span class="portal-toast-assignee">Assigned to ${escapeHtml(notification.assigned_name)}</span>` : ''}
         ${notification.due_at ? `<span class="portal-toast-due">Due ${escapeHtml(notification.due_at)}</span>` : ''}`;
-      const isTask = notification.related_type === 'checklist_task' && Number(notification.related_id || 0) > 0;
       if (isTask) toast.insertAdjacentHTML('beforeend', '<div class="portal-toast-actions"><select data-toast-snooze aria-label="Snooze reminder"><option value="">Snooze</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="tomorrow">Tomorrow</option></select><button type="button" data-toast-read>Mark Read</button><button type="button" data-toast-view>View Task</button></div>');
+      if (isLoanAgreement) toast.insertAdjacentHTML('beforeend', `<div class="portal-toast-actions"><button type="button" class="portal-toast-hr-action" data-toast-loan>${notification.related_type === 'loan_agreement_owner_signature' ? 'Review &amp; Sign' : (notification.related_type === 'loan_agreement_completed' ? 'View Agreement' : 'Review Agreement')}</button></div>`);
       const markState = (state) => fetch(apiUrl, { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({action:`notification_${state}`, notification_id:String(notification.id)}) }).catch(() => {});
 
       const close = () => {
@@ -671,7 +680,7 @@ window.addEventListener('DOMContentLoaded', () => {
         window.setTimeout(() => toast.remove(), 220);
       };
 
-      toast.querySelector('.portal-toast-close')?.addEventListener('click', () => { markState('dismissed'); close(); });
+      toast.querySelector('.portal-toast-close')?.addEventListener('click', () => { if (!isLoanAgreement) markState('dismissed'); close(); });
       toast.querySelector('[data-toast-dismiss]')?.addEventListener('click', () => { markState('dismissed'); close(); });
       toast.querySelector('[data-toast-read]')?.addEventListener('click', () => { markState('viewed'); close(); });
       toast.querySelector('[data-toast-snooze]')?.addEventListener('change', async (event) => {
@@ -685,14 +694,8 @@ window.addEventListener('DOMContentLoaded', () => {
         if (/\/apps\/operations\/checklists\.php$/.test(window.location.pathname) && typeof window.openTaskPanel === 'function' && window.openTaskPanel(taskId)) close();
         else window.location.assign(notification.action_link || `/apps/operations/checklists.php?task_view=active&task_id=${encodeURIComponent(taskId)}`);
       });
+      toast.querySelector('[data-toast-loan]')?.addEventListener('click', async () => { await markState('viewed'); window.location.assign(notification.action_link); });
       container.prepend(toast);
-      let claimed = !isTask;
-      if (isTask) {
-        try {
-          const response = await fetch(apiUrl, {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({action:'notification_claim', notification_id:String(notification.id)})});
-          claimed = Boolean((await response.json()).claimed);
-        } catch (_) { claimed = false; }
-      }
       if (claimed && notification.sound_key) taskReminderSound.play(notification.sound_key);
       if (claimed && document.visibilityState === 'hidden' && 'Notification' in window && Notification.permission === 'granted') {
         const desktop = new Notification(notification.title || stateLabel, {body:notification.message || '', tag:`task-${notification.related_id}-${state}`, renotify:false, silent:true});

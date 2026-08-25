@@ -222,6 +222,63 @@ function loanAgreementEvent(PDO $db, int $agreementId, int $loanId, string $even
     $stmt->execute([$agreementId, $loanId, $event, $user['id'] ?? null, $user['role'] ?? null, $metadata ? json_encode($metadata) : null]);
 }
 
+function loanAgreementPortalDb(): PDO {
+    static $portalDb = null;
+    if ($portalDb instanceof PDO) return $portalDb;
+    global $businessLocalSecrets;
+    $local = is_array($businessLocalSecrets ?? null) ? $businessLocalSecrets : [];
+    $host = trim((string)(getenv('HAMBELELA_DB_HOST') ?: ($local['db_host'] ?? 'localhost')));
+    $name = trim((string)(getenv('HAMBELELA_DB_NAME') ?: ($local['db_name'] ?? 'hambelela_portal')));
+    $user = trim((string)(getenv('HAMBELELA_DB_USER') ?: ($local['db_user'] ?? 'root')));
+    $pass = (string)(getenv('HAMBELELA_DB_PASS') ?: ($local['db_pass'] ?? ''));
+    $charset = trim((string)(getenv('HAMBELELA_DB_CHARSET') ?: ($local['db_charset'] ?? 'utf8mb4')));
+    $portalDb = new PDO('mysql:host='.$host.';dbname='.$name.';charset='.$charset, $user, $pass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES => false,
+    ]);
+    return $portalDb;
+}
+
+function loanAgreementPortalEmployeeId(PDO $portalDb, int $hrEmployeeId): int {
+    $stmt = $portalDb->prepare('SELECT portal_user_id FROM employee_user_links WHERE hr_employee_id=? AND active=1 LIMIT 1');
+    $stmt->execute([$hrEmployeeId]);
+    return (int)$stmt->fetchColumn();
+}
+
+function loanAgreementPortalOwnerIds(PDO $portalDb): array {
+    $stmt = $portalDb->query("SELECT e.id FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE e.status='active' AND r.role_key='owner_admin'");
+    return array_values(array_unique(array_filter(array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN)))));
+}
+
+function loanAgreementCreatePortalNotification(PDO $portalDb, array $data, array $recipientIds): int {
+    $recipientIds = array_values(array_unique(array_filter(array_map('intval', $recipientIds))));
+    if (!$recipientIds) throw new RuntimeException('The portal recipient account is not linked.');
+    $stmt = $portalDb->prepare("INSERT INTO notifications (title,message,module,related_type,related_id,priority,deadline_state,sound_key,scheduled_at,deduplication_key,action_link,created_by) VALUES (?,?, 'hr', ?,?,?,'normal',NULL,NOW(),?,?,NULL) ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)");
+    $stmt->execute([
+        (string)$data['title'], (string)$data['message'], (string)$data['related_type'],
+        (int)$data['related_id'], (string)($data['priority'] ?? 'important'),
+        (string)$data['deduplication_key'], (string)$data['action_link'],
+    ]);
+    $notificationId = (int)$portalDb->lastInsertId();
+    if ($notificationId < 1) throw new RuntimeException('The portal notification could not be created.');
+    $recipient = $portalDb->prepare('INSERT IGNORE INTO notification_recipients (notification_id,employee_id) VALUES (?,?)');
+    foreach ($recipientIds as $recipientId) $recipient->execute([$notificationId,$recipientId]);
+    return $notificationId;
+}
+
+function loanAgreementPortalNotificationData(array $agreement, string $event): array {
+    $loanId = (int)$agreement['loan_id'];
+    $agreementId = (int)$agreement['id'];
+    $version = (int)$agreement['version_no'];
+    $number = 'LA-'.$loanId.'-V'.$version;
+    $employeeLink = '/apps/hr-portal/portal-login.php?return='.rawurlencode('my-loans.php?loan_id='.$loanId.'&tab=agreement');
+    $ownerLink = '/apps/hr-portal/portal-login.php?return='.rawurlencode('loan-view.php?loan_id='.$loanId.'&tab=agreement');
+    if ($event === 'sent') return ['title'=>'Loan Agreement requires your signature','message'=>'Your '.$number.' agreement for N$'.number_format((float)$agreement['amount'],2).' is ready. Monthly deduction: N$'.number_format((float)$agreement['instalment_amount'],2).'. First deduction: '.loanAgreementFormatDate((string)$agreement['first_deduction_date']).'.','related_type'=>'loan_agreement_signature','related_id'=>$agreementId,'deduplication_key'=>'hr:loan-agreement:'.$agreementId.':v'.$version.':sent','action_link'=>$employeeLink];
+    if ($event === 'employee_signed') return ['title'=>'Loan Agreement signed','message'=>trim((string)($agreement['emp_name'] ?? (($agreement['first_name'] ?? '').' '.($agreement['last_name'] ?? '')))).' has signed Loan Agreement '.$number.'.','related_type'=>'loan_agreement_owner_signature','related_id'=>$agreementId,'deduplication_key'=>'hr:loan-agreement:'.$agreementId.':v'.$version.':employee-signed','action_link'=>$ownerLink];
+    return ['title'=>'Loan Agreement completed','message'=>'Your Loan Agreement '.$number.' has been signed by both parties.','related_type'=>'loan_agreement_completed','related_id'=>$agreementId,'deduplication_key'=>'hr:loan-agreement:'.$agreementId.':v'.$version.':completed','action_link'=>$employeeLink];
+}
+
 function loanAgreementNotify(PDO $db, int $employeeId, string $title, string $message, string $type = 'info', string $actionUrl = ''): void {
     $stmt = $db->prepare("SELECT id FROM users WHERE employee_id=? AND active=1 LIMIT 1");
     $stmt->execute([$employeeId]);

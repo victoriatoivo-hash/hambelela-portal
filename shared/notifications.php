@@ -78,22 +78,22 @@ function notifications_current_employee_id(): ?int
 function notifications_default_modules_for_role(string $roleKey): array
 {
     if (in_array($roleKey, ['owner_admin', 'supervisor_manager'], true)) {
-        return ['operations', 'packing', 'bookkeeping', 'tasks', 'errors', 'whatsapp', 'cost_workbook', 'accounting_amendments', 'system'];
+        return ['operations', 'packing', 'bookkeeping', 'tasks', 'errors', 'whatsapp', 'cost_workbook', 'accounting_amendments', 'hr', 'system'];
     }
     if ($roleKey === 'accountant') {
         return ['accounting_amendments', 'system'];
     }
     if (in_array($roleKey, ['front_desk_admin', 'front_desk_admin_employee'], true)) {
-        return ['operations', 'packing', 'bookkeeping', 'tasks', 'errors', 'whatsapp', 'system'];
+        return ['operations', 'packing', 'bookkeeping', 'tasks', 'errors', 'whatsapp', 'hr', 'system'];
     }
     if (in_array($roleKey, ['packer', 'packer_production_staff'], true)) {
-        return ['operations', 'packing', 'tasks', 'system'];
+        return ['operations', 'packing', 'tasks', 'hr', 'system'];
     }
 
     // Custom/new employee roles still need their own assignment and workflow
     // notifications. Recipient rows remain account-specific, so this does not
     // expose another employee's feed.
-    return ['operations', 'packing', 'tasks', 'system'];
+    return ['operations', 'packing', 'tasks', 'hr', 'system'];
 }
 
 function notifications_modules(): array
@@ -107,6 +107,7 @@ function notifications_modules(): array
         'whatsapp' => 'WhatsApp Performance',
         'cost_workbook' => 'Cost Workbook',
         'accounting_amendments' => 'Accounting Amendments',
+        'hr' => 'HR Portal',
         'system' => 'System',
     ];
 }
@@ -424,15 +425,8 @@ function notifications_mark_task_state(int $notificationId, string $state): bool
     if (!$employeeId || $notificationId <= 0 || !notifications_schema_ready()) return false;
     $column = ['delivered' => 'delivered_at', 'viewed' => 'read_at', 'dismissed' => 'cleared_at'][$state] ?? '';
     if ($column === '') return false;
-    $stmt = db()->prepare(
-        "UPDATE notification_recipients nr
-         JOIN notifications n ON n.id = nr.notification_id
-         JOIN ops_checklist_tasks t ON t.id = n.related_id AND n.related_type = 'checklist_task'
-         SET nr.{$column} = COALESCE(nr.{$column}, NOW())
-         WHERE nr.notification_id = ? AND nr.employee_id = ?
-           AND (t.assigned_employee_id = ? OR ? = 1)"
-    );
-    $stmt->execute([$notificationId, $employeeId, $employeeId, user_has_role('owner_admin') ? 1 : 0]);
+    $stmt = db()->prepare("UPDATE notification_recipients SET {$column}=COALESCE({$column},NOW()) WHERE notification_id=? AND employee_id=?");
+    $stmt->execute([$notificationId, $employeeId]);
     return $stmt->rowCount() > 0;
 }
 
@@ -440,6 +434,14 @@ function notifications_claim_task_delivery(int $notificationId): bool
 {
     $employeeId = notifications_current_employee_id();
     if (!$employeeId || $notificationId <= 0 || !notifications_schema_ready()) return false;
+    $typeStmt = db()->prepare('SELECT related_type FROM notifications WHERE id=? LIMIT 1');
+    $typeStmt->execute([$notificationId]);
+    $relatedType = (string)$typeStmt->fetchColumn();
+    if ($relatedType !== 'checklist_task') {
+        $stmt = db()->prepare('UPDATE notification_recipients SET delivered_at=NOW() WHERE notification_id=? AND employee_id=? AND delivered_at IS NULL AND read_at IS NULL AND cleared_at IS NULL');
+        $stmt->execute([$notificationId,$employeeId]);
+        return $stmt->rowCount() > 0;
+    }
     $stmt = db()->prepare(
         "UPDATE notification_recipients nr
          JOIN notifications n ON n.id = nr.notification_id
