@@ -17,7 +17,7 @@ function accounts_permissions_for_role(?string $roleKey = null): array
         'accounts.access','input_vat.view','input_vat.create','input_vat.edit','input_vat.history','input_vat.delete','input_vat.settings',
         'output_vat.view','output_vat.sync','output_vat.adjust','output_vat.complete','output_vat.export',
         'import_vat.view','import_vat.upload_statement','import_vat.review_statement','import_vat.confirm_import','import_vat.edit','import_vat.export','import_vat.complete',
-        'paye.view','paye.upload_statement','paye.export',
+        'paye.view','paye.upload_statement','paye.export','paye.manage_returns',
         'vat_reconciliation.view','vat_reconciliation.review','vat_reconciliation.adjust','vat_reconciliation.export','vat_reconciliation.file','vat_reconciliation.lock',
         'amendments.view','amendments.create','amendments.reply','amendments.resolve','amendments.attach',
     ];
@@ -26,7 +26,7 @@ function accounts_permissions_for_role(?string $roleKey = null): array
         'accounts.access','input_vat.view','input_vat.create','input_vat.edit','input_vat.history',
         'output_vat.view','output_vat.sync','output_vat.adjust','output_vat.export',
         'import_vat.view','import_vat.upload_statement','import_vat.review_statement','import_vat.confirm_import','import_vat.edit','import_vat.export',
-        'paye.view','paye.upload_statement','paye.export',
+        'paye.view','paye.upload_statement','paye.export','paye.manage_returns',
         'vat_reconciliation.view','vat_reconciliation.review','vat_reconciliation.adjust','vat_reconciliation.export',
         'amendments.view','amendments.create','amendments.reply','amendments.resolve','amendments.attach',
     ];

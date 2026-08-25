@@ -11,11 +11,13 @@ try {
  if($action==='export'){
   if(!accounts_can('paye.export'))throw new RuntimeException('You cannot export PAYE records.'); $data=paye_payload($month);
   header('Content-Type: text/csv; charset=utf-8'); header('Content-Disposition: attachment; filename="paye-'.$month.'.csv"'); $out=fopen('php://output','w');
-  fputcsv($out,['PAYE Period','Reference','Return Status','Submitted Date','Assessed','Paid','Payment Date','Outstanding','Due Date','Status']);
-  foreach($data['records']as$row)fputcsv($out,[$row['accounting_period'],$row['reference'],$row['return_status'],$row['submitted_date'],$row['assessed'],$row['paid'],$row['payment_date'],$row['outstanding'],$row['due_date'],$row['status']]); fclose($out); exit;
+  fputcsv($out,['PAYE Period','Tax Year','Tax Period','Return ID','EFT Reference','Return Status','Submitted Date','Assessed','Paid','Payment Date','Outstanding','Due Date','Status']);
+  foreach($data['records']as$row)fputcsv($out,[$row['accounting_period'],$row['tax_year'],$row['tax_period'],$row['return_id'],$row['eft_reference'],$row['return_status'],$row['submitted_date'],$row['assessed'],$row['paid'],$row['payment_date'],$row['outstanding'],$row['due_date'],$row['status']]); fclose($out); exit;
  }
  if($_SERVER['REQUEST_METHOD']==='POST'){
-  paye_verify((string)($_POST['csrf']??'')); if($action!=='upload_statement')throw new RuntimeException('Unsupported PAYE action.'); if(!accounts_can('paye.upload_statement'))throw new RuntimeException('You cannot upload PAYE statements.');
+  paye_verify((string)($_POST['csrf']??''));
+  if($action==='save_return'){if(!accounts_can('paye.manage_returns'))throw new RuntimeException('You cannot update PAYE return status.');paye_reply(['ok'=>true,'message'=>'PAYE return status saved.','data'=>paye_save_return($_POST)]);}
+  if($action!=='upload_statement')throw new RuntimeException('Unsupported PAYE action.'); if(!accounts_can('paye.upload_statement'))throw new RuntimeException('You cannot upload PAYE statements.');
   if(!isset($_FILES['statement'])||!is_uploaded_file((string)$_FILES['statement']['tmp_name']))throw new RuntimeException('Select a NamRA PAYE statement to upload.'); $file=$_FILES['statement'];
   if((int)$file['error']!==UPLOAD_ERR_OK)throw new RuntimeException('The PAYE statement did not upload successfully.'); $tmp=(string)$file['tmp_name']; $size=(int)$file['size']; if($size<=0||$size>30*1024*1024)throw new RuntimeException('Statements must be no larger than 30 MB.');
   $mime=(new finfo(FILEINFO_MIME_TYPE))->file($tmp)?:''; $allowed=['application/pdf'=>'pdf','text/csv'=>'csv','text/plain'=>'csv','application/vnd.ms-excel'=>'csv']; if(!isset($allowed[$mime]))throw new RuntimeException('Upload a machine-readable PDF or CSV NamRA PAYE statement.');
