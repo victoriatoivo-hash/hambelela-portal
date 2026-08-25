@@ -337,10 +337,12 @@
 #inputVatPage .input-vat-rate-indicator span{font-size:10px;font-weight:500}
 #inputVatPage .input-vat-rate-indicator strong{font-size:12px;font-weight:600;color:var(--iv-burgundy)}
 #inputVatPage .accounts-summary{gap:12px;margin:10px 0 12px}
+#inputVatPage.paye-page .accounts-summary{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
 #inputVatPage .accounts-summary article{position:relative;min-height:92px;padding:13px 14px;border:1px solid var(--iv-border);border-left:4px solid var(--iv-olive);border-radius:12px;background:#fff;box-shadow:none;transition:none}
 #inputVatPage .accounts-summary article:nth-child(2){border-left-color:var(--iv-action)}
 #inputVatPage .accounts-summary article:nth-child(3),#inputVatPage .accounts-summary article.is-primary-metric{border:1px solid var(--iv-border);border-left:4px solid var(--iv-amber);background:var(--iv-soft)}
 #inputVatPage .accounts-summary article:nth-child(4){border-left-color:var(--iv-burgundy)}
+#inputVatPage.paye-page .accounts-summary article:nth-child(5){border-left-color:var(--iv-action)}
 #inputVatPage .accounts-summary article:hover{transform:none;border-top-color:var(--iv-border);box-shadow:none}
 #inputVatPage .accounts-summary article small{font-size:10px;font-weight:600;color:var(--iv-mid)}
 #inputVatPage .accounts-summary article strong{font-size:21px;font-weight:600;color:var(--iv-text);font-variant-numeric:tabular-nums}
