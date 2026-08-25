@@ -15,8 +15,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'emplo
     $typedName = trim((string)($_POST['employee_name'] ?? ''));
     $signature = trim((string)($_POST['employee_signature'] ?? ''));
     $accepted = isset($_POST['ack_read'],$_POST['ack_principal'],$_POST['ack_instalment'],$_POST['ack_start'],$_POST['ack_deduction'],$_POST['ack_termination'],$_POST['ack_questions']);
-    $stmt = $db->prepare("SELECT a.*,l.id AS loan_id,l.employee_id,l.amount,e.first_name,e.last_name,e.emp_number FROM loan_agreements a JOIN loans l ON l.id=a.loan_id JOIN employees e ON e.id=l.employee_id WHERE a.id=? AND l.employee_id=? AND a.status IN ('employee_pending','owner_signed')");
+    $stmt = $db->prepare("SELECT a.*,l.id AS loan_id,l.employee_id,l.amount,e.first_name,e.last_name,e.emp_number FROM loan_agreements a JOIN loans l ON l.id=a.loan_id JOIN employees e ON e.id=l.employee_id WHERE a.id=? AND l.employee_id=?");
     $stmt->execute([$agreementId,$empId]); $agreement = $stmt->fetch();
+    if ($agreement && (string)$agreement['status'] === 'revoked') {
+        header('Location: my-loans.php?loan_id='.(int)$agreement['loan_id'].'&agreement_id='.$agreementId.'&tab=agreement&error=revoked'); exit;
+    }
+    if ($agreement && !in_array((string)$agreement['status'],['employee_pending','owner_signed'],true)) $agreement = false;
     $expectedName = $agreement ? trim($agreement['first_name'].' '.$agreement['last_name']) : '';
     if (!$agreement || !$accepted || $typedName === '' || $signature === '' || strcasecmp($typedName,$expectedName)!==0) {
         header('Location: my-loans.php?error=signature'); exit;
@@ -56,8 +60,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'emplo
     header('Location: my-loans.php?loan_id='.(int)$agreement['loan_id'].'&tab=agreement&msg=signed'); exit;
 }
 
-$loans = $db->prepare("SELECT l.*,a.id AS agreement_id,a.version_no,a.status AS agreement_status,a.agreement_date,a.first_deduction_date,a.instalment_amount,a.number_of_instalments,a.final_instalment_amount,a.purpose,a.legal_notes,a.snapshot_json,a.document_hash,a.employee_signed_at,a.owner_signed_at,a.fully_signed_at,(SELECT COALESCE(SUM(amount),0) FROM loan_repayments WHERE loan_id=l.id) as total_repaid FROM loans l LEFT JOIN loan_agreements a ON a.loan_id=l.id AND a.version_no=(SELECT MAX(a2.version_no) FROM loan_agreements a2 WHERE a2.loan_id=l.id) WHERE l.employee_id=? ORDER BY l.status ASC, l.created_at DESC");
-$loans->execute([$empId]);
+$requestedAgreementId=(int)($_GET['agreement_id']??0);
+$agreementJoin = $requestedAgreementId > 0 ? "a.id=?" : "a.version_no=(SELECT MAX(a2.version_no) FROM loan_agreements a2 WHERE a2.loan_id=l.id)";
+$loans = $db->prepare("SELECT l.*,a.id AS agreement_id,a.version_no,a.status AS agreement_status,a.agreement_date,a.first_deduction_date,a.instalment_amount,a.number_of_instalments,a.final_instalment_amount,a.purpose,a.legal_notes,a.snapshot_json,a.document_hash,a.employee_signed_at,a.owner_signed_at,a.fully_signed_at,(SELECT COALESCE(SUM(amount),0) FROM loan_repayments WHERE loan_id=l.id) as total_repaid FROM loans l LEFT JOIN loan_agreements a ON a.loan_id=l.id AND ".$agreementJoin." WHERE l.employee_id=? ORDER BY l.status ASC, l.created_at DESC");
+$loans->execute($requestedAgreementId > 0 ? [$requestedAgreementId,$empId] : [$empId]);
 $loans = $loans->fetchAll();
 $requestedLoanId=(int)($_GET['loan_id']??0); $requestedTab=(string)($_GET['tab']??'overview');
 if ($requestedLoanId) { $loans=array_values(array_filter($loans,function($row)use($requestedLoanId){return (int)$row['id']===$requestedLoanId;})); if (!$loans){http_response_code(403);exit('You do not have access to this loan.');} }
@@ -84,6 +90,7 @@ $currentPage = 'my-loans.php';
 
     <?php if (($_GET['msg'] ?? '')==='signed'): ?><div class="toast"><i class="fa-solid fa-check"></i> Agreement signed successfully. The owner has been notified.</div><?php endif ?>
     <?php if (($_GET['error'] ?? '')==='signature'): ?><div class="toast error">Confirm the terms, type your full employee name exactly, and provide your signature.</div><?php endif ?>
+    <?php if (($_GET['error'] ?? '')==='revoked'): ?><div class="toast error">This Loan Agreement has been revoked and is no longer available for signature.</div><?php endif ?>
 
     <?php if (empty($loans)): ?>
     <div class="empty-state" style="margin-top:60px">
@@ -157,6 +164,7 @@ $currentPage = 'my-loans.php';
             <div class="<?= $step[1] ? 'is-complete' : '' ?>"><span><i class="fa-solid <?= $step[1] ? 'fa-check' : 'fa-circle' ?>"></i></span><small><?=htmlspecialchars($step[0])?></small></div>
             <?php endforeach ?>
           </div>
+          <?php if($l['agreement_status']==='revoked'): ?><div class="loan-revoked-notice"><strong>LOAN AGREEMENT REVOKED</strong><span>This agreement was recalled by the Employer before signature. A new agreement may be sent to you.</span></div><?php endif; ?>
           <?php $employeeAgreementData=loanAgreementDocumentData($l,$l,array_merge($employee,['job_title'=>$employee['job_title']??'Employee'])); loanAgreementRenderDocument($employeeAgreementData,$signatures,['document_hash'=>$l['document_hash']]); ?>
 
           <?php if (in_array($l['agreement_status'],['employee_pending','owner_signed'],true)): ?>
@@ -180,6 +188,7 @@ $currentPage = 'my-loans.php';
 @media(max-width:767px){.loan-contract dl{grid-template-columns:1fr 1fr}.loan-progress small{font-size:8px}.loan-signatures span{align-items:flex-start;flex-direction:column}.loan-agreement-heading{flex-direction:column}}
 @media(max-width:430px){.loan-contract dl{grid-template-columns:1fr}.loan-progress{gap:2px}.loan-progress span{width:24px;height:24px}}
 .loan-signature-pad{display:block;width:100%;height:90px;touch-action:none;background:#fff;border:1.5px solid var(--border);border-radius:8px}.loan-signature-pad:focus-visible{outline:2px solid var(--green-light);outline-offset:1px}.loan-clear-signature{align-self:flex-start;padding:3px 0;color:var(--green);font-size:10px;font-weight:700;background:transparent;border:0;cursor:pointer}
+.loan-revoked-notice{display:grid;gap:4px;margin:14px 0;padding:12px;color:#721b1a;background:#fff3ef;border:1px solid #efd0c8;border-radius:8px}.loan-revoked-notice strong{font-size:12px;letter-spacing:.04em}.loan-revoked-notice span{font-size:11px;line-height:1.5}
 .loan-tabs{display:flex;flex-wrap:wrap;gap:6px;margin:16px 0}.loan-tabs a{padding:7px 10px;border:1px solid var(--border);border-radius:7px;color:var(--green);font-size:11px;font-weight:700;text-decoration:none}.loan-tabs a:hover{background:var(--green-pale)}
 </style>
 <script>

@@ -33,15 +33,33 @@ function loanAgreementEnsureSchema(PDO $db): void {
       snapshot_json MEDIUMTEXT NULL,
       document_hash CHAR(64) NULL,
       sent_at DATETIME NULL,
+      sent_by INT UNSIGNED NULL,
       employee_signed_at DATETIME NULL,
       owner_signed_at DATETIME NULL,
       fully_signed_at DATETIME NULL,
+      revoked_at DATETIME NULL,
+      revoked_by INT UNSIGNED NULL,
+      revoke_reason VARCHAR(500) NULL,
+      replacement_agreement_id INT UNSIGNED NULL,
       created_by INT UNSIGNED NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       UNIQUE KEY loan_agreement_version (loan_id, version_no),
       KEY loan_agreement_status (status)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    $agreementColumns = [
+        'sent_by' => 'INT UNSIGNED NULL',
+        'revoked_at' => 'DATETIME NULL',
+        'revoked_by' => 'INT UNSIGNED NULL',
+        'revoke_reason' => 'VARCHAR(500) NULL',
+        'replacement_agreement_id' => 'INT UNSIGNED NULL',
+    ];
+    foreach ($agreementColumns as $column => $definition) {
+        $check = $db->prepare("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='loan_agreements' AND COLUMN_NAME=?");
+        $check->execute([$column]);
+        if (!(int)$check->fetchColumn()) $db->exec('ALTER TABLE loan_agreements ADD COLUMN '.$column.' '.$definition);
+    }
 
     $db->exec("CREATE TABLE IF NOT EXISTS loan_agreement_signatures (
       id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -100,6 +118,7 @@ function loanAgreementStatusLabel(string $status): string {
         'owner_signed' => 'Awaiting Employee Signature',
         'fully_signed' => 'Fully Signed / Active',
         'legacy_active' => 'No Agreement',
+        'revoked' => 'Revoked Before Signature',
         'cancelled' => 'Cancelled',
     ];
     return $labels[$status] ?? ucwords(str_replace('_', ' ', $status));
@@ -277,6 +296,19 @@ function loanAgreementPortalNotificationData(array $agreement, string $event): a
     if ($event === 'sent') return ['title'=>'Loan Agreement requires your signature','message'=>'Your '.$number.' agreement for N$'.number_format((float)$agreement['amount'],2).' is ready. Monthly deduction: N$'.number_format((float)$agreement['instalment_amount'],2).'. First deduction: '.loanAgreementFormatDate((string)$agreement['first_deduction_date']).'.','related_type'=>'loan_agreement_signature','related_id'=>$agreementId,'deduplication_key'=>'hr:loan-agreement:'.$agreementId.':v'.$version.':sent','action_link'=>$employeeLink];
     if ($event === 'employee_signed') return ['title'=>'Loan Agreement signed','message'=>trim((string)($agreement['emp_name'] ?? (($agreement['first_name'] ?? '').' '.($agreement['last_name'] ?? '')))).' has signed Loan Agreement '.$number.'.','related_type'=>'loan_agreement_owner_signature','related_id'=>$agreementId,'deduplication_key'=>'hr:loan-agreement:'.$agreementId.':v'.$version.':employee-signed','action_link'=>$ownerLink];
     return ['title'=>'Loan Agreement completed','message'=>'Your Loan Agreement '.$number.' has been signed by both parties.','related_type'=>'loan_agreement_completed','related_id'=>$agreementId,'deduplication_key'=>'hr:loan-agreement:'.$agreementId.':v'.$version.':completed','action_link'=>$employeeLink];
+}
+
+function loanAgreementRevokePortalNotification(PDO $portalDb, int $agreementId, int $loanId, int $version): array {
+    $lookup = $portalDb->prepare("SELECT id FROM notifications WHERE related_type='loan_agreement_signature' AND related_id=?");
+    $lookup->execute([$agreementId]);
+    $notificationIds = array_values(array_filter(array_map('intval', $lookup->fetchAll(PDO::FETCH_COLUMN))));
+    if (!$notificationIds) return [];
+    $placeholders = implode(',', array_fill(0, count($notificationIds), '?'));
+    $portalDb->prepare("UPDATE notification_recipients SET read_at=COALESCE(read_at,NOW()),cleared_at=COALESCE(cleared_at,NOW()) WHERE notification_id IN ($placeholders)")->execute($notificationIds);
+    $actionLink = '/apps/hr-portal/portal-login.php?return='.rawurlencode('my-loans.php?loan_id='.$loanId.'&agreement_id='.$agreementId.'&tab=agreement');
+    $params = array_merge(['Loan Agreement recalled','Loan Agreement LA-'.$loanId.'-V'.$version.' was recalled before signature. A replacement may be sent.','loan_agreement_revoked',$actionLink], $notificationIds);
+    $portalDb->prepare("UPDATE notifications SET title=?,message=?,related_type=?,action_link=? WHERE id IN ($placeholders)")->execute($params);
+    return $notificationIds;
 }
 
 function loanAgreementNotify(PDO $db, int $employeeId, string $title, string $message, string $type = 'info', string $actionUrl = ''): void {

@@ -96,8 +96,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $canonical = loanAgreementCanonical($agreement,$agreement,$agreement);
                 $snapshot = json_encode($canonical, JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
                 $hash = hash('sha256', $snapshot);
-                $updated = $db->prepare("UPDATE loan_agreements SET status='employee_pending',sent_at=NOW(),snapshot_json=?,document_hash=? WHERE id=? AND status='draft'");
-                $updated->execute([$snapshot,$hash,$agreementId]);
+                $updated = $db->prepare("UPDATE loan_agreements SET status='employee_pending',sent_at=NOW(),sent_by=?,snapshot_json=?,document_hash=? WHERE id=? AND status='draft'");
+                $updated->execute([(int)$user['id'],$snapshot,$hash,$agreementId]);
                 if ($updated->rowCount() !== 1) throw new RuntimeException('The agreement was not sent. Refresh and try again.');
                 $portalEmployeeId = loanAgreementPortalEmployeeId($portalDb,(int)$agreement['employee_id']);
                 $notice = loanAgreementPortalNotificationData($agreement,'sent');
@@ -117,6 +117,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: loan-view.php?loan_id='.(int)$agreement['loan_id'].'&tab=agreement&msg=sent'); exit;
         }
         header('Location: loans.php?msg=sent'); exit;
+    }
+
+    if ($action === 'revoke_agreement') {
+        $agreementId = (int)($_POST['agreement_id'] ?? 0);
+        $reason = trim((string)($_POST['revoke_reason'] ?? 'Agreement recalled before employee signature.'));
+        if ($reason === '') $reason = 'Agreement recalled before employee signature.';
+        $portalDb = loanAgreementPortalDb();
+        try {
+            $db->beginTransaction(); $portalDb->beginTransaction();
+            $stmt = $db->prepare("SELECT a.*,l.employee_id,l.amount,l.id AS loan_id FROM loan_agreements a JOIN loans l ON l.id=a.loan_id WHERE a.id=? FOR UPDATE");
+            $stmt->execute([$agreementId]); $agreement = $stmt->fetch();
+            if (!$agreement) throw new RuntimeException('Loan Agreement not found.');
+            if ((string)$agreement['status'] === 'revoked' && (int)($agreement['replacement_agreement_id'] ?? 0) > 0) {
+                $portalDb->commit(); $db->commit();
+                header('Location: loan-view.php?loan_id='.(int)$agreement['loan_id'].'&tab=agreement&msg=revoked'); exit;
+            }
+            if ((string)$agreement['status'] !== 'employee_pending') throw new RuntimeException('Only an unsigned agreement awaiting employee signature can be revoked.');
+            $signatureCheck = $db->prepare("SELECT COUNT(*) FROM loan_agreement_signatures WHERE agreement_id=? AND signer_role='employee'");
+            $signatureCheck->execute([$agreementId]);
+            if (!empty($agreement['employee_signed_at']) || (int)$signatureCheck->fetchColumn() > 0) throw new RuntimeException('The employee has already signed this agreement. Create a formal amended version instead.');
+            $latest = $db->prepare("SELECT MAX(version_no) FROM loan_agreements WHERE loan_id=? FOR UPDATE");
+            $latest->execute([(int)$agreement['loan_id']]); $newVersion = (int)$latest->fetchColumn()+1;
+            $insert = $db->prepare("INSERT INTO loan_agreements (loan_id,version_no,status,agreement_date,first_deduction_date,deduction_day,instalment_amount,number_of_instalments,final_instalment_amount,purpose,repayment_method,legal_notes,created_by) VALUES (?,?,'draft',CURDATE(),?,?,?,?,?,?,?,?,?)");
+            $insert->execute([(int)$agreement['loan_id'],$newVersion,$agreement['first_deduction_date'],$agreement['deduction_day'],$agreement['instalment_amount'],$agreement['number_of_instalments'],$agreement['final_instalment_amount'],$agreement['purpose'],$agreement['repayment_method'],$agreement['legal_notes'],(int)$user['id']]);
+            $replacementId = (int)$db->lastInsertId();
+            $update = $db->prepare("UPDATE loan_agreements SET status='revoked',revoked_at=NOW(),revoked_by=?,revoke_reason=?,replacement_agreement_id=? WHERE id=? AND status='employee_pending' AND employee_signed_at IS NULL");
+            $update->execute([(int)$user['id'],$reason,$replacementId,$agreementId]);
+            if ($update->rowCount() !== 1) throw new RuntimeException('The agreement changed before it could be revoked. Refresh and try again.');
+            $notificationIds = loanAgreementRevokePortalNotification($portalDb,$agreementId,(int)$agreement['loan_id'],(int)$agreement['version_no']);
+            $employeeUser = $db->prepare("SELECT id FROM users WHERE employee_id=? AND active=1 LIMIT 1");
+            $employeeUser->execute([(int)$agreement['employee_id']]); $employeeUserId=(int)$employeeUser->fetchColumn();
+            if ($employeeUserId) {
+                $db->prepare("UPDATE notifications SET title='Loan Agreement recalled',message='The previous Loan Agreement was recalled by the Employer and is no longer available for signature. A replacement may be sent.',is_read=1,action_url=? WHERE user_id=? AND action_url LIKE ? AND title LIKE '%Loan Agreement%'")
+                   ->execute(['my-loans.php?loan_id='.(int)$agreement['loan_id'].'&agreement_id='.$agreementId.'&tab=agreement',$employeeUserId,'my-loans.php?loan_id='.(int)$agreement['loan_id'].'%']);
+            }
+            loanAgreementEvent($db,$agreementId,(int)$agreement['loan_id'],'agreement_revoked',$user,['reason'=>$reason,'replacement_agreement_id'=>$replacementId]);
+            loanAgreementEvent($db,$agreementId,(int)$agreement['loan_id'],'notification_revoked',$user,['portal_notification_ids'=>$notificationIds]);
+            loanAgreementEvent($db,$replacementId,(int)$agreement['loan_id'],'replacement_version_created',$user,['replaces_agreement_id'=>$agreementId,'version'=>$newVersion]);
+            $portalDb->commit(); $db->commit();
+        } catch (Throwable $error) {
+            if ($portalDb->inTransaction()) $portalDb->rollBack();
+            if ($db->inTransaction()) $db->rollBack();
+            error_log('Loan agreement revoke failed: '.$error->getMessage());
+            http_response_code(409); exit($error->getMessage());
+        }
+        header('Location: loan-view.php?loan_id='.(int)$agreement['loan_id'].'&tab=agreement&msg=revoked'); exit;
     }
 
     if ($action === 'owner_sign') {
