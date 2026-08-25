@@ -87,15 +87,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'send_agreement') {
         $agreementId = (int)($_POST['agreement_id'] ?? 0);
-        $stmt = $db->prepare("SELECT a.*,l.employee_id,l.amount,l.id AS loan_id,e.first_name,e.last_name,e.emp_number FROM loan_agreements a JOIN loans l ON l.id=a.loan_id JOIN employees e ON e.id=l.employee_id WHERE a.id=? AND a.status='draft'");
+        $stmt = $db->prepare("SELECT a.*,l.employee_id,l.amount,l.id AS loan_id,e.first_name,e.last_name,e.emp_number,e.job_title,CONCAT(e.first_name,' ',e.last_name) AS emp_name FROM loan_agreements a JOIN loans l ON l.id=a.loan_id JOIN employees e ON e.id=l.employee_id WHERE a.id=? AND a.status='draft'");
         $stmt->execute([$agreementId]); $agreement = $stmt->fetch();
         if ($agreement) {
-            $hash = loanAgreementHash($agreement,$agreement,$agreement);
-            $snapshot = json_encode(loanAgreementCanonical($agreement,$agreement,$agreement), JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
+            $canonical = loanAgreementCanonical($agreement,$agreement,$agreement);
+            $snapshot = json_encode($canonical, JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
+            $hash = hash('sha256', $snapshot);
             $db->prepare("UPDATE loan_agreements SET status='employee_pending',sent_at=NOW(),snapshot_json=?,document_hash=? WHERE id=? AND status='draft'")
                ->execute([$snapshot,$hash,$agreementId]);
             loanAgreementEvent($db,$agreementId,(int)$agreement['loan_id'],'sent_to_employee',$user);
             loanAgreementNotify($db,(int)$agreement['employee_id'],'Loan Agreement requires your signature.','Review and sign your employee loan agreement.','info','my-loans.php?loan_id='.(int)$agreement['loan_id'].'&tab=agreement');
+        }
+        if (!empty($_POST['return_to_agreement']) && $agreement) {
+            header('Location: loan-view.php?loan_id='.(int)$agreement['loan_id'].'&tab=agreement&msg=sent'); exit;
         }
         header('Location: loans.php?msg=sent'); exit;
     }
@@ -220,9 +224,11 @@ $currentPage = 'loans.php';
             <a class="btn btn-secondary btn-sm" href="loan-view.php?loan_id=<?=$l['id']?>&amp;tab=agreement"><i class="fa-solid fa-file-signature"></i> Loan Agreement</a>
             <?php if ($l['status']==='active'): ?>
             <?php if ($l['agreement_status']==='draft'): ?>
-            <form method="POST" style="display:inline"><input type="hidden" name="loan_agreement_csrf" value="<?=htmlspecialchars(loanAgreementCsrfToken())?>"><input type="hidden" name="action" value="send_agreement"><input type="hidden" name="agreement_id" value="<?=$l['agreement_id']?>"><button class="btn btn-primary btn-sm" type="submit"><i class="fa-solid fa-paper-plane"></i> Send</button></form>
-            <?php elseif (in_array($l['agreement_status'],['employee_pending','employee_signed'],true)): ?>
-            <button class="btn btn-amber btn-sm" type="button" onclick="openOwnerSign(<?=$l['agreement_id']?>,'<?=htmlspecialchars($l['emp_name'],ENT_QUOTES)?>')"><i class="fa-solid fa-signature"></i> Owner sign</button>
+            <a class="btn btn-primary btn-sm" href="loan-view.php?loan_id=<?=$l['id']?>&amp;tab=agreement"><i class="fa-solid fa-eye"></i> Review &amp; send</a>
+            <?php elseif ($l['agreement_status']==='employee_pending'): ?>
+            <span class="badge badge-amber">Awaiting employee</span>
+            <?php elseif ($l['agreement_status']==='employee_signed'): ?>
+            <a class="btn btn-amber btn-sm" href="loan-view.php?loan_id=<?=$l['id']?>&amp;tab=agreement"><i class="fa-solid fa-eye"></i> Review &amp; sign</a>
             <?php elseif ($l['agreement_status']==='fully_signed'): ?>
             <a class="btn btn-secondary btn-sm" href="loan-agreement.php?loan_id=<?=$l['id']?>&download=1"><i class="fa-solid fa-file-pdf"></i> PDF</a>
             <?php endif ?>

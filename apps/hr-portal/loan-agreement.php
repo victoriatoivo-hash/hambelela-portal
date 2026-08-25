@@ -6,7 +6,7 @@ requireAdmin();
 $db = db();
 loanAgreementEnsureSchema($db);
 $loanId = (int)($_GET['loan_id'] ?? 0);
-$stmt = $db->prepare("SELECT l.*,a.*,a.id AS agreement_id,l.id AS loan_record_id,CONCAT(e.first_name,' ',e.last_name) AS emp_name,e.emp_number,e.first_name,e.last_name FROM loans l JOIN loan_agreements a ON a.loan_id=l.id JOIN employees e ON e.id=l.employee_id WHERE l.id=? AND a.status='fully_signed' ORDER BY a.version_no DESC LIMIT 1");
+$stmt = $db->prepare("SELECT l.*,a.*,a.id AS agreement_id,l.id AS loan_record_id,CONCAT(e.first_name,' ',e.last_name) AS emp_name,e.emp_number,e.first_name,e.last_name,e.job_title FROM loans l JOIN loan_agreements a ON a.loan_id=l.id JOIN employees e ON e.id=l.employee_id WHERE l.id=? AND a.status='fully_signed' ORDER BY a.version_no DESC LIMIT 1");
 $stmt->execute([$loanId]);
 $agreement = $stmt->fetch();
 if (!$agreement) {
@@ -23,4 +23,3 @@ header('Content-Disposition: attachment; filename="loan-agreement-' . $loanId . 
 header('Content-Length: ' . strlen($pdf));
 header('X-Content-Type-Options: nosniff');
 echo $pdf;
-
