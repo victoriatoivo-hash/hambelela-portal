@@ -110,6 +110,7 @@ if ($packingSidebarRoleKey === 'accountant') {
         ['id'=>'input-vat','label'=>'Input VAT','icon'=>'accounts','href'=>BASE_URL.'/apps/accounts/input-vat.php','match'=>['/apps/accounts/input-vat.php']],
         ['id'=>'output-vat','label'=>'Output VAT','icon'=>'accounts','href'=>BASE_URL.'/apps/accounts/output-vat.php','match'=>['/apps/accounts/output-vat.php']],
         ['id'=>'import-vat','label'=>'Import VAT','icon'=>'accounts','href'=>BASE_URL.'/apps/accounts/import-vat.php','match'=>['/apps/accounts/import-vat.php']],
+        ['id'=>'paye','label'=>'PAYE','icon'=>'accounts','href'=>BASE_URL.'/apps/accounts/paye.php','match'=>['/apps/accounts/paye.php']],
         ['id'=>'vat-reconciliation','label'=>'VAT Reconciliation','icon'=>'accounts','href'=>BASE_URL.'/apps/accounts/vat-reconciliation.php','match'=>['/apps/accounts/vat-reconciliation.php']],
     ];
 }
@@ -122,6 +123,7 @@ $featureByNavId = [
     'input-vat' => 'input_vat',
     'output-vat' => 'output_vat',
     'import-vat' => 'import_vat',
+    'paye' => 'paye',
     'vat-reconciliation' => 'vat_reconciliation',
     'operations-consignments' => 'packing_list',
     'operations-courier' => 'courier',

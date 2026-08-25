@@ -16,6 +16,7 @@ $apps=[
  ['input-vat.php','receipt-text','input-vat','Input VAT','Record local VAT purchases, supporting invoices and monthly Input VAT.'],
  ['output-vat.php','chart-no-axes-combined','output-vat','Output VAT','Reconcile WooCommerce sales and calculate Output VAT by tax period.'],
  ['import-vat.php','ship','import-vat','Import VAT','Track imported goods, NamRA Import VAT, due dates and payments.'],
+ ['paye.php','landmark','paye','PAYE','Upload NamRA Employee Tax statements and reconcile assessed, paid and outstanding PAYE.'],
  ['vat-reconciliation.php','scale','vat-reconciliation','VAT Reconciliation','Combine Output, Input and reviewed Import VAT into a return position.'],
  ['amendments.php','message-square-text','amendments','Amendments',$isAccountant?'Send me any accounting amendments or corrections you need me to make.':'Discuss accounting corrections with a complete shared audit trail.'],
 ];
