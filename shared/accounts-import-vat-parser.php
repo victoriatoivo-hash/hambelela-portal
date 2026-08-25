@@ -30,7 +30,7 @@ function import_vat_tax_period_month(string $taxYear, string $taxPeriod): ?strin
 
 function import_vat_transaction_code(string $transactionType): string
 {
-    foreach (['201', '204', '129', '481', '304'] as $code) {
+    foreach (['201', '204', '129', '113', '481', '304'] as $code) {
         $pattern = '/(?<!\d)'.implode('\\D{0,8}', str_split($code)).'(?!\d)/u';
         if (preg_match($pattern, $transactionType)) {
             return $code;
@@ -46,6 +46,7 @@ function import_vat_classification(string $transactionType): string
         '201' => 'assessment',
         '204' => 'revision',
         '129' => 'payment',
+        '113' => 'payment',
         '481' => 'ignored_penalty',
         '304' => 'ignored_interest',
     ];
@@ -162,6 +163,7 @@ function import_vat_namra_text_rows(string $text): array
             '201' => ['201 - Assessment(original)', 'Tax'],
             '204' => ['204 - Assessment(revision increased debit)', 'Tax'],
             '129' => ['129 - VIA payment', 'Tax'],
+            '113' => ['113 - ETX Tax payment', 'Tax'],
             '481' => ['481 - Late Payment Penalty', 'Late Payment Penalty'],
             '304' => ['304 - Interest on Debit', 'Late Payment Interest'],
         ];
