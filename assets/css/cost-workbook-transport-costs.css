@@ -15,7 +15,7 @@
 @media(prefers-reduced-motion:reduce){.transport-costs__button,.transport-costs__header-button,.transport-costs__toolbar a,.transport-costs__upload label[data-tc-drop],.transport-costs__drawer,.transport-costs__table tbody tr{transition:none}}
 
 /* Input VAT-aligned Transport page structure. */
-.cost-workbook-page[data-page="transport-costs"] .cw-period-nav a{flex:0 0 72px;text-transform:uppercase}
+.cost-workbook-page[data-page="transport-costs"] .cw-period-nav a{flex:0 0 72px;font-weight:700;text-transform:uppercase}
 .cost-workbook-page[data-page="transport-costs"] .cw-period-nav a:first-of-type,.cost-workbook-page[data-page="transport-costs"] .cw-period-nav a:last-child{flex-basis:34px;min-width:34px}
 .cost-workbook-page[data-page="transport-costs"] .cw-period-nav a>svg{width:16px;height:16px}
 .transport-costs__period-year{display:grid;align-content:center;justify-items:center;flex:0 0 72px;min-width:72px;min-height:52px;color:var(--tc-brown);font-family:Figtree,system-ui,sans-serif}
@@ -34,3 +34,4 @@
 .transport-costs__upload-actions p{flex-basis:100%}
 .transport-costs__upload label[data-tc-drop]>button{border-color:var(--tc-action);background:var(--tc-action);color:#fff}
 .transport-costs__upload label[data-tc-drop]>button:hover,.transport-costs__upload label[data-tc-drop]>button:focus-visible{border-color:var(--tc-orange);background:var(--tc-orange);color:#fff}
+.transport-costs__table th{font-weight:700}
