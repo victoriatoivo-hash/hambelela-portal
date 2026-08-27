@@ -52,3 +52,5 @@
 .transport-costs__drawer footer .transport-costs__button--primary:active{border-color:var(--tc-orange);background:var(--tc-orange);color:#fff}
 .transport-costs__drawer .portal-date-picker,
 .transport-costs__drawer .portal-date-field{width:100%;height:34px;min-height:34px}
+.transport-costs__drawer .transport-costs__form-grid input,
+.transport-costs__drawer .transport-costs__allocation-row input{margin:0}
