@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 const read=p=>fs.readFileSync(new URL('../'+p,import.meta.url),'utf8');
-const schema=read('shared/cost-workbook.php'),api=read('apps/cost-manager/wholesale-pricing-api.php'),render=read('shared/cost-workbook-wholesale-pricing.php'),js=read('assets/js/wholesale-pricing.js'),shell=read('shared/cost-workbook-page-shell.php'),cards=read('shared/cost-workbook-sections.php');
+const schema=read('shared/cost-workbook.php'),api=read('apps/cost-manager/wholesale-pricing-api.php'),render=read('shared/cost-workbook-wholesale-pricing.php'),js=read('assets/js/wholesale-pricing.js'),css=read('assets/css/cost-workbook-wholesale-pricing.css'),shell=read('shared/cost-workbook-page-shell.php'),cards=read('shared/cost-workbook-sections.php');
 assert.match(schema,/cw_wholesale_prices/);assert.match(schema,/cw_wholesale_price_versions/);assert.match(schema,/cw_wholesale_price_audit/);assert.match(schema,/schema_version','10/);
 assert.match(api,/require_role\('owner_admin'\)/);assert.match(api,/cw_require_csrf/);assert.match(api,/product_content_cost/);assert.match(api,/minimum_price_ex_vat/);assert.match(api,/overlaps this product/);assert.match(api,/Approved wholesale prices are immutable/);
 assert.match(api,/cw_landed_product_costs/);assert.match(api,/cw_formulation_versions/);assert.match(api,/cw_packaging_setup_components/);assert.match(api,/unrounded_price_ex_vat/);assert.match(api,/margin_percent/);assert.match(api,/markup_percent/);
@@ -9,4 +9,5 @@ assert.match(render,/Detailed Pricing/);assert.match(render,/Price Matrix/);asse
 assert.match(render,/Packaging status/);assert.match(render,/Margin status/);assert.match(render,/Effective on/);assert.match(render,/Source-cost date/);assert.match(render,/Selling VAT rate/);assert.match(render,/Custom price ending/);assert.match(render,/Optional higher-volume price tiers/);assert.match(render,/no additional packaging is required/);
 assert.match(api,/Confirm that no additional packaging is required/);assert.match(api,/custom_price_ending/);assert.match(api,/price_inc_vat.*profit.*margin_percent.*below_minimum/s);assert.match(js,/data-wp-add-tier/);assert.match(js,/data-tier-result/);
 assert.match(js,/Source costs refreshed\. Approved prices were not overwritten/);assert.match(js,/data-wp-matrix/);assert.match(js,/New version/);assert.match(shell,/Wholesale Pricing/);assert.match(cards,/Calculate wholesale prices, VAT, packaging, profit and margins/);
+assert.match(render,/data-portal-custom-select/);assert.match(css,/--wp-burgundy:#721b1a/);assert.match(css,/height:34px/);assert.match(css,/wholesale-pricing__drawer/);assert.match(shell,/hiddenNavigation=\['shipments','landed-costs','product-matching','profitability','historical'\]/);assert.doesNotMatch(cards,/\['historical-cost-records\.php'/);
 console.log('Wholesale Pricing static checks passed.');

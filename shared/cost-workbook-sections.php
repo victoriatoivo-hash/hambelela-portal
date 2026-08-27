@@ -10,12 +10,7 @@ function cw_render_overview(array $period): void { ?>
 ['packaging-costs.php','package-open','Packaging Costs','Record packaging materials, calculate unit costs and assign containers and labels to product sizes.'],
 ['landed-product-costs.php','calculator','Landed Product Costs','Combine supplier and transport costs to calculate each product’s landed cost by kilogram, litre or individual unit.'],
 ['formulations.php','flask-conical','Formulation Costing','Build formulations, calculate batch and unit costs, and generate recommended selling prices.'],
-['wholesale-pricing.php','boxes','Wholesale Pricing','Calculate wholesale prices, VAT, packaging, profit and margins for bulk product sizes.'],
-['shipments.php','ship','Shipments','Link approved invoices and record shipment expenses.'],
-['landed-costs.php','calculator','Landed Costs','Allocate and reconcile landed costs for approved shipments.'],
-['product-matching.php','scan-search','Product Matching','Match calculated sale sizes to the website product snapshot.'],
-['profitability.php','chart-no-axes-combined','Pricing & Margins','Review private cost, price, profit, margin and markup previews.'],
-['historical-cost-records.php','history','Historical Records','View preserved, read-only records from the previous costing system.']
+['wholesale-pricing.php','boxes','Wholesale Pricing','Calculate wholesale prices, VAT, packaging, profit and margins for bulk product sizes.']
 ]; foreach($cards as $card): ?><a class="accounts-app-card accounting-app-card" href="<?= cw_page_url($card[0],$period) ?>"><span class="accounts-app-icon" aria-hidden="true"><i data-lucide="<?= htmlspecialchars($card[1],ENT_QUOTES,'UTF-8') ?>"></i></span><div class="accounting-app-card__content"><div class="accounting-app-card__status"><small class="accounts-app-status is-available">Available</small><span class="accounts-owner-label"><i data-lucide="shield-lock" aria-hidden="true"></i>Owner only</span><span class="accounting-app-visual" aria-hidden="true"><i></i><i></i><i></i></span></div><h3><?= htmlspecialchars($card[2],ENT_QUOTES,'UTF-8') ?></h3><p><?= htmlspecialchars($card[3],ENT_QUOTES,'UTF-8') ?></p><strong>Open <?= htmlspecialchars($card[2],ENT_QUOTES,'UTF-8') ?> <span aria-hidden="true">&rarr;</span></strong></div></a><?php endforeach; ?>
 </div></section>
 <?php }
