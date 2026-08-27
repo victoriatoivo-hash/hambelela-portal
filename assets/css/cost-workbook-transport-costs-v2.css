@@ -18,9 +18,9 @@
 .cost-workbook-page[data-page="transport-costs"] .cw-period-nav a{flex:0 0 72px;font-weight:700;text-transform:uppercase}
 .cost-workbook-page[data-page="transport-costs"] .cw-period-nav a:first-of-type,.cost-workbook-page[data-page="transport-costs"] .cw-period-nav a:last-child{flex-basis:34px;min-width:34px}
 .cost-workbook-page[data-page="transport-costs"] .cw-period-nav a>svg{width:16px;height:16px}
-.transport-costs__period-year{display:grid;align-content:center;justify-items:center;flex:0 0 72px;min-width:72px;min-height:52px;color:var(--tc-brown);font-family:Figtree,system-ui,sans-serif}
-.transport-costs__period-year small{font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
-.transport-costs__period-year strong{margin-top:4px;color:var(--tc-text);font-size:12px;font-weight:500}
+.cost-workbook__period-year{display:grid;align-content:center;justify-items:center;flex:0 0 72px;min-width:72px;min-height:52px;color:var(--tc-brown);font-family:Figtree,system-ui,sans-serif}
+.cost-workbook__period-year small{font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+.cost-workbook__period-year strong{margin-top:4px;color:var(--tc-text);font-size:12px;font-weight:500}
 .transport-costs__summary{margin:2px 0 16px}
 .transport-costs__summary-card{display:grid;align-content:start;min-height:86px}
 .transport-costs__summary-heading{display:flex;align-items:center;gap:7px}
