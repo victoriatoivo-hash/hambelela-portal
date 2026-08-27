@@ -52,6 +52,8 @@
   let packingFileRequestVersion = 0;
   let lastUndo = null;
   let invoiceDraftRows = [];
+  let manualDraftRows = [];
+  let packingDraftMode = 'invoice';
   let invoiceImportId = '';
   const invoiceCorrectionStorageKey = 'hambelelaPackingInvoiceCorrectionsV1';
   let invoiceAutoRedistribute = true;
@@ -1027,6 +1029,31 @@
     if (invoiceStatus) invoiceStatus.textContent = message;
   }
 
+  function setPackingDraftMode(mode) {
+    packingDraftMode = mode === 'manual' ? 'manual' : 'invoice';
+    const manual = packingDraftMode === 'manual';
+    invoiceModal?.classList.toggle('is-manual-packing', manual);
+    invoiceModal?.querySelectorAll('[data-invoice-only]').forEach((section) => { section.hidden = manual; });
+    invoiceModal?.querySelectorAll('[data-manual-only]').forEach((section) => { section.hidden = !manual; });
+    const title = invoiceModal?.querySelector('[data-packing-draft-title]');
+    const subtitle = invoiceModal?.querySelector('[data-packing-draft-subtitle]');
+    const close = invoiceModal?.querySelector('[data-packing-draft-close]');
+    const reviewTitle = invoiceModal?.querySelector('[data-packing-review-title]');
+    const reviewDescription = invoiceModal?.querySelector('[data-packing-review-description]');
+    const footerLabel = invoiceModal?.querySelector('[data-packing-footer-label]');
+    if (title) title.textContent = manual ? 'Load multiple items' : 'Upload invoice';
+    if (subtitle) subtitle.textContent = manual
+      ? 'Add one or many packing items manually, then distribute complete rows using their physical workload.'
+      : 'Extract invoice items, review quantities, assign packers and create approved rows.';
+    if (close) close.setAttribute('aria-label', manual ? 'Close multiple item loader' : 'Close Upload Invoice');
+    if (reviewTitle) reviewTitle.textContent = manual ? 'Items and distribution' : 'Packing review';
+    if (reviewDescription) reviewDescription.textContent = manual
+      ? 'Confirm each received quantity, enter its packing sizes, and review the physical weight assigned to every packer.'
+      : 'Step 1 confirms received quantity and unit. Step 2 adds packing instructions after whole-row packer distribution.';
+    if (footerLabel) footerLabel.textContent = manual ? 'Manual multi-item load' : 'Step 1 of 5';
+    setInvoiceStatus(manual ? 'Add items, confirm quantities, then distribute by weight.' : 'Upload an invoice or add rows manually.');
+  }
+
   function setInvoiceProgress(active, title = '', text = '', mode = 'loading') {
     if (!invoiceProgress) return;
     invoiceProgress.hidden = !active;
@@ -1478,7 +1505,9 @@
     assignDraftRows();
     const head = invoiceDraftBody.closest('table')?.querySelector('[data-invoice-draft-head]');
     if (!invoiceDraftRows.length) {
-      invoiceDraftBody.innerHTML = '<tr class="invoice-empty-row"><td colspan="6"><div class="invoice-empty-state"><i data-lucide="file-text"></i><div><strong>No invoice rows yet</strong><span>Upload and extract an invoice, or add a row manually.</span></div></div></td></tr>';
+      invoiceDraftBody.innerHTML = packingDraftMode === 'manual'
+        ? '<tr class="invoice-empty-row"><td colspan="6"><div class="invoice-empty-state"><i data-lucide="layers-2"></i><div><strong>No manual items yet</strong><span>Choose Add item to start a new row.</span></div></div></td></tr>'
+        : '<tr class="invoice-empty-row"><td colspan="6"><div class="invoice-empty-state"><i data-lucide="file-text"></i><div><strong>No invoice rows yet</strong><span>Upload and extract an invoice, or add a row manually.</span></div></div></td></tr>';
       if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
       setInvoiceStep('upload');
       renderDraftWorkloadSummary();
@@ -1491,7 +1520,7 @@
     document.querySelectorAll('[data-invoice-review-stage]').forEach((step) => step.classList.toggle('is-active', step.dataset.invoiceReviewStage === (stageTwo ? 'instructions' : 'received')));
     if (head) head.innerHTML = stageTwo
       ? '<th data-col-key="item">Item</th><th data-col-key="received">Received</th><th data-col-key="unit">Unit</th><th data-col-key="packing">Quantity to pack</th><th data-col-key="allocated">Allocated / remaining</th><th data-col-key="priority">Priority</th><th data-col-key="assigned">Assigned</th><th data-col-key="physical">Physical workload</th><th data-col-key="weighted">Weighted workload</th><th data-col-key="actions">Actions</th>'
-      : '<th data-col-key="item">Item</th><th data-col-key="received">Extracted quantity</th><th data-col-key="unit">Unit *</th><th data-col-key="normalised">Normalised quantity</th><th data-col-key="status">Status</th><th data-col-key="actions">Action</th>';
+      : `<th data-col-key="item">Item</th><th data-col-key="received">${packingDraftMode === 'manual' ? 'Received quantity' : 'Extracted quantity'}</th><th data-col-key="unit">Unit *</th><th data-col-key="normalised">Normalised quantity</th><th data-col-key="status">Status</th><th data-col-key="actions">Action</th>`;
     if (!stageTwo) {
       invoiceDraftBody.innerHTML = invoiceDraftRows.map((row, index) => {
         const state = receivedQuantityState(row);
@@ -3069,11 +3098,12 @@
   }
 
   async function createInvoiceDraft(form) {
+    const manualMode = packingDraftMode === 'manual';
     if (!invoiceDraftRows.length) {
       invoiceDraftRows = parseManualDraft(new FormData(form).get('invoice_draft') || '');
       renderInvoiceDraft();
     }
-    if (!invoiceDraftRows.length) throw new Error('No invoice rows to create.');
+    if (!invoiceDraftRows.length) throw new Error(manualMode ? 'Add at least one packing item.' : 'No invoice rows to create.');
     const invalidRows = invoiceDraftRows.map((row, index) => ({ index, row, accounting: quantityAccounting(row) })).filter((item) => !item.accounting.valid);
     if (invalidRows.length) {
       const first = invalidRows[0];
@@ -3088,7 +3118,7 @@
     try {
       const submittedCount = invoiceDraftRows.length;
       if (!invoiceImportId) invoiceImportId = globalThis.crypto?.randomUUID?.() || `packing-import-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-      setInvoiceProgress(true, 'Loading invoice items', `Loading 0 of ${submittedCount} items…`, 'loading');
+      setInvoiceProgress(true, manualMode ? 'Creating packing items' : 'Loading invoice items', `Loading 0 of ${submittedCount} items…`, 'loading');
       setInvoiceStatus(`Submitting all ${submittedCount} reviewed items in one transaction…`);
       const formData = new FormData(form);
       const submittedRows = invoiceDraftRows.map((row) => ({
@@ -3120,12 +3150,13 @@
         setInvoiceStatus(failureText || `Reconciliation stopped: previewed ${submittedCount}, accepted ${acceptedCount}, confirmed in database ${databaseCount}. No rows were silently discarded.`);
         return;
       }
-      setInvoiceProgress(true, 'Invoice loaded', `${submittedCount} of ${submittedCount} items loaded successfully.`, 'success');
+      setInvoiceProgress(true, manualMode ? 'Packing items created' : 'Invoice loaded', `${submittedCount} of ${submittedCount} items loaded successfully.`, 'success');
       setInvoiceStatus(`${submittedCount} of ${submittedCount} items loaded successfully.`);
       await refresh();
       invoiceDraftRows = [];
+      if (manualMode) manualDraftRows = [];
       invoiceImportId = '';
-      saveInvoiceCorrectionDraft();
+      if (!manualMode) saveInvoiceCorrectionDraft();
       invoiceModal.hidden = true;
       setInvoiceStep('upload');
       setCount(result.message || 'Packing rows created and synced.');
@@ -3588,17 +3619,42 @@
         event.preventDefault();
         event.stopPropagation();
         createModal.hidden = true;
+        if (packingDraftMode !== 'manual') {
+          saveInvoiceCorrectionDraft();
+          invoiceDraftRows = manualDraftRows.map((row) => ({ ...row }));
+          invoiceImportId = '';
+        }
+        setPackingDraftMode('manual');
         invoiceModal.hidden = false;
         if (!invoiceDraftRows.length) {
-          invoiceDraftRows.push({ item_name: '', received_weight: '', unit: '', quantity_purchased: 1, quantity_planned: '', priority: invoicePriority?.value || 'medium', assigned_employee_id: '', assigned_name: '', assignment_source: 'auto' });
+          invoiceDraftRows.push({ item_name: '', received_weight: '', unit: '', quantity_purchased: 1, quantity_planned: '', priority: invoicePriority?.value || 'medium', assigned_employee_id: '', assigned_name: '', assignment_source: 'auto', quantity_confirmed: false, pack_parts: [] });
         }
         renderInvoiceDraft();
         setInvoiceStep('review');
         invoiceModal.querySelector('[data-draft-field="item_name"]')?.focus();
         return;
       }
-      if (openInvoice) { restoreInvoiceCorrectionDraft(); invoiceModal.hidden = false; if (invoiceDraftRows.length) renderInvoiceDraft(); setInvoiceStep(invoiceDraftRows.length ? 'review' : 'upload'); return; }
-      if (closeModal) { createModal.hidden = true; invoiceModal.hidden = true; lastPackingModalTrigger?.focus({ preventScroll: true }); lastPackingModalTrigger = null; return; }
+      if (openInvoice) {
+        if (packingDraftMode === 'manual') {
+          manualDraftRows = invoiceDraftRows.map((row) => ({ ...row }));
+          invoiceDraftRows = [];
+        }
+        setPackingDraftMode('invoice');
+        restoreInvoiceCorrectionDraft();
+        invoiceModal.hidden = false;
+        if (invoiceDraftRows.length) renderInvoiceDraft();
+        setInvoiceStep(invoiceDraftRows.length ? 'review' : 'upload');
+        return;
+      }
+      if (closeModal) {
+        if (packingDraftMode === 'manual') manualDraftRows = invoiceDraftRows.map((row) => ({ ...row }));
+        else saveInvoiceCorrectionDraft();
+        createModal.hidden = true;
+        invoiceModal.hidden = true;
+        lastPackingModalTrigger?.focus({ preventScroll: true });
+        lastPackingModalTrigger = null;
+        return;
+      }
       if (resetColumns) {
         localStorage.removeItem(packingColumnStorageKey());
         columnWidths = {};
