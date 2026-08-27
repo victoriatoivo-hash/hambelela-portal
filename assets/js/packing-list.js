@@ -1224,7 +1224,7 @@
       const id = String(row.assigned_employee_id || '');
       const name = row.assigned_name || packers.find((packer) => String(packer.id) === id)?.full_name || 'Unassigned';
       const key = id || 'unassigned';
-      const current = totals.get(key) || { name, workload: 0, rows: 0, manualRows: 0 };
+      const current = totals.get(key) || { key, name, workload: 0, rows: 0, manualRows: 0 };
       current.name = name;
       current.workload += Number(row.workload || draftWorkload(row) || 0);
       current.rows += 1;
@@ -1232,6 +1232,30 @@
       totals.set(key, current);
     });
     return [...totals.values()].sort((a, b) => b.workload - a.workload);
+  }
+
+  function draftPhysicalTotals() {
+    const totals = new Map();
+    invoiceDraftRows.forEach((row) => {
+      const id = String(row.assigned_employee_id || '');
+      const name = row.assigned_name || packers.find((packer) => String(packer.id) === id)?.full_name || 'Unassigned';
+      const key = id || 'unassigned';
+      const current = totals.get(key) || { name, weightGrams: 0, volumeMl: 0, units: 0 };
+      const parsed = parseReceivedStock(row);
+      if (parsed.dimension === 'weight') current.weightGrams += parsed.base;
+      else if (parsed.dimension === 'volume') current.volumeMl += parsed.base;
+      else current.units += parsed.base;
+      totals.set(key, current);
+    });
+    return totals;
+  }
+
+  function formatDraftPhysical(total) {
+    const parts = [];
+    if (total.weightGrams > 0) parts.push(`${total.weightGrams >= 1000 ? (total.weightGrams / 1000).toFixed(2).replace(/\.00$/, '') + ' kg' : total.weightGrams.toFixed(0) + ' g'}`);
+    if (total.volumeMl > 0) parts.push(`${total.volumeMl >= 1000 ? (total.volumeMl / 1000).toFixed(2).replace(/\.00$/, '') + ' L' : total.volumeMl.toFixed(0) + ' ml'}`);
+    if (total.units > 0) parts.push(`${total.units.toFixed(0)} units`);
+    return parts.join(' · ') || 'No received weight recorded';
   }
 
   function renderDraftWorkloadSummary() {
@@ -1242,6 +1266,7 @@
       return;
     }
     const totals = draftWorkloadTotals();
+    const physicalTotals = draftPhysicalTotals();
     const totalWorkload = totals.reduce((sum, item) => sum + item.workload, 0);
     const balance = draftBalanceInfo(totals);
     const warnings = invoiceDraftRows
@@ -1261,7 +1286,9 @@
         ${totals.map((item) => `
           <div class="draft-summary-card">
             <span>${esc(item.name)}</span>
-            <strong>${item.workload.toFixed(1)}</strong>
+            <strong>${esc(formatDraftPhysical(physicalTotals.get(item.key) || { weightGrams: 0, volumeMl: 0, units: 0 }))}</strong>
+            <small>Physical workload</small>
+            <small>Weighted workload: ${item.workload.toFixed(1)} points</small>
             <small>${item.rows} row${item.rows === 1 ? '' : 's'} assigned${item.manualRows ? ` &middot; ${item.manualRows} manual` : ''}</small>
           </div>
         `).join('')}
@@ -3138,6 +3165,7 @@
     }
     const openCreate = event.target.closest('[data-open-packing-create]');
     const openInvoice = event.target.closest('[data-open-invoice]');
+    const openMultiPacking = event.target.closest('[data-open-multi-packing]');
     const closeModal = event.target.closest('[data-close-modal]');
     const rowSelect = event.target.closest('[data-packing-row-select]');
     const rowCheckboxButton = event.target.closest('[data-packing-row-checkbox]');
@@ -3289,6 +3317,19 @@
       }
 
       if (openCreate) { event.preventDefault(); event.stopPropagation(); lastPackingModalTrigger = openCreate; createModal.hidden = false; return; }
+      if (openMultiPacking) {
+        event.preventDefault();
+        event.stopPropagation();
+        createModal.hidden = true;
+        invoiceModal.hidden = false;
+        if (!invoiceDraftRows.length) {
+          invoiceDraftRows.push({ item_name: '', received_weight: '', unit: '', quantity_purchased: 1, quantity_planned: '', priority: invoicePriority?.value || 'medium', assigned_employee_id: '', assigned_name: '', assignment_source: 'auto' });
+        }
+        renderInvoiceDraft();
+        setInvoiceStep('review');
+        invoiceModal.querySelector('[data-draft-field="item_name"]')?.focus();
+        return;
+      }
       if (openInvoice) { invoiceModal.hidden = false; setInvoiceStep(invoiceDraftRows.length ? 'review' : 'upload'); return; }
       if (closeModal) { createModal.hidden = true; invoiceModal.hidden = true; lastPackingModalTrigger?.focus({ preventScroll: true }); lastPackingModalTrigger = null; return; }
       if (resetColumns) {

@@ -237,7 +237,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     <div class="packing-item-form-field packing-item-form-field--full"><label>Notes</label><textarea name="notes" placeholder="Invoice notes or packing instructions"></textarea></div>
                 </section>
             </div>
-            <footer class="packing-item-modal-footer"><button type="button" class="pk-btn pk-btn--secondary" data-close-modal>Cancel</button><button type="submit" class="pk-btn pk-btn--primary" data-create-packing-submit><span data-create-packing-submit-text>Create packing row</span></button></footer>
+            <footer class="packing-item-modal-footer"><button type="button" class="pk-btn pk-btn--secondary" data-close-modal>Cancel</button><button type="button" class="pk-btn pk-btn--secondary" data-open-multi-packing><i data-lucide="layers-2"></i><span>Load multiple items</span></button><button type="submit" class="pk-btn pk-btn--primary" data-create-packing-submit><span data-create-packing-submit-text>Create packing row</span></button></footer>
         </form>
     </div>
 
