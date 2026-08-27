@@ -429,6 +429,19 @@ window.PortalCustomSelect = {
 window.addEventListener('DOMContentLoaded', () => {
   initialisePortalDatePickers(document);
   initialisePortalCustomSelects(document);
+  const dynamicCustomSelectObserver = new MutationObserver((mutations) => {
+    const roots = new Set();
+    mutations.forEach((mutation) => mutation.addedNodes.forEach((node) => {
+      if (!(node instanceof Element)) return;
+      if (node.matches('select[data-portal-custom-select]:not([data-custom-select-ready])')) {
+        roots.add(node.parentElement || document);
+      } else if (node.querySelector('select[data-portal-custom-select]:not([data-custom-select-ready])')) {
+        roots.add(node);
+      }
+    }));
+    roots.forEach((root) => initialisePortalCustomSelects(root));
+  });
+  dynamicCustomSelectObserver.observe(document.body, { childList: true, subtree: true });
   if (window.lucide) {
     window.lucide.createIcons({ strokeWidth: 2 });
   }
