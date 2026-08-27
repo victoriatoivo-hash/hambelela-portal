@@ -35,3 +35,18 @@
 .transport-costs__upload label[data-tc-drop]>button{border-color:var(--tc-action);background:var(--tc-action);color:#fff}
 .transport-costs__upload label[data-tc-drop]>button:hover,.transport-costs__upload label[data-tc-drop]>button:focus-visible{border-color:var(--tc-orange);background:var(--tc-orange);color:#fff}
 .transport-costs__table th{font-weight:700}
+
+/* Transport record drawer alignment. */
+.transport-costs__drawer .transport-costs__form-grid :is(input,select),
+.transport-costs__drawer .portal-custom-select-trigger,
+.transport-costs__drawer .transport-costs__allocation-row :is(input,select),
+.transport-costs__drawer .transport-costs__allocation-row .portal-custom-select-trigger,
+.transport-costs__drawer .transport-costs__allocation-row>[data-tc-remove-link],
+.transport-costs__drawer .transport-costs__button,
+.transport-costs__drawer footer>[data-tc-cancel]{height:34px;min-height:34px}
+.transport-costs__drawer .transport-costs__allocation-row{align-items:center;gap:8px;padding:10px 0}
+.transport-costs__drawer .transport-costs__allocation-row>[data-tc-remove-link]{width:34px}
+.transport-costs__drawer [data-tc-add-link]{margin-top:10px}
+.transport-costs__drawer footer .transport-costs__button--primary:hover,
+.transport-costs__drawer footer .transport-costs__button--primary:focus-visible,
+.transport-costs__drawer footer .transport-costs__button--primary:active{border-color:var(--tc-orange);background:var(--tc-orange);color:#fff}
