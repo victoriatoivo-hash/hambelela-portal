@@ -13,3 +13,24 @@
 @media(max-width:760px){.transport-costs__header{align-items:stretch;flex-direction:column}.transport-costs__actions{display:grid;grid-template-columns:1fr 1fr}.transport-costs__header-button{width:100%}.transport-costs__summary,.transport-costs__filters,.transport-costs__form-grid{grid-template-columns:1fr}.transport-costs__upload label[data-tc-drop]{flex-direction:column;text-align:center}.transport-costs__allocation-row{grid-template-columns:1fr}.transport-costs__table thead{display:none}.transport-costs__table,.transport-costs__table tbody,.transport-costs__table tr,.transport-costs__table td{display:block;min-width:0}.transport-costs__table tr{padding:10px;border-bottom:1px solid var(--tc-border)}.transport-costs__table td{display:flex;justify-content:space-between;border:0}.transport-costs__table td:before{content:attr(data-label);font-weight:700}}
 @media(max-width:480px){.transport-costs__actions{grid-template-columns:1fr}.transport-costs__summary{grid-template-columns:1fr}.transport-costs__header h1{font-size:21px}}
 @media(prefers-reduced-motion:reduce){.transport-costs__button,.transport-costs__header-button,.transport-costs__toolbar a,.transport-costs__upload label[data-tc-drop],.transport-costs__drawer,.transport-costs__table tbody tr{transition:none}}
+
+/* Input VAT-aligned Transport page structure. */
+.cost-workbook-page[data-page="transport-costs"] .cw-period-nav a{flex:0 0 72px;text-transform:uppercase}
+.cost-workbook-page[data-page="transport-costs"] .cw-period-nav a:first-of-type,.cost-workbook-page[data-page="transport-costs"] .cw-period-nav a:last-child{flex-basis:34px;min-width:34px}
+.cost-workbook-page[data-page="transport-costs"] .cw-period-nav a>svg{width:16px;height:16px}
+.transport-costs__period-year{display:grid;align-content:center;justify-items:center;flex:0 0 72px;min-width:72px;min-height:52px;color:var(--tc-brown);font-family:Figtree,system-ui,sans-serif}
+.transport-costs__period-year small{font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+.transport-costs__period-year strong{margin-top:4px;color:var(--tc-text);font-size:12px;font-weight:500}
+.transport-costs__summary{margin:2px 0 16px}
+.transport-costs__summary-card{display:grid;align-content:start;min-height:86px}
+.transport-costs__summary-heading{display:flex;align-items:center;gap:7px}
+.transport-costs__summary-heading svg{width:18px;height:18px;flex:0 0 18px;color:#91b600}
+.transport-costs__summary-card:nth-child(2) .transport-costs__summary-heading svg{color:var(--tc-action)}
+.transport-costs__summary-card:nth-child(3) .transport-costs__summary-heading svg{color:var(--tc-orange)}
+.transport-costs__summary-card:nth-child(4) .transport-costs__summary-heading svg{color:var(--tc-burgundy)}
+.transport-costs__summary-value{margin-top:7px;font-size:17px}
+.transport-costs__summary-help{margin-top:3px;color:var(--tc-muted);font-size:10px;font-weight:400;line-height:1.3}
+.transport-costs__upload-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.transport-costs__upload-actions p{flex-basis:100%}
+.transport-costs__upload label[data-tc-drop]>button{border-color:var(--tc-action);background:var(--tc-action);color:#fff}
+.transport-costs__upload label[data-tc-drop]>button:hover,.transport-costs__upload label[data-tc-drop]>button:focus-visible{border-color:var(--tc-orange);background:var(--tc-orange);color:#fff}
