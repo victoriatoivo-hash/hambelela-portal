@@ -55,3 +55,5 @@
 .transport-costs__drawer .transport-costs__form-grid input,
 .transport-costs__drawer .transport-costs__allocation-row input{margin:0}
 .transport-costs__header>div:first-child>p:last-child{font-size:11px}
+.cost-workbook-page[data-page="transport-costs"] .cw-period-nav{margin-bottom:16px}
+.transport-costs__upload{margin-bottom:16px}
