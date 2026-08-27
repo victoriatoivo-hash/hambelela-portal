@@ -1,0 +1,4 @@
+<?php
+declare(strict_types=1);
+require_once dirname(__DIR__,2).'/config.php';require_once BASE_PATH.'/shared/auth.php';require_once BASE_PATH.'/shared/accounts-amendments.php';amendments_require_access();amendments_schema_ready();
+$stmt=db()->prepare('SELECT f.* FROM accounting_amendment_attachments f WHERE f.id=? AND f.deleted_at IS NULL');$stmt->execute([(int)($_GET['id']??0)]);$file=$stmt->fetch();if(!$file||!amendments_row((int)$file['amendment_id'])){http_response_code(404);exit('File not found.');}$path=BASE_PATH.'/uploads/accounting-amendments/'.basename((string)$file['stored_filename']);if(!is_file($path)){http_response_code(404);exit('File not found.');}header('Content-Type: '.$file['mime_type']);header('Content-Length: '.filesize($path));header('Content-Disposition: inline; filename="'.str_replace(['"',"\r","\n"],'',(string)$file['original_filename']).'"');readfile($path);

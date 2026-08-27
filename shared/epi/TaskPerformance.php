@@ -18,15 +18,16 @@ final class TaskPerformance
     {
         $rows=$this->rows($filters,10000);$tasks=[];$started=[];$completed=[];$reopened=[];$cancelled=[];$assigned=[];$manual=[];$recurring=[];
         $createdStarted=[];$startedCompleted=[];$assignedCompleted=[];$onTime=0;$late=0;$checkRequired=0;$checkGood=0;$noteRequired=0;$noteGood=0;$fileRequired=0;$fileGood=0;$deductions=0;$bonuses=0;
-        $priority=[];$categories=[];$firstTimeRight=[];
+        $priority=[];$categories=[];$firstTimeRight=[];$correctionsCompleted=[];$correctionsOnTime=0;$correctionsLate=0;$repeatCorrections=[];
         foreach($rows as $row){$m=$this->metadata($row);$ref=(string)$row['reference_number'];$tasks[$ref]=true;$action=(string)$row['action'];
-            if(in_array($action,['task_created','task_assigned','task_reassigned'],true))$assigned[$ref]=true;
+            if(in_array($action,['task_created','task_assigned','task_reassigned','task_released'],true))$assigned[$ref]=true;
             if(($m['task_kind']??'manual')==='recurring')$recurring[$ref]=true;else $manual[$ref]=true;
             $p=strtolower((string)($row['priority']??$m['priority']??'normal'));$priority[$p]=($priority[$p]??0)+($action==='task_created'?1:0);
             $category=(string)($m['category']??'general_operations');$categories[$category]=($categories[$category]??0)+($action==='task_completed'?1:0);
             if($action==='task_started'){$started[$ref]=true;if(is_numeric($m['created_to_started_minutes']??null))$createdStarted[]=(float)$m['created_to_started_minutes'];}
             if($action==='task_completed'){$completed[$ref]=true;if(is_numeric($m['started_to_completed_minutes']??null))$startedCompleted[]=(float)$m['started_to_completed_minutes'];if(is_numeric($m['assigned_to_completed_minutes']??null))$assignedCompleted[]=(float)$m['assigned_to_completed_minutes'];
                 if(($m['due_result']??'')==='completed_late')$late++;else $onTime++;
+                if((int)($m['correction_round_count']??0)>0){$correctionsCompleted[$ref.':'.(int)$m['correction_round_count']]=true;if(($m['due_result']??'')==='completed_late')$correctionsLate++;else $correctionsOnTime++;if((int)$m['correction_round_count']>1)$repeatCorrections[$ref]=true;}
                 if(($m['checklist_required_count']??0)>0){$checkRequired++;if(!empty($m['checklist_complete']))$checkGood++;}
                 if(!empty($m['completion_note_required'])){$noteRequired++;if(!empty($m['completion_note_present']))$noteGood++;}
                 if(!empty($m['completion_evidence_required'])){$fileRequired++;if(!empty($m['evidence_supplied']))$fileGood++;}
@@ -43,7 +44,7 @@ final class TaskPerformance
             'timeliness'=>['created_to_started'=>$this->stats($createdStarted),'started_to_completed'=>$this->stats($startedCompleted),'assigned_to_completed'=>$this->stats($assignedCompleted),'on_time_completed'=>$onTime,'late_completed'=>$late,'on_time_percent'=>($onTime+$late)>0?round($onTime*100/($onTime+$late),2):null],
             'completion'=>['eligible_assigned'=>$eligible,'completed'=>count($completed),'completion_percent'=>$eligible>0?round(count($completed)*100/$eligible,2):null,'denominator'=>'Eligible assigned tasks; cancelled tasks excluded.'],
             'compliance'=>['checklist'=>$this->compliance($checkGood,$checkRequired),'notes'=>$this->compliance($noteGood,$noteRequired),'evidence'=>$this->compliance($fileGood,$fileRequired)],
-            'quality'=>['first_time_right'=>count($firstTimeRight),'reopened'=>count($reopened)],'current_risk'=>$current,
+            'quality'=>['first_time_right'=>count($firstTimeRight),'reopened'=>count($reopened),'correction_requests'=>count($reopened),'corrections_completed'=>count($correctionsCompleted),'corrections_completed_on_time'=>$correctionsOnTime,'corrections_completed_late'=>$correctionsLate,'repeat_corrections'=>count($repeatCorrections)],'current_risk'=>$current,
             'evidence_count'=>count($rows),'activity_count'=>$this->activityCount($filters),'deduction_candidates'=>$deductions,'bonus_candidates'=>$bonuses,'scoring_status'=>'not_calculated'];
     }
 
@@ -56,11 +57,11 @@ final class TaskPerformance
 
     public function getCurrentRisk(array $filters=[]): array
     {
-        $where=['t.deleted_at IS NULL','t.archived_at IS NULL',"LOWER(t.status) NOT IN ('complete','completed','cancelled')"];$params=[];
+        $where=['t.deleted_at IS NULL','t.archived_at IS NULL','t.employee_visible=1','(t.scheduled_at IS NULL OR t.released_at IS NOT NULL)',"LOWER(t.status) NOT IN ('complete','completed','cancelled')"];$params=[];
         if(isset($filters['employee_id'])&&$filters['employee_id']!==''){$where[]='t.assigned_employee_id=?';$params[]=(int)$filters['employee_id'];}
         if(isset($filters['priority'])&&$filters['priority']!==''){$where[]='t.priority=?';$params[]=(string)$filters['priority'];}
         if(isset($filters['status'])&&$filters['status']!==''){$where[]='t.status=?';$params[]=(string)$filters['status'];}
-        $sql="SELECT t.id,t.task_name,t.status,t.priority,t.deadline,t.date_assigned,t.started_at,t.assigned_employee_id,e.full_name assigned_name FROM ops_checklist_tasks t LEFT JOIN ops_employees e ON e.id=t.assigned_employee_id WHERE ".implode(' AND ',$where).' ORDER BY COALESCE(t.deadline,\'9999-12-31\'),t.id';
+        $sql="SELECT t.id,t.task_name,t.status,t.priority,t.deadline,COALESCE(t.released_at,t.date_assigned) date_assigned,t.started_at,t.assigned_employee_id,e.full_name assigned_name FROM ops_checklist_tasks t LEFT JOIN ops_employees e ON e.id=t.assigned_employee_id WHERE ".implode(' AND ',$where).' ORDER BY COALESCE(t.deadline,\'9999-12-31\'),t.id';
         $s=$this->pdo->prepare($sql);$s->execute($params);$rows=$s->fetchAll(PDO::FETCH_ASSOC)?:[];$now=new DateTimeImmutable('now');
         $out=['total_open'=>count($rows),'new'=>0,'in_progress'=>0,'due_today'=>0,'overdue'=>0,'urgent_overdue'=>0,'important_overdue'=>0,'business_minutes_overdue'=>0.0,'oldest_new'=>null,'oldest_in_progress'=>null,'oldest_overdue'=>null,'by_priority'=>[]];
         foreach($rows as $r){$status=strtolower((string)$r['status']);$priority=strtolower((string)$r['priority']);$out['by_priority'][$priority]=($out['by_priority'][$priority]??0)+1;if($status==='new'){$out['new']++;if($out['oldest_new']===null)$out['oldest_new']=$r;}if($status==='in_progress'){$out['in_progress']++;if($out['oldest_in_progress']===null)$out['oldest_in_progress']=$r;}

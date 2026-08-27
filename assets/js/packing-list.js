@@ -53,8 +53,13 @@
   let lastUndo = null;
   let invoiceDraftRows = [];
   let invoiceImportId = '';
+  const invoiceCorrectionStorageKey = 'hambelelaPackingInvoiceCorrectionsV1';
+  let invoiceAutoRedistribute = true;
   let packingFilesUploading = false;
   let packingFileUploadVersion = 0;
+  let packingRefreshRequest = null;
+  let packingRefreshVersion = 0;
+  let packingRefreshTimer = null;
   const failedPackingFiles = new Map();
 
   function isFrontDeskAdmin() {
@@ -1067,12 +1072,12 @@
 
   function quantityPlanStats(quantityPlan) {
     const stats = { totals: { weight: 0, volume: 0, count: 0 }, totalUnits: 0, sizeCount: 0 };
-    const pattern = /(\d+(?:\.\d+)?)\s*(kg|kgs|g|gram|grams|ml|l|lt|liter|litre|liters|litres|pcs?|pieces?|units?)\s*(?:[x*]\s*)?\(?\s*(\d+)?\s*\)?/gi;
+    const pattern = /(\d+(?:\.\d+)?)\s*(kg|kgs|g|gram|grams|ml|l|lt|liter|litre|liters|litres|pcs?|pieces?|units?)\s*(?:[x*]\s*(\d+)|\(\s*(\d+)\s*\))/gi;
     let match;
     while ((match = pattern.exec(String(quantityPlan || ''))) !== null) {
       const amount = Number(match[1] || 0);
       const unit = parsePackUnit(match[2] || '');
-      const count = Math.max(1, Number(match[3] || 1));
+      const count = Math.max(1, Number(match[3] || match[4] || 0));
       if (!Number.isFinite(amount) || !unit) continue;
       stats.totals[unit.dimension] += amount * unit.factor * count;
       stats.totalUnits += count;
@@ -1081,47 +1086,129 @@
     return stats;
   }
 
-  function parseReceivedStock(row, planStats = quantityPlanStats(row.quantity_planned || '')) {
+  function quantityPlanParts(quantityPlan) {
+    const parts = [];
+    const pattern = /(\d+(?:\.\d+)?)\s*(kg|kgs|g|gram|grams|ml|l|lt|liter|litre|liters|litres|pcs?|pieces?|units?)\s*(?:[x*]\s*|\(\s*)(\d+)\s*\)?/gi;
+    let match;
+    while ((match = pattern.exec(String(quantityPlan || ''))) !== null) {
+      const unit = parsePackUnit(match[2] || '');
+      if (!unit) continue;
+      parts.push({ amount: Number(match[1]), unit: unit.assumedLabel === 'unit' ? 'units' : unit.assumedLabel, count: Number(match[3] || match[4] || 0) });
+    }
+    return parts;
+  }
+
+  function quantityPlanFromParts(parts) {
+    return (parts || []).filter((part) => Number(part.amount) > 0 && Number(part.count) > 0 && parsePackUnit(part.unit)).map((part) => `${Number(part.amount)}${part.unit === 'units' ? ' units' : part.unit}(${Number(part.count)})`).join(', ');
+  }
+
+  function saveInvoiceCorrectionDraft() {
+    try {
+      if (!invoiceDraftRows.length) localStorage.removeItem(invoiceCorrectionStorageKey);
+      else localStorage.setItem(invoiceCorrectionStorageKey, JSON.stringify({ importId: invoiceImportId, autoRedistribute: invoiceAutoRedistribute, rows: invoiceDraftRows, savedAt: new Date().toISOString() }));
+    } catch (_) { /* storage is a convenience; validation remains authoritative */ }
+  }
+
+  function restoreInvoiceCorrectionDraft() {
+    if (invoiceDraftRows.length) return false;
+    try {
+      const saved = JSON.parse(localStorage.getItem(invoiceCorrectionStorageKey) || 'null');
+      if (!saved || !Array.isArray(saved.rows) || !saved.rows.length) return false;
+      invoiceDraftRows = saved.rows;
+      invoiceImportId = String(saved.importId || '');
+      invoiceAutoRedistribute = saved.autoRedistribute !== false;
+      return true;
+    } catch (_) { return false; }
+  }
+
+  function parseReceivedStock(row) {
     const text = String(row.received_weight || '');
     const amount = Number(text.match(/\d+(?:\.\d+)?/)?.[0] || 0);
-    const explicitUnit = text.match(/kg|kgs|g|gram|grams|ml|l|lt|liter|litre|liters|litres|pcs?|pieces?|units?/i)?.[0] || row.unit || '';
-    let unit = parsePackUnit(explicitUnit);
-    if (!unit) {
-      if (planStats.totals.volume > 0 && planStats.totals.weight <= 0) unit = parsePackUnit('l');
-      else if (planStats.totals.weight > 0) unit = parsePackUnit('kg');
-      else unit = parsePackUnit('unit');
-    }
+    const explicitUnit = row.unit || text.match(/kg|kgs|g|gram|grams|ml|l|lt|liter|litre|liters|litres|pcs?|pieces?|units?/i)?.[0] || '';
+    const unit = parsePackUnit(explicitUnit);
     return {
       amount: Number.isFinite(amount) ? amount : 0,
-      dimension: unit.dimension,
-      base: (Number.isFinite(amount) ? amount : 0) * unit.factor,
-      assumedLabel: unit.assumedLabel
+      dimension: unit?.dimension || '',
+      base: unit ? (Number.isFinite(amount) ? amount : 0) * unit.factor : 0,
+      assumedLabel: unit?.assumedLabel || ''
     };
   }
 
-  function draftValidation(row) {
+  function detectedUnit(value) {
+    const match = String(value || '').match(/kg|kgs|g|gram|grams|ml|l|lt|liter|litre|liters|litres|pcs?|pieces?|units?/i)?.[0] || '';
+    return parsePackUnit(match)?.assumedLabel === 'unit' ? 'units' : (parsePackUnit(match)?.assumedLabel || '');
+  }
+
+  function receivedQuantityState(row) {
+    const received = parseReceivedStock(row);
+    if (!String(row.received_weight || '').match(/\d+(?:\.\d+)?/)) return { valid: false, status: 'invalid_quantity', message: 'Received quantity missing', received };
+    if (!row.unit || !received.dimension) return { valid: false, status: 'unit_missing', message: 'Unit required', received };
+    if (!(received.amount > 0) || !(received.base > 0)) return { valid: false, status: 'invalid_quantity', message: 'Received quantity must be greater than zero', received };
+    return { valid: true, status: row.quantity_confirmed === true ? 'confirmed' : 'needs_confirmation', message: row.quantity_confirmed === true ? 'Confirmed' : 'Needs confirmation', received };
+  }
+
+  function receivedReviewComplete() {
+    return invoiceDraftRows.length > 0 && invoiceDraftRows.every((row) => receivedQuantityState(row).valid && row.quantity_confirmed === true);
+  }
+
+  function quantityAccounting(row) {
     const plan = quantityPlanStats(row.quantity_planned || '');
-    const received = parseReceivedStock(row, plan);
+    const received = parseReceivedStock(row);
+    const otherDimensions = Object.entries(plan.totals).filter(([dimension, value]) => dimension !== received.dimension && value > 0);
     const plannedBase = plan.totals[received.dimension] || 0;
-    if (received.base > 0 && plannedBase > received.base * 1.05) {
-      return 'Quantity-to-pack exceeds received weight. Please review.';
-    }
-    return '';
+    const remainderAmount = Math.max(0, Number(row.bulk_remainder || 0));
+    const remainderBase = received.dimension ? remainderAmount * (parsePackUnit(row.unit)?.factor || 1) : 0;
+    const accountedBase = plannedBase + remainderBase;
+    const difference = received.base - accountedBase;
+    let status = 'fully_allocated';
+    let message = 'Fully allocated';
+    if (!row.unit || !received.dimension) { status = 'unit_missing'; message = 'Unit required'; }
+    else if (!String(row.quantity_planned || '').trim()) { status = 'invalid_quantity'; message = 'Quantity to pack is required.'; }
+    else if (plan.sizeCount === 0) { status = 'invalid_quantity'; message = `Could not understand: “${String(row.quantity_planned || '').trim()}”. Use 100g(20), 100g x20, or Edit as rows.`; }
+    else if (otherDimensions.length) { status = 'unit_mismatch'; message = `Unit mismatch: ${received.dimension} received quantity cannot be validated against ${otherDimensions[0][0]} pack sizes.`; }
+    else if (difference > 0.0001) { status = 'under_allocated'; message = `Under allocated by ${formatPhysical(received.dimension, difference)}`; }
+    else if (difference < -0.0001) { status = 'over_allocated'; message = `Over allocated by ${formatPhysical(received.dimension, Math.abs(difference))}`; }
+    return { plan, received, plannedBase, remainderBase, accountedBase, difference, status, message, valid: status === 'fully_allocated' };
+  }
+
+  function draftValidation(row) {
+    return quantityAccounting(row).valid ? '' : quantityAccounting(row).message;
+  }
+
+  function formatPhysical(dimension, base) {
+    const value = Math.max(0, Number(base || 0));
+    if (dimension === 'weight') return value >= 1000 ? `${Number((value / 1000).toFixed(2))} kg` : `${Number(value.toFixed(1))} g`;
+    if (dimension === 'volume') return value >= 1000 ? `${Number((value / 1000).toFixed(2))} L` : `${Number(value.toFixed(1))} ml`;
+    return `${Number(value.toFixed(1))} unit${Math.abs(value - 1) < 0.001 ? '' : 's'}`;
+  }
+
+  function draftPhysical(row) {
+    const accounting = quantityAccounting(row);
+    const dimensionsMatch = !Object.entries(accounting.plan.totals).some(([dimension, value]) => dimension !== accounting.received.dimension && value > 0);
+    const usePackingAmount = String(row.quantity_planned || '').trim() && accounting.plan.sizeCount > 0 && dimensionsMatch;
+    const physicalBase = usePackingAmount ? accounting.plannedBase : accounting.received.base;
+    return {
+      weight: accounting.received.dimension === 'weight' ? physicalBase : 0,
+      volume: accounting.received.dimension === 'volume' ? physicalBase : 0,
+      count: accounting.received.dimension === 'count' ? physicalBase : 0,
+      packages: accounting.plan.totalUnits,
+    };
   }
 
   function draftWorkload(row) {
     const plan = quantityPlanStats(row.quantity_planned || '');
-    const received = parseReceivedStock(row, plan);
-    const baseAmount = received.dimension === 'count' ? received.base : received.base / 1000;
+    const physical = draftPhysical(row);
     const sizeComplexity = Math.min(2, Math.max(0, plan.sizeCount - 1) * 0.5);
     const handlingBase = 1.5;
+    const packageEffort = Math.max(1, plan.totalUnits / 20);
+    const bulkEffort = Math.max(physical.weight / 5000, physical.volume / 5000, physical.count / 50);
     const priorityBoost = { top_critical: 1.6, high: 1.3, medium: 1, low: 0.8 }[normalize(row.priority || 'medium')] || 1;
-    const workload = (Math.max(1, baseAmount) + handlingBase + sizeComplexity) * priorityBoost;
+    const workload = (packageEffort + bulkEffort + handlingBase + sizeComplexity) * priorityBoost;
     return Math.round(workload * 10) / 10;
   }
 
   function draftBalanceInfo(totals = draftWorkloadTotals()) {
-    if (totals.length < 2) return { difference: 0, balanced: true, message: 'Only one packer assigned.' };
+    if (totals.length < 2) return { difference: 0, weightDifference: 0, volumeDifference: 0, unitDifference: 0, balanced: true, message: 'Only one packer assigned.' };
     const workloads = totals.map((item) => Number(item.workload || 0));
     const high = Math.max(...workloads);
     const low = Math.min(...workloads);
@@ -1130,10 +1217,13 @@
     const difference = Math.round((high - low) * 10) / 10;
     return {
       difference,
+      weightDifference: Math.max(...totals.map((item) => item.weight)) - Math.min(...totals.map((item) => item.weight)),
+      volumeDifference: Math.max(...totals.map((item) => item.volume)) - Math.min(...totals.map((item) => item.volume)),
+      unitDifference: Math.max(...totals.map((item) => item.count)) - Math.min(...totals.map((item) => item.count)),
       balanced: difference <= tolerance,
       message: difference <= tolerance
-        ? 'Assignment is reasonably balanced.'
-        : 'Best possible balance reached based on whole product rows.'
+        ? 'Best possible balance reached using whole product rows.'
+        : 'Best possible balance reached using whole product rows.'
     };
   }
 
@@ -1142,6 +1232,17 @@
   }
 
   function assignDraftRows(options = {}) {
+    const unconfirmed = invoiceDraftRows.filter((row) => !receivedQuantityState(row).valid || row.quantity_confirmed !== true);
+    if (unconfirmed.length) {
+      invoiceDraftRows.forEach((row) => {
+        row.workload = receivedQuantityState(row).valid ? draftWorkload(row) : 0;
+        if (row.assignment_source !== 'manual') {
+          row.assigned_employee_id = '';
+          row.assigned_name = '';
+        }
+      });
+      return { changed: false, gated: true, message: 'Waiting for received quantity confirmation.' };
+    }
     const automaticPackers = autoAssignablePackers();
     if (!automaticPackers.length) {
       invoiceDraftRows.forEach((row) => {
@@ -1166,13 +1267,19 @@
       }
     });
 
-    const loads = new Map(automaticPackers.map((packer) => [String(packer.id), 0]));
+    const loads = new Map(automaticPackers.map((packer) => [String(packer.id), { weight: 0, volume: 0, count: 0, workload: 0, rows: 0 }]));
+    const addLoad = (id, row) => {
+      const current = loads.get(id);
+      const physical = draftPhysical(row);
+      current.weight += physical.weight; current.volume += physical.volume; current.count += physical.count;
+      current.workload += Number(row.workload || 0); current.rows += 1;
+    };
     invoiceDraftRows.forEach((row) => {
       const id = String(row.assigned_employee_id || '');
       if (id && loads.has(id)) {
         const packer = automaticPackers.find((item) => String(item.id) === id);
         row.assigned_name = packer?.full_name || row.assigned_name || '';
-        loads.set(id, (loads.get(id) || 0) + Number(row.workload || 0));
+        addLoad(id, row);
       } else if (id && row.assignment_source !== 'manual') {
         row.assigned_employee_id = '';
         row.assigned_name = '';
@@ -1180,15 +1287,24 @@
     });
 
     invoiceDraftRows
-      .map((row, index) => ({ row, index, workload: Number(row.workload || 0) }))
+      .map((row, index) => ({ row, index, workload: Number(row.workload || 0), physical: draftPhysical(row) }))
       .filter((item) => item.row.assignment_source !== 'manual' && !item.row.assigned_employee_id)
-      .sort((a, b) => b.workload - a.workload || a.index - b.index)
+      .sort((a, b) => Math.max(b.physical.weight / 1000, b.physical.volume / 1000, b.physical.count) - Math.max(a.physical.weight / 1000, a.physical.volume / 1000, a.physical.count) || b.workload - a.workload || a.index - b.index)
       .forEach(({ row }) => {
-        const best = [...automaticPackers].sort((a, b) => (loads.get(String(a.id)) || 0) - (loads.get(String(b.id)) || 0))[0];
+        const physical = draftPhysical(row);
+        const totals = invoiceDraftRows.reduce((memo, item) => { const p = draftPhysical(item); memo.weight += p.weight; memo.volume += p.volume; memo.count += p.count; return memo; }, { weight: 0, volume: 0, count: 0 });
+        const projectedScore = (packer) => {
+          const id = String(packer.id); const projected = new Map([...loads].map(([key, value]) => [key, { ...value }]));
+          projected.get(id).weight += physical.weight; projected.get(id).volume += physical.volume; projected.get(id).count += physical.count; projected.get(id).workload += Number(row.workload || 0); projected.get(id).rows += 1;
+          const values = [...projected.values()];
+          const spread = (key) => Math.max(...values.map((value) => value[key])) - Math.min(...values.map((value) => value[key]));
+          return [totals.weight ? spread('weight') / totals.weight : 0, totals.volume ? spread('volume') / totals.volume : 0, totals.count ? spread('count') / totals.count : 0, spread('workload'), spread('rows')];
+        };
+        const best = [...automaticPackers].sort((a, b) => { const aa = projectedScore(a); const bb = projectedScore(b); for (let i = 0; i < aa.length; i += 1) { if (aa[i] !== bb[i]) return aa[i] - bb[i]; } return 0; })[0];
         row.assigned_employee_id = String(best.id);
         row.assigned_name = best.full_name;
         row.assignment_source = 'auto';
-        loads.set(String(best.id), (loads.get(String(best.id)) || 0) + Number(row.workload || 0));
+        addLoad(String(best.id), row);
       });
 
     const after = invoiceDraftRows.map((row) => String(row.assigned_employee_id || ''));
@@ -1207,9 +1323,16 @@
       setInvoiceProgress(true, 'Nothing to redistribute', 'No draft rows are available yet.', 'error');
       return;
     }
+    const waiting = invoiceDraftRows.filter((row) => !receivedQuantityState(row).valid || row.quantity_confirmed !== true);
+    if (waiting.length) {
+      setInvoiceStep('review', 'error');
+      setInvoiceStatus(`Waiting for received quantity confirmation. ${waiting.length} row${waiting.length === 1 ? '' : 's'} remaining.`);
+      setInvoiceProgress(true, 'Received quantity review required', `${waiting.length} row${waiting.length === 1 ? '' : 's'} need a valid received quantity and unit.`, 'error');
+      return;
+    }
     button?.classList.add('is-loading');
     if (button) button.disabled = true;
-    setInvoiceProgress(true, 'Redistributing packers...', 'Balancing draft rows by received-weight workload.', 'loading');
+    setInvoiceProgress(true, 'Redistributing packers...', 'Balancing complete product rows by confirmed received workload.', 'loading');
     await new Promise((resolve) => setTimeout(resolve, 80));
     redistributeDraftRows();
     renderInvoiceDraft();
@@ -1224,9 +1347,13 @@
       const id = String(row.assigned_employee_id || '');
       const name = row.assigned_name || packers.find((packer) => String(packer.id) === id)?.full_name || 'Unassigned';
       const key = id || 'unassigned';
-      const current = totals.get(key) || { key, name, workload: 0, rows: 0, manualRows: 0 };
+      const current = totals.get(key) || { key, name, workload: 0, weight: 0, volume: 0, count: 0, rows: 0, manualRows: 0 };
+      const physical = draftPhysical(row);
       current.name = name;
       current.workload += Number(row.workload || draftWorkload(row) || 0);
+      current.weight += physical.weight;
+      current.volume += physical.volume;
+      current.count += physical.count;
       current.rows += 1;
       if (row.assignment_source === 'manual') current.manualRows += 1;
       totals.set(key, current);
@@ -1265,22 +1392,33 @@
       draftWorkloadSummary.innerHTML = '';
       return;
     }
+    const review = invoiceDraftRows.map((row) => ({ row, received: receivedQuantityState(row) }));
+    const confirmedRows = review.filter((item) => item.received.valid && item.row.quantity_confirmed === true);
+    const pendingRows = review.filter((item) => !item.received.valid || item.row.quantity_confirmed !== true);
+    if (pendingRows.length) {
+      draftWorkloadSummary.hidden = false;
+      draftWorkloadSummary.innerHTML = `
+        <section class="quantity-review-panel">
+          <div class="quantity-review-head">
+            <div><span>Received quantity review</span><strong>${confirmedRows.length} of ${invoiceDraftRows.length} rows confirmed</strong><small>Confirm the physical quantity received and unit before packer distribution.</small></div>
+            <button class="invoice-btn invoice-btn--secondary" type="button" data-confirm-all-valid>Confirm All Valid Rows</button>
+          </div>
+          <div class="quantity-review-progress"><span style="width:${invoiceDraftRows.length ? (confirmedRows.length / invoiceDraftRows.length) * 100 : 0}%"></span></div>
+          <p class="quantity-review-waiting">${pendingRows.length} remaining. Waiting for received quantity confirmation.</p>
+          <label class="quantity-auto-redistribute"><input type="checkbox" data-auto-redistribute ${invoiceAutoRedistribute ? 'checked' : ''}> Automatically redistribute after all received quantities are confirmed</label>
+        </section>`;
+      return;
+    }
     const totals = draftWorkloadTotals();
     const physicalTotals = draftPhysicalTotals();
     const totalWorkload = totals.reduce((sum, item) => sum + item.workload, 0);
     const balance = draftBalanceInfo(totals);
-    const warnings = invoiceDraftRows
-      .map((row) => ({ item: row.item_name || 'Item', warning: draftValidation(row) }))
-      .filter((item) => item.warning);
-    const warningHtml = warnings.length
-      ? `<div class="draft-warning-list">${warnings.map((item) => `<p><strong>${esc(item.item)}:</strong> ${esc(item.warning)}</p>`).join('')}</div>`
-      : '';
     draftWorkloadSummary.hidden = false;
     draftWorkloadSummary.innerHTML = `
       <div class="draft-summary-head">
-        <strong>Assignment review</strong>
+        <strong>✓ Received quantities confirmed</strong>
         <button class="button small" type="button" data-redistribute-draft>Redistribute again</button>
-        <span>${invoiceDraftRows.length} rows &middot; ${totalWorkload.toFixed(1)} workload points</span>
+        <span>${invoiceDraftRows.length} rows &middot; Packing instructions &middot; ${totalWorkload.toFixed(1)} workload points</span>
       </div>
       <div class="draft-summary-grid">
         ${totals.map((item) => `
@@ -1290,23 +1428,31 @@
             <small>Physical workload</small>
             <small>Weighted workload: ${item.workload.toFixed(1)} points</small>
             <small>${item.rows} row${item.rows === 1 ? '' : 's'} assigned${item.manualRows ? ` &middot; ${item.manualRows} manual` : ''}</small>
+            <span class="draft-weighted-total">Weighted workload <button type="button" class="draft-info" aria-label="Weighted workload formula" title="Weighted workload = (package count ÷ 20, minimum 1 + the largest of weight ÷ 5kg, volume ÷ 5L, or units ÷ 50 + 1.5 handling points + 0.5 per additional pack size, capped at 2) × priority: Low 0.8, Medium 1.0, High 1.3, Top Critical 1.6. Actual kg, L and units are shown separately.">i</button> <b>${item.workload.toFixed(1)} points</b></span>
           </div>
         `).join('')}
       </div>
       <div class="draft-balance-note ${balance.balanced ? 'is-balanced' : 'needs-review'}">
-        <strong>Difference: ${balance.difference.toFixed(1)} workload points</strong>
+        <strong>Physical balance: ${formatPhysical('weight', balance.weightDifference)} weight &middot; ${formatPhysical('volume', balance.volumeDifference)} volume &middot; ${formatPhysical('count', balance.unitDifference)}</strong>
+        <span>Weighted balance: ${balance.difference.toFixed(1)} points</span>
         <span>${esc(balance.message)}</span>
       </div>
-      ${warningHtml}
     `;
   }
 
   function updateDraftWorkloadCell(input, row) {
     const cell = input.closest('tr')?.querySelector('[data-draft-workload]');
     if (cell) {
-      const warning = draftValidation(row);
-      input.closest('tr')?.classList.toggle('has-draft-warning', !!warning);
-      cell.innerHTML = `${esc(row.workload || draftWorkload(row))}${warning ? `<small class="draft-warning-inline">${esc(warning)}</small>` : ''}`;
+      const accounting = quantityAccounting(row);
+      const statusClass = accounting.valid ? (row.quantity_confirmed === true ? 'is-confirmed' : 'is-valid') : `is-${accounting.status}`;
+      const statusText = row.quantity_confirmed === true ? '✓ Quantity confirmed' : (accounting.valid ? 'Valid — confirmation required' : accounting.message);
+      input.closest('tr')?.classList.toggle('has-draft-warning', !accounting.valid);
+      cell.innerHTML = `<strong>Allocated: ${formatPhysical(accounting.received.dimension || 'count', accounting.plannedBase)}</strong><small>Remaining: ${formatPhysical(accounting.received.dimension || 'count', Math.max(0, accounting.difference))}</small><small class="quantity-row-status ${statusClass}">${esc(statusText)}</small>`;
+      const bulkButton = input.closest('tr')?.querySelector('[data-leave-as-bulk]');
+      if (bulkButton) {
+        bulkButton.hidden = accounting.status !== 'under_allocated';
+        bulkButton.textContent = accounting.status === 'under_allocated' ? `Leave ${formatPhysical(accounting.received.dimension, accounting.difference)} as Bulk` : 'Leave as Bulk';
+      }
     }
   }
 
@@ -1316,7 +1462,7 @@
       return {
         item_name: item,
         received_weight: received || '',
-        unit: '',
+        unit: detectedUnit(received),
         quantity_purchased: 1,
         quantity_planned: quantity || '',
         priority: invoicePriority?.value || 'medium',
@@ -1330,8 +1476,9 @@
   function renderInvoiceDraft() {
     if (!invoiceDraftBody) return;
     assignDraftRows();
+    const head = invoiceDraftBody.closest('table')?.querySelector('[data-invoice-draft-head]');
     if (!invoiceDraftRows.length) {
-      invoiceDraftBody.innerHTML = '<tr class="invoice-empty-row"><td colspan="8"><div class="invoice-empty-state"><i data-lucide="file-text"></i><div><strong>No invoice rows yet</strong><span>Upload and extract an invoice, or add a row manually.</span></div></div></td></tr>';
+      invoiceDraftBody.innerHTML = '<tr class="invoice-empty-row"><td colspan="6"><div class="invoice-empty-state"><i data-lucide="file-text"></i><div><strong>No invoice rows yet</strong><span>Upload and extract an invoice, or add a row manually.</span></div></div></td></tr>';
       if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
       setInvoiceStep('upload');
       renderDraftWorkloadSummary();
@@ -1339,23 +1486,40 @@
     }
     const personOptions = '<option value="">Auto</option>' + packers.map((packer) => `<option value="${esc(packer.id)}">${esc(packer.full_name)}</option>`).join('');
     const priorityOptions = priorities.map(([value, label]) => `<option value="${esc(value)}">${esc(label)}</option>`).join('');
-    invoiceDraftBody.innerHTML = invoiceDraftRows.map((row, index) => {
-      const warning = draftValidation(row);
-      return `
-      <tr data-draft-index="${index}" class="${warning ? 'has-draft-warning' : ''}">
-        <td><input data-draft-field="item_name" value="${esc(row.item_name || '')}"></td>
-        <td><input data-draft-field="received_weight" value="${esc(row.received_weight || '')}"></td>
-        <td><input data-draft-field="unit" value="${esc(row.unit || '')}"></td>
-        <td><input data-draft-field="quantity_planned" value="${esc(row.quantity_planned || '')}" placeholder="100g(20), 250g(8)"></td>
-        <td><select data-draft-field="priority">${priorityOptions}</select></td>
-        <td><select data-draft-field="assigned_employee_id">${personOptions}</select></td>
-        <td data-draft-workload>${esc(row.workload || draftWorkload(row))}${warning ? `<small class="draft-warning-inline">${esc(warning)}</small>` : ''}</td>
-        <td class="draft-row-actions">
-          <button type="button" title="Split row" data-split-draft-row="${index}"><i data-lucide="copy-plus"></i></button>
-          <button type="button" title="Remove row" data-remove-draft-row="${index}"><i data-lucide="trash-2"></i></button>
-        </td>
-      </tr>
-    `;
+    const unitOptions = [['','Unit required'],['kg','kg'],['g','g'],['L','L'],['ml','ml'],['units','units']].map(([value,label])=>`<option value="${value}">${label}</option>`).join('');
+    const stageTwo = receivedReviewComplete();
+    document.querySelectorAll('[data-invoice-review-stage]').forEach((step) => step.classList.toggle('is-active', step.dataset.invoiceReviewStage === (stageTwo ? 'instructions' : 'received')));
+    if (head) head.innerHTML = stageTwo
+      ? '<th data-col-key="item">Item</th><th data-col-key="received">Received</th><th data-col-key="unit">Unit</th><th data-col-key="packing">Quantity to pack</th><th data-col-key="allocated">Allocated / remaining</th><th data-col-key="priority">Priority</th><th data-col-key="assigned">Assigned</th><th data-col-key="physical">Physical workload</th><th data-col-key="weighted">Weighted workload</th><th data-col-key="actions">Actions</th>'
+      : '<th data-col-key="item">Item</th><th data-col-key="received">Extracted quantity</th><th data-col-key="unit">Unit *</th><th data-col-key="normalised">Normalised quantity</th><th data-col-key="status">Status</th><th data-col-key="actions">Action</th>';
+    if (!stageTwo) {
+      invoiceDraftBody.innerHTML = invoiceDraftRows.map((row, index) => {
+        const state = receivedQuantityState(row);
+        const statusClass = `is-${state.status}`;
+        return `<tr data-draft-index="${index}" class="${state.valid ? '' : 'has-draft-warning'} ${statusClass}">
+          <td><input data-draft-field="item_name" value="${esc(row.item_name || '')}"></td>
+          <td><input data-draft-field="received_weight" value="${esc(String(row.received_weight || '').match(/\d+(?:\.\d+)?/)?.[0] || '')}" inputmode="decimal" aria-label="Received quantity"></td>
+          <td><select data-draft-field="unit" required>${unitOptions}</select></td>
+          <td><strong>${state.valid ? formatPhysical(state.received.dimension, state.received.base) : '—'}</strong></td>
+          <td><small class="quantity-row-status ${statusClass}">${esc(state.message)}</small></td>
+          <td class="draft-row-actions"><button type="button" class="confirm-quantity-row" title="Confirm received quantity" data-confirm-quantity-row="${index}" ${!state.valid || row.quantity_confirmed === true ? 'disabled' : ''}><i data-lucide="check"></i></button><button type="button" title="Remove row" data-remove-draft-row="${index}"><i data-lucide="trash-2"></i></button></td>
+        </tr>`;
+      }).join('');
+      invoiceDraftBody.querySelectorAll('[data-draft-field="unit"]').forEach((select) => { select.value = String(invoiceDraftRows[Number(select.closest('tr')?.dataset.draftIndex || 0)]?.unit || ''); });
+    } else invoiceDraftBody.innerHTML = invoiceDraftRows.map((row, index) => {
+      const accounting = quantityAccounting(row);
+      const parts = Array.isArray(row.pack_parts) ? row.pack_parts : quantityPlanParts(row.quantity_planned || ''); row.pack_parts = parts;
+      const statusClass = `is-${accounting.status}`;
+      const builder = row.builder_open ? `<div class="pack-size-builder" data-pack-builder="${index}"><div class="pack-size-builder-head"><span>Pack size</span><span>Quantity</span><span></span></div>${parts.map((part, partIndex) => `<div class="pack-size-builder-row"><div><input type="number" min="0" step="0.001" data-pack-part-field="amount" data-pack-part-index="${partIndex}" value="${esc(part.amount)}"><select data-pack-part-field="unit" data-pack-part-index="${partIndex}">${['g','kg','ml','L','units'].map((unit) => `<option value="${unit}" ${unit === part.unit ? 'selected' : ''}>${unit}</option>`).join('')}</select></div><input type="number" min="1" step="1" data-pack-part-field="count" data-pack-part-index="${partIndex}" value="${esc(part.count)}"><button type="button" data-remove-pack-part="${partIndex}" data-row-index="${index}" aria-label="Remove pack size"><i data-lucide="x"></i></button></div>`).join('')}<button type="button" class="pack-size-add" data-add-pack-part="${index}"><i data-lucide="plus"></i> Add Pack Size</button></div>` : '';
+      const physical = draftPhysical(row);
+      return `<tr data-draft-index="${index}" class="${accounting.valid ? '' : 'has-draft-warning'} ${statusClass}">
+        <td>${esc(row.item_name || '')}</td><td>${esc(row.received_weight || '')}</td><td>${esc(row.unit || '')}</td>
+        <td><input data-draft-field="quantity_planned" value="${esc(row.quantity_planned || '')}" placeholder="100g(20), 250g(8)"><button type="button" class="pack-builder-toggle" data-toggle-pack-builder="${index}">${row.builder_open ? 'Close rows' : 'Edit as rows'}</button>${builder}<label class="draft-bulk-remainder">Bulk remainder <input type="number" min="0" step="0.001" data-draft-field="bulk_remainder" value="${esc(row.bulk_remainder || '')}" placeholder="0"></label><button type="button" class="leave-as-bulk" data-leave-as-bulk="${index}" ${accounting.status === 'under_allocated' ? '' : 'hidden'}>${accounting.status === 'under_allocated' ? `Leave ${formatPhysical(accounting.received.dimension, accounting.difference)} as Bulk` : 'Leave as Bulk'}</button></td>
+        <td data-draft-workload><strong>Allocated: ${formatPhysical(accounting.received.dimension || 'count', accounting.plannedBase)}</strong><small>Remaining: ${formatPhysical(accounting.received.dimension || 'count', Math.max(0, accounting.difference))}</small><small class="quantity-row-status ${statusClass}">${esc(accounting.message)}</small></td>
+        <td><select data-draft-field="priority">${priorityOptions}</select></td><td><select data-draft-field="assigned_employee_id">${personOptions}</select></td>
+        <td><strong>${formatPhysical('weight', physical.weight)}</strong><small>${formatPhysical('volume', physical.volume)} · ${formatPhysical('count', physical.count)}</small></td><td><strong>${Number(row.workload || draftWorkload(row)).toFixed(1)} points</strong></td>
+        <td class="draft-row-actions"><button type="button" title="Split row" data-split-draft-row="${index}"><i data-lucide="copy-plus"></i></button><button type="button" title="Remove row" data-remove-draft-row="${index}"><i data-lucide="trash-2"></i></button></td>
+      </tr>`;
     }).join('');
     invoiceDraftBody.querySelectorAll('[data-draft-field="assigned_employee_id"]').forEach((select) => {
       const row = invoiceDraftRows[Number(select.closest('tr')?.dataset.draftIndex || 0)];
@@ -1365,8 +1529,19 @@
       const row = invoiceDraftRows[Number(select.closest('tr')?.dataset.draftIndex || 0)];
       select.value = String(row.priority || invoicePriority?.value || 'medium');
     });
+    invoiceDraftBody.querySelectorAll('[data-draft-field="unit"]').forEach((select) => {
+      const row = invoiceDraftRows[Number(select.closest('tr')?.dataset.draftIndex || 0)];
+      select.value = String(row.unit || '');
+    });
     setInvoiceStep('review');
     renderDraftWorkloadSummary();
+    saveInvoiceCorrectionDraft();
+    const finalButton = invoiceModal?.querySelector('[data-confirm-quantities-create]');
+    if (finalButton) {
+      finalButton.disabled = !allPackingAllocationsComplete();
+      finalButton.textContent = 'Create Packing Items';
+    }
+    setupInvoiceColumnResizing();
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
   }
 
@@ -1390,6 +1565,51 @@
     const result = redistributeDraftRows();
     renderInvoiceDraft();
     setInvoiceStatus(`Split ${row.item_name || 'item'} into ${copies} rows. ${result.message || 'Packers were redistributed; use Redistribute Packers again after further edits.'}`);
+  }
+
+  function allInvoiceQuantitiesConfirmed() {
+    return receivedReviewComplete();
+  }
+
+  function allPackingAllocationsComplete() {
+    return receivedReviewComplete() && invoiceDraftRows.every((row) => quantityAccounting(row).valid && String(row.priority || '').trim() && String(row.assigned_employee_id || '').trim());
+  }
+
+  async function completeQuantityReview() {
+    if (!allInvoiceQuantitiesConfirmed()) return false;
+    const result = redistributeDraftRows();
+    renderInvoiceDraft();
+    setInvoiceStep('assign');
+    setInvoiceProgress(true, 'All received quantities confirmed', 'Initial physical workload was calculated and complete product rows were redistributed.', 'success');
+    setInvoiceStatus(`All received quantities confirmed. ${result.message || 'Packers redistributed.'} Enter packing instructions next.`);
+    return true;
+  }
+
+  function setupInvoiceColumnResizing() {
+    const table = invoiceDraftBody?.closest('table');
+    if (!table || window.matchMedia('(pointer: coarse)').matches) return;
+    table.querySelectorAll('th[data-col-key]').forEach((th) => {
+      if (th.querySelector('.invoice-column-resizer')) return;
+      const handle = document.createElement('span'); handle.className = 'invoice-column-resizer'; handle.setAttribute('aria-hidden', 'true'); th.appendChild(handle);
+      const key = th.dataset.colKey; const saved = Number(sessionStorage.getItem(`packingInvoiceColumn:${key}`) || 0); if (saved) th.style.width = `${saved}px`;
+      handle.addEventListener('pointerdown', (event) => {
+        event.preventDefault(); const startX = event.clientX; const startWidth = th.getBoundingClientRect().width;
+        const move = (moveEvent) => { const width = Math.max(Number(th.dataset.minWidth || 80), startWidth + moveEvent.clientX - startX); th.style.width = `${width}px`; sessionStorage.setItem(`packingInvoiceColumn:${key}`, String(Math.round(width))); };
+        const stop = () => { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', stop); };
+        document.addEventListener('pointermove', move); document.addEventListener('pointerup', stop);
+      });
+    });
+  }
+
+  function updatePackPart(rowIndex, partIndex, field, value) {
+    const row = invoiceDraftRows[rowIndex];
+    if (!row) return;
+    row.pack_parts = Array.isArray(row.pack_parts) ? row.pack_parts : quantityPlanParts(row.quantity_planned || '');
+    if (!row.pack_parts[partIndex]) return;
+    row.pack_parts[partIndex][field] = field === 'unit' ? value : Number(value || 0);
+    row.quantity_planned = quantityPlanFromParts(row.pack_parts);
+    row.workload = draftWorkload(row);
+    saveInvoiceCorrectionDraft();
   }
 
   function visibleTasks() {
@@ -1776,14 +1996,27 @@
     updateBulkActionBar();
   }
 
-  async function refresh() {
+  function packingHasActiveEditor() {
+    return packingFilesUploading
+      || Boolean(document.querySelector('.packing-list-page dialog[open], .packing-list-page .is-editing, .packing-list-page [aria-modal="true"]:not([aria-hidden="true"])'))
+      || Boolean(document.activeElement?.closest?.('.packing-list-page input:not([type="checkbox"]), .packing-list-page textarea, .packing-list-page [contenteditable="true"]'));
+  }
+
+  async function refresh({ background = false } = {}) {
+    if (packingRefreshRequest) return packingRefreshRequest;
+    if (background && (document.hidden || packingHasActiveEditor())) return null;
+    const requestVersion = ++packingRefreshVersion;
     const refreshButton = document.querySelector('[data-packing-refresh]');
-    refreshButton?.classList.add('is-loading');
+    if (!background) refreshButton?.classList.add('is-loading');
     if (!hasRenderedOnce) showSkeletonRows();
-    setCount('Refreshing packing list...');
-    try {
+    if (!background) setCount('Refreshing packing list...');
+    packingRefreshRequest = (async () => {
+      let loadedData = null;
+      try {
       const response = await fetch(`${config.dataUrl}?t=${Date.now()}`, { credentials: 'same-origin' });
       const data = await readJson(response);
+      loadedData = data;
+      if (requestVersion !== packingRefreshVersion) return null;
       tasks = data.tasks || [];
       if (Array.isArray(data.priorityLabels) && data.priorityLabels.length) {
         priorities = data.priorityLabels.map((item) => [String(item.key), String(item.label), String(item.color), String(item.textColor || readablePriorityTextColour(item.color))]);
@@ -1810,7 +2043,10 @@
         updateMetrics([]);
         return;
       }
+      const scrollLeft = document.querySelector('.packing-board-scroll')?.scrollLeft || 0;
       render();
+      const boardScroll = document.querySelector('.packing-board-scroll');
+      if (boardScroll) boardScroll.scrollLeft = scrollLeft;
       if (packingUrlParams.get('unread') === '1') {
         const requestedTaskId = Number(packingUrlParams.get('task_id') || 0);
         const firstUnread = tasks.find((task) => Number(task.id) === requestedTaskId && assignmentUnreadIds.has(Number(task.id)))
@@ -1822,9 +2058,21 @@
           openPanel(firstUnread.id);
         }, 0);
       }
-    } finally {
-      refreshButton?.classList.remove('is-loading');
-    }
+      } finally {
+        if (!background) refreshButton?.classList.remove('is-loading');
+      }
+      return loadedData;
+    })();
+    try { return await packingRefreshRequest; }
+    finally { packingRefreshRequest = null; }
+  }
+
+  function schedulePackingRefresh(delay = 30000) {
+    if (packingRefreshTimer) window.clearTimeout(packingRefreshTimer);
+    packingRefreshTimer = window.setTimeout(async () => {
+      try { await refresh({ background: true }); } catch (_) { /* Manual refresh remains available. */ }
+      schedulePackingRefresh(document.hidden ? 120000 : 30000);
+    }, delay);
   }
 
   function fillPackerSelects() {
@@ -2800,7 +3048,7 @@
       formData.set('action', 'extract_invoice');
       const response = await fetch(config.actionUrl, { method: 'POST', body: formData, credentials: 'same-origin' });
       const data = await readJson(response);
-      invoiceDraftRows = (data.rows || []).map((row) => ({ ...row, priority: invoicePriority?.value || 'medium', assigned_employee_id: '', assigned_name: '', assignment_source: 'auto' }));
+      invoiceDraftRows = (data.rows || []).map((row) => ({ ...row, unit: row.unit || detectedUnit(row.received_weight), priority: invoicePriority?.value || 'medium', assigned_employee_id: '', assigned_name: '', assignment_source: 'auto', quantity_confirmed: false, pack_parts: quantityPlanParts(row.quantity_planned || '') }));
       invoiceImportId = globalThis.crypto?.randomUUID?.() || `packing-import-${Date.now()}-${Math.random().toString(16).slice(2)}`;
       const invoiceNumber = document.querySelector('[data-draft-invoice-number]');
       const invoiceDate = document.querySelector('[data-draft-invoice-date]');
@@ -2809,7 +3057,7 @@
       renderInvoiceDraft();
       setInvoiceStep('review');
       setInvoiceProgress(true, 'Extraction complete', `${invoiceDraftRows.length} draft row${invoiceDraftRows.length === 1 ? '' : 's'} ready for review.`, 'success');
-      setInvoiceStatus(`${data.message} Review rows, enter quantity-to-pack breakdown, then confirm.`);
+      setInvoiceStatus(`${data.message} Confirm each received quantity and unit. Packing instructions follow after redistribution.`);
     } catch (error) {
       setInvoiceStep('extract', 'error');
       setInvoiceProgress(true, 'Extraction failed', error.message || 'Could not extract this invoice. You can still use the manual fallback.', 'error');
@@ -2826,6 +3074,13 @@
       renderInvoiceDraft();
     }
     if (!invoiceDraftRows.length) throw new Error('No invoice rows to create.');
+    const invalidRows = invoiceDraftRows.map((row, index) => ({ index, row, accounting: quantityAccounting(row) })).filter((item) => !item.accounting.valid);
+    if (invalidRows.length) {
+      const first = invalidRows[0];
+      throw new Error(`Row ${first.index + 1} (${first.row.item_name || 'unnamed item'}): ${first.accounting.message}. Correct all allocation warnings before creating packing items.`);
+    }
+    const unconfirmedRows = invoiceDraftRows.filter((row) => row.quantity_confirmed !== true);
+    if (unconfirmedRows.length) throw new Error(`${unconfirmedRows.length} valid row${unconfirmedRows.length === 1 ? '' : 's'} still require confirmation before redistribution.`);
     const submit = form.querySelector('[type="submit"]');
     submit?.classList.add('is-loading');
     if (submit) submit.disabled = true;
@@ -2836,8 +3091,13 @@
       setInvoiceProgress(true, 'Loading invoice items', `Loading 0 of ${submittedCount} items…`, 'loading');
       setInvoiceStatus(`Submitting all ${submittedCount} reviewed items in one transaction…`);
       const formData = new FormData(form);
+      const submittedRows = invoiceDraftRows.map((row) => ({
+        ...row,
+        received_weight: `${String(row.received_weight || '').match(/\d+(?:\.\d+)?/)?.[0] || ''}${row.unit || ''}`,
+        allocation: quantityAccounting(row),
+      }));
       const result = await post('create_invoice_rows', {
-        rows_json: JSON.stringify(invoiceDraftRows),
+        rows_json: JSON.stringify(submittedRows),
         declared_count: submittedCount,
         import_id: invoiceImportId,
         invoice_number: formData.get('invoice_number') || '',
@@ -2865,6 +3125,7 @@
       await refresh();
       invoiceDraftRows = [];
       invoiceImportId = '';
+      saveInvoiceCorrectionDraft();
       invoiceModal.hidden = true;
       setInvoiceStep('upload');
       setCount(result.message || 'Packing rows created and synced.');
@@ -3198,6 +3459,12 @@
     const redistributeDraft = event.target.closest('[data-redistribute-draft]');
     const splitDraftRowButton = event.target.closest('[data-split-draft-row]');
     const removeDraftRow = event.target.closest('[data-remove-draft-row]');
+    const confirmQuantityRow = event.target.closest('[data-confirm-quantity-row]');
+    const confirmAllValid = event.target.closest('[data-confirm-all-valid]');
+    const togglePackBuilder = event.target.closest('[data-toggle-pack-builder]');
+    const addPackPart = event.target.closest('[data-add-pack-part]');
+    const removePackPart = event.target.closest('[data-remove-pack-part]');
+    const leaveAsBulk = event.target.closest('[data-leave-as-bulk]');
     const themeToggle = event.target.closest('[data-theme-toggle]');
     const bulkAction = event.target.closest('[data-packing-bulk-action]');
     const addColumn = event.target.closest('[data-add-packing-column]');
@@ -3330,7 +3597,7 @@
         invoiceModal.querySelector('[data-draft-field="item_name"]')?.focus();
         return;
       }
-      if (openInvoice) { invoiceModal.hidden = false; setInvoiceStep(invoiceDraftRows.length ? 'review' : 'upload'); return; }
+      if (openInvoice) { restoreInvoiceCorrectionDraft(); invoiceModal.hidden = false; if (invoiceDraftRows.length) renderInvoiceDraft(); setInvoiceStep(invoiceDraftRows.length ? 'review' : 'upload'); return; }
       if (closeModal) { createModal.hidden = true; invoiceModal.hidden = true; lastPackingModalTrigger?.focus({ preventScroll: true }); lastPackingModalTrigger = null; return; }
       if (resetColumns) {
         localStorage.removeItem(packingColumnStorageKey());
@@ -3366,8 +3633,8 @@
         return;
       }
       if (addDraftRow) {
-        invoiceDraftRows.push({ item_name: '', received_weight: '', unit: '', quantity_purchased: 1, quantity_planned: '', priority: invoicePriority?.value || 'medium', assigned_employee_id: '', assigned_name: '', assignment_source: 'auto' });
-        const result = redistributeDraftRows();
+        invoiceDraftRows.push({ item_name: '', received_weight: '', unit: '', quantity_purchased: 1, quantity_planned: '', priority: invoicePriority?.value || 'medium', assigned_employee_id: '', assigned_name: '', assignment_source: 'auto', quantity_confirmed: false, pack_parts: [] });
+        const result = assignDraftRows();
         renderInvoiceDraft();
         const newRow = invoiceDraftBody?.querySelector('tr:last-child');
         newRow?.classList.add('is-new');
@@ -3379,6 +3646,37 @@
         await runRedistributeDraft(redistributeDraft);
         redistributeDraft.classList.remove('is-loading');
         redistributeDraft.disabled = false;
+        return;
+      }
+      if (togglePackBuilder) {
+        const row = invoiceDraftRows[Number(togglePackBuilder.dataset.togglePackBuilder)];
+        if (row) { row.builder_open = !row.builder_open; if (!row.pack_parts?.length) row.pack_parts = quantityPlanParts(row.quantity_planned || ''); renderInvoiceDraft(); }
+        return;
+      }
+      if (addPackPart) {
+        const index = Number(addPackPart.dataset.addPackPart); const row = invoiceDraftRows[index];
+        if (row) { row.pack_parts = Array.isArray(row.pack_parts) ? row.pack_parts : []; row.pack_parts.push({ amount: 100, unit: row.unit === 'L' || row.unit === 'ml' ? 'ml' : row.unit === 'units' ? 'units' : 'g', count: 1 }); row.quantity_planned = quantityPlanFromParts(row.pack_parts); renderInvoiceDraft(); }
+        return;
+      }
+      if (removePackPart) {
+        const index = Number(removePackPart.dataset.rowIndex); const row = invoiceDraftRows[index];
+        if (row?.pack_parts) { row.pack_parts.splice(Number(removePackPart.dataset.removePackPart), 1); row.quantity_planned = quantityPlanFromParts(row.pack_parts); renderInvoiceDraft(); }
+        return;
+      }
+      if (leaveAsBulk) {
+        const index = Number(leaveAsBulk.dataset.leaveAsBulk); const row = invoiceDraftRows[index]; const accounting = row ? quantityAccounting(row) : null;
+        if (row && accounting?.difference > 0) { row.bulk_remainder = Number((accounting.difference / (parsePackUnit(row.unit)?.factor || 1)).toFixed(3)); renderInvoiceDraft(); }
+        return;
+      }
+      if (confirmQuantityRow) {
+        const row = invoiceDraftRows[Number(confirmQuantityRow.dataset.confirmQuantityRow)];
+        if (row && receivedQuantityState(row).valid) { row.quantity_confirmed = true; row.assignment_stale = false; renderInvoiceDraft(); if (invoiceAutoRedistribute) await completeQuantityReview(); }
+        return;
+      }
+      if (confirmAllValid) {
+        invoiceDraftRows.forEach((row) => { if (receivedQuantityState(row).valid) { row.quantity_confirmed = true; row.assignment_stale = false; } });
+        renderInvoiceDraft();
+        if (invoiceAutoRedistribute) await completeQuantityReview();
         return;
       }
       if (splitDraftRowButton) {
@@ -3755,6 +4053,10 @@
       if (row) {
         const fieldName = draftField.dataset.draftField;
         row[fieldName] = draftField.value;
+        if (['received_weight', 'unit'].includes(fieldName)) {
+          row.quantity_confirmed = false;
+          row.assignment_stale = true;
+        }
         if (fieldName === 'assigned_employee_id') {
           const packer = packers.find((item) => String(item.id) === String(draftField.value));
           row.assigned_name = packer?.full_name || '';
@@ -3767,10 +4069,15 @@
           }
         }
         row.workload = draftWorkload(row);
-        if (['received_weight', 'quantity_planned', 'unit', 'priority'].includes(fieldName)) {
-          const result = redistributeDraftRows();
+        if (['quantity_planned', 'priority', 'bulk_remainder'].includes(fieldName)) {
+          if (fieldName === 'quantity_planned') row.pack_parts = quantityPlanParts(row.quantity_planned || '');
           renderInvoiceDraft();
-          setInvoiceStatus(result.message || 'Assignments refreshed after the draft row changed.');
+          setInvoiceStatus(fieldName === 'priority' ? 'Weighted workload updated. Balance changed; use Redistribute Packers if required.' : 'Packing allocation updated in the background.');
+          return;
+        }
+        if (['received_weight', 'unit'].includes(fieldName)) {
+          renderInvoiceDraft();
+          setInvoiceStatus('Received quantity changed. Redistribution required after reconfirmation.');
           return;
         }
         updateDraftWorkloadCell(draftField, row);
@@ -3799,11 +4106,26 @@
       const row = invoiceDraftRows[Number(draftField.closest('tr')?.dataset.draftIndex || 0)];
       if (row) {
         row[draftField.dataset.draftField] = draftField.value;
+        if (['received_weight', 'unit'].includes(draftField.dataset.draftField)) { row.quantity_confirmed = false; row.assignment_stale = true; }
+        if (draftField.dataset.draftField === 'quantity_planned') row.pack_parts = quantityPlanParts(row.quantity_planned || '');
         row.workload = draftWorkload(row);
         updateDraftWorkloadCell(draftField, row);
         renderDraftWorkloadSummary();
+        saveInvoiceCorrectionDraft();
       }
     }
+    const packPartField = event.target.closest('[data-pack-part-field]');
+    if (packPartField) {
+      const rowIndex = Number(packPartField.closest('tr')?.dataset.draftIndex || 0);
+      updatePackPart(rowIndex, Number(packPartField.dataset.packPartIndex), packPartField.dataset.packPartField, packPartField.value);
+      const row = invoiceDraftRows[rowIndex];
+      const quantityInput = packPartField.closest('tr')?.querySelector('[data-draft-field="quantity_planned"]');
+      if (quantityInput && row) quantityInput.value = row.quantity_planned;
+      if (row) updateDraftWorkloadCell(packPartField, row);
+      renderDraftWorkloadSummary();
+    }
+    const autoRedistribute = event.target.closest('[data-auto-redistribute]');
+    if (autoRedistribute) { invoiceAutoRedistribute = autoRedistribute.checked; saveInvoiceCorrectionDraft(); }
   });
 
   document.addEventListener('blur', async (event) => {
@@ -3970,5 +4292,10 @@
         setCount('Could not load packing list');
         updateMetrics([]);
       });
+      schedulePackingRefresh();
     });
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) refresh({ background: true }).catch(() => {});
+  });
+  window.addEventListener('online', () => refresh({ background: true }).catch(() => {}));
 })();

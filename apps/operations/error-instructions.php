@@ -2,20 +2,60 @@
 
 declare(strict_types=1);
 
+ob_start();
+$errorInstructionResponseSent = false;
+register_shutdown_function(static function (): void {
+    global $errorInstructionResponseSent;
+    if ($errorInstructionResponseSent) return;
+    $lastError = error_get_last();
+    if (!$lastError || !in_array((int)$lastError['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) return;
+    if (ob_get_level() > 0) ob_clean();
+    http_response_code(500);
+    header('Content-Type: application/json; charset=UTF-8');
+    echo json_encode(['ok'=>false, 'message'=>'The instruction service encountered a server error. Retry or contact the owner.'], JSON_UNESCAPED_SLASHES);
+});
 require_once __DIR__ . '/operations.php';
 require_once BASE_PATH . '/shared/error-instructions.php';
 
-require_role('owner_admin', 'front_desk_admin', 'front_desk_admin_employee');
 header('Content-Type: application/json; charset=UTF-8');
 
 function error_instruction_response(array $payload, int $status = 200): void
 {
+    global $errorInstructionResponseSent;
+    $errorInstructionResponseSent = true;
+    if (ob_get_level() > 0) ob_clean();
     http_response_code($status);
+    header('Content-Type: application/json; charset=UTF-8');
     echo json_encode($payload, JSON_UNESCAPED_SLASHES);
     exit;
 }
 
+function error_instruction_payload(int $instructionId): array
+{
+    $stmt = db()->prepare("SELECT i.*, creator.full_name created_by_name, completer.full_name completed_by_name
+        FROM ops_error_instructions i
+        LEFT JOIN ops_employees creator ON creator.id=i.created_by_user_id
+        LEFT JOIN ops_employees completer ON completer.id=i.completed_by_user_id
+        WHERE i.id=? LIMIT 1");
+    $stmt->execute([$instructionId]);
+    $row = $stmt->fetch();
+    $stmt->closeCursor();
+    if (!is_array($row)) return [];
+    return [
+        'id'=>(int)$row['id'], 'error_id'=>(int)$row['error_id'],
+        'instruction_text'=>(string)$row['instruction_text'],
+        'created_by_name'=>(string)($row['created_by_name'] ?: 'Owner/Admin'),
+        'created_at'=>(string)$row['created_at'], 'status'=>(string)($row['status'] ?: 'pending'),
+        'completion_note'=>(string)($row['completion_note'] ?? ''),
+        'completed_by_name'=>(string)($row['completed_by_name'] ?? ''),
+        'completed_at'=>(string)($row['completed_at'] ?? ''),
+    ];
+}
+
 try {
+    if (!in_array(current_role_key(), ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee'], true)) {
+        error_instruction_response(['ok'=>false, 'message'=>'Your session expired or you do not have access to Error Log instructions.'], 403);
+    }
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') throw new RuntimeException('Method not allowed.');
     $csrf = (string) ($_POST['csrf_token'] ?? '');
     $sessionCsrf = (string) ($_SESSION['error_instruction_csrf_token'] ?? '');
@@ -78,12 +118,62 @@ try {
                 'new_value'=>$instruction,
             ]);
             db()->commit();
-            unset($_SESSION['error_instruction_submission_token']);
+            $_SESSION['error_instruction_submission_token'] = bin2hex(random_bytes(32));
         } catch (Throwable $errorDuringSend) {
             if (db()->inTransaction()) db()->rollBack();
             throw $errorDuringSend;
         }
-        error_instruction_response(['ok'=>true, 'message'=>'Instruction sent successfully.', 'error_id'=>$errorId]);
+        error_instruction_response(['ok'=>true, 'message'=>'Instruction sent successfully.', 'error_id'=>$errorId,
+            'instruction'=>error_instruction_payload($instructionId),
+            'submission_token'=>(string)$_SESSION['error_instruction_submission_token']]);
+    }
+
+    if ($action === 'complete_instruction') {
+        if ($roleKey === 'owner_admin' || !error_instruction_user_can_view($error, $userId, $roleKey)) {
+            error_instruction_response(['ok'=>false, 'message'=>'Only the assigned employee may complete this instruction.'], 403);
+        }
+        $instructionId = max(0, (int)($_POST['instruction_id'] ?? 0));
+        $completionNote = trim((string)($_POST['completion_note'] ?? ''));
+        if ($completionNote === '') error_instruction_response(['ok'=>false, 'message'=>'Enter a completion note before marking this instruction complete.'], 422);
+        $noteLength = function_exists('mb_strlen') ? mb_strlen($completionNote) : strlen($completionNote);
+        if ($noteLength < 10) error_instruction_response(['ok'=>false, 'message'=>'The completion note must be at least 10 characters.'], 422);
+        if ($noteLength > 4000) error_instruction_response(['ok'=>false, 'message'=>'The completion note must be 4,000 characters or fewer.'], 422);
+
+        db()->beginTransaction();
+        try {
+            $instructionStmt = db()->prepare("SELECT i.id,i.status FROM ops_error_instructions i
+                JOIN ops_error_instruction_reads r ON r.instruction_id=i.id AND r.recipient_user_id=?
+                WHERE i.id=? AND i.error_id=? FOR UPDATE");
+            $instructionStmt->execute([$userId, $instructionId, $errorId]);
+            $instructionRow = $instructionStmt->fetch();
+            $instructionStmt->closeCursor();
+            if (!is_array($instructionRow)) throw new RuntimeException('This instruction is not assigned to you.');
+            if ((string)$instructionRow['status'] === 'completed') {
+                db()->rollBack();
+                error_instruction_response(['ok'=>false, 'message'=>'This instruction has already been completed.'], 409);
+            }
+            $update = db()->prepare("UPDATE ops_error_instructions SET status='completed', completed_by_user_id=?, completion_note=?, completed_at=NOW(), updated_at=NOW() WHERE id=? AND status='pending'");
+            $update->execute([$userId, $completionNote, $instructionId]);
+            if ($update->rowCount() !== 1) throw new RuntimeException('The instruction could not be completed. Refresh and retry.');
+            $ownerRecipients = notifications_role_recipients(['owner_admin']);
+            if ($ownerRecipients) notifications_create([
+                'title'=>'Owner instruction completed',
+                'message'=>'Instruction #' . $instructionId . ' on error #' . $errorId . ' was completed.',
+                'module'=>'errors', 'related_type'=>'error_instruction', 'related_id'=>$errorId,
+                'priority'=>'important', 'required_delivery'=>true,
+                'deduplication_key'=>'error-instruction-completed:' . $instructionId,
+                'action_link'=>BASE_URL . '/apps/operations/errors.php?error_id=' . $errorId . '&instruction=1#owner-instructions-' . $errorId,
+            ], $ownerRecipients);
+            ops_activity_log('error_owner_instruction_completed', 'error_log', $errorId, [
+                'instruction_id'=>$instructionId, 'completed_by_user_id'=>$userId, 'completion_note'=>$completionNote,
+            ]);
+            db()->commit();
+        } catch (Throwable $completionError) {
+            if (db()->inTransaction()) db()->rollBack();
+            throw $completionError;
+        }
+        error_instruction_response(['ok'=>true, 'message'=>'Instruction completed successfully.', 'error_id'=>$errorId,
+            'instruction'=>error_instruction_payload($instructionId)]);
     }
 
     if ($action === 'mark_read') {

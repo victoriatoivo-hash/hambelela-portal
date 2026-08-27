@@ -85,6 +85,18 @@ function portal_safe_return_path($candidate): string
     return $candidate;
 }
 
+/**
+ * Resolve the first page after normal authentication without sending a
+ * restricted Finance Workspace user through the generic dashboard.
+ */
+function portal_post_login_destination(array $user, $candidate = null): string
+{
+    if (strtolower(trim((string) ($user['role_key'] ?? ''))) === 'accountant') {
+        return BASE_URL . '/apps/accounts/index.php';
+    }
+    return portal_safe_return_path($candidate);
+}
+
 function portal_expire_session(): void
 {
     logout_user();
@@ -184,6 +196,30 @@ function refresh_logged_in_user(): void
     }
 }
 
+/**
+ * Identify phones/tablets without treating a narrow desktop window or a
+ * touch-enabled Windows workstation as mobile. Role remains authoritative;
+ * this signal is only applied after the database-backed account is resolved.
+ */
+function portal_request_is_phone_or_tablet(): bool
+{
+    $clientMobile = trim((string) ($_SERVER['HTTP_SEC_CH_UA_MOBILE'] ?? ''));
+    if ($clientMobile === '?1') return true;
+    $ua = strtolower((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''));
+    if ($ua === '') return false;
+    if (preg_match('/windows nt|cros|x11; linux x86_64/', $ua)) return false;
+    return (bool) preg_match('/iphone|ipod|ipad|android|kindle|silk|tablet|mobile|macintosh.*mobile/', $ua);
+}
+
+function portal_render_employee_desktop_required(): void
+{
+    portal_send_private_cache_headers();
+    http_response_code(403);
+    $logout = htmlspecialchars(BASE_URL . '/login.php?action=logout', ENT_QUOTES, 'UTF-8');
+    echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#721b1a"><title>Desktop Access Required | Hambelela Portal</title><style>*{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:Figtree,system-ui,-apple-system,sans-serif;background:#fbf7f2;color:#2b1b16}body{min-height:100vh;min-height:100dvh;display:grid;place-items:center;padding:max(24px,env(safe-area-inset-top)) max(18px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-left))}.desktop-required{width:min(440px,100%);padding:30px 24px;border:1px solid #e8ddd3;border-radius:16px;background:#fff;box-shadow:0 18px 48px rgba(114,27,26,.1);text-align:center}.brand{display:grid;place-items:center;width:54px;height:54px;margin:0 auto 18px;border-radius:13px;background:#721b1a;color:#fff;font-size:24px;font-weight:800}.eyebrow{margin:0 0 8px;color:#ab3619;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}h1{margin:0 0 12px;color:#721b1a;font-size:25px}p{margin:0;color:#6b4c3b;font-size:14px;line-height:1.6}a{display:inline-flex;min-height:44px;margin-top:24px;padding:0 20px;align-items:center;justify-content:center;border-radius:10px;background:#721b1a;color:#fff;font-weight:700;text-decoration:none}</style></head><body><main class="desktop-required"><div class="brand" aria-hidden="true">H</div><p class="eyebrow">Hambelela Organic</p><h1>Desktop Access Required</h1><p>Your employee portal is available on the workplace desktop.<br>Please use your assigned work computer to access Hambelela Portal.</p><a href="'.$logout.'">Sign Out</a></main></body></html>';
+    exit;
+}
+
 function require_login(): void
 {
     $requestedPath = portal_safe_return_path((string) ($_SERVER['REQUEST_URI'] ?? (BASE_URL . '/index.php')));
@@ -200,6 +236,10 @@ function require_login(): void
         header('Location: ' . BASE_URL . '/login.php?return=' . rawurlencode($requestedPath), true, 303);
         exit;
     }
+
+    require_once BASE_PATH . '/shared/database.php';
+    require_once BASE_PATH . '/shared/workplace-access.php';
+    portal_enforce_employee_workplace_access($_SESSION['user']);
 
     $scriptName = basename((string) ($_SERVER['SCRIPT_NAME'] ?? ''));
     if (

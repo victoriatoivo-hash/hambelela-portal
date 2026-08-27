@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/operations.php';
 require_once BASE_PATH . '/shared/notifications.php';
 require_once BASE_PATH . '/shared/login-security.php';
+require_once BASE_PATH . '/shared/workplace-access.php';
 
 require_login();
 
@@ -169,7 +170,33 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $action = ops_post_string('action', 40) ?: 'change_code';
 
-        if (in_array($action, ['save_epi_mode', 'run_epi_recovery_test'], true)) {
+        if (in_array($action, ['workplace_add_network', 'workplace_set_mode', 'workplace_disable_network'], true)) {
+            if (!$canManagePortal) throw new RuntimeException('Only Owner/Admin can manage employee workplace access.');
+            $activeSettingsSection = 'security';
+            portal_workplace_bootstrap();
+            if ($action === 'workplace_add_network') {
+                $source = portal_request_source_ip();
+                if (empty($source['ip'])) throw new RuntimeException('The current public IP could not be verified through the trusted request path.');
+                $networkName = ops_post_string('network_name', 120) ?: 'Hambelela Office';
+                db()->prepare('INSERT INTO portal_workplace_networks (network_name,ip_cidr,is_active,added_by,first_seen_at,last_seen_at) VALUES (?,?,1,?,NOW(),NOW()) ON DUPLICATE KEY UPDATE network_name=VALUES(network_name),is_active=1,last_seen_at=NOW()')->execute([$networkName,(string)$source['ip'],(int)$employee['id']]);
+                $message = 'Current workplace network approved. Employee enforcement remains unchanged.';
+            } elseif ($action === 'workplace_disable_network') {
+                $networkId = (int)($_POST['network_id']??0);
+                if ($networkId <= 0) throw new RuntimeException('Choose a workplace network.');
+                db()->prepare('UPDATE portal_workplace_networks SET is_active=0 WHERE id=?')->execute([$networkId]);
+                if ((int)db()->query('SELECT COUNT(*) FROM portal_workplace_networks WHERE is_active=1')->fetchColumn() === 0) db()->exec("UPDATE portal_workplace_settings SET policy_mode='audit' WHERE id=1");
+                $message = 'Workplace network disabled. Policy returned to Audit Only if no active network remains.';
+            } else {
+                $requestedMode = ops_post_string('policy_mode', 20);
+                if (!in_array($requestedMode,[PORTAL_WORKPLACE_AUDIT,PORTAL_WORKPLACE_ENFORCED,PORTAL_WORKPLACE_DISABLED],true)) throw new RuntimeException('Choose a valid workplace access mode.');
+                if ($requestedMode === PORTAL_WORKPLACE_ENFORCED) {
+                    if ((int)db()->query('SELECT COUNT(*) FROM portal_workplace_networks WHERE is_active=1')->fetchColumn() < 1) throw new RuntimeException('Approve at least one workplace network before enabling restriction.');
+                    if ((int)db()->query("SELECT COUNT(*) FROM portal_workplace_access_log WHERE role_key<>'owner_admin' AND network_pass=1 AND device_pass=1")->fetchColumn() < 1) throw new RuntimeException('Observe at least one employee work desktop successfully on the approved network before enabling restriction.');
+                }
+                db()->prepare('UPDATE portal_workplace_settings SET policy_mode=?,updated_by=? WHERE id=1')->execute([$requestedMode,(int)$employee['id']]);
+                $message = $requestedMode === PORTAL_WORKPLACE_ENFORCED ? 'Employee Workplace Lock enabled.' : ($requestedMode === PORTAL_WORKPLACE_DISABLED ? 'Employee Workplace Lock disabled.' : 'Employee Workplace Access set to Audit Only.');
+            }
+        } elseif (in_array($action, ['save_epi_mode', 'run_epi_recovery_test'], true)) {
             if (!$canManagePortal) {
                 throw new RuntimeException('Only Owner/Admin can manage EPI recovery settings.');
             }
@@ -398,7 +425,20 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$employeeRoles = $ready && $canManagePortal ? ops_rows("SELECT id, name FROM ops_roles WHERE role_key <> 'owner_admin' ORDER BY FIELD(role_key, 'front_desk_admin', 'packer', 'supervisor_manager'), name") : [];
+if ($ready && $canManagePortal) {
+    // Keep the existing portal user-management system aligned with the
+    // Accountant role used by normal portal authentication.  This is
+    // idempotent and does not create an Accountant user automatically.
+    try {
+        db()->prepare(
+            "INSERT IGNORE INTO ops_roles (role_key, name, description)
+             VALUES ('accountant', 'Accountant', 'Restricted Finance Workspace access for VAT accounting and amendments')"
+        )->execute();
+    } catch (Throwable $e) {
+        // The role list can still render whatever roles the database exposes.
+    }
+}
+$employeeRoles = $ready && $canManagePortal ? ops_rows("SELECT id, name FROM ops_roles WHERE role_key <> 'owner_admin' ORDER BY FIELD(role_key, 'front_desk_admin', 'accountant', 'packer', 'supervisor_manager'), name") : [];
 $extraStylesheets = array_merge($extraStylesheets ?? [], [['path' => 'assets/css/settings-access-code.css', 'version' => is_file(BASE_PATH . '/assets/css/settings-access-code.css') ? (string) filemtime(BASE_PATH . '/assets/css/settings-access-code.css') : (string) time()]]);
 $hrEmployees = $ready && $canManagePortal ? ops_hr_employee_options() : [];
 $employeeLinks = [];
@@ -464,6 +504,29 @@ foreach ($loginRows as &$loginRow) {
     ]);
 }
 unset($loginRow);
+
+$workplaceMode = PORTAL_WORKPLACE_AUDIT;
+$workplaceSource = ['ip'=>null,'source'=>'unverified'];
+$workplaceNetworks = [];
+$workplaceAccessRows = [];
+$workplaceSummary = ['approved'=>0,'allowed_today'=>0,'external_today'=>0,'mobile_today'=>0,'last_seen'=>null];
+if ($ready && $canManagePortal) {
+    try {
+        portal_workplace_bootstrap();
+        $workplaceMode = portal_workplace_mode();
+        $workplaceSource = portal_request_source_ip();
+        $workplaceNetworks = ops_rows('SELECT * FROM portal_workplace_networks ORDER BY is_active DESC, added_at DESC LIMIT 30');
+        $workplaceAccessRows = ops_rows('SELECT * FROM portal_workplace_access_log ORDER BY created_at DESC LIMIT 50');
+        $workplaceSummary['approved'] = (int)db()->query('SELECT COUNT(*) FROM portal_workplace_networks WHERE is_active=1')->fetchColumn();
+        $workplaceSummary['allowed_today'] = (int)db()->query("SELECT COUNT(*) FROM portal_workplace_access_log WHERE final_decision='allowed' AND created_at>=CURDATE()")->fetchColumn();
+        $workplaceSummary['external_today'] = (int)db()->query("SELECT COUNT(*) FROM portal_workplace_access_log WHERE reason='External network' AND created_at>=CURDATE()")->fetchColumn();
+        $workplaceSummary['mobile_today'] = (int)db()->query("SELECT COUNT(*) FROM portal_workplace_access_log WHERE device_pass=0 AND created_at>=CURDATE()")->fetchColumn();
+        $workplaceSummary['last_seen'] = db()->query('SELECT MAX(last_seen_at) FROM portal_workplace_networks WHERE is_active=1')->fetchColumn() ?: null;
+    } catch (Throwable $workplaceSetupError) {
+        $message = $message ?: 'Workplace access settings could not be loaded: '.$workplaceSetupError->getMessage();
+        $messageType = 'error';
+    }
+}
 
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
@@ -556,6 +619,36 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                         <strong>Active now</strong>
                     </div>
                 </div>
+                <?php if ($canManagePortal): ?>
+                <div class="settings-card" id="employee-workplace-access">
+                    <h2>Employee Workplace Access</h2>
+                    <p class="card-sub">Owner-only control. Employees require a desktop and an approved workplace network. Owner/Admin access is always exempt.</p>
+                    <div class="form-row">
+                        <div class="form-group"><label>Status</label><input class="readonly-input" value="<?= htmlspecialchars($workplaceMode === PORTAL_WORKPLACE_ENFORCED ? 'Enforced' : ($workplaceMode === PORTAL_WORKPLACE_DISABLED ? 'Disabled' : 'Audit Only'),ENT_QUOTES,'UTF-8') ?>" readonly></div>
+                        <div class="form-group"><label>Current public IP</label><input class="readonly-input" value="<?= htmlspecialchars((string)($workplaceSource['ip']??'Unable to verify'),ENT_QUOTES,'UTF-8') ?>" readonly><small class="field-help">Source: <?= htmlspecialchars((string)($workplaceSource['source']??'unverified'),ENT_QUOTES,'UTF-8') ?>. Forwarded headers are accepted only from a verified Cloudflare proxy address.</small></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Approved networks</label><input class="readonly-input" value="<?= (int)$workplaceSummary['approved'] ?>" readonly></div>
+                        <div class="form-group"><label>Allowed employee requests today</label><input class="readonly-input" value="<?= (int)$workplaceSummary['allowed_today'] ?>" readonly></div>
+                        <div class="form-group"><label>External attempts today</label><input class="readonly-input" value="<?= (int)$workplaceSummary['external_today'] ?>" readonly></div>
+                        <div class="form-group"><label>Mobile attempts today</label><input class="readonly-input" value="<?= (int)$workplaceSummary['mobile_today'] ?>" readonly></div>
+                    </div>
+                    <form method="post" style="margin-top:14px">
+                        <input type="hidden" name="action" value="workplace_add_network">
+                        <div class="form-row"><div class="form-group"><label>Network name</label><input name="network_name" maxlength="120" value="Hambelela Office" required></div><div class="settings-inline-action"><button class="btn-secondary" type="submit" onclick="return confirm('Approve the currently observed public IP as a workplace network?')">Approve This Workplace Network</button></div></div>
+                    </form>
+                    <div class="settings-table-wrap" style="margin-top:14px"><table class="settings-table"><thead><tr><th>Name</th><th>Public IP / CIDR</th><th>Status</th><th>Added</th><th>Last Seen</th><th></th></tr></thead><tbody>
+                    <?php foreach($workplaceNetworks as $network): ?><tr><td><?= htmlspecialchars((string)$network['network_name'],ENT_QUOTES,'UTF-8') ?></td><td><code><?= htmlspecialchars((string)$network['ip_cidr'],ENT_QUOTES,'UTF-8') ?></code></td><td><?= !empty($network['is_active'])?'Active':'Disabled' ?></td><td><?= htmlspecialchars((string)$network['added_at'],ENT_QUOTES,'UTF-8') ?></td><td><?= htmlspecialchars((string)($network['last_seen_at']?:'Not observed'),ENT_QUOTES,'UTF-8') ?></td><td><?php if(!empty($network['is_active'])):?><form method="post"><input type="hidden" name="action" value="workplace_disable_network"><input type="hidden" name="network_id" value="<?= (int)$network['id'] ?>"><button class="btn-secondary" type="submit">Disable</button></form><?php endif;?></td></tr><?php endforeach; ?>
+                    <?php if(!$workplaceNetworks):?><tr><td colspan="6">No workplace network is approved. Audit Only remains safe and employee network enforcement cannot be enabled.</td></tr><?php endif;?></tbody></table></div>
+                    <form method="post" style="margin-top:16px">
+                        <input type="hidden" name="action" value="workplace_set_mode">
+                        <div class="form-row"><div class="form-group"><label>Policy mode</label><select name="policy_mode"><option value="audit" <?= $workplaceMode===PORTAL_WORKPLACE_AUDIT?'selected':'' ?>>Audit Only</option><option value="enforced" <?= $workplaceMode===PORTAL_WORKPLACE_ENFORCED?'selected':'' ?>>Enforced</option><option value="disabled" <?= $workplaceMode===PORTAL_WORKPLACE_DISABLED?'selected':'' ?>>Disabled</option></select></div><div class="settings-inline-action"><button class="btn-primary" type="submit" onclick="return this.form.policy_mode.value!=='enforced'||confirm('Enable employee workplace restriction? Employees will only be able to use desktop devices on an approved workplace network.')">Save Workplace Policy</button></div></div>
+                        <p class="settings-note">Enforcement is refused until an active network exists and at least one employee desktop has been observed passing from it. Use Audit Only while confirming IP stability.</p>
+                    </form>
+                    <h3 style="margin-top:20px">Employee Access Security</h3>
+                    <div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Employee</th><th>Date/Time</th><th>Network/IP</th><th>Device</th><th>Decision</th><th>Reason</th></tr></thead><tbody><?php foreach($workplaceAccessRows as $access):?><tr><td><?= htmlspecialchars((string)$access['employee_name'],ENT_QUOTES,'UTF-8') ?></td><td><?= htmlspecialchars((string)$access['created_at'],ENT_QUOTES,'UTF-8') ?></td><td><?= htmlspecialchars((string)($access['source_ip']?:'Unverified'),ENT_QUOTES,'UTF-8') ?></td><td><?= htmlspecialchars((string)$access['device_class'],ENT_QUOTES,'UTF-8') ?></td><td><?= htmlspecialchars(ucfirst((string)$access['final_decision']),ENT_QUOTES,'UTF-8') ?></td><td><?= htmlspecialchars((string)$access['reason'],ENT_QUOTES,'UTF-8') ?></td></tr><?php endforeach;?><?php if(!$workplaceAccessRows):?><tr><td colspan="6">No employee access observations recorded yet.</td></tr><?php endif;?></tbody></table></div>
+                </div>
+                <?php endif; ?>
             </div>
 
             <div id="section-notifications" class="settings-section <?= $activeSettingsSection === 'notifications' ? 'active' : '' ?>">

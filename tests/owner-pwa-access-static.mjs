@@ -1,0 +1,10 @@
+import fs from 'node:fs';import assert from 'node:assert/strict';
+const read=p=>fs.readFileSync(new URL('../'+p,import.meta.url),'utf8');
+const auth=read('shared/auth.php'),header=read('shared/header.php'),login=read('login.php'),sw=read('service-worker.js'),bootstrap=read('assets/js/owner-pwa.js'),manifest=JSON.parse(read('manifest.webmanifest'));
+assert.equal(manifest.name,'Hambelela Portal');assert.equal(manifest.short_name,'Hambelela');assert.equal(manifest.display,'standalone');assert.equal(manifest.start_url,'/index.php?source=pwa');assert.equal(manifest.scope,'/');
+assert.match(auth,/refresh_logged_in_user\(\);[\s\S]*portal_enforce_employee_workplace_access\(\$_SESSION\['user'\]\)/);assert.match(auth,/HTTP_SEC_CH_UA_MOBILE/);assert.match(auth,/windows nt\|cros\|x11; linux x86_64/);assert.match(auth,/Desktop Access Required/);assert.match(auth,/workplace desktop/);
+assert.match(header,/\$ownerPwaEnabled = .*owner_admin/);assert.match(header,/if \(\$ownerPwaEnabled\).*manifest/s);assert.match(header,/owner-pwa\.js/);assert.doesNotMatch(login,/rel="manifest"/);assert.match(login,/viewport-fit=cover/);
+assert.match(sw,/request\.mode !== 'navigate'/);assert.match(sw,/fetch\(request, \{cache: 'no-store'\}\)/);assert.doesNotMatch(sw,/indexedDB|localStorage|\/apps\/operations|\/apps\/hr-portal|input-vat-api/);assert.match(sw,/pwa-offline\.html/);
+assert.match(bootstrap,/serviceWorker\.register\('\/service-worker\.js'/);assert.match(bootstrap,/navigator\.onLine/);assert.match(bootstrap,/location\.reload\(\)/);assert.match(bootstrap,/hambelela_owner_install_hidden/);
+for(const size of [180,192,512])assert.ok(fs.statSync(new URL(`../assets/pwa/hambelela-${size}.png`,import.meta.url)).size>100);
+console.log('Owner-only PWA and employee mobile-access checks passed.');

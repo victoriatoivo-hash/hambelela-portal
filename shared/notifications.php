@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once dirname(__DIR__) . '/shared/task-instructions.php';
+
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/database.php';
 require_once __DIR__ . '/task-reminders.php';
@@ -76,19 +78,22 @@ function notifications_current_employee_id(): ?int
 function notifications_default_modules_for_role(string $roleKey): array
 {
     if (in_array($roleKey, ['owner_admin', 'supervisor_manager'], true)) {
-        return ['operations', 'packing', 'bookkeeping', 'tasks', 'errors', 'whatsapp', 'cost_workbook', 'system'];
+        return ['operations', 'packing', 'bookkeeping', 'tasks', 'errors', 'whatsapp', 'cost_workbook', 'accounting_amendments', 'hr', 'system'];
+    }
+    if ($roleKey === 'accountant') {
+        return ['accounting_amendments', 'system'];
     }
     if (in_array($roleKey, ['front_desk_admin', 'front_desk_admin_employee'], true)) {
-        return ['operations', 'packing', 'bookkeeping', 'tasks', 'errors', 'whatsapp', 'system'];
+        return ['operations', 'packing', 'bookkeeping', 'tasks', 'errors', 'whatsapp', 'hr', 'system'];
     }
     if (in_array($roleKey, ['packer', 'packer_production_staff'], true)) {
-        return ['operations', 'packing', 'tasks', 'system'];
+        return ['operations', 'packing', 'tasks', 'hr', 'system'];
     }
 
     // Custom/new employee roles still need their own assignment and workflow
     // notifications. Recipient rows remain account-specific, so this does not
     // expose another employee's feed.
-    return ['operations', 'packing', 'tasks', 'system'];
+    return ['operations', 'packing', 'tasks', 'hr', 'system'];
 }
 
 function notifications_modules(): array
@@ -101,6 +106,8 @@ function notifications_modules(): array
         'errors' => 'Error Log',
         'whatsapp' => 'WhatsApp Performance',
         'cost_workbook' => 'Cost Workbook',
+        'accounting_amendments' => 'Accounting Amendments',
+        'hr' => 'HR Portal',
         'system' => 'System',
     ];
 }
@@ -363,7 +370,10 @@ function notifications_urgent_tasks_for_current_user(int $limit = 20): array
             $summary = $summaryStmt->fetch() ?: [];
             return [
                 'alertId' => (int) $row['alert_id'], 'taskId' => (int) $row['task_id'],
-                'title' => (string) $row['title'], 'instructions' => (string) ($row['instructions'] ?? ''),
+                // The alert deliberately uses plain text. Rich instructions are
+                // rendered in the task detail view, while alerts must never
+                // reveal literal markup or accept raw HTML in the browser.
+                'title' => (string) $row['title'], 'instructions' => task_instructions_plain_text((string) ($row['instructions'] ?? '')),
                 'priority' => (string) ($row['priority'] ?: 'urgent'),
                 'assignedBy' => (string) ($row['assigned_by'] ?: 'Management'),
                 'dueAt' => $row['due_at'], 'createdAt' => $row['created_at'], 'deliveredAt' => $row['delivered_at'],
@@ -415,15 +425,8 @@ function notifications_mark_task_state(int $notificationId, string $state): bool
     if (!$employeeId || $notificationId <= 0 || !notifications_schema_ready()) return false;
     $column = ['delivered' => 'delivered_at', 'viewed' => 'read_at', 'dismissed' => 'cleared_at'][$state] ?? '';
     if ($column === '') return false;
-    $stmt = db()->prepare(
-        "UPDATE notification_recipients nr
-         JOIN notifications n ON n.id = nr.notification_id
-         JOIN ops_checklist_tasks t ON t.id = n.related_id AND n.related_type = 'checklist_task'
-         SET nr.{$column} = COALESCE(nr.{$column}, NOW())
-         WHERE nr.notification_id = ? AND nr.employee_id = ?
-           AND (t.assigned_employee_id = ? OR ? = 1)"
-    );
-    $stmt->execute([$notificationId, $employeeId, $employeeId, user_has_role('owner_admin') ? 1 : 0]);
+    $stmt = db()->prepare("UPDATE notification_recipients SET {$column}=COALESCE({$column},NOW()) WHERE notification_id=? AND employee_id=?");
+    $stmt->execute([$notificationId, $employeeId]);
     return $stmt->rowCount() > 0;
 }
 
@@ -431,14 +434,24 @@ function notifications_claim_task_delivery(int $notificationId): bool
 {
     $employeeId = notifications_current_employee_id();
     if (!$employeeId || $notificationId <= 0 || !notifications_schema_ready()) return false;
+    $typeStmt = db()->prepare('SELECT related_type FROM notifications WHERE id=? LIMIT 1');
+    $typeStmt->execute([$notificationId]);
+    $relatedType = (string)$typeStmt->fetchColumn();
+    if ($relatedType !== 'checklist_task') {
+        $stmt = db()->prepare('UPDATE notification_recipients SET delivered_at=NOW() WHERE notification_id=? AND employee_id=? AND delivered_at IS NULL AND read_at IS NULL AND cleared_at IS NULL');
+        $stmt->execute([$notificationId,$employeeId]);
+        return $stmt->rowCount() > 0;
+    }
     $stmt = db()->prepare(
         "UPDATE notification_recipients nr
          JOIN notifications n ON n.id = nr.notification_id
          JOIN ops_checklist_tasks t ON t.id = n.related_id AND n.related_type = 'checklist_task'
+         LEFT JOIN ops_checklist_recurring_templates rt ON rt.id=t.recurring_template_id
          SET nr.delivered_at = NOW()
          WHERE nr.notification_id = ? AND nr.employee_id = ? AND nr.delivered_at IS NULL
-           AND nr.read_at IS NULL AND nr.cleared_at IS NULL AND t.status NOT IN ('complete','completed','done','archived','deleted')
-           AND t.archived_at IS NULL AND t.deleted_at IS NULL"
+           AND nr.read_at IS NULL AND nr.cleared_at IS NULL AND t.status NOT IN ('complete','completed','done','archived','deleted','trashed','cancelled')
+           AND t.archived_at IS NULL AND t.deleted_at IS NULL
+           AND (t.recurring_template_id IS NULL OR (rt.is_active=1 AND COALESCE(rt.status,'active')='active'))"
     );
     $stmt->execute([$notificationId, $employeeId]);
     if ($stmt->rowCount() < 1) return false;
@@ -586,7 +599,14 @@ function notifications_notify_packing_assigned(int $taskId, ?int $employeeId, ?i
 function notifications_packing_assignment_unread_ids(?int $employeeId = null, int $limit = 200): array
 {
     $employeeId = $employeeId ?: notifications_current_employee_id();
-    if (!$employeeId || !notifications_schema_ready() || !ops_table_exists('ops_packing_tasks')) return [];
+    if (
+        !$employeeId
+        || !notifications_schema_ready()
+        || !function_exists('ops_table_exists')
+        || !ops_table_exists('ops_packing_tasks')
+    ) {
+        return [];
+    }
     try {
         $limit = max(1, min(500, $limit));
         $stmt = db()->prepare(
@@ -717,6 +737,25 @@ function notifications_notify_task_assigned(int $taskId, ?int $employeeId, strin
         return null;
     }
 
+    try {
+        $hasRecurringParents = function_exists('ops_table_exists') && ops_table_exists('ops_checklist_recurring_templates');
+        $parentJoin = $hasRecurringParents
+            ? ' LEFT JOIN ops_checklist_recurring_templates rt ON rt.id=t.recurring_template_id' : '';
+        $parentScope = $hasRecurringParents
+            ? " AND (t.recurring_template_id IS NULL OR (rt.is_active=1 AND COALESCE(rt.status,'active')='active'))" : '';
+        $eligible = ops_rows(
+            "SELECT t.id FROM ops_checklist_tasks t{$parentJoin}
+             WHERE t.id=? AND t.assigned_employee_id=? AND t.employee_visible=1
+               AND (t.scheduled_at IS NULL OR t.released_at IS NOT NULL)
+               AND t.status NOT IN ('complete','completed','done','archived','deleted','trashed','cancelled')
+               AND t.archived_at IS NULL AND t.deleted_at IS NULL{$parentScope} LIMIT 1",
+            [$taskId, $employeeId]
+        );
+        if (!$eligible) return null;
+    } catch (Throwable $e) {
+        return null;
+    }
+
     return notifications_create([
         'title' => 'New task assigned',
         'message' => $taskName . ' has been assigned to you.',
@@ -724,6 +763,40 @@ function notifications_notify_task_assigned(int $taskId, ?int $employeeId, strin
         'priority' => 'normal',
         'sound_key' => 'assigned',
         'deduplication_key' => 'task:' . $taskId . ':user:' . $employeeId . ':type:assigned',
+        'required_delivery' => true,
+        'related_type' => 'checklist_task',
+        'related_id' => $taskId,
+        'action_link' => BASE_URL . '/apps/operations/checklists.php?task_view=active&task_id=' . $taskId,
+    ], [$employeeId]);
+}
+
+function notifications_notify_task_correction(int $taskId, int $correctionId, int $round, int $employeeId, string $taskName, string $correctionMessage, string $dueAt): ?int
+{
+    if ($taskId <= 0 || $correctionId <= 0 || $employeeId <= 0) return null;
+    try {
+        $eligible = ops_rows(
+            "SELECT t.id FROM ops_checklist_tasks t
+             JOIN ops_checklist_corrections c ON c.id=t.active_correction_id AND c.task_id=t.id
+             WHERE t.id=? AND t.assigned_employee_id=? AND t.employee_visible=1
+               AND t.status IN ('new','in_progress') AND t.correction_required=1
+               AND c.id=? AND c.status IN ('open','in_progress')
+               AND t.archived_at IS NULL AND t.deleted_at IS NULL LIMIT 1",
+            [$taskId,$employeeId,$correctionId]
+        );
+        if (!$eligible) return null;
+    } catch (Throwable $e) {
+        return null;
+    }
+    $plainMessage = trim(preg_replace('/\s+/', ' ', strip_tags($correctionMessage)) ?? '');
+    if (strlen($plainMessage) > 180) $plainMessage = substr($plainMessage, 0, 177) . '…';
+    $dueLabel = $dueAt !== '' ? date('d M Y · H:i', strtotime($dueAt)) : 'New deadline assigned';
+    return notifications_create([
+        'title' => 'Correction required',
+        'message' => $taskName . ' — ' . $plainMessage . ' Due: ' . $dueLabel,
+        'module' => 'tasks',
+        'priority' => 'important',
+        'sound_key' => 'assigned',
+        'deduplication_key' => 'task:' . $taskId . ':correction:' . $correctionId . ':round:' . $round . ':user:' . $employeeId,
         'required_delivery' => true,
         'related_type' => 'checklist_task',
         'related_id' => $taskId,
@@ -739,13 +812,21 @@ function notifications_for_current_user(int $limit = 10): array
     }
 
     try {
+        if (function_exists('task_release_due_scheduled_tasks')) task_release_due_scheduled_tasks();
         notifications_schedule_task_reminders($employeeId, true);
         $canViewAllTasks = user_has_role('owner_admin');
-        $taskScope = " AND (n.related_type IS NULL OR n.related_type <> 'checklist_task' OR n.related_id IS NULL OR ? = 1 OR t.assigned_employee_id = ?)";
+        $taskReleased = function_exists('ops_column_exists') && ops_column_exists('ops_checklist_tasks', 'scheduled_at') && ops_column_exists('ops_checklist_tasks', 'released_at') ? ' AND (t.scheduled_at IS NULL OR t.released_at IS NOT NULL)' : '';
+        // A task notification belongs to the current occurrence.  Once that
+        // occurrence is complete (or archived/deleted), it must no longer be
+        // eligible for the employee feed.  Keeping this in the shared scope
+        // prevents an old unread notification from making a completed task
+        // look new again after a refresh.
+        $taskScope = " AND (n.related_type IS NULL OR n.related_type <> 'checklist_task' OR n.related_id IS NULL OR (t.status IS NOT NULL AND t.status NOT IN ('complete','completed','done','archived','deleted','trashed','cancelled') AND (t.recurring_template_id IS NULL OR (rt.is_active=1 AND COALESCE(rt.status,'active')='active')) AND (? = 1 OR (t.assigned_employee_id = ? AND t.employee_visible = 1{$taskReleased}))))";
         $countStmt = db()->prepare(
             "SELECT COUNT(*) FROM notification_recipients nr
              JOIN notifications n ON n.id = nr.notification_id
              LEFT JOIN ops_checklist_tasks t ON t.id = n.related_id AND n.related_type = 'checklist_task'
+             LEFT JOIN ops_checklist_recurring_templates rt ON rt.id=t.recurring_template_id
              WHERE nr.employee_id = ? AND nr.read_at IS NULL AND nr.cleared_at IS NULL{$taskScope}"
         );
         $countStmt->execute([$employeeId, $canViewAllTasks ? 1 : 0, $employeeId]);
@@ -758,6 +839,7 @@ function notifications_for_current_user(int $limit = 10): array
              FROM notification_recipients nr
              JOIN notifications n ON n.id = nr.notification_id
              LEFT JOIN ops_checklist_tasks t ON t.id = n.related_id AND n.related_type = 'checklist_task'
+             LEFT JOIN ops_checklist_recurring_templates rt ON rt.id=t.recurring_template_id
              LEFT JOIN ops_employees e ON e.id = t.assigned_employee_id
              WHERE nr.employee_id = ? AND nr.cleared_at IS NULL
                {$taskScope} AND (nr.snoozed_until IS NULL OR nr.snoozed_until <= NOW())
@@ -782,13 +864,19 @@ function notifications_summary_for_current_user(int $limit = 5): array
     }
 
     try {
+        if (function_exists('task_release_due_scheduled_tasks')) task_release_due_scheduled_tasks();
         notifications_schedule_task_reminders($employeeId, true);
         $canViewAllTasks = user_has_role('owner_admin');
-        $taskScope = " AND (n.related_type IS NULL OR n.related_type <> 'checklist_task' OR n.related_id IS NULL OR ? = 1 OR t.assigned_employee_id = ?)";
+        $taskReleased = function_exists('ops_column_exists') && ops_column_exists('ops_checklist_tasks', 'scheduled_at') && ops_column_exists('ops_checklist_tasks', 'released_at') ? ' AND (t.scheduled_at IS NULL OR t.released_at IS NOT NULL)' : '';
+        // Keep completed occurrence notifications out of both the badge and
+        // the preview list.  The notification is historical evidence, not a
+        // new assignment, and must not reopen the employee's work queue.
+        $taskScope = " AND (n.related_type IS NULL OR n.related_type <> 'checklist_task' OR n.related_id IS NULL OR (t.status IS NOT NULL AND t.status NOT IN ('complete','completed','done','archived','deleted','trashed','cancelled') AND (t.recurring_template_id IS NULL OR (rt.is_active=1 AND COALESCE(rt.status,'active')='active')) AND (? = 1 OR (t.assigned_employee_id = ? AND t.employee_visible = 1{$taskReleased}))))";
         $countStmt = db()->prepare(
             "SELECT COUNT(*) FROM notification_recipients nr
              JOIN notifications n ON n.id = nr.notification_id
              LEFT JOIN ops_checklist_tasks t ON t.id = n.related_id AND n.related_type = 'checklist_task'
+             LEFT JOIN ops_checklist_recurring_templates rt ON rt.id=t.recurring_template_id
              WHERE nr.employee_id = ? AND nr.read_at IS NULL AND nr.cleared_at IS NULL{$taskScope}"
         );
         $countStmt->execute([$employeeId, $canViewAllTasks ? 1 : 0, $employeeId]);
@@ -803,6 +891,7 @@ function notifications_summary_for_current_user(int $limit = 5): array
              FROM notification_recipients nr
              JOIN notifications n ON n.id = nr.notification_id
              LEFT JOIN ops_checklist_tasks t ON t.id = n.related_id AND n.related_type = 'checklist_task'
+             LEFT JOIN ops_checklist_recurring_templates rt ON rt.id=t.recurring_template_id
              LEFT JOIN ops_employees e ON e.id = t.assigned_employee_id
              WHERE nr.employee_id = ? AND nr.read_at IS NULL AND nr.cleared_at IS NULL
                {$taskScope} AND (nr.snoozed_until IS NULL OR nr.snoozed_until <= NOW())

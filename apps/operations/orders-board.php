@@ -145,7 +145,11 @@ include BASE_PATH . '/shared/sidebar.php';
     <section class="orders-date-groups">
         <div class="ops-board-scroll orders-grid-scroll">
             <div class="ops-board-table monday-board orders-board-v2 orders-grid-root" id="orders-board-body" data-orders-board data-board-key="orders">
-                <div class="board-empty-state">Loading orders...</div>
+                <div class="orders-loading-state" role="status" aria-live="polite">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v6h-6"/></svg>
+                    <strong>Loading orders...</strong>
+                    <span>Getting the latest Orders Board data.</span>
+                </div>
             </div>
         </div>
     </section>

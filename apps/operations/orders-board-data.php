@@ -6,9 +6,15 @@ require_once __DIR__ . '/operations.php';
 
 header('Content-Type: application/json');
 
-if (current_role_key() === 'guest') {
+$roleKey = current_role_key();
+if ($roleKey === 'guest') {
     http_response_code(401);
     echo json_encode(['ok' => false, 'message' => 'Your session expired. Please log in again.']);
+    exit;
+}
+if (!portal_role_can_access_feature($roleKey, 'orders')) {
+    http_response_code(403);
+    echo json_encode(['ok' => false, 'message' => 'You do not have permission to access Orders.']);
     exit;
 }
 
@@ -20,7 +26,6 @@ if (!$ready) {
 ops_ensure_order_payment_schema();
 
 $user = current_user();
-$roleKey = (string) ($user['role_key'] ?? '');
 
 $date = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_GET['date'] ?? '')) ? (string) $_GET['date'] : '';
 $month = $date === '' && preg_match('/^\d{4}-\d{2}$/', (string) ($_GET['month'] ?? '')) ? (string) $_GET['month'] : '';
@@ -40,7 +45,11 @@ $since = preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', (string) ($_GET['
     ? (string) $_GET['since']
     : '';
 $incremental = $since !== '';
-$responseCursor = date('Y-m-d H:i:s');
+$databaseClock = ops_row("SELECT DATE_FORMAT(CURRENT_TIMESTAMP, '%Y-%m-%d %H:%i:%s') AS cursor_time");
+$responseCursor = (string) ($databaseClock['cursor_time'] ?? '');
+if (!preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $responseCursor)) {
+    $responseCursor = date('Y-m-d H:i:s');
+}
 $dateStart = '';
 $dateEnd = '';
 if ($date !== '') {

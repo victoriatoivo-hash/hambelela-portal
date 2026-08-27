@@ -38,7 +38,14 @@ $sidebarUserInitial = strtoupper(substr($sidebarUserName !== '' ? $sidebarUserNa
 $taskOutstandingCount = 0;
 $systemIssueOpenCount = 0;
 $systemIssueNeedsInformation = 0;
-$packingAssignmentUnread = function_exists('notifications_packing_assignment_unread_count') ? notifications_packing_assignment_unread_count() : 0;
+$packingAssignmentUnread = 0;
+try {
+    if (function_exists('notifications_packing_assignment_unread_count')) {
+        $packingAssignmentUnread = notifications_packing_assignment_unread_count();
+    }
+} catch (Throwable $packingBadgeError) {
+    error_log('Packing assignment sidebar badge failed: ' . $packingBadgeError->getMessage());
+}
 $sidebarNotificationCounts = function_exists('notifications_sidebar_counts_for_current_user') ? notifications_sidebar_counts_for_current_user() : [];
 $packingSidebarRoleKey = function_exists('normalise_portal_role')
     ? normalise_portal_role((string) ($sidebarUser['role_key'] ?? $sidebarUserRole))
@@ -50,10 +57,11 @@ if (!in_array($packingSidebarRoleKey, ['owner_admin', 'front_desk_admin', 'front
 try {
     if (function_exists('ops_database_ready') && ops_database_ready() && function_exists('ops_table_exists') && ops_table_exists('ops_checklist_tasks')) {
         $taskScope = function_exists('ops_task_scope_for_current_user') ? ops_task_scope_for_current_user() : ['type' => 'assigned', 'employee_id' => function_exists('ops_current_employee_id') ? ops_current_employee_id() : null];
+        $taskReleaseFilter = ops_column_exists('ops_checklist_tasks', 'scheduled_at') && ops_column_exists('ops_checklist_tasks', 'released_at') ? ' AND (scheduled_at IS NULL OR released_at IS NOT NULL)' : '';
         if (($taskScope['type'] ?? '') === 'all') {
-            $taskOutstandingCount = (int) (db()->query("SELECT COUNT(*) FROM ops_checklist_tasks WHERE status <> 'complete' AND archived_at IS NULL AND deleted_at IS NULL")->fetchColumn() ?: 0);
+            $taskOutstandingCount = (int) (db()->query("SELECT COUNT(*) FROM ops_checklist_tasks WHERE status <> 'complete'{$taskReleaseFilter} AND archived_at IS NULL AND deleted_at IS NULL")->fetchColumn() ?: 0);
         } elseif (!empty($taskScope['employee_id'])) {
-            $taskCountStmt = db()->prepare("SELECT COUNT(*) FROM ops_checklist_tasks WHERE assigned_employee_id = ? AND employee_visible = 1 AND status <> 'complete' AND archived_at IS NULL AND deleted_at IS NULL");
+            $taskCountStmt = db()->prepare("SELECT COUNT(*) FROM ops_checklist_tasks WHERE assigned_employee_id = ? AND employee_visible = 1{$taskReleaseFilter} AND status <> 'complete' AND archived_at IS NULL AND deleted_at IS NULL");
             $taskCountStmt->execute([(int) $taskScope['employee_id']]);
             $taskOutstandingCount = (int) ($taskCountStmt->fetchColumn() ?: 0);
         }
@@ -76,10 +84,15 @@ try {
     $epiNavigationEnabled = false;
 }
 
+$accountsNavItem = in_array($packingSidebarRoleKey, ['front_desk_admin', 'front_desk_admin_employee'], true)
+    ? ['id' => 'input-vat', 'label' => 'Input VAT', 'icon' => 'accounts', 'href' => BASE_URL . '/apps/accounts/input-vat.php', 'match' => ['/apps/accounts/input-vat.php']]
+    : ['id' => 'accounts', 'label' => 'Accounts', 'icon' => 'accounts', 'href' => BASE_URL . '/apps/accounts/index.php', 'match' => ['/apps/accounts/index.php', '/apps/accounts/input-vat.php', '/apps/accounts/output-vat.php', '/apps/accounts/import-vat.php', '/apps/accounts/vat-reconciliation.php', '/apps/accounts/sage-reconciliation.php']];
+
 $portalNavItems = [
     ['id' => 'portal-dashboard', 'label' => 'Dashboard', 'icon' => 'dashboard', 'href' => '/index.php', 'match' => ['/index.php']],
     ['id' => 'operations-orders', 'label' => 'Orders', 'icon' => 'orders', 'href' => BASE_URL . '/apps/operations/orders-board.php', 'match' => ['/apps/operations/orders-board.php']],
     ['id' => 'operations-bookkeeping', 'label' => 'Bookkeeping', 'icon' => 'bookkeeping', 'href' => BASE_URL . '/apps/operations/bookkeeping.php', 'match' => ['/apps/operations/bookkeeping.php']],
+    $accountsNavItem,
     ['id' => 'operations-consignments', 'label' => 'Packing List', 'icon' => 'packing', 'href' => $packingSidebarHref, 'match' => ['/apps/operations/consignments.php'], 'badge' => $packingAssignmentUnread, 'badge_label' => $packingAssignmentUnread > 99 ? '99+' : (string) $packingAssignmentUnread, 'badge_kind' => 'packing'],
     ['id' => 'operations-courier', 'label' => 'Courier Waybills', 'icon' => 'courier', 'href' => BASE_URL . '/apps/operations/courier.php', 'match' => ['/apps/operations/courier.php']],
     ['id' => 'hr-portal', 'label' => 'HR Portal', 'icon' => 'hr', 'href' => BASE_URL . '/apps/hr-portal/portal-login.php', 'match' => ['/apps/hr-portal/portal-login.php', '/apps/hr-portal/index.php']],
@@ -91,11 +104,27 @@ $portalNavItems = [
     ['id' => 'system-issues', 'label' => 'System Issues Log', 'icon' => 'system-issues', 'href' => BASE_URL . '/apps/operations/system-issues.php', 'match' => ['/apps/operations/system-issues.php'], 'badge' => $systemIssueOpenCount, 'badge_label' => $systemIssueOpenCount > 99 ? '99+' : (string) $systemIssueOpenCount, 'badge_kind' => 'system-issues', 'needs_information' => $systemIssueNeedsInformation],
     ['id' => 'settings', 'label' => 'Settings', 'icon' => 'settings', 'href' => BASE_URL . '/apps/operations/my-account.php', 'match' => ['/apps/operations/my-account.php']],
 ];
+if ($packingSidebarRoleKey === 'accountant') {
+    $portalNavItems = [
+        ['id'=>'accounts','label'=>'Finance Dashboard','icon'=>'accounts','href'=>BASE_URL.'/apps/accounts/index.php','match'=>['/apps/accounts/index.php']],
+        ['id'=>'input-vat','label'=>'Input VAT','icon'=>'accounts','href'=>BASE_URL.'/apps/accounts/input-vat.php','match'=>['/apps/accounts/input-vat.php']],
+        ['id'=>'output-vat','label'=>'Output VAT','icon'=>'accounts','href'=>BASE_URL.'/apps/accounts/output-vat.php','match'=>['/apps/accounts/output-vat.php']],
+        ['id'=>'import-vat','label'=>'Import VAT','icon'=>'accounts','href'=>BASE_URL.'/apps/accounts/import-vat.php','match'=>['/apps/accounts/import-vat.php']],
+        ['id'=>'paye','label'=>'PAYE','icon'=>'accounts','href'=>BASE_URL.'/apps/accounts/paye.php','match'=>['/apps/accounts/paye.php']],
+        ['id'=>'vat-reconciliation','label'=>'VAT Reconciliation','icon'=>'accounts','href'=>BASE_URL.'/apps/accounts/vat-reconciliation.php','match'=>['/apps/accounts/vat-reconciliation.php']],
+    ];
+}
 
 $featureByNavId = [
     'portal-dashboard' => 'dashboard',
     'operations-orders' => 'orders',
     'operations-bookkeeping' => 'bookkeeping',
+    'accounts' => 'accounts',
+    'input-vat' => 'input_vat',
+    'output-vat' => 'output_vat',
+    'import-vat' => 'import_vat',
+    'paye' => 'paye',
+    'vat-reconciliation' => 'vat_reconciliation',
     'operations-consignments' => 'packing_list',
     'operations-courier' => 'courier',
     'hr-portal' => 'hr',
@@ -145,6 +174,8 @@ if ($isEmployeeSidebar) {
         'operations-orders' => 40,
         'operations-checklists' => 50,
         'operations-bookkeeping' => 60,
+        'accounts' => 65,
+        'input-vat' => 65,
         'notifications' => 80,
         'operations-errors' => 90,
         'system-issues' => 95,
@@ -161,6 +192,11 @@ function getSidebarIcon(string $id): string
         'operations-dashboard' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>',
         'operations-orders' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>',
         'operations-bookkeeping' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>',
+        'accounts' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M8 15h2"/></svg>',
+        'input-vat' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2h12v20l-2-1.5L14 22l-2-1.5L10 22l-2-1.5L6 22V2Z"/><path d="M9 7h6M9 11h6M9 15h3"/></svg>',
+        'output-vat' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 20h18"/><path d="M5 17v-4M10 17V9M15 17v-6M20 17V5"/><path d="m4 9 5-4 5 3 6-5"/></svg>',
+        'import-vat' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11h18v8H3z"/><path d="M7 11V7h10v4M12 3v8"/><path d="m9 6 3-3 3 3"/><path d="M6 15h3M15 15h3"/></svg>',
+        'vat-reconciliation' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18M5 6h14"/><path d="m5 6-3 6h6L5 6ZM19 6l-3 6h6l-3-6Z"/><path d="M8 21h8"/></svg>',
         'operations-consignments' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>',
         'operations-courier' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17h4V5H2v12h3"/><path d="M14 9h4l4 4v4h-3"/><circle cx="7.5" cy="17.5" r="2.5"/><circle cx="16.5" cy="17.5" r="2.5"/></svg>',
         'operations-inventory' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96 12 12.01l8.73-5.05"/><path d="M12 22.08V12"/></svg>',

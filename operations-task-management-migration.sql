@@ -2,6 +2,7 @@ CREATE TABLE IF NOT EXISTS ops_checklist_tasks (
   id INT AUTO_INCREMENT PRIMARY KEY,
   checklist_type VARCHAR(40) NOT NULL DEFAULT 'opening',
   task_name VARCHAR(190) NOT NULL,
+  task_mode VARCHAR(20) NOT NULL DEFAULT 'one_off',
   priority VARCHAR(30) NOT NULL DEFAULT 'medium',
   assigned_employee_id INT NULL,
   date_assigned DATETIME NULL,
@@ -30,6 +31,9 @@ ALTER TABLE ops_checklist_tasks MODIFY checklist_type VARCHAR(40) NOT NULL DEFAU
 
 ALTER TABLE ops_checklist_tasks ADD COLUMN priority VARCHAR(30) NOT NULL DEFAULT 'medium' AFTER task_name;
 ALTER TABLE ops_checklist_tasks ADD COLUMN date_assigned DATETIME NULL AFTER assigned_employee_id;
+ALTER TABLE ops_checklist_tasks ADD COLUMN scheduled_at DATETIME NULL AFTER date_assigned;
+ALTER TABLE ops_checklist_tasks ADD COLUMN released_at DATETIME NULL AFTER scheduled_at;
+CREATE INDEX idx_task_scheduled_release ON ops_checklist_tasks (scheduled_at, released_at, deleted_at);
 ALTER TABLE ops_checklist_tasks ADD COLUMN instructions TEXT NULL AFTER notes;
 ALTER TABLE ops_checklist_tasks ADD COLUMN checklist_items TEXT NULL AFTER instructions;
 ALTER TABLE ops_checklist_tasks ADD COLUMN checked_items TEXT NULL AFTER checklist_items;

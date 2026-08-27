@@ -6,7 +6,7 @@ require_once dirname(__DIR__, 2) . '/config.php';
 require_once BASE_PATH . '/shared/auth.php';
 require_once BASE_PATH . '/shared/database.php';
 
-require_login();
+require_role('owner_admin');
 
 $pageTitle = 'Packaging Library | ' . APP_NAME;
 $activeApp = 'cost-manager';
@@ -294,7 +294,7 @@ include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
 <main class="workspace module packaging-library-page">
-    <a class="button back-link" href="landing-cost-engine.php"><i data-lucide="arrow-left"></i> Back to cost workbook</a>
+    <a class="button back-link" href="workbook.php"><i data-lucide="arrow-left"></i> Back to Cost Workbook</a>
     <section class="module-header">
         <div>
             <p class="eyebrow">Packaging Library</p>

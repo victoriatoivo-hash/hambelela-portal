@@ -30,7 +30,7 @@ assert.match(migration, /source_template_id/);
 assert.match(css, /\.task-template-toolbar/);
 assert.match(css, /@media\(max-width:479px\)/);
 
-const scripts = [...page.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map((match) => match[1]);
+const scripts = [...page.matchAll(/<script(?![^>]*\bsrc=)(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map((match) => match[1]);
 for (const [index, source] of scripts.entries()) {
   const runnable = source
     .replace(/<\?=\s*json_encode\([^?]+\)\s*\?>/g, '"test-csrf-token"')

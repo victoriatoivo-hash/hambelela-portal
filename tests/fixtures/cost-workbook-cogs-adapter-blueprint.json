@@ -1,0 +1,9 @@
+{
+  "$schema": "https://playground.wordpress.net/blueprint-schema.json",
+  "steps": [
+    {
+      "step": "runPHP",
+      "code": "<?php require '/workspace/tests/cost-workbook-cogs-adapter.php';"
+    }
+  ]
+}

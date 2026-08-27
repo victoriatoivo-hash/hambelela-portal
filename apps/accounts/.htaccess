@@ -1,0 +1,4 @@
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule ^input-vat\.php$ input-vat-live.php [L,QSA]
+</IfModule>

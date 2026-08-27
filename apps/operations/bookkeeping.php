@@ -887,6 +887,17 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             gap: 10px;
             min-width: 0;
         }
+        #bkDrawerBtn.bookkeeping-cash-tools-button {
+            width: 118.469px !important;
+            min-width: 118.469px !important;
+            max-width: 118.469px !important;
+            flex: 0 0 118.469px;
+            transition: background-color 0.16s ease,
+                        border-color 0.16s ease,
+                        color 0.16s ease,
+                        transform 0.12s ease,
+                        box-shadow 0.16s ease !important;
+        }
         h1 {
             margin: 0;
             color: var(--ledger-red);
@@ -1104,14 +1115,16 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             line-height: 1;
         }
         .day-name {
-            color: #1a1a1a;
-            font-size: 14px;
+            color: #721b1a;
+            font-size: 13px;
             font-weight: 600;
         }
         .day-count {
-            color: var(--ledger-muted);
-            font-size: 12px;
-            font-weight: 700;
+            display: block;
+            color: rgb(107, 76, 59);
+            font-family: Figtree, system-ui, sans-serif;
+            font-size: 11px;
+            font-weight: 400;
         }
         .day-sum {
             display: flex;
@@ -1129,6 +1142,7 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             color: #1a1a1a;
             font-size: 10px;
             font-weight: 700;
+            border-bottom: 1px solid var(--ledger-border);
             text-transform: uppercase;
             letter-spacing: .05em;
         }
@@ -1195,6 +1209,13 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
         .entry-row .ledger-cell,
         .add-row .ledger-cell {
             font-size: 12px;
+        }
+        .bk-wrap .entry-row {
+            height: 34px;
+        }
+        .bk-wrap .entry-row .ledger-cell {
+            height: 34px;
+            min-height: 34px;
         }
         .ledger-cell:last-child {
             border-right: 0;
@@ -1548,9 +1569,9 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             display: none;
         }
         .closing-card {
-            border: 1px solid var(--ledger-border);
+            border: 1px solid #f0e6e0;
             border-radius: 20px;
-            background: linear-gradient(135deg, rgba(114, 27, 26, .06), rgba(240, 116, 32, .08)), var(--ledger-white);
+            background: #fdf6ee;
             box-shadow: 0 14px 30px rgba(114, 27, 26, .08);
             padding: 22px;
             display: flex;
@@ -1560,16 +1581,16 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             margin-top: 18px;
         }
         .closing-card span {
-            color: var(--ledger-muted);
-            font-weight: 800;
+            color: #721b1a;
+            font-weight: 600;
             text-transform: uppercase;
-            font-size: 12px;
+            font-size: 13px;
             letter-spacing: .05em;
         }
         .closing-card strong {
-            color: var(--ledger-red);
-            font-size: 14px;
-            font-weight: 900;
+            color: #721b1a;
+            font-size: 13px;
+            font-weight: 400;
         }
         .bk-page-layout {
             display: block;
@@ -1602,6 +1623,55 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             color: #1a1a1a;
             font-size: 14px;
             font-weight: 700;
+        }
+        #tab-counter .denom-card > .bk-side-head,
+        #tab-recon .recon-card > .bk-side-head,
+        #tab-activity > .bk-side-section > .bk-side-head {
+            width: 100%;
+            height: 35px;
+            min-height: 34px;
+            box-sizing: border-box;
+            display: table-cell;
+            padding: 0 10px;
+            border-bottom: 1px solid rgb(240, 230, 224);
+            border-collapse: separate;
+            background-color: rgb(253, 246, 238);
+            background-image: none;
+            background-position: 0% 0%;
+            background-repeat: repeat;
+            background-size: auto;
+            background-origin: padding-box;
+            background-clip: border-box;
+            color: rgb(114, 27, 26);
+            font-family: Figtree, system-ui, sans-serif;
+            font-size: 10px;
+            font-weight: 700;
+            line-height: 34px;
+            letter-spacing: .6px;
+            text-align: left;
+            text-indent: 0;
+            text-transform: uppercase;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+        #tab-counter .denom-card > .bk-side-head .bk-denom-reset {
+            float: none;
+            margin-left: auto;
+            margin-top: 3px;
+        }
+        #tab-counter .denom-card > .bk-side-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        #tab-recon .recon-card > .bk-side-head {
+            display: block;
+            width: 100%;
+        }
+        #tab-activity > .bk-side-section > .bk-side-head {
+            display: block;
+            width: 100%;
         }
         .bk-side-toggle {
             width: 24px;
@@ -1747,6 +1817,16 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
         }
         .recon-card .bk-side-button {
             font-weight: 400;
+        }
+        #tab-recon .recon-card .bk-side-button[data-save-recon] {
+            width: 118.469px;
+            margin-right: auto;
+            margin-left: auto;
+            transition-property: background-color, border-color, color, transform, box-shadow;
+            transition-duration: .16s, .16s, .16s, .12s, .16s;
+            transition-timing-function: ease, ease, ease, ease, ease;
+            transition-delay: 0s, 0s, 0s, 0s, 0s;
+            transition-behavior: normal, normal, normal, normal, normal;
         }
         .bk-history-list {
             display: grid;
@@ -1905,7 +1985,11 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
         .bk-drawer-body .bk-denom-row span {
             font-family: Figtree, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             font-size: 12px;
+            font-weight: 400;
             white-space: nowrap;
+        }
+        #tab-counter .denom-card > .bk-side-body .bk-counter-total strong {
+            font-weight: 400;
         }
         .bk-drawer-body .bk-denom-row input {
             width: 100%;
@@ -1989,7 +2073,7 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             font-family: Figtree, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             font-size: 12px;
             font-weight: 400;
-            width: 180px;
+            width: 118.469px;
             height: 32px;
             display: flex;
             align-items: center;
@@ -2000,7 +2084,11 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             border: none;
             border-radius: 8px;
             cursor: pointer;
-            transition: background .2s ease;
+            transition-property: background-color, border-color, color, transform, box-shadow;
+            transition-duration: .16s, .16s, .16s, .12s, .16s;
+            transition-timing-function: ease, ease, ease, ease, ease;
+            transition-delay: 0s, 0s, 0s, 0s, 0s;
+            transition-behavior: normal, normal, normal, normal, normal;
         }
         #copyTotalBtn:active,
         #copyTotalBtn.copied {
@@ -2294,10 +2382,6 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             <?php endif; ?>
             <section class="portal-header-status" data-portal-header-status
                      data-presence-endpoint="<?= htmlspecialchars(BASE_URL . '/apps/operations/portal-presence.php', ENT_QUOTES, 'UTF-8') ?>">
-                <div class="portal-header-clock" aria-label="Current Namibia time">
-                    <span data-portal-date>---</span>
-                    <strong data-portal-time>--:-- --</strong>
-                </div>
                 <div class="portal-online-widget" data-portal-online-widget tabindex="0"
                      aria-label="Online employees" aria-expanded="false">
                     <div class="portal-online-avatars" data-portal-online-avatars></div>
@@ -2317,6 +2401,10 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
                         <span><?= htmlspecialchars($headerNotificationUnread > 99 ? '99+' : (string) $headerNotificationUnread, ENT_QUOTES, 'UTF-8') ?></span>
                     <?php endif; ?>
                 </a>
+                <div class="portal-header-clock" aria-label="Current Namibia time">
+                    <span data-portal-date>---</span>
+                    <strong data-portal-time>--:-- --</strong>
+                </div>
             </section>
         </div>
     </header>
@@ -2325,10 +2413,22 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
         <section class="stat-card" style="--accent: #721B1A;"><span class="stat-label">Database</span><strong class="stat-value">Not ready</strong></section>
     <?php else: ?>
         <section class="stat-grid" aria-label="Cash ledger summary">
-            <article class="stat-card" style="--accent: #AB3619;"><span class="stat-label">Cash In Today</span><strong class="stat-value" data-stat-cash-in><?= ledger_money($cashInToday) ?></strong></article>
-            <article class="stat-card" style="--accent: #F07420;"><span class="stat-label">Cash Out Today</span><strong class="stat-value" data-stat-cash-out><?= ledger_money($cashOutToday) ?></strong></article>
-            <article class="stat-card" style="--accent: #721B1A;"><span class="stat-label">Net Balance Today</span><strong class="stat-value" data-stat-net><?= ledger_money($netToday) ?></strong></article>
-            <article class="stat-card" style="--accent: #A8CA19;"><span class="stat-label">Entries Today</span><strong class="stat-value" data-stat-count><?= number_format($entriesToday) ?></strong></article>
+            <article class="stat-card" style="--accent: #A8CA19;">
+                <div class="stat-heading"><i data-lucide="circle-arrow-down" aria-hidden="true"></i><span class="stat-label">Cash In Today</span></div>
+                <div class="stat-content"><strong class="stat-value" data-stat-cash-in><?= ledger_money($cashInToday) ?></strong><span class="stat-help">Cash received today</span></div>
+            </article>
+            <article class="stat-card" style="--accent: #F07420;">
+                <div class="stat-heading"><i data-lucide="circle-arrow-up" aria-hidden="true"></i><span class="stat-label">Cash Out Today</span></div>
+                <div class="stat-content"><strong class="stat-value" data-stat-cash-out><?= ledger_money($cashOutToday) ?></strong><span class="stat-help">Cash paid out today</span></div>
+            </article>
+            <article class="stat-card" style="--accent: #721B1A;">
+                <div class="stat-heading"><i data-lucide="scale" aria-hidden="true"></i><span class="stat-label">Net Balance Today</span></div>
+                <div class="stat-content"><strong class="stat-value" data-stat-net><?= ledger_money($netToday) ?></strong><span class="stat-help">Today's net cash movement</span></div>
+            </article>
+            <article class="stat-card" style="--accent: #AB3619;">
+                <div class="stat-heading"><i data-lucide="notebook-tabs" aria-hidden="true"></i><span class="stat-label">Entries Today</span></div>
+                <div class="stat-content"><strong class="stat-value" data-stat-count><?= number_format($entriesToday) ?></strong><span class="stat-help">Ledger entries recorded today</span></div>
+            </article>
         </section>
 
         <?php if (!$hasOpening && $canOperateBookkeeping): ?>

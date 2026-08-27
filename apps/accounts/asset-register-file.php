@@ -1,0 +1,4 @@
+<?php
+declare(strict_types=1);
+require_once dirname(__DIR__,2).'/config.php';require_once BASE_PATH.'/shared/accounts-assets.php';accounts_assets_require_access();accounts_assets_schema_ready();
+$id=(int)($_GET['id']??0);$stmt=db()->prepare('SELECT * FROM accounts_asset_attachments WHERE id=? AND deleted_at IS NULL LIMIT 1');$stmt->execute([$id]);$file=$stmt->fetch();if(!$file){http_response_code(404);exit('File not found.');}$path=BASE_PATH.'/uploads/assets/'.basename((string)$file['stored_filename']);if(!is_file($path)){http_response_code(404);exit('File not found.');}$mode=($_GET['mode']??'view')==='download'?'attachment':'inline';header('X-Content-Type-Options: nosniff');header('Content-Type: '.(string)$file['mime_type']);header('Content-Length: '.filesize($path));header('Content-Disposition: '.$mode.'; filename="'.str_replace(['"',"\r","\n"],'',(string)$file['original_filename']).'"');readfile($path);

@@ -23,14 +23,40 @@ $shutdownSettings = shutdownSettings($db);
 
 // ── Handle leave submission ───────────────────────────────────
 $formError = '';
+$leave_type = '';
+$start_date = '';
+$end_date = '';
+$reason = '';
+$days = 0.0;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $leave_type = clean($_POST['leave_type'] ?? '');
     $start_date = $_POST['start_date'] ?? '';
     $end_date   = $_POST['end_date']   ?? '';
     $reason     = clean($_POST['reason'] ?? '');
-    $days       = (float)($_POST['days'] ?? 0);
 
-    if ($leave_type && $start_date && $end_date && $days > 0) {
+    if ($empId < 1) {
+        $formError = 'Your employee account is not linked to an HR employee profile. Please contact the Owner/Admin.';
+    } elseif (!$leave_type || !$start_date || !$end_date) {
+        $formError = 'Complete the leave type, start date and end date.';
+    } elseif (!in_array($leave_type, $leaveTypes, true)) {
+        $formError = 'Select a valid leave type.';
+    } else {
+        try {
+            $start = new DateTimeImmutable($start_date);
+            $end = new DateTimeImmutable($end_date);
+            if ($end < $start) {
+                $formError = 'The end date cannot be before the start date.';
+            } else {
+                for ($day = $start; $day <= $end; $day = $day->modify('+1 day')) {
+                    if ((int)$day->format('w') !== 0) $days += 1.0;
+                }
+            }
+        } catch (Throwable $error) {
+            $formError = 'Enter valid leave dates.';
+        }
+    }
+
+    if (!$formError && $days > 0) {
 
         // ── Enforce balance rules ────────────────────────────
         $reserveWarning = 0;
@@ -51,6 +77,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if (!$formError) {
+            $duplicate = $db->prepare("SELECT id FROM leave_requests WHERE employee_id=? AND leave_type=? AND start_date=? AND end_date=? AND status IN ('pending','approved') LIMIT 1");
+            $duplicate->execute([$empId,$leave_type,$start_date,$end_date]);
+            if ($duplicate->fetchColumn()) $formError = 'This leave request has already been submitted.';
+        }
+
+        if (!$formError) {
             // Handle certificate upload
             $certPath = null;
             if (($leave_type === 'Sick Leave' || $leave_type === 'Unpaid Leave') && isset($_FILES['certificate']) && $_FILES['certificate']['error'] === 0) {
@@ -64,15 +96,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            $db->prepare("INSERT INTO leave_requests (employee_id,leave_type,start_date,end_date,days,reason,certificate,reserve_warning,status) VALUES (?,?,?,?,?,?,?,?,'pending')")
-               ->execute([$empId,$leave_type,$start_date,$end_date,$days,$reason,$certPath,$reserveWarning]);
+            $db->beginTransaction();
+            try {
+                $insert = $db->prepare("INSERT INTO leave_requests (employee_id,leave_type,start_date,end_date,days,reason,certificate,reserve_warning,status) VALUES (?,?,?,?,?,?,?,?,'pending')");
+                $insert->execute([$empId,$leave_type,$start_date,$end_date,$days,$reason,$certPath,$reserveWarning]);
+                $requestId = (int)$db->lastInsertId();
+                if ($requestId < 1) throw new RuntimeException('leave_insert_failed');
 
-            // Notify admin
-            $admins = $db->query("SELECT id FROM users WHERE role='admin'")->fetchAll();
-            foreach ($admins as $a) {
-                $db->prepare("INSERT INTO notifications (user_id,title,message,type) VALUES (?,?,?,'info')")
-                   ->execute([$a['id'],'New Leave Request', $user['name']." submitted $leave_type for ".number_format($days,1)." day(s).".($reserveWarning ? " This request uses part of the December shutdown reserve." : "")]);
+                $admins = $db->query("SELECT id FROM users WHERE role='admin' AND active=1")->fetchAll();
+                $notify = $db->prepare("INSERT INTO notifications (user_id,title,message,type,action_url) VALUES (?,?,?,'info',?)");
+                foreach ($admins as $a) {
+                    $notify->execute([$a['id'],'New Leave Request', $user['name']." submitted $leave_type for ".number_format($days,1)." day(s).".($reserveWarning ? " This request uses part of the December shutdown reserve." : ""),'leave.php#pending-requests']);
+                }
+                $db->commit();
+            } catch (Throwable $error) {
+                if ($db->inTransaction()) $db->rollBack();
+                if ($certPath && is_file(__DIR__ . '/' . $certPath)) @unlink(__DIR__ . '/' . $certPath);
+                error_log('HR leave submission failed: '.$error->getMessage());
+                $formError = 'The leave request could not be saved. Please try again or contact the Owner/Admin.';
             }
+
+            if (!$formError) {
             emailHRNotice(
                 'New Leave Request - ' . $user['name'],
                 '<p>' . htmlspecialchars($user['name']) . ' submitted a leave request.</p>
@@ -84,6 +128,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <a href="' . SITE_URL . '/leave.php" class="btn">Review Leave</a>'
             );
             header('Location: my-leave.php?msg=submitted'); exit;
+            }
         }
     }
 }
@@ -225,7 +270,7 @@ $currentPage = 'my-leave.php';
 </div>
 
 <!-- LEAVE REQUEST MODAL -->
-<div class="overlay" id="leaveModal">
+<div class="overlay<?= $formError ? ' open' : '' ?>" id="leaveModal"<?= $formError ? ' style="display:flex"' : '' ?>>
   <div class="modal" style="max-width:500px">
     <div class="modal-header">
       <div class="modal-title"><i class="fa-solid fa-calendar-plus"></i> Request Leave</div>
@@ -255,7 +300,7 @@ $currentPage = 'my-leave.php';
                 elseif ($lt === 'Annual Leave') $avStr = ' - '.number_format($annualMetrics['available_now'],1).' day(s) available now';
                 else $avStr = ' — '.number_format($rem2,1).' day(s) available';
               ?>
-              <option value="<?=htmlspecialchars($lt)?>"
+              <option value="<?=htmlspecialchars($lt)?>" <?= $leave_type === $lt ? 'selected' : '' ?>
                       data-available="<?=$lt==='Annual Leave'?$annualMetrics['available_now']:$rem2?>"
                       data-total="<?=$lt==='Annual Leave'?$annualMetrics['total']:$rem2?>"
                       data-reserve="<?=$lt==='Annual Leave'?$annualMetrics['reserve']:0?>"
@@ -281,19 +326,19 @@ $currentPage = 'my-leave.php';
 
           <div class="form-group">
             <label class="form-label">Start Date</label>
-            <input class="form-input" type="date" name="start_date" id="startDate" required onchange="calcDays()">
+            <input class="form-input" type="date" name="start_date" id="startDate" value="<?=htmlspecialchars($start_date ?? '')?>" required onchange="calcDays()">
           </div>
           <div class="form-group">
             <label class="form-label">End Date</label>
-            <input class="form-input" type="date" name="end_date" id="endDate" required onchange="calcDays()">
+            <input class="form-input" type="date" name="end_date" id="endDate" value="<?=htmlspecialchars($end_date ?? '')?>" required onchange="calcDays()">
           </div>
           <div class="form-group full">
             <label class="form-label">Working Days</label>
-            <input class="form-input" type="number" step="0.5" name="days" id="daysField" min="0.5" required placeholder="Auto-calculated" oninput="checkReserveWarning()" onchange="checkReserveWarning()">
+            <input class="form-input" type="number" step="0.5" name="days" id="daysField" min="0.5" value="<?=$days > 0 ? htmlspecialchars((string)$days) : ''?>" readonly required placeholder="Auto-calculated">
           </div>
           <div class="form-group full">
             <label class="form-label">Reason (optional)</label>
-            <textarea class="form-textarea" name="reason" placeholder="Brief reason..."></textarea>
+            <textarea class="form-textarea" name="reason" placeholder="Brief reason..."><?=htmlspecialchars($reason ?? '')?></textarea>
           </div>
 
           <!-- Medical certificate — shown for sick leave only -->
@@ -367,9 +412,12 @@ function checkReserveWarning(){
   return show;
 }
 function confirmReserveWarning(){
-  if(checkReserveWarning()){
-    return confirm("This request will reduce your leave balance below the required December shutdown reserve and requires management approval. Submit anyway?");
+  if(checkReserveWarning()&&!confirm("This request will reduce your leave balance below the required December shutdown reserve and requires management approval. Submit anyway?")){
+    return false;
   }
+  var form=document.getElementById('leaveForm');
+  var submit=form ? form.querySelector('button[type="submit"]') : null;
+  if(submit){submit.disabled=true;submit.textContent='Submitting…';}
   return true;
 }
 </script>

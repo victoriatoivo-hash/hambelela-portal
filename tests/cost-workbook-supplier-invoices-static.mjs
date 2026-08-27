@@ -1,0 +1,32 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+
+const read = file => fs.readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+const shell = read('shared/cost-workbook-page-shell.php');
+const overview = read('shared/cost-workbook-sections.php');
+const view = read('shared/cost-workbook-supplier-invoices.php');
+const api = read('apps/cost-manager/supplier-invoices-api.php');
+const schema = read('shared/cost-workbook.php');
+const js = read('assets/js/supplier-invoices-v2.js');
+
+assert.match(shell, /supplier-invoices\.php/);
+assert.match(shell, /Supplier Invoices &amp; Cost Extraction/);
+assert.match(overview, /Supplier Invoices/);
+assert.match(view, /data-si-drop/);
+assert.match(view, /PDF, JPG, JPEG or PNG/);
+assert.match(view, /Cost per kg\/L/);
+assert.match(view, /Product Category/);
+assert.match(view, /Open Original File/);
+assert.match(api, /require_role\('owner_admin'\)/);
+assert.match(api, /cw_require_csrf\(\)/);
+assert.match(api, /hash_file\('sha256'/);
+assert.match(api, /Possible duplicate/);
+assert.match(api, /cw_size_conversions/);
+assert.match(api, /approval_status='draft'/);
+assert.match(schema, /cw_suppliers/);
+assert.match(schema, /schema_version','5'/);
+assert.match(js, /FormData/);
+assert.match(view, /data-si-total-base/);
+assert.match(js, /data-si-summary/);
+assert.match(js, /Loading supplier invoices/);
+console.log('Cost Workbook Supplier Invoices static checks passed.');

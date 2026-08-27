@@ -1,0 +1,174 @@
+/* Sage Posting & Reconciliation — Input VAT design-system alignment. */
+#inputVatPage.sage-page{
+  --sage-border:#ede3d8;
+  --sage-cream:#fffaf5;
+  --sage-soft:#fdf6ee;
+  --sage-burgundy:#721b1a;
+  --sage-action:#ab3619;
+  --sage-orange:#f07420;
+  --sage-olive:#a8ca19;
+  min-width:0;
+  color:#6b4c3b;
+  font-family:Figtree,system-ui,sans-serif;
+}
+#inputVatPage.sage-page .accounts-hero>.accounts-actions .portal-button{
+  box-sizing:border-box;
+  height:34px;
+  min-height:34px;
+  padding:0 11px;
+  color:#3d3d3d;
+  font:600 12px/1 Figtree,system-ui,sans-serif;
+}
+#inputVatPage.sage-page .accounts-hero>.accounts-actions .portal-button svg{
+  width:18px;
+  height:18px;
+  flex:0 0 18px;
+}
+#inputVatPage.sage-page .input-vat-year-select>span,
+#inputVatPage.sage-page .accounts-form-grid>label{
+  color:var(--sage-burgundy);
+  font:600 11px/1.2 Figtree,system-ui,sans-serif;
+}
+#inputVatPage.sage-page .input-vat-year-select .portal-custom-select-trigger{
+  box-sizing:border-box;
+  height:32px;
+  min-height:32px;
+  color:#3d3d3d;
+  font-size:12px;
+  font-weight:400;
+}
+#inputVatPage.sage-page .input-vat-month-tab:not(.is-active) small{display:none}
+#inputVatPage.sage-page .input-vat-month-tab small{text-transform:capitalize}
+#inputVatPage.sage-page .accounts-summary article:nth-child(1){border-left-color:var(--sage-olive)}
+#inputVatPage.sage-page .accounts-summary article:nth-child(2){border-left-color:#ab3619}
+#inputVatPage.sage-page .accounts-summary article:nth-child(3){border-left-color:var(--sage-orange)}
+#inputVatPage.sage-page .accounts-summary article:nth-child(4){border-left-color:var(--sage-burgundy)}
+#inputVatPage.sage-page .sage-progress{
+  display:flex;
+  min-width:0;
+  gap:6px;
+  margin:12px 0;
+  overflow-x:auto;
+  scrollbar-width:thin;
+}
+#inputVatPage.sage-page .sage-progress span{
+  box-sizing:border-box;
+  display:flex;
+  min-width:148px;
+  min-height:34px;
+  flex:1 0 148px;
+  align-items:center;
+  gap:6px;
+  padding:6px 8px;
+  border:1px solid var(--sage-border);
+  border-radius:8px;
+  background:var(--sage-cream);
+  color:#80695e;
+  font:600 11px/1.2 Figtree,system-ui,sans-serif;
+}
+#inputVatPage.sage-page .sage-progress b{
+  display:grid;
+  width:20px;
+  height:20px;
+  flex:0 0 20px;
+  place-items:center;
+  border-radius:50%;
+  background:#f3ece8;
+  color:var(--sage-action);
+  font-size:10px;
+}
+#inputVatPage.sage-page .sage-progress .is-done{border-color:#dce8b0;background:#f4f8e6;color:#4e5f13}
+#inputVatPage.sage-page .sage-progress .is-done b{background:var(--sage-olive);color:#fff}
+#inputVatPage.sage-page .sage-progress .is-active{border-color:rgba(240,116,32,.44);background:rgba(240,116,32,.08);color:var(--sage-burgundy);box-shadow:inset 0 -2px 0 var(--sage-action)}
+#inputVatPage.sage-page .sage-progress .is-active b{background:var(--sage-orange);color:#fff}
+#inputVatPage.sage-page .sage-section-heading{padding:10px 14px;background:var(--sage-cream)}
+#inputVatPage.sage-page .sage-section-heading h2{
+  margin:2px 0;
+  color:var(--sage-burgundy);
+  font:600 14px/1.25 Figtree,system-ui,sans-serif;
+}
+#inputVatPage.sage-page .sage-section-heading .eyebrow,
+#inputVatPage.sage-page .accounts-dialog .eyebrow{
+  color:var(--sage-action);
+  font:700 10px/1.2 Figtree,system-ui,sans-serif;
+  letter-spacing:.08em;
+}
+#inputVatPage.sage-page .sage-section-heading>strong{color:#3d3d3d;font:600 12px/1.2 Figtree,system-ui,sans-serif}
+#inputVatPage.sage-page .sage-pack-meta span,
+#inputVatPage.sage-page .sage-recon-grid span{background:var(--sage-cream);font:600 11px/1.2 Figtree,system-ui,sans-serif}
+#inputVatPage.sage-page .sage-pack-meta strong,
+#inputVatPage.sage-page .sage-recon-grid strong{color:#3d3d3d;font:400 12px/1.2 Figtree,system-ui,sans-serif}
+#inputVatPage.sage-page .sage-pack th,
+#inputVatPage.sage-page .sage-pack td,
+#inputVatPage.sage-page .sage-dual th,
+#inputVatPage.sage-page .sage-dual td{
+  box-sizing:border-box;
+  height:34px;
+  min-height:34px;
+  color:#3d3d3d;
+  font:400 12px/1.2 Figtree,system-ui,sans-serif;
+}
+#inputVatPage.sage-page .sage-pack th,
+#inputVatPage.sage-page .sage-dual th{font-weight:600}
+#inputVatPage.sage-page .sage-pack{overflow:hidden}
+#inputVatPage.sage-page .sage-pack table{width:100%;min-width:0!important;table-layout:fixed}
+#inputVatPage.sage-page .sage-pack th{overflow-wrap:anywhere}
+#inputVatPage.sage-page .sage-dual>div{min-width:0}
+#inputVatPage.sage-page .sage-dual table{width:100%;min-width:0!important;table-layout:fixed}
+#inputVatPage.sage-page .sage-dual th,
+#inputVatPage.sage-page .sage-dual td{overflow-wrap:anywhere}
+#inputVatPage.sage-page .sage-pack td.money,
+#inputVatPage.sage-page .sage-dual td.money,
+#inputVatPage.sage-page .accounts-table-card td.money{color:#3d3d3d;font:400 12px/1.2 Figtree,system-ui,sans-serif;font-variant-numeric:tabular-nums}
+#inputVatPage.sage-page .sage-dual tfoot th,
+#inputVatPage.sage-page .sage-dual tfoot td{background:#f4f8e6;font-weight:600}
+#inputVatPage.sage-page .sage-review-form label{color:var(--sage-burgundy);font:600 11px/1.2 Figtree,system-ui,sans-serif}
+#inputVatPage.sage-page .sage-review-form input,
+#inputVatPage.sage-page [data-purchase-form] input,
+#inputVatPage.sage-page [data-purchase-form] .portal-custom-select-trigger,
+#inputVatPage.sage-page .accounts-dialog input,
+#inputVatPage.sage-page .accounts-dialog textarea,
+#inputVatPage.sage-page .accounts-dialog .portal-custom-select-trigger{
+  box-sizing:border-box;
+  min-height:32px;
+  border:1px solid #dec8bd;
+  border-radius:8px;
+  background:#fff;
+  color:#3d3d3d;
+  font:400 12px/1.2 Figtree,system-ui,sans-serif;
+}
+#inputVatPage.sage-page .accounts-dialog textarea{min-height:76px}
+#inputVatPage.sage-page .accounts-dialog input:focus,
+#inputVatPage.sage-page .accounts-dialog textarea:focus,
+#inputVatPage.sage-page .sage-review-form input:focus,
+#inputVatPage.sage-page [data-purchase-form] input:focus{border-color:var(--sage-action);outline:0;box-shadow:0 0 0 3px rgba(171,54,25,.12)}
+#inputVatPage.sage-page .sage-warning{border-left-color:var(--sage-orange);background:var(--sage-soft)}
+#inputVatPage.sage-page .sage-difference{background:var(--sage-cream)}
+#inputVatPage.sage-page .sage-difference strong{color:#3d3d3d;font-weight:600}
+#inputVatPage.sage-page .input-vat-capture-badge{white-space:nowrap;text-transform:capitalize}
+#inputVatPage.sage-page .sage-actions .portal-button,
+#inputVatPage.sage-page .sage-review-form .portal-button,
+#inputVatPage.sage-page .sage-final>.portal-button,
+#inputVatPage.sage-page [data-purchase-form] .portal-button{height:34px;min-height:34px;font:600 12px/1 Figtree,system-ui,sans-serif}
+#inputVatPage.sage-page .sage-actions .portal-button svg,
+#inputVatPage.sage-page .sage-final>.portal-button svg{width:18px;height:18px}
+@media(max-width:1024px){
+  #inputVatPage.sage-page .accounts-hero{align-items:flex-start}
+  #inputVatPage.sage-page .accounts-hero>.accounts-actions{flex-wrap:wrap}
+  #inputVatPage.sage-page .sage-pack-meta,
+  #inputVatPage.sage-page .sage-recon-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:600px){
+  #inputVatPage.sage-page .accounts-hero>.accounts-actions{display:grid;width:100%;grid-template-columns:repeat(3,minmax(0,1fr))}
+  #inputVatPage.sage-page .accounts-hero>.accounts-actions .portal-button{min-width:0;padding-inline:7px}
+  #inputVatPage.sage-page .sage-section-heading{align-items:flex-start;flex-direction:column}
+  #inputVatPage.sage-page .sage-pack-meta,
+  #inputVatPage.sage-page .sage-recon-grid,
+  #inputVatPage.sage-page .sage-dual,
+  #inputVatPage.sage-page .sage-review-form{grid-template-columns:1fr}
+  #inputVatPage.sage-page .sage-actions{align-items:stretch;flex-direction:column}
+  #inputVatPage.sage-page .sage-actions .portal-button{width:100%}
+}
+@media(prefers-reduced-motion:reduce){
+  #inputVatPage.sage-page *,#inputVatPage.sage-page *::before,#inputVatPage.sage-page *::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}

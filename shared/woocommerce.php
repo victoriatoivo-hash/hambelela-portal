@@ -25,7 +25,7 @@ function wc_request_log(string $message, array $context = []): void
     @file_put_contents($dir . '/woocommerce-api.log', $line . PHP_EOL, FILE_APPEND);
 }
 
-function wc_get(string $path, array $query = []): array
+function wc_get(string $path, array $query = [], int $timeout = 12): array
 {
     if (!wc_configured()) {
         wc_request_log('WooCommerce API request skipped', [
@@ -54,7 +54,7 @@ function wc_get(string $path, array $query = []): array
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_CONNECTTIMEOUT => 5,
-        CURLOPT_TIMEOUT => 12,
+        CURLOPT_TIMEOUT => max(1, $timeout),
         CURLOPT_HTTPHEADER => ['Accept: application/json'],
     ]);
     $body = curl_exec($ch);

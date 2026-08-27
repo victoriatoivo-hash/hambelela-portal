@@ -1,9 +1,20 @@
 <?php
 // Employee sidebar — included on every employee page
 $empUnread = 0;
+$empPolicyPending = array();
+$empPolicyPopup = null;
 if (isset($user['id'])) {
     $nr = db()->prepare("SELECT COUNT(*) FROM notifications WHERE user_id=? AND is_read=0");
     $nr->execute([$user['id']]); $empUnread = (int)$nr->fetchColumn();
+    try {
+        require_once __DIR__ . '/policy-system.php';
+        hrPolicyEnsureSchema(db());
+        $empPolicyPending = hrPolicyPending(db(), hrPolicyEmployeeId($user));
+        $empPolicyPopup = hrPolicyPopupForUser(db(), (int)$user['id']);
+        if($empPolicyPopup)db()->prepare("UPDATE hr_policy_notifications SET delivered_at=COALESCE(delivered_at,NOW()) WHERE id=?")->execute(array($empPolicyPopup['notification_requirement_id']));
+    } catch (Throwable $ignored) {
+        $empPolicyPending = array();
+    }
 }
 $currentPage = isset($currentPage) ? $currentPage : basename($_SERVER['PHP_SELF']);
 $showBusinessPortalLink = strpos((string)($_SERVER['SCRIPT_NAME'] ?? ''), '/apps/hr-portal/') !== false;
@@ -51,7 +62,14 @@ function empNavItem($href, $icon, $label, $badge=0, $current='') {
     <?= empNavItem('my-payslips.php','fa-solid fa-file-lines','My Payslips',0,$currentPage) ?>
     <?= empNavItem('my-documents.php','fa-solid fa-folder-open','My Documents',0,$currentPage) ?>
     <?= empNavItem('my-loans.php','fa-solid fa-hand-holding-dollar','My Loans',0,$currentPage) ?>
-    <?= empNavItem('company-policies.php','fa-solid fa-book-open','Company Policies',0,$currentPage) ?>
+    <?= empNavItem('policies.php','fa-solid fa-book-open','Company Policies',count($empPolicyPending),$currentPage) ?>
+    <?php if ($empPolicyPending): $policyReminder = $empPolicyPending[0]; ?>
+      <a href="policy-view.php?id=<?=(int)$policyReminder['id']?>" style="display:block;margin:12px;padding:12px;border-radius:10px;background:#fff7d6;color:#4b3b00;text-decoration:none;font-size:11px;line-height:1.45">
+        <strong style="display:block">Policy signature required</strong>
+        <?=htmlspecialchars($policyReminder['policy_title'])?><br>
+        Version <?=htmlspecialchars($policyReminder['version_number'])?> · Due <?=date('j M Y', strtotime($policyReminder['acknowledgement_deadline']))?>
+      </a>
+    <?php endif; ?>
   </div>
 
   <div class="sidebar-footer">
@@ -61,3 +79,16 @@ function empNavItem($href, $icon, $label, $badge=0, $current='') {
   </div>
 </nav>
 <script defer src="includes/hr-responsive.js?v=<?= rawurlencode((string) filemtime(__DIR__ . '/hr-responsive.js')) ?>"></script>
+<?php if($empPolicyPopup):$policyOverdue=date('Y-m-d')>$empPolicyPopup['acknowledgement_deadline'];?>
+<div class="hr-policy-alert" data-hr-policy-alert role="alertdialog" aria-modal="true" aria-labelledby="hrPolicyAlertTitle" data-id="<?=(int)$empPolicyPopup['notification_requirement_id']?>" data-url="policy-view.php?id=<?=(int)$empPolicyPopup['version_id']?>">
+  <div class="hr-policy-alert__backdrop" aria-hidden="true"></div><section class="hr-policy-alert__dialog">
+    <div class="hr-policy-alert__icon" aria-hidden="true"><i class="fa-solid fa-file-shield"></i></div><span class="hr-policy-alert__eyebrow">HR PORTAL</span>
+    <h2 id="hrPolicyAlertTitle"><?=$policyOverdue?'HR POLICY — OVERDUE':'POLICY ACKNOWLEDGEMENT REQUIRED'?></h2><h3><?=htmlspecialchars($empPolicyPopup['title'])?></h3>
+    <dl><div><dt>Version</dt><dd><?=htmlspecialchars($empPolicyPopup['version_number'])?></dd></div><div><dt>Effective</dt><dd><?=date('j F Y',strtotime($empPolicyPopup['effective_date']))?></dd></div></dl>
+    <div class="hr-policy-alert__deadline"><span>COMPLETE BY</span><strong><?=strtoupper(date('j F Y',strtotime($empPolicyPopup['acknowledgement_deadline'])))?></strong></div>
+    <p><?=$policyOverdue?'Your acknowledgement is overdue.':'A new company policy has been published and requires your acknowledgement. Please read the full policy and complete the acknowledgement by the deadline above.'?></p>
+    <div class="hr-policy-alert__actions"><?php if(!$policyOverdue):?><button type="button" class="hr-policy-alert__later" data-policy-remind>Remind Me Later</button><?php endif;?><button type="button" class="hr-policy-alert__view" data-policy-open><?=$policyOverdue?'View & Complete Now':'View & Acknowledge Policy'?></button></div>
+  </section>
+</div>
+<script>document.addEventListener('DOMContentLoaded',function(){var root=document.querySelector('[data-hr-policy-alert]');if(!root)return;function send(action){return fetch('policy-action.php',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({csrf:<?=json_encode(hrPolicyCsrf())?>,action:'policy_notification',ajax:'1',notification_requirement_id:root.dataset.id,notification_action:action})});}root.querySelector('[data-policy-remind]')?.addEventListener('click',function(){send('remind').then(function(){root.remove()})});root.querySelector('[data-policy-open]').addEventListener('click',function(){send('open').finally(function(){location.href=root.dataset.url})});});</script>
+<?php endif;?>

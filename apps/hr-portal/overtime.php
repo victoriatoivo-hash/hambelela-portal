@@ -136,7 +136,7 @@ $publicHolidays = [
     </div>
   </div>
 
-  <div class="content">
+  <div class="content" id="overtimeContent">
     <?php if ($msg === 'bc_added'): ?><div class="toast"><i class="fa-solid fa-check"></i> Past overtime captured and approved.</div>
     <?php elseif ($msg === 'approved'): ?><div class="toast"><i class="fa-solid fa-check"></i> Overtime approved.</div>
     <?php elseif ($msg === 'rejected'): ?><div class="toast error"><i class="fa-solid fa-xmark"></i> Overtime rejected.</div>
@@ -381,6 +381,33 @@ function calcOT() {
   document.getElementById('otAmount').textContent = `N$ ${amount.toFixed(2)}`;
   calc.style.display = 'block';
 }
+
+var overtimeRefreshInFlight = false;
+function refreshOvertimeContent() {
+  if (overtimeRefreshInFlight || document.hidden || document.querySelector('.overlay.open')) return;
+  overtimeRefreshInFlight = true;
+  fetch('overtime.php?refresh=' + Date.now(), {
+    credentials: 'same-origin',
+    headers: {'X-Requested-With': 'XMLHttpRequest'}
+  }).then(function(response) {
+    if (!response.ok) throw new Error('Overtime refresh failed');
+    return response.text();
+  }).then(function(html) {
+    var parsed = new DOMParser().parseFromString(html, 'text/html');
+    var fresh = parsed.getElementById('overtimeContent');
+    var current = document.getElementById('overtimeContent');
+    if (fresh && current) current.replaceWith(fresh);
+  }).catch(function() {
+    // Keep the current owner view intact; the next interval/manual refresh can retry.
+  }).then(function() {
+    overtimeRefreshInFlight = false;
+  });
+}
+
+setInterval(refreshOvertimeContent, 45000);
+document.addEventListener('visibilitychange', function() {
+  if (!document.hidden) refreshOvertimeContent();
+});
 </script>
 <!-- BACK CAPTURE OT MODAL -->
 <div class="overlay" id="backCaptureOTModal">

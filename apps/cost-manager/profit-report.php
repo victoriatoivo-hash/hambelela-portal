@@ -7,7 +7,7 @@ require_once BASE_PATH . '/shared/auth.php';
 require_once BASE_PATH . '/shared/database.php';
 require_once BASE_PATH . '/shared/engines/reporting-engine.php';
 
-require_login();
+require_role('owner_admin');
 
 $pageTitle = 'Profit Report | ' . APP_NAME;
 $activeApp = 'cost-manager';

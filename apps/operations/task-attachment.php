@@ -21,7 +21,7 @@ $sql = "SELECT a.*, t.assigned_employee_id
         WHERE a.id = ? AND a.removed_at IS NULL";
 $params = [$attachmentId];
 if (!$canViewAll) {
-    $sql .= ' AND t.assigned_employee_id = ?';
+    $sql .= ' AND t.assigned_employee_id = ? AND t.employee_visible = 1 AND (t.scheduled_at IS NULL OR t.released_at IS NOT NULL)';
     $params[] = $employeeId;
 }
 $sql .= ' LIMIT 1';

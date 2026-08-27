@@ -5,6 +5,8 @@
   const pad = (value) => String(value).padStart(2, '0');
   const calendarIcon = '<svg class="portal-date-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M8 3v4M16 3v4M4 9h16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
   const clockIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 7v5l3 2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const previousIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6-6 6 6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const nextIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   let active = null;
   let popup = null;
   let viewDate = new Date();
@@ -14,6 +16,24 @@
     if (input.dataset.monthMode === 'true' || input.type === 'month' || input.dataset.portalDateMode === 'month') return 'month';
     if (input.dataset.enableTime === 'true' || input.type === 'datetime-local' || input.dataset.portalDateMode === 'datetime') return 'datetime';
     return 'date';
+  }
+
+  function queryWithin(root, selector) {
+    if (!root || !selector) return null;
+    try { return root.querySelector(selector); } catch (error) { return null; }
+  }
+
+  function resolveSubmitTarget(input) {
+    const selector = input.dataset.submitTarget || '';
+    if (!selector) return null;
+    const wrapper = input.closest('[data-portal-date-field]');
+    const form = input.closest('form');
+    const scoped = queryWithin(wrapper, selector) || queryWithin(form, selector);
+    if (scoped instanceof HTMLInputElement) return scoped;
+    try {
+      const matches = [...document.querySelectorAll(selector)];
+      return matches.length === 1 && matches[0] instanceof HTMLInputElement ? matches[0] : null;
+    } catch (error) { return null; }
   }
 
   function parseValue(value, mode) {
@@ -55,9 +75,12 @@
   }
 
   function mountPopupFor(control) {
+    const isInputVat = Boolean(control?.wrapper?.closest('#inputVatPage'));
     const openDialog = control?.wrapper?.closest('dialog[open]');
     const host = openDialog || document.body;
     const datePopup = ensurePopup();
+    datePopup.classList.toggle('is-input-vat-popup', isInputVat);
+    datePopup.removeAttribute('popover');
     if (datePopup.parentElement !== host) host.appendChild(datePopup);
     return datePopup;
   }
@@ -77,17 +100,27 @@
       const date = new Date(gridStart);
       date.setDate(gridStart.getDate() + index);
       const outside = date.getMonth() !== viewDate.getMonth();
-      return `<button type="button" class="portal-date-day${outside ? ' is-outside-month' : ''}${sameDay(date, today) ? ' is-today' : ''}${sameDay(date, draftDate) ? ' is-selected' : ''}" data-portal-day="${storageValue(date, 'date')}" aria-label="${date.toLocaleDateString(undefined, { dateStyle: 'long' })}" aria-selected="${sameDay(date, draftDate)}">${date.getDate()}</button>`;
+      const value = storageValue(date, 'date');
+      const beforeMinimum = active.min && value < active.min;
+      const afterMaximum = active.max && value > active.max;
+      const disabled = beforeMinimum || afterMaximum;
+      const disabledReason = afterMaximum ? 'Future dates are unavailable' : beforeMinimum ? 'Date is before the permitted capture period' : '';
+      return `<button type="button" class="portal-date-day${outside ? ' is-outside-month' : ''}${sameDay(date, today) ? ' is-today' : ''}${sameDay(date, draftDate) ? ' is-selected' : ''}" data-portal-day="${value}" aria-label="${date.toLocaleDateString(undefined, { dateStyle: 'long' })}${disabledReason ? `. ${disabledReason}.` : ''}" aria-selected="${sameDay(date, draftDate)}"${disabled ? ` disabled aria-disabled="true" title="${disabledReason}"` : ''}>${date.getDate()}</button>`;
     }).join('');
     const time = draftDate || new Date();
     const clearAction = '<button type="button" class="portal-date-clear" data-portal-date-clear>Clear</button>';
-    popup.innerHTML = `<div class="portal-date-popup-header"><button type="button" class="portal-date-nav" data-date-nav="-1" aria-label="Previous month">‹</button><div class="portal-date-heading">${viewDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</div><button type="button" class="portal-date-nav" data-date-nav="1" aria-label="Next month">›</button></div><div class="portal-date-weekdays">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((day) => `<span class="portal-date-weekday">${day}</span>`).join('')}</div><div class="portal-date-grid">${days}</div>${mode === 'datetime' ? `<div class="portal-time-section"><div class="portal-time-controls"><button type="button" class="portal-time-part" data-time-hour>${pad(time.getHours() % 12 || 12)}</button><span class="portal-time-separator">:</span><button type="button" class="portal-time-part" data-time-minute>${pad(time.getMinutes())}</button><button type="button" class="portal-time-meridiem" data-time-meridiem>${time.getHours() >= 12 ? 'PM' : 'AM'}</button></div><button type="button" class="portal-date-now" data-portal-date-now>${clockIcon}<span>Now</span></button></div>` : ''}<div class="portal-date-actions">${clearAction}<div><button type="button" class="portal-date-cancel" data-portal-date-cancel>Cancel</button>${mode === 'datetime' ? '<button type="button" class="portal-date-apply" data-portal-date-apply>Apply</button>' : ''}</div></div>`;
+    popup.innerHTML = `<div class="portal-date-popup-header"><button type="button" class="portal-date-nav" data-date-nav="-1" aria-label="Previous month">${previousIcon}</button><div class="portal-date-heading">${viewDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</div><button type="button" class="portal-date-nav" data-date-nav="1" aria-label="Next month">${nextIcon}</button></div><div class="portal-date-weekdays">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((day) => `<span class="portal-date-weekday">${day}</span>`).join('')}</div><div class="portal-date-grid">${days}</div>${mode === 'datetime' ? `<div class="portal-time-section"><div class="portal-time-controls"><button type="button" class="portal-time-part" data-time-hour>${pad(time.getHours() % 12 || 12)}</button><span class="portal-time-separator">:</span><button type="button" class="portal-time-part" data-time-minute>${pad(time.getMinutes())}</button><button type="button" class="portal-time-meridiem" data-time-meridiem>${time.getHours() >= 12 ? 'PM' : 'AM'}</button></div><button type="button" class="portal-date-now" data-portal-date-now>${clockIcon}<span>Now</span></button></div>` : ''}<div class="portal-date-actions">${clearAction}${mode === 'datetime' ? '<div><button type="button" class="portal-date-cancel" data-portal-date-cancel>Cancel</button><button type="button" class="portal-date-apply" data-portal-date-apply>Apply</button></div>' : ''}</div>`;
     requestAnimationFrame(positionPopup);
   }
 
   function positionPopup() {
     if (!active || !popup) return;
     const rect = active.trigger.getBoundingClientRect();
+    const inputVatScroller = active.wrapper.closest('#inputVatPage') ? active.wrapper.closest('.accounts-form-grid') : null;
+    if (inputVatScroller) {
+      const clip = inputVatScroller.getBoundingClientRect();
+      if (rect.bottom < clip.top || rect.top > clip.bottom) { close(false); return; }
+    }
     popup.classList.add('is-positioning');
     popup.style.visibility = 'hidden';
     const popupRect = popup.getBoundingClientRect();
@@ -99,6 +132,9 @@
     top = Math.max(margin, Math.min(top, window.innerHeight - popupRect.height - margin));
     popup.style.left = `${Math.round(left)}px`;
     popup.style.top = `${Math.round(top)}px`;
+    const positionedRect = popup.getBoundingClientRect();
+    if (Math.abs(positionedRect.left - left) > 1) popup.style.left = `${Math.round(left + left - positionedRect.left)}px`;
+    if (Math.abs(positionedRect.top - top) > 1) popup.style.top = `${Math.round(top + top - positionedRect.top)}px`;
     popup.classList.remove('is-positioning');
     popup.style.visibility = '';
   }
@@ -141,11 +177,29 @@
     if (restoreFocus) control.trigger.focus({ preventScroll: true });
   }
 
+  function cleanup(scope = document, options = {}) {
+    const root = scope instanceof Element || scope instanceof Document ? scope : document;
+    const restoreFocus = options.restoreFocus === true;
+    const removePopup = options.removePopup !== false;
+    const activeBelongsToRoot = Boolean(active && (
+      root === document || root.contains(active.wrapper) || root.contains(active.target)
+    ));
+    if (activeBelongsToRoot) close(restoreFocus);
+    root.querySelectorAll?.('.portal-date-picker.is-open,[data-portal-date-field].is-open').forEach((wrapper) => wrapper.classList.remove('is-open'));
+    root.querySelectorAll?.('[aria-expanded="true"].portal-date-field').forEach((trigger) => trigger.setAttribute('aria-expanded', 'false'));
+    if (removePopup && popup && (activeBelongsToRoot || !active)) {
+      popup.remove();
+      popup = null;
+    }
+  }
+
   function commit(date) {
     if (!active) return;
     const control = active;
     const next = storageValue(date, control.mode, control.dateTimeSeparator);
     control.trigger.setCustomValidity?.('');
+    control.trigger.classList.remove('is-invalid');
+    control.trigger.removeAttribute('aria-invalid');
     control.target.value = next;
     if (control.display instanceof HTMLInputElement) control.display.value = displayValue(date, control.mode);
     else control.display.textContent = displayValue(date, control.mode) || control.placeholder;
@@ -214,7 +268,7 @@
     if (!isPortalDisplay && !['date', 'datetime-local', 'month'].includes(nativeType)) return;
     const mode = modeFor(input);
     const existingWrapper = input.closest('[data-portal-date-field]');
-    const target = isPortalDisplay ? document.querySelector(input.dataset.submitTarget || '') : input;
+    const target = isPortalDisplay ? resolveSubmitTarget(input) : input;
     if (!(target instanceof HTMLInputElement)) return;
     const required = target.required;
     target.dataset.portalDateRequired = String(required);
@@ -263,7 +317,7 @@
     timezoneInput.name = target.name ? `${target.name}_client_timezone` : 'client_timezone';
     timezoneInput.value = clientTimezone;
     if (!wrapper.querySelector(`[name="${CSS.escape(timezoneInput.name)}"]`)) wrapper.appendChild(timezoneInput);
-    const control = { wrapper, trigger, display, target, mode, placeholder, nativeInput: !isPortalDisplay ? input : null, dateTimeSeparator: nativeType === 'datetime-local' ? 'T' : ' ', cell: wrapper.closest('td,.ledger-cell,.packing-editable-date-cell,.portal-date-cell') };
+    const control = { wrapper, trigger, display, target, mode, placeholder, min: target.min || '', max: target.max || '', nativeInput: !isPortalDisplay ? input : null, dateTimeSeparator: nativeType === 'datetime-local' ? 'T' : ' ', cell: wrapper.closest('td,.ledger-cell,.packing-editable-date-cell,.portal-date-cell') };
     controls.set(input, control);
     targetControls.set(target, control);
     input.dataset.portalDateReady = 'true';
@@ -309,7 +363,7 @@
   document.addEventListener('scroll', positionPopup, true);
   window.portalClientTimezone = clientTimezone;
   window.initialisePortalDatePickers = initialise;
-  window.PortalDatePicker = { initialise, close };
+  window.PortalDatePicker = { initialise, close, cleanup };
   window.addEventListener('DOMContentLoaded', () => {
     initialise(document);
     new MutationObserver((mutations) => mutations.forEach((mutation) => mutation.addedNodes.forEach((node) => {

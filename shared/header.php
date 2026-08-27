@@ -33,6 +33,7 @@ $portalJsVersion = is_file(BASE_PATH . '/assets/js/portal.js')
     ? (string) filemtime(BASE_PATH . '/assets/js/portal.js')
     : $assetVersion;
 $headerUser = current_user();
+$ownerPwaEnabled = (string) ($headerUser['role_key'] ?? 'guest') === 'owner_admin';
 $showPortalHeaderStatus = (string) ($headerUser['role_key'] ?? 'guest') !== 'guest';
 $pageUsesPortalSidebar = (bool) ($pageUsesPortalSidebar ?? true);
 $showPortalHeaderAccount = $showPortalHeaderStatus && !$pageUsesPortalSidebar;
@@ -66,6 +67,14 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#721b1a">
+    <?php if ($ownerPwaEnabled): ?>
+    <link rel="manifest" href="<?= BASE_URL ?>/manifest.webmanifest?v=1">
+    <link rel="apple-touch-icon" sizes="180x180" href="<?= BASE_URL ?>/assets/pwa/hambelela-180.png?v=1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Hambelela">
+    <?php endif; ?>
     <title><?= htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') ?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -94,6 +103,7 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
     <?php if ($showPortalHeaderStatus): ?>
         <script defer src="<?= BASE_URL ?>/assets/js/portal-presence.js?v=<?= htmlspecialchars($presenceJsVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
     <?php endif; ?>
+    <?php if ($ownerPwaEnabled): ?><link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/owner-pwa.css?v=<?= is_file(BASE_PATH . '/assets/css/owner-pwa.css') ? (string) filemtime(BASE_PATH . '/assets/css/owner-pwa.css') : '1' ?>"><script defer src="<?= BASE_URL ?>/assets/js/owner-pwa.js?v=<?= is_file(BASE_PATH . '/assets/js/owner-pwa.js') ? (string) filemtime(BASE_PATH . '/assets/js/owner-pwa.js') : '1' ?>"></script><?php endif; ?>
 </head>
 <body>
 <div class="shell">

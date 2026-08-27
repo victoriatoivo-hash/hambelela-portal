@@ -28,6 +28,8 @@ $isOwnerErrorUser = user_has_role('owner_admin');
 $isFrontDeskErrorUser = user_has_role('front_desk_admin', 'front_desk_admin_employee');
 $canManageStatus = $isOwnerErrorUser;
 $showFullErrorLog = $isOwnerErrorUser;
+if (empty($_SESSION['error_attachment_csrf'])) $_SESSION['error_attachment_csrf'] = bin2hex(random_bytes(32));
+$errorAttachmentCsrf = (string) $_SESSION['error_attachment_csrf'];
 
 $severityLabels = ['critical' => 'Critical', 'high' => 'High', 'medium' => 'Medium', 'low' => 'Low'];
 $statusLabels = ['open' => 'Not Resolved', 'resolved' => 'Resolved'];
@@ -62,6 +64,15 @@ function error_try_sql(string $sql): void
 
 function error_log_redirect(string $message, string $type = 'success', string $query = ''): void
 {
+    if (strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest') {
+        http_response_code($type === 'error' ? 422 : 200);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'success' => $type !== 'error',
+            'message' => $message,
+        ], JSON_UNESCAPED_SLASHES);
+        exit;
+    }
     $_SESSION['error_log_flash'] = [
         'type' => $type,
         'message' => $message,
@@ -70,6 +81,27 @@ function error_log_redirect(string $message, string $type = 'success', string $q
     $location = BASE_URL . '/apps/operations/errors.php' . $query;
     header('Location: ' . $location, true, 303);
     exit;
+}
+
+function error_log_created_response(int $errorId, string $status, string $occurredAt, string $occurredOn, string $submissionToken, array $warnings = []): void
+{
+    $payload = [
+        'success' => true,
+        'message' => 'Error logged successfully',
+        'error_id' => $errorId,
+        'status' => $status,
+        'occurred_at' => $occurredAt,
+        'occurred_on' => $occurredOn,
+        'submission_token' => $submissionToken,
+        'saved_url' => BASE_URL . '/apps/operations/errors.php?error_id=' . $errorId,
+        'warnings' => array_values($warnings),
+    ];
+    if (strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest') {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode($payload, JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+    error_log_redirect('Error logged and added to performance tracking.', 'success', '?saved=1&error_id=' . $errorId);
 }
 
 function error_column_exists(string $column): bool
@@ -98,7 +130,7 @@ function error_parse_occurred_on(string $value): string
     return$value;
 }
 
-function error_occurrence_expression(string $alias = 'el'): string { return "COALESCE({$alias}.occurred_on, DATE({$alias}.occurred_at), DATE({$alias}.created_at), DATE({$alias}.logged_at))"; }
+function error_occurrence_expression(string $alias = 'el'): string { return "{$alias}.occurred_on"; }
 function error_occurred_on_label(?string $value): string {if(!$value)return'—';$time=strtotime($value);return$time?date('j M Y',$time):$value;}
 function error_occurred_at_label(?string $value, ?string $dateFallback = null): string
 {
@@ -235,22 +267,88 @@ function error_json_array(?string $value): array
     return is_array($decoded) ? array_values(array_filter($decoded)) : [];
 }
 
-function error_upload_files(int $errorId): array
+function error_attachment_records(?string $value): array
 {
-    if (empty($_FILES['attachments']['name']) || !is_array($_FILES['attachments']['name'])) return [];
-    $uploadDir = BASE_PATH . '/uploads/error-log';
-    if (!is_dir($uploadDir)) mkdir($uploadDir, 0775, true);
-    $paths = [];
-    foreach ($_FILES['attachments']['name'] as $index => $name) {
-        if (($name ?? '') === '' || !is_uploaded_file($_FILES['attachments']['tmp_name'][$index])) continue;
-        $extension = strtolower(pathinfo((string) $name, PATHINFO_EXTENSION));
-        if (!in_array($extension, ['jpg', 'jpeg', 'png', 'webp', 'pdf', 'doc', 'docx'], true)) continue;
-        $fileName = 'error-' . $errorId . '-' . date('YmdHis') . '-' . ($index + 1) . '.' . $extension;
-        if (move_uploaded_file($_FILES['attachments']['tmp_name'][$index], $uploadDir . '/' . $fileName)) {
-            $paths[] = 'uploads/error-log/' . $fileName;
+    $records = [];
+    foreach (error_json_array($value) as $entry) {
+        if (is_string($entry) && $entry !== '') {
+            $records[] = ['path' => $entry, 'name' => basename($entry), 'mime' => '', 'size' => null];
+        } elseif (is_array($entry) && !empty($entry['path'])) {
+            $records[] = [
+                'path' => (string) $entry['path'],
+                'name' => (string) ($entry['name'] ?? basename((string) $entry['path'])),
+                'mime' => (string) ($entry['mime'] ?? ''),
+                'size' => isset($entry['size']) ? (int) $entry['size'] : null,
+            ];
         }
     }
-    return $paths;
+    return $records;
+}
+
+function error_ini_bytes(string $value): int
+{
+    $value = trim($value);
+    if ($value === '') return 0;
+    $unit = strtolower(substr($value, -1));
+    $number = (float) $value;
+    $multiplier = 1;
+    if ($unit === 'g') $multiplier = 1073741824;
+    elseif ($unit === 'm') $multiplier = 1048576;
+    elseif ($unit === 'k') $multiplier = 1024;
+    return (int) ($number * $multiplier);
+}
+
+function error_path_starts_with(string $path, string $prefix): bool
+{
+    return $prefix === '' || strncmp($path, $prefix, strlen($prefix)) === 0;
+}
+
+function error_upload_files(int $errorId): array
+{
+    if (empty($_FILES['attachments']['name'])) return [];
+    if (!is_array($_FILES['attachments']['name'])) throw new RuntimeException('The attachment request was malformed. Select the files again.');
+    if (count($_FILES['attachments']['name']) > 10) throw new RuntimeException('Upload no more than 10 evidence files at a time.');
+    $uploadDir = BASE_PATH . '/uploads/error-log';
+    if (!is_dir($uploadDir) && !mkdir($uploadDir, 0775, true) && !is_dir($uploadDir)) throw new RuntimeException('The evidence storage folder is unavailable.');
+    if (!is_writable($uploadDir)) throw new RuntimeException('The evidence storage folder is not writable.');
+    $allowed = [
+        'jpg' => ['image/jpeg'], 'jpeg' => ['image/jpeg'], 'png' => ['image/png'], 'webp' => ['image/webp'],
+        'pdf' => ['application/pdf'], 'doc' => ['application/msword', 'application/CDFV2'],
+        'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/zip'],
+        'xls' => ['application/vnd.ms-excel', 'application/CDFV2'],
+        'xlsx' => ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/zip'],
+        'csv' => ['text/csv', 'text/plain', 'application/csv', 'application/vnd.ms-excel'],
+        'txt' => ['text/plain'],
+    ];
+    $validated = [];
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    foreach ($_FILES['attachments']['name'] as $index => $name) {
+        if (($name ?? '') === '') continue;
+        $uploadError = (int) ($_FILES['attachments']['error'][$index] ?? UPLOAD_ERR_NO_FILE);
+        if ($uploadError !== UPLOAD_ERR_OK) throw new RuntimeException('Could not upload "' . basename((string) $name) . '" (upload error ' . $uploadError . ').');
+        $size = (int) ($_FILES['attachments']['size'][$index] ?? 0);
+        if ($size <= 0 || $size > 10 * 1024 * 1024) throw new RuntimeException('"' . basename((string) $name) . '" must be between 1 byte and 10 MB.');
+        $tmpName = (string) ($_FILES['attachments']['tmp_name'][$index] ?? '');
+        if ($tmpName === '' || !is_uploaded_file($tmpName)) throw new RuntimeException('The temporary upload for "' . basename((string) $name) . '" is unavailable.');
+        $extension = strtolower(pathinfo((string) $name, PATHINFO_EXTENSION));
+        if (!isset($allowed[$extension])) throw new RuntimeException('"' . basename((string) $name) . '" is not an approved evidence file type.');
+        $mime = (string) $finfo->file($tmpName);
+        if (!in_array($mime, $allowed[$extension], true)) throw new RuntimeException('"' . basename((string) $name) . '" does not match its file extension.');
+        $validated[] = ['tmp' => $tmpName, 'extension' => $extension, 'name' => basename((string) $name), 'mime' => $mime, 'size' => $size];
+    }
+    $records = [];
+    $movedFiles = [];
+    foreach ($validated as $file) {
+        $fileName = 'error-' . $errorId . '-' . bin2hex(random_bytes(12)) . '.' . $file['extension'];
+        $absolutePath = $uploadDir . '/' . $fileName;
+        if (!move_uploaded_file($file['tmp'], $absolutePath)) {
+            foreach ($movedFiles as $movedFile) @unlink($movedFile);
+            throw new RuntimeException('The server could not store "' . $file['name'] . '". Try again.');
+        }
+        $movedFiles[] = $absolutePath;
+        $records[] = ['path' => 'uploads/error-log/' . $fileName, 'name' => $file['name'], 'mime' => $file['mime'], 'size' => $file['size']];
+    }
+    return $records;
 }
 
 function error_date_label(?string $value): string
@@ -305,7 +403,12 @@ $employeeMap = [];
 foreach ($employees as $employee) $employeeMap[(int) $employee['id']] = ops_staff_display_name($employee);
 
 if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $errorPostTransaction = false;
+    $errorPostUploadedFiles = [];
     try {
+        $requestBytes = (int) ($_SERVER['CONTENT_LENGTH'] ?? 0);
+        $postLimitBytes = error_ini_bytes((string) ini_get('post_max_size'));
+        if ($postLimitBytes > 0 && $requestBytes > $postLimitBytes) throw new RuntimeException('The selected evidence exceeds the server request limit of ' . ini_get('post_max_size') . '. Choose fewer or smaller files.');
         $action = ops_post_string('action', 40);
         if ($action === 'create_error') {
             $submittedToken = (string) ($_POST['submission_token'] ?? '');
@@ -341,6 +444,8 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $orderReference = ops_post_string('order_reference', 60);
             $status = ops_post_string('status', 30) ?: 'open';
             if (!array_key_exists($status, $statusLabels)) $status = 'open';
+            db()->beginTransaction();
+            $errorPostTransaction = true;
             $stmt = db()->prepare(
                 "INSERT INTO ops_error_logs
                  (error_title, employee_id, responsible_employee_id, attribution_type, attributed_employee_id, original_attribution_type, original_attributed_employee_id, people_involved, order_id, packing_task_id, affects_kpi_accuracy, accuracy_verified_by, accuracy_verified_at, attribution_verified_by, attribution_verified_at, order_reference, category, severity, description, customer_impact, financial_impact, has_financial_impact, financial_impact_notes, resolution, repeat_issue, repeat_note, status, logged_by, logged_by_user_id, occurred_at, occurred_on, occurred_on_source, created_at)
@@ -380,24 +485,44 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $occurredOn,
             ]);
             $errorId = (int) db()->lastInsertId();
-            $paths = error_upload_files($errorId);
-            if ($paths) {
+            $attachments = error_upload_files($errorId);
+            $errorPostUploadedFiles = array_column($attachments, 'path');
+            if ($attachments) {
                 $stmt = db()->prepare('UPDATE ops_error_logs SET attachment_paths = ? WHERE id = ?');
-                $stmt->execute([json_encode($paths, JSON_UNESCAPED_SLASHES), $errorId]);
+                $stmt->execute([json_encode($attachments, JSON_UNESCAPED_SLASHES), $errorId]);
             }
-            $eventMeta=['severity'=>$severity,'category'=>$category,'occurred_on'=>$occurredOn,'occurred_at'=>$occurredAt,'created_at'=>gmdate('Y-m-d H:i:s'),'logged_by_user_id'=>(int)(current_user()['id']??0),'logged_by_employee_id'=>$currentEmployeeId,'attribution_type'=>$attributionType,'attributed_employee_id'=>$responsibleEmployeeId,'has_financial_impact'=>$hasFinancialImpact,'financial_impact_amount'=>$financialImpact,'kpi_eligible'=>$attributionType==='employee'&&$accuracyVerified,'business_health_eligible'=>true];
-            ops_activity_log('error_logged','error_log',$errorId,$eventMeta);ops_kpi_record_event('error_log','error',$errorId,'error_created',null,$attributionType,$currentEmployeeId,['metadata'=>$eventMeta]);ops_kpi_record_event('error_log','error',$errorId,'attribution_selected',null,$attributionType,$currentEmployeeId,['metadata'=>$eventMeta]);ops_kpi_record_event('error_log','error',$errorId,'financial_impact_selected',null,$hasFinancialImpact?'yes':'no',$currentEmployeeId,['metadata'=>$eventMeta]);
-            notifications_create_for_roles([
-                'title' => $severity === 'critical' ? 'Critical error logged' : 'New error logged',
-                'message' => $title,
-                'module' => 'errors',
-                'priority' => $severity === 'critical' ? 'urgent' : ($severity === 'high' ? 'important' : 'normal'),
-                'related_type' => 'error_log',
-                'related_id' => $errorId,
-                'action_link' => BASE_URL . '/apps/operations/errors.php?error_id=' . $errorId,
-            ], ['owner_admin', 'front_desk_admin', 'supervisor_manager']);
+            db()->commit();
+            $errorPostTransaction = false;
+            $errorPostUploadedFiles = [];
             unset($_SESSION['incident_submission_token']);
-            error_log_redirect('Error logged and added to performance tracking.', 'success', '?saved=1');
+            $_SESSION['incident_submission_token'] = bin2hex(random_bytes(32));
+            $nextSubmissionToken = (string) $_SESSION['incident_submission_token'];
+            $eventMeta=['severity'=>$severity,'category'=>$category,'occurred_on'=>$occurredOn,'occurred_at'=>$occurredAt,'created_at'=>gmdate('Y-m-d H:i:s'),'logged_by_user_id'=>(int)(current_user()['id']??0),'logged_by_employee_id'=>$currentEmployeeId,'attribution_type'=>$attributionType,'attributed_employee_id'=>$responsibleEmployeeId,'has_financial_impact'=>$hasFinancialImpact,'financial_impact_amount'=>$financialImpact,'kpi_eligible'=>$attributionType==='employee'&&$accuracyVerified,'business_health_eligible'=>true];
+            $postCommitWarnings = [];
+            try {
+                ops_activity_log('error_logged','error_log',$errorId,$eventMeta);
+                ops_kpi_record_event('error_log','error',$errorId,'error_created',null,$attributionType,$currentEmployeeId,['metadata'=>$eventMeta]);
+                ops_kpi_record_event('error_log','error',$errorId,'attribution_selected',null,$attributionType,$currentEmployeeId,['metadata'=>$eventMeta]);
+                ops_kpi_record_event('error_log','error',$errorId,'financial_impact_selected',null,$hasFinancialImpact?'yes':'no',$currentEmployeeId,['metadata'=>$eventMeta]);
+            } catch (Throwable $evidenceError) {
+                error_log('Error Log post-commit evidence failure for error ' . $errorId . ': ' . $evidenceError->getMessage());
+                $postCommitWarnings[] = 'The error was saved, but supporting activity evidence needs owner review.';
+            }
+            try {
+                notifications_create_for_roles([
+                    'title' => $severity === 'critical' ? 'Critical error logged' : 'New error logged',
+                    'message' => $title,
+                    'module' => 'errors',
+                    'priority' => $severity === 'critical' ? 'urgent' : ($severity === 'high' ? 'important' : 'normal'),
+                    'related_type' => 'error_log',
+                    'related_id' => $errorId,
+                    'action_link' => BASE_URL . '/apps/operations/errors.php?error_id=' . $errorId,
+                ], ['owner_admin', 'front_desk_admin', 'supervisor_manager']);
+            } catch (Throwable $notificationError) {
+                error_log('Error Log post-commit notification failure for error ' . $errorId . ': ' . $notificationError->getMessage());
+                $postCommitWarnings[] = 'The error was saved, but its notification needs owner review.';
+            }
+            error_log_created_response($errorId, $status, $occurredAt, $occurredOn, $nextSubmissionToken, $postCommitWarnings);
         }
 
         if ($action === 'update_error') {
@@ -478,6 +603,8 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
+            db()->beginTransaction();
+            $errorPostTransaction = true;
             $stmt = db()->prepare(
                 "UPDATE ops_error_logs
                  SET error_title = ?, employee_id = ?, responsible_employee_id = ?, attribution_type=?, attributed_employee_id=?, people_involved = ?, packing_task_id = ?, affects_kpi_accuracy = ?, accuracy_verified_by = ?, accuracy_verified_at = ?, attribution_verified_by=?, attribution_verified_at=?, order_reference = ?, category = ?, severity = ?, description = ?, financial_impact = ?, has_financial_impact=?, financial_impact_notes=?, resolution = ?, repeat_issue = ?, status = ?, occurred_at = ?, occurred_on=?, occurred_on_source='corrected_by_owner'
@@ -510,21 +637,49 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $submittedOccurredOn,
                 $errorId,
             ]);
+            $attachments = error_upload_files($errorId);
+            $errorPostUploadedFiles = array_column($attachments, 'path');
+            if ($attachments) {
+                $existingAttachments = error_attachment_records((string) ($existing['attachment_paths'] ?? ''));
+                $mergedAttachments = array_merge($existingAttachments, $attachments);
+                $stmt = db()->prepare('UPDATE ops_error_logs SET attachment_paths = ? WHERE id = ? AND deleted_at IS NULL');
+                $stmt->execute([json_encode($mergedAttachments, JSON_UNESCAPED_SLASHES), $errorId]);
+                $changes['attachments'] = ['added' => array_column($attachments, 'path')];
+            }
+            db()->commit();
+            $errorPostTransaction = false;
+            $errorPostUploadedFiles = [];
             if ($occurrenceChanged) ops_activity_log('error_occurrence_date_changed', 'error_log', $errorId, ['previous_value'=>$existingOccurredAt, 'new_value'=>$submittedOccurredAt, 'previous_date'=>$existingOccurredOn, 'new_date'=>$submittedOccurredOn, 'reason'=>$occurrenceChangeReason, 'actor_employee_id'=>$currentEmployeeId, 'timezone'=>'Africa/Windhoek']);
             if($attributionChanged){$audit=['previous_attribution_type'=>$oldAttribution?:'awaiting_owner_review','previous_attributed_employee_id'=>$oldAttributedEmployee,'new_attribution_type'=>$attributionType,'new_attributed_employee_id'=>$responsibleEmployeeId,'reason'=>$attributionNote,'actor_employee_id'=>$currentEmployeeId,'kpi_eligible'=>$attributionType==='employee'&&$accuracyVerified,'business_health_eligible'=>true];ops_activity_log('error_attribution_corrected','error_log',$errorId,$audit);ops_kpi_record_event('error_log','error',$errorId,'attribution_corrected',$oldAttribution?:null,$attributionType,$currentEmployeeId,['reason_note'=>$attributionNote,'metadata'=>$audit]);}
             if(isset($changes['financial_impact'])||isset($changes['has_financial_impact'])){$financialAudit=['has_financial_impact'=>$hasFinancialImpact,'previous_financial_amount'=>(string)($existing['financial_impact']??''),'new_financial_amount'=>$financialImpact,'actor_employee_id'=>$currentEmployeeId,'business_health_eligible'=>true];ops_activity_log('error_financial_impact_changed','error_log',$errorId,$financialAudit);ops_kpi_record_event('error_log','error',$errorId,'financial_impact_changed',(string)($existing['financial_impact']??''),$financialImpact,$currentEmployeeId,['metadata'=>$financialAudit]);}
-
-            $paths = error_upload_files($errorId);
-            if ($paths) {
-                $existingPaths = error_json_array((string) ($existing['attachment_paths'] ?? ''));
-                $mergedPaths = array_values(array_unique(array_merge($existingPaths, $paths)));
-                $stmt = db()->prepare('UPDATE ops_error_logs SET attachment_paths = ? WHERE id = ? AND deleted_at IS NULL');
-                $stmt->execute([json_encode($mergedPaths, JSON_UNESCAPED_SLASHES), $errorId]);
-                $changes['attachments'] = ['added' => $paths];
-            }
-
             ops_activity_log('error_updated', 'error_log', $errorId, ['fields_changed' => array_keys($changes), 'changes' => $changes]);
             error_log_redirect('Error updated.', 'success', '?updated=1&error_id=' . $errorId);
+        }
+
+        if ($action === 'remove_attachment') {
+            if (!$isOwnerErrorUser) throw new RuntimeException('Only an owner/admin may remove error evidence.');
+            $submittedToken = (string) ($_POST['csrf_token'] ?? '');
+            if ($submittedToken === '' || !hash_equals($errorAttachmentCsrf, $submittedToken)) throw new RuntimeException('Your session expired. Refresh and try again.');
+            $errorId = max(0, (int) ($_POST['error_id'] ?? 0));
+            $attachmentPath = trim((string) ($_POST['attachment_path'] ?? ''));
+            $rows = ops_rows('SELECT attachment_paths FROM ops_error_logs WHERE id = ? AND deleted_at IS NULL LIMIT 1', [$errorId]);
+            if (!$rows) throw new RuntimeException('Incident not found.');
+            $attachments = error_attachment_records((string) ($rows[0]['attachment_paths'] ?? ''));
+            $remaining = [];
+            $matched = false;
+            foreach ($attachments as $attachment) {
+                if (!$matched && hash_equals((string) $attachment['path'], $attachmentPath)) { $matched = true; continue; }
+                $remaining[] = $attachment;
+            }
+            if (!$matched) throw new RuntimeException('Attachment not found.');
+            $uploadRoot = realpath(BASE_PATH . '/uploads/error-log');
+            $absolutePath = realpath(BASE_PATH . '/' . ltrim($attachmentPath, '/'));
+            if ($uploadRoot && $absolutePath && error_path_starts_with($absolutePath, $uploadRoot . DIRECTORY_SEPARATOR) && is_file($absolutePath) && !unlink($absolutePath)) {
+                throw new RuntimeException('The attachment could not be removed from storage.');
+            }
+            db()->prepare('UPDATE ops_error_logs SET attachment_paths = ? WHERE id = ? AND deleted_at IS NULL')->execute([json_encode($remaining, JSON_UNESCAPED_SLASHES), $errorId]);
+            ops_activity_log('error_attachment_removed', 'error_log', $errorId, ['attachment_path' => $attachmentPath, 'actor_employee_id' => $currentEmployeeId]);
+            error_log_redirect('Attachment removed.', 'success', '?error_id=' . $errorId);
         }
 
         if ($action === 'delete_error') {
@@ -563,7 +718,16 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             error_log_redirect('Error status updated.', 'success', '?status_updated=1');
         }
     } catch (Throwable $e) {
-        error_log_redirect($e->getMessage(), 'error', '?form_error=1');
+        if ($errorPostTransaction && db()->inTransaction()) db()->rollBack();
+        foreach ($errorPostUploadedFiles as $uploadedPath) {
+            $absoluteUploadedPath = BASE_PATH . '/' . ltrim((string) $uploadedPath, '/');
+            if (is_file($absoluteUploadedPath)) @unlink($absoluteUploadedPath);
+        }
+        error_log('Error Log request failed: ' . get_class($e) . ': ' . $e->getMessage());
+        $publicMessage = $e instanceof RuntimeException && !($e instanceof PDOException)
+            ? $e->getMessage()
+            : 'Error could not be saved. Please try again or ask the owner to review the Error Log server log.';
+        error_log_redirect($publicMessage, 'error', '?form_error=1');
     }
 }
 
@@ -578,11 +742,18 @@ $errorInstructionCsrfToken = (string) $_SESSION['error_instruction_csrf_token'];
 $errorInstructionSubmissionToken = (string) $_SESSION['error_instruction_submission_token'];
 $errorLimitedEditCsrf=(string)$_SESSION['error_limited_edit_csrf'];
 
+$defaultErrorMonth = date('Y-m');
+$requestedDateMode = trim((string) ($_GET['date_mode'] ?? ''));
+if ($requestedDateMode === '') {
+    $requestedDateMode = (!empty($_GET['date_from']) || !empty($_GET['date_to'])) ? 'custom' : 'month';
+}
+if (!in_array($requestedDateMode, ['month', 'custom'], true)) $requestedDateMode = 'month';
 $filters = [
-    'month' => trim((string) ($_GET['month'] ?? date('Y-m'))),
+    'date_mode' => $requestedDateMode,
+    'month' => trim((string) ($_GET['month'] ?? $defaultErrorMonth)),
     'date_from' => trim((string) ($_GET['date_from'] ?? '')),
     'date_to' => trim((string) ($_GET['date_to'] ?? '')),
-    'date_basis'=>trim((string)($_GET['date_basis']??'occurred')),
+    'date_basis'=>'occurred',
     'sort'=>trim((string)($_GET['sort']??'occurred_newest')),
     'severity' => trim((string) ($_GET['severity'] ?? '')),
     'category' => trim((string) ($_GET['category'] ?? '')),
@@ -595,26 +766,29 @@ $filters = [
     'status' => trim((string) ($_GET['status'] ?? '')),
     'search' => trim((string) ($_GET['search'] ?? '')),
 ];
-$filtersAreActive = $filters['date_from'] !== '' || $filters['date_to'] !== '' || $filters['date_basis']!=='occurred' || $filters['sort']!=='occurred_newest' || $filters['severity'] !== '' || $filters['category'] !== '' || $filters['employee_id'] !== '' || $filters['logged_for']!=='' || $filters['financial_impact_filter']!=='' || $filters['repeat_issue'] !== '' || $filters['customer_impacted'] !== '' || $filters['order_reference'] !== '' || $filters['status'] !== '' || $filters['search'] !== '';
+$filtersAreActive = ($filters['date_mode'] === 'custom' && ($filters['date_from'] !== '' || $filters['date_to'] !== '')) || ($filters['date_mode'] === 'month' && $filters['month'] !== $defaultErrorMonth) || $filters['sort']!=='occurred_newest' || $filters['severity'] !== '' || $filters['category'] !== '' || $filters['employee_id'] !== '' || $filters['logged_for']!=='' || $filters['financial_impact_filter']!=='' || $filters['repeat_issue'] !== '' || $filters['customer_impacted'] !== '' || $filters['order_reference'] !== '' || $filters['status'] !== '' || $filters['search'] !== '';
 
 $where = ['el.deleted_at IS NULL'];
 $params = [];
 $requestedErrorId = max(0, (int) ($_GET['error_id'] ?? 0));
-$dateExpression=$filters['date_basis']==='logged'?'DATE(COALESCE(el.created_at,el.logged_at))':error_occurrence_expression('el');
+$dateExpression=error_occurrence_expression('el');
 if ($requestedErrorId > 0) {
     $where[] = 'el.id = ?';
     $params[] = $requestedErrorId;
-} elseif ($filters['date_from'] !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['date_from'])) {
-    $where[] = 'DATE(' . $dateExpression . ') >= ?';
-    $params[] = $filters['date_from'];
-}
-if ($filters['date_to'] !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['date_to'])) {
-    $where[] = 'DATE(' . $dateExpression . ') <= ?';
-    $params[] = $filters['date_to'];
-}
-if ($requestedErrorId <= 0 && !$filters['date_from'] && !$filters['date_to'] && preg_match('/^\d{4}-\d{2}$/', $filters['month'])) {
-    $where[] = "DATE_FORMAT(" . $dateExpression . ", '%Y-%m') = ?";
-    $params[] = $filters['month'];
+} elseif ($filters['date_mode'] === 'custom') {
+    if ($filters['date_from'] !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['date_from'])) {
+        $where[] = $dateExpression . ' >= ?';
+        $params[] = $filters['date_from'];
+    }
+    if ($filters['date_to'] !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['date_to'])) {
+        $where[] = $dateExpression . ' <= ?';
+        $params[] = $filters['date_to'];
+    }
+} elseif (preg_match('/^\d{4}-\d{2}$/', $filters['month'])) {
+    $monthStart = $filters['month'] . '-01';
+    $monthEnd = (new DateTimeImmutable($monthStart, new DateTimeZone('Africa/Windhoek')))->modify('last day of this month')->format('Y-m-d');
+    $where[] = $dateExpression . ' BETWEEN ? AND ?';
+    array_push($params, $monthStart, $monthEnd);
 }
 if (array_key_exists($filters['severity'], $severityLabels)) {
     $where[] = 'el.severity = ?';
@@ -678,23 +852,8 @@ $errors = $ready ? ops_rows(
     $params
 ) : [];
 
-$monthWhere = ['el.deleted_at IS NULL', "DATE_FORMAT(" . error_occurrence_expression('el') . ", '%Y-%m') = ?"];
-$monthParams = [$filters['month'] ?: date('Y-m')];
-if ($isFrontDeskErrorUser && !$isOwnerErrorUser) {
-    [$frontMonthSql, $frontMonthParams] = error_person_filter_sql('el', (int) $currentEmployeeId);
-    $monthWhere[] = $frontMonthSql;
-    array_push($monthParams, ...$frontMonthParams);
-}
-$monthRows = $ready ? ops_rows(
-    "SELECT el.*, e.full_name AS primary_employee_name
-     FROM ops_error_logs el
-     LEFT JOIN ops_employees e ON e.id = el.employee_id
-     WHERE " . implode(' AND ', $monthWhere),
-    $monthParams
-) : [];
-
 $metrics = [
-    'month_total' => count($monthRows),
+    'month_total' => count($errors),
     'critical' => 0,
     'high' => 0,
     'medium' => 0,
@@ -707,7 +866,7 @@ $metrics = [
 ];
 $categoryCounts = [];
 $employeeCounts = [];
-foreach ($monthRows as $row) {
+foreach ($errors as $row) {
     $severity = (string) ($row['severity'] ?? 'low');
     if (isset($metrics[$severity])) $metrics[$severity]++;
     if ((int) ($row['repeat_issue'] ?? 0) === 1) $metrics['repeat']++;
@@ -734,6 +893,32 @@ foreach ($errors as $error) {
     $sectionKey = (string) ($error['status'] ?? 'open') === 'resolved' ? 'resolved' : 'open';
     $errorsByResolution[$sectionKey][] = $error;
 }
+
+$activeFilterChips = [];
+$addErrorFilterChip = static function (string $key, string $label, array $removeKeys = []) use (&$activeFilterChips): void {
+    $query = $_GET;
+    unset($query['error_id']);
+    foreach (array_merge([$key], $removeKeys) as $removeKey) unset($query[$removeKey]);
+    $activeFilterChips[] = ['key' => $key, 'label' => $label, 'url' => 'errors.php' . ($query ? '?' . http_build_query($query) : '')];
+};
+if ($filters['date_mode'] === 'custom' && ($filters['date_from'] !== '' || $filters['date_to'] !== '')) {
+    $addErrorFilterChip('date_mode', 'Occurred: ' . ($filters['date_from'] ?: 'Any date') . ' to ' . ($filters['date_to'] ?: 'Today'), ['date_from', 'date_to']);
+} elseif ($filters['date_mode'] === 'month' && $filters['month'] !== $defaultErrorMonth) {
+    $monthLabel = DateTimeImmutable::createFromFormat('!Y-m', $filters['month'], new DateTimeZone('Africa/Windhoek'));
+    $addErrorFilterChip('month', $monthLabel ? $monthLabel->format('F Y') : $filters['month'], ['date_mode']);
+}
+if ($filters['sort'] !== 'occurred_newest') $addErrorFilterChip('sort', 'Sort: ' . str_replace('_', ' ', $filters['sort']));
+if ($filters['severity'] !== '') $addErrorFilterChip('severity', 'Severity: ' . ($severityLabels[$filters['severity']] ?? $filters['severity']));
+if ($filters['category'] !== '') $addErrorFilterChip('category', 'Category: ' . ($errorCategories[$filters['category']] ?? $filters['category']));
+if ((int) $filters['employee_id'] > 0) $addErrorFilterChip('employee_id', 'Person: ' . ($employeeMap[(int) $filters['employee_id']] ?? 'Employee'));
+if ($filters['logged_for'] !== '') $addErrorFilterChip('logged_for', 'Logged for: ' . ucwords(str_replace('_', ' ', $filters['logged_for'])));
+if ($filters['financial_impact_filter'] !== '') $addErrorFilterChip('financial_impact_filter', $filters['financial_impact_filter'] === 'yes' ? 'Has financial impact' : 'No financial impact');
+if ($filters['repeat_issue'] !== '') $addErrorFilterChip('repeat_issue', 'Repeat: ' . ($filters['repeat_issue'] === '1' ? 'Yes' : 'No'));
+if ($filters['customer_impacted'] !== '') $addErrorFilterChip('customer_impacted', 'Customer impacted: ' . ($filters['customer_impacted'] === '1' ? 'Yes' : 'No'));
+if ($filters['order_reference'] !== '') $addErrorFilterChip('order_reference', 'Order: ' . $filters['order_reference']);
+if ($filters['status'] !== '') $addErrorFilterChip('status', 'Status: ' . ($statusLabels[$filters['status']] ?? $filters['status']));
+if ($filters['search'] !== '') $addErrorFilterChip('search', 'Search: ' . $filters['search']);
+$activeFilterCount = count($activeFilterChips);
 
 $errorIds = array_map(static fn(array $row): int => (int) $row['id'], $errors);
 $instructionsByError = error_instructions_for_errors($errorIds);
@@ -774,7 +959,7 @@ include BASE_PATH . '/shared/sidebar.php';
     <?php if ($showFullErrorLog): ?>
         <?php
         $errorStats = [
-            ['icon' => 'calendar-days', 'label' => 'Total Errors This Month', 'value' => number_format($metrics['month_total']), 'colour' => 'var(--bk-orange-red)'],
+            ['icon' => 'calendar-days', 'label' => 'Errors in Selected View', 'value' => number_format($metrics['month_total']), 'colour' => 'var(--bk-orange-red)'],
             ['icon' => 'siren', 'label' => 'Critical Errors', 'value' => number_format($metrics['critical']), 'colour' => 'var(--bk-red)'],
             ['icon' => 'triangle-alert', 'label' => 'High Severity', 'value' => number_format($metrics['high']), 'colour' => 'var(--bk-amber)'],
             ['icon' => 'info', 'label' => 'Medium Severity', 'value' => number_format($metrics['medium']), 'colour' => 'var(--bk-orange-red)'],
@@ -785,7 +970,7 @@ include BASE_PATH . '/shared/sidebar.php';
             ['icon' => 'user-round-x', 'label' => 'Employee With Most Logged Errors', 'value' => (string) $metrics['top_employee'], 'colour' => 'var(--bk-burgundy)'],
         ];
         ?>
-        <section class="error-stats-shell" aria-label="Error log metrics">
+        <section class="error-stats-shell" aria-label="Error log metrics" data-error-filter-metrics>
             <div class="error-stats-grid">
                 <?php foreach ($errorStats as $stat): ?>
                     <article class="error-stat-card" style="--stat-colour: <?= htmlspecialchars($stat['colour'], ENT_QUOTES, 'UTF-8') ?>">
@@ -801,14 +986,15 @@ include BASE_PATH . '/shared/sidebar.php';
     <?php endif; ?>
 
     <details class="error-filter-card" data-portal-view-filter <?= $filtersAreActive ? 'open' : '' ?>>
-        <summary class="error-filter-header"><span><i data-lucide="sliders-horizontal"></i> Filters</span><strong><?= $filtersAreActive ? 'Active' : 'Collapsed' ?></strong></summary>
-        <form class="error-filter-body" method="get">
+        <summary class="error-filter-header"><span><i data-lucide="sliders-horizontal"></i><span>Filters<small><?= $activeFilterCount ? $activeFilterCount . ' filter' . ($activeFilterCount === 1 ? '' : 's') . ' active' : 'No additional filters active' ?></small></span></span><strong data-error-filter-summary><?= $activeFilterCount ? (string) $activeFilterCount : 'Clear' ?></strong></summary>
+        <form class="error-filter-body" method="get" data-error-filter-form>
             <div class="error-filter-grid">
                 <label class="span-2">Search<input type="search" name="search" value="<?= htmlspecialchars($filters['search'], ENT_QUOTES, 'UTF-8') ?>" placeholder="Search errors, descriptions, categories or orders"></label>
-                <label>Month<input type="month" name="month" value="<?= htmlspecialchars($filters['month'], ENT_QUOTES, 'UTF-8') ?>"></label>
-                <label>Date from<input type="date" name="date_from" value="<?= htmlspecialchars($filters['date_from'], ENT_QUOTES, 'UTF-8') ?>"></label>
-                <label>Date to<input type="date" name="date_to" value="<?= htmlspecialchars($filters['date_to'], ENT_QUOTES, 'UTF-8') ?>"></label>
-                <label>Date filter<select name="date_basis" data-portal-custom-select><?php ops_select_options(['occurred'=>'Date Error Occurred','logged'=>'Date Logged'],$filters['date_basis']);?></select></label>
+                <label>Date period<select name="date_mode" data-portal-custom-select data-error-date-mode><?php ops_select_options(['month'=>'Selected Month','custom'=>'Custom Date Range'],$filters['date_mode']);?></select></label>
+                <label data-error-month-field <?= $filters['date_mode'] === 'custom' ? 'hidden' : '' ?>>Month<input type="month" name="month" value="<?= htmlspecialchars($filters['month'], ENT_QUOTES, 'UTF-8') ?>"></label>
+                <label data-error-custom-date <?= $filters['date_mode'] === 'month' ? 'hidden' : '' ?>>Date from<input type="date" name="date_from" value="<?= htmlspecialchars($filters['date_from'], ENT_QUOTES, 'UTF-8') ?>"></label>
+                <label data-error-custom-date <?= $filters['date_mode'] === 'month' ? 'hidden' : '' ?>>Date to<input type="date" name="date_to" value="<?= htmlspecialchars($filters['date_to'], ENT_QUOTES, 'UTF-8') ?>"></label>
+                <div class="error-filter-date-basis"><span>Date field</span><strong>Date Error Occurred</strong><small>Africa/Windhoek boundaries</small></div>
                 <label>Sort<select name="sort" data-portal-custom-select><?php ops_select_options(['occurred_newest'=>'Error Occurred — Newest','occurred_oldest'=>'Error Occurred — Oldest','logged_newest'=>'Date Logged — Newest','logged_oldest'=>'Date Logged — Oldest','financial_highest'=>'Financial Impact — Highest','financial_lowest'=>'Financial Impact — Lowest'],$filters['sort']);?></select></label>
                 <label>Severity<select name="severity" data-portal-custom-select><option value="">All severity</option><?php ops_select_options($severityLabels, $filters['severity']); ?></select></label>
                 <label>Category<select name="category" data-portal-custom-select><option value="">All categories</option><?php ops_select_options($errorCategories, $filters['category']); ?></select></label>
@@ -820,9 +1006,20 @@ include BASE_PATH . '/shared/sidebar.php';
                 <label>Order ID<input name="order_reference" value="<?= htmlspecialchars($filters['order_reference'], ENT_QUOTES, 'UTF-8') ?>" placeholder="#33863 or WEB-33780"></label>
                 <label>Resolution status<select name="status" data-portal-custom-select><option value="">All statuses</option><?php ops_select_options($statusLabels, $filters['status']); ?></select></label>
             </div>
-            <div class="ops-form-actions error-filter-actions"><a class="button" href="errors.php">Clear</a><button class="button primary" type="submit">Apply filters</button></div>
+            <p class="error-filter-feedback" data-error-filter-feedback role="status" aria-live="polite"></p>
+            <div class="ops-form-actions error-filter-actions"><button class="button" type="button" data-error-filter-clear>Clear All</button><button class="button primary" type="submit">Apply Filters</button></div>
         </form>
     </details>
+
+    <div data-error-results>
+    <div class="error-filter-chips-shell" data-error-filter-chips-shell>
+    <?php if ($activeFilterChips): ?>
+        <nav class="error-filter-chips" aria-label="Active Error Log filters">
+            <?php foreach ($activeFilterChips as $chip): ?><button type="button" data-filter-url="<?= htmlspecialchars($chip['url'], ENT_QUOTES, 'UTF-8') ?>" data-error-filter-chip><?= htmlspecialchars($chip['label'], ENT_QUOTES, 'UTF-8') ?><i data-lucide="x" aria-hidden="true"></i></button><?php endforeach; ?>
+            <button type="button" class="error-filter-clear-link" data-filter-url="errors.php" data-error-filter-clear-link>Clear all</button>
+        </nav>
+    <?php endif; ?>
+    </div>
 
     <?php foreach (['open' => 'Not Resolved Errors', 'resolved' => 'Resolved Errors'] as $sectionStatus => $sectionTitle): ?>
     <?php $sectionErrors = $errorsByResolution[$sectionStatus] ?? []; ?>
@@ -912,12 +1109,13 @@ include BASE_PATH . '/shared/sidebar.php';
                     <?php endif; ?>
                 </tr>
             <?php endforeach; ?>
-            <?php if (!$sectionErrors): ?><tr class="error-board-empty"><td colspan="<?= $showFullErrorLog ? 13 : 6 ?>">No <?= strtolower(htmlspecialchars($sectionTitle, ENT_QUOTES, 'UTF-8')) ?> found for the selected filters.</td></tr><?php endif; ?>
+            <?php if (!$sectionErrors): ?><tr class="error-board-empty"><td colspan="<?= $showFullErrorLog ? 13 : 6 ?>">No Error Log records match these filters.</td></tr><?php endif; ?>
             </tbody>
         </table>
         </div>
     </section>
     <?php endforeach; ?>
+    </div>
 
     <aside class="error-log-panel incident-modal" data-error-modal-panel aria-hidden="true" role="dialog" aria-modal="true" aria-label="Log error">
             <div class="error-log-panel-head incident-header">
@@ -1037,11 +1235,15 @@ include BASE_PATH . '/shared/sidebar.php';
                 <section class="error-form-section incident-section">
                     <h3><i data-lucide="paperclip"></i> Attachments</h3>
                     <label class="error-upload-zone">
-                        <input type="file" name="attachments[]" multiple accept="image/*,.pdf,.doc,.docx">
+                        <input type="file" name="attachments[]" multiple accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" data-error-file-input>
                         <span><i data-lucide="upload-cloud"></i></span>
-                        <strong>Drag files here or upload screenshot</strong>
-                        <small>Images, PDFs, screenshots and proof files</small>
+                        <strong>Drag files here or choose evidence files</strong>
+                        <small>JPG, PNG, WEBP, PDF, Word, Excel, CSV or TXT · up to 10 MB each</small>
                     </label>
+                    <div class="error-selected-files" data-error-selected-files hidden>
+                        <div class="error-selected-files__heading"><strong>Evidence files</strong><span data-error-selected-count></span></div>
+                        <ol data-error-selected-list></ol>
+                    </div>
                 </section>
 
                 <div class="ops-form-actions error-panel-actions incident-footer"><button class="button incident-btn-secondary" type="button" data-error-modal-close>Cancel</button><button class="button primary incident-btn-primary" type="submit">Save Issue</button></div>
@@ -1054,7 +1256,7 @@ include BASE_PATH . '/shared/sidebar.php';
         $peopleIds = error_json_array((string) ($error['people_involved'] ?? ''));
         if (!$peopleIds && !empty($error['employee_id'])) $peopleIds = [(int) $error['employee_id']];
         $peopleText = error_people_names($peopleIds, $employeeMap, (string) ($error['primary_employee_name'] ?? ''));
-        $attachments = error_json_array((string) ($error['attachment_paths'] ?? ''));
+        $attachments = error_attachment_records((string) ($error['attachment_paths'] ?? ''));
         $severity = (string) ($error['severity'] ?? 'low');
         $status = (string) ($error['status'] ?? 'open');
         $canUpdateThisError = $isOwnerErrorUser;
@@ -1137,10 +1339,19 @@ include BASE_PATH . '/shared/sidebar.php';
                     <?php if ($isOwnerErrorUser): ?><p class="owner-instruction-help">Give the front person instructions for resolving this error.</p><?php endif; ?>
                     <div class="owner-instruction-history" aria-live="polite">
                         <?php foreach ($ownerInstructions as $instruction): ?>
-                            <article class="owner-instruction-item<?= (int)$instruction['id'] === $latestInstructionId ? ' is-latest' : '' ?>">
-                                <div class="owner-instruction-item-head"><strong>Owner Instruction<?= (int)$instruction['id'] === $latestInstructionId ? ' · Latest' : '' ?></strong><span><?= htmlspecialchars((string)($instruction['created_by_name'] ?? 'Owner/Admin'), ENT_QUOTES, 'UTF-8') ?></span></div>
+                            <article class="owner-instruction-item<?= (int)$instruction['id'] === $latestInstructionId ? ' is-latest' : '' ?>" data-owner-instruction-item="<?= (int)$instruction['id'] ?>">
+                                <div class="owner-instruction-item-head"><strong>Owner Instruction<?= (int)$instruction['id'] === $latestInstructionId ? ' · Latest' : '' ?></strong><span class="owner-instruction-status is-<?= htmlspecialchars((string)($instruction['status'] ?? 'pending'), ENT_QUOTES, 'UTF-8') ?>"><?= (string)($instruction['status'] ?? 'pending') === 'completed' ? 'Completed' : 'Pending' ?></span></div>
+                                <p class="owner-instruction-author"><?= htmlspecialchars((string)($instruction['created_by_name'] ?? 'Owner/Admin'), ENT_QUOTES, 'UTF-8') ?></p>
                                 <p class="owner-instruction-meta"><?= htmlspecialchars(error_instruction_date_label((string)$instruction['created_at']), ENT_QUOTES, 'UTF-8') ?></p>
                                 <p class="owner-instruction-copy"><?= nl2br(htmlspecialchars((string)$instruction['instruction_text'], ENT_QUOTES, 'UTF-8')) ?></p>
+                                <?php if ((string)($instruction['status'] ?? 'pending') === 'completed'): ?>
+                                    <div class="owner-instruction-completion"><strong>Completion note</strong><p><?= nl2br(htmlspecialchars((string)($instruction['completion_note'] ?? ''), ENT_QUOTES, 'UTF-8')) ?></p><small><?= htmlspecialchars((string)($instruction['completed_by_name'] ?? 'Employee'), ENT_QUOTES, 'UTF-8') ?> · <?= htmlspecialchars(error_instruction_date_label((string)($instruction['completed_at'] ?? '')), ENT_QUOTES, 'UTF-8') ?></small></div>
+                                <?php elseif (!$isOwnerErrorUser): ?>
+                                    <form class="owner-instruction-complete-form" data-owner-instruction-complete-form method="post" action="<?= BASE_URL ?>/apps/operations/error-instructions.php">
+                                        <input type="hidden" name="action" value="complete_instruction"><input type="hidden" name="error_id" value="<?= $errorId ?>"><input type="hidden" name="instruction_id" value="<?= (int)$instruction['id'] ?>"><input type="hidden" name="csrf_token" value="<?= htmlspecialchars($errorInstructionCsrfToken, ENT_QUOTES, 'UTF-8') ?>">
+                                        <label>Completion note</label><textarea name="completion_note" maxlength="4000" required placeholder="Explain what you completed and the outcome."></textarea><button type="submit">Mark Instruction Complete</button><p class="owner-instruction-feedback" data-owner-instruction-feedback hidden></p>
+                                    </form>
+                                <?php endif; ?>
                                 <?php if ($isOwnerErrorUser): ?>
                                     <div class="owner-instruction-read-state">
                                     <?php foreach (($instruction['recipients'] ?? []) as $recipient): ?>
@@ -1173,7 +1384,12 @@ include BASE_PATH . '/shared/sidebar.php';
                 <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="banknote"></i> Financial impact</h3><p class="incident-content-text" data-error-finance-detail="<?= $errorId ?>"><?= $error['financial_impact']===null?'Not recorded':'N$'.number_format((float)$error['financial_impact'],2) ?></p><?php if(!empty($error['financial_impact_notes'])): ?><p class="incident-content-text"><?= nl2br(htmlspecialchars((string)$error['financial_impact_notes'],ENT_QUOTES,'UTF-8')) ?></p><?php endif; ?></section>
                 <?php if (!empty($error['repeat_note'])): ?><section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="repeat-2"></i> Repeat note</h3><p class="incident-content-text"><?= nl2br(htmlspecialchars((string) $error['repeat_note'], ENT_QUOTES, 'UTF-8')) ?></p></section><?php endif; ?>
                 <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="paperclip"></i> Attachments</h3><div class="incident-attachments-list">
-                    <?php foreach ($attachments as $path): ?><div class="incident-attachment"><span><?= htmlspecialchars(basename((string) $path), ENT_QUOTES, 'UTF-8') ?></span><a class="incident-attachment-link" href="<?= BASE_URL . '/' . htmlspecialchars((string) $path, ENT_QUOTES, 'UTF-8') ?>" target="_blank">Open</a></div><?php endforeach; ?>
+                    <?php foreach ($attachments as $attachment): ?><?php $attachmentPath=(string)$attachment['path'];$attachmentName=(string)$attachment['name'];$attachmentMime=(string)$attachment['mime'];$isImage=error_path_starts_with($attachmentMime,'image/')||preg_match('/\.(?:jpe?g|png|webp)$/i',$attachmentName);$attachmentUrl=BASE_URL.'/apps/operations/error-attachment.php?error_id='.$errorId.'&attachment='.rawurlencode($attachmentPath); ?><div class="incident-attachment">
+                        <?php if($isImage): ?><a href="<?= htmlspecialchars($attachmentUrl,ENT_QUOTES,'UTF-8') ?>" target="_blank" rel="noopener" class="incident-attachment-preview"><img src="<?= htmlspecialchars($attachmentUrl,ENT_QUOTES,'UTF-8') ?>" alt="Preview of <?= htmlspecialchars($attachmentName,ENT_QUOTES,'UTF-8') ?>" loading="lazy"></a><?php endif; ?>
+                        <span><strong><?= htmlspecialchars($attachmentName, ENT_QUOTES, 'UTF-8') ?></strong><?php if($attachment['size']!==null): ?><small><?= htmlspecialchars(number_format(((int)$attachment['size'])/1048576,2).' MB',ENT_QUOTES,'UTF-8') ?></small><?php endif; ?></span>
+                        <div class="incident-attachment-actions"><a class="incident-attachment-link" href="<?= htmlspecialchars($attachmentUrl,ENT_QUOTES,'UTF-8') ?>" target="_blank" rel="noopener"><?= $isImage?'Preview':'Download' ?></a>
+                        <?php if($isOwnerErrorUser): ?><form method="post" onsubmit="return confirm('Remove this attachment?');"><input type="hidden" name="action" value="remove_attachment"><input type="hidden" name="csrf_token" value="<?= htmlspecialchars($errorAttachmentCsrf,ENT_QUOTES,'UTF-8') ?>"><input type="hidden" name="error_id" value="<?= $errorId ?>"><input type="hidden" name="attachment_path" value="<?= htmlspecialchars($attachmentPath,ENT_QUOTES,'UTF-8') ?>"><button type="submit" class="incident-attachment-remove">Remove</button></form><?php endif; ?></div>
+                    </div><?php endforeach; ?>
                     <?php if (!$attachments): ?><p class="incident-content-text incident-empty-text">No attachments uploaded.</p><?php endif; ?>
                 </div></section>
                 <section class="incident-content-card"><h3 class="incident-content-heading"><i data-lucide="history"></i> Edit history</h3><div class="incident-history-list">
@@ -1201,6 +1417,145 @@ include BASE_PATH . '/shared/sidebar.php';
 <script>
 let pendingDeleteForm = null;
 
+const errorFilterForm = document.querySelector('[data-error-filter-form]');
+let errorFilterRequest = null;
+let errorFilterSequence = 0;
+
+function syncErrorDateMode() {
+  if (!errorFilterForm) return;
+  const mode = errorFilterForm.elements.date_mode?.value || 'month';
+  errorFilterForm.querySelectorAll('[data-error-month-field]').forEach((field) => { field.hidden = mode !== 'month'; });
+  errorFilterForm.querySelectorAll('[data-error-custom-date]').forEach((field) => { field.hidden = mode !== 'custom'; });
+}
+
+function syncErrorFilterControls(nextDocument) {
+  if (!errorFilterForm) return;
+  const nextForm = nextDocument.querySelector('[data-error-filter-form]');
+  if (!nextForm) return;
+  [...errorFilterForm.elements].forEach((control) => {
+    if (!control.name) return;
+    const nextControl = nextForm.elements.namedItem(control.name);
+    if (!nextControl) return;
+    if (control.type === 'checkbox' || control.type === 'radio') control.checked = nextControl.checked;
+    else control.value = nextControl.value;
+    control.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  syncErrorDateMode();
+  const currentSummary = document.querySelector('.error-filter-header');
+  const nextSummary = nextDocument.querySelector('.error-filter-header');
+  if (currentSummary && nextSummary) currentSummary.innerHTML = nextSummary.innerHTML;
+}
+
+function replaceErrorFilterResults(nextDocument) {
+  const currentMetrics = document.querySelector('[data-error-filter-metrics]');
+  const nextMetrics = nextDocument.querySelector('[data-error-filter-metrics]');
+  if (currentMetrics && nextMetrics) currentMetrics.innerHTML = nextMetrics.innerHTML;
+  const currentChips = document.querySelector('[data-error-filter-chips-shell]');
+  const nextChips = nextDocument.querySelector('[data-error-filter-chips-shell]');
+  if (currentChips && nextChips) currentChips.innerHTML = nextChips.innerHTML;
+  ['open', 'resolved'].forEach((status) => {
+    const currentSection = document.querySelector(`.error-section-${status}`);
+    const nextSection = nextDocument.querySelector(`.error-section-${status}`);
+    if (!currentSection || !nextSection) return;
+    const currentCount = currentSection.querySelector('.error-board-count');
+    const nextCount = nextSection.querySelector('.error-board-count');
+    const currentBody = currentSection.querySelector('tbody');
+    const nextBody = nextSection.querySelector('tbody');
+    if (currentCount && nextCount) currentCount.textContent = nextCount.textContent;
+    if (currentBody && nextBody) currentBody.innerHTML = nextBody.innerHTML;
+  });
+  document.querySelector('[data-error-filter-failure]')?.remove();
+  bindErrorFilterChips();
+  window.lucide?.createIcons({ attrs: { 'aria-hidden': 'true' }, strokeWidth: 1.7 });
+}
+
+function bindErrorFilterChips() {
+  document.querySelectorAll('[data-error-filter-chip], [data-error-filter-clear-link]').forEach((chip) => {
+    if (chip.dataset.filterBound === '1') return;
+    chip.dataset.filterBound = '1';
+    chip.addEventListener('click', () => loadErrorFilterView(chip.dataset.filterUrl || 'errors.php'));
+  });
+}
+
+function updateErrorFilterToolbar(nextDocument) {
+  const count = nextDocument.querySelectorAll('[data-error-filter-chip]').length;
+  const badge = document.querySelector('[data-filter-toolbar] [data-filter-count]');
+  const button = document.querySelector('[data-filter-toolbar] [data-view-action="filter"]');
+  if (badge) { badge.textContent = String(count); badge.hidden = count === 0; }
+  button?.classList.toggle('is-active', count > 0);
+}
+
+async function loadErrorFilterView(url, options = {}) {
+  const sequence = ++errorFilterSequence;
+  errorFilterRequest?.abort();
+  errorFilterRequest = new AbortController();
+  const feedback = errorFilterForm?.querySelector('[data-error-filter-feedback]');
+  const applyButton = errorFilterForm?.querySelector('[type="submit"]');
+  if (feedback) feedback.textContent = 'Loading filtered Error Log records...';
+  if (applyButton) { applyButton.disabled = true; applyButton.setAttribute('aria-busy', 'true'); }
+  try {
+    const response = await fetch(url, {
+      credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'text/html' },
+      signal: errorFilterRequest.signal
+    });
+    if (!response.ok) throw new Error(`Request failed (HTTP ${response.status}).`);
+    const html = await response.text();
+    if (sequence !== errorFilterSequence) return;
+    const nextDocument = new DOMParser().parseFromString(html, 'text/html');
+    if (!nextDocument.querySelector('[data-error-results]')) throw new Error('The filtered response was incomplete.');
+    replaceErrorFilterResults(nextDocument);
+    syncErrorFilterControls(nextDocument);
+    updateErrorFilterToolbar(nextDocument);
+    if (options.push !== false) history.pushState({ errorFilters: true }, '', url);
+    if (feedback) feedback.textContent = 'Filters applied.';
+    return true;
+  } catch (error) {
+    if (error?.name === 'AbortError') return;
+    const results = document.querySelector('[data-error-results]');
+    let failure = document.querySelector('[data-error-filter-failure]');
+    if (!failure && results) {
+      failure = document.createElement('div');
+      failure.className = 'error-filter-failure';
+      failure.dataset.errorFilterFailure = '';
+      results.prepend(failure);
+    }
+    if (failure) failure.innerHTML = '<strong>Could not load filtered Error Log records.</strong><span>Retry or clear the filters.</span>';
+    if (feedback) feedback.textContent = error?.message || 'Could not load filtered Error Log records. Retry.';
+    return false;
+  } finally {
+    if (sequence === errorFilterSequence && applyButton) { applyButton.disabled = false; applyButton.removeAttribute('aria-busy'); }
+  }
+}
+
+errorFilterForm?.querySelector('[name="date_mode"]')?.addEventListener('change', syncErrorDateMode);
+errorFilterForm?.addEventListener('change', () => queueMicrotask(() => updateErrorFilterToolbar(document)));
+window.addEventListener('load', () => window.setTimeout(() => updateErrorFilterToolbar(document), 0));
+syncErrorDateMode();
+errorFilterForm?.addEventListener('submit', (event) => {
+  event.preventDefault();
+  const parameters = new URLSearchParams(new FormData(errorFilterForm));
+  if ((parameters.get('date_mode') || 'month') === 'month') {
+    parameters.delete('date_from');
+    parameters.delete('date_to');
+  } else {
+    parameters.delete('month');
+    const from = parameters.get('date_from') || '';
+    const to = parameters.get('date_to') || '';
+    if (from && to && from > to) {
+      const feedback = errorFilterForm.querySelector('[data-error-filter-feedback]');
+      if (feedback) feedback.textContent = 'Date From must be on or before Date To.';
+      errorFilterForm.elements.date_from?.focus();
+      return;
+    }
+  }
+  [...parameters.entries()].forEach(([key, value]) => { if (value === '') parameters.delete(key); });
+  loadErrorFilterView(`errors.php?${parameters.toString()}`);
+});
+errorFilterForm?.querySelector('[data-error-filter-clear]')?.addEventListener('click', () => loadErrorFilterView('errors.php'));
+bindErrorFilterChips();
+window.addEventListener('popstate', () => loadErrorFilterView(location.href, { push: false }));
+
 async function markOwnerInstructionsRead(panel) {
   const section = panel?.querySelector('[data-owner-instructions]');
   if (!section || Number(section.dataset.unread || 0) < 1 || section.dataset.markingRead === '1') return;
@@ -1220,6 +1575,40 @@ async function markOwnerInstructionsRead(panel) {
   }
 }
 
+async function readOwnerInstructionResponse(response) {
+  const raw = await response.text();
+  try { return JSON.parse(raw); }
+  catch (parseError) {
+    throw new Error(response.ok ? 'The server returned an invalid response. Retry.' : `The server could not process the request (HTTP ${response.status}).`);
+  }
+}
+
+function ownerInstructionNode(data, isOwner) {
+  const article = document.createElement('article');
+  article.className = 'owner-instruction-item is-latest';
+  article.dataset.ownerInstructionItem = String(data.id || '');
+  const head = document.createElement('div'); head.className = 'owner-instruction-item-head';
+  const title = document.createElement('strong'); title.textContent = 'Owner Instruction · Latest';
+  const status = document.createElement('span'); status.className = `owner-instruction-status is-${data.status || 'pending'}`; status.textContent = data.status === 'completed' ? 'Completed' : 'Pending';
+  head.append(title, status); article.append(head);
+  const author = document.createElement('p'); author.className = 'owner-instruction-author'; author.textContent = data.created_by_name || 'Owner/Admin'; article.append(author);
+  const meta = document.createElement('p'); meta.className = 'owner-instruction-meta'; meta.textContent = data.created_at || ''; article.append(meta);
+  const copy = document.createElement('p'); copy.className = 'owner-instruction-copy'; copy.textContent = data.instruction_text || ''; article.append(copy);
+  if (data.status === 'completed') appendOwnerInstructionCompletion(article, data);
+  return article;
+}
+
+function appendOwnerInstructionCompletion(article, data) {
+  article.querySelector('[data-owner-instruction-complete-form]')?.remove();
+  const status = article.querySelector('.owner-instruction-status');
+  if (status) { status.className = 'owner-instruction-status is-completed'; status.textContent = 'Completed'; }
+  const completion = document.createElement('div'); completion.className = 'owner-instruction-completion';
+  const heading = document.createElement('strong'); heading.textContent = 'Completion note';
+  const note = document.createElement('p'); note.textContent = data.completion_note || '';
+  const byline = document.createElement('small'); byline.textContent = `${data.completed_by_name || 'Employee'} · ${data.completed_at || ''}`;
+  completion.append(heading, note, byline); article.append(completion);
+}
+
 const errorTaskDetails = document.getElementById('error-task-details');
 errorTaskDetails?.querySelectorAll('[data-owner-instruction-form]').forEach((form) => {
   form.addEventListener('submit', async (event) => {
@@ -1237,13 +1626,24 @@ errorTaskDetails?.querySelectorAll('[data-owner-instruction-form]').forEach((for
     button.disabled = true;
     feedback.hidden = true;
     try {
-      const response = await fetch(form.action, {method:'POST', body:new FormData(form), credentials:'same-origin', headers:{'X-Requested-With':'XMLHttpRequest'}});
-      const result = await response.json();
+      const response = await fetch(form.getAttribute('action'), {method:'POST', body:new URLSearchParams(new FormData(form)).toString(), credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8','X-Requested-With':'XMLHttpRequest','Accept':'application/json'}});
+      const result = await readOwnerInstructionResponse(response);
       if (!response.ok || !result.ok) throw new Error(result.message || 'Unable to send the instruction.');
-      feedback.textContent = 'Instruction sent successfully.';
+      const section = form.closest('[data-owner-instructions]');
+      const history = section?.querySelector('.owner-instruction-history');
+      history?.querySelectorAll('.owner-instruction-item').forEach((item) => {
+        item.classList.remove('is-latest');
+        const label = item.querySelector('.owner-instruction-item-head strong');
+        if (label) label.textContent = 'Owner Instruction';
+      });
+      history?.querySelector('.owner-instruction-empty')?.remove();
+      if (history && result.instruction) history.append(ownerInstructionNode(result.instruction, true));
+      if (result.submission_token) document.querySelectorAll('[data-owner-instruction-form] [name="submission_token"]').forEach((input) => { input.value = result.submission_token; });
+      textarea.value = '';
+      feedback.textContent = result.message || 'Instruction sent successfully.';
       feedback.className = 'owner-instruction-feedback is-success';
       feedback.hidden = false;
-      window.location.assign(`<?= BASE_URL ?>/apps/operations/errors.php?error_id=${encodeURIComponent(result.error_id)}&instruction=1&instruction_sent=1#owner-instructions-${encodeURIComponent(result.error_id)}`);
+      button.disabled = false;
     } catch (error) {
       feedback.textContent = `${error.message || 'Unable to send the instruction.'} Retry.`;
       feedback.className = 'owner-instruction-feedback is-error';
@@ -1251,6 +1651,29 @@ errorTaskDetails?.querySelectorAll('[data-owner-instruction-form]').forEach((for
       button.disabled = false;
     }
   });
+});
+
+errorTaskDetails?.addEventListener('submit', async (event) => {
+  const form = event.target.closest('[data-owner-instruction-complete-form]');
+  if (!form) return;
+  event.preventDefault();
+  const textarea = form.querySelector('[name="completion_note"]');
+  const button = form.querySelector('button[type="submit"]');
+  const feedback = form.querySelector('[data-owner-instruction-feedback]');
+  const note = textarea?.value.trim() || '';
+  if (!note) { textarea?.setCustomValidity('Enter a completion note before marking this instruction complete.'); textarea?.reportValidity(); return; }
+  if (note.length < 10) { textarea?.setCustomValidity('The completion note must be at least 10 characters.'); textarea?.reportValidity(); return; }
+  textarea.setCustomValidity(''); button.disabled = true; feedback.hidden = true;
+  try {
+    const response = await fetch(form.getAttribute('action'), {method:'POST', body:new URLSearchParams(new FormData(form)).toString(), credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8','X-Requested-With':'XMLHttpRequest','Accept':'application/json'}});
+    const result = await readOwnerInstructionResponse(response);
+    if (!response.ok || !result.ok) throw new Error(result.message || 'Unable to complete the instruction.');
+    const article = form.closest('[data-owner-instruction-item]');
+    if (article && result.instruction) appendOwnerInstructionCompletion(article, result.instruction);
+  } catch (error) {
+    feedback.textContent = `${error.message || 'Unable to complete the instruction.'} Retry.`;
+    feedback.className = 'owner-instruction-feedback is-error'; feedback.hidden = false; button.disabled = false;
+  }
 });
 
 function setIncidentRadioValue(name, value) {
@@ -1270,6 +1693,67 @@ function setFinancialImpactChoice(choice,amount='',notes=''){
   const form=document.getElementById('logErrorForm');if(!form)return;setIncidentRadioValue('has_financial_impact',choice===null?'':String(choice));
   const wrap=form.querySelector('.error-financial-impact-amount'),notesWrap=form.querySelector('.error-financial-impact-notes'),input=form.elements.financial_impact_amount;
   const yes=String(choice)==='1';wrap.hidden=!yes;notesWrap.hidden=!yes;input.disabled=!yes;input.required=yes;input.value=yes?String(amount||''):'';form.elements.financial_impact_notes.value=yes?(notes||''):'';
+}
+
+const errorEvidenceState = { files: [], previewUrls: [] };
+function errorEvidenceKey(file) { return `${file.name}\u0000${file.size}\u0000${file.lastModified}`; }
+function resetErrorEvidenceFiles() {
+  errorEvidenceState.previewUrls.forEach((url) => URL.revokeObjectURL(url));
+  errorEvidenceState.previewUrls = [];
+  errorEvidenceState.files = [];
+  const input = document.querySelector('[data-error-file-input]');
+  if (input) input.value = '';
+  renderErrorEvidenceFiles();
+}
+function syncErrorEvidenceInput() {
+  const input = document.querySelector('[data-error-file-input]');
+  if (!input) return;
+  const transfer = new DataTransfer();
+  errorEvidenceState.files.forEach((file) => transfer.items.add(file));
+  input.files = transfer.files;
+}
+function formatEvidenceSize(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1048576).toFixed(2)} MB`;
+}
+function renderErrorEvidenceFiles() {
+  errorEvidenceState.previewUrls.forEach((url) => URL.revokeObjectURL(url));
+  errorEvidenceState.previewUrls = [];
+  const wrapper = document.querySelector('[data-error-selected-files]');
+  const list = document.querySelector('[data-error-selected-list]');
+  const count = document.querySelector('[data-error-selected-count]');
+  if (!wrapper || !list || !count) return;
+  list.replaceChildren();
+  wrapper.hidden = errorEvidenceState.files.length === 0;
+  count.textContent = `${errorEvidenceState.files.length} selected`;
+  errorEvidenceState.files.forEach((file, index) => {
+    const item = document.createElement('li');
+    item.className = 'error-selected-file';
+    if (file.type.startsWith('image/')) {
+      const image = document.createElement('img');
+      const previewUrl = URL.createObjectURL(file);
+      errorEvidenceState.previewUrls.push(previewUrl);
+      image.src = previewUrl; image.alt = ''; item.appendChild(image);
+    } else {
+      const icon = document.createElement('span'); icon.className = 'error-selected-file__icon'; icon.textContent = file.name.split('.').pop()?.toUpperCase() || 'FILE'; item.appendChild(icon);
+    }
+    const details = document.createElement('span');
+    const name = document.createElement('strong'); name.textContent = file.name;
+    const meta = document.createElement('small'); meta.textContent = `${file.type || 'Unknown type'} · ${formatEvidenceSize(file.size)}`;
+    details.append(name, meta); item.appendChild(details);
+    const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = 'Remove'; remove.dataset.removeErrorFile = String(index); remove.setAttribute('aria-label', `Remove ${file.name}`); item.appendChild(remove);
+    list.appendChild(item);
+  });
+}
+function addErrorEvidenceFiles(files) {
+  const existing = new Set(errorEvidenceState.files.map(errorEvidenceKey));
+  Array.from(files || []).forEach((file) => { if (!existing.has(errorEvidenceKey(file))) { errorEvidenceState.files.push(file); existing.add(errorEvidenceKey(file)); } });
+  if (errorEvidenceState.files.length > 10) {
+    errorEvidenceState.files = errorEvidenceState.files.slice(0, 10);
+    window.alert('Only the first 10 evidence files were retained.');
+  }
+  syncErrorEvidenceInput(); renderErrorEvidenceFiles();
 }
 
 function setIncidentCategoryValue(value, otherValue = '') {
@@ -1306,6 +1790,7 @@ function openIncidentForm(mode = 'create', data = {}) {
   if (!panel || !form || !actionInput || !incidentIdInput) return;
 
   form.reset();
+  resetErrorEvidenceFiles();
   document.querySelectorAll('#logErrorForm .field-error').forEach((error) => error.remove());
   document.getElementById('severity-group-error')?.remove();
   document.getElementById('status-group-error')?.remove();
@@ -1523,11 +2008,15 @@ document.addEventListener('click', (event) => {
   if (detailOpen) {
     document.querySelectorAll('.error-detail-panel.open').forEach((panel) => panel.classList.remove('open'));
     const panel = document.querySelector(`[data-error-panel="${detailOpen.dataset.errorOpen}"]`);
-    if (panel) {
-      initIncidentStatusDropdown(panel);
-      panel.classList.add('open');
-      markOwnerInstructionsRead(panel);
+    if (!panel) {
+      const detailUrl = new URL(window.location.href);
+      detailUrl.searchParams.set('error_id', detailOpen.dataset.errorOpen);
+      window.location.assign(detailUrl.toString());
+      return;
     }
+    initIncidentStatusDropdown(panel);
+    panel.classList.add('open');
+    markOwnerInstructionsRead(panel);
     const backdrop = document.querySelector('.error-panel-backdrop');
     if (backdrop) backdrop.hidden = false;
     document.body.classList.add('error-panel-open');
@@ -1678,6 +2167,20 @@ document.querySelectorAll('[data-custom-select]').forEach((select) => {
   });
 });
 
+document.querySelector('[data-error-file-input]')?.addEventListener('change', function() {
+  addErrorEvidenceFiles(this.files);
+});
+const errorUploadZone = document.querySelector('.error-upload-zone');
+errorUploadZone?.addEventListener('dragover', (event) => { event.preventDefault(); errorUploadZone.classList.add('is-dragover'); });
+errorUploadZone?.addEventListener('dragleave', () => errorUploadZone.classList.remove('is-dragover'));
+errorUploadZone?.addEventListener('drop', (event) => { event.preventDefault(); errorUploadZone.classList.remove('is-dragover'); addErrorEvidenceFiles(event.dataTransfer?.files); });
+document.querySelector('[data-error-selected-list]')?.addEventListener('click', (event) => {
+  const remove = event.target.closest('[data-remove-error-file]');
+  if (!remove) return;
+  errorEvidenceState.files.splice(Number(remove.dataset.removeErrorFile), 1);
+  syncErrorEvidenceInput(); renderErrorEvidenceFiles();
+});
+
 document.getElementById('logErrorForm')?.addEventListener('change', function(event) {
   const attribution=event.target.closest('[name="error_attribution"]');
   if(attribution){const [type,employeeId='']=String(attribution.value).split(':');this.elements.attribution_type.value=type;this.elements.attributed_employee_id.value=type==='employee'?employeeId:'';document.getElementById('error-attribution-group-error')?.remove();}
@@ -1689,7 +2192,7 @@ document.getElementById('logErrorForm')?.addEventListener('change', function(eve
   if (input.name === 'status') document.getElementById('status-group-error')?.remove();
 });
 
-document.getElementById('logErrorForm')?.addEventListener('submit', function(event) {
+document.getElementById('logErrorForm')?.addEventListener('submit', async function(event) {
   const severityValue = this.querySelector('[name="severity"]:checked');
   const severityControl = this.querySelector('[name="severity"]');
   const statusValue = this.querySelector('[name="status"]:checked');
@@ -1763,10 +2266,80 @@ document.getElementById('logErrorForm')?.addEventListener('submit', function(eve
   }
 
   const saveButton = this.querySelector('[type="submit"]');
+  if (this.elements.action?.value !== 'create_error') {
+    if (saveButton) {
+      saveButton.disabled = true;
+      saveButton.dataset.originalText = saveButton.textContent;
+      saveButton.textContent = 'Saving...';
+    }
+    return;
+  }
+
+  event.preventDefault();
+  if (this.dataset.saving === '1') return;
+  this.dataset.saving = '1';
   if (saveButton) {
     saveButton.disabled = true;
     saveButton.dataset.originalText = saveButton.textContent;
     saveButton.textContent = 'Saving...';
+  }
+
+  try {
+    const response = await fetch(this.getAttribute('action') || window.location.href, {
+      method: 'POST',
+      body: new FormData(this),
+      credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+    });
+    const result = await response.json().catch(() => null);
+    if (!response.ok || result?.success !== true) {
+      throw new Error(result?.message || 'Error could not be saved. Please try again.');
+    }
+
+    const savedId = String(result.error_id || '');
+    const panel = document.querySelector('[data-error-modal-panel]');
+    const backdrop = document.querySelector('.error-panel-backdrop');
+    panel?.classList.remove('open');
+    if (backdrop) backdrop.hidden = true;
+    document.body.classList.remove('error-panel-open');
+    this.reset();
+    if (result.submission_token) this.elements.submission_token.value = result.submission_token;
+    resetErrorEvidenceFiles();
+    setIncidentCategoryValue('');
+    setErrorAttribution('', '');
+    setFinancialImpactChoice(null, '', '');
+    setIncidentRadioValue('status', 'open');
+    setIncidentRadioValue('repeat_issue', 0);
+
+    const refreshed = await loadErrorFilterView(window.location.href, { push: false });
+    const savedRow = savedId ? document.querySelector(`[data-error-open="${savedId}"]`) : null;
+    if (savedRow) {
+      savedRow.classList.add('error-board-row--just-saved');
+      savedRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      window.setTimeout(() => savedRow.classList.remove('error-board-row--just-saved'), 3600);
+      window.showPortalToast?.({ title: 'Error Log', message: 'Error logged successfully', type: 'success' });
+    } else {
+      const toastResult = window.showPortalToast?.({
+        title: 'Error logged successfully',
+        message: refreshed === false ? 'The error was saved, but the list could not refresh.' : 'The saved error is hidden by the current filters.',
+        type: 'success',
+        duration: 9000,
+        actionsHtml: '<div class="portal-toast-actions"><button type="button" data-error-clear-after-save>Clear filters</button><button type="button" data-error-view-after-save>View saved error</button></div>'
+      });
+      toastResult?.toast?.querySelector('[data-error-clear-after-save]')?.addEventListener('click', () => loadErrorFilterView('errors.php'));
+      toastResult?.toast?.querySelector('[data-error-view-after-save]')?.addEventListener('click', () => {
+        if (result.saved_url) window.location.assign(result.saved_url);
+      });
+    }
+    (result.warnings || []).forEach((warning) => window.showPortalToast?.({ title: 'Owner review needed', message: warning, type: 'warning', duration: 8000 }));
+  } catch (error) {
+    window.showPortalToast?.({ title: 'Error Log', message: error?.message || 'Error could not be saved. Please try again.', type: 'error', duration: 8000 });
+  } finally {
+    this.dataset.saving = '0';
+    if (saveButton) {
+      saveButton.disabled = false;
+      saveButton.textContent = saveButton.dataset.originalText || 'Save Issue';
+    }
   }
 });
 

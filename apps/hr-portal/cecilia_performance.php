@@ -258,7 +258,8 @@ foreach ($waybills as $row) {
     }
 }
 
-$taskAssignedExpr = hp_safe_col('ops_checklist_tasks', 'date_assigned') ? 't.date_assigned' : 't.created_at';
+$taskAssignedExpr = hp_safe_col('ops_checklist_tasks', 'released_at') ? 'COALESCE(t.released_at,t.date_assigned)' : (hp_safe_col('ops_checklist_tasks', 'date_assigned') ? 't.date_assigned' : 't.created_at');
+$taskReleaseWhere = hp_safe_col('ops_checklist_tasks', 'scheduled_at') && hp_safe_col('ops_checklist_tasks', 'released_at') ? 'AND (t.scheduled_at IS NULL OR t.released_at IS NOT NULL)' : '';
 $taskCompletedExpr = hp_safe_col('ops_checklist_tasks', 'date_completed') ? 't.date_completed' : 't.completed_at';
 $taskCompletedBySelect = hp_safe_col('ops_checklist_tasks', 'completed_by') ? ', c.full_name AS completed_by_name' : ", NULL AS completed_by_name";
 $taskCompletedByJoin = hp_safe_col('ops_checklist_tasks', 'completed_by') ? 'LEFT JOIN ops_employees c ON c.id = t.completed_by' : '';
@@ -268,6 +269,8 @@ $tasks = $ready && ops_table_exists('ops_checklist_tasks') ? ops_rows(
      LEFT JOIN ops_employees e ON e.id = t.assigned_employee_id
      {$taskCompletedByJoin}
      WHERE t.assigned_employee_id = ?
+       AND t.employee_visible = 1
+       {$taskReleaseWhere}
        AND COALESCE({$taskAssignedExpr}, t.created_at, t.deadline) >= ?
        AND COALESCE({$taskAssignedExpr}, t.created_at, t.deadline) < ?
      ORDER BY COALESCE(t.deadline, t.created_at) DESC, t.id DESC",

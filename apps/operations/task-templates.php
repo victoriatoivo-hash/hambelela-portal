@@ -24,6 +24,20 @@ function checklist_template_bootstrap_schema(): void
         id INT AUTO_INCREMENT PRIMARY KEY, template_id INT NOT NULL, item_text VARCHAR(190) NOT NULL,
         sort_order INT UNSIGNED NOT NULL DEFAULT 0, INDEX idx_task_template_item (template_id, sort_order, id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    if (!ops_column_exists('ops_checklist_task_templates', 'recurrence_time')) {
+        checklist_template_try_sql("ALTER TABLE ops_checklist_task_templates ADD COLUMN recurrence_time TIME NULL AFTER recurring_rule");
+    }
+    if (!ops_column_exists('ops_checklist_task_templates', 'recurrence_start_date')) {
+        checklist_template_try_sql("ALTER TABLE ops_checklist_task_templates ADD COLUMN recurrence_start_date DATE NULL AFTER recurrence_time");
+    }
+    if (!ops_column_exists('ops_checklist_task_templates', 'recurrence_end_date')) {
+        checklist_template_try_sql("ALTER TABLE ops_checklist_task_templates ADD COLUMN recurrence_end_date DATE NULL AFTER recurrence_start_date");
+    }
+    if (!ops_column_exists('ops_checklist_task_templates', 'assignment_type')) checklist_template_try_sql("ALTER TABLE ops_checklist_task_templates ADD COLUMN assignment_type VARCHAR(20) NOT NULL DEFAULT 'specific' AFTER assigned_employee_id");
+    if (!ops_column_exists('ops_checklist_task_templates', 'floating_eligible_role')) checklist_template_try_sql("ALTER TABLE ops_checklist_task_templates ADD COLUMN floating_eligible_role VARCHAR(40) NULL AFTER assignment_type");
+    if (!ops_column_exists('ops_checklist_task_templates', 'recurrence_release_minutes')) checklist_template_try_sql("ALTER TABLE ops_checklist_task_templates ADD COLUMN recurrence_release_minutes INT NOT NULL DEFAULT 0 AFTER recurrence_end_date");
+    if (!ops_column_exists('ops_checklist_task_templates', 'recurrence_due_time')) checklist_template_try_sql("ALTER TABLE ops_checklist_task_templates ADD COLUMN recurrence_due_time TIME NULL AFTER recurrence_release_minutes");
+    if (!ops_column_exists('ops_checklist_task_templates', 'recurrence_due_days')) checklist_template_try_sql("ALTER TABLE ops_checklist_task_templates ADD COLUMN recurrence_due_days INT NOT NULL DEFAULT 0 AFTER recurrence_due_time");
     db()->exec("CREATE TABLE IF NOT EXISTS ops_checklist_task_template_attachments (
         id INT AUTO_INCREMENT PRIMARY KEY, template_id INT NOT NULL, original_filename VARCHAR(255) NOT NULL,
         stored_filename VARCHAR(255) NOT NULL, mime_type VARCHAR(120) NOT NULL, file_size INT UNSIGNED NOT NULL,
@@ -99,6 +113,14 @@ function checklist_template_row(int $templateId): ?array
         'priority' => (string) $row['priority'], 'urgent_alert_enabled' => !empty($row['urgent_alert_enabled']),
         'urgent_recipients' => json_decode((string) ($row['urgent_recipients_json'] ?? '[]'), true) ?: [],
         'recurring_rule' => (string) ($row['recurring_rule'] ?? ''),
+        'recurrence_time' => substr((string) ($row['recurrence_time'] ?? ''), 0, 5),
+        'recurrence_start_date' => (string) ($row['recurrence_start_date'] ?? ''),
+        'recurrence_end_date' => (string) ($row['recurrence_end_date'] ?? ''),
+        'assignment_type' => (string)($row['assignment_type'] ?? 'specific'),
+        'floating_eligible_role' => (string)($row['floating_eligible_role'] ?? ''),
+        'recurrence_release_minutes' => (int)($row['recurrence_release_minutes'] ?? 0),
+        'recurrence_due_time' => substr((string)($row['recurrence_due_time'] ?? ''),0,5),
+        'recurrence_due_days' => (int)($row['recurrence_due_days'] ?? 0),
         'checklist_items' => array_map(static fn(array $item): string => (string) $item['item_text'], $items),
         'attachments' => array_map('checklist_template_attachment_payload', $attachments),
         'creator_name' => (string) ($row['creator_name'] ?? 'Unknown'),
@@ -137,28 +159,48 @@ function checklist_template_save(int $actorId, ?int $templateId = null): int
 {
     $name = trim((string) ($_POST['template_name'] ?? ''));
     $taskName = trim((string) ($_POST['task_name'] ?? ''));
-    $instructions = trim((string) ($_POST['instructions'] ?? ''));
+    $instructions = checklist_sanitize_instructions((string) ($_POST['instructions'] ?? ''));
     if ($name === '' || checklist_template_length($name) > 120) throw new RuntimeException('Enter a unique template name of 120 characters or fewer.');
     if ($taskName === '' || checklist_template_length($taskName) > 190) throw new RuntimeException('Enter a valid task name.');
-    if ($instructions === '' || checklist_template_length($instructions) > 1500) throw new RuntimeException('Enter task instructions of 1500 characters or fewer.');
+    if (checklist_instruction_text_length($instructions) === 0) throw new RuntimeException('Enter task instructions.');
     $duplicate = ops_rows('SELECT id FROM ops_checklist_task_templates WHERE LOWER(template_name) = LOWER(?) AND id <> ? LIMIT 1', [$name, $templateId ?: 0]);
     if ($duplicate) throw new DomainException('A template with this name already exists.');
     $priority = (string) ($_POST['priority'] ?? 'normal');
     if (!in_array($priority, ['normal', 'important', 'urgent'], true)) throw new RuntimeException('Choose a valid priority.');
-    $rule = trim((string) ($_POST['recurring_rule'] ?? ''));
+    $taskMode = trim((string)($_POST['task_mode'] ?? 'one_off'));
+    if (!in_array($taskMode,['one_off','scheduled','recurring'],true)) $taskMode='one_off';
+    $rule = $taskMode === 'recurring' ? trim((string) ($_POST['recurring_rule'] ?? '')) : '';
     $rules = ['', 'daily_business_day', 'twice_weekly', 'weekly_1', 'weekly_2', 'weekly_3', 'weekly_4', 'weekly_5', 'weekly_saturday'];
-    if (!in_array($rule, $rules, true)) throw new RuntimeException('Choose a valid recurrence.');
-    $assignedId = !empty($_POST['save_assignee']) ? checklist_template_active_employee((int) ($_POST['assigned_employee_id'] ?? 0)) : null;
+    if (!in_array($rule, $rules, true) && !preg_match('/^(?:weekly_days:[1-7](?:,[1-7])*|monthly_day:(?:[1-9]|[12]\\d|3[01]))$/', $rule)) {
+        throw new RuntimeException('Choose a valid recurrence.');
+    }
+    $recurrenceTime = $rule !== '' ? trim((string) ($_POST['recurrence_time'] ?? '')) : '';
+    if ($rule !== '' && !preg_match('/^(?:[01]\\d|2[0-3]):[0-5]\\d$/', $recurrenceTime)) throw new RuntimeException('Choose a valid occurrence time.');
+    // A template preserves the recurrence rule. Its dates are optional so it remains reusable.
+    $recurrenceStartDate = $rule !== '' ? trim((string) ($_POST['recurrence_start_date'] ?? '')) : '';
+    $recurrenceEndDate = $rule !== '' ? trim((string) ($_POST['recurrence_end_date'] ?? '')) : '';
+    foreach ([$recurrenceStartDate, $recurrenceEndDate] as $dateValue) {
+        if ($dateValue !== '' && !preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $dateValue)) throw new RuntimeException('Choose a valid recurrence date.');
+    }
+    if ($recurrenceEndDate !== '' && $recurrenceStartDate !== '' && $recurrenceEndDate < $recurrenceStartDate) throw new RuntimeException('The recurrence end date must be on or after its start date.');
+    $templateAssignedRaw=$_POST['assigned_employee_id']??0;if(is_array($templateAssignedRaw))$templateAssignedRaw=reset($templateAssignedRaw)?:0;
+    $assignedId = !empty($_POST['save_assignee']) ? checklist_template_active_employee((int)$templateAssignedRaw) : null;
+    $assignmentType = trim((string)($_POST['assignment_type'] ?? 'specific')) === 'floating' ? 'floating' : 'specific';
+    $floatingRole = $assignmentType === 'floating' ? trim((string)($_POST['floating_eligible_role'] ?? '')) : '';
+    $releaseMinutes=0;
+    if($rule!==''&&trim((string)($_POST['recurrence_release_mode']??''))==='earlier'){$value=max(0,(int)($_POST['recurrence_release_value']??0));$units=['minutes'=>1,'hours'=>60,'days'=>1440];$releaseMinutes=$value*($units[trim((string)($_POST['recurrence_release_unit']??''))]??0);}
+    $recurrenceDueTime=$rule!==''?trim((string)($_POST['recurrence_due_time']??'')):'';
+    $recurrenceDueDays=$rule!==''?max(0,min(31,(int)($_POST['recurrence_due_days']??0))):0;
     $recipients = array_values(array_intersect((array) ($_POST['urgent_alert_recipients'] ?? []), ['assigned', 'role:front_desk', 'role:packers', 'role:all_relevant']));
     $items = checklist_template_items_from_post();
     $db = db(); $db->beginTransaction();
     try {
         if ($templateId) {
             if (!checklist_template_row($templateId)) throw new RuntimeException('Template not found.');
-            $db->prepare('UPDATE ops_checklist_task_templates SET template_name=?, task_mode=?, task_name=?, instructions=?, assigned_employee_id=?, priority=?, urgent_alert_enabled=?, urgent_recipients_json=?, recurring_rule=? WHERE id=?')->execute([$name, $rule ? 'recurring' : 'manual', $taskName, $instructions, $assignedId, $priority, !empty($_POST['send_urgent_alert']) ? 1 : 0, json_encode($recipients), $rule ?: null, $templateId]);
+            $db->prepare('UPDATE ops_checklist_task_templates SET template_name=?, task_mode=?, task_name=?, instructions=?, assigned_employee_id=?, assignment_type=?, floating_eligible_role=?, priority=?, urgent_alert_enabled=?, urgent_recipients_json=?, recurring_rule=?, recurrence_time=?, recurrence_start_date=?, recurrence_end_date=?, recurrence_release_minutes=?, recurrence_due_time=?, recurrence_due_days=? WHERE id=?')->execute([$name, $taskMode, $taskName, $instructions, $assignedId, $assignmentType, $floatingRole?:null, $priority, !empty($_POST['send_urgent_alert']) ? 1 : 0, json_encode($recipients), $rule ?: null, $recurrenceTime ?: null, $recurrenceStartDate ?: null, $recurrenceEndDate ?: null,$releaseMinutes,$recurrenceDueTime?:null,$recurrenceDueDays,$templateId]);
             $db->prepare('DELETE FROM ops_checklist_task_template_items WHERE template_id=?')->execute([$templateId]);
         } else {
-            $db->prepare('INSERT INTO ops_checklist_task_templates (template_name, task_mode, task_name, instructions, assigned_employee_id, priority, urgent_alert_enabled, urgent_recipients_json, recurring_rule, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')->execute([$name, $rule ? 'recurring' : 'manual', $taskName, $instructions, $assignedId, $priority, !empty($_POST['send_urgent_alert']) ? 1 : 0, json_encode($recipients), $rule ?: null, $actorId]);
+            $db->prepare('INSERT INTO ops_checklist_task_templates (template_name, task_mode, task_name, instructions, assigned_employee_id, assignment_type, floating_eligible_role, priority, urgent_alert_enabled, urgent_recipients_json, recurring_rule, recurrence_time, recurrence_start_date, recurrence_end_date, recurrence_release_minutes, recurrence_due_time, recurrence_due_days, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')->execute([$name, $taskMode, $taskName, $instructions, $assignedId, $assignmentType,$floatingRole?:null,$priority, !empty($_POST['send_urgent_alert']) ? 1 : 0, json_encode($recipients), $rule ?: null, $recurrenceTime ?: null, $recurrenceStartDate ?: null, $recurrenceEndDate ?: null,$releaseMinutes,$recurrenceDueTime?:null,$recurrenceDueDays,$actorId]);
             $templateId = (int) $db->lastInsertId();
         }
         $itemStmt = $db->prepare('INSERT INTO ops_checklist_task_template_items (template_id, item_text, sort_order) VALUES (?, ?, ?)');
@@ -241,13 +283,19 @@ function checklist_handle_template_action(string $action, bool $canManage, strin
         }
         if ($action === 'task_template_from_task') {
             $taskId = (int) ($_POST['task_id'] ?? 0);
-            $rows = ops_rows('SELECT * FROM ops_checklist_tasks WHERE id=? AND deleted_at IS NULL LIMIT 1', [$taskId]);
+            $rows = ops_rows('SELECT t.*, rt.due_time AS template_due_time, rt.start_date AS template_start_date, rt.end_date AS template_end_date
+                FROM ops_checklist_tasks t
+                LEFT JOIN ops_checklist_recurring_templates rt ON rt.id=t.recurring_template_id
+                WHERE t.id=? AND t.deleted_at IS NULL LIMIT 1', [$taskId]);
             if (!$rows) throw new RuntimeException('Task not found.');
             $task = $rows[0];
             $_POST = array_merge($_POST, [
                 'task_name' => (string) $task['task_name'], 'instructions' => (string) ($task['instructions'] ?: $task['notes']),
                 'assigned_employee_id' => (int) ($task['assigned_employee_id'] ?? 0),
                 'priority' => (string) ($task['priority'] ?? 'normal'), 'recurring_rule' => (string) ($task['recurring_rule'] ?? ''),
+                'recurrence_time' => substr((string) (($task['template_due_time'] ?? '') ?: (!empty($task['deadline']) ? date('H:i', strtotime((string) $task['deadline'])) : '08:00')), 0, 5),
+                'recurrence_start_date' => (string) ($task['template_start_date'] ?? ''),
+                'recurrence_end_date' => (string) ($task['template_end_date'] ?? ''),
                 'send_urgent_alert' => !empty($task['urgent_alert_enabled']) ? '1' : '',
                 'urgent_alert_recipients' => ['assigned'],
                 'checklist_items_text' => implode("\n", checklist_json_items((string) ($task['checklist_items'] ?? ''))),

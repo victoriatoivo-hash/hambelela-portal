@@ -14,6 +14,8 @@ assert.match(reminders, /audible<3/);
 assert.match(reminders, /t\.assigned_employee_id<>nr\.employee_id/);
 assert.match(notifications, /notifications_claim_task_delivery/);
 assert.match(notifications, /nr\.delivered_at IS NULL/);
+assert.match(notifications, /t\.status IS NOT NULL AND t\.status NOT IN \('complete','completed','done','archived','deleted','trashed','cancelled'\)/, 'completed and cancelled task notifications are excluded from the employee feed');
+assert.equal((notifications.match(/t\.status IS NOT NULL AND t\.status NOT IN/g) || []).length, 2, 'both notification feed queries apply the completed-occurrence guard');
 assert.match(portal, /notification_claim/);
 assert.match(portal, /task-due-today\.mp3/);
 assert.match(portal, /data-toast-snooze/);

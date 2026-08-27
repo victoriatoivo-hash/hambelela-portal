@@ -75,8 +75,12 @@
   let liveCursor = '';
   let liveFailures = 0;
   let livePollInFlight = false;
-  let lastRecoverySyncAt = 0;
-  const sourceRecoveryInterval = 45 * 1000;
+  let sourceSyncFailures = 0;
+  let nextSourceSyncAt = 0;
+  let livePollTimer = null;
+  const boardPollInterval = 10 * 1000;
+  const activeSourceSyncInterval = 15 * 1000;
+  const hiddenSourceSyncInterval = 60 * 1000;
   let liveRenderPending = false;
   const livePendingGroupKeys = new Set();
   let refreshSequence = 0;
@@ -90,6 +94,7 @@
   let ordersToolsBoardPositions = null;
   let ordersToolsWindowPosition = null;
   let hasRenderedOnce = false;
+  let hasInitialOrdersLoadCompleted = false;
   let previousOrderIds = new Set();
   let customColumns = [];
   let rowDragState = null;
@@ -1821,6 +1826,24 @@
     `).join('');
   }
 
+  function initialLoadingMarkup() {
+    return '<div class="orders-loading-state" role="status" aria-live="polite"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v6h-6"/></svg><strong>Loading orders...</strong><span>Getting the latest Orders Board data.</span></div>';
+  }
+
+  function showInitialLoadingState() {
+    if (body) body.innerHTML = initialLoadingMarkup();
+  }
+
+  function hasClientFilters() {
+    return [boardState.search, boardState.person, boardState.mode, boardState.payment, boardState.status, boardState.paid, boardState.minAmount, boardState.maxAmount, boardState.createdAfter, boardState.createdBefore]
+      .some((value) => String(value || '') !== '');
+  }
+
+  function renderInitialLoadError(error) {
+    if (!body) return;
+    body.innerHTML = `<div class="board-empty-state orders-load-error"><strong>Could not load orders.</strong><p>${esc(error?.message || 'Please try again.')}</p><div class="board-empty-actions"><button type="button" data-orders-retry>Retry</button></div></div>`;
+  }
+
   function animateBoardRows() {
     body.querySelectorAll('[data-order-id], [data-packing-id]').forEach((row) => {
       row.style.opacity = '';
@@ -2535,22 +2558,6 @@
               <div class="orders-grid-cell orders-grid-cell--add orders-grid-header-cell monday-cell column-header add-column-cell"><button type="button" data-add-column>+</button></div>
             </div>
             <div class="orders-grid-body">${rows}</div>
-            <div class="orders-add-row monday-grid add-task-row" data-group-row="${esc(key)}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
-              <div class="orders-grid-cell orders-grid-cell--select monday-cell col-checkbox"></div>
-              <div class="orders-grid-cell orders-grid-cell--task monday-cell col-task"><button type="button" data-add-task="${esc(key)}">+ Add task</button></div>
-              <div class="orders-grid-cell orders-grid-cell--notes monday-cell col-task-icon"></div>
-              <div class="orders-grid-cell orders-grid-cell--date monday-cell col-date"></div>
-              <div class="orders-grid-cell orders-grid-cell--mobile monday-cell col-mobile"></div>
-              <div class="orders-grid-cell orders-grid-cell--mode monday-cell col-mode"></div>
-              <div class="orders-grid-cell orders-grid-cell--amount monday-cell col-amount"></div>
-              <div class="orders-grid-cell orders-grid-cell--payment monday-cell col-payment"></div>
-              <div class="orders-grid-cell orders-grid-cell--paid monday-cell col-paid"></div>
-              <div class="orders-grid-cell orders-grid-cell--status monday-cell col-status"></div>
-              <div class="orders-grid-cell orders-grid-cell--packer monday-cell col-packedby"></div>
-              <div class="orders-grid-cell orders-grid-cell--text monday-cell col-text"></div>
-              ${customColumns.map(() => '<div class="orders-grid-cell orders-grid-cell--custom monday-cell col-custom"></div>').join('')}
-              <div class="orders-grid-cell orders-grid-cell--add monday-cell add-column-cell"></div>
-            </div>
             ${footerRow}
               </div>
             </div>
@@ -2574,9 +2581,13 @@
     updateFilterBadge();
     renderMoreFilterChips();
     if (!visible.length) {
-      body.innerHTML = '<div class="board-empty-state"><p>Try adjusting your filters or date range.</p><div class="board-empty-actions"><button type="button" data-clear-board-filters>Clear Filters</button></div></div>';
+      body.innerHTML = hasClientFilters()
+        ? '<div class="board-empty-state orders-filter-empty"><strong>No orders match these filters.</strong><p>Try adjusting or clearing your filters.</p><div class="board-empty-actions"><button type="button" data-clear-board-filters>Clear filters</button></div></div>'
+        : '<div class="board-empty-state orders-data-empty"><strong>No orders found.</strong><p>There are currently no orders in this view.</p></div>';
       renderMobileCards([]);
       updateSelectionBar();
+      previousOrderIds = new Set(ordersCache.map((order) => String(order.id)));
+      hasRenderedOnce = true;
       return;
     }
 
@@ -4194,12 +4205,13 @@
   async function refresh(trigger = null, options = {}) {
     if (refreshInFlight) return refreshInFlight;
     const requestSequence = ++refreshSequence;
+    const background = options.background === true;
     const run = async () => {
     setButtonBusy(trigger, true);
+    if (!hasInitialOrdersLoadCompleted) showInitialLoadingState();
+    if (background && hasInitialOrdersLoadCompleted) page.classList.add('is-background-updating');
     try {
-      if (!hasRenderedOnce) showSkeletonRows();
       const params = boardDataParams();
-      const background = options.background === true;
       if (background && hasRenderedOnce && liveCursor) params.set('since', liveCursor);
       const response = await fetch(`${config.dataUrl}?${params.toString()}`, {
         credentials: 'same-origin',
@@ -4291,6 +4303,7 @@
       } else if (responseMode === 'snapshot') {
         const snapshotOrders = Array.isArray(payload.orders) ? payload.orders : data.orders;
         if (!Array.isArray(snapshotOrders)) throw new Error('Board snapshot is missing its orders array.');
+        hasInitialOrdersLoadCompleted = true;
         renderOrders(snapshotOrders);
       } else {
         throw new Error(`Board returned an unsupported response mode: ${responseMode || 'unknown'}.`);
@@ -4306,8 +4319,14 @@
       return data;
     } catch (error) {
       liveFailures += 1;
+      if (!hasInitialOrdersLoadCompleted) {
+        renderInitialLoadError(error);
+      } else if (syncState) {
+        syncState.textContent = 'Orders could not refresh. Existing data remains displayed.';
+      }
       throw error;
     } finally {
+      page.classList.remove('is-background-updating');
       setButtonBusy(trigger, false);
     }
     };
@@ -4345,15 +4364,20 @@
         const result = data.result || {};
         const warnings = Array.isArray(result.warnings) && result.warnings.length ? ` - warning: ${result.warnings[0]}` : '';
         const skipped = result.skipped ? ' (recent sync reused)' : '';
-        lastSyncMessage = `Website: ${result.website_orders_seen ?? 0} seen, ${result.imported ?? 0} new, ${result.updated ?? 0} updated${skipped}${warnings}`;
-        lastRecoverySyncAt = Date.now();
+        sourceSyncFailures = 0;
+        nextSourceSyncAt = Date.now() + sourceSyncDelay();
+        lastSyncMessage = result.skip_reason === 'sync_in_progress'
+          ? 'Syncing · an existing source import is still running'
+          : `Updated just now · Website: ${result.website_orders_seen ?? 0} seen, ${result.imported ?? 0} new, ${result.updated ?? 0} updated${skipped}${warnings}`;
         if (syncState) {
           syncState.textContent = lastSyncMessage;
         }
         return data;
       } catch (error) {
-        lastSyncMessage = `Sync issue: ${error.message}`;
-        if (syncState) syncState.textContent = `Sync issue: ${error.message}`;
+        sourceSyncFailures += 1;
+        nextSourceSyncAt = Date.now() + sourceSyncDelay();
+        lastSyncMessage = `Source temporarily delayed · ${error.message}`;
+        if (syncState) syncState.textContent = lastSyncMessage;
         throw error;
       } finally {
         if (trigger) {
@@ -4389,7 +4413,6 @@
             await syncWebsite(!manual, null, manual);
           } catch (error) {
             sourceError = error;
-            if (manual) throw error;
           }
         }
         await refresh(null, { background, preservePosition:true });
@@ -4663,9 +4686,9 @@
     const colType = event.target.closest('[data-col-type]');
     const colBack = event.target.closest('[data-col-back]');
     const colCreate = event.target.closest('[data-col-create]');
-    const addTask = event.target.closest('[data-add-task]');
     const dateAll = event.target.closest('[data-date-all]');
     const clearFilters = event.target.closest('[data-clear-board-filters]');
+    const retryOrders = event.target.closest('[data-orders-retry]');
     const toolbar = event.target.closest('[data-toolbar]');
     const toolbarAction = event.target.closest('[data-toolbar-action]');
     const editLabels = event.target.closest('[data-edit-labels]');
@@ -4681,6 +4704,11 @@
     const filterOption = event.target.closest('[data-orders-filter-option]');
 
     try {
+      if (retryOrders) {
+        event.preventDefault();
+        await refresh(retryOrders).catch(showError);
+        return;
+      }
       if (event.target === moreBackdrop || event.target.closest('[data-orders-more-close], [data-orders-more-cancel]')) {
         event.preventDefault();
         setMorePanelOpen(false);
@@ -5243,7 +5271,6 @@
         }
       }
 
-      if (addTask) window.location.href = `orders.php?date=${encodeURIComponent(addTask.dataset.addTask)}`;
     } catch (error) {
       showError(error);
     }
@@ -5511,17 +5538,47 @@
     if (livePollInFlight) return;
     livePollInFlight = true;
     try {
-      const shouldSyncSource = (
-        document.visibilityState !== 'hidden'
-        && Date.now() - lastRecoverySyncAt >= sourceRecoveryInterval
-      );
-      if (shouldSyncSource) lastRecoverySyncAt = Date.now();
+      const shouldSyncSource = navigator.onLine && Date.now() >= nextSourceSyncAt;
+      if (shouldSyncSource) nextSourceSyncAt = Date.now() + sourceSyncDelay();
+      if (!navigator.onLine && syncState) syncState.textContent = 'Offline';
       await refreshOrders({ source:'background', syncSource:shouldSyncSource, background:true });
     } catch (error) {
-      showError(error);
+      if (syncState && sourceSyncFailures > 0) syncState.textContent = lastSyncMessage;
+      else showError(error);
     } finally {
       livePollInFlight = false;
     }
+  }
+
+  function sourceSyncDelay() {
+    if (document.visibilityState === 'hidden') return hiddenSourceSyncInterval;
+    if (sourceSyncFailures <= 0) return activeSourceSyncInterval;
+    if (sourceSyncFailures === 1) return 30 * 1000;
+    if (sourceSyncFailures === 2) return 45 * 1000;
+    return 60 * 1000;
+  }
+
+  function nextLivePollDelay() {
+    if (!navigator.onLine) return document.visibilityState === 'hidden' ? hiddenSourceSyncInterval : boardPollInterval;
+    if (document.visibilityState === 'hidden') {
+      return Math.max(1000, Math.min(hiddenSourceSyncInterval, nextSourceSyncAt - Date.now()));
+    }
+    return Math.max(1000, Math.min(boardPollInterval, nextSourceSyncAt - Date.now()));
+  }
+
+  function scheduleLivePoll(delay = null) {
+    if (livePollTimer) window.clearTimeout(livePollTimer);
+    livePollTimer = window.setTimeout(async () => {
+      await runLivePoll();
+      scheduleLivePoll();
+    }, delay === null ? nextLivePollDelay() : delay);
+  }
+
+  function refreshLiveSchedule() {
+    nextSourceSyncAt = document.visibilityState === 'visible'
+      ? 0
+      : Date.now() + hiddenSourceSyncInterval;
+    scheduleLivePoll(0);
   }
 
   loadCustomLabels()
@@ -5533,22 +5590,28 @@
     .finally(() => {
       refresh()
         .catch((error) => {
-          if (!hasRenderedOnce) {
-            body.innerHTML = `<div class="board-empty-state"><p>${esc(error.message)}</p></div>`;
-          }
+          if (!hasInitialOrdersLoadCompleted) renderInitialLoadError(error);
         })
         .finally(async () => {
           if (document.visibilityState !== 'hidden') {
-            lastRecoverySyncAt = Date.now();
             try {
               await refreshOrders({ source:'background', syncSource:true, background:true });
             } catch (error) {
               if (syncState) syncState.textContent = `Sync issue: ${error.message}`;
             }
           }
+          if (document.visibilityState === 'hidden' && nextSourceSyncAt === 0) {
+            nextSourceSyncAt = Date.now() + hiddenSourceSyncInterval;
+          }
+          scheduleLivePoll();
         });
     });
-  window.addEventListener('portal:live-tick', runLivePoll);
+  document.addEventListener('visibilitychange', refreshLiveSchedule);
+  window.addEventListener('online', refreshLiveSchedule);
+  window.addEventListener('offline', () => {
+    if (syncState) syncState.textContent = 'Offline';
+    scheduleLivePoll();
+  });
   window.addEventListener('resize', () => { positionPersonPopup(); positionOrdersFilterPopup(); });
   window.addEventListener('scroll', () => { positionPersonPopup(); positionOrdersFilterPopup(); }, true);
 })();

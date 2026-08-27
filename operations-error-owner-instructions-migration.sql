@@ -5,6 +5,10 @@ CREATE TABLE IF NOT EXISTS ops_error_instructions (
     error_id INT NOT NULL,
     instruction_text TEXT NOT NULL,
     created_by_user_id INT NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    completed_by_user_id INT NULL,
+    completion_note TEXT NULL,
+    completed_at DATETIME NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NULL,
     INDEX idx_error_instruction_history (error_id, created_at, id)

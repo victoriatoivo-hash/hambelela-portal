@@ -54,7 +54,7 @@ function packing_quantity_plan_stats(string $quantityPlan): array
         'matched_text' => '',
     ];
     preg_match_all(
-        '/(\d+(?:\.\d+)?)\s*(kg|kgs|g|gram|grams|ml|l|lt|liter|litre|liters|litres|pcs?|pieces?|units?)\s*(?:[x*]\s*)?\(?\s*(\d+)?\s*\)?/i',
+        '/(\d+(?:\.\d+)?)\s*(kg|kgs|g|gram|grams|ml|l|lt|liter|litre|liters|litres|pcs?|pieces?|units?)\s*(?:[x*]\s*(\d+)|\(\s*(\d+)\s*\))/i',
         $quantityPlan,
         $matches,
         PREG_SET_ORDER
@@ -65,7 +65,7 @@ function packing_quantity_plan_stats(string $quantityPlan): array
             continue;
         }
         $amount = (float) ($match[1] ?? 0);
-        $count = max(1, (int) ($match[3] ?? 1));
+        $count = max(1, (int) (($match[3] ?? '') !== '' ? $match[3] : ($match[4] ?? 0)));
         $stats['totals'][$meta['dimension']] += $amount * (float) $meta['factor'] * $count;
         $stats['package_count'] += $count;
         $stats['matched_text'] .= ' ' . (string) ($match[0] ?? '');
@@ -185,6 +185,40 @@ function packing_quantity_warning(string $receivedWeight, string $quantityPlan):
         return 'Quantity-to-pack exceeds received weight. Please review.';
     }
     return '';
+}
+
+function packing_invoice_allocation_validation(array $row): array
+{
+    $unitText = trim((string) ($row['unit'] ?? ''));
+    $unit = packing_unit_meta($unitText);
+    if (!$unit) {
+        return ['valid' => false, 'message' => 'Unit required.'];
+    }
+    $receivedText = (string) ($row['received_weight'] ?? '');
+    preg_match('/\d+(?:\.\d+)?/', $receivedText, $amountMatch);
+    $receivedAmount = isset($amountMatch[0]) ? (float) $amountMatch[0] : 0.0;
+    if ($receivedAmount <= 0) {
+        return ['valid' => false, 'message' => 'Received quantity must be greater than zero.'];
+    }
+    $plan = packing_quantity_plan_stats((string) ($row['quantity_planned'] ?? ''));
+    if ((int) ($plan['size_count'] ?? 0) <= 0) {
+        $planText = trim((string) ($row['quantity_planned'] ?? ''));
+        return ['valid' => false, 'message' => $planText === '' ? 'Quantity to pack is required.' : "Could not understand: “{$planText}”. Include a pack-size unit and quantity count, for example 100g(20) or 100g x20."];
+    }
+    $dimension = (string) $unit['dimension'];
+    foreach ((array) $plan['totals'] as $planDimension => $value) {
+        if ($planDimension !== $dimension && (float) $value > 0.0) {
+            return ['valid' => false, 'message' => "Unit mismatch. {$dimension}-based received quantity cannot be validated against {$planDimension}-based pack sizes."];
+        }
+    }
+    $receivedBase = $receivedAmount * (float) $unit['factor'];
+    $packedBase = (float) ($plan['totals'][$dimension] ?? 0.0);
+    $bulkBase = max(0.0, (float) ($row['bulk_remainder'] ?? 0.0)) * (float) $unit['factor'];
+    $difference = $receivedBase - $packedBase - $bulkBase;
+    if (abs($difference) > 0.0001) {
+        return ['valid' => false, 'message' => $difference > 0 ? 'Under allocated quantity must be accounted for.' : 'Quantity to pack exceeds the received quantity.'];
+    }
+    return ['valid' => true, 'message' => 'Fully allocated.'];
 }
 
 function packing_ensure_quantity_text_column(): void
@@ -2226,6 +2260,10 @@ try {
             $validationAssignedId = (int) ($row['assigned_employee_id'] ?? 0);
             if ($validationAssignmentSource === 'manual' && ($validationAssignedId <= 0 || !ops_employee_can_receive_packing($validationAssignedId, false))) {
                 $failedRows[] = ['index' => $rowIndex, 'line_number' => $rowIndex, 'item' => $validationName, 'reason' => 'Choose an active employee eligible for manual Packing assignment.'];
+            }
+            $allocationValidation = packing_invoice_allocation_validation($row);
+            if (!$allocationValidation['valid']) {
+                $failedRows[] = ['index' => $rowIndex, 'line_number' => $rowIndex, 'item' => $validationName, 'reason' => $allocationValidation['message']];
             }
         }
         if ($failedRows) {
