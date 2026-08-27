@@ -100,6 +100,16 @@ function loanAgreementEnsureSchema(PDO $db): void {
       KEY loan_agreement_event (agreement_id, created_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
+    // Loan proceeds are cash advanced to an employee, not taxable earnings.
+    // Store them separately from the later payroll repayment deduction.
+    $payslipTable = $db->query("SHOW TABLES LIKE 'payslips'")->fetchColumn();
+    if ($payslipTable) {
+        $column = $db->query("SHOW COLUMNS FROM payslips LIKE 'loan_disbursement'")->fetch();
+        if (!$column) {
+            $db->exec("ALTER TABLE payslips ADD COLUMN loan_disbursement DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER loan_deduction");
+        }
+    }
+
     // Preserve payroll continuity for loans created before the agreement workflow existed.
     // These are clearly labelled legacy records; they are not presented as digitally signed.
     $db->exec("INSERT INTO loan_agreements (loan_id,version_no,status,agreement_date,first_deduction_date,deduction_day,instalment_amount,number_of_instalments,final_instalment_amount,purpose,repayment_method,created_by)
@@ -108,6 +118,71 @@ function loanAgreementEnsureSchema(PDO $db): void {
              CASE WHEN l.repayment_amount>0 THEN l.amount-(l.repayment_amount*GREATEST(0,CEIL(l.amount/l.repayment_amount)-1)) ELSE l.amount END,
              l.notes,l.repayment_method,l.created_by
       FROM loans l LEFT JOIN loan_agreements a ON a.loan_id=l.id WHERE a.id IS NULL");
+}
+
+function loanAgreementPayrollAmounts(PDO $db, int $employeeId, int $month, int $year): array {
+    $periodStart = sprintf('%04d-%02d-01', $year, $month);
+    $periodEnd = date('Y-m-t', strtotime($periodStart));
+
+    // Only a digitally completed agreement can create a new payout. Legacy
+    // agreements must never be paid out again retroactively.
+    $disbursement = $db->prepare("SELECT COALESCE(SUM(l.amount),0)
+      FROM loans l
+      WHERE l.employee_id=? AND l.status='active' AND l.loan_date BETWEEN ? AND ?
+        AND EXISTS (SELECT 1 FROM loan_agreements a WHERE a.loan_id=l.id AND a.status='fully_signed')");
+    $disbursement->execute([$employeeId, $periodStart, $periodEnd]);
+
+    // Use the signed repayment schedule so no deduction is taken before the
+    // agreed first-deduction month.
+    $scheduled = $db->prepare("SELECT COALESCE(SUM(LEAST(s.amount,l.balance)),0)
+      FROM loans l
+      JOIN loan_agreements a ON a.loan_id=l.id AND a.status='fully_signed'
+      JOIN loan_repayment_schedule s ON s.agreement_id=a.id
+      WHERE l.employee_id=? AND l.status='active'
+        AND s.due_date BETWEEN ? AND ? AND s.status!='cancelled'");
+    $scheduled->execute([$employeeId, $periodStart, $periodEnd]);
+
+    // Preserve the historic deduction behaviour for pre-agreement loans.
+    $legacy = $db->prepare("SELECT COALESCE(SUM(LEAST(l.repayment_amount,l.balance)),0)
+      FROM loans l
+      WHERE l.employee_id=? AND l.status='active' AND l.loan_date<=?
+        AND EXISTS (SELECT 1 FROM loan_agreements a WHERE a.loan_id=l.id AND a.status='legacy_active')");
+    $legacy->execute([$employeeId, $periodEnd]);
+
+    return [
+        'disbursement' => round((float)$disbursement->fetchColumn(), 2),
+        'deduction' => round((float)$scheduled->fetchColumn() + (float)$legacy->fetchColumn(), 2),
+    ];
+}
+
+function loanAgreementSyncPayrollRun(PDO $db, int $runId): void {
+    if ($runId <= 0) return;
+    $run = $db->prepare("SELECT period_month,period_year,status FROM payroll_runs WHERE id=?");
+    $run->execute([$runId]);
+    $run = $run->fetch();
+    if (!$run || (string)$run['status'] === 'finalised') return;
+
+    $payslips = $db->prepare("SELECT * FROM payslips WHERE run_id=?");
+    $payslips->execute([$runId]);
+    $update = $db->prepare("UPDATE payslips SET loan_disbursement=?,loan_deduction=?,net_salary=? WHERE id=?");
+    foreach ($payslips->fetchAll() as $payslip) {
+        $loan = loanAgreementPayrollAmounts($db, (int)$payslip['employee_id'], (int)$run['period_month'], (int)$run['period_year']);
+        $net = round(
+            (float)$payslip['basic_salary'] + (float)$payslip['ot_pay'] + $loan['disbursement']
+            - (float)$payslip['paye'] - (float)$payslip['ssf']
+            - (float)($payslip['lwop_deduction'] ?? 0) - (float)($payslip['other_deductions'] ?? 0)
+            - $loan['deduction'] - (float)($payslip['medical_aid_employee'] ?? 0),
+            2
+        );
+        $update->execute([$loan['disbursement'], $loan['deduction'], $net, (int)$payslip['id']]);
+    }
+}
+
+function loanAgreementSyncEmployeePayroll(PDO $db, int $employeeId): void {
+    if ($employeeId <= 0) return;
+    $runs = $db->prepare("SELECT DISTINCT ps.run_id FROM payslips ps JOIN payroll_runs r ON r.id=ps.run_id WHERE ps.employee_id=? AND r.status!='finalised'");
+    $runs->execute([$employeeId]);
+    foreach ($runs->fetchAll(PDO::FETCH_COLUMN) as $runId) loanAgreementSyncPayrollRun($db, (int)$runId);
 }
 
 function loanAgreementStatusLabel(string $status): string {

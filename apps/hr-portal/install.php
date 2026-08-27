@@ -170,6 +170,8 @@ $tables_sql = [
   `lwop_deduction`   DECIMAL(10,2) DEFAULT 0.00,
   `paye`             DECIMAL(10,2) DEFAULT 0.00,
   `ssf`              DECIMAL(10,2) DEFAULT 0.00,
+  `loan_deduction`   DECIMAL(10,2) DEFAULT 0.00,
+  `loan_disbursement` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   `medical_aid_fund`     VARCHAR(120),
   `medical_aid_total`    DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   `medical_aid_company`  DECIMAL(10,2) NOT NULL DEFAULT 0.00,
