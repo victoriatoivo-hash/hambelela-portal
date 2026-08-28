@@ -16,7 +16,6 @@
   let packingChart;
   let latest;
   let packingMode = 'raw';
-  let presentationIndex = 0;
 
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character]));
   async function readKpiJson(response) {
@@ -142,7 +141,7 @@
     const attention = data.attention || [];
     const team = data.team || [];
     const online = team.filter((person) => Number(person.online)).length;
-    q('[data-kpi-management-story]').innerHTML = `<article class="kpi-management-hero"><div><p class="eyebrow">Executive presentation</p><h2>Business performance at a glance</h2><p>${escapeHtml(improving ? `${improving} measured area${improving === 1 ? '' : 's'} improved against the prior period.` : 'No reliable period-over-period improvement is available yet.')} ${escapeHtml(attention.length ? `${attention.length} exception${attention.length === 1 ? '' : 's'} need management attention.` : 'No current exception needs management attention.')}</p></div><div class="kpi-management-hero__facts"><span><strong>${measured.length}</strong> measured areas</span><span><strong>${online}</strong> of ${team.length} online</span><span><strong>${attention.length}</strong> attention items</span></div></article>`;
+    q('[data-kpi-management-story]').innerHTML = `<article class="kpi-management-hero"><div><p class="eyebrow">Business overview</p><h2>Business performance at a glance</h2><p>${escapeHtml(improving ? `${improving} measured area${improving === 1 ? '' : 's'} improved against the prior period.` : 'No reliable period-over-period improvement is available yet.')} ${escapeHtml(attention.length ? `${attention.length} exception${attention.length === 1 ? '' : 's'} need management attention.` : 'No current exception needs management attention.')}</p></div><div class="kpi-management-hero__facts"><span><strong>${measured.length}</strong> measured areas</span><span><strong>${online}</strong> of ${team.length} online</span><span><strong>${attention.length}</strong> attention items</span></div></article>`;
   }
 
   function renderOperationalFlow(data) {
@@ -160,25 +159,6 @@
   function renderManagementComparison(team) {
     const rows = (team || []).map((person) => { const ratio = (person.metrics || []).find((metric) => metric.denominator); const percent = ratio?.denominator ? Math.min(100, 100 * Number(ratio.numerator) / Number(ratio.denominator)) : null; return { ...person, percent }; });
     q('[data-kpi-management-comparison]').innerHTML = rows.length ? `<div class="kpi-management-compare-list">${rows.map((person) => `<a href="kpi-employee.php?id=${Number(person.id)}&period=${encodeURIComponent(period.value)}"><div><strong>${escapeHtml(person.name)}</strong><small>${person.card_type === 'packer' ? 'Packer Operational Index · completion against assigned packing workload' : 'Front Desk Order Completion Compliance · completed against applicable orders'}</small></div><span title="100% means every eligible assigned/applicable record was completed"><i style="width:${person.percent === null ? 0 : person.percent}%"></i></span><b>${person.percent === null ? 'Not calculated — denominator unavailable' : `${person.percent.toFixed(1)}% · 100% = all applicable work completed`}</b></a>`).join('')}</div>` : '<div class="kpi-empty-state">No role-relative employee evidence is available.</div>';
-  }
-
-  function presentationSections() {
-    return [...root.querySelectorAll('[data-kpi-management-story], [data-kpi-cards], .kpi-dashboard-operational-grid, .kpi-chart-grid, [data-kpi-team], [data-kpi-live-activity], [data-kpi-management-flow], [data-kpi-recognition]')];
-  }
-
-  function showPresentationSection(index) {
-    const sections = presentationSections();
-    if (!sections.length) return;
-    presentationIndex = (index + sections.length) % sections.length;
-    sections.forEach((section, sectionIndex) => section.classList.toggle('is-presentation-current', sectionIndex === presentationIndex));
-    q('[data-kpi-management-position]').textContent = `${presentationIndex + 1} / ${sections.length}`;
-  }
-
-  function setPresentationMode(active) {
-    root.classList.toggle('is-presentation', active);
-    q('[data-kpi-management-controls]').hidden = !active;
-    if (active) showPresentationSection(0);
-    else presentationSections().forEach((section) => section.classList.remove('is-presentation-current'));
   }
 
   function renderCharts(data) {
@@ -223,18 +203,6 @@
   period.addEventListener('change', () => { toggleCustom(); persist(); if (period.value !== 'custom') load(); });
   [from, to].forEach((input) => input.addEventListener('change', () => { persist(); if (from.value && to.value) load(); }));
   includeHistorical.addEventListener('change', () => { persist(); load(true); });
-  q('[data-kpi-refresh]').addEventListener('click', () => load(true));
-  q('[data-kpi-management-present]').addEventListener('click', () => setPresentationMode(true));
-  q('[data-kpi-management-print]').addEventListener('click', () => window.print());
-  q('[data-kpi-management-previous]').addEventListener('click', () => showPresentationSection(presentationIndex - 1));
-  q('[data-kpi-management-next]').addEventListener('click', () => showPresentationSection(presentationIndex + 1));
-  q('[data-kpi-management-exit]').addEventListener('click', () => setPresentationMode(false));
-  document.addEventListener('keydown', (event) => {
-    if (!root.classList.contains('is-presentation')) return;
-    if (event.key === 'Escape') setPresentationMode(false);
-    if (event.key === 'ArrowLeft') showPresentationSection(presentationIndex - 1);
-    if (event.key === 'ArrowRight') showPresentationSection(presentationIndex + 1);
-  });
   root.querySelectorAll('[data-kpi-chart-mode]').forEach((button) => button.addEventListener('click', () => { packingMode = button.dataset.kpiChartMode; root.querySelectorAll('[data-kpi-chart-mode]').forEach((item) => item.classList.toggle('active', item === button)); if (latest) renderPackingChart(latest); }));
   load();
 })();

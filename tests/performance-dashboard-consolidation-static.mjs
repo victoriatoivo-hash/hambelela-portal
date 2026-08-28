@@ -13,10 +13,12 @@ for (const heading of ['Business Health', 'Operations Team Overview', 'Recent Wo
 assert.match(page, /kpi-dashboard-operational-grid/, 'fulfilment and risks must share the operational overview');
 assert.match(page, /data-kpi-team/, 'employee summaries must be rendered as a stacked landing-page section');
 assert.match(page, /data-kpi-live-activity/, 'cross-portal activity must have a dedicated region');
+assert.doesNotMatch(page, /Historical Packed By Audit|Presentation Mode|Print \/ PDF/, 'secondary utilities must not clutter the Performance dashboard');
 assert.match(endpoint, /'live_activity'=>\$liveActivity/, 'the Business Health endpoint must provide live activity');
 assert.match(endpoint, /kpi_performance_employee_predicate\('e','r'\)/, 'live activity must respect employee eligibility');
 assert.match(script, /function renderLiveActivity/, 'live activity must be grouped and rendered by module');
 assert.match(script, /Number\.isFinite\(Number\(person\.summary_score\)\)/, 'employee scores must guard against NaN');
+assert.doesNotMatch(script, /presentationSections|setPresentationMode|data-kpi-management-present|data-kpi-management-print/, 'removed presentation utilities must not leave dead behaviour');
 assert.match(styles, /grid-template-columns:repeat\(6,minmax\(0,1fr\)\)/, 'desktop employee metrics must align in one row');
 assert.match(styles, /@media\(max-width:700px\)/, 'the consolidated dashboard must collapse responsively');
 

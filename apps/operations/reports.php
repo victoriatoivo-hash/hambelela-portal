@@ -260,10 +260,6 @@ include BASE_PATH . '/shared/sidebar.php';
             <h1><?= htmlspecialchars($currentKpiTitle,ENT_QUOTES,'UTF-8') ?></h1>
             <p><?= $tab === 'settings' ? 'Control data windows, fairness thresholds, working calendars and employee schedules.' : ($tab === 'employees' ? 'Role-relative performance evidence, workload and attendance for each employee.' : 'Evidence-based employee performance, accountability and operational insight.') ?></p>
         </div>
-        <div class="module-header-actions">
-            <?php if (user_has_role('owner_admin')): ?><a class="btn-secondary" href="historical-order-attribution-report.php">Historical Packed By Audit</a><?php endif; ?>
-            <?php if ($tab === 'business-health'): ?><button class="btn-primary" type="button" data-kpi-management-present>Presentation Mode</button><button class="btn-secondary" type="button" data-kpi-management-print>Print / PDF</button><button class="btn-secondary" type="button" data-kpi-refresh>Refresh</button><?php endif; ?>
-        </div>
     </section>
 
     <nav class="kpi-health-tabs" aria-label="Employee Performance sections">
@@ -304,7 +300,6 @@ include BASE_PATH . '/shared/sidebar.php';
         <section class="kpi-management-flow" data-kpi-management-flow aria-label="Operational flow"></section>
         <section class="kpi-recognition" data-kpi-recognition aria-label="Employee awards and recognition"></section>
         <div data-kpi-scores hidden></div><div data-kpi-management-comparison hidden></div>
-        <div class="kpi-presentation-controls" data-kpi-management-controls hidden><button type="button" data-kpi-management-previous>Previous</button><span data-kpi-management-position>1 / 1</span><button type="button" data-kpi-management-next>Next</button><button type="button" data-kpi-management-exit>Exit presentation</button></div>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
         <script src="<?= BASE_URL ?>/assets/js/reports-business-health.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/reports-business-health.js') ?>"></script>
     <?php elseif ($tab === 'employees'): ?>
