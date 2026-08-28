@@ -93,7 +93,7 @@ try {
     $packerDurations=[];$frontDurations=[];$inProgressToComplete=[];$packerDurationsByActor=[];$packerDurationsByMode=[];$oldestNewMinutes=null;$oldestOutstandingMinutes=null;
     foreach($orderRows as $order){
         $status=strtolower((string)$order['status']);$mode=strtolower((string)$order['fulfilment_mode']);$value=(float)$order['total_amount'];$createdAt=(string)$order['created_at'];
-        $isCompleted=in_array($status,['completed','packed','verified'],true);$isNew=in_array($status,['new','pending'],true);$isProgress=in_array($status,['in_progress','processing','packing'],true);
+        $isCompleted=in_array($status,['completed','packed','verified'],true);$isNew=in_array($status,['new','new_order','new-order','new order','pending','assigned'],true);$isProgress=in_array($status,['in_progress','processing','packing'],true);
         $isWalkIn=strpos(strtolower((string)$order['customer_name']),'walk-in')!==false||strpos(strtolower((string)$order['customer_name']),'walk in')!==false||strpos($mode,'walk')!==false;
         $orderFlow['eligible_value']+=$value;if($isCompleted){$orderFlow['completed']++;$orderFlow['completed_value']+=$value;}else{$orderFlow['outstanding']++;$orderFlow['outstanding_value']+=$value;}
         if($isNew){$orderFlow['new']++;$age=(time()-strtotime($createdAt))/60;$oldestNewMinutes=$oldestNewMinutes===null?$age:max($oldestNewMinutes,$age);}if($isProgress)$orderFlow['in_progress']++;

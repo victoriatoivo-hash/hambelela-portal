@@ -28,6 +28,10 @@ for (const label of ['Average operational fulfilment', 'Average payment settleme
 assert.match(endpoint, /settlement_minutes.*final_closure_minutes.*settled_n/, 'payment settlement and final closure must use separately measured paid-order evidence');
 assert.match(endpoint, /GREATEST\(completed_at,\{\$paidTimestampExpr\}\)/, 'final closure must stop at the later of completion and paid confirmation');
 assert.match(endpoint, /status IN \('completed','packed','verified'\).*completed_at >= created_at/, 'all order timing clocks must exclude invalid and non-completed records');
+assert.match(script, /kpi-flow-track/, 'order timing must render as colour-coded flow bars');
+assert.match(script, /Oldest waiting in New/, 'the active New-order age must have a clear label');
+assert.match(styles, /\.kpi-flow-metric\.is-green i\{background:#A8CA19\}/, 'flow timing metrics must use the portal colour language');
+assert.match(endpoint, /\['new','new_order','new-order','new order','pending','assigned'\]/, 'Oldest New must recognise every Orders Board new-order status');
 assert.match(styles, /grid-template-columns:repeat\(6,minmax\(0,1fr\)\)/, 'desktop employee metrics must align in one row');
 assert.match(styles, /@media\(max-width:700px\)/, 'the consolidated dashboard must collapse responsively');
 
