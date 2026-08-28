@@ -29,6 +29,9 @@ assert.match(service,/\['label'=>'Orders Still Pending Completion','value'=>\$co
 assert.match(service,/'pending_orders'=>array_values\(array_filter/, 'the API must expose pending order timing rows');
 for(const timingState of ['Walk-in completion window','Awaiting customer collection','Awaiting driver payment','Paid — completion window'])assert.match(service,new RegExp(timingState.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')),`pending timing must include ${timingState}`);
 assert.match(service,/Every widget uses this same in-scope order set/, 'the dashboard must disclose its common reconciliation set');
+assert.match(service,/\$scoped = array_values\(array_filter\(\$rows/, 'flow-card totals must use the complete reconciled order scope');
+assert.match(service,/'measured'=>count\(\$eligible\)/, 'flow cards must separately disclose the orders with usable timing evidence');
+assert.doesNotMatch(service,/if\(!\$walkIn&&!\$readyAt\).*unresolved_attribution/s, 'the presentation layer must not reclassify valid mode-specific clocks as unresolved');
 assert.doesNotMatch(service,/\$base\['metrics'\]=\[\['label'=>'Total Applicable Orders'/, 'the final dashboard layer must not restore the obsolete Total Applicable Orders label');
 assert.doesNotMatch(service,/\$base\['metrics'\]=/, 'the dashboard presentation layer must not override the reconciled evidence metrics');
 assert.match(service,/\$eventsByOrder=\$base\['_events_by_order'\]/, 'the dashboard must reuse the reconciliation event map instead of loading all events twice');
@@ -47,6 +50,8 @@ assert.match(client,/Historical data excluded/, 'unclear historical timing evide
 assert.match(client,/visible=metrics\.filter\(m=>m\.label!==\'Unclear Historical Responsibility\'\)/, 'the misleading historical-responsibility metric must be removed from the main card grid');
 assert.match(client,/data\.pending_orders\?\.length\?data\.pending_orders:\(data\.rows\|\|\[\]\)\.filter\(row=>row\.pending_timing\)/, 'the timeline must fall back to the authoritative source rows');
 assert.match(client,/Time remaining/, 'pending order cards must show remaining time');
+assert.match(client,/Timing measured/, 'flow cards must distinguish total orders from timing-eligible orders');
+assert.match(client,/kpi-front-duty-card__bar/, 'flow cards must visualise on-time versus late measured work');
 assert.match(css,/\.kpi-pending-timeline/, 'pending completion timeline must use the portal theme');
 assert.match(css,/\.kpi-pending-timeline>div\{[^}]*max-height:360px[^}]*overflow:auto/s, 'pending completion timeline must stay compact and scroll internally');
 assert.match(css,/\.kpi-order-evidence-item dl\{display:grid;grid-template-columns:repeat\(4/, 'order evidence details must use a readable responsive grid');
@@ -54,6 +59,7 @@ assert.match(client,/cache:'no-store'/, 'employee performance loads must bypass 
 assert.match(client,/_:String\(Date\.now\(\)\)/, 'employee performance loads must use a cache-busting request key');
 for(const label of ['Front Desk Orders in Scope','Walk-ins Assigned','Other Front Desk Orders','Clock start','Business duration','Applicable Orders by Fulfilment Mode','Completion Performance by Fulfilment Mode','Orders score explanation','Risk flags'])assert.match(client,new RegExp(label));
 assert.match(css,/kpi-front-score__ring/);
+assert.match(css,/kpi-front-duty-grid \.kpi-front-duty-card:nth-child\(3\)/, 'the three flow cards must have distinct category colours');
 assert.match(css,/@media\(prefers-reduced-motion:reduce\)/);
 assert.match(backend,/You may view only order evidence affecting your own KPI/);
 
