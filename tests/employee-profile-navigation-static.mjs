@@ -15,7 +15,11 @@ assert.match(indexClient, /data-kpi-employee-tabs/, 'employee-name tabs must use
 assert.doesNotMatch(indexClient, /Weighted points|kpi-employee-card|kpi-sparkline/, 'the Employees tab must not retain obsolete duplicate summary cards');
 assert.match(page, /kpi_performance_employee_predicate/, 'employee tabs must use performance eligibility');
 assert.match(page, /require_once __DIR__ \. '\/kpi-reporting\.php'/, 'employee profile must load the shared performance eligibility helper');
+for (const label of ['Business Health','Employees','Performance Reports','Business Activity Timeline','Audit Log','Performance Settings']) {
+  assert.match(page, new RegExp(`>${label}<`), `${label} must remain available inside an employee profile`);
+}
 assert.match(client, /activateEmployeeSection/, 'employee profile tabs must switch focused sections');
+assert.match(client, /front_packing_list_kpi/, 'front-desk website work must be routed to Website Updates instead of duplicated under packing');
 assert.match(client, /presentationSection\('hr-leave',s\.hr_leave\)/, 'HR and Leave must render from the existing employee response');
 assert.match(data, /'hr_leave'=>/, 'employee response must expose linked HR leave evidence');
 assert.match(data, /'website_updates'=>\['metrics'=>/, 'employee response must expose attributed Website Update evidence');
