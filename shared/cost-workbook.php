@@ -26,7 +26,66 @@ function cw_install_schema(PDO $pdo): void
     if ($version < 7) { cw_upgrade_packaging_schema_v7($pdo); $version = 7; }
     if ($version < 8) { cw_upgrade_landed_product_schema_v8($pdo); $version = 8; }
     if ($version < 9) { cw_upgrade_formulation_schema_v9($pdo); $version = 9; }
-    if ($version < 10) cw_upgrade_wholesale_pricing_schema_v10($pdo);
+    if ($version < 10) { cw_upgrade_wholesale_pricing_schema_v10($pdo); $version = 10; }
+    if ($version < 11) cw_upgrade_retail_pricing_schema_v11($pdo);
+}
+
+function cw_upgrade_retail_pricing_schema_v11(PDO $pdo): void
+{
+    $pdo->exec("CREATE TABLE IF NOT EXISTS cw_retail_prices (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        product_id BIGINT UNSIGNED NOT NULL,
+        size_conversion_id BIGINT UNSIGNED NOT NULL,
+        packaging_setup_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        woo_product_id BIGINT UNSIGNED NULL,
+        woo_variation_id BIGINT UNSIGNED NULL,
+        current_version INT UNSIGNED NOT NULL DEFAULT 1,
+        effective_date DATE NOT NULL,
+        active TINYINT(1) NOT NULL DEFAULT 1,
+        created_by BIGINT NULL, created_by_name VARCHAR(190) NOT NULL DEFAULT '', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_by BIGINT NULL, updated_by_name VARCHAR(190) NOT NULL DEFAULT '', updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_cw_retail_product_size(product_id,size_conversion_id,packaging_setup_id),
+        KEY idx_cw_retail_website(woo_product_id,woo_variation_id,active),
+        KEY idx_cw_retail_effective(effective_date,active)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS cw_retail_price_versions (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        retail_price_id BIGINT UNSIGNED NOT NULL,
+        version_no INT UNSIGNED NOT NULL,
+        landed_cost_id BIGINT UNSIGNED NOT NULL,
+        landed_cost_per_base DECIMAL(18,10) NOT NULL,
+        conversion_base_value DECIMAL(18,8) NOT NULL,
+        packaging_cost_ex_vat DECIMAL(18,8) NOT NULL DEFAULT 0,
+        packaging_cost_inc_vat DECIMAL(18,8) NOT NULL DEFAULT 0,
+        total_cost_ex_vat DECIMAL(18,8) NOT NULL,
+        total_cost_inc_vat DECIMAL(18,8) NOT NULL,
+        vat_rate DECIMAL(7,4) NOT NULL DEFAULT 15,
+        selling_price_inc_vat DECIMAL(18,8) NOT NULL,
+        selling_price_ex_vat DECIMAL(18,8) NOT NULL,
+        profit_per_unit DECIMAL(18,8) NOT NULL,
+        markup_percent DECIMAL(9,4) NOT NULL,
+        margin_percent DECIMAL(9,4) NOT NULL,
+        website_price_inc_vat DECIMAL(18,8) NULL,
+        website_stock_quantity DECIMAL(18,3) NULL,
+        effective_date DATE NOT NULL,
+        source_json JSON NOT NULL,
+        created_by BIGINT NULL, created_by_name VARCHAR(190) NOT NULL DEFAULT '', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_cw_retail_version(retail_price_id,version_no),
+        KEY idx_cw_retail_version_date(retail_price_id,effective_date,version_no)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS cw_retail_price_audit (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        retail_price_id BIGINT UNSIGNED NOT NULL,
+        action_key VARCHAR(60) NOT NULL,
+        before_json JSON NULL,
+        after_json JSON NULL,
+        actor_id BIGINT NULL, actor_name VARCHAR(190) NOT NULL DEFAULT '', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_cw_retail_audit(retail_price_id,created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    foreach (['retail_vat_rate'=>'15','retail_low_margin_threshold'=>'20'] as $key=>$value) {
+        $pdo->prepare("INSERT IGNORE INTO cw_settings(setting_key,setting_value,updated_by_name) VALUES(?,?,'system')")->execute([$key,$value]);
+    }
+    $pdo->prepare("INSERT INTO cw_settings(setting_key,setting_value,updated_by_name) VALUES('schema_version','11','system') ON DUPLICATE KEY UPDATE setting_value='11',updated_by_name='system'")->execute();
 }
 
 function cw_upgrade_wholesale_pricing_schema_v10(PDO $pdo): void
