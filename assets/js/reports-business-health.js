@@ -9,7 +9,7 @@
   const to = q('[data-kpi-to]');
   const custom = root.querySelectorAll('[data-kpi-custom]');
   const includeHistorical = q('[data-kpi-include-historical]');
-  const labels = { orders: 'Orders received', fulfilment: 'Average fulfilment', dispatch: 'On-time dispatch', pack_speed: 'Average elapsed packing time', revenue: 'Paid order revenue', attendance: 'Portal presence coverage' };
+  const labels = { orders: 'Orders received', fulfilment: 'Average operational fulfilment', settlement: 'Average payment settlement', final_closure: 'Average final closure', dispatch: 'On-time dispatch', pack_speed: 'Average elapsed packing time', revenue: 'Paid order revenue', attendance: 'Portal presence coverage' };
   const palette = getComputedStyle(root);
   const colour = (name) => palette.getPropertyValue(name).trim();
   let ordersChart;

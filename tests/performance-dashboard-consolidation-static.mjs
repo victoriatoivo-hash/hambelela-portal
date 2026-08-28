@@ -24,6 +24,9 @@ assert.match(endpoint, /NOT IN \('resolved','complete','completed','closed'\).*N
 for (const category of ["'system_issues'", "'communications'", "'quality'"]) assert.match(endpoint, new RegExp(category), `${category} must contribute an evidence-gated operational score`);
 assert.match(endpoint, /'operational_score_components'=>\$scores/, 'the score response must disclose its measured components');
 assert.match(script, /operational_score_components/, 'the dashboard must expose the measured score components');
+for (const label of ['Average operational fulfilment', 'Average payment settlement', 'Average final closure']) assert.match(script, new RegExp(label), `${label} must be shown separately`);
+assert.match(endpoint, /settlement_minutes.*final_closure_minutes.*settled_n/, 'payment settlement and final closure must use separately measured paid-order evidence');
+assert.match(endpoint, /GREATEST\(completed_at,\{\$paidTimestampExpr\}\)/, 'final closure must stop at the later of completion and paid confirmation');
 assert.match(styles, /grid-template-columns:repeat\(6,minmax\(0,1fr\)\)/, 'desktop employee metrics must align in one row');
 assert.match(styles, /@media\(max-width:700px\)/, 'the consolidated dashboard must collapse responsively');
 
