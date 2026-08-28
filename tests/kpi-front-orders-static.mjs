@@ -29,6 +29,9 @@ for(const evidence of ['portal_paid_decided_at','paid_updated_at','payment_updat
 for(const state of ['Awaiting driver payment','Paid — awaiting completion','Paid — completion overdue','Awaiting customer collection','cancellation review','Complete but not paid — Requires review'])assert.match(service,new RegExp(state.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')),`mode-aware result must include ${state}`);
 assert.match(service,/front_orders_close_after_payment_minutes'\]\?\?120/, 'delivery close timing must default to a two-business-hour target');
 assert.match(client,/Paid at.*Paid by.*Complete.*Completed By/s, 'order evidence must show payment and completion actors and timestamps together');
+assert.match(client,/Orders Used in This Calculation/, 'Front Desk evidence must use a clear user-facing heading');
+assert.match(client,/kpi-order-evidence-item/, 'Front Desk evidence must use a dedicated spacious record layout');
+assert.match(css,/\.kpi-order-evidence-item dl\{display:grid;grid-template-columns:repeat\(4/, 'order evidence details must use a readable responsive grid');
 assert.match(client,/cache:'no-store'/, 'employee performance loads must bypass stale browser JSON');
 assert.match(client,/_:String\(Date\.now\(\)\)/, 'employee performance loads must use a cache-busting request key');
 for(const label of ['Front Desk Orders in Scope','Walk-ins Assigned','Other Orders Completed','Clock start','Business duration','Applicable Orders by Fulfilment Mode','Completion Performance by Fulfilment Mode','Orders score explanation','Risk flags'])assert.match(client,new RegExp(label));
