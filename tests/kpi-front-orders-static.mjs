@@ -22,6 +22,8 @@ for(const label of ['Front Desk Orders in Scope','Walk-ins Assigned','Other Fron
 assert.match(service,/\$walkIn&&\$packedByEmployee/, 'walk-ins must use the assigned employee shown on Orders');
 assert.match(service,/!\$currentCompleted&&\$frontDeskEmployee&&\$readyAt/, 'pending non-walk-ins must enter the Front Desk queue after an evidenced handover');
 assert.match(service,/front_desk_other_pending/, 'the reconciliation must report unfinished Front Desk queue orders');
+assert.match(service,/\$currentStatus==='inprogress'\)\$counts\['in_progress_pending'\]\+\+/, 'the pending-completion widget must count only orders whose current status is In Progress');
+assert.match(service,/\['label'=>'Orders Still Pending Completion','value'=>\$counts\['in_progress_pending'\]/, 'the pending widget must use the strict In Progress count');
 assert.match(service,/Every widget uses this same in-scope order set/, 'the dashboard must disclose its common reconciliation set');
 assert.doesNotMatch(service,/\$base\['metrics'\]=\[\['label'=>'Total Applicable Orders'/, 'the final dashboard layer must not restore the obsolete Total Applicable Orders label');
 assert.doesNotMatch(service,/\$base\['metrics'\]=/, 'the dashboard presentation layer must not override the reconciled evidence metrics');
