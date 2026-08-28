@@ -16,7 +16,7 @@
   const metricHelp = {
     'Front Desk Orders in Scope':'Walk-ins assigned to this employee, plus non-walk-in orders whose Complete transition was performed by this employee. This is the common evidence set for the widgets below.',
     'Walk-ins Assigned':'Uses the configured walk-in marker from the order record and the employee assigned on the Orders page.',
-    'Other Front Desk Orders':'Counts non-walk-in orders completed by this employee plus unfinished orders that have entered the Front Desk queue through a recorded Ready or In Progress handover.',
+    'Other Front Desk Orders':'Counts non-walk-in orders completed by this employee plus current In Progress orders in the Front Desk queue. The live status is used even when the historical handover event is unavailable.',
     'Completed Orders in Scope':'Counts completed orders within the same reconciled evidence set; it does not introduce a second attribution filter.',
     'Workload points':'Estimates packing effort from package quantity, size, weight or volume, complexity and approved owner adjustments. It affects packer productivity only when the source row is classified.',
     'Valid timing records':'Shows completed records with a valid start and completion timestamp. Missing or impossible timestamps are excluded from speed calculations and reduce data coverage.',
