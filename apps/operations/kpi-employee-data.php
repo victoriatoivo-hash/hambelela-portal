@@ -146,7 +146,7 @@ try {
           'quality'=>kpi_error_quality_performance($employeeId,$errorsFromSql,$toSql,$eligible),
           'score_breakdown'=>['enabled'=>false,'message'=>'Composite scores, performance bands, rankings and bonuses remain disabled until source coverage is complete.','rows'=>[]]
         ];
-        if($frontOrders){foreach(['duty_analysis','pending_breakdown','mode_mix','mode_performance','payment_exceptions','risk_flags','orders_score'] as$frontKey)$payload['sections']['orders'][$frontKey]=$frontOrders[$frontKey]??null;}
+        if($frontOrders){foreach(['duty_analysis','pending_breakdown','pending_orders','mode_mix','mode_performance','payment_exceptions','risk_flags','orders_score'] as$frontKey)$payload['sections']['orders'][$frontKey]=$frontOrders[$frontKey]??null;}
         $attributionRows=ops_table_exists('ops_order_attribution_reviews')?ops_rows("SELECT r.order_id,o.order_number,o.completed_at,r.assignment_method,r.compliance_result,r.policy_applies,r.restored_at FROM ops_order_attribution_reviews r JOIN ops_orders o ON o.id=r.order_id WHERE r.confirmed_packer_id=? AND o.completed_at BETWEEN ? AND ? ORDER BY o.completed_at DESC",[$employeeId,$ordersFromSql,$toSql]):[];
         $attributionEligible=array_values(array_filter($attributionRows,static fn($row):bool=>in_array((string)$row['compliance_result'],['compliant','missed_attribution'],true)));
         $attributionCompliant=count(array_filter($attributionEligible,static fn($row):bool=>(string)$row['compliance_result']==='compliant'));

@@ -8,6 +8,7 @@ const css=fs.readFileSync('assets/css/portal.css','utf8');
 
 assert.match(backend,/require_once __DIR__ \. '\/kpi-front-orders\.php'/);
 assert.match(backend,/kpi_front_orders_dashboard/);
+assert.match(backend,/\['duty_analysis','pending_breakdown','pending_orders','mode_mix'/, 'the employee payload must forward pending order timing rows to the UI');
 assert.match(service,/ops_order_display_datetime_expr\('o'\)/);
 assert.match(service,/kpi_front_order_completion_event/);
 assert.match(service,/kpi_front_order_ready_event/);
