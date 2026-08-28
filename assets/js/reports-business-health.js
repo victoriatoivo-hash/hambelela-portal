@@ -101,7 +101,20 @@
   }
 
   function renderTeam(team) {
-    q('[data-kpi-team]').innerHTML = team.map((person) => `<article class="kpi-team-card is-${escapeHtml(person.card_type || 'employee')}"><a href="kpi-employee.php?id=${Number(person.id)}&period=${encodeURIComponent(period.value)}"><header><span class="kpi-person-dot ${person.online ? 'online' : ''}"></span><div><strong>${escapeHtml(person.name)}</strong><small>${escapeHtml(person.role)} · ${person.online ? 'Online' : 'Offline'}</small></div><b>${person.hours_today === null ? '—' : `${Number(person.hours_today).toFixed(1)} h`}</b></header><div>${person.metrics.map((metric) => `<span title="${escapeHtml(metric.tooltip || metric.evidence || '')}"><small>${escapeHtml(metric.label)}</small><strong>${metric.value === null ? '<i title="Not measured yet">—</i>' : escapeHtml(metric.value)}</strong><em>View Evidence</em></span>`).join('')}</div></a></article>`).join('');
+    q('[data-kpi-team]').innerHTML = team.length ? team.map((person) => {
+      const score = Number.isFinite(Number(person.summary_score)) ? Number(person.summary_score) : null;
+      const href = `kpi-employee.php?id=${Number(person.id)}&period=${encodeURIComponent(period.value)}`;
+      return `<article class="kpi-person-overview is-${escapeHtml(person.card_type || 'employee')}"><header><div class="kpi-person-overview__identity"><span class="kpi-person-avatar">${escapeHtml(String(person.name || '?').trim().charAt(0).toUpperCase())}</span><div><h3>${escapeHtml(person.name)}</h3><p>${escapeHtml(person.role)} <i class="kpi-person-dot ${person.online ? 'online' : ''}"></i> ${person.online ? 'Online' : 'Offline'}</p></div></div><div class="kpi-person-overview__score"><small>${escapeHtml(person.summary_label || 'Role completion')}</small><strong>${score === null ? 'Not measured' : `${score.toFixed(1)}%`}</strong><span><i style="width:${score === null ? 0 : score}%"></i></span></div></header><div class="kpi-person-overview__metrics">${(person.metrics || []).map((metric) => `<div title="${escapeHtml(metric.tooltip || metric.evidence || '')}"><small>${escapeHtml(metric.label)}</small><strong>${metric.value === null ? '—' : escapeHtml(metric.value)}</strong></div>`).join('')}</div><footer><span>${person.hours_today === null ? 'No measured portal time today' : `${Number(person.hours_today).toFixed(1)} hours measured today`}</span><a href="${href}">Open full performance evidence <b>→</b></a></footer></article>`;
+    }).join('') : '<div class="kpi-empty-state">No eligible employee performance evidence is available for this period.</div>';
+  }
+
+  function renderLiveActivity(items) {
+    const moduleNames = { order: 'Orders', orders: 'Orders', packing: 'Packing List', packing_task: 'Packing List', task: 'Task Management', checklist_task: 'Task Management', waybill: 'Courier Waybills', bookkeeping: 'Bookkeeping', website_update: 'Website Updates', error: 'Error Log' };
+    const moduleLinks = { order: 'orders-board.php', orders: 'orders-board.php', packing: 'consignments.php', packing_task: 'consignments.php', task: 'checklists.php', checklist_task: 'checklists.php', waybill: 'courier.php', bookkeeping: 'bookkeeping.php', website_update: 'consignments.php', error: 'errors.php' };
+    const actionLabel = (value) => String(value || 'updated a record').replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+    const timeLabel = (value) => { const date = new Date(String(value || '').replace(' ', 'T')); return Number.isNaN(date.getTime()) ? 'Time unavailable' : date.toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }); };
+    const grouped = (items || []).reduce((groups, item) => { const key = String(item.module || 'other').toLowerCase(); (groups[key] ||= []).push(item); return groups; }, {});
+    q('[data-kpi-live-activity]').innerHTML = Object.keys(grouped).length ? `<div class="kpi-live-activity__grid">${Object.entries(grouped).map(([module, rows]) => `<section><header><span>${escapeHtml(moduleNames[module] || actionLabel(module))}</span><b>${rows.length} update${rows.length === 1 ? '' : 's'}</b></header><div>${rows.slice(0, 6).map((item) => `<a href="${escapeHtml(moduleLinks[module] || 'reports.php?tab=business-activity')}"><i></i><span><strong>${escapeHtml(item.employee || 'Portal user')}</strong><small>${escapeHtml(actionLabel(item.action))}${item.record_id ? ` · Record ${Number(item.record_id)}` : ''}</small></span><time>${escapeHtml(timeLabel(item.occurred_at))}</time></a>`).join('')}</div></section>`).join('')}</div>` : '<div class="kpi-empty-state">No attributable employee activity was recorded in this reporting period.</div>';
   }
 
   function renderOrdersOverview(overview, operationalScore, operationalScoreMessage) {
@@ -150,7 +163,7 @@
   }
 
   function presentationSections() {
-    return [...root.querySelectorAll('[data-kpi-management-story], [data-kpi-recognition], [data-kpi-cards], [data-kpi-management-flow], .kpi-health-columns, .kpi-management-comparison, .kpi-chart-grid')];
+    return [...root.querySelectorAll('[data-kpi-management-story], [data-kpi-cards], .kpi-dashboard-operational-grid, .kpi-chart-grid, [data-kpi-team], [data-kpi-live-activity], [data-kpi-management-flow], [data-kpi-recognition]')];
   }
 
   function showPresentationSection(index) {
@@ -198,7 +211,7 @@
       q('[data-kpi-caption]').textContent = `${data.period.from} to ${data.period.to}`;
       q('[data-kpi-adoption]').textContent = `Averages calculated from ${new Date(`${data.period.adoption_date}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} (system adoption date).`;
       q('[data-kpi-adoption]').hidden = !data.period.show_adoption_banner;
-      renderCards(data.cards); renderManagementStory(data); renderRecognition(data.recognition); renderOperationalFlow(data); renderOrdersOverview(data.orders_overview, data.operational_score, data.operational_score_message); renderScores(data.scores, data.scores_disabled ? data.scores_message : ''); renderAttention(data.attention); renderTeam(data.team); renderManagementComparison(data.team); renderCharts(data);
+      renderCards(data.cards); renderManagementStory(data); renderRecognition(data.recognition); renderOperationalFlow(data); renderOrdersOverview(data.orders_overview, data.operational_score, data.operational_score_message); renderScores(data.scores, data.scores_disabled ? data.scores_message : ''); renderAttention(data.attention); renderTeam(data.team); renderLiveActivity(data.live_activity || []); renderManagementComparison(data.team); renderCharts(data);
     } catch (error) {
       root.querySelectorAll('.is-loading').forEach((node) => node.classList.remove('is-loading'));
       q('[data-kpi-error]').textContent = error.message;

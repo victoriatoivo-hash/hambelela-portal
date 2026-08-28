@@ -12,6 +12,10 @@ if (!in_array($tab, array_merge(['business-health','employees','settings'],array
 $currentKpiTitle = $tab === 'settings' ? 'Performance Settings' : ($tab === 'employees' ? 'Employees' : ($phaseThreeTabs[$tab] ?? 'Business Health'));
 $pageTitle = $currentKpiTitle . ' | ' . APP_NAME;
 $activeApp = 'kpi';
+$extraStylesheets = $tab === 'business-health' ? [[
+    'path' => 'assets/css/performance-dashboard.css',
+    'version' => is_file(BASE_PATH . '/assets/css/performance-dashboard.css') ? (string) filemtime(BASE_PATH . '/assets/css/performance-dashboard.css') : '1',
+]] : [];
 $ready = ops_database_ready();
 $message = '';
 $messageType = 'success';
@@ -281,21 +285,25 @@ include BASE_PATH . '/shared/sidebar.php';
         </section>
         <div class="kpi-adoption-banner" data-kpi-adoption hidden></div>
         <div class="ops-alert error" data-kpi-error hidden role="alert"></div>
-        <section class="kpi-health-grid" data-kpi-cards aria-label="Business health summary"><?php foreach (range(1, 6) as $placeholder): ?><article class="kpi-health-card is-loading"><span></span><strong></strong><small></small></article><?php endforeach; ?></section>
+        <header class="kpi-dashboard-section-head"><div><p>Business overview</p><h2>Business Health</h2></div><span>What is working, what is outstanding and what needs attention</span></header>
         <section class="kpi-management-story" data-kpi-management-story aria-live="polite"></section>
-        <section class="kpi-recognition" data-kpi-recognition aria-label="Employee awards and recognition"></section>
-        <section class="kpi-management-flow" data-kpi-management-flow aria-label="Operational flow"></section>
-        <section class="kpi-health-panel kpi-orders-first"><div class="kpi-panel-heading"><div><p class="eyebrow">Primary operational flow</p><h2>Orders</h2></div><small>Workflow stages and values are based on authoritative order records and status history</small></div><div data-kpi-orders-overview></div></section>
-        <section class="kpi-health-columns">
-            <article class="kpi-health-panel"><div class="kpi-panel-heading"><div><p class="eyebrow">Seven operating areas</p><h2>Operational scores</h2></div><small>Dash means unmeasured · fewer than 5 records is low data</small></div><div class="kpi-score-list" data-kpi-scores></div></article>
-            <article class="kpi-health-panel"><div class="kpi-panel-heading"><div><p class="eyebrow">Prioritised exceptions</p><h2>Needs attention</h2></div></div><div class="kpi-attention-list" data-kpi-attention></div></article>
+        <section class="kpi-health-grid" data-kpi-cards aria-label="Business health summary"><?php foreach (range(1, 6) as $placeholder): ?><article class="kpi-health-card is-loading"><span></span><strong></strong><small></small></article><?php endforeach; ?></section>
+        <section class="kpi-dashboard-operational-grid">
+            <article class="kpi-health-panel kpi-orders-first"><div class="kpi-panel-heading"><div><p class="eyebrow">Order fulfilment</p><h2>Operational completion</h2></div><small>Authoritative order records and status history</small></div><div data-kpi-orders-overview></div></article>
+            <article class="kpi-health-panel kpi-dashboard-risk"><div class="kpi-panel-heading"><div><p class="eyebrow">Risks and exceptions</p><h2>Needs attention</h2></div></div><div class="kpi-attention-list" data-kpi-attention></div></article>
         </section>
-        <section class="kpi-health-panel"><div class="kpi-panel-heading"><div><p class="eyebrow">Role-specific operational summaries</p><h2>Operations Team Overview</h2></div></div><div class="kpi-team-grid" data-kpi-team></div></section>
-        <section class="kpi-health-panel kpi-management-comparison"><div class="kpi-panel-heading"><div><p class="eyebrow">Role-relative comparison</p><h2>Employee comparison</h2></div><small>Workload context only · open an employee for evidence</small></div><div data-kpi-management-comparison></div></section>
         <section class="kpi-chart-grid">
             <article class="kpi-health-panel"><div class="kpi-panel-heading"><div><p class="eyebrow">Volume and value</p><h2>Orders and revenue</h2></div></div><div class="kpi-chart-frame"><canvas data-kpi-orders-chart></canvas></div></article>
             <article class="kpi-health-panel"><div class="kpi-panel-heading"><div><p class="eyebrow">Fair workload view</p><h2>Packing output</h2></div><div class="kpi-chart-toggle"><button type="button" class="active" data-kpi-chart-mode="raw">Packing items</button><button type="button" data-kpi-chart-mode="weighted">Workload Units</button></div></div><div class="kpi-chart-frame"><canvas data-kpi-packing-chart></canvas></div></article>
         </section>
+        <header class="kpi-dashboard-section-head"><div><p>People</p><h2>Operations Team Overview</h2></div><span>Each employee is shown separately using the work that applies to their role</span></header>
+        <section class="kpi-team-stack" data-kpi-team aria-label="Employee performance summaries"></section>
+        <header class="kpi-dashboard-section-head"><div><p>Live operations</p><h2>Recent Work Across the Portal</h2></div><span>Latest attributable employee activity, grouped by portal area</span></header>
+        <section class="kpi-health-panel kpi-live-activity" data-kpi-live-activity aria-live="polite"></section>
+        <header class="kpi-dashboard-section-head"><div><p>Operational detail</p><h2>Section Health and Employee Highlights</h2></div><span>Open any detailed section for its underlying evidence</span></header>
+        <section class="kpi-management-flow" data-kpi-management-flow aria-label="Operational flow"></section>
+        <section class="kpi-recognition" data-kpi-recognition aria-label="Employee awards and recognition"></section>
+        <div data-kpi-scores hidden></div><div data-kpi-management-comparison hidden></div>
         <div class="kpi-presentation-controls" data-kpi-management-controls hidden><button type="button" data-kpi-management-previous>Previous</button><span data-kpi-management-position>1 / 1</span><button type="button" data-kpi-management-next>Next</button><button type="button" data-kpi-management-exit>Exit presentation</button></div>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
         <script src="<?= BASE_URL ?>/assets/js/reports-business-health.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/reports-business-health.js') ?>"></script>
