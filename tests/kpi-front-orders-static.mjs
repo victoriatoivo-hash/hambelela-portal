@@ -25,6 +25,8 @@ assert.match(service,/authoritative In Progress status/, 'the evidence must disc
 assert.match(service,/front_desk_other_pending/, 'the reconciliation must report unfinished Front Desk queue orders');
 assert.match(service,/\$currentStatus==='inprogress'\)\$counts\['in_progress_pending'\]\+\+/, 'the pending-completion widget must count only orders whose current status is In Progress');
 assert.match(service,/\['label'=>'Orders Still Pending Completion','value'=>\$counts\['in_progress_pending'\]/, 'the pending widget must use the strict In Progress count');
+assert.match(service,/'pending_orders'=>array_values\(array_filter/, 'the API must expose pending order timing rows');
+for(const timingState of ['Walk-in completion window','Awaiting customer collection','Awaiting driver payment','Paid — completion window'])assert.match(service,new RegExp(timingState.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')),`pending timing must include ${timingState}`);
 assert.match(service,/Every widget uses this same in-scope order set/, 'the dashboard must disclose its common reconciliation set');
 assert.doesNotMatch(service,/\$base\['metrics'\]=\[\['label'=>'Total Applicable Orders'/, 'the final dashboard layer must not restore the obsolete Total Applicable Orders label');
 assert.doesNotMatch(service,/\$base\['metrics'\]=/, 'the dashboard presentation layer must not override the reconciled evidence metrics');
@@ -39,6 +41,9 @@ assert.match(service,/Walk-in — completion overdue/, 'pending walk-ins must be
 assert.match(client,/Paid at.*Paid by.*Complete.*Completed By/s, 'order evidence must show payment and completion actors and timestamps together');
 assert.match(client,/Orders Used in This Calculation/, 'Front Desk evidence must use a clear user-facing heading');
 assert.match(client,/kpi-order-evidence-item/, 'Front Desk evidence must use a dedicated spacious record layout');
+assert.match(client,/Pending Completion Timeline/, 'the employee page must show a dedicated pending-order countdown section');
+assert.match(client,/Time remaining/, 'pending order cards must show remaining time');
+assert.match(css,/\.kpi-pending-timeline/, 'pending completion timeline must use the portal theme');
 assert.match(css,/\.kpi-order-evidence-item dl\{display:grid;grid-template-columns:repeat\(4/, 'order evidence details must use a readable responsive grid');
 assert.match(client,/cache:'no-store'/, 'employee performance loads must bypass stale browser JSON');
 assert.match(client,/_:String\(Date\.now\(\)\)/, 'employee performance loads must use a cache-busting request key');
