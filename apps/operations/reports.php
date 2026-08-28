@@ -310,6 +310,7 @@ include BASE_PATH . '/shared/sidebar.php';
             <span class="kpi-period-caption" data-kpi-caption aria-live="polite">Loading reporting period…</span>
         </section>
         <div class="kpi-adoption-banner" data-kpi-adoption hidden></div><div class="ops-alert error" data-kpi-error hidden role="alert"></div>
+        <nav class="kpi-employee-tabs" data-kpi-employee-tabs aria-label="Employees"></nav>
         <section class="kpi-employee-index" data-kpi-employees><?php foreach (range(1, 3) as $placeholder): ?><article class="kpi-team-card is-loading"><header><span></span><div><strong></strong><small></small></div></header></article><?php endforeach; ?></section>
         <script src="<?= BASE_URL ?>/assets/js/reports-employees.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/reports-employees.js') ?>"></script>
     <?php elseif ($tab === 'performance-reports'): ?>
