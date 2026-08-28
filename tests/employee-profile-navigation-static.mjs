@@ -13,6 +13,8 @@ for (const label of ['Order & Packing Performance','Bookkeeping','Waybill Status
 assert.match(index, /data-kpi-employee-tabs/, 'Employees must expose employee-name tabs');
 assert.match(indexClient, /data-kpi-employee-tabs/, 'employee-name tabs must use the existing Employees response');
 assert.doesNotMatch(indexClient, /Weighted points|kpi-employee-card|kpi-sparkline/, 'the Employees tab must not retain obsolete duplicate summary cards');
+assert.match(indexClient, /kpi-employee-directory-card/, 'employee tabs must render as portal-themed profile selectors');
+assert.match(index, /Choose an employee/, 'the Employees page must introduce the employee directory clearly');
 assert.match(page, /kpi_performance_employee_predicate/, 'employee tabs must use performance eligibility');
 assert.match(page, /require_once __DIR__ \. '\/kpi-reporting\.php'/, 'employee profile must load the shared performance eligibility helper');
 for (const label of ['Business Health','Employees','Performance Reports','Business Activity Timeline','Audit Log','Performance Settings']) {

@@ -310,8 +310,11 @@ include BASE_PATH . '/shared/sidebar.php';
             <span class="kpi-period-caption" data-kpi-caption aria-live="polite">Loading reporting period…</span>
         </section>
         <div class="kpi-adoption-banner" data-kpi-adoption hidden></div><div class="ops-alert error" data-kpi-error hidden role="alert"></div>
-        <nav class="kpi-employee-tabs" data-kpi-employee-tabs aria-label="Employees"></nav>
-        <section class="kpi-employee-selection-note" data-kpi-employee-selection-note><p>Select an employee above to open their individual performance sections and supporting evidence.</p></section>
+        <section class="kpi-employee-directory-head" data-kpi-employee-selection-note>
+            <div><p class="eyebrow">Team performance</p><h2>Choose an employee</h2><p>Open an individual workspace to review role-specific performance, supporting evidence and activity.</p></div>
+            <span data-kpi-employee-count>Loading team…</span>
+        </section>
+        <nav class="kpi-employee-tabs kpi-employee-directory" data-kpi-employee-tabs aria-label="Employees"></nav>
         <script src="<?= BASE_URL ?>/assets/js/reports-employees.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/reports-employees.js') ?>"></script>
     <?php elseif ($tab === 'performance-reports'): ?>
         <section class="performance-report-controls" aria-label="Performance report filters">
