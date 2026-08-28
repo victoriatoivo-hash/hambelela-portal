@@ -26,7 +26,7 @@ function cw_render_product_pricing(array $period):void{ ?>
  </tr></thead><tbody data-rp-rows><tr><td colspan="18">Loading product pricing…</td></tr></tbody></table></div></section>
  <section class="retail-pricing__mobile" data-rp-mobile></section>
 </section>
-<div class="retail-pricing__backdrop" data-rp-backdrop></div>
+<div class="retail-pricing__backdrop" data-rp-backdrop hidden></div>
 <aside class="retail-pricing__drawer" data-rp-drawer aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="retailPriceDrawerTitle">
  <header><div><p>PRODUCT PRICING</p><h2 id="retailPriceDrawerTitle">Set selling price</h2><small>Choose the sellable size and website variation. Cost, VAT and profitability are calculated automatically.</small></div><button type="button" data-rp-close aria-label="Close product pricing panel"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button></header>
  <form data-rp-form><input type="hidden" name="id"><input type="hidden" name="product_id"><div class="retail-pricing__drawer-body">
