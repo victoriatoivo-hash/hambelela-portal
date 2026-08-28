@@ -22,6 +22,8 @@ assert.match(service,/front_orders_nonwalk_weight/);
 for(const label of ['Front Desk Orders in Scope','Walk-ins Assigned','Other Orders Completed','Orders Still Pending Completion','Completion Compliance','Unclear Historical Responsibility','Paid and Status Exceptions'])assert.match(service,new RegExp(label));
 assert.match(service,/\$walkIn&&\$packedByEmployee/, 'walk-ins must use the assigned employee shown on Orders');
 assert.match(service,/Every widget uses this same in-scope order set/, 'the dashboard must disclose its common reconciliation set');
+assert.doesNotMatch(service,/\$base\['metrics'\]=\[\['label'=>'Total Applicable Orders'/, 'the final dashboard layer must not restore the obsolete Total Applicable Orders label');
+assert.match(service,/walk-ins assigned \+.*other orders completed by this employee/, 'the total must disclose its auditable arithmetic');
 assert.match(service,/\$eventsByOrder=\$base\['_events_by_order'\]/, 'the dashboard must reuse the reconciliation event map instead of loading all events twice');
 assert.match(service,/LIMIT 2000/, 'monthly Front Desk reconciliation must not truncate at the former 500-order cap');
 assert.match(client,/cache:'no-store'/, 'employee performance loads must bypass stale browser JSON');
