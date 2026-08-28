@@ -22,6 +22,19 @@ include BASE_PATH . '/shared/sidebar.php';
     <div class="kpi-employee-identity"><span class="kpi-avatar" aria-hidden="true"><?= htmlspecialchars(strtoupper(substr((string) $employee['full_name'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span><div><p class="eyebrow">Employee Performance</p><h1><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?>’s Performance Profile</h1><p><?= htmlspecialchars((string) $employee['role_name'], ENT_QUOTES, 'UTF-8') ?> · <?= htmlspecialchars(ucfirst((string) $employee['status']), ENT_QUOTES, 'UTF-8') ?> <span data-kpi-online-state>· Checking presence…</span></p></div></div>
   </section>
   <section class="kpi-period-panel" aria-label="Reporting period"><label><span>Period</span><select data-kpi-period><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="this_week">This week</option><option value="last_week">Last week</option><option value="this_month">This month</option><option value="last_month">Previous month</option><option value="last_3_months">Last 3 months</option><option value="custom">Custom</option></select></label><label data-kpi-custom hidden><span>From</span><input type="date" data-kpi-from></label><label data-kpi-custom hidden><span>To</span><input type="date" data-kpi-to></label><span class="kpi-period-caption" data-kpi-caption>Loading…</span><span class="kpi-period-caption" data-kpi-refreshed>Last refreshed: —</span></section>
+  <section class="kpi-score-placeholder" aria-labelledby="employee-score-heading">
+    <div class="kpi-score-placeholder__mark" aria-hidden="true">—</div>
+    <div class="kpi-score-placeholder__copy">
+      <p class="eyebrow">Overall performance</p>
+      <h2 id="employee-score-heading">Score pending verification</h2>
+      <p>The overall score will appear here after every role-specific performance section has been checked and its source evidence confirmed.</p>
+    </div>
+    <div class="kpi-score-placeholder__status">
+      <span>Current status</span>
+      <strong>Not yet scored</strong>
+      <small>Missing evidence is not counted as zero.</small>
+    </div>
+  </section>
   <nav class="employee-kpi-jump-nav" aria-label="Employee Performance sections"><?php foreach (['order-packing'=>'Order & Packing Performance','tasks'=>'Task Management','bookkeeping'=>'Bookkeeping','waybills'=>'Waybill Status Management','hr-attendance'=>'HR, Leave & Attendance','website'=>'Website Updates','quality'=>'Errors and Quality','activity-log'=>'Activity Log'] as $key => $label): ?><a href="?id=<?= $employeeId ?>&amp;section=<?= $key ?>" data-employee-section="<?= $key ?>" class="<?= $initialAnchor===$key?'active':'' ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></a><?php endforeach; ?></nav>
   <div class="kpi-adoption-banner" data-kpi-adoption hidden></div><div class="ops-alert error" data-kpi-error hidden role="alert"></div>
   <section class="employee-kpi-page" data-kpi-employee-content><div class="kpi-health-grid"><?php foreach (range(1, 8) as $unused): ?><article class="kpi-health-card is-loading"><span></span><strong></strong><small></small></article><?php endforeach; ?></div></section>
