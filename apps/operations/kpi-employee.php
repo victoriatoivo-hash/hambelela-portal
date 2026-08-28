@@ -1,7 +1,6 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/operations.php';
-require_once __DIR__ . '/kpi-reporting.php';
 $currentEmployeeId=ops_current_employee_id();$canReview=current_role_key()==='owner_admin';
 
 $employeeId = max(0, (int) ($_GET['id'] ?? $currentEmployeeId));
@@ -14,24 +13,14 @@ if (!in_array($initialAnchor, $anchors, true)) $initialAnchor = 'order-packing';
 $pageTitle = $employee['full_name'] . ' Performance Profile | ' . APP_NAME;
 if (empty($_SESSION['kpi_presence_csrf_token'])) $_SESSION['kpi_presence_csrf_token']=bin2hex(random_bytes(32));
 $activeApp = 'kpi';
-$employeeOptions = $canReview ? ops_rows("SELECT e.id,e.full_name FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE " . kpi_performance_employee_predicate('e','r') . " ORDER BY e.full_name") : [];
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
 <main id="kpi-employee-profile" class="workspace module kpi-health-page kpi-employee-page" data-employee-id="<?= (int) $employee['id'] ?>" data-initial-anchor="<?= htmlspecialchars($initialAnchor, ENT_QUOTES, 'UTF-8') ?>" data-can-review="<?= $canReview?'1':'0' ?>" data-presence-csrf="<?= htmlspecialchars((string)$_SESSION['kpi_presence_csrf_token'],ENT_QUOTES,'UTF-8') ?>">
+  <nav class="kpi-employee-breadcrumb" aria-label="Breadcrumb"><a href="reports.php?tab=employees">Employees</a><span aria-hidden="true">›</span><strong><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></strong></nav>
   <section class="module-header kpi-employee-header">
     <div class="kpi-employee-identity"><span class="kpi-avatar" aria-hidden="true"><?= htmlspecialchars(strtoupper(substr((string) $employee['full_name'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span><div><p class="eyebrow">Employee Performance</p><h1><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?>’s Performance Profile</h1><p><?= htmlspecialchars((string) $employee['role_name'], ENT_QUOTES, 'UTF-8') ?> · <?= htmlspecialchars(ucfirst((string) $employee['status']), ENT_QUOTES, 'UTF-8') ?> <span data-kpi-online-state>· Checking presence…</span></p></div></div>
-    <div class="kpi-employee-header-actions"><?php if($canReview): ?><a class="btn-secondary" href="reports.php?tab=employees">Back to employees</a><?php endif; ?></div>
   </section>
-  <nav class="kpi-health-tabs" aria-label="Employee Performance sections">
-    <a href="reports.php?tab=business-health">Business Health</a>
-    <a href="reports.php?tab=employees" class="active">Employees</a>
-    <a href="reports.php?tab=performance-reports">Performance Reports</a>
-    <a href="reports.php?tab=business-activity">Business Activity Timeline</a>
-    <a href="reports.php?tab=audit-log">Audit Log</a>
-    <a href="reports.php?tab=settings">Performance Settings</a>
-  </nav>
-  <?php if($canReview): ?><nav class="kpi-employee-selector-tabs" aria-label="Employees"><?php foreach($employeeOptions as $option): ?><a href="kpi-employee.php?id=<?= (int)$option['id'] ?>&amp;period=<?= urlencode((string)($_GET['period']??'last_month')) ?>" class="<?= (int)$option['id']===$employeeId?'active':'' ?>"><?= htmlspecialchars((string)$option['full_name'],ENT_QUOTES,'UTF-8') ?></a><?php endforeach; ?></nav><?php endif; ?>
   <section class="kpi-period-panel" aria-label="Reporting period"><label><span>Period</span><select data-kpi-period><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="this_week">This week</option><option value="last_week">Last week</option><option value="this_month">This month</option><option value="last_month">Previous month</option><option value="last_3_months">Last 3 months</option><option value="custom">Custom</option></select></label><label data-kpi-custom hidden><span>From</span><input type="date" data-kpi-from></label><label data-kpi-custom hidden><span>To</span><input type="date" data-kpi-to></label><span class="kpi-period-caption" data-kpi-caption>Loading…</span><span class="kpi-period-caption" data-kpi-refreshed>Last refreshed: —</span></section>
   <nav class="employee-kpi-jump-nav" aria-label="Employee Performance sections"><?php foreach (['order-packing'=>'Order & Packing Performance','bookkeeping'=>'Bookkeeping','waybills'=>'Waybill Status Management','hr-leave'=>'HR and Leave','website'=>'Website Updates','quality'=>'Errors and Quality','activity-log'=>'Activity Log'] as $key => $label): ?><a href="?id=<?= $employeeId ?>&amp;section=<?= $key ?>" data-employee-section="<?= $key ?>" class="<?= $initialAnchor===$key?'active':'' ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></a><?php endforeach; ?></nav>
   <div class="kpi-adoption-banner" data-kpi-adoption hidden></div><div class="ops-alert error" data-kpi-error hidden role="alert"></div>

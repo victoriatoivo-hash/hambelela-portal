@@ -16,14 +16,10 @@ assert.doesNotMatch(indexClient, /Weighted points|kpi-employee-card|kpi-sparklin
 assert.match(indexClient, /kpi-employee-directory-card/, 'employee tabs must render as portal-themed profile selectors');
 assert.match(index, /Choose an employee/, 'the Employees page must introduce the employee directory clearly');
 assert.doesNotMatch(index, /\$tab === 'employees'[\s\S]{0,500}data-kpi-period/, 'the employee directory must not show a reporting-period selector');
-assert.match(page, /kpi_performance_employee_predicate/, 'employee tabs must use performance eligibility');
-assert.match(page, /require_once __DIR__ \. '\/kpi-reporting\.php'/, 'employee profile must load the shared performance eligibility helper');
-for (const label of ['Business Health','Employees','Performance Reports','Business Activity Timeline','Audit Log','Performance Settings']) {
-  assert.match(page, new RegExp(`>${label}<`), `${label} must remain available inside an employee profile`);
-}
+assert.match(page, /kpi-employee-breadcrumb/, 'employee profiles must show an Employees-to-person breadcrumb');
+assert.doesNotMatch(page, /reports\.php\?tab=performance-reports|reports\.php\?tab=business-activity|reports\.php\?tab=audit-log|reports\.php\?tab=settings/, 'employee profiles must not repeat the top-level Performance navigation');
 assert.match(client, /activateEmployeeSection/, 'employee profile tabs must switch focused sections');
 assert.match(client, /front_packing_list_kpi/, 'front-desk website work must be routed to Website Updates instead of duplicated under packing');
-assert.match(client, /ensurePerformanceNavigation/, 'the profile must recover the persistent Performance navigation when production PHP markup is stale');
 assert.match(client, /presentationSection\('hr-leave',s\.hr_leave\)/, 'HR and Leave must render from the existing employee response');
 assert.match(data, /'hr_leave'=>/, 'employee response must expose linked HR leave evidence');
 assert.match(data, /'website_updates'=>\['metrics'=>/, 'employee response must expose attributed Website Update evidence');
