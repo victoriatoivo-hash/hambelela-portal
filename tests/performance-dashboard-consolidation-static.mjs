@@ -21,6 +21,9 @@ assert.match(script, /Number\.isFinite\(Number\(person\.summary_score\)\)/, 'emp
 assert.doesNotMatch(script, /presentationSections|setPresentationMode|data-kpi-management-present|data-kpi-management-print/, 'removed presentation utilities must not leave dead behaviour');
 assert.match(script, /setInterval\(\(\) => \{ if \(!document\.hidden\) load\(true\); \}, 20000\)/, 'the visible dashboard must refresh current evidence every 20 seconds');
 assert.match(endpoint, /NOT IN \('resolved','complete','completed','closed'\).*NULLIF\(TRIM\(COALESCE\(resolution,''\)\),''\) IS NULL/, 'resolved Error Log records must be excluded from current attention');
+for (const category of ["'system_issues'", "'communications'", "'quality'"]) assert.match(endpoint, new RegExp(category), `${category} must contribute an evidence-gated operational score`);
+assert.match(endpoint, /'operational_score_components'=>\$scores/, 'the score response must disclose its measured components');
+assert.match(script, /operational_score_components/, 'the dashboard must expose the measured score components');
 assert.match(styles, /grid-template-columns:repeat\(6,minmax\(0,1fr\)\)/, 'desktop employee metrics must align in one row');
 assert.match(styles, /@media\(max-width:700px\)/, 'the consolidated dashboard must collapse responsively');
 
